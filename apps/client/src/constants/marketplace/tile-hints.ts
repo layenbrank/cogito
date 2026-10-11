@@ -15,6 +15,7 @@ const COMPONENT_LABELS: Partial<Record<MagneticTile.Component, string>> = {
   gallery: '图库',
   signboard: '看板',
   capture: '截屏',
+  directive: '指令',
   example: '示例',
   navigation: '网址'
 }
@@ -36,6 +37,7 @@ const TILE_HINTS: Partial<Record<MagneticTile.Component, string>> = {
   gallery: '图库浏览与管理',
   signboard: '看板任务与状态流转',
   capture: '截屏与标注工具',
+  directive: '指令编排与自动化运行',
   example: '示例磁贴与演示',
   navigation: '网址快捷入口'
 }

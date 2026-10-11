@@ -1,0 +1,23 @@
+/* 仅在按钮触发 expand/collapse 时开过渡，拖拽分栏不受影响 */
+.panesAnimating {
+  :global([data-panel]) {
+    transition:
+      flex-basis 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      flex-grow 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      flex-shrink 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+.panelBody {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 160ms ease;
+}
+
+.panelBodyCollapsed {
+  opacity: 0;
+  pointer-events: none;
+}

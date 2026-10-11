@@ -9,7 +9,7 @@ declare global {
 
     // type Reflection = Record<Component, (props: ComponentProps) => JSX.Element>
     /**
-     * 组件 → 渲染器。Partial：`directive` 等组件由其它 app 提供，client 未实现时跳过
+     * 组件 → 渲染器。Partial：个别组件尚未接入时跳过
      * （消费侧已按 undefined 兜底，不再要求补齐全量键）。
      */
     type Reflection = Partial<

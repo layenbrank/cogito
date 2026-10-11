@@ -47,7 +47,8 @@
   /* 略加深：浅色白底上边框可读（企业级对比），仍保持中性冷灰 */
   --border: oklch(0.88 0.006 214.3);
   --input: oklch(0.88 0.006 214.3);
-  --ring: oklch(0.723 0.014 214.4);
+  /* 与 primary 同色相，避免 Input/Select focus 呈冷灰环 */
+  --ring: oklch(0.488 0.243 264.376);
   /*
    * 终端面板（命令输出 / Code Mode / diff）恒深色 —— 一块「暗色孤岛」，
    * 与主题无关，所以 light/dark 用同一组值；面板内的状态色也必须自带，
@@ -98,7 +99,7 @@
   --sidebar-accent: oklch(0.963 0.002 197.1);
   --sidebar-accent-foreground: oklch(0.218 0.008 223.9);
   --sidebar-border: oklch(0.925 0.005 214.3);
-  --sidebar-ring: oklch(0.723 0.014 214.4);
+  --sidebar-ring: oklch(0.488 0.243 264.376);
 }
 
 .dark {
@@ -124,7 +125,7 @@
   --warning-foreground: oklch(0.145 0 0);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.56 0.021 213.5);
+  --ring: oklch(0.546 0.245 262.881);
   --primary-hover: color-mix(in oklab, var(--primary) 88%, white);
   --primary-active: color-mix(in oklab, var(--primary) 82%, black);
   --secondary-hover: color-mix(in oklab, var(--secondary) 92%, white);
@@ -145,7 +146,7 @@
   --sidebar-accent: oklch(0.275 0.011 216.9);
   --sidebar-accent-foreground: oklch(0.987 0.002 197.1);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.56 0.021 213.5);
+  --sidebar-ring: oklch(0.546 0.245 262.881);
   --signin-brand: oklch(0.145 0 0);
   --signin-brand-border: oklch(1 0 0 / 10%);
 }

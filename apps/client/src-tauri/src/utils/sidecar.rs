@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -17,6 +18,22 @@ const SIDECAR_EXIT_TIMEOUT: Duration = Duration::from_secs(2);
 
 const GRACEFUL_WAIT: Duration = Duration::from_millis(500);
 const HANDLE_SETTLE: Duration = Duration::from_millis(200);
+
+pub const COREX_DATA_DIR_ENV: &str = "COREX_DATA_DIR";
+const COREX_DB_FILE: &str = "corex.db";
+
+/// 与 sidecar 一致的 corex 数据目录（指令库 / token / 历史）。
+pub fn corex_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let base = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| format!("获取应用数据目录失败: {e}"))?;
+    Ok(base.join("corex"))
+}
+
+pub fn corex_database_path(data_dir: &PathBuf) -> PathBuf {
+    data_dir.join(COREX_DB_FILE)
+}
 
 pub struct SidecarState {
     ready: AtomicBool,
@@ -102,11 +119,22 @@ fn spawn(app: &AppHandle) -> Result<(), String> {
     // sidecar() 只要 externalBin 的文件名，不要 `binaries/` 前缀；
     // 运行时相对 current_exe 目录解析为 `corex-daemon.exe`。
     // pdfium.dll 经 tauri.conf resources 映射到与 sidecar 同目录，无需 COREX_PDFIUM_DIR。
+    let data_dir = corex_data_dir(app)?;
+    std::fs::create_dir_all(&data_dir)
+        .map_err(|e| format!("创建 corex 数据目录失败 ({}): {e}", data_dir.display()))?;
+    let data_dir_str = data_dir.to_string_lossy().into_owned();
+    // 父进程读 token / 指令库路径与 daemon 对齐
+    // 父进程 token 路径与 daemon 对齐（Rust 2024：`set_var` 为 unsafe）
+    unsafe {
+        std::env::set_var(COREX_DATA_DIR_ENV, &data_dir_str);
+    }
+
     let sidecar = app
         .shell()
         .sidecar("corex-daemon")
         .map_err(|e| format!("创建 corex-daemon sidecar 失败: {e}"))?
-        .args(["--pipe", ipc::PIPE_NAME]);
+        .args(["--pipe", ipc::PIPE_NAME])
+        .env(COREX_DATA_DIR_ENV, data_dir_str);
 
     let (mut rx, child) = sidecar
         .spawn()
@@ -147,14 +175,15 @@ fn spawn(app: &AppHandle) -> Result<(), String> {
 fn wait_for_daemon(timeout: Duration, state: &SidecarState) -> bool {
     let start = Instant::now();
     while start.elapsed() < timeout {
-        if state.probe() {
-            info!("corex-daemon IPC 已就绪");
+        // 管道通了还不够：必须能读到与 daemon 一致的 auth token
+        if state.probe() && ipc::auth_token().is_ok() {
+            info!("corex-daemon IPC 与 auth token 已就绪");
             return true;
         }
         std::thread::sleep(Duration::from_millis(200));
     }
     state.fail();
-    warn!("corex-daemon 在超时内未就绪，重能力调用可能失败");
+    warn!("corex-daemon 在超时内未就绪（或缺少 auth token），重能力调用可能失败");
     false
 }
 

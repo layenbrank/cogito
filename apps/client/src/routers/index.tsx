@@ -63,6 +63,22 @@ const Developer = lazy(function () {
   return import('@/views/developer/developer.tsx')
 })
 
+const Directive = lazy(function () {
+  return import('@/views/directive/directive.tsx')
+})
+
+const DirectiveLibraryPage = lazy(function () {
+  return import('@/views/directive/directive.tsx').then(function (mod) {
+    return { default: mod.DirectiveLibraryPage }
+  })
+})
+
+const DirectiveWorkspacePage = lazy(function () {
+  return import('@/views/directive/directive.tsx').then(function (mod) {
+    return { default: mod.DirectiveWorkspacePage }
+  })
+})
+
 const Example = lazy(function () {
   return import('@/views/example/example.tsx')
 })
@@ -130,6 +146,14 @@ const routes: RouteObject[] = [
   { path: '/collection', element: <Collection /> },
   { path: '/countdown', element: <Countdown /> },
   { path: '/developer', element: <Developer /> },
+  {
+    path: '/directive',
+    element: <Directive />,
+    children: [
+      { index: true, element: <DirectiveLibraryPage /> },
+      { path: ':name', element: <DirectiveWorkspacePage /> }
+    ]
+  },
   { path: '/example', element: <Example /> },
   { path: '/gallery', element: <Gallery /> },
   { path: '/markdown', element: <Markdown /> },

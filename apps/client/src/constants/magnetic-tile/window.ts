@@ -95,7 +95,8 @@ const WINDOW: WindowConfigure = {
     fullscreen: false
   },
   settings: DEFAULT,
-  signboard: DEFAULT
+  signboard: DEFAULT,
+  directive: DEFAULT
 }
 
 /**
