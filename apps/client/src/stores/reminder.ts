@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
+import { CHANNELS } from '@/shared/ipc/channels'
 
 interface Reminder {
   id: string
@@ -80,7 +81,7 @@ const useReminderStore = create<ReminderStore>()(
 
         async toReadReminders(filter = {}) {
           try {
-            const reminders = await invoke<Reminder[]>('reminder:read', {
+            const reminders = await invoke<Reminder[]>(CHANNELS.REMINDER.READ, {
               params: filter
             })
             setter(
@@ -107,7 +108,7 @@ const useReminderStore = create<ReminderStore>()(
 
         async toWriteReminder(value) {
           try {
-            const ids = await invoke<string[]>('reminder:write', {
+            const ids = await invoke<string[]>(CHANNELS.REMINDER.WRITE, {
               params: {
                 title: value.title,
                 notes: value.notes ?? '',
@@ -143,7 +144,7 @@ const useReminderStore = create<ReminderStore>()(
             'toUpdateReminder/optimistic'
           )
           try {
-            await invoke('reminder:update', { params: value })
+            await invoke(CHANNELS.REMINDER.UPDATE, { params: value })
             await getter().toReadReminders()
           } catch (err) {
             setter(
@@ -170,7 +171,7 @@ const useReminderStore = create<ReminderStore>()(
             'toRemoveReminder/optimistic'
           )
           try {
-            await invoke('reminder:remove', { params: key })
+            await invoke(CHANNELS.REMINDER.REMOVE, { params: key })
           } catch (err) {
             setter(
               function (state) {

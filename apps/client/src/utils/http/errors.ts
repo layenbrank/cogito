@@ -2,7 +2,8 @@ import { FetchError } from 'ofetch'
 
 import { TRACEPARENT_HEADER, traceIdOf } from './trace.ts'
 
-export const SUCCESS_CODE = 200
+/** 与 cogito / studio 信封一致：业务成功码 200000 */
+export const SUCCESS_CODE = 200000
 
 export class HttpException extends Error {
   readonly code: number

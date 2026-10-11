@@ -1,6 +1,7 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
 import { clsx, type ClassValue } from 'clsx'
-import { motion, useReducedMotion } from 'motion/react'
+import { useReducedMotion } from 'motion/react'
+import * as m from 'motion/react-m'
 import type { CSSProperties, MouseEventHandler, ReactNode } from 'react'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -166,7 +167,7 @@ const MagneticTile = {
         ])}
         style={props.style}>
         {isEnter ? (
-          <motion.div
+          <m.div
             className={surfaceClassName}
             style={surfaceStyle}
             variants={ENTER.variants}
@@ -174,7 +175,7 @@ const MagneticTile = {
             animate="show"
             transition={enterTransition}>
             {surfaceBody}
-          </motion.div>
+          </m.div>
         ) : (
           <div
             className={surfaceClassName}

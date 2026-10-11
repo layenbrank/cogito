@@ -178,7 +178,7 @@ function tryDirectDownload(url: string, filename: string): boolean {
  */
 function openInNewTab(url: string): boolean {
   try {
-    window.open(url, '_blank')
+    window.open(url, '_blank', 'noopener,noreferrer')
     return true
   } catch (error) {
     console.error('Failed to open image:', error)

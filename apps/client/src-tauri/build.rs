@@ -1,13 +1,4 @@
 fn main() {
-    let pdfium = std::path::Path::new("binaries/pdfium.dll");
-    if !pdfium.exists() {
-        panic!("binaries/pdfium.dll missing; run `pnpm sidecar bootstrap client` at repo root");
-    }
-    let meta = std::fs::metadata(pdfium).expect("stat pdfium.dll");
-    if meta.len() == 0 {
-        panic!("binaries/pdfium.dll is empty; run `pnpm sidecar bootstrap client` at repo root");
-    }
-
     let host = std::env::var("TAURI_ENV_TARGET_TRIPLE")
         .or_else(|_| std::env::var("TARGET"))
         .unwrap_or_else(|_| {
@@ -19,15 +10,30 @@ fn main() {
                 .map(|s| s.trim().to_string())
                 .unwrap_or_else(|| "x86_64-pc-windows-msvc".into())
         });
-    let goose_name = if cfg!(windows) {
-        format!("binaries/goose-{host}.exe")
-    } else {
-        format!("binaries/goose-{host}")
-    };
-    let goose = std::path::Path::new(&goose_name);
-    if !goose.exists() {
-        panic!("{goose_name} missing; run `pnpm sidecar bootstrap client` at repo root");
+
+    // pdfium：resources 映射到安装目录根；缺了 PDF morph 动作起不来。
+    require_nonempty(
+        "binaries/pdfium.dll",
+        "run `pnpm command sidecar bootstrap client` at repo root",
+    );
+
+    // externalBin：daemon（IPC）+ mcp（Agent）+ goose（ACP）
+    let suffix = if cfg!(windows) { ".exe" } else { "" };
+    for stem in ["corex-daemon", "corex-mcp", "goose"] {
+        let path = format!("binaries/{stem}-{host}{suffix}");
+        require_nonempty(&path, "run `pnpm command sidecar bootstrap client` at repo root");
     }
 
     tauri_build::build()
+}
+
+fn require_nonempty(relative: &str, hint: &str) {
+    let path = std::path::Path::new(relative);
+    if !path.exists() {
+        panic!("{relative} missing; {hint}");
+    }
+    let meta = std::fs::metadata(path).unwrap_or_else(|e| panic!("stat {relative}: {e}"));
+    if meta.len() == 0 {
+        panic!("{relative} is empty; {hint}");
+    }
 }

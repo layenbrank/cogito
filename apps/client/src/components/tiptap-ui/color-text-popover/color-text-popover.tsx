@@ -45,6 +45,7 @@ import {
 
 // --- Utils ---
 import { chunkArray } from '@/lib/tiptap-advanced-utils.ts'
+import { ColorGroup } from '@/components/tiptap-ui/color-text-popover/color-group.tsx'
 
 // --- Styles ---
 import '@/components/tiptap-ui/color-text-popover/color-text-popover.scss'
@@ -96,69 +97,6 @@ export const RecentColorButton: React.FC<RenderColorButtonProps> = ({
       {...commonProps}
     />
   )
-}
-
-export interface ColorGroupProps {
-  type: ColorType
-  colors: ColorItem[][]
-  onColorSelected: ({
-    type,
-    label,
-    value
-  }: {
-    type: ColorType
-    label: string
-    value: string
-  }) => void
-  selectedIndex?: number
-  startIndexOffset: number
-}
-
-export const ColorGroup: React.FC<ColorGroupProps> = ({
-  type,
-  colors,
-  onColorSelected,
-  selectedIndex,
-  startIndexOffset
-}) => {
-  return colors.map((group, groupIndex) => (
-    <ButtonGroup
-      key={`${type}-group-${groupIndex}`}
-      orientation="horizontal">
-      {group.map((color, colorIndex) => {
-        const itemIndex =
-          startIndexOffset +
-          colors.slice(0, groupIndex).reduce((acc, g) => acc + g.length, 0) +
-          colorIndex
-
-        const isHighlighted = selectedIndex === itemIndex
-
-        const commonProps = {
-          tooltip: color.label,
-          onApplied: () =>
-            onColorSelected({ type, label: color.label, value: color.value }),
-          tabIndex: isHighlighted ? 0 : -1,
-          'data-highlighted': isHighlighted,
-          'aria-label': `${color.label} ${type === 'text' ? 'text' : 'highlight'} color`
-        }
-
-        return type === 'text' ? (
-          <ColorTextButton
-            key={`${type}-${color.value}-${colorIndex}`}
-            textColor={color.value}
-            label={color.label}
-            {...commonProps}
-          />
-        ) : (
-          <ColorHighlightButton
-            key={`${type}-${color.value}-${colorIndex}`}
-            highlightColor={color.value}
-            {...commonProps}
-          />
-        )
-      })}
-    </ButtonGroup>
-  ))
 }
 
 interface RecentColorsSectionProps {

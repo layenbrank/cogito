@@ -3,6 +3,8 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 
+import { CHANNELS } from '@/shared/ipc/channels'
+
 interface WorkspaceSkill {
   id: string
   name: string
@@ -12,7 +14,7 @@ interface WorkspaceSkill {
 }
 
 async function fetchSkills(roots: string[]) {
-  return invoke<WorkspaceSkill[]>('workspaceSkills:list', {
+  return invoke<WorkspaceSkill[]>(CHANNELS.WORKSPACE_SKILLS.LIST, {
     params: { roots }
   })
 }

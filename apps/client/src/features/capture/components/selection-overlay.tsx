@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { Group, Layer, Rect, Shape, Text } from 'react-konva'
 import type Konva from 'konva'
 
@@ -100,7 +100,13 @@ export const SelectionOverlay = forwardRef<SelectionOverlayHandle, SelectionOver
     const borderDragRef = useRef<{ startX: number; startY: number } | null>(null)
     const borderGroupRef = useRef<Konva.Group>(null)
     const selectionRef = useRef(selection)
-    selectionRef.current = selection
+
+    useEffect(
+      function () {
+        selectionRef.current = selection
+      },
+      [selection]
+    )
 
     function clampSelection(type: HandleType, px: number, py: number) {
       const { sx, sy, sw, sh } = dragStartRef.current

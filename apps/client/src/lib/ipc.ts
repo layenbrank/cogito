@@ -4,6 +4,8 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 
+import { CHANNELS } from '@/shared/ipc/channels'
+
 type IpcResponse = {
   id: number
   ok: boolean
@@ -14,7 +16,7 @@ type IpcResponse = {
 }
 
 async function ipcInvoke(module: string, args: unknown, action?: string): Promise<IpcResponse> {
-  return invoke<IpcResponse>('ipc:invoke', { module, args, action })
+  return invoke<IpcResponse>(CHANNELS.IPC.INVOKE, { module, args, action })
 }
 
 function parseData<T>(resp: IpcResponse): T {

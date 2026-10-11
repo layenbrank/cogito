@@ -1,5 +1,6 @@
 import clsx from 'clsx'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, useReducedMotion } from 'motion/react'
+import * as m from 'motion/react-m'
 
 import { DIGIT } from '@/features/magnetic-tiles/clock/clock-motion.ts'
 import styles from './minimal.module.scss'
@@ -24,7 +25,7 @@ export function MinimalClock(props: MinimalClockProps) {
         <AnimatePresence
           mode="sync"
           initial={false}>
-          <motion.span
+          <m.span
             key={timeKey}
             className={styles.minimalTime}
             variants={DIGIT.variants}
@@ -34,15 +35,15 @@ export function MinimalClock(props: MinimalClockProps) {
             transition={transition}
             style={{ transformStyle: 'preserve-3d' }}>
             {props.h}:{props.m}
-          </motion.span>
+          </m.span>
         </AnimatePresence>
       </span>
-      {props.showSeconds ? (
-        <span className={styles.minimalSecSlot}>
-          <AnimatePresence
-            mode="sync"
-            initial={false}>
-            <motion.span
+      <span className={styles.minimalSecSlot}>
+        <AnimatePresence
+          mode="sync"
+          initial={false}>
+          {props.showSeconds ? (
+            <m.span
               key={props.s}
               className={styles.minimalSec}
               variants={DIGIT.variants}
@@ -52,12 +53,11 @@ export function MinimalClock(props: MinimalClockProps) {
               transition={transition}
               style={{ transformStyle: 'preserve-3d' }}>
               {props.s}
-            </motion.span>
-          </AnimatePresence>
-        </span>
-      ) : null}
+            </m.span>
+          ) : null}
+        </AnimatePresence>
+      </span>
     </div>
   )
 }
 
-export { styles as minimalStyles }

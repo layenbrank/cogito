@@ -4,7 +4,7 @@ import { type MouseEvent } from 'react'
 import { MagneticTile, type SectionProps } from '@/features/magnetic-tile/magnetic-tile.tsx'
 import styles from '@/features/magnetic-tiles/countdown/countdown.module.scss'
 
-import Marker from '@/features/magnetic-tiles/countdown/marker.tsx'
+import Marker from '@/features/magnetic-tiles/countdown/marker'
 
 export default function Countdown(props: SectionProps) {
   function onTrash(e: MouseEvent<HTMLElement>) {

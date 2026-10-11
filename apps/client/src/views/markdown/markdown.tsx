@@ -1,6 +1,6 @@
 import { Suspense, lazy } from 'react'
 
-import { WindowFrame } from '@/components/window-frame/index.ts'
+import { Decorations } from '@/components/decorations/index.ts'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 import styles from '@/views/markdown/markdown.module.scss'
 
@@ -10,14 +10,14 @@ const MarkdownWorkspace = lazy(function () {
 
 export default function Markdown() {
   return (
-    <WindowFrame
-      title={findComponentLabel('markdown')}
-      isScrollable={false}>
+    <Decorations
+      summary={findComponentLabel('markdown')}
+      scrollable={false}>
       <div className={styles.workspace}>
         <Suspense fallback={null}>
           <MarkdownWorkspace />
         </Suspense>
       </div>
-    </WindowFrame>
+    </Decorations>
   )
 }

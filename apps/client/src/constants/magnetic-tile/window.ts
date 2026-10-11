@@ -30,7 +30,7 @@ const DEFAULT: Configure = {
   visible: true,
   width: 1200,
   windowEffects: {
-    effects: [Effect.Tabbed, Effect.Mica, Effect.Acrylic]
+    effects: [Effect.Mica, Effect.Acrylic]
   }
 }
 
@@ -76,10 +76,7 @@ const WINDOW: WindowConfigure = {
   gallery: DEFAULT,
   agent: DEFAULT,
   markdown: DEFAULT,
-  morph: {
-    ...DEFAULT,
-    windowEffects: undefined
-  },
+  morph: DEFAULT,
   marketplace: {
     ...DEFAULT,
     minWidth: 900,

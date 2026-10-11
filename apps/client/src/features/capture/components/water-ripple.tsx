@@ -21,7 +21,7 @@ interface WaterRippleProps {
  */
 export default function WaterRipple(props: WaterRippleProps) {
   const { sourceImage, origin, width, height, onComplete, onClose } = props
-  const containerRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLButtonElement>(null)
   const cleanupRef = useRef<(() => void) | null>(null)
   const animFrameRef = useRef<number>(0)
 
@@ -271,17 +271,29 @@ export default function WaterRipple(props: WaterRippleProps) {
   )
 
   return (
-    <div
+    <button
+      type="button"
       ref={containerRef}
+      aria-label="关闭水波纹"
       onClick={onClose}
+      onKeyDown={function (event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onClose?.()
+        }
+      }}
       style={{
         position: 'fixed',
         left: 0,
         top: 0,
         width: `${width}px`,
         height: `${height}px`,
-        pointerEvents: 'none',
-        zIndex: 300
+        pointerEvents: onClose ? 'auto' : 'none',
+        zIndex: 300,
+        border: 'none',
+        padding: 0,
+        background: 'transparent',
+        cursor: onClose ? 'pointer' : 'default'
       }}
     />
   )

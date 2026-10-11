@@ -1,6 +1,6 @@
 import { Suspense, lazy } from 'react'
 
-import { WindowFrame } from '@/components/window-frame/index.ts'
+import { Decorations } from '@/components/decorations/index.ts'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 import styles from '@/views/example/example.module.scss'
 
@@ -10,14 +10,14 @@ const ExampleWorkspace = lazy(function () {
 
 export default function Example() {
   return (
-    <WindowFrame
-      title={findComponentLabel('example')}
-      isScrollable={false}>
+    <Decorations
+      summary={findComponentLabel('example')}
+      scrollable={false}>
       <div className={styles.workspace}>
         <Suspense fallback={null}>
           <ExampleWorkspace />
         </Suspense>
       </div>
-    </WindowFrame>
+    </Decorations>
   )
 }

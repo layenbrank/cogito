@@ -15,7 +15,8 @@ export default function Thumbnail(props: ThumbnailProps) {
   const { image, offset, isActive, annotationCount, offsetLabel, onClick } = props
 
   return (
-    <div
+    <button
+      type="button"
       className={clsx(styles.thumbnail, isActive && styles.active)}
       onClick={onClick}>
       <div className={styles.imageWrap}>
@@ -35,6 +36,6 @@ export default function Thumbnail(props: ThumbnailProps) {
         <span className={styles.pageNum}>{offset + 1}</span>
         {offsetLabel ? <span className={styles.pageLabel}>{offsetLabel}</span> : null}
       </div>
-    </div>
+    </button>
   )
 }

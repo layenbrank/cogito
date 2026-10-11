@@ -10,7 +10,8 @@ import { bindSortable, reorder, type SortableSession } from '@/features/controll
 import { registerMirrorSwitch } from '@/features/controller/mirror-switch'
 import styles from '@/features/controller/controller.module.scss'
 import { Reflection } from '@/features/controller/reflection.tsx'
-import { buildItems, CLASS_NAMES } from '@/features/magnetic-tile/layout-menu'
+import { CLASS_NAMES } from '@/features/magnetic-tile/layout-menu/constants'
+import { buildItems } from '@/features/magnetic-tile/layout-menu/items'
 import { MagneticTile } from '@/features/magnetic-tile/magnetic-tile.tsx'
 import {
   bindMirrorTransition,
@@ -33,7 +34,10 @@ const Controller = {
     const [viewId, setViewId] = useState(activeId)
     const paneRef = useRef<HTMLDivElement>(null)
     const scrimRef = useRef<HTMLDivElement>(null)
-    const transitionRef = useRef(bindMirrorTransition())
+    const transitionRef = useRef<ReturnType<typeof bindMirrorTransition> | null>(null)
+    if (transitionRef.current === null) {
+      transitionRef.current = bindMirrorTransition()
+    }
     const directionRef = useRef<MirrorDirection>(1)
     const isFirstEnter = useRef(true)
     const mirrorsRef = useRef(mirrors)

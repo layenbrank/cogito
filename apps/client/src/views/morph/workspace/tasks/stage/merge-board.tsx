@@ -96,7 +96,7 @@ function MergeBoard(props: MergeBoardProps) {
           const cover = covers[path]
           return (
             <div
-              key={`${path}-${index}`}
+              key={path}
               className={clsx(
                 styles.card,
                 dragIndex === index && styles.dragging,

@@ -3,6 +3,8 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 
+import { CHANNELS } from '@/shared/ipc/channels'
+
 interface DirEntry {
   name: string
   kind: 'file' | 'dir' | string
@@ -22,19 +24,19 @@ interface ReadFileResult {
 }
 
 async function listDir(root: string, relative = '') {
-  return invoke<DirEntry[]>('workspaceFiles:listDir', {
+  return invoke<DirEntry[]>(CHANNELS.WORKSPACE_FILES.LIST_DIR, {
     params: { root, relative: relative || null }
   })
 }
 
 async function search(roots: string[], query: string, limit = 50) {
-  return invoke<SearchHit[]>('workspaceFiles:search', {
+  return invoke<SearchHit[]>(CHANNELS.WORKSPACE_FILES.SEARCH, {
     params: { roots, query, limit }
   })
 }
 
 async function readFile(roots: string[], path: string) {
-  return invoke<ReadFileResult>('workspaceFiles:readFile', {
+  return invoke<ReadFileResult>(CHANNELS.WORKSPACE_FILES.READ_FILE, {
     params: { roots, path }
   })
 }

@@ -2,6 +2,7 @@ import { Icon } from '@iconify/react/offline'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@i-thinking/design/components/button'
 import { Checkbox } from '@i-thinking/design/components/checkbox'
+import { Spinner } from '@i-thinking/design/components/spinner'
 import {
   Form,
   FormControl,
@@ -9,23 +10,31 @@ import {
   FormItem,
   FormLabel
 } from '@i-thinking/design/components/form'
-import { ToggleGroup, ToggleGroupItem } from '@i-thinking/design/components/toggle-group'
-import { useEffect } from 'react'
+import { Tabs, TabsList, TabsTrigger } from '@i-thinking/design/components/tabs'
+import { useEffect, useRef } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import {
+  POST_SIGNIN,
+  POST_SIGNIN_EMAIL,
+  POST_SIGNIN_PHONE,
+  type SlideProof
+} from '@/apis/auth.ts'
+import { CaptchaField } from './captcha-field.tsx'
 import {
   LIMIT,
   MODE,
   SIGNIN_SCHEMA,
   type AuthMode,
   type SigninValues
-} from '@/features/signin/constants.ts'
-import { CaptchaField } from '@/features/signin/captcha-field.tsx'
-import { AuthField } from '@/features/signin/field.tsx'
-import { FormStagger, MotionField } from '@/features/signin/form-motion.tsx'
-import styles from '@/features/signin/signin.module.scss'
-import { useSessionStore } from '@/stores/session.ts'
+} from './constants.ts'
+import { AuthField } from './field.tsx'
+import { FormStagger, ModeSwap, MotionField } from './form-motion.tsx'
+import styles from './signin.module.scss'
+import { useSlideProof } from './slide'
+import { HttpError } from '@/utils/http/errors.ts'
+import { findRememberedUsername, writeAuthToken, writeRememberedUsername } from '@/utils/auth.ts'
 
 type SigninFormProps = {
   motionKey: number
@@ -33,50 +42,99 @@ type SigninFormProps = {
   onModeChange: (mode: AuthMode) => void
   onForgot: () => void
   onSignup: () => void
-  onSuccess?: () => void
+  onSuccess: () => void
 }
 
-/** 预填空串：zod 的 required 文案只在值是字符串时才生效 */
-const SIGNIN_DEFAULTS: SigninValues = {
-  username: '',
-  phone: '',
-  email: '',
-  password: '',
-  captcha: '',
-  remember: true
+interface SigninSession {
+  token: string
+  isRemembered: boolean
+}
+
+const SIGNIN: Record<
+  AuthMode,
+  (values: SigninValues, askSlide: () => Promise<SlideProof | null>) => Promise<SigninSession | null>
+> = {
+  async username(values, askSlide) {
+    const proof = await askSlide()
+    if (!proof) return null
+    const session = await POST_SIGNIN({
+      username: values.username ?? '',
+      password: values.password ?? '',
+      ...proof
+    })
+    return { token: session.token, isRemembered: values.remember !== false }
+  },
+  async phone(values) {
+    const session = await POST_SIGNIN_PHONE({
+      phone: values.phone ?? '',
+      code: values.captcha ?? ''
+    })
+    return { token: session.token, isRemembered: true }
+  },
+  async email(values) {
+    const session = await POST_SIGNIN_EMAIL({
+      email: values.email ?? '',
+      code: values.captcha ?? ''
+    })
+    return { token: session.token, isRemembered: true }
+  }
 }
 
 function SigninForm(props: SigninFormProps) {
   const { motionKey, signinMode, onModeChange, onForgot, onSignup, onSuccess } = props
-  const toSignIn = useSessionStore(function (state) {
-    return state.toSignIn
-  })
+  const { askSlide, dialog } = useSlideProof()
+  const modeRef = useRef(signinMode)
 
-  // 每个身份对应一套 schema；收窄一次泛型以满足 RHF 的联合类型
+  useEffect(
+    function () {
+      modeRef.current = signinMode
+    },
+    [signinMode]
+  )
+
+  // resolver 读 modeRef，切换身份不必整表 useForm 重建
   const form = useForm<SigninValues>({
-    resolver: zodResolver(SIGNIN_SCHEMA[signinMode]) as Resolver<SigninValues>,
-    defaultValues: SIGNIN_DEFAULTS
+    resolver: async function (values, context, options) {
+      const resolve = zodResolver(SIGNIN_SCHEMA[modeRef.current]) as Resolver<SigninValues>
+      return resolve(values, context, options)
+    },
+    defaultValues: {
+      remember: true,
+      username: findRememberedUsername() ?? ''
+    }
   })
 
   useEffect(
     function () {
-      form.reset(SIGNIN_DEFAULTS)
+      form.clearErrors()
+      form.reset({
+        remember: form.getValues('remember') !== false,
+        username: signinMode === MODE.USERNAME ? (findRememberedUsername() ?? '') : undefined,
+        phone: undefined,
+        email: undefined,
+        password: undefined,
+        captcha: undefined
+      })
     },
     [form, signinMode]
   )
 
-  function onSubmit(values: SigninValues) {
-    const username = values.username || values.email || values.phone || 'user'
-    toSignIn({
-      id: `mock-${Date.now()}`,
-      username,
-      avatarUrl: null
-    })
-    toast.success('登录成功（mock）')
-    onSuccess?.()
+  async function onSubmit(values: SigninValues) {
+    try {
+      const session = await SIGNIN[signinMode](values, askSlide)
+      if (!session) return
+      writeAuthToken(session.token, session.isRemembered)
+      if (signinMode === MODE.USERNAME) {
+        writeRememberedUsername(session.isRemembered ? (values.username ?? null) : null)
+      }
+      toast.success('登录成功')
+      onSuccess()
+    } catch (error) {
+      toast.error(HttpError(error).message || '登录失败')
+    }
   }
 
-  const isPasswordMode = signinMode === MODE.USERNAME || signinMode === MODE.EMAIL
+  const isPasswordMode = signinMode === MODE.USERNAME
 
   return (
     <Form {...form}>
@@ -84,107 +142,112 @@ function SigninForm(props: SigninFormProps) {
         className={styles.form}
         noValidate
         onSubmit={form.handleSubmit(onSubmit)}>
-        <FormStagger key={`${motionKey}-${signinMode}`}>
+        {/* 仅面板进入时重建 stagger；mode 切换走 ModeSwap */}
+        <FormStagger key={motionKey}>
           <MotionField className={styles.tabs}>
-            <ToggleGroup
-              className="grid w-full grid-cols-3"
-              value={[signinMode]}
+            <Tabs
+              value={signinMode}
               onValueChange={function (value) {
-                const next = value[0] as AuthMode | undefined
-                if (next) onModeChange(next)
+                onModeChange(value as AuthMode)
               }}>
-              {MODE.options.map(function (option) {
-                return (
-                  <ToggleGroupItem
-                    key={option.value}
-                    value={option.value}
-                    className="data-[pressed]:bg-primary/10 data-[pressed]:text-primary">
-                    {option.label}
-                  </ToggleGroupItem>
-                )
-              })}
-            </ToggleGroup>
+              <TabsList className="grid w-full grid-cols-3">
+                {MODE.options.map(function (option) {
+                  return (
+                    <TabsTrigger
+                      key={option.value}
+                      value={option.value}>
+                      {option.label}
+                    </TabsTrigger>
+                  )
+                })}
+              </TabsList>
+            </Tabs>
           </MotionField>
 
-          {signinMode === MODE.USERNAME && (
-            <>
-              <MotionField>
-                <AuthField
-                  control={form.control}
-                  name="username"
-                  label="用户名"
-                  placeholder="请输入用户名"
-                  icon={<Icon icon="lucide:user" />}
-                  maxLength={LIMIT.USERNAME}
-                  autoComplete="username"
-                />
-              </MotionField>
-              <MotionField>
-                <AuthField
-                  control={form.control}
-                  name="password"
-                  type="password"
-                  label="密码"
-                  placeholder="请输入密码"
-                  icon={<Icon icon="lucide:lock" />}
-                  maxLength={LIMIT.PASSWORD}
-                  autoComplete="current-password"
-                />
-              </MotionField>
-            </>
-          )}
+          <MotionField>
+            <ModeSwap mode={signinMode}>
+              {signinMode === MODE.USERNAME && (
+                <>
+                  <div className={styles.fieldMotion}>
+                    <AuthField
+                      control={form.control}
+                      name="username"
+                      label="用户名"
+                      placeholder="请输入用户名"
+                      icon={<Icon icon="lucide:user" />}
+                      maxLength={LIMIT.USERNAME}
+                      autoComplete="username"
+                    />
+                  </div>
+                  <div className={styles.fieldMotion}>
+                    <AuthField
+                      control={form.control}
+                      name="password"
+                      type="password"
+                      label="密码"
+                      placeholder="请输入密码"
+                      icon={<Icon icon="lucide:lock" />}
+                      maxLength={LIMIT.PASSWORD}
+                      autoComplete="current-password"
+                    />
+                  </div>
+                </>
+              )}
 
-          {signinMode === MODE.PHONE && (
-            <>
-              <MotionField>
-                <AuthField
-                  control={form.control}
-                  name="phone"
-                  label="手机号"
-                  placeholder="请输入手机号"
-                  icon={<Icon icon="lucide:smartphone" />}
-                  inputMode="numeric"
-                  maxLength={LIMIT.PHONE}
-                  autoComplete="tel"
-                />
-              </MotionField>
-              <MotionField>
-                <CaptchaField
-                  form={form}
-                  mode={MODE.PHONE}
-                  targetField="phone"
-                />
-              </MotionField>
-            </>
-          )}
+              {signinMode === MODE.PHONE && (
+                <>
+                  <div className={styles.fieldMotion}>
+                    <AuthField
+                      control={form.control}
+                      name="phone"
+                      label="手机号"
+                      placeholder="请输入手机号"
+                      icon={<Icon icon="lucide:smartphone" />}
+                      inputMode="numeric"
+                      maxLength={LIMIT.PHONE}
+                      autoComplete="tel"
+                    />
+                  </div>
+                  <div className={styles.fieldMotion}>
+                    <CaptchaField
+                      key="phone-otp"
+                      form={form}
+                      mode={MODE.PHONE}
+                      purpose="otp"
+                      targetField="phone"
+                      askSlide={askSlide}
+                    />
+                  </div>
+                </>
+              )}
 
-          {signinMode === MODE.EMAIL && (
-            <>
-              <MotionField>
-                <AuthField
-                  control={form.control}
-                  name="email"
-                  label="邮箱"
-                  placeholder="请输入邮箱"
-                  icon={<Icon icon="lucide:mail" />}
-                  maxLength={LIMIT.EMAIL}
-                  autoComplete="email"
-                />
-              </MotionField>
-              <MotionField>
-                <AuthField
-                  control={form.control}
-                  name="password"
-                  type="password"
-                  label="密码"
-                  placeholder="请输入密码"
-                  icon={<Icon icon="lucide:lock" />}
-                  maxLength={LIMIT.PASSWORD}
-                  autoComplete="current-password"
-                />
-              </MotionField>
-            </>
-          )}
+              {signinMode === MODE.EMAIL && (
+                <>
+                  <div className={styles.fieldMotion}>
+                    <AuthField
+                      control={form.control}
+                      name="email"
+                      label="邮箱"
+                      placeholder="请输入邮箱"
+                      icon={<Icon icon="lucide:mail" />}
+                      maxLength={LIMIT.EMAIL}
+                      autoComplete="email"
+                    />
+                  </div>
+                  <div className={styles.fieldMotion}>
+                    <CaptchaField
+                      key="email-otp"
+                      form={form}
+                      mode={MODE.EMAIL}
+                      purpose="otp"
+                      targetField="email"
+                      askSlide={askSlide}
+                    />
+                  </div>
+                </>
+              )}
+            </ModeSwap>
+          </MotionField>
 
           <MotionField className={styles.extra}>
             {isPasswordMode ? (
@@ -222,18 +285,32 @@ function SigninForm(props: SigninFormProps) {
           <MotionField className={styles.actions}>
             <Button
               type="submit"
-              className="h-11 w-full">
-              登录
+              className="h-11 w-full gap-2 transition-[transform,box-shadow] duration-150 active:scale-[0.985]"
+              disabled={form.formState.isSubmitting}
+              aria-busy={form.formState.isSubmitting}>
+              {form.formState.isSubmitting ? (
+                <>
+                  <Spinner className="size-4" />
+                  登录中…
+                </>
+              ) : (
+                '登录'
+              )}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11 w-full"
-              onClick={onSignup}>
-              注册
-            </Button>
+            <div className={styles.signupHint}>
+              <span>还没有账号？</span>
+              <Button
+                type="button"
+                variant="link"
+                className="h-auto p-0"
+                disabled={form.formState.isSubmitting}
+                onClick={onSignup}>
+                注册
+              </Button>
+            </div>
           </MotionField>
         </FormStagger>
+        {dialog}
       </form>
     </Form>
   )

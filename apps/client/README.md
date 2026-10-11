@@ -10,9 +10,9 @@
 > - 样式栈已随仓库对齐到 **Tailwind v4 + `@i-thinking/design`**：入口为 `src/styles/tailwind.css`
 >   （`@import '@i-thinking/design/globals.css'` + `@source '../'`），antd 与 `src/themes/**`（`--ith-*` cssVar）
 >   已全部移除；旧 v3 `@tailwind` 指令已不存在
-> - 窗口一律 `decorations: false`，桌面壳自绘：`WindowFrame`（`src/components/window-frame/`）是所有窗口的
->   容器（标题栏 + 撑满内容 + 纵向 flex），`Caption`（`src/components/caption/`）是它的标题栏（拖拽区带
->   `data-region`，槽位里的按钮带 `data-region="false"`）；主窗口等自带 mica 的传 `isFramed={false}`；
+> - 窗口一律 `decorations: false`，桌面壳自绘：`Decorations`（`src/components/decorations/`）是所有窗口的
+>   容器（标题栏 + 撑满内容 + 纵向 flex，根透明让 mica / 透明材质透出），`Caption`（`src/components/caption/`）
+>   是它的标题栏（拖拽区带 `data-region`，槽位里的按钮带 `data-region="false"`）；
 >   磁贴不再用 Dialog，双击开独立窗口
 > - 主窗口标题栏内容在 `src/views/overview/caption/`：镜像入口（切换 + 新建/重命名/删除）、
 >   状态芯片（corex / 可更新）、账号

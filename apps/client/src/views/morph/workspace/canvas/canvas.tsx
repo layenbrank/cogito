@@ -446,8 +446,13 @@ export default function Canvas() {
   const offsetRef = useRef(offset)
   const ignoreScrollSync = useRef(false)
 
-  zoomRef.current = zoom
-  offsetRef.current = offset
+  useEffect(
+    function () {
+      zoomRef.current = zoom
+      offsetRef.current = offset
+    },
+    [zoom, offset]
+  )
 
   const pageWidth = file?.width ?? 595
   const pageHeight = file?.height ?? 842

@@ -50,6 +50,8 @@ export function removeAllMarksExcept(tr: Transaction, skip: string[] = []) {
 
   if (empty) return tr
 
+  const skipSet = new Set(skip)
+
   ranges.forEach((range) => {
     const from = range.$from.pos
     const to = range.$to.pos
@@ -58,7 +60,7 @@ export function removeAllMarksExcept(tr: Transaction, skip: string[] = []) {
       if (!node.isInline) return true
 
       node.marks.forEach((mark) => {
-        if (!skip.includes(mark.type.name)) {
+        if (!skipSet.has(mark.type.name)) {
           tr.removeMark(pos, pos + node.nodeSize, mark.type)
         }
       })
@@ -82,6 +84,8 @@ export function canResetMarks(tr: Transaction, skip: string[] = []): boolean {
 
   if (empty) return false
 
+  const skipSet = new Set(skip)
+
   for (const range of ranges) {
     const from = range.$from.pos
     const to = range.$to.pos
@@ -92,7 +96,7 @@ export function canResetMarks(tr: Transaction, skip: string[] = []): boolean {
       if (!node.isInline) return true
 
       for (const mark of node.marks) {
-        if (!skip.includes(mark.type.name)) {
+        if (!skipSet.has(mark.type.name)) {
           hasRemovableMarks = true
           return false
         }

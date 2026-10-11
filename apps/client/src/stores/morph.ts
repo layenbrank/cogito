@@ -262,20 +262,27 @@ const useMorphStore = create<MorphState>()(
           // Activate the first file
           await getter().toOpenFile(paths[0])
           // Add remaining files to list without switching
-          for (let i = 1; i < paths.length; i++) {
-            const path = paths[i]
-            if (getter().files.some((f) => f.path === path)) continue
-            try {
-              const meta: Meta = await MorphIpc.toMeta(path)
-              // await upsertFile(meta)
-              setter((s) => {
-                if (!s.files.some((f) => f.path === path)) s.files.push(meta)
-              })
-            } catch (error) {
-              console.log('error', error)
-              // skip unreadable file
-            }
-          }
+          const extraPaths = paths.slice(1).filter(function (path) {
+            return !getter().files.some(function (f) {
+              return f.path === path
+            })
+          })
+          await Promise.all(
+            extraPaths.map(async function (path) {
+              try {
+                const meta: Meta = await MorphIpc.toMeta(path)
+                setter(function (s) {
+                  if (!s.files.some(function (f) {
+                    return f.path === path
+                  })) {
+                    s.files.push(meta)
+                  }
+                })
+              } catch (error) {
+                console.log('error', error)
+              }
+            })
+          )
         },
 
         async toOpenFile(path: string) {

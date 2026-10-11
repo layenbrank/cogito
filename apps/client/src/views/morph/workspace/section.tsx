@@ -1,5 +1,6 @@
 import { clsx } from 'clsx'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, useReducedMotion } from 'motion/react'
+import * as m from 'motion/react-m'
 
 import Canvas from '@/views/morph/workspace/canvas/canvas.tsx'
 import { TaskWorkbench } from '@/views/morph/workspace/tasks/task-workbench.tsx'
@@ -30,7 +31,7 @@ function Section() {
         <AnimatePresence
           mode="wait"
           initial={false}>
-          <motion.div
+          <m.div
             key={pane}
             className={styles.pane}
             initial={{
@@ -47,7 +48,7 @@ function Section() {
             }}
             transition={transition}>
             {pane === 'canvas' ? <Canvas /> : <TaskWorkbench />}
-          </motion.div>
+          </m.div>
         </AnimatePresence>
       </div>
     </div>

@@ -2,7 +2,13 @@
   "mcpServers": {
     "corex": {
       "command": "corex-mcp",
-      "args": ["--directives", ".cache/corex/directives"]
+      "args": [
+        "--directives",
+        ".cache/corex/directives"
+      ]
+    },
+    "shaders": {
+      "url": "https://shaders.com/mcp"
     }
   }
 }

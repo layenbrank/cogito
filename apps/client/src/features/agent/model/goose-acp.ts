@@ -19,8 +19,60 @@ import { clearGooseUsage, writeGooseUsage } from '@/features/agent/acp/goose-usa
 import { parseAcpSessionUpdate, parseAcpUsageUpdate } from '@/features/agent/acp/normalize'
 import { parseModels, stringifyModels } from '@/features/agent/model/providers'
 import type { ChatMessage, NormalizedChunk, ProviderConfig } from '@/features/agent/types'
+import { CHANNELS } from '@/shared/ipc/channels'
+import { StatusSchema } from '@/shared/ipc/specs/sidecar'
 import { useAgentStore } from '@/stores/agent'
 import { useProviderStore } from '@/stores/provider'
+
+/** ACP stdio MCP 条目（与 @agentclientprotocol/sdk McpServer 同形） */
+interface AcpMcpServer {
+  name: string
+  command: string
+  args: string[]
+  env: Array<{ name: string; value: string }>
+}
+
+const COREX_MCP_PREF_KEY = 'corex.mcp.tools'
+
+/** 开关：默认开；`VITE_COREX_MCP=0` 或 localStorage `corex.mcp.tools=0` 关闭。无旧工具适配层。 */
+function isCorexToolsEnabled(): boolean {
+  try {
+    if (import.meta.env.VITE_COREX_MCP === '0') return false
+    const stored = localStorage.getItem(COREX_MCP_PREF_KEY)
+    if (stored === '0' || stored === 'false') return false
+  } catch {
+    /* ignore */
+  }
+  return true
+}
+
+async function findCorexMcpServers(sessionID: string): Promise<AcpMcpServer[]> {
+  if (!isCorexToolsEnabled()) return []
+  try {
+    const raw = await invoke(CHANNELS.SIDECAR.TO_READ)
+    const status = StatusSchema.parse(raw)
+    const command = status.mcpPath?.trim()
+    const dataDir = status.dataDir?.trim()
+    if (!command || !dataDir) {
+      console.info('[goose-acp] 未注入 corex-mcp：缺少 mcpPath 或 dataDir')
+      return []
+    }
+    return [
+      {
+        name: 'corex',
+        command,
+        args: [],
+        env: [
+          { name: 'COREX_DATA_DIR', value: dataDir },
+          { name: 'COREX_MCP_SESSION', value: `goose-acp:${sessionID}` }
+        ]
+      }
+    ]
+  } catch (error) {
+    console.warn('[goose-acp] 解析 corex-mcp 注入失败:', error)
+    return []
+  }
+}
 
 interface GooseChatParams {
   signal?: AbortSignal
@@ -296,10 +348,11 @@ async function openAcpSession(
     console.info('[goose-acp] authMethods 含 goose-provider，请确认已在设置中配置供应商')
   }
 
+  const mcpServers = await findCorexMcpServers(sessionID)
   const session = await handle.connection.agent
     .buildSession({
       cwd,
-      mcpServers: [],
+      mcpServers,
       _meta: { client: 'i-thinking' }
     })
     .start()
@@ -417,8 +470,7 @@ async function* chatGooseAcp(
     ?.content?.trim()
 
   await waitGooseReady()
-  const handle = await findAcpHandle()
-  const cwd = await findWorkspaceCwd()
+  const [handle, cwd] = await Promise.all([findAcpHandle(), findWorkspaceCwd()])
   const { session } = await ensureAcpSession(sessionID, cwd, config.kind, config.model)
 
   if (systemText) {
@@ -512,7 +564,7 @@ function sleep(ms: number): Promise<void> {
 async function waitGooseReady(): Promise<void> {
   const deadline = Date.now() + READY_TIMEOUT_MS
   while (Date.now() < deadline) {
-    const status = await invoke<boolean | null>('goose:ready')
+    const status = await invoke<boolean | null>(CHANNELS.GOOSE.READY)
     if (status === true) {
       await findAcpHandle()
       return

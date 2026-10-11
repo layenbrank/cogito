@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { check } from '@tauri-apps/plugin-updater'
 import { toast } from 'sonner'
+import { CHANNELS } from '@/shared/ipc/channels'
 
 import { relaunchApp } from '@/utils/process'
 
@@ -38,7 +39,7 @@ function dismissPendingUpdate() {
 
 async function prepareUpdate() {
   try {
-    await invoke('sidecar:shutdown')
+    await invoke(CHANNELS.SIDECAR.SHUTDOWN)
   } catch (error) {
     const text = error instanceof Error ? error.message : String(error)
     console.warn('[updater] sidecar:shutdown failed (NSIS hook will retry):', text)

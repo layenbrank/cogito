@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { appLocalDataDir, join } from '@tauri-apps/api/path'
 import { BaseDirectory, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs'
 import { save as dialogSave } from '@tauri-apps/plugin-dialog'
+import { CHANNELS } from '@/shared/ipc/channels'
 
 /** 将文本写入系统剪贴板 */
 export async function copyText(text: string): Promise<void> {
@@ -45,7 +46,7 @@ export async function pinTexture(
   const filePath = await join(dir, 'textures', `${id}.png`)
   await writeFile(filePath, dataUrlToBytes(dataUrl))
 
-  await invoke('asset:insert', {
+  await invoke(CHANNELS.ASSET.INSERT, {
     params: {
       filePath,
       fileName: `${id}.png`,

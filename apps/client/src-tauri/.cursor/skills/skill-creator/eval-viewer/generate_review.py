@@ -289,7 +289,7 @@ def _kill_port(port: int) -> None:
     """Kill any process listening on the given port."""
     try:
         result = subprocess.run(
-            ["lsof", "-ti", f":{port}"],
+            ["lsof", "-ti", ":" + str(port)],
             capture_output=True, text=True, timeout=5,
         )
         for pid_str in result.stdout.strip().split("\n"):

@@ -1,6 +1,14 @@
 import { clsx } from 'clsx'
-import { AnimatePresence, motion } from 'motion/react'
-import type { CompositionEvent, FormEvent } from 'react'
+import { AnimatePresence } from 'motion/react'
+import * as m from 'motion/react-m'
+import {
+  useCallback,
+  useState,
+  type CompositionEvent,
+  type FormEvent,
+  type KeyboardEvent,
+  type MouseEvent
+} from 'react'
 
 import { useResize } from '@/hooks/useResize'
 
@@ -28,7 +36,7 @@ interface ComboboxProps {
   section: React.ReactNode
   visible?: boolean
   onUpdate?: onUpdateEvent
-  onClick?: (event: React.MouseEvent<HTMLDivElement, MouseEvent>) => void
+  onClick?: (event: MouseEvent<HTMLDivElement>) => void
 }
 
 function Provider(props: ComboboxProps) {
@@ -76,9 +84,19 @@ function Provider(props: ComboboxProps) {
     props.onUpdate?.(value, DOMStringified, event)
   }
 
+  function onRootKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (!props.onClick) return
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    props.onClick(event as unknown as MouseEvent<HTMLDivElement>)
+  }
+
   return (
     <div
+      role={props.onClick ? 'button' : undefined}
+      tabIndex={props.onClick ? 0 : undefined}
       onClick={props.onClick}
+      onKeyDown={props.onClick ? onRootKeyDown : undefined}
       ref={setRef}
       style={{
         // '--combobox-height': `${DOMRect?.height ?? 0}px`,
@@ -109,7 +127,7 @@ function Provider(props: ComboboxProps) {
       </div>
       <AnimatePresence>
         {props.visible && (
-          <motion.div
+          <m.div
             key="combobox-section" // 必须设置key，用于识别组件身份
             initial={{
               opacity: 0,
@@ -133,7 +151,7 @@ function Provider(props: ComboboxProps) {
             style={{ transformOrigin: 'top' }}
             className={clsx(['combobox-section', props.classNames?.section])}>
             {props.section}
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>

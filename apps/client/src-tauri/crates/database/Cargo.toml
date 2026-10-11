@@ -3,9 +3,13 @@ name    = "thinking-database"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "thinking-database"
+path = "src/bin/migrate.rs"
+
 [dependencies]
 sea-orm           = { workspace = true }
-sea-orm-migration = { workspace = true }
+sea-orm-migration = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio-rustls", "cli"] }
 async-trait       = { workspace = true }
 serde             = { workspace = true }
 serde_json        = { workspace = true }

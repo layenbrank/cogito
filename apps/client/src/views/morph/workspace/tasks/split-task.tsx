@@ -9,6 +9,10 @@ import {
   parseRangesToOffsets,
   toggleOffset
 } from '@/features/magnetic-tiles/morph/page-ranges'
+import {
+  canSplitSubmit,
+  findSplitMeta
+} from '@/views/morph/workspace/tasks/split-task-copy.ts'
 import { PathField } from '@/views/morph/workspace/tasks/path-field.tsx'
 import { OperationStage } from '@/views/morph/workspace/tasks/stage/operation-stage.tsx'
 import { PageBoard } from '@/views/morph/workspace/tasks/stage/page-board.tsx'
@@ -86,14 +90,14 @@ function SplitTask() {
     return Math.floor(offset / limit)
   }
 
-  const canSubmit =
-    Boolean(destDir) && Boolean(file) && (mode === 'limit' ? limit > 0 : selectedOffsets.size > 0)
-
-  const meta = !file
-    ? '请先打开 PDF'
-    : mode === 'ranges'
-      ? `已选 ${selectedOffsets.size} / ${count} 页`
-      : `每文件 ${limit} 页 · 共 ${count} 页`
+  const canSubmit = canSplitSubmit(
+    Boolean(destDir),
+    Boolean(file),
+    mode,
+    limit,
+    selectedOffsets.size
+  )
+  const meta = findSplitMeta(Boolean(file), mode, selectedOffsets.size, count, limit)
 
   return (
     <OperationStage

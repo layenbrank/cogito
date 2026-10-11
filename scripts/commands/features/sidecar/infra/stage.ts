@@ -33,6 +33,11 @@ interface StageTarget {
    * 随包只会白白多 256 MB。
    */
   tools?: string[]
+  /**
+   * 落盘后**必须**出现在目录里的文件名（已经过 mapFileName）。
+   * 缺一则 bootstrap / verify 失败——避免半成品 checksums 静默通过。
+   */
+  requiredNames?(): string[]
 }
 
 /** 这个目标要不要这个工具（没声明 tools 就是都要） */
@@ -81,10 +86,11 @@ async function stageVendoredTools(
     }
     const pins = findLockPins(lock, tool.key)
     if (!pins || !hasToolPin(pins, platform)) {
-      // corex 缺了起不来（引擎）；client 的 goose / pdfium 是 build.rs 直接检的硬依赖
+      // corex / pdfium 缺了起不来；client 另需 goose（build.rs / externalBin）
       const required =
         tool.key === 'corex' ||
-        (target.id === 'client' && (tool.key === 'goose' || tool.key === 'pdfium'))
+        tool.key === 'pdfium' ||
+        (target.id === 'client' && tool.key === 'goose')
       if (required) {
         throw new Error(`[stage] 当前平台无 ${tool.key} 钉死版本: ${platform}（应用=${target.id}）`)
       }
@@ -110,6 +116,8 @@ async function stageVendoredTools(
     }
   }
 
+  assertRequiredStaged(target, destDir, hashes)
+
   writeChecksums(destDir, hashes, platform, onDemand)
   console.log(
     `[stage:${target.id}] 已写入 ${CHECKSUMS_FILE}（${Object.keys(hashes).length} 个文件，` +
@@ -117,5 +125,33 @@ async function stageVendoredTools(
   )
 }
 
-export { hasTool, parseStagingChecksums, stageVendoredTools, writeChecksums }
+/** 必选文件必须进 checksums 且落在磁盘上。 */
+function assertRequiredStaged(
+  target: StageTarget,
+  destDir: string,
+  hashes: Record<string, string>
+): void {
+  const required = target.requiredNames?.() ?? []
+  if (required.length === 0) {
+    return
+  }
+  const missing: string[] = []
+  for (const name of required) {
+    const filePath = path.join(destDir, name)
+    if (!existsSync(filePath) || !hashes[name]) {
+      missing.push(name)
+    }
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `[stage:${target.id}] 缺少必需落盘文件: ${missing.join(', ')}。` +
+        '确认 corex 发版 ZIP 含 corex-mcp(+pdfium)，且 tools.lock 已指向该完整包；' +
+        '然后重跑 `pnpm command sidecar bootstrap ' +
+        target.id +
+        '`。'
+    )
+  }
+}
+
+export { assertRequiredStaged, hasTool, parseStagingChecksums, stageVendoredTools, writeChecksums }
 export type { StageTarget, StagingChecksums }

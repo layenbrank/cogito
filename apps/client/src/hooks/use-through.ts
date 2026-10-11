@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { useEffect, useRef, type RefObject } from 'react'
+import { CHANNELS } from '@/shared/ipc/channels'
 
 const HIT_SELECTOR = "[data-region='false']"
 
@@ -40,14 +41,14 @@ function findHitRects(root: HTMLElement): ThroughRect[] {
 }
 
 function clearSource(source: string) {
-  void invoke('through:update-rects', {
+  void invoke(CHANNELS.THROUGH.UPDATE_RECTS, {
     source,
     rects: [] as ThroughRect[]
   }).catch(function () {})
 }
 
 function publishRects(source: string, rects: ThroughRect[]) {
-  void invoke('through:update-rects', { source, rects }).catch(function () {})
+  void invoke(CHANNELS.THROUGH.UPDATE_RECTS, { source, rects }).catch(function () {})
 }
 
 /**
@@ -57,7 +58,13 @@ function publishRects(source: string, rects: ThroughRect[]) {
 function useThrough(source: string, options: ThroughOptions) {
   const { rootRef, enabled = true } = options
   const sourceRef = useRef(source)
-  sourceRef.current = source
+
+  useEffect(
+    function () {
+      sourceRef.current = source
+    },
+    [source]
+  )
 
   useEffect(
     function () {

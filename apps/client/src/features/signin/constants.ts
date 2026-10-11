@@ -60,7 +60,7 @@ const LIMIT = {
 const HEAD = {
   [PANEL.SIGNIN]: {
     title: '欢迎回来',
-    subtitle: '登录您的账号以继续'
+    subtitle: '登录后同步磁贴、Agent、镜像与指令'
   },
   [PANEL.FORGOT]: {
     title: '找回密码',
@@ -68,30 +68,35 @@ const HEAD = {
   },
   [PANEL.SIGNUP]: {
     title: '创建账号',
-    subtitle: '注册后即可使用 i-thinking'
+    subtitle: '注册即可使用磁贴、Agent 与指令工作台'
   }
 } satisfies Record<PanelView, HeadText>
 
 // ── 校验：zod schema（配合 react-hook-form 的 zodResolver）──
 
 const USERNAME_MESSAGE = '用户名长度为 2–12 个字符'
-const PASSWORD_MESSAGE = '密码长度为 4–20 个字符'
-const PASSWORD_MISMATCH = '两次输入的密码不一致！'
+const PASSWORD_MESSAGE = '密码长度为 6–20 个字符'
 
 const usernameField = z
   .string()
+  .trim()
   .min(1, '请输入用户名！')
   .min(2, USERNAME_MESSAGE)
   .max(LIMIT.USERNAME, USERNAME_MESSAGE)
 
-const phoneField = z.string().min(1, '请输入手机号！').regex(PATTERN.PHONE, '手机号格式错误！')
+const phoneField = z.string().trim().min(1, '请输入手机号！').regex(PATTERN.PHONE, '手机号格式错误！')
 
-const emailField = z.string().min(1, '请输入邮箱！').regex(PATTERN.EMAIL, '邮箱格式错误！')
+const emailField = z
+  .string()
+  .trim()
+  .min(1, '请输入邮箱！')
+  .max(LIMIT.EMAIL, `邮箱最长为 ${LIMIT.EMAIL} 个字符`)
+  .regex(PATTERN.EMAIL, '邮箱格式错误！')
 
 const passwordField = z
   .string()
   .min(1, '请输入密码！')
-  .min(4, PASSWORD_MESSAGE)
+  .min(6, PASSWORD_MESSAGE)
   .max(LIMIT.PASSWORD, PASSWORD_MESSAGE)
 
 const confirmField = z.string().min(1, '请确认密码！')
@@ -99,17 +104,17 @@ const confirmField = z.string().min(1, '请确认密码！')
 const captchaField = z
   .string()
   .min(1, '请输入验证码！')
-  .length(LIMIT.CAPTCHA, '验证码为 6 位数字')
-  .regex(/^\d{6}$/, '验证码格式错误！')
+  .regex(/^\d{6}$/, '验证码为 6 位数字')
 
-const rememberField = z.boolean().optional()
+const IDENTITY_MISMATCH = '两次输入的密码不一致！'
+const REMEMBER_FIELD = z.boolean().optional()
 
 /** 三种登录身份对应的表单校验 */
 const SIGNIN_SCHEMA = {
   username: z.object({
     username: usernameField,
     password: passwordField,
-    remember: rememberField
+    remember: REMEMBER_FIELD
   }),
   phone: z.object({
     phone: phoneField,
@@ -117,15 +122,9 @@ const SIGNIN_SCHEMA = {
   }),
   email: z.object({
     email: emailField,
-    password: passwordField
+    captcha: captchaField
   })
 } satisfies Record<AuthMode, z.ZodType>
-
-function isSamePassword(values: { password: string; confirm: string }) {
-  return values.password === values.confirm
-}
-
-const CONFIRM_REFINE = { message: PASSWORD_MISMATCH, path: ['confirm'] }
 
 /** 找回密码：身份 + 验证码 + 新密码 */
 const FORGOT_SCHEMA = {
@@ -136,7 +135,12 @@ const FORGOT_SCHEMA = {
       password: passwordField,
       confirm: confirmField
     })
-    .refine(isSamePassword, CONFIRM_REFINE),
+    .refine(
+      function (values) {
+        return values.password === values.confirm
+      },
+      { message: IDENTITY_MISMATCH, path: ['confirm'] }
+    ),
   phone: z
     .object({
       phone: phoneField,
@@ -144,7 +148,12 @@ const FORGOT_SCHEMA = {
       password: passwordField,
       confirm: confirmField
     })
-    .refine(isSamePassword, CONFIRM_REFINE),
+    .refine(
+      function (values) {
+        return values.password === values.confirm
+      },
+      { message: IDENTITY_MISMATCH, path: ['confirm'] }
+    ),
   email: z
     .object({
       email: emailField,
@@ -152,7 +161,12 @@ const FORGOT_SCHEMA = {
       password: passwordField,
       confirm: confirmField
     })
-    .refine(isSamePassword, CONFIRM_REFINE)
+    .refine(
+      function (values) {
+        return values.password === values.confirm
+      },
+      { message: IDENTITY_MISMATCH, path: ['confirm'] }
+    )
 } satisfies Record<AuthMode, z.ZodType>
 
 const SIGNUP_SCHEMA = z
@@ -161,7 +175,12 @@ const SIGNUP_SCHEMA = z
     password: passwordField,
     confirm: confirmField
   })
-  .refine(isSamePassword, CONFIRM_REFINE)
+  .refine(
+    function (values) {
+      return values.password === values.confirm
+    },
+    { message: IDENTITY_MISMATCH, path: ['confirm'] }
+  )
 
 type SigninValues = {
   username?: string
@@ -255,14 +274,30 @@ const MOTION = {
   }
 }
 
+const CHANNEL = {
+  phone: 'PHONE',
+  email: 'EMAIL'
+} as const
+
+const IDENTITY: Record<AuthMode, (values: IdentityValues) => string> = {
+  username(values) {
+    return values.username ?? ''
+  },
+  phone(values) {
+    return values.phone ?? ''
+  },
+  email(values) {
+    return values.email ?? ''
+  }
+}
+
 function findIdentity(mode: AuthMode, values: IdentityValues) {
-  if (mode === MODE.USERNAME) return values.username ?? ''
-  if (mode === MODE.PHONE) return values.phone ?? ''
-  return values.email ?? ''
+  return IDENTITY[mode](values)
 }
 
 export {
   CAPTCHA_COUNTDOWN,
+  CHANNEL,
   FORGOT_SCHEMA,
   HEAD,
   LIMIT,

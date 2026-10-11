@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event'
 import { clsx } from 'clsx'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
+import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
 
 import { isMagneticTileComponent } from '@/constants/magnetic-tile/components'
 import { useThrough } from '@/hooks/use-through'
@@ -135,37 +136,38 @@ function OverlayShell() {
 
       async function bootstrap() {
         try {
-          unlistenMode = await listen<OverlayMode>('overlay://mode', function (event) {
+          unlistenMode = await listen<OverlayMode>(EVENTS.OVERLAY_MODE, function (event) {
             toMode(event.payload)
           })
-          unlistenMount = await listen<MountTilePayload>('overlay://mount', function (event) {
+          unlistenMount = await listen<MountTilePayload>(EVENTS.OVERLAY_MOUNT, function (event) {
             applyMount(event.payload)
           })
           unlistenUnmount = await listen<{ magneticTileID: string }>(
-            'overlay://unmount',
+            EVENTS.OVERLAY_UNMOUNT,
             function (event) {
               applyUnmount(event.payload)
             }
           )
-          unlistenClear = await listen('overlay://clear-textures', function () {
+          unlistenClear = await listen(EVENTS.OVERLAY_CLEAR_TEXTURES, function () {
             toClear()
           })
-          unlistenHide = await listen('overlay://hide', function () {
+          unlistenHide = await listen(EVENTS.OVERLAY_HIDE, function () {
             toMode('idle')
             setConcealed(false)
-            void invoke('overlay:hide')
+            void invoke(CHANNELS.OVERLAY.HIDE)
           })
-          unlistenConceal = await listen('overlay://conceal', function () {
+          unlistenConceal = await listen(EVENTS.OVERLAY_CONCEAL, function () {
             setConcealed(true)
           })
-          unlistenReveal = await listen('overlay://reveal', function () {
+          unlistenReveal = await listen(EVENTS.OVERLAY_REVEAL, function () {
             setConcealed(false)
           })
           await useOverlayStore.getState().toInitialize()
-          applyMount(await invoke<MountTilePayload | null>('overlay:take-pending'))
+          applyMount(await invoke<MountTilePayload | null>(CHANNELS.OVERLAY.TAKE_PENDING))
           applyUnmount(
-            await invoke<{ magneticTileID: string } | null>('overlay:take-pending-unmount')
+            await invoke<{ magneticTileID: string } | null>(CHANNELS.OVERLAY.TAKE_PENDING_UNMOUNT)
           )
+          if (cancelled) return
           setReady(true)
         } catch (err) {
           if (!cancelled) console.warn('[overlay] bootstrap failed', err)

@@ -115,7 +115,7 @@ const List = ({
       items.forEach((item, index) => {
         rendered.push(
           <Item
-            key={`item-${index}-${item.title}`}
+            key={`item-${item.title}-${item.group ?? 'default'}`}
             item={item}
             isSelected={index === selectedIndex}
             onSelect={() => onSelect(item)}

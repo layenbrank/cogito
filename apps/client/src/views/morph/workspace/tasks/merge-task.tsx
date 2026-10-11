@@ -2,6 +2,11 @@ import { ToggleGroup, ToggleGroupItem } from '@i-thinking/design/components/togg
 import { open as dialogOpen, save as dialogSave } from '@tauri-apps/plugin-dialog'
 import { useEffect, useState } from 'react'
 
+import {
+  canMergeSubmit,
+  findMergeHint,
+  findMergeMeta
+} from '@/views/morph/workspace/tasks/merge-task-copy.ts'
 import { PathField } from '@/views/morph/workspace/tasks/path-field.tsx'
 import { MergeBoard } from '@/views/morph/workspace/tasks/stage/merge-board.tsx'
 import { OperationStage } from '@/views/morph/workspace/tasks/stage/operation-stage.tsx'
@@ -88,11 +93,12 @@ function MergeTask() {
     })
     if (!selected) return
     const paths = Array.isArray(selected) ? selected : [selected]
+    const inputSet = new Set(inputs)
     toPatchMerge({
       inputs: [
         ...inputs,
         ...paths.filter(function (path) {
-          return !inputs.includes(path)
+          return !inputSet.has(path)
         })
       ]
     })
@@ -121,16 +127,9 @@ function MergeTask() {
     })
   }
 
-  const canSubmit = isPages
-    ? Boolean(file) && Boolean(output)
-    : inputs.length >= 2 && Boolean(output)
-  const meta = isPages
-    ? file
-      ? `当前文件：${fileName}`
-      : '未打开文件'
-    : inputs.length === 0
-      ? '拖入或添加至少 2 个 PDF'
-      : `共 ${inputs.length} 个文件 · 拖拽卡片调整顺序`
+  const canSubmit = canMergeSubmit(isPages, Boolean(file), Boolean(output), inputs.length)
+  const meta = findMergeMeta(isPages, fileName, Boolean(file), inputs.length)
+  const hint = findMergeHint(error, canSubmit, isPages, Boolean(file), inputs.length)
 
   return (
     <OperationStage
@@ -171,18 +170,7 @@ function MergeTask() {
           />
         </>
       }
-      hint={
-        error ??
-        (canSubmit
-          ? undefined
-          : isPages
-            ? file
-              ? '请选择输出路径'
-              : '请先在左侧打开 PDF'
-            : inputs.length < 2
-              ? '至少添加 2 个 PDF'
-              : '请选择输出路径')
-      }
+      hint={hint}
       submitLabel="开始合并"
       submitDisabled={!canSubmit}
       submitLoading={loading}

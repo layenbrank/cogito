@@ -14,10 +14,24 @@ function Controller(props: ControllerProps) {
   const shape: Mirror.Shape = 'rectangle'
   const direction: Mirror.Direction = 'horizontal'
 
+  function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    props.onClick?.(event as unknown as React.MouseEvent<HTMLDivElement>)
+  }
+
   return (
-    <div
+    <button
+      type="button"
       onClick={props.onClick}
-      className={clsx([styles[`lv${size}`], styles[shape], styles[direction], styles.magneticTile])}>
+      onKeyDown={onKeyDown}
+      className={clsx([
+        styles[`lv${size}`],
+        styles[shape],
+        styles[direction],
+        styles.magneticTile,
+        'appearance-none border-0 bg-transparent p-0 text-left'
+      ])}>
       {props.magneticTiles?.map(function (value) {
         return (
           <Navigation
@@ -30,7 +44,7 @@ function Controller(props: ControllerProps) {
           />
         )
       })}
-    </div>
+    </button>
   )
 }
 

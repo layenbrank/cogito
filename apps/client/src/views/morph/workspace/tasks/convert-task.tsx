@@ -1,107 +1,15 @@
-import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
 import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
 import { useEffect, useState } from 'react'
 
+import {
+  ConvertFormatPicker,
+  ConvertScalePicker
+} from '@/views/morph/workspace/tasks/convert-options.tsx'
+import { ConvertPreview } from '@/views/morph/workspace/tasks/convert-preview.tsx'
 import { PathField } from '@/views/morph/workspace/tasks/path-field.tsx'
 import { OperationStage } from '@/views/morph/workspace/tasks/stage/operation-stage.tsx'
-import { PageBoard } from '@/views/morph/workspace/tasks/stage/page-board.tsx'
-import styles from '@/views/morph/workspace/tasks/tasks.module.scss'
 import { MorphIpc } from '@/lib/morph-ipc'
 import { useMorphStore } from '@/stores/morph.ts'
-
-type ConvertFormat = 'png' | 'jpg' | 'docx' | 'xlsx'
-
-type FormatOption = {
-  value: ConvertFormat
-  label: string
-  hint: string
-  icon: string
-  tone: 'png' | 'jpg' | 'docx' | 'xlsx'
-}
-
-type ScaleOption = {
-  value: number
-  label: string
-  detail: string
-  hint: string
-  tone: 'draft' | 'standard' | 'hd' | 'uhd' | 'print'
-  level: 1 | 2 | 3 | 4 | 5
-}
-
-const FORMAT_OPTIONS: FormatOption[] = [
-  {
-    value: 'png',
-    label: 'PNG',
-    hint: '无损图片',
-    icon: 'mdi:file-png-box',
-    tone: 'png'
-  },
-  {
-    value: 'jpg',
-    label: 'JPG',
-    hint: '压缩图片',
-    icon: 'mdi:file-jpg-box',
-    tone: 'jpg'
-  },
-  {
-    value: 'docx',
-    label: 'Word',
-    hint: '可编辑文档',
-    icon: 'mdi:file-word-box',
-    tone: 'docx'
-  },
-  {
-    value: 'xlsx',
-    label: 'Excel',
-    hint: '表格数据',
-    icon: 'mdi:file-excel-box',
-    tone: 'xlsx'
-  }
-]
-
-const SCALE_OPTIONS: ScaleOption[] = [
-  {
-    value: 0.5,
-    label: '草稿',
-    detail: '72 DPI',
-    hint: '预览够用',
-    tone: 'draft',
-    level: 1
-  },
-  {
-    value: 1,
-    label: '标准',
-    detail: '144 DPI',
-    hint: '日常分享',
-    tone: 'standard',
-    level: 2
-  },
-  {
-    value: 2,
-    label: '高清',
-    detail: '300 DPI',
-    hint: '屏幕阅读',
-    tone: 'hd',
-    level: 3
-  },
-  {
-    value: 3,
-    label: '超清',
-    detail: '600 DPI',
-    hint: '细节保留',
-    tone: 'uhd',
-    level: 4
-  },
-  {
-    value: 4,
-    label: '印刷',
-    detail: '1200 DPI',
-    hint: '输出打印',
-    tone: 'print',
-    level: 5
-  }
-]
 
 type SampleState = {
   key: string
@@ -151,7 +59,7 @@ function ConvertTask() {
 
   const isImage = format === 'png' || format === 'jpg'
   const previewKey = isImage && file ? `${file.path}:${scale}` : ''
-  const [sample, setSample] = useState<SampleState | null>(null)
+  const [sample, updateSample] = useState<SampleState | null>(null)
   const previewImage = previewKey && sample?.key === previewKey ? sample.image : null
   const isSampleLoading = Boolean(previewKey) && sample?.key !== previewKey
 
@@ -161,10 +69,10 @@ function ConvertTask() {
       let cancelled = false
       void MorphIpc.toRender(file.path, 0, scale)
         .then(function (image) {
-          if (!cancelled) setSample({ key: previewKey, image })
+          if (!cancelled) updateSample({ key: previewKey, image })
         })
         .catch(function () {
-          if (!cancelled) setSample({ key: previewKey, image: null })
+          if (!cancelled) updateSample({ key: previewKey, image: null })
         })
       return function () {
         cancelled = true
@@ -191,89 +99,19 @@ function ConvertTask() {
       onBack={toCloseOperation}
       fields={
         <>
-          <div className={styles.optionGroup}>
-            <div
-              className={styles.formatPicker}
-              role="radiogroup"
-              aria-label="输出格式">
-              {FORMAT_OPTIONS.map(function (option) {
-                const isActive = format === option.value
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={isActive}
-                    data-active={isActive}
-                    data-tone={option.tone}
-                    className={styles.formatOption}
-                    onClick={function () {
-                      toPatchConvert({ format: option.value })
-                    }}>
-                    <span
-                      className={styles.formatBadge}
-                      aria-hidden>
-                      <Icon
-                        icon={option.icon}
-                        width={16}
-                        height={16}
-                      />
-                    </span>
-                    <span className={styles.formatText}>
-                      <span className={styles.formatTitle}>{option.label}</span>
-                      <span className={styles.formatHint}>{option.hint}</span>
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+          <ConvertFormatPicker
+            format={format}
+            onChange={function (next) {
+              toPatchConvert({ format: next })
+            }}
+          />
           {isImage ? (
-            <div className={styles.optionGroup}>
-              <div
-                className={styles.qualityPicker}
-                role="radiogroup"
-                aria-label="导出质量">
-                {SCALE_OPTIONS.map(function (option) {
-                  const isActive = scale === option.value
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={isActive}
-                      title={`${option.label} · ${option.hint}`}
-                      data-active={isActive}
-                      data-tone={option.tone}
-                      data-level={option.level}
-                      className={styles.qualityOption}
-                      onClick={function () {
-                        toPatchConvert({ scale: option.value })
-                      }}>
-                      <span
-                        className={styles.qualityBadge}
-                        aria-hidden>
-                        <span className={styles.qualityBars}>
-                          {Array.from({ length: 5 }, function (_, index) {
-                            return (
-                              <span
-                                key={index}
-                                className={styles.qualityBar}
-                                data-on={index < option.level}
-                              />
-                            )
-                          })}
-                        </span>
-                      </span>
-                      <span className={styles.qualityText}>
-                        <span className={styles.qualityLabel}>{option.label}</span>
-                        <span className={styles.qualityDetail}>{option.detail}</span>
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
+            <ConvertScalePicker
+              scale={scale}
+              onChange={function (next) {
+                toPatchConvert({ scale: next })
+              }}
+            />
           ) : null}
         </>
       }
@@ -295,61 +133,21 @@ function ConvertTask() {
       onSubmit={function () {
         void toExecuteConvert()
       }}>
-      {!file ? (
-        <div className={styles.stageEmpty}>
-          <div className={styles.notice}>
-            <Icon
-              icon="ant-design:info-circle-outlined"
-              className="size-4"
-            />
-            <span className={styles.noticeText}>请先打开一个 PDF，再进行转换</span>
-            <Button
-              variant="link"
-              size="sm"
-              onClick={function () {
-                void toOpenFilePicker()
-              }}>
-              打开 PDF
-            </Button>
-          </div>
-        </div>
-      ) : isImage ? (
-        <div className={styles.sampleStage}>
-          {previewImage ? (
-            <img
-              className={styles.sampleHero}
-              src={`data:image/png;base64,${previewImage.base64}`}
-              alt="转换首页预览"
-            />
-          ) : (
-            <p className={styles.help}>{isSampleLoading ? '正在渲染预览…' : '暂无预览'}</p>
-          )}
-          {thumbnails.length > 0 ? (
-            <div className={styles.sampleStrip}>
-              {thumbnails.slice(0, 8).map(function (image) {
-                return (
-                  <img
-                    key={image.offset}
-                    className={styles.stripThumb}
-                    src={`data:image/png;base64,${image.base64}`}
-                    alt={`第 ${image.offset + 1} 页`}
-                  />
-                )
-              })}
-            </div>
-          ) : null}
-        </div>
-      ) : (
-        <PageBoard
-          thumbnails={thumbnails}
-          count={file.count}
-          isLoading={!thumbnailsError && thumbnails.length === 0}
-          hasError={Boolean(thumbnailsError)}
-          onRetry={function () {
-            void toFetchThumbnails()
-          }}
-        />
-      )}
+      <ConvertPreview
+        hasFile={Boolean(file)}
+        isImage={isImage}
+        pageCount={file?.count ?? 0}
+        previewImage={previewImage}
+        isSampleLoading={isSampleLoading}
+        thumbnails={thumbnails}
+        thumbnailsError={thumbnailsError}
+        onOpenFile={function () {
+          void toOpenFilePicker()
+        }}
+        onRetryThumbnails={function () {
+          void toFetchThumbnails()
+        }}
+      />
     </OperationStage>
   )
 }

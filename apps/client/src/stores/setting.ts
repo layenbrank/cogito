@@ -62,9 +62,14 @@ export const useSettingsStore = create<SettingsStore>(function (setter, getter) 
       await settingStore.init()
 
       const settings = { ...SETTINGS }
-      for (const key of Object.keys(SETTINGS) as (keyof Setting.Composite)[]) {
-        const val = await settingStore.get<Setting.Composite[typeof key]>(key)
-
+      const keys = Object.keys(SETTINGS) as (keyof Setting.Composite)[]
+      const entries = await Promise.all(
+        keys.map(async function (key) {
+          const val = await settingStore.get<Setting.Composite[typeof key]>(key)
+          return [key, val] as const
+        })
+      )
+      for (const [key, val] of entries) {
         if (val !== undefined) {
           settings[key] = { ...SETTINGS[key], ...val } as never
         }

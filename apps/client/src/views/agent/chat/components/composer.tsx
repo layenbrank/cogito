@@ -1,33 +1,17 @@
 /**
  * 输入区：AgentSender + TriggerPopup + footer / 状态条
  */
-import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
-import { Popover, PopoverContent, PopoverTrigger } from '@i-thinking/design/components/popover'
-import { Spinner } from '@i-thinking/design/components/spinner'
-import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { AgentSender, type AgentSenderHandle } from './agent-sender'
+import type { AgentSenderHandle } from './agent-sender'
 import styles from './composer.module.scss'
-import {
-  AttachMenu,
-  basename,
-  rootLabel,
-  type AttachCategory,
-  type WorkspaceRoot
-} from './attach-menu'
-import { TriggerPopup, type TriggerPopupHandle } from './trigger-popup'
-import type { TriggerMatch, SenderChip } from './sender-trigger'
-import { savePasteImage } from './paste-image'
-import { AgentModelPicker } from './model-picker'
+import type { AttachCategory } from './attach-menu'
+import { ComposerFooter } from './composer-footer.tsx'
+import { ComposerSenderShell } from './composer-sender-shell.tsx'
+import { ComposerStatusBar } from './composer-status-bar.tsx'
+import type { TriggerPopupHandle } from './trigger-popup'
+import type { SenderChip } from './sender-trigger'
 import {
   findGooseUsage,
   formatGooseUsage,
@@ -36,18 +20,18 @@ import {
 import { compactGooseSession } from '@/features/agent/model/goose-acp'
 import { findScenarioLabel, type ScenarioKey } from '@/features/agent/model/scenarios'
 import { isImageFile } from '@/features/agent/model/file-icon'
-import { normalizePath } from '@/features/agent/model/workspace-path'
 import type { FilePartData } from '@/features/agent/types'
-import { WorkspaceGit } from '@/lib/workspace-git'
-import { useAgentStore, type AiWorkspaceFolder } from '@/stores/agent'
+import { useAgentStore } from '@/stores/agent'
 import { useProviderStore } from '@/stores/provider'
+import { useComposerAttach } from './use-composer-attach.ts'
+import { useComposerGit } from './use-composer-git.ts'
+import { useComposerWorkspaceRoots } from './use-composer-workspace-roots.ts'
 
 interface ComposerProps {
   value: string
   loading: boolean
   scenario: ScenarioKey
   files: FilePartData[]
-  /** 欢迎页快捷填入：token 递增时把 text 写入编辑器 */
   fillRequest?: { token: number; text: string } | null
   onChange: (value: string) => void
   onAttach: (file: FilePartData) => void
@@ -57,48 +41,31 @@ interface ComposerProps {
   onOpenSettings: () => void
 }
 
-const EMPTY_FOLDERS: AiWorkspaceFolder[] = []
-
-function matchKey(match: TriggerMatch | null) {
-  if (!match) return null
-  return `${match.char}:${match.query}:${match.behaviorId}`
-}
-
 function AgentComposer(props: ComposerProps) {
-  const [attachOpen, updateAttachOpen] = useState(false)
   const [attachCategory, updateAttachCategory] = useState<AttachCategory>('files')
-  const [triggerMatch, updateTriggerMatch] = useState<TriggerMatch | null>(null)
-  const [chipPaths, updateChipPaths] = useState<string[]>([])
-  const [branch, updateBranch] = useState<string | null>(null)
-  const [isRepo, updateIsRepo] = useState(false)
-  const [branches, updateBranches] = useState<string[]>([])
-  const [branchLoading, updateBranchLoading] = useState(false)
-  const [branchOpen, updateBranchOpen] = useState(false)
-  const [canSend, updateCanSend] = useState(false)
   const [compacting, updateCompacting] = useState(false)
   const [usageLabel, updateUsageLabel] = useState<string | null>(null)
   const senderRef = useRef<AgentSenderHandle>(null)
   const popupRef = useRef<TriggerPopupHandle>(null)
-  const suppressedTriggerKey = useRef<string | null>(null)
-  const chipPathsRef = useRef<string[]>([])
+
+  const activeSessionID = useAgentStore(function (state) {
+    return state.activeSessionID
+  })
+  const workspace = useComposerWorkspaceRoots()
+  const git = useComposerGit(workspace.primaryPath)
+  const attach = useComposerAttach({
+    value: props.value,
+    files: props.files,
+    onAttach: props.onAttach,
+    onRemoveFile: props.onRemoveFile,
+    senderRef
+  })
 
   const providers = useProviderStore(function (state) {
     return state.providers
   })
   const activeProviderID = useProviderStore(function (state) {
     return state.activeProviderID
-  })
-  const workspaces = useAgentStore(function (state) {
-    return state.workspaces
-  })
-  const workspaceFolders = useAgentStore(function (state) {
-    return state.workspaceFolders
-  })
-  const activeWorkspaceID = useAgentStore(function (state) {
-    return state.activeWorkspaceID
-  })
-  const activeSessionID = useAgentStore(function (state) {
-    return state.activeSessionID
   })
 
   useEffect(
@@ -112,49 +79,14 @@ function AgentComposer(props: ComposerProps) {
     [activeSessionID]
   )
 
-  const activeWorkspace = workspaces.find(function (item) {
-    return item.id === activeWorkspaceID
-  })
-
-  const activeFolders = useMemo(
+  useEffect(
     function () {
-      if (!activeWorkspaceID) return EMPTY_FOLDERS
-      return workspaceFolders
-        .filter(function (folder) {
-          return folder.workspaceID === activeWorkspaceID
-        })
-        .slice()
-        .sort(function (a, b) {
-          if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1
-          return a.sort - b.sort
-        })
+      const request = props.fillRequest
+      if (!request) return
+      senderRef.current?.writePlainText(request.text)
     },
-    [activeWorkspaceID, workspaceFolders]
+    [props.fillRequest]
   )
-
-  const roots: WorkspaceRoot[] = useMemo(
-    function () {
-      return activeFolders.map(function (folder) {
-        return {
-          id: folder.id,
-          path: folder.path,
-          label: rootLabel(folder.path)
-        }
-      })
-    },
-    [activeFolders]
-  )
-
-  const rootPaths = useMemo(
-    function () {
-      return roots.map(function (item) {
-        return item.path
-      })
-    },
-    [roots]
-  )
-
-  const primaryPath = activeFolders[0]?.path ?? null
 
   const activeProvider = providers.find(function (provider) {
     return provider.id === activeProviderID && provider.enabled
@@ -174,545 +106,109 @@ function AgentComposer(props: ComposerProps) {
     [props.files]
   )
 
-  useEffect(
-    function () {
-      if (!primaryPath) return
-      let cancelled = false
-      void WorkspaceGit.probe(primaryPath)
-        .then(function (result) {
-          if (cancelled) return
-          updateIsRepo(result.isRepo)
-          updateBranch(result.branch)
-        })
-        .catch(function () {
-          if (cancelled) return
-          updateIsRepo(false)
-          updateBranch(null)
-        })
-      return function () {
-        cancelled = true
-      }
-    },
-    [primaryPath]
-  )
-
-  const showGit = Boolean(primaryPath && isRepo && branch)
-
-  useEffect(
-    function () {
-      if (!branchOpen || !primaryPath || !isRepo) return
-      let cancelled = false
-      void WorkspaceGit.fetchBranches(primaryPath)
-        .then(function (result) {
-          if (cancelled) return
-          updateBranches(result.branches)
-          updateBranch(result.current)
-        })
-        .catch(function (error) {
-          if (cancelled) return
-          toast.error(typeof error === 'string' ? error : '无法加载分支')
-        })
-      return function () {
-        cancelled = true
-      }
-    },
-    [branchOpen, primaryPath, isRepo]
-  )
-
-  useEffect(
-    function () {
-      if (props.value !== '') return
-      senderRef.current?.clear({ silent: true })
-      chipPathsRef.current = []
-      suppressedTriggerKey.current = null
-    },
-    [props.value]
-  )
-
-  useEffect(
-    function () {
-      const request = props.fillRequest
-      if (!request) return
-      senderRef.current?.writePlainText(request.text)
-    },
-    [props.fillRequest]
-  )
-
-  const [prevValue, updatePrevValue] = useState(props.value)
-  if (prevValue !== props.value) {
-    updatePrevValue(props.value)
-    if (props.value === '') {
-      updateTriggerMatch(null)
-      updateChipPaths([])
-      updateCanSend(false)
-    }
-  }
-
-  function syncChipPaths() {
-    const paths = senderRef.current?.findChipPaths() ?? []
-    const prev = chipPathsRef.current
-    chipPathsRef.current = paths
-    updateChipPaths(paths)
-    for (const path of prev) {
-      if (paths.includes(path)) continue
-      const attached = props.files.some(function (file) {
-        return normalizePath(file.path) === path
-      })
-      if (attached) props.onRemoveFile(path)
-    }
-  }
-
-  function handleTriggerChange(match: TriggerMatch | null) {
-    const key = matchKey(match)
-    if (key && key === suppressedTriggerKey.current) {
-      updateTriggerMatch(null)
-      return
-    }
-    if (!key) suppressedTriggerKey.current = null
-    updateTriggerMatch(match)
-  }
-
-  function handleTriggerClose() {
-    suppressedTriggerKey.current = matchKey(triggerMatch)
-    updateTriggerMatch(null)
-  }
-
-  async function handleCheckout(nextBranch: string) {
-    if (!primaryPath || nextBranch === branch) {
-      updateBranchOpen(false)
-      return
-    }
-    updateBranchLoading(true)
-    try {
-      const result = await WorkspaceGit.checkout(primaryPath, nextBranch)
-      updateBranch(result.branch)
-      updateBranchOpen(false)
-      toast.success(`已切换到 ${result.branch}`)
-    } catch (error) {
-      toast.error(typeof error === 'string' ? error : '切换分支失败')
-    } finally {
-      updateBranchLoading(false)
-    }
-  }
-
-  async function handlePickFiles() {
-    const selected = await dialogOpen({
-      multiple: true,
-      title: '添加文件'
-    })
-    if (!selected) return
-    const paths = Array.isArray(selected) ? selected : [selected]
-    for (const path of paths) {
-      handleAttach({ path: normalizePath(path), name: basename(path) })
-    }
-  }
-
-  async function handlePickImages() {
-    const selected = await dialogOpen({
-      multiple: true,
-      title: '添加图片',
-      filters: [
-        {
-          name: '图片',
-          extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'avif']
-        }
-      ]
-    })
-    if (!selected) return
-    const paths = Array.isArray(selected) ? selected : [selected]
-    for (const path of paths) {
-      handleAttach({ path: normalizePath(path), name: basename(path) })
-    }
-  }
-
-  function handleAttach(file: FilePartData, relative?: string) {
-    const next = { ...file, path: normalizePath(file.path), name: file.name }
-    const relativePath = relative ? normalizePath(relative) : ''
-    props.onAttach(next)
-    updateAttachOpen(false)
-    insertFileChip(next, relativePath)
-  }
-
-  function handleAttachSkill(file: FilePartData, relative?: string) {
-    const path = normalizePath(file.path)
-    const relativePath = relative ? normalizePath(relative) : path
-    updateAttachOpen(false)
-    senderRef.current?.insertChip({
-      kind: 'skill',
-      label: file.name,
-      value: `/${file.name}`,
-      meta: { path, name: file.name, relative: relativePath }
-    })
-    syncChipPaths()
-  }
-
-  function insertFileChip(file: FilePartData, relative = '') {
-    const path = normalizePath(file.path)
-    const relativePath = relative || file.name
-    senderRef.current?.insertChip({
-      kind: 'file',
-      label: file.name,
-      value: `@${relativePath}`,
-      meta: { path, name: file.name, relative: relativePath }
-    })
-    syncChipPaths()
-  }
-
-  async function handlePasteImages(files: File[]) {
-    for (const file of files) {
-      try {
-        const part = await savePasteImage(file)
-        handleAttach(part)
-      } catch (error) {
-        toast.error(typeof error === 'string' ? error : '粘贴图片失败')
-      }
-    }
-  }
-
-  async function handlePickFolders() {
-    const selected = await dialogOpen({
-      directory: true,
-      multiple: true,
-      title: '添加文件夹'
-    })
-    if (!selected) return
-    const paths = Array.isArray(selected) ? selected : [selected]
-    for (const path of paths) {
-      handleAttach({ path: normalizePath(path), name: basename(path) })
-    }
-  }
-
-  const branchItems = branches.map(function (item) {
+  const branchItems = git.branches.map(function (item) {
     return {
       key: item,
       label: item,
-      current: item === branch
+      current: item === git.branch
     }
   })
 
-  const footer = (
-    <div className={`${styles.footer} flex items-center gap-1.5`}>
-      <div className={`${styles.footerStart} flex items-center gap-0.5`}>
-        <Popover
-          open={attachOpen}
-          onOpenChange={function (open) {
-            updateAttachOpen(open)
-            if (open) {
-              updateAttachCategory('files')
-              handleTriggerClose()
-            }
-          }}>
-          <PopoverTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className={styles.footerBtn}
-                aria-label="添加"
-              />
-            }>
-            <Icon icon="mdi:plus" />
-          </PopoverTrigger>
-          <PopoverContent
-            side="top"
-            align="start"
-            className="w-auto gap-0 border-0 bg-transparent p-0 ring-0 shadow-none">
-            <AttachMenu
-              roots={roots}
-              category={attachCategory}
-              onCategoryChange={updateAttachCategory}
-              onAttach={function (file: FilePartData, relative?: string) {
-                if (attachCategory === 'skills') {
-                  handleAttachSkill(file, relative)
-                  return
-                }
-                handleAttach(file, relative)
-              }}
-            />
-          </PopoverContent>
-        </Popover>
-        <Popover>
-          <PopoverTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className={styles.footerBtn}
-                aria-label="附加文件"
-              />
-            }>
-            <Icon icon="mdi:paperclip" />
-          </PopoverTrigger>
-          <PopoverContent
-            side="top"
-            align="start"
-            className="w-auto gap-0 p-1">
-            <div className={styles.attachMenu}>
-              <button
-                type="button"
-                className={styles.attachItem}
-                onClick={function () {
-                  void handlePickImages()
-                }}>
-                <Icon
-                  icon="mdi:image-outline"
-                  width={14}
-                  height={14}
-                />
-                添加图片
-              </button>
-              <button
-                type="button"
-                className={styles.attachItem}
-                onClick={function () {
-                  void handlePickFiles()
-                }}>
-                <Icon
-                  icon="mdi:file-outline"
-                  width={14}
-                  height={14}
-                />
-                添加文件
-              </button>
-              <button
-                type="button"
-                className={styles.attachItem}
-                onClick={function () {
-                  void handlePickFolders()
-                }}>
-                <Icon
-                  icon="mdi:folder-outline"
-                  width={14}
-                  height={14}
-                />
-                添加文件夹
-              </button>
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
-      <div className={`${styles.footerEnd} flex items-center gap-1.5`}>
-        {usageLabel ? (
-          <span
-            className={styles.usageLabel}
-            title="当前会话上下文用量">
-            {usageLabel}
-          </span>
-        ) : null}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className={styles.footerBtn}
-          aria-label="压缩上下文"
-          title="压缩上下文"
-          disabled={compacting || props.loading || !activeSessionID}
-          onClick={function () {
-            if (!activeSessionID) {
-              toast.warning('请先发送一条消息后再压缩')
-              return
-            }
-            updateCompacting(true)
-            void compactGooseSession(activeSessionID)
-              .then(function () {
-                toast.success('已请求 goose 压缩上下文')
-              })
-              .catch(function (error) {
-                console.error('[composer] compact failed:', error)
-                const detail = error instanceof Error ? error.message : '压缩失败'
-                toast.error(detail)
-              })
-              .finally(function () {
-                updateCompacting(false)
-              })
-          }}>
-          {compacting ? (
-            <Spinner />
-          ) : (
-            <Icon
-              icon="mdi:arrow-collapse-vertical"
-              width={14}
-              height={14}
-            />
-          )}
-        </Button>
-        <AgentModelPicker onOpenSettings={props.onOpenSettings}>
-          <Button
-            variant="ghost"
-            className={styles.modelBtn}>
-            <Icon
-              icon="mdi:api"
-              width={14}
-              height={14}
-            />
-            <span className={styles.modelLabel}>{modelLabel}</span>
-          </Button>
-        </AgentModelPicker>
-        {props.loading ? (
-          <Button
-            variant="destructive"
-            size="icon-sm"
-            className={styles.sendBtn}
-            aria-label="停止"
-            onClick={props.onCancel}>
-            <Icon
-              icon="mdi:stop"
-              width={16}
-              height={16}
-            />
-          </Button>
-        ) : (
-          <Button
-            size="icon-sm"
-            className={styles.sendBtn}
-            aria-label="发送"
-            disabled={!canSend}
-            onClick={function () {
-              senderRef.current?.submit()
-            }}>
-            <Icon
-              icon="mdi:arrow-up"
-              width={16}
-              height={16}
-            />
-          </Button>
-        )}
-      </div>
-    </div>
-  )
+  function handleCompact() {
+    if (!activeSessionID) {
+      toast.warning('请先发送一条消息后再压缩')
+      return
+    }
+    updateCompacting(true)
+    void compactGooseSession(activeSessionID)
+      .then(function () {
+        toast.success('已请求 goose 压缩上下文')
+      })
+      .catch(function (error) {
+        console.error('[composer] compact failed:', error)
+        const detail = error instanceof Error ? error.message : '压缩失败'
+        toast.error(detail)
+      })
+      .finally(function () {
+        updateCompacting(false)
+      })
+  }
 
   return (
     <div className={styles.root}>
-      <div className={styles.senderShell}>
-        <TriggerPopup
-          ref={popupRef}
-          match={triggerMatch}
-          rootPaths={rootPaths}
-          excludedPaths={chipPaths}
-          onPick={function (chip) {
-            senderRef.current?.insertChip(chip)
-            const path = chip.meta.path ? normalizePath(chip.meta.path) : ''
-            const name = chip.meta.name || chip.label
-            if (chip.kind === 'file' && path && name) {
-              if (isImageFile(name) || isImageFile(path)) {
-                props.onAttach({ path, name })
-              }
-            }
-            syncChipPaths()
-            suppressedTriggerKey.current = null
-            updateTriggerMatch(null)
-          }}
-          onClose={handleTriggerClose}
-        />
-        <AgentSender
-          ref={senderRef}
-          loading={props.loading}
-          blockSubmit={Boolean(triggerMatch)}
-          images={imageFiles}
-          placeholder={
-            props.scenario === 'general'
-              ? '输入消息，Enter 发送，Shift+Enter 换行；@ 引用文件，/ 引用技能'
-              : `场景：${scenarioLabel}，描述需求后发送`
-          }
-          autoSize={{
-            minRows: 1,
-            maxRows: 6
-          }}
-          footer={footer}
-          onChange={function (value) {
-            props.onChange(value)
-            updateCanSend(value.trim().length > 0)
-            syncChipPaths()
-          }}
-          onSubmit={function (value) {
-            props.onSubmit(value, senderRef.current?.findChips() ?? [])
-          }}
-          onRemoveImage={function (path) {
-            senderRef.current?.removeChipByPath(path)
-            props.onRemoveFile(path)
-          }}
-          onPasteImages={function (files) {
-            void handlePasteImages(files)
-          }}
-          onTriggerChange={handleTriggerChange}
-          onTriggerKeyDown={function (event) {
-            return popupRef.current?.handleKeyDown(event) ?? false
-          }}
-        />
-      </div>
-      {activeWorkspace ? (
-        <div className={`${styles.status} flex items-center justify-start`}>
-          {showGit ? (
-            <DropdownMenu
-              open={branchOpen}
-              onOpenChange={updateBranchOpen}>
-              <DropdownMenuTrigger
-                render={
-                  <button
-                    type="button"
-                    className={styles.branchBtn}
-                    disabled={branchLoading}
-                    aria-label="切换分支"
-                  />
-                }>
-                <Icon
-                  icon="mdi:source-branch"
-                  width={12}
-                  height={12}
-                />
-                <span className={styles.statusText}>{branch}</span>
-                <Icon
-                  icon="mdi:chevron-down"
-                  width={12}
-                  height={12}
-                />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                className="w-52">
-                {branchItems.map(function (item) {
-                  return (
-                    <DropdownMenuItem
-                      key={item.key}
-                      onClick={function () {
-                        void handleCheckout(item.key)
-                      }}>
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                      {item.current ? (
-                        <Icon
-                          icon="mdi:check"
-                          width={14}
-                          height={14}
-                        />
-                      ) : null}
-                    </DropdownMenuItem>
-                  )
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
-          <span className={styles.statusItem}>
-            <Icon
-              icon="mdi:folder-outline"
-              width={12}
-              height={12}
-            />
-            <span className={`${styles.statusText} truncate`}>{activeWorkspace.title}</span>
-          </span>
-          <span className={styles.statusItem}>
-            <Icon
-              icon="mdi:monitor"
-              width={12}
-              height={12}
-            />
-            <span className={styles.statusText}>本地</span>
-          </span>
-        </div>
-      ) : (
-        <div
-          className={styles.status}
-          aria-hidden
-        />
-      )}
+      <ComposerSenderShell
+        senderRef={senderRef}
+        popupRef={popupRef}
+        loading={props.loading}
+        triggerMatch={attach.triggerMatch}
+        rootPaths={workspace.rootPaths}
+        chipPaths={attach.chipPaths}
+        imageFiles={imageFiles}
+        placeholder={
+          props.scenario === 'general'
+            ? '输入消息，Enter 发送，Shift+Enter 换行；@ 引用文件，/ 引用技能'
+            : `场景：${scenarioLabel}，描述需求后发送`
+        }
+        footer={
+          <ComposerFooter
+            senderRef={senderRef}
+            roots={workspace.roots}
+            attachOpen={attach.attachOpen}
+            attachCategory={attachCategory}
+            onAttachOpenChange={attach.updateAttachOpen}
+            onAttachCategoryChange={updateAttachCategory}
+            onAttachOpenSideEffects={function () {
+              updateAttachCategory('files')
+              attach.handleTriggerClose()
+            }}
+            onAttachFile={attach.handleAttach}
+            onAttachSkill={attach.handleAttachSkill}
+            onPickImages={function () {
+              void attach.handlePickImages()
+            }}
+            onPickFiles={function () {
+              void attach.handlePickFiles()
+            }}
+            onPickFolders={function () {
+              void attach.handlePickFolders()
+            }}
+            usageLabel={usageLabel}
+            compacting={compacting}
+            loading={props.loading}
+            activeSessionID={activeSessionID}
+            onCompact={handleCompact}
+            modelLabel={modelLabel}
+            onOpenSettings={props.onOpenSettings}
+            canSend={attach.canSend}
+            onCancel={props.onCancel}
+          />
+        }
+        onChange={props.onChange}
+        onCanSendChange={attach.updateCanSend}
+        onSyncChipPaths={attach.syncChipPaths}
+        onSubmit={props.onSubmit}
+        onRemoveFile={props.onRemoveFile}
+        onAttachImage={props.onAttach}
+        onPasteImages={attach.handlePasteImages}
+        onTriggerChange={attach.handleTriggerChange}
+        onTriggerClose={attach.handleTriggerClose}
+        onTriggerPickDone={function () {
+          attach.updateTriggerMatch(null)
+        }}
+        suppressedTriggerKey={attach.suppressedTriggerKey}
+      />
+      <ComposerStatusBar
+        workspaceTitle={workspace.activeWorkspace?.title ?? null}
+        showGit={git.showGit}
+        branch={git.branch}
+        branchLoading={git.branchLoading}
+        branchOpen={git.branchOpen}
+        onBranchOpenChange={git.updateBranchOpen}
+        branchItems={branchItems}
+        onCheckout={function (next) {
+          void git.checkout(next)
+        }}
+      />
     </div>
   )
 }

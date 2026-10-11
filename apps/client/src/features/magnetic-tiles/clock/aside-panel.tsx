@@ -59,4 +59,3 @@ export function AsidePanel(props: AsidePanelProps) {
   )
 }
 
-export { styles as asideStyles }

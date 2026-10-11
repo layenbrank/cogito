@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/comp
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useMemo } from 'react'
 
-import { WindowFrame } from '@/components/window-frame/index.ts'
+import { Decorations } from '@/components/decorations/index.ts'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 
 const SANDBOX_PERMISSIONS = [
@@ -37,10 +37,10 @@ export default function Navigation() {
   }, [])
 
   return (
-    <WindowFrame
-      title={findComponentLabel('navigation')}
-      isScrollable={false}
-      actions={
+    <Decorations
+      summary={findComponentLabel('navigation')}
+      scrollable={false}
+      final={
         url ? (
           <Tooltip>
             <TooltipTrigger
@@ -68,6 +68,7 @@ export default function Navigation() {
         <iframe
           src={url}
           title={url}
+          sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
           referrerPolicy="unsafe-url"
           allow={SANDBOX_PERMISSIONS}
           allowFullScreen
@@ -79,6 +80,6 @@ export default function Navigation() {
           未配置网址
         </div>
       )}
-    </WindowFrame>
+    </Decorations>
   )
 }

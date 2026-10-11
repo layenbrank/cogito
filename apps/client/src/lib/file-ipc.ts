@@ -2,6 +2,7 @@
  * File 领域 IPC（corex Action：file.read / write / copy / delete）
  */
 import { ipcInvoke, parseData } from '@/lib/ipc'
+import { DAEMON, DAEMON_ACTION } from '@/shared/ipc/channels'
 
 type FileMode = 'overwrite' | 'replace_between' | 'regex' | 'json_set'
 
@@ -41,14 +42,14 @@ function toWriteArgs(path: string, options: FileWriteOptions) {
 }
 
 async function read(path: string): Promise<string> {
-  const resp = await ipcInvoke('file', { path }, 'read')
+  const resp = await ipcInvoke(DAEMON.FILE, { path }, DAEMON_ACTION.FILE.READ)
   const data = parseData<unknown>(resp)
   if (typeof data === 'string') return data
   throw new Error('file.read 返回非文本')
 }
 
 async function write(path: string, options: FileWriteOptions): Promise<FileWriteResult> {
-  const resp = await ipcInvoke('file', toWriteArgs(path, options), 'write')
+  const resp = await ipcInvoke(DAEMON.FILE, toWriteArgs(path, options), DAEMON_ACTION.FILE.WRITE)
   const data = parseData<Record<string, unknown>>(resp)
   return {
     path: typeof data.path === 'string' ? data.path : path,
@@ -58,12 +59,12 @@ async function write(path: string, options: FileWriteOptions): Promise<FileWrite
 }
 
 async function copy(from: string, to: string): Promise<string> {
-  const resp = await ipcInvoke('file', { from, to }, 'copy')
+  const resp = await ipcInvoke(DAEMON.FILE, { from, to }, DAEMON_ACTION.FILE.COPY)
   return typeof resp.path === 'string' ? resp.path : to
 }
 
 async function remove(path: string): Promise<boolean> {
-  const resp = await ipcInvoke('file', { path }, 'delete')
+  const resp = await ipcInvoke(DAEMON.FILE, { path }, DAEMON_ACTION.FILE.DELETE)
   return parseData<boolean>(resp)
 }
 

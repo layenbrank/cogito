@@ -1,4 +1,4 @@
-use crate::migrations::{migrations_v001, migrations_v002};
+use crate::migrations::migrations_v001;
 use crate::storage::Connection;
 use sea_orm::DbErr;
 use sea_orm::sea_query::IntoIden;
@@ -13,10 +13,7 @@ impl MigratorTrait for AppMigrator {
     }
 
     fn migrations() -> Vec<Box<dyn sea_orm_migration::MigrationTrait>> {
-        vec![
-            Box::new(migrations_v001::Migration),
-            Box::new(migrations_v002::Migration),
-        ]
+        vec![Box::new(migrations_v001::Migration)]
     }
 }
 

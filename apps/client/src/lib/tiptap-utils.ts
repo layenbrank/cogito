@@ -294,10 +294,12 @@ export function isNodeTypeSelected(
   const { selection } = editor.state
   if (selection.empty) return false
 
+  const nodeTypeSet = new Set(nodeTypeNames)
+
   // Direct node selection check
   if (selection instanceof NodeSelection) {
     const selectedNode = selection.node
-    return selectedNode ? nodeTypeNames.includes(selectedNode.type.name) : false
+    return selectedNode ? nodeTypeSet.has(selectedNode.type.name) : false
   }
 
   // Depth-based ancestor node check
@@ -305,7 +307,7 @@ export function isNodeTypeSelected(
     const { $from } = selection
     for (let depth = $from.depth; depth > 0; depth--) {
       const ancestorNode = $from.node(depth)
-      if (nodeTypeNames.includes(ancestorNode.type.name)) {
+      if (nodeTypeSet.has(ancestorNode.type.name)) {
         return true
       }
     }

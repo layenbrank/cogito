@@ -1,7 +1,7 @@
 // @ts-nocheck
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 
 // --- Hooks ---
@@ -94,24 +94,22 @@ export function shouldShowColorTextPopover(params: {
 /**
  * Hook to manage recently used colors
  */
+function readStoredRecentColors(maxColors: number): RecentColor[] {
+  try {
+    const storedColors = localStorage.getItem('tiptapRecentlyUsedColors')
+    if (!storedColors) return []
+    const colors = JSON.parse(storedColors) as RecentColor[]
+    return colors.slice(0, maxColors)
+  } catch (e) {
+    console.error('Failed to load stored colors:', e)
+    return []
+  }
+}
+
 export function useRecentColors(maxColors: number = 3) {
-  const [recentColors, setRecentColors] = useState<RecentColor[]>([])
-  const [isInitialized, setIsInitialized] = useState(false)
-
-  useEffect(() => {
-    try {
-      const storedColors = localStorage.getItem('tiptapRecentlyUsedColors')
-      if (storedColors) {
-        const colors = JSON.parse(storedColors) as RecentColor[]
-        setRecentColors(colors.slice(0, maxColors))
-      }
-    } catch (e) {
-      console.error('Failed to load stored colors:', e)
-    } finally {
-      setIsInitialized(true)
-    }
-  }, [maxColors])
-
+  const [recentColors, setRecentColors] = useState<RecentColor[]>(function () {
+    return readStoredRecentColors(maxColors)
+  })
   const addRecentColor = useCallback(
     ({
       type,
@@ -122,31 +120,32 @@ export function useRecentColors(maxColors: number = 3) {
       label: string
       value: string
     }) => {
-      setRecentColors((prevColors) => {
-        const filtered = prevColors.filter(
-          (c) => !(c.type === type && c.value === value)
-        )
-        const updated = [{ type, label, value }, ...filtered].slice(
-          0,
-          maxColors
-        )
+      const filtered = recentColors.filter(
+        (c) => !(c.type === type && c.value === value)
+      )
+      const updated = [{ type, label, value }, ...filtered].slice(
+        0,
+        maxColors
+      )
+      setRecentColors(updated)
 
-        try {
-          localStorage.setItem(
-            'tiptapRecentlyUsedColors',
-            JSON.stringify(updated)
-          )
-        } catch (e) {
-          console.error('Failed to store colors:', e)
-        }
-
-        return updated
-      })
+      try {
+        localStorage.setItem(
+          'tiptapRecentlyUsedColors',
+          JSON.stringify(updated)
+        )
+      } catch (e) {
+        console.error('Failed to store colors:', e)
+      }
     },
-    [maxColors]
+    [maxColors, recentColors]
   )
 
-  return { recentColors, addRecentColor, isInitialized }
+  return {
+    recentColors: recentColors.slice(0, maxColors),
+    addRecentColor,
+    isInitialized: true
+  }
 }
 
 /**

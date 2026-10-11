@@ -163,20 +163,19 @@ function ContextWindowControl(props: ContextWindowControlProps) {
   }
 
   return (
-    <div
-      className={clsx(styles.contextControl, dragging && styles.contextDragging)}
-      role="slider"
-      tabIndex={0}
-      aria-valuemin={0}
-      aria-valuemax={CONTEXT_LAST}
-      aria-valuenow={active}
-      aria-valuetext={label}
-      aria-label="上下文窗口"
-      onKeyDown={handleKeyDown}>
+    <div className={clsx(styles.contextControl, dragging && styles.contextDragging)}>
       <div className={styles.contextValue}>{label}</div>
       <div
         ref={trackRef}
         className={styles.contextTrack}
+        role="slider"
+        tabIndex={0}
+        aria-valuemin={0}
+        aria-valuemax={CONTEXT_LAST}
+        aria-valuenow={active}
+        aria-valuetext={label}
+        aria-label="上下文窗口"
+        onKeyDown={handleKeyDown}
         data-at-start={ratio <= 0 ? 'true' : undefined}
         data-at-end={ratio >= 1 ? 'true' : undefined}
         onPointerDown={handlePointerDown}
@@ -193,9 +192,7 @@ function ContextWindowControl(props: ContextWindowControlProps) {
         />
       </div>
 
-      <div
-        className={styles.contextLabels}
-        aria-hidden>
+      <div className={styles.contextLabels}>
         {CONTEXT_STEPS.map(function (_step, index) {
           return (
             <button

@@ -40,11 +40,12 @@ function buildTimeOnDate(base: Dayjs, time: string) {
 
 function countWorkDays(year: number, month: number, workDays: number[]) {
   const daysInMonth = dayjs(new Date(year, month, 1)).daysInMonth()
+  const workDaySet = new Set(workDays)
   let count = 0
   for (let d = 1; d <= daysInMonth; d++) {
     const dow = dayjs(new Date(year, month, d)).day()
     const iso = dow === 0 ? 7 : dow
-    if (workDays.includes(iso)) count++
+    if (workDaySet.has(iso)) count++
   }
   return Math.max(1, count)
 }

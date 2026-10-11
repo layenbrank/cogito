@@ -20,8 +20,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/comp
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
 import { v4 as UUIDV4 } from 'uuid'
+import { CHANNELS } from '@/shared/ipc/channels'
 
-import { WindowFrame } from '@/components/window-frame/index.ts'
+import { Decorations } from '@/components/decorations/index.ts'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 import { Controller } from '@/views/collection/controller.tsx'
 import { OverlayDrawer } from '@/views/collection/drawer.tsx'
@@ -106,7 +107,7 @@ export default function Collection() {
 
   const magneticTiles = useLiveQuery<MagneticTile[], MagneticTile[]>(
     async function () {
-      const response = await invoke<MagneticTile[]>('magnetic-tile:read', {
+      const response = await invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
         params: { collectionID: id }
       })
 
@@ -147,9 +148,9 @@ export default function Collection() {
   const sensors = useSensors(mouseSensor, keyboardSensor)
 
   return (
-    <WindowFrame
-      title={findComponentLabel('collection')}
-      actions={
+    <Decorations
+      summary={findComponentLabel('collection')}
+      final={
         <Tooltip>
           <TooltipTrigger
             render={
@@ -189,6 +190,6 @@ export default function Collection() {
         visible={drawerVisible}
         onUpdateVisible={onUpdateDrawerVisible}
       />
-    </WindowFrame>
+    </Decorations>
   )
 }

@@ -3,6 +3,7 @@ import { Subject } from 'rxjs'
 import { create, type StateCreator } from 'zustand'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
+import { CHANNELS } from '@/shared/ipc/channels'
 
 type AiSession = MagneticTile.Agent.AiSession
 type AiMessage = MagneticTile.Agent.AiMessage
@@ -168,7 +169,7 @@ const sessionSlice: SliceCreator<SessionSlice> = function (setters, getters) {
 
     async toReadSessions() {
       try {
-        const sessions = await invoke<AiSession[]>('aiSession:toRead', { params: {} })
+        const sessions = await invoke<AiSession[]>(CHANNELS.AI_SESSION.TO_READ, { params: {} })
         setters(
           function (state) {
             state.sessions = sessions
@@ -238,7 +239,7 @@ const sessionSlice: SliceCreator<SessionSlice> = function (setters, getters) {
       )
 
       try {
-        await invoke('aiSession:toWrite', {
+        await invoke(CHANNELS.AI_SESSION.TO_WRITE, {
           params: values.map(toSessionWrite)
         })
         event$.next({
@@ -281,7 +282,7 @@ const sessionSlice: SliceCreator<SessionSlice> = function (setters, getters) {
           const { id, ...change } = v
           return { key: id!, change }
         })
-        await invoke('aiSession:toUpdate', { params })
+        await invoke(CHANNELS.AI_SESSION.TO_UPDATE, { params })
         event$.next({
           type: 'SESSION:UPDATED',
           payload: values,
@@ -298,17 +299,18 @@ const sessionSlice: SliceCreator<SessionSlice> = function (setters, getters) {
       try {
         setters(
           function (state) {
+            const keySet = new Set(keys)
             state.sessions = former.filter(function (session) {
-              return !keys.includes(session.id)
+              return !keySet.has(session.id)
             })
-            if (state.activeSessionID && keys.includes(state.activeSessionID)) {
+            if (state.activeSessionID && keySet.has(state.activeSessionID)) {
               state.activeSessionID = state.sessions[0]?.id ?? null
             }
           },
           false,
           'toRemoveSession/optimistic'
         )
-        await invoke('aiSession:toRemove', { params: keys })
+        await invoke(CHANNELS.AI_SESSION.TO_REMOVE, { params: keys })
         const activeSessionID = getters().activeSessionID
         if (activeSessionID) {
           await getters().toReadMessages(activeSessionID)
@@ -343,7 +345,7 @@ const messageSlice: SliceCreator<MessageSlice> = function (setters, getters) {
     async toReadMessages(sessionID?: string) {
       try {
         const params = sessionID ? { sessionID } : {}
-        const messages = await invoke<AiMessage[]>('aiMessage:toRead', { params })
+        const messages = await invoke<AiMessage[]>(CHANNELS.AI_MESSAGE.TO_READ, { params })
         setters(
           function (state) {
             if (sessionID) {
@@ -403,7 +405,7 @@ const messageSlice: SliceCreator<MessageSlice> = function (setters, getters) {
       )
 
       try {
-        await invoke('aiMessage:toWrite', {
+        await invoke(CHANNELS.AI_MESSAGE.TO_WRITE, {
           params: values.map(toMessageWrite)
         })
         event$.next({
@@ -452,7 +454,7 @@ const messageSlice: SliceCreator<MessageSlice> = function (setters, getters) {
           const { id, ...change } = v
           return { key: id!, change }
         })
-        await invoke('aiMessage:toUpdate', { params })
+        await invoke(CHANNELS.AI_MESSAGE.TO_UPDATE, { params })
         event$.next({
           type: 'MESSAGE:UPDATED',
           payload: values,
@@ -469,14 +471,15 @@ const messageSlice: SliceCreator<MessageSlice> = function (setters, getters) {
       try {
         setters(
           function (state) {
+            const keySet = new Set(keys)
             state.messages = former.filter(function (message) {
-              return !keys.includes(message.id)
+              return !keySet.has(message.id)
             })
           },
           false,
           'toRemoveMessage/optimistic'
         )
-        await invoke('aiMessage:toRemove', { params: keys })
+        await invoke(CHANNELS.AI_MESSAGE.TO_REMOVE, { params: keys })
         event$.next({
           type: 'MESSAGE:REMOVED',
           payload: keys,
@@ -509,7 +512,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
 
     async toReadWorkspaces() {
       try {
-        const workspaces = await invoke<AiWorkspace[]>('aiWorkspace:toRead', {
+        const workspaces = await invoke<AiWorkspace[]>(CHANNELS.AI_WORKSPACE.TO_READ, {
           params: { archived: false }
         })
         setters(
@@ -555,7 +558,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
         'toWriteWorkspace/optimistic'
       )
       try {
-        await invoke('aiWorkspace:toWrite', {
+        await invoke(CHANNELS.AI_WORKSPACE.TO_WRITE, {
           params: values.map(toWorkspaceWrite)
         })
       } catch (error) {
@@ -605,7 +608,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
           const { id, ...change } = v
           return { key: id!, change }
         })
-        await invoke('aiWorkspace:toUpdate', { params })
+        await invoke(CHANNELS.AI_WORKSPACE.TO_UPDATE, { params })
       } catch (error) {
         setters({ workspaces }, false, 'toUpdateWorkspace/rollback')
         throw error
@@ -618,20 +621,21 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
       try {
         setters(
           function (state) {
+            const keySet = new Set(keys)
             state.workspaces = former.filter(function (workspace) {
-              return !keys.includes(workspace.id)
+              return !keySet.has(workspace.id)
             })
             state.workspaceFolders = formerFolders.filter(function (folder) {
-              return !keys.includes(folder.workspaceID)
+              return !keySet.has(folder.workspaceID)
             })
-            if (state.activeWorkspaceID && keys.includes(state.activeWorkspaceID)) {
+            if (state.activeWorkspaceID && keySet.has(state.activeWorkspaceID)) {
               state.activeWorkspaceID = state.workspaces[0]?.id ?? null
             }
           },
           false,
           'toRemoveWorkspace/optimistic'
         )
-        await invoke('aiWorkspace:toRemove', { params: keys })
+        await invoke(CHANNELS.AI_WORKSPACE.TO_REMOVE, { params: keys })
       } catch (error) {
         setters(
           { workspaces: former, workspaceFolders: formerFolders },
@@ -664,7 +668,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
     async toReadWorkspaceFolders(workspaceID) {
       try {
         const params = workspaceID ? { workspaceID } : {}
-        const folders = await invoke<AiWorkspaceFolder[]>('aiWorkspaceFolder:toRead', {
+        const folders = await invoke<AiWorkspaceFolder[]>(CHANNELS.AI_WORKSPACE_FOLDER.TO_READ, {
           params
         })
         setters(
@@ -713,7 +717,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
         'toWriteWorkspaceFolder/optimistic'
       )
       try {
-        await invoke('aiWorkspaceFolder:toWrite', {
+        await invoke(CHANNELS.AI_WORKSPACE_FOLDER.TO_WRITE, {
           params: values.map(toWorkspaceFolderWrite)
         })
       } catch (error) {
@@ -751,7 +755,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
           const { id, ...change } = v
           return { key: id!, change }
         })
-        await invoke('aiWorkspaceFolder:toUpdate', { params })
+        await invoke(CHANNELS.AI_WORKSPACE_FOLDER.TO_UPDATE, { params })
       } catch (error) {
         setters({ workspaceFolders: folders }, false, 'toUpdateWorkspaceFolder/rollback')
         throw error
@@ -763,14 +767,15 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
       try {
         setters(
           function (state) {
+            const keySet = new Set(keys)
             state.workspaceFolders = former.filter(function (folder) {
-              return !keys.includes(folder.id)
+              return !keySet.has(folder.id)
             })
           },
           false,
           'toRemoveWorkspaceFolder/optimistic'
         )
-        await invoke('aiWorkspaceFolder:toRemove', { params: keys })
+        await invoke(CHANNELS.AI_WORKSPACE_FOLDER.TO_REMOVE, { params: keys })
       } catch (error) {
         setters({ workspaceFolders: former }, false, 'toRemoveWorkspaceFolder/rollback')
         throw error
@@ -802,10 +807,10 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
 
       try {
         if (removeKeys.length) {
-          await invoke('aiWorkspaceFolder:toRemove', { params: removeKeys })
+          await invoke(CHANNELS.AI_WORKSPACE_FOLDER.TO_REMOVE, { params: removeKeys })
         }
         if (folders.length) {
-          await invoke('aiWorkspaceFolder:toWrite', {
+          await invoke(CHANNELS.AI_WORKSPACE_FOLDER.TO_WRITE, {
             params: folders.map(toWorkspaceFolderWrite)
           })
         }

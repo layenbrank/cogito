@@ -412,5 +412,5 @@
       "https://*.weixin.qq.com"
     ]
   },
-  "windows": ["main", "overlay", "agent"]
+  "windows": ["main", "overlay", "*:*"]
 }

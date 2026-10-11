@@ -1,9 +1,10 @@
-import { Icon } from '@iconify/react/offline'
 import { Dialog, DialogContent, DialogTitle } from '@i-thinking/design/components/dialog'
-import clsx from 'clsx'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { clsx } from 'clsx'
+import { AnimatePresence, useReducedMotion } from 'motion/react'
+import * as m from 'motion/react-m'
+import { useState } from 'react'
 
+import { Brand } from '@/features/signin/brand'
 import {
   HEAD,
   MODE,
@@ -14,16 +15,16 @@ import {
 } from '@/features/signin/constants.ts'
 import { ForgotForm } from '@/features/signin/forgot-form.tsx'
 import { SigninForm } from '@/features/signin/signin-form.tsx'
-import { SignupForm } from '@/features/signin/signup-form.tsx'
 import styles from '@/features/signin/signin.module.scss'
+import { SignupForm } from '@/features/signin/signup-form.tsx'
 
 type SignInProps = {
-  open: boolean
+  visible: boolean
   onClose: () => void
 }
 
 function SignIn(props: SignInProps) {
-  const { open, onClose } = props
+  const { visible, onClose } = props
   const isReducedMotion = useReducedMotion()
   const [panelView, setPanelView] = useState<PanelView>(PANEL.SIGNIN)
   const [signinMode, setSigninMode] = useState<AuthMode>(MODE.USERNAME)
@@ -38,16 +39,17 @@ function SignIn(props: SignInProps) {
   const viewVariants = MOTION.fadeVariants(!!isReducedMotion)
   const viewTransition = MOTION.transition(!!isReducedMotion)
 
-  useEffect(
-    function () {
-      if (open) return
+  function resetPanes() {
+    setPanelView(PANEL.SIGNIN)
+    setSigninMode(MODE.USERNAME)
+    setForgotMode(MODE.USERNAME)
+  }
 
-      setPanelView(PANEL.SIGNIN)
-      setSigninMode(MODE.USERNAME)
-      setForgotMode(MODE.USERNAME)
-    },
-    [open]
-  )
+  function onVisibleChange(open: boolean) {
+    if (open) return
+    resetPanes()
+    onClose()
+  }
 
   function bumpPanelMotion() {
     setPanelMotionKey(function (key) {
@@ -73,49 +75,19 @@ function SignIn(props: SignInProps) {
 
   return (
     <Dialog
-      open={open}
-      onOpenChange={function (nextOpen) {
-        if (!nextOpen) onClose()
-      }}>
+      open={visible}
+      onOpenChange={onVisibleChange}>
       <DialogContent
-        className={clsx(
-          styles.dialog,
-          'max-w-none gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-none'
-        )}>
+        overlayClassName="bg-black/45 supports-backdrop-filter:backdrop-blur-sm"
+        className="w-[min(94vw,1000px)] max-h-[min(92vh,720px)] max-w-none gap-0 overflow-hidden rounded-2xl border-border/60 bg-card p-0 shadow-2xl ring-1 ring-black/5 sm:max-w-none dark:ring-white/10 [&_[data-slot=dialog-body]]:overflow-hidden">
         <DialogTitle className="sr-only">登录 i-thinking</DialogTitle>
         <div className={styles.body}>
-          <aside className={styles.brand}>
-            <div className={styles.core}>
-              <div className={styles.logo}>
-                <Icon
-                  icon="lucide:lightbulb"
-                  aria-hidden
-                />
-              </div>
-              <h3>i-thinking</h3>
-              <p>企业智能工作台，赋能团队高效决策与协作</p>
-            </div>
-            <ul className={styles.points}>
-              <li>
-                <Icon icon="lucide:shield-check" />
-                <span>企业级安全防护</span>
-              </li>
-              <li>
-                <Icon icon="lucide:refresh-cw" />
-                <span>多端数据实时同步</span>
-              </li>
-              <li>
-                <Icon icon="lucide:users" />
-                <span>智能协作工作流</span>
-              </li>
-            </ul>
-            <footer className={styles.foot}>© 2026 i-thinking · SSL 加密传输</footer>
-          </aside>
+          <Brand />
           <section className={styles.panel}>
             <AnimatePresence
               mode="wait"
               initial={false}>
-              <motion.header
+              <m.header
                 key={panelView}
                 className={styles.head}
                 initial={headVariants.initial}
@@ -124,12 +96,11 @@ function SignIn(props: SignInProps) {
                 transition={viewTransition}>
                 <h4 className="text-base font-medium">{headText.title}</h4>
                 <span className="text-sm text-muted-foreground">{headText.subtitle}</span>
-              </motion.header>
+              </m.header>
             </AnimatePresence>
             <div className={styles.stage}>
-              {/* stage 不用 initial={false}：会经 PresenceContext 屏蔽嵌套 FormStagger 进场 */}
               <AnimatePresence mode="wait">
-                <motion.div
+                <m.div
                   key={panelView}
                   initial={viewVariants.initial}
                   animate={viewVariants.animate}
@@ -161,9 +132,10 @@ function SignIn(props: SignInProps) {
                     <SignupForm
                       motionKey={panelMotionKey}
                       onSignin={onSignin}
+                      onSuccess={onClose}
                     />
                   )}
-                </motion.div>
+                </m.div>
               </AnimatePresence>
             </div>
           </section>

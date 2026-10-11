@@ -67,10 +67,11 @@ function findNextFire(reminder: ReminderLike, now: Dayjs): Dayjs | null {
     return candidate
   }
 
+  const weekDaySet = new Set(weekDays)
   for (let offset = 0; offset < 8; offset++) {
     const day = now.add(offset, 'day').startOf('day')
     const iso = findDayOfWeekISO(day)
-    if (!weekDays.includes(iso)) continue
+    if (!weekDaySet.has(iso)) continue
     const candidate = buildTimeOnDate(day, reminder.fireTime)
     if (candidate.isAfter(now)) return candidate
   }

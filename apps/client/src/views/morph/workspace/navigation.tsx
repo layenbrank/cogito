@@ -72,37 +72,32 @@ function WorkspaceSection() {
             return (
               <div
                 key={f.path}
-                role="button"
-                tabIndex={0}
-                className={clsx(styles.fileItem, isActive && styles.fileItemActive)}
-                onClick={function () {
-                  void toSwitchFile(f.path)
-                }}
-                onKeyDown={function (e) {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
+                className={clsx(styles.fileItem, isActive && styles.fileItemActive)}>
+                <button
+                  type="button"
+                  className={styles.fileItemMain}
+                  onClick={function () {
                     void toSwitchFile(f.path)
-                  }
-                }}>
-                <span
-                  className={styles.fileItemBadge}
-                  aria-hidden>
-                  <Icon
-                    icon="mdi:file-pdf-box"
-                    width={18}
-                    height={18}
-                  />
-                </span>
-                <div className={styles.fileItemBody}>
-                  <div className={styles.fileItemName}>{name}</div>
-                  <div className={styles.fileItemMeta}>{f.count} 页</div>
-                </div>
+                  }}>
+                  <span
+                    className={styles.fileItemBadge}
+                    aria-hidden>
+                    <Icon
+                      icon="mdi:file-pdf-box"
+                      width={18}
+                      height={18}
+                    />
+                  </span>
+                  <div className={styles.fileItemBody}>
+                    <div className={styles.fileItemName}>{name}</div>
+                    <div className={styles.fileItemMeta}>{f.count} 页</div>
+                  </div>
+                </button>
                 <button
                   type="button"
                   className={styles.fileItemClose}
                   aria-label="关闭文件"
-                  onClick={function (e) {
-                    e.stopPropagation()
+                  onClick={function () {
                     toCloseFile(f.path)
                   }}>
                   <Icon

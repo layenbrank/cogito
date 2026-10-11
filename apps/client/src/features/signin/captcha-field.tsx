@@ -8,36 +8,64 @@ import {
   FormMessage
 } from '@i-thinking/design/components/form'
 import { Input } from '@i-thinking/design/components/input'
-import { Spinner } from '@i-thinking/design/components/spinner'
 import { useEffect, useState } from 'react'
 import type { FieldPath, FieldValues, UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 
-import { POST_SEND_CAPTCHA } from '@/apis/auth.ts'
-import { CAPTCHA_COUNTDOWN, LIMIT, type AuthMode } from '@/features/signin/constants.ts'
-import styles from '@/features/signin/signin.module.scss'
+import { POST_OTP, POST_PASSWORD_FORGOT, type SlideProof } from '@/apis/auth.ts'
+import { CAPTCHA_COUNTDOWN, CHANNEL, LIMIT, type AuthMode } from './constants.ts'
+import styles from './signin.module.scss'
+import { HttpError } from '@/utils/http/errors.ts'
 
 /** 表单里验证码字段的固定名（泛型 T 由各表单给出，故此处收窄一次） */
 const CAPTCHA_NAME = 'captcha'
 
-type CaptchaFieldProps<T extends FieldValues> = {
+type CaptchaPurpose = 'otp' | 'forgot'
+
+type CaptchaSender = (target: string, proof: SlideProof) => Promise<unknown>
+
+const SEND: Record<CaptchaPurpose, Partial<Record<AuthMode, CaptchaSender>>> = {
+  otp: {
+    phone(target, proof) {
+      return POST_OTP({ channel: CHANNEL.phone, target, ...proof })
+    },
+    email(target, proof) {
+      return POST_OTP({ channel: CHANNEL.email, target, ...proof })
+    }
+  },
+  forgot: {
+    username(target, proof) {
+      return POST_PASSWORD_FORGOT({ username: target, ...proof })
+    },
+    phone(target, proof) {
+      return POST_PASSWORD_FORGOT({ channel: CHANNEL.phone, target, ...proof })
+    },
+    email(target, proof) {
+      return POST_PASSWORD_FORGOT({ channel: CHANNEL.email, target, ...proof })
+    }
+  }
+}
+
+interface CaptchaFieldProps<T extends FieldValues> {
   form: UseFormReturn<T>
   mode: AuthMode
+  purpose: CaptchaPurpose
   /** 发送前需要先通过校验的身份字段（username / phone / email） */
   targetField: FieldPath<T>
+  askSlide: () => Promise<SlideProof | null>
 }
 
 function CaptchaField<T extends FieldValues>(props: CaptchaFieldProps<T>) {
-  const { form, mode, targetField } = props
-  const [countdown, setCountdown] = useState(0)
-  const [isSending, setIsSending] = useState(false)
+  const { form, mode, purpose, targetField, askSlide } = props
+  const [countdown, updateCountdown] = useState(0)
+  const [isSending, updateSending] = useState(false)
 
   useEffect(
     function () {
       if (countdown <= 0) return
 
       const timer = window.setTimeout(function () {
-        setCountdown(function (prev) {
+        updateCountdown(function (prev) {
           return prev - 1
         })
       }, 1000)
@@ -54,25 +82,26 @@ function CaptchaField<T extends FieldValues>(props: CaptchaFieldProps<T>) {
     if (!isValid) return
 
     const target = String(form.getValues(targetField) ?? '')
-    setIsSending(true)
+    updateSending(true)
 
     try {
-      await POST_SEND_CAPTCHA({ mode, target })
-      toast.success('验证码已发送（mock: 123456）')
-      setCountdown(CAPTCHA_COUNTDOWN)
-    } catch {
-      toast.error('验证码发送失败，请稍后重试')
+      const proof = await askSlide()
+      if (!proof) return
+
+      const send = SEND[purpose][mode]
+      if (!send) return
+      await send(target, proof)
+
+      toast.success('验证码已发送')
+      updateCountdown(CAPTCHA_COUNTDOWN)
+    } catch (error) {
+      toast.error(HttpError(error).message || '验证码发送失败')
     } finally {
-      setIsSending(false)
+      updateSending(false)
     }
   }
 
-  function renderButtonLabel() {
-    if (countdown > 0) {
-      return `${countdown}s 后重发`
-    }
-    return '获取验证码'
-  }
+  const label = isSending ? '发送中…' : countdown > 0 ? `${countdown}s 后重发` : '获取验证码'
 
   return (
     <FormField
@@ -83,7 +112,7 @@ function CaptchaField<T extends FieldValues>(props: CaptchaFieldProps<T>) {
           <FormItem>
             <FormLabel>验证码</FormLabel>
             <div className={styles.captcha}>
-              <div className="relative min-w-0 flex-1">
+              <div className="relative flex-1">
                 <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground [&_svg]:size-4">
                   <Icon icon="lucide:shield-check" />
                 </span>
@@ -108,8 +137,7 @@ function CaptchaField<T extends FieldValues>(props: CaptchaFieldProps<T>) {
                 onClick={function () {
                   void onSendCaptcha()
                 }}>
-                {isSending && <Spinner className="size-4" />}
-                {renderButtonLabel()}
+                {label}
               </Button>
             </div>
             <FormMessage />

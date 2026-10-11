@@ -195,9 +195,9 @@ export const TableGridSelector = forwardRef<
           className={cn('tiptap-table-grid', className)}
           onMouseLeave={onMouseLeave}
           style={gridStyle}>
-          {gridCells.map((cell, index) => (
+          {gridCells.map((cell) => (
             <GridCell
-              key={index}
+              key={`${cell.row}-${cell.col}`}
               row={cell.row}
               col={cell.col}
               isSelected={isCellSelected(cell, hoveredCell)}

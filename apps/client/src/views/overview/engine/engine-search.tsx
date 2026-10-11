@@ -1,5 +1,5 @@
 /**
- * Overview 顶栏搜索：建议请求、键盘导航、面板显隐
+ * Overview 顶栏搜索：引擎切换、建议请求、键盘导航、面板显隐
  */
 import { Button } from '@i-thinking/design/components/button'
 import { Input } from '@i-thinking/design/components/input'
@@ -11,13 +11,15 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { debounce, throttle } from 'lodash-es'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { ENGINES, findEngine } from '@/constants/engine'
 import { EngineIpc } from '@/lib/engine-ipc'
 import { ENGINE_UI } from '@/views/overview/engine/engine-constants'
 import { EngineFragment } from '@/views/overview/engine/engine-fragment'
+import { readEngineKey, writeEngineKey } from '@/views/overview/engine/engine-store'
 import {
   buildMatchUrl,
-  buildSuggestionUrl,
   findDefaultNavigation,
+  findItemUrl,
   isUrlKeyword,
   parseKeywordUrl
 } from '@/views/overview/engine/engine-url'
@@ -31,12 +33,19 @@ function EngineSearch() {
   const [keyword, setKeyword] = useState('')
   const [matchedKeyword, setMatchedKeyword] = useState('')
   const [visible, setVisible] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [series, setSeries] = useState<Engine.Item[]>([])
   const [navigation, setNavigation] = useState<number>(ENGINE_UI.NONE)
+  const [engineKey, setEngineKey] = useState(function () {
+    return readEngineKey()
+  })
+
+  const engine = findEngine(engineKey)
 
   const fetchSuggestion = useMemo(function () {
     return debounce(function (value: string) {
-      if (!value) {
+      const qry = value.trim()
+      if (!qry) {
         setSeries([])
         setMatchedKeyword('')
         setNavigation(ENGINE_UI.NONE)
@@ -45,17 +54,17 @@ function EngineSearch() {
 
       const seq = ++querySeq.current
 
-      EngineIpc.suggestion(value)
+      EngineIpc.suggestion(qry)
         .then(function (data) {
           if (seq !== querySeq.current) return
-          if (value !== keywordRef.current) return
+          if (qry !== keywordRef.current.trim()) return
           setSeries(data.s ?? [])
-          setMatchedKeyword(value)
-          setNavigation(findDefaultNavigation(value))
+          setMatchedKeyword(qry)
+          setNavigation(findDefaultNavigation(qry))
         })
         .catch(function (error) {
           if (seq !== querySeq.current) return
-          if (value !== keywordRef.current) return
+          if (qry !== keywordRef.current.trim()) return
           console.error('[engine] suggestion failed:', error)
           setSeries([])
           setMatchedKeyword('')
@@ -75,18 +84,21 @@ function EngineSearch() {
 
   useClickOutside(engineRef, function () {
     setVisible(false)
+    setMenuOpen(false)
   })
 
-  const isSeriesFresh = matchedKeyword === keyword && series.length > 0
-  const isPanelOpen = visible && keyword.length > 0 && isSeriesFresh
+  const trimmed = keyword.trim()
+  const isSeriesFresh = matchedKeyword === trimmed && series.length > 0
+  const isPanelOpen = visible && !menuOpen && trimmed.length > 0 && isSeriesFresh
 
   function changeKeyword(e: React.ChangeEvent<HTMLInputElement>) {
     const value = e.target.value
     keywordRef.current = value
     setKeyword(value)
-    setVisible(value.length > 0)
+    setVisible(value.trim().length > 0)
+    setMenuOpen(false)
 
-    if (!value) {
+    if (!value.trim()) {
       querySeq.current += 1
       fetchSuggestion.cancel()
       setSeries([])
@@ -98,21 +110,20 @@ function EngineSearch() {
     fetchSuggestion(value)
   }
 
-  function openEngine() {
-    if (keyword) setVisible(true)
-  }
-
   function openItemUrl(item?: Engine.Item) {
     if (item) {
-      void openUrl(buildSuggestionUrl(item.u))
+      void openUrl(findItemUrl(engine, item))
+      setVisible(false)
       return
     }
-    if (!keyword) return
-    if (isUrlKeyword(keyword)) {
-      void openUrl(parseKeywordUrl(keyword))
+    if (!trimmed) return
+    if (isUrlKeyword(trimmed)) {
+      void openUrl(parseKeywordUrl(trimmed))
+      setVisible(false)
       return
     }
-    void openUrl(buildMatchUrl(keyword))
+    void openUrl(buildMatchUrl(engine.match, trimmed))
+    setVisible(false)
   }
 
   function search() {
@@ -127,7 +138,13 @@ function EngineSearch() {
   }
 
   const seriesLengthRef = useRef(series.length)
-  seriesLengthRef.current = series.length
+
+  useEffect(
+    function () {
+      seriesLengthRef.current = series.length
+    },
+    [series.length]
+  )
 
   const navigatePrev = useMemo(function () {
     return throttle(
@@ -136,7 +153,7 @@ function EngineSearch() {
           const length = seriesLengthRef.current
           if (length <= 0) return index
           const hasNone = isUrlKeyword(keywordRef.current)
-          if (index < 0) return length - 1
+          if (index < 0) return hasNone ? ENGINE_UI.NONE : length - 1
           if (index <= 0) return hasNone ? ENGINE_UI.NONE : length - 1
           return index - 1
         })
@@ -173,39 +190,63 @@ function EngineSearch() {
     [navigatePrev, navigateNext]
   )
 
-  const keyHandlers: Record<string, (e: React.KeyboardEvent<HTMLInputElement>) => void> = {
-    ArrowUp(e) {
-      if (!isPanelOpen) return
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.nativeEvent.isComposing) return
+    if (e.key === 'ArrowUp' && isPanelOpen) {
       e.preventDefault()
       navigatePrev()
-    },
-    ArrowDown(e) {
-      if (!isPanelOpen) return
+      return
+    }
+    if (e.key === 'ArrowDown' && isPanelOpen) {
       e.preventDefault()
       navigateNext()
-    },
-    Enter(e) {
+      return
+    }
+    if (e.key === 'Enter') {
       e.preventDefault()
       search()
     }
   }
 
-  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    keyHandlers[e.key]?.(e)
+  function chooseEngine(key: string) {
+    setEngineKey(key)
+    setMenuOpen(false)
+    writeEngineKey(key)
   }
 
   return (
     <div
       ref={engineRef}
-      onClick={openEngine}
       className={clsx(styles.engine, styles.section, {
         [styles.active]: isPanelOpen
       })}>
       <div className={clsx(styles.engine, styles.keyword)}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="搜索引擎"
+          aria-expanded={menuOpen}
+          title={engine.label}
+          className={clsx(styles.engine, styles.picker)}
+          onClick={function () {
+            setMenuOpen(function (open) {
+              return !open
+            })
+            setVisible(false)
+          }}>
+          <Icon
+            icon={engine.icon}
+            aria-hidden
+          />
+        </Button>
         <Input
           value={keyword}
           onChange={changeKeyword}
           onKeyDown={onKeyDown}
+          onFocus={function () {
+            if (trimmed) setVisible(true)
+          }}
           placeholder="搜索或输入网址"
           aria-label="搜索"
           className={clsx(styles.engine, styles.trigger)}
@@ -224,6 +265,30 @@ function EngineSearch() {
           </span>
         </Button>
       </div>
+      {menuOpen ? (
+        <div className={clsx(styles.engine, styles.menu)}>
+          {ENGINES.map(function (item) {
+            const isActive = item.key === engine.key
+            return (
+              <button
+                key={item.key}
+                type="button"
+                className={clsx(styles.engine, styles.menuItem, {
+                  [styles.menuItemActive]: isActive
+                })}
+                onMouseDown={function (event) {
+                  event.preventDefault()
+                }}
+                onClick={function () {
+                  chooseEngine(item.key)
+                }}>
+                <Icon icon={item.icon} />
+                <span>{item.label}</span>
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
       <AnimatePresence>
         {isPanelOpen && (
           <EngineFragment

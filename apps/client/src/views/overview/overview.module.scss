@@ -22,7 +22,7 @@ $engine-size: 36px;
 }
 
 .overview {
-  /* 主窗口容器（WindowFrame 内层）与页面分区（header / main）共用的标记类 */
+  /* 主窗口容器（Decorations 内层）与页面分区（header / main）共用的标记类 */
   position: relative;
 
   &.prefix {
@@ -217,19 +217,41 @@ $engine-size: 36px;
     transform: translateX(3px);
   }
 
-  // ==================== Input.Search 内部元素（永远保持直角） ====================
+  // ==================== 输入行：引擎按钮 + Input + 搜索按钮（直角衔接） ====================
   &.keyword {
     display: flex;
-    padding-inline: 0px;
+    align-items: center;
+    padding-inline: 0;
+    width: 100%;
+    height: $engine-size;
+  }
+
+  &.picker,
+  &.series {
+    flex: none;
+    width: $engine-size + 8px;
+    height: $engine-size;
+  }
+
+  &.picker {
+    color: inherit;
+
+    :global(svg) {
+      width: 18px;
+      height: 18px;
+    }
   }
 
   &.trigger {
+    flex: 1;
+    min-width: 0;
     padding-block: 4px;
-    padding-inline: 14px 0px;
+    padding-inline: 0;
   }
 
   &.trigger,
-  &.series {
+  &.series,
+  &.picker {
     background-color: transparent;
     border: none;
     border-radius: 0;
@@ -249,5 +271,48 @@ $engine-size: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  &.menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 21;
+    min-width: 140px;
+    margin: 0;
+    padding: 6px;
+    border-radius: $radius;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+    backdrop-filter: blur(18px) saturate(1.15);
+  }
+
+  &.menuItem {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 36px;
+    margin: 0;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: $radius;
+    color: #0f172a;
+    cursor: pointer;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+    font: inherit;
+
+    :global(svg) {
+      width: 18px;
+      height: 18px;
+      flex: none;
+    }
+
+    &:hover,
+    &.menuItemActive {
+      background: rgba(64, 128, 255, 0.12);
+    }
   }
 }

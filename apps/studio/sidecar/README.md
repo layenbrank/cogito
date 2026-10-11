@@ -15,7 +15,19 @@ pnpm command sidecar bootstrap studio   # 全量落盘（含按需工具；档�
 所以切档不用重跑 bootstrap。精简版里这三个由 Studio 运行时下载到 `<userData>/sidecar/<tool>/<版本>/`。
 
 **corex 不参与按需下载**：它是自研 sidecar，必须随包（档位无关），版本与直链钉在 `tools.lock.json`（直链是自建 R2 镜像）。
-落盘时从同一个归档里取三样：`corex-daemon`、`corex` 与 **`corex-mcp`**（opencode 等按名字拉起的侧车）。
+发版 ZIP **必须**含：`corex-daemon`、`corex`、**`corex-mcp`**、**`pdfium.dll`**（win32）。
+缺 `corex-mcp` 时 bootstrap 会直接失败（不再 warn 跳过）。
+
+**pdfium** 另有独立 pin（与归档内同名文件二选一 / 互相覆盖）；stage 后 `checksums.json` 必须列出
+`corex-mcp` 与 `pdfium.dll`，否则 verify 失败。
+
+本地联调未发完整包时，可设环境变量：
+
+```bash
+# 指向含 corex-daemon / corex / corex-mcp（及可选 pdfium.dll）的目录
+set COREX_LOCAL_BIN=D:\Documents\cache\release
+pnpm command sidecar bootstrap studio
+```
 
 **`manifest.json`** 是这三个工具的**在线包清单**（R2 直链 + sha256 + 解压后要留的文件名），
 宿主构建期内联它、CLI 也能读它核对：

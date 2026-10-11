@@ -4,14 +4,8 @@ import type { ReactNode } from 'react'
 import { Caption, type CaptionProps } from '@/components/caption/caption'
 
 /**
- * 无边框窗口的通用外壳（容器）：顶栏装饰（Caption）+ 内容区 + 可选底栏。
- * 对应 Tauri `decorations: false` 后的自绘窗口装饰壳。
- *
- * 两种形态：
- * - `framed`（默认）：透明窗内层圆角卡片（磁贴窗）—— 卡片承担可见面，内容区不透明；
- * - `framed={false}`：不画卡片，内容区透明（原生 mica / 亚克力透出来），供主窗口这类
- *   自带窗口材质的场景用 —— 但容器职责不变：**它负责把内容撑满窗口并给出纵向 flex 列**，
- *   子元素不再各自 `height: 100vh`。
+ * 窗口容器：Caption + 内容区 + 可选底栏。
+ * 根透明（透出 mica / 亚克力）；纵向 flex 撑满窗口，子节点不必再写 `100vh`。
  */
 
 interface DecorationsProps {
@@ -29,48 +23,40 @@ interface DecorationsProps {
   section?: ReactNode
   /** 内容区是否由外壳统一滚动；内部已有滚动区时传 false */
   scrollable?: boolean
-  /** 透明窗口下渲染内层圆角卡片；窗口自带材质（mica 等）时传 false */
-  framed?: boolean
+}
+
+function findCaptionBegin(begin: ReactNode | undefined, summary: string | undefined): ReactNode {
+  if (begin != null) return begin
+  if (!summary) return null
+  return <span className="truncate px-1 text-sm font-medium">{summary}</span>
 }
 
 function Decorations(props: DecorationsProps) {
   const scrollable = props.scrollable ?? true
-  const framed = props.framed ?? true
-  const begin =
-    props.begin ??
-    (props.summary ? (
-      <span className="truncate px-1 text-sm font-medium">{props.summary}</span>
-    ) : null)
 
   return (
-    <div className="h-screen w-screen bg-transparent">
+    <div
+      className={cn(
+        'flex h-screen w-screen flex-col overflow-hidden bg-transparent text-foreground',
+        props.className
+      )}>
+      <Caption
+        begin={findCaptionBegin(props.begin, props.summary)}
+        final={props.final}
+        controls={props.controls}
+      />
       <div
         className={cn(
-          'flex h-full w-full flex-col overflow-hidden text-foreground',
-          framed && 'rounded-xl border border-border bg-card shadow-lg',
-          props.className
+          'flex min-h-0 flex-1 flex-col',
+          scrollable ? 'overflow-auto' : 'overflow-hidden'
         )}>
-        <Caption
-          begin={begin}
-          final={props.final}
-          controls={props.controls}
-          framed={framed}
-          className={cn(framed && 'border-b border-border/60')}
-        />
-        <div
-          className={cn(
-            'flex min-h-0 flex-1 flex-col',
-            framed ? 'bg-background' : 'bg-transparent',
-            scrollable ? 'overflow-auto' : 'overflow-hidden'
-          )}>
-          {props.children}
-        </div>
-        {props.section ? (
-          <section className="flex shrink-0 justify-end gap-2.5 border-t border-border/60 bg-card px-5 py-3">
-            {props.section}
-          </section>
-        ) : null}
+        {props.children}
       </div>
+      {props.section ? (
+        <section className="flex shrink-0 justify-end gap-2.5 border-t border-border/60 bg-card px-5 py-3">
+          {props.section}
+        </section>
+      ) : null}
     </div>
   )
 }

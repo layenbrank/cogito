@@ -1,6 +1,7 @@
 import { Icon } from '@iconify/react/offline'
 import clsx from 'clsx'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, useReducedMotion } from 'motion/react'
+import * as m from 'motion/react-m'
 import { useState } from 'react'
 
 import {
@@ -75,7 +76,7 @@ function Shell() {
         <AnimatePresence
           mode="wait"
           initial={false}>
-          <motion.header
+          <m.header
             key={section}
             className={styles.head}
             initial={headVariants.initial}
@@ -84,14 +85,14 @@ function Shell() {
             transition={viewTransition}>
             <h1 className={styles.headTitle}>{headText.title}</h1>
             <p className={styles.headSubtitle}>{headText.subtitle}</p>
-          </motion.header>
+          </m.header>
         </AnimatePresence>
 
         <div className={styles.stage}>
           <AnimatePresence
             mode="wait"
             initial={false}>
-            <motion.div
+            <m.div
               key={section}
               className={styles.panelWrap}
               initial={viewVariants.initial}
@@ -100,7 +101,7 @@ function Shell() {
               transition={viewTransition}>
               {section === SECTION.GENERAL && <GeneralPanel />}
               {section === SECTION.APPEARANCE && <AppearancePanel />}
-            </motion.div>
+            </m.div>
           </AnimatePresence>
         </div>
       </section>

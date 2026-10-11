@@ -1,6 +1,6 @@
 import { Suspense, lazy } from 'react'
 
-import { WindowFrame } from '@/components/window-frame/index.ts'
+import { Decorations } from '@/components/decorations/index.ts'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 import styles from '@/views/code/code.module.scss'
 
@@ -10,14 +10,14 @@ const CodeWorkspace = lazy(function () {
 
 export default function Code() {
   return (
-    <WindowFrame
-      title={findComponentLabel('code')}
-      isScrollable={false}>
+    <Decorations
+      summary={findComponentLabel('code')}
+      scrollable={false}>
       <div className={styles.workspace}>
         <Suspense fallback={null}>
           <CodeWorkspace />
         </Suspense>
       </div>
-    </WindowFrame>
+    </Decorations>
   )
 }

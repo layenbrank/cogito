@@ -2,6 +2,10 @@
   // 与 .cursor/mcp.json 保持同一批服务（两个编辑器共用同一台机器）。
   // corex 的指令目录由 corex 自己生成在 .cache/ 下；原先写的 examples/directives 在本仓并不存在。
   "servers": {
+    "shaders": {
+      "type": "http",
+      "url": "https://shaders.com/mcp"
+    }
     // "corex": {
     //   "type": "stdio",
     //   "command": "corex-mcp",

@@ -543,6 +543,7 @@ export const ImageUploadNode: React.FC<NodeViewProps> = (props) => {
         accept={accept}
         type="file"
         multiple={limit > 1}
+        aria-label="Upload image"
         onChange={handleChange}
         onClick={(e: React.MouseEvent<HTMLInputElement>) => e.stopPropagation()}
       />

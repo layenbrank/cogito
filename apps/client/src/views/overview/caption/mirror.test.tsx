@@ -54,7 +54,7 @@ describe('MirrorSwitcher', function () {
     expect(trigger).toHaveTextContent('1')
   })
 
-  it('只有一个镜像时仍可点开管理面', function () {
+  it('只有一个镜像时仍可点开切换面，并提供管理入口', function () {
     seed([MIRRORS[0]])
     render(<MirrorSwitcher />)
 
@@ -62,6 +62,9 @@ describe('MirrorSwitcher', function () {
 
     expect(screen.getAllByRole('option')).toHaveLength(1)
     expect(screen.getByRole('button', { name: '新建镜像' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '管理镜像' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '编辑「工作台」' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '删除「工作台」' })).not.toBeInTheDocument()
   })
 
   it('没有镜像时给「新建镜像」入口', function () {
@@ -83,7 +86,6 @@ describe('MirrorSwitcher', function () {
     expect(options).toHaveLength(2)
     expect(options[0]).toHaveAttribute('aria-selected', 'true')
 
-    // 用行主按钮定位，避免匹配到重命名/删除工具按钮
     const secondRowButton = options[1]?.querySelector('button')
     expect(secondRowButton).not.toBeNull()
     fireEvent.click(secondRowButton as HTMLElement)
@@ -120,7 +122,6 @@ describe('MirrorSwitcher', function () {
     fireEvent.keyDown(listbox, { key: 'ArrowDown' })
     expect(screen.getAllByRole('option')[1]).toHaveAttribute('data-cursor', 'true')
 
-    // 环绕：继续向下回到第一项
     fireEvent.keyDown(listbox, { key: 'ArrowDown' })
     expect(screen.getAllByRole('option')[0]).toHaveAttribute('data-cursor', 'true')
 
@@ -131,7 +132,7 @@ describe('MirrorSwitcher', function () {
     unregister()
   })
 
-  it('重命名：就地输入，Enter 提交 title 变更', async function () {
+  it('管理镜像：可改名称、描述与图标', async function () {
     seed(MIRRORS)
     const toUpdateMirror = vi.fn(function () {
       return Promise.resolve()
@@ -140,18 +141,32 @@ describe('MirrorSwitcher', function () {
 
     render(<MirrorSwitcher />)
     fireEvent.click(screen.getByRole('button', { name: /镜像：工作台/ }))
-    fireEvent.click(screen.getByRole('button', { name: '重命名「工作台」' }))
+    fireEvent.click(screen.getByRole('button', { name: '管理镜像' }))
 
-    const input = screen.getByRole('textbox', { name: '镜像名称' })
-    fireEvent.change(input, { target: { value: '新名字' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByRole('heading', { name: '管理镜像' })).toBeInTheDocument()
+
+    const titleInput = screen.getByRole('textbox', { name: '「工作台」名称' })
+    const descInput = screen.getByRole('textbox', { name: '「工作台」描述' })
+    fireEvent.change(titleInput, { target: { value: '新名字' } })
+    fireEvent.blur(titleInput)
+    fireEvent.change(descInput, { target: { value: '新描述' } })
+    fireEvent.blur(descInput)
+
+    fireEvent.click(screen.getByRole('button', { name: '选择「工作台」图标' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'lucide:briefcase' }))
 
     await waitFor(function () {
       expect(toUpdateMirror).toHaveBeenCalledWith([{ key: 'm1', change: { title: '新名字' } }])
+      expect(toUpdateMirror).toHaveBeenCalledWith([
+        { key: 'm1', change: { description: '新描述' } }
+      ])
+      expect(toUpdateMirror).toHaveBeenCalledWith([
+        { key: 'm1', change: { mark: 'lucide:briefcase' } }
+      ])
     })
   })
 
-  it('删除：先二次确认，确认后按 id 删除', async function () {
+  it('管理镜像：删除先二次确认，确认后按 id 删除', async function () {
     seed(MIRRORS)
     const toRemoveMirror = vi.fn(function () {
       return Promise.resolve()
@@ -160,7 +175,8 @@ describe('MirrorSwitcher', function () {
 
     render(<MirrorSwitcher />)
     fireEvent.click(screen.getByRole('button', { name: /镜像：工作台/ }))
-    fireEvent.click(screen.getByRole('button', { name: '删除「影音」' }))
+    fireEvent.click(screen.getByRole('button', { name: '管理镜像' }))
+    fireEvent.click(await screen.findByRole('button', { name: '删除「影音」' }))
 
     expect(await screen.findByText('删除镜像')).toBeInTheDocument()
     expect(screen.getByText(/将删除「影音」/)).toBeInTheDocument()
@@ -173,7 +189,6 @@ describe('MirrorSwitcher', function () {
 
   it('切换中禁用触发按钮', function () {
     seed(MIRRORS)
-    // 未注册 handler 时 requestMirrorSwitch 直接返回，忙态不会滞留
     expect(requestMirrorSwitch('m2')).toBeInstanceOf(Promise)
     render(<MirrorSwitcher />)
     expect(screen.getByRole('button', { name: /镜像：工作台/ })).toBeEnabled()

@@ -1,4 +1,4 @@
-import { Avatar } from '@i-thinking/design/components/avatar'
+import { Avatar, AvatarFallback } from '@i-thinking/design/components/avatar'
 import clsx from 'clsx'
 
 import {
@@ -19,6 +19,7 @@ const SHAPE_RADIUS: Record<MarkerProps['shape'], string> = {
 
 export default function Marker(props: Props) {
   const label = props.mark || [...props.title].at(0)
+  const radius = SHAPE_RADIUS[props.shape]
   return (
     <MagneticTile.Marker
       size={props.size}
@@ -35,9 +36,15 @@ export default function Marker(props: Props) {
           // design Avatar 自带 after 描边环；磁贴只要色块 / 首字
           'after:hidden',
           styles.avatar,
-          SHAPE_RADIUS[props.shape]
+          radius
         )}>
-        {label}
+        <AvatarFallback
+          className={clsx(
+            'size-full bg-transparent text-[1em] text-inherit',
+            radius
+          )}>
+          {label}
+        </AvatarFallback>
       </Avatar>
     </MagneticTile.Marker>
   )

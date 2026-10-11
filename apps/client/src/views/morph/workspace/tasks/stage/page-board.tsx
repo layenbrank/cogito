@@ -2,7 +2,8 @@ import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
 import { Skeleton } from '@i-thinking/design/components/skeleton'
 import { clsx } from 'clsx'
-import { motion, useReducedMotion } from 'motion/react'
+import { useReducedMotion } from 'motion/react'
+import * as m from 'motion/react-m'
 import type { CSSProperties, ReactNode } from 'react'
 
 import styles from '@/views/morph/workspace/tasks/stage/page-board.module.scss'
@@ -133,10 +134,9 @@ function PageBoard(props: PageBoardProps) {
       className={clsx(styles.board, styles.root, className)}>
       {banner ? <div className={styles.banner}>{banner}</div> : null}
       {renderScaleChip()}
-      <div
+      <ul
         className={clsx(styles.grid, isFewPages && styles.gridSparse)}
-        style={gridStyle}
-        role="list">
+        style={gridStyle}>
         {thumbnails.map(function (image, index) {
           const offset = image.offset
           const isSelected = selectedOffsets?.has(offset) ?? false
@@ -145,10 +145,9 @@ function PageBoard(props: PageBoardProps) {
             ? offsetLabel(offset, index)
             : String(offset + 1)
           return (
-            <motion.button
-              key={`${offset}-${index}`}
+            <li key={offset}>
+            <m.button
               type="button"
-              role="listitem"
               aria-pressed={selectedOffsets ? isSelected : undefined}
               className={clsx(
                 styles.card,
@@ -193,10 +192,11 @@ function PageBoard(props: PageBoardProps) {
                   <span className={styles.groupBadge}>组 {group + 1}</span>
                 ) : null}
               </div>
-            </motion.button>
+            </m.button>
+            </li>
           )
         })}
-      </div>
+      </ul>
       <p className={styles.hint}>Ctrl + 滚轮缩放预览</p>
     </div>
   )

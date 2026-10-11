@@ -1,5 +1,5 @@
 import { clsx } from 'clsx'
-import { AnimatePresence, motion as Motion } from 'motion/react'
+import { AnimatePresence } from 'motion/react'
 import {
   cloneElement,
   isValidElement,
@@ -22,17 +22,11 @@ import type {
   MenuStyles,
   ParsedMenuItem
 } from '@/components/contextmenu/menu'
-import { Surface } from '@/components/contextmenu/surface'
-import { VIEWPORT_PADDING, type Point } from '@/components/contextmenu/position'
+import { findBody } from '@/components/contextmenu/find-body'
+import { MenuLayer, type LayerState } from '@/components/contextmenu/menu-layer'
+import { type Point } from '@/components/contextmenu/position'
 
 import '@/components/contextmenu/contextmenu.scss'
-
-const SHELL_MOTION = {
-  initial: { opacity: 0 },
-  animate: { opacity: 1 },
-  exit: { opacity: 0 },
-  transition: { duration: 0.12 }
-}
 
 /** 默认 trigger：clone 时写入 data-contextmenu-trigger */
 const TRIGGER = '[data-contextmenu-trigger]'
@@ -65,11 +59,6 @@ interface ContextMenuProps {
   onSelect?: (info: MenuSelectInfo) => void
 }
 
-interface LayerState {
-  anchor: Point
-  items: ParsedMenuItem[]
-}
-
 interface TriggerElementProps {
   className?: string
   onContextMenu?: (event: ReactMouseEvent) => void
@@ -87,31 +76,6 @@ function pickItems(props: ContextMenuProps, trigger: Element) {
   return props.items ?? []
 }
 
-interface MenuLayerProps {
-  layer: LayerState
-  path: string[]
-  activeKey?: string
-  classNames?: MenuClassNames
-  styles?: MenuStyles
-  motion?: MenuMotion
-  offset?: [number, number]
-  submenuOffset?: [number, number]
-  boundaryPadding?: number
-  expandDelay?: number
-  collapseDelay?: number
-  container: HTMLElement
-  renderItem?: ContextMenuProps['renderItem']
-  renderSurface?: ContextMenuProps['renderSurface']
-  onUpdatePath: (path: string[]) => void
-  onUpdateActive: (key: string | undefined) => void
-  onSelect: (info: MenuSelectInfo) => void
-  onClose: () => void
-}
-
-function findBody() {
-  return document.body
-}
-
 function assignRef(ref: Ref<HTMLElement> | undefined, node: HTMLElement | null) {
   if (typeof ref === 'function') {
     ref(node)
@@ -122,46 +86,9 @@ function assignRef(ref: Ref<HTMLElement> | undefined, node: HTMLElement | null) 
   }
 }
 
-function MenuLayer(props: MenuLayerProps) {
-  // 壳层仅 opacity，禁止 transform/filter，避免 fixed 面板包含块被改写
-  return (
-    <Motion.div
-      className="contextmenu-root"
-      initial={SHELL_MOTION.initial}
-      animate={SHELL_MOTION.animate}
-      exit={SHELL_MOTION.exit}
-      transition={SHELL_MOTION.transition}>
-      <Surface
-        items={props.layer.items}
-        level={0}
-        keyPath={[]}
-        path={props.path}
-        activeKey={props.activeKey}
-        classNames={props.classNames}
-        styles={props.styles}
-        motion={props.motion}
-        offset={props.offset}
-        submenuOffset={props.submenuOffset}
-        boundaryPadding={props.boundaryPadding ?? VIEWPORT_PADDING}
-        expandDelay={props.expandDelay}
-        collapseDelay={props.collapseDelay}
-        container={props.container}
-        anchor={props.layer.anchor}
-        placement="pointer"
-        renderItem={props.renderItem}
-        renderSurface={props.renderSurface}
-        onpathChange={props.onUpdatePath}
-        onUpdateActive={props.onUpdateActive}
-        onSelect={props.onSelect}
-        onClose={props.onClose}
-      />
-    </Motion.div>
-  )
-}
-
 function Root(props: ContextMenuProps) {
   const isControlled = props.visible !== undefined
-  const isDelegate = (props.trigger !== null && props.trigger !== undefined)
+  const isDelegate = props.trigger !== null && props.trigger !== undefined
   const [innerVisible, setInnerVisible] = useState(false)
   const [layer, setLayer] = useState<LayerState | null>(null)
   const [session, setSession] = useState(0)
@@ -170,10 +97,19 @@ function Root(props: ContextMenuProps) {
   const rootRef = useRef<HTMLElement | null>(null)
   const updateVisibleRef = useRef<(next: boolean) => void>(function () {})
   const visibleRef = useRef(false)
+  const itemsRef = useRef(props.items)
+  const findItemsRef = useRef(props.findItems)
+  const controlledVisibleRef = useRef(props.visible)
 
   const visible = isControlled ? Boolean(props.visible) : innerVisible
-  visibleRef.current = visible
   const triggerSelector = props.trigger ?? TRIGGER
+
+  useEffect(
+    function () {
+      visibleRef.current = visible
+    },
+    [visible]
+  )
 
   function updateVisible(next: boolean) {
     if (!isControlled) setInnerVisible(next)
@@ -184,7 +120,17 @@ function Root(props: ContextMenuProps) {
     }
   }
 
-  updateVisibleRef.current = updateVisible
+  useEffect(function () {
+    updateVisibleRef.current = updateVisible
+  })
+
+  useEffect(
+    function () {
+      itemsRef.current = props.items
+      findItemsRef.current = props.findItems
+    },
+    [props.items, props.findItems]
+  )
 
   function clearLayer() {
     setLayer(null)
@@ -262,17 +208,12 @@ function Root(props: ContextMenuProps) {
     [visible, triggerSelector]
   )
 
+  // 受控打开请走 presentAt / ContextMenu.Host；勿用 effect 跟 prop 同步 layer
   useEffect(
     function () {
-      if (isControlled && props.visible && !layer) {
-        const el = rootRef.current
-        if (!el) return
-        const box = el.getBoundingClientRect()
-        const items = props.findItems ? props.findItems(el) : (props.items ?? [])
-        presentAt({ x: box.left + box.width / 2, y: box.top + box.height / 2 }, items)
-      }
+      controlledVisibleRef.current = props.visible
     },
-    [isControlled, props.visible]
+    [props.visible]
   )
 
   const child = props.children
@@ -281,6 +222,8 @@ function Root(props: ContextMenuProps) {
   if (child === undefined || child === null) trigger = null
   else if (isValidElement(child)) {
     const element = child as ReactElement<TriggerElementProps>
+    /* eslint-disable react-hooks/refs -- cloneElement 合并子组件 ref，仅在 ref 回调里写 .current */
+    const childRef = element.props.ref
     trigger = cloneElement(element, {
       className: clsx(element.props.className, props.className, props.classNames?.root),
       ...(isDelegate ? {} : { 'data-contextmenu-trigger': '' }),
@@ -290,7 +233,7 @@ function Root(props: ContextMenuProps) {
       },
       ref(node: HTMLElement | null) {
         rootRef.current = node
-        assignRef(element.props.ref, node)
+        assignRef(childRef, node)
       }
     })
   } else {
@@ -351,5 +294,5 @@ function Root(props: ContextMenuProps) {
   )
 }
 
-export type { ContextMenuProps, LayerState, MenuLayerProps }
-export { Root, findBody, MenuLayer, TRIGGER }
+export type { ContextMenuProps, LayerState }
+export { Root }

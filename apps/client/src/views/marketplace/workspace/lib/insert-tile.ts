@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
+import { CHANNELS } from '@/shared/ipc/channels'
 
-import { parseWrite } from '@/views/marketplace/workspace/customize/tile-io.ts'
+import { parseTileWrite } from '@/views/marketplace/workspace/customize/tile-io'
 import type { MagneticTileWrite } from '@/stores/mirror.ts'
 
 type TileWriteOverrides = {
@@ -21,7 +22,7 @@ const insertTails = new Map<string, Promise<unknown>>()
 
 /** 目标镜像当前最大 index + 1 */
 async function findNextIndex(mirrorID: string) {
-  const tiles = await invoke<MagneticTile[]>('magnetic-tile:read', {
+  const tiles = await invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
     params: { mirrorID }
   })
   let max = -1
@@ -37,7 +38,7 @@ function parseTileWrite(
   index: number,
   overrides?: TileWriteOverrides
 ): MagneticTileWrite {
-  const write = parseWrite(tile, mirrorID, index)
+  const write = parseTileWrite(tile, mirrorID, index)
   if (!overrides) return write
 
   return {

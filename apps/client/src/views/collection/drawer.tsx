@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import Fuse from 'fuse.js'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
+import { CHANNELS } from '@/shared/ipc/channels'
 
 import { Controller } from '@/views/collection/controller.tsx'
 
@@ -23,7 +24,7 @@ function OverlayDrawer(props: OverlayDrawerProps) {
 
     async function toLoad() {
       try {
-        const result = await invoke<MagneticTile[]>('collection:reads')
+        const result = await invoke<MagneticTile[]>(CHANNELS.COLLECTION.READS)
         if (cancelled) return
 
         onUpdateMagneticTiles(result ?? [])
@@ -72,7 +73,7 @@ function OverlayDrawer(props: OverlayDrawerProps) {
         return
       }
 
-      void invoke('magnetic-tile:update', {
+      void invoke(CHANNELS.MAGNETIC_TILE.UPDATE, {
         params: { key: ID, change: { collectionID: props.id } }
       })
 

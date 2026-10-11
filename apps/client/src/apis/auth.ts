@@ -1,77 +1,134 @@
+import { HttpEnvelope } from '@/utils/http/errors.ts'
 import { http } from '@/utils/http/http.ts'
 
-declare namespace Auth {
-  namespace SignIn {
-    export interface Params {
-      username: string
-      password: string
-    }
-
-    export interface Response {
-      token: string
-      id: string
-      username: string
-      createdAt: number
-      updatedAt: number
-    }
-  }
-
-  namespace SendCaptcha {
-    export interface Params {
-      mode: 'username' | 'phone' | 'email'
-      target: string
-    }
-  }
-
-  namespace ResetPassword {
-    export interface Params {
-      mode: 'username' | 'phone' | 'email'
-      target: string
-      captcha: string
-      password: string
-    }
-  }
-
-  namespace SignUp {
-    export interface Params {
-      username: string
-      password: string
-    }
-
-    export interface Response {
-      id: string
-      username: string
-      createdAt: number
-      updatedAt: number
-    }
-  }
+interface SlideProof {
+  captchaKey: string
+  captchaValue: string
+  captchaKind?: string
 }
 
-function POST_SIGNIN(data: Auth.SignIn.Params) {
-  return http.post<RSF<Auth.SignIn.Response>>('/auth/signin', data, {
-    env: 'thinking'
-  })
+interface AuthSession {
+  token: string
+  id: string
+  username: string
+  role: string
+  status: string
+  createdAt: number
+  updatedAt: number
 }
 
-// mock：验证码发送，后续接入真实接口
-function POST_SEND_CAPTCHA(_data: Auth.SendCaptcha.Params) {
-  return Promise.resolve()
+interface AuthAvatar {
+  id: string
+  url: string
+  name: string
 }
 
-// mock：密码重置，后续接入真实接口
-function POST_RESET_PASSWORD(_data: Auth.ResetPassword.Params) {
-  return Promise.resolve()
+/** 与 service 的 `ProfileR` 同名同形（`GET /auth/profile`） */
+interface AuthProfile {
+  id: string
+  username: string
+  role: string
+  status: string
+  email: string | null
+  phone: string | null
+  gender: string | null
+  birthday: string | null
+  age: number | null
+  avatar: AuthAvatar | null
+  createdAt: number
+  updatedAt: number
 }
 
-// mock：用户注册，后续接入真实接口
-function POST_SIGNUP(_data: Auth.SignUp.Params) {
-  const now = Date.now()
-  return Promise.resolve<Auth.SignUp.Response>({
-    id: 'mock-id',
-    username: _data.username,
-    createdAt: now,
-    updatedAt: now
-  })
+interface CaptchaChallenge {
+  kind: string
+  captchaKey: string
+  masterImage: string
+  thumbImage: string
+  thumbX: number
+  thumbY: number
+  thumbWidth: number
+  thumbHeight: number
 }
 
-export { POST_RESET_PASSWORD, POST_SEND_CAPTCHA, POST_SIGNIN, POST_SIGNUP }
+type OtpChannel = 'PHONE' | 'EMAIL'
+
+interface OtpParams extends SlideProof {
+  channel: OtpChannel
+  target: string
+}
+
+interface PasswordIdentity {
+  username?: string
+  channel?: OtpChannel
+  target?: string
+}
+
+interface ForgotParams extends PasswordIdentity, SlideProof {}
+
+interface ResetParams extends PasswordIdentity {
+  code: string
+  newPassword: string
+}
+
+async function unwrap<T>(pending: Promise<RSF<T>>): Promise<T> {
+  return HttpEnvelope(await pending)
+}
+
+const ENV = { env: 'thinking' as const }
+
+function POST_CAPTCHA() {
+  return unwrap(http.post<RSF<CaptchaChallenge>>('/auth/captcha', {}, ENV))
+}
+
+function POST_OTP(data: OtpParams) {
+  return unwrap(http.post<RSF<null>>('/auth/otp', data, ENV))
+}
+
+function POST_SIGNIN(data: { username: string; password: string } & SlideProof) {
+  return unwrap(http.post<RSF<AuthSession>>('/auth/signin', data, ENV))
+}
+
+function POST_SIGNIN_PHONE(data: { phone: string; code: string }) {
+  return unwrap(http.post<RSF<AuthSession>>('/auth/signin/phone', data, ENV))
+}
+
+function POST_SIGNIN_EMAIL(data: { email: string; code: string }) {
+  return unwrap(http.post<RSF<AuthSession>>('/auth/signin/email', data, ENV))
+}
+
+function POST_SIGNUP(data: { username: string; password: string } & SlideProof) {
+  return unwrap(http.post<RSF<AuthSession>>('/auth/signup', data, ENV))
+}
+
+function POST_PASSWORD_FORGOT(data: ForgotParams) {
+  return unwrap(http.post<RSF<null>>('/auth/password/forgot', data, ENV))
+}
+
+function POST_PASSWORD_RESET(data: ResetParams) {
+  return unwrap(http.post<RSF<null>>('/auth/password/reset', data, ENV))
+}
+
+/** 当前登录账号的资料；令牌失效时服务端回 300001/300002/300003 */
+function GET_AUTH_PROFILE() {
+  return unwrap(http.get<RSF<AuthProfile>>('/auth/profile', ENV))
+}
+
+/** 登出：服务端把这份令牌记进黑名单 */
+function POST_AUTH_SIGNOUT() {
+  return unwrap(http.post<RSF<null>>('/auth/signout', undefined, ENV))
+}
+
+export {
+  GET_AUTH_PROFILE,
+  POST_AUTH_SIGNOUT,
+  POST_CAPTCHA,
+  POST_OTP,
+  POST_PASSWORD_FORGOT,
+  POST_PASSWORD_RESET,
+  POST_SIGNIN,
+  POST_SIGNIN_EMAIL,
+  POST_SIGNIN_PHONE,
+  POST_SIGNUP
+}
+
+export type { AuthAvatar, AuthProfile, AuthSession, CaptchaChallenge, OtpChannel, SlideProof }

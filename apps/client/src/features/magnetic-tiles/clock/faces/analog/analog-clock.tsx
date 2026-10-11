@@ -1,7 +1,8 @@
 import clsx from 'clsx'
 import type dayjs from 'dayjs'
-import { motion, useReducedMotion } from 'motion/react'
-import { useRef } from 'react'
+import { useReducedMotion } from 'motion/react'
+import * as m from 'motion/react-m'
+import { useEffect, useRef } from 'react'
 
 import {
   HAND,
@@ -52,19 +53,28 @@ const HAND_ORIGIN = {
 export function AnalogClock(props: AnalogClockProps) {
   const isReduced = !!useReducedMotion()
   const h = props.now.hour() % 12
-  const m = props.now.minute()
+  const minute = props.now.minute()
   const s = props.now.second()
-  const hourTarget = h * 30 + m * 0.5
-  const minuteTarget = m * 6
+  const hourTarget = h * 30 + minute * 0.5
+  const minuteTarget = minute * 6
   const secondTarget = s * 6
 
   const hourRot = useRef(hourTarget)
   const minuteRot = useRef(minuteTarget)
   const secondRot = useRef(secondTarget)
 
-  hourRot.current = findClockwiseDeg(hourRot.current, hourTarget)
-  minuteRot.current = findClockwiseDeg(minuteRot.current, minuteTarget)
-  secondRot.current = findClockwiseDeg(secondRot.current, secondTarget)
+  const hourRotation = findClockwiseDeg(hourRot.current, hourTarget)
+  const minuteRotation = findClockwiseDeg(minuteRot.current, minuteTarget)
+  const secondRotation = findClockwiseDeg(secondRot.current, secondTarget)
+
+  useEffect(
+    function () {
+      hourRot.current = hourRotation
+      minuteRot.current = minuteRotation
+      secondRot.current = secondRotation
+    },
+    [hourRotation, minuteRotation, secondRotation]
+  )
 
   return (
     <div
@@ -106,8 +116,8 @@ export function AnalogClock(props: AnalogClockProps) {
           )
         })}
 
-        <motion.g
-          animate={{ rotate: hourRot.current }}
+        <m.g
+          animate={{ rotate: hourRotation }}
           transition={HAND.hour(isReduced)}
           style={HAND_ORIGIN}>
           <line
@@ -117,10 +127,10 @@ export function AnalogClock(props: AnalogClockProps) {
             x2="50"
             y2="24"
           />
-        </motion.g>
+        </m.g>
 
-        <motion.g
-          animate={{ rotate: minuteRot.current }}
+        <m.g
+          animate={{ rotate: minuteRotation }}
           transition={HAND.minute(isReduced)}
           style={HAND_ORIGIN}>
           <line
@@ -130,10 +140,10 @@ export function AnalogClock(props: AnalogClockProps) {
             x2="50"
             y2="15"
           />
-        </motion.g>
+        </m.g>
 
-        <motion.g
-          animate={{ rotate: secondRot.current }}
+        <m.g
+          animate={{ rotate: secondRotation }}
           transition={HAND.second(isReduced)}
           style={HAND_ORIGIN}>
           <line
@@ -143,7 +153,7 @@ export function AnalogClock(props: AnalogClockProps) {
             x2="50"
             y2="12"
           />
-        </motion.g>
+        </m.g>
 
         <circle
           className={styles.hubOuter}
@@ -162,4 +172,3 @@ export function AnalogClock(props: AnalogClockProps) {
   )
 }
 
-export { styles as analogStyles }

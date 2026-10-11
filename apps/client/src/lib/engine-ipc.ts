@@ -4,6 +4,7 @@
 import { generateSecureCvid } from '@i-thinking/utils'
 
 import { ipcInvoke, parseData } from '@/lib/ipc'
+import { DAEMON, DAEMON_ACTION } from '@/shared/ipc/channels'
 
 const CVID = generateSecureCvid()
 
@@ -36,7 +37,7 @@ function parseSuggestion(payload: unknown): Engine.Suggestion {
 
 async function suggestion(qry: string): Promise<Engine.Suggestion> {
   const resp = await ipcInvoke(
-    'engine',
+    DAEMON.ENGINE,
     {
       pt: PT,
       qry,
@@ -45,7 +46,7 @@ async function suggestion(qry: string): Promise<Engine.Suggestion> {
       pths: PTHS,
       cvid: CVID
     },
-    'suggestion'
+    DAEMON_ACTION.ENGINE.SUGGESTION
   )
   const payload = parseData<Engine.Suggestion | SuggestionEnvelope>(resp)
   return parseSuggestion(payload)

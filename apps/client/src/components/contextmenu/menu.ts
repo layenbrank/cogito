@@ -208,7 +208,13 @@ function useDismiss(options: DismissOptions) {
   const { visible, onClose, graceMs = DISMISS_GRACE_MS } = options
   const shownAtRef = useRef(0)
   const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
+
+  useEffect(
+    function () {
+      onCloseRef.current = onClose
+    },
+    [onClose]
+  )
 
   useEffect(
     function () {

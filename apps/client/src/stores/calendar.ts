@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
+import { CHANNELS } from '@/shared/ipc/channels'
 
 interface Calendar {
   id: string
@@ -70,7 +71,7 @@ const useCalendarStore = create<CalendarStore>()(
 
         async toReadEvents(filter = {}) {
           try {
-            const events = await invoke<Calendar[]>('calendar:read', {
+            const events = await invoke<Calendar[]>(CHANNELS.CALENDAR.READ, {
               params: filter
             })
             setter(
@@ -97,7 +98,7 @@ const useCalendarStore = create<CalendarStore>()(
 
         async toWriteEvent(value) {
           try {
-            const ids = await invoke<string[]>('calendar:write', { params: value })
+            const ids = await invoke<string[]>(CHANNELS.CALENDAR.WRITE, { params: value })
             return ids[0]
           } catch (err) {
             console.error('[calendar-store] toWriteEvent failed:', err)
@@ -107,7 +108,7 @@ const useCalendarStore = create<CalendarStore>()(
 
         async toUpdateEvent(value) {
           try {
-            await invoke('calendar:update', { params: value })
+            await invoke(CHANNELS.CALENDAR.UPDATE, { params: value })
           } catch (err) {
             console.error('[calendar-store] toUpdateEvent failed:', err)
           }
@@ -115,7 +116,7 @@ const useCalendarStore = create<CalendarStore>()(
 
         async toRemoveEvent(key) {
           try {
-            await invoke('calendar:remove', { params: key })
+            await invoke(CHANNELS.CALENDAR.REMOVE, { params: key })
           } catch (err) {
             console.error('[calendar-store] toRemoveEvent failed:', err)
           }

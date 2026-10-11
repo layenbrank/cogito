@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react'
+import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import type { Transition, Variants } from 'motion/react'
 
 type EnterValue = {
@@ -24,10 +24,12 @@ type EnterProps = {
  * 包一层即启用；未包则默认无入场（浮层等复用方不受影响）。
  */
 function Enter(props: EnterProps) {
-  const value: EnterValue = {
-    isActive: true,
-    index: props.index ?? 0
-  }
+  const value = useMemo(function () {
+    return {
+      isActive: true,
+      index: props.index ?? 0
+    } satisfies EnterValue
+  }, [props.index])
   return <EnterContext value={value}>{props.children}</EnterContext>
 }
 

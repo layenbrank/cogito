@@ -18,7 +18,7 @@ function findPdfiumBinDir(key = findPlatformKey()): string {
   return path.join(findPdfiumVendorDir(key), 'bin')
 }
 
-/** bblanchon/pdfium-binaries 归档里那个库的文件名（按平台换名） */
+/** 运行时库文件名（按平台换名） */
 function findPdfiumLibraryName(key = findPlatformKey()): string {
   const platform = key.split('-')[0]
   if (platform === 'win32') {
@@ -31,13 +31,24 @@ function findPdfiumLibrary(key = findPlatformKey()): string {
   return path.join(findPdfiumBinDir(key), findPdfiumLibraryName(key))
 }
 
+function isDirectLibraryUrl(url: string): boolean {
+  const lower = url.toLowerCase()
+  return (
+    lower.endsWith('.dll') ||
+    lower.endsWith('.so') ||
+    lower.endsWith('.dylib') ||
+    lower.includes('/pdfium.dll')
+  )
+}
+
 /**
- * 按 tools.lock 的 `pdfium` pin 下载 bblanchon/pdfium-binaries 归档到缓存 pdfium/<platform>/bin，
- * 只留运行时库那一个文件（corex 的 PDF 动作、以及 client 的 tauri resources 都要它）。
+ * 按 tools.lock 的 `pdfium` pin 落盘运行时库到 pdfium/<platform>/bin。
  *
- * 版本要与 corex 的 `assets/pdfium/VERSION` 对齐：corex 用起 pdfium-render 时是按
- * chromium/XXXX 编译进来的，两边错开会在加载时报符号对不上。
- * 缓存命中不是「有文件就算」，而是「有 lock 里那个版本」：见 infra/vendor.ts
+ * 支持两种 pin：
+ * - 直链库文件（如 R2 `…/7881/pdfium.dll`）
+ * - 归档（tgz/zip，解压后找库文件）
+ *
+ * 版本要与 corex 的 `assets/pdfium/VERSION` 对齐。
  */
 async function ensurePdfiumVendor(key = findPlatformKey()): Promise<string> {
   const lock = parseToolsLock()
@@ -53,31 +64,34 @@ async function ensurePdfiumVendor(key = findPlatformKey()): Promise<string> {
   }
 
   mkdirSync(vendorDir, { recursive: true })
-
-  const archivePath = path.join(vendorDir, `pdfium-${pin.version}${parseArchiveExt(pin.url)}`)
-  const extractDir = path.join(vendorDir, 'extract')
-
-  await fetchVerified(pin.url, archivePath, pin.sha256)
-
-  rmSync(extractDir, { recursive: true, force: true })
-  extractArchive(archivePath, extractDir)
-
   const libraryName = findPdfiumLibraryName(key)
-  const found = findFileInTree(extractDir, libraryName)
-  if (!found) {
-    throw new Error(`[pdfium] 归档内未找到 ${libraryName}`)
-  }
-
   const binDir = findPdfiumBinDir(key)
   rmSync(binDir, { recursive: true, force: true })
   mkdirSync(binDir, { recursive: true })
   const dest = path.join(binDir, libraryName)
-  cpSync(found, dest)
+
+  if (isDirectLibraryUrl(pin.url)) {
+    const downloadPath = path.join(vendorDir, `${libraryName}.download`)
+    await fetchVerified(pin.url, downloadPath, pin.sha256)
+    cpSync(downloadPath, dest)
+  } else {
+    const archivePath = path.join(vendorDir, `pdfium-${pin.version}${parseArchiveExt(pin.url)}`)
+    const extractDir = path.join(vendorDir, 'extract')
+    await fetchVerified(pin.url, archivePath, pin.sha256)
+    rmSync(extractDir, { recursive: true, force: true })
+    extractArchive(archivePath, extractDir)
+    const found = findFileInTree(extractDir, libraryName)
+    if (!found) {
+      throw new Error(`[pdfium] 归档内未找到 ${libraryName}`)
+    }
+    cpSync(found, dest)
+    rmSync(extractDir, { recursive: true, force: true })
+  }
+
   if (process.platform !== 'win32') {
     chmodSync(dest, 0o755)
   }
 
-  rmSync(extractDir, { recursive: true, force: true })
   writeVendorVersion(vendorDir, pin.version)
   console.log(`[pdfium] 已落盘 ${pin.version} → ${binDir}`)
   return library

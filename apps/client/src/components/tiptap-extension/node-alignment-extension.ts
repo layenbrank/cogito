@@ -228,21 +228,27 @@ export const NodeAlignment = Extension.create<NodeAlignmentOptions>({
           )
           if (targets.length === 0) return false
 
+          const textAlignToSet =
+            textAlign && this.options.textAlignValues.includes(textAlign)
+              ? textAlign
+              : undefined
+          const verticalAlignToSet =
+            verticalAlign && this.options.verticalAlignValues.includes(verticalAlign)
+              ? verticalAlign
+              : undefined
+
           let hasChanges = false
 
           for (const { node, pos } of targets) {
             const newAttrs = { ...node.attrs }
 
-            if (textAlign && this.options.textAlignValues.includes(textAlign)) {
-              newAttrs.nodeTextAlign = textAlign
+            if (textAlignToSet) {
+              newAttrs.nodeTextAlign = textAlignToSet
               hasChanges = true
             }
 
-            if (
-              verticalAlign &&
-              this.options.verticalAlignValues.includes(verticalAlign)
-            ) {
-              newAttrs.nodeVerticalAlign = verticalAlign
+            if (verticalAlignToSet) {
+              newAttrs.nodeVerticalAlign = verticalAlignToSet
               hasChanges = true
             }
 

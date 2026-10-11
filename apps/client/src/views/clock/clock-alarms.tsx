@@ -1,0 +1,200 @@
+import { Icon } from '@iconify/react/offline'
+import { Button } from '@i-thinking/design/components/button'
+import { Input } from '@i-thinking/design/components/input'
+import { Switch } from '@i-thinking/design/components/switch'
+import { clsx } from 'clsx'
+import dayjs from 'dayjs'
+
+import { formatWeekDays } from '@/features/magnetic-tiles/clock/alarm-time'
+import type { Reminder } from '@/stores/reminder'
+import styles from '@/views/clock/clock.module.scss'
+
+const WEEKDAY_OPTIONS = [
+  { label: '一', value: 1 },
+  { label: '二', value: 2 },
+  { label: '三', value: 3 },
+  { label: '四', value: 4 },
+  { label: '五', value: 5 },
+  { label: '六', value: 6 },
+  { label: '日', value: 7 }
+]
+
+interface Draft {
+  title: string
+  fireTime: string
+  weekDays: number[]
+}
+
+interface ClockAlarmsProps {
+  clockReminders: Reminder[]
+  isEditing: boolean
+  editingId: string | null
+  draft: Draft
+  saving: boolean
+  onBeginCreate: () => void
+  onBeginEdit: (reminder: Reminder) => void
+  onCancelEdit: () => void
+  onSaveDraft: () => void
+  onDraftChange: (updater: (draft: Draft) => Draft) => void
+  onToggleDraftDay: (day: number) => void
+  onToggle: (reminder: Reminder, enabled: boolean) => void
+  onRemove: (id: string) => void
+  onSnooze: (reminder: Reminder) => void
+}
+
+function ClockAlarms(props: ClockAlarmsProps) {
+  return (
+    <div className={styles.sectionAlarms}>
+      <div className={styles.sectionHead}>
+        <h3 className={styles.sectionTitle}>闹钟</h3>
+        {!props.isEditing ? (
+          <Button
+            variant="link"
+            size="sm"
+            onClick={props.onBeginCreate}>
+            添加
+          </Button>
+        ) : null}
+      </div>
+
+      {props.isEditing ? (
+        <div className={styles.editor}>
+          <div className={styles.editorGrid}>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>时间</span>
+              <Input
+                type="time"
+                value={props.draft.fireTime}
+                onChange={function (event) {
+                  const value = event.target.value
+                  if (!value) return
+                  props.onDraftChange(function (draft) {
+                    return { ...draft, fireTime: value }
+                  })
+                }}
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>标签</span>
+              <Input
+                value={props.draft.title}
+                maxLength={32}
+                onChange={function (event) {
+                  const value = event.target.value
+                  props.onDraftChange(function (draft) {
+                    return { ...draft, title: value }
+                  })
+                }}
+              />
+            </label>
+          </div>
+          <div className={styles.dayBlock}>
+            <span className={styles.dayLabel}>重复（不选为仅一次）</span>
+            <div
+              className={styles.dayChips}
+              role="group"
+              aria-label="重复星期">
+              {WEEKDAY_OPTIONS.map(function (opt) {
+                const isOn = props.draft.weekDays.includes(opt.value)
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={clsx(styles.dayChip, isOn && styles.dayChipOn)}
+                    aria-pressed={isOn}
+                    onClick={function () {
+                      props.onToggleDraftDay(opt.value)
+                    }}>
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <div className={styles.editorActions}>
+            <Button onClick={props.onCancelEdit}>取消</Button>
+            <Button
+              disabled={props.saving}
+              onClick={props.onSaveDraft}>
+              保存
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className={styles.alarmList}>
+        {props.clockReminders.length === 0 && !props.isEditing ? (
+          <button
+            type="button"
+            className={styles.empty}
+            onClick={props.onBeginCreate}>
+            <Icon
+              icon="mdi:alarm-plus"
+              width={20}
+              height={20}
+            />
+            <span>添加闹钟</span>
+          </button>
+        ) : null}
+        {props.clockReminders.map(function (reminder) {
+          return (
+            <div
+              key={reminder.id}
+              className={clsx(
+                styles.alarmItem,
+                props.editingId === reminder.id && styles.alarmItemActive
+              )}>
+              <button
+                type="button"
+                className={styles.alarmMain}
+                onClick={function () {
+                  props.onBeginEdit(reminder)
+                }}>
+                <span className={styles.alarmTime}>{reminder.fireTime}</span>
+                <span className={styles.alarmMeta}>
+                  <span className={styles.alarmTitle}>{reminder.title || '闹钟'}</span>
+                  <span className={styles.alarmHint}>
+                    {formatWeekDays(reminder.weekDays)}
+                    {reminder.snoozeUntil && reminder.snoozeUntil > Date.now()
+                      ? ` · 延后至 ${dayjs(reminder.snoozeUntil).format('HH:mm')}`
+                      : ''}
+                  </span>
+                </span>
+              </button>
+              <div className={styles.alarmActions}>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="延后 9 分钟"
+                  onClick={function () {
+                    props.onSnooze(reminder)
+                  }}>
+                  <Icon icon="mdi:sleep" />
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="icon-sm"
+                  aria-label="归档"
+                  onClick={function () {
+                    props.onRemove(reminder.id)
+                  }}>
+                  <Icon icon="mdi:trash-can-outline" />
+                </Button>
+                <Switch
+                  size="sm"
+                  checked={reminder.enabled}
+                  onCheckedChange={function (checked) {
+                    props.onToggle(reminder, checked)
+                  }}
+                />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export { ClockAlarms }
+export type { ClockAlarmsProps, Draft }

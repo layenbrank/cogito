@@ -1,8 +1,13 @@
 /**
  * 搜索关键词 / 建议 URL 解析
  */
-import { ENGINE } from '@/constants/engine'
+import type { SearchEngine } from '@/constants/engine'
 import { ENGINE_UI } from '@/views/overview/engine/engine-constants'
+
+interface SuggestionItem {
+  q: string
+  u: string
+}
 
 function parseSuggestionLabel(q: string) {
   return q.replace(ENGINE_UI.PRIVATE_USE_CHARS, '')
@@ -20,12 +25,20 @@ function parseKeywordUrl(value: string) {
   return `https://${text}`
 }
 
-function buildSuggestionUrl(u: string) {
-  return `${ENGINE.ORIGIN.value}/${u}`
+function buildSuggestionUrl(origin: string, path: string) {
+  if (/^https?:\/\//i.test(path)) return path
+  const base = origin.replace(/\/$/, '')
+  const suffix = path.startsWith('/') ? path : `/${path}`
+  return `${base}${suffix}`
 }
 
-function buildMatchUrl(keyword: string) {
-  return `${ENGINE.ORIGIN.value}/search?q=${encodeURIComponent(keyword)}`
+function buildMatchUrl(match: string, keyword: string) {
+  return `${match}${encodeURIComponent(keyword)}`
+}
+
+function findItemUrl(engine: SearchEngine, item: SuggestionItem) {
+  if (engine.key === 'bing') return buildSuggestionUrl(engine.origin, item.u)
+  return buildMatchUrl(engine.match, parseSuggestionLabel(item.q))
 }
 
 function findDefaultNavigation(value: string) {
@@ -38,5 +51,6 @@ export {
   parseKeywordUrl,
   buildSuggestionUrl,
   buildMatchUrl,
+  findItemUrl,
   findDefaultNavigation
 }

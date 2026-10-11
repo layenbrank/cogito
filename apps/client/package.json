@@ -28,7 +28,10 @@
     "@iconify/json": "catalog:",
     "@iconify/react": "catalog:",
     "clsx": "catalog:",
-    "swiper": "catalog:"
+    "go-captcha-react": "catalog:",
+    "shaders": "catalog:",
+    "swiper": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@i-thinking/shared": "workspace:*"

@@ -1,12 +1,10 @@
 import { AnimatePresence } from 'motion/react'
-import { createElement, useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { useCallback, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 
-import {
-  findBody,
-  MenuLayer,
-  type ContextMenuProps
-} from '@/components/contextmenu/contextmenu'
+import type { ContextMenuProps } from '@/components/contextmenu/contextmenu'
+import { findBody } from '@/components/contextmenu/find-body'
+import { MenuLayer } from '@/components/contextmenu/menu-layer'
 import { findFocusable, parseMenuItems, useDismiss } from '@/components/contextmenu/menu'
 import type { MenuItem, MenuSelectInfo, ParsedMenuItem } from '@/components/contextmenu/menu'
 import { VIEWPORT_PADDING, type Point } from '@/components/contextmenu/position'
@@ -104,11 +102,49 @@ function useContextMenu() {
   return { present, dismiss }
 }
 
+interface HostSessionProps {
+  state: StoreState
+  container: HTMLElement
+}
+
+/** session 作 key：每次打开重置 path / 焦点，避免 effect 里同步 setState */
+function HostSession(props: HostSessionProps) {
+  const { state, container } = props
+  const focusable = findFocusable(state.items)
+  const [path, onUpdatePath] = useState<string[]>([])
+  const [activeKey, onUpdateActive] = useState<string | undefined>(focusable[0]?.key)
+
+  function onSelect(info: MenuSelectInfo) {
+    state.config.onSelect?.(info)
+    dismissMenu()
+  }
+
+  return (
+    <MenuLayer
+      layer={{ anchor: state.anchor, items: state.items }}
+      path={path}
+      activeKey={activeKey}
+      classNames={state.config.classNames}
+      styles={state.config.styles}
+      motion={state.config.motion}
+      offset={state.config.offset}
+      submenuOffset={state.config.submenuOffset}
+      boundaryPadding={state.config.boundaryPadding ?? VIEWPORT_PADDING}
+      expandDelay={state.config.expandDelay}
+      collapseDelay={state.config.collapseDelay}
+      container={container}
+      renderItem={state.config.renderItem}
+      renderSurface={state.config.renderSurface}
+      onUpdatePath={onUpdatePath}
+      onUpdateActive={onUpdateActive}
+      onSelect={onSelect}
+      onClose={dismissMenu}
+    />
+  )
+}
+
 function Host() {
   const state = useSyncExternalStore(subscribe, findSnapshot, findSnapshot)
-  const [path, setPath] = useState<string[]>([])
-  const [activeKey, setActiveKey] = useState<string | undefined>()
-
   const container = (state.config.onTeleport ?? findBody)()
 
   useDismiss({
@@ -116,56 +152,20 @@ function Host() {
     onClose: dismissMenu
   })
 
-  useEffect(
-    function () {
-      if (!state.visible) return
-      const focusable = findFocusable(state.items)
-      setPath([])
-      setActiveKey(focusable[0]?.key)
-    },
-    [state.session, state.visible]
-  )
-
-  function onSelect(info: MenuSelectInfo) {
-    state.config.onSelect?.(info)
-    dismissMenu()
-  }
-
-  // session 进 key：已打开再开时重播入场；onExitComplete 仅在关闭后 reset
-  const layer = state.visible
-    ? createElement(MenuLayer, {
-        key: `contextmenu-host-${state.session}`,
-        layer: { anchor: state.anchor, items: state.items },
-        path,
-        activeKey,
-        classNames: state.config.classNames,
-        styles: state.config.styles,
-        motion: state.config.motion,
-        offset: state.config.offset,
-        submenuOffset: state.config.submenuOffset,
-        boundaryPadding: state.config.boundaryPadding ?? VIEWPORT_PADDING,
-        expandDelay: state.config.expandDelay,
-        collapseDelay: state.config.collapseDelay,
-        container,
-        renderItem: state.config.renderItem,
-        renderSurface: state.config.renderSurface,
-        onUpdatePath: setPath,
-        onUpdateActive: setActiveKey,
-        onSelect,
-        onClose: dismissMenu
-      })
-    : null
-
   return createPortal(
-    createElement(AnimatePresence, {
-      onExitComplete: function () {
+    <AnimatePresence
+      onExitComplete={function () {
         if (STORE.visible) return
-        setPath([])
-        setActiveKey(undefined)
         resetMenu()
-      },
-      children: layer
-    }),
+      }}>
+      {state.visible ? (
+        <HostSession
+          key={state.session}
+          state={state}
+          container={container}
+        />
+      ) : null}
+    </AnimatePresence>,
     container
   )
 }

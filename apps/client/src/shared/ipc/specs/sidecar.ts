@@ -9,7 +9,8 @@ const StatusSchema = z.object({
   hasCorex: z.boolean(),
   dataDir: z.string(),
   database: z.string(),
-  isBundled: z.boolean()
+  isBundled: z.boolean(),
+  mcpPath: z.string().default('')
 })
 
 const BUCKETS = ['system', 'network', 'data', 'ui', 'logic', 'plugin'] as const

@@ -37,6 +37,23 @@ function truncatePath(path: string, max = 28) {
 }
 
 function SessionSearch(props: SessionSearchProps) {
+  return (
+    <Dialog
+      open={props.open}
+      onOpenChange={function (open) {
+        if (!open) props.onClose()
+      }}>
+      {props.open ? (
+        <SessionSearchPanel
+          onClose={props.onClose}
+          onSelect={props.onSelect}
+        />
+      ) : null}
+    </Dialog>
+  )
+}
+
+function SessionSearchPanel(props: Pick<SessionSearchProps, 'onClose' | 'onSelect'>) {
   const sessions = useAgentStore(function (state) {
     return state.sessions
   })
@@ -114,16 +131,11 @@ function SessionSearch(props: SessionSearchProps) {
 
   useEffect(
     function () {
-      if (!props.open) {
-        updateKeyword('')
-        updateNavigation(0)
-        return
-      }
       queueMicrotask(function () {
         inputRef.current?.select()
       })
     },
-    [props.open]
+    []
   )
 
   useEffect(
@@ -196,14 +208,9 @@ function SessionSearch(props: SessionSearchProps) {
   }
 
   return (
-    <Dialog
-      open={props.open}
-      onOpenChange={function (open) {
-        if (!open) props.onClose()
-      }}>
-      <DialogContent
-        showCloseButton={false}
-        className={styles.modal}>
+    <DialogContent
+      showCloseButton={false}
+      className={styles.modal}>
         <DialogTitle className="sr-only">搜索任务</DialogTitle>
         <DialogDescription className="sr-only">按任务标题搜索本地任务并打开</DialogDescription>
 
@@ -271,8 +278,7 @@ function SessionSearch(props: SessionSearchProps) {
             })
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+    </DialogContent>
   )
 }
 

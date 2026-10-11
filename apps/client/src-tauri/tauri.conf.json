@@ -165,7 +165,7 @@
   "bundle": {
     "active": true,
     "createUpdaterArtifacts": true,
-    "externalBin": ["binaries/corex-daemon", "binaries/goose"],
+    "externalBin": ["binaries/corex-daemon", "binaries/corex-mcp", "binaries/goose"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

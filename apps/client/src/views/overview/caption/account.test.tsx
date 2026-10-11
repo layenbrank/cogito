@@ -1,13 +1,24 @@
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { useSessionStore } from '@/stores/session.ts'
 import { CaptionAccount } from '@/views/overview/caption/account.tsx'
 
+vi.mock('@/apis/auth.ts', function () {
+  return {
+    GET_AUTH_PROFILE: vi.fn(function () {
+      return Promise.reject(new Error('no profile in unit test'))
+    }),
+    POST_AUTH_SIGNOUT: vi.fn(function () {
+      return Promise.resolve(null)
+    })
+  }
+})
+
 /** zustand store 是模块级单例：每个用例自己复位 */
 afterEach(function () {
-  useSessionStore.setState({ user: null })
+  useSessionStore.setState({ user: null, isLoading: false })
 })
 
 describe('CaptionAccount', function () {
@@ -19,18 +30,19 @@ describe('CaptionAccount', function () {
     expect(onSignIn).toHaveBeenCalledTimes(1)
   })
 
-  it('已登录时点头像打开菜单，菜单里能退出登录', function () {
+  it('已登录时点头像打开菜单，菜单里能退出登录', async function () {
     useSessionStore.setState({ user: { id: 'u1', username: 'iwell', avatarUrl: null } })
     render(<CaptionAccount onSignIn={vi.fn()} />)
 
     const trigger = screen.getByRole('button', { name: '已登录：iwell' })
     expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
 
-    // base-ui 的菜单在 click 打开（mousedown / pointerdown 都不触发）
     fireEvent.click(trigger)
 
     expect(screen.getByText('iwell')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('menuitem', { name: '退出登录' }))
-    expect(useSessionStore.getState().user).toBeNull()
+    await waitFor(function () {
+      expect(useSessionStore.getState().user).toBeNull()
+    })
   })
 })

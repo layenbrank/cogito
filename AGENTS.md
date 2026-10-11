@@ -6,4 +6,4 @@
 - 设计 token 唯一源：`packages/design/src/styles/globals.css`；app 侧 `@source` 声明自己的源码
 - 新增组件走 registry：`pnpm --filter @i-thinking/design registry:add <items>`
 - chat 相关走 assistant-ui（`packages/chat` 提供端口契约与适配器）
-- 窗口装饰自绘：窗口一律 `decorations: false`，桌面壳走 app 的 `Caption` / `WindowFrame`（见 [client 组件文档](./docs/apps/client/components-api.md)）
+- 窗口装饰自绘：窗口一律 `decorations: false`，桌面壳走 app 的 `Caption` / `Decorations`（见 [client 组件文档](./docs/apps/client/components-api.md)）

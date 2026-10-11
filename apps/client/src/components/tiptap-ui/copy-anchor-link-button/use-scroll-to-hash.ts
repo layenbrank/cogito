@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useEffectEvent, useRef } from 'react'
 import { type Editor } from '@tiptap/react'
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 import { getEditorExtension } from '@/lib/tiptap-advanced-utils.ts'
@@ -37,6 +37,16 @@ export function useScrollToHash(config: UseScrollToHashConfig = {}) {
   } = config
 
   const { editor } = useTiptapEditor(providedEditor)
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  )
+
+  function clearScrollTimeout() {
+    if (scrollTimeoutRef.current !== undefined) {
+      clearTimeout(scrollTimeoutRef.current)
+      scrollTimeoutRef.current = undefined
+    }
+  }
 
   const scrollToNode = useCallback(
     (id: string): boolean => {
@@ -72,21 +82,24 @@ export function useScrollToHash(config: UseScrollToHashConfig = {}) {
     [editor]
   )
 
-  const handleScroll = useCallback(
-    (delay = 0) => {
-      const hash = window.location.hash?.substring(1)
-      if (!hash) return
+  const scrollToNodeEvent = useEffectEvent(function (id: string) {
+    return scrollToNode(id)
+  })
 
-      setTimeout(() => {
-        if (scrollToNode(hash)) {
-          onTargetFound(hash)
-        } else {
-          onTargetNotFound(hash)
-        }
-      }, delay)
-    },
-    [scrollToNode, onTargetFound, onTargetNotFound]
-  )
+  const handleScroll = useEffectEvent(function (delay = 0) {
+    const hash = window.location.hash?.substring(1)
+    if (!hash) return
+
+    clearScrollTimeout()
+    scrollTimeoutRef.current = setTimeout(() => {
+      scrollTimeoutRef.current = undefined
+      if (scrollToNodeEvent(hash)) {
+        onTargetFound(hash)
+      } else {
+        onTargetNotFound(hash)
+      }
+    }, delay)
+  })
 
   useEffect(() => {
     if (!editor) return
@@ -102,11 +115,15 @@ export function useScrollToHash(config: UseScrollToHashConfig = {}) {
 
       return () => {
         provider.off?.('synced', syncHandler)
+        clearScrollTimeout()
       }
-    } else {
-      handleScroll(500)
     }
-  }, [editor, handleScroll])
+
+    handleScroll(500)
+    return () => {
+      clearScrollTimeout()
+    }
+  }, [editor])
 
   useEffect(() => {
     const immediateScroll = () => handleScroll()
@@ -120,8 +137,9 @@ export function useScrollToHash(config: UseScrollToHashConfig = {}) {
       window.removeEventListener('hashchange', immediateScroll)
       window.removeEventListener('pageshow', delayedScroll)
       window.removeEventListener('popstate', immediateScroll)
+      clearScrollTimeout()
     }
-  }, [handleScroll])
+  }, [])
 
   return { scrollToHash: scrollToNode }
 }

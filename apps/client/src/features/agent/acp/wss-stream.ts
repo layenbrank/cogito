@@ -6,6 +6,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { WebSocketConstructor } from '@agentclientprotocol/sdk/experimental/ws-client'
 
+import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
+
 const SOCKET_CONNECTING = 0
 const SOCKET_OPEN = 1
 const SOCKET_CLOSING = 2
@@ -61,7 +63,7 @@ class GoosePinnedWebSocket {
     const socket = this
     this.sendQueue = this.sendQueue
       .then(function () {
-        return invoke('goose:acp-send', { id, data }) as Promise<void>
+        return invoke(CHANNELS.GOOSE.ACP_SEND, { id, data }) as Promise<void>
       })
       .catch(function (error) {
         socket.emit('error', error)
@@ -78,7 +80,7 @@ class GoosePinnedWebSocket {
       unlisten()
     }
     if (id) {
-      void invoke('goose:acp-close', { id }).catch(function () {
+      void invoke(CHANNELS.GOOSE.ACP_CLOSE, { id }).catch(function () {
         return undefined
       })
     }
@@ -90,27 +92,27 @@ class GoosePinnedWebSocket {
     try {
       const socket = this
       const [messageUnlisten, closeUnlisten, errorUnlisten] = await Promise.all([
-        listen<AcpMessagePayload>('goose://acp-message', function (event) {
+        listen<AcpMessagePayload>(EVENTS.GOOSE_ACP_MESSAGE, function (event) {
           if (!socket.connectionId || event.payload.id !== socket.connectionId) return
           socket.emit('message', { data: event.payload.data })
         }),
-        listen<AcpIdPayload>('goose://acp-close', function (event) {
+        listen<AcpIdPayload>(EVENTS.GOOSE_ACP_CLOSE, function (event) {
           if (!socket.connectionId || event.payload.id !== socket.connectionId) return
           socket.close()
         }),
-        listen<AcpErrorPayload>('goose://acp-error', function (event) {
+        listen<AcpErrorPayload>(EVENTS.GOOSE_ACP_ERROR, function (event) {
           if (!socket.connectionId || event.payload.id !== socket.connectionId) return
           socket.emit('error', new Error(event.payload.message))
         })
       ])
       this.unlisteners.push(messageUnlisten, closeUnlisten, errorUnlisten)
 
-      const id = await invoke<string>('goose:acp-open', {
+      const id = await invoke<string>(CHANNELS.GOOSE.ACP_OPEN, {
         url: this.url,
         fingerprint: this.fingerprint
       })
       if (this.closed) {
-        await invoke('goose:acp-close', { id }).catch(function () {
+        await invoke(CHANNELS.GOOSE.ACP_CLOSE, { id }).catch(function () {
           return undefined
         })
         return

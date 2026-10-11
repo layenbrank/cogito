@@ -1,4 +1,5 @@
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence } from 'motion/react'
+import * as m from 'motion/react-m'
 import { useEffect, useRef, useState } from 'react'
 import { copyText } from '@/features/capture/clipboard'
 import styles from './magnifier.module.scss'
@@ -46,7 +47,7 @@ function computePos(px: number, py: number) {
  * - Shift 切换 HEX / RGB 格式
  * - C 复制当前颜色值
  */
-export default function Magnifier({ sourceImage, visible, onClose }: MagnifierProps) {
+export default function Magnifier({ sourceImage, visible }: MagnifierProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const posRef = useRef<{ x: number; y: number } | null>(null)
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
@@ -54,6 +55,11 @@ export default function Magnifier({ sourceImage, visible, onClose }: MagnifierPr
   const [colorFormat, setColorFormat] = useState<ColorFormat>('hex')
   const [copied, setCopied] = useState(false)
   const rafRef = useRef(0)
+
+  if (!visible && (pos !== null || rgb !== null)) {
+    setPos(null)
+    setRgb(null)
+  }
 
   function paint(samplePos: { x: number; y: number }) {
     const canvas = canvasRef.current
@@ -87,12 +93,6 @@ export default function Magnifier({ sourceImage, visible, onClose }: MagnifierPr
     function () {
       if (!visible) {
         posRef.current = null
-        setPos(function (prev) {
-          return prev === null ? prev : null
-        })
-        setRgb(function (prev) {
-          return prev === null ? prev : null
-        })
         return
       }
 
@@ -145,9 +145,6 @@ export default function Magnifier({ sourceImage, visible, onClose }: MagnifierPr
           void copyText(text)
             .then(function () {
               setCopied(true)
-              setTimeout(function () {
-                setCopied(false)
-              }, 1500)
             })
             .catch(function (err) {
               console.warn('[Magnifier] Clipboard write failed:', err)
@@ -162,6 +159,19 @@ export default function Magnifier({ sourceImage, visible, onClose }: MagnifierPr
     [visible, rgb, colorFormat]
   )
 
+  useEffect(
+    function () {
+      if (!copied) return
+      const timeoutId = setTimeout(function () {
+        setCopied(false)
+      }, 1500)
+      return function () {
+        clearTimeout(timeoutId)
+      }
+    },
+    [copied]
+  )
+
   const color = rgb ? `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})` : 'transparent'
   const displayColor = rgb
     ? colorFormat === 'hex'
@@ -173,10 +183,9 @@ export default function Magnifier({ sourceImage, visible, onClose }: MagnifierPr
   return (
     <AnimatePresence>
       {visible && pos && layout && (
-        <motion.div
+        <m.div
           className={styles.magnifier}
           style={{ left: layout.left, top: layout.top, width: SIZE, pointerEvents: 'none' }}
-          onClick={onClose}
           initial={{ opacity: 0, scale: 0.82 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.82 }}
@@ -230,7 +239,7 @@ export default function Magnifier({ sourceImage, visible, onClose }: MagnifierPr
               )}
             </div>
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   )

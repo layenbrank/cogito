@@ -113,9 +113,9 @@ export const TableAlignMenu = ({
             zIndex: 1000
           }}>
           <MenuGroup>
-            {Object.values(textAlign).map((align, i) => (
+            {Object.values(textAlign).map((align) => (
               <ActionItem
-                key={`text-${i}`}
+                key={`text-${align.label}`}
                 icon={align.Icon}
                 label={align.label}
                 disabled={!align.canAlignCell}
@@ -124,9 +124,9 @@ export const TableAlignMenu = ({
               />
             ))}
             <Separator orientation="horizontal" />
-            {Object.values(verticalAlign).map((align, i) => (
+            {Object.values(verticalAlign).map((align) => (
               <ActionItem
-                key={`vertical-${i}`}
+                key={`vertical-${align.label}`}
                 icon={align.Icon}
                 label={align.label}
                 disabled={!align.canAlignCell}

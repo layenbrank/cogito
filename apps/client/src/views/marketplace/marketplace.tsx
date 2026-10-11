@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { WindowFrame } from '@/components/window-frame/index.ts'
+import { Decorations } from '@/components/decorations/index.ts'
 import { Caption } from '@/views/marketplace/workspace/caption.tsx'
 import {
   MarketplaceProvider,
@@ -17,12 +17,12 @@ export default function Marketplace() {
     <MarketplaceProvider
       mode={mode}
       onUpdateMode={onUpdateMode}>
-      <WindowFrame
-        start={<Caption />}
-        actions={mode === 'customize' ? <CaptionActions /> : null}
-        isScrollable={false}>
+      <Decorations
+        begin={<Caption />}
+        final={mode === 'customize' ? <CaptionActions /> : null}
+        scrollable={false}>
         <Workspace />
-      </WindowFrame>
+      </Decorations>
     </MarketplaceProvider>
   )
 }

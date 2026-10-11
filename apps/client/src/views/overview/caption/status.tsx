@@ -13,6 +13,7 @@ import { listen } from '@tauri-apps/api/event'
 import { cn } from 'cn'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 
+import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
 import {
   autoCheckUpdate,
   checkUpdate,
@@ -35,7 +36,7 @@ function useCorexState() {
 
   /** 只读一次就绪状态；不同步 setState（effect 里调用也不产生级联渲染） */
   const check = useCallback(function () {
-    void invoke<boolean | null>('ipc:ready')
+    void invoke<boolean | null>(CHANNELS.IPC.READY)
       .then(function (ready) {
         updateState(ready === false ? 'missing' : 'ready')
       })
@@ -60,7 +61,7 @@ function useCorexState() {
 
       async function bootstrap() {
         try {
-          const off = await listen('corex://not-ready', function () {
+          const off = await listen(EVENTS.COREX_NOT_READY, function () {
             if (!disposed) updateState('missing')
           })
           if (disposed) off()

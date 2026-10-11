@@ -1,6 +1,4 @@
-import { Icon } from '@iconify/react/offline'
 import { Badge } from '@i-thinking/design/components/badge'
-import { Button } from '@i-thinking/design/components/button'
 import {
   Select,
   SelectContent,
@@ -8,8 +6,8 @@ import {
   SelectTrigger,
   SelectValue
 } from '@i-thinking/design/components/select'
-import { Spinner } from '@i-thinking/design/components/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+import { IncrementButton } from '@/views/marketplace/workspace/increment-button'
 import { memo, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { A11y, Navigation, Pagination, Virtual } from 'swiper/modules'
@@ -165,7 +163,7 @@ function BoothCardView(props: BoothCardViewProps) {
   const [size, onUpdateSize] = useState(BOOT_SIZE)
   const [shape, onUpdateShape] = useState(BOOT_SHAPE)
   const [direction, onUpdateDirection] = useState(BOOT_DIRECTION)
-  const [isAdding, onUpdateAdding] = useState(false)
+  const [isIncrementing, onUpdateIncrementing] = useState(false)
   const { targetMirrorID } = useContext(MarketplaceContext)
   const { activeMirrorID, mirrors, toInsertMagneticTile } = useMirrorStore(
     useShallow(function (state) {
@@ -199,7 +197,7 @@ function BoothCardView(props: BoothCardViewProps) {
     swiperRef.current?.slideToLoop(index)
   }
 
-  async function onAdd() {
+  async function onIncrement() {
     const mirrorID = targetMirrorID ?? activeMirrorID
     if (!mirrorID) {
       toast.warning('请先选择镜像')
@@ -211,7 +209,7 @@ function BoothCardView(props: BoothCardViewProps) {
     })
     const mirrorTitle = mirror?.title ?? '镜像'
 
-    onUpdateAdding(true)
+    onUpdateIncrementing(true)
     try {
       await insertTile({
         tile,
@@ -221,10 +219,10 @@ function BoothCardView(props: BoothCardViewProps) {
       })
       toast.success(`已添加到 ${mirrorTitle}`)
     } catch (error) {
-      console.error('[Marketplace] add booth tile failed:', error)
+      console.error('[Marketplace] increment booth tile failed:', error)
       toast.error(error instanceof Error ? error.message : '添加失败')
     } finally {
-      onUpdateAdding(false)
+      onUpdateIncrementing(false)
     }
   }
 
@@ -358,31 +356,13 @@ function BoothCardView(props: BoothCardViewProps) {
             </SelectContent>
           </Select>
 
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  size="icon-sm"
-                  aria-label={`新增 ${tile.title}`}
-                  aria-busy={isAdding}
-                  disabled={isAdding}
-                  onClick={function (event) {
-                    event.stopPropagation()
-                    void onAdd()
-                  }}
-                />
-              }>
-              {isAdding ? (
-                <Spinner />
-              ) : (
-                <Icon
-                  icon="lucide:plus"
-                  aria-hidden
-                />
-              )}
-            </TooltipTrigger>
-            <TooltipContent side="bottom">新增到镜像</TooltipContent>
-          </Tooltip>
+          <IncrementButton
+            tileTitle={tile.title}
+            isIncrementing={isIncrementing}
+            onIncrement={function () {
+              void onIncrement()
+            }}
+          />
         </div>
       </div>
 

@@ -114,6 +114,8 @@ pub struct SidecarStatus {
     pub data_dir: String,
     pub database: String,
     pub is_bundled: bool,
+    /// 随包 / PATH / `COREX_MCP` 解析到的 `corex-mcp` 绝对路径；Agent ACP 注入用。
+    pub mcp_path: String,
 }
 
 fn ensure_sidecar(state: &SidecarState) -> Result<(), String> {
@@ -128,6 +130,85 @@ fn ensure_sidecar(state: &SidecarState) -> Result<(), String> {
 
 fn is_valid_directive_name(name: &str) -> bool {
     !name.is_empty() && !name.contains('\\') && !name.contains('/') && !name.contains("..")
+}
+
+/// 解析 `corex-mcp`：`COREX_MCP` → 与当前 exe 同目录（externalBin）→ binaries/ → PATH。
+fn find_corex_mcp_path() -> Option<PathBuf> {
+    if let Ok(explicit) = std::env::var("COREX_MCP") {
+        let trimmed = explicit.trim();
+        if !trimmed.is_empty() {
+            let path = PathBuf::from(trimmed);
+            if path.is_file() {
+                return Some(path);
+            }
+        }
+    }
+
+    let mut dirs = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            dirs.push(dir.to_path_buf());
+        }
+        // 开发态：向上找 `binaries/`（sidecar bootstrap 落点）
+        for ancestor in exe.ancestors().take(8) {
+            dirs.push(ancestor.join("binaries"));
+        }
+    }
+
+    for dir in dirs {
+        let Some(path) = find_mcp_in_dir(&dir) else {
+            continue;
+        };
+        return Some(path);
+    }
+
+    #[cfg(windows)]
+    if let Ok(path_var) = std::env::var("PATH") {
+        for entry in path_var.split(';') {
+            if entry.is_empty() {
+                continue;
+            }
+            let candidate = PathBuf::from(entry).join("corex-mcp.exe");
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+    }
+
+    #[cfg(not(windows))]
+    if let Ok(path_var) = std::env::var("PATH") {
+        for entry in path_var.split(':') {
+            if entry.is_empty() {
+                continue;
+            }
+            let candidate = PathBuf::from(entry).join("corex-mcp");
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+    }
+
+    None
+}
+
+fn find_mcp_in_dir(dir: &std::path::Path) -> Option<PathBuf> {
+    let entries = std::fs::read_dir(dir).ok()?;
+    let mut matched: Vec<PathBuf> = entries
+        .filter_map(|entry| entry.ok().map(|e| e.path()))
+        .filter(|path| {
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default();
+            let lower = name.to_ascii_lowercase();
+            (lower == "corex-mcp"
+                || lower == "corex-mcp.exe"
+                || lower.starts_with("corex-mcp-"))
+                && path.is_file()
+        })
+        .collect();
+    matched.sort();
+    matched.into_iter().next()
 }
 
 fn find_corex_cli() -> Result<PathBuf, String> {
@@ -189,6 +270,9 @@ pub fn sidecar_to_read(app: AppHandle, state: tauri::State<'_, SidecarState>) ->
         data_dir: data_dir.to_string_lossy().into_owned(),
         database: database.to_string_lossy().into_owned(),
         is_bundled: true,
+        mcp_path: find_corex_mcp_path()
+            .map(|path| path.to_string_lossy().into_owned())
+            .unwrap_or_default(),
     }
 }
 

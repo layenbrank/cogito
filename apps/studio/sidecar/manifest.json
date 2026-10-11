@@ -8,7 +8,7 @@
       "binaries": ["pandoc"],
       "packages": {
         "win32-x64": {
-          "url": "https://pub-813ca600ca234d69abec349c377b3452.r2.dev/pandoc-v3.6.4-windows-x64.zip",
+          "url": "https://pub-813ca600ca234d69abec349c377b3452.r2.dev/3.6.4/pandoc-windows-x64.zip",
           "sha256": "89d69f358a7a4948d51d7e09834aa42f9f9ebf4b520f2d57065e1d1a175b4d17"
         }
       }
@@ -20,7 +20,7 @@
       "binaries": ["ffmpeg", "ffprobe", "ffplay"],
       "packages": {
         "win32-x64": {
-          "url": "https://pub-ce5d0b07197a47a8af7bf1fe158692f4.r2.dev/ffmpeg-v9.0.2-windows-x64.zip",
+          "url": "https://pub-ce5d0b07197a47a8af7bf1fe158692f4.r2.dev/9.0.2/ffmpeg-windows-x64.zip",
           "sha256": "200b8bec70cb32f2cd46f255d18e24471c0e226323ee175ce33893ef63ad747e"
         }
       }
@@ -32,7 +32,7 @@
       "binaries": ["opencode"],
       "packages": {
         "win32-x64": {
-          "url": "https://pub-00f96379a14b4d1fa02baa729ef9ed4e.r2.dev/opencode-v2.0.15-windows-x64.zip",
+          "url": "https://pub-00f96379a14b4d1fa02baa729ef9ed4e.r2.dev/2.0.15/opencode-windows-x64.zip",
           "sha256": "9c5fd842e9b1dc1cbd0bac8073cd1c7f685912bf040d313c3dc01fdbd8f371bf"
         }
       }

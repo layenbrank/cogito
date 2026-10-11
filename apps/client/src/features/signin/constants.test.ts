@@ -62,19 +62,22 @@ describe('SIGNIN_SCHEMA', function () {
     ).toBe(false)
   })
 
-  it('邮箱模式要求邮箱格式与密码', function () {
-    expect(SIGNIN_SCHEMA.email.safeParse({ email: 'a@b.com', password: 'secret' }).success).toBe(
+  it('邮箱模式要求邮箱格式与验证码（OTP）', function () {
+    expect(SIGNIN_SCHEMA.email.safeParse({ email: 'a@b.com', captcha: '123456' }).success).toBe(
       true
     )
-    expect(SIGNIN_SCHEMA.email.safeParse({ email: 'nope', password: 'secret' }).success).toBe(false)
-    expect(SIGNIN_SCHEMA.email.safeParse({ email: 'a@b.com', password: 'abc' }).success).toBe(false)
+    expect(SIGNIN_SCHEMA.email.safeParse({ email: 'nope', captcha: '123456' }).success).toBe(false)
+    expect(SIGNIN_SCHEMA.email.safeParse({ email: 'a@b.com', captcha: '12' }).success).toBe(false)
   })
 
-  it('用户名模式校验 2–12 个字符', function () {
-    expect(SIGNIN_SCHEMA.username.safeParse({ username: 'alice', password: 'secret' }).success).toBe(
-      true
-    )
+  it('用户名模式校验 2–12 个字符，密码至少 6 位', function () {
+    expect(
+      SIGNIN_SCHEMA.username.safeParse({ username: 'alice', password: 'secret' }).success
+    ).toBe(true)
     expect(SIGNIN_SCHEMA.username.safeParse({ username: 'a', password: 'secret' }).success).toBe(
+      false
+    )
+    expect(SIGNIN_SCHEMA.username.safeParse({ username: 'alice', password: '12345' }).success).toBe(
       false
     )
   })

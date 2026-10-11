@@ -272,11 +272,13 @@ async function executeAgentTool(
  */
 function appendAttachedPaths(text: string, paths: string[]): string {
   const unique: string[] = []
+  const seen = new Set<string>()
   for (const raw of paths) {
     const path = normalizePath(raw)
     if (!path) continue
-    if (unique.includes(path)) continue
+    if (seen.has(path)) continue
     if (text.includes(path)) continue
+    seen.add(path)
     unique.push(path)
   }
   if (!unique.length) return text

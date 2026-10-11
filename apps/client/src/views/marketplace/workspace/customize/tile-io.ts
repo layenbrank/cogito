@@ -24,7 +24,7 @@ async function exportTiles(tiles: MagneticTile[]): Promise<boolean> {
   return true
 }
 
-function parseWrite(item: MagneticTile, mirrorID: string, index: number): MagneticTileWrite {
+function parseTileWrite(item: MagneticTile, mirrorID: string, index: number): MagneticTileWrite {
   return {
     index: item.index ?? index,
     title: item.title,
@@ -44,4 +44,4 @@ function parseWrite(item: MagneticTile, mirrorID: string, index: number): Magnet
   }
 }
 
-export { exportTiles, parseWrite }
+export { exportTiles, parseTileWrite }

@@ -492,7 +492,7 @@ group:
 ## 何时使用 {#when-to-use}
 
 - 任何 `decorations: false` 的 Tauri 窗口
-- 磁贴窗口直接用 `WindowFrame` 即可（它内部就是 `Caption`）
+- 磁贴窗口直接用 `Decorations` 即可（它内部就是 `Caption`）
 - 需要在顶栏放自定义内容（标题 / 筛选 / 视图切换）或扩展操作按钮时
 
 ## 代码演示 {#examples}
@@ -506,7 +506,7 @@ export default function Panel() {
   return (
     <div className="flex h-screen flex-col">
       <Caption
-        title="面板"
+        begin={<span className="truncate px-1 text-sm font-medium">面板</span>}
         className="border-b border-border/60 px-2"
       />
       <div className="min-h-0 flex-1 overflow-auto" />
@@ -522,29 +522,30 @@ export default function Panel() {
 | 属性        | 说明                                              | 类型                                                             | 默认值 |
 | ----------- | ------------------------------------------------- | ---------------------------------------------------------------- | ------ |
 | className   | 根 class                                          | `ClassValue`                                                     | —      |
-| title       | 顶栏标题（`start` 缺省时使用）                    | `string`                                                         | —      |
-| start       | 顶栏左侧主区域，优先于 `title`                    | `ReactNode`                                                      | —      |
-| actions     | 顶栏右侧扩展操作（渲染在窗口键左侧）              | `ReactNode`                                                      | —      |
-| controls    | 窗口键开关；`true` 全开，对象形式可单独关掉某个键 | `boolean \| Partial<Record<'minimize' \| 'maximize' \| 'close', boolean>>` | `true` |
-| isDraggable | 整条作为拖拽区；窗口自带装饰时传 `false`          | `boolean`                                                        | `true` |
+| begin       | 顶栏左侧主区域                                    | `ReactNode`                                                      | —      |
+| final       | 顶栏右侧扩展区域（渲染在窗口键左侧）；与 `begin` 对立 | `ReactNode`                                                 | —      |
+| controls    | 窗口键开关；`true` 默认键全开；对象可关单项或开可选键（`pin`） | `boolean \| Partial<Record<'minimize' \| 'maximize' \| 'close' \| 'pin', boolean>>` | `true` |
 
-**结构**
+**结构 / 状态**
 
-- 根节点挂 `data-region="true"` + `data-tauri-drag-region`（拖拽区），交互子节点挂 `data-region="false"`（`-webkit-app-region: no-drag`）
-- 窗口键来自 `WINDOW_CONTROLS` 表：新增一个键只需往表里加一条，布局与状态订阅都不用动
-- 最大化态由窗口 `onResized` 订阅，`maximize` 键的图标与提示随态在「最大化 ⇄ 还原」间切换
+- 一律自绘：根节点挂 `data-region="true"` + `data-tauri-drag-region`（拖拽区），交互子节点挂 `data-region="false"`
+- 订阅：`focused` / `maximized` / `fullscreen` / `alwaysOnTop` + `minimizable` / `maximizable` / `closable`（根上有对应 `data-*`）
+- 默认键：最小化 · 最大化⇄还原（全屏时变「退出全屏」）· 关闭；可选 `controls={{ pin: true }}` 置顶
+- 无能力时禁用对应键；失焦整条降对比；双击拖拽区切换最大化（全屏则退出）
+- maximize 键带 `data-window-control="maximize"`，供后续接 Win11 Snap Layout 原生 overlay
+- 窗口键贴顶贴右（高 32px × 宽 46px），一律直角（`rounded-none`）
 
 ---
 
-## window-frame-cn
+## decorations-cn
 
-Source: `apps/client/src/components/window-frame/`
+Source: `apps/client/src/components/decorations/`
 
 ---
 category: Components
-title: WindowFrame
-subtitle: 窗口容器
-description: 顶栏装饰 + 内容区 + 可选底栏；透明窗口下的内层圆角卡片。
+title: Decorations
+subtitle: 窗口容器（自绘装饰壳）
+description: 对应 decorations: false；透明根节点 + 顶栏装饰 + 内容区 + 可选底栏。
 group:
   title: 窗口
   order: 2
@@ -558,62 +559,59 @@ group:
 
 ## 代码演示 {#examples}
 
-### 磁贴窗（内层圆角卡片）
+### 磁贴窗
 
 ```tsx
 import { Button } from '@i-thinking/design/components/button'
-import { WindowFrame } from '@/components/window-frame'
+import { Decorations } from '@/components/decorations'
 
 export default function Bookmark() {
   return (
-    <WindowFrame
-      title="书签"
-      footer={<Button>保存</Button>}>
+    <Decorations
+      summary="书签"
+      section={<Button>保存</Button>}>
       内容
-    </WindowFrame>
+    </Decorations>
   )
 }
 ```
 
-### 主窗口（自带 mica，不画卡片）
+### 主窗口
 
 ```tsx
-import { WindowFrame } from '@/components/window-frame'
+import { Decorations } from '@/components/decorations'
 
 export default function Overview() {
   return (
-    <WindowFrame
-      isFramed={false}
-      isScrollable={false}
-      start={<span>i-thinking</span>}>
+    <Decorations
+      scrollable={false}
+      begin={<span>i-thinking</span>}>
       <header>搜索</header>
       <main className="flex-1">镜像</main>
-    </WindowFrame>
+    </Decorations>
   )
 }
 ```
 
 ## API
 
-### WindowFrame
+### Decorations
 
-| 属性         | 说明                                       | 类型                      | 默认值 |
-| ------------ | ------------------------------------------ | ------------------------- | ------ |
-| children     | 内容区                                     | `ReactNode`               | —      |
-| className    | 内层容器 class                             | `ClassValue`              | —      |
-| title        | 顶栏标题（`start` 缺省时使用）             | `string`                  | —      |
-| start        | 顶栏左侧主区域，优先于 `title`             | `ReactNode`               | —      |
-| actions      | 顶栏右侧扩展操作                           | `ReactNode`               | —      |
-| controls     | 窗口键开关（透传 `Caption`）               | `CaptionProps['controls']` | `true` |
-| footer       | 底栏操作区；不传则不渲染                   | `ReactNode`               | —      |
-| isScrollable | 内容区由外壳统一滚动；内部已有滚动区传 `false` | `boolean`             | `true` |
-| isFramed     | 是否画内层圆角卡片（自带窗口材质时传 `false`） | `boolean`              | `true` |
+| 属性       | 说明                                       | 类型                      | 默认值 |
+| ---------- | ------------------------------------------ | ------------------------- | ------ |
+| children   | 内容区                                     | `ReactNode`               | —      |
+| className  | 根容器 class                               | `ClassValue`              | —      |
+| summary    | 顶栏标题（`begin` 缺省时使用）             | `string`                  | —      |
+| begin      | 顶栏左侧主区域，优先于 `summary`           | `ReactNode`               | —      |
+| final      | 顶栏右侧扩展区域；与 `begin` 对立          | `ReactNode`               | —      |
+| controls   | 窗口键开关（透传 `Caption`）               | `CaptionProps['controls']` | `true` |
+| section    | 底栏区域；不传则不渲染                     | `ReactNode`               | —      |
+| scrollable | 内容区由外壳统一滚动；内部已有滚动区传 `false` | `boolean`             | `true` |
 
-**结构（两种形态）**
+**结构**
 
-- `isFramed`（默认）：根节点透明，可见面是内层卡片 `rounded-xl border border-border bg-card shadow-lg`，顶栏带下边框、内容区 `bg-background`
-- `isFramed={false}`：不画卡片与边框，顶栏与内容区都透明，让原生 mica / 亚克力透出来（主窗口用）
-- 两种形态下容器职责一致：`flex-col` + 内容区 `min-h-0 flex-1`，所以子元素直接 `flex: 1` 就能撑满
+- 根节点透明（`bg-transparent`），让原生 mica / 亚克力 / 透明窗材质透出来
+- 容器职责：`flex-col` + 内容区 `min-h-0 flex-1`，子元素直接 `flex: 1` 就能撑满
 - 磁贴窗口映射：`activateTile` 按磁贴记录建窗（label `${component}:${id}`），路由 `/<component>`，见 `apps/client/src/features/magnetic-tile/activate.ts`
 
 #### 拖拽区（`data-region` / `data-tauri-drag-region`）
@@ -641,17 +639,17 @@ export default function Overview() {
 
 - 窗口 label 为 `${component}:${磁贴 id}` —— 一个组件有多条记录时一窗对一记录（等价于原来「每个磁贴一个 Dialog」）
 - 记录上的 `url` 只能在建窗时经查询串传入（`?url=`），窗口内用 `URLSearchParams` 读
-- 全部窗口 `decorations: false`；透明窗口的可见面由 `WindowFrame` 的内层圆角卡片承担
+- 全部窗口 `decorations: false`；`Decorations` 根节点透明，材质由窗口自身（mica / 透明）承担
 
 ### 主窗口
 
-`tauri.conf.json` 的 `main` 窗口也是 `decorations: false`，同样走 `WindowFrame` 当**容器**（`isFramed={false}`，让 mica 透出来），标题栏内容全部由 `views/overview/caption/` 提供：
+`tauri.conf.json` 的 `main` 窗口也是 `decorations: false`，同样走 `Decorations` 当**容器**（根透明让 mica 透出来），标题栏内容全部由 `views/overview/caption/` 提供：
 
-| 位置            | 内容                                                                 |
-| --------------- | -------------------------------------------------------------------- |
-| `start`（左）   | 品牌 `i-thinking` · 分隔线 · **镜像入口**（`caption/mirror.tsx`）     |
-| `actions`（右） | **状态区**（`caption/status.tsx`）+ **账号**（`caption/account.tsx`） |
-| 窗口键          | `Caption` 自绘（最小化 / 最大化 / 关闭）                             |
+| 位置          | 内容                                                                 |
+| ------------- | -------------------------------------------------------------------- |
+| `begin`（左） | 品牌 `i-thinking` · 分隔线 · **镜像入口**（`caption/mirror.tsx`）     |
+| `final`（右） | **状态区**（`caption/status.tsx`）+ **账号**（`caption/account.tsx`） |
+| 窗口键        | `Caption` 自绘（最小化 / 最大化 / 关闭）                             |
 
 - **镜像入口**（切换 + 管理）：触发按钮＝「序号 + 当前镜像标题」+ chevron，**始终可点** —— 多个时点开是切换，单个时点开是管理面，一个都没有时直接给「新建镜像」。列表支持 ↑↓、Home/End、Enter，Esc 关闭；每行带「重命名」（行内输入，Enter 保存 / Esc 取消 / 失焦保存）与「删除」（`AlertDialog` 二次确认，删的若是当前镜像会自动切到剩下的第一个）；底部「新建镜像」（按 `镜像-0N` 顺延命名）。注意这几个操作原先**全仓没有任何 UI**，`stores/mirror.ts` 的 `toInsertMirror` / `toUpdateMirror` / `toRemoveMirror` 因此一直没有调用者
 - **状态区**：把原来两颗一次性 toast 变成常驻芯片 —— `corex 未就绪`（点击重新检测）、`可更新 vX.Y.Z`（点击安装，✕ 忽略）。更新来自启动时的静默检查（`autoCheckUpdate`），状态由 `utils/updater.ts` 的 `subscribeUpdateStatus` 暴露

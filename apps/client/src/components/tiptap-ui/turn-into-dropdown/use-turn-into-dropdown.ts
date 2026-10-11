@@ -132,8 +132,9 @@ export function canTurnInto(
 export function getFilteredBlockTypeOptions(blockTypes?: string[]) {
   if (!blockTypes) return blockTypeOptions
 
+  const blockTypeSet = new Set(blockTypes)
   return blockTypeOptions.filter((option) => {
-    return blockTypes.includes(option.type)
+    return blockTypeSet.has(option.type)
   })
 }
 

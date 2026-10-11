@@ -48,11 +48,12 @@ async function ensureTool(toolKey: string): Promise<void> {
 }
 
 function isRequiredTool(toolKey: string, app: string): boolean {
-  if (toolKey === 'corex') {
+  // corex 归档（含 mcp）+ pdfium 运行时：client / studio 都硬依赖
+  if (toolKey === 'corex' || toolKey === 'pdfium') {
     return true
   }
-  // client 的构建期硬依赖：goose ACP 侧车、pdfium 运行时库（build.rs 会检这两样）
-  return app === 'client' && (toolKey === 'goose' || toolKey === 'pdfium')
+  // client 另需 goose ACP 侧车（build.rs / externalBin）
+  return app === 'client' && toolKey === 'goose'
 }
 
 async function runBootstrap(app: string): Promise<void> {
@@ -123,6 +124,8 @@ const SidecarCommand: CommandModule = {
 「带不带进安装包」是打包侧的事（studio 的 SIDECAR_VARIANT，默认精简版），
 所以切档不用重跑 bootstrap。在线包清单见 apps/studio/sidecar/manifest.json。
 
+完整 corex 包需含 corex-mcp（+ win32 pdfium.dll）。本地联调可设 COREX_LOCAL_BIN。
+
 示例:
   pnpm command sidecar bootstrap studio
   pnpm command sidecar manifest --verify
@@ -132,6 +135,7 @@ const SidecarCommand: CommandModule = {
   pnpm command sidecar corex
   pnpm command sidecar goose
   pnpm sidecar bootstrap -- --app studio
+  set COREX_LOCAL_BIN=D:\\path\\to\\corex\\release && pnpm command sidecar bootstrap client
 `
       )
 

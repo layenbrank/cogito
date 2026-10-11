@@ -2,24 +2,27 @@ import { Icon } from '@iconify/react/offline'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@i-thinking/design/components/button'
 import { Form } from '@i-thinking/design/components/form'
-import { ToggleGroup, ToggleGroupItem } from '@i-thinking/design/components/toggle-group'
-import { useEffect } from 'react'
+import { Spinner } from '@i-thinking/design/components/spinner'
+import { Tabs, TabsList, TabsTrigger } from '@i-thinking/design/components/tabs'
+import { useEffect, useRef } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { toast } from 'sonner'
 
-import { POST_RESET_PASSWORD } from '@/apis/auth.ts'
+import { POST_PASSWORD_RESET } from '@/apis/auth.ts'
 import {
+  CHANNEL,
   FORGOT_SCHEMA,
   LIMIT,
   MODE,
-  findIdentity,
   type AuthMode,
   type ForgotValues
-} from '@/features/signin/constants.ts'
-import { CaptchaField } from '@/features/signin/captcha-field.tsx'
-import { AuthField } from '@/features/signin/field.tsx'
-import { FormStagger, MotionField } from '@/features/signin/form-motion.tsx'
-import styles from '@/features/signin/signin.module.scss'
+} from './constants.ts'
+import { CaptchaField } from './captcha-field.tsx'
+import { AuthField } from './field.tsx'
+import { FormStagger, ModeSwap, MotionField } from './form-motion.tsx'
+import styles from './signin.module.scss'
+import { useSlideProof } from './slide'
+import { HttpError } from '@/utils/http/errors.ts'
 
 type ForgotFormProps = {
   motionKey: number
@@ -28,44 +31,73 @@ type ForgotFormProps = {
   onSignin: () => void
 }
 
-/** 预填空串：zod 的 required 文案只在值是字符串时才生效 */
-const FORGOT_DEFAULTS: ForgotValues = {
-  username: '',
-  phone: '',
-  email: '',
-  captcha: '',
-  password: '',
-  confirm: ''
+const RESET: Record<AuthMode, (values: ForgotValues) => Promise<unknown>> = {
+  username(values) {
+    return POST_PASSWORD_RESET({
+      username: values.username ?? '',
+      code: values.captcha ?? '',
+      newPassword: values.password ?? ''
+    })
+  },
+  phone(values) {
+    return POST_PASSWORD_RESET({
+      channel: CHANNEL.phone,
+      target: values.phone ?? '',
+      code: values.captcha ?? '',
+      newPassword: values.password ?? ''
+    })
+  },
+  email(values) {
+    return POST_PASSWORD_RESET({
+      channel: CHANNEL.email,
+      target: values.email ?? '',
+      code: values.captcha ?? '',
+      newPassword: values.password ?? ''
+    })
+  }
 }
 
 function ForgotForm(props: ForgotFormProps) {
   const { motionKey, forgotMode, onModeChange, onSignin } = props
+  const { askSlide, dialog } = useSlideProof()
+  const modeRef = useRef(forgotMode)
+
+  useEffect(
+    function () {
+      modeRef.current = forgotMode
+    },
+    [forgotMode]
+  )
+
   const form = useForm<ForgotValues>({
-    resolver: zodResolver(FORGOT_SCHEMA[forgotMode]) as Resolver<ForgotValues>,
-    defaultValues: FORGOT_DEFAULTS
+    resolver: async function (values, context, options) {
+      const resolve = zodResolver(FORGOT_SCHEMA[modeRef.current]) as Resolver<ForgotValues>
+      return resolve(values, context, options)
+    }
   })
 
   useEffect(
     function () {
-      form.reset(FORGOT_DEFAULTS)
+      form.clearErrors()
+      form.reset({
+        username: undefined,
+        phone: undefined,
+        email: undefined,
+        captcha: undefined,
+        password: undefined,
+        confirm: undefined
+      })
     },
     [form, forgotMode]
   )
 
   async function onSubmit(values: ForgotValues) {
-    const target = findIdentity(forgotMode, values)
-
     try {
-      await POST_RESET_PASSWORD({
-        mode: forgotMode,
-        target,
-        captcha: values.captcha ?? '',
-        password: values.password ?? ''
-      })
-      toast.success('密码重置成功（mock）')
+      await RESET[forgotMode](values)
+      toast.success('密码已重置')
       onSignin()
-    } catch {
-      toast.error('密码重置失败，请稍后重试')
+    } catch (error) {
+      toast.error(HttpError(error).message || '密码重置失败')
     }
   }
 
@@ -75,79 +107,87 @@ function ForgotForm(props: ForgotFormProps) {
         className={styles.form}
         noValidate
         onSubmit={form.handleSubmit(onSubmit)}>
-        <FormStagger key={`${motionKey}-${forgotMode}`}>
+        <FormStagger key={motionKey}>
           <MotionField className={styles.tabs}>
-            <ToggleGroup
-              className="grid w-full grid-cols-3"
-              value={[forgotMode]}
+            <Tabs
+              value={forgotMode}
               onValueChange={function (value) {
-                const next = value[0] as AuthMode | undefined
-                if (next) onModeChange(next)
+                onModeChange(value as AuthMode)
               }}>
-              {MODE.options.map(function (option) {
-                return (
-                  <ToggleGroupItem
-                    key={option.value}
-                    value={option.value}
-                    className="data-[pressed]:bg-primary/10 data-[pressed]:text-primary">
-                    {option.label}
-                  </ToggleGroupItem>
-                )
-              })}
-            </ToggleGroup>
+              <TabsList className="grid w-full grid-cols-3">
+                {MODE.options.map(function (option) {
+                  return (
+                    <TabsTrigger
+                      key={option.value}
+                      value={option.value}>
+                      {option.label}
+                    </TabsTrigger>
+                  )
+                })}
+              </TabsList>
+            </Tabs>
           </MotionField>
 
-          {forgotMode === MODE.USERNAME && (
-            <MotionField>
-              <AuthField
-                control={form.control}
-                name="username"
-                label="用户名"
-                placeholder="请输入用户名"
-                icon={<Icon icon="lucide:user" />}
-                maxLength={LIMIT.USERNAME}
-                autoComplete="username"
-              />
-            </MotionField>
-          )}
-
-          {forgotMode === MODE.PHONE && (
-            <MotionField>
-              <AuthField
-                control={form.control}
-                name="phone"
-                label="手机号"
-                placeholder="请输入手机号"
-                icon={<Icon icon="lucide:smartphone" />}
-                inputMode="numeric"
-                maxLength={LIMIT.PHONE}
-                autoComplete="tel"
-              />
-            </MotionField>
-          )}
-
-          {forgotMode === MODE.EMAIL && (
-            <MotionField>
-              <AuthField
-                control={form.control}
-                name="email"
-                label="邮箱"
-                placeholder="请输入邮箱"
-                icon={<Icon icon="lucide:mail" />}
-                maxLength={LIMIT.EMAIL}
-                autoComplete="email"
-              />
-            </MotionField>
-          )}
-
+          {/* 身份字段随 mode 销毁重建；验证码一并卸掉以重置倒计时 */}
           <MotionField>
-            <CaptchaField
-              form={form}
-              mode={forgotMode}
-              targetField={forgotMode}
-            />
+            <ModeSwap mode={forgotMode}>
+              {forgotMode === MODE.USERNAME && (
+                <div className={styles.fieldMotion}>
+                  <AuthField
+                    control={form.control}
+                    name="username"
+                    label="用户名"
+                    placeholder="请输入用户名"
+                    icon={<Icon icon="lucide:user" />}
+                    maxLength={LIMIT.USERNAME}
+                    autoComplete="username"
+                  />
+                </div>
+              )}
+
+              {forgotMode === MODE.PHONE && (
+                <div className={styles.fieldMotion}>
+                  <AuthField
+                    control={form.control}
+                    name="phone"
+                    label="手机号"
+                    placeholder="请输入手机号"
+                    icon={<Icon icon="lucide:smartphone" />}
+                    inputMode="numeric"
+                    maxLength={LIMIT.PHONE}
+                    autoComplete="tel"
+                  />
+                </div>
+              )}
+
+              {forgotMode === MODE.EMAIL && (
+                <div className={styles.fieldMotion}>
+                  <AuthField
+                    control={form.control}
+                    name="email"
+                    label="邮箱"
+                    placeholder="请输入邮箱"
+                    icon={<Icon icon="lucide:mail" />}
+                    maxLength={LIMIT.EMAIL}
+                    autoComplete="email"
+                  />
+                </div>
+              )}
+
+              <div className={styles.fieldMotion}>
+                <CaptchaField
+                  key={forgotMode}
+                  form={form}
+                  mode={forgotMode}
+                  purpose="forgot"
+                  targetField={forgotMode}
+                  askSlide={askSlide}
+                />
+              </div>
+            </ModeSwap>
           </MotionField>
 
+          {/* 新密码区保留挂载，仅 reset 清空值，避免整段重播 stagger */}
           <MotionField>
             <AuthField
               control={form.control}
@@ -177,8 +217,17 @@ function ForgotForm(props: ForgotFormProps) {
           <MotionField className={styles.actions}>
             <Button
               type="submit"
-              className="h-11 w-full">
-              确认重置
+              className="h-11 w-full gap-2"
+              disabled={form.formState.isSubmitting}
+              aria-busy={form.formState.isSubmitting}>
+              {form.formState.isSubmitting ? (
+                <>
+                  <Spinner className="size-4" />
+                  重置中…
+                </>
+              ) : (
+                '重置密码'
+              )}
             </Button>
           </MotionField>
 
@@ -192,6 +241,7 @@ function ForgotForm(props: ForgotFormProps) {
             </Button>
           </MotionField>
         </FormStagger>
+        {dialog}
       </form>
     </Form>
   )

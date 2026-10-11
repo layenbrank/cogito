@@ -148,12 +148,7 @@ function Tile(props: TileProps) {
   )
 
   // 浮层用绝对定位，尺寸由 size/shape/direction 实时计算，不依赖存储的 w/h
-  const box = useMemo(
-    function () {
-      return findMarkerBox(layout)
-    },
-    [layout.size, layout.shape, layout.direction]
-  )
+  const box = findMarkerBox(layout)
 
   // GSAP 独占 transform 定位，React 不设置 transform
   const shellStyle = {
@@ -167,6 +162,12 @@ function Tile(props: TileProps) {
 
   const menuItems = useMemo<MenuItem[]>(
     function () {
+      const markerLayout: MarkerLayout = {
+        size: item.size ?? LAYOUT_FALLBACK.size,
+        shape: item.shape ?? LAYOUT_FALLBACK.shape,
+        direction: item.direction ?? LAYOUT_FALLBACK.direction
+      }
+
       return [
         {
           key: 'size',
@@ -180,13 +181,13 @@ function Tile(props: TileProps) {
           ),
           content: (
             <SizePicker
-              current={layout.size}
-              layout={layout}
+              current={markerLayout.size}
+              layout={markerLayout}
               onChange={function (value) {
                 const box = findMarkerBox({
                   size: value,
-                  shape: layout.shape,
-                  direction: layout.direction
+                  shape: markerLayout.shape,
+                  direction: markerLayout.direction
                 })
                 toUpdate(item.id, { w: box.w, h: box.h, size: value })
               }}
@@ -209,7 +210,14 @@ function Tile(props: TileProps) {
         }
       ]
     },
-    [item.id, item.magneticTileID, layout, toUpdate]
+    [
+      item.id,
+      item.magneticTileID,
+      item.size,
+      item.shape,
+      item.direction,
+      toUpdate
+    ]
   )
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {

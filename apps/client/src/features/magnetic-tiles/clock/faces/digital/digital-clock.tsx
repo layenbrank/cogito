@@ -1,5 +1,6 @@
 import clsx from 'clsx'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, useReducedMotion } from 'motion/react'
+import * as m from 'motion/react-m'
 
 import {
   COLON,
@@ -29,7 +30,7 @@ function AnimatedDigit(props: {
       <AnimatePresence
         mode="sync"
         initial={false}>
-        <motion.span
+        <m.span
           key={props.value}
           className={styles.digit}
           variants={DIGIT.variants}
@@ -39,7 +40,7 @@ function AnimatedDigit(props: {
           transition={transition}
           >
           {props.value}
-        </motion.span>
+        </m.span>
       </AnimatePresence>
     </span>
   )
@@ -49,12 +50,12 @@ function PulsingColon(props: { tick: number; className?: string; isReduced: bool
   const opacity = props.isReduced ? 1 : props.tick % 2 === 0 ? 1 : 0.35
 
   return (
-    <motion.span
+    <m.span
       className={clsx(styles.colon, props.className)}
       animate={{ opacity }}
       transition={COLON.transition(props.isReduced)}>
       :
-    </motion.span>
+    </m.span>
   )
 }
 
@@ -109,4 +110,3 @@ export function DigitalClock(props: DigitalClockProps) {
   )
 }
 
-export { styles as digitalStyles }

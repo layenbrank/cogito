@@ -27,6 +27,7 @@ alwaysApply: true
 - **对象方法用简写**（`onDragStart() {}`），不要 `key: function () {}`
 - 箭头函数仅用于：简短回调、`this` 绑定、compose/pipe 等约定工具
 - 按模块划分文件；导出名与文件名、职责一致；模块末尾命名导出
+- 一个域多个文件就开目录（内部短名）；默认不建 barrel，仅对外统一入口时放 `index.ts`
 
 ## 类型与质量
 

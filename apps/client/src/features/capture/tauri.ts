@@ -1,4 +1,5 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+import { CHANNELS } from '@/shared/ipc/channels'
 
 import type { SurfaceStyleInput } from '@/features/magnetic-tile/surface-style'
 import type { MarkerLayout } from '@/features/magnetic-tile/size'
@@ -25,12 +26,12 @@ interface MountOverlayOptions extends Partial<MarkerLayout>, SurfaceStyleInput {
 
 /** 主显示器即时截图（不弹窗，返回截图文件路径） */
 async function takeScreenshot(): Promise<ScreenshotResult> {
-  return invoke<ScreenshotResult>('capture:screenshot')
+  return invoke<ScreenshotResult>(CHANNELS.CAPTURE.SCREENSHOT)
 }
 
 /** 消费 capture:open 预截好的结果；无则返回 null */
 async function takePendingScreenshot(): Promise<ScreenshotResult | null> {
-  return invoke<ScreenshotResult | null>('capture:take-pending')
+  return invoke<ScreenshotResult | null>(CHANNELS.CAPTURE.TAKE_PENDING)
 }
 
 /**
@@ -53,15 +54,15 @@ async function fetchImageFromPath(filePath: string): Promise<HTMLImageElement> {
 /* ─── Overlay 窗口管理 ─── */
 
 async function ensureOverlay(): Promise<void> {
-  await invoke('overlay:ensure')
+  await invoke(CHANNELS.OVERLAY.ENSURE)
 }
 
 async function hideOverlay(): Promise<void> {
-  await invoke('overlay:hide')
+  await invoke(CHANNELS.OVERLAY.HIDE)
 }
 
 async function updateOverlayMode(mode: 'idle' | 'screenshot'): Promise<void> {
-  await invoke('overlay:update-mode', { mode })
+  await invoke(CHANNELS.OVERLAY.UPDATE_MODE, { mode })
 }
 
 /** 主窗磁贴右键「浮层 → 添加」 */
@@ -70,7 +71,7 @@ async function mountOverlayTile(
   magneticTileID: string,
   options?: MountOverlayOptions
 ): Promise<void> {
-  await invoke('overlay:mount', {
+  await invoke(CHANNELS.OVERLAY.MOUNT, {
     payload: {
       kind,
       magneticTileID,
@@ -87,7 +88,7 @@ async function mountOverlayTile(
 
 /** 主窗 / 浮层「移除」共用 */
 async function removeOverlayTile(magneticTileID: string): Promise<void> {
-  await invoke('overlay:unmount', {
+  await invoke(CHANNELS.OVERLAY.UNMOUNT, {
     payload: { magneticTileID }
   })
 }

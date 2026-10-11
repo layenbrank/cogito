@@ -32,7 +32,7 @@ function parseEnumOptions(param: ActionParam): string[] | null {
   if (parts.length < 2) return null
   if (
     parts.every(function (part) {
-      return /^[\w.\-]+$/.test(part)
+      return /^[\w.-]+$/.test(part)
     })
   ) {
     return parts
@@ -53,13 +53,15 @@ function isArrayType(ty: string): boolean {
 }
 
 function stringifyValue(value: unknown): string {
-  if (value == null) return ''
+  if (value === undefined || value === null) return ''
   if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-  try {
-    return JSON.stringify(value)
-  } catch {
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
     return String(value)
+  }
+  try {
+    return JSON.stringify(value) ?? ''
+  } catch {
+    return ''
   }
 }
 
@@ -199,7 +201,7 @@ function ParamFields(props: ParamFieldsProps) {
               id={`param-${param.name}`}
               type={isNumberType(param.ty) && typeof current === 'number' ? 'number' : 'text'}
               placeholder={
-                param.default != null
+                param.default !== undefined && param.default !== null
                   ? `默认 ${stringifyValue(param.default)}`
                   : '值或模板，如 ${inputs.src}'
               }

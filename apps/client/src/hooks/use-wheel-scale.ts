@@ -42,13 +42,18 @@ function useWheelScale(options: UseWheelScaleOptions) {
   const liveOpacityRef = useRef(storeOpacity)
   const commitTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  liveScaleRef.current = storeScale
-  liveXRef.current = storeX
-  liveYRef.current = storeY
-  liveOpacityRef.current = storeOpacity
-
   const optsRef = useRef(options)
-  optsRef.current = options
+
+  useEffect(
+    function () {
+      liveScaleRef.current = storeScale
+      liveXRef.current = storeX
+      liveYRef.current = storeY
+      liveOpacityRef.current = storeOpacity
+      optsRef.current = options
+    },
+    [storeScale, storeX, storeY, storeOpacity, options]
+  )
 
   const handler = useRef(function (e: WheelEvent) {
     e.preventDefault()

@@ -303,7 +303,7 @@ function isNestedMenuItem(item: EditorMenuAction): item is NestedMenuAction {
   return item.type === 'nested'
 }
 
-export function LanguageSelectionSubmenu({
+function LanguageSelectionSubmenu({
   editor
 }: {
   editor: Editor | null
@@ -400,7 +400,7 @@ export function LanguageSelectionSubmenu({
   )
 }
 
-export function ToneSelectionSubmenu({ editor }: { editor: Editor | null }) {
+function ToneSelectionSubmenu({ editor }: { editor: Editor | null }) {
   const [searchValue] = useComboboxValueState()
   const { state, updateState } = useAiMenuState()
 
@@ -484,7 +484,7 @@ export function ToneSelectionSubmenu({ editor }: { editor: Editor | null }) {
   )
 }
 
-export function MenuActionRenderer({
+function MenuActionRenderer({
   menuItem,
   availableActions,
   editor

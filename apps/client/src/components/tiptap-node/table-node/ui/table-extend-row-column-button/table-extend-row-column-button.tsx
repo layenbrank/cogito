@@ -1,7 +1,7 @@
 // @ts-nocheck
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { type Editor } from '@tiptap/react'
 import type { Node } from '@tiptap/pm/model'
 import { TableMap } from '@tiptap/pm/tables'
@@ -96,74 +96,76 @@ export const TableExtendRowColumnButton: React.FC<
     })
   }, [editor, isRowOrientation, orientation, state])
 
-  useEffect(() => {
+  const handleDragMove = useEffectEvent(function (ev: MouseEvent) {
     if (!dragState || !editor || !state) return
 
+    movedRef.current = true
+
+    const currentPos = isRowOrientation ? ev.clientY : ev.clientX
+    const diff = currentPos - dragState.startPos
+    const cellSize = isRowOrientation ? EMPTY_CELL_HEIGHT : EMPTY_CELL_WIDTH
+
+    const currentDims = TableMap.get(state.block)
+    const currentCount = isRowOrientation ? currentDims.height : currentDims.width
+    const originalCount = isRowOrientation
+      ? dragState.originalHeight
+      : dragState.originalWidth
+
+    const newCount = Math.max(1, originalCount + marginRound(diff / cellSize, 0.3))
+    const delta = newCount - currentCount
+
+    if (delta === 0) return
+
+    if (delta > 0) {
+      runPreservingCursor(editor, () => {
+        selectLastCell(editor, state.block, state.blockPos, orientation)
+
+        for (let i = 0; i < delta; i++) {
+          if (isRowOrientation) {
+            editor.commands.addRowAfter()
+          } else {
+            editor.commands.addColumnAfter()
+          }
+        }
+      })
+      return
+    }
+
+    runPreservingCursor(editor, () => {
+      const absDelta = Math.abs(delta)
+
+      const emptyCount = isRowOrientation
+        ? countEmptyRowsFromEnd(editor, state.blockPos)
+        : countEmptyColumnsFromEnd(editor, state.blockPos)
+
+      const safeToRemove = Math.min(absDelta, emptyCount, currentCount - 1)
+
+      selectLastCell(editor, state.block, state.blockPos, orientation)
+
+      for (let i = 0; i < safeToRemove; i++) {
+        if (isRowOrientation) {
+          editor.commands.deleteRow()
+        } else {
+          editor.commands.deleteColumn()
+        }
+      }
+    })
+  })
+
+  const handleDragUp = useEffectEvent(function () {
+    setDragState(null)
+    onMouseUp()
+  })
+
+  useEffect(() => {
+    if (!dragState) return
+
     const handleMove = (ev: MouseEvent) => {
-      movedRef.current = true
-
-      const currentPos = isRowOrientation ? ev.clientY : ev.clientX
-      const diff = currentPos - dragState.startPos
-      const cellSize = isRowOrientation ? EMPTY_CELL_HEIGHT : EMPTY_CELL_WIDTH
-
-      const currentDims = TableMap.get(state.block)
-      const currentCount = isRowOrientation
-        ? currentDims.height
-        : currentDims.width
-      const originalCount = isRowOrientation
-        ? dragState.originalHeight
-        : dragState.originalWidth
-
-      const newCount = Math.max(
-        1,
-        originalCount + marginRound(diff / cellSize, 0.3)
-      )
-      const delta = newCount - currentCount
-
-      if (delta === 0) return
-
-      // Add rows/columns
-      if (delta > 0) {
-        runPreservingCursor(editor, () => {
-          selectLastCell(editor, state.block, state.blockPos, orientation)
-
-          for (let i = 0; i < delta; i++) {
-            if (isRowOrientation) {
-              editor.commands.addRowAfter()
-            } else {
-              editor.commands.addColumnAfter()
-            }
-          }
-        })
-      }
-      // Remove rows/columns - but only if they're empty
-      else {
-        runPreservingCursor(editor, () => {
-          const absDelta = Math.abs(delta)
-
-          const emptyCount = isRowOrientation
-            ? countEmptyRowsFromEnd(editor, state.blockPos)
-            : countEmptyColumnsFromEnd(editor, state.blockPos)
-
-          // Only remove up to the number of empty cells, and keep at least 1
-          const safeToRemove = Math.min(absDelta, emptyCount, currentCount - 1)
-
-          selectLastCell(editor, state.block, state.blockPos, orientation)
-
-          for (let i = 0; i < safeToRemove; i++) {
-            if (isRowOrientation) {
-              editor.commands.deleteRow()
-            } else {
-              editor.commands.deleteColumn()
-            }
-          }
-        })
-      }
+      handleDragMove(ev)
     }
 
     const handleUp = () => {
-      setDragState(null)
-      onMouseUp()
+      handleDragUp()
     }
 
     window.addEventListener('mousemove', handleMove)
@@ -173,7 +175,7 @@ export const TableExtendRowColumnButton: React.FC<
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseup', handleUp)
     }
-  }, [dragState, editor, isRowOrientation, orientation, onMouseUp, state])
+  }, [dragState])
 
   if (!editor?.isEditable) return null
 

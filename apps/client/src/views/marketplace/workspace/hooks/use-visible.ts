@@ -50,12 +50,18 @@ function useVisible(ref: RefObject<HTMLElement | null>, options?: UseVisibleOpti
       const node = ref.current
       if (!node) return
       if (hasRootOption && root === null) {
-        onUpdateVisible(false)
+        // 首帧同步：root 未就绪时保持不可见，避免错误挂载
+        queueMicrotask(function () {
+          onUpdateVisible(false)
+        })
         return
       }
 
       let isMounted = isNearRoot(node, root, rootMargin)
-      onUpdateVisible(isMounted)
+      // 首帧同步判定放进 microtask，避免 effect 体内直接 setState
+      queueMicrotask(function () {
+        onUpdateVisible(isMounted)
+      })
 
       const enterObserver = new IntersectionObserver(
         function (entries) {

@@ -1,4 +1,5 @@
 import { http } from '@/utils/http/http.ts'
+import { safeDecodeURIComponent } from '@/utils/safe-decode.ts'
 
 function GET_TILES() {
   return http.get('/magnetic-tile', {
@@ -15,7 +16,7 @@ function GET_SINGLETON(id: string) {
 function GET_FAVICON(url: string) {
   return http.get('/magnetic-tile/favicon', {
     query: {
-      url: decodeURIComponent(url)
+      url: safeDecodeURIComponent(url)
     },
     env: 'thinking'
   })

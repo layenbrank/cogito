@@ -1,5 +1,6 @@
 import { Decorations } from '@/components/decorations/index.ts'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
+import { safeDecodeURIComponent } from '@/utils/safe-decode.ts'
 import { Suspense, lazy } from 'react'
 import { Outlet, useParams } from 'react-router-dom'
 import { Spinner } from '@i-thinking/design/components/spinner'
@@ -58,7 +59,7 @@ function DirectiveLibraryPage() {
 
 function DirectiveWorkspacePage() {
   const params = useParams()
-  const name = params.name ? decodeURIComponent(params.name) : undefined
+  const name = params.name ? safeDecodeURIComponent(params.name) : undefined
 
   return (
     <Decorations
@@ -67,7 +68,7 @@ function DirectiveWorkspacePage() {
       <Suspense
         fallback={
           <div className="flex flex-1 items-center justify-center">
-            <Spinner className="size-6 text-muted-foreground" />
+            <Spinner className="size-10 text-muted-foreground" />
           </div>
         }>
         <DirectiveWorkspace />

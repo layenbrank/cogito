@@ -1,8 +1,6 @@
-import { Icon } from '@iconify/react/offline'
 import { Badge } from '@i-thinking/design/components/badge'
-import { Button } from '@i-thinking/design/components/button'
-import { Spinner } from '@i-thinking/design/components/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+import { IncrementButton } from '@/views/marketplace/workspace/increment-button'
 import { memo, useContext, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useShallow } from 'zustand/react/shallow'
@@ -108,7 +106,7 @@ function Section(props: SectionProps) {
 
 function NavigateCardView(props: NavigateCardViewProps) {
   const tile = props.tile
-  const [isAdding, onUpdateAdding] = useState(false)
+  const [isIncrementing, onUpdateIncrementing] = useState(false)
   const { targetMirrorID } = useContext(MarketplaceContext)
   const { activeMirrorID, mirrors, toInsertMagneticTile } = useMirrorStore(
     useShallow(function (state) {
@@ -125,7 +123,7 @@ function NavigateCardView(props: NavigateCardViewProps) {
   const description = findTileDescription(tile)
   const updatedLabel = formatUpdatedAt(tile.updatedAt)
 
-  async function onAdd() {
+  async function onIncrement() {
     const mirrorID = targetMirrorID ?? activeMirrorID
     if (!mirrorID) {
       toast.warning('请先选择镜像')
@@ -137,7 +135,7 @@ function NavigateCardView(props: NavigateCardViewProps) {
     })
     const mirrorTitle = mirror?.title ?? '镜像'
 
-    onUpdateAdding(true)
+    onUpdateIncrementing(true)
     try {
       await insertTile({
         tile,
@@ -146,10 +144,10 @@ function NavigateCardView(props: NavigateCardViewProps) {
       })
       toast.success(`已添加到 ${mirrorTitle}`)
     } catch (error) {
-      console.error('[Marketplace] add navigate tile failed:', error)
+      console.error('[Marketplace] increment navigate tile failed:', error)
       toast.error(error instanceof Error ? error.message : '添加失败')
     } finally {
-      onUpdateAdding(false)
+      onUpdateIncrementing(false)
     }
   }
 
@@ -207,31 +205,13 @@ function NavigateCardView(props: NavigateCardViewProps) {
           className="h-5 px-2 tabular-nums">
           {tile.downloadCount}
         </Badge>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                size="icon-sm"
-                aria-label={`新增 ${tile.title}`}
-                aria-busy={isAdding}
-                disabled={isAdding}
-                onClick={function (event) {
-                  event.stopPropagation()
-                  void onAdd()
-                }}
-              />
-            }>
-            {isAdding ? (
-              <Spinner />
-            ) : (
-              <Icon
-                icon="lucide:plus"
-                aria-hidden
-              />
-            )}
-          </TooltipTrigger>
-          <TooltipContent side="bottom">新增到镜像</TooltipContent>
-        </Tooltip>
+        <IncrementButton
+          tileTitle={tile.title}
+          isIncrementing={isIncrementing}
+          onIncrement={function () {
+            void onIncrement()
+          }}
+        />
       </div>
     </article>
   )

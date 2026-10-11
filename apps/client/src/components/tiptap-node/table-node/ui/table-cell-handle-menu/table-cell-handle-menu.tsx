@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { forwardRef, useCallback, useEffect, useState } from 'react'
+import { forwardRef, useCallback, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 
 // --- Hooks ---
@@ -188,14 +188,18 @@ export const TableCellHandleMenu = forwardRef<
     editor
   })
 
-  useEffect(() => {
-    onOpenChange?.(isMenuOpen)
-  }, [isMenuOpen, onOpenChange])
+  const notifyMenuOpen = useCallback(
+    function (isOpen: boolean) {
+      handleMenuToggle(isOpen)
+      onOpenChange?.(isOpen)
+    },
+    [handleMenuToggle, onOpenChange]
+  )
 
   return (
     <Menu
       open={isMenuOpen}
-      onOpenChange={handleMenuToggle}
+      onOpenChange={notifyMenuOpen}
       placement="bottom-start"
       trigger={
         <MenuButton

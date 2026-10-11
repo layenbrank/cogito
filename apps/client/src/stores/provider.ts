@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { create, type StateCreator } from 'zustand'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
+import { CHANNELS } from '@/shared/ipc/channels'
 
 /** goose inventory providerId（历史伪 kind「goose」已过滤） */
 type ProviderKind = string
@@ -76,7 +77,7 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
 
     async toReadProviders() {
       try {
-        const providers = (await invoke<AiProvider[]>('aiProvider:toRead', { params: {} })).filter(
+        const providers = (await invoke<AiProvider[]>(CHANNELS.AI_PROVIDER.TO_READ, { params: {} })).filter(
           function (provider) {
             return provider.kind !== 'goose'
           }
@@ -120,7 +121,7 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
       )
 
       try {
-        await invoke('aiProvider:toWrite', {
+        await invoke(CHANNELS.AI_PROVIDER.TO_WRITE, {
           params: values.map(toProviderWrite)
         })
       } catch (error) {
@@ -158,7 +159,7 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
           const { id, ...change } = v
           return { key: id!, change }
         })
-        await invoke('aiProvider:toUpdate', { params })
+        await invoke(CHANNELS.AI_PROVIDER.TO_UPDATE, { params })
       } catch (error) {
         setters({ providers }, false, 'toUpdateProvider/rollback')
         throw error
@@ -170,17 +171,18 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
       try {
         setters(
           function (state) {
+            const keySet = new Set(keys)
             state.providers = former.filter(function (provider) {
-              return !keys.includes(provider.id)
+              return !keySet.has(provider.id)
             })
-            if (state.activeProviderID && keys.includes(state.activeProviderID)) {
+            if (state.activeProviderID && keySet.has(state.activeProviderID)) {
               state.activeProviderID = state.providers[0]?.id ?? null
             }
           },
           false,
           'toRemoveProvider/optimistic'
         )
-        await invoke('aiProvider:toRemove', { params: keys })
+        await invoke(CHANNELS.AI_PROVIDER.TO_REMOVE, { params: keys })
       } catch (error) {
         setters({ providers: former }, false, 'toRemoveProvider/rollback')
         throw error

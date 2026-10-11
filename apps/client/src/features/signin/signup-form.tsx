@@ -7,35 +7,49 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { POST_SIGNUP } from '@/apis/auth.ts'
-import { LIMIT, SIGNUP_SCHEMA, type SignupValues } from '@/features/signin/constants.ts'
-import { AuthField } from '@/features/signin/field.tsx'
-import { FormStagger, MotionField } from '@/features/signin/form-motion.tsx'
-import styles from '@/features/signin/signin.module.scss'
+import { LIMIT, SIGNUP_SCHEMA, type SignupValues } from './constants.ts'
+import { AuthField } from './field.tsx'
+import { FormStagger, MotionField } from './form-motion.tsx'
+import styles from './signin.module.scss'
+import { useSlideProof } from './slide'
+import { HttpError } from '@/utils/http/errors.ts'
+import { writeAuthToken } from '@/utils/auth.ts'
 
 type SignupFormProps = {
   motionKey: number
   onSignin: () => void
+  onSuccess: () => void
 }
 
 function SignupForm(props: SignupFormProps) {
-  const { motionKey, onSignin } = props
+  const { motionKey, onSignin, onSuccess } = props
+  const { askSlide, dialog } = useSlideProof()
+
   const form = useForm<SignupValues>({
     resolver: zodResolver(SIGNUP_SCHEMA),
     defaultValues: { username: '', password: '', confirm: '' }
   })
-  const isSubmitting = form.formState.isSubmitting
 
+  /**
+   * 对齐 Cogito `POST /auth/signup`（SignupP）：
+   * username + password + 滑块 captchaKey/captchaValue；无手机/邮箱注册通道。
+   * confirm 仅前端校验，不入请求体。
+   */
   async function onSubmit(values: SignupValues) {
     try {
-      await POST_SIGNUP({
+      const proof = await askSlide()
+      if (!proof) return
+      const session = await POST_SIGNUP({
         username: values.username,
-        password: values.password
+        password: values.password,
+        ...proof
       })
-      toast.success('注册成功（mock）')
+      writeAuthToken(session.token, true)
+      toast.success('注册成功')
       form.reset()
-      onSignin()
-    } catch {
-      toast.error('注册失败，请稍后重试')
+      onSuccess()
+    } catch (error) {
+      toast.error(HttpError(error).message || '注册失败，请稍后重试')
     }
   }
 
@@ -87,11 +101,17 @@ function SignupForm(props: SignupFormProps) {
           <MotionField className={styles.actions}>
             <Button
               type="submit"
-              className="h-11 w-full"
-              disabled={isSubmitting}
-              aria-busy={isSubmitting}>
-              {isSubmitting && <Spinner className="size-4" />}
-              确认注册
+              className="h-11 w-full gap-2"
+              disabled={form.formState.isSubmitting}
+              aria-busy={form.formState.isSubmitting}>
+              {form.formState.isSubmitting ? (
+                <>
+                  <Spinner className="size-4" />
+                  注册中…
+                </>
+              ) : (
+                '确认注册'
+              )}
             </Button>
           </MotionField>
 
@@ -105,6 +125,7 @@ function SignupForm(props: SignupFormProps) {
             </Button>
           </MotionField>
         </FormStagger>
+        {dialog}
       </form>
     </Form>
   )

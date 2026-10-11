@@ -37,18 +37,18 @@ function buildActionStep(actionId: string, siblings: Step[]): Step {
 
 function OrchestratorCanvas(props: OrchestratorCanvasProps) {
   function patchSteps(steps: Step[]) {
-    props.onChange({ ...props.draft, steps: steps as DirectiveContent['steps'] })
+    props.onChange({ ...props.draft, steps })
   }
 
   function insertControl(kind: ControlKind) {
-    const id = nextStepId(kind, props.draft.steps as Step[])
+    const id = nextStepId(kind, props.draft.steps)
     const step = buildControlStep(kind, id)
-    patchSteps([...(props.draft.steps as Step[]), step])
+    patchSteps([...props.draft.steps, step])
     props.onSelectToken(step.token ?? null)
   }
 
   function insertAction(actionId: string) {
-    const siblings = props.draft.steps as Step[]
+    const siblings = props.draft.steps
     const step = buildActionStep(actionId, siblings)
     patchSteps([...siblings, step])
     props.onSelectToken(step.token ?? null)
@@ -68,7 +68,8 @@ function OrchestratorCanvas(props: OrchestratorCanvasProps) {
 
   function renderSteps(steps: Step[], depth: number): ReactNode {
     return steps.map(function (step, index) {
-      const token = step.token ?? step.id ?? `step-${depth}-${index}`
+      const stepKind = 'action' in step ? step.action : 'control'
+      const token = step.token ?? step.id ?? `step-${depth}-${stepKind}`
       const childLists = childListsOf(step)
 
       return (
@@ -82,23 +83,25 @@ function OrchestratorCanvas(props: OrchestratorCanvasProps) {
             props.onSelectToken(token)
           }}
           onMoveUp={function () {
-            patchSteps(moveByToken(props.draft.steps as Step[], token, -1))
+            patchSteps(moveByToken(props.draft.steps, token, -1))
           }}
           onMoveDown={function () {
-            patchSteps(moveByToken(props.draft.steps as Step[], token, 1))
+            patchSteps(moveByToken(props.draft.steps, token, 1))
           }}
           onDuplicate={function () {
-            patchSteps(duplicateStep(props.draft.steps as Step[], token))
+            patchSteps(duplicateStep(props.draft.steps, token))
           }}
           onRemove={function () {
-            patchSteps(removeStep(props.draft.steps as Step[], token))
+            patchSteps(removeStep(props.draft.steps, token))
             if (props.selectedToken === token) props.onSelectToken(null)
           }}>
           {childLists.map(function (child) {
             if (child.steps.length === 0) return null
             return (
               <div
-                key={`${token}-${child.label}`}
+                key={`${token}-${child.label}-${child.steps.map(function (s) {
+                  return s.token ?? s.id
+                }).join('-')}`}
                 className="space-y-3 border-l border-dashed border-border pl-3">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   {child.label}
@@ -112,7 +115,7 @@ function OrchestratorCanvas(props: OrchestratorCanvasProps) {
     })
   }
 
-  const steps = props.draft.steps as Step[]
+  const steps = props.draft.steps
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-muted/20">

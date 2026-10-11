@@ -50,7 +50,8 @@ export function AiMenuInputPlaceholder({
   onPlaceholderClick: () => void
 }) {
   return (
-    <div
+    <button
+      type="button"
       className="tiptap-ai-prompt-input-placeholder"
       onClick={onPlaceholderClick}>
       <div className="tiptap-ai-prompt-input-placeholder-content">
@@ -64,7 +65,7 @@ export function AiMenuInputPlaceholder({
         disabled>
         <ArrowUpIcon className="tiptap-button-icon" />
       </Button>
-    </div>
+    </button>
   )
 }
 

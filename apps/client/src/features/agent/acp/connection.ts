@@ -13,9 +13,10 @@ import {
 } from '@agentclientprotocol/sdk'
 import { createWebSocketStream } from '@agentclientprotocol/sdk/experimental/ws-client'
 
-import { requestAcpPermission } from '@/features/agent/acp/permission'
 import { ensureAutoCompactThreshold } from '@/features/agent/acp/goose-providers'
+import { requestAcpPermission } from '@/features/agent/acp/permission'
 import { createPinnedWebSocketCtor } from '@/features/agent/acp/wss-stream'
+import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
 
 interface GooseServeConnection {
   url: string
@@ -41,7 +42,7 @@ let notReadyBound = false
 let onNotReady: (() => void) | null = null
 
 async function findGooseConnection(): Promise<GooseServeConnection> {
-  return invoke<GooseServeConnection>('goose:connection')
+  return invoke<GooseServeConnection>(CHANNELS.GOOSE.CONNECTION)
 }
 
 function clearAcpHandle() {
@@ -62,7 +63,7 @@ function bindGooseNotReady(handler: () => void) {
   onNotReady = handler
   if (notReadyBound) return
   notReadyBound = true
-  void listen('goose://not-ready', function () {
+  void listen(EVENTS.GOOSE_NOT_READY, function () {
     clearAcpHandle()
     onNotReady?.()
   })

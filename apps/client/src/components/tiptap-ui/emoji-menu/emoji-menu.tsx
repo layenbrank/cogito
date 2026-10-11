@@ -139,11 +139,11 @@ export const EmojiMenu = <T extends EmojiItem>(props: EmojiMenuProps<T>) => {
         </CardHeader>
       )}
 
-      {renderedItems.length && (
+      {renderedItems.length > 0 ? (
         <CardBody className="emoji-menu-list">
           <ButtonGroup>{renderedItems}</ButtonGroup>
         </CardBody>
-      )}
+      ) : null}
     </Card>
   )
 }

@@ -9,11 +9,12 @@ import {
 } from '@tauri-apps/plugin-notification'
 import { useRef } from 'react'
 import { toast } from 'sonner'
+import { CHANNELS } from '@/shared/ipc/channels'
 
 import {
   exportTiles,
-  parseWrite
-} from '@/views/marketplace/workspace/customize/tile-io.ts'
+  parseTileWrite
+} from '@/views/marketplace/workspace/customize/tile-io'
 import { useMirrorStore } from '@/stores/mirror.ts'
 
 async function notify(body: string) {
@@ -49,7 +50,7 @@ function CaptionActions() {
     }
 
     try {
-      const tiles = await invoke<MagneticTile[]>('magnetic-tile:read', {
+      const tiles = await invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
         params: { mirrorID }
       })
       const exported = await exportTiles(tiles)
@@ -86,7 +87,7 @@ function CaptionActions() {
             return
           }
           const writes = parsed.map(function (item, index) {
-            return parseWrite(item, mirrorID, baseIndex + index)
+            return parseTileWrite(item, mirrorID, baseIndex + index)
           })
           void toInsertMagneticTile(writes).then(
             function () {

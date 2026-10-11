@@ -1,122 +1,32 @@
-import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
-import { Switch } from '@i-thinking/design/components/switch'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { clsx } from 'clsx'
-import dayjs, { type Dayjs } from 'dayjs'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
-import { WindowFrame } from '@/components/window-frame/index.ts'
+import { Decorations } from '@/components/decorations/index.ts'
+import { EVENTS } from '@/shared/ipc/channels'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 import {
   findClockReminders,
   findEnabledCount,
   findNextReminder,
-  formatWeekDays,
   parseWeekDays
 } from '@/features/magnetic-tiles/clock/alarm-time'
-import { AnalogClock } from '@/features/magnetic-tiles/clock/faces/analog/analog-clock.tsx'
-import { DigitalClock } from '@/features/magnetic-tiles/clock/faces/digital/digital-clock.tsx'
-import { MinimalClock } from '@/features/magnetic-tiles/clock/faces/minimal/minimal-clock.tsx'
-import { FlipClock } from '@/features/magnetic-tiles/clock/flip-digit.tsx'
 import { useSecondTick } from '@/features/magnetic-tiles/clock/use-second-tick.ts'
-import { useClockStore, type ClockStyle } from '@/stores/clock'
+import { useClockStore } from '@/stores/clock'
 import { useReminderStore, type Reminder } from '@/stores/reminder'
 import styles from '@/views/clock/clock.module.scss'
-
-const STYLES: { value: ClockStyle; label: string; hint: string }[] = [
-  { value: 'digital', label: '数字', hint: '清晰数字时钟' },
-  { value: 'analog', label: '指针', hint: '经典表盘' },
-  { value: 'flip', label: '翻页', hint: '立体翻页时钟' },
-  { value: 'neon', label: '强调', hint: '主色点缀' },
-  { value: 'minimal', label: '极简', hint: '轻量字距' }
-]
-
-const WEEKDAY_OPTIONS = [
-  { label: '一', value: 1 },
-  { label: '二', value: 2 },
-  { label: '三', value: 3 },
-  { label: '四', value: 4 },
-  { label: '五', value: 5 },
-  { label: '六', value: 6 },
-  { label: '日', value: 7 }
-]
+import { ClockAlarms, type Draft } from './clock-alarms'
+import { ClockPreview } from './clock-preview'
+import { findStyleLabel } from './clock-style-constants.ts'
+import { ClockStylePicker } from './clock-style-picker.tsx'
 
 const SNOOZE_MS = 9 * 60 * 1000
-
-interface Draft {
-  title: string
-  fireTime: string
-  weekDays: number[]
-}
 
 const EMPTY_DRAFT: Draft = {
   title: '闹钟',
   fireTime: '07:00',
   weekDays: []
-}
-
-function StageAnalog(props: { now: Dayjs }) {
-  return (
-    <div
-      className={styles.stageFaceWrap}
-      aria-hidden>
-      <AnalogClock
-        now={props.now}
-        className={styles.stageFace}
-      />
-    </div>
-  )
-}
-
-function StageDigits(props: { now: Dayjs; clockStyle: ClockStyle }) {
-  const showSeconds = props.clockStyle !== 'minimal'
-  const h = props.now.format('HH')
-  const m = props.now.format('mm')
-  const s = props.now.format('ss')
-  const tick = props.now.second()
-
-  if (props.clockStyle === 'flip') {
-    return (
-      <FlipClock
-        hours={h}
-        minutes={m}
-        seconds={s}
-        showSeconds={showSeconds}
-        useDots
-        className={styles.stageFlip}
-      />
-    )
-  }
-
-  if (props.clockStyle === 'minimal') {
-    return (
-      <div className={styles.stageDigits}>
-        <MinimalClock
-          h={h}
-          m={m}
-          s={s}
-          showSeconds={showSeconds}
-          isNeon={false}
-        />
-      </div>
-    )
-  }
-
-  return (
-    <div className={styles.stageDigits}>
-      <DigitalClock
-        h={h}
-        m={m}
-        s={s}
-        showSeconds={showSeconds}
-        tick={tick}
-        isNeon={props.clockStyle === 'neon'}
-      />
-    </div>
-  )
 }
 
 function closeWindow() {
@@ -166,7 +76,7 @@ function Clock() {
       let unlisten: (() => void) | undefined
       void import('@tauri-apps/api/event').then(function (mod) {
         void mod
-          .listen('reminder:fired', function () {
+          .listen(EVENTS.REMINDER_FIRED, function () {
             void toReadReminders()
           })
           .then(function (fn) {
@@ -181,10 +91,7 @@ function Clock() {
   )
 
   const heroTime = clockStyle === 'minimal' ? now.format('HH:mm') : now.format('HH:mm:ss')
-  const styleLabel =
-    STYLES.find(function (s) {
-      return s.value === clockStyle
-    })?.label ?? '时钟'
+  const styleLabel = findStyleLabel(clockStyle)
   const nextFire = useMemo(
     function () {
       return findNextReminder(clockReminders, now)
@@ -316,262 +223,52 @@ function Clock() {
   const isEditing = isCreating || editingId !== null
 
   return (
-    <WindowFrame
-      title={findComponentLabel('clock')}
-      isScrollable={false}
-      footer={<Button onClick={closeWindow}>完成</Button>}>
+    <Decorations
+      summary={findComponentLabel('clock')}
+      scrollable={false}
+      section={<Button onClick={closeWindow}>完成</Button>}>
       <div className={styles.stage}>
-        <div className={clsx(styles.preview, styles[clockStyle])}>
-          <div className={styles.previewHero}>
-            <div className={styles.previewMetric}>
-              <span className={styles.previewLabel}>现在</span>
-              <span className={styles.previewTime}>{heroTime}</span>
-            </div>
-            <div className={styles.previewMetric}>
-              <span className={styles.previewLabel}>日期</span>
-              <span className={styles.previewDate}>{now.format('M月D日 dddd')}</span>
-            </div>
-          </div>
-
-          <div
-            className={clsx(styles.previewStage, styles[clockStyle])}
-            aria-live="polite"
-            aria-label={`预览 ${styleLabel}`}>
-            {clockStyle === 'analog' ? (
-              <StageAnalog now={now} />
-            ) : (
-              <StageDigits
-                now={now}
-                clockStyle={clockStyle}
-              />
-            )}
-          </div>
-
-          <div className={styles.previewFacts}>
-            <div className={styles.fact}>
-              <span className={styles.factLabel}>下一条</span>
-              <span className={styles.factValue}>
-                {nextFire
-                  ? `${nextFire.reminder.fireTime} ${nextFire.reminder.title || '闹钟'}`
-                  : clockReminders.length === 0
-                    ? '添加闹钟'
-                    : '暂无'}
-              </span>
-            </div>
-            <div className={styles.fact}>
-              <span className={styles.factLabel}>已开启</span>
-              <span className={styles.factValue}>
-                {enabledTotal} / {clockReminders.length}
-              </span>
-            </div>
-          </div>
-
-          <div className={styles.previewBottom}>
-            <span className={styles.previewStatus}>
-              <Icon
-                icon="mdi:alarm"
-                width={14}
-                height={14}
-              />
-              {styleLabel}
-            </span>
-            <span className={styles.previewRange}>{now.format('M月D日 ddd')}</span>
-          </div>
-        </div>
-
+        <ClockPreview
+          now={now}
+          clockStyle={clockStyle}
+          styleLabel={styleLabel}
+          heroTime={heroTime}
+          nextFire={nextFire}
+          clockRemindersCount={clockReminders.length}
+          enabledTotal={enabledTotal}
+        />
         <div className={styles.formCard}>
-          <div className={styles.sectionAppearance}>
-            <h3 className={styles.sectionTitle}>外观</h3>
-            <div
-              className={styles.styleList}
-              role="radiogroup"
-              aria-label="时钟样式">
-              {STYLES.map(function (item) {
-                const isActive = clockStyle === item.value
-                return (
-                  <button
-                    key={item.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={isActive}
-                    className={clsx(styles.styleRow, isActive && styles.styleRowActive)}
-                    onClick={function () {
-                      updateClockStyle(item.value)
-                    }}>
-                    <div className={styles.styleMeta}>
-                      <span className={styles.styleLabel}>{item.label}</span>
-                      <span className={styles.styleHint}>{item.hint}</span>
-                    </div>
-                    <span className={clsx(styles.mini, styles[item.value])}>
-                      {item.value === 'analog' ? (
-                        <span className={styles.miniFace} />
-                      ) : (
-                        <span className={styles.miniTime}>12:00</span>
-                      )}
-                    </span>
-                    <span
-                      className={clsx(styles.accent, isActive ? 'bg-primary' : 'bg-primary/35')}
-                    />
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className={styles.sectionAlarms}>
-            <div className={styles.sectionHead}>
-              <h3 className={styles.sectionTitle}>闹钟</h3>
-              {!isEditing ? (
-                <Button
-                  variant="link"
-                  size="sm"
-                  onClick={beginCreate}>
-                  添加
-                </Button>
-              ) : null}
-            </div>
-
-            {isEditing ? (
-              <div className={styles.editor}>
-                <div className={styles.editorGrid}>
-                  <label className={styles.field}>
-                    <span className={styles.fieldLabel}>时间</span>
-                    <Input
-                      type="time"
-                      value={draft.fireTime}
-                      onChange={function (event) {
-                        const value = event.target.value
-                        if (!value) return
-                        onUpdateDraft(function (d) {
-                          return { ...d, fireTime: value }
-                        })
-                      }}
-                    />
-                  </label>
-                  <label className={styles.field}>
-                    <span className={styles.fieldLabel}>标签</span>
-                    <Input
-                      value={draft.title}
-                      maxLength={32}
-                      onChange={function (event) {
-                        const value = event.target.value
-                        onUpdateDraft(function (d) {
-                          return { ...d, title: value }
-                        })
-                      }}
-                    />
-                  </label>
-                </div>
-                <div className={styles.dayBlock}>
-                  <span className={styles.dayLabel}>重复（不选为仅一次）</span>
-                  <div
-                    className={styles.dayChips}
-                    role="group"
-                    aria-label="重复星期">
-                    {WEEKDAY_OPTIONS.map(function (opt) {
-                      const isOn = draft.weekDays.includes(opt.value)
-                      return (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          className={clsx(styles.dayChip, isOn && styles.dayChipOn)}
-                          aria-pressed={isOn}
-                          onClick={function () {
-                            toggleDraftDay(opt.value)
-                          }}>
-                          {opt.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-                <div className={styles.editorActions}>
-                  <Button onClick={cancelEdit}>取消</Button>
-                  <Button
-                    disabled={saving}
-                    onClick={function () {
-                      void handleSaveDraft()
-                    }}>
-                    保存
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-
-            <div className={styles.alarmList}>
-              {clockReminders.length === 0 && !isEditing ? (
-                <button
-                  type="button"
-                  className={styles.empty}
-                  onClick={beginCreate}>
-                  <Icon
-                    icon="mdi:alarm-plus"
-                    width={20}
-                    height={20}
-                  />
-                  <span>添加闹钟</span>
-                </button>
-              ) : null}
-              {clockReminders.map(function (reminder) {
-                return (
-                  <div
-                    key={reminder.id}
-                    className={clsx(
-                      styles.alarmItem,
-                      editingId === reminder.id && styles.alarmItemActive
-                    )}>
-                    <button
-                      type="button"
-                      className={styles.alarmMain}
-                      onClick={function () {
-                        beginEdit(reminder)
-                      }}>
-                      <span className={styles.alarmTime}>{reminder.fireTime}</span>
-                      <span className={styles.alarmMeta}>
-                        <span className={styles.alarmTitle}>{reminder.title || '闹钟'}</span>
-                        <span className={styles.alarmHint}>
-                          {formatWeekDays(reminder.weekDays)}
-                          {reminder.snoozeUntil && reminder.snoozeUntil > Date.now()
-                            ? ` · 延后至 ${dayjs(reminder.snoozeUntil).format('HH:mm')}`
-                            : ''}
-                        </span>
-                      </span>
-                    </button>
-                    <div className={styles.alarmActions}>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="延后 9 分钟"
-                        onClick={function () {
-                          void handleSnooze(reminder)
-                        }}>
-                        <Icon icon="mdi:sleep" />
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="icon-sm"
-                        aria-label="归档"
-                        onClick={function () {
-                          void handleRemove(reminder.id)
-                        }}>
-                        <Icon icon="mdi:trash-can-outline" />
-                      </Button>
-                      <Switch
-                        size="sm"
-                        checked={reminder.enabled}
-                        onCheckedChange={function (checked) {
-                          void handleToggle(reminder, checked)
-                        }}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+          <ClockStylePicker
+            clockStyle={clockStyle}
+            onChange={updateClockStyle}
+          />
+          <ClockAlarms
+            clockReminders={clockReminders}
+            isEditing={isEditing}
+            editingId={editingId}
+            draft={draft}
+            saving={saving}
+            onBeginCreate={beginCreate}
+            onBeginEdit={beginEdit}
+            onCancelEdit={cancelEdit}
+            onSaveDraft={function () {
+              void handleSaveDraft()
+            }}
+            onDraftChange={onUpdateDraft}
+            onToggleDraftDay={toggleDraftDay}
+            onToggle={function (reminder, enabled) {
+              void handleToggle(reminder, enabled)
+            }}
+            onRemove={function (id) {
+              void handleRemove(id)
+            }}
+            onSnooze={function (reminder) {
+              void handleSnooze(reminder)
+            }}
+          />
         </div>
       </div>
-    </WindowFrame>
+    </Decorations>
   )
 }
 

@@ -3,6 +3,8 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 
+import { CHANNELS } from '@/shared/ipc/channels'
+
 interface ProbeResult {
   isRepo: boolean
   branch: string | null
@@ -18,15 +20,15 @@ interface CheckoutResult {
 }
 
 async function probe(path: string) {
-  return invoke<ProbeResult>('workspaceGit:probe', { params: { path } })
+  return invoke<ProbeResult>(CHANNELS.WORKSPACE_GIT.PROBE, { params: { path } })
 }
 
 async function fetchBranches(path: string) {
-  return invoke<BranchesResult>('workspaceGit:branches', { params: { path } })
+  return invoke<BranchesResult>(CHANNELS.WORKSPACE_GIT.BRANCHES, { params: { path } })
 }
 
 async function checkout(path: string, branch: string) {
-  return invoke<CheckoutResult>('workspaceGit:checkout', { params: { path, branch } })
+  return invoke<CheckoutResult>(CHANNELS.WORKSPACE_GIT.CHECKOUT, { params: { path, branch } })
 }
 
 const WorkspaceGit = {

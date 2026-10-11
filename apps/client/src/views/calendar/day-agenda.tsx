@@ -6,7 +6,7 @@ import { Textarea } from '@i-thinking/design/components/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@i-thinking/design/components/toggle-group'
 import { clsx } from 'clsx'
 import type { Dayjs } from 'dayjs'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import styles from '@/views/calendar/day-agenda.module.scss'
 import type { Calendar } from '@/stores/calendar'
@@ -43,6 +43,16 @@ function formatTimeLabel(ms: number, entireDay: boolean): string {
 }
 
 function DayAgenda(props: DayAgendaProps) {
+  const dateKey = props.date.format('YYYY-MM-DD')
+  return (
+    <DayAgendaInner
+      key={dateKey}
+      {...props}
+    />
+  )
+}
+
+function DayAgendaInner(props: DayAgendaProps) {
   const {
     date,
     events,
@@ -59,17 +69,6 @@ function DayAgenda(props: DayAgendaProps) {
   const [notes, onUpdateNotes] = useState('')
   const [isTitleInvalid, onUpdateTitleInvalid] = useState(false)
   const [submitting, onUpdateSubmitting] = useState(false)
-  const dateKey = date.format('YYYY-MM-DD')
-
-  useEffect(
-    function () {
-      onUpdateComposing(false)
-      onUpdateTitle('')
-      onUpdateNotes('')
-      onUpdateTitleInvalid(false)
-    },
-    [dateKey]
-  )
 
   const items = useMemo(
     function (): AgendaItem[] {

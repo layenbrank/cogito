@@ -4,6 +4,7 @@ import type { StateCreator } from 'zustand'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
+import { CHANNELS } from '@/shared/ipc/channels'
 
 type MirrorWrite = Mirror.Write
 type MagneticTileWrite = MagneticTile.Write
@@ -86,7 +87,7 @@ const mirrorSlice: SliceCreator<MirrorSlice> = function (setters, getters) {
         'toReadMirror'
       )
       if (mirror?.id) {
-        const magneticTiles = await invoke<MagneticTile[]>('magnetic-tile:read', {
+        const magneticTiles = await invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
           params: { mirrorID: mirror.id }
         })
         getters().toUpdateMagneticTiles(
@@ -101,7 +102,7 @@ const mirrorSlice: SliceCreator<MirrorSlice> = function (setters, getters) {
         return item.id === ID
       })
       if (!mirror) return null
-      const magneticTiles = await invoke<MagneticTile[]>('magnetic-tile:read', {
+      const magneticTiles = await invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
         params: { mirrorID: mirror.id }
       })
       return {
@@ -130,22 +131,22 @@ const mirrorSlice: SliceCreator<MirrorSlice> = function (setters, getters) {
 
     async toInsertMirror(values: MirrorWrite[]) {
       const params = values.length === 1 ? values[0] : values
-      await invoke('mirror:write', { params })
-      const mirrors = await invoke<Mirror[]>('mirror:read', { params: {} })
+      await invoke(CHANNELS.MIRROR.WRITE, { params })
+      const mirrors = await invoke<Mirror[]>(CHANNELS.MIRROR.READ, { params: {} })
       getters().toUpdateMirrors(mirrors.toSorted((a, b) => a.index - b.index))
     },
 
     async toUpdateMirror(values: MirrorUpdate[]) {
       const params = values.length === 1 ? values[0] : values
-      await invoke('mirror:update', { params })
-      const mirrors = await invoke<Mirror[]>('mirror:read', { params: {} })
+      await invoke(CHANNELS.MIRROR.UPDATE, { params })
+      const mirrors = await invoke<Mirror[]>(CHANNELS.MIRROR.READ, { params: {} })
       getters().toUpdateMirrors(mirrors.toSorted((a, b) => a.index - b.index))
     },
 
     async toRemoveMirror(keys: string[]) {
       const params = keys.length === 1 ? keys[0] : keys
-      await invoke('mirror:remove', { params })
-      const mirrors = await invoke<Mirror[]>('mirror:read', { params: {} })
+      await invoke(CHANNELS.MIRROR.REMOVE, { params })
+      const mirrors = await invoke<Mirror[]>(CHANNELS.MIRROR.READ, { params: {} })
       getters().toUpdateMirrors(mirrors.toSorted((a, b) => a.index - b.index))
     },
 
@@ -154,7 +155,7 @@ const mirrorSlice: SliceCreator<MirrorSlice> = function (setters, getters) {
     },
 
     async toInitialize() {
-      const mirrors = await invoke<Mirror[]>('mirror:read', { params: {} })
+      const mirrors = await invoke<Mirror[]>(CHANNELS.MIRROR.READ, { params: {} })
       getters().toUpdateMirrors(
         mirrors.toSorted(function (a, b) {
           return a.index - b.index
@@ -180,7 +181,7 @@ const magneticTileSlice: SliceCreator<MagneticTileSlice> = function (setters, ge
     magneticTiles: [],
 
     async toReadMagneticTile(ID: string) {
-      const magneticTiles = await invoke<MagneticTile[]>('magnetic-tile:read', {
+      const magneticTiles = await invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
         params: { id: ID }
       })
       const [magneticTile] = magneticTiles
@@ -197,7 +198,7 @@ const magneticTileSlice: SliceCreator<MagneticTileSlice> = function (setters, ge
     async toInsertMagneticTile(values: MagneticTileWrite[]) {
       if (isEmpty(values)) return
       const params = values.length === 1 ? values[0] : values
-      await invoke('magnetic-tile:write', { params })
+      await invoke(CHANNELS.MAGNETIC_TILE.WRITE, { params })
 
       const writes = Array.isArray(params) ? params : [params]
       const writtenMirrorIDs = new Set(
@@ -216,7 +217,7 @@ const magneticTileSlice: SliceCreator<MagneticTileSlice> = function (setters, ge
       const mirrorID = getters().active.mirror?.id
       if (!mirrorID) return
       const params = values.length === 1 ? values[0] : values
-      await invoke('magnetic-tile:update', { params })
+      await invoke(CHANNELS.MAGNETIC_TILE.UPDATE, { params })
       // index-only（拖拽重排）乐观序已是真相，跳过全量重读避免松手二次抖动
       if (isIndexOnlyUpdate(values)) return
       await getters().toReadMirror(mirrorID)
@@ -226,7 +227,7 @@ const magneticTileSlice: SliceCreator<MagneticTileSlice> = function (setters, ge
       const mirrorID = getters().active.mirror?.id
       if (!mirrorID) return
       const params = keys.length === 1 ? keys[0] : keys
-      await invoke('magnetic-tile:remove', { params })
+      await invoke(CHANNELS.MAGNETIC_TILE.REMOVE, { params })
       await getters().toReadMirror(mirrorID)
     },
 

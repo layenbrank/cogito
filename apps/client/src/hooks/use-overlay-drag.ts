@@ -1,5 +1,5 @@
 import gsap from 'gsap'
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
@@ -64,18 +64,35 @@ function useOverlayDrag(options: UseOverlayDragOptions) {
     onCommit,
     onDragStateChange
   })
-  latestRef.current = {
-    storeX,
-    storeY,
-    elWidth,
-    elHeight,
-    boundsWidth,
-    boundsHeight,
-    scale,
-    threshold,
-    onCommit,
-    onDragStateChange
-  }
+
+  useEffect(
+    function () {
+      latestRef.current = {
+        storeX,
+        storeY,
+        elWidth,
+        elHeight,
+        boundsWidth,
+        boundsHeight,
+        scale,
+        threshold,
+        onCommit,
+        onDragStateChange
+      }
+    },
+    [
+      storeX,
+      storeY,
+      elWidth,
+      elHeight,
+      boundsWidth,
+      boundsHeight,
+      scale,
+      threshold,
+      onCommit,
+      onDragStateChange
+    ]
+  )
 
   const dragRef = useRef<{
     pointerId: number
@@ -88,14 +105,10 @@ function useOverlayDrag(options: UseOverlayDragOptions) {
 
   const dampingTargetRef = useRef<{ x: number; y: number } | null>(null)
 
-  function stopDamping() {
-    gsap.ticker.remove(dampingTick)
-  }
-
-  function dampingTick() {
+  const dampingTick = useCallback(function () {
     const target = dampingTargetRef.current
     if (!target) {
-      stopDamping()
+      gsap.ticker.remove(dampingTick)
       return
     }
     const el = rootRef.current
@@ -109,7 +122,7 @@ function useOverlayDrag(options: UseOverlayDragOptions) {
     if (Math.abs(target.x - nx) < 0.5 && Math.abs(target.y - ny) < 0.5) {
       gsap.set(el, { x: target.x, y: target.y })
       dampingTargetRef.current = null
-      stopDamping()
+      gsap.ticker.remove(dampingTick)
       latestRef.current.onCommit(target.x, target.y)
       return
     }
@@ -119,10 +132,14 @@ function useOverlayDrag(options: UseOverlayDragOptions) {
     if (Math.abs(target.x - nx) < 1 && Math.abs(target.y - ny) < 1) {
       gsap.set(el, { x: target.x, y: target.y })
       dampingTargetRef.current = null
-      stopDamping()
+      gsap.ticker.remove(dampingTick)
       latestRef.current.onCommit(target.x, target.y)
     }
-  }
+  }, [rootRef])
+
+  const stopDamping = useCallback(function () {
+    gsap.ticker.remove(dampingTick)
+  }, [dampingTick])
 
   const handlePointerDown = useCallback(
     function (e: React.PointerEvent) {
@@ -145,7 +162,7 @@ function useOverlayDrag(options: UseOverlayDragOptions) {
         moved: false
       }
     },
-    [rootRef]
+    [rootRef, stopDamping]
   )
 
   const handlePointerMove = useCallback(
@@ -185,7 +202,7 @@ function useOverlayDrag(options: UseOverlayDragOptions) {
 
       gsap.ticker.add(dampingTick)
     },
-    [rootRef]
+    [rootRef, dampingTick]
   )
 
   const handlePointerUp = useCallback(
@@ -216,7 +233,7 @@ function useOverlayDrag(options: UseOverlayDragOptions) {
       dampingTargetRef.current = finalTarget
       dragRef.current = null
     },
-    [rootRef]
+    [rootRef, stopDamping]
   )
 
   const handlePointerCancel = useCallback(function () {
@@ -226,7 +243,7 @@ function useOverlayDrag(options: UseOverlayDragOptions) {
     dampingTargetRef.current = null
     dragRef.current = null
     latestRef.current.onDragStateChange?.(false)
-  }, [])
+  }, [stopDamping])
 
   return {
     handlePointerDown,

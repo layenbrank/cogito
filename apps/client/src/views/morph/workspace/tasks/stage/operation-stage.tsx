@@ -46,7 +46,6 @@ function OperationStage(props: OperationStageProps) {
   return (
     <section
       className={clsx(styles.stage, styles.root, className)}
-      role="region"
       aria-label={title}>
       <OpChrome
         title={title}

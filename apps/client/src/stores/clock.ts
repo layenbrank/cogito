@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
+import { CHANNELS } from '@/shared/ipc/channels'
 
 export type ClockStyle = 'digital' | 'analog' | 'flip' | 'neon' | 'minimal'
 
@@ -64,7 +65,7 @@ export const useClockStore = create<ClockStore>()(
         async initialize() {
           if (getter().loaded) return
           try {
-            const config = await invoke<CountdownConfig | null>('countdown:read')
+            const config = await invoke<CountdownConfig | null>(CHANNELS.COUNTDOWN.READ)
             setter(function (state) {
               state.config = config ?? COUNTDOWN_CONFIG
               state.loaded = true
@@ -84,7 +85,7 @@ export const useClockStore = create<ClockStore>()(
             Object.assign(state.config, update)
           })
           try {
-            await invoke('countdown:update', { params: update })
+            await invoke(CHANNELS.COUNTDOWN.UPDATE, { params: update })
           } catch (e) {
             // Rollback on failure
             setter(function (state) {

@@ -3,6 +3,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
+import { CHANNELS } from '@/shared/ipc/channels'
 
 import type { SurfaceStyleInput } from '@/features/magnetic-tile/surface-style'
 import {
@@ -165,7 +166,7 @@ const useOverlayStore = create<OverlayStore>()(
           // isThrough 仅运行时状态，不持久化
           const { isThrough: _isThrough, ...rest } = patch
           if (Object.keys(rest).length === 0) continue
-          void invoke('overlay:update', { id, patch: rest }).catch(function (e) {
+          void invoke(CHANNELS.OVERLAY.UPDATE, { id, patch: rest }).catch(function (e) {
             console.warn('[overlay] update failed:', e)
           })
         }
@@ -275,7 +276,7 @@ const useOverlayStore = create<OverlayStore>()(
             }
           })
           if (payload) {
-            void invoke('overlay:write', { item: payload }).catch(function (e) {
+            void invoke(CHANNELS.OVERLAY.WRITE, { item: payload }).catch(function (e) {
               console.warn('[overlay] write tile failed:', e)
             })
           }
@@ -336,7 +337,7 @@ const useOverlayStore = create<OverlayStore>()(
           })
           if (writeItem) {
             const localId = id
-            void invoke<string>('overlay:write', { item: writeItem })
+            void invoke<string>(CHANNELS.OVERLAY.WRITE, { item: writeItem })
               .then(function (rowId) {
                 // texture 以后端返回的 id 为准，回填本地 item
                 if (!rowId || rowId === localId) return
@@ -373,7 +374,7 @@ const useOverlayStore = create<OverlayStore>()(
             })
           })
           dropPending(id)
-          void invoke('overlay:remove', { ids: [id] }).catch(function (e) {
+          void invoke(CHANNELS.OVERLAY.REMOVE, { ids: [id] }).catch(function (e) {
             console.warn('[overlay] remove failed:', e)
           })
           void getter().toHide()
@@ -394,7 +395,7 @@ const useOverlayStore = create<OverlayStore>()(
           })
           textureIds.forEach(dropPending)
           if (textureIds.length > 0) {
-            void invoke('overlay:remove', { ids: textureIds }).catch(function (e) {
+            void invoke(CHANNELS.OVERLAY.REMOVE, { ids: textureIds }).catch(function (e) {
               console.warn('[overlay] clear failed:', e)
             })
           }
@@ -422,7 +423,7 @@ const useOverlayStore = create<OverlayStore>()(
           const { mode, items } = getter()
           if (mode === 'screenshot' || items.length > 0) return
           try {
-            await invoke('overlay:hide')
+            await invoke(CHANNELS.OVERLAY.HIDE)
           } catch (e) {
             console.warn('[overlay] toHide failed:', e)
           }
@@ -430,7 +431,7 @@ const useOverlayStore = create<OverlayStore>()(
 
         async toShow() {
           try {
-            await invoke('overlay:ensure')
+            await invoke(CHANNELS.OVERLAY.ENSURE)
           } catch (e) {
             console.warn('[overlay] toShow failed:', e)
           }
@@ -442,7 +443,7 @@ const useOverlayStore = create<OverlayStore>()(
             state.mode = 'screenshot'
           })
           try {
-            await invoke('overlay:update-mode', { mode: 'screenshot' })
+            await invoke(CHANNELS.OVERLAY.UPDATE_MODE, { mode: 'screenshot' })
           } catch (e) {
             console.warn('[overlay] toScreenshot failed:', e)
             setter(function (state) {
@@ -458,7 +459,7 @@ const useOverlayStore = create<OverlayStore>()(
           })
           try {
             // capture:close 会清 pending 并切 idle，避免残留预截图
-            await invoke('capture:close')
+            await invoke(CHANNELS.CAPTURE.CLOSE)
           } catch (e) {
             console.warn('[overlay] toExit failed:', e)
             setter(function (state) {
@@ -475,7 +476,7 @@ const useOverlayStore = create<OverlayStore>()(
 
         async toInitialize() {
           try {
-            const rows = await invoke<OverlayRow[]>('overlay:read')
+            const rows = await invoke<OverlayRow[]>(CHANNELS.OVERLAY.READ)
             if (!Array.isArray(rows)) return
             const items: OverlayItem[] = []
             for (const row of rows) {
@@ -558,10 +559,13 @@ const useOverlayStore = create<OverlayStore>()(
             // 坐标有修正则更新 store 并批量持久化
             if (needsSave) {
               setter(function (state) {
-                for (const item of clampedItems) {
-                  const entry = state.items.find(function (w) {
-                    return w.id === item.id
+                const itemsById = new Map(
+                  state.items.map(function (entry) {
+                    return [entry.id, entry] as const
                   })
+                )
+                for (const item of clampedItems) {
+                  const entry = itemsById.get(item.id)
                   if (entry) {
                     entry.x = item.x
                     entry.y = item.y

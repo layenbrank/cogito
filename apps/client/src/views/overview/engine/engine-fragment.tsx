@@ -2,7 +2,7 @@
  * 搜索建议下拉列表：Motion 入场 + GSAP 指示条 / 键盘滚动对齐
  */
 import { clsx } from 'clsx'
-import { motion } from 'motion/react'
+import * as m from 'motion/react-m'
 import { Icon } from '@iconify/react/offline'
 import { useEffect, useRef } from 'react'
 
@@ -189,7 +189,7 @@ function EngineFragment(props: EngineFragmentProps) {
   )
 
   return (
-    <motion.div
+    <m.div
       ref={fragmentRef}
       initial={{
         opacity: 0,
@@ -212,7 +212,7 @@ function EngineFragment(props: EngineFragmentProps) {
       }}
       className={clsx(styles.engine, styles.fragment)}
       role="listbox">
-      <motion.div
+      <m.div
         key={seriesKey}
         className={clsx(styles.engine, styles.fragmentTrack)}
         variants={ENGINE_UI.LIST_VARIANTS}
@@ -227,8 +227,8 @@ function EngineFragment(props: EngineFragmentProps) {
         {series.map(function (item, index) {
           const isActive = navigation === index
           return (
-            <motion.div
-              key={`${item.id}-${index}`}
+            <m.div
+              key={item.id}
               variants={ENGINE_UI.ITEM_VARIANTS}
               ref={function (node) {
                 itemRefs.current[index] = node
@@ -244,6 +244,9 @@ function EngineFragment(props: EngineFragmentProps) {
                 skipScroll.current = true
                 onNavigate(index)
               }}
+              onMouseDown={function (e) {
+                e.preventDefault()
+              }}
               onClick={function (e) {
                 e.stopPropagation()
                 onSelect(item)
@@ -255,11 +258,11 @@ function EngineFragment(props: EngineFragmentProps) {
                   [styles.fragmentMarkActive]: isActive
                 })}
               />
-            </motion.div>
+            </m.div>
           )
         })}
-      </motion.div>
-    </motion.div>
+      </m.div>
+    </m.div>
   )
 }
 

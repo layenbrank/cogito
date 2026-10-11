@@ -13,14 +13,16 @@
 }
 
 .mirrorTrigger {
-  max-width: 260px;
+  max-width: 240px;
   min-width: 0;
   gap: 6px;
+  padding-inline: 8px;
   color: var(--muted-foreground);
   font-size: 13px;
   font-weight: 500;
 
-  &:not(:disabled):hover {
+  &:not(:disabled):hover,
+  &.mirrorTriggerOpen {
     color: var(--foreground);
   }
 }
@@ -46,31 +48,46 @@
   flex-shrink: 0;
   width: 14px;
   height: 14px;
-  opacity: 0.6;
+  opacity: 0.55;
+  transition: transform 160ms ease-out;
+
+  &.mirrorChevronOpen {
+    transform: rotate(180deg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
 }
 
 .mirrorList {
-  width: 288px;
-  padding: 6px;
+  width: 280px;
+  overflow: hidden;
+}
+
+.mirrorOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+
+  &[data-scrollable='true'] {
+    max-height: min(48vh, 280px);
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
 }
 
 .mirrorItem {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 2px;
   width: 100%;
-  border: 1px solid transparent;
   border-radius: 8px;
   transition: background-color 140ms ease-out;
 
   &[data-cursor='true'] {
-    background: var(--accent-hover);
-  }
-
-  /* 工具按钮默认低调，指针/键盘进入该行再显形 */
-  &:hover .mirrorTool,
-  &:focus-within .mirrorTool {
-    opacity: 1;
+    background: color-mix(in oklab, var(--muted) 55%, transparent);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -79,17 +96,20 @@
 }
 
 .mirrorItemActive {
-  border-color: color-mix(in oklab, var(--border) 70%, transparent);
-  background: var(--accent);
+  background: color-mix(in oklab, var(--primary) 8%, transparent);
+
+  &[data-cursor='true'] {
+    background: color-mix(in oklab, var(--primary) 12%, transparent);
+  }
 }
 
 .mirrorItemMain {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
   flex: 1;
   min-width: 0;
-  padding: 8px 4px 8px 10px;
+  padding: 7px 28px 7px 10px;
   border: none;
   border-radius: 8px;
   background: transparent;
@@ -97,42 +117,31 @@
   cursor: pointer;
 }
 
-.mirrorRename {
-  flex: 1;
-  min-width: 0;
-  height: 30px;
-  margin: 4px 0 4px 8px;
-  font-size: 13px;
+.mirrorDivider {
+  margin: 6px 8px;
 }
 
-.mirrorItemTools {
-  display: inline-flex;
+.mirrorCreate,
+.mirrorManageEntry {
+  display: flex;
   align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-  padding-right: 6px;
-}
-
-.mirrorTool {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  opacity: 0;
   transition:
-    opacity 140ms ease-out,
-    color 140ms ease-out,
-    background-color 140ms ease-out;
+    color 120ms ease-out,
+    background-color 120ms ease-out;
 
   &:hover {
-    background: var(--accent-active);
     color: var(--foreground);
+    background: color-mix(in oklab, var(--muted) 45%, transparent);
   }
 
   svg {
@@ -145,56 +154,23 @@
   }
 }
 
-.mirrorToolDanger:hover {
-  background: color-mix(in oklab, var(--destructive) 14%, transparent);
-  color: var(--destructive);
-}
-
-.mirrorCreate {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  margin-top: 4px;
-  padding: 8px 10px;
-  border: none;
-  border-top: 1px solid var(--border);
-  border-radius: 0 0 8px 8px;
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: 13px;
-  cursor: pointer;
-
-  &:hover {
-    color: var(--foreground);
-  }
-
-  svg {
-    width: 14px;
-    height: 14px;
-  }
+.mirrorManageEntry {
+  margin-top: 1px;
 }
 
 .mirrorItemIndex {
   flex-shrink: 0;
-  min-width: 20px;
-  padding-top: 1px;
+  min-width: 1.1em;
   font-size: 11px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  line-height: 1.4;
+  line-height: 1.2;
   color: var(--muted-foreground);
 }
 
-.mirrorItemText {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.mirrorItemTitle {
   min-width: 0;
   flex: 1;
-}
-
-.mirrorItemTitle {
   overflow: hidden;
   font-size: 13px;
   font-weight: 500;
@@ -204,21 +180,386 @@
   white-space: nowrap;
 }
 
-.mirrorItemDesc {
-  overflow: hidden;
-  font-size: 11.5px;
-  line-height: 1.4;
-  color: var(--muted-foreground);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.mirrorDescTip {
+  max-width: 220px;
+  text-wrap: pretty;
 }
 
 .mirrorItemCheck {
+  position: absolute;
+  top: 50%;
+  right: 10px;
   flex-shrink: 0;
   width: 14px;
   height: 14px;
-  margin-top: 2px;
+  margin: 0;
   color: var(--primary);
+  transform: translateY(-50%);
+}
+
+/* ── 镜像管理 Dialog：序号 | 图标 | 字段栈，顶对齐 ── */
+
+.mirrorManage {
+  overflow: hidden;
+}
+
+.mirrorManageHeader {
+  gap: 4px;
+  padding: 14px 16px 10px;
+}
+
+.mirrorManageList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  max-height: min(58vh, 440px);
+  padding: 8px 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-block: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+}
+
+.mirrorManageItem {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+  border-radius: 10px;
+  background: var(--popover);
+  transition: border-color 160ms ease-out;
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+.mirrorManageItemActive {
+  border-color: color-mix(in oklab, var(--primary) 36%, var(--border));
+}
+
+.mirrorManageRow {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+}
+
+.mirrorManageIndex {
+  position: absolute;
+  top: 3px;
+  left: 5px;
+  z-index: 1;
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+.mirrorManageMark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  transition:
+    border-color 160ms ease-out,
+    background-color 160ms ease-out,
+    box-shadow 160ms ease-out;
+
+  &:hover,
+  &.mirrorManageMarkOpen {
+    border-color: color-mix(in oklab, var(--primary) 42%, var(--border));
+    background: color-mix(in oklab, var(--muted) 28%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 12%, transparent);
+  }
+
+  &:hover .mirrorManageMarkEdit,
+  &.mirrorManageMarkOpen .mirrorManageMarkEdit {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+.mirrorManageMarkIcon {
+  display: block;
+  width: 18px;
+  height: 18px;
+
+  :global(svg) {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.mirrorManageMarkEdit {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklab, var(--background) 78%, transparent);
+  color: var(--primary);
+  opacity: 0;
+  transition: opacity 140ms ease-out;
+
+  :global(svg) {
+    width: 13px;
+    height: 13px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+.mirrorManageMain {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mirrorManageTitleRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+}
+
+.mirrorManageTitle,
+.mirrorManageDesc {
+  width: 100%;
+  height: 32px;
+  min-width: 0;
+  border-color: color-mix(in oklab, var(--border) 65%, transparent);
+  font-size: 13px;
+  box-shadow: none;
+}
+
+.mirrorManageTitle {
+  height: 36px;
+  font-weight: 550;
+}
+
+.mirrorManageDesc {
+  height: 30px;
+  color: var(--muted-foreground);
+
+  &:focus-visible {
+    color: var(--foreground);
+  }
+}
+
+.mirrorManageBadge {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  height: 22px;
+  padding-inline: 7px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--primary);
+  line-height: 1;
+}
+
+.mirrorManageRemove {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
+  cursor: pointer;
+  transition:
+    color 140ms ease-out,
+    background-color 140ms ease-out;
+
+  &:hover {
+    color: var(--destructive);
+    background: color-mix(in oklab, var(--destructive) 8%, transparent);
+  }
+
+  svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+.mirrorManageSwatches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  min-height: 22px;
+  padding-block: 1px;
+}
+
+.mirrorMarkInline {
+  margin-left: 46px;
+  padding: 6px;
+  border: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--muted) 18%, transparent);
+}
+
+.mirrorMarkInlineTitle {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+.mirrorManageSwatch {
+  width: 18px;
+  height: 18px;
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    transform 140ms ease-out,
+    box-shadow 140ms ease-out;
+
+  &:hover {
+    transform: scale(1.12);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+.mirrorManageSwatchClear {
+  background:
+    linear-gradient(
+      to top right,
+      transparent calc(50% - 0.5px),
+      color-mix(in oklab, var(--muted-foreground) 45%, transparent) calc(50% - 0.5px),
+      color-mix(in oklab, var(--muted-foreground) 45%, transparent) calc(50% + 0.5px),
+      transparent calc(50% + 0.5px)
+    ),
+    color-mix(in oklab, var(--muted) 35%, transparent);
+}
+
+.mirrorManageSwatchActive {
+  box-shadow:
+    0 0 0 2px var(--popover),
+    0 0 0 3.5px color-mix(in oklab, var(--primary) 50%, transparent);
+}
+
+.mirrorManageFooter {
+  margin: 0;
+  padding: 8px 10px 10px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  justify-content: stretch;
+}
+
+.mirrorManageCreate {
+  width: 100%;
+  justify-content: center;
+  color: var(--muted-foreground);
+  font-weight: 500;
+
+  &:hover {
+    color: var(--foreground);
+    background: color-mix(in oklab, var(--muted) 40%, transparent);
+  }
+}
+
+.mirrorMarkPicker {
+  width: 260px;
+  padding: 12px;
+}
+
+.mirrorMarkPickerTitle {
+  margin: 0 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+.mirrorMarkGrid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.mirrorMarkOption {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition:
+    color 140ms ease-out,
+    background-color 140ms ease-out;
+
+  &:hover {
+    color: var(--foreground);
+    background: color-mix(in oklab, var(--muted) 55%, transparent);
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+.mirrorMarkOptionActive {
+  color: var(--primary);
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+
+  &:hover {
+    color: var(--primary);
+    background: color-mix(in oklab, var(--primary) 16%, transparent);
+  }
+}
+
+.mirrorTriggerIcon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  opacity: 0.85;
 }
 
 /* ── 状态芯片 ── */

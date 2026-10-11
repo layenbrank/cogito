@@ -9,19 +9,20 @@ import { attachConsole } from '@tauri-apps/plugin-log'
 import { clsx } from 'clsx'
 import { useEffect, useState } from 'react'
 
-import ReSignIn from '@/features/signin/signin.tsx'
+import { Decorations } from '@/components/decorations/index.ts'
 import Controller from '@/features/controller/controller.tsx'
-import { WindowFrame } from '@/components/window-frame/index.ts'
-import { EngineSearch } from '@/views/overview/engine/engine-search'
-import { CaptionAccount } from '@/views/overview/caption/account'
-import { MirrorSwitcher } from '@/views/overview/caption/mirror'
-import { CaptionStatus } from '@/views/overview/caption/status'
-import styles from '@/views/overview/overview.module.scss'
+import ReSignIn from '@/features/signin/signin.tsx'
 import { dispatchKeyCode } from '@/keycodes/dispatcher'
+import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
 import { useMirrorStore } from '@/stores/mirror.ts'
 import { useSettingsStore } from '@/stores/setting.ts'
 import { applyCliMatches } from '@/utils/cli'
 import { checkUpdate } from '@/utils/updater'
+import { CaptionAccount } from '@/views/overview/caption/account'
+import { MirrorSwitcher } from '@/views/overview/caption/mirror'
+import { CaptionStatus } from '@/views/overview/caption/status'
+import { EngineSearch } from '@/views/overview/engine/engine-search'
+import styles from '@/views/overview/overview.module.scss'
 
 /** 截图全局快捷键；可配置 bindings 已移除（见 keycodes/types.ts），这里保持硬编码 */
 const SCREENSHOT_SHORTCUT = 'Alt+Q'
@@ -74,7 +75,7 @@ export default function Overview() {
 
     async function bootstrap() {
       try {
-        unlisten = await listen<string>('tray:action', function (event) {
+        unlisten = await listen<string>(EVENTS.TRAY_ACTION, function (event) {
           if (event.payload === 'check-update') void checkUpdate()
         })
         if (cancelled) unlisten()
@@ -100,7 +101,7 @@ export default function Overview() {
     async function requestCapture() {
       const handled = await dispatchKeyCode('screenshot')
       if (handled) return
-      await invoke('capture:open')
+      await invoke(CHANNELS.CAPTURE.OPEN)
     }
 
     async function bootstrap() {
@@ -130,16 +131,14 @@ export default function Overview() {
 
   return (
     /*
-      主窗口也走 WindowFrame 当容器（`decorations: false` 后窗口必须自绘标题栏），
-      但 `isFramed={false}`：窗口自带 mica，别用内层卡片盖死它 —— 外壳只负责
-      标题栏 + 把内容撑满（`.core` 的 `flex: 1` 依赖这层纵向 flex）。
-      标题栏内容：左＝品牌 + 镜像切换器，右＝状态区 + 账号（窗口键由 Caption 自绘）。
+      主窗口走 Decorations 当容器（`decorations: false` 后必须自绘标题栏）；
+      外壳透明，mica 透出来，只负责标题栏 + 撑满内容（`.core` 的 `flex: 1`
+      依赖这层纵向 flex）。标题栏：左＝品牌 + 镜像切换器，右＝状态区 + 账号。
     */
-    <WindowFrame
-      isFramed={false}
-      isScrollable={false}
+    <Decorations
+      scrollable={false}
       className={styles.overview}
-      start={
+      begin={
         <>
           <span className={styles.brand}>i-thinking</span>
           <span
@@ -149,7 +148,7 @@ export default function Overview() {
           <MirrorSwitcher />
         </>
       }
-      actions={
+      final={
         <>
           <CaptionStatus />
           <CaptionAccount
@@ -168,11 +167,11 @@ export default function Overview() {
         </Controller.Mirror>
       </main>
       <ReSignIn
-        open={signinOpen}
+        visible={signinOpen}
         onClose={function () {
           setSigninOpen(false)
         }}
       />
-    </WindowFrame>
+    </Decorations>
   )
 }

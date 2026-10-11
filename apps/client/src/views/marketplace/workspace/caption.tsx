@@ -61,6 +61,11 @@ function Caption() {
     })
   )
   const [searchDraft, onUpdateSearchDraft] = useState(query)
+  const [querySnapshot, onUpdateQuerySnapshot] = useState(query)
+  if (query !== querySnapshot) {
+    onUpdateQuerySnapshot(query)
+    onUpdateSearchDraft(query)
+  }
 
   useEffect(
     function () {
@@ -68,13 +73,6 @@ function Caption() {
       onUpdateTargetMirrorID(activeMirrorID)
     },
     [activeMirrorID, targetMirrorID, onUpdateTargetMirrorID]
-  )
-
-  useEffect(
-    function () {
-      onUpdateSearchDraft(query)
-    },
-    [query]
   )
 
   useEffect(

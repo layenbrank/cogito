@@ -10,7 +10,7 @@ import { Input } from '@i-thinking/design/components/input'
 import { useState, type ReactNode } from 'react'
 import type { Control, FieldPath, FieldValues } from 'react-hook-form'
 
-type AuthFieldProps<T extends FieldValues> = {
+interface AuthFieldProps<T extends FieldValues> {
   control: Control<T>
   name: FieldPath<T>
   label: string
@@ -24,7 +24,12 @@ type AuthFieldProps<T extends FieldValues> = {
   autoComplete?: string
 }
 
-/** 登录相关表单的受控字段：图标 + 标签 + 校验信息 */
+/**
+ * 登录/注册用的受控字段：图标 + 标签 + 校验信息。
+ *
+ * 单独抽出来只是为了避免三套表单里重复 8 次同样的组合，
+ * 内部仍是标准 shadcn 的 FormField + FormItem + FormControl + FormMessage。
+ */
 function AuthField<T extends FieldValues>(props: AuthFieldProps<T>) {
   const {
     control,
@@ -37,7 +42,7 @@ function AuthField<T extends FieldValues>(props: AuthFieldProps<T>) {
     inputMode,
     autoComplete
   } = props
-  const [isRevealed, setIsRevealed] = useState(false)
+  const [isRevealed, updateRevealed] = useState(false)
   const isPassword = type === 'password'
 
   return (
@@ -56,7 +61,7 @@ function AuthField<T extends FieldValues>(props: AuthFieldProps<T>) {
                 <Input
                   {...field}
                   value={field.value ?? ''}
-                  className="h-11 pl-9"
+                  className={isPassword ? 'h-11 pr-10 pl-9' : 'h-11 pl-9'}
                   type={isPassword && !isRevealed ? 'password' : 'text'}
                   maxLength={maxLength}
                   inputMode={inputMode}
@@ -68,17 +73,24 @@ function AuthField<T extends FieldValues>(props: AuthFieldProps<T>) {
               {isPassword && (
                 <button
                   type="button"
-                  className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-muted-foreground transition-colors hover:text-foreground"
-                  aria-label={isRevealed ? '隐藏密码' : '显示密码'}
+                  className="absolute top-1/2 right-1.5 flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
                   onClick={function () {
-                    setIsRevealed(function (prev) {
+                    updateRevealed(function (prev) {
                       return !prev
                     })
-                  }}>
-                  <Icon
-                    icon={isRevealed ? 'lucide:eye-off' : 'lucide:eye'}
-                    className="size-4"
-                  />
+                  }}
+                  aria-label={isRevealed ? '隐藏密码' : '显示密码'}>
+                  {isRevealed ? (
+                    <Icon
+                      icon="lucide:eye-off"
+                      className="size-4"
+                    />
+                  ) : (
+                    <Icon
+                      icon="lucide:eye"
+                      className="size-4"
+                    />
+                  )}
                 </button>
               )}
             </div>
@@ -91,3 +103,4 @@ function AuthField<T extends FieldValues>(props: AuthFieldProps<T>) {
 }
 
 export { AuthField }
+export type { AuthFieldProps }

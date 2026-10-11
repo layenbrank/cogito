@@ -4,6 +4,7 @@ import clsx from 'clsx'
 import type { MouseEvent } from 'react'
 
 import { MagneticTile, type SectionProps } from '@/features/magnetic-tile/magnetic-tile.tsx'
+import { CHANNELS } from '@/shared/ipc/channels'
 import styles from '@/features/magnetic-tiles/capture/capture.module.scss'
 import { useKeyCode } from '@/keycodes/react'
 
@@ -16,7 +17,7 @@ export default function Capture(props: SectionProps) {
 
   async function onCapture() {
     try {
-      await invoke('capture:open')
+      await invoke(CHANNELS.CAPTURE.OPEN)
     } catch (error) {
       console.error('Error opening capture overlay:', error)
     }

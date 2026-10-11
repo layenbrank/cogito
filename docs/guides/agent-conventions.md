@@ -10,8 +10,8 @@
 
 - 文件粒度适中：既不过度拆分，也不过度聚合。
 - 按模块划分；导出名与文件名、职责一致；模块末尾 `export { ... }`。
-- **一个域多个文件就开目录**（目录名即域，内部用短名，对外那个叫 `index.ts`）；单文件域直抽平铺。
-  目录内不建 barrel（`index.ts` 只在不别的域对外面时才有意义）。
+- **一个域多个文件就开目录**（目录名即域，内部用短名）；单文件域平铺。
+- 目录内默认不建 barrel；仅当该域需要对外统一入口时才放 `index.ts`。
 
 ### 导入路径（studio）
 
@@ -93,9 +93,9 @@
 
 ### Tauri 窗口（仅 `apps/client`）
 
-- 窗口一律 `decorations: false`，桌面壳自绘：`Caption`（`src/components/caption/`）负责拖拽区 + 窗口键，`WindowFrame`（`src/components/window-frame/`）**是窗口容器**（标题栏 + 撑满内容 + 纵向 flex 列），不要用裸 `Caption` + 自建布局。
+- 窗口一律 `decorations: false`，桌面壳自绘：`Caption`（`src/components/caption/`）负责拖拽区 + 窗口键，`Decorations`（`src/components/decorations/`）**是窗口容器**（标题栏 + 撑满内容 + 纵向 flex 列），不要用裸 `Caption` + 自建布局。
 - 拖拽区：槽位容器带 `data-region="true"`（CSS `-webkit-app-region: drag`，WebView2 生效）；**槽位里的交互元素必须带 `data-region="false"`**，否则会被拖拽区吃掉点击（窗口键即如此处理）。`data-tauri-drag-region` 是 Tauri 自带的拖拽处理，其裸值只在直接点中该元素时触发，需要子树任意位置触发时写 `"deep"`。
-- 每个窗口都要有自绘标题栏；只有刻意的无装饰浮层（`/overlay`）例外。透明窗用 `WindowFrame` 内层卡片；自带材质（主窗口 mica）的传 `isFramed={false}`，卡片会盖死 mica。
+- 每个窗口都要有自绘标题栏；只有刻意的无装饰浮层（`/overlay`）例外。`Decorations` 根节点透明，材质由窗口自身（mica / 透明）承担。
 - 磁贴**不再用 Dialog**：双击开独立窗口（`activateTile` → `views/<component>`），按磁贴记录建窗（label `component:id`）。
 - 磁贴分两层，**别把窗口逻辑塞回 features**：`views/<tile>/` 是窗口页（双击后开的整个界面，含 `workspace/**` 这类窗口专属实现）；`features/magnetic-tiles/<tile>/` 只放磁贴表面（板上那块磁贴：`<tile>.tsx` / `marker.tsx` / 尺寸 scss）与两侧共用件。
 - 窗口 UI 一律归 `views/`：agent 窗口的部件在 `views/agent/chat/components/**`，子页共用件在 `views/agent/components/**`；`features/agent/` 只留 `acp/`、`model/` 与领域类型。

@@ -11,6 +11,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react"
 import "@/components/tiptap-ui-primitive/avatar/avatar.scss"
@@ -141,13 +142,18 @@ export const AvatarImage = forwardRef<HTMLImageElement, AvatarImageProps>(
   ({ onLoadingStatusChange, src, className = "", ...props }, ref) => {
     const { onImageLoadingStatusChange } = useAvatarContext()
     const imageLoadingStatus = useImageLoadingStatus(src, props.referrerPolicy)
+    const reportedStatusRef = useRef(imageLoadingStatus)
 
-    useLayoutEffect(() => {
-      if (imageLoadingStatus !== "idle") {
+    useLayoutEffect(
+      function () {
+        if (imageLoadingStatus === "idle") return
+        if (imageLoadingStatus === reportedStatusRef.current) return
+        reportedStatusRef.current = imageLoadingStatus
         onLoadingStatusChange?.(imageLoadingStatus)
         onImageLoadingStatusChange(imageLoadingStatus)
-      }
-    }, [imageLoadingStatus, onLoadingStatusChange, onImageLoadingStatusChange])
+      },
+      [imageLoadingStatus, onLoadingStatusChange, onImageLoadingStatusChange]
+    )
 
     if (imageLoadingStatus !== "loaded") return null
 

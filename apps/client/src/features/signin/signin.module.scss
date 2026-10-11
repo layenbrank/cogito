@@ -1,97 +1,72 @@
-@use 'sass:color';
-
-$primary: #4080ff;
-$primary-dark: #2a5fd4;
-$brand-deep: #0f2744;
-$brand-mid: #1a3d6b;
-$brand-text: #ffffff;
-$brand-muted: rgba(255, 255, 255, 0.72);
-$radius-modal: 16px;
-$radius-brand: 12px;
-$brand-inset: 10px;
-
-/* 弹窗宽高（设计系统 Dialog 默认宽度不适用双栏布局） */
-.dialog {
-  width: min(92vw, 880px);
-  max-width: none;
-}
-
 .body {
   display: flex;
   flex-direction: row;
-  height: 520px;
-  max-height: min(90vh, 560px);
+  height: min(660px, calc(100vh - 48px));
   align-items: stretch;
   gap: 0;
   overflow: hidden;
-  border-radius: $radius-modal;
+  border-radius: var(--signin-radius);
   background-color: var(--card);
 
   @media (max-width: 768px) {
     flex-direction: column;
     height: auto;
-    padding: $brand-inset;
   }
 }
 
 .brand {
-  flex: 5;
+  flex: 1 1 0;
   align-self: stretch;
   position: relative;
-  min-width: 0;
-  margin: $brand-inset 0 $brand-inset $brand-inset;
+  min-width: 280px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  row-gap: 32px;
-  padding: 48px 40px;
+  row-gap: 20px;
+  padding: 32px 28px 22px;
   overflow: hidden;
-  border-radius: $radius-brand;
-  color: $brand-text;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 8px 24px rgba(15, 39, 68, 0.16);
-  background:
-    radial-gradient(circle at 85% 15%, rgba(64, 128, 255, 0.35) 0%, transparent 45%),
-    radial-gradient(circle at 10% 90%, rgba(255, 255, 255, 0.08) 0%, transparent 40%),
-    linear-gradient(155deg, $brand-deep 0%, $brand-mid 42%, $primary-dark 100%);
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-    background-size: 24px 24px;
-    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.5) 0%, transparent 70%);
-    pointer-events: none;
-  }
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: -80px;
-    right: -80px;
-    width: 240px;
-    height: 240px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(64, 128, 255, 0.25) 0%, transparent 70%);
-    pointer-events: none;
-  }
+  color: var(--signin-brand-foreground);
+  // 底色留给 shader；失败时仍有深色兜底
+  background-color: #0b1220;
+  box-shadow: inset -1px 0 0 var(--signin-brand-border);
+  isolation: isolate;
 
   @media (max-width: 768px) {
     flex: none;
-    min-height: 200px;
-    margin: 0;
-    row-gap: 20px;
-    padding: 28px 24px;
+    row-gap: 12px;
+    padding: 22px 18px 16px;
+    box-shadow: inset 0 -1px 0 var(--signin-brand-border);
   }
+}
 
-  @media (prefers-color-scheme: dark) {
-    background:
-      radial-gradient(circle at 85% 15%, rgba(64, 128, 255, 0.2) 0%, transparent 45%),
-      linear-gradient(155deg, color.adjust($brand-deep, $lightness: -4%) 0%, color.adjust($brand-mid, $lightness: -4%) 42%, color.adjust($primary-dark, $lightness: -10%) 100%);
+/** 懒挂载宿主：与 .brandShader 同层，便于淡入 */
+.brandShaderHost {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+/** WebGPU 氛围层：铺满左侧；pointer-events:none，波纹仍跟全局指针 */
+.brandShader {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.brandShaderMount {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+
+  :global(canvas) {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
   }
 }
 
@@ -100,74 +75,103 @@ $brand-inset: 10px;
   z-index: 1;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  row-gap: 12px;
+  align-items: stretch;
+  row-gap: 10px;
+  min-height: 0;
+  flex: 1;
+  // 入场 y 位移由 .brand 裁切，勿在此开滚动条
+  overflow: hidden;
 
   h3 {
     margin: 0;
-    color: $brand-text;
+    color: var(--signin-brand-foreground);
     font-weight: 600;
-    font-size: 26px;
-    letter-spacing: 0.02em;
-    line-height: 1.25;
-  }
-
-  p {
-    margin: 0;
-    max-width: 280px;
-    color: $brand-muted;
-    font-size: 14px;
-    line-height: 1.65;
+    font-size: 22px;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
   }
 }
 
-.logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-
-  svg {
-    width: 26px;
-    height: 26px;
-    color: $brand-text;
-  }
-}
-
-.points {
-  position: relative;
-  z-index: 1;
+.eyebrow {
   margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--signin-brand-faint);
+}
+
+.tagline {
+  margin: 0 0 8px;
+  max-width: 300px;
+  color: var(--signin-brand-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.capabilities {
+  margin: 16px 0 0;
   padding: 0;
   list-style: none;
   display: flex;
   flex-direction: column;
-  row-gap: 14px;
-
-  li {
-    display: flex;
-    align-items: center;
-    column-gap: 10px;
-    font-size: 13px;
-    color: $brand-muted;
-    line-height: 1.4;
-  }
-
-  svg {
-    flex-shrink: 0;
-    width: 16px;
-    height: 16px;
-    color: rgba(255, 255, 255, 0.9);
-  }
+  row-gap: 0;
+  min-height: 0;
+  overflow: hidden;
 
   @media (max-width: 768px) {
     display: none;
+  }
+}
+
+/** 非交互列表：分隔行，无假 hover */
+.capability {
+  display: flex;
+  align-items: flex-start;
+  column-gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--signin-brand-border);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.capabilityIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  border-radius: 8px;
+  background: oklch(1 0 0 / 0.1);
+  color: var(--signin-brand-foreground);
+  box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.06);
+
+  :global(svg) {
+    width: 15px;
+    height: 15px;
+  }
+}
+
+.capabilityBody {
+  display: flex;
+  flex-direction: column;
+  row-gap: 3px;
+  min-width: 0;
+
+  strong {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--signin-brand-foreground);
+  }
+
+  span {
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--signin-brand-subtle);
   }
 }
 
@@ -175,33 +179,26 @@ $brand-inset: 10px;
   position: relative;
   z-index: 1;
   margin: 0;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.45);
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--signin-brand-faint);
   letter-spacing: 0.02em;
-
-  @media (max-width: 768px) {
-    font-size: 11px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .brand::before,
-  .brand::after {
-    display: none;
-  }
 }
 
 .panel {
-  flex: 4;
+  flex: 0 0 480px;
+  width: 480px;
   min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   overflow: hidden;
-  padding: 32px 40px;
+  padding: 36px 40px 32px;
   background-color: var(--card);
 
   @media (max-width: 768px) {
+    flex: none;
+    width: auto;
     padding: 24px;
   }
 }
@@ -233,21 +230,35 @@ $brand-inset: 10px;
 .fieldMotion {
   min-width: 0;
   width: 100%;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
+}
+
+/** 身份模式切换舞台：高度随内容，避免退出动画撑出空隙 */
+.modeSwap {
+  min-width: 0;
+  width: 100%;
+  position: relative;
+}
+
+.modeSwapPane {
+  min-width: 0;
+  width: 100%;
 }
 
 .form {
   min-width: 0;
   width: 100%;
+  max-width: 400px;
   // 聚焦环画在控件外侧，formWrap 的 overflow 会裁掉；留出 1px 环的空隙
   padding: 2px;
 }
 
 .head {
-  margin-bottom: 28px;
+  max-width: 400px;
+  margin-bottom: 32px;
 
   h4 {
-    margin-bottom: 4px;
+    margin-bottom: 6px;
     font-weight: 600;
   }
 }
@@ -256,17 +267,27 @@ $brand-inset: 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
 .actions {
   display: flex;
   flex-direction: column;
-  row-gap: 12px;
+  row-gap: 16px;
+}
+
+.signupHint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  column-gap: 4px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--muted-foreground);
 }
 
 .tabs {
-  margin-bottom: 20px;
+  margin-bottom: 22px;
   width: 100%;
   font-size: 13px;
 }

@@ -110,6 +110,7 @@ catalog:
   "@base-ui/react": ^1.8.0
   "sonner": ^2.0.8
   "go-captcha-react": 1.0.5
+  "shaders": ^4.0.4
   # 收银台要在本地渲染渠道支付二维码（微信 Native / 支付宝当面付）——
   # 绝不用第三方二维码图片服务：code_url 是支付凭证，透出去等于把订单递给别人
   "qrcode.react": ^4.2.0
