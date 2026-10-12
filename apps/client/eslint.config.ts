@@ -1,4 +1,5 @@
 import eslint from '@eslint/js'
+import ith from '@i-thinking/eslint-plugin'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
@@ -30,7 +31,10 @@ export default defineConfig(
     'postcss.config.*',
     // Tailwind/bump 工具文件：大量 plugin API any，不进打包闸门
     'tailwind.config.ts',
-    'bump.client.ts'
+    'bump.client.ts',
+    // react-doctor CLI 的配置：该包未装进本仓（无依赖、无脚本调用），
+    // import 解析不了 → 收不进 projectService，只能整体忽略
+    'doctor.config.ts'
   ]),
   eslint.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
@@ -121,6 +125,24 @@ export default defineConfig(
       globals: {
         ...globals.node
       }
+    }
+  },
+  {
+    // 存量：catch 静默吞异常的地方先按 warning 记着（待清），与 studio 的 legacy-baseline 同思路
+    name: 'client/catch-must-report-legacy',
+    files: ['**/*.{ts,tsx,mts,cts}'],
+    plugins: { ith },
+    rules: {
+      'ith/catch-must-report': 'warn'
+    }
+  },
+  {
+    // agent 域：本任务范围内的代码硬拦 —— catch 一律不许静默吃掉（throw 出去，或至少输出一次）
+    name: 'client/catch-must-report',
+    files: ['src/features/agent/**', 'src/views/agent/**', 'src/stores/agent.ts'],
+    plugins: { ith },
+    rules: {
+      'ith/catch-must-report': 'error'
     }
   }
 )

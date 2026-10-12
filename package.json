@@ -171,6 +171,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
+    "@i-thinking/eslint-plugin": "workspace:*",
     "@iconify/json": "catalog:",
     "@playwright/test": "^1.57.0",
     "@rollup/plugin-node-resolve": "^16.0.3",

@@ -804,6 +804,9 @@ importers:
       '@eslint/js':
         specifier: ^9.33.0
         version: 9.39.4
+      '@i-thinking/eslint-plugin':
+        specifier: workspace:*
+        version: link:packages/eslint-plugin
       '@iconify/json':
         specifier: 'catalog:'
         version: 2.2.498
@@ -1427,6 +1430,8 @@ importers:
       vue:
         specifier: 'catalog:'
         version: 3.5.42(typescript@6.0.3)
+
+  packages/eslint-plugin: {}
 
   packages/hooks: {}
 
