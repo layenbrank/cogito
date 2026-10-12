@@ -5,19 +5,21 @@ import { devtools, subscribeWithSelector } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 import { CHANNELS } from '@/shared/ipc/channels'
 
-type AiSession = MagneticTile.Agent.AiSession
-type AiMessage = MagneticTile.Agent.AiMessage
-type AiWorkspace = MagneticTile.Agent.AiWorkspace
-type AiWorkspaceFolder = MagneticTile.Agent.AiWorkspaceFolder
+type Session = MagneticTile.Agent.Session
+type Message = MagneticTile.Agent.Message
+type Workspace = MagneticTile.Agent.Workspace
+type WorkspaceFolder = MagneticTile.Agent.WorkspaceFolder
+type Usage = MagneticTile.Agent.Usage
 
 interface SessionChange {
   title?: string
   pinned?: boolean
+  providerID?: string | null
   workspaceID?: string | null
 }
 
 interface MessageChange {
-  identity?: AiMessage['identity']
+  identity?: Message['identity']
   fragment?: string
   thinking?: string | null
   parts?: string | null
@@ -56,49 +58,49 @@ interface AgentEvent<T = unknown> {
 }
 
 interface SessionSlice {
-  sessions: AiSession[]
+  sessions: Session[]
   activeSessionID: string | null
   sessionsLoaded: boolean
 
-  toReadSessions(): Promise<AiSession[]>
-  toReadSession(key: string): AiSession | null
-  toWriteSession(values: AiSession[]): Promise<void>
-  toUpdateSession(values: Partial<AiSession>[]): Promise<void>
+  toReadSessions(): Promise<Session[]>
+  toReadSession(key: string): Session | null
+  toWriteSession(values: Session[]): Promise<void>
+  toUpdateSession(values: Partial<Session>[]): Promise<void>
   toRemoveSession(keys: string[]): Promise<void>
-  toUpdateSessions(sessions: AiSession[]): void
+  toUpdateSessions(sessions: Session[]): void
 }
 
 interface MessageSlice {
-  messages: AiMessage[]
+  messages: Message[]
   messagesLoaded: boolean
 
-  toReadMessages(sessionID?: string): Promise<AiMessage[]>
-  toReadMessage(key: string): AiMessage | null
-  toWriteMessage(values: AiMessage[]): Promise<void>
-  toUpdateMessage(values: Partial<AiMessage>[], options?: { skip?: boolean }): Promise<void>
+  toReadMessages(sessionID?: string): Promise<Message[]>
+  toReadMessage(key: string): Message | null
+  toWriteMessage(values: Message[]): Promise<void>
+  toUpdateMessage(values: Partial<Message>[], options?: { skip?: boolean }): Promise<void>
   toRemoveMessage(keys: string[]): Promise<void>
-  toUpdateMessages(messages: AiMessage[]): void
+  toUpdateMessages(messages: Message[]): void
 }
 
 interface WorkspaceSlice {
-  workspaces: AiWorkspace[]
-  workspaceFolders: AiWorkspaceFolder[]
+  workspaces: Workspace[]
+  workspaceFolders: WorkspaceFolder[]
   activeWorkspaceID: string | null
   workspacesLoaded: boolean
   workspaceFoldersLoaded: boolean
 
-  toReadWorkspaces(): Promise<AiWorkspace[]>
-  toWriteWorkspace(values: AiWorkspace[]): Promise<void>
-  toUpdateWorkspace(values: Partial<AiWorkspace>[]): Promise<void>
+  toReadWorkspaces(): Promise<Workspace[]>
+  toWriteWorkspace(values: Workspace[]): Promise<void>
+  toUpdateWorkspace(values: Partial<Workspace>[]): Promise<void>
   toRemoveWorkspace(keys: string[]): Promise<void>
-  toUpdateWorkspaces(workspaces: AiWorkspace[]): void
+  toUpdateWorkspaces(workspaces: Workspace[]): void
   toActivateWorkspace(workspaceID: string | null): void
 
-  toReadWorkspaceFolders(workspaceID?: string): Promise<AiWorkspaceFolder[]>
-  toWriteWorkspaceFolder(values: AiWorkspaceFolder[]): Promise<void>
-  toUpdateWorkspaceFolder(values: Partial<AiWorkspaceFolder>[]): Promise<void>
+  toReadWorkspaceFolders(workspaceID?: string): Promise<WorkspaceFolder[]>
+  toWriteWorkspaceFolder(values: WorkspaceFolder[]): Promise<void>
+  toUpdateWorkspaceFolder(values: Partial<WorkspaceFolder>[]): Promise<void>
   toRemoveWorkspaceFolder(keys: string[]): Promise<void>
-  toReplaceWorkspaceFolders(workspaceID: string, folders: AiWorkspaceFolder[]): Promise<void>
+  toReplaceWorkspaceFolders(workspaceID: string, folders: WorkspaceFolder[]): Promise<void>
 }
 
 type AgentStore = SessionSlice & MessageSlice & WorkspaceSlice
@@ -112,18 +114,19 @@ type SliceCreator<T> = StateCreator<
 
 const event$ = new Subject<AgentEvent>()
 
-function toSessionWrite(value: AiSession) {
+function toSessionWrite(value: Session) {
   return {
     id: value.id,
     title: value.title,
     pinned: value.pinned,
+    providerID: value.providerID,
     workspaceID: value.workspaceID,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt
   }
 }
 
-function toMessageWrite(value: AiMessage) {
+function toMessageWrite(value: Message) {
   return {
     id: value.id,
     identity: value.identity,
@@ -136,7 +139,7 @@ function toMessageWrite(value: AiMessage) {
   }
 }
 
-function toWorkspaceWrite(value: AiWorkspace) {
+function toWorkspaceWrite(value: Workspace) {
   return {
     id: value.id,
     title: value.title,
@@ -149,7 +152,7 @@ function toWorkspaceWrite(value: AiWorkspace) {
   }
 }
 
-function toWorkspaceFolderWrite(value: AiWorkspaceFolder) {
+function toWorkspaceFolderWrite(value: WorkspaceFolder) {
   return {
     id: value.id,
     workspaceID: value.workspaceID,
@@ -169,7 +172,7 @@ const sessionSlice: SliceCreator<SessionSlice> = function (setters, getters) {
 
     async toReadSessions() {
       try {
-        const sessions = await invoke<AiSession[]>(CHANNELS.AI_SESSION.TO_READ, { params: {} })
+        const sessions = await invoke<Session[]>(CHANNELS.AGENT_SESSION.TO_READ, { params: {} })
         setters(
           function (state) {
             state.sessions = sessions
@@ -228,7 +231,7 @@ const sessionSlice: SliceCreator<SessionSlice> = function (setters, getters) {
       return session ?? null
     },
 
-    async toWriteSession(values: AiSession[]) {
+    async toWriteSession(values: Session[]) {
       const former = structuredClone(getters().sessions)
       setters(
         function (state) {
@@ -239,7 +242,7 @@ const sessionSlice: SliceCreator<SessionSlice> = function (setters, getters) {
       )
 
       try {
-        await invoke(CHANNELS.AI_SESSION.TO_WRITE, {
+        await invoke(CHANNELS.AGENT_SESSION.TO_WRITE, {
           params: values.map(toSessionWrite)
         })
         event$.next({
@@ -253,14 +256,14 @@ const sessionSlice: SliceCreator<SessionSlice> = function (setters, getters) {
       }
     },
 
-    async toUpdateSession(values: Partial<AiSession>[]) {
+    async toUpdateSession(values: Partial<Session>[]) {
       const hasID = values.every(function (v) {
         return Boolean(v.id)
       })
       if (!hasID) throw new Error('ID is required')
 
       const sessions = structuredClone(getters().sessions)
-      const updatesMap = new Map<string, Partial<AiSession>>()
+      const updatesMap = new Map<string, Partial<Session>>()
       values.forEach(function (v) {
         if (v.id) updatesMap.set(v.id, v)
       })
@@ -282,7 +285,7 @@ const sessionSlice: SliceCreator<SessionSlice> = function (setters, getters) {
           const { id, ...change } = v
           return { key: id!, change }
         })
-        await invoke(CHANNELS.AI_SESSION.TO_UPDATE, { params })
+        await invoke(CHANNELS.AGENT_SESSION.TO_UPDATE, { params })
         event$.next({
           type: 'SESSION:UPDATED',
           payload: values,
@@ -310,7 +313,7 @@ const sessionSlice: SliceCreator<SessionSlice> = function (setters, getters) {
           false,
           'toRemoveSession/optimistic'
         )
-        await invoke(CHANNELS.AI_SESSION.TO_REMOVE, { params: keys })
+        await invoke(CHANNELS.AGENT_SESSION.TO_REMOVE, { params: keys })
         const activeSessionID = getters().activeSessionID
         if (activeSessionID) {
           await getters().toReadMessages(activeSessionID)
@@ -345,7 +348,7 @@ const messageSlice: SliceCreator<MessageSlice> = function (setters, getters) {
     async toReadMessages(sessionID?: string) {
       try {
         const params = sessionID ? { sessionID } : {}
-        const messages = await invoke<AiMessage[]>(CHANNELS.AI_MESSAGE.TO_READ, { params })
+        const messages = await invoke<Message[]>(CHANNELS.AGENT_MESSAGE.TO_READ, { params })
         setters(
           function (state) {
             if (sessionID) {
@@ -394,7 +397,7 @@ const messageSlice: SliceCreator<MessageSlice> = function (setters, getters) {
       return message ?? null
     },
 
-    async toWriteMessage(values: AiMessage[]) {
+    async toWriteMessage(values: Message[]) {
       const former = structuredClone(getters().messages)
       setters(
         function (state) {
@@ -405,7 +408,7 @@ const messageSlice: SliceCreator<MessageSlice> = function (setters, getters) {
       )
 
       try {
-        await invoke(CHANNELS.AI_MESSAGE.TO_WRITE, {
+        await invoke(CHANNELS.AGENT_MESSAGE.TO_WRITE, {
           params: values.map(toMessageWrite)
         })
         event$.next({
@@ -419,14 +422,14 @@ const messageSlice: SliceCreator<MessageSlice> = function (setters, getters) {
       }
     },
 
-    async toUpdateMessage(values: Partial<AiMessage>[], options?: { skip?: boolean }) {
+    async toUpdateMessage(values: Partial<Message>[], options?: { skip?: boolean }) {
       const hasID = values.every(function (v) {
         return Boolean(v.id)
       })
       if (!hasID) throw new Error('ID is required')
 
       const messages = structuredClone(getters().messages)
-      const updatesMap = new Map<string, Partial<AiMessage>>()
+      const updatesMap = new Map<string, Partial<Message>>()
       values.forEach(function (v) {
         if (v.id) updatesMap.set(v.id, v)
       })
@@ -454,7 +457,7 @@ const messageSlice: SliceCreator<MessageSlice> = function (setters, getters) {
           const { id, ...change } = v
           return { key: id!, change }
         })
-        await invoke(CHANNELS.AI_MESSAGE.TO_UPDATE, { params })
+        await invoke(CHANNELS.AGENT_MESSAGE.TO_UPDATE, { params })
         event$.next({
           type: 'MESSAGE:UPDATED',
           payload: values,
@@ -479,7 +482,7 @@ const messageSlice: SliceCreator<MessageSlice> = function (setters, getters) {
           false,
           'toRemoveMessage/optimistic'
         )
-        await invoke(CHANNELS.AI_MESSAGE.TO_REMOVE, { params: keys })
+        await invoke(CHANNELS.AGENT_MESSAGE.TO_REMOVE, { params: keys })
         event$.next({
           type: 'MESSAGE:REMOVED',
           payload: keys,
@@ -512,7 +515,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
 
     async toReadWorkspaces() {
       try {
-        const workspaces = await invoke<AiWorkspace[]>(CHANNELS.AI_WORKSPACE.TO_READ, {
+        const workspaces = await invoke<Workspace[]>(CHANNELS.AGENT_WORKSPACE.TO_READ, {
           params: { archived: false }
         })
         setters(
@@ -545,7 +548,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
       }
     },
 
-    async toWriteWorkspace(values: AiWorkspace[]) {
+    async toWriteWorkspace(values: Workspace[]) {
       const former = structuredClone(getters().workspaces)
       setters(
         function (state) {
@@ -558,7 +561,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
         'toWriteWorkspace/optimistic'
       )
       try {
-        await invoke(CHANNELS.AI_WORKSPACE.TO_WRITE, {
+        await invoke(CHANNELS.AGENT_WORKSPACE.TO_WRITE, {
           params: values.map(toWorkspaceWrite)
         })
       } catch (error) {
@@ -567,14 +570,14 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
       }
     },
 
-    async toUpdateWorkspace(values: Partial<AiWorkspace>[]) {
+    async toUpdateWorkspace(values: Partial<Workspace>[]) {
       const hasID = values.every(function (v) {
         return Boolean(v.id)
       })
       if (!hasID) throw new Error('ID is required')
 
       const workspaces = structuredClone(getters().workspaces)
-      const updatesMap = new Map<string, Partial<AiWorkspace>>()
+      const updatesMap = new Map<string, Partial<Workspace>>()
       values.forEach(function (v) {
         if (v.id) updatesMap.set(v.id, v)
       })
@@ -608,7 +611,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
           const { id, ...change } = v
           return { key: id!, change }
         })
-        await invoke(CHANNELS.AI_WORKSPACE.TO_UPDATE, { params })
+        await invoke(CHANNELS.AGENT_WORKSPACE.TO_UPDATE, { params })
       } catch (error) {
         setters({ workspaces }, false, 'toUpdateWorkspace/rollback')
         throw error
@@ -635,7 +638,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
           false,
           'toRemoveWorkspace/optimistic'
         )
-        await invoke(CHANNELS.AI_WORKSPACE.TO_REMOVE, { params: keys })
+        await invoke(CHANNELS.AGENT_WORKSPACE.TO_REMOVE, { params: keys })
       } catch (error) {
         setters(
           { workspaces: former, workspaceFolders: formerFolders },
@@ -668,7 +671,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
     async toReadWorkspaceFolders(workspaceID) {
       try {
         const params = workspaceID ? { workspaceID } : {}
-        const folders = await invoke<AiWorkspaceFolder[]>(CHANNELS.AI_WORKSPACE_FOLDER.TO_READ, {
+        const folders = await invoke<WorkspaceFolder[]>(CHANNELS.AGENT_WORKSPACE_FOLDER.TO_READ, {
           params
         })
         setters(
@@ -707,7 +710,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
       }
     },
 
-    async toWriteWorkspaceFolder(values: AiWorkspaceFolder[]) {
+    async toWriteWorkspaceFolder(values: WorkspaceFolder[]) {
       const former = structuredClone(getters().workspaceFolders)
       setters(
         function (state) {
@@ -717,7 +720,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
         'toWriteWorkspaceFolder/optimistic'
       )
       try {
-        await invoke(CHANNELS.AI_WORKSPACE_FOLDER.TO_WRITE, {
+        await invoke(CHANNELS.AGENT_WORKSPACE_FOLDER.TO_WRITE, {
           params: values.map(toWorkspaceFolderWrite)
         })
       } catch (error) {
@@ -726,14 +729,14 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
       }
     },
 
-    async toUpdateWorkspaceFolder(values: Partial<AiWorkspaceFolder>[]) {
+    async toUpdateWorkspaceFolder(values: Partial<WorkspaceFolder>[]) {
       const hasID = values.every(function (v) {
         return Boolean(v.id)
       })
       if (!hasID) throw new Error('ID is required')
 
       const folders = structuredClone(getters().workspaceFolders)
-      const updatesMap = new Map<string, Partial<AiWorkspaceFolder>>()
+      const updatesMap = new Map<string, Partial<WorkspaceFolder>>()
       values.forEach(function (v) {
         if (v.id) updatesMap.set(v.id, v)
       })
@@ -755,7 +758,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
           const { id, ...change } = v
           return { key: id!, change }
         })
-        await invoke(CHANNELS.AI_WORKSPACE_FOLDER.TO_UPDATE, { params })
+        await invoke(CHANNELS.AGENT_WORKSPACE_FOLDER.TO_UPDATE, { params })
       } catch (error) {
         setters({ workspaceFolders: folders }, false, 'toUpdateWorkspaceFolder/rollback')
         throw error
@@ -775,7 +778,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
           false,
           'toRemoveWorkspaceFolder/optimistic'
         )
-        await invoke(CHANNELS.AI_WORKSPACE_FOLDER.TO_REMOVE, { params: keys })
+        await invoke(CHANNELS.AGENT_WORKSPACE_FOLDER.TO_REMOVE, { params: keys })
       } catch (error) {
         setters({ workspaceFolders: former }, false, 'toRemoveWorkspaceFolder/rollback')
         throw error
@@ -807,10 +810,10 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
 
       try {
         if (removeKeys.length) {
-          await invoke(CHANNELS.AI_WORKSPACE_FOLDER.TO_REMOVE, { params: removeKeys })
+          await invoke(CHANNELS.AGENT_WORKSPACE_FOLDER.TO_REMOVE, { params: removeKeys })
         }
         if (folders.length) {
-          await invoke(CHANNELS.AI_WORKSPACE_FOLDER.TO_WRITE, {
+          await invoke(CHANNELS.AGENT_WORKSPACE_FOLDER.TO_WRITE, {
             params: folders.map(toWorkspaceFolderWrite)
           })
         }
@@ -843,10 +846,11 @@ const useAgentStore = create<AgentStore>()(
 export {
   event$,
   useAgentStore,
-  type AiWorkspace,
-  type AiWorkspaceFolder,
-  type AiMessage,
-  type AiSession,
+  type Message,
   type MessageUpdate,
-  type SessionUpdate
+  type Session,
+  type SessionUpdate,
+  type Usage,
+  type Workspace,
+  type WorkspaceFolder
 }

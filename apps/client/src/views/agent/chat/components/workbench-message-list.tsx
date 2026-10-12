@@ -7,11 +7,11 @@ import { AgentMessage } from './bubbles'
 import type { PlanPaneSource } from './plan-pane'
 import styles from './workbench.module.scss'
 import type { PlanPartData } from '@/features/agent/types'
-import type { AiMessage } from '@/stores/agent'
+import type { Message } from '@/stores/agent'
 
 interface WorkbenchMessageListProps {
   bubbleListRef: RefObject<HTMLDivElement | null>
-  sessionMessages: AiMessage[]
+  sessionMessages: Message[]
   streamingID: string | null
   onApplyDiff: (messageID: string, partIndex: number) => Promise<void>
   onTogglePlanItem: (messageID: string, partIndex: number, itemIndex: number) => Promise<void>

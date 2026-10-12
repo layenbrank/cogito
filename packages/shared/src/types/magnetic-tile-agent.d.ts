@@ -1,15 +1,16 @@
 declare namespace MagneticTile {
   namespace Agent {
-    interface AiSession {
+    interface Session {
       id: string
       title: string
       pinned: boolean
+      providerID: string | null
       workspaceID: string | null
       createdAt: number
       updatedAt: number
     }
 
-    interface AiWorkspace {
+    interface Workspace {
       id: string
       title: string
       icon: string
@@ -20,7 +21,7 @@ declare namespace MagneticTile {
       updatedAt: number
     }
 
-    interface AiWorkspaceFolder {
+    interface WorkspaceFolder {
       id: string
       workspaceID: string
       path: string
@@ -30,7 +31,7 @@ declare namespace MagneticTile {
       updatedAt: number
     }
 
-    interface AiMessage {
+    interface Message {
       id: string
       identity: Identity
       fragment: string
@@ -39,6 +40,20 @@ declare namespace MagneticTile {
       sessionID: string
       createdAt: number
       updatedAt: number
+    }
+
+    /** 一次模型运行的用量（客户端侧账本；服务端另有网关口径，两者分开算） */
+    interface Usage {
+      id: string
+      /** 运行 id：同一次运行重复写入要能认出是同一条 */
+      runID: string
+      sessionID: string
+      providerID: string | null
+      model: string
+      inputTokens: number
+      outputTokens: number
+      totalTokens: number
+      createdAt: number
     }
 
     namespace Communicate {

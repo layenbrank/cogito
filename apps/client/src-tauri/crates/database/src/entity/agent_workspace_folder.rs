@@ -4,7 +4,7 @@ use sea_orm::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "aiWorkspaceFolder")]
+#[sea_orm(table_name = "agent_workspace_folder")]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
     #[sea_orm(primary_key)]

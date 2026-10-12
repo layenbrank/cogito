@@ -88,35 +88,41 @@ export const CHANNELS = {
     READ: 'countdown:read',
     UPDATE: 'countdown:update'
   },
-  AI_SESSION: {
-    TO_READ: 'aiSession:toRead',
-    TO_WRITE: 'aiSession:toWrite',
-    TO_UPDATE: 'aiSession:toUpdate',
-    TO_REMOVE: 'aiSession:toRemove'
+  AGENT_SESSION: {
+    TO_READ: 'agentSession:toRead',
+    TO_WRITE: 'agentSession:toWrite',
+    TO_UPDATE: 'agentSession:toUpdate',
+    TO_REMOVE: 'agentSession:toRemove'
   },
-  AI_MESSAGE: {
-    TO_READ: 'aiMessage:toRead',
-    TO_WRITE: 'aiMessage:toWrite',
-    TO_UPDATE: 'aiMessage:toUpdate',
-    TO_REMOVE: 'aiMessage:toRemove'
+  AGENT_MESSAGE: {
+    TO_READ: 'agentMessage:toRead',
+    TO_WRITE: 'agentMessage:toWrite',
+    TO_UPDATE: 'agentMessage:toUpdate',
+    TO_REMOVE: 'agentMessage:toRemove'
   },
-  AI_WORKSPACE: {
-    TO_READ: 'aiWorkspace:toRead',
-    TO_WRITE: 'aiWorkspace:toWrite',
-    TO_UPDATE: 'aiWorkspace:toUpdate',
-    TO_REMOVE: 'aiWorkspace:toRemove'
+  AGENT_WORKSPACE: {
+    TO_READ: 'agentWorkspace:toRead',
+    TO_WRITE: 'agentWorkspace:toWrite',
+    TO_UPDATE: 'agentWorkspace:toUpdate',
+    TO_REMOVE: 'agentWorkspace:toRemove'
   },
-  AI_WORKSPACE_FOLDER: {
-    TO_READ: 'aiWorkspaceFolder:toRead',
-    TO_WRITE: 'aiWorkspaceFolder:toWrite',
-    TO_UPDATE: 'aiWorkspaceFolder:toUpdate',
-    TO_REMOVE: 'aiWorkspaceFolder:toRemove'
+  AGENT_WORKSPACE_FOLDER: {
+    TO_READ: 'agentWorkspaceFolder:toRead',
+    TO_WRITE: 'agentWorkspaceFolder:toWrite',
+    TO_UPDATE: 'agentWorkspaceFolder:toUpdate',
+    TO_REMOVE: 'agentWorkspaceFolder:toRemove'
   },
-  AI_PROVIDER: {
-    TO_READ: 'aiProvider:toRead',
-    TO_WRITE: 'aiProvider:toWrite',
-    TO_UPDATE: 'aiProvider:toUpdate',
-    TO_REMOVE: 'aiProvider:toRemove'
+  AGENT_PROVIDER: {
+    TO_READ: 'agentProvider:toRead',
+    TO_WRITE: 'agentProvider:toWrite',
+    TO_UPDATE: 'agentProvider:toUpdate',
+    TO_REMOVE: 'agentProvider:toRemove'
+  },
+  AGENT_USAGE: {
+    TO_READ: 'agentUsage:toRead',
+    TO_WRITE: 'agentUsage:toWrite',
+    TO_UPDATE: 'agentUsage:toUpdate',
+    TO_REMOVE: 'agentUsage:toRemove'
   },
   GOOSE: {
     READY: 'goose:ready',

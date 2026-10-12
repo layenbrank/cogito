@@ -16,7 +16,7 @@ import { SidebarScenarioNav } from './sidebar-scenario-nav.tsx'
 import { SidebarWorkspaceTree } from './sidebar-workspace-tree.tsx'
 import { WorkspaceForm } from './workspace-form'
 import { type ScenarioKey } from '@/features/agent/model/scenarios'
-import { useAgentStore, type AiSession } from '@/stores/agent.ts'
+import { useAgentStore, type Session } from '@/stores/agent.ts'
 import { useSessionStore } from '@/stores/session'
 import { useSidebarBranches } from './use-sidebar-branches.ts'
 
@@ -55,7 +55,7 @@ function AgentSidebar(props: SidebarProps) {
   const [renameValue, updateRenameValue] = useState('')
   const [formOpen, updateFormOpen] = useState(false)
   const [editingWorkspaceID, updateEditingWorkspaceID] = useState<string | null>(null)
-  const [pendingRemove, updatePendingRemove] = useState<AiSession | null>(null)
+  const [pendingRemove, updatePendingRemove] = useState<Session | null>(null)
   const [hoverSessionID, updateHoverSessionID] = useState<string | null>(null)
 
   const isSearchOpen = Boolean(props.isSearchOpen)
@@ -70,7 +70,7 @@ function AgentSidebar(props: SidebarProps) {
     [props.searchFocusToken]
   )
 
-  function handleActivateSession(session: AiSession) {
+  function handleActivateSession(session: Session) {
     if (session.workspaceID) {
       useAgentStore.getState().toActivateWorkspace(session.workspaceID)
     }
@@ -96,6 +96,7 @@ function AgentSidebar(props: SidebarProps) {
         id: sessionID,
         title: '新对话',
         pinned: false,
+        providerID: null,
         workspaceID: targetID,
         createdAt: now,
         updatedAt: now
@@ -105,6 +106,7 @@ function AgentSidebar(props: SidebarProps) {
       id: sessionID,
       title: '新对话',
       pinned: false,
+      providerID: null,
       workspaceID: targetID,
       createdAt: now,
       updatedAt: now

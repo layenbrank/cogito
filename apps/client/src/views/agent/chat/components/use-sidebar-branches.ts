@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 
 import type { WorkspaceBranch } from './sidebar-workspace-tree.tsx'
 import { UNGROUPED_WORKSPACE } from '@/features/agent/model/workspace'
-import { useAgentStore, type AiSession } from '@/stores/agent.ts'
+import { useAgentStore, type Session } from '@/stores/agent.ts'
 
-function sortSessions(a: AiSession, b: AiSession) {
+function sortSessions(a: Session, b: Session) {
   if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
   return b.updatedAt - a.updatedAt
 }

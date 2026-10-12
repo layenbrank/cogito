@@ -5,7 +5,7 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
     QueryFilter, QueryOrder, TransactionTrait,
 };
-use thinking_database::entity::aiWorkspaceFolder as schema;
+use thinking_database::entity::agent_workspace_folder as schema;
 use uuid::Uuid;
 
 use crate::exception::Exception;
@@ -153,7 +153,7 @@ impl Service {
             .one(db)
             .await?
             .ok_or_else(|| {
-                Exception::NotFound(format!("aiWorkspaceFolder not found: {}", payload.key))
+                Exception::NotFound(format!("agent_workspace_folder not found: {}", payload.key))
             })?;
 
         let mut active: schema::ActiveModel = model.into();

@@ -5,7 +5,7 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
     QueryFilter, QueryOrder, TransactionTrait,
 };
-use thinking_database::entity::aiMessage as schema;
+use thinking_database::entity::agent_workspace as schema;
 use uuid::Uuid;
 
 use crate::exception::Exception;
@@ -45,7 +45,8 @@ impl Service {
             schema::ReadP::One(p) => {
                 let rows = schema::Entity::find()
                     .filter(Self::build_read_filter(&p))
-                    .order_by_asc(schema::Column::CreatedAt)
+                    .order_by_desc(schema::Column::Pinned)
+                    .order_by_desc(schema::Column::UpdatedAt)
                     .all(db)
                     .await?;
                 Ok(rows)
@@ -59,7 +60,8 @@ impl Service {
                 });
                 let rows = schema::Entity::find()
                     .filter(combined)
-                    .order_by_asc(schema::Column::CreatedAt)
+                    .order_by_desc(schema::Column::Pinned)
+                    .order_by_desc(schema::Column::UpdatedAt)
                     .all(db)
                     .await?;
                 Ok(rows)
@@ -132,11 +134,11 @@ impl Service {
         let updated_at = p.updatedAt.unwrap_or(now);
         let model = schema::ActiveModel {
             id: Set(id.clone()),
-            identity: Set(p.identity),
-            fragment: Set(p.fragment),
-            thinking: Set(p.thinking),
-            parts: Set(p.parts),
-            sessionID: Set(p.sessionID),
+            title: Set(p.title),
+            icon: Set(p.icon),
+            color: Set(p.color),
+            pinned: Set(p.pinned),
+            archivedAt: Set(p.archivedAt),
             createdAt: Set(created_at),
             updatedAt: Set(updated_at),
         };
@@ -151,24 +153,26 @@ impl Service {
         let model = schema::Entity::find_by_id(payload.key.clone())
             .one(db)
             .await?
-            .ok_or_else(|| Exception::NotFound(format!("aiMessage not found: {}", payload.key)))?;
+            .ok_or_else(|| {
+                Exception::NotFound(format!("agent_workspace not found: {}", payload.key))
+            })?;
 
         let mut active: schema::ActiveModel = model.into();
         let now = Utc::now().timestamp_millis();
-        if let Some(v) = payload.change.identity {
-            active.identity = Set(v);
+        if let Some(v) = payload.change.title {
+            active.title = Set(v);
         }
-        if let Some(v) = payload.change.fragment {
-            active.fragment = Set(v);
+        if let Some(v) = payload.change.icon {
+            active.icon = Set(v);
         }
-        if let Some(v) = payload.change.thinking {
-            active.thinking = Set(v);
+        if let Some(v) = payload.change.color {
+            active.color = Set(v);
         }
-        if let Some(v) = payload.change.parts {
-            active.parts = Set(v);
+        if let Some(v) = payload.change.pinned {
+            active.pinned = Set(v);
         }
-        if let Some(v) = payload.change.sessionID {
-            active.sessionID = Set(v);
+        if let Some(v) = payload.change.archivedAt {
+            active.archivedAt = Set(v);
         }
         active.updatedAt = Set(now);
         let updated = active.update(db).await?;
@@ -180,8 +184,15 @@ impl Service {
         if let Some(ref id) = payload.id {
             cond = cond.add(schema::Column::Id.eq(id.clone()));
         }
-        if let Some(ref session_id) = payload.sessionID {
-            cond = cond.add(schema::Column::SessionId.eq(session_id.clone()));
+        if let Some(pinned) = payload.pinned {
+            cond = cond.add(schema::Column::Pinned.eq(pinned));
+        }
+        if let Some(archived) = payload.archived {
+            if archived {
+                cond = cond.add(schema::Column::ArchivedAt.is_not_null());
+            } else {
+                cond = cond.add(schema::Column::ArchivedAt.is_null());
+            }
         }
         cond
     }

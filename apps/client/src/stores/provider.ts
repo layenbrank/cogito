@@ -7,7 +7,7 @@ import { CHANNELS } from '@/shared/ipc/channels'
 /** goose inventory providerId（历史伪 kind「goose」已过滤） */
 type ProviderKind = string
 
-interface AiProvider {
+interface AgentProvider {
   id: string
   /** 与 goose providerId 对齐；通常 id === kind */
   kind: ProviderKind
@@ -23,7 +23,7 @@ interface AiProvider {
 }
 
 interface ProviderChange {
-  kind?: AiProvider['kind']
+  kind?: AgentProvider['kind']
   name?: string
   baseUrl?: string | null
   models?: string | null
@@ -37,13 +37,13 @@ interface ProviderUpdate {
 }
 
 interface ProviderSlice {
-  providers: AiProvider[]
+  providers: AgentProvider[]
   providersLoaded: boolean
   activeProviderID: string | null
 
-  toReadProviders(): Promise<AiProvider[]>
-  toWriteProvider(values: AiProvider[]): Promise<void>
-  toUpdateProvider(values: Partial<AiProvider>[]): Promise<void>
+  toReadProviders(): Promise<AgentProvider[]>
+  toWriteProvider(values: AgentProvider[]): Promise<void>
+  toUpdateProvider(values: Partial<AgentProvider>[]): Promise<void>
   toRemoveProvider(keys: string[]): Promise<void>
   toSetActiveProvider(key: string | null): void
 }
@@ -55,7 +55,7 @@ type SliceCreator<T> = StateCreator<
   T
 >
 
-function toProviderWrite(value: AiProvider) {
+function toProviderWrite(value: AgentProvider) {
   return {
     id: value.id,
     kind: value.kind,
@@ -77,7 +77,7 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
 
     async toReadProviders() {
       try {
-        const providers = (await invoke<AiProvider[]>(CHANNELS.AI_PROVIDER.TO_READ, { params: {} })).filter(
+        const providers = (await invoke<AgentProvider[]>(CHANNELS.AGENT_PROVIDER.TO_READ, { params: {} })).filter(
           function (provider) {
             return provider.kind !== 'goose'
           }
@@ -107,7 +107,7 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
       }
     },
 
-    async toWriteProvider(values: AiProvider[]) {
+    async toWriteProvider(values: AgentProvider[]) {
       const former = structuredClone(getters().providers)
       setters(
         function (state) {
@@ -121,7 +121,7 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
       )
 
       try {
-        await invoke(CHANNELS.AI_PROVIDER.TO_WRITE, {
+        await invoke(CHANNELS.AGENT_PROVIDER.TO_WRITE, {
           params: values.map(toProviderWrite)
         })
       } catch (error) {
@@ -130,14 +130,14 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
       }
     },
 
-    async toUpdateProvider(values: Partial<AiProvider>[]) {
+    async toUpdateProvider(values: Partial<AgentProvider>[]) {
       const hasID = values.every(function (v) {
         return Boolean(v.id)
       })
       if (!hasID) throw new Error('ID is required')
 
       const providers = structuredClone(getters().providers)
-      const updatesMap = new Map<string, Partial<AiProvider>>()
+      const updatesMap = new Map<string, Partial<AgentProvider>>()
       values.forEach(function (v) {
         if (v.id) updatesMap.set(v.id, v)
       })
@@ -159,7 +159,7 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
           const { id, ...change } = v
           return { key: id!, change }
         })
-        await invoke(CHANNELS.AI_PROVIDER.TO_UPDATE, { params })
+        await invoke(CHANNELS.AGENT_PROVIDER.TO_UPDATE, { params })
       } catch (error) {
         setters({ providers }, false, 'toUpdateProvider/rollback')
         throw error
@@ -182,7 +182,7 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
           false,
           'toRemoveProvider/optimistic'
         )
-        await invoke(CHANNELS.AI_PROVIDER.TO_REMOVE, { params: keys })
+        await invoke(CHANNELS.AGENT_PROVIDER.TO_REMOVE, { params: keys })
       } catch (error) {
         setters({ providers: former }, false, 'toRemoveProvider/rollback')
         throw error
@@ -218,4 +218,4 @@ const useProviderStore = create<ProviderSlice>()(
 )
 
 export { useProviderStore }
-export type { AiProvider, ProviderChange, ProviderKind, ProviderUpdate }
+export type { AgentProvider, ProviderChange, ProviderKind, ProviderUpdate }

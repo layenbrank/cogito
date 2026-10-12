@@ -18,7 +18,7 @@ import { CodeDiff } from './code-diff'
 import { CompareTable } from './compare-table'
 import { FileCard } from './file-card'
 import { PlanList } from './plan-list'
-import type { AiMessage } from '@/stores/agent'
+import type { Message } from '@/stores/agent'
 import type { PlanPartData } from '@/features/agent/types'
 
 interface MessageHandlers {
@@ -31,7 +31,7 @@ interface MessageHandlers {
 }
 
 interface AgentMessageProps extends MessageHandlers {
-  message: AiMessage
+  message: Message
   /** 是否正在流式输出（思考条闪烁态） */
   streaming?: boolean
 }

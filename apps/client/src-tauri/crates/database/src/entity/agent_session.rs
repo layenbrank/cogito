@@ -4,17 +4,17 @@ use sea_orm::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "aiMessage")]
+#[sea_orm(table_name = "agent_session")]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: String,
-    pub identity: String,
-    pub fragment: String,
-    pub thinking: Option<String>,
-    pub parts: Option<String>,
-    #[sea_orm(column_name = "sessionID")]
-    pub sessionID: String,
+    pub title: String,
+    pub pinned: bool,
+    #[sea_orm(column_name = "providerID")]
+    pub providerID: Option<String>,
+    #[sea_orm(column_name = "workspaceID")]
+    pub workspaceID: Option<String>,
     #[sea_orm(column_name = "createdAt")]
     pub createdAt: i64,
     #[sea_orm(column_name = "updatedAt")]
@@ -30,7 +30,7 @@ pub enum Relation {}
 #[serde(rename_all = "camelCase")]
 pub struct Read {
     pub id: Option<String>,
-    pub sessionID: Option<String>,
+    pub workspaceID: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,11 +44,11 @@ pub enum ReadP {
 #[serde(rename_all = "camelCase")]
 pub struct Write {
     pub id: Option<String>,
-    pub identity: String,
-    pub fragment: String,
-    pub thinking: Option<String>,
-    pub parts: Option<String>,
-    pub sessionID: String,
+    pub title: String,
+    #[serde(default)]
+    pub pinned: bool,
+    pub providerID: Option<String>,
+    pub workspaceID: Option<String>,
     pub createdAt: Option<i64>,
     pub updatedAt: Option<i64>,
 }
@@ -63,11 +63,10 @@ pub enum WriteP {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Change {
-    pub identity: Option<String>,
-    pub fragment: Option<String>,
-    pub thinking: Option<Option<String>>,
-    pub parts: Option<Option<String>>,
-    pub sessionID: Option<String>,
+    pub title: Option<String>,
+    pub pinned: Option<bool>,
+    pub providerID: Option<Option<String>>,
+    pub workspaceID: Option<Option<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

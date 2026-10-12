@@ -2,36 +2,36 @@
 
 use tauri::State;
 use thinking_core::CommandResult;
-use thinking_core::aiWorkspace::Service;
+use thinking_core::agent_session::Service;
 use thinking_database::Storage;
-use thinking_database::entity::aiWorkspace::{Model, ReadP, RemoveP, UpdateP, WriteP};
+use thinking_database::entity::agent_session::{Model, ReadP, RemoveP, UpdateP, WriteP};
 
-#[tauri::command(rename = "aiWorkspace:toWrite")]
-pub async fn aiWorkspaceToWrite(
+#[tauri::command(rename = "agentSession:toWrite")]
+pub async fn agentSessionToWrite(
     state: State<'_, Storage>,
     params: WriteP,
 ) -> CommandResult<Vec<String>> {
     Service::toWrite(state.connection(), params).await
 }
 
-#[tauri::command(rename = "aiWorkspace:toRead")]
-pub async fn aiWorkspaceToRead(
+#[tauri::command(rename = "agentSession:toRead")]
+pub async fn agentSessionToRead(
     state: State<'_, Storage>,
     params: ReadP,
 ) -> CommandResult<Vec<Model>> {
     Service::toRead(state.connection(), params).await
 }
 
-#[tauri::command(rename = "aiWorkspace:toUpdate")]
-pub async fn aiWorkspaceToUpdate(
+#[tauri::command(rename = "agentSession:toUpdate")]
+pub async fn agentSessionToUpdate(
     state: State<'_, Storage>,
     params: UpdateP,
 ) -> CommandResult<Vec<String>> {
     Service::toUpdate(state.connection(), params).await
 }
 
-#[tauri::command(rename = "aiWorkspace:toRemove")]
-pub async fn aiWorkspaceToRemove(
+#[tauri::command(rename = "agentSession:toRemove")]
+pub async fn agentSessionToRemove(
     state: State<'_, Storage>,
     params: RemoveP,
 ) -> CommandResult<Vec<String>> {

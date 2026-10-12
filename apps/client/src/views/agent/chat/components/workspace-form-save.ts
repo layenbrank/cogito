@@ -4,8 +4,8 @@ import { v4 as UUIDV4 } from 'uuid'
 import type { FolderDraft } from './workspace-form-folders'
 import {
   useAgentStore,
-  type AiWorkspace,
-  type AiWorkspaceFolder
+  type Workspace,
+  type WorkspaceFolder
 } from '@/stores/agent.ts'
 
 interface SaveWorkspaceInput {
@@ -52,7 +52,7 @@ async function saveWorkspace(input: SaveWorkspaceInput) {
       ])
       workspaceID = input.workspaceID
     } else {
-      const row: AiWorkspace = {
+      const row: Workspace = {
         id: workspaceID,
         title: trimmed,
         icon: input.icon,
@@ -66,7 +66,7 @@ async function saveWorkspace(input: SaveWorkspaceInput) {
       store.toActivateWorkspace(workspaceID)
     }
 
-    const nextFolders: AiWorkspaceFolder[] = input.draftFolders.map(function (folder, index) {
+    const nextFolders: WorkspaceFolder[] = input.draftFolders.map(function (folder, index) {
       return {
         id: folder.id,
         workspaceID,

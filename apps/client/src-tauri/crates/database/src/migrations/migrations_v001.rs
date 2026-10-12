@@ -1,4 +1,4 @@
-//! Agent workspace schema（aiWorkspace / aiWorkspaceFolder / aiProvider）。
+//! Agent workspace schema（agent_workspace / agent_workspace_folder / agent_provider）。
 //! 未发版阶段以本文件为唯一真相；若本地库仍是旧 aiCollection 结构，请删除应用数据库后重建。
 use sea_orm_migration::prelude::*;
 
@@ -650,45 +650,45 @@ impl MigrationTrait for Migration {
         )
         .await?;
 
-        // ── aiWorkspace / aiWorkspaceFolder / aiSession / aiMessage ──
+        // ── agent_workspace / agent_workspace_folder / agent_session / agent_message ──
         manager
             .create_table(
                 Table::create()
-                    .table(AiWorkspace::Table)
+                    .table(AgentWorkspace::Table)
                     .if_not_exists()
                     .col(
-                        ColumnDef::new(AiWorkspace::Id)
+                        ColumnDef::new(AgentWorkspace::Id)
                             .string()
                             .not_null()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(AiWorkspace::Title).string().not_null())
+                    .col(ColumnDef::new(AgentWorkspace::Title).string().not_null())
                     .col(
-                        ColumnDef::new(AiWorkspace::Icon)
+                        ColumnDef::new(AgentWorkspace::Icon)
                             .string()
                             .not_null()
                             .default("folder"),
                     )
                     .col(
-                        ColumnDef::new(AiWorkspace::Color)
+                        ColumnDef::new(AgentWorkspace::Color)
                             .string()
                             .not_null()
                             .default("#166534"),
                     )
                     .col(
-                        ColumnDef::new(AiWorkspace::Pinned)
+                        ColumnDef::new(AgentWorkspace::Pinned)
                             .boolean()
                             .not_null()
                             .default(false),
                     )
-                    .col(ColumnDef::new(AiWorkspace::ArchivedAt).big_integer().null())
+                    .col(ColumnDef::new(AgentWorkspace::ArchivedAt).big_integer().null())
                     .col(
-                        ColumnDef::new(AiWorkspace::CreatedAt)
+                        ColumnDef::new(AgentWorkspace::CreatedAt)
                             .big_integer()
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(AiWorkspace::UpdatedAt)
+                        ColumnDef::new(AgentWorkspace::UpdatedAt)
                             .big_integer()
                             .not_null(),
                     )
@@ -699,47 +699,47 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(AiWorkspaceFolder::Table)
+                    .table(AgentWorkspaceFolder::Table)
                     .if_not_exists()
                     .col(
-                        ColumnDef::new(AiWorkspaceFolder::Id)
+                        ColumnDef::new(AgentWorkspaceFolder::Id)
                             .string()
                             .not_null()
                             .primary_key(),
                     )
                     .col(
-                        ColumnDef::new(AiWorkspaceFolder::WorkspaceID)
+                        ColumnDef::new(AgentWorkspaceFolder::WorkspaceID)
                             .string()
                             .not_null(),
                     )
-                    .col(ColumnDef::new(AiWorkspaceFolder::Path).string().not_null())
+                    .col(ColumnDef::new(AgentWorkspaceFolder::Path).string().not_null())
                     .col(
-                        ColumnDef::new(AiWorkspaceFolder::IsPrimary)
+                        ColumnDef::new(AgentWorkspaceFolder::IsPrimary)
                             .boolean()
                             .not_null()
                             .default(false),
                     )
                     .col(
-                        ColumnDef::new(AiWorkspaceFolder::Sort)
+                        ColumnDef::new(AgentWorkspaceFolder::Sort)
                             .integer()
                             .not_null()
                             .default(0),
                     )
                     .col(
-                        ColumnDef::new(AiWorkspaceFolder::CreatedAt)
+                        ColumnDef::new(AgentWorkspaceFolder::CreatedAt)
                             .big_integer()
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(AiWorkspaceFolder::UpdatedAt)
+                        ColumnDef::new(AgentWorkspaceFolder::UpdatedAt)
                             .big_integer()
                             .not_null(),
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk_aiWorkspaceFolder_workspaceID")
-                            .from(AiWorkspaceFolder::Table, AiWorkspaceFolder::WorkspaceID)
-                            .to(AiWorkspace::Table, AiWorkspace::Id)
+                            .name("fk_agent_workspace_folder_workspaceID")
+                            .from(AgentWorkspaceFolder::Table, AgentWorkspaceFolder::WorkspaceID)
+                            .to(AgentWorkspace::Table, AgentWorkspace::Id)
                             .on_delete(ForeignKeyAction::Cascade)
                             .on_update(ForeignKeyAction::NoAction),
                     )
@@ -750,37 +750,38 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(AiSession::Table)
+                    .table(AgentSession::Table)
                     .if_not_exists()
                     .col(
-                        ColumnDef::new(AiSession::Id)
+                        ColumnDef::new(AgentSession::Id)
                             .string()
                             .not_null()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(AiSession::Title).string().not_null())
+                    .col(ColumnDef::new(AgentSession::Title).string().not_null())
                     .col(
-                        ColumnDef::new(AiSession::Pinned)
+                        ColumnDef::new(AgentSession::Pinned)
                             .boolean()
                             .not_null()
                             .default(false),
                     )
-                    .col(ColumnDef::new(AiSession::WorkspaceID).string().null())
+                    .col(ColumnDef::new(AgentSession::ProviderId).string().null())
+                    .col(ColumnDef::new(AgentSession::WorkspaceID).string().null())
                     .col(
-                        ColumnDef::new(AiSession::CreatedAt)
+                        ColumnDef::new(AgentSession::CreatedAt)
                             .big_integer()
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(AiSession::UpdatedAt)
+                        ColumnDef::new(AgentSession::UpdatedAt)
                             .big_integer()
                             .not_null(),
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk_aiSession_workspaceID")
-                            .from(AiSession::Table, AiSession::WorkspaceID)
-                            .to(AiWorkspace::Table, AiWorkspace::Id)
+                            .name("fk_agent_session_workspaceID")
+                            .from(AgentSession::Table, AgentSession::WorkspaceID)
+                            .to(AgentWorkspace::Table, AgentWorkspace::Id)
                             .on_delete(ForeignKeyAction::SetNull)
                             .on_update(ForeignKeyAction::NoAction),
                     )
@@ -791,34 +792,34 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(AiMessage::Table)
+                    .table(AgentMessage::Table)
                     .if_not_exists()
                     .col(
-                        ColumnDef::new(AiMessage::Id)
+                        ColumnDef::new(AgentMessage::Id)
                             .string()
                             .not_null()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(AiMessage::Identity).string().not_null())
-                    .col(ColumnDef::new(AiMessage::Fragment).text().not_null())
-                    .col(ColumnDef::new(AiMessage::Thinking).text().null())
-                    .col(ColumnDef::new(AiMessage::Parts).text().null())
-                    .col(ColumnDef::new(AiMessage::SessionID).string().not_null())
+                    .col(ColumnDef::new(AgentMessage::Identity).string().not_null())
+                    .col(ColumnDef::new(AgentMessage::Fragment).text().not_null())
+                    .col(ColumnDef::new(AgentMessage::Thinking).text().null())
+                    .col(ColumnDef::new(AgentMessage::Parts).text().null())
+                    .col(ColumnDef::new(AgentMessage::SessionID).string().not_null())
                     .col(
-                        ColumnDef::new(AiMessage::CreatedAt)
+                        ColumnDef::new(AgentMessage::CreatedAt)
                             .big_integer()
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(AiMessage::UpdatedAt)
+                        ColumnDef::new(AgentMessage::UpdatedAt)
                             .big_integer()
                             .not_null(),
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk_aiMessage_sessionID")
-                            .from(AiMessage::Table, AiMessage::SessionID)
-                            .to(AiSession::Table, AiSession::Id)
+                            .name("fk_agent_message_sessionID")
+                            .from(AgentMessage::Table, AgentMessage::SessionID)
+                            .to(AgentSession::Table, AgentSession::Id)
                             .on_delete(ForeignKeyAction::Cascade)
                             .on_update(ForeignKeyAction::NoAction),
                     )
@@ -827,60 +828,60 @@ impl MigrationTrait for Migration {
             .await?;
 
         db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_aiWorkspace_archivedAt ON aiWorkspace (archivedAt)",
+            "CREATE INDEX IF NOT EXISTS idx_agent_workspace_archivedAt ON agent_workspace (archivedAt)",
         )
         .await?;
         db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_aiWorkspaceFolder_workspaceID ON aiWorkspaceFolder (workspaceID)",
+            "CREATE INDEX IF NOT EXISTS idx_agent_workspace_folder_workspaceID ON agent_workspace_folder (workspaceID)",
         )
         .await?;
         db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_aiSession_workspaceID ON aiSession (workspaceID)",
+            "CREATE INDEX IF NOT EXISTS idx_agent_session_workspaceID ON agent_session (workspaceID)",
         )
         .await?;
         db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_aiSession_updatedAt ON aiSession (updatedAt)",
+            "CREATE INDEX IF NOT EXISTS idx_agent_session_updatedAt ON agent_session (updatedAt)",
         )
         .await?;
         db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_aiMessage_sessionID ON aiMessage (sessionID)",
+            "CREATE INDEX IF NOT EXISTS idx_agent_message_sessionID ON agent_message (sessionID)",
         )
         .await?;
         db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_aiMessage_createdAt ON aiMessage (createdAt)",
+            "CREATE INDEX IF NOT EXISTS idx_agent_message_createdAt ON agent_message (createdAt)",
         )
         .await?;
 
-        // ── aiProvider（模型接入配置；apiKey 不落库，存 plugin-store） ──
+        // ── agent_provider（模型接入配置；apiKey 不落库，存 plugin-store） ──
         manager
             .create_table(
                 Table::create()
-                    .table(AiProvider::Table)
+                    .table(AgentProvider::Table)
                     .if_not_exists()
                     .col(
-                        ColumnDef::new(AiProvider::Id)
+                        ColumnDef::new(AgentProvider::Id)
                             .string()
                             .not_null()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(AiProvider::Kind).string().not_null())
-                    .col(ColumnDef::new(AiProvider::Name).string().not_null())
-                    .col(ColumnDef::new(AiProvider::BaseUrl).string().null())
-                    .col(ColumnDef::new(AiProvider::Models).text().null())
-                    .col(ColumnDef::new(AiProvider::Model).string().null())
+                    .col(ColumnDef::new(AgentProvider::Kind).string().not_null())
+                    .col(ColumnDef::new(AgentProvider::Name).string().not_null())
+                    .col(ColumnDef::new(AgentProvider::BaseUrl).string().null())
+                    .col(ColumnDef::new(AgentProvider::Models).text().null())
+                    .col(ColumnDef::new(AgentProvider::Model).string().null())
                     .col(
-                        ColumnDef::new(AiProvider::Enabled)
+                        ColumnDef::new(AgentProvider::Enabled)
                             .boolean()
                             .not_null()
                             .default(true),
                     )
                     .col(
-                        ColumnDef::new(AiProvider::CreatedAt)
+                        ColumnDef::new(AgentProvider::CreatedAt)
                             .big_integer()
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(AiProvider::UpdatedAt)
+                        ColumnDef::new(AgentProvider::UpdatedAt)
                             .big_integer()
                             .not_null(),
                     )
@@ -889,7 +890,7 @@ impl MigrationTrait for Migration {
             .await?;
 
         db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_aiProvider_kind ON aiProvider (kind)",
+            "CREATE INDEX IF NOT EXISTS idx_agent_provider_kind ON agent_provider (kind)",
         )
         .await?;
 
@@ -925,19 +926,19 @@ impl MigrationTrait for Migration {
             .drop_table(Table::drop().table(Countdown::Table).to_owned())
             .await?;
         manager
-            .drop_table(Table::drop().table(AiMessage::Table).to_owned())
+            .drop_table(Table::drop().table(AgentMessage::Table).to_owned())
             .await?;
         manager
-            .drop_table(Table::drop().table(AiSession::Table).to_owned())
+            .drop_table(Table::drop().table(AgentSession::Table).to_owned())
             .await?;
         manager
-            .drop_table(Table::drop().table(AiWorkspaceFolder::Table).to_owned())
+            .drop_table(Table::drop().table(AgentWorkspaceFolder::Table).to_owned())
             .await?;
         manager
-            .drop_table(Table::drop().table(AiWorkspace::Table).to_owned())
+            .drop_table(Table::drop().table(AgentWorkspace::Table).to_owned())
             .await?;
         manager
-            .drop_table(Table::drop().table(AiProvider::Table).to_owned())
+            .drop_table(Table::drop().table(AgentProvider::Table).to_owned())
             .await?;
         manager
             .drop_table(Table::drop().table(Overlay::Table).to_owned())
@@ -1194,8 +1195,8 @@ enum Overlay {
 }
 
 #[derive(Iden)]
-enum AiWorkspace {
-    #[iden = "aiWorkspace"]
+enum AgentWorkspace {
+    #[iden = "agent_workspace"]
     Table,
     Id,
     Title,
@@ -1211,8 +1212,8 @@ enum AiWorkspace {
 }
 
 #[derive(Iden)]
-enum AiWorkspaceFolder {
-    #[iden = "aiWorkspaceFolder"]
+enum AgentWorkspaceFolder {
+    #[iden = "agent_workspace_folder"]
     Table,
     Id,
     #[iden = "workspaceID"]
@@ -1228,12 +1229,14 @@ enum AiWorkspaceFolder {
 }
 
 #[derive(Iden)]
-enum AiSession {
-    #[iden = "aiSession"]
+enum AgentSession {
+    #[iden = "agent_session"]
     Table,
     Id,
     Title,
     Pinned,
+    #[iden = "providerID"]
+    ProviderId,
     #[iden = "workspaceID"]
     WorkspaceID,
     #[iden = "createdAt"]
@@ -1243,8 +1246,8 @@ enum AiSession {
 }
 
 #[derive(Iden)]
-enum AiMessage {
-    #[iden = "aiMessage"]
+enum AgentMessage {
+    #[iden = "agent_message"]
     Table,
     Id,
     Identity,
@@ -1260,8 +1263,8 @@ enum AiMessage {
 }
 
 #[derive(Iden)]
-enum AiProvider {
-    #[iden = "aiProvider"]
+enum AgentProvider {
+    #[iden = "agent_provider"]
     Table,
     Id,
     Kind,

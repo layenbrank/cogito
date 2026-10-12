@@ -8,7 +8,7 @@ import {
 
 import type { GooseProviderEntry } from '@/features/agent/acp/goose-providers'
 import { parseModels } from '@/features/agent/model/providers'
-import type { AiProvider } from '@/stores/provider'
+import type { AgentProvider } from '@/stores/provider'
 import styles from '@/views/agent/settings/settings.module.scss'
 
 import { ProviderCardForm } from './provider-card-form.tsx'
@@ -16,7 +16,7 @@ import { ProviderCardHeader, type ProbeStatus } from './provider-card-header.tsx
 
 interface ProviderCardProps {
   entry: GooseProviderEntry
-  storeRow: AiProvider | undefined
+  storeRow: AgentProvider | undefined
   status: ProbeStatus
   isOpen: boolean
   formValues: Record<string, string>

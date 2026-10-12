@@ -53,7 +53,7 @@
       "types": "./src/types/magnetic-tile-bookmark.d.ts"
     },
     "./magnetic-tile-agent": {
-      "types": "./src/types/magnetic-tile-agent.ts"
+      "types": "./src/types/magnetic-tile-agent.d.ts"
     }
   },
   "devDependencies": {

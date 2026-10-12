@@ -5,7 +5,7 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
     QueryFilter, QueryOrder, TransactionTrait,
 };
-use thinking_database::entity::aiSession as schema;
+use thinking_database::entity::agent_provider as schema;
 use uuid::Uuid;
 
 use crate::exception::Exception;
@@ -132,9 +132,12 @@ impl Service {
         let updated_at = p.updatedAt.unwrap_or(now);
         let model = schema::ActiveModel {
             id: Set(id.clone()),
-            title: Set(p.title),
-            pinned: Set(p.pinned),
-            workspaceID: Set(p.workspaceID),
+            kind: Set(p.kind),
+            name: Set(p.name),
+            baseUrl: Set(p.baseUrl),
+            models: Set(p.models),
+            model: Set(p.model),
+            enabled: Set(p.enabled),
             createdAt: Set(created_at),
             updatedAt: Set(updated_at),
         };
@@ -149,18 +152,27 @@ impl Service {
         let model = schema::Entity::find_by_id(payload.key.clone())
             .one(db)
             .await?
-            .ok_or_else(|| Exception::NotFound(format!("aiSession not found: {}", payload.key)))?;
+            .ok_or_else(|| Exception::NotFound(format!("agent_provider not found: {}", payload.key)))?;
 
         let mut active: schema::ActiveModel = model.into();
         let now = Utc::now().timestamp_millis();
-        if let Some(v) = payload.change.title {
-            active.title = Set(v);
+        if let Some(v) = payload.change.kind {
+            active.kind = Set(v);
         }
-        if let Some(v) = payload.change.pinned {
-            active.pinned = Set(v);
+        if let Some(v) = payload.change.name {
+            active.name = Set(v);
         }
-        if let Some(v) = payload.change.workspaceID {
-            active.workspaceID = Set(v);
+        if let Some(v) = payload.change.baseUrl {
+            active.baseUrl = Set(v);
+        }
+        if let Some(v) = payload.change.models {
+            active.models = Set(v);
+        }
+        if let Some(v) = payload.change.model {
+            active.model = Set(v);
+        }
+        if let Some(v) = payload.change.enabled {
+            active.enabled = Set(v);
         }
         active.updatedAt = Set(now);
         let updated = active.update(db).await?;
@@ -172,8 +184,11 @@ impl Service {
         if let Some(ref id) = payload.id {
             cond = cond.add(schema::Column::Id.eq(id.clone()));
         }
-        if let Some(ref workspace_id) = payload.workspaceID {
-            cond = cond.add(schema::Column::WorkspaceId.eq(workspace_id.clone()));
+        if let Some(ref kind) = payload.kind {
+            cond = cond.add(schema::Column::Kind.eq(kind.clone()));
+        }
+        if let Some(enabled) = payload.enabled {
+            cond = cond.add(schema::Column::Enabled.eq(enabled));
         }
         cond
     }

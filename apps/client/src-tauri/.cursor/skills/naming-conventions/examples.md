@@ -21,26 +21,26 @@ invoke('feature/set-badge', ...)      // 用 / 或 set
 invoke('resource:update', { id })     // params 形状不匹配 Entity
 ```
 
-## Four-layer template (aiSession CRUD write)
+## Four-layer template (agent_session CRUD write)
 
 | Layer | Name |
 |-------|------|
-| IPC | `aiSession:toWrite` |
-| Command | `aiSessionToWrite` + `rename = "aiSession:toWrite"` |
+| IPC | `agentSession:toWrite` |
+| Command | `agentSessionToWrite` + `rename = "agentSession:toWrite"` |
 | Service | `toWrite` |
 | Entity | `WriteP::One \| Many` |
 
 ```rust
 #![allow(non_snake_case)]
 
-#[tauri::command(rename = "aiSession:toWrite")]
-pub async fn aiSessionToWrite(params: WriteP) -> Result<Vec<String>, Error> {
+#[tauri::command(rename = "agentSession:toWrite")]
+pub async fn agentSessionToWrite(params: WriteP) -> Result<Vec<String>, Error> {
     Service::toWrite(conn, params).await
 }
 ```
 
 ```ts
-invoke('aiSession:toWrite', {
+invoke('agentSession:toWrite', {
   params: [{ id, title, pinned, collectionID, createdAt, updatedAt }]
 })
 ```

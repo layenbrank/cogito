@@ -2,9 +2,9 @@ import { useMemo } from 'react'
 
 import { rootLabel } from './attach-menu-path'
 import type { WorkspaceRoot } from './attach-menu'
-import { useAgentStore, type AiWorkspaceFolder } from '@/stores/agent'
+import { useAgentStore, type WorkspaceFolder } from '@/stores/agent'
 
-const EMPTY_FOLDERS: AiWorkspaceFolder[] = []
+const EMPTY_FOLDERS: WorkspaceFolder[] = []
 
 function useComposerWorkspaceRoots() {
   const workspaces = useAgentStore(function (state) {

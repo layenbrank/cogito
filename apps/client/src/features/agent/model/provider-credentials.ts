@@ -8,7 +8,7 @@ import { LazyStore } from '@tauri-apps/plugin-store'
 
 import { parseModels } from '@/features/agent/model/providers'
 import type { ProviderConfig } from '@/features/agent/types'
-import type { AiProvider } from '@/stores/provider'
+import type { AgentProvider } from '@/stores/provider'
 
 interface ApiKeyRecord {
   [providerID: string]: string
@@ -44,7 +44,7 @@ async function removeApiKey(providerID: string): Promise<void> {
 }
 
 /** 合并 SQLite 元数据与 apiKey，得到会话用配置 */
-async function resolveProviderConfig(provider: AiProvider): Promise<ProviderConfig> {
+async function resolveProviderConfig(provider: AgentProvider): Promise<ProviderConfig> {
   const models = parseModels(provider.models)
   const byKind = await readApiKey(provider.kind)
   const byId = provider.id === provider.kind ? null : await readApiKey(provider.id)

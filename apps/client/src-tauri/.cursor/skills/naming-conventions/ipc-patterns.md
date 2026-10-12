@@ -8,7 +8,7 @@
 |---------|---------|-------|
 | CRUD verb (legacy) | `resource:read` | 存量 kebab namespace |
 | Write / upsert (legacy) | `resource:write` | 语义由 service 解释 |
-| CRUD to* (new) | `aiSession:toRead` | 新模块 camelCase namespace |
+| CRUD to* (new) | `agentSession:toRead` | 新模块 camelCase namespace |
 | Update field | `feature:update-mode` | 状态变更用 `update-*` |
 | Badge / flag | `feature:update-badge` | 不用 `set-badge` |
 | Pending drain | `feature:take-pending` | 多词 kebab-case |

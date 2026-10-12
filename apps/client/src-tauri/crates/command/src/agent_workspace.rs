@@ -2,36 +2,36 @@
 
 use tauri::State;
 use thinking_core::CommandResult;
-use thinking_core::aiProvider::Service;
+use thinking_core::agent_workspace::Service;
 use thinking_database::Storage;
-use thinking_database::entity::aiProvider::{Model, ReadP, RemoveP, UpdateP, WriteP};
+use thinking_database::entity::agent_workspace::{Model, ReadP, RemoveP, UpdateP, WriteP};
 
-#[tauri::command(rename = "aiProvider:toWrite")]
-pub async fn aiProviderToWrite(
+#[tauri::command(rename = "agentWorkspace:toWrite")]
+pub async fn agentWorkspaceToWrite(
     state: State<'_, Storage>,
     params: WriteP,
 ) -> CommandResult<Vec<String>> {
     Service::toWrite(state.connection(), params).await
 }
 
-#[tauri::command(rename = "aiProvider:toRead")]
-pub async fn aiProviderToRead(
+#[tauri::command(rename = "agentWorkspace:toRead")]
+pub async fn agentWorkspaceToRead(
     state: State<'_, Storage>,
     params: ReadP,
 ) -> CommandResult<Vec<Model>> {
     Service::toRead(state.connection(), params).await
 }
 
-#[tauri::command(rename = "aiProvider:toUpdate")]
-pub async fn aiProviderToUpdate(
+#[tauri::command(rename = "agentWorkspace:toUpdate")]
+pub async fn agentWorkspaceToUpdate(
     state: State<'_, Storage>,
     params: UpdateP,
 ) -> CommandResult<Vec<String>> {
     Service::toUpdate(state.connection(), params).await
 }
 
-#[tauri::command(rename = "aiProvider:toRemove")]
-pub async fn aiProviderToRemove(
+#[tauri::command(rename = "agentWorkspace:toRemove")]
+pub async fn agentWorkspaceToRemove(
     state: State<'_, Storage>,
     params: RemoveP,
 ) -> CommandResult<Vec<String>> {

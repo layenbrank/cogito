@@ -8,31 +8,31 @@ pub mod overlay;
 pub mod reminder;
 
 #[allow(non_snake_case)]
-pub mod aiWorkspace {
+pub mod agent_workspace {
     mod service;
     pub use service::Service;
 }
 
 #[allow(non_snake_case)]
-pub mod aiWorkspaceFolder {
+pub mod agent_workspace_folder {
     mod service;
     pub use service::Service;
 }
 
 #[allow(non_snake_case)]
-pub mod aiSession {
+pub mod agent_session {
     mod service;
     pub use service::Service;
 }
 
 #[allow(non_snake_case)]
-pub mod aiMessage {
+pub mod agent_message {
     mod service;
     pub use service::Service;
 }
 
 #[allow(non_snake_case)]
-pub mod aiProvider {
+pub mod agent_provider {
     mod service;
     pub use service::Service;
 }

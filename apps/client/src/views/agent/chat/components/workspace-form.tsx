@@ -20,7 +20,7 @@ import { WorkspaceFormAppearance } from './workspace-form-appearance'
 import { WorkspaceFormFolders, type FolderDraft } from './workspace-form-folders'
 import { archiveWorkspace, saveWorkspace } from './workspace-form-save'
 import { WORKSPACE_COLOR, WORKSPACE_ICON } from '@/features/agent/model/workspace'
-import { useAgentStore, type AiWorkspaceFolder } from '@/stores/agent.ts'
+import { useAgentStore, type WorkspaceFolder } from '@/stores/agent.ts'
 
 interface WorkspaceFormProps {
   open: boolean
@@ -28,7 +28,7 @@ interface WorkspaceFormProps {
   onClose: () => void
 }
 
-const EMPTY_FOLDERS: AiWorkspaceFolder[] = []
+const EMPTY_FOLDERS: WorkspaceFolder[] = []
 
 function ensurePrimary(folders: FolderDraft[]) {
   if (

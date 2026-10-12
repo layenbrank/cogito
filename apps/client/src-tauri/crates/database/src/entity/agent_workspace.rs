@@ -4,15 +4,17 @@ use sea_orm::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "aiSession")]
+#[sea_orm(table_name = "agent_workspace")]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: String,
     pub title: String,
+    pub icon: String,
+    pub color: String,
     pub pinned: bool,
-    #[sea_orm(column_name = "workspaceID")]
-    pub workspaceID: Option<String>,
+    #[sea_orm(column_name = "archivedAt")]
+    pub archivedAt: Option<i64>,
     #[sea_orm(column_name = "createdAt")]
     pub createdAt: i64,
     #[sea_orm(column_name = "updatedAt")]
@@ -28,7 +30,9 @@ pub enum Relation {}
 #[serde(rename_all = "camelCase")]
 pub struct Read {
     pub id: Option<String>,
-    pub workspaceID: Option<String>,
+    pub pinned: Option<bool>,
+    /// `true` 仅返回已归档；`false` 仅返回未归档；缺省不过滤。
+    pub archived: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,11 +47,23 @@ pub enum ReadP {
 pub struct Write {
     pub id: Option<String>,
     pub title: String,
+    #[serde(default = "default_icon")]
+    pub icon: String,
+    #[serde(default = "default_color")]
+    pub color: String,
     #[serde(default)]
     pub pinned: bool,
-    pub workspaceID: Option<String>,
+    pub archivedAt: Option<i64>,
     pub createdAt: Option<i64>,
     pub updatedAt: Option<i64>,
+}
+
+fn default_icon() -> String {
+    "folder".to_string()
+}
+
+fn default_color() -> String {
+    "#166534".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,8 +77,10 @@ pub enum WriteP {
 #[serde(rename_all = "camelCase")]
 pub struct Change {
     pub title: Option<String>,
+    pub icon: Option<String>,
+    pub color: Option<String>,
     pub pinned: Option<bool>,
-    pub workspaceID: Option<Option<String>>,
+    pub archivedAt: Option<Option<i64>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

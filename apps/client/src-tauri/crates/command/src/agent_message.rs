@@ -2,36 +2,36 @@
 
 use tauri::State;
 use thinking_core::CommandResult;
-use thinking_core::aiSession::Service;
+use thinking_core::agent_message::Service;
 use thinking_database::Storage;
-use thinking_database::entity::aiSession::{Model, ReadP, RemoveP, UpdateP, WriteP};
+use thinking_database::entity::agent_message::{Model, ReadP, RemoveP, UpdateP, WriteP};
 
-#[tauri::command(rename = "aiSession:toWrite")]
-pub async fn aiSessionToWrite(
+#[tauri::command(rename = "agentMessage:toWrite")]
+pub async fn agentMessageToWrite(
     state: State<'_, Storage>,
     params: WriteP,
 ) -> CommandResult<Vec<String>> {
     Service::toWrite(state.connection(), params).await
 }
 
-#[tauri::command(rename = "aiSession:toRead")]
-pub async fn aiSessionToRead(
+#[tauri::command(rename = "agentMessage:toRead")]
+pub async fn agentMessageToRead(
     state: State<'_, Storage>,
     params: ReadP,
 ) -> CommandResult<Vec<Model>> {
     Service::toRead(state.connection(), params).await
 }
 
-#[tauri::command(rename = "aiSession:toUpdate")]
-pub async fn aiSessionToUpdate(
+#[tauri::command(rename = "agentMessage:toUpdate")]
+pub async fn agentMessageToUpdate(
     state: State<'_, Storage>,
     params: UpdateP,
 ) -> CommandResult<Vec<String>> {
     Service::toUpdate(state.connection(), params).await
 }
 
-#[tauri::command(rename = "aiSession:toRemove")]
-pub async fn aiSessionToRemove(
+#[tauri::command(rename = "agentMessage:toRemove")]
+pub async fn agentMessageToRemove(
     state: State<'_, Storage>,
     params: RemoveP,
 ) -> CommandResult<Vec<String>> {

@@ -15,10 +15,10 @@ import { throttle } from 'lodash-es'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import styles from './session-search.module.scss'
-import { useAgentStore, type AiSession, type AiWorkspace } from '@/stores/agent.ts'
+import { useAgentStore, type Session, type Workspace } from '@/stores/agent.ts'
 
 interface SessionSearchHit {
-  session: AiSession
+  session: Session
   workspaceTitle: string
   pathHint: string
 }
@@ -26,7 +26,7 @@ interface SessionSearchHit {
 interface SessionSearchProps {
   open: boolean
   onClose: () => void
-  onSelect: (session: AiSession) => void
+  onSelect: (session: Session) => void
 }
 
 const NAVIGATE_THROTTLE_MS = 80
@@ -71,7 +71,7 @@ function SessionSearchPanel(props: Pick<SessionSearchProps, 'onClose' | 'onSelec
 
   const workspaceByID = useMemo(
     function () {
-      const map = new Map<string, AiWorkspace>()
+      const map = new Map<string, Workspace>()
       workspaces.forEach(function (workspace) {
         map.set(workspace.id, workspace)
       })

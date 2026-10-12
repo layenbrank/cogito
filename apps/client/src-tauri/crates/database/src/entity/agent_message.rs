@@ -4,18 +4,17 @@ use sea_orm::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "aiProvider")]
+#[sea_orm(table_name = "agent_message")]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: String,
-    pub kind: String,
-    pub name: String,
-    #[sea_orm(column_name = "baseUrl")]
-    pub baseUrl: Option<String>,
-    pub models: Option<String>,
-    pub model: Option<String>,
-    pub enabled: bool,
+    pub identity: String,
+    pub fragment: String,
+    pub thinking: Option<String>,
+    pub parts: Option<String>,
+    #[sea_orm(column_name = "sessionID")]
+    pub sessionID: String,
     #[sea_orm(column_name = "createdAt")]
     pub createdAt: i64,
     #[sea_orm(column_name = "updatedAt")]
@@ -31,8 +30,7 @@ pub enum Relation {}
 #[serde(rename_all = "camelCase")]
 pub struct Read {
     pub id: Option<String>,
-    pub kind: Option<String>,
-    pub enabled: Option<bool>,
+    pub sessionID: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,19 +44,13 @@ pub enum ReadP {
 #[serde(rename_all = "camelCase")]
 pub struct Write {
     pub id: Option<String>,
-    pub kind: String,
-    pub name: String,
-    pub baseUrl: Option<String>,
-    pub models: Option<String>,
-    pub model: Option<String>,
-    #[serde(default = "default_enabled")]
-    pub enabled: bool,
+    pub identity: String,
+    pub fragment: String,
+    pub thinking: Option<String>,
+    pub parts: Option<String>,
+    pub sessionID: String,
     pub createdAt: Option<i64>,
     pub updatedAt: Option<i64>,
-}
-
-fn default_enabled() -> bool {
-    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,12 +63,11 @@ pub enum WriteP {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Change {
-    pub kind: Option<String>,
-    pub name: Option<String>,
-    pub baseUrl: Option<Option<String>>,
-    pub models: Option<Option<String>>,
-    pub model: Option<Option<String>>,
-    pub enabled: Option<bool>,
+    pub identity: Option<String>,
+    pub fragment: Option<String>,
+    pub thinking: Option<Option<String>>,
+    pub parts: Option<Option<String>>,
+    pub sessionID: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

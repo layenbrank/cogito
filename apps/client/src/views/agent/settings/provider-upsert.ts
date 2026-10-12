@@ -4,7 +4,7 @@ import {
 } from '@/features/agent/acp/goose-providers'
 import { stringifyModels } from '@/features/agent/model/providers'
 import { readApiKey, writeApiKey } from '@/features/agent/model/provider-credentials'
-import { useProviderStore, type AiProvider } from '@/stores/provider'
+import { useProviderStore, type AgentProvider } from '@/stores/provider'
 
 function findHostValue(values: Record<string, string>): string | null {
   for (const [key, value] of Object.entries(values)) {
@@ -78,7 +78,7 @@ async function upsertStoreProvider(
     return
   }
 
-  const row: AiProvider = {
+  const row: AgentProvider = {
     id: entry.providerId,
     kind: entry.providerId,
     name: entry.providerName,

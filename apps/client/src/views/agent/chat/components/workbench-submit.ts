@@ -21,8 +21,8 @@ import { findIsPathUnderRoots, normalizePath } from '@/features/agent/model/work
 import { WorkspaceFiles } from '@/lib/workspace-files'
 import { resolveProviderConfig } from '@/features/agent/model/provider-credentials'
 import type { ChatMessage, FilePartData, MessagePart } from '@/features/agent/types'
-import { useAgentStore, type AiMessage, type AiSession } from '@/stores/agent'
-import type { AiProvider } from '@/stores/provider'
+import { useAgentStore, type Message, type Session } from '@/stores/agent'
+import type { AgentProvider } from '@/stores/provider'
 
 interface StreamBuffer {
   fragment: string
@@ -35,9 +35,9 @@ interface SubmitAgentMessageInput {
   chips: SenderChip[]
   scenario: ScenarioKey
   contextFiles: FilePartData[]
-  sessionMessages: AiMessage[]
+  sessionMessages: Message[]
   activeSessionID: string | null
-  activeProvider: AiProvider
+  activeProvider: AgentProvider
   bufferRef: { current: StreamBuffer }
   timerRef: { current: number | null }
   abortRef: { current: AbortController | null }
@@ -52,10 +52,11 @@ async function ensureSession(
   activeSessionID: string | null
 ): Promise<{ id: string; created: boolean }> {
   if (activeSessionID) return { id: activeSessionID, created: false }
-  const session: AiSession = {
+  const session: Session = {
     id: UUIDV4(),
     title: '新对话 ' + dayjs().format('MM-DD HH:mm'),
     pinned: false,
+    providerID: null,
     workspaceID: useAgentStore.getState().activeWorkspaceID,
     createdAt: Date.now(),
     updatedAt: Date.now()
@@ -179,7 +180,7 @@ async function submitAgentMessage(input: SubmitAgentMessageInput) {
     input.onContextFilesChange([])
 
     const now = Date.now()
-    const personal: AiMessage = {
+    const personal: Message = {
       id: UUIDV4(),
       sessionID,
       createdAt: now,
@@ -189,7 +190,7 @@ async function submitAgentMessage(input: SubmitAgentMessageInput) {
       thinking: null,
       parts: stringifyParts(fileParts)
     }
-    const assistant: AiMessage = {
+    const assistant: Message = {
       id: UUIDV4(),
       sessionID,
       createdAt: now + 1,

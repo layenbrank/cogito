@@ -36,9 +36,9 @@ description: >-
 
 - `reminder:read` / `reminder:write` / `reminder:update` / `reminder:remove`
 
-**新模块（aiSession / aiMessage / aiCollection）** — camelCase namespace + `to*` CRUD：
+**新模块（agent_session / agent_message / aiCollection）** — camelCase namespace + `to*` CRUD：
 
-- `aiSession:toRead` / `aiSession:toWrite` / `aiSession:toUpdate` / `aiSession:toRemove`
+- `agentSession:toRead` / `agentSession:toWrite` / `agentSession:toUpdate` / `agentSession:toRemove`
 - 与 Service `toRead` / `toWrite` / … 对齐
 
 通用规则：
@@ -52,14 +52,14 @@ description: >-
 示例形态：
 
 - 存量：`resource:read` / `feature:update-badge`
-- 新 CRUD：`aiSession:toWrite` / `aiMessage:toRead`
+- 新 CRUD：`agentSession:toWrite` / `agentMessage:toRead`
 
 更完整的模式表见 [ipc-patterns.md](ipc-patterns.md)。
 
 ## 2. Command（Rust）
 
 - 存量：`{namespace}_{action}`（snake_case）+ `rename = "namespace:action"`
-- 新 ai 模块：`aiSessionToWrite` 等 camelCase + `rename = "aiSession:toWrite"`；实现文件首行 `#![allow(non_snake_case)]`（command / service / entity）；`lib.rs` / `mod.rs` 仅对 ai* 的 `pub mod` 声明加 `#[allow(non_snake_case)]`
+- 新 ai 模块：`agentSessionToWrite` 等 camelCase + `rename = "agentSession:toWrite"`；实现文件首行 `#![allow(non_snake_case)]`（command / service / entity）；`lib.rs` / `mod.rs` 仅对 ai* 的 `pub mod` 声明加 `#[allow(non_snake_case)]`
 - handlers 优先按模块路径注册
 
 ```rust
@@ -71,7 +71,7 @@ pub async fn resource_update(/* ... */) { /* ... */ }
 
 - 统一 `toRead` / `toWrite` / `toUpdate` / `toRemove`
 - **Legacy（勿在新模块复制）**：`overlay` / `countdown` 仍用 `read` / `write` / `upsert`
-- core 模块组织：参考 `src/lib.rs` inline `pub mod aiSession { mod service; … }`，无 `mod.rs`；inline mod 声明加 `#[allow(non_snake_case)]`，`service.rs` 文件首行 `#![allow(non_snake_case)]`
+- core 模块组织：参考 `src/lib.rs` inline `pub mod agent_session { mod service; … }`，无 `mod.rs`；inline mod 声明加 `#[allow(non_snake_case)]`，`service.rs` 文件首行 `#![allow(non_snake_case)]`
 
 ## 4. Entity / DTO
 

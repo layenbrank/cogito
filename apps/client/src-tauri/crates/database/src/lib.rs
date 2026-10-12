@@ -12,21 +12,21 @@ pub mod entity {
     pub mod reminder;
 
     #[allow(non_snake_case)]
-    pub mod aiMessage;
+    pub mod agent_message;
     #[allow(non_snake_case)]
-    pub mod aiProvider;
+    pub mod agent_provider;
     #[allow(non_snake_case)]
-    pub mod aiSession;
+    pub mod agent_session;
     #[allow(non_snake_case)]
-    pub mod aiWorkspace;
+    pub mod agent_workspace;
     #[allow(non_snake_case)]
-    pub mod aiWorkspaceFolder;
+    pub mod agent_workspace_folder;
 
-    pub use aiMessage::Entity as AiMessageEntity;
-    pub use aiProvider::Entity as AiProviderEntity;
-    pub use aiSession::Entity as AiSessionEntity;
-    pub use aiWorkspace::Entity as AiWorkspaceEntity;
-    pub use aiWorkspaceFolder::Entity as AiWorkspaceFolderEntity;
+    pub use agent_message::Entity as AgentMessageEntity;
+    pub use agent_provider::Entity as AgentProviderEntity;
+    pub use agent_session::Entity as AgentSessionEntity;
+    pub use agent_workspace::Entity as AgentWorkspaceEntity;
+    pub use agent_workspace_folder::Entity as AgentWorkspaceFolderEntity;
     pub use asset::Entity as AssetEntity;
     pub use calendar::Entity as CalendarEntity;
     pub use countdown::Entity as CountdownEntity;
