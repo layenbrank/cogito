@@ -24,7 +24,7 @@
     "check:vscode": "node scripts/infra/vscode-settings.ts --check",
     "check:scripts": "tsc -p scripts/tsconfig.json",
     "sync:vscode": "node scripts/infra/vscode-settings.ts",
-    "coverage": "turbo run coverage --filter=!@i-thinking/client",
+    "coverage": "turbo run coverage",
     "dev": "turbo run dev --filter=!@i-thinking/client",
     "dev:client": "turbo run dev --filter=@i-thinking/client",
     "dev:studio": "turbo run dev --filter=@i-thinking/studio",
@@ -32,7 +32,7 @@
     "dev:extension": "turbo run dev --filter=@i-thinking/extension",
     "e2e": "turbo run e2e --filter=!@i-thinking/client",
     "format": "prettier --write \"**/*.{ts,tsx,vue,json,scss,md}\"",
-    "lint": "turbo run lint --filter=!@i-thinking/client",
+    "lint": "turbo run lint",
     "preinstall": "npx --yes only-allow pnpm",
     "prepare": "run-s prepare:husky",
     "prepare:husky": "husky",
@@ -42,7 +42,7 @@
     "preview:extension": "turbo run preview --filter=@i-thinking/extension",
     "report": "playwright show-report apps/extension/playwright-report",
     "report:extension": "pnpm --filter=@i-thinking/extension exec playwright show-report",
-    "unit": "turbo run unit --filter=!@i-thinking/client"
+    "unit": "turbo run unit"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "1.7.0",

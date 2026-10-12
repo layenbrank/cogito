@@ -1,28 +1,14 @@
 # i-thinking Client (Tauri)
 
-> ⚠️ **DEPRECATED / 已废弃（2026-09）**
->
-> 本应用已冻结，不再接收功能改动：桌面端全面转向 `apps/studio`（Electron），
-> 扩展端由 `apps/extension`（React 重写）承接。本目录仅作**只读参考**：
->
-> - 不参与仓库根聚合任务（`build` / `lint` / `unit` / `e2e` 已排除本包）
-> - 共享能力不再从本包抽取实现，需要复用时按“Electron / MV3 环境差异分层”重建到 `packages/*`
-> - 样式栈已随仓库对齐到 **Tailwind v4 + `@i-thinking/design`**：入口为 `src/styles/tailwind.css`
->   （`@import '@i-thinking/design/globals.css'` + `@source '../'`），antd 与 `src/themes/**`（`--ith-*` cssVar）
->   已全部移除；旧 v3 `@tailwind` 指令已不存在
-> - 窗口一律 `decorations: false`，桌面壳自绘：`Decorations`（`src/components/decorations/`）是所有窗口的
->   容器（标题栏 + 撑满内容 + 纵向 flex，根透明让 mica / 透明材质透出），`Caption`（`src/components/caption/`）
->   是它的标题栏（拖拽区带 `data-region`，槽位里的按钮带 `data-region="false"`）；
->   磁贴不再用 Dialog，双击开独立窗口
-> - 主窗口标题栏内容在 `src/views/overview/caption/`：镜像入口（切换 + 新建/重命名/删除）、
->   状态芯片（corex / 可更新）、账号
-> - 磁贴分两层：`views/<tile>/` 是窗口页（含 `workspace/**` 等窗口专属实现），
->   `features/magnetic-tiles/<tile>/` 只放板上磁贴（表面 + marker + 尺寸 scss）与两侧共用件
-> - agent 窗口是布局路由：`views/agent/agent.tsx` 只做出口，两个子页 `views/agent/{chat,settings}/`
->   对应 `/agent/chat`（默认）与 `/agent/settings`（对齐 studio）
-> - 其 `AiSession / AiMessage / AiProvider` 域实现（Rust + TS）已被 studio 的新 chat 域取代
+桌面客户端，Tauri 壳层 + React 前端；重能力经 **corex-daemon** sidecar IPC 提供；Agent 经内置 **goose** ACP sidecar（引擎保留，UI 层对齐 studio）。
 
-桌面客户端，Tauri 壳层 + React 前端；重能力经 **corex-daemon** sidecar IPC 提供；Agent 可选用内置 **goose** ACP sidecar。
+## 架构要点
+
+- 样式栈 **Tailwind v4 + `@i-thinking/design`**：入口 `src/styles/tailwind.css`（`@import '@i-thinking/design/globals.css'` + `@source '../'`）；无 antd / `--ith-*` / 旧 v3 `@tailwind`。
+- 窗口一律 `decorations: false`，桌面壳自绘：`Decorations`（`src/components/decorations/`）是窗口容器（标题栏 + 撑满内容 + 纵向 flex，根透明让 mica / 透明材质透出），`Caption`（`src/components/caption/`）是标题栏（拖拽区带 `data-region`，槽位内交互元素带 `data-region="false"`）。
+- 磁贴不用 Dialog，双击开独立窗口；分两层：`views/<tile>/` 是窗口页（含 `workspace/**` 等窗口专属实现），`features/magnetic-tiles/<tile>/` 是板上磁贴（表面 + marker + 尺寸）与两侧共用件。
+- agent 是布局路由：`views/agent/agent.tsx` 只做出口，两个子页 `views/agent/{chat,settings}/` 对应 `/agent/chat`（默认）与 `/agent/settings`（对齐 studio）。
+- 主窗口标题栏内容在 `src/views/overview/caption/`：镜像入口（切换 + 新建/重命名/删除）、状态芯片（corex / 可更新）、账号。
 
 ## 开发
 

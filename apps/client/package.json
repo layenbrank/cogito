@@ -9,6 +9,7 @@
     "build-only": "vite build",
     "check:cargo": "cargo check --manifest-path src-tauri/Cargo.toml",
     "check:tauri": "pnpm run check:cargo",
+    "coverage": "vitest run --coverage",
     "dev": "tauri dev",
     "dev:core": "vite",
     "dev:tauri": "tauri dev",
@@ -18,7 +19,8 @@
     "test:coverage": "vitest --coverage",
     "test:e2e": "playwright test",
     "test:unit": "vitest",
-    "type-check": "tsc --build"
+    "type-check": "tsc --build",
+    "unit": "vitest run"
   },
   "dependencies": {
     "@i-thinking/chat": "workspace:*",

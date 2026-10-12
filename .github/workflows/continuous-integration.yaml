@@ -52,7 +52,7 @@ jobs:
       - name: Type check
         run: |
           pnpm turbo run type-check --continue --filter=@i-thinking/extension || true
-          pnpm turbo run type-check --continue --filter=@i-thinking/client || true
+          pnpm turbo run type-check --continue --filter=@i-thinking/client
           pnpm check:scripts
           pnpm command distribution check
 
