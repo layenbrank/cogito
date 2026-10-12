@@ -56,14 +56,17 @@ pnpm --filter @i-thinking/studio publish
 不进安装包，由 Studio 运行时在线下载（见 [development.md](./development.md#两档产物精简版--完整版)）；
 `*:full` 内置全部侧车。**档位只有这一个决策点**（`apps/studio/scripts/run-forge.ts` 把它作为
 `STUDIO_SIDECAR_VARIANT` 传入 `forge/env.ts`，过滤发生在 `forge/hooks/sidecar.ts`，依据是 staging 的
-`checksums.json.onDemand`）；落盘那一步一律全量，所以切档不用重跑 bootstrap。
+`checksums.json` 里逐文件的 `onDemand`）；落盘那一步一律全量，所以切档不用重跑 bootstrap。
 
-**精简版却打到 500MB+？** 多半是旧的 `apps/studio/sidecar/staging/<platform>/checksums.json`
-**没有 `onDemand` 字段**（forge 无法排除按需工具），或 staging 里还残留 `goose.exe`（client 用，
-studio 不该带）。处理：
+**精简版却打到 500MB+？** 先看日志里那句 `侧车档位 lite：已复制 N 个文件，未随包：…`：没有「未随包」
+就说明 forge 认为这些文件该随包（整包自然还是 800MB+）。两种可能：
+
+- `apps/studio/sidecar/staging/<platform>/checksums.json` 是旧版（没有 `schemaVersion: 2` 与逐文件
+  `onDemand`）—— 现在会**直接报错失败**（以前是静默按文件名正则猜，猜漏就把整包打进去）；
+- `tools.lock.json` 里 pandoc / ffmpeg / opencode 的 `onDemand` 丢了 —— 按需由它决定，补回来。
 
 ```bash
-pnpm command sidecar stage studio   # 重写 checksums（含 onDemand），且不落 goose
+pnpm command sidecar stage studio   # 重写 checksums（逐文件标 onDemand），且不落 goose
 pnpm --filter @i-thinking/studio make
 ```
 

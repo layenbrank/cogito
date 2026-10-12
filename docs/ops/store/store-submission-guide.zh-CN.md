@@ -160,7 +160,7 @@ x64 处理器
 
 | 字段 | 值 |
 |------|-----|
-| 包 URL（推荐） | `https://i-thinking-downloads.layenbrank.workers.dev/1.3.0/i-thinking_1.3.0_x64-setup.exe` |
+| 包 URL（推荐） | `https://i-thinking-distribution.layenbrank.workers.dev/1.3.0/i-thinking_1.3.0_x64-setup.exe` |
 | 包 URL（备用） | `https://pub-7a57d3acde3e4d7b9c42f56423f83c93.r2.dev/1.3.0/i-thinking_1.3.0_x64-setup.exe` |
 | 体系结构 | `x64` |
 | 应用类型 | `EXE` |

@@ -1,6 +1,6 @@
 # Microsoft Store 包托管摘要
 
-面向 Partner Center 填写与自检。Worker 实现与运维见 [`scripts/infra/worker/README.md`](../../../scripts/infra/worker/README.md)。
+面向 Partner Center 填写与自检。Worker 实现与运维见 [`apps/distribution/README.md`](../../../apps/distribution/README.md)。
 
 当前版本：**1.3.0**
 
@@ -11,7 +11,7 @@
 ### 推荐（Worker）
 
 ```text
-https://i-thinking-downloads.layenbrank.workers.dev/1.3.0/i-thinking_1.3.0_x64-setup.exe
+https://i-thinking-distribution.layenbrank.workers.dev/1.3.0/i-thinking_1.3.0_x64-setup.exe
 ```
 
 ### 备用（R2 公共开发域名）
@@ -55,10 +55,10 @@ NSIS ExitCode 对照：`0` 成功 · `1` 用户取消 · `2` 脚本 Abort（勿�
 |----|-----|
 | R2 桶 | `i-thinking` |
 | 对象键 | `1.3.0/i-thinking_1.3.0_x64-setup.exe` |
-| Worker 代码 | [`scripts/infra/worker`](../../../scripts/infra/worker)（非 workspace；根 CLI `pnpm command worker`） |
+| Worker 代码 | [`apps/distribution`](../../../apps/distribution)（workspace 包 `@i-thinking/distribution`；统一入口 `pnpm command distribution`） |
 | workers.dev 子域 | `layenbrank` |
 | 上传 | Worker multipart，或 rclone S3（见 Worker README） |
-| 部署 | 仓库根：`pnpm command worker deploy` |
+| 部署 | 仓库根：`pnpm command distribution deploy` |
 
 ---
 
@@ -68,5 +68,8 @@ NSIS ExitCode 对照：`0` 成功 · `1` 用户取消 · `2` 脚本 Abort（勿�
 2. `?meta=1` 返回的 `size` 与本地文件一致。
 3. 提交后 **不要覆盖** 该 URL 上的文件；新版本使用新路径（如 `/1.3.1/...`）。
 4. 仍须可信 CA **代码签名**（与托管方式无关）。
+5. **改名迁移**：本节 URL 已按新工作名 `i-thinking-distribution` 更新（Cloudflare 侧旧名
+   `i-thinking-downloads` 在删除旧 Worker 前仍可访问）。顺序：`pnpm command distribution deploy`
+   → 更新 Partner Center 的包 URL → 删除旧 Worker。
 5. GET/HEAD 公开；写操作需 `X-Custom-Auth-Key`。
 6. 部分网络（如国内）可能无法访问 `*.workers.dev`；Microsoft Store 服务器拉取通常不受影响。备用链可用 `*.r2.dev`。

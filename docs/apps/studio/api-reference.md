@@ -128,7 +128,9 @@ Preload 的 `invoke` 失败时抛 `IpcClientError`，**code 已编进 message �
 `ToolStatus`：`{ key, label, summary, version, state, bytes, path }`；
 `state`：`installed`（已下载）| `bundled`（随包内置）| `missing`（未装）| `unsupported`（当前平台无钉死版本）。
 
-下载地址与哈希都写在 `apps/studio/sidecar/manifest.json`（宿主构建期内联，`tools/catalog.ts` 只做类型与取值）：
+下载地址与哈希都写在 `apps/studio/sidecar/manifest.json`（宿主构建期内联，`tools/catalog.ts` 只做取值）：
+每个工具的在线包按平台记在 `platforms` 下，形状（`schemaVersion` / `platforms` / 直链 + `sha256`）由契约包
+[`@i-thinking/sidecar`](../../../packages/sidecar/README.md) 定义 —— CLI、宿主、forge 读的是同一份。
 在线源是自建的 Cloudflare R2，**一个工具一个 bucket**，所以按「工具 × 平台」记整条直链，不拼公共前缀。
 归档是**重打包**的（可执行文件平铺在包根），因此哈希与 `tools.lock.json` 里那份 release 归档不同 ——
 那份是完整版落盘用的。下载后按 manifest 里的 sha256 校验。

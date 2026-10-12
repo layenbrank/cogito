@@ -47,8 +47,8 @@ pnpm install
 `apps/studio/scripts/run-forge.ts` 把档位以 `STUDIO_SIDECAR_VARIANT` 传给 forge（Windows 的
 cmd/pwsh 没有 `VAR=值 命令` 这种写法，故用一个极小的 runner，不引 cross-env）。
 
-**档位只在这一个地方决定** —— 落盘那一步不管档位（`bootstrap` 一律全量落盘，只把按需工具的名字
-写进 staging 的 `checksums.json.onDemand`），所以切档不用重跑 bootstrap。
+**档位只在这一个地方决定** —— 落盘那一步不管档位（`bootstrap` 一律全量落盘，落在 staging 的
+`checksums.json` 里逐文件标 `onDemand`），所以切档不用重跑 bootstrap。
 
 | 档位 | 侧车 | 安装包 |
 | ---- | ---- | ------ |
@@ -56,6 +56,9 @@ cmd/pwsh 没有 `VAR=值 命令` 这种写法，故用一个极小的 runner，�
 | `full` | 全部内置，离线可用 | 大 |
 
 - 哪些工具算「按需」由 `tools.lock.json` 的 `onDemand` 决定；打包时按档过滤（完整版反而要求它们都在）。
+- **形状只有一份**：`tools.lock.json` / `sidecar/manifest.json` / staging `checksums.json` 三份 JSON
+  的字段（`schemaVersion` / `platforms` / `sha256` / `onDemand`）与解析器都在
+  [`@i-thinking/sidecar`](../../../packages/sidecar/README.md)，CLI、宿主、forge 共用。
 - **在线源**：`apps/studio/sidecar/manifest.json`（宿主构建期内联，CLI 也能读它核对）。
   归档是重打包的（可执行文件平铺），地址 + sha256 都在这份 JSON 里；取用顺序 **已下载 → 随包内置**，
   落点 `<userData>/sidecar/<tool>/<版本>/`，入口在「设置 → 工具」。

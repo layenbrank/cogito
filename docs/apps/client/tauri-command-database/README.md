@@ -26,4 +26,6 @@
 
 ## 冷启动注意
 
-Schema 已合并为**仅** `migrations_v001`，与旧库不兼容。开发机需删除本地 `i-thinking.db` 后冷启动（通常在 `%APPDATA%` 下应用数据目录）。详见 [01](./01-changelog-schema-unify.md)。
+Schema 已合并为**仅** `migrations_v001`，与旧库不兼容。开发机需删除本地 `i-thinking.db` 后冷启动；库文件在 Tauri `app_local_data_dir()` 下，Windows 为 `%LOCALAPPDATA%\com.i-thinking.corex\i-thinking.db`（studio 共用同一文件）。详见 [01](./01-changelog-schema-unify.md)。
+
+命令行等价操作（`status` / `up` / `down` / `fresh`）与两处易错点（`-d` 的位置、必须绝对路径）见 [03-database.md](./03-database.md#cli-操作)。

@@ -6,7 +6,78 @@ Crate：`thinking-database`（`apps/client/src-tauri/crates/database`）。
 
 - **仅注册** [`migrations_v001`](../../../../apps/client/src-tauri/crates/database/src/migrations/migrations_v001.rs)
 - 迁移记录表名：`migrations`（非默认 `seaql_migrations`）
-- API：`migration::run` / `rollback` / `check`
+- API：`migration::run` / `rollback` / `check`；App 启动时 [`bootstrap.rs`](../../../../apps/client/src-tauri/src/app/bootstrap.rs) 调 `run`，失败即 `expect` panic
+- CLI 入口：[`src/bin/migrate.rs`](../../../../apps/client/src-tauri/crates/database/src/bin/migrate.rs)（`sea-orm-migration::cli::run_cli(AppMigrator)`）
+
+### CLI 操作
+
+`-d` 是 **`migrate` 子命令自己的选项**，必须写在 `migrate` **之后**；写成 `sea-orm-cli -d … migrate …` 会被 clap 拒绝（`unexpected argument '-d' found`）。它的用途是让 CLI 定位 `Cargo.toml` 去 `cargo run`，因此传 **crate 根目录**即可，且路径一律用**绝对路径**（相对路径按当前 shell 目录解析，容易拼错）。
+
+```powershell
+$dir = "C:\...\apps\client\src-tauri\crates\database"
+$db = "$env:LOCALAPPDATA\com.i-thinking.corex\i-thinking.db" -replace '\\', '/'
+$url = "sqlite:${db}?mode=rwc" # 必须用 ${db}，写成 "$db?mode=…" 会被 PowerShell 解析坏
+
+sea-orm-cli migrate status -d $dir -u $url # 各迁移 Applied / Pending
+sea-orm-cli migrate up -d $dir -u $url # 应用未执行的迁移（已应用则 no-op）
+sea-orm-cli migrate down -d $dir -u $url # 回滚 1 步（-n N 回滚 N 步）
+sea-orm-cli migrate fresh -d $dir -u $url # 清空全部表后重跑 v001
+```
+
+> `-u $url` 用变量传参即可兼容含空格路径，无需再加引号。
+
+| 子命令              | 作用                      | 破坏性                    |
+| ------------------- | ------------------------- | ------------------------- |
+| `status`            | 打印各迁移的 Applied 状态 | 无                        |
+| `up` / `down -n N`  | 应用 / 回滚迁移           | `down` 执行 `down()`，会删表 |
+| `reset` / `refresh` | 全部回滚 / 回滚后重跑     | 是                        |
+| `fresh`             | 清空全部表后重跑 v001     | 是（等价删库冷启动）      |
+
+- `-u` ↔ `DATABASE_URL`，`-d` ↔ `MIGRATION_DIR`，`-s` ↔ `DATABASE_SCHEMA`（SQLite 忽略）
+- CLI 实际执行 `cargo run --manifest-path <dir>/Cargo.toml -- <子命令>`，首次会先编译 `thinking-database`
+- 只验证迁移本身：`cargo test -p thinking-database`
+- 报 `Migration file of version '…' is missing` 说明库里留存了**已从代码删除**的迁移记录（典型是 v002 / v003）：`up`、`status` 与 App 启动都会失败。重置用 `fresh`，只想保数据可手工删掉 `migrations` 表里那一行。
+- 裸跑（不带 `-d` / `-u`）的做法、以及 `init` / `generate` 要求的目录结构，见下方 [CLI 对结构的要求](#cli-对结构的要求)
+
+### CLI 对结构的要求
+
+`status` / `up` / `down` / `reset` / `refresh` / `fresh` **不依赖目录结构**：CLI 只做 `cargo run --manifest-path <MIGRATION_DIR>/Cargo.toml -- <子命令>`，`-d` 默认 `./migration`。所以只需满足三点：
+
+| 要求                                                               | 本仓库                                                     |
+| ------------------------------------------------------------------ | ---------------------------------------------------------- |
+| `-d` / `MIGRATION_DIR` 指向**含 `Cargo.toml` 的目录**               | `crates/database` ✅                                        |
+| 该包能跑出一个把 Migrator 交给 `sea_orm_migration::cli::run_cli` 的 bin | [`src/bin/migrate.rs`](../../../../apps/client/src-tauri/crates/database/src/bin/migrate.rs) ✅ |
+| 连接串来自 `-u` 或 `DATABASE_URL`                                   | 按需 ✅                                                     |
+
+不想每次敲参数就设环境变量（实测可用；`MIGRATION_DIR` / `DATABASE_URL` 与 `-d` / `-u` 等价）：
+
+```powershell
+$env:MIGRATION_DIR = "C:\...\apps\client\src-tauri\crates\database"
+$env:DATABASE_URL = "sqlite:C:/Users/.../i-thinking.db?mode=rwc"
+sea-orm-cli migrate fresh # 裸跑
+```
+
+> `.env` 文件**不生效**（1.1.19 实测未加载 dotenv），要用环境变量或显式 `-d` / `-u`。
+
+`init`（生成标准布局）/ `generate`（依赖标准布局）才和结构有关：
+
+```text
+migration/                              # -d 默认 ./migration
+├── Cargo.toml                          # [lib] path = src/lib.rs；默认 bin = src/main.rs
+└── src/
+    ├── lib.rs                          # prelude::* + mod m20220101_000001_create_table; + Migrator + vec![Box::new(…::Migration)]
+    ├── main.rs                         # cli::run_cli(migration::Migrator)
+    └── m20220101_000001_create_table.rs
+```
+
+`generate` 的落点规则：迁移根取 `-d` 目录下的 `src/`（存在时），注册文件取该根下的 `lib.rs`（优先存在），否则 `mod.rs`；它靠正则插入 `mod m…;`、并替换该文件里**第一个** `vec![…]` 字面量，文件名固定为 `m<YYYYMMDD>_<HHMMSS>_<名字>`（名字不许含 `-`）。
+
+**本仓库不满足该布局**：注册表在 [`src/migration.rs`](../../../../apps/client/src-tauri/crates/database/src/migration.rs)（`AppMigrator`）、迁移在 `src/migrations/`、[`src/lib.rs`](../../../../apps/client/src-tauri/crates/database/src/lib.rs) 是库根，且模块名 `migrations_v001` 不匹配 `m\d{8}_\d{6}_\w+` —— 跑 `generate` 会把文件写到错误位置、并漏改或改坏注册文件。**新增迁移请照 v001 手写**，再在 `AppMigrator::migrations()` 注册。
+
+### 库文件位置
+
+- Windows：`%LOCALAPPDATA%\com.i-thinking.corex\i-thinking.db`（Tauri `app_local_data_dir()/i-thinking.db`，见 [`storage.rs`](../../../../apps/client/src-tauri/crates/database/src/storage.rs)）
+- **client 与 studio 共用同一文件**（studio 侧见 [`database.ts`](../../../../apps/studio/src/host/capabilities/database.ts)）：`fresh` 会连 studio 的 `auth` / `chat*` / `workspace*` / `__drizzle_migrations` 一起删；studio 下次启动会重跑自己的迁移（全部 `IF NOT EXISTS` / 条件 `UPDATE`，可安全重跑）。
 
 ### v001 表清单
 
