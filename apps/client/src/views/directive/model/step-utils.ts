@@ -19,7 +19,7 @@ function nextToken(): string {
   return crypto.randomUUID()
 }
 
-function mapStepList(steps: Step[], map: (step: Step) => Step): Step[] {
+function mapSteps(steps: Step[], map: (step: Step) => Step): Step[] {
   let changed = false
   const next = steps.map(function (step) {
     const mapped = map(step)
@@ -50,7 +50,7 @@ function assignTokens(step: Step, keep: boolean): Step {
   const token = keep && step.token ? step.token : nextToken()
   const stamped = step.token === token ? step : { ...step, token }
   return mapChildren(stamped, function (steps) {
-    return mapStepList(steps, function (child) {
+    return mapSteps(steps, function (child) {
       return assignTokens(child, keep)
     })
   })
@@ -58,7 +58,7 @@ function assignTokens(step: Step, keep: boolean): Step {
 
 /** 读盘 / 已有草稿：缺 token 才补，已有的保持不变 */
 function stampSteps(steps: Step[]): Step[] {
-  return mapStepList(steps, function (step) {
+  return mapSteps(steps, function (step) {
     return assignTokens(step, true)
   })
 }
@@ -77,7 +77,7 @@ function sanitizeSteps(steps: Step[]): Step[] {
 }
 
 function replaceStep(steps: Step[], token: string, next: Step): Step[] {
-  return mapStepList(steps, function (step) {
+  return mapSteps(steps, function (step) {
     if (step.token === token) return next
     return mapChildren(step, function (children) {
       return replaceStep(children, token, next)
@@ -90,7 +90,7 @@ function removeStep(steps: Step[], token: string): Step[] {
     return step.token !== token
   })
   if (filtered.length !== steps.length) return filtered
-  return mapStepList(steps, function (step) {
+  return mapSteps(steps, function (step) {
     return mapChildren(step, function (children) {
       return removeStep(children, token)
     })
@@ -106,7 +106,7 @@ function duplicateStep(steps: Step[], token: string): Step[] {
     next.splice(index + 1, 0, cloneStep(steps[index]))
     return next
   }
-  return mapStepList(steps, function (step) {
+  return mapSteps(steps, function (step) {
     return mapChildren(step, function (children) {
       return duplicateStep(children, token)
     })
@@ -122,7 +122,7 @@ function moveByToken(steps: Step[], token: string, delta: number): Step[] {
     if (to < 0 || to >= steps.length) return steps
     return moveStep(steps, index, to)
   }
-  return mapStepList(steps, function (step) {
+  return mapSteps(steps, function (step) {
     return mapChildren(step, function (children) {
       return moveByToken(children, token, delta)
     })
@@ -248,9 +248,7 @@ function mergeToken(prior: Step | undefined, incoming: Step): Step {
     return {
       ...next,
       then: mergeTokens(prior.then, incoming.then),
-      ...(incoming.else !== undefined
-        ? { else: mergeTokens(prior.else ?? [], incoming.else) }
-        : {})
+      ...(incoming.else !== undefined ? { else: mergeTokens(prior.else ?? [], incoming.else) } : {})
     }
   }
   if ('parallel' in incoming && 'parallel' in prior) {

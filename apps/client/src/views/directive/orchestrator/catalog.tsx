@@ -5,11 +5,11 @@ import { useMemo, useState } from 'react'
 
 import { useCorexStore } from '@/stores/corex.ts'
 
-interface OrchestratorCatalogProps {
+interface CatalogProps {
   onInsertAction: (actionId: string) => void
 }
 
-function OrchestratorCatalog(props: OrchestratorCatalogProps) {
+function Catalog(props: CatalogProps) {
   const catalog = useCorexStore(function (state) {
     return state.catalog
   })
@@ -17,13 +17,13 @@ function OrchestratorCatalog(props: OrchestratorCatalogProps) {
 
   const filtered = useMemo(
     function () {
-      const q = query.trim().toLowerCase()
-      if (!q) return catalog
+      const keyword = query.trim().toLowerCase()
+      if (!keyword) return catalog
       return catalog.filter(function (entry) {
         return (
-          entry.id.toLowerCase().includes(q) ||
-          entry.name.toLowerCase().includes(q) ||
-          entry.description.toLowerCase().includes(q)
+          entry.id.toLowerCase().includes(keyword) ||
+          entry.name.toLowerCase().includes(keyword) ||
+          entry.description.toLowerCase().includes(keyword)
         )
       })
     },
@@ -81,4 +81,4 @@ function OrchestratorCatalog(props: OrchestratorCatalogProps) {
   )
 }
 
-export { OrchestratorCatalog }
+export { Catalog }

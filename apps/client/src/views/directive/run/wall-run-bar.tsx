@@ -1,7 +1,6 @@
 import type { JobKind } from '@/shared/ipc/specs/sidecar'
 
 import type { Caps } from './run-caps'
-import { haltBubble } from './halt-bubble.ts'
 import { ActionIcon, StopGuardDialog } from './run-menu-parts.tsx'
 import { useWallRunCaps } from './use-wall-run-caps.ts'
 import { WallRunGuardIcon } from './wall-run-guard-icon.tsx'
@@ -31,7 +30,9 @@ function WallRunBar(props: WallRunBarProps) {
   return (
     <div
       className="relative z-10 flex shrink-0 items-center gap-1"
-      onPointerDown={haltBubble}>
+      onPointerDown={function (event) {
+        event.stopPropagation()
+      }}>
       <ActionIcon
         icon="mdi:play"
         label={`运行 ${props.name}`}

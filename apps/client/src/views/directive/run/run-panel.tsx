@@ -7,7 +7,7 @@ import { useRunFrames } from '@/stores/run-logs.ts'
 import type { DirectiveInput } from '@/shared/ipc/specs/sidecar'
 
 import { capsFromTriggers } from './run-caps'
-import { buildInputPayload, parseJsonObject, seedInputValues } from './run-input-utils.ts'
+import { buildInputPayload, parseJsonObject, seedInputValues } from './run-input.ts'
 import { formatRunLogText } from './run-log-text.ts'
 import { RunPanelHistoryTab } from './run-panel-history-tab.tsx'
 import { RunPanelRunTab } from './run-panel-run-tab.tsx'
@@ -121,8 +121,23 @@ interface RunPanelViewProps {
 }
 
 function RunPanelView(props: RunPanelViewProps) {
-  const { directiveName, declaredInputs, catalog, draft, editorName, directives, runs, focusRunId, runHistory, startRun, startTrial, cancelRun, fetchRunHistory, saveDraft, isDraftDirty } =
-    props
+  const {
+    directiveName,
+    declaredInputs,
+    catalog,
+    draft,
+    editorName,
+    directives,
+    runs,
+    focusRunId,
+    runHistory,
+    startRun,
+    startTrial,
+    cancelRun,
+    fetchRunHistory,
+    saveDraft,
+    isDraftDirty
+  } = props
 
   const [tab, setTab] = useState('run')
   const hasInputsOnMount = declaredInputs.length > 0

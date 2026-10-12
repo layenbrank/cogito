@@ -16,10 +16,7 @@ function findStopHint(isStopping: boolean, isRunning: boolean, idleHint: string)
   return idleHint
 }
 
-function findAliveMenuCopy(
-  kind: JobKind,
-  guard: GuardRun
-): GuardCopy {
+function findAliveMenuCopy(kind: JobKind, guard: GuardRun): GuardCopy {
   const isCron = kind === 'cron'
   const stopping = isCron ? guard.isCronStopping : guard.isWatchStopping
   const running = isCron ? guard.isCronRunning : guard.isWatchRunning
@@ -27,11 +24,7 @@ function findAliveMenuCopy(
   return {
     icon: stopping ? 'mdi:timer-sand' : 'mdi:stop',
     label: stopping ? `正在停止 ${name}` : `停止 ${name}`,
-    hint: findStopHint(
-      stopping,
-      running,
-      isCron ? '结束定时守护' : '结束文件监听'
-    )
+    hint: findStopHint(stopping, running, isCron ? '结束定时守护' : '结束文件监听')
   }
 }
 
@@ -76,10 +69,4 @@ function findGuardBarHint(kind: JobKind, guard: GuardRun): string {
   return kind === 'cron' ? '定时触发' : '文件变更触发'
 }
 
-export {
-  findAliveMenuCopy,
-  findIdleMenuCopy,
-  findGuardIcon,
-  findGuardBarLabel,
-  findGuardBarHint
-}
+export { findAliveMenuCopy, findIdleMenuCopy, findGuardIcon, findGuardBarLabel, findGuardBarHint }

@@ -115,7 +115,10 @@ describe('buildControlStep', function () {
 describe('switchStepKind', function () {
   it('keeps the id, token, and carries the child steps over', function () {
     const steps = [actionStep('one', 't1'), actionStep('two', 't2')]
-    const next = switchStepKind({ id: 'keep-me', token: 'keep-token', if: '', then: steps }, 'steps')
+    const next = switchStepKind(
+      { id: 'keep-me', token: 'keep-token', if: '', then: steps },
+      'steps'
+    )
 
     expect(next).toEqual({ id: 'keep-me', token: 'keep-token', steps })
     expect(switchStepKind({ id: 'p', token: 'pt', parallel: steps }, 'repeat')).toEqual({
@@ -144,10 +147,7 @@ describe('switchStepKind', function () {
     const thenSteps = [actionStep('a', 'ta')]
     const elseSteps = [actionStep('b', 'tb')]
     expect(
-      switchStepKind(
-        { id: 'i', token: 'it', if: '', then: thenSteps, else: elseSteps },
-        'steps'
-      )
+      switchStepKind({ id: 'i', token: 'it', if: '', then: thenSteps, else: elseSteps }, 'steps')
     ).toEqual({
       id: 'i',
       token: 'it',

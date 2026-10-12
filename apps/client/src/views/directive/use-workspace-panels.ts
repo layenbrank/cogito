@@ -53,14 +53,11 @@ function useWorkspacePanels() {
     [isRunOpen, runRef]
   )
 
-  useEffect(
-    function () {
-      return function () {
-        if (animationTimer.current) clearTimeout(animationTimer.current)
-      }
-    },
-    []
-  )
+  useEffect(function () {
+    return function () {
+      if (animationTimer.current) clearTimeout(animationTimer.current)
+    }
+  }, [])
 
   return {
     catalogRef,

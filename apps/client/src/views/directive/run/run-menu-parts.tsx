@@ -8,9 +8,7 @@ import {
   AlertDialogTitle
 } from '@i-thinking/design/components/alert-dialog'
 import { Button } from '@i-thinking/design/components/button'
-import {
-  DropdownMenuItem
-} from '@i-thinking/design/components/dropdown-menu'
+import { DropdownMenuItem } from '@i-thinking/design/components/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'

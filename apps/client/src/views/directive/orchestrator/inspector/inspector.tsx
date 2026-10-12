@@ -7,16 +7,16 @@ import { replaceStep } from '@/views/directive/model/step-utils.ts'
 import type { DirectiveContent, Step } from '@/views/directive/model/types.ts'
 
 import { findStepByToken } from '@/views/directive/orchestrator/inspector/find-step-by-token.ts'
-import { InspectorDirectivePanel } from '@/views/directive/orchestrator/inspector/inspector-directive-panel.tsx'
-import { InspectorStepPanel } from '@/views/directive/orchestrator/inspector/inspector-step-panel.tsx'
+import { DirectivePanel } from '@/views/directive/orchestrator/inspector/directive-panel.tsx'
+import { StepPanel } from '@/views/directive/orchestrator/inspector/step-panel.tsx'
 
-interface OrchestratorInspectorProps {
+interface InspectorProps {
   draft: DirectiveContent
   selectedToken: string | null
   onChange: (next: DirectiveContent) => void
 }
 
-function OrchestratorInspector(props: OrchestratorInspectorProps) {
+function Inspector(props: InspectorProps) {
   const catalog = useCorexStore(function (state) {
     return state.catalog
   })
@@ -34,14 +34,14 @@ function OrchestratorInspector(props: OrchestratorInspectorProps) {
   }
 
   const directivePanel = (
-    <InspectorDirectivePanel
+    <DirectivePanel
       draft={props.draft}
       onPatch={patchDraft}
     />
   )
 
   const stepPanel = (
-    <InspectorStepPanel
+    <StepPanel
       step={step}
       selectedToken={props.selectedToken}
       catalog={catalog}
@@ -101,4 +101,4 @@ function InspectorTabShell(props: InspectorTabShellProps) {
   )
 }
 
-export { OrchestratorInspector }
+export { Inspector }

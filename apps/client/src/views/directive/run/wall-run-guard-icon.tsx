@@ -1,10 +1,6 @@
 import type { JobKind } from '@/shared/ipc/specs/sidecar'
 
-import {
-  findGuardBarHint,
-  findGuardBarLabel,
-  findGuardIcon
-} from './guard-action-copy.ts'
+import { findGuardBarHint, findGuardBarLabel, findGuardIcon } from './guard-action-copy.ts'
 import { ActionIcon } from './run-menu-parts.tsx'
 import type { useGuardRun } from './use-guard-run'
 

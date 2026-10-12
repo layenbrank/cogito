@@ -16,7 +16,7 @@ interface ConditionNodeLogicProps {
 }
 
 function ConditionNodeLogic(props: ConditionNodeLogicProps) {
-  const list = (props.kind === 'and' ? props.condition.and : props.condition.or) ?? []
+  const children = (props.kind === 'and' ? props.condition.and : props.condition.or) ?? []
 
   function onKindChange(next: ConditionKind) {
     if (next === props.kind) return
@@ -39,7 +39,7 @@ function ConditionNodeLogic(props: ConditionNodeLogicProps) {
           variant="ghost"
           className="ml-auto h-7 px-2"
           onClick={function () {
-            props.onChange({ ...props.condition, [props.kind]: [...list, ''] })
+            props.onChange({ ...props.condition, [props.kind]: [...children, ''] })
           }}>
           <Icon
             icon="lucide:plus"
@@ -48,10 +48,10 @@ function ConditionNodeLogic(props: ConditionNodeLogicProps) {
           添加
         </Button>
       </div>
-      {list.length === 0 ? (
+      {children.length === 0 ? (
         <p className="text-xs text-muted-foreground">还没有子条件</p>
       ) : (
-        list.map(function (child, index) {
+        children.map(function (child, index) {
           return (
             <div
               key={conditionChildKey(props.kind, child)}
@@ -60,9 +60,9 @@ function ConditionNodeLogic(props: ConditionNodeLogicProps) {
                 <ConditionNode
                   condition={child}
                   onChange={function (next) {
-                    const nextList = [...list]
-                    nextList[index] = next
-                    props.onChange({ ...props.condition, [props.kind]: nextList })
+                    const nextChildren = [...children]
+                    nextChildren[index] = next
+                    props.onChange({ ...props.condition, [props.kind]: nextChildren })
                   }}
                 />
               </div>
@@ -75,7 +75,7 @@ function ConditionNodeLogic(props: ConditionNodeLogicProps) {
                 onClick={function () {
                   props.onChange({
                     ...props.condition,
-                    [props.kind]: list.filter(function (_, i) {
+                    [props.kind]: children.filter(function (_, i) {
                       return i !== index
                     })
                   })

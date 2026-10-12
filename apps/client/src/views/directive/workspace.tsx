@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useBlocker, useNavigate, useParams } from 'react-router-dom'
 
 import { useCorexStore } from '@/stores/corex.ts'
-import { OrchestratorToolbar } from '@/views/directive/orchestrator/toolbar.tsx'
+import { Toolbar } from '@/views/directive/orchestrator/toolbar.tsx'
 import { capsFromTriggers } from '@/views/directive/run/run-caps.ts'
 import { useWorkspaceDirective } from '@/views/directive/use-workspace-directive.ts'
 import { useWorkspacePanels } from '@/views/directive/use-workspace-panels.ts'
@@ -61,7 +61,7 @@ function DirectiveWorkspace() {
     name,
     isPending,
     isDirty,
-    onOpenRunPanel: function () {
+    onOpenRunPanel() {
       panels.setRunOpen(true)
     }
   })
@@ -88,7 +88,7 @@ function DirectiveWorkspace() {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <OrchestratorToolbar
+      <Toolbar
         name={workspace.draft?.name ?? name}
         description={workspace.draft?.description ?? entry?.summary?.description}
         bucket={workspace.draft?.bucket ?? entry?.bucket}

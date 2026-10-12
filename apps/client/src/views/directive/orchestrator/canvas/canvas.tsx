@@ -23,7 +23,7 @@ import type { ControlKind } from '@/views/directive/model/step-utils.ts'
 
 import { StepNode } from '@/views/directive/orchestrator/canvas/step-node.tsx'
 
-interface OrchestratorCanvasProps {
+interface CanvasProps {
   draft: DirectiveContent
   selectedToken: string | null
   onSelectToken: (token: string | null) => void
@@ -35,7 +35,7 @@ function buildActionStep(actionId: string, siblings: Step[]): Step {
   return { id, token: nextToken(), action: actionId, params: {} }
 }
 
-function OrchestratorCanvas(props: OrchestratorCanvasProps) {
+function Canvas(props: CanvasProps) {
   function patchSteps(steps: Step[]) {
     props.onChange({ ...props.draft, steps })
   }
@@ -54,11 +54,11 @@ function OrchestratorCanvas(props: OrchestratorCanvasProps) {
     props.onSelectToken(step.token ?? null)
   }
 
-  function childListsOf(step: Step): { label: string; steps: Step[] }[] {
+  function findChildBranches(step: Step): { label: string; steps: Step[] }[] {
     if ('if' in step) {
-      const lists = [{ label: 'then', steps: step.then }]
-      if (step.else && step.else.length > 0) lists.push({ label: 'else', steps: step.else })
-      return lists
+      const branches = [{ label: 'then', steps: step.then }]
+      if (step.else && step.else.length > 0) branches.push({ label: 'else', steps: step.else })
+      return branches
     }
     if ('parallel' in step) return [{ label: 'parallel', steps: step.parallel }]
     if ('repeat' in step) return [{ label: 'steps', steps: step.steps }]
@@ -70,7 +70,7 @@ function OrchestratorCanvas(props: OrchestratorCanvasProps) {
     return steps.map(function (step, index) {
       const stepKind = 'action' in step ? step.action : 'control'
       const token = step.token ?? step.id ?? `step-${depth}-${stepKind}`
-      const childLists = childListsOf(step)
+      const childBranches = findChildBranches(step)
 
       return (
         <StepNode
@@ -95,13 +95,15 @@ function OrchestratorCanvas(props: OrchestratorCanvasProps) {
             patchSteps(removeStep(props.draft.steps, token))
             if (props.selectedToken === token) props.onSelectToken(null)
           }}>
-          {childLists.map(function (child) {
+          {childBranches.map(function (child) {
             if (child.steps.length === 0) return null
             return (
               <div
-                key={`${token}-${child.label}-${child.steps.map(function (s) {
-                  return s.token ?? s.id
-                }).join('-')}`}
+                key={`${token}-${child.label}-${child.steps
+                  .map(function (step) {
+                    return step.token ?? step.id
+                  })
+                  .join('-')}`}
                 className="space-y-3 border-l border-dashed border-border pl-3">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   {child.label}
@@ -185,4 +187,4 @@ function OrchestratorCanvas(props: OrchestratorCanvasProps) {
   )
 }
 
-export { OrchestratorCanvas }
+export { Canvas }

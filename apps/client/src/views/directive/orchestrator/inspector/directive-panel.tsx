@@ -14,16 +14,14 @@ import { Textarea } from '@i-thinking/design/components/textarea'
 import { BUCKETS, isValidDirectiveName } from '@/shared/ipc/specs/sidecar'
 import type { DirectiveContent } from '@/views/directive/model/types.ts'
 
-interface InspectorDirectivePanelProps {
+interface DirectivePanelProps {
   draft: DirectiveContent
   onPatch: (patch: Partial<DirectiveContent>) => void
 }
 
-function InspectorDirectivePanel(props: InspectorDirectivePanelProps) {
+function DirectivePanel(props: DirectivePanelProps) {
   const nameError =
-    props.draft.name && !isValidDirectiveName(props.draft.name)
-      ? '名称不能含路径分隔符或 ..'
-      : null
+    props.draft.name && !isValidDirectiveName(props.draft.name) ? '名称不能含路径分隔符或 ..' : null
 
   return (
     <div className="space-y-3">
@@ -104,28 +102,28 @@ function InspectorDirectivePanel(props: InspectorDirectivePanelProps) {
       </Select>
       <Separator />
       <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">权限</h3>
-      {(['shell', 'filesystem', 'network', 'ui', 'capture', 'clipboard'] as const).map(function (
-        key
-      ) {
-        const checked = props.draft.permissions?.[key] ?? false
-        return (
-          <label
-            key={key}
-            className="flex items-center justify-between gap-2">
-            <span>{key}</span>
-            <Switch
-              checked={checked}
-              onCheckedChange={function (next) {
-                props.onPatch({
-                  permissions: { ...props.draft.permissions, [key]: next === true }
-                })
-              }}
-            />
-          </label>
-        )
-      })}
+      {(['shell', 'filesystem', 'network', 'ui', 'capture', 'clipboard'] as const).map(
+        function (key) {
+          const checked = props.draft.permissions?.[key] ?? false
+          return (
+            <label
+              key={key}
+              className="flex items-center justify-between gap-2">
+              <span>{key}</span>
+              <Switch
+                checked={checked}
+                onCheckedChange={function (next) {
+                  props.onPatch({
+                    permissions: { ...props.draft.permissions, [key]: next === true }
+                  })
+                }}
+              />
+            </label>
+          )
+        }
+      )}
     </div>
   )
 }
 
-export { InspectorDirectivePanel }
+export { DirectivePanel }

@@ -28,8 +28,7 @@ interface StepParamsJsonEditorProps {
 }
 
 function StepParamsJsonEditor(props: StepParamsJsonEditorProps) {
-  const seed =
-    'action' in props.step ? JSON.stringify(props.step.params ?? {}, null, 2) : '{}'
+  const seed = 'action' in props.step ? JSON.stringify(props.step.params ?? {}, null, 2) : '{}'
   const [paramsText, setParamsText] = useState(seed)
   const [paramsError, setParamsError] = useState<string | null>(null)
 
@@ -83,14 +82,14 @@ function createDefaultParams(
   return next
 }
 
-interface InspectorStepPanelProps {
+interface StepPanelProps {
   step: Step | null
   selectedToken: string | null
   catalog: ActionEntry[]
   onPatchStep: (next: Step) => void
 }
 
-function InspectorStepPanel(props: InspectorStepPanelProps) {
+function StepPanel(props: StepPanelProps) {
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
   const step = props.step
 
@@ -211,8 +210,8 @@ function InspectorStepPanel(props: InspectorStepPanelProps) {
             min={0}
             value={step.retry ?? ''}
             onChange={function (event) {
-              const n = event.target.value === '' ? undefined : Number(event.target.value)
-              patchStep({ ...step, retry: n })
+              const retry = event.target.value === '' ? undefined : Number(event.target.value)
+              patchStep({ ...step, retry })
             }}
           />
           <ConditionField
@@ -283,4 +282,4 @@ function InspectorStepPanel(props: InspectorStepPanelProps) {
   )
 }
 
-export { InspectorStepPanel }
+export { StepPanel }

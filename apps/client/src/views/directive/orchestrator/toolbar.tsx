@@ -14,10 +14,13 @@ import { editDirectiveExternal, fetchDirective } from '@/lib/directive-ipc.ts'
 import type { Caps } from '@/views/directive/run/run-caps'
 import { RunMenu } from '@/views/directive/run/run-menu'
 import { PanelToggle } from '@/views/directive/orchestrator/toolbar-panel-toggle.tsx'
-import { ToolbarDeleteDialog, ToolbarYamlDialog } from '@/views/directive/orchestrator/toolbar-dialogs.tsx'
+import {
+  ToolbarDeleteDialog,
+  ToolbarYamlDialog
+} from '@/views/directive/orchestrator/toolbar-dialogs.tsx'
 import { ToolbarTitle } from '@/views/directive/orchestrator/toolbar-title.tsx'
 
-interface OrchestratorToolbarProps {
+interface ToolbarProps {
   name: string
   description?: string
   bucket?: string | null
@@ -47,7 +50,7 @@ interface OrchestratorToolbarProps {
   onDelete: () => Promise<void>
 }
 
-function OrchestratorToolbar(props: OrchestratorToolbarProps) {
+function Toolbar(props: ToolbarProps) {
   const [isYamlOpen, setYamlOpen] = useState(false)
   const [yamlText, setYamlText] = useState('')
   const [isYamlLoading, setYamlLoading] = useState(false)
@@ -278,4 +281,4 @@ function OrchestratorToolbar(props: OrchestratorToolbarProps) {
   )
 }
 
-export { OrchestratorToolbar }
+export { Toolbar }

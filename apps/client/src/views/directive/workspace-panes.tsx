@@ -9,9 +9,9 @@ import { cn } from 'cn'
 import type { RefObject } from 'react'
 
 import type { DirectiveContent } from '@/views/directive/model/types.ts'
-import { OrchestratorCanvas } from '@/views/directive/orchestrator/canvas/canvas.tsx'
-import { OrchestratorCatalog } from '@/views/directive/orchestrator/catalog.tsx'
-import { OrchestratorInspector } from '@/views/directive/orchestrator/inspector/inspector.tsx'
+import { Canvas } from '@/views/directive/orchestrator/canvas/canvas.tsx'
+import { Catalog } from '@/views/directive/orchestrator/catalog.tsx'
+import { Inspector } from '@/views/directive/orchestrator/inspector/inspector.tsx'
 import { RunPanel } from '@/views/directive/run/run-panel.tsx'
 
 import styles from '@/views/directive/workspace.module.scss'
@@ -65,11 +65,8 @@ function WorkspacePanes(props: WorkspacePanesProps) {
             }}
             className="min-h-0 min-w-0 overflow-hidden">
             <div
-              className={cn(
-                styles.panelBody,
-                !props.isCatalogOpen && styles.panelBodyCollapsed
-              )}>
-              <OrchestratorCatalog onInsertAction={props.onInsertAction} />
+              className={cn(styles.panelBody, !props.isCatalogOpen && styles.panelBodyCollapsed)}>
+              <Catalog onInsertAction={props.onInsertAction} />
             </div>
           </ResizablePanel>
           <ResizableHandle withHandle />
@@ -83,7 +80,7 @@ function WorkspacePanes(props: WorkspacePanesProps) {
                 <Spinner className="size-6 text-muted-foreground" />
               </div>
             ) : (
-              <OrchestratorCanvas
+              <Canvas
                 draft={props.draft}
                 selectedToken={props.selectedToken}
                 onSelectToken={props.onSelectToken}
@@ -106,12 +103,9 @@ function WorkspacePanes(props: WorkspacePanesProps) {
             }}
             className="min-h-0 min-w-0 overflow-hidden">
             <div
-              className={cn(
-                styles.panelBody,
-                !props.isInspectorOpen && styles.panelBodyCollapsed
-              )}>
+              className={cn(styles.panelBody, !props.isInspectorOpen && styles.panelBodyCollapsed)}>
               {props.draft ? (
-                <OrchestratorInspector
+                <Inspector
                   draft={props.draft}
                   selectedToken={props.selectedToken}
                   onChange={props.onDraftChange}

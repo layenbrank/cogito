@@ -6,14 +6,14 @@ import { useCorexStore } from '@/stores/corex.ts'
 import { nextStepId, nextToken } from '@/views/directive/model/step-utils.ts'
 import type { Step } from '@/views/directive/model/types.ts'
 
-interface UseWorkspaceDirectiveOptions {
+interface UseWorkspaceOptions {
   name: string
   isPending: boolean
   isDirty: boolean
   onOpenRunPanel: () => void
 }
 
-function useWorkspaceDirective(options: UseWorkspaceDirectiveOptions) {
+function useWorkspaceDirective(options: UseWorkspaceOptions) {
   const { name, isPending, isDirty, onOpenRunPanel } = options
   const navigate = useNavigate()
 
@@ -80,7 +80,9 @@ function useWorkspaceDirective(options: UseWorkspaceDirectiveOptions) {
       void loadEditor(name)
         .then(function () {
           const current = useCorexStore.getState().draft
-          const first = current?.steps?.[0] as Step | undefined
+          // zod 推出来的 steps 元素与 model 的 Step 不是同一份联合，得先按 Step[] 收
+          const steps = (current?.steps ?? []) as Step[]
+          const first = steps[0]
           if (first?.token) setSelectedToken(first.token)
         })
         .catch(function (error) {
@@ -160,8 +162,7 @@ function useWorkspaceDirective(options: UseWorkspaceDirectiveOptions) {
   const onWorkspaceKeyDown = useEffectEvent(function (event: KeyboardEvent) {
     const target = event.target as HTMLElement | null
     const tag = target?.tagName?.toLowerCase()
-    const isTyping =
-      tag === 'input' || tag === 'textarea' || target?.isContentEditable === true
+    const isTyping = tag === 'input' || tag === 'textarea' || target?.isContentEditable === true
     const withMod = event.metaKey || event.ctrlKey
     if (!withMod) return
 
@@ -192,18 +193,15 @@ function useWorkspaceDirective(options: UseWorkspaceDirectiveOptions) {
     }
   })
 
-  useEffect(
-    function () {
-      function onKeyDown(event: KeyboardEvent) {
-        onWorkspaceKeyDown(event)
-      }
-      window.addEventListener('keydown', onKeyDown)
-      return function () {
-        window.removeEventListener('keydown', onKeyDown)
-      }
-    },
-    []
-  )
+  useEffect(function () {
+    function onKeyDown(event: KeyboardEvent) {
+      onWorkspaceKeyDown(event)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return function () {
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [])
 
   function insertAction(actionId: string) {
     if (!draft) return
