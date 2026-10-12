@@ -44,6 +44,7 @@
     "@i-thinking/chat": "workspace:*",
     "@i-thinking/design": "workspace:*",
     "@i-thinking/hooks": "workspace:*",
+    "@i-thinking/sidecar": "workspace:*",
     "@i-thinking/utils": "workspace:*",
     "@i-thinking/wasm": "workspace:*",
     "@iconify/json": "catalog:",

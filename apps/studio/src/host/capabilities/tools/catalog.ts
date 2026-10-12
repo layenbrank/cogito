@@ -1,14 +1,28 @@
 import manifestJson from '@manifest'
-import type { ToolKey } from '@/shared/ipc/specs/tools'
+
+import {
+  findOnlinePackage,
+  findOnlineTool,
+  findPlatformKey,
+  parseOnlineManifest
+} from '@i-thinking/sidecar'
+
+import { findBinaryName } from '@/host/framework/binaries'
 import { TOOL_KEYS, ToolKeySchema } from '@/shared/ipc/specs/tools'
-import { findBinaryName, findPlatformKey } from '@/host/framework/binaries'
+
+import type { OnlineTool, SidecarPackage } from '@i-thinking/sidecar'
+import type { ToolKey } from '@/shared/ipc/specs/tools'
 
 /**
- * 在线工具（pandoc / ffmpeg / opencode）：**数据在 `sidecar/manifest.json`，本文件只做类型与取值**。
+ * 在线工具（pandoc / ffmpeg / opencode）：**数据在 `sidecar/manifest.json`，本文件只做取值**。
  *
  * 表放 JSON 而不是写在这里，是为了让**两个消费方读同一份**：
  * - 宿主（这个文件）：构建期把 JSON 内联进 main bundle，运行时不读文件；
  * - 仓库 CLI（`pnpm command sidecar manifest`）：发新包后照着它核对 R2 上的东西对不对。
+ *
+ * 形状（`schemaVersion` / `platforms` / 各平台那份包的直链 + `sha256`）由契约包
+ * `@i-thinking/sidecar` 定义 —— CLI、宿主、forge 读的是同一份类型与解析器，
+ * 以前这里自己写一遍 interface 再校验一次，改一边就容易漏另一边。
  *
  * 与 `tools.lock.json` 的关系：那份钉的是**完整版落盘**用的归档 —— pandoc / opencode 用
  * GitHub 原包，ffmpeg(win32) 与这份**同一条 R2 制品**；这份一律是 R2 上的重打包包
@@ -19,43 +33,13 @@ import { findBinaryName, findPlatformKey } from '@/host/framework/binaries'
  * 加一个平台 / 换一个包：改 `manifest.json` 即可，代码不用动。
  */
 
-/** manifest.json 里一个工具的静态描述：与平台无关 */
-interface ToolInfo {
-  label: string
-  summary: string
-  version: string
-  /** 归档里要留下的文件名（不带扩展名，按平台补 .exe；归档里没有的跳过） */
-  binaries: string[]
-  /** 各平台的在线包；没有该平台的键 = 当前平台没有下载源 */
-  packages: Record<string, ToolPackage>
-}
-
-/** 在线包：直链 + 哈希 */
-interface ToolPackage {
-  url: string
-  sha256: string
-}
-
-/** 静态描述 + 当前平台的包（没有包时为 null） */
-interface ToolSpec extends ToolInfo {
+/** 静态描述 + 当前平台那份包（当前平台没发包时为 null） */
+interface ToolSpec extends OnlineTool {
   key: ToolKey
-  package: ToolPackage | null
+  package: SidecarPackage | null
 }
 
-interface Manifest {
-  schemaVersion: number
-  tools: Record<string, ToolInfo>
-}
-
-function parseManifest(raw: unknown): Manifest {
-  const doc = raw as Partial<Manifest>
-  if (doc.schemaVersion !== 1 || !doc.tools) {
-    throw new Error('[tools] sidecar/manifest.json 形状不对（期望 schemaVersion: 1 + tools）')
-  }
-  return { schemaVersion: 1, tools: doc.tools }
-}
-
-const MANIFEST = parseManifest(manifestJson)
+const MANIFEST = parseOnlineManifest(manifestJson)
 
 function isToolKey(key: string): key is ToolKey {
   return ToolKeySchema.safeParse(key).success
@@ -64,11 +48,11 @@ function isToolKey(key: string): key is ToolKey {
 /** 全部工具（含当前平台没有在线包的那些：界面要如实说明，而不是让它们从列表里消失） */
 function findTools(platformKey = findPlatformKey()): ToolSpec[] {
   return TOOL_KEYS.map(function (key) {
-    const info = MANIFEST.tools[key] as ToolInfo | undefined
+    const info = findOnlineTool(MANIFEST, key)
     if (!info) {
       throw new Error(`[tools] manifest.json 里没有 ${key}`)
     }
-    return { key, ...info, package: info.packages[platformKey] ?? null }
+    return { key, ...info, package: findOnlinePackage(MANIFEST, key, platformKey) }
   })
 }
 
@@ -76,11 +60,11 @@ function findTool(key: string, platformKey = findPlatformKey()): ToolSpec | null
   if (!isToolKey(key)) {
     return null
   }
-  const info = MANIFEST.tools[key] as ToolInfo | undefined
+  const info = findOnlineTool(MANIFEST, key)
   if (!info) {
     return null
   }
-  return { key, ...info, package: info.packages[platformKey] ?? null }
+  return { key, ...info, package: findOnlinePackage(MANIFEST, key, platformKey) }
 }
 
 /** 这个工具在当前平台要不要 .exe */
@@ -91,4 +75,4 @@ function findToolBinaryNames(spec: ToolSpec, platform = process.platform): strin
 }
 
 export { findTool, findToolBinaryNames, findTools, isToolKey }
-export type { ToolInfo, ToolKey, ToolPackage, ToolSpec }
+export type { ToolKey, ToolSpec }

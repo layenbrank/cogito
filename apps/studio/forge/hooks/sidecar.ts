@@ -2,52 +2,27 @@ import { createHash } from 'node:crypto'
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 
+import {
+  findPlatformKey,
+  listOnDemandFiles,
+  parseStagingChecksums as parseChecksumsDocument,
+  ONLINE_TOOL_KEYS
+} from '@i-thinking/sidecar'
+
 import { PACKAGE_ROOT } from '../constants'
 import { SIDECAR_VARIANT } from '../env'
+
+import type { StagingChecksums } from '@i-thinking/sidecar'
 
 const CHECKSUMS_FILE = 'checksums.json'
 
 /**
  * Studio 安装包里永远不带的文件（即便误进了 staging）。
  * goose 是 client ACP 侧车；agent 走 opencode。
+ *
+ * 只兜「陈旧的 staging 目录」这一种情形：正常落盘的清单里，studio 目标压根不会收 goose。
  */
 const NEVER_BUNDLE = new Set(['goose.exe', 'goose'])
-
-/**
- * 旧版 staging 的 checksums.json 可能没写 `onDemand`：精简版会误把整包打进去（500MB+）。
- * 按文件名兜底，与 tools.lock 里标 onDemand 的工具对齐。
- */
-const ON_DEMAND_NAME_HINT =
-  /^(pandoc|ffmpeg|ffprobe|ffplay|opencode)(\.exe)?$/i
-
-interface StagingChecksums {
-  platform: string
-  /** 按需工具文件（由 `pnpm command sidecar stage` 按 tools.lock 写出）：精简版不带它们 */
-  onDemand?: string[]
-  files: Record<string, string>
-}
-
-function findOnDemandFiles(expected: StagingChecksums): Set<string> {
-  const listed = expected.onDemand ?? []
-  if (listed.length > 0) {
-    return new Set(listed)
-  }
-  const inferred = Object.keys(expected.files).filter(function (name) {
-    return ON_DEMAND_NAME_HINT.test(name)
-  })
-  if (inferred.length > 0) {
-    console.warn(
-      '[forge] checksums.json 缺少 onDemand，已按文件名兜底排除（请重跑 ' +
-        '`pnpm command sidecar stage studio` 写出正式字段）：' +
-        inferred.join(', ')
-    )
-  }
-  return new Set(inferred)
-}
-
-function findPlatformKey(platform: string = process.platform, arch: string = process.arch): string {
-  return `${platform}-${arch}`
-}
 
 function hashFile(filePath: string): string {
   const hash = createHash('sha256')
@@ -59,12 +34,34 @@ function findStagedSidecarDir(key = findPlatformKey()): string {
   return path.join(PACKAGE_ROOT, 'sidecar', 'staging', key)
 }
 
+/**
+ * 读 + 校验落盘清单：形状（`schemaVersion` / `platform` / 逐文件的 `tool` + `version` + `sha256`）
+ * 归契约包 `@i-thinking/sidecar` 管 —— 旧版（没有逐条 `onDemand`）会在这里响亮失败，
+ * 而不是被猜着读（以前按文件名正则兜底，猜漏了就是把 800MB 的按需工具打进精简版）。
+ */
 function parseStagingChecksums(key: string): StagingChecksums {
   const filePath = path.join(findStagedSidecarDir(key), CHECKSUMS_FILE)
   if (!existsSync(filePath)) {
     throw new Error(`[sidecar] missing ${filePath}. Run: pnpm command sidecar bootstrap studio`)
   }
-  return JSON.parse(readFileSync(filePath, 'utf8')) as StagingChecksums
+  const checksums = parseChecksumsDocument(
+    JSON.parse(readFileSync(filePath, 'utf8')) as unknown,
+    filePath
+  )
+  if (checksums.platform !== key) {
+    throw new Error(
+      `[sidecar] ${filePath} 是 ${checksums.platform} 的落盘清单，与 ${key} 不符` +
+        '（staging 目录放错了平台，重跑 pnpm command sidecar bootstrap studio）'
+    )
+  }
+  return checksums
+}
+
+/** 落盘清单里某个工具的文件名（用来判「完整版要的按需工具在不在」） */
+function findStagedFilesOfTool(checksums: StagingChecksums, toolKey: string): string[] {
+  return Object.keys(checksums.files).filter(function (fileName) {
+    return checksums.files[fileName]?.tool === toolKey
+  })
 }
 
 /**
@@ -95,20 +92,20 @@ function copyAndVerifySidecars(
     }
 
     const expected = parseStagingChecksums(key)
-    const onDemand = findOnDemandFiles(expected)
+    const onDemand = new Set(listOnDemandFiles(expected))
     const destDir = path.join(buildPath, '..', 'sidecar')
     mkdirSync(destDir, { recursive: true })
 
     const files = Object.entries(expected.files)
     if (SIDECAR_VARIANT === 'full') {
-      const missing = [...onDemand].filter(function (fileName) {
-        return !expected.files[fileName]
+      const missing = ONLINE_TOOL_KEYS.filter(function (toolKey) {
+        return findStagedFilesOfTool(expected, toolKey).length === 0
       })
       if (missing.length > 0) {
         done(
           new Error(
             `[sidecar] 完整版缺少按需工具：${missing.join(', ')}。` +
-                ' staging 不全：先跑 pnpm command sidecar bootstrap studio'
+              ' staging 不全：先跑 pnpm command sidecar bootstrap studio'
           )
         )
         return
@@ -116,7 +113,7 @@ function copyAndVerifySidecars(
     }
 
     const skipped: string[] = []
-    for (const [fileName, digest] of files) {
+    for (const [fileName, entry] of files) {
       if (NEVER_BUNDLE.has(fileName) || (SIDECAR_VARIANT === 'lite' && onDemand.has(fileName))) {
         skipped.push(fileName)
         continue
@@ -127,9 +124,11 @@ function copyAndVerifySidecars(
         return
       }
       const actual = hashFile(src)
-      if (actual !== digest) {
+      if (actual !== entry.sha256) {
         done(
-          new Error(`[sidecar] hash mismatch for ${fileName}: expected ${digest}, got ${actual}`)
+          new Error(
+            `[sidecar] hash mismatch for ${fileName}: expected ${entry.sha256}, got ${actual}`
+          )
         )
         return
       }
@@ -148,5 +147,4 @@ function copyAndVerifySidecars(
   }
 }
 
-export { copyAndVerifySidecars, findPlatformKey, findStagedSidecarDir, parseStagingChecksums }
-export type { StagingChecksums }
+export { copyAndVerifySidecars, findStagedSidecarDir, parseStagingChecksums }

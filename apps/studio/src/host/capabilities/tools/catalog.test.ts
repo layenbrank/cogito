@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
+import { findLockPin, listOnDemandTools, parseToolsLock } from '@i-thinking/sidecar'
+
 import { TOOL_KEYS } from '@/shared/ipc/specs/tools'
 import { findTool, findToolBinaryNames, findTools } from './catalog'
 
@@ -13,21 +15,14 @@ import { findTool, findToolBinaryNames, findTools } from './catalog'
  * 要盯的只有两件事：
  * 1. 覆盖面对得上：哪些工具算「按需」由 lock 说了算；
  * 2. **版本不漂**：pandoc / opencode / ffmpeg(win32) 必须与 lock 逐字一致（见 VERSION_CHECKED）。
+ *
+ * 两份 JSON 都交给契约包 `@i-thinking/sidecar` 解析：这里顺带让它的解析器对着真文件跑一遍。
  */
 const LOCK_PATH = fileURLToPath(
   new URL('../../../../../../scripts/commands/features/sidecar/tools.lock.json', import.meta.url)
 )
 
-interface LockPin {
-  version: string
-  url: string
-  sha256: string
-  onDemand?: boolean
-}
-
-type LockTable = Record<string, Record<string, LockPin>>
-
-const lock = JSON.parse(readFileSync(LOCK_PATH, 'utf8')) as LockTable
+const lock = parseToolsLock(JSON.parse(readFileSync(LOCK_PATH, 'utf8')) as unknown, LOCK_PATH)
 
 /** 本仓的开发平台：在线包必须齐，否则精简版在这台机器上没法用 */
 const HOST_KEY = 'win32-x64'
@@ -44,21 +39,9 @@ const VERSION_CHECKED = ['pandoc', 'opencode', 'ffmpeg']
 
 const SHA256 = /^[0-9a-f]{64}$/
 
-function onDemandTools(): string[] {
-  const keys = new Set<string>()
-  for (const [key, pins] of Object.entries(lock)) {
-    for (const pin of Object.values(pins)) {
-      if (pin.onDemand) {
-        keys.add(key)
-      }
-    }
-  }
-  return [...keys].sort()
-}
-
 describe('online tool manifest', function () {
   it('covers exactly the tools the lock marks onDemand', function () {
-    expect(onDemandTools()).toEqual([...TOOL_KEYS].sort())
+    expect(listOnDemandTools(lock).sort()).toEqual([...TOOL_KEYS].sort())
   })
 
   it('pins a link and a hash for this platform', function () {
@@ -76,7 +59,7 @@ describe('online tool manifest', function () {
 
   it('keeps the versions that must not drift', function () {
     for (const key of VERSION_CHECKED) {
-      expect(findTool(key, HOST_KEY)?.version).toBe(lock[key]?.[HOST_KEY]?.version)
+      expect(findTool(key, HOST_KEY)?.version).toBe(findLockPin(lock, key, HOST_KEY)?.version)
     }
   })
 

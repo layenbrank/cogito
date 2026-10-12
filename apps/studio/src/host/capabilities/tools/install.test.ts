@@ -151,7 +151,7 @@ function buildSpec(fields: {
     summary: '测试用',
     version: fields.version,
     binaries: fields.binaries ?? ['pandoc'],
-    packages: {},
+    platforms: {},
     package:
       fields.package === undefined
         ? { url: fields.url ?? 'https://example.invalid/x.zip', sha256: fields.sha256 }

@@ -2,6 +2,8 @@ import { existsSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { findBinaryName, findPlatformKey } from '@i-thinking/sidecar'
+
 import { findAppRoot } from './paths'
 
 /**
@@ -15,15 +17,11 @@ import { findAppRoot } from './paths'
  * 来源的取舍属于各域（corex 还有用户自己装的那份要探，pandoc / opencode 只认自带与下载的那份）。
  */
 
-/** 平台键：`win32-x64`。manifest、staging、落点路径都用它做键。 */
-function findPlatformKey(platform: string = process.platform, arch: string = process.arch): string {
-  return `${platform}-${arch}`
-}
-
-/** 二进制文件名：Windows 补 `.exe`，其它平台原样 */
-function findBinaryName(name: string, platform: string = process.platform): string {
-  return platform === 'win32' ? `${name}.exe` : name
-}
+/**
+ * 平台键与二进制文件名（`win32-x64` / `pandoc.exe`）的唯一实现在契约包 `@i-thinking/sidecar`：
+ * 侧车那三份 JSON（lock / manifest / checksums）与这里必须用同一套拼法。下面按原名再导出，
+ * 宿主其它模块照旧从 `@/host/framework/binaries` 取。
+ */
 
 function isPackagedApp(): boolean {
   try {

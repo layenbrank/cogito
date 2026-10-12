@@ -10,8 +10,8 @@ pnpm command sidecar bootstrap studio   # 全量落盘（含按需工具；档�
 - 下载缓存：`.cache/sidecar/<tool>/<platform>/`
 - 本目录仅保留 `staging/<platform>/`（Forge 打包读这里）
 
-**按需工具**（lock 里标 `onDemand`：pandoc / ffmpeg / opencode）照样落盘，只是名字记进
-`checksums.json.onDemand` —— 「带不带进安装包」由打包档位决定（`forge/hooks/sidecar.ts`，默认精简版不带），
+**按需工具**（lock 里标 `onDemand`：pandoc / ffmpeg / opencode）照样落盘，只是 `checksums.json` 里
+逐文件标了 `onDemand: true` —— 「带不带进安装包」由打包档位决定（`forge/hooks/sidecar.ts`，默认精简版不带），
 所以切档不用重跑 bootstrap。精简版里这三个由 Studio 运行时下载到 `<userData>/sidecar/<tool>/<版本>/`。
 
 **corex 不参与按需下载**：它是自研 sidecar，必须随包（档位无关），版本与直链钉在 `tools.lock.json`（直链是自建 R2 镜像）。
@@ -29,8 +29,9 @@ set COREX_LOCAL_BIN=D:\Documents\cache\release
 pnpm command sidecar bootstrap studio
 ```
 
-**`manifest.json`** 是这三个工具的**在线包清单**（R2 直链 + sha256 + 解压后要留的文件名），
-宿主构建期内联它、CLI 也能读它核对：
+**`manifest.json`** 是这三个工具的**在线包清单**（按平台记在 `platforms` 下：R2 直链 + sha256，外加
+解压后要留下的文件名），宿主构建期内联它、CLI 也能读它核对。三份 JSON（本清单 / `tools.lock.json` /
+`checksums.json`）的字段与解析器都在 [`@i-thinking/sidecar`](../../../packages/sidecar/README.md)：
 
 ```bash
 pnpm command sidecar manifest            # 打印当前平台的声明
