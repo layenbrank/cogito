@@ -2,6 +2,7 @@ import { fetch } from '@tauri-apps/plugin-http'
 import { ofetch, type FetchOptions } from 'ofetch'
 
 import { findAuthToken } from '@/utils/auth'
+import { findActiveTenantID } from '@/utils/tenant.ts'
 import { ENV_URLS } from './env.ts'
 import { createTraceparent, TRACEPARENT_HEADER } from './trace.ts'
 
@@ -30,6 +31,11 @@ const fetcher = ofetch.create(
       }
       const token = findAuthToken()
       if (token) options.headers.set('Authorization', `Bearer ${token}`)
+
+      // 网关按租户头算配额归属；没解析出个人租户就不带（服务端按账号归属兜底），
+      // 绝不能拿旧账号的租户，所以值只在 `utils/tenant.ts` 里带令牌指纹缓存
+      const tenantID = findActiveTenantID()
+      if (tenantID) options.headers.set('X-Tenant-ID', tenantID)
     }
   },
   { fetch }

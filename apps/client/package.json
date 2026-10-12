@@ -23,8 +23,11 @@
     "unit": "vitest run"
   },
   "dependencies": {
+    "@assistant-ui/react": "catalog:",
+    "assistant-stream": "catalog:",
     "@i-thinking/chat": "workspace:*",
     "@i-thinking/design": "workspace:*",
+    "@i-thinking/types": "workspace:*",
     "@i-thinking/utils": "workspace:*",
     "@i-thinking/wasm": "workspace:*",
     "@iconify/json": "catalog:",

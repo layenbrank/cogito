@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import 'reflect-metadata'
 
 import App from '@/App.tsx'
+import { watchActiveTenant } from '@/features/quota/tenant.ts'
 import { watchAppearance } from '@/features/window/appearance'
 import '@/styles/tailwind.css'
 import '@/styles/index.scss'
@@ -19,6 +20,9 @@ addCollection(AntIconify)
 addCollection(LucideIconify)
 
 watchAppearance()
+
+// 租户身份：登录 / 切账号后重新解析，好让请求带上 `X-Tenant-ID`（网关按它算配额归属）
+watchActiveTenant()
 
 const rootElement = document.getElementById('root') as HTMLElement
 
