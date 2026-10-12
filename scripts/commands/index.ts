@@ -6,10 +6,10 @@ import { Command } from 'commander'
 import { printBanner } from './core/banner.ts'
 import { logger } from './core/logger.ts'
 import { registerModules } from './core/registry.ts'
+import { DistributionCommand } from './features/distribution/command.ts'
 import { SidecarCommand } from './features/sidecar/command.ts'
-import { WorkerCommand } from './features/worker/command.ts'
 
-const FEATURES = [SidecarCommand, WorkerCommand]
+const FEATURES = [SidecarCommand, DistributionCommand]
 
 process.on('uncaughtException', function (error) {
   if (error.message.includes('User force closed the prompt')) {

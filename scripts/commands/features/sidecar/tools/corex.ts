@@ -4,7 +4,7 @@ import path from 'node:path'
 import { COREX_CLI, COREX_DAEMON, COREX_MCP, VENDOR_DIR } from '../infra/constants.ts'
 import { fetchVerified } from '../infra/download.ts'
 import { extractArchive, findFileInTree } from '../infra/extract.ts'
-import { findToolPin, parseToolsLock } from '../infra/lock.ts'
+import { readToolsLock, requireLockPin } from '../infra/lock.ts'
 import { findBinaryName, findPlatformKey } from '../infra/platform.ts'
 import { clearVendorVersion, isVendorReady, writeVendorVersion } from '../infra/vendor.ts'
 
@@ -98,8 +98,8 @@ async function ensureCorexVendor(key = findPlatformKey()): Promise<string> {
     return fromLocal
   }
 
-  const lock = parseToolsLock()
-  const pin = findToolPin(lock.corex, 'corex', key)
+  const lock = readToolsLock()
+  const pin = requireLockPin(lock, 'corex', key)
   const vendorDir = findCorexVendorDir(key)
   const daemonPath = findDaemonBinary(key)
   const required = findRequiredVendorBinaries(key)

@@ -9,11 +9,15 @@ import {
 } from 'node:fs'
 import path from 'node:path'
 
+import { parseOnlineManifest as parseManifestDocument } from '@i-thinking/sidecar'
+
 import { REPO_ROOT } from '../../../core/paths.ts'
 import { VENDOR_DIR } from './constants.ts'
 import { fetchVerified } from './download.ts'
 import { extractArchive, findFileInTree } from './extract.ts'
 import { findBinaryName, findPlatformKey } from './platform.ts'
+
+import type { OnlineManifest, OnlineTool, SidecarPackage } from '@i-thinking/sidecar'
 
 /**
  * Studio 的**在线包清单**：`apps/studio/sidecar/manifest.json`。
@@ -33,42 +37,20 @@ import { findBinaryName, findPlatformKey } from './platform.ts'
 
 const MANIFEST_PATH = path.join(REPO_ROOT, 'apps', 'studio', 'sidecar', 'manifest.json')
 
-interface OnlinePackage {
-  url: string
-  sha256: string
-}
-
-interface OnlineTool {
-  label: string
-  summary: string
-  version: string
-  /** 归档里要留下的文件名（不带扩展名，按平台补 .exe） */
-  binaries: string[]
-  packages: Record<string, OnlinePackage>
-}
-
-interface OnlineManifest {
-  schemaVersion: number
-  tools: Record<string, OnlineTool>
-}
-
 interface OnlineToolEntry {
   /** 工具键（`pandoc` / `ffmpeg` / `opencode`）—— 不是数据库 id */
   key: string
   tool: OnlineTool
   /** 这个工具在当前平台的那份包（直链 + 哈希） */
-  package: OnlinePackage
+  package: SidecarPackage
 }
 
+/** 读 + 校验 `sidecar/manifest.json`：形状（schemaVersion / tools / platforms）归契约包管 */
 function parseOnlineManifest(filePath = MANIFEST_PATH): OnlineManifest {
   if (!existsSync(filePath)) {
     throw new Error(`[manifest] 缺少 ${filePath}`)
   }
-  const parsed = JSON.parse(readFileSync(filePath, 'utf8')) as OnlineManifest
-  if (parsed.schemaVersion !== 1 || !parsed.tools) {
-    throw new Error(`[manifest] 形状不对（期望 schemaVersion: 1 + tools）: ${filePath}`)
-  }
-  return parsed
+  return parseManifestDocument(JSON.parse(readFileSync(filePath, 'utf8')) as unknown, filePath)
 }
 
 /** 当前平台声明了哪些在线包；平台没声明的工具不会出现在这里 */
@@ -76,7 +58,7 @@ function findOnlineTools(platform = findPlatformKey()): OnlineToolEntry[] {
   const manifest = parseOnlineManifest()
   const found: OnlineToolEntry[] = []
   for (const [key, tool] of Object.entries(manifest.tools)) {
-    const entry = tool.packages[platform]
+    const entry = tool.platforms[platform]
     if (entry) {
       found.push({ key, tool, package: entry })
     }
@@ -87,7 +69,7 @@ function findOnlineTools(platform = findPlatformKey()): OnlineToolEntry[] {
 /** 某个工具在当前平台的在线包；没有就返回 null（调用方回落到 lock） */
 function findOnlineTool(key: string, platform = findPlatformKey()): OnlineToolEntry | null {
   const tool = parseOnlineManifest().tools[key]
-  const pkg = tool?.packages[platform]
+  const pkg = tool?.platforms[platform]
   return tool && pkg ? { key, tool, package: pkg } : null
 }
 
@@ -127,7 +109,7 @@ async function stageOnlineTool(
   key: string,
   tool: OnlineTool,
   // 属性名统一叫 package（与宿主侧 ToolSpec 一致）；`package` 是保留字，参数只能换名
-  pkg: OnlinePackage,
+  pkg: SidecarPackage,
   platform = findPlatformKey()
 ): Promise<string[]> {
   const dir = findOnlineDir(key, platform)
@@ -180,7 +162,7 @@ function findBinaries(binDir: string): string[] {
 /** 下载并核对哈希；缓存命中时不走网络 */
 async function verifyOnlineTool(
   key: string,
-  pkg: OnlinePackage,
+  pkg: SidecarPackage,
   platform = findPlatformKey()
 ): Promise<void> {
   const fileName = path.basename(new URL(pkg.url).pathname)
@@ -190,4 +172,4 @@ async function verifyOnlineTool(
 }
 
 export { findOnlineTool, findOnlineTools, parseOnlineManifest, stageOnlineTool, verifyOnlineTool }
-export type { OnlineManifest, OnlinePackage, OnlineTool, OnlineToolEntry }
+export type { OnlineManifest, OnlineTool, OnlineToolEntry }

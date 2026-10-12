@@ -5,7 +5,7 @@ import path from 'node:path'
 import { OPENCODE_BINARY, VENDOR_DIR } from '../infra/constants.ts'
 import { fetchVerified } from '../infra/download.ts'
 import { extractArchive, findFileInTree, parseArchiveExt } from '../infra/extract.ts'
-import { findToolPin, parseToolsLock } from '../infra/lock.ts'
+import { readToolsLock, requireLockPin } from '../infra/lock.ts'
 import { findBinaryName, findPlatformKey } from '../infra/platform.ts'
 import { clearVendorVersion, isVendorReady, writeVendorVersion } from '../infra/vendor.ts'
 
@@ -92,8 +92,8 @@ function stageOpencodeFiles(sourceBinary: string, key: string): string {
 }
 
 async function ensureOpencodeFromRelease(key: string): Promise<string> {
-  const lock = parseToolsLock()
-  const pin = findToolPin(lock.opencode ?? {}, 'opencode', key)
+  const lock = readToolsLock()
+  const pin = requireLockPin(lock, 'opencode', key)
   const vendorDir = findOpencodeVendorDir(key)
   mkdirSync(vendorDir, { recursive: true })
 
@@ -134,8 +134,8 @@ async function ensureOpencodeVendor(key = findPlatformKey()): Promise<string> {
     return staged
   }
 
-  const lock = parseToolsLock()
-  const pin = findToolPin(lock.opencode ?? {}, 'opencode', key)
+  const lock = readToolsLock()
+  const pin = requireLockPin(lock, 'opencode', key)
   const vendorDir = findOpencodeVendorDir(key)
   const binary = findOpencodeBinary(key)
   if (isVendorReady(vendorDir, pin.version, binary)) {

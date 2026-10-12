@@ -1,84 +1,92 @@
 {
-  "schemaVersion": 1,
-  "corex": {
-    "win32-x64": {
-      "version": "13.2.0",
-      "url": "https://pub-a3d2f2e344df4d969a3fdc11157f97fd.r2.dev/13.2.0/corex-windows-x64.zip",
-      "sha256": "bf721021b0468a49bd728c545f49b9eae59135ba9cd7be97d00a978c985c1754"
-    }
-  },
-  "pdfium": {
-    "win32-x64": {
-      "version": "7881",
-      "url": "https://pub-92ffc21af9f9417eb56dd6e358ab6486.r2.dev/7881/pdfium.dll",
-      "sha256": "79d4676b656cfb1abcea88f9ade3b4b0826c5200382db5f4ec72a636c598c118"
-    }
-  },
-  "goose": {
-    "win32-x64": {
-      "version": "1.48.0",
-      "url": "https://github.com/aaif-goose/goose/releases/download/v1.48.0/goose-x86_64-pc-windows-msvc.zip",
-      "sha256": "046a471c253581e5945ec5353305c08981403abbcbf769d344e29a7da094bf24"
-    }
-  },
-  "opencode": {
-    "win32-x64": {
-      "version": "2.0.15",
-      "url": "https://pub-00f96379a14b4d1fa02baa729ef9ed4e.r2.dev/2.0.15/opencode-windows-x64.zip",
-      "sha256": "9c5fd842e9b1dc1cbd0bac8073cd1c7f685912bf040d313c3dc01fdbd8f371bf",
-      "onDemand": true
+  "schemaVersion": 2,
+  "tools": {
+    "corex": {
+      "platforms": {
+        "win32-x64": {
+          "version": "14.0.0",
+          "url": "https://pub-a3d2f2e344df4d969a3fdc11157f97fd.r2.dev/v14.0.0/corex-windows-x64.zip",
+          "sha256": "7da91143040e5c5ca9b74d610ccd1ea733412320653779d764f62ba684cdd6fd"
+        }
+      }
     },
-    "darwin-arm64": {
-      "version": "2.0.15",
-      "url": "https://opencode.ai/files/bin/2.0.15/opencode-darwin-arm64.zip",
-      "sha256": "4090acfb5a854d8c1c59250b62da8aad9c17872c793e0033c0a55adc3f4739da",
-      "onDemand": true
+    "ffmpeg": {
+      "onDemand": true,
+      "platforms": {
+        "win32-x64": {
+          "version": "9.0.2",
+          "url": "https://pub-ce5d0b07197a47a8af7bf1fe158692f4.r2.dev/9.0.2/ffmpeg-windows-x64.zip",
+          "sha256": "200b8bec70cb32f2cd46f255d18e24471c0e226323ee175ce33893ef63ad747e"
+        },
+        "linux-x64": {
+          "version": "autobuild-2026-09-29-13-10",
+          "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-29-13-10/ffmpeg-N-126965-gd85cdd2597-linux64-gpl.tar.xz",
+          "sha256": "25e48c5155a1a7c9b0c76b5f303504f679455ba190fcb1785ae410f6083ba16d"
+        }
+      }
     },
-    "linux-x64": {
-      "version": "2.0.15",
-      "url": "https://opencode.ai/files/bin/2.0.15/opencode-linux-x64.tar.gz",
-      "sha256": "115b4659141507c5a0942ac23a821e25fadc8397cb4b2770e34072a91222830e",
-      "onDemand": true
-    }
-  },
-  "ffmpeg": {
-    "win32-x64": {
-      "version": "9.0.2",
-      "url": "https://pub-ce5d0b07197a47a8af7bf1fe158692f4.r2.dev/9.0.2/ffmpeg-windows-x64.zip",
-      "sha256": "200b8bec70cb32f2cd46f255d18e24471c0e226323ee175ce33893ef63ad747e",
-      "onDemand": true
+    "goose": {
+      "platforms": {
+        "win32-x64": {
+          "version": "1.54.0",
+          "url": "https://pub-b5a8e7d75d094feab1be1e6f592e93ce.r2.dev/v1.54.0/goose-x86_64-pc-windows-msvc.zip",
+          "sha256": "5c39bc91c3eadc231847e21a8a469e778431084437b233a63a950fee22db6239"
+        }
+      }
     },
-    "linux-x64": {
-      "version": "autobuild-2026-09-29-13-10",
-      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-29-13-10/ffmpeg-N-126965-gd85cdd2597-linux64-gpl.tar.xz",
-      "sha256": "25e48c5155a1a7c9b0c76b5f303504f679455ba190fcb1785ae410f6083ba16d",
-      "onDemand": true
-    }
-  },
-  "pandoc": {
-    "win32-x64": {
-      "version": "3.6.4",
-      "url": "https://pub-813ca600ca234d69abec349c377b3452.r2.dev/3.6.4/pandoc-windows-x64.zip",
-      "sha256": "89d69f358a7a4948d51d7e09834aa42f9f9ebf4b520f2d57065e1d1a175b4d17",
-      "onDemand": true
+    "opencode": {
+      "onDemand": true,
+      "platforms": {
+        "win32-x64": {
+          "version": "2.0.15",
+          "url": "https://pub-00f96379a14b4d1fa02baa729ef9ed4e.r2.dev/2.0.15/opencode-windows-x64.zip",
+          "sha256": "9c5fd842e9b1dc1cbd0bac8073cd1c7f685912bf040d313c3dc01fdbd8f371bf"
+        },
+        "darwin-arm64": {
+          "version": "2.0.15",
+          "url": "https://opencode.ai/files/bin/2.0.15/opencode-darwin-arm64.zip",
+          "sha256": "4090acfb5a854d8c1c59250b62da8aad9c17872c793e0033c0a55adc3f4739da"
+        },
+        "linux-x64": {
+          "version": "2.0.15",
+          "url": "https://opencode.ai/files/bin/2.0.15/opencode-linux-x64.tar.gz",
+          "sha256": "115b4659141507c5a0942ac23a821e25fadc8397cb4b2770e34072a91222830e"
+        }
+      }
     },
-    "linux-x64": {
-      "version": "3.6.4",
-      "url": "https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-linux-amd64.tar.gz",
-      "sha256": "5def6e1ff535e397becce292ee97767a947306150b9fb1488003b67ac3417c5e",
-      "onDemand": true
+    "pandoc": {
+      "onDemand": true,
+      "platforms": {
+        "win32-x64": {
+          "version": "3.6.4",
+          "url": "https://pub-813ca600ca234d69abec349c377b3452.r2.dev/3.6.4/pandoc-windows-x64.zip",
+          "sha256": "89d69f358a7a4948d51d7e09834aa42f9f9ebf4b520f2d57065e1d1a175b4d17"
+        },
+        "linux-x64": {
+          "version": "3.6.4",
+          "url": "https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-linux-amd64.tar.gz",
+          "sha256": "5def6e1ff535e397becce292ee97767a947306150b9fb1488003b67ac3417c5e"
+        },
+        "darwin-arm64": {
+          "version": "3.6.4",
+          "url": "https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-arm64-macOS.zip",
+          "sha256": "88af17f1885afacb25f70ce4c8c44428feb6da860b6cf690e30da77998456c7f"
+        },
+        "darwin-x64": {
+          "version": "3.6.4",
+          "url": "https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-x86_64-macOS.zip",
+          "sha256": "35789fb4afc61266b954035059820dd546b10d8f05fef36a8deadffaedffc2b8"
+        }
+      }
     },
-    "darwin-arm64": {
-      "version": "3.6.4",
-      "url": "https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-arm64-macOS.zip",
-      "sha256": "88af17f1885afacb25f70ce4c8c44428feb6da860b6cf690e30da77998456c7f",
-      "onDemand": true
-    },
-    "darwin-x64": {
-      "version": "3.6.4",
-      "url": "https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-x86_64-macOS.zip",
-      "sha256": "35789fb4afc61266b954035059820dd546b10d8f05fef36a8deadffaedffc2b8",
-      "onDemand": true
+    "pdfium": {
+      "platforms": {
+        "win32-x64": {
+          "version": "7881",
+          "url": "https://pub-92ffc21af9f9417eb56dd6e358ab6486.r2.dev/7881/pdfium.dll",
+          "sha256": "79d4676b656cfb1abcea88f9ade3b4b0826c5200382db5f4ec72a636c598c118"
+        }
+      }
     }
   }
 }

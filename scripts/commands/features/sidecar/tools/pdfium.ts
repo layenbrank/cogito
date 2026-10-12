@@ -4,7 +4,7 @@ import path from 'node:path'
 import { VENDOR_DIR } from '../infra/constants.ts'
 import { fetchVerified } from '../infra/download.ts'
 import { extractArchive, findFileInTree, parseArchiveExt } from '../infra/extract.ts'
-import { findToolPin, parseToolsLock } from '../infra/lock.ts'
+import { readToolsLock, requireLockPin } from '../infra/lock.ts'
 import { findPlatformKey } from '../infra/platform.ts'
 import { isVendorReady, writeVendorVersion } from '../infra/vendor.ts'
 
@@ -51,11 +51,8 @@ function isDirectLibraryUrl(url: string): boolean {
  * 版本要与 corex 的 `assets/pdfium/VERSION` 对齐。
  */
 async function ensurePdfiumVendor(key = findPlatformKey()): Promise<string> {
-  const lock = parseToolsLock()
-  if (!lock.pdfium) {
-    throw new Error('[pdfium] tools.lock 中无钉死版本')
-  }
-  const pin = findToolPin(lock.pdfium, 'pdfium', key)
+  const lock = readToolsLock()
+  const pin = requireLockPin(lock, 'pdfium', key)
   const vendorDir = findPdfiumVendorDir(key)
   const library = findPdfiumLibrary(key)
   if (isVendorReady(vendorDir, pin.version, library)) {

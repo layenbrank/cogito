@@ -1,0 +1,19 @@
+{
+  "name": "@i-thinking/sidecar",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "侧车产物契约：tools.lock / 在线包 manifest / 落盘 checksums 三份 JSON 同一套形状、同一套解析器",
+  "exports": {
+    ".": "./src/schema.ts"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "run-s lint:*",
+    "lint:eslint": "eslint . --fix",
+    "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
+    "test:unit": "vitest"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

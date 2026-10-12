@@ -3,13 +3,13 @@ import { Command } from 'commander'
 import { logger } from '../../core/logger.ts'
 import { hasTty, promptSelect } from '../../core/prompt.ts'
 import type { CommandModule } from '../../core/registry.ts'
-import { findLockPins, hasToolPin, parseToolsLock } from './infra/lock.ts'
+import { hasLockPin, readToolsLock } from './infra/lock.ts'
 import { findOnlineTools, verifyOnlineTool } from './infra/manifest.ts'
 import { findPlatformKey } from './infra/platform.ts'
 import { hasTool, stageVendoredTools } from './infra/stage.ts'
 import { verifyStagedDir } from './infra/verify.ts'
 import { TARGETS, findTarget, targetKeys } from './targets/catalog.ts'
-import { TOOLS } from './tools/catalog.ts'
+import { TOOLS, findTool } from './tools/catalog.ts'
 
 function findAppKeysText(): string {
   return targetKeys().join('|')
@@ -40,11 +40,7 @@ async function parseApp(positional?: string, optionApp?: string): Promise<string
 }
 
 async function ensureTool(toolKey: string): Promise<void> {
-  const tool = TOOLS[toolKey]
-  if (!tool) {
-    throw new Error(`[sidecar] 未知工具: ${toolKey}`)
-  }
-  await tool.ensure(findPlatformKey())
+  await findTool(toolKey).ensure(findPlatformKey())
 }
 
 function isRequiredTool(toolKey: string, app: string): boolean {
@@ -58,7 +54,7 @@ function isRequiredTool(toolKey: string, app: string): boolean {
 
 async function runBootstrap(app: string): Promise<void> {
   const key = findPlatformKey()
-  const lock = parseToolsLock()
+  const lock = readToolsLock()
   const target = findTarget(app)
 
   for (const tool of Object.values(TOOLS)) {
@@ -66,8 +62,7 @@ async function runBootstrap(app: string): Promise<void> {
       console.log(`[sidecar] 跳过 ${tool.key}（${app} 用不到）`)
       continue
     }
-    const pins = findLockPins(lock, tool.key)
-    if (!pins || !hasToolPin(pins, key)) {
+    if (!hasLockPin(lock, tool.key, key)) {
       if (isRequiredTool(tool.key, app)) {
         throw new Error(`[sidecar] 当前平台无 ${tool.key} 钉死版本: ${key}（应用=${app}）`)
       }
@@ -77,7 +72,7 @@ async function runBootstrap(app: string): Promise<void> {
   }
 
   await stageVendoredTools(target, key)
-  verifyStagedDir(target.findStagedDir(key), app)
+  verifyStagedDir(target.findStagedDir(key), app, key)
   logger.success(`[sidecar] 引导完成（${app}）`)
 }
 
@@ -88,7 +83,8 @@ async function runStage(app: string): Promise<void> {
 
 async function runVerify(app: string): Promise<void> {
   const target = findTarget(app)
-  verifyStagedDir(target.findStagedDir(findPlatformKey()), app)
+  const key = findPlatformKey()
+  verifyStagedDir(target.findStagedDir(key), app, key)
 }
 
 function registerAppAction(

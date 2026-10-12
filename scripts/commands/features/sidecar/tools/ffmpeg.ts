@@ -4,7 +4,7 @@ import path from 'node:path'
 import { FFMPEG_BINARY, VENDOR_DIR } from '../infra/constants.ts'
 import { fetchVerified } from '../infra/download.ts'
 import { extractArchive, findFileInTree, parseArchiveExt } from '../infra/extract.ts'
-import { findToolPin, parseToolsLock } from '../infra/lock.ts'
+import { readToolsLock, requireLockPin } from '../infra/lock.ts'
 import { findBinaryName, findPlatformKey } from '../infra/platform.ts'
 import { isVendorReady, writeVendorVersion } from '../infra/vendor.ts'
 
@@ -33,11 +33,8 @@ function findFfmpegBinary(key = findPlatformKey()): string {
  * 缓存命中不是「有文件就算」，而是「有 lock 里那个版本」：见 infra/vendor.ts
  */
 async function ensureFfmpegVendor(key = findPlatformKey()): Promise<string> {
-  const lock = parseToolsLock()
-  if (!lock.ffmpeg) {
-    throw new Error('[ffmpeg] tools.lock 中无钉死版本')
-  }
-  const pin = findToolPin(lock.ffmpeg, 'ffmpeg', key)
+  const lock = readToolsLock()
+  const pin = requireLockPin(lock, 'ffmpeg', key)
   const vendorDir = findFfmpegVendorDir(key)
   const binary = findFfmpegBinary(key)
   if (isVendorReady(vendorDir, pin.version, binary)) {

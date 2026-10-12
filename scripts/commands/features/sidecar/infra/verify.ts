@@ -6,17 +6,25 @@ import { hashFile } from './hash.ts'
 import { parseStagingChecksums } from './stage.ts'
 import { findTarget } from '../targets/catalog.ts'
 
-function verifyStagedDir(stagedDir: string, label: string): void {
+function verifyStagedDir(stagedDir: string, label: string, platformKey: string): void {
   const expected = parseStagingChecksums(stagedDir)
 
-  for (const [fileName, digest] of Object.entries(expected.files)) {
+  // 清单自带平台：落盘目录放错平台时，报「拿错平台的二进制」而不是一串哈希不匹配
+  if (expected.platform !== platformKey) {
+    throw new Error(
+      `[verify:${label}] ${CHECKSUMS_FILE} 是 ${expected.platform} 的落盘清单，` +
+        `当前平台是 ${platformKey}（请重跑 sidecar bootstrap）`
+    )
+  }
+
+  for (const [fileName, entry] of Object.entries(expected.files)) {
     const filePath = path.join(stagedDir, fileName)
     if (!existsSync(filePath)) {
       throw new Error(`[verify] 缺少落盘文件: ${filePath}`)
     }
     const actual = hashFile(filePath)
-    if (actual !== digest) {
-      throw new Error(`[verify] 哈希不匹配 ${fileName}: 期望 ${digest}，实际 ${actual}`)
+    if (actual !== entry.sha256) {
+      throw new Error(`[verify] 哈希不匹配 ${fileName}: 期望 ${entry.sha256}，实际 ${actual}`)
     }
   }
 

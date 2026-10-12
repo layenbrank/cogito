@@ -1,25 +1,21 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
+import {
+  SIDECAR_SCHEMA_VERSION,
+  parseStagingChecksums as parseChecksumsDocument
+} from '@i-thinking/sidecar'
+
 import { TOOLS } from '../tools/catalog.ts'
 
 import { CHECKSUMS_FILE } from './constants.ts'
 import { hashFile } from './hash.ts'
-import { findLockPins, hasToolPin, isOnDemandPin, parseToolsLock } from './lock.ts'
+import { hasLockPin, isOnDemandTool, readToolsLock, requireLockPin } from './lock.ts'
 import { findOnlineTool, stageOnlineTool } from './manifest.ts'
 import { findPlatformKey } from './platform.ts'
 
-interface StagingChecksums {
-  platform: string
-  /**
-   * 本平台的**按需工具文件**（pandoc / ffmpeg / opencode 那批）。
-   *
-   * 由落盘那一步按 tools.lock 的 `onDemand` 算出来写在这里，打包侧不用自己维护一份文件名表：
-   * 精简版把这些文件排除在安装包外，完整版要求它们在。
-   */
-  onDemand?: string[]
-  files: Record<string, string>
-}
+import type { StagedFile, StagingChecksums } from '@i-thinking/sidecar'
+import type { ToolStrategy } from '../tools/types.ts'
 
 interface StageTarget {
   id: string
@@ -46,18 +42,14 @@ function hasTool(target: StageTarget, toolKey: string): boolean {
 }
 
 /** 回落到 lock 的 release 归档：先按 lock 下载/解压到缓存，再拿出运行时文件 */
-async function ensureVendored(tool: (typeof TOOLS)[string], platform: string): Promise<string[]> {
+async function ensureVendored(tool: ToolStrategy, platform: string): Promise<string[]> {
   await tool.ensure(platform)
   return tool.findRuntimeFiles(platform)
 }
 
-function writeChecksums(
-  dir: string,
-  files: Record<string, string>,
-  platform: string,
-  onDemand: string[] = []
-): void {
-  const payload: StagingChecksums = { platform, onDemand, files }
+/** 落盘清单：逐文件记「谁（tool@version）+ 校验和 + 是否按需」，不留裸哈希映射 */
+function writeChecksums(dir: string, files: Record<string, StagedFile>, platform: string): void {
+  const payload: StagingChecksums = { schemaVersion: SIDECAR_SCHEMA_VERSION, platform, files }
   writeFileSync(path.join(dir, CHECKSUMS_FILE), `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
 }
 
@@ -66,26 +58,25 @@ function parseStagingChecksums(stagedDir: string): StagingChecksums {
   if (!existsSync(filePath)) {
     throw new Error(`[stage] 缺少 ${filePath}；请先执行 sidecar bootstrap`)
   }
-  return JSON.parse(readFileSync(filePath, 'utf8')) as StagingChecksums
+  return parseChecksumsDocument(JSON.parse(readFileSync(filePath, 'utf8')) as unknown, filePath)
 }
 
 async function stageVendoredTools(
   target: StageTarget,
   platform = findPlatformKey()
 ): Promise<void> {
-  const lock = parseToolsLock()
+  const lock = readToolsLock()
   const destDir = target.findStagedDir(platform)
   mkdirSync(destDir, { recursive: true })
-  const hashes: Record<string, string> = {}
-  const onDemand: string[] = []
+  const files: Record<string, StagedFile> = {}
+  const onDemandFiles: string[] = []
 
   for (const tool of Object.values(TOOLS)) {
     if (!hasTool(target, tool.key)) {
       console.log(`[stage:${target.id}] 跳过 ${tool.key}（该目标用不到）`)
       continue
     }
-    const pins = findLockPins(lock, tool.key)
-    if (!pins || !hasToolPin(pins, platform)) {
+    if (!hasLockPin(lock, tool.key, platform)) {
       // corex / pdfium 缺了起不来；client 另需 goose（build.rs / externalBin）
       const required =
         tool.key === 'corex' ||
@@ -102,26 +93,33 @@ async function stageVendoredTools(
     const sources = online
       ? await stageOnlineTool(online.key, online.tool, online.package, platform)
       : await ensureVendored(tool, platform)
+    // 版本取自「这一趟真正用的那份」：在线包与 lock 在同一条版本线上（宿主测试守着），
+    // 只有在线包没发的平台才回落 lock。
+    const version = online?.tool.version ?? requireLockPin(lock, tool.key, platform).version
+    const onDemand = isOnDemandTool(lock, tool.key)
 
     for (const src of sources) {
       const rawName = path.basename(src)
       const fileName = target.mapFileName ? target.mapFileName(rawName) : rawName
       const dest = path.join(destDir, fileName)
       cpSync(src, dest)
-      hashes[fileName] = hashFile(dest)
-      if (isOnDemandPin(pins, platform)) {
-        onDemand.push(fileName)
+      const sha256 = hashFile(dest)
+      files[fileName] = onDemand
+        ? { tool: tool.key, version, sha256, onDemand: true }
+        : { tool: tool.key, version, sha256 }
+      if (onDemand) {
+        onDemandFiles.push(fileName)
       }
       console.log(`[stage:${target.id}] ${fileName}`)
     }
   }
 
-  assertRequiredStaged(target, destDir, hashes)
+  assertRequiredStaged(target, destDir, files)
 
-  writeChecksums(destDir, hashes, platform, onDemand)
+  writeChecksums(destDir, files, platform)
   console.log(
-    `[stage:${target.id}] 已写入 ${CHECKSUMS_FILE}（${Object.keys(hashes).length} 个文件，` +
-      `其中按需 ${onDemand.length} 个）→ ${destDir}`
+    `[stage:${target.id}] 已写入 ${CHECKSUMS_FILE}（${Object.keys(files).length} 个文件，` +
+      `其中按需 ${onDemandFiles.length} 个）→ ${destDir}`
   )
 }
 
@@ -129,7 +127,7 @@ async function stageVendoredTools(
 function assertRequiredStaged(
   target: StageTarget,
   destDir: string,
-  hashes: Record<string, string>
+  files: Record<string, StagedFile>
 ): void {
   const required = target.requiredNames?.() ?? []
   if (required.length === 0) {
@@ -138,7 +136,7 @@ function assertRequiredStaged(
   const missing: string[] = []
   for (const name of required) {
     const filePath = path.join(destDir, name)
-    if (!existsSync(filePath) || !hashes[name]) {
+    if (!existsSync(filePath) || !files[name]) {
       missing.push(name)
     }
   }
