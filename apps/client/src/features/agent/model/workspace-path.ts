@@ -2,7 +2,7 @@
  * 工作区路径规范化：去 Windows `\\?\`、折叠 `.` / `..`、统一斜杠
  */
 function stripWinLongPrefix(path: string) {
-  let next = path.replace(/\\/g, '/')
+  const next = path.replace(/\\/g, '/')
   // \\?\UNC\server\share → //server/share
   if (next.startsWith('//?/UNC/')) return `//${next.slice('//?/UNC/'.length)}`
   // \\?\C:\foo → C:/foo

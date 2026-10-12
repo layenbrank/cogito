@@ -1,4 +1,4 @@
-import { findStepKind } from '@/views/directive/model/step-utils.ts'
+import type { findStepKind } from '@/views/directive/model/step-utils.ts'
 import type { Step } from '@/views/directive/model/types.ts'
 
 const KIND_LABEL: Record<string, string> = {

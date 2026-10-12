@@ -26,7 +26,7 @@ interface DecorationsProps {
 }
 
 function findCaptionBegin(begin: ReactNode | undefined, summary: string | undefined): ReactNode {
-  if (begin != null) return begin
+  if (begin) return begin
   if (!summary) return null
   return <span className="truncate px-1 text-sm font-medium">{summary}</span>
 }

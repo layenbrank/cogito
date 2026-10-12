@@ -6,7 +6,7 @@ import {
   makeCondition,
   parseOperand
 } from '@/views/directive/model/condition.ts'
-import type { ConditionKind } from '@/views/directive/model/condition.ts'
+import type { ConditionKind, ConditionObject } from '@/views/directive/model/condition.ts'
 import type { Condition } from '@/views/directive/model/types.ts'
 
 import { ConditionKindSelect } from '@/views/directive/orchestrator/inspector/condition-kind-select.tsx'
@@ -14,7 +14,7 @@ import { operandText } from '@/views/directive/orchestrator/inspector/condition-
 
 interface ConditionNodeCompareProps {
   kind: Exclude<ConditionKind, 'expr' | 'and' | 'or' | 'not'>
-  condition: Condition
+  condition: ConditionObject
   onChange: (next: Condition) => void
 }
 

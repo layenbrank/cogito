@@ -12,6 +12,9 @@ type ConditionKind = (typeof CONDITION_KINDS)[number]
 /** 二元比较：`contains` 是「左边里找右边」（corex：字符串找子串、数组找元素、map 找键） */
 type CompareKind = Extract<ConditionKind, 'eq' | 'ne' | 'gt' | 'lt' | 'contains'>
 
+/** 对象形态的条件：`Condition` 的另一支是 `expr` 的字符串简写，只有对象才能展开 / 取键 */
+type ConditionObject = Exclude<Condition, string>
+
 const CONDITION_LABELS: Record<ConditionKind, string> = {
   expr: '表达式',
   eq: '等于',
@@ -88,4 +91,4 @@ export {
   makeCondition,
   parseOperand
 }
-export type { CompareKind, ConditionKind }
+export type { CompareKind, ConditionKind, ConditionObject }

@@ -2,6 +2,7 @@ import type { CorexFrame } from '@/stores/run-logs.ts'
 
 function normalizeLogText(text: string): string {
   return text
+    // eslint-disable-next-line no-control-regex -- 剥 ANSI 颜色就是要点名 ESC（\u001b），绕不开控制字符
     .replace(/\u001b\[[0-9;]*m/g, '')
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
@@ -13,12 +14,12 @@ function formatControlLine(frame: Exclude<CorexFrame, { kind: 'step_output' }>):
   }
   if (frame.kind === 'step_end') {
     const mark = frame.ok === false ? '✗' : '✓'
-    const took = frame.took_ms != null ? `  (${frame.took_ms}ms)` : ''
+    const took = frame.took_ms ? `  (${frame.took_ms}ms)` : ''
     return `${mark} 结束  ${frame.step} · ${frame.action}${took}`
   }
-  const total = frame.total != null ? `/${frame.total}` : ''
+  const total = frame.total ? `/${frame.total}` : ''
   const unit = frame.unit ? ` ${frame.unit}` : ''
-  const done = frame.done != null ? `${frame.done}${total}${unit}` : '进行中'
+  const done = frame.done ? `${frame.done}${total}${unit}` : '进行中'
   return `… 进度  ${frame.step} · ${done}`
 }
 

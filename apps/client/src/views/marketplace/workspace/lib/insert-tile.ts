@@ -32,7 +32,8 @@ async function findNextIndex(mirrorID: string) {
   return max + 1
 }
 
-function parseTileWrite(
+/** 在 tile-io 的基础写入上覆盖尺寸 / 形状 / 方向 */
+function buildTileWrite(
   tile: MagneticTile,
   mirrorID: string,
   index: number,
@@ -51,7 +52,7 @@ function parseTileWrite(
 
 async function runInsert(options: InsertTileOptions) {
   const index = await findNextIndex(options.mirrorID)
-  const write = parseTileWrite(options.tile, options.mirrorID, index, options.overrides)
+  const write = buildTileWrite(options.tile, options.mirrorID, index, options.overrides)
   await options.toInsertMagneticTile([write])
 }
 
@@ -78,5 +79,5 @@ async function insertTile(options: InsertTileOptions) {
   }
 }
 
-export { findNextIndex, insertTile, parseTileWrite }
+export { findNextIndex, insertTile }
 export type { InsertTileOptions, TileWriteOverrides }

@@ -34,10 +34,8 @@ const Controller = {
     const [viewId, setViewId] = useState(activeId)
     const paneRef = useRef<HTMLDivElement>(null)
     const scrimRef = useRef<HTMLDivElement>(null)
-    const transitionRef = useRef<ReturnType<typeof bindMirrorTransition> | null>(null)
-    if (transitionRef.current === null) {
-      transitionRef.current = bindMirrorTransition()
-    }
+    // 纯工厂，无副作用：用 useState 惰性初始化一次，避免 ref 的可空类型到处补空值判断
+    const [transition] = useState(bindMirrorTransition)
     const directionRef = useRef<MirrorDirection>(1)
     const isFirstEnter = useRef(true)
     const mirrorsRef = useRef(mirrors)
@@ -58,7 +56,6 @@ const Controller = {
     )
 
     useEffect(function () {
-      const transition = transitionRef.current
       return registerMirrorSwitch(async function (nextId) {
         const currentId = viewIdRef.current
         if (!nextId || nextId === currentId) return
@@ -81,7 +78,7 @@ const Controller = {
 
     useEffect(function () {
       return function () {
-        transitionRef.current.destroy()
+        transition.destroy()
       }
     }, [])
 
@@ -99,7 +96,7 @@ const Controller = {
         const scroller = pane.closest<HTMLElement>('[data-mirror-scroller]')
         resetMirrorScroll(scroller)
 
-        void transitionRef.current.playEnter(pane, directionRef.current, scrimRef.current)
+        void transition.playEnter(pane, directionRef.current, scrimRef.current)
       },
       [viewId]
     )

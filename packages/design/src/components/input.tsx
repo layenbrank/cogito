@@ -41,7 +41,7 @@ function emitNumberChange(
   } as React.ChangeEvent<HTMLInputElement>)
 }
 
-interface InputNumberProps extends Omit<React.ComponentProps<'input'>, 'type'> {}
+type InputNumberProps = Omit<React.ComponentProps<'input'>, 'type'>
 
 interface NumberStepButtonProps {
   label: string

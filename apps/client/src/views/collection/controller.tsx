@@ -5,7 +5,8 @@ import Navigation from '@/features/magnetic-tiles/navigation/navigation.tsx'
 
 interface ControllerProps {
   magneticTiles: readonly MagneticTile[]
-  onClick?: React.MouseEventHandler<HTMLDivElement>
+  /** 根节点是 <button>，故鼠标/键盘事件都按 button 元素声明 */
+  onClick?: React.MouseEventHandler<HTMLButtonElement>
   onPrevent?: React.MouseEventHandler<HTMLDivElement>
 }
 
@@ -14,10 +15,10 @@ function Controller(props: ControllerProps) {
   const shape: Mirror.Shape = 'rectangle'
   const direction: Mirror.Direction = 'horizontal'
 
-  function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+  function onKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
     if (event.key !== 'Enter' && event.key !== ' ') return
     event.preventDefault()
-    props.onClick?.(event as unknown as React.MouseEvent<HTMLDivElement>)
+    props.onClick?.(event as unknown as React.MouseEvent<HTMLButtonElement>)
   }
 
   return (

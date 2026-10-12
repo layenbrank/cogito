@@ -62,10 +62,12 @@ function findElectronVersion(): string {
     const pkgPath = require.resolve('electron/package.json')
     const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { version?: string }
     if (pkg.version) return pkg.version
-  } catch {
-    // fall through
+    throw new Error(`electron/package.json 没写 version：${pkgPath}`)
+  } catch (error) {
+    // 原来这里直接吞掉原因，报错只剩一句「无法解析」，排查时看不出是哪一步失败。
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new Error(`[forge] 无法解析已安装的 electron 版本（NSIS maker 需要）：${reason}`)
   }
-  throw new Error('[forge] 无法解析已安装的 electron 版本（NSIS maker 需要）')
 }
 
 /** generic feed 目录：与运行时 findFeedUrl / Vite 注入一致 */

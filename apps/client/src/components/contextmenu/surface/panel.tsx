@@ -2,20 +2,13 @@ import { clsx } from 'clsx'
 import * as m from 'motion/react-m'
 import { forwardRef, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 
-import type { MenuClassNames } from '@/components/contextmenu/menu'
-
-interface PanelMotion {
-  initial?: unknown
-  animate?: unknown
-  exit?: unknown
-  transition?: unknown
-}
+import type { MenuClassNames, MenuMotionSlot } from '@/components/contextmenu/menu'
 
 interface PanelProps {
   level: number
   classNames?: MenuClassNames
   surfaceStyle: CSSProperties
-  motion: PanelMotion
+  motion: MenuMotionSlot
   flipX: boolean
   flipY: boolean
   onMouseEnter: () => void

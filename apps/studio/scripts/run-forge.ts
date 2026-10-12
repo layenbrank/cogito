@@ -14,7 +14,7 @@
  *
  * 本目录有 `package.json` `"type":"module"`，使 `node *.ts` 在 studio 根仍为 CJS 时能按 ESM 跑。
  */
-import { execSync, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import os from 'node:os'
@@ -58,14 +58,11 @@ function findForgeBin(): string {
   return path.join(path.dirname(pkgPath), bin)
 }
 
-/** 当前 env 里 `candle` 是否已被 electron-wix-msi 那种 `execSync('candle -?')` 认到。 */
+/** 当前 env 里 `candle` 是否已被 electron-wix-msi 那种 `candle -?` 探测认到。 */
 function canRunCandle(env: NodeJS.ProcessEnv): boolean {
-  try {
-    execSync('candle -?', { env, stdio: 'ignore', windowsHide: true })
-    return true
-  } catch {
-    return false
-  }
+  // 用 spawnSync 而非 execSync：命令不存在时只返回 error，不必再用 catch 吞异常
+  const probe = spawnSync('candle', ['-?'], { env, stdio: 'ignore', windowsHide: true })
+  return probe.status === 0
 }
 
 /**

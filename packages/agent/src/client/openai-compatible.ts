@@ -120,7 +120,7 @@ async function* readSseData(response: Response): AsyncGenerator<string, void, un
   }
 }
 
-function parseArgs(raw: string, toolName: string): unknown {
+function parseArgs(raw: string, _toolName: string): unknown {
   if (!raw) return {}
   try {
     return JSON.parse(raw)

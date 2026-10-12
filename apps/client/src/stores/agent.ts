@@ -588,7 +588,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
               return Object.assign({}, item, update)
             })
             .filter(function (item) {
-              return item.archivedAt == null
+              return !item.archivedAt
             })
           if (
             state.activeWorkspaceID &&

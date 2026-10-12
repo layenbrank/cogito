@@ -2,7 +2,7 @@ import { Button } from '@i-thinking/design/components/button'
 import { Icon } from '@iconify/react/offline'
 
 import { makeCondition } from '@/views/directive/model/condition.ts'
-import type { ConditionKind } from '@/views/directive/model/condition.ts'
+import type { ConditionKind, ConditionObject } from '@/views/directive/model/condition.ts'
 import type { Condition } from '@/views/directive/model/types.ts'
 
 import { ConditionKindSelect } from '@/views/directive/orchestrator/inspector/condition-kind-select.tsx'
@@ -11,7 +11,7 @@ import { ConditionNode } from '@/views/directive/orchestrator/inspector/conditio
 
 interface ConditionNodeLogicProps {
   kind: 'and' | 'or'
-  condition: Condition & { and?: Condition[]; or?: Condition[] }
+  condition: ConditionObject
   onChange: (next: Condition) => void
 }
 
