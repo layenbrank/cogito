@@ -430,7 +430,9 @@
   "js/ts.preferences.includePackageJsonAutoImports": "on",
   "js/ts.preferences.jsxAttributeCompletionStyle": "braces",
   "js/ts.preferences.preferTypeOnlyAutoImports": true,
-  "js/ts.tsdk.path": "node_modules/typescript/lib",
+  // `typescript` 包现在是 npm alias（@typescript/typescript6），只含 tsc6 + API，
+  // 不带 tsserver.js 与 lib.*.d.ts；编辑器要的完整 TS6 在它的依赖 @typescript/old（= typescript@^6）。
+  "js/ts.tsdk.path": "node_modules/@typescript/old/lib",
   "vue.autoInsert.bracketSpacing": true,
   "vue.autoInsert.dotValue": true,
   "vue.codeActions.askNewComponentName": true,
