@@ -38,7 +38,7 @@ export default defineConfig(function ({ mode }: ConfigEnv): UserConfig {
   const env = loadEnv(mode || 'development', '')
   const interfaces = networkInterfaces()
   const TAURI_DEV_HOST = process.env.TAURI_DEV_HOST
-  const PORT = 5173
+  const PORT = 8200
   let IP = 'localhost'
 
   for (const inter of Object.keys(interfaces)) {
