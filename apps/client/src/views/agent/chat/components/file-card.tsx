@@ -35,6 +35,8 @@ function FileCard(props: FileCardProps) {
     try {
       updatePreview(await FileIpc.read(data.path))
     } catch (error) {
+      // 已把失败原文写进预览区给用户看，这里再补一条控制台留痕
+      console.warn('[file-card] 读取文件预览失败:', error)
       updatePreview(`读取失败：${error instanceof Error ? error.message : String(error)}`)
     } finally {
       updateLoading(false)

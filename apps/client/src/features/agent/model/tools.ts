@@ -40,7 +40,9 @@ function parseStructured<T>(fragment: string): T | null {
   const raw = match ? (match[1] ?? match[0]) : ''
   try {
     return JSON.parse(raw.trim()) as T
-  } catch {
+  } catch (error) {
+    // 模型输出不是合法 JSON：这张结构化卡片直接不渲染，但别静默
+    console.warn('[agent-parts] 结构化输出解析失败，跳过该部件:', error)
     return null
   }
 }
@@ -69,7 +71,8 @@ function parseParts(raw: string | null): MessagePart[] {
   try {
     const parsed: unknown = JSON.parse(raw)
     return Array.isArray(parsed) ? (parsed as MessagePart[]) : []
-  } catch {
+  } catch (error) {
+    console.warn('[agent-parts] 消息部件存档损坏，回落空列表:', error)
     return []
   }
 }

@@ -29,7 +29,9 @@ function parseToolArgs(raw: string): Record<string, unknown> {
       return parsed as Record<string, unknown>
     }
     return {}
-  } catch {
+  } catch (error) {
+    // 参数不是合法 JSON（模型偶发输出）：留痕，再按空参数渲染工具卡
+    console.warn('[agent-tools] 工具参数不是合法 JSON，按空参数处理:', error)
     return {}
   }
 }
@@ -257,6 +259,8 @@ async function executeAgentTool(
       content
     }
   } catch (error) {
+    // 错误会作为 tool result 回给模型（isError），但开发侧也要能看到是哪次调用炸的
+    console.warn('[agent-tools] 工具执行失败，已回给模型:', error)
     return {
       toolCallId: request.id,
       name: request.name,

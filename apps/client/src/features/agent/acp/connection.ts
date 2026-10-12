@@ -52,8 +52,9 @@ function clearAcpHandle() {
   if (handle) {
     try {
       handle.connection.close()
-    } catch {
-      // ignore
+    } catch (error) {
+      // 连接可能已经断了；仍要留痕，不让失败无声无息
+      console.warn('[acp] 关闭连接失败（多半已断开）:', error)
     }
   }
 }

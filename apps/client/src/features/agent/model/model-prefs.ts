@@ -48,7 +48,8 @@ function parseModelPrefs(raw: string | null): Record<string, ModelPref> {
     const parsed: unknown = JSON.parse(raw)
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
     return parsed as Record<string, ModelPref>
-  } catch {
+  } catch (error) {
+    console.warn('[model-prefs] 存档不是合法 JSON，回落默认:', error)
     return {}
   }
 }
@@ -56,7 +57,9 @@ function parseModelPrefs(raw: string | null): Record<string, ModelPref> {
 function readModelPrefs(): Record<string, ModelPref> {
   try {
     return parseModelPrefs(localStorage.getItem(MODEL_PREFS_KEY))
-  } catch {
+  } catch (error) {
+    // localStorage 可能整体不可用（隐私模式 / 配额）
+    console.warn('[model-prefs] 读取模型偏好失败，回落默认:', error)
     return {}
   }
 }

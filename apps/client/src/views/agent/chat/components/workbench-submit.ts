@@ -137,7 +137,9 @@ async function buildScenarioParts(
       let before: string | undefined
       try {
         before = (await WorkspaceFiles.readFile(roots, target.path)).content
-      } catch {
+      } catch (error) {
+        // 新增文件 / 越界读不到旧内容：diff 按「无 before」渲染，但留痕
+        console.warn('[workbench] 读取 diff 前内容失败，按新增文件处理:', error)
         before = undefined
       }
       parts.push({ type: 'diff', data: { path: target.path, before, after } })
@@ -256,6 +258,7 @@ async function submitAgentMessage(input: SubmitAgentMessageInput) {
     } catch (error) {
       if (!controller.signal.aborted) {
         const reason = error instanceof Error ? error.message : String(error)
+        console.warn('[workbench] 流式回复失败，已把原因写进对话:', error)
         input.bufferRef.current.fragment += `\n\n> 出错了：${reason}`
       }
     }

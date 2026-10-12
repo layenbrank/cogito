@@ -47,7 +47,8 @@ function useTriggerPopupData(input: UseTriggerPopupDataInput): UseTriggerPopupDa
             updateFileHits(hits)
             updateLoading(false)
           })
-          .catch(function () {
+          .catch(function (error: unknown) {
+            console.warn('[trigger-popup] 文件搜索失败，回落空结果:', error)
             if (cancelled || seq.current !== nextSeq) return
             updateFileHits([])
             updateLoading(false)
@@ -79,7 +80,8 @@ function useTriggerPopupData(input: UseTriggerPopupDataInput): UseTriggerPopupDa
           updateSkills(rows)
           updateLoading(false)
         })
-        .catch(function () {
+        .catch(function (error: unknown) {
+          console.warn('[trigger-popup] skill 列表拉取失败，回落空结果:', error)
           if (cancelled || seq.current !== nextSeq) return
           updateSkills([])
           updateLoading(false)

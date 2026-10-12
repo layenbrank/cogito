@@ -8,7 +8,8 @@ function parseModels(raw: string | null): string[] {
   try {
     const parsed: unknown = JSON.parse(raw)
     return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : []
-  } catch {
+  } catch (error) {
+    console.warn('[agent-providers] 模型列表存档损坏，回落空列表:', error)
     return []
   }
 }

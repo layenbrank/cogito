@@ -157,16 +157,19 @@ function useComposerAttach(options: UseComposerAttachOptions) {
   }
 
   async function handlePasteImages(files: File[]) {
-    await Promise.all(
-      files.map(async function (file) {
-        try {
-          const part = await savePasteImage(file)
-          handleAttach(part)
-        } catch (error) {
-          toast.error(typeof error === 'string' ? error : '粘贴图片失败')
-        }
+    const results = await Promise.allSettled(
+      files.map(function (file) {
+        return savePasteImage(file)
       })
     )
+    // 逐张报错：一张失败不影响其余图片挂上去
+    results.forEach(function (result) {
+      if (result.status === 'fulfilled') {
+        handleAttach(result.value)
+        return
+      }
+      toast.error(typeof result.reason === 'string' ? result.reason : '粘贴图片失败')
+    })
   }
 
   return {

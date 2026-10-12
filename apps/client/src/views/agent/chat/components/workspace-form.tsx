@@ -171,8 +171,9 @@ function WorkspaceFormEditor(props: Pick<WorkspaceFormProps, 'workspaceID' | 'on
     updateSaving(true)
     try {
       await archiveWorkspace(props.workspaceID, props.onClose)
-    } catch {
-      // toast already handled
+    } catch (error) {
+      // toast 由 archiveWorkspace 内部弹出，这里只补一条控制台留痕
+      console.warn('[workspace-form] archiveWorkspace 失败（toast 已提示）:', error)
     } finally {
       updateSaving(false)
     }

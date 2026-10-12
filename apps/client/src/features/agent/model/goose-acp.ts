@@ -40,8 +40,9 @@ function isCorexToolsEnabled(): boolean {
     if (import.meta.env.VITE_COREX_MCP === '0') return false
     const stored = localStorage.getItem(COREX_MCP_PREF_KEY)
     if (stored === '0' || stored === 'false') return false
-  } catch {
-    /* ignore */
+  } catch (error) {
+    // 读不到偏好（隐私模式等）时按默认「开」处理，但要留痕
+    console.warn('[goose-acp] 读取 corex-mcp 开关失败，按默认开启处理:', error)
   }
   return true
 }
@@ -289,8 +290,9 @@ async function syncModelsToStore(
 function disposeSessionCache(cache: AcpSessionCache) {
   try {
     cache.session.dispose()
-  } catch {
-    // ignore
+  } catch (error) {
+    // 清理失败不该阻断后续清理，但原因要留下
+    console.warn('[goose-acp] dispose session 失败:', error)
   }
 }
 

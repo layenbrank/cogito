@@ -20,7 +20,9 @@ function useComposerGit(primaryPath: string | null) {
           updateIsRepo(result.isRepo)
           updateBranch(result.branch)
         })
-        .catch(function () {
+        .catch(function (error: unknown) {
+          // 探测失败（目录不存在 / 权限）按「非仓库」降级，但要留痕
+          console.warn('[composer-git] probe 失败，按非仓库处理:', error)
           if (cancelled) return
           updateIsRepo(false)
           updateBranch(null)

@@ -32,7 +32,9 @@ function formatToolDetail(params: RequestPermissionRequest): string {
   if (input !== undefined) {
     try {
       lines.push(JSON.stringify(input, null, 2))
-    } catch {
+    } catch (error) {
+      // 循环引用 / BigInt 等：退回 String()，但要留痕
+      console.warn('[acp-permission] toolCall.rawInput 无法序列化，退回 String():', error)
       lines.push(String(input))
     }
   }

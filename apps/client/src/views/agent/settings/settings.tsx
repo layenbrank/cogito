@@ -51,7 +51,7 @@ function AgentSettings() {
 
       const store = useProviderStore.getState()
       await store.toReadProviders()
-      await Promise.all(
+      const upserts = await Promise.allSettled(
         visible
           .filter(function (entry) {
             return entry.configured
@@ -60,6 +60,12 @@ function AgentSettings() {
             return upsertStoreProvider(entry, {})
           })
       )
+      // 个别供应商落库失败不该让整页打不开：逐条记下，成功的照常显示
+      for (const result of upserts) {
+        if (result.status === 'rejected') {
+          console.warn('[agent-settings] provider 落库失败:', result.reason)
+        }
+      }
     } catch (error) {
       console.error('[agent-settings] loadInventory failed:', error)
       const detail = error instanceof Error ? error.message : '加载失败'
