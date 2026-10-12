@@ -34,6 +34,35 @@
 - 保证可维护、易扩展：结构清晰、职责单一。
 - 整段行为按场景替换 → 策略模式；按输入取值 → 对象映射表驱动。
 
+## 代码质量
+
+### 错误捕获：一律不许静默吃掉
+
+`catch` / `.catch()` 必须**二选一**：throw 出去，或至少输出一次（`console.*` / toast）。**只写注释不算数**。
+
+- 兜底降级（降级到默认值 / 空列表 / 空结果）也要先留痕、再降级。
+- 能**不 catch 就别 catch**：优先换成不抛异常的 API（`execSync` → `spawnSync`），或改成状态判断，而不是包一层 try 再吞掉。
+- 多个失败一起产生时用 `AggregateError` 汇总抛出，别只留第一条。
+- 日志前缀 `[模块] 说明:`，对齐现有 `[goose-acp]` / `[workbench]` / `[agent-settings]`。
+- 机器把关：规则在共享插件 `@i-thinking/eslint-plugin`（id `ith/catch-must-report`）。经 `emit('error', …)` 这类事件总线上报也算输出一次。
+  - `apps/studio`：全域 `error`。
+  - `apps/client`：`src/features/agent/**`、`src/views/agent/**`、`src/stores/agent.ts` 为 `error`（硬拦）；其余存量先按 `warning` 记着，清完再提级。
+
+### 异步：非必要不用 `Promise.all`
+
+- 并行任务之间**互相独立**（一个失败不该拖垮其余的）→ 用 `Promise.allSettled`，逐条处理 `fulfilled` / `rejected` 并各自报错。
+- 只有**真 fail-fast** 才用 `Promise.all`：失败的输入会让后续完全做不下去（例如两个都是必需的：`Promise.all([findAcpHandle(), findWorkspaceCwd()])`）。
+- 「每项内部已自带 try/catch」的 `Promise.all` 属冗余：改 `allSettled`，把 per-item 的 try/catch 收到一处。
+
+### 简化写法
+
+- 可选链 / 空值合并优先：「取出来 + 判空 + 调用」应合并：
+  `this.listeners.get(type)?.forEach(...)` 优于 `const bucket = …; if (!bucket) return; for (…)`。
+- 冗长判空 `x !== null && x !== undefined` → 直接写假值判断 `x`（取反 `!x`）。也别写 `!= null`（`eqeqeq` 会拦）。
+- 布尔上下文（`if` / 三元 test / `!` / `&&`）里**不要**写 `Boolean(x)`：`no-extra-boolean-cast`（在 `eslint:recommended` 内）会判 `Redundant Boolean call`，`pnpm lint` 直接红 —— 直接写 `x` 即可。
+- 只有**非**布尔上下文（JSX 属性、普通返回值）需要真布尔时才 `Boolean(x)` / `!!x`。
+- 分清「有没有值」和「值真不真」：`0` / `''` / `false` 是合法值的位置（定时器 id、`rafId.current`、数值 0、空字符串内容）**不许**换成假值判断，否则真出 bug。
+
 ## 架构
 
 - IPC 是契约单一事实源：改一个频道要同时动 `shared/ipc/{channels,specs,api}`、`host/ipc/handlers`、`preload.ts`（缺一处编译不过，勿绕过）。详见 [IPC 契约规范](../apps/studio/ipc-contract.md)。
@@ -75,7 +104,7 @@
 - 每窗口都要自绘标题栏，`/overlay` 例外；`Decorations` 根节点透明，材质由窗口承担。
 - 磁贴不用 Dialog：双击开独立窗口（`activateTile` → `views/<component>`），label `component:id`。
 - 磁贴两层：`views/<tile>/` = 窗口页；`features/magnetic-tiles/<tile>/` = 磁贴表面；别把窗口逻辑塞回 features。
-- 窗口 UI 归 `views/`：agent 部件 `views/agent/chat/components/**`；`features/agent/` 只留 `acp/`、`model/`、领域类型。
+- 窗口 UI 归 `views/`：agent 部件 `views/agent/chat/components/**`；`features/agent/` 只留 `acp/`、`model/`、`port/`、领域类型。
 - 分屏用布局路由 + 子页，不用 Dialog / 页内开关：出口 `views/agent/agent.tsx`，子页 `views/agent/{chat,settings}/`，URL 只有 `/agent/chat` 与 `/agent/settings`。
 
 ### 已废弃
