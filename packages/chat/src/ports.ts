@@ -95,6 +95,60 @@ interface ChatUsage {
   totalTokens?: number
 }
 
+/** 审批选项类别：与 assistant-ui 的 `ToolApprovalOptionKind` 同义（两边都要能用） */
+type ChatApprovalOptionKind = 'allow-once' | 'allow-always' | 'reject-once' | 'reject-always'
+
+/** 一次审批能给出的决定。`id` 是宿主给的不透明标识（ACP 即 `optionId`） */
+interface ChatApprovalOption {
+  id: string
+  kind: ChatApprovalOptionKind
+  label?: string
+}
+
+/** 计划条目（ACP `plan` 更新带来的整份计划；缺省字段表示未标注） */
+interface ChatPlanEntry {
+  content: string
+  status?: 'pending' | 'in_progress' | 'completed'
+  priority?: 'high' | 'medium' | 'low'
+}
+
+/** 权限模式：goose 原生 4 档（不是 studio 的 `ask|auto|readonly`） */
+type ChatMode = 'auto' | 'approve' | 'smart_approve' | 'chat'
+
+/** 可选项名单（斜杠命令 / agent mention）：端口只传名字与说明，怎么触发由 app 定 */
+interface ChatCommand {
+  name: string
+  description?: string
+}
+
+/** 追问表单字段：JSON Schema 的一个子集，够渲染输入控件即可 */
+interface ChatSchemaField {
+  name: string
+  type: 'string' | 'number' | 'integer' | 'boolean' | 'enum'
+  required?: boolean
+  default?: unknown
+  description?: string
+  enumValues?: readonly { value: string; label?: string }[]
+  minimum?: number
+  maximum?: number
+  minLength?: number
+  maxLength?: number
+}
+
+interface ChatElicitationSchema {
+  title?: string
+  description?: string
+  fields: readonly ChatSchemaField[]
+}
+
+/** 追问回执（UI → 宿主）：`action: 'cancel'` 时不带 `content` */
+interface ChatElicitationResponse {
+  elicitationId: string
+  action: 'accept' | 'cancel'
+  /** `accept` 时按 `schema.fields` 填的值 */
+  content?: Record<string, unknown>
+}
+
 /**
  * 模型流事件（纯数据，跨进程/跨网络都用这一套）。
  * `blockID` 用于把同一段文本（或同一段推理）的增量归组。
@@ -110,7 +164,22 @@ type ChatStreamEvent =
       input: unknown
       /** 给用户看的一句话（工具自己给，缺失时由 UI 兜底） */
       prompt?: string
+      /** 可选决定（ACP 的 `options`）；缺省时 UI 用允许 / 拒绝一对 */
+      options?: readonly ChatApprovalOption[]
     }
+  | { kind: 'plan'; entries: readonly ChatPlanEntry[] }
+  | {
+      /**
+       * 结构化追问（ACP `elicitation/create` 的 form 模式）：UI 按 `schema` 渲染表单。
+       * 与审批一样是「停下来等人」：不回答（或超时）流程不会继续。
+       */
+      kind: 'elicitation-request'
+      elicitationId: string
+      schema: ChatElicitationSchema
+      prompt?: string
+    }
+  | { kind: 'mode-update'; mode: ChatMode }
+  | { kind: 'commands-update'; commands: readonly ChatCommand[] }
   | {
       kind: 'tool-result'
       toolCallId: string
@@ -144,6 +213,8 @@ type ChatStreamEvent =
 interface ChatToolApproval {
   toolCallId: string
   approved: boolean
+  /** 选中的具体选项（ACP 即 `optionId`）；只有多选项审批才带 */
+  optionId?: string
 }
 
 /** 模型端口：一次生成的事件流（实现方必须响应 `signal` 中止） */
@@ -157,6 +228,11 @@ interface ChatModelPort {
    * （运行结束 / 工具已跑完），调用方据此如实提示用户，而不是假报成功。
    */
   respondToApproval?(input: ChatToolApproval): boolean
+  /**
+   * 回答一次结构化追问（事件流里出现过 `elicitation-request`）。
+   * 与审批同理：返回 `false` 表示这次追问已经不在等待中，调用方据此如实提示用户。
+   */
+  respondToElicitation?(input: ChatElicitationResponse): boolean
 }
 
 /** 给联合类型每个成员补上字段（分发式条件类型） */
@@ -178,13 +254,21 @@ type ChatPortRequest =
 type ChatPortEvent = WithRunID<ChatStreamEvent>
 
 export type {
+  ChatApprovalOption,
+  ChatApprovalOptionKind,
+  ChatCommand,
+  ChatElicitationResponse,
+  ChatElicitationSchema,
   ChatHistoryPort,
   ChatImage,
+  ChatMode,
   ChatModelPort,
+  ChatPlanEntry,
   ChatPortEvent,
   ChatPortRequest,
   ChatRunInput,
   ChatRunMessage,
+  ChatSchemaField,
   ChatStoredMessage,
   ChatStreamEvent,
   ChatTarget,

@@ -6,7 +6,14 @@ import type {
   ToolCallMessagePartStatus
 } from '@assistant-ui/react'
 
-import type { ChatModelPort, ChatRunMessage, ChatTarget, ChatUsage } from '../ports'
+import type {
+  ChatElicitationSchema,
+  ChatModelPort,
+  ChatPlanEntry,
+  ChatRunMessage,
+  ChatTarget,
+  ChatUsage
+} from '../ports'
 
 /**
  * 模型适配器：把 `ChatModelPort` 的事件流聚合成 assistant-ui 需要的**快照**。
@@ -136,6 +143,30 @@ function collectImages(message: ThreadMessage): { mediaType: string; data: strin
 type StreamBlock =
   | { type: 'text' | 'reasoning'; blockID: string; text: string }
   | { type: 'tool'; tool: ToolAccumulator }
+  /** 计划：ACP 每次给全量，所以只占一块、原地替换 */
+  | { type: 'plan'; entries: readonly ChatPlanEntry[] }
+  /** 结构化追问：一次追问一块，位置固定在它出现那一瞬 */
+  | {
+      type: 'elicitation'
+      elicitationId: string
+      schema: ChatElicitationSchema
+      prompt?: string
+    }
+
+/** data part 名：UI 按名字分派渲染（计划列表 / 追问表单），两端都得从这里取 */
+const PLAN_PART_NAME = 'plan'
+const ELICITATION_PART_NAME = 'elicitation'
+
+/** 上面两个 data part 的载荷形状（UI 侧用它做类型收窄） */
+interface ChatPlanPartData {
+  entries: readonly ChatPlanEntry[]
+}
+
+interface ChatElicitationPartData {
+  elicitationId: string
+  schema: ChatElicitationSchema
+  prompt?: string
+}
 
 /**
  * 累积器：
@@ -146,6 +177,10 @@ function createContentAccumulator() {
   const blocks: StreamBlock[] = []
   /** 工具调用 id → 在 `blocks` 里的下标：回填要原地改 */
   const toolIndices = new Map<string, number>()
+  /** 计划块下标：整份替换，不追加 */
+  let planIndex: number | null = null
+  /** 追问 id → 下标：同一次追问重复到达就原地更新，不叠卡 */
+  const elicitationIndices = new Map<string, number>()
 
   function appendBlock(kind: 'text' | 'reasoning', blockID: string, text: string): void {
     // 空增量不建块：块的位置就是 part 的位置，建了又不出现在快照里会让后面的下标白挪
@@ -177,12 +212,55 @@ function createContentAccumulator() {
     blocks[index] = { type: 'tool', tool: next }
   }
 
+  /** 计划：整份替换（位置停在第一次出现处） */
+  function setPlan(entries: readonly ChatPlanEntry[]): void {
+    const block: StreamBlock = { type: 'plan', entries }
+    if (planIndex === null) {
+      planIndex = blocks.length
+      blocks.push(block)
+      return
+    }
+    blocks[planIndex] = block
+  }
+
+  /** 追问：一次一块，占它出现那一刻的位置 */
+  function addElicitation(input: ChatElicitationPartData): void {
+    const block: StreamBlock = { type: 'elicitation', ...input }
+    const index = elicitationIndices.get(input.elicitationId)
+    if (index === undefined) {
+      elicitationIndices.set(input.elicitationId, blocks.length)
+      blocks.push(block)
+      return
+    }
+    blocks[index] = block
+  }
+
   /** 快照：一个字都没吐过的块不进 parts */
   function parts(): ThreadAssistantMessagePart[] {
     const result: ThreadAssistantMessagePart[] = []
     for (const block of blocks) {
       if (block.type === 'tool') {
         result.push(toToolPart(block.tool))
+        continue
+      }
+      if (block.type === 'plan') {
+        result.push({
+          type: 'data',
+          name: PLAN_PART_NAME,
+          data: { entries: block.entries } satisfies ChatPlanPartData
+        })
+        continue
+      }
+      if (block.type === 'elicitation') {
+        result.push({
+          type: 'data',
+          name: ELICITATION_PART_NAME,
+          data: {
+            elicitationId: block.elicitationId,
+            schema: block.schema,
+            ...(block.prompt ? { prompt: block.prompt } : {})
+          } satisfies ChatElicitationPartData
+        })
         continue
       }
       if (!block.text) continue
@@ -192,7 +270,7 @@ function createContentAccumulator() {
     return result
   }
 
-  return { appendBlock, updateTool, parts }
+  return { appendBlock, updateTool, setPlan, addElicitation, parts }
 }
 
 function toStatus(finishReason: string): ChatModelRunResult['status'] {
@@ -264,11 +342,28 @@ function createChatModelAdapter(
                 ...previous,
                 approval: {
                   id: event.toolCallId,
-                  ...(event.prompt ? { prompt: event.prompt } : {})
+                  ...(event.prompt ? { prompt: event.prompt } : {}),
+                  // 选项形状与 assistant-ui 的一致（id / kind / label），直接透传
+                  ...(event.options && event.options.length > 0 ? { options: event.options } : {})
                 }
               }
             })
             break
+          case 'plan':
+            content.setPlan(event.entries)
+            break
+          case 'elicitation-request':
+            content.addElicitation({
+              elicitationId: event.elicitationId,
+              schema: event.schema,
+              ...(event.prompt ? { prompt: event.prompt } : {})
+            })
+            break
+          case 'mode-update':
+          case 'commands-update':
+            // 会话级状态（当前模式 / 命令名单）不属于消息内容，由会话控制器消费，
+            // 不必刷新消息快照
+            continue
           case 'tool-result':
             content.updateTool(event.toolCallId, function (previous) {
               return {
@@ -328,5 +423,5 @@ function createChatModelAdapter(
   }
 }
 
-export { createChatModelAdapter }
-export type { ChatModelAdapterOptions }
+export { createChatModelAdapter, ELICITATION_PART_NAME, PLAN_PART_NAME }
+export type { ChatElicitationPartData, ChatModelAdapterOptions, ChatPlanPartData }

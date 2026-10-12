@@ -8,7 +8,13 @@ import {
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ChatHistoryPort, ChatModelPort, ChatStoredMessage, ChatThread } from '../ports'
-import { createChatModelAdapter } from './chat-model'
+import {
+  createChatModelAdapter,
+  ELICITATION_PART_NAME,
+  PLAN_PART_NAME,
+  type ChatElicitationPartData,
+  type ChatPlanPartData
+} from './chat-model'
 import { createThreadHistoryAdapter, LOCAL_FORMAT, type ThreadIdentity } from './thread-history'
 import { createThreadListAdapter } from './thread-list'
 
@@ -432,10 +438,12 @@ describe('createChatModelAdapter', function () {
    * 断言 part 的**次序**用它 —— 次序错了界面上的时序就反了（工具调用跑到回答下方）。
    */
   async function collectSnapshots(adapter: ReturnType<typeof createChatModelAdapter>) {
-    const snapshots: Array<readonly { type: string; text?: string }[]> = []
+    const snapshots: Array<
+      readonly { type: string; text?: string; name?: string; data?: unknown }[]
+    > = []
     for await (const result of (
       adapter.run as (input: never) => AsyncGenerator<{
-        content?: readonly { type: string; text?: string }[]
+        content?: readonly { type: string; text?: string; name?: string; data?: unknown }[]
       }>
     )({ messages: [buildMessage('m1', '你好')] } as never)) {
       if (result.content) snapshots.push(result.content)
@@ -533,6 +541,97 @@ describe('createChatModelAdapter', function () {
         return parts.length === 0
       })
     ).toBe(true)
+  })
+
+  it('plan 与追问走 data part：计划整份替换、追问按 id 原地更新，位置都在事件次序上', async function () {
+    const adapter = createChatModelAdapter(
+      buildModelPort([
+        { kind: 'plan', entries: [{ content: '读入口文件' }, { content: '改配置' }] },
+        { kind: 'text', blockID: 't1', text: '按计划来。' },
+        { kind: 'plan', entries: [{ content: '读入口文件', status: 'completed' }] },
+        { kind: 'elicitation-request', elicitationId: 'e1', schema: { title: '选目录', fields: [] } },
+        {
+          kind: 'elicitation-request',
+          elicitationId: 'e1',
+          schema: { title: '选目录', fields: [{ name: 'dir', type: 'string' }] },
+          prompt: '用哪个目录？'
+        },
+        { kind: 'finish', finishReason: 'stop' }
+      ])
+    )
+
+    const parts = (await collectSnapshots(adapter)).at(-1) ?? []
+
+    // 位置：计划停在它首次出现处，正文在它之后，追问在最后 —— 不按类型归堆
+    expect(
+      parts.map(function (part) {
+        return part.type
+      })
+    ).toEqual(['data', 'text', 'data'])
+    expect(parts[0]).toMatchObject({ name: PLAN_PART_NAME })
+    expect(parts[2]).toMatchObject({ name: ELICITATION_PART_NAME })
+
+    // 计划是整份替换：只剩最新那一份，不叠两张卡
+    const plan = parts[0].data as ChatPlanPartData
+    expect(plan.entries).toHaveLength(1)
+    expect(plan.entries[0]).toMatchObject({ content: '读入口文件', status: 'completed' })
+
+    // 同一次追问重复到达原地更新（并带上 prompt）
+    const elicitation = parts[2].data as ChatElicitationPartData
+    expect(elicitation.prompt).toBe('用哪个目录？')
+    expect(elicitation.schema.fields).toHaveLength(1)
+  })
+
+  it('模式 / 命令名单这类会话级更新不进消息内容', async function () {
+    const adapter = createChatModelAdapter(
+      buildModelPort([
+        { kind: 'mode-update', mode: 'approve' },
+        { kind: 'commands-update', commands: [{ name: 'compact', description: '压缩上下文' }] },
+        { kind: 'finish', finishReason: 'stop' }
+      ])
+    )
+
+    const snapshots = await collectSnapshots(adapter)
+
+    // 只有 finish 那一份快照，而且内容是空的
+    expect(snapshots).toHaveLength(1)
+    expect(snapshots[0]).toEqual([])
+  })
+
+  it('审批选项透传给 assistant-ui，回填结果时仍留在卡上', async function () {
+    const adapter = createChatModelAdapter(
+      buildModelPort([
+        { kind: 'tool-call', toolCallId: 'c1', toolName: 'memory_write', input: { key: 'a' } },
+        {
+          kind: 'tool-approval-request',
+          toolCallId: 'c1',
+          toolName: 'memory_write',
+          input: { key: 'a' },
+          prompt: '要写入长期记忆吗？',
+          options: [
+            { id: 'o1', kind: 'allow-once', label: '就这一次' },
+            { id: 'o2', kind: 'reject-once' }
+          ]
+        },
+        { kind: 'tool-result', toolCallId: 'c1', toolName: 'memory_write', output: 'ok' },
+        { kind: 'finish', finishReason: 'stop' }
+      ])
+    )
+
+    const snapshots = await collectSnapshots(adapter)
+
+    const asked = snapshots[1][0] as {
+      approval?: { prompt?: string; options?: readonly unknown[] }
+    }
+    expect(asked.approval?.prompt).toBe('要写入长期记忆吗？')
+    expect(asked.approval?.options).toHaveLength(2)
+
+    // 结果回来了，选项也得留着：用户看到的「批准了什么」不能消失
+    const settled = snapshots[2][0] as {
+      approval?: { approved?: boolean; options?: readonly unknown[] }
+    }
+    expect(settled.approval?.approved).toBe(true)
+    expect(settled.approval?.options).toHaveLength(2)
   })
 
   it('error 事件抛出可展示错误，aborted 交出终态快照', async function () {
