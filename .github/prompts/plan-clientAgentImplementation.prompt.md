@@ -411,8 +411,6 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 ### ⏳ 待完成
 
 - **CI `unit` 步骤仍整段 `|| true`**：client unit 现在全绿，可考虑改成硬失败（extension 等包需先确认）。
-- **PR2 · `packages/chat` 契约扩展**（[D1](#d1-packageschat-契约扩展对应-ws-10)）+ `apps/studio` 回归
-- **PR3 · WS-2 本地持久化**（就地改 `migrations_v001.rs` + `agent_*` 重命名）（[D4](#d4-本地持久化对应-ws-2)）
 - **PR4 · WS-1 客户端 chat 层**（端口 + Thread UI + 槽位组件）（[D2](#d2-acp-sessionupdate--chatstreamevent-映射表对应-ws-13) / [D3](#d3-会话控制器与票据对应-ws-1314)）
 - **PR5 · WS-3 网关 provider + 只读 helper + 配额**（[D5](#d5-网关-provider-与只读-helper对应-ws-3)）
 - **PR6 · WS-7 设置面**（provider / 扩展 / 权限 / 用量 / 诊断）
@@ -422,3 +420,47 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 - **PR10 · WS-8 清理 + 全量验证**
 
 > 依赖（见 [D9](#d9-实施顺序pr-拆分)）：PR4←PR2/PR3；PR7←PR3；PR8←PR5；PR9←PR5/PR8；PR6 可与 PR7–PR9 并行。PR1b 不阻塞 PR2/PR3（可并行）。
+
+### ✅ PR2 · `packages/chat` 契约扩展 — `0551426d`
+
+- 新增类型：`ChatApprovalOption(Kind)`、`ChatPlanEntry`、`ChatMode`、`ChatCommand`、`ChatSchemaField/ElicitationSchema/ElicitationResponse`。
+- `ChatStreamEvent` 增 `plan` / `elicitation-request` / `mode-update` / `commands-update`；`tool-approval-request` 增 `options`；`ChatToolApproval` 增 `optionId`；`ChatModelPort` 增 `respondToElicitation`。**全部加法式**，studio 不受影响。
+- 适配器：`plan` 与追问走 assistant-ui 的 **data part**（名字常量 `PLAN_PART_NAME` / `ELICITATION_PART_NAME` 由本包导出，UI 两端共用，别各写一遍字符串）；计划整份替换、位置停在首次出现处；追问按 `elicitationId` 原地更新。`mode` / `commands` 不进消息内容（由会话控制器消费）。审批 `options` 直接透传（形状与 assistant-ui 的 `ToolApprovalOption` 一致）。
+- 验证：chat 包 23 单测 ✅、chat `tsc` ✅、studio `tsc` ✅。
+
+### ✅ WS-0 收尾 · 租户身份 + 依赖 — `ba9e7717`
+
+- client 此前**没有租户概念**：补齐三层（`utils/tenant.ts` 只放值给 http 同步读 / `apis/tenant.ts` 打 `/tenants` / `features/quota/tenant.ts` 管解析与作废），`http.ts` 请求带上 `X-Tenant-ID`，入口 `watchActiveTenant()` 跟随令牌变化重解析。缓存一律带「解析时令牌」指纹，换账号立刻失效。
+- 补 client 依赖：`@assistant-ui/react`、`assistant-stream`、`@i-thinking/types`。
+
+### ✅ PR3 · 持久化域统一 `agent_*` — `762e43f1`
+
+- 表 / 实体 / 模块 / 命令 id / 通道常量 / TS 类型全量改名，**全仓已无 `Ai*` / `ai*` 标识符**（Rust 侧 170 处、TS 侧 110 处）。
+- 表名 snake_case（`agent_session` / `agent_message` / `agent_provider` / `agent_workspace` / `agent_workspace_folder`），索引外键 `idx_agent_*` / `fk_agent_*`，列名仍 camelCase；就地改 v001 单世代迁移。
+- TS 类型在 `MagneticTile.Agent` 命名空间内用短名（`Session` / `Message` / `Workspace` / `WorkspaceFolder` / `Usage`），store 不再「旧名再导出」。
+- 纯增量：`agent_session.providerID`、`AGENT_USAGE` 通道族、`Agent.Usage` 类型。
+- 删掉 `packages/shared/src/types/magnetic-tile-agent.ts`（与 `.d.ts` 同名的副本、无人 import → 双轨），包 `exports.types` 改指 `.d.ts`。
+- 执行方式：rust-analyzer 不可用 → 用显式有序映射表脚本改名（长名优先、camel/snake/类型分开），随后 `cargo check` + `tsc` 验证。
+- 验证：`cargo check` ✅、client `tsc` ✅、lint 0 error ✅、单测 126 ✅、根 `lint` 13/13 ✅。
+
+### ⚠️ PR3 有意未做的部分（随 PR4 落地）
+
+`agent_message` 的 `parentID` / `format`、删除 `thinking` / `parts`、`deleteMessages` 按 `parentID` 级联、`agent_usage` 的完整 CRUD —— 这些是**破坏性列变更**，会直接砸坏 PR4 才替换掉的旧消息 UI（`chat.tsx` / `workbench*` / `bubbles`），而新 UI 此刻还不存在，无法单独提交为绿。故与 PR4 同批做。
+
+---
+
+## 待决策（需你拍板）
+
+> 执行期遇到的岔路，按「影响面 / 我的建议」记在这里，醒了统一定。
+
+| # | 问题 | 我的建议 |
+| --- | --- | --- |
+| 1 | **PR3 破坏性列变更归属**：`agent_message` 删 `thinking`/`parts`、加 `parentID`/`format`、`agent_usage` CRUD、级联删除，随 PR4 一起做是否同意？ | 同意。它们与旧消息 UI 的生死绑定，单独提交只能留红。 |
+| 2 | **`magnetic-tile-agent.ts` 已删除**：与 `.d.ts` 同名、无人 import（`export` 那行本来就注释掉）。若你本意是留它当运行时 schema 源，需要另议。 | 保持删除。留着就是双轨。 |
+| 3 | **CI 加 client `cargo check`**：本机 47s 可跑，但 CI 是 ubuntu 无 Rust 工具链，需装 `dtolnay/rust-toolchain` + webkit2gtk 等；30 分钟预算。 | 先加「Rust 单独 job（仅 cargo check，带缓存）」，不塞进现有 job。 |
+| 4 | **client 存量 29 处 `ith/catch-must-report` 仍为 warn**：含 `water-ripple` 4 处、`errors.test.ts` 2 处（后者是刻意断言抛错，应用带理由的 disable）。 | 清掉并把 client 全域提级为 error（与 studio 对齐）。 |
+| 5 | **`doctor.config.ts`**：`react-doctor` 本仓没装，配置是孤儿。 | 直接删文件；若你确实在用 `react-doctor`，请把它加进 devDeps。 |
+| 6 | **`X-Tenant-ID` 链路**：现在靠 `main.tsx` 启动 + 令牌变化重解析；goose 自定义 provider 的 `headers` 是静态 map，**切换租户需要 `providers/custom/update` 更新 provider 配置**（PR5 实现）。 | 按此实现（避免引入本地代理）。 |
+| 7 | **CI `unit` 步骤仍是整段 `|| true`**：client unit 已全绿。 | 改成硬失败（先确认 extension 等包）。 |
+| 8 | **PR4 落地顺序**（我的计划）：`port/history` → `acp/stream`（D2 映射表 + 单测）→ `acp/session`（控制器 + 票据）→ `port/model` → `views/agent/chat/runtime` → `chat.tsx` 三栏 + 槽位移植；**旧 UI 与死代码在同批删除**（否则 tsc/lint 卡在旧路径上）。 | 按此顺序，分 2–3 个提交。 |
+| 9 | **`@agentclientprotocol/sdk` 版本**：client 固定 `1.7.0`，需核对 `SessionUpdate` 变体（plan / available_commands / current_mode / usage）与 `elicitation/create` 类型是否齐全；不足则升到与 goose 同版本。 | PR4 开工前先核对，缺则升级。 |
