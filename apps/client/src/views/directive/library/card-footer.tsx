@@ -6,7 +6,7 @@ import type { MouseEvent } from 'react'
 
 import type { DirectiveEntry } from '@/shared/ipc/specs/sidecar'
 
-import { DirectiveCardMeta } from './directive-card-meta.tsx'
+import { CardMeta } from './card-meta.tsx'
 import { capsFromSummary } from '@/views/directive/run/run-caps'
 import {
   type DirectiveRuns,
@@ -15,7 +15,7 @@ import {
 } from '@/views/directive/run/run-status'
 import { WallRunBar } from '@/views/directive/run/run-menu'
 
-interface DirectiveCardFooterProps {
+interface CardFooterProps {
   entry: DirectiveEntry
   isParsed: boolean
   runs: DirectiveRuns
@@ -25,7 +25,7 @@ interface DirectiveCardFooterProps {
   onDelete: (name: string) => void
 }
 
-function DirectiveCardFooter(props: DirectiveCardFooterProps) {
+function CardFooter(props: CardFooterProps) {
   const inputCount = props.entry.summary?.input_count ?? 0
   const caps = capsFromSummary(props.entry.summary)
   const ranAtTitle = props.runs.lastAt
@@ -67,7 +67,7 @@ function DirectiveCardFooter(props: DirectiveCardFooterProps) {
         className="flex min-w-0 items-center gap-1.5"
         onClick={haltBubble}
         onPointerDown={haltBubble}>
-        <DirectiveCardMeta
+        <CardMeta
           entry={props.entry}
           isParsed={props.isParsed}
           runs={props.runs}
@@ -110,4 +110,4 @@ function DirectiveCardFooter(props: DirectiveCardFooterProps) {
   )
 }
 
-export { DirectiveCardFooter }
+export { CardFooter }

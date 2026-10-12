@@ -5,8 +5,8 @@ import { memo } from 'react'
 import type { DirectiveEntry } from '@/shared/ipc/specs/sidecar'
 
 import { findBucketMark } from './bucket'
-import { DirectiveCardFooter } from './directive-card-footer.tsx'
-import { DirectiveCardStatus } from './directive-card-status.tsx'
+import { CardFooter } from './card-footer.tsx'
+import { CardStatus } from './card-status.tsx'
 import type { DirectiveRuns } from '@/views/directive/run/run-status'
 
 interface Props {
@@ -20,7 +20,7 @@ interface Props {
   onDelete: (name: string) => void
 }
 
-function DirectiveCard(props: Props) {
+function Card(props: Props) {
   const { entry } = props
   const isParsed = entry.summary !== null
   const mark = findBucketMark(entry.bucket)
@@ -29,22 +29,17 @@ function DirectiveCard(props: Props) {
   return (
     <div
       className={cn(
-        'group/card relative flex w-full min-w-0 flex-col overflow-hidden rounded-xl border bg-card p-3 shadow-xs',
+        'group/card relative flex w-full min-w-0 cursor-pointer flex-col overflow-hidden rounded-xl border bg-card p-3 shadow-xs',
         'transition-[border-color,background-color,box-shadow] duration-200',
         'active:bg-accent-active',
         'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50',
         props.isActive
           ? 'border-primary bg-accent text-accent-foreground shadow-xs'
           : 'border-border/70 hover:border-border hover:bg-accent-hover hover:shadow-md'
-      )}>
-      <button
-        type="button"
-        className="absolute inset-0 z-0 rounded-xl"
-        aria-label={`打开 ${entry.name}`}
-        onClick={function () {
-          props.onOpen(entry.name)
-        }}
-      />
+      )}
+      onClick={function () {
+        props.onOpen(entry.name)
+      }}>
       <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-1.5">
         <div className="flex items-start gap-2.5">
           <span
@@ -65,7 +60,7 @@ function DirectiveCard(props: Props) {
                 className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight">
                 {entry.name}
               </span>
-              <DirectiveCardStatus
+              <CardStatus
                 isParsed={isParsed}
                 runs={props.runs}
               />
@@ -80,7 +75,7 @@ function DirectiveCard(props: Props) {
           </div>
         </div>
 
-        <DirectiveCardFooter
+        <CardFooter
           entry={entry}
           isParsed={isParsed}
           runs={props.runs}
@@ -101,7 +96,7 @@ function DirectiveCard(props: Props) {
   )
 }
 
-export default memo(DirectiveCard, function (prev, next) {
+export default memo(Card, function (prev, next) {
   if (prev.entry !== next.entry) return false
   if (prev.isActive !== next.isActive) return false
   if (prev.stepCount !== next.stepCount) return false

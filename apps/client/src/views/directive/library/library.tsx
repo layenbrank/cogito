@@ -9,6 +9,12 @@ import {
   AlertDialogTitle
 } from '@i-thinking/design/components/alert-dialog'
 import { Button } from '@i-thinking/design/components/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@i-thinking/design/components/dropdown-menu'
 import { Input } from '@i-thinking/design/components/input'
 import {
   Select,
@@ -24,8 +30,9 @@ import { Icon } from '@iconify/react/offline'
 
 import { useNow } from '@/views/directive/use-now.ts'
 import { EMPTY_RUNS } from '@/views/directive/run/run-status'
-import DirectiveCard from './directive-card'
-import { useDirectiveLibrary } from './use-directive-library'
+import Card from './card'
+import { ConflictsDialog } from './conflicts-dialog.tsx'
+import { useLibrary } from './use-library'
 
 interface DirectiveLibraryProps {
   activeName?: string
@@ -34,7 +41,7 @@ interface DirectiveLibraryProps {
 
 function DirectiveLibrary(props: DirectiveLibraryProps) {
   const now = useNow(60_000, true)
-  const lib = useDirectiveLibrary({
+  const library = useLibrary({
     activeName: props.activeName,
     onOpen: props.onOpen
   })
@@ -43,20 +50,22 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
     <div className="relative flex h-full min-h-0 flex-col gap-3 bg-muted/35 p-3">
       <div className="flex flex-wrap items-center gap-2">
         <Input
-          value={lib.query}
+          value={library.query}
           onChange={function (event) {
-            lib.updateQuery(event.target.value)
+            library.updateQuery(event.target.value)
           }}
           placeholder="搜索指令…"
-          className="max-w-xs bg-background"
+          className="h-8 max-w-xs bg-background"
         />
         <Select
           items={{ name: '按名称', recent: '最近运行' }}
-          value={lib.sortKey}
+          value={library.sortKey}
           onValueChange={function (value) {
-            if (value === 'name' || value === 'recent') lib.updateSortKey(value)
+            if (value === 'name' || value === 'recent') library.updateSortKey(value)
           }}>
-          <SelectTrigger className="h-8 w-32 bg-background">
+          <SelectTrigger
+            size="sm"
+            className="w-32 bg-background">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -65,10 +74,9 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
           </SelectContent>
         </Select>
         <Button
-          size="sm"
           variant="secondary"
           onClick={function () {
-            void lib.handleNew()
+            library.handleNew()
           }}>
           <Icon
             icon="lucide:plus"
@@ -76,23 +84,52 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
           />
           新建
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="bg-background"
-          onClick={function () {
-            void lib.handleImport()
-          }}>
-          <Icon
-            icon="lucide:upload"
-            className="size-4"
-          />
-          导入
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="outline"
+                className="bg-background"
+                disabled={library.isImporting}
+                aria-label="导入 YAML"
+                title="导入 YAML"
+              />
+            }>
+            <Icon
+              icon="lucide:upload"
+              className="size-4"
+            />
+            导入
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            className="min-w-44">
+            <DropdownMenuItem
+              onClick={function () {
+                void library.handleImportFolder()
+              }}>
+              <Icon
+                icon="lucide:folder-open"
+                className="size-4"
+              />
+              导入 YAML 目录…
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={function () {
+                void library.handleImportFiles()
+              }}>
+              <Icon
+                icon="lucide:file-text"
+                className="size-4"
+              />
+              导入 YAML 文件…
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
-        {lib.isLoading && !lib.isLoaded ? (
+        {library.isLoading && !library.isLoaded ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             <Skeleton className="h-28 w-full rounded-xl" />
             <Skeleton className="h-28 w-full rounded-xl" />
@@ -101,27 +138,27 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
           </div>
         ) : null}
 
-        {lib.loadError ? (
+        {library.loadError ? (
           <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm">
             <p className="font-medium text-destructive">无法加载指令库</p>
-            <p className="mt-1 text-muted-foreground">{lib.loadError}</p>
+            <p className="mt-1 text-muted-foreground">{library.loadError}</p>
             <Button
               size="sm"
               className="mt-3"
               variant="outline"
               onClick={function () {
-                void lib.initialize()
+                void library.initialize()
               }}>
               重试
             </Button>
           </div>
         ) : null}
 
-        {!lib.loadError && lib.isLoaded && lib.filtered.length === 0 ? (
+        {!library.loadError && library.isLoaded && library.filtered.length === 0 ? (
           <p className="p-4 text-sm text-muted-foreground">还没有指令，点「新建」开始编排。</p>
         ) : null}
 
-        {[...lib.groups.entries()].map(function ([folder, entries]) {
+        {[...library.groups.entries()].map(function ([folder, entries]) {
           return (
             <div
               key={folder ?? '__root'}
@@ -137,16 +174,16 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                 {entries.map(function (entry) {
                   return (
-                    <DirectiveCard
+                    <Card
                       key={entry.name}
                       entry={entry}
                       isActive={props.activeName === entry.name}
-                      runs={lib.runSummaries[entry.name] ?? EMPTY_RUNS}
-                      stepCount={lib.stepCounts[entry.name] ?? 0}
+                      runs={library.runSummaries[entry.name] ?? EMPTY_RUNS}
+                      stepCount={library.stepCounts[entry.name] ?? 0}
                       now={now}
-                      onOpen={lib.openName}
-                      onRun={lib.quickRun}
-                      onDelete={lib.askDelete}
+                      onOpen={library.openDirective}
+                      onRun={library.quickRun}
+                      onDelete={library.askDelete}
                     />
                   )
                 })}
@@ -156,29 +193,40 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
         })}
       </ScrollArea>
 
-      {lib.isDeleting ? (
+      {library.isDeleting || library.isImporting ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/40">
           <Spinner className="size-6" />
         </div>
       ) : null}
 
+      <ConflictsDialog
+        conflicts={library.importConflicts}
+        onCancel={library.cancelImport}
+        onSkip={function () {
+          library.confirmImport(false)
+        }}
+        onOverwrite={function () {
+          library.confirmImport(true)
+        }}
+      />
+
       <AlertDialog
-        open={lib.pendingDelete !== null}
+        open={library.pendingDelete !== null}
         onOpenChange={function (open) {
-          if (!open) lib.updatePendingDelete(null)
+          if (!open) library.updatePendingDelete(null)
         }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>删除指令？</AlertDialogTitle>
             <AlertDialogDescription>
-              「{lib.pendingDelete}」将从 corex 指令库中永久删除。
+              「{library.pendingDelete}」将从 corex 指令库中永久删除。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
               onClick={function () {
-                void lib.confirmDelete()
+                void library.confirmDelete()
               }}>
               删除
             </AlertDialogAction>

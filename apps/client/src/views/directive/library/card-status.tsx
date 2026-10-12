@@ -2,17 +2,14 @@ import { Badge } from '@i-thinking/design/components/badge'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 
-import {
-  RUN_STATUS_STYLES,
-  type DirectiveRuns
-} from '@/views/directive/run/run-status'
+import { RUN_STATUS_STYLES, type DirectiveRuns } from '@/views/directive/run/run-status'
 
-interface DirectiveCardStatusProps {
+interface CardStatusProps {
   isParsed: boolean
   runs: DirectiveRuns
 }
 
-function DirectiveCardStatus(props: DirectiveCardStatusProps) {
+function CardStatus(props: CardStatusProps) {
   if (!props.isParsed) {
     return (
       <Badge
@@ -24,21 +21,21 @@ function DirectiveCardStatus(props: DirectiveCardStatusProps) {
     )
   }
 
-  const status = props.runs.status ? RUN_STATUS_STYLES[props.runs.status] : null
-  if (!status) return null
+  const statusStyle = props.runs.status ? RUN_STATUS_STYLES[props.runs.status] : null
+  if (!statusStyle) return null
 
   const statusLabel =
-    props.runs.running > 1 ? `${status.label} ×${props.runs.running}` : status.label
+    props.runs.running > 1 ? `${statusStyle.label} ×${props.runs.running}` : statusStyle.label
 
   return (
     <Badge
       variant="outline"
-      className={cn('shrink-0 gap-1.5 rounded-full font-normal', status.tone)}>
+      className={cn('shrink-0 gap-1.5 rounded-full font-normal', statusStyle.tone)}>
       <span
         aria-hidden
         className={cn(
           'size-1.5 shrink-0 rounded-full',
-          status.dot,
+          statusStyle.dot,
           props.runs.status === 'running' && 'animate-pulse'
         )}
       />
@@ -47,4 +44,4 @@ function DirectiveCardStatus(props: DirectiveCardStatusProps) {
   )
 }
 
-export { DirectiveCardStatus }
+export { CardStatus }

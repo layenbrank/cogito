@@ -4,7 +4,7 @@ import { capsFromSummary } from '@/views/directive/run/run-caps'
 import type { DirectiveRuns } from '@/views/directive/run/run-status'
 import { formatRelativeTime } from '@/views/directive/run/run-status'
 
-interface DirectiveCardMetaProps {
+interface CardMetaProps {
   entry: DirectiveEntry
   isParsed: boolean
   runs: DirectiveRuns
@@ -13,7 +13,7 @@ interface DirectiveCardMetaProps {
   metaTitle: string
 }
 
-function DirectiveCardMeta(props: DirectiveCardMetaProps) {
+function CardMeta(props: CardMetaProps) {
   const inputCount = props.entry.summary?.input_count ?? 0
   const caps = capsFromSummary(props.entry.summary)
 
@@ -29,9 +29,7 @@ function DirectiveCardMeta(props: DirectiveCardMetaProps) {
       {caps.hasCron || caps.hasWatch ? (
         <span>
           {' · '}
-          {[caps.hasCron ? 'cron' : null, caps.hasWatch ? 'watch' : null]
-            .filter(Boolean)
-            .join('/')}
+          {[caps.hasCron ? 'cron' : null, caps.hasWatch ? 'watch' : null].filter(Boolean).join('/')}
         </span>
       ) : null}
       {props.runs.failed > 0 ? (
@@ -47,4 +45,4 @@ function DirectiveCardMeta(props: DirectiveCardMetaProps) {
   )
 }
 
-export { DirectiveCardMeta }
+export { CardMeta }
