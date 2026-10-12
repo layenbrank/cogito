@@ -8,6 +8,7 @@
     "playwright.config.*",
     "tailwind.config.*",
     "eslint.config.*",
+    "shaders.config.*",
     "scripts/**/*.ts"
   ],
   "exclude": ["postcss.config.js", "**/node_modules/**", "**/dist/**"],
