@@ -1,5 +1,5 @@
 {
-  "name": "i-thinking-downloads",
+  "name": "i-thinking-distribution",
   "main": "src/worker.ts",
   "compatibility_date": "2026-08-01",
   "workers_dev": true,

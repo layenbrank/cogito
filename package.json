@@ -20,8 +20,9 @@
     "bump:studio": "pnpm --filter @i-thinking/studio exec bumpp --configFilePath bump.studio.ts",
     "command": "node scripts/commands/index.ts",
     "sidecar": "node scripts/commands/index.ts sidecar",
-    "worker": "node scripts/commands/index.ts worker",
+    "distribution": "node scripts/commands/index.ts distribution",
     "check:vscode": "node scripts/infra/vscode-settings.ts --check",
+    "check:scripts": "tsc -p scripts/tsconfig.json",
     "sync:vscode": "node scripts/infra/vscode-settings.ts",
     "coverage": "turbo run coverage --filter=!@i-thinking/client",
     "dev": "turbo run dev --filter=!@i-thinking/client",
@@ -169,7 +170,6 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260829.1",
     "@eslint/js": "^9.33.0",
     "@iconify/json": "catalog:",
     "@playwright/test": "^1.57.0",
@@ -249,8 +249,7 @@
     "vite-plugin-dts": "^4.5.4",
     "vite-plugin-monaco-editor": "^1.1.0",
     "vite-plugin-wasm": "^3.5.0",
-    "vitest": "catalog:",
-    "wrangler": "^4.127.1"
+    "vitest": "catalog:"
   },
   "packageManager": "pnpm@12.10.1+sha512.ba40a37eb1a370d60fea8c4cf1d364c13bcccef518e98ad2bcee954f539d38da37458e58261a3fa55e06523450ea0ffff9f497b135be41f2c15c1642bacace6c",
   "engines": {

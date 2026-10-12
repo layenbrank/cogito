@@ -1,0 +1,25 @@
+{
+  "name": "@i-thinking/distribution",
+  "version": "0.0.0",
+  "private": true,
+  "description": "i-thinking 资源分发端点：Cloudflare Worker，发布流水线把版本化产物（安装包、ffmpeg / corex / pandoc / goose / pdfium 等）推入 R2 桶 i-thinking，用户与开发环境按版本路径取稳定直链",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "secret": "wrangler secret put AUTH_KEY_SECRET",
+    "type-check": "run-s type-check:worker type-check:scripts",
+    "type-check:worker": "tsc --noEmit -p tsconfig.worker.json",
+    "type-check:scripts": "tsc --noEmit -p tsconfig.scripts.json",
+    "lint": "run-s lint:*",
+    "lint:eslint": "eslint . --fix",
+    "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
+    "test:unit": "vitest",
+    "upload": "node scripts/upload-via-worker.ts",
+    "upload:rclone": "node scripts/upload-via-rclone.ts"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260829.1",
+    "wrangler": "^4.127.1"
+  }
+}

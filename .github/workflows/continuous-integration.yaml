@@ -53,6 +53,8 @@ jobs:
         run: |
           pnpm turbo run type-check --continue --filter=@i-thinking/extension || true
           pnpm turbo run type-check --continue --filter=@i-thinking/client || true
+          pnpm check:scripts
+          pnpm command distribution check
 
       - name: Unit tests
         run: |
