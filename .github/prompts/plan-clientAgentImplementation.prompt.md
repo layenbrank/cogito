@@ -133,13 +133,10 @@
 - **`packages/chat` 直接改**（加法式可选字段 + 新事件种类），开工前 `git branch` 备份；不复制子包（避免双轨）；改完跑 `apps/studio` 回归。
 - **网关鉴权 = 声明式 provider 的 `auth.command` + Tauri 注入 `GOOSE_*` 环境 + 只读 helper**（无需重启 goose，无需写 keyring）。
 - **同步 = cursor 增量 + 客户端生成 uuid 主键 + `revision`**，只覆盖 会话/消息/用量。
+- **租户身份 = provider 静态 header，不做本地代理**：`X-Tenant-ID` 写在 goose 自定义 provider 的 `headers` 里（静态 map，无 `${VAR}` 模板），**切换租户时由 `providers/custom/update` 改写**；JWT 文件 `<appData>/cogito/jwt`；helper 路径由 Tauri 注入。
+- **helper 形态 = 随包 Rust 小二进制**（`externalBin` + `sidecar`，与 `corex-mcp` 同路），跨平台；不用 `cmd`/`powershell`。
+- **ACP SDK 不升级**：`@agentclientprotocol/sdk@1.7.0` 已满足（见下表 #9 实测）。
 - 排除：MCP Apps、Roaming 实现。
-
-## 进一步考虑
-
-1. **`X-Tenant-ID` 与 token 文件路径**：`headers` 是静态 map（无 `${VAR}` 模板证据）→ tenant 变化时须 `providers/custom/update`；token 文件放 `<appData>/cogito/jwt`，helper 路径由 Tauri 注入。
-2. **helper 形态**：随包 Rust 小二进制（跨平台）vs `cmd/powershell`（仅 Windows）；建议前者，走 `externalBin` + `sidecar` 流程（与 `corex-mcp` 同路）。
-3. **`@agentclientprotocol/sdk` 版本**：client 固定 `1.7.0`，需核对是否含 `SessionUpdate` 全量变体（plan/available_commands/current_mode/usage）与 `elicitation/create` 类型；不足则升级到与 goose 同版本。
 
 ---
 
@@ -406,11 +403,10 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
   - `pnpm --filter @i-thinking/client run unit` → 126 用例全绿（改动后回归）。
   - CI：`Type check` 步骤对 client 去掉 `|| true`（extension 仍留）。
 
-  **未做（有意）**：CI 未加 client `cargo check` —— 该 job 是 `ubuntu-latest`、无 Rust 工具链，需先装 `dtolnay/rust-toolchain` + webkit2gtk 等系统依赖，且 30 分钟预算下风险高，留待单独决定。
+  **未做（有意）**：CI 未加 client `cargo check` —— 该 job 是 `ubuntu-latest`、无 Rust 工具链，需先装 `dtolnay/rust-toolchain` + webkit2gtk 等系统依赖，且 30 分钟预算下风险高，留待单独决定。（→ 已在「门禁补齐」批次完成）
 
 ### ⏳ 待完成
 
-- **CI `unit` 步骤仍整段 `|| true`**：client unit 现在全绿，可考虑改成硬失败（extension 等包需先确认）。
 - **PR4 · WS-1 客户端 chat 层**（端口 + Thread UI + 槽位组件）（[D2](#d2-acp-sessionupdate--chatstreamevent-映射表对应-ws-13) / [D3](#d3-会话控制器与票据对应-ws-1314)）
 - **PR5 · WS-3 网关 provider + 只读 helper + 配额**（[D5](#d5-网关-provider-与只读-helper对应-ws-3)）
 - **PR6 · WS-7 设置面**（provider / 扩展 / 权限 / 用量 / 诊断）
@@ -443,24 +439,35 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 - 执行方式：rust-analyzer 不可用 → 用显式有序映射表脚本改名（长名优先、camel/snake/类型分开），随后 `cargo check` + `tsc` 验证。
 - 验证：`cargo check` ✅、client `tsc` ✅、lint 0 error ✅、单测 126 ✅、根 `lint` 13/13 ✅。
 
+### ✅ 门禁补齐（`react-doctor` / catch 全域 / CI）
+
+- **`react-doctor` 确实在用** → 根 devDeps 加 `react-doctor@0.9.17`；`doctor.config.ts` 从 `globalIgnores` 移除，纳入 `tsconfig.node.json` include 与 `client/node-tooling` 块。`tsc` + lint 均绿。
+- **catch 存量清零 + 全域提级**：29 处（24 文件）`ith/catch-must-report` 清零 —— 真·良性分支 → `console.debug`，真异常 → `console.warn`；client 的规则块合并为单块全域 `error`（与 studio 对齐）。
+  - 坑：**disable 注释必须放在 `} catch (…) {` 的上一行**——规则报在 `CatchClause` 起点（`catch` 关键字处，列号 9），写在 body 里不生效（`errors.test.ts` 两处刻意取异常断言就是这么踩的）。
+- **CI**（`.github/workflows/continuous-integration.yaml`）：
+  - `unit` 步骤改为 **client 硬失败**：`pnpm --filter @i-thinking/client run unit` 在前，其余包 `turbo run unit --continue --filter=!@i-thinking/client || true` 兜底。
+  - 新增独立 job **`client-rust-check`**：`dtolnay/rust-toolchain@stable` + `Swatinem/rust-cache`（`workspaces: apps/client/src-tauri`）+ webkit2gtk 系统依赖 → `cargo check --locked`。
+  - `build.rs` 会 `panic` 于 `binaries/{corex-daemon,corex-mcp,goose}-<host>` 与 `binaries/pdfium.dll` 缺失/为空，故 job 内用**同名占位文件**满足（真实产物要联网 `pnpm command sidecar bootstrap client`，`cargo check` 不需要）。
+- 验证：client lint `0 error`（全域 error 下）、client `tsc` 0、client unit 126/126。
+
 ### ⚠️ PR3 有意未做的部分（随 PR4 落地）
 
 `agent_message` 的 `parentID` / `format`、删除 `thinking` / `parts`、`deleteMessages` 按 `parentID` 级联、`agent_usage` 的完整 CRUD —— 这些是**破坏性列变更**，会直接砸坏 PR4 才替换掉的旧消息 UI（`chat.tsx` / `workbench*` / `bubbles`），而新 UI 此刻还不存在，无法单独提交为绿。故与 PR4 同批做。
 
 ---
 
-## 待决策（需你拍板）
+## 待决策（已全部拍板）
 
-> 执行期遇到的岔路，按「影响面 / 我的建议」记在这里，醒了统一定。
+> 原表格已按答复收敛，结论如下（PR4 开工前无遗留阻塞项）。
 
-| # | 问题 | 我的建议 |
-| --- | --- | --- |
-| 1 | **PR3 破坏性列变更归属**：`agent_message` 删 `thinking`/`parts`、加 `parentID`/`format`、`agent_usage` CRUD、级联删除，随 PR4 一起做是否同意？ | 同意。它们与旧消息 UI 的生死绑定，单独提交只能留红。 |
-| 2 | **`magnetic-tile-agent.ts` 已删除**：与 `.d.ts` 同名、无人 import（`export` 那行本来就注释掉）。若你本意是留它当运行时 schema 源，需要另议。 | 保持删除。留着就是双轨。 |
-| 3 | **CI 加 client `cargo check`**：本机 47s 可跑，但 CI 是 ubuntu 无 Rust 工具链，需装 `dtolnay/rust-toolchain` + webkit2gtk 等；30 分钟预算。 | 先加「Rust 单独 job（仅 cargo check，带缓存）」，不塞进现有 job。 |
-| 4 | **client 存量 29 处 `ith/catch-must-report` 仍为 warn**：含 `water-ripple` 4 处、`errors.test.ts` 2 处（后者是刻意断言抛错，应用带理由的 disable）。 | 清掉并把 client 全域提级为 error（与 studio 对齐）。 |
-| 5 | **`doctor.config.ts`**：`react-doctor` 本仓没装，配置是孤儿。 | 直接删文件；若你确实在用 `react-doctor`，请把它加进 devDeps。 |
-| 6 | **`X-Tenant-ID` 链路**：现在靠 `main.tsx` 启动 + 令牌变化重解析；goose 自定义 provider 的 `headers` 是静态 map，**切换租户需要 `providers/custom/update` 更新 provider 配置**（PR5 实现）。 | 按此实现（避免引入本地代理）。 |
-| 7 | **CI `unit` 步骤仍是整段 `|| true`**：client unit 已全绿。 | 改成硬失败（先确认 extension 等包）。 |
-| 8 | **PR4 落地顺序**（我的计划）：`port/history` → `acp/stream`（D2 映射表 + 单测）→ `acp/session`（控制器 + 票据）→ `port/model` → `views/agent/chat/runtime` → `chat.tsx` 三栏 + 槽位移植；**旧 UI 与死代码在同批删除**（否则 tsc/lint 卡在旧路径上）。 | 按此顺序，分 2–3 个提交。 |
-| 9 | **`@agentclientprotocol/sdk` 版本**：client 固定 `1.7.0`，需核对 `SessionUpdate` 变体（plan / available_commands / current_mode / usage）与 `elicitation/create` 类型是否齐全；不足则升到与 goose 同版本。 | PR4 开工前先核对，缺则升级。 |
+| # | 结论 |
+| --- | --- |
+| 1 | **PR3 破坏性列变更随 PR4 同批**：`agent_message` 的 `parentID`/`format`、删 `thinking`/`parts`、级联删除、`agent_usage` CRUD 与新消息 UI 一起落地（单独提交只能留红）。 |
+| 2 | **`magnetic-tile-agent.ts` 保持删除**（与 `.d.ts` 同名的孤儿副本 = 双轨）。 |
+| 3 | **CI 已加独立 job `client-rust-check`**：`dtolnay/rust-toolchain@stable` + `Swatinem/rust-cache` + webkit2gtk 依赖 + `cargo check --locked`，不塞进现有 job。`build.rs` 只校验 `binaries/*` 存在且非空，故用同名占位文件满足（真实产物要联网 bootstrap，`cargo check` 不需要）。 |
+| 4 | **catch 存量清零 + client 全域 `error`**：29 处已清零，规则改为单块全域 `error`；测试里刻意取异常的两处用带理由 disable——**注释必须放在 `} catch (…) {` 的上一行**（规则报在 CatchClause 起点，不是 body 内），`console.debug` 用于「真·良性」分支。 |
+| 5 | **`react-doctor` 确实在用**：保留 `apps/client/doctor.config.ts`，根 devDeps 加 `react-doctor@0.9.17`，从 `globalIgnores` 移除并纳入 `tsconfig.node.json` include 与 `client/node-tooling` 块（`tsc` + lint 均绿）。 |
+| 6 | **`X-Tenant-ID` 链路 = 声明式 provider 静态 header**（我决策：按原建议，不引入本地代理）：租户切换 → `providers/custom/update`；JWT 文件 `<appData>/cogito/jwt`；helper 路径 Tauri 注入。已写入「决策（已定）」。 |
+| 7 | **CI `unit` 改为 client 硬失败**：`pnpm --filter @i-thinking/client run unit` 在前，其余包 `turbo run unit --continue --filter=!@i-thinking/client || true` 兜底。 |
+| 8 | **PR4 顺序按 D9，分 3 个提交**：① `port/history` + `acp/stream`（含 D2 映射单测）② `acp/session` + `port/{model,instance}` ③ `chat.tsx` 三栏/槽位移植 + 旧 UI 与死代码删除 + PR3 遗留破坏性列变更。 |
+| 9 | **ACP SDK 无需升级**（实测 `@agentclientprotocol/sdk@1.7.0`）：`SessionUpdate` 已含 `plan`、`available_commands_update`、`current_mode_update`、`usage_update`（另含 `plan_update`/`plan_removed`/`compaction_update`/`compaction_summary_chunk`/`subagent_update`/`notice`/`session_info_update`/`config_option_update`）；`CreateElicitationRequest`（form/url 模式 + session/request scope）与 `ElicitationSchema` 齐备。 |
