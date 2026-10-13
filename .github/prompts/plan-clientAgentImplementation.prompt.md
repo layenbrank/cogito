@@ -456,7 +456,10 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 
 ### ⏳ 待完成
 
-- **PR5 · WS-3 网关 provider + 只读 helper + 配额**（[D5](#d5-网关-provider-与只读-helper对应-ws-3)）
+- **PR5 · WS-3 网关 provider + 只读 helper + 配额**（[D5](#d5-网关-provider-与只读-helper对应-ws-3)）——**进行中**：
+  - ✅ 配额门：`apis/gateway.ts`（`GET /gateway/models`、`GET /gateway/quota/me`）+ `features/quota/gate.ts`（只认 `exhausted`，BYOK 放行，失败放行守门归服务端），`port/model.ts` 发跑前查一次。
+  - ✅ JWT 落盘：`cogito:token:write/clear` 命令 + `utils/auth.ts` 登录/退出同步 `<appData>/cogito/jwt`（原子写）。
+  - ⏳ token helper 二进制（`i-thinking-token`，externalBin）+ provider bootstrap（把 cogito 注册进 goose 自定义 provider，`auth.command` 指向 helper）。**开工前先核对 goose 1.54 自定义 provider 的配置 schema**（`D:\Documents\monorepo\goose`：engine/apiUrl/headers/requiresAuth/auth.command 的确切 config key 与字段名 —— 现有客户端只有 `providers/config/save` 与 `config/upsert` 两个口，没有 `providers/custom/create`）。
 - **PR6 · WS-7 设置面**（provider / 扩展 / 权限 / 用量 / 诊断）
 - **PR7 · WS-4 cogito `chat` 同步域**（[D6](#d6-cogito-chat-同步域对应-ws-4)）
 - **PR8 · WS-5 cogito MCP**（[D7](#d7-cogito-mcp-面对应-ws-5)）
