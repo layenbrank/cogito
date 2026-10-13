@@ -93,11 +93,12 @@ pub fn install_crypto_provider() {
 pub fn rustls_client_config(fingerprint: &str) -> Result<rustls::ClientConfig, String> {
     install_crypto_provider();
     let verifier = Arc::new(FingerprintVerifier::new(fingerprint));
-    let mut config = rustls::ClientConfig::builder()
+    // 不强制 ALPN：goose/axum_server 侧协商不一致时，强制 `http/1.1` 会导致握手失败，
+    // 探活一直 false，最后报「30s 未就绪（fingerprint=true）」。
+    let config = rustls::ClientConfig::builder()
         .dangerous()
         .with_custom_certificate_verifier(verifier)
         .with_no_client_auth();
-    config.alpn_protocols = vec![b"http/1.1".to_vec()];
     Ok(config)
 }
 
@@ -106,21 +107,18 @@ pub fn tungstenite_connector(fingerprint: &str) -> Result<Connector, String> {
     Ok(Connector::Rustls(Arc::new(config)))
 }
 
-pub async fn https_status_ok(port: u16, fingerprint: &str) -> bool {
+/// 探活 `https://127.0.0.1:{port}/status`；失败返回可读原因（TLS / 网络 / 非 2xx）。
+pub async fn https_status_ok(port: u16, fingerprint: &str) -> Result<(), String> {
     let url = format!("https://127.0.0.1:{port}/status");
-    let Ok(config) = rustls_client_config(fingerprint) else {
-        return false;
-    };
-    let client = match reqwest::Client::builder()
+    let config = rustls_client_config(fingerprint)?;
+    let client = reqwest::Client::builder()
         .use_preconfigured_tls(config)
         .timeout(Duration::from_secs(2))
         .build()
-    {
-        Ok(client) => client,
-        Err(_) => return false,
-    };
-    match client.get(url).send().await {
-        Ok(response) => response.status().is_success(),
-        Err(_) => false,
+        .map_err(|e| format!("构建 HTTPS 客户端失败: {e}"))?;
+    match client.get(&url).send().await {
+        Ok(response) if response.status().is_success() => Ok(()),
+        Ok(response) => Err(format!("/status 返回 {}", response.status())),
+        Err(error) => Err(format!("请求 {url} 失败: {error}")),
     }
 }

@@ -142,6 +142,8 @@ async fn spawn_inner(app: &AppHandle) -> Result<(), String> {
     let mut stdout_buffer = String::new();
     let mut fingerprint: Option<String> = None;
     let mut exited = false;
+    let mut last_probe_error: Option<String> = None;
+    let mut last_probe_warn_at: Option<Instant> = None;
     let deadline = Instant::now() + READY_TIMEOUT;
     let fingerprint_deadline = Instant::now() + FINGERPRINT_TIMEOUT;
 
@@ -181,16 +183,29 @@ async fn spawn_inner(app: &AppHandle) -> Result<(), String> {
             }
             _ = tokio::time::sleep(STATUS_INTERVAL) => {
                 if let Some(ref fp) = fingerprint {
-                    if probe_status(port, fp).await {
-                        let connection = GooseConnection {
-                            url: build_acp_url(port, &token),
-                            token: token.clone(),
-                            port,
-                            cert_fingerprint: fp.clone(),
-                        };
-                        app.state::<GooseServeState>().mark_ready(connection);
-                        watch_process(app.clone(), rx);
-                        return Ok(());
+                    match probe_status(port, fp).await {
+                        Ok(()) => {
+                            let connection = GooseConnection {
+                                url: build_acp_url(port, &token),
+                                token: token.clone(),
+                                port,
+                                cert_fingerprint: fp.clone(),
+                            };
+                            app.state::<GooseServeState>().mark_ready(connection);
+                            watch_process(app.clone(), rx);
+                            return Ok(());
+                        }
+                        Err(error) => {
+                            last_probe_error = Some(error.clone());
+                            // 150ms 一轮，勿每轮 warn；约 2s 打一次便于对照
+                            let should_warn = last_probe_warn_at
+                                .map(|at| at.elapsed() >= Duration::from_secs(2))
+                                .unwrap_or(true);
+                            if should_warn {
+                                warn!("goose /status 探活未通过 (port={port}): {error}");
+                                last_probe_warn_at = Some(Instant::now());
+                            }
+                        }
                     }
                 } else if Instant::now() > fingerprint_deadline {
                     return Err("goose serve 未在时限内输出 GOOSED_CERT_FINGERPRINT".into());
@@ -203,9 +218,13 @@ async fn spawn_inner(app: &AppHandle) -> Result<(), String> {
         return Err("goose serve 在就绪前退出".into());
     }
     Err(format!(
-        "goose serve 在 {:?} 内未就绪（fingerprint={}）",
+        "goose serve 在 {:?} 内未就绪（fingerprint={}{}）",
         READY_TIMEOUT,
-        fingerprint.is_some()
+        fingerprint.is_some(),
+        last_probe_error
+            .as_deref()
+            .map(|e| format!(", last_error={e}"))
+            .unwrap_or_default()
     ))
 }
 
@@ -412,6 +431,6 @@ pub fn normalize_fingerprint(raw: &str) -> String {
         .collect()
 }
 
-async fn probe_status(port: u16, fingerprint: &str) -> bool {
+async fn probe_status(port: u16, fingerprint: &str) -> Result<(), String> {
     crate::utils::goose_tls::https_status_ok(port, fingerprint).await
 }
