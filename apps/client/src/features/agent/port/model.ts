@@ -19,6 +19,7 @@ import type {
 import { runThreadPrompt, respondToApproval, respondToElicitation } from '@/features/agent/acp/session'
 import { parseAcpStreamEvent, type AcpStreamContext } from '@/features/agent/acp/stream'
 import { parseModels } from '@/features/agent/model/providers'
+import { findSendBlocker, isGatewayTarget } from '@/features/quota/gate'
 import { useProviderStore, type AgentProvider } from '@/stores/provider'
 
 /** 宿主扩展：本轮运行要用哪个会话（thread = 本地会话行） */
@@ -134,6 +135,17 @@ function createModelPort(): ChatModelPort {
       const text = appendImages(parsed.text, input.messages.at(-1)?.images)
       if (!text.trim()) {
         yield { kind: 'finish', finishReason: 'end_turn', usage: RUN_USAGE }
+        return
+      }
+
+      // 平台网关发送前查一次配额（BYOK 直接放行）；拦到就当成一次「失败」发给 UI，
+      // 用户点下发送就能看到原因，不用等半截运行失败。判定失败一律放行 —— 守门的是服务端。
+      const blocker = await findSendBlocker({
+        isGateway: isGatewayTarget(provider.kind),
+        modelID: input.model
+      })
+      if (blocker) {
+        yield { kind: 'error', message: blocker, usage: RUN_USAGE }
         return
       }
 
