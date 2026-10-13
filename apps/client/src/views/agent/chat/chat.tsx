@@ -83,6 +83,17 @@ function usePlanAside() {
 }
 
 function AgentChat() {
+  return (
+    <AgentRuntimeProvider>
+      <AssistantLabelsProvider labels={ASSISTANT_LABELS_ZH}>
+        <AgentChatLayout />
+      </AssistantLabelsProvider>
+    </AgentRuntimeProvider>
+  )
+}
+
+/** 三栏布局；依赖 assistant-ui 状态的 hooks（`usePlanAside`）必须挂在 Provider 之内 */
+function AgentChatLayout() {
   const navigate = useNavigate()
   const [defaultLayout] = useState(findSplitterLayout)
   const [isSearchOpen, updateSearchOpen] = useState(false)
@@ -128,75 +139,71 @@ function AgentChat() {
   }
 
   return (
-    <AgentRuntimeProvider>
-      <AssistantLabelsProvider labels={ASSISTANT_LABELS_ZH}>
-        <div className={clsx(styles.chat)}>
-          <AgentTitlebar className={styles.titlebar} />
-          <div className={styles.body}>
-            <ResizablePanelGroup
-              id="agent-workbench"
-              orientation="horizontal"
-              className={styles.splitter}
-              defaultLayout={defaultLayout}
-              onLayoutChanged={handleLayoutChanged}>
-              <ResizablePanel
-                id={SESSION_ID}
-                defaultSize={SESSION_SIZE}
-                minSize={SESSION_MIN}
-                maxSize={SESSION_MAX}
-                collapsible
-                collapsedSize={0}
-                groupResizeBehavior="preserve-pixel-size">
-                <AgentSidebar
-                  className={styles.sidebar}
-                  scenario={scenario}
-                  isSearchOpen={isSearchOpen}
-                  onScenarioChange={updateScenario}
-                  onSearchOpenChange={updateSearchOpen}
-                  onOpenSettings={openSettings}
-                />
-              </ResizablePanel>
+    <div className={clsx(styles.chat)}>
+      <AgentTitlebar className={styles.titlebar} />
+      <div className={styles.body}>
+        <ResizablePanelGroup
+          id="agent-workbench"
+          orientation="horizontal"
+          className={styles.splitter}
+          defaultLayout={defaultLayout}
+          onLayoutChanged={handleLayoutChanged}>
+          <ResizablePanel
+            id={SESSION_ID}
+            defaultSize={SESSION_SIZE}
+            minSize={SESSION_MIN}
+            maxSize={SESSION_MAX}
+            collapsible
+            collapsedSize={0}
+            groupResizeBehavior="preserve-pixel-size">
+            <AgentSidebar
+              className={styles.sidebar}
+              scenario={scenario}
+              isSearchOpen={isSearchOpen}
+              onScenarioChange={updateScenario}
+              onSearchOpenChange={updateSearchOpen}
+              onOpenSettings={openSettings}
+            />
+          </ResizablePanel>
 
-              <ResizableHandle />
+          <ResizableHandle />
 
-              <ResizablePanel
-                id={MAIN_ID}
-                minSize={WORKBENCH_MIN}>
-                <main className={styles.thread}>
-                  <Thread
-                    components={{
-                      Welcome: ThreadWelcome,
-                      ComposerEnd: ComposerModelEnd
-                    }}
-                  />
-                </main>
-              </ResizablePanel>
+          <ResizablePanel
+            id={MAIN_ID}
+            minSize={WORKBENCH_MIN}>
+            <main className={styles.thread}>
+              <Thread
+                components={{
+                  Welcome: ThreadWelcome,
+                  ComposerEnd: ComposerModelEnd
+                }}
+              />
+            </main>
+          </ResizablePanel>
 
-              <ResizableHandle />
+          <ResizableHandle />
 
-              <ResizablePanel
-                id={PLAN_ID}
-                panelRef={planRef}
-                defaultSize={PLAN_SIZE}
-                minSize={PLAN_MIN}
-                maxSize={PLAN_MAX}
-                collapsible
-                collapsedSize={0}
-                groupResizeBehavior="preserve-pixel-size"
-                onResize={handlePlanResize}>
-                <AgentPlanPane
-                  className={styles.planPane}
-                  plan={plan}
-                  onClose={function () {
-                    updateOpen(false)
-                  }}
-                />
-              </ResizablePanel>
-            </ResizablePanelGroup>
-          </div>
-        </div>
-      </AssistantLabelsProvider>
-    </AgentRuntimeProvider>
+          <ResizablePanel
+            id={PLAN_ID}
+            panelRef={planRef}
+            defaultSize={PLAN_SIZE}
+            minSize={PLAN_MIN}
+            maxSize={PLAN_MAX}
+            collapsible
+            collapsedSize={0}
+            groupResizeBehavior="preserve-pixel-size"
+            onResize={handlePlanResize}>
+            <AgentPlanPane
+              className={styles.planPane}
+              plan={plan}
+              onClose={function () {
+                updateOpen(false)
+              }}
+            />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
+    </div>
   )
 }
 
