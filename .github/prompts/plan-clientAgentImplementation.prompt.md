@@ -355,7 +355,6 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 ## 进度（执行记录）
 
 ### ✅ 已完成
-
 - **PR1a · WS-0 复活与基座** — 2026-10-12
   - `apps/client/README.md`：移除 DEPRECATED 横幅，正文改为「架构要点」（保留窗口自绘 / 磁贴两层 / agent 布局路由等事实）。
   - `apps/client/package.json`：新增 `unit`（`vitest run`）与 `coverage`（`vitest run --coverage`）脚本。
@@ -405,9 +404,28 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 
   **未做（有意）**：CI 未加 client `cargo check` —— 该 job 是 `ubuntu-latest`、无 Rust 工具链，需先装 `dtolnay/rust-toolchain` + webkit2gtk 等系统依赖，且 30 分钟预算下风险高，留待单独决定。（→ 已在「门禁补齐」批次完成）
 
+### 🔨 PR4 · WS-1 客户端 chat 层（进行中）
+
+> 拆成 3 刀（比原计划多一刀：控制器与 UI 必须同批，否则旧工作台会失去审批能力 ——
+> 那要么写兼容分支（双轨），要么让旧 UI 静默拒掉所有审批）。
+
+**① 存储与事件映射（已提交）**
+- `agent_message` 增量加 `parentID` / `format`（仍在 v001 就地改）；旧列 `thinking` / `parts` 与旧 UI 同批删，故这一刀不碰它们，保证每步都能编过能跑。
+- `features/agent/port/history.ts`：走 `stores/agent.ts` 的仓储动作（含乐观更新/回滚/事件广播）而不是直接 `invoke`。
+- `features/agent/acp/stream.ts`：纯映射表 + 16 条单测（文本/推理按 `messageId` 归组；工具名 `name` 优先回退 `title`；只有终态算结果；未知权限档位不猜；`usage_update` 走回调）。
+- 两处实测差异（写进代码注释）：ACP 权限类别是 snake_case（`allow_once`）而共享层/assistant-ui 用连字符；ACP 联合类型带「未来类型」索引签名 → 字段读出来是 `unknown`，需就地收窄。
+
+**② 会话控制器（已提交）**
+- `features/agent/acp/session.ts`：会话生命周期（cwd / provider / model / configOptions / corex-mcp 注入）从 `model/goose-acp.ts` 搬入；轮次产出走**一条队列**（update + 反向审批/追问 + 终态）。
+- 票据：审批与追问都有 300s 超时、`settle` 幂等、**票随轮次生死**（轮次结束一律作废并按取消回复）；`respondTo*` 找不到票返回 `false`，UI 如实提示「已失效」。
+- 连接层改为**注入路由**（`bindAcpRequestRouter`），避免 `connection.ts` ↔ `session.ts` 模块环。
+- `model/goose-acp.ts` 收缩为旧路径适配器（会话机器只有一份）；`compactThreadSession`/`switchGooseProviderModel`/`waitGooseReady` 从 `acp/session` 导出，3 处消费方改导入。
+- 验证：client `tsc` 0、lint 0、单测 142/142。
+
+**③ 待做（下一刀）**：`features/agent/port/{model,instance}.ts` → `views/agent/chat/runtime.tsx`（`useLocalRuntime` + `createThreadHistoryAdapter`）→ 三栏 UI + 槽位移植 → **同批删除**旧路径（`chatGooseAcp`、`agent-loop.ts`、`acp/permission.ts`、`acp/normalize.ts`、旧工作台 `workbench*`/`bubbles`/`plan-list`/`code-diff`/`compare-table`）。
+
 ### ⏳ 待完成
 
-- **PR4 · WS-1 客户端 chat 层**（端口 + Thread UI + 槽位组件）（[D2](#d2-acp-sessionupdate--chatstreamevent-映射表对应-ws-13) / [D3](#d3-会话控制器与票据对应-ws-1314)）
 - **PR5 · WS-3 网关 provider + 只读 helper + 配额**（[D5](#d5-网关-provider-与只读-helper对应-ws-3)）
 - **PR6 · WS-7 设置面**（provider / 扩展 / 权限 / 用量 / 诊断）
 - **PR7 · WS-4 cogito `chat` 同步域**（[D6](#d6-cogito-chat-同步域对应-ws-4)）
