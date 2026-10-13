@@ -499,9 +499,19 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
   - **鉴权头匹配**：OpenAI 兼容 provider 的 `CommandAuthProvider` 拼 `Authorization: Bearer <token>`，与渲染进程 `utils/http/http.ts` 注入一致 → helper 只输出 JWT 原文（不含 `Bearer ` 前缀）。
   - **headers 不支持 `${VAR}` 模板**（`resolve_config` 只 expand `base_url`，不 expand `headers`）→ `X-Tenant-ID` 只能静态写入，租户切换 = 重写 JSON + `goose:restart`。
 
+### ✅ PR6 · WS-7 设置面（①②③ 完成）
+
+- ✅ **① 骨架 + 工具权限**：`views/agent/settings/settings.tsx` 改 Tabs（供应商 / 权限 / 扩展 / 用量 / 诊断）；`sections/tool-permissions.tsx` 走 goose 原生 3 档（总是允许 / 每次询问 / 从不允许）——`tools/list` 需要活跃会话才能枚举工具，`tools/permissions/set` 落全局 `permission.yaml`。
+- ✅ **② API Key 迁 goose secrets**：删 `features/agent/model/provider-credentials.ts`（明文 `providers.json`）；`provider-upsert.ts` 去掉 readApiKey/writeApiKey/findSecretKey。
+- ✅ **③ MCP 扩展管理**：`features/agent/model/extension.ts`（线格式 + 表单文本互转，纯函数带单测）+ `features/agent/acp/goose-extensions.ts`（`config/extensions/{list,add,remove,set-enabled}` + `session/extensions/{list,add,remove}`）+ `sections/extensions.tsx` + `sections/extension-form.tsx`。
+  - 线格式（对齐 goose 生成的 `goose-acp-client` 类型）：`type: builtin | platform | mcp`；MCP 的 `server.type` 只有 `http`（streamable）/ `stdio`（`sse` 已被 goose 拒）；请求头 / env 都是 `{name,value}` 列表；`display_name`、`available_tools` 是 snake_case。
+  - `session/extensions/add` **拒绝内联 env**（密钥必须已存）→ 加进会话时把 `config/extensions/list` 的条目**原样**回传，不重建对象（否则 goose 侧多出的 `timeout`/`socket`/`scopes` 会被丢掉）。
+  - 全局配置对新会话生效，已开会话用 `session/extensions/*` 单独加 → UI 分「全局配置 / 当前会话」两块；写操作成功后按 goose 返回重拉，不猜 goose 算出的 key。
+  - 验证：client `tsc` 0、lint 0 error、单测 151（+9）。
+
 ### ⏳ 待完成
 
-- **PR6 · WS-7 设置面**（provider / 扩展 / 权限 / 用量 / 诊断）
+- **PR6 · WS-7 设置面 · ④ 用量 + 诊断**（①②③ 见上）
 - **PR7 · WS-4 cogito `chat` 同步域**（[D6](#d6-cogito-chat-同步域对应-ws-4)）
 - **PR8 · WS-5 cogito MCP**（[D7](#d7-cogito-mcp-面对应-ws-5)）
 - **PR9 · WS-6 委派**（[D8](#d8-长任务委派对应-ws-6)）
