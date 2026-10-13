@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@i-thinking/design/components/button'
 import { Input } from '@i-thinking/design/components/input'
 import { clsx } from 'clsx'
 
@@ -42,9 +43,11 @@ function WorkspaceFormAppearance(props: WorkspaceFormAppearanceProps) {
         <div className={styles.iconGrid}>
           {WORKSPACE_ICONS.map(function (item) {
             return (
-              <button
+              <Button
                 key={item.key}
                 type="button"
+                variant="ghost"
+                size="icon"
                 className={clsx(styles.iconCell, props.icon === item.key && styles.iconActive)}
                 aria-label={item.key}
                 onClick={function () {
@@ -55,7 +58,7 @@ function WorkspaceFormAppearance(props: WorkspaceFormAppearanceProps) {
                   width={18}
                   height={18}
                 />
-              </button>
+              </Button>
             )
           })}
         </div>
@@ -66,9 +69,11 @@ function WorkspaceFormAppearance(props: WorkspaceFormAppearanceProps) {
         <div className={styles.colorRow}>
           {WORKSPACE_COLORS.map(function (swatch) {
             return (
-              <button
+              <Button
                 key={swatch}
                 type="button"
+                variant="ghost"
+                size="icon"
                 className={clsx(styles.colorSwatch, props.color === swatch && styles.colorActive)}
                 style={{ background: swatch }}
                 aria-label={swatch}
@@ -82,7 +87,7 @@ function WorkspaceFormAppearance(props: WorkspaceFormAppearanceProps) {
                     height={12}
                   />
                 ) : null}
-              </button>
+              </Button>
             )
           })}
         </div>
@@ -112,7 +117,7 @@ function WorkspaceFormAppearance(props: WorkspaceFormAppearanceProps) {
               {props.title.trim() || '未命名工作区'}
             </span>
             <Icon
-              icon="mdi:dots-horizontal"
+              icon="lucide:ellipsis"
               className={styles.previewMore}
               width={16}
               height={16}

@@ -6,10 +6,10 @@ import type { Scenario } from '@/features/agent/types'
 type ScenarioKey = Scenario | 'general'
 
 const SCENARIOS: { key: ScenarioKey; label: string; icon: string }[] = [
-  { key: 'general', label: '通用', icon: 'ant-design:appstore-outlined' },
-  { key: 'compare', label: '对比', icon: 'ant-design:shopping-cart-outlined' },
-  { key: 'plan', label: '规划', icon: 'ant-design:calendar-outlined' },
-  { key: 'code', label: '代码', icon: 'ant-design:code-outlined' }
+  { key: 'general', label: '通用', icon: 'lucide:layout-grid' },
+  { key: 'compare', label: '对比', icon: 'lucide:shopping-cart' },
+  { key: 'plan', label: '规划', icon: 'lucide:calendar' },
+  { key: 'code', label: '代码', icon: 'lucide:code' }
 ]
 
 function findScenarioLabel(key: ScenarioKey) {
@@ -24,7 +24,7 @@ function findScenarioIcon(key: ScenarioKey) {
   return (
     SCENARIOS.find(function (item) {
       return item.key === key
-    })?.icon ?? 'ant-design:appstore-outlined'
+    })?.icon ?? 'lucide:layout-grid'
   )
 }
 

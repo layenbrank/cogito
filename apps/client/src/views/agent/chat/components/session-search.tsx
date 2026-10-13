@@ -2,6 +2,7 @@
  * Qoder 式会话搜索弹框：无边框 Input + 键盘导航 + 结果列表
  */
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@i-thinking/design/components/button'
 import {
   Dialog,
   DialogContent,
@@ -256,9 +257,10 @@ function SessionSearchPanel(props: Pick<SessionSearchProps, 'onClose' | 'onSelec
             hits.map(function (hit, index) {
               const active = index === navigation
               return (
-                <button
+                <Button
                   key={hit.session.id}
                   type="button"
+                  variant="ghost"
                   className={clsx(styles.hit, active && styles.hitActive)}
                   onMouseEnter={function () {
                     updateNavigation(index)
@@ -273,7 +275,7 @@ function SessionSearchPanel(props: Pick<SessionSearchProps, 'onClose' | 'onSelec
                       {dayjs(hit.session.updatedAt).format('M月D日')}
                     </span>
                   </span>
-                </button>
+                </Button>
               )
             })
           )}

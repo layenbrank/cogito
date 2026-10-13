@@ -6,8 +6,12 @@ import { UNGROUPED_WORKSPACE } from '@/features/agent/model/workspace'
 import { useAgentStore } from '@/stores/agent.ts'
 
 /**
- * 侧栏会话条目：数据来自 assistant-ui 的线程列表（`threadItems`），
+ * 侧栏会话条目：数据来自 assistant-ui 的线程列表（`threadIds` + `threadItems`），
  * 只是把它摊平成树组件要的形状 —— 会话的权威状态在 runtime，store 不再另存一份。
+ *
+ * `threadItems` 是 Record（键为 slot id），**不是**数组。用 `Object.entries` 当数组会
+ * 把下标 `"0"`/`"1"` 当成 id → `switchToThread` 找不到线程 → 点开会话空白。
+ * 正确做法对齐 studio：遍历 `threadIds`，再按 id 查 `threadItems`。
  */
 interface SidebarSession {
   id: string
@@ -22,12 +26,36 @@ function sortSessions(a: SidebarSession, b: SidebarSession) {
   return b.updatedAt - a.updatedAt
 }
 
+interface ThreadItemSnapshot {
+  id?: string
+  title?: string
+  lastMessageAt?: Date
+  custom?: { pinned?: unknown; workspaceID?: unknown }
+  remoteId?: string
+}
+
+function findThreadItem(threadItems: unknown, id: string): ThreadItemSnapshot | null {
+  if (!threadItems || typeof threadItems !== 'object') return null
+  if (Array.isArray(threadItems)) {
+    return (
+      threadItems.find(function (item: ThreadItemSnapshot) {
+        return item?.id === id || item?.remoteId === id
+      }) ?? null
+    )
+  }
+  const record = threadItems as Record<string, ThreadItemSnapshot>
+  return record[id] ?? null
+}
+
 function useSidebarBranches() {
   const workspaces = useAgentStore(function (state) {
     return state.workspaces
   })
   const workspaceFolders = useAgentStore(function (state) {
     return state.workspaceFolders
+  })
+  const threadIds = useAuiState(function (state) {
+    return state.threads.threadIds
   })
   const threadItems = useAuiState(function (state) {
     return state.threads.threadItems
@@ -40,18 +68,19 @@ function useSidebarBranches() {
 
   const sessions: SidebarSession[] = useMemo(
     function () {
-      return Object.entries(threadItems).map(function ([id, item]) {
-        const custom = item.custom as { pinned?: unknown; workspaceID?: unknown } | undefined
+      return threadIds.map(function (id) {
+        const item = findThreadItem(threadItems, id)
+        const custom = item?.custom
         return {
           id,
-          title: item.title ?? '新对话',
+          title: item?.title ?? '新对话',
           pinned: custom?.pinned === true,
           workspaceID: typeof custom?.workspaceID === 'string' ? custom.workspaceID : null,
-          updatedAt: item.lastMessageAt ? item.lastMessageAt.getTime() : 0
+          updatedAt: item?.lastMessageAt ? item.lastMessageAt.getTime() : 0
         }
       })
     },
-    [threadItems]
+    [threadIds, threadItems]
   )
 
   const branches: WorkspaceBranch[] = useMemo(

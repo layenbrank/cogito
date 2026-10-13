@@ -2,7 +2,8 @@
 
 .chat {
   display: grid;
-  grid-template-rows: 36px minmax(0, 1fr);
+  /* 与通用 Caption（h-8 / 32px）对齐，避免标题栏高度不一致导致拖拽/点击错位 */
+  grid-template-rows: 32px minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
   background: var(--background);
@@ -43,7 +44,24 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  height: 100%;
   background: var(--card);
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.threadMain {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .planPane {

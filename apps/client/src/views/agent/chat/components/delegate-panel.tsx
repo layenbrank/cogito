@@ -20,10 +20,11 @@ import { Input } from '@i-thinking/design/components/input'
 import { Label } from '@i-thinking/design/components/label'
 import { Spinner } from '@i-thinking/design/components/spinner'
 import { Textarea } from '@i-thinking/design/components/textarea'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
 import { useState } from 'react'
 
-import { isApprovalPrompting, parseToolArguments, type DelegationPhase } from '@/features/agent/delegate/model'
-import { useDelegation } from '@/features/agent/delegate/use-delegation'
+import { isApprovalPrompting, parseToolArguments, type DelegationPhase } from '@/features/agent/model/delegate'
+import { useDelegation } from '@/features/agent/model/use-delegation'
 
 const PHASE_LABELS: Record<DelegationPhase, string> = {
   idle: '未提交',
@@ -180,8 +181,8 @@ function DelegatePanel() {
   }
 
   function renderFooter() {
-    if (!task || phase === 'submitted') return null
-    if (phase === 'idle') {
+    if (phase === 'submitted') return null
+    if (!task || phase === 'idle') {
       return (
         <DialogFooter>
           <Button
@@ -240,20 +241,37 @@ function DelegatePanel() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={updateOpen}>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="gap-1.5"
-        onClick={function () {
-          updateOpen(true)
-        }}>
-        <Icon icon="lucide:server" className="size-4" />
-        委派
-        {hasActiveTask ? (
-          <span className="size-1.5 rounded-full bg-primary" aria-hidden />
-        ) : null}
-      </Button>
+    <Dialog
+      open={open}
+      onOpenChange={updateOpen}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              data-region="false"
+              aria-label="委派到服务端"
+              className="text-muted-foreground relative size-7"
+              onClick={function () {
+                updateOpen(true)
+              }}
+            />
+          }>
+          <Icon
+            icon="lucide:server"
+            className="size-3.5"
+          />
+          {hasActiveTask ? (
+            <span
+              className="bg-primary absolute end-0.5 top-0.5 size-1.5 rounded-full"
+              aria-hidden
+            />
+          ) : null}
+        </TooltipTrigger>
+        <TooltipContent side="bottom">委派到服务端</TooltipContent>
+      </Tooltip>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>委派到服务端</DialogTitle>

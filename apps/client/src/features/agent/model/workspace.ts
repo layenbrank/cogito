@@ -1,4 +1,4 @@
-/** 工作区图标 / 副色选项（对齐 Qoder 新建工作区） */
+/** 工作区图标 / 副色选项（对齐 Qoder 新建工作区；图标一律 lucide） */
 
 interface WorkspaceIconOption {
   key: string
@@ -6,21 +6,21 @@ interface WorkspaceIconOption {
 }
 
 const WORKSPACE_ICONS: WorkspaceIconOption[] = [
-  { key: 'folder', icon: 'ant-design:folder-outlined' },
-  { key: 'code', icon: 'ant-design:code-outlined' },
-  { key: 'layout', icon: 'ant-design:appstore-outlined' },
-  { key: 'cloud', icon: 'ant-design:cloud-outlined' },
-  { key: 'atom', icon: 'ant-design:experiment-outlined' },
-  { key: 'setting', icon: 'ant-design:setting-outlined' },
-  { key: 'database', icon: 'ant-design:database-outlined' },
-  { key: 'bulb', icon: 'ant-design:bulb-outlined' },
-  { key: 'rocket', icon: 'ant-design:rocket-outlined' },
-  { key: 'book', icon: 'ant-design:book-outlined' },
-  { key: 'api', icon: 'ant-design:api-outlined' },
-  { key: 'tool', icon: 'ant-design:tool-outlined' },
-  { key: 'global', icon: 'ant-design:global-outlined' },
-  { key: 'desktop', icon: 'ant-design:desktop-outlined' },
-  { key: 'coffee', icon: 'ant-design:coffee-outlined' }
+  { key: 'folder', icon: 'lucide:folder' },
+  { key: 'code', icon: 'lucide:code' },
+  { key: 'layout', icon: 'lucide:layout-grid' },
+  { key: 'cloud', icon: 'lucide:cloud' },
+  { key: 'atom', icon: 'lucide:flask-conical' },
+  { key: 'setting', icon: 'lucide:settings' },
+  { key: 'database', icon: 'lucide:database' },
+  { key: 'bulb', icon: 'lucide:lightbulb' },
+  { key: 'rocket', icon: 'lucide:rocket' },
+  { key: 'book', icon: 'lucide:book' },
+  { key: 'api', icon: 'lucide:plug' },
+  { key: 'tool', icon: 'lucide:wrench' },
+  { key: 'global', icon: 'lucide:globe' },
+  { key: 'desktop', icon: 'lucide:monitor' },
+  { key: 'coffee', icon: 'lucide:coffee' }
 ]
 
 const WORKSPACE_COLORS = [

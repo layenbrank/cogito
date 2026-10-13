@@ -1,11 +1,8 @@
 /**
- * Agent 聊天子页：标题栏 + 三栏（工作区 | 主对话 | Plan）。
+ * Agent 聊天子页：标题栏 + 三栏（工作区 | 主对话 | 右栏骨架）。
  *
- * 是 `/agent` 的默认子页（`/agent` 会重定向过来）；模型接入不在这里弹窗，走
- * `/agent/settings`（见 `views/agent/settings/`）。
- *
- * 主对话栏走 assistant-ui 的 `Thread`（一条通路）；右栏读当前线程的最新 `plan` 部件
- * （goose 的结构化计划），有内容时自动展开。
+ * 主对话走 assistant-ui `Thread`；右栏空/忙两种骨架（Qoder）；
+ * Head 双侧 panel 图标控制开合并持久化。
  */
 import { useAuiState } from '@assistant-ui/react'
 import { AssistantLabelsProvider } from '@i-thinking/design/assistant/labels'
@@ -20,12 +17,17 @@ import { clsx } from 'clsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { ComposerModelEnd } from '@/views/agent/chat/components/composer-model-end'
+import { AgentAside } from '@/views/agent/chat/components/aside'
+import { ComposerActions } from '@/views/agent/chat/components/composer-actions'
+import { ComposerEnd } from '@/views/agent/chat/components/composer-end'
+import { ComposerFooter } from '@/views/agent/chat/components/composer-footer'
+import { ComposerTriggers } from '@/views/agent/chat/components/composer-triggers'
 import { DelegatePanel } from '@/views/agent/chat/components/delegate-panel'
-import { AgentPlanPane } from '@/views/agent/chat/components/plan-pane'
+import { AgentHead } from '@/views/agent/chat/components/head'
 import { AgentSidebar } from '@/views/agent/chat/components/sidebar'
 import {
   findSplitterLayout,
+  findSplitterOpen,
   MAIN_ID,
   PLAN_ID,
   PLAN_MAX,
@@ -37,8 +39,10 @@ import {
   SESSION_SIZE,
   WORKBENCH_MIN,
   writeSplitterLayout,
+  writeSplitterOpen,
   type SplitterLayout
 } from '@/views/agent/chat/components/splitter-sizes'
+import { AgentProcessFold, AgentProcessGroup } from '@/views/agent/chat/components/process-group'
 import { ThreadWelcome } from '@/views/agent/chat/components/thread-welcome'
 import { ASSISTANT_LABELS_ZH } from '@/views/agent/chat/labels'
 import { AgentRuntimeProvider } from '@/views/agent/chat/runtime'
@@ -50,12 +54,9 @@ import { useProviderStore } from '@/stores/provider'
 import styles from '@/views/agent/chat/chat.module.scss'
 
 /**
- * 有内容时自动展开右栏（对齐 Qoder plan 场景）。
- *
- * 按「计划总量」记一次已开（键带线程 id）：计划条目更新（总量变化）才再开一次 ——
- * 用户手动收起后不会被同一次计划反复顶开，也不会被上一个会话的计划顶掉这一次。
+ * plan 到达时自动展开右栏（不覆盖用户手动收起：同线程同总量只顶一次）。
  */
-function usePlanAside() {
+function usePlanAutoOpen(isAsideOpen: boolean, openAside: () => void) {
   const messages = useAuiState(function (state) {
     return state.thread.messages
   })
@@ -65,9 +66,7 @@ function usePlanAside() {
   const plan = useMemo(function () {
     return findLatestPlan(messages)
   }, [messages])
-  const [isOpen, updateOpen] = useState(false)
   const openedFor = useRef<{ threadID: string; total: number } | null>(null)
-  const planRef = usePanelRef()
 
   useEffect(
     function () {
@@ -75,12 +74,12 @@ function usePlanAside() {
       const opened = openedFor.current
       if (opened?.threadID === threadID && opened.total === plan.total) return
       openedFor.current = { threadID, total: plan.total }
-      updateOpen(true)
+      if (!isAsideOpen) openAside()
     },
-    [plan, threadID]
+    [plan, threadID, isAsideOpen, openAside]
   )
 
-  return { plan, isOpen, updateOpen, planRef }
+  return plan
 }
 
 function AgentChat() {
@@ -93,13 +92,34 @@ function AgentChat() {
   )
 }
 
-/** 三栏布局；依赖 assistant-ui 状态的 hooks（`usePlanAside`）必须挂在 Provider 之内 */
 function AgentChatLayout() {
   const navigate = useNavigate()
   const [defaultLayout] = useState(findSplitterLayout)
+  const [openState] = useState(findSplitterOpen)
+  const [isSidebarOpen, updateSidebarOpen] = useState(openState.isSidebarOpen)
+  const [isAsideOpen, updateAsideOpen] = useState(openState.isAsideOpen)
   const [isSearchOpen, updateSearchOpen] = useState(false)
   const [scenario, updateScenario] = useState<ScenarioKey>('general')
-  const { plan, isOpen, updateOpen, planRef } = usePlanAside()
+  const sidebarRef = usePanelRef()
+  const asideRef = usePanelRef()
+  const openRef = useRef({ isSidebarOpen, isAsideOpen })
+
+  useEffect(
+    function () {
+      openRef.current = { isSidebarOpen, isAsideOpen }
+    },
+    [isSidebarOpen, isAsideOpen]
+  )
+
+  function openAside() {
+    updateAsideOpen(true)
+    writeSplitterOpen({
+      isSidebarOpen: openRef.current.isSidebarOpen,
+      isAsideOpen: true
+    })
+  }
+
+  const plan = usePlanAutoOpen(isAsideOpen, openAside)
 
   useEffect(function () {
     void useAgentStore.getState().toReadWorkspaces()
@@ -108,12 +128,38 @@ function AgentChatLayout() {
     void useProviderStore.getState().toReadProviders()
   }, [])
 
-  // 右栏开合跟着 open 状态走
   useEffect(
     function () {
-      const panel = planRef.current
+      const sidebar = sidebarRef.current
+      const aside = asideRef.current
+      if (!sidebar || !aside) return
+      if (openRef.current.isSidebarOpen) sidebar.expand()
+      else sidebar.collapse()
+      if (openRef.current.isAsideOpen) {
+        aside.expand()
+        if (aside.getSize().inPixels < PLAN_MIN) aside.resize(PLAN_SIZE)
+      } else {
+        aside.collapse()
+      }
+    },
+    [sidebarRef, asideRef]
+  )
+
+  useEffect(
+    function () {
+      const panel = sidebarRef.current
       if (!panel) return
-      if (isOpen) {
+      if (isSidebarOpen) panel.expand()
+      else panel.collapse()
+    },
+    [isSidebarOpen, sidebarRef]
+  )
+
+  useEffect(
+    function () {
+      const panel = asideRef.current
+      if (!panel) return
+      if (isAsideOpen) {
         if (panel.isCollapsed()) {
           panel.expand()
           if (panel.getSize().inPixels < PLAN_MIN) panel.resize(PLAN_SIZE)
@@ -122,26 +168,43 @@ function AgentChatLayout() {
       }
       panel.collapse()
     },
-    [isOpen, planRef]
+    [isAsideOpen, asideRef]
   )
+
+  function persistOpen(next: { isSidebarOpen: boolean; isAsideOpen: boolean }) {
+    writeSplitterOpen(next)
+  }
 
   function handleLayoutChanged(layout: SplitterLayout) {
     writeSplitterLayout(layout)
   }
 
-  function openSettings() {
-    void navigate('/agent/settings')
+  function handleSidebarResize() {
+    const collapsed = sidebarRef.current?.isCollapsed() ?? false
+    const nextOpen = !collapsed
+    if (nextOpen === openRef.current.isSidebarOpen) return
+    updateSidebarOpen(nextOpen)
+    persistOpen({ isSidebarOpen: nextOpen, isAsideOpen: openRef.current.isAsideOpen })
   }
 
-  function handlePlanResize() {
-    const panel = planRef.current
-    if (!panel) return
-    if (panel.isCollapsed() && isOpen) updateOpen(false)
+  function handleAsideResize() {
+    const collapsed = asideRef.current?.isCollapsed() ?? false
+    const nextOpen = !collapsed
+    if (nextOpen === openRef.current.isAsideOpen) return
+    updateAsideOpen(nextOpen)
+    persistOpen({ isSidebarOpen: openRef.current.isSidebarOpen, isAsideOpen: nextOpen })
+  }
+
+  function openSettings(section?: string) {
+    void navigate(section ? `/agent/settings?section=${section}` : '/agent/settings')
   }
 
   return (
     <div className={clsx(styles.chat)}>
-      <AgentTitlebar className={styles.titlebar} actions={<DelegatePanel />} />
+      <AgentTitlebar
+        className={styles.titlebar}
+        actions={<DelegatePanel />}
+      />
       <div className={styles.body}>
         <ResizablePanelGroup
           id="agent-workbench"
@@ -151,12 +214,14 @@ function AgentChatLayout() {
           onLayoutChanged={handleLayoutChanged}>
           <ResizablePanel
             id={SESSION_ID}
+            panelRef={sidebarRef}
             defaultSize={SESSION_SIZE}
             minSize={SESSION_MIN}
             maxSize={SESSION_MAX}
             collapsible
             collapsedSize={0}
-            groupResizeBehavior="preserve-pixel-size">
+            groupResizeBehavior="preserve-pixel-size"
+            onResize={handleSidebarResize}>
             <AgentSidebar
               className={styles.sidebar}
               scenario={scenario}
@@ -172,33 +237,65 @@ function AgentChatLayout() {
           <ResizablePanel
             id={MAIN_ID}
             minSize={WORKBENCH_MIN}>
-            <main className={styles.thread}>
-              <Thread
-                components={{
-                  Welcome: ThreadWelcome,
-                  ComposerEnd: ComposerModelEnd
+            <div className={clsx(styles.workbench, styles.thread)}>
+              <AgentHead
+                isSidebarOpen={isSidebarOpen}
+                isAsideOpen={isAsideOpen}
+                onToggleSidebar={function () {
+                  const next = !openRef.current.isSidebarOpen
+                  updateSidebarOpen(next)
+                  persistOpen({
+                    isSidebarOpen: next,
+                    isAsideOpen: openRef.current.isAsideOpen
+                  })
+                }}
+                onToggleAside={function () {
+                  const next = !openRef.current.isAsideOpen
+                  updateAsideOpen(next)
+                  persistOpen({
+                    isSidebarOpen: openRef.current.isSidebarOpen,
+                    isAsideOpen: next
+                  })
                 }}
               />
-            </main>
+              <main className={styles.threadMain}>
+                <Thread
+                  components={{
+                    Welcome: ThreadWelcome,
+                    ReasoningGroup: AgentProcessGroup,
+                    ProcessGroup: AgentProcessFold,
+                    ComposerStart: ComposerActions,
+                    ComposerAttach: null,
+                    ComposerEnd: ComposerEnd,
+                    ComposerFooter: ComposerFooter,
+                    ComposerTriggers: ComposerTriggers
+                  }}
+                />
+              </main>
+            </div>
           </ResizablePanel>
 
           <ResizableHandle />
 
           <ResizablePanel
             id={PLAN_ID}
-            panelRef={planRef}
+            panelRef={asideRef}
             defaultSize={PLAN_SIZE}
             minSize={PLAN_MIN}
             maxSize={PLAN_MAX}
             collapsible
             collapsedSize={0}
             groupResizeBehavior="preserve-pixel-size"
-            onResize={handlePlanResize}>
-            <AgentPlanPane
+            onResize={handleAsideResize}>
+            <AgentAside
               className={styles.planPane}
               plan={plan}
               onClose={function () {
-                updateOpen(false)
+                updateAsideOpen(false)
+                persistOpen({
+                  isSidebarOpen: openRef.current.isSidebarOpen,
+                  isAsideOpen: false
+                })
               }}
             />
           </ResizablePanel>

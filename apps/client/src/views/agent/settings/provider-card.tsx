@@ -7,6 +7,7 @@ import {
 } from '@i-thinking/design/components/select'
 
 import type { GooseProviderEntry } from '@/features/agent/acp/goose-providers'
+import { findModelLabel } from '@/features/agent/model/display'
 import { parseModels } from '@/features/agent/model/providers'
 import type { AgentProvider } from '@/stores/provider'
 import styles from '@/views/agent/settings/settings.module.scss'
@@ -25,6 +26,7 @@ interface ProviderCardProps {
   onModelChange: (providerId: string, model: string) => void
   onFieldChange: (name: string, value: string) => void
   onSave: () => void
+  actionLabel?: string
 }
 
 function ProviderCard(props: ProviderCardProps) {
@@ -37,6 +39,7 @@ function ProviderCard(props: ProviderCardProps) {
         entry={entry}
         status={status}
         isOpen={isOpen}
+        actionLabel={props.actionLabel}
         onToggle={props.onToggle}
       />
 
@@ -61,7 +64,7 @@ function ProviderCard(props: ProviderCardProps) {
                     <SelectItem
                       key={model}
                       value={model}>
-                      {model}
+                      {findModelLabel(model)}
                     </SelectItem>
                   )
                 })}

@@ -41,8 +41,9 @@ function WorkspaceFormFolders(props: WorkspaceFormFoldersProps) {
       </div>
 
       {props.folders.length === 0 ? (
-        <button
+        <Button
           type="button"
+          variant="ghost"
           className={styles.dropzone}
           onClick={props.onAdd}>
           <Icon
@@ -50,7 +51,7 @@ function WorkspaceFormFolders(props: WorkspaceFormFoldersProps) {
             className="size-7"
           />
           <span>点击添加可读写文件夹</span>
-        </button>
+        </Button>
       ) : (
         <ul className={styles.folderList}>
           {props.folders.map(function (folder) {

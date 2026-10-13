@@ -6,9 +6,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger
 } from '@i-thinking/design/components/dropdown-menu'
 import { toast } from 'sonner'
@@ -18,7 +15,7 @@ import styles from './sidebar.module.scss'
 interface SidebarProfileBarProps {
   displayName: string
   avatarUrl?: string | null
-  onOpenSettings: () => void
+  onOpenSettings: (section?: string) => void
 }
 
 function SidebarProfileBar(props: SidebarProfileBarProps) {
@@ -61,7 +58,10 @@ function SidebarProfileBar(props: SidebarProfileBarProps) {
           side="top"
           align="end"
           className="w-40">
-          <DropdownMenuItem onClick={props.onOpenSettings}>
+          <DropdownMenuItem
+            onClick={function () {
+              props.onOpenSettings()
+            }}>
             <Icon
               icon="lucide:settings"
               width={14}
@@ -69,20 +69,17 @@ function SidebarProfileBar(props: SidebarProfileBarProps) {
             />
             设置
           </DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <Icon
-                icon="lucide:palette"
-                width={14}
-                height={14}
-              />
-              外观
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem disabled>主题</DropdownMenuItem>
-              <DropdownMenuItem disabled>明暗模式</DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
+          <DropdownMenuItem
+            onClick={function () {
+              props.onOpenSettings('general')
+            }}>
+            <Icon
+              icon="lucide:palette"
+              width={14}
+              height={14}
+            />
+            外观
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={function () {

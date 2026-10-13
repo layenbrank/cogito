@@ -31,28 +31,28 @@ const QUICK_PROMPTS: QuickPrompt[] = [
     scenario: 'compare',
     label: '对比两款适合办公编程的笔记本，预算五到六千',
     description: '购物选型场景，输出结构化对比表',
-    icon: 'ant-design:shopping-cart-outlined'
+    icon: 'lucide:shopping-cart'
   },
   {
     key: 'plan',
     scenario: 'plan',
     label: '为我制定明天的工作与休息日程',
     description: '规划一天安排，支持一键写入日历',
-    icon: 'ant-design:calendar-outlined'
+    icon: 'lucide:calendar'
   },
   {
     key: 'general',
     scenario: 'general',
     label: '总结我附加文件的核心内容',
     description: '附加本地文件后进行分析和摘要',
-    icon: 'ant-design:file-text-outlined'
+    icon: 'lucide:file-text'
   },
   {
     key: 'code',
     scenario: 'code',
     label: '帮我梳理这段代码的结构并指出可改进点',
     description: '代码阅读与重构建议',
-    icon: 'ant-design:code-outlined'
+    icon: 'lucide:code'
   }
 ]
 

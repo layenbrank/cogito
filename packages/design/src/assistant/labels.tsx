@@ -95,7 +95,7 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   welcome: 'How can I help you today?',
   loadingConversation: 'Loading conversation',
   scrollToBottom: 'Scroll to bottom',
-  working: 'Assistant is working',
+  working: 'Thinking…',
   copy: 'Copy',
   reload: 'Refresh',
   more: 'More',

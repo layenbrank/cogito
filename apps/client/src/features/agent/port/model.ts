@@ -76,17 +76,37 @@ function findProviderByID(providerID: string): AgentProvider | null {
 }
 
 /** 本轮要发的文本：最后一条用户消息；system 走 goose 的 system-prompt 扩展位 */
-function parseRunMessages(messages: readonly ChatRunMessage[]): { text: string; systemText?: string } {
+function parseRunMessages(messages: readonly ChatRunMessage[]): {
+  text: string
+  systemText?: string
+  attachments: readonly string[]
+} {
   let text = ''
   let systemText: string | undefined
+  let attachments: readonly string[] = []
   for (const message of messages) {
     if (message.role === 'system' && !systemText && message.content.trim()) {
       systemText = message.content
       continue
     }
-    if (message.role === 'user' && message.content.trim()) text = message.content
+    if (message.role === 'user') {
+      if (message.content.trim()) text = message.content
+      if (message.attachments && message.attachments.length > 0) attachments = message.attachments
+    }
   }
-  return systemText ? { text, systemText } : { text }
+  return systemText ? { text, systemText, attachments } : { text, attachments }
+}
+
+/** 把 @ 附件名单内联进 prompt，避免静默丢弃（goose ACP 本轮只收文本块） */
+function appendAttachments(text: string, attachments: readonly string[]): string {
+  if (attachments.length === 0) return text
+  const list = attachments
+    .map(function (path) {
+      return `- ${path}`
+    })
+    .join('\n')
+  const note = `（用户引用了以下文件，请结合工作区读取内容：\n${list}）`
+  return text.trim() ? `${text}\n\n${note}` : note
 }
 
 /**
@@ -133,7 +153,10 @@ function createModelPort(): ChatModelPort {
       if (!provider.enabled) throw new Error('[agent/port] 选中的 provider 已被停用，请在设置里启用')
 
       const parsed = parseRunMessages(input.messages)
-      const text = appendImages(parsed.text, input.messages.at(-1)?.images)
+      const text = appendImages(
+        appendAttachments(parsed.text, parsed.attachments),
+        input.messages.at(-1)?.images
+      )
       if (!text.trim()) {
         yield { kind: 'finish', finishReason: 'end_turn', usage: RUN_USAGE }
         return
@@ -141,8 +164,9 @@ function createModelPort(): ChatModelPort {
 
       // 平台网关发送前查一次配额（BYOK 直接放行）；拦到就当成一次「失败」发给 UI，
       // 用户点下发送就能看到原因，不用等半截运行失败。判定失败一律放行 —— 守门的是服务端。
+      const isGateway = isGatewayTarget(provider.kind)
       const blocker = await findSendBlocker({
-        isGateway: isGatewayTarget(provider.kind),
+        isGateway,
         modelID: input.model
       })
       if (blocker) {
@@ -150,9 +174,19 @@ function createModelPort(): ChatModelPort {
         return
       }
 
-      // 平台网关走 goose 的自定义 provider：发送前幂等注册一次（租户/端点/模型没变就不重启）
-      if (isGatewayTarget(provider.kind)) {
-        await ensureCogitoProvider()
+      // 平台网关走 goose 的自定义 provider：发送前幂等注册；失败则中止，避免「找不到 provider」难排查
+      if (isGateway) {
+        try {
+          await ensureCogitoProvider()
+        } catch (error) {
+          console.warn('[agent/port] 注册网关 provider 失败:', error)
+          yield {
+            kind: 'error',
+            message: error instanceof Error ? error.message : '网关 provider 未就绪，请稍后重试',
+            usage: RUN_USAGE
+          }
+          return
+        }
       }
 
       const context: AcpStreamContext = { blockID: createBlockIDFinder() }

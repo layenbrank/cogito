@@ -16,6 +16,37 @@
   min-width: 0;
 }
 
+.quickActions {
+  flex-shrink: 0;
+  margin-bottom: 6px;
+}
+
+.quickAction {
+  justify-content: flex-start;
+  height: 32px;
+  gap: 8px;
+  padding-inline: 8px;
+  border-radius: 8px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 500;
+
+  &:hover {
+    color: var(--foreground);
+    background: color-mix(in oklab, var(--muted) 45%, transparent);
+  }
+}
+
+.quickActionActive {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+
+  &:hover {
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 16%, transparent);
+  }
+}
+
 .scenarioGlide {
   flex: 1;
   min-width: 0;

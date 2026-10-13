@@ -1,5 +1,5 @@
 /**
- * 模型浮层选择器：按已启用接入分组 + 模型设置
+ * 模型浮层选择器：按接入分组（面向普通用户的名称）+ 模型设置入口
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
@@ -9,6 +9,11 @@ import { useMemo, useState, type ReactElement } from 'react'
 import { AgentModelSettings } from './model-settings'
 import styles from './model-picker.module.scss'
 import { switchGooseProviderModel } from '@/features/agent/acp/session'
+import {
+  findModelLabel,
+  findProviderBilling,
+  findProviderLabel
+} from '@/features/agent/model/display'
 import { findModelPref, readModelPrefs } from '@/features/agent/model/model-prefs'
 import { parseModels } from '@/features/agent/model/providers'
 import { useProviderStore } from '@/stores/provider'
@@ -63,17 +68,18 @@ function AgentModelPicker(props: ModelPickerProps) {
           align="start"
           className={styles.panel}>
           <div className={styles.header}>
-            <p className={styles.headerTitle}>模型</p>
-            <p className={styles.hint}>选择当前对话使用的接入与模型</p>
+            <p className={styles.headerTitle}>选择模型</p>
+            <p className={styles.hint}>当前对话将使用所选模型回复</p>
           </div>
           <div className={styles.list}>
             {enabledProviders.length === 0 ? (
               <p className={`${styles.empty} text-muted-foreground`}>
-                请先在设置中配置 goose 供应商
+                还没有可用模型，请先到设置里添加
               </p>
             ) : (
               enabledProviders.map(function (provider) {
-                const kindLabel = provider.name || provider.kind
+                const groupLabel = findProviderLabel(provider.kind || provider.id, provider.name)
+                const billing = findProviderBilling(provider.kind || provider.id, provider.name)
                 const models = parseModels(provider.models).filter(function (model) {
                   return findModelPref(provider.id, model, prefs).visible
                 })
@@ -82,23 +88,21 @@ function AgentModelPicker(props: ModelPickerProps) {
                   <div
                     key={provider.id}
                     className={styles.group}>
-                    <div className={styles.groupTitle}>
-                      {provider.name}
-                      <span className={styles.kind}>{provider.kind}</span>
-                    </div>
+                    <div className={styles.groupTitle}>{groupLabel}</div>
                     {models.map(function (model) {
                       const isActive = provider.id === activeProviderID && provider.model === model
                       return (
-                        <button
+                        <Button
                           key={`${provider.id}-${model}`}
                           type="button"
+                          variant="ghost"
                           className={`${styles.row} ${isActive ? styles.rowActive : ''}`}
                           onClick={function () {
                             void selectModel(provider.id, model)
                           }}>
                           {isActive ? (
                             <Icon
-                              icon="mdi:check"
+                              icon="lucide:check"
                               className={styles.check}
                               width={16}
                               height={16}
@@ -108,18 +112,18 @@ function AgentModelPicker(props: ModelPickerProps) {
                           )}
                           <span className={styles.modelBadge}>
                             <Icon
-                              icon="mdi:cube-outline"
+                              icon="lucide:box"
                               width={16}
                               height={16}
                             />
                           </span>
                           <span className={`${styles.rowBody} flex flex-col`}>
-                            <span className={styles.modelName}>{model}</span>
+                            <span className={styles.modelName}>{findModelLabel(model)}</span>
                             <span className={styles.modelDesc}>
-                              {kindLabel} · {provider.kind}
+                              {groupLabel} · {billing}
                             </span>
                           </span>
-                        </button>
+                        </Button>
                       )
                     })}
                   </div>
@@ -133,14 +137,18 @@ function AgentModelPicker(props: ModelPickerProps) {
               className={`${styles.settingsBtn} w-full`}
               onClick={function () {
                 updateOpen(false)
+                if (props.onOpenSettings) {
+                  props.onOpenSettings()
+                  return
+                }
                 updateSettingsOpen(true)
               }}>
               <Icon
-                icon="mdi:cog-outline"
+                icon="lucide:settings"
                 width={16}
                 height={16}
               />
-              模型设置
+              管理模型
             </Button>
           </div>
         </PopoverContent>

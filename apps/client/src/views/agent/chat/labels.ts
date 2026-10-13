@@ -19,7 +19,7 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   welcome: '我能帮你做点什么？',
   loadingConversation: '正在加载对话',
   scrollToBottom: '滚到底部',
-  working: '助手正在处理',
+  working: '思考中…',
   copy: '复制',
   reload: '重新生成',
   more: '更多',
@@ -38,7 +38,7 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   composerPlaceholderContinue: '继续这个任务…',
   messageInput: '消息输入',
 
-  reasoning: (seconds) => `思考${seconds ? `（${seconds} 秒）` : ''}`,
+  reasoning: (seconds) => (seconds ? `思考（${seconds} 秒）` : '思考中…'),
   process: (steps, seconds) => `过程 · ${steps} 步${seconds ? ` · ${seconds} 秒` : ''}`,
   toolCalls: (count, failed) => `${count} 次工具调用${failed ? `，${failed} 次失败` : ''}`,
   attachmentType: (type) => {

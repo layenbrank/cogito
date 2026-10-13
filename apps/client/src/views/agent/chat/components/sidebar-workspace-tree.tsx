@@ -83,7 +83,7 @@ function SidebarWorkspaceTree(props: SidebarWorkspaceTreeProps) {
               />
             }>
             <Icon
-              icon="mdi:dots-horizontal"
+              icon="lucide:ellipsis"
               width={16}
               height={16}
             />
@@ -125,7 +125,7 @@ function SidebarWorkspaceTree(props: SidebarWorkspaceTreeProps) {
             void props.onInsertSession(branch.id)
           }}>
           <Icon
-            icon="mdi:plus"
+            icon="lucide:plus"
             width={16}
             height={16}
           />
@@ -170,19 +170,22 @@ function SidebarWorkspaceTree(props: SidebarWorkspaceTreeProps) {
               <Popover
                 open={props.hoverSessionID === session.id}
                 onOpenChange={function (open, details) {
+                  // 点击用于切换会话，不打开预览；仅悬停打开
                   if (open && details.reason === 'trigger-press') return
                   props.onHoverSessionChange(open ? session.id : null)
                 }}>
                 <PopoverTrigger
                   openOnHover
                   delay={350}
+                  // 点击切会话：挂在 Trigger 上，避免 render 合并时吞掉 Button.onClick
+                  onClick={function () {
+                    props.onActivateSession(session)
+                  }}
                   render={
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       className={styles.sessionMain}
-                      onClick={function () {
-                        props.onActivateSession(session)
-                      }}
                     />
                   }>
                   <Icon
@@ -209,7 +212,7 @@ function SidebarWorkspaceTree(props: SidebarWorkspaceTreeProps) {
                     />
                   }>
                   <Icon
-                    icon="mdi:dots-horizontal"
+                    icon="lucide:ellipsis"
                     width={16}
                     height={16}
                   />
@@ -222,7 +225,7 @@ function SidebarWorkspaceTree(props: SidebarWorkspaceTreeProps) {
                       props.onRenameSession(session)
                     }}>
                     <Icon
-                      icon="mdi:pencil-outline"
+                      icon="lucide:pencil"
                       width={14}
                       height={14}
                     />
@@ -233,7 +236,7 @@ function SidebarWorkspaceTree(props: SidebarWorkspaceTreeProps) {
                       props.onTogglePinned(session)
                     }}>
                     <Icon
-                      icon={session.pinned ? 'mdi:pin-off-outline' : 'mdi:pin-outline'}
+                      icon={session.pinned ? 'lucide:pin-off' : 'lucide:pin'}
                       width={14}
                       height={14}
                     />
@@ -246,7 +249,7 @@ function SidebarWorkspaceTree(props: SidebarWorkspaceTreeProps) {
                       props.onRemoveSession(session)
                     }}>
                     <Icon
-                      icon="mdi:delete-outline"
+                      icon="lucide:trash-2"
                       width={14}
                       height={14}
                     />
@@ -291,15 +294,16 @@ function SidebarWorkspaceTree(props: SidebarWorkspaceTreeProps) {
             <div className={styles.workspaceHeader}>
               <CollapsibleTrigger
                 render={
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     className={styles.workspaceTitleSlot}
                     aria-label={branch.title}
                   />
                 }>
                 <span className={styles.expandIcon}>
                   <Icon
-                    icon={isOpen ? 'mdi:chevron-down' : 'mdi:chevron-right'}
+                    icon={isOpen ? 'lucide:chevron-down' : 'lucide:chevron-right'}
                     width={16}
                     height={16}
                   />
@@ -320,3 +324,4 @@ function SidebarWorkspaceTree(props: SidebarWorkspaceTreeProps) {
 
 export { SidebarWorkspaceTree }
 export type { WorkspaceBranch }
+

@@ -666,12 +666,19 @@ const AssistantMessage: FC = () => {
         })}
 
         {showIndicator ? (
-          <span
+          <div
             data-slot="aui_assistant-message-indicator"
-            className="animate-pulse font-sans"
-            aria-label={labels.working}>
-            {'●'}
-          </span>
+            className="text-muted-foreground flex max-w-[75%] items-center gap-2 py-1.5 text-sm"
+            aria-label={labels.working}
+            aria-live="polite">
+            <Icon
+              icon="lucide:brain"
+              className="size-4 shrink-0"
+            />
+            <span className="shimmer motion-reduce:animate-none leading-none">
+              {labels.working}
+            </span>
+          </div>
         ) : null}
 
         <MessageError />

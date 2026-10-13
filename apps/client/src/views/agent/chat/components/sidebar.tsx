@@ -31,7 +31,7 @@ interface SidebarProps {
   searchFocusToken?: number
   onScenarioChange: (scenario: ScenarioKey) => void
   onSearchOpenChange?: (open: boolean) => void
-  onOpenSettings: () => void
+  onOpenSettings: (section?: string) => void
 }
 
 interface RenameTarget {
@@ -75,11 +75,14 @@ function AgentSidebar(props: SidebarProps) {
     [props.searchFocusToken]
   )
 
-  function handleActivateSession(session: SidebarSession) {
+  function handleActivateSession(session: Pick<SidebarSession, 'id' | 'workspaceID'>) {
     if (session.workspaceID) {
       useAgentStore.getState().toActivateWorkspace(session.workspaceID)
     }
-    void aui.threads.switchToThread(session.id)
+    void aui.threads.switchToThread(session.id).catch(function (error: unknown) {
+      console.error('[agent/sidebar] 切换会话失败:', session.id, error)
+      toast.error(error instanceof Error ? error.message : '切换会话失败')
+    })
   }
 
   async function handleInsertSession(workspaceID?: string | null) {
@@ -143,6 +146,35 @@ function AgentSidebar(props: SidebarProps) {
         onToggleSearch={handleToggleSearch}
       />
 
+      <div className={`${styles.quickActions} flex flex-col gap-0.5`}>
+        <Button
+          type="button"
+          variant="ghost"
+          className={styles.quickAction}
+          onClick={function () {
+            void handleInsertSession()
+          }}>
+          <Icon
+            icon="lucide:plus"
+            width={15}
+            height={15}
+          />
+          新的任务
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className={clsx(styles.quickAction, isSearchOpen && styles.quickActionActive)}
+          onClick={handleToggleSearch}>
+          <Icon
+            icon="lucide:search"
+            width={15}
+            height={15}
+          />
+          搜索
+        </Button>
+      </div>
+
       <div className={`${styles.section} flex min-h-0 flex-1 flex-col`}>
         <div className={`${styles.sectionHeader} flex items-center justify-between gap-1`}>
           <Button
@@ -165,7 +197,7 @@ function AgentSidebar(props: SidebarProps) {
               updateFormOpen(true)
             }}>
             <Icon
-              icon="mdi:plus"
+              icon="lucide:plus"
               width={16}
               height={16}
             />

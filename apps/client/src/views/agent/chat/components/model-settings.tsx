@@ -195,15 +195,17 @@ function ContextWindowControl(props: ContextWindowControlProps) {
       <div className={styles.contextLabels}>
         {CONTEXT_STEPS.map(function (_step, index) {
           return (
-            <button
+            <Button
               key={CONTEXT_INDEX_MARKS[index]}
               type="button"
+              variant="ghost"
+              size="sm"
               className={clsx(styles.contextLabel, index === active && styles.contextLabelActive)}
               onClick={function () {
                 commitRatio(findRatioByIndex(index))
               }}>
               {CONTEXT_INDEX_MARKS[index]}
-            </button>
+            </Button>
           )
         })}
       </div>
@@ -337,7 +339,7 @@ function AgentModelSettings(props: ModelSettingsProps) {
                       <div className={styles.modelCell}>
                         <span className={styles.modelBadge}>
                           <Icon
-                            icon="mdi:cube-outline"
+                            icon="lucide:box"
                             width={18}
                             height={18}
                           />
