@@ -3,7 +3,13 @@
  *
  * 是 `/agent` 的默认子页（`/agent` 会重定向过来）；模型接入不在这里弹窗，走
  * `/agent/settings`（见 `views/agent/settings/`）。
+ *
+ * 主对话栏已经换成 assistant-ui 的 `Thread`（一条通路：会话列表 / 生成 / 历史全套走
+ * `features/agent/port/*`）。左栏（工作区 / 场景导航）与右栏（计划）沿用旧组件，
+ * 尚未随这次接线一起换成运行时状态 —— 见计划文档「PR4③b 剩余」。
  */
+import { AssistantLabelsProvider } from '@i-thinking/design/assistant/labels'
+import { Thread } from '@i-thinking/design/assistant/thread.aui'
 import {
   ResizableHandle,
   ResizablePanel,
@@ -15,6 +21,7 @@ import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { ComposerModelEnd } from '@/views/agent/chat/components/composer-model-end'
 import { AgentPlanPane, type PlanPaneSource } from '@/views/agent/chat/components/plan-pane'
 import { AgentSidebar } from '@/views/agent/chat/components/sidebar'
 import {
@@ -32,11 +39,12 @@ import {
   writeSplitterLayout,
   type SplitterLayout
 } from '@/views/agent/chat/components/splitter-sizes'
+import { ThreadWelcome } from '@/views/agent/chat/components/thread-welcome'
+import { ASSISTANT_LABELS_ZH } from '@/views/agent/chat/labels'
+import { AgentRuntimeProvider } from '@/views/agent/chat/runtime'
 import { AgentTitlebar } from '@/views/agent/components/titlebar'
-import { AgentWorkbench } from '@/views/agent/chat/components/workbench'
 import type { ScenarioKey } from '@/features/agent/model/scenarios'
 import { parseParts, stringifyParts } from '@/features/agent/model/tools'
-import type { FilePartData } from '@/features/agent/types'
 import { useCalendarStore } from '@/stores/calendar'
 import { useAgentStore } from '@/stores/agent.ts'
 import { useProviderStore } from '@/stores/provider'
@@ -68,7 +76,6 @@ function findPlanSource(
 
 function AgentChat() {
   const navigate = useNavigate()
-  const [contextFiles, updateContextFiles] = useState<FilePartData[]>([])
   const [defaultLayout] = useState(findSplitterLayout)
   const [isSearchOpen, updateSearchOpen] = useState(false)
   const [scenario, updateScenario] = useState<ScenarioKey>('general')
@@ -176,74 +183,77 @@ function AgentChat() {
   }
 
   return (
-    <div className={clsx(styles.chat)}>
-      <AgentTitlebar className={styles.titlebar} />
-      <div className={styles.body}>
-        <ResizablePanelGroup
-          id="agent-workbench"
-          orientation="horizontal"
-          className={styles.splitter}
-          defaultLayout={defaultLayout}
-          onLayoutChanged={handleLayoutChanged}>
-          <ResizablePanel
-            id={SESSION_ID}
-            defaultSize={SESSION_SIZE}
-            minSize={SESSION_MIN}
-            maxSize={SESSION_MAX}
-            collapsible
-            collapsedSize={0}
-            groupResizeBehavior="preserve-pixel-size">
-            <AgentSidebar
-              className={styles.sidebar}
-              scenario={scenario}
-              isSearchOpen={isSearchOpen}
-              onScenarioChange={updateScenario}
-              onSearchOpenChange={updateSearchOpen}
-              onOpenSettings={openSettings}
-            />
-          </ResizablePanel>
+    <AgentRuntimeProvider>
+      <AssistantLabelsProvider labels={ASSISTANT_LABELS_ZH}>
+        <div className={clsx(styles.chat)}>
+          <AgentTitlebar className={styles.titlebar} />
+          <div className={styles.body}>
+            <ResizablePanelGroup
+              id="agent-workbench"
+              orientation="horizontal"
+              className={styles.splitter}
+              defaultLayout={defaultLayout}
+              onLayoutChanged={handleLayoutChanged}>
+              <ResizablePanel
+                id={SESSION_ID}
+                defaultSize={SESSION_SIZE}
+                minSize={SESSION_MIN}
+                maxSize={SESSION_MAX}
+                collapsible
+                collapsedSize={0}
+                groupResizeBehavior="preserve-pixel-size">
+                <AgentSidebar
+                  className={styles.sidebar}
+                  scenario={scenario}
+                  isSearchOpen={isSearchOpen}
+                  onScenarioChange={updateScenario}
+                  onSearchOpenChange={updateSearchOpen}
+                  onOpenSettings={openSettings}
+                />
+              </ResizablePanel>
 
-          <ResizableHandle />
+              <ResizableHandle />
 
-          <ResizablePanel
-            id={MAIN_ID}
-            minSize={WORKBENCH_MIN}>
-            <AgentWorkbench
-              className={styles.workbench}
-              scenario={scenario}
-              contextFiles={contextFiles}
-              onScenarioChange={updateScenario}
-              onContextFilesChange={updateContextFiles}
-              onOpenSettings={openSettings}
-              onPlanOpen={openPlanPane}
-            />
-          </ResizablePanel>
+              <ResizablePanel
+                id={MAIN_ID}
+                minSize={WORKBENCH_MIN}>
+                <main className={styles.thread}>
+                  <Thread
+                    components={{
+                      Welcome: ThreadWelcome,
+                      ComposerEnd: ComposerModelEnd
+                    }}
+                  />
+                </main>
+              </ResizablePanel>
 
-          <ResizableHandle />
+              <ResizableHandle />
 
-          <ResizablePanel
-            id={PLAN_ID}
-            panelRef={planRef}
-            defaultSize={PLAN_SIZE}
-            minSize={PLAN_MIN}
-            maxSize={PLAN_MAX}
-            collapsible
-            collapsedSize={0}
-            groupResizeBehavior="preserve-pixel-size"
-            onResize={handlePlanResize}>
-            <AgentPlanPane
-              className={styles.planPane}
-              source={planSource}
-              onClose={closePlanPane}
-              onToggleItem={function (itemIndex) {
-                void handleTogglePlanItem(itemIndex)
-              }}
-              onWriteCalendar={handleWritePlanCalendar}
-            />
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </div>
-    </div>
+              <ResizablePanel
+                id={PLAN_ID}
+                panelRef={planRef}
+                defaultSize={PLAN_SIZE}
+                minSize={PLAN_MIN}
+                maxSize={PLAN_MAX}
+                collapsible
+                collapsedSize={0}
+                groupResizeBehavior="preserve-pixel-size"
+                onResize={handlePlanResize}>
+                <AgentPlanPane
+                  className={styles.planPane}
+                  source={planSource}
+                  onClose={closePlanPane}
+                  onToggleItem={function (itemIndex) {
+                    void handleTogglePlanItem(itemIndex)
+                  }}
+                  onWriteCalendar={handleWritePlanCalendar}
+                />
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </div>
+        </div>
+      </AssistantLabelsProvider>
+    </AgentRuntimeProvider>
   )
 }
 

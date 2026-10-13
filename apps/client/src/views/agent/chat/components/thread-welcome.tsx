@@ -1,20 +1,29 @@
+/**
+ * 空会话欢迎页（`Thread` 的 `Welcome` 槽位）。
+ *
+ * 只负责把一条快捷提示放进输入框 —— 提示里带的 `scenario` 目前只作导航/归类用，
+ * 不再包一层 prompt（goose 自己管计划/对比这类能力，见 PR6 设置面）。
+ */
+import { useAui } from '@assistant-ui/react'
 import { Icon } from '@iconify/react/offline'
 import { clsx } from 'clsx'
 
 import { Glide } from '@/components/glide/glide'
-import { QUICK_PROMPTS, type QuickPrompt } from './workbench-constants'
-import styles from './workbench.module.scss'
+import { QUICK_PROMPTS, type QuickPrompt } from '@/views/agent/chat/components/workbench-constants'
+import styles from '@/views/agent/chat/components/workbench.module.scss'
 
-interface WorkbenchEmptyProps {
-  onQuickPrompt: (item: QuickPrompt) => void
-}
+function ThreadWelcome() {
+  const aui = useAui()
 
-function WorkbenchEmpty(props: WorkbenchEmptyProps) {
+  function pick(item: QuickPrompt) {
+    aui.composer.setText(item.label)
+  }
+
   return (
-    <div className={styles.empty}>
-      <div className={styles.emptyInner}>
-        <div className={styles.welcome}>
-          <span className={styles.emptyIcon}>
+    <div className={styles.welcome}>
+      <div className={styles.welcomeInner}>
+        <div className={styles.welcomeHead}>
+          <span className={styles.welcomeIcon}>
             <Icon
               icon="lucide:bot"
               width={24}
@@ -40,7 +49,7 @@ function WorkbenchEmpty(props: WorkbenchEmptyProps) {
                   type="button"
                   className={styles.promptCard}
                   onClick={function () {
-                    props.onQuickPrompt(item)
+                    pick(item)
                   }}>
                   <span className={styles.promptIcon}>
                     <Icon
@@ -63,5 +72,4 @@ function WorkbenchEmpty(props: WorkbenchEmptyProps) {
   )
 }
 
-export { WorkbenchEmpty }
-export type { WorkbenchEmptyProps }
+export { ThreadWelcome }
