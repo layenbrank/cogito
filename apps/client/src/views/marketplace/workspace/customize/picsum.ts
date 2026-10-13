@@ -24,7 +24,8 @@ async function fetchPicsumImages(): Promise<PicsumImage[]> {
     return parsed.map(function (item) {
       return { id: String(item.id) }
     })
-  } catch {
+  } catch (error) {
+    console.warn('[marketplace] picsum 图片清单解析失败，回落内置占位图:', error)
     return buildFallbackImages()
   }
 }

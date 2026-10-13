@@ -62,7 +62,8 @@ function clampDayToMonth(base: Dayjs, day: number) {
 function parseWorkDays(workDays: string): number[] {
   try {
     return JSON.parse(workDays) as number[]
-  } catch {
+  } catch (error) {
+    console.warn('[countdown] workDays 存档不是合法 JSON，回落工作日默认值:', error)
     return [1, 2, 3, 4, 5]
   }
 }

@@ -60,7 +60,9 @@ function StepParamsJsonEditor(props: StepParamsJsonEditorProps) {
                 }
                 setParamsError(null)
                 props.onPatchParams(parsed as Record<string, unknown>)
-              } catch {
+              } catch (error) {
+                // 界面上已经标了「JSON 无效」，控制台补一条便于定位是哪次输入
+                console.debug('[directive] 步骤参数 JSON 解析失败:', error)
                 setParamsError('JSON 无效')
               }
             }}

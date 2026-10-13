@@ -245,7 +245,9 @@ function RunPanelView(props: RunPanelViewProps) {
     if (!isDraftDirty()) return directiveName
     try {
       return await saveDraft()
-    } catch {
+    } catch (error) {
+      // 存草稿失败就不带改动继续跑（调用方要的是名字），但得留痕
+      console.warn('[directive] 保存草稿失败，改为按未保存状态继续:', error)
       return null
     }
   }

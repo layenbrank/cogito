@@ -19,7 +19,9 @@ function readEngineKey(): string {
     const raw = localStorage.getItem(ENGINE_STORE_KEY)
     if (!raw) return ENGINES[0].key
     return parseEngineKey(JSON.parse(raw) as unknown)
-  } catch {
+  } catch (error) {
+    // 存档缺失/损坏都回落默认引擎；损坏要能看出来，所以不是 debug
+    console.warn('[overview] 引擎偏好存档损坏，回落默认:', error)
     return ENGINES[0].key
   }
 }

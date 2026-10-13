@@ -477,6 +477,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
           patchRun(id, { status: 'ok', result, endedAt: new Date() })
           void getter().fetchRunHistory(name, 20)
         } catch (error) {
+          console.warn('[corex] 指令运行失败:', error)
           patchRun(id, {
             status: 'failed',
             error: parseErrorMessage(error, '运行失败'),
@@ -511,6 +512,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
           const result = await invokeAction({ action: actionId, params, runId: id })
           patchRun(id, { status: 'ok', result, doneSteps: 1, endedAt: new Date() })
         } catch (error) {
+          console.warn('[corex] 动作试跑失败:', error)
           patchRun(id, {
             status: 'failed',
             error: parseErrorMessage(error, '试跑失败'),

@@ -93,7 +93,9 @@ function findCollectionID(): string {
     const label = getCurrentWindow().label
     const separator = label.indexOf(':')
     return separator === -1 ? '' : label.slice(separator + 1)
-  } catch {
+  } catch (error) {
+    // 不在 Tauri 窗口里（如测试）时拿不到 label，按空处理
+    console.debug('[collection] 取窗口 label 失败，按空处理:', error)
     return ''
   }
 }

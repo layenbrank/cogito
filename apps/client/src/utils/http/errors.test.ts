@@ -40,6 +40,7 @@ describe('HttpEnvelope', function () {
     const thrown = (() => {
       try {
         HttpEnvelope(envelope({ code: 401, success: false, msg: '登录已过期', traceID: TRACE_ID }))
+        // eslint-disable-next-line ith/catch-must-report -- 测试就是要取出抛出的异常来断言，不存在漏报
       } catch (error) {
         return error as HttpException
       }
@@ -54,6 +55,7 @@ describe('HttpEnvelope', function () {
     const thrown = (() => {
       try {
         HttpEnvelope(envelope({ code: 401, success: false }))
+        // eslint-disable-next-line ith/catch-must-report -- 同上：刻意取异常断言
       } catch (error) {
         return error as HttpException
       }

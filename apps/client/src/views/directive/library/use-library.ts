@@ -225,6 +225,8 @@ function useLibrary(options: UseLibraryOptions) {
         try {
           results.push(await importDirectivesFromHost({ path, is_overwrite: isOverwrite }))
         } catch (error) {
+          // 失败会进 mergeImportResults 给用户看，但开发侧也要能看到是哪一条炸的
+          console.debug('[directive] 导入单条失败（已记入结果）:', error)
           results.push(importFailure(path, error))
         }
       }

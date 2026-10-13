@@ -24,7 +24,8 @@ function parseWeekDays(weekDays: string): number[] {
     return parsed.filter(function (d) {
       return Number.isInteger(d) && d >= 1 && d <= 7
     })
-  } catch {
+  } catch (error) {
+    console.warn('[clock] 重复规则存档不是合法 JSON，回落空列表:', error)
     return []
   }
 }

@@ -45,8 +45,8 @@
 - 多个失败一起产生时用 `AggregateError` 汇总抛出，别只留第一条。
 - 日志前缀 `[模块] 说明:`，对齐现有 `[goose-acp]` / `[workbench]` / `[agent-settings]`。
 - 机器把关：规则在共享插件 `@i-thinking/eslint-plugin`（id `ith/catch-must-report`）。经 `emit('error', …)` 这类事件总线上报也算输出一次。
-  - `apps/studio`：全域 `error`。
-  - `apps/client`：`src/features/agent/**`、`src/views/agent/**`、`src/stores/agent.ts` 为 `error`（硬拦）；其余存量先按 `warning` 记着，清完再提级。
+  - `apps/studio` / `apps/client`：均**全域 `error`**（client 的存量 29 处已于 2026-10-13 清完，不再分档）。
+  - 良性清理 / 探针类失败用 `console.debug`（记下来但不喧哗），真异常用 `console.warn`；测试里刻意取异常断言可加一行带理由的 `eslint-disable-next-line`。
 
 ### 异步：非必要不用 `Promise.all`
 

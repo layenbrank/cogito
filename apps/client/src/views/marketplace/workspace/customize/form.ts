@@ -233,7 +233,9 @@ function parseTileToForm(
 function isUrl(value: string) {
   try {
     return Boolean(new URL(value))
-  } catch {
+  } catch (error) {
+    // 校验函数：不是合法 URL 是常态（用户正在输入），只记低噪日志
+    console.debug('[marketplace] 不是合法 URL（校验为 false）:', error)
     return false
   }
 }

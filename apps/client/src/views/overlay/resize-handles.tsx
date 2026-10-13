@@ -64,8 +64,8 @@ function ResizeHandles(props: ResizeHandlesProps) {
     dragRef.current = null
     try {
       e.currentTarget.releasePointerCapture(e.pointerId)
-    } catch {
-      /* already released */
+    } catch (error) {
+      console.debug('[overlay] pointer capture 已经释放过了:', error)
     }
     onResizeEnd()
   }

@@ -223,24 +223,24 @@ export default function WaterRipple(props: WaterRippleProps) {
           if (app) {
             try {
               app.ticker.stop()
-            } catch {
-              /* ticker may already be stopped */
+            } catch (error) {
+              console.debug('[WaterRipple] ticker 已是停止态:', error)
             }
             try {
               if (app.canvas && app.canvas.parentNode) {
                 app.canvas.parentNode.removeChild(app.canvas)
               }
-            } catch {
-              /* canvas may already be detached */
+            } catch (error) {
+              console.debug('[WaterRipple] canvas 已从 DOM 摘除:', error)
             }
             try {
               app.destroy(true, { children: true, texture: true, textureSource: true })
-            } catch {
-              /* destroy may partially fail */
+            } catch (error) {
+              console.debug('[WaterRipple] destroy 部分失败:', error)
             }
           }
-        } catch {
-          /* ignore all cleanup errors */
+        } catch (error) {
+          console.debug('[WaterRipple] 清理整体失败（已忽略）:', error)
         }
         app = null
         displacementFilter = null

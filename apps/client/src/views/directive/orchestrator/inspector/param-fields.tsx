@@ -60,7 +60,8 @@ function stringifyValue(value: unknown): string {
   }
   try {
     return JSON.stringify(value) ?? ''
-  } catch {
+  } catch (error) {
+    console.debug('[directive] 参数值无法序列化，按空串处理:', error)
     return ''
   }
 }
@@ -180,7 +181,9 @@ function ParamFields(props: ParamFieldsProps) {
                   }
                   try {
                     writeParam(param.name, JSON.parse(text) as unknown)
-                  } catch {
+                  } catch (error) {
+                    // 输入本来就可以是普通字符串（不是 JSON）：回落原文本
+                    console.debug('[directive] 参数不是 JSON，按纯文本处理:', error)
                     writeParam(param.name, text)
                   }
                 }}

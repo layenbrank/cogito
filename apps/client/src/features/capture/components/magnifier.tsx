@@ -82,7 +82,9 @@ export default function Magnifier({ sourceImage, visible }: MagnifierProps) {
         }
         return next
       })
-    } catch {
+    } catch (error) {
+      // 取色失败就把显示值清掉（值已经不可信），但要留痕
+      console.debug('[Magnifier] 取色失败，清空显示值:', error)
       setRgb(function (prev) {
         return prev === null ? prev : null
       })

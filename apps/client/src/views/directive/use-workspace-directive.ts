@@ -143,7 +143,9 @@ function useWorkspaceDirective(options: UseWorkspaceOptions) {
       if (!isDirty) return draft?.name ?? name
       try {
         return await saveDraft()
-      } catch {
+      } catch (error) {
+        // 存草稿失败不能阻断运行链路，但原因要留下
+        console.warn('[directive] 保存草稿失败:', error)
         return null
       }
     },

@@ -463,8 +463,9 @@ export function sanitizeUrl(
     if (isAllowedUri(url.href, protocols)) {
       return url.href
     }
-  } catch {
-    // If URL creation fails, it's considered invalid
+  } catch (error) {
+    // URL 建不起来就是「无效链接」，属于正常输入路径（落回 '#'），只记低噪日志
+    console.debug('[tiptap] URL 解析失败（按无效处理）:', error)
   }
   return "#"
 }

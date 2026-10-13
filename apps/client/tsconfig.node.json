@@ -8,6 +8,7 @@
     "playwright.config.*",
     "tailwind.config.*",
     "eslint.config.*",
+    "doctor.config.*",
     "shaders.config.*",
     "scripts/**/*.ts"
   ],

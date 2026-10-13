@@ -32,7 +32,9 @@ function parseHostname(url: string | null) {
   if (!url) return ''
   try {
     return new URL(url).hostname.replace(/^www\./, '')
-  } catch {
+  } catch (error) {
+    // URL 不合法就用原文当域名（列表里本来就可能是任意字符串）
+    console.debug('[marketplace] URL 不合法，直接回显原文:', error)
     return url
   }
 }

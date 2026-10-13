@@ -26,7 +26,9 @@ function buildInputPayload(
     }
     try {
       payload[input.name] = JSON.parse(raw) as unknown
-    } catch {
+    } catch (error) {
+      // 参数本来就可以是普通文本（不是 JSON）：回落原字符串
+      console.debug('[directive] 运行参数不是 JSON，按字符串传入:', error)
       payload[input.name] = raw
     }
   })

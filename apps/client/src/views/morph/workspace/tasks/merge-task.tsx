@@ -66,7 +66,9 @@ function MergeTask() {
           try {
             const page = await MorphIpc.toRender(path, 0, 0.5)
             return [path, page.base64] as const
-          } catch {
+          } catch (error) {
+            // 单张缩略图渲不出来就不带图（列表会显示占位），但留痕便于排查是哪些文件
+            console.debug('[morph] 缩略图渲染失败，按无图处理:', error)
             return [path, ''] as const
           }
         })

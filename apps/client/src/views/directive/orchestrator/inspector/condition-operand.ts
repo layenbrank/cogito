@@ -9,7 +9,9 @@ function operandText(value: unknown): string {
   }
   try {
     return JSON.stringify(value) ?? ''
-  } catch {
+  } catch (error) {
+    // BigInt / 循环引用等序列化不了的值：按空串处理，但留痕
+    console.debug('[directive] 条件操作数无法序列化，按空串处理:', error)
     return ''
   }
 }

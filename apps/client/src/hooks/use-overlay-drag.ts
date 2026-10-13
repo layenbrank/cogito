@@ -213,8 +213,8 @@ function useOverlayDrag(options: UseOverlayDragOptions) {
 
       try {
         e.currentTarget.releasePointerCapture(e.pointerId)
-      } catch {
-        /* already released */
+      } catch (error) {
+        console.debug('[overlay-drag] pointer capture 已经释放过了:', error)
       }
 
       latestRef.current.onDragStateChange?.(false)
