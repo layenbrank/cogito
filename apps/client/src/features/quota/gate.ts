@@ -14,8 +14,8 @@ import { GET_GATEWAY_QUOTA_ME, type GatewaySelfQuota } from '@/apis/gateway.ts'
 
 import { syncActiveTenant } from './tenant.ts'
 
-/** 平台网关在 goose 里的 providerId（PR5 的 provider bootstrap 用它创建） */
-const GATEWAY_PROVIDER_KIND = 'cogito'
+/** 平台网关在 goose 里的 providerId（与 Rust `cogito_provider::PROVIDER_ID` 一致） */
+const GATEWAY_PROVIDER_KIND = 'cogito_gateway'
 
 /** 判定结果缓存：发一条消息不该顺手打一个接口（订阅成功后由 `clearQuotaCheck()` 立即失效） */
 const CHECK_TTL_MS = 60_000
@@ -75,7 +75,7 @@ async function findSendBlocker(target: SendTarget): Promise<string | null> {
   }
 }
 
-/** 当前发送目标是否走平台网关（goose providerId === 'cogito'） */
+/** 当前发送目标是否走平台网关（goose providerId === `cogito_gateway`） */
 function isGatewayTarget(providerKind: string | undefined): boolean {
   return providerKind === GATEWAY_PROVIDER_KIND
 }
