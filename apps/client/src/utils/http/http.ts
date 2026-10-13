@@ -29,13 +29,18 @@ const fetcher = ofetch.create(
         options.baseURL = ENV_URLS[options.env]
         delete options.env
       }
-      const token = findAuthToken()
-      if (token) options.headers.set('Authorization', `Bearer ${token}`)
 
-      // 网关按租户头算配额归属；没解析出个人租户就不带（服务端按账号归属兜底），
-      // 绝不能拿旧账号的租户，所以值只在 `utils/tenant.ts` 里带令牌指纹缓存
-      const tenantID = findActiveTenantID()
-      if (tenantID) options.headers.set('X-Tenant-ID', tenantID)
+      // 鉴权头只打自家地址：绝对 URL 若落在 ENV_URLS 外，绝不能把 JWT / 租户带出去
+      const own = isOwnUrl(url) || Boolean(options.baseURL)
+      if (own) {
+        const token = findAuthToken()
+        if (token) options.headers.set('Authorization', `Bearer ${token}`)
+
+        // 网关按租户头算配额归属；没解析出个人租户就不带（服务端按账号归属兜底），
+        // 绝不能拿旧账号的租户，所以值只在 `utils/tenant.ts` 里带令牌指纹缓存
+        const tenantID = findActiveTenantID()
+        if (tenantID) options.headers.set('X-Tenant-ID', tenantID)
+      }
     }
   },
   { fetch }

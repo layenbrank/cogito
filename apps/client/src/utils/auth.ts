@@ -74,13 +74,22 @@ function unlistenCrossWindow(): void {
 }
 
 function findAuthToken(): string | null {
+  let sawExpired = false
   for (const store of findAuthStores()) {
     const token = store.getItem(AUTH_TOKEN_KEY)
     if (!token) continue
     // 过期令牌不是登录态：留着它只会让每个接口回一句「登录已过期」，
     // 界面却一直显示「已登录」—— 用户看到的就是「明明登录着，却总说登录过期」
-    if (isAuthTokenExpired(token)) continue
+    if (isAuthTokenExpired(token)) {
+      sawExpired = true
+      continue
+    }
     return token
+  }
+  // 内存已视为未登录时，同步清掉磁盘 JWT，避免 goose auth.command 继续带废票
+  if (sawExpired) {
+    for (const store of findAuthStores()) store.removeItem(AUTH_TOKEN_KEY)
+    syncCogitoJwt(null)
   }
   return null
 }
