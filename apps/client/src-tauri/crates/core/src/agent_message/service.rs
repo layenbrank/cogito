@@ -105,7 +105,9 @@ impl Service {
         }
 
         // 删除一条消息时，它在分支树上的所有子孙一起删（assistant-ui 删分支通常整段给，
-        // 但旧库/手写调用可能只给 head；这里按 parentID 递归补齐，避免留下孤儿分支）
+        // 但旧库/手写调用可能只给 head；这里按 parentID 递归补齐，避免留下孤儿分支）。
+        // `visited` 防 parentID 环把 BFS 打成死循环。
+        let mut visited: std::collections::HashSet<String> = seed.iter().cloned().collect();
         let mut ids: Vec<String> = seed;
         let mut frontier: Vec<String> = ids.clone();
         while !frontier.is_empty() {
@@ -113,8 +115,13 @@ impl Service {
                 .filter(schema::Column::ParentId.is_in(frontier))
                 .all(db)
                 .await?;
-            frontier = rows.iter().map(|m| m.id.clone()).collect();
-            ids.extend(rows.into_iter().map(|m| m.id));
+            frontier = Vec::new();
+            for row in rows {
+                if visited.insert(row.id.clone()) {
+                    frontier.push(row.id.clone());
+                    ids.push(row.id);
+                }
+            }
         }
 
         if ids.is_empty() {
