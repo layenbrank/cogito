@@ -459,7 +459,12 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 - **PR5 · WS-3 网关 provider + 只读 helper + 配额**（[D5](#d5-网关-provider-与只读-helper对应-ws-3)）——**进行中**：
   - ✅ 配额门：`apis/gateway.ts`（`GET /gateway/models`、`GET /gateway/quota/me`）+ `features/quota/gate.ts`（只认 `exhausted`，BYOK 放行，失败放行守门归服务端），`port/model.ts` 发跑前查一次。
   - ✅ JWT 落盘：`cogito:token:write/clear` 命令 + `utils/auth.ts` 登录/退出同步 `<appData>/cogito/jwt`（原子写）。
-  - ⏳ token helper 二进制（`i-thinking-token`，externalBin）+ provider bootstrap（把 cogito 注册进 goose 自定义 provider，`auth.command` 指向 helper）。**开工前先核对 goose 1.54 自定义 provider 的配置 schema**（`D:\Documents\monorepo\goose`：engine/apiUrl/headers/requiresAuth/auth.command 的确切 config key 与字段名 —— 现有客户端只有 `providers/config/save` 与 `config/upsert` 两个口，没有 `providers/custom/create`）。
+  - ✅ token helper + provider bootstrap（方案 A 落地）：
+    - helper = 主程序子命令 `i-thinking --token-helper --file <jwt>`（`main.rs`，stdout 输出 trim 后的令牌，非零码即失败），**零额外打包**；goose 的 `auth.command` 指向 `current_exe()`，拼成 `Authorization: Bearer <token>`。
+    - Rust `utils/cogito_provider.rs`：直接写 `<appData>/goose/config/custom_providers/cogito_gateway.json`（snake_case 声明式，`engine=openai`/`requires_auth`/`headers.X-Tenant-ID`/`auth{command,args,refresh_interval:120}`），幂等（内容没变不重启），有变化 `goose_serve::restart` 重读。
+    - `goose_serve::build_goose_command` 注入 `GOOSE_PATH_ROOT=<appData>/goose`，config dir 与用户全局 goose 配置隔离。
+    - 命令 `cogito:provider:ensure` / `cogito:provider:set-tenant`；渲染进程 `acp/cogito-provider.ts::ensureCogitoProvider` 挂在 `port/model.ts` run 前（租户/端点/模型任一变化即重写+重启，租户切换因此自动覆盖）。
+  - ✅ token 记账：`acp/session.ts::recordUsage` 在每轮 `prompt` 结束时用**标准 ACP `PromptResponse.usage`**（goose 的 `build_prompt_usage` 返回 `session.usage`，即 session 累计的 input/output/total）减基线（按 ACP session id 存的上一次累计）得本轮增量，写 `agent_usage`（runID/sessionID/providerID/model/input/output/total）。session 重建自然拿零基线；compaction 重置导致负增量时跳过，不落 0 账。数据源走标准通道，无需 goose 自定义通知 / `customNotifications` 能力声明。
 
 ### 🔴 PR5 新决策：goose 1.54 的 ACP 不支持自定义 provider 的命令鉴权
 
@@ -473,10 +478,21 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 | # | 方案 | 代价 |
 | --- | --- | --- |
 | A | 客户端 Rust 直接写 goose 声明式配置文件（`<goose-config>/custom_providers/cogito.json`，含 `auth.command`），再触发重载 | 耦合 goose 内部文件格式与 config dir；需要确认「写完文件后如何让 goose 重读」（可能得重启 goose serve） |
-| B | 把 goose 从「下载 release」改成「vendor 源码构建」，并补上 ACP DTO 的 `auth` 透传 | 构建链路大改；但一劳永逸，且能一起带其他补丁 |
+| B | 把 goose 从「下载 release」改成「vendor 源码构建」，并补上 ACP DTO 的 `auth` 透传 | 构建链路大改；长期要 fork 非自有仓库 + 每次 goose 升级 rebase 补丁 |
 | C | `requiresAuth: false` + 静态 `X-Tenant-ID` 头 + 网关侧对「来自桌面的未鉴权请求」放行 | 网关要改鉴权，不安全，不推荐 |
 
-倾向 **A**（先把桌面跑通），但要先回答「goose 重读配置文件」的机制（restart 或某个 refresh 端点）。
+**已定 A**（`2026-10-13`；曾在 goose 仓库打过两个 auth DTO 补丁后撤销，goose 保持干净，**不改 goose 源码**）：
+
+- goose **无**声明式 provider 的文件监视（`notify`/`watcher` 均未使用），写文件不会自动热加载。
+- 但 `crates/goose/src/providers/init.rs::refresh_custom_providers()` 会**重读磁盘**（`remove_custom_providers()` + `register_declarative_providers()` 重扫 `custom_providers_dir()`）；ACP 的 create/update/delete 都会触发它，但 create/update 会用自身参数覆盖文件，不能借它们保 `auth`。
+- 客户端已有 `goose:restart` → `goose_serve::restart` 链路；goose 启动时 `init_registry → load_custom_providers_into_registry` 会扫描 `custom_providers_dir()`。
+- 落地：客户端 Rust 写 `<goose-config>/custom_providers/cogito.json`（含 `auth.command`）→ `goose:restart`。租户切换同理（改 `X-Tenant-ID` 头 → restart）。
+- ✅ 已确认（`2026-10-13` 核对 goose 源码）：
+  - **config dir 可用 env 控制**：`Paths::config_dir()` 读 `GOOSE_PATH_ROOT`（须绝对路径）→ config = `<root>/config`；未设置则走 etcetera 的 `%APPDATA%\Block\goose\config`。客户端启动 goose 时注入 `GOOSE_PATH_ROOT=<appData>/goose` 即完全隔离 + 可控，不碰用户全局 goose 配置。
+  - **声明式 JSON**：`<config>/custom_providers/<id>.json`，`serde_json`、**snake_case**（`DeclarativeProviderConfig` 无 rename_all）。必填 `name`/`engine`/`display_name`/`base_url`/`models`（每项最小 `{"name":"…"}`）；`engine` 写 `"openai"`（`ProviderEngine` lowercase，alias `openai_compatible`）；`api_key_env` 与 `auth` 互斥（auth 时 api_key_env 留空即可）；`requires_auth`/`toolshim`/`preserves_thinking` 等均有 default 可省。
+  - **auth.command 契约**（`providers/command_auth.rs`）：直接执行不经 shell、stdin null；**stdout 必须 UTF-8，整体 `trim()` 后作为 token，且非空**；退出码非 0 即失败（stderr 截断上报）；默认超时 10s；`refresh_interval` 秒（0=只被动重跑）。
+  - **鉴权头匹配**：OpenAI 兼容 provider 的 `CommandAuthProvider` 拼 `Authorization: Bearer <token>`，与渲染进程 `utils/http/http.ts` 注入一致 → helper 只输出 JWT 原文（不含 `Bearer ` 前缀）。
+  - **headers 不支持 `${VAR}` 模板**（`resolve_config` 只 expand `base_url`，不 expand `headers`）→ `X-Tenant-ID` 只能静态写入，租户切换 = 重写 JSON + `goose:restart`。
 - **PR6 · WS-7 设置面**（provider / 扩展 / 权限 / 用量 / 诊断）
 - **PR7 · WS-4 cogito `chat` 同步域**（[D6](#d6-cogito-chat-同步域对应-ws-4)）
 - **PR8 · WS-5 cogito MCP**（[D7](#d7-cogito-mcp-面对应-ws-5)）
