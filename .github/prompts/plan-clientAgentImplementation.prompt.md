@@ -404,7 +404,7 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 
   **未做（有意）**：CI 未加 client `cargo check` —— 该 job 是 `ubuntu-latest`、无 Rust 工具链，需先装 `dtolnay/rust-toolchain` + webkit2gtk 等系统依赖，且 30 分钟预算下风险高，留待单独决定。（→ 已在「门禁补齐」批次完成）
 
-### 🔨 PR4 · WS-1 客户端 chat 层（进行中）
+### ✅ PR4 · WS-1 客户端 chat 层（完成）
 
 > 拆成 3 刀（比原计划多一刀：控制器与 UI 必须同批，否则旧工作台会失去审批能力 ——
 > 那要么写兼容分支（双轨），要么让旧 UI 静默拒掉所有审批）。
@@ -422,7 +422,7 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 - `model/goose-acp.ts` 收缩为旧路径适配器（会话机器只有一份）；`compactThreadSession`/`switchGooseProviderModel`/`waitGooseReady` 从 `acp/session` 导出，3 处消费方改导入。
 - 验证：client `tsc` 0、lint 0、单测 142/142。
 
-**③ 待做（下一刀）**：`features/agent/port/{model,instance}.ts` → `views/agent/chat/runtime.tsx`（`useLocalRuntime` + `createThreadHistoryAdapter`）→ 三栏 UI + 槽位移植 → **同批删除**旧路径（`chatGooseAcp`、`agent-loop.ts`、`acp/permission.ts`、`acp/normalize.ts`、旧工作台 `workbench*`/`bubbles`/`plan-list`/`code-diff`/`compare-table`）。
+**③ 端口 + runtime + 三栏 UI（已提交）**：`features/agent/port/{model,instance}.ts` → `views/agent/chat/runtime.tsx`（`useLocalRuntime` + `createThreadHistoryAdapter`）→ 三栏 UI + 槽位移植 → **同批删除**旧路径（`chatGooseAcp`、`agent-loop.ts`、`acp/permission.ts`、`acp/normalize.ts`、旧工作台 `workbench*`/`bubbles`/`plan-list`/`code-diff`/`compare-table`）。
 
 **③ 端口 + runtime（已提交）**
 - `features/agent/port/model.ts`：`findTarget` 现读启用的 provider（`providerID` 用**本地行 id**，goose 的 `providerId` 在发跑时由 `kind` 换算）；`run` 吃控制器条目流（`update` → `stream.ts`，审批/追问直接把事件交给 UI），**每轮只发一个终态**，异常也走事件流并在控制台留堆栈。
@@ -448,6 +448,11 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 | 欢迎页 | `Welcome` |
 
 同批删除：`model/goose-acp.ts`（`chatGooseAcp`）、`model/agent-loop.ts`、`acp/permission.ts`、`acp/normalize.ts`、旧工作台 `views/agent/chat/components/{workbench*,bubbles,plan-list,code-diff,compare-table}*`（✅ 已完成）。
+
+**④ 持久化破坏性收尾（已提交）**
+- `agent_message` 删 `identity`/`thinking`/`parts`，`fragment` → `content`；`deleteMessages` 按 `parentID` 递归级联（store 的 `toRemoveMessage` 改用落库返回的完整集合收敛本地状态）。
+- 新增 `agent_usage` 域（表 + entity + core service + command；`runID` 唯一、`idx_agent_usage_sessionID`）；`stores/agent.ts` 补 `usage` 分片。账本只接好管线，真实 token 记账随网关（PR5）落地。
+- ⚠️ v001 就地改是**破坏性**的：旧本地库须 `fresh`/删库重建（路径见 `crates/database/src/storage.rs::database_path`）。
 
 ### ⏳ 待完成
 
