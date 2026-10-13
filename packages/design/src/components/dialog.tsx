@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { cn } from 'cn'
 
@@ -55,6 +56,13 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
   )
 }
 
+interface DialogChromeContextValue {
+  headerTarget: HTMLElement | null
+  footerTarget: HTMLElement | null
+}
+
+const DialogChromeContext = React.createContext<DialogChromeContextValue | null>(null)
+
 function DialogContent({
   className,
   children,
@@ -66,14 +74,24 @@ function DialogContent({
   /** 覆盖遮罩样式（如登录弹窗需要更强 scrim） */
   overlayClassName?: string
 }) {
+  const [headerTarget, updateHeaderTarget] = React.useState<HTMLElement | null>(null)
+  const [footerTarget, updateFooterTarget] = React.useState<HTMLElement | null>(null)
+
+  const chrome = React.useMemo<DialogChromeContextValue>(
+    function () {
+      return { headerTarget, footerTarget }
+    },
+    [headerTarget, footerTarget]
+  )
+
   return (
     <DialogPortal>
       <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          // 圆角裁切在外壳；滚动放内层，避免滚动条画出 rounded 外沿
-          'fixed top-1/2 left-1/2 z-50 flex w-full max-h-[min(85vh,40rem)] max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-hidden rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 outline-none sm:max-w-sm',
+          // 圆角裁切在外壳；Header/Footer 挂到滚动区外，避免滚动条压到关闭按钮、Footer -mx-4 撑出横向滚动
+          'fixed top-1/2 left-1/2 z-50 flex w-full max-h-[min(85vh,40rem)] max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-0 overflow-hidden rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 outline-none sm:max-w-sm',
           'origin-center scale-100 opacity-100 transition-[opacity,scale] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]',
           'data-starting-style:scale-[0.96] data-starting-style:opacity-0',
           'data-ending-style:scale-[0.96] data-ending-style:opacity-0',
@@ -81,18 +99,30 @@ function DialogContent({
           className
         )}
         {...props}>
-        <div
-          data-slot="dialog-body"
-          className="flex min-h-0 flex-1 flex-col gap-[inherit] overflow-y-auto">
-          {children}
-        </div>
+        <DialogChromeContext.Provider value={chrome}>
+          <div
+            data-slot="dialog-header-slot"
+            className="shrink-0"
+            ref={updateHeaderTarget}
+          />
+          <div
+            data-slot="dialog-body"
+            className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto pb-4">
+            {children}
+          </div>
+          <div
+            data-slot="dialog-footer-slot"
+            className="shrink-0"
+            ref={updateFooterTarget}
+          />
+        </DialogChromeContext.Provider>
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
             render={
               <Button
                 variant="ghost"
-                className="absolute top-2 right-2"
+                className="absolute top-2 right-2 z-10"
                 size="icon-sm"
               />
             }>
@@ -106,13 +136,22 @@ function DialogContent({
 }
 
 function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
-  return (
+  const chrome = React.useContext(DialogChromeContext)
+
+  const header = (
     <div
       data-slot="dialog-header"
-      className={cn('flex flex-col gap-2', className)}
+      className={cn('flex flex-col gap-2 pr-8 pb-4', className)}
       {...props}
     />
   )
+
+  if (chrome) {
+    if (!chrome.headerTarget) return null
+    return createPortal(header, chrome.headerTarget)
+  }
+
+  return header
 }
 
 function DialogFooter({
@@ -123,11 +162,13 @@ function DialogFooter({
 }: React.ComponentProps<'div'> & {
   showCloseButton?: boolean
 }) {
-  return (
+  const chrome = React.useContext(DialogChromeContext)
+
+  const footer = (
     <div
       data-slot="dialog-footer"
       className={cn(
-        '-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end',
+        '-mx-4 -mb-4 flex shrink-0 flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end',
         className
       )}
       {...props}>
@@ -137,6 +178,14 @@ function DialogFooter({
       )}
     </div>
   )
+
+  // 有 chrome 时挂到滚动区外的 slot；slot 尚未挂载时先不渲染，避免进滚动容器触发横向溢出
+  if (chrome) {
+    if (!chrome.footerTarget) return null
+    return createPortal(footer, chrome.footerTarget)
+  }
+
+  return footer
 }
 
 function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
