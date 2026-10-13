@@ -255,6 +255,43 @@ class AgentToolExecutionResponse(BaseModel):
         return self.model_dump(by_alias=True, mode="json", exclude_none=True)
 
 
+class AgentToolInvocationRequest(BaseModel):
+    """契约 `AgentToolInvocationRequest`：cogito 说「同步执行一次**不需要审批**的工具」。
+
+    与 `AgentToolExecutionRequest` 是两条不同的路径：那条是审批通道的执行半边（只收
+    声明了需要审批的工具），这条是**直通通道**（只收不需要审批的只读工具，写工具一律 400）。
+    它服务 MCP 的 `tools/call`：MCP 是同步协议，没有人工审批这半程，所以这条路径上的
+    工具只能是「一步就能出结果、没有持久副作用」的只读工具。
+    """
+
+    model_config = _CONTRACT
+
+    schema_version: Literal[1] = Field(alias="schemaVersion")
+    tenant_id: str = Field(alias="tenantID", min_length=1)
+    #: 与 `AgentStepRequest.embed_model` 同义：检索/召回的向量边界按它划分。
+    embed_model: str = Field(alias="embedModel", min_length=1)
+    #: 白名单是**必填**（与 tool-executions 同口径）：少给一份就等于把「不在名单里」
+    #: 判成「没给名单」。
+    allowed_tools: list[str] = Field(alias="allowedTools")
+    tool_call: AgentToolCall = Field(alias="toolCall")
+
+
+class AgentToolInvocationResponse(BaseModel):
+    """契约 `AgentToolInvocationResponse`：这一次调用的最终结果（`ok=false` 也可能是正常结果）。"""
+
+    model_config = _CONTRACT
+
+    schema_version: Literal[1] = Field(alias="schemaVersion")
+    tool_result: AgentToolResult = Field(alias="toolResult")
+
+    @classmethod
+    def from_parts(cls, *, tool_result: AgentToolResult) -> AgentToolInvocationResponse:
+        return cls.model_validate({"schema_version": 1, "tool_result": tool_result})
+
+    def wire(self) -> dict[str, Any]:
+        return self.model_dump(by_alias=True, mode="json", exclude_none=True)
+
+
 class AgentMemoryRequest(BaseModel):
     """契约 `AgentMemoryRequest`：cogito 说「这个任务收尾了，把结论记下来」。
 

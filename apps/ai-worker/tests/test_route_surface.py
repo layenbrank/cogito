@@ -43,6 +43,7 @@ CAPABILITY_ROUTES: dict[str, set[tuple[str, str]]] = {
     "agent.step": {
         ("POST", "/internal/v1/agents/steps"),
         ("POST", "/internal/v1/agents/tool-executions"),
+        ("POST", "/internal/v1/agents/tool-invocations"),
     },
     "agent.memory": {("POST", "/internal/v1/agents/memories")},
 }

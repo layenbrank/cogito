@@ -47,6 +47,8 @@ from ai_worker.agent_runtime.schemas import (
     AgentStepResponse,
     AgentToolExecutionRequest,
     AgentToolExecutionResponse,
+    AgentToolInvocationRequest,
+    AgentToolInvocationResponse,
     AgentToolResult,
     AgentUsage,
 )
@@ -63,6 +65,11 @@ ENDPOINT = "agents.steps"
 TOOL_EXECUTION_PATH = "/internal/v1/agents/tool-executions"
 #: 同 `ENDPOINT`：账本里的键，与路径解耦。
 TOOL_EXECUTION_ENDPOINT = "agents.tool-executions"
+
+#: 直通通道：同步执行一次**不需要审批**的工具（MCP `tools/call` 用）。
+TOOL_INVOCATION_PATH = "/internal/v1/agents/tool-invocations"
+#: 同 `ENDPOINT`：账本里的键，与路径解耦。
+TOOL_INVOCATION_ENDPOINT = "agents.tool-invocations"
 
 #: 每步前置的系统提示词。写在这里而不是让 cogito 传：工具环境是**本服务**的实现细节，
 #: 而且固定文本才能让「同一份历史」在不同步骤上得到一致的模型行为。
@@ -208,6 +215,80 @@ async def agent_tool_execution(request: Request, body: AgentToolExecutionRequest
         response = AgentToolExecutionResponse.from_parts(tool_result=result)
         run.record(status=200, body=response.wire())
         return JSONResponse(response.wire())
+
+
+@ROUTER.post(TOOL_INVOCATION_PATH, summary="同步执行一次不需要审批的工具调用")
+async def agent_tool_invocation(request: Request, body: AgentToolInvocationRequest) -> JSONResponse:
+    """直通通道：MCP `tools/call` 的落地。响应码与 `steps` / `tool-executions` 一致。
+
+    准入只认三条：工具认识 + 在白名单里 + **不需要审批**。写工具从这条路径进来一律 400——
+    它需要人工审批，而 MCP 是同步协议，装不下审批这半程；要写长期记忆或改可见性，
+    请走 cogito 的服务端 agent（`/agents/steps` → 审批 → `/agents/tool-executions`）。
+    """
+    _admit_direct_tool(body)
+    payload = {
+        "tenantID": body.tenant_id,
+        "embedModel": body.embed_model,
+        "allowedTools": sorted(set(body.allowed_tools)),
+        "toolCall": body.tool_call.wire(),
+    }
+
+    async with idempotency.guarded(
+        request, endpoint=TOOL_INVOCATION_ENDPOINT, payload=payload
+    ) as run:
+        replayed = idempotency.replay_response(run)
+        if replayed is not None:
+            logger.info("幂等重发，回放直通工具执行结果（tool=%s）", body.tool_call.name)
+            return replayed
+
+        settings = request.app.state.settings
+        cogito: CogitoClient = request.app.state.cogito
+        database: Database = request.app.state.db
+
+        # 一次请求就是一次调用，所以预算按「一步的额度」给（直通通道上的只读工具用不到，
+        # 但保持与其它路径同一份构造口径，免得「忘了给预算」演变成一次写入）。
+        context = tools.ToolContext(
+            tenant_id=body.tenant_id,
+            embed_model=body.embed_model,
+            cogito=cogito,
+            database=database,
+            settings=settings,
+            memory_writes=tools.WriteBudget(remaining=settings.agent_memory_max_writes_per_step),
+            approval_id=None,
+        )
+        result = await tools.invoke(
+            context,
+            body.tool_call,
+            allowed=body.allowed_tools,
+            max_chars=settings.agent_tool_result_max_chars,
+            approved=False,
+        )
+        response = AgentToolInvocationResponse.from_parts(tool_result=result)
+        run.record(status=200, body=response.wire())
+        return JSONResponse(response.wire())
+
+
+def _admit_direct_tool(body: AgentToolInvocationRequest) -> None:
+    """直通通道的准入，三条规则，顺序固定：工具认识、在白名单里、不需要审批。
+
+    三条失败一律 400 `invalid_request`：它们说的是「这次请求不该发过来」（cogito 拼错了、
+    白名单不对、或者想拿直通通道跑写工具），而不是「工具跑起来失败了」。工具真的执行之后
+    失败，仍然是 `ok=false` 的 200。
+    """
+    name = body.tool_call.name
+    if tools.unknown([name]):
+        raise errors.invalid_request(f"不认识的工具名：{name}；可用工具只有 {_known_tools()}")
+    if name not in set(body.allowed_tools):
+        listed = "、".join(sorted(set(body.allowed_tools))) or "（空）"
+        raise errors.invalid_request(
+            f"工具 {name} 不在本步的 allowedTools 里（白名单：{listed}）："
+            "直通通道不能绕开白名单，请核对 cogito 送来的清单"
+        )
+    if tools.requires_approval(name):
+        raise errors.invalid_request(
+            f"工具 {name} 需要人工审批，本端点只执行不需要审批的只读工具："
+            f"要写长期记忆或改可见性，请走 cogito 的服务端 agent 审批通道"
+        )
 
 
 def _admit_approved_tool(body: AgentToolExecutionRequest) -> None:

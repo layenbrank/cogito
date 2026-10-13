@@ -327,6 +327,54 @@ paths:
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
 
+  /internal/v1/agents/tool-invocations:
+    post:
+      operationId: internalAgentToolInvocation
+      tags: [agent]
+      summary: 同步执行一次不需要审批的工具调用（MCP tools/call 的落地）
+      description: |
+        **直通通道**：cogito 的 MCP 端点（`POST /api/v1/mcp` 的 `tools/call`）在同步协议里
+        要立刻拿到工具结果，走的就是这里。与 `/agents/tool-executions` 是对称的两条路径：
+        那条只收**需要审批**的工具（审批通道的执行半边），这条只收**不需要审批**的只读工具。
+
+        准入规则（三条，顺序固定）：
+
+        * 工具名必须在 `allowedTools` 里（与 `/agents/steps` 同一套白名单语义）；
+        * 工具必须**没有**声明需要审批——写工具（`memory_write` / `asset_visibility_write`）
+          从这条路径进来一律 400：它们需要人工审批，而 MCP 是同步协议装不下审批这半程。
+          要写长期记忆或改可见性，请走 cogito 的服务端 agent（`/agents/steps` → 审批 →
+          `/agents/tool-executions`）。
+
+        工具自身失败（参数不合法等）仍是 200 + `ok=false` 的正常结果；
+        429 / 503 才表示可重试的暂时性故障。
+      parameters:
+        - $ref: '#/components/parameters/InternalToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Traceparent'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentToolInvocationRequest'
+      responses:
+        '200':
+          description: 这一次调用有结果了（含「工具自己失败了」这种正常结果）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentToolInvocationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+
   /internal/v1/agents/memories:
     post:
       operationId: internalAgentRemember
@@ -755,6 +803,37 @@ components:
           $ref: '#/components/schemas/AgentToolCall'
 
     AgentToolExecutionResponse:
+      type: object
+      required: [schemaVersion, toolResult]
+      properties:
+        schemaVersion:
+          type: integer
+          const: 1
+        toolResult:
+          $ref: '#/components/schemas/AgentToolResult'
+
+    AgentToolInvocationRequest:
+      type: object
+      required: [schemaVersion, tenantID, embedModel, allowedTools, toolCall]
+      properties:
+        schemaVersion:
+          type: integer
+          const: 1
+        tenantID:
+          type: string
+          description: 租户 id；工具只读本租户内已索引的块、资产正文与长期记忆。
+        embedModel:
+          type: string
+          description: 与 `/agents/steps` 同义：检索/召回的向量边界按它划分。
+        allowedTools:
+          type: array
+          description: 本步的工具白名单（与 `/agents/steps` 同一份语义）。
+          items:
+            type: string
+        toolCall:
+          $ref: '#/components/schemas/AgentToolCall'
+
+    AgentToolInvocationResponse:
       type: object
       required: [schemaVersion, toolResult]
       properties:
