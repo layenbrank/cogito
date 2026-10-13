@@ -88,17 +88,41 @@ function WorkspaceFormAppearance(props: WorkspaceFormAppearanceProps) {
         </div>
       </div>
 
-      <div className={styles.preview}>
-        <span
-          className={styles.previewDot}
-          style={{ background: props.color }}
-        />
-        <Icon
-          icon={findWorkspaceIcon(props.icon)}
-          width={14}
-          height={14}
-        />
-        <span>{props.title.trim() || '工作区预览'}</span>
+      <div className={styles.field}>
+        <div className={styles.fieldLabel}>工作区预览</div>
+        <div className={styles.previewFrame}>
+          <div className={styles.previewRow}>
+            <Icon
+              icon="lucide:chevron-down"
+              className={styles.previewChevron}
+              width={14}
+              height={14}
+            />
+            <span
+              className={styles.previewDot}
+              style={{ background: props.color }}
+            />
+            <Icon
+              icon={findWorkspaceIcon(props.icon)}
+              className={styles.previewIcon}
+              width={14}
+              height={14}
+            />
+            <span className={styles.previewTitle}>
+              {props.title.trim() || '未命名工作区'}
+            </span>
+            <Icon
+              icon="mdi:dots-horizontal"
+              className={styles.previewMore}
+              width={16}
+              height={16}
+            />
+          </div>
+          <div className={styles.previewSession}>
+            <span className={styles.previewSessionBar} />
+            <span>新会话将出现在这里</span>
+          </div>
+        </div>
       </div>
     </>
   )
