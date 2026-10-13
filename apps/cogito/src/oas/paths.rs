@@ -99,6 +99,10 @@ pub const AGENT_TASK_APPROVAL: &str = "/api/v1/agent/tasks/{id}/approvals/{appro
 pub const RAG_INDEX_TASKS: &str = "/api/v1/rag/index-tasks";
 pub const RAG_INDEX_TASK_BY_ID: &str = "/api/v1/rag/index-tasks/{id}";
 
+// --- Chat（会话同步，需 JWT + X-Tenant-ID） ---
+/// 同一个资源两种方法：POST 推一批，GET 拉增量。
+pub const CHAT_SYNC: &str = "/api/v1/chat/sync";
+
 // --- SSO ---
 pub const SSO_CONNECTIONS: &str = "/api/v1/sso/connections";
 pub const SSO_CONNECTIONS_BY_ID: &str = "/api/v1/sso/connections/{id}";
@@ -422,6 +426,14 @@ pub const ALL_ROUTES: &[RouteDef] = &[
     RouteDef {
         method: "GET",
         path: RAG_INDEX_TASK_BY_ID,
+    },
+    RouteDef {
+        method: "POST",
+        path: CHAT_SYNC,
+    },
+    RouteDef {
+        method: "GET",
+        path: CHAT_SYNC,
     },
     RouteDef {
         method: "GET",

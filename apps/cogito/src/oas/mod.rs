@@ -3,6 +3,7 @@ pub mod agent;
 pub mod application;
 pub mod auth;
 pub mod billing;
+pub mod chat;
 pub mod common;
 pub mod engine;
 pub mod gateway;
@@ -20,21 +21,24 @@ use crate::oas::addons::ContractAddon;
 use utoipa::OpenApi;
 
 use crate::oas::common::{
-    ApplicationEnvelope, ApprovalEnvelope, CaptchaEnvelope, CatalogEnvelope, ChunkUploadEnvelope,
-    ChunkUploadForm, DependencyCheck, EmptyEnvelope, EmptyR, Exception, FinalizeUploadEnvelope,
-    Health, HealthEnvelope, IndexTaskEnvelope, Liveness, LivenessEnvelope, MemberEnvelope,
-    MemberListEnvelope, ModelEnvelope, ModelListEnvelope, OrderEnvelope, OrderListEnvelope,
-    PlansEnvelope, PriceEnvelope, PriceListEnvelope, ProfileEnvelope, ProviderEnvelope,
-    ProviderListEnvelope, QuotaEnvelope, Readiness, ReadinessEnvelope, ReconcileEnvelope,
-    SelfQuotaEnvelope, SigninEnvelope, SigninErrorExample, SigninSuccessExample, SignupEnvelope,
-    SsoConnectionEnvelope, SsoConnectionListEnvelope, SsoLoginEnvelope, SubscriptionEnvelope,
-    SubscriptionListEnvelope, SuggestionEnvelope, TaskEnvelope, TenantEnvelope, TenantListEnvelope,
-    UploadFilesEnvelope, UploadHashEnvelope, UploadPrepareEnvelope, UploadProgressEnvelope,
-    UserEnvelope, UserListEnvelope,
+    ApplicationEnvelope, ApprovalEnvelope, CaptchaEnvelope, CatalogEnvelope, ChatChangesEnvelope,
+    ChatSyncEnvelope, ChunkUploadEnvelope, ChunkUploadForm, DependencyCheck, EmptyEnvelope, EmptyR,
+    Exception, FinalizeUploadEnvelope, Health, HealthEnvelope, IndexTaskEnvelope, Liveness,
+    LivenessEnvelope, MemberEnvelope, MemberListEnvelope, ModelEnvelope, ModelListEnvelope,
+    OrderEnvelope, OrderListEnvelope, PlansEnvelope, PriceEnvelope, PriceListEnvelope,
+    ProfileEnvelope, ProviderEnvelope, ProviderListEnvelope, QuotaEnvelope, Readiness,
+    ReadinessEnvelope, ReconcileEnvelope, SelfQuotaEnvelope, SigninEnvelope, SigninErrorExample,
+    SigninSuccessExample, SignupEnvelope, SsoConnectionEnvelope, SsoConnectionListEnvelope,
+    SsoLoginEnvelope, SubscriptionEnvelope, SubscriptionListEnvelope, SuggestionEnvelope,
+    TaskEnvelope, TenantEnvelope, TenantListEnvelope, UploadFilesEnvelope, UploadHashEnvelope,
+    UploadPrepareEnvelope, UploadProgressEnvelope, UserEnvelope, UserListEnvelope,
 };
 use crate::services::agent::schema::{ApprovalP, ApprovalR, TaskP, TaskR};
 use crate::services::application::schema::{App, Component, Direction, Shape, Size};
-use crate::services::auth::schema::{
+use crate::services::chat::schema::{
+    ChatChangeBatchR, ChatChangesR, ChatConflictR, ChatMessageP, ChatMessageR, ChatSessionP,
+    ChatSessionR, ChatSyncP, ChatSyncR, ChatUsageP, ChatUsageR,
+};use crate::services::auth::schema::{
     AuthR, Avatar, CaptchaP, CaptchaR, EmailSigninP, ForgotPasswordP, Gender, OtpChannel, OtpP,
     PasswordP, PhoneSigninP, ProfileP, ProfileR, ResetPasswordP, SigninP, SigninR, SignupP,
     SignupR,
@@ -178,6 +182,8 @@ use crate::services::user::schema::{Avatar as UserAvatar, UpdateP, UserR, WriteP
         agent::decide_approval_doc,
         rag::create_index_task_doc,
         rag::read_index_task_doc,
+        chat::push_changes_doc,
+        chat::pull_changes_doc,
     ),
     components(
         schemas(
@@ -328,6 +334,19 @@ use crate::services::user::schema::{Avatar as UserAvatar, UpdateP, UserR, WriteP
             IndexTaskP,
             IndexTaskR,
             IndexTaskEnvelope,
+            ChatSyncP,
+            ChatSessionP,
+            ChatMessageP,
+            ChatUsageP,
+            ChatSyncR,
+            ChatConflictR,
+            ChatSessionR,
+            ChatMessageR,
+            ChatUsageR,
+            ChatChangeBatchR,
+            ChatChangesR,
+            ChatSyncEnvelope,
+            ChatChangesEnvelope,
         )
     ),
     tags(
@@ -346,6 +365,7 @@ use crate::services::user::schema::{Avatar as UserAvatar, UpdateP, UserR, WriteP
         (name = "Billing", description = "计费运维面：模型价目与计量对账（仅平台 ADMIN）"),
         (name = "Agent", description = "租户级自治 agent：长任务编排与台账（需 JWT + X-Tenant-ID）"),
         (name = "RAG", description = "RAG 索引任务：起任务 / 查任务（需 JWT + X-Tenant-ID）"),
+        (name = "Chat", description = "会话同步：推一批 / 拉增量（需 JWT + X-Tenant-ID）"),
     ),
     modifiers(&ContractAddon),
     external_docs(

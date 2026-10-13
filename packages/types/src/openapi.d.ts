@@ -582,6 +582,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/chat/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 拉取自某个水位以来的变更
+         * @description 按水位升序返回若干**整批**变更，供客户端在别的设备上重建同一份会话。
+         *
+         *     **游标**：把上次响应的 `revision` 原样作为本次的 `since` 传回来；
+         *     `since=0`（缺省）表示从头拉。响应里的 `revision` 是**本次交付到的水位**，
+         *     没有新批次时原样返回请求里的 `since`。
+         *
+         *     **窗口按批次切**：`limit` 是批次数上限（缺省 50，最大 200），不是行数上限。
+         *     批次是交付单位，切到半个批次会让游标说不清「我到底拿到了哪一步」；
+         *     还有更多时 `hasMore` 为 true，客户端接着拉即可。
+         *
+         *     **墓碑随增量下发**：被删的会话 / 消息 id 分别出现在 `deletedSessionIDs` /
+         *     `deletedMessageIDs` 里，客户端据此删本地行（会话被删时本地消息按 `parentID` 级联删）。
+         *
+         *     **可能重复投递**：同一行在更晚的批次里被改过时，会在那个窗口里再下发一次；
+         *     客户端按 id 覆盖即可（写入是幂等的）。
+         *
+         *     `body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效；
+         *     `500703` 游标不合法（`since` 为负 / `limit` 越界）。
+         */
+        get: operations["chat.pullChanges"];
+        put?: never;
+        /**
+         * 推送一批本地改动
+         * @description 把客户端攒下的一批会话 / 消息 / 用量改动送到服务端，并占一个同步水位。
+         *
+         *     **一批一个水位**：本批所有行共用同一个 `revision`，增量拉取按批次整批下发。
+         *
+         *     **重发即无操作**：`clientBatchID` 是幂等键，网络抖动下重发同一批不会重复落库、
+         *     也不会推高水位，响应里回放的是上次的结果（`revision` 与 `applied` 一致）。
+         *     因此客户端**每个批次标识只能用一次**，重试必须复用同一个标识。
+         *
+         *     **次序**：同一批里会话必须排在消息之前（消息带会话外键）；跨批也一样——
+         *     引用不存在会话的消息会被整体拒绝（`500702`）。
+         *
+         *     **冲突只报不改**：`title` / `pinned` 是唯一会被两端各自覆盖的字段。
+         *     若服务端在**更晚**的批次里改过它、且与本次改动不同，这一行不会被写入，
+         *     而是出现在响应的 `conflicts` 里（附服务端那份），由客户端决定谁赢；
+         *     同一批里其余的行照常落库。**删除不可逆**：已删的会话不会被一次改名改活，
+         *     这种情况同样以 `archivedAt` 非空的形式出现在 `conflicts` 里。
+         *
+         *     **删除是软删**：`deletes` 里的 id 只会被打上墓碑（`archivedAt`），
+         *     行留着是为了让别的设备能拉到「它被删了」。客户端本地级联删除的消息要自己列进 `deletes`。
+         *
+         *     **空批次不占水位**：既没有行也没有墓碑的批次直接返回当前水位当新基线。
+         *
+         *     批量上限：行数 500（会话+消息+用量）、墓碑 500、标题 200 字符、
+         *     单条消息 1000000 字符、`clientBatchID` 100 字符。
+         *
+         *     `body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效；
+         *     `500701` 批次不合法（超限、id 不合法、批内 id 重复）；
+         *     `500702` 消息引用的会话不存在。
+         */
+        post: operations["chat.pushChanges"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/engine/suggestion": {
         parameters: {
             query?: never;
@@ -1732,7 +1800,7 @@ export interface components {
             marker?: string | null;
             /** @example mirror-1 */
             mirrorID: string;
-            /** @example CoreX */
+            /** @example Cogito */
             name: string;
             round?: string | null;
             shape: components["schemas"]["Shape"];
@@ -1983,12 +2051,228 @@ export interface components {
             orderTtlSecs: number;
             plans: components["schemas"]["CatalogPlanR"][];
         };
+        /** @description 一个水位上的全部变更。 */
+        ChatChangeBatchR: {
+            /** @description 这一批里被删的消息 */
+            deletedMessageIDs: string[];
+            /** @description 这一批里被删的会话 */
+            deletedSessionIDs: string[];
+            messages: components["schemas"]["ChatMessageR"][];
+            /**
+             * Format: int64
+             * @description 这一批占用的水位
+             */
+            revision: number;
+            sessions: components["schemas"]["ChatSessionR"][];
+            usages: components["schemas"]["ChatUsageR"][];
+        };
+        ChatChangesEnvelope: {
+            /**
+             * Format: int32
+             * @description 业务状态码（200000=成功）
+             */
+            code: number;
+            data?: null | components["schemas"]["ChatChangesR"];
+            msg: string;
+            success: boolean;
+            /** Format: int64 */
+            timestamp: number;
+            /** @description 链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用 */
+            traceID?: string | null;
+        };
+        /** @description 一次增量拉取的结果。 */
+        ChatChangesR: {
+            /** @description 还有更多，接着拉 */
+            hasMore: boolean;
+            /** @description 按水位升序的批次 */
+            items: components["schemas"]["ChatChangeBatchR"][];
+            /**
+             * Format: int64
+             * @description 客户端下次拉取带的游标（= 本次交付到的水位）；没有新批次时原样返回请求里的 `since`
+             */
+            revision: number;
+        };
         /** @description OpenAI 兼容 chat/completions 请求；`model` 用于解析上游，其余字段原样透传。 */
         ChatCompletionsP: {
             model: string;
             stream?: boolean | null;
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * @description 与客户端撞车的会话（服务端那份）。
+         *
+         *     客户端据此决定谁赢：要么接受服务端这份，要么用服务端的 `clientUpdatedAt` 作新基线再推一次。
+         */
+        ChatConflictR: {
+            /**
+             * Format: int64
+             * @description 非空表示服务端已经删了它（这时本次改动不会被落库）
+             */
+            archivedAt?: number | null;
+            /** Format: int64 */
+            clientUpdatedAt: number;
+            id: string;
+            pinned: boolean;
+            /**
+             * Format: int64
+             * @description 服务端最后一次改动所占的水位
+             */
+            revision: number;
+            title: string;
+            workspaceID?: string | null;
+        };
+        /** @description 一批要删的行（软删：只打墓碑）。 */
+        ChatDeletesP: {
+            messageIDs?: string[];
+            /** @description 要删的会话（客户端本地消息会级联删除，消息 id 由客户端自己一并列出） */
+            sessionIDs?: string[];
+        };
+        /** @description 消息行（推送，追加型）。 */
+        ChatMessageP: {
+            /**
+             * Format: int64
+             * @description 客户端生成时间（毫秒）
+             */
+            clientCreatedAt: number;
+            /** @description 内容原文；服务端不解析 */
+            content: string;
+            /** @description 内容格式标识（如 `ith/thread-message-like`） */
+            format: string;
+            id: string;
+            /** @description 父消息；没有父行时为 null */
+            parentID?: string | null;
+            sessionID: string;
+        };
+        /** @description 增量里的消息行。 */
+        ChatMessageR: {
+            /** Format: int64 */
+            clientCreatedAt: number;
+            content: string;
+            format: string;
+            id: string;
+            parentID?: string | null;
+            /** Format: int64 */
+            revision: number;
+            sessionID: string;
+        };
+        /** @description 会话行（推送）。 */
+        ChatSessionP: {
+            /**
+             * Format: int64
+             * @description 删除墓碑（客户端毫秒）；非空即「这次是来删它的」
+             */
+            archivedAt?: number | null;
+            /**
+             * Format: int64
+             * @description 客户端改写时间（毫秒）
+             */
+            clientUpdatedAt: number;
+            /** @description 客户端生成的会话 id（uuid） */
+            id: string;
+            pinned: boolean;
+            title: string;
+            /** @description 客户端工作区标识；没有工作区时为 null */
+            workspaceID?: string | null;
+        };
+        /** @description 增量里的会话行。 */
+        ChatSessionR: {
+            /** Format: int64 */
+            clientUpdatedAt: number;
+            id: string;
+            pinned: boolean;
+            /** Format: int64 */
+            revision: number;
+            title: string;
+            workspaceID?: string | null;
+        };
+        ChatSyncEnvelope: {
+            /**
+             * Format: int32
+             * @description 业务状态码（200000=成功）
+             */
+            code: number;
+            data?: null | components["schemas"]["ChatSyncR"];
+            msg: string;
+            success: boolean;
+            /** Format: int64 */
+            timestamp: number;
+            /** @description 链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用 */
+            traceID?: string | null;
+        };
+        /** @description 推送一批改动。 */
+        ChatSyncP: {
+            /**
+             * Format: int64
+             * @description 本批改动所基于的水位：服务端用它识别「你改的是旧账」
+             */
+            baseRevision: number;
+            /** @description 客户端生成的批次标识（幂等键）：重发同一批不会重复落库，也不会推高水位 */
+            clientBatchID: string;
+            /** @description 要删的行 */
+            deletes?: components["schemas"]["ChatDeletesP"];
+            /** @description 要写的行 */
+            upserts?: components["schemas"]["ChatUpsertsP"];
+        };
+        /** @description 推送结果。 */
+        ChatSyncR: {
+            /**
+             * Format: int32
+             * @description 本批写入的行数（含墓碑）；重发同一批时回放的是台账里记下的值
+             */
+            applied: number;
+            /** @description 被服务端更新的那份挡下的会话改动；为空即「这批全落了」 */
+            conflicts: components["schemas"]["ChatConflictR"][];
+            /**
+             * Format: int64
+             * @description 本批占用的水位
+             */
+            revision: number;
+        };
+        /** @description 一批要写的行。 */
+        ChatUpsertsP: {
+            messages?: components["schemas"]["ChatMessageP"][];
+            sessions?: components["schemas"]["ChatSessionP"][];
+            usages?: components["schemas"]["ChatUsageP"][];
+        };
+        /** @description 用量行（推送，按 `runID` 去重）。 */
+        ChatUsageP: {
+            /** Format: int64 */
+            clientCreatedAt: number;
+            id: string;
+            /** Format: int32 */
+            inputTokens?: number | null;
+            model?: string | null;
+            outcome?: string | null;
+            /** Format: int32 */
+            outputTokens?: number | null;
+            providerID?: string | null;
+            /** @description 运行标识（客户端生成） */
+            runID: string;
+            sessionID?: string | null;
+            source?: string | null;
+            /** Format: int32 */
+            totalTokens?: number | null;
+        };
+        /** @description 增量里的用量行。 */
+        ChatUsageR: {
+            /** Format: int64 */
+            clientCreatedAt: number;
+            id: string;
+            /** Format: int32 */
+            inputTokens?: number | null;
+            model?: string | null;
+            outcome?: string | null;
+            /** Format: int32 */
+            outputTokens?: number | null;
+            providerID?: string | null;
+            /** Format: int64 */
+            revision: number;
+            runID: string;
+            sessionID?: string | null;
+            source?: string | null;
+            /** Format: int32 */
+            totalTokens?: number | null;
         };
         ChunkR: {
             /**
@@ -3293,7 +3577,7 @@ export interface components {
             scope: string;
             tenantID: string;
             token: string;
-            /** @description 固定为 `service`，与用户会话令牌区分。 */
+            /** @description 固定为 `cogito`，与用户会话令牌区分。 */
             tokenType: string;
         };
         /** @enum {string} */
@@ -4969,6 +5253,98 @@ export interface operations {
                 content?: never;
             };
             /** @description 业务异常（权限不足 / 窗口或参数非法）：HTTP 状态码按错误码归属返回，响应体为统一错误信封 */
+            default: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "chat.pullChanges": {
+        parameters: {
+            query?: {
+                /** @description 起始水位（不含）；缺省 0 = 从头拉 */
+                since?: number;
+                /** @description 最多返回几个批次；缺省 50，最大 200 */
+                limit?: number;
+            };
+            header: {
+                /**
+                 * @description 目标租户 ID（UUID）。**必填**：会话/消息/用量都按租户隔离，缺了这个头没有正确的作用域可进。
+                 *     调用者须为该租户有效成员（平台 ADMIN 可旁路）。
+                 */
+                "X-Tenant-ID": string;
+                /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                traceparent?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatChangesEnvelope"];
+                };
+            };
+            /** @description 业务异常（游标不合法 / 非租户成员）：HTTP 状态码按错误码归属返回，响应体为统一错误信封 */
+            default: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "chat.pushChanges": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description 目标租户 ID（UUID）。**必填**：会话/消息/用量都按租户隔离，缺了这个头没有正确的作用域可进。
+                 *     调用者须为该租户有效成员（平台 ADMIN 可旁路）。
+                 */
+                "X-Tenant-ID": string;
+                /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                traceparent?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 这一批要落的改动 */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatSyncP"];
+            };
+        };
+        responses: {
+            /** @description 成功（`applied` 为本批写入行数，`conflicts` 为被挡下的会话改动） */
+            200: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatSyncEnvelope"];
+                };
+            };
+            /** @description 业务异常（批次不合法 / 会话不存在 / 非租户成员）：HTTP 状态码按错误码归属返回，响应体为统一错误信封 */
             default: {
                 headers: {
                     /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */

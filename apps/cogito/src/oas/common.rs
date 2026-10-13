@@ -5,6 +5,7 @@ use crate::services::{
     agent::schema::{ApprovalR, TaskR},
     application::schema::App,
     auth::schema::{AuthR, Avatar, CaptchaR, ProfileR, SigninR, SignupR},
+    chat::schema::{ChatChangesR, ChatSyncR},
     engine::schema::SuggestionR,
     gateway::schema::{ModelR, PlansR, ProviderR, SelfQuotaR},
     payment::schema::{CatalogR, OrderR, PriceR, ReconcileR},
@@ -79,6 +80,8 @@ envelope!(ReconcileEnvelope, ReconcileR);
 envelope!(TaskEnvelope, TaskR);
 envelope!(ApprovalEnvelope, ApprovalR);
 envelope!(IndexTaskEnvelope, IndexTaskR);
+envelope!(ChatSyncEnvelope, ChatSyncR);
+envelope!(ChatChangesEnvelope, ChatChangesR);
 
 /// 健康检查 data 字段
 #[derive(Debug, Serialize, Deserialize, ToSchema)]

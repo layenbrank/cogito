@@ -273,6 +273,19 @@ pub mod business {
             ORCHESTRATION_UNAVAILABLE,
         ];
     }
+
+    /// 会话同步（50xx07 段）
+    pub mod chat {
+        /// 推上来的批次不合法：批次标识为空、行数或字符串长度超限、行 id 重复等
+        pub const BATCH_INVALID: i32 = 500701;
+        /// 消息指向了服务端没有的会话（批次内次序不对：会话必须排在消息之前）
+        pub const SESSION_MISSING: i32 = 500702;
+        /// 拉取游标不合法（`since` 为负、`limit` 越界）
+        pub const CURSOR_INVALID: i32 = 500703;
+
+        /// 本模块全部状态码
+        pub const ALL: &[i32] = &[BATCH_INVALID, SESSION_MISSING, CURSOR_INVALID];
+    }
 }
 
 /// 外部服务错误 (60xxxx)
@@ -327,6 +340,7 @@ pub fn all_codes() -> Vec<i32> {
         business::payment::ALL,
         business::agent::ALL,
         business::rag::ALL,
+        business::chat::ALL,
         external::ALL,
         data::ALL,
     ] {
@@ -425,6 +439,10 @@ pub fn description(code: i32) -> &'static str {
         business::rag::ASSET_NOT_INDEXABLE => "资产不可索引",
         business::rag::INDEX_ALREADY_RUNNING => "该资产已有正在运行的索引任务",
         business::rag::ORCHESTRATION_UNAVAILABLE => "索引编排不可用",
+
+        business::chat::BATCH_INVALID => "同步批次不合法",
+        business::chat::SESSION_MISSING => "消息引用的会话不存在",
+        business::chat::CURSOR_INVALID => "同步游标不合法",
 
         external::DATABASE_ERROR => "数据库连接失败",
         external::DATABASE_OPERATION_FAILED => "数据库操作失败",
@@ -545,6 +563,11 @@ pub fn http_status(code: i32) -> u16 {
         business::rag::ASSET_NOT_INDEXABLE => 422,
         business::rag::INDEX_ALREADY_RUNNING => 409,
         business::rag::ORCHESTRATION_UNAVAILABLE => 503,
+
+        // 同步的三类拒绝都是「请求里写的值不能用」：改参数重发即可，没有服务端状态问题
+        business::chat::BATCH_INVALID => 422,
+        business::chat::SESSION_MISSING => 422,
+        business::chat::CURSOR_INVALID => 422,
 
         // 60xxxx 外部依赖（我方视角的服务端故障）
         external::DATABASE_ERROR => 500,

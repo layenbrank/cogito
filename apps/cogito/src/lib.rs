@@ -166,6 +166,18 @@ pub mod services {
         pub mod service;
     }
 
+    /// 会话同步：推一批改动、拉增量窗口。
+    ///
+    /// 没有 `dispatch.rs`：本域不跑编排，水位与冲突规则全在 `crates/chat`，
+    /// 这里只有校验、形状映射与路由。
+    pub mod chat {
+        pub mod controller;
+        pub mod error;
+        pub mod module;
+        pub mod schema;
+        pub mod service;
+    }
+
     pub mod user {
         pub mod controller;
         pub mod module;
