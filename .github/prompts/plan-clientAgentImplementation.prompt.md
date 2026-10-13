@@ -221,18 +221,18 @@ export type ChatElicitationSchema = {
 
 **域命名统一为 `agent_*`（弃用 `Ai*`）**——一次性重命名，不留双轨：
 
-| 旧（现状，待删除）                                     | 新（目标）                                                                                 |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| 表 `aiSession` / `aiMessage` / `aiWorkspace` / `aiWorkspaceFolder` / `aiProvider` | `agent_session` / `agent_message` / `agent_workspace` / `agent_workspace_folder` / `agent_provider` |
-| 新增用量表（原定 `aiUsage`）                           | `agent_usage`                                                                              |
-| 索引 `idx_ai*` / 外键 `fk_ai*`                         | `idx_agent_*` / `fk_agent_*`                                                               |
-| Rust 实体 `entity/aiSession.rs`（`AiSession`）         | `entity/agent_session.rs`（`AgentSession`）                                                |
-| core 服务目录 `core/src/aiSession/`                    | `core/src/agent_session/`                                                                  |
-| 命令 `command/src/aiSession.rs`（`rename="aiSession:toRead"`） | `command/src/agent_session.rs`（`agentSession:toRead`）                                    |
-| 通道常量 `AI_SESSION` + 字符串 `aiSession:toRead`      | `AGENT_SESSION` + `agentSession:toRead`                                                    |
+| 旧（现状，待删除）                                                                                                | 新（目标）                                                                                                                                                                                                          |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 表 `aiSession` / `aiMessage` / `aiWorkspace` / `aiWorkspaceFolder` / `aiProvider`                                 | `agent_session` / `agent_message` / `agent_workspace` / `agent_workspace_folder` / `agent_provider`                                                                                                                 |
+| 新增用量表（原定 `aiUsage`）                                                                                      | `agent_usage`                                                                                                                                                                                                       |
+| 索引 `idx_ai*` / 外键 `fk_ai*`                                                                                    | `idx_agent_*` / `fk_agent_*`                                                                                                                                                                                        |
+| Rust 实体 `entity/aiSession.rs`（`AiSession`）                                                                    | `entity/agent_session.rs`（`AgentSession`）                                                                                                                                                                         |
+| core 服务目录 `core/src/aiSession/`                                                                               | `core/src/agent_session/`                                                                                                                                                                                           |
+| 命令 `command/src/aiSession.rs`（`rename="aiSession:toRead"`）                                                    | `command/src/agent_session.rs`（`agentSession:toRead`）                                                                                                                                                             |
+| 通道常量 `AI_SESSION` + 字符串 `aiSession:toRead`                                                                 | `AGENT_SESSION` + `agentSession:toRead`                                                                                                                                                                             |
 | 全局类型 `AiSession` / `AiMessage` / `AiWorkspace` / `AiWorkspaceFolder` / `AiProvider`（`MagneticTile.Agent.*`） | `MagneticTile.Agent.Session` / `Message` / `Workspace` / `WorkspaceFolder` / `Provider` / `Usage`——命名空间已含 `Agent`，按"有命名空间时可精简"去前缀；**限定名 `Agent.Session` 与 Rust `AgentSession` 同概念同名** |
-| `stores/agent.ts` 消费的全局类型                        | 同上（`Agent.Session` / `Agent.Message` / …）；需要局部短名时用 `Session` / `Message` 别名，**不再写 `Ai*`** |
-| `stores/provider.ts` 的 `AiProvider`                    | `AgentProvider`（该 store 无命名空间，保留 `Agent` 前缀标明归属）                            |
+| `stores/agent.ts` 消费的全局类型                                                                                  | 同上（`Agent.Session` / `Agent.Message` / …）；需要局部短名时用 `Session` / `Message` 别名，**不再写 `Ai*`**                                                                                                        |
+| `stores/provider.ts` 的 `AiProvider`                                                                              | `AgentProvider`（该 store 无命名空间，保留 `Agent` 前缀标明归属）                                                                                                                                                   |
 
 > **表 `agent_*` 用 snake_case，列仍 camelCase**（与 cogito `agent_task`/`agent_approval`、ai-worker `agent_memory` 对齐）。**目标名一律不含 `Ai`**：Rust 无命名空间用 `Agent*`，TS 在 `MagneticTile.Agent` 命名空间内用精简成员名（限定名同为 `Agent.*`）；实现完成后全仓不应再出现 `Ai*` 标识符（`agent-conventions.md` 已把 `port/` 加入 `features/agent/` 白名单）。
 
@@ -355,6 +355,7 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 ## 进度（执行记录）
 
 ### ✅ 已完成
+
 - **PR1a · WS-0 复活与基座** — 2026-10-12
   - `apps/client/README.md`：移除 DEPRECATED 横幅，正文改为「架构要点」（保留窗口自绘 / 磁贴两层 / agent 布局路由等事实）。
   - `apps/client/package.json`：新增 `unit`（`vitest run`）与 `coverage`（`vitest run --coverage`）脚本。
@@ -366,35 +367,35 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 
   冷缓存跑 `pnpm lint`（原来命中 turbo 缓存、只是**重放历史 PASS 日志**）时，暴露出与本次改动无关的既有错误，一并清零：
 
-  | 文件 | 规则 / 类型 | 修法 |
-  | --- | --- | --- |
-  | `packages/agent/src/client/openai-compatible.ts:123` | `no-unused-vars` | `toolName` → `_toolName`（回调签名不变） |
-  | `packages/design/src/components/input.tsx:44` | `no-empty-object-type` | `interface X extends Omit<…> {}` → `type X = Omit<…>` |
-  | `apps/studio/forge/makers.ts:65` | `studio/catch-must-report` | 空的 `catch {}` 改成把原因带进 `throw`（原来直接吞掉，报错只剩「无法解析」） |
-  | `apps/studio/scripts/run-forge.ts:66` | `studio/catch-must-report` | `execSync` → `spawnSync('candle', ['-?'])`，探测失败不再靠 catch 吞异常（`execSync` 导入随之删除） |
+  | 文件                                                 | 规则 / 类型                | 修法                                                                                               |
+  | ---------------------------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------- |
+  | `packages/agent/src/client/openai-compatible.ts:123` | `no-unused-vars`           | `toolName` → `_toolName`（回调签名不变）                                                           |
+  | `packages/design/src/components/input.tsx:44`        | `no-empty-object-type`     | `interface X extends Omit<…> {}` → `type X = Omit<…>`                                              |
+  | `apps/studio/forge/makers.ts:65`                     | `studio/catch-must-report` | 空的 `catch {}` 改成把原因带进 `throw`（原来直接吞掉，报错只剩「无法解析」）                       |
+  | `apps/studio/scripts/run-forge.ts:66`                | `studio/catch-must-report` | `execSync` → `spawnSync('candle', ['-?'])`，探测失败不再靠 catch 吞异常（`execSync` 导入随之删除） |
 
   client 的 11 个 lint error：
 
-  | 文件 | 规则 | 修法 |
-  | --- | --- | --- |
-  | `components/decorations/decorations.tsx:29` | `eqeqeq` | `begin != null` → `!== null && !== undefined` |
-  | `features/agent/acp/wss-stream.ts:63,93` | `no-this-alias` | 去掉 `const socket = this`，回调改箭头函数直接用 `this` |
-  | `features/agent/model/workspace-path.ts:5` | `prefer-const` | `let next` → `const next` |
-  | `stores/agent.ts:591` | `eqeqeq` | `item.archivedAt == null` → 显式双判空 |
-  | `views/directive/orchestrator/canvas/step-node-icon.ts:1` | `consistent-type-imports` | `findStepKind` 只出现在 `ReturnType<typeof …>` → `import type` |
-  | `views/directive/run/run-log-text.ts:5` | `no-control-regex` | 剥 ANSI 必须点名 ESC → 就地 `eslint-disable-next-line` 加理由 |
-  | `views/directive/run/run-log-text.ts:16,19,21` | `eqeqeq` ×3 | `!= null` → 显式双判空 |
-  | `doctor.config.ts` | 解析错误（不在 project service） | 该配置 import 的 `react-doctor` **本仓根本没装**（无依赖、无脚本引用）→ 按 `tailwind.config.ts` 先例加入 `globalIgnores` |
+  | 文件                                                      | 规则                             | 修法                                                                                                                     |
+  | --------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+  | `components/decorations/decorations.tsx:29`               | `eqeqeq`                         | `begin != null` → `!== null && !== undefined`                                                                            |
+  | `features/agent/acp/wss-stream.ts:63,93`                  | `no-this-alias`                  | 去掉 `const socket = this`，回调改箭头函数直接用 `this`                                                                  |
+  | `features/agent/model/workspace-path.ts:5`                | `prefer-const`                   | `let next` → `const next`                                                                                                |
+  | `stores/agent.ts:591`                                     | `eqeqeq`                         | `item.archivedAt == null` → 显式双判空                                                                                   |
+  | `views/directive/orchestrator/canvas/step-node-icon.ts:1` | `consistent-type-imports`        | `findStepKind` 只出现在 `ReturnType<typeof …>` → `import type`                                                           |
+  | `views/directive/run/run-log-text.ts:5`                   | `no-control-regex`               | 剥 ANSI 必须点名 ESC → 就地 `eslint-disable-next-line` 加理由                                                            |
+  | `views/directive/run/run-log-text.ts:16,19,21`            | `eqeqeq` ×3                      | `!= null` → 显式双判空                                                                                                   |
+  | `doctor.config.ts`                                        | 解析错误（不在 project service） | 该配置 import 的 `react-doctor` **本仓根本没装**（无依赖、无脚本引用）→ 按 `tailwind.config.ts` 先例加入 `globalIgnores` |
 
   client 的 15 个 tsc error（`tsc --build`）：
 
-  | 文件 | 报错 | 修法 |
-  | --- | --- | --- |
-  | `components/contextmenu/surface/panel.tsx` ×4 | motion 四个 prop 声明成 `unknown` 传不进 `m.div` | 删掉重复的 `PanelMotion`，直接用 `menu.ts` 已导出的 `MenuMotionSlot` |
-  | `features/controller/controller.tsx` ×3 | `transitionRef.current` 可空 | ref 惰性初始化换成 `const [transition] = useState(bindMirrorTransition)`（纯工厂，无副作用），从源头消掉可空 |
-  | `views/collection/controller.tsx` ×2 | 根节点是 `<button>` 却用的是 div 事件类型 | `onClick` / `onKeyDown` 改为 `HTMLButtonElement`；`onPrevent` 仍走 `HTMLDivElement`（它转发给 Navigation 的 div） |
-  | `inspector/condition-node-{compare,logic}.tsx` ×5 | `...props.condition` 展开失败（`Condition = string \| {…}`） | 新增并导出 `ConditionObject = Exclude<Condition, string>`，两个 props 改用它（`logic` 里那句 `& { and?, or? }` 是无效补偿，已删） |
-  | `views/marketplace/workspace/lib/insert-tile.ts:4` | 局部 `parseTileWrite` 与外层 import 重名（实际会**自递归**） | 包装函数改名 `buildTileWrite`，并从 export 列表移出（外部只 import `insertTile`） |
+  | 文件                                               | 报错                                                         | 修法                                                                                                                              |
+  | -------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+  | `components/contextmenu/surface/panel.tsx` ×4      | motion 四个 prop 声明成 `unknown` 传不进 `m.div`             | 删掉重复的 `PanelMotion`，直接用 `menu.ts` 已导出的 `MenuMotionSlot`                                                              |
+  | `features/controller/controller.tsx` ×3            | `transitionRef.current` 可空                                 | ref 惰性初始化换成 `const [transition] = useState(bindMirrorTransition)`（纯工厂，无副作用），从源头消掉可空                      |
+  | `views/collection/controller.tsx` ×2               | 根节点是 `<button>` 却用的是 div 事件类型                    | `onClick` / `onKeyDown` 改为 `HTMLButtonElement`；`onPrevent` 仍走 `HTMLDivElement`（它转发给 Navigation 的 div）                 |
+  | `inspector/condition-node-{compare,logic}.tsx` ×5  | `...props.condition` 展开失败（`Condition = string \| {…}`） | 新增并导出 `ConditionObject = Exclude<Condition, string>`，两个 props 改用它（`logic` 里那句 `& { and?, or? }` 是无效补偿，已删） |
+  | `views/marketplace/workspace/lib/insert-tile.ts:4` | 局部 `parseTileWrite` 与外层 import 重名（实际会**自递归**） | 包装函数改名 `buildTileWrite`，并从 export 列表移出（外部只 import `insertTile`）                                                 |
 
   **门禁状态**（已验证）：
   - `pnpm lint`（含 client）→ `13 successful, 13 total`，client `0 errors`（152 warning，按配置属存量降级项）。
@@ -410,12 +411,14 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 > 那要么写兼容分支（双轨），要么让旧 UI 静默拒掉所有审批）。
 
 **① 存储与事件映射（已提交）**
+
 - `agent_message` 增量加 `parentID` / `format`（仍在 v001 就地改）；旧列 `thinking` / `parts` 与旧 UI 同批删，故这一刀不碰它们，保证每步都能编过能跑。
 - `features/agent/port/history.ts`：走 `stores/agent.ts` 的仓储动作（含乐观更新/回滚/事件广播）而不是直接 `invoke`。
 - `features/agent/acp/stream.ts`：纯映射表 + 16 条单测（文本/推理按 `messageId` 归组；工具名 `name` 优先回退 `title`；只有终态算结果；未知权限档位不猜；`usage_update` 走回调）。
 - 两处实测差异（写进代码注释）：ACP 权限类别是 snake_case（`allow_once`）而共享层/assistant-ui 用连字符；ACP 联合类型带「未来类型」索引签名 → 字段读出来是 `unknown`，需就地收窄。
 
 **② 会话控制器（已提交）**
+
 - `features/agent/acp/session.ts`：会话生命周期（cwd / provider / model / configOptions / corex-mcp 注入）从 `model/goose-acp.ts` 搬入；轮次产出走**一条队列**（update + 反向审批/追问 + 终态）。
 - 票据：审批与追问都有 300s 超时、`settle` 幂等、**票随轮次生死**（轮次结束一律作废并按取消回复）；`respondTo*` 找不到票返回 `false`，UI 如实提示「已失效」。
 - 连接层改为**注入路由**（`bindAcpRequestRouter`），避免 `connection.ts` ↔ `session.ts` 模块环。
@@ -425,6 +428,7 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 **③ 端口 + runtime + 三栏 UI（已提交）**：`features/agent/port/{model,instance}.ts` → `views/agent/chat/runtime.tsx`（`useLocalRuntime` + `createThreadHistoryAdapter`）→ 三栏 UI + 槽位移植 → **同批删除**旧路径（`chatGooseAcp`、`agent-loop.ts`、`acp/permission.ts`、`acp/normalize.ts`、旧工作台 `workbench*`/`bubbles`/`plan-list`/`code-diff`/`compare-table`）。
 
 **③ 端口 + runtime（已提交）**
+
 - `features/agent/port/model.ts`：`findTarget` 现读启用的 provider（`providerID` 用**本地行 id**，goose 的 `providerId` 在发跑时由 `kind` 换算）；`run` 吃控制器条目流（`update` → `stream.ts`，审批/追问直接把事件交给 UI），**每轮只发一个终态**，异常也走事件流并在控制台留堆栈。
 - 回执改按**票据 id** 定位（`respondToApproval` / `respondToElicitation`）：端口与工具卡是两个组件树分支，按「当前线程」找会在后台会话上找错人。
 - `features/agent/port/instance.ts`：端口单例 + `findHostOptions(target, threadID)`。
@@ -432,39 +436,40 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 - 用量暂报空对象（不编造数字）：ACP `usage_update` 是上下文占用，不是 token 账；账本随 `agent_usage` 落地。
 
 **④ 已完成（③b 三步全部落地）**
+
 - ✅ 1 左栏会话列表接 assistant-ui 线程切换（`aui.threads`：switchToThread/switchToNewThread/item({id}).rename/delete；置顶走 `historyPort.updateThread` + `reload`）。
 - ✅ 2 右栏 Plan 读 `plan` 数据部件（`features/agent/plan.ts`），面板只读化（待办/进行中/完成徽标），有内容自动展开。
 - ✅ 3 删除被 `Thread` 输入区取代的旧 composer 家族 + 孤儿 model（agent-tools/tools/workspace-path/file-icon）。
 
 > ⚠️ **回归记录**：旧 composer 承载的输入区能力（附件菜单、git/工作区页脚、`@` 提及与 `/` 命令）自中栏换 `Thread` 起就不在渲染树里了；要恢复得走 assistant-ui 的附件/触发 API，不是挪槽位 —— 记为后续特性，随 PR6（设置面）或独立一 PR 补回。
 
-| 现有能力 | 槽位 |
-| --- | --- |
-| 附件菜单（文件 / 文件夹 / 图片） | `ComposerStart` 或 `ComposerAttach`（二选一，否则两个 `+`） |
-| 模型选择 / 审批策略 | `ComposerEnd` |
-| 工作区 / 场景 / git 状态 | `ComposerFooter` |
-| `@` 文件 mention / `/` 命令 | `ComposerTriggers` |
-| 工具卡（按工具名分派）、计划、diff | `ToolFallback` / `ToolGroup` / `ProcessGroup` |
-| 欢迎页 | `Welcome` |
+| 现有能力                           | 槽位                                                        |
+| ---------------------------------- | ----------------------------------------------------------- |
+| 附件菜单（文件 / 文件夹 / 图片）   | `ComposerStart` 或 `ComposerAttach`（二选一，否则两个 `+`） |
+| 模型选择 / 审批策略                | `ComposerEnd`                                               |
+| 工作区 / 场景 / git 状态           | `ComposerFooter`                                            |
+| `@` 文件 mention / `/` 命令        | `ComposerTriggers`                                          |
+| 工具卡（按工具名分派）、计划、diff | `ToolFallback` / `ToolGroup` / `ProcessGroup`               |
+| 欢迎页                             | `Welcome`                                                   |
 
 同批删除：`model/goose-acp.ts`（`chatGooseAcp`）、`model/agent-loop.ts`、`acp/permission.ts`、`acp/normalize.ts`、旧工作台 `views/agent/chat/components/{workbench*,bubbles,plan-list,code-diff,compare-table}*`（✅ 已完成）。
 
 **④ 持久化破坏性收尾（已提交）**
+
 - `agent_message` 删 `identity`/`thinking`/`parts`，`fragment` → `content`；`deleteMessages` 按 `parentID` 递归级联（store 的 `toRemoveMessage` 改用落库返回的完整集合收敛本地状态）。
 - 新增 `agent_usage` 域（表 + entity + core service + command；`runID` 唯一、`idx_agent_usage_sessionID`）；`stores/agent.ts` 补 `usage` 分片。账本只接好管线，真实 token 记账随网关（PR5）落地。
 - ⚠️ v001 就地改是**破坏性**的：旧本地库须 `fresh`/删库重建（路径见 `crates/database/src/storage.rs::database_path`）。
 
-### ⏳ 待完成
+### ✅ PR5 · WS-3 网关 provider + 只读 helper + 配额（完成）
 
-- **PR5 · WS-3 网关 provider + 只读 helper + 配额**（[D5](#d5-网关-provider-与只读-helper对应-ws-3)）——**进行中**：
-  - ✅ 配额门：`apis/gateway.ts`（`GET /gateway/models`、`GET /gateway/quota/me`）+ `features/quota/gate.ts`（只认 `exhausted`，BYOK 放行，失败放行守门归服务端），`port/model.ts` 发跑前查一次。
-  - ✅ JWT 落盘：`cogito:token:write/clear` 命令 + `utils/auth.ts` 登录/退出同步 `<appData>/cogito/jwt`（原子写）。
-  - ✅ token helper + provider bootstrap（方案 A 落地）：
-    - helper = 主程序子命令 `i-thinking --token-helper --file <jwt>`（`main.rs`，stdout 输出 trim 后的令牌，非零码即失败），**零额外打包**；goose 的 `auth.command` 指向 `current_exe()`，拼成 `Authorization: Bearer <token>`。
-    - Rust `utils/cogito_provider.rs`：直接写 `<appData>/goose/config/custom_providers/cogito_gateway.json`（snake_case 声明式，`engine=openai`/`requires_auth`/`headers.X-Tenant-ID`/`auth{command,args,refresh_interval:120}`），幂等（内容没变不重启），有变化 `goose_serve::restart` 重读。
-    - `goose_serve::build_goose_command` 注入 `GOOSE_PATH_ROOT=<appData>/goose`，config dir 与用户全局 goose 配置隔离。
-    - 命令 `cogito:provider:ensure` / `cogito:provider:set-tenant`；渲染进程 `acp/cogito-provider.ts::ensureCogitoProvider` 挂在 `port/model.ts` run 前（租户/端点/模型任一变化即重写+重启，租户切换因此自动覆盖）。
-  - ✅ token 记账：`acp/session.ts::recordUsage` 在每轮 `prompt` 结束时用**标准 ACP `PromptResponse.usage`**（goose 的 `build_prompt_usage` 返回 `session.usage`，即 session 累计的 input/output/total）减基线（按 ACP session id 存的上一次累计）得本轮增量，写 `agent_usage`（runID/sessionID/providerID/model/input/output/total）。session 重建自然拿零基线；compaction 重置导致负增量时跳过，不落 0 账。数据源走标准通道，无需 goose 自定义通知 / `customNotifications` 能力声明。
+- ✅ 配额门：`apis/gateway.ts`（`GET /gateway/models`、`GET /gateway/quota/me`）+ `features/quota/gate.ts`（只认 `exhausted`，BYOK 放行，失败放行守门归服务端），`port/model.ts` 发跑前查一次。
+- ✅ JWT 落盘：`cogito:token:write/clear` 命令 + `utils/auth.ts` 登录/退出同步 `<appData>/cogito/jwt`（原子写）。
+- ✅ token helper + provider bootstrap（方案 A 落地，决策记录见「PR5 新决策」）：
+  - helper = 主程序子命令 `i-thinking --token-helper --file <jwt>`（`main.rs`，stdout 输出 trim 后的令牌，非零码即失败），**零额外打包**；goose 的 `auth.command` 指向 `current_exe()`，拼成 `Authorization: Bearer <token>`。
+  - Rust `utils/cogito_provider.rs`：直接写 `<appData>/goose/config/custom_providers/cogito_gateway.json`（snake_case 声明式，`engine=openai`/`requires_auth`/`headers.X-Tenant-ID`/`auth{command,args,refresh_interval:120}`），幂等（内容没变不重启），有变化 `goose_serve::restart` 重读。
+  - `goose_serve::build_goose_command` 注入 `GOOSE_PATH_ROOT=<appData>/goose`，config dir 与用户全局 goose 配置隔离。
+  - 命令 `cogito:provider:ensure` / `cogito:provider:set-tenant`；渲染进程 `acp/cogito-provider.ts::ensureCogitoProvider` 挂在 `port/model.ts` run 前（租户/端点/模型任一变化即重写+重启，租户切换因此自动覆盖）。
+- ✅ token 记账：`acp/session.ts::recordUsage` 在每轮 `prompt` 结束时用**标准 ACP `PromptResponse.usage`**（goose 的 `build_prompt_usage` 返回 `session.usage`，即 session 累计的 input/output/total）减基线（按 ACP session id 存的上一次累计）得本轮增量，写 `agent_usage`（runID/sessionID/providerID/model/input/output/total）。session 重建自然拿零基线；compaction 重置导致负增量时跳过，不落 0 账。数据源走标准通道，无需 goose 自定义通知 / `customNotifications` 能力声明。
 
 ### 🔴 PR5 新决策：goose 1.54 的 ACP 不支持自定义 provider 的命令鉴权
 
@@ -475,11 +480,11 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 
 所以计划 D5 里「`providers/custom/create` + `auth.command`」这条**走不通**。可选路径：
 
-| # | 方案 | 代价 |
-| --- | --- | --- |
-| A | 客户端 Rust 直接写 goose 声明式配置文件（`<goose-config>/custom_providers/cogito.json`，含 `auth.command`），再触发重载 | 耦合 goose 内部文件格式与 config dir；需要确认「写完文件后如何让 goose 重读」（可能得重启 goose serve） |
-| B | 把 goose 从「下载 release」改成「vendor 源码构建」，并补上 ACP DTO 的 `auth` 透传 | 构建链路大改；长期要 fork 非自有仓库 + 每次 goose 升级 rebase 补丁 |
-| C | `requiresAuth: false` + 静态 `X-Tenant-ID` 头 + 网关侧对「来自桌面的未鉴权请求」放行 | 网关要改鉴权，不安全，不推荐 |
+| #   | 方案                                                                                                                    | 代价                                                                                                    |
+| --- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| A   | 客户端 Rust 直接写 goose 声明式配置文件（`<goose-config>/custom_providers/cogito.json`，含 `auth.command`），再触发重载 | 耦合 goose 内部文件格式与 config dir；需要确认「写完文件后如何让 goose 重读」（可能得重启 goose serve） |
+| B   | 把 goose 从「下载 release」改成「vendor 源码构建」，并补上 ACP DTO 的 `auth` 透传                                       | 构建链路大改；长期要 fork 非自有仓库 + 每次 goose 升级 rebase 补丁                                      |
+| C   | `requiresAuth: false` + 静态 `X-Tenant-ID` 头 + 网关侧对「来自桌面的未鉴权请求」放行                                    | 网关要改鉴权，不安全，不推荐                                                                            |
 
 **已定 A**（`2026-10-13`；曾在 goose 仓库打过两个 auth DTO 补丁后撤销，goose 保持干净，**不改 goose 源码**）：
 
@@ -493,6 +498,9 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
   - **auth.command 契约**（`providers/command_auth.rs`）：直接执行不经 shell、stdin null；**stdout 必须 UTF-8，整体 `trim()` 后作为 token，且非空**；退出码非 0 即失败（stderr 截断上报）；默认超时 10s；`refresh_interval` 秒（0=只被动重跑）。
   - **鉴权头匹配**：OpenAI 兼容 provider 的 `CommandAuthProvider` 拼 `Authorization: Bearer <token>`，与渲染进程 `utils/http/http.ts` 注入一致 → helper 只输出 JWT 原文（不含 `Bearer ` 前缀）。
   - **headers 不支持 `${VAR}` 模板**（`resolve_config` 只 expand `base_url`，不 expand `headers`）→ `X-Tenant-ID` 只能静态写入，租户切换 = 重写 JSON + `goose:restart`。
+
+### ⏳ 待完成
+
 - **PR6 · WS-7 设置面**（provider / 扩展 / 权限 / 用量 / 诊断）
 - **PR7 · WS-4 cogito `chat` 同步域**（[D6](#d6-cogito-chat-同步域对应-ws-4)）
 - **PR8 · WS-5 cogito MCP**（[D7](#d7-cogito-mcp-面对应-ws-5)）
@@ -544,14 +552,14 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 
 > 原表格已按答复收敛，结论如下（PR4 开工前无遗留阻塞项）。
 
-| # | 结论 |
-| --- | --- |
-| 1 | **PR3 破坏性列变更随 PR4 同批**：`agent_message` 的 `parentID`/`format`、删 `thinking`/`parts`、级联删除、`agent_usage` CRUD 与新消息 UI 一起落地（单独提交只能留红）。 |
-| 2 | **`magnetic-tile-agent.ts` 保持删除**（与 `.d.ts` 同名的孤儿副本 = 双轨）。 |
-| 3 | **CI 已加独立 job `client-rust-check`**：`dtolnay/rust-toolchain@stable` + `Swatinem/rust-cache` + webkit2gtk 依赖 + `cargo check --locked`，不塞进现有 job。`build.rs` 只校验 `binaries/*` 存在且非空，故用同名占位文件满足（真实产物要联网 bootstrap，`cargo check` 不需要）。 |
-| 4 | **catch 存量清零 + client 全域 `error`**：29 处已清零，规则改为单块全域 `error`；测试里刻意取异常的两处用带理由 disable——**注释必须放在 `} catch (…) {` 的上一行**（规则报在 CatchClause 起点，不是 body 内），`console.debug` 用于「真·良性」分支。 |
-| 5 | **`react-doctor` 确实在用**：保留 `apps/client/doctor.config.ts`，根 devDeps 加 `react-doctor@0.9.17`，从 `globalIgnores` 移除并纳入 `tsconfig.node.json` include 与 `client/node-tooling` 块（`tsc` + lint 均绿）。 |
-| 6 | **`X-Tenant-ID` 链路 = 声明式 provider 静态 header**（我决策：按原建议，不引入本地代理）：租户切换 → `providers/custom/update`；JWT 文件 `<appData>/cogito/jwt`；helper 路径 Tauri 注入。已写入「决策（已定）」。 |
-| 7 | **CI `unit` 改为 client 硬失败**：`pnpm --filter @i-thinking/client run unit` 在前，其余包 `turbo run unit --continue --filter=!@i-thinking/client || true` 兜底。 |
-| 8 | **PR4 顺序按 D9，分 3 个提交**：① `port/history` + `acp/stream`（含 D2 映射单测）② `acp/session` + `port/{model,instance}` ③ `chat.tsx` 三栏/槽位移植 + 旧 UI 与死代码删除 + PR3 遗留破坏性列变更。 |
-| 9 | **ACP SDK 无需升级**（实测 `@agentclientprotocol/sdk@1.7.0`）：`SessionUpdate` 已含 `plan`、`available_commands_update`、`current_mode_update`、`usage_update`（另含 `plan_update`/`plan_removed`/`compaction_update`/`compaction_summary_chunk`/`subagent_update`/`notice`/`session_info_update`/`config_option_update`）；`CreateElicitationRequest`（form/url 模式 + session/request scope）与 `ElicitationSchema` 齐备。 |
+| #   | 结论                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **PR3 破坏性列变更随 PR4 同批**：`agent_message` 的 `parentID`/`format`、删 `thinking`/`parts`、级联删除、`agent_usage` CRUD 与新消息 UI 一起落地（单独提交只能留红）。                                                                                                                                                                                                                                                      |
+| 2   | **`magnetic-tile-agent.ts` 保持删除**（与 `.d.ts` 同名的孤儿副本 = 双轨）。                                                                                                                                                                                                                                                                                                                                                  |
+| 3   | **CI 已加独立 job `client-rust-check`**：`dtolnay/rust-toolchain@stable` + `Swatinem/rust-cache` + webkit2gtk 依赖 + `cargo check --locked`，不塞进现有 job。`build.rs` 只校验 `binaries/*` 存在且非空，故用同名占位文件满足（真实产物要联网 bootstrap，`cargo check` 不需要）。                                                                                                                                             |
+| 4   | **catch 存量清零 + client 全域 `error`**：29 处已清零，规则改为单块全域 `error`；测试里刻意取异常的两处用带理由 disable——**注释必须放在 `} catch (…) {` 的上一行**（规则报在 CatchClause 起点，不是 body 内），`console.debug` 用于「真·良性」分支。                                                                                                                                                                         |
+| 5   | **`react-doctor` 确实在用**：保留 `apps/client/doctor.config.ts`，根 devDeps 加 `react-doctor@0.9.17`，从 `globalIgnores` 移除并纳入 `tsconfig.node.json` include 与 `client/node-tooling` 块（`tsc` + lint 均绿）。                                                                                                                                                                                                         |
+| 6   | **`X-Tenant-ID` 链路 = 声明式 provider 静态 header**（我决策：按原建议，不引入本地代理）：租户切换 → `providers/custom/update`；JWT 文件 `<appData>/cogito/jwt`；helper 路径 Tauri 注入。已写入「决策（已定）」。                                                                                                                                                                                                            |
+| 7   | **CI `unit` 改为 client 硬失败**：`pnpm --filter @i-thinking/client run unit` 在前，其余包 `turbo run unit --continue --filter=!@i-thinking/client                                                                                                                                                                                                                                                                           |     | true` 兜底。 |
+| 8   | **PR4 顺序按 D9，分 3 个提交**：① `port/history` + `acp/stream`（含 D2 映射单测）② `acp/session` + `port/{model,instance}` ③ `chat.tsx` 三栏/槽位移植 + 旧 UI 与死代码删除 + PR3 遗留破坏性列变更。                                                                                                                                                                                                                          |
+| 9   | **ACP SDK 无需升级**（实测 `@agentclientprotocol/sdk@1.7.0`）：`SessionUpdate` 已含 `plan`、`available_commands_update`、`current_mode_update`、`usage_update`（另含 `plan_update`/`plan_removed`/`compaction_update`/`compaction_summary_chunk`/`subagent_update`/`notice`/`session_info_update`/`config_option_update`）；`CreateElicitationRequest`（form/url 模式 + session/request scope）与 `ElicitationSchema` 齐备。 |
