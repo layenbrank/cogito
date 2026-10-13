@@ -1,29 +1,58 @@
+import { useAuiState } from '@assistant-ui/react'
 import { useEffect, useMemo, useState } from 'react'
 
 import type { WorkspaceBranch } from './sidebar-workspace-tree.tsx'
 import { UNGROUPED_WORKSPACE } from '@/features/agent/model/workspace'
-import { useAgentStore, type Session } from '@/stores/agent.ts'
+import { useAgentStore } from '@/stores/agent.ts'
 
-function sortSessions(a: Session, b: Session) {
+/**
+ * 侧栏会话条目：数据来自 assistant-ui 的线程列表（`threadItems`），
+ * 只是把它摊平成树组件要的形状 —— 会话的权威状态在 runtime，store 不再另存一份。
+ */
+interface SidebarSession {
+  id: string
+  title: string
+  pinned: boolean
+  workspaceID: string | null
+  updatedAt: number
+}
+
+function sortSessions(a: SidebarSession, b: SidebarSession) {
   if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
   return b.updatedAt - a.updatedAt
 }
 
 function useSidebarBranches() {
-  const sessions = useAgentStore(function (state) {
-    return state.sessions
-  })
   const workspaces = useAgentStore(function (state) {
     return state.workspaces
   })
   const workspaceFolders = useAgentStore(function (state) {
     return state.workspaceFolders
   })
+  const threadItems = useAuiState(function (state) {
+    return state.threads.threadItems
+  })
 
   const [expandedKeys, updateExpandedKeys] = useState<string[]>([])
   const expandedKeySet = useMemo(function () {
     return new Set(expandedKeys)
   }, [expandedKeys])
+
+  const sessions: SidebarSession[] = useMemo(
+    function () {
+      return Object.entries(threadItems).map(function ([id, item]) {
+        const custom = item.custom as { pinned?: unknown; workspaceID?: unknown } | undefined
+        return {
+          id,
+          title: item.title ?? '新对话',
+          pinned: custom?.pinned === true,
+          workspaceID: typeof custom?.workspaceID === 'string' ? custom.workspaceID : null,
+          updatedAt: item.lastMessageAt ? item.lastMessageAt.getTime() : 0
+        }
+      })
+    },
+    [threadItems]
+  )
 
   const branches: WorkspaceBranch[] = useMemo(
     function () {
@@ -108,3 +137,4 @@ function useSidebarBranches() {
 }
 
 export { useSidebarBranches }
+export type { SidebarSession }

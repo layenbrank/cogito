@@ -1,12 +1,15 @@
 /**
  * Qoder 式左侧栏：工作模式 + 新任务/搜索 + 工作区会话树 + 底栏头像/设置
+ *
+ * 会话列表的数据与动作都走 assistant-ui 的线程运行时（`aui.threads`）——
+ * 工作区仍是本地域（`stores/agent.ts`），会话的归属读线程 `custom.workspaceID`。
  */
+import { useAui, useAuiState } from '@assistant-ui/react'
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
 import { clsx } from 'clsx'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { v4 as UUIDV4 } from 'uuid'
 
 import { SessionSearch } from './session-search'
 import styles from './sidebar.module.scss'
@@ -15,10 +18,11 @@ import { SidebarProfileBar } from './sidebar-profile-bar.tsx'
 import { SidebarScenarioNav } from './sidebar-scenario-nav.tsx'
 import { SidebarWorkspaceTree } from './sidebar-workspace-tree.tsx'
 import { WorkspaceForm } from './workspace-form'
+import { useSidebarBranches, type SidebarSession } from './use-sidebar-branches.ts'
+import { historyPort } from '@/features/agent/port/instance'
 import { type ScenarioKey } from '@/features/agent/model/scenarios'
-import { useAgentStore, type Session } from '@/stores/agent.ts'
+import { useAgentStore } from '@/stores/agent.ts'
 import { useSessionStore } from '@/stores/session'
-import { useSidebarBranches } from './use-sidebar-branches.ts'
 
 interface SidebarProps {
   className?: string
@@ -36,8 +40,9 @@ interface RenameTarget {
 }
 
 function AgentSidebar(props: SidebarProps) {
-  const activeSessionID = useAgentStore(function (state) {
-    return state.activeSessionID
+  const aui = useAui()
+  const activeThreadID = useAuiState(function (state) {
+    return state.threads.mainThreadId
   })
   const activeWorkspaceID = useAgentStore(function (state) {
     return state.activeWorkspaceID
@@ -55,7 +60,7 @@ function AgentSidebar(props: SidebarProps) {
   const [renameValue, updateRenameValue] = useState('')
   const [formOpen, updateFormOpen] = useState(false)
   const [editingWorkspaceID, updateEditingWorkspaceID] = useState<string | null>(null)
-  const [pendingRemove, updatePendingRemove] = useState<Session | null>(null)
+  const [pendingRemove, updatePendingRemove] = useState<SidebarSession | null>(null)
   const [hoverSessionID, updateHoverSessionID] = useState<string | null>(null)
 
   const isSearchOpen = Boolean(props.isSearchOpen)
@@ -70,12 +75,11 @@ function AgentSidebar(props: SidebarProps) {
     [props.searchFocusToken]
   )
 
-  function handleActivateSession(session: Session) {
+  function handleActivateSession(session: SidebarSession) {
     if (session.workspaceID) {
       useAgentStore.getState().toActivateWorkspace(session.workspaceID)
     }
-    useAgentStore.getState().toReadSession(session.id)
-    void useAgentStore.getState().toReadMessages(session.id)
+    void aui.threads.switchToThread(session.id)
   }
 
   async function handleInsertSession(workspaceID?: string | null) {
@@ -89,28 +93,9 @@ function AgentSidebar(props: SidebarProps) {
       updateFormOpen(true)
       return
     }
-    const sessionID = UUIDV4()
-    const now = Date.now()
-    await useAgentStore.getState().toWriteSession([
-      {
-        id: sessionID,
-        title: '新对话',
-        pinned: false,
-        providerID: null,
-        workspaceID: targetID,
-        createdAt: now,
-        updatedAt: now
-      }
-    ])
-    handleActivateSession({
-      id: sessionID,
-      title: '新对话',
-      pinned: false,
-      providerID: null,
-      workspaceID: targetID,
-      createdAt: now,
-      updatedAt: now
-    })
+    // 新建会话的归属读「当前工作区」指针（historyPort.createThread），故先切工作区再新建
+    useAgentStore.getState().toActivateWorkspace(targetID)
+    aui.threads.switchToNewThread()
     if (!sectionOpen) updateSectionOpen(true)
     if (!branchState.expandedKeys.includes(targetID)) {
       branchState.updateExpandedKeys(function (keys) {
@@ -131,7 +116,7 @@ function AgentSidebar(props: SidebarProps) {
     if (!renaming) return
     const title = renameValue.trim()
     if (title) {
-      await useAgentStore.getState().toUpdateSession([{ id: renaming.id, title }])
+      aui.threads.item({ id: renaming.id }).rename(title)
     }
     updateRenaming(null)
   }
@@ -140,7 +125,13 @@ function AgentSidebar(props: SidebarProps) {
     const target = pendingRemove
     updatePendingRemove(null)
     if (!target) return
-    await useAgentStore.getState().toRemoveSession([target.id])
+    aui.threads.item({ id: target.id }).delete()
+  }
+
+  async function handleTogglePinned(session: SidebarSession) {
+    await historyPort.updateThread(session.id, { pinned: !session.pinned })
+    // pinned 只经列表适配器的 `custom` 发布，改了落库值后重载一次列表让它回到列表项上
+    await aui.threads.reload()
   }
 
   return (
@@ -185,7 +176,7 @@ function AgentSidebar(props: SidebarProps) {
           <SidebarWorkspaceTree
             branches={branchState.branches}
             expandedKeySet={branchState.expandedKeySet}
-            activeSessionID={activeSessionID}
+            activeSessionID={activeThreadID}
             activeWorkspaceID={activeWorkspaceID}
             hoverSessionID={hoverSessionID}
             onHoverSessionChange={updateHoverSessionID}
@@ -199,6 +190,9 @@ function AgentSidebar(props: SidebarProps) {
               updateRenaming({ id: session.id, title: session.title })
             }}
             onRemoveSession={updatePendingRemove}
+            onTogglePinned={function (session) {
+              void handleTogglePinned(session)
+            }}
             onEditWorkspace={function (workspaceID) {
               updateEditingWorkspaceID(workspaceID)
               updateFormOpen(true)
@@ -254,4 +248,3 @@ function AgentSidebar(props: SidebarProps) {
 }
 
 export { AgentSidebar }
-export type { SidebarProps }

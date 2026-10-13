@@ -18,7 +18,8 @@ import dayjs from 'dayjs'
 
 import styles from './sidebar.module.scss'
 import { UNGROUPED_WORKSPACE, findWorkspaceIcon } from '@/features/agent/model/workspace'
-import { useAgentStore, type Session } from '@/stores/agent.ts'
+import type { SidebarSession } from './use-sidebar-branches.ts'
+import { useAgentStore } from '@/stores/agent.ts'
 
 interface WorkspaceBranch {
   id: string
@@ -27,7 +28,7 @@ interface WorkspaceBranch {
   color: string
   pinned: boolean
   paths: string[]
-  sessions: Session[]
+  sessions: SidebarSession[]
 }
 
 interface SidebarWorkspaceTreeProps {
@@ -38,10 +39,11 @@ interface SidebarWorkspaceTreeProps {
   hoverSessionID: string | null
   onHoverSessionChange: (id: string | null) => void
   onExpandedKeysChange: (update: (keys: string[]) => string[]) => void
-  onActivateSession: (session: Session) => void
+  onActivateSession: (session: SidebarSession) => void
   onInsertSession: (workspaceID: string) => void
-  onRenameSession: (session: Session) => void
-  onRemoveSession: (session: Session) => void
+  onRenameSession: (session: SidebarSession) => void
+  onRemoveSession: (session: SidebarSession) => void
+  onTogglePinned: (session: SidebarSession) => void
   onEditWorkspace: (workspaceID: string) => void
 }
 
@@ -132,7 +134,7 @@ function SidebarWorkspaceTree(props: SidebarWorkspaceTreeProps) {
     )
   }
 
-  function findSessionHover(branch: WorkspaceBranch, session: Session) {
+  function findSessionHover(branch: WorkspaceBranch, session: SidebarSession) {
     return (
       <>
         <p className={clsx(styles.hoverTitle, 'line-clamp-2')}>{session.title}</p>
@@ -228,9 +230,7 @@ function SidebarWorkspaceTree(props: SidebarWorkspaceTreeProps) {
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={function () {
-                      void useAgentStore
-                        .getState()
-                        .toUpdateSession([{ id: session.id, pinned: !session.pinned }])
+                      props.onTogglePinned(session)
                     }}>
                     <Icon
                       icon={session.pinned ? 'mdi:pin-off-outline' : 'mdi:pin-outline'}

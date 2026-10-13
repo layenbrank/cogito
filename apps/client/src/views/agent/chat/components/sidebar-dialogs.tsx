@@ -19,7 +19,7 @@ import {
 } from '@i-thinking/design/components/dialog'
 import { Input } from '@i-thinking/design/components/input'
 
-import type { Session } from '@/stores/agent.ts'
+import type { SidebarSession } from './use-sidebar-branches.ts'
 
 interface SidebarRenameDialogProps {
   open: boolean
@@ -65,7 +65,7 @@ function SidebarRenameDialog(props: SidebarRenameDialogProps) {
 }
 
 interface SidebarRemoveDialogProps {
-  session: Session | null
+  session: SidebarSession | null
   onClose: () => void
   onConfirm: () => void
 }
