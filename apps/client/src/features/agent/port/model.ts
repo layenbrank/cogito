@@ -16,6 +16,7 @@ import type {
   ChatUsage
 } from '@i-thinking/chat/ports'
 
+import { ensureCogitoProvider } from '@/features/agent/acp/cogito-provider'
 import { runThreadPrompt, respondToApproval, respondToElicitation } from '@/features/agent/acp/session'
 import { parseAcpStreamEvent, type AcpStreamContext } from '@/features/agent/acp/stream'
 import { parseModels } from '@/features/agent/model/providers'
@@ -147,6 +148,11 @@ function createModelPort(): ChatModelPort {
       if (blocker) {
         yield { kind: 'error', message: blocker, usage: RUN_USAGE }
         return
+      }
+
+      // 平台网关走 goose 的自定义 provider：发送前幂等注册一次（租户/端点/模型没变就不重启）
+      if (isGatewayTarget(provider.kind)) {
+        await ensureCogitoProvider()
       }
 
       const context: AcpStreamContext = { blockID: createBlockIDFinder() }

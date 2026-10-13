@@ -214,6 +214,7 @@ fn build_goose_command(
     args: &[&str],
     token: &str,
 ) -> Result<tauri_plugin_shell::process::Command, String> {
+    let path_root = goose_path_root(app)?;
     #[cfg(debug_assertions)]
     {
         if let Ok(path) = std::env::var("GOOSE_BINARY") {
@@ -224,7 +225,8 @@ fn build_goose_command(
                     .shell()
                     .command(trimmed)
                     .args(args.iter().copied())
-                    .env("GOOSE_SERVER__SECRET_KEY", token));
+                    .env("GOOSE_SERVER__SECRET_KEY", token)
+                    .env("GOOSE_PATH_ROOT", &path_root));
             }
         }
     }
@@ -234,7 +236,20 @@ fn build_goose_command(
         .sidecar("goose")
         .map_err(|e| format!("创建 goose sidecar 失败: {e}"))?
         .args(args.iter().copied())
-        .env("GOOSE_SERVER__SECRET_KEY", token))
+        .env("GOOSE_SERVER__SECRET_KEY", token)
+        .env("GOOSE_PATH_ROOT", &path_root))
+}
+
+/// goose 的 config/data/state 根目录：`<appData>/goose`。
+///
+/// goose 读 `GOOSE_PATH_ROOT`（须绝对路径）后把 config 落到 `<root>/config`。这样
+/// `custom_providers` 与用户全局的 goose 配置完全隔离，也让我们能确定地写声明式 provider。
+fn goose_path_root(app: &AppHandle) -> Result<String, String> {
+    let base = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("获取应用数据目录失败: {e}"))?;
+    Ok(base.join("goose").to_string_lossy().to_string())
 }
 
 fn watch_process(app: AppHandle, mut rx: tauri::async_runtime::Receiver<CommandEvent>) {

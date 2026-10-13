@@ -133,7 +133,9 @@ export const CHANNELS = {
   },
   COGITO: {
     TOKEN_WRITE: 'cogito:token:write',
-    TOKEN_CLEAR: 'cogito:token:clear'
+    TOKEN_CLEAR: 'cogito:token:clear',
+    PROVIDER_ENSURE: 'cogito:provider:ensure',
+    PROVIDER_SET_TENANT: 'cogito:provider:set-tenant'
   },
   WORKSPACE_GIT: {
     PROBE: 'workspaceGit:probe',
