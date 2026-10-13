@@ -26,8 +26,10 @@ import { useProviderStore } from '@/stores/provider'
 import styles from '@/views/agent/settings/settings.module.scss'
 import { ProviderCard, type ProbeStatus } from './provider-card'
 import { upsertStoreProvider } from './provider-upsert'
+import { DiagnosticsSection } from './sections/diagnostics'
 import { ExtensionsSection } from './sections/extensions'
 import { ToolPermissionsSection } from './sections/tool-permissions'
+import { UsageSection } from './sections/usage'
 
 function AgentSettings() {
   const navigate = useNavigate()
@@ -315,8 +317,9 @@ function AgentSettings() {
               <section className={styles.section}>
                 <div className={styles.sectionHead}>
                   <span className={styles.sectionTitle}>用量</span>
+                  <span className={styles.sectionMeta}>本地记录</span>
                 </div>
-                <p className={`${styles.empty} text-muted-foreground`}>用量统计将在后续版本提供。</p>
+                <UsageSection />
               </section>
             </div>
           </TabsContent>
@@ -326,8 +329,9 @@ function AgentSettings() {
               <section className={styles.section}>
                 <div className={styles.sectionHead}>
                   <span className={styles.sectionTitle}>诊断</span>
+                  <span className={styles.sectionMeta}>goose diagnostics/get</span>
                 </div>
-                <p className={`${styles.empty} text-muted-foreground`}>诊断导出将在后续版本提供。</p>
+                <DiagnosticsSection />
               </section>
             </div>
           </TabsContent>
