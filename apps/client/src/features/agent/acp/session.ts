@@ -22,6 +22,7 @@ import type {
 import { methods } from '@agentclientprotocol/sdk'
 import { invoke } from '@tauri-apps/api/core'
 import { homeDir } from '@tauri-apps/api/path'
+import { v4 as UUIDV4 } from 'uuid'
 
 import type {
   ChatApprovalOption,
@@ -634,10 +635,63 @@ async function* runThreadPrompt(
     for (const ticket of run.elicitations.values()) ticket.settle({ action: 'cancel' })
     run.approvals.clear()
     run.elicitations.clear()
-    await promptDone
+    const response = await promptDone
+    await recordUsage(thread, input.modelID, response?.usage)
     await pump.catch(function (error: unknown) {
       console.warn('[acp/session] update 泵异常结束:', error)
     })
+  }
+}
+
+/** session（按 ACP session id）的上一次累计用量：本轮增量 = 本轮结束累计 − 基线 */
+const usageBaseline = new Map<
+  string,
+  { inputTokens: number; outputTokens: number; totalTokens: number }
+>()
+
+/**
+ * 把本轮 token 账写进 `agent_usage`。
+ *
+ * `PromptResponse.usage` 是 **session 累计**（goose 的 `build_prompt_usage` 直接取
+ * `session.usage`），所以本轮增量 = 本次累计 − 上一次结束时的基线。基线按 ACP session id 存：
+ * session 重建（重启 / 换线程）自然拿到零基线；compaction 重置导致负增量时直接跳过，
+ * 不落一条 0 账。
+ */
+async function recordUsage(
+  thread: ThreadSession,
+  modelID: string | undefined,
+  usage: { inputTokens: number; outputTokens: number; totalTokens: number } | null | undefined
+): Promise<void> {
+  try {
+    if (!usage) return
+    const baseline = usageBaseline.get(thread.acpSessionID)
+    const inputTokens = baseline ? usage.inputTokens - baseline.inputTokens : usage.inputTokens
+    const outputTokens = baseline ? usage.outputTokens - baseline.outputTokens : usage.outputTokens
+    const totalTokens = baseline ? usage.totalTokens - baseline.totalTokens : usage.totalTokens
+    usageBaseline.set(thread.acpSessionID, {
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      totalTokens: usage.totalTokens
+    })
+    if (inputTokens <= 0 && outputTokens <= 0) return
+    const model = modelID?.trim() || thread.modelID?.trim() || ''
+    if (!model) return
+    await useAgentStore.getState().toWriteUsage([
+      {
+        id: UUIDV4(),
+        runID: UUIDV4(),
+        sessionID: thread.threadID,
+        providerID: thread.providerID,
+        model,
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        createdAt: Date.now()
+      }
+    ])
+  } catch (error) {
+    // 记账失败不阻断运行结束：token 数是旁路，丢了只影响历史页的用量展示
+    console.warn('[acp/session] 写入 agent_usage 失败:', error)
   }
 }
 
