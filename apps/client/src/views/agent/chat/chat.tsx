@@ -4,10 +4,10 @@
  * 是 `/agent` 的默认子页（`/agent` 会重定向过来）；模型接入不在这里弹窗，走
  * `/agent/settings`（见 `views/agent/settings/`）。
  *
- * 主对话栏已经换成 assistant-ui 的 `Thread`（一条通路：会话列表 / 生成 / 历史全套走
- * `features/agent/port/*`）。左栏（工作区 / 场景导航）与右栏（计划）沿用旧组件，
- * 尚未随这次接线一起换成运行时状态 —— 见计划文档「PR4③b 剩余」。
+ * 主对话栏走 assistant-ui 的 `Thread`（一条通路）；右栏读当前线程的最新 `plan` 部件
+ * （goose 的结构化计划），有内容时自动展开。
  */
+import { useAuiState } from '@assistant-ui/react'
 import { AssistantLabelsProvider } from '@i-thinking/design/assistant/labels'
 import { Thread } from '@i-thinking/design/assistant/thread.aui'
 import {
@@ -17,12 +17,11 @@ import {
   usePanelRef
 } from '@i-thinking/design/components/resizable'
 import { clsx } from 'clsx'
-import dayjs from 'dayjs'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { ComposerModelEnd } from '@/views/agent/chat/components/composer-model-end'
-import { AgentPlanPane, type PlanPaneSource } from '@/views/agent/chat/components/plan-pane'
+import { AgentPlanPane } from '@/views/agent/chat/components/plan-pane'
 import { AgentSidebar } from '@/views/agent/chat/components/sidebar'
 import {
   findSplitterLayout,
@@ -43,35 +42,44 @@ import { ThreadWelcome } from '@/views/agent/chat/components/thread-welcome'
 import { ASSISTANT_LABELS_ZH } from '@/views/agent/chat/labels'
 import { AgentRuntimeProvider } from '@/views/agent/chat/runtime'
 import { AgentTitlebar } from '@/views/agent/components/titlebar'
+import { findLatestPlan } from '@/features/agent/plan'
 import type { ScenarioKey } from '@/features/agent/model/scenarios'
-import { parseParts, stringifyParts } from '@/features/agent/model/tools'
-import { useCalendarStore } from '@/stores/calendar'
 import { useAgentStore } from '@/stores/agent.ts'
 import { useProviderStore } from '@/stores/provider'
 import styles from '@/views/agent/chat/chat.module.scss'
 
-interface PlanSelection {
-  messageID: string
-  partIndex: number
-}
-
-function findPlanSource(
-  selection: PlanSelection | null,
-  messages: { id: string; parts: string | null }[]
-): PlanPaneSource | null {
-  if (!selection) return null
-  const target = messages.find(function (item) {
-    return item.id === selection.messageID
+/**
+ * 有内容时自动展开右栏（对齐 Qoder plan 场景）。
+ *
+ * 按「计划总量」记一次已开（键带线程 id）：计划条目更新（总量变化）才再开一次 ——
+ * 用户手动收起后不会被同一次计划反复顶开，也不会被上一个会话的计划顶掉这一次。
+ */
+function usePlanAside() {
+  const messages = useAuiState(function (state) {
+    return state.thread.messages
   })
-  if (!target) return null
-  const parts = parseParts(target.parts)
-  const part = parts[selection.partIndex]
-  if (!part || part.type !== 'plan') return null
-  return {
-    messageID: selection.messageID,
-    partIndex: selection.partIndex,
-    data: part.data
-  }
+  const threadID = useAuiState(function (state) {
+    return state.threads.mainThreadId
+  })
+  const plan = useMemo(function () {
+    return findLatestPlan(messages)
+  }, [messages])
+  const [isOpen, updateOpen] = useState(false)
+  const openedFor = useRef<{ threadID: string; total: number } | null>(null)
+  const planRef = usePanelRef()
+
+  useEffect(
+    function () {
+      if (!plan || plan.total === 0) return
+      const opened = openedFor.current
+      if (opened?.threadID === threadID && opened.total === plan.total) return
+      openedFor.current = { threadID, total: plan.total }
+      updateOpen(true)
+    },
+    [plan, threadID]
+  )
+
+  return { plan, isOpen, updateOpen, planRef }
 }
 
 function AgentChat() {
@@ -79,12 +87,7 @@ function AgentChat() {
   const [defaultLayout] = useState(findSplitterLayout)
   const [isSearchOpen, updateSearchOpen] = useState(false)
   const [scenario, updateScenario] = useState<ScenarioKey>('general')
-  const [planSelection, updatePlanSelection] = useState<PlanSelection | null>(null)
-  const planRef = usePanelRef()
-  const messages = useAgentStore(function (state) {
-    return state.messages
-  })
-  const planSource = findPlanSource(planSelection, messages)
+  const { plan, isOpen, updateOpen, planRef } = usePlanAside()
 
   useEffect(function () {
     void useAgentStore.getState().toReadWorkspaces()
@@ -93,12 +96,12 @@ function AgentChat() {
     void useProviderStore.getState().toReadProviders()
   }, [])
 
-  // Plan 栏开合跟着选中状态走：收起即清空选中，避免留下看不见的旧计划
+  // 右栏开合跟着 open 状态走
   useEffect(
     function () {
       const panel = planRef.current
       if (!panel) return
-      if (planSelection) {
+      if (isOpen) {
         if (panel.isCollapsed()) {
           panel.expand()
           if (panel.getSize().inPixels < PLAN_MIN) panel.resize(PLAN_SIZE)
@@ -107,7 +110,7 @@ function AgentChat() {
       }
       panel.collapse()
     },
-    [planSelection, planRef]
+    [isOpen, planRef]
   )
 
   function handleLayoutChanged(layout: SplitterLayout) {
@@ -121,65 +124,7 @@ function AgentChat() {
   function handlePlanResize() {
     const panel = planRef.current
     if (!panel) return
-    if (panel.isCollapsed() && planSelection) updatePlanSelection(null)
-  }
-
-  function openPlanPane(source: PlanPaneSource) {
-    updatePlanSelection({
-      messageID: source.messageID,
-      partIndex: source.partIndex
-    })
-  }
-
-  function closePlanPane() {
-    updatePlanSelection(null)
-  }
-
-  async function handleTogglePlanItem(itemIndex: number) {
-    if (!planSource) return
-    const target = useAgentStore.getState().messages.find(function (item) {
-      return item.id === planSource.messageID
-    })
-    if (!target) return
-    const parts = parseParts(target.parts)
-    const part = parts[planSource.partIndex]
-    if (!part || part.type !== 'plan') return
-    const items = part.data.items.map(function (item, index) {
-      return index === itemIndex ? { ...item, done: !item.done } : item
-    })
-    const data = { ...part.data, items }
-    parts[planSource.partIndex] = { type: 'plan', data }
-    await useAgentStore
-      .getState()
-      .toUpdateMessage([{ id: planSource.messageID, parts: stringifyParts(parts) }])
-  }
-
-  async function handleWritePlanCalendar() {
-    if (!planSource) return
-    const target = useAgentStore.getState().messages.find(function (item) {
-      return item.id === planSource.messageID
-    })
-    if (!target) return
-    const parts = parseParts(target.parts)
-    const part = parts[planSource.partIndex]
-    if (!part || part.type !== 'plan') return
-
-    const base = dayjs(part.data.date || undefined).startOf('day')
-    for (const item of part.data.items) {
-      let start = base
-      if (item.time) {
-        const [hour, minute] = item.time.split(':').map(Number)
-        start = base.hour(hour || 0).minute(minute || 0)
-      }
-      const end = item.time ? start.add(30, 'minute') : base.endOf('day')
-      await useCalendarStore.getState().toWriteEvent({
-        title: item.title,
-        notes: '由 Agent 计划生成',
-        startAt: start.valueOf(),
-        endAt: end.valueOf(),
-        entireDay: !item.time
-      })
-    }
+    if (panel.isCollapsed() && isOpen) updateOpen(false)
   }
 
   return (
@@ -241,12 +186,10 @@ function AgentChat() {
                 onResize={handlePlanResize}>
                 <AgentPlanPane
                   className={styles.planPane}
-                  source={planSource}
-                  onClose={closePlanPane}
-                  onToggleItem={function (itemIndex) {
-                    void handleTogglePlanItem(itemIndex)
+                  plan={plan}
+                  onClose={function () {
+                    updateOpen(false)
                   }}
-                  onWriteCalendar={handleWritePlanCalendar}
                 />
               </ResizablePanel>
             </ResizablePanelGroup>
