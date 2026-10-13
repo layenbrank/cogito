@@ -10,7 +10,7 @@ database:
   # 默认连接串刻意不带密码：本机开发连 Docker 的 cogito-postgres（127.0.0.1:5432，
   # 用户名 machenike、库 i-thinking），真实密码写在 config.local.yaml（不入库），
   # 与 apps/cogito/.env 的 POSTGRES_PASSWORD 一致。这里只是让进程能启动、由探测报错。
-  url: postgres://machenike:@127.0.0.1:5432/i-thinking
+  url: postgres://machenike:Li33333.@127.0.0.1:5432/i-thinking
 
 redis:
   url: redis://127.0.0.1:6379
@@ -73,7 +73,7 @@ cors:
   # 浏览器跨域白名单，**精确匹配**（协议 + 主机 + 端口都要一致；`localhost` 与 `127.0.0.1` 算两个来源）。
   # `*` = 放行任意 Origin，仅非生产生效：生产会告警并拒绝（见 src/middlewares/cors.rs）。
   # 本文件是 COPY 进镜像的：改了这里要重建镜像；不想重建就用环境变量覆盖（见 docker/stack.env.example）。
-  origins: ['*']
+  origins: ["*"]
 
 # 事件发布（outbox → 下游）。由 `worker` 二进制读取；`endpoint` 留空 = 只记日志。
 # 生产环境（app.env=production）必须配好 endpoint 与 token，否则 worker 只会把事件留在 outbox 里。
@@ -82,9 +82,9 @@ events:
   batch_size: 64
   backoff_base_ms: 1000
   backoff_max_ms: 60000
-  endpoint: ''
+  endpoint: ""
   timeout_ms: 5000
-  token: ''
+  token: ""
   # 默认直连内网终点：禁用系统/环境变量代理（同 clients/ 下的内部客户端）
   use_system_proxy: false
 
@@ -93,7 +93,7 @@ events:
 # 不进 `migration` 世代，也不参与租户/平台通道。schema 不可为 public/空。
 durable:
   # 留空 = 复用 database.url
-  database_url: ''
+  database_url: ""
   schema: durable
   # 启动时自动建表（生产可置 false 改为仅校验，缺表则启动失败）
   auto_migrate: true
@@ -152,8 +152,8 @@ agent:
 
 aliyun:
   # 出站凭据（短信 / 邮件 / OSS 共用）。本地留空：`auth.otp.mock` 打开时不会真的发出去。
-  access_key_id: ''
-  access_key_secret: ''
+  access_key_id: ""
+  access_key_secret: ""
   # v3（ACS3-HMAC-SHA256，默认）；只有老网关才需要 v1
   signature_version: v3
   timeout_ms: 10000
@@ -170,14 +170,14 @@ aliyun:
     address_type: 1
     reply_to_address: true
     subject: 验证码
-    body_template: '您的验证码是 {code}，请勿泄露给他人。'
+    body_template: "您的验证码是 {code}，请勿泄露给他人。"
   oss:
     # bucket 留空表示本部署不使用对象存储
     endpoint: https://oss-cn-hangzhou.aliyuncs.com
-    bucket: ''
-    root: ''
+    bucket: ""
+    root: ""
     addressing_style: virtual
-    presign_endpoint: ''
+    presign_endpoint: ""
     presign_expires_secs: 900
 
 gateway:
@@ -196,7 +196,7 @@ gateway:
   # 服务身份出站面（/api/v1/service/**）：ai-worker 等受信服务换短期令牌用的共享密钥。
   # 默认留空 = 整个服务面关闭（503）：这些端点在公开的 api 端口上，不能靠「别人不知道」来兜底。
   # 本机联调 / 部署时放 config.local.yaml 或 profile 覆盖，不入库。
-  service_token_secret: ''
+  service_token_secret: ""
   # 服务令牌有效期（秒）：1..3600，0 视为默认 300
   service_token_ttl_secs: 300
 
@@ -213,24 +213,24 @@ pay:
       label: 专业版
   wechat:
     enabled: false
-    mch_id: ''
-    app_id: ''
+    mch_id: ""
+    app_id: ""
     # APIv3 密钥（32 字符），同时用于回调解密与应答签名
-    api_v3_key: ''
+    api_v3_key: ""
     # 商户 API 证书序列号（请求签名头 serial_no）
-    serial_no: ''
+    serial_no: ""
     # 商户 API 私钥（PKCS#8 PEM，即 apiclient_key.pem 的内容）
-    private_key: ''
+    private_key: ""
     # 微信支付平台证书公钥（PEM：openssl x509 -pubkey -noout -in cert.pem）
-    platform_public_key: ''
+    platform_public_key: ""
     # 必须为公网可达的 https 地址，微信只回调这里
     notify_url: https://example.com/api/v1/pay/notify/wechat
     api_base: https://api.mch.weixin.qq.com
   alipay:
     enabled: false
-    app_id: ''
+    app_id: ""
     # 应用私钥（PKCS#8 PEM）与支付宝公钥（PEM 内容）
-    private_key: ''
-    alipay_public_key: ''
+    private_key: ""
+    alipay_public_key: ""
     gateway_url: https://openapi.alipay.com/gateway.do
     notify_url: https://example.com/api/v1/pay/notify/alipay
