@@ -898,6 +898,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * MCP 端点（JSON-RPC 2.0 over streamable HTTP）
+         * @description 供 MCP 客户端（如 goose）接入的服务端工具面。只实现 **POST**（纯 JSON 响应，
+         *     **不支持 SSE** 的服务端推送），客户端探测到不支持 SSE 后按规范退化为无通知模式，
+         *     这不影响 `tools/list` / `tools/call` 的同步往返。
+         *
+         *     **响应不走统一 REST 信封**：成功回 `{"jsonrpc":"2.0","id":…,"result":…}`，
+         *     协议错误回 `{"jsonrpc":"2.0","id":…,"error":{…}}`，HTTP 状态码恒为 200；
+         *     无 `id` 的通知（`notifications/*`）按规范回 202 空体。只有 HTTP 层鉴权失败
+         *     （未登录 / 非租户成员）才走统一错误信封（401 / 403）。
+         *
+         *     **方法**：`initialize`（握手）、`tools/list`（工具目录）、`tools/call`（执行一次调用）、
+         *     `ping`。
+         *
+         *     **工具目录**（前缀 `cogito_`，五个）：`cogito_knowledge_search` / `cogito_asset_read` /
+         *     `cogito_memory_recall` 三个**读**工具同步执行（转发 ai-worker 的直通通道）；
+         *     `cogito_memory_write` / `cogito_asset_visibility_write` 两个**写**工具进目录但
+         *     **调用即拒绝**——它们需要人工审批，而 MCP 的同步协议装不下审批这半程，
+         *     要写长期记忆或改可见性请走服务端 agent（`POST /api/v1/agent/tasks`）。
+         */
+        post: operations["mcp.handle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pay/notify/alipay": {
         parameters: {
             query?: never;
@@ -6028,6 +6064,52 @@ export interface operations {
                 };
             };
             /** @description 业务异常（权限不足）：HTTP 状态码按错误码归属返回，响应体为统一错误信封 */
+            default: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "mcp.handle": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description 目标租户 ID（UUID）。**必填**：工具的数据面按租户隔离，缺了这个头没有正确的作用域可进。
+                 *     调用者须为该租户有效成员（平台 ADMIN 可旁路）。
+                 */
+                "X-Tenant-ID": string;
+                /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                traceparent?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 一条 JSON-RPC 2.0 消息（`initialize` / `tools/list` / `tools/call` / `ping`） */
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description JSON-RPC 响应（`result` 或 `error`）。无 `id` 的通知（`notifications/*`）按规范回 202 空体 */
+            200: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description HTTP 层鉴权失败（未登录 / 缺少 X-Tenant-ID / 非租户成员）：响应体为统一错误信封 */
             default: {
                 headers: {
                     /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
