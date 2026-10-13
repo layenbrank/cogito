@@ -10,6 +10,10 @@ use uuid::Uuid;
 
 use crate::exception::Exception;
 
+/// 消息内容格式（assistant-ui 内置格式）：内容是不透明的 JSON 载荷，
+/// 与 `packages/chat` 的 `LOCAL_FORMAT` 必须是同一个字串。
+pub const LOCAL_FORMAT: &str = "ith/thread-message-like";
+
 pub struct Service;
 
 impl Service {
@@ -134,6 +138,8 @@ impl Service {
             id: Set(id.clone()),
             identity: Set(p.identity),
             fragment: Set(p.fragment),
+            parentID: Set(p.parentID),
+            format: Set(p.format.unwrap_or_else(|| LOCAL_FORMAT.to_owned())),
             thinking: Set(p.thinking),
             parts: Set(p.parts),
             sessionID: Set(p.sessionID),
@@ -160,6 +166,12 @@ impl Service {
         }
         if let Some(v) = payload.change.fragment {
             active.fragment = Set(v);
+        }
+        if let Some(v) = payload.change.parentID {
+            active.parentID = Set(v);
+        }
+        if let Some(v) = payload.change.format {
+            active.format = Set(v);
         }
         if let Some(v) = payload.change.thinking {
             active.thinking = Set(v);

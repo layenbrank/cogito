@@ -131,6 +131,8 @@ function toMessageWrite(value: Message) {
     id: value.id,
     identity: value.identity,
     fragment: value.fragment,
+    parentID: value.parentID,
+    format: value.format,
     thinking: value.thinking,
     parts: value.parts,
     sessionID: value.sessionID,

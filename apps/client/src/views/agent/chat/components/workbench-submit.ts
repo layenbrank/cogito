@@ -1,6 +1,7 @@
 import dayjs from 'dayjs'
 import { toast } from 'sonner'
 import { v4 as UUIDV4 } from 'uuid'
+import { LOCAL_FORMAT } from '@i-thinking/chat/adapters/thread-history'
 
 import type { SenderChip } from './sender-trigger'
 import type { PlanPaneSource } from './plan-pane'
@@ -187,6 +188,8 @@ async function submitAgentMessage(input: SubmitAgentMessageInput) {
       updatedAt: now,
       identity: 'user',
       fragment: displayFragment,
+      parentID: null,
+      format: LOCAL_FORMAT,
       thinking: null,
       parts: stringifyParts(fileParts)
     }
@@ -197,6 +200,8 @@ async function submitAgentMessage(input: SubmitAgentMessageInput) {
       updatedAt: now + 1,
       identity: 'assistant',
       fragment: '',
+      parentID: personal.id,
+      format: LOCAL_FORMAT,
       thinking: '',
       parts: null
     }

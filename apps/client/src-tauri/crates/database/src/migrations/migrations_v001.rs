@@ -802,6 +802,13 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(AgentMessage::Identity).string().not_null())
                     .col(ColumnDef::new(AgentMessage::Fragment).text().not_null())
+                    .col(ColumnDef::new(AgentMessage::ParentId).string().null())
+                    .col(
+                        ColumnDef::new(AgentMessage::Format)
+                            .string()
+                            .not_null()
+                            .default("ith/thread-message-like"),
+                    )
                     .col(ColumnDef::new(AgentMessage::Thinking).text().null())
                     .col(ColumnDef::new(AgentMessage::Parts).text().null())
                     .col(ColumnDef::new(AgentMessage::SessionID).string().not_null())
@@ -849,6 +856,10 @@ impl MigrationTrait for Migration {
         .await?;
         db.execute_unprepared(
             "CREATE INDEX IF NOT EXISTS idx_agent_message_createdAt ON agent_message (createdAt)",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_agent_message_parentID ON agent_message (parentID)",
         )
         .await?;
 
@@ -1252,6 +1263,9 @@ enum AgentMessage {
     Id,
     Identity,
     Fragment,
+    #[iden = "parentID"]
+    ParentId,
+    Format,
     Thinking,
     Parts,
     #[iden = "sessionID"]

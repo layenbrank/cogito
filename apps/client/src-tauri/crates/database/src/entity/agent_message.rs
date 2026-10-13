@@ -11,6 +11,9 @@ pub struct Model {
     pub id: String,
     pub identity: String,
     pub fragment: String,
+    #[sea_orm(column_name = "parentID")]
+    pub parentID: Option<String>,
+    pub format: String,
     pub thinking: Option<String>,
     pub parts: Option<String>,
     #[sea_orm(column_name = "sessionID")]
@@ -46,6 +49,8 @@ pub struct Write {
     pub id: Option<String>,
     pub identity: String,
     pub fragment: String,
+    pub parentID: Option<String>,
+    pub format: Option<String>,
     pub thinking: Option<String>,
     pub parts: Option<String>,
     pub sessionID: String,
@@ -65,6 +70,8 @@ pub enum WriteP {
 pub struct Change {
     pub identity: Option<String>,
     pub fragment: Option<String>,
+    pub parentID: Option<Option<String>>,
+    pub format: Option<String>,
     pub thinking: Option<Option<String>>,
     pub parts: Option<Option<String>>,
     pub sessionID: Option<String>,
