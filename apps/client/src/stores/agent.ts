@@ -874,7 +874,15 @@ const usageSlice: SliceCreator<UsageSlice> = function (setters, getters) {
         const usages = await invoke<Usage[]>(CHANNELS.AGENT_USAGE.TO_READ, { params })
         setters(
           function (state) {
-            state.usages = usages
+            // 按 session 拉取时合并进全局，勿整表覆盖（其它会话用量还在 settings 页要用）
+            if (filter?.sessionID) {
+              const kept = state.usages.filter(function (usage) {
+                return usage.sessionID !== filter.sessionID
+              })
+              state.usages = [...kept, ...usages]
+            } else {
+              state.usages = usages
+            }
             state.usagesLoaded = true
           },
           false,

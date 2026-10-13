@@ -111,8 +111,8 @@ function toApprovalOption(option: PermissionOption): ChatApprovalOption {
   const kind = APPROVAL_KIND_MAP[option.kind]
   return kind
     ? { id: option.optionId, kind, label: option.name }
-    : // 未知类别（协议将来新增）别丢选项：按「允许一次」兜底，用户至少还能选
-      { id: option.optionId, kind: 'allow-once', label: option.name }
+    : // 未知类别（协议将来新增）按「拒绝一次」兜底，避免把本应拒绝的选项放大成允许
+      { id: option.optionId, kind: 'reject-once', label: option.name }
 }
 
 /**
@@ -125,7 +125,13 @@ function parseAcpPermissionOutcome(
   approval: ChatToolApproval,
   options: readonly ChatApprovalOption[]
 ): RequestPermissionOutcome {
-  if (approval.optionId) return { outcome: 'selected', optionId: approval.optionId }
+  if (approval.optionId) {
+    const matched = options.some(function (option) {
+      return option.id === approval.optionId
+    })
+    if (!matched) return { outcome: 'cancelled' }
+    return { outcome: 'selected', optionId: approval.optionId }
+  }
   const order = approval.approved ? ALLOW_KIND_ORDER : REJECT_KIND_ORDER
   for (const kind of order) {
     const matched = options.find(function (option) {

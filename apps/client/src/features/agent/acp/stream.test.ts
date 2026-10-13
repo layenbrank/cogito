@@ -243,7 +243,7 @@ describe('parseAcpApprovalRequest', function () {
     })
   })
 
-  it('未知类别按「允许一次」兜底，不丢选项', function () {
+  it('未知类别按「拒绝一次」兜底，不丢选项也不放大权限', function () {
     const params = {
       sessionId: 's1',
       toolCall: { toolCallId: 't1' },
@@ -254,7 +254,7 @@ describe('parseAcpApprovalRequest', function () {
     expect(event).toMatchObject({
       kind: 'tool-approval-request',
       toolName: 'tool',
-      options: [{ id: 'o9', kind: 'allow-once', label: '将来才有的选项' }]
+      options: [{ id: 'o9', kind: 'reject-once', label: '将来才有的选项' }]
     })
   })
 })
@@ -270,6 +270,12 @@ describe('parseAcpPermissionOutcome', function () {
     expect(parseAcpPermissionOutcome({ toolCallId: 't1', approved: true, optionId: 'o3' }, options)).toEqual({
       outcome: 'selected',
       optionId: 'o3'
+    })
+  })
+
+  it('optionId 不在本次 options 内则取消', function () {
+    expect(parseAcpPermissionOutcome({ toolCallId: 't1', approved: true, optionId: 'forged' }, options)).toEqual({
+      outcome: 'cancelled'
     })
   })
 

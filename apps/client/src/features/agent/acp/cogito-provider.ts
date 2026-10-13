@@ -35,21 +35,17 @@ async function findGatewayModels(): Promise<string[]> {
 /**
  * 幂等注册 cogito provider。三个入参任何一个变了，Rust 侧都会重写 JSON 并重启 goose。
  *
- * 失败只留痕不抛错：注册不成功，goose 端顶多选不到 cogito 模型，发送本身不该被挡住。
+ * 缺租户 / 缺端点 / 模型目录空 → 抛错，由发送路径中止并提示「网关未就绪」。
  */
 async function ensureCogitoProvider(): Promise<void> {
-  try {
-    const tenantID = (await syncActiveTenant()) ?? findActiveTenantID()
-    if (!tenantID) return
-    const base = ENV_URLS.thinking?.trim()
-    if (!base) return
-    const baseUrl = `${base.replace(/\/+$/, '')}${GATEWAY_CHAT_PATH}`
-    const models = await findGatewayModels()
-    if (models.length === 0) return
-    await invoke<boolean>(CHANNELS.COGITO.PROVIDER_ENSURE, { tenantID, baseUrl, models })
-  } catch (error) {
-    console.warn('[acp/cogito-provider] 注册网关 provider 失败，发送继续:', error)
-  }
+  const tenantID = (await syncActiveTenant()) ?? findActiveTenantID()
+  if (!tenantID) throw new Error('未解析到租户，无法注册网关 provider')
+  const base = ENV_URLS.thinking?.trim()
+  if (!base) throw new Error('未配置思考服务地址，无法注册网关 provider')
+  const baseUrl = `${base.replace(/\/+$/, '')}${GATEWAY_CHAT_PATH}`
+  const models = await findGatewayModels()
+  if (models.length === 0) throw new Error('网关模型目录为空，无法注册 provider')
+  await invoke<boolean>(CHANNELS.COGITO.PROVIDER_ENSURE, { tenantID, baseUrl, models })
 }
 
 /** 租户切换：只更新 `X-Tenant-ID` 头（Rust 侧幂等，没变不重启）。 */

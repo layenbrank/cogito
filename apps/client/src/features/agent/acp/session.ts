@@ -32,7 +32,7 @@ import type {
 } from '@i-thinking/chat/ports'
 
 import { bindAcpRequestRouter, bindGooseNotReady, findAcpHandle } from '@/features/agent/acp/connection'
-import { writeGooseUsage } from '@/features/agent/acp/goose-usage'
+import { clearGooseUsage, writeGooseUsage } from '@/features/agent/acp/goose-usage'
 import { saveDefaults } from '@/features/agent/acp/goose-providers'
 import {
   parseAcpApprovalRequest,
@@ -112,6 +112,12 @@ interface ThreadRun {
 /** 会话登记表：按 thread 查（UI 侧），也按 ACP sessionId 查（agent 回调侧） */
 const sessionByThread = new Map<string, ThreadSession>()
 const sessionByAcpID = new Map<string, ThreadSession>()
+
+/** session（按 ACP session id）的上一次累计用量：本轮增量 = 本轮结束累计 − 基线 */
+const usageBaseline = new Map<
+  string,
+  { inputTokens: number; outputTokens: number; totalTokens: number }
+>()
 
 /**
  * 单消费者队列：把「ACP 推送的 update」「agent 发起的审批/追问」「终态」汇成一条流。
@@ -433,15 +439,19 @@ function disposeThreadSession(thread: ThreadSession) {
 function forgetThreadSession(thread: ThreadSession) {
   if (sessionByThread.get(thread.threadID) === thread) sessionByThread.delete(thread.threadID)
   if (sessionByAcpID.get(thread.acpSessionID) === thread) sessionByAcpID.delete(thread.acpSessionID)
+  usageBaseline.delete(thread.acpSessionID)
+  clearGooseUsage(thread.threadID)
 }
 
 /** goose 退出 / 重连：会话与上下文用量都得清（旧 session 已经不可用） */
 function clearThreadSessions() {
   for (const thread of sessionByThread.values()) {
     disposeThreadSession(thread)
+    usageBaseline.delete(thread.acpSessionID)
   }
   sessionByThread.clear()
   sessionByAcpID.clear()
+  clearGooseUsage()
 }
 
 bindGooseNotReady(clearThreadSessions)
@@ -591,11 +601,35 @@ async function* runThreadPrompt(
   }
   thread.run = run
 
+  // prompt 失败 / abort 后 goose 可能不再推 stop：用 release 打断泵，避免 finally 挂死
+  // box：TS 收窄看不到「回调里赋的值」
+  const releaseBox: { release: (() => void) | null } = { release: null }
+  const pumpReleased = new Promise<void>(function (resolve) {
+    releaseBox.release = resolve
+  })
+
+  if (input.signal) {
+    const onAbort = function () {
+      run.prompt.cancelled = true
+    }
+    if (input.signal.aborted) onAbort()
+    else input.signal.addEventListener('abort', onAbort, { once: true })
+  }
+
   // ACP 推送的 update 与 agent 发起的审批/追问是同一条队列的两个生产者：这里只负责把
-  // update 泵进去，直到 goose 明确说这轮结束
+  // update 泵进去，直到 goose 明确说这轮结束，或本轮被 release
   const pump = (async function () {
     while (true) {
-      const message = await thread.session.nextUpdate()
+      const raced = await Promise.race([
+        thread.session.nextUpdate().then(function (message) {
+          return { type: 'message' as const, message }
+        }),
+        pumpReleased.then(function () {
+          return { type: 'released' as const }
+        })
+      ])
+      if (raced.type === 'released') return
+      const message = raced.message
       if (message.kind === 'stop') {
         queue.push({ kind: 'stop', stopReason: message.stopReason })
         return
@@ -614,14 +648,16 @@ async function* runThreadPrompt(
     .prompt([{ type: 'text' as const, text: promptText }], input.signal ? { cancellationSignal: input.signal } : undefined)
     .catch(function (error: unknown) {
       failureBox.error = parseAuthRequired(error)
-      queue.push({ kind: 'stop', stopReason: 'error' })
+      const stopReason = run.prompt.cancelled || input.signal?.aborted ? 'cancelled' : 'error'
+      queue.push({ kind: 'stop', stopReason })
+      releaseBox.release?.()
     })
 
   try {
     while (true) {
       const item = await queue.take()
       if (item.kind === 'stop') {
-        if (failureBox.error) throw failureBox.error
+        if (failureBox.error && item.stopReason !== 'cancelled') throw failureBox.error
         yield item
         return
       }
@@ -629,6 +665,7 @@ async function* runThreadPrompt(
     }
   } finally {
     thread.run = null
+    releaseBox.release?.()
     // 这一轮没被回答的票据全部作废：留着的 promise 会让 goose 侧一直等，且用户看到的
     // 「待审批」永远不会消失（票随轮次生死）
     for (const ticket of run.approvals.values()) ticket.settle({ outcome: { outcome: 'cancelled' } })
@@ -642,12 +679,6 @@ async function* runThreadPrompt(
     })
   }
 }
-
-/** session（按 ACP session id）的上一次累计用量：本轮增量 = 本轮结束累计 − 基线 */
-const usageBaseline = new Map<
-  string,
-  { inputTokens: number; outputTokens: number; totalTokens: number }
->()
 
 /**
  * 把本轮 token 账写进 `agent_usage`。
@@ -709,8 +740,11 @@ async function requestThreadPermission(params: RequestPermissionRequest): Promis
 
   const event = parseAcpApprovalRequest(params)
   const options = event.kind === 'tool-approval-request' ? (event.options ?? []) : []
+  const toolCallId = params.toolCall.toolCallId
+  const previous = run.approvals.get(toolCallId)
+  if (previous) previous.settle({ outcome: { outcome: 'cancelled' } })
   const ticket = createTicket<RequestPermissionResponse>({ outcome: { outcome: 'cancelled' } })
-  run.approvals.set(params.toolCall.toolCallId, { ...ticket, options })
+  run.approvals.set(toolCallId, { ...ticket, options })
   run.queue.push({ kind: 'approval', event, params })
   return ticket.promise
 }
@@ -830,7 +864,20 @@ async function compactThreadSession(threadID: string): Promise<void> {
     }
   }
 
-  await promptDone
+  const response = await promptDone
+  // compact 也推高 session 累计用量：更新基线，避免下一轮用户 prompt 把 compact 消耗算进去
+  if (response && 'usage' in response && response.usage) {
+    const usage = response.usage as {
+      inputTokens?: number
+      outputTokens?: number
+      totalTokens?: number
+    }
+    usageBaseline.set(thread.acpSessionID, {
+      inputTokens: usage.inputTokens ?? 0,
+      outputTokens: usage.outputTokens ?? 0,
+      totalTokens: usage.totalTokens ?? 0
+    })
+  }
   if (failureBox.error) throw failureBox.error
 }
 
