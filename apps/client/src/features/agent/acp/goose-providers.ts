@@ -13,6 +13,8 @@ const GOOSE_DEFAULTS_READ = '_goose/unstable/defaults/read'
 const GOOSE_DEFAULTS_SAVE = '_goose/unstable/defaults/save'
 const GOOSE_CONFIG_READ = '_goose/unstable/config/read'
 const GOOSE_CONFIG_UPSERT = '_goose/unstable/config/upsert'
+const GOOSE_TOOLS_LIST = '_goose/unstable/tools/list'
+const GOOSE_TOOLS_PERMISSIONS_SET = '_goose/unstable/tools/permissions/set'
 
 const CONFIG_AUTO_COMPACT_THRESHOLD = 'GOOSE_AUTO_COMPACT_THRESHOLD'
 const AUTO_COMPACT_THRESHOLD = 0.8
@@ -350,7 +352,50 @@ async function ensureAutoCompactThreshold(connection: ClientConnection): Promise
   }
 }
 
-export type { GooseConfigField, GooseConfigKey, GooseDefaults, GooseProviderEntry }
+/** 工具权限档：goose `ToolPermissionLevel`（snake_case wire 值） */
+type ToolPermissionLevel = 'always_allow' | 'ask_before' | 'never_allow'
+
+/** `tools/list` 返回的单个工具（含当前权限） */
+interface SessionTool {
+  name: string
+  description: string
+  parameters: string[]
+  permission: ToolPermissionLevel | null
+  inputSchema: unknown
+  outputSchema?: unknown
+}
+
+interface ToolsListResponse {
+  tools?: SessionTool[]
+}
+
+/** 枚举某会话可用工具及当前权限（`tools/list` 需要 goose session 上下文） */
+async function fetchSessionTools(
+  connection: ClientConnection,
+  sessionId: string
+): Promise<SessionTool[]> {
+  const response = await connection.agent.request<ToolsListResponse>(GOOSE_TOOLS_LIST, {
+    sessionId
+  })
+  return response.tools ?? []
+}
+
+/** 设置一个或多个工具的用户权限（全局，落 permission.yaml） */
+async function setToolPermissions(
+  connection: ClientConnection,
+  toolPermissions: Array<{ toolName: string; permission: ToolPermissionLevel }>
+): Promise<void> {
+  await connection.agent.request(GOOSE_TOOLS_PERMISSIONS_SET, { toolPermissions })
+}
+
+export type {
+  GooseConfigField,
+  GooseConfigKey,
+  GooseDefaults,
+  GooseProviderEntry,
+  SessionTool,
+  ToolPermissionLevel
+}
 export {
   AUTO_COMPACT_THRESHOLD,
   CONFIG_AUTO_COMPACT_THRESHOLD,
@@ -367,8 +412,10 @@ export {
   findSettingsProviders,
   findSetupProviders,
   parseConfigFields,
+  fetchSessionTools,
   refreshProviderInventory,
   saveAutoCompactThreshold,
   saveDefaults,
-  saveProviderConfig
+  saveProviderConfig,
+  setToolPermissions
 }

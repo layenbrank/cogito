@@ -865,10 +865,16 @@ function hasThreadSession(threadID: string): boolean {
   return sessionByThread.has(threadID)
 }
 
+/** 读某 thread 已建立 goose session 的 ACP session id（未建立则 null）；设置面枚举工具用 */
+function findThreadAcpSessionID(threadID: string): string | null {
+  return sessionByThread.get(threadID.trim())?.acpSessionID ?? null
+}
+
 export {
   clearThreadSessions,
   compactThreadSession,
   ensureThreadSession,
+  findThreadAcpSessionID,
   hasThreadSession,
   requestThreadElicitation,
   requestThreadPermission,

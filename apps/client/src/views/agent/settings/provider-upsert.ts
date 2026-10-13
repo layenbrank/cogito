@@ -1,9 +1,5 @@
-import {
-  type GooseConfigKey,
-  type GooseProviderEntry
-} from '@/features/agent/acp/goose-providers'
+import { type GooseProviderEntry } from '@/features/agent/acp/goose-providers'
 import { stringifyModels } from '@/features/agent/model/providers'
-import { readApiKey, writeApiKey } from '@/features/agent/model/provider-credentials'
 import { useProviderStore, type AgentProvider } from '@/stores/provider'
 
 function findHostValue(values: Record<string, string>): string | null {
@@ -12,13 +8,6 @@ function findHostValue(values: Record<string, string>): string | null {
     if (/HOST|_URL|API_URL/i.test(key)) return value.trim()
   }
   return null
-}
-
-function findSecretKey(configKeys: GooseConfigKey[]): string | null {
-  const secret = configKeys.find(function (key) {
-    return key.secret
-  })
-  return secret?.name ?? null
 }
 
 async function upsertStoreProvider(
@@ -40,8 +29,6 @@ async function upsertStoreProvider(
   const now = Date.now()
 
   if (existing && existing.id !== entry.providerId) {
-    const oldKey = await readApiKey(existing.id)
-    if (oldKey) await writeApiKey(entry.providerId, oldKey)
     await store.toRemoveProvider([existing.id])
   } else if (existing) {
     await store.toUpdateProvider([
@@ -92,4 +79,4 @@ async function upsertStoreProvider(
   await store.toWriteProvider([row])
 }
 
-export { findHostValue, findSecretKey, upsertStoreProvider }
+export { findHostValue, upsertStoreProvider }

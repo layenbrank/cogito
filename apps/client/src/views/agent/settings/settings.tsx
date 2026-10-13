@@ -3,6 +3,7 @@
  */
 import { Button } from '@i-thinking/design/components/button'
 import { Spinner } from '@i-thinking/design/components/spinner'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@i-thinking/design/components/tabs'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -21,11 +22,11 @@ import {
 } from '@/features/agent/acp/goose-providers'
 import { AgentTitlebar } from '@/views/agent/components/titlebar'
 import { waitGooseReady } from '@/features/agent/acp/session'
-import { readApiKey, writeApiKey } from '@/features/agent/model/provider-credentials'
 import { useProviderStore } from '@/stores/provider'
 import styles from '@/views/agent/settings/settings.module.scss'
 import { ProviderCard, type ProbeStatus } from './provider-card'
-import { findSecretKey, upsertStoreProvider } from './provider-upsert'
+import { upsertStoreProvider } from './provider-upsert'
+import { ToolPermissionsSection } from './sections/tool-permissions'
 
 function AgentSettings() {
   const navigate = useNavigate()
@@ -96,11 +97,6 @@ function AgentSettings() {
       for (const field of fields) {
         if (field.value) initial[field.key] = field.value
       }
-      const secretName = findSecretKey(entry.configKeys)
-      if (secretName && !initial[secretName]) {
-        const stored = await readApiKey(entry.providerId)
-        if (stored) initial[secretName] = stored
-      }
     } catch (error) {
       console.warn('[agent-settings] 读取已有配置失败:', error)
     }
@@ -159,12 +155,6 @@ function AgentSettings() {
             throw new Error(readiness.error || 'ACP 供应商未就绪')
           }
         }
-      }
-
-      const secretName = findSecretKey(active.configKeys)
-      if (secretName) {
-        const secretValue = formValues[secretName]?.trim()
-        if (secretValue) await writeApiKey(active.providerId, secretValue)
       }
 
       await upsertStoreProvider(entry, formValues)
@@ -226,65 +216,120 @@ function AgentSettings() {
       />
       <div className={styles.content}>
         <header className={styles.header}>
-          <h1 className={styles.title}>模型接入</h1>
-          <p className={styles.desc}>
-            供应商来自 goose inventory。配置写入 goose 后，可在对话中切换已启用的模型。
-          </p>
+          <h1 className={styles.title}>设置</h1>
+          <p className={styles.desc}>管理供应商、工具权限、扩展与诊断。</p>
         </header>
-        <div className={styles.body}>
-          <section className={styles.section}>
-            <div className={styles.sectionHead}>
-              <span className={styles.sectionTitle}>供应商</span>
-              <span className={styles.sectionMeta}>
-                {loading ? '加载中…' : `${entries.length} 个`}
-              </span>
-            </div>
+        <Tabs defaultValue="provider" className="flex-1">
+          <TabsList variant="line" className="mb-3">
+            <TabsTrigger value="provider">供应商</TabsTrigger>
+            <TabsTrigger value="permissions">权限</TabsTrigger>
+            <TabsTrigger value="extensions">扩展</TabsTrigger>
+            <TabsTrigger value="usage">用量</TabsTrigger>
+            <TabsTrigger value="diagnostics">诊断</TabsTrigger>
+          </TabsList>
 
-            {loading ? (
-              <div className="flex justify-center py-6">
-                <Spinner className="size-5" />
-              </div>
-            ) : entries.length === 0 ? (
-              <p className={`${styles.empty} text-muted-foreground`}>
-                goose inventory 为空，请确认 goose serve 已启动
-              </p>
-            ) : (
-              <div className={styles.list}>
-                {entries.map(function (entry) {
-                  const storeRow = storeProviders.find(function (provider) {
-                    return provider.id === entry.providerId || provider.kind === entry.providerId
-                  })
-                  const isOpen = activeId === entry.providerId
-                  return (
-                    <ProviderCard
-                      key={entry.providerId}
-                      entry={entry}
-                      storeRow={storeRow}
-                      status={probeStatus[entry.providerId] ?? 'unknown'}
-                      isOpen={isOpen}
-                      formValues={formValues}
-                      saving={saving}
-                      onToggle={function () {
-                        if (isOpen) {
-                          updateActiveId(null)
-                          return
-                        }
-                        void openEditor(entry)
-                      }}
-                      onModelChange={function (providerId, model) {
-                        void handleModelChange(providerId, model)
-                      }}
-                      onFieldChange={patchField}
-                      onSave={function () {
-                        void handleSave()
-                      }}
-                    />
-                  )
-                })}
-              </div>
-            )}
-          </section>
-        </div>
+          <TabsContent value="provider">
+            <div className={styles.body}>
+              <section className={styles.section}>
+                <div className={styles.sectionHead}>
+                  <span className={styles.sectionTitle}>供应商</span>
+                  <span className={styles.sectionMeta}>
+                    {loading ? '加载中…' : `${entries.length} 个`}
+                  </span>
+                </div>
+
+                {loading ? (
+                  <div className="flex justify-center py-6">
+                    <Spinner className="size-5" />
+                  </div>
+                ) : entries.length === 0 ? (
+                  <p className={`${styles.empty} text-muted-foreground`}>
+                    goose inventory 为空，请确认 goose serve 已启动
+                  </p>
+                ) : (
+                  <div className={styles.list}>
+                    {entries.map(function (entry) {
+                      const storeRow = storeProviders.find(function (provider) {
+                        return provider.id === entry.providerId || provider.kind === entry.providerId
+                      })
+                      const isOpen = activeId === entry.providerId
+                      return (
+                        <ProviderCard
+                          key={entry.providerId}
+                          entry={entry}
+                          storeRow={storeRow}
+                          status={probeStatus[entry.providerId] ?? 'unknown'}
+                          isOpen={isOpen}
+                          formValues={formValues}
+                          saving={saving}
+                          onToggle={function () {
+                            if (isOpen) {
+                              updateActiveId(null)
+                              return
+                            }
+                            void openEditor(entry)
+                          }}
+                          onModelChange={function (providerId, model) {
+                            void handleModelChange(providerId, model)
+                          }}
+                          onFieldChange={patchField}
+                          onSave={function () {
+                            void handleSave()
+                          }}
+                        />
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="permissions">
+            <div className={styles.body}>
+              <section className={styles.section}>
+                <div className={styles.sectionHead}>
+                  <span className={styles.sectionTitle}>工具权限</span>
+                  <span className={styles.sectionMeta}>总是允许 / 每次询问 / 从不允许</span>
+                </div>
+                <ToolPermissionsSection />
+              </section>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="extensions">
+            <div className={styles.body}>
+              <section className={styles.section}>
+                <div className={styles.sectionHead}>
+                  <span className={styles.sectionTitle}>扩展</span>
+                </div>
+                <p className={`${styles.empty} text-muted-foreground`}>MCP 扩展管理将在后续版本提供。</p>
+              </section>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="usage">
+            <div className={styles.body}>
+              <section className={styles.section}>
+                <div className={styles.sectionHead}>
+                  <span className={styles.sectionTitle}>用量</span>
+                </div>
+                <p className={`${styles.empty} text-muted-foreground`}>用量统计将在后续版本提供。</p>
+              </section>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="diagnostics">
+            <div className={styles.body}>
+              <section className={styles.section}>
+                <div className={styles.sectionHead}>
+                  <span className={styles.sectionTitle}>诊断</span>
+                </div>
+                <p className={`${styles.empty} text-muted-foreground`}>诊断导出将在后续版本提供。</p>
+              </section>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   )
