@@ -514,9 +514,26 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
   - `diagnostics/get` 与 `tools/list` 一样需要活跃会话（goose session 上下文）。
   - 验证：client `tsc` 0、lint 0 error、单测 154（+3）。
 
+### ✅ PR7 · WS-4 cogito `chat` 同步域（完成）
+
+- 表 4 张：`chat_session` / `chat_message` / `chat_usage` + `chat_sync_batch`（幂等凭据 + 水位台账，比 D6 多一张）。
+- 路由：`POST /api/v1/chat/sync`（推一批）/ `GET /api/v1/chat/sync?since=&limit=`（拉增量），需 JWT + `X-Tenant-ID`。
+- 领域内核在 `crates/chat`（`plan_sessions` 纯函数 + 台账读写），HTTP 层在 `services/chat`（批量上限 + 校验 + 形状映射）；e2e `tests/chat_sync_scope.rs`。
+- 验证：`crates/chat` 7 单测、`cogito` lib 307、`route_reachability`/`oas_consistency`/`arch` 全绿、契约重新生成（`spec/openapi.json` → `packages/types/src/openapi.d.ts`）、e2e 6 用例全绿（真库 RLS + 真 JWT + 真 Redis）。
+
+### 🔴 PR7 新决策：与 D6 的四处差异
+
+1. **一批一个水位，不是行级水位**：增量窗口按批次台账切，拉取不会出现「批次跨 limit 切两半、游标落在中间漏半批」的裂缝。为此比 D6 多一张 `chat_sync_batch`（`owns` 已登记）。
+2. **冲突是部分成功，不是 409**：服务端在更晚批次动过 `title`/`pinned` 时，那一行不落、进响应 `conflicts[]`（附服务端那份），同批其余行照常落。整批 409 会把一批九十九条新消息一起丢掉。
+3. **消息表无 `Role` 列**：客户端本地 `agent_message` 没有 role（见 D4），加上去只会是永远为空的列；改为透传 `clientCreatedAt`/`clientUpdatedAt`（客户端时钟，展示与排序用）。
+4. **墓碑不可复活**：服务端已删（`archivedAt` 非空）时，拿旧基线推上来的改名不再写回，而是以 `archivedAt` 非空进 `conflicts`，让客户端删本地行。
+
+### 🔴 PR7 迁移坑（e2e 抓出）
+
+- `chat_sync_batch` 复合主键不能写成两列各 `.primary_key()`（SeaORM 生成两条 PRIMARY KEY 约束，Postgres 报 `42P16`）；必须 `.primary_key(Index::create().name("pk_...").col(A).col(B))`（同 `consumed_event`）。
+
 ### ⏳ 待完成
 
-- **PR7 · WS-4 cogito `chat` 同步域**（[D6](#d6-cogito-chat-同步域对应-ws-4)）
 - **PR8 · WS-5 cogito MCP**（[D7](#d7-cogito-mcp-面对应-ws-5)）
 - **PR9 · WS-6 委派**（[D8](#d8-长任务委派对应-ws-6)）
 - **PR10 · WS-8 清理 + 全量验证**
