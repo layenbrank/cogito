@@ -103,6 +103,9 @@ pub const RAG_INDEX_TASK_BY_ID: &str = "/api/v1/rag/index-tasks/{id}";
 /// 同一个资源两种方法：POST 推一批，GET 拉增量。
 pub const CHAT_SYNC: &str = "/api/v1/chat/sync";
 
+// --- MCP（JSON-RPC 端点，需 JWT + X-Tenant-ID） ---
+pub const MCP: &str = "/api/v1/mcp";
+
 // --- SSO ---
 pub const SSO_CONNECTIONS: &str = "/api/v1/sso/connections";
 pub const SSO_CONNECTIONS_BY_ID: &str = "/api/v1/sso/connections/{id}";
@@ -434,6 +437,10 @@ pub const ALL_ROUTES: &[RouteDef] = &[
     RouteDef {
         method: "GET",
         path: CHAT_SYNC,
+    },
+    RouteDef {
+        method: "POST",
+        path: MCP,
     },
     RouteDef {
         method: "GET",

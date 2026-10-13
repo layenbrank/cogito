@@ -146,6 +146,17 @@ export const CAPABILITIES: readonly Capability[] = [
     absorbs: [],
     // crate + services/chat + e2e（chat_sync_scope）：水位分配、冲突判定与增量窗口都在 crate 里。
     status: 'migrated'
+  },
+  {
+    name: 'mcp',
+    title: 'MCP 工具面',
+    owns: [],
+    dependsOn: [],
+    publicModules: [],
+    // 新增能力，没有遗留路径可吸收：HTTP 层是**新写**的，按 R6 留在 api 二进制（见 LEGACY_SERVICES）。
+    absorbs: [],
+    // crate（工具目录与名字映射）+ services/mcp（JSON-RPC 分发与 ai-worker 转发）+ e2e（mcp_scope）。
+    status: 'migrated'
   }
 ]
 
@@ -199,6 +210,10 @@ export const LEGACY_SERVICES: Record<string, { owner: string; note: string }> = 
   engine: { owner: 'cogito', note: '对话/智能体编排，留在 api 二进制' },
   gateway: { owner: 'gateway', note: '模型网关' },
   markdown: { owner: 'document', note: '文档解析' },
+  mcp: {
+    owner: 'mcp',
+    note: 'MCP 的 HTTP 层（新写，非遗留）：工具目录与名字映射在 crates/mcp'
+  },
   payment: { owner: 'billing', note: '支付渠道' },
   rag: {
     owner: 'rag',

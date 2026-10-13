@@ -34,6 +34,8 @@ pub const UPSERT_INDEX_PATH: &str = "/internal/v1/assets/{assetID}/index";
 pub const AGENT_STEP_PATH: &str = "/internal/v1/agents/steps";
 /// 执行一次**已获人工批准**的工具调用（审批通道的执行半边）
 pub const AGENT_TOOL_EXECUTION_PATH: &str = "/internal/v1/agents/tool-executions";
+/// 同步执行一次**不需要审批**的工具调用（MCP `tools/call` 的直通通道）
+pub const AGENT_TOOL_INVOCATION_PATH: &str = "/internal/v1/agents/tool-invocations";
 /// 记下一次任务的最终结论（长期记忆）
 pub const AGENT_REMEMBER_PATH: &str = "/internal/v1/agents/memories";
 
@@ -221,6 +223,19 @@ impl AiWorkerClient {
         meta: &CallMeta,
     ) -> Result<AgentToolExecutionResponse, AiWorkerError> {
         let url = format!("{}{}", self.base_url, AGENT_TOOL_EXECUTION_PATH);
+        self.post_json_url(&url, request, meta).await
+    }
+
+    /// 同步执行一次**不需要审批**的工具调用（MCP `tools/call` 的直通通道）。
+    ///
+    /// 与 `agent_tool_execution` 是对称的两条路：那条只收需要审批的写工具，这条只收
+    /// 不需要审批的只读工具。写工具从这里进去会被下游 400（`AiWorkerError::Rejected`）。
+    pub async fn agent_tool_invocation(
+        &self,
+        request: &AgentToolInvocationRequest,
+        meta: &CallMeta,
+    ) -> Result<AgentToolInvocationResponse, AiWorkerError> {
+        let url = format!("{}{}", self.base_url, AGENT_TOOL_INVOCATION_PATH);
         self.post_json_url(&url, request, meta).await
     }
 
@@ -613,6 +628,31 @@ pub struct AgentToolExecutionRequest {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentToolExecutionResponse {
+    pub schema_version: i32,
+    #[serde(rename = "toolResult")]
+    pub tool_result: AgentToolResult,
+}
+
+/// 直通通道请求：同步执行一次不需要审批的工具（MCP `tools/call` 的落地，见 `spec/internal.yaml`）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentToolInvocationRequest {
+    pub schema_version: i32,
+    #[serde(rename = "tenantID")]
+    pub tenant_id: String,
+    /// 检索/召回的向量边界（与 `/agents/steps` 同义）。
+    #[serde(rename = "embedModel")]
+    pub embed_model: String,
+    /// 本步的工具白名单（下游还会再核一遍名字在不在里面）。
+    #[serde(rename = "allowedTools", default)]
+    pub allowed_tools: Vec<String>,
+    pub tool_call: AgentToolCall,
+}
+
+/// 直通通道结果：就一条工具结果（成功与「工具自己失败」都是 200）。
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentToolInvocationResponse {
     pub schema_version: i32,
     #[serde(rename = "toolResult")]
     pub tool_result: AgentToolResult,

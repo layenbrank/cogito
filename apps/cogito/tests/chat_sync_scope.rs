@@ -267,11 +267,13 @@ macro_rules! build_app {
         // 类型显式写出来：`bootstrap_app!` 收的是 `Option<Arc<durable::Client>>`，
         // 直接传 `None` 推不出类型。本域不用编排，所以是空的那个。
         let durable: Option<Arc<durable::Client>> = None;
+        let ai_worker: Option<Arc<cogito::clients::ai_worker::AiWorkerClient>> = None;
         test::init_service(cogito::bootstrap_app!(
             Arc::clone(&$fixture.storage),
             Arc::clone(&$fixture.config),
             Arc::clone(&$fixture.redis),
             durable,
+            ai_worker,
             BootstrapOptions::development(false),
             AuthGovernor(None)
         ))

@@ -3,9 +3,9 @@ use std::sync::Arc;
 use actix_web::HttpServer;
 use durable::{Client, DurableSettings, Store};
 use cogito::{
-    bootstrap::BootstrapOptions, bootstrap_app, clients::redis::RedisPool,
-    configures::configure::Configure, databases::database::Storage,
-    middlewares::rate_limit::build_auth_governor, utils,
+    bootstrap::BootstrapOptions, bootstrap_app, clients::ai_worker::AiWorkerClient,
+    clients::redis::RedisPool, configures::configure::Configure,
+    databases::database::Storage, middlewares::rate_limit::build_auth_governor, utils,
 };
 
 #[actix_web::main]
@@ -36,6 +36,7 @@ async fn main() -> std::io::Result<()> {
         .expect("Failed to connect to Redis");
 
     let durable = connect_durable(&configure).await;
+    let ai_worker = connect_ai_worker(&configure);
 
     let host = configure.server.host.clone();
     let port = configure.server.port;
@@ -70,6 +71,7 @@ async fn main() -> std::io::Result<()> {
                 config.clone(),
                 redis.clone(),
                 durable.clone(),
+                ai_worker.clone(),
                 bootstrap.clone(),
                 auth_governor.clone()
             )
@@ -93,6 +95,7 @@ async fn main() -> std::io::Result<()> {
             config.clone(),
             redis.clone(),
             durable.clone(),
+            ai_worker.clone(),
             bootstrap.clone(),
             auth_governor.clone()
         )
@@ -137,6 +140,32 @@ async fn connect_durable(config: &Configure) -> Option<Arc<Client>> {
                 schema = %config.durable.schema,
                 "编排库连接失败：agent 任务接口不可用"
             );
+            None
+        }
+    }
+}
+
+/// 连 ai-worker（Python 计算车间）。
+///
+/// **连不上不阻塞启动**：ai-worker 只服务 MCP 的工具调用，让整个 api 起不来只会把一个
+/// 「工具暂不可用」放大成「全站不可用」。连不上时返回 `None`，MCP `tools/call` 回一条
+/// 「ai-worker 暂不可用」的失败结果（不是故障）。
+fn connect_ai_worker(config: &Configure) -> Option<Arc<AiWorkerClient>> {
+    let base_url = config.ai_worker.base_url.trim();
+    if base_url.is_empty() {
+        tracing::warn!("ai_worker.base_url 未配置：MCP 工具调用不可用");
+        return None;
+    }
+
+    match AiWorkerClient::from_parts(
+        base_url,
+        &config.ai_worker.token,
+        config.ai_worker.timeout_ms,
+        config.ai_worker.use_system_proxy,
+    ) {
+        Ok(client) => Some(Arc::new(client)),
+        Err(error) => {
+            tracing::error!(error = %error, "ai-worker 客户端构建失败：MCP 工具调用不可用");
             None
         }
     }

@@ -1,0 +1,9 @@
+[package]
+name              = "mcp"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde      = { workspace = true } # 工具目录条目的序列化
+serde_json = { workspace = true } # inputSchema 的 JSON Schema 字面量

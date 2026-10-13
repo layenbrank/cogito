@@ -7,6 +7,7 @@ pub mod chat;
 pub mod common;
 pub mod engine;
 pub mod gateway;
+pub mod mcp;
 pub mod paths;
 pub mod payment;
 pub mod rag;
@@ -184,6 +185,7 @@ use crate::services::user::schema::{Avatar as UserAvatar, UpdateP, UserR, WriteP
         rag::read_index_task_doc,
         chat::push_changes_doc,
         chat::pull_changes_doc,
+        mcp::handle_doc,
     ),
     components(
         schemas(

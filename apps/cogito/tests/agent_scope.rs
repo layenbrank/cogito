@@ -76,12 +76,14 @@ macro_rules! build_app {
         let config = Arc::clone(&$fixture.config);
         let redis = Arc::clone(&$fixture.redis);
         let durable: Option<Arc<durable::Client>> = $durable;
+        let ai_worker: Option<Arc<cogito::clients::ai_worker::AiWorkerClient>> = None;
 
         test::init_service(cogito::bootstrap_app!(
             storage,
             Arc::clone(&config),
             redis,
             durable,
+            ai_worker,
             BootstrapOptions::development(false),
             AuthGovernor(None)
         ))

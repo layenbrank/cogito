@@ -18,6 +18,7 @@ members = [
   "crates/agent",
   "crates/rag",
   "crates/chat",
+  "crates/mcp",
 ]
 
 [workspace.package]
@@ -80,6 +81,7 @@ aliyun   = { version = "0.1.0", path = "crates/aliyun" }
 agent    = { version = "0.1.0", path = "crates/agent" }
 rag      = { version = "0.1.0", path = "crates/rag" }
 chat     = { version = "0.1.0", path = "crates/chat" }
+mcp      = { version = "0.1.0", path = "crates/mcp" }
 
 [package]
 name              = "cogito"
@@ -186,6 +188,7 @@ aliyun   = { workspace = true }
 agent    = { workspace = true }
 rag      = { workspace = true }
 chat     = { workspace = true }
+mcp      = { workspace = true }
 
 # 配置
 config    = "0.15.19"

@@ -16,7 +16,7 @@ pub mod bootstrap {
 /// 构建基础 Actix App（须在 `HttpServer::new` 闭包内展开，以保证类型推断）
 #[macro_export]
 macro_rules! bootstrap_app {
-    ($store:expr, $config:expr, $redis:expr, $durable:expr, $bootstrap:expr, $auth_governor:expr) => {{
+    ($store:expr, $config:expr, $redis:expr, $durable:expr, $ai_worker:expr, $bootstrap:expr, $auth_governor:expr) => {{
         use actix_web::{App, web::Data};
         use $crate::middlewares::access_log::AccessLog;
         use $crate::middlewares::cors::cors;
@@ -29,6 +29,8 @@ macro_rules! bootstrap_app {
             .app_data(Data::new($redis))
             // `None` = 编排运行时没接通：进程照常起，用到它的接口才回 503
             .app_data(Data::new($durable))
+            // `None` = ai-worker 计算车间没接通：MCP 的工具调用才回「暂不可用」
+            .app_data(Data::new($ai_worker))
             // 归一中间件最内层：最先接住框架自产响应（如 405 空体），其余 wrap 都在信封之外
             .wrap(RejectNormalizer)
             .wrap(cors($config.as_ref()))
@@ -171,6 +173,19 @@ pub mod services {
     /// 没有 `dispatch.rs`：本域不跑编排，水位与冲突规则全在 `crates/chat`，
     /// 这里只有校验、形状映射与路由。
     pub mod chat {
+        pub mod controller;
+        pub mod error;
+        pub mod module;
+        pub mod schema;
+        pub mod service;
+    }
+
+    /// MCP（Model Context Protocol）：`/api/v1/mcp` 上的 JSON-RPC 端点。
+    ///
+    /// 工具目录写死在 `schema.rs`，读工具转发给 ai-worker 的直通通道，写工具进目录但
+    /// 调用即拒绝（审批通道在服务端 agent）。响应不走统一 REST 信封，所以多一个
+    /// `error.rs` 放 JSON-RPC 错误对象。
+    pub mod mcp {
         pub mod controller;
         pub mod error;
         pub mod module;

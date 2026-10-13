@@ -227,6 +227,24 @@ impl Script {
                     },
                 })
             }
+            // 直通通道（MCP tools/call 的落地）：形状与 tool-executions 一样，请求里没有
+            // taskID / approvalID，响应仍是 schemaVersion + toolResult。
+            "tool-invocations" => {
+                let payload = request.json();
+                let call = &payload["toolCall"];
+                let call_id = call["id"].as_str().unwrap_or("unknown-call");
+                let name = call["name"].as_str().unwrap_or("unknown-tool");
+
+                json!({
+                    "schemaVersion": INTERNAL_SCHEMA_VERSION,
+                    "toolResult": {
+                        "toolCallID": call_id,
+                        "name": name,
+                        "ok": true,
+                        "content": format!("{name} 直通执行完成（桩）"),
+                    },
+                })
+            }
             // 长期记忆写入：诚实回一个 uuid + `created`。真实实现按 (租户, 任务) 派生确定性
             // id，桩里固定一个常量就够——cogito 只把它当字符串带进台账。
             "memories" => json!({
@@ -531,6 +549,7 @@ fn route(path: &str) -> Option<&'static str> {
     for (suffix, name) in [
         ("/agents/steps", "steps"),
         ("/agents/tool-executions", "tool-executions"),
+        ("/agents/tool-invocations", "tool-invocations"),
         ("/agents/memories", "memories"),
         ("/chunks", "chunks"),
         ("/embeddings", "embeddings"),
