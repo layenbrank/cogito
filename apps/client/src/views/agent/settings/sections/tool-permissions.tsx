@@ -5,7 +5,13 @@
  * 而权限本身是全局的（`tools/permissions/set` 落 permission.yaml）——所以这里用「当前活跃
  * 会话」的 ACP session 来枚举工具；没有活跃会话时提示先打开一个会话。
  */
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@i-thinking/design/components/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@i-thinking/design/components/select'
 import { Spinner } from '@i-thinking/design/components/spinner'
 import { useEffect, useState } from 'react'
 
@@ -119,7 +125,9 @@ function ToolPermissionsSection() {
               <SelectContent>
                 {PERMISSION_OPTIONS.map(function (option) {
                   return (
-                    <SelectItem key={option.value} value={option.value}>
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}>
                       {option.label}
                     </SelectItem>
                   )
