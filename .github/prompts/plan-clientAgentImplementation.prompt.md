@@ -460,6 +460,23 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
   - ✅ 配额门：`apis/gateway.ts`（`GET /gateway/models`、`GET /gateway/quota/me`）+ `features/quota/gate.ts`（只认 `exhausted`，BYOK 放行，失败放行守门归服务端），`port/model.ts` 发跑前查一次。
   - ✅ JWT 落盘：`cogito:token:write/clear` 命令 + `utils/auth.ts` 登录/退出同步 `<appData>/cogito/jwt`（原子写）。
   - ⏳ token helper 二进制（`i-thinking-token`，externalBin）+ provider bootstrap（把 cogito 注册进 goose 自定义 provider，`auth.command` 指向 helper）。**开工前先核对 goose 1.54 自定义 provider 的配置 schema**（`D:\Documents\monorepo\goose`：engine/apiUrl/headers/requiresAuth/auth.command 的确切 config key 与字段名 —— 现有客户端只有 `providers/config/save` 与 `config/upsert` 两个口，没有 `providers/custom/create`）。
+
+### 🔴 PR5 新决策：goose 1.54 的 ACP 不支持自定义 provider 的命令鉴权
+
+核对 goose 源码（`crates/goose/src/acp/server/providers.rs` / `crates/goose-sdk-types/src/custom_requests.rs` / `crates/goose-providers/src/declarative.rs`）后确认：
+
+- ACP 端点 `_goose/unstable/providers/custom/create` **存在**（之前客户端只是没封装），但 `CustomProviderUpsertDto` **没有 `auth` 字段**，只有 `apiKey`；处理器 `on_create_custom_provider` 把 `auth` **硬编码为 `None`**，且 `requiresAuth=true` 时强制要求 `apiKey` 非空。
+- 命令鉴权（`auth.command`）只存在于**声明式配置文件的 `DeclarativeProviderConfig.auth`**（`AuthConfig { command, args, refresh_interval, timeout_seconds, cwd }`），由 goose-cli 的 `goose configure` 或直接写 `custom_providers/<id>.json` 产生，ACP 面不暴露。
+
+所以计划 D5 里「`providers/custom/create` + `auth.command`」这条**走不通**。可选路径：
+
+| # | 方案 | 代价 |
+| --- | --- | --- |
+| A | 客户端 Rust 直接写 goose 声明式配置文件（`<goose-config>/custom_providers/cogito.json`，含 `auth.command`），再触发重载 | 耦合 goose 内部文件格式与 config dir；需要确认「写完文件后如何让 goose 重读」（可能得重启 goose serve） |
+| B | 把 goose 从「下载 release」改成「vendor 源码构建」，并补上 ACP DTO 的 `auth` 透传 | 构建链路大改；但一劳永逸，且能一起带其他补丁 |
+| C | `requiresAuth: false` + 静态 `X-Tenant-ID` 头 + 网关侧对「来自桌面的未鉴权请求」放行 | 网关要改鉴权，不安全，不推荐 |
+
+倾向 **A**（先把桌面跑通），但要先回答「goose 重读配置文件」的机制（restart 或某个 refresh 端点）。
 - **PR6 · WS-7 设置面**（provider / 扩展 / 权限 / 用量 / 诊断）
 - **PR7 · WS-4 cogito `chat` 同步域**（[D6](#d6-cogito-chat-同步域对应-ws-4)）
 - **PR8 · WS-5 cogito MCP**（[D7](#d7-cogito-mcp-面对应-ws-5)）
