@@ -550,9 +550,16 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 - 验证：client `tsc` 0、lint（改动文件）0 error、单测 10 绿。
 - **未做（记录为后续）**：本地落库 `taskID` / 已提交审批集合（重启恢复）、对公 `Idempotency-Key` 中间件、工具卡/终端从 studio 1:1 移植——均属 D10 开放项或增强，不阻塞委派闭环。
 
-### ⏳ 待完成
+### ✅ PR10 · WS-8 清理 + 全量验证（完成）
 
-- **PR10 · WS-8 清理 + 全量验证**
+- 删死代码 6 个文件（均无任何引用）：`apis/agent.ts`（本地 intelligence 旧路径）、`model/ollama.ts`、`model/openai.ts`（`chatOpenAI`/`mergeToolCallDeltas`/`serializeMessages`）、`acp/index.ts`（barrel，消费方早已改直接路径 import）、旧 `components/markdown-text.tsx` 与 `components/file-card.tsx`（孤儿组件）。
+- `types.ts` 收敛为只剩 `Scenario`（去 `image`）：旧 composer 时代的消息部件（File/Compare/Plan/Diff/Tool）与 OpenAI/Ollama 直连协议类型一并删除。
+- `workbench-constants.ts` 去 `image` 场景：`SYSTEM_PROMPT_MAP` 的 `Exclude` 简化、`findSystemPrompt` 的 image 分支、`QUICK_PROMPTS` 的 image 条目。
+- 验证：client `tsc` 0、lint 0 error（120 既有 warning 不变）、单测 164 绿（24 文件）。
+
+### 🎉 全部完成
+
+PR1–PR10 全部落地。服务端（cogito chat 同步域 / MCP / agent 委派 + ai-worker 直通通道）与客户端（chat 层 / 设置面 / 委派 / 清理）两侧验证全绿。
 
 > 依赖（见 [D9](#d9-实施顺序pr-拆分)）：PR4←PR2/PR3；PR7←PR3；PR8←PR5；PR9←PR5/PR8；PR6 可与 PR7–PR9 并行。PR1b 不阻塞 PR2/PR3（可并行）。
 

@@ -6,7 +6,7 @@ const CONTEXT_MESSAGE_LIMIT = 20
 const TOOLS_HINT =
   '回答简洁、结构清晰；用户消息中的文件路径请用工具读取后再回答，不要臆造文件内容。'
 
-const SYSTEM_PROMPT_MAP: Record<Exclude<ScenarioKey, 'image'>, string> = {
+const SYSTEM_PROMPT_MAP: Record<ScenarioKey, string> = {
   general: `你是 i-thinking 桌面端的智能助手，回答简洁、结构清晰，涉及代码时使用围栏代码块输出。\n${TOOLS_HINT}`,
   compare: '你是购物与选型顾问，必须按要求以单个 JSON 代码块输出对比结果。',
   plan: '你是时间管理助手，必须按要求以单个 JSON 代码块输出日程计划。',
@@ -14,7 +14,6 @@ const SYSTEM_PROMPT_MAP: Record<Exclude<ScenarioKey, 'image'>, string> = {
 }
 
 function findSystemPrompt(scenario: ScenarioKey) {
-  if (scenario === 'image') return SYSTEM_PROMPT_MAP.general
   return SYSTEM_PROMPT_MAP[scenario]
 }
 
@@ -54,13 +53,6 @@ const QUICK_PROMPTS: QuickPrompt[] = [
     label: '帮我梳理这段代码的结构并指出可改进点',
     description: '代码阅读与重构建议',
     icon: 'ant-design:code-outlined'
-  },
-  {
-    key: 'image',
-    scenario: 'image',
-    label: '描述我附加的图片，并给出可用建议',
-    description: '图像理解与场景分析',
-    icon: 'ant-design:picture-outlined'
   }
 ]
 
