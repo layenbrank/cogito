@@ -3,7 +3,7 @@
  *
  * 服务端 agent 任务的生命周期与本地 goose 会话是两条路：这里只关心「任务提交之后」
  * 的那条——从 `AgentTask`（`GET /agent/tasks/{id}` 的台账行）派生 UI 阶段、判断要不要弹
- * 审批卡、把模型给的参数 JSON 字符串解回对象。副作用（轮询、发请求）在 `use-delegation`。
+ * 审批卡、把模型给的参数 JSON 字符串解回对象。副作用（轮询、发请求）在 `./use-delegation`。
  */
 import type { AgentTask } from '@/apis/agent-task.ts'
 

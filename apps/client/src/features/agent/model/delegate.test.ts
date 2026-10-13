@@ -6,7 +6,7 @@ import {
   isApprovalPrompting,
   isSettled,
   parseToolArguments
-} from '@/features/agent/delegate/model.ts'
+} from '@/features/agent/model/delegate.ts'
 
 function task(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
