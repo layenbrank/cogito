@@ -1,6 +1,6 @@
 # Agent 提示备忘
 
-高频、易忘的约束。完整编码规范见 `.cursor/skills/coding-conventions/`。
+高频、易忘的约束。
 
 ## 协作
 
@@ -13,19 +13,10 @@
 - 一个域多个文件 → 开目录（目录名即域）；单文件域平铺。
 - 默认不建 barrel；仅对外需统一入口时才放 `index.ts`。
 
-### 导入路径（studio）
+### 导入路径
 
-- 同目录 `./x`；跨目录一律 `@/...`，不写 `../../`。
-- 别名：`@/` → `src/`；`@schema` / `@manifest` / `@generated` → 构建期产物。
-- 进程边界（eslint 机器把关，非口头约定）：
-
-| 进程        | 允许                                               | 禁止                                        |
-| ----------- | -------------------------------------------------- | ------------------------------------------- |
-| renderer    | `@/` 全量（不含 `@/host/**`）                      | `@/host/**`、`@schema`、`@manifest`、`electron` |
-| host / main | `@/shared/**`、`@/host/**`、`@schema`、`@manifest` | `@/` 渲染目录、跨目录 `../`                 |
-| preload     | `@/shared/**`、同目录 `./preload*`                 | 其余 `@/`、`../`、其它 `./`                 |
-
-- `src/shared/` 内部保持层内相对（三进程共用的自包含层）。
+- 同目录 `./x`；跨目录一律用别名（如 `@/...`），不写 `../../`。
+- 层 / 进程之间的边界（谁能引用谁）靠 lint 兜底，不靠口头约定。
 
 ## 改动审查
 
@@ -43,15 +34,14 @@
 - 兜底降级（降级到默认值 / 空列表 / 空结果）也要先留痕、再降级。
 - 能**不 catch 就别 catch**：优先换成不抛异常的 API（`execSync` → `spawnSync`），或改成状态判断，而不是包一层 try 再吞掉。
 - 多个失败一起产生时用 `AggregateError` 汇总抛出，别只留第一条。
-- 日志前缀 `[模块] 说明:`，对齐现有 `[goose-acp]` / `[workbench]` / `[agent-settings]`。
-- 机器把关：规则在共享插件 `@i-thinking/eslint-plugin`（id `ith/catch-must-report`）。经 `emit('error', …)` 这类事件总线上报也算输出一次。
-  - `apps/studio` / `apps/client`：均**全域 `error`**（client 的存量 29 处已于 2026-10-13 清完，不再分档）。
+- 日志前缀 `[模块] 说明:`。
+- 机器把关：用 lint 规则把「静默 catch」判成 error。经事件总线上报也算输出一次。
   - 良性清理 / 探针类失败用 `console.debug`（记下来但不喧哗），真异常用 `console.warn`；测试里刻意取异常断言可加一行带理由的 `eslint-disable-next-line`。
 
 ### 异步：非必要不用 `Promise.all`
 
 - 并行任务之间**互相独立**（一个失败不该拖垮其余的）→ 用 `Promise.allSettled`，逐条处理 `fulfilled` / `rejected` 并各自报错。
-- 只有**真 fail-fast** 才用 `Promise.all`：失败的输入会让后续完全做不下去（例如两个都是必需的：`Promise.all([findAcpHandle(), findWorkspaceCwd()])`）。
+- 只有**真 fail-fast** 才用 `Promise.all`：任一项失败后续就完全做不下去（例如两项都是必需的）。
 - 「每项内部已自带 try/catch」的 `Promise.all` 属冗余：改 `allSettled`，把 per-item 的 try/catch 收到一处。
 
 ### 简化写法
@@ -59,13 +49,13 @@
 - 可选链 / 空值合并优先：「取出来 + 判空 + 调用」应合并：
   `this.listeners.get(type)?.forEach(...)` 优于 `const bucket = …; if (!bucket) return; for (…)`。
 - 冗长判空 `x !== null && x !== undefined` → 直接写假值判断 `x`（取反 `!x`）。也别写 `!= null`（`eqeqeq` 会拦）。
-- 布尔上下文（`if` / 三元 test / `!` / `&&`）里**不要**写 `Boolean(x)`：`no-extra-boolean-cast`（在 `eslint:recommended` 内）会判 `Redundant Boolean call`，`pnpm lint` 直接红 —— 直接写 `x` 即可。
+- 布尔上下文（`if` / 三元 test / `!` / `&&`）里**不要**写 `Boolean(x)`：`no-extra-boolean-cast`（在 `eslint:recommended` 内）会判 `Redundant Boolean call`，lint 直接红 —— 直接写 `x` 即可。
 - 只有**非**布尔上下文（JSX 属性、普通返回值）需要真布尔时才 `Boolean(x)` / `!!x`。
 - 分清「有没有值」和「值真不真」：`0` / `''` / `false` 是合法值的位置（定时器 id、`rafId.current`、数值 0、空字符串内容）**不许**换成假值判断，否则真出 bug。
 
 ## 架构
 
-- IPC 是契约单一事实源：改一个频道要同时动 `shared/ipc/{channels,specs,api}`、`host/ipc/handlers`、`preload.ts`（缺一处编译不过，勿绕过）。详见 [IPC 契约规范](../apps/studio/ipc-contract.md)。
+- 跨进程 / 跨层的契约是单一事实源：改一处要同批改**全部消费点**，缺一处编译不过，勿绕过。
 
 ## 命名
 
@@ -82,34 +72,11 @@
 
 ## UI 组件库
 
-| 应用             | UI 栈                                           |
-| ---------------- | ----------------------------------------------- |
-| `apps/studio`    | shadcn/ui + Tailwind v4（`@i-thinking/design`） |
-| `apps/extension` | 同上                                            |
-| `apps/client`    | 同上（Tauri，窗口装饰自绘）                     |
-| `apps/devtools`  | 纯 Vue 3，无组件库                              |
-
-### shadcn（studio / extension / client）
-
-- 组件一律 `@i-thinking/design/{components,assistant}/*`；不手写 `<button>` / `<dialog>`，不在 app 造一次性组件。
-- 按压反馈用色阶，不用位移 / 缩放：`hover:bg-primary-hover` / `active:bg-primary-active`；禁 `active:translate-y-px` / `active:scale-*`。
-- 设计 token 唯一源 `packages/design/src/styles/globals.css`；app 不得另定义同名变量。
+- 组件一律用项目统一的组件库；不手写 `<button>` / `<dialog>`，不在业务侧造一次性组件。
+- 按压反馈用色阶，不用位移 / 缩放（`hover:bg-primary-hover` / `active:bg-primary-active`；禁 `active:translate-y-px` / `active:scale-*`）。
+- 设计 token 唯一源（全局样式文件）；业务侧不得另定义同名变量。
 - 用语义 token 工具类（`bg-primary`、`text-muted-foreground`）；不写硬编码色值 / 任意值。
-- 新组件走 registry：`pnpm --filter @i-thinking/design registry:add <items>`。
-
-### Tauri 窗口（仅 `apps/client`）
-
-- 一律 `decorations: false`，自绘：`Caption` = 拖拽区 + 窗口键；`Decorations` = 窗口容器（标题栏 + flex 列）。不用裸 `Caption` + 自建布局。
-- 拖拽：槽位容器 `data-region="true"`；槽位内交互元素必须 `data-region="false"`，否则被吃掉点击。`data-tauri-drag-region` 需子树任意位置触发时写 `"deep"`。
-- 每窗口都要自绘标题栏，`/overlay` 例外；`Decorations` 根节点透明，材质由窗口承担。
-- 磁贴不用 Dialog：双击开独立窗口（`activateTile` → `views/<component>`），label `component:id`。
-- 磁贴两层：`views/<tile>/` = 窗口页；`features/magnetic-tiles/<tile>/` = 磁贴表面；别把窗口逻辑塞回 features。
-- 窗口 UI 归 `views/`：agent 部件 `views/agent/chat/components/**`；`features/agent/` 只留 `acp/`、`model/`、`port/`、领域类型。
-- 分屏用布局路由 + 子页，不用 Dialog / 页内开关：出口 `views/agent/agent.tsx`，子页 `views/agent/{chat,settings}/`，URL 只有 `/agent/chat` 与 `/agent/settings`。
-
-### 已废弃
-
-- `--ith-*`（antd cssVar）已迁到设计 token；不再写 `var(--ith-…)` / `var(--ant-*)`。
+- 新组件走项目的组件注册表（registry）流程引入。
 
 ## Git 提交
 
@@ -119,25 +86,4 @@
 4. 未经要求：不 `push`、不改 config、不跳 hooks。
 5. 按文件逐个 `git add`，不 `git add .`；commit 前 `git diff --cached --name-only` 复核。
 
-## 版本发布
-
-- client 升级用 `bump:client`；仓库升级按既有发版流程，均触发 tag release。
-
-## 本地工具（corex）
-
-需要桌面 UI 证据（对照 Qoder / 验收 Studio 窗口）时用 corex，不要臆测界面。
-
-### 推荐流程
-
-1. 查能力：`corex actions --bucket ui`（另有 `data` / `system`）。
-2. 找窗口：`corex ui window list`，按标题过滤（`Qoder` / `i thinking`）。
-3. 写 YAML 到 `.cache/corex/directives/` → `corex validate <path>` → `corex run <path>`。
-4. 读产物：截图 `.cache/corex/captures/{qoder,studio}/`，OCR / 探测 `.cache/corex/probes/`（已 gitignore）。别把指令 / 截图留 `apps/studio/scripts/`，别提交 `.cache/`。
-
-典型链：`ui.window.focus`（`title_contains` + `prefer_largest`）→ `ui.wait` → `capture.screenshot`（需要时 +`ui.click` / `capture.crop` / `capture.ocr`）。
-
-### 踩坑
-
-- Electron / Chromium 的 UIA 几乎只有标题栏，React 内容树进不了 `ui element tree` —— 以截图验收，别死磕控件树。
-- PowerShell 不用 heredoc；YAML 写文件，路径正斜杠（`d:/.../out.png`）。
-- 先 `corex actions capture.screenshot` / focus / click / crop / ocr 确认参数，再写 YAML。
+> 本项目特有的约定（Tauri 窗口、已废弃变量、发版、corex 工具）见 [agent-conventions.project.md](./agent-conventions.project.md)。
