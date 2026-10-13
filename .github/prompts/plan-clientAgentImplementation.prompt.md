@@ -424,6 +424,26 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 
 **③ 待做（下一刀）**：`features/agent/port/{model,instance}.ts` → `views/agent/chat/runtime.tsx`（`useLocalRuntime` + `createThreadHistoryAdapter`）→ 三栏 UI + 槽位移植 → **同批删除**旧路径（`chatGooseAcp`、`agent-loop.ts`、`acp/permission.ts`、`acp/normalize.ts`、旧工作台 `workbench*`/`bubbles`/`plan-list`/`code-diff`/`compare-table`）。
 
+**③ 端口 + runtime（已提交）**
+- `features/agent/port/model.ts`：`findTarget` 现读启用的 provider（`providerID` 用**本地行 id**，goose 的 `providerId` 在发跑时由 `kind` 换算）；`run` 吃控制器条目流（`update` → `stream.ts`，审批/追问直接把事件交给 UI），**每轮只发一个终态**，异常也走事件流并在控制台留堆栈。
+- 回执改按**票据 id** 定位（`respondToApproval` / `respondToElicitation`）：端口与工具卡是两个组件树分支，按「当前线程」找会在后台会话上找错人。
+- `features/agent/port/instance.ts`：端口单例 + `findHostOptions(target, threadID)`。
+- `views/agent/chat/runtime.tsx`：`useRemoteThreadListRuntime` + `useLocalRuntime` + `createChatModelAdapter`（比 studio 少一步「归属发回列表项」——客户端的 `createThread` 落库时就写定 `workspaceID`）。
+- 用量暂报空对象（不编造数字）：ACP `usage_update` 是上下文占用，不是 token 账；账本随 `agent_usage` 落地。
+
+**④ 待做（最后一块）**：把 `AgentRuntimeProvider` 接到 `chat.tsx`，中栏换成 `@i-thinking/design/assistant/thread.aui` 的 `Thread`，并按槽位移植客户端已有能力：
+
+| 现有能力 | 槽位 |
+| --- | --- |
+| 附件菜单（文件 / 文件夹 / 图片） | `ComposerStart` 或 `ComposerAttach`（二选一，否则两个 `+`） |
+| 模型选择 / 审批策略 | `ComposerEnd` |
+| 工作区 / 场景 / git 状态 | `ComposerFooter` |
+| `@` 文件 mention / `/` 命令 | `ComposerTriggers` |
+| 工具卡（按工具名分派）、计划、diff | `ToolFallback` / `ToolGroup` / `ProcessGroup` |
+| 欢迎页 | `Welcome` |
+
+同批删除：`model/goose-acp.ts`（`chatGooseAcp`）、`model/agent-loop.ts`、`acp/permission.ts`、`acp/normalize.ts`、旧工作台 `views/agent/chat/components/{workbench*,bubbles,plan-list,code-diff,compare-table}*`。
+
 ### ⏳ 待完成
 
 - **PR5 · WS-3 网关 provider + 只读 helper + 配额**（[D5](#d5-网关-provider-与只读-helper对应-ws-3)）
