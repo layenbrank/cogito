@@ -11,6 +11,7 @@ use entity::{chat_message, chat_session, chat_sync_batch, chat_usage};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend, EntityTrait, IntoActiveModel,
     QueryFilter, QueryOrder, QuerySelect, Set, Statement,
+    prelude::Json,
 };
 use uuid::Uuid;
 
@@ -18,6 +19,30 @@ use crate::{
     ApplyOutcome, ChangeBatch, Changes, Error, MessageChange, MessageRow, PushBatch, SessionAction,
     SessionRow, SessionSnapshot, UsageChange, UsageRow, plan_sessions,
 };
+
+fn encode_conflicts(conflicts: &[SessionSnapshot]) -> Option<Json> {
+    if conflicts.is_empty() {
+        return None;
+    }
+    Some(Json::from(
+        serde_json::to_value(conflicts).unwrap_or_else(|_| serde_json::Value::Array(vec![])),
+    ))
+}
+
+fn decode_conflicts(value: &Option<Json>) -> Vec<SessionSnapshot> {
+    value
+        .as_ref()
+        .and_then(|json| serde_json::from_value(json.clone()).ok())
+        .unwrap_or_default()
+}
+
+fn replay_batch(recorded: &chat_sync_batch::Model) -> ApplyOutcome {
+    ApplyOutcome {
+        revision: recorded.revision,
+        applied: recorded.applied,
+        conflicts: decode_conflicts(&recorded.conflicts),
+    }
+}
 
 /// 会话级咨询锁的命名空间（"chat"）——两把 int4 里先按它分域，避免与别的租户锁相撞。
 const LOCK_NAMESPACE: i32 = 0x6368_6174;
@@ -76,11 +101,11 @@ pub async fn lock_tenant<C: ConnectionTrait>(conn: &C, tenant_id: Uuid) -> Resul
 
 /// 落一批改动；返回本批占用的水位、写入行数与被挡下的冲突。
 ///
-/// 顺序是刻意的：**先查幂等 → 再取锁 → 再分配水位**。反过来的话，重发同一批会先白等一把锁，
-/// 而水位也可能因为一次注定被回放的操作被推高。
+/// 顺序：**先查幂等（快路径）→ 取锁 → 锁内再查一次幂等 → 再分配水位**。
+/// 锁前查避免重发白等锁；锁内复查避免两并发同批都看到「未处理」后撞主键。
 ///
 /// 冲突**不阻断**批次：能落的行照落，冲突行留在 `conflicts` 里等客户端合并——一批里九十九条
-/// 新消息不该因为一次改名撞车被整批丢掉。
+/// 新消息不该因为一次改名撞车被整批丢掉。冲突快照写入台账，重发时原样回放。
 ///
 /// # Errors
 /// - [`Error::SessionMissing`]：消息指向了本租户不存在的会话（批次里消息必须排在会话之后）；
@@ -92,15 +117,14 @@ pub async fn apply<C: ConnectionTrait>(
     batch: &PushBatch,
 ) -> Result<ApplyOutcome, Error> {
     if let Some(recorded) = find_batch(conn, &batch.client_batch_id).await? {
-        // 重发：原样回放台账里记下的那一次，一行都不碰
-        return Ok(ApplyOutcome {
-            revision: recorded.revision,
-            applied: recorded.applied,
-            conflicts: Vec::new(),
-        });
+        return Ok(replay_batch(&recorded));
     }
 
     lock_tenant(conn, tenant_id).await?;
+    if let Some(recorded) = find_batch(conn, &batch.client_batch_id).await? {
+        return Ok(replay_batch(&recorded));
+    }
+
     let revision = current_revision(conn).await? + 1;
     let now = Utc::now().fixed_offset();
     let mut applied = 0i32;
@@ -151,6 +175,7 @@ pub async fn apply<C: ConnectionTrait>(
         client_batch_id: Set(batch.client_batch_id.clone()),
         revision: Set(revision),
         applied: Set(applied),
+        conflicts: Set(encode_conflicts(&plan.conflicts)),
         created_at: Set(now),
     }
     .insert(conn)
@@ -447,7 +472,7 @@ async fn archive_message<C: ConnectionTrait>(
     Ok(true)
 }
 
-/// 消息引用的会话必须存在：一次查清缺哪些，报第一条缺的（错误文案要具体到哪一条行不通）。
+/// 消息引用的会话必须存在且未软删：一次查清缺哪些，报第一条缺的。
 async fn ensure_sessions<C: ConnectionTrait>(
     conn: &C,
     session_ids: impl Iterator<Item = Uuid>,
@@ -456,11 +481,13 @@ async fn ensure_sessions<C: ConnectionTrait>(
     if needed.is_empty() {
         return Ok(());
     }
-    let found: HashSet<Uuid> = chat_session::Entity::find()
+    let rows = chat_session::Entity::find()
         .filter(chat_session::Column::Id.is_in(needed.iter().copied()))
         .all(conn)
-        .await?
-        .into_iter()
+        .await?;
+    let found: HashSet<Uuid> = rows
+        .iter()
+        .filter(|model| model.archived_at.is_none())
         .map(|model| model.id)
         .collect();
 

@@ -5,8 +5,10 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
-chrono    = { workspace = true } # 台账时间戳（服务端时钟的那两列）
-entity    = { workspace = true } # chat_session / chat_message / chat_usage / chat_sync_batch
-sea-orm   = { workspace = true } # 水位分配与窗口切片（含按租户的事务级咨询锁）
-thiserror = { workspace = true }
-uuid      = { workspace = true }
+chrono     = { workspace = true } # 台账时间戳（服务端时钟的那两列）
+entity     = { workspace = true } # chat_session / chat_message / chat_usage / chat_sync_batch
+sea-orm    = { workspace = true } # 水位分配与窗口切片（含按租户的事务级咨询锁）
+serde      = { workspace = true } # 冲突快照落台账 / 回放
+serde_json = { workspace = true }
+thiserror  = { workspace = true }
+uuid       = { workspace = true }

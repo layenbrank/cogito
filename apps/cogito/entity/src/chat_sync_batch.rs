@@ -23,6 +23,9 @@ pub struct Model {
     pub revision: i64,
     /// 本批写入的行数（含墓碑）；回放时原样返回，客户端据此判断「这批到底做了什么」
     pub applied: i32,
+    /// 本批冲突快照（SessionSnapshot[]）；重发时原样回放，避免「假装全成功」
+    #[sea_orm(column_type = "JsonBinary", nullable)]
+    pub conflicts: Option<Json>,
     #[sea_orm(column_name = "createdAt")]
     pub created_at: DateTimeWithTimeZone,
 }

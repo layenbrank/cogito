@@ -1232,6 +1232,8 @@ impl MigrationTrait for Migration {
                     .col(big_integer(ChatSyncBatch::Revision))
                     // 本批写入的行数（含墓碑）
                     .col(integer(ChatSyncBatch::Applied).default(0))
+                    // 本批冲突快照；重发回放用，避免丢失 conflicts
+                    .col(json_binary_null(ChatSyncBatch::Conflicts))
                     .col(timestamp_with_time_zone(ChatSyncBatch::CreatedAt))
                     .primary_key(
                         Index::create()
@@ -2191,6 +2193,7 @@ enum ChatSyncBatch {
     ClientBatchId,
     Revision,
     Applied,
+    Conflicts,
     #[sea_orm(iden = "createdAt")]
     CreatedAt,
 }

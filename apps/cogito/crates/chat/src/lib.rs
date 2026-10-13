@@ -19,6 +19,7 @@
 
 pub mod persistence;
 
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// 一行会话的客户端快照。
@@ -100,7 +101,8 @@ impl PushBatch {
 }
 
 /// 服务端某一行的会话快照（冲突判定与「有没有变」比较都用它）。
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionSnapshot {
     pub id: Uuid,
     pub title: String,
