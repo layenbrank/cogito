@@ -134,3 +134,15 @@ pub async fn goose_shutdown(app: tauri::AppHandle) -> Result<(), String> {
 pub async fn goose_restart(app: tauri::AppHandle) -> Result<(), String> {
     goose_serve::restart(&app).await
 }
+
+/// 登录/刷新令牌时，把 JWT 原子写到 `<appData>/cogito/jwt`，供 goose 的 token helper 读取。
+#[tauri::command(rename = "cogito:token:write")]
+pub fn cogito_token_write(app: tauri::AppHandle, token: String) -> Result<(), String> {
+    crate::utils::cogito_token::write_jwt(&app, &token)
+}
+
+/// 退出登录时清掉 JWT 文件。
+#[tauri::command(rename = "cogito:token:clear")]
+pub fn cogito_token_clear(app: tauri::AppHandle) -> Result<(), String> {
+    crate::utils::cogito_token::clear_jwt(&app)
+}

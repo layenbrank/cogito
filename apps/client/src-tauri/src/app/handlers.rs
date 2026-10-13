@@ -37,6 +37,8 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         system::command::goose_connection,
         system::command::goose_shutdown,
         system::command::goose_restart,
+        system::command::cogito_token_write,
+        system::command::cogito_token_clear,
         crate::utils::goose_acp::goose_acp_open,
         crate::utils::goose_acp::goose_acp_send,
         crate::utils::goose_acp::goose_acp_close,

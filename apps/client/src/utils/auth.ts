@@ -1,3 +1,4 @@
+import { syncCogitoJwt } from '@/utils/cogito-token.ts'
 import { HttpError } from '@/utils/http/errors.ts'
 
 const AUTH_TOKEN_KEY = 'auth-token'
@@ -144,6 +145,8 @@ function writeAuthToken(token: string, isRemembered: boolean): void {
   drop.removeItem(AUTH_TOKEN_KEY)
   keep.setItem(AUTH_TOKEN_KEY, token)
   notifyAuthToken()
+  // 同步到 goose 侧车读得到的 JWT 文件（auth.command 用它调网关）
+  syncCogitoJwt(token)
 }
 
 /** 读出上次「记住我」留下的用户名；没有 / 不可用时返回 null */
@@ -172,6 +175,7 @@ function writeRememberedUsername(username: string | null): void {
 function clearAuthToken(): void {
   for (const store of findAuthStores()) store.removeItem(AUTH_TOKEN_KEY)
   notifyAuthToken()
+  syncCogitoJwt(null)
 }
 
 /**

@@ -131,6 +131,10 @@ export const CHANNELS = {
     ACP_SEND: 'goose:acp-send',
     ACP_CLOSE: 'goose:acp-close'
   },
+  COGITO: {
+    TOKEN_WRITE: 'cogito:token:write',
+    TOKEN_CLEAR: 'cogito:token:clear'
+  },
   WORKSPACE_GIT: {
     PROBE: 'workspaceGit:probe',
     BRANCHES: 'workspaceGit:branches',
