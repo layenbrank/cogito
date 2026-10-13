@@ -29,6 +29,11 @@ impl MigrationTrait for Migration {
                     .table(AgentApproval::Table)
                     .table(AgentTask::Table)
                     .table(RagIndexTask::Table)
+                    // chat_* 四表：消息指向会话，且都指向 tenant（cascade 是兜底，顺序才是意图）
+                    .table(ChatSyncBatch::Table)
+                    .table(ChatUsage::Table)
+                    .table(ChatMessage::Table)
+                    .table(ChatSession::Table)
                     .table(SsoConnection::Table)
                     .table(PaymentOrder::Table)
                     .table(BillingPrice::Table)
@@ -1094,6 +1099,236 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        // ---------- chat_*（客户端会话/消息/用量的同步面） ----------
+        // 本地为主、服务端只负责「接住并单调编号」：这里没有业务解读（消息内容是不透明的），
+        // 只有 `revision` 这一份服务端独占的事实，它是增量拉取的游标。
+        manager
+            .create_table(
+                Table::create()
+                    .table(ChatSession::Table)
+                    .if_not_exists()
+                    .col(pk_uuid(ChatSession::Id))
+                    .col(uuid(ChatSession::TenantId))
+                    // 创建者；同步由本人发起时非空
+                    .col(uuid_null(ChatSession::UserId))
+                    .col(text(ChatSession::Title))
+                    .col(boolean(ChatSession::Pinned).default(false))
+                    // 客户端的工作区标识（服务端不解读）
+                    .col(text_null(ChatSession::WorkspaceId))
+                    // 服务端分配的同步水位
+                    .col(big_integer(ChatSession::Revision))
+                    // 客户端改写时间（毫秒，本地时钟）
+                    .col(big_integer(ChatSession::ClientUpdatedAt))
+                    // 删除墓碑（客户端毫秒）；非空即已删，行不真删
+                    .col(big_integer_null(ChatSession::ArchivedAt))
+                    .col(timestamp_with_time_zone(ChatSession::CreatedAt))
+                    .col(timestamp_with_time_zone(ChatSession::UpdatedAt))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_chat_session_tenant")
+                            .from(ChatSession::Table, ChatSession::TenantId)
+                            .to(Tenant::Table, Tenant::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_chat_session_user")
+                            .from(ChatSession::Table, ChatSession::UserId)
+                            .to(Auth::Table, Auth::Id)
+                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(ChatMessage::Table)
+                    .if_not_exists()
+                    .col(pk_uuid(ChatMessage::Id))
+                    .col(uuid(ChatMessage::TenantId))
+                    .col(uuid(ChatMessage::SessionId))
+                    // 父消息；**不做外键**：消息逐批同步，父行可能落在别的批次，
+                    // 拿外键拦住整批不值得，树的形状交给客户端校验
+                    .col(uuid_null(ChatMessage::ParentId))
+                    // 内容格式标识（如 ith/thread-message-like）
+                    .col(text(ChatMessage::Format))
+                    // 内容原文；服务端不解析
+                    .col(text(ChatMessage::Content))
+                    // 客户端生成时间（毫秒）：展示与排序的基准，避免多设备时钟各说各话
+                    .col(big_integer(ChatMessage::ClientCreatedAt))
+                    .col(big_integer(ChatMessage::Revision))
+                    .col(big_integer_null(ChatMessage::ArchivedAt))
+                    .col(timestamp_with_time_zone(ChatMessage::CreatedAt))
+                    .col(timestamp_with_time_zone(ChatMessage::UpdatedAt))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_chat_message_tenant")
+                            .from(ChatMessage::Table, ChatMessage::TenantId)
+                            .to(Tenant::Table, Tenant::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_chat_message_session")
+                            .from(ChatMessage::Table, ChatMessage::SessionId)
+                            .to(ChatSession::Table, ChatSession::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(ChatUsage::Table)
+                    .if_not_exists()
+                    .col(pk_uuid(ChatUsage::Id))
+                    .col(uuid(ChatUsage::TenantId))
+                    // 所属会话；**不做外键**：用量是账本，会话行缺失不该让整批落不了库
+                    .col(uuid_null(ChatUsage::SessionId))
+                    // 运行标识；与 tenantID 一起构成幂等键
+                    .col(text(ChatUsage::RunId))
+                    .col(text_null(ChatUsage::ProviderId))
+                    .col(text_null(ChatUsage::Model))
+                    .col(text_null(ChatUsage::Source))
+                    .col(text_null(ChatUsage::Outcome))
+                    // token 数；未上报为 NULL（与 0 不同）
+                    .col(integer_null(ChatUsage::InputTokens))
+                    .col(integer_null(ChatUsage::OutputTokens))
+                    .col(integer_null(ChatUsage::TotalTokens))
+                    .col(big_integer(ChatUsage::ClientCreatedAt))
+                    .col(big_integer(ChatUsage::Revision))
+                    .col(timestamp_with_time_zone(ChatUsage::CreatedAt))
+                    .col(timestamp_with_time_zone(ChatUsage::UpdatedAt))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_chat_usage_tenant")
+                            .from(ChatUsage::Table, ChatUsage::TenantId)
+                            .to(Tenant::Table, Tenant::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        // 同步批次台账：幂等凭据 + 该批占用的水位。表行本身就是「这批已经处理过」的证据，
+        // 重发同批时直接回放它记下的 revision / applied，不再动任何数据行。
+        manager
+            .create_table(
+                Table::create()
+                    .table(ChatSyncBatch::Table)
+                    .if_not_exists()
+                    .col(uuid(ChatSyncBatch::TenantId))
+                    // 客户端生成的批次标识
+                    .col(text(ChatSyncBatch::ClientBatchId))
+                    .col(big_integer(ChatSyncBatch::Revision))
+                    // 本批写入的行数（含墓碑）
+                    .col(integer(ChatSyncBatch::Applied).default(0))
+                    .col(timestamp_with_time_zone(ChatSyncBatch::CreatedAt))
+                    .primary_key(
+                        Index::create()
+                            .name("pk_chat_sync_batch")
+                            .col(ChatSyncBatch::TenantId)
+                            .col(ChatSyncBatch::ClientBatchId),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_chat_sync_batch_tenant")
+                            .from(ChatSyncBatch::Table, ChatSyncBatch::TenantId)
+                            .to(Tenant::Table, Tenant::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        // 增量拉取都是「租户 + 水位上升序」，三张表各配一条同样的索引
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_chat_session_revision")
+                    .table(ChatSession::Table)
+                    .col(ChatSession::TenantId)
+                    .col(ChatSession::Revision)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_chat_message_revision")
+                    .table(ChatMessage::Table)
+                    .col(ChatMessage::TenantId)
+                    .col(ChatMessage::Revision)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_chat_usage_revision")
+                    .table(ChatUsage::Table)
+                    .col(ChatUsage::TenantId)
+                    .col(ChatUsage::Revision)
+                    .to_owned(),
+            )
+            .await?;
+
+        // 按会话读消息（客户端导出 / 单会话重建）走（会话, 客户端时间）
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_chat_message_session")
+                    .table(ChatMessage::Table)
+                    .col(ChatMessage::SessionId)
+                    .col(ChatMessage::ClientCreatedAt)
+                    .to_owned(),
+            )
+            .await?;
+
+        // 同一次运行只记一笔：重发（客户端重试、多设备同时上报）靠这个唯一索引收敛
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("uidx_chat_usage_run")
+                    .table(ChatUsage::Table)
+                    .col(ChatUsage::TenantId)
+                    .col(ChatUsage::RunId)
+                    .unique()
+                    .to_owned(),
+            )
+            .await?;
+
+        // 水位在租户内唯一：两个并发批次撞上同一个水位时，后到的那个（23505）重试即可
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("uidx_chat_sync_batch_revision")
+                    .table(ChatSyncBatch::Table)
+                    .col(ChatSyncBatch::TenantId)
+                    .col(ChatSyncBatch::Revision)
+                    .unique()
+                    .to_owned(),
+            )
+            .await?;
+
         // ---------- 租户隔离（RLS） ----------
         // 隔离从"调用约定"下沉为数据库机制：应用角色即便漏传条件也拿不到别人的行。
         for (function, setting) in [
@@ -1260,6 +1495,10 @@ impl MigrationTrait for Migration {
                     .table(ConsumedEvent::Table)
                     .table(AgentTask::Table)
                     .table(RagIndexTask::Table)
+                    .table(ChatSyncBatch::Table)
+                    .table(ChatUsage::Table)
+                    .table(ChatMessage::Table)
+                    .table(ChatSession::Table)
                     .table(SsoConnection::Table)
                     .table(PaymentOrder::Table)
                     .table(BillingPrice::Table)
@@ -1346,12 +1585,17 @@ $fn$"#
 /// - `payment_order`：按订单号（能力键）反解租户的只读分支；
 /// - `sso_connection`：按连接 id（能力键）读回匿名 OIDC 流程的那一行；
 /// - `gateway_usage` / `gateway_audit`：无租户行的归属分支（NULL 租户 + 本人）。
-const STRICT_TENANT_TABLES: [&str; 5] = [
+const STRICT_TENANT_TABLES: [&str; 9] = [
     "subscription",
     "outbox",
     "agent_task",
     "agent_approval",
     "rag_index_task",
+    // 同步面：会话 / 消息 / 用量 / 批次台账都只属于一个租户，没有全局行也没有能力键分支
+    "chat_session",
+    "chat_message",
+    "chat_usage",
+    "chat_sync_batch",
 ];
 
 /// 逐表启用行级安全：`ENABLE` 约束普通角色，`FORCE` 连表属主一起约束，
@@ -1856,4 +2100,97 @@ enum RagIndexTask {
     CreatedAt,
     #[sea_orm(iden = "updatedAt")]
     UpdatedAt,
+}
+
+/// 会话（客户端同步上来的头部）。
+#[derive(DeriveIden)]
+enum ChatSession {
+    Table,
+    Id,
+    #[sea_orm(iden = "tenantID")]
+    TenantId,
+    #[sea_orm(iden = "userID")]
+    UserId,
+    Title,
+    Pinned,
+    #[sea_orm(iden = "workspaceID")]
+    WorkspaceId,
+    Revision,
+    #[sea_orm(iden = "clientUpdatedAt")]
+    ClientUpdatedAt,
+    #[sea_orm(iden = "archivedAt")]
+    ArchivedAt,
+    #[sea_orm(iden = "createdAt")]
+    CreatedAt,
+    #[sea_orm(iden = "updatedAt")]
+    UpdatedAt,
+}
+
+/// 消息（内容不透明，服务端只存不解析）。
+#[derive(DeriveIden)]
+enum ChatMessage {
+    Table,
+    Id,
+    #[sea_orm(iden = "tenantID")]
+    TenantId,
+    #[sea_orm(iden = "sessionID")]
+    SessionId,
+    #[sea_orm(iden = "parentID")]
+    ParentId,
+    Format,
+    Content,
+    #[sea_orm(iden = "clientCreatedAt")]
+    ClientCreatedAt,
+    Revision,
+    #[sea_orm(iden = "archivedAt")]
+    ArchivedAt,
+    #[sea_orm(iden = "createdAt")]
+    CreatedAt,
+    #[sea_orm(iden = "updatedAt")]
+    UpdatedAt,
+}
+
+/// 用量（客户端自报的会话账，与 `gateway_usage` 口径不同）。
+#[derive(DeriveIden)]
+enum ChatUsage {
+    Table,
+    Id,
+    #[sea_orm(iden = "tenantID")]
+    TenantId,
+    #[sea_orm(iden = "sessionID")]
+    SessionId,
+    #[sea_orm(iden = "runID")]
+    RunId,
+    #[sea_orm(iden = "providerID")]
+    ProviderId,
+    Model,
+    Source,
+    Outcome,
+    #[sea_orm(iden = "inputTokens")]
+    InputTokens,
+    #[sea_orm(iden = "outputTokens")]
+    OutputTokens,
+    #[sea_orm(iden = "totalTokens")]
+    TotalTokens,
+    #[sea_orm(iden = "clientCreatedAt")]
+    ClientCreatedAt,
+    Revision,
+    #[sea_orm(iden = "createdAt")]
+    CreatedAt,
+    #[sea_orm(iden = "updatedAt")]
+    UpdatedAt,
+}
+
+/// 同步批次台账（幂等凭据 + 水位）。
+#[derive(DeriveIden)]
+enum ChatSyncBatch {
+    Table,
+    #[sea_orm(iden = "tenantID")]
+    TenantId,
+    #[sea_orm(iden = "clientBatchID")]
+    ClientBatchId,
+    Revision,
+    Applied,
+    #[sea_orm(iden = "createdAt")]
+    CreatedAt,
 }

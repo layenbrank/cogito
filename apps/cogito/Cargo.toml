@@ -17,6 +17,7 @@ members = [
   "crates/aliyun",
   "crates/agent",
   "crates/rag",
+  "crates/chat",
 ]
 
 [workspace.package]
@@ -78,6 +79,7 @@ durable  = { version = "0.1.0", path = "crates/durable" }
 aliyun   = { version = "0.1.0", path = "crates/aliyun" }
 agent    = { version = "0.1.0", path = "crates/agent" }
 rag      = { version = "0.1.0", path = "crates/rag" }
+chat     = { version = "0.1.0", path = "crates/chat" }
 
 [package]
 name              = "cogito"
@@ -183,6 +185,7 @@ durable  = { workspace = true }
 aliyun   = { workspace = true }
 agent    = { workspace = true }
 rag      = { workspace = true }
+chat     = { workspace = true }
 
 # 配置
 config    = "0.15.19"

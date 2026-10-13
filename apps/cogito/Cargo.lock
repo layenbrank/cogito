@@ -1102,6 +1102,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "chat"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "entity",
+ "sea-orm",
+ "thiserror 2.0.20",
+ "uuid",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1198,6 +1209,7 @@ dependencies = [
  "authz",
  "base64 0.23.1",
  "billing",
+ "chat",
  "chrono",
  "config",
  "configures",

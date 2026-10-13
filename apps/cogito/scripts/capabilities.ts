@@ -135,6 +135,17 @@ export const CAPABILITIES: readonly Capability[] = [
     absorbs: [],
     // crate + services/rag + e2e（rag_index_scope）；编排本体在 orchestrations/rag.rs，早于本能力存在。
     status: 'migrated'
+  },
+  {
+    name: 'chat',
+    title: '会话同步',
+    owns: ['chat_session', 'chat_message', 'chat_usage', 'chat_sync_batch'],
+    dependsOn: [],
+    publicModules: ['persistence'],
+    // 新增能力，没有遗留路径可吸收：HTTP 层是**新写**的，按 R6 留在 api 二进制（见 LEGACY_SERVICES）。
+    absorbs: [],
+    // crate + services/chat + e2e（chat_sync_scope）：水位分配、冲突判定与增量窗口都在 crate 里。
+    status: 'migrated'
   }
 ]
 
@@ -181,6 +192,10 @@ export const LEGACY_SERVICES: Record<string, { owner: string; note: string }> = 
   },
   application: { owner: 'cogito', note: '应用层编排，留在 api 二进制' },
   auth: { owner: 'identity', note: '账号与认证' },
+  chat: {
+    owner: 'chat',
+    note: '会话同步的 HTTP 层（新写，非遗留）：水位分配与冲突判定在 crates/chat'
+  },
   engine: { owner: 'cogito', note: '对话/智能体编排，留在 api 二进制' },
   gateway: { owner: 'gateway', note: '模型网关' },
   markdown: { owner: 'document', note: '文档解析' },
