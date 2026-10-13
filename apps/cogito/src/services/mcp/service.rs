@@ -107,9 +107,10 @@ impl McpService {
             allowed_tools: vec![tool_name.to_owned()],
             tool_call,
         };
-        // 幂等键按「工具 + 参数哈希」派生：同一租户同一次调用重发收敛，不同参数是不同调用。
+        // 幂等键含租户：跨租户同参不能互相踩；同租户同参重发收敛。
         let idempotency_key = format!(
-            "mcp:{}:{}",
+            "mcp:{}:{}:{}",
+            tenant_id,
             tool_name,
             hash_arguments(&params.arguments.to_string())
         );
