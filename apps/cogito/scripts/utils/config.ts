@@ -66,10 +66,11 @@ export function loadConfig(): AppConfig {
       port: isObject(server) && typeof server.port === 'number' ? server.port : 3000
     },
     database: {
+      // 兜底默认不带密码：本机开发连 Docker 的 cogito-postgres，真实连接串在 config.local.yaml。
       url:
         isObject(database) && typeof database.url === 'string'
           ? database.url
-          : 'postgres://machenike:Li33333.@127.0.0.1:5432/i-thinking'
+          : 'postgres://machenike:@127.0.0.1:5432/i-thinking'
     }
   }
   return cached
