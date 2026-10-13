@@ -9,13 +9,10 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: String,
-    pub identity: String,
-    pub fragment: String,
+    pub content: String,
     #[sea_orm(column_name = "parentID")]
     pub parentID: Option<String>,
     pub format: String,
-    pub thinking: Option<String>,
-    pub parts: Option<String>,
     #[sea_orm(column_name = "sessionID")]
     pub sessionID: String,
     #[sea_orm(column_name = "createdAt")]
@@ -47,12 +44,9 @@ pub enum ReadP {
 #[serde(rename_all = "camelCase")]
 pub struct Write {
     pub id: Option<String>,
-    pub identity: String,
-    pub fragment: String,
+    pub content: String,
     pub parentID: Option<String>,
     pub format: Option<String>,
-    pub thinking: Option<String>,
-    pub parts: Option<String>,
     pub sessionID: String,
     pub createdAt: Option<i64>,
     pub updatedAt: Option<i64>,
@@ -68,12 +62,9 @@ pub enum WriteP {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Change {
-    pub identity: Option<String>,
-    pub fragment: Option<String>,
+    pub content: Option<String>,
     pub parentID: Option<Option<String>>,
     pub format: Option<String>,
-    pub thinking: Option<Option<String>>,
-    pub parts: Option<Option<String>>,
     pub sessionID: Option<String>,
 }
 

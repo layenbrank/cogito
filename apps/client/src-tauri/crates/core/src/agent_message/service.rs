@@ -96,37 +96,35 @@ impl Service {
         db: &C,
         params: schema::RemoveP,
     ) -> Result<Vec<String>, Exception> {
-        match params {
-            schema::RemoveP::One(p) => {
-                let exists = schema::Entity::find_by_id(p.clone()).one(db).await?;
-                if exists.is_none() {
-                    return Ok(vec![]);
-                }
-                schema::Entity::delete_many()
-                    .filter(schema::Column::Id.eq(p.clone()))
-                    .exec(db)
-                    .await?;
-                Ok(vec![p])
-            }
-            schema::RemoveP::Many(ps) => {
-                if ps.is_empty() {
-                    return Ok(vec![]);
-                }
-                let models = schema::Entity::find()
-                    .filter(schema::Column::Id.is_in(ps.clone()))
-                    .all(db)
-                    .await?;
-                if models.is_empty() {
-                    return Ok(vec![]);
-                }
-                let ids: Vec<String> = models.into_iter().map(|m| m.id).collect();
-                schema::Entity::delete_many()
-                    .filter(schema::Column::Id.is_in(ids.clone()))
-                    .exec(db)
-                    .await?;
-                Ok(ids)
-            }
+        let seed: Vec<String> = match params {
+            schema::RemoveP::One(p) => vec![p],
+            schema::RemoveP::Many(ps) => ps,
+        };
+        if seed.is_empty() {
+            return Ok(vec![]);
         }
+
+        // 删除一条消息时，它在分支树上的所有子孙一起删（assistant-ui 删分支通常整段给，
+        // 但旧库/手写调用可能只给 head；这里按 parentID 递归补齐，避免留下孤儿分支）
+        let mut ids: Vec<String> = seed;
+        let mut frontier: Vec<String> = ids.clone();
+        while !frontier.is_empty() {
+            let rows = schema::Entity::find()
+                .filter(schema::Column::ParentId.is_in(frontier))
+                .all(db)
+                .await?;
+            frontier = rows.iter().map(|m| m.id.clone()).collect();
+            ids.extend(rows.into_iter().map(|m| m.id));
+        }
+
+        if ids.is_empty() {
+            return Ok(vec![]);
+        }
+        schema::Entity::delete_many()
+            .filter(schema::Column::Id.is_in(ids.clone()))
+            .exec(db)
+            .await?;
+        Ok(ids)
     }
 
     async fn write_one<C: ConnectionTrait>(db: &C, p: schema::Write) -> Result<String, Exception> {
@@ -136,12 +134,9 @@ impl Service {
         let updated_at = p.updatedAt.unwrap_or(now);
         let model = schema::ActiveModel {
             id: Set(id.clone()),
-            identity: Set(p.identity),
-            fragment: Set(p.fragment),
+            content: Set(p.content),
             parentID: Set(p.parentID),
             format: Set(p.format.unwrap_or_else(|| LOCAL_FORMAT.to_owned())),
-            thinking: Set(p.thinking),
-            parts: Set(p.parts),
             sessionID: Set(p.sessionID),
             createdAt: Set(created_at),
             updatedAt: Set(updated_at),
@@ -161,23 +156,14 @@ impl Service {
 
         let mut active: schema::ActiveModel = model.into();
         let now = Utc::now().timestamp_millis();
-        if let Some(v) = payload.change.identity {
-            active.identity = Set(v);
-        }
-        if let Some(v) = payload.change.fragment {
-            active.fragment = Set(v);
+        if let Some(v) = payload.change.content {
+            active.content = Set(v);
         }
         if let Some(v) = payload.change.parentID {
             active.parentID = Set(v);
         }
         if let Some(v) = payload.change.format {
             active.format = Set(v);
-        }
-        if let Some(v) = payload.change.thinking {
-            active.thinking = Set(v);
-        }
-        if let Some(v) = payload.change.parts {
-            active.parts = Set(v);
         }
         if let Some(v) = payload.change.sessionID {
             active.sessionID = Set(v);

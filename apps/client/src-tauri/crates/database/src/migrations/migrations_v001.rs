@@ -800,8 +800,7 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(AgentMessage::Identity).string().not_null())
-                    .col(ColumnDef::new(AgentMessage::Fragment).text().not_null())
+                    .col(ColumnDef::new(AgentMessage::Content).text().not_null())
                     .col(ColumnDef::new(AgentMessage::ParentId).string().null())
                     .col(
                         ColumnDef::new(AgentMessage::Format)
@@ -809,8 +808,6 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default("ith/thread-message-like"),
                     )
-                    .col(ColumnDef::new(AgentMessage::Thinking).text().null())
-                    .col(ColumnDef::new(AgentMessage::Parts).text().null())
                     .col(ColumnDef::new(AgentMessage::SessionID).string().not_null())
                     .col(
                         ColumnDef::new(AgentMessage::CreatedAt)
@@ -905,6 +902,51 @@ impl MigrationTrait for Migration {
         )
         .await?;
 
+        // ── agent_usage（一次模型运行的用量账本；runID 唯一） ──
+        manager
+            .create_table(
+                Table::create()
+                    .table(AgentUsage::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(AgentUsage::Id)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(ColumnDef::new(AgentUsage::RunId).string().not_null().unique_key())
+                    .col(ColumnDef::new(AgentUsage::SessionId).string().null())
+                    .col(ColumnDef::new(AgentUsage::ProviderId).string().null())
+                    .col(ColumnDef::new(AgentUsage::Model).string().not_null())
+                    .col(
+                        ColumnDef::new(AgentUsage::InputTokens)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(AgentUsage::OutputTokens)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(AgentUsage::TotalTokens)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(AgentUsage::CreatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_agent_usage_sessionID ON agent_usage (sessionID)",
+        )
+        .await?;
+
         Ok(())
     }
 
@@ -935,6 +977,9 @@ impl MigrationTrait for Migration {
             .await?;
         manager
             .drop_table(Table::drop().table(Countdown::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(AgentUsage::Table).to_owned())
             .await?;
         manager
             .drop_table(Table::drop().table(AgentMessage::Table).to_owned())
@@ -1261,13 +1306,10 @@ enum AgentMessage {
     #[iden = "agent_message"]
     Table,
     Id,
-    Identity,
-    Fragment,
+    Content,
     #[iden = "parentID"]
     ParentId,
     Format,
-    Thinking,
-    Parts,
     #[iden = "sessionID"]
     SessionID,
     #[iden = "createdAt"]
@@ -1292,4 +1334,26 @@ enum AgentProvider {
     CreatedAt,
     #[iden = "updatedAt"]
     UpdatedAt,
+}
+
+#[derive(Iden)]
+enum AgentUsage {
+    #[iden = "agent_usage"]
+    Table,
+    Id,
+    #[iden = "runID"]
+    RunId,
+    #[iden = "sessionID"]
+    SessionId,
+    #[iden = "providerID"]
+    ProviderId,
+    Model,
+    #[iden = "inputTokens"]
+    InputTokens,
+    #[iden = "outputTokens"]
+    OutputTokens,
+    #[iden = "totalTokens"]
+    TotalTokens,
+    #[iden = "createdAt"]
+    CreatedAt,
 }

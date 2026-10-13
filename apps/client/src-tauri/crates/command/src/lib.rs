@@ -13,6 +13,8 @@ pub mod agent_provider;
 #[allow(non_snake_case)]
 pub mod agent_session;
 #[allow(non_snake_case)]
+pub mod agent_usage;
+#[allow(non_snake_case)]
 pub mod agent_workspace;
 #[allow(non_snake_case)]
 pub mod agent_workspace_folder;

@@ -22,30 +22,12 @@ function toThread(session: Session): ChatThread {
   }
 }
 
-/**
- * 消息身份（`identity` 列）从载荷里取。
- *
- * 新路径的消息内容是不透明 JSON（`ith/thread-message-like`，role 在载荷里），
- * 而 `identity` 列是旧消息模型留下的字段；这里如实解出角色，免得整列都是兜底值。
- */
-function findIdentity(content: string): Message['identity'] {
-  try {
-    const payload = JSON.parse(content) as { role?: unknown }
-    const role = payload.role
-    if (role === 'user' || role === 'assistant' || role === 'system' || role === 'tool') return role
-  } catch (error) {
-    // 非 JSON 内容（旧路径写下的纯文本）不该让写入失败，但也不该无声无息
-    console.warn('[agent/port] 历史消息载荷不是 JSON，身份列按 assistant 兜底:', error)
-  }
-  return 'assistant'
-}
-
 function toStoredMessage(message: Message): ChatStoredMessage {
   return {
     id: message.id,
     parentID: message.parentID,
     format: message.format,
-    content: message.fragment
+    content: message.content
   }
 }
 
@@ -131,12 +113,9 @@ function createHistoryPort(): ChatHistoryPort {
       const now = Date.now()
       const message: Message = {
         id: input.id,
-        identity: findIdentity(input.content),
-        fragment: input.content,
+        content: input.content,
         parentID: input.parentID,
         format: input.format,
-        thinking: null,
-        parts: null,
         sessionID: input.threadID,
         createdAt: now,
         updatedAt: now
@@ -149,7 +128,7 @@ function createHistoryPort(): ChatHistoryPort {
         {
           id: input.id,
           ...(input.format === undefined ? {} : { format: input.format }),
-          ...(input.content === undefined ? {} : { fragment: input.content }),
+          ...(input.content === undefined ? {} : { content: input.content }),
           updatedAt: Date.now()
         }
       ])

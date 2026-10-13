@@ -19,10 +19,9 @@ interface SessionChange {
 }
 
 interface MessageChange {
-  identity?: Message['identity']
-  fragment?: string
-  thinking?: string | null
-  parts?: string | null
+  content?: string
+  parentID?: string | null
+  format?: string
   sessionID?: string
   updatedAt?: number
 }
@@ -35,6 +34,20 @@ interface SessionUpdate {
 interface MessageUpdate {
   key: string
   change: MessageChange
+}
+
+interface UsageChange {
+  sessionID?: string | null
+  providerID?: string | null
+  model?: string
+  inputTokens?: number
+  outputTokens?: number
+  totalTokens?: number
+}
+
+interface UsageUpdate {
+  key: string
+  change: UsageChange
 }
 
 type EventType =
@@ -103,7 +116,17 @@ interface WorkspaceSlice {
   toReplaceWorkspaceFolders(workspaceID: string, folders: WorkspaceFolder[]): Promise<void>
 }
 
-type AgentStore = SessionSlice & MessageSlice & WorkspaceSlice
+interface UsageSlice {
+  usages: Usage[]
+  usagesLoaded: boolean
+
+  toReadUsages(filter?: { sessionID?: string }): Promise<Usage[]>
+  toWriteUsage(values: Usage[]): Promise<void>
+  toUpdateUsage(values: Partial<Usage>[]): Promise<void>
+  toRemoveUsage(keys: string[]): Promise<void>
+}
+
+type AgentStore = SessionSlice & MessageSlice & WorkspaceSlice & UsageSlice
 
 type SliceCreator<T> = StateCreator<
   AgentStore,
@@ -129,12 +152,9 @@ function toSessionWrite(value: Session) {
 function toMessageWrite(value: Message) {
   return {
     id: value.id,
-    identity: value.identity,
-    fragment: value.fragment,
+    content: value.content,
     parentID: value.parentID,
     format: value.format,
-    thinking: value.thinking,
-    parts: value.parts,
     sessionID: value.sessionID,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt
@@ -474,20 +494,22 @@ const messageSlice: SliceCreator<MessageSlice> = function (setters, getters) {
     async toRemoveMessage(keys: string[]) {
       const former = structuredClone(getters().messages)
       try {
+        // 乐观先用入参清一次；落库返回的是「入参 + 按 parentID 级联的子孙」的完整集合，
+        // 用它再收敛一次 —— 服务端会级联删分支，本地状态得跟它对上，否则子孙行残留
+        const removed = await invoke<string[]>(CHANNELS.AGENT_MESSAGE.TO_REMOVE, { params: keys })
+        const removedSet = new Set(removed)
         setters(
           function (state) {
-            const keySet = new Set(keys)
             state.messages = former.filter(function (message) {
-              return !keySet.has(message.id)
+              return !removedSet.has(message.id)
             })
           },
           false,
-          'toRemoveMessage/optimistic'
+          'toRemoveMessage/settled'
         )
-        await invoke(CHANNELS.AGENT_MESSAGE.TO_REMOVE, { params: keys })
         event$.next({
           type: 'MESSAGE:REMOVED',
-          payload: keys,
+          payload: removed,
           timestamp: Date.now()
         })
       } catch (error) {
@@ -827,6 +849,126 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
   }
 }
 
+const usageSlice: SliceCreator<UsageSlice> = function (setters, getters) {
+  function toUsageWrite(value: Usage) {
+    return {
+      id: value.id,
+      runID: value.runID,
+      sessionID: value.sessionID,
+      providerID: value.providerID,
+      model: value.model,
+      inputTokens: value.inputTokens,
+      outputTokens: value.outputTokens,
+      totalTokens: value.totalTokens,
+      createdAt: value.createdAt
+    }
+  }
+
+  return {
+    usages: [],
+    usagesLoaded: false,
+
+    async toReadUsages(filter) {
+      try {
+        const params = filter?.sessionID ? { sessionID: filter.sessionID } : {}
+        const usages = await invoke<Usage[]>(CHANNELS.AGENT_USAGE.TO_READ, { params })
+        setters(
+          function (state) {
+            state.usages = usages
+            state.usagesLoaded = true
+          },
+          false,
+          'toReadUsages'
+        )
+        return usages
+      } catch (error) {
+        console.error('[agent-store] toReadUsages failed:', error)
+        setters(
+          function (state) {
+            state.usagesLoaded = true
+          },
+          false,
+          'toReadUsages/error'
+        )
+        return []
+      }
+    },
+
+    async toWriteUsage(values: Usage[]) {
+      const former = structuredClone(getters().usages)
+      setters(
+        function (state) {
+          state.usages.push(...values)
+        },
+        false,
+        'toWriteUsage/optimistic'
+      )
+      try {
+        await invoke(CHANNELS.AGENT_USAGE.TO_WRITE, { params: values.map(toUsageWrite) })
+      } catch (error) {
+        setters({ usages: former }, false, 'toWriteUsage/rollback')
+        throw error
+      }
+    },
+
+    async toUpdateUsage(values: Partial<Usage>[]) {
+      const hasID = values.every(function (v) {
+        return Boolean(v.id)
+      })
+      if (!hasID) throw new Error('ID is required')
+
+      const usages = structuredClone(getters().usages)
+      const updatesMap = new Map<string, Partial<Usage>>()
+      values.forEach(function (v) {
+        if (v.id) updatesMap.set(v.id, v)
+      })
+
+      setters(
+        function (state) {
+          state.usages = usages.map(function (item) {
+            const update = updatesMap.get(item.id)
+            if (!update) return item
+            return Object.assign({}, item, update)
+          })
+        },
+        false,
+        'toUpdateUsage/optimistic'
+      )
+
+      try {
+        const params: UsageUpdate[] = values.map(function (v) {
+          const { id, ...change } = v
+          return { key: id!, change }
+        })
+        await invoke(CHANNELS.AGENT_USAGE.TO_UPDATE, { params })
+      } catch (error) {
+        setters({ usages }, false, 'toUpdateUsage/rollback')
+        throw error
+      }
+    },
+
+    async toRemoveUsage(keys: string[]) {
+      const former = structuredClone(getters().usages)
+      try {
+        setters(
+          function (state) {
+            const keySet = new Set(keys)
+            state.usages = former.filter(function (usage) {
+              return !keySet.has(usage.id)
+            })
+          },
+          false,
+          'toRemoveUsage/optimistic'
+        )
+        await invoke(CHANNELS.AGENT_USAGE.TO_REMOVE, { params: keys })
+      } catch (error) {
+        setters({ usages: former }, false, 'toRemoveUsage/rollback')
+        throw error
+      }
+    }
+  }
+}
+
 const useAgentStore = create<AgentStore>()(
   devtools(
     subscribeWithSelector(
@@ -834,7 +976,8 @@ const useAgentStore = create<AgentStore>()(
         return {
           ...sessionSlice(...args),
           ...messageSlice(...args),
-          ...workspaceSlice(...args)
+          ...workspaceSlice(...args),
+          ...usageSlice(...args)
         }
       })
     ),

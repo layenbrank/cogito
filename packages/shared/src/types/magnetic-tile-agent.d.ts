@@ -33,14 +33,12 @@ declare namespace MagneticTile {
 
     interface Message {
       id: string
-      identity: Identity
-      fragment: string
+      /** 消息内容：该 `format` 对应适配器 encode 出的不透明字符串 */
+      content: string
       /** 上一条消息（assistant-ui 的线程分支靠它串起来）；首条为 null */
       parentID: string | null
       /** 内容格式：`ith/thread-message-like` 等（与 `packages/chat` 的 `LOCAL_FORMAT` 同源） */
       format: string
-      thinking: string | null
-      parts: string | null
       sessionID: string
       createdAt: number
       updatedAt: number

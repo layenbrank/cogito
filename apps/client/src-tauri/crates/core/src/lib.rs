@@ -37,4 +37,10 @@ pub mod agent_provider {
     pub use service::Service;
 }
 
+#[allow(non_snake_case)]
+pub mod agent_usage {
+    mod service;
+    pub use service::Service;
+}
+
 pub use exception::{CommandResult, Exception};

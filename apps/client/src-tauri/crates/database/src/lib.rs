@@ -18,6 +18,8 @@ pub mod entity {
     #[allow(non_snake_case)]
     pub mod agent_session;
     #[allow(non_snake_case)]
+    pub mod agent_usage;
+    #[allow(non_snake_case)]
     pub mod agent_workspace;
     #[allow(non_snake_case)]
     pub mod agent_workspace_folder;
@@ -25,6 +27,7 @@ pub mod entity {
     pub use agent_message::Entity as AgentMessageEntity;
     pub use agent_provider::Entity as AgentProviderEntity;
     pub use agent_session::Entity as AgentSessionEntity;
+    pub use agent_usage::Entity as AgentUsageEntity;
     pub use agent_workspace::Entity as AgentWorkspaceEntity;
     pub use agent_workspace_folder::Entity as AgentWorkspaceFolderEntity;
     pub use asset::Entity as AssetEntity;
