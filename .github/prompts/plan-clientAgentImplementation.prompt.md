@@ -532,10 +532,26 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 
 - `chat_sync_batch` 复合主键不能写成两列各 `.primary_key()`（SeaORM 生成两条 PRIMARY KEY 约束，Postgres 报 `42P16`）；必须 `.primary_key(Index::create().name("pk_...").col(A).col(B))`（同 `consumed_event`）。
 
+### ✅ PR8 · WS-5 cogito MCP（完成）
+
+- 端点 `POST /api/v1/mcp`（JSON-RPC 2.0 streamable HTTP，纯 JSON、不支持 SSE，通知回 202），方法 `initialize` / `tools/list` / `tools/call` / `ping`。
+- **方案 B**（偏离 D7 的「5 工具直通」）：5 个 `cogito_` 前缀工具**全进目录**；读 3 个（`knowledge_search` / `asset_read` / `memory_recall`）转发 ai-worker 的**新增直通通道** `POST /internal/v1/agents/tool-invocations`（准入：认识 + 白名单 + 不需要审批，写工具 400）；写 2 个（`memory_write` / `asset_visibility_write`）**进目录但调用即拒绝**（同步协议装不下审批半程，提示走服务端 agent）。
+- 工具目录/名字映射/协议常量在能力 crate `crates/mcp`（零 I/O、无表）；HTTP 层 `services/mcp`；api 进程注入 `Option<Arc<AiWorkerClient>>`（连不上不阻塞启动）。`bootstrap_app!` 宏加第 5 参数。
+- 验证：ai-worker 直通 6 单测、`crates/mcp` 4 单测、`cogito` lib 307、`route_reachability` 3 / `oas_consistency` 12、`arch.ts` R1–R11 全绿、契约重生成、`mcp_scope` e2e 8 用例全绿。
+
+### ✅ PR9 · WS-6 委派（完成）
+
+- 服务端 agent 域（`POST /agent/tasks` / `GET /agent/tasks/{id}` / `POST .../approvals/{approvalID}`）**本就完整**，本 PR 零服务端改动（对公幂等中间件仍留 D10 开放项）。
+- 客户端：
+  - `apis/agent-task.ts`：三端点封装（`env:'thinking'` + `HttpEnvelope`），类型对齐 cogito `TaskP/TaskR/ApprovalP/ApprovalR` 与 `orchestrations/agent.rs` 的 `PendingApproval`。
+  - `features/agent/delegate/model.ts`：纯函数 `derivePhase`（`idle/submitted/running/awaiting_approval/settled`，终态只看 `status`）/ `isApprovalPrompting`（有待审批且未决定；**过期交给编排收尾**，渲染不读时钟）/ `parseToolArguments`，10 单测。
+  - `features/agent/delegate/use-delegation.ts`：`useEffect` 驱动轮询（1.5s，快照更新 → effect 重排，终态停），审批决定乐观记入本地 `decided` 集合避免重复弹窗。
+  - `views/agent/chat/components/delegate-panel.tsx`：标题栏「委派」入口 + Dialog 面板（提交表单 → 进度 → 审批卡 → 结论），挂进 `chat.tsx` 的 `AgentTitlebar actions`。
+- 验证：client `tsc` 0、lint（改动文件）0 error、单测 10 绿。
+- **未做（记录为后续）**：本地落库 `taskID` / 已提交审批集合（重启恢复）、对公 `Idempotency-Key` 中间件、工具卡/终端从 studio 1:1 移植——均属 D10 开放项或增强，不阻塞委派闭环。
+
 ### ⏳ 待完成
 
-- **PR8 · WS-5 cogito MCP**（[D7](#d7-cogito-mcp-面对应-ws-5)）
-- **PR9 · WS-6 委派**（[D8](#d8-长任务委派对应-ws-6)）
 - **PR10 · WS-8 清理 + 全量验证**
 
 > 依赖（见 [D9](#d9-实施顺序pr-拆分)）：PR4←PR2/PR3；PR7←PR3；PR8←PR5；PR9←PR5/PR8；PR6 可与 PR7–PR9 并行。PR1b 不阻塞 PR2/PR3（可并行）。

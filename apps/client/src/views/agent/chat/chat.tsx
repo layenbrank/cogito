@@ -21,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { ComposerModelEnd } from '@/views/agent/chat/components/composer-model-end'
+import { DelegatePanel } from '@/views/agent/chat/components/delegate-panel'
 import { AgentPlanPane } from '@/views/agent/chat/components/plan-pane'
 import { AgentSidebar } from '@/views/agent/chat/components/sidebar'
 import {
@@ -140,7 +141,7 @@ function AgentChatLayout() {
 
   return (
     <div className={clsx(styles.chat)}>
-      <AgentTitlebar className={styles.titlebar} />
+      <AgentTitlebar className={styles.titlebar} actions={<DelegatePanel />} />
       <div className={styles.body}>
         <ResizablePanelGroup
           id="agent-workbench"
