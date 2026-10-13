@@ -706,10 +706,19 @@ async function requestThreadElicitation(
 /**
  * 回答一次审批（UI → 端口 → 这里）。
  *
- * 返回 `false` 表示这一轮已经不在等它了（跑完了 / 工具已经跑过）—— 调用方要如实告诉用户
- * 「已失效」，而不是假报成功。
+ * 按**票据 id** 定位而不是「当前线程」：端口与工具卡是两个组件树分支，而一个会话可能
+ * 在后台继续跑（那时「当前」已经是别人了）。找不到票据就返回 `false`，调用方据此如实告诉
+ * 用户「已失效」，而不是假报成功。
  */
-function respondToThreadApproval(threadID: string, approval: ChatToolApproval): boolean {
+function respondToApproval(approval: ChatToolApproval): boolean {
+  for (const thread of sessionByThread.values()) {
+    if (thread.run?.approvals.has(approval.toolCallId)) return settleApproval(thread.threadID, approval)
+  }
+  return false
+}
+
+/** 按线程收敛一次审批（内部）：票据在手上就销号并回执 */
+function settleApproval(threadID: string, approval: ChatToolApproval): boolean {
   const run = sessionByThread.get(threadID)?.run
   const ticket = run?.approvals.get(approval.toolCallId)
   if (!run || !ticket) return false
@@ -718,8 +727,16 @@ function respondToThreadApproval(threadID: string, approval: ChatToolApproval): 
   return true
 }
 
-/** 回答一次追问；语义与审批一致（`false` = 已经不在等了） */
-function respondToThreadElicitation(threadID: string, response: ChatElicitationResponse): boolean {
+/** 回答一次追问；定位与语义都同审批 */
+function respondToElicitation(response: ChatElicitationResponse): boolean {
+  for (const thread of sessionByThread.values()) {
+    if (thread.run?.elicitations.has(response.elicitationId)) return settleElicitation(thread.threadID, response)
+  }
+  return false
+}
+
+/** 按线程收敛一次追问（内部） */
+function settleElicitation(threadID: string, response: ChatElicitationResponse): boolean {
   const run = sessionByThread.get(threadID)?.run
   const ticket = run?.elicitations.get(response.elicitationId)
   if (!run || !ticket) return false
@@ -801,8 +818,8 @@ export {
   hasThreadSession,
   requestThreadElicitation,
   requestThreadPermission,
-  respondToThreadApproval,
-  respondToThreadElicitation,
+  respondToApproval,
+  respondToElicitation,
   runThreadPrompt,
   switchGooseProviderModel,
   waitGooseReady

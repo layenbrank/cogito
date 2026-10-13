@@ -11,8 +11,8 @@ import type { SessionNotification } from '@agentclientprotocol/sdk'
 import { parseAcpSessionUpdate } from '@/features/agent/acp/normalize'
 import { requestAcpPermission } from '@/features/agent/acp/permission'
 import {
-  respondToThreadApproval,
-  respondToThreadElicitation,
+  respondToApproval,
+  respondToElicitation,
   runThreadPrompt
 } from '@/features/agent/acp/session'
 import type { ChatMessage, NormalizedChunk, ProviderConfig } from '@/features/agent/types'
@@ -81,7 +81,7 @@ async function* chatGooseAcp(
       const allowed = options.some(function (option) {
         return option.id === optionId && option.kind.startsWith('allow')
       })
-      respondToThreadApproval(threadID, {
+      respondToApproval({
         toolCallId: item.params.toolCall.toolCallId,
         approved: allowed,
         ...(optionId ? { optionId } : {})
@@ -92,7 +92,7 @@ async function* chatGooseAcp(
     // 旧路径没有追问 UI：如实按「取消」回答，别把这一轮挂死
     console.info('[goose-acp] 旧路径不支持结构化追问，已按取消回答')
     if (item.event.kind === 'elicitation-request') {
-      respondToThreadElicitation(threadID, { elicitationId: item.event.elicitationId, action: 'cancel' })
+      respondToElicitation({ elicitationId: item.event.elicitationId, action: 'cancel' })
     }
   }
 }
