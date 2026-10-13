@@ -14,6 +14,7 @@ use std::path::PathBuf;
 
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
+use url::Url;
 
 use crate::utils::cogito_token;
 
@@ -21,6 +22,31 @@ const PROVIDER_ID: &str = "cogito_gateway";
 const PROVIDER_FILE: &str = "cogito_gateway.json";
 /// 令牌缓存时长（秒）：小于服务端 JWT TTL，过期前 goose 重跑 helper 拿新令牌。
 const REFRESH_INTERVAL_SECS: u64 = 120;
+/// 网关 completions 路径（前端只能传完整 URL，Rust 侧强制校验路径，防 JWT 被导向任意主机）
+const GATEWAY_CHAT_PATH: &str = "/api/v1/gateway/chat/completions";
+
+/// 校验前端传入的网关 URL：https（或本机 http）+ 精确 completions 路径，禁止 userinfo。
+fn validate_gateway_base_url(base_url: &str) -> Result<(), String> {
+    let parsed = Url::parse(base_url).map_err(|e| format!("网关 URL 无效: {e}"))?;
+    match parsed.scheme() {
+        "https" => {}
+        "http" => {
+            let host = parsed.host_str().unwrap_or("");
+            if host != "localhost" && host != "127.0.0.1" && host != "::1" {
+                return Err("非本机网关必须使用 https".to_string());
+            }
+        }
+        _ => return Err("网关 URL 只允许 http/https".to_string()),
+    }
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("网关 URL 不允许携带用户名/密码".to_string());
+    }
+    let path = parsed.path().trim_end_matches('/');
+    if path != GATEWAY_CHAT_PATH {
+        return Err(format!("网关 URL 路径必须是 {GATEWAY_CHAT_PATH}"));
+    }
+    Ok(())
+}
 
 fn custom_providers_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let base = app
@@ -101,6 +127,13 @@ pub async fn ensure_provider(
     base_url: &str,
     models: &[String],
 ) -> Result<bool, String> {
+    validate_gateway_base_url(base_url)?;
+    if tenant_id.trim().is_empty() {
+        return Err("租户 id 不能为空".to_string());
+    }
+    if models.is_empty() {
+        return Err("模型目录不能为空".to_string());
+    }
     let target = build_provider_json(app, tenant_id, base_url, models)?;
     if let Some(existing) = read_provider_json(app) {
         if existing == target {

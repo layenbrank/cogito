@@ -114,6 +114,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
+log = "0.4"
 uuid = { workspace = true }
 
 # --- 媒体 / 编解码 ---
@@ -131,6 +132,7 @@ tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 rustls-pki-types = "1"
 url = "2"
+dirs = "6"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 # --- 桌面专用插件 ---

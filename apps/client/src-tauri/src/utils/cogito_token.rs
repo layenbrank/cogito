@@ -36,14 +36,26 @@ pub fn write_jwt(app: &AppHandle, token: &str) -> Result<(), String> {
         file.write_all(token.as_bytes())
             .map_err(|e| format!("写入 JWT 失败: {e}"))?;
         file.flush().map_err(|e| format!("flush JWT 失败: {e}"))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&tmp, fs::Permissions::from_mode(0o600));
+        }
     }
     fs::rename(&tmp, &path).map_err(|e| format!("原子替换 JWT 失败: {e}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
+    }
     Ok(())
 }
 
-/// 退出登录时清掉；文件本就不存在也算成功（幂等）。
+/// 退出登录时清掉；文件本就不存在也算成功（幂等）。顺手清临时文件。
 pub fn clear_jwt(app: &AppHandle) -> Result<(), String> {
     let path = cogito_jwt_path(app)?;
+    let tmp = path.with_extension("jwt.tmp");
+    let _ = fs::remove_file(&tmp);
     match fs::remove_file(&path) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
