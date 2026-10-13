@@ -431,7 +431,11 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 - `views/agent/chat/runtime.tsx`：`useRemoteThreadListRuntime` + `useLocalRuntime` + `createChatModelAdapter`（比 studio 少一步「归属发回列表项」——客户端的 `createThread` 落库时就写定 `workspaceID`）。
 - 用量暂报空对象（不编造数字）：ACP `usage_update` 是上下文占用，不是 token 账；账本随 `agent_usage` 落地。
 
-**④ 待做（最后一块）**：把 `AgentRuntimeProvider` 接到 `chat.tsx`，中栏换成 `@i-thinking/design/assistant/thread.aui` 的 `Thread`，并按槽位移植客户端已有能力：
+**④ 进行中（已提交第一步）**
+- ✅ 已接：`chat.tsx` 包 `AgentRuntimeProvider` + `AssistantLabelsProvider`，中栏换 `Thread`（`Welcome`=快捷提示、`ComposerEnd`=模型入口）；中文 `labels.ts`；`plan-list` 并入 `plan-pane`。
+- ✅ 已删：`workbench*`、`bubbles`、`code-diff`、`compare-table`、`agent-loop`、`model/chat`、`goose-acp`、`acp/normalize`、`acp/permission`。
+- ✅ 顺手修：`table-action-group.tsx` 补导出（既有 build:core 断点）。
+- ⏳ 剩余（③b-2）：左栏会话列表接 assistant-ui 线程切换（现在仍走 `stores/agent.ts` 的 `activeSessionID`）；右栏 Plan 读 assistant-ui 的 `plan` 部件（现在仍读旧消息 store）；输入区旧 composer 子组件（附件菜单/状态栏/git/@ 提及）移植到 `Thread` 槽位。
 
 | 现有能力 | 槽位 |
 | --- | --- |
@@ -442,7 +446,7 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 | 工具卡（按工具名分派）、计划、diff | `ToolFallback` / `ToolGroup` / `ProcessGroup` |
 | 欢迎页 | `Welcome` |
 
-同批删除：`model/goose-acp.ts`（`chatGooseAcp`）、`model/agent-loop.ts`、`acp/permission.ts`、`acp/normalize.ts`、旧工作台 `views/agent/chat/components/{workbench*,bubbles,plan-list,code-diff,compare-table}*`。
+同批删除：`model/goose-acp.ts`（`chatGooseAcp`）、`model/agent-loop.ts`、`acp/permission.ts`、`acp/normalize.ts`、旧工作台 `views/agent/chat/components/{workbench*,bubbles,plan-list,code-diff,compare-table}*`（✅ 已完成）。
 
 ### ⏳ 待完成
 
