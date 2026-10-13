@@ -26,6 +26,7 @@ import { useProviderStore } from '@/stores/provider'
 import styles from '@/views/agent/settings/settings.module.scss'
 import { ProviderCard, type ProbeStatus } from './provider-card'
 import { upsertStoreProvider } from './provider-upsert'
+import { ExtensionsSection } from './sections/extensions'
 import { ToolPermissionsSection } from './sections/tool-permissions'
 
 function AgentSettings() {
@@ -301,9 +302,10 @@ function AgentSettings() {
             <div className={styles.body}>
               <section className={styles.section}>
                 <div className={styles.sectionHead}>
-                  <span className={styles.sectionTitle}>扩展</span>
+                  <span className={styles.sectionTitle}>MCP 扩展</span>
+                  <span className={styles.sectionMeta}>全局配置 / 当前会话</span>
                 </div>
-                <p className={`${styles.empty} text-muted-foreground`}>MCP 扩展管理将在后续版本提供。</p>
+                <ExtensionsSection />
               </section>
             </div>
           </TabsContent>
