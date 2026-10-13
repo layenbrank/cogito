@@ -58,7 +58,8 @@ jobs:
 
       - name: Unit tests
         run: |
-          pnpm turbo run unit --continue || true
+          pnpm --filter @i-thinking/client run unit
+          pnpm turbo run unit --continue --filter=!@i-thinking/client || true
 
       - name: Build (exclude Tauri desktop)
         env:
@@ -83,3 +84,41 @@ jobs:
             apps/**/out/**
             packages/**/dist/**
             !**/node_modules/**
+
+  client-rust-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/client/src-tauri
+
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
+
+      # build.rs 只校验 binaries/ 下产物存在且非空；真实产物要跑
+      # `pnpm command sidecar bootstrap client`（联网拉几百 MB），而 cargo check 不产出安装包，
+      # 故用同名占位文件满足校验即可。
+      - name: Stub sidecar artifacts for build.rs
+        working-directory: apps/client/src-tauri
+        run: |
+          mkdir -p binaries
+          host=$(rustc --print host-tuple)
+          for stem in corex-daemon corex-mcp goose; do
+            printf 'ci-placeholder\n' > "binaries/${stem}-${host}"
+          done
+          printf 'ci-placeholder\n' > binaries/pdfium.dll
+
+      - name: Cargo check
+        working-directory: apps/client/src-tauri
+        run: cargo check --locked
