@@ -8,7 +8,7 @@ import { useMemo, useState, type ReactElement } from 'react'
 
 import { AgentModelSettings } from './model-settings'
 import styles from './model-picker.module.scss'
-import { switchGooseProviderModel } from '@/features/agent/model/goose-acp'
+import { switchGooseProviderModel } from '@/features/agent/acp/session'
 import { findModelPref, readModelPrefs } from '@/features/agent/model/model-prefs'
 import { parseModels } from '@/features/agent/model/providers'
 import { useProviderStore } from '@/stores/provider'

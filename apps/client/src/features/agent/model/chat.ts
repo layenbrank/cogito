@@ -9,7 +9,8 @@ import {
   saveProviderConfig,
   type GooseConfigField
 } from '@/features/agent/acp/goose-providers'
-import { chatGooseAcp, waitGooseReady } from '@/features/agent/model/goose-acp'
+import { chatGooseAcp } from '@/features/agent/model/goose-acp'
+import { waitGooseReady } from '@/features/agent/acp/session'
 import type { AgentToolDefinition, ChatMessage, NormalizedChunk, ProviderConfig } from '@/features/agent/types'
 
 interface ChatParams {

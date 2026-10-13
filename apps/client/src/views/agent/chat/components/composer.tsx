@@ -17,7 +17,7 @@ import {
   formatGooseUsage,
   subscribeGooseUsage
 } from '@/features/agent/acp/goose-usage'
-import { compactGooseSession } from '@/features/agent/model/goose-acp'
+import { compactThreadSession } from '@/features/agent/acp/session'
 import { findScenarioLabel, type ScenarioKey } from '@/features/agent/model/scenarios'
 import { isImageFile } from '@/features/agent/model/file-icon'
 import type { FilePartData } from '@/features/agent/types'
@@ -120,7 +120,7 @@ function AgentComposer(props: ComposerProps) {
       return
     }
     updateCompacting(true)
-    void compactGooseSession(activeSessionID)
+    void compactThreadSession(activeSessionID)
       .then(function () {
         toast.success('已请求 goose 压缩上下文')
       })

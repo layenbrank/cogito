@@ -20,7 +20,7 @@ import {
   type GooseProviderEntry
 } from '@/features/agent/acp/goose-providers'
 import { AgentTitlebar } from '@/views/agent/components/titlebar'
-import { waitGooseReady } from '@/features/agent/model/goose-acp'
+import { waitGooseReady } from '@/features/agent/acp/session'
 import { readApiKey, writeApiKey } from '@/features/agent/model/provider-credentials'
 import { useProviderStore } from '@/stores/provider'
 import styles from '@/views/agent/settings/settings.module.scss'
