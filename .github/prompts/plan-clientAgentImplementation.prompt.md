@@ -431,11 +431,12 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 - `views/agent/chat/runtime.tsx`：`useRemoteThreadListRuntime` + `useLocalRuntime` + `createChatModelAdapter`（比 studio 少一步「归属发回列表项」——客户端的 `createThread` 落库时就写定 `workspaceID`）。
 - 用量暂报空对象（不编造数字）：ACP `usage_update` 是上下文占用，不是 token 账；账本随 `agent_usage` 落地。
 
-**④ 进行中（已提交第一步）**
-- ✅ 已接：`chat.tsx` 包 `AgentRuntimeProvider` + `AssistantLabelsProvider`，中栏换 `Thread`（`Welcome`=快捷提示、`ComposerEnd`=模型入口）；中文 `labels.ts`；`plan-list` 并入 `plan-pane`。
-- ✅ 已删：`workbench*`、`bubbles`、`code-diff`、`compare-table`、`agent-loop`、`model/chat`、`goose-acp`、`acp/normalize`、`acp/permission`。
-- ✅ 顺手修：`table-action-group.tsx` 补导出（既有 build:core 断点）。
-- ⏳ 剩余（③b-2）：左栏会话列表接 assistant-ui 线程切换（现在仍走 `stores/agent.ts` 的 `activeSessionID`）；右栏 Plan 读 assistant-ui 的 `plan` 部件（现在仍读旧消息 store）；输入区旧 composer 子组件（附件菜单/状态栏/git/@ 提及）移植到 `Thread` 槽位。
+**④ 已完成（③b 三步全部落地）**
+- ✅ 1 左栏会话列表接 assistant-ui 线程切换（`aui.threads`：switchToThread/switchToNewThread/item({id}).rename/delete；置顶走 `historyPort.updateThread` + `reload`）。
+- ✅ 2 右栏 Plan 读 `plan` 数据部件（`features/agent/plan.ts`），面板只读化（待办/进行中/完成徽标），有内容自动展开。
+- ✅ 3 删除被 `Thread` 输入区取代的旧 composer 家族 + 孤儿 model（agent-tools/tools/workspace-path/file-icon）。
+
+> ⚠️ **回归记录**：旧 composer 承载的输入区能力（附件菜单、git/工作区页脚、`@` 提及与 `/` 命令）自中栏换 `Thread` 起就不在渲染树里了；要恢复得走 assistant-ui 的附件/触发 API，不是挪槽位 —— 记为后续特性，随 PR6（设置面）或独立一 PR 补回。
 
 | 现有能力 | 槽位 |
 | --- | --- |
