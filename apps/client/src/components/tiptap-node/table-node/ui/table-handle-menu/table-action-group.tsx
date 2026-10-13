@@ -172,3 +172,5 @@ const TableActionMenu = () => {
   )
 }
 
+export { TableActionMenu }
+
