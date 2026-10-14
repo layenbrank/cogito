@@ -24,7 +24,6 @@
   },
   "dependencies": {
     "@assistant-ui/react": "catalog:",
-    "assistant-stream": "catalog:",
     "@i-thinking/chat": "workspace:*",
     "@i-thinking/design": "workspace:*",
     "@i-thinking/types": "workspace:*",
@@ -32,12 +31,18 @@
     "@i-thinking/wasm": "workspace:*",
     "@iconify/json": "catalog:",
     "@iconify/react": "catalog:",
+    "@tiptap/extension-bubble-menu": "^3.32.0",
+    "@tiptap/extension-link": "^3.32.0",
+    "@types/turndown": "^5.0.6",
     "@xterm/addon-fit": "catalog:",
     "@xterm/xterm": "catalog:",
+    "assistant-stream": "catalog:",
     "clsx": "catalog:",
+    "exifr": "^7.1.3",
     "go-captcha-react": "catalog:",
     "shaders": "catalog:",
     "swiper": "catalog:",
+    "turndown": "^7.2.4",
     "zod": "catalog:"
   },
   "devDependencies": {
