@@ -7,7 +7,7 @@ import { forwardRef, useCallback } from "react"
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
 
 // --- Lib ---
-import { parseShortcutKeys } from "@/lib/tiptap-utils.ts"
+import { ShortcutBadge } from '@/components/tiptap-ui-primitive/badge/shortcut-badge.tsx'
 
 // --- Tiptap UI ---
 import type { UseCodeBlockConfig } from "@/components/tiptap-ui/code-block-button/use-code-block.ts"
@@ -19,7 +19,6 @@ import {
 // --- UI Primitives ---
 import type { ButtonProps } from "@/components/tiptap-ui-primitive/button/button.tsx"
 import { Button } from "@/components/tiptap-ui-primitive/button/button.tsx"
-import { Badge } from "@/components/tiptap-ui-primitive/badge/badge.tsx"
 
 export interface CodeBlockButtonProps
   extends Omit<ButtonProps, "type">,
@@ -40,7 +39,7 @@ export function CodeBlockShortcutBadge({
 }: {
   shortcutKeys?: string
 }) {
-  return <Badge>{parseShortcutKeys({ shortcutKeys })}</Badge>
+  return <ShortcutBadge shortcutKeys={shortcutKeys} />
 }
 
 /**

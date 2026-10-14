@@ -1,28 +1,63 @@
+.toolbar {
+  height: 36px;
+  min-height: 36px;
+}
+
+.toolbarTrack {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  gap: 2px;
+  padding-inline: 6px;
+
+  :global {
+    .tiptap-button {
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    .tiptap-shortcut-badge {
+      flex-shrink: 0;
+    }
+  }
+}
+
 .composer {
   &.markdown {
     flex-grow: 1;
     flex-shrink: 1;
     flex-basis: 0%;
-    min-height: 0px;
+    min-height: 0;
     overflow: hidden scroll;
-    padding-inline-start: 75px;
-    margin-top: 10px;
+    padding-inline: 48px 24px;
+    padding-block: 16px 48px;
 
     :global {
-      .tiptap {
-        &.ProseMirror {
-          width: 100%;
-          height: 100%;
-          //     * {
-          //       user-select: text;
-          //       font-family:
-          //         'MesloLGM Nerd Font Mono Display', Consolas, 'Liberation Mono',
-          //         Menlo, Courier, monospace;
-          //       @extend %normalize;
-          //     }
-          //     // &.ProseMirror-focused {
-          //     //   outline: none;
-          //     // }
+      .tiptap.ProseMirror {
+        width: 100%;
+        min-height: 60vh;
+        outline: none;
+
+        > * + * {
+          margin-top: 0.65em;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4 {
+          line-height: 1.25;
+          letter-spacing: -0.02em;
+        }
+
+        img {
+          max-width: 100%;
+          height: auto;
+        }
+
+        .math-block,
+        .mermaid-block {
+          user-select: none;
         }
       }
     }

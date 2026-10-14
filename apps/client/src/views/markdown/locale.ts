@@ -1,0 +1,72 @@
+/** 集中文案，便于后续接入 i18n */
+const MD_LOCALE = {
+  APP_NAME: '笔记',
+  UNTITLED: '未命名',
+  OPEN: '打开',
+  NEW: '新建',
+  SAVE: '保存',
+  SAVE_AS: '另存为',
+  SIDEBAR: '侧栏',
+  OUTLINE: '大纲',
+  SEARCH: '搜索文件…',
+  FIND: '查找',
+  FIND_PLACEHOLDER: '在文档中查找…',
+  REPLACE: '替换',
+  MODE_LIVE: '预览',
+  MODE_SOURCE: '源码',
+  MODE_SPLIT: '分栏',
+  FOCUS: '专注',
+  FOCUS_EXIT: '退出专注',
+  FOCUS_HINT: 'Ctrl+Shift+F 切换 · Esc 退出',
+  PREFERENCES: '偏好',
+  SAVED: '已保存',
+  UNSAVED: '未保存',
+  WORDS: '词',
+  CHARS: '字',
+  LINES: '行',
+  EMPTY_TITLE: '开始写作',
+  EMPTY_DESC: '打开本地 Markdown，或新建一篇笔记。',
+  CONFIRM_DISCARD_TITLE: '放弃未保存的更改？',
+  CONFIRM_DISCARD_DESC: '当前文档有未保存的修改，继续将丢失这些更改。',
+  CONFIRM_CANCEL: '取消',
+  CONFIRM_DISCARD: '放弃',
+  CONFIRM_SAVE: '保存',
+  EXTERNAL_CHANGED_TITLE: '文件已在外部修改',
+  EXTERNAL_CHANGED_DESC: '磁盘上的内容已变更。重新加载将覆盖当前编辑。',
+  RELOAD: '重新加载',
+  KEEP: '保留编辑',
+  SAVE_FAILED: '保存失败',
+  OPEN_FAILED: '打开失败',
+  CREATE_FAILED: '创建失败',
+  DELETE_CONFIRM: '删除此文件？',
+  RENAME: '重命名',
+  DELETE: '删除',
+  NEW_FILE: '新建笔记',
+  EXPORT_HTML: '导出 HTML',
+  COPY_PATH: '复制路径',
+  COPY_MD: '复制为 Markdown',
+  COPY_HTML: '复制为 HTML',
+  LARGE_FILE_WARN: '文件较大，已切换到源码模式以保证性能。',
+  BACKUP_RESTORED: '已从备份恢复',
+  IMAGE_SAVED: '图片已保存到 assets',
+  PLACEHOLDER: '开始写作…',
+  PREF_FONT: '字号',
+  PREF_WIDTH: '内容宽度',
+  PREF_AUTOSAVE: '自动保存间隔 (ms)',
+  PREF_TYPOGRAPHY: '智能标点',
+  PREF_ROOT: '工作区根目录',
+  PREF_TYPEWRITER: '打字机滚动',
+  NO_OUTLINE: '暂无标题',
+  RECENT: '最近打开',
+  PRINT: '打印',
+  AI_IMPROVE: 'AI 改进'
+} as const
+
+type MdLocaleKey = keyof typeof MD_LOCALE
+
+function t(key: MdLocaleKey): string {
+  return MD_LOCALE[key]
+}
+
+export type { MdLocaleKey }
+export { MD_LOCALE, t }

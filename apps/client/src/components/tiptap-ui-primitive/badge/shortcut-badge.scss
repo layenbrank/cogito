@@ -1,0 +1,33 @@
+.tiptap-shortcut-badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.1rem;
+  margin-inline-start: 0.125rem;
+  pointer-events: none;
+  white-space: nowrap;
+
+  .tiptap-shortcut-key {
+    font: inherit;
+    font-size: inherit;
+    line-height: 1;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+  }
+
+  .tiptap-shortcut-sep {
+    opacity: 0.55;
+    font-weight: 600;
+  }
+}
+
+.tiptap-button {
+  flex-shrink: 0;
+  white-space: nowrap;
+
+  .tiptap-shortcut-badge {
+    margin-inline-start: 0.15rem;
+  }
+}

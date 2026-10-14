@@ -1,0 +1,14 @@
+/* TipTap 变量桥接到 design semantic tokens，避免双轨色板硬编码 */
+:root {
+  --tt-brand-color-500: var(--primary);
+  --tt-brand-color-600: var(--primary);
+  --tt-gray-light-50: var(--background);
+  --tt-gray-light-900: var(--foreground);
+  --tt-gray-dark-50: var(--background);
+  --tt-gray-dark-900: var(--foreground);
+}
+
+.dark {
+  --tt-brand-color-500: var(--primary);
+  --tt-brand-color-600: var(--primary);
+}

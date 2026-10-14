@@ -4,7 +4,7 @@
 import { forwardRef, useCallback } from "react"
 
 // --- Lib ---
-import { parseShortcutKeys } from "@/lib/tiptap-utils.ts"
+import { ShortcutBadge } from '@/components/tiptap-ui-primitive/badge/shortcut-badge.tsx'
 
 // --- Hooks ---
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor.ts"
@@ -19,7 +19,6 @@ import {
 // --- UI Primitives ---
 import type { ButtonProps } from "@/components/tiptap-ui-primitive/button/button.tsx"
 import { Button } from "@/components/tiptap-ui-primitive/button/button.tsx"
-import { Badge } from "@/components/tiptap-ui-primitive/badge/badge.tsx"
 
 export interface ImageDownloadButtonProps
   extends Omit<ButtonProps, "type">,
@@ -40,7 +39,7 @@ export function ImageDownloadShortcutBadge({
 }: {
   shortcutKeys?: string
 }) {
-  return <Badge>{parseShortcutKeys({ shortcutKeys })}</Badge>
+  return <ShortcutBadge shortcutKeys={shortcutKeys} />
 }
 
 /**

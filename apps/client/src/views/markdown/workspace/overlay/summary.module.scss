@@ -1,15 +1,12 @@
-$size-y: 32px;
+$size-y: 28px;
 
 .summary {
   &.root {
     width: 100%;
     height: $size-y;
-    text-align: center;
     padding-inline: 8px;
-    border-radius: 0px;
-    font-size: 14px;
-    line-height: 20px;
-    background-color: #ffffff;
+    font-size: 12px;
+    line-height: 16px;
     display: flex;
     align-items: center;
   }

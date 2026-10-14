@@ -6,5 +6,16 @@
     height: 100%;
     min-height: 0;
     overflow: hidden;
+    background: var(--background);
+    color: var(--foreground);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markdown.root * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

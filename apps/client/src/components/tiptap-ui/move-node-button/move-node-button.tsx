@@ -2,7 +2,7 @@
 import { forwardRef, useCallback } from 'react'
 
 // --- Lib ---
-import { parseShortcutKeys } from '@/lib/tiptap-utils.ts'
+import { ShortcutBadge } from '@/components/tiptap-ui-primitive/badge/shortcut-badge.tsx'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
@@ -14,7 +14,6 @@ import { useMoveNode } from '@/components/tiptap-ui/move-node-button/use-move-no
 // --- UI Primitives ---
 import type { ButtonProps } from '@/components/tiptap-ui-primitive/button/button.tsx'
 import { Button } from '@/components/tiptap-ui-primitive/button/button.tsx'
-import { Badge } from '@/components/tiptap-ui-primitive/badge/badge.tsx'
 
 export interface MoveNodeButtonProps
   extends Omit<ButtonProps, 'type'>, UseMoveNodeConfig {
@@ -34,7 +33,7 @@ export function MoveNodeShortcutBadge({
 }: {
   shortcutKeys: string
 }) {
-  return <Badge>{parseShortcutKeys({ shortcutKeys })}</Badge>
+  return <ShortcutBadge shortcutKeys={shortcutKeys} />
 }
 
 /**

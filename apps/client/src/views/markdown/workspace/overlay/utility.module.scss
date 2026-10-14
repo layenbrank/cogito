@@ -1,18 +1,14 @@
-$size-y: 32px;
+$size-y: 36px;
 
 .utility {
   &.root {
     height: $size-y;
+    min-height: $size-y;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
     z-index: 1;
-  }
-
-  &.combobox-trigger {
-    width: 360px;
-    height: $size-y - 8px;
-    line-height: $size-y - 8px;
-    padding-block: 0px;
+    overflow: hidden;
   }
 }
