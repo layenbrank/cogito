@@ -279,6 +279,19 @@
   }
 }
 
+@layer components {
+  /*
+   * ResizablePanel 折叠/展开的宽度过渡：程序化 collapse/expand 时 flex-basis 平滑过渡；
+   * 拖动分栏时 Group 打 `data-dragging`，临时关掉 transition 保证跟手（见 resizable.tsx）。
+   */
+  [data-panel] {
+    transition: flex-basis 0.2s ease-out;
+  }
+  [data-dragging] [data-panel] {
+    transition: none;
+  }
+}
+
 /*---break---
  */
 
