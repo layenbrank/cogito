@@ -75,8 +75,8 @@ async function insertMediaPath(path: string): Promise<string | undefined> {
   try {
     const info = await stat(path)
     size = typeof info.size === 'number' ? info.size : null
-  } catch {
-    /* optional */
+  } catch (error) {
+    console.warn('[gallery] stat size failed', path, error)
   }
 
   const meta: GalleryAssetMeta = {

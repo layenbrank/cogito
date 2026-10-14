@@ -19,7 +19,7 @@ async function writeBackup(activePath: string | null, content: string): Promise<
   const dir = await findBackupDir()
   const stamp = Date.now()
   const base = activePath ? findFileName(activePath) : 'untitled.md'
-  const safe = base.replace(/[^\w.\-]+/g, '_')
+  const safe = base.replace(/[^\w.-]+/g, '_')
   const target = await join(dir, `${safe}.${stamp}.bak`)
   await writeTextFile(target, content)
 }
@@ -28,7 +28,7 @@ async function findLatestBackup(activePath: string | null): Promise<string | nul
   const { readDir } = await import('@tauri-apps/plugin-fs')
   const dir = await findBackupDir()
   const base = activePath ? findFileName(activePath) : 'untitled.md'
-  const safe = base.replace(/[^\w.\-]+/g, '_')
+  const safe = base.replace(/[^\w.-]+/g, '_')
   const entries = await readDir(dir)
   const matches = entries
     .filter(function (entry) {

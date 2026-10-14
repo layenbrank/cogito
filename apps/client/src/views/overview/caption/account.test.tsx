@@ -31,7 +31,17 @@ describe('CaptionAccount', function () {
   })
 
   it('已登录时点头像打开菜单，菜单里能退出登录', async function () {
-    useSessionStore.setState({ user: { id: 'u1', username: 'iwell', avatarUrl: null } })
+    useSessionStore.setState({
+      user: {
+        id: 'u1',
+        username: 'iwell',
+        avatarUrl: null,
+        email: null,
+        phone: null,
+        gender: null,
+        birthday: null
+      }
+    })
     render(<CaptionAccount onSignIn={vi.fn()} />)
 
     const trigger = screen.getByRole('button', { name: '已登录：iwell' })

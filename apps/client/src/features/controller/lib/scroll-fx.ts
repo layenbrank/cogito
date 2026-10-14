@@ -150,7 +150,7 @@ function bindScrollFx(scroller: HTMLElement, options?: ScrollFxOptions): ScrollF
         scroller.scrollTop = target
         return
       }
-      if (jumpDuration != null) {
+      if (jumpDuration !== undefined) {
         stopDamp()
         gsap.to(scroller, {
           scrollTop: target,

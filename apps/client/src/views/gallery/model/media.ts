@@ -70,7 +70,8 @@ function parseMeta(raw: string | null | undefined): GalleryAssetMeta {
   try {
     const parsed = JSON.parse(raw) as GalleryAssetMeta
     return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
+  } catch (error) {
+    console.warn('[gallery] parseMeta failed', error)
     return {}
   }
 }

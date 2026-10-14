@@ -17,7 +17,7 @@ function parseFrontMatter(source: string): FrontMatterSlice {
 }
 
 function joinFrontMatter(frontMatter: string | null, body: string): string {
-  if (frontMatter == null || frontMatter === '') return body
+  if (frontMatter === null || frontMatter === '') return body
   const trimmedBody = body.replace(/^\r?\n/, '')
   return `---\n${frontMatter}\n---\n\n${trimmedBody}`
 }

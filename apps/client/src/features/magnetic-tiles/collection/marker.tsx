@@ -12,7 +12,8 @@ import styles from '@/features/magnetic-tiles/collection/marker.module.scss'
 import { useCollectionStore } from '@/stores/collection'
 
 type Props = Omit<MarkerProps, 'children'> & {
-  id: string
+  /** 主镜磁贴有 id；overlay 预览可不传，此时只显示空文件夹图标 */
+  id?: string
 }
 
 const PREVIEW_COUNT = 4
@@ -29,12 +30,15 @@ export default function Marker(props: Props) {
 
   useEffect(
     function () {
+      const collectionId = props.id
+      if (!collectionId) return
+
       let cancelled = false
 
       async function toLoad() {
         try {
           const members = await invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
-            params: { collectionID: props.id }
+            params: { collectionID: collectionId }
           })
           if (cancelled) return
           onUpdatePreviews(
@@ -47,7 +51,8 @@ export default function Marker(props: Props) {
                 return tile.mark || findInitial(tile.title)
               })
           )
-        } catch {
+        } catch (error) {
+          console.warn('[collection-marker] preview load failed', error)
           if (!cancelled) onUpdatePreviews([])
         }
       }

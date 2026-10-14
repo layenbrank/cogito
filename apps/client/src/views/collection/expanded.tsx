@@ -131,7 +131,8 @@ function CollectionExpanded() {
             if (!event.payload) toClose()
           })
           if (cancelled) unlisten()
-        } catch {
+        } catch (error) {
+          console.warn('[collection] onFocusChanged unavailable, fallback to blur', error)
           function onBlur() {
             toClose()
           }

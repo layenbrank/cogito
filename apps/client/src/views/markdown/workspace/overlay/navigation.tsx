@@ -200,7 +200,7 @@ function Navigation(props: NavigationProps) {
       ) : null}
 
       <AlertDialog
-        open={pendingDelete != null}
+        open={pendingDelete !== null}
         onOpenChange={function (open) {
           if (!open) setPendingDelete(null)
         }}>
@@ -222,7 +222,7 @@ function Navigation(props: NavigationProps) {
       </AlertDialog>
 
       <AlertDialog
-        open={renameTarget != null}
+        open={renameTarget !== null}
         onOpenChange={function (open) {
           if (!open) setRenameTarget(null)
         }}>

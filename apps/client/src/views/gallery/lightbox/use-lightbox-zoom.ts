@@ -123,7 +123,7 @@ function useLightboxZoom(options: UseLightboxZoomOptions) {
 
   useLayoutEffect(
     function () {
-      if (!options.enabled || options.resetKey == null) {
+      if (!options.enabled || options.resetKey === undefined || options.resetKey === null) {
         live.current = { scale: 1, x: 0, y: 0 }
         onScale(1)
         clearTargetStyles(options.targetRef.current)
@@ -139,7 +139,7 @@ function useLightboxZoom(options: UseLightboxZoomOptions) {
 
   useLayoutEffect(
     function () {
-      if (!options.enabled || options.resetKey == null) return
+      if (!options.enabled || options.resetKey === undefined || options.resetKey === null) return
       // fit 晚到：若仍是 100%，重新居中；已缩放则只按新 fit 重算尺寸并钳制平移
       if (live.current.scale <= 1.001) {
         const origin = findCenteredOrigin(1)
@@ -154,109 +154,114 @@ function useLightboxZoom(options: UseLightboxZoomOptions) {
   useEffect(
     function () {
       if (!options.enabled) return
-      const stage = options.stageRef.current
-      if (!stage) return
+      const stageNode = options.stageRef.current
+      if (!stageNode) return
 
-      function onWheel(event: WheelEvent) {
-        if (!event.ctrlKey && !event.metaKey) return
-        event.preventDefault()
-        event.stopPropagation()
+      // 参数传递避开闭包对 ref.current 收窄失效（TS18047）
+      return bindStageGestures(stageNode)
 
-        const target = options.targetRef.current
-        if (!target) return
+      function bindStageGestures(stage: HTMLElement) {
+        function onWheel(event: WheelEvent) {
+          if (!event.ctrlKey && !event.metaKey) return
+          event.preventDefault()
+          event.stopPropagation()
 
-        const oldScale = live.current.scale
-        const delta = event.deltaY > 0 ? -LIGHTBOX_ZOOM_STEP : LIGHTBOX_ZOOM_STEP
-        const next =
-          Math.round(clamp(oldScale + delta, LIGHTBOX_ZOOM_MIN, LIGHTBOX_ZOOM_MAX) * 100) / 100
-        if (next === oldScale) return
+          const target = options.targetRef.current
+          if (!target) return
 
-        const bounds = findBoundsEl()
-        if (!bounds) return
-        const boundsRect = bounds.getBoundingClientRect()
-        // 光标相对定位容器；内容坐标用 fit 空间（÷ oldScale）
-        const mouseX = event.clientX - boundsRect.left
-        const mouseY = event.clientY - boundsRect.top
-        const contentX = (mouseX - live.current.x) / oldScale
-        const contentY = (mouseY - live.current.y) / oldScale
-        const nextX = mouseX - contentX * next
-        const nextY = mouseY - contentY * next
+          const oldScale = live.current.scale
+          const delta = event.deltaY > 0 ? -LIGHTBOX_ZOOM_STEP : LIGHTBOX_ZOOM_STEP
+          const next =
+            Math.round(clamp(oldScale + delta, LIGHTBOX_ZOOM_MIN, LIGHTBOX_ZOOM_MAX) * 100) / 100
+          if (next === oldScale) return
 
-        if (next <= 1.001) {
-          const origin = findCenteredOrigin(1)
-          live.current = { scale: 1, x: origin.x, y: origin.y }
-        } else {
-          const pan = clampPan(nextX, nextY, next)
-          live.current = { scale: next, x: pan.x, y: pan.y }
+          const bounds = findBoundsEl()
+          if (!bounds) return
+          const boundsRect = bounds.getBoundingClientRect()
+          // 光标相对定位容器；内容坐标用 fit 空间（÷ oldScale）
+          const mouseX = event.clientX - boundsRect.left
+          const mouseY = event.clientY - boundsRect.top
+          const contentX = (mouseX - live.current.x) / oldScale
+          const contentY = (mouseY - live.current.y) / oldScale
+          const nextX = mouseX - contentX * next
+          const nextY = mouseY - contentY * next
+
+          if (next <= 1.001) {
+            const origin = findCenteredOrigin(1)
+            live.current = { scale: 1, x: origin.x, y: origin.y }
+          } else {
+            const pan = clampPan(nextX, nextY, next)
+            live.current = { scale: next, x: pan.x, y: pan.y }
+          }
+
+          onScale(live.current.scale)
+          applyLayout()
         }
 
-        onScale(live.current.scale)
-        applyLayout()
-      }
-
-      function onPointerDown(event: PointerEvent) {
-        if (live.current.scale <= 1.001) return
-        if (event.button !== 0) return
-        // 避免拖到原生 video controls 时抢手势
-        const path = event.composedPath()
-        for (const node of path) {
-          if (node instanceof HTMLVideoElement) return
+        function onPointerDown(event: PointerEvent) {
+          if (live.current.scale <= 1.001) return
+          if (event.button !== 0) return
+          // 避免拖到原生 video controls 时抢手势
+          const path = event.composedPath()
+          for (const node of path) {
+            if (node instanceof HTMLVideoElement) return
+          }
+          drag.current = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            originX: live.current.x,
+            originY: live.current.y
+          }
+          stage.setPointerCapture(event.pointerId)
+          stage.style.cursor = 'grabbing'
         }
-        drag.current = {
-          pointerId: event.pointerId,
-          startX: event.clientX,
-          startY: event.clientY,
-          originX: live.current.x,
-          originY: live.current.y
+
+        function onPointerMove(event: PointerEvent) {
+          const session = drag.current
+          if (!session || session.pointerId !== event.pointerId) return
+          const nextX = session.originX + (event.clientX - session.startX)
+          const nextY = session.originY + (event.clientY - session.startY)
+          const pan = clampPan(nextX, nextY, live.current.scale)
+          live.current.x = pan.x
+          live.current.y = pan.y
+          applyLayout()
         }
-        stage.setPointerCapture(event.pointerId)
-        stage.style.cursor = 'grabbing'
-      }
 
-      function onPointerMove(event: PointerEvent) {
-        const session = drag.current
-        if (!session || session.pointerId !== event.pointerId) return
-        const nextX = session.originX + (event.clientX - session.startX)
-        const nextY = session.originY + (event.clientY - session.startY)
-        const pan = clampPan(nextX, nextY, live.current.scale)
-        live.current.x = pan.x
-        live.current.y = pan.y
-        applyLayout()
-      }
-
-      function endDrag(event: PointerEvent) {
-        if (!drag.current || drag.current.pointerId !== event.pointerId) return
-        drag.current = null
-        stage.style.cursor = live.current.scale > 1 ? 'grab' : ''
-        try {
-          stage.releasePointerCapture(event.pointerId)
-        } catch {
-          /* already released */
+        function endDrag(event: PointerEvent) {
+          if (!drag.current || drag.current.pointerId !== event.pointerId) return
+          drag.current = null
+          stage.style.cursor = live.current.scale > 1 ? 'grab' : ''
+          try {
+            stage.releasePointerCapture(event.pointerId)
+          } catch (error) {
+            console.debug('[lightbox] releasePointerCapture skipped', error)
+          }
         }
-      }
 
-      function onDblClick() {
-        if (live.current.scale > 1.001) {
-          resetZoom()
+        function onDblClick() {
+          if (live.current.scale > 1.001) {
+            resetZoom()
+            stage.style.cursor = ''
+          }
+        }
+
+        stage.addEventListener('wheel', onWheel, { passive: false })
+        stage.addEventListener('pointerdown', onPointerDown)
+        stage.addEventListener('pointermove', onPointerMove)
+        stage.addEventListener('pointerup', endDrag)
+        stage.addEventListener('pointercancel', endDrag)
+        stage.addEventListener('dblclick', onDblClick)
+
+        return function () {
+          stage.removeEventListener('wheel', onWheel)
+          stage.removeEventListener('pointerdown', onPointerDown)
+          stage.removeEventListener('pointermove', onPointerMove)
+          stage.removeEventListener('pointerup', endDrag)
+          stage.removeEventListener('pointercancel', endDrag)
+          stage.removeEventListener('dblclick', onDblClick)
           stage.style.cursor = ''
         }
-      }
-
-      stage.addEventListener('wheel', onWheel, { passive: false })
-      stage.addEventListener('pointerdown', onPointerDown)
-      stage.addEventListener('pointermove', onPointerMove)
-      stage.addEventListener('pointerup', endDrag)
-      stage.addEventListener('pointercancel', endDrag)
-      stage.addEventListener('dblclick', onDblClick)
-
-      return function () {
-        stage.removeEventListener('wheel', onWheel)
-        stage.removeEventListener('pointerdown', onPointerDown)
-        stage.removeEventListener('pointermove', onPointerMove)
-        stage.removeEventListener('pointerup', endDrag)
-        stage.removeEventListener('pointercancel', endDrag)
-        stage.removeEventListener('dblclick', onDblClick)
-        stage.style.cursor = ''
       }
     },
     [options.enabled, options.stageRef, options.targetRef, options.resetKey]

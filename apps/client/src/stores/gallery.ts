@@ -50,7 +50,7 @@ function mapAssets(assets: GalleryAsset[]): GalleryMedia[] {
 }
 
 function needsDateHydration(media: GalleryMedia): boolean {
-  return media.meta.dateSource == null && media.meta.source !== 'capture'
+  return media.meta.dateSource === undefined && media.meta.source !== 'capture'
 }
 
 /** 旧导入数据缺少 dateSource：按 EXIF/文件名/mtime 回填并写回 */

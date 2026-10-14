@@ -122,7 +122,7 @@ function SourceEditor(props: SourceEditorProps) {
   useEffect(
     function () {
       const editor = editorRef.current
-      if (!editor || props.scrollRatio == null) return
+      if (!editor || props.scrollRatio === undefined || props.scrollRatio === null) return
       const height = editor.getScrollHeight() - editor.getLayoutInfo().height
       if (height <= 0) return
       suppressingRef.current = true

@@ -51,9 +51,9 @@ function findDateFromFileName(path: string): number | undefined {
     const year = Number(match[1])
     const month = Number(match[2])
     const day = Number(match[3])
-    const hour = match[4] != null ? Number(match[4]) : 12
-    const minute = match[5] != null ? Number(match[5]) : 0
-    const second = match[6] != null ? Number(match[6]) : 0
+    const hour = match[4] !== undefined ? Number(match[4]) : 12
+    const minute = match[5] !== undefined ? Number(match[5]) : 0
+    const second = match[6] !== undefined ? Number(match[6]) : 0
     if (
       year < 1990 ||
       year > 2100 ||
@@ -80,10 +80,10 @@ async function findDateFromExif(path: string): Promise<number | undefined> {
     if (!tags || typeof tags !== 'object') return undefined
     for (const key of EXIF_PICK) {
       const ms = toValidMs((tags as Record<string, unknown>)[key])
-      if (ms != null) return ms
+      if (ms !== undefined) return ms
     }
-  } catch {
-    /* 无 EXIF / 读失败 */
+  } catch (error) {
+    console.warn('[gallery] EXIF probe failed', path, error)
   }
   return undefined
 }
@@ -95,8 +95,8 @@ async function findDateFromStat(path: string): Promise<number | undefined> {
     const mtime = info.mtime?.getTime()
     if (typeof birth === 'number' && Number.isFinite(birth) && birth > 0) return birth
     if (typeof mtime === 'number' && Number.isFinite(mtime) && mtime > 0) return mtime
-  } catch {
-    /* ignore */
+  } catch (error) {
+    console.warn('[gallery] stat probe failed', path, error)
   }
   return undefined
 }
@@ -105,14 +105,14 @@ async function findDateFromStat(path: string): Promise<number | undefined> {
 async function probeCapturedAt(path: string, kind: MediaKind): Promise<ProbedDate> {
   if (kind === 'image') {
     const exif = await findDateFromExif(path)
-    if (exif != null) return { at: exif, source: 'exif' }
+    if (exif !== undefined) return { at: exif, source: 'exif' }
   }
 
   const fromName = findDateFromFileName(path)
-  if (fromName != null) return { at: fromName, source: 'filename' }
+  if (fromName !== undefined) return { at: fromName, source: 'filename' }
 
   const fromStat = await findDateFromStat(path)
-  if (fromStat != null) return { at: fromStat, source: 'mtime' }
+  if (fromStat !== undefined) return { at: fromStat, source: 'mtime' }
 
   return { at: Date.now(), source: 'import' }
 }

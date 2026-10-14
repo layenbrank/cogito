@@ -40,7 +40,8 @@ function parsePreferences(): MarkdownPreferences {
       ...parsed,
       recentPaths: Array.isArray(parsed.recentPaths) ? parsed.recentPaths.slice(0, 20) : []
     }
-  } catch {
+  } catch (error) {
+    console.warn('[markdown] parsePreferences failed', error)
     return { ...PREFERENCES }
   }
 }

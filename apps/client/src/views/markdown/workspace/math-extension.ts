@@ -49,7 +49,8 @@ const MathBlock = Node.create({
           displayMode: true,
           throwOnError: false
         })
-      } catch {
+      } catch (error) {
+        console.warn('[markdown] katex block render failed', error)
         dom.textContent = node.attrs.formula || ''
       }
       return { dom }
@@ -107,7 +108,8 @@ const MathInline = Node.create({
           displayMode: false,
           throwOnError: false
         })
-      } catch {
+      } catch (error) {
+        console.warn('[markdown] katex inline render failed', error)
         dom.textContent = node.attrs.formula || ''
       }
       return { dom }
