@@ -1,6 +1,7 @@
 'use client'
 
 import { Collapsible as CollapsiblePrimitive } from '@base-ui/react/collapsible'
+import { cn } from 'cn'
 
 function Collapsible({ ...props }: CollapsiblePrimitive.Root.Props) {
   return (
@@ -20,10 +21,16 @@ function CollapsibleTrigger({ ...props }: CollapsiblePrimitive.Trigger.Props) {
   )
 }
 
-function CollapsibleContent({ ...props }: CollapsiblePrimitive.Panel.Props) {
+function CollapsibleContent({ className, ...props }: CollapsiblePrimitive.Panel.Props) {
   return (
     <CollapsiblePrimitive.Panel
       data-slot="collapsible-content"
+      className={cn(
+        // 打开播 collapsible-down（0 → 内容高），关闭切 collapsible-up（内容高 → 0）
+        'overflow-hidden animate-collapsible-down data-ending-style:animate-collapsible-up',
+        'motion-reduce:animate-none',
+        className
+      )}
       {...props}
     />
   )

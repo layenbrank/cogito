@@ -224,6 +224,13 @@
   --text-2xs: 0.6875rem;
   --text-md: 0.8125rem;
 
+  /*
+   * Collapsible / Accordion 折叠动效（shadcn 约定）：`animate-collapsible-down/up` 工具类，
+   * 高度经 `--collapsible-panel-height`（Base UI 在过渡期写入）从 0 到内容高平滑过渡。
+   */
+  --animate-collapsible-down: collapsible-down 0.2s ease-out;
+  --animate-collapsible-up: collapsible-up 0.2s ease-out;
+
   @keyframes collapsible-down {
     from {
       height: 0;
