@@ -115,6 +115,12 @@
 
 - 删死代码（见上）；`acp/index.ts` barrel 重整；跑验证。
 
+### WS-9 嵌入式交互终端（对齐 VS Code / Cursor / Qoder）_待实现_
+
+- 右栏「打开终端」与会话区**用户可交互的真终端**（非工具卡模拟终端）。调研与落点见 [D11](#d11-嵌入式交互终端调研与落点对应-ws-9)。
+- **不做**外开系统 `Windows Terminal` / `cmd` 冒充集成终端；**不做** Node/`node-pty`（Tauri 无 Node 宿主）。
+- 与现有 **工具模拟终端卡**（`tool-terminal.tsx`，展示 goose shell 工具 stdout）职责分离，禁止合成一条链路。
+
 ## 关键文件
 
 - 客户端：`views/agent/{chat/chat.tsx,chat/runtime.tsx,chat/components/*,settings/sections/*}`、`features/agent/{acp/*,model/*,port/*}`、`stores/{agent,provider}.ts`、`utils/http/http.ts`、`src-tauri/crates/database/src/{migrations/migrations_v001.rs,migration.rs,bin/migrate.rs}`、`src-tauri/crates/{database/src/entity/agent_session.rs,database/src/entity/agent_message.rs,database/src/entity/agent_workspace.rs,database/src/entity/agent_workspace_folder.rs,database/src/entity/agent_provider.rs,database/src/entity/agent_usage.rs,command/src/agent_*,core/src/agent_*}`、`src-tauri/src/utils/goose_serve.rs`
@@ -337,8 +343,9 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 8. **PR8** WS-5 cogito MCP
 9. **PR9** WS-6 委派
 10. **PR10** WS-8 清理 + 全量验证
+11. **PR11** WS-9 嵌入式交互终端（见 [待实现](#待实现) / [D11](#d11-嵌入式交互终端调研与落点对应-ws-9)）— **待实现**
 
-> 依赖：PR4 依赖 PR2/PR3；PR7 依赖 PR3；PR8 依赖 PR5；PR9 依赖 PR5/PR8。PR6 可与 PR7–PR9 并行。
+> 依赖：PR4 依赖 PR2/PR3；PR7 依赖 PR3；PR8 依赖 PR5；PR9 依赖 PR5/PR8。PR6 可与 PR7–PR9 并行。PR11 依赖 PR4（三栏/右栏已在），可与服务端 PR 解耦。
 
 ### D10 开放项与风险
 
@@ -349,6 +356,93 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 - **本地库单世代**：改 v001 后旧库须 `fresh`/删库重建（本地数据清空，开发期可接受）；发布前需确认是否给已装用户补数据迁移。
 - `DeriveIden` 多词列名必须显式 `#[iden = "xxxID"]`，否则建出 snake_case 列（与列名约定不符）。
 - **重命名要同批改**：表名（`agent_*`）+ Rust 实体/服务/命令模块 + `#[tauri::command(rename=…)]` + `shared/ipc/channels.ts` + `stores/*` 调用点 + `magnetic-tile-agent.d.ts`——缺一处编译不过（勿留 `Ai*`/`agent_*` 混用）。
+- **嵌入式交互终端**（WS-9 / D11）：PR1–PR10 未覆盖；右栏「打开终端」仍为占位。见下方 [待实现](#待实现)。
+
+### D11 嵌入式交互终端：调研与落点（对应 WS-9）
+
+> 调研时间：2026-10-14。结论用于指导实现，**不是**「外开系统终端」MVP。
+
+#### 三家产品取证（本机 + 公开源码）
+
+| 产品 | 证据 | 栈 |
+| --- | --- | --- |
+| **VS Code** | 上游 `terminalProcess.ts` → `node-pty.spawn`；PtyHost 独立进程；渲染 `xterm.js` | `node-pty`（Win=ConPTY）+ `@xterm/*` + IPC |
+| **Cursor** | VS Code fork；本机 `D:\Applications\cursor\...\node_modules\`：`node-pty@1.1.0-beta42`、`@xterm/xterm@6.1.0-beta.291` | 同 VS Code |
+| **Qoder CN 工作台** | `app.asar` 含 `@xterm/xterm` / `node-pty` / `terminal:create`；`app.asar.unpacked/node_modules/node-pty` | Electron + xterm + node-pty + `terminal:*` IPC |
+| **Qoder CN IDE** | `package.json`：`node-pty@1.1.0-beta35` + `@xterm/*` 全家桶 | VS Code 系同源 |
+
+要点：
+
+1. 默认 Terminal 面板是**应用内伪终端（PTY）**，不是 `ShellExecute` 拉起 Windows Terminal。
+2. **集成终端** ≠ **聊天里的模拟终端皮**（后者只渲染工具 stdout；studio/client 的 `tool-terminal.tsx` 属此类）。
+3. Qoder **VS Code / JetBrains 插件**另走宿主 Shell Integration API，与自研工作台的嵌入 PTY 不是一条路；本仓库对齐的是工作台 / IDE 内嵌终端。
+
+#### 能否用 Rust「完美代替」VS Code 终端栈
+
+| 层级 | VS Code | Tauri / Rust 对应 | 等价？ |
+| --- | --- | --- | --- |
+| 渲染 | xterm.js | WebView 继续用 `@xterm/xterm`（client `package.json` 已声明 `@xterm/xterm` / `@xterm/addon-fit`） | ✅ |
+| PTY | node-pty → ConPTY / forkpty | **`portable-pty`**（WezTerm；Windows=`ConPtySystem`） | ✅ 系统 API 同级 |
+| 现成胶水 | — | `tauri-plugin-pty`、社区 `portable-pty`+xterm 示例 | ⚠️ 能用，成熟度远不如 VS Code |
+| PtyHost 隔离 / 重连 / layout 持久化 | 完整 | 须自建 | ❌ 无开箱 |
+| Shell Integration（OSC 633、命令装饰、Cwd） | 自带脚本+解析 | 须自注入/自解析（后置） | ❌ MVP 不做 |
+
+**结论**：没有 drop-in 的「完美 Rust 替代品」；应采用**同架构的 Tauri 版**——前端仍 xterm.js，PTY 主机用 Rust（`portable-pty`）。Tauri **能跑 JS**（WebView），不能跑的是 **Node 原生模块 `node-pty`**。
+
+#### 目标架构（对齐 VS Code，落 Tauri）
+
+```text
+VS Code:  xterm.js  ←IPC→  PtyHost(node-pty / ConPTY)
+client:   xterm.js  ←IPC→  Rust(portable-pty / ConPTY)
+```
+
+1. **前端**：`@xterm/xterm` + FitAddon；面板挂右栏「打开终端」和/或底栏（与 aside 快捷卡接线）。
+2. **Rust**：`portable-pty` 会话管理；读线程阻塞读 master → 推前端（**Channel / 事件推原始字节**，禁止反复 `invoke` 轮询读）。
+3. **IPC**（命名对齐既有规范，建议）：`terminal:create` / `terminal:write` / `terminal:resize` / `terminal:kill` / `terminal:list`；通道进 `shared/ipc/channels.ts` + Rust `#[tauri::command(rename=…)]` 同批。
+4. **会话模型**：按工作区 `primaryPath` 作 cwd；默认 shell：Windows `powershell`/`pwsh`，Unix `$SHELL`；关会话 / 关工作区时 kill 子进程。
+5. **权限**：cwd 限制在当前工作区根下（与 filesystem 约定一致）。
+6. **MVP 明确不做**：OSC 633 / Shell Integration、多 tab 持久化与回放、独立 PtyHost 子进程隔离、ConPTY DLL 捆绑细节。
+7. **职责分离**：goose `shell` 工具结果继续走 `tool-terminal` 模拟卡；用户手敲交互走本 PTY。二者可并排，禁止共用一个会话对象硬拧。
+
+#### 社区参照（实现期可对照，勿当无封装核心）
+
+- `portable-pty`（docs.rs / WezTerm）
+- `tauri-plugin-pty`（Tnze；spawn/write/read/resize/kill）
+- 示例：marc2332/tauri-terminal、crynta 等「portable-pty + xterm + Channel」写法
+
+#### 验收
+
+- 右栏「打开终端」→ 面板内可交互 shell，cwd=当前工作区。
+- 输入 / 输出 / 窗口 resize 正常；关面板或切走工作区时进程被回收。
+- 工具卡模拟终端与嵌入终端互不抢占、互不串会话。
+- `pnpm --filter @i-thinking/client run type-check` + `cargo check --manifest-path apps/client/src-tauri/Cargo.toml`。
+
+---
+
+## 待实现
+
+> PR1–PR10 已完成项不在此列。以下为调研后新增 / 仍开放的工作。
+
+### PR11 · WS-9 嵌入式交互终端（对齐 VS Code 架构的 Tauri/Rust 版）
+
+**状态**：待实现  
+**依据**：D11 调研（2026-10-14）  
+**摘要**：在 `apps/client` 实现用户可交互的嵌入 PTY 终端（xterm.js + `portable-pty`），接通右栏「打开终端」；与 `tool-terminal` 模拟卡分离。
+
+**建议切片**
+
+1. Rust：`portable-pty` 会话管理 + 读线程 + `terminal:*` IPC（channels 同批）。
+2. 前端：xterm 视图组件 + FitAddon + 与 IPC 双向字节流。
+3. UI：`aside-empty`「打开终端」启用；面板位置（右栏 / 底栏）与会话/工作区生命周期对齐。
+4. 权限与回收：cwd 沙箱、kill on dispose；单测 / 手测清单见 D11 验收。
+
+**非目标（本 PR）**：OSC 633、外开系统终端、把 goose shell 工具改造成交互 PTY。
+
+### 其它仍开放（摘自 D10 / 进度备注）
+
+- 对公 `Idempotency-Key` 中间件（`POST /agent/tasks`、`POST /chat/sync`）。
+- 委派：本地落库 `taskID` / 已提交审批集合（重启恢复）。
+- Composer 旧能力回归：附件菜单、git/工作区页脚、`@` 提及与 `/` 命令（走 assistant-ui 附件/触发 API）。
 
 ---
 
