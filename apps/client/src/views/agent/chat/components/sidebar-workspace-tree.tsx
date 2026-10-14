@@ -277,11 +277,13 @@ function SidebarWorkspaceTree(props: SidebarWorkspaceTreeProps) {
             key={branch.id}
             open={isOpen}
             onOpenChange={function (open) {
+              // 与受控 open 一致时不要写 state，避免 Base UI 同步回调与自动展开互殴
+              if (open === isOpen) return
               props.onExpandedKeysChange(function (keys) {
                 if (open) {
-                  const keysSet = new Set(keys)
-                  return keysSet.has(branch.id) ? keys : [...keys, branch.id]
+                  return keys.includes(branch.id) ? keys : [...keys, branch.id]
                 }
+                if (!keys.includes(branch.id)) return keys
                 return keys.filter(function (key) {
                   return key !== branch.id
                 })

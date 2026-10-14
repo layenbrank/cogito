@@ -666,6 +666,8 @@ const AssistantMessage: FC = () => {
         })}
 
         {showIndicator ? (
+          // 轻量指示器即可：勿再套 Collapsible/ReasoningRoot，
+          // 流式时 part 频繁切换会与侧栏受控折叠叠成 Maximum update depth。
           <div
             data-slot="aui_assistant-message-indicator"
             className="text-muted-foreground flex max-w-[75%] items-center gap-2 py-1.5 text-sm"

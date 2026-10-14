@@ -1,17 +1,16 @@
 import { useAuiState } from '@assistant-ui/react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { WorkspaceBranch } from './sidebar-workspace-tree.tsx'
 import { UNGROUPED_WORKSPACE } from '@/features/agent/model/workspace'
 import { useAgentStore } from '@/stores/agent.ts'
 
 /**
- * 侧栏会话条目：数据来自 assistant-ui 的线程列表（`threadIds` + `threadItems`），
- * 只是把它摊平成树组件要的形状 —— 会话的权威状态在 runtime，store 不再另存一份。
+ * 侧栏会话条目：数据来自 assistant-ui 的线程列表（`threadIds` + `threadItems`）。
  *
- * `threadItems` 是 Record（键为 slot id），**不是**数组。用 `Object.entries` 当数组会
- * 把下标 `"0"`/`"1"` 当成 id → `switchToThread` 找不到线程 → 点开会话空白。
- * 正确做法对齐 studio：遍历 `threadIds`，再按 id 查 `threadItems`。
+ * 自动展开只在「出现新工作区 id」时写一次 state；依赖稳定的 id 串，
+ * 避免流式时 `threadItems` 每帧换引用 → effect 与 Collapsible `onOpenChange` 互殴
+ * （Maximum update depth / 页面崩溃、会话流被中断）。
  */
 interface SidebarSession {
   id: string
@@ -140,21 +139,44 @@ function useSidebarBranches() {
     [workspaces, sessions, workspaceFolders]
   )
 
+  /** 仅 id 列表；流式更新 title/updatedAt 不会触发自动展开 effect */
+  const branchIdsKey = useMemo(
+    function () {
+      return branches
+        .map(function (branch) {
+          return branch.id
+        })
+        .join('\0')
+    },
+    [branches]
+  )
+
+  const seededIdsRef = useRef<Set<string>>(new Set())
+
   useEffect(
     function () {
+      if (!branchIdsKey) return
+      const ids = branchIdsKey.split('\0').filter(Boolean)
+      const missing = ids.filter(function (id) {
+        return !seededIdsRef.current.has(id)
+      })
+      if (missing.length === 0) return
+
+      for (const id of missing) seededIdsRef.current.add(id)
+
       updateExpandedKeys(function (prev) {
         const next = new Set(prev)
         let changed = false
-        for (const branch of branches) {
-          if (!next.has(branch.id)) {
-            next.add(branch.id)
+        for (const id of missing) {
+          if (!next.has(id)) {
+            next.add(id)
             changed = true
           }
         }
         return changed ? Array.from(next) : prev
       })
     },
-    [branches]
+    [branchIdsKey]
   )
 
   return {
