@@ -17,16 +17,17 @@ export const ANIMATION_DURATION = 200
 
 const ReasoningPreviewContext = createContext(false)
 
-const reasoningVariants = cva('aui-reasoning-root mb-4 w-full', {
+/** 默认 ghost：对齐 Cursor / Copilot 扁平折叠行，无卡片边框 */
+const reasoningVariants = cva('aui-reasoning-root w-full', {
   variants: {
     variant: {
-      outline: 'rounded-lg border px-3 py-2',
-      ghost: '',
-      muted: 'bg-muted/50 rounded-lg px-3 py-2'
+      outline: 'mb-3 rounded-lg border px-3 py-2',
+      ghost: 'mb-0.5',
+      muted: 'mb-2 rounded-lg bg-muted/50 px-3 py-2'
     }
   },
   defaultVariants: {
-    variant: 'outline'
+    variant: 'ghost'
   }
 })
 
@@ -168,13 +169,11 @@ function ReasoningTrigger({
     <CollapsibleTrigger
       data-slot="reasoning-trigger"
       className={cn(
-        'aui-reasoning-trigger group/trigger text-muted-foreground hover:text-foreground active:text-foreground flex max-w-[75%] origin-left items-center gap-2 py-1.5 text-sm transition-colors',
+        // 扁平行：弱色正文 + 小 chevron，勿做成卡片头
+        'aui-reasoning-trigger group/trigger text-muted-foreground hover:text-foreground active:text-foreground flex max-w-[85%] origin-left items-center gap-1.5 py-1 text-xs transition-colors',
         className
       )}
       {...props}>
-      <Icon icon="lucide:brain"
-        data-slot="reasoning-trigger-icon"
-        className="aui-reasoning-trigger-icon size-4 shrink-0" />
       <span
         data-slot="reasoning-trigger-label"
         className={cn(
@@ -183,15 +182,17 @@ function ReasoningTrigger({
         )}>
         {label ?? labels.reasoning(duration)}
       </span>
-      <Icon icon="lucide:chevron-down"
+      <Icon
+        icon="lucide:chevron-down"
         data-slot="reasoning-trigger-chevron"
         className={cn(
-          'aui-reasoning-trigger-chevron mt-0.5 size-4 shrink-0',
+          'aui-reasoning-trigger-chevron size-3.5 shrink-0 opacity-70',
           'transition-transform duration-(--animation-duration) ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none',
           '-rotate-90',
           'group-data-open/trigger:rotate-0',
           'group-data-panel-open/trigger:rotate-0'
-        )} />
+        )}
+      />
     </CollapsibleTrigger>
   )
 }
@@ -274,18 +275,16 @@ function ReasoningText({ className, children, ...props }: React.ComponentProps<'
       ref={scrollRef}
       data-slot="reasoning-text"
       className={cn(
-        // 过程/思考折叠默认高度：原 max-h-64 塞不下工具终端，抬到视口比例
-        'aui-reasoning-text relative z-0 max-h-[min(60vh,32rem)] overflow-y-auto ps-6 pt-2 pb-2 leading-relaxed text-pretty',
+        // 扁平行内正文：轻缩进、小间距；高度抬到视口比例以容纳工具终端
+        'aui-reasoning-text relative z-0 max-h-[min(60vh,32rem)] overflow-y-auto ps-3 pt-0.5 pb-1 text-xs leading-relaxed text-pretty',
         'transform-gpu transition-[transform,opacity] ease-[cubic-bezier(0.32,0.72,0,1)]',
         'motion-reduce:animate-none',
         'group-data-open/collapsible-content:animate-in',
         'group-data-closed/collapsible-content:animate-out',
         'group-data-open/collapsible-content:fade-in-0',
         'group-data-closed/collapsible-content:fade-out-0',
-        'group-data-open/collapsible-content:slide-in-from-top-4',
-        'group-data-closed/collapsible-content:slide-out-to-top-4',
-        'group-data-open/collapsible-content:blur-in-[2px]',
-        'group-data-closed/collapsible-content:blur-out-[2px]',
+        'group-data-open/collapsible-content:slide-in-from-top-2',
+        'group-data-closed/collapsible-content:slide-out-to-top-2',
         'group-data-open/collapsible-content:animation-duration-(--animation-duration)',
         'group-data-closed/collapsible-content:animation-duration-(--animation-duration)',
         className
@@ -293,7 +292,7 @@ function ReasoningText({ className, children, ...props }: React.ComponentProps<'
       {...props}>
       <div
         ref={contentRef}
-        className="aui-reasoning-text-content space-y-4">
+        className="aui-reasoning-text-content space-y-1">
         {children}
       </div>
     </div>

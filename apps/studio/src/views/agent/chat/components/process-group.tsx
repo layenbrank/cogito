@@ -25,11 +25,20 @@ interface ProcessGroupProps {
 }
 
 export function AgentProcessGroup(props: PropsWithChildren<ProcessGroupProps>) {
-  const isActive = props.group.status.type === 'running'
+  const labels = useAssistantLabels()
+  const isMessageRunning = useAuiState(function (state) {
+    return state.message.status?.type === 'running'
+  })
+  const isActive = isMessageRunning && props.group.status.type === 'running'
 
   return (
-    <ReasoningRoot streaming={isActive}>
-      <ReasoningTrigger active={isActive} />
+    <ReasoningRoot
+      variant="ghost"
+      streaming={isActive}>
+      <ReasoningTrigger
+        active={isActive}
+        label={isActive ? labels.working : labels.reasoning()}
+      />
       <ReasoningContent aria-busy={isActive}>
         <ReasoningText>{props.children}</ReasoningText>
       </ReasoningContent>
@@ -38,16 +47,8 @@ export function AgentProcessGroup(props: PropsWithChildren<ProcessGroupProps>) {
 }
 
 /**
- * 整轮「过程」折叠条（覆盖 `ThreadComponents.ProcessGroup`）：**最终回答之前的一切**
- * （思考、工具、中间解说）都收在里面，最终回答留在外面常驻可见。
- *
- * 设计包的 `ReasoningRoot` 自带「流式时展开、结束后回到 defaultOpen」的语义，所以
- * 「折叠回复过程」= `defaultOpen={!collapseProcess}`，这里不用自己管开关状态
- * （手动切换由库里的 userOpen 接管）。展开与否看 `running`（整条消息），不看过程区的
- * part 状态 —— 模型在两步之间停顿的那一瞬间不该把已经读起来的过程弹回去。
- *
- * 耗时取整条助手消息的 `timing.totalStreamTime`；runtime 没填时就不显示秒数 ——
- * 编一个数字出来比不显示更糟。
+ * 整轮过程摘要（覆盖 `ThreadComponents.ProcessGroup`）：
+ * thread 仅在回合结束后包一层；流式中各段扁平自折。默认收起，偏好可展开。
  */
 
 interface ProcessFoldProps {
@@ -63,7 +64,6 @@ export function AgentProcessFold(props: PropsWithChildren<ProcessFoldProps>) {
   const durationFormat = useAgentStore(function (state) {
     return state.settings.chat.durationFormat
   })
-  // `timing` 挂在 metadata 上（`MessageState` 本身没有这个字段）
   const totalStreamTime = useAuiState(function (state) {
     return state.message.metadata.timing?.totalStreamTime
   })
@@ -75,13 +75,13 @@ export function AgentProcessFold(props: PropsWithChildren<ProcessFoldProps>) {
 
   return (
     <ReasoningRoot
-      streaming={props.running}
+      variant="ghost"
       defaultOpen={!collapseProcess}>
       <ReasoningTrigger
-        active={props.running}
+        active={false}
         label={labels.process(props.group.indices.length, seconds)}
       />
-      <ReasoningContent aria-busy={props.running}>
+      <ReasoningContent>
         <ReasoningText>{props.children}</ReasoningText>
       </ReasoningContent>
     </ReasoningRoot>

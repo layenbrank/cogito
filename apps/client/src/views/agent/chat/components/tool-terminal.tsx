@@ -97,12 +97,13 @@ function TerminalShell(props: TerminalShellProps) {
       data-slot="agent-tool-terminal"
       data-state={props.isRunning ? 'running' : props.isError ? 'error' : 'done'}
       className={[
-        'bg-terminal text-terminal-foreground overflow-hidden rounded-md border shadow-sm',
+        // 仅展开态保留终端框：对齐 Cursor「Ran command」内嵌终端，外层不再套卡片
+        'bg-terminal text-terminal-foreground overflow-hidden rounded-md border',
         'border-terminal-border',
         'data-[state=error]:border-terminal-danger/50',
         'data-[state=running]:border-terminal-accent/35'
       ].join(' ')}>
-      <div className="border-terminal-border bg-terminal-surface/70 flex items-center gap-2 border-b px-3 py-1.5">
+      <div className="border-terminal-border bg-terminal-surface/50 flex items-center gap-2 border-b px-2.5 py-1">
         <Icon
           icon="lucide:terminal"
           className="text-terminal-muted size-3.5 shrink-0"

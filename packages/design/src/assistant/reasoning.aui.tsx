@@ -5,6 +5,7 @@ import {
   type ReasoningMessagePartComponent,
   type ReasoningGroupComponent
 } from '@assistant-ui/react'
+import { useAssistantLabels } from './labels'
 import { MarkdownText } from './markdown-text'
 import {
   ANIMATION_DURATION,
@@ -53,6 +54,7 @@ function ReasoningRoot({ ref, onAnimationStart, ...props }: ReasoningRootProps) 
 const ReasoningImpl: ReasoningMessagePartComponent = () => <MarkdownText />
 
 const ReasoningGroupImpl: ReasoningGroupComponent = ({ children, startIndex, endIndex }) => {
+  const labels = useAssistantLabels()
   const isReasoningStreaming = useAuiState((s) => {
     if (s.message.status?.type !== 'running') return false
     for (let index = startIndex; index <= endIndex; index++) {
@@ -62,8 +64,13 @@ const ReasoningGroupImpl: ReasoningGroupComponent = ({ children, startIndex, end
   })
 
   return (
-    <ReasoningRoot streaming={isReasoningStreaming}>
-      <ReasoningTrigger active={isReasoningStreaming} />
+    <ReasoningRoot
+      variant="ghost"
+      streaming={isReasoningStreaming}>
+      <ReasoningTrigger
+        active={isReasoningStreaming}
+        label={isReasoningStreaming ? labels.working : labels.reasoning()}
+      />
       <ReasoningContent aria-busy={isReasoningStreaming}>
         <ReasoningText>{children}</ReasoningText>
       </ReasoningContent>

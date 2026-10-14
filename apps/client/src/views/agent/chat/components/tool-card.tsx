@@ -20,10 +20,11 @@ import { ToolCodeMode, ToolCommand } from './tool-terminal'
 
 type ToolCardVariant = 'command' | 'code' | 'generic'
 
+/** 扁平：仅待审批时留 ring；终端自带深色框，通用卡不再套边框卡片 */
 const FRAME_CLASSES: Readonly<Record<ToolCardVariant, string>> = {
   command: '',
   code: '',
-  generic: 'bg-background border'
+  generic: ''
 }
 
 const SUMMARY_KEYS = [
@@ -86,7 +87,7 @@ function ApprovalBar(props: Pick<ToolCallMessagePartProps, 'approval' | 'toolCal
   }
 
   return (
-    <div className="bg-muted flex items-center gap-2 border-t px-2.5 py-2">
+    <div className="bg-muted/50 flex items-center gap-2 rounded-md px-2 py-1.5">
       <Icon
         icon="lucide:shield-alert"
         className="text-primary size-3.5 shrink-0"
@@ -130,21 +131,15 @@ function GenericToolCard(props: GenericToolCardProps) {
       open={isOpen}
       onOpenChange={updateOpen}>
       <CollapsibleTrigger
-        className="text-foreground hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-2.5 py-1.5 text-start text-xs"
+        className="text-muted-foreground hover:text-foreground flex w-full cursor-pointer items-center gap-1.5 py-1 text-start text-xs"
         aria-label={`${toAgentToolLabel(props.toolName)} 详情`}>
+        <span className="shrink-0">{toAgentToolLabel(props.toolName)}</span>
+        <span className="min-w-0 flex-1 truncate opacity-80">{summarize(props.args)}</span>
         <Icon
-          icon="lucide:chevron-right"
+          icon="lucide:chevron-down"
           data-open={isOpen ? 'true' : 'false'}
-          className="text-muted-foreground size-3 shrink-0 transition-transform data-[open=true]:rotate-90"
+          className="size-3.5 shrink-0 opacity-70 transition-transform data-[open=true]:rotate-0 -rotate-90"
         />
-        <Icon
-          icon="lucide:wrench"
-          className="text-muted-foreground size-3.5 shrink-0"
-        />
-        <span className="shrink-0 font-medium">{toAgentToolLabel(props.toolName)}</span>
-        <span className="text-muted-foreground min-w-0 flex-1 truncate">
-          {summarize(props.args)}
-        </span>
         {props.isRunning ? (
           <Icon
             icon="lucide:loader-circle"
@@ -160,19 +155,19 @@ function GenericToolCard(props: GenericToolCardProps) {
         ) : null}
       </CollapsibleTrigger>
 
-      <CollapsibleContent className="flex flex-col gap-2 px-2.5 pb-2.5">
-        <div className="flex flex-col gap-1">
+      <CollapsibleContent className="flex flex-col gap-1.5 ps-3 pb-1.5">
+        <div className="flex flex-col gap-0.5">
           <span className="text-muted-foreground text-[10px]">参数</span>
-          <pre className="bg-muted m-0 max-h-72 overflow-auto rounded-md p-2.5 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap">
+          <pre className="bg-muted/60 m-0 max-h-72 overflow-auto rounded-md p-2 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap">
             {formatDetail(props.args)}
           </pre>
         </div>
         {props.result === undefined ? null : (
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-0.5">
             <span className="text-muted-foreground text-[10px]">
               {props.isError ? '错误' : '结果'}
             </span>
-            <pre className="bg-muted m-0 max-h-80 overflow-auto rounded-md p-2 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap">
+            <pre className="bg-muted/60 m-0 max-h-80 overflow-auto rounded-md p-2 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap">
               {formatTerminalText(props.result)}
             </pre>
           </div>
@@ -196,7 +191,7 @@ function AgentToolCard(props: ToolCallMessagePartProps) {
     <div
       data-slot="agent-tool-card"
       data-state={needsApproval ? 'approval' : isRunning ? 'running' : isDone ? 'done' : 'error'}
-      className={`my-2 flex flex-col gap-1.5 overflow-hidden rounded-lg data-[state=approval]:ring-primary data-[state=approval]:ring-1 ${FRAME_CLASSES[variant]}`}>
+      className={`my-0.5 flex flex-col gap-1 overflow-hidden data-[state=approval]:rounded-md data-[state=approval]:ring-1 data-[state=approval]:ring-primary ${FRAME_CLASSES[variant]}`}>
       {shell ? (
         <ToolCommand
           command={shell.command}

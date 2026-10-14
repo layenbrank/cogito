@@ -38,7 +38,8 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   composerPlaceholderContinue: '继续这个任务…',
   messageInput: '消息输入',
 
-  reasoning: (seconds) => (seconds ? `思考（${seconds} 秒）` : '思考中…'),
+  // 进行中由 trigger 的 active / working 文案表达；结束后勿再写「思考中」
+  reasoning: (seconds) => (seconds ? `思考（${seconds} 秒）` : '思考'),
   process: (steps, seconds) => `过程 · ${steps} 步${seconds ? ` · ${seconds} 秒` : ''}`,
   toolCalls: (count, failed) => `${count} 次工具调用${failed ? `，${failed} 次失败` : ''}`,
   attachmentType: (type) => {

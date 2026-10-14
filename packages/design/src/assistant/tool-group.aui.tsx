@@ -8,15 +8,16 @@ import { useAssistantLabels } from './labels'
 
 const ANIMATION_DURATION = 200
 
+/** 默认 ghost：与 Cursor「N tool calls」扁平行一致 */
 const toolGroupVariants = cva('aui-tool-group-root group/tool-group w-full', {
   variants: {
     variant: {
       outline: 'rounded-lg border py-3',
-      ghost: '',
+      ghost: 'mb-0.5',
       muted: 'border-muted-foreground/30 bg-muted/30 rounded-lg border py-3'
     }
   },
-  defaultVariants: { variant: 'outline' }
+  defaultVariants: { variant: 'ghost' }
 })
 
 export type ToolGroupRootProps = Omit<
@@ -97,38 +98,42 @@ function ToolGroupTrigger({
     <CollapsibleTrigger
       data-slot="tool-group-trigger"
       className={cn(
-        'aui-tool-group-trigger group/trigger flex origin-left items-center gap-2 text-sm transition-colors active:text-foreground',
-        'group-data-[variant=ghost]/tool-group-root:text-muted-foreground group-data-[variant=ghost]/tool-group-root:hover:text-foreground group-data-[variant=ghost]/tool-group-root:py-1.5',
-        'group-data-[variant=outline]/tool-group-root:w-full group-data-[variant=outline]/tool-group-root:px-4',
-        'group-data-[variant=muted]/tool-group-root:w-full group-data-[variant=muted]/tool-group-root:px-4',
+        'aui-tool-group-trigger group/trigger flex origin-left items-center gap-1.5 text-xs transition-colors active:text-foreground',
+        'group-data-[variant=ghost]/tool-group-root:text-muted-foreground group-data-[variant=ghost]/tool-group-root:hover:text-foreground group-data-[variant=ghost]/tool-group-root:py-1',
+        'group-data-[variant=outline]/tool-group-root:w-full group-data-[variant=outline]/tool-group-root:px-4 group-data-[variant=outline]/tool-group-root:text-sm',
+        'group-data-[variant=muted]/tool-group-root:w-full group-data-[variant=muted]/tool-group-root:px-4 group-data-[variant=muted]/tool-group-root:text-sm',
         className
       )}
       {...props}>
-      {active && (
-        <Icon icon="lucide:loader"
+      {active ? (
+        <Icon
+          icon="lucide:loader"
           data-slot="tool-group-trigger-loader"
-          className="aui-tool-group-trigger-loader size-3 shrink-0 animate-spin [animation-duration:0.6s]" />
-      )}
+          className="aui-tool-group-trigger-loader size-3 shrink-0 animate-spin [animation-duration:0.6s]"
+        />
+      ) : null}
       <span
         data-slot="tool-group-trigger-label"
         className={cn(
-          'aui-tool-group-trigger-label-wrapper inline-block text-start text-xs leading-none font-medium',
+          'aui-tool-group-trigger-label-wrapper inline-block text-start leading-none',
           'group-data-[variant=ghost]/tool-group-root:font-normal',
-          'group-data-[variant=outline]/tool-group-root:grow',
-          'group-data-[variant=muted]/tool-group-root:grow',
+          'group-data-[variant=outline]/tool-group-root:grow group-data-[variant=outline]/tool-group-root:font-medium',
+          'group-data-[variant=muted]/tool-group-root:grow group-data-[variant=muted]/tool-group-root:font-medium',
           active && 'shimmer motion-reduce:animate-none'
         )}>
         {text}
       </span>
-      <Icon icon="lucide:chevron-down"
+      <Icon
+        icon="lucide:chevron-down"
         data-slot="tool-group-trigger-chevron"
         className={cn(
-          'aui-tool-group-trigger-chevron size-3 shrink-0',
+          'aui-tool-group-trigger-chevron size-3.5 shrink-0 opacity-70',
           'transition-transform duration-(--animation-duration) ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none',
           '-rotate-90',
           'group-data-open/trigger:rotate-0',
           'group-data-panel-open/trigger:rotate-0'
-        )} />
+        )}
+      />
     </CollapsibleTrigger>
   )
 }

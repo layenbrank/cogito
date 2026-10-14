@@ -25,8 +25,11 @@ function AgentToolGroup(props: PropsWithChildren<ToolGroupProps>) {
   const group = props.group
   const count = group.indices.length
   const failed = countToolFailures(parts, group.indices)
-  const isActive = group.status.type === 'running'
-  // 运行中默认展开，结束后收起；用户点过之后接管
+  const isMessageRunning = useAuiState(function (state) {
+    return state.message.status?.type === 'running'
+  })
+  // 本段工具跑完即收起（对齐 Cursor「Ran command」），不跟整轮挂着
+  const isActive = isMessageRunning && group.status.type === 'running'
   const isOpen = userOpen ?? isActive
 
   return (

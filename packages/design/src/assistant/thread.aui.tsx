@@ -178,8 +178,13 @@ const ThreadRoot: FC<{ isEmpty: boolean; autoFocus: boolean }> = ({ isEmpty, aut
        * 输入框必须在 Viewport **之外**：Qoder / client 同款。
        * 放进 overflow 滚动区再用 sticky/mt-auto，空态内容不够高时仍会跟欢迎区挤在中间。
        */}
+      {/*
+       * turnAnchor=bottom：流式时跟底滚动（Cursor / 经典 chat）。
+       * top 会默认关掉 autoScroll，长过程输出时视口不跟着走。
+       */}
       <ThreadPrimitive.Viewport
-        turnAnchor="top"
+        turnAnchor="bottom"
+        autoScroll
         data-slot="aui_thread-viewport"
         className="relative min-h-0 flex-1 overflow-x-auto overflow-y-auto scroll-smooth">
         <div
@@ -474,20 +479,21 @@ function toRunStatus(
   return parts[last].status
 }
 
-/** 内置的过程折叠壳：回合结束即回到折叠（app 可以用 `ProcessGroup` 换成自己的偏好） */
+/** 内置过程摘要壳：回合结束后默认收起，点开回看（流式中不挂这层） */
 function DefaultProcessGroup(
   props: PropsWithChildren<{ group: ThreadGroupPart; running: boolean }>
 ) {
   const labels = useAssistantLabels()
-  const running = props.running
 
   return (
-    <ReasoningRoot streaming={running}>
+    <ReasoningRoot
+      variant="ghost"
+      defaultOpen={false}>
       <ReasoningTrigger
-        active={running}
+        active={false}
         label={labels.process(props.group.indices.length)}
       />
-      <ReasoningContent aria-busy={running}>
+      <ReasoningContent>
         <ReasoningText>{props.children}</ReasoningText>
       </ReasoningContent>
     </ReasoningRoot>
@@ -606,8 +612,13 @@ const AssistantMessage: FC = () => {
       content = ReasoningGroup ? (
         <ReasoningGroup group={group}>{children}</ReasoningGroup>
       ) : (
-        <ReasoningRoot streaming={running}>
-          <ReasoningTrigger active={running} />
+        <ReasoningRoot
+          variant="ghost"
+          streaming={running}>
+          <ReasoningTrigger
+            active={running}
+            label={running ? labels.working : labels.reasoning()}
+          />
           <ReasoningContent aria-busy={running}>
             <ReasoningText>{children}</ReasoningText>
           </ReasoningContent>
@@ -645,15 +656,19 @@ const AssistantMessage: FC = () => {
       <div
         data-slot="aui_assistant-message-content"
         className="text-foreground px-2 leading-relaxed wrap-break-word">
+        {/*
+         * 对齐 Cursor / Copilot：流式中每段思考/工具扁平罗列，段结束即各自收起；
+         * 整轮结束后才收成一条「过程 · N 步」摘要（可点开回看），勿用外层壳挂到整轮 running。
+         */}
         {processIndices.length > 0 ? (
-          hasToolCalls ? (
+          hasToolCalls && !isRunning ? (
             <ProcessShell
               group={{
                 type: 'group-process',
                 status: toRunStatus(parts, processIndices),
                 indices: processIndices
               }}
-              running={isRunning}>
+              running={false}>
               {processRuns.map(renderRun)}
             </ProcessShell>
           ) : (
