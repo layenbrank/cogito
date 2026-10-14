@@ -44,6 +44,7 @@ import {
   writeModelPrefs,
   type ModelPref
 } from '@/features/agent/model/model-prefs'
+import { findModelLabel } from '@/features/agent/model/display'
 import { parseModels } from '@/features/agent/model/providers'
 import styles from './model-settings.module.scss'
 import { useProviderStore } from '@/stores/provider'
@@ -345,7 +346,7 @@ function AgentModelSettings(props: ModelSettingsProps) {
                           />
                         </span>
                         <div className="flex min-w-0 flex-col">
-                          <span className={styles.modelName}>{row.model}</span>
+                          <span className={styles.modelName}>{findModelLabel(row.model)}</span>
                           <span className={styles.modelMeta}>{row.providerName}</span>
                         </div>
                       </div>

@@ -219,16 +219,36 @@ function findProviderBilling(providerId: string, providerName?: string | null) {
   return findProviderDisplay(providerId, providerName).billing
 }
 
-/** 模型 id → 更易读的展示名（保留可识别前缀） */
+/** 模型 id → 更易读的展示名（去掉 Bedrock/Azure 修订号与区域前缀） */
 function findModelLabel(model: string) {
   const value = model.trim()
   if (!value) return '未选模型'
   if (value === 'auto') return 'Auto（自动）'
-  // us.anthropic.claude-sonnet-4-5-... → 取最后有意义的一段
-  const segments = value.split(/[/:]/).filter(Boolean)
-  const tail = segments[segments.length - 1] ?? value
-  if (tail.length > 48) return `${tail.slice(0, 45)}…`
-  return tail
+
+  // `…-v1:0` / `…:latest` — 不能按 `:` 切段，否则会显示成「0」
+  let core = value.replace(/:(?:\d+|latest)$/i, '')
+
+  if (core.includes('/')) {
+    const segments = core.split('/').filter(Boolean)
+    core = segments[segments.length - 1] ?? core
+  }
+
+  // Bedrock：`{region}.{vendor}.{model}`（region 为 us / eu / global / us-east-1 等）
+  const bedrock = core.match(
+    /^(?:global|[a-z]{2}(?:-[a-z0-9]+)*)\.([a-z0-9-]+)\.(.+)$/i
+  )
+  if (bedrock) {
+    core = bedrock[2]
+  } else {
+    // `openai.gpt-5.5`、`anthropic.claude-…` → 去掉厂商前缀
+    const vendor = core.match(
+      /^(openai|anthropic|amazon|meta|cohere|mistral|google|ai21)\.(.+)$/i
+    )
+    if (vendor) core = vendor[2]
+  }
+
+  if (core.length > 42) return `${core.slice(0, 39)}…`
+  return core
 }
 
 function findFieldLabel(key: string) {

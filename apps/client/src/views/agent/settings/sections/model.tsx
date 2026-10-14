@@ -40,6 +40,7 @@ import {
   findProviderBilling,
   findProviderLabel
 } from '@/features/agent/model/display'
+import { parseModels } from '@/features/agent/model/providers'
 import { useProviderStore } from '@/stores/provider'
 import styles from '@/views/agent/settings/settings.module.scss'
 import type { ProbeStatus } from '../provider-card-header'
@@ -280,7 +281,7 @@ function ModelSection() {
               })
               const models = entry.models.length
                 ? entry.models
-                : parseModelsSafe(storeRow?.models ?? null)
+                : parseModels(storeRow?.models ?? null)
               const modelLabel = storeRow?.model
                 ? findModelLabel(storeRow.model)
                 : entry.defaultModel
@@ -332,7 +333,10 @@ function ModelSection() {
                           className={styles.modelSelect}>
                           <SelectValue placeholder="默认模型" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent
+                          align="end"
+                          alignItemWithTrigger={false}
+                          className={styles.selectPopup}>
                           {models.map(function (model) {
                             return (
                               <SelectItem
@@ -395,7 +399,10 @@ function ModelSection() {
                   <SelectTrigger aria-label="服务商">
                     <SelectValue placeholder="选择服务商" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent
+                    alignItemWithTrigger={false}
+                    side="bottom"
+                    className={styles.selectPopup}>
                     {addable.map(function (entry) {
                       return (
                         <SelectItem
@@ -451,20 +458,6 @@ function ModelSection() {
       </Dialog>
     </div>
   )
-}
-
-function parseModelsSafe(raw: string | null | undefined): string[] {
-  if (!raw) return []
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    return Array.isArray(parsed)
-      ? parsed.filter(function (value): value is string {
-          return typeof value === 'string'
-        })
-      : []
-  } catch {
-    return []
-  }
 }
 
 export { ModelSection }
