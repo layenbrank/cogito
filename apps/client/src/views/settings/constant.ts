@@ -1,4 +1,4 @@
-type SectionKey = 'general' | 'appearance'
+type SectionKey = 'general' | 'appearance' | 'account'
 
 type HeadText = {
   title: string
@@ -20,10 +20,12 @@ type SlideMotionOptions = {
 
 const SECTION = {
   GENERAL: 'general',
-  APPEARANCE: 'appearance'
+  APPEARANCE: 'appearance',
+  ACCOUNT: 'account'
 } as const satisfies Record<string, SectionKey>
 
 const NAVS: NavMeta[] = [
+  { key: SECTION.ACCOUNT, icon: 'lucide:user-round', label: '账号' },
   { key: SECTION.GENERAL, icon: 'ant-design:setting-outlined', label: '通用' },
   { key: SECTION.APPEARANCE, icon: 'ant-design:bg-colors-outlined', label: '外观' }
 ]
@@ -36,7 +38,22 @@ const HEAD: Record<SectionKey, HeadText> = {
   appearance: {
     title: '外观',
     subtitle: '定制界面风格、密度与组件样式'
+  },
+  account: {
+    title: '账号',
+    subtitle: '个人资料、头像与登录状态'
   }
+}
+
+const SECTION_KEYS: readonly SectionKey[] = [
+  SECTION.ACCOUNT,
+  SECTION.GENERAL,
+  SECTION.APPEARANCE
+]
+
+function parseSectionKey(value: string | null | undefined): SectionKey | null {
+  if (!value) return null
+  return SECTION_KEYS.includes(value as SectionKey) ? (value as SectionKey) : null
 }
 
 const MOTION = {
@@ -82,5 +99,5 @@ function findNavMeta(key: SectionKey): NavMeta | undefined {
   })
 }
 
-export { HEAD, MOTION, NAVS, SECTION, findNavMeta }
+export { HEAD, MOTION, NAVS, SECTION, SECTION_KEYS, findNavMeta, parseSectionKey }
 export type { HeadText, NavMeta, SectionKey }

@@ -1,23 +1,68 @@
 import { Icon } from '@iconify/react/offline'
+import { listen } from '@tauri-apps/api/event'
 import clsx from 'clsx'
 import { AnimatePresence, useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
+import {
+  SETTINGS_NAVIGATE_EVENT,
+  type SettingsNavigatePayload
+} from '@/features/window/open-settings'
 import {
   HEAD,
   MOTION,
   NAVS,
   SECTION,
+  parseSectionKey,
   type SectionKey
 } from '@/views/settings/constant.ts'
+import AccountPanel from '@/views/settings/panels/account.tsx'
 import AppearancePanel from '@/views/settings/panels/appearance.tsx'
 import GeneralPanel from '@/views/settings/panels/general.tsx'
 import styles from '@/views/settings/shell.module.scss'
 
+function findInitialSection(searchParams: URLSearchParams): SectionKey {
+  return parseSectionKey(searchParams.get('section')) ?? SECTION.ACCOUNT
+}
+
 function Shell() {
   const isReducedMotion = useReducedMotion()
-  const [section, onSectionChange] = useState<SectionKey>(SECTION.APPEARANCE)
+  const [searchParams, updateSearchParams] = useSearchParams()
+  const [section, onSectionChange] = useState<SectionKey>(function () {
+    return findInitialSection(searchParams)
+  })
+
+  useEffect(
+    function () {
+      const fromQuery = parseSectionKey(searchParams.get('section'))
+      if (fromQuery && fromQuery !== section) onSectionChange(fromQuery)
+    },
+    // 仅跟随 URL 查询串；避免 section 自更新回环
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+    [searchParams]
+  )
+
+  useEffect(function () {
+    let unlisten: (() => void) | undefined
+    void listen<SettingsNavigatePayload>(SETTINGS_NAVIGATE_EVENT, function (event) {
+      const next = parseSectionKey(event.payload.section)
+      if (!next) return
+      onSectionChange(next)
+      updateSearchParams({ section: next }, { replace: true })
+    }).then(function (fn) {
+      unlisten = fn
+    })
+    return function () {
+      unlisten?.()
+    }
+  }, [updateSearchParams])
+
+  function selectSection(key: SectionKey) {
+    onSectionChange(key)
+    updateSearchParams({ section: key }, { replace: true })
+  }
 
   const headText = HEAD[section]
   const headVariants = MOTION.variants({
@@ -59,7 +104,7 @@ function Shell() {
                 aria-current={isActive ? 'page' : undefined}
                 disabled={nav.isDisabled}
                 onClick={function () {
-                  onSectionChange(nav.key)
+                  selectSection(nav.key)
                 }}>
                 <Icon
                   icon={nav.icon}
@@ -101,6 +146,7 @@ function Shell() {
               transition={viewTransition}>
               {section === SECTION.GENERAL && <GeneralPanel />}
               {section === SECTION.APPEARANCE && <AppearancePanel />}
+              {section === SECTION.ACCOUNT && <AccountPanel />}
             </m.div>
           </AnimatePresence>
         </div>

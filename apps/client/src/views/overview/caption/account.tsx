@@ -1,7 +1,7 @@
 /**
- * 标题栏的账号入口：未登录是「登录」按钮，已登录是头像菜单（退出登录）。
+ * 标题栏的账号入口：未登录是「登录」按钮，已登录是头像菜单。
  *
- * 取代原 OverviewCapsule 里的账号位；登录弹窗仍由主窗口持有（`ReSignIn`）。
+ * 资料编辑统一走全局设置「账号」分区；登录弹窗仍由主窗口持有（`ReSignIn`）。
  */
 import { Icon } from '@iconify/react/offline'
 import { Avatar, AvatarFallback, AvatarImage } from '@i-thinking/design/components/avatar'
@@ -16,7 +16,9 @@ import {
   DropdownMenuTrigger
 } from '@i-thinking/design/components/dropdown-menu'
 
+import { openSettingsWindow } from '@/features/window/open-settings'
 import { useSessionStore } from '@/stores/session.ts'
+import { SECTION } from '@/views/settings/constant'
 import styles from '@/views/overview/caption/caption.module.scss'
 
 type CaptionAccountProps = {
@@ -85,6 +87,27 @@ function CaptionAccount(props: CaptionAccountProps) {
             {user.username}
           </DropdownMenuLabel>
         </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={function () {
+            void openSettingsWindow(SECTION.ACCOUNT)
+          }}>
+          <Icon
+            icon="lucide:user-round"
+            aria-hidden
+          />
+          账号设置
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={function () {
+            void openSettingsWindow(SECTION.APPEARANCE)
+          }}>
+          <Icon
+            icon="lucide:palette"
+            aria-hidden
+          />
+          外观
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={toSignOut}>
           <Icon

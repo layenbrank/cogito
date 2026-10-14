@@ -1,13 +1,3 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@i-thinking/design/components/alert-dialog'
 import { Button } from '@i-thinking/design/components/button'
 import {
   Select,
@@ -20,60 +10,13 @@ import { Switch } from '@i-thinking/design/components/switch'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { ConfirmAction } from '@/views/settings/panels/confirm-action.tsx'
 import { SettingsRow, SettingsSection } from '@/views/settings/panels/section.tsx'
-import { useSessionStore } from '@/stores/session'
 import { DETECT_OFF, DETECT_WINDOW, useSettingsStore } from '@/stores/setting'
 import { exitApp } from '@/utils/process'
 import { checkUpdate } from '@/utils/updater'
 
 const LANGUAGE_OPTIONS = [{ label: '简体中文', value: 'zh-CN' }]
-
-interface ConfirmActionProps {
-  label: string
-  title: string
-  description: string
-  confirmLabel: string
-  isPending?: boolean
-  onConfirm: () => void | Promise<void>
-}
-
-/** 危险动作按钮 + 二次确认：调用方只关心文案与回调，弹层细节收在这里 */
-function ConfirmAction(props: ConfirmActionProps) {
-  const [isOpen, updateOpen] = useState(false)
-
-  return (
-    <>
-      <Button
-        variant="destructive"
-        disabled={props.isPending}
-        onClick={function () {
-          updateOpen(true)
-        }}>
-        {props.label}
-      </Button>
-      <AlertDialog
-        open={isOpen}
-        onOpenChange={updateOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{props.title}</AlertDialogTitle>
-            <AlertDialogDescription>{props.description}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={function () {
-                updateOpen(false)
-                void props.onConfirm()
-              }}>
-              {props.confirmLabel}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
-  )
-}
 
 function GeneralPanel() {
   const general = useSettingsStore(function (state) {
@@ -85,19 +28,8 @@ function GeneralPanel() {
   const toUpdate = useSettingsStore(function (state) {
     return state.toUpdate
   })
-  const user = useSessionStore(function (state) {
-    return state.user
-  })
-  const toSignOut = useSessionStore(function (state) {
-    return state.toSignOut
-  })
   const [checking, setChecking] = useState(false)
   const [exiting, setExiting] = useState(false)
-
-  function onSignOut() {
-    toSignOut()
-    toast.success('已退出登录')
-  }
 
   async function onAutostartChange(checked: boolean) {
     try {
@@ -187,23 +119,6 @@ function GeneralPanel() {
             </SelectContent>
           </Select>
         </SettingsRow>
-      </SettingsSection>
-
-      <SettingsSection title="账号">
-        <div className="flex flex-wrap items-center gap-3 py-2">
-          <span className="text-sm text-muted-foreground">
-            {user ? `当前：${user.username}` : '未登录'}
-          </span>
-          {user ? (
-            <ConfirmAction
-              label="退出登录"
-              title="退出登录"
-              description="确定要退出当前账号吗？"
-              confirmLabel="退出登录"
-              onConfirm={onSignOut}
-            />
-          ) : null}
-        </div>
       </SettingsSection>
 
       <SettingsSection title="应用">

@@ -2,7 +2,13 @@ import { toast } from 'sonner'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
-import { GET_AUTH_PROFILE, POST_AUTH_SIGNOUT } from '@/apis/auth.ts'
+import {
+  GET_AUTH_PROFILE,
+  POST_AUTH_SIGNOUT,
+  PUT_AUTH_PROFILE,
+  type AuthProfile,
+  type AuthProfilePatch
+} from '@/apis/auth.ts'
 import {
   clearAuthToken,
   clearAuthTokenIfCurrent,
@@ -15,6 +21,10 @@ type SessionUser = {
   id: string
   username: string
   avatarUrl: string | null
+  email: string | null
+  phone: string | null
+  gender: string | null
+  birthday: string | null
 }
 
 type SessionStore = {
@@ -22,9 +32,22 @@ type SessionStore = {
   /** 有令牌、资料尚未到手 */
   isLoading: boolean
   toSignOut: () => void
+  toUpdateProfile: (patch: AuthProfilePatch) => Promise<SessionUser>
 }
 
 let isHydrating = false
+
+function parseSessionUser(profile: AuthProfile): SessionUser {
+  return {
+    id: profile.id,
+    username: profile.username,
+    avatarUrl: profile.avatar?.url ?? null,
+    email: profile.email,
+    phone: profile.phone,
+    gender: profile.gender,
+    birthday: profile.birthday
+  }
+}
 
 async function hydrateSessionUser(
   setters: (partial: Partial<SessionStore>, replace?: false, action?: string) => void
@@ -43,11 +66,7 @@ async function hydrateSessionUser(
     const profile = await GET_AUTH_PROFILE()
     setters(
       {
-        user: {
-          id: profile.id,
-          username: profile.username,
-          avatarUrl: profile.avatar?.url ?? null
-        },
+        user: parseSessionUser(profile),
         isLoading: false
       },
       false,
@@ -69,7 +88,7 @@ async function hydrateSessionUser(
 
 const useSessionStore = create<SessionStore>()(
   devtools(
-    function () {
+    function (set) {
       return {
         user: null,
         isLoading: Boolean(findAuthToken()),
@@ -85,6 +104,13 @@ const useSessionStore = create<SessionStore>()(
             clearAuthToken()
             toast.success('已退出登录')
           })()
+        },
+
+        async toUpdateProfile(patch) {
+          const profile = await PUT_AUTH_PROFILE(patch)
+          const user = parseSessionUser(profile)
+          set({ user }, false, 'profile/update')
+          return user
         }
       }
     },

@@ -12,7 +12,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AgentTitlebar } from '@/views/agent/components/titlebar'
 import { DiagnosticsSection } from './sections/diagnostics'
 import { ExtensionsSection } from './sections/extensions'
-import { GeneralSection } from './sections/general'
 import { ModelSection } from './sections/model'
 import { ToolPermissionsSection } from './sections/tool-permissions'
 import { UsageSection } from './sections/usage'
@@ -34,7 +33,6 @@ const GROUPS: SettingsGroup[] = [
   {
     label: '个人',
     items: [
-      { id: 'general', label: '常规', icon: 'lucide:settings-2', section: GeneralSection },
       { id: 'model', label: '模型', icon: 'lucide:box', section: ModelSection },
       {
         id: 'permissions',

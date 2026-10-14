@@ -108,9 +108,23 @@ function POST_PASSWORD_RESET(data: ResetParams) {
   return unwrap(http.post<RSF<null>>('/auth/password/reset', data, ENV))
 }
 
+/** 更新资料；字段均为可选，avatar 传 asset id（null 清空） */
+interface AuthProfilePatch {
+  email?: string | null
+  phone?: string | null
+  gender?: string | null
+  birthday?: string | null
+  avatar?: string | null
+}
+
 /** 当前登录账号的资料；令牌失效时服务端回 300001/300002/300003 */
 function GET_AUTH_PROFILE() {
   return unwrap(http.get<RSF<AuthProfile>>('/auth/profile', ENV))
+}
+
+/** 更新当前账号资料 */
+function PUT_AUTH_PROFILE(data: AuthProfilePatch) {
+  return unwrap(http.put<RSF<AuthProfile>>('/auth/profile', data, ENV))
 }
 
 /** 登出：服务端把这份令牌记进黑名单 */
@@ -128,7 +142,16 @@ export {
   POST_SIGNIN,
   POST_SIGNIN_EMAIL,
   POST_SIGNIN_PHONE,
-  POST_SIGNUP
+  POST_SIGNUP,
+  PUT_AUTH_PROFILE
 }
 
-export type { AuthAvatar, AuthProfile, AuthSession, CaptchaChallenge, OtpChannel, SlideProof }
+export type {
+  AuthAvatar,
+  AuthProfile,
+  AuthProfilePatch,
+  AuthSession,
+  CaptchaChallenge,
+  OtpChannel,
+  SlideProof
+}

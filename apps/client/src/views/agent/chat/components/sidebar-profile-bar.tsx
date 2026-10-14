@@ -10,6 +10,9 @@ import {
 } from '@i-thinking/design/components/dropdown-menu'
 import { toast } from 'sonner'
 
+import { openSettingsWindow } from '@/features/window/open-settings'
+import { SECTION } from '@/views/settings/constant'
+
 import styles from './sidebar.module.scss'
 
 interface SidebarProfileBarProps {
@@ -67,11 +70,11 @@ function SidebarProfileBar(props: SidebarProfileBarProps) {
               width={14}
               height={14}
             />
-            设置
+            Agent 设置
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={function () {
-              props.onOpenSettings('general')
+              void openSettingsWindow(SECTION.APPEARANCE)
             }}>
             <Icon
               icon="lucide:palette"
@@ -79,6 +82,17 @@ function SidebarProfileBar(props: SidebarProfileBarProps) {
               height={14}
             />
             外观
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={function () {
+              void openSettingsWindow(SECTION.ACCOUNT)
+            }}>
+            <Icon
+              icon="lucide:user-round"
+              width={14}
+              height={14}
+            />
+            账号
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
