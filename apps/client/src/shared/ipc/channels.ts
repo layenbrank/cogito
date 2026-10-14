@@ -55,7 +55,10 @@ export const CHANNELS = {
     REMOVE: 'overlay:remove'
   },
   ASSET: {
-    INSERT: 'asset:insert'
+    READ: 'asset:read',
+    INSERT: 'asset:insert',
+    UPDATE: 'asset:update',
+    REMOVE: 'asset:remove'
   },
   MIRROR: {
     READ: 'mirror:read',
