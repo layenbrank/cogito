@@ -6,9 +6,14 @@ import { routes } from '@/routers/index.tsx'
 /** 命中链（根 → 叶）的路由表，用来断言某个 URL 落在哪个布局的哪个子页下 */
 function findMatchChain(pathname: string) {
   const matches = matchRoutes(routes, pathname) ?? []
-  return matches.map(function (match) {
-    return match.route
-  })
+  return matches
+    .map(function (match) {
+      return match.route
+    })
+    .filter(function (route) {
+      // 顶层是路由转场用的无路径布局路由，不进断言链；index 子路由（无 path）要保留
+      return route.path !== undefined || route.index === true
+    })
 }
 
 describe('agent window routes', function () {

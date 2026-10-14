@@ -1,6 +1,7 @@
 import { lazy } from 'react'
 import { Navigate, createBrowserRouter, useLocation, type RouteObject } from 'react-router-dom'
 import Overlay from '@/views/overlay/overlay'
+import { RouteTransition } from '@/routers/transition.tsx'
 
 const Overview = lazy(function () {
   return import('@/views/overview/overview.tsx')
@@ -111,57 +112,66 @@ const Signboard = lazy(function () {
   return import('@/views/signboard/signboard.tsx')
 })
 
+/**
+ * 各页面挂在同一个**无路径布局路由**下：切页面统一走转场（见 `transition.tsx`），
+ * 新增路由不用各自处理动效。
+ */
 const routes: RouteObject[] = [
   {
-    path: '/',
-    element: (
-      <Navigate
-        replace
-        to={'/overview'}
-      />
-    )
-  },
-  {
-    path: '/overview',
-    element: <Overview />
-  },
-  {
-    path: '/overlay',
-    element: <Overlay />
-  },
-  {
-    path: '/agent',
-    element: <Agent />,
+    element: <RouteTransition />,
     children: [
-      { index: true, element: <AgentIndex /> },
-      { path: 'chat', element: <AgentChat /> },
-      { path: 'settings', element: <AgentSettings /> }
+      {
+        path: '/',
+        element: (
+          <Navigate
+            replace
+            to={'/overview'}
+          />
+        )
+      },
+      {
+        path: '/overview',
+        element: <Overview />
+      },
+      {
+        path: '/overlay',
+        element: <Overlay />
+      },
+      {
+        path: '/agent',
+        element: <Agent />,
+        children: [
+          { index: true, element: <AgentIndex /> },
+          { path: 'chat', element: <AgentChat /> },
+          { path: 'settings', element: <AgentSettings /> }
+        ]
+      },
+      { path: '/bookmark', element: <Bookmark /> },
+      { path: '/calendar', element: <Calendar /> },
+      { path: '/clipchamp', element: <Clipchamp /> },
+      { path: '/clock', element: <Clock /> },
+      { path: '/code', element: <Code /> },
+      { path: '/collection', element: <Collection /> },
+      { path: '/countdown', element: <Countdown /> },
+      { path: '/developer', element: <Developer /> },
+      {
+        path: '/directive',
+        element: <Directive />,
+        children: [
+          { index: true, element: <DirectiveLibraryPage /> },
+          { path: ':name', element: <DirectiveWorkspacePage /> }
+        ]
+      },
+      { path: '/example', element: <Example /> },
+      { path: '/gallery', element: <Gallery /> },
+      { path: '/markdown', element: <Markdown /> },
+      { path: '/marketplace', element: <Marketplace /> },
+      { path: '/morph', element: <Morph /> },
+      { path: '/navigation', element: <Navigation /> },
+      { path: '/settings', element: <Settings /> },
+      { path: '/signboard', element: <Signboard /> }
     ]
-  },
-  { path: '/bookmark', element: <Bookmark /> },
-  { path: '/calendar', element: <Calendar /> },
-  { path: '/clipchamp', element: <Clipchamp /> },
-  { path: '/clock', element: <Clock /> },
-  { path: '/code', element: <Code /> },
-  { path: '/collection', element: <Collection /> },
-  { path: '/countdown', element: <Countdown /> },
-  { path: '/developer', element: <Developer /> },
-  {
-    path: '/directive',
-    element: <Directive />,
-    children: [
-      { index: true, element: <DirectiveLibraryPage /> },
-      { path: ':name', element: <DirectiveWorkspacePage /> }
-    ]
-  },
-  { path: '/example', element: <Example /> },
-  { path: '/gallery', element: <Gallery /> },
-  { path: '/markdown', element: <Markdown /> },
-  { path: '/marketplace', element: <Marketplace /> },
-  { path: '/morph', element: <Morph /> },
-  { path: '/navigation', element: <Navigation /> },
-  { path: '/settings', element: <Settings /> },
-  { path: '/signboard', element: <Signboard /> }
+  }
 ]
 
 export const router = createBrowserRouter(routes)
