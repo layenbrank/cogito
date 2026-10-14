@@ -3,6 +3,7 @@ import { AlertDialog as AlertDialogPrimitive } from '@base-ui/react/alert-dialog
 import { cn } from 'cn'
 
 import { Button } from '@i-thinking/design/components/button'
+import { OVERLAY_BACKDROP_MOTION, OVERLAY_CENTER_MOTION } from '../lib/overlay-motion'
 
 function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
   return (
@@ -36,7 +37,8 @@ function AlertDialogOverlay({ className, ...props }: AlertDialogPrimitive.Backdr
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        'fixed inset-0 isolate z-50 bg-black/10 transition-opacity duration-200 ease-out supports-backdrop-filter:backdrop-blur-xs data-starting-style:opacity-0 data-ending-style:opacity-0 motion-reduce:transition-none',
+        'fixed inset-0 isolate z-50 bg-black/10 supports-backdrop-filter:backdrop-blur-xs',
+        OVERLAY_BACKDROP_MOTION,
         className
       )}
       {...props}
@@ -59,10 +61,7 @@ function AlertDialogContent({
         data-size={size}
         className={cn(
           'group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-popover-foreground ring-1 ring-foreground/10 outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm',
-          'origin-center scale-100 opacity-100 transition-[opacity,scale] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]',
-          'data-starting-style:scale-[0.96] data-starting-style:opacity-0',
-          'data-ending-style:scale-[0.96] data-ending-style:opacity-0',
-          'motion-reduce:transition-none motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100',
+          OVERLAY_CENTER_MOTION,
           className
         )}
         {...props}

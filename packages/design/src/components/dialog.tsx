@@ -5,6 +5,11 @@ import { cn } from 'cn'
 
 import { Button } from '@i-thinking/design/components/button'
 import { Icon } from '@iconify/react/offline'
+import {
+  findOverlaySideClass,
+  OVERLAY_BACKDROP_MOTION,
+  type OverlaySide
+} from '../lib/overlay-motion'
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   return (
@@ -48,7 +53,8 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
       data-slot="dialog-overlay"
       className={cn(
         // Base UI 用 data-starting/ending-style 驱动进出场，才能等关闭过渡播完再卸载
-        'fixed inset-0 isolate z-50 bg-black/10 transition-opacity duration-200 ease-out supports-backdrop-filter:backdrop-blur-xs data-starting-style:opacity-0 data-ending-style:opacity-0 motion-reduce:transition-none',
+        'fixed inset-0 isolate z-50 bg-black/10 supports-backdrop-filter:backdrop-blur-xs',
+        OVERLAY_BACKDROP_MOTION,
         className
       )}
       {...props}
@@ -68,11 +74,17 @@ function DialogContent({
   children,
   showCloseButton = true,
   overlayClassName,
+  side = 'center',
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
   /** 覆盖遮罩样式（如登录弹窗需要更强 scrim） */
   overlayClassName?: string
+  /**
+   * 弹出方位。`center` 为缩放进出；贴边为滑入滑出。
+   * 动效在 design 内一等公民实现，业务侧不要再用 className 覆盖 translate/scale。
+   */
+  side?: OverlaySide
 }) {
   const [headerTarget, updateHeaderTarget] = React.useState<HTMLElement | null>(null)
   const [footerTarget, updateFooterTarget] = React.useState<HTMLElement | null>(null)
@@ -89,13 +101,12 @@ function DialogContent({
       <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
+        data-side={side}
         className={cn(
           // 圆角裁切在外壳；Header/Footer 挂到滚动区外，避免滚动条压到关闭按钮、Footer -mx-4 撑出横向滚动
-          'fixed top-1/2 left-1/2 z-50 flex w-full max-h-[min(85vh,40rem)] max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-0 overflow-hidden rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 outline-none sm:max-w-sm',
-          'origin-center scale-100 opacity-100 transition-[opacity,scale] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]',
-          'data-starting-style:scale-[0.96] data-starting-style:opacity-0',
-          'data-ending-style:scale-[0.96] data-ending-style:opacity-0',
-          'motion-reduce:transition-none motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100',
+          'fixed z-50 flex flex-col gap-0 overflow-hidden bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 outline-none',
+          side === 'center' && 'rounded-xl',
+          findOverlaySideClass(side),
           className
         )}
         {...props}>
@@ -223,3 +234,4 @@ export {
   DialogTitle,
   DialogTrigger
 }
+export type { OverlaySide as DialogSide }
