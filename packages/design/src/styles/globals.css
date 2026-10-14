@@ -281,11 +281,15 @@
 
 @layer components {
   /*
-   * ResizablePanel 折叠/展开的宽度过渡：程序化 collapse/expand 时 flex-basis 平滑过渡；
+   * ResizablePanel 折叠/展开的宽度过渡：程序化 collapse/expand 时 flex 三属性平滑过渡
+   * （只过渡 flex-basis 不够——折叠时 flex-grow 也从 1 落到 0，会瞬间跳变）；
    * 拖动分栏时 Group 打 `data-dragging`，临时关掉 transition 保证跟手（见 resizable.tsx）。
    */
   [data-panel] {
-    transition: flex-basis 0.2s ease-out;
+    transition:
+      flex-basis 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+      flex-grow 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+      flex-shrink 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   }
   [data-dragging] [data-panel] {
     transition: none;
