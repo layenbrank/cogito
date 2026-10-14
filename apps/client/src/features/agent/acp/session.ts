@@ -424,6 +424,23 @@ function parseAuthRequired(error: unknown): Error {
   if (/invalid\s*params/i.test(message)) {
     return wrapInvalidParams(error, '请求参数无效')
   }
+  // 默认透传，但把 JSON-RPC code / data 一并拼出，避免只看到一个笼统的 "Internal error"。
+  const data = error && typeof error === 'object' ? (error as { data?: unknown }).data : undefined
+  if (!Number.isNaN(code) || data !== null && data !== undefined) {
+    const parts = [message]
+    if (!Number.isNaN(code)) parts.unshift(`[code ${code}]`)
+    if (data !== null && data !== undefined) {
+      if (typeof data === 'string') parts.push(data)
+      else {
+        try {
+          parts.push(JSON.stringify(data))
+        } catch (cause) {
+          console.debug('[acp/session] 错误 data 无法序列化', cause)
+        }
+      }
+    }
+    return new Error(parts.join(' '), { cause: error })
+  }
   return error instanceof Error ? error : new Error(message)
 }
 
