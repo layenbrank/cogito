@@ -105,19 +105,13 @@ function DirectiveWorkspace() {
         isInspectorOpen={panels.isInspectorOpen}
         isRunOpen={panels.isRunOpen}
         onToggleCatalog={function () {
-          panels.withPanelAnimation(function () {
-            panels.setCatalogOpen(!panels.isCatalogOpen)
-          })
+          panels.setCatalogOpen(!panels.isCatalogOpen)
         }}
         onToggleInspector={function () {
-          panels.withPanelAnimation(function () {
-            panels.setInspectorOpen(!panels.isInspectorOpen)
-          })
+          panels.setInspectorOpen(!panels.isInspectorOpen)
         }}
         onToggleRun={function () {
-          panels.withPanelAnimation(function () {
-            panels.setRunOpen(!panels.isRunOpen)
-          })
+          panels.setRunOpen(!panels.isRunOpen)
         }}
         onBack={function () {
           void navigate('/directive')
@@ -137,7 +131,6 @@ function DirectiveWorkspace() {
       />
 
       <WorkspacePanes
-        isPanelAnimating={panels.isPanelAnimating}
         catalogRef={panels.catalogRef}
         inspectorRef={panels.inspectorRef}
         runRef={panels.runRef}

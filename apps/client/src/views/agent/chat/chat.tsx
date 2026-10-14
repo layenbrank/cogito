@@ -222,6 +222,7 @@ function AgentChatLayout() {
             maxSize={SESSION_MAX}
             collapsible
             collapsedSize={0}
+            collapsibleOnDrag={false}
             groupResizeBehavior="preserve-pixel-size"
             onResize={handleSidebarResize}>
             <AgentSidebar
@@ -234,7 +235,7 @@ function AgentChatLayout() {
             />
           </ResizablePanel>
 
-          <ResizableHandle />
+          <ResizableHandle withHandle />
 
           <ResizablePanel
             id={MAIN_ID}
@@ -279,7 +280,7 @@ function AgentChatLayout() {
             </div>
           </ResizablePanel>
 
-          <ResizableHandle />
+          <ResizableHandle withHandle />
 
           <ResizablePanel
             id={PLAN_ID}
@@ -289,6 +290,7 @@ function AgentChatLayout() {
             maxSize={PLAN_MAX}
             collapsible
             collapsedSize={0}
+            collapsibleOnDrag={false}
             groupResizeBehavior="preserve-pixel-size"
             onResize={handleAsideResize}>
             <AgentAside

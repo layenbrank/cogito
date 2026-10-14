@@ -1,27 +1,19 @@
 import { usePanelRef } from '@i-thinking/design/components/resizable'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
-const PANEL_ANIMATION_MS = 240
-
+/**
+ * 编排台三面分栏的开合状态与面板引用。
+ *
+ * 开合过渡由组件库（`[data-panel]` 过渡 + `collapsibleOnDrag`）统一承担，
+ * 这里只管状态与 ref，不再自己做动画计时。
+ */
 function useWorkspacePanels() {
   const catalogRef = usePanelRef()
   const inspectorRef = usePanelRef()
   const runRef = usePanelRef()
-  const animationTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isCatalogOpen, setCatalogOpen] = useState(true)
   const [isInspectorOpen, setInspectorOpen] = useState(true)
   const [isRunOpen, setRunOpen] = useState(true)
-  const [isPanelAnimating, setPanelAnimating] = useState(false)
-
-  function withPanelAnimation(update: () => void) {
-    setPanelAnimating(true)
-    update()
-    if (animationTimer.current) clearTimeout(animationTimer.current)
-    animationTimer.current = setTimeout(function () {
-      setPanelAnimating(false)
-      animationTimer.current = null
-    }, PANEL_ANIMATION_MS)
-  }
 
   useEffect(
     function () {
@@ -53,12 +45,6 @@ function useWorkspacePanels() {
     [isRunOpen, runRef]
   )
 
-  useEffect(function () {
-    return function () {
-      if (animationTimer.current) clearTimeout(animationTimer.current)
-    }
-  }, [])
-
   return {
     catalogRef,
     inspectorRef,
@@ -66,11 +52,9 @@ function useWorkspacePanels() {
     isCatalogOpen,
     isInspectorOpen,
     isRunOpen,
-    isPanelAnimating,
     setCatalogOpen,
     setInspectorOpen,
-    setRunOpen,
-    withPanelAnimation
+    setRunOpen
   }
 }
 
