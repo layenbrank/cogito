@@ -8,19 +8,27 @@ import { toast } from 'sonner'
 import { SettingsRow, SettingsSection } from '@/views/settings/panels/section.tsx'
 import {
   APPEARANCE_MODES,
+  MOTION_PRESETS,
   PRIMARY_PRESETS,
   RADIUS_PRESETS,
   readAppearance,
   resetAppearance,
   writeAppearance,
   type Appearance,
-  type AppearanceMode
+  type AppearanceMode,
+  type MotionPreference
 } from '@/features/window/appearance'
 
 const MODE_ICONS: Record<AppearanceMode, string> = {
   light: 'lucide:sun',
   dark: 'lucide:moon',
   system: 'lucide:monitor'
+}
+
+const MOTION_ICONS: Record<MotionPreference, string> = {
+  system: 'lucide:monitor',
+  on: 'lucide:sparkles',
+  off: 'lucide:circle-pause'
 }
 
 const TOGGLE_ITEM = 'cursor-pointer px-3 data-[pressed]:bg-primary/10 data-[pressed]:text-primary'
@@ -105,6 +113,34 @@ function AppearancePanel() {
                   key={preset.value}
                   value={String(preset.value)}
                   className={TOGGLE_ITEM}>
+                  {preset.label}
+                </ToggleGroupItem>
+              )
+            })}
+          </ToggleGroup>
+        </SettingsRow>
+
+        <SettingsRow
+          label="界面动效"
+          hint="仅影响本应用；不改系统辅助功能。系统已减少动画时可选手动开启。">
+          <ToggleGroup
+            variant="outline"
+            spacing={0}
+            value={[appearance.motion]}
+            onValueChange={function (value) {
+              const next = value[0] as MotionPreference | undefined
+              if (next) apply({ motion: next })
+            }}>
+            {MOTION_PRESETS.map(function (preset) {
+              return (
+                <ToggleGroupItem
+                  key={preset.value}
+                  value={preset.value}
+                  className={TOGGLE_ITEM}>
+                  <Icon
+                    icon={MOTION_ICONS[preset.value]}
+                    aria-hidden
+                  />
                   {preset.label}
                 </ToggleGroupItem>
               )

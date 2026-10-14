@@ -43,7 +43,7 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
+html[data-motion='reduce'] {
   .contextmenu-surface,
   .contextmenu-item {
     transition: none !important;

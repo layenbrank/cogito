@@ -1,11 +1,25 @@
-import { Effect } from '@tauri-apps/api/window'
-
 import type { WebviewOptions } from '@tauri-apps/api/webview'
 import type { WindowOptions } from '@tauri-apps/api/window'
+
+import {
+  findWindowEffects,
+  isDarkMode,
+  readAppearance
+} from '@/features/window/appearance'
 
 type Configure = Omit<WebviewOptions, 'x' | 'y' | 'width' | 'height'> & WindowOptions
 
 type WindowConfigure = Partial<Record<MagneticTile.Component, Configure>>
+
+function findAppearanceWindowOptions(): Pick<Configure, 'theme' | 'windowEffects'> {
+  const appearance = readAppearance()
+  const isDark = isDarkMode(appearance.mode)
+  // 建窗必须给明确 light|dark（Omit/null 在部分平台建窗会拒）；跟随系统时按当前有效明暗写死
+  return {
+    theme: isDark ? 'dark' : 'light',
+    windowEffects: findWindowEffects(isDark)
+  }
+}
 
 const DEFAULT: Configure = {
   backgroundColor: '#00000000',
@@ -24,50 +38,36 @@ const DEFAULT: Configure = {
   decorations: false,
   shadow: true,
   skipTaskbar: false,
-  theme: 'light',
   titleBarStyle: 'transparent',
   transparent: true,
   visible: true,
   width: 1200,
-  windowEffects: {
-    effects: [Effect.Mica, Effect.Acrylic]
-  }
+  ...findAppearanceWindowOptions()
 }
 
 const WINDOW: WindowConfigure = {
   bookmark: DEFAULT,
   calendar: {
     ...DEFAULT,
-    width: 600,
-    minWidth: 600,
-    height: 400,
-    minHeight: 400,
-    windowEffects: undefined
+    width: 1020,
+    minWidth: 840,
+    height: 700,
+    minHeight: 600
   },
   clipchamp: DEFAULT,
   clock: {
     ...DEFAULT,
-    width: 480,
-    minWidth: 360,
-    height: 360,
-    shadow: false,
-    minHeight: 280,
-    resizable: true,
-    alwaysOnTop: true,
-    skipTaskbar: false,
-    windowEffects: undefined
+    width: 880,
+    minWidth: 720,
+    height: 600,
+    minHeight: 520
   },
   countdown: {
     ...DEFAULT,
-    width: 400,
-    minWidth: 360,
-    height: 420,
-    shadow: false,
-    minHeight: 380,
-    resizable: true,
-    alwaysOnTop: true,
-    skipTaskbar: false,
-    windowEffects: undefined
+    width: 880,
+    minWidth: 720,
+    height: 600,
+    minHeight: 520
   },
   code: DEFAULT,
   collection: DEFAULT,
@@ -80,16 +80,13 @@ const WINDOW: WindowConfigure = {
   marketplace: {
     ...DEFAULT,
     minWidth: 900,
-    minHeight: 600,
-    transparent: true
+    minHeight: 600
   },
   navigation: {
-    ...DEFAULT,
-    transparent: true
+    ...DEFAULT
   },
   capture: {
-    ...DEFAULT,
-    fullscreen: false
+    ...DEFAULT
   },
   settings: DEFAULT,
   signboard: DEFAULT,
@@ -104,9 +101,16 @@ function findTileRoute(component: MagneticTile.Component) {
   return `/${component}`
 }
 
-/** 未登记的磁贴回落到 DEFAULT，避免新增组件时漏配就建不出窗 */
+/**
+ * 未登记的磁贴回落到 DEFAULT；每次取选项时重读 appearance，
+ * 避免模块加载时写死的 theme/effects 与之后切换的外观脱节。
+ */
 function findTileWindowOptions(component: MagneticTile.Component): Configure {
-  return WINDOW[component] ?? DEFAULT
+  const base = WINDOW[component] ?? DEFAULT
+  return {
+    ...base,
+    ...findAppearanceWindowOptions()
+  }
 }
 
 export { DEFAULT, findTileRoute, findTileWindowOptions, WINDOW }

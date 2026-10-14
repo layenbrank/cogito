@@ -112,7 +112,7 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
+  html[data-motion='reduce'] & {
     &::before,
     svg {
       transition: none;

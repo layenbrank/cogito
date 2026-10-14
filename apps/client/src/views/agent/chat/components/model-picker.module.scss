@@ -86,7 +86,7 @@
     outline-offset: 1px;
   }
 
-  @media (prefers-reduced-motion: reduce) {
+  :global(html[data-motion='reduce']) & {
     transition: none;
   }
 }

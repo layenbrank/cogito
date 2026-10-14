@@ -10,6 +10,8 @@
 import gsap from 'gsap'
 import { Observer } from 'gsap/Observer'
 
+import { findReducedMotion } from '@/features/window/appearance'
+
 gsap.registerPlugin(Observer)
 
 /** 实体磁贴（排除 Suspense 骨架）——Sortable ghost 清理用 */
@@ -23,11 +25,19 @@ const SURFACE_SELECTOR = '.magnetic-tile-surface'
 const SMOOTH_DURATION = 1.25
 const SMOOTH_EASE = 'expo.out'
 
+interface ScrollFxOptions {
+  /** 阻尼追赶时长（秒） */
+  duration?: number
+  ease?: string
+}
+
 type ScrollFx = {
   pause(): void
   resume(): void
   /** 停阻尼并滚回顶部（切页用） */
   reset(): void
+  /** 平滑滚到指定 scrollTop（与阻尼共用 quickTo） */
+  scrollToY(y: number, duration?: number): void
   destroy(): void
 }
 
@@ -51,26 +61,28 @@ function clearGhost(ghost: HTMLElement | null) {
 }
 
 function prefersReducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  return findReducedMotion()
 }
 
 function findScrollMax(scroller: HTMLElement) {
   return Math.max(0, scroller.scrollHeight - scroller.clientHeight)
 }
 
-function bindScrollFx(scroller: HTMLElement): ScrollFx {
+function bindScrollFx(scroller: HTMLElement, options?: ScrollFxOptions): ScrollFx {
   ACTIVE.get(scroller)?.destroy()
 
   let isDragging = false
   const canMotion = !prefersReducedMotion()
+  const duration = options?.duration ?? SMOOTH_DURATION
+  const ease = options?.ease ?? SMOOTH_EASE
 
   let target = scroller.scrollTop
   let observer: Observer | null = null
 
-  const scrollTo = canMotion
+  const quickScroll = canMotion
     ? gsap.quickTo(scroller, 'scrollTop', {
-        duration: SMOOTH_DURATION,
-        ease: SMOOTH_EASE
+        duration,
+        ease
       })
     : null
 
@@ -84,13 +96,13 @@ function bindScrollFx(scroller: HTMLElement): ScrollFx {
 
   function nudgeBy(delta: number) {
     const max = findScrollMax(scroller)
-    if (max <= 0 || !scrollTo) return false
+    if (max <= 0 || !quickScroll) return false
 
     // 未在补间时对齐（例如刚拖过滚动条）
     if (!gsap.isTweening(scroller)) syncFromDom()
 
     target = clamp(target + delta, 0, max)
-    scrollTo(target)
+    quickScroll(target)
     return true
   }
 
@@ -131,6 +143,25 @@ function bindScrollFx(scroller: HTMLElement): ScrollFx {
       scroller.scrollTop = 0
       target = 0
     },
+    scrollToY(y, jumpDuration) {
+      const max = findScrollMax(scroller)
+      target = clamp(y, 0, max)
+      if (!canMotion || !quickScroll) {
+        scroller.scrollTop = target
+        return
+      }
+      if (jumpDuration != null) {
+        stopDamp()
+        gsap.to(scroller, {
+          scrollTop: target,
+          duration: jumpDuration,
+          ease: 'power2.out',
+          overwrite: true
+        })
+        return
+      }
+      quickScroll(target)
+    },
     destroy() {
       isDragging = true
       stopDamp()
@@ -157,4 +188,4 @@ function resetMirrorScroll(scroller: HTMLElement | null) {
 }
 
 export { bindScrollFx, clearGhost, resetMirrorScroll, TILE_SELECTOR }
-export type { ScrollFx }
+export type { ScrollFx, ScrollFxOptions }

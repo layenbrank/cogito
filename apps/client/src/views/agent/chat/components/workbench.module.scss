@@ -150,7 +150,7 @@
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
+:global(html[data-motion='full']) {
   .promptCard {
     animation: agentPromptIn 200ms ease-out both;
   }

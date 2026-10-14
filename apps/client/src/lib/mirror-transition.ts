@@ -7,6 +7,8 @@
  */
 import gsap from 'gsap'
 
+import { findReducedMotion } from '@/features/window/appearance'
+
 const EXIT_DURATION = 0.2
 const ENTER_DURATION = 0.38
 const SLIDE_X = 36
@@ -34,7 +36,7 @@ type MirrorTransitionSession = {
 }
 
 function hasReducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  return findReducedMotion()
 }
 
 /** 由旧/新 mirror 在列表中的 index 推算滑入方向（下一页 → 1） */

@@ -1,9 +1,15 @@
 /**
- * 外观：明暗模式 + 主色 + 圆角。
+ * 外观：明暗模式 + 主色 + 圆角 + 动效。
  *
  * 设计 token 只认根节点上的 `.dark` 与 `--primary` / `--radius` 两个 CSS 变量，
  * 这里负责读写、持久化（localStorage，启动同步可读，避免首屏闪主题）并套到根节点上。
+ * 同时把有效明暗同步到 Tauri `setTheme` / `setEffects`（mica 明暗），与 CSS 主题一致。
+ *
+ * 动效：不改 OS `prefers-reduced-motion`，只在应用边界写 `data-motion`，
+ * 并驱动 MotionConfig / JS 读点，供用户强制开或关。
  */
+
+import { Effect, getCurrentWindow, type Theme } from '@tauri-apps/api/window'
 
 const APPEARANCE_KEY = 'client.appearance'
 
@@ -11,6 +17,13 @@ const APPEARANCE_MODES = [
   { value: 'system', label: '跟随系统' },
   { value: 'light', label: '浅色' },
   { value: 'dark', label: '深色' }
+] as const
+
+/** 动效：跟随系统 / 始终开 / 减少（应用边界，不改 OS） */
+const MOTION_PRESETS = [
+  { value: 'system', label: '跟随系统' },
+  { value: 'on', label: '开启动效' },
+  { value: 'off', label: '减少动效' }
 ] as const
 
 /** 主色预设：前景色与主色成对给出，避免浅色主色压深底产生对比不足 */
@@ -37,9 +50,13 @@ const RADIUS_RANGE = {
 } as const
 
 type AppearanceMode = (typeof APPEARANCE_MODES)[number]['value']
+type MotionPreference = (typeof MOTION_PRESETS)[number]['value']
+type EffectiveMotion = 'full' | 'reduce'
+type MotionConfigValue = 'user' | 'always' | 'never'
 
 interface Appearance {
   mode: AppearanceMode
+  motion: MotionPreference
   color: string
   foreground: string
   radius: number
@@ -47,9 +64,42 @@ interface Appearance {
 
 const DEFAULT_APPEARANCE: Appearance = {
   mode: 'system',
+  motion: 'system',
   color: PRIMARY_PRESETS[0].value,
   foreground: PRIMARY_PRESETS[0].foreground,
   radius: 10
+}
+
+const listeners = new Set<() => void>()
+
+/** useSyncExternalStore 要求 getSnapshot 返回稳定引用，禁止每次 new 对象 */
+let cachedAppearance: Appearance | null = null
+
+function notifyAppearance() {
+  for (const listener of listeners) listener()
+}
+
+function subscribeAppearance(listener: () => void) {
+  listeners.add(listener)
+  return function () {
+    listeners.delete(listener)
+  }
+}
+
+function loadAppearance(): Appearance {
+  if (typeof localStorage === 'undefined') return DEFAULT_APPEARANCE
+  try {
+    const raw = localStorage.getItem(APPEARANCE_KEY)
+    return raw ? parseAppearance(JSON.parse(raw)) : DEFAULT_APPEARANCE
+  } catch (error) {
+    console.warn('[appearance] 读不到外观配置', error)
+    return DEFAULT_APPEARANCE
+  }
+}
+
+function rememberAppearance(next: Appearance) {
+  cachedAppearance = next
+  return next
 }
 
 function parseAppearance(value: unknown): Appearance {
@@ -61,12 +111,18 @@ function parseAppearance(value: unknown): Appearance {
   })
     ? (input.mode as AppearanceMode)
     : DEFAULT_APPEARANCE.mode
+  const motion = MOTION_PRESETS.some(function (item) {
+    return item.value === input.motion
+  })
+    ? (input.motion as MotionPreference)
+    : DEFAULT_APPEARANCE.motion
   const preset = PRIMARY_PRESETS.find(function (item) {
     return item.value === input.color
   })
 
   return {
     mode,
+    motion,
     color: preset ? preset.value : DEFAULT_APPEARANCE.color,
     foreground: preset ? preset.foreground : DEFAULT_APPEARANCE.foreground,
     radius:
@@ -83,29 +139,103 @@ function isDarkMode(mode: AppearanceMode) {
   return window.matchMedia('(prefers-color-scheme: dark)').matches
 }
 
+function hasOsReducedMotion() {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+/** 应用边界有效动效：跟随系统时读 OS，否则强制开/关 */
+function findEffectiveMotion(motion: MotionPreference): EffectiveMotion {
+  if (motion === 'on') return 'full'
+  if (motion === 'off') return 'reduce'
+  return hasOsReducedMotion() ? 'reduce' : 'full'
+}
+
+/** 是否应按「减少动效」处理（JS / CSS 统一读点） */
+function findReducedMotion() {
+  if (typeof document !== 'undefined') {
+    const attr = document.documentElement.getAttribute('data-motion')
+    if (attr === 'reduce') return true
+    if (attr === 'full') return false
+  }
+  return findEffectiveMotion(readAppearance().motion) === 'reduce'
+}
+
+/** Motion `reducedMotion`：on→never / off→always / system→user */
+function findMotionConfig(motion: MotionPreference): MotionConfigValue {
+  if (motion === 'on') return 'never'
+  if (motion === 'off') return 'always'
+  return 'user'
+}
+
+/** 建窗 / setTheme：跟随系统时传 null */
+function findWindowTheme(mode: AppearanceMode): Theme | null {
+  if (mode === 'system') return null
+  return mode === 'dark' ? 'dark' : 'light'
+}
+
+/**
+ * 建窗 / setEffects：按有效明暗优先 mica 变体。
+ * JS `Effect` 枚举（api@2.11）只有 `Mica`，但 Rust/配置侧认 `micaDark`/`micaLight`，
+ * 用字面量传参；勿写 `Effect.MicaDark`（运行时为 undefined，建窗会直接失败）。
+ */
+function findWindowEffects(isDark: boolean) {
+  return {
+    effects: (
+      isDark
+        ? ['micaDark', Effect.Mica, Effect.Acrylic]
+        : ['micaLight', Effect.Mica, Effect.Acrylic]
+    ) as Effect[]
+  }
+}
+
+function syncNativeWindow(appearance: Appearance) {
+  if (typeof window === 'undefined') return
+  // 非 Tauri 环境（浏览器预览）没有原生窗 API
+  if (!('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window)) return
+
+  const isDark = isDarkMode(appearance.mode)
+  const theme = findWindowTheme(appearance.mode)
+  const effects = findWindowEffects(isDark)
+
+  void getCurrentWindow()
+    .setTheme(theme)
+    .catch(function (error: unknown) {
+      console.warn('[appearance] setTheme 失败', error)
+    })
+
+  void getCurrentWindow()
+    .setEffects(effects)
+    .catch(function (error: unknown) {
+      console.warn('[appearance] setEffects 失败', error)
+    })
+}
+
 function applyAppearance(appearance: Appearance) {
   if (typeof document === 'undefined') return
 
   const root = document.documentElement
   root.classList.toggle('dark', isDarkMode(appearance.mode))
+  root.dataset.motion = findEffectiveMotion(appearance.motion)
   root.style.setProperty('--primary', appearance.color)
   root.style.setProperty('--primary-foreground', appearance.foreground)
   root.style.setProperty('--radius', `${appearance.radius}px`)
+  syncNativeWindow(appearance)
+  notifyAppearance()
 }
 
 function readAppearance(): Appearance {
-  if (typeof localStorage === 'undefined') return DEFAULT_APPEARANCE
-  try {
-    const raw = localStorage.getItem(APPEARANCE_KEY)
-    return raw ? parseAppearance(JSON.parse(raw)) : DEFAULT_APPEARANCE
-  } catch (error) {
-    console.warn('[appearance] 读不到外观配置', error)
-    return DEFAULT_APPEARANCE
-  }
+  if (cachedAppearance) return cachedAppearance
+  return rememberAppearance(loadAppearance())
+}
+
+/** MotionConfig 用：原始字符串，Object.is 稳定，可直接作 getSnapshot */
+function readMotionConfig(): MotionConfigValue {
+  return findMotionConfig(readAppearance().motion)
 }
 
 function writeAppearance(patch: Partial<Appearance>) {
-  const next = parseAppearance({ ...readAppearance(), ...patch })
+  const next = rememberAppearance(parseAppearance({ ...readAppearance(), ...patch }))
   try {
     localStorage.setItem(APPEARANCE_KEY, JSON.stringify(next))
   } catch (error) {
@@ -121,13 +251,14 @@ function resetAppearance() {
   } catch (error) {
     console.warn('[appearance] 重置外观配置失败', error)
   }
+  rememberAppearance(DEFAULT_APPEARANCE)
   watchAppearance()
   return DEFAULT_APPEARANCE
 }
 
 let stopWatch: (() => void) | null = null
 
-/** 启动时套一次；选了「跟随系统」就继续听系统变化 */
+/** 启动时套一次；跟随系统的明暗 / 动效继续听 OS 变化 */
 function watchAppearance() {
   stopWatch?.()
   stopWatch = null
@@ -135,26 +266,54 @@ function watchAppearance() {
 
   const appearance = readAppearance()
   applyAppearance(appearance)
-  if (appearance.mode !== 'system') return
 
-  const media = window.matchMedia('(prefers-color-scheme: dark)')
-  function onChange() {
-    if (readAppearance().mode === 'system') applyAppearance(readAppearance())
+  const cleanups: Array<() => void> = []
+
+  if (appearance.mode === 'system') {
+    const colorScheme = window.matchMedia('(prefers-color-scheme: dark)')
+    function onColorScheme() {
+      if (readAppearance().mode === 'system') applyAppearance(readAppearance())
+    }
+    colorScheme.addEventListener('change', onColorScheme)
+    cleanups.push(function () {
+      colorScheme.removeEventListener('change', onColorScheme)
+    })
   }
-  media.addEventListener('change', onChange)
+
+  if (appearance.motion === 'system') {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
+    function onReducedMotion() {
+      if (readAppearance().motion === 'system') applyAppearance(readAppearance())
+    }
+    reduced.addEventListener('change', onReducedMotion)
+    cleanups.push(function () {
+      reduced.removeEventListener('change', onReducedMotion)
+    })
+  }
+
+  if (cleanups.length === 0) return
   stopWatch = function () {
-    media.removeEventListener('change', onChange)
+    for (const cleanup of cleanups) cleanup()
   }
 }
 
 export {
   APPEARANCE_MODES,
   DEFAULT_APPEARANCE,
+  MOTION_PRESETS,
   PRIMARY_PRESETS,
   RADIUS_PRESETS,
+  findEffectiveMotion,
+  findMotionConfig,
+  findReducedMotion,
+  findWindowEffects,
+  findWindowTheme,
+  isDarkMode,
   readAppearance,
+  readMotionConfig,
   resetAppearance,
+  subscribeAppearance,
   watchAppearance,
   writeAppearance
 }
-export type { Appearance, AppearanceMode }
+export type { Appearance, AppearanceMode, EffectiveMotion, MotionConfigValue, MotionPreference }

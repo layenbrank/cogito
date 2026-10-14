@@ -197,7 +197,7 @@
 
   @include t.focus-ring;
 
-  @media (prefers-reduced-motion: reduce) {
+  :global(html[data-motion='reduce']) & {
     transition: none;
   }
 }
@@ -301,7 +301,7 @@
 
   @include t.focus-ring;
 
-  @media (prefers-reduced-motion: reduce) {
+  :global(html[data-motion='reduce']) & {
     transition: none;
   }
 }

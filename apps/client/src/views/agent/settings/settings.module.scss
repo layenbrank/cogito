@@ -391,7 +391,7 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
+:global(html[data-motion='reduce']) {
   .statusTesting {
     animation: none;
     opacity: 0.85;

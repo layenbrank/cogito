@@ -212,7 +212,7 @@
   color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
 }
 
-@media (prefers-reduced-motion: reduce) {
+:global(html[data-motion='reduce']) {
   .paper {
     transition: none;
 

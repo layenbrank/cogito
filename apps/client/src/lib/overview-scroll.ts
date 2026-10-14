@@ -8,6 +8,8 @@
 import gsap from 'gsap'
 import { ScrollToPlugin } from 'gsap/ScrollToPlugin'
 
+import { findReducedMotion } from '@/features/window/appearance'
+
 let isRegistered = false
 
 const INDICATOR_DURATION = 0.2
@@ -20,7 +22,7 @@ function ensurePlugins() {
 }
 
 function hasReducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  return findReducedMotion()
 }
 
 function clampScrollTop(container: HTMLElement, scrollTop: number) {
