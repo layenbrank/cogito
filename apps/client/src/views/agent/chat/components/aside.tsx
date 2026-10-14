@@ -9,7 +9,9 @@ import { useMemo } from 'react'
 
 import { AsideBusy } from './aside-busy'
 import { AsideEmpty } from './aside-empty'
+import { TerminalPanel } from './terminal-panel'
 import type { PlanSnapshot } from '@/features/agent/plan'
+import { useTerminalStore } from '@/stores/terminal'
 
 interface AsideProps {
   className?: string
@@ -22,6 +24,10 @@ function AgentAside(props: AsideProps) {
     return state.thread.messages
   })
 
+  const terminalOpen = useTerminalStore(function (state) {
+    return state.open
+  })
+
   const hasUserMessage = useMemo(
     function () {
       return messages.some(function (message) {
@@ -30,6 +36,15 @@ function AgentAside(props: AsideProps) {
     },
     [messages]
   )
+
+  // 终端面板固定渲染在右栏；打开时整栏被终端面板接管（面板自带标题栏与关闭）。
+  if (terminalOpen) {
+    return (
+      <div className={clsx('bg-background flex h-full min-h-0 flex-col', props.className)}>
+        <TerminalPanel />
+      </div>
+    )
+  }
 
   return (
     <div className={clsx('bg-background flex h-full min-h-0 flex-col', props.className)}>

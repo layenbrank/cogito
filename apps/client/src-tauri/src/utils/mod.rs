@@ -8,3 +8,4 @@ pub mod goose_tls;
 pub mod ipc;
 pub mod log_retention;
 pub mod sidecar;
+pub mod terminal;

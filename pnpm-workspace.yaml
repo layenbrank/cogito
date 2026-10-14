@@ -117,6 +117,9 @@ catalog:
   "react-hook-form": ^7.88.0
   "@hookform/resolvers": ^5.9.1
   "remark-gfm": ^4.0.1
+  # —— 嵌入式交互终端（xterm.js 6.x 拆包；addon-fit 版本独立）——
+  "@xterm/xterm": ^6.0.0
+  "@xterm/addon-fit": ^0.11.0
 
   # —— Vue 运行时（client / devtools / composables）——
   "pinia": ^3.0.3

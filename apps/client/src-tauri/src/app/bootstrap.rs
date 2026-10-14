@@ -16,6 +16,7 @@ use crate::{
         goose_serve::{self, GooseServeState},
         goose_tls, log_retention,
         sidecar::{self, SidecarState},
+        terminal::TerminalHub,
     },
 };
 
@@ -48,6 +49,7 @@ impl Bootstrap {
                 app.manage(SidecarState::new());
                 app.manage(GooseServeState::new());
                 app.manage(GooseAcpHub::new());
+                app.manage(TerminalHub::new());
                 goose_tls::install_crypto_provider();
                 app.manage(ThroughState::new("overlay"));
                 app.manage(OverlayPending::default());
@@ -101,6 +103,7 @@ impl Bootstrap {
                 if matches!(event, RunEvent::Exit) {
                     goose_serve::shutdown(app);
                     sidecar::shutdown(app);
+                    crate::utils::terminal::shutdown(app);
                 }
             });
     }

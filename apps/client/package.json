@@ -32,6 +32,8 @@
     "@i-thinking/wasm": "workspace:*",
     "@iconify/json": "catalog:",
     "@iconify/react": "catalog:",
+    "@xterm/addon-fit": "catalog:",
+    "@xterm/xterm": "catalog:",
     "clsx": "catalog:",
     "go-captcha-react": "catalog:",
     "shaders": "catalog:",

@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 
 import { attachWorkspacePaths } from '@/features/agent/attachment.ts'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
+import { useTerminalStore } from '@/stores/terminal'
 
 interface AsideCard {
   key: string
@@ -44,6 +45,14 @@ function AsideEmpty() {
       })
   }
 
+  function handleOpenTerminal() {
+    if (!primaryPath) {
+      toast.error('先在左栏添加一个工作区')
+      return
+    }
+    useTerminalStore.getState().newTab(primaryPath)
+  }
+
   const cards: AsideCard[] = [
     {
       key: 'files',
@@ -74,8 +83,9 @@ function AsideEmpty() {
       key: 'terminal',
       icon: 'lucide:terminal',
       label: '打开终端',
-      hint: '即将推出',
-      enabled: false
+      hint: '在当前工作区打开 shell',
+      enabled: true,
+      onClick: handleOpenTerminal
     }
   ]
 

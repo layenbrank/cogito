@@ -149,6 +149,13 @@ export const CHANNELS = {
   },
   WORKSPACE_SKILLS: {
     LIST: 'workspaceSkills:list'
+  },
+  TERMINAL: {
+    CREATE: 'terminal:create',
+    WRITE: 'terminal:write',
+    RESIZE: 'terminal:resize',
+    KILL: 'terminal:kill',
+    LIST: 'terminal:list'
   }
 } as const
 
@@ -169,7 +176,8 @@ export const EVENTS = {
   OVERLAY_CLEAR_TEXTURES: 'overlay://clear-textures',
   OVERLAY_HIDE: 'overlay://hide',
   OVERLAY_CONCEAL: 'overlay://conceal',
-  OVERLAY_REVEAL: 'overlay://reveal'
+  OVERLAY_REVEAL: 'overlay://reveal',
+  TERMINAL_EXIT: 'terminal://exit'
 } as const
 
 /** corex-daemon 经 ipc:invoke 的模块名 */

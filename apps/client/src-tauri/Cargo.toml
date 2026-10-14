@@ -107,6 +107,9 @@ tauri-plugin-os = "2.3.2" # OS 信息（前端能力预留）
 # --- Tauri 插件（日志）---
 tauri-plugin-log = "2.8.0" # 日志桥（Stdout + LogDir；debug 含 Webview）
 
+# --- PTY（嵌入式交互终端；wezterm 维护，Windows=ConPTY）---
+portable-pty = "0.9"
+
 # --- 异步 / 时间 / 序列化 / 错误 / 日志 ---
 tokio = { workspace = true }
 chrono = { workspace = true }
@@ -156,6 +159,7 @@ windows = { version = "0.61", features = [
   "Win32_Security",
   "Win32_System_Pipes",
   "Win32_System_Threading",
+  "Win32_System_Diagnostics_ToolHelp",
 ] } # 与 tauri 2.11 同主版本，避免 HWND 跨 crate 分裂
 
 [target.'cfg(target_os = "macos")'.dependencies]
