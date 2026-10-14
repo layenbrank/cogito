@@ -1,4 +1,5 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+import { Icon } from '@iconify/react/offline'
 import { clsx, type ClassValue } from 'clsx'
 import { useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
@@ -18,6 +19,8 @@ interface SectionProps extends MagneticTile {
   shape: MagneticTile.Shape
   direction: MagneticTile.Direction
   onTrash?: MouseEventHandler<HTMLElement>
+  /** 覆盖默认双击开窗；传入则不再调用 activateTile */
+  onDoubleClick?: MouseEventHandler<HTMLElement>
 }
 
 interface MarkerProps {
@@ -97,8 +100,8 @@ const MagneticTile = {
     )
   },
   /**
-   * 磁贴表面。双击激活：一律开独立窗口（见 `activate.ts`），
-   * 主窗内不再有 Dialog 挡层，所以这里也不接管任何浮层状态。
+   * 磁贴表面。双击默认走 `activateTile`（collection 为 scale 展开，其它开窗）；
+   * 可用 `onDoubleClick` 覆盖（如集合抽屉选贴）。
    */
   Section(props: SectionProps) {
     const nodeRef = useRef<HTMLDivElement>(null)
@@ -153,7 +156,11 @@ const MagneticTile = {
     return (
       <div
         ref={nodeRef}
-        onDoubleClick={function () {
+        onDoubleClick={function (event) {
+          if (props.onDoubleClick) {
+            props.onDoubleClick(event)
+            return
+          }
           void activateTile(props)
         }}
         data-id={props.id}
@@ -193,8 +200,12 @@ const MagneticTile = {
           type="button"
           aria-label="删除磁贴"
           onClick={props.onTrash}
-          className={clsx(styles.destroy, styles.marker)}>
-          X
+          className={clsx(styles.destroy, styles.marker, props.onTrash && styles.visible)}>
+          <Icon
+            icon="ant-design:delete-outlined"
+            width={10}
+            height={10}
+          />
         </button>
       </div>
     )

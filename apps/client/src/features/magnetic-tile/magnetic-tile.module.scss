@@ -97,16 +97,16 @@
       line-height: 1;
       cursor: pointer;
       z-index: 10;
-    }
-
-    &.visible {
-      display: flex;
-    }
-
-    &:not(.visible) {
       visibility: hidden;
       pointer-events: none;
     }
+  }
+
+  // `.visible` = 允许在悬停/聚焦时显示移出/删除
+  &:hover > .destroy.visible,
+  &:focus-within > .destroy.visible {
+    visibility: visible;
+    pointer-events: auto;
   }
 }
 
@@ -181,7 +181,7 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
+:global(html[data-motion='reduce']) {
   .skeleton::after {
     animation: none;
   }

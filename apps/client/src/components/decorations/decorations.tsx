@@ -53,7 +53,7 @@ function Decorations(props: DecorationsProps) {
         {props.children}
       </div>
       {props.section ? (
-        <section className="flex shrink-0 justify-end gap-2.5 border-t border-border/60 bg-card px-5 py-3">
+        <section className="flex shrink-0 justify-end gap-2.5 border-t border-border/60 bg-card/80 px-5 py-3 backdrop-blur-sm">
           {props.section}
         </section>
       ) : null}

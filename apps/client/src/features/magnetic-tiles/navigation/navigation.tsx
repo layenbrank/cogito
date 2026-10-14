@@ -13,15 +13,14 @@ interface NavigationProps extends Omit<SectionProps, 'children'> {
 }
 
 export default function Navigation(props: NavigationProps) {
-  function onTrash(e: React.MouseEvent<HTMLElement>) {
-    console.log('Trash clicked for', e)
-  }
+  const { onPrevent, onTrash, className, ...tile } = props
 
   return (
     <MagneticTile.Section
-      {...props}
+      {...tile}
       onTrash={onTrash}
-      className={clsx(styles.navigation)}>
+      onDoubleClick={onPrevent}
+      className={clsx(styles.navigation, className)}>
       <Marker
         size={props.size}
         direction={props.direction}

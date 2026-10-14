@@ -245,8 +245,8 @@ function ControlButton(props: ControlButtonProps) {
             className={cn(
               // 覆盖 icon-sm 的 size-7/圆角：整条 Caption 高、宽约 46px，贴顶贴右
               'h-full w-[46px] min-w-[46px] shrink-0 rounded-none border-0',
-              'text-muted-foreground hover:bg-black/5 hover:text-foreground',
-              'dark:hover:bg-white/10',
+              'text-muted-foreground hover:bg-foreground/5 hover:text-foreground',
+              'dark:hover:bg-foreground/10',
               props.control.isDestructive &&
                 isEnabled &&
                 'hover:bg-destructive hover:text-white active:bg-destructive/90',
@@ -324,7 +324,7 @@ function Caption(props: CaptionProps) {
       onDoubleClick={onCaptionDoubleClick}
       className={cn(
         // 固定 32px（Win 标准 Caption 高）；右侧 0 padding，键组贴顶贴右
-        'relative flex h-8 w-full shrink-0 items-stretch select-none',
+        'relative flex h-8 w-full shrink-0 items-stretch border-b border-border/40 select-none',
         props.className
       )}>
       <div

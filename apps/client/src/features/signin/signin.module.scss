@@ -1,11 +1,12 @@
 .body {
   display: flex;
   flex-direction: row;
+  // 铺满 Dialog body；圆角由外壳 overflow 裁切，避免内层圆角+padding 露白
   height: min(660px, calc(100vh - 48px));
+  width: 100%;
   align-items: stretch;
   gap: 0;
   overflow: hidden;
-  border-radius: var(--signin-radius);
   background-color: var(--card);
 
   @media (max-width: 768px) {
@@ -19,6 +20,8 @@
   align-self: stretch;
   position: relative;
   min-width: 280px;
+  min-height: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -33,6 +36,8 @@
 
   @media (max-width: 768px) {
     flex: none;
+    height: auto;
+    min-height: 0;
     row-gap: 12px;
     padding: 22px 18px 16px;
     box-shadow: inset 0 -1px 0 var(--signin-brand-border);
