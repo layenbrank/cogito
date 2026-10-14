@@ -13,6 +13,19 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends pkg-config libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# crates.io 在国内经常慢到触发 cargo 的 low-speed 超时（transfer too slow / 0 bytes in 30s）。
+# 仓库 `.cargo/` 已被 .dockerignore 排除（本机 Windows/sccache 配置不能进镜像），所以在
+# $CARGO_HOME 写一份仅作用于容器构建的 rsproxy 源。海外网络可 `--build-arg CARGO_USE_RSPROXY=0`。
+ARG CARGO_USE_RSPROXY=1
+RUN if [ "$CARGO_USE_RSPROXY" = "1" ]; then \
+      printf '%s\n' \
+        '[source.crates-io]' \
+        'replace-with = "rsproxy-sparse"' \
+        '[source.rsproxy-sparse]' \
+        'registry = "sparse+https://rsproxy.cn/index/"' \
+        > "${CARGO_HOME:-/usr/local/cargo}/config.toml"; \
+    fi
+
 WORKDIR /build
 
 # `.cargo/` 已被 .dockerignore 排除，容器内是干净的 Cargo 默认配置（见 .dockerignore 的说明）。
