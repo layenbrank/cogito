@@ -49,6 +49,7 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         crate::utils::terminal::terminal_resize,
         crate::utils::terminal::terminal_kill,
         crate::utils::terminal::terminal_list,
+        crate::utils::terminal::terminal_font,
         thinking_command::magnetic_tile::magnetic_tile_write,
         thinking_command::magnetic_tile::magnetic_tile_read,
         thinking_command::magnetic_tile::magnetic_tile_update,

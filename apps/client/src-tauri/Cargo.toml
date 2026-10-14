@@ -160,6 +160,7 @@ windows = { version = "0.61", features = [
   "Win32_System_Pipes",
   "Win32_System_Threading",
   "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_Registry",
 ] } # 与 tauri 2.11 同主版本，避免 HWND 跨 crate 分裂
 
 [target.'cfg(target_os = "macos")'.dependencies]

@@ -59,6 +59,13 @@ pub struct TerminalInfo {
     pub pid: Option<u32>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalFont {
+    pub family: Option<String>,
+    pub size: Option<u16>,
+}
+
 /// cwd 只接受绝对路径且须为已存在的目录（与 `workspaceFiles` 的 root 校验同款思路）。
 /// 注意：PTY 内用户可自由 `cd`，此处仅约束**初始** cwd，不是运行时沙箱。
 fn validate_cwd(cwd: &str) -> Result<PathBuf, String> {
@@ -387,6 +394,100 @@ pub fn terminal_list(state: State<'_, TerminalHub>) -> Result<Vec<TerminalInfo>,
             pid: session.child.process_id(),
         })
         .collect())
+}
+
+#[tauri::command(rename = "terminal:font")]
+pub fn terminal_font() -> TerminalFont {
+    resolve_terminal_font()
+}
+
+/// 解析系统默认终端字体：Windows Terminal 默认 profile → conhost 注册表 → 无。
+fn resolve_terminal_font() -> TerminalFont {
+    #[cfg(windows)]
+    {
+        for package in [
+            "Microsoft.WindowsTerminal_8wekyb3d8bbwe",
+            "Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe",
+        ] {
+            if let Some(font) = read_windows_terminal_font(package) {
+                return font;
+            }
+        }
+        if let Some(font) = read_conhost_font() {
+            return font;
+        }
+    }
+    TerminalFont {
+        family: None,
+        size: None,
+    }
+}
+
+/// 读 Windows Terminal `settings.json` 的 `profiles.defaults.font`（face / size）。
+#[cfg(windows)]
+fn read_windows_terminal_font(package: &str) -> Option<TerminalFont> {
+    let local = std::env::var_os("LOCALAPPDATA")?;
+    let path = std::path::Path::new(&local)
+        .join("Packages")
+        .join(package)
+        .join("LocalState")
+        .join("settings.json");
+    let text = std::fs::read_to_string(path).ok()?;
+    let json: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let font = json.get("profiles")?.get("defaults")?.get("font")?;
+    let family = font.get("face")?.as_str()?.to_string();
+    let size = font.get("size").and_then(|s| s.as_u64()).map(|s| s as u16);
+    Some(TerminalFont {
+        family: Some(family),
+        size,
+    })
+}
+
+/// 读 conhost 默认字体：注册表 `HKCU\Console\FaceName`。
+#[cfg(windows)]
+fn read_conhost_font() -> Option<TerminalFont> {
+    use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_SZ};
+
+    let subkey = to_wide_null("Console");
+    let value = to_wide_null("FaceName");
+    let mut buf = [0u16; 256];
+    let mut buf_size = (buf.len() * std::mem::size_of::<u16>()) as u32;
+
+    let result = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            windows::core::PCWSTR(subkey.as_ptr()),
+            windows::core::PCWSTR(value.as_ptr()),
+            RRF_RT_REG_SZ,
+            None,
+            Some(buf.as_mut_ptr() as *mut _),
+            Some(&mut buf_size as *mut _),
+        )
+    };
+
+    if result.is_err() || buf_size == 0 {
+        return None;
+    }
+    let len = (buf_size as usize / std::mem::size_of::<u16>()).saturating_sub(1);
+    let family = String::from_utf16_lossy(&buf[..len]).trim().to_string();
+    if family.is_empty() {
+        None
+    } else {
+        Some(TerminalFont {
+            family: Some(family),
+            size: None,
+        })
+    }
+}
+
+/// `&str` → 以 `\0` 结尾的 UTF-16，供 Win32 宽字符串 API 使用。
+#[cfg(windows)]
+fn to_wide_null(value: &str) -> Vec<u16> {
+    use std::os::windows::ffi::OsStrExt;
+    std::ffi::OsStr::new(value)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
 }
 
 /// 应用退出时回收全部 PTY 子进程。

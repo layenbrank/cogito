@@ -80,46 +80,63 @@ function TerminalView(props: TerminalViewProps) {
   const fitRef = useRef<FitAddon | null>(null)
   const exitedRef = useRef(false)
 
-  // 会话生命周期：只随 id/cwd 建立一次。
+  // 会话生命周期：只随 id/cwd 建立一次。先读系统终端字体，再创建 xterm。
   useEffect(
     function () {
       const container = containerRef.current
       if (!container) return
 
-      const terminal = new XtermTerminal({
-        cursorBlink: true,
-        fontSize: 12,
-        fontFamily: 'Consolas, "JetBrains Mono", monospace',
-        theme: isDarkMode() ? DARK_THEME : LIGHT_THEME
-      })
-      const fit = new FitAddon()
-      terminal.loadAddon(fit)
-      terminal.open(container)
-      terminalRef.current = terminal
-      fitRef.current = fit
-
       let disposed = false
       let unlistenExit: (() => void) | null = null
+      let themeObserver: MutationObserver | null = null
 
-      // 应用明暗切换时，终端主题随根节点 `.dark` 实时刷新。
-      const themeObserver = new MutationObserver(function () {
-        terminal.options.theme = isDarkMode() ? DARK_THEME : LIGHT_THEME
-      })
-      themeObserver.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ['class']
-      })
-
-      void listen<{ id: string; exitCode: number | null }>(EVENTS.TERMINAL_EXIT, function (event) {
-        if (event.payload.id !== props.id || disposed) return
-        exitedRef.current = true
-        useTerminalStore.getState().markExited(props.id, event.payload.exitCode)
-        terminal.write('\r\n\x1b[90m[进程已退出]\x1b[0m\r\n')
-      }).then(function (unlisten) {
-        unlistenExit = unlisten
-      })
+      // 系统终端字体优先；读不到时回退 Windows 常见终端等宽字体。
+      const DEFAULT_FONT_FAMILY = '"Cascadia Mono", "Cascadia Code", Consolas, monospace'
 
       void (async function () {
+        let fontFamily = DEFAULT_FONT_FAMILY
+        let fontSize = 12
+        try {
+          const systemFont = await Terminal.font()
+          if (systemFont.family) {
+            fontFamily = `"${systemFont.family}", ${DEFAULT_FONT_FAMILY}`
+          }
+          if (systemFont.size && systemFont.size > 0) fontSize = systemFont.size
+        } catch (error) {
+          console.warn('[terminal] 读取系统终端字体失败，用默认等宽字体', error)
+        }
+        if (disposed) return
+
+        const terminal = new XtermTerminal({
+          cursorBlink: true,
+          fontSize,
+          fontFamily,
+          theme: isDarkMode() ? DARK_THEME : LIGHT_THEME
+        })
+        const fit = new FitAddon()
+        terminal.loadAddon(fit)
+        terminal.open(container)
+        terminalRef.current = terminal
+        fitRef.current = fit
+
+        // 应用明暗切换时，终端主题随根节点 `.dark` 实时刷新。
+        themeObserver = new MutationObserver(function () {
+          terminal.options.theme = isDarkMode() ? DARK_THEME : LIGHT_THEME
+        })
+        themeObserver.observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ['class']
+        })
+
+        void listen<{ id: string; exitCode: number | null }>(EVENTS.TERMINAL_EXIT, function (event) {
+          if (event.payload.id !== props.id || disposed) return
+          exitedRef.current = true
+          useTerminalStore.getState().markExited(props.id, event.payload.exitCode)
+          terminal.write('\r\n\x1b[90m[进程已退出]\x1b[0m\r\n')
+        }).then(function (unlisten) {
+          unlistenExit = unlisten
+        })
+
         try {
           await Terminal.create(props.cwd, props.id, function (data) {
             if (disposed) return
@@ -162,14 +179,15 @@ function TerminalView(props: TerminalViewProps) {
       return function () {
         disposed = true
         observer.disconnect()
-        themeObserver.disconnect()
+        themeObserver?.disconnect()
         unlistenExit?.()
+        const terminalInstance = terminalRef.current
         terminalRef.current = null
         fitRef.current = null
         if (!exitedRef.current) {
           void Terminal.kill(props.id)
         }
-        terminal.dispose()
+        terminalInstance?.dispose()
       }
     },
     [props.id, props.cwd]

@@ -19,6 +19,11 @@ interface TerminalInfo {
   pid: number | null
 }
 
+interface TerminalFont {
+  family: string | null
+  size: number | null
+}
+
 interface TerminalCreatedWithChannel extends TerminalCreated {
   channel: Channel<ArrayBuffer>
 }
@@ -64,13 +69,19 @@ function list(): Promise<TerminalInfo[]> {
   return invoke<TerminalInfo[]>(CHANNELS.TERMINAL.LIST)
 }
 
+/** 读取系统默认终端字体（Windows Terminal 默认 profile / conhost 注册表）。 */
+function font(): Promise<TerminalFont> {
+  return invoke<TerminalFont>(CHANNELS.TERMINAL.FONT)
+}
+
 const Terminal = {
   create,
   write,
   resize,
   kill,
-  list
+  list,
+  font
 }
 
 export { Terminal }
-export type { TerminalCreated, TerminalInfo, TerminalCreatedWithChannel }
+export type { TerminalCreated, TerminalFont, TerminalInfo, TerminalCreatedWithChannel }

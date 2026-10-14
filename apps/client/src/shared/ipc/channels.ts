@@ -155,7 +155,8 @@ export const CHANNELS = {
     WRITE: 'terminal:write',
     RESIZE: 'terminal:resize',
     KILL: 'terminal:kill',
-    LIST: 'terminal:list'
+    LIST: 'terminal:list',
+    FONT: 'terminal:font'
   }
 } as const
 
