@@ -1,5 +1,5 @@
 import { Input } from '@i-thinking/design/components/input'
-import { clsx } from 'clsx'
+import { cn } from 'cn'
 
 import type { CountdownSnapshot } from '@/features/magnetic-tiles/countdown/compute'
 import styles from '@/views/countdown/countdown.module.scss'
@@ -36,7 +36,7 @@ function CountdownForm(props: CountdownFormProps) {
   const { localConfig, localWorkDays, localShift, live } = props
 
   return (
-    <div className={styles.formCard}>
+    <div className={cn('mt-pane-form', styles.formCard)}>
       <div className={styles.form}>
         <div className={styles.section}>
           <h3 className={styles.sectionTitle}>班次</h3>
@@ -45,7 +45,7 @@ function CountdownForm(props: CountdownFormProps) {
           ) : null}
           <div className={styles.grid}>
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>上班</span>
+              <span className="mt-field-label">上班</span>
               <Input
                 type="time"
                 value={localConfig.workStart}
@@ -60,7 +60,7 @@ function CountdownForm(props: CountdownFormProps) {
               />
             </label>
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>下班</span>
+              <span className="mt-field-label">下班</span>
               <Input
                 type="time"
                 value={localConfig.workEnd}
@@ -75,10 +75,10 @@ function CountdownForm(props: CountdownFormProps) {
               />
             </label>
           </div>
-          <div className={styles.dayBlock}>
-            <span className={styles.dayLabel}>工作日</span>
+          <div className="mt-day-block mb-0.5">
+            <span className="mt-day-label font-medium">工作日</span>
             <div
-              className={styles.dayChips}
+              className="mt-day-chips"
               role="group"
               aria-label="工作日">
               {WEEKDAY_OPTIONS.map(function (opt) {
@@ -87,7 +87,7 @@ function CountdownForm(props: CountdownFormProps) {
                   <button
                     key={opt.value}
                     type="button"
-                    className={clsx(styles.dayChip, isOn && styles.dayChipOn)}
+                    className="mt-day-chip"
                     aria-pressed={isOn}
                     onClick={function () {
                       props.onToggleWorkDay(opt.value)
@@ -104,7 +104,7 @@ function CountdownForm(props: CountdownFormProps) {
           <h3 className={styles.sectionTitle}>薪酬</h3>
           <div className={styles.grid}>
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>月薪</span>
+              <span className="mt-field-label">月薪</span>
               <div className="flex items-center gap-1">
                 <span className="shrink-0 text-xs text-muted-foreground">¥</span>
                 <Input
@@ -122,7 +122,7 @@ function CountdownForm(props: CountdownFormProps) {
               </div>
             </label>
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>发薪日</span>
+              <span className="mt-field-label">发薪日</span>
               <div className="flex items-center gap-1">
                 <Input
                   type="number"

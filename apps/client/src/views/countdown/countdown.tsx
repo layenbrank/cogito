@@ -12,7 +12,6 @@ import {
   STATUS_LABELS
 } from '@/features/magnetic-tiles/countdown/compute'
 import { useClockStore } from '@/stores/clock'
-import styles from '@/views/countdown/countdown.module.scss'
 import { CountdownForm, type LocalConfig } from './countdown-form'
 import { CountdownPreview } from './countdown-preview'
 
@@ -135,7 +134,7 @@ function Countdown() {
           </Button>
         </>
       }>
-      <div className={styles.stage}>
+      <div className="mt-stage-split">
         <CountdownPreview
           live={live}
           now={now}

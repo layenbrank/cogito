@@ -13,7 +13,7 @@ interface ClockStylePickerProps {
 function ClockStylePicker(props: ClockStylePickerProps) {
   return (
     <div className={styles.sectionAppearance}>
-      <h3 className={styles.sectionTitle}>外观</h3>
+      <h3 className="mt-section-title">外观</h3>
       <div
         className={styles.styleList}
         role="radiogroup"

@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { clsx } from 'clsx'
+import { cn } from 'cn'
 import type { Dayjs } from 'dayjs'
 
 import type { NextFire } from '@/features/magnetic-tiles/clock/alarm-time'
@@ -20,6 +20,7 @@ interface ClockPreviewProps {
   enabledTotal: number
 }
 
+/** 与磁贴 Marker/ClockFace 同源 faces；布局对齐历史 Overlay Stage* */
 function StageAnalog(props: { now: Dayjs }) {
   return (
     <div
@@ -83,20 +84,20 @@ function StageDigits(props: { now: Dayjs; clockStyle: ClockStyle }) {
 
 function ClockPreview(props: ClockPreviewProps) {
   return (
-    <div className={clsx(styles.preview, styles[props.clockStyle])}>
+    <div className={cn('mt-pane-preview', styles.preview, styles[props.clockStyle])}>
       <div className={styles.previewHero}>
         <div className={styles.previewMetric}>
-          <span className={styles.previewLabel}>现在</span>
+          <span className="mt-preview-label">现在</span>
           <span className={styles.previewTime}>{props.heroTime}</span>
         </div>
         <div className={styles.previewMetric}>
-          <span className={styles.previewLabel}>日期</span>
+          <span className="mt-preview-label">日期</span>
           <span className={styles.previewDate}>{props.now.format('M月D日 dddd')}</span>
         </div>
       </div>
 
       <div
-        className={clsx(styles.previewStage, styles[props.clockStyle])}
+        className={cn(styles.previewStage, styles[props.clockStyle])}
         aria-live="polite"
         aria-label={`预览 ${props.styleLabel}`}>
         {props.clockStyle === 'analog' ? (
@@ -110,9 +111,9 @@ function ClockPreview(props: ClockPreviewProps) {
       </div>
 
       <div className={styles.previewFacts}>
-        <div className={styles.fact}>
-          <span className={styles.factLabel}>下一条</span>
-          <span className={styles.factValue}>
+        <div className="mt-fact">
+          <span className="mt-fact-label">下一条</span>
+          <span className="mt-fact-value">
             {props.nextFire
               ? `${props.nextFire.reminder.fireTime} ${props.nextFire.reminder.title || '闹钟'}`
               : props.clockRemindersCount === 0
@@ -120,16 +121,16 @@ function ClockPreview(props: ClockPreviewProps) {
                 : '暂无'}
           </span>
         </div>
-        <div className={styles.fact}>
-          <span className={styles.factLabel}>已开启</span>
-          <span className={styles.factValue}>
+        <div className="mt-fact">
+          <span className="mt-fact-label">已开启</span>
+          <span className="mt-fact-value">
             {props.enabledTotal} / {props.clockRemindersCount}
           </span>
         </div>
       </div>
 
-      <div className={styles.previewBottom}>
-        <span className={styles.previewStatus}>
+      <div className="mt-preview-bottom">
+        <span className="mt-preview-status">
           <Icon
             icon="mdi:alarm"
             width={14}
@@ -137,7 +138,7 @@ function ClockPreview(props: ClockPreviewProps) {
           />
           {props.styleLabel}
         </span>
-        <span className={styles.previewRange}>{props.now.format('M月D日 ddd')}</span>
+        <span className="mt-preview-range">{props.now.format('M月D日 ddd')}</span>
       </div>
     </div>
   )

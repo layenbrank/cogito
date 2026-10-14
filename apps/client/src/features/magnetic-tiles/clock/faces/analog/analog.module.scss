@@ -3,10 +3,15 @@
   position: relative;
   aspect-ratio: 1;
   width: var(--clock-analog-width, 80px);
+  max-width: 100%;
+  height: auto;
   border-radius: 50%;
   background: transparent;
   border: none;
-  box-shadow: 0 2px 10px color-mix(in srgb, #000 9%, transparent);
+  box-shadow: var(
+    --clock-analog-shadow,
+    0 2px 10px color-mix(in srgb, #000 9%, transparent)
+  );
   container-type: inline-size;
   overflow: visible;
 }

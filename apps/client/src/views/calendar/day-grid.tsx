@@ -113,8 +113,8 @@ function DayGrid(props: DayGridProps) {
 
   return (
     <div className={styles.panel}>
-      <div className={styles.toolbar}>
-        <div className={styles.toolbarLeft}>
+      <div className="flex min-h-[var(--cal-toolbar-h,28px)] shrink-0 items-center justify-between gap-2 pb-[var(--cal-toolbar-pad,8px)]">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Select
             value={panelDate.year()}
             items={yearOptions}
@@ -166,7 +166,7 @@ function DayGrid(props: DayGridProps) {
             </SelectContent>
           </Select>
         </div>
-        <div className={styles.toolbarRight}>
+        <div className="flex shrink-0 items-center">
           <ToggleGroup
             size="sm"
             variant="outline"

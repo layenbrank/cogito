@@ -1,5 +1,6 @@
 import { Button } from '@i-thinking/design/components/button'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { cn } from 'cn'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -227,7 +228,7 @@ function Clock() {
       summary={findComponentLabel('clock')}
       scrollable={false}
       section={<Button onClick={closeWindow}>完成</Button>}>
-      <div className={styles.stage}>
+      <div className="mt-stage-split">
         <ClockPreview
           now={now}
           clockStyle={clockStyle}
@@ -237,7 +238,7 @@ function Clock() {
           clockRemindersCount={clockReminders.length}
           enabledTotal={enabledTotal}
         />
-        <div className={styles.formCard}>
+        <div className={cn('mt-pane-form', styles.formCard)}>
           <ClockStylePicker
             clockStyle={clockStyle}
             onChange={updateClockStyle}

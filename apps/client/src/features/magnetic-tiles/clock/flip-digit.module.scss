@@ -1,4 +1,5 @@
 /* 企业级翻页牌：稳定 DOM + class 驱动；仅 transform/opacity 动画 */
+/* token：antd --ith-color-* → design --card / --foreground / --border / --primary */
 
 .root {
   --flip-w: 0.76em;
@@ -9,8 +10,8 @@
   --flip-radius: max(3px, 0.08em);
   --flip-face: var(--card);
   --flip-ink: var(--foreground);
-  --flip-edge: color-mix(in oklab, var(--border) 70%, transparent);
-  --flip-rim: var(--border);
+  --flip-edge: color-mix(in oklab, var(--border) 85%, transparent);
+  --flip-rim: color-mix(in oklab, var(--border) 90%, transparent);
 
   position: relative;
   display: inline-block;
@@ -236,7 +237,7 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
+:global(html[data-motion='reduce']) {
   .isFlipping {
     .previous .top,
     .active .bottom,
@@ -258,7 +259,8 @@
   gap: 0.14em;
   min-width: 0;
   max-width: 100%;
-  font-size: var(--clock-font-size);
+  /* 磁贴由 sizes 注入；预览由 .stageFlip 注入；缺省继承父级（勿裸 var，IACVT 不会落到同元素另一声明） */
+  font-size: var(--clock-font-size, inherit);
 }
 
 .separator {

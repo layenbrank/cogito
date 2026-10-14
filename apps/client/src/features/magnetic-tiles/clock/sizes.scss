@@ -8,15 +8,15 @@
       padding: 6px;
       --clock-font-size: 16px;
       --clock-analog-width: min(82%, 100px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(90%, 61px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(72%, 50px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(90%, 61px); }
+      &.analog.hasAside { --clock-analog-width: min(72%, 50px); }
     }
     &.vertical {
       padding: 6px;
       --clock-font-size: 16px;
       --clock-analog-width: min(82%, 100px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(90%, 61px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(72%, 50px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(90%, 61px); }
+      &.analog.hasAside { --clock-analog-width: min(72%, 50px); }
     }
   }
   &.circle {
@@ -45,15 +45,15 @@
       --clock-font-size: 22px;
       .date, .week { font-size: 11px; }
       --clock-analog-width: min(65%, 110px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(60%, 72px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(44%, 59px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(60%, 72px); }
+      &.analog.hasAside { --clock-analog-width: min(44%, 59px); }
     }
     &.vertical {
       padding: 8px 6px;
       --clock-font-size: 16px;
       --clock-analog-width: min(80%, 110px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(90%, 78px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(72%, 64px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(90%, 78px); }
+      &.analog.hasAside { --clock-analog-width: min(72%, 64px); }
     }
   }
 }
@@ -65,16 +65,16 @@
       --clock-font-size: 28px;
       .date, .week { font-size: 11px; }
       --clock-analog-width: min(85%, 180px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(90%, 140px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(72%, 120px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(90%, 140px); }
+      &.analog.hasAside { --clock-analog-width: min(72%, 120px); }
     }
     &.vertical {
       padding: 10px;
       --clock-font-size: 28px;
       .date, .week { font-size: 11px; }
       --clock-analog-width: min(85%, 180px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(90%, 140px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(72%, 120px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(90%, 140px); }
+      &.analog.hasAside { --clock-analog-width: min(72%, 120px); }
     }
   }
   &.circle {
@@ -105,8 +105,8 @@
       .alarmTime { font-size: 16px; }
       .alarmLabel, .alarmSummary, .alarmEmpty { font-size: 12px; }
       --clock-analog-width: min(70%, 220px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(70%, 200px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(55%, 160px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(70%, 200px); }
+      &.analog.hasAside { --clock-analog-width: min(55%, 160px); }
       .aside { gap: 8px; }
       &.wide {
         padding: 12px 16px;
@@ -121,8 +121,8 @@
       --clock-font-size: 26px;
       .date, .week { font-size: 11px; }
       --clock-analog-width: min(85%, 190px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(85%, 170px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(70%, 140px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(85%, 170px); }
+      &.analog.hasAside { --clock-analog-width: min(70%, 140px); }
     }
   }
 }
@@ -134,16 +134,16 @@
       --clock-font-size: 34px;
       .date, .week { font-size: 12px; }
       --clock-analog-width: min(80%, 215px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(79%, 182px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(63%, 149px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(79%, 182px); }
+      &.analog.hasAside { --clock-analog-width: min(63%, 149px); }
     }
     &.vertical {
       padding: 12px;
       --clock-font-size: 34px;
       .date, .week { font-size: 12px; }
       --clock-analog-width: min(80%, 215px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(79%, 182px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(63%, 149px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(79%, 182px); }
+      &.analog.hasAside { --clock-analog-width: min(63%, 149px); }
     }
   }
   &.circle {
@@ -172,16 +172,16 @@
       --clock-font-size: 42px;
       .date, .week { font-size: 13px; }
       --clock-analog-width: min(55%, 215px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(52%, 182px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(36%, 149px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(52%, 182px); }
+      &.analog.hasAside { --clock-analog-width: min(36%, 149px); }
     }
     &.vertical {
       padding: 14px 12px;
       --clock-font-size: 32px;
       .date, .week { font-size: 12px; }
       --clock-analog-width: min(82%, 230px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(76%, 196px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(60%, 161px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(76%, 196px); }
+      &.analog.hasAside { --clock-analog-width: min(60%, 161px); }
     }
   }
 }
@@ -193,16 +193,16 @@
       --clock-font-size: 40px;
       .date, .week { font-size: 12px; }
       --clock-analog-width: min(78%, 240px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(76%, 210px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(60%, 172px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(76%, 210px); }
+      &.analog.hasAside { --clock-analog-width: min(60%, 172px); }
     }
     &.vertical {
       padding: 14px;
       --clock-font-size: 40px;
       .date, .week { font-size: 12px; }
       --clock-analog-width: min(78%, 240px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(76%, 210px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(60%, 172px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(76%, 210px); }
+      &.analog.hasAside { --clock-analog-width: min(60%, 172px); }
     }
   }
   &.circle {
@@ -231,16 +231,16 @@
       --clock-font-size: 48px;
       .date, .week { font-size: 13px; }
       --clock-analog-width: min(52%, 240px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(50%, 210px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(34%, 172px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(50%, 210px); }
+      &.analog.hasAside { --clock-analog-width: min(34%, 172px); }
     }
     &.vertical {
       padding: 14px;
       --clock-font-size: 36px;
       .date, .week { font-size: 12px; }
       --clock-analog-width: min(78%, 260px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(72%, 224px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(56%, 184px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(72%, 224px); }
+      &.analog.hasAside { --clock-analog-width: min(56%, 184px); }
     }
   }
 }
@@ -252,16 +252,16 @@
       --clock-font-size: 44px;
       .date, .week { font-size: 13px; }
       --clock-analog-width: min(75%, 270px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(72%, 237px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(56%, 195px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(72%, 237px); }
+      &.analog.hasAside { --clock-analog-width: min(56%, 195px); }
     }
     &.vertical {
       padding: 14px;
       --clock-font-size: 44px;
       .date, .week { font-size: 13px; }
       --clock-analog-width: min(75%, 270px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(72%, 237px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(56%, 195px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(72%, 237px); }
+      &.analog.hasAside { --clock-analog-width: min(56%, 195px); }
     }
   }
   &.circle {
@@ -290,16 +290,16 @@
       --clock-font-size: 52px;
       .date, .week { font-size: 13px; }
       --clock-analog-width: min(48%, 270px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(48%, 237px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(32%, 195px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(48%, 237px); }
+      &.analog.hasAside { --clock-analog-width: min(32%, 195px); }
     }
     &.vertical {
       padding: 16px 14px;
       --clock-font-size: 40px;
       .date, .week { font-size: 13px; }
       --clock-analog-width: min(72%, 290px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(70%, 251px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(54%, 206px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(70%, 251px); }
+      &.analog.hasAside { --clock-analog-width: min(54%, 206px); }
     }
   }
 }
@@ -311,16 +311,16 @@
       --clock-font-size: 48px;
       .date, .week { font-size: 13px; }
       --clock-analog-width: min(72%, 310px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(70%, 266px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(54%, 218px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(70%, 266px); }
+      &.analog.hasAside { --clock-analog-width: min(54%, 218px); }
     }
     &.vertical {
       padding: 16px;
       --clock-font-size: 48px;
       .date, .week { font-size: 13px; }
       --clock-analog-width: min(72%, 310px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(70%, 266px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(54%, 218px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(70%, 266px); }
+      &.analog.hasAside { --clock-analog-width: min(54%, 218px); }
     }
   }
   &.circle {
@@ -349,16 +349,16 @@
       --clock-font-size: 56px;
       .date, .week { font-size: 14px; }
       --clock-analog-width: min(45%, 310px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(46%, 266px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(30%, 218px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(46%, 266px); }
+      &.analog.hasAside { --clock-analog-width: min(30%, 218px); }
     }
     &.vertical {
       padding: 16px 14px;
       --clock-font-size: 44px;
       .date, .week { font-size: 13px; }
       --clock-analog-width: min(68%, 320px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(68%, 280px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(52%, 229px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(68%, 280px); }
+      &.analog.hasAside { --clock-analog-width: min(52%, 229px); }
     }
   }
 }
@@ -370,16 +370,16 @@
       --clock-font-size: 52px;
       .date, .week { font-size: 14px; }
       --clock-analog-width: min(68%, 340px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(68%, 294px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(52%, 241px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(68%, 294px); }
+      &.analog.hasAside { --clock-analog-width: min(52%, 241px); }
     }
     &.vertical {
       padding: 16px;
       --clock-font-size: 52px;
       .date, .week { font-size: 14px; }
       --clock-analog-width: min(68%, 340px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(68%, 294px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(52%, 241px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(68%, 294px); }
+      &.analog.hasAside { --clock-analog-width: min(52%, 241px); }
     }
   }
   &.circle {
@@ -408,16 +408,16 @@
       --clock-font-size: 60px;
       .date, .week { font-size: 14px; }
       --clock-analog-width: min(42%, 340px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(44%, 294px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(28%, 241px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(44%, 294px); }
+      &.analog.hasAside { --clock-analog-width: min(28%, 241px); }
     }
     &.vertical {
       padding: 18px 16px;
       --clock-font-size: 48px;
       .date, .week { font-size: 14px; }
       --clock-analog-width: min(65%, 350px);
-      &.analog:not(.hasAside) .analogFace { --clock-analog-width: min(66%, 308px); max-width: 100%; }
-      &.analog.hasAside .analogFace { --clock-analog-width: min(50%, 252px); }
+      &.analog:not(.hasAside) { --clock-analog-width: min(66%, 308px); }
+      &.analog.hasAside { --clock-analog-width: min(50%, 252px); }
     }
   }
 }
@@ -444,6 +444,9 @@
 
 /* 圆形 + 指针 */
 .circle.analog {
+  --clock-analog-width: 100%;
+  --clock-analog-shadow: none;
+
   .body {
     gap: 0;
     justify-content: center;
@@ -456,13 +459,6 @@
     height: 100%;
     overflow: visible;
     container-type: inline-size;
-  }
-
-  .analogFace {
-    --clock-analog-width: 100%;
-    max-width: 100%;
-    height: auto;
-    box-shadow: none;
   }
 }
 
@@ -505,12 +501,7 @@
   max-width: 100%;
 }
 
-/* 宽横矩形：字号随左栏宽度缩放 */
-.marker.wide.rectangle.horizontal {
-  .digitSlot,
-  .colon,
-  .minimal,
-  .flipStage {
-    font-size: clamp(16px, 21.5cqi, 56px);
-  }
+/* 宽横矩形：字号随左栏宽度缩放（变量桥接，避免跨 CSS Module 类名哈希失效） */
+.marker.wide.rectangle.horizontal .stage {
+  --clock-font-size: clamp(16px, 21.5cqi, 56px);
 }

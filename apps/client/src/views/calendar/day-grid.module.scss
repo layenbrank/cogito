@@ -21,12 +21,12 @@
   font-size: var(--cal-th-fs, 12px);
   font-weight: 600;
   color: var(--muted-foreground);
-  border-radius: var(--radius-sm);
-  background: color-mix(in oklab, var(--muted) 45%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--muted) 40%, transparent);
 }
 
 .weekCellWeekend {
-  color: var(--destructive);
+  color: var(--cal-weekend, color-mix(in oklab, var(--destructive) 68%, var(--muted-foreground)));
 }
 
 .grid {
@@ -34,7 +34,8 @@
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  grid-template-rows: repeat(6, minmax(0, 1fr));
+  /* 保证农历行有最小高度，避免 6 行均分时把 .lunar 压扁 */
+  grid-template-rows: repeat(6, minmax(56px, 1fr));
   gap: var(--cal-spacing, 4px);
 }
 
@@ -58,17 +59,17 @@
   box-sizing: border-box;
   padding: 0;
   font: inherit;
-  background: var(--card);
-  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid var(--cal-cell-border, transparent);
+  border-radius: var(--radius-md);
   transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease;
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    color 180ms ease;
 
   &:hover {
-    background: color-mix(in oklab, var(--muted) 45%, transparent);
-    border-color: var(--border);
+    background: var(--cal-cell-hover, color-mix(in oklab, var(--muted) 55%, transparent));
   }
 
   &:focus-visible {
@@ -78,19 +79,25 @@
 }
 
 .today {
-  border-color: var(--primary);
-  box-shadow: inset 0 0 0 1px var(--primary);
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--primary) 55%, transparent);
+
+  .dayNum {
+    color: var(--primary);
+    font-weight: 700;
+  }
 }
 
 .text {
   width: 100%;
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--cal-cell-gap, 3px);
-  padding: var(--cal-cell-pad, 6px 4px 8px);
+  gap: var(--cal-cell-gap, 2px);
+  padding: var(--cal-cell-pad, 4px 3px 5px);
   position: relative;
   z-index: 1;
   color: var(--foreground);
@@ -100,16 +107,20 @@
 }
 
 .dayNum {
+  flex-shrink: 0;
   font-size: var(--cal-day-num, 13px);
   font-weight: 600;
-  line-height: 1.15;
+  line-height: 1.2;
 }
 
 .lunar {
+  /* overflow:hidden 会使 flex min-size 变为 0，单元格偏矮时被压成横线毛刺 */
+  flex-shrink: 0;
+  min-height: 1.35em;
   color: var(--muted-foreground);
-  font-size: var(--cal-lunar, 10px);
+  font-size: var(--cal-lunar, 11px);
   font-weight: 400;
-  line-height: 1.25;
+  line-height: 1.35;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -123,33 +134,37 @@
 }
 
 .weekend {
-  color: var(--destructive);
+  color: var(--cal-weekend, color-mix(in oklab, var(--destructive) 68%, var(--muted-foreground)));
 }
 
 .outside {
-  background: color-mix(in oklab, var(--muted) 45%, transparent);
-  border-color: color-mix(in oklab, var(--border) 70%, transparent);
+  background: color-mix(in oklab, var(--muted) 28%, transparent);
 
   .dayNum,
   .lunar,
   .festival,
   .weekend {
-    color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
+    color: color-mix(in oklab, var(--muted-foreground) 65%, transparent);
   }
 }
 
 .current {
-  background: color-mix(in oklab, var(--primary) 12%, transparent);
-  border-color: color-mix(in oklab, var(--primary) 35%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 35%, transparent);
+  background: var(--cal-cell-selected, color-mix(in oklab, var(--primary) 16%, transparent));
+  border-color: transparent;
+  /* 选中用轻底色 + 细 inset，避免与「今日」外环、全格描边叠成噪音 */
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 28%, transparent);
+
+  &:hover {
+    background: color-mix(in oklab, var(--primary) 20%, transparent);
+  }
 
   .dayNum {
     color: var(--primary);
+    font-weight: 700;
   }
 
   .lunar {
-    color: var(--primary);
-    opacity: 0.88;
+    color: color-mix(in oklab, var(--primary) 75%, var(--muted-foreground));
   }
 
   .festival {
@@ -166,9 +181,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  /* 空间不足时优先压缩标记槽，保住农历文字不被压扁 */
+  flex-shrink: 1;
+  flex-grow: 0;
   width: 100%;
   height: var(--cal-mark-slot, 10px);
+  min-height: 0;
   margin-top: 1px;
 }
 
@@ -197,19 +215,19 @@
   padding: 0;
   font: inherit;
   color: var(--foreground);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   cursor: pointer;
   box-sizing: border-box;
   transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease;
-  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-  background: var(--card);
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    color 180ms ease;
+  border: 1px solid var(--cal-cell-border, transparent);
+  background: transparent;
 
   &:hover {
-    background: color-mix(in oklab, var(--muted) 45%, transparent);
-    border-color: var(--border);
+    background: var(--cal-cell-hover, color-mix(in oklab, var(--muted) 55%, transparent));
   }
 
   &:focus-visible {
@@ -219,18 +237,23 @@
 }
 
 .monthCellToday {
-  border-color: var(--primary);
-  box-shadow: inset 0 0 0 1px var(--primary);
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--primary) 55%, transparent);
+
+  .monthNum {
+    color: var(--primary);
+    font-weight: 700;
+  }
 }
 
 .monthCellCurrent {
   color: var(--primary);
-  background: color-mix(in oklab, var(--primary) 12%, transparent);
-  border-color: color-mix(in oklab, var(--primary) 35%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 35%, transparent);
+  background: var(--cal-cell-selected, color-mix(in oklab, var(--primary) 16%, transparent));
+  border-color: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 28%, transparent);
 
   &:hover {
-    background: color-mix(in oklab, var(--primary) 12%, transparent);
+    background: color-mix(in oklab, var(--primary) 18%, transparent);
     color: var(--primary);
   }
 
@@ -240,8 +263,7 @@
   }
 
   .monthLunar {
-    color: var(--primary);
-    opacity: 0.88;
+    color: color-mix(in oklab, var(--primary) 75%, var(--muted-foreground));
   }
 }
 
@@ -283,6 +305,8 @@
 }
 
 .monthLunar {
+  flex-shrink: 0;
+  min-height: 1.2em;
   font-size: var(--cal-month-lunar, 11px);
   font-weight: 400;
   color: var(--muted-foreground);
@@ -293,34 +317,14 @@
   white-space: nowrap;
 }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 0 var(--cal-toolbar-pad, 8px);
-  min-height: var(--cal-toolbar-h, 28px);
-  flex-shrink: 0;
-}
-
-.toolbarLeft {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  flex-wrap: wrap;
-}
-
-.toolbarRight {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
 @container calendar (min-height: 480px) {
+  .grid {
+    grid-template-rows: repeat(6, minmax(60px, 1fr));
+  }
+
   .text {
-    --cal-cell-gap: 4px;
-    --cal-cell-pad: 8px 6px 10px;
+    --cal-cell-gap: 3px;
+    --cal-cell-pad: 6px 4px 7px;
   }
 
   .dayNum {
@@ -332,11 +336,11 @@
   }
 
   .markSlot {
-    --cal-mark-slot: 12px;
+    --cal-mark-slot: 10px;
   }
 
   .mark {
-    --cal-mark-size: 6px;
+    --cal-mark-size: 5px;
   }
 
   .monthText {
@@ -356,20 +360,31 @@
     --cal-month-lunar: 12px;
   }
 
-  .toolbar {
+  .panel {
     --cal-toolbar-pad: 8px;
     --cal-toolbar-h: 32px;
   }
 }
 
+:global(html[data-motion='reduce']) {
+  .dateCell,
+  .monthCell {
+    transition: none;
+  }
+}
+
 @container calendar (min-height: 560px) {
+  .grid {
+    grid-template-rows: repeat(6, minmax(64px, 1fr));
+  }
+
   .text {
-    --cal-cell-gap: 5px;
-    --cal-cell-pad: 10px 8px 12px;
+    --cal-cell-gap: 4px;
+    --cal-cell-pad: 8px 6px 8px;
   }
 
   .dayNum {
-    --cal-day-num: 17px;
+    --cal-day-num: 16px;
   }
 
   .lunar {
@@ -377,7 +392,7 @@
   }
 
   .markSlot {
-    --cal-mark-slot: 14px;
+    --cal-mark-slot: 12px;
   }
 
   .mark {
@@ -401,7 +416,7 @@
     --cal-month-lunar: 13px;
   }
 
-  .toolbar {
+  .panel {
     --cal-toolbar-pad: 10px;
     --cal-toolbar-h: 36px;
   }

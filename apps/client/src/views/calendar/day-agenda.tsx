@@ -179,9 +179,9 @@ function DayAgendaInner(props: DayAgendaProps) {
             事件
           </ToggleGroupItem>
         </ToggleGroup>
-        <div className={styles.composerForm}>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>标题</span>
+        <div className="flex flex-col gap-2">
+          <label className="mt-field">
+            <span className="mt-field-label">标题</span>
             <Input
               value={title}
               placeholder="例如：周会 / 客户跟进"
@@ -192,10 +192,12 @@ function DayAgendaInner(props: DayAgendaProps) {
                 if (isTitleInvalid) onUpdateTitleInvalid(false)
               }}
             />
-            {isTitleInvalid ? <span className={styles.fieldError}>请输入标题</span> : null}
+            {isTitleInvalid ? (
+              <span className="text-xs leading-snug text-destructive">请输入标题</span>
+            ) : null}
           </label>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>备注</span>
+          <label className="mt-field">
+            <span className="mt-field-label">备注</span>
             <Textarea
               value={notes}
               placeholder="可选"
@@ -207,7 +209,7 @@ function DayAgendaInner(props: DayAgendaProps) {
             />
           </label>
         </div>
-        <div className={styles.composerActions}>
+        <div className="flex w-full justify-end">
           <Button
             size="sm"
             onClick={handleCancel}>

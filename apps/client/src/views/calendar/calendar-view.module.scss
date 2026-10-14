@@ -1,3 +1,5 @@
+/* 日历密度 token + 双栏分栏；表面无套娃圆角，与系统窗一体 */
+
 .calendar {
   width: 100%;
   flex: 1;
@@ -5,7 +7,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--card);
+  background: transparent;
   container-type: size;
   container-name: calendar;
 }
@@ -16,19 +18,25 @@
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(260px, 0.95fr);
   grid-template-rows: minmax(0, 1fr);
-  gap: var(--cal-gap);
+  gap: 0;
   overflow: hidden;
-  --cal-gap: 8px;
-  --cal-main-pad: 8px;
+  --cal-gap: 0;
+  --cal-main-pad: 12px 14px 14px;
+  --cal-side-pad: 0;
   --cal-th-fs: 12px;
   --cal-th-h: 28px;
-  --cal-spacing: 4px;
-  --cal-year-spacing: 6px;
+  --cal-spacing: 2px;
+  --cal-year-spacing: 8px;
   --cal-detail-max: 42%;
+  --cal-divider: color-mix(in oklab, var(--border) 55%, transparent);
+  --cal-weekend: color-mix(in oklab, var(--destructive) 68%, var(--muted-foreground));
+  --cal-cell-border: transparent;
+  --cal-cell-hover: color-mix(in oklab, var(--muted) 55%, transparent);
+  --cal-cell-selected: color-mix(in oklab, var(--primary) 16%, transparent);
 
   @media (max-width: 720px) {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(200px, 1fr) minmax(160px, auto);
+    grid-template-rows: minmax(220px, 1fr) minmax(180px, auto);
     overflow: auto;
   }
 }
@@ -39,11 +47,13 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--card);
-  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-  border-radius: var(--radius-lg);
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--cal-divider);
+  border-radius: 0;
   padding: var(--cal-main-pad);
   overflow: hidden;
+  box-shadow: none;
 }
 
 .side {
@@ -52,9 +62,10 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--cal-gap);
-  padding: 0;
+  gap: 0;
+  padding: var(--cal-side-pad);
   overflow: hidden;
+  background: color-mix(in oklab, var(--muted) 28%, transparent);
 }
 
 .gridPane {
@@ -66,31 +77,42 @@
 
 @container calendar (min-height: 480px) {
   .layout {
-    --cal-gap: 10px;
-    --cal-main-pad: 10px;
+    --cal-main-pad: 14px 16px 16px;
     --cal-th-fs: 13px;
     --cal-th-h: 32px;
-    --cal-spacing: 5px;
-    --cal-year-spacing: 8px;
-    --cal-detail-max: 48%;
+    --cal-spacing: 3px;
+    --cal-year-spacing: 10px;
+    --cal-detail-max: 44%;
   }
 }
 
 @container calendar (min-height: 560px) {
   .layout {
-    --cal-gap: 12px;
-    --cal-main-pad: 12px;
+    --cal-main-pad: 16px 18px 18px;
     --cal-th-fs: 13px;
     --cal-th-h: 34px;
-    --cal-spacing: 6px;
-    --cal-year-spacing: 10px;
-    --cal-detail-max: 52%;
+    --cal-spacing: 4px;
+    --cal-year-spacing: 12px;
+    --cal-detail-max: 46%;
     grid-template-columns: minmax(0, 1.45fr) minmax(280px, 1fr);
   }
 }
 
-@container calendar (min-width: 980px) {
+@container calendar (min-width: 880px) {
+  .layout {
+    grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr);
+  }
+}
+
+@container calendar (min-width: 1040px) {
   .layout {
     grid-template-columns: minmax(0, 1.4fr) minmax(300px, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .main {
+    border-right: none;
+    border-bottom: 1px solid var(--cal-divider);
   }
 }

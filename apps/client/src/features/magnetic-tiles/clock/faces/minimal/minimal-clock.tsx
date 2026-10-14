@@ -38,11 +38,11 @@ export function MinimalClock(props: MinimalClockProps) {
           </m.span>
         </AnimatePresence>
       </span>
-      <span className={styles.minimalSecSlot}>
-        <AnimatePresence
-          mode="sync"
-          initial={false}>
-          {props.showSeconds ? (
+      {props.showSeconds ? (
+        <span className={styles.minimalSecSlot}>
+          <AnimatePresence
+            mode="sync"
+            initial={false}>
             <m.span
               key={props.s}
               className={styles.minimalSec}
@@ -54,10 +54,9 @@ export function MinimalClock(props: MinimalClockProps) {
               style={{ transformStyle: 'preserve-3d' }}>
               {props.s}
             </m.span>
-          ) : null}
-        </AnimatePresence>
-      </span>
+          </AnimatePresence>
+        </span>
+      ) : null}
     </div>
   )
 }
-

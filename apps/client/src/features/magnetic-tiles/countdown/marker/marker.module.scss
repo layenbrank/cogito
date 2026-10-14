@@ -485,7 +485,7 @@
   background: var(--primary);
 }
 
-@media (prefers-reduced-motion: reduce) {
+:global(html[data-motion='reduce']) {
   .compactFill,
   .stripFill,
   .fill {

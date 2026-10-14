@@ -21,10 +21,15 @@
   .xInner {
     display: flex;
     align-items: center;
+    gap: 2px;
     width: var(--glide-width, 0px);
     height: var(--glide-height, 0px);
     transform-origin: left top;
     transform: translateX(var(--glide-height, 0px)) rotate(90deg);
+
+    > * {
+      flex-shrink: 0;
+    }
   }
 
   /* ── Y (vertical scroll) ── */

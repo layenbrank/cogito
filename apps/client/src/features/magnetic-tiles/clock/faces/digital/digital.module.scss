@@ -2,7 +2,8 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  font-size: var(--clock-font-size);
+  /* 磁贴/预览注入；缺省继承父级 .stageDigits */
+  font-size: var(--clock-font-size, inherit);
 }
 
 .digitGroup {
@@ -13,7 +14,8 @@
   position: relative;
   display: inline-grid;
   place-items: center;
-  width: 0.62em;
+  /* wide 磁贴经 --clock-digit-slot-width 桥接（替代历史跨 module .digitSlot） */
+  width: var(--clock-digit-slot-width, 0.62em);
   height: 1em;
   overflow: hidden;
   vertical-align: baseline;
@@ -35,7 +37,8 @@
   color: var(--primary);
   font-weight: 600;
   line-height: 1;
-  padding: 0 1px;
+  padding: var(--clock-colon-padding, 0 1px);
+  font-size: var(--clock-colon-size, inherit);
   align-self: center;
   display: inline-block;
 }

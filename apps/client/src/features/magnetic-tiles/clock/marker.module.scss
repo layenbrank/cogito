@@ -104,36 +104,13 @@
   container-name: clock-stage;
   /* 宽横矩形：字号随左栏宽度缩放 */
   font-size: clamp(16px, 21.5cqi, 56px);
+  /* 跨 CSS Module 桥：替代历史 .wide .digitSlot / .colon（哈希失效） */
+  --clock-font-size: clamp(16px, 21.5cqi, 56px);
+  --clock-digit-slot-width: 0.58em;
+  --clock-colon-padding: 0 2px;
+  --clock-colon-size: 0.86em;
 }
 
 .wide:not(.hasAside) .stage {
   padding-right: 0;
-}
-
-.wide .digital {
-  flex-wrap: nowrap;
-  max-width: 100%;
-  min-width: 0;
-  gap: 2px;
-}
-
-/* wide 模式下数字组件的排版覆盖（后代选择器跨模块） */
-.wide .digitSlot {
-  width: 0.58em;
-}
-
-.wide .digitGroup {
-  gap: 0;
-}
-
-.wide .digit {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.04em;
-}
-
-.wide .colon {
-  padding: 0 2px;
-  font-size: 0.86em;
-  font-weight: 700;
 }

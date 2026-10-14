@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { clsx } from 'clsx'
+import { cn } from 'cn'
 import type { Dayjs } from 'dayjs'
 
 import {
@@ -30,40 +30,40 @@ function CountdownPreview(props: CountdownPreviewProps) {
   const { live } = props
 
   return (
-    <div className={clsx(styles.preview, styles[live.status])}>
+    <div className={cn('mt-pane-preview', styles.preview, styles[live.status])}>
       <div className={styles.previewHero}>
+        <div className={styles.previewMetric}>
+          <span className="mt-preview-label">{STATUS_LABELS[live.status]}</span>
+          <span className={styles.previewTime}>{live.countdown}</span>
+        </div>
         {props.monthlySalary > 0 ? (
-          <div className={styles.previewMetric}>
-            <span className={styles.previewLabel}>今日已赚</span>
+          <div className={styles.previewMetricSecondary}>
+            <span className="mt-preview-label">今日已赚</span>
             <span className={styles.previewEarn}>¥{live.todayEarned.toFixed(2)}</span>
           </div>
         ) : null}
-        <div className={styles.previewMetric}>
-          <span className={styles.previewLabel}>{STATUS_LABELS[live.status]}</span>
-          <span className={styles.previewTime}>{live.countdown}</span>
-        </div>
       </div>
 
       <div className={styles.previewFacts}>
-        <div className={styles.fact}>
-          <span className={styles.factLabel}>班次</span>
-          <span className={styles.factValue}>{props.workRange}</span>
+        <div className="mt-fact">
+          <span className="mt-fact-label">班次</span>
+          <span className="mt-fact-value">{props.workRange}</span>
         </div>
         {props.monthlySalary > 0 ? (
           <>
-            <div className={styles.fact}>
-              <span className={styles.factLabel}>日薪</span>
-              <span className={styles.factValue}>¥{live.dailySalary.toFixed(2)}</span>
+            <div className="mt-fact">
+              <span className="mt-fact-label">日薪</span>
+              <span className="mt-fact-value">¥{live.dailySalary.toFixed(2)}</span>
             </div>
-            <div className={styles.fact}>
-              <span className={styles.factLabel}>距发薪</span>
-              <span className={styles.factValue}>{props.paydayText}</span>
+            <div className="mt-fact">
+              <span className="mt-fact-label">距发薪</span>
+              <span className="mt-fact-value">{props.paydayText}</span>
             </div>
           </>
         ) : (
-          <div className={styles.fact}>
-            <span className={styles.factLabel}>状态</span>
-            <span className={styles.factValue}>{props.footerStatus}</span>
+          <div className="mt-fact">
+            <span className="mt-fact-label">状态</span>
+            <span className="mt-fact-value">{props.footerStatus}</span>
           </div>
         )}
       </div>
@@ -81,8 +81,8 @@ function CountdownPreview(props: CountdownPreviewProps) {
         </div>
       </div>
 
-      <div className={styles.previewBottom}>
-        <span className={styles.previewStatus}>
+      <div className="mt-preview-bottom">
+        <span className="mt-preview-status">
           <Icon
             icon={STATUS_ICON[live.status]}
             width={14}
@@ -90,7 +90,7 @@ function CountdownPreview(props: CountdownPreviewProps) {
           />
           {props.footerStatus}
         </span>
-        <span className={styles.previewRange}>{props.now.format('M月D日 ddd')}</span>
+        <span className="mt-preview-range">{props.now.format('M月D日 ddd')}</span>
       </div>
     </div>
   )

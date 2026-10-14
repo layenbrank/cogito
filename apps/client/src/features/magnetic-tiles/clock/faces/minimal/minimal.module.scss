@@ -2,7 +2,7 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: var(--clock-font-size);
+  font-size: var(--clock-font-size, inherit);
 }
 
 .minimalTimeSlot {

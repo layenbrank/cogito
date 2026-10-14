@@ -2,7 +2,7 @@ import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
 import { Input } from '@i-thinking/design/components/input'
 import { Switch } from '@i-thinking/design/components/switch'
-import { clsx } from 'clsx'
+import { cn } from 'cn'
 import dayjs from 'dayjs'
 
 import { formatWeekDays } from '@/features/magnetic-tiles/clock/alarm-time'
@@ -48,7 +48,7 @@ function ClockAlarms(props: ClockAlarmsProps) {
   return (
     <div className={styles.sectionAlarms}>
       <div className={styles.sectionHead}>
-        <h3 className={styles.sectionTitle}>闹钟</h3>
+        <h3 className="mt-section-title">闹钟</h3>
         {!props.isEditing ? (
           <Button
             variant="link"
@@ -62,8 +62,8 @@ function ClockAlarms(props: ClockAlarmsProps) {
       {props.isEditing ? (
         <div className={styles.editor}>
           <div className={styles.editorGrid}>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>时间</span>
+            <label className="mt-field">
+              <span className="mt-field-label">时间</span>
               <Input
                 type="time"
                 value={props.draft.fireTime}
@@ -76,8 +76,8 @@ function ClockAlarms(props: ClockAlarmsProps) {
                 }}
               />
             </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>标签</span>
+            <label className="mt-field">
+              <span className="mt-field-label">标签</span>
               <Input
                 value={props.draft.title}
                 maxLength={32}
@@ -90,10 +90,10 @@ function ClockAlarms(props: ClockAlarmsProps) {
               />
             </label>
           </div>
-          <div className={styles.dayBlock}>
-            <span className={styles.dayLabel}>重复（不选为仅一次）</span>
+          <div className="mt-day-block">
+            <span className="mt-day-label">重复（不选为仅一次）</span>
             <div
-              className={styles.dayChips}
+              className="mt-day-chips"
               role="group"
               aria-label="重复星期">
               {WEEKDAY_OPTIONS.map(function (opt) {
@@ -102,7 +102,7 @@ function ClockAlarms(props: ClockAlarmsProps) {
                   <button
                     key={opt.value}
                     type="button"
-                    className={clsx(styles.dayChip, isOn && styles.dayChipOn)}
+                    className="mt-day-chip"
                     aria-pressed={isOn}
                     onClick={function () {
                       props.onToggleDraftDay(opt.value)
@@ -142,7 +142,7 @@ function ClockAlarms(props: ClockAlarmsProps) {
           return (
             <div
               key={reminder.id}
-              className={clsx(
+              className={cn(
                 styles.alarmItem,
                 props.editingId === reminder.id && styles.alarmItemActive
               )}>

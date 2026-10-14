@@ -29,9 +29,12 @@ const Glide = {
 
     const properties = useMemo<React.CSSProperties>(
       function () {
+        const width = size?.width ?? 0
+        const height = size?.height ?? 0
         return {
-          '--glide-width': size ? `${size.width}px` : '0px',
-          '--glide-height': size ? `${size.height}px` : '0px'
+          // 首帧未测到尺寸时先给占位，避免子项叠在 0×0 里
+          '--glide-width': `${width > 0 ? width : 1}px`,
+          '--glide-height': `${height > 0 ? height : 36}px`
         }
       },
       [size]
