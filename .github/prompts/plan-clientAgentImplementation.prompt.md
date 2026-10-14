@@ -381,9 +381,9 @@ chat_usage (Id uuid PK, RunID text UNIQUE, SessionID uuid NULL, ProviderID text 
 
 | 层级 | VS Code | Tauri / Rust 对应 | 等价？ |
 | --- | --- | --- | --- |
-| 渲染 | xterm.js | WebView 继续用 `@xterm/xterm`（client `package.json` 已声明 `@xterm/xterm` / `@xterm/addon-fit`） | ✅ |
+| 渲染 | xterm.js | WebView 继续用 `@xterm/xterm`（client `package.json` **待引入** `@xterm/xterm` / `@xterm/addon-fit`，已加 catalog） | ✅ |
 | PTY | node-pty → ConPTY / forkpty | **`portable-pty`**（WezTerm；Windows=`ConPtySystem`） | ✅ 系统 API 同级 |
-| 现成胶水 | — | `tauri-plugin-pty`、社区 `portable-pty`+xterm 示例 | ⚠️ 能用，成熟度远不如 VS Code |
+| 现成胶水 | — | ~~`tauri-plugin-pty`~~（总下载仅 5 万、无 repository/doc，**已排除**）；社区 `portable-pty`+xterm 示例 | ⚠️ 成熟度远不如 VS Code |
 | PtyHost 隔离 / 重连 / layout 持久化 | 完整 | 须自建 | ❌ 无开箱 |
 | Shell Integration（OSC 633、命令装饰、Cwd） | 自带脚本+解析 | 须自注入/自解析（后置） | ❌ MVP 不做 |
 
@@ -406,9 +406,9 @@ client:   xterm.js  ←IPC→  Rust(portable-pty / ConPTY)
 
 #### 社区参照（实现期可对照，勿当无封装核心）
 
-- `portable-pty`（docs.rs / WezTerm）
-- `tauri-plugin-pty`（Tnze；spawn/write/read/resize/kill）
-- 示例：marc2332/tauri-terminal、crynta 等「portable-pty + xterm + Channel」写法
+- `portable-pty`（docs.rs / WezTerm；本方案核心 PTY 依赖）
+- ~~`tauri-plugin-pty`（Tnze；spawn/write/read/resize/kill）~~ — 总下载仅 5 万、`repository:null`/`documentation:null`，**不使用**
+- 示例：`marc2332/tauri-terminal`（**已 archived**）、`crynta/terax-ai` 等「portable-pty + xterm + Channel」写法
 
 #### 验收
 
