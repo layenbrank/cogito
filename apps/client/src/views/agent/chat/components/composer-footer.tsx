@@ -28,16 +28,15 @@ interface BranchesR {
  */
 function ComposerFooter() {
   const { workspace, primaryPath } = useActiveWorkspace()
-  const [probe, updateProbe] = useState<ProbeR | null>(null)
-  const [branches, updateBranches] = useState<string[]>([])
+  const [probeState, updateProbe] = useState<ProbeR | null>(null)
+  const [branchesState, updateBranches] = useState<string[]>([])
+  /** 没有工作区时一律按「无仓库」渲染：不在 effect 里同步清 state */
+  const probe = primaryPath ? probeState : null
+  const branches = primaryPath ? branchesState : []
 
   useEffect(
     function () {
-      if (!primaryPath) {
-        updateProbe(null)
-        updateBranches([])
-        return
-      }
+      if (!primaryPath) return
       let cancelled = false
       void invoke<ProbeR>(CHANNELS.WORKSPACE_GIT.PROBE, { params: { path: primaryPath } })
         .then(function (result) {

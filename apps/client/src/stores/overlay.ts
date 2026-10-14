@@ -511,7 +511,9 @@ const useOverlayStore = create<OverlayStore>()(
                   shape: base.shape ?? LAYOUT_FALLBACK.shape,
                   direction: base.direction ?? LAYOUT_FALLBACK.direction,
                   round: base.round ?? null,
-                  background: base.background ? JSON.parse(base.background) : null,
+                  background: base.background
+                    ? (JSON.parse(base.background) as MagneticTile.Background)
+                    : null,
                   title: base.title ?? '',
                   mark: base.mark ?? null
                 })

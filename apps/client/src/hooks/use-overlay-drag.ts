@@ -105,10 +105,10 @@ function useOverlayDrag(options: UseOverlayDragOptions) {
 
   const dampingTargetRef = useRef<{ x: number; y: number } | null>(null)
 
-  const dampingTick = useCallback(function () {
+  const dampingTick = useCallback(function tick() {
     const target = dampingTargetRef.current
     if (!target) {
-      gsap.ticker.remove(dampingTick)
+      gsap.ticker.remove(tick)
       return
     }
     const el = rootRef.current
@@ -122,7 +122,7 @@ function useOverlayDrag(options: UseOverlayDragOptions) {
     if (Math.abs(target.x - nx) < 0.5 && Math.abs(target.y - ny) < 0.5) {
       gsap.set(el, { x: target.x, y: target.y })
       dampingTargetRef.current = null
-      gsap.ticker.remove(dampingTick)
+      gsap.ticker.remove(tick)
       latestRef.current.onCommit(target.x, target.y)
       return
     }
@@ -132,7 +132,7 @@ function useOverlayDrag(options: UseOverlayDragOptions) {
     if (Math.abs(target.x - nx) < 1 && Math.abs(target.y - ny) < 1) {
       gsap.set(el, { x: target.x, y: target.y })
       dampingTargetRef.current = null
-      gsap.ticker.remove(dampingTick)
+      gsap.ticker.remove(tick)
       latestRef.current.onCommit(target.x, target.y)
     }
   }, [rootRef])

@@ -10,7 +10,7 @@ import {
   useInteractions,
   useTransitionStyles,
 } from "@floating-ui/react"
-import { useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 
 interface FloatingElementReturn {
   /**
@@ -77,6 +77,14 @@ export function useFloatingElement(
 
   const { getReferenceProps, getFloatingProps } = useInteractions([dismiss])
 
+  // 包一层稳定回调：直接引用 refs.setFloating 会丢 this，且每次渲染都是新引用
+  const setFloating = useCallback(
+    (node: HTMLElement | null) => {
+      refs.setFloating(node)
+    },
+    [refs]
+  )
+
   useEffect(() => {
     if (reference === null) {
       refs.setReference(null)
@@ -104,7 +112,7 @@ export function useFloatingElement(
   return useMemo(
     () => ({
       isMounted,
-      ref: refs.setFloating,
+      ref: setFloating,
       style: {
         ...styles,
         ...floatingStyles,
@@ -116,7 +124,7 @@ export function useFloatingElement(
     [
       floatingStyles,
       isMounted,
-      refs.setFloating,
+      setFloating,
       styles,
       zIndex,
       getFloatingProps,

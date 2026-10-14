@@ -66,10 +66,11 @@ interface ReminderRead {
 interface ReminderStore {
   reminders: Reminder[]
   loaded: boolean
-  toReadReminders(filter?: ReminderRead): Promise<Reminder[]>
-  toWriteReminder(value: ReminderWrite): Promise<string | undefined>
-  toUpdateReminder(value: ReminderUpdate): Promise<void>
-  toRemoveReminder(key: string): Promise<void>
+  /* 属性式函数签名：动作会被 select 出来单独引用，写成方法会带上 this */
+  toReadReminders: (filter?: ReminderRead) => Promise<Reminder[]>
+  toWriteReminder: (value: ReminderWrite) => Promise<string | undefined>
+  toUpdateReminder: (value: ReminderUpdate) => Promise<void>
+  toRemoveReminder: (key: string) => Promise<void>
 }
 
 const useReminderStore = create<ReminderStore>()(

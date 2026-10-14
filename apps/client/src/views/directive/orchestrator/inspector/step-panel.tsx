@@ -178,7 +178,7 @@ function StepPanel(props: StepPanelProps) {
           </h3>
           <ParamFields
             params={actionMeta?.params ?? []}
-            values={(step.params ?? {}) as Record<string, unknown>}
+            values={(step.params ?? {})}
             onChange={function (next) {
               patchStep({ ...step, params: next })
             }}

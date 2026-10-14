@@ -136,14 +136,15 @@ const RUN_USAGE: ChatUsage = {}
 
 function createModelPort(): ChatModelPort {
   return {
-    async findTarget(): Promise<ChatTarget | null> {
+    /** 端口契约是 Promise，但解析本身是同步的（provider/model 都在本地 store 里） */
+    findTarget(): Promise<ChatTarget | null> {
       const provider = findActiveProvider()
-      if (!provider) return null
+      if (!provider) return Promise.resolve(null)
       const model = findActiveModel(provider)
-      if (!model) return null
+      if (!model) return Promise.resolve(null)
       // providerID 用**本地行 id**：`agent_session.providerID` 存的就是它（会话归属要能在
       // 本地库里对上），goose 的 providerId（`kind`）在发起运行时再换算
-      return { providerID: provider.id, model }
+      return Promise.resolve({ providerID: provider.id, model })
     },
 
     async *run(input, signal): AsyncIterable<ChatStreamEvent> {

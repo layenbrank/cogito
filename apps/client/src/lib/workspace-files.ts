@@ -7,7 +7,8 @@ import { CHANNELS } from '@/shared/ipc/channels'
 
 interface DirEntry {
   name: string
-  kind: 'file' | 'dir' | string
+  /** 已知 `file` / `dir`，后端可能加档，故为开放字符串 */
+  kind: string
   path: string
   relative: string
 }

@@ -37,7 +37,7 @@ function findThreadItem(threadItems: unknown, id: string): ThreadItemSnapshot | 
   if (!threadItems || typeof threadItems !== 'object') return null
   if (Array.isArray(threadItems)) {
     return (
-      threadItems.find(function (item: ThreadItemSnapshot) {
+      (threadItems as ThreadItemSnapshot[]).find(function (item) {
         return item?.id === id || item?.remoteId === id
       }) ?? null
     )

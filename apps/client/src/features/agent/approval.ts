@@ -33,8 +33,8 @@ function readApprovalMode(): ApprovalMode {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw === 'ask' || raw === 'auto' || raw === 'readonly') return raw
-  } catch {
-    // ignore
+  } catch (error) {
+    console.warn('[approval] 读取审批模式失败，回落默认:', error)
   }
   return APPROVAL_MODE
 }
@@ -42,8 +42,8 @@ function readApprovalMode(): ApprovalMode {
 function writeApprovalMode(mode: ApprovalMode) {
   try {
     localStorage.setItem(STORAGE_KEY, mode)
-  } catch {
-    // ignore
+  } catch (error) {
+    console.warn('[approval] 写入审批模式失败:', error)
   }
 }
 

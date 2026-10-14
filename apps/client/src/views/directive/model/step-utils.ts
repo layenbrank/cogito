@@ -131,7 +131,7 @@ function moveByToken(steps: Step[], token: string, delta: number): Step[] {
 
 /** 复制步骤：深拷贝、换 YAML id、整棵子树换新 token（避免和原行抢 React key） */
 function cloneStep(step: Step): Step {
-  const copy = structuredClone(step) as Step
+  const copy = structuredClone(step)
   return assignTokens({ ...copy, id: `${step.id}-${crypto.randomUUID().slice(0, 4)}` }, false)
 }
 

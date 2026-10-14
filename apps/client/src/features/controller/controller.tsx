@@ -74,13 +74,13 @@ const Controller = {
         store.toCommitMirrorPayload(payload)
         setViewId(nextId)
       })
-    }, [])
+    }, [transition])
 
     useEffect(function () {
       return function () {
         transition.destroy()
       }
-    }, [])
+    }, [transition])
 
     // pane remount 后播进场（首次 mount 定格，避免闪一下）
     useLayoutEffect(
@@ -98,7 +98,7 @@ const Controller = {
 
         void transition.playEnter(pane, directionRef.current, scrimRef.current)
       },
-      [viewId]
+      [viewId, transition]
     )
 
     return (

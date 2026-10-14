@@ -1,5 +1,5 @@
 import type Konva from 'konva'
-import type { MutableRefObject, RefObject } from 'react'
+import type { RefObject } from 'react'
 import { Layer, Image as ReImage, Rect, Stage, Transformer, type KonvaNodeEvents } from 'react-konva'
 
 import {
@@ -19,7 +19,7 @@ interface AnnotationStageProps {
   stageRef: RefObject<Konva.Stage | null>
   transformerRef: RefObject<Konva.Transformer | null>
   selectionOverlayRef: RefObject<SelectionOverlayHandle | null>
-  marqueeStartRef: MutableRefObject<{ x: number; y: number } | null>
+  marqueeStartRef: RefObject<{ x: number; y: number } | null>
   background: HTMLImageElement | null
   stageWidth: number
   stageHeight: number

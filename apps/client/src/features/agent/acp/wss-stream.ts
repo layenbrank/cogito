@@ -147,7 +147,7 @@ function createPinnedWebSocketCtor(fingerprint: string): WebSocketConstructor {
     constructor(url: string) {
       super(url, fingerprint)
     }
-  } as unknown as WebSocketConstructor
+  }
 }
 
 export { createPinnedWebSocketCtor }

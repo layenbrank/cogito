@@ -41,27 +41,28 @@ function SkillsPane(props: {
   onPick: (relative: string) => void
 }) {
   const [query, updateQuery] = useState('')
-  const [skills, updateSkills] = useState<WorkspaceSkill[]>([])
+  const [skillsState, updateSkills] = useState<WorkspaceSkill[]>([])
   const [isLoading, updateLoading] = useState(false)
+  /** 面板没开 / 没有工作区时按空列表渲染：不在 effect 里同步清 state */
+  const skills = props.active && props.primaryPath ? skillsState : []
 
   useEffect(
     function () {
-      if (!props.active || !props.primaryPath) {
-        updateSkills([])
-        return
-      }
+      if (!props.active || !props.primaryPath) return
       let cancelled = false
-      updateLoading(true)
-      void WorkspaceSkills.fetchSkills([props.primaryPath])
-        .then(function (rows) {
+      async function load() {
+        updateLoading(true)
+        try {
+          const rows = await WorkspaceSkills.fetchSkills([props.primaryPath as string])
           if (!cancelled) updateSkills(rows)
-        })
-        .catch(function () {
+        } catch (error) {
+          console.warn('[composer-context-menu] 读取技能失败:', error)
           if (!cancelled) updateSkills([])
-        })
-        .finally(function () {
+        } finally {
           if (!cancelled) updateLoading(false)
-        })
+        }
+      }
+      void load()
       return function () {
         cancelled = true
       }

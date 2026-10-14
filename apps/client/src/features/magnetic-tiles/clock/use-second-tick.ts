@@ -24,11 +24,15 @@ function useSecondTick(): Dayjs {
 
       function tick() {
         onUpdateNow(dayjs())
-        timer.current = window.setTimeout(tick, findNextTickDelay())
+        schedule(findNextTickDelay())
       }
 
-      onUpdateNow(dayjs())
-      timer.current = window.setTimeout(tick, findNextTickDelay())
+      function schedule(delay: number) {
+        timer.current = window.setTimeout(tick, delay)
+      }
+
+      // 立刻对齐一次（0ms 宏任务）：effect 体里不直接 setState，避免级联渲染
+      schedule(0)
 
       return function () {
         window.clearTimeout(timer.current)

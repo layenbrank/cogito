@@ -42,7 +42,7 @@ describe('parseAcpStreamEvent', function () {
           sessionUpdate: 'agent_message_chunk',
           messageId: 'm1',
           content: { type: 'text', text: '你好' }
-        } as SessionUpdate,
+        },
         context
       )
     ).toEqual({ kind: 'text', blockID: 'text:m1', text: '你好' })
@@ -53,7 +53,7 @@ describe('parseAcpStreamEvent', function () {
           sessionUpdate: 'agent_thought_chunk',
           messageId: 'm1',
           content: { type: 'text', text: '想一下' }
-        } as SessionUpdate,
+        },
         context
       )
     ).toEqual({ kind: 'reasoning', blockID: 'reasoning:m1', text: '想一下' })
@@ -61,7 +61,7 @@ describe('parseAcpStreamEvent', function () {
     // 没有 messageId 时由外部兜底（同一段继续追加）
     expect(
       parseAcpStreamEvent(
-        { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '续' } } as SessionUpdate,
+        { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '续' } },
         context
       )
     ).toEqual({ kind: 'text', blockID: 'text:auto', text: '续' })
@@ -72,13 +72,13 @@ describe('parseAcpStreamEvent', function () {
 
     expect(
       parseAcpStreamEvent(
-        { sessionUpdate: 'agent_message_chunk', content: { type: 'image', data: 'x', mimeType: 'image/png' } } as SessionUpdate,
+        { sessionUpdate: 'agent_message_chunk', content: { type: 'image', data: 'x', mimeType: 'image/png' } },
         context
       )
     ).toBeNull()
     expect(
       parseAcpStreamEvent(
-        { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '' } } as SessionUpdate,
+        { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '' } },
         context
       )
     ).toBeNull()
@@ -95,7 +95,7 @@ describe('parseAcpStreamEvent', function () {
           name: 'read_file',
           title: '读取 config.yaml',
           rawInput: { path: 'config.yaml' }
-        } as SessionUpdate,
+        },
         context
       )
     ).toEqual({
@@ -107,7 +107,7 @@ describe('parseAcpStreamEvent', function () {
 
     expect(
       parseAcpStreamEvent(
-        { sessionUpdate: 'tool_call', toolCallId: 't2', title: '跑一下' } as SessionUpdate,
+        { sessionUpdate: 'tool_call', toolCallId: 't2', title: '跑一下' },
         context
       )
     ).toEqual({ kind: 'tool-call', toolCallId: 't2', toolName: '跑一下', input: null })
@@ -118,7 +118,7 @@ describe('parseAcpStreamEvent', function () {
 
     expect(
       parseAcpStreamEvent(
-        { sessionUpdate: 'tool_call_update', toolCallId: 't1', status: 'in_progress' } as SessionUpdate,
+        { sessionUpdate: 'tool_call_update', toolCallId: 't1', status: 'in_progress' },
         context
       )
     ).toBeNull()
@@ -130,7 +130,7 @@ describe('parseAcpStreamEvent', function () {
           toolCallId: 't1',
           status: 'completed',
           rawOutput: { ok: true }
-        } as SessionUpdate,
+        },
         context
       )
     ).toEqual({
@@ -143,7 +143,7 @@ describe('parseAcpStreamEvent', function () {
 
     expect(
       parseAcpStreamEvent(
-        { sessionUpdate: 'tool_call_update', toolCallId: 't2', status: 'failed' } as SessionUpdate,
+        { sessionUpdate: 'tool_call_update', toolCallId: 't2', status: 'failed' },
         context
       )
     ).toEqual({
@@ -179,17 +179,17 @@ describe('parseAcpStreamEvent', function () {
         {
           sessionUpdate: 'available_commands_update',
           availableCommands: [{ name: 'compact', description: '压缩上下文' }]
-        } as SessionUpdate,
+        },
         context
       )
     ).toEqual({ kind: 'commands-update', commands: [{ name: 'compact', description: '压缩上下文' }] })
 
     expect(
-      parseAcpStreamEvent({ sessionUpdate: 'current_mode_update', currentModeId: 'approve' } as SessionUpdate, context)
+      parseAcpStreamEvent({ sessionUpdate: 'current_mode_update', currentModeId: 'approve' }, context)
     ).toEqual({ kind: 'mode-update', mode: 'approve' })
     // 认不出的档位不猜
     expect(
-      parseAcpStreamEvent({ sessionUpdate: 'current_mode_update', currentModeId: 'yolo' } as SessionUpdate, context)
+      parseAcpStreamEvent({ sessionUpdate: 'current_mode_update', currentModeId: 'yolo' }, context)
     ).toBeNull()
   })
 
@@ -197,7 +197,7 @@ describe('parseAcpStreamEvent', function () {
     const context = createContext()
 
     expect(
-      parseAcpStreamEvent({ sessionUpdate: 'usage_update', used: 12_000, size: 128_000 } as SessionUpdate, context)
+      parseAcpStreamEvent({ sessionUpdate: 'usage_update', used: 12_000, size: 128_000 }, context)
     ).toBeNull()
     expect(context.usage).toEqual([{ used: 12_000, size: 128_000 }])
   })
@@ -207,12 +207,12 @@ describe('parseAcpStreamEvent', function () {
 
     expect(
       parseAcpStreamEvent(
-        { sessionUpdate: 'user_message_chunk', content: { type: 'text', text: '我' } } as SessionUpdate,
+        { sessionUpdate: 'user_message_chunk', content: { type: 'text', text: '我' } },
         context
       )
     ).toBeNull()
     expect(
-      parseAcpStreamEvent({ sessionUpdate: 'session_info_update', title: '新标题' } as SessionUpdate, context)
+      parseAcpStreamEvent({ sessionUpdate: 'session_info_update', title: '新标题' }, context)
     ).toBeNull()
   })
 })
@@ -355,7 +355,7 @@ describe('上下文用量回调是可选的', function () {
     const spy = vi.fn()
     const context: AcpStreamContext = { blockID: spy }
     expect(
-      parseAcpStreamEvent({ sessionUpdate: 'usage_update', used: 1, size: 2 } as SessionUpdate, context)
+      parseAcpStreamEvent({ sessionUpdate: 'usage_update', used: 1, size: 2 }, context)
     ).toBeNull()
     expect(spy).not.toHaveBeenCalled()
   })

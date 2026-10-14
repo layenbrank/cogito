@@ -20,7 +20,7 @@ function Inspector(props: InspectorProps) {
   const catalog = useCorexStore(function (state) {
     return state.catalog
   })
-  const step = findStepByToken(props.draft.steps as Step[], props.selectedToken)
+  const step = findStepByToken(props.draft.steps, props.selectedToken)
   const tabKey = props.selectedToken ?? '__directive__'
 
   function patchDraft(patch: Partial<DirectiveContent>) {
@@ -29,8 +29,8 @@ function Inspector(props: InspectorProps) {
 
   function patchStep(next: Step) {
     if (!props.selectedToken) return
-    const steps = replaceStep(props.draft.steps as Step[], props.selectedToken, next)
-    patchDraft({ steps: steps as DirectiveContent['steps'] })
+    const steps = replaceStep(props.draft.steps, props.selectedToken, next)
+    patchDraft({ steps: steps })
   }
 
   const directivePanel = (

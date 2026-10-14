@@ -87,7 +87,7 @@ function AgentSidebar(props: SidebarProps) {
     }
   }
 
-  async function handleInsertSession(workspaceID?: string | null) {
+  function handleInsertSession(workspaceID?: string | null) {
     let targetID = workspaceID ?? activeWorkspaceID
     if (!targetID) {
       targetID = workspaces[0]?.id ?? null
@@ -117,7 +117,7 @@ function AgentSidebar(props: SidebarProps) {
     props.onSearchOpenChange?.(false)
   }
 
-  async function handleRename() {
+  function handleRename() {
     if (!renaming) return
     const title = renameValue.trim()
     if (title) {
@@ -126,7 +126,7 @@ function AgentSidebar(props: SidebarProps) {
     updateRenaming(null)
   }
 
-  async function handleRemoveSession() {
+  function handleRemoveSession() {
     const target = pendingRemove
     updatePendingRemove(null)
     if (!target) return
@@ -154,7 +154,7 @@ function AgentSidebar(props: SidebarProps) {
           variant="ghost"
           className={styles.quickAction}
           onClick={function () {
-            void handleInsertSession()
+            handleInsertSession()
           }}>
           <Icon
             icon="lucide:plus"
@@ -217,7 +217,7 @@ function AgentSidebar(props: SidebarProps) {
             onExpandedKeysChange={branchState.updateExpandedKeys}
             onActivateSession={handleActivateSession}
             onInsertSession={function (workspaceID) {
-              void handleInsertSession(workspaceID)
+              handleInsertSession(workspaceID)
             }}
             onRenameSession={function (session) {
               updateRenameValue(session.title)
@@ -249,7 +249,7 @@ function AgentSidebar(props: SidebarProps) {
           updateRenaming(null)
         }}
         onConfirm={function () {
-          void handleRename()
+          handleRename()
         }}
       />
 
@@ -259,7 +259,7 @@ function AgentSidebar(props: SidebarProps) {
           updatePendingRemove(null)
         }}
         onConfirm={function () {
-          void handleRemoveSession()
+          handleRemoveSession()
         }}
       />
 

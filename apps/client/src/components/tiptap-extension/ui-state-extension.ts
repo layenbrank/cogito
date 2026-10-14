@@ -54,14 +54,17 @@ export const UiState = Extension.create<UiState>({
   },
 
   addCommands() {
+    /* storage 在 tiptap 侧是 any；在闭包里惰性取（onCreate 会整体替换 storage），并收敛成 UiState */
     const createBooleanSetter =
       (key: keyof UiState) => (value: boolean) => () => {
-        this.storage[key] = value
+        const uiState = this.storage as UiState
+        uiState[key] = value
         return true
       }
 
     const createToggle = (key: keyof UiState, value: boolean) => () => () => {
-      this.storage[key] = value
+      const uiState = this.storage as UiState
+      uiState[key] = value
       return true
     }
 

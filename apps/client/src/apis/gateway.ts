@@ -25,11 +25,14 @@ interface GatewayModel {
   updatedAt: number
 }
 
-/** 计费范围：有租户身份记租户头上，没有就记账号头上 */
-type GatewayQuotaScope = 'TENANT' | 'USER' | string
+/**
+ * 计费范围：有租户身份记租户头上，没有就记账号头上。
+ * 已知 `TENANT` / `USER`，后端可能加档，故为开放字符串。
+ */
+type GatewayQuotaScope = string
 
-/** 上限来源：单模型覆盖 / 订阅档位 / 免费档 / 全局兜底 */
-type GatewayQuotaSource = 'MODEL' | 'PLAN' | 'FREE' | 'GLOBAL' | string
+/** 上限来源：单模型覆盖 / 订阅档位 / 免费档 / 全局兜底。已知 `MODEL` / `PLAN` / `FREE` / `GLOBAL` */
+type GatewayQuotaSource = string
 
 /**
  * 「我此刻的日窗配额」只读镜像。

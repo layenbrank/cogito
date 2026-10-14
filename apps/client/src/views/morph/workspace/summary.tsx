@@ -249,7 +249,7 @@ function ExportTab() {
           items={FORMAT_OPTIONS}
           value={exportState.format}
           onValueChange={(value) => {
-            if (value) setExport({ format: value as Morph.ExportFormat })
+            if (value) setExport({ format: value })
           }}>
           <SelectTrigger
             size="sm"
@@ -276,7 +276,7 @@ function ExportTab() {
           items={RANGE_OPTIONS}
           value={exportState.range}
           onValueChange={(value) => {
-            if (value) setExport({ range: value as Morph.ExportRange })
+            if (value) setExport({ range: value })
           }}>
           <SelectTrigger
             size="sm"

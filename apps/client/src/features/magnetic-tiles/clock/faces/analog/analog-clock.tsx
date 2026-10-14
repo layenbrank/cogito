@@ -2,12 +2,9 @@ import clsx from 'clsx'
 import type dayjs from 'dayjs'
 import { useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
-import { useEffect, useRef } from 'react'
+import { useState } from 'react'
 
-import {
-  HAND,
-  findClockwiseDeg
-} from '@/features/magnetic-tiles/clock/clock-motion.ts'
+import { HAND } from '@/features/magnetic-tiles/clock/clock-motion.ts'
 import styles from './analog.module.scss'
 
 interface AnalogClockProps {
@@ -55,26 +52,23 @@ export function AnalogClock(props: AnalogClockProps) {
   const h = props.now.hour() % 12
   const minute = props.now.minute()
   const s = props.now.second()
-  const hourTarget = h * 30 + minute * 0.5
-  const minuteTarget = minute * 6
-  const secondTarget = s * 6
 
-  const hourRot = useRef(hourTarget)
-  const minuteRot = useRef(minuteTarget)
-  const secondRot = useRef(secondTarget)
-
-  const hourRotation = findClockwiseDeg(hourRot.current, hourTarget)
-  const minuteRotation = findClockwiseDeg(minuteRot.current, minuteTarget)
-  const secondRotation = findClockwiseDeg(secondRot.current, secondTarget)
-
-  useEffect(
-    function () {
-      hourRot.current = hourRotation
-      minuteRot.current = minuteRotation
-      secondRot.current = secondRotation
-    },
-    [hourRotation, minuteRotation, secondRotation]
-  )
+  /**
+   * 角度 = 挂载基准角 + 真实流逝时间换算，天然单调递增（指针只顺时针走）。
+   * 等价于原来的「上一帧角度存 ref 再补足 360」，但渲染期不读 ref。
+   */
+  const [base] = useState(function () {
+    return {
+      ms: props.now.valueOf(),
+      hour: h * 30 + minute * 0.5,
+      minute: minute * 6,
+      second: s * 6
+    }
+  })
+  const elapsedMs = Math.max(0, props.now.valueOf() - base.ms)
+  const hourRotation = base.hour + (elapsedMs / 3_600_000) * 30
+  const minuteRotation = base.minute + (elapsedMs / 60_000) * 6
+  const secondRotation = base.second + (elapsedMs / 1_000) * 6
 
   return (
     <div

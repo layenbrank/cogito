@@ -42,8 +42,13 @@ function EngineSearch() {
 
   const engine = findEngine(engineKey)
 
-  const fetchSuggestion = useMemo(function () {
-    return debounce(function (value: string) {
+  /** 防抖查询：在 effect 里建（渲染期不碰 ref），只从事件处理器调用 */
+  const suggestion = useRef<
+    (((value: string) => void) & { cancel: () => void }) | null
+  >(null)
+
+  useEffect(function () {
+    const run = debounce(function (value: string) {
       const qry = value.trim()
       if (!qry) {
         setSeries([])
@@ -71,16 +76,13 @@ function EngineSearch() {
           setNavigation(ENGINE_UI.NONE)
         })
     }, 300)
-  }, [])
 
-  useEffect(
-    function () {
-      return function () {
-        fetchSuggestion.cancel()
-      }
-    },
-    [fetchSuggestion]
-  )
+    suggestion.current = run
+
+    return function () {
+      run.cancel()
+    }
+  }, [])
 
   useClickOutside(engineRef, function () {
     setVisible(false)
@@ -100,14 +102,14 @@ function EngineSearch() {
 
     if (!value.trim()) {
       querySeq.current += 1
-      fetchSuggestion.cancel()
+      suggestion.current?.cancel()
       setSeries([])
       setMatchedKeyword('')
       setNavigation(ENGINE_UI.NONE)
       return
     }
 
-    fetchSuggestion(value)
+    suggestion.current?.(value)
   }
 
   function openItemUrl(item?: Engine.Item) {

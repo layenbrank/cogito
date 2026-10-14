@@ -100,12 +100,12 @@ async function openAcpHandle(): Promise<AcpHandle> {
 
   const app = client({ name: CLIENT_NAME })
     .onRequest(methods.client.session.requestPermission, async function (context) {
-      const params = context.params as RequestPermissionRequest
+      const params = context.params
       // 没有被接管的请求（例如还没开跑）一律按取消回：宁可让 agent 知道没被批准，也不能挂着
       return router ? router.requestPermission(params) : { outcome: { outcome: 'cancelled' as const } }
     })
     .onRequest(methods.client.elicitation.create, async function (context) {
-      const params = context.params as CreateElicitationRequest
+      const params = context.params
       return router ? router.requestElicitation(params) : { action: 'cancel' as const }
     })
 

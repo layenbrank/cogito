@@ -53,7 +53,8 @@ function getToggleValue(
   if (targets.length === 0) return null
 
   for (const target of targets) {
-    const currentValue = target.node.attrs?.[attributeName] ?? null
+    // attrs 是开放记录，只做等值比较：收敛成 unknown 免得把 any 传下去
+    const currentValue: unknown = target.node.attrs?.[attributeName] ?? null
     if (currentValue !== inputValue) {
       return inputValue
     }
@@ -270,8 +271,8 @@ export const NodeAlignment = Extension.create<NodeAlignmentOptions>({
           let hasChanges = false
 
           for (const { node, pos } of targets) {
-            const hasText = node.attrs?.nodeTextAlign ?? null
-            const hasV = node.attrs?.nodeVerticalAlign ?? null
+            const hasText: unknown = node.attrs?.nodeTextAlign ?? null
+            const hasV: unknown = node.attrs?.nodeVerticalAlign ?? null
 
             if (hasText || hasV) {
               const newAttrs = {

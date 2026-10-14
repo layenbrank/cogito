@@ -4,7 +4,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type MutableRefObject,
   type RefObject
 } from 'react'
 
@@ -18,18 +17,19 @@ import type { GraphicsProps } from '@/features/capture/components/graphics/types
 /** 橡皮筋视为有效框选的最小对角线像素 */
 const MIN_MARQUEE_PX = 3
 
+/* React 19 起 `MutableRefObject` 已弃用：`RefObject` 本身就是可变 current */
 interface UseAnnotationMarqueeOptions {
   stageRef: RefObject<Konva.Stage | null>
-  annotationsRef: MutableRefObject<GraphicsProps[]>
-  clipRectRef: MutableRefObject<{ x: number; y: number; w: number; h: number } | null>
-  onSelectRef: MutableRefObject<(id: string | null, options?: { additive?: boolean }) => void>
-  onSelectManyRef: MutableRefObject<((ids: string[]) => void) | undefined>
+  annotationsRef: RefObject<GraphicsProps[]>
+  clipRectRef: RefObject<{ x: number; y: number; w: number; h: number } | null>
+  onSelectRef: RefObject<(id: string | null, options?: { additive?: boolean }) => void>
+  onSelectManyRef: RefObject<((ids: string[]) => void) | undefined>
 }
 
 interface AnnotationMarqueeApi {
-  marqueeStartRef: MutableRefObject<{ x: number; y: number } | null>
+  marqueeStartRef: RefObject<{ x: number; y: number } | null>
   marqueeBox: Bounds | null
-  ignoreSelectClickRef: MutableRefObject<boolean>
+  ignoreSelectClickRef: RefObject<boolean>
   beginMarquee(this: void, start: { x: number; y: number }): void
 }
 

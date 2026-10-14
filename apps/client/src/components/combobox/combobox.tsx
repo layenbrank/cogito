@@ -5,19 +5,20 @@ import {
   useCallback,
   useState,
   type CompositionEvent,
-  type FormEvent,
   type KeyboardEvent,
-  type MouseEvent
+  type MouseEvent,
+  type SyntheticEvent
 } from 'react'
 
 import { useResize } from '@/hooks/useResize'
 
 import '@/components/combobox/combobox.scss'
 
+/* React 19 起 `FormEvent` 已弃用（它并不真实存在），input 事件用 SyntheticEvent 即可 */
 type onUpdateEvent = (
   value: string,
   domStringified: string,
-  event: FormEvent<HTMLInputElement>
+  event: SyntheticEvent<HTMLInputElement>
 ) => void
 
 interface ComboboxProps {
@@ -46,19 +47,20 @@ function Provider(props: ComboboxProps) {
     updateOffsetY(value.height)
   })
 
+  const { ref: propsRef } = props
   const setRef = useCallback(
     function (node: HTMLDivElement | null) {
       ;(ResizableRef).current = node
-      if (typeof props.ref === 'function') {
-        props.ref(node)
-      } else if (props.ref) {
-        ;(props.ref).current = node
+      if (typeof propsRef === 'function') {
+        propsRef(node)
+      } else if (propsRef) {
+        ;(propsRef).current = node
       }
     },
-    [ResizableRef, props.ref]
+    [ResizableRef, propsRef]
   )
 
-  function onUpdate(event: FormEvent<HTMLInputElement>) {
+  function onUpdate(event: SyntheticEvent<HTMLInputElement>) {
     if (isComposing) return
 
     const target = event.currentTarget

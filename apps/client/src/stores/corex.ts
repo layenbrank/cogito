@@ -125,7 +125,7 @@ function nextRunId(): string {
 
 function snapshotDraft(content: DirectiveContent): string {
   const clone = structuredClone(content)
-  clone.steps = sanitizeSteps(clone.steps as Parameters<typeof sanitizeSteps>[0]) as DirectiveContent['steps']
+  clone.steps = sanitizeSteps(clone.steps)
   return JSON.stringify(clone)
 }
 
@@ -311,8 +311,8 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
       const content = createDirective(name)
       const stamped = {
         ...content,
-        steps: stampSteps(content.steps as Parameters<typeof stampSteps>[0])
-      } as DirectiveContent
+        steps: stampSteps(content.steps)
+      }
       setter({
         draft: stamped,
         originalName: null,
@@ -329,8 +329,8 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
         const doc = await fetchDirective(name)
         const stamped = {
           ...doc.definition,
-          steps: stampSteps(doc.definition.steps as Parameters<typeof stampSteps>[0])
-        } as DirectiveContent
+          steps: stampSteps(doc.definition.steps)
+        }
         setter({
           draft: stamped,
           originalName: name,
@@ -402,8 +402,8 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
       if (!draft) throw new Error('没有可校验的草稿')
       const payload = {
         ...draft,
-        steps: sanitizeSteps(draft.steps as Parameters<typeof sanitizeSteps>[0])
-      } as DirectiveContent
+        steps: sanitizeSteps(draft.steps)
+      }
       await validateDirective({ definition: payload })
     },
 
@@ -414,8 +414,8 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
       try {
         const payload = {
           ...draft,
-          steps: sanitizeSteps(draft.steps as Parameters<typeof sanitizeSteps>[0])
-        } as DirectiveContent
+          steps: sanitizeSteps(draft.steps)
+        }
         await validateDirective({ definition: payload })
         const originalName = getter().originalName
         const saved = await saveDirective({
@@ -424,8 +424,8 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
         })
         const stamped = {
           ...saved.definition,
-          steps: stampSteps(saved.definition.steps as Parameters<typeof stampSteps>[0])
-        } as DirectiveContent
+          steps: stampSteps(saved.definition.steps)
+        }
         setter({
           draft: stamped,
           originalName: saved.name,

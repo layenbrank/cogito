@@ -109,7 +109,7 @@ function parseAuthClaims(token: string | null | undefined): AuthClaims | null {
     })
     const claims: unknown = JSON.parse(new TextDecoder().decode(bytes))
     if (typeof claims !== 'object' || claims === null) return null
-    return claims as AuthClaims
+    return claims
   } catch (error) {
     console.warn('登录令牌的 payload 解不开，按「没有身份」处理', error)
     return null

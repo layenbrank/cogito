@@ -18,11 +18,11 @@ type DayAgendaProps = {
   date: Dayjs
   events: Calendar[]
   reminders: Reminder[]
-  onWriteEvent(title: string, notes: string): Promise<void>
-  onWriteReminder(title: string, notes: string): Promise<void>
-  onToggleReminder(id: string, isCompleted: boolean): Promise<void>
-  onRemoveEvent(id: string): Promise<void>
-  onRemoveReminder(id: string): Promise<void>
+  onWriteEvent: (title: string, notes: string) => Promise<void>
+  onWriteReminder: (title: string, notes: string) => Promise<void>
+  onToggleReminder: (id: string, isCompleted: boolean) => Promise<void>
+  onRemoveEvent: (id: string) => Promise<void>
+  onRemoveReminder: (id: string) => Promise<void>
 }
 
 type AgendaItem = {

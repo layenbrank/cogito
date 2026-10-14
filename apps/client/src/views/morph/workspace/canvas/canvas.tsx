@@ -457,6 +457,8 @@ export default function Canvas() {
   const pageWidth = file?.width ?? 595
   const pageHeight = file?.height ?? 842
   const count = file?.count ?? 0
+  /* 只按路径变化重挂副作用：file 对象本身每次 store 更新都会换引用 */
+  const filePath = file?.path ?? null
   const isCursorCrosshair = ['highlight', 'shape', 'crop', 'text'].includes(activeTool)
 
   function slotSize(slot: number): { width: number; height: number } {
@@ -514,7 +516,7 @@ export default function Canvas() {
   useEffect(
     function () {
       const root = scrollRef.current
-      if (!root || !file) return
+      if (!root || !filePath) return
 
       const observer = new IntersectionObserver(
         function (entries) {
@@ -547,14 +549,14 @@ export default function Canvas() {
         observer.disconnect()
       }
     },
-    [file?.path, count, zoom, toWarmOffsets]
+    [filePath, count, zoom, toWarmOffsets]
   )
 
   // Scroll → offset (viewport center)
   useEffect(
     function () {
       const root = scrollRef.current
-      if (!root || !file) return
+      if (!root || !filePath) return
 
       let raf = 0
 
@@ -592,13 +594,13 @@ export default function Canvas() {
         if (raf) cancelAnimationFrame(raf)
       }
     },
-    [file?.path, toSeekOffset]
+    [filePath, toSeekOffset]
   )
 
   // Toolbar / thumb → scrollIntoView
   useEffect(
     function () {
-      if (!file) return
+      if (!filePath) return
       if (seekSource === 'scroll' || seekSource === null) return
       const el = slotRefs.current.get(offset)
       if (!el) return
@@ -613,7 +615,7 @@ export default function Canvas() {
         ignoreScrollSync.current = false
       }
     },
-    [offset, seekSource, file?.path]
+    [offset, seekSource, filePath]
   )
 
   // Reset scroll when switching files

@@ -67,7 +67,9 @@ function Section(props: {
 function AsideBusy(props: AsideBusyProps) {
   const aui = useAui()
   const { workspace, primaryPath, folders } = useActiveWorkspace()
-  const [probe, updateProbe] = useState<ProbeR | null>(null)
+  const [probeState, updateProbe] = useState<ProbeR | null>(null)
+  /** 没有工作区时一律按「无仓库」渲染：不在 effect 里同步清 state */
+  const probe = primaryPath ? probeState : null
   const providers = useProviderStore(function (state) {
     return state.providers
   })
@@ -141,10 +143,7 @@ function AsideBusy(props: AsideBusyProps) {
 
   useEffect(
     function () {
-      if (!primaryPath) {
-        updateProbe(null)
-        return
-      }
+      if (!primaryPath) return
       let cancelled = false
       void invoke<ProbeR>(CHANNELS.WORKSPACE_GIT.PROBE, { params: { path: primaryPath } })
         .then(function (result) {

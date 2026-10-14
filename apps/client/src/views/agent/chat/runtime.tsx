@@ -16,7 +16,7 @@ import {
 import { createChatModelAdapter } from '@i-thinking/chat/adapters/chat-model'
 import { createThreadHistoryAdapter, type ThreadIdentity } from '@i-thinking/chat/adapters/thread-history'
 import { createThreadListAdapter } from '@i-thinking/chat/adapters/thread-list'
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useRef, type ReactNode } from 'react'
 
 import { chatModelPort, findHostOptions, historyPort } from '@/features/agent/port/instance'
 
@@ -38,9 +38,7 @@ function useThreadIdentity(): ThreadIdentity {
   const aui = useAui()
 
   /** 「这一线程的那次建会话」放在 ref 里：它在渲染之外被读写，且要跨重渲染活着 */
-  const created = useMemo(function () {
-    return { current: null as { localID: string; task: Promise<string> } | null }
-  }, [])
+  const created = useRef<{ localID: string; task: Promise<string> } | null>(null)
 
   return useMemo(
     function () {

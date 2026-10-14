@@ -244,6 +244,7 @@ function Clock() {
           />
           <ClockAlarms
             clockReminders={clockReminders}
+            now={now.valueOf()}
             isEditing={isEditing}
             editingId={editingId}
             draft={draft}

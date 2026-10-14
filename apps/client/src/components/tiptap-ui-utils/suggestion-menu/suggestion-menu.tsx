@@ -116,7 +116,7 @@ export const SuggestionMenu = ({
       editor.unregisterPlugin(pluginKey)
     }
 
-    const suggestion = Suggestion({
+    const suggestion = Suggestion<SuggestionItem, SuggestionItem>({
       pluginKey:
         pluginKey instanceof PluginKey ? pluginKey : new PluginKey(pluginKey),
       editor,
@@ -145,10 +145,13 @@ export const SuggestionMenu = ({
         const isMention = editor.extensionManager.extensions.some(
           (extension) => {
             const name = extension.name
+            if (name !== 'mention') return false
+            const mentionOptions = extension.options as
+              | { suggestion?: { char?: string } }
+              | undefined
             return (
-              name === 'mention' &&
-              extension.options?.suggestion?.char ===
-                internalSuggestionPropsRef.current.char
+              mentionOptions?.suggestion?.char ===
+              internalSuggestionPropsRef.current.char
             )
           }
         )
@@ -181,7 +184,9 @@ export const SuggestionMenu = ({
           rangeToUse.to += 1
         }
 
-        props.onSelect({ editor, range: rangeToUse, context: props.context })
+        /* 选中项的 context 是开放数据（默认 any），显式收敛成 unknown 再透传 */
+        const context: unknown = props.context
+        props.onSelect({ editor, range: rangeToUse, context })
       },
 
       render: () => {

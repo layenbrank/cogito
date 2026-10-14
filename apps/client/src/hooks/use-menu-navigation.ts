@@ -1,7 +1,7 @@
 "use client"
 
 import type { Editor } from "@tiptap/react"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 type Orientation = "horizontal" | "vertical" | "both"
 
@@ -61,8 +61,29 @@ export function useMenuNavigation<T>({
   orientation = "vertical",
   autoSelectFirstItem = true,
 }: MenuNavigationOptions<T>) {
-  const [selectedIndex, setSelectedIndex] = useState<number>(
-    autoSelectFirstItem ? 0 : -1
+  /**
+   * 选中项与「快照 query」一起存：query 变了就派生回首项（与原实现一致，只有 query
+   * 非空时才重置），这样不用在 effect 里 setState。
+   */
+  const resetIndex = autoSelectFirstItem ? 0 : -1
+  const [nav, updateNav] = useState<{ query: string | undefined; index: number }>(
+    { query, index: resetIndex }
+  )
+
+  const selectedIndex = query && nav.query !== query ? resetIndex : nav.index
+
+  const setSelectedIndex = useCallback(
+    function (next: React.SetStateAction<number>) {
+      updateNav(function (current) {
+        const base =
+          query && current.query !== query ? resetIndex : current.index
+        return {
+          query,
+          index: typeof next === "function" ? next(base) : next,
+        }
+      })
+    },
+    [query, resetIndex]
   )
 
   useEffect(() => {
@@ -178,16 +199,11 @@ export function useMenuNavigation<T>({
     containerRef,
     items,
     selectedIndex,
+    setSelectedIndex,
     onSelect,
     onClose,
     orientation,
   ])
-
-  useEffect(() => {
-    if (query) {
-      setSelectedIndex(autoSelectFirstItem ? 0 : -1)
-    }
-  }, [query, autoSelectFirstItem])
 
   return {
     selectedIndex: items.length ? selectedIndex : undefined,

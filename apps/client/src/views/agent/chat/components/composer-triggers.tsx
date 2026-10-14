@@ -108,18 +108,18 @@ function ComposerTriggers() {
   const aui = useAui()
   const { primaryPath } = useActiveWorkspace()
   const [needle, updateNeedle] = useState('')
-  const [mentionItems, updateMentionItems] = useState<Unstable_Mention[]>([])
+  const [mentionItemsState, updateMentionItems] = useState<Unstable_Mention[]>([])
   const [isMentionLoading, updateMentionLoading] = useState(false)
-  const [skills, updateSkills] = useState<
+  const [skillsState, updateSkills] = useState<
     Array<{ id: string; name: string; description: string; relative: string }>
   >([])
+  /** 没有工作区时按空列表渲染：不在 effect 里同步清 state */
+  const skills = primaryPath ? skillsState : []
+  const mentionItems = primaryPath ? mentionItemsState : []
 
   useEffect(
     function () {
-      if (!primaryPath) {
-        updateSkills([])
-        return
-      }
+      if (!primaryPath) return
       let cancelled = false
       void WorkspaceSkills.fetchSkills([primaryPath])
         .then(function (rows) {
@@ -138,45 +138,41 @@ function ComposerTriggers() {
 
   useEffect(
     function () {
-      if (!primaryPath) {
-        updateMentionItems([])
-        return
-      }
+      if (!primaryPath) return
       let cancelled = false
-      updateMentionLoading(true)
-      const task =
-        needle.length === 0
-          ? WorkspaceFiles.listDir(primaryPath).then(function (entries) {
-              return toMentionItems(
-                entries
-                  .filter(function (entry) {
-                    return entry.kind === 'file'
-                  })
-                  .slice(0, SEARCH_LIMIT)
-                  .map(function (entry) {
-                    return { name: entry.name, relative: entry.relative }
-                  })
-              )
-            })
-          : WorkspaceFiles.search([primaryPath], needle, SEARCH_LIMIT).then(function (hits) {
-              return toMentionItems(
-                hits.map(function (hit) {
-                  return { name: hit.name, relative: hit.relative }
-                })
-              )
-            })
 
-      void task
-        .then(function (items) {
+      async function load() {
+        updateMentionLoading(true)
+        try {
+          const items =
+            needle.length === 0
+              ? toMentionItems(
+                  (await WorkspaceFiles.listDir(primaryPath as string))
+                    .filter(function (entry) {
+                      return entry.kind === 'file'
+                    })
+                    .slice(0, SEARCH_LIMIT)
+                    .map(function (entry) {
+                      return { name: entry.name, relative: entry.relative }
+                    })
+                )
+              : toMentionItems(
+                  (await WorkspaceFiles.search([primaryPath as string], needle, SEARCH_LIMIT)).map(
+                    function (hit) {
+                      return { name: hit.name, relative: hit.relative }
+                    }
+                  )
+                )
           if (!cancelled) updateMentionItems(items)
-        })
-        .catch(function (error) {
+        } catch (error) {
           console.warn('[composer-triggers] 搜索文件失败:', error)
           if (!cancelled) updateMentionItems([])
-        })
-        .finally(function () {
+        } finally {
           if (!cancelled) updateMentionLoading(false)
-        })
+        }
+      }
+
+      void load()
 
       return function () {
         cancelled = true

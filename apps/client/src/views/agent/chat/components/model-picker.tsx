@@ -4,7 +4,7 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@i-thinking/design/components/popover'
-import { useMemo, useState, type ReactElement } from 'react'
+import { useState, type ReactElement } from 'react'
 
 import { AgentModelSettings } from './model-settings'
 import styles from './model-picker.module.scss'
@@ -27,7 +27,8 @@ interface ModelPickerProps {
 function AgentModelPicker(props: ModelPickerProps) {
   const [open, updateOpen] = useState(false)
   const [settingsOpen, updateSettingsOpen] = useState(false)
-  const [prefsTick, updatePrefsTick] = useState(0)
+  /** 模型偏好落在 localStorage：挂载时读一次，设置弹窗关闭（可能改过偏好）时再读一次 */
+  const [prefs, updatePrefs] = useState(readModelPrefs)
   const providers = useProviderStore(function (state) {
     return state.providers
   })
@@ -38,13 +39,6 @@ function AgentModelPicker(props: ModelPickerProps) {
   const enabledProviders = providers.filter(function (provider) {
     return provider.enabled
   })
-
-  const prefs = useMemo(
-    function () {
-      return readModelPrefs()
-    },
-    [prefsTick, settingsOpen]
-  )
 
   async function selectModel(providerId: string, model: string) {
     useProviderStore.getState().toSetActiveProvider(providerId)
@@ -158,9 +152,7 @@ function AgentModelPicker(props: ModelPickerProps) {
         open={settingsOpen}
         onClose={function () {
           updateSettingsOpen(false)
-          updatePrefsTick(function (tick) {
-            return tick + 1
-          })
+          updatePrefs(readModelPrefs())
         }}
         onOpenProviders={props.onOpenSettings}
       />

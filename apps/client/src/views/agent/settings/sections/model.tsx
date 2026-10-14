@@ -123,7 +123,15 @@ function ModelSection() {
 
   useEffect(
     function () {
-      void loadInventory()
+      // 放进微任务：loadInventory 首行就是 updateLoading(true)，直接在 effect 体里调会级联渲染
+      let cancelled = false
+      void Promise.resolve().then(function () {
+        if (cancelled) return
+        return loadInventory()
+      })
+      return function () {
+        cancelled = true
+      }
     },
     []
   )

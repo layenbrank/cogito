@@ -18,8 +18,8 @@ type DayGridProps = {
   selectDate: Dayjs
   panelDate: Dayjs
   markedDates: Set<string>
-  onSelectDate(date: Dayjs): void
-  onPanelDate(date: Dayjs): void
+  onSelectDate: (date: Dayjs) => void
+  onPanelDate: (date: Dayjs) => void
 }
 
 type PanelMode = 'month' | 'year'

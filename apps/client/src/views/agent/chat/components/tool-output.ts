@@ -78,7 +78,7 @@ function unescapeLiteralEscapes(text: string): string {
 }
 
 /** 整段被二次 JSON 编码时解一层（`"...\\n..."` 或 `{"stdout":"..."}`） */
-function unwrapEncodedBlob(text: string): unknown | null {
+function unwrapEncodedBlob(text: string): unknown {
   const trimmed = text.trim()
   if (trimmed.length < 2) return null
   const startsObject = trimmed.startsWith('{') || trimmed.startsWith('[')
@@ -88,6 +88,7 @@ function unwrapEncodedBlob(text: string): unknown | null {
   if (!startsQuoted && !/\\[nrt"\\]/.test(trimmed) && trimmed.includes('\n')) return null
   try {
     return JSON.parse(trimmed) as unknown
+    // eslint-disable-next-line ith/catch-must-report -- 解析失败只说明「不是编码过的 JSON」，属预期分支，逐条上报会刷屏
   } catch {
     return null
   }
@@ -107,10 +108,30 @@ function findTextFromContentBlock(block: unknown): string | null {
   return firstString(record, OUTPUT_KEYS)
 }
 
+/**
+ * 到深度上限 / 无法再归类时的扁平化：对象走 JSON，原始值走 String。
+ * 直接 `String(对象)` 只会得到 `[object Object]`，对终端可读性没意义。
+ */
+function toFlatText(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return value.toString()
+  }
+  if (typeof value === 'symbol' || typeof value === 'function') return value.toString()
+  try {
+    const json = JSON.stringify(value, null, 2)
+    return json ?? Object.prototype.toString.call(value)
+  } catch (error) {
+    console.warn('[agent] 工具输出不可序列化，回退类型描述', error)
+    return Array.isArray(value) ? '[Array]' : `[${value.constructor?.name ?? 'Object'}]`
+  }
+}
+
 /** 把 goose / ACP 的杂形结果收成终端可读正文 */
 function formatTerminalText(value: unknown, depth = 0): string {
   if (value === null || value === undefined) return ''
-  if (depth > 3) return String(value)
+  if (depth > 3) return toFlatText(value)
 
   if (typeof value === 'string') {
     const unwrapped = unwrapEncodedBlob(value)
@@ -158,12 +179,7 @@ function formatTerminalText(value: unknown, depth = 0): string {
     }
   }
 
-  try {
-    return JSON.stringify(value, null, 2)
-  } catch (error) {
-    console.warn('[agent] 工具输出不可序列化，回退 String()', error)
-    return String(value)
-  }
+  return toFlatText(value)
 }
 
 function collapseOutput(

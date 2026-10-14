@@ -139,13 +139,6 @@ function SessionSearchPanel(props: Pick<SessionSearchProps, 'onClose' | 'onSelec
     []
   )
 
-  useEffect(
-    function () {
-      updateNavigation(0)
-    },
-    [keyword]
-  )
-
   const navigatePrev = useMemo(function () {
     return throttle(
       function () {
@@ -228,6 +221,8 @@ function SessionSearchPanel(props: Pick<SessionSearchProps, 'onClose' | 'onSelec
               className={styles.input}
               onChange={function (event) {
                 updateKeyword(event.target.value)
+                // 关键词变了，命中项跟着换，导航位置回到第一条
+                updateNavigation(0)
               }}
               onKeyDown={onKeyDown}
             />

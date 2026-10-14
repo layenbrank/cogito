@@ -22,10 +22,12 @@ function WorkspaceFilePicker(props: WorkspaceFilePickerProps) {
   const { primaryPath } = useActiveWorkspace()
   const [relative, updateRelative] = useState('')
   const [query, updateQuery] = useState('')
-  const [entries, updateEntries] = useState<Array<{ name: string; kind: string; relative: string }>>(
+  const [entriesState, updateEntries] = useState<Array<{ name: string; kind: string; relative: string }>>(
     []
   )
   const [isPending, updatePending] = useState(false)
+  /** 没开或没有工作区时按空列表渲染：不在 effect 里同步清 state */
+  const entries = props.active && primaryPath ? entriesState : []
 
   const isSearching = query.trim().length > 0
   const parentRelative = relative.includes('/') ? relative.slice(0, relative.lastIndexOf('/')) : ''
@@ -34,36 +36,35 @@ function WorkspaceFilePicker(props: WorkspaceFilePickerProps) {
 
   useEffect(
     function () {
-      if (!props.active || !primaryPath) {
-        updateEntries([])
-        return
-      }
+      if (!props.active || !primaryPath) return
       let cancelled = false
-      updatePending(true)
       const needle = query.trim()
-      const task =
-        needle.length > 0
-          ? WorkspaceFiles.search([primaryPath], needle, 40).then(function (hits) {
-              return hits.map(function (hit) {
-                return { name: hit.name, kind: 'file', relative: hit.relative }
-              })
-            })
-          : WorkspaceFiles.listDir(primaryPath, relative).then(function (rows: DirEntry[]) {
-              return rows.map(function (row) {
-                return { name: row.name, kind: row.kind, relative: row.relative }
-              })
-            })
 
-      void task
-        .then(function (rows) {
+      async function load() {
+        updatePending(true)
+        try {
+          const rows =
+            needle.length > 0
+              ? (await WorkspaceFiles.search([primaryPath as string], needle, 40)).map(function (
+                  hit
+                ) {
+                  return { name: hit.name, kind: 'file', relative: hit.relative }
+                })
+              : (await WorkspaceFiles.listDir(primaryPath as string, relative)).map(
+                  function (row: DirEntry) {
+                    return { name: row.name, kind: row.kind, relative: row.relative }
+                  }
+                )
           if (!cancelled) updateEntries(rows)
-        })
-        .catch(function () {
+        } catch (error) {
+          console.warn('[workspace-file-picker] 列目录/搜索失败:', error)
           if (!cancelled) updateEntries([])
-        })
-        .finally(function () {
+        } finally {
           if (!cancelled) updatePending(false)
-        })
+        }
+      }
+
+      void load()
 
       return function () {
         cancelled = true
@@ -75,6 +76,7 @@ function WorkspaceFilePicker(props: WorkspaceFilePickerProps) {
   useEffect(
     function () {
       if (!props.active) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- 收起时清掉浏览位置/搜索词，重开才是干净状态（输入态不能改成纯派生）
         updateRelative('')
         updateQuery('')
       }

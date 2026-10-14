@@ -21,39 +21,27 @@ function closeWindow() {
 }
 
 function Countdown() {
-  const { config, loaded, initialize, updateConfig } = useClockStore()
+  const { config, initialize, updateConfig } = useClockStore()
   const [now, onUpdateNow] = useState(function () {
     return dayjs()
   })
   const [saving, onUpdateSaving] = useState(false)
 
-  const [localConfig, onUpdateLocal] = useState<LocalConfig>({
-    workStart: config.workStart,
-    workEnd: config.workEnd,
-    workDays: config.workDays,
-    monthlySalary: config.monthlySalary,
-    payDay: config.payDay
-  })
+  /** 表单草稿：未编辑时为 null，直接跟随 store（避免在 effect 里同步 state） */
+  const [draft, updateDraft] = useState<LocalConfig | null>(null)
+  const localConfig: LocalConfig = draft ?? config
+
+  function onUpdateLocal(updater: (value: LocalConfig) => LocalConfig) {
+    updateDraft(function (current) {
+      return updater(current ?? config)
+    })
+  }
 
   useEffect(
     function () {
       void initialize()
     },
     [initialize]
-  )
-
-  useEffect(
-    function () {
-      if (!loaded) return
-      onUpdateLocal({
-        workStart: config.workStart,
-        workEnd: config.workEnd,
-        workDays: config.workDays,
-        monthlySalary: config.monthlySalary,
-        payDay: config.payDay
-      })
-    },
-    [loaded, config]
   )
 
   useEffect(function () {

@@ -69,7 +69,7 @@ async function hydrateSessionUser(
 
 const useSessionStore = create<SessionStore>()(
   devtools(
-    function (setters) {
+    function () {
       return {
         user: null,
         isLoading: Boolean(findAuthToken()),
@@ -97,12 +97,21 @@ const useSessionStore = create<SessionStore>()(
 
 /** 令牌变化（本窗 writeAuthToken / 他窗 storage）时重拉资料 */
 subscribeAuthToken(function () {
-  void hydrateSessionUser(useSessionStore.setState)
+  void hydrateSessionUser(applySessionState)
 })
 
 // 启动时若已有令牌，立刻补资料
 if (findAuthToken()) {
-  void hydrateSessionUser(useSessionStore.setState)
+  void hydrateSessionUser(applySessionState)
+}
+
+/** 显式转发一层：直接把 store.setState 当回调传会丢 this（也会被 unbound-method 拦下） */
+function applySessionState(
+  partial: Partial<SessionStore>,
+  replace?: false,
+  action?: string
+): void {
+  useSessionStore.setState(partial, replace, action)
 }
 
 export { useSessionStore }

@@ -37,7 +37,8 @@ function getToggleColor(
   if (targets.length === 0) return null
 
   for (const target of targets) {
-    const currentColor = target.node.attrs?.backgroundColor ?? null
+    // attrs 是开放记录，只做等值比较：收敛成 unknown 免得把 any 传下去
+    const currentColor: unknown = target.node.attrs?.backgroundColor ?? null
     if (currentColor !== inputColor) {
       return inputColor
     }

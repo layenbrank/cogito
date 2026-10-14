@@ -27,6 +27,8 @@ interface Draft {
 
 interface ClockAlarmsProps {
   clockReminders: Reminder[]
+  /** 当前时间戳（ms）：由上层秒级 tick 传入，渲染期不直接读 Date.now() */
+  now: number
   isEditing: boolean
   editingId: string | null
   draft: Draft
@@ -155,7 +157,7 @@ function ClockAlarms(props: ClockAlarmsProps) {
                   <span className={styles.alarmTitle}>{reminder.title || '闹钟'}</span>
                   <span className={styles.alarmHint}>
                     {formatWeekDays(reminder.weekDays)}
-                    {reminder.snoozeUntil && reminder.snoozeUntil > Date.now()
+                    {reminder.snoozeUntil && reminder.snoozeUntil > props.now
                       ? ` · 延后至 ${dayjs(reminder.snoozeUntil).format('HH:mm')}`
                       : ''}
                   </span>

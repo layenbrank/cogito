@@ -56,10 +56,11 @@ interface CalendarRead {
 interface CalendarStore {
   events: Calendar[]
   loaded: boolean
-  toReadEvents(filter?: CalendarRead): Promise<Calendar[]>
-  toWriteEvent(value: CalendarWrite): Promise<string | undefined>
-  toUpdateEvent(value: CalendarUpdate): Promise<void>
-  toRemoveEvent(key: string): Promise<void>
+  /* 属性式函数签名：动作会被 select 出来单独引用，写成方法会带上 this */
+  toReadEvents: (filter?: CalendarRead) => Promise<Calendar[]>
+  toWriteEvent: (value: CalendarWrite) => Promise<string | undefined>
+  toUpdateEvent: (value: CalendarUpdate) => Promise<void>
+  toRemoveEvent: (key: string) => Promise<void>
 }
 
 const useCalendarStore = create<CalendarStore>()(

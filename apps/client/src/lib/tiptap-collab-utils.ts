@@ -4,9 +4,14 @@ import type { Editor, JSONContent } from '@tiptap/react'
 import { isNodeSelection, isTextSelection, posToDOMRect } from '@tiptap/react'
 
 // TipTap Collaboration / AI：公开标识可走 VITE_；JWT 必须由服务端签发，禁止 VITE_*TOKEN 内联进包
-export const TIPTAP_COLLAB_DOC_PREFIX = import.meta.env.VITE_TIPTAP_COLLAB_DOC_PREFIX || ''
-export const TIPTAP_COLLAB_APP_ID = import.meta.env.VITE_TIPTAP_COLLAB_APP_ID || ''
-export const TIPTAP_AI_APP_ID = import.meta.env.VITE_TIPTAP_AI_APP_ID || ''
+/** 未配置或不是字符串都收敛成空串（`import.meta.env` 索引签名是 any） */
+function readEnvText(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+export const TIPTAP_COLLAB_DOC_PREFIX = readEnvText(import.meta.env.VITE_TIPTAP_COLLAB_DOC_PREFIX)
+export const TIPTAP_COLLAB_APP_ID = readEnvText(import.meta.env.VITE_TIPTAP_COLLAB_APP_ID)
+export const TIPTAP_AI_APP_ID = readEnvText(import.meta.env.VITE_TIPTAP_AI_APP_ID)
 
 /** 为 true 时从 `/api/collaboration` / `/api/ai` 取 JWT（勿用 VITE_ 放 token） */
 export const USE_JWT_API_ENDPOINT =
