@@ -282,7 +282,7 @@
 @layer components {
   /*
    * ResizablePanel 折叠/展开的宽度过渡：程序化 collapse/expand 时 flex 三属性平滑过渡
-   * （只过渡 flex-basis 不够——折叠时 flex-grow 也从 1 落到 0，会瞬间跳变）；
+   * （只过渡 flex-basis 不够——尺寸由 flex-grow 决定，折叠时它是 1 → 0）；
    * 拖动分栏时 Group 打 `data-dragging`，临时关掉 transition 保证跟手（见 resizable.tsx）。
    */
   [data-panel] {
@@ -293,6 +293,11 @@
   }
   [data-dragging] [data-panel] {
     transition: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-panel] {
+      transition: none;
+    }
   }
 }
 
