@@ -1,121 +1,146 @@
-import { Dialog, DialogContent } from '@i-thinking/design/components/dialog'
+import { Sheet, SheetContent, SheetTitle } from '@i-thinking/design/components/sheet'
 import { Input } from '@i-thinking/design/components/input'
 import { invoke } from '@tauri-apps/api/core'
 import Fuse from 'fuse.js'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { CHANNELS } from '@/shared/ipc/channels'
 
+import { useMirrorStore } from '@/stores/mirror'
 import { Controller } from '@/views/collection/controller.tsx'
 
 interface OverlayDrawerProps {
   id: string
   visible: boolean
   onUpdateVisible: (value: boolean) => void
+  /** 加入成功后刷新面板成员 */
+  onJoined?: () => void
 }
 
-/** 集合右侧抽屉：搜索全量磁贴，点卡片即加入当前集合 */
+const FUSE_OPTIONS = {
+  keys: ['title', 'url'] as const,
+  threshold: 0.4
+}
+
+/** 集合右侧抽屉：搜索未归组 navigation 磁贴，点卡片即加入当前集合 */
 function OverlayDrawer(props: OverlayDrawerProps) {
   const [keyword, onUpdateKeyword] = useState('')
   const [magneticTiles, onUpdateMagneticTiles] = useState<MagneticTile[]>([])
+  const fuseRef = useRef<Fuse<MagneticTile> | null>(null)
+  const toUpdateMagneticTile = useMirrorStore(function (state) {
+    return state.toUpdateMagneticTile
+  })
 
-  useEffect(function () {
-    let cancelled = false
+  useEffect(
+    function () {
+      if (!props.visible) return
 
-    async function toLoad() {
-      try {
-        const result = await invoke<MagneticTile[]>(CHANNELS.COLLECTION.READS)
-        if (cancelled) return
+      let cancelled = false
 
-        onUpdateMagneticTiles(result ?? [])
-      } catch {
-        if (cancelled) return
+      async function toLoad() {
+        try {
+          const result = await invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
+            params: {}
+          })
+          if (cancelled) return
 
-        onUpdateMagneticTiles([])
-        toast.error('磁贴数据加载失败')
+          const candidates = (result ?? []).filter(function (tile) {
+            return !tile.collectionID && tile.component === 'navigation'
+          })
+          onUpdateMagneticTiles(candidates)
+          fuseRef.current = new Fuse(candidates, { ...FUSE_OPTIONS, keys: [...FUSE_OPTIONS.keys] })
+        } catch {
+          if (cancelled) return
+          onUpdateMagneticTiles([])
+          fuseRef.current = null
+          toast.error('磁贴数据加载失败')
+        }
       }
-    }
 
-    void toLoad()
+      void toLoad()
 
-    return function () {
-      cancelled = true
-    }
-  }, [])
+      return function () {
+        cancelled = true
+      }
+    },
+    [props.visible]
+  )
 
   const queriedMagneticTiles = useMemo(
     function () {
-      if (!keyword.trim().length) return magneticTiles ?? []
+      const trimmed = keyword.trim()
+      if (!trimmed.length) return magneticTiles
 
-      const fuse = new Fuse(magneticTiles ?? [], {
-        keys: ['title', 'url'],
-        threshold: 0.4
+      const fuse =
+        fuseRef.current ??
+        new Fuse(magneticTiles, { ...FUSE_OPTIONS, keys: [...FUSE_OPTIONS.keys] })
+      return fuse.search(trimmed).map(function (hit) {
+        return hit.item
       })
-
-      const result = fuse.search(keyword)
-
-      return result.map((v) => v.item)
     },
     [magneticTiles, keyword]
   )
 
-  const handleIncrement = useCallback(
-    function (e: React.MouseEvent<HTMLElement>) {
-      const event = e.nativeEvent
-      const target = event.target as HTMLElement
-
-      const closest = target.closest<HTMLElement>('.magnetic-tile')
-      if (!closest) return
-
-      const ID = closest.getAttribute('data-id')
-      if (!ID) {
-        toast.error('磁贴 ID 未定义，无法新增磁贴')
-        return
-      }
-
-      void invoke(CHANNELS.MAGNETIC_TILE.UPDATE, {
-        params: { key: ID, change: { collectionID: props.id } }
-      })
-
-      onUpdateMagneticTiles(function (prev) {
-        return prev.filter(function (magneticTile) {
-          return magneticTile.id !== ID
+  const handlePick = useCallback(
+    async function (tileId: string) {
+      try {
+        await toUpdateMagneticTile([
+          {
+            key: tileId,
+            change: { collectionID: props.id }
+          }
+        ])
+        onUpdateMagneticTiles(function (prev) {
+          return prev.filter(function (tile) {
+            return tile.id !== tileId
+          })
         })
-      })
+        props.onJoined?.()
+      } catch {
+        toast.error('加入集合失败')
+      }
     },
-    [props.id]
+    [props, toUpdateMagneticTile]
   )
 
   const handlePrevent = useCallback(function (e: React.MouseEvent<HTMLElement>) {
-    const event = e.nativeEvent
-    event.stopPropagation()
-    event.preventDefault()
+    e.stopPropagation()
+    e.preventDefault()
   }, [])
 
   return (
-    <Dialog
+    <Sheet
       open={props.visible}
       onOpenChange={props.onUpdateVisible}>
-      <DialogContent
+      <SheetContent
+        side="right"
         showCloseButton={false}
-        className="top-0 right-0 bottom-0 left-auto h-full w-[30%] max-h-none max-w-none -translate-x-0 -translate-y-0 gap-3 rounded-none rounded-l-xl p-3 sm:max-w-none">
+        overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-xs"
+        className={[
+          'w-[min(360px,36vw)] max-w-none gap-0 p-3 sm:max-w-none',
+          '[&_[data-slot=dialog-body]]:flex [&_[data-slot=dialog-body]]:min-h-0 [&_[data-slot=dialog-body]]:flex-1',
+          '[&_[data-slot=dialog-body]]:flex-col [&_[data-slot=dialog-body]]:gap-3 [&_[data-slot=dialog-body]]:overflow-hidden',
+          '[&_[data-slot=dialog-body]]:p-0 [&_[data-slot=dialog-body]]:pb-0'
+        ].join(' ')}>
+        <SheetTitle className="sr-only">新增磁贴到集合</SheetTitle>
         <Input
           value={keyword}
           placeholder="搜索磁贴"
           aria-label="搜索磁贴"
+          className="shrink-0"
           onChange={function (event) {
             onUpdateKeyword(event.target.value)
           }}
         />
-        <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2 [scrollbar-width:thin]">
           <Controller
-            onClick={handleIncrement}
+            onPick={handlePick}
             onPrevent={handlePrevent}
             magneticTiles={queriedMagneticTiles}
           />
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   )
 }
 

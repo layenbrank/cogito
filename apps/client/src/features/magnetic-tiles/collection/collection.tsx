@@ -17,6 +17,7 @@ export default function Collection(props: SectionProps) {
       onTrash={onTrash}
       className={clsx(styles.collection)}>
       <Marker
+        id={props.id}
         size={props.size}
         shape={props.shape}
         direction={props.direction}

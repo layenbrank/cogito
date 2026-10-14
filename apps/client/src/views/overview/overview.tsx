@@ -21,6 +21,7 @@ import { checkUpdate } from '@/utils/updater'
 import { CaptionAccount } from '@/views/overview/caption/account'
 import { MirrorSwitcher } from '@/views/overview/caption/mirror'
 import { CaptionStatus } from '@/views/overview/caption/status'
+import { CollectionExpanded } from '@/views/collection/expanded.tsx'
 import { EngineSearch } from '@/views/overview/engine/engine-search'
 import styles from '@/views/overview/overview.module.scss'
 
@@ -172,6 +173,7 @@ export default function Overview() {
           setSigninOpen(false)
         }}
       />
+      <CollectionExpanded />
     </Decorations>
   )
 }

@@ -3,14 +3,14 @@ import { toast } from 'sonner'
 import { findTileRoute, findTileWindowOptions } from '@/constants/magnetic-tile/window'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 import { openWindow } from '@/features/window/open'
+import { parseOriginRect, useCollectionStore } from '@/stores/collection'
 
 type Tile = Pick<MagneticTile, 'component' | 'url' | 'id'>
 
 /**
  * 窗口 label：`<component>:<磁贴 id>`。
  *
- * 一个组件可以有多个磁贴记录（各自 url / 标题），按记录建窗才能一窗对一记录 ——
- * 这正是当年「每个磁贴一个 Dialog」的语义，只是壳换成了真窗口。
+ * 一个组件可以有多个磁贴记录（各自 url / 标题），按记录建窗才能一窗对一记录。
  */
 function findTileWindowLabel(tile: Tile) {
   return `${tile.component}:${tile.id}`
@@ -23,11 +23,28 @@ function findTileWindowUrl(tile: Tile) {
   return `${route}?url=${encodeURIComponent(tile.url)}`
 }
 
+function findCollectionOriginRect(id: string) {
+  const node = document.querySelector<HTMLElement>(`.magnetic-tile[data-id="${id}"]`)
+  if (!node) return null
+  return parseOriginRect(node.getBoundingClientRect())
+}
+
 /**
- * 激活磁贴：一律走独立窗口（`views/<component>`），不再在主窗内弹 Dialog。
- * 同一个磁贴记录重复激活只聚焦，不重复建窗。
+ * 激活磁贴：
+ * - `collection` → 主镜内 FLIP scale 展开（不开独立窗）
+ * - 其它组件 → 独立窗口（`views/<component>`）；同 label 只聚焦
  */
 async function activateTile(tile: Tile): Promise<void> {
+  if (tile.component === 'collection') {
+    const rect = findCollectionOriginRect(tile.id)
+    if (!rect) {
+      toast.error('无法定位集合磁贴')
+      return
+    }
+    useCollectionStore.getState().toOpen({ id: tile.id, rect })
+    return
+  }
+
   try {
     await openWindow(
       findTileWindowLabel(tile),

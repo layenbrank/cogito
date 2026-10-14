@@ -1,13 +1,13 @@
 .magnetic-tile {
   display: grid;
-  padding: 0px;
-  margin: 0 auto;
+  width: 100%;
+  padding: 0;
+  margin: 0;
   outline: none;
   justify-content: center;
+  justify-items: center;
   grid-auto-flow: row dense;
   row-gap: var(--magnetic-tile-row-gap, 30px);
   column-gap: var(--magnetic-tile-col-gap, 30px);
   grid-template-columns: repeat(auto-fill, var(--magnetic-tile-unit, 60px));
-
-  @include magnetic-tile;
 }
