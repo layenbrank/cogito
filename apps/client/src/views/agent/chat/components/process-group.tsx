@@ -21,7 +21,9 @@ function AgentProcessGroup(props: PropsWithChildren<ProcessGroupProps>) {
   const isActive = props.group.status.type === 'running'
 
   return (
-    <ReasoningRoot streaming={isActive}>
+    <ReasoningRoot
+      streaming={isActive}
+      defaultOpen>
       <ReasoningTrigger active={isActive} />
       <ReasoningContent aria-busy={isActive}>
         <ReasoningText>{props.children}</ReasoningText>
@@ -56,7 +58,8 @@ function AgentProcessFold(props: PropsWithChildren<ProcessFoldProps>) {
         label={labels.process(props.group.indices.length, seconds)}
       />
       <ReasoningContent aria-busy={props.running}>
-        <ReasoningText>{props.children}</ReasoningText>
+        {/* 过程区含工具终端：默认 max-h-64 太矮，抬到视口比例便于扫一眼输出 */}
+        <ReasoningText className="max-h-[min(70vh,40rem)]">{props.children}</ReasoningText>
       </ReasoningContent>
     </ReasoningRoot>
   )

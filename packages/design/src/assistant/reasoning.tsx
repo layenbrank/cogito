@@ -274,7 +274,8 @@ function ReasoningText({ className, children, ...props }: React.ComponentProps<'
       ref={scrollRef}
       data-slot="reasoning-text"
       className={cn(
-        'aui-reasoning-text relative z-0 max-h-64 overflow-y-auto ps-6 pt-2 pb-2 leading-relaxed text-pretty',
+        // 过程/思考折叠默认高度：原 max-h-64 塞不下工具终端，抬到视口比例
+        'aui-reasoning-text relative z-0 max-h-[min(60vh,32rem)] overflow-y-auto ps-6 pt-2 pb-2 leading-relaxed text-pretty',
         'transform-gpu transition-[transform,opacity] ease-[cubic-bezier(0.32,0.72,0,1)]',
         'motion-reduce:animate-none',
         'group-data-open/collapsible-content:animate-in',

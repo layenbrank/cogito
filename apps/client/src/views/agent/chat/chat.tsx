@@ -43,6 +43,8 @@ import {
   type SplitterLayout
 } from '@/views/agent/chat/components/splitter-sizes'
 import { AgentProcessFold, AgentProcessGroup } from '@/views/agent/chat/components/process-group'
+import { AgentToolCard } from '@/views/agent/chat/components/tool-card'
+import { AgentToolGroup } from '@/views/agent/chat/components/tool-group'
 import { ThreadWelcome } from '@/views/agent/chat/components/thread-welcome'
 import { ASSISTANT_LABELS_ZH } from '@/views/agent/chat/labels'
 import { AgentRuntimeProvider } from '@/views/agent/chat/runtime'
@@ -262,6 +264,8 @@ function AgentChatLayout() {
                 <Thread
                   components={{
                     Welcome: ThreadWelcome,
+                    ToolFallback: AgentToolCard,
+                    ToolGroup: AgentToolGroup,
                     ReasoningGroup: AgentProcessGroup,
                     ProcessGroup: AgentProcessFold,
                     ComposerStart: ComposerActions,
