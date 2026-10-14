@@ -20,9 +20,10 @@ function AgentHead(props: HeadProps) {
     return state.thread.isRunning
   })
   const title = useAuiState(function (state) {
-    const id = state.threads.mainThreadId
-    const items = state.threads.threadItems as Record<string, { title?: string }>
-    return items[id]?.title ?? ''
+    const item = state.threads.threadItems.find(function (entry) {
+      return entry.id === state.threads.mainThreadId
+    })
+    return item?.title ?? ''
   })
 
   function toggleClass(isOpen: boolean) {

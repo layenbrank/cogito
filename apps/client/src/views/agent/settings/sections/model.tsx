@@ -172,12 +172,12 @@ function ModelSection() {
     try {
       await waitGooseReady()
       const handle = await findAcpHandle()
-      const fields = parseConfigFields(active, formValues)
+      const fields = parseConfigFields(active.configKeys, formValues)
       await saveProviderConfig(handle.connection, active.providerId, fields)
       if (active.isAcp) {
         await enableAcpProvider(handle.connection, active.providerId)
-        const ready = await checkAcpReadiness(handle.connection, active.providerId)
-        patchProbe(active.providerId, ready ? 'ok' : 'fail')
+        const readiness = await checkAcpReadiness(handle.connection, active.providerId)
+        patchProbe(active.providerId, readiness.ready ? 'ok' : 'fail')
       } else {
         patchProbe(active.providerId, 'ok')
       }

@@ -273,7 +273,7 @@ function ComposerTriggers() {
         matcher={matchTriggerToken}
         adapter={slash.adapter}
         className="contents">
-        <ComposerPrimitive.Unstable_TriggerPopover.Directive {...slash.directive} />
+        <ComposerPrimitive.Unstable_TriggerPopover.Action {...slash.action} />
         <ComposerPrimitive.Unstable_TriggerPopoverItems>
           {function (items) {
             return (

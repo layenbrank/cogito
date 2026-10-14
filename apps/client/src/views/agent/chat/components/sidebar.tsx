@@ -79,10 +79,12 @@ function AgentSidebar(props: SidebarProps) {
     if (session.workspaceID) {
       useAgentStore.getState().toActivateWorkspace(session.workspaceID)
     }
-    void aui.threads.switchToThread(session.id).catch(function (error: unknown) {
+    try {
+      aui.threads.switchToThread(session.id)
+    } catch (error) {
       console.error('[agent/sidebar] 切换会话失败:', session.id, error)
       toast.error(error instanceof Error ? error.message : '切换会话失败')
-    })
+    }
   }
 
   async function handleInsertSession(workspaceID?: string | null) {
