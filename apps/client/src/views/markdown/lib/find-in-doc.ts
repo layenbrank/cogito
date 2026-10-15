@@ -28,7 +28,8 @@ function buildFinder(options: FindOptions): RegExp | null {
     const source = options.isRegex ? raw : escapeRegExp(raw)
     const wrapped = options.isWholeWord ? `\\b(?:${source})\\b` : source
     return new RegExp(wrapped, options.isMatchCase ? 'g' : 'gi')
-  } catch {
+  } catch (error) {
+    console.warn('[markdown] 查找正则无效', error)
     return null
   }
 }
@@ -79,7 +80,8 @@ function smoothScrollToHit(editor: Editor, from: number): void {
   let coords: { top: number; bottom: number }
   try {
     coords = view.coordsAtPos(from)
-  } catch {
+  } catch (error) {
+    console.warn('[markdown] 查找滚动定位失败', error)
     return
   }
   const scroller = findScrollParent(view.dom)

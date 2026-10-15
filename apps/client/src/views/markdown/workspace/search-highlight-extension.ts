@@ -34,7 +34,8 @@ function buildFinder(meta: SearchHighlightMeta): RegExp | null {
     const source = meta.isRegex ? raw : escapeRegExp(raw)
     const wrapped = meta.isWholeWord ? `\\b(?:${source})\\b` : source
     return new RegExp(wrapped, meta.isMatchCase ? 'g' : 'gi')
-  } catch {
+  } catch (error) {
+    console.warn('[markdown] 高亮正则无效', error)
     return null
   }
 }

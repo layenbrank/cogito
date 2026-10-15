@@ -22,6 +22,7 @@ import { serializeHtmlToMarkdown } from '@/views/markdown/lib/serialize-markdown
 import { findOutlineFromEditor } from '@/views/markdown/lib/outline.ts'
 import {
   createUntitled,
+  findCurrentMarkdown,
   openFolderAsWorkspace,
   openPath,
   openWithDialog,
