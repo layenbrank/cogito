@@ -8,4 +8,7 @@
  */
 @import '@i-thinking/design/globals.css';
 
+/* app feature：盘面磁贴（非 design 组件库） */
+@import '../features/magnetic-tile/magnetic-tile.css';
+
 @source '../';

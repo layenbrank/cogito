@@ -4,5 +4,6 @@
   --magnetic-tile-row-gap: 30px;
   --magnetic-tile-col-gap: 30px;
   --magnetic-tile-round: 12px;
-  --magnetic-tile-text-color: #000000;
+  /* 标题跟盘面主题；内容对比由 surface 浅色孤岛 token 保证 */
+  --magnetic-tile-text-color: var(--muted-foreground);
 }

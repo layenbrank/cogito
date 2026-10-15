@@ -240,16 +240,18 @@ function Tile(props: TileProps) {
         <Suspense
           fallback={
             <div
-              className={clsx('magnetic-tile-surface', tileStyles.surface)}
+              className="magnetic-tile-surface size-full overflow-hidden [border-radius:inherit] animate-pulse bg-muted"
               style={{
                 ...surfaceStyle,
-                background: 'rgba(0, 0, 0, 0.04)'
+                backgroundColor: undefined,
+                backgroundImage: undefined
               }}
             />
           }>
           <div
-            className={clsx('magnetic-tile-surface', tileStyles.surface)}
+            className="magnetic-tile-surface size-full overflow-hidden [border-radius:inherit] [backface-visibility:hidden] shadow-[0_0_10px_rgba(0,0,0,0.1)] transition-shadow duration-300 ease-[cubic-bezier(0.165,0.84,0.44,1)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_6px_20px_rgba(0,0,0,0.38)]"
             style={surfaceStyle}>
+
             {RenderMarker(item.kind, {
               size: layout.size,
               shape: layout.shape,

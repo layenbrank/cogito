@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 
-import { generateRamp } from '@/utils/color'
+import { generateRamp, normalizeHex } from '@/utils/color'
 
 interface SurfaceStyleInput {
   round?: string | null
@@ -8,6 +8,8 @@ interface SurfaceStyleInput {
   backdrop?: MagneticTile.Backdrop | null
   textColor?: string | null
 }
+
+type SurfaceCss = CSSProperties & Record<`--${string}`, string>
 
 function parseBackdropFilter(backdrop: MagneticTile.Backdrop | null | undefined) {
   if (!backdrop) return undefined
@@ -27,6 +29,20 @@ function parseBackdropFilter(backdrop: MagneticTile.Backdrop | null | undefined)
   return parts.join(' ')
 }
 
+/** 磁贴油墨色：兼容库内缺 `#` 的 hex，避免内联 color 被浏览器丢弃 */
+function parseInk(textColor: string | null | undefined) {
+  if (!textColor) return undefined
+  const trimmed = textColor.trim()
+  if (!trimmed) return undefined
+  if (trimmed.startsWith('#') || trimmed.startsWith('rgb') || trimmed.startsWith('hsl')) {
+    return trimmed.startsWith('#') ? normalizeHex(trimmed) : trimmed
+  }
+  if (/^[0-9a-fA-F]{3}$|^[0-9a-fA-F]{6}$/.test(trimmed)) {
+    return normalizeHex(trimmed)
+  }
+  return trimmed
+}
+
 /**
  * 将磁贴 round / background / backdrop / textColor 组装为内层 surface 内联样式。
  * 主窗 MagneticTile.Section 与浮层 Overlay Tile 共用。
@@ -43,11 +59,13 @@ function buildSurfaceStyle(input: SurfaceStyleInput = {}): CSSProperties {
   const blendMode = input.background?.blendMode
   const attachment = input.background?.attachment
   const backdropFilter = parseBackdropFilter(input.backdrop)
+  const ink = parseInk(input.textColor)
 
   const backgroundImage = image ? `url(${image})` : undefined
-  const backgroundColor = image ? undefined : (color ?? '#ffffff')
+  // 未指定颜色时落到 `--card`：写死白底会在暗色主题下与浅色文字互相吃掉
+  const backgroundColor = image ? undefined : (color ?? 'var(--card)')
 
-  const style: CSSProperties = {
+  const style: SurfaceCss = {
     backgroundSize: size ?? 'cover',
     backgroundColor,
     backgroundImage,
@@ -60,7 +78,10 @@ function buildSurfaceStyle(input: SurfaceStyleInput = {}): CSSProperties {
   if (clip) style.backgroundClip = clip
   if (origin) style.backgroundOrigin = origin
   if (blendMode) style.backgroundBlendMode = blendMode
-  if (input.textColor) style.color = input.textColor
+  if (ink) {
+    style.color = ink
+    style['--magnetic-tile-ink'] = ink
+  }
   if (backdropFilter) {
     style.backdropFilter = backdropFilter
     style.WebkitBackdropFilter = backdropFilter

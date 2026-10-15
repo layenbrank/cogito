@@ -4,15 +4,22 @@
   min-width: 148px;
   max-width: min(280px, calc(100vw - 16px));
   padding: 6px;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: color-mix(in oklab, var(--popover) 94%, transparent);
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
   border-radius: 12px;
   box-shadow:
-    0 0 0 0.5px rgba(0, 0, 0, 0.05),
+    0 0 0 0.5px color-mix(in oklab, var(--foreground) 6%, transparent),
     0 10px 36px rgba(0, 0, 0, 0.12),
     0 2px 8px rgba(0, 0, 0, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    inset 0 1px 0 color-mix(in oklab, var(--foreground) 6%, transparent);
   color: var(--foreground);
+}
+
+:global(.dark) :global(.contextmenu-panel).frost {
+  box-shadow:
+    0 0 0 0.5px color-mix(in oklab, var(--foreground) 10%, transparent),
+    0 12px 40px rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
 .flyout {
@@ -24,7 +31,7 @@
 
   &:hover,
   &:global(.is-active) {
-    background: rgba(0, 0, 0, 0.04);
+    background: color-mix(in oklab, var(--muted) 70%, transparent);
   }
 
   &:global(.is-disabled):hover,
@@ -35,7 +42,7 @@
 
 :global(.contextmenu-divider).sep {
   margin: 4px 2px;
-  background: rgba(0, 0, 0, 0.06);
+  background: color-mix(in oklab, var(--border) 80%, transparent);
 }
 
 .picker {
@@ -81,16 +88,16 @@
 .line {
   height: 1px;
   margin: 10px 0;
-  background: rgba(0, 0, 0, 0.06);
+  background: color-mix(in oklab, var(--border) 80%, transparent);
 }
 
 .sizes {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.55);
+  background: color-mix(in oklab, var(--muted) 45%, transparent);
 }
 
 .size {
@@ -122,23 +129,23 @@
     right: 0;
     bottom: 8px;
     width: 1px;
-    background: rgba(0, 0, 0, 0.06);
+    background: color-mix(in oklab, var(--border) 80%, transparent);
     pointer-events: none;
   }
 
   &:hover:not(.selected) {
     color: var(--foreground);
-    background: rgba(255, 255, 255, 0.7);
+    background: color-mix(in oklab, var(--muted) 70%, transparent);
   }
 
   &:active:not(.selected) {
-    background: rgba(255, 255, 255, 0.85);
+    background: color-mix(in oklab, var(--muted) 85%, transparent);
   }
 
   &.selected {
     z-index: 1;
     color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 10%, #fff);
+    background: color-mix(in oklab, var(--primary) 12%, var(--popover));
 
     &::after {
       opacity: 0;

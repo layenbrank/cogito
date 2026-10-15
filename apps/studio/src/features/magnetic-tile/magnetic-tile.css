@@ -1,0 +1,74 @@
+/**
+ * 盘面磁贴（studio feature）——仅放 Tailwind 不好表达的部分：
+ * - 深色壳下 surface 浅色孤岛 token（内容用 --foreground 等）
+ * - Sortable 注入的全局类（.dragging / .magnetic-tile-drag）
+ *
+ * 尺寸几何仍在 magnetic-tile.module.scss；标题 / 删除等 chrome 在组件 Tailwind。
+ */
+
+.magnetic-tile-surface {
+  background: var(--magnetic-tile-background);
+}
+
+/*
+ * 磁贴本体是浅色 pastel「孤岛」。深色壳下若继承 .dark 浅色字会压在浅底上不可读。
+ * token 值对齐 design :root（浅色），不反向依赖 globals 组件类。
+ */
+.dark .magnetic-tile-surface {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.148 0.004 228.8);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.148 0.004 228.8);
+  --muted: oklch(0.963 0.002 197.1);
+  --muted-foreground: oklch(0.56 0.021 213.5);
+  --accent: oklch(0.963 0.002 197.1);
+  --accent-foreground: oklch(0.218 0.008 223.9);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --border: oklch(0.88 0.006 214.3);
+  --input: oklch(0.88 0.006 214.3);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.508 0.118 165.612);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.769 0.188 70.08);
+  --warning-foreground: oklch(0.145 0 0);
+}
+
+.magnetic-tile.dragging {
+  z-index: 1000;
+  cursor: grabbing;
+}
+
+.magnetic-tile.animating,
+.magnetic-tile.dragging {
+  will-change: transform, opacity;
+}
+
+.magnetic-tile.dragging > .magnetic-tile-surface {
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.28),
+    0 4px 12px rgba(0, 0, 0, 0.16);
+}
+
+.dark .magnetic-tile.dragging > .magnetic-tile-surface {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 16px 48px rgba(0, 0, 0, 0.55),
+    0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.magnetic-tile-drag > .magnetic-tile-surface {
+  transform: scale(1.04);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.28),
+    0 4px 12px rgba(0, 0, 0, 0.16);
+  transition: box-shadow 180ms cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+.dark .magnetic-tile-drag > .magnetic-tile-surface {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 16px 48px rgba(0, 0, 0, 0.55),
+    0 4px 14px rgba(0, 0, 0, 0.35);
+}

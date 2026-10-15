@@ -55,15 +55,6 @@
   pointer-events: none;
 }
 
-// 缩放加在内部 surface，避免覆盖根节点 translate
-:global(.magnetic-tile-drag) > .magnetic-tile-surface {
-  transform: scale(1.04);
-  box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.28),
-    0 4px 12px rgba(0, 0, 0, 0.16);
-  transition: box-shadow 180ms cubic-bezier(0.165, 0.84, 0.44, 1);
-}
-
 :global(.magnetic-tile-chosen) {
   cursor: grabbing;
 }

@@ -1,5 +1,5 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
-import { clsx, type ClassValue } from 'clsx'
+import { cn, type ClassValue } from 'cn'
 import { motion, useReducedMotion } from 'motion/react'
 import type { CSSProperties, MouseEventHandler, ReactNode } from 'react'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
@@ -86,6 +86,13 @@ function activateTile(tile: Pick<MagneticTile, 'component' | 'url'>) {
   })
 }
 
+const TILE_SHELL =
+  'magnetic-tile group/tile relative cursor-pointer overflow-visible bg-transparent outline-none'
+
+/** 表面 chrome：工具类在组件；深色孤岛 token / 拖拽态在 magnetic-tile.css */
+const TILE_SURFACE =
+  'magnetic-tile-surface size-full overflow-hidden [border-radius:inherit] [backface-visibility:hidden] shadow-[0_0_10px_rgba(0,0,0,0.1)] transition-shadow duration-300 ease-[cubic-bezier(0.165,0.84,0.44,1)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_6px_20px_rgba(0,0,0,0.38)]'
+
 const MagneticTile = {
   /** 入场声明（Controller）；未包则 surface 无入场动画 */
   Enter,
@@ -95,7 +102,7 @@ const MagneticTile = {
       <div
         style={props.style}
         onDoubleClick={props.onDoubleClick}
-        className={clsx(styles.marker, props.className)}>
+        className={cn('flex size-full items-center justify-center overflow-hidden', props.className)}>
         {props.children}
       </div>
     )
@@ -105,11 +112,10 @@ const MagneticTile = {
       <div
         data-id={props.id}
         style={props.style}
-        className={clsx(
-          'magnetic-tile',
-          'magnetic-tile-skeleton',
+        className={cn(
+          TILE_SHELL,
+          'magnetic-tile-skeleton animate-pulse rounded-[var(--magnetic-tile-round,12px)] bg-muted',
           styles.magneticTile,
-          styles.skeleton,
           props.className,
           props.size ? styles[`lv${props.size}`] : null,
           props.shape ? styles[props.shape] : null,
@@ -128,7 +134,7 @@ const MagneticTile = {
             shape={props.shape}
             direction={props.direction}
             style={props.skeletonStyle}
-            className={clsx(props.className, props.skeletonClassName)}
+            className={cn(props.className, props.skeletonClassName)}
           />
         }>
         {props.children}
@@ -182,7 +188,6 @@ const MagneticTile = {
       [props.round, props.background, props.backdrop, props.textColor]
     )
 
-    const surfaceClassName = clsx('magnetic-tile-surface', styles.surface)
     const surfaceBody = isNear ? props.children : null
     const enterTransition = ENTER.transition(staggerIndexRef.current, !!isReducedMotion)
 
@@ -193,18 +198,18 @@ const MagneticTile = {
           activateTile(props)
         }}
         data-id={props.id}
-        className={clsx([
-          'magnetic-tile',
+        className={cn(
+          TILE_SHELL,
           styles.magneticTile,
           props.className,
           styles[`lv${props.size}`],
           styles[props.shape],
           styles[props.direction]
-        ])}
+        )}
         style={props.style}>
         {isEnter ? (
           <motion.div
-            className={surfaceClassName}
+            className={TILE_SURFACE}
             style={surfaceStyle}
             variants={ENTER.variants}
             initial={isReducedMotion ? false : 'hidden'}
@@ -214,12 +219,12 @@ const MagneticTile = {
           </motion.div>
         ) : (
           <div
-            className={surfaceClassName}
+            className={TILE_SURFACE}
             style={surfaceStyle}>
             {surfaceBody}
           </div>
         )}
-        <span className={styles.title}>
+        <span className="absolute top-[calc(100%+6px)] left-0 z-1 block w-full truncate text-center text-sm leading-none text-muted-foreground">
           <Tooltip>
             <TooltipTrigger render={<span>{props.title}</span>} />
             <TooltipContent side="bottom">{props.title}</TooltipContent>
@@ -229,7 +234,12 @@ const MagneticTile = {
           type="button"
           aria-label="删除磁贴"
           onClick={props.onTrash}
-          className={clsx(styles.destroy, styles.marker)}>
+          className={cn(
+            'absolute -top-[5px] -right-[5px] z-10 flex size-4 cursor-pointer items-center justify-center rounded-full border-0 bg-red-500/50 text-[10px] leading-none text-white',
+            'invisible pointer-events-none',
+            props.onTrash &&
+              'group-hover/tile:visible group-hover/tile:pointer-events-auto group-focus-within/tile:visible group-focus-within/tile:pointer-events-auto'
+          )}>
           X
         </button>
       </div>
