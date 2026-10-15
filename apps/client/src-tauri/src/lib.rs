@@ -27,6 +27,8 @@ pub mod capture {
     pub use state::CapturePending;
 }
 
+pub mod media;
+
 pub mod ui {
     pub mod contextmenu;
     pub mod tray;

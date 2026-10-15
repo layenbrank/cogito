@@ -39,6 +39,11 @@ interface SelectionOverlayProps {
   graphicsActive?: boolean
   /** 已有标注时禁裁剪框平移，把空白命中留给失焦 / 橡皮筋多选 */
   hasAnnotations?: boolean
+  /**
+   * 嵌入共享 CanvasStage 的 interaction 层时为 true：用 Group 代替 Layer，
+   * 避免 Konva Layer 嵌套。
+   */
+  embedded?: boolean
 }
 
 const DIM_FILL = 'rgba(0, 0, 0, 0.5)'
@@ -83,6 +88,7 @@ export const SelectionOverlay = forwardRef<SelectionOverlayHandle, SelectionOver
       phase,
       width,
       height,
+      embedded = false,
       onSelectionChange,
       dimOpacity,
       graphicsActive,
@@ -199,10 +205,12 @@ export const SelectionOverlay = forwardRef<SelectionOverlayHandle, SelectionOver
       [width, height, onSelectionChange]
     )
 
+    const Shell = embedded ? Group : Layer
+
     if (!selection || selection.w <= 0 || selection.h <= 0) {
       if (!isSelecting) return null
       return (
-        <Layer listening={false} name="selection-overlay-layer">
+        <Shell listening={false} name="selection-overlay-layer">
           <Rect
             x={0}
             y={0}
@@ -211,7 +219,7 @@ export const SelectionOverlay = forwardRef<SelectionOverlayHandle, SelectionOver
             fill={dimFill}
             listening={false}
           />
-        </Layer>
+        </Shell>
       )
     }
 
@@ -230,7 +238,7 @@ export const SelectionOverlay = forwardRef<SelectionOverlayHandle, SelectionOver
     const hit = ANCHOR_SIZE
 
     return (
-      <Layer listening={!isSelecting} name="selection-overlay-layer">
+      <Shell listening={!isSelecting} name="selection-overlay-layer">
         {/* 直角挖洞，避免误以为裁剪输出带圆角 */}
         <Shape
           listening={false}
@@ -362,7 +370,7 @@ export const SelectionOverlay = forwardRef<SelectionOverlayHandle, SelectionOver
               )
             })}
         </Group>
-      </Layer>
+      </Shell>
     )
   }
 )
