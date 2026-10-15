@@ -38,3 +38,17 @@ describe('agent window routes', function () {
     expect(chain[1]?.index).toBe(true)
   })
 })
+
+describe('capture window routes', function () {
+  it('serves screenshot index and recording as children of /capture', function () {
+    const indexChain = findMatchChain('/capture')
+    expect(indexChain[0]?.path).toBe('/capture')
+    expect(indexChain[1]?.index).toBe(true)
+
+    expect(
+      findMatchChain('/capture/recording').map(function (route) {
+        return route.path
+      })
+    ).toEqual(['/capture', 'recording'])
+  })
+})

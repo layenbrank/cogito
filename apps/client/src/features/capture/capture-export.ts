@@ -1,12 +1,16 @@
 import type { RefObject } from 'react'
 
-import type { AnnotationHandle } from '@/features/capture/components/annotation'
 import { copyImage, pinTexture, saveToUserPath } from '@/features/capture/clipboard'
+import type { AnnotationHandle } from '@/features/capture/components/annotation'
+import { toRecordCapture } from '@/features/capture/history'
 
 interface CaptureExportInput {
   annotationRef: RefObject<AnnotationHandle | null>
+  sessionID: string
   onExit?: () => void
   onTexture?: (input: { src: string; w: number; h: number }) => void
+  /** 会话首次成功写入历史后回调（用于触发清理节流） */
+  onHistoryWritten?: () => void
 }
 
 async function withStagePng(
@@ -23,8 +27,19 @@ async function withStagePng(
 }
 
 function createCaptureExport(input: CaptureExportInput) {
+  let hasWritten = false
+
+  async function recordHistory(dataUrl: string) {
+    const id = await toRecordCapture({ png: dataUrl, sessionID: input.sessionID })
+    if (id && !hasWritten) {
+      hasWritten = true
+      input.onHistoryWritten?.()
+    }
+  }
+
   function handleCopy() {
     void withStagePng(input.annotationRef, async function (dataUrl) {
+      await recordHistory(dataUrl)
       await copyImage(dataUrl)
       input.onExit?.()
     })
@@ -32,6 +47,7 @@ function createCaptureExport(input: CaptureExportInput) {
 
   function handlePin() {
     void withStagePng(input.annotationRef, async function (dataUrl) {
+      await recordHistory(dataUrl)
       const result = await pinTexture(dataUrl)
       input.onTexture?.({ src: result.filePath, w: result.w, h: result.h })
       input.onExit?.()
@@ -41,7 +57,10 @@ function createCaptureExport(input: CaptureExportInput) {
   function handleSave() {
     void withStagePng(input.annotationRef, async function (dataUrl) {
       const path = await saveToUserPath(dataUrl)
-      if (path) input.onExit?.()
+      // 用户取消另存时不产生历史记录
+      if (!path) return
+      await recordHistory(dataUrl)
+      input.onExit?.()
     })
   }
 

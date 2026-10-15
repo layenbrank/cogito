@@ -44,6 +44,8 @@ interface CaptureActionsInput {
   onUpdateSelection: (selection: { x: number; y: number; w: number; h: number } | null) => void
   onExit?: () => void
   onTexture?: (input: { src: string; w: number; h: number }) => void
+  sessionID: string
+  onHistoryWritten?: () => void
 }
 
 function useCaptureActions(input: CaptureActionsInput) {
@@ -297,8 +299,10 @@ function useCaptureActions(input: CaptureActionsInput) {
 
   const exportActions = createCaptureExport({
     annotationRef: input.annotationRef,
+    sessionID: input.sessionID,
     onExit: input.onExit,
-    onTexture: input.onTexture
+    onTexture: input.onTexture,
+    onHistoryWritten: input.onHistoryWritten
   })
 
   return {

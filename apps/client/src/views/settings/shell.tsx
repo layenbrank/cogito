@@ -20,6 +20,7 @@ import {
 } from '@/views/settings/constant.ts'
 import AccountPanel from '@/views/settings/panels/account.tsx'
 import AppearancePanel from '@/views/settings/panels/appearance.tsx'
+import CapturePanel from '@/views/settings/panels/capture.tsx'
 import GeneralPanel from '@/views/settings/panels/general.tsx'
 import styles from '@/views/settings/shell.module.scss'
 
@@ -145,6 +146,7 @@ function Shell() {
               exit={viewVariants.exit}
               transition={viewTransition}>
               {section === SECTION.GENERAL && <GeneralPanel />}
+              {section === SECTION.CAPTURE && <CapturePanel />}
               {section === SECTION.APPEARANCE && <AppearancePanel />}
               {section === SECTION.ACCOUNT && <AccountPanel />}
             </m.div>

@@ -88,6 +88,18 @@ const Gallery = lazy(function () {
   return import('@/views/gallery/gallery.tsx')
 })
 
+const Capture = lazy(function () {
+  return import('@/views/capture/capture.tsx')
+})
+
+const CaptureScreenshot = lazy(function () {
+  return import('@/views/capture/screenshot/screenshot.tsx')
+})
+
+const CaptureRecording = lazy(function () {
+  return import('@/views/capture/recording/recording.tsx')
+})
+
 const Markdown = lazy(function () {
   return import('@/views/markdown/markdown.tsx')
 })
@@ -164,6 +176,14 @@ const routes: RouteObject[] = [
       },
       { path: '/example', element: <Example /> },
       { path: '/gallery', element: <Gallery /> },
+      {
+        path: '/capture',
+        element: <Capture />,
+        children: [
+          { index: true, element: <CaptureScreenshot /> },
+          { path: 'recording', element: <CaptureRecording /> }
+        ]
+      },
       { path: '/markdown', element: <Markdown /> },
       { path: '/marketplace', element: <Marketplace /> },
       { path: '/morph', element: <Morph /> },

@@ -12,6 +12,7 @@ import { RouterProvider } from 'react-router-dom'
 
 import { Fallback } from '@/components/fallback/index.ts'
 import { QueryProvider } from '@/components/provider/query'
+import { useCaptureShortcut } from '@/features/capture/shortcut'
 import { readMotionConfig, subscribeAppearance } from '@/features/window/appearance'
 import { router } from '@/routers/index'
 
@@ -26,6 +27,7 @@ function useAppearanceMotion() {
 
 function App() {
   const reducedMotion = useAppearanceMotion()
+  useCaptureShortcut()
 
   return (
     <>

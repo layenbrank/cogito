@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { clsx } from 'clsx'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
 
@@ -15,6 +15,7 @@ import {
   type OverlayTile
 } from '@/stores/overlay'
 import styles from '@/views/overlay/overlay.module.scss'
+import { OverlayBoundary } from '@/views/overlay/boundary'
 import Texture from '@/views/overlay/texture'
 import Tile from '@/views/overlay/tile'
 
@@ -24,6 +25,14 @@ const Capture = lazy(function () {
 })
 
 const OVERLAY_SHELL_SOURCE = 'overlay-shell'
+
+/** 心跳间隔：宿主用它判断渲染进程是否还活着（白屏自愈） */
+const PING_INTERVAL_MS = 15_000
+/** 全局错误在窗口内累计到该数量，就认为页面已不可用 */
+const ERROR_RECOVER_THRESHOLD = 3
+const ERROR_RECOVER_WINDOW_MS = 10_000
+/** 同一次恢复动作的最小间隔，避免连环错误反复隐藏浮层 */
+const RECOVER_COOLDOWN_MS = 1000
 
 interface MountTilePayload {
   kind: string
@@ -75,6 +84,28 @@ function OverlayShell() {
 
   useThrough(OVERLAY_SHELL_SOURCE, { rootRef: shellRef, enabled: !isScreenshot })
 
+  const lastRecoverRef = useRef(0)
+
+  /**
+   * 出错后的统一恢复：退出截屏态 + 关掉浮层。
+   * 浮层是透明置顶层，一旦子树坏掉而窗口还显示着，它就会一直吃点击（用户被卡住）。
+   */
+  const recover = useCallback(function () {
+    const now = Date.now()
+    if (now - lastRecoverRef.current < RECOVER_COOLDOWN_MS) return
+    lastRecoverRef.current = now
+    setConcealed(false)
+    void useOverlayStore
+      .getState()
+      .toScreenshotExit()
+      .catch(function (error) {
+        console.warn('[overlay] 恢复时退出截屏失败', error)
+      })
+    void invoke(CHANNELS.OVERLAY.HIDE).catch(function (error) {
+      console.warn('[overlay] 恢复时隐藏浮层失败', error)
+    })
+  }, [])
+
   /**
    * ESC：先派发给窗口内注册了 `useKeyCode('escape')` 的组件（截屏浮层逐级退出），
    * 没人接管才兜底退出截屏 —— 浮层没挂上/还没加载完时也能退出来。
@@ -104,6 +135,79 @@ function OverlayShell() {
     }
   }, [])
 
+  /**
+   * 长跑兜底：未捕获错误 / 未处理拒绝在短时间内反复出现，说明这一层已不可用。
+   * 只累计到阈值才恢复（单个瞬时错误不骚扰用户）。
+   */
+  useEffect(
+    function () {
+      let errorTimes: number[] = []
+
+      function recordError(source: string, detail: unknown) {
+        console.error(`[overlay] ${source}`, detail)
+        const now = Date.now()
+        errorTimes = errorTimes.filter(function (at) {
+          return now - at < ERROR_RECOVER_WINDOW_MS
+        })
+        errorTimes.push(now)
+        if (errorTimes.length >= ERROR_RECOVER_THRESHOLD) {
+          errorTimes = []
+          recover()
+        }
+      }
+
+      function onError(event: ErrorEvent) {
+        recordError('uncaught error', event.error ?? event.message)
+      }
+      function onRejection(event: PromiseRejectionEvent) {
+        recordError('unhandled rejection', event.reason)
+      }
+
+      window.addEventListener('error', onError)
+      window.addEventListener('unhandledrejection', onRejection)
+      return function () {
+        window.removeEventListener('error', onError)
+        window.removeEventListener('unhandledrejection', onRejection)
+      }
+    },
+    [recover]
+  )
+
+  /** 窗口被隐藏时不保留截屏态：下次显示应该是干净的空层（而非带旧截图的浮层） */
+  useEffect(function () {
+    function onVisibilityChange() {
+      if (document.visibilityState !== 'hidden') return
+      setConcealed(false)
+      if (useOverlayStore.getState().mode !== 'screenshot') return
+      void useOverlayStore
+        .getState()
+        .toScreenshotExit()
+        .catch(function (error) {
+          console.warn('[overlay] 隐藏时退出截屏失败', error)
+        })
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return function () {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [])
+
+  /** 心跳：宿主（overlay:ensure）据此判断渲染进程是否已挂，必要时重载页面 */
+  useEffect(function () {
+    function ping() {
+      void invoke(CHANNELS.OVERLAY.PING).catch(function (error) {
+        console.warn('[overlay] 心跳失败', error)
+      })
+    }
+
+    ping()
+    const timer = window.setInterval(ping, PING_INTERVAL_MS)
+    return function () {
+      window.clearInterval(timer)
+    }
+  }, [])
+
   useEffect(
     function () {
       let unlistenMode: (() => void) | undefined
@@ -114,6 +218,16 @@ function OverlayShell() {
       let unlistenConceal: (() => void) | undefined
       let unlistenReveal: (() => void) | undefined
       let cancelled = false
+      const pendingUnlistens: Array<Promise<UnlistenFn>> = []
+
+      /** 注册监听并登记：effect 在 await 期间被卸载时，晚到的 unlisten 也要执行（否则永久泄漏） */
+      function track(promise: Promise<UnlistenFn>): Promise<UnlistenFn> {
+        pendingUnlistens.push(promise)
+        return promise.then(function (unlisten) {
+          if (cancelled) unlisten()
+          return unlisten
+        })
+      }
 
       function applyMount(payload: MountTilePayload | null | undefined) {
         if (!payload) return
@@ -136,34 +250,46 @@ function OverlayShell() {
 
       async function bootstrap() {
         try {
-          unlistenMode = await listen<OverlayMode>(EVENTS.OVERLAY_MODE, function (event) {
-            toMode(event.payload)
-          })
-          unlistenMount = await listen<MountTilePayload>(EVENTS.OVERLAY_MOUNT, function (event) {
-            applyMount(event.payload)
-          })
-          unlistenUnmount = await listen<{ magneticTileID: string }>(
-            EVENTS.OVERLAY_UNMOUNT,
-            function (event) {
-              applyUnmount(event.payload)
-            }
+          unlistenMode = await track(
+            listen<OverlayMode>(EVENTS.OVERLAY_MODE, function (event) {
+              toMode(event.payload)
+            })
           )
-          unlistenClear = await listen(EVENTS.OVERLAY_CLEAR_TEXTURES, function () {
-            toClear()
-          })
-          unlistenHide = await listen(EVENTS.OVERLAY_HIDE, function () {
-            toMode('idle')
-            setConcealed(false)
-            void invoke(CHANNELS.OVERLAY.HIDE)
-          })
-          unlistenConceal = await listen(EVENTS.OVERLAY_CONCEAL, function () {
-            setConcealed(true)
-          })
-          unlistenReveal = await listen(EVENTS.OVERLAY_REVEAL, function () {
-            setConcealed(false)
-          })
+          unlistenMount = await track(
+            listen<MountTilePayload>(EVENTS.OVERLAY_MOUNT, function (event) {
+              applyMount(event.payload)
+            })
+          )
+          unlistenUnmount = await track(
+            listen<{ magneticTileID: string }>(EVENTS.OVERLAY_UNMOUNT, function (event) {
+              applyUnmount(event.payload)
+            })
+          )
+          unlistenClear = await track(
+            listen(EVENTS.OVERLAY_CLEAR_TEXTURES, function () {
+              toClear()
+            })
+          )
+          unlistenHide = await track(
+            listen(EVENTS.OVERLAY_HIDE, function () {
+              toMode('idle')
+              setConcealed(false)
+              void invoke(CHANNELS.OVERLAY.HIDE)
+            })
+          )
+          unlistenConceal = await track(
+            listen(EVENTS.OVERLAY_CONCEAL, function () {
+              setConcealed(true)
+            })
+          )
+          unlistenReveal = await track(
+            listen(EVENTS.OVERLAY_REVEAL, function () {
+              setConcealed(false)
+            })
+          )
           await useOverlayStore.getState().toInitialize()
-          applyMount(await invoke<MountTilePayload | null>(CHANNELS.OVERLAY.TAKE_PENDING))
+          // 页面可能是被宿主重载的：只靠事件会丢模式，这里主动同步一次
+          toMode(await invoke<OverlayMode>(CHANNELS.OVERLAY.READ_MODE))
           applyUnmount(
             await invoke<{ magneticTileID: string } | null>(CHANNELS.OVERLAY.TAKE_PENDING_UNMOUNT)
           )
@@ -197,47 +323,54 @@ function OverlayShell() {
     return entry.kind !== 'texture'
   })
 
+  /** 外部状态指纹：变化后允许兜底边界重试渲染 */
+  const boundaryKey = `${mode}:${items.length}:${concealed}`
+
   return (
-    <div className={clsx(styles.shell, concealed && styles.concealed)}>
-      <div
-        ref={stageRef}
-        className={styles.stage}>
-        {isScreenshot ? (
-          <Suspense fallback={null}>
-            <Capture
-              embedded={true}
-              active={true}
-              onExit={toScreenshotExit}
-              onTexture={function (input) {
-                toWrite(input)
-              }}
-            />
-          </Suspense>
-        ) : null}
-        {ready &&
-          !isScreenshot &&
-          tiles.map(function (entry) {
-            return (
-              <Tile
-                key={entry.id}
-                item={entry}
-                stageBounds={stageBounds}
+    <OverlayBoundary
+      resetKey={boundaryKey}
+      onRecover={recover}>
+      <div className={clsx(styles.shell, concealed && styles.concealed)}>
+        <div
+          ref={stageRef}
+          className={styles.stage}>
+          {isScreenshot ? (
+            <Suspense fallback={null}>
+              <Capture
+                embedded={true}
+                active={true}
+                onExit={toScreenshotExit}
+                onTexture={function (input) {
+                  toWrite(input)
+                }}
               />
-            )
-          })}
-        {ready &&
-          !isScreenshot &&
-          textures.map(function (entry) {
-            return (
-              <Texture
-                key={entry.id}
-                item={entry}
-                stageBounds={stageBounds}
-              />
-            )
-          })}
+            </Suspense>
+          ) : null}
+          {ready &&
+            !isScreenshot &&
+            tiles.map(function (entry) {
+              return (
+                <Tile
+                  key={entry.id}
+                  item={entry}
+                  stageBounds={stageBounds}
+                />
+              )
+            })}
+          {ready &&
+            !isScreenshot &&
+            textures.map(function (entry) {
+              return (
+                <Texture
+                  key={entry.id}
+                  item={entry}
+                  stageBounds={stageBounds}
+                />
+              )
+            })}
+        </div>
       </div>
-    </div>
+    </OverlayBoundary>
   )
 }
 

@@ -12,7 +12,7 @@ import { toast } from 'sonner'
 
 import { ConfirmAction } from '@/views/settings/panels/confirm-action.tsx'
 import { SettingsRow, SettingsSection } from '@/views/settings/panels/section.tsx'
-import { DETECT_OFF, DETECT_WINDOW, useSettingsStore } from '@/stores/setting'
+import { useSettingsStore } from '@/stores/setting'
 import { exitApp } from '@/utils/process'
 import { checkUpdate } from '@/utils/updater'
 
@@ -21,9 +21,6 @@ const LANGUAGE_OPTIONS = [{ label: '简体中文', value: 'zh-CN' }]
 function GeneralPanel() {
   const general = useSettingsStore(function (state) {
     return state.settings.general
-  })
-  const capture = useSettingsStore(function (state) {
-    return state.settings.capture
   })
   const toUpdate = useSettingsStore(function (state) {
     return state.toUpdate
@@ -37,15 +34,6 @@ function GeneralPanel() {
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error)
       toast.error(`开机自启设置失败：${text}`)
-    }
-  }
-
-  async function onDetectChange(checked: boolean) {
-    try {
-      await toUpdate('capture', { detect: checked ? DETECT_WINDOW : DETECT_OFF })
-    } catch (error) {
-      const text = error instanceof Error ? error.message : String(error)
-      toast.error(`窗口检测设置失败：${text}`)
     }
   }
 
@@ -79,17 +67,6 @@ function GeneralPanel() {
             checked={general.autostart}
             onCheckedChange={function (checked) {
               void onAutostartChange(checked)
-            }}
-          />
-        </SettingsRow>
-
-        <SettingsRow
-          label="截图窗口检测"
-          hint="截图时悬停高亮窗口，单击吸附为选区；关闭后仅自由框选">
-          <Switch
-            checked={capture.detect === DETECT_WINDOW}
-            onCheckedChange={function (checked) {
-              void onDetectChange(checked)
             }}
           />
         </SettingsRow>

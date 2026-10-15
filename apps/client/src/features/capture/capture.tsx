@@ -12,6 +12,11 @@ import { Annotation, type AnnotationHandle } from '@/features/capture/components
 import { type GraphicsEnum, type GraphicsProps } from '@/features/capture/components/graphics'
 import Magnifier from '@/features/capture/components/magnifier'
 import Utility from '@/features/capture/components/utility'
+import {
+  clearCaptureSession,
+  createCaptureSessionID
+} from '@/features/capture/history'
+import { runCapturePrune } from '@/features/capture/retention'
 import { fetchImageFromPath, takePendingScreenshot, takeScreenshot } from '@/features/capture/tauri'
 import { useCaptureActions } from '@/features/capture/use-capture-actions'
 import { useCaptureHistory } from '@/features/capture/use-capture-history'
@@ -60,6 +65,8 @@ function Capture(props: CaptureProps = {}) {
   const isReducedMotion = useReducedMotion()
   const { present: presentContextMenu } = useContextMenu()
   const annotationRef = useRef<AnnotationHandle>(null)
+  const [sessionID, onSessionID] = useState(createCaptureSessionID)
+  const sessionIDRef = useRef(sessionID)
   const { canUndo, canRedo, commitHistory, undo, redo, resetHistory } = useCaptureHistory()
 
   const { regionsRef, handlePress, handleMove, handleRelease, resetDragState } = useCaptureStage({
@@ -104,7 +111,11 @@ function Capture(props: CaptureProps = {}) {
     onUpdatePhase,
     onUpdateSelection,
     onExit,
-    onTexture
+    onTexture,
+    sessionID,
+    onHistoryWritten: function () {
+      void runCapturePrune({ silent: true })
+    }
   })
 
   useHotkeys('mod+z', function (e) {
@@ -149,6 +160,14 @@ function Capture(props: CaptureProps = {}) {
 
   const loadStartedRef = useRef(false)
 
+  /** 会话 id 只在 effect 里同步进 ref：渲染期写 ref 会被 react-hooks/refs 拦下 */
+  useEffect(
+    function () {
+      sessionIDRef.current = sessionID
+    },
+    [sessionID]
+  )
+
   useEffect(function () {
     void useSettingsStore.getState().toInitialize()
   }, [])
@@ -157,10 +176,14 @@ function Capture(props: CaptureProps = {}) {
     function () {
       if (!active) {
         loadStartedRef.current = false
+        clearCaptureSession(sessionIDRef.current)
         return
       }
       if (loadStartedRef.current) return
       loadStartedRef.current = true
+      const nextSession = createCaptureSessionID()
+      sessionIDRef.current = nextSession
+      onSessionID(nextSession)
       let cancelled = false
       void (async function () {
         try {

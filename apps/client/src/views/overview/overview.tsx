@@ -2,9 +2,7 @@
  * Overview 壳层：标题栏（镜像切换 / 状态 / 账号）+ 搜索 + Mirror 舞台 + 登录入口。
  * 同时承担主窗口的全局初始化职责（数据加载、corex 就绪检测、全局快捷键）。
  */
-import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { isRegistered, register, unregister } from '@tauri-apps/plugin-global-shortcut'
 import { attachConsole } from '@tauri-apps/plugin-log'
 import { clsx } from 'clsx'
 import { useEffect, useState } from 'react'
@@ -12,8 +10,7 @@ import { useEffect, useState } from 'react'
 import { Decorations } from '@/components/decorations/index.ts'
 import Controller from '@/features/controller/controller.tsx'
 import ReSignIn from '@/features/signin/signin.tsx'
-import { dispatchKeyCode } from '@/keycodes/dispatcher'
-import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
+import { EVENTS } from '@/shared/ipc/channels'
 import { useMirrorStore } from '@/stores/mirror.ts'
 import { useSettingsStore } from '@/stores/setting.ts'
 import { applyCliMatches } from '@/utils/cli'
@@ -24,9 +21,6 @@ import { CaptionStatus } from '@/views/overview/caption/status'
 import { CollectionExpanded } from '@/views/collection/expanded.tsx'
 import { EngineSearch } from '@/views/overview/engine/engine-search'
 import styles from '@/views/overview/overview.module.scss'
-
-/** 截图全局快捷键；可配置 bindings 已移除（见 keycodes/types.ts），这里保持硬编码 */
-const SCREENSHOT_SHORTCUT = 'Alt+Q'
 
 export default function Overview() {
   const [signinOpen, setSigninOpen] = useState(false)
@@ -89,44 +83,6 @@ export default function Overview() {
     return function () {
       cancelled = true
       unlisten?.()
-    }
-  }, [])
-
-  // 截图全局快捷键
-  useEffect(function () {
-    let cleanup: (() => void) | null = null
-    let cancelled = false
-
-    /** 截图键：先派发给注册了 `useKeyCode('screenshot')` 的组件（如盘面上的截图磁贴），
-     *  没人接管就直连命令 —— 磁贴被删掉时快捷键仍然可用 */
-    async function requestCapture() {
-      const handled = await dispatchKeyCode('screenshot')
-      if (handled) return
-      await invoke(CHANNELS.CAPTURE.OPEN)
-    }
-
-    async function bootstrap() {
-      try {
-        if (await isRegistered(SCREENSHOT_SHORTCUT)) await unregister(SCREENSHOT_SHORTCUT)
-        await register(SCREENSHOT_SHORTCUT, function (event) {
-          if (event.state === 'Pressed') void requestCapture()
-        })
-        if (cancelled) await unregister(SCREENSHOT_SHORTCUT)
-        else {
-          cleanup = function () {
-            void unregister(SCREENSHOT_SHORTCUT)
-          }
-        }
-      } catch (err) {
-        console.warn('[Overview] 注册截图快捷键失败', err)
-      }
-    }
-
-    void bootstrap()
-
-    return function () {
-      cancelled = true
-      cleanup?.()
     }
   }, [])
 

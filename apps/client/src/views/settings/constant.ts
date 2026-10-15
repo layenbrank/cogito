@@ -1,4 +1,4 @@
-type SectionKey = 'general' | 'appearance' | 'account'
+type SectionKey = 'general' | 'appearance' | 'account' | 'capture'
 
 type HeadText = {
   title: string
@@ -21,12 +21,14 @@ type SlideMotionOptions = {
 const SECTION = {
   GENERAL: 'general',
   APPEARANCE: 'appearance',
-  ACCOUNT: 'account'
+  ACCOUNT: 'account',
+  CAPTURE: 'capture'
 } as const satisfies Record<string, SectionKey>
 
 const NAVS: NavMeta[] = [
   { key: SECTION.ACCOUNT, icon: 'lucide:user-round', label: '账号' },
   { key: SECTION.GENERAL, icon: 'ant-design:setting-outlined', label: '通用' },
+  { key: SECTION.CAPTURE, icon: 'lucide:camera', label: '截屏' },
   { key: SECTION.APPEARANCE, icon: 'ant-design:bg-colors-outlined', label: '外观' }
 ]
 
@@ -42,12 +44,17 @@ const HEAD: Record<SectionKey, HeadText> = {
   account: {
     title: '账号',
     subtitle: '个人资料、头像与登录状态'
+  },
+  capture: {
+    title: '截屏',
+    subtitle: '快捷键、窗口检测与自动清理策略'
   }
 }
 
 const SECTION_KEYS: readonly SectionKey[] = [
   SECTION.ACCOUNT,
   SECTION.GENERAL,
+  SECTION.CAPTURE,
   SECTION.APPEARANCE
 ]
 
