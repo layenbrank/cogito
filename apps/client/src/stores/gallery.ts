@@ -272,5 +272,5 @@ const useGalleryStore = create<GalleryStore>()(
   )
 )
 
-export { useGalleryStore }
+export { buildChange, useGalleryStore }
 export type { GalleryStore }

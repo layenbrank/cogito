@@ -6,6 +6,9 @@ import {
 } from '@/views/gallery/constraints'
 import type { DateSource } from '@/views/gallery/model/probe-date'
 
+type CaptureKind = 'screenshot' | 'recording'
+type CaptureState = 'done' | 'recording'
+
 interface GalleryAssetMeta {
   hidden?: boolean
   durationMs?: number
@@ -15,6 +18,11 @@ interface GalleryAssetMeta {
   dateSource?: DateSource
   source?: 'import' | 'capture'
   isScreenshot?: boolean
+  keep?: boolean
+  albums?: string[]
+  state?: CaptureState
+  captureKind?: CaptureKind
+  isManaged?: boolean
 }
 
 interface GalleryAsset {
@@ -103,9 +111,8 @@ const SCREENSHOT_NAME =
 
 function isLikelyScreenshot(asset: GalleryAsset, meta: GalleryAssetMeta): boolean {
   if (meta.isScreenshot) return true
-  if (meta.source === 'capture') return true
+  if (meta.source === 'capture' && meta.captureKind !== 'recording') return true
   const path = asset.filePath.replace(/\\/g, '/').toLowerCase()
-  if (path.includes('/textures/')) return true
   return SCREENSHOT_NAME.test(asset.fileName) || SCREENSHOT_NAME.test(path)
 }
 
@@ -167,8 +174,7 @@ function toGalleryMedia(asset: GalleryAsset, src: string): GalleryMedia | null {
   const kind = findMediaKind(asset)
   if (!kind) return null
   const meta = parseMeta(asset.metadata)
-  if (!meta.source && isLikelyScreenshot(asset, meta)) {
-    meta.source = 'capture'
+  if (!meta.isScreenshot && isLikelyScreenshot(asset, meta)) {
     meta.isScreenshot = true
   }
   return {
@@ -284,6 +290,17 @@ function findScreenshots(medias: GalleryMedia[]): GalleryMedia[] {
   })
 }
 
+function findCaptureHistory(
+  medias: GalleryMedia[],
+  kind?: CaptureKind
+): GalleryMedia[] {
+  return medias.filter(function (media) {
+    if (media.meta.source !== 'capture') return false
+    if (!kind) return true
+    return media.meta.captureKind === kind
+  })
+}
+
 function findHidden(medias: GalleryMedia[]): GalleryMedia[] {
   return medias.filter(function (media) {
     return media.meta.hidden === true
@@ -319,6 +336,7 @@ function findMimeFromPath(path: string): { mime: string; kind: MediaKind; extens
 
 export {
   filterVisible,
+  findCaptureHistory,
   findCapturedAt,
   findHidden,
   findMediaKind,
@@ -343,6 +361,8 @@ export {
 }
 
 export type {
+  CaptureKind,
+  CaptureState,
   DayBucket,
   GalleryAsset,
   GalleryAssetMeta,

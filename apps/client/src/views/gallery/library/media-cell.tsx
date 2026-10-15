@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
-import { memo } from 'react'
+import { memo, type ReactNode } from 'react'
 
 import { useNearViewport } from '@/views/gallery/hooks/use-near-viewport'
 import { formatDuration, type GalleryMedia } from '@/views/gallery/model/media'
@@ -12,6 +12,9 @@ interface MediaCellProps {
   onOpen: (media: GalleryMedia) => void
   onToggleSelect?: (media: GalleryMedia) => void
   className?: string
+  /** 额外角标（保存 / 将清理等）；与时长角标可并存 */
+  badge?: ReactNode
+  isKept?: boolean
 }
 
 function MediaCellComponent(props: MediaCellProps) {
@@ -63,6 +66,16 @@ function MediaCellComponent(props: MediaCellProps) {
       ) : (
         <span className="block size-full bg-muted/50" aria-hidden />
       )}
+      {props.isKept ? (
+        <span
+          className="pointer-events-none absolute top-1.5 right-1.5 flex size-5 items-center justify-center rounded-full bg-success text-success-foreground"
+          title="已保存，不会被自动清理">
+          <Icon icon="lucide:pin" className="size-3" aria-hidden />
+        </span>
+      ) : null}
+      {props.badge ? (
+        <span className="pointer-events-none absolute top-1.5 left-1.5 max-w-[90%]">{props.badge}</span>
+      ) : null}
       {isVideo && duration ? (
         <span className="pointer-events-none absolute right-1 bottom-1 rounded bg-black/65 px-1 py-0.5 text-[10px] leading-none text-white tabular-nums">
           {duration}
@@ -72,7 +85,8 @@ function MediaCellComponent(props: MediaCellProps) {
         <span
           className={cn(
             'absolute top-1.5 left-1.5 flex size-5 items-center justify-center rounded-full border border-white/80 bg-black/35 text-white transition-colors duration-150',
-            props.selected && 'border-primary bg-primary'
+            props.selected && 'border-primary bg-primary',
+            props.badge && 'top-auto bottom-1.5'
           )}>
           {props.selected ? <Icon icon="lucide:check" className="size-3" /> : null}
         </span>

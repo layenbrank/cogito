@@ -1,5 +1,5 @@
 import { cn } from 'cn'
-import { useMemo, type CSSProperties } from 'react'
+import { useMemo, type CSSProperties, type ReactNode } from 'react'
 
 import type { TimeScope } from '@/views/gallery/constraints'
 import { STREAM_SECTION_CHUNK } from '@/views/gallery/constraints'
@@ -17,6 +17,8 @@ interface MediaGridProps {
   onOpen: (media: GalleryMedia) => void
   onToggleSelect: (media: GalleryMedia) => void
   className?: string
+  findBadge?: (media: GalleryMedia) => ReactNode
+  isKept?: (media: GalleryMedia) => boolean
 }
 
 function SectionHeader(props: { label: string; count: number }) {
@@ -35,6 +37,8 @@ function DaySection(props: {
   selectedIds: Set<string>
   onOpen: (media: GalleryMedia) => void
   onToggleSelect: (media: GalleryMedia) => void
+  findBadge?: (media: GalleryMedia) => ReactNode
+  isKept?: (media: GalleryMedia) => boolean
 }) {
   return (
     <section data-gallery-section={props.bucket.key} className="scroll-mt-2 bg-background">
@@ -55,6 +59,8 @@ function DaySection(props: {
               selected={props.selectedIds.has(media.asset.id)}
               onOpen={props.onOpen}
               onToggleSelect={props.onToggleSelect}
+              badge={props.findBadge?.(media)}
+              isKept={props.isKept?.(media)}
             />
           )
         })}
@@ -70,6 +76,8 @@ function MonthSection(props: {
   selectedIds: Set<string>
   onOpen: (media: GalleryMedia) => void
   onToggleSelect: (media: GalleryMedia) => void
+  findBadge?: (media: GalleryMedia) => ReactNode
+  isKept?: (media: GalleryMedia) => boolean
 }) {
   return (
     <section data-gallery-section={props.bucket.key} className="scroll-mt-2 space-y-3">
@@ -84,6 +92,8 @@ function MonthSection(props: {
             selectedIds={props.selectedIds}
             onOpen={props.onOpen}
             onToggleSelect={props.onToggleSelect}
+            findBadge={props.findBadge}
+            isKept={props.isKept}
           />
         )
       })}
@@ -188,6 +198,8 @@ function MediaGrid(props: MediaGridProps) {
               selectedIds={props.selectedIds}
               onOpen={props.onOpen}
               onToggleSelect={props.onToggleSelect}
+              findBadge={props.findBadge}
+              isKept={props.isKept}
             />
           )
         })}
@@ -207,6 +219,8 @@ function MediaGrid(props: MediaGridProps) {
             selectedIds={props.selectedIds}
             onOpen={props.onOpen}
             onToggleSelect={props.onToggleSelect}
+            findBadge={props.findBadge}
+            isKept={props.isKept}
           />
         )
       })}

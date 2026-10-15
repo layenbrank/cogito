@@ -3,7 +3,7 @@ import exifr from 'exifr'
 
 import type { MediaKind } from '@/views/gallery/constraints'
 
-type DateSource = 'exif' | 'filename' | 'mtime' | 'import'
+type DateSource = 'exif' | 'filename' | 'mtime' | 'import' | 'capture'
 
 interface ProbedDate {
   at: number
