@@ -5,12 +5,12 @@
     "shaders": {
       "type": "http",
       "url": "https://shaders.com/mcp"
+    },
+    "corex": {
+      "type": "stdio",
+      "command": "corex-mcp",
+      "args": ["--import", ".cache/corex/directives"]
     }
-    // "corex": {
-    //   "type": "stdio",
-    //   "command": "corex-mcp",
-    //   "args": ["--directives", ".cache/corex/directives"]
-    // },
     // "github-mcp": {
     //   "type": "http",
     //   "url": "https://api.githubcopilot.com/mcp"
