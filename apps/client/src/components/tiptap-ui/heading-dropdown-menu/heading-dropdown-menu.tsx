@@ -41,6 +41,8 @@ export interface HeadingDropdownMenuProps
   onOpenChange?: (isOpen: boolean) => void
 }
 
+const DEFAULT_LEVELS: UseHeadingDropdownMenuConfig['levels'] = [1, 2, 3, 4, 5, 6]
+
 /**
  * Dropdown menu component for selecting heading levels in a Tiptap editor.
  *
@@ -53,7 +55,7 @@ export const HeadingDropdownMenu = forwardRef<
   (
     {
       editor: providedEditor,
-      levels = [1, 2, 3, 4, 5, 6],
+      levels = DEFAULT_LEVELS,
       hideWhenUnavailable = false,
       portal = false,
       onOpenChange,

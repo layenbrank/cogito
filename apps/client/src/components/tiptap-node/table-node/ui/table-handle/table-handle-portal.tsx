@@ -29,12 +29,17 @@ interface TableHandlePortalProps {
   onMenuOpenChange: (type: 'row' | 'column', open: boolean) => void
 }
 
+function findPortalRoot(root: HTMLElement | null | undefined) {
+  return root?.isConnected ? root : undefined
+}
+
 function TableHandlePortal(props: TableHandlePortalProps) {
   const RowButton = props.RowButton || TableHandleMenu
   const ColumnButton = props.ColumnButton || TableHandleMenu
+  const portalRoot = findPortalRoot(props.widgetContainer)
 
   return (
-    <FloatingPortal root={props.widgetContainer}>
+    <FloatingPortal root={portalRoot}>
       {props.shouldShowRow ? (
         <div
           ref={props.rowHandle.ref}

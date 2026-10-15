@@ -107,6 +107,7 @@ export const ListButton = forwardRef<HTMLButtonElement, ListButtonProps>(
         aria-label={label}
         aria-pressed={isActive}
         tooltip={label}
+        shortcutKeys={shortcutKeys}
         onClick={handleClick}
         {...buttonProps}
         ref={ref}>

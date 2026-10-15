@@ -390,9 +390,12 @@ class TableHandleView implements PluginView {
         rowIndex === undefined) ||
       (draggingState.draggedCellOrientation === 'col' && colIndex === undefined)
     ) {
-      throw new Error(
-        'Attempted to drop table row or column, but no table block was hovered prior.'
+      console.warn(
+        '[TableHandle] Drop ignored: no hovered row/column index.'
       )
+      this.state = { ...st, draggingState: undefined }
+      this.emitUpdate()
+      return false
     }
 
     const isRow = draggingState.draggedCellOrientation === 'row'
@@ -492,9 +495,9 @@ class TableHandleView implements PluginView {
 
     const tableBody = this.tableElement.querySelector('tbody')
     if (!tableBody) {
-      throw new Error(
-        "Table block does not contain a 'tbody' HTML element. This should never happen."
-      )
+      console.warn('[TableHandle] Missing tbody; hiding handles.')
+      this.hideHandles()
+      return
     }
 
     // Calculate new reference positions
@@ -746,18 +749,20 @@ const tableDragStart = (
   }
 ) => {
   if (!tableHandleView?.state) {
-    throw new Error(
-      `Attempted to drag table ${orientation}, but no table block was hovered prior.`
+    console.warn(
+      `[TableHandle] Drag ignored: no table handle state for ${orientation}.`
     )
+    return
   }
 
   const { state, editor } = tableHandleView
   const index = orientation === 'col' ? state.colIndex : state.rowIndex
 
   if (index === undefined) {
-    throw new Error(
-      `Attempted to drag table ${orientation}, but no table block was hovered prior.`
+    console.warn(
+      `[TableHandle] Drag ignored: no ${orientation} index hovered.`
     )
+    return
   }
 
   const { blockPos, referencePosCell } = state

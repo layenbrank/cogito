@@ -11,6 +11,7 @@ import {
 } from '@/components/tiptap-ui-primitive/tooltip/tooltip.tsx'
 
 // --- Lib ---
+import { Kbd, KbdGroup } from '@i-thinking/design/components/kbd'
 import { cn, parseShortcutKeys } from '@/lib/tiptap-utils'
 
 import '@/components/tiptap-ui-primitive/button/button-colors.scss'
@@ -24,20 +25,25 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   shortcutKeys?: string
 }
 
+/** Tooltip 内快捷键展示：用设计系统 Kbd，不挤在操作栏里 */
 export const ShortcutDisplay: React.FC<{ shortcuts: string[] }> = ({
   shortcuts
 }) => {
   if (shortcuts.length === 0) return null
 
   return (
-    <div>
+    <KbdGroup>
       {shortcuts.map((key, index) => (
-        <Fragment key={key}>
-          {index > 0 && <kbd>+</kbd>}
-          <kbd>{key}</kbd>
+        <Fragment key={`${key}-${index}`}>
+          {index > 0 ? (
+            <span className="tiptap-shortcut-plus px-0.5 text-[10px] opacity-50">
+              +
+            </span>
+          ) : null}
+          <Kbd>{key}</Kbd>
         </Fragment>
       ))}
-    </div>
+    </KbdGroup>
   )
 }
 
@@ -81,8 +87,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           {children}
         </TooltipTrigger>
         <TooltipContent>
-          {tooltip}
-          <ShortcutDisplay shortcuts={shortcuts} />
+          <span className="inline-flex items-center gap-1.5">
+            <span>{tooltip}</span>
+            <ShortcutDisplay shortcuts={shortcuts} />
+          </span>
         </TooltipContent>
       </Tooltip>
     )

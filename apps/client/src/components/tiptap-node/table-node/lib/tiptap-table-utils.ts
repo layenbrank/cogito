@@ -1230,6 +1230,7 @@ export function getCellIndicesFromDOM(
         const tableStart = $cellPos.start(d - 2)
         const cellOffset = cellNodePos - tableStart
         const cellIndex = tableMap.map.indexOf(cellOffset)
+        if (cellIndex < 0 || tableMap.width <= 0) return null
 
         return {
           rowIndex: Math.floor(cellIndex / tableMap.width),

@@ -98,6 +98,7 @@ export const TextButton = forwardRef<HTMLButtonElement, TextButtonProps>(
         aria-label={label}
         aria-pressed={isActive}
         tooltip="Text"
+        shortcutKeys={shortcutKeys}
         onClick={handleClick}
         {...buttonProps}
         ref={ref}>

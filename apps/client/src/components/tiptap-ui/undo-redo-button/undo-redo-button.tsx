@@ -100,6 +100,7 @@ export const UndoRedoButton = forwardRef<
         tabIndex={-1}
         aria-label={label}
         tooltip={label}
+        shortcutKeys={shortcutKeys}
         onClick={handleClick}
         {...buttonProps}
         ref={ref}

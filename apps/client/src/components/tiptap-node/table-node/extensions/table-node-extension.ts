@@ -116,7 +116,11 @@ export const TableNode = Table.extend<TableOptions>({
 
         private setupDOMStructure(): void {
           const originalTable = this.dom
-          const tableElement = originalTable.firstChild!
+          const tableElement = originalTable.firstChild
+          if (!(tableElement instanceof HTMLElement)) {
+            console.warn('[TableNode] Missing table element in TableView dom')
+            return
+          }
 
           // Move table into inner container
           this.innerTableContainer.appendChild(tableElement)
@@ -132,10 +136,23 @@ export const TableNode = Table.extend<TableOptions>({
         }
 
         ignoreMutation(mutation: ViewMutationRecord): boolean {
-          const target = mutation.target as HTMLElement
-          const isInsideTable = target.closest('.table-container')
+          const target = mutation.target
+          if (!(target instanceof Node) || !this.dom || !this.contentDOM) {
+            return true
+          }
 
-          return !isInsideTable || super.ignoreMutation(mutation)
+          // React portals / chrome live outside tbody. Ignoring these mutations
+          // prevents ProseMirror from recreating the NodeView mid-interaction
+          // (column resize, handle hover), which would detach portal roots and crash React.
+          if (this.dom.contains(target) && !this.contentDOM.contains(target)) {
+            return (
+              mutation.type === 'attributes' ||
+              mutation.type === 'childList' ||
+              mutation.type === 'characterData'
+            )
+          }
+
+          return super.ignoreMutation(mutation)
         }
       }
 

@@ -253,7 +253,11 @@ export function createTableDragImage(
   const wrapper = document.createElement("div")
   styleDragWrapper(wrapper, maxWidth)
 
-  const tableEl = editor.view.nodeDOM(tablePos) as HTMLTableElement | null
+  const nodeDom = editor.view.nodeDOM(tablePos) as HTMLElement | null
+  const tableEl =
+    nodeDom instanceof HTMLTableElement
+      ? nodeDom
+      : (nodeDom?.querySelector('table') as HTMLTableElement | null)
   if (!tableEl) {
     document.body.appendChild(wrapper)
     return wrapper

@@ -87,10 +87,12 @@ export function getActiveHeadingLevel(
  * }
  * ```
  */
+const DEFAULT_LEVELS: Level[] = [1, 2, 3, 4, 5, 6]
+
 export function useHeadingDropdownMenu(config?: UseHeadingDropdownMenuConfig) {
   const {
     editor: providedEditor,
-    levels = [1, 2, 3, 4, 5, 6],
+    levels = DEFAULT_LEVELS,
     hideWhenUnavailable = false
   } = config || {}
 
@@ -105,9 +107,14 @@ export function useHeadingDropdownMenu(config?: UseHeadingDropdownMenuConfig) {
     if (!editor) return
 
     const handleSelectionUpdate = () => {
-      setIsVisible(
-        shouldShowButton({ editor, hideWhenUnavailable, level: levels })
-      )
+      const next = shouldShowButton({
+        editor,
+        hideWhenUnavailable,
+        level: levels
+      })
+      setIsVisible(function (prev) {
+        return prev === next ? prev : next
+      })
     }
 
     handleSelectionUpdate()

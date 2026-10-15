@@ -11,7 +11,10 @@ import { TableAlignMenu } from '@/components/tiptap-node/table-node/ui/table-ali
 import { SR_ONLY } from '@/lib/tiptap-utils'
 import { useTableActionItems } from './use-table-action-items.ts'
 import { useTableHandleMenu } from './use-table-handle-menu.ts'
-import { type TableActionItemProps } from './table-handle-context.ts'
+import {
+  useTableHandleContext,
+  type TableActionItemProps
+} from './table-handle-context.ts'
 
 const TableActionItem = ({
   icon: Icon,

@@ -230,8 +230,12 @@ export const TableExtendRowColumnButtons: React.FC<
 
   if (!state) return null
 
+  const portalRoot = state.widgetContainer?.isConnected
+    ? state.widgetContainer
+    : undefined
+
   return (
-    <FloatingPortal root={state.widgetContainer}>
+    <FloatingPortal root={portalRoot}>
       <div
         ref={rowButton.ref}
         style={rowButton.style}>

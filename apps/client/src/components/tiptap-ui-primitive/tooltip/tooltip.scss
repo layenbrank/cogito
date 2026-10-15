@@ -22,7 +22,14 @@
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
   text-align: center;
 
-  kbd {
+  /* 设计系统 Kbd 在深色 tooltip 上的对比度 */
+  [data-slot='kbd'] {
+    background-color: rgb(255 255 255 / 0.14);
+    color: var(--tt-tooltip-text);
+    text-transform: capitalize;
+  }
+
+  kbd:not([data-slot='kbd']) {
     display: inline-block;
     text-align: center;
     vertical-align: baseline;
@@ -31,11 +38,11 @@
       system-ui,
       -apple-system,
       BlinkMacSystemFont,
-      "Segoe UI",
+      'Segoe UI',
       Roboto,
-      "Helvetica Neue",
+      'Helvetica Neue',
       Arial,
-      "Noto Sans",
+      'Noto Sans',
       sans-serif;
     text-transform: capitalize;
     color: var(--tt-kbd);

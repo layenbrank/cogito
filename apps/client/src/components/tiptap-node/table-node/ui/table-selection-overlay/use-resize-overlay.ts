@@ -22,15 +22,23 @@ export function useResizeOverlay(
   const startLoop = useCallback(() => {
     if (rafId.current !== null) return
     const tick = () => {
-      const st = columnResizingPluginKey.getState(editor!.state)
-      const dragging = !!st?.dragging
-      updateSelectionRect() // mutate overlay styles; avoid setState if possible
-      if (dragging) {
-        rafId.current = requestAnimationFrame(tick)
-      } else {
+      if (!editor || editor.isDestroyed) {
         stopLoop()
-        // one final sync after mouseup
+        return
+      }
+      try {
+        const st = columnResizingPluginKey.getState(editor.state)
+        const dragging = !!st?.dragging
         updateSelectionRect()
+        if (dragging) {
+          rafId.current = requestAnimationFrame(tick)
+        } else {
+          stopLoop()
+          updateSelectionRect()
+        }
+      } catch (error) {
+        console.debug('[TableOverlay] resize loop stopped:', error)
+        stopLoop()
       }
     }
     rafId.current = requestAnimationFrame(tick)

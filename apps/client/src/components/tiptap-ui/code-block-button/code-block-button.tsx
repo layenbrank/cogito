@@ -104,6 +104,7 @@ export const CodeBlockButton = forwardRef<
         aria-label={label}
         aria-pressed={isActive}
         tooltip="Code Block"
+        shortcutKeys={shortcutKeys}
         onClick={handleClick}
         {...buttonProps}
         ref={ref}

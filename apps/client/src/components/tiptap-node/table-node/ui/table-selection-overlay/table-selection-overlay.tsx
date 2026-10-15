@@ -62,8 +62,12 @@ export function TableSelectionOverlay({
     )
   }
 
+  const portalRoot = containerRef.current?.isConnected
+    ? containerRef.current
+    : undefined
+
   return (
-    <FloatingPortal root={containerRef.current}>
+    <FloatingPortal root={portalRoot}>
       <div
         ref={refs.setFloating}
         style={{
