@@ -1,0 +1,236 @@
+import { cn } from 'cn'
+import * as monaco from 'monaco-editor'
+import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
+import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker'
+import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker'
+import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
+import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
+import { useEffect, useRef } from 'react'
+
+import 'monaco-editor/esm/vs/basic-languages/javascript/javascript.contribution'
+import 'monaco-editor/esm/vs/basic-languages/typescript/typescript.contribution'
+import 'monaco-editor/esm/vs/language/typescript/monaco.contribution'
+import 'monaco-editor/esm/vs/language/json/monaco.contribution'
+import 'monaco-editor/esm/vs/language/css/monaco.contribution'
+import 'monaco-editor/esm/vs/language/html/monaco.contribution'
+import 'monaco-editor/esm/vs/basic-languages/css/css.contribution'
+import 'monaco-editor/esm/vs/basic-languages/scss/scss.contribution'
+import 'monaco-editor/esm/vs/basic-languages/less/less.contribution'
+import 'monaco-editor/esm/vs/basic-languages/html/html.contribution'
+import 'monaco-editor/esm/vs/basic-languages/markdown/markdown.contribution'
+import 'monaco-editor/esm/vs/basic-languages/python/python.contribution'
+import 'monaco-editor/esm/vs/basic-languages/shell/shell.contribution'
+import 'monaco-editor/esm/vs/basic-languages/sql/sql.contribution'
+import 'monaco-editor/esm/vs/basic-languages/xml/xml.contribution'
+import 'monaco-editor/esm/vs/basic-languages/yaml/yaml.contribution'
+import 'monaco-editor/esm/vs/basic-languages/rust/rust.contribution'
+import 'monaco-editor/esm/vs/basic-languages/go/go.contribution'
+import 'monaco-editor/esm/vs/basic-languages/java/java.contribution'
+import 'monaco-editor/esm/vs/basic-languages/csharp/csharp.contribution'
+import 'monaco-editor/esm/vs/basic-languages/cpp/cpp.contribution'
+import 'monaco-editor/esm/vs/basic-languages/php/php.contribution'
+import 'monaco-editor/esm/vs/basic-languages/ruby/ruby.contribution'
+import 'monaco-editor/esm/vs/basic-languages/powershell/powershell.contribution'
+import 'monaco-editor/esm/vs/basic-languages/ini/ini.contribution'
+
+import { useCodeStore } from '@/stores/code'
+import { findModel, findOrCreateModel, findPathForModel } from '@/views/code/lib/monaco-models.ts'
+import { readCodeFile, writeCodeFile } from '@/views/code/lib/fs.ts'
+
+self.MonacoEnvironment = {
+  getWorker(_: unknown, label: string): Worker {
+    if (label === 'json') return new jsonWorker()
+    if (label === 'css' || label === 'scss' || label === 'less') return new cssWorker()
+    if (label === 'html' || label === 'handlebars' || label === 'razor') return new htmlWorker()
+    if (label === 'typescript' || label === 'javascript') return new tsWorker()
+    return new editorWorker()
+  }
+}
+
+const EDITOR_OPTIONS: monaco.editor.IStandaloneEditorConstructionOptions = {
+  theme: 'vs-dark',
+  fontSize: 13,
+  lineHeight: 20,
+  tabSize: 2,
+  insertSpaces: true,
+  detectIndentation: true,
+  trimAutoWhitespace: true,
+  largeFileOptimizations: true,
+  automaticLayout: true,
+  wordWrap: 'off',
+  smoothScrolling: true,
+  scrollBeyondLastLine: false,
+  fixedOverflowWidgets: true,
+  minimap: {
+    enabled: true,
+    maxColumn: 80,
+    renderCharacters: false,
+    showSlider: 'mouseover'
+  },
+  scrollbar: {
+    verticalScrollbarSize: 10,
+    horizontalScrollbarSize: 10,
+    useShadows: false
+  },
+  padding: { top: 4, bottom: 4 },
+  renderLineHighlight: 'line',
+  renderWhitespace: 'selection',
+  bracketPairColorization: { enabled: true },
+  guides: { bracketPairs: true, indentation: true },
+  formatOnPaste: true,
+  formatOnType: true,
+  quickSuggestions: { other: true, strings: true, comments: false },
+  suggestOnTriggerCharacters: true,
+  acceptSuggestionOnEnter: 'smart',
+  inlineSuggest: { enabled: true },
+  contextmenu: true,
+  stickyScroll: { enabled: true }
+}
+
+function isDarkMode(): boolean {
+  return document.documentElement.classList.contains('dark')
+}
+
+interface MonacoHostProps {
+  className?: string
+}
+
+function MonacoHost(props: MonacoHostProps) {
+  const hostRef = useRef<HTMLDivElement>(null)
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
+  const activeTabId = useCodeStore(function (state) {
+    return state.activeTabId
+  })
+  const tabs = useCodeStore(function (state) {
+    return state.tabs
+  })
+  const activeTab = tabs.find(function (tab) {
+    return tab.id === activeTabId
+  })
+
+  useEffect(function () {
+    const host = hostRef.current
+    if (!host) return
+
+    monaco.editor.setTheme(isDarkMode() ? 'vs-dark' : 'vs')
+    const editor = monaco.editor.create(host, EDITOR_OPTIONS)
+    editorRef.current = editor
+
+    const themeObserver = new MutationObserver(function () {
+      monaco.editor.setTheme(isDarkMode() ? 'vs-dark' : 'vs')
+    })
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    })
+
+    const subCursor = editor.onDidChangeCursorPosition(function (event) {
+      useCodeStore.getState().toSetCursor({
+        line: event.position.lineNumber,
+        column: event.position.column
+      })
+    })
+
+    const subContent = editor.onDidChangeModelContent(function () {
+      const model = editor.getModel()
+      if (!model) return
+      const path = findPathForModel(model)
+      if (!path) return
+      const tab = useCodeStore.getState().tabs.find(function (item) {
+        return item.path === path
+      })
+      if (!tab) return
+      useCodeStore.getState().toMarkDirty(tab.id, true)
+    })
+
+    const subMarkers = monaco.editor.onDidChangeMarkers(function () {
+      const model = editor.getModel()
+      if (!model) return
+      const markers = monaco.editor.getModelMarkers({ resource: model.uri })
+      useCodeStore.getState().toSetProblemCount(markers.length)
+    })
+
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function () {
+      void saveActiveEditor(editor)
+    })
+
+    requestAnimationFrame(function () {
+      editor.layout()
+    })
+
+    return function () {
+      themeObserver.disconnect()
+      subCursor.dispose()
+      subContent.dispose()
+      subMarkers.dispose()
+      editor.dispose()
+      editorRef.current = null
+    }
+  }, [])
+
+  useEffect(
+    function () {
+      const editor = editorRef.current
+      if (!editor) return
+      if (!activeTab) {
+        editor.setModel(null)
+        useCodeStore.getState().toSetProblemCount(0)
+        return
+      }
+
+      let cancelled = false
+      void (async function () {
+        let model = findModel(activeTab.path)
+        if (!model) {
+          try {
+            const content = await readCodeFile(activeTab.path)
+            if (cancelled) return
+            model = findOrCreateModel(activeTab.path, content)
+            useCodeStore.getState().toMarkDirty(activeTab.id, false)
+          } catch (error) {
+            console.error('[code] reload model failed', error)
+            return
+          }
+        }
+        if (cancelled || !editorRef.current) return
+        if (editorRef.current.getModel() !== model) {
+          editorRef.current.setModel(model)
+        }
+        useCodeStore.getState().toSetLanguageId(activeTab.language)
+        const markers = monaco.editor.getModelMarkers({ resource: model.uri })
+        useCodeStore.getState().toSetProblemCount(markers.length)
+        requestAnimationFrame(function () {
+          editorRef.current?.focus()
+          editorRef.current?.layout()
+        })
+      })()
+
+      return function () {
+        cancelled = true
+      }
+    },
+    [activeTab]
+  )
+
+  return (
+    <div
+      ref={hostRef}
+      id="monacoGraph"
+      className={cn('size-full min-h-0 bg-background/93', props.className)}
+    />
+  )
+}
+
+async function saveActiveEditor(editor: monaco.editor.IStandaloneCodeEditor): Promise<void> {
+  const model = editor.getModel()
+  if (!model) return
+  const store = useCodeStore.getState()
+  const tab = store.tabs.find(function (item) {
+    return item.id === store.activeTabId
+  })
+  if (!tab) return
+  await writeCodeFile(tab.path, model.getValue())
+  store.toMarkSaved(tab.id)
+}
+
+export { MonacoHost, saveActiveEditor }

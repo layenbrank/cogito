@@ -1,17 +1,2 @@
-import type { editor } from 'monaco-editor'
-
-interface SectionProps {
-  composer?: editor.IEditor
-}
-
-const Section = forwardRef<HTMLDivElement, SectionProps>(function (_props, ref) {
-  return (
-    <div
-      ref={ref}
-      id="monacoGraph"
-      className="size-full"
-    />
-  )
-})
-
-export default Section
+/** Monaco 宿主已迁至 MonacoHost；保留导出以免外部引用断裂。 */
+export { MonacoHost as default } from '@/views/code/workspace/monaco-host.tsx'
