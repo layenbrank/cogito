@@ -13,8 +13,8 @@ function Outline(props: OutlineProps) {
   })
 
   return (
-    <div className="flex h-full min-h-0 flex-col border-l border-border bg-background">
-      <div className="flex h-8 shrink-0 items-center border-b border-border px-2 text-xs font-medium text-muted-foreground">
+    <div className="flex h-full min-h-0 flex-col border-l border-border/50 bg-background/65 backdrop-blur-md">
+      <div className="flex h-8 shrink-0 items-center border-b border-border/50 px-2 text-xs font-medium text-muted-foreground">
         {t('OUTLINE')}
       </div>
       <ul className="min-h-0 flex-1 list-none overflow-y-auto p-1 text-sm">

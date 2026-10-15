@@ -137,7 +137,7 @@ function SourceEditor(props: SourceEditorProps) {
   return (
     <div
       ref={hostRef}
-      className={cn('h-full min-h-0 w-full', props.className)}
+      className={cn('h-full min-h-0 w-full bg-background/93', props.className)}
     />
   )
 }

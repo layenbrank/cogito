@@ -6,12 +6,14 @@ import {
   findDefaultRoot,
   findDisplayTitle,
   pickOpenMarkdown,
+  pickRootDirectory,
   pickSaveMarkdown,
   readMarkdownFile,
   writeMarkdownFile
 } from '@/views/markdown/lib/fs.ts'
 import { parseMarkdown } from '@/views/markdown/lib/parse-markdown.ts'
 import { findOutlineFromMarkdown } from '@/views/markdown/lib/outline.ts'
+import { findParentDir, isPathInsideRoot } from '@/views/markdown/lib/path.ts'
 import { serializeHtmlToMarkdown } from '@/views/markdown/lib/serialize-markdown.ts'
 import { findDocStats } from '@/views/markdown/lib/stats.ts'
 import { t } from '@/views/markdown/locale.ts'
@@ -30,10 +32,36 @@ function syncDerived(markdown: string): void {
   store.toUpdateOutline(findOutlineFromMarkdown(markdown))
 }
 
+function syncWorkspaceRootForFile(path: string): void {
+  const store = useMarkdownStore.getState()
+  if (store.rootDir && isPathInsideRoot(store.rootDir, path)) return
+  const parent = findParentDir(path)
+  store.toPatchPreferences({ rootDir: parent })
+  store.toBumpTree()
+}
+
+function isSamePath(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false
+  return a.replace(/\\/g, '/').toLowerCase() === b.replace(/\\/g, '/').toLowerCase()
+}
+
+/** 防止快速连续打开时，较慢的旧请求覆盖新文档 */
+let openSequence = 0
+
 async function openPath(path: string): Promise<boolean> {
   const store = useMarkdownStore.getState()
+  if (isSamePath(store.activePath, path) && !store.isDirty && !store.isLoading) {
+    return true
+  }
+
+  const sequence = ++openSequence
+  // 先切高亮，让侧栏立刻响应
+  store.toBeginOpen(path)
+
   try {
     const raw = await readMarkdownFile(path)
+    if (sequence !== openSequence) return false
+
     const parsed = parseMarkdown(raw)
     const large = isLargeMarkdown(raw)
     store.toOpenDocument({
@@ -43,14 +71,20 @@ async function openPath(path: string): Promise<boolean> {
       html: parsed.html,
       isLargeFile: large
     })
-    syncDerived(raw)
-    store.toPushRecent(path)
+    syncWorkspaceRootForFile(path)
+    requestAnimationFrame(function () {
+      if (sequence !== openSequence) return
+      syncDerived(raw)
+      useMarkdownStore.getState().toPushRecent(path)
+    })
     if (large) {
       toast.message(t('LARGE_FILE_WARN'))
     }
     return true
   } catch (error) {
+    if (sequence !== openSequence) return false
     console.error('[markdown] open failed', error)
+    store.toSetLoading(false)
     toast.error(t('OPEN_FAILED'))
     return false
   }
@@ -60,6 +94,21 @@ async function openWithDialog(): Promise<boolean> {
   const path = await pickOpenMarkdown()
   if (!path) return false
   return openPath(path)
+}
+
+/**
+ * 将目录设为工作区根。若尚未进入编辑态则打开空白文档以便显示侧栏。
+ */
+async function openFolderAsWorkspace(dir?: string | null): Promise<boolean> {
+  const selected = dir ?? (await pickRootDirectory())
+  if (!selected) return false
+  const store = useMarkdownStore.getState()
+  store.toPatchPreferences({ rootDir: selected })
+  store.toBumpTree()
+  if (!store.hasOpened) {
+    store.toNewDocument()
+  }
+  return true
 }
 
 function createUntitled(): void {
@@ -97,6 +146,7 @@ async function saveDocument(options?: {
     store.toMarkSaved(path)
     syncDerived(content)
     store.toPushRecent(path)
+    syncWorkspaceRootForFile(path)
     void writeBackup(path, content).catch(function () {
       /* ignore backup errors */
     })
@@ -123,6 +173,7 @@ export {
   ensureRootDir,
   openPath,
   openWithDialog,
+  openFolderAsWorkspace,
   createUntitled,
   findCurrentMarkdown,
   saveDocument,

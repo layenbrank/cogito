@@ -23,6 +23,7 @@ interface MarkdownSession {
   outline: OutlineItem[]
   findQuery: string
   findReplace: string
+  fileQuery: string
   isFindOpen: boolean
   isPrefsOpen: boolean
   externalChanged: boolean
@@ -40,6 +41,9 @@ interface MarkdownStore extends MarkdownSession, MarkdownPreferences {
     html: string
     isLargeFile?: boolean
   }): void
+  /** 先切 activePath / 侧栏高亮，编辑器内容稍后灌入 */
+  toBeginOpen(path: string): void
+  toSetLoading(isLoading: boolean): void
   toNewDocument(): void
   toUpdateMarkdown(markdown: string): void
   toUpdateHtml(html: string): void
@@ -54,6 +58,7 @@ interface MarkdownStore extends MarkdownSession, MarkdownPreferences {
   toSetFindOpen(isOpen: boolean): void
   toSetFindQuery(query: string): void
   toSetFindReplace(value: string): void
+  toSetFileQuery(query: string): void
   toSetPrefsOpen(isOpen: boolean): void
   toSetExternalChanged(isChanged: boolean): void
   toBumpTree(): void
@@ -95,6 +100,7 @@ const useMarkdownStore = create<MarkdownStore>()(
         outline: [],
         findQuery: '',
         findReplace: '',
+        fileQuery: '',
         isFindOpen: false,
         isPrefsOpen: false,
         externalChanged: false,
@@ -142,6 +148,30 @@ const useMarkdownStore = create<MarkdownStore>()(
             },
             false,
             'toOpenDocument'
+          )
+        },
+
+        toBeginOpen(path) {
+          setters(
+            function (state) {
+              state.activePath = path
+              state.hasOpened = true
+              state.isLoading = true
+              state.isDirty = false
+              state.externalChanged = false
+            },
+            false,
+            'toBeginOpen'
+          )
+        },
+
+        toSetLoading(isLoading) {
+          setters(
+            function (state) {
+              state.isLoading = isLoading
+            },
+            false,
+            'toSetLoading'
           )
         },
 
@@ -301,6 +331,16 @@ const useMarkdownStore = create<MarkdownStore>()(
           )
         },
 
+        toSetFileQuery(query) {
+          setters(
+            function (state) {
+              state.fileQuery = query
+            },
+            false,
+            'toSetFileQuery'
+          )
+        },
+
         toSetPrefsOpen(isOpen) {
           setters(
             function (state) {
@@ -334,6 +374,7 @@ const useMarkdownStore = create<MarkdownStore>()(
         toPushRecent(path) {
           setters(
             function (state) {
+              if (state.recentPaths[0] === path) return
               state.recentPaths = [
                 path,
                 ...state.recentPaths.filter(function (item) {

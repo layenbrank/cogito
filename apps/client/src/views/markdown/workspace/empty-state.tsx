@@ -5,7 +5,8 @@ import { useMarkdownStore } from '@/stores/markdown'
 import { t } from '@/views/markdown/locale.ts'
 
 interface EmptyStateProps {
-  onOpen(): void
+  onOpenFile(): void
+  onOpenFolder(): void
   onNew(): void
   onOpenRecent(path: string): void
 }
@@ -16,7 +17,7 @@ function EmptyState(props: EmptyStateProps) {
   })
 
   return (
-    <div className="flex h-full min-h-0 flex-col items-center justify-center gap-6 px-8 text-center">
+    <div className="flex h-full min-h-0 flex-col items-center justify-center gap-6 bg-background/80 px-8 text-center backdrop-blur-sm">
       <div className="space-y-2">
         <h2 className="text-2xl font-semibold tracking-tight text-foreground">
           {t('EMPTY_TITLE')}
@@ -26,16 +27,26 @@ function EmptyState(props: EmptyStateProps) {
       <div className="flex flex-wrap items-center justify-center gap-2">
         <Button
           type="button"
-          onClick={props.onOpen}>
+          onClick={props.onOpenFile}>
           <Icon
-            icon="lucide:folder-open"
+            icon="lucide:file-text"
             className="size-4"
           />
-          {t('OPEN')}
+          {t('OPEN_FILE')}
         </Button>
         <Button
           type="button"
           variant="secondary"
+          onClick={props.onOpenFolder}>
+          <Icon
+            icon="lucide:folder-open"
+            className="size-4"
+          />
+          {t('OPEN_FOLDER')}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
           onClick={props.onNew}>
           <Icon
             icon="lucide:file-plus-2"

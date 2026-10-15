@@ -19,6 +19,27 @@ import {
   normalizeSeparators
 } from '@/views/markdown/lib/path.ts'
 
+/** 单目录可见条目上限，超出需「加载更多」（对齐 VS Code explorer.fileLimit 思路） */
+const TREE_PAGE_SIZE = 200
+
+interface TreeEntry {
+  name: string
+  path: string
+  isDirectory: boolean
+}
+
+/** 按绝对路径缓存已排序的目录条目，避免二次展开 / Load more 重复 readDir */
+const dirListCache = new Map<string, TreeEntry[]>()
+
+function clearDirListCache(absolutePath?: string): void {
+  if (!absolutePath) {
+    dirListCache.clear()
+    return
+  }
+  const key = normalizeSeparators(absolutePath).replace(/\/+$/, '')
+  dirListCache.delete(key)
+}
+
 async function findDefaultRoot(): Promise<string> {
   return documentDir()
 }
@@ -57,45 +78,102 @@ async function pickRootDirectory(): Promise<string | null> {
   return selected
 }
 
-interface TreeEntry {
-  name: string
-  path: string
-  isDirectory: boolean
+interface ListMarkdownEntriesOptions {
+  offset?: number
+  limit?: number
+  /** 仅在无缓存全量列表上过滤；优先由 UI 对已加载节点做客户端过滤 */
+  query?: string
 }
 
-async function listMarkdownEntries(
+interface ListMarkdownEntriesResult {
+  entries: TreeEntry[]
+  hasMore: boolean
+  total: number
+}
+
+function mapDirEntry(entry: DirEntry, relative: string): TreeEntry | null {
+  if (!entry.name || entry.name.startsWith('.')) return null
+
+  if (entry.isDirectory) {
+    return {
+      name: entry.name,
+      path: relative ? `${relative}/${entry.name}` : entry.name,
+      isDirectory: true
+    }
+  }
+
+  // 仅收录明确文件或带 markdown 扩展名的条目，跳过歧义 symlink 等
+  if (entry.isFile || (!entry.isDirectory && isMarkdownName(entry.name))) {
+    if (!isMarkdownName(entry.name)) return null
+    return {
+      name: entry.name,
+      path: relative ? `${relative}/${entry.name}` : entry.name,
+      isDirectory: false
+    }
+  }
+
+  return null
+}
+
+function findCacheKey(absolute: string): string {
+  return normalizeSeparators(absolute).replace(/\/+$/, '')
+}
+
+async function findSortedDirEntries(
   root: string,
-  relative: string
+  relative: string,
+  absolute: string
 ): Promise<TreeEntry[]> {
-  const absolute = relative ? joinPath(root, relative) : root
-  if (!isPathInsideRoot(root, absolute)) {
-    throw new Error('Path escapes workspace root')
-  }
-  const entries: DirEntry[] = await readDir(absolute)
+  const cacheKey = findCacheKey(absolute)
+  const cached = dirListCache.get(cacheKey)
+  if (cached) return cached
+
+  const dirEntries: DirEntry[] = await readDir(absolute)
   const mapped: TreeEntry[] = []
-  for (const entry of entries) {
-    if (entry.name.startsWith('.')) continue
-    if (entry.isDirectory) {
-      mapped.push({
-        name: entry.name,
-        path: relative ? `${relative}/${entry.name}` : entry.name,
-        isDirectory: true
-      })
-      continue
-    }
-    if (isMarkdownName(entry.name)) {
-      mapped.push({
-        name: entry.name,
-        path: relative ? `${relative}/${entry.name}` : entry.name,
-        isDirectory: false
-      })
-    }
+  for (const entry of dirEntries) {
+    const item = mapDirEntry(entry, relative)
+    if (item) mapped.push(item)
   }
+
   mapped.sort(function (a, b) {
     if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
     return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
   })
+
+  dirListCache.set(cacheKey, mapped)
   return mapped
+}
+
+async function listMarkdownEntries(
+  root: string,
+  relative: string,
+  options: ListMarkdownEntriesOptions = {}
+): Promise<ListMarkdownEntriesResult> {
+  const offset = options.offset ?? 0
+  const limit = options.limit ?? TREE_PAGE_SIZE
+  const query = options.query?.trim().toLowerCase() ?? ''
+
+  const absolute = relative ? joinPath(root, relative) : root
+  if (!isPathInsideRoot(root, absolute)) {
+    throw new Error('Path escapes workspace root')
+  }
+
+  let mapped = await findSortedDirEntries(root, relative, absolute)
+
+  if (query) {
+    mapped = mapped.filter(function (item) {
+      if (item.isDirectory) return true
+      return item.name.toLowerCase().includes(query)
+    })
+  }
+
+  const total = mapped.length
+  const entries = mapped.slice(offset, offset + limit)
+  return {
+    entries,
+    hasMore: offset + entries.length < total,
+    total
+  }
 }
 
 async function createMarkdownFile(root: string, relativeDir: string, name: string): Promise<string> {
@@ -151,6 +229,8 @@ function findDisplayTitle(path: string | null, isDirty: boolean): string {
 }
 
 export {
+  TREE_PAGE_SIZE,
+  clearDirListCache,
   findDefaultRoot,
   readMarkdownFile,
   writeMarkdownFile,
@@ -167,4 +247,4 @@ export {
   normalizeSeparators
 }
 
-export type { TreeEntry }
+export type { TreeEntry, ListMarkdownEntriesOptions, ListMarkdownEntriesResult }

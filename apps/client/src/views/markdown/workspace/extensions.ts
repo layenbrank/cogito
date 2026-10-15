@@ -26,6 +26,7 @@ import { all, createLowlight } from 'lowlight'
 
 import { MathBlock, MathInline } from '@/views/markdown/workspace/math-extension.ts'
 import { MermaidBlock } from '@/views/markdown/workspace/mermaid-extension.ts'
+import { SearchHighlight } from '@/views/markdown/workspace/search-highlight-extension.ts'
 import { t } from '@/views/markdown/locale.ts'
 
 const lowlight = createLowlight(all)
@@ -75,7 +76,8 @@ function findMarkdownExtensions(options: {
     }),
     MathBlock,
     MathInline,
-    MermaidBlock
+    MermaidBlock,
+    SearchHighlight
   ]
 
   if (options.isTypographyEnabled) {

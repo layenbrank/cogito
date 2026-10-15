@@ -6,8 +6,8 @@ import {
   type Editor
 } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
-import { toast } from 'sonner'
 
+import { Fallback } from '@/components/fallback/index.ts'
 import { Glide } from '@/components/glide/glide'
 import { BlockquoteButton } from '@/components/tiptap-ui/blockquote-button/blockquote-button.tsx'
 import { CodeBlockButton } from '@/components/tiptap-ui/code-block-button/code-block-button.tsx'
@@ -31,8 +31,6 @@ import { TableHandle } from '@/components/tiptap-node/table-node/ui/table-handle
 import { TableSelectionOverlay } from '@/components/tiptap-node/table-node/ui/table-selection-overlay/table-selection-overlay.tsx'
 import { TableTriggerButton } from '@/components/tiptap-node/table-node/ui/table-trigger-button/table-trigger-button.tsx'
 import { useMarkdownStore } from '@/stores/markdown'
-import { serializeHtmlToMarkdown } from '@/views/markdown/lib/serialize-markdown.ts'
-import { t } from '@/views/markdown/locale.ts'
 
 import '@/styles/markdown-composer.scss'
 import '@/components/tiptap-node/blockquote-node/blockquote-node.scss'
@@ -65,34 +63,19 @@ function Section(props: SectionProps) {
   const fontSize = useMarkdownStore(function (state) {
     return state.fontSize
   })
-  const frontMatter = useMarkdownStore(function (state) {
-    return state.frontMatter
-  })
   const isFocusMode = useMarkdownStore(function (state) {
     return state.isFocusMode
   })
-
-  function onCopyAsMarkdown() {
-    if (!props.composer) return
-    const md = serializeHtmlToMarkdown(props.composer.getHTML(), frontMatter)
-    void navigator.clipboard.writeText(md).then(function () {
-      toast.success(t('COPY_MD'))
-    })
-  }
-
-  function onCopyAsHtml() {
-    if (!props.composer) return
-    void navigator.clipboard.writeText(props.composer.getHTML()).then(function () {
-      toast.success(t('COPY_HTML'))
-    })
-  }
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
       {!props.isToolbarHidden && !isFocusMode ? (
         <Glide.X
           classNames={{
-            root: cn(styles.toolbar, 'w-full shrink-0 border-b border-border bg-background'),
+            root: cn(
+              styles.toolbar,
+              'w-full shrink-0 border-b border-border/50 bg-background/75 backdrop-blur-md'
+            ),
             inner: styles.toolbarTrack
           }}>
           <UndoRedoButton
@@ -100,18 +83,16 @@ function Section(props: SectionProps) {
             action="undo"
             tooltip="撤销"
             hideWhenUnavailable={false}
-            showShortcut
           />
           <UndoRedoButton
             editor={props.composer}
             action="redo"
             tooltip="重做"
             hideWhenUnavailable={false}
-            showShortcut
           />
           <Separator
             orientation="vertical"
-            className="mx-0.5 h-4 shrink-0"
+            className="mx-0.5 h-auto shrink-0 self-stretch"
           />
           {props.composer ? (
             <HeadingDropdownMenu
@@ -132,35 +113,30 @@ function Section(props: SectionProps) {
             type="bold"
             tooltip="加粗"
             hideWhenUnavailable
-            showShortcut
           />
           <MarkButton
             editor={props.composer}
             type="italic"
             tooltip="斜体"
             hideWhenUnavailable
-            showShortcut
           />
           <MarkButton
             editor={props.composer}
             type="strike"
             tooltip="删除线"
             hideWhenUnavailable
-            showShortcut
           />
           <MarkButton
             editor={props.composer}
             type="code"
             tooltip="行内代码"
             hideWhenUnavailable
-            showShortcut
           />
           <MarkButton
             editor={props.composer}
             type="underline"
             tooltip="下划线"
             hideWhenUnavailable
-            showShortcut
           />
           {props.composer ? (
             <LinkPopover
@@ -180,28 +156,25 @@ function Section(props: SectionProps) {
           ) : null}
           <Separator
             orientation="vertical"
-            className="mx-0.5 h-4 shrink-0"
+            className="mx-0.5 h-auto shrink-0 self-stretch"
           />
           <ListButton
             editor={props.composer}
             type="bulletList"
             tooltip="无序列表"
             hideWhenUnavailable
-            showShortcut
           />
           <ListButton
             editor={props.composer}
             type="orderedList"
             tooltip="有序列表"
             hideWhenUnavailable
-            showShortcut
           />
           <ListButton
             editor={props.composer}
             type="taskList"
             tooltip="任务列表"
             hideWhenUnavailable
-            showShortcut
           />
           {props.composer ? (
             <ListDropdownMenu
@@ -215,13 +188,11 @@ function Section(props: SectionProps) {
             editor={props.composer}
             tooltip="块引用"
             hideWhenUnavailable
-            showShortcut
           />
           <CodeBlockButton
             editor={props.composer}
             tooltip="代码块"
             hideWhenUnavailable
-            showShortcut
           />
           <TableTriggerButton editor={props.composer} />
           {props.composer ? (
@@ -232,47 +203,31 @@ function Section(props: SectionProps) {
           ) : null}
           <Separator
             orientation="vertical"
-            className="mx-0.5 h-4 shrink-0"
+            className="mx-0.5 h-auto shrink-0 self-stretch"
           />
           <TextAlignButton
             editor={props.composer}
             align="left"
             tooltip="左对齐"
             hideWhenUnavailable
-            showShortcut
           />
           <TextAlignButton
             editor={props.composer}
             align="center"
             tooltip="居中对齐"
             hideWhenUnavailable
-            showShortcut
           />
           <TextAlignButton
             editor={props.composer}
             align="right"
             tooltip="右对齐"
             hideWhenUnavailable
-            showShortcut
           />
           <TextButton
             editor={props.composer}
             tooltip="清除格式"
             hideWhenUnavailable
-            showShortcut={false}
           />
-          <button
-            type="button"
-            className="ml-1 h-7 shrink-0 rounded-md px-2 text-xs whitespace-nowrap text-muted-foreground hover:bg-muted hover:text-foreground"
-            onClick={onCopyAsMarkdown}>
-            {t('COPY_MD')}
-          </button>
-          <button
-            type="button"
-            className="h-7 shrink-0 rounded-md px-2 text-xs whitespace-nowrap text-muted-foreground hover:bg-muted hover:text-foreground"
-            onClick={onCopyAsHtml}>
-            {t('COPY_HTML')}
-          </button>
         </Glide.X>
       ) : null}
 
@@ -297,7 +252,7 @@ function Section(props: SectionProps) {
           {props.composer ? (
             <BubbleMenu
               editor={props.composer}
-              className="flex items-center gap-0.5 rounded-md border border-border bg-background p-1 shadow-md">
+              className="flex items-center gap-0.5 rounded-md border border-border bg-popover p-1 shadow-md">
               <MarkButton
                 editor={props.composer}
                 type="bold"
@@ -326,22 +281,26 @@ function Section(props: SectionProps) {
             </BubbleMenu>
           ) : null}
           {props.composer ? <SlashDropdownMenu editor={props.composer} /> : null}
-          <TableHandle editor={props.composer} />
-          <TableSelectionOverlay
-            editor={props.composer}
-            showResizeHandles
-            cellMenu={function (menuProps) {
-              return (
-                <TableCellHandleMenu
-                  editor={menuProps.editor}
-                  onMouseDown={function (event) {
-                    menuProps.onResizeStart?.('br')(event)
-                  }}
-                />
-              )
-            }}
-          />
-          <TableExtendRowColumnButtons editor={props.composer} />
+          <Fallback.ErrorBoundary
+            compact
+            title="表格工具暂时不可用">
+            <TableHandle editor={props.composer} />
+            <TableSelectionOverlay
+              editor={props.composer}
+              showResizeHandles
+              cellMenu={function (menuProps) {
+                return (
+                  <TableCellHandleMenu
+                    editor={menuProps.editor}
+                    onMouseDown={function (event) {
+                      menuProps.onResizeStart?.('br')(event)
+                    }}
+                  />
+                )
+              }}
+            />
+            <TableExtendRowColumnButtons editor={props.composer} />
+          </Fallback.ErrorBoundary>
           <DragContextMenu
             editor={props.composer}
             withSlashCommandTrigger

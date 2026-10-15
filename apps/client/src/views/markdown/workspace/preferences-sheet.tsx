@@ -44,7 +44,9 @@ function PreferencesSheet() {
 
   async function onPickRoot() {
     const root = await pickRootDirectory()
-    if (root) toPatchPreferences({ rootDir: root })
+    if (!root) return
+    toPatchPreferences({ rootDir: root })
+    useMarkdownStore.getState().toBumpTree()
   }
 
   return (

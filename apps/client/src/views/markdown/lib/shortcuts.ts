@@ -38,6 +38,12 @@ const SHORTCUTS = {
     key: 'f',
     ctrl: true
   },
+  FIND_REPLACE: {
+    id: 'find-replace',
+    label: 'Ctrl+H',
+    key: 'h',
+    ctrl: true
+  },
   PRINT: {
     id: 'print',
     label: 'Ctrl+P',

@@ -8,12 +8,13 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { watch } from '@tauri-apps/plugin-fs'
 import { useEditor as useComposer, type Editor } from '@tiptap/react'
 import { clsx } from 'clsx'
-import { useEffect, useRef, useState } from 'react'
+import { startTransition, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { useMarkdownStore } from '@/stores/markdown'
 import { writeBackup } from '@/views/markdown/lib/backup.ts'
+import { subscribeMarkdownCommands } from '@/views/markdown/lib/commands.ts'
 import { exportHtmlDocument, printDocument } from '@/views/markdown/lib/export.ts'
 import { findDisplayTitle } from '@/views/markdown/lib/fs.ts'
 import { parseMarkdown } from '@/views/markdown/lib/parse-markdown.ts'
@@ -21,7 +22,7 @@ import { serializeHtmlToMarkdown } from '@/views/markdown/lib/serialize-markdown
 import { findOutlineFromEditor } from '@/views/markdown/lib/outline.ts'
 import {
   createUntitled,
-  findCurrentMarkdown,
+  openFolderAsWorkspace,
   openPath,
   openWithDialog,
   saveDocument,
@@ -49,14 +50,17 @@ export default function MarkdownWorkspace() {
   const liveScrollRef = useRef<HTMLDivElement | null>(null)
   const scrollRatioRef = useRef(0)
   const [scrollRatio, setScrollRatio] = useState(0)
-  const [fileQuery, setFileQuery] = useState('')
   const [discardOpen, setDiscardOpen] = useState(false)
+  const [findPreferReplace, setFindPreferReplace] = useState(false)
   const pendingActionRef = useRef<PendingAction>(null)
   const syncingRef = useRef(false)
   const lastSavedRef = useRef('')
 
   const hasOpened = useMarkdownStore(function (state) {
     return state.hasOpened
+  })
+  const isDocLoading = useMarkdownStore(function (state) {
+    return state.isLoading
   })
   const viewMode = useMarkdownStore(function (state) {
     return state.viewMode
@@ -84,12 +88,6 @@ export default function MarkdownWorkspace() {
   })
   const isFindOpen = useMarkdownStore(function (state) {
     return state.isFindOpen
-  })
-  const findQuery = useMarkdownStore(function (state) {
-    return state.findQuery
-  })
-  const findReplace = useMarkdownStore(function (state) {
-    return state.findReplace
   })
   const autosaveMs = useMarkdownStore(function (state) {
     return state.autosaveMs
@@ -292,7 +290,7 @@ export default function MarkdownWorkspace() {
     [isDirty, activePath]
   )
 
-  // External file watch
+  // External file watch（插件未注册时静默跳过）
   useEffect(
     function () {
       if (!activePath) return
@@ -310,9 +308,17 @@ export default function MarkdownWorkspace() {
           toSetExternalChanged(true)
         },
         { delayMs: 400 }
-      ).then(function (fn) {
-        unwatch = fn
-      })
+      )
+        .then(function (fn) {
+          if (disposed) {
+            fn()
+            return
+          }
+          unwatch = fn
+        })
+        .catch(function () {
+          /* Command watch not found — 当前壳未启用 fs watch */
+        })
       return function () {
         disposed = true
         unwatch?.()
@@ -321,24 +327,35 @@ export default function MarkdownWorkspace() {
     [activePath, toSetExternalChanged]
   )
 
-  // Sync live editor when opening / mode switch to live
+  // 等打开完成再灌编辑器，避免 toBeginOpen 时用旧 markdown 覆盖。
+  // TipTap ReactRenderer 在已挂载时用 flushSync 渲染节点视图，
+  // 不能在 effect 同步路径里 setContent，否则会触发 React 警告。
   useEffect(
     function () {
       if (!composer) return
       if (viewMode === 'source') return
-      syncingRef.current = true
-      const parsed = parseMarkdown(markdown)
-      composer.commands.setContent(parsed.html || '<p></p>', {
-        emitUpdate: false
+      if (isDocLoading) return
+      const state = useMarkdownStore.getState()
+      const nextHtml = state.html || '<p></p>'
+      const nextSaved = state.markdown
+      let cancelled = false
+      queueMicrotask(function () {
+        if (cancelled || !composerRef.current) return
+        syncingRef.current = true
+        composerRef.current.commands.setContent(nextHtml, {
+          emitUpdate: false
+        })
+        lastSavedRef.current = nextSaved
+        queueMicrotask(function () {
+          syncingRef.current = false
+        })
       })
-      lastSavedRef.current = markdown
-      requestAnimationFrame(function () {
-        syncingRef.current = false
-      })
+      return function () {
+        cancelled = true
+      }
     },
-    // only when path changes or entering live from source with external load
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activePath, composer]
+    [activePath, composer, viewMode, isDocLoading]
   )
 
   function runGuarded(action: () => void) {
@@ -350,16 +367,43 @@ export default function MarkdownWorkspace() {
     setDiscardOpen(true)
   }
 
-  async function handleOpen() {
+  function applyComposerFromStore(expectedPath?: string | null) {
+    if (!composer) return
+    // 侧栏高亮已同步；编辑器灌入降为低优先级，避免整页卡顿
+    startTransition(function () {
+      requestAnimationFrame(function () {
+        if (!composerRef.current) return
+        const state = useMarkdownStore.getState()
+        if (expectedPath) {
+          const current = state.activePath?.replace(/\\/g, '/').toLowerCase()
+          const expected = expectedPath.replace(/\\/g, '/').toLowerCase()
+          if (current !== expected) return
+        }
+        const nextHtml = state.html || '<p></p>'
+        syncingRef.current = true
+        composerRef.current.commands.setContent(nextHtml, {
+          emitUpdate: false
+        })
+        syncingRef.current = false
+      })
+    })
+  }
+
+  async function handleOpenFile() {
     runGuarded(function () {
       void openWithDialog().then(function (ok) {
-        if (ok && composer) {
-          const state = useMarkdownStore.getState()
-          syncingRef.current = true
-          composer.commands.setContent(state.html || '<p></p>', {
-            emitUpdate: false
-          })
-          syncingRef.current = false
+        if (ok) {
+          applyComposerFromStore(useMarkdownStore.getState().activePath)
+        }
+      })
+    })
+  }
+
+  async function handleOpenFolder() {
+    runGuarded(function () {
+      void openFolderAsWorkspace().then(function (ok) {
+        if (ok && !useMarkdownStore.getState().activePath) {
+          applyComposerFromStore()
         }
       })
     })
@@ -379,20 +423,26 @@ export default function MarkdownWorkspace() {
   function handleOpenPath(path: string) {
     runGuarded(function () {
       void openPath(path).then(function (ok) {
-        if (ok && composer) {
-          const state = useMarkdownStore.getState()
-          syncingRef.current = true
-          composer.commands.setContent(state.html || '<p></p>', {
-            emitUpdate: false
-          })
-          syncingRef.current = false
-        }
+        if (ok) applyComposerFromStore(path)
       })
     })
   }
 
   async function handleSave() {
     await saveDocument({ liveHtml: composer?.getHTML() })
+  }
+
+  const commandHandlersRef = useRef({
+    openFile: handleOpenFile,
+    openFolder: handleOpenFolder,
+    createNew: handleNew,
+    save: handleSave
+  })
+  commandHandlersRef.current = {
+    openFile: handleOpenFile,
+    openFolder: handleOpenFolder,
+    createNew: handleNew,
+    save: handleSave
   }
 
   function onSourceChange(value: string) {
@@ -435,6 +485,54 @@ export default function MarkdownWorkspace() {
     [viewMode]
   )
 
+  // 标题栏应用菜单派发的文件命令
+  useEffect(function () {
+    return subscribeMarkdownCommands(function (command) {
+      const handlers = commandHandlersRef.current
+      if (command.type === 'open-file') {
+        void handlers.openFile()
+        return
+      }
+      if (command.type === 'open-folder') {
+        void handlers.openFolder()
+        return
+      }
+      if (command.type === 'new') {
+        handlers.createNew()
+        return
+      }
+      if (command.type === 'save') {
+        void handlers.save()
+        return
+      }
+      if (command.type === 'export-html') {
+        void exportHtmlDocument({
+          activePath: useMarkdownStore.getState().activePath,
+          html: composerRef.current?.getHTML() ?? useMarkdownStore.getState().html
+        })
+        return
+      }
+      if (command.type === 'copy-md') {
+        const state = useMarkdownStore.getState()
+        const md = serializeHtmlToMarkdown(
+          composerRef.current?.getHTML() ?? state.html,
+          state.frontMatter
+        )
+        void navigator.clipboard.writeText(md).then(function () {
+          toast.success(t('COPY_MD'))
+        })
+        return
+      }
+      if (command.type === 'copy-html') {
+        const htmlContent =
+          composerRef.current?.getHTML() ?? useMarkdownStore.getState().html
+        void navigator.clipboard.writeText(htmlContent).then(function () {
+          toast.success(t('COPY_HTML'))
+        })
+      }
+    })
+  }, [])
+
   // Keyboard shortcuts（capture，避免被 TipTap/Monaco 吞掉 Ctrl+S）
   useEffect(
     function () {
@@ -447,6 +545,12 @@ export default function MarkdownWorkspace() {
         }
 
         if (matchesShortcut(event, SHORTCUTS.FOCUS_EXIT)) {
+          if (useMarkdownStore.getState().isFindOpen) {
+            event.preventDefault()
+            event.stopPropagation()
+            toSetFindOpen(false)
+            return
+          }
           if (useMarkdownStore.getState().isFocusMode) {
             event.preventDefault()
             event.stopPropagation()
@@ -464,7 +568,7 @@ export default function MarkdownWorkspace() {
 
         if (matchesShortcut(event, SHORTCUTS.OPEN)) {
           event.preventDefault()
-          void handleOpen()
+          void handleOpenFile()
           return
         }
 
@@ -476,6 +580,14 @@ export default function MarkdownWorkspace() {
 
         if (matchesShortcut(event, SHORTCUTS.FIND)) {
           event.preventDefault()
+          setFindPreferReplace(false)
+          toSetFindOpen(true)
+          return
+        }
+
+        if (matchesShortcut(event, SHORTCUTS.FIND_REPLACE)) {
+          event.preventDefault()
+          setFindPreferReplace(true)
           toSetFindOpen(true)
           return
         }
@@ -518,58 +630,6 @@ export default function MarkdownWorkspace() {
     [composer]
   )
 
-  function onFindNext() {
-    if (!findQuery) return
-    if (viewMode === 'source' || viewMode === 'split') {
-      // Monaco find is built-in; for live:
-    }
-    if (!composer) return
-    const { state } = composer
-    const text = state.doc.textContent
-    const index = text.toLowerCase().indexOf(findQuery.toLowerCase())
-    if (index < 0) return
-    let pos = 0
-    let found = -1
-    state.doc.descendants(function (node, nodePos) {
-      if (found >= 0) return false
-      if (!node.isText || !node.text) return true
-      const local = node.text.toLowerCase().indexOf(findQuery.toLowerCase())
-      if (local >= 0) {
-        found = nodePos + local
-        return false
-      }
-      pos += node.text.length
-      return true
-    })
-    if (found >= 0) {
-      composer
-        .chain()
-        .focus()
-        .setTextSelection({ from: found, to: found + findQuery.length })
-        .run()
-    }
-  }
-
-  function onReplaceOne() {
-    if (!composer || !findQuery) return
-    const { from, to } = composer.state.selection
-    const selected = composer.state.doc.textBetween(from, to)
-    if (selected.toLowerCase() === findQuery.toLowerCase()) {
-      composer.chain().focus().insertContent(findReplace).run()
-    } else {
-      onFindNext()
-    }
-  }
-
-  function onReplaceAll() {
-    if (!composer || !findQuery) return
-    const htmlContent = composer.getHTML()
-    const next = htmlContent.split(findQuery).join(findReplace)
-    syncingRef.current = true
-    composer.commands.setContent(next)
-    syncingRef.current = false
-  }
-
   function onOutlineJump(pos: number) {
     if (viewMode === 'source') {
       // approximate: scroll monaco via ratio later
@@ -605,39 +665,20 @@ export default function MarkdownWorkspace() {
 
       {showChrome ? (
         <Overlay.Utility
-          fileQuery={fileQuery}
-          onFileQuery={setFileQuery}
-          onOpen={function () {
-            void handleOpen()
-          }}
-          onNew={handleNew}
-          onSave={function () {
-            void handleSave()
-          }}
           onToggleFind={function () {
+            setFindPreferReplace(false)
             toSetFindOpen(!isFindOpen)
           }}
-          onExportHtml={function () {
-            void exportHtmlDocument({
-              activePath,
-              html: composer?.getHTML() ?? html
-            })
-          }}
-        />
-      ) : null}
-
-      {isFindOpen ? (
-        <FindBar
-          onFindNext={onFindNext}
-          onReplaceOne={onReplaceOne}
-          onReplaceAll={onReplaceAll}
         />
       ) : null}
 
       {!hasOpened ? (
         <EmptyState
-          onOpen={function () {
-            void handleOpen()
+          onOpenFile={function () {
+            void handleOpenFile()
+          }}
+          onOpenFolder={function () {
+            void handleOpenFolder()
           }}
           onNew={handleNew}
           onOpenRecent={handleOpenPath}
@@ -653,16 +694,25 @@ export default function MarkdownWorkspace() {
                 minSize="12%"
                 maxSize="30%"
                 className="min-h-0 min-w-0 overflow-hidden">
-                <Overlay.Navigation
-                  fileQuery={fileQuery}
-                  onOpenPath={handleOpenPath}
-                />
+                <Overlay.Navigation onOpenPath={handleOpenPath} />
               </ResizablePanel>
               <ResizableHandle withHandle />
             </>
           ) : null}
 
-          <ResizablePanel className="min-h-0 min-w-0 overflow-hidden">
+          <ResizablePanel className="relative min-h-0 min-w-0 overflow-hidden bg-background/92">
+            {isFindOpen ? (
+              <FindBar
+                editor={composer}
+                preferReplace={findPreferReplace}
+                clearToolbar={viewMode === 'live' && !isFocusMode}
+              />
+            ) : null}
+            {isDocLoading ? (
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/60">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+              </div>
+            ) : null}
             {viewMode === 'source' ? (
               <SourceEditor
                 value={markdown}
@@ -733,8 +783,6 @@ export default function MarkdownWorkspace() {
           ) : null}
         </ResizablePanelGroup>
       )}
-
-      {showChrome ? <Overlay.Summary /> : null}
 
       <PreferencesSheet />
       <DiscardDialog

@@ -1,6 +1,5 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
 import {
   Tooltip,
   TooltipContent,
@@ -16,13 +15,7 @@ import { t } from '@/views/markdown/locale.ts'
 import styles from '@/views/markdown/workspace/overlay/utility.module.scss'
 
 interface UtilityProps {
-  fileQuery: string
-  onFileQuery(value: string): void
-  onOpen(): void
-  onNew(): void
-  onSave(): void
   onToggleFind(): void
-  onExportHtml?(): void
 }
 
 function ModeButton(props: {
@@ -45,6 +38,7 @@ function ModeButton(props: {
   )
 }
 
+/** 内容区编辑工具条：模式 / 专注 / 文档内查找。文件操作在 Caption 菜单，搜文件在侧栏。 */
 function Utility(props: UtilityProps) {
   const viewMode = useMarkdownStore(function (state) {
     return state.viewMode
@@ -52,17 +46,8 @@ function Utility(props: UtilityProps) {
   const isFocusMode = useMarkdownStore(function (state) {
     return state.isFocusMode
   })
-  const toToggleSidebar = useMarkdownStore(function (state) {
-    return state.toToggleSidebar
-  })
-  const toToggleOutline = useMarkdownStore(function (state) {
-    return state.toToggleOutline
-  })
   const toSetViewMode = useMarkdownStore(function (state) {
     return state.toSetViewMode
-  })
-  const toSetPrefsOpen = useMarkdownStore(function (state) {
-    return state.toSetPrefsOpen
   })
   const toPatchPreferences = useMarkdownStore(function (state) {
     return state.toPatchPreferences
@@ -71,111 +56,11 @@ function Utility(props: UtilityProps) {
   return (
     <TooltipProvider delay={200}>
       <div
-        data-region="true"
         className={cn(
           styles.utility,
           styles.root,
-          'border-b border-border bg-background px-1'
+          'justify-end border-b border-border/50 bg-background/75 px-1 backdrop-blur-md'
         )}>
-        <div className="flex min-w-0 items-center gap-0.5">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 rounded-md"
-                  aria-label={t('SIDEBAR')}
-                  onClick={toToggleSidebar}
-                />
-              }>
-              <Icon
-                icon="lucide:panel-left"
-                className="size-4"
-              />
-            </TooltipTrigger>
-            <TooltipContent>{t('SIDEBAR')}</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 rounded-md"
-                  aria-label={t('OPEN')}
-                  onClick={props.onOpen}
-                />
-              }>
-              <Icon
-                icon="lucide:folder-open"
-                className="size-4"
-              />
-            </TooltipTrigger>
-            <TooltipContent>{t('OPEN')}</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 rounded-md"
-                  aria-label={t('NEW')}
-                  onClick={props.onNew}
-                />
-              }>
-              <Icon
-                icon="lucide:file-plus-2"
-                className="size-4"
-              />
-            </TooltipTrigger>
-            <TooltipContent>{t('NEW')}</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 rounded-md"
-                  aria-label={`${t('SAVE')} ${SHORTCUTS.SAVE.label}`}
-                  onClick={props.onSave}
-                />
-              }>
-              <Icon
-                icon="lucide:save"
-                className="size-4"
-              />
-            </TooltipTrigger>
-            <TooltipContent>
-              {t('SAVE')} · {SHORTCUTS.SAVE.label}
-            </TooltipContent>
-          </Tooltip>
-
-          <div className="relative ml-1 hidden min-w-0 sm:block">
-            <Icon
-              icon="lucide:search"
-              className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              value={props.fileQuery}
-              placeholder={t('SEARCH')}
-              className="h-7 w-56 rounded-md pl-7 text-xs"
-              onChange={function (event) {
-                props.onFileQuery(event.target.value)
-              }}
-            />
-          </div>
-        </div>
-
         <div className="flex items-center gap-0.5">
           <ModeButton
             mode="live"
@@ -238,70 +123,6 @@ function Utility(props: UtilityProps) {
               />
             </TooltipTrigger>
             <TooltipContent>{t('FIND')}</TooltipContent>
-          </Tooltip>
-
-          {props.onExportHtml ? (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 rounded-md"
-                    aria-label={t('EXPORT_HTML')}
-                    onClick={props.onExportHtml}
-                  />
-                }>
-                <Icon
-                  icon="lucide:file-down"
-                  className="size-4"
-                />
-              </TooltipTrigger>
-              <TooltipContent>{t('EXPORT_HTML')}</TooltipContent>
-            </Tooltip>
-          ) : null}
-
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 rounded-md"
-                  aria-label={t('OUTLINE')}
-                  onClick={toToggleOutline}
-                />
-              }>
-              <Icon
-                icon="lucide:list-tree"
-                className="size-4"
-              />
-            </TooltipTrigger>
-            <TooltipContent>{t('OUTLINE')}</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 rounded-md"
-                  aria-label={t('PREFERENCES')}
-                  onClick={function () {
-                    toSetPrefsOpen(true)
-                  }}
-                />
-              }>
-              <Icon
-                icon="lucide:settings-2"
-                className="size-4"
-              />
-            </TooltipTrigger>
-            <TooltipContent>{t('PREFERENCES')}</TooltipContent>
           </Tooltip>
         </div>
       </div>

@@ -29,6 +29,8 @@
     flex-basis: 0%;
     min-height: 0;
     overflow: hidden scroll;
+    /* 正文近实色，保证长文对比度；壳层再透 Mica */
+    background: color-mix(in oklab, var(--background) 93%, transparent);
     padding-inline: 48px 24px;
     padding-block: 16px 48px;
 

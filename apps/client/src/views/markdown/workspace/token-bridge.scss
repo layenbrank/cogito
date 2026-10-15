@@ -12,3 +12,29 @@
   --tt-brand-color-500: var(--primary);
   --tt-brand-color-600: var(--primary);
 }
+
+/* 文档内查找高亮（对齐 VS Code find decorations） */
+.ProseMirror {
+  .md-search-hit {
+    border-radius: 2px;
+    background-color: color-mix(in oklab, var(--warning, #eab308) 45%, transparent);
+    box-decoration-break: clone;
+  }
+
+  .md-search-hit-current {
+    background-color: color-mix(in oklab, var(--warning, #f59e0b) 75%, transparent);
+    outline: 1px solid color-mix(in oklab, var(--warning, #d97706) 80%, transparent);
+    outline-offset: 0;
+  }
+}
+
+.dark .ProseMirror {
+  .md-search-hit {
+    background-color: color-mix(in oklab, #ca8a04 40%, transparent);
+  }
+
+  .md-search-hit-current {
+    background-color: color-mix(in oklab, #eab308 55%, transparent);
+    outline-color: color-mix(in oklab, #fbbf24 70%, transparent);
+  }
+}
