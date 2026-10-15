@@ -9,8 +9,9 @@ import { useMemo } from 'react'
 
 import { AsideBusy } from './aside-busy'
 import { AsideEmpty } from './aside-empty'
-import { TerminalPanel } from './terminal-panel'
+import { TerminalPanel } from '@/features/terminal'
 import type { PlanSnapshot } from '@/features/agent/plan'
+import { useActiveWorkspace } from '@/features/agent/workspace/active'
 import { useTerminalStore } from '@/stores/terminal'
 
 interface AsideProps {
@@ -27,6 +28,7 @@ function AgentAside(props: AsideProps) {
   const terminalOpen = useTerminalStore(function (state) {
     return state.open
   })
+  const { primaryPath } = useActiveWorkspace()
 
   const hasUserMessage = useMemo(
     function () {
@@ -41,7 +43,10 @@ function AgentAside(props: AsideProps) {
   if (terminalOpen) {
     return (
       <div className={clsx('bg-background flex h-full min-h-0 flex-col', props.className)}>
-        <TerminalPanel />
+        <TerminalPanel
+          cwd={primaryPath}
+          emptyCwdMessage="先在左栏添加一个工作区"
+        />
       </div>
     )
   }
