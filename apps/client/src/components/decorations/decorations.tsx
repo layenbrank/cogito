@@ -21,6 +21,8 @@ interface DecorationsProps {
   controls?: CaptionProps['controls']
   /** 底栏区域；不传则不渲染 */
   section?: ReactNode
+  /** 覆盖底栏默认样式（如 IDE 状态栏需更密、全宽） */
+  sectionClassName?: string
   /** 内容区是否由外壳统一滚动；内部已有滚动区时传 false */
   scrollable?: boolean
 }
@@ -53,7 +55,11 @@ function Decorations(props: DecorationsProps) {
         {props.children}
       </div>
       {props.section ? (
-        <section className="flex shrink-0 justify-end gap-2.5 border-t border-border/60 bg-card/80 px-5 py-3 backdrop-blur-sm">
+        <section
+          className={cn(
+            'flex shrink-0 justify-end gap-2.5 border-t border-border/50 bg-background/70 px-5 py-3 backdrop-blur-md',
+            props.sectionClassName
+          )}>
           {props.section}
         </section>
       ) : null}

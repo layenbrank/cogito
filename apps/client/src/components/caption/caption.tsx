@@ -323,8 +323,9 @@ function Caption(props: CaptionProps) {
       data-fullscreen={state.isFullscreen ? 'true' : 'false'}
       onDoubleClick={onCaptionDoubleClick}
       className={cn(
-        // 固定 32px（Win 标准 Caption 高）；右侧 0 padding，键组贴顶贴右
-        'relative flex h-8 w-full shrink-0 items-stretch border-b border-border/40 select-none',
+        // 固定 32px（Win 标准 Caption 高）；半透 + blur 透出 Mica
+        'relative flex h-8 w-full shrink-0 items-stretch border-b border-border/40',
+        'bg-background/70 backdrop-blur-md select-none',
         props.className
       )}>
       <div
