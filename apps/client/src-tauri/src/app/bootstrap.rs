@@ -7,7 +7,7 @@ use crate::{
     app::{handlers, plugins},
     autostart,
     capture::CapturePending,
-    overlay::OverlayPending,
+    overlay::{OverlayHealth, OverlayPending},
     reminder,
     through::{self, ThroughState},
     ui::tray,
@@ -53,6 +53,7 @@ impl Bootstrap {
                 goose_tls::install_crypto_provider();
                 app.manage(ThroughState::new("overlay"));
                 app.manage(OverlayPending::default());
+                app.manage(OverlayHealth::default());
                 app.manage(CapturePending::default());
                 through::spawn_worker(app.handle().clone());
                 reminder::spawn_worker(app.handle().clone());

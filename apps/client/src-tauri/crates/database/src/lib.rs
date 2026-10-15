@@ -3,6 +3,7 @@ pub mod migrations;
 pub mod storage;
 
 pub mod entity {
+    pub mod album;
     pub mod asset;
     pub mod calendar;
     pub mod countdown;
@@ -30,6 +31,7 @@ pub mod entity {
     pub use agent_usage::Entity as AgentUsageEntity;
     pub use agent_workspace::Entity as AgentWorkspaceEntity;
     pub use agent_workspace_folder::Entity as AgentWorkspaceFolderEntity;
+    pub use album::Entity as AlbumEntity;
     pub use asset::Entity as AssetEntity;
     pub use calendar::Entity as CalendarEntity;
     pub use countdown::Entity as CountdownEntity;

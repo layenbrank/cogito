@@ -16,7 +16,7 @@ pub mod through {
 pub mod overlay {
     pub mod command;
     pub mod state;
-    pub use state::OverlayPending;
+    pub use state::{OverlayHealth, OverlayPending};
 }
 
 pub mod capture {

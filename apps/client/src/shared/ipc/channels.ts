@@ -39,12 +39,15 @@ export const CHANNELS = {
     SCREENSHOT: 'capture:screenshot',
     OPEN: 'capture:open',
     CLOSE: 'capture:close',
-    TAKE_PENDING: 'capture:take-pending'
+    TAKE_PENDING: 'capture:take-pending',
+    PRUNE: 'capture:prune'
   },
   OVERLAY: {
     ENSURE: 'overlay:ensure',
     HIDE: 'overlay:hide',
     UPDATE_MODE: 'overlay:update-mode',
+    PING: 'overlay:ping',
+    READ_MODE: 'overlay:read-mode',
     MOUNT: 'overlay:mount',
     UNMOUNT: 'overlay:unmount',
     TAKE_PENDING: 'overlay:take-pending',
@@ -59,6 +62,12 @@ export const CHANNELS = {
     INSERT: 'asset:insert',
     UPDATE: 'asset:update',
     REMOVE: 'asset:remove'
+  },
+  ALBUM: {
+    READ: 'album:read',
+    WRITE: 'album:write',
+    UPDATE: 'album:update',
+    REMOVE: 'album:remove'
   },
   MIRROR: {
     READ: 'mirror:read',
