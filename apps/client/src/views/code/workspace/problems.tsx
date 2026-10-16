@@ -86,7 +86,7 @@ function Problems() {
 
   return (
     <ul className="h-full overflow-y-auto p-1 text-xs">
-      {rows.map(function (row, index) {
+      {rows.map(function (row) {
         return (
           <li
             key={`${row.line}:${row.column}:${row.severity}:${row.message}`}

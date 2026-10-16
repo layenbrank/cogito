@@ -1,20 +1,10 @@
-import type { Editor, JSONContent } from '@tiptap/react'
+import type { Editor } from '@tiptap/react'
 
 interface OutlineItem {
   id: string
   level: number
   text: string
   pos: number
-}
-
-function findHeadingText(node: JSONContent): string {
-  if (!node.content) return ''
-  return node.content
-    .map(function (child) {
-      if (child.type === 'text') return child.text ?? ''
-      return findHeadingText(child)
-    })
-    .join('')
 }
 
 function findOutlineFromEditor(editor: Editor | null): OutlineItem[] {
