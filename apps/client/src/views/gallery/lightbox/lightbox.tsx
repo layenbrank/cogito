@@ -1,26 +1,19 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle
-} from '@i-thinking/design/components/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@i-thinking/design/components/dialog'
 import { cn } from 'cn'
-import { AnimatePresence, useReducedMotion } from 'motion/react'
-import * as m from 'motion/react-m'
+import { useReducedMotion } from 'motion/react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { A11y, Keyboard, Virtual } from 'swiper/modules'
-import { Swiper, type SwiperClass, SwiperSlide } from 'swiper/react'
+import { type SwiperClass } from 'swiper/react'
 
-import 'swiper/css'
-import 'swiper/css/virtual'
-
+import { LIGHTBOX_THUMB_WINDOW, MOTION_MS } from '@/views/gallery/constraints'
+import { LightboxStage } from '@/views/gallery/lightbox/lightbox-stage'
+import { useLightboxFrame, useLightboxKeys } from '@/views/gallery/lightbox/use-lightbox-frame'
 import {
-  LIGHTBOX_FRAME_ASPECT,
-  LIGHTBOX_THUMB_WINDOW,
-  MOTION_MS
-} from '@/views/gallery/constraints'
-import { GalleryImageStage } from '@/views/gallery/lightbox/image-stage'
+  useCloseResetsFullscreen,
+  useLightboxSwiper,
+  useThumbAutoScroll
+} from '@/views/gallery/lightbox/use-lightbox-sync'
 import { useLightboxZoom } from '@/views/gallery/lightbox/use-lightbox-zoom'
 import { formatDuration, type GalleryMedia } from '@/views/gallery/model/media'
 
@@ -31,93 +24,134 @@ interface LightboxProps {
   onOpenChange: (open: boolean) => void
 }
 
-interface FrameSize {
-  width: number
-  height: number
+/** 序号 + 视频时长 */
+function findMetaLabel(active: GalleryMedia | undefined, activeIndex: number, total: number) {
+  const position = `${activeIndex + 1} / ${total}`
+  if (!active || active.kind !== 'video' || !active.meta.durationMs) return position
+  return `${position} · ${formatDuration(active.meta.durationMs)}`
 }
 
-interface FitSize {
-  width: number
-  height: number
+function showThumbStrip(mediaCount: number, isFullscreen: boolean) {
+  return mediaCount > 1 && !isFullscreen
 }
 
-const HEADER_Y = 48
-const THUMB_Y = 64
-const FRAME_VW = 0.92
-const FRAME_VH = 0.88
-
-function findWindowFrame(isFullscreen: boolean, chromeY: number): FrameSize {
-  if (isFullscreen) {
-    return {
-      width: Math.round(window.innerWidth),
-      height: Math.round(window.innerHeight)
-    }
-  }
-
-  const maxW = window.innerWidth * FRAME_VW
-  const maxH = window.innerHeight * FRAME_VH
-  let width = maxW
-  let height = width / LIGHTBOX_FRAME_ASPECT
-  if (height > maxH) {
-    height = maxH
-    width = height * LIGHTBOX_FRAME_ASPECT
-  }
-
-  if (height < chromeY + 160) {
-    height = chromeY + 160
-    width = height * LIGHTBOX_FRAME_ASPECT
-  }
-
-  return {
-    width: Math.round(width),
-    height: Math.round(height)
-  }
-}
-
-function findContainFit(
-  stageW: number,
-  stageH: number,
-  mediaAspect: number,
-  pad = 16
-): FitSize {
-  const availW = Math.max(1, stageW - pad * 2)
-  const availH = Math.max(1, stageH - pad * 2)
-  let width = availW
-  let height = width / mediaAspect
-  if (height > availH) {
-    height = availH
-    width = height * mediaAspect
-  }
-  return {
-    width: Math.round(width),
-    height: Math.round(height)
-  }
-}
-
-function LightboxNavButton(props: {
-  label: string
-  side: 'left' | 'right'
-  disabled: boolean
-  onClick: () => void
+/** 顶部标题条：文件名、序号与全屏/关闭按钮 */
+function LightboxHeader(props: {
+  fileName: string
+  metaLabel: string
+  hintLabel: string
+  isFullscreen: boolean
+  onToggleFullscreen: () => void
+  onClose: () => void
 }) {
-  const isLeft = props.side === 'left'
   return (
-    <button
-      type="button"
-      aria-label={props.label}
-      disabled={props.disabled}
+    <div
       className={cn(
-        'absolute top-1/2 z-10 flex size-11 -translate-y-1/2 items-center justify-center rounded-full',
-        'border border-white/15 bg-black/40 text-white shadow-lg backdrop-blur-md',
-        'transition-[background-color,transform,opacity] duration-200',
-        'hover:bg-black/60 hover:scale-105 active:scale-95',
-        'disabled:pointer-events-none disabled:opacity-25',
-        'focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:outline-none',
-        isLeft ? 'left-3' : 'right-3'
-      )}
-      onClick={props.onClick}>
-      <Icon icon={isLeft ? 'lucide:chevron-left' : 'lucide:chevron-right'} className="size-5" />
-    </button>
+        'flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border/50 px-4',
+        props.isFullscreen
+          ? 'absolute inset-x-0 top-0 z-30 border-transparent bg-gradient-to-b from-black/70 to-transparent pr-4 text-white'
+          : 'pr-12'
+      )}>
+      <div className="min-w-0">
+        <div className={cn('truncate text-sm font-medium', props.isFullscreen && 'text-white')}>
+          {props.fileName}
+        </div>
+        <div
+          className={cn('text-xs', props.isFullscreen ? 'text-white/70' : 'text-muted-foreground')}>
+          {props.metaLabel}
+          <span className="ml-2 opacity-80">{props.hintLabel}</span>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          className={
+            props.isFullscreen ? 'text-white hover:bg-white/15 hover:text-white' : undefined
+          }
+          aria-label={props.isFullscreen ? '退出全屏' : '全屏预览'}
+          onClick={props.onToggleFullscreen}>
+          <Icon icon={props.isFullscreen ? 'lucide:minimize' : 'lucide:maximize'} />
+        </Button>
+        {props.isFullscreen ? (
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            className="text-white hover:bg-white/15 hover:text-white"
+            aria-label="关闭"
+            onClick={props.onClose}>
+            <Icon icon="lucide:x" />
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+/** 底部缩略图条：只渲染可视范围内的项，两侧用占位块撑开滚动条 */
+function LightboxThumbStrip(props: {
+  medias: GalleryMedia[]
+  activeIndex: number
+  range: { start: number; end: number }
+  stripRef: { current: HTMLDivElement | null }
+  onSelect: (index: number) => void
+}) {
+  return (
+    <div
+      ref={props.stripRef}
+      className="flex h-16 shrink-0 gap-1.5 overflow-x-auto border-t border-border/50 bg-background px-3 py-2">
+      {props.range.start > 0 ? (
+        <div
+          className="shrink-0"
+          style={{ width: props.range.start * 54 }}
+          aria-hidden
+        />
+      ) : null}
+      {props.medias.slice(props.range.start, props.range.end).map(function (media, offset) {
+        const index = props.range.start + offset
+        return (
+          <button
+            key={media.asset.id}
+            type="button"
+            data-thumb-index={index}
+            aria-label={`切换到第 ${index + 1} 项`}
+            className={cn(
+              'size-12 shrink-0 overflow-hidden rounded-md border transition-[opacity,border-color,transform] duration-150',
+              index === props.activeIndex
+                ? 'scale-105 border-primary opacity-100 ring-1 ring-primary/40'
+                : 'border-transparent opacity-65 hover:opacity-100'
+            )}
+            onClick={function () {
+              props.onSelect(index)
+            }}>
+            {media.kind === 'video' ? (
+              <video
+                className="size-full object-cover"
+                src={media.src}
+                muted
+                preload="metadata"
+              />
+            ) : (
+              <img
+                className="size-full object-cover"
+                src={media.src}
+                alt=""
+                loading="lazy"
+              />
+            )}
+          </button>
+        )
+      })}
+      {props.range.end < props.medias.length ? (
+        <div
+          className="shrink-0"
+          style={{ width: (props.medias.length - props.range.end) * 54 }}
+          aria-hidden
+        />
+      ) : null}
+    </div>
   )
 }
 
@@ -125,26 +159,13 @@ function Lightbox(props: LightboxProps) {
   const [swiper, onSwiper] = useState<SwiperClass | null>(null)
   const [activeIndex, onActiveIndex] = useState(0)
   const [isFullscreen, onFullscreen] = useState(false)
-  // 关闭时退出全屏：渲染期按 prop 变化调整（React 推荐做法），不用 effect 同步 state
-  const [wasOpen, setWasOpen] = useState(props.open)
-  if (props.open !== wasOpen) {
-    setWasOpen(props.open)
-    if (!props.open) onFullscreen(false)
-  }
-  const [mediaAspect, onMediaAspect] = useState(LIGHTBOX_FRAME_ASPECT)
-  const [frame, onFrame] = useState<FrameSize>(function () {
-    return findWindowFrame(false, HEADER_Y + THUMB_Y)
-  })
-  const [fit, onFit] = useState<FitSize>({ width: 320, height: 200 })
+  useCloseResetsFullscreen(props.open, onFullscreen)
   const [canvasZoomed, onCanvasZoomed] = useState(false)
   const [canvasScale, onCanvasScale] = useState(1)
   const stageRef = useRef<HTMLDivElement>(null)
   const mediaRef = useRef<HTMLDivElement>(null)
   const thumbStripRef = useRef<HTMLDivElement>(null)
   const isReducedMotion = useReducedMotion()
-  const chromeY = isFullscreen
-    ? 0
-    : HEADER_Y + (props.medias.length > 1 ? THUMB_Y : 0)
 
   const initialIndex = Math.max(
     0,
@@ -154,6 +175,12 @@ function Lightbox(props: LightboxProps) {
   )
 
   const active = props.medias[activeIndex]
+  const { frame, fit } = useLightboxFrame({
+    open: props.open,
+    active,
+    isFullscreen,
+    showThumbStrip: props.medias.length > 1
+  })
   // 仅跟当前媒体绑定；切图 / 关预览必变 → 缩放回 100%
   const zoomKey = props.open && active ? active.asset.id : null
   const isImage = Boolean(active && active.kind !== 'video')
@@ -168,93 +195,14 @@ function Lightbox(props: LightboxProps) {
   const isZoomed = isImage ? canvasZoomed : videoZoomed
   const zoomLabel = isImage ? canvasScale : scale
 
-  useEffect(
-    function () {
-      if (!swiper) return
-      swiper.allowTouchMove = !isZoomed
-      swiper.allowSlideNext = !isZoomed
-      swiper.allowSlidePrev = !isZoomed
-    },
-    [swiper, isZoomed]
-  )
-
-  useEffect(
-    function () {
-      if (!props.open || !swiper) return
-      swiper.slideTo(initialIndex, 0)
-      onActiveIndex(initialIndex)
-    },
-    [props.open, props.initialId, initialIndex, swiper]
-  )
-
-  useEffect(
-    function () {
-      if (!props.open || !active) {
-        onMediaAspect(LIGHTBOX_FRAME_ASPECT)
-        return
-      }
-
-      let cancelled = false
-
-      if (active.kind === 'video') {
-        const video = document.createElement('video')
-        video.preload = 'metadata'
-        video.muted = true
-        video.onloadedmetadata = function () {
-          if (cancelled) return
-          const w = video.videoWidth
-          const h = video.videoHeight
-          if (w > 0 && h > 0) onMediaAspect(w / h)
-        }
-        video.onerror = function () {
-          if (!cancelled) onMediaAspect(LIGHTBOX_FRAME_ASPECT)
-        }
-        video.src = active.src
-        return function () {
-          cancelled = true
-          video.removeAttribute('src')
-          video.load()
-        }
-      }
-
-      const img = new Image()
-      img.decoding = 'async'
-      img.onload = function () {
-        if (cancelled) return
-        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-          onMediaAspect(img.naturalWidth / img.naturalHeight)
-        }
-      }
-      img.onerror = function () {
-        if (!cancelled) onMediaAspect(LIGHTBOX_FRAME_ASPECT)
-      }
-      img.src = active.src
-      return function () {
-        cancelled = true
-      }
-    },
-    [props.open, active?.asset.id, active?.kind, active?.src]
-  )
-
-  useLayoutEffect(
-    function () {
-      if (!props.open) return
-
-      function syncFrame() {
-        const next = findWindowFrame(isFullscreen, chromeY)
-        onFrame(next)
-        const stageH = Math.max(1, next.height - chromeY)
-        onFit(findContainFit(next.width, stageH, mediaAspect))
-      }
-
-      syncFrame()
-      window.addEventListener('resize', syncFrame)
-      return function () {
-        window.removeEventListener('resize', syncFrame)
-      }
-    },
-    [props.open, isFullscreen, chromeY, mediaAspect]
-  )
+  useLightboxSwiper({
+    swiper,
+    isZoomed,
+    open: props.open,
+    initialId: props.initialId,
+    initialIndex,
+    onActiveIndexChange: onActiveIndex
+  })
 
   const thumbRange = useMemo(
     function () {
@@ -265,49 +213,28 @@ function Lightbox(props: LightboxProps) {
     [activeIndex, props.medias.length]
   )
 
-  useEffect(
-    function () {
-      const strip = thumbStripRef.current
-      if (!strip || !props.open || isFullscreen) return
-      const thumb = strip.querySelector<HTMLElement>(`[data-thumb-index="${activeIndex}"]`)
-      thumb?.scrollIntoView({
-        behavior: isReducedMotion ? 'auto' : 'smooth',
-        inline: 'center',
-        block: 'nearest'
-      })
-    },
-    [activeIndex, props.open, isFullscreen, isReducedMotion]
-  )
+  useThumbAutoScroll({
+    stripRef: thumbStripRef,
+    activeIndex,
+    open: props.open,
+    isFullscreen,
+    isReducedMotion
+  })
 
-  useEffect(
-    function () {
-      if (!props.open) return
-      function onKey(event: KeyboardEvent) {
-        if (event.key === 'f' || event.key === 'F') {
-          event.preventDefault()
-          onFullscreen(function (value) {
-            return !value
-          })
-        }
-        if (event.key === 'Escape' && isFullscreen) {
-          event.preventDefault()
-          event.stopPropagation()
-          onFullscreen(false)
-        }
-      }
-      window.addEventListener('keydown', onKey, true)
-      return function () {
-        window.removeEventListener('keydown', onKey, true)
-      }
-    },
-    [props.open, isFullscreen]
-  )
+  useLightboxKeys({
+    open: props.open,
+    isFullscreen,
+    setIsFullscreen: onFullscreen
+  })
 
   const durationSec = MOTION_MS / 1000
-  const showThumbs = props.medias.length > 1 && !isFullscreen
+  const showThumbs = showThumbStrip(props.medias.length, isFullscreen)
+  const metaLabel = findMetaLabel(active, activeIndex, props.medias.length)
 
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+    <Dialog
+      open={props.open}
+      onOpenChange={props.onOpenChange}>
       <DialogContent
         showCloseButton={!isFullscreen}
         overlayClassName="bg-black/80"
@@ -321,198 +248,51 @@ function Lightbox(props: LightboxProps) {
         )}>
         <DialogTitle className="sr-only">媒体预览</DialogTitle>
         <div className="flex h-full min-h-0 flex-col">
-          <div
-            className={cn(
-              'flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border/50 px-4',
-              isFullscreen ? 'absolute inset-x-0 top-0 z-30 border-transparent bg-gradient-to-b from-black/70 to-transparent pr-4 text-white' : 'pr-12'
-            )}>
-            <div className="min-w-0">
-              <div className={cn('truncate text-sm font-medium', isFullscreen && 'text-white')}>
-                {active?.asset.fileName ?? '媒体'}
-              </div>
-              <div className={cn('text-xs', isFullscreen ? 'text-white/70' : 'text-muted-foreground')}>
-                {activeIndex + 1} / {props.medias.length}
-                {active?.kind === 'video' && active.meta.durationMs
-                  ? ` · ${formatDuration(active.meta.durationMs)}`
-                  : ''}
-                <span className="ml-2 opacity-80">
-                  {isImage ? '滚轮缩放' : 'Ctrl+滚轮缩放'}
-                </span>
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <Button
-                type="button"
-                size="icon-sm"
-                variant={isFullscreen ? 'ghost' : 'ghost'}
-                className={isFullscreen ? 'text-white hover:bg-white/15 hover:text-white' : undefined}
-                aria-label={isFullscreen ? '退出全屏' : '全屏预览'}
-                onClick={function () {
-                  onFullscreen(function (value) {
-                    return !value
-                  })
-                }}>
-                <Icon icon={isFullscreen ? 'lucide:minimize' : 'lucide:maximize'} />
-              </Button>
-              {isFullscreen ? (
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  className="text-white hover:bg-white/15 hover:text-white"
-                  aria-label="关闭"
-                  onClick={function () {
-                    onFullscreen(false)
-                    props.onOpenChange(false)
-                  }}>
-                  <Icon icon="lucide:x" />
-                </Button>
-              ) : null}
-            </div>
-          </div>
+          <LightboxHeader
+            fileName={active?.asset.fileName ?? '媒体'}
+            metaLabel={metaLabel}
+            hintLabel={isImage ? '滚轮缩放' : 'Ctrl+滚轮缩放'}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={function () {
+              onFullscreen(function (value) {
+                return !value
+              })
+            }}
+            onClose={function () {
+              onFullscreen(false)
+              props.onOpenChange(false)
+            }}
+          />
 
-          <div
-            ref={stageRef}
-            className={cn(
-              'relative min-h-0 flex-1 overflow-hidden bg-zinc-950',
-              isFullscreen && 'pt-0'
-            )}>
-            <Swiper
-              className="relative z-[1] size-full"
-              modules={[Keyboard, A11y, Virtual]}
-              virtual
-              keyboard={{ enabled: true }}
-              slidesPerView={1}
-              spaceBetween={0}
-              initialSlide={initialIndex}
-              onSwiper={onSwiper}
-              onSlideChange={function (instance) {
-                onActiveIndex(instance.activeIndex)
-              }}>
-              {props.medias.map(function (media, index) {
-                const isActive = index === activeIndex
-                return (
-                  <SwiperSlide
-                    key={media.asset.id}
-                    virtualIndex={index}
-                    className="!relative size-full">
-                    {isActive ? (
-                      media.kind === 'video' ? (
-                        <div
-                          key={media.asset.id}
-                          ref={mediaRef}
-                          className="absolute top-0 left-0 overflow-hidden"
-                          style={{ width: fit.width, height: fit.height }}>
-                          <video
-                            className="size-full object-contain"
-                            src={media.src}
-                            controls
-                            autoPlay
-                            muted
-                            playsInline
-                          />
-                        </div>
-                      ) : (
-                        <GalleryImageStage
-                          key={media.asset.id}
-                          src={media.src}
-                          onZoomedChange={onCanvasZoomed}
-                          onScaleChange={onCanvasScale}
-                        />
-                      )
-                    ) : (
-                      <div className="flex size-full items-center justify-center text-muted-foreground/50">
-                        <Icon
-                          icon={media.kind === 'video' ? 'lucide:play' : 'lucide:image'}
-                          className="size-10"
-                        />
-                      </div>
-                    )}
-                  </SwiperSlide>
-                )
-              })}
-            </Swiper>
-
-            <AnimatePresence>
-              {isZoomed ? (
-                <m.div
-                  className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1 text-xs text-white tabular-nums backdrop-blur-md"
-                  initial={isReducedMotion ? false : { opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={isReducedMotion ? undefined : { opacity: 0, y: 4 }}
-                  transition={{ duration: durationSec, ease: [0.22, 1, 0.36, 1] }}>
-                  {Math.round(zoomLabel * 100)}% · 双击复位
-                </m.div>
-              ) : null}
-            </AnimatePresence>
-
-            {props.medias.length > 1 && !isZoomed ? (
-              <>
-                <LightboxNavButton
-                  label="上一张"
-                  side="left"
-                  disabled={activeIndex <= 0}
-                  onClick={function () {
-                    swiper?.slidePrev()
-                  }}
-                />
-                <LightboxNavButton
-                  label="下一张"
-                  side="right"
-                  disabled={activeIndex >= props.medias.length - 1}
-                  onClick={function () {
-                    swiper?.slideNext()
-                  }}
-                />
-              </>
-            ) : null}
-          </div>
+          <LightboxStage
+            medias={props.medias}
+            activeIndex={activeIndex}
+            initialIndex={initialIndex}
+            fit={fit}
+            isFullscreen={isFullscreen}
+            isZoomed={isZoomed}
+            zoomLabel={zoomLabel}
+            isReducedMotion={Boolean(isReducedMotion)}
+            durationSec={durationSec}
+            stageRef={stageRef}
+            mediaRef={mediaRef}
+            swiper={swiper}
+            onSwiper={onSwiper}
+            onActiveIndexChange={onActiveIndex}
+            onZoomedChange={onCanvasZoomed}
+            onScaleChange={onCanvasScale}
+          />
 
           {showThumbs ? (
-            <div
-              ref={thumbStripRef}
-              className="flex h-16 shrink-0 gap-1.5 overflow-x-auto border-t border-border/50 bg-background px-3 py-2">
-              {thumbRange.start > 0 ? (
-                <div className="shrink-0" style={{ width: thumbRange.start * 54 }} aria-hidden />
-              ) : null}
-              {props.medias.slice(thumbRange.start, thumbRange.end).map(function (media, offset) {
-                const index = thumbRange.start + offset
-                return (
-                  <button
-                    key={media.asset.id}
-                    type="button"
-                    data-thumb-index={index}
-                    aria-label={`切换到第 ${index + 1} 项`}
-                    className={cn(
-                      'size-12 shrink-0 overflow-hidden rounded-md border transition-[opacity,border-color,transform] duration-150',
-                      index === activeIndex
-                        ? 'scale-105 border-primary opacity-100 ring-1 ring-primary/40'
-                        : 'border-transparent opacity-65 hover:opacity-100'
-                    )}
-                    onClick={function () {
-                      swiper?.slideTo(index)
-                    }}>
-                    {media.kind === 'video' ? (
-                      <video
-                        className="size-full object-cover"
-                        src={media.src}
-                        muted
-                        preload="metadata"
-                      />
-                    ) : (
-                      <img className="size-full object-cover" src={media.src} alt="" loading="lazy" />
-                    )}
-                  </button>
-                )
-              })}
-              {thumbRange.end < props.medias.length ? (
-                <div
-                  className="shrink-0"
-                  style={{ width: (props.medias.length - thumbRange.end) * 54 }}
-                  aria-hidden
-                />
-              ) : null}
-            </div>
+            <LightboxThumbStrip
+              medias={props.medias}
+              activeIndex={activeIndex}
+              range={thumbRange}
+              stripRef={thumbStripRef}
+              onSelect={function (index) {
+                swiper?.slideTo(index)
+              }}
+            />
           ) : null}
         </div>
       </DialogContent>
