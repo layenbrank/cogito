@@ -47,8 +47,8 @@ function BindingKeys(props: { binding: string }) {
   const labels = bindingLabels(binding, findPlatform())
   return (
     <KbdGroup>
-      {labels.map(function (label, index) {
-        return <Kbd key={`${label}-${index}`}>{label}</Kbd>
+      {labels.map(function (label) {
+        return <Kbd key={label}>{label}</Kbd>
       })}
     </KbdGroup>
   )

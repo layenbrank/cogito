@@ -21,6 +21,11 @@ export default defineConfig({
       {
         files: ['src/features/agent/model/agent-loop.ts', 'src/stores/morph.ts'],
         rules: ['react-doctor/async-await-in-loop']
+      },
+      {
+        // 全局键注册/回滚共用一个串行队列与 activeBindings，必须逐个执行；并行会与管理器状态竞态
+        files: ['src/keyboard/global.ts'],
+        rules: ['react-doctor/async-await-in-loop']
       }
     ]
   }
