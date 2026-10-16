@@ -16,8 +16,6 @@ interface SourceEditorProps {
   fontSize: number
   isDark?: boolean
   onChange(value: string): void
-  onSave?(): void
-  onEscapeFocus?(): void
   onScrollRatio?(ratio: number): void
   scrollRatio?: number
   className?: string
@@ -29,17 +27,13 @@ function SourceEditor(props: SourceEditorProps) {
   const suppressingRef = useRef(false)
   const onChangeRef = useRef(props.onChange)
   const onScrollRef = useRef(props.onScrollRatio)
-  const onSaveRef = useRef(props.onSave)
-  const onEscapeFocusRef = useRef(props.onEscapeFocus)
 
   useEffect(
     function () {
       onChangeRef.current = props.onChange
       onScrollRef.current = props.onScrollRatio
-      onSaveRef.current = props.onSave
-      onEscapeFocusRef.current = props.onEscapeFocus
     },
-    [props.onChange, props.onScrollRatio, props.onSave, props.onEscapeFocus]
+    [props.onChange, props.onScrollRatio]
   )
 
   useEffect(
@@ -62,13 +56,6 @@ function SourceEditor(props: SourceEditorProps) {
         contextmenu: true
       })
       editorRef.current = editor
-
-      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function () {
-        onSaveRef.current?.()
-      })
-      editor.addCommand(monaco.KeyCode.Escape, function () {
-        onEscapeFocusRef.current?.()
-      })
 
       const subChange = editor.onDidChangeModelContent(function () {
         onChangeRef.current(editor.getValue())

@@ -1,0 +1,108 @@
+/* ─── 命令 id（与 `keyboard/commands.ts` 注册的名字一一对应） ─── */
+
+export const COMMAND = {
+  CAPTURE_SCREENSHOT: 'capture.screenshot',
+  CAPTURE_UNDO: 'capture.undo',
+  CAPTURE_REDO: 'capture.redo',
+  CAPTURE_DELETE_SELECTION: 'capture.deleteSelection',
+  CAPTURE_RETAKE: 'capture.retake',
+  OVERLAY_ESCAPE: 'overlay.escape',
+
+  // code 窗（视图级）。没有键位的（资源管理器/搜索/问题）也在这里登记 id，
+  // 免得命令 id 又散回各视图里去。
+  CODE_OPEN_FILE: 'file.open',
+  CODE_OPEN_FOLDER: 'file.openFolder',
+  CODE_SAVE: 'file.save',
+  CODE_CLOSE_TAB: 'file.closeTab',
+  CODE_PALETTE_COMMANDS: 'palette.commands',
+  CODE_PALETTE_FILES: 'palette.files',
+  CODE_TOGGLE_SIDEBAR: 'view.toggleSidebar',
+  CODE_EXPLORER: 'view.explorer',
+  CODE_SEARCH: 'view.search',
+  CODE_TERMINAL: 'view.terminal',
+  CODE_PROBLEMS: 'view.problems',
+
+  // markdown（笔记）窗
+  MARKDOWN_SAVE: 'markdown.save',
+  MARKDOWN_OPEN_FILE: 'markdown.openFile',
+  MARKDOWN_OPEN_FOLDER: 'markdown.openFolder',
+  MARKDOWN_NEW: 'markdown.new',
+  MARKDOWN_FIND: 'markdown.find',
+  MARKDOWN_FIND_REPLACE: 'markdown.findReplace',
+  MARKDOWN_PRINT: 'markdown.print',
+  MARKDOWN_MODE_LIVE: 'markdown.modeLive',
+  MARKDOWN_MODE_SOURCE: 'markdown.modeSource',
+  MARKDOWN_MODE_SPLIT: 'markdown.modeSplit',
+  MARKDOWN_FOCUS_TOGGLE: 'markdown.focusToggle',
+  MARKDOWN_FOCUS_EXIT: 'markdown.focusExit',
+  MARKDOWN_EXPORT_HTML: 'markdown.exportHtml',
+  MARKDOWN_COPY_MARKDOWN: 'markdown.copyMarkdown',
+  MARKDOWN_COPY_HTML: 'markdown.copyHtml',
+
+  // clipchamp（视频剪辑）窗
+  CLIPCHAMP_UNDO: 'clipchamp.undo',
+  CLIPCHAMP_REDO: 'clipchamp.redo',
+  CLIPCHAMP_SAVE: 'clipchamp.save',
+  CLIPCHAMP_TOGGLE_PLAY: 'clipchamp.togglePlay',
+  CLIPCHAMP_SPLIT: 'clipchamp.split',
+  CLIPCHAMP_REMOVE_SELECTED: 'clipchamp.removeSelected',
+  CLIPCHAMP_EXIT_FULLSCREEN: 'clipchamp.exitFullscreen',
+
+  // directive（编排工作区）
+  DIRECTIVE_SAVE: 'directive.save',
+  DIRECTIVE_VALIDATE: 'directive.validate',
+  DIRECTIVE_UNDO: 'directive.undo',
+  DIRECTIVE_REDO: 'directive.redo',
+
+  // morph（PDF 标注）工具切换：一个工具一个 id，键位就是工具名首字母
+  MORPH_TOOL_SELECT: 'morph.tool.select',
+  MORPH_TOOL_TEXT: 'morph.tool.text',
+  MORPH_TOOL_HIGHLIGHT: 'morph.tool.highlight',
+  MORPH_TOOL_SHAPE: 'morph.tool.shape',
+  MORPH_TOOL_STAMP: 'morph.tool.stamp',
+  MORPH_TOOL_CROP: 'morph.tool.crop',
+  MORPH_TOOL_ROTATE: 'morph.tool.rotate',
+
+  // 编辑器内（tiptap / ProseMirror）。`EDITOR_*` 由我们接管（原 tiptap-ui 的 useHotkeys），
+  // `NATIVE_EDITOR_*` 由扩展自身的 keymap 绑定，只登记不接管。
+  EDITOR_AI_ASK: 'editor.aiAsk',
+  EDITOR_COLOR_HIGHLIGHT: 'editor.colorHighlight',
+  EDITOR_COLOR_TEXT: 'editor.colorText',
+  EDITOR_COPY_ANCHOR_LINK: 'editor.copyAnchorLink',
+  EDITOR_COPY_TO_CLIPBOARD: 'editor.copyToClipboard',
+  EDITOR_DELETE_NODE: 'editor.deleteNode',
+  EDITOR_DUPLICATE: 'editor.duplicate',
+  EDITOR_EMOJI_TRIGGER: 'editor.emojiTrigger',
+  EDITOR_IMAGE_ALIGN_LEFT: 'editor.imageAlignLeft',
+  EDITOR_IMAGE_ALIGN_CENTER: 'editor.imageAlignCenter',
+  EDITOR_IMAGE_ALIGN_RIGHT: 'editor.imageAlignRight',
+  EDITOR_IMAGE_DOWNLOAD: 'editor.imageDownload',
+  EDITOR_IMAGE_UPLOAD: 'editor.imageUpload',
+  EDITOR_MENTION_TRIGGER: 'editor.mentionTrigger',
+  EDITOR_MOVE_UP: 'editor.moveUp',
+  EDITOR_MOVE_DOWN: 'editor.moveDown',
+  EDITOR_RESET_FORMATTING: 'editor.resetFormatting',
+  EDITOR_SLASH_TRIGGER: 'editor.slashTrigger',
+  EDITOR_TEXT: 'editor.text',
+
+  NATIVE_EDITOR_BLOCKQUOTE: 'editor.blockquote',
+  NATIVE_EDITOR_CODE_BLOCK: 'editor.codeBlock',
+  NATIVE_EDITOR_BOLD: 'editor.bold',
+  NATIVE_EDITOR_ITALIC: 'editor.italic',
+  NATIVE_EDITOR_UNDERLINE: 'editor.underline',
+  NATIVE_EDITOR_STRIKE: 'editor.strike',
+  NATIVE_EDITOR_CODE: 'editor.code',
+  NATIVE_EDITOR_SUPERSCRIPT: 'editor.superscript',
+  NATIVE_EDITOR_SUBSCRIPT: 'editor.subscript',
+  NATIVE_EDITOR_HEADING_1: 'editor.heading1',
+  NATIVE_EDITOR_HEADING_2: 'editor.heading2',
+  NATIVE_EDITOR_HEADING_3: 'editor.heading3',
+  NATIVE_EDITOR_HEADING_4: 'editor.heading4',
+  NATIVE_EDITOR_HEADING_5: 'editor.heading5',
+  NATIVE_EDITOR_HEADING_6: 'editor.heading6',
+  NATIVE_EDITOR_LIST_BULLET: 'editor.listBullet',
+  NATIVE_EDITOR_LIST_ORDERED: 'editor.listOrdered',
+  NATIVE_EDITOR_LIST_TASK: 'editor.listTask',
+  NATIVE_EDITOR_UNDO: 'editor.undo',
+  NATIVE_EDITOR_REDO: 'editor.redo'
+} as const

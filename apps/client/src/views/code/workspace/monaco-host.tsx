@@ -35,7 +35,7 @@ import 'monaco-editor/esm/vs/basic-languages/ini/ini.contribution'
 
 import { useCodeStore } from '@/stores/code'
 import { findModel, findOrCreateModel, findPathForModel } from '@/views/code/lib/monaco-models.ts'
-import { readCodeFile, writeCodeFile } from '@/views/code/lib/fs.ts'
+import { readCodeFile } from '@/views/code/lib/fs.ts'
 
 self.MonacoEnvironment = {
   getWorker(_: unknown, label: string): Worker {
@@ -150,10 +150,6 @@ function MonacoHost(props: MonacoHostProps) {
       useCodeStore.getState().toSetProblemCount(markers.length)
     })
 
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function () {
-      void saveActiveEditor(editor)
-    })
-
     requestAnimationFrame(function () {
       editor.layout()
     })
@@ -221,16 +217,4 @@ function MonacoHost(props: MonacoHostProps) {
   )
 }
 
-async function saveActiveEditor(editor: monaco.editor.IStandaloneCodeEditor): Promise<void> {
-  const model = editor.getModel()
-  if (!model) return
-  const store = useCodeStore.getState()
-  const tab = store.tabs.find(function (item) {
-    return item.id === store.activeTabId
-  })
-  if (!tab) return
-  await writeCodeFile(tab.path, model.getValue())
-  store.toMarkSaved(tab.id)
-}
-
-export { MonacoHost, saveActiveEditor }
+export { MonacoHost }

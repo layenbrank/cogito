@@ -12,8 +12,9 @@ import { RouterProvider } from 'react-router-dom'
 
 import { Fallback } from '@/components/fallback/index.ts'
 import { QueryProvider } from '@/components/provider/query'
-import { useCaptureShortcut } from '@/features/capture/shortcut'
+import { useCaptureCommands } from '@/features/capture/commands'
 import { readMotionConfig, subscribeAppearance } from '@/features/window/appearance'
+import { useKeyboard } from '@/keyboard/react'
 import { router } from '@/routers/index'
 
 dayjs.extend(localeData)
@@ -27,7 +28,8 @@ function useAppearanceMotion() {
 
 function App() {
   const reducedMotion = useAppearanceMotion()
-  useCaptureShortcut()
+  useKeyboard()
+  useCaptureCommands()
 
   return (
     <>

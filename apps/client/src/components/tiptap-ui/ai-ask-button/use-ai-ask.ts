@@ -1,14 +1,14 @@
 // @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
 import { isNodeSelection, type Editor } from '@tiptap/react'
-import { useHotkeys } from 'react-hotkeys-hook'
+import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
+import { useShortcut } from '@/keyboard/react'
 
 // --- Lib ---
 import { isExtensionAvailable, isNodeTypeSelected } from '@/lib/tiptap-utils.ts'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
-import { useIsBreakpoint } from '@/hooks/use-is-breakpoint.ts'
 
 // --- Icons ---
 import { AiSparklesIcon } from '@/components/tiptap-icons/ai-sparkles-icon.tsx'
@@ -29,7 +29,7 @@ export interface UseAiAskConfig {
   onAiAsked?: () => void
 }
 
-export const AI_ASK_SHORTCUT_KEY = 'mod+j'
+export const AI_ASK_SHORTCUT_KEY = findShortcutDefault(SHORTCUT_COMMAND.EDITOR_AI_ASK)
 export const AI_EXTENSIONS = ['aiGeneration', 'ai']
 export const EXCLUDED_SELECTION_TYPES = ['codeBlock', 'image', 'imageUpload']
 
@@ -107,7 +107,6 @@ export function useAiAsk(config: UseAiAskConfig = {}) {
   } = config
 
   const { editor } = useTiptapEditor(providedEditor)
-  const isMobile = useIsBreakpoint()
   const [isVisible, setIsVisible] = useState<boolean>(true)
   const canAiAsk = canPerformAiAsk(editor)
 
@@ -140,16 +139,13 @@ export function useAiAsk(config: UseAiAskConfig = {}) {
     }
   }, [editor, hideWhenUnavailable])
 
-  useHotkeys(
-    AI_ASK_SHORTCUT_KEY,
-    (event) => {
-      event.preventDefault()
+  useShortcut(
+    SHORTCUT_COMMAND.EDITOR_AI_ASK,
+    () => {
       handleAiAsk()
     },
     {
-      enabled: isVisible && canAiAsk,
-      enableOnContentEditable: !isMobile,
-      enableOnFormTags: true
+      enabled: isVisible && canAiAsk
     }
   )
 

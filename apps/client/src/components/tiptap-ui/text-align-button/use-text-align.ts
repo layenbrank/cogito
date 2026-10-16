@@ -1,9 +1,9 @@
 // @ts-nocheck
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
 import type { ChainedCommands } from '@tiptap/react'
 import { type Editor } from '@tiptap/react'
+import { useCallback, useEffect, useState } from 'react'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
@@ -66,10 +66,7 @@ export const textAlignLabels: Record<TextAlign, string> = {
 /**
  * Checks if text alignment can be performed in the current editor state
  */
-export function canSetTextAlign(
-  editor: Editor | null,
-  align: TextAlign
-): boolean {
+export function canSetTextAlign(editor: Editor | null, align: TextAlign): boolean {
   if (!editor || !editor.isEditable) return false
   if (
     !isExtensionAvailable(editor, 'textAlign') ||
@@ -80,9 +77,7 @@ export function canSetTextAlign(
   return editor.can().setTextAlign(align)
 }
 
-export function hasSetTextAlign(
-  commands: ChainedCommands
-): commands is ChainedCommands & {
+export function hasSetTextAlign(commands: ChainedCommands): commands is ChainedCommands & {
   setTextAlign: (align: TextAlign) => ChainedCommands
 } {
   return 'setTextAlign' in commands
@@ -91,10 +86,7 @@ export function hasSetTextAlign(
 /**
  * Checks if the text alignment is currently active
  */
-export function isTextAlignActive(
-  editor: Editor | null,
-  align: TextAlign
-): boolean {
+export function isTextAlignActive(editor: Editor | null, align: TextAlign): boolean {
   if (!editor || !editor.isEditable) return false
   return editor.isActive({ textAlign: align })
 }
@@ -172,12 +164,7 @@ export function shouldShowButton(props: {
  * ```
  */
 export function useTextAlign(config: UseTextAlignConfig) {
-  const {
-    editor: providedEditor,
-    align,
-    hideWhenUnavailable = false,
-    onAligned
-  } = config
+  const { editor: providedEditor, align, hideWhenUnavailable = false, onAligned } = config
 
   const { editor } = useTiptapEditor(providedEditor)
   const [isVisible, setIsVisible] = useState<boolean>(true)

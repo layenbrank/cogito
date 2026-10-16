@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useEffectEvent } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
+import { useCommands } from '@/keyboard/react'
 import { useCorexStore } from '@/stores/corex.ts'
 import { nextStepId, nextToken } from '@/views/directive/model/step-utils.ts'
 import type { Step } from '@/views/directive/model/types.ts'
@@ -161,49 +163,41 @@ function useWorkspaceDirective(options: UseWorkspaceOptions) {
     [deleteDirectiveFromHost, draft?.name, name]
   )
 
-  const onWorkspaceKeyDown = useEffectEvent(function (event: KeyboardEvent) {
-    const target = event.target as HTMLElement | null
-    const tag = target?.tagName?.toLowerCase()
-    const isTyping = tag === 'input' || tag === 'textarea' || target?.isContentEditable === true
-    const withMod = event.metaKey || event.ctrlKey
-    if (!withMod) return
-
-    if (event.key === 's') {
-      event.preventDefault()
-      void handleSave()
-      return
+  // 键位在 `keyboard/definitions.ts`，这里只声明「做什么」。
+  //
+  // 原来那段 window keydown 里 `if (event.key === 'Enter') void handleOnce()` 永远走不到 ——
+  // 前面 `if (!withMod) return` 已经把无修饰键的按键挡掉了，所以「单键 Enter 运行」从未生效。
+  // 迁移时直接删掉，不留死代码；`handleOnce` 仍由界面按钮使用。
+  useCommands([
+    {
+      id: SHORTCUT_COMMAND.DIRECTIVE_SAVE,
+      title: '编排：保存草稿',
+      keywords: 'save',
+      group: '编排',
+      run: handleSave
+    },
+    {
+      id: SHORTCUT_COMMAND.DIRECTIVE_VALIDATE,
+      title: '编排：校验',
+      keywords: 'validate',
+      group: '编排',
+      run: handleValidate
+    },
+    {
+      id: SHORTCUT_COMMAND.DIRECTIVE_UNDO,
+      title: '编排：撤销',
+      keywords: 'undo',
+      group: '编排',
+      run: undoDraft
+    },
+    {
+      id: SHORTCUT_COMMAND.DIRECTIVE_REDO,
+      title: '编排：重做',
+      keywords: 'redo',
+      group: '编排',
+      run: redoDraft
     }
-    if (event.key === 'Enter' && event.shiftKey) {
-      event.preventDefault()
-      void handleValidate()
-      return
-    }
-    if (isTyping) return
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      void handleOnce()
-      return
-    }
-    if (event.key === 'z' && !event.shiftKey) {
-      event.preventDefault()
-      undoDraft()
-      return
-    }
-    if ((event.key === 'z' && event.shiftKey) || event.key === 'y') {
-      event.preventDefault()
-      redoDraft()
-    }
-  })
-
-  useEffect(function () {
-    function onKeyDown(event: KeyboardEvent) {
-      onWorkspaceKeyDown(event)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return function () {
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [])
+  ])
 
   function insertAction(actionId: string) {
     if (!draft) return

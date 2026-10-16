@@ -9,8 +9,9 @@ import { Input } from '@i-thinking/design/components/input'
 import { cn } from 'cn'
 import { useEffect, useMemo, useState } from 'react'
 
+import { findCommands, runCommand } from '@/keyboard/commands'
+import type { Command } from '@/keyboard/types'
 import { useCodeStore } from '@/stores/code'
-import { findCommands, runCommand, type CodeCommand } from '@/views/code/lib/commands.ts'
 import {
   joinPath,
   listWorkspaceEntries,
@@ -62,7 +63,7 @@ function CommandPalette() {
 
   const commands = useMemo(
     function () {
-      if (!isOpen || isFileMode) return [] as CodeCommand[]
+      if (!isOpen || isFileMode) return [] as Command[]
       return findCommands(query)
     },
     [isOpen, isFileMode, query]

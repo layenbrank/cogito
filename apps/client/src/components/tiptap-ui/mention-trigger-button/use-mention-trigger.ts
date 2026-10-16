@@ -1,12 +1,12 @@
 // @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
+import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
+import { useShortcut } from '@/keyboard/react'
 import { type Editor } from '@tiptap/react'
 import type { Node } from '@tiptap/pm/model'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
-import { useIsBreakpoint } from '@/hooks/use-is-breakpoint.ts'
 
 // --- Lib ---
 import {
@@ -18,7 +18,9 @@ import {
 // --- Icons ---
 import { AtSignIcon } from '@/components/tiptap-icons/at-sign-icon.tsx'
 
-export const MENTION_TRIGGER_SHORTCUT_KEY = 'mod+shift+2'
+export const MENTION_TRIGGER_SHORTCUT_KEY = findShortcutDefault(
+  SHORTCUT_COMMAND.EDITOR_MENTION_TRIGGER
+)
 
 /**
  * Configuration for the mention functionality
@@ -281,7 +283,6 @@ export function useMentionTrigger(config?: UseMentionTriggerConfig) {
   } = config || {}
 
   const { editor } = useTiptapEditor(providedEditor)
-  const isMobile = useIsBreakpoint()
   const [isVisible, setIsVisible] = useState<boolean>(true)
   const canInsert = canInsertMention(editor, node, nodePos)
 
@@ -313,16 +314,13 @@ export function useMentionTrigger(config?: UseMentionTriggerConfig) {
     return success
   }, [editor, trigger, node, nodePos, onTriggered])
 
-  useHotkeys(
-    MENTION_TRIGGER_SHORTCUT_KEY,
-    (event) => {
-      event.preventDefault()
+  useShortcut(
+    SHORTCUT_COMMAND.EDITOR_MENTION_TRIGGER,
+    () => {
       handleMention()
     },
     {
-      enabled: isVisible && canInsert,
-      enableOnContentEditable: !isMobile,
-      enableOnFormTags: true
+      enabled: isVisible && canInsert
     }
   )
 

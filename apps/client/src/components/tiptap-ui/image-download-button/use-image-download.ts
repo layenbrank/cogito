@@ -1,12 +1,12 @@
 // @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
+import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
+import { useShortcut } from '@/keyboard/react'
 import { type Editor } from '@tiptap/react'
 import { NodeSelection } from '@tiptap/pm/state'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
-import { useIsBreakpoint } from '@/hooks/use-is-breakpoint.ts'
 
 // --- Lib ---
 import {
@@ -18,7 +18,9 @@ import {
 // --- Icons ---
 import { ArrowDownToLineIcon } from '@/components/tiptap-icons/arrow-down-to-line-icon.tsx'
 
-export const IMAGE_DOWNLOAD_SHORTCUT_KEY = 'mod+shift+d'
+export const IMAGE_DOWNLOAD_SHORTCUT_KEY = findShortcutDefault(
+  SHORTCUT_COMMAND.EDITOR_IMAGE_DOWNLOAD
+)
 
 /**
  * Extracts file extension from URL or content type
@@ -301,7 +303,6 @@ export function useImageDownload(config?: UseImageDownloadConfig) {
   } = config || {}
 
   const { editor } = useTiptapEditor(providedEditor)
-  const isMobile = useIsBreakpoint()
   const [isVisible, setIsVisible] = useState<boolean>(true)
   const canDownload = canDownloadImage(editor)
 
@@ -339,16 +340,13 @@ export function useImageDownload(config?: UseImageDownloadConfig) {
     return success
   }, [editor, onDownloaded, resolveFileUrl, downloadMethod])
 
-  useHotkeys(
-    IMAGE_DOWNLOAD_SHORTCUT_KEY,
-    (event) => {
-      event.preventDefault()
+  useShortcut(
+    SHORTCUT_COMMAND.EDITOR_IMAGE_DOWNLOAD,
+    () => {
       void handleDownload()
     },
     {
-      enabled: isVisible && canDownload,
-      enableOnContentEditable: !isMobile,
-      enableOnFormTags: true
+      enabled: isVisible && canDownload
     }
   )
 

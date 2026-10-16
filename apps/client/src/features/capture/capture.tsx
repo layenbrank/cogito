@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { clsx } from 'clsx'
-import { useHotkeys } from 'react-hotkeys-hook'
 import { useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
 
@@ -21,7 +20,8 @@ import { fetchImageFromPath, takePendingScreenshot, takeScreenshot } from '@/fea
 import { useCaptureActions } from '@/features/capture/use-capture-actions'
 import { useCaptureHistory } from '@/features/capture/use-capture-history'
 import { useCaptureStage, type Phase } from '@/features/capture/use-capture-stage'
-import { useKeyCode } from '@/keycodes/react'
+import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
+import { useCommands, useShortcut } from '@/keyboard/react'
 import { DETECT_WINDOW, useSettingsStore } from '@/stores/setting'
 
 import styles from '@/features/capture/capture.module.scss'
@@ -118,25 +118,39 @@ function Capture(props: CaptureProps = {}) {
     }
   })
 
-  useHotkeys('mod+z', function (e) {
-    e.preventDefault()
-    actions.handleUndo()
-  })
-  useHotkeys(['mod+shift+z', 'mod+y'], function (e) {
-    e.preventDefault()
-    actions.handleRedo()
-  })
-  useHotkeys(['delete', 'backspace'], function (e) {
-    e.preventDefault()
-    actions.handleDelete()
-  })
-  useKeyCode('escape', function () {
+  // 浮层内的键位全部走统一命令表（键与命令的对应关系在 `keyboard/definitions.ts`）：
+  // 撤销 / 重做 / 删除 / 重拍各自注册成命令，命令自己的 `run` 就是实现；
+  // ESC 用「接管」语义 —— 浮层在场就先逐级回退，否则交给 overlay 的兜底命令退出截屏。
+  useCommands([
+    {
+      id: SHORTCUT_COMMAND.CAPTURE_UNDO,
+      title: '截屏：撤销标注',
+      group: '截屏',
+      run: actions.handleUndo
+    },
+    {
+      id: SHORTCUT_COMMAND.CAPTURE_REDO,
+      title: '截屏：重做标注',
+      group: '截屏',
+      run: actions.handleRedo
+    },
+    {
+      id: SHORTCUT_COMMAND.CAPTURE_DELETE_SELECTION,
+      title: '截屏：删除选中标注',
+      group: '截屏',
+      run: actions.handleDelete
+    },
+    {
+      id: SHORTCUT_COMMAND.CAPTURE_RETAKE,
+      title: '截屏：重新截图',
+      group: '截屏',
+      run: actions.handleRefresh
+    }
+  ])
+
+  useShortcut(SHORTCUT_COMMAND.OVERLAY_ESCAPE, function () {
     actions.handleEscape()
     return true
-  })
-  useHotkeys('mod+r', function (e) {
-    e.preventDefault()
-    actions.handleRefresh()
   })
 
   async function loadCapture(forceFresh = false) {

@@ -1,12 +1,12 @@
 // @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
+import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
+import { useShortcut } from '@/keyboard/react'
 import { type Editor } from '@tiptap/react'
 import { NodeSelection } from '@tiptap/pm/state'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
-import { useIsBreakpoint } from '@/hooks/use-is-breakpoint.ts'
 
 // --- Lib ---
 import { isExtensionAvailable } from '@/lib/tiptap-utils.ts'
@@ -52,9 +52,16 @@ export interface UseImageAlignConfig {
 }
 
 export const IMAGE_ALIGN_SHORTCUT_KEYS: Record<ImageAlign, string> = {
-  left: 'alt+shift+l',
-  center: 'alt+shift+e',
-  right: 'alt+shift+r'
+  left: findShortcutDefault(SHORTCUT_COMMAND.EDITOR_IMAGE_ALIGN_LEFT),
+  center: findShortcutDefault(SHORTCUT_COMMAND.EDITOR_IMAGE_ALIGN_CENTER),
+  right: findShortcutDefault(SHORTCUT_COMMAND.EDITOR_IMAGE_ALIGN_RIGHT)
+}
+
+/** 对齐方向 → 命令 id：键位分属三个独立条目（可分别展示与查冲突） */
+const IMAGE_ALIGN_COMMANDS: Record<ImageAlign, string> = {
+  left: SHORTCUT_COMMAND.EDITOR_IMAGE_ALIGN_LEFT,
+  center: SHORTCUT_COMMAND.EDITOR_IMAGE_ALIGN_CENTER,
+  right: SHORTCUT_COMMAND.EDITOR_IMAGE_ALIGN_RIGHT
 }
 
 export const imageAlignIcons = {
@@ -226,7 +233,6 @@ export function useImageAlign(config: UseImageAlignConfig) {
   } = config
 
   const { editor } = useTiptapEditor(providedEditor)
-  const isMobile = useIsBreakpoint()
   const [isVisible, setIsVisible] = useState<boolean>(true)
   const canAlign = canSetImageAlign(editor, align, extensionName, attributeName)
   const isActive = isImageAlignActive(
@@ -269,16 +275,13 @@ export function useImageAlign(config: UseImageAlignConfig) {
     return success
   }, [editor, align, extensionName, attributeName, onAligned])
 
-  useHotkeys(
-    IMAGE_ALIGN_SHORTCUT_KEYS[align],
-    (event) => {
-      event.preventDefault()
+  useShortcut(
+    IMAGE_ALIGN_COMMANDS[align],
+    () => {
       handleImageAlign()
     },
     {
-      enabled: isVisible && canAlign,
-      enableOnContentEditable: !isMobile,
-      enableOnFormTags: true
+      enabled: isVisible && canAlign
     }
   )
 

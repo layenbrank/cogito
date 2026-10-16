@@ -2,12 +2,12 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { clsx } from 'clsx'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
 import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
 
 import { isMagneticTileComponent } from '@/constants/magnetic-tile/components'
 import { useThrough } from '@/hooks/use-through'
-import { dispatchKeyCode } from '@/keycodes/dispatcher'
+import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
+import { useCommands } from '@/keyboard/react'
 import {
   useOverlayStore,
   type OverlayMode,
@@ -107,19 +107,22 @@ function OverlayShell() {
   }, [])
 
   /**
-   * ESC：先派发给窗口内注册了 `useKeyCode('escape')` 的组件（截屏浮层逐级退出），
-   * 没人接管才兜底退出截屏 —— 浮层没挂上/还没加载完时也能退出来。
+   * ESC 兜底：截屏浮层在场时由它接管（逐级回退），没人接管才退出截屏 ——
+   * 浮层没挂上 / 还没加载完时也能退出来。
+   *
+   * 命令只在截屏态注册，所以其它模式下这个键位不会被派发器认领。
    */
-  useHotkeys(
-    'escape',
-    function (event) {
-      event.preventDefault()
-      void dispatchKeyCode('escape').then(function (handled) {
-        if (handled) return
-        void toScreenshotExit()
-      })
-    },
-    { enabled: isScreenshot }
+  useCommands(
+    isScreenshot
+      ? [
+          {
+            id: SHORTCUT_COMMAND.OVERLAY_ESCAPE,
+            title: '截屏：退出',
+            group: '截屏',
+            run: toScreenshotExit
+          }
+        ]
+      : []
   )
 
   // 追踪 stage 尺寸作为拖拽边界

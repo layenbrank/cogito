@@ -8,8 +8,9 @@ import {
 } from '@i-thinking/design/components/tooltip'
 import { cn } from 'cn'
 
+import { formatBindingText } from '@/keyboard/binding'
+import { SHORTCUT_COMMAND, resolveBinding } from '@/keyboard/definitions'
 import { useMarkdownStore } from '@/stores/markdown'
-import { SHORTCUTS } from '@/views/markdown/lib/shortcuts.ts'
 import type { MarkdownViewMode } from '@/views/markdown/lib/types.ts'
 import { t } from '@/views/markdown/locale.ts'
 import styles from '@/views/markdown/workspace/overlay/utility.module.scss'
@@ -89,7 +90,9 @@ function Utility(props: UtilityProps) {
                   variant={isFocusMode ? 'secondary' : 'ghost'}
                   size="icon"
                   className="size-8 rounded-md"
-                  aria-label={`${t('FOCUS')} ${SHORTCUTS.FOCUS_TOGGLE.label}`}
+                  aria-label={`${t('FOCUS')} ${formatBindingText(
+                    resolveBinding(SHORTCUT_COMMAND.MARKDOWN_FOCUS_TOGGLE)
+                  )}`}
                   onClick={function () {
                     toPatchPreferences({ isFocusMode: !isFocusMode })
                   }}

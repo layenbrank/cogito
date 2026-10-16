@@ -2,18 +2,18 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
+import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
+import { useShortcut } from '@/keyboard/react'
 import { type Editor } from '@tiptap/react'
 import { NodeSelection } from '@tiptap/pm/state'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
-import { useIsBreakpoint } from '@/hooks/use-is-breakpoint.ts'
 
 // --- Icons ---
 import { CopyIcon } from '@/components/tiptap-icons/copy-icon.tsx'
 
-export const DUPLICATE_SHORTCUT_KEY = 'mod+d'
+export const DUPLICATE_SHORTCUT_KEY = findShortcutDefault(SHORTCUT_COMMAND.EDITOR_DUPLICATE)
 
 /**
  * Configuration for the duplicate functionality
@@ -164,7 +164,6 @@ export function useDuplicate(config?: UseDuplicateConfig) {
   } = config || {}
 
   const { editor } = useTiptapEditor(providedEditor)
-  const isMobile = useIsBreakpoint()
   const [isVisible, setIsVisible] = useState<boolean>(true)
   const canDuplicate = canDuplicateNode(editor)
 
@@ -194,16 +193,13 @@ export function useDuplicate(config?: UseDuplicateConfig) {
     return success
   }, [editor, onDuplicated])
 
-  useHotkeys(
-    DUPLICATE_SHORTCUT_KEY,
-    (event) => {
-      event.preventDefault() // prevent browser default bookmarking
+  useShortcut(
+    SHORTCUT_COMMAND.EDITOR_DUPLICATE,
+    () => {
       handleDuplicate()
     },
     {
-      enabled: isVisible && canDuplicate,
-      enableOnContentEditable: !isMobile,
-      enableOnFormTags: true
+      enabled: isVisible && canDuplicate
     }
   )
 

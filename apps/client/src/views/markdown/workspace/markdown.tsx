@@ -12,9 +12,10 @@ import { startTransition, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
+import { useCommands } from '@/keyboard/react'
 import { useMarkdownStore } from '@/stores/markdown'
 import { writeBackup } from '@/views/markdown/lib/backup.ts'
-import { subscribeMarkdownCommands } from '@/views/markdown/lib/commands.ts'
 import { exportHtmlDocument, printDocument } from '@/views/markdown/lib/export.ts'
 import { findDisplayTitle } from '@/views/markdown/lib/fs.ts'
 import { parseMarkdown } from '@/views/markdown/lib/parse-markdown.ts'
@@ -29,7 +30,6 @@ import {
   saveDocument,
   syncDerived
 } from '@/views/markdown/lib/session.ts'
-import { matchesShortcut, SHORTCUTS } from '@/views/markdown/lib/shortcuts.ts'
 import { t } from '@/views/markdown/locale.ts'
 import { DiscardDialog } from '@/views/markdown/workspace/discard-dialog.tsx'
 import { EmptyState } from '@/views/markdown/workspace/empty-state.tsx'
@@ -433,19 +433,6 @@ export default function MarkdownWorkspace() {
     await saveDocument({ liveHtml: composer?.getHTML() })
   }
 
-  const commandHandlersRef = useRef({
-    openFile: handleOpenFile,
-    openFolder: handleOpenFolder,
-    createNew: handleNew,
-    save: handleSave
-  })
-  commandHandlersRef.current = {
-    openFile: handleOpenFile,
-    openFolder: handleOpenFolder,
-    createNew: handleNew,
-    save: handleSave
-  }
-
   function onSourceChange(value: string) {
     if (syncingRef.current) return
     toUpdateMarkdown(value)
@@ -486,150 +473,160 @@ export default function MarkdownWorkspace() {
     [viewMode]
   )
 
-  // 标题栏应用菜单派发的文件命令
-  useEffect(function () {
-    return subscribeMarkdownCommands(function (command) {
-      const handlers = commandHandlersRef.current
-      if (command.type === 'open-file') {
-        void handlers.openFile()
-        return
+  // 标题栏应用菜单与快捷键都落到这张表：菜单直接 `runCommand(id)`，不再走 CustomEvent 总线，
+  // 键位在 `keyboard/definitions.ts` 里按 id 关联。
+  useCommands([
+    {
+      id: SHORTCUT_COMMAND.MARKDOWN_SAVE,
+      title: '笔记：保存',
+      keywords: 'save',
+      group: '笔记',
+      run: handleSave
+    },
+    {
+      id: SHORTCUT_COMMAND.MARKDOWN_OPEN_FILE,
+      title: '笔记：打开文件…',
+      keywords: 'open file',
+      group: '笔记',
+      run: handleOpenFile
+    },
+    {
+      id: SHORTCUT_COMMAND.MARKDOWN_OPEN_FOLDER,
+      title: '笔记：打开文件夹…',
+      keywords: 'open folder workspace',
+      group: '笔记',
+      run: handleOpenFolder
+    },
+    {
+      id: SHORTCUT_COMMAND.MARKDOWN_NEW,
+      title: '笔记：新建',
+      keywords: 'new',
+      group: '笔记',
+      run: handleNew
+    },
+    {
+      id: SHORTCUT_COMMAND.MARKDOWN_FIND,
+      title: '笔记：查找',
+      keywords: 'find',
+      group: '笔记',
+      run: function () {
+        setFindPreferReplace(false)
+        toSetFindOpen(true)
       }
-      if (command.type === 'open-folder') {
-        void handlers.openFolder()
-        return
+    },
+    {
+      id: SHORTCUT_COMMAND.MARKDOWN_FIND_REPLACE,
+      title: '笔记：查找并替换',
+      keywords: 'replace',
+      group: '笔记',
+      run: function () {
+        setFindPreferReplace(true)
+        toSetFindOpen(true)
       }
-      if (command.type === 'new') {
-        handlers.createNew()
-        return
+    },
+    {
+      id: SHORTCUT_COMMAND.MARKDOWN_PRINT,
+      title: '笔记：打印',
+      keywords: 'print',
+      group: '笔记',
+      run: function () {
+        const state = useMarkdownStore.getState()
+        printDocument(
+          state.activePath?.split(/[/\\]/).pop() ?? t('UNTITLED'),
+          composerRef.current?.getHTML() ?? state.html
+        )
       }
-      if (command.type === 'save') {
-        void handlers.save()
-        return
+    },
+    {
+      id: SHORTCUT_COMMAND.MARKDOWN_MODE_LIVE,
+      title: '笔记：实时预览',
+      keywords: 'live preview',
+      group: '笔记',
+      run: function () {
+        useMarkdownStore.getState().toSetViewMode('live')
       }
-      if (command.type === 'export-html') {
+    },
+    {
+      id: SHORTCUT_COMMAND.MARKDOWN_MODE_SOURCE,
+      title: '笔记：源码模式',
+      keywords: 'source',
+      group: '笔记',
+      run: function () {
+        useMarkdownStore.getState().toSetViewMode('source')
+      }
+    },
+    {
+      id: SHORTCUT_COMMAND.MARKDOWN_MODE_SPLIT,
+      title: '笔记：分屏模式',
+      keywords: 'split',
+      group: '笔记',
+      run: function () {
+        useMarkdownStore.getState().toSetViewMode('split')
+      }
+    },
+    {
+      id: SHORTCUT_COMMAND.MARKDOWN_FOCUS_TOGGLE,
+      title: '笔记：专注模式',
+      keywords: 'focus',
+      group: '笔记',
+      run: toggleFocusMode
+    },
+    {
+      id: SHORTCUT_COMMAND.MARKDOWN_FOCUS_EXIT,
+      title: '笔记：关闭查找 / 退出专注',
+      keywords: 'exit focus escape',
+      group: '笔记',
+      run: function () {
+        const state = useMarkdownStore.getState()
+        if (state.isFindOpen) {
+          toSetFindOpen(false)
+          return
+        }
+        if (state.isFocusMode) exitFocusMode()
+      }
+    },
+    {
+      id: SHORTCUT_COMMAND.MARKDOWN_EXPORT_HTML,
+      title: '笔记：导出 HTML',
+      keywords: 'export html',
+      group: '笔记',
+      run: function () {
+        const state = useMarkdownStore.getState()
         void exportHtmlDocument({
-          activePath: useMarkdownStore.getState().activePath,
-          html: composerRef.current?.getHTML() ?? useMarkdownStore.getState().html
+          activePath: state.activePath,
+          html: composerRef.current?.getHTML() ?? state.html
         })
-        return
       }
-      if (command.type === 'copy-md') {
+    },
+    {
+      id: SHORTCUT_COMMAND.MARKDOWN_COPY_MARKDOWN,
+      title: '笔记：复制 Markdown',
+      keywords: 'copy markdown',
+      group: '笔记',
+      run: function () {
         const state = useMarkdownStore.getState()
         const md = serializeHtmlToMarkdown(
           composerRef.current?.getHTML() ?? state.html,
           state.frontMatter
         )
-        void navigator.clipboard.writeText(md).then(function () {
+        return navigator.clipboard.writeText(md).then(function () {
           toast.success(t('COPY_MD'))
         })
-        return
       }
-      if (command.type === 'copy-html') {
-        const htmlContent =
-          composerRef.current?.getHTML() ?? useMarkdownStore.getState().html
-        void navigator.clipboard.writeText(htmlContent).then(function () {
+    },
+    {
+      id: SHORTCUT_COMMAND.MARKDOWN_COPY_HTML,
+      title: '笔记：复制 HTML',
+      keywords: 'copy html',
+      group: '笔记',
+      run: function () {
+        const htmlContent = composerRef.current?.getHTML() ?? useMarkdownStore.getState().html
+        return navigator.clipboard.writeText(htmlContent).then(function () {
           toast.success(t('COPY_HTML'))
         })
       }
-    })
-  }, [])
-
-  // Keyboard shortcuts（capture，避免被 TipTap/Monaco 吞掉 Ctrl+S）
-  useEffect(
-    function () {
-      function onKeyDown(event: KeyboardEvent) {
-        if (matchesShortcut(event, SHORTCUTS.SAVE)) {
-          event.preventDefault()
-          event.stopPropagation()
-          void handleSave()
-          return
-        }
-
-        if (matchesShortcut(event, SHORTCUTS.FOCUS_EXIT)) {
-          if (useMarkdownStore.getState().isFindOpen) {
-            event.preventDefault()
-            event.stopPropagation()
-            toSetFindOpen(false)
-            return
-          }
-          if (useMarkdownStore.getState().isFocusMode) {
-            event.preventDefault()
-            event.stopPropagation()
-            exitFocusMode()
-          }
-          return
-        }
-
-        if (matchesShortcut(event, SHORTCUTS.FOCUS_TOGGLE)) {
-          event.preventDefault()
-          event.stopPropagation()
-          toggleFocusMode()
-          return
-        }
-
-        if (matchesShortcut(event, SHORTCUTS.OPEN)) {
-          event.preventDefault()
-          void handleOpenFile()
-          return
-        }
-
-        if (matchesShortcut(event, SHORTCUTS.NEW)) {
-          event.preventDefault()
-          handleNew()
-          return
-        }
-
-        if (matchesShortcut(event, SHORTCUTS.FIND)) {
-          event.preventDefault()
-          setFindPreferReplace(false)
-          toSetFindOpen(true)
-          return
-        }
-
-        if (matchesShortcut(event, SHORTCUTS.FIND_REPLACE)) {
-          event.preventDefault()
-          setFindPreferReplace(true)
-          toSetFindOpen(true)
-          return
-        }
-
-        if (matchesShortcut(event, SHORTCUTS.MODE_LIVE)) {
-          event.preventDefault()
-          useMarkdownStore.getState().toSetViewMode('live')
-          return
-        }
-
-        if (matchesShortcut(event, SHORTCUTS.MODE_SOURCE)) {
-          event.preventDefault()
-          useMarkdownStore.getState().toSetViewMode('source')
-          return
-        }
-
-        if (matchesShortcut(event, SHORTCUTS.MODE_SPLIT)) {
-          event.preventDefault()
-          useMarkdownStore.getState().toSetViewMode('split')
-          return
-        }
-
-        if (matchesShortcut(event, SHORTCUTS.PRINT)) {
-          event.preventDefault()
-          const htmlContent =
-            composerRef.current?.getHTML() ?? useMarkdownStore.getState().html
-          const title =
-            useMarkdownStore.getState().activePath?.split(/[/\\]/).pop() ??
-            t('UNTITLED')
-          printDocument(title, htmlContent)
-        }
-      }
-
-      window.addEventListener('keydown', onKeyDown, true)
-      return function () {
-        window.removeEventListener('keydown', onKeyDown, true)
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [composer]
-  )
+    }
+  ])
 
   function onOutlineJump(pos: number) {
     if (viewMode === 'source') {
@@ -720,10 +717,6 @@ export default function MarkdownWorkspace() {
                 fontSize={fontSize}
                 isDark={isDark}
                 onChange={onSourceChange}
-                onSave={function () {
-                  void handleSave()
-                }}
-                onEscapeFocus={exitFocusMode}
                 onScrollRatio={onSourceScroll}
                 scrollRatio={scrollRatio}
               />
@@ -749,10 +742,6 @@ export default function MarkdownWorkspace() {
                     fontSize={fontSize}
                     isDark={isDark}
                     onChange={onSourceChange}
-                    onSave={function () {
-                      void handleSave()
-                    }}
-                    onEscapeFocus={exitFocusMode}
                     onScrollRatio={onSourceScroll}
                     scrollRatio={scrollRatio}
                   />

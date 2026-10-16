@@ -3,12 +3,12 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { type Editor } from '@tiptap/react'
-import { useHotkeys } from 'react-hotkeys-hook'
+import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
+import { useShortcut } from '@/keyboard/react'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
-import { useIsBreakpoint } from '@/hooks/use-is-breakpoint.ts'
 
 // --- Icons ---
 import { TypeIcon } from '@/components/tiptap-icons/type-icon.tsx'
@@ -21,7 +21,7 @@ import {
   selectionWithinConvertibleTypes
 } from '@/lib/tiptap-utils.ts'
 
-export const TEXT_SHORTCUT_KEY = 'mod+alt+0'
+export const TEXT_SHORTCUT_KEY = findShortcutDefault(SHORTCUT_COMMAND.EDITOR_TEXT)
 
 /**
  * Configuration for the text/paragraph functionality
@@ -209,7 +209,6 @@ export function useText(config?: UseTextConfig) {
   } = config || {}
 
   const { editor } = useTiptapEditor(providedEditor)
-  const isMobile = useIsBreakpoint()
   const [isVisible, setIsVisible] = useState<boolean>(true)
   const canToggle = canToggleText(editor)
   const isActive = isParagraphActive(editor)
@@ -240,16 +239,13 @@ export function useText(config?: UseTextConfig) {
     return success
   }, [editor, onToggled])
 
-  useHotkeys(
-    TEXT_SHORTCUT_KEY,
-    (event) => {
-      event.preventDefault()
+  useShortcut(
+    SHORTCUT_COMMAND.EDITOR_TEXT,
+    () => {
       handleToggle()
     },
     {
-      enabled: isVisible && canToggle,
-      enableOnContentEditable: !isMobile,
-      enableOnFormTags: true
+      enabled: isVisible && canToggle
     }
   )
 

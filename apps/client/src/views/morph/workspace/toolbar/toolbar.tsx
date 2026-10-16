@@ -5,7 +5,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/comp
 import { clsx } from 'clsx'
 
 import { Glide } from '@/components/glide/glide'
+import { formatBindingText } from '@/keyboard/binding'
+import { SHORTCUT_COMMAND, resolveBinding } from '@/keyboard/definitions'
+import { useCommands } from '@/keyboard/react'
 import { useMorphStore } from '@/stores/morph.ts'
+import { useSettingsStore } from '@/stores/setting'
 import styles from './toolbar.module.scss'
 
 const TOOL_BTN =
@@ -23,18 +27,54 @@ const ACTION_BTN = 'h-7 px-3 text-xs font-medium'
 type ToolDef = {
   key: Morph.Tool
   label: string
-  shortcut: string
+  /** 命令 id：键位在 `keyboard/definitions.ts`，这里不再手写字母（否则 tooltip 会与设置页漂移） */
+  command: string
   icon: string
 }
 
 const TOOLS: ToolDef[] = [
-  { key: 'select', label: '选择', shortcut: 'S', icon: 'ant-design:select-outlined' },
-  { key: 'text', label: '文本', shortcut: 'T', icon: 'ant-design:font-size-outlined' },
-  { key: 'highlight', label: '高亮', shortcut: 'H', icon: 'ant-design:highlight-outlined' },
-  { key: 'shape', label: '形状', shortcut: 'R', icon: 'ant-design:border-outlined' },
-  { key: 'stamp', label: '签章', shortcut: 'P', icon: 'ant-design:safety-certificate-outlined' },
-  { key: 'crop', label: '裁剪', shortcut: 'C', icon: 'ant-design:scissor-outlined' },
-  { key: 'rotate', label: '旋转', shortcut: 'O', icon: 'ant-design:rotate-right-outlined' }
+  {
+    key: 'select',
+    label: '选择',
+    command: SHORTCUT_COMMAND.MORPH_TOOL_SELECT,
+    icon: 'ant-design:select-outlined'
+  },
+  {
+    key: 'text',
+    label: '文本',
+    command: SHORTCUT_COMMAND.MORPH_TOOL_TEXT,
+    icon: 'ant-design:font-size-outlined'
+  },
+  {
+    key: 'highlight',
+    label: '高亮',
+    command: SHORTCUT_COMMAND.MORPH_TOOL_HIGHLIGHT,
+    icon: 'ant-design:highlight-outlined'
+  },
+  {
+    key: 'shape',
+    label: '形状',
+    command: SHORTCUT_COMMAND.MORPH_TOOL_SHAPE,
+    icon: 'ant-design:border-outlined'
+  },
+  {
+    key: 'stamp',
+    label: '签章',
+    command: SHORTCUT_COMMAND.MORPH_TOOL_STAMP,
+    icon: 'ant-design:safety-certificate-outlined'
+  },
+  {
+    key: 'crop',
+    label: '裁剪',
+    command: SHORTCUT_COMMAND.MORPH_TOOL_CROP,
+    icon: 'ant-design:scissor-outlined'
+  },
+  {
+    key: 'rotate',
+    label: '旋转',
+    command: SHORTCUT_COMMAND.MORPH_TOOL_ROTATE,
+    icon: 'ant-design:rotate-right-outlined'
+  }
 ]
 
 interface ToolButtonProps {
@@ -159,6 +199,27 @@ export default function Toolbar() {
     return s.activeOperation
   })
 
+  // 工具切换：键位在 `keyboard/definitions.ts`，命令只有工作区挂载时才注册 ——
+  // 所以裸字母键（S/T/H/R/P/C/O）只在 PDF 标注界面里认，输入框内默认不认。
+  useCommands(
+    TOOLS.map(function (tool) {
+      return {
+        id: tool.command,
+        title: `PDF 标注：${tool.label}工具`,
+        keywords: `tool ${tool.key}`,
+        group: 'PDF 标注',
+        run: function () {
+          useMorphStore.getState().toPickTool(tool.key)
+        }
+      }
+    })
+  )
+
+  // 订阅覆盖值：用户改了键位，下面的 tooltip 要跟着变
+  useSettingsStore(function (state) {
+    return state.settings.shortcuts.bindings
+  })
+
   return (
     <div className={clsx(styles.toolbar, styles.root)}>
       <div className={styles.navGroup}>
@@ -225,7 +286,7 @@ export default function Toolbar() {
               key={tool.key}
               icon={tool.icon}
               label={tool.label}
-              tooltip={`${tool.label} (${tool.shortcut})`}
+              tooltip={`${tool.label} (${formatBindingText(resolveBinding(tool.command))})`}
               isActive={activeTool === tool.key}
               onClick={function () {
                 toPickTool(tool.key)

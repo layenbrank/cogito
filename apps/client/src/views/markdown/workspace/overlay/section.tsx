@@ -1,14 +1,19 @@
 import { Separator } from '@i-thinking/design/components/separator'
-import { cn } from 'cn'
 import {
   EditorContext as ComposerContext,
   EditorContent as ComposerMarkdown,
   type Editor
 } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
+import { cn } from 'cn'
 
 import { Fallback } from '@/components/fallback/index.ts'
 import { Glide } from '@/components/glide/glide'
+import { TableCellHandleMenu } from '@/components/tiptap-node/table-node/ui/table-cell-handle-menu/table-cell-handle-menu.tsx'
+import { TableExtendRowColumnButtons } from '@/components/tiptap-node/table-node/ui/table-extend-row-column-button/table-extend-row-column-button.tsx'
+import { TableHandle } from '@/components/tiptap-node/table-node/ui/table-handle/table-handle.tsx'
+import { TableSelectionOverlay } from '@/components/tiptap-node/table-node/ui/table-selection-overlay/table-selection-overlay.tsx'
+import { TableTriggerButton } from '@/components/tiptap-node/table-node/ui/table-trigger-button/table-trigger-button.tsx'
 import { BlockquoteButton } from '@/components/tiptap-ui/blockquote-button/blockquote-button.tsx'
 import { CodeBlockButton } from '@/components/tiptap-ui/code-block-button/code-block-button.tsx'
 import { ColorHighlightPopover } from '@/components/tiptap-ui/color-highlight-popover/color-highlight-popover.tsx'
@@ -25,14 +30,8 @@ import { TextAlignButton } from '@/components/tiptap-ui/text-align-button/text-a
 import { TextButton } from '@/components/tiptap-ui/text-button/text-button.tsx'
 import { TurnIntoDropdown } from '@/components/tiptap-ui/turn-into-dropdown/turn-into-dropdown.tsx'
 import { UndoRedoButton } from '@/components/tiptap-ui/undo-redo-button/undo-redo-button.tsx'
-import { TableCellHandleMenu } from '@/components/tiptap-node/table-node/ui/table-cell-handle-menu/table-cell-handle-menu.tsx'
-import { TableExtendRowColumnButtons } from '@/components/tiptap-node/table-node/ui/table-extend-row-column-button/table-extend-row-column-button.tsx'
-import { TableHandle } from '@/components/tiptap-node/table-node/ui/table-handle/table-handle.tsx'
-import { TableSelectionOverlay } from '@/components/tiptap-node/table-node/ui/table-selection-overlay/table-selection-overlay.tsx'
-import { TableTriggerButton } from '@/components/tiptap-node/table-node/ui/table-trigger-button/table-trigger-button.tsx'
 import { useMarkdownStore } from '@/stores/markdown'
 
-import '@/styles/markdown-composer.scss'
 import '@/components/tiptap-node/blockquote-node/blockquote-node.scss'
 import '@/components/tiptap-node/code-block-node/code-block-node.scss'
 import '@/components/tiptap-node/heading-node/heading-node.scss'
@@ -44,6 +43,7 @@ import '@/components/tiptap-node/paragraph-node/paragraph-node.scss'
 import '@/components/tiptap-node/table-node/styles/prosemirror-table.scss'
 import '@/components/tiptap-node/table-node/styles/table-node.scss'
 import '@/styles/markdown-animations.scss'
+import '@/styles/markdown-composer.scss'
 import '@/styles/markdown-variables.scss'
 import '@/views/markdown/workspace/token-bridge.scss'
 

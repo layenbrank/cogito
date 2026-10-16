@@ -12,7 +12,7 @@ import { MediaPanel } from '@/views/clipchamp/workspace/media-panel.tsx'
 import { MediaRail } from '@/views/clipchamp/workspace/media-rail.tsx'
 import { Preview } from '@/views/clipchamp/workspace/preview.tsx'
 import { Timeline } from '@/views/clipchamp/workspace/timeline/timeline.tsx'
-import { useClipchampShortcuts } from '@/views/clipchamp/lib/shortcuts.ts'
+import { useClipchampCommands } from '@/views/clipchamp/lib/commands.ts'
 
 function Workspace() {
   const isFullscreen = useClipchampStore(function (s) {
@@ -28,7 +28,7 @@ function Workspace() {
     return s.restoreProject
   })
 
-  useClipchampShortcuts()
+  useClipchampCommands()
 
   useEffect(
     function () {

@@ -2,18 +2,20 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
+import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
+import { useShortcut } from '@/keyboard/react'
 import { type Editor } from '@tiptap/react'
 import type { Transaction } from '@tiptap/pm/state'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
-import { useIsBreakpoint } from '@/hooks/use-is-breakpoint.ts'
 
 // --- Icons ---
 import { RotateCcwIcon } from '@/components/tiptap-icons/rotate-ccw-icon.tsx'
 
-export const RESET_ALL_FORMATTING_SHORTCUT_KEY = 'mod+r'
+export const RESET_ALL_FORMATTING_SHORTCUT_KEY = findShortcutDefault(
+  SHORTCUT_COMMAND.EDITOR_RESET_FORMATTING
+)
 
 /**
  * Configuration for the reset formatting functionality
@@ -211,7 +213,6 @@ export function useResetAllFormatting(config?: UseResetAllFormattingConfig) {
   } = config || {}
 
   const { editor } = useTiptapEditor(providedEditor)
-  const isMobile = useIsBreakpoint()
   const [isVisible, setIsVisible] = useState<boolean>(true)
   const canReset = canResetFormatting(editor, preserveMarks)
 
@@ -243,16 +244,13 @@ export function useResetAllFormatting(config?: UseResetAllFormattingConfig) {
     return success
   }, [editor, onResetAllFormatting, preserveMarks])
 
-  useHotkeys(
-    RESET_ALL_FORMATTING_SHORTCUT_KEY,
-    (event) => {
-      event.preventDefault() // prevent browser default refresh
+  useShortcut(
+    SHORTCUT_COMMAND.EDITOR_RESET_FORMATTING,
+    () => {
       handleResetFormatting()
     },
     {
-      enabled: isVisible && canReset,
-      enableOnContentEditable: !isMobile,
-      enableOnFormTags: true
+      enabled: isVisible && canReset
     }
   )
 

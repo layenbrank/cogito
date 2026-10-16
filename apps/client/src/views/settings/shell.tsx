@@ -22,6 +22,7 @@ import AccountPanel from '@/views/settings/panels/account.tsx'
 import AppearancePanel from '@/views/settings/panels/appearance.tsx'
 import CapturePanel from '@/views/settings/panels/capture.tsx'
 import GeneralPanel from '@/views/settings/panels/general.tsx'
+import ShortcutsPanel from '@/views/settings/panels/shortcuts.tsx'
 import styles from '@/views/settings/shell.module.scss'
 
 function findInitialSection(searchParams: URLSearchParams): SectionKey {
@@ -147,6 +148,7 @@ function Shell() {
               transition={viewTransition}>
               {section === SECTION.GENERAL && <GeneralPanel />}
               {section === SECTION.CAPTURE && <CapturePanel />}
+              {section === SECTION.SHORTCUTS && <ShortcutsPanel />}
               {section === SECTION.APPEARANCE && <AppearancePanel />}
               {section === SECTION.ACCOUNT && <AccountPanel />}
             </m.div>

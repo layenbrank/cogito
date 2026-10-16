@@ -15,8 +15,9 @@ import {
 import { cn } from 'cn'
 
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
+import { runCommand } from '@/keyboard/commands'
+import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
 import { useMarkdownStore } from '@/stores/markdown'
-import { dispatchMarkdownCommand } from '@/views/markdown/lib/commands.ts'
 import { t } from '@/views/markdown/locale.ts'
 
 function MarkdownCaptionBegin() {
@@ -58,7 +59,7 @@ function MarkdownCaptionBegin() {
           className="w-44">
           <DropdownMenuItem
             onClick={function () {
-              dispatchMarkdownCommand({ type: 'open-file' })
+              void runCommand(SHORTCUT_COMMAND.MARKDOWN_OPEN_FILE)
             }}>
             <Icon
               icon="lucide:file-text"
@@ -68,7 +69,7 @@ function MarkdownCaptionBegin() {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={function () {
-              dispatchMarkdownCommand({ type: 'open-folder' })
+              void runCommand(SHORTCUT_COMMAND.MARKDOWN_OPEN_FOLDER)
             }}>
             <Icon
               icon="lucide:folder"
@@ -78,7 +79,7 @@ function MarkdownCaptionBegin() {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={function () {
-              dispatchMarkdownCommand({ type: 'new' })
+              void runCommand(SHORTCUT_COMMAND.MARKDOWN_NEW)
             }}>
             <Icon
               icon="lucide:file-plus-2"
@@ -88,7 +89,7 @@ function MarkdownCaptionBegin() {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={function () {
-              dispatchMarkdownCommand({ type: 'save' })
+              void runCommand(SHORTCUT_COMMAND.MARKDOWN_SAVE)
             }}>
             <Icon
               icon="lucide:save"
@@ -99,7 +100,7 @@ function MarkdownCaptionBegin() {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={function () {
-              dispatchMarkdownCommand({ type: 'export-html' })
+              void runCommand(SHORTCUT_COMMAND.MARKDOWN_EXPORT_HTML)
             }}>
             <Icon
               icon="lucide:file-down"
@@ -109,7 +110,7 @@ function MarkdownCaptionBegin() {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={function () {
-              dispatchMarkdownCommand({ type: 'copy-md' })
+              void runCommand(SHORTCUT_COMMAND.MARKDOWN_COPY_MARKDOWN)
             }}>
             <Icon
               icon="lucide:clipboard-copy"
@@ -119,7 +120,7 @@ function MarkdownCaptionBegin() {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={function () {
-              dispatchMarkdownCommand({ type: 'copy-html' })
+              void runCommand(SHORTCUT_COMMAND.MARKDOWN_COPY_HTML)
             }}>
             <Icon
               icon="lucide:code-xml"

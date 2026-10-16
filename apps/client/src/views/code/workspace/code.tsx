@@ -6,17 +6,15 @@ import {
 import { watch } from '@tauri-apps/plugin-fs'
 import { clsx } from 'clsx'
 import { useEffect } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
 import { toast } from 'sonner'
 
+import { formatBindingText } from '@/keyboard/binding'
+import { SHORTCUT_COMMAND, resolveBinding } from '@/keyboard/definitions'
+import { useCommands } from '@/keyboard/react'
 import { useCodeStore } from '@/stores/code'
+import { useSettingsStore } from '@/stores/setting'
 import { useTerminalStore } from '@/stores/terminal'
-import {
-  closeActiveTab,
-  openFolderDialog,
-  saveActiveTab,
-  toggleTerminal
-} from '@/views/code/lib/commands.ts'
+import { CODE_COMMANDS } from '@/views/code/lib/commands.ts'
 import { readCodeFile } from '@/views/code/lib/fs.ts'
 import { disposeAllModels, findOrCreateModel } from '@/views/code/lib/monaco-models.ts'
 import { ActivityBar } from '@/views/code/workspace/activity-bar.tsx'
@@ -45,6 +43,16 @@ export default function Code() {
   const activeTab = tabs.find(function (tab) {
     return tab.id === activeTabId
   })
+
+  // 只为订阅覆盖值：用户改了键位，下面的空态提示要跟着变
+  useSettingsStore(function (state) {
+    return state.settings.shortcuts.bindings
+  })
+
+  /** 空态提示直接读键位表，不再手写「Ctrl+P」这类会漂移的文案 */
+  function hint(id: keyof typeof SHORTCUT_COMMAND, label: string): string {
+    return `${formatBindingText(resolveBinding(SHORTCUT_COMMAND[id]))} ${label}`
+  }
 
   useEffect(function () {
     return function () {
@@ -98,68 +106,9 @@ export default function Code() {
     [activeTab?.path]
   )
 
-  useHotkeys(
-    'mod+shift+p',
-    function (event) {
-      event.preventDefault()
-      useCodeStore.getState().toSetPaletteMode('command')
-    },
-    { enableOnFormTags: true }
-  )
-
-  useHotkeys(
-    'mod+p',
-    function (event) {
-      event.preventDefault()
-      useCodeStore.getState().toSetPaletteMode('file')
-    },
-    { enableOnFormTags: true }
-  )
-
-  useHotkeys(
-    'mod+s',
-    function (event) {
-      event.preventDefault()
-      void saveActiveTab()
-    },
-    { enableOnFormTags: true }
-  )
-
-  useHotkeys(
-    'mod+`',
-    function (event) {
-      event.preventDefault()
-      toggleTerminal()
-    },
-    { enableOnFormTags: true }
-  )
-
-  useHotkeys(
-    'mod+w',
-    function (event) {
-      event.preventDefault()
-      closeActiveTab()
-    },
-    { enableOnFormTags: true }
-  )
-
-  useHotkeys(
-    'mod+o',
-    function (event) {
-      event.preventDefault()
-      void openFolderDialog()
-    },
-    { enableOnFormTags: true }
-  )
-
-  useHotkeys(
-    'mod+b',
-    function (event) {
-      event.preventDefault()
-      useCodeStore.getState().toToggleSidebar()
-    },
-    { enableOnFormTags: true }
-  )
+  // 键位与命令的对应关系全在 `keyboard/definitions.ts`；没挂载这里时，
+  // 这些命令不会出现在命令面板里，对应键位也不会被派发器认领。
+  useCommands(CODE_COMMANDS)
 
   // 打开终端面板时若无 tab，自动新建
   useEffect(
@@ -211,9 +160,13 @@ export default function Code() {
                   <div className="relative min-h-0 flex-1">
                     {tabs.length === 0 ? (
                       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/80 px-6 text-center text-sm text-muted-foreground backdrop-blur-sm">
-                        <p className="text-foreground/80">从左侧打开文件，或按 Ctrl+P / Ctrl+Shift+P</p>
+                        <p className="text-foreground/80">
+                          从左侧打开文件，或按 {hint('CODE_PALETTE_FILES', '转到文件')} /{' '}
+                          {hint('CODE_PALETTE_COMMANDS', '命令面板')}
+                        </p>
                         <p className="text-xs opacity-80">
-                          Ctrl+B 侧栏 · Ctrl+O 打开文件夹 · Ctrl+` 终端
+                          {hint('CODE_TOGGLE_SIDEBAR', '侧栏')} ·{' '}
+                          {hint('CODE_OPEN_FOLDER', '打开文件夹')} · {hint('CODE_TERMINAL', '终端')}
                         </p>
                       </div>
                     ) : null}

@@ -1,12 +1,12 @@
 // @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
+import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
+import { useShortcut } from '@/keyboard/react'
 import { type Editor } from '@tiptap/react'
 import type { Node } from '@tiptap/pm/model'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
-import { useIsBreakpoint } from '@/hooks/use-is-breakpoint.ts'
 
 // --- Lib ---
 import {
@@ -18,7 +18,9 @@ import {
 // --- Icons ---
 import { SmilePlusIcon } from '@/components/tiptap-icons/smile-plus-icon.tsx'
 
-export const EMOJI_TRIGGER_SHORTCUT_KEY = 'mod+shift+e'
+export const EMOJI_TRIGGER_SHORTCUT_KEY = findShortcutDefault(
+  SHORTCUT_COMMAND.EDITOR_EMOJI_TRIGGER
+)
 
 /**
  * Configuration for the emoji trigger functionality
@@ -259,7 +261,6 @@ export function useEmojiTrigger(config?: UseEmojiTriggerConfig) {
   } = config || {}
 
   const { editor } = useTiptapEditor(providedEditor)
-  const isMobile = useIsBreakpoint()
   const [isVisible, setIsVisible] = useState<boolean>(true)
   const canAddTrigger = canAddEmojiTrigger(editor)
 
@@ -289,16 +290,13 @@ export function useEmojiTrigger(config?: UseEmojiTriggerConfig) {
     return success
   }, [editor, trigger, node, nodePos, onTriggerApplied])
 
-  useHotkeys(
-    EMOJI_TRIGGER_SHORTCUT_KEY,
-    (event) => {
-      event.preventDefault()
+  useShortcut(
+    SHORTCUT_COMMAND.EDITOR_EMOJI_TRIGGER,
+    () => {
       handleAddTrigger()
     },
     {
-      enabled: isVisible && canAddTrigger,
-      enableOnContentEditable: !isMobile,
-      enableOnFormTags: true
+      enabled: isVisible && canAddTrigger
     }
   )
 

@@ -2,13 +2,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
+import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
+import { useShortcut } from '@/keyboard/react'
 import { type Editor } from '@tiptap/react'
 import type { Node } from '@tiptap/pm/model'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
-import { useIsBreakpoint } from '@/hooks/use-is-breakpoint.ts'
 
 // --- Utils ---
 import {
@@ -19,7 +19,9 @@ import {
 // --- Icons ---
 import { LinkIcon } from '@/components/tiptap-icons/link-icon.tsx'
 
-export const COPY_ANCHOR_LINK_SHORTCUT_KEY = 'mod+ctrl+l'
+export const COPY_ANCHOR_LINK_SHORTCUT_KEY = findShortcutDefault(
+  SHORTCUT_COMMAND.EDITOR_COPY_ANCHOR_LINK
+)
 
 /**
  * Configuration for the copy anchor link functionality
@@ -208,7 +210,6 @@ export function useCopyAnchorLink(config?: UseCopyAnchorLinkConfig) {
   } = config || {}
 
   const { editor } = useTiptapEditor(providedEditor)
-  const isMobile = useIsBreakpoint()
   const [isVisible, setIsVisible] = useState<boolean>(true)
   const canCopyAnchor = canCopyAnchorLink(editor)
 
@@ -242,16 +243,13 @@ export function useCopyAnchorLink(config?: UseCopyAnchorLinkConfig) {
     return success
   }, [editor, onExtractedNodeId, onNodeIdNotFound, onCopied])
 
-  useHotkeys(
-    COPY_ANCHOR_LINK_SHORTCUT_KEY,
-    (event) => {
-      event.preventDefault()
+  useShortcut(
+    SHORTCUT_COMMAND.EDITOR_COPY_ANCHOR_LINK,
+    () => {
       void handleCopyAnchorLink()
     },
     {
-      enabled: isVisible && canCopyAnchor,
-      enableOnContentEditable: !isMobile,
-      enableOnFormTags: true
+      enabled: isVisible && canCopyAnchor
     }
   )
 

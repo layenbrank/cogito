@@ -1,17 +1,17 @@
 // @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
+import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
+import { useShortcut } from '@/keyboard/react'
 import { type Editor } from '@tiptap/react'
 import { NodeSelection } from '@tiptap/pm/state'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
-import { useIsBreakpoint } from '@/hooks/use-is-breakpoint.ts'
 
 // --- Icons ---
 import { TrashIcon } from '@/components/tiptap-icons/trash-icon.tsx'
 
-export const DELETE_NODE_SHORTCUT_KEY = 'backspace'
+export const DELETE_NODE_SHORTCUT_KEY = findShortcutDefault(SHORTCUT_COMMAND.EDITOR_DELETE_NODE)
 
 /**
  * Configuration for the delete node functionality
@@ -181,7 +181,6 @@ export function useDeleteNode(config?: UseDeleteNodeConfig) {
   } = config || {}
 
   const { editor } = useTiptapEditor(providedEditor)
-  const isMobile = useIsBreakpoint()
   const [isVisible, setIsVisible] = useState<boolean>(true)
   const canDeleteNodeState = canDeleteNode(editor)
 
@@ -211,16 +210,13 @@ export function useDeleteNode(config?: UseDeleteNodeConfig) {
     return success
   }, [editor, onDeleted])
 
-  useHotkeys(
-    DELETE_NODE_SHORTCUT_KEY,
-    (event) => {
-      event.preventDefault()
+  useShortcut(
+    SHORTCUT_COMMAND.EDITOR_DELETE_NODE,
+    () => {
       handleDeleteNode()
     },
     {
-      enabled: isVisible && canDeleteNodeState,
-      enableOnContentEditable: !isMobile,
-      enableOnFormTags: true
+      enabled: isVisible && canDeleteNodeState
     }
   )
 

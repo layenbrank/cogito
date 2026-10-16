@@ -7,7 +7,8 @@ import {
   TooltipTrigger
 } from '@i-thinking/design/components/tooltip'
 
-import { SHORTCUTS } from '@/views/markdown/lib/shortcuts.ts'
+import { formatBindingText } from '@/keyboard/binding'
+import { SHORTCUT_COMMAND, resolveBinding } from '@/keyboard/definitions'
 import { t } from '@/views/markdown/locale.ts'
 
 interface FocusExitProps {
@@ -40,7 +41,8 @@ function FocusExit(props: FocusExitProps) {
             </kbd>
           </TooltipTrigger>
           <TooltipContent>
-            {t('FOCUS_HINT')} · {SHORTCUTS.FOCUS_TOGGLE.label}
+            {t('FOCUS_HINT')} ·{' '}
+            {formatBindingText(resolveBinding(SHORTCUT_COMMAND.MARKDOWN_FOCUS_TOGGLE))}
           </TooltipContent>
         </Tooltip>
       </div>

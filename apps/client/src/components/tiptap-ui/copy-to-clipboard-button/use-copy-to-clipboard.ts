@@ -3,19 +3,21 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type { Editor } from '@tiptap/react'
-import { useHotkeys } from 'react-hotkeys-hook'
+import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
+import { useShortcut } from '@/keyboard/react'
 import type { Transaction } from '@tiptap/pm/state'
 import { TextSelection } from '@tiptap/pm/state'
 import { Fragment, Slice } from '@tiptap/pm/model'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
-import { useIsBreakpoint } from '@/hooks/use-is-breakpoint.ts'
 
 // --- Icons ---
 import { ClipboardIcon } from '@/components/tiptap-icons/clipboard-icon.tsx'
 
-export const COPY_TO_CLIPBOARD_SHORTCUT_KEY = 'mod+c'
+export const COPY_TO_CLIPBOARD_SHORTCUT_KEY = findShortcutDefault(
+  SHORTCUT_COMMAND.EDITOR_COPY_TO_CLIPBOARD
+)
 
 /**
  * Configuration for the copy to clipboard functionality
@@ -197,7 +199,6 @@ export function useCopyToClipboard(config?: UseCopyToClipboardConfig) {
   } = config || {}
 
   const { editor } = useTiptapEditor(providedEditor)
-  const isMobile = useIsBreakpoint()
   const [isVisible, setIsVisible] = useState<boolean>(true)
   const canCopyToClipboardState = canCopyToClipboard(editor)
 
@@ -229,16 +230,13 @@ export function useCopyToClipboard(config?: UseCopyToClipboardConfig) {
     return success
   }, [editor, copyWithFormatting, onCopied])
 
-  useHotkeys(
-    COPY_TO_CLIPBOARD_SHORTCUT_KEY,
-    (event) => {
-      event.preventDefault() // prevent native copy behavior
+  useShortcut(
+    SHORTCUT_COMMAND.EDITOR_COPY_TO_CLIPBOARD,
+    () => {
       void handleCopyToClipboard()
     },
     {
-      enabled: isVisible && canCopyToClipboardState,
-      enableOnContentEditable: !isMobile,
-      enableOnFormTags: true
+      enabled: isVisible && canCopyToClipboardState
     }
   )
 

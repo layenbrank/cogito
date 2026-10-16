@@ -2,13 +2,13 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { useHotkeys } from "react-hotkeys-hook"
+import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
+import { useShortcut } from '@/keyboard/react'
 import { type Editor } from "@tiptap/react"
 import type { Node } from "@tiptap/pm/model"
 
 // --- Hooks ---
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor.ts"
-import { useIsBreakpoint } from "@/hooks/use-is-breakpoint.ts"
 
 // --- Icons ---
 import { PlusIcon } from "@/components/tiptap-icons/plus-icon.tsx"
@@ -20,7 +20,9 @@ import {
   isValidPosition,
 } from "@/lib/tiptap-utils.ts"
 
-export const SLASH_COMMAND_TRIGGER_SHORTCUT_KEY = "mod+/"
+export const SLASH_COMMAND_TRIGGER_SHORTCUT_KEY = findShortcutDefault(
+  SHORTCUT_COMMAND.EDITOR_SLASH_TRIGGER
+)
 
 /**
  * Configuration for the slash command functionality
@@ -225,7 +227,6 @@ export function useSlashCommandTrigger(config?: UseSlashCommandTriggerConfig) {
   } = config || {}
 
   const { editor } = useTiptapEditor(providedEditor)
-  const isMobile = useIsBreakpoint()
   const [isVisible, setIsVisible] = useState<boolean>(true)
   const canInsert = canInsertSlashCommand(editor, node, nodePos)
 
@@ -257,18 +258,14 @@ export function useSlashCommandTrigger(config?: UseSlashCommandTriggerConfig) {
     return success
   }, [editor, trigger, node, nodePos, onTriggered])
 
-  useHotkeys(
-    SLASH_COMMAND_TRIGGER_SHORTCUT_KEY,
-    (event) => {
-      event.preventDefault()
+  useShortcut(
+    SHORTCUT_COMMAND.EDITOR_SLASH_TRIGGER,
+    () => {
       handleSlashCommand()
     },
     {
-      enabled: isVisible && canInsert,
-      enableOnContentEditable: !isMobile,
-      enableOnFormTags: true,
-    },
-    [isVisible, canInsert, handleSlashCommand]
+      enabled: isVisible && canInsert
+    }
   )
 
   return {

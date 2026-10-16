@@ -1,11 +1,11 @@
 // @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
+import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
+import { useShortcut } from '@/keyboard/react'
 import { type Editor } from '@tiptap/react'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
-import { useIsBreakpoint } from '@/hooks/use-is-breakpoint.ts'
 
 // --- Lib ---
 import { isExtensionAvailable } from '@/lib/tiptap-utils.ts'
@@ -13,7 +13,7 @@ import { isExtensionAvailable } from '@/lib/tiptap-utils.ts'
 // --- Icons ---
 import { ImagePlusIcon } from '@/components/tiptap-icons/image-plus-icon.tsx'
 
-export const IMAGE_UPLOAD_SHORTCUT_KEY = 'mod+shift+i'
+export const IMAGE_UPLOAD_SHORTCUT_KEY = findShortcutDefault(SHORTCUT_COMMAND.EDITOR_IMAGE_UPLOAD)
 
 /**
  * Configuration for the image upload functionality
@@ -135,7 +135,6 @@ export function useImageUpload(config?: UseImageUploadConfig) {
   } = config || {}
 
   const { editor } = useTiptapEditor(providedEditor)
-  const isMobile = useIsBreakpoint()
   const [isVisible, setIsVisible] = useState<boolean>(true)
   const canInsert = canInsertImage(editor)
   const isActive = isImageActive(editor)
@@ -166,16 +165,13 @@ export function useImageUpload(config?: UseImageUploadConfig) {
     return success
   }, [editor, onInserted])
 
-  useHotkeys(
-    IMAGE_UPLOAD_SHORTCUT_KEY,
-    (event) => {
-      event.preventDefault()
+  useShortcut(
+    SHORTCUT_COMMAND.EDITOR_IMAGE_UPLOAD,
+    () => {
       handleImage()
     },
     {
-      enabled: isVisible && canInsert,
-      enableOnContentEditable: !isMobile,
-      enableOnFormTags: true
+      enabled: isVisible && canInsert
     }
   )
 

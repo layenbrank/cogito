@@ -1,4 +1,4 @@
-type SectionKey = 'general' | 'appearance' | 'account' | 'capture'
+type SectionKey = 'general' | 'appearance' | 'account' | 'capture' | 'shortcuts'
 
 type HeadText = {
   title: string
@@ -22,13 +22,15 @@ const SECTION = {
   GENERAL: 'general',
   APPEARANCE: 'appearance',
   ACCOUNT: 'account',
-  CAPTURE: 'capture'
+  CAPTURE: 'capture',
+  SHORTCUTS: 'shortcuts'
 } as const satisfies Record<string, SectionKey>
 
 const NAVS: NavMeta[] = [
   { key: SECTION.ACCOUNT, icon: 'lucide:user-round', label: '账号' },
   { key: SECTION.GENERAL, icon: 'ant-design:setting-outlined', label: '通用' },
   { key: SECTION.CAPTURE, icon: 'lucide:camera', label: '截屏' },
+  { key: SECTION.SHORTCUTS, icon: 'lucide:keyboard', label: '快捷键' },
   { key: SECTION.APPEARANCE, icon: 'ant-design:bg-colors-outlined', label: '外观' }
 ]
 
@@ -47,7 +49,11 @@ const HEAD: Record<SectionKey, HeadText> = {
   },
   capture: {
     title: '截屏',
-    subtitle: '快捷键、窗口检测与自动清理策略'
+    subtitle: '窗口检测与自动清理策略'
+  },
+  shortcuts: {
+    title: '快捷键',
+    subtitle: '系统级与窗口内键位；系统级在任何应用前台都生效'
   }
 }
 
@@ -55,6 +61,7 @@ const SECTION_KEYS: readonly SectionKey[] = [
   SECTION.ACCOUNT,
   SECTION.GENERAL,
   SECTION.CAPTURE,
+  SECTION.SHORTCUTS,
   SECTION.APPEARANCE
 ]
 

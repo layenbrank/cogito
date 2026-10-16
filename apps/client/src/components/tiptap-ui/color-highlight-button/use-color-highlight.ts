@@ -1,11 +1,11 @@
 // @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
 import { type Editor } from '@tiptap/react'
-import { useHotkeys } from 'react-hotkeys-hook'
+import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
+import { useShortcut } from '@/keyboard/react'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
-import { useIsBreakpoint } from '@/hooks/use-is-breakpoint.ts'
 
 // --- Lib ---
 import {
@@ -17,7 +17,9 @@ import {
 // --- Icons ---
 import { HighlighterIcon } from '@/components/tiptap-icons/highlighter-icon.tsx'
 
-export const COLOR_HIGHLIGHT_SHORTCUT_KEY = 'mod+shift+h'
+export const COLOR_HIGHLIGHT_SHORTCUT_KEY = findShortcutDefault(
+  SHORTCUT_COMMAND.EDITOR_COLOR_HIGHLIGHT
+)
 export const HIGHLIGHT_COLORS = [
   {
     label: 'Default background',
@@ -241,7 +243,6 @@ export function useColorHighlight(config: UseColorHighlightConfig) {
   } = config
 
   const { editor } = useTiptapEditor(providedEditor)
-  const isMobile = useIsBreakpoint()
   const [isVisible, setIsVisible] = useState<boolean>(true)
   const canColorHighlightState = canColorHighlight(editor, mode)
   const isActive = isColorHighlightActive(editor, highlightColor, mode)
@@ -311,16 +312,13 @@ export function useColorHighlight(config: UseColorHighlightConfig) {
     return success
   }, [editor, onApplied, mode])
 
-  useHotkeys(
-    COLOR_HIGHLIGHT_SHORTCUT_KEY,
-    (event) => {
-      event.preventDefault()
+  useShortcut(
+    SHORTCUT_COMMAND.EDITOR_COLOR_HIGHLIGHT,
+    () => {
       handleColorHighlight()
     },
     {
-      enabled: isVisible && canColorHighlightState,
-      enableOnContentEditable: !isMobile,
-      enableOnFormTags: true
+      enabled: isVisible && canColorHighlightState
     }
   )
 

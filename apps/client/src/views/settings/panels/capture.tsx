@@ -2,12 +2,10 @@ import { Switch } from '@i-thinking/design/components/switch'
 import { useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 
-import { isValidShortcut } from '@/features/capture/shortcut'
 import { findCaptureUsage } from '@/features/capture/model/usage'
 import { UsageMeter } from '@/features/capture/model/usage-meter'
 import { DETECT_OFF, DETECT_WINDOW, useSettingsStore } from '@/stores/setting'
 import { useGalleryStore } from '@/stores/gallery'
-import { ShortcutInput } from '@/views/settings/panels/shortcut-input'
 import { SettingsRow, SettingsSection } from '@/views/settings/panels/section.tsx'
 import { findCaptureHistory } from '@/views/gallery/model/media'
 
@@ -85,21 +83,6 @@ function CapturePanel() {
     }
   }
 
-  async function onShortcutCommit(shortcut: string) {
-    if (!isValidShortcut(shortcut)) {
-      toast.error('快捷键至少需要一个修饰键和一个主键')
-      return
-    }
-    const previous = capture.shortcut
-    try {
-      await toUpdate('capture', { shortcut })
-    } catch (error) {
-      await toUpdate('capture', { shortcut: previous })
-      const text = error instanceof Error ? error.message : String(error)
-      toast.error(`快捷键保存失败：${text}`)
-    }
-  }
-
   async function onRetentionEnabled(checked: boolean) {
     try {
       await toUpdate('capture', { isRetentionEnabled: checked })
@@ -149,18 +132,7 @@ function CapturePanel() {
 
   return (
     <div className="flex max-w-full flex-col gap-3 text-sm">
-      <SettingsSection title="快捷键与检测">
-        <SettingsRow
-          label="快捷键"
-          hint="至少一个修饰键加一个主键，例如 Alt+Q">
-          <ShortcutInput
-            value={capture.shortcut}
-            onCommit={function (shortcut) {
-              void onShortcutCommit(shortcut)
-            }}
-          />
-        </SettingsRow>
-
+      <SettingsSection title="截屏检测">
         <SettingsRow
           label="窗口检测"
           hint="截图时悬停高亮窗口，单击吸附为选区；关闭后仅自由框选">

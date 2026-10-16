@@ -2,13 +2,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
+import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
+import { useShortcut } from '@/keyboard/react'
 import { type Editor } from '@tiptap/react'
 import { TextSelection } from '@tiptap/pm/state'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
-import { useIsBreakpoint } from '@/hooks/use-is-breakpoint.ts'
 
 // --- Utils ---
 import { getAnchorNodeAndPos } from '@/lib/tiptap-advanced-utils.ts'
@@ -17,8 +17,8 @@ import { getAnchorNodeAndPos } from '@/lib/tiptap-advanced-utils.ts'
 import { AlignTopIcon } from '@/components/tiptap-icons/align-top-icon.tsx'
 import { AlignBottomIcon } from '@/components/tiptap-icons/align-bottom-icon.tsx'
 
-export const MOVE_UP_SHORTCUT_KEY = 'mod+shift+ArrowUp'
-export const MOVE_DOWN_SHORTCUT_KEY = 'mod+shift+ArrowDown'
+export const MOVE_UP_SHORTCUT_KEY = findShortcutDefault(SHORTCUT_COMMAND.EDITOR_MOVE_UP)
+export const MOVE_DOWN_SHORTCUT_KEY = findShortcutDefault(SHORTCUT_COMMAND.EDITOR_MOVE_DOWN)
 
 /**
  * Configuration for the move node functionality
@@ -147,7 +147,6 @@ export function useMoveNode(config: UseMoveNodeConfig) {
     onMoved
   } = config
   const { editor } = useTiptapEditor(providedEditor)
-  const isMobile = useIsBreakpoint()
 
   const [isVisible, setIsVisible] = useState(true)
   const [canMoveNodeState, setCanMoveNodeState] = useState(false)
@@ -180,18 +179,14 @@ export function useMoveNode(config: UseMoveNodeConfig) {
   const shortcutKeys =
     direction === 'up' ? MOVE_UP_SHORTCUT_KEY : MOVE_DOWN_SHORTCUT_KEY
 
-  useHotkeys(
-    shortcutKeys,
-    (event) => {
-      event.preventDefault()
+  useShortcut(
+    direction === 'up' ? SHORTCUT_COMMAND.EDITOR_MOVE_UP : SHORTCUT_COMMAND.EDITOR_MOVE_DOWN,
+    () => {
       handleMoveNode()
     },
     {
-      enabled: isVisible && canMoveNodeState,
-      enableOnContentEditable: !isMobile,
-      enableOnFormTags: true
-    },
-    [handleMoveNode, isVisible, canMoveNodeState, isMobile]
+      enabled: isVisible && canMoveNodeState
+    }
   )
 
   const label = direction === 'up' ? 'Move Up' : 'Move Down'
