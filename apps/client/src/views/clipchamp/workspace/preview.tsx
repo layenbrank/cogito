@@ -2,7 +2,16 @@ import { Button } from '@i-thinking/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import { clsx } from 'clsx'
 import type Konva from 'konva'
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore
+} from 'react'
 import { Group, Rect, Text as KonvaText } from 'react-konva'
 
 import {
@@ -88,12 +97,227 @@ function useMediaSource(clipId: string): CanvasImageSource | null {
 }
 
 /** 仅在活动 clip 集合变化时触发 Preview 重渲染，避开 playhead 每帧刷新 Stage */
-function findActiveClipIdsKey(project: ReturnType<typeof useClipchampStore.getState>['project'], playheadMs: number) {
+function findActiveClipIdsKey(
+  project: ReturnType<typeof useClipchampStore.getState>['project'],
+  playheadMs: number
+) {
   return findActiveClips(project, playheadMs)
     .map(function (clip) {
       return clip.id
     })
     .join('\0')
+}
+
+/** 选中节点的快照与通知：引用稳定，供 Konva Transformer 通过 useSyncExternalStore 订阅 */
+function useSelectionSnapshot(input: {
+  nodeMapRef: { current: Map<string, Konva.Node> }
+  selectionListenersRef: { current: Set<() => void> }
+  selectedNodesSnapshotRef: { current: Konva.Node[] }
+  selectedClipId: string | null
+}) {
+  const { nodeMapRef, selectionListenersRef, selectedNodesSnapshotRef, selectedClipId } = input
+
+  const notifySelection = useRef(function () {
+    for (const listener of selectionListenersRef.current) listener()
+  }).current
+
+  // 快照结果要按选中项缓存：useSyncExternalStore 要求引用稳定，所以复用 ref 里的旧数组。
+  // 不能读 `selectedClipIdRef`：那要求 render 期写 ref；改成依赖 id，快照函数换新时 React 会重读。
+  const getSelectedNodes = useCallback(
+    function (): Konva.Node[] {
+      const node = selectedClipId ? (nodeMapRef.current.get(selectedClipId) ?? null) : null
+      const prev = selectedNodesSnapshotRef.current
+      if (!node) {
+        if (prev.length === 0) return prev
+        selectedNodesSnapshotRef.current = []
+        return selectedNodesSnapshotRef.current
+      }
+      if (prev.length === 1 && prev[0] === node) return prev
+      selectedNodesSnapshotRef.current = [node]
+      return selectedNodesSnapshotRef.current
+    },
+    [selectedClipId, nodeMapRef, selectedNodesSnapshotRef]
+  )
+
+  const subscribeSelectedNodes = useRef(function (onStoreChange: () => void) {
+    selectionListenersRef.current.add(onStoreChange)
+    return function () {
+      selectionListenersRef.current.delete(onStoreChange)
+    }
+  }).current
+
+  return { notifySelection, getSelectedNodes, subscribeSelectedNodes }
+}
+
+/** 舞台节点集与交互：注册、变换提交、选中快照都收敛在这里，对外引用保持稳定 */
+function usePreviewNodes(input: {
+  nodeMapRef: { current: Map<string, Konva.Node> }
+  selectedClipIdRef: { current: string | null }
+  selectClipRef: { current: (clipId: string | null) => void }
+  undoCapturedRef: { current: boolean }
+  selectionListenersRef: { current: Set<() => void> }
+  selectedNodesSnapshotRef: { current: Konva.Node[] }
+  selectedClipId: string | null
+  mediaClips: Clip[]
+  contentClips: Clip[]
+  assetMap: Map<string, MediaAsset>
+  contentSize: Size
+}) {
+  const {
+    nodeMapRef,
+    selectedClipIdRef,
+    selectClipRef,
+    undoCapturedRef,
+    selectionListenersRef,
+    selectedNodesSnapshotRef,
+    selectedClipId,
+    mediaClips,
+    contentClips,
+    assetMap,
+    contentSize
+  } = input
+
+  const { notifySelection, getSelectedNodes, subscribeSelectedNodes } = useSelectionSnapshot({
+    nodeMapRef,
+    selectionListenersRef,
+    selectedNodesSnapshotRef,
+    selectedClipId
+  })
+
+  // 稳定引用：仅写 nodeMap + 通知 Transformer；禁止 setState 抬升 Stage 宿主
+  // unregister 带旧节点：remount 同 tick 时，新 register 先写入后旧 cleanup 不会误清
+  const registerNode = useRef(function (
+    clipId: string,
+    node: Konva.Node | null,
+    unmounting?: Konva.Node | null
+  ) {
+    const prev = nodeMapRef.current.get(clipId) ?? null
+    if (node) {
+      nodeMapRef.current.set(clipId, node)
+    } else if (unmounting !== undefined && unmounting !== null) {
+      if (nodeMapRef.current.get(clipId) !== unmounting) return
+      nodeMapRef.current.delete(clipId)
+    } else {
+      nodeMapRef.current.delete(clipId)
+    }
+    const next = nodeMapRef.current.get(clipId) ?? null
+    if (clipId !== selectedClipIdRef.current || prev === next) return
+    notifySelection()
+  }).current
+
+  const beginTransform = useRef(function () {
+    if (undoCapturedRef.current) return
+    useClipchampStore.getState().captureUndoPoint()
+    undoCapturedRef.current = true
+  }).current
+
+  const endTransform = useRef(function (clipId: string, node: Konva.Node) {
+    const store = useClipchampStore.getState()
+    const size = ASPECT_SIZE[store.canvasAspect ?? store.project.aspect]
+    store.applyLive(function (draft) {
+      return updateClip(draft, clipId, {
+        x: node.x() / size.width,
+        y: node.y() / size.height,
+        scale: Math.abs(node.scaleX()),
+        rotation: node.rotation()
+      })
+    })
+    undoCapturedRef.current = false
+  }).current
+
+  const handleSelectClip = useRef(function (clipId: string) {
+    selectClipRef.current(clipId)
+  }).current
+
+  const handleStageClick = useRef(function (
+    event: Konva.KonvaEventObject<MouseEvent | TouchEvent>
+  ) {
+    if (event.target === event.target.getStage()) {
+      selectClipRef.current(null)
+    }
+  }).current
+
+  const handleTransformEnd = useRef(function () {
+    const store = useClipchampStore.getState()
+    const clipId = store.selectedClipId
+    if (!clipId) return
+    const attached = nodeMapRef.current.get(clipId)
+    if (!attached) return
+    endTransform(clipId, attached)
+  }).current
+
+  const mediaNodes = useMemo(
+    function () {
+      const top = mediaClips.length
+      return mediaClips.map(function (clip, index) {
+        return (
+          <PreviewMediaClip
+            key={clip.id}
+            clip={clip}
+            asset={clip.assetId ? assetMap.get(clip.assetId) : undefined}
+            contentSize={contentSize}
+            zIndex={top - index}
+            onRegister={registerNode}
+            onSelect={handleSelectClip}
+            onTransformStart={beginTransform}
+            onTransformCommit={endTransform}
+          />
+        )
+      })
+    },
+    [
+      mediaClips,
+      assetMap,
+      contentSize,
+      registerNode,
+      handleSelectClip,
+      beginTransform,
+      endTransform
+    ]
+  )
+
+  const contentNodes = useMemo(
+    function () {
+      const top = contentClips.length
+      return contentClips.map(function (clip, index) {
+        return (
+          <PreviewTextClip
+            key={clip.id}
+            clip={clip}
+            contentSize={contentSize}
+            zIndex={top - index}
+            onRegister={registerNode}
+            onSelect={handleSelectClip}
+            onTransformStart={beginTransform}
+            onTransformCommit={endTransform}
+          />
+        )
+      })
+    },
+    [contentClips, contentSize, registerNode, handleSelectClip, beginTransform, endTransform]
+  )
+
+  const interactionNode = useMemo(
+    function () {
+      return (
+        <CanvasTransformer
+          getNodes={getSelectedNodes}
+          subscribeNodes={subscribeSelectedNodes}
+          rotateEnabled
+          onTransformEnd={handleTransformEnd}
+        />
+      )
+    },
+    [getSelectedNodes, subscribeSelectedNodes, handleTransformEnd]
+  )
+
+  return {
+    notifySelection,
+    handleStageClick,
+    mediaNodes,
+    contentNodes,
+    interactionNode
+  }
 }
 
 function Preview(props: PreviewProps) {
@@ -174,35 +398,6 @@ function Preview(props: PreviewProps) {
     [viewport, contentSize]
   )
   const hasViewport = viewport.width >= 8 && viewport.height >= 8
-
-  const notifySelection = useRef(function () {
-    for (const listener of selectionListenersRef.current) listener()
-  }).current
-
-  // 快照结果要按选中项缓存：useSyncExternalStore 要求引用稳定，所以复用 ref 里的旧数组。
-  // 不能读 `selectedClipIdRef`：那要求 render 期写 ref；改成依赖 id，快照函数换新时 React 会重读。
-  const getSelectedNodes = useCallback(
-    function (): Konva.Node[] {
-      const node = selectedClipId ? (nodeMapRef.current.get(selectedClipId) ?? null) : null
-      const prev = selectedNodesSnapshotRef.current
-      if (!node) {
-        if (prev.length === 0) return prev
-        selectedNodesSnapshotRef.current = []
-        return selectedNodesSnapshotRef.current
-      }
-      if (prev.length === 1 && prev[0] === node) return prev
-      selectedNodesSnapshotRef.current = [node]
-      return selectedNodesSnapshotRef.current
-    },
-    [selectedClipId]
-  )
-
-  const subscribeSelectedNodes = useRef(function (onStoreChange: () => void) {
-    selectionListenersRef.current.add(onStoreChange)
-    return function () {
-      selectionListenersRef.current.delete(onStoreChange)
-    }
-  }).current
 
   const activeClips = useMemo(
     function () {
@@ -291,18 +486,30 @@ function Preview(props: PreviewProps) {
 
   useMediaClock({ active: isPlaying, target: stageNode })
 
-  useEffect(
-    function () {
-      function draw() {
-        stageHandleRef.current?.batchDraw()
-      }
-      PREVIEW_DRAW_LISTENERS.add(draw)
-      return function () {
-        PREVIEW_DRAW_LISTENERS.delete(draw)
-      }
-    },
-    []
-  )
+  useEffect(function () {
+    function draw() {
+      stageHandleRef.current?.batchDraw()
+    }
+    PREVIEW_DRAW_LISTENERS.add(draw)
+    return function () {
+      PREVIEW_DRAW_LISTENERS.delete(draw)
+    }
+  }, [])
+
+  const { notifySelection, handleStageClick, mediaNodes, contentNodes, interactionNode } =
+    usePreviewNodes({
+      nodeMapRef,
+      selectedClipIdRef,
+      selectClipRef,
+      undoCapturedRef,
+      selectionListenersRef,
+      selectedNodesSnapshotRef,
+      selectedClipId,
+      mediaClips,
+      contentClips,
+      assetMap,
+      contentSize
+    })
 
   // 选区变更只通知 Konva 内 Transformer（useSyncExternalStore），不抬升 Preview setState。
   // ref 同步也放这里：render 期写 ref 会被 React 19 判为「渲染期改 ref」。
@@ -313,125 +520,6 @@ function Preview(props: PreviewProps) {
       notifySelection()
     },
     [selectedClipId, selectClip, notifySelection]
-  )
-
-  // 稳定引用：仅写 nodeMap + 通知 Transformer；禁止 setState 抬升 Stage 宿主
-  // unregister 带旧节点：remount 同 tick 时，新 register 先写入后旧 cleanup 不会误清
-  const registerNode = useRef(function (
-    clipId: string,
-    node: Konva.Node | null,
-    unmounting?: Konva.Node | null
-  ) {
-    const prev = nodeMapRef.current.get(clipId) ?? null
-    if (node) {
-      nodeMapRef.current.set(clipId, node)
-    } else if (unmounting !== undefined && unmounting !== null) {
-      if (nodeMapRef.current.get(clipId) !== unmounting) return
-      nodeMapRef.current.delete(clipId)
-    } else {
-      nodeMapRef.current.delete(clipId)
-    }
-    const next = nodeMapRef.current.get(clipId) ?? null
-    if (clipId !== selectedClipIdRef.current || prev === next) return
-    notifySelection()
-  }).current
-
-  const beginTransform = useRef(function () {
-    if (undoCapturedRef.current) return
-    useClipchampStore.getState().captureUndoPoint()
-    undoCapturedRef.current = true
-  }).current
-
-  const endTransform = useRef(function (clipId: string, node: Konva.Node) {
-    const store = useClipchampStore.getState()
-    const size = ASPECT_SIZE[store.canvasAspect ?? store.project.aspect]
-    store.applyLive(function (draft) {
-      return updateClip(draft, clipId, {
-        x: node.x() / size.width,
-        y: node.y() / size.height,
-        scale: Math.abs(node.scaleX()),
-        rotation: node.rotation()
-      })
-    })
-    undoCapturedRef.current = false
-  }).current
-
-  const handleSelectClip = useRef(function (clipId: string) {
-    selectClipRef.current(clipId)
-  }).current
-
-  const handleStageClick = useRef(function (
-    event: Konva.KonvaEventObject<MouseEvent | TouchEvent>
-  ) {
-    if (event.target === event.target.getStage()) {
-      selectClipRef.current(null)
-    }
-  }).current
-
-  const handleTransformEnd = useRef(function () {
-    const store = useClipchampStore.getState()
-    const clipId = store.selectedClipId
-    if (!clipId) return
-    const attached = nodeMapRef.current.get(clipId)
-    if (!attached) return
-    endTransform(clipId, attached)
-  }).current
-
-  const mediaNodes = useMemo(
-    function () {
-      const top = mediaClips.length
-      return mediaClips.map(function (clip, index) {
-        return (
-          <PreviewMediaClip
-            key={clip.id}
-            clip={clip}
-            asset={clip.assetId ? assetMap.get(clip.assetId) : undefined}
-            contentSize={contentSize}
-            zIndex={top - index}
-            onRegister={registerNode}
-            onSelect={handleSelectClip}
-            onTransformStart={beginTransform}
-            onTransformCommit={endTransform}
-          />
-        )
-      })
-    },
-    [mediaClips, assetMap, contentSize, registerNode, handleSelectClip, beginTransform, endTransform]
-  )
-
-  const contentNodes = useMemo(
-    function () {
-      const top = contentClips.length
-      return contentClips.map(function (clip, index) {
-        return (
-          <PreviewTextClip
-            key={clip.id}
-            clip={clip}
-            contentSize={contentSize}
-            zIndex={top - index}
-            onRegister={registerNode}
-            onSelect={handleSelectClip}
-            onTransformStart={beginTransform}
-            onTransformCommit={endTransform}
-          />
-        )
-      })
-    },
-    [contentClips, contentSize, registerNode, handleSelectClip, beginTransform, endTransform]
-  )
-
-  const interactionNode = useMemo(
-    function () {
-      return (
-        <CanvasTransformer
-          getNodes={getSelectedNodes}
-          subscribeNodes={subscribeSelectedNodes}
-          rotateEnabled
-          onTransformEnd={handleTransformEnd}
-        />
-      )
-    },
-    [getSelectedNodes, subscribeSelectedNodes, handleTransformEnd]
   )
 
   return (
@@ -498,7 +586,10 @@ function Preview(props: PreviewProps) {
         ) : null}
       </div>
 
-      <PreviewTransport isFullscreen={isFullscreen} onExitFullscreen={updateFullscreen} />
+      <PreviewTransport
+        isFullscreen={isFullscreen}
+        onExitFullscreen={updateFullscreen}
+      />
     </div>
   )
 }
@@ -832,15 +923,8 @@ interface PreviewMediaClipProps {
 }
 
 const PreviewMediaClip = memo(function PreviewMediaClip(props: PreviewMediaClipProps) {
-  const {
-    clip,
-    asset,
-    contentSize,
-    onRegister,
-    onSelect,
-    onTransformStart,
-    onTransformCommit
-  } = props
+  const { clip, asset, contentSize, onRegister, onSelect, onTransformStart, onTransformCommit } =
+    props
   const playheadMs = useSyncExternalStore(subscribePlayhead, readPlayheadMs)
   const groupRef = useRef<Konva.Group>(null)
   const source = useMediaSource(clip.id)
@@ -977,14 +1061,7 @@ interface PreviewTextClipProps {
 }
 
 const PreviewTextClip = memo(function PreviewTextClip(props: PreviewTextClipProps) {
-  const {
-    clip,
-    contentSize,
-    onRegister,
-    onSelect,
-    onTransformStart,
-    onTransformCommit
-  } = props
+  const { clip, contentSize, onRegister, onSelect, onTransformStart, onTransformCommit } = props
   const playheadMs = useSyncExternalStore(subscribePlayhead, readPlayheadMs)
   const textRef = useRef<Konva.Text>(null)
   const { animOpacity, animScale, animY } = findAnimState(clip, playheadMs)
