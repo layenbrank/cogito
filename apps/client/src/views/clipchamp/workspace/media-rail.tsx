@@ -3,9 +3,9 @@ import { Icon } from '@iconify/react/offline'
 import { clsx } from 'clsx'
 
 import { useClipchampStore } from '@/stores/clipchamp.ts'
-import type { MediaPanel } from '@/views/clipchamp/lib/project'
+import type { MediaSurface } from '@/views/clipchamp/lib/project'
 
-const RAIL_ITEMS: { id: MediaPanel; icon: string; label: string }[] = [
+const RAIL_ITEMS: { id: MediaSurface; icon: string; label: string }[] = [
   { id: 'media', icon: 'lucide:folder-open', label: '媒体' },
   { id: 'text', icon: 'lucide:type', label: '文本' },
   { id: 'stickers', icon: 'lucide:sticker', label: '贴纸' },
@@ -14,17 +14,17 @@ const RAIL_ITEMS: { id: MediaPanel; icon: string; label: string }[] = [
 ]
 
 function MediaRail() {
-  const mediaPanel = useClipchampStore(function (s) {
-    return s.mediaPanel
+  const mediaSurface = useClipchampStore(function (s) {
+    return s.mediaSurface
   })
-  const updateMediaPanel = useClipchampStore(function (s) {
-    return s.updateMediaPanel
+  const updateMediaSurface = useClipchampStore(function (s) {
+    return s.updateMediaSurface
   })
 
   return (
     <nav className="flex w-12 shrink-0 flex-col items-center gap-0.5 border-r border-border/80 bg-muted/25 py-2">
       {RAIL_ITEMS.map(function (item) {
-        const isActive = mediaPanel === item.id
+        const isActive = mediaSurface === item.id
         return (
           <Button
             key={item.id}
@@ -37,7 +37,7 @@ function MediaRail() {
               isActive && 'bg-primary/12 text-primary hover:bg-primary/15 hover:text-primary'
             )}
             onClick={function () {
-              updateMediaPanel(item.id)
+              updateMediaSurface(item.id)
             }}>
             <Icon
               icon={item.icon}

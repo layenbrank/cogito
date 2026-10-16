@@ -7,9 +7,9 @@ import {
   StickerBody,
   TextBody,
   TransitionBody
-} from '@/views/clipchamp/workspace/media-panel-bodies.tsx'
+} from '@/views/clipchamp/workspace/media-surface-bodies.tsx'
 
-const PANEL_TITLE = {
+const SURFACE_TITLE = {
   media: '我的媒体',
   text: '文本',
   stickers: '贴纸',
@@ -18,28 +18,28 @@ const PANEL_TITLE = {
 } as const
 
 /** 素材面板外壳：标题 + 按当前分栏渲染对应正文 */
-function MediaPanel() {
-  const mediaPanel = useClipchampStore(function (s) {
-    return s.mediaPanel
+function MediaSurface() {
+  const mediaSurface = useClipchampStore(function (s) {
+    return s.mediaSurface
   })
 
   return (
     <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
       <div className="flex h-10 shrink-0 items-center border-b border-border/80 px-3">
-        <h2 className="text-sm font-medium tracking-tight">{PANEL_TITLE[mediaPanel]}</h2>
+        <h2 className="text-sm font-medium tracking-tight">{SURFACE_TITLE[mediaSurface]}</h2>
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex flex-col gap-3 p-3">
-          {mediaPanel === 'media' ? <MediaListBody /> : null}
-          {mediaPanel === 'text' ? <TextBody /> : null}
-          {mediaPanel === 'stickers' ? <StickerBody /> : null}
-          {mediaPanel === 'transitions' ? <TransitionBody /> : null}
-          {mediaPanel === 'audio' ? <AudioBody /> : null}
+          {mediaSurface === 'media' ? <MediaListBody /> : null}
+          {mediaSurface === 'text' ? <TextBody /> : null}
+          {mediaSurface === 'stickers' ? <StickerBody /> : null}
+          {mediaSurface === 'transitions' ? <TransitionBody /> : null}
+          {mediaSurface === 'audio' ? <AudioBody /> : null}
         </div>
       </ScrollArea>
     </div>
   )
 }
 
-export { MediaPanel }
+export { MediaSurface }

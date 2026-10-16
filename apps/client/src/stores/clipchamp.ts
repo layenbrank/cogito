@@ -26,7 +26,7 @@ import {
   type ExportPreset,
   type InspectorTab,
   type MediaAsset,
-  type MediaPanel,
+  type MediaSurface,
   type Project
 } from '@/views/clipchamp/lib/project'
 import { buildExportArgs } from '@/views/clipchamp/lib/export-graph'
@@ -39,7 +39,7 @@ interface ClipchampState {
   playheadMs: number
   isPlaying: boolean
   selectedClipId: string | null
-  mediaPanel: MediaPanel
+  mediaSurface: MediaSurface
   inspectorTab: InspectorTab
   timelineZoom: number
   isSnapping: boolean
@@ -64,7 +64,7 @@ interface ClipchampState {
   pause(): void
   togglePlay(): void
   selectClip(clipId: string | null): void
-  updateMediaPanel(panel: MediaPanel): void
+  updateMediaSurface(surface: MediaSurface): void
   updateInspectorTab(tab: InspectorTab): void
   updateTimelineZoom(zoom: number): void
   updateSnapping(isSnapping: boolean): void
@@ -137,7 +137,7 @@ const useClipchampStore = create<ClipchampState>()(
         playheadMs: 0,
         isPlaying: false,
         selectedClipId: null,
-        mediaPanel: 'media',
+        mediaSurface: 'media',
         inspectorTab: 'transform',
         timelineZoom: 1,
         isSnapping: true,
@@ -220,8 +220,8 @@ const useClipchampStore = create<ClipchampState>()(
           setter({ selectedClipId: clipId })
         },
 
-        updateMediaPanel(panel) {
-          setter({ mediaPanel: panel })
+        updateMediaSurface(surface) {
+          setter({ mediaSurface: surface })
         },
 
         updateInspectorTab(tab) {
@@ -363,7 +363,7 @@ const useClipchampStore = create<ClipchampState>()(
             thumbUrl: src,
             galleryId: asset.id
           }
-          setter({ assets: [...getter().assets, media], mediaPanel: 'media' })
+          setter({ assets: [...getter().assets, media], mediaSurface: 'media' })
           toast.success('已从图库加入素材')
           getter().hydrateAssetPreviews([media.id])
         },
@@ -405,12 +405,7 @@ const useClipchampStore = create<ClipchampState>()(
 
           let selectedId: string | null = null
           getter().commit(function (draft) {
-            const placed = placeClipOnLane(
-              draft,
-              kindTrack,
-              playhead,
-              asset.durationMs
-            )
+            const placed = placeClipOnLane(draft, kindTrack, playhead, asset.durationMs)
             const clip = createClipDefaults({
               kind: clipKind,
               trackId: placed.trackId,
@@ -456,7 +451,7 @@ const useClipchampStore = create<ClipchampState>()(
           if (selectedId) {
             setter({
               selectedClipId: selectedId,
-              mediaPanel: 'text',
+              mediaSurface: 'text',
               inspectorTab: 'transform'
             })
           }
@@ -494,7 +489,7 @@ const useClipchampStore = create<ClipchampState>()(
             return insertClip(placed.project, placed.trackId, clip)
           })
           if (selectedId) {
-            setter({ selectedClipId: selectedId, mediaPanel: 'stickers' })
+            setter({ selectedClipId: selectedId, mediaSurface: 'stickers' })
           }
         },
 

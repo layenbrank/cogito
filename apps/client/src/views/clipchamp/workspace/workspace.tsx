@@ -8,7 +8,7 @@ import { useEffect } from 'react'
 
 import { useClipchampStore } from '@/stores/clipchamp.ts'
 import { Inspector } from '@/views/clipchamp/workspace/inspector.tsx'
-import { MediaPanel } from '@/views/clipchamp/workspace/media-panel.tsx'
+import { MediaSurface } from '@/views/clipchamp/workspace/media-surface.tsx'
 import { MediaRail } from '@/views/clipchamp/workspace/media-rail.tsx'
 import { Preview } from '@/views/clipchamp/workspace/preview.tsx'
 import { Timeline } from '@/views/clipchamp/workspace/timeline/timeline.tsx'
@@ -95,7 +95,7 @@ function Workspace() {
               className="min-h-0 overflow-hidden">
               <div className="flex h-full min-h-0 border-r border-border/60">
                 <MediaRail />
-                <MediaPanel />
+                <MediaSurface />
               </div>
             </ResizablePanel>
             <ResizableHandle className="w-1 bg-transparent transition-colors hover:bg-primary/20" />

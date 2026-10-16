@@ -6,17 +6,10 @@ type TrackKind = 'text' | 'video' | 'overlay' | 'audio' | 'caption'
 
 type ClipKind = 'video' | 'audio' | 'text' | 'sticker' | 'shape' | 'caption' | 'image'
 
-type MediaPanel = 'media' | 'text' | 'stickers' | 'transitions' | 'audio'
+type MediaSurface = 'media' | 'text' | 'stickers' | 'transitions' | 'audio'
 
 type InspectorTab =
-  | 'captions'
-  | 'audio'
-  | 'fade'
-  | 'filters'
-  | 'color'
-  | 'transform'
-  | 'speed'
-  | 'mask'
+  'captions' | 'audio' | 'fade' | 'filters' | 'color' | 'transform' | 'speed' | 'mask'
 
 type AnimKind = 'none' | 'fade' | 'slide-up' | 'slide-down' | 'zoom'
 
@@ -294,12 +287,7 @@ function findTrackDisplayName(project: Project, track: Track): string {
   return `${label} ${index + 1}`
 }
 
-function hasTrackOverlap(
-  track: Track,
-  startMs: number,
-  durationMs: number,
-  speed = 1
-): boolean {
+function hasTrackOverlap(track: Track, startMs: number, durationMs: number, speed = 1): boolean {
   const endMs = startMs + durationMs / Math.max(0.1, speed)
   return track.clips.some(function (clip) {
     return startMs < findClipEndMs(clip) && endMs > clip.startMs
@@ -575,13 +563,7 @@ function detachAudio(project: Project, clipId: string, assets: MediaAsset[]): Pr
   })
   if (!asset?.hasAudio) return null
 
-  const placed = placeClipOnLane(
-    project,
-    'audio',
-    clip.startMs,
-    clip.durationMs,
-    clip.speed
-  )
+  const placed = placeClipOnLane(project, 'audio', clip.startMs, clip.durationMs, clip.speed)
   const audioClip = createClipDefaults({
     kind: 'audio',
     trackId: placed.trackId,
@@ -683,7 +665,7 @@ export type {
   AspectRatio,
   TrackKind,
   ClipKind,
-  MediaPanel,
+  MediaSurface,
   InspectorTab,
   AnimKind,
   TransitionKind,

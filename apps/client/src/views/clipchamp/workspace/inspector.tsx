@@ -3,7 +3,7 @@ import { ScrollArea } from '@i-thinking/design/components/scroll-area'
 import { Icon } from '@iconify/react/offline'
 import { clsx } from 'clsx'
 import { throttle } from 'lodash-es'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo } from 'react'
 
 import { findSelectedClip, useClipchampStore } from '@/stores/clipchamp.ts'
 import type { Clip, ColorAdjust, InspectorTab } from '@/views/clipchamp/lib/project'
@@ -40,8 +40,7 @@ const MASK_OPTIONS = [
 const ENTER_KINDS = ['none', 'fade', 'slide-up', 'zoom'] as const
 const EXIT_KINDS = ['none', 'fade', 'slide-down', 'zoom'] as const
 
-/** 各 Tab 面板共用的状态与回调 */
-interface PanelProps {
+/** 各 Tab 面板共用的状态与回调 */ interface SurfaceProps {
   clip: Clip
   onCapture: () => void
   onPatch: (patch: Partial<Clip>) => void
@@ -66,7 +65,7 @@ function EmptyClipHint() {
   )
 }
 
-function CaptionsPanel(props: PanelProps) {
+function CaptionsSurface(props: SurfaceProps) {
   const { clip } = props
   return (
     <div className="flex flex-col gap-2">
@@ -99,7 +98,7 @@ function CaptionsPanel(props: PanelProps) {
   )
 }
 
-function AudioPanel(props: PanelProps) {
+function AudioSurface(props: SurfaceProps) {
   const { clip } = props
   return (
     <div className="flex flex-col gap-3">
@@ -127,7 +126,7 @@ function AudioPanel(props: PanelProps) {
   )
 }
 
-function FadePanel(props: PanelProps) {
+function FadeSurface(props: SurfaceProps) {
   const { clip } = props
   return (
     <div className="flex flex-col gap-3">
@@ -197,7 +196,7 @@ function FadePanel(props: PanelProps) {
   )
 }
 
-function FiltersPanel(props: PanelProps) {
+function FiltersSurface(props: SurfaceProps) {
   const { clip } = props
   return (
     <div className="flex flex-col gap-2">
@@ -222,7 +221,7 @@ function FiltersPanel(props: PanelProps) {
   )
 }
 
-function ColorPanel(props: PanelProps) {
+function ColorSurface(props: SurfaceProps) {
   const { clip } = props
   return (
     <div className="flex flex-col gap-3">
@@ -295,7 +294,7 @@ function ColorPanel(props: PanelProps) {
   )
 }
 
-function TransformPanel(props: PanelProps) {
+function TransformSurface(props: SurfaceProps) {
   const { clip } = props
   return (
     <div className="flex flex-col gap-3">
@@ -361,7 +360,7 @@ function TransformPanel(props: PanelProps) {
   )
 }
 
-function SpeedPanel(props: PanelProps) {
+function SpeedSurface(props: SurfaceProps) {
   const { clip } = props
   return (
     <RangeField
@@ -379,7 +378,7 @@ function SpeedPanel(props: PanelProps) {
   )
 }
 
-function MaskPanel(props: PanelProps) {
+function MaskSurface(props: SurfaceProps) {
   const { clip } = props
   return (
     <div className="grid grid-cols-2 gap-2">
@@ -432,24 +431,24 @@ function TabRail(props: { activeTab: InspectorTab; onSelect: (tab: InspectorTab)
   )
 }
 
-function findInspectorPanel(tab: InspectorTab, props: PanelProps) {
+function findInspectorSurface(tab: InspectorTab, props: SurfaceProps) {
   switch (tab) {
     case 'captions':
-      return <CaptionsPanel {...props} />
+      return <CaptionsSurface {...props} />
     case 'audio':
-      return <AudioPanel {...props} />
+      return <AudioSurface {...props} />
     case 'fade':
-      return <FadePanel {...props} />
+      return <FadeSurface {...props} />
     case 'filters':
-      return <FiltersPanel {...props} />
+      return <FiltersSurface {...props} />
     case 'color':
-      return <ColorPanel {...props} />
+      return <ColorSurface {...props} />
     case 'transform':
-      return <TransformPanel {...props} />
+      return <TransformSurface {...props} />
     case 'speed':
-      return <SpeedPanel {...props} />
+      return <SpeedSurface {...props} />
     case 'mask':
-      return <MaskPanel {...props} />
+      return <MaskSurface {...props} />
     default:
       return null
   }
@@ -481,13 +480,6 @@ function Inspector() {
     patchSelected(patch)
   }
 
-  const clipRef = useRef(clip)
-  useEffect(
-    function () {
-      clipRef.current = clip
-    },
-    [clip]
-  )
   const emitColor = useMemo(function () {
     return throttle(function (patch: Partial<Clip>) {
       useClipchampStore.getState().patchSelected(patch)
@@ -504,7 +496,8 @@ function Inspector() {
   )
 
   function patchColor(partial: Partial<ColorAdjust>) {
-    const current = clipRef.current
+    // 节流回调可能在渲染后触发，取 store 当前选中项而不是闭包里的快照
+    const current = findSelectedClip(useClipchampStore.getState())
     if (!current) return
     const filter = { ...current.filter, ...partial }
     const patch: Partial<Clip> = { filter }
@@ -526,7 +519,7 @@ function Inspector() {
         <ScrollArea className="min-h-0 flex-1">
           <div className="flex flex-col gap-3 p-3">
             {clip ? (
-              findInspectorPanel(inspectorTab, {
+              findInspectorSurface(inspectorTab, {
                 clip,
                 onCapture: captureUndoPoint,
                 onPatch: patchSelected,
