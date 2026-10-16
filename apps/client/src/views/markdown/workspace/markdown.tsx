@@ -17,7 +17,7 @@ import { useCommands } from '@/keyboard/react'
 import { useMarkdownStore } from '@/stores/markdown'
 import { writeBackup } from '@/views/markdown/lib/backup.ts'
 import { exportHtmlDocument, printDocument } from '@/views/markdown/lib/export.ts'
-import { findDisplayTitle } from '@/views/markdown/lib/fs.ts'
+import { findDisplayTitle, writeBinaryBesideDoc } from '@/views/markdown/lib/fs.ts'
 import { parseMarkdown } from '@/views/markdown/lib/parse-markdown.ts'
 import { serializeHtmlToMarkdown } from '@/views/markdown/lib/serialize-markdown.ts'
 import { findOutlineFromEditor } from '@/views/markdown/lib/outline.ts'
@@ -147,7 +147,6 @@ export default function MarkdownWorkspace() {
       if (!file.type.startsWith('image/')) continue
       handled = true
       void (async function () {
-        const { writeBinaryBesideDoc } = await import('@/views/markdown/lib/fs.ts')
         const buffer = new Uint8Array(await file.arrayBuffer())
         const ext = file.type.split('/')[1] || 'png'
         const relative = await writeBinaryBesideDoc(
