@@ -5,10 +5,10 @@ import { useMarkdownStore } from '@/stores/markdown'
 import { t } from '@/views/markdown/locale.ts'
 
 interface EmptyStateProps {
-  onOpenFile(): void
-  onOpenFolder(): void
-  onNew(): void
-  onOpenRecent(path: string): void
+  onOpenFile: () => void
+  onOpenFolder: () => void
+  onNew: () => void
+  onOpenRecent: (path: string) => void
 }
 
 function EmptyState(props: EmptyStateProps) {

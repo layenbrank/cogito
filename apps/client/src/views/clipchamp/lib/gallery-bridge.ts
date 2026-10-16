@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 
 import { useGalleryStore } from '@/stores/gallery.ts'
 
@@ -20,7 +20,6 @@ function useGalleryBridge(): GalleryBridgeItem[] {
   const toReadMedias = useGalleryStore(function (s) {
     return s.toReadMedias
   })
-  const [items, setItems] = useState<GalleryBridgeItem[]>([])
 
   useEffect(
     function () {
@@ -31,9 +30,10 @@ function useGalleryBridge(): GalleryBridgeItem[] {
     [loaded, toReadMedias]
   )
 
-  useEffect(
+  // 直接派生：图库视频最多取前 24 条，不再往 state 里搬一份
+  return useMemo(
     function () {
-      const next = medias
+      return medias
         .filter(function (media) {
           return media.kind === 'video'
         })
@@ -47,12 +47,9 @@ function useGalleryBridge(): GalleryBridgeItem[] {
             durationMs: media.meta.durationMs
           }
         })
-      setItems(next)
     },
     [medias]
   )
-
-  return items
 }
 
 export { useGalleryBridge }

@@ -189,8 +189,8 @@ const useGalleryStore = create<GalleryStore>()(
             params:
               targets.length === 1
                 ? {
-                    id: targets[0]!.asset.id,
-                    updates: buildChange(targets[0]!.asset, { hidden })
+                    id: targets[0].asset.id,
+                    updates: buildChange(targets[0].asset, { hidden })
                   }
                 : targets.map(function (media) {
                     return {

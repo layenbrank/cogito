@@ -2,7 +2,7 @@ import { Sheet, SheetContent, SheetTitle } from '@i-thinking/design/components/s
 import { Input } from '@i-thinking/design/components/input'
 import { invoke } from '@tauri-apps/api/core'
 import Fuse from 'fuse.js'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { CHANNELS } from '@/shared/ipc/channels'
 
@@ -26,7 +26,6 @@ const FUSE_OPTIONS = {
 function OverlayDrawer(props: OverlayDrawerProps) {
   const [keyword, onUpdateKeyword] = useState('')
   const [magneticTiles, onUpdateMagneticTiles] = useState<MagneticTile[]>([])
-  const fuseRef = useRef<Fuse<MagneticTile> | null>(null)
   const toUpdateMagneticTile = useMirrorStore(function (state) {
     return state.toUpdateMagneticTile
   })
@@ -48,11 +47,9 @@ function OverlayDrawer(props: OverlayDrawerProps) {
             return !tile.collectionID && tile.component === 'navigation'
           })
           onUpdateMagneticTiles(candidates)
-          fuseRef.current = new Fuse(candidates, { ...FUSE_OPTIONS, keys: [...FUSE_OPTIONS.keys] })
         } catch {
           if (cancelled) return
           onUpdateMagneticTiles([])
-          fuseRef.current = null
           toast.error('磁贴数据加载失败')
         }
       }
@@ -66,19 +63,22 @@ function OverlayDrawer(props: OverlayDrawerProps) {
     [props.visible]
   )
 
+  const fuse = useMemo(
+    function () {
+      return new Fuse(magneticTiles, { ...FUSE_OPTIONS, keys: [...FUSE_OPTIONS.keys] })
+    },
+    [magneticTiles]
+  )
+
   const queriedMagneticTiles = useMemo(
     function () {
       const trimmed = keyword.trim()
       if (!trimmed.length) return magneticTiles
-
-      const fuse =
-        fuseRef.current ??
-        new Fuse(magneticTiles, { ...FUSE_OPTIONS, keys: [...FUSE_OPTIONS.keys] })
       return fuse.search(trimmed).map(function (hit) {
         return hit.item
       })
     },
-    [magneticTiles, keyword]
+    [fuse, magneticTiles, keyword]
   )
 
   const { id: collectionId, onJoined } = props

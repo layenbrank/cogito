@@ -39,7 +39,8 @@ function clearTargetStyles(target: HTMLElement | null) {
  * 坐标相对舞台，左上角定位——不再用 flex 居中 + 中心锚点（会漂）。
  */
 function useLightboxZoom(options: UseLightboxZoomOptions) {
-  const [scale, onScale] = useState(1)
+  // 缩放值连带记录它属于哪个 resetKey：换 key（换图/关闭）即视作 100%，不必在 effect 里 setState
+  const [zoom, onScale] = useState({ resetKey: options.resetKey, scale: 1 })
   const live = useRef({ scale: 1, x: 0, y: 0 })
   const fitRef = useRef({ w: options.fitWidth, h: options.fitHeight })
   const lastTargetRef = useRef<HTMLElement | null>(null)
@@ -117,7 +118,7 @@ function useLightboxZoom(options: UseLightboxZoomOptions) {
     live.current = { scale: 1, x: 0, y: 0 }
     const origin = findCenteredOrigin(1)
     live.current = { scale: 1, x: origin.x, y: origin.y }
-    onScale(1)
+    onScale({ resetKey: options.resetKey, scale: 1 })
     drag.current = null
 
     const current = options.targetRef.current
@@ -132,13 +133,22 @@ function useLightboxZoom(options: UseLightboxZoomOptions) {
     function () {
       if (!options.enabled || options.resetKey === undefined || options.resetKey === null) {
         live.current = { scale: 1, x: 0, y: 0 }
-        onScale(1)
         clearTargetStyles(options.targetRef.current)
         clearTargetStyles(lastTargetRef.current)
         lastTargetRef.current = null
         return
       }
-      resetZoom()
+      // 重置到 100% 只需重置内部量与 DOM；对外缩放值已按 resetKey 派生
+      live.current = { scale: 1, x: 0, y: 0 }
+      const origin = findCenteredOrigin(1)
+      live.current = { scale: 1, x: origin.x, y: origin.y }
+      drag.current = null
+      const current = options.targetRef.current
+      const previous = lastTargetRef.current
+      if (previous && previous !== current) clearTargetStyles(previous)
+      clearTargetStyles(current)
+      lastTargetRef.current = current
+      applyLayout()
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [options.resetKey, options.enabled]
@@ -202,7 +212,7 @@ function useLightboxZoom(options: UseLightboxZoomOptions) {
             live.current = { scale: next, x: pan.x, y: pan.y }
           }
 
-          onScale(live.current.scale)
+          onScale({ resetKey: options.resetKey, scale: live.current.scale })
           applyLayout()
         }
 
@@ -276,9 +286,15 @@ function useLightboxZoom(options: UseLightboxZoomOptions) {
     [options.enabled, options.stageRef, options.targetRef, options.resetKey]
   )
 
+  // 关闭或没有 resetKey 时对外一律视作 100%
+  const isZoomEnabled =
+    options.enabled && options.resetKey !== undefined && options.resetKey !== null
+  // 记录的 resetKey 与当前不符（换图/关闭）也视作 100%
+  const exposedScale = isZoomEnabled && zoom.resetKey === options.resetKey ? zoom.scale : 1
+
   return {
-    scale,
-    isZoomed: scale > 1.001,
+    scale: exposedScale,
+    isZoomed: exposedScale > 1.001,
     resetZoom
   }
 }

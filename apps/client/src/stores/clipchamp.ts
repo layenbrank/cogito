@@ -52,28 +52,28 @@ interface ClipchampState {
   /** 比例菜单悬停时的画布预览，不写入项目 */
   canvasAspect: AspectRatio | null
 
-  commit(mutate: (project: Project) => Project): void
+  commit: (mutate: (project: Project) => Project) => void
   /** 实时拖拽等不入历史的变更 */
-  applyLive(mutate: (project: Project) => Project): void
+  applyLive: (mutate: (project: Project) => Project) => void
   /** 拖拽开始前调用，将当前工程推入 undo */
-  captureUndoPoint(): void
-  undo(): void
-  redo(): void
-  seek(ms: number): void
-  play(): void
-  pause(): void
-  togglePlay(): void
-  selectClip(clipId: string | null): void
-  updateMediaSurface(surface: MediaSurface): void
-  updateInspectorTab(tab: InspectorTab): void
-  updateTimelineZoom(zoom: number): void
-  updateSnapping(isSnapping: boolean): void
-  updateFullscreen(isFullscreen: boolean): void
-  updateAspect(aspect: AspectRatio): void
-  updateCanvasAspect(aspect: AspectRatio | null): void
-  updateExportPreset(presetId: string): void
-  exportVideo(preset: ExportPreset): Promise<void>
-  importMedia(): Promise<void>
+  captureUndoPoint: () => void
+  undo: () => void
+  redo: () => void
+  seek: (ms: number) => void
+  play: () => void
+  pause: () => void
+  togglePlay: () => void
+  selectClip: (clipId: string | null) => void
+  updateMediaSurface: (surface: MediaSurface) => void
+  updateInspectorTab: (tab: InspectorTab) => void
+  updateTimelineZoom: (zoom: number) => void
+  updateSnapping: (isSnapping: boolean) => void
+  updateFullscreen: (isFullscreen: boolean) => void
+  updateAspect: (aspect: AspectRatio) => void
+  updateCanvasAspect: (aspect: AspectRatio | null) => void
+  updateExportPreset: (presetId: string) => void
+  exportVideo: (preset: ExportPreset) => Promise<void>
+  importMedia: () => Promise<void>
   importFromGallery(asset: {
     id: string
     path: string
@@ -81,21 +81,21 @@ interface ClipchampState {
     kind: 'video' | 'image'
     durationMs?: number
   }): Promise<void>
-  patchAsset(assetId: string, patch: Partial<MediaAsset>): void
+  patchAsset: (assetId: string, patch: Partial<MediaAsset>) => void
   /** 后台生成 filmstrip / waveform，不阻塞导入 */
-  hydrateAssetPreviews(assetIds: string[]): void
-  addAssetToTimeline(assetId: string, trackKind?: 'video' | 'overlay' | 'audio'): void
-  addTextClip(content?: string): void
-  addSticker(stickerId: string): void
-  addCaptionCue(text?: string): void
-  splitAtPlayhead(): void
-  detachSelectedAudio(): void
-  removeSelected(): void
-  patchSelected(patch: Partial<Clip>): void
-  tick(deltaMs: number): void
-  persistProject(): void
-  restoreProject(options?: { silent?: boolean }): void
-  resetProject(): void
+  hydrateAssetPreviews: (assetIds: string[]) => void
+  addAssetToTimeline: (assetId: string, trackKind?: 'video' | 'overlay' | 'audio') => void
+  addTextClip: (content?: string) => void
+  addSticker: (stickerId: string) => void
+  addCaptionCue: (text?: string) => void
+  splitAtPlayhead: () => void
+  detachSelectedAudio: () => void
+  removeSelected: () => void
+  patchSelected: (patch: Partial<Clip>) => void
+  tick: (deltaMs: number) => void
+  persistProject: () => void
+  restoreProject: (options?: { silent?: boolean }) => void
+  resetProject: () => void
 }
 
 const STORAGE_KEY = 'clipchamp.project.v1'
@@ -118,7 +118,7 @@ function findFileName(path: string): string {
 function findExt(name: string): string {
   const parts = name.split('.')
   if (parts.length < 2) return ''
-  return parts[parts.length - 1]!.toLowerCase()
+  return parts[parts.length - 1].toLowerCase()
 }
 
 function parseMediaKind(path: string): 'video' | 'audio' | 'image' {
@@ -171,7 +171,7 @@ const useClipchampStore = create<ClipchampState>()(
         undo() {
           const { undoStack, project, redoStack } = getter()
           if (undoStack.length === 0) return
-          const prev = undoStack[undoStack.length - 1]!
+          const prev = undoStack[undoStack.length - 1]
           setter({
             project: prev,
             undoStack: undoStack.slice(0, -1),
@@ -183,7 +183,7 @@ const useClipchampStore = create<ClipchampState>()(
         redo() {
           const { redoStack, project, undoStack } = getter()
           if (redoStack.length === 0) return
-          const next = redoStack[redoStack.length - 1]!
+          const next = redoStack[redoStack.length - 1]
           setter({
             project: next,
             redoStack: redoStack.slice(0, -1),

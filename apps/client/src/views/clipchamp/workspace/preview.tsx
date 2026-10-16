@@ -86,8 +86,8 @@ function useMediaSource(clipId: string): CanvasImageSource | null {
       }
       bucket.add(sync)
       return function () {
-        bucket!.delete(sync)
-        if (bucket!.size === 0) MEDIA_READY_LISTENERS.delete(clipId)
+        bucket.delete(sync)
+        if (bucket.size === 0) MEDIA_READY_LISTENERS.delete(clipId)
       }
     },
     [clipId]
@@ -117,9 +117,9 @@ function useSelectionSnapshot(input: {
 }) {
   const { nodeMapRef, selectionListenersRef, selectedNodesSnapshotRef, selectedClipId } = input
 
-  const notifySelection = useRef(function () {
+  const notifySelection = useCallback(function () {
     for (const listener of selectionListenersRef.current) listener()
-  }).current
+  }, [selectionListenersRef])
 
   // 快照结果要按选中项缓存：useSyncExternalStore 要求引用稳定，所以复用 ref 里的旧数组。
   // 不能读 `selectedClipIdRef`：那要求 render 期写 ref；改成依赖 id，快照函数换新时 React 会重读。
@@ -139,12 +139,12 @@ function useSelectionSnapshot(input: {
     [selectedClipId, nodeMapRef, selectedNodesSnapshotRef]
   )
 
-  const subscribeSelectedNodes = useRef(function (onStoreChange: () => void) {
+  const subscribeSelectedNodes = useCallback(function (onStoreChange: () => void) {
     selectionListenersRef.current.add(onStoreChange)
     return function () {
       selectionListenersRef.current.delete(onStoreChange)
     }
-  }).current
+  }, [selectionListenersRef])
 
   return { notifySelection, getSelectedNodes, subscribeSelectedNodes }
 }
@@ -186,7 +186,7 @@ function usePreviewNodes(input: {
 
   // 稳定引用：仅写 nodeMap + 通知 Transformer；禁止 setState 抬升 Stage 宿主
   // unregister 带旧节点：remount 同 tick 时，新 register 先写入后旧 cleanup 不会误清
-  const registerNode = useRef(function (
+  const registerNode = useCallback(function (
     clipId: string,
     node: Konva.Node | null,
     unmounting?: Konva.Node | null
@@ -203,15 +203,15 @@ function usePreviewNodes(input: {
     const next = nodeMapRef.current.get(clipId) ?? null
     if (clipId !== selectedClipIdRef.current || prev === next) return
     notifySelection()
-  }).current
+  }, [nodeMapRef, selectedClipIdRef, notifySelection])
 
-  const beginTransform = useRef(function () {
+  const beginTransform = useCallback(function () {
     if (undoCapturedRef.current) return
     useClipchampStore.getState().captureUndoPoint()
     undoCapturedRef.current = true
-  }).current
+  }, [undoCapturedRef])
 
-  const endTransform = useRef(function (clipId: string, node: Konva.Node) {
+  const endTransform = useCallback(function (clipId: string, node: Konva.Node) {
     const store = useClipchampStore.getState()
     const size = ASPECT_SIZE[store.canvasAspect ?? store.project.aspect]
     store.applyLive(function (draft) {
@@ -223,28 +223,28 @@ function usePreviewNodes(input: {
       })
     })
     undoCapturedRef.current = false
-  }).current
+  }, [undoCapturedRef])
 
-  const handleSelectClip = useRef(function (clipId: string) {
+  const handleSelectClip = useCallback(function (clipId: string) {
     selectClipRef.current(clipId)
-  }).current
+  }, [selectClipRef])
 
-  const handleStageClick = useRef(function (
+  const handleStageClick = useCallback(function (
     event: Konva.KonvaEventObject<MouseEvent | TouchEvent>
   ) {
     if (event.target === event.target.getStage()) {
       selectClipRef.current(null)
     }
-  }).current
+  }, [selectClipRef])
 
-  const handleTransformEnd = useRef(function () {
+  const handleTransformEnd = useCallback(function () {
     const store = useClipchampStore.getState()
     const clipId = store.selectedClipId
     if (!clipId) return
     const attached = nodeMapRef.current.get(clipId)
     if (!attached) return
     endTransform(clipId, attached)
-  }).current
+  }, [nodeMapRef, endTransform])
 
   const mediaNodes = useMemo(
     function () {
@@ -401,6 +401,8 @@ function Preview(props: PreviewProps) {
 
   const activeClips = useMemo(
     function () {
+      // activeIdsKey 仅在依赖里承担「活跃集合变了就重算」的信号，不参与计算
+      void activeIdsKey
       return findActiveClips(project, readPlayheadMs())
     },
     [project, activeIdsKey]
@@ -596,7 +598,7 @@ function Preview(props: PreviewProps) {
 
 interface PreviewTransportProps {
   isFullscreen?: boolean
-  onExitFullscreen(value: boolean): void
+  onExitFullscreen: (value: boolean) => void
 }
 
 function PreviewTransport(props: PreviewTransportProps) {
@@ -917,9 +919,9 @@ interface PreviewMediaClipProps {
   contentSize: Size
   zIndex: number
   onRegister: RegisterNode
-  onSelect(clipId: string): void
-  onTransformStart(): void
-  onTransformCommit(clipId: string, node: Konva.Node): void
+  onSelect: (clipId: string) => void
+  onTransformStart: () => void
+  onTransformCommit: (clipId: string, node: Konva.Node) => void
 }
 
 const PreviewMediaClip = memo(function PreviewMediaClip(props: PreviewMediaClipProps) {
@@ -1055,9 +1057,9 @@ interface PreviewTextClipProps {
   contentSize: Size
   zIndex: number
   onRegister: RegisterNode
-  onSelect(clipId: string): void
-  onTransformStart(): void
-  onTransformCommit(clipId: string, node: Konva.Node): void
+  onSelect: (clipId: string) => void
+  onTransformStart: () => void
+  onTransformCommit: (clipId: string, node: Konva.Node) => void
 }
 
 const PreviewTextClip = memo(function PreviewTextClip(props: PreviewTextClipProps) {

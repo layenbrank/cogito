@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 
 import type { MediaAsset } from '@/views/clipchamp/lib/project'
 
@@ -15,14 +15,10 @@ interface AssetThumbProps {
 function AssetThumb(props: AssetThumbProps) {
   const { asset, className } = props
   const videoRef = useRef<HTMLVideoElement>(null)
-  const [hasFailed, updateFailed] = useState(false)
-
-  useEffect(
-    function () {
-      updateFailed(false)
-    },
-    [asset.id, asset.thumbUrl]
-  )
+  const [failedKey, updateFailedKey] = useState<string | null>(null)
+  // 失败按「资源键」记：换资源/换缩略图自然复位，不需要 effect 里再 setState
+  const assetKey = `${asset.id}|${asset.thumbUrl}`
+  const hasFailed = failedKey === assetKey
 
   if (asset.kind === 'audio' || hasFailed) {
     return (
@@ -42,7 +38,7 @@ function AssetThumb(props: AssetThumbProps) {
         alt=""
         className={className ?? 'h-full w-full object-cover'}
         onError={function () {
-          updateFailed(true)
+          updateFailedKey(assetKey)
         }}
       />
     )
@@ -69,7 +65,7 @@ function AssetThumb(props: AssetThumbProps) {
         }
       }}
       onError={function () {
-        updateFailed(true)
+        updateFailedKey(assetKey)
       }}
     />
   )

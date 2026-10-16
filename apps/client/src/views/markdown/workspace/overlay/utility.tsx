@@ -16,14 +16,14 @@ import { t } from '@/views/markdown/locale.ts'
 import styles from '@/views/markdown/workspace/overlay/utility.module.scss'
 
 interface UtilityProps {
-  onToggleFind(): void
+  onToggleFind: () => void
 }
 
 function ModeButton(props: {
   mode: MarkdownViewMode
   current: MarkdownViewMode
   label: string
-  onPick(mode: MarkdownViewMode): void
+  onPick: (mode: MarkdownViewMode) => void
 }) {
   return (
     <Button

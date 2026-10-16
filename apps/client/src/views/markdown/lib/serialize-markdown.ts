@@ -13,16 +13,17 @@ function createTurndown(): TurndownService {
 
   service.addRule('taskListItem', {
     filter(node) {
-      const element = node as HTMLElement
+      const element = node
       if (element.nodeName !== 'LI') return false
       if (element.getAttribute('data-type') === 'taskItem') return true
       return Boolean(element.querySelector('input[type="checkbox"]'))
     },
     replacement(content, node) {
-      const element = node as HTMLElement
-      const checkbox = element.querySelector('input[type="checkbox"]') as HTMLInputElement | null
+      const element = node
+      const checkbox = element.querySelector('input[type="checkbox"]')
       const isChecked =
-        element.getAttribute('data-checked') === 'true' || Boolean(checkbox?.checked)
+        element.getAttribute('data-checked') === 'true' ||
+        (checkbox instanceof HTMLInputElement && checkbox.checked)
       const marker = isChecked ? '[x]' : '[ ]'
       const text = content
         .replace(/^\n+/, '')
@@ -74,13 +75,13 @@ function createTurndown(): TurndownService {
     filter(node) {
       return (
         node.nodeName === 'DIV' &&
-        (node as HTMLElement).getAttribute('data-type') === 'math-block'
+        (node).getAttribute('data-type') === 'math-block'
       )
     },
     replacement(_content, node) {
       const formula =
-        (node as HTMLElement).getAttribute('data-formula') ||
-        (node as HTMLElement).textContent ||
+        (node).getAttribute('data-formula') ||
+        (node).textContent ||
         ''
       return `\n\n$$\n${formula.trim()}\n$$\n\n`
     }
@@ -90,13 +91,13 @@ function createTurndown(): TurndownService {
     filter(node) {
       return (
         node.nodeName === 'SPAN' &&
-        (node as HTMLElement).getAttribute('data-type') === 'math-inline'
+        (node).getAttribute('data-type') === 'math-inline'
       )
     },
     replacement(_content, node) {
       const formula =
-        (node as HTMLElement).getAttribute('data-formula') ||
-        (node as HTMLElement).textContent ||
+        (node).getAttribute('data-formula') ||
+        (node).textContent ||
         ''
       return `$${formula.trim()}$`
     }
@@ -106,13 +107,13 @@ function createTurndown(): TurndownService {
     filter(node) {
       return (
         node.nodeName === 'DIV' &&
-        (node as HTMLElement).getAttribute('data-type') === 'mermaid-block'
+        (node).getAttribute('data-type') === 'mermaid-block'
       )
     },
     replacement(_content, node) {
       const source =
-        (node as HTMLElement).getAttribute('data-source') ||
-        (node as HTMLElement).textContent ||
+        (node).getAttribute('data-source') ||
+        (node).textContent ||
         ''
       return `\n\n\`\`\`mermaid\n${source.trim()}\n\`\`\`\n\n`
     }

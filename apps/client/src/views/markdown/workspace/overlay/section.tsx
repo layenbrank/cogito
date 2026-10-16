@@ -52,7 +52,7 @@ import styles from '@/views/markdown/workspace/overlay/section.module.scss'
 interface SectionProps {
   composer: Editor | null
   isToolbarHidden?: boolean
-  onScrollRatio?(ratio: number): void
+  onScrollRatio?: (ratio: number) => void
   scrollHostRef?: React.RefObject<HTMLDivElement | null>
 }
 
@@ -231,6 +231,8 @@ function FormatToolbar(props: { composer: Editor | null }) {
 }
 
 function Section(props: SectionProps) {
+  const { composer, isToolbarHidden, onScrollRatio, scrollHostRef } = props
+
   const contentMaxWidth = useMarkdownStore(function (state) {
     return state.contentMaxWidth
   })
@@ -243,64 +245,64 @@ function Section(props: SectionProps) {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-      {!props.isToolbarHidden && !isFocusMode ? <FormatToolbar composer={props.composer} /> : null}
+      {!isToolbarHidden && !isFocusMode ? <FormatToolbar composer={composer} /> : null}
 
-      <ComposerContext value={{ editor: props.composer }}>
+      <ComposerContext value={{ editor: composer }}>
         <div
-          ref={props.scrollHostRef}
+          ref={scrollHostRef}
           className={cn(styles.composer, styles.markdown, 'relative')}
           style={{ fontSize }}
           onScroll={function (event) {
             const target = event.currentTarget
             const max = target.scrollHeight - target.clientHeight
-            props.onScrollRatio?.(max <= 0 ? 0 : target.scrollTop / max)
+            onScrollRatio?.(max <= 0 ? 0 : target.scrollTop / max)
           }}>
           <div
             className="mx-auto w-full"
             style={{ maxWidth: contentMaxWidth }}>
             <ComposerMarkdown
-              editor={props.composer}
+              editor={composer}
               role="presentation"
             />
           </div>
-          {props.composer ? (
+          {composer ? (
             <BubbleMenu
-              editor={props.composer}
+              editor={composer}
               className="flex items-center gap-0.5 rounded-md border border-border bg-popover p-1 shadow-md">
               <MarkButton
-                editor={props.composer}
+                editor={composer}
                 type="bold"
                 hideWhenUnavailable
                 showShortcut={false}
               />
               <MarkButton
-                editor={props.composer}
+                editor={composer}
                 type="italic"
                 hideWhenUnavailable
                 showShortcut={false}
               />
               <LinkPopover
-                editor={props.composer}
+                editor={composer}
                 hideWhenUnavailable
               />
               <ColorHighlightPopover
-                editor={props.composer}
+                editor={composer}
                 hideWhenUnavailable
               />
               <TurnIntoDropdown
-                editor={props.composer}
+                editor={composer}
                 hideWhenUnavailable
                 portal
               />
             </BubbleMenu>
           ) : null}
-          {props.composer ? <SlashDropdownMenu editor={props.composer} /> : null}
+          {composer ? <SlashDropdownMenu editor={composer} /> : null}
           <Fallback.ErrorBoundary
             compact
             title="表格工具暂时不可用">
-            <TableHandle editor={props.composer} />
+            <TableHandle editor={composer} />
             <TableSelectionOverlay
-              editor={props.composer}
+              editor={composer}
               showResizeHandles
               cellMenu={function (menuProps) {
                 return (
@@ -313,10 +315,10 @@ function Section(props: SectionProps) {
                 )
               }}
             />
-            <TableExtendRowColumnButtons editor={props.composer} />
+            <TableExtendRowColumnButtons editor={composer} />
           </Fallback.ErrorBoundary>
           <DragContextMenu
-            editor={props.composer}
+            editor={composer}
             withSlashCommandTrigger
           />
         </div>

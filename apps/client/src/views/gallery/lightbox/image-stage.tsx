@@ -15,8 +15,8 @@ import {
 
 interface GalleryImageStageProps {
   src: string
-  onZoomedChange?(zoomed: boolean): void
-  onScaleChange?(ratio: number): void
+  onZoomedChange?: (zoomed: boolean) => void
+  onScaleChange?: (ratio: number) => void
 }
 
 function GalleryImageStage(props: GalleryImageStageProps) {

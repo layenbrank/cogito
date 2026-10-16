@@ -28,6 +28,14 @@ import {
 } from './metrics'
 import type { Viewport } from './viewport'
 
+/**
+ * Konva 事件处理器的「双变」函数类型：同一个处理器会同时挂到 mouse / touch 两类事件上，
+ * 用属性式声明（而非方法声明）以避免 unbound-method，同时显式保留双变比较。
+ */
+type StageEventHandler<E = MouseEvent | TouchEvent> = {
+  bivarianceHack(event: Konva.KonvaEventObject<E>): void
+}['bivarianceHack']
+
 interface CanvasStageProps {
   /** 内容逻辑尺寸（项目分辨率） */
   contentSize: Size
@@ -52,20 +60,20 @@ interface CanvasStageProps {
   fitContent?: boolean
   /** 受控视口。传入后内容组用这份 x/y/scale，不再套 letterbox */
   viewport?: Viewport
-  onStageClick?(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>): void
-  onStageMouseDown?(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>): void
-  onStageMouseMove?(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>): void
-  onStageMouseUp?(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>): void
-  onStageWheel?(event: Konva.KonvaEventObject<WheelEvent>): void
-  onStageDblClick?(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>): void
-  onStageContextMenu?(event: Konva.KonvaEventObject<PointerEvent>): void
+  onStageClick?: StageEventHandler
+  onStageMouseDown?: StageEventHandler
+  onStageMouseMove?: StageEventHandler
+  onStageMouseUp?: StageEventHandler
+  onStageWheel?: StageEventHandler<WheelEvent>
+  onStageDblClick?: StageEventHandler
+  onStageContextMenu?: StageEventHandler<PointerEvent>
 }
 
 interface CanvasStageHandle {
   stage: Konva.Stage | null
   metrics: StageMetrics
-  findLayer(name: string): Konva.Layer | null
-  batchDraw(): void
+  findLayer: (name: string) => Konva.Layer | null
+  batchDraw: () => void
 }
 
 const CanvasStage = memo(

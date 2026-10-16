@@ -15,8 +15,8 @@ interface SourceEditorProps {
   value: string
   fontSize: number
   isDark?: boolean
-  onChange(value: string): void
-  onScrollRatio?(ratio: number): void
+  onChange: (value: string) => void
+  onScrollRatio?: (ratio: number) => void
   scrollRatio?: number
   className?: string
 }

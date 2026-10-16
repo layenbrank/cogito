@@ -32,8 +32,8 @@ interface MarkdownSession {
 }
 
 interface MarkdownStore extends MarkdownSession, MarkdownPreferences {
-  hydratePreferences(): void
-  toPatchPreferences(patch: Partial<MarkdownPreferences>): void
+  hydratePreferences: () => void
+  toPatchPreferences: (patch: Partial<MarkdownPreferences>) => void
   toOpenDocument(params: {
     path: string | null
     markdown: string
@@ -42,27 +42,27 @@ interface MarkdownStore extends MarkdownSession, MarkdownPreferences {
     isLargeFile?: boolean
   }): void
   /** 先切 activePath / 侧栏高亮，编辑器内容稍后灌入 */
-  toBeginOpen(path: string): void
-  toSetLoading(isLoading: boolean): void
-  toNewDocument(): void
-  toUpdateMarkdown(markdown: string): void
-  toUpdateHtml(html: string): void
-  toUpdateFrontMatter(frontMatter: string | null): void
-  toMarkSaved(path: string): void
-  toMarkDirty(isDirty?: boolean): void
-  toUpdateOutline(outline: OutlineItem[]): void
-  toUpdateStats(stats: DocStats): void
-  toSetViewMode(mode: MarkdownViewMode): void
-  toToggleSidebar(): void
-  toToggleOutline(): void
-  toSetFindOpen(isOpen: boolean): void
-  toSetFindQuery(query: string): void
-  toSetFindReplace(value: string): void
-  toSetFileQuery(query: string): void
-  toSetPrefsOpen(isOpen: boolean): void
-  toSetExternalChanged(isChanged: boolean): void
-  toBumpTree(): void
-  toPushRecent(path: string): void
+  toBeginOpen: (path: string) => void
+  toSetLoading: (isLoading: boolean) => void
+  toNewDocument: () => void
+  toUpdateMarkdown: (markdown: string) => void
+  toUpdateHtml: (html: string) => void
+  toUpdateFrontMatter: (frontMatter: string | null) => void
+  toMarkSaved: (path: string) => void
+  toMarkDirty: (isDirty?: boolean) => void
+  toUpdateOutline: (outline: OutlineItem[]) => void
+  toUpdateStats: (stats: DocStats) => void
+  toSetViewMode: (mode: MarkdownViewMode) => void
+  toToggleSidebar: () => void
+  toToggleOutline: () => void
+  toSetFindOpen: (isOpen: boolean) => void
+  toSetFindQuery: (query: string) => void
+  toSetFindReplace: (value: string) => void
+  toSetFileQuery: (query: string) => void
+  toSetPrefsOpen: (isOpen: boolean) => void
+  toSetExternalChanged: (isChanged: boolean) => void
+  toBumpTree: () => void
+  toPushRecent: (path: string) => void
 }
 
 const EMPTY_STATS: DocStats = { chars: 0, words: 0, lines: 0 }

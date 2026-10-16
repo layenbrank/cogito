@@ -75,24 +75,24 @@ interface SessionSlice {
   activeSessionID: string | null
   sessionsLoaded: boolean
 
-  toReadSessions(): Promise<Session[]>
-  toReadSession(key: string): Session | null
-  toWriteSession(values: Session[]): Promise<void>
-  toUpdateSession(values: Partial<Session>[]): Promise<void>
-  toRemoveSession(keys: string[]): Promise<void>
-  toUpdateSessions(sessions: Session[]): void
+  toReadSessions: () => Promise<Session[]>
+  toReadSession: (key: string) => Session | null
+  toWriteSession: (values: Session[]) => Promise<void>
+  toUpdateSession: (values: Partial<Session>[]) => Promise<void>
+  toRemoveSession: (keys: string[]) => Promise<void>
+  toUpdateSessions: (sessions: Session[]) => void
 }
 
 interface MessageSlice {
   messages: Message[]
   messagesLoaded: boolean
 
-  toReadMessages(sessionID?: string): Promise<Message[]>
-  toReadMessage(key: string): Message | null
-  toWriteMessage(values: Message[]): Promise<void>
+  toReadMessages: (sessionID?: string) => Promise<Message[]>
+  toReadMessage: (key: string) => Message | null
+  toWriteMessage: (values: Message[]) => Promise<void>
   toUpdateMessage(values: Partial<Message>[], options?: { skip?: boolean }): Promise<void>
-  toRemoveMessage(keys: string[]): Promise<void>
-  toUpdateMessages(messages: Message[]): void
+  toRemoveMessage: (keys: string[]) => Promise<void>
+  toUpdateMessages: (messages: Message[]) => void
 }
 
 interface WorkspaceSlice {
@@ -102,18 +102,18 @@ interface WorkspaceSlice {
   workspacesLoaded: boolean
   workspaceFoldersLoaded: boolean
 
-  toReadWorkspaces(): Promise<Workspace[]>
-  toWriteWorkspace(values: Workspace[]): Promise<void>
-  toUpdateWorkspace(values: Partial<Workspace>[]): Promise<void>
-  toRemoveWorkspace(keys: string[]): Promise<void>
-  toUpdateWorkspaces(workspaces: Workspace[]): void
-  toActivateWorkspace(workspaceID: string | null): void
+  toReadWorkspaces: () => Promise<Workspace[]>
+  toWriteWorkspace: (values: Workspace[]) => Promise<void>
+  toUpdateWorkspace: (values: Partial<Workspace>[]) => Promise<void>
+  toRemoveWorkspace: (keys: string[]) => Promise<void>
+  toUpdateWorkspaces: (workspaces: Workspace[]) => void
+  toActivateWorkspace: (workspaceID: string | null) => void
 
-  toReadWorkspaceFolders(workspaceID?: string): Promise<WorkspaceFolder[]>
-  toWriteWorkspaceFolder(values: WorkspaceFolder[]): Promise<void>
-  toUpdateWorkspaceFolder(values: Partial<WorkspaceFolder>[]): Promise<void>
-  toRemoveWorkspaceFolder(keys: string[]): Promise<void>
-  toReplaceWorkspaceFolders(workspaceID: string, folders: WorkspaceFolder[]): Promise<void>
+  toReadWorkspaceFolders: (workspaceID?: string) => Promise<WorkspaceFolder[]>
+  toWriteWorkspaceFolder: (values: WorkspaceFolder[]) => Promise<void>
+  toUpdateWorkspaceFolder: (values: Partial<WorkspaceFolder>[]) => Promise<void>
+  toRemoveWorkspaceFolder: (keys: string[]) => Promise<void>
+  toReplaceWorkspaceFolders: (workspaceID: string, folders: WorkspaceFolder[]) => Promise<void>
 }
 
 interface UsageSlice {
@@ -121,9 +121,9 @@ interface UsageSlice {
   usagesLoaded: boolean
 
   toReadUsages(filter?: { sessionID?: string }): Promise<Usage[]>
-  toWriteUsage(values: Usage[]): Promise<void>
-  toUpdateUsage(values: Partial<Usage>[]): Promise<void>
-  toRemoveUsage(keys: string[]): Promise<void>
+  toWriteUsage: (values: Usage[]) => Promise<void>
+  toUpdateUsage: (values: Partial<Usage>[]) => Promise<void>
+  toRemoveUsage: (keys: string[]) => Promise<void>
 }
 
 type AgentStore = SessionSlice & MessageSlice & WorkspaceSlice & UsageSlice

@@ -15,8 +15,8 @@ interface CollectionSlice {
   /** 成员变更后递增，供文件夹 Marker 刷新预览 */
   revision: number
   toOpen(params: { id: string; rect: OriginRect }): void
-  toClose(): void
-  toBumpRevision(): void
+  toClose: () => void
+  toBumpRevision: () => void
 }
 
 function parseOriginRect(rect: DOMRect | OriginRect): OriginRect {

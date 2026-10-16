@@ -39,23 +39,23 @@ interface CodeState {
   treeRevision: number
   problemCount: number
 
-  toSetWorkspaceRoot(root: string): void
+  toSetWorkspaceRoot: (root: string) => void
   toOpenTab(params: { path: string; language?: string }): void
-  toActivateTab(id: string): void
-  toCloseTab(id: string): void
-  toMarkDirty(id: string, isDirty?: boolean): void
-  toMarkSaved(id: string): void
-  toSetSidebarView(view: SidebarView): void
-  toToggleSidebar(): void
-  toToggleSidebarView(view: SidebarView): void
-  toSetPanelOpen(isOpen: boolean): void
-  toTogglePanel(tab?: PanelTab): void
-  toSetPanelTab(tab: PanelTab): void
-  toSetCursor(cursor: CursorPosition): void
-  toSetLanguageId(languageId: string): void
-  toSetPaletteMode(mode: PaletteMode): void
-  toBumpTree(): void
-  toSetProblemCount(count: number): void
+  toActivateTab: (id: string) => void
+  toCloseTab: (id: string) => void
+  toMarkDirty: (id: string, isDirty?: boolean) => void
+  toMarkSaved: (id: string) => void
+  toSetSidebarView: (view: SidebarView) => void
+  toToggleSidebar: () => void
+  toToggleSidebarView: (view: SidebarView) => void
+  toSetPanelOpen: (isOpen: boolean) => void
+  toTogglePanel: (tab?: PanelTab) => void
+  toSetPanelTab: (tab: PanelTab) => void
+  toSetCursor: (cursor: CursorPosition) => void
+  toSetLanguageId: (languageId: string) => void
+  toSetPaletteMode: (mode: PaletteMode) => void
+  toBumpTree: () => void
+  toSetProblemCount: (count: number) => void
 }
 
 function findActiveTab(state: CodeState): CodeTab | undefined {

@@ -13,9 +13,9 @@ import { t } from '@/views/markdown/locale.ts'
 
 interface DiscardDialogProps {
   open: boolean
-  onOpenChange(open: boolean): void
-  onSave(): void
-  onDiscard(): void
+  onOpenChange: (open: boolean) => void
+  onSave: () => void
+  onDiscard: () => void
 }
 
 function DiscardDialog(props: DiscardDialogProps) {

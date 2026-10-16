@@ -17,6 +17,13 @@ interface FlipStart {
   scale: number
 }
 
+/** 一次展开锁定的快照：id + 起始矩形 + 目标框 */
+interface SessionSnapshot {
+  id: string
+  rect: OriginRect
+  box: ReturnType<typeof findTargetBox>
+}
+
 function findTargetBox() {
   const width = Math.min(PANEL_WIDTH, window.innerWidth * 0.9)
   const height = Math.min(PANEL_HEIGHT, window.innerHeight * 0.8)
@@ -45,6 +52,16 @@ function findFlipStart(origin: OriginRect): FlipStart {
   }
 }
 
+/** 打开时锁住 session（id / 起始矩形 / 目标框）；关闭动画播完由调用方清空 */
+function useSessionSnapshot(openId: string | null, originRect: OriginRect | null) {
+  const [session, onUpdateSession] = useState<SessionSnapshot | null>(null)
+  // 渲染期按 prop 变化调整，不用 effect（新 id 到位才重建快照）
+  if (openId && originRect && session?.id !== openId) {
+    onUpdateSession({ id: openId, rect: originRect, box: findTargetBox() })
+  }
+  return { session, onUpdateSession }
+}
+
 function CollectionExpanded() {
   const openId = useCollectionStore(function (state) {
     return state.openId
@@ -58,37 +75,13 @@ function CollectionExpanded() {
 
   const isReducedMotion = useReducedMotion()
   const panelRef = useRef<HTMLDivElement>(null)
-  const [isVisible, onUpdateVisible] = useState(false)
-  const [sessionId, onUpdateSessionId] = useState<string | null>(null)
-  const [sessionRect, onUpdateSessionRect] = useState<OriginRect | null>(null)
+  const { session, onUpdateSession } = useSessionSnapshot(openId, originRect)
 
-  // 打开时锁住 session，关闭动画播完再清 store
-  useEffect(
-    function () {
-      if (openId && originRect) {
-        onUpdateSessionId(openId)
-        onUpdateSessionRect(originRect)
-        onUpdateVisible(true)
-        return
-      }
-      if (!openId) {
-        onUpdateVisible(false)
-      }
-    },
-    [openId, originRect]
-  )
-
-  const flipStart = useMemo(
-    function () {
-      if (!sessionRect) return null
-      return findFlipStart(sessionRect)
-    },
-    [sessionRect]
-  )
-
-  const targetBox = useMemo(function () {
-    return findTargetBox()
-  }, [sessionId])
+  const isVisible = openId !== null
+  const flipStart = useMemo(function () {
+    if (!session) return null
+    return findFlipStart(session.rect)
+  }, [session])
 
   useLayoutEffect(
     function () {
@@ -153,19 +146,16 @@ function CollectionExpanded() {
   )
 
   function onExitComplete() {
-    onUpdateSessionId(null)
-    onUpdateSessionRect(null)
+    onUpdateSession(null)
   }
 
   if (typeof document === 'undefined') return null
 
-  const show = isVisible && !!sessionId && !!flipStart
-
   return createPortal(
     <AnimatePresence onExitComplete={onExitComplete}>
-      {show ? (
+      {isVisible && session && flipStart ? (
         <m.div
-          key={sessionId}
+          key={session.id}
           className="fixed inset-0 z-50"
           role="presentation">
           <m.button
@@ -188,10 +178,10 @@ function CollectionExpanded() {
             tabIndex={-1}
             className="absolute overflow-hidden rounded-xl border border-border/80 bg-background shadow-lg outline-none"
             style={{
-              width: targetBox.width,
-              height: targetBox.height,
-              left: targetBox.x,
-              top: targetBox.y,
+              width: session.box.width,
+              height: session.box.height,
+              left: session.box.x,
+              top: session.box.y,
               transformOrigin: 'center center'
             }}
             initial={
@@ -222,7 +212,7 @@ function CollectionExpanded() {
             onClick={function (event) {
               event.stopPropagation()
             }}>
-            <CollectionPanel id={sessionId} />
+            <CollectionPanel id={session.id} />
           </m.div>
         </m.div>
       ) : null}

@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@i-thinking/design/components/select'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { ConfirmAction } from '@/views/settings/panels/confirm-action.tsx'
@@ -59,13 +59,13 @@ function AccountPanel() {
     return findDraft(user)
   })
   const [isSaving, updateSaving] = useState(false)
+  const [draftUser, updateDraftUser] = useState(user)
 
-  useEffect(
-    function () {
-      updateDraft(findDraft(user))
-    },
-    [user]
-  )
+  // user 变了（外部刷新资料）就重建草稿：渲染期按引用变化调整，不用 effect
+  if (user !== draftUser) {
+    updateDraftUser(user)
+    updateDraft(findDraft(user))
+  }
 
   async function onSave() {
     if (!user) return

@@ -41,11 +41,11 @@ interface ProviderSlice {
   providersLoaded: boolean
   activeProviderID: string | null
 
-  toReadProviders(): Promise<AgentProvider[]>
-  toWriteProvider(values: AgentProvider[]): Promise<void>
-  toUpdateProvider(values: Partial<AgentProvider>[]): Promise<void>
-  toRemoveProvider(keys: string[]): Promise<void>
-  toSetActiveProvider(key: string | null): void
+  toReadProviders: () => Promise<AgentProvider[]>
+  toWriteProvider: (values: AgentProvider[]) => Promise<void>
+  toUpdateProvider: (values: Partial<AgentProvider>[]) => Promise<void>
+  toRemoveProvider: (keys: string[]) => Promise<void>
+  toSetActiveProvider: (key: string | null) => void
 }
 
 type SliceCreator<T> = StateCreator<

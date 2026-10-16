@@ -1,5 +1,5 @@
 import { cn } from 'cn'
-import { useMemo, type CSSProperties, type ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 
 import type { TimeScope } from '@/views/gallery/constraints'
 import { STREAM_SECTION_CHUNK } from '@/views/gallery/constraints'
@@ -48,7 +48,7 @@ function DaySection(props: {
         style={
           {
             gridTemplateColumns: `repeat(${props.columns}, minmax(0, 1fr))`
-          } as CSSProperties
+          }
         }>
         {props.bucket.medias.map(function (media) {
           return (
@@ -209,7 +209,7 @@ function MediaGrid(props: MediaGridProps) {
 
   return (
     <div className={cn('space-y-4 pb-28', props.className)}>
-      {(visibleSections as DayBucket[]).map(function (bucket) {
+      {(visibleSections).map(function (bucket) {
         return (
           <DaySection
             key={bucket.key}

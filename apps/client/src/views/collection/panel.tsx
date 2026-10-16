@@ -26,37 +26,44 @@ function CollectionPanel(props: CollectionPanelProps) {
     return state.toBumpRevision
   })
 
-  const toLoadMembers = useCallback(
-    async function () {
-      try {
-        const [members, hosts] = await Promise.all([
-          invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
-            params: { collectionID: props.id }
-          }),
-          invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
-            params: { id: props.id }
-          })
-        ])
-        onUpdateMagneticTiles(
-          members.toSorted(function (a, b) {
-            return a.index - b.index
-          })
-        )
-        const [host] = hosts
-        if (host?.title) onUpdateTitle(host.title)
-      } catch {
-        onUpdateMagneticTiles([])
-        toast.error('集合成员加载失败')
-      }
-    },
-    [props.id]
-  )
+  // 加入集合后重新拉成员：用 token 触发 effect 重跑
+  const [reloadToken, bumpReloadToken] = useState(0)
 
   useEffect(
     function () {
-      void toLoadMembers()
+      let cancelled = false
+
+      async function toLoad() {
+        try {
+          const [members, hosts] = await Promise.all([
+            invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
+              params: { collectionID: props.id }
+            }),
+            invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
+              params: { id: props.id }
+            })
+          ])
+          if (cancelled) return
+          onUpdateMagneticTiles(
+            members.toSorted(function (a, b) {
+              return a.index - b.index
+            })
+          )
+          const [host] = hosts
+          if (host?.title) onUpdateTitle(host.title)
+        } catch {
+          if (cancelled) return
+          onUpdateMagneticTiles([])
+          toast.error('集合成员加载失败')
+        }
+      }
+
+      void toLoad()
+      return function () {
+        cancelled = true
+      }
     },
-    [toLoadMembers]
+    [props.id, reloadToken]
   )
 
   const handleRemove = useCallback(
@@ -125,7 +132,9 @@ function CollectionPanel(props: CollectionPanelProps) {
         visible={drawerVisible}
         onUpdateVisible={onUpdateDrawerVisible}
         onJoined={function () {
-          void toLoadMembers()
+          bumpReloadToken(function (token) {
+            return token + 1
+          })
           toBumpRevision()
         }}
       />

@@ -12,7 +12,7 @@ import { SHORTCUT_COMMAND, resolveBinding } from '@/keyboard/definitions'
 import { t } from '@/views/markdown/locale.ts'
 
 interface FocusExitProps {
-  onExit(): void
+  onExit: () => void
 }
 
 function FocusExit(props: FocusExitProps) {

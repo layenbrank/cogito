@@ -265,7 +265,7 @@ interface ClipWaveformProps {
   asset: MediaAsset
   clip: Clip
   widthPx: number
-  onWaveform?(meta: WaveformMeta): void
+  onWaveform?: (meta: WaveformMeta) => void
 }
 
 function ClipWaveform(props: ClipWaveformProps) {

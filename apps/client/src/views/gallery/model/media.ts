@@ -92,7 +92,7 @@ function findExtension(fileName: string, extension: string | null): string {
   if (extension) return extension.replace(/^\./, '').toLowerCase()
   const parts = fileName.split('.')
   if (parts.length < 2) return ''
-  return parts[parts.length - 1]!.toLowerCase()
+  return parts[parts.length - 1].toLowerCase()
 }
 
 function findMediaKind(asset: GalleryAsset): MediaKind | null {

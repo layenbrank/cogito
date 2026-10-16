@@ -20,7 +20,7 @@ function CoverStack(props: { covers: GalleryMedia[] }) {
     return <div className="size-full bg-muted/60" />
   }
   if (covers.length === 1) {
-    const media = covers[0]!
+    const media = covers[0]
     return media.kind === 'video' ? (
       <video className="size-full object-cover" src={media.src} muted preload="metadata" />
     ) : (

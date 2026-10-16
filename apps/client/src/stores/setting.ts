@@ -249,7 +249,7 @@ export const useSettingsStore = create<SettingsStore>(function (setter, getter) 
       if (section === 'capture') {
         merged = mergeCaptureUpdate(
           current.capture,
-          value as Partial<Setting.Capture>
+          value
         ) as Setting.Composite[typeof section]
       } else {
         merged = { ...current[section], ...value }

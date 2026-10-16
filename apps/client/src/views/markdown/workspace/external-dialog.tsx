@@ -13,8 +13,8 @@ import { t } from '@/views/markdown/locale.ts'
 
 interface ExternalDialogProps {
   open: boolean
-  onReload(): void
-  onKeep(): void
+  onReload: () => void
+  onKeep: () => void
 }
 
 function ExternalDialog(props: ExternalDialogProps) {

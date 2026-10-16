@@ -35,7 +35,7 @@ interface RulerMark {
 
 function findRulerStep(pxPerMs: number): { majorMs: number; minorMs: number } {
   const pxPerSecond = pxPerMs * 1000
-  let majorMs = RULER_STEPS_MS[RULER_STEPS_MS.length - 1]!
+  let majorMs = RULER_STEPS_MS[RULER_STEPS_MS.length - 1]
   for (const step of RULER_STEPS_MS) {
     if ((step / 1000) * pxPerSecond >= RULER_LABEL_PX) {
       majorMs = step
@@ -562,7 +562,7 @@ interface TrackRowProps {
   assets: MediaAsset[]
   onClipPointerDown: (clip: Clip, event: PointerEvent) => void
   onSelectEmpty: () => void
-  onWaveform(assetId: string, meta: WaveformMeta): void
+  onWaveform: (assetId: string, meta: WaveformMeta) => void
 }
 
 function TrackRow(props: TrackRowProps) {
@@ -651,7 +651,7 @@ interface TimelineClipBlockProps {
   viewEndMs: number
   scrollRootRef: RefObject<HTMLDivElement | null>
   onClipPointerDown: (clip: Clip, event: PointerEvent) => void
-  onWaveform(assetId: string, meta: WaveformMeta): void
+  onWaveform: (assetId: string, meta: WaveformMeta) => void
 }
 
 function TimelineClipBlock(props: TimelineClipBlockProps) {

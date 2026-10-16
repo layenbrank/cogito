@@ -73,7 +73,8 @@ function findDateFromFileName(path: string): number | undefined {
 async function findDateFromExif(path: string): Promise<number | undefined> {
   try {
     const bytes = await readFile(path)
-    const tags = await exifr.parse(bytes, {
+    // exifr 返回 any：先收成 unknown 再逐字段窄化
+    const tags: unknown = await exifr.parse(bytes, {
       pick: [...EXIF_PICK],
       reviveValues: true
     })

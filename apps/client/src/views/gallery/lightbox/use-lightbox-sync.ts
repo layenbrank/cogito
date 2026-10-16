@@ -26,9 +26,9 @@ export function useLightboxSwiper(input: {
   useEffect(
     function () {
       if (!swiper) return
-      swiper.allowTouchMove = !isZoomed
-      swiper.allowSlideNext = !isZoomed
-      swiper.allowSlidePrev = !isZoomed
+      // 缩放中锁住滑动；用 Swiper 自己的 enable/disable，不直接改实例属性
+      if (isZoomed) swiper.disable()
+      else swiper.enable()
     },
     [swiper, isZoomed]
   )

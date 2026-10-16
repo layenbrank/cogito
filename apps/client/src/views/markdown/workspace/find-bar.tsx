@@ -12,6 +12,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useMarkdownStore } from '@/stores/markdown'
 import {
   clearSearchHighlight,
+  countHits,
   findStep,
   replaceAll,
   replaceOne,
@@ -30,7 +31,7 @@ interface FindBarProps {
 function OptionToggle(props: {
   label: string
   pressed: boolean
-  onToggle(): void
+  onToggle: () => void
   children: string
 }) {
   return (
@@ -342,7 +343,6 @@ function FindBar(props: FindBarProps) {
   const [isWholeWord, setIsWholeWord] = useState(false)
   const [isRegex, setIsRegex] = useState(false)
   const [matchIndexState, setMatchIndex] = useState(-1)
-  const [matchTotalState, setMatchTotal] = useState(0)
 
   const findInputRef = useRef<HTMLInputElement>(null)
 
@@ -370,7 +370,8 @@ function FindBar(props: FindBarProps) {
   // 无查询词时一律展示为「无命中」：派生即可，不必在 effect 里清 state
   const hasQuery = Boolean(findQuery)
   const matchIndex = hasQuery ? matchIndexState : -1
-  const matchTotal = hasQuery ? matchTotalState : 0
+  // 总数直接从文档算（纯函数）：始终与内容一致，不必镜像进 state
+  const matchTotal = hasQuery && props.editor ? countHits(props.editor, options()) : 0
 
   function keepFindFocus() {
     // 编辑器选区更新后把焦点拉回查找框，保证连续 Enter
@@ -400,8 +401,9 @@ function FindBar(props: FindBarProps) {
         return
       }
       const result = revealMatch(props.editor, options(), 0)
+      // 高亮/选区是编辑器（外部系统）的副作用，这里只把当前命中序号镜像给 UI
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reveal 后需刷新序号显示
       setMatchIndex(result.index)
-      setMatchTotal(result.total)
       keepFindFocus()
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -412,7 +414,6 @@ function FindBar(props: FindBarProps) {
     if (!props.editor || !findQuery) return
     const result = findStep(props.editor, options(), direction)
     setMatchIndex(result.index)
-    setMatchTotal(result.total)
     keepFindFocus()
   }
 
@@ -420,7 +421,6 @@ function FindBar(props: FindBarProps) {
     if (!props.editor || !findQuery) return
     const result = replaceOne(props.editor, options(), findReplace)
     setMatchIndex(result.index)
-    setMatchTotal(result.total)
     keepFindFocus()
   }
 
@@ -428,7 +428,6 @@ function FindBar(props: FindBarProps) {
     if (!props.editor || !findQuery) return
     replaceAll(props.editor, options(), findReplace)
     setMatchIndex(-1)
-    setMatchTotal(0)
     keepFindFocus()
   }
 

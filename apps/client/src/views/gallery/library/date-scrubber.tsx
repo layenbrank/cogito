@@ -55,7 +55,7 @@ function DateScrubber(props: DateScrubberProps) {
     if (fx && !reduced) {
       fx.scrollToY(top, 0.55)
     } else {
-      root.scrollTop = top
+      root.scrollTo({ top })
     }
     onActiveKey(mark.key)
   }

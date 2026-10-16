@@ -42,14 +42,14 @@ const MermaidBlock = Node.create({
       {
         tag: 'div[data-type="mermaid-block"]',
         getAttrs(element) {
-          const el = element as HTMLElement
+          const el = element
           return { source: el.getAttribute('data-source') || el.textContent || '' }
         }
       },
       {
         tag: 'pre[data-language="mermaid"]',
         getAttrs(element) {
-          return { source: (element as HTMLElement).textContent || '' }
+          return { source: element.textContent || '' }
         }
       }
     ]
@@ -60,21 +60,22 @@ const MermaidBlock = Node.create({
       'div',
       mergeAttributes(HTMLAttributes, {
         'data-type': 'mermaid-block',
-        'data-source': node.attrs.source
+        'data-source': String(node.attrs.source ?? '')
       }),
-      ['pre', {}, node.attrs.source || '']
+      ['pre', {}, String(node.attrs.source ?? '')]
     ]
   },
 
   addNodeView() {
     return function ({ node }) {
       const dom = document.createElement('div')
-      dom.className = 'mermaid-block my-4 overflow-x-auto rounded-md border border-border bg-muted/30 p-3'
+      dom.className =
+        'mermaid-block my-4 overflow-x-auto rounded-md border border-border bg-muted/30 p-3'
       dom.setAttribute('data-type', 'mermaid-block')
-      dom.setAttribute('data-source', node.attrs.source || '')
+      dom.setAttribute('data-source', String(node.attrs.source ?? ''))
 
       const renderId = `mermaid-${mermaidSeq++}`
-      const source = node.attrs.source || ''
+      const source = String(node.attrs.source ?? '')
 
       void loadMermaid()
         .then(function (mermaid) {

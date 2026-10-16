@@ -15,7 +15,7 @@ interface ParsedMarkdown extends FrontMatterSlice {
 function parseMarkdown(source: string): ParsedMarkdown {
   const sliced = parseFrontMatter(source)
   const enriched = enrichMarkdownBody(sliced.body)
-  const html = marked.parse(enriched, { async: false }) as string
+  const html = marked.parse(enriched, { async: false })
   return {
     frontMatter: sliced.frontMatter,
     body: sliced.body,

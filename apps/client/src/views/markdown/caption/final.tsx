@@ -18,7 +18,7 @@ interface LayoutButtonProps {
   label: string
   icon: string
   isPressed: boolean
-  onClick(): void
+  onClick: () => void
 }
 
 function LayoutButton(props: LayoutButtonProps) {

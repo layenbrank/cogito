@@ -52,7 +52,7 @@ function buildExportArgs(
     const tracks = findTracksByKind(project, kind)
     const clips: Clip[] = []
     for (let i = tracks.length - 1; i >= 0; i--) {
-      const sorted = [...tracks[i]!.clips].sort(function (a, b) {
+      const sorted = [...tracks[i].clips].sort(function (a, b) {
         return a.startMs - b.startMs
       })
       for (const clip of sorted) clips.push(clip)

@@ -34,7 +34,7 @@ function findFileName(path: string): string {
 function findExt(name: string): string {
   const parts = name.split('.')
   if (parts.length < 2) return ''
-  return parts[parts.length - 1]!.toLowerCase()
+  return parts[parts.length - 1].toLowerCase()
 }
 
 function isMediaFile(name: string): boolean {

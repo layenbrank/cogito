@@ -35,16 +35,14 @@ function Shell() {
   const [section, onSectionChange] = useState<SectionKey>(function () {
     return findInitialSection(searchParams)
   })
-
-  useEffect(
-    function () {
-      const fromQuery = parseSectionKey(searchParams.get('section'))
-      if (fromQuery && fromQuery !== section) onSectionChange(fromQuery)
-    },
-    // 仅跟随 URL 查询串；避免 section 自更新回环
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
-    [searchParams]
-  )
+  // 查询串里的 section 变了就跟随：渲染期按变化调整，不用 effect
+  const querySection = searchParams.get('section') ?? ''
+  const [seenQuerySection, updateSeenQuerySection] = useState(querySection)
+  if (querySection !== seenQuerySection) {
+    updateSeenQuerySection(querySection)
+    const fromQuery = parseSectionKey(querySection)
+    if (fromQuery && fromQuery !== section) onSectionChange(fromQuery)
+  }
 
   useEffect(function () {
     let unlisten: (() => void) | undefined

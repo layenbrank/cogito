@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { Image as KonvaImage } from 'react-konva'
 import type Konva from 'konva'
 
@@ -27,12 +27,12 @@ interface MediaNodeProps {
   name?: string
   id?: string
   draggable?: boolean
-  onClick?(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>): void
-  onTap?(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>): void
-  onDragEnd?(event: Konva.KonvaEventObject<DragEvent>): void
-  onTransformEnd?(event: Konva.KonvaEventObject<Event>): void
+  onClick?: (event: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void
+  onTap?: (event: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void
+  onDragEnd?: (event: Konva.KonvaEventObject<DragEvent>) => void
+  onTransformEnd?: (event: Konva.KonvaEventObject<Event>) => void
   /** 挂到节点 ref，供 Transformer 附着 */
-  nodeRef?(node: Konva.Image | null): void
+  nodeRef?: (node: Konva.Image | null) => void
   /** 非中性时静图走 Konva 滤镜，视频走离屏 canvas */
   grade?: Grade
 }
@@ -77,63 +77,38 @@ function findSourceSize(source: CanvasImageSource) {
   return { width: sized.width ?? 0, height: sized.height ?? 0 }
 }
 
+/** 媒体是否已可就地绘制：纯函数快照，供 useSyncExternalStore 使用 */
+function isSourceReady(source: CanvasImageSource | null): boolean {
+  if (!source) return false
+  if (source instanceof HTMLVideoElement) return source.videoWidth > 0
+  if (source instanceof HTMLImageElement) return source.complete && source.naturalWidth > 0
+  return true
+}
+
 function useSourceReady(source: CanvasImageSource | null) {
-  const [ready, setReady] = useState(false)
-
-  useEffect(
-    function () {
-      if (!source) {
-        setReady(function (prev) {
-          return prev ? false : prev
-        })
-        return
-      }
-
+  return useSyncExternalStore(
+    function subscribe(onStoreChange: () => void) {
+      if (!source) return function () {}
       if (source instanceof HTMLVideoElement) {
-        const video = source
-        function markReady() {
-          if (video.videoWidth > 0) {
-            setReady(function (prev) {
-              return prev ? prev : true
-            })
-          }
-        }
-        markReady()
-        video.addEventListener('loadeddata', markReady)
-        video.addEventListener('loadedmetadata', markReady)
+        source.addEventListener('loadeddata', onStoreChange)
+        source.addEventListener('loadedmetadata', onStoreChange)
         return function () {
-          video.removeEventListener('loadeddata', markReady)
-          video.removeEventListener('loadedmetadata', markReady)
+          source.removeEventListener('loadeddata', onStoreChange)
+          source.removeEventListener('loadedmetadata', onStoreChange)
         }
       }
-
       if (source instanceof HTMLImageElement) {
-        if (source.complete && source.naturalWidth > 0) {
-          setReady(function (prev) {
-            return prev ? prev : true
-          })
-          return
-        }
-        function onLoad() {
-          setReady(function (prev) {
-            return prev ? prev : true
-          })
-        }
-        source.addEventListener('load', onLoad)
+        source.addEventListener('load', onStoreChange)
         return function () {
-          source.removeEventListener('load', onLoad)
+          source.removeEventListener('load', onStoreChange)
         }
       }
-
-      setReady(function (prev) {
-        return prev ? prev : true
-      })
-      return
+      return function () {}
     },
-    [source]
+    function findReady() {
+      return isSourceReady(source)
+    }
   )
-
-  return ready
 }
 
 function useVideoGradeCanvas(
@@ -260,24 +235,36 @@ interface MediaNodeViewProps {
 }
 
 function MediaNodeView(props: MediaNodeViewProps) {
-  const frame = props.frame
+  const {
+    source,
+    frame,
+    size,
+    stillGrade,
+    imageRef,
+    id,
+    name,
+    onClick,
+    onTap,
+    onDragEnd,
+    onTransformEnd
+  } = props
   return (
     <KonvaImage
-      ref={props.imageRef}
-      id={props.id}
-      name={props.name}
-      image={props.source}
-      filters={props.stillGrade?.filters}
-      brightness={props.stillGrade?.brightness}
-      contrast={props.stillGrade?.contrast}
-      saturation={props.stillGrade?.saturation}
-      hue={props.stillGrade?.hue}
-      blurRadius={props.stillGrade?.blurRadius}
-      pixelSize={props.stillGrade?.pixelSize}
+      ref={imageRef}
+      id={id}
+      name={name}
+      image={source}
+      filters={stillGrade?.filters}
+      brightness={stillGrade?.brightness}
+      contrast={stillGrade?.contrast}
+      saturation={stillGrade?.saturation}
+      hue={stillGrade?.hue}
+      blurRadius={stillGrade?.blurRadius}
+      pixelSize={stillGrade?.pixelSize}
       x={frame.x}
       y={frame.y}
-      width={frame.width ?? props.size.width}
-      height={frame.height ?? props.size.height}
+      width={frame.width ?? size.width}
+      height={frame.height ?? size.height}
       offsetX={frame.offsetX}
       offsetY={frame.offsetY}
       scaleX={frame.scaleX}
@@ -286,10 +273,10 @@ function MediaNodeView(props: MediaNodeViewProps) {
       opacity={frame.opacity}
       listening={frame.listening}
       draggable={frame.draggable}
-      onClick={props.onClick}
-      onTap={props.onTap}
-      onDragEnd={props.onDragEnd}
-      onTransformEnd={props.onTransformEnd}
+      onClick={onClick}
+      onTap={onTap}
+      onDragEnd={onDragEnd}
+      onTransformEnd={onTransformEnd}
     />
   )
 }

@@ -319,7 +319,7 @@ function insertTrackInKindGroup(project: Project, track: Track): Project {
   const kindOrder = TRACK_KIND_ORDER.indexOf(track.kind)
   let insertAt = project.tracks.length
   for (let i = 0; i < project.tracks.length; i++) {
-    const otherOrder = TRACK_KIND_ORDER.indexOf(project.tracks[i]!.kind)
+    const otherOrder = TRACK_KIND_ORDER.indexOf(project.tracks[i].kind)
     if (otherOrder > kindOrder) {
       insertAt = i
       break
@@ -361,7 +361,7 @@ function pruneEmptyLanes(project: Project): Project {
   const seenKind = new Set<TrackKind>()
   // 自下而上扫描：优先保留组内靠下的轨（主轨），清掉上方空轨
   for (let i = project.tracks.length - 1; i >= 0; i--) {
-    const track = project.tracks[i]!
+    const track = project.tracks[i]
     if (track.clips.length > 0) {
       kept.push(track)
       seenKind.add(track.kind)
@@ -494,7 +494,7 @@ function findClipLocation(
       return item.id === clipId
     })
     if (index >= 0) {
-      return { track, clip: track.clips[index]!, index }
+      return { track, clip: track.clips[index], index }
     }
   }
   return undefined

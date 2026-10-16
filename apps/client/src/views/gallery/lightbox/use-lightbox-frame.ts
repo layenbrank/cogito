@@ -71,19 +71,18 @@ export function useLightboxFrame(input: {
   showThumbStrip: boolean
 }) {
   const { open, active, isFullscreen, showThumbStrip } = input
-  const [mediaAspect, onMediaAspect] = useState(LIGHTBOX_FRAME_ASPECT)
+  const [measuredAspect, onMediaAspect] = useState(LIGHTBOX_FRAME_ASPECT)
   const [frame, onFrame] = useState<FrameSize>(function () {
     return findWindowFrame(false, HEADER_Y + THUMB_Y)
   })
   const [fit, onFit] = useState<FitSize>({ width: 320, height: 200 })
   const chromeY = isFullscreen ? 0 : HEADER_Y + (showThumbStrip ? THUMB_Y : 0)
+  // 只在「开着且有当前媒体」时用测量宽高比，其余回落默认值（不必在 effect 里重置 state）
+  const mediaAspect = open && active ? measuredAspect : LIGHTBOX_FRAME_ASPECT
 
   useEffect(
     function () {
-      if (!open || !active) {
-        onMediaAspect(LIGHTBOX_FRAME_ASPECT)
-        return
-      }
+      if (!open || !active) return
 
       let cancelled = false
 
@@ -124,7 +123,7 @@ export function useLightboxFrame(input: {
         cancelled = true
       }
     },
-    [open, active?.asset.id, active?.kind, active?.src]
+    [open, active]
   )
 
   useLayoutEffect(

@@ -154,7 +154,7 @@ function revealMatch(
     return { index: -1, total: 0 }
   }
   const index = Math.min(Math.max(preferredIndex, 0), hits.length - 1)
-  selectHit(editor, options, hits[index]!)
+  selectHit(editor, options, hits[index])
   return { index, total: hits.length }
 }
 
@@ -179,7 +179,7 @@ function findStep(
     } else {
       index = -1
       for (let i = hits.length - 1; i >= 0; i -= 1) {
-        if (hits[i]!.to <= from) {
+        if (hits[i].to <= from) {
           index = i
           break
         }
@@ -189,7 +189,7 @@ function findStep(
   } else {
     index = (index + direction + hits.length) % hits.length
   }
-  selectHit(editor, options, hits[index]!)
+  selectHit(editor, options, hits[index])
   return { index, total: hits.length }
 }
 
@@ -218,7 +218,7 @@ function replaceAll(
   if (hits.length === 0) return 0
   let chain = editor.chain()
   for (let i = hits.length - 1; i >= 0; i -= 1) {
-    const hit = hits[i]!
+    const hit = hits[i]
     chain = chain.insertContentAt({ from: hit.from, to: hit.to }, replacement)
   }
   chain.run()

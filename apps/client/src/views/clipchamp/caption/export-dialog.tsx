@@ -21,7 +21,7 @@ const FPS_OPTIONS = [24, 30, 60]
 
 interface ExportDialogProps {
   open: boolean
-  onOpenChange(open: boolean): void
+  onOpenChange: (open: boolean) => void
 }
 
 function ExportDialog(props: ExportDialogProps) {
@@ -45,7 +45,7 @@ function ExportDialog(props: ExportDialogProps) {
   const current =
     EXPORT_PRESETS.find(function (preset) {
       return preset.id === exportPresetId
-    }) ?? EXPORT_PRESETS[0]!
+    }) ?? EXPORT_PRESETS[0]
 
   const [presetId, setPresetId] = useState(current.id)
   const [fps, setFps] = useState(current.fps)

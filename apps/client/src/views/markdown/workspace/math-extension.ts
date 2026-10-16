@@ -17,7 +17,7 @@ const MathBlock = Node.create({
           return element.getAttribute('data-formula') || element.textContent || ''
         },
         renderHTML(attributes) {
-          return { 'data-formula': attributes.formula }
+          return { 'data-formula': String(attributes.formula ?? '') }
         }
       }
     }
@@ -32,7 +32,7 @@ const MathBlock = Node.create({
       'div',
       mergeAttributes(HTMLAttributes, {
         'data-type': 'math-block',
-        'data-formula': node.attrs.formula,
+        'data-formula': String(node.attrs.formula ?? ''),
         class: 'math-block'
       })
     ]
@@ -43,15 +43,15 @@ const MathBlock = Node.create({
       const dom = document.createElement('div')
       dom.className = 'math-block my-3 overflow-x-auto text-center'
       dom.setAttribute('data-type', 'math-block')
-      dom.setAttribute('data-formula', node.attrs.formula || '')
+      dom.setAttribute('data-formula', String(node.attrs.formula ?? ''))
       try {
-        katex.render(node.attrs.formula || '', dom, {
+        katex.render(String(node.attrs.formula ?? ''), dom, {
           displayMode: true,
           throwOnError: false
         })
       } catch (error) {
         console.warn('[markdown] katex block render failed', error)
-        dom.textContent = node.attrs.formula || ''
+        dom.textContent = String(node.attrs.formula ?? '')
       }
       return { dom }
     }
@@ -76,7 +76,7 @@ const MathInline = Node.create({
           return element.getAttribute('data-formula') || element.textContent || ''
         },
         renderHTML(attributes) {
-          return { 'data-formula': attributes.formula }
+          return { 'data-formula': String(attributes.formula ?? '') }
         }
       }
     }
@@ -91,7 +91,7 @@ const MathInline = Node.create({
       'span',
       mergeAttributes(HTMLAttributes, {
         'data-type': 'math-inline',
-        'data-formula': node.attrs.formula,
+        'data-formula': String(node.attrs.formula ?? ''),
         class: 'math-inline'
       })
     ]
@@ -102,15 +102,15 @@ const MathInline = Node.create({
       const dom = document.createElement('span')
       dom.className = 'math-inline'
       dom.setAttribute('data-type', 'math-inline')
-      dom.setAttribute('data-formula', node.attrs.formula || '')
+      dom.setAttribute('data-formula', String(node.attrs.formula ?? ''))
       try {
-        katex.render(node.attrs.formula || '', dom, {
+        katex.render(String(node.attrs.formula ?? ''), dom, {
           displayMode: false,
           throwOnError: false
         })
       } catch (error) {
         console.warn('[markdown] katex inline render failed', error)
-        dom.textContent = node.attrs.formula || ''
+        dom.textContent = String(node.attrs.formula ?? '')
       }
       return { dom }
     }
