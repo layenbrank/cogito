@@ -1,17 +1,10 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
-import { writeImage, writeText } from '@tauri-apps/plugin-clipboard-manager'
-import { save as dialogSave } from '@tauri-apps/plugin-dialog'
-import { readFile } from '@tauri-apps/plugin-fs'
-import { invoke } from '@tauri-apps/api/core'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { toast } from 'sonner'
 
 import { findPruneHints } from '@/features/capture/model/prune-hints'
 import { formatUsageBytes } from '@/features/capture/model/usage'
-import { CHANNELS } from '@/shared/ipc/channels'
 import { useAlbumStore } from '@/stores/album'
-import { buildChange, useGalleryStore } from '@/stores/gallery'
 import { useSettingsStore } from '@/stores/setting'
 import { DateScrubber } from '@/views/gallery/library/date-scrubber'
 import { MediaGrid } from '@/views/gallery/library/media-grid'
@@ -19,6 +12,7 @@ import { findScrubberMarks } from '@/views/gallery/library/time-buckets'
 import { useGalleryScroll } from '@/views/gallery/library/use-gallery-scroll'
 import { Lightbox } from '@/views/gallery/lightbox/lightbox'
 import type { CaptureKind, GalleryMedia } from '@/views/gallery/model/media'
+import { useCaptureActions } from '@/views/capture/use-capture-actions'
 
 interface CapturePaneProps {
   kind: CaptureKind
@@ -32,17 +26,8 @@ function CapturePane(props: CapturePaneProps) {
   const retention = useSettingsStore(function (state) {
     return state.settings.capture.retention
   })
-  const toReadMedias = useGalleryStore(function (state) {
-    return state.toReadMedias
-  })
   const albums = useAlbumStore(function (state) {
     return state.albums
-  })
-  const toAttachAlbum = useAlbumStore(function (state) {
-    return state.toAttachAlbum
-  })
-  const toDetachAlbum = useAlbumStore(function (state) {
-    return state.toDetachAlbum
   })
 
   const scrollerRef = useRef<HTMLDivElement>(null)
@@ -99,7 +84,11 @@ function CapturePane(props: CapturePaneProps) {
       if (hint?.daysLeft !== undefined && hint.daysLeft <= 7) {
         return (
           <span className="inline-flex items-center gap-0.5 rounded bg-warning/90 px-1 py-0.5 text-[10px] leading-none text-warning-foreground">
-            <Icon icon="lucide:clock" className="size-2.5" aria-hidden />
+            <Icon
+              icon="lucide:clock"
+              className="size-2.5"
+              aria-hidden
+            />
             {hint.daysLeft} 天后清理
           </span>
         )
@@ -107,128 +96,26 @@ function CapturePane(props: CapturePaneProps) {
       return null
     }
     const label =
-      hint.reason === 'days'
-        ? '即将清理'
-        : hint.reason === 'count'
-          ? '超出数量'
-          : '超出容量'
+      hint.reason === 'days' ? '即将清理' : hint.reason === 'count' ? '超出数量' : '超出容量'
     return (
       <span className="inline-flex items-center gap-0.5 rounded bg-warning px-1 py-0.5 text-[10px] leading-none text-warning-foreground">
-        <Icon icon="lucide:triangle-alert" className="size-2.5" aria-hidden />
+        <Icon
+          icon="lucide:triangle-alert"
+          className="size-2.5"
+          aria-hidden
+        />
         {label}
       </span>
     )
   }
 
-  async function patchKeep(ids: string[], keep: boolean) {
-    const medias = useGalleryStore.getState().medias
-    const idSet = new Set(ids)
-    const targets = medias.filter(function (media) {
-      return idSet.has(media.asset.id)
+  const { attachToAlbum, copySelected, detachFromAlbum, patchKeep, removeSelected, saveSelected } =
+    useCaptureActions({
+      scoped,
+      selectedIds,
+      onSelectedIds,
+      onSelecting
     })
-    if (targets.length === 0) return
-    await invoke(CHANNELS.ASSET.UPDATE, {
-      params:
-        targets.length === 1
-          ? {
-              id: targets[0].asset.id,
-              updates: buildChange(targets[0].asset, { keep })
-            }
-          : targets.map(function (media) {
-              return {
-                id: media.asset.id,
-                updates: buildChange(media.asset, { keep })
-              }
-            })
-    })
-    await toReadMedias({ skipHydrate: true })
-    toast.success(keep ? '已保存，不会被自动清理' : '已取消保存')
-  }
-
-  async function removeSelected() {
-    const ids = Array.from(selectedIds)
-    if (ids.length === 0) return
-    const medias = useGalleryStore.getState().medias
-    const mediaById = new Map(
-      medias.map(function (media) {
-        return [media.asset.id, media]
-      })
-    )
-    const { remove } = await import('@tauri-apps/plugin-fs')
-    await Promise.all(
-      ids.map(async function (id) {
-        const media = mediaById.get(id)
-        if (!media?.meta.isManaged) return
-        try {
-          await remove(media.asset.filePath)
-        } catch (error) {
-          console.warn('[capture] remove file failed', error)
-        }
-      })
-    )
-    await invoke(CHANNELS.ASSET.REMOVE, {
-      params:
-        ids.length === 1
-          ? { id: ids[0] }
-          : ids.map(function (id) {
-              return { id }
-            })
-    })
-    onSelectedIds(new Set())
-    onSelecting(false)
-    await toReadMedias({ skipHydrate: true })
-    toast.success(`已删除 ${ids.length} 项`)
-  }
-
-  async function copySelected() {
-    const id = Array.from(selectedIds)[0]
-    if (!id) return
-    const media = scoped.find(function (item) {
-      return item.asset.id === id
-    })
-    if (!media) return
-    try {
-      if (media.kind === 'image') {
-        const bytes = await readFile(media.asset.filePath)
-        await writeImage(bytes)
-      } else {
-        await writeText(media.asset.filePath)
-      }
-      toast.success('已复制')
-    } catch (error) {
-      toast.error(`复制失败：${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
-
-  async function saveSelected() {
-    const id = Array.from(selectedIds)[0]
-    if (!id) return
-    const media = scoped.find(function (item) {
-      return item.asset.id === id
-    })
-    if (!media) return
-    const dest = await dialogSave({
-      defaultPath: media.asset.fileName
-    })
-    if (!dest) return
-    try {
-      const { copyFile } = await import('@tauri-apps/plugin-fs')
-      await copyFile(media.asset.filePath, dest)
-      toast.success('已另存为')
-    } catch (error) {
-      toast.error(`另存失败：${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
-
-  async function attachToAlbum(albumID: string) {
-    await toAttachAlbum(Array.from(selectedIds), albumID)
-    toast.success('已加入相簿')
-  }
-
-  async function detachFromAlbum(albumID: string) {
-    await toDetachAlbum(Array.from(selectedIds), albumID)
-    toast.success('已移出相簿')
-  }
 
   if (scoped.length === 0) {
     return (
@@ -306,7 +193,9 @@ function CapturePane(props: CapturePaneProps) {
                 <option value="">加入相簿…</option>
                 {albums.map(function (album) {
                   return (
-                    <option key={album.id} value={album.id}>
+                    <option
+                      key={album.id}
+                      value={album.id}>
                       {album.name}
                     </option>
                   )
@@ -343,7 +232,9 @@ function CapturePane(props: CapturePaneProps) {
         ) : null}
       </div>
 
-      <div ref={scrollerRef} className="relative min-h-0 flex-1 overflow-y-auto px-2">
+      <div
+        ref={scrollerRef}
+        className="relative min-h-0 flex-1 overflow-y-auto px-2">
         <MediaGrid
           medias={scoped}
           scope="all"
@@ -360,7 +251,11 @@ function CapturePane(props: CapturePaneProps) {
             return media.meta.keep === true
           }}
         />
-        <DateScrubber marks={marks} scrollRoot={scrollRoot} scrollFxRef={scrollFxRef} />
+        <DateScrubber
+          marks={marks}
+          scrollRoot={scrollRoot}
+          scrollFxRef={scrollFxRef}
+        />
       </div>
 
       <Lightbox
@@ -372,9 +267,11 @@ function CapturePane(props: CapturePaneProps) {
 
       {props.kind === 'recording' && scoped[0] ? (
         <p className="sr-only">
-          {formatUsageBytes(scoped.reduce(function (sum, media) {
-            return sum + (media.asset.size ?? 0)
-          }, 0))}
+          {formatUsageBytes(
+            scoped.reduce(function (sum, media) {
+              return sum + (media.asset.size ?? 0)
+            }, 0)
+          )}
         </p>
       ) : null}
     </div>

@@ -23,6 +23,145 @@ import { VaultReveal } from '@/views/gallery/vault/vault-reveal'
 
 type CollectionLeaf = 'root' | 'recents' | 'photos' | 'videos' | 'screenshots' | 'hidden'
 
+/** 精选集各叶子的标题；「图库」标签页不管进到哪一级都叫图库 */
+const LEAF_TITLES: Record<CollectionLeaf, string> = {
+  root: '图库',
+  recents: '最近项目',
+  photos: '照片',
+  videos: '视频',
+  screenshots: '截屏',
+  hidden: '已隐藏'
+}
+
+/** 精选集为空时的引导文案；图库标签页忽略（那里由 Library 自己兜底） */
+const EMPTY_HINTS: Partial<Record<CollectionLeaf, string>> = {
+  recents: '还没有媒体',
+  photos: '还没有照片',
+  videos: '还没有视频',
+  screenshots: '还没有截屏',
+  hidden: '没有已隐藏的媒体'
+}
+
+function findLibraryTitle(tab: GalleryTab, leaf: CollectionLeaf): string {
+  if (tab === 'library') return '图库'
+  return LEAF_TITLES[leaf]
+}
+
+function findEmptyHint(tab: GalleryTab, leaf: CollectionLeaf): string | undefined {
+  if (tab !== 'collections') return undefined
+  return EMPTY_HINTS[leaf]
+}
+
+/** 底部页签 + 搜索按钮 */
+function GalleryBottomBar(props: {
+  tab: GalleryTab
+  canSearch: boolean
+  onSwitchTab: (tab: GalleryTab) => void
+  onToggleSearch: () => void
+}) {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex items-end justify-center gap-2 px-4">
+      <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-border/50 bg-card/90 p-1 shadow-lg backdrop-blur-md">
+        {GALLERY_TABS.map(function (item) {
+          const isActive = props.tab === item
+          const label = item === 'library' ? '图库' : '精选集'
+          const icon = item === 'library' ? 'lucide:images' : 'lucide:layers'
+          return (
+            <button
+              key={item}
+              type="button"
+              className={cn(
+                'flex min-h-10 items-center gap-1.5 rounded-full px-3.5 text-sm transition-colors',
+                isActive
+                  ? 'bg-primary/15 text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              onClick={function () {
+                props.onSwitchTab(item)
+              }}>
+              <Icon
+                icon={icon}
+                className="size-4"
+              />
+              {label}
+            </button>
+          )
+        })}
+      </div>
+      <Button
+        type="button"
+        size="icon"
+        className="pointer-events-auto size-11 rounded-full shadow-lg"
+        aria-label="搜索"
+        disabled={!props.canSearch}
+        onClick={props.onToggleSearch}>
+        <Icon icon="lucide:search" />
+      </Button>
+    </div>
+  )
+}
+
+/**
+ * 搜索浮条。
+ *
+ * 失焦即收：`relatedTarget` 还在面板内就不收；容器内没有按钮可聚焦时（比如点到面板空白）
+ * 靠一次微任务延迟再看 `activeElement`，避免点面板内其它元素时误收。
+ */
+function GallerySearchPanel(props: {
+  query: string
+  onChangeQuery: (query: string) => void
+  onClose: () => void
+  isReducedMotion: boolean | null
+  motionSec: number
+}) {
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  return (
+    <m.div
+      ref={panelRef}
+      className="absolute inset-x-4 bottom-20 z-30 flex items-center gap-2 rounded-2xl border border-border/60 bg-card/95 p-2 shadow-lg backdrop-blur-md"
+      initial={props.isReducedMotion ? false : { opacity: 0, y: 12, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={props.isReducedMotion ? undefined : { opacity: 0, y: 8, scale: 0.98 }}
+      transition={{ duration: props.motionSec, ease: [0.22, 1, 0.36, 1] }}
+      onBlur={function (event) {
+        const next = event.relatedTarget as Node | null
+        if (panelRef.current?.contains(next)) return
+        window.setTimeout(function () {
+          if (!panelRef.current?.contains(document.activeElement)) props.onClose()
+        }, 0)
+      }}>
+      <Icon
+        icon="lucide:search"
+        className="ml-2 size-4 text-muted-foreground"
+      />
+      <Input
+        autoFocus
+        value={props.query}
+        placeholder="搜索文件名"
+        className="border-0 bg-transparent shadow-none focus-visible:ring-0"
+        onChange={function (event) {
+          props.onChangeQuery(event.target.value)
+        }}
+        onKeyDown={function (event) {
+          if (event.key === 'Escape') props.onClose()
+        }}
+      />
+      <Button
+        type="button"
+        size="icon-sm"
+        variant="ghost"
+        aria-label="关闭搜索"
+        onMouseDown={function (event) {
+          event.preventDefault()
+        }}
+        onClick={props.onClose}>
+        <Icon icon="lucide:x" />
+      </Button>
+    </m.div>
+  )
+}
+
 function Gallery() {
   const {
     visible,
@@ -70,7 +209,6 @@ function Gallery() {
   const [pendingHidden, onPendingHidden] = useState(false)
   const [isVaultReveal, onVaultReveal] = useState(false)
   const revealAfterUnlockRef = useRef(false)
-  const searchPanelRef = useRef<HTMLDivElement>(null)
   const isReducedMotion = useReducedMotion()
   const motionSec = MOTION_MS / 1000
 
@@ -86,12 +224,10 @@ function Gallery() {
 
   const activeMedias = useMemo(
     function () {
-      if (tab === 'library') return visible
-      if (leaf === 'recents') return visible
-      if (leaf === 'photos') return photos
-      if (leaf === 'videos') return videos
-      if (leaf === 'screenshots') return screenshots
-      if (leaf === 'hidden') return vaultUnlocked ? hidden : []
+      if (leaf === 'photos' && tab === 'collections') return photos
+      if (leaf === 'videos' && tab === 'collections') return videos
+      if (leaf === 'screenshots' && tab === 'collections') return screenshots
+      if (leaf === 'hidden' && tab === 'collections') return vaultUnlocked ? hidden : []
       return visible
     },
     [tab, leaf, visible, photos, videos, screenshots, hidden, vaultUnlocked]
@@ -101,21 +237,6 @@ function Gallery() {
   const showCollectionsRoot = tab === 'collections' && leaf === 'root'
   const showLibrary = !showCollectionsRoot
 
-  const libraryTitle =
-    tab === 'library'
-      ? '图库'
-      : leaf === 'recents'
-        ? '最近项目'
-        : leaf === 'photos'
-          ? '照片'
-          : leaf === 'videos'
-            ? '视频'
-            : leaf === 'screenshots'
-              ? '截屏'
-              : leaf === 'hidden'
-                ? '已隐藏'
-                : '图库'
-
   function clearSelection() {
     onSelectedIds(new Set())
   }
@@ -123,6 +244,13 @@ function Gallery() {
   function closeSearch() {
     onSearchOpen(false)
     onQuery('')
+  }
+
+  function switchTab(next: GalleryTab) {
+    onTab(next)
+    onLeaf('root')
+    clearSelection()
+    onSelecting(false)
   }
 
   function toggleSelect(media: GalleryMedia) {
@@ -200,7 +328,9 @@ function Gallery() {
   }
 
   return (
-    <Decorations summary={findComponentLabel('gallery')} scrollable={false}>
+    <Decorations
+      summary={findComponentLabel('gallery')}
+      scrollable={false}>
       <div className="relative flex min-h-0 flex-1 flex-col">
         {!loaded ? (
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
@@ -230,24 +360,12 @@ function Gallery() {
           />
         ) : (
           <Library
-            title={libraryTitle}
+            title={findLibraryTitle(tab, leaf)}
             medias={searched}
             selecting={selecting}
             selectedIds={selectedIds}
             importing={importing}
-            emptyHint={
-              leaf === 'hidden' && tab === 'collections'
-                ? '没有已隐藏的媒体'
-                : leaf === 'videos' && tab === 'collections'
-                  ? '还没有视频'
-                  : leaf === 'screenshots' && tab === 'collections'
-                    ? '还没有截屏'
-                    : leaf === 'photos' && tab === 'collections'
-                      ? '还没有照片'
-                      : leaf === 'recents' && tab === 'collections'
-                        ? '还没有媒体'
-                        : undefined
-            }
+            emptyHint={findEmptyHint(tab, leaf)}
             onSelectingChange={onSelecting}
             onToggleSelect={toggleSelect}
             onClearSelection={clearSelection}
@@ -283,94 +401,31 @@ function Gallery() {
 
         <AnimatePresence>
           {isSearchOpen ? (
-            <m.div
-              ref={searchPanelRef}
-              className="absolute inset-x-4 bottom-20 z-30 flex items-center gap-2 rounded-2xl border border-border/60 bg-card/95 p-2 shadow-lg backdrop-blur-md"
-              initial={isReducedMotion ? false : { opacity: 0, y: 12, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={isReducedMotion ? undefined : { opacity: 0, y: 8, scale: 0.98 }}
-              transition={{ duration: motionSec, ease: [0.22, 1, 0.36, 1] }}
-              onBlur={function (event) {
-                const next = event.relatedTarget as Node | null
-                if (searchPanelRef.current?.contains(next)) return
-                window.setTimeout(function () {
-                  if (!searchPanelRef.current?.contains(document.activeElement)) {
-                    closeSearch()
-                  }
-                }, 0)
-              }}>
-              <Icon icon="lucide:search" className="ml-2 size-4 text-muted-foreground" />
-              <Input
-                autoFocus
-                value={query}
-                placeholder="搜索文件名"
-                className="border-0 bg-transparent shadow-none focus-visible:ring-0"
-                onChange={function (event) {
-                  onQuery(event.target.value)
-                }}
-                onKeyDown={function (event) {
-                  if (event.key === 'Escape') closeSearch()
-                }}
-              />
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                aria-label="关闭搜索"
-                onMouseDown={function (event) {
-                  event.preventDefault()
-                }}
-                onClick={closeSearch}>
-                <Icon icon="lucide:x" />
-              </Button>
-            </m.div>
+            <GallerySearchPanel
+              query={query}
+              onChangeQuery={onQuery}
+              onClose={closeSearch}
+              isReducedMotion={isReducedMotion}
+              motionSec={motionSec}
+            />
           ) : null}
         </AnimatePresence>
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex items-end justify-center gap-2 px-4">
-          <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-border/50 bg-card/90 p-1 shadow-lg backdrop-blur-md">
-            {GALLERY_TABS.map(function (item) {
-              const isActive = tab === item
-              const label = item === 'library' ? '图库' : '精选集'
-              const icon = item === 'library' ? 'lucide:images' : 'lucide:layers'
-              return (
-                <button
-                  key={item}
-                  type="button"
-                  className={cn(
-                    'flex min-h-10 items-center gap-1.5 rounded-full px-3.5 text-sm transition-colors',
-                    isActive
-                      ? 'bg-primary/15 text-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                  onClick={function () {
-                    onTab(item)
-                    onLeaf('root')
-                    clearSelection()
-                    onSelecting(false)
-                  }}>
-                  <Icon icon={icon} className="size-4" />
-                  {label}
-                </button>
-              )
-            })}
-          </div>
-          <Button
-            type="button"
-            size="icon"
-            className="pointer-events-auto size-11 rounded-full shadow-lg"
-            aria-label="搜索"
-            disabled={!showLibrary}
-            onClick={function () {
-              onSearchOpen(function (value) {
-                return !value
-              })
-            }}>
-            <Icon icon="lucide:search" />
-          </Button>
-        </div>
+        <GalleryBottomBar
+          tab={tab}
+          canSearch={showLibrary}
+          onSwitchTab={switchTab}
+          onToggleSearch={function () {
+            onSearchOpen(function (value) {
+              return !value
+            })
+          }}
+        />
 
-        <VaultReveal active={isVaultReveal} onDone={finishVaultReveal} />
+        <VaultReveal
+          active={isVaultReveal}
+          onDone={finishVaultReveal}
+        />
       </div>
 
       <Lightbox
