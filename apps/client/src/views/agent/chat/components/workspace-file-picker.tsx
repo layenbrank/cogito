@@ -18,6 +18,95 @@ interface WorkspaceFilePickerProps {
   onBack?: () => void
 }
 
+interface PickerEntry {
+  name: string
+  kind: string
+  relative: string
+}
+
+/** 列表区：加载中 / 无工作区 / 条目 / 空目录，各自独立成分支分支渲染 */
+function PickerList(props: {
+  isPending: boolean
+  hasWorkspace: boolean
+  isSearching: boolean
+  entries: readonly PickerEntry[]
+  listClassName?: string
+  onPick: (relative: string) => void
+  onEnterDirectory: (relative: string) => void
+}) {
+  if (props.isPending) {
+    return (
+      <PickerListShell listClassName={props.listClassName}>
+        <p className="text-muted-foreground flex items-center gap-1.5 p-2.5 text-xs">
+          <Icon
+            icon="lucide:loader-circle"
+            className="size-3.5 animate-spin"
+          />
+          读取中…
+        </p>
+      </PickerListShell>
+    )
+  }
+
+  if (!props.hasWorkspace) {
+    return (
+      <PickerListShell listClassName={props.listClassName}>
+        <p className="text-muted-foreground p-2.5 text-xs">先在左栏添加工作区</p>
+      </PickerListShell>
+    )
+  }
+
+  if (props.entries.length === 0) {
+    return (
+      <PickerListShell listClassName={props.listClassName}>
+        <p className="text-muted-foreground p-2.5 text-xs">
+          {props.isSearching ? '没有匹配的文件' : '此目录为空'}
+        </p>
+      </PickerListShell>
+    )
+  }
+
+  return (
+    <PickerListShell listClassName={props.listClassName}>
+      {props.entries.map(function (entry) {
+        const isDir = entry.kind === 'dir'
+        return (
+          <Button
+            key={entry.relative}
+            type="button"
+            variant="ghost"
+            className="h-auto w-full justify-start gap-2 px-2 py-1.5 text-xs font-normal"
+            onClick={function () {
+              if (isDir) {
+                props.onEnterDirectory(entry.relative)
+                return
+              }
+              props.onPick(entry.relative)
+            }}>
+            <Icon
+              icon={isDir ? 'lucide:folder' : 'lucide:file'}
+              className="text-muted-foreground size-3.5 shrink-0"
+            />
+            <span className="min-w-0 flex-1 truncate text-start">{entry.name}</span>
+          </Button>
+        )
+      })}
+    </PickerListShell>
+  )
+}
+
+function PickerListShell(props: { children: React.ReactNode; listClassName?: string }) {
+  return (
+    <div
+      className={clsx(
+        'min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5',
+        props.listClassName
+      )}>
+      {props.children}
+    </div>
+  )
+}
+
 function WorkspaceFilePicker(props: WorkspaceFilePickerProps) {
   const { primaryPath } = useActiveWorkspace()
   const [relative, updateRelative] = useState('')
@@ -31,9 +120,7 @@ function WorkspaceFilePicker(props: WorkspaceFilePickerProps) {
       updateQuery('')
     }
   }
-  const [entriesState, updateEntries] = useState<Array<{ name: string; kind: string; relative: string }>>(
-    []
-  )
+  const [entriesState, updateEntries] = useState<PickerEntry[]>([])
   const [isPending, updatePending] = useState(false)
   /** 没开或没有工作区时按空列表渲染：不在 effect 里同步清 state */
   const entries = props.active && primaryPath ? entriesState : []
@@ -82,6 +169,11 @@ function WorkspaceFilePicker(props: WorkspaceFilePickerProps) {
     [props.active, primaryPath, relative, query]
   )
 
+  function enterDirectory(next: string) {
+    updateRelative(next)
+    updateQuery('')
+  }
+
   return (
     <div className={props.className}>
       <div className="flex shrink-0 items-center gap-1 border-b p-2">
@@ -123,51 +215,15 @@ function WorkspaceFilePicker(props: WorkspaceFilePickerProps) {
         </Button>
       ) : null}
 
-      <div className={clsx('min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5', props.listClassName)}>
-        {isPending ? (
-          <p className="text-muted-foreground flex items-center gap-1.5 p-2.5 text-xs">
-            <Icon
-              icon="lucide:loader-circle"
-              className="size-3.5 animate-spin"
-            />
-            读取中…
-          </p>
-        ) : null}
-        {!isPending && !primaryPath ? (
-          <p className="text-muted-foreground p-2.5 text-xs">先在左栏添加工作区</p>
-        ) : null}
-        {!isPending && primaryPath
-          ? entries.map(function (entry) {
-              const isDir = entry.kind === 'dir'
-              return (
-                <Button
-                  key={entry.relative}
-                  type="button"
-                  variant="ghost"
-                  className="h-auto w-full justify-start gap-2 px-2 py-1.5 text-xs font-normal"
-                  onClick={function () {
-                    if (isDir) {
-                      updateRelative(entry.relative)
-                      updateQuery('')
-                      return
-                    }
-                    props.onPick(entry.relative)
-                  }}>
-                  <Icon
-                    icon={isDir ? 'lucide:folder' : 'lucide:file'}
-                    className="text-muted-foreground size-3.5 shrink-0"
-                  />
-                  <span className="min-w-0 flex-1 truncate text-start">{entry.name}</span>
-                </Button>
-              )
-            })
-          : null}
-        {!isPending && primaryPath && entries.length === 0 ? (
-          <p className="text-muted-foreground p-2.5 text-xs">
-            {isSearching ? '没有匹配的文件' : '此目录为空'}
-          </p>
-        ) : null}
-      </div>
+      <PickerList
+        isPending={isPending}
+        hasWorkspace={Boolean(primaryPath)}
+        isSearching={isSearching}
+        entries={entries}
+        listClassName={props.listClassName}
+        onPick={props.onPick}
+        onEnterDirectory={enterDirectory}
+      />
     </div>
   )
 }

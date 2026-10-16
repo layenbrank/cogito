@@ -32,6 +32,37 @@ function findFileLabel(file: DiagnosticsTextFile): string {
   return `${file.path}（${size}${file.truncated ? '，已截断' : ''}）`
 }
 
+/** 完整报告才有的明细：日志/提示词份数、配置路径与逐份清单 */
+function FullReportDetails(props: { report: DiagnosticsReport }) {
+  const report = props.report
+  const logFiles = [...report.logs.cli, ...report.logs.llm]
+  return (
+    <div className="flex flex-col gap-2 text-sm">
+      <div className="flex flex-col gap-1">
+        <span className="text-xs text-muted-foreground">
+          CLI 日志 {report.logs.cli.length} 份 / LLM 日志 {report.logs.llm.length} 份 / 提示词{' '}
+          {report.prompts.length} 份
+        </span>
+        {report.config ? (
+          <span className="truncate text-xs text-muted-foreground">
+            配置：{report.config.configPath}
+            {report.config.truncated ? '（已截断）' : ''}
+          </span>
+        ) : null}
+        {logFiles.map(function (file) {
+          return (
+            <span
+              key={file.path}
+              className="truncate text-xs text-muted-foreground">
+              {findFileLabel(file)}
+            </span>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function DiagnosticsSection() {
   const activeSessionID = useAgentStore(function (state) {
     return state.activeSessionID
@@ -187,31 +218,7 @@ function DiagnosticsSection() {
             </div>
           ) : null}
 
-          {report.level === 'full' ? (
-            <div className="flex flex-col gap-2 text-sm">
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">
-                  CLI 日志 {report.logs.cli.length} 份 / LLM 日志 {report.logs.llm.length} 份 / 提示词{' '}
-                  {report.prompts.length} 份
-                </span>
-                {report.config ? (
-                  <span className="truncate text-xs text-muted-foreground">
-                    配置：{report.config.configPath}
-                    {report.config.truncated ? '（已截断）' : ''}
-                  </span>
-                ) : null}
-                {[...report.logs.cli, ...report.logs.llm].map(function (file) {
-                  return (
-                    <span
-                      key={file.path}
-                      className="truncate text-xs text-muted-foreground">
-                      {findFileLabel(file)}
-                    </span>
-                  )
-                })}
-              </div>
-            </div>
-          ) : null}
+          {report.level === 'full' ? <FullReportDetails report={report} /> : null}
         </>
       )}
     </div>

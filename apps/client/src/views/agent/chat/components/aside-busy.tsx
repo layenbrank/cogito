@@ -40,12 +40,7 @@ function truncatePath(path: string, max = 42) {
   return `…${path.slice(-(max - 1))}`
 }
 
-function Section(props: {
-  icon: string
-  title: string
-  action?: ReactNode
-  children: ReactNode
-}) {
+function Section(props: { icon: string; title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <section className="border-border/70 flex flex-col gap-2 border-b px-3 py-3 last:border-b-0">
       <div className="flex items-center justify-between gap-2">
@@ -60,6 +55,176 @@ function Section(props: {
       </div>
       {props.children}
     </section>
+  )
+}
+
+/** 计划条目：状态徐标 + 完成态删除线 */
+function PlanEntryList(props: { entries: NonNullable<AsideBusyProps['plan']>['entries'] }) {
+  return (
+    <ol className="flex flex-col gap-1.5">
+      {props.entries.map(function (entry) {
+        const status = statusOf(entry.status)
+        return (
+          <li
+            key={`${status}-${entry.content}`}
+            className="flex items-start gap-2">
+            <Badge
+              variant={
+                status === 'completed'
+                  ? 'secondary'
+                  : status === 'in_progress'
+                    ? 'default'
+                    : 'outline'
+              }
+              className="mt-0.5 shrink-0">
+              {STATUS_LABEL[status]}
+            </Badge>
+            <span
+              className={clsx(
+                'text-xs leading-snug',
+                status === 'completed' && 'text-muted-foreground line-through'
+              )}>
+              {entry.content}
+            </span>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+/** 会话分区：最后一条用户消息的摘要 + 模型/审批徐标 */
+function SessionSection(props: {
+  updatedLabel: string | null
+  summary: string
+  modelLabel: string
+  approvalLabel: string
+}) {
+  return (
+    <Section
+      icon="lucide:message-square"
+      title={props.updatedLabel ? `更新于 ${props.updatedLabel}` : '会话'}>
+      <p className="text-muted-foreground text-xs leading-relaxed">{props.summary}</p>
+      <div className="text-muted-foreground flex flex-wrap gap-2 text-xs">
+        <span className="bg-muted inline-flex items-center gap-1 rounded-md px-1.5 py-0.5">
+          <Icon
+            icon="lucide:box"
+            className="size-3"
+          />
+          {props.modelLabel}
+        </span>
+        <span className="bg-muted inline-flex items-center gap-1 rounded-md px-1.5 py-0.5">
+          <Icon
+            icon="lucide:circle-check"
+            className="size-3"
+          />
+          {props.approvalLabel}
+        </span>
+      </div>
+    </Section>
+  )
+}
+
+/** 工作区分区：主路径、git 分支与附加目录 */
+function WorkspaceSection(props: {
+  title: string
+  primaryPath: string | null
+  probe: ProbeR | null
+  extraFolders: ReadonlyArray<{ id: string; path: string }>
+}) {
+  const branch = props.probe?.isRepo ? props.probe.branch : null
+  return (
+    <Section
+      icon="lucide:folder"
+      title="工作区">
+      <p
+        className="text-foreground truncate text-xs font-medium"
+        title={props.primaryPath ?? undefined}>
+        {props.title}
+      </p>
+      {props.primaryPath ? (
+        <p
+          className="text-muted-foreground truncate text-xs"
+          title={props.primaryPath}>
+          {truncatePath(props.primaryPath)}
+        </p>
+      ) : null}
+      <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+        <span className="inline-flex items-center gap-1">
+          <Icon
+            icon="lucide:monitor"
+            className="size-3"
+          />
+          本地
+        </span>
+        {branch ? (
+          <span className="inline-flex items-center gap-1">
+            <Icon
+              icon="lucide:git-branch"
+              className="size-3"
+            />
+            {branch}
+          </span>
+        ) : null}
+      </div>
+      {props.extraFolders.length > 0 ? (
+        <ul className="text-muted-foreground mt-1 space-y-0.5 text-xs">
+          {props.extraFolders.slice(0, 4).map(function (folder) {
+            return (
+              <li
+                key={folder.id}
+                className="truncate"
+                title={folder.path}>
+                {truncatePath(folder.path, 36)}
+              </li>
+            )
+          })}
+        </ul>
+      ) : null}
+    </Section>
+  )
+}
+
+/** 来源分区：已引用的文件名列表 + 添加入口 */
+function SourcesSection(props: { names: readonly string[]; onAdd: () => void }) {
+  return (
+    <Section
+      icon="lucide:paperclip"
+      title="来源"
+      action={
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label="添加来源"
+          className="size-6"
+          onClick={props.onAdd}>
+          <Icon
+            icon="lucide:plus"
+            className="size-3.5"
+          />
+        </Button>
+      }>
+      {props.names.length > 0 ? (
+        <ul className="flex flex-col gap-1">
+          {props.names.map(function (name) {
+            return (
+              <li
+                key={name}
+                className="text-foreground flex items-center gap-1.5 truncate text-xs">
+                <Icon
+                  icon="lucide:file"
+                  className="text-muted-foreground size-3.5 shrink-0"
+                />
+                <span className="truncate">{name}</span>
+              </li>
+            )
+          })}
+        </ul>
+      ) : (
+        <p className="text-muted-foreground text-xs">暂无来源，点 + 添加文件</p>
+      )}
+    </Section>
   )
 }
 
@@ -187,110 +352,25 @@ function AsideBusy(props: AsideBusyProps) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-      <Section
-        icon="lucide:message-square"
-        title={updatedLabel ? `更新于 ${updatedLabel}` : '会话'}>
-        <p className="text-muted-foreground text-xs leading-relaxed">{summary}</p>
-        <div className="text-muted-foreground flex flex-wrap gap-2 text-xs">
-          <span className="bg-muted inline-flex items-center gap-1 rounded-md px-1.5 py-0.5">
-            <Icon
-              icon="lucide:box"
-              className="size-3"
-            />
-            {activeProvider?.model?.trim() || '未选模型'}
-          </span>
-          <span className="bg-muted inline-flex items-center gap-1 rounded-md px-1.5 py-0.5">
-            <Icon
-              icon="lucide:circle-check"
-              className="size-3"
-            />
-            {approval?.label ?? '询问审批'}
-          </span>
-        </div>
-      </Section>
+      <SessionSection
+        updatedLabel={updatedLabel}
+        summary={summary}
+        modelLabel={activeProvider?.model?.trim() || '未选模型'}
+        approvalLabel={approval?.label ?? '询问审批'}
+      />
 
-      <Section
-        icon="lucide:folder"
-        title="工作区">
-        <p
-          className="text-foreground truncate text-xs font-medium"
-          title={primaryPath ?? undefined}>
-          {workspace?.title ?? '未选择工作区'}
-        </p>
-        {primaryPath ? (
-          <p
-            className="text-muted-foreground truncate text-xs"
-            title={primaryPath}>
-            {truncatePath(primaryPath)}
-          </p>
-        ) : null}
-        <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-          <span className="inline-flex items-center gap-1">
-            <Icon
-              icon="lucide:monitor"
-              className="size-3"
-            />
-            本地
-          </span>
-          {probe?.isRepo && probe.branch ? (
-            <span className="inline-flex items-center gap-1">
-              <Icon
-                icon="lucide:git-branch"
-                className="size-3"
-              />
-              {probe.branch}
-            </span>
-          ) : null}
-        </div>
-        {extraFolders.length > 0 ? (
-          <ul className="text-muted-foreground mt-1 space-y-0.5 text-xs">
-            {extraFolders.slice(0, 4).map(function (folder) {
-              return (
-                <li
-                  key={folder.id}
-                  className="truncate"
-                  title={folder.path}>
-                  {truncatePath(folder.path, 36)}
-                </li>
-              )
-            })}
-          </ul>
-        ) : null}
-      </Section>
+      <WorkspaceSection
+        title={workspace?.title ?? '未选择工作区'}
+        primaryPath={primaryPath}
+        probe={probe}
+        extraFolders={extraFolders}
+      />
 
       <Section
         icon="lucide:list-todo"
         title={plan && plan.total > 0 ? `计划（${plan.done}/${plan.total}）` : '计划'}>
         {plan && plan.entries.length > 0 ? (
-          <ol className="flex flex-col gap-1.5">
-            {plan.entries.map(function (entry) {
-              const status = statusOf(entry.status)
-              return (
-                <li
-                  key={`${status}-${entry.content}`}
-                  className="flex items-start gap-2">
-                  <Badge
-                    variant={
-                      status === 'completed'
-                        ? 'secondary'
-                        : status === 'in_progress'
-                          ? 'default'
-                          : 'outline'
-                    }
-                    className="mt-0.5 shrink-0">
-                    {STATUS_LABEL[status]}
-                  </Badge>
-                  <span
-                    className={clsx(
-                      'text-xs leading-snug',
-                      status === 'completed' && 'text-muted-foreground line-through'
-                    )}>
-                    {entry.content}
-                  </span>
-                </li>
-              )
-            })}
-          </ol>
+          <PlanEntryList entries={plan.entries} />
         ) : (
           <p className="text-muted-foreground text-xs">代理规划出执行步骤后会显示在这里</p>
         )}
@@ -302,43 +382,10 @@ function AsideBusy(props: AsideBusyProps) {
         <p className="text-muted-foreground text-xs">暂无产出</p>
       </Section>
 
-      <Section
-        icon="lucide:paperclip"
-        title="来源"
-        action={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-label="添加来源"
-            className="size-6"
-            onClick={handleAddSource}>
-            <Icon
-              icon="lucide:plus"
-              className="size-3.5"
-            />
-          </Button>
-        }>
-        {sourceNames.length > 0 ? (
-          <ul className="flex flex-col gap-1">
-            {sourceNames.map(function (name) {
-              return (
-                <li
-                  key={name}
-                  className="text-foreground flex items-center gap-1.5 truncate text-xs">
-                  <Icon
-                    icon="lucide:file"
-                    className="text-muted-foreground size-3.5 shrink-0"
-                  />
-                  <span className="truncate">{name}</span>
-                </li>
-              )
-            })}
-          </ul>
-        ) : (
-          <p className="text-muted-foreground text-xs">暂无来源，点 + 添加文件</p>
-        )}
-      </Section>
+      <SourcesSection
+        names={sourceNames}
+        onAdd={handleAddSource}
+      />
     </div>
   )
 }
