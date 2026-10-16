@@ -49,6 +49,155 @@ import { upsertStoreProvider } from '../provider-upsert'
 
 type EditorMode = 'add' | 'update' | null
 
+/** 顶部标题与「添加模型」入口 */
+function ModelHeader(props: { onAdd: () => void }) {
+  return (
+    <header className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className={styles.title}>模型</h2>
+        <p className={styles.desc}>使用自己的 API Key 添加并管理个人模型；密钥只保存在本机。</p>
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        className="shrink-0 gap-1.5"
+        onClick={props.onAdd}>
+        <Icon
+          icon="lucide:plus"
+          className="size-3.5"
+        />
+        添加模型
+      </Button>
+    </header>
+  )
+}
+
+type StoreProviderRow = ReturnType<typeof useProviderStore.getState>['providers'][number]
+
+/** 已配置的个人模型：扁平行 + 默认模型选择 + 更新密钥 */
+function ProviderListSection(props: {
+  loading: boolean
+  configured: GooseProviderEntry[]
+  storeProviders: StoreProviderRow[]
+  probeStatus: Record<string, ProbeStatus>
+  onModelChange: (providerId: string, model: string) => unknown
+  onOpenUpdate: (entry: GooseProviderEntry) => void
+}) {
+  return (
+    <section className={styles.section}>
+      <div className={styles.sectionHead}>
+        <span className={styles.sectionTitle}>个人模型</span>
+        <span className={styles.sectionMeta}>
+          {props.loading ? '加载中…' : `${props.configured.length} 个`}
+        </span>
+      </div>
+
+      {props.loading ? (
+        <div className="flex justify-center py-8">
+          <Spinner className="size-5" />
+        </div>
+      ) : props.configured.length === 0 ? (
+        <p className={`${styles.empty} text-muted-foreground`}>
+          还没有个人模型。点右上角「添加模型」选择服务商并填写密钥。
+        </p>
+      ) : (
+        <div className={styles.list}>
+          {props.configured.map(function (entry) {
+            const storeRow = props.storeProviders.find(function (provider) {
+              return provider.id === entry.providerId || provider.kind === entry.providerId
+            })
+            const models = entry.models.length
+              ? entry.models
+              : parseModels(storeRow?.models ?? null)
+            const modelLabel = storeRow?.model
+              ? findModelLabel(storeRow.model)
+              : entry.defaultModel
+                ? findModelLabel(entry.defaultModel)
+                : null
+            const status = props.probeStatus[entry.providerId]
+
+            return (
+              <div
+                key={entry.providerId}
+                className={styles.row}>
+                <div className={styles.rowIdentity}>
+                  <span className={styles.cardBadge}>
+                    <Icon
+                      icon="lucide:server"
+                      width={16}
+                      height={16}
+                    />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={styles.cardName}>
+                        {modelLabel ?? findProviderLabel(entry.providerId, entry.providerName)}
+                      </span>
+                      {status === 'fail' ? (
+                        <span className={styles.statusLabelFail}>校验失败</span>
+                      ) : null}
+                    </div>
+                    <p className={styles.rowMeta}>
+                      {findProviderLabel(entry.providerId, entry.providerName)}
+                      {' · '}
+                      {findProviderBilling(entry.providerId, entry.providerName)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className={styles.rowActions}>
+                  {models.length > 0 ? (
+                    <Select
+                      value={storeRow?.model ?? entry.defaultModel ?? models[0] ?? null}
+                      onValueChange={function (model) {
+                        if (model === null) return
+                        void props.onModelChange(entry.providerId, model)
+                      }}>
+                      <SelectTrigger
+                        aria-label="默认模型"
+                        className={styles.modelSelect}>
+                        <SelectValue placeholder="默认模型" />
+                      </SelectTrigger>
+                      <SelectContent
+                        align="end"
+                        alignItemWithTrigger={false}
+                        className={styles.selectPopup}>
+                        {models.map(function (model) {
+                          return (
+                            <SelectItem
+                              key={model}
+                              value={model}>
+                              {findModelLabel(model)}
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className={styles.keyBtn}
+                    onClick={function () {
+                      props.onOpenUpdate(entry)
+                    }}>
+                    <Icon
+                      icon="lucide:pencil"
+                      className="size-3.5"
+                    />
+                    更新 API Key
+                  </Button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function ModelSection() {
   const [loading, updateLoading] = useState(false)
   const [entries, updateEntries] = useState<GooseProviderEntry[]>([])
@@ -121,20 +270,17 @@ function ModelSection() {
     }
   }
 
-  useEffect(
-    function () {
-      // 放进微任务：loadInventory 首行就是 updateLoading(true)，直接在 effect 体里调会级联渲染
-      let cancelled = false
-      void Promise.resolve().then(function () {
-        if (cancelled) return
-        return loadInventory()
-      })
-      return function () {
-        cancelled = true
-      }
-    },
-    []
-  )
+  useEffect(function () {
+    // 放进微任务：loadInventory 首行就是 updateLoading(true)，直接在 effect 体里调会级联渲染
+    let cancelled = false
+    void Promise.resolve().then(function () {
+      if (cancelled) return
+      return loadInventory()
+    })
+    return function () {
+      cancelled = true
+    }
+  }, [])
 
   async function openEditor(entry: GooseProviderEntry) {
     updateActiveId(entry.providerId)
@@ -245,139 +391,16 @@ function ModelSection() {
 
   return (
     <div className="flex flex-col gap-5">
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className={styles.title}>模型</h2>
-          <p className={styles.desc}>
-            使用自己的 API Key 添加并管理个人模型；密钥只保存在本机。
-          </p>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          className="shrink-0 gap-1.5"
-          onClick={handleOpenAdd}>
-          <Icon
-            icon="lucide:plus"
-            className="size-3.5"
-          />
-          添加模型
-        </Button>
-      </header>
+      <ModelHeader onAdd={handleOpenAdd} />
 
-      <section className={styles.section}>
-        <div className={styles.sectionHead}>
-          <span className={styles.sectionTitle}>个人模型</span>
-          <span className={styles.sectionMeta}>
-            {loading ? '加载中…' : `${configured.length} 个`}
-          </span>
-        </div>
-
-        {loading ? (
-          <div className="flex justify-center py-8">
-            <Spinner className="size-5" />
-          </div>
-        ) : configured.length === 0 ? (
-          <p className={`${styles.empty} text-muted-foreground`}>
-            还没有个人模型。点右上角「添加模型」选择服务商并填写密钥。
-          </p>
-        ) : (
-          <div className={styles.list}>
-            {configured.map(function (entry) {
-              const storeRow = storeProviders.find(function (provider) {
-                return provider.id === entry.providerId || provider.kind === entry.providerId
-              })
-              const models = entry.models.length
-                ? entry.models
-                : parseModels(storeRow?.models ?? null)
-              const modelLabel = storeRow?.model
-                ? findModelLabel(storeRow.model)
-                : entry.defaultModel
-                  ? findModelLabel(entry.defaultModel)
-                  : null
-              const status = probeStatus[entry.providerId]
-
-              return (
-                <div
-                  key={entry.providerId}
-                  className={styles.row}>
-                  <div className={styles.rowIdentity}>
-                    <span className={styles.cardBadge}>
-                      <Icon
-                        icon="lucide:server"
-                        width={16}
-                        height={16}
-                      />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={styles.cardName}>
-                          {modelLabel ?? findProviderLabel(entry.providerId, entry.providerName)}
-                        </span>
-                        {status === 'fail' ? (
-                          <span className={styles.statusLabelFail}>校验失败</span>
-                        ) : null}
-                      </div>
-                      <p className={styles.rowMeta}>
-                        {findProviderLabel(entry.providerId, entry.providerName)}
-                        {' · '}
-                        {findProviderBilling(entry.providerId, entry.providerName)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className={styles.rowActions}>
-                    {models.length > 0 ? (
-                      <Select
-                        value={
-                          storeRow?.model ?? entry.defaultModel ?? models[0] ?? null
-                        }
-                        onValueChange={function (model) {
-                          if (model === null) return
-                          void handleModelChange(entry.providerId, model)
-                        }}>
-                        <SelectTrigger
-                          aria-label="默认模型"
-                          className={styles.modelSelect}>
-                          <SelectValue placeholder="默认模型" />
-                        </SelectTrigger>
-                        <SelectContent
-                          align="end"
-                          alignItemWithTrigger={false}
-                          className={styles.selectPopup}>
-                          {models.map(function (model) {
-                            return (
-                              <SelectItem
-                                key={model}
-                                value={model}>
-                                {findModelLabel(model)}
-                              </SelectItem>
-                            )
-                          })}
-                        </SelectContent>
-                      </Select>
-                    ) : null}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className={styles.keyBtn}
-                      onClick={function () {
-                        handleOpenUpdate(entry)
-                      }}>
-                      <Icon
-                        icon="lucide:pencil"
-                        className="size-3.5"
-                      />
-                      更新 API Key
-                    </Button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </section>
+      <ProviderListSection
+        loading={loading}
+        configured={configured}
+        storeProviders={storeProviders}
+        probeStatus={probeStatus}
+        onModelChange={handleModelChange}
+        onOpenUpdate={handleOpenUpdate}
+      />
 
       <Dialog
         open={isDialogOpen}
@@ -439,9 +462,7 @@ function ModelSection() {
             ) : null}
 
             {editorMode === 'update' ? (
-              <p className={styles.fieldHint}>
-                保存前会校验此密钥；密钥只保存在本机安全存储中。
-              </p>
+              <p className={styles.fieldHint}>保存前会校验此密钥；密钥只保存在本机安全存储中。</p>
             ) : null}
           </div>
 

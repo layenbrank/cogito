@@ -4,14 +4,10 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
 import { Input } from '@i-thinking/design/components/input'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger
-} from '@i-thinking/design/components/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
 import type { Editor } from '@tiptap/react'
 import { cn } from 'cn'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 
 import { useMarkdownStore } from '@/stores/markdown'
 import {
@@ -58,6 +54,245 @@ function OptionToggle(props: {
       </TooltipTrigger>
       <TooltipContent side="bottom">{props.label}</TooltipContent>
     </Tooltip>
+  )
+}
+
+/** 搜索行的右侧按钮组：上一个 / 下一个 / 关闭 */
+function FindNavButtons(props: {
+  matchLabel: string
+  onStep: (direction: 1 | -1) => void
+  onClose: () => void
+}) {
+  return (
+    <>
+      <span className="shrink-0 px-1 text-[11px] whitespace-nowrap text-muted-foreground tabular-nums">
+        {props.matchLabel}
+      </span>
+
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-6 rounded"
+              aria-label="上一个"
+              onClick={function () {
+                props.onStep(-1)
+              }}
+            />
+          }>
+          <Icon
+            icon="lucide:arrow-up"
+            className="size-3.5"
+          />
+        </TooltipTrigger>
+        <TooltipContent side="bottom">上一个</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-6 rounded"
+              aria-label="下一个"
+              onClick={function () {
+                props.onStep(1)
+              }}
+            />
+          }>
+          <Icon
+            icon="lucide:arrow-down"
+            className="size-3.5"
+          />
+        </TooltipTrigger>
+        <TooltipContent side="bottom">下一个</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-6 rounded"
+              aria-label="关闭"
+              onClick={props.onClose}
+            />
+          }>
+          <Icon
+            icon="lucide:x"
+            className="size-3.5"
+          />
+        </TooltipTrigger>
+        <TooltipContent side="bottom">关闭（Esc）</TooltipContent>
+      </Tooltip>
+    </>
+  )
+}
+
+/** 搜索行：折叠三角 + 输入框（含 Aa / ab / .* 开关）+ 导航按钮 */
+function FindRow(props: {
+  inputRef: RefObject<HTMLInputElement | null>
+  query: string
+  placeholder: string
+  isReplaceOpen: boolean
+  isMatchCase: boolean
+  isWholeWord: boolean
+  isRegex: boolean
+  matchLabel: string
+  onChangeQuery: (value: string) => void
+  onToggleReplace: () => void
+  onToggleMatchCase: () => void
+  onToggleWholeWord: () => void
+  onToggleRegex: () => void
+  onStep: (direction: 1 | -1) => void
+  onClose: () => void
+}) {
+  return (
+    <div className="flex items-start gap-1">
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        className="mt-0.5 size-6 shrink-0 rounded"
+        aria-label={props.isReplaceOpen ? '收起替换' : '展开替换'}
+        aria-expanded={props.isReplaceOpen}
+        onClick={props.onToggleReplace}>
+        <Icon
+          icon="lucide:chevron-right"
+          className={cn('size-3.5 transition-transform', props.isReplaceOpen && 'rotate-90')}
+        />
+      </Button>
+
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-center gap-1">
+          <div className="relative min-w-0 flex-1">
+            <Input
+              ref={props.inputRef}
+              value={props.query}
+              placeholder={props.placeholder}
+              className="h-7 pr-[4.5rem] text-xs"
+              onChange={function (event) {
+                props.onChangeQuery(event.target.value)
+              }}
+              onKeyDown={function (event) {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  props.onStep(event.shiftKey ? -1 : 1)
+                }
+                if (event.key === 'Escape') {
+                  event.preventDefault()
+                  props.onClose()
+                }
+              }}
+            />
+            <div className="absolute top-1/2 right-1 flex -translate-y-1/2 items-center gap-0.5">
+              <OptionToggle
+                label="区分大小写"
+                pressed={props.isMatchCase}
+                onToggle={props.onToggleMatchCase}>
+                Aa
+              </OptionToggle>
+              <OptionToggle
+                label="全字匹配"
+                pressed={props.isWholeWord}
+                onToggle={props.onToggleWholeWord}>
+                ab
+              </OptionToggle>
+              <OptionToggle
+                label="正则表达式"
+                pressed={props.isRegex}
+                onToggle={props.onToggleRegex}>
+                .*
+              </OptionToggle>
+            </div>
+          </div>
+
+          <FindNavButtons
+            matchLabel={props.matchLabel}
+            onStep={props.onStep}
+            onClose={props.onClose}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** 替换行：替换内容 + 替换 / 全部替换 */
+function ReplaceRow(props: {
+  value: string
+  onChangeValue: (value: string) => void
+  onReplaceOne: () => void
+  onReplaceAll: () => void
+  onClose: () => void
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <Input
+        value={props.value}
+        placeholder={t('REPLACE')}
+        className="h-7 min-w-0 flex-1 text-xs"
+        onChange={function (event) {
+          props.onChangeValue(event.target.value)
+        }}
+        onKeyDown={function (event) {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            props.onReplaceOne()
+          }
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            props.onClose()
+          }
+        }}
+      />
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-6 rounded"
+              aria-label="替换"
+              onClick={props.onReplaceOne}
+            />
+          }>
+          <Icon
+            icon="lucide:replace"
+            className="size-3.5"
+          />
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{t('REPLACE')}</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-6 rounded"
+              aria-label="全部替换"
+              onClick={props.onReplaceAll}
+            />
+          }>
+          <Icon
+            icon="lucide:list-restart"
+            className="size-3.5"
+          />
+        </TooltipTrigger>
+        <TooltipContent side="bottom">全部替换</TooltipContent>
+      </Tooltip>
+    </div>
   )
 }
 
@@ -135,6 +370,10 @@ function FindBar(props: FindBarProps) {
     }
   }
 
+  function close() {
+    toSetFindOpen(false)
+  }
+
   // 输入实时定位首个命中 + 全量高亮（对齐 VS Code），不抢输入框焦点
   useEffect(
     function () {
@@ -190,218 +429,49 @@ function FindBar(props: FindBarProps) {
         'rounded-md border border-border bg-popover p-1.5 shadow-lg backdrop-blur-none'
       )}
       aria-label={t('FIND')}>
-      <div className="flex items-start gap-1">
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="mt-0.5 size-6 shrink-0 rounded"
-          aria-label={isReplaceOpen ? '收起替换' : '展开替换'}
-          aria-expanded={isReplaceOpen}
-          onClick={function () {
-            setIsReplaceOpen(function (prev) {
-              return !prev
-            })
-          }}>
-          <Icon
-            icon="lucide:chevron-right"
-            className={cn(
-              'size-3.5 transition-transform',
-              isReplaceOpen && 'rotate-90'
-            )}
-          />
-        </Button>
+      <FindRow
+        inputRef={findInputRef}
+        query={findQuery}
+        placeholder={t('FIND_PLACEHOLDER')}
+        isReplaceOpen={isReplaceOpen}
+        isMatchCase={isMatchCase}
+        isWholeWord={isWholeWord}
+        isRegex={isRegex}
+        matchLabel={matchLabel}
+        onChangeQuery={toSetFindQuery}
+        onToggleReplace={function () {
+          setIsReplaceOpen(function (prev) {
+            return !prev
+          })
+        }}
+        onToggleMatchCase={function () {
+          setIsMatchCase(function (prev) {
+            return !prev
+          })
+        }}
+        onToggleWholeWord={function () {
+          setIsWholeWord(function (prev) {
+            return !prev
+          })
+        }}
+        onToggleRegex={function () {
+          setIsRegex(function (prev) {
+            return !prev
+          })
+        }}
+        onStep={runFind}
+        onClose={close}
+      />
 
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div className="flex items-center gap-1">
-            <div className="relative min-w-0 flex-1">
-              <Input
-                ref={findInputRef}
-                value={findQuery}
-                placeholder={t('FIND_PLACEHOLDER')}
-                className="h-7 pr-[4.5rem] text-xs"
-                onChange={function (event) {
-                  toSetFindQuery(event.target.value)
-                }}
-                onKeyDown={function (event) {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    runFind(event.shiftKey ? -1 : 1)
-                  }
-                  if (event.key === 'Escape') {
-                    event.preventDefault()
-                    toSetFindOpen(false)
-                  }
-                }}
-              />
-              <div className="absolute top-1/2 right-1 flex -translate-y-1/2 items-center gap-0.5">
-                <OptionToggle
-                  label="区分大小写"
-                  pressed={isMatchCase}
-                  onToggle={function () {
-                    setIsMatchCase(function (prev) {
-                      return !prev
-                    })
-                  }}>
-                  Aa
-                </OptionToggle>
-                <OptionToggle
-                  label="全字匹配"
-                  pressed={isWholeWord}
-                  onToggle={function () {
-                    setIsWholeWord(function (prev) {
-                      return !prev
-                    })
-                  }}>
-                  ab
-                </OptionToggle>
-                <OptionToggle
-                  label="正则表达式"
-                  pressed={isRegex}
-                  onToggle={function () {
-                    setIsRegex(function (prev) {
-                      return !prev
-                    })
-                  }}>
-                  .*
-                </OptionToggle>
-              </div>
-            </div>
-
-            <span className="shrink-0 px-1 text-[11px] whitespace-nowrap text-muted-foreground tabular-nums">
-              {matchLabel}
-            </span>
-
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="size-6 rounded"
-                    aria-label="上一个"
-                    onClick={function () {
-                      runFind(-1)
-                    }}
-                  />
-                }>
-                <Icon
-                  icon="lucide:arrow-up"
-                  className="size-3.5"
-                />
-              </TooltipTrigger>
-              <TooltipContent side="bottom">上一个</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="size-6 rounded"
-                    aria-label="下一个"
-                    onClick={function () {
-                      runFind(1)
-                    }}
-                  />
-                }>
-                <Icon
-                  icon="lucide:arrow-down"
-                  className="size-3.5"
-                />
-              </TooltipTrigger>
-              <TooltipContent side="bottom">下一个</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="size-6 rounded"
-                    aria-label="关闭"
-                    onClick={function () {
-                      toSetFindOpen(false)
-                    }}
-                  />
-                }>
-                <Icon
-                  icon="lucide:x"
-                  className="size-3.5"
-                />
-              </TooltipTrigger>
-              <TooltipContent side="bottom">关闭（Esc）</TooltipContent>
-            </Tooltip>
-          </div>
-
-          {isReplaceOpen ? (
-            <div className="flex items-center gap-1">
-              <Input
-                value={findReplace}
-                placeholder={t('REPLACE')}
-                className="h-7 min-w-0 flex-1 text-xs"
-                onChange={function (event) {
-                  toSetFindReplace(event.target.value)
-                }}
-                onKeyDown={function (event) {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    runReplaceOne()
-                  }
-                  if (event.key === 'Escape') {
-                    event.preventDefault()
-                    toSetFindOpen(false)
-                  }
-                }}
-              />
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="size-6 rounded"
-                      aria-label="替换"
-                      onClick={runReplaceOne}
-                    />
-                  }>
-                  <Icon
-                    icon="lucide:replace"
-                    className="size-3.5"
-                  />
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{t('REPLACE')}</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="size-6 rounded"
-                      aria-label="全部替换"
-                      onClick={runReplaceAll}
-                    />
-                  }>
-                  <Icon
-                    icon="lucide:list-restart"
-                    className="size-3.5"
-                  />
-                </TooltipTrigger>
-                <TooltipContent side="bottom">全部替换</TooltipContent>
-              </Tooltip>
-            </div>
-          ) : null}
-        </div>
-      </div>
+      {isReplaceOpen ? (
+        <ReplaceRow
+          value={findReplace}
+          onChangeValue={toSetFindReplace}
+          onReplaceOne={runReplaceOne}
+          onReplaceAll={runReplaceAll}
+          onClose={close}
+        />
+      ) : null}
     </search>
   )
 }
