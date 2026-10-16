@@ -2,7 +2,7 @@ import { Button } from '@i-thinking/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import { clsx } from 'clsx'
 import type Konva from 'konva'
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { Group, Rect, Text as KonvaText } from 'react-konva'
 
 import {
@@ -134,8 +134,6 @@ function Preview(props: PreviewProps) {
   const [stageNode, setStageNode] = useState<Konva.Stage | null>(null)
   const [viewport, setViewport] = useState<Size>({ width: 1, height: 1 })
   const undoCapturedRef = useRef(false)
-  selectedClipIdRef.current = selectedClipId
-  selectClipRef.current = selectClip
 
   useEffect(function () {
     const host = viewportHostRef.current
@@ -181,19 +179,23 @@ function Preview(props: PreviewProps) {
     for (const listener of selectionListenersRef.current) listener()
   }).current
 
-  const getSelectedNodes = useRef(function (): Konva.Node[] {
-    const id = selectedClipIdRef.current
-    const node = id ? (nodeMapRef.current.get(id) ?? null) : null
-    const prev = selectedNodesSnapshotRef.current
-    if (!node) {
-      if (prev.length === 0) return prev
-      selectedNodesSnapshotRef.current = []
+  // 快照结果要按选中项缓存：useSyncExternalStore 要求引用稳定，所以复用 ref 里的旧数组。
+  // 不能读 `selectedClipIdRef`：那要求 render 期写 ref；改成依赖 id，快照函数换新时 React 会重读。
+  const getSelectedNodes = useCallback(
+    function (): Konva.Node[] {
+      const node = selectedClipId ? (nodeMapRef.current.get(selectedClipId) ?? null) : null
+      const prev = selectedNodesSnapshotRef.current
+      if (!node) {
+        if (prev.length === 0) return prev
+        selectedNodesSnapshotRef.current = []
+        return selectedNodesSnapshotRef.current
+      }
+      if (prev.length === 1 && prev[0] === node) return prev
+      selectedNodesSnapshotRef.current = [node]
       return selectedNodesSnapshotRef.current
-    }
-    if (prev.length === 1 && prev[0] === node) return prev
-    selectedNodesSnapshotRef.current = [node]
-    return selectedNodesSnapshotRef.current
-  }).current
+    },
+    [selectedClipId]
+  )
 
   const subscribeSelectedNodes = useRef(function (onStoreChange: () => void) {
     selectionListenersRef.current.add(onStoreChange)
@@ -302,12 +304,15 @@ function Preview(props: PreviewProps) {
     []
   )
 
-  // 选区变更只通知 Konva 内 Transformer（useSyncExternalStore），不抬升 Preview setState
-  useEffect(
+  // 选区变更只通知 Konva 内 Transformer（useSyncExternalStore），不抬升 Preview setState。
+  // ref 同步也放这里：render 期写 ref 会被 React 19 判为「渲染期改 ref」。
+  useLayoutEffect(
     function () {
+      selectedClipIdRef.current = selectedClipId
+      selectClipRef.current = selectClip
       notifySelection()
     },
-    [selectedClipId]
+    [selectedClipId, selectClip]
   )
 
   // 稳定引用：仅写 nodeMap + 通知 Transformer；禁止 setState 抬升 Stage 宿主
@@ -838,8 +843,6 @@ const PreviewMediaClip = memo(function PreviewMediaClip(props: PreviewMediaClipP
   } = props
   const playheadMs = useSyncExternalStore(subscribePlayhead, readPlayheadMs)
   const groupRef = useRef<Konva.Group>(null)
-  const onRegisterRef = useRef(onRegister)
-  onRegisterRef.current = onRegister
   const source = useMediaSource(clip.id)
   const { animOpacity, animScale, animY } = findAnimState(clip, playheadMs)
 
@@ -847,12 +850,12 @@ const PreviewMediaClip = memo(function PreviewMediaClip(props: PreviewMediaClipP
     function () {
       const node = groupRef.current
       if (!node) return
-      onRegisterRef.current(clip.id, node)
+      onRegister(clip.id, node)
       return function () {
-        onRegisterRef.current(clip.id, null, node)
+        onRegister(clip.id, null, node)
       }
     },
-    [clip.id]
+    [clip.id, onRegister]
   )
 
   const mediaW =
@@ -984,8 +987,6 @@ const PreviewTextClip = memo(function PreviewTextClip(props: PreviewTextClipProp
   } = props
   const playheadMs = useSyncExternalStore(subscribePlayhead, readPlayheadMs)
   const textRef = useRef<Konva.Text>(null)
-  const onRegisterRef = useRef(onRegister)
-  onRegisterRef.current = onRegister
   const { animOpacity, animScale, animY } = findAnimState(clip, playheadMs)
   const fontSize = clip.text?.fontSize || 48
   const content = clip.text?.content || ''
@@ -994,12 +995,12 @@ const PreviewTextClip = memo(function PreviewTextClip(props: PreviewTextClipProp
     function () {
       const node = textRef.current
       if (!node) return
-      onRegisterRef.current(clip.id, node)
+      onRegister(clip.id, node)
       return function () {
-        onRegisterRef.current(clip.id, null, node)
+        onRegister(clip.id, null, node)
       }
     },
-    [clip.id]
+    [clip.id, onRegister]
   )
 
   useEffect(

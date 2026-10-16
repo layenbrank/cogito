@@ -51,7 +51,14 @@ function useLightboxZoom(options: UseLightboxZoomOptions) {
     originY: number
   } | null>(null)
 
-  fitRef.current = { w: options.fitWidth, h: options.fitHeight }
+  // render 期写 ref 会被 React 19 判为「渲染期改 ref」；fitRef 只在缩放/拖拽回调里读，
+  // 所以放到 layout effect 同步即可（回调总在 effect 之后触发）。
+  useLayoutEffect(
+    function () {
+      fitRef.current = { w: options.fitWidth, h: options.fitHeight }
+    },
+    [options.fitWidth, options.fitHeight]
+  )
 
   /** 媒体的定位容器（SwiperSlide）；与光标坐标同一坐标系 */
   function findBoundsEl() {

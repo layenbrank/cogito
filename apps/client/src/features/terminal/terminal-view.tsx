@@ -87,7 +87,17 @@ function TerminalView(props: TerminalViewProps) {
 
       let disposed = false
       let unlistenExit: (() => void) | null = null
-      let themeObserver: MutationObserver | null = null
+
+      // 主题跟随：observer 与 cleanup 必须同层创建，否则「订阅是否被清理」无法静态配对
+      const themeObserver = new MutationObserver(function () {
+        const instance = terminalRef.current
+        if (!instance) return
+        instance.options.theme = isDarkMode() ? DARK_THEME : LIGHT_THEME
+      })
+      themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class']
+      })
 
       const DEFAULT_FONT_FAMILY = '"Cascadia Mono", "Cascadia Code", Consolas, monospace'
 
@@ -117,20 +127,17 @@ function TerminalView(props: TerminalViewProps) {
         terminalRef.current = terminal
         fitRef.current = fit
 
-        themeObserver = new MutationObserver(function () {
-          terminal.options.theme = isDarkMode() ? DARK_THEME : LIGHT_THEME
-        })
-        themeObserver.observe(document.documentElement, {
-          attributes: true,
-          attributeFilter: ['class']
-        })
-
         void listen<{ id: string; exitCode: number | null }>(EVENTS.TERMINAL_EXIT, function (event) {
           if (event.payload.id !== props.id || disposed) return
           exitedRef.current = true
           useTerminalStore.getState().markExited(props.id, event.payload.exitCode)
           terminal.write('\r\n\x1b[90m[进程已退出]\x1b[0m\r\n')
         }).then(function (unlisten) {
+          // 组件可能在 listen 解析前就卸载了：cleanup 那时读到的是 null，会漏掉注销
+          if (disposed) {
+            unlisten()
+            return
+          }
           unlistenExit = unlisten
         })
 
@@ -176,7 +183,7 @@ function TerminalView(props: TerminalViewProps) {
       return function () {
         disposed = true
         observer.disconnect()
-        themeObserver?.disconnect()
+        themeObserver.disconnect()
         unlistenExit?.()
         const terminalInstance = terminalRef.current
         terminalRef.current = null

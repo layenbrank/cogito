@@ -192,9 +192,9 @@ function Library(props: LibraryProps) {
         {props.selecting && hasSelection ? (
           <m.div
             className="mx-4 mb-2 flex items-center gap-2 overflow-hidden rounded-xl border border-border/60 bg-card/80 px-3 py-2 text-sm backdrop-blur-sm"
-            initial={isReducedMotion ? false : { opacity: 0, height: 0, y: -6 }}
-            animate={{ opacity: 1, height: 'auto', y: 0 }}
-            exit={isReducedMotion ? undefined : { opacity: 0, height: 0, y: -4 }}
+            initial={isReducedMotion ? false : { opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={isReducedMotion ? undefined : { opacity: 0, y: -4 }}
             transition={{ duration: motionSec, ease: [0.22, 1, 0.36, 1] }}>
             <span className="text-muted-foreground">已选 {props.selectedIds.size}</span>
             <div className="ml-auto flex gap-1.5">

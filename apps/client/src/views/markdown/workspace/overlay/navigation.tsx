@@ -18,7 +18,7 @@ import {
 } from '@i-thinking/design/components/tooltip'
 import { resolve } from '@tauri-apps/api/path'
 import { cn } from 'cn'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ContextMenu, type MenuItem } from '@/components/contextmenu'
@@ -131,8 +131,14 @@ function Navigation(props: NavigationProps) {
     name: string
   } | null>(null)
 
+  // render 期写 ref 会被 React 19 判为「渲染期改 ref」；这里只在异步回调里读，故放到 layout effect 同步
   const treeNodesRef = useRef(treeNodes)
-  treeNodesRef.current = treeNodes
+  useLayoutEffect(
+    function () {
+      treeNodesRef.current = treeNodes
+    },
+    [treeNodes]
+  )
 
   const loadGenRef = useRef(0)
   const cancelChunkRef = useRef<(() => void) | null>(null)
@@ -303,7 +309,12 @@ function Navigation(props: NavigationProps) {
   }, [])
 
   const onOpenPathRef = useRef(props.onOpenPath)
-  onOpenPathRef.current = props.onOpenPath
+  useLayoutEffect(
+    function () {
+      onOpenPathRef.current = props.onOpenPath
+    },
+    [props.onOpenPath]
+  )
 
   const onSelect = useCallback(
     function (node: FileTreeNode) {
