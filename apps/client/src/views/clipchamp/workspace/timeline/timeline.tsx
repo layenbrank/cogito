@@ -6,7 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
-  type MouseEvent,
+  useSyncExternalStore,
   type PointerEvent,
   type RefObject
 } from 'react'
@@ -14,23 +14,69 @@ import {
 import { useClipchampStore } from '@/stores/clipchamp.ts'
 import {
   findTrackDisplayName,
-  formatTimecode,
   type Clip,
   type MediaAsset,
   type Track,
   type WaveformMeta
 } from '@/views/clipchamp/lib/project'
 import { ClipFilmstrip, ClipWaveform } from '@/views/clipchamp/workspace/timeline/clip-thumb'
+import { readPlayheadMs, subscribePlayhead } from '@/views/clipchamp/lib/playhead-clock'
 
 const PX_PER_SECOND_BASE = 48
-const TRACK_HEIGHT = 44
+const TRACK_HEIGHT = 72
+const RULER_LABEL_PX = 72
+const RULER_MINOR_PX = 8
+const RULER_STEPS_MS = [100, 200, 500, 1000, 2000, 5000, 10000, 30000, 60000, 120000, 300000]
+
+interface RulerMark {
+  ms: number
+  isMajor: boolean
+}
+
+function findRulerStep(pxPerMs: number): { majorMs: number; minorMs: number } {
+  const pxPerSecond = pxPerMs * 1000
+  let majorMs = RULER_STEPS_MS[RULER_STEPS_MS.length - 1]!
+  for (const step of RULER_STEPS_MS) {
+    if ((step / 1000) * pxPerSecond >= RULER_LABEL_PX) {
+      majorMs = step
+      break
+    }
+  }
+  const minorMs = majorMs / 5
+  const minorPx = (minorMs / 1000) * pxPerSecond
+  return { majorMs, minorMs: minorPx >= RULER_MINOR_PX ? minorMs : majorMs }
+}
+
+function buildRulerMarks(
+  startMs: number,
+  endMs: number,
+  pxPerMs: number
+): { marks: RulerMark[]; majorMs: number } {
+  const { majorMs, minorMs } = findRulerStep(pxPerMs)
+  const from = Math.max(0, Math.floor(startMs / minorMs) * minorMs)
+  const marks: RulerMark[] = []
+  for (let ms = from; ms <= endMs; ms += minorMs) {
+    marks.push({ ms, isMajor: ms % majorMs === 0 })
+  }
+  return { marks, majorMs }
+}
+
+function formatRulerLabel(ms: number, majorMs: number): string {
+  const total = Math.max(0, Math.round(ms))
+  const hours = Math.floor(total / 3600000)
+  const minutes = Math.floor((total % 3600000) / 60000)
+  const seconds = Math.floor((total % 60000) / 1000)
+  const tenths = Math.floor((total % 1000) / 100)
+  const mm = String(minutes).padStart(2, '0')
+  const ss = String(seconds).padStart(2, '0')
+  if (hours > 0) return `${hours}:${mm}:${ss}`
+  if (majorMs < 1000) return `${mm}:${ss}.${tenths}`
+  return `${mm}:${ss}`
+}
 
 function Timeline() {
   const project = useClipchampStore(function (s) {
     return s.project
-  })
-  const playheadMs = useClipchampStore(function (s) {
-    return s.playheadMs
   })
   const selectedClipId = useClipchampStore(function (s) {
     return s.selectedClipId
@@ -139,22 +185,33 @@ function Timeline() {
     [pxPerMs, widthPx]
   )
 
-  const ticks = useMemo(
+  const ruler = useMemo(
     function () {
-      const step = timelineZoom >= 2 ? 1000 : timelineZoom >= 1 ? 2000 : 5000
-      const marks: number[] = []
-      for (let t = 0; t <= durationMs; t += step) marks.push(t)
-      return marks
+      return buildRulerMarks(viewRange.startMs, viewRange.endMs, pxPerMs)
     },
-    [durationMs, timelineZoom]
+    [viewRange.startMs, viewRange.endMs, pxPerMs]
   )
 
-  function onRulerClick(event: MouseEvent<HTMLDivElement>) {
-    const rect = event.currentTarget.getBoundingClientRect()
-    const x = event.clientX - rect.left + (scrollRef.current?.scrollLeft || 0)
+  function seekFromClientX(clientX: number) {
+    const el = scrollRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const x = clientX - rect.left + el.scrollLeft
     let ms = x / pxPerMs
     if (isSnapping) ms = Math.round(ms / 100) * 100
-    seek(ms)
+    seek(Math.max(0, Math.min(ms, durationMs)))
+  }
+
+  function onRulerPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    seekFromClientX(event.clientX)
+  }
+
+  function onRulerPointerMove(event: PointerEvent<HTMLDivElement>) {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+    seekFromClientX(event.clientX)
   }
 
   function onClipPointerDown(clip: Clip, event: PointerEvent) {
@@ -338,9 +395,10 @@ function Timeline() {
           })}
         </div>
 
+        <div className="relative min-w-0 flex-1">
         <div
           ref={scrollRef}
-          className="relative min-w-0 flex-1 overflow-auto bg-[#fafafa] dark:bg-muted/10"
+          className="h-full overflow-auto bg-[#fafafa] dark:bg-muted/10"
           onDragOver={function (event) {
             event.preventDefault()
           }}
@@ -353,15 +411,26 @@ function Timeline() {
             className="relative"
             style={{ width: widthPx, minHeight: '100%' }}>
             <div
-              className="sticky top-0 z-20 h-7 cursor-pointer border-b border-border/80 bg-background/95 backdrop-blur-sm"
-              onClick={onRulerClick}>
-              {ticks.map(function (t) {
+              className="sticky top-0 z-20 h-7 cursor-pointer touch-none select-none border-b border-border/80 bg-background/95 backdrop-blur-sm"
+              onPointerDown={onRulerPointerDown}
+              onPointerMove={onRulerPointerMove}>
+              {ruler.marks.map(function (mark) {
                 return (
                   <div
-                    key={t}
-                    className="absolute top-0 h-full border-l border-border/50 pl-1 pt-1 text-[10px] tabular-nums text-muted-foreground/80"
-                    style={{ left: t * pxPerMs }}>
-                    {formatTimecode(t).slice(0, 5)}
+                    key={mark.ms}
+                    className="pointer-events-none absolute bottom-0"
+                    style={{ left: mark.ms * pxPerMs }}>
+                    <div
+                      className={clsx(
+                        'absolute bottom-0 w-px',
+                        mark.isMajor ? 'h-2.5 bg-foreground/35' : 'h-1.5 bg-foreground/20'
+                      )}
+                    />
+                    {mark.isMajor ? (
+                      <span className="absolute bottom-2.5 left-1 text-[10px] tabular-nums leading-none text-muted-foreground">
+                        {formatRulerLabel(mark.ms, ruler.majorMs)}
+                      </span>
+                    ) : null}
                   </div>
                 )
               })}
@@ -389,15 +458,12 @@ function Timeline() {
               )
             })}
 
-            <div
-              className="pointer-events-none absolute top-0 z-30 w-0.5 bg-primary shadow-[0_0_0_1px_rgba(0,0,0,0.04)]"
-              style={{
-                left: playheadMs * pxPerMs,
-                height: 7 + project.tracks.length * TRACK_HEIGHT
-              }}>
-              <div className="absolute -left-[5px] top-0 size-2.5 rounded-full bg-primary ring-2 ring-background" />
-            </div>
           </div>
+        </div>
+        <PlayheadNeedle
+          pxPerMs={pxPerMs}
+          scrollRef={scrollRef}
+        />
         </div>
       </div>
     </div>
@@ -613,6 +679,41 @@ function TimelineClipBlock(props: TimelineClipBlockProps) {
         )}>
         {label}
       </span>
+    </div>
+  )
+}
+
+function PlayheadNeedle(props: {
+  pxPerMs: number
+  scrollRef: RefObject<HTMLDivElement | null>
+}) {
+  const playheadMs = useSyncExternalStore(subscribePlayhead, readPlayheadMs)
+  const [scrollLeft, setScrollLeft] = useState(0)
+
+  useEffect(
+    function () {
+      const el = props.scrollRef.current
+      if (!el) return
+      const scroller = el
+      function sync() {
+        setScrollLeft(scroller.scrollLeft)
+      }
+      sync()
+      scroller.addEventListener('scroll', sync, { passive: true })
+      return function () {
+        scroller.removeEventListener('scroll', sync)
+      }
+    },
+    [props.scrollRef]
+  )
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-30 overflow-hidden">
+      <div
+        className="absolute inset-y-0 w-0.5 bg-primary shadow-[0_0_0_1px_rgba(0,0,0,0.04)]"
+        style={{ left: playheadMs * props.pxPerMs - scrollLeft }}>
+        <div className="absolute -left-[5px] top-0 size-2.5 rounded-full bg-primary ring-2 ring-background" />
+      </div>
     </div>
   )
 }

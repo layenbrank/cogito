@@ -37,6 +37,7 @@ pub struct ExportArgs {
     pub fps: u32,
     pub width: u32,
     pub height: u32,
+    pub duration_ms: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -211,6 +212,9 @@ pub async fn media_export(app: AppHandle, args: ExportArgs) -> Result<String, St
         let mut cmd_args: Vec<String> = Vec::new();
         cmd_args.push("-y".into());
         cmd_args.push("-hide_banner".into());
+        cmd_args.push("-nostats".into());
+        cmd_args.push("-progress".into());
+        cmd_args.push("pipe:2".into());
 
         for input in &args.inputs {
             cmd_args.push("-i".into());
@@ -273,17 +277,36 @@ pub async fn media_export(app: AppHandle, args: ExportArgs) -> Result<String, St
         if let Some(stderr) = stderr {
             use std::io::{BufRead, BufReader};
             let reader = BufReader::new(stderr);
+            let duration_ms = args.duration_ms.max(1);
             let mut last_progress = 0u32;
+            // 同一 progress 块里 us 与 ms 会各来一行。只在 progress= 时结算，且只信微秒。
+            let mut pending_us: Option<u64> = None;
             for line in reader.lines().flatten() {
-                // ffmpeg progress lines contain time=HH:MM:SS.xx
-                if let Some(progress) = parse_ffmpeg_time_progress(&line) {
-                    if progress != last_progress {
-                        last_progress = progress;
-                        let _ = app_handle.emit(
-                            EXPORT_PROGRESS_EVENT,
-                            serde_json::json!({ "progress": progress }),
-                        );
+                let trimmed = line.trim();
+                if let Some(rest) = trimmed.strip_prefix("out_time_us=") {
+                    pending_us = rest.trim().parse::<u64>().ok();
+                    continue;
+                }
+                if pending_us.is_none() {
+                    if let Some(rest) = trimmed.strip_prefix("out_time_ms=") {
+                        // ffmpeg 这个字段名叫毫秒，数值实际是微秒
+                        pending_us = rest.trim().parse::<u64>().ok();
                     }
+                }
+                if !trimmed.starts_with("progress=") {
+                    continue;
+                }
+                let Some(us) = pending_us.take() else {
+                    continue;
+                };
+                let out_ms = us / 1000;
+                let progress = ((out_ms.saturating_mul(100) / duration_ms) as u32).min(99);
+                if progress != last_progress {
+                    last_progress = progress;
+                    let _ = app_handle.emit(
+                        EXPORT_PROGRESS_EVENT,
+                        serde_json::json!({ "progress": progress }),
+                    );
                 }
             }
         }
@@ -305,24 +328,6 @@ pub async fn media_export(app: AppHandle, args: ExportArgs) -> Result<String, St
     })
     .await
     .map_err(|e| format!("media:export 线程异常: {e}"))?
-}
-
-fn parse_ffmpeg_time_progress(line: &str) -> Option<u32> {
-    // crude: look for time=00:01:23.45 and map minutes roughly to 0-99
-    let idx = line.find("time=")?;
-    let rest = &line[idx + 5..];
-    let token = rest.split_whitespace().next()?;
-    let parts: Vec<&str> = token.split(':').collect();
-    if parts.len() != 3 {
-        return None;
-    }
-    let hours: f64 = parts[0].parse().ok()?;
-    let minutes: f64 = parts[1].parse().ok()?;
-    let seconds: f64 = parts[2].parse().ok()?;
-    let total_secs = hours * 3600.0 + minutes * 60.0 + seconds;
-    // Without total duration we only emit a soft rising signal capped at 95
-    let soft = ((total_secs / 120.0) * 95.0).min(95.0) as u32;
-    Some(soft)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -626,15 +631,23 @@ pub async fn media_waveform(app: AppHandle, args: WaveformArgs) -> Result<Wavefo
 
     tauri::async_runtime::spawn_blocking(move || {
         let duration_ms = probe_duration_ms(&ffprobe, &media_path)?.max(1);
+        // 最长分析 10 分钟，避免长片整段解码
+        let span_ms = duration_ms.min(600_000);
         let fingerprint = file_fingerprint(&media_path);
-        let key = hash_cache_key(&[&fingerprint, &format!("w{width}"), &format!("h{height}")]);
+        let key = hash_cache_key(&[
+            &fingerprint,
+            &format!("w{width}"),
+            &format!("h{height}"),
+            &format!("t{span_ms}"),
+        ]);
         let wave_path = cache_dir.join(format!("{key}.png"));
 
         if !is_usable_tool(&wave_path) {
             let filter = format!(
-                "[0:a]aformat=channel_layouts=mono,compand,showwavespic=s={width}x{height}:colors=0x34d399[out]"
+                "[0:a]aformat=channel_layouts=mono,aresample=4000,showwavespic=s={width}x{height}:colors=0x34d399[out]"
             );
             let out = wave_path.to_string_lossy().to_string();
+            let span_secs = format!("{:.3}", span_ms as f64 / 1000.0);
             run_ffmpeg(
                 &ffmpeg,
                 &[
@@ -642,6 +655,8 @@ pub async fn media_waveform(app: AppHandle, args: WaveformArgs) -> Result<Wavefo
                     "-hide_banner".into(),
                     "-loglevel".into(),
                     "error".into(),
+                    "-t".into(),
+                    span_secs,
                     "-i".into(),
                     media_path.clone(),
                     "-filter_complex".into(),
@@ -662,7 +677,7 @@ pub async fn media_waveform(app: AppHandle, args: WaveformArgs) -> Result<Wavefo
             wave_path: wave_path.to_string_lossy().to_string(),
             width,
             height,
-            duration_ms,
+            duration_ms: span_ms,
         })
     })
     .await

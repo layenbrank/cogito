@@ -2,9 +2,11 @@ import { Button } from '@i-thinking/design/components/button'
 import { ScrollArea } from '@i-thinking/design/components/scroll-area'
 import { Icon } from '@iconify/react/offline'
 import { clsx } from 'clsx'
+import { throttle } from 'lodash-es'
+import { useEffect, useMemo, useRef } from 'react'
 
 import { findSelectedClip, useClipchampStore } from '@/stores/clipchamp.ts'
-import type { Clip, InspectorTab } from '@/views/clipchamp/lib/project'
+import type { Clip, ColorAdjust, InspectorTab } from '@/views/clipchamp/lib/project'
 
 const TAB_LABELS: Record<InspectorTab, string> = {
   captions: '字幕',
@@ -62,6 +64,38 @@ function Inspector() {
   function commitPatch(patch: Partial<Clip>) {
     captureUndoPoint()
     patchSelected(patch)
+  }
+
+  const clipRef = useRef(clip)
+  useEffect(
+    function () {
+      clipRef.current = clip
+    },
+    [clip]
+  )
+  const emitColor = useMemo(function () {
+    return throttle(function (patch: Partial<Clip>) {
+      useClipchampStore.getState().patchSelected(patch)
+    }, 48)
+  }, [])
+
+  useEffect(function () {
+    return function () {
+      emitColor.cancel()
+    }
+  }, [emitColor])
+
+  function patchColor(partial: Partial<ColorAdjust>) {
+    const current = clipRef.current
+    if (!current) return
+    const filter = { ...current.filter, ...partial }
+    const patch: Partial<Clip> = { filter }
+    if (partial.transparency !== undefined) patch.opacity = 1 - partial.transparency
+    emitColor(patch)
+  }
+
+  function flushColor() {
+    emitColor.flush()
   }
 
   const tabRail = (
@@ -273,8 +307,9 @@ function Inspector() {
                       value={clip.filter.exposure}
                       display={clip.filter.exposure.toFixed(2)}
                       onPointerDown={captureUndoPoint}
+                      onPointerUp={flushColor}
                       onChange={function (value) {
-                        patchSelected({ filter: { ...clip.filter, exposure: value } })
+                        patchColor({ exposure: value })
                       }}
                     />
                     <RangeField
@@ -285,8 +320,9 @@ function Inspector() {
                       value={clip.filter.contrast}
                       display={clip.filter.contrast.toFixed(2)}
                       onPointerDown={captureUndoPoint}
+                      onPointerUp={flushColor}
                       onChange={function (value) {
-                        patchSelected({ filter: { ...clip.filter, contrast: value } })
+                        patchColor({ contrast: value })
                       }}
                     />
                     <RangeField
@@ -297,8 +333,9 @@ function Inspector() {
                       value={clip.filter.saturation}
                       display={clip.filter.saturation.toFixed(2)}
                       onPointerDown={captureUndoPoint}
+                      onPointerUp={flushColor}
                       onChange={function (value) {
-                        patchSelected({ filter: { ...clip.filter, saturation: value } })
+                        patchColor({ saturation: value })
                       }}
                     />
                     <RangeField
@@ -309,8 +346,9 @@ function Inspector() {
                       value={clip.filter.temperature}
                       display={clip.filter.temperature.toFixed(2)}
                       onPointerDown={captureUndoPoint}
+                      onPointerUp={flushColor}
                       onChange={function (value) {
-                        patchSelected({ filter: { ...clip.filter, temperature: value } })
+                        patchColor({ temperature: value })
                       }}
                     />
                     <RangeField
@@ -321,11 +359,9 @@ function Inspector() {
                       value={clip.filter.transparency}
                       display={`${Math.round(clip.filter.transparency * 100)}%`}
                       onPointerDown={captureUndoPoint}
+                      onPointerUp={flushColor}
                       onChange={function (value) {
-                        patchSelected({
-                          filter: { ...clip.filter, transparency: value },
-                          opacity: 1 - value
-                        })
+                        patchColor({ transparency: value })
                       }}
                     />
                   </div>
@@ -480,10 +516,11 @@ interface RangeFieldProps {
   display: string
   onChange: (value: number) => void
   onPointerDown?: () => void
+  onPointerUp?: () => void
 }
 
 function RangeField(props: RangeFieldProps) {
-  const { label, min, max, step, value, display, onChange, onPointerDown } = props
+  const { label, min, max, step, value, display, onChange, onPointerDown, onPointerUp } = props
   return (
     <label className="flex flex-col gap-1.5 text-xs">
       <div className="flex items-center justify-between gap-2">
@@ -501,6 +538,9 @@ function RangeField(props: RangeFieldProps) {
         className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-muted accent-primary"
         onPointerDown={function () {
           onPointerDown?.()
+        }}
+        onPointerUp={function () {
+          onPointerUp?.()
         }}
         onChange={function (event) {
           onChange(Number(event.target.value))

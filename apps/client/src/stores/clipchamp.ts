@@ -6,13 +6,13 @@ import { devtools } from 'zustand/middleware'
 
 import { MediaIpc } from '@/lib/media-ipc'
 import {
-  ASPECT_SIZE,
   MAX_UNDO,
   STICKER_LIBRARY,
   createClipDefaults,
   createEmptyProject,
   createId,
   detachAudio,
+  findActiveClips,
   findClip,
   formatTimecode,
   insertClip,
@@ -31,6 +31,7 @@ import {
 } from '@/views/clipchamp/lib/project'
 import { buildExportArgs } from '@/views/clipchamp/lib/export-graph'
 import { ensureWaveform } from '@/views/clipchamp/lib/media-preview'
+import { readPlayheadMs, writePlayheadMs } from '@/views/clipchamp/lib/playhead-clock'
 
 interface ClipchampState {
   project: Project
@@ -48,6 +49,8 @@ interface ClipchampState {
   exportProgress: number | null
   isExporting: boolean
   exportPresetId: string
+  /** 比例菜单悬停时的画布预览，不写入项目 */
+  canvasAspect: AspectRatio | null
 
   commit(mutate: (project: Project) => Project): void
   /** 实时拖拽等不入历史的变更 */
@@ -67,7 +70,9 @@ interface ClipchampState {
   updateSnapping(isSnapping: boolean): void
   updateFullscreen(isFullscreen: boolean): void
   updateAspect(aspect: AspectRatio): void
+  updateCanvasAspect(aspect: AspectRatio | null): void
   updateExportPreset(presetId: string): void
+  exportVideo(preset: ExportPreset): Promise<void>
   importMedia(): Promise<void>
   importFromGallery(asset: {
     id: string
@@ -88,13 +93,13 @@ interface ClipchampState {
   removeSelected(): void
   patchSelected(patch: Partial<Clip>): void
   tick(deltaMs: number): void
-  exportVideo(): Promise<void>
   persistProject(): void
   restoreProject(options?: { silent?: boolean }): void
   resetProject(): void
 }
 
 const STORAGE_KEY = 'clipchamp.project.v1'
+let lastActiveKey = ''
 
 function pushHistory(
   undoStack: Project[],
@@ -142,6 +147,7 @@ const useClipchampStore = create<ClipchampState>()(
         exportProgress: null,
         isExporting: false,
         exportPresetId: '1080p',
+        canvasAspect: null,
 
         commit(mutate) {
           const prev = getter().project
@@ -188,16 +194,21 @@ const useClipchampStore = create<ClipchampState>()(
 
         seek(ms) {
           const duration = getter().project.durationMs
-          setter({ playheadMs: Math.max(0, Math.min(ms, Math.max(duration, 0))) })
+          const next = Math.max(0, Math.min(ms, Math.max(duration, 0)))
+          writePlayheadMs(next)
+          lastActiveKey = ''
+          setter({ playheadMs: next })
         },
 
         play() {
           if (getter().project.durationMs <= 0) return
+          writePlayheadMs(getter().playheadMs)
           setter({ isPlaying: true })
         },
 
         pause() {
-          setter({ isPlaying: false })
+          const ms = readPlayheadMs()
+          setter({ isPlaying: false, playheadMs: ms })
         },
 
         togglePlay() {
@@ -230,9 +241,14 @@ const useClipchampStore = create<ClipchampState>()(
         },
 
         updateAspect(aspect) {
+          setter({ canvasAspect: null })
           getter().commit(function (project) {
             return { ...project, aspect }
           })
+        },
+
+        updateCanvasAspect(aspect) {
+          setter({ canvasAspect: aspect })
         },
 
         updateExportPreset(presetId) {
@@ -378,7 +394,7 @@ const useClipchampStore = create<ClipchampState>()(
             return item.id === assetId
           })
           if (!asset) return
-          const playhead = getter().playheadMs
+          const playhead = readPlayheadMs()
 
           const kindTrack: 'video' | 'overlay' | 'audio' =
             trackKind ||
@@ -414,7 +430,7 @@ const useClipchampStore = create<ClipchampState>()(
         },
 
         addTextClip(content = '双击编辑文本') {
-          const playhead = getter().playheadMs
+          const playhead = readPlayheadMs()
           let selectedId: string | null = null
           getter().commit(function (draft) {
             const placed = placeClipOnLane(draft, 'text', playhead, 3000)
@@ -451,7 +467,7 @@ const useClipchampStore = create<ClipchampState>()(
             return item.id === stickerId
           })
           if (!sticker) return
-          const playhead = getter().playheadMs
+          const playhead = readPlayheadMs()
           let selectedId: string | null = null
           getter().commit(function (draft) {
             const placed = placeClipOnLane(draft, 'overlay', playhead, 3000)
@@ -483,7 +499,7 @@ const useClipchampStore = create<ClipchampState>()(
         },
 
         addCaptionCue(text = '字幕内容') {
-          const playhead = getter().playheadMs
+          const playhead = readPlayheadMs()
           let selectedId: string | null = null
           getter().commit(function (draft) {
             const placed = placeClipOnLane(draft, 'caption', playhead, 2500)
@@ -511,7 +527,8 @@ const useClipchampStore = create<ClipchampState>()(
         },
 
         splitAtPlayhead() {
-          const { selectedClipId, playheadMs, project } = getter()
+          const { selectedClipId, project } = getter()
+          const playheadMs = readPlayheadMs()
           if (!selectedClipId) {
             toast.message('请先选中要分割的片段')
             return
@@ -557,16 +574,26 @@ const useClipchampStore = create<ClipchampState>()(
         tick(deltaMs) {
           if (!getter().isPlaying) return
           const duration = getter().project.durationMs
-          const next = getter().playheadMs + deltaMs
+          const next = readPlayheadMs() + deltaMs
           if (next >= duration) {
+            writePlayheadMs(duration)
             setter({ playheadMs: duration, isPlaying: false })
             return
           }
-          setter({ playheadMs: next })
+          writePlayheadMs(next)
+          const activeKey = findActiveClips(getter().project, next)
+            .map(function (clip) {
+              return clip.id
+            })
+            .join('\0')
+          if (activeKey !== lastActiveKey) {
+            lastActiveKey = activeKey
+            setter({ playheadMs: next })
+          }
         },
 
-        async exportVideo() {
-          const { project, assets, exportPresetId, isExporting } = getter()
+        async exportVideo(preset) {
+          const { project, assets, isExporting } = getter()
           if (isExporting) return
           if (project.durationMs <= 0) {
             toast.message('时间轴为空，无法导出')
@@ -579,28 +606,7 @@ const useClipchampStore = create<ClipchampState>()(
           })
           if (!dest) return
 
-          const preset: ExportPreset = {
-            id: exportPresetId,
-            label: exportPresetId,
-            ...ASPECT_SIZE[project.aspect],
-            fps: 30,
-            videoBitrate: '8M',
-            audioBitrate: '192k',
-            width: ASPECT_SIZE[project.aspect].width,
-            height: ASPECT_SIZE[project.aspect].height
-          }
-
-          // Prefer named presets when matching aspect landscape/portrait loosely
-          if (exportPresetId === '720p') {
-            preset.width = 1280
-            preset.height = 720
-            preset.videoBitrate = '5M'
-          } else if (exportPresetId === 'vertical-1080') {
-            preset.width = 1080
-            preset.height = 1920
-          }
-
-          setter({ isExporting: true, exportProgress: 0 })
+          setter({ isExporting: true, exportProgress: 0, exportPresetId: preset.id })
           const unlisten = await MediaIpc.listenExportProgress(function (progress) {
             setter({ exportProgress: progress })
           })
@@ -608,7 +614,11 @@ const useClipchampStore = create<ClipchampState>()(
           try {
             const args = buildExportArgs(project, assets, dest, preset)
             await MediaIpc.exportVideo(args)
+            setter({ exportProgress: 100 })
             toast.success(`导出完成：${dest}`)
+            await new Promise(function (resolve) {
+              window.setTimeout(resolve, 700)
+            })
           } catch (error) {
             console.error(error)
             toast.error(error instanceof Error ? error.message : '导出失败')
@@ -669,11 +679,14 @@ const useClipchampStore = create<ClipchampState>()(
               }
               return { ...asset, thumbUrl, filmstrip, waveform }
             })
+            writePlayheadMs(0)
+            lastActiveKey = ''
             setter({
               project: parsed.project,
               assets,
               exportPresetId: parsed.exportPresetId || '1080p',
               playheadMs: 0,
+              canvasAspect: null,
               selectedClipId: null,
               undoStack: [],
               redoStack: [],
@@ -692,6 +705,8 @@ const useClipchampStore = create<ClipchampState>()(
         },
 
         resetProject() {
+          writePlayheadMs(0)
+          lastActiveKey = ''
           setter({
             project: createEmptyProject('Video Project'),
             assets: [],

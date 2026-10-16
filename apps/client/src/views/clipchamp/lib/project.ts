@@ -156,6 +156,24 @@ interface ExportPreset {
 
 const ASPECT_RATIOS: AspectRatio[] = ['16:9', '9:16', '1:1', '4:5']
 
+const ASPECT_OPTIONS: { ratio: AspectRatio; title: string; hint: string }[] = [
+  { ratio: '16:9', title: '宽屏 16:9', hint: 'YouTube、电脑' },
+  { ratio: '9:16', title: '竖屏 9:16', hint: 'Reels、TikTok、Shorts' },
+  { ratio: '1:1', title: '方形 1:1', hint: 'Instagram 帖子' },
+  { ratio: '4:5', title: '社交 4:5', hint: 'Instagram 动态' }
+]
+
+/** 预设决定清晰度档，宽高跟当前画幅走，不把 16:9 尺寸硬套到竖屏上 */
+function fitExportPreset(preset: ExportPreset, aspect: AspectRatio): ExportPreset {
+  const canvas = ASPECT_SIZE[aspect]
+  const scale = preset.id === '720p' ? 720 / 1080 : 1
+  return {
+    ...preset,
+    width: Math.round(canvas.width * scale),
+    height: Math.round(canvas.height * scale)
+  }
+}
+
 const ASPECT_SIZE: Record<AspectRatio, { width: number; height: number }> = {
   '16:9': { width: 1920, height: 1080 },
   '9:16': { width: 1080, height: 1920 },
@@ -687,8 +705,10 @@ export type {
 
 export {
   ASPECT_RATIOS,
+  ASPECT_OPTIONS,
   ASPECT_SIZE,
   EXPORT_PRESETS,
+  fitExportPreset,
   COLOR_NEUTRAL,
   ANIM_NONE,
   TRANSITION_NONE,

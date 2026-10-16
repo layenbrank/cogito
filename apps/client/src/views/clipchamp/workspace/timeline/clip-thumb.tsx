@@ -12,6 +12,24 @@ import {
 } from '@/views/clipchamp/lib/media-preview'
 import type { Clip, MediaAsset, WaveformMeta } from '@/views/clipchamp/lib/project'
 
+/** 单块胶片画布的像素上限。整段时间轴远超浏览器 canvas 尺寸时只画视口切片 */
+const FILMSTRIP_CANVAS_MAX = 4096
+
+function findFilmstripSlice(
+  clipStartMs: number,
+  widthPx: number,
+  viewStartMs: number,
+  viewEndMs: number,
+  pxPerMs: number
+) {
+  const localStart = Math.max(0, (viewStartMs - clipStartMs) * pxPerMs)
+  const localEnd = Math.min(widthPx, Math.max(localStart + 1, (viewEndMs - clipStartMs) * pxPerMs))
+  return {
+    localStart,
+    width: Math.max(1, localEnd - localStart)
+  }
+}
+
 interface ClipFilmstripProps {
   asset: MediaAsset
   clip: Clip
@@ -35,7 +53,12 @@ function ClipFilmstrip(props: ClipFilmstripProps) {
   const [cells, setCells] = useState<FilmstripCell[]>([])
   const [images, setImages] = useState<Map<number, HTMLImageElement>>(new Map())
   const imagesRef = useRef(images)
-  imagesRef.current = images
+  useEffect(
+    function () {
+      imagesRef.current = images
+    },
+    [images]
+  )
   const [cover, setCover] = useState<HTMLImageElement | null>(null)
   const aspect = findFrameAspect(asset)
 
@@ -141,18 +164,21 @@ function ClipFilmstrip(props: ClipFilmstripProps) {
     ]
   )
 
+  const slice = findFilmstripSlice(clip.startMs, widthPx, viewStartMs, viewEndMs, pxPerMs)
+
   useEffect(
     function () {
       const canvas = canvasRef.current
-      if (!canvas || widthPx < 1) return
+      if (!canvas || slice.width < 1) return
       const dpr = Math.max(1, window.devicePixelRatio || 1)
-      const width = Math.max(1, Math.floor(widthPx))
+      const width = slice.width
       const height = Math.max(1, canvas.clientHeight || 28)
-      canvas.width = Math.floor(width * dpr)
-      canvas.height = Math.floor(height * dpr)
+      const bitmapScale = Math.min(dpr, FILMSTRIP_CANVAS_MAX / width)
+      canvas.width = Math.max(1, Math.floor(width * bitmapScale))
+      canvas.height = Math.max(1, Math.floor(height * bitmapScale))
       const ctx = canvas.getContext('2d')
       if (!ctx) return
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      ctx.setTransform(bitmapScale, 0, 0, bitmapScale, 0, 0)
       ctx.clearRect(0, 0, width, height)
       ctx.fillStyle = '#0a0a0a'
       ctx.fillRect(0, 0, width, height)
@@ -162,39 +188,42 @@ function ClipFilmstrip(props: ClipFilmstripProps) {
           height,
           cover.naturalWidth / Math.max(1, cover.naturalHeight)
         )
-        const count = Math.max(1, Math.ceil(width / cellW))
-        for (let i = 0; i < count; i++) {
-          const x = i * cellW
+        const first = Math.max(0, Math.floor(slice.localStart / cellW))
+        const last = Math.ceil((slice.localStart + width) / cellW)
+        for (let i = first; i < last; i++) {
+          const x = i * cellW - slice.localStart
           const w = Math.min(cellW, width - x)
+          if (w <= 1) continue
           drawImageCover(ctx, cover, x, 0, w, height, cover.naturalWidth, cover.naturalHeight)
         }
         return
       }
 
-      // 用当前 images 按比例格子铺满可见算法算出的 cells；
-      // 若 cells 为空但仍有缓存图（刚滚出又滚入前），按格宽重铺已有时间点
       const drawCells =
         cells.length > 0
           ? cells
-          : [...images.keys()].sort(function (a, b) {
-              return a - b
-            }).map(function (sourceMs) {
-              const speed = Math.max(0.1, clip.speed)
-              const localMs = (sourceMs - clip.sourceInMs) / speed
-              const cellW = findFilmstripCellWidthPx(height, aspect)
-              return {
-                x: localMs * pxPerMs,
-                width: cellW,
-                sourceMs
-              } satisfies FilmstripCell
-            })
+          : [...images.keys()]
+              .sort(function (a, b) {
+                return a - b
+              })
+              .map(function (sourceMs) {
+                const speed = Math.max(0.1, clip.speed)
+                const localMs = (sourceMs - clip.sourceInMs) / speed
+                const cellW = findFilmstripCellWidthPx(height, aspect)
+                return {
+                  x: localMs * pxPerMs,
+                  width: cellW,
+                  sourceMs
+                } satisfies FilmstripCell
+              })
 
       for (const cell of drawCells) {
-        if (cell.x >= width || cell.x + cell.width <= 0) continue
+        const x = cell.x - slice.localStart
+        if (x >= width || x + cell.width <= 0) continue
         const image = findNearestFrame(images, cell.sourceMs)
         if (!image) continue
-        const dx = Math.max(0, cell.x)
-        const w = Math.min(cell.width, width - dx)
+        const dx = Math.max(0, x)
+        const w = Math.min(cell.width - (dx - x), width - dx)
         if (w <= 1) continue
         drawImageCover(
           ctx,
@@ -208,14 +237,25 @@ function ClipFilmstrip(props: ClipFilmstripProps) {
         )
       }
     },
-    [cells, images, cover, widthPx, asset.kind, aspect, clip.sourceInMs, clip.speed, pxPerMs]
+    [
+      cells,
+      images,
+      cover,
+      slice.localStart,
+      slice.width,
+      asset.kind,
+      aspect,
+      clip.sourceInMs,
+      clip.speed,
+      pxPerMs
+    ]
   )
 
   return (
     <canvas
       ref={canvasRef}
-      className="pointer-events-none absolute inset-0 h-full w-full"
-      style={{ width: widthPx }}
+      className="pointer-events-none absolute top-0 h-full"
+      style={{ left: slice.localStart, width: slice.width }}
       aria-hidden
     />
   )

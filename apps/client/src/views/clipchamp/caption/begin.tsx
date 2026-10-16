@@ -12,7 +12,7 @@ import {
 import { Icon } from '@iconify/react/offline'
 
 import { useClipchampStore } from '@/stores/clipchamp.ts'
-import { ASPECT_RATIOS } from '@/views/clipchamp/lib/project'
+import { ASPECT_OPTIONS, type AspectRatio } from '@/views/clipchamp/lib/project'
 
 function ClipchampCaptionBegin() {
   const projectName = useClipchampStore(function (s) {
@@ -38,6 +38,9 @@ function ClipchampCaptionBegin() {
   })
   const updateAspect = useClipchampStore(function (s) {
     return s.updateAspect
+  })
+  const updateCanvasAspect = useClipchampStore(function (s) {
+    return s.updateCanvasAspect
   })
   const updateFullscreen = useClipchampStore(function (s) {
     return s.updateFullscreen
@@ -83,7 +86,10 @@ function ClipchampCaptionBegin() {
       </div>
 
       <div className="mx-auto flex items-center gap-1">
-        <DropdownMenu>
+        <DropdownMenu
+          onOpenChange={function (open) {
+            if (!open) updateCanvasAspect(null)
+          }}>
           <DropdownMenuTrigger
             render={
               <Button
@@ -100,15 +106,35 @@ function ClipchampCaptionBegin() {
             />
             {aspect}
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="center">
-            {ASPECT_RATIOS.map(function (ratio) {
+          <DropdownMenuContent
+            align="center"
+            className="w-64">
+            {ASPECT_OPTIONS.map(function (option) {
+              const isOn = option.ratio === aspect
               return (
                 <DropdownMenuItem
-                  key={ratio}
+                  key={option.ratio}
+                  className="items-center gap-2.5 py-2"
+                  onMouseEnter={function () {
+                    updateCanvasAspect(option.ratio)
+                  }}
                   onClick={function () {
-                    updateAspect(ratio)
+                    updateCanvasAspect(null)
+                    updateAspect(option.ratio)
                   }}>
-                  {ratio}
+                  <AspectFrame ratio={option.ratio} />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="text-xs font-medium">{option.title}</span>
+                    <span className="text-[11px] text-muted-foreground">{option.hint}</span>
+                  </span>
+                  {isOn ? (
+                    <Icon
+                      icon="lucide:check"
+                      className="size-3.5 text-primary"
+                    />
+                  ) : (
+                    <span className="size-3.5" />
+                  )}
                 </DropdownMenuItem>
               )
             })}
@@ -132,6 +158,24 @@ function ClipchampCaptionBegin() {
         </Button>
       </div>
     </div>
+  )
+}
+
+function AspectFrame(props: { ratio: AspectRatio }) {
+  const [w, h] = props.ratio.split(':').map(function (part) {
+    return Number(part)
+  })
+  const box = 28
+  const scale = box / Math.max(w, h)
+  return (
+    <span
+      className="flex size-8 shrink-0 items-center justify-center"
+      aria-hidden>
+      <span
+        className="rounded-[3px] border border-foreground/70 bg-muted"
+        style={{ width: Math.round(w * scale), height: Math.round(h * scale) }}
+      />
+    </span>
   )
 }
 

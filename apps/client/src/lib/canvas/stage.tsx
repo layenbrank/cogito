@@ -26,6 +26,7 @@ import {
   type Size,
   type StageMetrics
 } from './metrics'
+import type { Viewport } from './viewport'
 
 interface CanvasStageProps {
   /** 内容逻辑尺寸（项目分辨率） */
@@ -49,11 +50,15 @@ interface CanvasStageProps {
   contentListening?: boolean
   /** 是否对内容做 letterbox 适配；false 时内容以 1:1 铺满视口（需 view≈content） */
   fitContent?: boolean
+  /** 受控视口。传入后内容组用这份 x/y/scale，不再套 letterbox */
+  viewport?: Viewport
   onMetricsChange?(metrics: StageMetrics): void
   onStageClick?(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>): void
   onStageMouseDown?(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>): void
   onStageMouseMove?(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>): void
   onStageMouseUp?(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>): void
+  onStageWheel?(event: Konva.KonvaEventObject<WheelEvent>): void
+  onStageDblClick?(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>): void
   onStageContextMenu?(event: Konva.KonvaEventObject<PointerEvent>): void
 }
 
@@ -79,11 +84,14 @@ const CanvasStage = memo(
       mediaListening = false,
       contentListening = true,
       fitContent = true,
+      viewport,
       onMetricsChange,
       onStageClick,
       onStageMouseDown,
       onStageMouseMove,
       onStageMouseUp,
+      onStageWheel,
+      onStageDblClick,
       onStageContextMenu
     } = props
 
@@ -170,6 +178,14 @@ const CanvasStage = memo(
 
     const frame = useMemo(
       function () {
+        if (viewport) {
+          return {
+            x: viewport.x,
+            y: viewport.y,
+            scaleX: viewport.scale,
+            scaleY: viewport.scale
+          }
+        }
         return {
           x: metrics.offsetX,
           y: metrics.offsetY,
@@ -177,7 +193,7 @@ const CanvasStage = memo(
           scaleY: metrics.scale
         }
       },
-      [metrics.offsetX, metrics.offsetY, metrics.scale]
+      [viewport, metrics.offsetX, metrics.offsetY, metrics.scale]
     )
 
     const bindStage = useCallback(
@@ -213,6 +229,9 @@ const CanvasStage = memo(
           onTouchMove={onStageMouseMove}
           onMouseUp={onStageMouseUp}
           onTouchEnd={onStageMouseUp}
+          onWheel={onStageWheel}
+          onDblClick={onStageDblClick}
+          onDblTap={onStageDblClick}
           onContextMenu={onStageContextMenu}
         >
           <Layer name={LAYER_BACKGROUND} listening={false}>

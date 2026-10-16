@@ -2,7 +2,7 @@ import { Button } from '@i-thinking/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import { clsx } from 'clsx'
 import type Konva from 'konva'
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { Group, Rect, Text as KonvaText } from 'react-konva'
 
 import {
@@ -23,6 +23,7 @@ import {
   type Clip,
   type MediaAsset
 } from '@/views/clipchamp/lib/project'
+import { readPlayheadMs, subscribePlayhead } from '@/views/clipchamp/lib/playhead-clock'
 
 interface PreviewProps {
   isFullscreen?: boolean
@@ -35,6 +36,11 @@ interface Size {
 
 const MEDIA_SOURCE_REGISTRY = new Map<string, CanvasImageSource>()
 const MEDIA_READY_LISTENERS = new Map<string, Set<() => void>>()
+const PREVIEW_DRAW_LISTENERS = new Set<() => void>()
+
+function requestPreviewDraw() {
+  for (const listener of PREVIEW_DRAW_LISTENERS) listener()
+}
 
 function bindMediaSource(clipId: string, source: CanvasImageSource | null) {
   const prev = MEDIA_SOURCE_REGISTRY.get(clipId) ?? null
@@ -114,7 +120,10 @@ function Preview(props: PreviewProps) {
     return findActiveClipIdsKey(s.project, s.playheadMs)
   })
 
-  const contentSize = ASPECT_SIZE[project.aspect]
+  const canvasAspect = useClipchampStore(function (s) {
+    return s.canvasAspect
+  })
+  const contentSize = ASPECT_SIZE[canvasAspect ?? project.aspect]
   const stageHandleRef = useRef<CanvasStageHandle>(null)
   const viewportHostRef = useRef<HTMLDivElement>(null)
   const nodeMapRef = useRef(new Map<string, Konva.Node>())
@@ -166,6 +175,7 @@ function Preview(props: PreviewProps) {
     },
     [viewport, contentSize]
   )
+  const hasViewport = viewport.width >= 8 && viewport.height >= 8
 
   const notifySelection = useRef(function () {
     for (const listener of selectionListenersRef.current) listener()
@@ -194,8 +204,7 @@ function Preview(props: PreviewProps) {
 
   const activeClips = useMemo(
     function () {
-      const playheadMs = useClipchampStore.getState().playheadMs
-      return findActiveClips(project, playheadMs)
+      return findActiveClips(project, readPlayheadMs())
     },
     [project, activeIdsKey]
   )
@@ -271,14 +280,27 @@ function Preview(props: PreviewProps) {
     [contentSize.width, contentSize.height]
   )
 
-  useEffect(
+  useLayoutEffect(
     function () {
       setStageNode(stageHandleRef.current?.stage ?? null)
     },
-    [contentSize.width, contentSize.height, activeIdsKey]
+    [hasViewport, frameSize.width, frameSize.height, activeIdsKey]
   )
 
   useMediaClock({ active: isPlaying, target: stageNode })
+
+  useEffect(
+    function () {
+      function draw() {
+        stageHandleRef.current?.batchDraw()
+      }
+      PREVIEW_DRAW_LISTENERS.add(draw)
+      return function () {
+        PREVIEW_DRAW_LISTENERS.delete(draw)
+      }
+    },
+    []
+  )
 
   // 选区变更只通知 Konva 内 Transformer（useSyncExternalStore），不抬升 Preview setState
   useEffect(
@@ -317,7 +339,7 @@ function Preview(props: PreviewProps) {
 
   const endTransform = useRef(function (clipId: string, node: Konva.Node) {
     const store = useClipchampStore.getState()
-    const size = ASPECT_SIZE[store.project.aspect]
+    const size = ASPECT_SIZE[store.canvasAspect ?? store.project.aspect]
     store.applyLive(function (draft) {
       return updateClip(draft, clipId, {
         x: node.x() / size.width,
@@ -407,8 +429,6 @@ function Preview(props: PreviewProps) {
     [getSelectedNodes, subscribeSelectedNodes, handleTransformEnd]
   )
 
-  const hasViewport = viewport.width >= 8 && viewport.height >= 8
-
   return (
     <div
       className={clsx(
@@ -485,9 +505,7 @@ interface PreviewTransportProps {
 
 function PreviewTransport(props: PreviewTransportProps) {
   const { isFullscreen, onExitFullscreen } = props
-  const playheadMs = useClipchampStore(function (s) {
-    return s.playheadMs
-  })
+  const playheadMs = useSyncExternalStore(subscribePlayhead, readPlayheadMs)
   const isPlaying = useClipchampStore(function (s) {
     return s.isPlaying
   })
@@ -629,18 +647,17 @@ interface OffscreenMediaProps {
   asset: MediaAsset
 }
 
+function findLocalTime(clip: Clip): number {
+  return ((readPlayheadMs() - clip.startMs) * Math.max(0.1, clip.speed) + clip.sourceInMs) / 1000
+}
+
 function OffscreenMedia(props: OffscreenMediaProps) {
   const { clip, asset } = props
-  const playheadMs = useClipchampStore(function (s) {
-    return s.playheadMs
-  })
   const isPlaying = useClipchampStore(function (s) {
     return s.isPlaying
   })
   const videoRef = useRef<HTMLVideoElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
-  const localTime =
-    ((playheadMs - clip.startMs) * Math.max(0.1, clip.speed) + clip.sourceInMs) / 1000
   const isImage = asset.kind === 'image' || clip.kind === 'image'
 
   useEffect(
@@ -668,23 +685,44 @@ function OffscreenMedia(props: OffscreenMediaProps) {
       if (isImage) return
       const video = videoRef.current
       if (!video) return
-      if (Math.abs(video.currentTime - localTime) > 0.12) {
+      const media = video
+
+      function place(force: boolean) {
+        const localTime = findLocalTime(clip)
+        const drift = Math.abs(media.currentTime - localTime)
+        if (!force && drift <= 0.45) return
         try {
-          video.currentTime = localTime
+          media.currentTime = localTime
         } catch (error) {
           console.debug('[clipchamp] video seek skipped', error)
         }
+        if (Math.abs(media.currentTime - localTime) < 0.05) requestPreviewDraw()
       }
+
+      function onSeeked() {
+        requestPreviewDraw()
+      }
+
       video.playbackRate = clip.speed
       video.volume = Math.min(1, Math.max(0, clip.volume))
       video.muted = clip.volume <= 0
+      video.addEventListener('seeked', onSeeked)
+      place(!isPlaying)
       if (isPlaying) {
         void video.play().catch(function () {})
       } else {
         video.pause()
       }
+      const unsubscribe = subscribePlayhead(function () {
+        place(!isPlaying)
+      })
+      return function () {
+        unsubscribe()
+        video.removeEventListener('seeked', onSeeked)
+        video.pause()
+      }
     },
-    [localTime, isPlaying, clip.speed, clip.volume, isImage]
+    [isPlaying, clip, isImage]
   )
 
   if (isImage) {
@@ -721,33 +759,45 @@ interface OffscreenAudioProps {
 
 function OffscreenAudio(props: OffscreenAudioProps) {
   const { clip, asset } = props
-  const playheadMs = useClipchampStore(function (s) {
-    return s.playheadMs
-  })
   const isPlaying = useClipchampStore(function (s) {
     return s.isPlaying
   })
   const audioRef = useRef<HTMLAudioElement>(null)
-  const localTime =
-    ((playheadMs - clip.startMs) * Math.max(0.1, clip.speed) + clip.sourceInMs) / 1000
 
   useEffect(
     function () {
       const audio = audioRef.current
       if (!audio) return
-      if (Math.abs(audio.currentTime - localTime) > 0.12) {
+      const media = audio
+
+      function place(force: boolean) {
+        const localTime = findLocalTime(clip)
+        const drift = Math.abs(media.currentTime - localTime)
+        if (!force && drift <= 0.45) return
         try {
-          audio.currentTime = localTime
+          media.currentTime = localTime
         } catch (error) {
           console.debug('[clipchamp] audio seek skipped', error)
         }
       }
+
       audio.playbackRate = clip.speed
       audio.volume = Math.min(1, Math.max(0, clip.volume))
-      if (isPlaying) void audio.play().catch(function () {})
-      else audio.pause()
+      place(!isPlaying)
+      if (isPlaying) {
+        void audio.play().catch(function () {})
+      } else {
+        audio.pause()
+      }
+      const unsubscribe = subscribePlayhead(function () {
+        place(!isPlaying)
+      })
+      return function () {
+        unsubscribe()
+        audio.pause()
+      }
     },
-    [localTime, isPlaying, clip.speed, clip.volume]
+    [isPlaying, clip]
   )
 
   return (
@@ -786,9 +836,7 @@ const PreviewMediaClip = memo(function PreviewMediaClip(props: PreviewMediaClipP
     onTransformStart,
     onTransformCommit
   } = props
-  const playheadMs = useClipchampStore(function (s) {
-    return s.playheadMs
-  })
+  const playheadMs = useSyncExternalStore(subscribePlayhead, readPlayheadMs)
   const groupRef = useRef<Konva.Group>(null)
   const onRegisterRef = useRef(onRegister)
   onRegisterRef.current = onRegister
@@ -908,6 +956,7 @@ const PreviewMediaClip = memo(function PreviewMediaClip(props: PreviewMediaClipP
           offsetX={transform.offsetX}
           offsetY={transform.offsetY}
           listening={false}
+          grade={clip.filter}
         />
       </Group>
     </Group>
@@ -933,9 +982,7 @@ const PreviewTextClip = memo(function PreviewTextClip(props: PreviewTextClipProp
     onTransformStart,
     onTransformCommit
   } = props
-  const playheadMs = useClipchampStore(function (s) {
-    return s.playheadMs
-  })
+  const playheadMs = useSyncExternalStore(subscribePlayhead, readPlayheadMs)
   const textRef = useRef<Konva.Text>(null)
   const onRegisterRef = useRef(onRegister)
   onRegisterRef.current = onRegister

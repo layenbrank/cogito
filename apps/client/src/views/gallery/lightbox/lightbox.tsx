@@ -20,6 +20,7 @@ import {
   LIGHTBOX_THUMB_WINDOW,
   MOTION_MS
 } from '@/views/gallery/constraints'
+import { GalleryImageStage } from '@/views/gallery/lightbox/image-stage'
 import { useLightboxZoom } from '@/views/gallery/lightbox/use-lightbox-zoom'
 import { formatDuration, type GalleryMedia } from '@/views/gallery/model/media'
 
@@ -129,6 +130,8 @@ function Lightbox(props: LightboxProps) {
     return findWindowFrame(false, HEADER_Y + THUMB_Y)
   })
   const [fit, onFit] = useState<FitSize>({ width: 320, height: 200 })
+  const [canvasZoomed, onCanvasZoomed] = useState(false)
+  const [canvasScale, onCanvasScale] = useState(1)
   const stageRef = useRef<HTMLDivElement>(null)
   const mediaRef = useRef<HTMLDivElement>(null)
   const thumbStripRef = useRef<HTMLDivElement>(null)
@@ -147,14 +150,17 @@ function Lightbox(props: LightboxProps) {
   const active = props.medias[activeIndex]
   // 仅跟当前媒体绑定；切图 / 关预览必变 → 缩放回 100%
   const zoomKey = props.open && active ? active.asset.id : null
-  const { scale, isZoomed } = useLightboxZoom({
+  const isImage = Boolean(active && active.kind !== 'video')
+  const { scale, isZoomed: videoZoomed } = useLightboxZoom({
     stageRef,
     targetRef: mediaRef,
     resetKey: zoomKey,
-    enabled: props.open,
+    enabled: props.open && !isImage,
     fitWidth: fit.width,
     fitHeight: fit.height
   })
+  const isZoomed = isImage ? canvasZoomed : videoZoomed
+  const zoomLabel = isImage ? canvasScale : scale
 
   useEffect(
     function () {
@@ -330,7 +336,9 @@ function Lightbox(props: LightboxProps) {
                 {active?.kind === 'video' && active.meta.durationMs
                   ? ` · ${formatDuration(active.meta.durationMs)}`
                   : ''}
-                <span className="ml-2 opacity-80">Ctrl+滚轮缩放</span>
+                <span className="ml-2 opacity-80">
+                  {isImage ? '滚轮缩放' : 'Ctrl+滚轮缩放'}
+                </span>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-1">
@@ -390,12 +398,12 @@ function Lightbox(props: LightboxProps) {
                     virtualIndex={index}
                     className="!relative size-full">
                     {isActive ? (
-                      <div
-                        key={media.asset.id}
-                        ref={mediaRef}
-                        className="absolute top-0 left-0 overflow-hidden will-change-[width,height,transform]"
-                        style={{ width: fit.width, height: fit.height }}>
-                        {media.kind === 'video' ? (
+                      media.kind === 'video' ? (
+                        <div
+                          key={media.asset.id}
+                          ref={mediaRef}
+                          className="absolute top-0 left-0 overflow-hidden will-change-[width,height,transform]"
+                          style={{ width: fit.width, height: fit.height }}>
                           <video
                             className="size-full object-contain"
                             src={media.src}
@@ -403,16 +411,15 @@ function Lightbox(props: LightboxProps) {
                             autoPlay
                             playsInline
                           />
-                        ) : (
-                          <img
-                            className="size-full object-contain"
-                            src={media.src}
-                            alt={media.asset.fileName}
-                            draggable={false}
-                            decoding="sync"
-                          />
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        <GalleryImageStage
+                          key={media.asset.id}
+                          src={media.src}
+                          onZoomedChange={onCanvasZoomed}
+                          onScaleChange={onCanvasScale}
+                        />
+                      )
                     ) : (
                       <div className="flex size-full items-center justify-center text-muted-foreground/50">
                         <Icon
@@ -434,7 +441,7 @@ function Lightbox(props: LightboxProps) {
                   animate={{ opacity: 1, y: 0 }}
                   exit={isReducedMotion ? undefined : { opacity: 0, y: 4 }}
                   transition={{ duration: durationSec, ease: [0.22, 1, 0.36, 1] }}>
-                  {Math.round(scale * 100)}% · 双击复位
+                  {Math.round(zoomLabel * 100)}% · 双击复位
                 </m.div>
               ) : null}
             </AnimatePresence>

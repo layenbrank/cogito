@@ -1,3 +1,4 @@
+import { toFfmpegGrade } from '@/lib/canvas/grade'
 import type { Clip, ExportPreset, MediaAsset, Project } from '@/views/clipchamp/lib/project'
 import { findTracksByKind } from '@/views/clipchamp/lib/project'
 
@@ -12,6 +13,8 @@ interface ExportArgs {
   fps: number
   width: number
   height: number
+  /** 成片时长，供导出进度换算 */
+  durationMs: number
 }
 
 /**
@@ -78,11 +81,16 @@ function buildExportArgs(
     const scaled = `vs${order}`
     const placed = `vp${order}`
 
-    const eq = buildEq(clip.filter)
-    const fade = buildFade(clip.fadeInMs, clip.fadeOutMs, clip.durationMs / speed)
+    const eq = toFfmpegGrade(clip.filter)
+    const fade = buildFade(
+      findFadeMs(clip.fadeInMs, clip.transition),
+      findFadeMs(clip.fadeOutMs, clip.transition),
+      clip.durationMs / speed
+    )
+    const mask = buildMask(clip.mask)
 
     filters.push(
-      `[${inputIndex}:v]trim=${trimStart}:${trimEnd},setpts=PTS-STARTPTS,setpts=PTS/${speed},scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,format=rgba${eq ? `,${eq}` : ''}${fade ? `,${fade}` : ''}[${label}]`
+      `[${inputIndex}:v]trim=${trimStart}:${trimEnd},setpts=PTS-STARTPTS,setpts=PTS/${speed},scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,format=rgba${eq ? `,${eq}` : ''}${fade ? `,${fade}` : ''}${mask ? `,${mask}` : ''}[${label}]`
     )
 
     const x = Math.round((clip.x - 0.5 * clip.scale) * width)
@@ -123,8 +131,9 @@ function buildExportArgs(
       const trimEnd = (clip.sourceInMs + clip.durationMs) / 1000
       const targetW = Math.round(width * clip.scale)
       const targetH = Math.round(height * clip.scale)
+      const mask = buildMask(clip.mask)
       filters.push(
-        `[${inputIndex}:v]trim=${trimStart}:${trimEnd},setpts=PTS-STARTPTS,scale=${targetW}:${targetH},format=rgba[${label}]`
+        `[${inputIndex}:v]trim=${trimStart}:${trimEnd},setpts=PTS-STARTPTS,scale=${targetW}:${targetH},format=rgba${mask ? `,${mask}` : ''}[${label}]`
       )
       const x = Math.round(clip.x * width - targetW / 2)
       const y = Math.round(clip.y * height - targetH / 2)
@@ -203,27 +212,30 @@ function buildExportArgs(
     audioBitrate: preset.audioBitrate,
     fps,
     width,
-    height
+    height,
+    durationMs: project.durationMs
   }
 }
 
-function buildEq(filter: {
-  exposure: number
-  contrast: number
-  saturation: number
-  temperature: number
-}): string {
-  const brightness = filter.exposure
-  const contrast = 1 + filter.contrast
-  const saturation = 1 + filter.saturation
-  if (
-    Math.abs(brightness) < 0.001 &&
-    Math.abs(contrast - 1) < 0.001 &&
-    Math.abs(saturation - 1) < 0.001
-  ) {
-    return ''
+function findFadeMs(
+  fadeMs: number,
+  transition: { kind: string; durationMs: number }
+): number {
+  if (fadeMs > 0) return fadeMs
+  if (transition.kind === 'fade' || transition.kind === 'dissolve') {
+    return transition.durationMs
   }
-  return `eq=brightness=${brightness}:contrast=${contrast}:saturation=${saturation}`
+  return 0
+}
+
+function buildMask(mask: { kind: string }): string {
+  if (mask.kind === 'circle') {
+    return "geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lte(pow(X-W/2\\,2)+pow(Y-H/2\\,2)\\,pow(min(W\\,H)/2\\,2))\\,255\\,0)'"
+  }
+  if (mask.kind === 'rounded') {
+    return "geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(gt(hypot(max(abs(X-W/2)-(W/2-min(W\\,H)*0.18)\\,0)\\,max(abs(Y-H/2)-(H/2-min(W\\,H)*0.18)\\,0))\\,min(W\\,H)*0.18)\\,0\\,255)'"
+  }
+  return ''
 }
 
 function buildFade(fadeInMs: number, fadeOutMs: number, durationMs: number): string {

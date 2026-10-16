@@ -10,7 +10,10 @@ import {
   DropdownMenuTrigger
 } from '@i-thinking/design/components/dropdown-menu'
 
+import { useState } from 'react'
+
 import { useClipchampStore } from '@/stores/clipchamp.ts'
+import { ExportDialog } from '@/views/clipchamp/caption/export-dialog'
 import { EXPORT_PRESETS } from '@/views/clipchamp/lib/project'
 
 function ClipchampCaptionFinal() {
@@ -26,15 +29,13 @@ function ClipchampCaptionFinal() {
   const updateExportPreset = useClipchampStore(function (s) {
     return s.updateExportPreset
   })
-  const exportVideo = useClipchampStore(function (s) {
-    return s.exportVideo
-  })
   const persistProject = useClipchampStore(function (s) {
     return s.persistProject
   })
   const restoreProject = useClipchampStore(function (s) {
     return s.restoreProject
   })
+  const [isExportOpen, setExportOpen] = useState(false)
 
   return (
     <div className="flex items-center gap-1">
@@ -94,14 +95,19 @@ function ClipchampCaptionFinal() {
         className="h-7 min-w-[4.25rem] px-3 text-xs font-medium shadow-none"
         disabled={isExporting}
         onClick={function () {
-          void exportVideo()
+          setExportOpen(true)
         }}>
         {isExporting
           ? typeof exportProgress === 'number'
             ? `导出 ${exportProgress}%`
             : '导出中…'
           : '导出'}
-      </Button>
+        </Button>
+      <ExportDialog
+        key={isExportOpen ? 'open' : 'closed'}
+        open={isExportOpen}
+        onOpenChange={setExportOpen}
+      />
     </div>
   )
 }
