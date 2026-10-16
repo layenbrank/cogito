@@ -69,6 +69,8 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         capture::command::capture_prune,
         crate::media::command::media_probe,
         crate::media::command::media_export,
+        crate::media::command::media_filmstrip_frames,
+        crate::media::command::media_waveform,
         overlay::command::overlay_ensure,
         overlay::command::overlay_hide,
         overlay::command::overlay_update_mode,

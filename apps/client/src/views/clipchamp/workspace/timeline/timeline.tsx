@@ -1,7 +1,15 @@
 import { Button } from '@i-thinking/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import { clsx } from 'clsx'
-import { useMemo, useRef, type MouseEvent, type PointerEvent } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+  type PointerEvent,
+  type RefObject
+} from 'react'
 
 import { useClipchampStore } from '@/stores/clipchamp.ts'
 import {
@@ -9,7 +17,8 @@ import {
   formatTimecode,
   type Clip,
   type MediaAsset,
-  type Track
+  type Track,
+  type WaveformMeta
 } from '@/views/clipchamp/lib/project'
 import { ClipFilmstrip, ClipWaveform } from '@/views/clipchamp/workspace/timeline/clip-thumb'
 
@@ -68,11 +77,67 @@ function Timeline() {
   const captureUndoPoint = useClipchampStore(function (s) {
     return s.captureUndoPoint
   })
+  const patchAsset = useClipchampStore(function (s) {
+    return s.patchAsset
+  })
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const pxPerMs = (PX_PER_SECOND_BASE * timelineZoom) / 1000
   const durationMs = Math.max(project.durationMs, 10000)
   const widthPx = durationMs * pxPerMs + 120
+  const [viewRange, setViewRange] = useState({ startMs: 0, endMs: 12000 })
+
+  useEffect(
+    function () {
+      const host = scrollRef.current
+      if (!host) return
+      let raf = 0
+
+      function measure() {
+        const el = scrollRef.current
+        if (!el) return
+        // clientWidth 为 0 时先按最小视口估，避免永久空抽帧
+        const viewW = Math.max(el.clientWidth, 320)
+        const startMs = el.scrollLeft / pxPerMs
+        const endMs = (el.scrollLeft + viewW) / pxPerMs
+        const span = Math.max(1000, endMs - startMs)
+        const pad = span * 0.5
+        const next = {
+          startMs: Math.max(0, startMs - pad),
+          endMs: endMs + pad
+        }
+        setViewRange(function (prev) {
+          const threshold = span * 0.08
+          if (
+            Math.abs(prev.startMs - next.startMs) < threshold &&
+            Math.abs(prev.endMs - next.endMs) < threshold
+          ) {
+            return prev
+          }
+          return next
+        })
+      }
+
+      function onScroll() {
+        if (raf) return
+        raf = requestAnimationFrame(function () {
+          raf = 0
+          measure()
+        })
+      }
+
+      measure()
+      host.addEventListener('scroll', onScroll, { passive: true })
+      const observer = new ResizeObserver(onScroll)
+      observer.observe(host)
+      return function () {
+        host.removeEventListener('scroll', onScroll)
+        observer.disconnect()
+        if (raf) cancelAnimationFrame(raf)
+      }
+    },
+    [pxPerMs, widthPx]
+  )
 
   const ticks = useMemo(
     function () {
@@ -308,11 +373,17 @@ function Timeline() {
                   key={track.id}
                   track={track}
                   pxPerMs={pxPerMs}
+                  viewStartMs={viewRange.startMs}
+                  viewEndMs={viewRange.endMs}
+                  scrollRootRef={scrollRef}
                   selectedClipId={selectedClipId}
                   assets={assets}
                   onClipPointerDown={onClipPointerDown}
                   onSelectEmpty={function () {
                     selectClip(null)
+                  }}
+                  onWaveform={function (assetId, meta) {
+                    patchAsset(assetId, { waveform: meta })
                   }}
                 />
               )
@@ -336,14 +407,29 @@ function Timeline() {
 interface TrackRowProps {
   track: Track
   pxPerMs: number
+  viewStartMs: number
+  viewEndMs: number
+  scrollRootRef: RefObject<HTMLDivElement | null>
   selectedClipId: string | null
   assets: MediaAsset[]
   onClipPointerDown: (clip: Clip, event: PointerEvent) => void
   onSelectEmpty: () => void
+  onWaveform(assetId: string, meta: WaveformMeta): void
 }
 
 function TrackRow(props: TrackRowProps) {
-  const { track, pxPerMs, selectedClipId, assets, onClipPointerDown, onSelectEmpty } = props
+  const {
+    track,
+    pxPerMs,
+    viewStartMs,
+    viewEndMs,
+    scrollRootRef,
+    selectedClipId,
+    assets,
+    onClipPointerDown,
+    onSelectEmpty,
+    onWaveform
+  } = props
 
   return (
     <div
@@ -391,47 +477,142 @@ function TrackRow(props: TrackRowProps) {
                   : 'border-primary/45 bg-primary/20 text-foreground'
 
         return (
-          <div
+          <TimelineClipBlock
             key={clip.id}
-            role="button"
-            tabIndex={0}
-            className={clsx(
-              'absolute top-1.5 flex h-[calc(100%-12px)] cursor-grab items-center overflow-hidden rounded-md border shadow-sm active:cursor-grabbing',
-              tone,
-              isSelected && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
-            )}
-            style={{ left, width }}
-            onPointerDown={function (event) {
-              onClipPointerDown(clip, event)
-            }}
-            onClick={function (event) {
-              event.stopPropagation()
-            }}>
-            {hasFilm && asset ? (
-              <ClipFilmstrip
-                asset={asset}
-                clip={clip}
-                widthPx={width}
-              />
-            ) : null}
-            {hasWave && asset ? (
-              <ClipWaveform
-                asset={asset}
-                clip={clip}
-                widthPx={width}
-              />
-            ) : null}
-            <span
-              className={clsx(
-                'relative z-[1] truncate px-2 text-[10px] font-medium',
-                (hasFilm || hasWave) &&
-                  'rounded-sm bg-black/45 py-0.5 text-white shadow-sm backdrop-blur-[2px]'
-              )}>
-              {label}
-            </span>
-          </div>
+            clip={clip}
+            asset={asset}
+            label={label}
+            tone={tone}
+            isSelected={isSelected}
+            left={left}
+            width={width}
+            hasFilm={hasFilm}
+            hasWave={hasWave}
+            pxPerMs={pxPerMs}
+            viewStartMs={viewStartMs}
+            viewEndMs={viewEndMs}
+            scrollRootRef={scrollRootRef}
+            onClipPointerDown={onClipPointerDown}
+            onWaveform={onWaveform}
+          />
         )
       })}
+    </div>
+  )
+}
+
+interface TimelineClipBlockProps {
+  clip: Clip
+  asset: MediaAsset | undefined
+  label: string
+  tone: string
+  isSelected: boolean
+  left: number
+  width: number
+  hasFilm: boolean
+  hasWave: boolean
+  pxPerMs: number
+  viewStartMs: number
+  viewEndMs: number
+  scrollRootRef: RefObject<HTMLDivElement | null>
+  onClipPointerDown: (clip: Clip, event: PointerEvent) => void
+  onWaveform(assetId: string, meta: WaveformMeta): void
+}
+
+function TimelineClipBlock(props: TimelineClipBlockProps) {
+  const {
+    clip,
+    asset,
+    label,
+    tone,
+    isSelected,
+    left,
+    width,
+    hasFilm,
+    hasWave,
+    pxPerMs,
+    viewStartMs,
+    viewEndMs,
+    scrollRootRef,
+    onClipPointerDown,
+    onWaveform
+  } = props
+  const blockRef = useRef<HTMLDivElement>(null)
+  const [isInView, setInView] = useState(false)
+
+  useEffect(
+    function () {
+      const el = blockRef.current
+      const root = scrollRootRef.current
+      if (!el) return
+
+      const observer = new IntersectionObserver(
+        function (entries) {
+          const entry = entries[0]
+          if (!entry) return
+          setInView(entry.isIntersecting || entry.intersectionRatio > 0)
+        },
+        {
+          root: root ?? null,
+          // 提前半屏预取，滚到中心时已有图
+          rootMargin: '0px 50% 0px 50%',
+          threshold: 0
+        }
+      )
+      observer.observe(el)
+      return function () {
+        observer.disconnect()
+      }
+    },
+    [scrollRootRef]
+  )
+
+  return (
+    <div
+      ref={blockRef}
+      role="button"
+      tabIndex={0}
+      className={clsx(
+        'absolute top-1.5 flex h-[calc(100%-12px)] cursor-grab items-center overflow-hidden rounded-md border shadow-sm active:cursor-grabbing',
+        tone,
+        isSelected && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
+      )}
+      style={{ left, width }}
+      onPointerDown={function (event) {
+        onClipPointerDown(clip, event)
+      }}
+      onClick={function (event) {
+        event.stopPropagation()
+      }}>
+      {hasFilm && asset ? (
+        <ClipFilmstrip
+          asset={asset}
+          clip={clip}
+          widthPx={width}
+          pxPerMs={pxPerMs}
+          viewStartMs={viewStartMs}
+          viewEndMs={viewEndMs}
+          isInView={isInView}
+        />
+      ) : null}
+      {hasWave && asset ? (
+        <ClipWaveform
+          asset={asset}
+          clip={clip}
+          widthPx={width}
+          onWaveform={function (meta) {
+            onWaveform(asset.id, meta)
+          }}
+        />
+      ) : null}
+      <span
+        className={clsx(
+          'relative z-[1] truncate px-2 text-[10px] font-medium',
+          (hasFilm || hasWave) &&
+            'rounded-sm bg-black/45 py-0.5 text-white shadow-sm backdrop-blur-[2px]'
+        )}>
+        {label}
+      </span>
     </div>
   )
 }

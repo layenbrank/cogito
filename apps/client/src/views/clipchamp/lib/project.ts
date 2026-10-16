@@ -62,6 +62,27 @@ interface CaptionCue {
   text: string
 }
 
+/** FFmpeg 预生成的胶片条 sprite 元数据；时间轴用 canvas blit */
+interface FilmstripMeta {
+  spriteUrl: string
+  spritePath: string
+  cols: number
+  rows: number
+  tileWidth: number
+  tileHeight: number
+  intervalMs: number
+  frameCount: number
+  durationMs: number
+}
+
+interface WaveformMeta {
+  waveUrl: string
+  wavePath: string
+  width: number
+  height: number
+  durationMs: number
+}
+
 interface MediaAsset {
   id: string
   path: string
@@ -72,6 +93,8 @@ interface MediaAsset {
   height?: number
   hasAudio?: boolean
   thumbUrl?: string
+  filmstrip?: FilmstripMeta
+  waveform?: WaveformMeta
   /** Gallery asset id when imported from gallery */
   galleryId?: string
 }
@@ -653,6 +676,8 @@ export type {
   MaskSpec,
   TextSpec,
   CaptionCue,
+  FilmstripMeta,
+  WaveformMeta,
   MediaAsset,
   Clip,
   Track,

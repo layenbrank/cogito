@@ -30,6 +30,7 @@ import {
   type Project
 } from '@/views/clipchamp/lib/project'
 import { buildExportArgs } from '@/views/clipchamp/lib/export-graph'
+import { ensureWaveform } from '@/views/clipchamp/lib/media-preview'
 
 interface ClipchampState {
   project: Project
@@ -75,6 +76,9 @@ interface ClipchampState {
     kind: 'video' | 'image'
     durationMs?: number
   }): Promise<void>
+  patchAsset(assetId: string, patch: Partial<MediaAsset>): void
+  /** 后台生成 filmstrip / waveform，不阻塞导入 */
+  hydrateAssetPreviews(assetIds: string[]): void
   addAssetToTimeline(assetId: string, trackKind?: 'video' | 'overlay' | 'audio'): void
   addTextClip(content?: string): void
   addSticker(stickerId: string): void
@@ -305,6 +309,11 @@ const useClipchampStore = create<ClipchampState>()(
           if (imported.length === 0) return
           setter({ assets: [...getter().assets, ...imported] })
           toast.success(`已导入 ${imported.length} 个素材`)
+          getter().hydrateAssetPreviews(
+            imported.map(function (item) {
+              return item.id
+            })
+          )
         },
 
         async importFromGallery(asset) {
@@ -340,6 +349,28 @@ const useClipchampStore = create<ClipchampState>()(
           }
           setter({ assets: [...getter().assets, media], mediaPanel: 'media' })
           toast.success('已从图库加入素材')
+          getter().hydrateAssetPreviews([media.id])
+        },
+
+        patchAsset(assetId, patch) {
+          setter({
+            assets: getter().assets.map(function (item) {
+              return item.id === assetId ? { ...item, ...patch } : item
+            })
+          })
+        },
+
+        hydrateAssetPreviews(assetIds) {
+          // 胶片改为视口 LOD 按需抽帧；导入只预热波形
+          const idSet = new Set(assetIds)
+          for (const asset of getter().assets) {
+            if (!idSet.has(asset.id)) continue
+            if (!(asset.kind === 'audio' || (asset.kind === 'video' && asset.hasAudio))) continue
+            void (async function () {
+              const waveform = await ensureWaveform(asset)
+              if (waveform) getter().patchAsset(asset.id, { waveform })
+            })()
+          }
         },
 
         addAssetToTimeline(assetId, trackKind) {
@@ -615,14 +646,28 @@ const useClipchampStore = create<ClipchampState>()(
               exportPresetId?: string
             }
             const assets = (parsed.assets || []).map(function (asset) {
-              // asset protocol URL 不可持久化，恢复时按 path 重建
+              // asset protocol URL 不可持久化，恢复时按磁盘路径重建
               let thumbUrl = asset.thumbUrl
+              let filmstrip = asset.filmstrip
+              let waveform = asset.waveform
               try {
                 thumbUrl = convertFileSrc(asset.path)
+                if (filmstrip?.spritePath) {
+                  filmstrip = {
+                    ...filmstrip,
+                    spriteUrl: convertFileSrc(filmstrip.spritePath)
+                  }
+                }
+                if (waveform?.wavePath) {
+                  waveform = {
+                    ...waveform,
+                    waveUrl: convertFileSrc(waveform.wavePath)
+                  }
+                }
               } catch (error) {
                 console.warn('[clipchamp] convertFileSrc failed, keep stored thumb', error)
               }
-              return { ...asset, thumbUrl }
+              return { ...asset, thumbUrl, filmstrip, waveform }
             })
             setter({
               project: parsed.project,
@@ -634,6 +679,11 @@ const useClipchampStore = create<ClipchampState>()(
               redoStack: [],
               isPlaying: false
             })
+            getter().hydrateAssetPreviews(
+              assets.map(function (item) {
+                return item.id
+              })
+            )
             if (!options?.silent) toast.success('已恢复本地项目')
           } catch (error) {
             if (!options?.silent) toast.error('恢复失败')
