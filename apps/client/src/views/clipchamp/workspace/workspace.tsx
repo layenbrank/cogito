@@ -70,7 +70,7 @@ function Workspace() {
 
   if (isFullscreen) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col bg-black">
+      <div className="flex h-full min-h-0 flex-1 flex-col bg-black">
         <Preview isFullscreen />
       </div>
     )
@@ -99,7 +99,7 @@ function Workspace() {
               </div>
             </ResizablePanel>
             <ResizableHandle className="w-1 bg-transparent transition-colors hover:bg-primary/20" />
-            <ResizablePanel className="min-h-0 overflow-hidden">
+            <ResizablePanel className="flex min-h-0 flex-col overflow-hidden">
               <Preview />
             </ResizablePanel>
             <ResizableHandle className="w-1 bg-transparent transition-colors hover:bg-primary/20" />

@@ -136,16 +136,16 @@ function Preview(props: PreviewProps) {
       const el = viewportHostRef.current
       if (!el) return
       const entry = entries?.[0]
-      let width: number
-      let height: number
       const box = entry?.contentBoxSize?.[0]
-      if (box) {
-        width = Math.max(1, Math.floor(box.inlineSize))
-        height = Math.max(1, Math.floor(box.blockSize))
-      } else {
-        width = Math.max(1, el.clientWidth)
-        height = Math.max(1, el.clientHeight)
-      }
+      // 优先 client*：flex 未撑开时 contentBox 常为 0，避免 1×1 伪视口
+      const width = Math.max(
+        0,
+        Math.floor(box?.inlineSize || el.clientWidth || el.getBoundingClientRect().width)
+      )
+      const height = Math.max(
+        0,
+        Math.floor(box?.blockSize || el.clientHeight || el.getBoundingClientRect().height)
+      )
       setViewport(function (prev) {
         if (prev.width === width && prev.height === height) return prev
         return { width, height }
@@ -407,66 +407,70 @@ function Preview(props: PreviewProps) {
     [getSelectedNodes, subscribeSelectedNodes, handleTransformEnd]
   )
 
+  const hasViewport = viewport.width >= 8 && viewport.height >= 8
+
   return (
     <div
       className={clsx(
-        'flex min-h-0 flex-1 flex-col',
+        'flex h-full min-h-0 w-full flex-1 flex-col',
         isFullscreen ? 'bg-black' : 'bg-[#f3f4f6] dark:bg-muted/30'
       )}>
       <div
         ref={viewportHostRef}
-        className="relative flex min-h-0 flex-1 items-center justify-center p-4">
-        <div
-          className="relative overflow-hidden rounded-md bg-black shadow-[0_8px_30px_rgb(0,0,0,0.18)] ring-1 ring-black/10"
-          style={{ width: frameSize.width, height: frameSize.height }}>
-          <CanvasStage
-            ref={stageHandleRef}
-            contentSize={contentSize}
-            viewSize={frameSize}
-            mediaListening
-            contentListening
-            background={backgroundNode}
-            media={mediaNodes}
-            content={contentNodes}
-            interaction={interactionNode}
-            onStageClick={handleStageClick}
-          />
+        className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center p-4">
+        {hasViewport ? (
+          <div
+            className="relative overflow-hidden rounded-md bg-black shadow-[0_8px_30px_rgb(0,0,0,0.18)] ring-1 ring-black/10"
+            style={{ width: frameSize.width, height: frameSize.height }}>
+            <CanvasStage
+              ref={stageHandleRef}
+              contentSize={contentSize}
+              viewSize={frameSize}
+              mediaListening
+              contentListening
+              background={backgroundNode}
+              media={mediaNodes}
+              content={contentNodes}
+              interaction={interactionNode}
+              onStageClick={handleStageClick}
+            />
 
-          {activeClips.length === 0 && (
-            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
-              <Icon
-                icon="lucide:clapperboard"
-                className="size-8 text-white/35"
-              />
-              <p className="text-sm text-white/55">将媒体拖到时间轴开始编辑</p>
+            {activeClips.length === 0 && (
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
+                <Icon
+                  icon="lucide:clapperboard"
+                  className="size-8 text-white/35"
+                />
+                <p className="text-sm text-white/55">将媒体拖到时间轴开始编辑</p>
+              </div>
+            )}
+
+            <div className="pointer-events-none absolute h-0 w-0 overflow-hidden opacity-0">
+              {mediaClips.map(function (clip) {
+                const asset = clip.assetId ? assetMap.get(clip.assetId) : undefined
+                if (!asset) return null
+                return (
+                  <OffscreenMedia
+                    key={`src-${clip.id}`}
+                    clip={clip}
+                    asset={asset}
+                  />
+                )
+              })}
+              {audioClips.map(function (clip) {
+                const asset = clip.assetId ? assetMap.get(clip.assetId) : undefined
+                if (!asset) return null
+                return (
+                  <OffscreenAudio
+                    key={`audio-${clip.id}`}
+                    clip={clip}
+                    asset={asset}
+                  />
+                )
+              })}
             </div>
-          )}
-
-          <div className="pointer-events-none absolute h-0 w-0 overflow-hidden opacity-0">
-            {mediaClips.map(function (clip) {
-              const asset = clip.assetId ? assetMap.get(clip.assetId) : undefined
-              if (!asset) return null
-              return (
-                <OffscreenMedia
-                  key={`src-${clip.id}`}
-                  clip={clip}
-                  asset={asset}
-                />
-              )
-            })}
-            {audioClips.map(function (clip) {
-              const asset = clip.assetId ? assetMap.get(clip.assetId) : undefined
-              if (!asset) return null
-              return (
-                <OffscreenAudio
-                  key={`audio-${clip.id}`}
-                  clip={clip}
-                  asset={asset}
-                />
-              )
-            })}
           </div>
-        </div>
+        ) : null}
       </div>
 
       <PreviewTransport isFullscreen={isFullscreen} onExitFullscreen={updateFullscreen} />
