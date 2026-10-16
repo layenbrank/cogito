@@ -131,66 +131,7 @@ function Timeline() {
   const pxPerMs = (PX_PER_SECOND_BASE * timelineZoom) / 1000
   const durationMs = Math.max(project.durationMs, 10000)
   const widthPx = durationMs * pxPerMs + 120
-  const [viewRange, setViewRange] = useState({ startMs: 0, endMs: 12000 })
-
-  useEffect(
-    function () {
-      const host = scrollRef.current
-      if (!host) return
-      let raf = 0
-
-      function measure() {
-        const el = scrollRef.current
-        if (!el) return
-        // clientWidth 为 0 时先按最小视口估，避免永久空抽帧
-        const viewW = Math.max(el.clientWidth, 320)
-        const startMs = el.scrollLeft / pxPerMs
-        const endMs = (el.scrollLeft + viewW) / pxPerMs
-        const span = Math.max(1000, endMs - startMs)
-        const pad = span * 0.5
-        const next = {
-          startMs: Math.max(0, startMs - pad),
-          endMs: endMs + pad
-        }
-        setViewRange(function (prev) {
-          const threshold = span * 0.08
-          if (
-            Math.abs(prev.startMs - next.startMs) < threshold &&
-            Math.abs(prev.endMs - next.endMs) < threshold
-          ) {
-            return prev
-          }
-          return next
-        })
-      }
-
-      function onScroll() {
-        if (raf) return
-        raf = requestAnimationFrame(function () {
-          raf = 0
-          measure()
-        })
-      }
-
-      measure()
-      host.addEventListener('scroll', onScroll, { passive: true })
-      const observer = new ResizeObserver(onScroll)
-      observer.observe(host)
-      return function () {
-        host.removeEventListener('scroll', onScroll)
-        observer.disconnect()
-        if (raf) cancelAnimationFrame(raf)
-      }
-    },
-    [pxPerMs, widthPx]
-  )
-
-  const ruler = useMemo(
-    function () {
-      return buildRulerMarks(viewRange.startMs, viewRange.endMs, pxPerMs)
-    },
-    [viewRange.startMs, viewRange.endMs, pxPerMs]
-  )
+  const { viewRange, ruler } = useTimelineViewport({ scrollRef, pxPerMs, widthPx })
 
   function seekFromClientX(clientX: number) {
     const el = scrollRef.current
@@ -271,129 +212,22 @@ function Timeline() {
 
   return (
     <div className="flex h-full min-h-0 flex-col border-t border-border/80 bg-background">
-      <div className="flex h-9 shrink-0 items-center gap-0.5 border-b border-border/80 bg-muted/10 px-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          title="分割 (S)"
-          className="size-7 text-muted-foreground"
-          onClick={function () {
-            splitAtPlayhead()
-          }}>
-          <Icon
-            icon="lucide:scissors"
-            className="size-3.5"
-          />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          title="删除"
-          className="size-7 text-muted-foreground"
-          onClick={function () {
-            removeSelected()
-          }}>
-          <Icon
-            icon="lucide:trash-2"
-            className="size-3.5"
-          />
-        </Button>
-        <div className="mx-1 h-4 w-px bg-border/80" />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-xs text-muted-foreground"
-          onClick={function () {
-            addTextClip()
-          }}>
-          + 文字
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-xs text-muted-foreground"
-          onClick={function () {
-            void importMedia()
-          }}>
-          + 音频/媒体
-        </Button>
-
-        <div className="ml-auto flex items-center gap-0.5">
-          <Button
-            type="button"
-            variant={isSnapping ? 'default' : 'ghost'}
-            size="icon-sm"
-            title="吸附"
-            className={clsx('size-7', !isSnapping && 'text-muted-foreground')}
-            onClick={function () {
-              updateSnapping(!isSnapping)
-            }}>
-            <Icon
-              icon="lucide:magnet"
-              className="size-3.5"
-            />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="size-7 text-muted-foreground"
-            onClick={function () {
-              updateTimelineZoom(timelineZoom / 1.25)
-            }}>
-            <Icon
-              icon="lucide:zoom-out"
-              className="size-3.5"
-            />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="size-7 text-muted-foreground"
-            onClick={function () {
-              updateTimelineZoom(1)
-            }}
-            title="适应">
-            <Icon
-              icon="lucide:scan"
-              className="size-3.5"
-            />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="size-7 text-muted-foreground"
-            onClick={function () {
-              updateTimelineZoom(timelineZoom * 1.25)
-            }}>
-            <Icon
-              icon="lucide:zoom-in"
-              className="size-3.5"
-            />
-          </Button>
-        </div>
-      </div>
+      <TimelineToolbar
+        isSnapping={isSnapping}
+        zoom={timelineZoom}
+        onSplit={splitAtPlayhead}
+        onRemove={removeSelected}
+        onAddText={addTextClip}
+        onImportMedia={importMedia}
+        onSetSnapping={updateSnapping}
+        onSetZoom={updateTimelineZoom}
+      />
 
       <div className="flex min-h-0 flex-1">
-        <div className="flex w-[5.5rem] shrink-0 flex-col border-r border-border/80 bg-muted/15">
-          <div className="h-7 shrink-0 border-b border-border/80" />
-          {project.tracks.map(function (track) {
-            return (
-              <div
-                key={track.id}
-                className="flex items-center px-2.5 text-[11px] font-medium text-muted-foreground"
-                style={{ height: TRACK_HEIGHT }}>
-                {findTrackDisplayName(project, track)}
-              </div>
-            )
-          })}
-        </div>
+        <TrackNameColumn
+          project={project}
+          tracks={project.tracks}
+        />
 
         <div className="relative min-w-0 flex-1">
         <div
@@ -410,31 +244,12 @@ function Timeline() {
           <div
             className="relative"
             style={{ width: widthPx, minHeight: '100%' }}>
-            <div
-              className="sticky top-0 z-20 h-7 cursor-pointer touch-none select-none border-b border-border/80 bg-background/95 backdrop-blur-sm"
+            <TimelineRuler
+              ruler={ruler}
+              pxPerMs={pxPerMs}
               onPointerDown={onRulerPointerDown}
-              onPointerMove={onRulerPointerMove}>
-              {ruler.marks.map(function (mark) {
-                return (
-                  <div
-                    key={mark.ms}
-                    className="pointer-events-none absolute bottom-0"
-                    style={{ left: mark.ms * pxPerMs }}>
-                    <div
-                      className={clsx(
-                        'absolute bottom-0 w-px',
-                        mark.isMajor ? 'h-2.5 bg-foreground/35' : 'h-1.5 bg-foreground/20'
-                      )}
-                    />
-                    {mark.isMajor ? (
-                      <span className="absolute bottom-2.5 left-1 text-[10px] tabular-nums leading-none text-muted-foreground">
-                        {formatRulerLabel(mark.ms, ruler.majorMs)}
-                      </span>
-                    ) : null}
-                  </div>
-                )
-              })}
-            </div>
+              onPointerMove={onRulerPointerMove}
+            />
 
             {project.tracks.map(function (track) {
               return (
@@ -468,6 +283,273 @@ function Timeline() {
       </div>
     </div>
   )
+}
+
+/** 视口范围与标尺：随滚动 / 尺寸变化分帧测量，按阈值过滤抖动 */
+function useTimelineViewport(input: {
+  scrollRef: RefObject<HTMLDivElement | null>
+  pxPerMs: number
+  widthPx: number
+}) {
+  const { scrollRef, pxPerMs, widthPx } = input
+  const [viewRange, setViewRange] = useState({ startMs: 0, endMs: 12000 })
+
+  useEffect(
+    function () {
+      const host = scrollRef.current
+      if (!host) return
+      let raf = 0
+
+      function measure() {
+        const el = scrollRef.current
+        if (!el) return
+        // clientWidth 为 0 时先按最小视口估，避免永久空抽帧
+        const viewW = Math.max(el.clientWidth, 320)
+        const startMs = el.scrollLeft / pxPerMs
+        const endMs = (el.scrollLeft + viewW) / pxPerMs
+        const span = Math.max(1000, endMs - startMs)
+        const pad = span * 0.5
+        const next = {
+          startMs: Math.max(0, startMs - pad),
+          endMs: endMs + pad
+        }
+        setViewRange(function (prev) {
+          const threshold = span * 0.08
+          if (
+            Math.abs(prev.startMs - next.startMs) < threshold &&
+            Math.abs(prev.endMs - next.endMs) < threshold
+          ) {
+            return prev
+          }
+          return next
+        })
+      }
+
+      function onScroll() {
+        if (raf) return
+        raf = requestAnimationFrame(function () {
+          raf = 0
+          measure()
+        })
+      }
+
+      measure()
+      host.addEventListener('scroll', onScroll, { passive: true })
+      const observer = new ResizeObserver(onScroll)
+      observer.observe(host)
+      return function () {
+        host.removeEventListener('scroll', onScroll)
+        observer.disconnect()
+        if (raf) cancelAnimationFrame(raf)
+      }
+    },
+    [scrollRef, pxPerMs, widthPx]
+  )
+
+  const ruler = useMemo(
+    function () {
+      return buildRulerMarks(viewRange.startMs, viewRange.endMs, pxPerMs)
+    },
+    [viewRange.startMs, viewRange.endMs, pxPerMs]
+  )
+
+  return { viewRange, ruler }
+}
+
+function TimelineToolbar(props: {
+  isSnapping: boolean
+  zoom: number
+  onSplit: () => void
+  onRemove: () => void
+  onAddText: () => void
+  onImportMedia: () => void
+  onSetSnapping: (value: boolean) => void
+  onSetZoom: (value: number) => void
+}) {
+  return (
+    <div className="flex h-9 shrink-0 items-center gap-0.5 border-b border-border/80 bg-muted/10 px-2">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        title="分割 (S)"
+        className="size-7 text-muted-foreground"
+        onClick={props.onSplit}>
+        <Icon
+          icon="lucide:scissors"
+          className="size-3.5"
+        />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        title="删除"
+        className="size-7 text-muted-foreground"
+        onClick={props.onRemove}>
+        <Icon
+          icon="lucide:trash-2"
+          className="size-3.5"
+        />
+      </Button>
+      <div className="mx-1 h-4 w-px bg-border/80" />
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2 text-xs text-muted-foreground"
+        onClick={props.onAddText}>
+        + 文字
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2 text-xs text-muted-foreground"
+        onClick={function () {
+          void props.onImportMedia()
+        }}>
+        + 音频/媒体
+      </Button>
+
+      <div className="ml-auto flex items-center gap-0.5">
+        <Button
+          type="button"
+          variant={props.isSnapping ? 'default' : 'ghost'}
+          size="icon-sm"
+          title="吸附"
+          className={clsx('size-7', !props.isSnapping && 'text-muted-foreground')}
+          onClick={function () {
+            props.onSetSnapping(!props.isSnapping)
+          }}>
+          <Icon
+            icon="lucide:magnet"
+            className="size-3.5"
+          />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="size-7 text-muted-foreground"
+          onClick={function () {
+            props.onSetZoom(props.zoom / 1.25)
+          }}>
+          <Icon
+            icon="lucide:zoom-out"
+            className="size-3.5"
+          />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="size-7 text-muted-foreground"
+          onClick={function () {
+            props.onSetZoom(1)
+          }}
+          title="适应">
+          <Icon
+            icon="lucide:scan"
+            className="size-3.5"
+          />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="size-7 text-muted-foreground"
+          onClick={function () {
+            props.onSetZoom(props.zoom * 1.25)
+          }}>
+          <Icon
+            icon="lucide:zoom-in"
+            className="size-3.5"
+          />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/** 左侧轨名列：每行一个轨名字，不参与横向滚动 */
+function TrackNameColumn(props: { project: Parameters<typeof findTrackDisplayName>[0]; tracks: Track[] }) {
+  return (
+    <div className="flex w-[5.5rem] shrink-0 flex-col border-r border-border/80 bg-muted/15">
+      <div className="h-7 shrink-0 border-b border-border/80" />
+      {props.tracks.map(function (track) {
+        return (
+          <div
+            key={track.id}
+            className="flex items-center px-2.5 text-[11px] font-medium text-muted-foreground"
+            style={{ height: TRACK_HEIGHT }}>
+            {findTrackDisplayName(props.project, track)}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** 顶部时间标尺：主刻度带文字，次刻度只画线 */
+function TimelineRuler(props: {
+  ruler: ReturnType<typeof buildRulerMarks>
+  pxPerMs: number
+  onPointerDown: (event: PointerEvent<HTMLDivElement>) => void
+  onPointerMove: (event: PointerEvent<HTMLDivElement>) => void
+}) {
+  return (
+    <div
+      className="sticky top-0 z-20 h-7 cursor-pointer touch-none select-none border-b border-border/80 bg-background/95 backdrop-blur-sm"
+      onPointerDown={props.onPointerDown}
+      onPointerMove={props.onPointerMove}>
+      {props.ruler.marks.map(function (mark) {
+        return (
+          <div
+            key={mark.ms}
+            className="pointer-events-none absolute bottom-0"
+            style={{ left: mark.ms * props.pxPerMs }}>
+            <div
+              className={clsx(
+                'absolute bottom-0 w-px',
+                mark.isMajor ? 'h-2.5 bg-foreground/35' : 'h-1.5 bg-foreground/20'
+              )}
+            />
+            {mark.isMajor ? (
+              <span className="absolute bottom-2.5 left-1 text-[10px] tabular-nums leading-none text-muted-foreground">
+                {formatRulerLabel(mark.ms, props.ruler.majorMs)}
+              </span>
+            ) : null}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+const TRACK_EMPTY_HINTS: Partial<Record<Track['kind'], string>> = {
+  video: '+ 添加视频',
+  audio: '+ 添加音频',
+  text: '+ 添加文字',
+  caption: '+ 添加字幕',
+  overlay: '+ 添加叠加'
+}
+
+function findEmptyHint(kind: Track['kind']) {
+  return TRACK_EMPTY_HINTS[kind] ?? null
+}
+
+const TONE_AUDIO = 'border-emerald-500/50 bg-emerald-950/80 text-emerald-50'
+const TONE_TEXT = 'border-amber-500/45 bg-amber-500/25 text-amber-950 dark:text-amber-50'
+const TONE_STICKER = 'border-pink-500/45 bg-pink-500/25 text-pink-950 dark:text-pink-50'
+const TONE_FILM = 'border-primary/40 bg-black text-white'
+const TONE_DEFAULT = 'border-primary/45 bg-primary/20 text-foreground'
+
+function findClipTone(kind: Clip['kind'], hasFilm: boolean) {
+  if (kind === 'audio') return TONE_AUDIO
+  if (kind === 'text' || kind === 'caption') return TONE_TEXT
+  if (kind === 'sticker') return TONE_STICKER
+  return hasFilm ? TONE_FILM : TONE_DEFAULT
 }
 
 interface TrackRowProps {
@@ -510,17 +592,7 @@ function TrackRow(props: TrackRowProps) {
       />
       {track.clips.length === 0 ? (
         <div className="pointer-events-none flex h-full items-center px-3 text-[11px] text-muted-foreground/55">
-          {track.kind === 'text'
-            ? '+ 添加文字'
-            : track.kind === 'audio'
-              ? '+ 添加音频'
-              : track.kind === 'caption'
-                ? '+ 添加字幕'
-                : track.kind === 'video'
-                  ? '+ 添加视频'
-                  : track.kind === 'overlay'
-                    ? '+ 添加叠加'
-                    : null}
+          {findEmptyHint(track.kind)}
         </div>
       ) : null}
 
@@ -537,16 +609,7 @@ function TrackRow(props: TrackRowProps) {
           (clip.kind === 'video' || clip.kind === 'image') &&
           (asset.kind === 'video' || asset.kind === 'image')
         const hasWave = !!asset && clip.kind === 'audio'
-        const tone =
-          clip.kind === 'audio'
-            ? 'border-emerald-500/50 bg-emerald-950/80 text-emerald-50'
-            : clip.kind === 'text' || clip.kind === 'caption'
-              ? 'border-amber-500/45 bg-amber-500/25 text-amber-950 dark:text-amber-50'
-              : clip.kind === 'sticker'
-                ? 'border-pink-500/45 bg-pink-500/25 text-pink-950 dark:text-pink-50'
-                : hasFilm
-                  ? 'border-primary/40 bg-black text-white'
-                  : 'border-primary/45 bg-primary/20 text-foreground'
+        const tone = findClipTone(clip.kind, hasFilm)
 
         return (
           <TimelineClipBlock
