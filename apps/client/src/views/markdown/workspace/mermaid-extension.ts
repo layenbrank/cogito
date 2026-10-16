@@ -1,6 +1,10 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 
-type MermaidApi = (typeof import('mermaid'))['default']
+/** 只用得到 initialize / render 两个方法，因此按最小结构声明，避免 `import()` 类型注解 */
+interface MermaidApi {
+  initialize(config: { startOnLoad: boolean; securityLevel: string; theme: string }): void
+  render(id: string, source: string): Promise<{ svg: string }>
+}
 
 /**
  * mermaid 体积大且只有文档里真的出现图表块才用得上：按需动态加载，并只初始化一次。
@@ -14,7 +18,7 @@ function loadMermaid(): Promise<MermaidApi> {
       securityLevel: 'strict',
       theme: 'neutral'
     })
-    return mod.default
+    return mod.default as MermaidApi
   })
   return mermaidPromise
 }

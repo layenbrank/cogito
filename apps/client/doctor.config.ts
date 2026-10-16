@@ -56,6 +56,16 @@ export default defineConfig({
         // 全局键注册/回滚共用一个串行队列与 activeBindings，必须逐个执行；并行会与管理器状态竞态
         files: ['src/keyboard/global.ts'],
         rules: ['react-doctor/async-await-in-loop']
+      },
+      {
+        // 编排卡整块可点是有意的，键盘路径由卡内的「打开」按钮承担（Tab 可达、Enter 触发）。
+        // 不能用 `absolute inset-0` 的透明按钮接管点击 —— 曾经这么干过，被同层焦点按钮盖死，整张卡点不开
+        // （见 card.test.tsx 里的教训注释），所以这里显式豁免而不是改结构。
+        files: ['src/views/directive/library/card.tsx'],
+        rules: [
+          'react-doctor/no-static-element-interactions',
+          'react-doctor/click-events-have-key-events'
+        ]
       }
     ]
   }

@@ -46,6 +46,85 @@ interface MountTilePayload {
   mark?: string | null
 }
 
+/**
+ * 浮层宿主的三个「长跑守卫」：错误风暴兜底、隐藏时清截屏态、心跳。
+ *
+ * 它们与渲染无关，放在一起也方便看清「什么情况下这一层会被判死」。
+ */
+function useOverlayHostGuards(recover: () => void): void {
+  /**
+   * 长跑兜底：未捕获错误 / 未处理拒绝在短时间内反复出现，说明这一层已不可用。
+   * 只累计到阈值才恢复（单个瞬时错误不骚扰用户）。
+   */
+  useEffect(
+    function () {
+      let errorTimes: number[] = []
+
+      function recordError(source: string, detail: unknown) {
+        console.error(`[overlay] ${source}`, detail)
+        const now = Date.now()
+        errorTimes = errorTimes.filter(function (at) {
+          return now - at < ERROR_RECOVER_WINDOW_MS
+        })
+        errorTimes.push(now)
+        if (errorTimes.length >= ERROR_RECOVER_THRESHOLD) {
+          errorTimes = []
+          recover()
+        }
+      }
+
+      function onError(event: ErrorEvent) {
+        recordError('uncaught error', event.error ?? event.message)
+      }
+      function onRejection(event: PromiseRejectionEvent) {
+        recordError('unhandled rejection', event.reason)
+      }
+
+      window.addEventListener('error', onError)
+      window.addEventListener('unhandledrejection', onRejection)
+      return function () {
+        window.removeEventListener('error', onError)
+        window.removeEventListener('unhandledrejection', onRejection)
+      }
+    },
+    [recover]
+  )
+
+  /** 窗口被隐藏时不保留截屏态：下次显示应该是干净的空层（而非带旧截图的浮层） */
+  useEffect(function () {
+    function onVisibilityChange() {
+      if (document.visibilityState !== 'hidden') return
+      if (useOverlayStore.getState().mode !== 'screenshot') return
+      void useOverlayStore
+        .getState()
+        .toScreenshotExit()
+        .catch(function (error) {
+          console.warn('[overlay] 隐藏时退出截屏失败', error)
+        })
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return function () {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [])
+
+  /** 心跳：宿主（overlay:ensure）据此判断渲染进程是否已挂，必要时重载页面 */
+  useEffect(function () {
+    function ping() {
+      void invoke(CHANNELS.OVERLAY.PING).catch(function (error) {
+        console.warn('[overlay] 心跳失败', error)
+      })
+    }
+
+    ping()
+    const timer = window.setInterval(ping, PING_INTERVAL_MS)
+    return function () {
+      window.clearInterval(timer)
+    }
+  }, [])
+}
+
 function OverlayShell() {
   const shellRef = useRef<HTMLElement | null>(document.body)
   const stageRef = useRef<HTMLDivElement>(null)
@@ -138,78 +217,7 @@ function OverlayShell() {
     }
   }, [])
 
-  /**
-   * 长跑兜底：未捕获错误 / 未处理拒绝在短时间内反复出现，说明这一层已不可用。
-   * 只累计到阈值才恢复（单个瞬时错误不骚扰用户）。
-   */
-  useEffect(
-    function () {
-      let errorTimes: number[] = []
-
-      function recordError(source: string, detail: unknown) {
-        console.error(`[overlay] ${source}`, detail)
-        const now = Date.now()
-        errorTimes = errorTimes.filter(function (at) {
-          return now - at < ERROR_RECOVER_WINDOW_MS
-        })
-        errorTimes.push(now)
-        if (errorTimes.length >= ERROR_RECOVER_THRESHOLD) {
-          errorTimes = []
-          recover()
-        }
-      }
-
-      function onError(event: ErrorEvent) {
-        recordError('uncaught error', event.error ?? event.message)
-      }
-      function onRejection(event: PromiseRejectionEvent) {
-        recordError('unhandled rejection', event.reason)
-      }
-
-      window.addEventListener('error', onError)
-      window.addEventListener('unhandledrejection', onRejection)
-      return function () {
-        window.removeEventListener('error', onError)
-        window.removeEventListener('unhandledrejection', onRejection)
-      }
-    },
-    [recover]
-  )
-
-  /** 窗口被隐藏时不保留截屏态：下次显示应该是干净的空层（而非带旧截图的浮层） */
-  useEffect(function () {
-    function onVisibilityChange() {
-      if (document.visibilityState !== 'hidden') return
-      setConcealed(false)
-      if (useOverlayStore.getState().mode !== 'screenshot') return
-      void useOverlayStore
-        .getState()
-        .toScreenshotExit()
-        .catch(function (error) {
-          console.warn('[overlay] 隐藏时退出截屏失败', error)
-        })
-    }
-
-    document.addEventListener('visibilitychange', onVisibilityChange)
-    return function () {
-      document.removeEventListener('visibilitychange', onVisibilityChange)
-    }
-  }, [])
-
-  /** 心跳：宿主（overlay:ensure）据此判断渲染进程是否已挂，必要时重载页面 */
-  useEffect(function () {
-    function ping() {
-      void invoke(CHANNELS.OVERLAY.PING).catch(function (error) {
-        console.warn('[overlay] 心跳失败', error)
-      })
-    }
-
-    ping()
-    const timer = window.setInterval(ping, PING_INTERVAL_MS)
-    return function () {
-      window.clearInterval(timer)
-    }
-  }, [])
+  useOverlayHostGuards(recover)
 
   useEffect(
     function () {

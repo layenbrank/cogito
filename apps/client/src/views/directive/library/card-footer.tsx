@@ -82,7 +82,7 @@ function CardFooter(props: CardFooterProps) {
                 type="button"
                 variant="outline"
                 size="icon-sm"
-                className="pointer-events-auto relative z-10 h-8 w-8 shrink-0 cursor-pointer border-border/80 text-muted-foreground opacity-70 hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive group-hover/card:opacity-100 focus-visible:opacity-100"
+                className="relative z-10 h-8 w-8 shrink-0 cursor-pointer border-border/80 text-muted-foreground opacity-70 hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive group-hover/card:opacity-100 focus-visible:opacity-100"
                 aria-label={`删除 ${props.entry.name}`}
                 title={`删除 ${props.entry.name}`}
                 onClick={handleDelete}>
@@ -96,16 +96,14 @@ function CardFooter(props: CardFooterProps) {
           <TooltipContent side="top">删除 {props.entry.name}</TooltipContent>
         </Tooltip>
         {props.isParsed ? (
-          <span className="pointer-events-auto">
-            <WallRunBar
-              name={props.entry.name}
-              caps={caps}
-              disabled={!props.isParsed}
-              onOnce={function () {
-                props.onRun(props.entry.name)
-              }}
-            />
-          </span>
+          <WallRunBar
+            name={props.entry.name}
+            caps={caps}
+            disabled={!props.isParsed}
+            onOnce={function () {
+              props.onRun(props.entry.name)
+            }}
+          />
         ) : null}
       </div>
     </div>
