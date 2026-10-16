@@ -223,6 +223,12 @@ function Section(props: SectionProps) {
             tooltip="右对齐"
             hideWhenUnavailable
           />
+          <TextAlignButton
+            editor={props.composer}
+            align="justify"
+            tooltip="两端对齐"
+            hideWhenUnavailable
+          />
           <TextButton
             editor={props.composer}
             tooltip="清除格式"

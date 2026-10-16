@@ -84,6 +84,10 @@ export const COMMAND = {
   EDITOR_RESET_FORMATTING: 'editor.resetFormatting',
   EDITOR_SLASH_TRIGGER: 'editor.slashTrigger',
   EDITOR_TEXT: 'editor.text',
+  EDITOR_TEXT_ALIGN_LEFT: 'editor.textAlignLeft',
+  EDITOR_TEXT_ALIGN_CENTER: 'editor.textAlignCenter',
+  EDITOR_TEXT_ALIGN_RIGHT: 'editor.textAlignRight',
+  EDITOR_TEXT_ALIGN_JUSTIFY: 'editor.textAlignJustify',
 
   NATIVE_EDITOR_BLOCKQUOTE: 'editor.blockquote',
   NATIVE_EDITOR_CODE_BLOCK: 'editor.codeBlock',

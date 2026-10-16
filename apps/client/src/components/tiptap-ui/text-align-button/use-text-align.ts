@@ -43,10 +43,18 @@ export interface UseTextAlignConfig {
 }
 
 export const TEXT_ALIGN_SHORTCUT_KEYS: Record<TextAlign, string> = {
-  left: 'mod+shift+l',
-  center: 'mod+shift+e',
-  right: 'mod+shift+r',
-  justify: 'mod+shift+j'
+  left: findShortcutDefault(SHORTCUT_COMMAND.EDITOR_TEXT_ALIGN_LEFT),
+  center: findShortcutDefault(SHORTCUT_COMMAND.EDITOR_TEXT_ALIGN_CENTER),
+  right: findShortcutDefault(SHORTCUT_COMMAND.EDITOR_TEXT_ALIGN_RIGHT),
+  justify: findShortcutDefault(SHORTCUT_COMMAND.EDITOR_TEXT_ALIGN_JUSTIFY)
+}
+
+/** 对齐方向 → 命令 id：键位分属四个独立条目（可分别展示与查冲突） */
+const TEXT_ALIGN_COMMANDS: Record<TextAlign, string> = {
+  left: SHORTCUT_COMMAND.EDITOR_TEXT_ALIGN_LEFT,
+  center: SHORTCUT_COMMAND.EDITOR_TEXT_ALIGN_CENTER,
+  right: SHORTCUT_COMMAND.EDITOR_TEXT_ALIGN_RIGHT,
+  justify: SHORTCUT_COMMAND.EDITOR_TEXT_ALIGN_JUSTIFY
 }
 
 export const textAlignIcons = {
@@ -196,6 +204,16 @@ export function useTextAlign(config: UseTextAlignConfig) {
     }
     return success
   }, [editor, align, onAligned])
+
+  useShortcut(
+    TEXT_ALIGN_COMMANDS[align],
+    () => {
+      handleTextAlign()
+    },
+    {
+      enabled: isVisible && canAlign
+    }
+  )
 
   return {
     isVisible,

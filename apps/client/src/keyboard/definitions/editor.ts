@@ -18,7 +18,9 @@ export const EDITOR_SHORTCUTS: readonly LocalShortcutDefinition[] = [
   editorShortcut(COMMAND.EDITOR_COPY_TO_CLIPBOARD, '编辑器：复制到剪贴板', 'mod+c'),
   editorShortcut(COMMAND.EDITOR_DELETE_NODE, '编辑器：删除当前节点', 'backspace'),
   editorShortcut(COMMAND.EDITOR_DUPLICATE, '编辑器：复制节点', 'mod+d'),
-  editorShortcut(COMMAND.EDITOR_EMOJI_TRIGGER, '编辑器：表情', 'mod+shift+e'),
+  // 表情键原为 mod+shift+e，与文字居中对齐的 `mod+shift+l/e/r/j` 家族撞车（同窗口同作用域），
+  // 让位给对齐并改用 `mod+shift+.`（与 Windows 系统表情面板 Win+. 的直觉一致）
+  editorShortcut(COMMAND.EDITOR_EMOJI_TRIGGER, '编辑器：表情', 'mod+shift+.'),
   // 图片对齐是 `alt+shift+*` 家族（与文字对齐的 `mod+shift+*` 分开），且只有三条
   editorShortcut(COMMAND.EDITOR_IMAGE_ALIGN_LEFT, '编辑器：图片居左', 'alt+shift+l'),
   editorShortcut(COMMAND.EDITOR_IMAGE_ALIGN_CENTER, '编辑器：图片居中', 'alt+shift+e'),
@@ -30,7 +32,13 @@ export const EDITOR_SHORTCUTS: readonly LocalShortcutDefinition[] = [
   editorShortcut(COMMAND.EDITOR_MOVE_DOWN, '编辑器：下移节点', 'mod+shift+ArrowDown'),
   editorShortcut(COMMAND.EDITOR_RESET_FORMATTING, '编辑器：清除格式', 'mod+r'),
   editorShortcut(COMMAND.EDITOR_SLASH_TRIGGER, '编辑器：斜杠命令', 'mod+/'),
-  editorShortcut(COMMAND.EDITOR_TEXT, '编辑器：普通段落', 'mod+alt+0')
+  editorShortcut(COMMAND.EDITOR_TEXT, '编辑器：普通段落', 'mod+alt+0'),
+  // 文字对齐：`mod+shift+*` 家族（与图片对齐的 `alt+shift+*` 分开）。对齐字母沿用 Word 的
+  // Ctrl+L / E / R / J 习惯，所以是 l/e/r/j
+  editorShortcut(COMMAND.EDITOR_TEXT_ALIGN_LEFT, '编辑器：文字居左', 'mod+shift+l'),
+  editorShortcut(COMMAND.EDITOR_TEXT_ALIGN_CENTER, '编辑器：文字居中', 'mod+shift+e'),
+  editorShortcut(COMMAND.EDITOR_TEXT_ALIGN_RIGHT, '编辑器：文字居右', 'mod+shift+r'),
+  editorShortcut(COMMAND.EDITOR_TEXT_ALIGN_JUSTIFY, '编辑器：文字两端对齐', 'mod+shift+j')
 ]
 
 /**
