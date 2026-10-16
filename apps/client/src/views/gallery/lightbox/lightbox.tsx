@@ -125,6 +125,12 @@ function Lightbox(props: LightboxProps) {
   const [swiper, onSwiper] = useState<SwiperClass | null>(null)
   const [activeIndex, onActiveIndex] = useState(0)
   const [isFullscreen, onFullscreen] = useState(false)
+  // 关闭时退出全屏：渲染期按 prop 变化调整（React 推荐做法），不用 effect 同步 state
+  const [wasOpen, setWasOpen] = useState(props.open)
+  if (props.open !== wasOpen) {
+    setWasOpen(props.open)
+    if (!props.open) onFullscreen(false)
+  }
   const [mediaAspect, onMediaAspect] = useState(LIGHTBOX_FRAME_ASPECT)
   const [frame, onFrame] = useState<FrameSize>(function () {
     return findWindowFrame(false, HEADER_Y + THUMB_Y)
@@ -161,13 +167,6 @@ function Lightbox(props: LightboxProps) {
   })
   const isZoomed = isImage ? canvasZoomed : videoZoomed
   const zoomLabel = isImage ? canvasScale : scale
-
-  useEffect(
-    function () {
-      if (!props.open) onFullscreen(false)
-    },
-    [props.open]
-  )
 
   useEffect(
     function () {
@@ -402,13 +401,14 @@ function Lightbox(props: LightboxProps) {
                         <div
                           key={media.asset.id}
                           ref={mediaRef}
-                          className="absolute top-0 left-0 overflow-hidden will-change-[width,height,transform]"
+                          className="absolute top-0 left-0 overflow-hidden"
                           style={{ width: fit.width, height: fit.height }}>
                           <video
                             className="size-full object-contain"
                             src={media.src}
                             controls
                             autoPlay
+                            muted
                             playsInline
                           />
                         </div>
@@ -482,6 +482,7 @@ function Lightbox(props: LightboxProps) {
                     key={media.asset.id}
                     type="button"
                     data-thumb-index={index}
+                    aria-label={`切换到第 ${index + 1} 项`}
                     className={cn(
                       'size-12 shrink-0 overflow-hidden rounded-md border transition-[opacity,border-color,transform] duration-150',
                       index === activeIndex

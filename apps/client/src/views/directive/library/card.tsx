@@ -36,11 +36,9 @@ function Card(props: Props) {
         props.isActive
           ? 'border-primary bg-accent text-accent-foreground shadow-xs'
           : 'border-border/70 hover:border-border hover:bg-accent-hover hover:shadow-md'
-      )}
-      onClick={function () {
-        props.onOpen(entry.name)
-      }}>
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-1.5">
+      )}>
+      {/* 内容层默认不吃指针事件：空白处落到底层按钮，交互控件各自 pointer-events-auto */}
+      <div className="pointer-events-none relative z-10 flex min-h-0 flex-1 flex-col gap-1.5">
         <div className="flex items-start gap-2.5">
           <span
             title={mark.label}
@@ -91,6 +89,9 @@ function Card(props: Props) {
         aria-current={props.isActive}
         aria-label={`打开 ${entry.name}`}
         className="absolute inset-0 z-0 cursor-pointer rounded-[inherit] outline-none"
+        onClick={function () {
+          props.onOpen(entry.name)
+        }}
       />
     </div>
   )

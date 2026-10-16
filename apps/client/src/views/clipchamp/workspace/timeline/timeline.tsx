@@ -500,10 +500,16 @@ function TrackRow(props: TrackRowProps) {
   return (
     <div
       className="relative border-b border-border/40 bg-transparent"
-      style={{ height: TRACK_HEIGHT }}
-      onClick={onSelectEmpty}>
+      style={{ height: TRACK_HEIGHT }}>
+      {/* 点击空白处取消选择：用真按钮保证键盘可达，同时避开「片段不能嵌进按钮里」的非法嵌套 */}
+      <button
+        type="button"
+        aria-label="取消选择片段"
+        className="absolute inset-0 cursor-default"
+        onClick={onSelectEmpty}
+      />
       {track.clips.length === 0 ? (
-        <div className="flex h-full items-center px-3 text-[11px] text-muted-foreground/55">
+        <div className="pointer-events-none flex h-full items-center px-3 text-[11px] text-muted-foreground/55">
           {track.kind === 'text'
             ? '+ 添加文字'
             : track.kind === 'audio'
@@ -603,7 +609,7 @@ function TimelineClipBlock(props: TimelineClipBlockProps) {
     onClipPointerDown,
     onWaveform
   } = props
-  const blockRef = useRef<HTMLDivElement>(null)
+  const blockRef = useRef<HTMLButtonElement>(null)
   const [isInView, setInView] = useState(false)
 
   useEffect(
@@ -634,12 +640,13 @@ function TimelineClipBlock(props: TimelineClipBlockProps) {
   )
 
   return (
-    <div
+    <button
       ref={blockRef}
-      role="button"
-      tabIndex={0}
+      type="button"
+      aria-pressed={isSelected}
+      aria-label={label}
       className={clsx(
-        'absolute top-1.5 flex h-[calc(100%-12px)] cursor-grab items-center overflow-hidden rounded-md border shadow-sm active:cursor-grabbing',
+        'absolute top-1.5 flex h-[calc(100%-12px)] cursor-grab items-center overflow-hidden rounded-md border text-left shadow-sm active:cursor-grabbing',
         tone,
         isSelected && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
       )}
@@ -679,7 +686,7 @@ function TimelineClipBlock(props: TimelineClipBlockProps) {
         )}>
         {label}
       </span>
-    </div>
+    </button>
   )
 }
 

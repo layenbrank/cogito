@@ -181,13 +181,12 @@ function FindBar(props: FindBarProps) {
         : `共 ${matchTotal} 项`
 
   return (
-    <div
+    <search
       className={cn(
         'absolute right-3 z-30 flex min-w-[min(100%-1.5rem,22rem)] flex-col gap-1',
         props.clearToolbar ? 'top-11' : 'top-2',
         'rounded-md border border-border bg-popover p-1.5 shadow-lg backdrop-blur-none'
       )}
-      role="search"
       aria-label={t('FIND')}>
       <div className="flex items-start gap-1">
         <Button
@@ -401,7 +400,7 @@ function FindBar(props: FindBarProps) {
           ) : null}
         </div>
       </div>
-    </div>
+    </search>
   )
 }
 

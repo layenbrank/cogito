@@ -1,4 +1,4 @@
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, m, useReducedMotion } from 'motion/react'
 import { Suspense } from 'react'
 import { NavigationType, useMatches, useNavigationType, useOutlet } from 'react-router-dom'
 
@@ -31,14 +31,14 @@ function RouteTransition() {
 
   return (
     <AnimatePresence initial={false}>
-      <motion.div
+      <m.div
         key={findTransitionKey(matches)}
         className="h-full w-full"
         initial={{ opacity: 0, x: distance }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}>
         <Suspense fallback={<Fallback.Route />}>{outlet}</Suspense>
-      </motion.div>
+      </m.div>
     </AnimatePresence>
   )
 }

@@ -17,20 +17,36 @@ function Controller(props: ControllerProps) {
   const shape: Mirror.Shape = 'square'
   const direction: Mirror.Direction = 'vertical'
 
+  /** 卡片自身已处理点击，这里只靠事件委托按 data-id 选贴；Enter/空格与点击等价 */
+  function pickFromEvent(
+    event: React.SyntheticEvent<HTMLUListElement>,
+    allowed: boolean
+  ): void {
+    if (!allowed) return
+    const closest = (event.target as HTMLElement).closest<HTMLElement>('.magnetic-tile')
+    if (!closest) return
+    const id = closest.getAttribute('data-id')
+    if (id) props.onPick?.(id)
+  }
+
   return (
-    <div
-      role="list"
+    <ul
+      role="toolbar"
+      aria-label="集合内容"
       className={styles.magneticTile}
       onClick={function (event) {
-        if (!props.onPick) return
-        const closest = (event.target as HTMLElement).closest<HTMLElement>('.magnetic-tile')
-        if (!closest) return
-        const id = closest.getAttribute('data-id')
-        if (id) props.onPick(id)
+        pickFromEvent(event, Boolean(props.onPick))
+      }}
+      onKeyDown={function (event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        pickFromEvent(event, Boolean(props.onPick))
       }}>
       {props.magneticTiles.map(function (value) {
         return (
-          <Navigation
+          <li
+            key={value.id}
+            className="contents">
+            <Navigation
             {...value}
             key={value.id}
             size={size}
@@ -47,9 +63,10 @@ function Controller(props: ControllerProps) {
                 : undefined
             }
           />
+          </li>
         )
       })}
-    </div>
+    </ul>
   )
 }
 
