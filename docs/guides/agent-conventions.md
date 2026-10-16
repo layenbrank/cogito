@@ -62,8 +62,9 @@
 - 简洁，>20 字符应拆分；有命名空间时可精简，不必重复前缀；看不清时加注释。
 - 常量 / 枚举键 / API：全大写蛇形（`POST_SIGNIN`）；接口 / 类型：PascalCase（`ChannelSpec`）。
 - 同概念用词一致，不同概念不复用同名。
-- 禁 `get` 前缀 → 用 `find` / `fetch`；解析用 `parse`。
+- 禁 `get` 前缀 → 用 `find` / `fetch`；解析用 `parse`；常量命名不使用 default 命名，全大写已代表常量/默认值，不使用 `load`，可使用 `bootstrap` 代替；不使用 `apply` 命名；不使用 `create` 命名。
 - 布尔 `is` / `has` / `can`；非 `useState` 不用 `set`；集合用复数、不含 `list`。
+- UI 区域 / 容器用 `surface` 命名，不用 `panel`（组件名、文件名、store 字段一致）。
 
 ## 结构与样式
 
