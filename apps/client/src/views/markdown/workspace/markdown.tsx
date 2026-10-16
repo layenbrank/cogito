@@ -383,7 +383,7 @@ function useMarkdownFileActions(input: {
 
 /** 主工作区：侧栏 / 编辑区 / 大纲三栏，按视图模式切换源码 / 实时 / 分屏 */
 function WorkspaceSurfaces(props: {
-  showChrome: boolean
+  isShellVisible: boolean
   isSidebarOpen: boolean
   isOutlineOpen: boolean
   isFindOpen: boolean
@@ -432,7 +432,7 @@ function WorkspaceSurfaces(props: {
     <ResizablePanelGroup
       orientation="horizontal"
       className="min-h-0 flex-1">
-      {props.showChrome && props.isSidebarOpen ? (
+        {props.isShellVisible && props.isSidebarOpen ? (
         <>
           <ResizablePanel
             defaultSize="16%"
@@ -506,7 +506,7 @@ function WorkspaceSurfaces(props: {
         ) : null}
       </ResizablePanel>
 
-      {props.showChrome && props.isOutlineOpen ? (
+        {props.isShellVisible && props.isOutlineOpen ? (
         <>
           <ResizableHandle withHandle />
           <ResizablePanel
@@ -713,14 +713,14 @@ export default function MarkdownWorkspace() {
     }
   })
 
-  const showChrome = !isFocusMode
+  const isShellVisible = !isFocusMode
   const isDark = document.documentElement.classList.contains('dark')
 
   return (
     <div className={clsx([styles.markdown, styles.root, 'relative'])}>
       {isFocusMode ? <FocusExit onExit={exitFocusMode} /> : null}
 
-      {showChrome ? (
+      {isShellVisible ? (
         <Overlay.Utility
           onToggleFind={function () {
             setFindPreferReplace(false)
@@ -742,7 +742,7 @@ export default function MarkdownWorkspace() {
         />
       ) : (
         <WorkspaceSurfaces
-          showChrome={showChrome}
+          isShellVisible={isShellVisible}
           isSidebarOpen={isSidebarOpen}
           isOutlineOpen={isOutlineOpen}
           isFindOpen={isFindOpen}
