@@ -132,7 +132,7 @@ function useMarkdownDocumentEffects(input: {
     function () {
       let unlisten: (() => void) | undefined
       void getCurrentWindow()
-        .onCloseRequested(async function (event) {
+        .onCloseRequested(function (event) {
           if (!useMarkdownStore.getState().isDirty) return
           event.preventDefault()
           pendingActionRef.current = function () {
@@ -303,7 +303,7 @@ function useMarkdownFileActions(input: {
     })
   }
 
-  async function handleOpenFile() {
+  function handleOpenFile() {
     runGuarded(function () {
       void openWithDialog().then(function (ok) {
         if (ok) {
@@ -313,7 +313,7 @@ function useMarkdownFileActions(input: {
     })
   }
 
-  async function handleOpenFolder() {
+  function handleOpenFolder() {
     runGuarded(function () {
       void openFolderAsWorkspace().then(function (ok) {
         if (ok && !useMarkdownStore.getState().activePath) {
@@ -382,7 +382,7 @@ function useMarkdownFileActions(input: {
 }
 
 /** 主工作区：侧栏 / 编辑区 / 大纲三栏，按视图模式切换源码 / 实时 / 分屏 */
-function WorkspacePanes(props: {
+function WorkspaceSurfaces(props: {
   showChrome: boolean
   isSidebarOpen: boolean
   isOutlineOpen: boolean
@@ -741,7 +741,7 @@ export default function MarkdownWorkspace() {
           onOpenRecent={handleOpenPath}
         />
       ) : (
-        <WorkspacePanes
+        <WorkspaceSurfaces
           showChrome={showChrome}
           isSidebarOpen={isSidebarOpen}
           isOutlineOpen={isOutlineOpen}

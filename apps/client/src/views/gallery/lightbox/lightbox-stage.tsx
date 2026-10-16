@@ -62,12 +62,31 @@ function LightboxStage(props: {
   onZoomedChange: (value: boolean) => void
   onScaleChange: (value: number) => void
 }) {
+  const {
+    medias,
+    activeIndex,
+    initialIndex,
+    fit,
+    isFullscreen,
+    isZoomed,
+    zoomLabel,
+    isReducedMotion,
+    durationSec,
+    stageRef,
+    mediaRef,
+    swiper,
+    onSwiper,
+    onActiveIndexChange,
+    onZoomedChange,
+    onScaleChange
+  } = props
+
   return (
     <div
-      ref={props.stageRef}
+      ref={stageRef}
       className={cn(
         'relative min-h-0 flex-1 overflow-hidden bg-zinc-950',
-        props.isFullscreen && 'pt-0'
+        isFullscreen && 'pt-0'
       )}>
       <Swiper
         className="relative z-[1] size-full"
@@ -76,13 +95,13 @@ function LightboxStage(props: {
         keyboard={{ enabled: true }}
         slidesPerView={1}
         spaceBetween={0}
-        initialSlide={props.initialIndex}
-        onSwiper={props.onSwiper}
+        initialSlide={initialIndex}
+        onSwiper={onSwiper}
         onSlideChange={function (instance) {
-          props.onActiveIndexChange(instance.activeIndex)
+          onActiveIndexChange(instance.activeIndex)
         }}>
-        {props.medias.map(function (media, index) {
-          const isActive = index === props.activeIndex
+        {medias.map(function (media, index) {
+          const isActive = index === activeIndex
           return (
             <SwiperSlide
               key={media.asset.id}
@@ -92,9 +111,9 @@ function LightboxStage(props: {
                 media.kind === 'video' ? (
                   <div
                     key={media.asset.id}
-                    ref={props.mediaRef}
+                    ref={mediaRef}
                     className="absolute top-0 left-0 overflow-hidden"
-                    style={{ width: props.fit.width, height: props.fit.height }}>
+                    style={{ width: fit.width, height: fit.height }}>
                     <video
                       className="size-full object-contain"
                       src={media.src}
@@ -108,8 +127,8 @@ function LightboxStage(props: {
                   <GalleryImageStage
                     key={media.asset.id}
                     src={media.src}
-                    onZoomedChange={props.onZoomedChange}
-                    onScaleChange={props.onScaleChange}
+                    onZoomedChange={onZoomedChange}
+                    onScaleChange={onScaleChange}
                   />
                 )
               ) : (
@@ -126,34 +145,34 @@ function LightboxStage(props: {
       </Swiper>
 
       <AnimatePresence>
-        {props.isZoomed ? (
+        {isZoomed ? (
           <m.div
             className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1 text-xs text-white tabular-nums backdrop-blur-md"
-            initial={props.isReducedMotion ? false : { opacity: 0, y: 6 }}
+            initial={isReducedMotion ? false : { opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={props.isReducedMotion ? undefined : { opacity: 0, y: 4 }}
-            transition={{ duration: props.durationSec, ease: [0.22, 1, 0.36, 1] }}>
-            {Math.round(props.zoomLabel * 100)}% · 双击复位
+            exit={isReducedMotion ? undefined : { opacity: 0, y: 4 }}
+            transition={{ duration: durationSec, ease: [0.22, 1, 0.36, 1] }}>
+            {Math.round(zoomLabel * 100)}% · 双击复位
           </m.div>
         ) : null}
       </AnimatePresence>
 
-      {props.medias.length > 1 && !props.isZoomed ? (
+      {medias.length > 1 && !isZoomed ? (
         <>
           <LightboxNavButton
             label="上一张"
             side="left"
-            disabled={props.activeIndex <= 0}
+            disabled={activeIndex <= 0}
             onClick={function () {
-              props.swiper?.slidePrev()
+              swiper?.slidePrev()
             }}
           />
           <LightboxNavButton
             label="下一张"
             side="right"
-            disabled={props.activeIndex >= props.medias.length - 1}
+            disabled={activeIndex >= medias.length - 1}
             onClick={function () {
-              props.swiper?.slideNext()
+              swiper?.slideNext()
             }}
           />
         </>

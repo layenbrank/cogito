@@ -98,19 +98,21 @@ function LightboxThumbStrip(props: {
   stripRef: { current: HTMLDivElement | null }
   onSelect: (index: number) => void
 }) {
+  const { medias, activeIndex, range, stripRef, onSelect } = props
+
   return (
     <div
-      ref={props.stripRef}
+      ref={stripRef}
       className="flex h-16 shrink-0 gap-1.5 overflow-x-auto border-t border-border/50 bg-background px-3 py-2">
-      {props.range.start > 0 ? (
+      {range.start > 0 ? (
         <div
           className="shrink-0"
-          style={{ width: props.range.start * 54 }}
+          style={{ width: range.start * 54 }}
           aria-hidden
         />
       ) : null}
-      {props.medias.slice(props.range.start, props.range.end).map(function (media, offset) {
-        const index = props.range.start + offset
+      {medias.slice(range.start, range.end).map(function (media, offset) {
+        const index = range.start + offset
         return (
           <button
             key={media.asset.id}
@@ -119,12 +121,12 @@ function LightboxThumbStrip(props: {
             aria-label={`切换到第 ${index + 1} 项`}
             className={cn(
               'size-12 shrink-0 overflow-hidden rounded-md border transition-[opacity,border-color,transform] duration-150',
-              index === props.activeIndex
+              index === activeIndex
                 ? 'scale-105 border-primary opacity-100 ring-1 ring-primary/40'
                 : 'border-transparent opacity-65 hover:opacity-100'
             )}
             onClick={function () {
-              props.onSelect(index)
+              onSelect(index)
             }}>
             {media.kind === 'video' ? (
               <video
@@ -144,10 +146,10 @@ function LightboxThumbStrip(props: {
           </button>
         )
       })}
-      {props.range.end < props.medias.length ? (
+      {range.end < medias.length ? (
         <div
           className="shrink-0"
-          style={{ width: (props.medias.length - props.range.end) * 54 }}
+          style={{ width: (medias.length - range.end) * 54 }}
           aria-hidden
         />
       ) : null}

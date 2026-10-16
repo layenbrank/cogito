@@ -154,6 +154,24 @@ function FindRow(props: {
   onStep: (direction: 1 | -1) => void
   onClose: () => void
 }) {
+  const {
+    inputRef,
+    query,
+    placeholder,
+    isReplaceOpen,
+    isMatchCase,
+    isWholeWord,
+    isRegex,
+    matchLabel,
+    onChangeQuery,
+    onToggleReplace,
+    onToggleMatchCase,
+    onToggleWholeWord,
+    onToggleRegex,
+    onStep,
+    onClose
+  } = props
+
   return (
     <div className="flex items-start gap-1">
       <Button
@@ -161,12 +179,12 @@ function FindRow(props: {
         size="icon"
         variant="ghost"
         className="mt-0.5 size-6 shrink-0 rounded"
-        aria-label={props.isReplaceOpen ? '收起替换' : '展开替换'}
-        aria-expanded={props.isReplaceOpen}
-        onClick={props.onToggleReplace}>
+        aria-label={isReplaceOpen ? '收起替换' : '展开替换'}
+        aria-expanded={isReplaceOpen}
+        onClick={onToggleReplace}>
         <Icon
           icon="lucide:chevron-right"
-          className={cn('size-3.5 transition-transform', props.isReplaceOpen && 'rotate-90')}
+          className={cn('size-3.5 transition-transform', isReplaceOpen && 'rotate-90')}
         />
       </Button>
 
@@ -174,51 +192,51 @@ function FindRow(props: {
         <div className="flex items-center gap-1">
           <div className="relative min-w-0 flex-1">
             <Input
-              ref={props.inputRef}
-              value={props.query}
-              placeholder={props.placeholder}
+              ref={inputRef}
+              value={query}
+              placeholder={placeholder}
               className="h-7 pr-[4.5rem] text-xs"
               onChange={function (event) {
-                props.onChangeQuery(event.target.value)
+                onChangeQuery(event.target.value)
               }}
               onKeyDown={function (event) {
                 if (event.key === 'Enter') {
                   event.preventDefault()
                   event.stopPropagation()
-                  props.onStep(event.shiftKey ? -1 : 1)
+                  onStep(event.shiftKey ? -1 : 1)
                 }
                 if (event.key === 'Escape') {
                   event.preventDefault()
-                  props.onClose()
+                  onClose()
                 }
               }}
             />
             <div className="absolute top-1/2 right-1 flex -translate-y-1/2 items-center gap-0.5">
               <OptionToggle
                 label="区分大小写"
-                pressed={props.isMatchCase}
-                onToggle={props.onToggleMatchCase}>
+                pressed={isMatchCase}
+                onToggle={onToggleMatchCase}>
                 Aa
               </OptionToggle>
               <OptionToggle
                 label="全字匹配"
-                pressed={props.isWholeWord}
-                onToggle={props.onToggleWholeWord}>
+                pressed={isWholeWord}
+                onToggle={onToggleWholeWord}>
                 ab
               </OptionToggle>
               <OptionToggle
                 label="正则表达式"
-                pressed={props.isRegex}
-                onToggle={props.onToggleRegex}>
+                pressed={isRegex}
+                onToggle={onToggleRegex}>
                 .*
               </OptionToggle>
             </div>
           </div>
 
           <FindNavButtons
-            matchLabel={props.matchLabel}
-            onStep={props.onStep}
-            onClose={props.onClose}
+            matchLabel={matchLabel}
+            onStep={onStep}
+            onClose={onClose}
           />
         </div>
       </div>
