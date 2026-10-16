@@ -3,7 +3,7 @@ import { Button } from '@i-thinking/design/components/button'
 import { Dialog, DialogContent, DialogTitle } from '@i-thinking/design/components/dialog'
 import { cn } from 'cn'
 import { useReducedMotion } from 'motion/react'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { type SwiperClass } from 'swiper/react'
 
 import { LIGHTBOX_THUMB_WINDOW, MOTION_MS } from '@/views/gallery/constraints'
