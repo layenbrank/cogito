@@ -281,7 +281,7 @@ export function useImageAlign(config: UseImageAlignConfig) {
       handleImageAlign()
     },
     {
-      enabled: isVisible && canAlign
+      enabled: () => isVisible && canAlign
     }
   )
 

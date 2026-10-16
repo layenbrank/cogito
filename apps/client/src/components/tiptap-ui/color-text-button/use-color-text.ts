@@ -258,7 +258,7 @@ export function useColorText(config: UseColorTextConfig) {
       handleColorText()
     },
     {
-      enabled: isVisible && canColorTextState
+      enabled: () => isVisible && canColorTextState
     }
   )
 

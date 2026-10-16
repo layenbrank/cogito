@@ -249,7 +249,7 @@ export function useCopyAnchorLink(config?: UseCopyAnchorLinkConfig) {
       void handleCopyAnchorLink()
     },
     {
-      enabled: isVisible && canCopyAnchor
+      enabled: () => isVisible && canCopyAnchor
     }
   )
 

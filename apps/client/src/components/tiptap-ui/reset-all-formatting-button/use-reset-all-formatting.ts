@@ -250,7 +250,7 @@ export function useResetAllFormatting(config?: UseResetAllFormattingConfig) {
       handleResetFormatting()
     },
     {
-      enabled: isVisible && canReset
+      enabled: () => isVisible && canReset
     }
   )
 

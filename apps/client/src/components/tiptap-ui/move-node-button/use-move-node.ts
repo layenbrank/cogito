@@ -185,7 +185,7 @@ export function useMoveNode(config: UseMoveNodeConfig) {
       handleMoveNode()
     },
     {
-      enabled: isVisible && canMoveNodeState
+      enabled: () => isVisible && canMoveNodeState
     }
   )
 

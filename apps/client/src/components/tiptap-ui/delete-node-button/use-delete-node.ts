@@ -216,7 +216,7 @@ export function useDeleteNode(config?: UseDeleteNodeConfig) {
       handleDeleteNode()
     },
     {
-      enabled: isVisible && canDeleteNodeState
+      enabled: () => isVisible && canDeleteNodeState
     }
   )
 

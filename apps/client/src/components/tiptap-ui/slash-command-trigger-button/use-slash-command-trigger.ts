@@ -264,7 +264,7 @@ export function useSlashCommandTrigger(config?: UseSlashCommandTriggerConfig) {
       handleSlashCommand()
     },
     {
-      enabled: isVisible && canInsert
+      enabled: () => isVisible && canInsert
     }
   )
 

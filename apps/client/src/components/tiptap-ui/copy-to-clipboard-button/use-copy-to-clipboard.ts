@@ -236,7 +236,7 @@ export function useCopyToClipboard(config?: UseCopyToClipboardConfig) {
       void handleCopyToClipboard()
     },
     {
-      enabled: isVisible && canCopyToClipboardState
+      enabled: () => isVisible && canCopyToClipboardState
     }
   )
 

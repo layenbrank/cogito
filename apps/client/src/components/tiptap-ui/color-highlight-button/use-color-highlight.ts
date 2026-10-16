@@ -318,7 +318,7 @@ export function useColorHighlight(config: UseColorHighlightConfig) {
       handleColorHighlight()
     },
     {
-      enabled: isVisible && canColorHighlightState
+      enabled: () => isVisible && canColorHighlightState
     }
   )
 

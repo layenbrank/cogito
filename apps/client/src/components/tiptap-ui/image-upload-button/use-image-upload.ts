@@ -171,7 +171,7 @@ export function useImageUpload(config?: UseImageUploadConfig) {
       handleImage()
     },
     {
-      enabled: isVisible && canInsert
+      enabled: () => isVisible && canInsert
     }
   )
 

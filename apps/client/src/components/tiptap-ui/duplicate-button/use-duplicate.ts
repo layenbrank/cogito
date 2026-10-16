@@ -199,7 +199,7 @@ export function useDuplicate(config?: UseDuplicateConfig) {
       handleDuplicate()
     },
     {
-      enabled: isVisible && canDuplicate
+      enabled: () => isVisible && canDuplicate
     }
   )
 

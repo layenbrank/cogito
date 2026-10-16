@@ -145,7 +145,7 @@ export function useAiAsk(config: UseAiAskConfig = {}) {
       handleAiAsk()
     },
     {
-      enabled: isVisible && canAiAsk
+      enabled: () => isVisible && canAiAsk
     }
   )
 

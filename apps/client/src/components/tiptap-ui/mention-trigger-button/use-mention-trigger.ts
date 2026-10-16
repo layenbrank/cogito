@@ -320,7 +320,7 @@ export function useMentionTrigger(config?: UseMentionTriggerConfig) {
       handleMention()
     },
     {
-      enabled: isVisible && canInsert
+      enabled: () => isVisible && canInsert
     }
   )
 

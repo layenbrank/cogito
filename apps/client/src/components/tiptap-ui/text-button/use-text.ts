@@ -245,7 +245,7 @@ export function useText(config?: UseTextConfig) {
       handleToggle()
     },
     {
-      enabled: isVisible && canToggle
+      enabled: () => isVisible && canToggle
     }
   )
 

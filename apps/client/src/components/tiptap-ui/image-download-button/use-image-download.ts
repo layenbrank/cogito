@@ -346,7 +346,7 @@ export function useImageDownload(config?: UseImageDownloadConfig) {
       void handleDownload()
     },
     {
-      enabled: isVisible && canDownload
+      enabled: () => isVisible && canDownload
     }
   )
 

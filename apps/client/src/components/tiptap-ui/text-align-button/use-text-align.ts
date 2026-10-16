@@ -11,6 +11,10 @@ import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 // --- Lib ---
 import { isExtensionAvailable, isNodeTypeSelected } from '@/lib/tiptap-utils.ts'
 
+// --- Keyboard ---
+import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
+import { useShortcut } from '@/keyboard/react'
+
 // --- Icons ---
 import { AlignCenterIcon } from '@/components/tiptap-icons/align-center-icon.tsx'
 import { AlignJustifyIcon } from '@/components/tiptap-icons/align-justify-icon.tsx'
@@ -211,7 +215,7 @@ export function useTextAlign(config: UseTextAlignConfig) {
       handleTextAlign()
     },
     {
-      enabled: isVisible && canAlign
+      enabled: () => isVisible && canAlign
     }
   )
 

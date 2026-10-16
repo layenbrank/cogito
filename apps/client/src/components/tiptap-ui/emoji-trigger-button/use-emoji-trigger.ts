@@ -296,7 +296,7 @@ export function useEmojiTrigger(config?: UseEmojiTriggerConfig) {
       handleAddTrigger()
     },
     {
-      enabled: isVisible && canAddTrigger
+      enabled: () => isVisible && canAddTrigger
     }
   )
 
