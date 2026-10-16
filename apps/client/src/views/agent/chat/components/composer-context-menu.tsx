@@ -51,8 +51,8 @@ function SkillsPane(props: {
       if (!props.active || !props.primaryPath) return
       let cancelled = false
       async function load() {
-        updateLoading(true)
         try {
+          updateLoading(true)
           const rows = await WorkspaceSkills.fetchSkills([props.primaryPath as string])
           if (!cancelled) updateSkills(rows)
         } catch (error) {

@@ -19,7 +19,7 @@ function Controller(props: ControllerProps) {
 
   /** 卡片自身已处理点击，这里只靠事件委托按 data-id 选贴；Enter/空格与点击等价 */
   function pickFromEvent(
-    event: React.SyntheticEvent<HTMLUListElement>,
+    event: React.SyntheticEvent<HTMLDivElement>,
     allowed: boolean
   ): void {
     if (!allowed) return
@@ -30,7 +30,7 @@ function Controller(props: ControllerProps) {
   }
 
   return (
-    <ul
+    <div
       role="toolbar"
       aria-label="集合内容"
       className={styles.magneticTile}
@@ -43,10 +43,7 @@ function Controller(props: ControllerProps) {
       }}>
       {props.magneticTiles.map(function (value) {
         return (
-          <li
-            key={value.id}
-            className="contents">
-            <Navigation
+          <Navigation
             {...value}
             key={value.id}
             size={size}
@@ -63,10 +60,9 @@ function Controller(props: ControllerProps) {
                 : undefined
             }
           />
-          </li>
         )
       })}
-    </ul>
+    </div>
   )
 }
 

@@ -220,16 +220,17 @@ function useLibrary(options: UseLibraryOptions) {
   async function importPaths(paths: readonly string[], isOverwrite: boolean) {
     updateIsImporting(true)
     try {
-      const results: ImportResult[] = []
-      for (const path of paths) {
-        try {
-          results.push(await importDirectivesFromHost({ path, is_overwrite: isOverwrite }))
-        } catch (error) {
-          // 失败会进 mergeImportResults 给用户看，但开发侧也要能看到是哪一条炸的
-          console.debug('[directive] 导入单条失败（已记入结果）:', error)
-          results.push(importFailure(path, error))
-        }
-      }
+      const results: ImportResult[] = await Promise.all(
+        paths.map(async function (path) {
+          try {
+            return await importDirectivesFromHost({ path, is_overwrite: isOverwrite })
+          } catch (error) {
+            // 失败会进 mergeImportResults 给用户看，但开发侧也要能看到是哪一条炸的
+            console.debug('[directive] 导入单条失败（已记入结果）:', error)
+            return importFailure(path, error)
+          }
+        })
+      )
       await refreshDirectives()
       reportImport(mergeImportResults(results))
     } catch (error) {
@@ -243,11 +244,12 @@ function useLibrary(options: UseLibraryOptions) {
 
   /** dry_run 预检：corex 只报计数，同名条目得自己挑出来问 */
   async function previewImportPaths(paths: readonly string[]): Promise<ImportResult[]> {
-    const previews: ImportResult[] = []
-    for (const path of paths) {
-      previews.push(await importDirectivesFromHost({ path, is_dry_run: true }))
-    }
-    return previews
+    // 预检彼此独立：并行发起，结果顺序仍与入参一致
+    return Promise.all(
+      paths.map(function (path) {
+        return importDirectivesFromHost({ path, is_dry_run: true })
+      })
+    )
   }
 
   /**

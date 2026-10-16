@@ -56,6 +56,180 @@ interface SectionProps {
   scrollHostRef?: React.RefObject<HTMLDivElement | null>
 }
 
+/**
+ * 工具栏按钮一长串，单独成组件：Section 只保留「显不显示」的判断，
+ * 否则整块 JSX 会把 Section 的认知复杂度顶上去。
+ */
+function FormatToolbar(props: { composer: Editor | null }) {
+  return (
+    <Glide.X
+      classNames={{
+        root: cn(
+          styles.toolbar,
+          'w-full shrink-0 border-b border-border/50 bg-background/75 backdrop-blur-md'
+        ),
+        inner: styles.toolbarTrack
+      }}>
+      <UndoRedoButton
+        editor={props.composer}
+        action="undo"
+        tooltip="撤销"
+        hideWhenUnavailable={false}
+      />
+      <UndoRedoButton
+        editor={props.composer}
+        action="redo"
+        tooltip="重做"
+        hideWhenUnavailable={false}
+      />
+      <Separator
+        orientation="vertical"
+        className="mx-0.5 h-auto shrink-0 self-stretch"
+      />
+      {props.composer ? (
+        <HeadingDropdownMenu
+          editor={props.composer}
+          hideWhenUnavailable
+          portal
+        />
+      ) : null}
+      {props.composer ? (
+        <TurnIntoDropdown
+          editor={props.composer}
+          hideWhenUnavailable
+          portal
+        />
+      ) : null}
+      <MarkButton
+        editor={props.composer}
+        type="bold"
+        tooltip="加粗"
+        hideWhenUnavailable
+      />
+      <MarkButton
+        editor={props.composer}
+        type="italic"
+        tooltip="斜体"
+        hideWhenUnavailable
+      />
+      <MarkButton
+        editor={props.composer}
+        type="strike"
+        tooltip="删除线"
+        hideWhenUnavailable
+      />
+      <MarkButton
+        editor={props.composer}
+        type="code"
+        tooltip="行内代码"
+        hideWhenUnavailable
+      />
+      <MarkButton
+        editor={props.composer}
+        type="underline"
+        tooltip="下划线"
+        hideWhenUnavailable
+      />
+      {props.composer ? (
+        <LinkPopover
+          editor={props.composer}
+          hideWhenUnavailable
+        />
+      ) : null}
+      <ColorHighlightPopover
+        editor={props.composer}
+        hideWhenUnavailable
+      />
+      {props.composer ? (
+        <ColorTextPopover
+          editor={props.composer}
+          hideWhenUnavailable
+        />
+      ) : null}
+      <Separator
+        orientation="vertical"
+        className="mx-0.5 h-auto shrink-0 self-stretch"
+      />
+      <ListButton
+        editor={props.composer}
+        type="bulletList"
+        tooltip="无序列表"
+        hideWhenUnavailable
+      />
+      <ListButton
+        editor={props.composer}
+        type="orderedList"
+        tooltip="有序列表"
+        hideWhenUnavailable
+      />
+      <ListButton
+        editor={props.composer}
+        type="taskList"
+        tooltip="任务列表"
+        hideWhenUnavailable
+      />
+      {props.composer ? (
+        <ListDropdownMenu
+          editor={props.composer}
+          types={['bulletList', 'orderedList', 'taskList']}
+          hideWhenUnavailable
+          portal
+        />
+      ) : null}
+      <BlockquoteButton
+        editor={props.composer}
+        tooltip="块引用"
+        hideWhenUnavailable
+      />
+      <CodeBlockButton
+        editor={props.composer}
+        tooltip="代码块"
+        hideWhenUnavailable
+      />
+      <TableTriggerButton editor={props.composer} />
+      {props.composer ? (
+        <ImageUploadButton
+          editor={props.composer}
+          hideWhenUnavailable
+        />
+      ) : null}
+      <Separator
+        orientation="vertical"
+        className="mx-0.5 h-auto shrink-0 self-stretch"
+      />
+      <TextAlignButton
+        editor={props.composer}
+        align="left"
+        tooltip="左对齐"
+        hideWhenUnavailable
+      />
+      <TextAlignButton
+        editor={props.composer}
+        align="center"
+        tooltip="居中对齐"
+        hideWhenUnavailable
+      />
+      <TextAlignButton
+        editor={props.composer}
+        align="right"
+        tooltip="右对齐"
+        hideWhenUnavailable
+      />
+      <TextAlignButton
+        editor={props.composer}
+        align="justify"
+        tooltip="两端对齐"
+        hideWhenUnavailable
+      />
+      <TextButton
+        editor={props.composer}
+        tooltip="清除格式"
+        hideWhenUnavailable
+      />
+    </Glide.X>
+  )
+}
+
 function Section(props: SectionProps) {
   const contentMaxWidth = useMarkdownStore(function (state) {
     return state.contentMaxWidth
@@ -69,173 +243,7 @@ function Section(props: SectionProps) {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-      {!props.isToolbarHidden && !isFocusMode ? (
-        <Glide.X
-          classNames={{
-            root: cn(
-              styles.toolbar,
-              'w-full shrink-0 border-b border-border/50 bg-background/75 backdrop-blur-md'
-            ),
-            inner: styles.toolbarTrack
-          }}>
-          <UndoRedoButton
-            editor={props.composer}
-            action="undo"
-            tooltip="撤销"
-            hideWhenUnavailable={false}
-          />
-          <UndoRedoButton
-            editor={props.composer}
-            action="redo"
-            tooltip="重做"
-            hideWhenUnavailable={false}
-          />
-          <Separator
-            orientation="vertical"
-            className="mx-0.5 h-auto shrink-0 self-stretch"
-          />
-          {props.composer ? (
-            <HeadingDropdownMenu
-              editor={props.composer}
-              hideWhenUnavailable
-              portal
-            />
-          ) : null}
-          {props.composer ? (
-            <TurnIntoDropdown
-              editor={props.composer}
-              hideWhenUnavailable
-              portal
-            />
-          ) : null}
-          <MarkButton
-            editor={props.composer}
-            type="bold"
-            tooltip="加粗"
-            hideWhenUnavailable
-          />
-          <MarkButton
-            editor={props.composer}
-            type="italic"
-            tooltip="斜体"
-            hideWhenUnavailable
-          />
-          <MarkButton
-            editor={props.composer}
-            type="strike"
-            tooltip="删除线"
-            hideWhenUnavailable
-          />
-          <MarkButton
-            editor={props.composer}
-            type="code"
-            tooltip="行内代码"
-            hideWhenUnavailable
-          />
-          <MarkButton
-            editor={props.composer}
-            type="underline"
-            tooltip="下划线"
-            hideWhenUnavailable
-          />
-          {props.composer ? (
-            <LinkPopover
-              editor={props.composer}
-              hideWhenUnavailable
-            />
-          ) : null}
-          <ColorHighlightPopover
-            editor={props.composer}
-            hideWhenUnavailable
-          />
-          {props.composer ? (
-            <ColorTextPopover
-              editor={props.composer}
-              hideWhenUnavailable
-            />
-          ) : null}
-          <Separator
-            orientation="vertical"
-            className="mx-0.5 h-auto shrink-0 self-stretch"
-          />
-          <ListButton
-            editor={props.composer}
-            type="bulletList"
-            tooltip="无序列表"
-            hideWhenUnavailable
-          />
-          <ListButton
-            editor={props.composer}
-            type="orderedList"
-            tooltip="有序列表"
-            hideWhenUnavailable
-          />
-          <ListButton
-            editor={props.composer}
-            type="taskList"
-            tooltip="任务列表"
-            hideWhenUnavailable
-          />
-          {props.composer ? (
-            <ListDropdownMenu
-              editor={props.composer}
-              types={['bulletList', 'orderedList', 'taskList']}
-              hideWhenUnavailable
-              portal
-            />
-          ) : null}
-          <BlockquoteButton
-            editor={props.composer}
-            tooltip="块引用"
-            hideWhenUnavailable
-          />
-          <CodeBlockButton
-            editor={props.composer}
-            tooltip="代码块"
-            hideWhenUnavailable
-          />
-          <TableTriggerButton editor={props.composer} />
-          {props.composer ? (
-            <ImageUploadButton
-              editor={props.composer}
-              hideWhenUnavailable
-            />
-          ) : null}
-          <Separator
-            orientation="vertical"
-            className="mx-0.5 h-auto shrink-0 self-stretch"
-          />
-          <TextAlignButton
-            editor={props.composer}
-            align="left"
-            tooltip="左对齐"
-            hideWhenUnavailable
-          />
-          <TextAlignButton
-            editor={props.composer}
-            align="center"
-            tooltip="居中对齐"
-            hideWhenUnavailable
-          />
-          <TextAlignButton
-            editor={props.composer}
-            align="right"
-            tooltip="右对齐"
-            hideWhenUnavailable
-          />
-          <TextAlignButton
-            editor={props.composer}
-            align="justify"
-            tooltip="两端对齐"
-            hideWhenUnavailable
-          />
-          <TextButton
-            editor={props.composer}
-            tooltip="清除格式"
-            hideWhenUnavailable
-          />
-        </Glide.X>
-      ) : null}
+      {!props.isToolbarHidden && !isFocusMode ? <FormatToolbar composer={props.composer} /> : null}
 
       <ComposerContext value={{ editor: props.composer }}>
         <div

@@ -131,12 +131,11 @@ async function collectMediaInFolder(
 }
 
 async function importPaths(paths: string[]): Promise<string[]> {
-  const ids: string[] = []
-  for (const path of paths) {
-    const id = await insertMediaPath(path)
-    if (id) ids.push(id)
-  }
-  return ids
+  // 逐条入库彼此独立：并行发起，再按入参顺序过滤掉失败项
+  const ids = await Promise.all(paths.map(insertMediaPath))
+  return ids.filter(function (id): id is string {
+    return Boolean(id)
+  })
 }
 
 async function pickAndImportFiles(): Promise<string[]> {
@@ -157,10 +156,16 @@ async function pickAndImportFolders(): Promise<string[]> {
   const dirs = Array.isArray(picked) ? picked : picked ? [picked] : []
   if (dirs.length === 0) return []
 
-  const files: string[] = []
-  for (const dir of dirs) {
-    await collectMediaInFolder(dir, 0, files)
-  }
+  // collectMediaInFolder 往传入的数组里写：每个目录一个桶，并行收集后再按序拼起来
+  const buckets: string[][] = dirs.map(function () {
+    return []
+  })
+  await Promise.all(
+    dirs.map(function (dir, index) {
+      return collectMediaInFolder(dir, 0, buckets[index])
+    })
+  )
+  const files = buckets.flat()
   if (files.length === 0) return []
   return importPaths(files)
 }

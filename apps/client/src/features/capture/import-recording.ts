@@ -30,12 +30,11 @@ async function pickAndImportRecordings(): Promise<string[]> {
   const paths = Array.isArray(picked) ? picked : picked ? [picked] : []
   if (paths.length === 0) return []
 
-  const ids: string[] = []
-  for (const path of paths) {
-    const id = await insertRecordingPath(path)
-    if (id) ids.push(id)
-  }
-  return ids
+  // 逐条入库彼此独立：并行发起，再按入参顺序过滤掉失败项
+  const ids = await Promise.all(paths.map(insertRecordingPath))
+  return ids.filter(function (id): id is string {
+    return Boolean(id)
+  })
 }
 
 async function insertRecordingPath(path: string): Promise<string | undefined> {

@@ -36,6 +36,52 @@ function isSameTreeKey(a: string | null | undefined, b: string | null | undefine
   return a.replace(/\\/g, '/').toLowerCase() === b.replace(/\\/g, '/').toLowerCase()
 }
 
+function rowPadLeft(depth: number): number {
+  return 8 + depth * 12
+}
+
+/** 「加载更多」行：只有一行文字，点一下继续追加 */
+function LoadMoreRow(props: { title: string; depth: number; onSelect: () => void }) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={props.onSelect}
+        style={{ paddingLeft: rowPadLeft(props.depth) }}
+        className="text-muted-foreground hover:bg-muted/60 w-full truncate py-[3px] pr-2 text-left text-[13px]">
+        {props.title}
+      </button>
+    </li>
+  )
+}
+
+/** 文件行：没有子节点，点击即打开 */
+function FileRow(props: { title: string; depth: number; isActive: boolean; onSelect: () => void }) {
+  const isActive = props.isActive
+  return (
+    <li>
+      <button
+        type="button"
+        aria-current={isActive ? 'page' : undefined}
+        onClick={props.onSelect}
+        style={{ paddingLeft: rowPadLeft(props.depth) }}
+        className={cn(
+          'flex w-full items-center gap-1.5 truncate border-l-2 border-transparent py-[3px] pr-2 text-left text-[13px] transition-colors hover:bg-muted/60',
+          isActive && 'border-l-primary bg-primary/15 font-medium text-foreground'
+        )}>
+        <Icon
+          icon={isActive ? 'lucide:file-text' : 'lucide:file'}
+          className={cn(
+            'size-3.5 shrink-0',
+            isActive ? 'text-primary' : 'text-muted-foreground opacity-70'
+          )}
+        />
+        <span className="truncate">{props.title}</span>
+      </button>
+    </li>
+  )
+}
+
 function FileTreeItemComponent(props: FileTreeItemProps) {
   const node = props.node
   const depth = props.depth ?? 0
@@ -45,51 +91,28 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
   const isOpen = isControlled ? props.expandedKeys!.has(node.key) : uncontrolledOpen
 
-  const rowPadLeft = 8 + depth * 12
-
   if (node.isLoadMore) {
     return (
-      <li>
-        <button
-          type="button"
-          onClick={function () {
-            props.onSelect(node)
-          }}
-          style={{ paddingLeft: rowPadLeft }}
-          className="text-muted-foreground hover:bg-muted/60 w-full truncate py-[3px] pr-2 text-left text-[13px]">
-          {node.title}
-        </button>
-      </li>
+      <LoadMoreRow
+        title={node.title}
+        depth={depth}
+        onSelect={function () {
+          props.onSelect(node)
+        }}
+      />
     )
   }
 
   if (!isDirectory) {
     return (
-      <li>
-        <button
-          type="button"
-          aria-current={isActive ? 'page' : undefined}
-          onClick={function () {
-            props.onSelect(node)
-          }}
-          style={{ paddingLeft: rowPadLeft }}
-          className={cn(
-            'flex w-full items-center gap-1.5 truncate border-l-2 border-transparent py-[3px] pr-2 text-left text-[13px] transition-colors hover:bg-muted/60',
-            isActive &&
-              'border-l-primary bg-primary/15 font-medium text-foreground'
-          )}>
-          <Icon
-            icon={
-              isActive ? 'lucide:file-text' : 'lucide:file'
-            }
-            className={cn(
-              'size-3.5 shrink-0',
-              isActive ? 'text-primary' : 'text-muted-foreground opacity-70'
-            )}
-          />
-          <span className="truncate">{node.title}</span>
-        </button>
-      </li>
+      <FileRow
+        title={node.title}
+        depth={depth}
+        isActive={isActive}
+        onSelect={function () {
+          props.onSelect(node)
+        }}
+      />
     )
   }
 
@@ -107,7 +130,7 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
             'flex w-full items-center gap-1 border-l-2 border-transparent py-[3px] pr-2 text-left text-[13px] transition-colors hover:bg-muted/60',
             isActive && 'border-l-primary bg-primary/10 font-medium text-foreground'
           )}
-          style={{ paddingLeft: rowPadLeft }}>
+          style={{ paddingLeft: rowPadLeft(depth) }}>
           {node.isLoading ? (
             <Spinner className="text-muted-foreground size-3.5 shrink-0" />
           ) : (
@@ -150,10 +173,7 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
   )
 }
 
-function isFileTreeItemEqual(
-  prev: FileTreeItemProps,
-  next: FileTreeItemProps
-): boolean {
+function isFileTreeItemEqual(prev: FileTreeItemProps, next: FileTreeItemProps): boolean {
   if (prev.node !== next.node) return false
   if (prev.depth !== next.depth) return false
   if (prev.expandedKeys !== next.expandedKeys) return false

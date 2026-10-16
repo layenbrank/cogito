@@ -1,11 +1,23 @@
 import { Node, mergeAttributes } from '@tiptap/core'
-import mermaid from 'mermaid'
 
-mermaid.initialize({
-  startOnLoad: false,
-  securityLevel: 'strict',
-  theme: 'neutral'
-})
+type MermaidApi = (typeof import('mermaid'))['default']
+
+/**
+ * mermaid 体积大且只有文档里真的出现图表块才用得上：按需动态加载，并只初始化一次。
+ */
+let mermaidPromise: Promise<MermaidApi> | null = null
+
+function loadMermaid(): Promise<MermaidApi> {
+  mermaidPromise ??= import('mermaid').then(function (mod) {
+    mod.default.initialize({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      theme: 'neutral'
+    })
+    return mod.default
+  })
+  return mermaidPromise
+}
 
 let mermaidSeq = 0
 
@@ -60,8 +72,10 @@ const MermaidBlock = Node.create({
       const renderId = `mermaid-${mermaidSeq++}`
       const source = node.attrs.source || ''
 
-      void mermaid
-        .render(renderId, source)
+      void loadMermaid()
+        .then(function (mermaid) {
+          return mermaid.render(renderId, source)
+        })
         .then(function (result) {
           dom.innerHTML = result.svg
         })

@@ -38,25 +38,38 @@ export function MinimalClock(props: MinimalClockProps) {
           </m.span>
         </AnimatePresence>
       </span>
-      {props.showSeconds ? (
-        <span className={styles.minimalSecSlot}>
-          <AnimatePresence
-            mode="sync"
-            initial={false}>
-            <m.span
-              key={props.s}
-              className={styles.minimalSec}
-              variants={DIGIT.variants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              transition={transition}
-              style={{ transformStyle: 'preserve-3d' }}>
-              {props.s}
-            </m.span>
-          </AnimatePresence>
-        </span>
-      ) : null}
+      {/*
+        秒槽的 AnimatePresence 必须在条件之外：若它与退场子元素一起卸载，关闭秒显示时秒的退场动画会丢
+        内层再包一层，是为了让「秒数变化」仍能触发翻牌退场
+      */}
+      <AnimatePresence
+        mode="sync"
+        initial={false}>
+        {props.showSeconds ? (
+          <m.span
+            key="seconds"
+            className={styles.minimalSecSlot}
+            initial={isReduced ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={isReduced ? undefined : { opacity: 0 }}>
+            <AnimatePresence
+              mode="sync"
+              initial={false}>
+              <m.span
+                key={props.s}
+                className={styles.minimalSec}
+                variants={DIGIT.variants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                transition={transition}
+                style={{ transformStyle: 'preserve-3d' }}>
+                {props.s}
+              </m.span>
+            </AnimatePresence>
+          </m.span>
+        ) : null}
+      </AnimatePresence>
     </div>
   )
 }

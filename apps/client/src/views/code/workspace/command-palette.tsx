@@ -22,27 +22,43 @@ import { openAbsolutePath } from '@/views/code/lib/open-file.ts'
 
 async function listShallowFiles(root: string): Promise<SearchHit[]> {
   const entries = await listWorkspaceEntries(root, '')
-  const files: SearchHit[] = []
-  for (const entry of entries) {
-    if (entry.isDirectory) {
+  const dirEntries = entries.filter(function (entry) {
+    return entry.isDirectory
+  })
+  // 各子目录的浅层列举互不依赖：并行取回，再按原顺序拼装（保留 40 条上限）
+  const nested = await Promise.all(
+    dirEntries.map(async function (entry) {
       const children = await listWorkspaceEntries(root, entry.path)
-      for (const child of children) {
-        if (child.isDirectory) continue
-        files.push({
-          name: child.name,
-          relative: child.path,
-          absolute: joinPath(root, child.path)
+      return children
+        .filter(function (child) {
+          return !child.isDirectory
         })
-        if (files.length >= 40) return files
-      }
-      continue
-    }
-    files.push({
-      name: entry.name,
-      relative: entry.path,
-      absolute: joinPath(root, entry.path)
+        .map(function (child) {
+          return {
+            name: child.name,
+            relative: child.path,
+            absolute: joinPath(root, child.path)
+          }
+        })
     })
-    if (files.length >= 40) return files
+  )
+
+  const files: SearchHit[] = []
+  let dirIndex = 0
+  for (const entry of entries) {
+    const batch = entry.isDirectory
+      ? (nested[dirIndex++] ?? [])
+      : [
+          {
+            name: entry.name,
+            relative: entry.path,
+            absolute: joinPath(root, entry.path)
+          }
+        ]
+    for (const hit of batch) {
+      files.push(hit)
+      if (files.length >= 40) return files
+    }
   }
   return files
 }

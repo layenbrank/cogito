@@ -22,6 +22,15 @@ function WorkspaceFilePicker(props: WorkspaceFilePickerProps) {
   const { primaryPath } = useActiveWorkspace()
   const [relative, updateRelative] = useState('')
   const [query, updateQuery] = useState('')
+  const [wasActive, setWasActive] = useState(props.active)
+  // 收起后再打开要回到干净状态：渲染期按 prop 变化调整（React 推荐写法），不用 effect
+  if (props.active !== wasActive) {
+    setWasActive(props.active)
+    if (!props.active) {
+      updateRelative('')
+      updateQuery('')
+    }
+  }
   const [entriesState, updateEntries] = useState<Array<{ name: string; kind: string; relative: string }>>(
     []
   )
@@ -41,8 +50,8 @@ function WorkspaceFilePicker(props: WorkspaceFilePickerProps) {
       const needle = query.trim()
 
       async function load() {
-        updatePending(true)
         try {
+          updatePending(true)
           const rows =
             needle.length > 0
               ? (await WorkspaceFiles.search([primaryPath as string], needle, 40)).map(function (
@@ -71,17 +80,6 @@ function WorkspaceFilePicker(props: WorkspaceFilePickerProps) {
       }
     },
     [props.active, primaryPath, relative, query]
-  )
-
-  useEffect(
-    function () {
-      if (!props.active) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- 收起时清掉浏览位置/搜索词，重开才是干净状态（输入态不能改成纯派生）
-        updateRelative('')
-        updateQuery('')
-      }
-    },
-    [props.active]
   )
 
   return (

@@ -154,17 +154,18 @@ function CapturePane(props: CapturePaneProps) {
         return [media.asset.id, media]
       })
     )
-    for (const id of ids) {
-      const media = mediaById.get(id)
-      if (media?.meta.isManaged) {
+    const { remove } = await import('@tauri-apps/plugin-fs')
+    await Promise.all(
+      ids.map(async function (id) {
+        const media = mediaById.get(id)
+        if (!media?.meta.isManaged) return
         try {
-          const { remove } = await import('@tauri-apps/plugin-fs')
           await remove(media.asset.filePath)
         } catch (error) {
           console.warn('[capture] remove file failed', error)
         }
-      }
-    }
+      })
+    )
     await invoke(CHANNELS.ASSET.REMOVE, {
       params:
         ids.length === 1

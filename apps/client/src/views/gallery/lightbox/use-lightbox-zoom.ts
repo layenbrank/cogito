@@ -155,6 +155,7 @@ function useLightboxZoom(options: UseLightboxZoomOptions) {
       }
       applyLayout()
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只随 fit 尺寸重算；内部函数每次 render 都是新引用，列进依赖会成环
     [options.fitWidth, options.fitHeight]
   )
 
@@ -271,6 +272,7 @@ function useLightboxZoom(options: UseLightboxZoomOptions) {
         }
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在开关/舞台/目标/复位键变化时重新绑定手势；内部函数与 live.current 按最新值读取
     [options.enabled, options.stageRef, options.targetRef, options.resetKey]
   )
 

@@ -45,8 +45,8 @@ function ToolPermissionsSection() {
       if (!acpSessionID) return
       let cancelled = false
       async function load() {
-        updateLoading(true)
         try {
+          updateLoading(true)
           await waitGooseReady()
           const handle = await findAcpHandle()
           const list = await fetchSessionTools(handle.connection, acpSessionID as string)

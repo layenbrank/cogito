@@ -312,7 +312,7 @@ function Preview(props: PreviewProps) {
       selectClipRef.current = selectClip
       notifySelection()
     },
-    [selectedClipId, selectClip]
+    [selectedClipId, selectClip, notifySelection]
   )
 
   // 稳定引用：仅写 nodeMap + 通知 Transformer；禁止 setState 抬升 Stage 宿主

@@ -54,8 +54,8 @@ function ExtensionsSection() {
     function () {
       let cancelled = false
       async function load() {
-        updateLoading(true)
         try {
+          updateLoading(true)
           await waitGooseReady()
           const handle = await findAcpHandle()
           const snapshot = await fetchConfigExtensions(handle.connection)

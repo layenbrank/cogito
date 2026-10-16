@@ -142,8 +142,8 @@ function ComposerTriggers() {
       let cancelled = false
 
       async function load() {
-        updateMentionLoading(true)
         try {
+          updateMentionLoading(true)
           const items =
             needle.length === 0
               ? toMentionItems(

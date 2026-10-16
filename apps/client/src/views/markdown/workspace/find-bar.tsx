@@ -79,20 +79,19 @@ function FindBar(props: FindBarProps) {
   })
 
   const [isReplaceOpen, setIsReplaceOpen] = useState(Boolean(props.preferReplace))
+  const [wasPreferReplace, setWasPreferReplace] = useState(props.preferReplace)
+  // prop 变化时调整 state 用渲染期写法（React 推荐），不要走 effect
+  if (props.preferReplace !== wasPreferReplace) {
+    setWasPreferReplace(props.preferReplace)
+    if (props.preferReplace) setIsReplaceOpen(true)
+  }
   const [isMatchCase, setIsMatchCase] = useState(false)
   const [isWholeWord, setIsWholeWord] = useState(false)
   const [isRegex, setIsRegex] = useState(false)
-  const [matchIndex, setMatchIndex] = useState(-1)
-  const [matchTotal, setMatchTotal] = useState(0)
+  const [matchIndexState, setMatchIndex] = useState(-1)
+  const [matchTotalState, setMatchTotal] = useState(0)
 
   const findInputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(
-    function () {
-      if (props.preferReplace) setIsReplaceOpen(true)
-    },
-    [props.preferReplace]
-  )
 
   useEffect(function () {
     const timer = window.setTimeout(function () {
@@ -115,6 +114,11 @@ function FindBar(props: FindBarProps) {
     [props.editor]
   )
 
+  // 无查询词时一律展示为「无命中」：派生即可，不必在 effect 里清 state
+  const hasQuery = Boolean(findQuery)
+  const matchIndex = hasQuery ? matchIndexState : -1
+  const matchTotal = hasQuery ? matchTotalState : 0
+
   function keepFindFocus() {
     // 编辑器选区更新后把焦点拉回查找框，保证连续 Enter
     requestAnimationFrame(function () {
@@ -135,8 +139,6 @@ function FindBar(props: FindBarProps) {
   useEffect(
     function () {
       if (!props.editor || !findQuery) {
-        setMatchIndex(-1)
-        setMatchTotal(0)
         if (props.editor) clearSearchHighlight(props.editor)
         return
       }
