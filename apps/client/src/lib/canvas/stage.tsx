@@ -52,7 +52,6 @@ interface CanvasStageProps {
   fitContent?: boolean
   /** 受控视口。传入后内容组用这份 x/y/scale，不再套 letterbox */
   viewport?: Viewport
-  onMetricsChange?(metrics: StageMetrics): void
   onStageClick?(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>): void
   onStageMouseDown?(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>): void
   onStageMouseMove?(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>): void
@@ -85,7 +84,6 @@ const CanvasStage = memo(
       contentListening = true,
       fitContent = true,
       viewport,
-      onMetricsChange,
       onStageClick,
       onStageMouseDown,
       onStageMouseMove,
@@ -154,10 +152,6 @@ const CanvasStage = memo(
       },
       [view.width, view.height, contentSize.width, contentSize.height, dpr, fitContent]
     )
-
-    useEffect(() => {
-      onMetricsChange?.(metrics)
-    }, [metrics, onMetricsChange])
 
     useImperativeHandle(
       ref,

@@ -119,8 +119,9 @@ const useAlbumStore = create<AlbumStore>()(
         async toAttachAlbum(assetIDs, albumID) {
           if (assetIDs.length === 0) return
           const medias = useGalleryStore.getState().medias
+          const idSet = new Set(assetIDs)
           const targets = medias.filter(function (media) {
-            return assetIDs.includes(media.asset.id)
+            return idSet.has(media.asset.id)
           })
           if (targets.length === 0) return
 

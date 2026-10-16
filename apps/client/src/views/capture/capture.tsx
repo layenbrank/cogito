@@ -92,7 +92,7 @@ function CaptureLayout() {
         })
       }
       return history.filter(function (media) {
-        return (media.meta.albums ?? []).includes(albumID)
+        return Boolean(media.meta.albums?.includes(albumID))
       })
     },
     [albumID, history]

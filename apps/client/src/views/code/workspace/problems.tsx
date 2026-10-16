@@ -89,7 +89,7 @@ function Problems() {
       {rows.map(function (row, index) {
         return (
           <li
-            key={`${row.line}-${row.column}-${index}`}
+            key={`${row.line}:${row.column}:${row.severity}:${row.message}`}
             className="hover:bg-muted flex items-start gap-2 rounded-sm px-2 py-1">
             <span className="text-muted-foreground shrink-0">{severityLabel(row.severity)}</span>
             <span className="text-foreground min-w-0 flex-1 break-words">{row.message}</span>

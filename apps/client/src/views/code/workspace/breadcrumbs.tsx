@@ -36,9 +36,11 @@ function Breadcrumbs() {
       )}>
       {segments.map(function (segment, index) {
         const isLast = index === segments.length - 1
+        // 同名目录可能在路径里重复（a/b/a），用累积路径做 key 才唯一
+        const segmentKey = segments.slice(0, index + 1).join('/')
         return (
           <span
-            key={`${segment}-${index}`}
+            key={segmentKey}
             className="flex min-w-0 shrink-0 items-center gap-0.5">
             {index > 0 ? (
               <Icon

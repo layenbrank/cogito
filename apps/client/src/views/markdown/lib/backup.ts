@@ -25,8 +25,11 @@ async function writeBackup(activePath: string | null, content: string): Promise<
 }
 
 async function findLatestBackup(activePath: string | null): Promise<string | null> {
-  const { readDir } = await import('@tauri-apps/plugin-fs')
-  const dir = await findBackupDir()
+  // 动态导入与目录解析互不依赖，并行发起
+  const [{ readDir }, dir] = await Promise.all([
+    import('@tauri-apps/plugin-fs'),
+    findBackupDir()
+  ])
   const base = activePath ? findFileName(activePath) : 'untitled.md'
   const safe = base.replace(/[^\w.-]+/g, '_')
   const entries = await readDir(dir)

@@ -179,8 +179,9 @@ const useGalleryStore = create<GalleryStore>()(
 
         async toHideMedias(ids, hidden) {
           const { medias } = getter()
+          const idSet = new Set(ids)
           const targets = medias.filter(function (media) {
-            return ids.includes(media.asset.id)
+            return idSet.has(media.asset.id)
           })
           if (targets.length === 0) return
 

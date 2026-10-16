@@ -166,6 +166,7 @@ function ExtensionsSection() {
   const sessionKeys = sessionEntries.map(function (item) {
     return item.extensionKey
   })
+  const sessionKeysSet = new Set(sessionKeys)
 
   return (
     <div className="flex flex-col gap-6">
@@ -217,7 +218,7 @@ function ExtensionsSection() {
             {entries.map(function (entry) {
               const key = findExtensionKey(entry)
               const busy = busyKey === key
-              const inSession = sessionKeys.includes(key)
+              const inSession = sessionKeysSet.has(key)
               return (
                 <li
                   key={key}

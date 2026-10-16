@@ -263,11 +263,11 @@ function AsideBusy(props: AsideBusyProps) {
         title={plan && plan.total > 0 ? `计划（${plan.done}/${plan.total}）` : '计划'}>
         {plan && plan.entries.length > 0 ? (
           <ol className="flex flex-col gap-1.5">
-            {plan.entries.map(function (entry, index) {
+            {plan.entries.map(function (entry) {
               const status = statusOf(entry.status)
               return (
                 <li
-                  key={`${status}-${index}`}
+                  key={`${status}-${entry.content}`}
                   className="flex items-start gap-2">
                   <Badge
                     variant={

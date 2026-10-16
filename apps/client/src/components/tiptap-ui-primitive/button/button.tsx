@@ -34,7 +34,7 @@ export const ShortcutDisplay: React.FC<{ shortcuts: string[] }> = ({
   return (
     <KbdGroup>
       {shortcuts.map((key, index) => (
-        <Fragment key={`${key}-${index}`}>
+        <Fragment key={key}>
           {index > 0 ? (
             <span className="tiptap-shortcut-plus px-0.5 text-[10px] opacity-50">
               +

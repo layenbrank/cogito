@@ -81,13 +81,15 @@ function OverlayDrawer(props: OverlayDrawerProps) {
     [magneticTiles, keyword]
   )
 
+  const { id: collectionId, onJoined } = props
+
   const handlePick = useCallback(
     async function (tileId: string) {
       try {
         await toUpdateMagneticTile([
           {
             key: tileId,
-            change: { collectionID: props.id }
+            change: { collectionID: collectionId }
           }
         ])
         onUpdateMagneticTiles(function (prev) {
@@ -95,12 +97,12 @@ function OverlayDrawer(props: OverlayDrawerProps) {
             return tile.id !== tileId
           })
         })
-        props.onJoined?.()
+        onJoined?.()
       } catch {
         toast.error('加入集合失败')
       }
     },
-    [props, toUpdateMagneticTile]
+    [collectionId, onJoined, toUpdateMagneticTile]
   )
 
   const handlePrevent = useCallback(function (e: React.MouseEvent<HTMLElement>) {

@@ -122,8 +122,9 @@ function CapturePane(props: CapturePaneProps) {
 
   async function patchKeep(ids: string[], keep: boolean) {
     const medias = useGalleryStore.getState().medias
+    const idSet = new Set(ids)
     const targets = medias.filter(function (media) {
-      return ids.includes(media.asset.id)
+      return idSet.has(media.asset.id)
     })
     if (targets.length === 0) return
     await invoke(CHANNELS.ASSET.UPDATE, {
@@ -148,10 +149,13 @@ function CapturePane(props: CapturePaneProps) {
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
     const medias = useGalleryStore.getState().medias
-    for (const id of ids) {
-      const media = medias.find(function (item) {
-        return item.asset.id === id
+    const mediaById = new Map(
+      medias.map(function (media) {
+        return [media.asset.id, media]
       })
+    )
+    for (const id of ids) {
+      const media = mediaById.get(id)
       if (media?.meta.isManaged) {
         try {
           const { remove } = await import('@tauri-apps/plugin-fs')

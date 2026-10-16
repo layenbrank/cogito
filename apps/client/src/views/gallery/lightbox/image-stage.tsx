@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type Konva from 'konva'
 import { Image as KonvaImage } from 'react-konva'
 
@@ -33,6 +33,35 @@ function GalleryImageStage(props: GalleryImageStageProps) {
   } | null>(null)
   const onZoomedChangeRef = useRef(props.onZoomedChange)
   const onScaleChangeRef = useRef(props.onScaleChange)
+  const hostRef = useRef<HTMLDivElement>(null)
+
+  // 视口尺寸自己量：不再通过 CanvasStage 的 onMetricsChange 回调绕一圈
+  useLayoutEffect(
+    function () {
+      const host = hostRef.current
+      if (!host) return
+
+      function measure() {
+        const el = hostRef.current
+        if (!el) return
+        const rect = el.getBoundingClientRect()
+        const width = Math.max(1, rect.width)
+        const height = Math.max(1, rect.height)
+        setView(function (prev) {
+          if (prev.width === width && prev.height === height) return prev
+          return { width, height }
+        })
+      }
+
+      measure()
+      const observer = new ResizeObserver(measure)
+      observer.observe(host)
+      return function () {
+        observer.disconnect()
+      }
+    },
+    []
+  )
 
   useEffect(
     function () {
@@ -167,21 +196,15 @@ function GalleryImageStage(props: GalleryImageStageProps) {
   const isZoomed = viewport.scale > fitScale * 1.001
 
   return (
-    <div className="absolute inset-0">
+    <div
+      ref={hostRef}
+      className="absolute inset-0">
       {image ? (
         <CanvasStage
           className={isZoomed ? 'h-full w-full cursor-grab' : 'h-full w-full'}
           contentSize={content}
           fitContent={false}
           viewport={viewport}
-          onMetricsChange={function (metrics) {
-            setView(function (prev) {
-              if (prev.width === metrics.view.width && prev.height === metrics.view.height) {
-                return prev
-              }
-              return metrics.view
-            })
-          }}
           onStageWheel={onWheel}
           onStageMouseDown={onPointerDown}
           onStageMouseMove={onPointerMove}

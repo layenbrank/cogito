@@ -40,6 +40,7 @@ interface WorkspacePicks {
 function resolveWorkspacePicks(paths: readonly string[], rootPath: string): WorkspacePicks {
   const relatives: string[] = []
   const skipped: string[] = []
+  const seen = new Set<string>()
 
   for (const path of paths) {
     const relative = findWorkspaceRelative(path, rootPath)
@@ -47,7 +48,10 @@ function resolveWorkspacePicks(paths: readonly string[], rootPath: string): Work
       skipped.push(toBaseName(path))
       continue
     }
-    if (!relatives.includes(relative)) relatives.push(relative)
+    if (!seen.has(relative)) {
+      seen.add(relative)
+      relatives.push(relative)
+    }
   }
 
   return { relatives, skipped }

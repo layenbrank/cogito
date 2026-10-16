@@ -133,10 +133,11 @@ function parseAcpPermissionOutcome(
     return { outcome: 'selected', optionId: approval.optionId }
   }
   const order = approval.approved ? ALLOW_KIND_ORDER : REJECT_KIND_ORDER
+  // 先按 kind 建表：否则每个 kind 都要线性扫一遍 options
+  const byKind = new Map<string, ChatApprovalOption>()
+  for (const option of options) byKind.set(option.kind, option)
   for (const kind of order) {
-    const matched = options.find(function (option) {
-      return option.kind === kind
-    })
+    const matched = byKind.get(kind)
     if (matched) return { outcome: 'selected', optionId: matched.id }
   }
   return { outcome: 'cancelled' }
