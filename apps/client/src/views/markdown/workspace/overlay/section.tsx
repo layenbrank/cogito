@@ -289,10 +289,15 @@ function Section(props: SectionProps) {
                 editor={composer}
                 hideWhenUnavailable
               />
+              {/*
+                这里不能用 portal：Tiptap 气泡菜单的默认 shouldShow 是
+                「编辑器有焦点 或 document.activeElement 在菜单元素内」，
+                Radix 把下拉内容 portal 到 body 后焦点就被算到菜单外 →
+                气泡菜单隐藏、下拉内容成了孤儿并落到窗口左上角。
+              */}
               <TurnIntoDropdown
                 editor={composer}
                 hideWhenUnavailable
-                portal
               />
             </BubbleMenu>
           ) : null}
