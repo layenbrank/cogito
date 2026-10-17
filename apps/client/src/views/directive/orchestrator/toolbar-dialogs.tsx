@@ -38,7 +38,7 @@ function ToolbarYamlDialog(props: ToolbarYamlDialogProps) {
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="min-h-0 flex-1 rounded-md border bg-muted/30">
-          <pre className="m-0 whitespace-pre-wrap break-words p-3 font-mono text-xs leading-5">
+          <pre className="m-0 whitespace-pre-wrap wrap-break-word p-3 font-mono text-xs leading-5">
             {props.isLoading ? '读取中…' : props.yamlText || '（空）'}
           </pre>
         </ScrollArea>

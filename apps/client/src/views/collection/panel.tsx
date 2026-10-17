@@ -114,7 +114,7 @@ function CollectionPanel(props: CollectionPanelProps) {
         </Tooltip>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-4 [scrollbar-width:thin]">
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-4 scrollbar-thin">
         {magneticTiles.length ? (
           <Controller
             magneticTiles={magneticTiles}

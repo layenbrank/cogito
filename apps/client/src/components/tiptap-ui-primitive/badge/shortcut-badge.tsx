@@ -18,7 +18,7 @@ function ShortcutBadge(props: ShortcutBadgeProps) {
         return (
           <Fragment key={key}>
             {index > 0 ? (
-              <span className="text-muted-foreground/60 px-0.5 text-[10px]">+</span>
+              <span className="text-muted-foreground/60 px-0.5 text-xs">+</span>
             ) : null}
             <Kbd>{key}</Kbd>
           </Fragment>

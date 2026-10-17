@@ -48,7 +48,7 @@ function LoadMoreRow(props: { title: string; depth: number; onSelect: () => void
         type="button"
         onClick={props.onSelect}
         style={{ paddingLeft: rowPadLeft(props.depth) }}
-        className="text-muted-foreground hover:bg-muted/60 w-full truncate py-[3px] pr-2 text-left text-[13px]">
+        className="text-muted-foreground hover:bg-muted/60 w-full truncate py-0.75 pr-2 text-left text-md">
         {props.title}
       </button>
     </li>
@@ -66,7 +66,7 @@ function FileRow(props: { title: string; depth: number; isActive: boolean; onSel
         onClick={props.onSelect}
         style={{ paddingLeft: rowPadLeft(props.depth) }}
         className={cn(
-          'flex w-full items-center gap-1.5 truncate border-l-2 border-transparent py-[3px] pr-2 text-left text-[13px] transition-colors hover:bg-muted/60',
+          'flex w-full items-center gap-1.5 truncate border-l-2 border-transparent py-0.75 pr-2 text-left text-md transition-colors hover:bg-muted/60',
           isActive && 'border-l-primary bg-primary/15 font-medium text-foreground'
         )}>
         <Icon
@@ -127,7 +127,7 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
         }}>
         <CollapsibleTrigger
           className={cn(
-            'flex w-full items-center gap-1 border-l-2 border-transparent py-[3px] pr-2 text-left text-[13px] transition-colors hover:bg-muted/60',
+            'flex w-full items-center gap-1 border-l-2 border-transparent py-0.75 pr-2 text-left text-md transition-colors hover:bg-muted/60',
             isActive && 'border-l-primary bg-primary/10 font-medium text-foreground'
           )}
           style={{ paddingLeft: rowPadLeft(depth) }}>

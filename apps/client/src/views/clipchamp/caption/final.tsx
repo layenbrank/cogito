@@ -92,7 +92,7 @@ function ClipchampCaptionFinal() {
       <Button
         type="button"
         size="sm"
-        className="h-7 min-w-[4.25rem] px-3 text-xs font-medium shadow-none"
+        className="h-7 min-w-17 px-3 text-xs font-medium shadow-none"
         disabled={isExporting}
         onClick={function () {
           setExportOpen(true)

@@ -244,7 +244,7 @@ function ControlButton(props: ControlButtonProps) {
             aria-disabled={!isEnabled}
             className={cn(
               // 覆盖 icon-sm 的 size-7/圆角：整条 Caption 高、宽约 46px，贴顶贴右
-              'h-full w-[46px] min-w-[46px] shrink-0 rounded-none border-0',
+              'h-full w-11.5 min-w-11.5 shrink-0 rounded-none border-0',
               'text-muted-foreground hover:bg-foreground/5 hover:text-foreground',
               'dark:hover:bg-foreground/10',
               props.control.isDestructive &&

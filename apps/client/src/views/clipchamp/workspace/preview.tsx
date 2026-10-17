@@ -685,7 +685,7 @@ function PreviewTransport(props: PreviewTransportProps) {
       </div>
 
       <div className="flex items-center justify-end gap-2">
-        <span className="min-w-[7.5rem] text-right font-mono text-xs tabular-nums text-muted-foreground">
+        <span className="min-w-30 text-right font-mono text-xs tabular-nums text-muted-foreground">
           {formatTimecode(playheadMs)} / {formatTimecode(durationMs)}
         </span>
         {isFullscreen ? (

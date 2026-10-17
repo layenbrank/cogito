@@ -30,7 +30,7 @@ function Bucket<T extends string>(props: BucketProps<T>) {
             <ToggleGroupItem
               key={option.value}
               value={option.value}
-              className="h-8.5 w-full justify-start px-2.5 text-[13px]">
+              className="h-8.5 w-full justify-start px-2.5 text-md">
               {option.label}
             </ToggleGroupItem>
           )

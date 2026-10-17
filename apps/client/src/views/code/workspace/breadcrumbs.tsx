@@ -32,7 +32,7 @@ function Breadcrumbs() {
     <nav
       aria-label="面包屑"
       className={cn(
-        'flex h-[22px] shrink-0 items-center gap-0.5 overflow-x-auto border-b border-border/50 bg-background/80 px-3 text-[11px] text-muted-foreground backdrop-blur-sm'
+        'flex h-5.5 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-border/50 bg-background/80 px-3 text-xs text-muted-foreground backdrop-blur-sm'
       )}>
       {segments.map(function (segment, index) {
         const isLast = index === segments.length - 1

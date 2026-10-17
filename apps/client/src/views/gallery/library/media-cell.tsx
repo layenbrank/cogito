@@ -77,7 +77,7 @@ function MediaCellComponent(props: MediaCellProps) {
         <span className="pointer-events-none absolute top-1.5 left-1.5 max-w-[90%]">{props.badge}</span>
       ) : null}
       {isVideo && duration ? (
-        <span className="pointer-events-none absolute right-1 bottom-1 rounded bg-black/65 px-1 py-0.5 text-[10px] leading-none text-white tabular-nums">
+        <span className="pointer-events-none absolute right-1 bottom-1 rounded bg-black/65 px-1 py-0.5 text-xs leading-none text-white tabular-nums">
           {duration}
         </span>
       ) : null}

@@ -304,7 +304,7 @@ function MirrorManageDialog(props: MirrorManageDialogProps) {
           props.onOpenChange(next)
         }}>
         <DialogContent
-          className={cn(styles.mirrorManage, 'gap-0 p-0 sm:max-w-[420px]')}
+          className={cn(styles.mirrorManage, 'gap-0 p-0 sm:max-w-105')}
           data-region="false">
           <DialogHeader className={styles.mirrorManageHeader}>
             <DialogTitle>管理镜像</DialogTitle>

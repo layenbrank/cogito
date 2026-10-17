@@ -36,7 +36,7 @@ function Catalog(props: CatalogProps) {
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           动作目录
         </p>
-        <span className="text-[11px] text-muted-foreground">{filtered.length}</span>
+        <span className="text-xs text-muted-foreground">{filtered.length}</span>
       </div>
       <Input
         value={query}
@@ -64,7 +64,7 @@ function Catalog(props: CatalogProps) {
                     <span className="min-w-0 flex-1 truncate font-medium">{entry.id}</span>
                     <Badge
                       variant="outline"
-                      className="shrink-0 px-1.5 py-0 text-[10px]">
+                      className="shrink-0 px-1.5 py-0 text-xs">
                       {entry.bucket}
                     </Badge>
                   </span>

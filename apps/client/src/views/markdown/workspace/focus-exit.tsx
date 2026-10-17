@@ -36,7 +36,7 @@ function FocusExit(props: FocusExitProps) {
               className="size-3.5"
             />
             <span className="text-xs">{t('FOCUS_EXIT')}</span>
-            <kbd className="ml-1 rounded border border-border px-1 font-mono text-[10px] text-muted-foreground">
+            <kbd className="ml-1 rounded border border-border px-1 font-mono text-xs text-muted-foreground">
               Esc
             </kbd>
           </TooltipTrigger>

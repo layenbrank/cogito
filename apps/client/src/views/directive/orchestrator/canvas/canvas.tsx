@@ -105,7 +105,7 @@ function Canvas(props: CanvasProps) {
                   })
                   .join('-')}`}
                 className="space-y-3 border-l border-dashed border-border pl-3">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   {child.label}
                 </p>
                 {renderSteps(child.steps, depth + 1)}

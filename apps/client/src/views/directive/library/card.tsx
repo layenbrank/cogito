@@ -32,7 +32,7 @@ function Card(props: Props) {
         'group/card relative flex w-full min-w-0 cursor-pointer flex-col overflow-hidden rounded-xl border bg-card p-3 shadow-xs',
         'transition-[border-color,background-color,box-shadow] duration-200',
         'active:bg-accent-active',
-        'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50',
+        'has-focus-visible:ring-2 has-focus-visible:ring-ring/50',
         props.isActive
           ? 'border-primary bg-accent text-accent-foreground shadow-xs'
           : 'border-border/70 hover:border-border hover:bg-accent-hover hover:shadow-md'

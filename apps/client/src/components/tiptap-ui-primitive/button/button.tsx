@@ -36,7 +36,7 @@ export const ShortcutDisplay: React.FC<{ shortcuts: string[] }> = ({
       {shortcuts.map((key, index) => (
         <Fragment key={key}>
           {index > 0 ? (
-            <span className="tiptap-shortcut-plus px-0.5 text-[10px] opacity-50">
+            <span className="tiptap-shortcut-plus px-0.5 text-xs opacity-50">
               +
             </span>
           ) : null}

@@ -142,7 +142,7 @@ function YearSection(props: {
                   />
                 )
               ) : null}
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-2 text-left">
+              <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 to-transparent px-2 py-2 text-left">
                 <div className="text-sm font-medium text-white">{month.label}</div>
                 <div className="text-xs text-white/80">{month.medias.length} 项</div>
               </div>

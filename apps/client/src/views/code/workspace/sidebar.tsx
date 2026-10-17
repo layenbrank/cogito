@@ -10,7 +10,7 @@ import Navigation from '@/views/code/workspace/overlay/navigation.tsx'
 
 function SidebarHeader(props: { title: string }) {
   return (
-    <div className="border-border/60 text-muted-foreground flex h-7 shrink-0 items-center px-3 text-[11px] font-semibold tracking-wider uppercase">
+    <div className="border-border/60 text-muted-foreground flex h-7 shrink-0 items-center px-3 text-xs font-semibold tracking-wider uppercase">
       {props.title}
     </div>
   )

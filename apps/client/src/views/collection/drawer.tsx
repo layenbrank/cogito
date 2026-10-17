@@ -120,9 +120,9 @@ function OverlayDrawer(props: OverlayDrawerProps) {
         overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-xs"
         className={[
           'w-[min(360px,36vw)] max-w-none gap-0 p-3 sm:max-w-none',
-          '[&_[data-slot=dialog-body]]:flex [&_[data-slot=dialog-body]]:min-h-0 [&_[data-slot=dialog-body]]:flex-1',
-          '[&_[data-slot=dialog-body]]:flex-col [&_[data-slot=dialog-body]]:gap-3 [&_[data-slot=dialog-body]]:overflow-hidden',
-          '[&_[data-slot=dialog-body]]:p-0 [&_[data-slot=dialog-body]]:pb-0'
+          '**:data-[slot=dialog-body]:flex **:data-[slot=dialog-body]:min-h-0 **:data-[slot=dialog-body]:flex-1',
+          '**:data-[slot=dialog-body]:flex-col **:data-[slot=dialog-body]:gap-3 **:data-[slot=dialog-body]:overflow-hidden',
+          '**:data-[slot=dialog-body]:p-0 **:data-[slot=dialog-body]:pb-0'
         ].join(' ')}>
         <SheetTitle className="sr-only">新增磁贴到集合</SheetTitle>
         <Input
@@ -134,7 +134,7 @@ function OverlayDrawer(props: OverlayDrawerProps) {
             onUpdateKeyword(event.target.value)
           }}
         />
-        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2 [scrollbar-width:thin]">
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2 scrollbar-thin">
           <Controller
             onPick={handlePick}
             onPrevent={handlePrevent}

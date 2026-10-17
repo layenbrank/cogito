@@ -71,7 +71,7 @@ function RunPanelStatus(props: RunPanelStatusProps) {
         value={progressValue}
       />
       {props.activeRun.error ? (
-        <p className="mt-1.5 whitespace-pre-wrap break-words text-destructive">
+        <p className="mt-1.5 whitespace-pre-wrap wrap-break-word text-destructive">
           {props.activeRun.error}
         </p>
       ) : null}

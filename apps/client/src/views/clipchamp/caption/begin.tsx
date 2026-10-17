@@ -125,7 +125,7 @@ function ClipchampCaptionBegin() {
                   <AspectFrame ratio={option.ratio} />
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="text-xs font-medium">{option.title}</span>
-                    <span className="text-[11px] text-muted-foreground">{option.hint}</span>
+                    <span className="text-xs text-muted-foreground">{option.hint}</span>
                   </span>
                   {isOn ? (
                     <Icon

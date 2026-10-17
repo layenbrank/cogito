@@ -32,7 +32,7 @@ export default function Collection() {
   }
 
   return (
-    <div className="h-full min-h-[480px]">
+    <div className="h-full min-h-120">
       <CollectionPanel id={id} />
     </div>
   )

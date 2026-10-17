@@ -22,7 +22,7 @@ function AgentTitlebar(props: TitlebarProps) {
         props.className
       )}
       begin={
-        <span className="text-foreground shrink-0 pl-1 text-[13px] font-semibold tracking-tight">
+        <span className="text-foreground shrink-0 pl-1 text-md font-semibold tracking-tight">
           i-thinking
         </span>
       }

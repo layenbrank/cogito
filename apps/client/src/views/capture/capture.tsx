@@ -193,7 +193,7 @@ function CaptureLayout() {
 
         <div className="flex min-h-0 flex-1">
           <aside className="flex w-44 shrink-0 flex-col border-r border-border bg-sidebar">
-            <div className="text-muted-foreground flex h-7 shrink-0 items-center px-2 text-[11px] font-semibold tracking-wider uppercase">
+            <div className="text-muted-foreground flex h-7 shrink-0 items-center px-2 text-xs font-semibold tracking-wider uppercase">
               相簿
             </div>
             <nav

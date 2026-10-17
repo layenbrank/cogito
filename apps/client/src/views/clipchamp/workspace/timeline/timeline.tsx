@@ -475,13 +475,13 @@ function TimelineToolbar(props: {
 /** 左侧轨名列：每行一个轨名字，不参与横向滚动 */
 function TrackNameColumn(props: { project: Parameters<typeof findTrackDisplayName>[0]; tracks: Track[] }) {
   return (
-    <div className="flex w-[5.5rem] shrink-0 flex-col border-r border-border/80 bg-muted/15">
+    <div className="flex w-22 shrink-0 flex-col border-r border-border/80 bg-muted/15">
       <div className="h-7 shrink-0 border-b border-border/80" />
       {props.tracks.map(function (track) {
         return (
           <div
             key={track.id}
-            className="flex items-center px-2.5 text-[11px] font-medium text-muted-foreground"
+            className="flex items-center px-2.5 text-xs font-medium text-muted-foreground"
             style={{ height: TRACK_HEIGHT }}>
             {findTrackDisplayName(props.project, track)}
           </div>
@@ -516,7 +516,7 @@ function TimelineRuler(props: {
               )}
             />
             {mark.isMajor ? (
-              <span className="absolute bottom-2.5 left-1 text-[10px] tabular-nums leading-none text-muted-foreground">
+              <span className="absolute bottom-2.5 left-1 text-xs tabular-nums leading-none text-muted-foreground">
                 {formatRulerLabel(mark.ms, props.ruler.majorMs)}
               </span>
             ) : null}
@@ -591,7 +591,7 @@ function TrackRow(props: TrackRowProps) {
         onClick={onSelectEmpty}
       />
       {track.clips.length === 0 ? (
-        <div className="pointer-events-none flex h-full items-center px-3 text-[11px] text-muted-foreground/55">
+        <div className="pointer-events-none flex h-full items-center px-3 text-xs text-muted-foreground/55">
           {findEmptyHint(track.kind)}
         </div>
       ) : null}
@@ -743,7 +743,7 @@ function TimelineClipBlock(props: TimelineClipBlockProps) {
       ) : null}
       <span
         className={clsx(
-          'relative z-[1] truncate px-2 text-[10px] font-medium',
+          'relative z-1 truncate px-2 text-xs font-medium',
           (hasFilm || hasWave) &&
             'rounded-sm bg-black/45 py-0.5 text-white shadow-sm backdrop-blur-[2px]'
         )}>
@@ -782,7 +782,7 @@ function PlayheadNeedle(props: {
       <div
         className="absolute inset-y-0 w-0.5 bg-primary shadow-[0_0_0_1px_rgba(0,0,0,0.04)]"
         style={{ left: playheadMs * props.pxPerMs - scrollLeft }}>
-        <div className="absolute -left-[5px] top-0 size-2.5 rounded-full bg-primary ring-2 ring-background" />
+        <div className="absolute -left-1.25 top-0 size-2.5 rounded-full bg-primary ring-2 ring-background" />
       </div>
     </div>
   )

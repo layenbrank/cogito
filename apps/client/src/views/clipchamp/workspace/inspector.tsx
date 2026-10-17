@@ -594,7 +594,7 @@ function RangeField(props: RangeFieldProps) {
     <label className="flex flex-col gap-1.5 text-xs">
       <div className="flex items-center justify-between gap-2">
         <span className="text-muted-foreground">{label}</span>
-        <span className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[11px] tabular-nums text-foreground/80">
+        <span className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-xs tabular-nums text-foreground/80">
           {display}
         </span>
       </div>

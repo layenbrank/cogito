@@ -42,7 +42,7 @@ function Summary() {
   return (
     <div
       className={cn(
-        'text-muted-foreground flex h-[22px] w-full min-w-0 items-center justify-between text-[11px] leading-none'
+        'text-muted-foreground flex h-5.5 w-full min-w-0 items-center justify-between text-xs leading-none'
       )}>
       <div className="flex min-w-0 items-center">
         <button

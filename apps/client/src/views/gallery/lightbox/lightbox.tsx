@@ -49,7 +49,7 @@ function LightboxHeader(props: {
       className={cn(
         'flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border/50 px-4',
         props.isFullscreen
-          ? 'absolute inset-x-0 top-0 z-30 border-transparent bg-gradient-to-b from-black/70 to-transparent pr-4 text-white'
+          ? 'absolute inset-x-0 top-0 z-30 border-transparent bg-linear-to-b from-black/70 to-transparent pr-4 text-white'
           : 'pr-12'
       )}>
       <div className="min-w-0">
@@ -243,7 +243,7 @@ function Lightbox(props: LightboxProps) {
         style={{ width: frame.width, height: frame.height }}
         className={cn(
           'gap-0 overflow-hidden border-border/40 bg-background p-0 sm:max-w-none',
-          '[&_[data-slot=dialog-body]]:h-full [&_[data-slot=dialog-body]]:gap-0 [&_[data-slot=dialog-body]]:overflow-hidden [&_[data-slot=dialog-body]]:p-0 [&_[data-slot=dialog-body]]:pb-0',
+          '**:data-[slot=dialog-body]:h-full **:data-[slot=dialog-body]:gap-0 **:data-[slot=dialog-body]:overflow-hidden **:data-[slot=dialog-body]:p-0 **:data-[slot=dialog-body]:pb-0',
           isFullscreen
             ? 'fixed inset-0 top-0 left-0 max-h-none max-w-none translate-x-0 translate-y-0 rounded-none border-0'
             : 'max-h-[88vh] max-w-[92vw]'

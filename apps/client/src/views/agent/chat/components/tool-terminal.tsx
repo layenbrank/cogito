@@ -133,7 +133,7 @@ function TerminalShell(props: TerminalShellProps) {
         className={[
           'flex min-h-20 flex-col gap-1 overflow-auto px-3 py-2.5 font-mono text-xs leading-relaxed',
           'selection:bg-terminal-accent/25 selection:text-terminal-foreground',
-          '[scrollbar-color:var(--color-terminal-border)_transparent] [scrollbar-width:thin]',
+          '[scrollbar-color:var(--color-terminal-border)_transparent] scrollbar-thin',
           TERMINAL_BODY_MAX
         ].join(' ')}>
         {props.children}
@@ -201,7 +201,7 @@ function ToolCodeMode(props: {
       </div>
       {props.output === null ? null : (
         <div className="border-terminal-border mt-1 border-t pt-2">
-          <div className="text-terminal-muted mb-1 text-[10px] tracking-wide uppercase">
+          <div className="text-terminal-muted mb-1 text-xs tracking-wide uppercase">
             output
           </div>
           <TerminalOutput

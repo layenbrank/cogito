@@ -119,7 +119,7 @@ function DateScrubber(props: DateScrubberProps) {
         })}
       </div>
       {activeKey ? (
-        <div className="pointer-events-none mt-2 max-w-24 truncate rounded-full bg-card/90 px-2 py-0.5 text-[10px] text-muted-foreground shadow-sm backdrop-blur-sm">
+        <div className="pointer-events-none mt-2 max-w-24 truncate rounded-full bg-card/90 px-2 py-0.5 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
           {props.marks.find(function (mark) {
             return mark.key === activeKey
           })?.label ?? ''}

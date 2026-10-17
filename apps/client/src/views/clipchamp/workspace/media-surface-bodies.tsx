@@ -49,7 +49,7 @@ function MediaListBody() {
               className="size-6 text-muted-foreground"
             />
           </div>
-          <p className="max-w-[12rem] text-xs leading-relaxed text-muted-foreground">
+          <p className="max-w-48 text-xs leading-relaxed text-muted-foreground">
             拖入或导入视频、音频、图片
           </p>
         </div>
@@ -71,11 +71,11 @@ function MediaListBody() {
                 title="拖拽或双击添加；Alt+双击为画中画">
                 <div className="relative aspect-video overflow-hidden bg-black/80">
                   <AssetThumb asset={asset} />
-                  <span className="pointer-events-none absolute bottom-1 right-1 rounded bg-black/70 px-1 py-px text-[10px] text-white">
+                  <span className="pointer-events-none absolute bottom-1 right-1 rounded bg-black/70 px-1 py-px text-xs text-white">
                     {formatTimecode(asset.durationMs)}
                   </span>
                 </div>
-                <div className="truncate px-1.5 py-1.5 text-[11px] text-muted-foreground">
+                <div className="truncate px-1.5 py-1.5 text-xs text-muted-foreground">
                   {asset.name}
                 </div>
               </button>
@@ -86,7 +86,7 @@ function MediaListBody() {
 
       {galleryVideos.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             图库视频
           </p>
           <div className="grid grid-cols-2 gap-2">
@@ -95,7 +95,7 @@ function MediaListBody() {
                 <button
                   key={item.id}
                   type="button"
-                  className="rounded-lg border border-border/80 px-2 py-2 text-left text-[11px] transition hover:border-primary/60"
+                  className="rounded-lg border border-border/80 px-2 py-2 text-left text-xs transition hover:border-primary/60"
                   onClick={function () {
                     void useClipchampStore.getState().importFromGallery(item)
                   }}>
@@ -219,7 +219,7 @@ function TransitionBody() {
           </Button>
         )
       })}
-      <p className="mt-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <p className="mt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         滤镜预设
       </p>
       {FILTER_PRESETS.map(function (preset) {

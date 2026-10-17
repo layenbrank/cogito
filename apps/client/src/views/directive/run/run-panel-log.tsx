@@ -41,7 +41,7 @@ function RunPanelLog(props: RunPanelLogProps) {
         onScroll={handleLogScroll}
         className="absolute inset-0 overflow-auto overscroll-contain p-2"
         style={{ overflowAnchor: 'none' }}>
-        <pre className="m-0 min-h-full w-full whitespace-pre-wrap break-words font-mono text-xs leading-5">
+        <pre className="m-0 min-h-full w-full whitespace-pre-wrap wrap-break-word font-mono text-xs leading-5">
           {props.logText || props.placeholder}
         </pre>
         <div

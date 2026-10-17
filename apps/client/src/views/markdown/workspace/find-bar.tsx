@@ -43,7 +43,7 @@ function OptionToggle(props: {
             aria-label={props.label}
             aria-pressed={props.pressed}
             className={cn(
-              'flex size-6 items-center justify-center rounded text-[11px] font-medium leading-none',
+              'flex size-6 items-center justify-center rounded text-xs font-medium leading-none',
               props.pressed
                 ? 'bg-primary/15 text-primary'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -66,7 +66,7 @@ function FindNavButtons(props: {
 }) {
   return (
     <>
-      <span className="shrink-0 px-1 text-[11px] whitespace-nowrap text-muted-foreground tabular-nums">
+      <span className="shrink-0 px-1 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
         {props.matchLabel}
       </span>
 
@@ -196,7 +196,7 @@ function FindRow(props: {
               ref={inputRef}
               value={query}
               placeholder={placeholder}
-              className="h-7 pr-[4.5rem] text-xs"
+              className="h-7 pr-18 text-xs"
               onChange={function (event) {
                 onChangeQuery(event.target.value)
               }}

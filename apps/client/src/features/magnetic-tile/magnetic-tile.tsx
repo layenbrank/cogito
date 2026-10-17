@@ -206,7 +206,7 @@ const MagneticTile = {
           aria-label="删除磁贴"
           onClick={props.onTrash}
           className={cn(
-            'absolute -top-[5px] -right-[5px] z-10 flex size-4 cursor-pointer items-center justify-center rounded-full border-0 bg-red-500/50 text-white',
+            'absolute -top-1.25 -right-1.25 z-10 flex size-4 cursor-pointer items-center justify-center rounded-full border-0 bg-red-500/50 text-white',
             'invisible pointer-events-none',
             props.onTrash &&
               'group-hover/tile:visible group-hover/tile:pointer-events-auto group-focus-within/tile:visible group-focus-within/tile:pointer-events-auto'

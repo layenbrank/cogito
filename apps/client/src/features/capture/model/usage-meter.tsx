@@ -27,7 +27,7 @@ function UsageMeter(props: UsageMeterProps) {
 
   return (
     <div className={cn('min-w-0 space-y-1', props.className)}>
-      <div className="flex items-baseline justify-between gap-2 text-[11px] leading-none">
+      <div className="flex items-baseline justify-between gap-2 text-xs leading-none">
         <span className="truncate font-medium text-foreground">{props.label}</span>
         <span className="shrink-0 tabular-nums text-muted-foreground">
           {props.count}/{props.maxCount}

@@ -83,7 +83,7 @@ function CapturePane(props: CapturePaneProps) {
     if (!hint?.willPrune) {
       if (hint?.daysLeft !== undefined && hint.daysLeft <= 7) {
         return (
-          <span className="inline-flex items-center gap-0.5 rounded bg-warning/90 px-1 py-0.5 text-[10px] leading-none text-warning-foreground">
+          <span className="inline-flex items-center gap-0.5 rounded bg-warning/90 px-1 py-0.5 text-xs leading-none text-warning-foreground">
             <Icon
               icon="lucide:clock"
               className="size-2.5"
@@ -98,7 +98,7 @@ function CapturePane(props: CapturePaneProps) {
     const label =
       hint.reason === 'days' ? '即将清理' : hint.reason === 'count' ? '超出数量' : '超出容量'
     return (
-      <span className="inline-flex items-center gap-0.5 rounded bg-warning px-1 py-0.5 text-[10px] leading-none text-warning-foreground">
+      <span className="inline-flex items-center gap-0.5 rounded bg-warning px-1 py-0.5 text-xs leading-none text-warning-foreground">
         <Icon
           icon="lucide:triangle-alert"
           className="size-2.5"

@@ -38,7 +38,7 @@ function EditorTabs() {
   }
 
   return (
-    <div className="flex h-[35px] shrink-0 items-stretch gap-0 overflow-x-auto border-b border-border/50 bg-background/70 backdrop-blur-md">
+    <div className="flex h-8.75 shrink-0 items-stretch gap-0 overflow-x-auto border-b border-border/50 bg-background/70 backdrop-blur-md">
       {tabs.map(function (tab) {
         const isActive = tab.id === activeTabId
         return (
@@ -48,7 +48,7 @@ function EditorTabs() {
             tabIndex={0}
             aria-selected={isActive}
             className={cn(
-              'group relative flex max-w-48 shrink-0 cursor-pointer items-center gap-1.5 border-r border-border/80 px-3 text-[13px]',
+              'group relative flex max-w-48 shrink-0 cursor-pointer items-center gap-1.5 border-r border-border/80 px-3 text-md',
               isActive
                 ? 'bg-background text-foreground'
                 : 'text-muted-foreground/70 hover:bg-muted/40 hover:text-foreground/90'

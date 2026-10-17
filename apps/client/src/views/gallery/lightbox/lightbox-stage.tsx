@@ -89,7 +89,7 @@ function LightboxStage(props: {
         isFullscreen && 'pt-0'
       )}>
       <Swiper
-        className="relative z-[1] size-full"
+        className="relative z-1 size-full"
         modules={[Keyboard, A11y, Virtual]}
         virtual
         keyboard={{ enabled: true }}
@@ -106,7 +106,7 @@ function LightboxStage(props: {
             <SwiperSlide
               key={media.asset.id}
               virtualIndex={index}
-              className="!relative size-full">
+              className="relative! size-full">
               {isActive ? (
                 media.kind === 'video' ? (
                   <div

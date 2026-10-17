@@ -72,7 +72,7 @@ function CaptionAccount(props: CaptionAccountProps) {
               alt={user.username}
             />
           ) : null}
-          <AvatarFallback className="bg-transparent text-[10px] font-semibold text-primary">
+          <AvatarFallback className="bg-transparent text-xs font-semibold text-primary">
             {initial}
           </AvatarFallback>
         </Avatar>

@@ -55,7 +55,7 @@ function PreferencesSheet() {
       onOpenChange={toSetPrefsOpen}>
       <SheetContent
         side="right"
-        className="w-[360px] sm:max-w-[360px]">
+        className="w-90 sm:max-w-90">
         <SheetHeader>
           <SheetTitle>{t('PREFERENCES')}</SheetTitle>
         </SheetHeader>

@@ -149,7 +149,7 @@ function GenericToolCard(props: GenericToolCardProps) {
         {props.needsApproval ? (
           <Badge
             variant="secondary"
-            className="h-4.5 shrink-0 px-1.5 text-[10px]">
+            className="h-4.5 shrink-0 px-1.5 text-xs">
             待审批
           </Badge>
         ) : null}
@@ -157,14 +157,14 @@ function GenericToolCard(props: GenericToolCardProps) {
 
       <CollapsibleContent className="flex flex-col gap-1.5 ps-3 pb-1.5">
         <div className="flex flex-col gap-0.5">
-          <span className="text-muted-foreground text-[10px]">参数</span>
+          <span className="text-muted-foreground text-xs">参数</span>
           <pre className="bg-muted/60 m-0 max-h-72 overflow-auto rounded-md p-2 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap">
             {formatDetail(props.args)}
           </pre>
         </div>
         {props.result === undefined ? null : (
           <div className="flex flex-col gap-0.5">
-            <span className="text-muted-foreground text-[10px]">
+            <span className="text-muted-foreground text-xs">
               {props.isError ? '错误' : '结果'}
             </span>
             <pre className="bg-muted/60 m-0 max-h-80 overflow-auto rounded-md p-2 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap">
