@@ -418,5 +418,5 @@
       "https://*.weixin.qq.com"
     ]
   },
-  "windows": ["main", "overlay", "*:*"]
+  "windows": ["main", "overlay", "navigation", "navigation-bar", "*:*"]
 }

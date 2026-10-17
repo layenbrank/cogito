@@ -2,7 +2,7 @@
 const ENGINE_UI = {
   PRIVATE_USE_CHARS: /[\uE000-\uF8FF]/g,
   URL_PATTERN:
-    /^(?:https?:\/\/)?(?:localhost|(?:[\w-]+\.)+[a-z]{2,})(?::\d{1,5})?(?:[/?#][^\s]*)?$/i,
+    /^(?:https?:\/\/)?(?:[^@/\s]+@)?(?:localhost|(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)|\[[0-9a-f:.]+\]|(?:[\w-]+\.)+[a-z]{2,})(?::\d{1,5})?(?:[/?#][^\s]*)?$/i,
   SCROLL_PAD: 8,
   NAVIGATE_THROTTLE_MS: 150,
   NONE: -1,

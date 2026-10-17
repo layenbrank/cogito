@@ -36,6 +36,14 @@ function buildMatchUrl(match: string, keyword: string) {
   return `${match}${encodeURIComponent(keyword)}`
 }
 
+/** 像网址就打开，否则把关键词 encodeURIComponent 后拼到当前引擎的搜索地址 */
+function findAddressUrl(value: string, match: string) {
+  const text = value.trim()
+  if (!text) return ''
+  if (isUrlKeyword(text)) return parseKeywordUrl(text)
+  return `${match}${encodeURIComponent(text)}`
+}
+
 function findItemUrl(engine: SearchEngine, item: SuggestionItem) {
   if (engine.key === 'bing') return buildSuggestionUrl(engine.origin, item.u)
   return buildMatchUrl(engine.match, parseSuggestionLabel(item.q))
@@ -51,6 +59,7 @@ export {
   parseKeywordUrl,
   buildSuggestionUrl,
   buildMatchUrl,
+  findAddressUrl,
   findItemUrl,
   findDefaultNavigation
 }

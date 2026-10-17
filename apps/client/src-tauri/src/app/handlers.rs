@@ -2,7 +2,7 @@
 
 use tauri::generate_handler;
 
-use crate::{autostart, capture, overlay, system, through};
+use crate::{autostart, capture, navigation, overlay, system, through};
 
 /// 返回应用全部 `#[tauri::command]` 的 invoke handler。
 pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static {
@@ -131,5 +131,15 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         thinking_command::workspaceFiles::workspaceFilesReadFile,
         thinking_command::workspaceSkills::workspaceSkillsList,
         through::command::set_rects,
+        navigation::command::navigation_open,
+        navigation::command::navigation_activate,
+        navigation::command::navigation_place,
+        navigation::command::navigation_close,
+        navigation::command::navigation_navigate,
+        navigation::command::navigation_devtools,
+        navigation::command::navigation_extensions,
+        navigation::command::navigation_bar_open,
+        navigation::command::navigation_bar_place,
+        navigation::command::navigation_complete,
     ]
 }

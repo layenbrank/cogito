@@ -4,6 +4,7 @@ import { ENGINES } from '@/constants/engine'
 import { ENGINE_UI } from '@/views/overview/engine/engine-constants'
 import {
   buildSuggestionUrl,
+  findAddressUrl,
   findDefaultNavigation,
   findItemUrl,
   isUrlKeyword,
@@ -34,6 +35,32 @@ describe('engine url', function () {
     const item = { q: 'hello \uE000', u: '/search?q=hello' }
     expect(findItemUrl(bing, item)).toBe('https://cn.bing.com/search?q=hello')
     expect(findItemUrl(baidu, item)).toBe('https://www.baidu.com/s?wd=hello%20')
+  })
+
+  it('searches when the text is not a host', function () {
+    expect(findAddressUrl('测试', ENGINES[0].match)).toBe(
+      'https://cn.bing.com/search?q=%E6%B5%8B%E8%AF%95'
+    )
+    expect(findAddressUrl('a b&c', ENGINES[0].match)).toBe(
+      'https://cn.bing.com/search?q=a%20b%26c'
+    )
+    expect(findAddressUrl('example.com/a', ENGINES[0].match)).toBe('https://example.com/a')
+  })
+
+  it('opens ip addresses and searches an incomplete number', function () {
+    expect(findAddressUrl('127.0.0.1', ENGINES[0].match)).toBe('https://127.0.0.1')
+    expect(findAddressUrl('http://8.8.8.8:53/dns', ENGINES[0].match)).toBe('http://8.8.8.8:53/dns')
+    expect(findAddressUrl('[::1]', ENGINES[0].match)).toBe('https://[::1]')
+    expect(findAddressUrl('999.1.1.1', ENGINES[0].match)).toBe(
+      'https://cn.bing.com/search?q=999.1.1.1'
+    )
+  })
+  it('keeps userinfo in the address instead of rewriting the host', function () {
+    expect(isUrlKeyword('https://evil.com@bank.com')).toBe(true)
+    expect(parseKeywordUrl('https://evil.com@bank.com')).toBe('https://evil.com@bank.com')
+    expect(findAddressUrl('https://evil.com@bank.com', ENGINES[0].match)).toBe(
+      'https://evil.com@bank.com'
+    )
   })
 
   it('skips the first row when the keyword itself is a url', function () {

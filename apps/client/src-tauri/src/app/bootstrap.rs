@@ -7,6 +7,7 @@ use crate::{
     app::{handlers, plugins},
     autostart,
     capture::CapturePending,
+    navigation::NavigationState,
     overlay::{OverlayHealth, OverlayPending},
     reminder,
     through::{self, ThroughState},
@@ -55,6 +56,7 @@ impl Bootstrap {
                 app.manage(OverlayPending::default());
                 app.manage(OverlayHealth::default());
                 app.manage(CapturePending::default());
+                app.manage(NavigationState::new());
                 through::spawn_worker(app.handle().clone());
                 reminder::spawn_worker(app.handle().clone());
                 tray::setup(app)?;

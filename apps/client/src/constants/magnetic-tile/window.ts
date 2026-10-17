@@ -82,9 +82,7 @@ const WINDOW: WindowConfigure = {
     minWidth: 900,
     minHeight: 600
   },
-  navigation: {
-    ...DEFAULT
-  },
+  navigation: DEFAULT,
   capture: {
     ...DEFAULT
   },

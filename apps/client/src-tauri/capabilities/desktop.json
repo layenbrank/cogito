@@ -9,7 +9,9 @@
     "main",
     "overlay",
     "agent",
-    "agent:*"
+    "agent:*",
+    "navigation",
+    "navigation-bar"
   ],
   "permissions": [
     "positioner:default",

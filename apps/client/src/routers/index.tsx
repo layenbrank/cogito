@@ -1,4 +1,4 @@
-import { lazy } from 'react'
+import { lazy, Suspense } from 'react'
 import { Navigate, createBrowserRouter, useLocation, type RouteObject } from 'react-router-dom'
 import Overlay from '@/views/overlay/overlay'
 import { RouteTransition } from '@/routers/transition.tsx'
@@ -116,6 +116,12 @@ const Navigation = lazy(function () {
   return import('@/views/navigation/navigation.tsx')
 })
 
+const NavigationBar = lazy(function () {
+  return import('@/views/navigation/bar.tsx').then(function (mod) {
+    return { default: mod.NavigationBar }
+  })
+})
+
 const Settings = lazy(function () {
   return import('@/views/settings/settings.tsx')
 })
@@ -129,6 +135,14 @@ const Signboard = lazy(function () {
  * 新增路由不用各自处理动效。
  */
 const routes: RouteObject[] = [
+  {
+    path: '/navigation/bar',
+    element: (
+      <Suspense fallback={null}>
+        <NavigationBar />
+      </Suspense>
+    )
+  },
   {
     element: <RouteTransition />,
     children: [

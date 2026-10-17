@@ -29,6 +29,8 @@ pub mod capture {
 
 pub mod media;
 
+pub mod navigation;
+
 pub mod ui {
     pub mod contextmenu;
     pub mod tray;

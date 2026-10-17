@@ -27,6 +27,7 @@ tauri = { version = "2.11.2", features = [
   "devtools",
   "tray-icon",
   "image-png",
+  "unstable",
 ] }
 thinking-database = { path = "crates/database" }
 thinking-core = { path = "crates/core" }
