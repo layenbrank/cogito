@@ -72,10 +72,17 @@ async function pickSaveMarkdown(suggestedName = 'untitled.md'): Promise<string |
 async function pickRootDirectory(): Promise<string | null> {
   const selected = await open({
     directory: true,
-    multiple: false
+    multiple: false,
+    // 必须递归授权：否则只能列根目录，展开子目录会报 forbidden path
+    recursive: true
   })
   if (!selected || Array.isArray(selected)) return null
   return selected
+}
+
+/** Tauri fs 的「不在授权 scope 内」错误：重启后恢复的旧目录会命中这条 */
+function isForbiddenPathError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('forbidden path')
 }
 
 interface ListMarkdownEntriesOptions {
@@ -243,6 +250,7 @@ export {
   removeMarkdownPath,
   ensureAssetsDir,
   writeBinaryBesideDoc,
+  isForbiddenPathError,
   findDisplayTitle,
   normalizeSeparators
 }

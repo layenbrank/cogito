@@ -8,11 +8,12 @@ import { toast } from 'sonner'
 import {
   TREE_PAGE_SIZE,
   clearDirListCache,
+  isForbiddenPathError,
   listMarkdownEntries,
   type TreeEntry
 } from '@/views/markdown/lib/fs.ts'
 import { normalizeSeparators } from '@/views/markdown/lib/path.ts'
-import { ensureRootDir } from '@/views/markdown/lib/session.ts'
+import { ensureRootDir, openFolderAsWorkspace } from '@/views/markdown/lib/session.ts'
 import { t } from '@/views/markdown/locale.ts'
 import { type FileTreeNode } from '@/views/workspace/overlay/file-tree-item.tsx'
 import {
@@ -207,6 +208,17 @@ export function useNavigationTree(input: {
           isLoaded: false
         })
       })
+      if (isForbiddenPathError(error)) {
+        toast.error(t('TREE_FORBIDDEN'), {
+          action: {
+            label: t('CHOOSE_FOLDER'),
+            onClick: function () {
+              void openFolderAsWorkspace()
+            }
+          }
+        })
+        return
+      }
       toast.error(t('OPEN_FAILED'))
     }
   }, [])
