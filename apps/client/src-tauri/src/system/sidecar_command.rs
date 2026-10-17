@@ -8,9 +8,7 @@ use serde_json::{Value, json};
 use tauri::AppHandle;
 
 use crate::utils::ipc;
-use crate::utils::sidecar::{
-    self, SidecarState, corex_data_dir, corex_database_path,
-};
+use crate::utils::sidecar::{self, SidecarState, corex_data_dir, corex_database_path};
 
 const SIDECAR_PROGRESS_EVENT: &str = "sidecar:progress";
 
@@ -201,9 +199,7 @@ fn find_mcp_in_dir(dir: &std::path::Path) -> Option<PathBuf> {
                 .and_then(|n| n.to_str())
                 .unwrap_or_default();
             let lower = name.to_ascii_lowercase();
-            (lower == "corex-mcp"
-                || lower == "corex-mcp.exe"
-                || lower.starts_with("corex-mcp-"))
+            (lower == "corex-mcp" || lower == "corex-mcp.exe" || lower.starts_with("corex-mcp-"))
                 && path.is_file()
         })
         .collect();
@@ -301,16 +297,11 @@ pub async fn sidecar_actions(state: tauri::State<'_, SidecarState>) -> Result<Va
         .await
         .map_err(|e| format!("sidecar actions 线程异常: {e}"))??;
     // daemon 回 `{ version, count, actions: [...] }`；前端契约是动作数组
-    Ok(data
-        .get("actions")
-        .cloned()
-        .unwrap_or_else(|| {
-            if data.is_array() {
-                data
-            } else {
-                json!([])
-            }
-        }))
+    Ok(data.get("actions").cloned().unwrap_or_else(
+        || {
+            if data.is_array() { data } else { json!([]) }
+        },
+    ))
 }
 
 #[tauri::command(rename = "sidecar:directives")]
@@ -412,7 +403,10 @@ fn spawn_corex_edit(app: &AppHandle, name: &str) -> Result<(), String> {
     let data_dir = corex_data_dir(app)?;
     Command::new(&cli)
         .args(["edit", name])
-        .env(sidecar::COREX_DATA_DIR_ENV, data_dir.to_string_lossy().as_ref())
+        .env(
+            sidecar::COREX_DATA_DIR_ENV,
+            data_dir.to_string_lossy().as_ref(),
+        )
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -470,13 +464,7 @@ pub async fn sidecar_invoke(
         "params": input.params.unwrap_or_else(|| json!({})),
     });
     tokio::task::spawn_blocking(move || {
-        ipc::call_stream(
-            &app,
-            SIDECAR_PROGRESS_EVENT,
-            &run_id,
-            "invoke",
-            fields,
-        )
+        ipc::call_stream(&app, SIDECAR_PROGRESS_EVENT, &run_id, "invoke", fields)
     })
     .await
     .map_err(|e| format!("sidecar invoke 线程异常: {e}"))?

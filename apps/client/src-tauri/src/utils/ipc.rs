@@ -446,8 +446,8 @@ where
         if trimmed.is_empty() {
             continue;
         }
-        let peek: FreshResponse = serde_json::from_str(trimmed)
-            .map_err(|e| format!("解析 IPC 响应失败: {e}"))?;
+        let peek: FreshResponse =
+            serde_json::from_str(trimmed).map_err(|e| format!("解析 IPC 响应失败: {e}"))?;
         match peek {
             FreshResponse::Event { progress, .. } => {
                 if let Some(handler) = on_progress.as_mut() {

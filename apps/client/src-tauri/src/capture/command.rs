@@ -263,18 +263,8 @@ pub async fn capture_prune(
 
     let protect = Duration::from_millis(ORPHAN_PROTECT_MS);
     let clock = SystemTime::now();
-    freed = freed.saturating_add(prune_orphans(
-        &captures_dir,
-        &referenced,
-        clock,
-        protect,
-    ));
-    freed = freed.saturating_add(prune_orphans(
-        &screenshots_dir,
-        &referenced,
-        clock,
-        protect,
-    ));
+    freed = freed.saturating_add(prune_orphans(&captures_dir, &referenced, clock, protect));
+    freed = freed.saturating_add(prune_orphans(&screenshots_dir, &referenced, clock, protect));
 
     Ok(PruneResult {
         ids: doomed.into_iter().collect(),

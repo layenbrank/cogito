@@ -12,7 +12,7 @@ use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tauri::{AppHandle, Manager};
 use url::Url;
 
@@ -108,7 +108,8 @@ fn write_provider_json(app: &AppHandle, value: &Value) -> Result<(), String> {
             .map_err(|e| format!("序列化 provider JSON 失败: {e}"))?;
         file.write_all(content.as_bytes())
             .map_err(|e| format!("写入 provider 失败: {e}"))?;
-        file.flush().map_err(|e| format!("flush provider 失败: {e}"))?;
+        file.flush()
+            .map_err(|e| format!("flush provider 失败: {e}"))?;
     }
     fs::rename(&tmp, &path).map_err(|e| format!("原子替换 provider 失败: {e}"))?;
     Ok(())
@@ -160,7 +161,10 @@ pub async fn set_tenant(app: &AppHandle, tenant_id: &str) -> Result<bool, String
         return Ok(false);
     }
     if let Some(headers) = existing.get_mut("headers").and_then(|h| h.as_object_mut()) {
-        headers.insert("X-Tenant-ID".to_string(), Value::String(tenant_id.to_string()));
+        headers.insert(
+            "X-Tenant-ID".to_string(),
+            Value::String(tenant_id.to_string()),
+        );
     } else {
         existing["headers"] = json!({ "X-Tenant-ID": tenant_id });
     }

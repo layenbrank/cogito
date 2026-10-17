@@ -31,8 +31,7 @@ pub fn write_jwt(app: &AppHandle, token: &str) -> Result<(), String> {
 
     let tmp = path.with_extension("jwt.tmp");
     {
-        let mut file =
-            fs::File::create(&tmp).map_err(|e| format!("创建 JWT 临时文件失败: {e}"))?;
+        let mut file = fs::File::create(&tmp).map_err(|e| format!("创建 JWT 临时文件失败: {e}"))?;
         file.write_all(token.as_bytes())
             .map_err(|e| format!("写入 JWT 失败: {e}"))?;
         file.flush().map_err(|e| format!("flush JWT 失败: {e}"))?;

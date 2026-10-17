@@ -232,13 +232,7 @@ fn spawn_reader(
             }
         };
 
-        let _ = app.emit(
-            "terminal://exit",
-            TerminalExitEvent {
-                id,
-                exit_code,
-            },
-        );
+        let _ = app.emit("terminal://exit", TerminalExitEvent { id, exit_code });
     });
 }
 
@@ -299,11 +293,10 @@ pub fn terminal_resize(
 #[cfg(windows)]
 fn terminate_process_tree(root_pid: u32) {
     use windows::Win32::Foundation::CloseHandle;
-    use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
     use windows::Win32::System::Diagnostics::ToolHelp::{
-        CreateToolhelp32Snapshot, Process32First, Process32Next, PROCESSENTRY32,
-        TH32CS_SNAPPROCESS,
+        CreateToolhelp32Snapshot, PROCESSENTRY32, Process32First, Process32Next, TH32CS_SNAPPROCESS,
     };
+    use windows::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess};
 
     let mut entries: Vec<(u32, u32)> = Vec::new();
 
@@ -446,7 +439,7 @@ fn read_windows_terminal_font(package: &str) -> Option<TerminalFont> {
 /// 读 conhost 默认字体：注册表 `HKCU\Console\FaceName`。
 #[cfg(windows)]
 fn read_conhost_font() -> Option<TerminalFont> {
-    use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_SZ};
+    use windows::Win32::System::Registry::{HKEY_CURRENT_USER, RRF_RT_REG_SZ, RegGetValueW};
 
     let subkey = to_wide_null("Console");
     let value = to_wide_null("FaceName");

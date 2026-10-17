@@ -1,8 +1,8 @@
 //! `media:probe` / `media:export` / `media:filmstrip` / `media:waveform`
 //! — 调用本机 FFmpeg 9.0.2 资源二进制
 
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashSet;
+use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -448,9 +448,7 @@ fn run_ffmpeg(ffmpeg: &Path, args: &[String]) -> Result<(), String> {
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
-    let output = cmd
-        .output()
-        .map_err(|e| format!("启动 ffmpeg 失败: {e}"))?;
+    let output = cmd.output().map_err(|e| format!("启动 ffmpeg 失败: {e}"))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(format!(
@@ -464,7 +462,10 @@ fn run_ffmpeg(ffmpeg: &Path, args: &[String]) -> Result<(), String> {
 
 fn dedup_keep_order(times: Vec<u64>) -> Vec<u64> {
     let mut seen = HashSet::new();
-    times.into_iter().filter(|time| seen.insert(*time)).collect()
+    times
+        .into_iter()
+        .filter(|time| seen.insert(*time))
+        .collect()
 }
 
 /// 按时间点抽帧（`-ss` 在 `-i` 前）。

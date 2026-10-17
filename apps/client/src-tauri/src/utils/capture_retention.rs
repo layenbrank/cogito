@@ -97,7 +97,8 @@ pub fn is_under_captures(file_path: &str, captures_dir: &Path) -> bool {
             .and_then(|n| n.to_str())
             .unwrap_or("captures")
             .to_lowercase();
-        return normalized.contains(&format!("/{marker}/")) || normalized.ends_with(&format!("/{marker}"));
+        return normalized.contains(&format!("/{marker}/"))
+            || normalized.ends_with(&format!("/{marker}"));
     };
     let path = Path::new(file_path);
     let Ok(canonical) = path.canonicalize() else {
@@ -283,7 +284,16 @@ mod tests {
     fn prunes_by_days() {
         let now = 1_000_000_000_000i64;
         let items = vec![
-            candidate("a", "screenshot", now, 10, false, "done", true, "/captures/a.png"),
+            candidate(
+                "a",
+                "screenshot",
+                now,
+                10,
+                false,
+                "done",
+                true,
+                "/captures/a.png",
+            ),
             candidate(
                 "b",
                 "screenshot",
@@ -395,7 +405,8 @@ mod tests {
 
     #[test]
     fn unmanaged_not_deleted_from_disk() {
-        let dir = std::env::temp_dir().join(format!("capture-ret-unmanaged-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("capture-ret-unmanaged-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let file = dir.join("ext.mp4");
@@ -434,7 +445,9 @@ mod tests {
 
     #[test]
     fn parse_candidate_requires_source_capture() {
-        assert!(parse_candidate("1", "/a.png", Some(1), 1, Some(r#"{"source":"import"}"#)).is_none());
+        assert!(
+            parse_candidate("1", "/a.png", Some(1), 1, Some(r#"{"source":"import"}"#)).is_none()
+        );
         assert!(
             parse_candidate("1", "/a.png", Some(1), 1, Some(r#"{"source":"capture"}"#)).is_some()
         );
