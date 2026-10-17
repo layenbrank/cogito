@@ -105,7 +105,7 @@ function ThreadGreeting() {
 
       {activeWorkspace ? (
         <div className="flex w-full max-w-[880px] flex-col items-stretch gap-2.5 text-start">
-          <p className="text-muted-foreground text-md font-medium tracking-[0.02em]">可以试试</p>
+          <p className="text-muted-foreground text-sm font-medium tracking-[0.02em]">可以试试</p>
           {/* 按中栏容器宽度折列，避免侧栏占宽后 sm 视口断点仍强行三列裁切 */}
           <div className="grid grid-cols-1 gap-3 @min-[36rem]:grid-cols-3">
             {SUGGESTIONS.map(function (item) {

@@ -80,7 +80,7 @@ function TimeColumn(props: TimeColumnProps) {
   )
 
   return (
-    <div className="flex min-w-[3.25rem] flex-1 flex-col gap-1.5">
+    <div className="flex min-w-13 flex-1 flex-col gap-1.5">
       <div className="px-1 text-center text-xs font-medium tracking-wide text-muted-foreground">
         {props.label}
       </div>
@@ -229,7 +229,7 @@ function TimePicker({
       <PopoverContent
         align="start"
         sideOffset={6}
-        className="w-auto min-w-[12rem] gap-0 overflow-hidden p-2.5">
+        className="w-auto min-w-48 gap-0 overflow-hidden p-2.5">
         <div className="flex gap-2">
           <TimeColumn
             label="时"

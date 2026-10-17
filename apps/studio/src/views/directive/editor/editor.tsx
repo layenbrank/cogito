@@ -537,7 +537,7 @@ function TriggersEditor(props: TriggersEditorProps) {
                             'h-7 justify-center rounded-md px-2.5 text-xs',
                             // 各自完整圆角与边框，覆盖 spacing=0 的紧凑连排样式
                             'data-[spacing=0]:rounded-md data-[spacing=0]:first:rounded-md data-[spacing=0]:last:rounded-md',
-                            'data-[spacing=0]:data-[variant=outline]:border-l data-[pressed]:shadow-none'
+                            'data-[spacing=0]:data-[variant=outline]:border-l data-pressed:shadow-none'
                           )}>
                           {name}
                         </ToggleGroupItem>

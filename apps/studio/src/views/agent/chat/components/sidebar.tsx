@@ -182,7 +182,7 @@ export default function AgentSidebar(props: SidebarProps) {
             type="button"
             variant="ghost"
             size="sm"
-            className="hover:bg-muted h-8 w-full justify-start gap-1.5 rounded-md px-2 text-md font-medium">
+            className="hover:bg-muted h-8 w-full justify-start gap-1.5 rounded-md px-2 text-sm font-medium">
             <Icon
               icon="lucide:plus"
               className="size-4"

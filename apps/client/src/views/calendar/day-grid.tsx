@@ -113,7 +113,7 @@ function DayGrid(props: DayGridProps) {
 
   return (
     <div className={styles.panel}>
-      <div className="flex min-h-[var(--cal-toolbar-h,28px)] shrink-0 items-center justify-between gap-2 pb-[var(--cal-toolbar-pad,8px)]">
+      <div className="flex min-h-(--cal-toolbar-h,28px) shrink-0 items-center justify-between gap-2 pb-(--cal-toolbar-pad,8px)">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Select
             value={panelDate.year()}
@@ -177,12 +177,12 @@ function DayGrid(props: DayGridProps) {
             }}>
             <ToggleGroupItem
               value="month"
-              className="data-[pressed]:bg-primary/10 data-[pressed]:text-primary">
+              className="data-pressed:bg-primary/10 data-pressed:text-primary">
               月
             </ToggleGroupItem>
             <ToggleGroupItem
               value="year"
-              className="data-[pressed]:bg-primary/10 data-[pressed]:text-primary">
+              className="data-pressed:bg-primary/10 data-pressed:text-primary">
               年
             </ToggleGroupItem>
           </ToggleGroup>

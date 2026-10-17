@@ -9,7 +9,7 @@ const CARD_SIZE = {
   wall: {
     /** 单列流：顶行名称+状态，底行元信息+图标动作 */
     minHeight: 112,
-    className: 'min-h-[112px]',
+    className: 'min-h-28',
     /** 与 WALL_GRID 的 gap-3 一致 */
     gap: 12,
     /** group-section wall body 的 pt-3 */
@@ -20,7 +20,7 @@ const CARD_SIZE = {
   },
   rail: {
     minHeight: 84,
-    className: 'min-h-[84px]',
+    className: 'min-h-21',
     /** 与 RAIL_GRID 的 gap-1.5 一致 */
     gap: 6,
     bodyPad: 0,
@@ -29,7 +29,7 @@ const CARD_SIZE = {
   },
   library: {
     minHeight: 148,
-    className: 'min-h-[148px]',
+    className: 'min-h-37',
     gap: 12,
     bodyPad: 0,
     row: 160,

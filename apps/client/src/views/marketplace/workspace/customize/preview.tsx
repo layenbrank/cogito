@@ -61,7 +61,7 @@ function Preview(props: PreviewProps) {
             {title}
           </p>
           <p
-            className="mt-1 truncate text-md"
+            className="mt-1 truncate text-sm"
             style={{ color: textColor, opacity: 0.85 }}>
             {subtitle}
           </p>

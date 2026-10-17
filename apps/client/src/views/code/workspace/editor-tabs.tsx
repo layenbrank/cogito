@@ -48,7 +48,7 @@ function EditorTabs() {
             tabIndex={0}
             aria-selected={isActive}
             className={cn(
-              'group relative flex max-w-48 shrink-0 cursor-pointer items-center gap-1.5 border-r border-border/80 px-3 text-md',
+              'group relative flex max-w-48 shrink-0 cursor-pointer items-center gap-1.5 border-r border-border/80 px-3 text-sm',
               isActive
                 ? 'bg-background text-foreground'
                 : 'text-muted-foreground/70 hover:bg-muted/40 hover:text-foreground/90'

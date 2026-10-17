@@ -110,12 +110,12 @@ function SelectContent({
         alignOffset={alignOffset}
         // 卡片式展开依赖列表从触发器下沿开始；base-ui 的 Select 默认是 true（列表盖在触发器上），必须显式关掉
         alignItemWithTrigger={false}
-        className="isolate z-[70]">
+        className="isolate z-70">
         {/* 透明外壳：动效挂在它身上（data-open/data-closed 由 base-ui 打在这里），自身不画背景/边框/阴影。 */}
         <SelectPrimitive.Popup
           data-slot="select-popup"
           className={cn(
-            'group/popup relative isolate z-[70] flex flex-col origin-(--transform-origin)',
+            'group/popup relative isolate z-70 flex flex-col origin-(--transform-origin)',
             // 缩放原点固定到接缝侧的左边缘：面板与触发器严格等宽，左边缘恒重合，
             // 所以横向绝不产生位移（默认的 --transform-origin 在 align=center 时会停在中心，
             // 缩放过程中左边缘会往左跑几 px）
@@ -155,7 +155,7 @@ function SelectContent({
                 // 否则高亮项会被顶/底那条滚动箭头盖住
                 'scroll-py-6',
                 // 隐藏滚动条：固定等宽时 6px 滚动条会把选项文字挤到截断
-                '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+                'scrollbar-none [&::-webkit-scrollbar]:hidden'
               )}>
               {children}
             </SelectPrimitive.List>

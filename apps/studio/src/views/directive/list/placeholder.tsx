@@ -118,7 +118,7 @@ function DirectivePlaceholder(props: Props) {
       {detail ? (
         <p
           className={cn(
-            'max-w-md rounded-md bg-muted px-2 py-1 font-mono text-xs break-words opacity-80'
+            'max-w-md rounded-md bg-muted px-2 py-1 font-mono text-xs wrap-break-word opacity-80'
           )}>
           {detail}
         </p>

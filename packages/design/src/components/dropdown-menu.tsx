@@ -161,7 +161,7 @@ function DropdownMenuSubContent({
   return (
     <DropdownMenuContent
       data-slot="dropdown-menu-sub-content"
-      className={cn('w-auto min-w-[96px]', className)}
+      className={cn('w-auto min-w-24', className)}
       align={align}
       alignOffset={alignOffset}
       side={side}

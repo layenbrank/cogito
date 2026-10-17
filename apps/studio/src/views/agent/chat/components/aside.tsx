@@ -185,7 +185,7 @@ export default function AgentAside(props: AsideProps) {
       data-slot="agent-aside"
       className="bg-sidebar flex h-full min-h-0 flex-col">
       <header className="border-border bg-background flex h-10 shrink-0 items-center justify-between gap-2 border-b px-3">
-        <span className="text-md font-medium">任务详情</span>
+        <span className="text-sm font-medium">任务详情</span>
 
         {props.onClose ? (
           <Button

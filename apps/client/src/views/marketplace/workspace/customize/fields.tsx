@@ -219,7 +219,7 @@ function Fields(props: FieldsProps) {
                   aria-label="清空背景图"
                   className={cn(
                     IMAGE_SWATCH_CLASS,
-                    'grid shrink-0 cursor-pointer place-items-center rounded-lg border-2 border-dashed text-md font-medium text-muted-foreground transition-colors',
+                    'grid shrink-0 cursor-pointer place-items-center rounded-lg border-2 border-dashed text-sm font-medium text-muted-foreground transition-colors',
                     field.value === IMAGE_NONE
                       ? 'border-primary text-primary'
                       : 'border-border'

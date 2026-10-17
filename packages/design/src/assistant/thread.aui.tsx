@@ -132,7 +132,7 @@ const ThreadHistorySkeleton: FC = () => {
     <div
       data-slot="aui_thread-history-skeleton"
       role="status"
-      className="animate-in fade-in fill-mode-both flex flex-col gap-y-6 [animation-delay:150ms] [animation-duration:200ms]">
+      className="animate-in fade-in fill-mode-both flex flex-col gap-y-6 [animation-delay:150ms] animation-duration-[200ms]">
       <span className="sr-only">{labels.loadingConversation}</span>
       <Skeleton className="ml-auto h-9 w-2/5 rounded-xl motion-reduce:animate-none" />
       <div className="flex flex-col gap-y-2">
@@ -312,7 +312,7 @@ const Composer: FC<{ autoFocus: boolean }> = ({ autoFocus }) => {
               placeholder={
                 hasMessages ? labels.composerPlaceholderContinue : labels.composerPlaceholder
               }
-              className="aui-composer-input caret-primary placeholder:text-muted-foreground/60 w-full resize-none bg-transparent px-2.5 py-0 text-sm leading-[24px] outline-none"
+              className="aui-composer-input caret-primary placeholder:text-muted-foreground/60 w-full resize-none bg-transparent px-2.5 py-0 text-sm leading-6 outline-none"
               rows={2}
               minRows={2}
               maxRows={6}
@@ -356,7 +356,10 @@ const ComposerAction: FC = () => {
                 size="icon"
                 className="aui-composer-dictate text-muted-foreground hover:text-foreground size-7 rounded-full"
                 aria-label={labels.startDictation}>
-                <Icon icon="lucide:mic" className="aui-composer-dictate-icon size-4" />
+                <Icon
+                  icon="lucide:mic"
+                  className="aui-composer-dictate-icon size-4"
+                />
               </TooltipIconButton>
             </ComposerPrimitive.Dictate>
           </AuiIf>
@@ -370,7 +373,10 @@ const ComposerAction: FC = () => {
                 size="icon"
                 className="aui-composer-stop-dictation text-destructive size-7 rounded-full"
                 aria-label={labels.stopDictation}>
-                <Icon icon="lucide:square" className="aui-composer-stop-dictation-icon size-3.5 animate-pulse fill-current" />
+                <Icon
+                  icon="lucide:square"
+                  className="aui-composer-stop-dictation-icon size-3.5 animate-pulse fill-current"
+                />
               </TooltipIconButton>
             </ComposerPrimitive.StopDictation>
           </AuiIf>
@@ -385,7 +391,10 @@ const ComposerAction: FC = () => {
               size="icon"
               className="aui-composer-send size-7 rounded-md"
               aria-label={labels.send}>
-              <Icon icon="lucide:arrow-up" className="aui-composer-send-icon size-4" />
+              <Icon
+                icon="lucide:arrow-up"
+                className="aui-composer-send-icon size-4"
+              />
             </TooltipIconButton>
           </ComposerPrimitive.Send>
         </AuiIf>
@@ -397,7 +406,10 @@ const ComposerAction: FC = () => {
               size="icon"
               className="aui-composer-cancel size-7 rounded-md"
               aria-label={labels.stopGenerating}>
-              <Icon icon="lucide:square" className="aui-composer-cancel-icon size-3.5 fill-current" />
+              <Icon
+                icon="lucide:square"
+                className="aui-composer-cancel-icon size-3.5 fill-current"
+              />
             </Button>
           </ComposerPrimitive.Cancel>
         </AuiIf>
@@ -410,7 +422,7 @@ const MessageError: FC = () => {
   return (
     <MessagePrimitive.Error>
       <ErrorPrimitive.Root className="aui-message-error-root border-destructive bg-destructive/10 text-destructive dark:bg-destructive/5 mt-2 rounded-md border p-3 text-sm dark:text-red-200">
-        <ErrorPrimitive.Message className="aui-message-error-message whitespace-pre-wrap break-words" />
+        <ErrorPrimitive.Message className="aui-message-error-message whitespace-pre-wrap wrap-break-word" />
       </ErrorPrimitive.Root>
     </MessagePrimitive.Error>
   )
@@ -722,10 +734,16 @@ const AssistantActionBar: FC = () => {
       <ActionBarPrimitive.Copy asChild>
         <TooltipIconButton tooltip={labels.copy}>
           <AuiIf condition={(s) => s.message.isCopied}>
-            <Icon icon="lucide:check" className="animate-in zoom-in-50 fade-in duration-200 ease-out" />
+            <Icon
+              icon="lucide:check"
+              className="animate-in zoom-in-50 fade-in duration-200 ease-out"
+            />
           </AuiIf>
           <AuiIf condition={(s) => !s.message.isCopied}>
-            <Icon icon="lucide:copy" className="animate-in zoom-in-75 fade-in duration-150" />
+            <Icon
+              icon="lucide:copy"
+              className="animate-in zoom-in-75 fade-in duration-150"
+            />
           </AuiIf>
         </TooltipIconButton>
       </ActionBarPrimitive.Copy>
@@ -746,10 +764,13 @@ const AssistantActionBar: FC = () => {
           side="bottom"
           align="start"
           sideOffset={6}
-          className="aui-action-bar-more-content bg-popover text-popover-foreground data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:animate-out data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] overflow-hidden rounded-xl border p-1.5">
+          className="aui-action-bar-more-content bg-popover text-popover-foreground data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:animate-out data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-32 overflow-hidden rounded-xl border p-1.5">
           <ActionBarPrimitive.ExportMarkdown asChild>
             <ActionBarMorePrimitive.Item className="aui-action-bar-more-item hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none">
-              <Icon icon="lucide:download" className="size-4" />
+              <Icon
+                icon="lucide:download"
+                className="size-4"
+              />
               {labels.exportMarkdown}
             </ActionBarMorePrimitive.Item>
           </ActionBarPrimitive.ExportMarkdown>
@@ -787,7 +808,7 @@ const UserMessage: FC = () => {
         <div className="aui-user-message-content peer bg-muted text-foreground rounded-xl px-4 py-2 wrap-break-word empty:hidden">
           <MessagePrimitive.Parts components={{ File: UserFilePart, Image: UserImagePart }} />
         </div>
-        <div className="aui-user-action-bar-wrapper absolute start-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2 peer-empty:hidden rtl:translate-x-full">
+        <div className="aui-user-action-bar-wrapper absolute inset-s-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2 peer-empty:hidden rtl:translate-x-full">
           <UserActionBar />
         </div>
       </div>

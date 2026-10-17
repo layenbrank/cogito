@@ -217,11 +217,10 @@
   --radius-xl: calc(var(--radius) + 4px);
 
   /*
-   * 字号：字号一律走配置，不写 `text-[11px]` 这类任意值。
-   * 最小字号硬性 12px（Tailwind 的 text-xs），不提供更小档位；
-   * 13px 这档单独给了 token，配合 text-md 使用。
+   * 字号：一律用 Tailwind 标准档位（xs 12 / sm 14 / base 16 / lg 18 / xl 20 / 2xl 24 …），
+   * 不写 `text-[Npx]` 这类任意值，也不自建低于 12px 或插在档位之间的字号 token：
+   * 自定义档位会让 md(13) < sm(14) 这种命名倒挂，读代码时没法凭名字判断大小。
    */
-  --text-md: 0.8125rem;
 
   /*
    * Collapsible / Accordion 折叠动效（shadcn 约定）：`animate-collapsible-down/up` 工具类，
@@ -351,7 +350,7 @@
   }
 
   .mt-fact-value {
-    @apply min-w-0 truncate text-right text-md font-semibold tabular-nums text-foreground;
+    @apply min-w-0 truncate text-right text-sm font-semibold tabular-nums text-foreground;
   }
 
   .mt-field {
@@ -363,7 +362,7 @@
   }
 
   .mt-section-title {
-    @apply m-0 mb-2 text-md font-semibold text-foreground;
+    @apply m-0 mb-2 text-sm font-semibold text-foreground;
   }
 
   .mt-preview-label {
@@ -396,7 +395,7 @@
   }
 
   .mt-day-chip {
-    @apply h-[34px] cursor-pointer text-md font-medium text-muted-foreground;
+    @apply h-8.5 cursor-pointer text-sm font-medium text-muted-foreground;
     border-radius: var(--radius);
     border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
     background: color-mix(in oklab, var(--muted) 35%, var(--card));

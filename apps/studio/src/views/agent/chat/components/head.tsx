@@ -46,7 +46,7 @@ export default function AgentHead(props: HeadProps) {
           data-running={isRunning ? 'true' : 'false'}
           className="bg-muted-foreground data-[running=true]:bg-success size-1.5 shrink-0 rounded-full"
         />
-        <span className="text-md truncate font-medium">{title || '新任务'}</span>
+        <span className="text-sm truncate font-medium">{title || '新任务'}</span>
         {isRunning ? (
           <span className="text-muted-foreground shrink-0 text-xs">生成中…</span>
         ) : null}

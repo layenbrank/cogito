@@ -29,7 +29,7 @@ const CONTROL_CLASS = 'h-8 rounded-lg bg-background text-xs text-foreground shad
  * `field-sizing-fixed` 关掉 content 自适应，避免长文本把整卡撑爆。
  */
 const TEXTAREA_CLASS =
-  'field-sizing-fixed min-h-[150px] resize-none overflow-y-auto overscroll-auto rounded-lg bg-background text-xs text-foreground shadow-xs'
+  'field-sizing-fixed min-h-37.5 resize-none overflow-y-auto overscroll-auto rounded-lg bg-background text-xs text-foreground shadow-xs'
 
 /** 步骤卡片外壳：与指令墙白卡同一套圆角 / 轻阴影 */
 const STEP_CARD_CLASS =

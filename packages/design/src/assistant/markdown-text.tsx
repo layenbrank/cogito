@@ -72,8 +72,18 @@ const CodeHeader: FC<CodeHeaderProps> = ({ language, code }) => {
       <TooltipIconButton
         tooltip={labels.copy}
         onClick={onCopy}>
-        {!isCopied && <Icon icon="lucide:copy" className="animate-in zoom-in-75 fade-in duration-150" />}
-        {isCopied && <Icon icon="lucide:check" className="animate-in zoom-in-50 fade-in duration-200 ease-out" />}
+        {!isCopied && (
+          <Icon
+            icon="lucide:copy"
+            className="animate-in zoom-in-75 fade-in duration-150"
+          />
+        )}
+        {isCopied && (
+          <Icon
+            icon="lucide:check"
+            className="animate-in zoom-in-50 fade-in duration-200 ease-out"
+          />
+        )}
       </TooltipIconButton>
     </div>
   )
@@ -232,7 +242,7 @@ const defaultComponents = memoizeMarkdownComponents({
   pre: ({ className, ...props }) => (
     <pre
       className={cn(
-        'aui-md-pre border-border/50 bg-muted/30 overflow-x-auto rounded-t-none rounded-b-xl border border-t-0 p-3.5 text-md leading-relaxed',
+        'aui-md-pre border-border/50 bg-muted/30 overflow-x-auto rounded-t-none rounded-b-xl border border-t-0 p-3.5 text-sm leading-relaxed',
         className
       )}
       {...props}
