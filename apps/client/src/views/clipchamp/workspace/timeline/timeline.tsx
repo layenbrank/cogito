@@ -709,7 +709,7 @@ function TimelineClipBlock(props: TimelineClipBlockProps) {
       aria-pressed={isSelected}
       aria-label={label}
       className={clsx(
-        'absolute top-1.5 flex h-[calc(100%-12px)] cursor-grab items-center overflow-hidden rounded-md border text-left shadow-sm active:cursor-grabbing',
+        'absolute top-1.5 flex h-[calc(100%_-_12px)] cursor-grab items-center overflow-hidden rounded-md border text-left shadow-sm active:cursor-grabbing',
         tone,
         isSelected && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
       )}

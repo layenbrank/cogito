@@ -441,7 +441,7 @@ function FindBar(props: FindBarProps) {
   return (
     <search
       className={cn(
-        'absolute right-3 z-30 flex min-w-[min(100%-1.5rem,22rem)] flex-col gap-1',
+        'absolute right-3 z-30 flex min-w-[min(100%_-_1.5rem,22rem)] flex-col gap-1',
         props.clearToolbar ? 'top-11' : 'top-2',
         'rounded-md border border-border bg-popover p-1.5 shadow-lg backdrop-blur-none'
       )}

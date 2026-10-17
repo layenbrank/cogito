@@ -224,7 +224,7 @@ const MagneticTile = {
             {surfaceBody}
           </div>
         )}
-        <span className="absolute top-[calc(100%+6px)] left-0 z-1 block w-full truncate text-center text-sm leading-none text-muted-foreground">
+        <span className="absolute top-[calc(100%_+_6px)] left-0 z-1 block w-full truncate text-center text-sm leading-none text-muted-foreground">
           <Tooltip>
             <TooltipTrigger render={<span>{props.title}</span>} />
             <TooltipContent side="bottom">{props.title}</TooltipContent>
