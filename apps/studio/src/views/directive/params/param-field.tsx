@@ -104,7 +104,7 @@ function ParamField(props: Props) {
 
         <Badge
           variant="outline"
-          className="border-border/70 px-1.5 py-0 text-[10px] font-normal text-foreground/65">
+          className="border-border/70 px-1.5 py-0 text-xs font-normal text-foreground/65">
           {param.ty}
         </Badge>
 
@@ -126,7 +126,7 @@ function ParamField(props: Props) {
       )}
 
       {problem ? (
-        <p className="flex items-start gap-1 text-[11px] leading-snug text-destructive">
+        <p className="flex items-start gap-1 text-xs leading-snug text-destructive">
           <Icon
             icon="mdi:alert-circle-outline"
             className="mt-px size-3 shrink-0"

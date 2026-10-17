@@ -34,7 +34,7 @@ function AccountAvatar(props: { initials: string | null; className?: string }) {
     <Avatar
       size="sm"
       className={props.className}>
-      <AvatarFallback className={props.initials ? 'text-3xs font-medium' : undefined}>
+      <AvatarFallback className={props.initials ? 'text-xs font-medium' : undefined}>
         {props.initials ?? (
           <Icon
             icon="lucide:user"
@@ -75,7 +75,7 @@ export function AccountMenuContent(props: AccountMenuContentProps) {
             <AccountAvatar initials={identity ? identity.initials : null} />
             <span className="flex min-w-0 flex-col">
               <span className="truncate text-xs font-medium">{identity?.name ?? '已登录'}</span>
-              <span className="text-muted-foreground truncate text-2xs">{detail}</span>
+              <span className="text-muted-foreground truncate text-xs">{detail}</span>
             </span>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />

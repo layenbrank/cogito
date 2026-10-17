@@ -413,7 +413,7 @@ function AddStepButton(props: AddStepButtonProps) {
         <div className="max-h-64 overflow-y-auto p-1.5">
           {actions.length > 0 ? (
             <>
-              <p className="px-2 py-1 text-[11px] font-medium text-muted-foreground">动作</p>
+              <p className="px-2 py-1 text-xs font-medium text-muted-foreground">动作</p>
               <ul className="flex flex-col gap-0.5">
                 {actions.map(function (action) {
                   const mark = findBucketMark(action.bucket).icon
@@ -445,7 +445,7 @@ function AddStepButton(props: AddStepButtonProps) {
           ) : null}
           {kinds.length > 0 ? (
             <>
-              <p className="px-2 py-1 text-[11px] font-medium text-muted-foreground">控制流</p>
+              <p className="px-2 py-1 text-xs font-medium text-muted-foreground">控制流</p>
               <ul className="flex flex-col gap-0.5">
                 {kinds.map(function (kind) {
                   return (
@@ -609,7 +609,7 @@ function StepHeader(props: StepHeaderProps) {
           <SelectTrigger
             size="sm"
             aria-label="切换步骤类型"
-            className="h-5 w-fit cursor-pointer gap-1 border-transparent bg-secondary px-1.5 text-[11px] font-normal text-secondary-foreground shadow-none hover:bg-secondary/80 [&_svg]:size-3">
+            className="h-5 w-fit cursor-pointer gap-1 border-transparent bg-secondary px-1.5 text-xs font-normal text-secondary-foreground shadow-none hover:bg-secondary/80 [&_svg]:size-3">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

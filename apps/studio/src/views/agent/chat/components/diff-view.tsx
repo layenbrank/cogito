@@ -34,7 +34,7 @@ function DiffRow(props: { line: DiffLine }) {
 
   return (
     <div
-      className={`flex w-max min-w-full font-mono text-2xs leading-relaxed ${LINE_CLASSES[line.kind]}`}>
+      className={`flex w-max min-w-full font-mono text-xs leading-relaxed ${LINE_CLASSES[line.kind]}`}>
       <span className="text-muted-foreground w-8 shrink-0 select-none pe-1.5 text-end">
         {line.oldLine ?? ''}
       </span>
@@ -54,18 +54,18 @@ function DiffFileSection(props: { file: DiffFile }) {
     <div className="border-border/60 flex flex-col border-b last:border-b-0">
       <div className="bg-muted/40 flex items-center gap-2 px-2 py-1">
         <span
-          className="min-w-0 flex-1 truncate font-mono text-2xs font-medium"
+          className="min-w-0 flex-1 truncate font-mono text-xs font-medium"
           title={file.path}>
           {file.path}
         </span>
-        <span className="text-success shrink-0 text-2xs">+{file.added}</span>
-        <span className="text-destructive shrink-0 text-2xs">−{file.removed}</span>
+        <span className="text-success shrink-0 text-xs">+{file.added}</span>
+        <span className="text-destructive shrink-0 text-xs">−{file.removed}</span>
       </div>
 
       {file.hunks.map(function (hunk) {
         return (
           <div key={hunk.header}>
-            <div className="text-muted-foreground bg-muted/20 px-2 py-0.5 font-mono text-2xs">
+            <div className="text-muted-foreground bg-muted/20 px-2 py-0.5 font-mono text-xs">
               {hunk.header}
             </div>
             {hunk.lines.map(function (line, index) {
@@ -95,7 +95,7 @@ export function DiffView(props: { patch: string }) {
   )
 
   if (preview.files.length === 0) {
-    return <p className="text-muted-foreground px-2 py-1 text-2xs">没有可展示的差异。</p>
+    return <p className="text-muted-foreground px-2 py-1 text-xs">没有可展示的差异。</p>
   }
 
   return (

@@ -31,7 +31,7 @@ export function AsideCard(props: AsideCardProps) {
       data-aside-section={id}
       className="border-border/70 bg-background flex flex-col gap-1.5 rounded-lg border px-2.5 py-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground text-2xs font-medium">
+        <span className="text-muted-foreground text-xs font-medium">
           {count === undefined ? label : `${label}（${count}）`}
         </span>
         {action}

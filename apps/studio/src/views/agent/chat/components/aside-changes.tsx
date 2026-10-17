@@ -158,7 +158,7 @@ export function AsideChanges(props: { sessionID: string | null; isRunning: boole
               className="border-destructive/40 text-destructive">
               −{removed}
             </Badge>
-            <span className="text-muted-foreground text-2xs">共 {entries.length} 个文件</span>
+            <span className="text-muted-foreground text-xs">共 {entries.length} 个文件</span>
           </div>
 
           <ul className="flex flex-col">

@@ -90,14 +90,14 @@ function ModelItem(props: { option: ModelOption; isActive: boolean; onPick: () =
       <span className="min-w-0 flex-1 truncate">{option.model.name || option.model.id}</span>
 
       {option.model.providerName ? (
-        <span className="text-muted-foreground shrink-0 text-3xs">{option.model.providerName}</span>
+        <span className="text-muted-foreground shrink-0 text-xs">{option.model.providerName}</span>
       ) : null}
 
       {tags.map(function (tag) {
         return (
           <span
             key={tag}
-            className="bg-muted text-muted-foreground shrink-0 rounded px-1 py-0.5 text-3xs">
+            className="bg-muted text-muted-foreground shrink-0 rounded px-1 py-0.5 text-xs">
             {tag}
           </span>
         )
@@ -159,7 +159,7 @@ export function ModelPicker(props: ModelPickerProps) {
       <DropdownMenuGroup>
         <DropdownMenuLabel className="text-muted-foreground text-xs leading-relaxed">
           <span>{label}</span>
-          <span className="text-muted-foreground/80 text-3xs font-normal">{` · ${note}`}</span>
+          <span className="text-muted-foreground/80 text-xs font-normal">{` · ${note}`}</span>
         </DropdownMenuLabel>
 
         {visible.length === 0 ? (
@@ -284,7 +284,7 @@ export function ModelPicker(props: ModelPickerProps) {
                   className={isAuto ? 'text-primary' : 'opacity-0'}
                 />
                 <span className="min-w-0 flex-1 truncate">自动</span>
-                <span className="text-muted-foreground shrink-0 text-3xs">
+                <span className="text-muted-foreground shrink-0 text-xs">
                   {target ? target.model : '还没有可用模型'}
                 </span>
               </DropdownMenuItem>

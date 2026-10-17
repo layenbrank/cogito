@@ -448,7 +448,7 @@ function WorkspaceRow(props: WorkspaceRowProps) {
       {avatar}
       <span className={titleClass}>{item.title}</span>
       {taskCount > 0 ? (
-        <span className="text-muted-foreground shrink-0 text-3xs tabular-nums">{taskCount}</span>
+        <span className="text-muted-foreground shrink-0 text-xs tabular-nums">{taskCount}</span>
       ) : null}
       {item.pinned ? (
         <Icon

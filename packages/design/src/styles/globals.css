@@ -217,11 +217,10 @@
   --radius-xl: calc(var(--radius) + 4px);
 
   /*
-   * 微字号：终端输出、侧栏徽标这类小字反复出现，
-   * 收进 token 后各 app 不必再写 `text-[11px]` 这种任意值。
+   * 字号：字号一律走配置，不写 `text-[11px]` 这类任意值。
+   * 最小字号硬性 12px（Tailwind 的 text-xs），不提供更小档位；
+   * 13px 这档单独给了 token，配合 text-md 使用。
    */
-  --text-3xs: 0.625rem;
-  --text-2xs: 0.6875rem;
   --text-md: 0.8125rem;
 
   /*
@@ -352,7 +351,7 @@
   }
 
   .mt-fact-value {
-    @apply min-w-0 truncate text-right text-[13px] font-semibold tabular-nums text-foreground;
+    @apply min-w-0 truncate text-right text-md font-semibold tabular-nums text-foreground;
   }
 
   .mt-field {
@@ -364,7 +363,7 @@
   }
 
   .mt-section-title {
-    @apply m-0 mb-2 text-[13px] font-semibold text-foreground;
+    @apply m-0 mb-2 text-md font-semibold text-foreground;
   }
 
   .mt-preview-label {
@@ -397,7 +396,7 @@
   }
 
   .mt-day-chip {
-    @apply h-[34px] cursor-pointer text-[13px] font-medium text-muted-foreground;
+    @apply h-[34px] cursor-pointer text-md font-medium text-muted-foreground;
     border-radius: var(--radius);
     border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
     background: color-mix(in oklab, var(--muted) 35%, var(--card));

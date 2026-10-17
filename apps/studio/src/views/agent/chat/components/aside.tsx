@@ -385,7 +385,7 @@ export default function AgentAside(props: AsideProps) {
 
               {otherFolders.length > 0 ? (
                 <div className="flex flex-col gap-1">
-                  <span className="text-muted-foreground text-2xs">
+                  <span className="text-muted-foreground text-xs">
                     其它文件夹（{otherFolders.length}）
                   </span>
                   {otherFolders.map(function (folder) {

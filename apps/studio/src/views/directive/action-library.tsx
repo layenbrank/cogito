@@ -95,7 +95,7 @@ const ActionCard = memo(function (props: ActionCardProps) {
             <Badge
               variant="outline"
               title={formatParamTitle(action.params)}
-              className="text-[11px] font-normal">
+              className="text-xs font-normal">
               <Icon icon="mdi:form-textbox" />
               {action.params.length === 0 ? '无参数' : `${action.params.length} 个参数`}
             </Badge>
@@ -104,7 +104,7 @@ const ActionCard = memo(function (props: ActionCardProps) {
                 <Badge
                   key={permission}
                   variant="secondary"
-                  className="text-[11px] font-normal"
+                  className="text-xs font-normal"
                   title={`该动作会用到：${findPermissionLabel(permission)}`}>
                   <Icon icon={findPermissionIcon(permission)} />
                   {findPermissionLabel(permission)}

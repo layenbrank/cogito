@@ -52,7 +52,7 @@ function InputsEditor(props: InputsEditorProps) {
   return (
     <div className="flex flex-col gap-2">
       {inputs.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border/60 px-3 py-2.5 text-center text-[11px] text-muted-foreground">
+        <p className="rounded-lg border border-dashed border-border/60 px-3 py-2.5 text-center text-xs text-muted-foreground">
           还没声明输入；运行时按下面的「运行参数」填值
         </p>
       ) : null}

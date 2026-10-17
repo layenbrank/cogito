@@ -148,7 +148,7 @@ function Field(props: FieldProps) {
 
   return (
     <div className={cn('flex min-w-0 flex-col gap-1', props.className)}>
-      <span className="inline-flex h-4 min-w-0 items-center gap-1 text-[11px] font-medium tracking-wide text-foreground">
+      <span className="inline-flex h-4 min-w-0 items-center gap-1 text-xs font-medium tracking-wide text-foreground">
         {canBind ? (
           <Label
             htmlFor={controlId}
@@ -190,7 +190,7 @@ function Section(props: SectionProps) {
             {props.title}
           </span>
           {props.count !== undefined ? (
-            <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-secondary-foreground">
+            <span className="rounded-full bg-secondary px-1.5 py-0.5 text-xs font-medium tabular-nums text-secondary-foreground">
               {props.count}
             </span>
           ) : null}

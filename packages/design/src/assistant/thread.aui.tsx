@@ -312,7 +312,7 @@ const Composer: FC<{ autoFocus: boolean }> = ({ autoFocus }) => {
               placeholder={
                 hasMessages ? labels.composerPlaceholderContinue : labels.composerPlaceholder
               }
-              className="aui-composer-input caret-primary placeholder:text-muted-foreground/60 w-full resize-none bg-transparent px-2.5 py-0 text-[14px] leading-[24px] outline-none"
+              className="aui-composer-input caret-primary placeholder:text-muted-foreground/60 w-full resize-none bg-transparent px-2.5 py-0 text-sm leading-[24px] outline-none"
               rows={2}
               minRows={2}
               maxRows={6}

@@ -106,7 +106,7 @@ function SkillsPane(props: {
                   <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
                     <span className="w-full truncate text-start">{skill.name}</span>
                     {skill.description ? (
-                      <span className="text-muted-foreground w-full truncate text-start text-2xs">
+                      <span className="text-muted-foreground w-full truncate text-start text-xs">
                         {skill.description}
                       </span>
                     ) : null}

@@ -190,7 +190,7 @@ function VariableValue(props: VariableValueProps) {
 
   if (typeof value === 'boolean') {
     return (
-      <label className="inline-flex h-8 w-full items-center gap-1.5 rounded-lg border border-border/70 bg-background px-2.5 text-[11px] text-foreground">
+      <label className="inline-flex h-8 w-full items-center gap-1.5 rounded-lg border border-border/70 bg-background px-2.5 text-xs text-foreground">
         <Checkbox
           checked={value}
           aria-label="变量值"
@@ -1236,7 +1236,7 @@ function Editor({ name, isListOpen, onOpen, onToggleList, onRun }: Props) {
                   />
                 </Field>
                 {nameError ? (
-                  <p className="flex items-center gap-1 text-[11px] text-destructive">
+                  <p className="flex items-center gap-1 text-xs text-destructive">
                     <Glyph icon="mdi:alert-circle-outline" />
                     {nameError}
                   </p>
@@ -1322,7 +1322,7 @@ function Editor({ name, isListOpen, onOpen, onToggleList, onRun }: Props) {
                 title="运行参数"
                 hint="只影响本次运行，不写入指令">
                 {content.inputs.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-border/60 px-3 py-2.5 text-center text-[11px] text-muted-foreground">
+                  <p className="rounded-lg border border-dashed border-border/60 px-3 py-2.5 text-center text-xs text-muted-foreground">
                     这条指令没有声明输入
                   </p>
                 ) : (
@@ -1404,7 +1404,7 @@ function Editor({ name, isListOpen, onOpen, onToggleList, onRun }: Props) {
                     <Glyph icon="mdi:format-list-numbered" />
                   </span>
                   步骤
-                  <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium tabular-nums text-secondary-foreground">
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium tabular-nums text-secondary-foreground">
                     {content.steps.length}
                   </span>
                 </span>

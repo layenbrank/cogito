@@ -45,7 +45,7 @@ function PermissionNotice(props: PermissionNoticeProps) {
         render={
           <Badge
             variant="secondary"
-            className="cursor-help text-[11px] font-normal">
+            className="cursor-help text-xs font-normal">
             <Icon icon="mdi:shield-key-outline" />
             {`需要 ${props.permissions.length} 项权限`}
           </Badge>
@@ -57,7 +57,7 @@ function PermissionNotice(props: PermissionNoticeProps) {
             return (
               <li
                 key={permission}
-                className="flex items-center gap-1.5 text-[11px]">
+                className="flex items-center gap-1.5 text-xs">
                 <Icon icon={findPermissionIcon(permission)} />
                 {findPermissionLabel(permission)}
               </li>
@@ -178,7 +178,7 @@ function TrialPanel(props: Props) {
               {isRunning ? '试跑中…' : '试跑'}
             </Button>
 
-            <p className="text-[11px] leading-snug text-muted-foreground">
+            <p className="text-xs leading-snug text-muted-foreground">
               留空即不传该参数，corex 用声明里的默认值。试跑会真的执行这个动作。
             </p>
           </div>

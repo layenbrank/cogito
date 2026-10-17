@@ -440,7 +440,7 @@ function ModeItem(props: ModeItemProps) {
         />
         {props.label}
       </span>
-      <span className="pl-6 text-[11px] text-muted-foreground">{props.hint}</span>
+      <span className="pl-6 text-xs text-muted-foreground">{props.hint}</span>
     </DropdownMenuItem>
   )
 }

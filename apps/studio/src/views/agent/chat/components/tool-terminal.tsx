@@ -128,7 +128,7 @@ function TerminalShell(props: TerminalShellProps) {
       className="border-terminal-border bg-terminal text-terminal-foreground overflow-hidden rounded-md border">
       <div className="border-terminal-border bg-terminal-surface/60 flex items-center gap-2 border-b px-2.5 py-1">
         <Icon icon="lucide:terminal" className="text-terminal-muted size-3 shrink-0" />
-        <div className="min-w-0 flex-1 font-mono text-2xs break-all">{props.header}</div>
+        <div className="min-w-0 flex-1 font-mono text-xs break-all">{props.header}</div>
         {props.isRunning ? (
           <Icon icon="lucide:loader-circle" className="text-terminal-muted size-3 shrink-0 animate-spin" />
         ) : props.isError ? (
@@ -138,7 +138,7 @@ function TerminalShell(props: TerminalShellProps) {
         )}
       </div>
 
-      <div className="flex max-h-80 flex-col gap-1.5 overflow-auto px-2.5 py-1.5 font-mono text-2xs leading-relaxed">
+      <div className="flex max-h-80 flex-col gap-1.5 overflow-auto px-2.5 py-1.5 font-mono text-xs leading-relaxed">
         {props.children}
         {props.footer ?? null}
       </div>

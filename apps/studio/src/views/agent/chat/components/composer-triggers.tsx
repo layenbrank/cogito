@@ -226,7 +226,7 @@ function ComposerTriggers() {
                       />
                       <span className="min-w-0 flex-1 truncate">{item.label}</span>
                       {item.description ? (
-                        <span className="text-muted-foreground max-w-[40%] truncate text-2xs">
+                        <span className="text-muted-foreground max-w-[40%] truncate text-xs">
                           {item.description}
                         </span>
                       ) : null}
@@ -267,7 +267,7 @@ function ComposerTriggers() {
                       <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
                         <span className="w-full truncate">{item.label}</span>
                         {item.description ? (
-                          <span className="text-muted-foreground w-full truncate text-2xs">
+                          <span className="text-muted-foreground w-full truncate text-xs">
                             {item.description}
                           </span>
                         ) : null}

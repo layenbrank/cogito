@@ -203,7 +203,7 @@ export function QuotaMenu() {
         {view ? (
           <span
             className={
-              view.exhausted ? 'text-destructive text-2xs tabular-nums' : 'text-2xs tabular-nums'
+              view.exhausted ? 'text-destructive text-xs tabular-nums' : 'text-xs tabular-nums'
             }>
             {`${view.percent}%`}
           </span>

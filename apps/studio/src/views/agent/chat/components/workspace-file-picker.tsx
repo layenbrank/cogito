@@ -101,7 +101,7 @@ function WorkspaceFilePicker(props: WorkspaceFilePickerProps) {
       ) : null}
 
       {!isSearching && relative ? (
-        <p className="text-muted-foreground truncate px-2.5 pt-1.5 text-2xs">{relative}</p>
+        <p className="text-muted-foreground truncate px-2.5 pt-1.5 text-xs">{relative}</p>
       ) : null}
 
       <div
@@ -152,7 +152,7 @@ function WorkspaceFilePicker(props: WorkspaceFilePickerProps) {
                         )}
                         <span className="min-w-0 flex-1 truncate text-start">{entry.name}</span>
                         {parentLabel ? (
-                          <span className="text-muted-foreground max-w-[40%] shrink truncate text-end text-2xs">
+                          <span className="text-muted-foreground max-w-[40%] shrink truncate text-end text-xs">
                             {parentLabel}
                           </span>
                         ) : null}

@@ -55,6 +55,16 @@ export default defineConfig([
         {
           selector: 'TemplateElement[value.raw=/scrollbar-width\\s*:\\s*thin/i]',
           message: '设计包不得把滚动条设成 thin —— 宽度统一由 app 的 6px 全局规则决定'
+        },
+        // 字号只能取配置刻度（text-xs 12px / text-sm / text-md 等），禁止任意 px 值；
+        // 最小字号 12px，globals.css 里也不提供更小的 token。
+        {
+          selector: 'Literal[value=/\\btext-\\[\\d+(?:\\.\\d+)?px\\]/]',
+          message: '字号必须用配置刻度（text-xs 为 12px 下限），不要写任意 px 值'
+        },
+        {
+          selector: 'TemplateElement[value.raw=/\\btext-\\[\\d+(?:\\.\\d+)?px\\]/]',
+          message: '字号必须用配置刻度（text-xs 为 12px 下限），不要写任意 px 值'
         }
       ]
     }

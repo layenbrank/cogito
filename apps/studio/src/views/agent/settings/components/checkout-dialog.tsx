@@ -220,7 +220,7 @@ export function CheckoutDialog(props: CheckoutDialogProps) {
                       <Badge variant="secondary">已选</Badge>
                     ) : null
                   ) : (
-                    <span className="text-muted-foreground text-2xs">
+                    <span className="text-muted-foreground text-xs">
                       {item.reason ?? '未配置'}
                     </span>
                   )}
@@ -275,7 +275,7 @@ export function CheckoutDialog(props: CheckoutDialogProps) {
         ) : null}
 
         <DialogFooter className="sm:justify-between">
-          <span className="text-muted-foreground text-2xs">
+          <span className="text-muted-foreground text-xs">
             {props.catalog.orderTtlSecs > 0
               ? `订单 ${Math.round(props.catalog.orderTtlSecs / 60)} 分钟内有效，过期自动关单`
               : ''}

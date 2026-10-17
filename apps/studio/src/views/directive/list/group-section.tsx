@@ -26,7 +26,7 @@ const VARIANT = {
     body: 'pt-3',
     title: 'text-sm font-semibold tracking-tight text-foreground',
     count:
-      'rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-medium text-muted-foreground shadow-xs'
+      'rounded-full bg-background/80 px-2 py-0.5 text-xs font-medium text-muted-foreground shadow-xs'
   },
   /** 编排台左栏：与墙面同一套按钮壳，略收紧内边距；间隔交给父级 flex gap */
   rail: {
@@ -35,7 +35,7 @@ const VARIANT = {
     body: 'pt-2',
     title: 'text-xs font-semibold tracking-tight text-foreground',
     count:
-      'rounded-full bg-background/80 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground shadow-xs'
+      'rounded-full bg-background/80 px-1.5 py-0.5 text-xs font-medium text-muted-foreground shadow-xs'
   }
 } as const
 
