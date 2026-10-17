@@ -42,6 +42,20 @@ export default defineConfig([
           argsIgnorePattern: '^_',
           varsIgnorePattern: '^_'
         }
+      ],
+      // 滚动条尺寸由 app 的全局规则（apps/client `*::-webkit-scrollbar` 6px）统一控制：
+      // 设计包一旦写 `scrollbar-width: thin`，Chromium 会用它覆盖掉 6px，观感就和 app 不一致了。
+      // 需要隐藏滚动条用 `none` 是允许的（明确的局部行为）。
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Literal[value=/scrollbar-width\\s*:\\s*thin/i]',
+          message: '设计包不得把滚动条设成 thin —— 宽度统一由 app 的 6px 全局规则决定'
+        },
+        {
+          selector: 'TemplateElement[value.raw=/scrollbar-width\\s*:\\s*thin/i]',
+          message: '设计包不得把滚动条设成 thin —— 宽度统一由 app 的 6px 全局规则决定'
+        }
       ]
     }
   },

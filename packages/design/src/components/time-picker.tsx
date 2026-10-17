@@ -89,7 +89,7 @@ function TimeColumn(props: TimeColumnProps) {
         aria-label={props.label}
         className={cn(
           COLUMN_HEIGHT,
-          'overflow-y-auto overscroll-contain rounded-md border border-border/70 bg-muted/35 p-1 [scrollbar-width:thin]'
+          'overflow-y-auto scroll-smooth rounded-md border border-border/70 bg-muted/35 p-1'
         )}>
         {props.values.map(function (value) {
           const isSelected = value === props.selected
