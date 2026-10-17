@@ -10,7 +10,7 @@ import {
   DialogTitle
 } from '@i-thinking/design/components/dialog'
 import { InputGroup, InputGroupAddon } from '@i-thinking/design/components/input-group'
-import { SearchIcon, CheckIcon } from 'lucide-react'
+import { Icon } from '@iconify/react/offline'
 
 function Command({ className, ...props }: React.ComponentProps<typeof CommandPrimitive>) {
   return (
@@ -72,7 +72,10 @@ function CommandInput({
           {...props}
         />
         <InputGroupAddon>
-          <SearchIcon className="size-4 shrink-0 opacity-50" />
+          <Icon
+            icon="lucide:search"
+            className="size-4 shrink-0 opacity-50"
+          />
         </InputGroupAddon>
       </InputGroup>
     </div>
@@ -148,7 +151,10 @@ function CommandItem({
       )}
       {...props}>
       {children}
-      <CheckIcon className="ml-auto opacity-0 group-has-data-[slot=command-shortcut]/command-item:hidden group-data-[checked=true]/command-item:opacity-100" />
+      <Icon
+        icon="lucide:check"
+        className="ml-auto opacity-0 group-has-data-[slot=command-shortcut]/command-item:hidden group-data-[checked=true]/command-item:opacity-100"
+      />
     </CommandPrimitive.Item>
   )
 }
