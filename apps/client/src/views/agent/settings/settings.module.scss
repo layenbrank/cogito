@@ -316,13 +316,6 @@
   max-width: 36vw;
 }
 
-.selectPopup {
-  width: max(var(--anchor-width), 18rem);
-  min-width: min(18rem, calc(100vw - 2rem));
-  max-width: min(24rem, calc(100vw - 2rem));
-  max-height: min(16rem, var(--available-height, 16rem));
-}
-
 /* 兼容旧卡片 / 表单（其它 section、对话框内） */
 .card {
   display: flex;

@@ -58,9 +58,7 @@ function ProviderCard(props: ProviderCardProps) {
                 className="w-full">
                 <SelectValue placeholder="选择模型" />
               </SelectTrigger>
-              <SelectContent
-                alignItemWithTrigger={false}
-                className={styles.selectPopup}>
+              <SelectContent>
                 {models.map(function (model) {
                   return (
                     <SelectItem

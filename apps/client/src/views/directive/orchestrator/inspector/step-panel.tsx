@@ -147,9 +147,7 @@ function StepPanel(props: StepPanelProps) {
             <SelectTrigger className="w-full">
               <SelectValue placeholder="选择动作" />
             </SelectTrigger>
-            <SelectContent
-              alignItemWithTrigger={false}
-              className="max-h-72">
+            <SelectContent className="max-h-72">
               {props.catalog.map(function (entry) {
                 return (
                   <SelectItem

@@ -140,7 +140,7 @@ function ParamFields(props: ParamFieldsProps) {
                   className="w-full">
                   <SelectValue placeholder="未设置" />
                 </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
+                <SelectContent>
                   <SelectItem value="__unset">未设置</SelectItem>
                   {options.map(function (option) {
                     return (

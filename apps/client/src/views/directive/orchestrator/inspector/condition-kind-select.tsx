@@ -29,7 +29,7 @@ function ConditionKindSelect(props: ConditionKindSelectProps) {
         aria-label="条件类型">
         <SelectValue />
       </SelectTrigger>
-      <SelectContent alignItemWithTrigger={false}>
+      <SelectContent>
         {CONDITION_KINDS.map(function (kind) {
           return (
             <SelectItem

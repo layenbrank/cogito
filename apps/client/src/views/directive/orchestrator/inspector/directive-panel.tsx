@@ -62,7 +62,7 @@ function DirectivePanel(props: DirectivePanelProps) {
         <SelectTrigger className="w-full">
           <SelectValue placeholder="未分类" />
         </SelectTrigger>
-        <SelectContent alignItemWithTrigger={false}>
+        <SelectContent>
           <SelectItem value="__none">未分类</SelectItem>
           {BUCKETS.map(function (bucket) {
             return (
@@ -93,7 +93,7 @@ function DirectivePanel(props: DirectivePanelProps) {
         <SelectTrigger className="w-full">
           <SelectValue placeholder="默认" />
         </SelectTrigger>
-        <SelectContent alignItemWithTrigger={false}>
+        <SelectContent>
           <SelectItem value="default">默认</SelectItem>
           <SelectItem value="abort">abort（中止）</SelectItem>
           <SelectItem value="continue">continue（继续）</SelectItem>

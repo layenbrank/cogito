@@ -42,9 +42,7 @@ function RunPanelTrialTab(props: RunPanelTrialTabProps) {
           <SelectTrigger className="w-full">
             <SelectValue placeholder="选择要试跑的动作" />
           </SelectTrigger>
-          <SelectContent
-            alignItemWithTrigger={false}
-            className="max-h-72">
+          <SelectContent className="max-h-72">
             {props.catalog.map(function (entry) {
               return (
                 <SelectItem

@@ -39,7 +39,7 @@ function OnErrorSelect(props: OnErrorSelectProps) {
         className="w-full">
         <SelectValue />
       </SelectTrigger>
-      <SelectContent alignItemWithTrigger={false}>
+      <SelectContent>
         {ON_ERROR_OPTIONS.map(function (option) {
           return (
             <SelectItem

@@ -158,10 +158,7 @@ function ProviderListSection(props: {
                         className={styles.modelSelect}>
                         <SelectValue placeholder="默认模型" />
                       </SelectTrigger>
-                      <SelectContent
-                        align="end"
-                        alignItemWithTrigger={false}
-                        className={styles.selectPopup}>
+                      <SelectContent align="center">
                         {models.map(function (model) {
                           return (
                             <SelectItem
@@ -430,10 +427,7 @@ function ModelSection() {
                   <SelectTrigger aria-label="服务商">
                     <SelectValue placeholder="选择服务商" />
                   </SelectTrigger>
-                  <SelectContent
-                    alignItemWithTrigger={false}
-                    side="bottom"
-                    className={styles.selectPopup}>
+                  <SelectContent side="bottom">
                     {addable.map(function (entry) {
                       return (
                         <SelectItem

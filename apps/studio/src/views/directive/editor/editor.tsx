@@ -390,7 +390,7 @@ function EdgeSelect(props: EdgeSelectProps) {
           className="w-full text-xs">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent alignItemWithTrigger={false}>
+        <SelectContent>
           {EDGE_OPTIONS.map(function (option) {
             return (
               <SelectItem
@@ -1274,7 +1274,7 @@ function Editor({ name, isListOpen, onOpen, onToggleList, onRun }: Props) {
                           className="w-full text-xs">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent alignItemWithTrigger={false}>
+                        <SelectContent>
                           <SelectItem value={UNCATEGORIZED}>未分类</SelectItem>
                           {BUCKETS.map(function (bucket) {
                             return (

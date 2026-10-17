@@ -148,7 +148,7 @@ function KindSelect(props: KindSelectProps) {
         aria-label="条件类型">
         <SelectValue />
       </SelectTrigger>
-      <SelectContent alignItemWithTrigger={false}>
+      <SelectContent>
         {CONDITION_KINDS.map(function (kind) {
           return (
             <SelectItem
@@ -612,7 +612,7 @@ function StepHeader(props: StepHeaderProps) {
             className="h-5 w-fit cursor-pointer gap-1 border-transparent bg-secondary px-1.5 text-[11px] font-normal text-secondary-foreground shadow-none hover:bg-secondary/80 [&_svg]:size-3">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent alignItemWithTrigger={false}>
+          <SelectContent>
             {STEP_KINDS.map(function (kind) {
               return (
                 <SelectItem
@@ -717,9 +717,7 @@ function ActionSelect(props: ActionSelectProps) {
         aria-label="切换动作">
         <SelectValue />
       </SelectTrigger>
-      <SelectContent
-        alignItemWithTrigger={false}
-        className="max-h-72">
+      <SelectContent className="max-h-72">
         {props.catalog.map(function (action) {
           return (
             <SelectItem
