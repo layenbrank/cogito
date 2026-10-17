@@ -14,7 +14,8 @@ import { toast } from 'sonner'
 
 import { useMarkdownStore } from '@/stores/markdown'
 import { writeBackup } from '@/views/markdown/lib/backup.ts'
-import { findDisplayTitle, writeBinaryBesideDoc } from '@/views/markdown/lib/fs.ts'
+import { findDisplayTitle } from '@/views/markdown/lib/fs.ts'
+import { uploadMarkdownImage } from '@/views/markdown/lib/image-upload.ts'
 import { parseMarkdown } from '@/views/markdown/lib/parse-markdown.ts'
 import { serializeHtmlToMarkdown } from '@/views/markdown/lib/serialize-markdown.ts'
 import { findOutlineFromEditor } from '@/views/markdown/lib/outline.ts'
@@ -599,9 +600,7 @@ export default function MarkdownWorkspace() {
       if (!file.type.startsWith('image/')) continue
       handled = true
       void (async function () {
-        const buffer = new Uint8Array(await file.arrayBuffer())
-        const ext = file.type.split('/')[1] || 'png'
-        const relative = await writeBinaryBesideDoc(activePath, `img-${Date.now()}.${ext}`, buffer)
+        const relative = await uploadMarkdownImage(file)
         composerRef.current?.chain().focus().setImage({ src: relative }).run()
         toast.success(t('IMAGE_SAVED'))
       })()

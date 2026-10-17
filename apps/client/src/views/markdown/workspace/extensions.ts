@@ -1,5 +1,6 @@
 import type { AnyExtension } from '@tiptap/react'
 import { Image } from '@/components/tiptap-node/image-node/image-node-extension'
+import { ImageUploadNode } from '@/components/tiptap-node/image-upload-node/image-upload-node-extension'
 import { TableKit } from '@/components/tiptap-node/table-node/extensions/table-node-extension'
 import { NodeAlignment } from '@/components/tiptap-extension/node-alignment-extension.ts'
 import { NodeBackground } from '@/components/tiptap-extension/node-background-extension.ts'
@@ -23,7 +24,9 @@ import js from 'highlight.js/lib/languages/javascript'
 import ts from 'highlight.js/lib/languages/typescript'
 import html from 'highlight.js/lib/languages/xml'
 import { all, createLowlight } from 'lowlight'
+import { toast } from 'sonner'
 
+import { IMAGE_MAX_SIZE, uploadMarkdownImage } from '@/views/markdown/lib/image-upload.ts'
 import { MathBlock, MathInline } from '@/views/markdown/workspace/math-extension.ts'
 import { MermaidBlock } from '@/views/markdown/workspace/mermaid-extension.ts'
 import { SearchHighlight } from '@/views/markdown/workspace/search-highlight-extension.ts'
@@ -42,7 +45,9 @@ function findMarkdownExtensions(options: {
     TextStyleKit,
     StarterKit.configure({
       horizontalRule: false,
-      codeBlock: false
+      codeBlock: false,
+      // StarterKit 3 自带 Link，这里关掉，用下面带配置的那份（否则 duplicate extension names: ['link']）
+      link: false
     }),
     CodeBlockLowlight.configure({ lowlight }),
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
@@ -72,6 +77,14 @@ function findMarkdownExtensions(options: {
       resize: {
         enabled: true,
         alwaysPreserveAspectRatio: true
+      }
+    }),
+    ImageUploadNode.configure({
+      accept: 'image/*',
+      maxSize: IMAGE_MAX_SIZE,
+      upload: uploadMarkdownImage,
+      onError: function (error) {
+        toast.error(t('IMAGE_UPLOAD_FAILED'), { description: error.message })
       }
     }),
     MathBlock,

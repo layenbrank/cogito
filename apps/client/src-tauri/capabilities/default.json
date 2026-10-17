@@ -76,6 +76,8 @@
     "fs:allow-document-write",
     "fs:allow-document-write-recursive",
     "fs:allow-read-file",
+    "fs:allow-mkdir",
+    "fs:allow-exists",
     "fs:allow-write-text-file",
     "fs:allow-download-write",
     "fs:allow-download-write-recursive",
