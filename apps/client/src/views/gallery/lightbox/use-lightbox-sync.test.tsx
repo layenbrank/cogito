@@ -14,7 +14,7 @@ type FakeSwiper = {
   slideTo: (index: number, speed?: number) => void
 }
 
-function createFakeSwiper(overrides: Partial<FakeSwiper> = {}): FakeSwiper {
+function makeFakeSwiper(overrides: Partial<FakeSwiper> = {}): FakeSwiper {
   return {
     destroyed: false,
     params: { allowTouchMove: true },
@@ -44,7 +44,7 @@ function renderLightboxSwiper(swiper: FakeSwiper, initialIsZoomed: boolean) {
 
 describe('useLightboxSwiper', function () {
   it('缩放时锁住触摸与翻页，退出缩放后恢复', function () {
-    const swiper = createFakeSwiper()
+    const swiper = makeFakeSwiper()
     const { rerender } = renderLightboxSwiper(swiper, true)
 
     expect(swiper.allowTouchMove).toBe(false)
@@ -63,7 +63,7 @@ describe('useLightboxSwiper', function () {
   it('实例已销毁（关闭预览后）不再触碰它，也不抛错', function () {
     // 关闭预览时 <Swiper> 卸载并按 deleteInstance 销毁，params 已被清空，
     // 此时任何 enable()/属性写入都会炸 —— 回归用例
-    const swiper = createFakeSwiper({ destroyed: true })
+    const swiper = makeFakeSwiper({ destroyed: true })
 
     expect(function () {
       renderLightboxSwiper(swiper, false)

@@ -11,7 +11,7 @@ import { type SwiperClass } from 'swiper/react'
  * 而触摸 / 翻页实际门控读的是下面这几个标志位（`update()` 会从 `params` 重同步，故两处同写）。
  * Swiper 实例是第三方命令式可变对象，不属于 React 的不可变值域。
  */
-function applySwiperLock(swiper: SwiperClass, isZoomed: boolean): void {
+function lockSwiperSlides(swiper: SwiperClass, isZoomed: boolean): void {
   const canSlide = !isZoomed
   swiper.params.allowTouchMove = canSlide
   swiper.allowTouchMove = canSlide
@@ -43,7 +43,7 @@ export function useLightboxSwiper(input: {
       // 关闭预览时 <Swiper> 先卸载并按 deleteInstance 销毁实例（params 会被 deleteProps 清掉），
       // 此刻再动它（包括调 swiper.enable()）会 TypeError，故先查 destroyed
       if (!swiper || swiper.destroyed) return
-      applySwiperLock(swiper, isZoomed)
+      lockSwiperSlides(swiper, isZoomed)
     },
     [swiper, isZoomed]
   )

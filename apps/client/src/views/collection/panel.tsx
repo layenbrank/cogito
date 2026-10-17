@@ -27,13 +27,13 @@ function CollectionPanel(props: CollectionPanelProps) {
   })
 
   // 加入集合后重新拉成员：用 token 触发 effect 重跑
-  const [reloadToken, bumpReloadToken] = useState(0)
+  const [membersToken, bumpMembersToken] = useState(0)
 
   useEffect(
     function () {
       let cancelled = false
 
-      async function toLoad() {
+      async function toFetchMembers() {
         try {
           const [members, hosts] = await Promise.all([
             invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
@@ -58,12 +58,12 @@ function CollectionPanel(props: CollectionPanelProps) {
         }
       }
 
-      void toLoad()
+      void toFetchMembers()
       return function () {
         cancelled = true
       }
     },
-    [props.id, reloadToken]
+    [props.id, membersToken]
   )
 
   const handleRemove = useCallback(
@@ -132,7 +132,7 @@ function CollectionPanel(props: CollectionPanelProps) {
         visible={drawerVisible}
         onUpdateVisible={onUpdateDrawerVisible}
         onJoined={function () {
-          bumpReloadToken(function (token) {
+          bumpMembersToken(function (token) {
             return token + 1
           })
           toBumpRevision()
