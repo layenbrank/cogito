@@ -623,6 +623,19 @@ export default function Overview() {
 
 槽位里的交互元素（按钮、链接、`[tabindex]`）必须带 **`data-region="false"`**，否则会被拖拽区吃掉点击 —— 窗口键、镜像切换器、状态芯片、账号按钮都按此处理。
 
+#### 窗口操作层（`data-layer`）
+
+和 `data-region` 并列，管的是主窗口里**子 WebView 和壳层谁在上面**。远程页是挂在 `main` 上的子窗口，默认画在壳上面才能点击；壳上的浮层一旦伸进网页矩形，就会被子窗口裁掉。判断只认这一个属性，不维护组件名单（`apps/client/src/views/overview/browser/cover.ts`）。
+
+| 值 | 挂在哪 | 作用 |
+| --- | --- | --- |
+| `trigger` | 会打开浮层的控件 | 悬停或按下时先把网页压到壳下面，避免浮层先闪在网页底下 |
+| `overlay` | 浮层本身 | 可见且与网页矩形相交时，网页保持在下面；浮层关掉后再抬回来 |
+
+设计系统常量是 `LAYER_TRIGGER` / `LAYER_OVERLAY`（`packages/design/src/lib/surface.ts`）。提示、菜单、对话框、抽屉、选择器的触发器和浮层已经带上。地址栏自己画的建议列表、搜索引擎菜单也要带 `data-layer="overlay"`。
+
+新的窗口操作浮层同样只加这个属性，不用改层级判断。通知（sonner）的节点不在这套标记里，要盖住网页时另加 `data-layer="overlay"`。
+
 ---
 
 ## 磁贴窗口化（Dialog → 独立窗口）

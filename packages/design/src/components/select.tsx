@@ -3,7 +3,7 @@ import type { ComponentProps } from 'react'
 import { Select as SelectPrimitive } from '@base-ui/react/select'
 import { cn } from 'cn'
 
-import { FIELD_SHELL } from '../lib/surface'
+import { FIELD_SHELL, LAYER_OVERLAY, LAYER_TRIGGER } from '../lib/surface'
 
 const Select = SelectPrimitive.Root
 
@@ -79,7 +79,8 @@ function SelectTrigger({
         'dark:bg-input/30 dark:hover:bg-input/50',
         className
       )}
-      {...props}>
+      {...props}
+      data-layer={LAYER_TRIGGER}>
       {children}
       {/* 用 base-ui 的 Icon（渲染 <span aria-hidden>，展开时自带 data-popup-open），旋转直接由它驱动 */}
       <SelectPrimitive.Icon
@@ -114,6 +115,7 @@ function SelectContent({
         {/* 透明外壳：动效挂在它身上（data-open/data-closed 由 base-ui 打在这里），自身不画背景/边框/阴影。 */}
         <SelectPrimitive.Popup
           data-slot="select-popup"
+          data-layer={LAYER_OVERLAY}
           className={cn(
             'group/popup relative isolate z-70 flex flex-col origin-(--transform-origin)',
             // 缩放原点固定到接缝侧的左边缘：面板与触发器严格等宽，左边缘恒重合，

@@ -2,7 +2,7 @@ import * as React from 'react'
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover'
 import { cn } from 'cn'
 
-import { OVERLAY_SHELL } from '../lib/surface'
+import { LAYER_OVERLAY, LAYER_TRIGGER, OVERLAY_SHELL } from '../lib/surface'
 
 function Popover({ ...props }: PopoverPrimitive.Root.Props) {
   return (
@@ -18,6 +18,7 @@ function PopoverTrigger({ ...props }: PopoverPrimitive.Trigger.Props) {
     <PopoverPrimitive.Trigger
       data-slot="popover-trigger"
       {...props}
+      data-layer={LAYER_TRIGGER}
     />
   )
 }
@@ -41,6 +42,7 @@ function PopoverContent({
         className="isolate z-50">
         <PopoverPrimitive.Popup
           data-slot="popover-content"
+          data-layer={LAYER_OVERLAY}
           className={cn(
             OVERLAY_SHELL,
             'z-50 flex w-72 origin-(--transform-origin) flex-col gap-2.5 p-2.5 text-sm',
