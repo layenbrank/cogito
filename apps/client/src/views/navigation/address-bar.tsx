@@ -32,14 +32,16 @@ function EngineStrip(props: { engineKey: string; isOpen: boolean; onPick: (key: 
   const [width, setWidth] = useState(0)
 
   useEffect(function () {
-    const node = trackRef.current
-    if (!node) return
+    const track = trackRef.current
+    if (!track) return
     function measure() {
-      setWidth(node.scrollWidth)
+      const element = trackRef.current
+      if (!element) return
+      setWidth(element.scrollWidth)
     }
     measure()
     const observer = new ResizeObserver(measure)
-    observer.observe(node)
+    observer.observe(track)
     return function () {
       observer.disconnect()
     }

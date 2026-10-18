@@ -23,7 +23,7 @@ function usePageStack<T extends HTMLElement>(pageRef: RefObject<T | null>, enabl
   const sawLayerRef = useRef(false)
   const ticketRef = useRef(0)
   const chainRef = useRef(Promise.resolve())
-  const coveredRef = useRef(function (_suggesting: boolean) {
+  const coveredRef = useRef<(suggesting: boolean) => boolean>(function () {
     return false
   })
   const syncRef = useRef(function (_above: boolean, _force?: boolean) {})
