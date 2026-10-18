@@ -3,24 +3,6 @@ $prefix-height: 64px;
 $radius: 8px;
 $engine-size: 36px;
 
-/* 标题栏内的品牌与分隔线；切换器 / 状态区 / 账号在 caption/caption.module.scss */
-
-.brand {
-  flex-shrink: 0;
-  padding-inline: 4px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--foreground);
-}
-
-.brandDivider {
-  flex-shrink: 0;
-  width: 1px;
-  height: 14px;
-  background: var(--border);
-}
-
 .overview {
   /* 主窗口容器（Decorations 内层）与页面分区（header / main）共用的标记类 */
   position: relative;

@@ -15,6 +15,15 @@ use crate::navigation::state::NavigationState;
 const PAGE_PREFIX: &str = "page-";
 const BAR_LABEL: &str = "navigation-bar";
 const BAR_URL: &str = "/navigation/bar";
+const MAIN_LABEL: &str = "main";
+
+fn require_main(window: &tauri::Window) -> Result<(), String> {
+    if window.label() == MAIN_LABEL {
+        Ok(())
+    } else {
+        Err("网址页面只能挂在主窗口".to_string())
+    }
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -269,16 +278,22 @@ pub async fn navigation_open(
     state: State<'_, NavigationState>,
     body: OpenBody,
 ) -> Result<(), String> {
+    require_main(&window)?;
     if !is_safe_id(&body.id) {
         return Err("页面 id 无效".to_string());
     }
     let url = parse_http_url(&body.url)?;
     let label = page_label(&body.id);
-    {
-        let pages = state.pages.lock().map_err(|err| err.to_string())?;
-        if pages.contains_key(&label) {
-            return Ok(());
+    let stale = {
+        let mut pages = state.pages.lock().map_err(|err| err.to_string())?;
+        match pages.get(&label) {
+            Some(existing) if existing.window().label() == window.label() => return Ok(()),
+            Some(_) => pages.remove(&label),
+            None => None,
         }
+    };
+    if let Some(stale) = stale {
+        let _ = stale.close();
     }
 
     let shell = window.label().to_string();
@@ -435,12 +450,16 @@ pub async fn navigation_activate(
         }
         let _ = webview.hide();
     }
-    let webview = pages.get(&target).ok_or_else(|| "页面不存在".to_string())?;
+    let webview = pages
+        .get(&target)
+        .cloned()
+        .ok_or_else(|| "页面不存在".to_string())?;
     webview.show().map_err(|err| err.to_string())?;
-    let placed = place(webview, body.x, body.y, body.width, body.height);
+    place(&webview, body.x, body.y, body.width, body.height)?;
     drop(pages);
     raise_bar(&state);
-    placed
+    note_page(&webview, body.x, body.y, body.width, body.height);
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
@@ -469,11 +488,17 @@ pub async fn navigation_bar_open(
     window: tauri::Window,
     state: State<'_, NavigationState>,
 ) -> Result<(), String> {
-    {
-        let bar = state.bar.lock().map_err(|err| err.to_string())?;
-        if bar.is_some() {
-            return Ok(());
+    require_main(&window)?;
+    let stale = {
+        let mut bar = state.bar.lock().map_err(|err| err.to_string())?;
+        match bar.as_ref() {
+            Some(existing) if existing.window().label() == window.label() => return Ok(()),
+            Some(_) => bar.take(),
+            None => None,
         }
+    };
+    if let Some(stale) = stale {
+        let _ = stale.close();
     }
 
     let builder = WebviewBuilder::new(BAR_LABEL, WebviewUrl::App(BAR_URL.into()))
@@ -520,11 +545,110 @@ pub async fn navigation_bar_place(
     Ok(())
 }
 
+/// 关掉地址栏子 WebView。地址栏改由主窗口自己绘制。
+#[tauri::command(rename = "navigation:bar-close")]
+pub async fn navigation_bar_close(state: State<'_, NavigationState>) -> Result<(), String> {
+    let webview = {
+        let mut bar = state.bar.lock().map_err(|err| err.to_string())?;
+        bar.take()
+    };
+    if let Ok(mut at) = state.bar_at.lock() {
+        *at = None;
+    }
+    if let Some(webview) = webview {
+        let _ = webview.close();
+    }
+    Ok(())
+}
+
 fn window_of(webview: &tauri::Webview) -> tauri::Window {
     webview.window()
 }
 
-/// 把刚摆好的子窗口抬到其它子 WebView 上面。候选列表才能盖住网页。
+/// 记住刚摆好的网页窗口，切标签时用来避开已经隐藏的那一页。
+#[cfg(windows)]
+fn cache_page_hwnd(hwnd: windows::Win32::Foundation::HWND) {
+    if hwnd.is_invalid() {
+        return;
+    }
+    if let Ok(mut slot) = PAGE_HWND.lock() {
+        *slot = Some(hwnd.0 as isize);
+    }
+}
+
+fn cached_page_hwnd() -> Option<windows::Win32::Foundation::HWND> {
+    use windows::Win32::Foundation::{HWND, RECT};
+    use windows::Win32::UI::WindowsAndMessaging::{GetWindowRect, IsWindowVisible};
+
+    let raw = PAGE_HWND.lock().ok().and_then(|slot| *slot)?;
+    let hwnd = HWND(raw as *mut std::ffi::c_void);
+    if hwnd.is_invalid() || !unsafe { IsWindowVisible(hwnd) }.as_bool() {
+        return None;
+    }
+    let mut rect = RECT::default();
+    if unsafe { GetWindowRect(hwnd, &mut rect) }.is_err() {
+        return None;
+    }
+    Some(hwnd)
+}
+
+fn find_child_hwnd(
+    window: &tauri::Window,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Option<windows::Win32::Foundation::HWND> {
+    use windows::Win32::Foundation::{HWND, POINT, RECT};
+    use windows::Win32::Graphics::Gdi::ClientToScreen;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GW_CHILD, GW_HWNDNEXT, GetWindow, GetWindowRect, IsWindowVisible,
+    };
+
+    let parent = window.hwnd().ok()?;
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let expect_left = (x * scale).round() as i32;
+    let expect_top = (y * scale).round() as i32;
+    let expect_width = (width * scale).round() as i32;
+    let expect_height = (height * scale).round() as i32;
+    let mut origin = POINT { x: 0, y: 0 };
+    if !unsafe { ClientToScreen(parent, &mut origin) }.as_bool() {
+        return None;
+    }
+    let previous = cached_page_hwnd();
+    let mut child = unsafe { GetWindow(parent, GW_CHILD) }.ok();
+    let mut matched = HWND::default();
+    let mut best = i32::MAX;
+    while let Some(hwnd) = child {
+        let next = unsafe { GetWindow(hwnd, GW_HWNDNEXT) }.ok();
+        let mut rect = RECT::default();
+        let visible = unsafe { IsWindowVisible(hwnd) }.as_bool();
+        if visible && unsafe { GetWindowRect(hwnd, &mut rect) }.is_ok() {
+            let dw = (rect.right - rect.left - expect_width).abs();
+            let dh = (rect.bottom - rect.top - expect_height).abs();
+            if dw <= 48 && dh <= 48 {
+                let mut score = (rect.left - origin.x - expect_left).abs()
+                    + (rect.top - origin.y - expect_top).abs();
+                // 刚切走的标签还停在同一矩形上时，优先当前可见的另一页。
+                if previous == Some(hwnd) {
+                    score += 1;
+                }
+                if score < best {
+                    best = score;
+                    matched = hwnd;
+                }
+            }
+        }
+        child = next;
+    }
+    if best > 49 || matched.is_invalid() {
+        None
+    } else {
+        cache_page_hwnd(matched);
+        Some(matched)
+    }
+}
+
 fn raise_child(window: &tauri::Window, x: f64, y: f64) {
     #[cfg(windows)]
     {
@@ -789,9 +913,143 @@ pub async fn navigation_place(
 ) -> Result<(), String> {
     let _ = app;
     let webview = find_page(&state, &body.id)?;
-    let placed = place(&webview, body.x, body.y, body.width, body.height);
+    place(&webview, body.x, body.y, body.width, body.height)?;
     raise_bar(&state);
-    placed
+    note_page(&webview, body.x, body.y, body.width, body.height);
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StackBody {
+    /// 网页是否盖在壳层上面。弹层打开时为 false。
+    above: bool,
+}
+
+static PAGE_AT: Mutex<Option<(f64, f64, f64, f64)>> = Mutex::new(None);
+static PAGE_BELOW: Mutex<bool> = Mutex::new(false);
+static PAGE_HWND: Mutex<Option<isize>> = Mutex::new(None);
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CursorPoint {
+    x: f64,
+    y: f64,
+}
+
+/// 光标相对主窗口客户区的位置。只认 `main`，不碰 overlay 的鼠标穿透。
+#[tauri::command(rename = "navigation:cursor")]
+pub async fn navigation_cursor(window: tauri::Window) -> Result<Option<CursorPoint>, String> {
+    if window.label() != MAIN_LABEL {
+        return Ok(None);
+    }
+    let Some((px, py)) = crate::through::cursor::get_cursor_position() else {
+        return Ok(None);
+    };
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let origin = window
+        .inner_position()
+        .map_err(|err| err.to_string())?
+        .to_logical::<f64>(scale);
+    let size = window
+        .inner_size()
+        .map_err(|err| err.to_string())?
+        .to_logical::<f64>(scale);
+    let x = px as f64 / scale - origin.x;
+    let y = py as f64 / scale - origin.y;
+    if x < 0.0 || y < 0.0 || x >= size.width || y >= size.height {
+        return Ok(None);
+    }
+    Ok(Some(CursorPoint { x, y }))
+}
+
+/// 弹层打开时把网页压到壳层下面，关掉再抬回来。不改窗口大小，也不挖空。
+#[tauri::command(rename = "navigation:stack")]
+pub async fn navigation_stack(window: tauri::Window, body: StackBody) -> Result<(), String> {
+    if let Ok(mut below) = PAGE_BELOW.lock() {
+        *below = !body.above;
+    }
+    stack_page(&window);
+    Ok(())
+}
+
+fn note_page(webview: &tauri::Webview, x: f64, y: f64, width: f64, height: f64) {
+    if let Ok(mut at) = PAGE_AT.lock() {
+        *at = Some((x, y, width, height));
+    }
+    stack_page(&webview.window());
+}
+
+fn stack_page(window: &tauri::Window) {
+    #[cfg(windows)]
+    {
+        use windows::Win32::UI::WindowsAndMessaging::{
+            HWND_BOTTOM, HWND_TOP, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SetWindowPos,
+        };
+
+        let Some((x, y, width, height)) = PAGE_AT.lock().ok().and_then(|slot| *slot) else {
+            return;
+        };
+        let below = PAGE_BELOW.lock().map(|slot| *slot).unwrap_or(false);
+        let hwnd = find_child_hwnd(window, x, y, width, height).or_else(|| {
+            visible_page_hwnd(window)
+        });
+        let Some(hwnd) = hwnd else {
+            return;
+        };
+        cache_page_hwnd(hwnd);
+        unsafe {
+            let _ = SetWindowPos(
+                hwnd,
+                Some(if below { HWND_BOTTOM } else { HWND_TOP }),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+            );
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = window;
+    }
+}
+
+/// 矩形还没跟上时，用「唯一可见、且不是铺满主窗口的子窗口」当作当前网页。
+#[cfg(windows)]
+fn visible_page_hwnd(window: &tauri::Window) -> Option<windows::Win32::Foundation::HWND> {
+    use windows::Win32::Foundation::{HWND, RECT};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GW_CHILD, GW_HWNDNEXT, GetWindow, GetWindowRect, IsWindowVisible,
+    };
+
+    let parent = window.hwnd().ok()?;
+    let shell = window.inner_size().ok()?;
+    let mut child = unsafe { GetWindow(parent, GW_CHILD) }.ok();
+    let mut found = HWND::default();
+    let mut count = 0i32;
+    while let Some(hwnd) = child {
+        let next = unsafe { GetWindow(hwnd, GW_HWNDNEXT) }.ok();
+        if unsafe { IsWindowVisible(hwnd) }.as_bool() {
+            let mut rect = RECT::default();
+            if unsafe { GetWindowRect(hwnd, &mut rect) }.is_ok() {
+                let width = (rect.right - rect.left).unsigned_abs();
+                let height = (rect.bottom - rect.top).unsigned_abs();
+                let is_shell = width.abs_diff(shell.width) <= 8 && height.abs_diff(shell.height) <= 8;
+                if !is_shell {
+                    count += 1;
+                    found = hwnd;
+                }
+            }
+        }
+        child = next;
+    }
+    if count == 1 && !found.is_invalid() {
+        Some(found)
+    } else {
+        None
+    }
 }
 
 fn raise_bar(state: &NavigationState) {
@@ -805,6 +1063,16 @@ fn raise_bar(state: &NavigationState) {
         return;
     };
     raise_child(&window_of(webview), x, y);
+}
+
+/// 隐藏全部页面子 WebView。地址栏保持显示，页面不销毁。
+#[tauri::command(rename = "navigation:suspend")]
+pub async fn navigation_suspend(state: State<'_, NavigationState>) -> Result<(), String> {
+    let pages = state.pages.lock().map_err(|err| err.to_string())?;
+    for webview in pages.values() {
+        let _ = webview.hide();
+    }
+    Ok(())
 }
 
 #[tauri::command(rename = "navigation:close")]

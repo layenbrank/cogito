@@ -112,10 +112,6 @@ const Morph = lazy(function () {
   return import('@/views/morph/morph.tsx')
 })
 
-const Navigation = lazy(function () {
-  return import('@/views/navigation/navigation.tsx')
-})
-
 const NavigationBar = lazy(function () {
   return import('@/views/navigation/bar.tsx').then(function (mod) {
     return { default: mod.NavigationBar }
@@ -201,7 +197,7 @@ const routes: RouteObject[] = [
       { path: '/markdown', element: <Markdown /> },
       { path: '/marketplace', element: <Marketplace /> },
       { path: '/morph', element: <Morph /> },
-      { path: '/navigation', element: <Navigation /> },
+      { path: '/navigation', element: <Navigate replace to="/overview" /> },
       { path: '/settings', element: <Settings /> },
       { path: '/signboard', element: <Signboard /> }
     ]

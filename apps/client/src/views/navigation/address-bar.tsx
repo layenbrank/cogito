@@ -23,13 +23,76 @@ interface AddressBarProps {
   onValue: (value: string) => void
   onSubmit: (url: string) => void
   onEngine: (key: string) => void
-  onEngineMenu?: (anchor: { open: boolean; x: number; y: number }) => void
   onSuggest?: (frame: SuggestFrame) => void
   joined?: boolean
 }
 
+function EngineStrip(props: { engineKey: string; isOpen: boolean; onPick: (key: string) => void }) {
+  const trackRef = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(0)
+
+  useEffect(function () {
+    const node = trackRef.current
+    if (!node) return
+    function measure() {
+      setWidth(node.scrollWidth)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    return function () {
+      observer.disconnect()
+    }
+  }, [])
+
+  return (
+    <div
+      aria-hidden={!props.isOpen}
+      className={clsx(
+        'overflow-hidden transition-[width,opacity] duration-200 ease-[ease] motion-reduce:transition-none',
+        props.isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
+      )}
+      style={{ width: props.isOpen ? width : 0 }}>
+      <div
+        ref={trackRef}
+        role="listbox"
+        aria-label="搜索引擎"
+        className="flex w-max items-center gap-0.5">
+        {ENGINES.map(function (item) {
+          const isSelected = item.key === props.engineKey
+          return (
+            <button
+              key={item.key}
+              type="button"
+              role="option"
+              aria-selected={isSelected}
+              tabIndex={props.isOpen ? 0 : -1}
+              className={clsx(
+                'flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-xs',
+                isSelected ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted'
+              )}
+              onMouseDown={function (event) {
+                event.preventDefault()
+              }}
+              onClick={function () {
+                props.onPick(item.key)
+              }}>
+              <Icon
+                icon={item.icon}
+                className="size-3.5"
+                aria-hidden
+              />
+              {item.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function AddressBar(props: AddressBarProps) {
-  const { value, engineKey, onValue, onSubmit, onEngine, onEngineMenu, onSuggest, joined } = props
+  const { value, engineKey, onValue, onSubmit, onEngine, onSuggest, joined } = props
   const rootRef = useRef<HTMLDivElement>(null)
   const typedRef = useRef(value)
   const pendingRef = useRef('')
@@ -51,7 +114,6 @@ function AddressBar(props: AddressBarProps) {
 
   useClickOutside(rootRef, function () {
     setIsEngineOpen(false)
-    onEngineMenu?.({ open: false, x: 0, y: 0 })
   })
 
   function hideList() {
@@ -85,7 +147,6 @@ function AddressBar(props: AddressBarProps) {
     if (!url) return
     clearList()
     setIsEngineOpen(false)
-    onEngineMenu?.({ open: false, x: 0, y: 0 })
     onSubmit(url)
   }
 
@@ -191,7 +252,6 @@ function AddressBar(props: AddressBarProps) {
     if (event.key === 'Escape') {
       hideList()
       setIsEngineOpen(false)
-      onEngineMenu?.({ open: false, x: 0, y: 0 })
     }
   }
 
@@ -201,10 +261,10 @@ function AddressBar(props: AddressBarProps) {
       className="relative min-w-0 flex-1">
       <div
         className={clsx(
-          'box-border flex h-9 items-center border bg-background transition-[border-color,border-radius,box-shadow] duration-150 ease-[ease] motion-reduce:transition-none',
+          'box-border flex h-10 items-center border bg-background transition-[border-color,border-radius,box-shadow] duration-150 ease-[ease] motion-reduce:transition-none',
           joined
             ? 'rounded-t-[18px] rounded-b-none border-ring border-b-transparent shadow-none'
-            : 'rounded-full border-input shadow-sm focus-within:border-ring'
+            : 'rounded-full border-input shadow-none focus-within:border-ring'
         )}>
         <Button
           type="button"
@@ -217,13 +277,10 @@ function AddressBar(props: AddressBarProps) {
           onMouseDown={function (event) {
             event.preventDefault()
           }}
-          onClick={function (event) {
-            const rect = event.currentTarget.getBoundingClientRect()
+          onClick={function () {
             hideList()
             setIsEngineOpen(function (open) {
-              const next = !open
-              onEngineMenu?.({ open: next, x: rect.x, y: rect.y })
-              return next
+              return !open
             })
           }}>
           <Icon
@@ -231,6 +288,14 @@ function AddressBar(props: AddressBarProps) {
             aria-hidden
           />
         </Button>
+        <EngineStrip
+          engineKey={engine.key}
+          isOpen={isEngineOpen}
+          onPick={function (key) {
+            onEngine(key)
+            setIsEngineOpen(false)
+          }}
+        />
         <Input
           value={value}
           placeholder="搜索或输入网址"
@@ -243,7 +308,6 @@ function AddressBar(props: AddressBarProps) {
             onValue(next)
             if (!next.trim()) clearList()
             setIsEngineOpen(false)
-            onEngineMenu?.({ open: false, x: 0, y: 0 })
           }}
           onKeyDown={onKeyDown}
           onFocus={function () {
@@ -273,35 +337,6 @@ function AddressBar(props: AddressBarProps) {
           />
         </Button>
       </div>
-      {isEngineOpen && !onEngineMenu ? (
-        <div className="absolute bottom-full left-0 z-10 mb-1 w-36 overflow-hidden rounded-lg border border-border/70 bg-popover py-1 shadow-md">
-          {ENGINES.map(function (item) {
-            const isSelected = item.key === engine.key
-            return (
-              <button
-                key={item.key}
-                type="button"
-                className={clsx(
-                  'flex w-full items-center gap-2 px-3 py-2 text-left text-sm',
-                  isSelected ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/60'
-                )}
-                onMouseDown={function (event) {
-                  event.preventDefault()
-                }}
-                onClick={function () {
-                  onEngine(item.key)
-                  setIsEngineOpen(false)
-                }}>
-                <Icon
-                  icon={item.icon}
-                  aria-hidden
-                />
-                {item.label}
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
     </div>
   )
 }

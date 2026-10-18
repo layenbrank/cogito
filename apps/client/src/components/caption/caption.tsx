@@ -362,5 +362,5 @@ function Caption(props: CaptionProps) {
   )
 }
 
-export { Caption, WINDOW_CONTROLS }
+export { Caption, WINDOW_CONTROLS, useCaptionState }
 export type { CaptionProps, WindowControl, WindowControlKey, CaptionState }

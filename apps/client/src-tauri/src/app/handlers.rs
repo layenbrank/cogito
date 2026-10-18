@@ -134,12 +134,16 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         navigation::command::navigation_open,
         navigation::command::navigation_activate,
         navigation::command::navigation_place,
+        navigation::command::navigation_stack,
+        navigation::command::navigation_cursor,
         navigation::command::navigation_close,
+        navigation::command::navigation_suspend,
         navigation::command::navigation_navigate,
         navigation::command::navigation_devtools,
         navigation::command::navigation_extensions,
         navigation::command::navigation_bar_open,
         navigation::command::navigation_bar_place,
+        navigation::command::navigation_bar_close,
         navigation::command::navigation_complete,
     ]
 }

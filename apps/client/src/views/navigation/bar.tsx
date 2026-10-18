@@ -5,6 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { clsx } from 'clsx'
 import { useEffect, useRef, useState, type TransitionEvent } from 'react'
 
+import { isUrlKeyword } from '@/views/overview/engine/engine-url'
 import { AddressBar } from '@/views/navigation/address-bar'
 import {
   BAR_ACTION,
@@ -20,7 +21,8 @@ import {
 const MOTION_MS = 150
 
 function emitAction(payload: {
-  kind: 'submit' | 'back' | 'forward' | 'engine' | 'menu' | 'suggest'
+  kind: 'submit' | 'back' | 'forward' | 'home' | 'engine' | 'menu' | 'suggest'
+  query?: string
   url?: string
   key?: string
   open?: boolean
@@ -159,6 +161,18 @@ function NavigationBar() {
         <Button
           variant="ghost"
           size="icon-sm"
+          aria-label="主页"
+          onClick={function () {
+            emitAction({ kind: 'home' })
+          }}>
+          <Icon
+            icon="lucide:house"
+            aria-hidden
+          />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
           aria-label="后退"
           disabled={!canBack}
           onClick={function () {
@@ -188,14 +202,16 @@ function NavigationBar() {
           engineKey={engineKey}
           onValue={setAddress}
           onSubmit={function (url) {
-            emitAction({ kind: 'submit', url })
+            const keyword = address.trim()
+            emitAction({
+              kind: 'submit',
+              url,
+              query: keyword && !isUrlKeyword(keyword) ? keyword : undefined
+            })
           }}
           onEngine={function (key) {
             setEngineKey(key)
             emitAction({ kind: 'engine', key })
-          }}
-          onEngineMenu={function (anchor) {
-            emitAction({ kind: 'menu', open: anchor.open, x: anchor.x, y: anchor.y })
           }}
           onSuggest={publishSuggest}
           joined={phase === 'in'}

@@ -3,6 +3,7 @@
  *
  * 资料编辑统一走全局设置「账号」分区；登录弹窗仍由主窗口持有（`ReSignIn`）。
  */
+import { clsx } from 'clsx'
 import { Icon } from '@iconify/react/offline'
 import { Avatar, AvatarFallback, AvatarImage } from '@i-thinking/design/components/avatar'
 import { Button } from '@i-thinking/design/components/button'
@@ -21,8 +22,12 @@ import { useSessionStore } from '@/stores/session.ts'
 import { SECTION } from '@/views/settings/constant'
 import styles from '@/views/overview/caption/caption.module.scss'
 
-type CaptionAccountProps = {
+interface CaptionAccountProps {
   onSignIn: () => void
+  /** 侧栏收起时只留图标 */
+  isIcon?: boolean
+  /** 侧栏展开时拉满一行 */
+  isWide?: boolean
 }
 
 function CaptionAccount(props: CaptionAccountProps) {
@@ -37,15 +42,16 @@ function CaptionAccount(props: CaptionAccountProps) {
     return (
       <Button
         variant="ghost"
-        size="sm"
+        size={props.isIcon ? 'icon' : 'sm'}
         data-region="false"
-        className={styles.accountSignIn}
+        className={clsx(!props.isIcon && styles.accountSignIn, props.isWide && 'w-full justify-start')}
+        aria-label="登录"
         onClick={props.onSignIn}>
         <Icon
           icon="lucide:log-in"
           aria-hidden
         />
-        登录
+        {props.isIcon ? null : '登录'}
       </Button>
     )
   }

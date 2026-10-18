@@ -1,6 +1,5 @@
 import { emit } from '@tauri-apps/api/event'
 import { toast } from 'sonner'
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 
 import { findTileRoute, findTileWindowOptions } from '@/constants/magnetic-tile/window'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
@@ -9,17 +8,15 @@ import { parseOriginRect, useCollectionStore } from '@/stores/collection'
 
 type Tile = Pick<MagneticTile, 'component' | 'url' | 'id'>
 
-const NAVIGATION_LABEL = 'navigation'
 const NAVIGATION_OPEN_URL = 'navigation://open-url'
 
 /**
  * 窗口 label：`<component>:<磁贴 id>`。
  *
  * 一个组件可以有多个磁贴记录（各自 url / 标题），按记录建窗才能一窗对一记录。
- * 网址磁贴共用一个壳窗口，标签在壳里管理。
+ * 网址磁贴不开窗口，在主窗口里打开标签。
  */
 function findTileWindowLabel(tile: Tile) {
-  if (tile.component === 'navigation') return NAVIGATION_LABEL
   return `${tile.component}:${tile.id}`
 }
 
@@ -31,19 +28,7 @@ function findTileWindowUrl(tile: Tile) {
 }
 
 async function openNavigation(url: string) {
-  const route = url ? `/navigation?url=${encodeURIComponent(url)}` : '/navigation'
-  const existing = await WebviewWindow.getByLabel(NAVIGATION_LABEL)
-  if (existing) {
-    if (url) await emit(NAVIGATION_OPEN_URL, { url })
-    await existing.setFocus()
-    return existing
-  }
-  return openWindow(
-    NAVIGATION_LABEL,
-    route,
-    findComponentLabel('navigation'),
-    findTileWindowOptions('navigation')
-  )
+  await emit(NAVIGATION_OPEN_URL, { url })
 }
 
 function findCollectionOriginRect(id: string) {
@@ -55,7 +40,7 @@ function findCollectionOriginRect(id: string) {
 /**
  * 激活磁贴：
  * - `collection` → 主镜内 FLIP scale 展开（不开独立窗）
- * - `navigation` → 共用网址窗口，并打开或聚焦对应标签
+ * - `navigation` → 主窗口打开或聚焦对应标签，不另开窗口
  * - 其它组件 → 独立窗口（`views/<component>`）；同 label 只聚焦
  */
 async function activateTile(tile: Tile): Promise<void> {

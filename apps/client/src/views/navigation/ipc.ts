@@ -32,8 +32,20 @@ function placePage(id: string, bounds: Bounds) {
   return invoke('navigation:place', { body: { id, ...bounds } })
 }
 
+function stackPage(above: boolean) {
+  return invoke('navigation:stack', { body: { above } })
+}
+
+function cursorInMain() {
+  return invoke<{ x: number; y: number } | null>('navigation:cursor')
+}
+
 function closePage(id: string) {
   return invoke('navigation:close', { body: { id } })
+}
+
+function suspendPages() {
+  return invoke('navigation:suspend')
 }
 
 function navigatePage(id: string, url: string) {
@@ -82,8 +94,9 @@ interface BarState {
 }
 
 interface BarAction {
-  kind: 'submit' | 'back' | 'forward' | 'engine' | 'menu' | 'suggest'
+  kind: 'submit' | 'back' | 'forward' | 'home' | 'engine' | 'menu' | 'suggest'
   url?: string
+  query?: string
   key?: string
   open?: boolean
   x?: number
@@ -122,6 +135,10 @@ function openBar() {
   return invoke('navigation:bar-open')
 }
 
+function closeBar() {
+  return invoke('navigation:bar-close')
+}
+
 function placeBar(bounds: BarPlace) {
   return invoke('navigation:bar-place', { body: bounds })
 }
@@ -133,11 +150,15 @@ function completeAddress(qry: string) {
 export {
   activatePage,
   closePage,
+  suspendPages,
   historyPage,
   importExtension,
   navigatePage,
+  cursorInMain,
+  stackPage,
   completeAddress,
   openBar,
+  closeBar,
   openDevtools,
   openPage,
   placeBar,

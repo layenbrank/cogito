@@ -1,4 +1,4 @@
-import { Caption, WINDOW_CONTROLS } from '@/components/caption/caption'
+import { Caption, WINDOW_CONTROLS, useCaptionState } from '@/components/caption/caption'
 import type {
   CaptionProps,
   CaptionState,
@@ -6,5 +6,5 @@ import type {
   WindowControlKey
 } from '@/components/caption/caption'
 
-export { Caption, WINDOW_CONTROLS }
+export { Caption, WINDOW_CONTROLS, useCaptionState }
 export type { CaptionProps, CaptionState, WindowControl, WindowControlKey }
