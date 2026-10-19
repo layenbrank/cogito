@@ -27,6 +27,17 @@
   }
 }
 
+.mirrorTriggerTint {
+  border-color: transparent;
+  color: var(--foreground);
+  box-shadow: none;
+
+  &:not(:disabled):hover,
+  &.mirrorTriggerOpen {
+    color: var(--foreground);
+  }
+}
+
 .mirrorPage {
   flex-shrink: 0;
   font-size: 11px;
@@ -61,14 +72,19 @@
 }
 
 .mirrorList {
-  width: 280px;
+  width: 260px;
   overflow: hidden;
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--foreground) 6%, transparent),
+    0 12px 32px oklch(0 0 0 / 0.14);
 }
 
 .mirrorOptions {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  padding: 6px;
   overflow: hidden;
 
   &[data-scrollable='true'] {
@@ -83,11 +99,12 @@
   display: flex;
   align-items: center;
   width: 100%;
-  border-radius: 8px;
+  min-height: 36px;
+  border-radius: 9px;
   transition: background-color 140ms ease-out;
 
   &[data-cursor='true'] {
-    background: color-mix(in oklab, var(--muted) 55%, transparent);
+    background: color-mix(in oklab, var(--muted) 72%, transparent);
   }
 
   :global(html[data-motion='reduce']) & {
@@ -96,10 +113,20 @@
 }
 
 .mirrorItemActive {
-  background: color-mix(in oklab, var(--primary) 8%, transparent);
+  background: color-mix(in oklab, var(--primary) 16%, var(--popover));
 
   &[data-cursor='true'] {
-    background: color-mix(in oklab, var(--primary) 12%, transparent);
+    background: color-mix(in oklab, var(--primary) 22%, var(--popover));
+  }
+
+  .mirrorItemIndex {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    box-shadow: none;
+  }
+
+  .mirrorItemTitle {
+    font-weight: 600;
   }
 }
 
@@ -109,16 +136,21 @@
   gap: 10px;
   flex: 1;
   min-width: 0;
-  padding: 7px 28px 7px 10px;
+  padding: 6px 28px 6px 6px;
   border: none;
-  border-radius: 8px;
+  border-radius: 9px;
   background: transparent;
   text-align: left;
   cursor: pointer;
 }
 
-.mirrorDivider {
-  margin: 6px 8px;
+.mirrorActions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-top: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
+  background: color-mix(in oklab, var(--muted) 38%, var(--popover));
 }
 
 .mirrorCreate,
@@ -127,26 +159,25 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 10px;
+  min-height: 32px;
+  padding: 6px 8px;
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--muted-foreground);
+  color: var(--foreground);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition:
-    color 120ms ease-out,
-    background-color 120ms ease-out;
+  transition: background-color 120ms ease-out;
 
   &:hover {
-    color: var(--foreground);
-    background: color-mix(in oklab, var(--muted) 45%, transparent);
+    background: color-mix(in oklab, var(--background) 72%, transparent);
   }
 
   svg {
-    width: 14px;
-    height: 14px;
+    width: 15px;
+    height: 15px;
+    color: var(--muted-foreground);
   }
 
   :global(html[data-motion='reduce']) & {
@@ -154,17 +185,20 @@
   }
 }
 
-.mirrorManageEntry {
-  margin-top: 1px;
-}
-
 .mirrorItemIndex {
+  display: inline-flex;
   flex-shrink: 0;
-  min-width: 1.1em;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: color-mix(in oklab, var(--muted) 88%, var(--background));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--border) 90%, transparent);
   font-size: 11px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  line-height: 1.2;
+  line-height: 1;
   color: var(--muted-foreground);
 }
 
@@ -201,35 +235,58 @@
 
 .mirrorManage {
   overflow: hidden;
+
+  :global([data-slot='dialog-body']) {
+    gap: 0;
+    padding-bottom: 0;
+  }
 }
 
 .mirrorManageHeader {
-  gap: 4px;
-  padding: 14px 16px 10px;
+  gap: 6px;
+}
+
+.mirrorManageBody {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(320px, 34%) minmax(0, 1fr);
+  min-height: 0;
+  border-top: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+}
+
+.mirrorManageSide {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  border-right: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  background: color-mix(in oklab, var(--muted) 46%, var(--background));
 }
 
 .mirrorManageList {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
   min-height: 0;
-  max-height: min(58vh, 440px);
-  padding: 8px 10px;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
   overflow-x: hidden;
   overflow-y: auto;
-  border-block: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
 }
 
 .mirrorManageItem {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
   padding: 10px;
-  border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
-  border-radius: 10px;
-  background: var(--popover);
-  transition: border-color 160ms ease-out;
+  border: 1px solid color-mix(in oklab, var(--border) 90%, transparent);
+  border-radius: 12px;
+  background: var(--background);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--foreground) 5%, transparent),
+    0 1px 2px oklch(0 0 0 / 0.05);
+  transition:
+    border-color 160ms ease-out,
+    box-shadow 160ms ease-out;
 
   :global(html[data-motion='reduce']) & {
     transition: none;
@@ -237,14 +294,17 @@
 }
 
 .mirrorManageItemActive {
-  border-color: color-mix(in oklab, var(--primary) 36%, var(--border));
+  border-color: color-mix(in oklab, var(--primary) 42%, var(--border));
+  box-shadow:
+    0 0 0 3px color-mix(in oklab, var(--primary) 14%, transparent),
+    0 1px 2px oklch(0 0 0 / 0.05);
 }
 
 .mirrorManageRow {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-columns: 40px minmax(0, 1fr);
   column-gap: 10px;
-  align-items: start;
+  align-items: center;
 }
 
 .mirrorManageIndex {
@@ -266,41 +326,20 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  padding: 0;
+  width: 40px;
+  height: 40px;
   overflow: hidden;
-  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-  border-radius: 9px;
-  background: transparent;
+  border: none;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--muted) 35%, var(--background));
   color: var(--foreground);
-  cursor: pointer;
-  transition:
-    border-color 160ms ease-out,
-    background-color 160ms ease-out,
-    box-shadow 160ms ease-out;
-
-  &:hover,
-  &.mirrorManageMarkOpen {
-    border-color: color-mix(in oklab, var(--primary) 42%, var(--border));
-    background: color-mix(in oklab, var(--muted) 28%, transparent);
-    box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 12%, transparent);
-  }
-
-  &:hover .mirrorManageMarkEdit,
-  &.mirrorManageMarkOpen .mirrorManageMarkEdit {
-    opacity: 1;
-  }
-
-  :global(html[data-motion='reduce']) & {
-    transition: none;
-  }
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--foreground) 6%, transparent);
 }
 
 .mirrorManageMarkIcon {
   display: block;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 
   :global(svg) {
     display: block;
@@ -309,41 +348,18 @@
   }
 }
 
-.mirrorManageMarkEdit {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: color-mix(in oklab, var(--background) 78%, transparent);
-  color: var(--primary);
-  opacity: 0;
-  transition: opacity 140ms ease-out;
-
-  :global(svg) {
-    width: 13px;
-    height: 13px;
-  }
-
-  :global(html[data-motion='reduce']) & {
-    transition: none;
-  }
-}
-
 .mirrorManageMain {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .mirrorManageTitleRow {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 6px;
-  height: 36px;
+  gap: 4px;
 }
 
 .mirrorManageTitle,
@@ -351,18 +367,30 @@
   width: 100%;
   height: 32px;
   min-width: 0;
-  border-color: color-mix(in oklab, var(--border) 65%, transparent);
+  border-color: transparent;
+  background: transparent;
   font-size: 13px;
   box-shadow: none;
+
+  &:hover {
+    background: color-mix(in oklab, var(--muted) 55%, transparent);
+  }
+
+  &:focus-visible {
+    border-color: var(--ring);
+    background: var(--background);
+  }
 }
 
 .mirrorManageTitle {
-  height: 36px;
+  height: 32px;
+  font-size: 14px;
   font-weight: 550;
 }
 
 .mirrorManageDesc {
-  height: 30px;
+  height: 28px;
+  font-size: 13px;
   color: var(--muted-foreground);
 
   &:focus-visible {
@@ -406,8 +434,8 @@
   }
 
   svg {
-    width: 15px;
-    height: 15px;
+    width: 16px;
+    height: 16px;
   }
 
   :global(html[data-motion='reduce']) & {
@@ -415,35 +443,49 @@
   }
 }
 
+.mirrorAppearanceLabel {
+  margin: 4px 2px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
 .mirrorManageSwatches {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 5px;
-  min-height: 22px;
-  padding-block: 1px;
+  gap: 8px;
+  min-height: 26px;
 }
 
 .mirrorMarkInline {
-  margin-left: 46px;
-  padding: 6px;
-  border: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
-  border-radius: 8px;
-  background: color-mix(in oklab, var(--muted) 18%, transparent);
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 16px 20px 20px;
+  overflow: auto;
+  background: var(--popover);
 }
 
 .mirrorMarkInlineTitle {
-  margin: 0;
+  margin: 0 2px;
   font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.02em;
   color: var(--muted-foreground);
 }
 
 .mirrorManageSwatch {
-  width: 18px;
-  height: 18px;
-  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  width: 22px;
+  height: 22px;
+  border: none;
   border-radius: 999px;
+  box-shadow:
+    inset 0 1px 1px oklch(1 0 0 / 0.45),
+    inset 0 -2px 3px oklch(0 0 0 / 0.12),
+    0 1px 2px oklch(0 0 0 / 0.1);
   cursor: pointer;
   transition:
     transform 140ms ease-out,
@@ -473,27 +515,27 @@
 .mirrorManageSwatchActive {
   box-shadow:
     0 0 0 2px var(--popover),
-    0 0 0 3.5px color-mix(in oklab, var(--primary) 50%, transparent);
+    0 0 0 3px var(--primary);
 }
 
 .mirrorManageFooter {
   margin: 0;
-  padding: 8px 10px 10px;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  justify-content: stretch;
+  padding: 10px 12px 12px;
+  border-top: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
 }
 
 .mirrorManageCreate {
   width: 100%;
+  height: 36px;
   justify-content: center;
-  color: var(--muted-foreground);
+  border-style: dashed;
+  background: var(--background);
+  color: var(--foreground);
   font-weight: 500;
+  box-shadow: none;
 
   &:hover {
-    color: var(--foreground);
-    background: color-mix(in oklab, var(--muted) 40%, transparent);
+    background: color-mix(in oklab, var(--muted) 40%, var(--background));
   }
 }
 
@@ -511,8 +553,9 @@
 
 .mirrorMarkGrid {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 4px;
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  gap: 8px;
+  width: 100%;
 }
 
 .mirrorMarkOption {
@@ -522,9 +565,9 @@
   width: 100%;
   aspect-ratio: 1;
   border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted-foreground);
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--muted) 28%, transparent);
+  color: var(--foreground);
   cursor: pointer;
   transition:
     color 140ms ease-out,

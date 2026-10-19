@@ -31,20 +31,150 @@ const MIRROR_MARK_ICONS = [
   'lucide:calendar',
   'lucide:clock',
   'lucide:compass',
-  'lucide:zap'
+  'lucide:zap',
+  'lucide:sun',
+  'lucide:moon',
+  'lucide:cloud',
+  'lucide:cloud-sun',
+  'lucide:mountain',
+  'lucide:trees',
+  'lucide:flower-2',
+  'lucide:leaf',
+  'lucide:flame',
+  'lucide:droplet',
+  'lucide:snowflake',
+  'lucide:umbrella',
+  'lucide:lightbulb',
+  'lucide:puzzle',
+  'lucide:shapes',
+  'lucide:pen-tool',
+  'lucide:pencil',
+  'lucide:brush',
+  'lucide:scissors',
+  'lucide:image',
+  'lucide:aperture',
+  'lucide:video',
+  'lucide:clapperboard',
+  'lucide:headphones',
+  'lucide:mic',
+  'lucide:radio',
+  'lucide:guitar',
+  'lucide:library',
+  'lucide:graduation-cap',
+  'lucide:newspaper',
+  'lucide:flask-conical',
+  'lucide:atom',
+  'lucide:microscope',
+  'lucide:telescope',
+  'lucide:stethoscope',
+  'lucide:activity',
+  'lucide:heart-pulse',
+  'lucide:hospital',
+  'lucide:pill',
+  'lucide:building-2',
+  'lucide:landmark',
+  'lucide:store',
+  'lucide:factory',
+  'lucide:warehouse',
+  'lucide:map',
+  'lucide:map-pin',
+  'lucide:plane',
+  'lucide:car',
+  'lucide:ship',
+  'lucide:train-front',
+  'lucide:bike',
+  'lucide:shopping-bag',
+  'lucide:gift',
+  'lucide:gem',
+  'lucide:crown',
+  'lucide:award',
+  'lucide:trophy',
+  'lucide:medal',
+  'lucide:flag',
+  'lucide:target',
+  'lucide:inbox',
+  'lucide:mail',
+  'lucide:message-circle',
+  'lucide:phone',
+  'lucide:users',
+  'lucide:user-round',
+  'lucide:bot',
+  'lucide:brain',
+  'lucide:cpu',
+  'lucide:database',
+  'lucide:server',
+  'lucide:wifi',
+  'lucide:settings',
+  'lucide:wrench',
+  'lucide:hammer',
+  'lucide:key',
+  'lucide:lock',
+  'lucide:shield',
+  'lucide:eye',
+  'lucide:glasses',
+  'lucide:box',
+  'lucide:package',
+  'lucide:archive',
+  'lucide:files',
+  'lucide:file-text',
+  'lucide:kanban',
+  'lucide:chart-pie',
+  'lucide:chart-column',
+  'lucide:wallet',
+  'lucide:credit-card',
+  'lucide:banknote',
+  'lucide:cat',
+  'lucide:dog',
+  'lucide:bird',
+  'lucide:fish',
+  'lucide:apple',
+  'lucide:pizza',
+  'lucide:utensils',
+  'lucide:cake',
+  'lucide:ice-cream-cone',
+  'lucide:wine',
+  'lucide:cup-soda',
+  'lucide:dumbbell',
+  'lucide:anchor',
+  'lucide:tent',
+  'lucide:tree-pine',
+  'lucide:sprout',
+  'lucide:orbit',
+  'lucide:satellite',
+  'lucide:hexagon',
+  'lucide:wand-sparkles'
 ] as const
 
-/** 镜像背景色预设（写入 `background.color`） */
+/**
+ * 镜像背景色预设（写入 `background.color`）。
+ * 仍保持足够浅，深色文字能读；色相拉开，避免一排发灰的淡彩。
+ */
 const MIRROR_COLOR_PRESETS = [
-  { label: '雾灰', value: '#F1F5F9' },
-  { label: '天青', value: '#DBEAFE' },
-  { label: '薄荷', value: '#D1FAE5' },
-  { label: '蜜桃', value: '#FFEDD5' },
-  { label: '玫瑰', value: '#FCE7F3' },
-  { label: '淡紫', value: '#EDE9FE' },
-  { label: '暖沙', value: '#FEF3C7' },
-  { label: '青瓷', value: '#CCFBF1' }
+  { label: '群青', value: '#A8BEF8' },
+  { label: '晴空', value: '#8FCBF2' },
+  { label: '松绿', value: '#8FD4AE' },
+  { label: '杏黄', value: '#E8B56A' },
+  { label: '珊瑚', value: '#E89088' },
+  { label: '藤紫', value: '#B89AEE' },
+  { label: '玫粉', value: '#E090B0' },
+  { label: '湖青', value: '#7EC8C4' }
 ] as const
+
+/** 库里的 background 可能仍是 JSON 字符串；空颜色视为未设置。 */
+function findAccent(background: Mirror['background'] | string | null | undefined) {
+  let record: Mirror['background'] = null
+  if (typeof background === 'string') {
+    try {
+      record = JSON.parse(background) as Mirror['background']
+    } catch {
+      record = null
+    }
+  } else {
+    record = background ?? null
+  }
+  const color = record?.color?.trim() ?? ''
+  return color || null
+}
 
 function isIconMark(mark: string) {
   return mark.includes(':')
@@ -88,6 +218,7 @@ export {
   MIRROR_MARK_FALLBACK,
   MIRROR_MARK_ICONS,
   buildMirrorWrite,
+  findAccent,
   findMirrorIcon,
   findNextTitle,
   isIconMark

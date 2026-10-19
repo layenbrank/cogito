@@ -15,7 +15,6 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@i-thinking/design/components/popover'
-import { Separator } from '@i-thinking/design/components/separator'
 import { Spinner } from '@i-thinking/design/components/spinner'
 import {
   Tooltip,
@@ -37,6 +36,7 @@ import { MirrorManageDialog } from '@/views/overview/caption/mirror-manage'
 import {
   DESC_TOOLTIP_DELAY,
   buildMirrorWrite,
+  findAccent,
   findMirrorIcon,
   findNextTitle
 } from '@/views/overview/caption/mirror-utils'
@@ -225,6 +225,7 @@ function MirrorSwitcher(props: MirrorSwitcherProps) {
   }
 
   const label = active.description ? `${active.title}：${active.description}` : active.title
+  const accent = findAccent(active.background)
 
   return (
     <>
@@ -243,8 +244,10 @@ function MirrorSwitcher(props: MirrorSwitcherProps) {
                     className={cn(
                       styles.mirrorTrigger,
                       props.isCompact ? 'size-10 min-w-10 rounded-full p-0 [&_svg]:size-4.5' : 'w-full justify-start',
+                      props.isCompact && accent && styles.mirrorTriggerTint,
                       isOpen && styles.mirrorTriggerOpen
                     )}
+                    style={props.isCompact && accent ? { backgroundColor: accent } : undefined}
                     aria-label={`镜像：${label}`}
                     aria-busy={isBusy || undefined}
                     disabled={isBusy}
@@ -280,7 +283,7 @@ function MirrorSwitcher(props: MirrorSwitcherProps) {
           align="start"
           side={props.menuSide ?? 'bottom'}
           sideOffset={6}
-          className={cn(styles.mirrorList, 'gap-0 p-1')}
+          className={cn(styles.mirrorList, 'gap-0 overflow-hidden p-0')}
           onKeyDown={onKeyDown}>
           <TooltipProvider delay={DESC_TOOLTIP_DELAY}>
             <div
@@ -332,36 +335,36 @@ function MirrorSwitcher(props: MirrorSwitcherProps) {
             </div>
           </TooltipProvider>
 
-          <Separator className={styles.mirrorDivider} />
+          <div className={styles.mirrorActions}>
+            <button
+              type="button"
+              data-region="false"
+              className={styles.mirrorCreate}
+              onClick={function () {
+                void handleCreate()
+              }}>
+              <Icon
+                icon="lucide:plus"
+                aria-hidden
+              />
+              新建镜像
+            </button>
 
-          <button
-            type="button"
-            data-region="false"
-            className={styles.mirrorCreate}
-            onClick={function () {
-              void handleCreate()
-            }}>
-            <Icon
-              icon="lucide:plus"
-              aria-hidden
-            />
-            新建镜像
-          </button>
-
-          <button
-            type="button"
-            data-region="false"
-            className={styles.mirrorManageEntry}
-            onClick={function () {
-              updateOpen(false)
-              updateManageOpen(true)
-            }}>
-            <Icon
-              icon="lucide:settings-2"
-              aria-hidden
-            />
-            管理镜像
-          </button>
+            <button
+              type="button"
+              data-region="false"
+              className={styles.mirrorManageEntry}
+              onClick={function () {
+                updateOpen(false)
+                updateManageOpen(true)
+              }}>
+              <Icon
+                icon="lucide:settings-2"
+                aria-hidden
+              />
+              管理镜像
+            </button>
+          </div>
         </PopoverContent>
       </Popover>
 

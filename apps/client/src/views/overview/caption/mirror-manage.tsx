@@ -7,7 +7,7 @@
  * - background.color：背景色（JSON 列）
  * overlay / backdrop 暂不在此暴露（高级外观）。
  *
- * 图标选择用行内展开，避免 Dialog 内嵌 Popover 被遮挡 / 焦点陷阱吃掉点击。
+ * 左列是镜像列表，右列只有一份图标和背景色，改的是左列选中的那条。
  */
 import { Icon } from '@iconify/react/offline'
 import {
@@ -25,7 +25,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle
 } from '@i-thinking/design/components/dialog'
@@ -40,6 +39,7 @@ import {
   MIRROR_COLOR_PRESETS,
   MIRROR_MARK_ICONS,
   buildMirrorWrite,
+  findAccent,
   findMirrorIcon,
   findNextTitle
 } from '@/views/overview/caption/mirror-utils'
@@ -55,9 +55,9 @@ type MirrorChange = Pick<Mirror.Change, 'title' | 'description' | 'mark' | 'back
 interface MirrorEditorProps {
   mirror: Mirror
   isActive: boolean
+  isChosen: boolean
   canRemove: boolean
-  isPickingMark: boolean
-  onToggleMarkPicker: () => void
+  onChoose: () => void
   onCommit: (change: MirrorChange) => void
   onRemove: () => void
 }
@@ -65,52 +65,40 @@ interface MirrorEditorProps {
 function MirrorEditor(props: MirrorEditorProps) {
   const { mirror } = props
   const icon = findMirrorIcon(mirror.mark)
-  const accent = mirror.background?.color ?? null
+  const accent = findAccent(mirror.background)
 
   return (
     <article
-      className={cn(styles.mirrorManageItem, props.isActive && styles.mirrorManageItemActive)}
-      data-active={props.isActive ? 'true' : undefined}>
+      className={cn(styles.mirrorManageItem, props.isChosen && styles.mirrorManageItemActive)}
+      data-active={props.isActive ? 'true' : undefined}
+      data-chosen={props.isChosen ? 'true' : undefined}
+      onClick={props.onChoose}>
       {/* 两列顶对齐：图标（角标序号）| 字段栈，避免左侧序号列形成灰条 */}
       <div className={styles.mirrorManageRow}>
-        <button
-          type="button"
-          data-region="false"
-          className={cn(styles.mirrorManageMark, props.isPickingMark && styles.mirrorManageMarkOpen)}
+        <span
+          className={styles.mirrorManageMark}
           style={accent ? { backgroundColor: accent } : undefined}
-          aria-label={`选择「${mirror.title}」图标`}
-          aria-expanded={props.isPickingMark}
-          aria-controls={`mirror-mark-grid-${mirror.id}`}
-          title="选择图标"
-          onClick={props.onToggleMarkPicker}>
-          <span
-            className={styles.mirrorManageIndex}
-            aria-hidden>
-            {mirror.index + 1}
-          </span>
+          aria-hidden>
+          <span className={styles.mirrorManageIndex}>{mirror.index + 1}</span>
           <Icon
             icon={icon}
             className={styles.mirrorManageMarkIcon}
-            aria-hidden
           />
-          <span
-            className={styles.mirrorManageMarkEdit}
-            aria-hidden>
-            <Icon
-              icon={props.isPickingMark ? 'lucide:chevron-up' : 'lucide:pencil'}
-            />
-          </span>
-        </button>
+        </span>
 
         <div className={styles.mirrorManageMain}>
           <div className={styles.mirrorManageTitleRow}>
             <Input
               data-region="false"
-              className={styles.mirrorManageTitle}
+              className={cn(
+                styles.mirrorManageTitle,
+                'h-8 border-transparent bg-transparent px-1.5 text-sm shadow-none hover:bg-muted/60'
+              )}
               defaultValue={mirror.title}
               key={`${mirror.id}-title-${mirror.title}`}
               placeholder="名称"
               aria-label={`「${mirror.title}」名称`}
+              onFocus={props.onChoose}
               onBlur={function (event) {
                 const title = event.target.value.trim()
                 if (!title || title === mirror.title) {
@@ -127,7 +115,10 @@ function MirrorEditor(props: MirrorEditorProps) {
                 data-region="false"
                 className={styles.mirrorManageRemove}
                 aria-label={`删除「${mirror.title}」`}
-                onClick={props.onRemove}>
+                onClick={function (event) {
+                  event.stopPropagation()
+                  props.onRemove()
+                }}>
                 <Icon
                   icon="lucide:trash-2"
                   aria-hidden
@@ -138,99 +129,106 @@ function MirrorEditor(props: MirrorEditorProps) {
 
           <Input
             data-region="false"
-            className={styles.mirrorManageDesc}
+            className={cn(
+              styles.mirrorManageDesc,
+              'h-7 border-transparent bg-transparent px-1.5 text-[13px] shadow-none hover:bg-muted/60'
+            )}
             defaultValue={mirror.description ?? ''}
             key={`${mirror.id}-desc-${mirror.description ?? ''}`}
             placeholder="描述（可选）"
             aria-label={`「${mirror.title}」描述`}
+            onFocus={props.onChoose}
             onBlur={function (event) {
               const description = event.target.value.trim()
               if (description === (mirror.description ?? '')) return
               props.onCommit({ description })
             }}
           />
+        </div>
+      </div>
+    </article>
+  )
+}
 
-          <div
-            className={styles.mirrorManageSwatches}
-            role="listbox"
-            aria-label={`「${mirror.title}」背景色`}>
+function MirrorAppearance(props: { mirror: Mirror; onCommit: (change: MirrorChange) => void }) {
+  const icon = findMirrorIcon(props.mirror.mark)
+  const accent = findAccent(props.mirror.background)
+
+  return (
+    <div className={styles.mirrorMarkInline}>
+      <p className={styles.mirrorMarkInlineTitle}>外观 · {props.mirror.title}</p>
+      <p className={styles.mirrorAppearanceLabel}>背景</p>
+      <div
+        className={styles.mirrorManageSwatches}
+        role="listbox"
+        aria-label={`「${props.mirror.title}」背景色`}>
+        <button
+          type="button"
+          data-region="false"
+          role="option"
+          aria-selected={!accent}
+          aria-label="无背景色"
+          title="无背景"
+          className={cn(
+            styles.mirrorManageSwatch,
+            styles.mirrorManageSwatchClear,
+            !accent && styles.mirrorManageSwatchActive
+          )}
+          onClick={function () {
+            if (!accent) return
+            props.onCommit({ background: { color: '' } })
+          }}
+        />
+        {MIRROR_COLOR_PRESETS.map(function (preset) {
+          const isOn = accent === preset.value
+          return (
             <button
+              key={preset.value}
               type="button"
               data-region="false"
               role="option"
-              aria-selected={!accent}
-              aria-label="无背景色"
-              title="无背景"
-              className={cn(
-                styles.mirrorManageSwatch,
-                styles.mirrorManageSwatchClear,
-                !accent && styles.mirrorManageSwatchActive
-              )}
+              aria-selected={isOn}
+              aria-label={preset.label}
+              title={preset.label}
+              className={cn(styles.mirrorManageSwatch, isOn && styles.mirrorManageSwatchActive)}
+              style={{ backgroundColor: preset.value }}
               onClick={function () {
-                if (!accent) return
-                props.onCommit({ background: null })
+                if (isOn) return
+                props.onCommit({ background: { color: preset.value } })
               }}
             />
-            {MIRROR_COLOR_PRESETS.map(function (preset) {
-              const isActiveColor = accent === preset.value
-              return (
-                <button
-                  key={preset.value}
-                  type="button"
-                  data-region="false"
-                  role="option"
-                  aria-selected={isActiveColor}
-                  aria-label={preset.label}
-                  title={preset.label}
-                  className={cn(
-                    styles.mirrorManageSwatch,
-                    isActiveColor && styles.mirrorManageSwatchActive
-                  )}
-                  style={{ backgroundColor: preset.value }}
-                  onClick={function () {
-                    if (isActiveColor) return
-                    props.onCommit({ background: { color: preset.value } })
-                  }}
-                />
-              )
-            })}
-          </div>
-        </div>
+          )
+        })}
       </div>
-
-      {props.isPickingMark ? (
-        <div
-          id={`mirror-mark-grid-${mirror.id}`}
-          className={styles.mirrorMarkInline}
-          role="listbox"
-          aria-label="镜像图标">
-          <div className={styles.mirrorMarkGrid}>
-            {MIRROR_MARK_ICONS.map(function (item) {
-              const isActive = icon === item
-              return (
-                <button
-                  key={item}
-                  type="button"
-                  data-region="false"
-                  role="option"
-                  aria-selected={isActive}
-                  className={cn(styles.mirrorMarkOption, isActive && styles.mirrorMarkOptionActive)}
-                  aria-label={item}
-                  onClick={function () {
-                    if (item !== mirror.mark) props.onCommit({ mark: item })
-                    props.onToggleMarkPicker()
-                  }}>
-                  <Icon
-                    icon={item}
-                    aria-hidden
-                  />
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      ) : null}
-    </article>
+      <p className={styles.mirrorAppearanceLabel}>图标</p>
+      <div
+        className={styles.mirrorMarkGrid}
+        role="listbox"
+        aria-label={`「${props.mirror.title}」图标`}>
+        {MIRROR_MARK_ICONS.map(function (item) {
+          const isOn = icon === item
+          return (
+            <button
+              key={item}
+              type="button"
+              data-region="false"
+              role="option"
+              aria-selected={isOn}
+              className={cn(styles.mirrorMarkOption, isOn && styles.mirrorMarkOptionActive)}
+              aria-label={item}
+              onClick={function () {
+                if (item === props.mirror.mark) return
+                props.onCommit({ mark: item })
+              }}>
+              <Icon
+                icon={item}
+                aria-hidden
+              />
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -242,11 +240,19 @@ function MirrorManageDialog(props: MirrorManageDialogProps) {
     return state.active.mirror?.id
   })
   const [pendingRemove, updatePendingRemove] = useState<Mirror | null>(null)
-  const [pickingMarkID, updatePickingMarkID] = useState<string | null>(null)
+  const [markID, updateMarkID] = useState<string | null>(null)
   const sorted = mirrors.slice().toSorted(function (a, b) {
     return a.index - b.index
   })
   const canRemove = sorted.length > 1
+  const editing =
+    sorted.find(function (mirror) {
+      return mirror.id === markID
+    }) ??
+    sorted.find(function (mirror) {
+      return mirror.id === activeID
+    }) ??
+    sorted[0]
 
   async function handleCreate() {
     const write = buildMirrorWrite(findNextTitle(sorted), sorted.length)
@@ -261,7 +267,9 @@ function MirrorManageDialog(props: MirrorManageDialogProps) {
     const created = useMirrorStore.getState().mirrors.find(function (mirror) {
       return mirror.index === write.index && mirror.title === write.title
     })
-    if (created) await requestMirrorSwitch(created.id)
+    if (!created) return
+    updateMarkID(created.id)
+    await requestMirrorSwitch(created.id)
   }
 
   async function commitField(id: string, change: MirrorChange) {
@@ -289,7 +297,7 @@ function MirrorManageDialog(props: MirrorManageDialogProps) {
       return
     }
 
-    if (pickingMarkID === target.id) updatePickingMarkID(null)
+    if (markID === target.id) updateMarkID(null)
     if (target.id !== activeID) return
     const remaining = useMirrorStore.getState().mirrors[0]
     if (remaining) await requestMirrorSwitch(remaining.id)
@@ -300,58 +308,71 @@ function MirrorManageDialog(props: MirrorManageDialogProps) {
       <Dialog
         open={props.open}
         onOpenChange={function (next) {
-          if (!next) updatePickingMarkID(null)
+          if (!next) updateMarkID(null)
           props.onOpenChange(next)
         }}>
         <DialogContent
-          className={cn(styles.mirrorManage, 'gap-0 p-0 sm:max-w-105')}
+          className={cn(
+            styles.mirrorManage,
+            'h-[min(86vh,52rem)] max-h-[min(86vh,52rem)] w-[min(94vw,76rem)] max-w-none gap-0 p-0 sm:max-w-[min(94vw,76rem)]'
+          )}
           data-region="false">
-          <DialogHeader className={styles.mirrorManageHeader}>
+          <DialogHeader className={cn(styles.mirrorManageHeader, 'gap-1.5 px-4 pt-4 pb-3.5')}>
             <DialogTitle>管理镜像</DialogTitle>
-            <DialogDescription>点图标换标记；名称、描述与背景失焦即存。</DialogDescription>
+            <DialogDescription>名称和描述失焦后保存，图标与背景色点选即存。</DialogDescription>
           </DialogHeader>
 
-          <div className={styles.mirrorManageList}>
-            {sorted.map(function (mirror) {
-              return (
-                <MirrorEditor
-                  key={mirror.id}
-                  mirror={mirror}
-                  isActive={mirror.id === activeID}
-                  canRemove={canRemove}
-                  isPickingMark={pickingMarkID === mirror.id}
-                  onToggleMarkPicker={function () {
-                    updatePickingMarkID(function (current) {
-                      return current === mirror.id ? null : mirror.id
-                    })
-                  }}
-                  onCommit={function (change) {
-                    void commitField(mirror.id, change)
-                  }}
-                  onRemove={function () {
-                    updatePendingRemove(mirror)
-                  }}
-                />
-              )
-            })}
-          </div>
+          <div className={styles.mirrorManageBody}>
+            <div className={styles.mirrorManageSide}>
+              <div className={styles.mirrorManageList}>
+                {sorted.map(function (mirror) {
+                  return (
+                    <MirrorEditor
+                      key={mirror.id}
+                      mirror={mirror}
+                      isActive={mirror.id === activeID}
+                      isChosen={mirror.id === editing?.id}
+                      canRemove={canRemove}
+                      onChoose={function () {
+                        updateMarkID(mirror.id)
+                      }}
+                      onCommit={function (change) {
+                        void commitField(mirror.id, change)
+                      }}
+                      onRemove={function () {
+                        updatePendingRemove(mirror)
+                      }}
+                    />
+                  )
+                })}
+              </div>
+              <div className={styles.mirrorManageFooter}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  data-region="false"
+                  className={styles.mirrorManageCreate}
+                  onClick={function () {
+                    void handleCreate()
+                  }}>
+                  <Icon
+                    icon="lucide:plus"
+                    aria-hidden
+                  />
+                  新建镜像
+                </Button>
+              </div>
+            </div>
 
-          <DialogFooter className={styles.mirrorManageFooter}>
-            <Button
-              type="button"
-              variant="ghost"
-              data-region="false"
-              className={styles.mirrorManageCreate}
-              onClick={function () {
-                void handleCreate()
-              }}>
-              <Icon
-                icon="lucide:plus"
-                aria-hidden
+            {editing ? (
+              <MirrorAppearance
+                mirror={editing}
+                onCommit={function (change) {
+                  void commitField(editing.id, change)
+                }}
               />
-              新建镜像
-            </Button>
-          </DialogFooter>
+            ) : null}
+          </div>
         </DialogContent>
       </Dialog>
 

@@ -1,6 +1,21 @@
 use sea_orm::prelude::*;
 use serde::{Deserialize, Serialize};
 
+/// 库内 JSON 文本在返回前端时还原成对象，避免 `background.color` 读不到。
+fn serialize_json_text<S>(value: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    match value {
+        Some(text) => {
+            let parsed: serde_json::Value =
+                serde_json::from_str(text).unwrap_or(serde_json::Value::Null);
+            parsed.serialize(serializer)
+        }
+        None => serializer.serialize_none(),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "mirror")]
 #[serde(rename_all = "camelCase")]
@@ -12,7 +27,9 @@ pub struct Model {
     pub mark: String,
     pub description: String,
     pub overlay: String,
+    #[serde(serialize_with = "serialize_json_text")]
     pub background: Option<String>,
+    #[serde(serialize_with = "serialize_json_text")]
     pub backdrop: Option<String>,
 
     #[sea_orm(column_name = "archivedAt")]
@@ -25,8 +42,8 @@ pub struct Model {
     pub created_at: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct Background {
     color: Option<String>,
     image: Option<String>,
@@ -39,8 +56,8 @@ pub struct Background {
     origin: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct Backdrop {
     blur: Option<String>,
     brightness: Option<String>,

@@ -152,8 +152,7 @@ describe('MirrorSwitcher', function () {
     fireEvent.change(descInput, { target: { value: '新描述' } })
     fireEvent.blur(descInput)
 
-    fireEvent.click(screen.getByRole('button', { name: '选择「工作台」图标' }))
-    fireEvent.click(await screen.findByRole('option', { name: 'lucide:briefcase' }))
+    fireEvent.click(screen.getByRole('option', { name: 'lucide:briefcase' }))
 
     await waitFor(function () {
       expect(toUpdateMirror).toHaveBeenCalledWith([{ key: 'm1', change: { title: '新名字' } }])

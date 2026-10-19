@@ -81,15 +81,13 @@ function CaptionAccount(props: CaptionAccountProps) {
                   variant="ghost"
                   size="icon"
                   data-region="false"
-                  className="size-10 min-w-10 rounded-full [&_svg]:size-4.5"
+                  className="size-10 min-w-10 overflow-hidden rounded-full p-0"
                   aria-label={`已登录：${user.username}`}
                 />
               }
             />
           }>
-          <Avatar
-            size="sm"
-            className={styles.accountAvatar}>
+          <Avatar className={clsx(styles.accountAvatar, 'size-full')}>
             {user.avatarUrl ? (
               <AvatarImage
                 src={user.avatarUrl}
