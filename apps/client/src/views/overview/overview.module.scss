@@ -23,21 +23,7 @@ $engine-size: 36px;
     position: relative;
     min-height: 0;
     padding-block: 12px;
-    // 轻量边缘遮罩（视觉保留，尺寸收紧控合成成本）
-    -webkit-mask-image: linear-gradient(
-      to bottom,
-      transparent 0,
-      #000 12px,
-      #000 calc(100% - 14px),
-      transparent 100%
-    );
-    mask-image: linear-gradient(
-      to bottom,
-      transparent 0,
-      #000 12px,
-      #000 calc(100% - 14px),
-      transparent 100%
-    );
+    background-color: var(--background);
   }
 
   .engine {
