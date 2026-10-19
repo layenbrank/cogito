@@ -106,7 +106,7 @@ tauri-plugin-http = { version = "2.5.7", features = [
 tauri-plugin-os = "2.3.2" # OS 信息（前端能力预留）
 
 # --- Tauri 插件（日志）---
-tauri-plugin-log = "2.8.0" # 日志桥（Stdout + LogDir；debug 含 Webview）
+tauri-plugin-log = "2.8.0" # 日志桥（Stdout + LogDir，各一份）
 
 # --- PTY（嵌入式交互终端；wezterm 维护，Windows=ConPTY）---
 portable-pty = "0.9"

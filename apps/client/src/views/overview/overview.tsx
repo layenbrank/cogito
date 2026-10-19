@@ -3,7 +3,6 @@
  * 同时承担主窗口的全局初始化职责（数据加载、corex 就绪检测、全局快捷键）。
  */
 import { listen } from '@tauri-apps/api/event'
-import { attachConsole } from '@tauri-apps/plugin-log'
 import { useEffect, useState } from 'react'
 
 import ReSignIn from '@/features/signin/signin.tsx'
@@ -26,30 +25,6 @@ export default function Overview() {
       await useSettingsStore.getState().toInitialize()
     }
     void bootstrap()
-  }, [])
-
-  // DEV 模式控制台日志
-  useEffect(function () {
-    if (!import.meta.env.DEV) return
-
-    let detach: (() => void) | undefined
-    let cancelled = false
-
-    async function attach() {
-      try {
-        const detachConsole = await attachConsole()
-        if (cancelled) detachConsole()
-        else detach = detachConsole
-      } catch (err) {
-        console.warn('[Overview] attachConsole failed', err)
-      }
-    }
-
-    void attach()
-    return function () {
-      cancelled = true
-      detach?.()
-    }
   }, [])
 
   // CLI 参数处理

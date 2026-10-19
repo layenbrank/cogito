@@ -35,15 +35,13 @@ fn configure_log_levels(builder: tauri_plugin_log::Builder) -> tauri_plugin_log:
 pub fn register_plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     let log_builder = configure_log_levels(
         tauri_plugin_log::Builder::new()
+            .clear_targets()
             .rotation_strategy(RotationStrategy::KeepAll)
             .max_file_size(LOG_MAX_FILE_SIZE)
             .timezone_strategy(TimezoneStrategy::UseLocal)
             .target(Target::new(TargetKind::Stdout))
             .target(Target::new(TargetKind::LogDir { file_name: None })),
     );
-
-    #[cfg(debug_assertions)]
-    let log_builder = log_builder.target(Target::new(TargetKind::Webview));
 
     let builder = builder
         .plugin(log_builder.build())
