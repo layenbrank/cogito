@@ -1,5 +1,6 @@
 /**
- * 标题栏的镜像入口：切换当前工作台镜像。
+ * 侧栏里的镜像入口：切换当前工作台镜像。
+ * 镜像决定磁贴和网址集合，不放进地址栏。
  *
  * 新建 / 改名 / 改描述 / 删除等管理操作收进「管理镜像」Dialog（`mirror-manage.tsx`），
  * 下拉只负责快速切换，避免把管理面塞进标题栏 Popover。
@@ -100,7 +101,14 @@ function MirrorItemMain(props: MirrorItemMainProps) {
   )
 }
 
-function MirrorSwitcher() {
+interface MirrorSwitcherProps {
+  /** 侧栏收起时只留图标 */
+  isCompact?: boolean
+  /** 底栏向上展开，避免菜单伸出窗口 */
+  menuSide?: 'top' | 'bottom'
+}
+
+function MirrorSwitcher(props: MirrorSwitcherProps) {
   const mirrors = useMirrorStore(function (state) {
     return state.mirrors
   })
@@ -178,25 +186,36 @@ function MirrorSwitcher() {
   if (!active) {
     return (
       <>
-        <Button
-          variant="ghost"
-          size="sm"
-          data-region="false"
-          className={styles.mirrorTrigger}
-          disabled={isBusy}
-          onClick={function () {
-            void handleCreate()
-          }}>
-          {isBusy ? (
-            <Spinner className="size-3.5" />
-          ) : (
-            <Icon
-              icon="lucide:plus"
-              aria-hidden
-            />
-          )}
-          新建镜像
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size={props.isCompact ? 'icon' : 'sm'}
+                data-region="false"
+                className={cn(
+                  styles.mirrorTrigger,
+                  props.isCompact ? 'size-10 min-w-10 rounded-full p-0 [&_svg]:size-4.5' : 'w-full justify-start'
+                )}
+                aria-label="新建镜像"
+                disabled={isBusy}
+                onClick={function () {
+                  void handleCreate()
+                }}
+              />
+            }>
+            {isBusy ? (
+              <Spinner className="size-3.5" />
+            ) : (
+              <Icon
+                icon="lucide:plus"
+                aria-hidden
+              />
+            )}
+            {props.isCompact ? null : '新建镜像'}
+          </TooltipTrigger>
+          <TooltipContent side="bottom">新建镜像</TooltipContent>
+        </Tooltip>
         <MirrorManageDialog
           open={isManageOpen}
           onOpenChange={updateManageOpen}
@@ -212,38 +231,54 @@ function MirrorSwitcher() {
       <Popover
         open={isOpen}
         onOpenChange={handleOpenChange}>
-        <PopoverTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="sm"
-              data-region="false"
-              className={cn(styles.mirrorTrigger, isOpen && styles.mirrorTriggerOpen)}
-              aria-label={`镜像：${label}`}
-              aria-busy={isBusy || undefined}
-              disabled={isBusy}
-            />
-          }>
-          {isBusy ? (
-            <Spinner className="size-3.5" />
-          ) : (
-            <Icon
-              icon={findMirrorIcon(active.mark)}
-              className={styles.mirrorTriggerIcon}
-              aria-hidden
-            />
-          )}
-          <span className={styles.mirrorPage}>{active.index + 1}</span>
-          <span className={styles.mirrorName}>{active.title}</span>
-          <Icon
-            icon="lucide:chevron-down"
-            className={cn(styles.mirrorChevron, isOpen && styles.mirrorChevronOpen)}
-            aria-hidden
-          />
-        </PopoverTrigger>
+        <Tooltip>
+          <PopoverTrigger
+            render={
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size={props.isCompact ? 'icon' : 'sm'}
+                    data-region="false"
+                    className={cn(
+                      styles.mirrorTrigger,
+                      props.isCompact ? 'size-10 min-w-10 rounded-full p-0 [&_svg]:size-4.5' : 'w-full justify-start',
+                      isOpen && styles.mirrorTriggerOpen
+                    )}
+                    aria-label={`镜像：${label}`}
+                    aria-busy={isBusy || undefined}
+                    disabled={isBusy}
+                  />
+                }
+              />
+            }>
+            {isBusy ? (
+              <Spinner className="size-3.5" />
+            ) : (
+              <Icon
+                icon={findMirrorIcon(active.mark)}
+                className={styles.mirrorTriggerIcon}
+                aria-hidden
+              />
+            )}
+            {props.isCompact ? null : (
+              <>
+                <span className={styles.mirrorPage}>{active.index + 1}</span>
+                <span className={styles.mirrorName}>{active.title}</span>
+                <Icon
+                  icon="lucide:chevron-down"
+                  className={cn(styles.mirrorChevron, isOpen && styles.mirrorChevronOpen)}
+                  aria-hidden
+                />
+              </>
+            )}
+          </PopoverTrigger>
+          <TooltipContent side="bottom">{label}</TooltipContent>
+        </Tooltip>
 
         <PopoverContent
           align="start"
+          side={props.menuSide ?? 'bottom'}
           sideOffset={6}
           className={cn(styles.mirrorList, 'gap-0 p-1')}
           onKeyDown={onKeyDown}>

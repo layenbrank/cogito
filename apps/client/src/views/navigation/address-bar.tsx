@@ -263,10 +263,10 @@ function AddressBar(props: AddressBarProps) {
       className="relative min-w-0 flex-1">
       <div
         className={clsx(
-          'box-border flex h-10 items-center border bg-background transition-[border-color,border-radius,box-shadow] duration-150 ease-[ease] motion-reduce:transition-none',
+          'box-border flex h-10 items-center border transition-[background-color,border-color,border-radius,box-shadow] duration-150 ease-[ease] motion-reduce:transition-none',
           joined
-            ? 'rounded-t-[18px] rounded-b-none border-ring border-b-transparent shadow-none'
-            : 'rounded-full border-input shadow-none focus-within:border-ring'
+            ? 'rounded-t-[18px] rounded-b-none border-ring border-b-transparent bg-background shadow-none'
+            : 'rounded-full border-transparent bg-muted shadow-none focus-within:border-ring focus-within:bg-background focus-within:ring-2 focus-within:ring-ring/25'
         )}>
         <Button
           type="button"

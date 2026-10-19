@@ -44,11 +44,10 @@ function BrowserBar({
     <header
       ref={onBind}
       data-region="true"
-      data-tauri-drag-region
       data-focused={state.isFocused ? 'true' : 'false'}
       onDoubleClick={onDoubleClick}
       className={cn(
-        'z-20 flex shrink-0 items-stretch border-b border-border/60 bg-background select-none',
+        'z-20 flex shrink-0 items-stretch border-b border-border bg-background select-none',
         !state.isFocused && 'opacity-80'
       )}
       style={{ height: BROWSER_BAR, minHeight: BROWSER_BAR }}>
@@ -57,7 +56,7 @@ function BrowserBar({
           variant="ghost"
           size="icon"
           data-region="false"
-          className="ml-2"
+          className="ml-1 size-10 min-w-10 rounded-full [&_svg]:size-4.5"
           aria-label={isSidebarOpen ? '收起侧栏' : '展开侧栏'}
           onClick={onToggleSidebar}>
           <Icon
@@ -67,14 +66,8 @@ function BrowserBar({
         </Button>
         {leading}
         {children}
-        {trailing ? (
-          <div
-            data-region="false"
-            className="flex shrink-0 items-center gap-1 pr-1">
-            {trailing}
-          </div>
-        ) : null}
       </div>
+      {trailing ? <div className="flex shrink-0 items-center gap-0.5 pr-1">{trailing}</div> : null}
       <WindowControls
         state={state}
         onRefresh={refresh}

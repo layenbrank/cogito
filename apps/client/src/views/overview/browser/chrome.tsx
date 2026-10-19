@@ -24,6 +24,7 @@ import { BrowserSidebar } from '@/views/overview/browser/sidebar'
 import type { BrowserPanel, BrowserSurface, DownloadItem } from '@/views/overview/browser/types'
 import { findAddressUrl } from '@/views/overview/engine/engine-url'
 import { readEngineKey, writeEngineKey } from '@/views/overview/engine/engine-store'
+import { CaptionAccount } from '@/views/overview/caption/account'
 import { MirrorSwitcher } from '@/views/overview/caption/mirror'
 import { CaptionStatus } from '@/views/overview/caption/status'
 import styles from '@/views/overview/overview.module.scss'
@@ -42,7 +43,6 @@ import {
   suspendPages
 } from '@/views/navigation/ipc'
 import {
-  dropClosed,
   readBrowser,
   rememberClosed,
   writeBrowser,
@@ -304,25 +304,6 @@ function BrowserChrome(props: BrowserChromeProps) {
       return
     }
     goTiles()
-  }
-
-  function reopenClosed(id: string) {
-    const item = closedRef.current.find(function (row) {
-      return row.id === id
-    })
-    if (!item || tabsRef.current.some(function (tab) {
-      return tab.id === id
-    })) {
-      return
-    }
-    closedRef.current = dropClosed(closedRef.current, id)
-    setClosed(closedRef.current)
-    const tab = { id: item.id, url: item.url, title: item.title }
-    const next = tabsRef.current.slice()
-    next.splice(Math.min(item.index, next.length), 0, tab)
-    tabsRef.current = next
-    setTabs(next)
-    selectTab(tab)
   }
 
   function createEmpty() {
@@ -599,8 +580,6 @@ function BrowserChrome(props: BrowserChromeProps) {
           tabs={tabs}
           activeId={activeId}
           searches={searches}
-          closed={closed}
-          onReopenClosed={reopenClosed}
           downloads={downloads}
           extensions={extensions}
           isExtensionSupported={isExtensionSupported}
@@ -626,7 +605,6 @@ function BrowserChrome(props: BrowserChromeProps) {
           onDevtools={function () {
             if (active?.url) void openDevtools(active.id)
           }}
-          onSignIn={props.onSignIn}
         />
       </div>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -638,9 +616,12 @@ function BrowserChrome(props: BrowserChromeProps) {
         onToggleSidebar={function () {
           void toggleSidebar()
         }}
-        leading={<MirrorSwitcher />}
         trailing={
           <>
+            <MirrorSwitcher
+              isCompact
+              menuSide="bottom"
+            />
             <CaptionStatus />
             <Button
               variant="ghost"
@@ -648,7 +629,10 @@ function BrowserChrome(props: BrowserChromeProps) {
               data-region="false"
               aria-label="下载"
               aria-pressed={panel === 'downloads'}
-              className={panel === 'downloads' ? 'bg-accent' : undefined}
+              className={clsx(
+                'size-10 min-w-10 rounded-full [&_svg]:size-4.5',
+                panel === 'downloads' && 'bg-primary/12 text-primary'
+              )}
               onClick={function () {
                 focusPanel('downloads')
               }}>
@@ -663,7 +647,10 @@ function BrowserChrome(props: BrowserChromeProps) {
               data-region="false"
               aria-label="扩展"
               aria-pressed={panel === 'extensions'}
-              className={panel === 'extensions' ? 'bg-accent' : undefined}
+              className={clsx(
+                'size-10 min-w-10 rounded-full [&_svg]:size-4.5',
+                panel === 'extensions' && 'bg-primary/12 text-primary'
+              )}
               onClick={function () {
                 focusPanel('extensions')
               }}>
@@ -672,6 +659,10 @@ function BrowserChrome(props: BrowserChromeProps) {
                 aria-hidden
               />
             </Button>
+            <CaptionAccount
+              isIcon
+              onSignIn={props.onSignIn}
+            />
           </>
         }>
         <Omnibox

@@ -7,6 +7,7 @@ import { clsx } from 'clsx'
 import { Icon } from '@iconify/react/offline'
 import { Avatar, AvatarFallback, AvatarImage } from '@i-thinking/design/components/avatar'
 import { Button } from '@i-thinking/design/components/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,19 +41,30 @@ function CaptionAccount(props: CaptionAccountProps) {
 
   if (!user) {
     return (
-      <Button
-        variant="ghost"
-        size={props.isIcon ? 'icon' : 'sm'}
-        data-region="false"
-        className={clsx(!props.isIcon && styles.accountSignIn, props.isWide && 'w-full justify-start')}
-        aria-label="登录"
-        onClick={props.onSignIn}>
-        <Icon
-          icon="lucide:log-in"
-          aria-hidden
-        />
-        {props.isIcon ? null : '登录'}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size={props.isIcon ? 'icon' : 'sm'}
+              data-region="false"
+              className={clsx(
+                props.isIcon && 'size-10 min-w-10 rounded-full [&_svg]:size-4.5',
+                !props.isIcon && styles.accountSignIn,
+                props.isWide && 'w-full justify-start'
+              )}
+              aria-label="登录"
+              onClick={props.onSignIn}
+            />
+          }>
+          <Icon
+            icon="lucide:user"
+            aria-hidden
+          />
+          {props.isIcon ? null : '登录'}
+        </TooltipTrigger>
+        <TooltipContent side="bottom">登录</TooltipContent>
+      </Tooltip>
     )
   }
 
@@ -60,29 +72,37 @@ function CaptionAccount(props: CaptionAccountProps) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            data-region="false"
-            aria-label={`已登录：${user.username}`}
-          />
-        }>
-        <Avatar
-          size="sm"
-          className={styles.accountAvatar}>
-          {user.avatarUrl ? (
-            <AvatarImage
-              src={user.avatarUrl}
-              alt={user.username}
+      <Tooltip>
+        <DropdownMenuTrigger
+          render={
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  data-region="false"
+                  className="size-10 min-w-10 rounded-full [&_svg]:size-4.5"
+                  aria-label={`已登录：${user.username}`}
+                />
+              }
             />
-          ) : null}
-          <AvatarFallback className="bg-transparent text-xs font-semibold text-primary">
-            {initial}
-          </AvatarFallback>
-        </Avatar>
-      </DropdownMenuTrigger>
+          }>
+          <Avatar
+            size="sm"
+            className={styles.accountAvatar}>
+            {user.avatarUrl ? (
+              <AvatarImage
+                src={user.avatarUrl}
+                alt={user.username}
+              />
+            ) : null}
+            <AvatarFallback className="bg-transparent text-xs font-semibold text-primary">
+              {initial}
+            </AvatarFallback>
+          </Avatar>
+        </DropdownMenuTrigger>
+        <TooltipContent side="bottom">{user.username}</TooltipContent>
+      </Tooltip>
 
       <DropdownMenuContent
         align="end"

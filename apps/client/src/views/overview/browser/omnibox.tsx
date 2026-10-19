@@ -126,55 +126,62 @@ function Omnibox(props: OmniboxProps) {
   const listVisible = phase !== 'idle' && rows.length > 0
 
   return (
-    <div
-      data-region="false"
-      className="relative flex h-full min-w-0 flex-1 items-center gap-1 px-2">
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="后退"
-        disabled={!props.canBack}
-        onClick={props.onBack}>
-        <Icon
-          icon="lucide:arrow-left"
-          aria-hidden
-        />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="前进"
-        disabled={!props.canForward}
-        onClick={props.onForward}>
-        <Icon
-          icon="lucide:arrow-right"
-          aria-hidden
-        />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="重新加载"
-        disabled={!props.canBack}
-        onClick={props.onReload}>
-        <Icon
-          icon="lucide:rotate-cw"
-          aria-hidden
-        />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="主页"
-        onClick={props.onHome}>
-        <Icon
-          icon="lucide:house"
-          aria-hidden
-        />
-      </Button>
+    <div className="relative flex h-full min-w-0 flex-1 items-center px-1">
+      <div
+        data-region="false"
+        className="flex shrink-0 items-center">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-10 min-w-10 rounded-full [&_svg]:size-4.5"
+          aria-label="后退"
+          disabled={!props.canBack}
+          onClick={props.onBack}>
+          <Icon
+            icon="lucide:arrow-left"
+            aria-hidden
+          />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-10 min-w-10 rounded-full [&_svg]:size-4.5"
+          aria-label="前进"
+          disabled={!props.canForward}
+          onClick={props.onForward}>
+          <Icon
+            icon="lucide:arrow-right"
+            aria-hidden
+          />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-10 min-w-10 rounded-full [&_svg]:size-4.5"
+          aria-label="重新加载"
+          disabled={!props.canBack}
+          onClick={props.onReload}>
+          <Icon
+            icon="lucide:rotate-cw"
+            aria-hidden
+          />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-10 min-w-10 rounded-full [&_svg]:size-4.5"
+          aria-label="主页"
+          onClick={props.onHome}>
+          <Icon
+            icon="lucide:house"
+            aria-hidden
+          />
+        </Button>
+      </div>
       <div
         ref={fieldRef}
-        className="relative min-w-0 flex-1">
+        data-region="false"
+        className="relative ml-1 min-w-48 flex-1">
         <AddressBar
           value={props.address}
           engineKey={props.engineKey}
