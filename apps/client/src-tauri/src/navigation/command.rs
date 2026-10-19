@@ -16,6 +16,60 @@ const PAGE_PREFIX: &str = "page-";
 const BAR_LABEL: &str = "navigation-bar";
 const BAR_URL: &str = "/navigation/bar";
 const MAIN_LABEL: &str = "main";
+const OPEN_URL_MARK: &str = "i-thinking:open-url:";
+
+/// 在 WebView2 处理点击之前把新窗口地址交给宿主。`postMessage` 成功后才取消默认动作，避免只吞掉点击。
+const OPEN_URL_SCRIPT: &str = r#"(function () {
+  var mark = "i-thinking:open-url:"
+  function classify(raw) {
+    try {
+      var url = new URL(raw, document.baseURI)
+      if (url.protocol === "http:" || url.protocol === "https:") return { kind: "http", href: url.href }
+      return { kind: "other" }
+    } catch (err) {
+      return { kind: "other" }
+    }
+  }
+  function send(raw) {
+    var parsed = classify(raw)
+    if (parsed.kind !== "http") return parsed.kind
+    if (!window.chrome || !window.chrome.webview || !window.chrome.webview.postMessage) return "skip"
+    window.chrome.webview.postMessage(mark + parsed.href)
+    return "sent"
+  }
+  function isNewTarget(target) {
+    var name = (target || "").toLowerCase()
+    return name !== "" && name !== "_self" && name !== "_parent" && name !== "_top"
+  }
+  document.addEventListener("click", function (event) {
+    var node = event.target && event.target.closest ? event.target.closest("a") : null
+    if (!node) return
+    var blank = isNewTarget(node.getAttribute("target")) || event.button === 1 || event.ctrlKey || event.metaKey || event.shiftKey
+    if (!blank) return
+    var result = send(node.href)
+    if (result === "sent" || result === "other") {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  }, true)
+  document.addEventListener("submit", function (event) {
+    var form = event.target
+    if (!form || form.nodeName !== "FORM" || !isNewTarget(form.getAttribute("target"))) return
+    var action = form.getAttribute("action") || document.baseURI
+    var result = send(action)
+    if (result === "sent" || result === "other") {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  }, true)
+  var nativeOpen = window.open
+  window.open = function (url) {
+    if (typeof url !== "string") return nativeOpen.apply(window, arguments)
+    var result = send(url)
+    if (result === "sent" || result === "other") return null
+    return nativeOpen.apply(window, arguments)
+  }
+})()"#;
 
 fn require_main(window: &tauri::Window) -> Result<(), String> {
     if window.label() == MAIN_LABEL {
@@ -65,10 +119,23 @@ pub enum ExtensionsBody {
 }
 
 #[derive(Clone, Serialize)]
+struct OpenUrlPayload {
+    url: String,
+}
+
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PagePayload {
     id: String,
     url: String,
+}
+
+/// 子 WebView 这一次导航是否成功。`ok == false` 表示页面已经打开但没有加载成功。
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LoadPayload {
+    id: String,
+    ok: bool,
 }
 
 #[derive(Clone, Serialize)]
@@ -76,12 +143,6 @@ struct PagePayload {
 struct TitlePayload {
     id: String,
     title: String,
-}
-
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct PopupPayload {
-    url: String,
 }
 
 #[derive(Clone, Serialize)]
@@ -119,6 +180,21 @@ pub(crate) fn parse_http_url(raw: &str) -> Result<Url, String> {
         "http" | "https" => Ok(url),
         _ => Err("只支持 http / https".to_string()),
     }
+}
+
+/// `target=_blank` / `window.open` 的地址。只把 http/https 交给侧栏开「网址」标签，其余协议直接丢掉。
+fn emit_blank_url(app: &AppHandle, shell: &str, url: &Url) {
+    let Ok(parsed) = parse_http_url(url.as_str()) else {
+        return;
+    };
+    emit_shell(
+        app,
+        shell,
+        "navigation://open-url",
+        OpenUrlPayload {
+            url: parsed.to_string(),
+        },
+    );
 }
 
 pub(crate) fn emit_shell<S: Serialize + Clone>(app: &AppHandle, label: &str, event: &str, payload: S) {
@@ -270,6 +346,139 @@ fn find_page(state: &NavigationState, id: &str) -> Result<tauri::Webview, String
         .ok_or_else(|| "页面不存在".to_string())
 }
 
+/// 记下这次导航是否成功。切走只隐藏 WebView，关闭才销毁，所以结果要单独报给侧栏。
+#[cfg(windows)]
+fn watch_load(webview: &tauri::Webview, app: AppHandle, shell: String, id: String) {
+    let app_for_external = app.clone();
+    let shell_external = shell.clone();
+    let app_for_open = app.clone();
+    let shell_open = shell.clone();
+    let watched = webview.with_webview(move |platform| {
+        if let Err(err) = bind_load(&platform, app, shell, id) {
+            log::warn!("[navigation] 监听页面加载结果失败: {err}");
+        }
+        if let Err(err) = bind_external(&platform, app_for_external, shell_external) {
+            log::warn!("[navigation] 监听外部协议失败: {err}");
+        }
+        if let Err(err) = bind_open_url(platform, app_for_open, shell_open) {
+            log::warn!("[navigation] 监听页内新窗口失败: {err}");
+        }
+    });
+    if let Err(err) = watched {
+        log::warn!("[navigation] 挂接页面加载结果失败: {err}");
+    }
+}
+
+#[cfg(windows)]
+fn bind_load(
+    platform: &tauri::webview::PlatformWebview,
+    app: AppHandle,
+    shell: String,
+    id: String,
+) -> windows::core::Result<()> {
+    use webview2_com::NavigationCompletedEventHandler;
+    use windows::core::BOOL;
+
+    let core = unsafe { platform.controller().CoreWebView2() }?;
+    let handler = NavigationCompletedEventHandler::create(Box::new(move |_view, args| {
+        let Some(args) = args else {
+            return Ok(());
+        };
+        let mut ok = BOOL(0);
+        unsafe { args.IsSuccess(&mut ok)? };
+        emit_shell(
+            &app,
+            &shell,
+            "navigation://load",
+            LoadPayload {
+                id: id.clone(),
+                ok: ok.as_bool(),
+            },
+        );
+        Ok(())
+    }));
+    let mut token = 0_i64;
+    unsafe { core.add_NavigationCompleted(&handler, &mut token) }
+}
+
+/// 自定义协议交给系统打开时，WebView2 不走 NewWindowRequested。取消外跳，http/https 仍收进侧栏。
+#[cfg(windows)]
+fn bind_external(
+    platform: &tauri::webview::PlatformWebview,
+    app: AppHandle,
+    shell: String,
+) -> windows::core::Result<()> {
+    use webview2_com::LaunchingExternalUriSchemeEventHandler;
+    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_18;
+    use windows::core::{Interface, PWSTR};
+
+    let core = unsafe { platform.controller().CoreWebView2() }?;
+    let core = core.cast::<ICoreWebView2_18>()?;
+    let handler = LaunchingExternalUriSchemeEventHandler::create(Box::new(move |_view, args| {
+        let Some(args) = args else {
+            return Ok(());
+        };
+        let mut raw = PWSTR::null();
+        unsafe { args.Uri(&mut raw)? };
+        let uri = read_pwstr(raw);
+        unsafe { args.SetCancel(true)? };
+        if let Ok(url) = Url::parse(&uri) {
+            emit_blank_url(&app, &shell, &url);
+        }
+        Ok(())
+    }));
+    let mut token = 0_i64;
+    unsafe { core.add_LaunchingExternalUriScheme(&handler, &mut token) }
+}
+
+/// 页面脚本在取消点击之前送来的 http/https。这里再发给侧栏开「网址」标签。
+#[cfg(windows)]
+fn bind_open_url(
+    platform: tauri::webview::PlatformWebview,
+    app: AppHandle,
+    shell: String,
+) -> windows::core::Result<()> {
+    use webview2_com::WebMessageReceivedEventHandler;
+    use windows::core::PWSTR;
+
+    let core = unsafe { platform.controller().CoreWebView2() }?;
+    let handler = WebMessageReceivedEventHandler::create(Box::new(move |_view, args| {
+        let Some(args) = args else {
+            return Ok(());
+        };
+        let mut raw = PWSTR::null();
+        if unsafe { args.TryGetWebMessageAsString(&mut raw) }.is_err() {
+            return Ok(());
+        }
+        let message = read_pwstr(raw);
+        let Some(url) = message.strip_prefix(OPEN_URL_MARK) else {
+            return Ok(());
+        };
+        if let Ok(parsed) = Url::parse(url) {
+            emit_blank_url(&app, &shell, &parsed);
+        }
+        Ok(())
+    }));
+    let mut token = 0_i64;
+    unsafe { core.add_WebMessageReceived(&handler, &mut token) }
+}
+
+#[cfg(windows)]
+fn read_pwstr(ptr: windows::core::PWSTR) -> String {
+    use windows::Win32::System::Com::CoTaskMemFree;
+    if ptr.is_null() {
+        return String::new();
+    }
+    let text = unsafe { ptr.to_string() }.unwrap_or_default();
+    unsafe { CoTaskMemFree(Some(ptr.as_ptr().cast())) };
+    text
+}
+
+#[cfg(not(windows))]
+fn watch_load(webview: &tauri::Webview, app: AppHandle, shell: String, id: String) {
+    let _ = (webview, app, shell, id);
+}
+
 /// 创建远程子 Webview。Windows 上必须在异步命令里调用，避免和 WebView2 死锁。
 #[tauri::command(rename = "navigation:open")]
 pub async fn navigation_open(
@@ -303,16 +512,17 @@ pub async fn navigation_open(
     let app_for_download = app.clone();
     let app_for_title = app.clone();
     let app_for_load = app.clone();
-    let app_for_popup = app.clone();
+    let app_for_blank = app.clone();
 
     let shell_title = shell.clone();
     let shell_load = shell.clone();
-    let shell_popup = shell.clone();
     let shell_download = shell.clone();
     let shell_finished = shell.clone();
+    let shell_blank = shell.clone();
 
     let mut builder = WebviewBuilder::new(&label, WebviewUrl::External(url))
         .data_directory(profile)
+        .initialization_script_for_all_frames(OPEN_URL_SCRIPT)
         .on_document_title_changed(move |webview, title| {
             emit_shell(
                 &app_for_title,
@@ -328,27 +538,34 @@ pub async fn navigation_open(
             if payload.event() != PageLoadEvent::Finished {
                 return;
             }
+            let id = page_id(webview.label());
+            let url = payload.url().to_string();
             emit_shell(
                 &app_for_load,
                 &shell_load,
                 "navigation://view",
                 PagePayload {
-                    id: page_id(webview.label()),
-                    url: payload.url().to_string(),
+                    id: id.clone(),
+                    url,
+                },
+            );
+            // Windows 的 Finished 在失败时也会到，成功与否改由 NavigationCompleted.IsSuccess 发出。
+            #[cfg(windows)]
+            let _ = id;
+            #[cfg(not(windows))]
+            emit_shell(
+                &app_for_load,
+                &shell_load,
+                "navigation://load",
+                LoadPayload {
+                    id,
+                    ok: matches!(payload.url().scheme(), "http" | "https"),
                 },
             );
         })
         .on_new_window(move |url, _features| {
-            if matches!(url.scheme(), "http" | "https") {
-                emit_shell(
-                    &app_for_popup,
-                    &shell_popup,
-                    "navigation://popup",
-                    PopupPayload {
-                        url: url.to_string(),
-                    },
-                );
-            }
+            // Deny 让补丁后的 wry 保持 Handled=true，避免延后闭包再 SetHandled(false) 把系统浏览器放出来。
+            emit_blank_url(&app_for_blank, &shell_blank, &url);
             NewWindowResponse::Deny
         })
         .on_download(move |_webview, event| match event {
@@ -428,6 +645,7 @@ pub async fn navigation_open(
             LogicalSize::new(1.0, 1.0),
         )
         .map_err(|err| err.to_string())?;
+    watch_load(&webview, app.clone(), shell, body.id.clone());
     let _ = webview.hide();
 
     let mut pages = state.pages.lock().map_err(|err| err.to_string())?;
@@ -1108,6 +1326,7 @@ pub async fn navigation_navigate(
         Some("forward") => webview
             .eval("history.forward()")
             .map_err(|err| err.to_string()),
+        Some("reload") => webview.reload().map_err(|err| err.to_string()),
         _ => {
             let raw = body.url.ok_or_else(|| "缺少网址".to_string())?;
             let url = parse_http_url(&raw)?;

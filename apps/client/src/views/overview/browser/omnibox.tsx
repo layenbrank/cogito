@@ -127,12 +127,11 @@ function Omnibox(props: OmniboxProps) {
 
   return (
     <div className="relative flex h-full min-w-0 flex-1 items-center px-1">
-      <div
-        data-region="false"
-        className="flex shrink-0 items-center">
+      <div className="flex shrink-0 items-center">
         <Button
           variant="ghost"
           size="icon"
+          data-region="false"
           className="size-10 min-w-10 rounded-full [&_svg]:size-4.5"
           aria-label="后退"
           disabled={!props.canBack}
@@ -145,6 +144,7 @@ function Omnibox(props: OmniboxProps) {
         <Button
           variant="ghost"
           size="icon"
+          data-region="false"
           className="size-10 min-w-10 rounded-full [&_svg]:size-4.5"
           aria-label="前进"
           disabled={!props.canForward}
@@ -157,6 +157,7 @@ function Omnibox(props: OmniboxProps) {
         <Button
           variant="ghost"
           size="icon"
+          data-region="false"
           className="size-10 min-w-10 rounded-full [&_svg]:size-4.5"
           aria-label="重新加载"
           disabled={!props.canBack}
@@ -169,6 +170,7 @@ function Omnibox(props: OmniboxProps) {
         <Button
           variant="ghost"
           size="icon"
+          data-region="false"
           className="size-10 min-w-10 rounded-full [&_svg]:size-4.5"
           aria-label="主页"
           onClick={props.onHome}>
@@ -180,7 +182,6 @@ function Omnibox(props: OmniboxProps) {
       </div>
       <div
         ref={fieldRef}
-        data-region="false"
         className="relative ml-1 min-w-48 flex-1">
         <AddressBar
           value={props.address}
@@ -212,6 +213,7 @@ function Omnibox(props: OmniboxProps) {
                   <button
                     key={`${row.url}-${index}`}
                     type="button"
+                    data-region="false"
                     aria-selected={isActive}
                     className={clsx(
                       'flex min-h-8 w-full items-center gap-2.5 rounded-md px-2 text-left text-sm text-foreground',

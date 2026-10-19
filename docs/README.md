@@ -45,6 +45,7 @@
 | [tauri-command-database/](./apps/client/tauri-command-database/README.md)     | Tauri command / database 分层；Schema Reminder 统一改动 |
 | [updater-sidecar-file-lock.md](./apps/client/updater-sidecar-file-lock.md)    | Windows 更新时 corex-serve 文件锁：根因与双保险方案     |
 | [capture-sharpness-and-selection.md](./apps/client/capture-sharpness-and-selection.md) | 截图清晰度与选区                                    |
+| [webview-new-window.md](./apps/client/webview-new-window.md)                  | 子页面 target=_blank 留在应用内，不打开系统浏览器   |
 
 ### Extension（浏览器扩展）
 

@@ -20,7 +20,7 @@ import {
 import { findHost } from '@/views/overview/browser/label'
 import { Omnibox } from '@/views/overview/browser/omnibox'
 import { usePageStack } from '@/views/overview/browser/use-page-stack'
-import { BrowserSidebar } from '@/views/overview/browser/sidebar'
+import { BrowserSidebar, type PageLife } from '@/views/overview/browser/sidebar'
 import type { BrowserPanel, BrowserSurface, DownloadItem } from '@/views/overview/browser/types'
 import { findAddressUrl } from '@/views/overview/engine/engine-url'
 import { readEngineKey, writeEngineKey } from '@/views/overview/engine/engine-store'
@@ -33,6 +33,7 @@ import {
   closeBar,
   closePage,
   historyPage,
+  reloadPage,
   importExtension,
   navigatePage,
   openDevtools,
@@ -42,26 +43,21 @@ import {
   removeExtension,
   suspendPages
 } from '@/views/navigation/ipc'
-import {
-  readBrowser,
-  rememberClosed,
-  writeBrowser,
-  type ClosedTab,
-  type Tab
-} from '@/views/navigation/session'
+import { readBrowser, writeBrowser, type Tab } from '@/views/navigation/session'
 
 interface PageEvent {
   id: string
   url: string
 }
 
+interface LoadEvent {
+  id: string
+  ok: boolean
+}
+
 interface TitleEvent {
   id: string
   title: string
-}
-
-interface PopupEvent {
-  url: string
 }
 
 interface DownloadEvent {
@@ -111,8 +107,8 @@ function BrowserChrome(props: BrowserChromeProps) {
     function () {}
   )
   const liveRef = useRef(new Set<string>())
+  const applyLifeRef = useRef<(id: string, life: PageLife | null) => void>(function () {})
   const searchesRef = useRef<string[]>([])
-  const closedRef = useRef<ClosedTab[]>([])
   const persistRef = useRef(function () {
     return Promise.resolve()
   })
@@ -123,7 +119,6 @@ function BrowserChrome(props: BrowserChromeProps) {
   const [activeId, setActiveId] = useState('')
   const [address, setAddress] = useState('')
   const [searches, setSearches] = useState<string[]>([])
-  const [closed, setClosed] = useState<ClosedTab[]>([])
   const [downloads, setDownloads] = useState<DownloadItem[]>([])
   const [extensions, setExtensions] = useState<string[]>([])
   const [isExtensionSupported, setIsExtensionSupported] = useState(false)
@@ -132,11 +127,16 @@ function BrowserChrome(props: BrowserChromeProps) {
   const [isReady, setIsReady] = useState(false)
   const [surface, setSurface] = useState<BrowserSurface>('tiles')
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [guest, setGuest] = useState<{ id: string; url: string } | null>(null)
+  const [lives, setLives] = useState<Record<string, PageLife>>({})
+  const guestRef = useRef<{ id: string; url: string } | null>(null)
 
   const active = tabs.find(function (tab) {
     return tab.id === activeId
   })
-  const showTiles = surface !== 'page' || !active?.url
+  const pageUrl = guest?.url || active?.url || ''
+  const pageId = guest?.id || active?.id || ''
+  const showTiles = surface !== 'page' || !pageUrl
   const pageStack = usePageStack(contentRef, !showTiles)
 
   function findShownBounds() {
@@ -160,7 +160,8 @@ function BrowserChrome(props: BrowserChromeProps) {
     const current = tabsRef.current.find(function (tab) {
       return tab.id === id
     })
-    if (!current?.url || surfaceRef.current !== 'page') return
+    const url = current?.url || (guestRef.current?.id === id ? guestRef.current.url : '')
+    if (!url || surfaceRef.current !== 'page') return
     if (!canPlace(bounds)) return
     if (!liveRef.current.has(id)) return
     void placePage(id, bounds).then(function () {
@@ -174,10 +175,30 @@ function BrowserChrome(props: BrowserChromeProps) {
     void suspendPages()
   }
 
+  function applyLife(id: string, life: PageLife | null) {
+    setLives(function (current) {
+      if (life === null) {
+        if (!(id in current)) return current
+        const next = { ...current }
+        delete next[id]
+        return next
+      }
+      if (current[id] === life) return current
+      return { ...current, [id]: life }
+    })
+  }
+
+  function noteLoad(id: string) {
+    if (!liveRef.current.has(id)) return
+    applyLife(id, 'wait')
+  }
+
   async function showPage(id: string, url: string) {
     if (!url) return
+    const isNew = !liveRef.current.has(id)
     await openPage(id, url)
     liveRef.current.add(id)
+    if (isNew) applyLife(id, 'wait')
     if (surfaceRef.current !== 'page' || activeIdRef.current !== id) return
     const bounds = findShownBounds()
     if (!canPlace(bounds)) return
@@ -186,6 +207,7 @@ function BrowserChrome(props: BrowserChromeProps) {
   }
 
   async function reloadLive(next: Tab[], nextActiveId: string) {
+    setLives({})
     const ids = [...liveRef.current]
     for (const id of ids) {
       liveRef.current.delete(id)
@@ -203,6 +225,9 @@ function BrowserChrome(props: BrowserChromeProps) {
       goTiles()
       return
     }
+    // 新窗口一律进「网址」标签。集合客页里点开的链接也不再占用客页，避免盖住新标签。
+    guestRef.current = null
+    setGuest(null)
     surfaceRef.current = 'page'
     setSurface('page')
     const found = tabsRef.current.find(function (tab) {
@@ -217,9 +242,9 @@ function BrowserChrome(props: BrowserChromeProps) {
     }
     const tab = createTab(url)
     activeIdRef.current = tab.id
-    setTabs(function (current) {
-      return [...current, tab]
-    })
+    const next = tabsRef.current.concat([tab])
+    tabsRef.current = next
+    setTabs(next)
     setActiveId(tab.id)
     setAddress(url)
     void showPage(tab.id, url)
@@ -235,6 +260,16 @@ function BrowserChrome(props: BrowserChromeProps) {
     surfaceRef.current = 'page'
     setSurface('page')
     const currentId = activeIdRef.current
+    if (guestRef.current && guestRef.current.id === currentId) {
+      guestRef.current = { id: currentId, url }
+      setGuest(guestRef.current)
+      setAddress(url)
+      noteLoad(currentId)
+      void navigatePage(currentId, url).then(function () {
+        return showPage(currentId, url)
+      })
+      return
+    }
     if (!currentId) {
       focusUrl(url)
       return
@@ -249,6 +284,7 @@ function BrowserChrome(props: BrowserChromeProps) {
     setTabs(next)
     setAddress(url)
     if (current?.url) {
+      noteLoad(currentId)
       void navigatePage(currentId, url).then(function () {
         return showPage(currentId, url)
       })
@@ -262,7 +298,35 @@ function BrowserChrome(props: BrowserChromeProps) {
     writeEngineKey(key)
   }
 
+  function openCollection(tile: MagneticTile) {
+    const url = tile.url ?? ''
+    if (!url) return
+    guestRef.current = { id: tile.id, url }
+    setGuest(guestRef.current)
+    activeIdRef.current = tile.id
+    setActiveId('')
+    setAddress(url)
+    surfaceRef.current = 'page'
+    setSurface('page')
+    void showPage(tile.id, url)
+  }
+
+  async function closeCollection(id: string) {
+    if (guestRef.current?.id !== id) return
+    guestRef.current = null
+    setGuest(null)
+    liveRef.current.delete(id)
+    await closePage(id)
+    applyLife(id, null)
+    if (activeIdRef.current !== id) return
+    activeIdRef.current = ''
+    setAddress('')
+    goTiles()
+  }
+
   function selectTab(tab: Tab) {
+    guestRef.current = null
+    setGuest(null)
     activeIdRef.current = tab.id
     setActiveId(tab.id)
     setAddress(tab.url)
@@ -277,19 +341,17 @@ function BrowserChrome(props: BrowserChromeProps) {
 
   async function closeTab(id: string) {
     const wasPage = surfaceRef.current === 'page'
-    const index = tabsRef.current.findIndex(function (tab) {
+    const closing = tabsRef.current.find(function (tab) {
       return tab.id === id
     })
-    const closing = index < 0 ? undefined : tabsRef.current[index]
     const next = tabsRef.current.filter(function (tab) {
       return tab.id !== id
     })
     tabsRef.current = next
     if (closing?.url) {
-      closedRef.current = rememberClosed(closedRef.current, closing, index)
-      setClosed(closedRef.current)
       liveRef.current.delete(id)
       await closePage(id)
+      applyLife(id, null)
     }
     setTabs(next)
     if (activeIdRef.current !== id) return
@@ -365,21 +427,21 @@ function BrowserChrome(props: BrowserChromeProps) {
 
   useEffect(function () {
     tabsRef.current = tabs
-    activeIdRef.current = activeId
+    guestRef.current = guest
+    activeIdRef.current = guest ? guest.id : activeId
     engineKeyRef.current = engineKey
     surfaceRef.current = surface
     focusUrlRef.current = focusUrl
     goTilesRef.current = goTiles
     placeActiveRef.current = placeActive
     searchesRef.current = searches
-    closedRef.current = closed
     showPageRef.current = showPage
+    applyLifeRef.current = applyLife
     persistRef.current = function () {
       return writeBrowser({
         tabs: tabsRef.current,
         activeId: activeIdRef.current,
-        searches: searchesRef.current,
-        closed: closedRef.current
+        searches: searchesRef.current
       })
     }
   })
@@ -394,7 +456,7 @@ function BrowserChrome(props: BrowserChromeProps) {
         window.clearTimeout(timer)
       }
     },
-    [tabs, activeId, searches, closed, isReady]
+    [tabs, activeId, searches, isReady]
   )
 
   useEffect(function () {
@@ -414,12 +476,10 @@ function BrowserChrome(props: BrowserChromeProps) {
       tabsRef.current = next
       activeIdRef.current = nextActive
       searchesRef.current = session.searches
-      closedRef.current = session.closed
       setTabs(next)
       setActiveId(nextActive)
       setAddress(current?.url ?? '')
       setSearches(session.searches)
-      setClosed(session.closed)
       setIsReady(true)
       try {
         if (stopped) return
@@ -440,6 +500,12 @@ function BrowserChrome(props: BrowserChromeProps) {
   useEffect(function () {
     const unlisten: Array<() => void> = []
     void listen<PageEvent>('navigation://view', function (event) {
+      const url = event.payload.url
+      if (url.startsWith('chrome-error:') || url.startsWith('edge-error:')) {
+        if (liveRef.current.has(event.payload.id)) applyLifeRef.current(event.payload.id, 'fail')
+        return
+      }
+      if (!url.startsWith('http://') && !url.startsWith('https://')) return
       setTabs(function (current) {
         return current.map(function (tab) {
           if (tab.id !== event.payload.id) return tab
@@ -450,6 +516,12 @@ function BrowserChrome(props: BrowserChromeProps) {
     }).then(function (stop) {
       unlisten.push(stop)
     })
+    void listen<LoadEvent>('navigation://load', function (event) {
+      if (!liveRef.current.has(event.payload.id)) return
+      applyLifeRef.current(event.payload.id, event.payload.ok ? 'ok' : 'fail')
+    }).then(function (stop) {
+      unlisten.push(stop)
+    })
     void listen<TitleEvent>('navigation://title', function (event) {
       setTabs(function (current) {
         return current.map(function (tab) {
@@ -457,11 +529,6 @@ function BrowserChrome(props: BrowserChromeProps) {
           return { ...tab, title: event.payload.title }
         })
       })
-    }).then(function (stop) {
-      unlisten.push(stop)
-    })
-    void listen<PopupEvent>('navigation://popup', function (event) {
-      focusUrlRef.current(event.payload.url)
     }).then(function (stop) {
       unlisten.push(stop)
     })
@@ -496,11 +563,11 @@ function BrowserChrome(props: BrowserChromeProps) {
   useEffect(
     function () {
       const node = contentRef.current
-      if (!node || showTiles || !active?.url) return
-      const pageId = active.id
+      const shownId = pageId
+      if (!node || showTiles || !shownId || !pageUrl) return
       const observer = new ResizeObserver(function () {
         if (isBoundsLocked.current) return
-        if (!liveRef.current.has(pageId)) return
+        if (!liveRef.current.has(shownId)) return
         placeActiveRef.current(findShownBounds())
       })
       observer.observe(node)
@@ -508,7 +575,7 @@ function BrowserChrome(props: BrowserChromeProps) {
         observer.disconnect()
       }
     },
-    [active?.id, active?.url, showTiles]
+    [pageId, pageUrl, showTiles]
   )
 
   useEffect(function () {
@@ -591,10 +658,26 @@ function BrowserChrome(props: BrowserChromeProps) {
           }}
           onMoveTab={moveTab}
           onCreateTab={createEmpty}
+          onToggleSidebar={function () {
+            void toggleSidebar()
+          }}
           onOpenUrl={focusUrl}
+          activeMemberId={surface === 'page' ? (guest?.id ?? '') : ''}
+          lives={lives}
+          onOpenMember={openCollection}
+          onCloseMember={function (id) {
+            void closeCollection(id)
+          }}
           onSearch={function (query) {
             const url = findAddressUrl(query, findEngine(engineKeyRef.current).match)
             openAddress(url, query)
+          }}
+          onRemoveSearch={function (query) {
+            setSearches(function (current) {
+              return current.filter(function (item) {
+                return item !== query
+              })
+            })
           }}
           onImportExtension={function () {
             void onImportExtension()
@@ -611,10 +694,6 @@ function BrowserChrome(props: BrowserChromeProps) {
         <BrowserBar
         onBind={function (node) {
           toolbarRef.current = node
-        }}
-        isSidebarOpen={isSidebarOpen}
-        onToggleSidebar={function () {
-          void toggleSidebar()
         }}
         trailing={
           <>
@@ -668,20 +747,26 @@ function BrowserChrome(props: BrowserChromeProps) {
         <Omnibox
           address={address}
           engineKey={engineKey}
-          canBack={Boolean(active?.url)}
-          canForward={Boolean(active?.url)}
+          canBack={Boolean(pageUrl)}
+          canForward={Boolean(pageUrl)}
           onAddress={setAddress}
           onSubmit={openAddress}
           onEngine={chooseEngine}
           onHome={goTiles}
           onBack={function () {
-            if (active?.url) void historyPage(active.id, 'back')
+            if (!pageUrl) return
+            noteLoad(pageId)
+            void historyPage(pageId, 'back')
           }}
           onForward={function () {
-            if (active?.url) void historyPage(active.id, 'forward')
+            if (!pageUrl) return
+            noteLoad(pageId)
+            void historyPage(pageId, 'forward')
           }}
           onReload={function () {
-            if (active?.url) void navigatePage(active.id, active.url)
+            if (!pageUrl) return
+            noteLoad(pageId)
+            void reloadPage(pageId)
           }}
           onCover={pageStack.holdSuggest}
         />

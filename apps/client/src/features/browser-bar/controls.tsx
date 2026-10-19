@@ -65,9 +65,7 @@ function WindowControls(props: WindowControlsProps) {
   })
 
   return (
-    <div
-      data-region="false"
-      className="flex shrink-0 items-center self-center pr-1.5">
+    <div className="flex shrink-0 items-center self-center pr-1.5">
       {controls.map(function (control) {
         return (
           <ControlButton

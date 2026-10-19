@@ -22,6 +22,7 @@ import { useState, type ReactNode } from 'react'
 import { activateTile } from '@/features/magnetic-tile/activate'
 import { CHANNELS } from '@/shared/ipc/channels'
 import { useMirrorStore } from '@/stores/mirror'
+import { BROWSER_BAR } from '@/features/browser-bar/metrics'
 import { SIDEBAR_OPEN, SIDEBAR_SHUT } from '@/views/overview/browser/bounds'
 import { findFavicon, findHost } from '@/views/overview/browser/label'
 import type { BrowserPanel, DownloadItem } from '@/views/overview/browser/types'
@@ -41,8 +42,14 @@ interface BrowserSidebarProps {
   onCloseTab: (id: string) => void
   onMoveTab: (from: number, to: number) => void
   onCreateTab: () => void
+  onToggleSidebar: () => void
   onOpenUrl: (url: string) => void
+  activeMemberId: string
+  lives: Record<string, PageLife>
+  onOpenMember: (tile: MagneticTile) => void
+  onCloseMember: (id: string) => void
   onSearch: (query: string) => void
+  onRemoveSearch: (query: string) => void
   onImportExtension: () => void
   onRemoveExtension: (name: string) => void
   onDevtools: () => void
@@ -54,18 +61,87 @@ function matches(query: string, text: string) {
 }
 
 const ROW =
-  'group/row flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-sm text-sidebar-foreground outline-none transition-[background-color,color,box-shadow] duration-200 ease-out focus-visible:ring-2 focus-visible:ring-sidebar-ring/40 motion-reduce:transition-none'
+  'group/row flex items-center gap-2 rounded-lg text-left text-sm text-sidebar-foreground outline-none transition-[background-color,color,box-shadow] duration-200 ease-out focus-visible:ring-2 focus-visible:ring-sidebar-ring/40 motion-reduce:transition-none'
+
+/** 收缩行的选中/悬停底：36×36，去掉 w-full，避免在 48px 侧栏里拉成横条。 */
+const SHUT_ROW =
+  'mx-auto size-9 max-h-9 max-w-9 shrink-0 justify-center self-center p-0'
+
+/** 站点标记固定 16×16，避免收缩行把图标压成非正方形。 */
+const MARK_BOX =
+  'size-4 aspect-square h-4 w-4 min-h-4 min-w-4 max-h-4 max-w-4 shrink-0 self-center overflow-hidden object-cover'
+
+/** 子 WebView 还在，但这一次导航还没有结果。 */
+type PageLife = 'wait' | 'ok' | 'fail'
+
+/** `shut` 表示没有对应的子 WebView。 */
+type PageMark = PageLife | 'shut'
+
+const LIFE_LABEL: Record<PageMark, string> = {
+  ok: '已打开',
+  fail: '加载失败',
+  wait: '正在加载',
+  shut: '未打开'
+}
+
+const LIFE_TONE: Record<PageMark, string> = {
+  ok: 'bg-success',
+  fail: 'bg-destructive',
+  wait: 'animate-pulse bg-muted-foreground/70',
+  shut: 'bg-muted-foreground/55'
+}
+
+function findPageMark(lives: Record<string, PageLife>, id: string): PageMark {
+  return lives[id] ?? 'shut'
+}
+
+function lifeLabel(mark: PageMark) {
+  return LIFE_LABEL[mark]
+}
+
+function rowName(label: string, mark: PageMark | null) {
+  if (!mark) return label
+  return `${label}，${lifeLabel(mark)}`
+}
+
+/** 约 6px。收缩时绝对定位，避免把 36×36 的行撑成横条。 */
+function LifeDot(props: { mark: PageMark; isOpen: boolean }) {
+  const label = lifeLabel(props.mark)
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className={clsx(
+        'pointer-events-none size-1.5 shrink-0 rounded-full',
+        LIFE_TONE[props.mark],
+        props.isOpen ? 'self-center' : 'absolute right-0.5 bottom-0.5'
+      )}
+    />
+  )
+}
+
+function rowClass(isOpen: boolean) {
+  return clsx(ROW, isOpen ? 'min-h-9 w-full px-2' : SHUT_ROW)
+}
+
+function hitClass(isOpen: boolean) {
+  if (isOpen) return 'min-h-9 min-w-0 flex-1 gap-2'
+  return 'size-full max-h-full max-w-full justify-center p-0'
+}
 
 const ROW_IDLE = 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
 
-const ROW_ON =
-  'bg-sidebar-primary/25 font-medium text-sidebar-primary hover:bg-sidebar-primary/30'
+const ROW_ON = 'bg-sidebar-primary/25 font-medium text-sidebar-primary hover:bg-sidebar-primary/30'
 
 const HEAD =
   'flex h-8 w-full items-center gap-1 rounded-md px-2 text-xs font-medium text-sidebar-foreground/60 transition-colors duration-200 hover:bg-sidebar-accent/80 hover:text-sidebar-foreground motion-reduce:transition-none'
 
 const ENTER =
   'animate-in fade-in slide-in-from-left-1 fill-mode-both duration-200 motion-reduce:animate-none'
+
+const RAIL =
+  'size-10 min-w-10 rounded-full text-sidebar-foreground hover:bg-sidebar-accent [&_svg]:size-4.5'
 
 function Fold(props: { isOpen: boolean; children: ReactNode }) {
   return (
@@ -104,7 +180,11 @@ function SiteMark(props: { url: string; label: string }) {
   const src = props.url ? findFavicon(props.url) : ''
   if (!src || isFailed) {
     return (
-      <span className="flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-sidebar-accent text-[10px] font-medium uppercase shadow-[inset_0_0_0_1px_var(--sidebar-border)]">
+      <span
+        className={clsx(
+          MARK_BOX,
+          'flex items-center justify-center rounded-[4px] bg-sidebar-accent text-[10px] font-medium uppercase leading-none shadow-[inset_0_0_0_1px_var(--sidebar-border)]'
+        )}>
         {(props.label || '?').slice(0, 1)}
       </span>
     )
@@ -113,7 +193,12 @@ function SiteMark(props: { url: string; label: string }) {
     <img
       src={src}
       alt=""
-      className="size-4 shrink-0 rounded-[4px] bg-background/80 shadow-[inset_0_0_0_1px_oklch(0_0_0/0.08)]"
+      width={16}
+      height={16}
+      className={clsx(
+        MARK_BOX,
+        'rounded-[4px] bg-background/80 shadow-[inset_0_0_0_1px_oklch(0_0_0/0.08)]'
+      )}
       onError={function () {
         setIsFailed(true)
       }}
@@ -125,6 +210,7 @@ interface UrlRowProps {
   tab: Tab
   isOpen: boolean
   isActive: boolean
+  lives: Record<string, PageLife>
   label: string
   onSelect: () => void
   onClose: () => void
@@ -132,6 +218,8 @@ interface UrlRowProps {
 
 function UrlRow(props: UrlRowProps) {
   const sortable = useSortable({ id: props.tab.id })
+  const mark = props.tab.url ? findPageMark(props.lives, props.tab.id) : null
+  const name = rowName(props.label, mark)
   const style = {
     transform: CSS.Transform.toString(sortable.transform),
     transition: sortable.transition,
@@ -142,13 +230,22 @@ function UrlRow(props: UrlRowProps) {
     <div
       ref={sortable.setNodeRef}
       style={style}
-      className={clsx(ROW, ENTER, props.isActive ? ROW_ON : ROW_IDLE, sortable.isDragging && 'opacity-40')}>
+      className={clsx(
+        rowClass(props.isOpen),
+        ENTER,
+        props.isActive ? ROW_ON : ROW_IDLE,
+        sortable.isDragging && 'opacity-40'
+      )}>
       <button
         type="button"
-        aria-label={props.label}
+        aria-label={name}
         aria-selected={props.isActive}
-        title={props.label}
-        className="flex min-h-9 min-w-0 flex-1 cursor-grab touch-none items-center gap-2 text-left active:cursor-grabbing"
+        title={name}
+        className={clsx(
+          'flex cursor-grab touch-none items-center text-left active:cursor-grabbing',
+          hitClass(props.isOpen),
+          !props.isOpen && mark && 'relative'
+        )}
         {...sortable.attributes}
         {...sortable.listeners}
         onClick={props.onSelect}>
@@ -156,6 +253,12 @@ function UrlRow(props: UrlRowProps) {
           url={props.tab.url}
           label={props.label}
         />
+        {mark ? (
+          <LifeDot
+            mark={mark}
+            isOpen={props.isOpen}
+          />
+        ) : null}
         {props.isOpen ? <span className="truncate">{props.label}</span> : null}
       </button>
       {props.isOpen ? (
@@ -192,7 +295,6 @@ function BrowserSidebar(props: BrowserSidebarProps) {
     })
   )
   const [isTabsOpen, setIsTabsOpen] = useState(true)
-  const [isSearchOpen, setIsSearchOpen] = useState(true)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const [members, setMembers] = useState<Record<string, MagneticTile[]>>({})
   const tiles = useMirrorStore(function (state) {
@@ -252,8 +354,8 @@ function BrowserSidebar(props: BrowserSidebarProps) {
   }
 
   function openMember(tile: MagneticTile) {
-    if (tile.component === 'navigation') {
-      props.onOpenUrl(tile.url ?? '')
+    if (tile.url) {
+      props.onOpenMember(tile)
       return
     }
     void activateTile({ component: tile.component, url: tile.url, id: tile.id })
@@ -286,35 +388,53 @@ function BrowserSidebar(props: BrowserSidebarProps) {
       data-region="false"
       style={{ width: props.isOpen ? SIDEBAR_OPEN : SIDEBAR_SHUT }}
       className="flex shrink-0 flex-col self-stretch overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground contain-layout">
+      <div
+        className={clsx(
+          'flex shrink-0',
+          props.isOpen ? 'items-center gap-0.5 px-1.5' : 'flex-col items-center'
+        )}
+        style={props.isOpen ? { height: BROWSER_BAR } : undefined}>
+        <div
+          className={clsx('flex items-center justify-center', !props.isOpen && 'w-full')}
+          style={props.isOpen ? undefined : { height: BROWSER_BAR }}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={RAIL}
+            aria-label={props.isOpen ? '收起侧栏' : '展开侧栏'}
+            onClick={props.onToggleSidebar}>
+            <Icon
+              icon="lucide:panel-left"
+              aria-hidden
+            />
+          </Button>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={RAIL}
+          aria-label="新建标签"
+          onClick={props.onCreateTab}>
+          <Icon
+            icon="lucide:plus"
+            aria-hidden
+          />
+        </Button>
+      </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {props.panel === 'sites' ? (
-          <div className="flex flex-col gap-3 px-2 py-3">
+          <div className={clsx('flex flex-col gap-3 py-3', props.isOpen ? 'px-2' : 'px-1')}>
             {props.isOpen ? (
               <Input
                 value={filter}
                 placeholder="搜索"
                 aria-label="搜索侧栏"
-                className="border-sidebar-border bg-sidebar-accent/70 shadow-none transition-[background-color,box-shadow] duration-200 focus-visible:bg-background"
+                className="h-8 border-sidebar-border bg-sidebar-accent/70 px-2.5 text-sm shadow-none transition-[background-color,box-shadow] duration-200 focus-visible:bg-background"
                 onChange={function (event) {
                   setFilter(event.target.value)
                 }}
               />
             ) : null}
-            <Button
-              variant="outline"
-              size={props.isOpen ? 'sm' : 'icon-sm'}
-              className={clsx(
-                'min-h-9 border-sidebar-border bg-sidebar text-sidebar-foreground shadow-none hover:bg-sidebar-accent',
-                props.isOpen && 'justify-start'
-              )}
-              aria-label="新建标签"
-              onClick={props.onCreateTab}>
-              <Icon
-                icon="lucide:plus"
-                aria-hidden
-              />
-              {props.isOpen ? <span>新建标签</span> : null}
-            </Button>
             {isEmpty ? (
               <p className="animate-in fade-in px-1 text-xs text-sidebar-foreground/55 duration-200">
                 没有匹配项
@@ -353,6 +473,7 @@ function BrowserSidebar(props: BrowserSidebarProps) {
                           tab={tab}
                           isOpen={props.isOpen}
                           isActive={tab.id === props.activeId}
+                          lives={props.lives}
                           label={label}
                           onSelect={function () {
                             props.onSelectTab(tab)
@@ -366,8 +487,8 @@ function BrowserSidebar(props: BrowserSidebarProps) {
                   </SortableContext>
                   <DragOverlay>
                     {draggingTab ? (
-                      <div className={clsx(ROW, ROW_ON, 'shadow-md')}>
-                        <span className="flex min-h-9 min-w-0 flex-1 items-center gap-2">
+                      <div className={clsx(rowClass(props.isOpen), ROW_ON, 'shadow-md')}>
+                        <span className={clsx('flex items-center', hitClass(props.isOpen))}>
                           <SiteMark
                             url={draggingTab.url}
                             label={draggingLabel}
@@ -378,39 +499,42 @@ function BrowserSidebar(props: BrowserSidebarProps) {
                     ) : null}
                   </DragOverlay>
                 </DndContext>
-              </Fold>
-            </section>
-            <section>
-              {props.isOpen ? (
-                <SectionLabel
-                  isOpen={isSearchOpen}
-                  label="搜索"
-                  onToggle={function () {
-                    setIsSearchOpen(function (current) {
-                      return !current
-                    })
-                  }}
-                />
-              ) : null}
-              <Fold isOpen={!props.isOpen || isSearchOpen}>
                 {visibleSearches.map(function (item) {
                   return (
-                    <button
+                    <div
                       key={item}
-                      type="button"
-                      title={item}
-                      aria-label={item}
-                      className={clsx(ROW, ROW_IDLE, ENTER)}
-                      onClick={function () {
-                        props.onSearch(item)
-                      }}>
-                      <Icon
-                        icon="lucide:search"
-                        className="size-4 shrink-0 text-sidebar-foreground/45"
-                        aria-hidden
-                      />
-                      {props.isOpen ? <span className="truncate">{item}</span> : null}
-                    </button>
+                      className={clsx(rowClass(props.isOpen), ROW_IDLE, ENTER)}>
+                      <button
+                        type="button"
+                        title={item}
+                        aria-label={item}
+                        className={clsx('flex items-center text-left', hitClass(props.isOpen))}
+                        onClick={function () {
+                          props.onSearch(item)
+                        }}>
+                        <Icon
+                          icon="lucide:search"
+                          className={clsx(MARK_BOX, 'text-sidebar-foreground/45')}
+                          aria-hidden
+                        />
+                        {props.isOpen ? <span className="truncate">{item}</span> : null}
+                      </button>
+                      {props.isOpen ? (
+                        <button
+                          type="button"
+                          aria-label="删除"
+                          className="flex size-5 shrink-0 items-center justify-center rounded-full opacity-0 transition-opacity duration-150 hover:bg-foreground/10 group-hover/row:opacity-100 focus-visible:opacity-100"
+                          onClick={function () {
+                            props.onRemoveSearch(item)
+                          }}>
+                          <Icon
+                            icon="lucide:x"
+                            className="size-3.5"
+                            aria-hidden
+                          />
+                        </button>
+                      ) : null}
+                    </div>
                   )
                 })}
               </Fold>
@@ -418,7 +542,11 @@ function BrowserSidebar(props: BrowserSidebarProps) {
             {visibleCollections.map(function (group) {
               const isGroupOpen = Boolean(openGroups[group.id])
               const rows = (members[group.id] ?? []).filter(function (member) {
-                return matches(query, group.title) || matches(query, member.title) || matches(query, member.url ?? '')
+                return (
+                  matches(query, group.title) ||
+                  matches(query, member.title) ||
+                  matches(query, member.url ?? '')
+                )
               })
               return (
                 <section key={group.id}>
@@ -427,7 +555,11 @@ function BrowserSidebar(props: BrowserSidebarProps) {
                     title={group.title}
                     aria-label={group.title}
                     aria-expanded={isGroupOpen}
-                    className={clsx(ROW, ROW_IDLE, isGroupOpen && 'bg-sidebar-accent/70')}
+                    className={clsx(
+                      rowClass(props.isOpen),
+                      ROW_IDLE,
+                      isGroupOpen && 'bg-sidebar-accent/70'
+                    )}
                     onClick={function () {
                       void toggleGroup(group.id)
                     }}>
@@ -444,7 +576,8 @@ function BrowserSidebar(props: BrowserSidebarProps) {
                     <Icon
                       icon={isGroupOpen ? 'lucide:folder-open' : 'lucide:folder'}
                       className={clsx(
-                        'size-4 shrink-0 transition-colors duration-200',
+                        MARK_BOX,
+                        'transition-colors duration-200',
                         isGroupOpen ? 'text-sidebar-primary' : 'text-sidebar-foreground/70'
                       )}
                       aria-hidden
@@ -458,22 +591,59 @@ function BrowserSidebar(props: BrowserSidebarProps) {
                       )}>
                       {rows.map(function (member) {
                         const label = member.title || findHost(member.url ?? '')
+                        const isOn = member.id === props.activeMemberId
+                        const url = member.url ?? ''
+                        const mark = url ? findPageMark(props.lives, member.id) : null
+                        const name = rowName(label, mark)
                         return (
-                          <button
+                          <div
                             key={member.id}
-                            type="button"
-                            title={label}
-                            aria-label={label}
-                            className={clsx(ROW, ROW_IDLE, ENTER)}
-                            onClick={function () {
-                              openMember(member)
-                            }}>
-                            <SiteMark
-                              url={member.url ?? ''}
-                              label={label}
-                            />
-                            {props.isOpen ? <span className="truncate">{label}</span> : null}
-                          </button>
+                            className={clsx(
+                              rowClass(props.isOpen),
+                              ENTER,
+                              isOn ? ROW_ON : ROW_IDLE
+                            )}>
+                            <button
+                              type="button"
+                              title={name}
+                              aria-label={name}
+                              aria-selected={isOn}
+                              className={clsx(
+                                'flex items-center text-left',
+                                hitClass(props.isOpen),
+                                !props.isOpen && mark && 'relative'
+                              )}
+                              onClick={function () {
+                                openMember(member)
+                              }}>
+                              <SiteMark
+                                url={url}
+                                label={label}
+                              />
+                              {mark ? (
+                                <LifeDot
+                                  mark={mark}
+                                  isOpen={props.isOpen}
+                                />
+                              ) : null}
+                              {props.isOpen ? <span className="truncate">{label}</span> : null}
+                            </button>
+                            {props.isOpen && isOn && member.url ? (
+                              <button
+                                type="button"
+                                aria-label="关闭"
+                                className="flex size-5 shrink-0 items-center justify-center rounded-full opacity-70 hover:bg-foreground/10"
+                                onClick={function () {
+                                  props.onCloseMember(member.id)
+                                }}>
+                                <Icon
+                                  icon="lucide:x"
+                                  className="size-3.5"
+                                  aria-hidden
+                                />
+                              </button>
+                            ) : null}
+                          </div>
                         )
                       })}
                     </div>
@@ -484,7 +654,7 @@ function BrowserSidebar(props: BrowserSidebarProps) {
           </div>
         ) : null}
         {props.panel === 'downloads' ? (
-          <div className="flex flex-col gap-1 px-2 py-3 text-sm">
+          <div className={clsx('flex flex-col gap-1 py-3 text-sm', props.isOpen ? 'px-2' : 'px-1')}>
             {props.downloads.length === 0 ? (
               <div className="flex flex-col items-center gap-2 px-2 py-10 text-center">
                 <span className="flex size-10 items-center justify-center rounded-full bg-sidebar-accent text-sidebar-foreground/55">
@@ -494,19 +664,22 @@ function BrowserSidebar(props: BrowserSidebarProps) {
                     aria-hidden
                   />
                 </span>
-                {props.isOpen ? <p className="text-sm text-sidebar-foreground/60">暂无下载</p> : null}
+                {props.isOpen ? (
+                  <p className="text-sm text-sidebar-foreground/60">暂无下载</p>
+                ) : null}
               </div>
             ) : (
               props.downloads.map(function (item) {
-                const status = item.status === 'started' ? '下载中' : item.status === 'done' ? '完成' : '失败'
+                const status =
+                  item.status === 'started' ? '下载中' : item.status === 'done' ? '完成' : '失败'
                 return (
                   <div
                     key={item.id}
-                    className={clsx(ROW, ROW_IDLE, ENTER, 'cursor-default')}
+                    className={clsx(rowClass(props.isOpen), ROW_IDLE, ENTER, 'cursor-default')}
                     title={item.name}>
                     <Icon
                       icon="lucide:file"
-                      className="size-4 shrink-0 text-sidebar-foreground/70"
+                      className={clsx(MARK_BOX, 'text-sidebar-foreground/70')}
                       aria-hidden
                     />
                     {props.isOpen ? (
@@ -515,8 +688,10 @@ function BrowserSidebar(props: BrowserSidebarProps) {
                         <span
                           className={clsx(
                             'shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium',
-                            item.status === 'done' && 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-                            item.status === 'started' && 'bg-sidebar-primary/15 text-sidebar-primary',
+                            item.status === 'done' &&
+                              'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+                            item.status === 'started' &&
+                              'bg-sidebar-primary/15 text-sidebar-primary',
                             item.status !== 'done' &&
                               item.status !== 'started' &&
                               'bg-destructive/12 text-destructive'
@@ -543,7 +718,7 @@ function BrowserSidebar(props: BrowserSidebarProps) {
           </div>
         ) : null}
         {props.panel === 'extensions' ? (
-          <div className="flex flex-col gap-2 px-2 py-3 text-sm">
+          <div className={clsx('flex flex-col gap-2 py-3 text-sm', props.isOpen ? 'px-2' : 'px-1')}>
             {props.isOpen ? (
               <p className="px-2 text-xs leading-5 text-sidebar-foreground/55">
                 {props.isExtensionSupported
@@ -585,11 +760,11 @@ function BrowserSidebar(props: BrowserSidebarProps) {
                 return (
                   <li
                     key={name}
-                    className={clsx(ROW, ROW_IDLE, ENTER)}
+                    className={clsx(rowClass(props.isOpen), ROW_IDLE, ENTER)}
                     title={name}>
                     <Icon
                       icon="lucide:puzzle"
-                      className="size-4 shrink-0"
+                      className={MARK_BOX}
                       aria-hidden
                     />
                     {props.isOpen ? (
@@ -616,5 +791,5 @@ function BrowserSidebar(props: BrowserSidebarProps) {
   )
 }
 
-export { BrowserSidebar }
-export type { BrowserSidebarProps }
+export { BrowserSidebar, findPageMark, lifeLabel }
+export type { BrowserSidebarProps, PageLife, PageMark }

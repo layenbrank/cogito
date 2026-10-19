@@ -56,6 +56,10 @@ function historyPage(id: string, direction: 'back' | 'forward') {
   return invoke('navigation:navigate', { body: { id, direction } })
 }
 
+function reloadPage(id: string) {
+  return invoke('navigation:navigate', { body: { id, direction: 'reload' } })
+}
+
 function openDevtools(id: string) {
   return invoke('navigation:devtools', { body: { id } })
 }
@@ -152,6 +156,7 @@ export {
   closePage,
   suspendPages,
   historyPage,
+  reloadPage,
   importExtension,
   navigatePage,
   cursorInMain,

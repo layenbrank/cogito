@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { CLOSED_LIMIT, dropClosed, parseTabs, rememberClosed, type Tab } from '@/views/navigation/session'
+import { parseTabs, type Tab } from '@/views/navigation/session'
 
 function tab(id: string, url = `https://${id}.example`): Tab {
   return { id, url, title: id }
@@ -19,34 +19,26 @@ describe('parseTabs', function () {
     })).toEqual(['a', 'b'])
     expect(parsed.activeId).toBe('b')
     expect(parsed.searches).toEqual(['rust'])
-    expect(parsed.closed).toEqual([{ id: 'c', url: 'https://c.example', title: 'c', index: 1 }])
+    expect(parsed).not.toHaveProperty('closed')
   })
 
-  it('reads a legacy session that has no closed tabs', function () {
+  it('reads a legacy session that has no searches', function () {
     const parsed = parseTabs({ tabs: [tab('a')], activeId: 'missing' })
-    expect(parsed.activeId).toBe('a')
-    expect(parsed.closed).toEqual([])
-    expect(parsed.searches).toEqual([])
-  })
-})
-
-describe('rememberClosed', function () {
-  it('skips an empty tab and keeps the newest close first', function () {
-    const first = rememberClosed([], tab('a'), 2)
-    const withEmpty = rememberClosed(first, { id: 'empty', url: '', title: '新标签' }, 0)
-    const next = rememberClosed(withEmpty, tab('b'), 0)
-    expect(next.map(function (item) {
-      return item.id
-    })).toEqual(['b', 'a'])
-    expect(dropClosed(next, 'b')).toEqual(first)
+    expect(parsed).toEqual({
+      tabs: [tab('a')],
+      activeId: 'a',
+      searches: []
+    })
   })
 
-  it('caps the closed ring', function () {
-    let closed = rememberClosed([], tab('seed'), 0)
-    for (let i = 0; i < CLOSED_LIMIT + 3; i += 1) {
-      closed = rememberClosed(closed, tab(`t${i}`), i)
+  it('caps searches at twenty unique strings', function () {
+    const searches = [' q0 ']
+    for (let index = 0; index < 25; index += 1) {
+      searches.push(`q${index}`)
     }
-    expect(closed).toHaveLength(CLOSED_LIMIT)
-    expect(closed[0]?.id).toBe(`t${CLOSED_LIMIT + 2}`)
+    const parsed = parseTabs({ tabs: [], activeId: '', searches })
+    expect(parsed.searches).toHaveLength(20)
+    expect(parsed.searches[0]).toBe('q0')
+    expect(parsed.searches[19]).toBe('q19')
   })
 })

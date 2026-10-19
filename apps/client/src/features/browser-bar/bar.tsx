@@ -1,5 +1,3 @@
-import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { cn } from 'cn'
 import type { MouseEvent, ReactNode } from 'react'
@@ -10,8 +8,6 @@ import { BROWSER_BAR } from '@/features/browser-bar/metrics'
 
 interface BrowserBarProps {
   onBind: (node: HTMLDivElement | null) => void
-  isSidebarOpen: boolean
-  onToggleSidebar: () => void
   leading?: ReactNode
   trailing?: ReactNode
   children: ReactNode
@@ -19,8 +15,6 @@ interface BrowserBarProps {
 
 function BrowserBar({
   onBind,
-  isSidebarOpen,
-  onToggleSidebar,
   leading,
   trailing,
   children
@@ -52,18 +46,6 @@ function BrowserBar({
       )}
       style={{ height: BROWSER_BAR, minHeight: BROWSER_BAR }}>
       <div className="flex min-w-0 flex-1 items-center">
-        <Button
-          variant="ghost"
-          size="icon"
-          data-region="false"
-          className="ml-1 size-10 min-w-10 rounded-full [&_svg]:size-4.5"
-          aria-label={isSidebarOpen ? '收起侧栏' : '展开侧栏'}
-          onClick={onToggleSidebar}>
-          <Icon
-            icon="lucide:panel-left"
-            aria-hidden
-          />
-        </Button>
         {leading}
         {children}
       </div>

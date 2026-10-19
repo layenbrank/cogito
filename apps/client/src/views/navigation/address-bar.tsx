@@ -66,6 +66,7 @@ function EngineStrip(props: { engineKey: string; isOpen: boolean; onPick: (key: 
             <button
               key={item.key}
               type="button"
+              data-region="false"
               role="option"
               aria-selected={isSelected}
               tabIndex={props.isOpen ? 0 : -1}
@@ -272,6 +273,7 @@ function AddressBar(props: AddressBarProps) {
           type="button"
           variant="ghost"
           size="icon-sm"
+          data-region="false"
           aria-label="搜索引擎"
           aria-expanded={isEngineOpen}
           title={engine.label}
@@ -300,6 +302,7 @@ function AddressBar(props: AddressBarProps) {
         />
         <Input
           value={value}
+          data-region="false"
           placeholder="搜索或输入网址"
           aria-label="网址"
           className="h-full flex-1 border-0 bg-transparent px-2 py-0 shadow-none focus-visible:ring-0"
@@ -327,6 +330,7 @@ function AddressBar(props: AddressBarProps) {
           type="button"
           variant="ghost"
           size="icon-sm"
+          data-region="false"
           aria-label="搜索"
           className="mr-1 rounded-full"
           onMouseDown={function (event) {
