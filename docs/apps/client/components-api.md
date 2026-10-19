@@ -528,7 +528,7 @@ export default function Panel() {
 
 **结构 / 状态**
 
-- 一律自绘：根节点挂 `data-region="true"` + `data-tauri-drag-region`（拖拽区），交互子节点挂 `data-region="false"`
+- 一律自绘：根节点挂 `data-region="true"`（拖拽区），交互子节点挂 `data-region="false"`
 - 订阅：`focused` / `maximized` / `fullscreen` / `alwaysOnTop` + `minimizable` / `maximizable` / `closable`（根上有对应 `data-*`）
 - 默认键：最小化 · 最大化⇄还原（全屏时变「退出全屏」）· 关闭；可选 `controls={{ pin: true }}` 置顶
 - 无能力时禁用对应键；失焦整条降对比；双击拖拽区切换最大化（全屏则退出）
@@ -614,14 +614,14 @@ export default function Overview() {
 - 容器职责：`flex-col` + 内容区 `min-h-0 flex-1`，子元素直接 `flex: 1` 就能撑满
 - 磁贴窗口映射：`activateTile` 按磁贴记录建窗（label `${component}:${id}`），路由 `/<component>`，见 `apps/client/src/features/magnetic-tile/activate.ts`
 
-#### 拖拽区（`data-region` / `data-tauri-drag-region`）
+#### 拖拽区（`data-region`）
 
-`Caption` 的槽位容器同时带两个属性，两条机制并存：
+`Caption` 的槽位容器只挂 `data-region`：
 
-- `data-region="true"` → CSS `-webkit-app-region: drag`（**WebView2 实测生效**，是这里真正让标题栏能拖的那条）
-- `data-tauri-drag-region` → Tauri 自带的拖拽处理（`tauri/src/window/scripts/drag.js`）；其**裸值只在直接点中该元素**时触发，要在子树任意位置触发需写 `"deep"`
+- `data-region="true"` → CSS `-webkit-app-region: drag`
+- `data-region="false"` → CSS `-webkit-app-region: no-drag`
 
-槽位里的交互元素（按钮、链接、`[tabindex]`）必须带 **`data-region="false"`**，否则会被拖拽区吃掉点击 —— 窗口键、镜像切换器、状态芯片、账号按钮都按此处理。
+不使用 `data-tauri-drag-region`。槽位里的交互元素（按钮、链接、`[tabindex]`）必须带 **`data-region="false"`**，否则会被拖拽区吃掉点击。窗口键、镜像切换器、状态芯片、账号按钮都按此处理。
 
 #### 窗口操作层（`data-layer`）
 

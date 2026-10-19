@@ -19,8 +19,8 @@ import { useEffect, useState, type MouseEvent, type ReactNode } from 'react'
  * - 失焦降对比；无能力时禁用对应键；双击拖拽区切换最大化（全屏则退出全屏）
  *
  * 所有窗口都 `decorations: false`，桌面壳由本组件自绘：左侧 `begin` 槽、
- * 右侧 `final` 槽 + 窗口键。拖拽区：槽位容器带 `data-region="true"`
- *（CSS `-webkit-app-region: drag`）与 `data-tauri-drag-region`；交互元素必须
+ * 右侧 `final` 槽 + 窗口键。拖拽区用 `data-region="true"`
+ *（CSS `-webkit-app-region: drag`）；交互元素必须
  * `data-region="false"`，否则拖拽区会吃掉点击。
  *
  * Win11 Snap Layouts 需原生 HTMAXBUTTON 命中（WebView2 挡在前面），要另接
@@ -317,7 +317,6 @@ function Caption(props: CaptionProps) {
   return (
     <div
       data-region="true"
-      data-tauri-drag-region
       data-focused={state.isFocused ? 'true' : 'false'}
       data-maximized={state.isMaximized ? 'true' : 'false'}
       data-fullscreen={state.isFullscreen ? 'true' : 'false'}
@@ -329,7 +328,7 @@ function Caption(props: CaptionProps) {
         props.className
       )}>
       <div
-        data-tauri-drag-region
+        data-region="true"
         className={cn(
           'flex min-w-0 flex-1 items-center gap-2 pl-2',
           !state.isFocused && 'opacity-60'

@@ -5,7 +5,7 @@
 ## 应用形态：Tauri 窗口（仅 apps/client）
 
 - 一律 `decorations: false`，自绘：`Caption` = 拖拽区 + 窗口键；`Decorations` = 窗口容器（标题栏 + flex 列）。不用裸 `Caption` + 自建布局。
-- 拖拽：槽位容器 `data-region="true"`；槽位内交互元素必须 `data-region="false"`，否则被吃掉点击。`data-tauri-drag-region` 需子树任意位置触发时写 `"deep"`。
+- 拖拽：槽位容器 `data-region="true"`（CSS `-webkit-app-region: drag`）；槽位内交互元素必须 `data-region="false"`，否则被吃掉点击。不要写 `data-tauri-drag-region`。
 - 主窗口网页层级：只认 `data-layer`。`trigger` 挂在会打开浮层的控件上，`overlay` 挂在浮层上。浮层与网页矩形相交时子 WebView 沉下去。不要再按组件名单改 `cover.ts`。常量 `LAYER_TRIGGER` / `LAYER_OVERLAY`（`packages/design/src/lib/surface.ts`）。
 - 每窗口都要自绘标题栏，`/overlay` 例外；`Decorations` 根节点透明，材质由窗口承担。
 - 磁贴不用 Dialog：双击开独立窗口（`activateTile` → `views/<component>`），label `component:id`。
