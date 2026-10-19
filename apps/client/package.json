@@ -29,6 +29,10 @@
   },
   "dependencies": {
     "@assistant-ui/react": "catalog:",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/modifiers": "^9.0.0",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@i-thinking/chat": "workspace:*",
     "@i-thinking/design": "workspace:*",
     "@i-thinking/types": "workspace:*",
