@@ -21,7 +21,7 @@ serde_json = "1.0.150"
 anyhow = "1.0.102"
 thiserror = "2.0.18"
 tracing = "0.1.44"
-tauri = { version = "2.11.2", features = [
+tauri = { version = "2.12.4", features = [
   "protocol-asset",
   "macos-private-api",
   "devtools",
@@ -68,7 +68,7 @@ strip = true
 
 [build-dependencies]
 # 构建：tauri 代码生成 / 资源打包
-tauri-build = { version = "2.6.2", features = [
+tauri-build = { version = "2.7.3", features = [
   "config-json5",
   "tauri-codegen",
   "codegen",
@@ -83,16 +83,16 @@ thinking-command = { workspace = true }
 tauri = { workspace = true } # 应用壳、窗口、tray、IPC
 
 # --- Tauri 插件（已在 bootstrap 注册）---
-tauri-plugin-opener = "2.5.2" # 用系统默认应用打开 URL/路径
-tauri-plugin-fs = "2.4.5" # 文件系统读写
-tauri-plugin-websocket = "2.4.2" # WebSocket（前端能力预留）
-tauri-plugin-dialog = "2.6.0" # 原生对话框
-tauri-plugin-shell = "2.3.5" # sidecar / 外部命令（corex-daemon）
-tauri-plugin-store = "2.4.2" # 持久化 KV
-tauri-plugin-process = "2.3.1" # 退出 / 重启
-tauri-plugin-notification = "2.3.3" # 系统通知
-tauri-plugin-clipboard-manager = "2.3.2" # 剪贴板
-tauri-plugin-http = { version = "2.5.7", features = [
+tauri-plugin-opener = "2.7.2" # 用系统默认应用打开 URL/路径
+tauri-plugin-fs = "2.7.1" # 文件系统读写
+tauri-plugin-websocket = "2.5.0" # WebSocket（前端能力预留）
+tauri-plugin-dialog = "2.8.3" # 原生对话框
+tauri-plugin-shell = "2.5.0" # sidecar / 外部命令（corex-daemon）
+tauri-plugin-store = "2.5.0" # 持久化 KV
+tauri-plugin-process = "2.4.0" # 退出 / 重启
+tauri-plugin-notification = "2.7.0" # 系统通知
+tauri-plugin-clipboard-manager = "2.5.0" # 剪贴板
+tauri-plugin-http = { version = "2.8.3", features = [
   "charset",
   "cookies",
   "gzip",
@@ -103,10 +103,10 @@ tauri-plugin-http = { version = "2.5.7", features = [
   "stream",
   "unsafe-headers",
 ] } # 前端 fetch
-tauri-plugin-os = "2.3.2" # OS 信息（前端能力预留）
+tauri-plugin-os = "2.4.0" # OS 信息（前端能力预留）
 
 # --- Tauri 插件（日志）---
-tauri-plugin-log = "2.8.0" # 日志桥（Stdout + LogDir，各一份）
+tauri-plugin-log = "2.10.1" # 日志桥（Stdout + LogDir，各一份）
 
 # --- PTY（嵌入式交互终端；wezterm 维护，Windows=ConPTY）---
 portable-pty = "0.9"
@@ -140,18 +140,20 @@ dirs = "6"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 # --- 桌面专用插件 ---
-tauri-plugin-autostart = "2.5.1" # 开机自启（含 --minimized）
-tauri-plugin-cli = "2.4.1" # CLI（--minimized / --verbose）
-tauri-plugin-global-shortcut = "2.3.1" # 全局快捷键
-tauri-plugin-positioner = { version = "2.3.1", features = [
+tauri-plugin-autostart = "2.7.0" # 开机自启（含 --minimized）
+tauri-plugin-cli = "2.5.0" # CLI（--minimized / --verbose）
+tauri-plugin-global-shortcut = "2.4.1" # 全局快捷键
+tauri-plugin-positioner = { version = "2.4.0", features = [
   "tray-icon",
 ] } # 窗口/托盘定位
-tauri-plugin-single-instance = "2.4.0" # 单实例
-tauri-plugin-updater = "2" # 检查更新
+tauri-plugin-single-instance = "2.5.4" # 单实例
+tauri-plugin-updater = "2.14.0" # 检查更新
 
 [target.'cfg(target_os = "windows")'.dependencies]
+# 与 wry 0.57 / tauri 2.12 锁定的 webview2-com 同版本，才能在子 WebView 上读 NavigationCompleted.IsSuccess
+webview2-com = "=0.39.1"
 # --- Windows FFI ---
-windows = { version = "0.61", features = [
+windows = { version = "0.62", features = [
   "Win32_UI_WindowsAndMessaging",
   "Win32_Foundation",
   "Win32_Graphics_Dwm",
@@ -162,7 +164,11 @@ windows = { version = "0.61", features = [
   "Win32_System_Threading",
   "Win32_System_Diagnostics_ToolHelp",
   "Win32_System_Registry",
-] } # 与 tauri 2.11 同主版本，避免 HWND 跨 crate 分裂
+] } # 与 tauri 2.12 / wry 0.57 的 windows 0.62 对齐，避免 HWND 跨 crate 分裂
+
+# 本地 wry：NewWindowRequested 在返回前同步 SetHandled(true)，并且不再 GetDeferral。
+[patch.crates-io]
+wry = { path = "vendor/wry" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # --- macOS FFI ---
