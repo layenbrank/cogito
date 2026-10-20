@@ -21,7 +21,7 @@
 type ShortcutScope = 'global' | 'app' | 'view' | 'editor'
 
 /** 键位归属窗口；`any` 表示主窗与浮层都能用 */
-type ShortcutWindow = 'main' | 'overlay' | 'any'
+type ShortcutWindow = 'main' | 'overlay' | 'browser' | 'any'
 
 /**
  * 全局键定义（`scope: 'global'`）。

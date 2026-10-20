@@ -1,5 +1,6 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
+import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
 import { clsx } from 'clsx'
@@ -7,31 +8,24 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useEffect, useRef, useState } from 'react'
 
 import { ENGINE_STORE_KEY, findEngine } from '@/constants/engine'
-import { bindBrowserOpen } from '@/features/magnetic-tile/open-url'
-import Controller from '@/features/controller/controller.tsx'
-import { toast } from 'sonner'
 import { BrowserBar } from '@/features/browser-bar/bar'
+import { findWindowLabel } from '@/features/window/kind'
+import { COMMAND } from '@/keyboard/definitions/ids'
+import { useCommands, useKeyboard } from '@/keyboard/react'
+import { requestAddressFocus } from '@/views/navigation/address-focus'
 import {
-  SIDEBAR_OPEN,
-  SIDEBAR_SHUT,
   canPlace,
-  findNodeBounds,
-  findTargetBounds
-} from '@/views/overview/browser/bounds'
-import { findHost } from '@/views/overview/browser/label'
-import { Omnibox } from '@/views/overview/browser/omnibox'
-import { usePageStack } from '@/views/overview/browser/use-page-stack'
-import { BrowserSidebar, type PageLife } from '@/views/overview/browser/sidebar'
-import type { BrowserPanel, BrowserSurface, DownloadItem } from '@/views/overview/browser/types'
-import { findAddressUrl } from '@/views/overview/engine/engine-url'
-import { readEngineKey, writeEngineKey } from '@/views/overview/engine/engine-store'
-import { CaptionAccount } from '@/views/overview/caption/account'
-import { MirrorSwitcher } from '@/views/overview/caption/mirror'
-import { CaptionStatus } from '@/views/overview/caption/status'
-import styles from '@/views/overview/overview.module.scss'
+  findNodeBounds
+} from '@/views/browser/bounds'
+import { findHost } from '@/views/browser/label'
+import { Omnibox } from '@/views/browser/omnibox'
+import { spawnBrowser } from '@/views/browser/open'
+import { runBrowserKey } from '@/views/browser/shortcut'
+import { BrowserSidebar, type PageLife } from '@/views/browser/sidebar'
+import type { BrowserNotice, BrowserPanel, BrowserSurface, DownloadItem } from '@/views/browser/types'
+import { findAddressUrl } from '@/views/browser/engine/engine-url'
+import { readEngineKey, writeEngineKey } from '@/views/browser/engine/engine-store'
 import {
-  activatePage,
-  closeBar,
   closePage,
   historyPage,
   reloadPage,
@@ -40,6 +34,7 @@ import {
   openDevtools,
   openPage,
   placePage,
+  presentPage,
   readExtensions,
   readLivePages,
   removeExtension,
@@ -74,10 +69,6 @@ interface DownloadEvent {
 
 const SEARCH_LIMIT = 20
 
-interface BrowserChromeProps {
-  onSignIn: () => void
-}
-
 function createTab(url: string): Tab {
   return {
     id: crypto.randomUUID(),
@@ -97,16 +88,18 @@ function isMissingPage(error: unknown) {
   return text.includes('页面不存在')
 }
 
-function BrowserChrome(props: BrowserChromeProps) {
+function BrowserChrome() {
   const contentRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
   const sideRef = useRef<HTMLDivElement>(null)
+  // 会话按窗口 label 分键：多扇浏览窗口各有各的标签，关掉一扇不会带走别家的。
+  const sessionKeyRef = useRef(findWindowLabel())
   const tabsRef = useRef<Tab[]>([])
   const activeIdRef = useRef('')
   const engineKeyRef = useRef(readEngineKey())
-  const surfaceRef = useRef<BrowserSurface>('tiles')
+  const surfaceRef = useRef<BrowserSurface>('blank')
   const focusUrlRef = useRef<(url: string) => void>(function () {})
-  const goTilesRef = useRef<() => void>(function () {})
+  const goBlankRef = useRef<() => void>(function () {})
   const placeActiveRef = useRef<(bounds: { x: number; y: number; width: number; height: number }) => void>(
     function () {}
   )
@@ -120,7 +113,12 @@ function BrowserChrome(props: BrowserChromeProps) {
   })
   const showPageRef = useRef<(id: string, url: string) => Promise<void>>(async function () {})
   const isMountedRef = useRef(true)
-  const isBoundsLocked = useRef(false)
+  const pendingPlaceRef = useRef<{
+    id: string
+    bounds: { x: number; y: number; width: number; height: number }
+  } | null>(null)
+  const isPlacingRef = useRef(false)
+  const pageIdRef = useRef('')
 
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeId, setActiveId] = useState('')
@@ -132,8 +130,9 @@ function BrowserChrome(props: BrowserChromeProps) {
   const [panel, setPanel] = useState<BrowserPanel>('sites')
   const [engineKey, setEngineKey] = useState(readEngineKey)
   const [isReady, setIsReady] = useState(false)
-  const [surface, setSurface] = useState<BrowserSurface>('tiles')
+  const [surface, setSurface] = useState<BrowserSurface>('blank')
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [notice, setNotice] = useState<BrowserNotice | null>(null)
   const [guest, setGuest] = useState<{ id: string; url: string } | null>(null)
   const [lives, setLives] = useState<Record<string, PageLife>>({})
   const guestRef = useRef<{ id: string; url: string } | null>(null)
@@ -143,8 +142,7 @@ function BrowserChrome(props: BrowserChromeProps) {
   })
   const pageUrl = guest?.url || active?.url || ''
   const pageId = guest?.id || active?.id || ''
-  const showTiles = surface !== 'page' || !pageUrl
-  const pageStack = usePageStack(contentRef, !showTiles)
+  const showBlank = surface !== 'page' || !pageUrl
 
   function findShownBounds() {
     const content = findNodeBounds(contentRef.current)
@@ -162,6 +160,27 @@ function BrowserChrome(props: BrowserChromeProps) {
     }
   }
 
+  async function drainPlace() {
+    if (isPlacingRef.current) return
+    isPlacingRef.current = true
+    try {
+      while (pendingPlaceRef.current) {
+        const next = pendingPlaceRef.current
+        pendingPlaceRef.current = null
+        // 期间切走了或回了磁贴，这一帧的摆位已经没有意义。
+        if (surfaceRef.current !== 'page' || activeIdRef.current !== next.id) continue
+        try {
+          await placePage(next.id, next.bounds)
+        } catch (error) {
+          if (isMissingPage(error)) readyRef.current.delete(next.id)
+          console.warn('[browser] 摆放网页失败', error)
+        }
+      }
+    } finally {
+      isPlacingRef.current = false
+    }
+  }
+
   function placeActive(bounds: { x: number; y: number; width: number; height: number }) {
     const id = activeIdRef.current
     const current = tabsRef.current.find(function (tab) {
@@ -171,21 +190,21 @@ function BrowserChrome(props: BrowserChromeProps) {
     if (!url || surfaceRef.current !== 'page') return
     if (!canPlace(bounds)) return
     if (!readyRef.current.has(id)) return
-    void placePage(id, bounds).then(
-      function () {
-        if (!isMountedRef.current) return
-        pageStack.reapply()
-      },
-      function (error: unknown) {
-        if (isMissingPage(error)) readyRef.current.delete(id)
-      }
-    )
+    // 拖动窗口时一帧一次：只保留最后一组，避免 IPC 排队把网页拖在后面。
+    pendingPlaceRef.current = { id, bounds }
+    void drainPlace()
   }
 
-  function goTiles() {
-    surfaceRef.current = 'tiles'
-    setSurface('tiles')
-    void suspendPages()
+  function goBlank() {
+    // 先收起原生子窗口，再画空白页：反过来的话页面会被网页盖住一两帧。
+    surfaceRef.current = 'blank'
+    const show = function () {
+      if (surfaceRef.current === 'blank') setSurface('blank')
+    }
+    void suspendPages().then(show, function (error: unknown) {
+      console.error('[browser] 收起网页失败', error)
+      show()
+    })
   }
 
   function applyLife(id: string, life: PageLife | null) {
@@ -234,12 +253,11 @@ function BrowserChrome(props: BrowserChromeProps) {
     try {
       opened = await openPage(id, url)
     } catch (error) {
-      if (isNew) {
-        liveRef.current.delete(id)
-        readyRef.current.delete(id)
-        applyLife(id, 'fail')
-      }
-      throw error
+      liveRef.current.delete(id)
+      readyRef.current.delete(id)
+      applyLife(id, 'fail')
+      console.error('[browser] 打开页面失败', error)
+      return
     }
     if (!liveRef.current.has(id)) return
     readyRef.current.add(id)
@@ -248,19 +266,16 @@ function BrowserChrome(props: BrowserChromeProps) {
     const bounds = findShownBounds()
     if (!canPlace(bounds)) return
     try {
-      await activatePage(id, bounds)
+      await presentPage(id, bounds)
     } catch (error) {
-      if (isMissingPage(error)) {
-        readyRef.current.delete(id)
-        return
-      }
-      throw error
+      readyRef.current.delete(id)
+      if (!isMissingPage(error)) console.error('[browser] 摆放页面失败', error)
+      return
     }
     if (!isMountedRef.current) {
       void suspendPages()
       return
     }
-    pageStack.reapply()
   }
 
   async function reloadLive(next: Tab[], nextActiveId: string) {
@@ -280,7 +295,7 @@ function BrowserChrome(props: BrowserChromeProps) {
 
   function focusUrl(url: string) {
     if (!url) {
-      goTiles()
+      goBlank()
       return
     }
     // 新窗口一律进「网址」标签。集合客页里点开的链接也不再占用客页，避免盖住新标签。
@@ -380,7 +395,7 @@ function BrowserChrome(props: BrowserChromeProps) {
     if (activeIdRef.current !== id) return
     activeIdRef.current = ''
     setAddress('')
-    goTiles()
+    goBlank()
   }
 
   function selectTab(tab: Tab) {
@@ -390,7 +405,7 @@ function BrowserChrome(props: BrowserChromeProps) {
     setActiveId(tab.id)
     setAddress(tab.url)
     if (!tab.url) {
-      goTiles()
+      goBlank()
       return
     }
     surfaceRef.current = 'page'
@@ -401,6 +416,9 @@ function BrowserChrome(props: BrowserChromeProps) {
   async function closeTab(id: string) {
     const wasPage = surfaceRef.current === 'page'
     const closing = tabsRef.current.find(function (tab) {
+      return tab.id === id
+    })
+    const index = tabsRef.current.findIndex(function (tab) {
       return tab.id === id
     })
     const next = tabsRef.current.filter(function (tab) {
@@ -415,7 +433,8 @@ function BrowserChrome(props: BrowserChromeProps) {
     }
     setTabs(next)
     if (activeIdRef.current !== id) return
-    const fallback = next[next.length - 1]
+    // 先落到原位置上的下一个标签，没有就退到前一个。
+    const fallback = next[Math.min(Math.max(index, 0), next.length - 1)]
     activeIdRef.current = fallback?.id ?? ''
     setActiveId(fallback?.id ?? '')
     setAddress(fallback?.url ?? '')
@@ -425,7 +444,7 @@ function BrowserChrome(props: BrowserChromeProps) {
       await showPage(fallback.id, fallback.url)
       return
     }
-    goTiles()
+    goBlank()
   }
 
   function createEmpty() {
@@ -436,7 +455,7 @@ function BrowserChrome(props: BrowserChromeProps) {
     })
     setActiveId(tab.id)
     setAddress('')
-    goTiles()
+    goBlank()
   }
 
   function moveTab(from: number, to: number) {
@@ -450,40 +469,22 @@ function BrowserChrome(props: BrowserChromeProps) {
   }
 
   function toggleSidebar() {
-    const nextOpen = !isSidebarOpen
-    const pageVisible = surfaceRef.current === 'page'
-    if (pageVisible) {
-      isBoundsLocked.current = true
-      placeActive(
-        findTargetBounds(window.innerWidth, window.innerHeight, nextOpen ? SIDEBAR_OPEN : SIDEBAR_SHUT)
-      )
-    }
-    setIsSidebarOpen(nextOpen)
+    // 只改状态：新矩形由布局后的 ResizeObserver 量出来，不在这里用常量推算。
+    setIsSidebarOpen(function (current) {
+      return !current
+    })
   }
 
   function focusPanel(next: BrowserPanel) {
     if (!isSidebarOpen) {
       setPanel(next)
-      void toggleSidebar()
+      setIsSidebarOpen(true)
       return
     }
     setPanel(function (current) {
       return current === next ? 'sites' : next
     })
   }
-
-  useEffect(
-    function () {
-      if (!isBoundsLocked.current) return
-      const frame = window.requestAnimationFrame(function () {
-        isBoundsLocked.current = false
-      })
-      return function () {
-        window.cancelAnimationFrame(frame)
-      }
-    },
-    [isSidebarOpen]
-  )
 
   useEffect(function () {
     tabsRef.current = tabs
@@ -492,16 +493,18 @@ function BrowserChrome(props: BrowserChromeProps) {
     engineKeyRef.current = engineKey
     surfaceRef.current = surface
     focusUrlRef.current = focusUrl
-    goTilesRef.current = goTiles
+    goBlankRef.current = goBlank
     placeActiveRef.current = placeActive
     searchesRef.current = searches
     showPageRef.current = showPage
     applyLifeRef.current = applyLife
     adoptLivesRef.current = adoptLives
+    pageIdRef.current = guest ? guest.id : activeId
     persistRef.current = function () {
-      return writeBrowser({
+      return writeBrowser(sessionKeyRef.current, {
         tabs: tabsRef.current,
-        activeId: activeIdRef.current,
+        // 客页（集合里点开的链接）不在标签列表里，落盘时不算当前标签。
+        activeId,
         searches: searchesRef.current
       })
     }
@@ -527,17 +530,58 @@ function BrowserChrome(props: BrowserChromeProps) {
     }
   }, [])
 
+  // 侧栏提示：不打断操作，几秒后自己消失（DOM 提示不能飘到网页上方）。
+  useEffect(
+    function () {
+      if (!notice) return
+      const timer = window.setTimeout(function () {
+        setNotice(null)
+      }, 4000)
+      return function () {
+        window.clearTimeout(timer)
+      }
+    },
+    [notice]
+  )
+
   useEffect(function () {
-    return bindBrowserOpen(function (url) {
-      if (url) focusUrlRef.current(url)
-      else goTilesRef.current()
+    // 窗口是隐藏创建的，渲染完再让它出现（避免透明窗口先透出桌面）。
+    void invoke('browser:ready').catch(function (error: unknown) {
+      console.warn('[browser] 显示窗口失败', error)
     })
+  }, [])
+
+  useEffect(function () {
+    const stops: Array<() => void> = []
+    void listen<{ url: string }>('navigation://open-url', function (event) {
+      const url = event.payload?.url ?? ''
+      if (url) focusUrlRef.current(url)
+    }).then(function (stop) {
+      stops.push(stop)
+    })
+    // 焦点在网页里时壳层收不到按键：注入脚本把浏览快捷键转成这条消息。
+    void listen<{ key: string }>('navigation://shortcut', function (event) {
+      runBrowserKey(event.payload?.key ?? '')
+    }).then(function (stop) {
+      stops.push(stop)
+    })
+    // 窗口刚建好时事件会丢：Rust 先把地址存着，这里取走。
+    void invoke<string | null>('browser:take-pending')
+      .then(function (url) {
+        if (url) focusUrlRef.current(url)
+      })
+      .catch(function (error: unknown) {
+        console.warn('[browser] 读取待打开地址失败', error)
+      })
+    return function () {
+      for (const stop of stops) stop()
+    }
   }, [])
 
   useEffect(function () {
     let stopped = false
     void (async function () {
-      const session = await readBrowser()
+      const session = await readBrowser(sessionKeyRef.current)
       if (stopped) return
       const next = session.tabs
       const nextActive = session.activeId
@@ -558,7 +602,28 @@ function BrowserChrome(props: BrowserChromeProps) {
       setIsReady(true)
       try {
         const rows = await readLivePages()
-        if (!stopped) adoptLivesRef.current(rows)
+        if (stopped) return
+        // 会话里已经没有的页面（上一轮遗留的集合客页 / 已删标签）占着标签，直接关掉。
+        const known = new Set(
+          next
+            .filter(function (tab) {
+              return Boolean(tab.url)
+            })
+            .map(function (tab) {
+              return tab.id
+            })
+        )
+        for (const row of rows) {
+          if (known.has(row.id)) continue
+          void closePage(row.id).catch(function (error: unknown) {
+            console.warn('[browser] 清理残留页面失败', error)
+          })
+        }
+        adoptLivesRef.current(
+          rows.filter(function (row) {
+            return known.has(row.id)
+          })
+        )
       } catch (error) {
         console.error('[browser] 同步已打开页面失败', error)
       }
@@ -637,20 +702,23 @@ function BrowserChrome(props: BrowserChromeProps) {
 
   useEffect(
     function () {
-      const node = contentRef.current
+      const content = contentRef.current
       const shownId = pageId
-      if (!node || showTiles || !shownId || !pageUrl) return
+      if (!content || showBlank || !shownId || !pageUrl) return
+      // 内容槽的尺寸会因侧栏折叠、工具栏变化、窗口缩放而变，位置也会随之变；
+      // 三个节点都盯住，统一用布局后的实测矩形重新摆位（子 WebView 不会自己跟着布局走）。
       const observer = new ResizeObserver(function () {
-        if (isBoundsLocked.current) return
         if (!readyRef.current.has(shownId)) return
         placeActiveRef.current(findShownBounds())
       })
-      observer.observe(node)
+      for (const node of [content, sideRef.current, toolbarRef.current]) {
+        if (node) observer.observe(node)
+      }
       return function () {
         observer.disconnect()
       }
     },
-    [pageId, pageUrl, showTiles]
+    [pageId, pageUrl, showBlank]
   )
 
   useEffect(function () {
@@ -682,12 +750,6 @@ function BrowserChrome(props: BrowserChromeProps) {
     }
   }, [])
 
-  useEffect(function () {
-    void closeBar().catch(function (error: unknown) {
-      console.error('[browser] 关闭旧地址栏失败', error)
-    })
-  }, [])
-
   async function onImportExtension() {
     const picked = await dialogOpen({ directory: true, multiple: false })
     if (typeof picked !== 'string') return
@@ -696,9 +758,10 @@ function BrowserChrome(props: BrowserChromeProps) {
       setExtensions(result.names)
       setIsExtensionSupported(result.supported)
       await reloadLive(tabsRef.current, activeIdRef.current)
-      toast.success('扩展已导入，页面已重新打开')
+      setNotice({ tone: 'ok', text: '扩展已导入，页面已重新打开' })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '导入扩展失败')
+      console.error('[browser] 导入扩展失败', error)
+      setNotice({ tone: 'fail', text: error instanceof Error ? error.message : '导入扩展失败' })
     }
   }
 
@@ -708,12 +771,41 @@ function BrowserChrome(props: BrowserChromeProps) {
       setExtensions(result.names)
       await reloadLive(tabsRef.current, activeIdRef.current)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '移除扩展失败')
+      console.error('[browser] 移除扩展失败', error)
+      setNotice({ tone: 'fail', text: error instanceof Error ? error.message : '移除扩展失败' })
     }
   }
 
+  // 浏览窗口自己的键位：派发器每个窗口装一份，命令由本视图注册（未挂载就不存在）。
+  useKeyboard()
+  useCommands([
+    { id: COMMAND.BROWSER_TAB_NEW, title: '新建标签', run: createEmpty },
+    {
+      id: COMMAND.BROWSER_TAB_CLOSE,
+      title: '关闭标签',
+      when: function () {
+        return Boolean(activeIdRef.current)
+      },
+      run: function () {
+        const id = activeIdRef.current
+        if (!id) return
+        void closeTab(id)
+      }
+    },
+    { id: COMMAND.BROWSER_ADDRESS_FOCUS, title: '聚焦地址栏', run: requestAddressFocus },
+    {
+      id: COMMAND.BROWSER_WINDOW_NEW,
+      title: '新建浏览窗口',
+      run: function () {
+        void spawnBrowser().catch(function (error: unknown) {
+          console.error('[browser] 新建浏览窗口失败', error)
+        })
+      }
+    }
+  ])
+
   return (
-    <div className="flex min-h-0 min-w-0 flex-1">
+    <div className="flex h-screen w-screen overflow-hidden bg-transparent text-foreground">
       <div
         ref={sideRef}
         className="flex shrink-0 self-stretch">
@@ -739,6 +831,7 @@ function BrowserChrome(props: BrowserChromeProps) {
           onOpenUrl={focusUrl}
           activeMemberId={surface === 'page' ? (guest?.id ?? '') : ''}
           lives={lives}
+          notice={notice}
           onOpenMember={openCollection}
           onCloseMember={function (id) {
             void closeCollection(id)
@@ -770,13 +863,9 @@ function BrowserChrome(props: BrowserChromeProps) {
         onBind={function (node) {
           toolbarRef.current = node
         }}
+        controlsTooltipSide="left"
         trailing={
           <>
-            <MirrorSwitcher
-              isCompact
-              menuSide="bottom"
-            />
-            <CaptionStatus />
             <Button
               variant="ghost"
               size="icon"
@@ -813,10 +902,6 @@ function BrowserChrome(props: BrowserChromeProps) {
                 aria-hidden
               />
             </Button>
-            <CaptionAccount
-              isIcon
-              onSignIn={props.onSignIn}
-            />
           </>
         }>
         <Omnibox
@@ -827,7 +912,7 @@ function BrowserChrome(props: BrowserChromeProps) {
           onAddress={setAddress}
           onSubmit={openAddress}
           onEngine={chooseEngine}
-          onHome={goTiles}
+          onHome={goBlank}
           onBack={function () {
             if (!pageUrl) return
             noteLoad(pageId)
@@ -843,17 +928,14 @@ function BrowserChrome(props: BrowserChromeProps) {
             noteLoad(pageId)
             void reloadPage(pageId)
           }}
-          onCover={pageStack.holdSuggest}
         />
       </BrowserBar>
         <div
           ref={contentRef}
           className="min-h-0 min-w-0 flex-1 bg-transparent">
-          {showTiles ? (
-            <div className={clsx(styles.overview, styles.core, 'h-full')}>
-              <Controller.Mirror>
-                <Controller.MagneticTile />
-              </Controller.Mirror>
+          {showBlank ? (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              输入网址或搜索，Enter 打开
             </div>
           ) : null}
         </div>

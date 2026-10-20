@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { findPageMark, lifeLabel, type PageLife } from '@/views/overview/browser/sidebar'
+import { findPageMark, lifeLabel, type PageLife } from '@/views/browser/sidebar'
 
 describe('findPageMark', function () {
   const lives: Record<string, PageLife> = {

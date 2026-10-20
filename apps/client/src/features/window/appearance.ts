@@ -215,15 +215,22 @@ function syncNativeWindow(appearance: Appearance) {
     })
 }
 
-function applyAppearance(appearance: Appearance) {
+/** 只把外观套到当前文档。子 WebView 用它：它没有自己的窗口，不能去改材质。 */
+function paintDocument() {
   if (typeof document === 'undefined') return
-
+  const appearance = readAppearance()
   const root = document.documentElement
   root.classList.toggle('dark', isDarkMode(appearance.mode))
   root.dataset.motion = findEffectiveMotion(appearance.motion)
   root.style.setProperty('--primary', appearance.color)
   root.style.setProperty('--primary-foreground', appearance.foreground)
   root.style.setProperty('--radius', `${appearance.radius}px`)
+}
+
+function applyAppearance(appearance: Appearance) {
+  if (typeof document === 'undefined') return
+
+  paintDocument()
   syncNativeWindow(appearance)
   notifyAppearance()
 }
@@ -340,6 +347,7 @@ export {
   findWindowEffects,
   findWindowTheme,
   isDarkMode,
+  paintDocument,
   readAppearance,
   readMotionConfig,
   resetAppearance,

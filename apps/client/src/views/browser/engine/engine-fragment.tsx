@@ -13,8 +13,8 @@ import {
   type OverviewScrollSession,
   type IndicatorDriver
 } from '@/lib/overview-scroll'
-import { ENGINE_UI } from '@/views/overview/engine/engine-constants'
-import { parseSuggestionLabel } from '@/views/overview/engine/engine-url'
+import { ENGINE_UI } from '@/views/browser/engine/engine-constants'
+import { parseSuggestionLabel } from '@/views/browser/engine/engine-url'
 import styles from '@/views/overview/overview.module.scss'
 
 interface EngineFragmentProps {

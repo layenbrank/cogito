@@ -2,7 +2,7 @@
  * 搜索关键词 / 建议 URL 解析
  */
 import type { SearchEngine } from '@/constants/engine'
-import { ENGINE_UI } from '@/views/overview/engine/engine-constants'
+import { ENGINE_UI } from '@/views/browser/engine/engine-constants'
 
 interface SuggestionItem {
   q: string

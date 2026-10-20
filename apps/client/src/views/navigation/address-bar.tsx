@@ -1,19 +1,30 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
 import { Input } from '@i-thinking/design/components/input'
+import { emitTo, listen } from '@tauri-apps/api/event'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useClickOutside } from '@reactuses/core'
 import { clsx } from 'clsx'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 
 import { ENGINES, findEngine } from '@/constants/engine'
-import { findAddressUrl, findItemUrl, parseSuggestionLabel } from '@/views/overview/engine/engine-url'
+import { findPopupLabel } from '@/features/window/kind'
+import { findAddressUrl, findItemUrl, parseSuggestionLabel } from '@/views/browser/engine/engine-url'
+import { onAddressFocus } from '@/views/navigation/address-focus'
 import {
+  closePopup,
   completeAddress,
+  openPopup,
   SUGGEST_BORDER,
+  SUGGEST_DISMISS,
+  SUGGEST_FRAME,
   SUGGEST_ITEM_GAP,
   SUGGEST_PAD,
+  SUGGEST_PICK,
+  SUGGEST_READY,
   SUGGEST_ROW,
-  type SuggestFrame,
+  SUGGEST_SHADOW,
+  type Bounds,
   type SuggestRow
 } from '@/views/navigation/ipc'
 
@@ -23,8 +34,6 @@ interface AddressBarProps {
   onValue: (value: string) => void
   onSubmit: (url: string) => void
   onEngine: (key: string) => void
-  onSuggest?: (frame: SuggestFrame) => void
-  joined?: boolean
 }
 
 function EngineStrip(props: { engineKey: string; isOpen: boolean; onPick: (key: string) => void }) {
@@ -95,37 +104,57 @@ function EngineStrip(props: { engineKey: string; isOpen: boolean; onPick: (key: 
 }
 
 function AddressBar(props: AddressBarProps) {
-  const { value, engineKey, onValue, onSubmit, onEngine, onSuggest, joined } = props
+  const { value, engineKey, onValue, onSubmit, onEngine } = props
   const rootRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const typedRef = useRef(value)
   const pendingRef = useRef('')
-  const onSuggestRef = useRef(onSuggest)
   const seqRef = useRef(0)
   const didOpenRef = useRef(false)
   const rowsRef = useRef<SuggestRow[]>([])
+  const activeRef = useRef(0)
+  const geometryRef = useRef<Bounds | null>(null)
   const focusedRef = useRef(false)
-  const hideTimerRef = useRef(0)
+  const submitUrlRef = useRef<(url: string) => void>(function () {})
+  const clearListRef = useRef(function () {})
+  const sendFrameRef = useRef(function () {})
   const [isEngineOpen, setIsEngineOpen] = useState(false)
   const [rows, setRows] = useState<SuggestRow[]>([])
   const [active, setActive] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
   const engine = findEngine(engineKey)
 
-  useEffect(function () {
-    onSuggestRef.current = onSuggest
-  }, [onSuggest])
-
   useClickOutside(rootRef, function () {
     setIsEngineOpen(false)
+    setIsOpen(false)
   })
 
+  // 浮层是独立的 owned 窗口，位置按屏幕坐标算好；窗口一动就对不上。
+  useEffect(function () {
+    function close() {
+      setIsOpen(false)
+    }
+    window.addEventListener('resize', close)
+    let stop: (() => void) | undefined
+    void getCurrentWindow()
+      .onMoved(close)
+      .then(function (off) {
+        stop = off
+      })
+      .catch(function (error: unknown) {
+        console.warn('[navigation] 监听窗口移动失败', error)
+      })
+    return function () {
+      window.removeEventListener('resize', close)
+      stop?.()
+    }
+  }, [])
+
   function hideList() {
-    window.clearTimeout(hideTimerRef.current)
     setIsOpen(false)
   }
 
   function clearList() {
-    window.clearTimeout(hideTimerRef.current)
     seqRef.current += 1
     rowsRef.current = []
     setRows([])
@@ -141,7 +170,6 @@ function AddressBar(props: AddressBarProps) {
   }
 
   function reopenList() {
-    window.clearTimeout(hideTimerRef.current)
     if (rowsRef.current.length === 0) return
     setIsOpen(true)
   }
@@ -207,32 +235,107 @@ function AddressBar(props: AddressBarProps) {
     [value, engine]
   )
 
+  function sendFrame() {
+    const geometry = geometryRef.current
+    if (!geometry || rowsRef.current.length === 0) return
+    void emitTo(findPopupLabel(), SUGGEST_FRAME, {
+      open: true,
+      ...geometry,
+      rows: rowsRef.current,
+      active: activeRef.current
+    }).catch(function (error: unknown) {
+      console.warn('[navigation] 推送建议列表失败', error)
+    })
+  }
+
+  useEffect(function () {
+    activeRef.current = active
+    submitUrlRef.current = submitUrl
+    clearListRef.current = clearList
+    sendFrameRef.current = sendFrame
+  })
+
+  // 键位命令只能通过信号找到输入框：聚焦并全选，列表由 onFocus 重新拉起。
+  useEffect(function () {
+    return onAddressFocus(function () {
+      const input = inputRef.current
+      if (!input) return
+      input.focus()
+      input.select()
+    })
+  }, [])
+
+  // 浮层只负责显示：矩形在这里算好交给原生层，网页本身既不移动也不缩放。
   useEffect(
     function () {
-      const publish = onSuggestRef.current
-      if (!publish) return
-      const node = rootRef.current
-      if (!isOpen || !node || rows.length === 0) {
+      if (!isOpen || rows.length === 0) {
+        geometryRef.current = null
         if (!didOpenRef.current) return
         didOpenRef.current = false
-        publish({ open: false, x: 0, y: 0, width: 0, height: 0, rows: [], active: 0 })
+        void closePopup().catch(function (error: unknown) {
+          console.warn('[navigation] 关闭建议浮层失败', error)
+        })
         return
       }
-      didOpenRef.current = true
+      const node = rootRef.current
+      if (!node) return
       const rect = node.getBoundingClientRect()
       const gaps = Math.max(0, rows.length - 1) * SUGGEST_ITEM_GAP
-      publish({
-        open: true,
-        x: rect.x,
+      geometryRef.current = {
+        x: rect.x - SUGGEST_SHADOW,
         y: rect.y + rect.height - SUGGEST_BORDER,
-        width: rect.width,
-        height: SUGGEST_PAD + rows.length * SUGGEST_ROW + gaps + SUGGEST_BORDER * 2,
-        rows,
-        active
-      })
+        width: rect.width + SUGGEST_SHADOW * 2,
+        height: SUGGEST_PAD + rows.length * SUGGEST_ROW + gaps + SUGGEST_BORDER * 2 + SUGGEST_SHADOW
+      }
+      didOpenRef.current = true
+      void openPopup(geometryRef.current).then(
+        function () {
+          sendFrameRef.current()
+        },
+        function (error: unknown) {
+          console.warn('[navigation] 打开建议浮层失败', error)
+        }
+      )
+    },
+    [isOpen, rows]
+  )
+
+  // 内容变化（新一批建议 / 上下键）只推帧，不碰原生矩形。
+  useEffect(
+    function () {
+      if (!isOpen) return
+      sendFrameRef.current()
     },
     [isOpen, rows, active]
   )
+
+  // 浮层首次就绪时向宿主要一次当前建议：建 WebView 与首次推帧之间有竞态。
+  useEffect(function () {
+    const stops: Array<() => void> = []
+    void listen(SUGGEST_READY, function () {
+      sendFrameRef.current()
+    }).then(function (stop) {
+      stops.push(stop)
+    })
+    void listen<{ url: string }>(SUGGEST_PICK, function (event) {
+      submitUrlRef.current(event.payload.url)
+    }).then(function (stop) {
+      stops.push(stop)
+    })
+    void listen(SUGGEST_DISMISS, function () {
+      clearListRef.current()
+    }).then(function (stop) {
+      stops.push(stop)
+    })
+    return function () {
+      for (const stop of stops) stop()
+      if (!didOpenRef.current) return
+      didOpenRef.current = false
+      void closePopup().catch(function (error: unknown) {
+        console.warn('[navigation] 关闭建议浮层失败', error)
+      })
+    }
+  }, [])
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.nativeEvent.isComposing) return
@@ -265,7 +368,7 @@ function AddressBar(props: AddressBarProps) {
       <div
         className={clsx(
           'box-border flex h-10 items-center border transition-[background-color,border-color,border-radius,box-shadow] duration-150 ease-[ease] motion-reduce:transition-none',
-          joined
+          isOpen
             ? 'rounded-t-[18px] rounded-b-none border-ring border-b-transparent bg-background shadow-none'
             : 'rounded-full border-transparent bg-muted shadow-none focus-within:border-ring focus-within:bg-background focus-within:ring-2 focus-within:ring-ring/25'
         )}>
@@ -301,6 +404,7 @@ function AddressBar(props: AddressBarProps) {
           }}
         />
         <Input
+          ref={inputRef}
           value={value}
           data-region="false"
           placeholder="搜索或输入网址"
@@ -320,9 +424,9 @@ function AddressBar(props: AddressBarProps) {
             reopenList()
           }}
           onBlur={function () {
+            // 列表在原生浮层里，点它会让输入框失焦。这里不能立即收起，
+            // 否则点击会被吞掉；收起交给 Esc / 回车 / 点击外部 / 浮层失焦。
             focusedRef.current = false
-            window.clearTimeout(hideTimerRef.current)
-            hideTimerRef.current = window.setTimeout(hideList, 80)
           }}
           onClick={reopenList}
         />

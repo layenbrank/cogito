@@ -10,6 +10,7 @@ interface ControlButtonProps {
   control: WindowControl
   state: CaptionState
   onRefresh: () => void
+  tooltipSide: 'bottom' | 'left'
 }
 
 function ControlButton(props: ControlButtonProps) {
@@ -49,7 +50,7 @@ function ControlButton(props: ControlButtonProps) {
           aria-hidden
         />
       </TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
+      <TooltipContent side={props.tooltipSide}>{label}</TooltipContent>
     </Tooltip>
   )
 }
@@ -59,6 +60,11 @@ interface WindowControlsProps {
   onRefresh: () => void
   /** 不传则只渲染默认键（最小化 / 最大化 / 关闭） */
   controls?: readonly WindowControl[]
+  /**
+   * 提示气泡的方向。承载网页的窗口要用 `left`：向下会掉进内容槽，
+   * 而 DOM 永远盖不住原生子 WebView。
+   */
+  tooltipSide?: 'bottom' | 'left'
 }
 
 function WindowControls(props: WindowControlsProps) {
@@ -77,6 +83,7 @@ function WindowControls(props: WindowControlsProps) {
             key={control.key}
             control={control}
             state={props.state}
+            tooltipSide={props.tooltipSide ?? 'bottom'}
             onRefresh={props.onRefresh}
           />
         )

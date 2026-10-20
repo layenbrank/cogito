@@ -1,10 +1,9 @@
-import { emit } from '@tauri-apps/api/event'
 import { toast } from 'sonner'
 
 import { findTileRoute } from '@/constants/magnetic-tile/window'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
-import { NAVIGATION_OPEN_URL } from '@/features/magnetic-tile/open-url'
 import { admitSession } from '@/features/magnetic-tile/session'
+import { openBrowser } from '@/views/browser/open'
 import { parseOriginRect, useCollectionStore } from '@/stores/collection'
 
 type Tile = Pick<MagneticTile, 'component' | 'url' | 'id'>
@@ -25,7 +24,7 @@ function findTileWindowUrl(tile: Tile) {
 }
 
 async function openNavigation(url: string) {
-  await emit(NAVIGATION_OPEN_URL, { url })
+  await openBrowser(url)
 }
 
 function findCollectionOriginRect(id: string) {

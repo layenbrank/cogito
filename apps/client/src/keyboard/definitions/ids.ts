@@ -54,6 +54,12 @@ export const COMMAND = {
   DIRECTIVE_UNDO: 'directive.undo',
   DIRECTIVE_REDO: 'directive.redo',
 
+  // 浏览窗口（独立窗口）
+  BROWSER_TAB_NEW: 'browser.tab.new',
+  BROWSER_TAB_CLOSE: 'browser.tab.close',
+  BROWSER_ADDRESS_FOCUS: 'browser.address.focus',
+  BROWSER_WINDOW_NEW: 'browser.window.new',
+
   // morph（PDF 标注）工具切换：一个工具一个 id，键位就是工具名首字母
   MORPH_TOOL_SELECT: 'morph.tool.select',
   MORPH_TOOL_TEXT: 'morph.tool.text',

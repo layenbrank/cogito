@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy } from 'react'
 import { Navigate, createBrowserRouter, useLocation, type RouteObject } from 'react-router-dom'
 import { AppHost } from '@/features/magnetic-tile/host'
 import Overlay from '@/views/overlay/overlay'
@@ -113,12 +113,6 @@ const Morph = lazy(function () {
   return import('@/views/morph/morph.tsx')
 })
 
-const NavigationBar = lazy(function () {
-  return import('@/views/navigation/bar.tsx').then(function (mod) {
-    return { default: mod.NavigationBar }
-  })
-})
-
 const Settings = lazy(function () {
   return import('@/views/settings/settings.tsx')
 })
@@ -132,14 +126,6 @@ const Signboard = lazy(function () {
  * 新增路由不用各自处理动效。
  */
 const routes: RouteObject[] = [
-  {
-    path: '/navigation/bar',
-    element: (
-      <Suspense fallback={null}>
-        <NavigationBar />
-      </Suspense>
-    )
-  },
   {
     element: <AppHost />,
     children: [

@@ -18,24 +18,15 @@ import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { clsx } from 'clsx'
-import { useState, useSyncExternalStore, type MouseEvent, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, type MouseEvent, type ReactNode } from 'react'
 
 import { useCaptionState } from '@/components/caption/caption'
-import { findComponentLabel } from '@/constants/marketplace/tile-hints'
-import { activateTile } from '@/features/magnetic-tile/activate'
-import {
-  dismissSession,
-  readSessions,
-  subscribeSessions,
-  type TileSession
-} from '@/features/magnetic-tile/session'
 import { CHANNELS } from '@/shared/ipc/channels'
 import { useMirrorStore } from '@/stores/mirror'
 import { BROWSER_BAR } from '@/features/browser-bar/metrics'
-import { SIDEBAR_OPEN, SIDEBAR_SHUT } from '@/views/overview/browser/bounds'
-import { findFavicon, findHost } from '@/views/overview/browser/label'
-import type { BrowserPanel, DownloadItem } from '@/views/overview/browser/types'
+import { SIDEBAR_OPEN, SIDEBAR_SHUT } from '@/views/browser/bounds'
+import { findFavicon, findHost } from '@/views/browser/label'
+import type { BrowserNotice, BrowserPanel, DownloadItem } from '@/views/browser/types'
 import type { Tab } from '@/views/navigation/session'
 
 interface BrowserSidebarProps {
@@ -56,6 +47,8 @@ interface BrowserSidebarProps {
   onOpenUrl: (url: string) => void
   activeMemberId: string
   lives: Record<string, PageLife>
+  /** 侧栏内联提示：操作结果就在做事的那个面板里显示，不进内容槽。 */
+  notice: BrowserNotice | null
   onOpenMember: (tile: MagneticTile) => void
   onCloseMember: (id: string) => void
   onSearch: (query: string) => void
@@ -361,123 +354,6 @@ function UrlRow(props: UrlRowProps) {
   )
 }
 
-const SESSION_ICON: Partial<Record<MagneticTile.Component, string>> = {
-  agent: 'lucide:bot',
-  bookmark: 'lucide:bookmark',
-  calendar: 'lucide:calendar',
-  capture: 'lucide:camera',
-  clipchamp: 'lucide:clapperboard',
-  clock: 'lucide:clock',
-  code: 'lucide:code-xml',
-  countdown: 'lucide:timer',
-  developer: 'lucide:terminal',
-  directive: 'lucide:workflow',
-  example: 'lucide:box',
-  gallery: 'lucide:images',
-  markdown: 'lucide:file-text',
-  marketplace: 'lucide:store',
-  morph: 'lucide:shapes',
-  settings: 'lucide:settings',
-  signboard: 'lucide:square-kanban'
-}
-
-function findSessionIcon(component: MagneticTile.Component) {
-  return SESSION_ICON[component] ?? 'lucide:app-window'
-}
-
-function LiveTiles(props: { isOpen: boolean; query: string }) {
-  const navigate = useNavigate()
-  const sessions = useSyncExternalStore(subscribeSessions, readSessions)
-  const [isFoldOpen, setIsFoldOpen] = useState(true)
-  const visible = sessions.filter(function (session) {
-    return matches(props.query, findComponentLabel(session.component))
-  })
-  if (visible.length === 0) return null
-
-  return (
-    <section className={props.isOpen ? OPEN_STACK : undefined}>
-      {props.isOpen ? (
-        <SectionLabel
-          isOpen={isFoldOpen}
-          label="应用"
-          onToggle={function () {
-            setIsFoldOpen(function (current) {
-              return !current
-            })
-          }}
-        />
-      ) : null}
-      <Fold
-        isOpen={!props.isOpen || isFoldOpen}
-        className={props.isOpen ? OPEN_STACK : SHUT_STACK}>
-        {visible.map(function (session) {
-          return (
-            <LiveTileRow
-              key={session.component}
-              session={session}
-              isOpen={props.isOpen}
-              onOpen={function () {
-                void navigate(session.path)
-              }}
-              onDismiss={function () {
-                dismissSession(session.component)
-              }}
-            />
-          )
-        })}
-      </Fold>
-    </section>
-  )
-}
-
-function LiveTileRow(props: {
-  session: TileSession
-  isOpen: boolean
-  onOpen: () => void
-  onDismiss: () => void
-}) {
-  const label = findComponentLabel(props.session.component)
-
-  return (
-    <div className={clsx(rowClass(props.isOpen), ROW_IDLE, ENTER)}>
-      <button
-        type="button"
-        aria-label={`${label}，已打开`}
-        title={label}
-        className={clsx(
-          'flex items-center text-left',
-          hitClass(props.isOpen),
-          !props.isOpen && 'relative'
-        )}
-        onClick={props.onOpen}>
-        <Icon
-          icon={findSessionIcon(props.session.component)}
-          className={clsx(MARK_BOX, 'text-sidebar-foreground/70')}
-          aria-hidden
-        />
-        <LifeDot
-          mark="ok"
-          isOpen={props.isOpen}
-        />
-        {props.isOpen ? <span className="truncate">{label}</span> : null}
-      </button>
-      {props.isOpen ? (
-        <button
-          type="button"
-          aria-label="结束"
-          className="flex size-5 shrink-0 items-center justify-center rounded-full opacity-0 transition-opacity duration-150 hover:bg-foreground/10 group-hover/row:opacity-100 focus-visible:opacity-100"
-          onClick={props.onDismiss}>
-          <Icon
-            icon="lucide:x"
-            className="size-3.5"
-            aria-hidden
-          />
-        </button>
-      ) : null}
-    </div>
-  )
-}
-
 function BrowserSidebar(props: BrowserSidebarProps) {
   const [filter, setFilter] = useState('')
   const [draggingId, setDraggingId] = useState<string | null>(null)
@@ -545,14 +421,6 @@ function BrowserSidebar(props: BrowserSidebarProps) {
     setDraggingId(null)
   }
 
-  function openMember(tile: MagneticTile) {
-    if (tile.url) {
-      props.onOpenMember(tile)
-      return
-    }
-    void activateTile({ component: tile.component, url: tile.url, id: tile.id })
-  }
-
   const visibleTabs = props.tabs.filter(function (tab) {
     return matches(query, tab.title) || matches(query, tab.url)
   })
@@ -562,19 +430,14 @@ function BrowserSidebar(props: BrowserSidebarProps) {
   const visibleCollections = collections.filter(function (group) {
     if (matches(query, group.title)) return true
     return (members[group.id] ?? []).some(function (member) {
-      return matches(query, member.title) || matches(query, member.url ?? '')
+      return Boolean(member.url) && (matches(query, member.title) || matches(query, member.url ?? ''))
     })
-  })
-  const sessions = useSyncExternalStore(subscribeSessions, readSessions)
-  const hasVisibleSession = sessions.some(function (session) {
-    return matches(query, findComponentLabel(session.component))
   })
   const isEmpty =
     query.length > 0 &&
     visibleTabs.length === 0 &&
     visibleSearches.length === 0 &&
-    visibleCollections.length === 0 &&
-    !hasVisibleSession
+    visibleCollections.length === 0
   const draggingTab = props.tabs.find(function (tab) {
     return tab.id === draggingId
   })
@@ -627,10 +490,6 @@ function BrowserSidebar(props: BrowserSidebarProps) {
                 没有匹配项
               </p>
             ) : null}
-            <LiveTiles
-              isOpen={props.isOpen}
-              query={query}
-            />
             <section className={props.isOpen ? OPEN_STACK : undefined}>
               {props.isOpen ? (
                 <SectionLabel
@@ -734,11 +593,13 @@ function BrowserSidebar(props: BrowserSidebarProps) {
             </section>
             {visibleCollections.map(function (group) {
               const isGroupOpen = Boolean(openGroups[group.id])
+              // 浏览器窗口只负责浏览：没有网址的成员属于工作台，不在这里出现。
               const rows = (members[group.id] ?? []).filter(function (member) {
+                if (!member.url) return false
                 return (
                   matches(query, group.title) ||
                   matches(query, member.title) ||
-                  matches(query, member.url ?? '')
+                  matches(query, member.url)
                 )
               })
               return (
@@ -811,7 +672,7 @@ function BrowserSidebar(props: BrowserSidebarProps) {
                                 !props.isOpen && mark && 'relative'
                               )}
                               onClick={function () {
-                                openMember(member)
+                                props.onOpenMember(member)
                               }}>
                               <SiteMark
                                 url={url}
@@ -929,6 +790,18 @@ function BrowserSidebar(props: BrowserSidebarProps) {
                 {props.isExtensionSupported
                   ? '扩展放在应用数据目录 extensions。导入后会重新打开页面。'
                   : '当前系统不能加载 Chrome 扩展。'}
+              </p>
+            ) : null}
+            {props.notice ? (
+              <p
+                role="status"
+                className={clsx(
+                  'rounded-md px-2 py-1.5 text-xs leading-5',
+                  props.notice.tone === 'ok'
+                    ? 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-destructive/12 text-destructive'
+                )}>
+                {props.notice.text}
               </p>
             ) : null}
             <Button

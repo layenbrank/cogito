@@ -1,26 +1,36 @@
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, LazyLock, Mutex};
 
 use serde::{Deserialize, Serialize};
 use tauri::webview::{DownloadEvent, NewWindowResponse, PageLoadEvent, WebviewBuilder};
 use tauri::{
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Position, Size, State, Url,
-    WebviewUrl,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, PhysicalPosition, PhysicalSize,
+    Position, Size, State, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
 use uuid::Uuid;
 
 use crate::navigation::state::NavigationState;
 
 const PAGE_PREFIX: &str = "page-";
-const BAR_LABEL: &str = "navigation-bar";
-const BAR_URL: &str = "/navigation/bar";
-const MAIN_LABEL: &str = "main";
+/// 浏览窗口的基础 label；第二扇起是 `browser-2`、`browser-3`…（编号会被回收复用）。
+const BROWSER: &str = "browser";
+const BROWSER_PREFIX: &str = "browser-";
+/// 地址建议浮层的 label 前缀。每扇浏览窗口一个浮层：`navigation-popup-browser-2`。
+const POPUP_PREFIX: &str = "navigation-popup-";
+/// 浮层与主壳共用同一个入口，靠 webview label 在渲染层分流。
+const POPUP_PAGE: &str = "index.html";
 const OPEN_URL_MARK: &str = "i-thinking:open-url:";
+/// 网页里的 Ctrl/⌘ + 浏览快捷键。网页跑在独立子 WebView 里，壳层收不到它的按键，
+/// 所以由注入脚本拦住这几键再转给宿主。
+const SHORTCUT_MARK: &str = "i-thinking:shortcut:";
 
-/// 在 WebView2 处理点击之前把新窗口地址交给宿主。`postMessage` 成功后才取消默认动作，避免只吞掉点击。
-const OPEN_URL_SCRIPT: &str = r#"(function () {
-  var mark = "i-thinking:open-url:"
+/// 宿主桥脚本：在 WebView2 处理点击/按键之前把「要开新窗口」与「浏览快捷键」交给宿主。
+/// `postMessage` 成功后才取消默认动作，避免只吞掉点击。
+const BRIDGE_SCRIPT: &str = r#"(function () {
+  var openMark = "i-thinking:open-url:"
+  var keyMark = "i-thinking:shortcut:"
+  function bridge() {
+    return window.chrome && window.chrome.webview && window.chrome.webview.postMessage
+  }
   function classify(raw) {
     try {
       var url = new URL(raw, document.baseURI)
@@ -33,8 +43,8 @@ const OPEN_URL_SCRIPT: &str = r#"(function () {
   function send(raw) {
     var parsed = classify(raw)
     if (parsed.kind !== "http") return parsed.kind
-    if (!window.chrome || !window.chrome.webview || !window.chrome.webview.postMessage) return "skip"
-    window.chrome.webview.postMessage(mark + parsed.href)
+    if (!bridge()) return "skip"
+    window.chrome.webview.postMessage(openMark + parsed.href)
     return "sent"
   }
   function isNewTarget(target) {
@@ -62,6 +72,15 @@ const OPEN_URL_SCRIPT: &str = r#"(function () {
       event.stopPropagation()
     }
   }, true)
+  document.addEventListener("keydown", function (event) {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return
+    var key = (event.key || "").toLowerCase()
+    if (key !== "t" && key !== "w" && key !== "l" && key !== "n") return
+    if (!bridge()) return
+    event.preventDefault()
+    event.stopPropagation()
+    window.chrome.webview.postMessage(keyMark + key)
+  }, true)
   var nativeOpen = window.open
   window.open = function (url) {
     if (typeof url !== "string") return nativeOpen.apply(window, arguments)
@@ -71,11 +90,61 @@ const OPEN_URL_SCRIPT: &str = r#"(function () {
   }
 })()"#;
 
-fn require_main(window: &tauri::Window) -> Result<(), String> {
-    if window.label() == MAIN_LABEL {
+/// 浏览窗口的 label（`browser` / `browser-2`…）→ 序号；其它窗口返回 `None`。
+pub(crate) fn browser_index(label: &str) -> Option<u32> {
+    if label == BROWSER {
+        return Some(1);
+    }
+    label.strip_prefix(BROWSER_PREFIX)?.parse().ok()
+}
+
+pub(crate) fn is_browser(label: &str) -> bool {
+    browser_index(label).is_some()
+}
+
+fn browser_label(index: u32) -> String {
+    if index <= 1 {
+        BROWSER.to_string()
+    } else {
+        format!("{BROWSER_PREFIX}{index}")
+    }
+}
+
+/// 第一个空出来的编号。关闭窗口后编号会被复用，所以创建前必须先清掉同名残留。
+fn free_browser(app: &AppHandle) -> String {
+    let mut index = 1;
+    loop {
+        let label = browser_label(index);
+        if app.get_webview_window(&label).is_none() {
+            return label;
+        }
+        index += 1;
+    }
+}
+
+/// 已有浏览窗口：聚焦中的优先，否则编号最大的（最近打开的那扇）。
+fn find_browser(app: &AppHandle) -> Option<WebviewWindow> {
+    let mut windows: Vec<(u32, WebviewWindow)> = app
+        .webview_windows()
+        .into_iter()
+        .filter_map(|(label, window)| browser_index(&label).map(|index| (index, window)))
+        .collect();
+    if let Some((_, window)) = windows
+        .iter()
+        .find(|(_, window)| window.is_focused().unwrap_or(false))
+    {
+        return Some(window.clone());
+    }
+    windows.sort_by_key(|(index, _)| *index);
+    windows.pop().map(|(_, window)| window)
+}
+
+/// 网页与地址建议浮层只能挂在浏览窗口上；工作台窗口不承载网页。
+fn require_browser(window: &tauri::Window) -> Result<(), String> {
+    if is_browser(window.label()) {
         Ok(())
     } else {
-        Err("网址页面只能挂在主窗口".to_string())
+        Err("网址页面只能挂在浏览窗口".to_string())
     }
 }
 
@@ -124,6 +193,11 @@ struct OpenUrlPayload {
 }
 
 #[derive(Clone, Serialize)]
+struct ShortcutPayload {
+    key: String,
+}
+
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PagePayload {
     id: String,
@@ -151,23 +225,6 @@ fn finish_ok(url: &str, reported: Option<bool>) -> bool {
         return ok;
     }
     url.starts_with("http://") || url.starts_with("https://")
-}
-
-fn parse_probe(raw: &str) -> Option<bool> {
-    let text = serde_json::from_str::<String>(raw).unwrap_or_else(|_| raw.to_string());
-    let (ready, href) = text.split_once('\n')?;
-    let href = href.trim();
-    if href.starts_with("chrome-error:") || href.starts_with("edge-error:") {
-        return Some(false);
-    }
-    let is_http = href.starts_with("http://") || href.starts_with("https://");
-    if !is_http {
-        return None;
-    }
-    match ready.trim() {
-        "complete" | "interactive" => Some(true),
-        _ => None,
-    }
 }
 
 #[derive(Clone, Serialize)]
@@ -370,12 +427,77 @@ fn place(webview: &tauri::Webview, x: f64, y: f64, width: f64, height: f64) -> R
         .map_err(|err| err.to_string())
 }
 
-fn find_page(state: &NavigationState, id: &str) -> Result<tauri::Webview, String> {
+/// 只认属于这扇窗口的页面：多窗口并存时不能把别人的页面摆进自己的内容槽。
+fn find_page(state: &NavigationState, shell: &str, id: &str) -> Result<tauri::Webview, String> {
     let pages = state.pages.lock().map_err(|err| err.to_string())?;
-    pages
+    let webview = pages
         .get(&page_label(id))
         .cloned()
-        .ok_or_else(|| "页面不存在".to_string())
+        .ok_or_else(|| "页面不存在".to_string())?;
+    if webview.window().label() != shell {
+        return Err("页面不属于当前窗口".to_string());
+    }
+    Ok(webview)
+}
+
+/// 收起某扇窗口名下的页面；`keep` 指定的页面保持原样（切换时目标页不能被藏一下再显示）。
+fn hide_pages(state: &NavigationState, shell: &str, keep: Option<&str>) -> Result<(), String> {
+    let pages = state.pages.lock().map_err(|err| err.to_string())?;
+    for (label, page) in pages.iter() {
+        if keep == Some(label.as_str()) || page.window().label() != shell {
+            continue;
+        }
+        let _ = page.hide();
+    }
+    Ok(())
+}
+
+fn set_surface(state: &NavigationState, shell: &str, value: Option<String>) -> Result<(), String> {
+    state
+        .surfaces
+        .lock()
+        .map_err(|err| err.to_string())?
+        .insert(shell.to_string(), value);
+    Ok(())
+}
+
+/// 窗口销毁后清掉它名下的引用。label 会被复用，残留句柄会让下一扇同编号窗口拿到已销毁的页面。
+pub(crate) fn prune(app: &AppHandle, shell: &str) {
+    let Some(state) = app.try_state::<NavigationState>() else {
+        return;
+    };
+    prune_space(&state, shell);
+}
+
+fn prune_space(state: &NavigationState, shell: &str) {
+    let stale: Vec<String> = {
+        let Ok(mut pages) = state.pages.lock() else {
+            return;
+        };
+        let stale: Vec<String> = pages
+            .iter()
+            .filter(|(_, page)| page.window().label() == shell)
+            .map(|(label, _)| label.clone())
+            .collect();
+        for label in &stale {
+            pages.remove(label);
+        }
+        stale
+    };
+    if let Ok(mut lives) = state.lives.lock() {
+        for label in &stale {
+            lives.remove(label);
+        }
+    }
+    if let Ok(mut surfaces) = state.surfaces.lock() {
+        surfaces.remove(shell);
+    }
+    if let Ok(mut popups) = state.popups.lock() {
+        popups.remove(shell);
+    }
+    if let Ok(mut pendings) = state.pendings.lock() {
+        pendings.remove(shell);
+    }
 }
 
 /// 记下这次导航是否成功。切走只隐藏 WebView，关闭才销毁，所以结果要单独报给侧栏。
@@ -426,7 +548,7 @@ fn bind_external(
     unsafe { core.add_LaunchingExternalUriScheme(&handler, &mut token) }
 }
 
-/// 页面脚本在取消点击之前送来的 http/https。这里再发给侧栏开「网址」标签。
+/// 页面脚本在取消点击/按键之前送来的宿主消息：新窗口地址，或要落的浏览快捷键。
 #[cfg(windows)]
 fn bind_open_url(
     platform: tauri::webview::PlatformWebview,
@@ -446,6 +568,17 @@ fn bind_open_url(
             return Ok(());
         }
         let message = read_pwstr(raw);
+        if let Some(key) = message.strip_prefix(SHORTCUT_MARK) {
+            emit_shell(
+                &app,
+                &shell,
+                "navigation://shortcut",
+                ShortcutPayload {
+                    key: key.to_string(),
+                },
+            );
+            return Ok(());
+        }
         let Some(url) = message.strip_prefix(OPEN_URL_MARK) else {
             return Ok(());
         };
@@ -472,45 +605,6 @@ fn read_pwstr(ptr: windows::core::PWSTR) -> String {
 #[cfg(not(windows))]
 fn watch_load(_webview: &tauri::Webview, _app: AppHandle, _shell: String) {}
 
-/// 页面已经创建过时，NavigationCompleted 不会再来一次。读当前文档，补上侧栏缺的成功或失败。
-#[cfg(windows)]
-fn probe_loaded(webview: &tauri::Webview) -> Option<bool> {
-    use std::sync::mpsc::sync_channel;
-    use std::time::Duration;
-
-    use webview2_com::ExecuteScriptCompletedHandler;
-    use windows::core::HSTRING;
-
-    let (tx, rx) = sync_channel(1);
-    let started = webview.with_webview(move |platform| {
-        let Ok(core) = (unsafe { platform.controller().CoreWebView2() }) else {
-            let _ = tx.send(None);
-            return;
-        };
-        let script = HSTRING::from(
-            r#"(function () { return document.readyState + "\n" + location.href })()"#,
-        );
-        let posted = tx.clone();
-        let handler = ExecuteScriptCompletedHandler::create(Box::new(move |result, raw| {
-            let value = if result.is_ok() { parse_probe(&raw) } else { None };
-            let _ = posted.send(value);
-            Ok(())
-        }));
-        if unsafe { core.ExecuteScript(&script, &handler) }.is_err() {
-            let _ = tx.send(None);
-        }
-    });
-    if started.is_err() {
-        return None;
-    }
-    rx.recv_timeout(Duration::from_millis(800)).ok().flatten()
-}
-
-#[cfg(not(windows))]
-fn probe_loaded(_webview: &tauri::Webview) -> Option<bool> {
-    None
-}
-
 /// 壳页面刷新后，子 WebView 还在，但前端状态已经丢了。把每个还在的页面当前结果交回去。
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -521,23 +615,19 @@ pub struct LivePage {
 
 #[tauri::command(rename = "navigation:read-lives")]
 pub async fn navigation_read_lives(
+    window: tauri::Window,
     state: State<'_, NavigationState>,
 ) -> Result<Vec<LivePage>, String> {
-    let pages = {
-        let pages = state.pages.lock().map_err(|err| err.to_string())?;
-        pages
-            .iter()
-            .map(|(label, webview)| (page_id(label), webview.clone()))
-            .collect::<Vec<_>>()
-    };
-    let mut rows = Vec::with_capacity(pages.len());
-    for (id, webview) in pages {
-        rows.push(LivePage {
-            id,
-            ok: probe_loaded(&webview),
-        });
-    }
-    Ok(rows)
+    let pages = state.pages.lock().map_err(|err| err.to_string())?;
+    let lives = state.lives.lock().map_err(|err| err.to_string())?;
+    Ok(pages
+        .iter()
+        .filter(|(_, page)| page.window().label() == window.label())
+        .map(|(label, _)| LivePage {
+            id: page_id(label),
+            ok: lives.get(label).copied().flatten(),
+        })
+        .collect())
 }
 
 /// 创建远程子 Webview。Windows 上必须在异步命令里调用，避免和 WebView2 死锁。
@@ -548,12 +638,15 @@ pub async fn navigation_open(
     state: State<'_, NavigationState>,
     body: OpenBody,
 ) -> Result<OpenResult, String> {
-    require_main(&window)?;
+    require_browser(&window)?;
     if !is_safe_id(&body.id) {
         return Err("页面 id 无效".to_string());
     }
     let url = parse_http_url(&body.url)?;
     let label = page_label(&body.id);
+    // 「先查后建」必须串行：挂载恢复与点标签可能同时进来，两次选中同一个 `page-<id>`，
+    // 后一个 `add_child` 会失败于 `already exists`。
+    let _gate = state.opening.lock().map_err(|err| err.to_string())?;
     let live = {
         let mut pages = state.pages.lock().map_err(|err| err.to_string())?;
         if let Some(page) = pages.get(&label) {
@@ -570,10 +663,37 @@ pub async fn navigation_open(
             None
         }
     };
-    if let Some(page) = live {
-        return Ok(OpenResult {
-            ok: probe_loaded(&page),
-        });
+    if live.is_some() {
+        let ok = state
+            .lives
+            .lock()
+            .map_err(|err| err.to_string())?
+            .get(&label)
+            .copied()
+            .flatten();
+        return Ok(OpenResult { ok });
+    }
+    // 上一次创建中途失败、或壳层重建过：Tauri 里可能还留着一个同名 WebView。
+    // 直接接管它，而不是再 `add_child` 一次（那必然报 `already exists`）。
+    if let Some(existing) = app.get_webview(&label) {
+        if existing.window().label() != window.label() {
+            return Err("同一个页面已经被其它窗口占用".to_string());
+        }
+        let ok = {
+            let mut lives = state.lives.lock().map_err(|err| err.to_string())?;
+            lives.entry(label.clone()).or_insert(None);
+            lives.get(&label).copied().flatten()
+        };
+        // 接管的页面可能停在别的地址（上一轮遗留）：按这次要打开的地址纠正。
+        if existing.url().is_ok_and(|current| current != url) {
+            let _ = existing.navigate(url);
+        }
+        state
+            .pages
+            .lock()
+            .map_err(|err| err.to_string())?
+            .insert(label, existing);
+        return Ok(OpenResult { ok });
     }
 
     let shell = window.label().to_string();
@@ -590,12 +710,14 @@ pub async fn navigation_open(
     let shell_download = shell.clone();
     let shell_finished = shell.clone();
     let shell_blank = shell.clone();
-    let settled = Arc::new(Mutex::new(None::<bool>));
-    let settled_load = settled.clone();
+    // 先占位再建页：加载回调可能在 `add_child` 返回前就写结果。
+    if let Ok(mut lives) = state.lives.lock() {
+        lives.insert(label.clone(), None);
+    }
 
     let mut builder = WebviewBuilder::new(&label, WebviewUrl::External(url))
         .data_directory(profile)
-        .initialization_script_for_all_frames(OPEN_URL_SCRIPT)
+        .initialization_script_for_all_frames(BRIDGE_SCRIPT)
         .on_document_title_changed(move |webview, title| {
             emit_shell(
                 &app_for_title,
@@ -614,7 +736,11 @@ pub async fn navigation_open(
             let id = page_id(webview.label());
             let url = payload.url().to_string();
             let ok = finish_ok(&url, wry::page_load_succeeded());
-            if let Ok(mut slot) = settled_load.lock() {
+            if let Some(state) = app_for_load.try_state::<NavigationState>()
+                && let Ok(mut lives) = state.lives.lock()
+                // 只写回还活着的页面：关闭时已把条目删掉，不能因为回调晚到又长回来。
+                && let Some(slot) = lives.get_mut(webview.label())
+            {
                 *slot = Some(ok);
             }
             emit_shell(
@@ -717,410 +843,52 @@ pub async fn navigation_open(
         .map_err(|err| err.to_string())?;
     watch_load(&webview, app.clone(), shell);
     let _ = webview.hide();
-    let reported = settled.lock().ok().and_then(|slot| *slot);
-    let ok = reported.or_else(|| probe_loaded(&webview));
+    let ok = state
+        .lives
+        .lock()
+        .map_err(|err| err.to_string())?
+        .get(&label)
+        .copied()
+        .flatten();
 
     let mut pages = state.pages.lock().map_err(|err| err.to_string())?;
     pages.insert(label, webview);
     Ok(OpenResult { ok })
 }
 
-#[tauri::command(rename = "navigation:activate")]
-pub async fn navigation_activate(
-    app: AppHandle,
-    state: State<'_, NavigationState>,
-    body: BoundsBody,
-) -> Result<(), String> {
-    let _ = app;
-    let target = page_label(&body.id);
-    let pages = state.pages.lock().map_err(|err| err.to_string())?;
-    for (label, webview) in pages.iter() {
-        if label == &target {
-            continue;
-        }
-        let _ = webview.hide();
-    }
-    let webview = pages
-        .get(&target)
-        .cloned()
-        .ok_or_else(|| "页面不存在".to_string())?;
-    webview.show().map_err(|err| err.to_string())?;
-    place(&webview, body.x, body.y, body.width, body.height)?;
-    drop(pages);
-    raise_bar(&state);
-    note_page(&webview, body.x, body.y, body.width, body.height);
-    Ok(())
-}
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BarBounds {
+pub struct PresentBody {
+    /// 要展示的页面。`None` 表示把内容槽交还给壳层（磁贴）。
+    id: Option<String>,
     x: f64,
     y: f64,
     width: f64,
     height: f64,
-    /// 工具栏条的高度。加高后的透明区域从这里往下。
-    #[serde(default)]
-    toolbar: f64,
-    #[serde(default)]
-    list_x: f64,
-    #[serde(default)]
-    list_y: f64,
-    #[serde(default)]
-    list_width: f64,
-    #[serde(default)]
-    list_height: f64,
 }
 
-/// 嵌入地址栏。子 WebView 是 `WS_CHILD`，随网址窗口移动，不使用顶层窗口的 shadow / parent。
-#[tauri::command(rename = "navigation:bar-open")]
-pub async fn navigation_bar_open(
+/// 内容槽同一时刻只交给一方：某个网页，或者壳层自己。
+///
+/// 「摆位 → 显示目标 → 收起其余」在一次调用里完成，渲染进程无法在中间插入别的动作，
+/// 所以不会出现「壳层已经切走、网页还盖着」这类中间态。
+#[tauri::command(rename = "navigation:present")]
+pub async fn navigation_present(
     window: tauri::Window,
     state: State<'_, NavigationState>,
+    body: PresentBody,
 ) -> Result<(), String> {
-    require_main(&window)?;
-    let stale = {
-        let mut bar = state.bar.lock().map_err(|err| err.to_string())?;
-        match bar.as_ref() {
-            Some(existing) if existing.window().label() == window.label() => return Ok(()),
-            Some(_) => bar.take(),
-            None => None,
-        }
+    let shell = window.label();
+    let Some(id) = body.id else {
+        hide_pages(&state, shell, None)?;
+        return set_surface(&state, shell, None);
     };
-    if let Some(stale) = stale {
-        let _ = stale.close();
-    }
-
-    let builder = WebviewBuilder::new(BAR_LABEL, WebviewUrl::App(BAR_URL.into()))
-        .focused(false)
-        .transparent(true);
-    let webview = window
-        .add_child(
-            builder,
-            LogicalPosition::new(0.0, 0.0),
-            LogicalSize::new(1.0, 1.0),
-        )
-        .map_err(|err| err.to_string())?;
-    let _ = webview.hide();
-
-    let mut bar = state.bar.lock().map_err(|err| err.to_string())?;
-    if bar.is_some() {
-        let _ = webview.close();
-        return Ok(());
-    }
-    *bar = Some(webview);
-    Ok(())
-}
-
-/// 按占位矩形摆放地址栏。高度为 0 时不显示。
-#[tauri::command(rename = "navigation:bar-place")]
-pub async fn navigation_bar_place(
-    state: State<'_, NavigationState>,
-    body: BarBounds,
-) -> Result<(), String> {
-    if body.width <= 0.0 || body.height <= 0.0 {
-        return Ok(());
-    }
-    {
-        let mut at = state.bar_at.lock().map_err(|err| err.to_string())?;
-        *at = Some((body.x, body.y));
-    }
-    let bar = state.bar.lock().map_err(|err| err.to_string())?;
-    let webview = bar.as_ref().ok_or_else(|| "地址栏不存在".to_string())?;
-    place(webview, body.x, body.y, body.width, body.height)?;
+    let target = page_label(&id);
+    let webview = find_page(&state, shell, &id)?;
+    // 隐藏状态下先摆好位置再显示：反过来的话，新页会先在旧位置／1×1 上闪一帧。
+    place(&webview, body.x, body.y, body.width, body.height)?;
+    hide_pages(&state, shell, Some(&target))?;
     webview.show().map_err(|err| err.to_string())?;
-    let window = window_of(webview);
-    remember_hit(&window, &body);
-    raise_child(&window, body.x, body.y);
-    Ok(())
-}
-
-/// 关掉地址栏子 WebView。地址栏改由主窗口自己绘制。
-#[tauri::command(rename = "navigation:bar-close")]
-pub async fn navigation_bar_close(state: State<'_, NavigationState>) -> Result<(), String> {
-    let webview = {
-        let mut bar = state.bar.lock().map_err(|err| err.to_string())?;
-        bar.take()
-    };
-    if let Ok(mut at) = state.bar_at.lock() {
-        *at = None;
-    }
-    if let Some(webview) = webview {
-        let _ = webview.close();
-    }
-    Ok(())
-}
-
-fn window_of(webview: &tauri::Webview) -> tauri::Window {
-    webview.window()
-}
-
-/// 记住刚摆好的网页窗口，切标签时用来避开已经隐藏的那一页。
-#[cfg(windows)]
-fn cache_page_hwnd(hwnd: windows::Win32::Foundation::HWND) {
-    if hwnd.is_invalid() {
-        return;
-    }
-    if let Ok(mut slot) = PAGE_HWND.lock() {
-        *slot = Some(hwnd.0 as isize);
-    }
-}
-
-fn cached_page_hwnd() -> Option<windows::Win32::Foundation::HWND> {
-    use windows::Win32::Foundation::{HWND, RECT};
-    use windows::Win32::UI::WindowsAndMessaging::{GetWindowRect, IsWindowVisible};
-
-    let raw = PAGE_HWND.lock().ok().and_then(|slot| *slot)?;
-    let hwnd = HWND(raw as *mut std::ffi::c_void);
-    if hwnd.is_invalid() || !unsafe { IsWindowVisible(hwnd) }.as_bool() {
-        return None;
-    }
-    let mut rect = RECT::default();
-    if unsafe { GetWindowRect(hwnd, &mut rect) }.is_err() {
-        return None;
-    }
-    Some(hwnd)
-}
-
-fn find_child_hwnd(
-    window: &tauri::Window,
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-) -> Option<windows::Win32::Foundation::HWND> {
-    use windows::Win32::Foundation::{HWND, POINT, RECT};
-    use windows::Win32::Graphics::Gdi::ClientToScreen;
-    use windows::Win32::UI::WindowsAndMessaging::{
-        GW_CHILD, GW_HWNDNEXT, GetWindow, GetWindowRect, IsWindowVisible,
-    };
-
-    let parent = window.hwnd().ok()?;
-    let scale = window.scale_factor().unwrap_or(1.0);
-    let expect_left = (x * scale).round() as i32;
-    let expect_top = (y * scale).round() as i32;
-    let expect_width = (width * scale).round() as i32;
-    let expect_height = (height * scale).round() as i32;
-    let mut origin = POINT { x: 0, y: 0 };
-    if !unsafe { ClientToScreen(parent, &mut origin) }.as_bool() {
-        return None;
-    }
-    let previous = cached_page_hwnd();
-    let mut child = unsafe { GetWindow(parent, GW_CHILD) }.ok();
-    let mut matched = HWND::default();
-    let mut best = i32::MAX;
-    while let Some(hwnd) = child {
-        let next = unsafe { GetWindow(hwnd, GW_HWNDNEXT) }.ok();
-        let mut rect = RECT::default();
-        let visible = unsafe { IsWindowVisible(hwnd) }.as_bool();
-        if visible && unsafe { GetWindowRect(hwnd, &mut rect) }.is_ok() {
-            let dw = (rect.right - rect.left - expect_width).abs();
-            let dh = (rect.bottom - rect.top - expect_height).abs();
-            if dw <= 48 && dh <= 48 {
-                let mut score = (rect.left - origin.x - expect_left).abs()
-                    + (rect.top - origin.y - expect_top).abs();
-                // 刚切走的标签还停在同一矩形上时，优先当前可见的另一页。
-                if previous == Some(hwnd) {
-                    score += 1;
-                }
-                if score < best {
-                    best = score;
-                    matched = hwnd;
-                }
-            }
-        }
-        child = next;
-    }
-    if best > 49 || matched.is_invalid() {
-        None
-    } else {
-        cache_page_hwnd(matched);
-        Some(matched)
-    }
-}
-
-fn raise_child(window: &tauri::Window, x: f64, y: f64) {
-    #[cfg(windows)]
-    {
-        use windows::Win32::Foundation::{HWND, POINT, RECT};
-        use windows::Win32::Graphics::Gdi::ClientToScreen;
-        use windows::Win32::UI::WindowsAndMessaging::{
-            GW_CHILD, GW_HWNDNEXT, GetWindow, GetWindowRect, HWND_TOP, SWP_NOACTIVATE, SWP_NOMOVE,
-            SWP_NOSIZE, SetWindowPos,
-        };
-
-        let Ok(parent) = window.hwnd() else {
-            return;
-        };
-        let scale = window.scale_factor().unwrap_or(1.0);
-        let expect_left = (x * scale).round() as i32;
-        let expect_top = (y * scale).round() as i32;
-        let mut origin = POINT { x: 0, y: 0 };
-        if !unsafe { ClientToScreen(parent, &mut origin) }.as_bool() {
-            return;
-        }
-        let mut child = unsafe { GetWindow(parent, GW_CHILD) }.ok();
-        let mut matched = HWND::default();
-        let mut best = i32::MAX;
-        while let Some(hwnd) = child {
-            let mut rect = RECT::default();
-            if unsafe { GetWindowRect(hwnd, &mut rect) }.is_ok() {
-                let score = (rect.left - origin.x - expect_left).abs()
-                    + (rect.top - origin.y - expect_top).abs();
-                if score < best {
-                    best = score;
-                    matched = hwnd;
-                }
-            }
-            child = unsafe { GetWindow(hwnd, GW_HWNDNEXT) }.ok();
-        }
-        if best > 12 || matched.is_invalid() {
-            return;
-        }
-        let _ = unsafe {
-            SetWindowPos(
-                matched,
-                Some(HWND_TOP),
-                0,
-                0,
-                0,
-                0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-            )
-        };
-        subclass_bar(matched);
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = (window, x, y);
-    }
-}
-
-struct HitBox {
-    toolbar: f64,
-    list_x: f64,
-    list_y: f64,
-    list_width: f64,
-    list_height: f64,
-    scale: f64,
-}
-
-fn remember_hit(window: &tauri::Window, body: &BarBounds) {
-    let toolbar = if body.toolbar > 0.0 {
-        body.toolbar
-    } else {
-        body.height
-    };
-    let mut hit = BAR_HIT.lock().unwrap_or_else(|err| err.into_inner());
-    *hit = HitBox {
-        toolbar,
-        list_x: body.list_x,
-        list_y: body.list_y,
-        list_width: body.list_width,
-        list_height: body.list_height,
-        scale: window.scale_factor().unwrap_or(1.0),
-    };
-}
-
-static BAR_HIT: Mutex<HitBox> = Mutex::new(HitBox {
-    toolbar: 0.0,
-    list_x: 0.0,
-    list_y: 0.0,
-    list_width: 0.0,
-    list_height: 0.0,
-    scale: 1.0,
-});
-
-#[cfg(windows)]
-static BAR_PROCS: LazyLock<
-    Mutex<
-        HashMap<
-            isize,
-            unsafe extern "system" fn(
-                windows::Win32::Foundation::HWND,
-                u32,
-                windows::Win32::Foundation::WPARAM,
-                windows::Win32::Foundation::LPARAM,
-            ) -> windows::Win32::Foundation::LRESULT,
-        >,
-    >,
-> = LazyLock::new(|| Mutex::new(HashMap::new()));
-
-#[cfg(windows)]
-fn subclass_bar(hwnd: windows::Win32::Foundation::HWND) {
-    use windows::Win32::Foundation::{LPARAM, TRUE};
-    use windows::Win32::UI::WindowsAndMessaging::{EnumChildWindows, GWLP_WNDPROC, SetWindowLongPtrW};
-
-    fn hook(hwnd: windows::Win32::Foundation::HWND) {
-        let key = hwnd.0 as isize;
-        let mut procs = BAR_PROCS.lock().unwrap_or_else(|err| err.into_inner());
-        if procs.contains_key(&key) {
-            return;
-        }
-        let prev = unsafe {
-            SetWindowLongPtrW(hwnd, GWLP_WNDPROC, bar_hit_proc as *const () as usize as isize)
-        };
-        if prev == 0 {
-            return;
-        }
-        procs.insert(key, unsafe { std::mem::transmute(prev) });
-    }
-
-    unsafe extern "system" fn each(hwnd: windows::Win32::Foundation::HWND, _param: LPARAM) -> windows::core::BOOL {
-        hook(hwnd);
-        TRUE
-    }
-
-    hook(hwnd);
-    let _ = unsafe { EnumChildWindows(Some(hwnd), Some(each), LPARAM(0)) };
-}
-
-#[cfg(windows)]
-unsafe extern "system" fn bar_hit_proc(
-    hwnd: windows::Win32::Foundation::HWND,
-    msg: u32,
-    wparam: windows::Win32::Foundation::WPARAM,
-    lparam: windows::Win32::Foundation::LPARAM,
-) -> windows::Win32::Foundation::LRESULT {
-    use windows::Win32::Foundation::{LRESULT, POINT};
-    use windows::Win32::Graphics::Gdi::ScreenToClient;
-    use windows::Win32::UI::WindowsAndMessaging::{CallWindowProcW, DefWindowProcW, HTTRANSPARENT, WM_NCHITTEST};
-
-    if msg == WM_NCHITTEST {
-        let mut point = POINT {
-            x: lparam.0 as i16 as i32,
-            y: (lparam.0 >> 16) as i16 as i32,
-        };
-        if unsafe { ScreenToClient(hwnd, &mut point) }.as_bool() && !hit_allows(point.x, point.y) {
-            return LRESULT(HTTRANSPARENT as isize);
-        }
-    }
-    let prev = BAR_PROCS
-        .lock()
-        .unwrap_or_else(|err| err.into_inner())
-        .get(&(hwnd.0 as isize))
-        .copied();
-    if let Some(prev) = prev {
-        return unsafe { CallWindowProcW(Some(prev), hwnd, msg, wparam, lparam) };
-    }
-    unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
-}
-
-fn hit_allows(x: i32, y: i32) -> bool {
-    let hit = BAR_HIT.lock().unwrap_or_else(|err| err.into_inner());
-    if hit.list_height <= 0.0 {
-        return true;
-    }
-    let scale = if hit.scale > 0.0 { hit.scale } else { 1.0 };
-    let css_x = f64::from(x) / scale;
-    let css_y = f64::from(y) / scale;
-    if css_y <= hit.toolbar {
-        return true;
-    }
-    css_x >= hit.list_x
-        && css_x < hit.list_x + hit.list_width
-        && css_y >= hit.list_y
-        && css_y < hit.list_y + hit.list_height
+    set_surface(&state, shell, Some(target))
 }
 
 #[derive(Debug, Deserialize)]
@@ -1152,6 +920,92 @@ pub struct CompleteResult {
 struct BingSuggestion {
     #[serde(default)]
     s: Vec<CompleteItem>,
+}
+
+/// 打开浏览窗口。已有窗口就聚焦并把它要打开的地址发过去，没有才新建。
+#[tauri::command(rename = "browser:open")]
+pub async fn browser_open(
+    app: AppHandle,
+    state: State<'_, NavigationState>,
+    url: Option<String>,
+) -> Result<(), String> {
+    if let Some(window) = find_browser(&app) {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+        if let Some(url) = url {
+            emit_shell(
+                &app,
+                window.label(),
+                "navigation://open-url",
+                OpenUrlPayload { url },
+            );
+        }
+        return Ok(());
+    }
+    create_browser(&app, &state, url)
+}
+
+/// 新开一扇浏览窗口（不抢已有窗口）。
+#[tauri::command(rename = "browser:spawn")]
+pub async fn browser_spawn(
+    app: AppHandle,
+    state: State<'_, NavigationState>,
+    url: Option<String>,
+) -> Result<(), String> {
+    create_browser(&app, &state, url)
+}
+
+fn create_browser(
+    app: &AppHandle,
+    state: &State<'_, NavigationState>,
+    url: Option<String>,
+) -> Result<(), String> {
+    // 编号是「先查后建」，并发建窗会选中同一个：串行化到建窗返回为止。
+    let _launch = state.launch.lock().map_err(|err| err.to_string())?;
+    let label = free_browser(&app);
+    // 编号会被回收复用：先把同名残留清掉，否则会拿到已销毁窗口的句柄。
+    prune_space(state, &label);
+    if let Some(url) = url {
+        state
+            .pendings
+            .lock()
+            .map_err(|err| err.to_string())?
+            .insert(label.clone(), url);
+    }
+    WebviewWindowBuilder::new(app, &label, WebviewUrl::App(POPUP_PAGE.into()))
+        .title("浏览")
+        .decorations(false)
+        .transparent(true)
+        .inner_size(1200.0, 800.0)
+        .min_inner_size(720.0, 520.0)
+        // 先不显示：透明窗口在材质（mica）套上之前会透出桌面。等前端绘制完
+        // 调 `browser:ready` 再显示。
+        .visible(false)
+        .build()
+        .map(|_| ())
+        .map_err(|err| err.to_string())
+}
+
+/// 浏览窗口的前端已渲染完成，可以显示了。
+#[tauri::command(rename = "browser:ready")]
+pub async fn browser_ready(window: tauri::Window) -> Result<(), String> {
+    window.show().map_err(|err| err.to_string())?;
+    let _ = window.set_focus();
+    Ok(())
+}
+
+/// 浏览窗口刚建好时前端还没就绪，事件会丢；这里把待打开的地址交给它。
+#[tauri::command(rename = "browser:take-pending")]
+pub async fn browser_take_pending(
+    window: tauri::Window,
+    state: State<'_, NavigationState>,
+) -> Result<Option<String>, String> {
+    Ok(state
+        .pendings
+        .lock()
+        .map_err(|err| err.to_string())?
+        .remove(window.label()))
 }
 
 /// 搜索建议。不走未注册的 corex `engine.suggestion`。
@@ -1195,188 +1049,178 @@ pub async fn navigation_complete(body: CompleteBody) -> Result<CompleteResult, S
     Ok(CompleteResult { s })
 }
 
+/// 只改矩形，不动可见性与层级。窗口拖动/缩放时按帧调用。
 #[tauri::command(rename = "navigation:place")]
 pub async fn navigation_place(
-    app: AppHandle,
+    window: tauri::Window,
     state: State<'_, NavigationState>,
     body: BoundsBody,
 ) -> Result<(), String> {
-    let _ = app;
-    let webview = find_page(&state, &body.id)?;
-    place(&webview, body.x, body.y, body.width, body.height)?;
-    raise_bar(&state);
-    note_page(&webview, body.x, body.y, body.width, body.height);
-    Ok(())
+    let webview = find_page(&state, window.label(), &body.id)?;
+    place(&webview, body.x, body.y, body.width, body.height)
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StackBody {
-    /// 网页是否盖在壳层上面。弹层打开时为 false。
-    above: bool,
-}
-
-static PAGE_AT: Mutex<Option<(f64, f64, f64, f64)>> = Mutex::new(None);
-static PAGE_BELOW: Mutex<bool> = Mutex::new(false);
-static PAGE_HWND: Mutex<Option<isize>> = Mutex::new(None);
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CursorPoint {
+pub struct PopupBody {
+    open: bool,
+    #[serde(default)]
     x: f64,
+    #[serde(default)]
     y: f64,
+    #[serde(default)]
+    width: f64,
+    #[serde(default)]
+    height: f64,
 }
 
-/// 光标相对主窗口客户区的位置。只认 `main`，不碰 overlay 的鼠标穿透。
-#[tauri::command(rename = "navigation:cursor")]
-pub async fn navigation_cursor(window: tauri::Window) -> Result<Option<CursorPoint>, String> {
-    if window.label() != MAIN_LABEL {
-        return Ok(None);
+/// 地址建议浮层：主窗口的 **owned 顶层窗口**。
+///
+/// Windows 保证 owned 窗口永远在 owner 之上（并且随 owner 最小化/销毁），所以：
+/// - 新开的页面、切标签、内容槽怎么变，都不可能把它盖住；
+/// - 应用里不再存在任何 z 序调整。
+///
+/// 它同时带 `WS_EX_NOACTIVATE`：出现和点击都不夺焦，键盘输入始终留在壳层的地址栏里。
+#[tauri::command(rename = "navigation:popup")]
+pub async fn navigation_popup(
+    app: AppHandle,
+    window: tauri::Window,
+    state: State<'_, NavigationState>,
+    body: PopupBody,
+) -> Result<(), String> {
+    require_browser(&window)?;
+    let shell = window.label().to_string();
+    if !body.open {
+        let popup = state
+            .popups
+            .lock()
+            .map_err(|err| err.to_string())?
+            .get(&shell)
+            .cloned();
+        if let Some(popup) = popup {
+            let _ = popup.hide();
+        }
+        return Ok(());
     }
-    let Some((px, py)) = crate::through::cursor::get_cursor_position() else {
-        return Ok(None);
-    };
-    let scale = window.scale_factor().unwrap_or(1.0);
-    let origin = window
-        .inner_position()
-        .map_err(|err| err.to_string())?
-        .to_logical::<f64>(scale);
-    let size = window
-        .inner_size()
-        .map_err(|err| err.to_string())?
-        .to_logical::<f64>(scale);
-    let x = px as f64 / scale - origin.x;
-    let y = py as f64 / scale - origin.y;
-    if x < 0.0 || y < 0.0 || x >= size.width || y >= size.height {
-        return Ok(None);
+    if body.width <= 0.0 || body.height <= 0.0 {
+        return Ok(());
     }
-    Ok(Some(CursorPoint { x, y }))
+    let popup = find_popup(&app, &window, &state, &shell)?;
+    // 子视图用客户区坐标；owned 窗口用屏幕物理坐标，所以要加上 owner 客户区原点。
+    let scale = window.scale_factor().map_err(|err| err.to_string())?;
+    let origin = window.inner_position().map_err(|err| err.to_string())?;
+    let width = (body.width * scale).round().max(1.0);
+    let height = (body.height * scale).round().max(1.0);
+    let left = origin.x + (body.x * scale).round() as i32;
+    let top = origin.y + (body.y * scale).round() as i32;
+    popup
+        .set_size(PhysicalSize::new(width, height))
+        .map_err(|err| err.to_string())?;
+    popup
+        .set_position(PhysicalPosition::new(left, top))
+        .map_err(|err| err.to_string())?;
+    popup.show().map_err(|err| err.to_string())
 }
 
-/// 弹层打开时把网页压到壳层下面，关掉再抬回来。不改窗口大小，也不挖空。
-#[tauri::command(rename = "navigation:stack")]
-pub async fn navigation_stack(window: tauri::Window, body: StackBody) -> Result<(), String> {
-    if let Ok(mut below) = PAGE_BELOW.lock() {
-        *below = !body.above;
+fn find_popup(
+    app: &AppHandle,
+    window: &tauri::Window,
+    state: &State<'_, NavigationState>,
+    shell: &str,
+) -> Result<WebviewWindow, String> {
+    let mut slot = state.popups.lock().map_err(|err| err.to_string())?;
+    if let Some(popup) = slot.get(shell) {
+        return Ok(popup.clone());
     }
-    stack_page(&window);
-    Ok(())
-}
-
-fn note_page(webview: &tauri::Webview, x: f64, y: f64, width: f64, height: f64) {
-    if let Ok(mut at) = PAGE_AT.lock() {
-        *at = Some((x, y, width, height));
-    }
-    stack_page(&webview.window());
-}
-
-fn stack_page(window: &tauri::Window) {
+    // 持锁创建：两路命令并发进来时不会建出两个浮层。
+    // 浮层 label 里带上宿主 label，多扇浏览窗口各自一个，互不共用。
+    let host = serde_json::to_string(shell).unwrap_or_else(|_| "\"\"".to_string());
+    let builder = WebviewWindowBuilder::new(
+        app,
+        format!("{POPUP_PREFIX}{shell}"),
+        WebviewUrl::App(POPUP_PAGE.into()),
+    )
+    .title("suggest")
+    // 渲染层用它分流入口；同时把宿主 label 传进去，浮层才知道把选择交回哪扇窗口。
+    .initialization_script(&format!(
+        "window.__ITH_SUGGEST_POPUP__ = true; window.__ITH_SUGGEST_HOST__ = {host}"
+    ))
+    .inner_size(1.0, 1.0)
+    .decorations(false)
+    .transparent(true)
+    .shadow(false)
+    .resizable(false)
+    .skip_taskbar(true)
+    .focused(false)
+    .visible(false);
+    // owned 窗口 = 永远在 owner 之上，且不属于全局置顶。
     #[cfg(windows)]
-    {
-        use windows::Win32::UI::WindowsAndMessaging::{
-            HWND_BOTTOM, HWND_TOP, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SetWindowPos,
-        };
-
-        let Some((x, y, width, height)) = PAGE_AT.lock().ok().and_then(|slot| *slot) else {
-            return;
-        };
-        let below = PAGE_BELOW.lock().map(|slot| *slot).unwrap_or(false);
-        let hwnd = find_child_hwnd(window, x, y, width, height).or_else(|| {
-            visible_page_hwnd(window)
-        });
-        let Some(hwnd) = hwnd else {
-            return;
-        };
-        cache_page_hwnd(hwnd);
-        unsafe {
-            let _ = SetWindowPos(
-                hwnd,
-                Some(if below { HWND_BOTTOM } else { HWND_TOP }),
-                0,
-                0,
-                0,
-                0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-            );
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = window;
-    }
+    let builder = builder.owner_raw(window.hwnd().map_err(|err| err.to_string())?);
+    let popup = builder.build().map_err(|err| err.to_string())?;
+    allow_no_activate(&popup);
+    slot.insert(shell.to_string(), popup.clone());
+    Ok(popup)
 }
 
-/// 矩形还没跟上时，用「唯一可见、且不是铺满主窗口的子窗口」当作当前网页。
+/// `WS_EX_NOACTIVATE`：出现/点击都不激活这个窗口，键盘焦点始终留在壳层的地址栏。
 #[cfg(windows)]
-fn visible_page_hwnd(window: &tauri::Window) -> Option<windows::Win32::Foundation::HWND> {
-    use windows::Win32::Foundation::{HWND, RECT};
+fn allow_no_activate(popup: &WebviewWindow) {
     use windows::Win32::UI::WindowsAndMessaging::{
-        GW_CHILD, GW_HWNDNEXT, GetWindow, GetWindowRect, IsWindowVisible,
+        GWL_EXSTYLE, GetWindowLongPtrW, SetWindowLongPtrW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     };
 
-    let parent = window.hwnd().ok()?;
-    let shell = window.inner_size().ok()?;
-    let mut child = unsafe { GetWindow(parent, GW_CHILD) }.ok();
-    let mut found = HWND::default();
-    let mut count = 0i32;
-    while let Some(hwnd) = child {
-        let next = unsafe { GetWindow(hwnd, GW_HWNDNEXT) }.ok();
-        if unsafe { IsWindowVisible(hwnd) }.as_bool() {
-            let mut rect = RECT::default();
-            if unsafe { GetWindowRect(hwnd, &mut rect) }.is_ok() {
-                let width = (rect.right - rect.left).unsigned_abs();
-                let height = (rect.bottom - rect.top).unsigned_abs();
-                let is_shell = width.abs_diff(shell.width) <= 8 && height.abs_diff(shell.height) <= 8;
-                if !is_shell {
-                    count += 1;
-                    found = hwnd;
-                }
-            }
-        }
-        child = next;
-    }
-    if count == 1 && !found.is_invalid() {
-        Some(found)
-    } else {
-        None
+    let Ok(hwnd) = popup.hwnd() else {
+        return;
+    };
+    let extra = (WS_EX_NOACTIVATE.0 | WS_EX_TOOLWINDOW.0) as isize;
+    unsafe {
+        let current = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, current | extra);
     }
 }
 
-fn raise_bar(state: &NavigationState) {
-    let Some((x, y)) = state.bar_at.lock().ok().and_then(|at| *at) else {
-        return;
-    };
-    let Ok(bar) = state.bar.lock() else {
-        return;
-    };
-    let Some(webview) = bar.as_ref() else {
-        return;
-    };
-    raise_child(&window_of(webview), x, y);
-}
+#[cfg(not(windows))]
+fn allow_no_activate(_popup: &WebviewWindow) {}
 
-/// 隐藏全部页面子 WebView。地址栏保持显示，页面不销毁。
+/// 把内容槽交还壳层（回到磁贴）。页面不销毁。
 #[tauri::command(rename = "navigation:suspend")]
-pub async fn navigation_suspend(state: State<'_, NavigationState>) -> Result<(), String> {
-    let pages = state.pages.lock().map_err(|err| err.to_string())?;
-    for webview in pages.values() {
-        let _ = webview.hide();
-    }
-    Ok(())
+pub async fn navigation_suspend(
+    window: tauri::Window,
+    state: State<'_, NavigationState>,
+) -> Result<(), String> {
+    let shell = window.label();
+    hide_pages(&state, shell, None)?;
+    set_surface(&state, shell, None)
 }
 
 #[tauri::command(rename = "navigation:close")]
 pub async fn navigation_close(
     app: AppHandle,
+    window: tauri::Window,
     state: State<'_, NavigationState>,
     body: IdBody,
 ) -> Result<(), String> {
     let _ = app;
+    let shell = window.label();
     let label = page_label(&body.id);
     let webview = {
         let mut pages = state.pages.lock().map_err(|err| err.to_string())?;
-        pages.remove(&label)
+        match pages.get(&label) {
+            Some(page) if page.window().label() == shell => pages.remove(&label),
+            _ => None,
+        }
     };
+    if let Ok(mut lives) = state.lives.lock() {
+        lives.remove(&label);
+    }
+    if let Ok(mut surfaces) = state.surfaces.lock()
+        && surfaces
+            .get(shell)
+            .and_then(|value| value.as_deref())
+            == Some(label.as_str())
+    {
+        surfaces.insert(shell.to_string(), None);
+    }
     if let Some(webview) = webview {
         let _ = webview.close();
     }
@@ -1386,11 +1230,12 @@ pub async fn navigation_close(
 #[tauri::command(rename = "navigation:navigate")]
 pub async fn navigation_navigate(
     app: AppHandle,
+    window: tauri::Window,
     state: State<'_, NavigationState>,
     body: NavigateBody,
 ) -> Result<(), String> {
     let _ = app;
-    let webview = find_page(&state, &body.id)?;
+    let webview = find_page(&state, window.label(), &body.id)?;
     match body.direction.as_deref() {
         Some("back") => webview
             .eval("history.back()")
@@ -1410,11 +1255,12 @@ pub async fn navigation_navigate(
 #[tauri::command(rename = "navigation:devtools")]
 pub async fn navigation_devtools(
     app: AppHandle,
+    window: tauri::Window,
     state: State<'_, NavigationState>,
     body: IdBody,
 ) -> Result<(), String> {
     let _ = app;
-    let webview = find_page(&state, &body.id)?;
+    let webview = find_page(&state, window.label(), &body.id)?;
     webview.open_devtools();
     Ok(())
 }
@@ -1466,7 +1312,8 @@ pub async fn navigation_extensions(
 
 #[cfg(test)]
 mod tests {
-    use super::{finish_ok, parse_probe};
+    use super::{browser_label, browser_index, finish_ok, is_browser};
+
     #[test]
     fn finished_http_without_report_is_open() {
         assert!(finish_ok("https://y.qq.com/", None));
@@ -1483,23 +1330,23 @@ mod tests {
     }
 
     #[test]
-    fn probe_complete_http_is_open() {
-        assert_eq!(
-            parse_probe(r#""complete\nhttps://y.qq.com/""#),
-            Some(true)
-        );
+    fn first_browser_window_has_no_number() {
+        assert_eq!(browser_label(1), "browser");
+        assert_eq!(browser_label(2), "browser-2");
     }
 
     #[test]
-    fn probe_loading_stays_unknown() {
-        assert_eq!(parse_probe(r#""loading\nhttps://y.qq.com/""#), None);
+    fn browser_labels_round_trip() {
+        for index in 1..5 {
+            assert_eq!(browser_index(&browser_label(index)), Some(index));
+        }
     }
 
     #[test]
-    fn probe_error_page_is_closed() {
-        assert_eq!(
-            parse_probe(r#""complete\nedge-error://something""#),
-            Some(false)
-        );
+    fn other_windows_are_not_browsers() {
+        assert!(!is_browser("main"));
+        assert!(!is_browser("navigation-popup-browser"));
+        assert!(!is_browser("browser-x"));
+        assert!(is_browser("browser-12"));
     }
 }

@@ -13,10 +13,19 @@ interface BrowserSnapshot {
 }
 
 const SEARCH_LIMIT = 20
+/** 第一扇浏览窗口的键，也是旧版本单窗口时代的键名。 */
 const BROWSER_KEY = 'browser'
 const LEGACY_KEY = 'session'
 const EMPTY: BrowserSnapshot = { tabs: [], activeId: '', searches: [] }
 const store = new LazyStore('navigation-session.json')
+
+/**
+ * 会话按窗口 label 分键：多扇浏览窗口各有各的标签，关掉一扇不会带走别家的。
+ * 非 Tauri 环境（单测）拿不到 label，退化成单窗口。
+ */
+function keyOf(label: string): string {
+  return label || BROWSER_KEY
+}
 
 function parseSearches(value: unknown) {
   if (!Array.isArray(value)) return []
@@ -53,17 +62,21 @@ function parseTabs(value: unknown) {
   }
 }
 
-async function readBrowser(): Promise<BrowserSnapshot> {
-  const current = await store.get<BrowserSnapshot>(BROWSER_KEY)
+async function readBrowser(label: string): Promise<BrowserSnapshot> {
+  const key = keyOf(label)
+  const current = await store.get<BrowserSnapshot>(key)
   if (current) return parseTabs(current)
+  // 只有第一扇窗口会继承旧版本的单窗口会话（旧键 `session`）。
+  if (key !== BROWSER_KEY) return EMPTY
   const legacy = await store.get<BrowserSnapshot>(LEGACY_KEY)
   if (!legacy) return EMPTY
   return parseTabs(legacy)
 }
 
-async function writeBrowser(snapshot: BrowserSnapshot) {
-  await store.set(BROWSER_KEY, parseTabs(snapshot))
-  await store.delete(LEGACY_KEY)
+async function writeBrowser(label: string, snapshot: BrowserSnapshot) {
+  const key = keyOf(label)
+  await store.set(key, parseTabs(snapshot))
+  if (key === BROWSER_KEY) await store.delete(LEGACY_KEY)
   await store.save()
 }
 

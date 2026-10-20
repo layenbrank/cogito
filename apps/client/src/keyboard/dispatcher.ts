@@ -13,10 +13,11 @@
 
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
+import { isBrowserWindow } from '@/features/window/kind'
 import { isModifierEvent, matchesEventText } from '@/keyboard/binding'
 import { hasCommand, runCommand } from '@/keyboard/commands'
 import { LOCAL_SHORTCUTS, findBindingTexts } from '@/keyboard/definitions'
-import type { LocalShortcutDefinition } from '@/keyboard/types'
+import type { LocalShortcutDefinition, ShortcutWindow } from '@/keyboard/types'
 
 /** 作用域具体度：编辑器 > 视图 > 应用；同键命中多个时具体者优先 */
 const SCOPE_RANK: Record<LocalShortcutDefinition['scope'], number> = {
@@ -41,6 +42,19 @@ function findWindowLabel(): string | null {
   return getCurrentWindow().label
 }
 
+/**
+ * 窗口 label → 键位表里的窗口种类。
+ *
+ * 浏览窗口可以有多个（`browser`、`browser-2`…），键位表只声明「属于哪一类窗口」，
+ * 不关心具体编号。识别不出时返回 null，按「不过滤」处理。
+ */
+function findWindowKind(label: string | null): ShortcutWindow | null {
+  if (!label) return null
+  if (label === 'main' || label === 'overlay') return label
+  if (isBrowserWindow(label)) return 'browser'
+  return null
+}
+
 function isFormTag(target: EventTarget | null): boolean {
   const element = target as HTMLElement | null
   const tag = element?.tagName?.toLowerCase()
@@ -56,7 +70,10 @@ function isEditable(target: EventTarget | null): boolean {
 function isCandidate(definition: LocalShortcutDefinition, event: KeyboardEvent, label: string | null): boolean {
   // 编辑器/终端内建绑定：只登记，不接管（否则和 Monaco、xterm 抢键）
   if (definition.owner === 'native') return false
-  if (definition.window !== 'any' && label && definition.window !== label) return false
+  if (definition.window !== 'any') {
+    const kind = findWindowKind(label)
+    if (kind && definition.window !== kind) return false
+  }
   if (definition.when && !definition.when()) return false
 
   const target = event.target

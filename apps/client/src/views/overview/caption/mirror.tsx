@@ -12,7 +12,6 @@
  *
  * 列表交互：↑↓ / Home / End 移动高亮，Enter 切换高亮项；有描述时悬停延迟 Tooltip 展示（列表默认不展示描述）。
  */
-import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@i-thinking/design/components/popover'
 import { Spinner } from '@i-thinking/design/components/spinner'
@@ -22,6 +21,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@i-thinking/design/components/tooltip'
+import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { toast } from 'sonner'
@@ -32,6 +32,7 @@ import {
   subscribeMirrorSwitching
 } from '@/features/controller/mirror-switch'
 import { useMirrorStore } from '@/stores/mirror.ts'
+import styles from '@/views/overview/caption/caption.module.scss'
 import { MirrorManageDialog } from '@/views/overview/caption/mirror-manage'
 import {
   DESC_TOOLTIP_DELAY,
@@ -40,7 +41,6 @@ import {
   findMirrorIcon,
   findNextTitle
 } from '@/views/overview/caption/mirror-utils'
-import styles from '@/views/overview/caption/caption.module.scss'
 
 interface MirrorItemMainProps {
   index: number
@@ -195,7 +195,9 @@ function MirrorSwitcher(props: MirrorSwitcherProps) {
                 data-region="false"
                 className={cn(
                   styles.mirrorTrigger,
-                  props.isCompact ? 'size-10 min-w-10 rounded-full p-0 [&_svg]:size-4.5' : 'w-full justify-start'
+                  props.isCompact
+                    ? 'size-10 min-w-10 rounded-full p-0 [&_svg]:size-4.5'
+                    : 'w-full justify-start'
                 )}
                 aria-label="新建镜像"
                 disabled={isBusy}
@@ -243,7 +245,9 @@ function MirrorSwitcher(props: MirrorSwitcherProps) {
                     data-region="false"
                     className={cn(
                       styles.mirrorTrigger,
-                      props.isCompact ? 'size-10 min-w-10 rounded-full p-0 [&_svg]:size-4.5' : 'w-full justify-start',
+                      props.isCompact
+                        ? 'size-10 min-w-10 rounded-full p-0 [&_svg]:size-4.5'
+                        : 'w-full justify-start',
                       props.isCompact && accent && styles.mirrorTriggerTint,
                       isOpen && styles.mirrorTriggerOpen
                     )}

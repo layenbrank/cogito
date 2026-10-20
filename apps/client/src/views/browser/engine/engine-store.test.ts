@@ -5,7 +5,7 @@ import {
   parseEngineKey,
   readEngineKey,
   writeEngineKey
-} from '@/views/overview/engine/engine-store'
+} from '@/views/browser/engine/engine-store'
 
 describe('engine store', function () {
   afterEach(function () {

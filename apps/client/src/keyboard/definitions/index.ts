@@ -8,8 +8,8 @@
  * - `ids.ts`      命令 id（与 `keyboard/commands.ts` 注册的名字一一对应）
  * - `factory.ts`  键位构造器（折叠作用域 / 窗口 / 焦点策略这些重复字段）
  * - `global.ts`   OS 级全局键
- * - `overlay.ts` / `code.ts` / `markdown.ts` / `clipchamp.ts` / `directive.ts` / `morph.ts`
- *                 各视图的局部键
+ * - `overlay.ts` / `browser.ts` / `code.ts` / `markdown.ts` / `clipchamp.ts` / `directive.ts` / `morph.ts`
+ *                 各窗口/视图的局部键
  * - `editor.ts`   编辑器内键位（我们接管的 + 扩展自己接管的）
  *
  * 约定：
@@ -22,6 +22,7 @@
 
 import { bindingKeyOfText, findConflicts, findPlatform } from '@/keyboard/binding'
 import type { BindingConflict, ShortcutBindingEntry } from '@/keyboard/binding'
+import { BROWSER_SHORTCUTS } from '@/keyboard/definitions/browser'
 import { CLIPCHAMP_SHORTCUTS } from '@/keyboard/definitions/clipchamp'
 import { CODE_SHORTCUTS } from '@/keyboard/definitions/code'
 import { DIRECTIVE_SHORTCUTS } from '@/keyboard/definitions/directive'
@@ -40,6 +41,7 @@ import { useSettingsStore } from '@/stores/setting'
 
 const LOCAL_SHORTCUTS: readonly LocalShortcutDefinition[] = [
   ...OVERLAY_SHORTCUTS,
+  ...BROWSER_SHORTCUTS,
   ...CODE_SHORTCUTS,
   ...MARKDOWN_SHORTCUTS,
   ...CLIPCHAMP_SHORTCUTS,

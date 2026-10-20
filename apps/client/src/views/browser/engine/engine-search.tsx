@@ -13,16 +13,16 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { ENGINES, findEngine } from '@/constants/engine'
 import { EngineIpc } from '@/lib/engine-ipc'
-import { ENGINE_UI } from '@/views/overview/engine/engine-constants'
-import { EngineFragment } from '@/views/overview/engine/engine-fragment'
-import { readEngineKey, writeEngineKey } from '@/views/overview/engine/engine-store'
+import { ENGINE_UI } from '@/views/browser/engine/engine-constants'
+import { EngineFragment } from '@/views/browser/engine/engine-fragment'
+import { readEngineKey, writeEngineKey } from '@/views/browser/engine/engine-store'
 import {
   buildMatchUrl,
   findDefaultNavigation,
   findItemUrl,
   isUrlKeyword,
   parseKeywordUrl
-} from '@/views/overview/engine/engine-url'
+} from '@/views/browser/engine/engine-url'
 import styles from '@/views/overview/overview.module.scss'
 
 function EngineSearch() {

@@ -7,14 +7,6 @@ interface Bounds {
   height: number
 }
 
-interface BarPlace extends Bounds {
-  toolbar: number
-  listX: number
-  listY: number
-  listWidth: number
-  listHeight: number
-}
-
 interface ExtensionsResult {
   names: string[]
   supported: boolean
@@ -29,16 +21,30 @@ interface LivePage {
   ok: boolean | null
 }
 
+/**
+ * 同一个页面可能被两处同时要求打开（挂载时恢复 + 用户点标签）。
+ *
+ * Rust 侧已经串行化 + 可接管同名 WebView，这里再按 id 合并一次请求，
+ * 避免把「查→建」跑两遍：两次请求都拒绝时它也只会报一次。
+ */
+const openings = new Map<string, Promise<OpenedPage>>()
+
 function openPage(id: string, url: string) {
-  return invoke<OpenedPage>('navigation:open', { body: { id, url } })
+  const pending = openings.get(id)
+  if (pending) return pending
+  const run = invoke<OpenedPage>('navigation:open', { body: { id, url } }).finally(function () {
+    openings.delete(id)
+  })
+  openings.set(id, run)
+  return run
 }
 
 function readLivePages() {
   return invoke<LivePage[]>('navigation:read-lives')
 }
 
-// 显示、摆放、压层、收起必须按调用顺序执行。离开主页时的收起若和尚未返回的 activate 并行，
-// 后完成的 activate 会把已经藏起来的子 WebView 再次盖到磁贴页上。
+// 摆位、切换、收起必须按调用顺序执行：离开主页时的收起若和尚未返回的 present 并行，
+// 后完成的 present 会把已经藏起来的子 WebView 再次盖到磁贴页上。
 let pageLane: Promise<unknown> = Promise.resolve()
 
 function enqueuePage<T>(task: () => Promise<T>) {
@@ -54,9 +60,10 @@ function enqueuePage<T>(task: () => Promise<T>) {
   return run
 }
 
-function activatePage(id: string, bounds: Bounds) {
+/** 内容槽交给某个页面：摆位、显示目标、收起其余，一次完成。 */
+function presentPage(id: string, bounds: Bounds) {
   return enqueuePage(function () {
-    return invoke('navigation:activate', { body: { id, ...bounds } })
+    return invoke('navigation:present', { body: { id, ...bounds } })
   })
 }
 
@@ -66,14 +73,13 @@ function placePage(id: string, bounds: Bounds) {
   })
 }
 
-function stackPage(above: boolean) {
-  return enqueuePage(function () {
-    return invoke('navigation:stack', { body: { above } })
-  })
+/** 地址建议浮层。它是独立子 WebView，盖在网页上面，网页不动。 */
+function openPopup(bounds: Bounds) {
+  return invoke('navigation:popup', { body: { open: true, ...bounds } })
 }
 
-function cursorInMain() {
-  return invoke<{ x: number; y: number } | null>('navigation:cursor')
+function closePopup() {
+  return invoke('navigation:popup', { body: { open: false, x: 0, y: 0, width: 0, height: 0 } })
 }
 
 function closePage(id: string) {
@@ -118,38 +124,17 @@ function removeExtension(name: string) {
   })
 }
 
-const BAR_LABEL = 'navigation-bar'
-const BAR_STATE = 'navigation://bar'
-const BAR_ACTION = 'navigation://bar-action'
-const BAR_READY = 'navigation://bar-ready'
-const BAR_FRAME = 'navigation://bar-frame'
 const SUGGEST_ROW = 32
 const SUGGEST_PAD = 12
 const SUGGEST_ITEM_GAP = 4
 const SUGGEST_BORDER = 1
+/** 浮层比列表多出来的一圈，用来装阴影。 */
+const SUGGEST_SHADOW = 10
 
-interface BarState {
-  address: string
-  canBack: boolean
-  canForward: boolean
-  engineKey: string
-}
-
-interface BarAction {
-  kind: 'submit' | 'back' | 'forward' | 'home' | 'engine' | 'menu' | 'suggest'
-  url?: string
-  query?: string
-  key?: string
-  open?: boolean
-  x?: number
-  y?: number
-  width?: number
-  height?: number
-}
-
-interface BarFrame {
-  shown: boolean
-}
+const SUGGEST_FRAME = 'suggest://frame'
+const SUGGEST_READY = 'suggest://ready'
+const SUGGEST_PICK = 'suggest://pick'
+const SUGGEST_DISMISS = 'suggest://dismiss'
 
 interface SuggestRow {
   label: string
@@ -173,50 +158,35 @@ interface CompleteItem {
   t: string
 }
 
-function openBar() {
-  return invoke('navigation:bar-open')
-}
-
-function closeBar() {
-  return invoke('navigation:bar-close')
-}
-
-function placeBar(bounds: BarPlace) {
-  return invoke('navigation:bar-place', { body: bounds })
-}
-
 function completeAddress(qry: string) {
   return invoke<{ s: CompleteItem[] }>('navigation:complete', { body: { qry } })
 }
 
 export {
-  activatePage,
+  closePopup,
   closePage,
   suspendPages,
   historyPage,
   reloadPage,
   importExtension,
   navigatePage,
-  cursorInMain,
-  stackPage,
+  openPopup,
   completeAddress,
-  openBar,
-  closeBar,
   openDevtools,
   openPage,
-  placeBar,
   placePage,
+  presentPage,
   readExtensions,
   readLivePages,
   removeExtension,
-  BAR_ACTION,
-  BAR_FRAME,
-  BAR_LABEL,
-  BAR_READY,
-  BAR_STATE,
   SUGGEST_BORDER,
+  SUGGEST_DISMISS,
+  SUGGEST_FRAME,
   SUGGEST_ITEM_GAP,
   SUGGEST_PAD,
-  SUGGEST_ROW
+  SUGGEST_PICK,
+  SUGGEST_READY,
+  SUGGEST_ROW,
+  SUGGEST_SHADOW
 }
-export type { BarAction, BarFrame, BarPlace, BarState, Bounds, ExtensionsResult, LivePage, OpenedPage, SuggestFrame, SuggestRow }
+export type { Bounds, ExtensionsResult, LivePage, OpenedPage, SuggestFrame, SuggestRow }

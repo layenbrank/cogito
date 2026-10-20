@@ -10,6 +10,8 @@ interface BrowserBarProps {
   onBind: (node: HTMLDivElement | null) => void
   leading?: ReactNode
   trailing?: ReactNode
+  /** 承载网页的窗口传 `left`：窗口键的 tooltip 不能往内容槽里掉。 */
+  controlsTooltipSide?: 'bottom' | 'left'
   children: ReactNode
 }
 
@@ -17,6 +19,7 @@ function BrowserBar({
   onBind,
   leading,
   trailing,
+  controlsTooltipSide,
   children
 }: BrowserBarProps) {
   const { state, refresh } = useCaptionState()
@@ -52,6 +55,7 @@ function BrowserBar({
       {trailing ? <div className="flex shrink-0 items-center gap-0.5 pr-1">{trailing}</div> : null}
       <WindowControls
         state={state}
+        tooltipSide={controlsTooltipSide}
         onRefresh={refresh}
       />
     </header>

@@ -2,7 +2,6 @@ import { listen } from '@tauri-apps/api/event'
 import { useEffect } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 
-import { NAVIGATION_OPEN_URL, requestBrowserOpen } from '@/features/magnetic-tile/open-url'
 import {
   bindSessionHome,
   findAppComponent,
@@ -17,13 +16,9 @@ import { useSettingsStore } from '@/stores/setting.ts'
 import { applyCliMatches } from '@/utils/cli'
 import { checkUpdate } from '@/utils/updater'
 
-interface OpenUrlPayload {
-  url?: string
-}
-
 /**
- * 主窗口常驻壳：会话名单、打开网址、外观同步。
- * 离开 `/overview` 时浏览器壳会卸掉，这些监听不能跟着走。
+ * 主窗口常驻壳：会话名单、外观同步。
+ * 离开 `/overview` 时工作台壳会卸掉，这些监听不能跟着走。
  */
 function AppHost() {
   const navigate = useNavigate()
@@ -83,32 +78,6 @@ function AppHost() {
       unlisten?.()
     }
   }, [])
-
-  useEffect(
-    function () {
-      if (!isMainWindow()) return
-      let unlisten: (() => void) | undefined
-      let cancelled = false
-
-      void listen<OpenUrlPayload>(NAVIGATION_OPEN_URL, function (event) {
-        const url = event.payload?.url ?? ''
-        if (!requestBrowserOpen(url)) void navigate('/overview')
-      })
-        .then(function (stop) {
-          if (cancelled) stop()
-          else unlisten = stop
-        })
-        .catch(function (error: unknown) {
-          console.warn('[tile-host] 打开网址监听失败', error)
-        })
-
-      return function () {
-        cancelled = true
-        unlisten?.()
-      }
-    },
-    [navigate]
-  )
 
   useEffect(function () {
     if (!isMainWindow()) return

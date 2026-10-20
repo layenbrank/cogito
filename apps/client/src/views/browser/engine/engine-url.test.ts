@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { ENGINES } from '@/constants/engine'
-import { ENGINE_UI } from '@/views/overview/engine/engine-constants'
+import { ENGINE_UI } from '@/views/browser/engine/engine-constants'
 import {
   buildSuggestionUrl,
   findAddressUrl,
@@ -10,7 +10,7 @@ import {
   isUrlKeyword,
   parseKeywordUrl,
   parseSuggestionLabel
-} from '@/views/overview/engine/engine-url'
+} from '@/views/browser/engine/engine-url'
 
 describe('engine url', function () {
   it('strips private-use marks from suggestion labels', function () {

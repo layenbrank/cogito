@@ -74,6 +74,13 @@ impl Bootstrap {
                 Ok(())
             })
             .on_window_event(|window, event| {
+                // 浏览窗口销毁时清掉它名下的页面 / 浮层引用：label 会被复用，
+                // 残留句柄会让下一扇同编号窗口拿到已销毁的页面。
+                if let tauri::WindowEvent::Destroyed = event
+                    && crate::navigation::command::is_browser(window.label())
+                {
+                    crate::navigation::command::prune(window.app_handle(), window.label());
+                }
                 if window.label() == "main"
                     && let tauri::WindowEvent::CloseRequested { api, .. } = event
                 {
