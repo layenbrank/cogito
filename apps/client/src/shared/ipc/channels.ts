@@ -97,6 +97,35 @@ export const CHANNELS = {
     UPDATE: 'calendar:update',
     REMOVE: 'calendar:remove'
   },
+  SIGNBOARD: {
+    READ: 'signboard:read',
+    WRITE: 'signboard:write',
+    UPDATE: 'signboard:update',
+    REMOVE: 'signboard:remove'
+  },
+  SIGNBOARD_COLUMN: {
+    READ: 'signboard-column:read',
+    WRITE: 'signboard-column:write',
+    UPDATE: 'signboard-column:update',
+    REMOVE: 'signboard-column:remove'
+  },
+  SIGNBOARD_CARD: {
+    READ: 'signboard-card:read',
+    WRITE: 'signboard-card:write',
+    UPDATE: 'signboard-card:update',
+    REMOVE: 'signboard-card:remove'
+  },
+  SIGNBOARD_TAG: {
+    READ: 'signboard-tag:read',
+    WRITE: 'signboard-tag:write',
+    UPDATE: 'signboard-tag:update',
+    REMOVE: 'signboard-tag:remove'
+  },
+  SIGNBOARD_CARD_TAG: {
+    READ: 'signboard-card-tag:read',
+    WRITE: 'signboard-card-tag:write',
+    REMOVE: 'signboard-card-tag:remove'
+  },
   REMINDER: {
     READ: 'reminder:read',
     WRITE: 'reminder:write',
