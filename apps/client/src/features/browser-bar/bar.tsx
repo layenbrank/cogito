@@ -44,20 +44,27 @@ function BrowserBar({
       data-focused={state.isFocused ? 'true' : 'false'}
       onDoubleClick={onDoubleClick}
       className={cn(
-        'z-20 flex shrink-0 items-stretch border-b border-border bg-background select-none',
+        // 左右 1fr 等宽 → 搜索几何居中；中间 minmax(0,…) 可收缩，避免宽 omnibar 叠到 trailing
+        'z-20 grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,36rem)_minmax(0,1fr)] items-center border-b border-border bg-background select-none',
         !state.isFocused && 'opacity-80'
       )}
       style={{ height: BROWSER_BAR, minHeight: BROWSER_BAR }}>
-      <div className="flex min-w-0 flex-1 items-center">
+      <div className="flex min-w-0 items-center justify-start gap-0.5 pl-1">
         {leading}
+      </div>
+      <div
+        className="flex w-full min-w-0 items-center justify-center px-2"
+        data-region="false">
         {children}
       </div>
-      {trailing ? <div className="flex shrink-0 items-center gap-0.5 pr-1">{trailing}</div> : null}
-      <WindowControls
-        state={state}
-        tooltipSide={controlsTooltipSide}
-        onRefresh={refresh}
-      />
+      <div className="flex min-w-0 items-center justify-end gap-0.5 pr-1">
+        {trailing}
+        <WindowControls
+          state={state}
+          tooltipSide={controlsTooltipSide}
+          onRefresh={refresh}
+        />
+      </div>
     </header>
   )
 }

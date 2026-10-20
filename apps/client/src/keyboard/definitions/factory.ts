@@ -49,27 +49,6 @@ export function overlayShortcut(
   }
 }
 
-/** 浏览窗口键位：独立窗口 + 只读（新建/关闭标签这类是肌肉记忆，改错会与网页抢键） */
-export function browserShortcut(
-  id: string,
-  title: string,
-  defaultBinding: string,
-  extra?: Partial<LocalShortcutDefinition>
-): LocalShortcutDefinition {
-  return {
-    scope: 'app',
-    id,
-    title,
-    defaultBinding,
-    window: 'browser',
-    isConfigurable: false,
-    // 与浏览器一致：在输入框里也照样生效
-    allowInFormTags: true,
-    allowInEditable: true,
-    ...extra
-  }
-}
-
 /** 编辑器内键位：主窗 + 允许输入区 + 只读 */
 export function editorShortcut(
   id: string,

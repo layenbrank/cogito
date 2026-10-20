@@ -2,7 +2,7 @@
 
 use tauri::generate_handler;
 
-use crate::{autostart, capture, navigation, overlay, system, through};
+use crate::{autostart, capture, overlay, search, system, through};
 
 /// 返回应用全部 `#[tauri::command]` 的 invoke handler。
 pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static {
@@ -91,6 +91,11 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         thinking_command::album::album_read,
         thinking_command::album::album_update,
         thinking_command::album::album_remove,
+        thinking_command::bookmark::bookmark_write,
+        thinking_command::bookmark::bookmark_read,
+        thinking_command::bookmark::bookmark_update,
+        thinking_command::bookmark::bookmark_remove,
+        thinking_command::bookmark::bookmark_import,
         thinking_command::calendar::calendar_write,
         thinking_command::calendar::calendar_read,
         thinking_command::calendar::calendar_update,
@@ -130,21 +135,7 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         thinking_command::workspaceFiles::workspaceFilesSearch,
         thinking_command::workspaceFiles::workspaceFilesReadFile,
         thinking_command::workspaceSkills::workspaceSkillsList,
+        search::command::search_suggest,
         through::command::set_rects,
-        navigation::command::navigation_open,
-        navigation::command::navigation_read_lives,
-        navigation::command::navigation_present,
-        navigation::command::navigation_place,
-        navigation::command::navigation_popup,
-        navigation::command::navigation_close,
-        navigation::command::navigation_suspend,
-        navigation::command::navigation_navigate,
-        navigation::command::navigation_devtools,
-        navigation::command::navigation_extensions,
-        navigation::command::navigation_complete,
-        navigation::command::browser_open,
-        navigation::command::browser_spawn,
-        navigation::command::browser_ready,
-        navigation::command::browser_take_pending,
     ]
 }

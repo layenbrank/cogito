@@ -5,7 +5,7 @@ use crate::utils::goose_serve::{self, GooseConnection, GooseServeState};
 use crate::utils::ipc;
 use crate::utils::sidecar::{self, SIDECAR_SHUTDOWN_TIMEOUT, SidecarState};
 
-const ALLOWED_MODULES: &[&str] = &["morph", "capture", "scan", "engine", "file"];
+const ALLOWED_MODULES: &[&str] = &["morph", "capture", "scan", "file"];
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Memory {

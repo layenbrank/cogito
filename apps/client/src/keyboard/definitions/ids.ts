@@ -8,6 +8,9 @@ export const COMMAND = {
   CAPTURE_RETAKE: 'capture.retake',
   OVERLAY_ESCAPE: 'overlay.escape',
 
+  /** 主窗 Command Omnibar */
+  COMMAND_BAR_FOCUS: 'commandBar.focus',
+
   // code 窗（视图级）。没有键位的（资源管理器/搜索/问题）也在这里登记 id，
   // 免得命令 id 又散回各视图里去。
   CODE_OPEN_FILE: 'file.open',
@@ -53,12 +56,6 @@ export const COMMAND = {
   DIRECTIVE_VALIDATE: 'directive.validate',
   DIRECTIVE_UNDO: 'directive.undo',
   DIRECTIVE_REDO: 'directive.redo',
-
-  // 浏览窗口（独立窗口）
-  BROWSER_TAB_NEW: 'browser.tab.new',
-  BROWSER_TAB_CLOSE: 'browser.tab.close',
-  BROWSER_ADDRESS_FOCUS: 'browser.address.focus',
-  BROWSER_WINDOW_NEW: 'browser.window.new',
 
   // morph（PDF 标注）工具切换：一个工具一个 id，键位就是工具名首字母
   MORPH_TOOL_SELECT: 'morph.tool.select',

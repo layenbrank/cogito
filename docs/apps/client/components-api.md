@@ -568,9 +568,9 @@ import { Decorations } from '@/components/decorations'
 export default function Bookmark() {
   return (
     <Decorations
-      summary="书签"
-      section={<Button>保存</Button>}>
-      内容
+      summary="书签导入"
+      section={<Button>导入</Button>}>
+      Chrome 书签 → 书签库文件夹；可选挂到 navigation / collection
     </Decorations>
   )
 }
@@ -623,29 +623,29 @@ export default function Overview() {
 
 不使用 `data-tauri-drag-region`。槽位里的交互元素（按钮、链接、`[tabindex]`）必须带 **`data-region="false"`**，否则会被拖拽区吃掉点击。窗口键、镜像切换器、状态芯片、账号按钮都按此处理。
 
-#### 窗口划分：工作台 / 浏览窗口 / 地址建议浮层
+#### 窗口划分：工作台 / 磁贴窗
 
-工作台与浏览器是**两个窗口**，不再混在同一个窗口里：
+应用**不再内置浏览器**。网址一律走系统默认浏览器（`@tauri-apps/plugin-opener` 的 `openUrl`）。
 
 | 窗口 | label | 内容 |
 | --- | --- | --- |
-| 工作台 | `main` | 磁贴墙、集合展开、登录弹窗、镜像 / 状态 / 账号。**不承载任何网页** |
-| 浏览窗口 | `browser`、`browser-2`… | 侧栏（标签 / 搜索 / 下载 / 扩展）+ 地址栏 + 内容槽（原生子 WebView） |
-| 地址建议浮层 | `navigation-popup-<宿主>` | 该浏览窗口的 **owned 顶层窗口**：透明、不抢焦点、不进任务栏 |
+| 工作台 | `main` | 磁贴墙、集合展开、登录弹窗；顶栏 `BrowserBar` 中间挂 Command Omnibar（`features/command-bar`），右侧镜像 / 状态 / 账号 |
+| 磁贴窗 | `${component}:${id}` | 各业务独立窗（笔记、代码、日历等） |
+| 截屏浮层 | `overlay` | 截图标注 |
 
-浏览窗口可以有任意多扇：状态按窗口 label 分片（`NavigationState` 的 `surfaces` / `popups` / `pendings`），
-页面标签 `page-<id>` 全局唯一、且只用在自己那扇窗口里；会话文件 `navigation-session.json` 也按窗口 label 分键。
-关闭的窗口编号会被复用，所以 Rust 在销毁事件里按 label 清理残留句柄。
+打开网址：
 
-三条规则：
+- Overview Command Omnibar：本地优先（磁贴 / 日程 / Agent / 媒体 / 备忘 / 命令），Web 建议走 `search:suggest`；像 URL 或选中 Web 项 → `openUrl`
+- `navigation` 磁贴：`activateTile` → `openUrl(tile.url)`
+- 引擎切换：横向展开芯片（非下拉弹层）；快捷键 `mod+k` 聚焦命令栏
 
-1. **一个窗口里不混两种渲染模型**。工作台里没有子 WebView，所以它的浮层、对话框、toast 全是普通 DOM 行为，不需要任何层级技巧。
-2. **浏览窗口的内容槽排他**。要么某一页，要么壳层空白页；切换只走 `navigation:present`，一次调用完成「摆位 → 显示目标 → 收起其余」，渲染进程插不进中间态。
-3. **要盖住网页的东西 = 浏览窗口的 owned 顶层窗口**。Windows 保证 owned 窗口**永远在 owner 之上**（并随 owner 最小化/销毁）；再加 `WS_EX_NOACTIVATE` 保证出现与点击都不夺焦，键盘留在地址栏。地址建议即此。**禁止**再写 `data-layer` / 用 `SetWindowPos` 抢层级 —— 那套代码已整体删除。
-4. **浏览窗口里没有 `<Toaster/>`，也不该有**：浮动 toast 一定落在内容槽上被网页盖住，且 `sonner` 的 `toast()` 调了也无人渲染（静默失效）。操作结果放进**做事那个面板的侧栏内联提示**（`BrowserNotice`，如扩展导入结果）；确实需要浮起来的提示，只有两条路：owned 顶层窗口或系统通知。
-5. **承载网页的窗口，tooltip 一律朝左/朝上**：`BrowserBar` 传 `controlsTooltipSide="left"`。默认的 `side="bottom"` 会从 56px 高的工具栏掉进内容槽。
+Chrome 书签导入（主路径）：
 
-打开网址：磁贴 / 工作台按钮 → `browser:open`（`views/browser/open.ts`）。有浏览窗口就聚焦（聚焦中的优先，否则最近打开的那扇）并转发地址；一扇也没有才新建，新建时先把地址暂存在 Rust，等浏览窗口就绪后用 `browser:take-pending` 取走（窗口刚建好时事件会丢）。`browser:spawn` 是无条件新开一扇（浏览窗口内 ⌘N）。
+- 路由 `/bookmark`：资源管理器式导入 + 文件夹浏览（`views/bookmark`）
+- **独立表 `bookmark`**：树形文件夹/链接入库；重复链接可选跳过或覆盖
+- **可选挂磁贴**：文件夹页勾选后可添加为 `navigation` 或 `collection`（非导入默认全量建磁贴）
+- IPC：`bookmark:import` / `bookmark:read` / `write` / `update` / `remove`
+- 市场「网址」模式 / overview 顶栏有导入入口
 
 ---
 

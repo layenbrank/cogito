@@ -13,7 +13,6 @@
 
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
-import { isBrowserWindow } from '@/features/window/kind'
 import { isModifierEvent, matchesEventText } from '@/keyboard/binding'
 import { hasCommand, runCommand } from '@/keyboard/commands'
 import { LOCAL_SHORTCUTS, findBindingTexts } from '@/keyboard/definitions'
@@ -44,14 +43,11 @@ function findWindowLabel(): string | null {
 
 /**
  * 窗口 label → 键位表里的窗口种类。
- *
- * 浏览窗口可以有多个（`browser`、`browser-2`…），键位表只声明「属于哪一类窗口」，
- * 不关心具体编号。识别不出时返回 null，按「不过滤」处理。
+ * 识别不出时返回 null，按「不过滤」处理。
  */
 function findWindowKind(label: string | null): ShortcutWindow | null {
   if (!label) return null
   if (label === 'main' || label === 'overlay') return label
-  if (isBrowserWindow(label)) return 'browser'
   return null
 }
 

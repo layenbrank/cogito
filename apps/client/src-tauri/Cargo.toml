@@ -81,7 +81,6 @@ thinking-command = { workspace = true }
 
 # --- Tauri 核心 ---
 tauri = { workspace = true } # 应用壳、窗口、tray、IPC
-wry = "0.57" # 仅 page_load_succeeded()；与 patch 的本地 wry 同一份
 
 # --- Tauri 插件（已在 bootstrap 注册）---
 tauri-plugin-opener = "2.7.2" # 用系统默认应用打开 URL/路径
@@ -151,8 +150,6 @@ tauri-plugin-single-instance = "2.5.4" # 单实例
 tauri-plugin-updater = "2.14.0" # 检查更新
 
 [target.'cfg(target_os = "windows")'.dependencies]
-# 与 wry 0.57 / tauri 2.12 锁定的 webview2-com 同版本，才能在子 WebView 上读 NavigationCompleted.IsSuccess
-webview2-com = "=0.39.1"
 # --- Windows FFI ---
 windows = { version = "0.62", features = [
   "Win32_UI_WindowsAndMessaging",
@@ -165,13 +162,7 @@ windows = { version = "0.62", features = [
   "Win32_System_Threading",
   "Win32_System_Diagnostics_ToolHelp",
   "Win32_System_Registry",
-] } # 与 tauri 2.12 / wry 0.57 的 windows 0.62 对齐，避免 HWND 跨 crate 分裂
-
-# 本地 wry，上游覆盖这两处后改回 crates.io：
-# 1. NewWindowRequested 在返回前同步 SetHandled(true)，不再 GetDeferral。
-# 2. page_load_succeeded()：Finished 回调期间读取 WebView2 IsSuccess。
-[patch.crates-io]
-wry = { path = "vendor/wry" }
+] } # 与 tauri 2.12 的 windows 0.62 对齐，避免 HWND 跨 crate 分裂
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # --- macOS FFI ---

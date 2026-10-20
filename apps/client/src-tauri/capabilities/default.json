@@ -403,26 +403,9 @@
     "updater:default"
   ],
   "platforms": ["macOS", "linux", "windows"],
-  "remote": {
-    "urls": [
-      "http://*",
-      "https://*",
-      "http://localhost:*",
-      "https://www.baidu.com",
-      "https://*.baidu.com",
-      "https://cn.bing.com",
-      "https://*.bing.com",
-      "https://www.youku.com",
-      "https://*.youku.com",
-      "https://game.weixin.qq.com",
-      "https://*.weixin.qq.com"
-    ]
-  },
   "windows": [
     "main",
     "overlay",
-    "browser*",
-    "navigation-popup*",
     "*:*"
   ]
 }

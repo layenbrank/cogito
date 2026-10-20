@@ -69,6 +69,13 @@ export const CHANNELS = {
     UPDATE: 'album:update',
     REMOVE: 'album:remove'
   },
+  BOOKMARK: {
+    READ: 'bookmark:read',
+    WRITE: 'bookmark:write',
+    UPDATE: 'bookmark:update',
+    REMOVE: 'bookmark:remove',
+    IMPORT: 'bookmark:import'
+  },
   MIRROR: {
     READ: 'mirror:read',
     WRITE: 'mirror:write',
@@ -159,6 +166,9 @@ export const CHANNELS = {
     SEARCH: 'workspaceFiles:search',
     READ_FILE: 'workspaceFiles:readFile'
   },
+  SEARCH: {
+    SUGGEST: 'search:suggest'
+  },
   WORKSPACE_SKILLS: {
     LIST: 'workspaceSkills:list'
   },
@@ -195,16 +205,12 @@ export const EVENTS = {
 
 /** corex-daemon 经 ipc:invoke 的模块名 */
 export const DAEMON = {
-  ENGINE: 'engine',
   FILE: 'file',
   MORPH: 'morph'
 } as const
 
 /** daemon action 名 */
 export const DAEMON_ACTION = {
-  ENGINE: {
-    SUGGESTION: 'suggestion'
-  },
   FILE: {
     READ: 'read',
     WRITE: 'write',

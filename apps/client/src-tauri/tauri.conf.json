@@ -103,7 +103,6 @@
     "windows": [
       {
         "backgroundColor": "#00000000",
-        "browserExtensionsEnabled": false,
         "center": true,
         "closable": true,
         "contentProtected": false,

@@ -1,6 +1,0 @@
-{
-  "identifier": "navigation-page",
-  "description": "网址窗口的远程子 Webview。权限为空，避免网页调用应用 IPC。",
-  "windows": ["page-*"],
-  "permissions": []
-}

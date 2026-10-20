@@ -1,6 +1,7 @@
 pub mod app;
 pub mod autostart;
 pub mod reminder;
+pub mod search;
 pub mod system;
 
 pub mod through {
@@ -28,8 +29,6 @@ pub mod capture {
 }
 
 pub mod media;
-
-pub mod navigation;
 
 pub mod ui {
     pub mod contextmenu;
