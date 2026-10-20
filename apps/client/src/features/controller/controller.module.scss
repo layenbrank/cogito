@@ -9,7 +9,11 @@
   .scroller {
     width: 100%;
     height: 100%;
-    overflow: hidden scroll;
+    overflow-x: hidden;
+    overflow-y: auto;
+    // 首行贴着滚动口时，阴影和磁贴顶边会被裁掉
+    padding-top: 16px;
+    scroll-padding-top: 16px;
   }
 
   // Mirror 切换动画作用层
@@ -32,6 +36,7 @@
   &.magnetic-tile {
     display: grid;
     padding-inline: 20px;
+    padding-bottom: 28px;
     margin: 0 auto;
     outline: none;
     // scrollbar-width: none;

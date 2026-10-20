@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { Navigate, createBrowserRouter, useLocation, type RouteObject } from 'react-router-dom'
+import { AppHost } from '@/features/magnetic-tile/host'
 import Overlay from '@/views/overlay/overlay'
 import { RouteTransition } from '@/routers/transition.tsx'
 
@@ -140,6 +141,9 @@ const routes: RouteObject[] = [
     )
   },
   {
+    element: <AppHost />,
+    children: [
+  {
     element: <RouteTransition />,
     children: [
       {
@@ -200,6 +204,8 @@ const routes: RouteObject[] = [
       { path: '/navigation', element: <Navigate replace to="/overview" /> },
       { path: '/settings', element: <Settings /> },
       { path: '/signboard', element: <Signboard /> }
+    ]
+  }
     ]
   }
 ]

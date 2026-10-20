@@ -1,10 +1,10 @@
 import { Button } from '@i-thinking/design/components/button'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { cn } from 'cn'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { Decorations } from '@/components/decorations/index.ts'
+import { leaveTileSession } from '@/features/magnetic-tile/session'
 import { EVENTS } from '@/shared/ipc/channels'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 import {
@@ -31,7 +31,7 @@ const EMPTY_DRAFT: Draft = {
 }
 
 function closeWindow() {
-  void getCurrentWindow().close()
+  leaveTileSession()
 }
 
 function Clock() {

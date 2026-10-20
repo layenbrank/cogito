@@ -15,6 +15,7 @@ import {
 import { cn } from 'cn'
 
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
+import { useShowsTileSession } from '@/features/magnetic-tile/session-bar'
 import { runCommand } from '@/keyboard/commands'
 import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
 import { useMarkdownStore } from '@/stores/markdown'
@@ -31,9 +32,11 @@ function MarkdownCaptionBegin() {
     return state.hasOpened
   })
 
+  const showsSession = useShowsTileSession()
   const title = !hasOpened
     ? findComponentLabel('markdown')
     : (activePath?.split(/[/\\]/).pop() ?? t('UNTITLED'))
+  const showsTitle = hasOpened || !showsSession
 
   return (
     <>
@@ -132,17 +135,19 @@ function MarkdownCaptionBegin() {
       </DropdownMenu>
 
       {/* 相对 Caption（relative）整栏居中，不挡拖拽 */}
-      <span
-        className="pointer-events-none absolute inset-x-0 top-0 bottom-0 z-0 flex items-center justify-center px-28">
+      {showsTitle ? (
         <span
-          className={cn(
-            'max-w-full truncate text-center text-sm font-medium',
-            isDirty && 'text-amber-700 dark:text-amber-400'
-          )}
-          title={activePath ?? title}>
-          {isDirty ? `• ${title}` : title}
+          className="pointer-events-none absolute inset-x-0 top-0 bottom-0 z-0 flex items-center justify-center px-28">
+          <span
+            className={cn(
+              'max-w-full truncate text-center text-sm font-medium',
+              isDirty && 'text-amber-700 dark:text-amber-400'
+            )}
+            title={activePath ?? title}>
+            {isDirty ? `• ${title}` : title}
+          </span>
         </span>
-      </span>
+      ) : null}
     </>
   )
 }

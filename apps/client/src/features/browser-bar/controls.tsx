@@ -57,12 +57,17 @@ function ControlButton(props: ControlButtonProps) {
 interface WindowControlsProps {
   state: CaptionState
   onRefresh: () => void
+  /** 不传则只渲染默认键（最小化 / 最大化 / 关闭） */
+  controls?: readonly WindowControl[]
 }
 
 function WindowControls(props: WindowControlsProps) {
-  const controls = WINDOW_CONTROLS.filter(function (control) {
-    return control.isDefault !== false
-  })
+  const controls =
+    props.controls ??
+    WINDOW_CONTROLS.filter(function (control) {
+      return control.isDefault !== false
+    })
+  if (controls.length === 0) return null
 
   return (
     <div className="flex shrink-0 items-center self-center pr-1.5">

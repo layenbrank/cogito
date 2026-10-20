@@ -1,20 +1,17 @@
 import { emit } from '@tauri-apps/api/event'
 import { toast } from 'sonner'
 
-import { findTileRoute, findTileWindowOptions } from '@/constants/magnetic-tile/window'
+import { findTileRoute } from '@/constants/magnetic-tile/window'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
-import { openWindow } from '@/features/window/open'
+import { NAVIGATION_OPEN_URL } from '@/features/magnetic-tile/open-url'
+import { admitSession } from '@/features/magnetic-tile/session'
 import { parseOriginRect, useCollectionStore } from '@/stores/collection'
 
 type Tile = Pick<MagneticTile, 'component' | 'url' | 'id'>
 
-const NAVIGATION_OPEN_URL = 'navigation://open-url'
-
 /**
- * 窗口 label：`<component>:<磁贴 id>`。
- *
- * 一个组件可以有多个磁贴记录（各自 url / 标题），按记录建窗才能一窗对一记录。
- * 网址磁贴不开窗口，在主窗口里打开标签。
+ * 旧磁贴窗的 label：`<component>:<磁贴 id>`。
+ * 新开的磁贴不再建窗，这个名字只留给还没关掉的旧窗口。
  */
 function findTileWindowLabel(tile: Tile) {
   return `${tile.component}:${tile.id}`
@@ -39,9 +36,9 @@ function findCollectionOriginRect(id: string) {
 
 /**
  * 激活磁贴：
- * - `collection` → 主镜内 FLIP scale 展开（不开独立窗）
- * - `navigation` → 主窗口打开或聚焦对应标签，不另开窗口
- * - 其它组件 → 独立窗口（`views/<component>`）；同 label 只聚焦
+ * - `collection` → 主镜内 FLIP scale 展开（不开页）
+ * - `navigation` → 主窗口打开或聚焦对应标签
+ * - 其它组件 → 主窗口里打开对应路由，并记入会话名单
  */
 async function activateTile(tile: Tile): Promise<void> {
   if (tile.component === 'collection') {
@@ -59,15 +56,18 @@ async function activateTile(tile: Tile): Promise<void> {
       await openNavigation(tile.url ?? '')
       return
     }
-    await openWindow(
-      findTileWindowLabel(tile),
-      findTileWindowUrl(tile),
-      findComponentLabel(tile.component),
-      findTileWindowOptions(tile.component)
-    )
+    const path = findTileWindowUrl(tile)
+    admitSession({
+      component: tile.component,
+      id: tile.id,
+      url: tile.url ?? '',
+      path
+    })
+    const { router } = await import('@/routers')
+    await router.navigate(path)
   } catch (error) {
-    console.error('[magnetic-tile] 打开窗口失败', error)
-    toast.error(`${findComponentLabel(tile.component)}窗口打开失败`)
+    console.error('[magnetic-tile] 打开应用失败', error)
+    toast.error(`${findComponentLabel(tile.component)}打开失败`)
   }
 }
 

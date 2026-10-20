@@ -1,5 +1,5 @@
 /**
- * 指令磁贴：双击经 activateTile 打开独立窗口（`/directive`）。
+ * 指令磁贴：双击经 activateTile 在主窗口打开（`/directive`）。
  */
 import clsx from 'clsx'
 import type { MouseEvent } from 'react'

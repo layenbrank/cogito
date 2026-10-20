@@ -2,6 +2,7 @@ import { cn } from 'cn'
 import type { ReactNode } from 'react'
 
 import { Caption, type CaptionProps } from '@/components/caption/caption'
+import { useShowsTileSession } from '@/features/magnetic-tile/session-bar'
 
 /**
  * 窗口容器：Caption + 内容区 + 可选底栏。
@@ -27,14 +28,20 @@ interface DecorationsProps {
   scrollable?: boolean
 }
 
-function findCaptionBegin(begin: ReactNode | undefined, summary: string | undefined): ReactNode {
+function findCaptionBegin(
+  begin: ReactNode | undefined,
+  summary: string | undefined,
+  showsSession: boolean
+): ReactNode {
   if (begin) return begin
-  if (!summary) return null
+  // 会话切换已经写出当前应用，纯磁贴名不再重复
+  if (showsSession || !summary) return null
   return <span className="truncate px-1 text-sm font-medium">{summary}</span>
 }
 
 function Decorations(props: DecorationsProps) {
   const scrollable = props.scrollable ?? true
+  const showsSession = useShowsTileSession()
 
   return (
     <div
@@ -43,7 +50,7 @@ function Decorations(props: DecorationsProps) {
         props.className
       )}>
       <Caption
-        begin={findCaptionBegin(props.begin, props.summary)}
+        begin={findCaptionBegin(props.begin, props.summary, showsSession)}
         final={props.final}
         controls={props.controls}
       />

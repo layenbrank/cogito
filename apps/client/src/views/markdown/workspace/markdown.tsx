@@ -12,6 +12,7 @@ import { startTransition, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { isMainWindow, MAIN_WINDOW_TITLE } from '@/features/magnetic-tile/session'
 import { useMarkdownStore } from '@/stores/markdown'
 import { writeBackup } from '@/views/markdown/lib/backup.ts'
 import { findDisplayTitle } from '@/views/markdown/lib/fs.ts'
@@ -121,13 +122,16 @@ function useMarkdownDocumentEffects(input: {
     function () {
       const title = findDisplayTitle(activePath, isDirty)
       void getCurrentWindow().setTitle(title)
-      const label = document.querySelector('[data-slot="caption"]')
-      if (label) {
-        // Decorations summary updated via parent; title is enough for OS
-      }
     },
     [activePath, isDirty]
   )
+
+  useEffect(function () {
+    return function () {
+      if (!isMainWindow()) return
+      void getCurrentWindow().setTitle(MAIN_WINDOW_TITLE)
+    }
+  }, [])
 
   useEffect(
     function () {

@@ -1,20 +1,19 @@
-import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@i-thinking/design/components/tooltip'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { cn } from 'cn'
 import { useEffect, useState, type MouseEvent, type ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
+
+import { WindowControls } from '@/features/browser-bar/controls'
+import { BROWSER_BAR } from '@/features/browser-bar/metrics'
+import { findAppComponent, isMainWindow } from '@/features/magnetic-tile/session'
+import { TileSessionBar } from '@/features/magnetic-tile/session-bar'
 
 /**
  * 通用标题栏（窗口装饰）。
  *
  * 对齐主流桌面壳（Win11 Caption / Fluent TitleBar / Electron·VS Code 自绘栏）：
  * - 操作：最小化 / 最大化⇄还原（全屏时退出全屏）/ 关闭；可选置顶（`controls.pin`）
+ * - 尺寸与窗口键样式跟主页地址栏一致（高 56、圆角键）
  * - 状态：focused · maximized · fullscreen · alwaysOnTop · minimizable · maximizable · closable
  * - 失焦降对比；无能力时禁用对应键；双击拖拽区切换最大化（全屏则退出全屏）
  *
@@ -220,56 +219,6 @@ function useCaptionState() {
   return { state, refresh }
 }
 
-interface ControlButtonProps {
-  control: WindowControl
-  state: CaptionState
-  onRefresh: () => void
-}
-
-function ControlButton(props: ControlButtonProps) {
-  const label = props.control.findLabel(props.state)
-  const isEnabled = props.control.isEnabled(props.state)
-
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={!isEnabled}
-            data-region="false"
-            data-window-control={props.control.key}
-            aria-label={label}
-            aria-disabled={!isEnabled}
-            className={cn(
-              // 覆盖 icon-sm 的 size-7/圆角：整条 Caption 高、宽约 46px，贴顶贴右
-              'h-full w-11.5 min-w-11.5 shrink-0 rounded-none border-0',
-              'text-muted-foreground hover:bg-foreground/5 hover:text-foreground',
-              'dark:hover:bg-foreground/10',
-              props.control.isDestructive &&
-                isEnabled &&
-                'hover:bg-destructive hover:text-white active:bg-destructive/90',
-              !isEnabled && 'pointer-events-none opacity-40'
-            )}
-            onClick={function () {
-              if (!isEnabled) return
-              void props.control.run(getCurrentWindow(), props.state).then(function () {
-                if (props.control.needsRefresh) props.onRefresh()
-              })
-            }}
-          />
-        }>
-        <Icon
-          icon={props.control.findIcon(props.state)}
-          aria-hidden
-        />
-      </TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
-    </Tooltip>
-  )
-}
-
 interface CaptionProps {
   className?: string
   /** 左侧主区域：标题、筛选、视图切换等 */
@@ -298,7 +247,9 @@ function findVisibleControls(
 
 function Caption(props: CaptionProps) {
   const { state, refresh } = useCaptionState()
+  const location = useLocation()
   const controls = findVisibleControls(props.controls)
+  const showsSessions = isMainWindow() && findAppComponent(location.pathname) !== null
 
   function onCaptionDoubleClick(event: MouseEvent<HTMLDivElement>) {
     const target = event.target
@@ -322,40 +273,28 @@ function Caption(props: CaptionProps) {
       data-fullscreen={state.isFullscreen ? 'true' : 'false'}
       onDoubleClick={onCaptionDoubleClick}
       className={cn(
-        // 固定 32px（Win 标准 Caption 高）；半透 + blur 透出 Mica
-        'relative flex h-8 w-full shrink-0 items-stretch border-b border-border/40',
-        'bg-background/70 backdrop-blur-md select-none',
+        'relative z-20 flex w-full shrink-0 items-stretch border-b border-border bg-background select-none',
+        !state.isFocused && 'opacity-80',
         props.className
-      )}>
+      )}
+      style={{ height: BROWSER_BAR, minHeight: BROWSER_BAR }}>
       <div
         data-region="true"
-        className={cn(
-          'flex min-w-0 flex-1 items-center gap-2 pl-2',
-          !state.isFocused && 'opacity-60'
-        )}>
+        className="flex min-w-0 flex-1 items-center gap-1 pl-1.5">
+        {showsSessions ? <TileSessionBar /> : null}
         {props.begin}
       </div>
       <div
         data-region="false"
-        className="flex h-full shrink-0 items-stretch">
+        className="flex shrink-0 items-center self-center">
         {props.final ? (
-          <div
-            className={cn('flex items-center gap-1 pr-1 pl-1', !state.isFocused && 'opacity-60')}>
-            {props.final}
-          </div>
+          <div className="flex items-center gap-0.5 pr-1 pl-1">{props.final}</div>
         ) : null}
-        <TooltipProvider delay={600}>
-          {controls.map(function (control) {
-            return (
-              <ControlButton
-                key={control.key}
-                control={control}
-                state={state}
-                onRefresh={refresh}
-              />
-            )
-          })}
-        </TooltipProvider>
+        <WindowControls
+          controls={controls}
+          state={state}
+          onRefresh={refresh}
+        />
       </div>
     </div>
   )

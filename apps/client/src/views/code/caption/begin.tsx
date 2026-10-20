@@ -5,14 +5,19 @@
 import { cn } from 'cn'
 
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
+import { useShowsTileSession } from '@/features/magnetic-tile/session-bar'
 import { useCodeStore } from '@/stores/code'
 
 function CodeCaptionBegin() {
+  const showsSession = useShowsTileSession()
+
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2 pr-2">
-      <span className="shrink-0 truncate px-1 text-sm font-medium">
-        {findComponentLabel('code')}
-      </span>
+      {showsSession ? null : (
+        <span className="shrink-0 truncate px-1 text-sm font-medium">
+          {findComponentLabel('code')}
+        </span>
+      )}
       <button
         type="button"
         data-region="false"

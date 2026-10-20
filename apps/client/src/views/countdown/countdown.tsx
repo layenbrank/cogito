@@ -1,10 +1,10 @@
 import { Button } from '@i-thinking/design/components/button'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { Decorations } from '@/components/decorations/index.ts'
+import { leaveTileSession } from '@/features/magnetic-tile/session'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 import {
   computeCountdown,
@@ -16,7 +16,7 @@ import { CountdownForm, type LocalConfig } from './countdown-form'
 import { CountdownPreview } from './countdown-preview'
 
 function closeWindow() {
-  void getCurrentWindow().close()
+  leaveTileSession()
 }
 
 function Countdown() {

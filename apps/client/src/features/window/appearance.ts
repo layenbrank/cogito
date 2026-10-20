@@ -9,9 +9,13 @@
  * 并驱动 MotionConfig / JS 读点，供用户强制开或关。
  */
 
+import { emit } from '@tauri-apps/api/event'
 import { Effect, getCurrentWindow, type Theme } from '@tauri-apps/api/window'
 
 const APPEARANCE_KEY = 'client.appearance'
+
+/** 独立设置窗写入后通知主窗口。主窗口里的磁贴不再逐窗广播。 */
+const APPEARANCE_SYNC = 'appearance://sync'
 
 const APPEARANCE_MODES = [
   { value: 'system', label: '跟随系统' },
@@ -234,13 +238,37 @@ function readMotionConfig(): MotionConfigValue {
   return findMotionConfig(readAppearance().motion)
 }
 
-function writeAppearance(patch: Partial<Appearance>) {
-  const next = rememberAppearance(parseAppearance({ ...readAppearance(), ...patch }))
+function storeAppearance(next: Appearance) {
   try {
     localStorage.setItem(APPEARANCE_KEY, JSON.stringify(next))
   } catch (error) {
     console.warn('[appearance] 写不了外观配置', error)
   }
+}
+
+function isTauriWindow() {
+  return typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+}
+
+function publishAppearance(appearance: Appearance) {
+  if (!isTauriWindow()) return
+  void emit(APPEARANCE_SYNC, appearance).catch(function (error: unknown) {
+    console.warn('[appearance] 通知主窗口失败', error)
+  })
+}
+
+function writeAppearance(patch: Partial<Appearance>) {
+  const next = rememberAppearance(parseAppearance({ ...readAppearance(), ...patch }))
+  storeAppearance(next)
+  watchAppearance()
+  publishAppearance(next)
+  return next
+}
+
+/** 主窗口收到独立设置窗的通知后套用，不再向外广播。 */
+function adoptAppearance(raw: unknown) {
+  const next = rememberAppearance(parseAppearance(raw))
+  storeAppearance(next)
   watchAppearance()
   return next
 }
@@ -253,6 +281,7 @@ function resetAppearance() {
   }
   rememberAppearance(DEFAULT_APPEARANCE)
   watchAppearance()
+  publishAppearance(DEFAULT_APPEARANCE)
   return DEFAULT_APPEARANCE
 }
 
@@ -299,10 +328,12 @@ function watchAppearance() {
 
 export {
   APPEARANCE_MODES,
+  APPEARANCE_SYNC,
   DEFAULT_APPEARANCE,
   MOTION_PRESETS,
   PRIMARY_PRESETS,
   RADIUS_PRESETS,
+  adoptAppearance,
   findEffectiveMotion,
   findMotionConfig,
   findReducedMotion,

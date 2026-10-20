@@ -16,5 +16,9 @@ export default function AgentView() {
     void useSettingsStore.getState().toInitialize()
   }, [])
 
-  return <Outlet />
+  return (
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <Outlet />
+    </div>
+  )
 }

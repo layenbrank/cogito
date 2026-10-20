@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 
 import { Decorations } from '@/components/decorations/index.ts'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
+import { useShowsTileSession } from '@/features/magnetic-tile/session-bar'
 import { findCaptureUsage } from '@/features/capture/model/usage'
 import { UsageMeter } from '@/features/capture/model/usage-meter'
 import { runCapturePrune } from '@/features/capture/retention'
@@ -23,6 +24,12 @@ import { findCaptureHistory } from '@/views/gallery/model/media'
 
 const SIDE_ITEM =
   'flex h-7 w-full items-center rounded-sm px-1.5 text-left text-xs transition-colors'
+
+function CaptureCaptionTitle() {
+  const showsSession = useShowsTileSession()
+  if (showsSession) return null
+  return <span className="text-sm font-medium">{findComponentLabel('capture')}</span>
+}
 
 function CaptureLayout() {
   const navigate = useNavigate()
@@ -123,7 +130,7 @@ function CaptureLayout() {
     <Decorations
       scrollable={false}
       className="bg-background"
-      begin={<span className="text-sm font-medium">{findComponentLabel('capture')}</span>}>
+      begin={<CaptureCaptionTitle />}>
       <div className="flex h-full min-h-0 flex-col">
         <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1.5">
           <Tabs

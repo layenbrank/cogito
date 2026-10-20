@@ -19,7 +19,7 @@ interface SectionProps extends MagneticTile {
   shape: MagneticTile.Shape
   direction: MagneticTile.Direction
   onTrash?: MouseEventHandler<HTMLElement>
-  /** 覆盖默认双击开窗；传入则不再调用 activateTile */
+  /** 覆盖默认双击打开；传入则不再调用 activateTile */
   onDoubleClick?: MouseEventHandler<HTMLElement>
 }
 
@@ -106,40 +106,55 @@ const MagneticTile = {
     )
   },
   /**
-   * 磁贴表面。双击默认走 `activateTile`（collection 为 scale 展开，其它开窗）；
+   * 磁贴表面。双击默认走 `activateTile`（collection 为 scale 展开，其它在主窗口打开）；
    * 可用 `onDoubleClick` 覆盖（如集合抽屉选贴）。
    */
   Section(props: SectionProps) {
     const nodeRef = useRef<HTMLDivElement>(null)
-    // 默认近视口，避免首屏先空 surface 再挂 Marker 闪一下
-    const [isNear, setIsNear] = useState(true)
     const enter = useEnter()
     const isReducedMotion = useReducedMotion()
     const isEnter = enter.isActive
-    // 锁定首挂 index：重排改序不重算 stagger，避免误触发观感变化
-    const staggerIndexRef = useRef(enter.index)
+    // 有入场时先不挂内容，等观察器确认在缓冲区内再挂，避免整表磁贴同时挂载
+    const [isNear, setIsNear] = useState(!isEnter)
+    const [hasEntered, setHasEntered] = useState(false)
 
     useEffect(function () {
       const el = nodeRef.current
       if (!el) return
 
       const root = el.closest('[data-mirror-scroller]')
-      const observer = new IntersectionObserver(
+      const scroller = root instanceof Element ? root : null
+      const nearObserver = new IntersectionObserver(
         function (entries) {
-          for (const entry of entries) {
-            // 滞回：进入即 true；离开后仍保持一屏缓冲（rootMargin）才 false
-            setIsNear(entry.isIntersecting)
-          }
+          const entry = entries[entries.length - 1]
+          if (!entry) return
+          setIsNear(entry.isIntersecting)
         },
         {
-          root: root ?? null,
+          root: scroller,
           rootMargin: '100% 0px',
           threshold: 0
         }
       )
-      observer.observe(el)
+      const viewObserver = new IntersectionObserver(
+        function (entries) {
+          const isVisible = entries.some(function (entry) {
+            return entry.isIntersecting
+          })
+          if (!isVisible) return
+          setHasEntered(true)
+          viewObserver.disconnect()
+        },
+        {
+          root: scroller,
+          threshold: 0
+        }
+      )
+      nearObserver.observe(el)
+      viewObserver.observe(el)
       return function () {
-        observer.disconnect()
+        nearObserver.disconnect()
+        viewObserver.disconnect()
       }
     }, [])
 
@@ -156,7 +171,8 @@ const MagneticTile = {
     )
 
     const surfaceBody = isNear ? props.children : null
-    const enterTransition = ENTER.transition(staggerIndexRef.current, !!isReducedMotion)
+    const enterTransition = ENTER.transition(!!isReducedMotion)
+    const isWaiting = isEnter && !isReducedMotion && !hasEntered
 
     return (
       <div
@@ -184,7 +200,7 @@ const MagneticTile = {
             style={surfaceStyle}
             variants={ENTER.variants}
             initial={isReducedMotion ? false : 'hidden'}
-            animate="show"
+            animate={isWaiting ? 'hidden' : 'show'}
             transition={enterTransition}>
             {surfaceBody}
           </m.div>

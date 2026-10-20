@@ -166,7 +166,8 @@ function findAccent(background: Mirror['background'] | string | null | undefined
   if (typeof background === 'string') {
     try {
       record = JSON.parse(background) as Mirror['background']
-    } catch {
+    } catch (error) {
+      console.error('[mirror] 背景色解析失败', error)
       record = null
     }
   } else {

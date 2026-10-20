@@ -1,9 +1,11 @@
 /* 设置子页：对齐 Qoder CN — Caption + 左栏返回/搜索/导航 + 右主区白卡 */
 
 .page {
-  display: grid;
-  grid-template-rows: 32px minmax(0, 1fr);
-  height: 100vh;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
   background: var(--background);
   color: var(--foreground);
@@ -11,6 +13,8 @@
 
 .shell {
   display: flex;
+  flex: 1;
+  min-width: 0;
   min-height: 0;
   gap: 0;
   overflow: hidden;

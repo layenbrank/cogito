@@ -33,7 +33,7 @@ function RouteTransition() {
     <AnimatePresence initial={false}>
       <m.div
         key={findTransitionKey(matches)}
-        className="h-full w-full"
+        className="flex h-full min-h-0 w-full flex-col"
         initial={{ opacity: 0, x: distance }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}>

@@ -1,5 +1,6 @@
 import { Decorations } from '@/components/decorations/index.ts'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
+import { useShowsTileSession } from '@/features/magnetic-tile/session-bar'
 import { safeDecodeURIComponent } from '@/utils/safe-decode.ts'
 import { Suspense, lazy } from 'react'
 import { Outlet, useParams } from 'react-router-dom'
@@ -21,18 +22,24 @@ function DirectiveCaptionBegin(props: { name?: string }) {
     if (!state.draft || !state.baselineJson) return false
     return state.isDraftDirty()
   })
+  const showsSession = useShowsTileSession()
   const label = findComponentLabel('directive')
   const name = props.name || editorName
 
   if (!name) {
+    if (showsSession) return null
     return <span className="truncate px-1 text-sm font-medium">{label}</span>
   }
 
   return (
     <span className="flex min-w-0 items-center gap-1.5 px-1">
       <span className="truncate text-sm font-medium">
-        {label}
-        <span className="text-muted-foreground"> · </span>
+        {showsSession ? null : (
+          <>
+            {label}
+            <span className="text-muted-foreground"> · </span>
+          </>
+        )}
         {name}
       </span>
       {isDirty ? (
