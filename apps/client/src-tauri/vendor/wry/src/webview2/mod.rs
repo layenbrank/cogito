@@ -724,12 +724,22 @@ impl InnerWebView {
         token,
       )?;
       webview.add_NavigationCompleted(
-        &NavigationCompletedEventHandler::create(Box::new(move |webview, _| {
+        &NavigationCompletedEventHandler::create(Box::new(move |webview, args| {
           let Some(webview) = webview else {
             return Ok(());
           };
 
-          on_page_load_handler(PageLoadEvent::Finished, Self::url_from_webview(&webview)?);
+          // 注册发生在 Navigate 之前，快的页面不会把这次完成事件丢掉。
+          // IsSuccess 不进 PageLoadEvent，只在回调期间放到 page_load_succeeded()。
+          let url = Self::url_from_webview(&webview)?;
+          let mut success = BOOL(1);
+          if let Some(args) = args {
+            if unsafe { args.IsSuccess(&mut success) }.is_err() {
+              success = BOOL(1);
+            }
+          }
+          let _ok = crate::page_load_ok::push(success.as_bool());
+          on_page_load_handler(PageLoadEvent::Finished, url);
 
           Ok(())
         })),
@@ -765,7 +775,8 @@ impl InnerWebView {
       .take()
       .map(std::rc::Rc::new);
     let env_ = env.clone();
-    // New window handler
+    // 新窗口必须在事件返回前 SetHandled(true)。GetDeferral 完成得太晚，系统浏览器仍会打开。
+    // 回调结果不再写回 Handled：本应用只 Deny，把地址收进侧栏。上游若在返回前设置 Handled，可删这段差异。
     webview.add_NewWindowRequested(
       &NewWindowRequestedEventHandler::create(Box::new(move |webview, args| {
         let Some(args) = args else {

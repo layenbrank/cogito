@@ -2592,6 +2592,40 @@ pub enum PageLoadEvent {
   Finished,
 }
 
+mod page_load_ok {
+  use std::cell::RefCell;
+
+  thread_local! {
+    static STACK: RefCell<Vec<bool>> = const { RefCell::new(Vec::new()) };
+  }
+
+  pub(crate) struct Guard;
+
+  impl Drop for Guard {
+    fn drop(&mut self) {
+      STACK.with(|stack| {
+        stack.borrow_mut().pop();
+      });
+    }
+  }
+
+  pub(crate) fn push(ok: bool) -> Guard {
+    STACK.with(|stack| stack.borrow_mut().push(ok));
+    Guard
+  }
+
+  pub(crate) fn current() -> Option<bool> {
+    STACK.with(|stack| stack.borrow().last().copied())
+  }
+}
+
+/// `on_page_load` 的 [`PageLoadEvent::Finished`] 同步执行时，WebView2 的 `IsSuccess`。
+///
+/// 其他平台，以及回调之外，返回 `None`。上游 `PageLoadEvent` 带上成功与否后，删除本函数和 WebView2 里的 `push`。
+pub fn page_load_succeeded() -> Option<bool> {
+  page_load_ok::current()
+}
+
 /// Background throttling policy
 #[derive(Debug, Clone)]
 pub enum BackgroundThrottlingPolicy {
