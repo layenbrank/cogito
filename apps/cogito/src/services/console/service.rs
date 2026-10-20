@@ -1,7 +1,7 @@
 use chrono::Utc;
 use entity::console_preference;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
-use serde_json::{Value, json};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::filters::exception::Exception;
@@ -135,13 +135,3 @@ fn string_array(value: &Value) -> Vec<String> {
     }
 }
 
-/// 空偏好占位（测试 / 文档示例）
-#[allow(dead_code)]
-fn empty_preference_json() -> Value {
-    json!({
-        "navOrder": [],
-        "pinnedNav": [],
-        "dashboardWidgets": [],
-        "bookmarks": []
-    })
-}

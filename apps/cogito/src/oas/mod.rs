@@ -5,6 +5,7 @@ pub mod auth;
 pub mod billing;
 pub mod chat;
 pub mod common;
+pub mod console;
 pub mod engine;
 pub mod gateway;
 pub mod mcp;
@@ -26,24 +27,27 @@ use crate::oas::common::{
     ChatSyncEnvelope, ChunkUploadEnvelope, ChunkUploadForm, DependencyCheck, EmptyEnvelope, EmptyR,
     Exception, FinalizeUploadEnvelope, Health, HealthEnvelope, IndexTaskEnvelope, Liveness,
     LivenessEnvelope, MemberEnvelope, MemberListEnvelope, ModelEnvelope, ModelListEnvelope,
-    OrderEnvelope, OrderListEnvelope, PlansEnvelope, PriceEnvelope, PriceListEnvelope,
-    ProfileEnvelope, ProviderEnvelope, ProviderListEnvelope, QuotaEnvelope, Readiness,
-    ReadinessEnvelope, ReconcileEnvelope, SelfQuotaEnvelope, SigninEnvelope, SigninErrorExample,
-    SigninSuccessExample, SignupEnvelope, SsoConnectionEnvelope, SsoConnectionListEnvelope,
-    SsoLoginEnvelope, SubscriptionEnvelope, SubscriptionListEnvelope, SuggestionEnvelope,
-    TaskEnvelope, TenantEnvelope, TenantListEnvelope, UploadFilesEnvelope, UploadHashEnvelope,
-    UploadPrepareEnvelope, UploadProgressEnvelope, UserEnvelope, UserListEnvelope,
+    OrderEnvelope, OrderListEnvelope, PlansEnvelope, PreferenceEnvelope, PriceEnvelope,
+    PriceListEnvelope, ProfileEnvelope, ProviderEnvelope, ProviderListEnvelope, QuotaEnvelope,
+    Readiness, ReadinessEnvelope, ReconcileEnvelope, SelfQuotaEnvelope, SigninEnvelope,
+    SigninErrorExample, SigninSuccessExample, SignupEnvelope, SsoConnectionEnvelope,
+    SsoConnectionListEnvelope, SsoLoginEnvelope, SubscriptionEnvelope, SubscriptionListEnvelope,
+    SuggestionEnvelope, TaskEnvelope, TenantEnvelope, TenantListEnvelope, UploadFilesEnvelope,
+    UploadHashEnvelope, UploadPrepareEnvelope, UploadProgressEnvelope, UserEnvelope,
+    UserListEnvelope,
 };
 use crate::services::agent::schema::{ApprovalP, ApprovalR, TaskP, TaskR};
 use crate::services::application::schema::{App, Component, Direction, Shape, Size};
-use crate::services::chat::schema::{
-    ChatChangeBatchR, ChatChangesR, ChatConflictR, ChatMessageP, ChatMessageR, ChatSessionP,
-    ChatSessionR, ChatSyncP, ChatSyncR, ChatUsageP, ChatUsageR,
-};use crate::services::auth::schema::{
+use crate::services::auth::schema::{
     AuthR, Avatar, CaptchaP, CaptchaR, EmailSigninP, ForgotPasswordP, Gender, OtpChannel, OtpP,
     PasswordP, PhoneSigninP, ProfileP, ProfileR, ResetPasswordP, SigninP, SigninR, SignupP,
     SignupR,
 };
+use crate::services::chat::schema::{
+    ChatChangeBatchR, ChatChangesR, ChatConflictR, ChatMessageP, ChatMessageR, ChatSessionP,
+    ChatSessionR, ChatSyncP, ChatSyncR, ChatUsageP, ChatUsageR,
+};
+use crate::services::console::schema::{PreferenceP, PreferenceR};
 use crate::services::engine::schema::{EmptySchema, ISchema, QueryP, SuggestionR, TSchema};
 use crate::services::gateway::schema::{
     ChatCompletionsP, EmbeddingsP, ModelR, ModelUpdateP, ModelWriteP, PlanR, PlansR, ProviderR,
@@ -112,6 +116,8 @@ use crate::services::user::schema::{Avatar as UserAvatar, UpdateP, UserR, WriteP
         user::toRead_by_id_doc,
         user::toUpdate_doc,
         user::toRemove_doc,
+        console::toRead_doc,
+        console::toUpdate_doc,
         upload::prepare_upload_doc,
         upload::bind_hash_doc,
         upload::chunk_upload_doc,
@@ -229,6 +235,9 @@ use crate::services::user::schema::{Avatar as UserAvatar, UpdateP, UserR, WriteP
             UserEnvelope,
             UserListEnvelope,
             UserAvatar,
+            PreferenceP,
+            PreferenceR,
+            PreferenceEnvelope,
             PrepareP,
             PrepareR,
             UploadedChunk,
@@ -355,6 +364,7 @@ use crate::services::user::schema::{Avatar as UserAvatar, UpdateP, UserR, WriteP
         (name = "System", description = "系统级接口"),
         (name = "Auth", description = "认证与个人资料（图形验证码、OTP、密码/手机/邮箱登录）"),
         (name = "User", description = "后台用户管理（需 JWT）"),
+        (name = "Console", description = "Backend Console 偏好（仅平台 ADMIN）"),
         (name = "Upload", description = "分片文件上传"),
         (name = "Engine", description = "搜索引擎代理"),
         (name = "Application", description = "应用入口（Mock）"),
