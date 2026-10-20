@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Signboard — 交互原型</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+    <style>
+      :root {
+        --primary: oklch(0.488 0.243 264.376);
+        --primary-fg: oklch(0.97 0.014 254.604);
+        --bg: oklch(0.985 0.002 220);
+        --fg: oklch(0.148 0.004 228.8);
+        --card: oklch(1 0 0);
+        --muted: oklch(0.963 0.002 197.1);
+        --muted-fg: oklch(0.56 0.021 213.5);
+        --border: oklch(0.88 0.006 214.3);
+        --success: oklch(0.508 0.118 165.612);
+        --warning: oklch(0.769 0.188 70.08);
+        --destructive: oklch(0.577 0.245 27.325);
+        --radius: 0.625rem;
+        --shadow-sm: 0 1px 2px oklch(0.2 0.02 260 / 0.06);
+        --shadow-md: 0 8px 24px oklch(0.2 0.04 260 / 0.12);
+        --col-w: 288px;
+        --font: 'Plus Jakarta Sans', sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        font-family: var(--font);
+        background: var(--bg);
+        color: var(--fg);
+      }
+
+      body {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+      }
+
+      /* Atmosphere — shader stand-in for prototype */
+      .atmosphere {
+        pointer-events: none;
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        opacity: 0.11;
+        background:
+          radial-gradient(ellipse 80% 60% at 20% 10%, oklch(0.55 0.2 264), transparent 55%),
+          radial-gradient(ellipse 70% 50% at 85% 70%, oklch(0.6 0.12 200), transparent 50%),
+          radial-gradient(ellipse 50% 40% at 50% 100%, oklch(0.7 0.08 70), transparent 45%);
+        animation: drift 18s ease-in-out infinite alternate;
+      }
+
+      @keyframes drift {
+        from {
+          transform: translate3d(0, 0, 0) scale(1);
+        }
+        to {
+          transform: translate3d(-2%, 1%, 0) scale(1.04);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .atmosphere {
+          animation: none;
+          opacity: 0.06;
+        }
+      }
+
+      .shell {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 100vh;
+      }
+
+      .caption {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 40px;
+        padding: 0 14px;
+        border-bottom: 1px solid var(--border);
+        background: color-mix(in oklab, var(--card) 88%, transparent);
+        backdrop-filter: blur(10px);
+        -webkit-app-region: drag;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .caption span {
+        color: var(--muted-fg);
+        font-weight: 500;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        background: color-mix(in oklab, var(--card) 92%, transparent);
+      }
+
+      .board-select,
+      .search,
+      .btn {
+        font: inherit;
+        font-size: 13px;
+      }
+
+      .board-select,
+      .search {
+        height: 36px;
+        padding: 0 12px;
+        border: 1px solid var(--border);
+        border-radius: calc(var(--radius) - 2px);
+        background: var(--card);
+        color: var(--fg);
+      }
+
+      .search {
+        min-width: 180px;
+        flex: 1;
+        max-width: 280px;
+      }
+
+      .board-select:focus,
+      .search:focus,
+      .btn:focus-visible,
+      .card:focus-visible,
+      .inline-input:focus {
+        outline: 2px solid color-mix(in oklab, var(--primary) 45%, transparent);
+        outline-offset: 1px;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        height: 28px;
+        padding: 0 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--muted);
+        color: var(--muted-fg);
+        font-size: 12px;
+        cursor: pointer;
+        transition: background 160ms ease, color 160ms ease;
+      }
+
+      .chip[aria-pressed='true'] {
+        background: color-mix(in oklab, var(--primary) 14%, white);
+        color: var(--primary);
+        border-color: color-mix(in oklab, var(--primary) 35%, transparent);
+      }
+
+      .btn {
+        height: 36px;
+        padding: 0 14px;
+        border-radius: calc(var(--radius) - 2px);
+        border: none;
+        cursor: pointer;
+        font-weight: 600;
+        transition: transform 160ms ease, opacity 160ms ease, background 160ms ease;
+      }
+
+      .btn:hover {
+        opacity: 0.92;
+      }
+
+      .btn-primary {
+        margin-left: auto;
+        background: var(--primary);
+        color: var(--primary-fg);
+      }
+
+      .btn-ghost {
+        background: transparent;
+        color: var(--muted-fg);
+        border: 1px dashed var(--border);
+        width: 100%;
+        height: 34px;
+        font-weight: 500;
+      }
+
+      .btn-ghost:hover {
+        background: var(--muted);
+        color: var(--fg);
+      }
+
+      .board {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 16px;
+        overflow-x: auto;
+        flex: 1;
+      }
+
+      .column {
+        flex: 0 0 var(--col-w);
+        width: var(--col-w);
+        max-height: calc(100vh - 120px);
+        display: flex;
+        flex-direction: column;
+        border-radius: calc(var(--radius) + 2px);
+        background: color-mix(in oklab, var(--muted) 65%, var(--card));
+        border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+        transition: border-color 180ms ease, box-shadow 180ms ease;
+      }
+
+      .column.is-over {
+        border-color: color-mix(in oklab, var(--primary) 45%, transparent);
+        box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 25%, transparent);
+      }
+
+      .column[data-semantic='done'] .column-title::before {
+        background: var(--success);
+      }
+
+      .column[data-semantic='doing'] .column-title::before {
+        background: var(--primary);
+      }
+
+      .column-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 12px 8px;
+      }
+
+      .column-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .column-title::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--muted-fg);
+      }
+
+      .count {
+        margin-left: auto;
+        font-size: 12px;
+        color: var(--muted-fg);
+        font-weight: 500;
+      }
+
+      .cards {
+        list-style: none;
+        margin: 0;
+        padding: 4px 8px 8px;
+        overflow-y: auto;
+        flex: 1;
+        min-height: 48px;
+      }
+
+      .cards:empty::after {
+        content: '拖到这里，或点下方添加';
+        display: block;
+        margin: 4px;
+        padding: 20px 12px;
+        border: 1px dashed var(--border);
+        border-radius: var(--radius);
+        color: var(--muted-fg);
+        font-size: 12px;
+        text-align: center;
+      }
+
+      .card {
+        position: relative;
+        margin-bottom: 8px;
+        padding: 12px;
+        border-radius: var(--radius);
+        background: var(--card);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-sm);
+        cursor: grab;
+        transition: box-shadow 160ms ease, transform 160ms ease, opacity 160ms ease;
+      }
+
+      .card:hover {
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-md);
+      }
+
+      .card:active,
+      .card.sortable-chosen {
+        cursor: grabbing;
+      }
+
+      .card.sortable-ghost {
+        opacity: 0.35;
+      }
+
+      .card.sortable-drag {
+        box-shadow: var(--shadow-md);
+        transform: rotate(0.5deg) scale(1.02);
+      }
+
+      .card.dim {
+        opacity: 0.28;
+      }
+
+      .card-title {
+        margin: 0 0 8px;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.35;
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .tag,
+      .due {
+        font-size: 11px;
+        font-weight: 500;
+        padding: 2px 8px;
+        border-radius: 6px;
+      }
+
+      .tag {
+        background: color-mix(in oklab, var(--primary) 10%, var(--muted));
+        color: color-mix(in oklab, var(--primary) 70%, var(--fg));
+      }
+
+      .due {
+        background: color-mix(in oklab, var(--warning) 22%, white);
+        color: oklch(0.35 0.08 70);
+      }
+
+      .due.overdue {
+        background: color-mix(in oklab, var(--destructive) 14%, white);
+        color: var(--destructive);
+      }
+
+      .column-footer {
+        padding: 0 8px 10px;
+      }
+
+      .inline-wrap {
+        display: none;
+        padding: 0 8px 10px;
+      }
+
+      .inline-wrap.open {
+        display: block;
+      }
+
+      .inline-input {
+        width: 100%;
+        height: 36px;
+        padding: 0 10px;
+        border: 1px solid color-mix(in oklab, var(--primary) 40%, var(--border));
+        border-radius: calc(var(--radius) - 2px);
+        font: inherit;
+        font-size: 13px;
+        background: var(--card);
+      }
+
+      .hint {
+        padding: 8px 16px 14px;
+        font-size: 12px;
+        color: var(--muted-fg);
+      }
+
+      .hint kbd {
+        display: inline-block;
+        padding: 1px 6px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: var(--card);
+        font-size: 11px;
+        font-family: ui-monospace, monospace;
+      }
+
+      /* Side sheet */
+      .sheet-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        background: oklch(0.2 0.02 260 / 0.28);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 200ms ease;
+      }
+
+      .sheet-backdrop.open {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .sheet {
+        position: fixed;
+        top: 0;
+        right: 0;
+        z-index: 21;
+        width: min(380px, 100%);
+        height: 100%;
+        background: var(--card);
+        border-left: 1px solid var(--border);
+        box-shadow: var(--shadow-md);
+        padding: 20px;
+        transform: translateX(100%);
+        transition: transform 220ms ease;
+      }
+
+      .sheet.open {
+        transform: translateX(0);
+      }
+
+      .sheet h2 {
+        margin: 0 0 16px;
+        font-size: 18px;
+      }
+
+      .field {
+        margin-bottom: 14px;
+      }
+
+      .field label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--muted-fg);
+      }
+
+      .field textarea,
+      .field input[type='date'] {
+        width: 100%;
+        font: inherit;
+        font-size: 13px;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: calc(var(--radius) - 2px);
+        background: var(--bg);
+      }
+
+      .field textarea {
+        min-height: 100px;
+        resize: vertical;
+      }
+
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 13px;
+      }
+
+      .banner-note {
+        margin: 0 16px 12px;
+        padding: 10px 12px;
+        border-radius: var(--radius);
+        background: color-mix(in oklab, var(--primary) 8%, var(--card));
+        border: 1px solid color-mix(in oklab, var(--primary) 22%, var(--border));
+        font-size: 12px;
+        color: var(--fg);
+        line-height: 1.45;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="atmosphere" aria-hidden="true"></div>
+    <div class="shell">
+      <header class="caption">
+        <div>Signboard · <span id="boardLabel">个人</span></div>
+        <div aria-hidden="true">— □ ×</div>
+      </header>
+
+      <p class="banner-note">
+        交互原型（设计确认用）：跨列拖拽 · 筛选 · 侧栏详情 · 快捷键
+        <kbd>⌘/Ctrl+N</kbd> 新建。落地实现将改用 <code>@dnd-kit</code> + SQLite，本页数据仅存内存。
+      </p>
+
+      <div class="toolbar">
+        <select class="board-select" id="boardSelect" aria-label="切换看板">
+          <option value="personal">个人</option>
+          <option value="side">副业</option>
+        </select>
+        <input class="search" id="search" type="search" placeholder="搜索卡片…" aria-label="搜索" />
+        <button type="button" class="chip" data-filter="all" aria-pressed="true">全部</button>
+        <button type="button" class="chip" data-filter="design" aria-pressed="false">设计</button>
+        <button type="button" class="chip" data-filter="eng" aria-pressed="false">工程</button>
+        <button type="button" class="chip" data-filter="due" aria-pressed="false">有到期</button>
+        <button type="button" class="btn btn-primary" id="newCard">新建卡片</button>
+      </div>
+
+      <div class="board" id="board" role="region" aria-label="看板"></div>
+      <p class="hint">
+        拖拽卡片跨列；点击卡片打开侧栏。键盘：选中卡片后
+        <kbd>Ctrl/⌘ + ↑↓</kbd> 列内移动，
+        <kbd>Ctrl/⌘ + ←→</kbd> 跨列。
+      </p>
+    </div>
+
+    <div class="sheet-backdrop" id="backdrop"></div>
+    <aside class="sheet" id="sheet" aria-hidden="true">
+      <h2 id="sheetTitle">卡片</h2>
+      <div class="field">
+        <label for="sheetNotes">备注</label>
+        <textarea id="sheetNotes" placeholder="补充上下文…"></textarea>
+      </div>
+      <div class="field">
+        <label for="sheetDue">到期</label>
+        <input id="sheetDue" type="date" />
+      </div>
+      <div class="field toggle-row">
+        <span>提醒我（将对接 Reminder）</span>
+        <input id="sheetRemind" type="checkbox" />
+      </div>
+      <button type="button" class="btn btn-primary" id="sheetClose" style="width: 100%; margin-top: 8px">
+        完成
+      </button>
+    </aside>
+
+    <script>
+      const BOARDS = {
+        personal: {
+          label: '个人',
+          columns: [
+            {
+              id: 'todo',
+              title: '待办',
+              semantic: 'todo',
+              cards: [
+                {
+                  id: 'c1',
+                  title: '写 Signboard PRD 验收清单',
+                  tags: ['设计'],
+                  due: '2026-10-21',
+                  notes: '对照 01-prd 成功指标逐项勾选。'
+                },
+                {
+                  id: 'c2',
+                  title: '核对 Reminder dueAt 语义',
+                  tags: ['工程'],
+                  due: null,
+                  notes: ''
+                }
+              ]
+            },
+            {
+              id: 'doing',
+              title: '进行中',
+              semantic: 'doing',
+              cards: [
+                {
+                  id: 'c3',
+                  title: 'HTML 原型跨列拖拽',
+                  tags: ['设计', '工程'],
+                  due: '2026-10-20',
+                  notes: 'SortableJS 多 list；生产换 dnd-kit。'
+                }
+              ]
+            },
+            {
+              id: 'done',
+              title: '完成',
+              semantic: 'done',
+              cards: [
+                {
+                  id: 'c4',
+                  title: '竞品痛点调研',
+                  tags: ['设计'],
+                  due: null,
+                  notes: '见 02-competitive.md'
+                }
+              ]
+            }
+          ]
+        },
+        side: {
+          label: '副业',
+          columns: [
+            {
+              id: 's-todo',
+              title: '点子',
+              semantic: 'todo',
+              cards: [
+                {
+                  id: 's1',
+                  title: '落地页文案草稿',
+                  tags: ['设计'],
+                  due: null,
+                  notes: ''
+                }
+              ]
+            },
+            {
+              id: 's-doing',
+              title: '推进',
+              semantic: 'doing',
+              cards: []
+            },
+            {
+              id: 's-done',
+              title: '完成',
+              semantic: 'done',
+              cards: []
+            }
+          ]
+        }
+      }
+
+      let activeBoard = 'personal'
+      let tagFilter = 'all'
+      let searchQuery = ''
+      let selectedCardId = null
+      let activeCardId = null
+      const sortables = []
+
+      function todayISO() {
+        return new Date().toISOString().slice(0, 10)
+      }
+
+      function cardMatches(card) {
+        const q = searchQuery.trim().toLowerCase()
+        if (q && !card.title.toLowerCase().includes(q) && !(card.notes || '').toLowerCase().includes(q)) {
+          return false
+        }
+        if (tagFilter === 'design' && !card.tags.includes('设计')) return false
+        if (tagFilter === 'eng' && !card.tags.includes('工程')) return false
+        if (tagFilter === 'due' && !card.due) return false
+        return true
+      }
+
+      function dueClass(due) {
+        if (!due) return ''
+        return due < todayISO() ? 'due overdue' : 'due'
+      }
+
+      function findCard(cardId) {
+        const board = BOARDS[activeBoard]
+        for (const col of board.columns) {
+          const card = col.cards.find((c) => c.id === cardId)
+          if (card) return { card, column: col }
+        }
+        return null
+      }
+
+      function render() {
+        const boardEl = document.getElementById('board')
+        const board = BOARDS[activeBoard]
+        document.getElementById('boardLabel').textContent = board.label
+
+        sortables.forEach((s) => s.destroy())
+        sortables.length = 0
+        boardEl.innerHTML = ''
+
+        board.columns.forEach((col) => {
+          const colEl = document.createElement('section')
+          colEl.className = 'column'
+          colEl.dataset.columnId = col.id
+          colEl.dataset.semantic = col.semantic
+
+          const header = document.createElement('div')
+          header.className = 'column-header'
+          header.innerHTML =
+            '<h3 class="column-title">' +
+            col.title +
+            '</h3><span class="count">' +
+            col.cards.length +
+            '</span>'
+          colEl.appendChild(header)
+
+          const list = document.createElement('ul')
+          list.className = 'cards'
+          list.dataset.columnId = col.id
+
+          col.cards.forEach((card) => {
+            const li = document.createElement('li')
+            li.className = 'card' + (cardMatches(card) ? '' : ' dim')
+            li.tabIndex = 0
+            li.dataset.cardId = card.id
+            if (selectedCardId === card.id) li.style.outline = '2px solid color-mix(in oklab, var(--primary) 45%, transparent)'
+
+            const tags = card.tags
+              .slice(0, 2)
+              .map((t) => '<span class="tag">' + t + '</span>')
+              .join('')
+            const due = card.due
+              ? '<span class="' + dueClass(card.due) + '">' + card.due.slice(5) + '</span>'
+              : ''
+
+            li.innerHTML =
+              '<p class="card-title">' +
+              card.title +
+              '</p><div class="meta">' +
+              tags +
+              due +
+              '</div>'
+
+            li.addEventListener('click', function (e) {
+              if (e.detail === 0) return
+              openSheet(card.id)
+            })
+            li.addEventListener('focus', function () {
+              selectedCardId = card.id
+            })
+            li.addEventListener('keydown', onCardKey)
+
+            list.appendChild(li)
+          })
+
+          colEl.appendChild(list)
+
+          const inline = document.createElement('div')
+          inline.className = 'inline-wrap'
+          inline.innerHTML =
+            '<input class="inline-input" type="text" placeholder="卡片标题，Enter 添加" aria-label="新卡片标题" />'
+          colEl.appendChild(inline)
+
+          const footer = document.createElement('div')
+          footer.className = 'column-footer'
+          const addBtn = document.createElement('button')
+          addBtn.type = 'button'
+          addBtn.className = 'btn btn-ghost'
+          addBtn.textContent = '添加卡片'
+          addBtn.addEventListener('click', function () {
+            openInline(col.id)
+          })
+          footer.appendChild(addBtn)
+          colEl.appendChild(footer)
+
+          const input = inline.querySelector('input')
+          input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              const title = input.value.trim()
+              if (!title) return
+              col.cards.push({
+                id: 'n' + Date.now(),
+                title: title,
+                tags: [],
+                due: null,
+                notes: ''
+              })
+              input.value = ''
+              render()
+              openInline(col.id)
+            }
+            if (e.key === 'Escape') {
+              inline.classList.remove('open')
+            }
+          })
+
+          boardEl.appendChild(colEl)
+
+          sortables.push(
+            Sortable.create(list, {
+              group: 'signboard',
+              animation: 180,
+              easing: 'cubic-bezier(0.2, 0, 0, 1)',
+              ghostClass: 'sortable-ghost',
+              chosenClass: 'sortable-chosen',
+              dragClass: 'sortable-drag',
+              onAdd: syncFromDom,
+              onUpdate: syncFromDom,
+              onMove: function (evt) {
+                document.querySelectorAll('.column').forEach(function (c) {
+                  c.classList.toggle('is-over', c.contains(evt.to))
+                })
+              },
+              onEnd: function () {
+                document.querySelectorAll('.column').forEach(function (c) {
+                  c.classList.remove('is-over')
+                })
+                syncFromDom()
+              }
+            })
+          )
+        })
+      }
+
+      function syncFromDom() {
+        const board = BOARDS[activeBoard]
+        board.columns.forEach(function (col) {
+          const list = document.querySelector('.cards[data-column-id="' + col.id + '"]')
+          if (!list) return
+          const ids = Array.from(list.querySelectorAll('.card')).map(function (el) {
+            return el.dataset.cardId
+          })
+          const pool = {}
+          board.columns.forEach(function (c) {
+            c.cards.forEach(function (card) {
+              pool[card.id] = card
+            })
+          })
+          col.cards = ids.map(function (id) {
+            return pool[id]
+          }).filter(Boolean)
+        })
+        document.querySelectorAll('.column').forEach(function (colEl) {
+          const id = colEl.dataset.columnId
+          const col = board.columns.find(function (c) {
+            return c.id === id
+          })
+          if (col) colEl.querySelector('.count').textContent = String(col.cards.length)
+        })
+      }
+
+      function openInline(columnId) {
+        document.querySelectorAll('.inline-wrap').forEach(function (el) {
+          el.classList.remove('open')
+        })
+        const colEl = document.querySelector('.column[data-column-id="' + columnId + '"]')
+        if (!colEl) return
+        const wrap = colEl.querySelector('.inline-wrap')
+        wrap.classList.add('open')
+        const input = wrap.querySelector('input')
+        input.focus()
+      }
+
+      function openSheet(cardId) {
+        const found = findCard(cardId)
+        if (!found) return
+        activeCardId = cardId
+        selectedCardId = cardId
+        document.getElementById('sheetTitle').textContent = found.card.title
+        document.getElementById('sheetNotes').value = found.card.notes || ''
+        document.getElementById('sheetDue').value = found.card.due || ''
+        document.getElementById('sheetRemind').checked = Boolean(found.card.due)
+        document.getElementById('sheet').classList.add('open')
+        document.getElementById('backdrop').classList.add('open')
+        document.getElementById('sheet').setAttribute('aria-hidden', 'false')
+      }
+
+      function closeSheet() {
+        if (activeCardId) {
+          const found = findCard(activeCardId)
+          if (found) {
+            found.card.notes = document.getElementById('sheetNotes').value
+            found.card.due = document.getElementById('sheetDue').value || null
+          }
+        }
+        activeCardId = null
+        document.getElementById('sheet').classList.remove('open')
+        document.getElementById('backdrop').classList.remove('open')
+        document.getElementById('sheet').setAttribute('aria-hidden', 'true')
+        render()
+      }
+
+      function onCardKey(e) {
+        const cardId = e.currentTarget.dataset.cardId
+        const board = BOARDS[activeBoard]
+        const colIndex = board.columns.findIndex(function (c) {
+          return c.cards.some(function (card) {
+            return card.id === cardId
+          })
+        })
+        if (colIndex < 0) return
+        const col = board.columns[colIndex]
+        const index = col.cards.findIndex(function (c) {
+          return c.id === cardId
+        })
+        const meta = e.metaKey || e.ctrlKey
+
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          openSheet(cardId)
+          return
+        }
+
+        if (!meta) return
+
+        if (e.key === 'ArrowUp' && index > 0) {
+          e.preventDefault()
+          const t = col.cards[index - 1]
+          col.cards[index - 1] = col.cards[index]
+          col.cards[index] = t
+          render()
+          focusCard(cardId)
+        }
+        if (e.key === 'ArrowDown' && index < col.cards.length - 1) {
+          e.preventDefault()
+          const t = col.cards[index + 1]
+          col.cards[index + 1] = col.cards[index]
+          col.cards[index] = t
+          render()
+          focusCard(cardId)
+        }
+        if (e.key === 'ArrowLeft' && colIndex > 0) {
+          e.preventDefault()
+          const [card] = col.cards.splice(index, 1)
+          board.columns[colIndex - 1].cards.push(card)
+          render()
+          focusCard(cardId)
+        }
+        if (e.key === 'ArrowRight' && colIndex < board.columns.length - 1) {
+          e.preventDefault()
+          const [card] = col.cards.splice(index, 1)
+          board.columns[colIndex + 1].cards.push(card)
+          render()
+          focusCard(cardId)
+        }
+      }
+
+      function focusCard(cardId) {
+        requestAnimationFrame(function () {
+          const el = document.querySelector('.card[data-card-id="' + cardId + '"]')
+          if (el) el.focus()
+        })
+      }
+
+      document.getElementById('boardSelect').addEventListener('change', function (e) {
+        activeBoard = e.target.value
+        render()
+      })
+
+      document.getElementById('search').addEventListener('input', function (e) {
+        searchQuery = e.target.value
+        render()
+      })
+
+      document.querySelectorAll('.chip[data-filter]').forEach(function (chip) {
+        chip.addEventListener('click', function () {
+          tagFilter = chip.dataset.filter
+          document.querySelectorAll('.chip[data-filter]').forEach(function (c) {
+            c.setAttribute('aria-pressed', String(c === chip))
+          })
+          render()
+        })
+      })
+
+      document.getElementById('newCard').addEventListener('click', function () {
+        const first = BOARDS[activeBoard].columns[0]
+        if (first) openInline(first.id)
+      })
+
+      document.addEventListener('keydown', function (e) {
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'n') {
+          e.preventDefault()
+          const first = BOARDS[activeBoard].columns[0]
+          if (first) openInline(first.id)
+        }
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+          e.preventDefault()
+          document.getElementById('search').focus()
+        }
+        if (e.key === 'Escape') closeSheet()
+      })
+
+      document.getElementById('backdrop').addEventListener('click', closeSheet)
+      document.getElementById('sheetClose').addEventListener('click', closeSheet)
+
+      render()
+    </script>
+  </body>
+</html>
