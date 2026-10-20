@@ -7,6 +7,11 @@ pub mod magnetic_tile;
 pub mod mirror;
 pub mod overlay;
 pub mod reminder;
+pub mod signboard;
+pub mod signboard_card;
+pub mod signboard_card_tag;
+pub mod signboard_column;
+pub mod signboard_tag;
 
 #[allow(non_snake_case)]
 pub mod agent_message;
