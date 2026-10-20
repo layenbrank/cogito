@@ -3,10 +3,10 @@ use actix_web::web;
 use crate::middlewares::rate_limit::AuthGovernor;
 use crate::services::{
     agent::module::AgentModule, application::controller::ApplicationController,
-    auth::module::AuthModule, chat::module::ChatModule, engine::module::EngineModule,
-    gateway::module::GatewayModule, mcp::module::McpModule, payment::module::PaymentModule,
-    rag::module::RagModule, sso::module::SsoModule, tenant::module::TenantModule,
-    upload::module::UploadModule, user::module::UserModule,
+    auth::module::AuthModule, chat::module::ChatModule, console::module::ConsoleModule,
+    engine::module::EngineModule, gateway::module::GatewayModule, mcp::module::McpModule,
+    payment::module::PaymentModule, rag::module::RagModule, sso::module::SsoModule,
+    tenant::module::TenantModule, upload::module::UploadModule, user::module::UserModule,
 };
 
 pub struct ApplicationModule;
@@ -17,6 +17,7 @@ impl ApplicationModule {
             web::scope("/api/v1")
                 .configure(|c| AuthModule::configure(c, &auth_governor))
                 .configure(UserModule::configure)
+                .configure(ConsoleModule::configure)
                 .configure(UploadModule::configure)
                 .configure(EngineModule::configure)
                 .configure(TenantModule::configure)

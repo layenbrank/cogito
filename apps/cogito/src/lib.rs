@@ -200,6 +200,14 @@ pub mod services {
         pub mod service;
     }
 
+    /// Backend Console 偏好：侧栏序 / 钉选 / 看板小部件 / 书签。
+    pub mod console {
+        pub mod controller;
+        pub mod module;
+        pub mod schema;
+        pub mod service;
+    }
+
     pub mod auth {
         pub mod captcha;
         pub mod controller;

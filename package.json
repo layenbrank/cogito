@@ -6,6 +6,7 @@
   "private": true,
   "scripts": {
     "build": "turbo run build --filter=!@i-thinking/client",
+    "build:backend": "turbo run build --filter=@i-thinking/backend",
     "build:client": "turbo run build --filter=@i-thinking/client",
     "build:composables": "turbo run build --filter=@i-thinking/composables",
     "build:studio": "turbo run build --filter=@i-thinking/studio",
@@ -26,6 +27,7 @@
     "sync:vscode": "node scripts/infra/vscode-settings.ts",
     "coverage": "turbo run coverage",
     "dev": "turbo run dev --filter=!@i-thinking/client",
+    "dev:backend": "turbo run dev --filter=@i-thinking/backend",
     "dev:client": "turbo run dev --filter=@i-thinking/client",
     "dev:studio": "turbo run dev --filter=@i-thinking/studio",
     "dev:devtools": "turbo run dev --filter=@i-thinking/devtools",
