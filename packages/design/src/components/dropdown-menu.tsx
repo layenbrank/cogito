@@ -3,7 +3,7 @@ import { Menu as MenuPrimitive } from '@base-ui/react/menu'
 import { cn } from 'cn'
 import { Icon } from '@iconify/react/offline'
 
-import { LAYER_OVERLAY, LAYER_TRIGGER, OVERLAY_SHELL } from '../lib/surface'
+import { OVERLAY_SHELL } from '../lib/surface'
 
 function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
   return (
@@ -28,7 +28,6 @@ function DropdownMenuTrigger({ ...props }: MenuPrimitive.Trigger.Props) {
     <MenuPrimitive.Trigger
       data-slot="dropdown-menu-trigger"
       {...props}
-      data-layer={LAYER_TRIGGER}
     />
   )
 }
@@ -52,7 +51,6 @@ function DropdownMenuContent({
         sideOffset={sideOffset}>
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
-          data-layer={LAYER_OVERLAY}
           className={cn(
             OVERLAY_SHELL,
             'z-50 max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto p-1 outline-none data-closed:overflow-hidden',
@@ -142,8 +140,7 @@ function DropdownMenuSubTrigger({
         "flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground not-data-[variant=destructive]:data-highlighted:**:text-accent-foreground data-inset:pl-7 data-popup-open:bg-accent data-popup-open:text-accent-foreground data-open:bg-accent data-open:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
-      {...props}
-      data-layer={LAYER_TRIGGER}>
+      {...props}>
       {children}
       <Icon
         icon="lucide:chevron-right"

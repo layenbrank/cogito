@@ -10,7 +10,6 @@ import {
   OVERLAY_BACKDROP_MOTION,
   type OverlaySide
 } from '../lib/overlay-motion'
-import { LAYER_OVERLAY, LAYER_TRIGGER } from '../lib/surface'
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   return (
@@ -26,7 +25,6 @@ function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
     <DialogPrimitive.Trigger
       data-slot="dialog-trigger"
       {...props}
-      data-layer={LAYER_TRIGGER}
     />
   )
 }
@@ -53,7 +51,6 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
-      data-layer={LAYER_OVERLAY}
       className={cn(
         // Base UI 用 data-starting/ending-style 驱动进出场，才能等关闭过渡播完再卸载
         'fixed inset-0 isolate z-50 bg-black/10 supports-backdrop-filter:backdrop-blur-xs',
@@ -105,7 +102,6 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         data-side={side}
-        data-layer={LAYER_OVERLAY}
         className={cn(
           // 圆角裁切在外壳；Header/Footer 挂到滚动区外，避免滚动条压到关闭按钮、Footer -mx-4 撑出横向滚动
           'fixed z-50 flex flex-col gap-0 overflow-hidden bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 outline-none',

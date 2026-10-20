@@ -23,12 +23,4 @@ const OVERLAY_SHELL = cn(
   'data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2'
 )
 
-/**
- * 窗口操作层，和 `data-region` 并列。
- * `trigger` 是会打开浮层的控件，`overlay` 是浮层本身。
- * 主窗口里浮层盖住网页时，子 WebView 会沉到这层下面。
- */
-const LAYER_TRIGGER = 'trigger'
-const LAYER_OVERLAY = 'overlay'
-
-export { FIELD_SHELL, OVERLAY_SHELL, LAYER_TRIGGER, LAYER_OVERLAY }
+export { FIELD_SHELL, OVERLAY_SHELL }
