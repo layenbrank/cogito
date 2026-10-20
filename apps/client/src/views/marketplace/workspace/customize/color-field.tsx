@@ -32,7 +32,7 @@ function ColorField(props: ColorFieldProps) {
   return (
     <FormField
       name={props.name}
-      rules={{ required: true }}
+      rules={{ required: `${props.label}是必填的!` }}
       render={function ({ field }) {
         return (
           <FormItem>

@@ -17,20 +17,20 @@ function Bucket<T extends string>(props: BucketProps<T>) {
     <div className="h-full w-32 min-w-32 overflow-y-auto pl-2">
       <ToggleGroup
         orientation="vertical"
-        spacing={1}
+        spacing={0}
         value={[props.value]}
         onValueChange={function (next) {
           const value = next[0] as T | undefined
           if (!value) return
           props.onUpdate(value)
         }}
-        className="w-full rounded-xl border border-border/60 bg-card/50 p-1">
+        className="w-full gap-0.5 rounded-xl border border-slate-900/6 bg-white/40 p-1">
         {props.options.map(function (option) {
           return (
             <ToggleGroupItem
               key={option.value}
               value={option.value}
-              className="h-8.5 w-full justify-start px-2.5 text-sm">
+              className="h-[34px] w-full justify-start rounded-lg px-2.5 text-[13px] hover:bg-white/55 aria-pressed:bg-white aria-pressed:text-slate-900 aria-pressed:shadow-[0_1px_3px_rgba(15,23,42,0.08)] data-[state=on]:bg-white data-[state=on]:text-slate-900 data-[state=on]:shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
               {option.label}
             </ToggleGroupItem>
           )

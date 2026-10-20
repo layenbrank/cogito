@@ -10,7 +10,7 @@ export default function Navigate() {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
-      <div className="my-2 flex min-h-0 w-full flex-1">
+      <div className="mt-2 mb-1.5 flex min-h-0 w-full flex-1">
         <Bucket
           value={navigateBucket}
           options={NAVIGATE_BUCKETS}

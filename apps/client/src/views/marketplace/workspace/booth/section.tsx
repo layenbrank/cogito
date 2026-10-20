@@ -1,4 +1,3 @@
-import { Badge } from '@i-thinking/design/components/badge'
 import {
   Select,
   SelectContent,
@@ -6,7 +5,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@i-thinking/design/components/select'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+import { EmptyHint } from '@/views/marketplace/workspace/empty-hint'
 import { IncrementButton } from '@/views/marketplace/workspace/increment-button'
 import { memo, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -77,12 +76,21 @@ const BOOT_SIZE: Mirror.Size = 1
 const BOOT_SHAPE: Mirror.Shape = 'rectangle'
 const BOOT_DIRECTION: Mirror.Direction = 'horizontal'
 
+const CARD_CLASS = [
+  'flex w-full flex-row gap-3.5 rounded-xl border border-slate-900/8 bg-card p-3.5',
+  'shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-[border-color,box-shadow] duration-200',
+  'hover:border-primary/35 hover:shadow-[0_6px_16px_rgba(15,23,42,0.06)]'
+].join(' ')
+
+const BADGE_CLASS =
+  'inline-flex h-5 min-w-7 shrink-0 items-center justify-center rounded-full border border-slate-900/6 bg-slate-100 px-2 text-[11px] leading-5 text-slate-600 tabular-nums'
+
 const SWIPER_CLASS = [
-  'group/swiper relative aspect-video w-1/2 min-w-0 overflow-hidden rounded-lg border border-border/60 bg-muted/40',
-  '[--swiper-navigation-size:14px]',
+  'group/swiper relative aspect-video min-w-[46%] flex-1 overflow-hidden rounded-[10px] border border-slate-900/6 bg-slate-50',
+  '[--swiper-navigation-size:28px]',
   '[&_.swiper-button-next]:right-2.5 [&_.swiper-button-next]:left-auto [&_.swiper-button-next]:size-7 [&_.swiper-button-next]:rounded-full [&_.swiper-button-next]:bg-card [&_.swiper-button-next]:text-foreground [&_.swiper-button-next]:shadow-sm',
   '[&_.swiper-button-prev]:left-2.5 [&_.swiper-button-prev]:size-7 [&_.swiper-button-prev]:rounded-full [&_.swiper-button-prev]:bg-card [&_.swiper-button-prev]:text-foreground [&_.swiper-button-prev]:shadow-sm',
-  '[&_.swiper-pagination-bullet]:bg-muted-foreground/60 [&_.swiper-pagination-bullet]:opacity-60',
+  '[&_.swiper-pagination-bullet]:bg-slate-400 [&_.swiper-pagination-bullet]:opacity-55',
   '[&_.swiper-pagination-bullet-active]:bg-primary [&_.swiper-pagination-bullet-active]:opacity-100'
 ].join(' ')
 
@@ -132,9 +140,7 @@ function Section(props: SectionProps) {
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col gap-2.5 overflow-hidden px-3 pt-2 pb-3">
       {featureTiles.length === 0 ? (
-        <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
-          {query.trim() ? '未找到匹配磁贴' : '该分类暂无磁贴'}
-        </div>
+        <EmptyHint description={query.trim() ? '未找到匹配磁贴' : '该分类暂无磁贴'} />
       ) : (
         <div
           ref={listRef}
@@ -230,8 +236,8 @@ function BoothCardView(props: BoothCardViewProps) {
     <article
       ref={rootRef}
       data-list-card=""
-      className="flex w-full flex-row gap-3.5 rounded-xl border border-border bg-card p-3.5 shadow-xs transition-colors hover:border-primary/40">
-      <div className="flex min-w-0 flex-1 flex-col justify-between gap-3">
+      className={CARD_CLASS}>
+      <div className="flex min-w-[42%] flex-1 flex-col justify-between gap-3">
         <div className="flex items-start gap-3">
           <div
             className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-border/60 text-base font-semibold"
@@ -244,37 +250,25 @@ function BoothCardView(props: BoothCardViewProps) {
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <div className="flex min-w-0 items-center gap-2">
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                      {tile.title}
-                    </span>
-                  }
-                />
-                <TooltipContent side="bottom">{tile.title}</TooltipContent>
-              </Tooltip>
-              <Badge
-                variant="secondary"
-                className="h-5 shrink-0 px-2 tabular-nums">
-                {tile.downloadCount}
-              </Badge>
+              <span
+                title={tile.title}
+                className="min-w-0 flex-1 truncate text-sm leading-[22px] font-semibold text-slate-900">
+                {tile.title}
+              </span>
+              <span className={BADGE_CLASS}>{tile.downloadCount}</span>
             </div>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <span className="truncate text-xs text-muted-foreground">{hint}</span>
-                }
-              />
-              <TooltipContent side="bottom">{hint}</TooltipContent>
-            </Tooltip>
-            <span className="text-xs text-muted-foreground">
+            <span
+              title={hint}
+              className="truncate text-xs leading-[18px] text-slate-600">
+              {hint}
+            </span>
+            <span className="text-xs leading-[18px] text-slate-500">
               {formatUpdatedAt(tile.updatedAt)}
             </span>
           </div>
         </div>
 
-        <div className="grid w-full grid-cols-[repeat(3,minmax(0,1fr))_2.25rem] items-center gap-1.5">
+        <div className="grid w-full grid-cols-[repeat(3,minmax(0,1fr))_2.25rem] items-center gap-0">
           <Select
             items={SIZES.map(function (option) {
               return { value: String(option.value), label: option.label }
@@ -359,6 +353,7 @@ function BoothCardView(props: BoothCardViewProps) {
           <IncrementButton
             tileTitle={tile.title}
             isIncrementing={isIncrementing}
+            className="h-8 w-9 rounded-l-none rounded-r-md"
             onIncrement={function () {
               void onIncrement()
             }}
@@ -407,7 +402,7 @@ function BoothCardView(props: BoothCardViewProps) {
         </Swiper>
       ) : (
         <div
-          className="aspect-video w-1/2 min-w-0 animate-pulse rounded-lg border border-border/60 bg-muted/40"
+          className="aspect-video min-w-[46%] flex-1 animate-pulse rounded-[10px] border border-slate-900/6 bg-[linear-gradient(90deg,#f1f5f9_0%,#e2e8f0_50%,#f1f5f9_100%)] bg-size-[200%_100%]"
           aria-hidden
         />
       )}

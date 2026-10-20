@@ -30,6 +30,8 @@ async function fetchPicsumImages(): Promise<PicsumImage[]> {
   }
 }
 
+const EMPTY_IMAGES: PicsumImage[] = []
+
 let cachedImages: PicsumImage[] | undefined
 const listeners = new Set<() => void>()
 
@@ -52,7 +54,7 @@ function subscribePicsumImages(onStoreChange: () => void): () => void {
 }
 
 function readPicsumImages(): PicsumImage[] {
-  return cachedImages ?? []
+  return cachedImages ?? EMPTY_IMAGES
 }
 
 function picsumImagesReady(): boolean {

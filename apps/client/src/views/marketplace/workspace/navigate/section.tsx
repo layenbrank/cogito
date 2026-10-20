@@ -1,5 +1,4 @@
-import { Badge } from '@i-thinking/design/components/badge'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+import { EmptyHint } from '@/views/marketplace/workspace/empty-hint'
 import { IncrementButton } from '@/views/marketplace/workspace/increment-button'
 import { memo, useContext, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -85,13 +84,11 @@ function Section(props: SectionProps) {
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col gap-2.5 overflow-hidden px-3 pt-2 pb-3">
       {navigationTiles.length === 0 ? (
-        <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
-          {query.trim() ? '未找到匹配网址' : '该分类暂无网址'}
-        </div>
+        <EmptyHint description={query.trim() ? '未找到匹配网址' : '该分类暂无网址'} />
       ) : (
         <div
           ref={gridRef}
-          className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-2.5 overflow-auto scroll-smooth p-0.5 max-lg:grid-cols-1">
+          className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-2.5 overflow-auto scroll-smooth p-0.5 max-[900px]:grid-cols-1">
           {navigationTiles.map(function (tile) {
             return (
               <NavigateCard
@@ -156,7 +153,7 @@ function NavigateCardView(props: NavigateCardViewProps) {
   return (
     <article
       data-list-card=""
-      className="flex min-h-24 items-start gap-3 rounded-xl border border-border bg-card p-3.5 shadow-xs transition-colors hover:border-primary/40">
+      className="flex min-h-24 items-start gap-3 rounded-xl border border-slate-900/8 bg-card p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-[border-color,box-shadow] duration-200 hover:border-primary/35 hover:shadow-[0_6px_16px_rgba(15,23,42,0.06)]">
       <div
         className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-border/60 text-base font-semibold"
         style={{
@@ -168,48 +165,43 @@ function NavigateCardView(props: NavigateCardViewProps) {
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <span className="truncate text-sm font-medium text-foreground">{tile.title}</span>
-            }
-          />
-          <TooltipContent side="bottom">{tile.title}</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger
-            render={<span className="truncate text-xs text-muted-foreground">{description}</span>}
-          />
-          <TooltipContent side="bottom">{description}</TooltipContent>
-        </Tooltip>
+        <span
+          title={tile.title}
+          className="truncate text-sm leading-[22px] font-medium text-slate-900">
+          {tile.title}
+        </span>
+        <span
+          title={description}
+          className="truncate text-xs leading-[18px] text-slate-600">
+          {description}
+        </span>
         <div className="mt-0.5 flex min-w-0 items-center gap-2">
           {hostname ? (
             <a
               href={tile.url ?? undefined}
               target="_blank"
               rel="noreferrer"
-              className="min-w-0 flex-1 truncate text-xs text-muted-foreground hover:text-primary"
+              className="min-w-0 flex-1 truncate text-xs leading-[18px] text-slate-500 hover:text-primary"
               onClick={function (event) {
                 event.stopPropagation()
               }}>
               {hostname}
             </a>
           ) : null}
-          <span className="shrink-0 text-xs whitespace-nowrap text-muted-foreground/80">
+          <span className="shrink-0 text-[11px] leading-[18px] whitespace-nowrap text-slate-400">
             {updatedLabel}
           </span>
         </div>
       </div>
 
-      <div className="flex shrink-0 flex-col items-end justify-between gap-2 self-stretch">
-        <Badge
-          variant="secondary"
-          className="h-5 px-2 tabular-nums">
+      <div className="flex min-h-16 shrink-0 flex-col items-end justify-between gap-2 self-stretch">
+        <span className="inline-flex h-5 min-w-7 items-center justify-center rounded-full border border-slate-900/6 bg-slate-100 px-2 text-[11px] leading-5 text-slate-600 tabular-nums">
           {tile.downloadCount}
-        </Badge>
+        </span>
         <IncrementButton
           tileTitle={tile.title}
           isIncrementing={isIncrementing}
+          className="size-7 rounded-lg"
           onIncrement={function () {
             void onIncrement()
           }}

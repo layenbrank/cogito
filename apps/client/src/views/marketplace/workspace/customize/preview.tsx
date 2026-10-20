@@ -54,14 +54,14 @@ function Preview(props: PreviewProps) {
       <div
         className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-cover bg-center bg-no-repeat transition-colors"
         style={surfaceStyle}>
-        <div className="absolute inset-0 flex flex-col justify-end bg-linear-to-t from-black/60 via-black/10 to-transparent px-5 py-4">
+        <div className="absolute inset-0 flex flex-col justify-end bg-linear-to-t from-black/55 via-transparent to-transparent px-5 py-4">
           <p
-            className="text-xl leading-snug font-semibold"
+            className="text-xl leading-[1.4] font-semibold"
             style={{ color: textColor }}>
             {title}
           </p>
           <p
-            className="mt-1 truncate text-sm"
+            className="mt-1 truncate text-[13px]"
             style={{ color: textColor, opacity: 0.85 }}>
             {subtitle}
           </p>

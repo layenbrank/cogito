@@ -1,41 +1,37 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
 import { Spinner } from '@i-thinking/design/components/spinner'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+import { cn } from 'cn'
 
 interface IncrementButtonProps {
   tileTitle: string
   isIncrementing: boolean
   onIncrement: () => void
+  className?: string
 }
 
 function IncrementButton(props: IncrementButtonProps) {
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            size="icon-sm"
-            aria-label={`新增 ${props.tileTitle}`}
-            aria-busy={props.isIncrementing}
-            disabled={props.isIncrementing}
-            onClick={function (event) {
-              event.stopPropagation()
-              props.onIncrement()
-            }}
-          />
-        }>
-        {props.isIncrementing ? (
-          <Spinner />
-        ) : (
-          <Icon
-            icon="lucide:plus"
-            aria-hidden
-          />
-        )}
-      </TooltipTrigger>
-      <TooltipContent side="bottom">新增到镜像</TooltipContent>
-    </Tooltip>
+    <Button
+      size="icon-sm"
+      title="新增到镜像"
+      aria-label={`新增 ${props.tileTitle}`}
+      aria-busy={props.isIncrementing}
+      disabled={props.isIncrementing}
+      className={cn('rounded-md', props.className)}
+      onClick={function (event) {
+        event.stopPropagation()
+        props.onIncrement()
+      }}>
+      {props.isIncrementing ? (
+        <Spinner />
+      ) : (
+        <Icon
+          icon="lucide:plus"
+          aria-hidden
+        />
+      )}
+    </Button>
   )
 }
 
