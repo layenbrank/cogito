@@ -29,6 +29,9 @@ pub const AUTH_PASSWORD: &str = "/api/v1/auth/password";
 pub const USERS: &str = "/api/v1/users";
 pub const USERS_BY_ID: &str = "/api/v1/users/{id}";
 
+// --- Console（Backend Console 偏好，仅平台 ADMIN） ---
+pub const CONSOLE_PREFERENCE: &str = "/api/v1/console/preference";
+
 // --- Upload ---
 pub const UPLOAD_PREPARE: &str = "/api/v1/upload/prepare";
 pub const UPLOAD_HASH: &str = "/api/v1/upload/hash";
@@ -193,6 +196,14 @@ pub const ALL_ROUTES: &[RouteDef] = &[
     RouteDef {
         method: "DELETE",
         path: USERS_BY_ID,
+    },
+    RouteDef {
+        method: "GET",
+        path: CONSOLE_PREFERENCE,
+    },
+    RouteDef {
+        method: "PUT",
+        path: CONSOLE_PREFERENCE,
     },
     RouteDef {
         method: "POST",

@@ -650,6 +650,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/console/preference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取控制台偏好
+         * @description 仅平台 ADMIN。返回当前管理员的侧栏序 / 钉选 / 看板小部件 / 书签；尚无记录时 data 为 null。
+         */
+        get: operations["console.toRead"];
+        /**
+         * 写入控制台偏好
+         * @description 仅平台 ADMIN。按当前登录管理员 upsert 一行偏好。
+         */
+        put: operations["console.toUpdate"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/engine/suggestion": {
         parameters: {
             query?: never;
@@ -2965,6 +2989,45 @@ export interface components {
             /** Format: int64 */
             freeDailyTokenQuota: number;
             plans: components["schemas"]["PlanR"][];
+        };
+        PreferenceEnvelope: {
+            /**
+             * Format: int32
+             * @description 业务状态码（200000=成功）
+             */
+            code: number;
+            data?: null | components["schemas"]["PreferenceR"];
+            msg: string;
+            success: boolean;
+            /** Format: int64 */
+            timestamp: number;
+            /** @description 链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用 */
+            traceID?: string | null;
+        };
+        /** @description 控制台偏好写入 / 覆盖（upsert） */
+        PreferenceP: {
+            /** @description 深链书签 */
+            bookmarks: unknown[];
+            /** @description 概览小部件布局 */
+            dashboardWidgets: string[];
+            /** @description 侧栏模块 id 有序数组 */
+            navOrder: string[];
+            /** @description 钉选模块 id */
+            pinnedNav: string[];
+        };
+        /** @description 控制台偏好响应 */
+        PreferenceR: {
+            bookmarks: unknown[];
+            dashboardWidgets: string[];
+            id: string;
+            navOrder: string[];
+            pinnedNav: string[];
+            /**
+             * Format: int64
+             * @description 毫秒时间戳
+             */
+            updatedAt: number;
+            userID: string;
         };
         /**
          * @example {
@@ -5381,6 +5444,102 @@ export interface operations {
                 };
             };
             /** @description 业务异常（批次不合法 / 会话不存在 / 非租户成员）：HTTP 状态码按错误码归属返回，响应体为统一错误信封 */
+            default: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "console.toRead": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                traceparent?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功（code=200000） */
+            200: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferenceEnvelope"];
+                };
+            };
+            /** @description 业务异常（未登录或权限不足）：HTTP 状态码按错误码归属返回，响应体为统一错误信封 */
+            default: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "console.toUpdate": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                traceparent?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 偏好内容 */
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "bookmarks": [],
+                 *       "dashboardWidgets": [
+                 *         "health",
+                 *         "usage",
+                 *         "providers",
+                 *         "approvals"
+                 *       ],
+                 *       "navOrder": [
+                 *         "overview",
+                 *         "users",
+                 *         "providers"
+                 *       ],
+                 *       "pinnedNav": [
+                 *         "overview"
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["PreferenceP"];
+            };
+        };
+        responses: {
+            /** @description 成功（code=200000） */
+            200: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferenceEnvelope"];
+                };
+            };
+            /** @description 业务异常（参数非法或权限不足）：HTTP 状态码按错误码归属返回，响应体为统一错误信封 */
             default: {
                 headers: {
                     /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */

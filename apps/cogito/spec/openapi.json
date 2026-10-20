@@ -3014,6 +3014,135 @@
         ],
         "type": "object"
       },
+      "PreferenceEnvelope": {
+        "properties": {
+          "code": {
+            "description": "业务状态码（200000=成功）",
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PreferenceR"
+              }
+            ]
+          },
+          "msg": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "traceID": {
+            "description": "链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "success",
+          "msg",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "PreferenceP": {
+        "description": "控制台偏好写入 / 覆盖（upsert）",
+        "properties": {
+          "bookmarks": {
+            "description": "深链书签",
+            "items": {},
+            "type": "array"
+          },
+          "dashboardWidgets": {
+            "description": "概览小部件布局",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "navOrder": {
+            "description": "侧栏模块 id 有序数组",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "pinnedNav": {
+            "description": "钉选模块 id",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "navOrder",
+          "pinnedNav",
+          "dashboardWidgets",
+          "bookmarks"
+        ],
+        "type": "object"
+      },
+      "PreferenceR": {
+        "description": "控制台偏好响应",
+        "properties": {
+          "bookmarks": {
+            "items": {},
+            "type": "array"
+          },
+          "dashboardWidgets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "navOrder": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "pinnedNav": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "updatedAt": {
+            "description": "毫秒时间戳",
+            "format": "int64",
+            "type": "integer"
+          },
+          "userID": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "userID",
+          "navOrder",
+          "pinnedNav",
+          "dashboardWidgets",
+          "bookmarks",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
       "PrepareP": {
         "example": {
           "chunk": 1048576,
@@ -8727,6 +8856,180 @@
         "summary": "推送一批本地改动",
         "tags": [
           "Chat"
+        ]
+      }
+    },
+    "/api/v1/console/preference": {
+      "get": {
+        "description": "仅平台 ADMIN。返回当前管理员的侧栏序 / 钉选 / 看板小部件 / 书签；尚无记录时 data 为 null。",
+        "operationId": "console.toRead",
+        "parameters": [
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferenceEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常（未登录或权限不足）：HTTP 状态码按错误码归属返回，响应体为统一错误信封",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "读取控制台偏好",
+        "tags": [
+          "Console"
+        ]
+      },
+      "put": {
+        "description": "仅平台 ADMIN。按当前登录管理员 upsert 一行偏好。",
+        "operationId": "console.toUpdate",
+        "parameters": [
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "bookmarks": [],
+                "dashboardWidgets": [
+                  "health",
+                  "usage",
+                  "providers",
+                  "approvals"
+                ],
+                "navOrder": [
+                  "overview",
+                  "users",
+                  "providers"
+                ],
+                "pinnedNav": [
+                  "overview"
+                ]
+              },
+              "schema": {
+                "$ref": "#/components/schemas/PreferenceP"
+              }
+            }
+          },
+          "description": "偏好内容",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferenceEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常（参数非法或权限不足）：HTTP 状态码按错误码归属返回，响应体为统一错误信封",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "写入控制台偏好",
+        "tags": [
+          "Console"
         ]
       }
     },
@@ -14704,6 +15007,10 @@
     {
       "description": "后台用户管理（需 JWT）",
       "name": "User"
+    },
+    {
+      "description": "Backend Console 偏好（仅平台 ADMIN）",
+      "name": "Console"
     },
     {
       "description": "分片文件上传",

@@ -33,7 +33,7 @@ export const CAPABILITIES: readonly Capability[] = [
   {
     name: 'identity',
     title: '身份与租户',
-    owns: ['auth', 'tenant', 'tenant_member', 'sso_connection'],
+    owns: ['auth', 'tenant', 'tenant_member', 'sso_connection', 'console_preference'],
     dependsOn: [],
     publicModules: ['account', 'persistence', 'tenant'],
     absorbs: ['src/services/auth', 'src/services/user', 'src/services/tenant', 'src/services/sso'],
@@ -223,7 +223,11 @@ export const LEGACY_SERVICES: Record<string, { owner: string; note: string }> = 
   subscription: { owner: 'billing', note: '订阅与配额' },
   tenant: { owner: 'identity', note: '租户与成员' },
   upload: { owner: 'document', note: '资产上传' },
-  user: { owner: 'identity', note: '账号资料' }
+  user: { owner: 'identity', note: '账号资料' },
+  console: {
+    owner: 'identity',
+    note: 'Backend Console 偏好（新写）：表 console_preference，HTTP 层留在 api 二进制'
+  }
 }
 
 /** 能力 crate 不得依赖的 crate：api 二进制本身与 Web 框架 */
@@ -356,6 +360,11 @@ export const PLATFORM_ENTRY_ALLOWED: Record<string, { max: number; reason: strin
     max: 4,
     reason:
       'SSO 连接管理面（平台运维按平台管理员指定的租户建连接、跨租户列连接）：4 个 handler 各开一段特权作用域，业务逻辑在 service.rs 内按 scope.tx() 收口'
+  },
+  'src/services/console/controller.rs': {
+    max: 2,
+    reason:
+      'Backend Console 偏好（平台 ADMIN 个人布局）：2 个 handler 各开一段特权作用域；表 RLS 恒假，业务按 actor 过滤本人行'
   },
   'src/worker/runner.rs': {
     max: 1,

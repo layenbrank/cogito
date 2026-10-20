@@ -6,6 +6,7 @@ use crate::services::{
     application::schema::App,
     auth::schema::{AuthR, Avatar, CaptchaR, ProfileR, SigninR, SignupR},
     chat::schema::{ChatChangesR, ChatSyncR},
+    console::schema::PreferenceR,
     engine::schema::SuggestionR,
     gateway::schema::{ModelR, PlansR, ProviderR, SelfQuotaR},
     payment::schema::{CatalogR, OrderR, PriceR, ReconcileR},
@@ -46,6 +47,7 @@ envelope!(SignupEnvelope, SignupR);
 envelope!(ProfileEnvelope, ProfileR);
 envelope!(UserEnvelope, UserR);
 envelope!(UserListEnvelope, Vec<UserR>);
+envelope!(PreferenceEnvelope, PreferenceR);
 envelope!(UploadPrepareEnvelope, PrepareR);
 envelope!(UploadHashEnvelope, HashR);
 envelope!(ChunkUploadEnvelope, ChunkR);
