@@ -1,5 +1,5 @@
 const COMPONENT_LABELS: Partial<Record<MagneticTile.Component, string>> = {
-  bookmark: '书签',
+  bookmark: '书签文件夹',
   calendar: '日历',
   clock: '时钟',
   countdown: '倒计时',
@@ -21,7 +21,7 @@ const COMPONENT_LABELS: Partial<Record<MagneticTile.Component, string>> = {
 }
 
 const TILE_HINTS: Partial<Record<MagneticTile.Component, string>> = {
-  bookmark: '收藏常用链接与站点入口',
+  bookmark: '导入 Chrome 书签到书签库，可选挂到网址/集合磁贴',
   calendar: '日程安排与宜忌参考',
   clock: '数字与指针时钟样式',
   countdown: '目标日倒数与进度',

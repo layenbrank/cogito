@@ -16,7 +16,7 @@ export default function Marker(props: Props) {
         props.direction,
         props.shape
       ])}>
-      bookmark
+      导入
     </MagneticTile.Marker>
   )
 }

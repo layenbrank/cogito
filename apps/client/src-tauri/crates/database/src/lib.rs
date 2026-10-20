@@ -5,6 +5,7 @@ pub mod storage;
 pub mod entity {
     pub mod album;
     pub mod asset;
+    pub mod bookmark;
     pub mod calendar;
     pub mod countdown;
     pub mod magnetic_tile;
@@ -33,6 +34,7 @@ pub mod entity {
     pub use agent_workspace_folder::Entity as AgentWorkspaceFolderEntity;
     pub use album::Entity as AlbumEntity;
     pub use asset::Entity as AssetEntity;
+    pub use bookmark::Entity as BookmarkEntity;
     pub use calendar::Entity as CalendarEntity;
     pub use countdown::Entity as CountdownEntity;
     pub use magnetic_tile::Entity as MagneticTileEntity;

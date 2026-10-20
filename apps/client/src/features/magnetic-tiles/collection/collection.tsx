@@ -6,7 +6,9 @@ import styles from '@/features/magnetic-tiles/collection/collection.module.scss'
 
 import Marker from '@/features/magnetic-tiles/collection/marker.tsx'
 
-export default function Collection(props: SectionProps) {
+type CollectionProps = Omit<SectionProps, 'children'>
+
+export default function Collection(props: CollectionProps) {
   function onTrash(e: MouseEvent<HTMLElement>) {
     console.log('Trash clicked for', e)
   }
@@ -14,7 +16,7 @@ export default function Collection(props: SectionProps) {
   return (
     <MagneticTile.Section
       {...props}
-      onTrash={onTrash}
+      onTrash={props.onTrash ?? onTrash}
       className={clsx(styles.collection)}>
       <Marker
         id={props.id}

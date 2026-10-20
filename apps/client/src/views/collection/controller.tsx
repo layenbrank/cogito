@@ -1,9 +1,10 @@
+import Collection from '@/features/magnetic-tiles/collection/collection.tsx'
 import Navigation from '@/features/magnetic-tiles/navigation/navigation.tsx'
 import styles from '@/views/collection/controller.module.scss'
 
 interface ControllerProps {
   magneticTiles: readonly MagneticTile[]
-  /** 抽屉选贴：点击卡片回调 */
+  /** 抽屉选贴 / 钻入子文件夹：点击卡片回调 */
   onPick?: (id: string) => void
   /** 阻止 navigation Section 双击开窗（抽屉选贴） */
   onPrevent?: React.MouseEventHandler<HTMLDivElement>
@@ -29,6 +30,13 @@ function Controller(props: ControllerProps) {
     if (id) props.onPick?.(id)
   }
 
+  const ordered = [...props.magneticTiles].toSorted(function (a, b) {
+    if (a.component !== b.component) {
+      return a.component === 'collection' ? -1 : 1
+    }
+    return a.index - b.index
+  })
+
   return (
     <div
       role="toolbar"
@@ -41,7 +49,38 @@ function Controller(props: ControllerProps) {
         if (event.key !== 'Enter' && event.key !== ' ') return
         pickFromEvent(event, Boolean(props.onPick))
       }}>
-      {props.magneticTiles.map(function (value) {
+      {ordered.map(function (value) {
+        if (value.component === 'collection') {
+          return (
+            <Collection
+              {...value}
+              key={value.id}
+              size={size}
+              shape={shape}
+              direction={direction}
+              // 子文件夹：单击钻入，禁止双击再开一层展开动画
+              onDoubleClick={
+                props.onPick
+                  ? function (event) {
+                      event.stopPropagation()
+                      event.preventDefault()
+                      props.onPick?.(value.id)
+                    }
+                  : undefined
+              }
+              onTrash={
+                props.onRemove
+                  ? function (event) {
+                      event.stopPropagation()
+                      event.preventDefault()
+                      props.onRemove?.(value.id)
+                    }
+                  : undefined
+              }
+            />
+          )
+        }
+
         return (
           <Navigation
             {...value}
@@ -49,7 +88,8 @@ function Controller(props: ControllerProps) {
             size={size}
             shape={shape}
             direction={direction}
-            onPrevent={props.onPick ? props.onPrevent : undefined}
+            // 网址仍双击外跳；抽屉选贴模式才拦截
+            onPrevent={props.onPrevent}
             onTrash={
               props.onRemove
                 ? function (event) {
