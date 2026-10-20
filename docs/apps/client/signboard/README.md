@@ -1,6 +1,6 @@
 # Signboard（看板）产品设计包
 
-> 状态：**设计待确认**（选项 1B）。确认后再按 [06-implementation-roadmap.md](./06-implementation-roadmap.md) 落地 `apps/client`。  
+> 状态：**已落地 MVP**（设计确认后实现）。实现细节见 [06-implementation-roadmap.md](./06-implementation-roadmap.md)。  
 > 场景：**2A+2B+2C** — 个人本地 + 日历/提醒联动 + 多看板/标签预留；团队同步延后。
 
 | 文档 | 内容 |
