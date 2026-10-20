@@ -132,6 +132,7 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         thinking_command::workspaceSkills::workspaceSkillsList,
         through::command::set_rects,
         navigation::command::navigation_open,
+        navigation::command::navigation_read_lives,
         navigation::command::navigation_activate,
         navigation::command::navigation_place,
         navigation::command::navigation_stack,

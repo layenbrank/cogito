@@ -20,20 +20,56 @@ interface ExtensionsResult {
   supported: boolean
 }
 
+interface OpenedPage {
+  ok: boolean | null
+}
+
+interface LivePage {
+  id: string
+  ok: boolean | null
+}
+
 function openPage(id: string, url: string) {
-  return invoke('navigation:open', { body: { id, url } })
+  return invoke<OpenedPage>('navigation:open', { body: { id, url } })
+}
+
+function readLivePages() {
+  return invoke<LivePage[]>('navigation:read-lives')
+}
+
+// 显示、摆放、压层、收起必须按调用顺序执行。离开主页时的收起若和尚未返回的 activate 并行，
+// 后完成的 activate 会把已经藏起来的子 WebView 再次盖到磁贴页上。
+let pageLane: Promise<unknown> = Promise.resolve()
+
+function enqueuePage<T>(task: () => Promise<T>) {
+  const run = pageLane.then(task, task)
+  pageLane = run.then(
+    function () {
+      return undefined
+    },
+    function () {
+      return undefined
+    }
+  )
+  return run
 }
 
 function activatePage(id: string, bounds: Bounds) {
-  return invoke('navigation:activate', { body: { id, ...bounds } })
+  return enqueuePage(function () {
+    return invoke('navigation:activate', { body: { id, ...bounds } })
+  })
 }
 
 function placePage(id: string, bounds: Bounds) {
-  return invoke('navigation:place', { body: { id, ...bounds } })
+  return enqueuePage(function () {
+    return invoke('navigation:place', { body: { id, ...bounds } })
+  })
 }
 
 function stackPage(above: boolean) {
-  return invoke('navigation:stack', { body: { above } })
+  return enqueuePage(function () {
+    return invoke('navigation:stack', { body: { above } })
+  })
 }
 
 function cursorInMain() {
@@ -45,7 +81,9 @@ function closePage(id: string) {
 }
 
 function suspendPages() {
-  return invoke('navigation:suspend')
+  return enqueuePage(function () {
+    return invoke('navigation:suspend')
+  })
 }
 
 function navigatePage(id: string, url: string) {
@@ -169,6 +207,7 @@ export {
   placeBar,
   placePage,
   readExtensions,
+  readLivePages,
   removeExtension,
   BAR_ACTION,
   BAR_FRAME,
@@ -180,4 +219,4 @@ export {
   SUGGEST_PAD,
   SUGGEST_ROW
 }
-export type { BarAction, BarFrame, BarPlace, BarState, Bounds, ExtensionsResult, SuggestFrame, SuggestRow }
+export type { BarAction, BarFrame, BarPlace, BarState, Bounds, ExtensionsResult, LivePage, OpenedPage, SuggestFrame, SuggestRow }

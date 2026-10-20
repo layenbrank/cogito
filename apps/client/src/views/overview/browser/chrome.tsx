@@ -7,6 +7,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useEffect, useRef, useState } from 'react'
 
 import { ENGINE_STORE_KEY, findEngine } from '@/constants/engine'
+import { bindBrowserOpen } from '@/features/magnetic-tile/open-url'
 import Controller from '@/features/controller/controller.tsx'
 import { toast } from 'sonner'
 import { BrowserBar } from '@/features/browser-bar/bar'
@@ -40,8 +41,11 @@ import {
   openPage,
   placePage,
   readExtensions,
+  readLivePages,
   removeExtension,
-  suspendPages
+  suspendPages,
+  type LivePage,
+  type OpenedPage
 } from '@/views/navigation/ipc'
 import { readBrowser, writeBrowser, type Tab } from '@/views/navigation/session'
 
@@ -68,11 +72,6 @@ interface DownloadEvent {
   path?: string | null
 }
 
-interface OpenUrlEvent {
-  url: string
-}
-
-const OPEN_URL_EVENT = 'navigation://open-url'
 const SEARCH_LIMIT = 20
 
 interface BrowserChromeProps {
@@ -93,6 +92,11 @@ function rememberSearch(current: string[], query: string) {
   })].slice(0, SEARCH_LIMIT)
 }
 
+function isMissingPage(error: unknown) {
+  const text = error instanceof Error ? error.message : String(error)
+  return text.includes('页面不存在')
+}
+
 function BrowserChrome(props: BrowserChromeProps) {
   const contentRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
@@ -107,12 +111,15 @@ function BrowserChrome(props: BrowserChromeProps) {
     function () {}
   )
   const liveRef = useRef(new Set<string>())
+  const readyRef = useRef(new Set<string>())
   const applyLifeRef = useRef<(id: string, life: PageLife | null) => void>(function () {})
+  const adoptLivesRef = useRef<(rows: LivePage[]) => void>(function () {})
   const searchesRef = useRef<string[]>([])
   const persistRef = useRef(function () {
     return Promise.resolve()
   })
   const showPageRef = useRef<(id: string, url: string) => Promise<void>>(async function () {})
+  const isMountedRef = useRef(true)
   const isBoundsLocked = useRef(false)
 
   const [tabs, setTabs] = useState<Tab[]>([])
@@ -163,10 +170,16 @@ function BrowserChrome(props: BrowserChromeProps) {
     const url = current?.url || (guestRef.current?.id === id ? guestRef.current.url : '')
     if (!url || surfaceRef.current !== 'page') return
     if (!canPlace(bounds)) return
-    if (!liveRef.current.has(id)) return
-    void placePage(id, bounds).then(function () {
-      pageStack.reapply()
-    })
+    if (!readyRef.current.has(id)) return
+    void placePage(id, bounds).then(
+      function () {
+        if (!isMountedRef.current) return
+        pageStack.reapply()
+      },
+      function (error: unknown) {
+        if (isMissingPage(error)) readyRef.current.delete(id)
+      }
+    )
   }
 
   function goTiles() {
@@ -193,16 +206,60 @@ function BrowserChrome(props: BrowserChromeProps) {
     applyLife(id, 'wait')
   }
 
+  function adoptLives(rows: LivePage[]) {
+    rows.forEach(function (row) {
+      liveRef.current.add(row.id)
+      readyRef.current.add(row.id)
+      if (row.ok === true) applyLife(row.id, 'ok')
+      else if (row.ok === false) applyLife(row.id, 'fail')
+      else applyLife(row.id, 'wait')
+    })
+  }
+
+  function settleLife(id: string, ok: boolean) {
+    const life: PageLife = ok ? 'ok' : 'fail'
+    setLives(function (current) {
+      const previous = current[id]
+      if (previous === 'ok' || previous === 'fail') return current
+      return { ...current, [id]: life }
+    })
+  }
+
   async function showPage(id: string, url: string) {
     if (!url) return
     const isNew = !liveRef.current.has(id)
-    await openPage(id, url)
     liveRef.current.add(id)
     if (isNew) applyLife(id, 'wait')
-    if (surfaceRef.current !== 'page' || activeIdRef.current !== id) return
+    let opened: OpenedPage
+    try {
+      opened = await openPage(id, url)
+    } catch (error) {
+      if (isNew) {
+        liveRef.current.delete(id)
+        readyRef.current.delete(id)
+        applyLife(id, 'fail')
+      }
+      throw error
+    }
+    if (!liveRef.current.has(id)) return
+    readyRef.current.add(id)
+    if (typeof opened?.ok === 'boolean') settleLife(id, opened.ok)
+    if (!isMountedRef.current || surfaceRef.current !== 'page' || activeIdRef.current !== id) return
     const bounds = findShownBounds()
     if (!canPlace(bounds)) return
-    await activatePage(id, bounds)
+    try {
+      await activatePage(id, bounds)
+    } catch (error) {
+      if (isMissingPage(error)) {
+        readyRef.current.delete(id)
+        return
+      }
+      throw error
+    }
+    if (!isMountedRef.current) {
+      void suspendPages()
+      return
+    }
     pageStack.reapply()
   }
 
@@ -211,6 +268,7 @@ function BrowserChrome(props: BrowserChromeProps) {
     const ids = [...liveRef.current]
     for (const id of ids) {
       liveRef.current.delete(id)
+      readyRef.current.delete(id)
       await closePage(id)
     }
     const current = next.find(function (tab) {
@@ -316,6 +374,7 @@ function BrowserChrome(props: BrowserChromeProps) {
     guestRef.current = null
     setGuest(null)
     liveRef.current.delete(id)
+    readyRef.current.delete(id)
     await closePage(id)
     applyLife(id, null)
     if (activeIdRef.current !== id) return
@@ -350,6 +409,7 @@ function BrowserChrome(props: BrowserChromeProps) {
     tabsRef.current = next
     if (closing?.url) {
       liveRef.current.delete(id)
+      readyRef.current.delete(id)
       await closePage(id)
       applyLife(id, null)
     }
@@ -437,6 +497,7 @@ function BrowserChrome(props: BrowserChromeProps) {
     searchesRef.current = searches
     showPageRef.current = showPage
     applyLifeRef.current = applyLife
+    adoptLivesRef.current = adoptLives
     persistRef.current = function () {
       return writeBrowser({
         tabs: tabsRef.current,
@@ -460,6 +521,20 @@ function BrowserChrome(props: BrowserChromeProps) {
   )
 
   useEffect(function () {
+    return function () {
+      isMountedRef.current = false
+      void suspendPages()
+    }
+  }, [])
+
+  useEffect(function () {
+    return bindBrowserOpen(function (url) {
+      if (url) focusUrlRef.current(url)
+      else goTilesRef.current()
+    })
+  }, [])
+
+  useEffect(function () {
     let stopped = false
     void (async function () {
       const session = await readBrowser()
@@ -481,6 +556,12 @@ function BrowserChrome(props: BrowserChromeProps) {
       setAddress(current?.url ?? '')
       setSearches(session.searches)
       setIsReady(true)
+      try {
+        const rows = await readLivePages()
+        if (!stopped) adoptLivesRef.current(rows)
+      } catch (error) {
+        console.error('[browser] 同步已打开页面失败', error)
+      }
       try {
         if (stopped) return
         if (surfaceRef.current === 'page' && current?.url) await showPageRef.current(current.id, current.url)
@@ -549,12 +630,6 @@ function BrowserChrome(props: BrowserChromeProps) {
     }).then(function (stop) {
       unlisten.push(stop)
     })
-    void listen<OpenUrlEvent>(OPEN_URL_EVENT, function (event) {
-      if (event.payload?.url) focusUrlRef.current(event.payload.url)
-      else goTilesRef.current()
-    }).then(function (stop) {
-      unlisten.push(stop)
-    })
     return function () {
       for (const stop of unlisten) stop()
     }
@@ -567,7 +642,7 @@ function BrowserChrome(props: BrowserChromeProps) {
       if (!node || showTiles || !shownId || !pageUrl) return
       const observer = new ResizeObserver(function () {
         if (isBoundsLocked.current) return
-        if (!liveRef.current.has(shownId)) return
+        if (!readyRef.current.has(shownId)) return
         placeActiveRef.current(findShownBounds())
       })
       observer.observe(node)

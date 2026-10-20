@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 
 use serde::{Deserialize, Serialize};
 use tauri::webview::{DownloadEvent, NewWindowResponse, PageLoadEvent, WebviewBuilder};
@@ -136,6 +136,38 @@ struct PagePayload {
 struct LoadPayload {
     id: String,
     ok: bool,
+}
+
+/// `navigation:open` 返回时页面是否已经有结果。`None` 表示这一次导航还没结束。
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenResult {
+    ok: Option<bool>,
+}
+
+/// 上游 `PageLoadEvent` 还没有成功与否。Windows 在 Finished 回调里给出 `IsSuccess`，其余情况只看地址。
+fn finish_ok(url: &str, reported: Option<bool>) -> bool {
+    if let Some(ok) = reported {
+        return ok;
+    }
+    url.starts_with("http://") || url.starts_with("https://")
+}
+
+fn parse_probe(raw: &str) -> Option<bool> {
+    let text = serde_json::from_str::<String>(raw).unwrap_or_else(|_| raw.to_string());
+    let (ready, href) = text.split_once('\n')?;
+    let href = href.trim();
+    if href.starts_with("chrome-error:") || href.starts_with("edge-error:") {
+        return Some(false);
+    }
+    let is_http = href.starts_with("http://") || href.starts_with("https://");
+    if !is_http {
+        return None;
+    }
+    match ready.trim() {
+        "complete" | "interactive" => Some(true),
+        _ => None,
+    }
 }
 
 #[derive(Clone, Serialize)]
@@ -348,57 +380,20 @@ fn find_page(state: &NavigationState, id: &str) -> Result<tauri::Webview, String
 
 /// 记下这次导航是否成功。切走只隐藏 WebView，关闭才销毁，所以结果要单独报给侧栏。
 #[cfg(windows)]
-fn watch_load(webview: &tauri::Webview, app: AppHandle, shell: String, id: String) {
+fn watch_load(webview: &tauri::Webview, app: AppHandle, shell: String) {
     let app_for_external = app.clone();
     let shell_external = shell.clone();
-    let app_for_open = app.clone();
-    let shell_open = shell.clone();
     let watched = webview.with_webview(move |platform| {
-        if let Err(err) = bind_load(&platform, app, shell, id) {
-            log::warn!("[navigation] 监听页面加载结果失败: {err}");
-        }
         if let Err(err) = bind_external(&platform, app_for_external, shell_external) {
             log::warn!("[navigation] 监听外部协议失败: {err}");
         }
-        if let Err(err) = bind_open_url(platform, app_for_open, shell_open) {
+        if let Err(err) = bind_open_url(platform, app, shell) {
             log::warn!("[navigation] 监听页内新窗口失败: {err}");
         }
     });
     if let Err(err) = watched {
-        log::warn!("[navigation] 挂接页面加载结果失败: {err}");
+        log::warn!("[navigation] 挂接页面事件失败: {err}");
     }
-}
-
-#[cfg(windows)]
-fn bind_load(
-    platform: &tauri::webview::PlatformWebview,
-    app: AppHandle,
-    shell: String,
-    id: String,
-) -> windows::core::Result<()> {
-    use webview2_com::NavigationCompletedEventHandler;
-    use windows::core::BOOL;
-
-    let core = unsafe { platform.controller().CoreWebView2() }?;
-    let handler = NavigationCompletedEventHandler::create(Box::new(move |_view, args| {
-        let Some(args) = args else {
-            return Ok(());
-        };
-        let mut ok = BOOL(0);
-        unsafe { args.IsSuccess(&mut ok)? };
-        emit_shell(
-            &app,
-            &shell,
-            "navigation://load",
-            LoadPayload {
-                id: id.clone(),
-                ok: ok.as_bool(),
-            },
-        );
-        Ok(())
-    }));
-    let mut token = 0_i64;
-    unsafe { core.add_NavigationCompleted(&handler, &mut token) }
 }
 
 /// 自定义协议交给系统打开时，WebView2 不走 NewWindowRequested。取消外跳，http/https 仍收进侧栏。
@@ -475,8 +470,74 @@ fn read_pwstr(ptr: windows::core::PWSTR) -> String {
 }
 
 #[cfg(not(windows))]
-fn watch_load(webview: &tauri::Webview, app: AppHandle, shell: String, id: String) {
-    let _ = (webview, app, shell, id);
+fn watch_load(_webview: &tauri::Webview, _app: AppHandle, _shell: String) {}
+
+/// 页面已经创建过时，NavigationCompleted 不会再来一次。读当前文档，补上侧栏缺的成功或失败。
+#[cfg(windows)]
+fn probe_loaded(webview: &tauri::Webview) -> Option<bool> {
+    use std::sync::mpsc::sync_channel;
+    use std::time::Duration;
+
+    use webview2_com::ExecuteScriptCompletedHandler;
+    use windows::core::HSTRING;
+
+    let (tx, rx) = sync_channel(1);
+    let started = webview.with_webview(move |platform| {
+        let Ok(core) = (unsafe { platform.controller().CoreWebView2() }) else {
+            let _ = tx.send(None);
+            return;
+        };
+        let script = HSTRING::from(
+            r#"(function () { return document.readyState + "\n" + location.href })()"#,
+        );
+        let posted = tx.clone();
+        let handler = ExecuteScriptCompletedHandler::create(Box::new(move |result, raw| {
+            let value = if result.is_ok() { parse_probe(&raw) } else { None };
+            let _ = posted.send(value);
+            Ok(())
+        }));
+        if unsafe { core.ExecuteScript(&script, &handler) }.is_err() {
+            let _ = tx.send(None);
+        }
+    });
+    if started.is_err() {
+        return None;
+    }
+    rx.recv_timeout(Duration::from_millis(800)).ok().flatten()
+}
+
+#[cfg(not(windows))]
+fn probe_loaded(_webview: &tauri::Webview) -> Option<bool> {
+    None
+}
+
+/// 壳页面刷新后，子 WebView 还在，但前端状态已经丢了。把每个还在的页面当前结果交回去。
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LivePage {
+    id: String,
+    ok: Option<bool>,
+}
+
+#[tauri::command(rename = "navigation:read-lives")]
+pub async fn navigation_read_lives(
+    state: State<'_, NavigationState>,
+) -> Result<Vec<LivePage>, String> {
+    let pages = {
+        let pages = state.pages.lock().map_err(|err| err.to_string())?;
+        pages
+            .iter()
+            .map(|(label, webview)| (page_id(label), webview.clone()))
+            .collect::<Vec<_>>()
+    };
+    let mut rows = Vec::with_capacity(pages.len());
+    for (id, webview) in pages {
+        rows.push(LivePage {
+            id,
+            ok: probe_loaded(&webview),
+        });
+    }
+    Ok(rows)
 }
 
 /// 创建远程子 Webview。Windows 上必须在异步命令里调用，避免和 WebView2 死锁。
@@ -486,23 +547,33 @@ pub async fn navigation_open(
     window: tauri::Window,
     state: State<'_, NavigationState>,
     body: OpenBody,
-) -> Result<(), String> {
+) -> Result<OpenResult, String> {
     require_main(&window)?;
     if !is_safe_id(&body.id) {
         return Err("页面 id 无效".to_string());
     }
     let url = parse_http_url(&body.url)?;
     let label = page_label(&body.id);
-    let stale = {
+    let live = {
         let mut pages = state.pages.lock().map_err(|err| err.to_string())?;
-        match pages.get(&label) {
-            Some(existing) if existing.window().label() == window.label() => return Ok(()),
-            Some(_) => pages.remove(&label),
-            None => None,
+        if let Some(page) = pages.get(&label) {
+            if page.window().label() == window.label() {
+                Some(page.clone())
+            } else if let Some(stale) = pages.remove(&label) {
+                drop(pages);
+                let _ = stale.close();
+                None
+            } else {
+                None
+            }
+        } else {
+            None
         }
     };
-    if let Some(stale) = stale {
-        let _ = stale.close();
+    if let Some(page) = live {
+        return Ok(OpenResult {
+            ok: probe_loaded(&page),
+        });
     }
 
     let shell = window.label().to_string();
@@ -519,6 +590,8 @@ pub async fn navigation_open(
     let shell_download = shell.clone();
     let shell_finished = shell.clone();
     let shell_blank = shell.clone();
+    let settled = Arc::new(Mutex::new(None::<bool>));
+    let settled_load = settled.clone();
 
     let mut builder = WebviewBuilder::new(&label, WebviewUrl::External(url))
         .data_directory(profile)
@@ -540,6 +613,10 @@ pub async fn navigation_open(
             }
             let id = page_id(webview.label());
             let url = payload.url().to_string();
+            let ok = finish_ok(&url, wry::page_load_succeeded());
+            if let Ok(mut slot) = settled_load.lock() {
+                *slot = Some(ok);
+            }
             emit_shell(
                 &app_for_load,
                 &shell_load,
@@ -549,18 +626,11 @@ pub async fn navigation_open(
                     url,
                 },
             );
-            // Windows 的 Finished 在失败时也会到，成功与否改由 NavigationCompleted.IsSuccess 发出。
-            #[cfg(windows)]
-            let _ = id;
-            #[cfg(not(windows))]
             emit_shell(
                 &app_for_load,
                 &shell_load,
                 "navigation://load",
-                LoadPayload {
-                    id,
-                    ok: matches!(payload.url().scheme(), "http" | "https"),
-                },
+                LoadPayload { id, ok },
             );
         })
         .on_new_window(move |url, _features| {
@@ -645,12 +715,14 @@ pub async fn navigation_open(
             LogicalSize::new(1.0, 1.0),
         )
         .map_err(|err| err.to_string())?;
-    watch_load(&webview, app.clone(), shell, body.id.clone());
+    watch_load(&webview, app.clone(), shell);
     let _ = webview.hide();
+    let reported = settled.lock().ok().and_then(|slot| *slot);
+    let ok = reported.or_else(|| probe_loaded(&webview));
 
     let mut pages = state.pages.lock().map_err(|err| err.to_string())?;
     pages.insert(label, webview);
-    Ok(())
+    Ok(OpenResult { ok })
 }
 
 #[tauri::command(rename = "navigation:activate")]
@@ -1390,4 +1462,44 @@ pub async fn navigation_extensions(
         names: list_extensions(&dir)?,
         supported: cfg!(windows),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{finish_ok, parse_probe};
+    #[test]
+    fn finished_http_without_report_is_open() {
+        assert!(finish_ok("https://y.qq.com/", None));
+    }
+
+    #[test]
+    fn reported_failure_stays_closed() {
+        assert!(!finish_ok("https://y.qq.com/", Some(false)));
+    }
+
+    #[test]
+    fn reported_success_is_open() {
+        assert!(finish_ok("https://y.qq.com/", Some(true)));
+    }
+
+    #[test]
+    fn probe_complete_http_is_open() {
+        assert_eq!(
+            parse_probe(r#""complete\nhttps://y.qq.com/""#),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn probe_loading_stays_unknown() {
+        assert_eq!(parse_probe(r#""loading\nhttps://y.qq.com/""#), None);
+    }
+
+    #[test]
+    fn probe_error_page_is_closed() {
+        assert_eq!(
+            parse_probe(r#""complete\nedge-error://something""#),
+            Some(false)
+        );
+    }
 }

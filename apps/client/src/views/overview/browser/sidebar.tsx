@@ -15,11 +15,21 @@ import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
 import { Input } from '@i-thinking/design/components/input'
 import { invoke } from '@tauri-apps/api/core'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { clsx } from 'clsx'
-import { useState, type ReactNode } from 'react'
+import { useState, useSyncExternalStore, type MouseEvent, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 
+import { useCaptionState } from '@/components/caption/caption'
+import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 import { activateTile } from '@/features/magnetic-tile/activate'
+import {
+  dismissSession,
+  readSessions,
+  subscribeSessions,
+  type TileSession
+} from '@/features/magnetic-tile/session'
 import { CHANNELS } from '@/shared/ipc/channels'
 import { useMirrorStore } from '@/stores/mirror'
 import { BROWSER_BAR } from '@/features/browser-bar/metrics'
@@ -63,9 +73,15 @@ function matches(query: string, text: string) {
 const ROW =
   'group/row flex items-center gap-2 rounded-lg text-left text-sm text-sidebar-foreground outline-none transition-[background-color,color,box-shadow] duration-200 ease-out focus-visible:ring-2 focus-visible:ring-sidebar-ring/40 motion-reduce:transition-none'
 
-/** 收缩行的选中/悬停底：36×36，去掉 w-full，避免在 48px 侧栏里拉成横条。 */
+/** 收缩行与顶栏按钮同为 40×40，避免折叠后图标高低不齐。 */
 const SHUT_ROW =
-  'mx-auto size-9 max-h-9 max-w-9 shrink-0 justify-center self-center p-0'
+  'mx-auto size-10 max-h-10 max-w-10 shrink-0 justify-center self-center p-0'
+
+/** 折叠后每一枚图标使用同一段间距，组与组之间不再另加空白。 */
+const SHUT_STACK = 'flex flex-col items-center gap-2'
+
+/** 展开后行距与组距同一段，和折叠态的 8px 对齐。 */
+const OPEN_STACK = 'flex flex-col gap-2'
 
 /** 站点标记固定 16×16，避免收缩行把图标压成非正方形。 */
 const MARK_BOX =
@@ -143,14 +159,71 @@ const ENTER =
 const RAIL =
   'size-10 min-w-10 rounded-full text-sidebar-foreground hover:bg-sidebar-accent [&_svg]:size-4.5'
 
-function Fold(props: { isOpen: boolean; children: ReactNode }) {
+function SidebarHead(props: { isOpen: boolean; onToggle: () => void; onCreate: () => void }) {
+  const { state, refresh } = useCaptionState()
+
+  function onDoubleClick(event: MouseEvent<HTMLElement>) {
+    const target = event.target
+    if (!(target instanceof Element)) return
+    if (target.closest('[data-region="false"]')) return
+    if (!state.isMaximizable && !state.isFullscreen) return
+    const win = getCurrentWindow()
+    if (state.isFullscreen) {
+      void win.setFullscreen(false).then(refresh)
+      return
+    }
+    void win.toggleMaximize().then(refresh)
+  }
+
+  return (
+    <header
+      data-region="true"
+      data-focused={state.isFocused ? 'true' : 'false'}
+      onDoubleClick={onDoubleClick}
+      className={clsx(
+        'flex shrink-0 border-b border-sidebar-border select-none',
+        !state.isFocused && 'opacity-80',
+        props.isOpen ? 'items-center gap-0.5 px-1.5' : 'items-center justify-center'
+      )}
+      style={{ height: BROWSER_BAR, minHeight: BROWSER_BAR }}>
+      <Button
+        variant="ghost"
+        size="icon"
+        data-region="false"
+        className={RAIL}
+        aria-label={props.isOpen ? '收起侧栏' : '展开侧栏'}
+        onClick={props.onToggle}>
+        <Icon
+          icon="lucide:panel-left"
+          aria-hidden
+        />
+      </Button>
+      {props.isOpen ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          data-region="false"
+          className={RAIL}
+          aria-label="新建标签"
+          onClick={props.onCreate}>
+          <Icon
+            icon="lucide:plus"
+            aria-hidden
+          />
+        </Button>
+      ) : null}
+    </header>
+  )
+}
+
+function Fold(props: { isOpen: boolean; children: ReactNode; className?: string }) {
   return (
     <div
       className={clsx(
         'grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none',
         props.isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
       )}>
-      <div className="min-h-0 overflow-hidden">{props.children}</div>
+      <div className={clsx('min-h-0 overflow-hidden', props.className)}>{props.children}</div>
     </div>
   )
 }
@@ -217,24 +290,26 @@ interface UrlRowProps {
 }
 
 function UrlRow(props: UrlRowProps) {
-  const sortable = useSortable({ id: props.tab.id })
+  const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
+    id: props.tab.id
+  })
   const mark = props.tab.url ? findPageMark(props.lives, props.tab.id) : null
   const name = rowName(props.label, mark)
   const style = {
-    transform: CSS.Transform.toString(sortable.transform),
-    transition: sortable.transition,
-    zIndex: sortable.isDragging ? 2 : undefined
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 2 : undefined
   }
 
   return (
     <div
-      ref={sortable.setNodeRef}
+      ref={setNodeRef}
       style={style}
       className={clsx(
         rowClass(props.isOpen),
         ENTER,
         props.isActive ? ROW_ON : ROW_IDLE,
-        sortable.isDragging && 'opacity-40'
+        isDragging && 'opacity-40'
       )}>
       <button
         type="button"
@@ -246,8 +321,8 @@ function UrlRow(props: UrlRowProps) {
           hitClass(props.isOpen),
           !props.isOpen && mark && 'relative'
         )}
-        {...sortable.attributes}
-        {...sortable.listeners}
+        {...attributes}
+        {...listeners}
         onClick={props.onSelect}>
         <SiteMark
           url={props.tab.url}
@@ -275,6 +350,123 @@ function UrlRow(props: UrlRowProps) {
             event.stopPropagation()
           }}
           onClick={props.onClose}>
+          <Icon
+            icon="lucide:x"
+            className="size-3.5"
+            aria-hidden
+          />
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
+const SESSION_ICON: Partial<Record<MagneticTile.Component, string>> = {
+  agent: 'lucide:bot',
+  bookmark: 'lucide:bookmark',
+  calendar: 'lucide:calendar',
+  capture: 'lucide:camera',
+  clipchamp: 'lucide:clapperboard',
+  clock: 'lucide:clock',
+  code: 'lucide:code-xml',
+  countdown: 'lucide:timer',
+  developer: 'lucide:terminal',
+  directive: 'lucide:workflow',
+  example: 'lucide:box',
+  gallery: 'lucide:images',
+  markdown: 'lucide:file-text',
+  marketplace: 'lucide:store',
+  morph: 'lucide:shapes',
+  settings: 'lucide:settings',
+  signboard: 'lucide:square-kanban'
+}
+
+function findSessionIcon(component: MagneticTile.Component) {
+  return SESSION_ICON[component] ?? 'lucide:app-window'
+}
+
+function LiveTiles(props: { isOpen: boolean; query: string }) {
+  const navigate = useNavigate()
+  const sessions = useSyncExternalStore(subscribeSessions, readSessions)
+  const [isFoldOpen, setIsFoldOpen] = useState(true)
+  const visible = sessions.filter(function (session) {
+    return matches(props.query, findComponentLabel(session.component))
+  })
+  if (visible.length === 0) return null
+
+  return (
+    <section className={props.isOpen ? OPEN_STACK : undefined}>
+      {props.isOpen ? (
+        <SectionLabel
+          isOpen={isFoldOpen}
+          label="应用"
+          onToggle={function () {
+            setIsFoldOpen(function (current) {
+              return !current
+            })
+          }}
+        />
+      ) : null}
+      <Fold
+        isOpen={!props.isOpen || isFoldOpen}
+        className={props.isOpen ? OPEN_STACK : SHUT_STACK}>
+        {visible.map(function (session) {
+          return (
+            <LiveTileRow
+              key={session.component}
+              session={session}
+              isOpen={props.isOpen}
+              onOpen={function () {
+                void navigate(session.path)
+              }}
+              onDismiss={function () {
+                dismissSession(session.component)
+              }}
+            />
+          )
+        })}
+      </Fold>
+    </section>
+  )
+}
+
+function LiveTileRow(props: {
+  session: TileSession
+  isOpen: boolean
+  onOpen: () => void
+  onDismiss: () => void
+}) {
+  const label = findComponentLabel(props.session.component)
+
+  return (
+    <div className={clsx(rowClass(props.isOpen), ROW_IDLE, ENTER)}>
+      <button
+        type="button"
+        aria-label={`${label}，已打开`}
+        title={label}
+        className={clsx(
+          'flex items-center text-left',
+          hitClass(props.isOpen),
+          !props.isOpen && 'relative'
+        )}
+        onClick={props.onOpen}>
+        <Icon
+          icon={findSessionIcon(props.session.component)}
+          className={clsx(MARK_BOX, 'text-sidebar-foreground/70')}
+          aria-hidden
+        />
+        <LifeDot
+          mark="ok"
+          isOpen={props.isOpen}
+        />
+        {props.isOpen ? <span className="truncate">{label}</span> : null}
+      </button>
+      {props.isOpen ? (
+        <button
+          type="button"
+          aria-label="结束"
+          className="flex size-5 shrink-0 items-center justify-center rounded-full opacity-0 transition-opacity duration-150 hover:bg-foreground/10 group-hover/row:opacity-100 focus-visible:opacity-100"
+          onClick={props.onDismiss}>
           <Icon
             icon="lucide:x"
             className="size-3.5"
@@ -373,11 +565,16 @@ function BrowserSidebar(props: BrowserSidebarProps) {
       return matches(query, member.title) || matches(query, member.url ?? '')
     })
   })
+  const sessions = useSyncExternalStore(subscribeSessions, readSessions)
+  const hasVisibleSession = sessions.some(function (session) {
+    return matches(query, findComponentLabel(session.component))
+  })
   const isEmpty =
     query.length > 0 &&
     visibleTabs.length === 0 &&
     visibleSearches.length === 0 &&
-    visibleCollections.length === 0
+    visibleCollections.length === 0 &&
+    !hasVisibleSession
   const draggingTab = props.tabs.find(function (tab) {
     return tab.id === draggingId
   })
@@ -385,45 +582,35 @@ function BrowserSidebar(props: BrowserSidebarProps) {
 
   return (
     <aside
-      data-region="false"
       style={{ width: props.isOpen ? SIDEBAR_OPEN : SIDEBAR_SHUT }}
-      className="flex shrink-0 flex-col self-stretch overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground contain-layout">
+      className="flex shrink-0 flex-col self-stretch overflow-hidden border-r border-border bg-background text-foreground contain-layout">
+      <SidebarHead
+        isOpen={props.isOpen}
+        onToggle={props.onToggleSidebar}
+        onCreate={props.onCreateTab}
+      />
       <div
-        className={clsx(
-          'flex shrink-0',
-          props.isOpen ? 'items-center gap-0.5 px-1.5' : 'flex-col items-center'
-        )}
-        style={props.isOpen ? { height: BROWSER_BAR } : undefined}>
-        <div
-          className={clsx('flex items-center justify-center', !props.isOpen && 'w-full')}
-          style={props.isOpen ? undefined : { height: BROWSER_BAR }}>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={RAIL}
-            aria-label={props.isOpen ? '收起侧栏' : '展开侧栏'}
-            onClick={props.onToggleSidebar}>
-            <Icon
-              icon="lucide:panel-left"
-              aria-hidden
-            />
-          </Button>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className={RAIL}
-          aria-label="新建标签"
-          onClick={props.onCreateTab}>
-          <Icon
-            icon="lucide:plus"
-            aria-hidden
-          />
-        </Button>
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto">
+        data-region="false"
+        className="min-h-0 flex-1 overflow-auto">
         {props.panel === 'sites' ? (
-          <div className={clsx('flex flex-col gap-3 py-3', props.isOpen ? 'px-2' : 'px-1')}>
+          <div
+            className={clsx(
+              'flex flex-col',
+              props.isOpen ? clsx(OPEN_STACK, 'px-2 py-2') : clsx(SHUT_STACK, 'px-1 py-2')
+            )}>
+            {props.isOpen ? null : (
+              <Button
+                variant="ghost"
+                size="icon"
+                className={RAIL}
+                aria-label="新建标签"
+                onClick={props.onCreateTab}>
+                <Icon
+                  icon="lucide:plus"
+                  aria-hidden
+                />
+              </Button>
+            )}
             {props.isOpen ? (
               <Input
                 value={filter}
@@ -440,7 +627,11 @@ function BrowserSidebar(props: BrowserSidebarProps) {
                 没有匹配项
               </p>
             ) : null}
-            <section>
+            <LiveTiles
+              isOpen={props.isOpen}
+              query={query}
+            />
+            <section className={props.isOpen ? OPEN_STACK : undefined}>
               {props.isOpen ? (
                 <SectionLabel
                   isOpen={isTabsOpen}
@@ -452,7 +643,9 @@ function BrowserSidebar(props: BrowserSidebarProps) {
                   }}
                 />
               ) : null}
-              <Fold isOpen={!props.isOpen || isTabsOpen}>
+              <Fold
+                isOpen={!props.isOpen || isTabsOpen}
+                className={props.isOpen ? OPEN_STACK : SHUT_STACK}>
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
@@ -549,7 +742,9 @@ function BrowserSidebar(props: BrowserSidebarProps) {
                 )
               })
               return (
-                <section key={group.id}>
+                <section
+                  key={group.id}
+                  className={props.isOpen ? OPEN_STACK : undefined}>
                   <button
                     type="button"
                     title={group.title}
@@ -587,7 +782,9 @@ function BrowserSidebar(props: BrowserSidebarProps) {
                   <Fold isOpen={isGroupOpen}>
                     <div
                       className={clsx(
-                        props.isOpen && 'relative ml-3 border-l border-sidebar-border/80 pl-1.5'
+                        props.isOpen
+                          ? 'relative ml-3 flex flex-col gap-2 border-l border-sidebar-border/80 pl-1.5'
+                          : SHUT_STACK
                       )}>
                       {rows.map(function (member) {
                         const label = member.title || findHost(member.url ?? '')
@@ -654,7 +851,11 @@ function BrowserSidebar(props: BrowserSidebarProps) {
           </div>
         ) : null}
         {props.panel === 'downloads' ? (
-          <div className={clsx('flex flex-col gap-1 py-3 text-sm', props.isOpen ? 'px-2' : 'px-1')}>
+          <div
+            className={clsx(
+              'flex flex-col text-sm',
+              props.isOpen ? clsx(OPEN_STACK, 'px-2 py-2') : clsx(SHUT_STACK, 'px-1 py-2')
+            )}>
             {props.downloads.length === 0 ? (
               <div className="flex flex-col items-center gap-2 px-2 py-10 text-center">
                 <span className="flex size-10 items-center justify-center rounded-full bg-sidebar-accent text-sidebar-foreground/55">
@@ -718,7 +919,11 @@ function BrowserSidebar(props: BrowserSidebarProps) {
           </div>
         ) : null}
         {props.panel === 'extensions' ? (
-          <div className={clsx('flex flex-col gap-2 py-3 text-sm', props.isOpen ? 'px-2' : 'px-1')}>
+          <div
+            className={clsx(
+              'flex flex-col text-sm',
+              props.isOpen ? clsx(OPEN_STACK, 'px-2 py-2') : clsx(SHUT_STACK, 'px-1 py-2')
+            )}>
             {props.isOpen ? (
               <p className="px-2 text-xs leading-5 text-sidebar-foreground/55">
                 {props.isExtensionSupported
@@ -730,7 +935,7 @@ function BrowserSidebar(props: BrowserSidebarProps) {
               variant="outline"
               size={props.isOpen ? 'sm' : 'icon-sm'}
               className={clsx(
-                'min-h-9 border-sidebar-border bg-sidebar text-sidebar-foreground shadow-none hover:bg-sidebar-accent',
+                'min-h-9 border-border bg-background text-foreground shadow-none hover:bg-sidebar-accent',
                 props.isOpen && 'w-full justify-start'
               )}
               aria-label="导入解压扩展"
