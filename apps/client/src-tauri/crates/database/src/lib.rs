@@ -12,6 +12,11 @@ pub mod entity {
     pub mod mirror;
     pub mod overlay;
     pub mod reminder;
+    pub mod signboard;
+    pub mod signboard_card;
+    pub mod signboard_card_tag;
+    pub mod signboard_column;
+    pub mod signboard_tag;
 
     #[allow(non_snake_case)]
     pub mod agent_message;
@@ -41,6 +46,11 @@ pub mod entity {
     pub use mirror::Entity as MirrorEntity;
     pub use overlay::Entity as OverlayEntity;
     pub use reminder::Entity as ReminderEntity;
+    pub use signboard::Entity as SignboardEntity;
+    pub use signboard_card::Entity as SignboardCardEntity;
+    pub use signboard_card_tag::Entity as SignboardCardTagEntity;
+    pub use signboard_column::Entity as SignboardColumnEntity;
+    pub use signboard_tag::Entity as SignboardTagEntity;
 }
 
 pub use storage::{Connection, Storage, database_path, initialize};
