@@ -20,7 +20,7 @@
 
 - 脚本与事件：`apps/client/src-tauri/src/navigation/command.rs`（`OPEN_URL_SCRIPT`、`bind_open_url`、`bind_external`、`on_new_window`）
 - wry 后备：`apps/client/src-tauri/vendor/wry/src/webview2/mod.rs` 的 `NewWindowRequested`
-- 侧栏：`apps/client/src/views/overview/browser/chrome.tsx` 监听 `navigation://open-url`
+- 侧栏：`apps/client/src/views/browser/chrome.tsx` 监听 `navigation://open-url`
 
 ---
 
