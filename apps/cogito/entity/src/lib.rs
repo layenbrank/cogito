@@ -10,6 +10,7 @@ pub mod chat_session;
 pub mod chat_sync_batch;
 pub mod chat_usage;
 pub mod chunk;
+pub mod console_preference;
 pub mod consumed_event;
 pub mod gateway_audit;
 pub mod gateway_model;

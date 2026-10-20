@@ -34,6 +34,15 @@
 | [packaging.md](./apps/studio/packaging.md)    | 打包与分发                               |
 | [troubleshooting.md](./apps/studio/troubleshooting.md) | 常见问题                        |
 
+### Backend Console（纯 Web 运维控制台）
+
+| 文档                                                 | 说明                         |
+| ---------------------------------------------------- | ---------------------------- |
+| [README.md](./apps/backend/README.md)                | 入口与索引                   |
+| [product-design.md](./apps/backend/product-design.md) | 产品定位、IA、体验原则     |
+| [architecture.md](./apps/backend/architecture.md)    | 前端分层与 cogito 边界       |
+| [development.md](./apps/backend/development.md)      | 本地开发                     |
+
 ### Client（Tauri 桌面应用）
 
 | 文档                                                                          | 说明                                                    |

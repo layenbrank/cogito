@@ -1,0 +1,15 @@
+/**
+ * backend 渲染层 Tailwind v4 入口。
+ */
+@import '@i-thinking/design/globals.css';
+
+@source '../';
+
+:root {
+  /* 控制台壳层：冷石底 + 海青绿强调，避开紫白 / 奶油套路 */
+  --backend-shell: oklch(0.985 0.004 220);
+  --backend-rail: oklch(0.2 0.02 250);
+  --backend-rail-fg: oklch(0.96 0.01 220);
+  --backend-rail-muted: oklch(0.72 0.02 220);
+  --backend-accent: oklch(0.55 0.1 195);
+}

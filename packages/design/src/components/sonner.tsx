@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react/offline'
+import type { CSSProperties } from 'react'
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
 
 import { cn } from 'cn'
@@ -26,7 +27,7 @@ function Toaster({ className, ...props }: ToasterProps) {
           '--normal-text': 'var(--popover-foreground)',
           '--normal-border': 'var(--border)',
           '--border-radius': 'var(--radius)'
-        } as React.CSSProperties
+        } as CSSProperties
       }
       {...props}
     />

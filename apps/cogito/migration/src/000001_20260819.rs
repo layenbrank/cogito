@@ -35,6 +35,7 @@ impl MigrationTrait for Migration {
                     .table(ChatMessage::Table)
                     .table(ChatSession::Table)
                     .table(SsoConnection::Table)
+                    .table(ConsolePreference::Table)
                     .table(PaymentOrder::Table)
                     .table(BillingPrice::Table)
                     .table(Subscription::Table)
@@ -822,6 +823,63 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        // ---------- console_preference（Backend Console 布局偏好） ----------
+        // 平台运维面专用：一名 ADMIN 一行。无租户面，RLS 恒假，读写走 PlatformScope。
+        manager
+            .create_table(
+                Table::create()
+                    .table(ConsolePreference::Table)
+                    .if_not_exists()
+                    .col(pk_uuid(ConsolePreference::Id))
+                    .col(uuid(ConsolePreference::UserId))
+                    .col(json_binary(ConsolePreference::NavOrder))
+                    .col(json_binary(ConsolePreference::PinnedNav))
+                    .col(json_binary(ConsolePreference::DashboardWidgets))
+                    .col(json_binary(ConsolePreference::Bookmarks))
+                    .col(timestamp_with_time_zone(ConsolePreference::CreatedAt))
+                    .col(uuid_null(ConsolePreference::Creator))
+                    .col(timestamp_with_time_zone(ConsolePreference::UpdatedAt))
+                    .col(uuid_null(ConsolePreference::Updater))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_console_preference_user")
+                            .from(ConsolePreference::Table, ConsolePreference::UserId)
+                            .to(Auth::Table, Auth::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_console_preference_creator")
+                            .from(ConsolePreference::Table, ConsolePreference::Creator)
+                            .to(Auth::Table, Auth::Id)
+                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_console_preference_updater")
+                            .from(ConsolePreference::Table, ConsolePreference::Updater)
+                            .to(Auth::Table, Auth::Id)
+                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("uidx_console_preference_user")
+                    .table(ConsolePreference::Table)
+                    .col(ConsolePreference::UserId)
+                    .unique()
+                    .to_owned(),
+            )
+            .await?;
+
         // ---------- outbox（事务性发件箱） ----------
         // 与聚合变更同事务写入，P4 的发布器只搬运、不判定业务；写入方是业务事务，读取方是特权连接。
         manager
@@ -1467,6 +1525,9 @@ impl MigrationTrait for Migration {
         // 读写一律走平台特权连接（`cogito_platform`，BYPASSRLS）。
         enable_rls(manager, "billing_price", "false", "false").await?;
 
+        // Backend Console 偏好：同样无租户面，只允许平台特权读写。
+        enable_rls(manager, "console_preference", "false", "false").await?;
+
         // tenant 自身按主键隔离：只能读写自己那一行；新建租户时作用域就是新租户 id，
         // 因此插入能自洽通过 WITH CHECK（创建者随后在同一事务里补上 OWNER 成员行）。
         // 额外允许"只读自己加入的租户"：账号作用域下可按 id 读回自己的租户行（列表页需要）。
@@ -1502,6 +1563,7 @@ impl MigrationTrait for Migration {
                     .table(ChatMessage::Table)
                     .table(ChatSession::Table)
                     .table(SsoConnection::Table)
+                    .table(ConsolePreference::Table)
                     .table(PaymentOrder::Table)
                     .table(BillingPrice::Table)
                     .table(Subscription::Table)
@@ -1917,6 +1979,27 @@ enum SsoConnection {
     Updater,
     #[sea_orm(iden = "expiresAt")]
     ExpiresAt,
+}
+
+#[derive(DeriveIden)]
+enum ConsolePreference {
+    Table,
+    Id,
+    #[sea_orm(iden = "userID")]
+    UserId,
+    #[sea_orm(iden = "navOrder")]
+    NavOrder,
+    #[sea_orm(iden = "pinnedNav")]
+    PinnedNav,
+    #[sea_orm(iden = "dashboardWidgets")]
+    DashboardWidgets,
+    Bookmarks,
+    #[sea_orm(iden = "createdAt")]
+    CreatedAt,
+    Creator,
+    #[sea_orm(iden = "updatedAt")]
+    UpdatedAt,
+    Updater,
 }
 
 #[derive(DeriveIden)]
