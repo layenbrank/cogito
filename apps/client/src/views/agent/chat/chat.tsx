@@ -49,6 +49,7 @@ import { ThreadWelcome } from '@/views/agent/chat/components/thread-welcome'
 import { ASSISTANT_LABELS_ZH } from '@/views/agent/chat/labels'
 import { AgentRuntimeProvider } from '@/views/agent/chat/runtime'
 import { AgentTitlebar } from '@/views/agent/components/titlebar'
+import { syncCogitoGatewayCatalog } from '@/features/agent/acp/cogito-provider'
 import { findLatestPlan } from '@/features/agent/plan'
 import type { ScenarioKey } from '@/features/agent/model/scenarios'
 import { useAgentStore } from '@/stores/agent.ts'
@@ -127,7 +128,15 @@ function AgentChatLayout() {
     void useAgentStore.getState().toReadWorkspaces()
     void useAgentStore.getState().toReadWorkspaceFolders()
     void useAgentStore.getState().toReadSessions()
-    void useProviderStore.getState().toReadProviders()
+    void useProviderStore
+      .getState()
+      .toReadProviders()
+      .then(function () {
+        return syncCogitoGatewayCatalog()
+      })
+      .catch(function (error) {
+        console.warn('[agent/chat] 同步组织模型失败:', error)
+      })
   }, [])
 
   useEffect(

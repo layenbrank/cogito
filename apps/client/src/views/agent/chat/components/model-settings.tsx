@@ -44,6 +44,7 @@ import {
   writeModelPrefs,
   type ModelPref
 } from '@/features/agent/model/model-prefs'
+import { syncCogitoGatewayCatalog } from '@/features/agent/acp/cogito-provider'
 import { findModelLabel } from '@/features/agent/model/display'
 import { parseModels } from '@/features/agent/model/providers'
 import styles from './model-settings.module.scss'
@@ -250,6 +251,9 @@ function AgentModelSettings(props: ModelSettingsProps) {
         .getState()
         .toReadProviders()
         .then(function () {
+          return syncCogitoGatewayCatalog()
+        })
+        .then(function () {
           if (cancelled) return
           const prefs = readModelPrefs()
           const next: Record<string, ModelPref> = {}
@@ -260,6 +264,9 @@ function AgentModelSettings(props: ModelSettingsProps) {
             }
           }
           updateDraft(next)
+        })
+        .catch(function (error) {
+          console.warn('[model-settings] 同步组织模型失败:', error)
         })
       return function () {
         cancelled = true

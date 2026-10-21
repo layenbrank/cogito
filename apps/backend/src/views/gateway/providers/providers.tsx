@@ -16,6 +16,13 @@ import { CSS } from '@dnd-kit/utilities'
 import { Button } from '@i-thinking/design/components/button'
 import { Input } from '@i-thinking/design/components/input'
 import { Label } from '@i-thinking/design/components/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@i-thinking/design/components/select'
 import { Icon } from '@iconify/react/offline'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
@@ -23,6 +30,8 @@ import { toast } from 'sonner'
 
 import {
   DELETE_GATEWAY_PROVIDER,
+  GATEWAY_PROVIDER_KIND_LABELS,
+  GATEWAY_PROVIDER_KINDS,
   GET_GATEWAY_PROVIDERS,
   POST_GATEWAY_PROVIDER,
   PUT_GATEWAY_PROVIDER,
@@ -36,6 +45,12 @@ import { StatusBadge } from '@/components/console/status-badge.tsx'
 import { HttpError } from '@/utils/http/errors.ts'
 
 const ORDER_KEY = 'backend-provider-order'
+
+type ProviderKind = (typeof GATEWAY_PROVIDER_KINDS)[number]
+
+const KIND_ITEMS = GATEWAY_PROVIDER_KINDS.map(function (kind) {
+  return { value: kind, label: GATEWAY_PROVIDER_KIND_LABELS[kind] }
+})
 
 function SortableProvider(props: {
   provider: GatewayProvider
@@ -71,7 +86,8 @@ function SortableProvider(props: {
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{props.provider.name}</p>
         <p className="truncate text-xs text-muted-foreground">
-          {props.provider.kind} · {props.provider.baseUrl}
+          {GATEWAY_PROVIDER_KIND_LABELS[props.provider.kind] ?? props.provider.kind} ·{' '}
+          {props.provider.baseUrl}
           {props.provider.hasApiKey ? ' · 已托管密钥' : ' · 无密钥'}
         </p>
       </div>
@@ -117,8 +133,13 @@ export default function ProvidersView() {
   const [orderOverride, updateOrderOverride] = useState<string[] | null>(null)
   const [sheetOpen, updateSheetOpen] = useState(false)
   const [pendingDelete, updatePendingDelete] = useState<GatewayProvider | null>(null)
-  const [draft, updateDraft] = useState({
-    kind: 'openai',
+  const [draft, updateDraft] = useState<{
+    kind: ProviderKind
+    name: string
+    baseUrl: string
+    apiKey: string
+  }>({
+    kind: GATEWAY_PROVIDER_KINDS[0],
     name: '',
     baseUrl: '',
     apiKey: ''
@@ -151,7 +172,7 @@ export default function ProvidersView() {
       toast.success('已创建供应商')
       void queryClient.invalidateQueries({ queryKey: ['gateway-providers'] })
       updateSheetOpen(false)
-      updateDraft({ kind: 'openai', name: '', baseUrl: '', apiKey: '' })
+      updateDraft({ kind: GATEWAY_PROVIDER_KINDS[0], name: '', baseUrl: '', apiKey: '' })
     },
     onError(error) {
       toast.error(HttpError(error).message)
@@ -288,13 +309,33 @@ export default function ProvidersView() {
         </div>
         <div className="space-y-2">
           <Label>类型</Label>
-          <Input
-            placeholder="如 openai / azure"
+          <Select
+            items={KIND_ITEMS}
             value={draft.kind}
-            onChange={function (event) {
-              updateDraft({ ...draft, kind: event.target.value })
-            }}
-          />
+            onValueChange={function (value) {
+              if (!value) return
+              for (const kind of GATEWAY_PROVIDER_KINDS) {
+                if (kind === value) {
+                  updateDraft({ ...draft, kind })
+                  return
+                }
+              }
+            }}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="选择供应商类型" />
+            </SelectTrigger>
+            <SelectContent>
+              {GATEWAY_PROVIDER_KINDS.map(function (kind) {
+                return (
+                  <SelectItem
+                    key={kind}
+                    value={kind}>
+                    {GATEWAY_PROVIDER_KIND_LABELS[kind]}
+                  </SelectItem>
+                )
+              })}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <Label>接口地址</Label>
