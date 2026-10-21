@@ -12,10 +12,11 @@
 | `signboard_entry` | 条目（属列） |
 | `signboard_tag` | 标签字典（属看板） |
 | `signboard_tagged` | 条目↔标签 |
-| `signboard_check` | 条目清单项 |
+| `signboard_check` | 条目子任务（checklist） |
+| `signboard_entry_asset` | 条目 ↔ 本地 asset 附件 |
 | `signboard_automation` | 看板自动化规则 |
 
-Migration：`migrations_v001`（第一代完整 schema，含 start_at / check / automation）。
+Migration：`migrations_v001`（第一代完整 schema）+ `migrations_v004`（`signboard_entry_asset`）。
 
 ## 2. Schema（列均为 snake_case）
 
@@ -80,6 +81,17 @@ PK：`(entry_id, tag_id)`。
 | `title` / `done` / `index` | |
 | `created_at` / `updated_at` | integer |
 
+### signboard_entry_asset
+
+| 列 | 类型 |
+|----|------|
+| `entry_id` | text FK → signboard_entry CASCADE |
+| `asset_id` | text FK → asset CASCADE |
+| `index` | integer（0 = 封面） |
+| `created_at` | integer |
+
+PK：`(entry_id, asset_id)`。
+
 ### signboard_automation
 
 | 列 | 类型 |
@@ -93,8 +105,8 @@ PK：`(entry_id, tag_id)`。
 ## 3. IPC
 
 ```
-signboard / signboard-column / signboard-entry / signboard-tag
-signboard-tagged / signboard-check / signboard-automation
+signboard / signboard-column / signboard-entry / signboard-entry-asset
+signboard-tag / signboard-tagged / signboard-check / signboard-automation
 ```
 
-JSON 字段仍用 camelCase（`boardID`、`entryID`、`dueAt`…）。
+JSON 字段仍用 camelCase（`boardID`、`entryID`、`assetID`、`dueAt`…）。

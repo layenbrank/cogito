@@ -1,3 +1,4 @@
+import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
 import { Checkbox } from '@i-thinking/design/components/checkbox'
@@ -20,14 +21,28 @@ import { debounce } from 'lodash-es'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { CHANNELS } from '@/shared/ipc/channels'
 import { useReminderStore } from '@/stores/reminder'
-import { useSignboardStore, type SignboardEntry } from '@/stores/signboard'
+import {
+  TAG_COLORS,
+  useSignboardStore,
+  type SignboardEntry
+} from '@/stores/signboard'
+import { pickAndImportImages } from '@/views/signboard/import-attachment'
 import styles from '@/views/signboard/signboard.module.scss'
+import type { GalleryAsset } from '@/views/gallery/model/media'
 
 interface CardSheetProps {
   card: SignboardEntry | null
   open: boolean
   onUpdateOpen: (open: boolean) => void
+}
+
+interface AttachmentPreview {
+  assetID: string
+  fileName: string
+  src: string
+  isCover: boolean
 }
 
 function parseDayjs(ms: number | null): Dayjs | null {
@@ -62,11 +77,20 @@ function CardSheet(props: CardSheetProps) {
   const checksForEntry = useSignboardStore(function (state) {
     return state.checksForEntry
   })
+  const assetsForEntry = useSignboardStore(function (state) {
+    return state.assetsForEntry
+  })
+  const coverAssetID = useSignboardStore(function (state) {
+    return state.coverAssetID
+  })
   const toUpdateEntry = useSignboardStore(function (state) {
     return state.toUpdateEntry
   })
   const toWriteTag = useSignboardStore(function (state) {
     return state.toWriteTag
+  })
+  const toUpdateTag = useSignboardStore(function (state) {
+    return state.toUpdateTag
   })
   const toTagEntry = useSignboardStore(function (state) {
     return state.toTagEntry
@@ -83,6 +107,15 @@ function CardSheet(props: CardSheetProps) {
   const toRemoveCheck = useSignboardStore(function (state) {
     return state.toRemoveCheck
   })
+  const toAttachAsset = useSignboardStore(function (state) {
+    return state.toAttachAsset
+  })
+  const toDetachAsset = useSignboardStore(function (state) {
+    return state.toDetachAsset
+  })
+  const toPromoteCover = useSignboardStore(function (state) {
+    return state.toPromoteCover
+  })
   const toWriteReminder = useReminderStore(function (state) {
     return state.toWriteReminder
   })
@@ -98,10 +131,39 @@ function CardSheet(props: CardSheetProps) {
   const [remind, setRemind] = useState(false)
   const [tagDraft, setTagDraft] = useState('')
   const [checklistDraft, setChecklistDraft] = useState('')
+  const [editingCheckID, setEditingCheckID] = useState<string | null>(null)
+  const [editingCheckTitle, setEditingCheckTitle] = useState('')
   const [saving, setSaving] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [previews, setPreviews] = useState<AttachmentPreview[]>([])
+  const [colorPickerTagID, setColorPickerTagID] = useState<string | null>(null)
 
   const attached = props.card ? tagIDsForEntry(props.card.id) : []
   const checklist = props.card ? checksForEntry(props.card.id) : []
+  const links = props.card ? assetsForEntry(props.card.id) : []
+  const coverID = props.card ? coverAssetID(props.card.id) : null
+  const linkKey = links
+    .map(function (row) {
+      return `${row.assetID}:${row.index}`
+    })
+    .join('|')
+  const checklistDone = checklist.filter(function (item) {
+    return item.done
+  }).length
+  const checklistTotal = checklist.length
+  const checklistPct =
+    checklistTotal === 0 ? 0 : Math.round((checklistDone / checklistTotal) * 100)
+
+  const filteredTags = useMemo(
+    function () {
+      const q = tagDraft.trim().toLowerCase()
+      if (!q) return tags
+      return tags.filter(function (tag) {
+        return tag.title.toLowerCase().includes(q)
+      })
+    },
+    [tags, tagDraft]
+  )
 
   useEffect(
     function () {
@@ -114,8 +176,60 @@ function CardSheet(props: CardSheetProps) {
       setRemind(Boolean(props.card.reminderID))
       setTagDraft('')
       setChecklistDraft('')
+      setEditingCheckID(null)
+      setColorPickerTagID(null)
     },
     [props.card]
+  )
+
+  useEffect(
+    function () {
+      let cancelled = false
+      async function loadPreviews() {
+        if (!props.card || linkKey.length === 0) {
+          setPreviews([])
+          return
+        }
+        const rows = assetsForEntry(props.card.id)
+        try {
+          const assets = await invoke<GalleryAsset[]>(CHANNELS.ASSET.READ, {
+            params: rows.map(function (row) {
+              return { id: row.assetID }
+            })
+          })
+          const byID = new Map(
+            assets.map(function (asset) {
+              return [asset.id, asset]
+            })
+          )
+          if (cancelled) return
+          const cover = coverAssetID(props.card.id)
+          setPreviews(
+            rows
+              .map(function (row) {
+                const asset = byID.get(row.assetID)
+                if (!asset) return null
+                return {
+                  assetID: row.assetID,
+                  fileName: asset.fileName,
+                  src: convertFileSrc(asset.filePath),
+                  isCover: row.assetID === cover
+                }
+              })
+              .filter(function (row): row is AttachmentPreview {
+                return Boolean(row)
+              })
+          )
+        } catch {
+          if (!cancelled) setPreviews([])
+        }
+      }
+      void loadPreviews()
+      return function () {
+        cancelled = true
+      }
+    },
+    [props.card, linkKey, assetsForEntry, coverAssetID]
   )
 
   const persistTitle = useMemo(
@@ -238,10 +352,37 @@ function CardSheet(props: CardSheetProps) {
     if (!titleValue) return
     const id = await toWriteCheck(entryID, titleValue)
     if (!id) {
-      toast.error('添加清单项失败')
+      toast.error('添加子任务失败')
       return
     }
     setChecklistDraft('')
+  }
+
+  async function commitCheckEdit(checkID: string) {
+    const next = editingCheckTitle.trim()
+    setEditingCheckID(null)
+    if (!next) return
+    const ok = await toUpdateCheck(checkID, { title: next })
+    if (!ok) toast.error('子任务保存失败')
+  }
+
+  async function attachImages() {
+    setImporting(true)
+    try {
+      const ids = await pickAndImportImages()
+      if (ids.length === 0) return
+      let failed = 0
+      for (const assetID of ids) {
+        const ok = await toAttachAsset(entryID, assetID)
+        if (!ok) failed += 1
+      }
+      if (failed > 0) toast.error(`${failed} 张图片附加失败`)
+      else toast.success(ids.length === 1 ? '已添加图片' : `已添加 ${ids.length} 张图片`)
+    } catch {
+      toast.error('导入图片失败')
+    } finally {
+      setImporting(false)
+    }
   }
 
   return (
@@ -356,9 +497,36 @@ function CardSheet(props: CardSheetProps) {
           </div>
 
           <div className="space-y-2">
-            <Label>清单</Label>
+            <div className="flex items-baseline justify-between gap-2">
+              <div>
+                <Label>子任务</Label>
+                <p className={styles.sheetHint}>
+                  把这张卡拆成可勾选的步骤；进度会显示在卡片上（对标 Trello Checklist）。
+                </p>
+              </div>
+              {checklistTotal > 0 ? (
+                <span className={styles.checklistProgressLabel}>
+                  {checklistDone}/{checklistTotal}
+                </span>
+              ) : null}
+            </div>
+            {checklistTotal > 0 ? (
+              <div
+                className={styles.checklistTrack}
+                role="progressbar"
+                aria-valuenow={checklistPct}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="子任务进度">
+                <div
+                  className={styles.checklistFill}
+                  style={{ width: `${checklistPct}%` }}
+                />
+              </div>
+            ) : null}
             <ul className={styles.checklistList}>
               {checklist.map(function (item) {
+                const isEditing = editingCheckID === item.id
                 return (
                   <li
                     key={item.id}
@@ -369,13 +537,48 @@ function CardSheet(props: CardSheetProps) {
                         void toUpdateCheck(item.id, { done: Boolean(checked) })
                       }}
                     />
-                    <span className={item.done ? styles.checklistDone : undefined}>{item.title}</span>
+                    {isEditing ? (
+                      <Input
+                        autoFocus
+                        value={editingCheckTitle}
+                        className="h-8 flex-1"
+                        onChange={function (event) {
+                          setEditingCheckTitle(event.target.value)
+                        }}
+                        onBlur={function () {
+                          void commitCheckEdit(item.id)
+                        }}
+                        onKeyDown={function (event) {
+                          if (event.key === 'Enter') {
+                            event.preventDefault()
+                            void commitCheckEdit(item.id)
+                          }
+                          if (event.key === 'Escape') {
+                            setEditingCheckID(null)
+                          }
+                        }}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className={
+                          item.done
+                            ? `${styles.checklistTitle} ${styles.checklistDone}`
+                            : styles.checklistTitle
+                        }
+                        onClick={function () {
+                          setEditingCheckID(item.id)
+                          setEditingCheckTitle(item.title)
+                        }}>
+                        {item.title}
+                      </button>
+                    )}
                     <Button
                       type="button"
                       size="icon-lg"
                       variant="ghost"
                       className="ml-auto size-7"
-                      aria-label="删除清单项"
+                      aria-label="删除子任务"
                       onClick={function () {
                         void toRemoveCheck(item.id)
                       }}>
@@ -391,7 +594,7 @@ function CardSheet(props: CardSheetProps) {
             <div className="flex gap-2">
               <Input
                 value={checklistDraft}
-                placeholder="添加清单项"
+                placeholder="添加一步，例如：写验收标准"
                 className="h-9"
                 onChange={function (event) {
                   setChecklistDraft(event.target.value)
@@ -416,27 +619,96 @@ function CardSheet(props: CardSheetProps) {
           </div>
 
           <div className="space-y-2">
-            <Label>标签</Label>
+            <div>
+              <Label>标签</Label>
+              <p className={styles.sheetHint}>
+                色块用于扫视分类；点选切换挂载，新建时自动配色（对标 Trello Labels）。
+              </p>
+            </div>
             <div className={styles.tagList}>
-              {tags.map(function (tag) {
+              {filteredTags.map(function (tag) {
                 const active = attached.includes(tag.id)
+                const picking = colorPickerTagID === tag.id
                 return (
-                  <button
+                  <div
                     key={tag.id}
-                    type="button"
-                    className={clsxTag(active)}
-                    onClick={function () {
-                      void toggleTag(tag.id)
-                    }}>
-                    {tag.title}
-                  </button>
+                    className={styles.tagChipWrap}>
+                    <button
+                      type="button"
+                      className={active ? `${styles.tagChip} ${styles.tagChipActive}` : styles.tagChip}
+                      style={
+                        tag.color
+                          ? {
+                              borderColor: active
+                                ? tag.color
+                                : `color-mix(in oklab, ${tag.color} 35%, transparent)`,
+                              background: active
+                                ? `color-mix(in oklab, ${tag.color} 22%, var(--card))`
+                                : `color-mix(in oklab, ${tag.color} 10%, var(--card))`,
+                              color: active ? tag.color : 'var(--foreground)'
+                            }
+                          : undefined
+                      }
+                      onClick={function () {
+                        void toggleTag(tag.id)
+                      }}>
+                      <span
+                        className={styles.tagSwatch}
+                        style={{ background: tag.color ?? 'var(--muted-foreground)' }}
+                        aria-hidden
+                      />
+                      {tag.title}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.tagColorToggle}
+                      aria-label={`调整 ${tag.title} 颜色`}
+                      aria-expanded={picking}
+                      onClick={function () {
+                        setColorPickerTagID(function (prev) {
+                          return prev === tag.id ? null : tag.id
+                        })
+                      }}>
+                      <Icon
+                        icon="lucide:palette"
+                        className="size-3.5"
+                      />
+                    </button>
+                    {picking ? (
+                      <div
+                        className={styles.tagColorRow}
+                        role="group"
+                        aria-label={`${tag.title} 颜色`}>
+                        {TAG_COLORS.map(function (color) {
+                          return (
+                            <button
+                              key={color}
+                              type="button"
+                              className={styles.tagColorDot}
+                              style={{ background: color }}
+                              aria-label={`设为 ${color}`}
+                              onClick={function () {
+                                void toUpdateTag(tag.id, { color }).then(function (ok) {
+                                  if (!ok) toast.error('改色失败')
+                                  else setColorPickerTagID(null)
+                                })
+                              }}
+                            />
+                          )
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
                 )
               })}
             </div>
+            {tags.length > 0 && filteredTags.length === 0 ? (
+              <p className="text-xs text-muted-foreground">无匹配标签，回车可新建</p>
+            ) : null}
             <div className="flex gap-2">
               <Input
                 value={tagDraft}
-                placeholder="新建或搜索标签"
+                placeholder="搜索或新建标签"
                 className="h-9"
                 onChange={function (event) {
                   setTagDraft(event.target.value)
@@ -458,6 +730,95 @@ function CardSheet(props: CardSheetProps) {
                 添加
               </Button>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <div>
+                <Label>附件图片</Label>
+                <p className={styles.sheetHint}>
+                  首张为封面，显示在卡片顶部；支持多图（对标 Trello Attachments）。
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="lg"
+                variant="outline"
+                disabled={importing}
+                onClick={function () {
+                  void attachImages()
+                }}>
+                <Icon
+                  icon="lucide:image-plus"
+                  className="size-4"
+                />
+                {importing ? '导入中…' : '添加图片'}
+              </Button>
+            </div>
+            {previews.length === 0 ? (
+              <button
+                type="button"
+                className={styles.attachEmpty}
+                disabled={importing}
+                onClick={function () {
+                  void attachImages()
+                }}>
+                <Icon
+                  icon="lucide:image"
+                  className="size-5 opacity-60"
+                />
+                <span>从本机添加截图或参考图</span>
+              </button>
+            ) : (
+              <ul className={styles.attachGrid}>
+                {previews.map(function (item) {
+                  return (
+                    <li
+                      key={item.assetID}
+                      className={styles.attachItem}>
+                      <img
+                        src={item.src}
+                        alt={item.fileName}
+                        className={styles.attachThumb}
+                      />
+                      <div className={styles.attachActions}>
+                        {item.isCover ? (
+                          <span className={styles.coverBadge}>封面</span>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={function () {
+                              void toPromoteCover(entryID, item.assetID).then(function (ok) {
+                                if (!ok) toast.error('设为封面失败')
+                              })
+                            }}>
+                            设为封面
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          size="icon-lg"
+                          variant="ghost"
+                          className="size-7"
+                          aria-label="移除附件"
+                          onClick={function () {
+                            void toDetachAsset(entryID, item.assetID).then(function (ok) {
+                              if (!ok) toast.error('移除失败')
+                            })
+                          }}>
+                          <Icon
+                            icon="lucide:trash-2"
+                            className="size-3.5"
+                          />
+                        </Button>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
           </div>
 
           <Button
@@ -496,10 +857,6 @@ function CardSheet(props: CardSheetProps) {
       </SheetContent>
     </Sheet>
   )
-}
-
-function clsxTag(active: boolean) {
-  return active ? `${styles.tagChip} ${styles.tagChipActive}` : styles.tagChip
 }
 
 export { CardSheet }

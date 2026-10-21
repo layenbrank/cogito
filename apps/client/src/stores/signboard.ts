@@ -73,6 +73,39 @@ interface SignboardCheck {
   updatedAt: number
 }
 
+interface SignboardEntryAsset {
+  entryID: string
+  assetID: string
+  index: number
+  createdAt: number
+}
+
+/** Soft palette — Trello-style scannable color labels without neon glow. */
+const TAG_COLORS = [
+  '#6B8F71',
+  '#C47B5B',
+  '#5B7C99',
+  '#B08D57',
+  '#8B6F9E',
+  '#6A8E9F',
+  '#9A6B6B',
+  '#5F8A7B'
+] as const
+
+function pickTagColor(existing: SignboardTag[]): string {
+  const used = new Set(
+    existing
+      .map(function (tag) {
+        return tag.color
+      })
+      .filter(Boolean)
+  )
+  const free = TAG_COLORS.find(function (color) {
+    return !used.has(color)
+  })
+  return free ?? TAG_COLORS[existing.length % TAG_COLORS.length]!
+}
+
 interface SignboardAutomation {
   id: string
   boardID: string
@@ -151,6 +184,7 @@ interface SignboardStore {
   tags: SignboardTag[]
   tagged: SignboardTagged[]
   checks: SignboardCheck[]
+  entryAssets: SignboardEntryAsset[]
   automations: SignboardAutomation[]
   activeBoardID: string | null
   loaded: boolean
@@ -165,7 +199,15 @@ interface SignboardStore {
   toUpdateEntry: (key: string, change: EntryChange) => Promise<boolean>
   toMoveEntry: (entryID: string, toColumnID: string, toIndex: number) => Promise<boolean>
   toRemoveEntry: (key: string) => Promise<boolean>
-  toWriteTag: (boardID: string, title: string) => Promise<string | undefined>
+  toWriteTag: (
+    boardID: string,
+    title: string,
+    color?: string | null
+  ) => Promise<string | undefined>
+  toUpdateTag: (
+    key: string,
+    change: { title?: string; color?: string | null }
+  ) => Promise<boolean>
   toTagEntry: (entryID: string, tagID: string) => Promise<boolean>
   toUntagEntry: (entryID: string, tagID: string) => Promise<boolean>
   toWriteCheck: (entryID: string, title: string) => Promise<string | undefined>
@@ -174,12 +216,17 @@ interface SignboardStore {
     change: { title?: string; done?: boolean; index?: number }
   ) => Promise<boolean>
   toRemoveCheck: (key: string) => Promise<boolean>
+  toAttachAsset: (entryID: string, assetID: string) => Promise<boolean>
+  toDetachAsset: (entryID: string, assetID: string) => Promise<boolean>
+  toPromoteCover: (entryID: string, assetID: string) => Promise<boolean>
   toWriteAutomation: (value: AutomationWrite) => Promise<string | undefined>
   toUpdateAutomation: (key: string, change: AutomationChange) => Promise<boolean>
   toRemoveAutomation: (key: string) => Promise<boolean>
   tagIDsForEntry: (entryID: string) => string[]
   entriesInColumn: (columnID: string) => SignboardEntry[]
   checksForEntry: (entryID: string) => SignboardCheck[]
+  assetsForEntry: (entryID: string) => SignboardEntryAsset[]
+  coverAssetID: (entryID: string) => string | null
 }
 
 const SEED_COLUMNS = ['待办', '进行中', '完成'] as const
@@ -194,6 +241,7 @@ const useSignboardStore = create<SignboardStore>()(
         tags: [],
         tagged: [],
         checks: [],
+        entryAssets: [],
         automations: [],
         activeBoardID: null,
         loaded: false,
@@ -217,6 +265,22 @@ const useSignboardStore = create<SignboardStore>()(
             .sort(function (a, b) {
               return a.index - b.index
             })
+        },
+
+        assetsForEntry(entryID) {
+          return getter()
+            .entryAssets.filter(function (row) {
+              return row.entryID === entryID
+            })
+            .slice()
+            .sort(function (a, b) {
+              return a.index - b.index
+            })
+        },
+
+        coverAssetID(entryID) {
+          const first = getter().assetsForEntry(entryID)[0]
+          return first?.assetID ?? null
         },
 
         entriesInColumn(columnID) {
@@ -280,14 +344,20 @@ const useSignboardStore = create<SignboardStore>()(
             })
             let tagged: SignboardTagged[] = []
             let checks: SignboardCheck[] = []
+            let entryAssets: SignboardEntryAsset[] = []
             if (cardIDs.length > 0) {
-              ;[tagged, checks] = await Promise.all([
+              ;[tagged, checks, entryAssets] = await Promise.all([
                 invoke<SignboardTagged[]>(CHANNELS.SIGNBOARD_TAGGED.READ, {
                   params: cardIDs.map(function (entryID) {
                     return { entryID }
                   })
                 }),
                 invoke<SignboardCheck[]>(CHANNELS.SIGNBOARD_CHECK.READ, {
+                  params: cardIDs.map(function (entryID) {
+                    return { entryID }
+                  })
+                }),
+                invoke<SignboardEntryAsset[]>(CHANNELS.SIGNBOARD_ENTRY_ASSET.READ, {
                   params: cardIDs.map(function (entryID) {
                     return { entryID }
                   })
@@ -303,6 +373,7 @@ const useSignboardStore = create<SignboardStore>()(
                 state.tags = tags
                 state.tagged = tagged
                 state.checks = checks
+                state.entryAssets = entryAssets
                 state.automations = automations
                 state.loaded = true
               },
@@ -605,16 +676,38 @@ const useSignboardStore = create<SignboardStore>()(
           }
         },
 
-        async toWriteTag(boardID, title) {
+        async toWriteTag(boardID, title, color) {
           try {
+            const nextColor =
+              color === undefined
+                ? pickTagColor(
+                    getter().tags.filter(function (tag) {
+                      return tag.boardID === boardID
+                    })
+                  )
+                : color
             const ids = await invoke<string[]>(CHANNELS.SIGNBOARD_TAG.WRITE, {
-              params: { boardID, title, color: null }
+              params: { boardID, title, color: nextColor }
             })
             await getter().toActivateBoard(boardID)
             return ids[0]
           } catch (error) {
             reportCaught('signboard-store.toWriteTag', error)
             return undefined
+          }
+        },
+
+        async toUpdateTag(key, change) {
+          try {
+            await invoke(CHANNELS.SIGNBOARD_TAG.UPDATE, {
+              params: { key, change }
+            })
+            const boardID = getter().activeBoardID
+            if (boardID) await getter().toActivateBoard(boardID)
+            return true
+          } catch (error) {
+            console.error('[signboard-store] toUpdateTag failed:', error)
+            return false
           }
         },
 
@@ -683,6 +776,64 @@ const useSignboardStore = create<SignboardStore>()(
             return true
           } catch (error) {
             reportCaught('signboard-store.toRemoveCheck', error)
+            return false
+          }
+        },
+
+        async toAttachAsset(entryID, assetID) {
+          try {
+            await invoke(CHANNELS.SIGNBOARD_ENTRY_ASSET.WRITE, {
+              params: { entryID, assetID }
+            })
+            const boardID = getter().activeBoardID
+            if (boardID) await getter().toActivateBoard(boardID)
+            return true
+          } catch (error) {
+            console.error('[signboard-store] toAttachAsset failed:', error)
+            return false
+          }
+        },
+
+        async toDetachAsset(entryID, assetID) {
+          try {
+            await invoke(CHANNELS.SIGNBOARD_ENTRY_ASSET.REMOVE, {
+              params: { entryID, assetID }
+            })
+            const boardID = getter().activeBoardID
+            if (boardID) await getter().toActivateBoard(boardID)
+            return true
+          } catch (error) {
+            console.error('[signboard-store] toDetachAsset failed:', error)
+            return false
+          }
+        },
+
+        async toPromoteCover(entryID, assetID) {
+          const rows = getter().assetsForEntry(entryID)
+          if (rows.length === 0) return false
+          const reordered = [
+            ...rows.filter(function (row) {
+              return row.assetID === assetID
+            }),
+            ...rows.filter(function (row) {
+              return row.assetID !== assetID
+            })
+          ]
+          try {
+            await invoke(CHANNELS.SIGNBOARD_ENTRY_ASSET.UPDATE, {
+              params: reordered.map(function (row, index) {
+                return {
+                  entryID,
+                  assetID: row.assetID,
+                  change: { index }
+                }
+              })
+            })
+            const boardID = getter().activeBoardID
+            if (boardID) await getter().toActivateBoard(boardID)
+            return true
+          } catch (error) {
+            console.error('[signboard-store] toPromoteCover failed:', error)
             return false
           }
         },
@@ -815,7 +966,7 @@ async function persistCardChange(
   }
 }
 
-export { useSignboardStore }
+export { TAG_COLORS, useSignboardStore }
 export type {
   AutomationChange,
   AutomationWrite,
@@ -826,6 +977,7 @@ export type {
   SignboardAutomation,
   SignboardBoard,
   SignboardEntry,
+  SignboardEntryAsset,
   SignboardTagged,
   SignboardCheck,
   SignboardColumn,

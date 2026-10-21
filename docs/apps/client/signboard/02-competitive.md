@@ -33,7 +33,7 @@
 **应学**
 
 - Linear：键盘密度、状态色克制  
-- Trello：列底快速添加  
+- Trello：列底快速添加；卡片 Checklist 进度条；彩色 Labels 扫视；Attachments 首图作封面  
 - Apple Reminders：到期与通知一体  
 
 **应避**
@@ -41,3 +41,13 @@
 - Notion：把看板塞进万能 DB  
 - Jira：必填字段与工作流配置墙  
 - 过度 Bento / 统计仪表盘抢第一屏  
+- 标签无色 / 单选筛选 / 清单无说明（用户不知「清单」是子任务）  
+
+## 5. 本轮补齐（相对 Trello / Linear）
+
+| 能力 | Trello | Linear | Signboard |
+|------|--------|--------|-----------|
+| 子任务 | Checklist + 进度 | Sub-issues（重） | `signboard_check`，侧栏说明 + 进度条 + 卡片 `done/total` |
+| 标签 | 彩色 Labels，可多选滤 | Labels | 色块芯片 + 调色盘；顶栏 **多选 OR** 筛选 |
+| 附件 | Cover + 多附件 | 附件偏工程 | `signboard_entry_asset` → 本地 `asset`；首张封面 |
+| 拖拽落点 | 明显占位 | 列表插入线 | 2px primary 条 + 空列虚线井 |

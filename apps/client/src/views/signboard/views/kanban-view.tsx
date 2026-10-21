@@ -11,12 +11,14 @@ import {
   type DragStartEvent
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
+import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
 import { Input } from '@i-thinking/design/components/input'
-import { useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { toast } from 'sonner'
 
+import { CHANNELS } from '@/shared/ipc/channels'
 import {
   useSignboardStore,
   type SignboardEntry,
@@ -25,6 +27,7 @@ import {
 } from '@/stores/signboard'
 import { ColumnLane } from '@/views/signboard/column-lane'
 import styles from '@/views/signboard/signboard.module.scss'
+import type { GalleryAsset } from '@/views/gallery/model/media'
 
 interface KanbanViewProps {
   columns: SignboardColumn[]
@@ -66,8 +69,88 @@ function KanbanView(props: KanbanViewProps) {
   const checksForEntry = useSignboardStore(function (state) {
     return state.checksForEntry
   })
+  const assetsForEntry = useSignboardStore(function (state) {
+    return state.assetsForEntry
+  })
+  const coverAssetID = useSignboardStore(function (state) {
+    return state.coverAssetID
+  })
+  const entryAssets = useSignboardStore(function (state) {
+    return state.entryAssets
+  })
 
   const [activeDragID, setActiveDragID] = useState<string | null>(null)
+  const [dropBeforeID, setDropBeforeID] = useState<string | null>(null)
+  const [coverSrcByCard, setCoverSrcByCard] = useState<Map<string, string>>(
+    function () {
+      return new Map()
+    }
+  )
+
+  const attachmentCountByCard = useMemo(
+    function () {
+      const map = new Map<string, number>()
+      for (const row of entryAssets) {
+        map.set(row.entryID, (map.get(row.entryID) ?? 0) + 1)
+      }
+      return map
+    },
+    [entryAssets]
+  )
+
+  const coverKey = useMemo(
+    function () {
+      return props.entries
+        .map(function (card) {
+          return `${card.id}:${coverAssetID(card.id) ?? ''}`
+        })
+        .join('|')
+    },
+    [props.entries, coverAssetID]
+  )
+
+  useEffect(
+    function () {
+      let cancelled = false
+      async function loadCovers() {
+        const pairs: { entryID: string; assetID: string }[] = []
+        for (const card of props.entries) {
+          const assetID = coverAssetID(card.id)
+          if (assetID) pairs.push({ entryID: card.id, assetID })
+        }
+        if (pairs.length === 0) {
+          setCoverSrcByCard(new Map())
+          return
+        }
+        try {
+          const assets = await invoke<GalleryAsset[]>(CHANNELS.ASSET.READ, {
+            params: pairs.map(function (row) {
+              return { id: row.assetID }
+            })
+          })
+          const byID = new Map(
+            assets.map(function (asset) {
+              return [asset.id, asset]
+            })
+          )
+          if (cancelled) return
+          const next = new Map<string, string>()
+          for (const pair of pairs) {
+            const asset = byID.get(pair.assetID)
+            if (asset) next.set(pair.entryID, convertFileSrc(asset.filePath))
+          }
+          setCoverSrcByCard(next)
+        } catch {
+          if (!cancelled) setCoverSrcByCard(new Map())
+        }
+      }
+      void loadCovers()
+      return function () {
+        cancelled = true
+      }
+    },
+    [coverKey, props.entries, coverAssetID]
+  )
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -111,15 +194,29 @@ function KanbanView(props: KanbanViewProps) {
     })
     if (overCardIndex >= 0) toIndex = overCardIndex
 
-    return { activeID, toColumnID, toIndex }
+    return { activeID, toColumnID, toIndex, overID, overType: overData?.type }
   }
 
   function onDragStart(event: DragStartEvent) {
     setActiveDragID(String(event.active.id))
   }
 
+  function onDragOver(event: DragOverEvent) {
+    const target = resolveTarget(event)
+    if (!target || target.activeID === target.overID) {
+      setDropBeforeID(null)
+      return
+    }
+    if (target.overType === 'column' || target.overID === target.toColumnID) {
+      setDropBeforeID(target.toColumnID)
+      return
+    }
+    setDropBeforeID(target.overID)
+  }
+
   function onDragEnd(event: DragEndEvent) {
     setActiveDragID(null)
+    setDropBeforeID(null)
     const target = resolveTarget(event)
     if (!target) return
     const moving = props.entries.find(function (card) {
@@ -135,6 +232,11 @@ function KanbanView(props: KanbanViewProps) {
     void toMoveEntry(target.activeID, target.toColumnID, target.toIndex).then(function (ok) {
       if (!ok) toast.error('没能保存顺序，已恢复')
     })
+  }
+
+  function onDragCancel() {
+    setActiveDragID(null)
+    setDropBeforeID(null)
   }
 
   function onKeyMove(entryID: string, event: KeyboardEvent) {
@@ -189,7 +291,9 @@ function KanbanView(props: KanbanViewProps) {
       sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={onDragStart}
-      onDragEnd={onDragEnd}>
+      onDragOver={onDragOver}
+      onDragEnd={onDragEnd}
+      onDragCancel={onDragCancel}>
       <div className={styles.board}>
         {props.columns.length === 0 ? (
           <div className={styles.emptyBoard}>
@@ -222,6 +326,9 @@ function KanbanView(props: KanbanViewProps) {
                 entries={entriesInColumn(column.id)}
                 tagsByCard={props.tagsByCard}
                 checksForEntry={checksForEntry}
+                coverSrcByCard={coverSrcByCard}
+                attachmentCountByCard={attachmentCountByCard}
+                dropBeforeID={dropBeforeID}
                 isDimmedCard={props.isDimmedCard}
                 selectedCardID={props.selectedCardID}
                 semantic={parseSemantic(column.title, column.index)}
@@ -314,7 +421,27 @@ function KanbanView(props: KanbanViewProps) {
       <DragOverlay dropAnimation={null}>
         {dragCard ? (
           <div className={styles.overlayCard}>
+            {coverSrcByCard.get(dragCard.id) ? (
+              <img
+                src={coverSrcByCard.get(dragCard.id)}
+                alt=""
+                className={styles.overlayCover}
+              />
+            ) : null}
             <p className="text-sm font-medium">{dragCard.title}</p>
+            {assetsForEntry(dragCard.id).length > 0 ||
+            checksForEntry(dragCard.id).length > 0 ? (
+              <p className={styles.overlayMeta}>
+                {checksForEntry(dragCard.id).length > 0
+                  ? `子任务 ${checksForEntry(dragCard.id).filter(function (item) {
+                      return item.done
+                    }).length}/${checksForEntry(dragCard.id).length}`
+                  : null}
+                {assetsForEntry(dragCard.id).length > 0
+                  ? `${checksForEntry(dragCard.id).length > 0 ? ' · ' : ''}附件 ${assetsForEntry(dragCard.id).length}`
+                  : null}
+              </p>
+            ) : null}
           </div>
         ) : null}
       </DragOverlay>

@@ -115,6 +115,12 @@ export const CHANNELS = {
     UPDATE: 'signboard-entry:update',
     REMOVE: 'signboard-entry:remove'
   },
+  SIGNBOARD_ENTRY_ASSET: {
+    READ: 'signboard-entry-asset:read',
+    WRITE: 'signboard-entry-asset:write',
+    UPDATE: 'signboard-entry-asset:update',
+    REMOVE: 'signboard-entry-asset:remove'
+  },
   SIGNBOARD_TAG: {
     READ: 'signboard-tag:read',
     WRITE: 'signboard-tag:write',

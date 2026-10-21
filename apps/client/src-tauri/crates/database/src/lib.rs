@@ -17,6 +17,7 @@ pub mod entity {
     pub mod signboard_check;
     pub mod signboard_column;
     pub mod signboard_entry;
+    pub mod signboard_entry_asset;
     pub mod signboard_tag;
     pub mod signboard_tagged;
 
@@ -53,6 +54,7 @@ pub mod entity {
     pub use signboard_check::Entity as SignboardCheckEntity;
     pub use signboard_column::Entity as SignboardColumnEntity;
     pub use signboard_entry::Entity as SignboardEntryEntity;
+    pub use signboard_entry_asset::Entity as SignboardEntryAssetEntity;
     pub use signboard_tag::Entity as SignboardTagEntity;
     pub use signboard_tagged::Entity as SignboardTaggedEntity;
 }
