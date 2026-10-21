@@ -8,8 +8,35 @@
 :root {
   /* 控制台壳层：冷石底 + 海青绿强调，避开紫白 / 奶油套路 */
   --backend-shell: oklch(0.985 0.004 220);
-  --backend-rail: oklch(0.2 0.02 250);
-  --backend-rail-fg: oklch(0.96 0.01 220);
-  --backend-rail-muted: oklch(0.72 0.02 220);
+  --backend-canvas: oklch(0.97 0.006 220);
+  --backend-surface: oklch(1 0 0);
+  /* 侧栏与主内容同为亮色面，避免暗轨割裂 */
+  --backend-rail: oklch(1 0 0);
+  --backend-rail-fg: oklch(0.24 0.02 250);
+  --backend-rail-muted: oklch(0.52 0.02 230);
+  --backend-rail-hover: oklch(0.24 0.02 250 / 0.05);
+  --backend-rail-border: oklch(0.9 0.006 220);
   --backend-accent: oklch(0.55 0.1 195);
+  --backend-accent-soft: oklch(0.55 0.1 195 / 0.12);
+  /* 状态色：同色相家族，低饱和，避免粉彩块 */
+  --backend-danger: oklch(0.55 0.14 25);
+  --backend-danger-soft: oklch(0.55 0.14 25 / 0.12);
+  --backend-warn: oklch(0.62 0.11 75);
+  --backend-warn-soft: oklch(0.62 0.11 75 / 0.12);
+  --backend-ok: oklch(0.55 0.1 155);
+  --backend-ok-soft: oklch(0.55 0.1 155 / 0.12);
+  --backend-elevation-1: 0 1px 2px oklch(0.2 0.02 250 / 0.04), 0 4px 12px oklch(0.2 0.02 250 / 0.04);
+  /* 表格行 / 控件高度：按中台可读密度，避免「大留白 + 最小按钮」 */
+  --backend-row-h: 3.25rem;
+  --backend-control-h: 2.5rem;
+  /* 侧栏宽：展开贴近 antd(200)/Naive(240) 中段；折叠取 Element 常用 64、介于 Naive 48 与 antd 80 */
+  /* 14px 菜单字号下略加宽，避免截断 */
+  --backend-rail-width: 15rem;
+  --backend-rail-collapsed-width: 4rem;
+  /* 折叠态：点击区 / 字形随栏宽比例缩放，留出边距避免被滚动条挤歪 */
+  --backend-rail-icon-hit: calc(var(--backend-rail-collapsed-width) * 0.62);
+  --backend-rail-icon-glyph: calc(var(--backend-rail-collapsed-width) * 0.28);
+  /* 侧栏宽过渡：对齐 antd motion / Material standard easing，避免 linear 发硬 */
+  --backend-rail-ease: cubic-bezier(0.2, 0, 0, 1);
+  --backend-rail-duration: 280ms;
 }

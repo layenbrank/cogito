@@ -1,4 +1,5 @@
 import { Button } from '@i-thinking/design/components/button'
+import { Checkbox } from '@i-thinking/design/components/checkbox'
 import { Input } from '@i-thinking/design/components/input'
 import { Label } from '@i-thinking/design/components/label'
 import { useState, type FormEvent } from 'react'
@@ -112,16 +113,15 @@ export default function SignInView() {
               }}
             />
           </div>
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            <input
-              type="checkbox"
+          <Label className="flex items-center gap-2 font-normal text-muted-foreground">
+            <Checkbox
               checked={isRemembered}
-              onChange={function (event) {
-                updateRemembered(event.target.checked)
+              onCheckedChange={function (checked) {
+                updateRemembered(checked === true)
               }}
             />
             记住我
-          </label>
+          </Label>
           <Button
             type="submit"
             className="w-full"

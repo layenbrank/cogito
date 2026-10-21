@@ -8,18 +8,43 @@ import {
   type ConsoleBookmark,
   type ConsolePreference
 } from '@/apis/console.ts'
-import { DEFAULT_DASHBOARD_WIDGETS, DEFAULT_NAV_ORDER } from '@/constants/nav.ts'
+import {
+  DEFAULT_DASHBOARD_WIDGETS,
+  DEFAULT_NAV_ORDER,
+  NAV_GROUPS,
+  NAV_GROUP_DEFAULT_OPEN,
+  NAV_GROUP_SHOW_ICON,
+  RAIL_DEFAULT_COLLAPSED
+} from '@/constants/nav.ts'
 import { isAdmin, isAuthenticated } from '@/utils/auth.ts'
 
 interface ConsoleLayoutStore extends ConsolePreference {
   isHydrated: boolean
   isSyncing: boolean
+  /** 侧栏宽度折叠（本地）：antd collapsed / Naive collapsed / Element collapse */
+  isRailCollapsed: boolean
+  /** 已收起的导航分组（对齐 antd openKeys 的补集） */
+  collapsedNavGroups: string[]
+  /** 分类标题是否显示图标 */
+  isNavGroupIconVisible: boolean
   hydrateFromServer: () => Promise<void>
   reorderNav: (order: string[]) => void
   togglePin: (id: string) => void
   reorderWidgets: (widgets: string[]) => void
+  toggleWidget: (id: string) => void
   writeBookmark: (bookmark: ConsoleBookmark) => void
   removeBookmark: (id: string) => void
+  toggleRailCollapsed: () => void
+  writeRailCollapsed: (collapsed: boolean) => void
+  toggleNavGroup: (group: string) => void
+  writeNavGroupIconVisible: (visible: boolean) => void
+}
+
+function findInitialCollapsedNavGroups() {
+  if (NAV_GROUP_DEFAULT_OPEN) return [] as string[]
+  return NAV_GROUPS.map(function (group) {
+    return group.id
+  })
 }
 
 function snapshot(state: ConsoleLayoutStore): ConsolePreference {
@@ -50,6 +75,32 @@ const useConsoleLayoutStore = create<ConsoleLayoutStore>()(
         bookmarks: [],
         isHydrated: false,
         isSyncing: false,
+        isRailCollapsed: RAIL_DEFAULT_COLLAPSED,
+        collapsedNavGroups: findInitialCollapsedNavGroups(),
+        isNavGroupIconVisible: NAV_GROUP_SHOW_ICON,
+        toggleRailCollapsed() {
+          set(function (state) {
+            return { isRailCollapsed: !state.isRailCollapsed }
+          })
+        },
+        writeRailCollapsed(collapsed) {
+          set({ isRailCollapsed: collapsed })
+        },
+        toggleNavGroup(group) {
+          set(function (state) {
+            const has = state.collapsedNavGroups.includes(group)
+            return {
+              collapsedNavGroups: has
+                ? state.collapsedNavGroups.filter(function (item) {
+                    return item !== group
+                  })
+                : [...state.collapsedNavGroups, group]
+            }
+          })
+        },
+        writeNavGroupIconVisible(visible) {
+          set({ isNavGroupIconVisible: visible })
+        },
         async hydrateFromServer() {
           if (!isAuthenticated() || !isAdmin()) {
             set({ isHydrated: true })
@@ -95,6 +146,16 @@ const useConsoleLayoutStore = create<ConsoleLayoutStore>()(
           set({ dashboardWidgets: widgets })
           void syncPreference(snapshot(get()))
         },
+        toggleWidget(id) {
+          const current = get().dashboardWidgets
+          const next = current.includes(id)
+            ? current.filter(function (item) {
+                return item !== id
+              })
+            : [...current, id]
+          set({ dashboardWidgets: next.length ? next : [...DEFAULT_DASHBOARD_WIDGETS] })
+          void syncPreference(snapshot(get()))
+        },
         writeBookmark(bookmark) {
           const bookmarks = [
             bookmark,
@@ -115,7 +176,20 @@ const useConsoleLayoutStore = create<ConsoleLayoutStore>()(
         }
       }
     },
-    { name: 'backend-console-layout' }
+    {
+      name: 'backend-console-layout',
+      partialize(state) {
+        return {
+          navOrder: state.navOrder,
+          pinnedNav: state.pinnedNav,
+          dashboardWidgets: state.dashboardWidgets,
+          bookmarks: state.bookmarks,
+          isRailCollapsed: state.isRailCollapsed,
+          collapsedNavGroups: state.collapsedNavGroups,
+          isNavGroupIconVisible: state.isNavGroupIconVisible
+        }
+      }
+    }
   )
 )
 

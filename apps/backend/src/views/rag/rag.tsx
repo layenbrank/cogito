@@ -4,7 +4,9 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { GET_RAG_INDEX_TASK, type RagIndexTask } from '@/apis/rag.ts'
-import { PageHeader } from '@/components/data-table/page-header.tsx'
+import { ConsolePage } from '@/components/console/console-page.tsx'
+import { findFieldLabel, formatFieldValue } from '@/components/console/field-label.ts'
+import { StatusBadge } from '@/components/console/status-badge.tsx'
 import { HttpError } from '@/utils/http/errors.ts'
 
 export default function RagView() {
@@ -29,14 +31,10 @@ export default function RagView() {
   }
 
   return (
-    <div>
-      <PageHeader
-        title="RAG 索引"
-        description="按索引任务 ID 查询进度与结果。"
-      />
+    <ConsolePage bare>
       <div className="mb-4 flex max-w-xl gap-2">
         <Input
-          placeholder="index-task id"
+          placeholder="索引任务 ID"
           value={taskID}
           onChange={function (event) {
             updateTaskID(event.target.value)
@@ -51,10 +49,28 @@ export default function RagView() {
         </Button>
       </div>
       {task ? (
-        <pre className="overflow-auto rounded-xl border border-border/80 bg-background p-4 text-xs">
-          {JSON.stringify(task, null, 2)}
-        </pre>
+        <div
+          className="space-y-3 rounded-xl border border-border/80 bg-[var(--backend-surface)] p-4 text-sm"
+          style={{ boxShadow: 'var(--backend-elevation-1)' }}>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-xs text-muted-foreground">{task.id}</span>
+            {'status' in task && typeof task.status === 'string' ? (
+              <StatusBadge status={task.status} />
+            ) : null}
+          </div>
+          <dl className="grid gap-2 sm:grid-cols-2">
+            {Object.entries(task).map(function ([key, value]) {
+              if (key === 'id' || key === 'status') return null
+              return (
+                <div key={key}>
+                  <dt className="text-xs text-muted-foreground">{findFieldLabel(key)}</dt>
+                  <dd className="mt-0.5 break-all font-mono text-xs">{formatFieldValue(value)}</dd>
+                </div>
+              )
+            })}
+          </dl>
+        </div>
       ) : null}
-    </div>
+    </ConsolePage>
   )
 }

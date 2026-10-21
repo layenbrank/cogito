@@ -1,4 +1,6 @@
+import { Button } from '@i-thinking/design/components/button'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { isRouteErrorResponse, useRouteError } from 'react-router-dom'
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -7,6 +9,36 @@ interface ErrorBoundaryProps {
 interface ErrorBoundaryState {
   hasError: boolean
   message: string
+}
+
+function parseErrorMessage(error: unknown) {
+  if (isRouteErrorResponse(error)) {
+    return error.statusText || `请求失败（${error.status}）`
+  }
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return '未知错误'
+}
+
+function RouteError() {
+  const error = useRouteError()
+  const message = parseErrorMessage(error)
+
+  return (
+    <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 p-8 text-sm text-muted-foreground">
+      <p>页面出错了，侧栏仍可切换到其他页面。</p>
+      <p className="max-w-md text-center text-xs break-all">{message}</p>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={function () {
+          window.location.reload()
+        }}>
+        刷新重试
+      </Button>
+    </div>
+  )
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
@@ -20,12 +52,23 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     console.error('Backend route error', error, info)
   }
 
+  handleRetry() {
+    this.setState({ hasError: false, message: '' })
+  }
+
   override render() {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 p-8 text-sm text-muted-foreground">
+        <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 p-8 text-sm text-muted-foreground">
           <p>页面出错了</p>
-          <p className="max-w-md text-center text-xs">{this.state.message}</p>
+          <p className="max-w-md text-center text-xs break-all">{this.state.message}</p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={this.handleRetry.bind(this)}>
+            重试
+          </Button>
         </div>
       )
     }
@@ -43,5 +86,6 @@ function RouteFallback() {
 
 export const Fallback = {
   ErrorBoundary,
-  Route: RouteFallback
+  Route: RouteFallback,
+  RouteError
 }

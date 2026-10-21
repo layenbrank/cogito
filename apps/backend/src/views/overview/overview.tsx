@@ -13,21 +13,37 @@ import {
   useSortable
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { Button } from '@i-thinking/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 
+import { GET_EXCEPTIONS, GET_EXCEPTION_SUMMARY } from '@/apis/exception.ts'
 import { GET_GATEWAY_PROVIDERS, GET_GATEWAY_USAGE } from '@/apis/gateway.ts'
 import { GET_USERS } from '@/apis/user.ts'
-import { PageHeader } from '@/components/data-table/page-header.tsx'
+import { ConsolePage } from '@/components/console/console-page.tsx'
+import { MiniAreaChart, MiniBarChart } from '@/components/console/mini-chart.tsx'
 import { useConsoleLayoutStore } from '@/stores/console-layout.ts'
 
+import {
+  buildDailyActive,
+  buildExceptionSeries,
+  buildMonthlyActive,
+  buildTokenSeries,
+  lastPoint,
+  sumPoints
+} from './metrics.ts'
+import { RecentExceptions } from './recent-exceptions.tsx'
+
 const WIDGET_META: Record<string, { title: string; icon: string }> = {
-  health: { title: '平台信号', icon: 'lucide:activity' },
-  usage: { title: '近期用量', icon: 'lucide:chart-column' },
-  providers: { title: '供应商', icon: 'lucide:server' },
-  approvals: { title: '运维提示', icon: 'lucide:bell' }
+  health: { title: '日活', icon: 'lucide:users' },
+  usage: { title: '月活', icon: 'lucide:calendar-range' },
+  providers: { title: '异常', icon: 'lucide:triangle-alert' },
+  approvals: { title: '快捷入口', icon: 'lucide:zap' }
 }
+
+const CHART_HEIGHT = 36
 
 interface WidgetCardProps {
   id: string
@@ -46,31 +62,52 @@ function WidgetCard(props: WidgetCardProps) {
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
-        opacity: isDragging ? 0.6 : 1
+        opacity: isDragging ? 0.6 : 1,
+        boxShadow: 'var(--backend-elevation-1)'
       }}
-      className="rounded-xl border border-border/80 bg-background/80 p-4 shadow-none">
-      <header className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm font-medium">
+      className="rounded-lg border border-border/80 bg-[var(--backend-surface)] p-3">
+      <header className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Icon
             icon={meta.icon}
-            className="size-4 text-muted-foreground"
+            className="size-3.5"
           />
           {meta.title}
         </div>
-        <button
+        <Button
           type="button"
-          className="cursor-grab rounded p-1 text-muted-foreground"
+          variant="ghost"
+          size="icon-sm"
+          className="size-6 cursor-grab text-muted-foreground"
           aria-label="拖拽小部件"
           {...attributes}
           {...listeners}>
           <Icon
             icon="lucide:grip-vertical"
-            className="size-3.5"
+            className="size-3"
           />
-        </button>
+        </Button>
       </header>
       {props.children}
     </article>
+  )
+}
+
+function MetricBody(props: {
+  value: string
+  unit: string
+  hint: string
+  chart: ReactNode
+}) {
+  return (
+    <div>
+      <div className="mb-2 flex items-baseline gap-1.5">
+        <span className="text-xl font-semibold tracking-tight tabular-nums">{props.value}</span>
+        <span className="text-[11px] text-muted-foreground">{props.unit}</span>
+      </div>
+      {props.chart}
+      <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">{props.hint}</p>
+    </div>
   )
 }
 
@@ -87,7 +124,19 @@ export default function OverviewView() {
   const usage = useQuery({
     queryKey: ['gateway-usage-overview'],
     queryFn: function () {
-      return GET_GATEWAY_USAGE({ size: 20 })
+      return GET_GATEWAY_USAGE({ size: 200 })
+    }
+  })
+  const exceptionSummary = useQuery({
+    queryKey: ['exception-summary-overview'],
+    queryFn: function () {
+      return GET_EXCEPTION_SUMMARY()
+    }
+  })
+  const exceptions = useQuery({
+    queryKey: ['exceptions-overview'],
+    queryFn: function () {
+      return GET_EXCEPTIONS({ take: 100, skip: 0 })
     }
   })
 
@@ -102,73 +151,153 @@ export default function OverviewView() {
     reorderWidgets(arrayMove(widgets, oldIndex, newIndex))
   }
 
-  const totalTokens = (usage.data ?? []).reduce(function (sum, row) {
-    return sum + row.totalTokens
-  }, 0)
+  const usageItems = usage.data?.items ?? []
+  const exceptionItems = exceptions.data?.items ?? []
+  const dailyPoints = buildDailyActive(usageItems)
+  const monthlyPoints = buildMonthlyActive(usageItems)
+  const exceptionPoints = buildExceptionSeries(exceptionItems)
+  const tokenTotal = sumPoints(buildTokenSeries(usageItems))
+  const dailyValue = lastPoint(dailyPoints)
+  const monthlyValue = lastPoint(monthlyPoints)
+  const exceptionTotal = exceptionSummary.data?.total ?? sumPoints(exceptionPoints)
+  const errorCount =
+    (exceptionSummary.data?.byLevel?.error ?? 0) + (exceptionSummary.data?.byLevel?.fatal ?? 0)
+  const isUsageLoading = usage.isLoading
+  const isExceptionLoading = exceptions.isLoading || exceptionSummary.isLoading
 
   const content: Record<string, ReactNode> = {
     health: (
-      <p className="text-sm text-muted-foreground">
-        用户 {users.data?.length ?? '—'} · 供应商{' '}
-        {providers.data?.filter(function (item) {
-          return item.status === 'ACTIVE'
-        }).length ?? '—'}{' '}
-        活跃
-      </p>
+      <MetricBody
+        value={isUsageLoading ? '…' : dailyValue.toLocaleString()}
+        unit="今日"
+        hint={`近 14 日 · 账号 ${users.data?.length ?? '—'}`}
+        chart={
+          <MiniBarChart
+            points={dailyPoints}
+            height={CHART_HEIGHT}
+            emptyHint="暂无调用"
+          />
+        }
+      />
     ),
     usage: (
-      <p className="text-2xl font-semibold tracking-tight">
-        {usage.isLoading ? '…' : totalTokens.toLocaleString()}
-        <span className="ml-2 text-sm font-normal text-muted-foreground">tokens（样本）</span>
-      </p>
+      <div>
+        <MetricBody
+          value={isUsageLoading ? '…' : monthlyValue.toLocaleString()}
+          unit="本月"
+          hint={`近窗 tokens ${tokenTotal.toLocaleString()}`}
+          chart={
+            <MiniAreaChart
+              points={monthlyPoints}
+              height={CHART_HEIGHT}
+              emptyHint="暂无调用"
+            />
+          }
+        />
+        <Link
+          to="/gateway/usage"
+          className="mt-1.5 inline-flex text-[11px] text-[var(--backend-accent)] hover:underline">
+          查看用量
+        </Link>
+      </div>
     ),
     providers: (
-      <ul className="space-y-1 text-sm">
-        {(providers.data ?? []).slice(0, 5).map(function (item) {
-          return (
-            <li
-              key={item.id}
-              className="flex justify-between gap-2">
-              <span className="truncate">{item.name}</span>
-              <span className="text-muted-foreground">{item.status}</span>
-            </li>
-          )
-        })}
-      </ul>
+      <div>
+        <MetricBody
+          value={isExceptionLoading ? '…' : exceptionTotal.toLocaleString()}
+          unit="累计"
+          hint={`fatal/error ${errorCount} · 供应商 ${
+            providers.data?.filter(function (item) {
+              return item.status === 'ACTIVE'
+            }).length ?? 0
+          }`}
+          chart={
+            <MiniBarChart
+              points={exceptionPoints}
+              height={CHART_HEIGHT}
+              color="var(--destructive)"
+              emptyHint="无上报"
+            />
+          }
+        />
+        <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
+          <Link
+            to="/exceptions"
+            className="text-[var(--backend-accent)] hover:underline">
+            异常台
+          </Link>
+          <Link
+            to="/logs"
+            className="text-[var(--backend-accent)] hover:underline">
+            操作日志
+          </Link>
+        </div>
+      </div>
     ),
     approvals: (
-      <p className="text-sm text-muted-foreground">
-        在 Agent / RAG 页按任务 ID 查询运行态。侧栏可拖拽排序，布局会同步到偏好表。
-      </p>
+      <ul className="space-y-1.5 text-xs">
+        <li>
+          <Link
+            to="/logs"
+            className="text-[var(--backend-accent)] hover:underline">
+            操作日志
+          </Link>
+        </li>
+        <li>
+          <Link
+            to="/exceptions"
+            className="text-[var(--backend-accent)] hover:underline">
+            异常台
+          </Link>
+        </li>
+        <li>
+          <Link
+            to="/billing/reconciliation"
+            className="text-[var(--backend-accent)] hover:underline">
+            计量对账
+          </Link>
+        </li>
+        <li>
+          <Link
+            to="/agent"
+            className="text-[var(--backend-accent)] hover:underline">
+            Agent 探针
+          </Link>
+        </li>
+      </ul>
     )
   }
 
   return (
-    <div>
-      <PageHeader
-        title="概览"
-        description="一眼看到平台健康度；小部件可拖拽重排并持久化。"
-      />
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}>
-        <SortableContext
-          items={widgets}
-          strategy={rectSortingStrategy}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {widgets.map(function (id) {
-              return (
-                <WidgetCard
-                  key={id}
-                  id={id}>
-                  {content[id] ?? null}
-                </WidgetCard>
-              )
-            })}
-          </div>
-        </SortableContext>
-      </DndContext>
-    </div>
+    <ConsolePage bare>
+      <div className="space-y-4">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}>
+          <SortableContext
+            items={widgets}
+            strategy={rectSortingStrategy}>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {widgets.map(function (id) {
+                return (
+                  <WidgetCard
+                    key={id}
+                    id={id}>
+                    {content[id] ?? null}
+                  </WidgetCard>
+                )
+              })}
+            </div>
+          </SortableContext>
+        </DndContext>
+
+        <RecentExceptions
+          items={exceptionItems}
+          isLoading={exceptions.isLoading}
+          total={exceptions.data?.total ?? exceptionSummary.data?.total}
+        />
+      </div>
+    </ConsolePage>
   )
 }

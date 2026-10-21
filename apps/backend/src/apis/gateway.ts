@@ -1,4 +1,5 @@
 import { HttpEnvelope } from '@/utils/http/errors.ts'
+import { downloadFile } from '@/utils/http/download.ts'
 import { http } from '@/utils/http/http.ts'
 
 interface GatewayProvider {
@@ -107,6 +108,17 @@ interface AuditRecord {
   createdAt: number
 }
 
+/** 服务端分页信封：`count` 是总条数，`total` 是总页数 */
+interface GatewayPaginated<T> {
+  items: T[]
+  count: number
+  page: number
+  size: number
+  total: number
+  next: boolean
+  prev: boolean
+}
+
 const ENV = { env: 'thinking' as const }
 
 async function unwrap<T>(pending: Promise<RSF<T>>): Promise<T> {
@@ -146,16 +158,25 @@ function DELETE_GATEWAY_ADMIN_MODEL(id: string) {
 }
 
 function GET_GATEWAY_USAGE(query: UsageQuery = {}) {
-  return unwrap(http.get<RSF<UsageRecord[]>>('/gateway/usage', { ...ENV, query }))
+  return unwrap(http.get<RSF<GatewayPaginated<UsageRecord>>>('/gateway/usage', { ...ENV, query }))
 }
 
 function GET_GATEWAY_AUDIT(query: AuditQuery = {}) {
-  return unwrap(http.get<RSF<AuditRecord[]>>('/gateway/audit', { ...ENV, query }))
+  return unwrap(http.get<RSF<GatewayPaginated<AuditRecord>>>('/gateway/audit', { ...ENV, query }))
+}
+
+function EXPORT_GATEWAY_AUDIT(query: AuditQuery & { format?: 'csv' | 'ndjson' } = {}) {
+  const { format = 'csv', ...rest } = query
+  return downloadFile('/gateway/audit/export', `gateway-audit.${format}`, {
+    ...rest,
+    format
+  })
 }
 
 export {
   DELETE_GATEWAY_ADMIN_MODEL,
   DELETE_GATEWAY_PROVIDER,
+  EXPORT_GATEWAY_AUDIT,
   GET_GATEWAY_ADMIN_MODELS,
   GET_GATEWAY_AUDIT,
   GET_GATEWAY_PROVIDERS,
@@ -169,6 +190,7 @@ export type {
   AuditQuery,
   AuditRecord,
   GatewayModel,
+  GatewayPaginated,
   GatewayProvider,
   ModelUpdate,
   ModelWrite,

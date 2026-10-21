@@ -15,6 +15,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { Button } from '@i-thinking/design/components/button'
 import { Input } from '@i-thinking/design/components/input'
+import { Label } from '@i-thinking/design/components/label'
 import { Icon } from '@iconify/react/offline'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
@@ -27,7 +28,11 @@ import {
   PUT_GATEWAY_PROVIDER,
   type GatewayProvider
 } from '@/apis/gateway.ts'
-import { PageHeader } from '@/components/data-table/page-header.tsx'
+import { ConfirmDialog } from '@/components/console/confirm-dialog.tsx'
+import { ConsolePage } from '@/components/console/console-page.tsx'
+import { EntitySheet } from '@/components/console/entity-sheet.tsx'
+import { QueryState } from '@/components/console/query-state.tsx'
+import { StatusBadge } from '@/components/console/status-badge.tsx'
 import { HttpError } from '@/utils/http/errors.ts'
 
 const ORDER_KEY = 'backend-provider-order'
@@ -35,7 +40,7 @@ const ORDER_KEY = 'backend-provider-order'
 function SortableProvider(props: {
   provider: GatewayProvider
   onToggle: (provider: GatewayProvider) => void
-  onRemove: (id: string) => void
+  onRemove: (provider: GatewayProvider) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: props.provider.id
@@ -49,10 +54,12 @@ function SortableProvider(props: {
         transition,
         opacity: isDragging ? 0.55 : 1
       }}
-      className="flex items-center gap-3 border-b border-border/70 py-3">
-      <button
+      className="flex items-center gap-3 border-b border-border/60 px-3 py-2.5 hover:bg-muted/30">
+      <Button
         type="button"
-        className="cursor-grab rounded p-1 text-muted-foreground"
+        variant="ghost"
+        size="icon-sm"
+        className="cursor-grab text-muted-foreground"
         aria-label="拖拽排序"
         {...attributes}
         {...listeners}>
@@ -60,7 +67,7 @@ function SortableProvider(props: {
           icon="lucide:grip-vertical"
           className="size-4"
         />
-      </button>
+      </Button>
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{props.provider.name}</p>
         <p className="truncate text-xs text-muted-foreground">
@@ -68,8 +75,8 @@ function SortableProvider(props: {
           {props.provider.hasApiKey ? ' · 已托管密钥' : ' · 无密钥'}
         </p>
       </div>
+      <StatusBadge status={props.provider.status} />
       <Button
-        size="sm"
         variant="outline"
         onClick={function () {
           props.onToggle(props.provider)
@@ -77,11 +84,10 @@ function SortableProvider(props: {
         {props.provider.status === 'ACTIVE' ? '停用' : '启用'}
       </Button>
       <Button
-        size="sm"
         variant="ghost"
+        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
         onClick={function () {
-          if (!window.confirm(`删除供应商 ${props.provider.name}？`)) return
-          props.onRemove(props.provider.id)
+          props.onRemove(props.provider)
         }}>
         删除
       </Button>
@@ -109,6 +115,8 @@ export default function ProvidersView() {
   const queryClient = useQueryClient()
   const providers = useQuery({ queryKey: ['gateway-providers'], queryFn: GET_GATEWAY_PROVIDERS })
   const [orderOverride, updateOrderOverride] = useState<string[] | null>(null)
+  const [sheetOpen, updateSheetOpen] = useState(false)
+  const [pendingDelete, updatePendingDelete] = useState<GatewayProvider | null>(null)
   const [draft, updateDraft] = useState({
     kind: 'openai',
     name: '',
@@ -142,6 +150,7 @@ export default function ProvidersView() {
     onSuccess() {
       toast.success('已创建供应商')
       void queryClient.invalidateQueries({ queryKey: ['gateway-providers'] })
+      updateSheetOpen(false)
       updateDraft({ kind: 'openai', name: '', baseUrl: '', apiKey: '' })
     },
     onError(error) {
@@ -168,6 +177,7 @@ export default function ProvidersView() {
     onSuccess() {
       toast.success('已删除')
       void queryClient.invalidateQueries({ queryKey: ['gateway-providers'] })
+      updatePendingDelete(null)
     },
     onError(error) {
       toast.error(HttpError(error).message)
@@ -200,83 +210,128 @@ export default function ProvidersView() {
   }
 
   return (
-    <div>
-      <PageHeader
-        title="供应商"
-        description="上游模型供应商。列表可拖拽调整个人展示序（本地）。密钥只写不读。"
-      />
-      <div className="mb-6 grid gap-3 rounded-xl border border-border/80 p-4 md:grid-cols-5">
-        <Input
-          placeholder="名称"
-          value={draft.name}
-          onChange={function (event) {
-            updateDraft({ ...draft, name: event.target.value })
-          }}
-        />
-        <Input
-          placeholder="kind（openai…）"
-          value={draft.kind}
-          onChange={function (event) {
-            updateDraft({ ...draft, kind: event.target.value })
-          }}
-        />
-        <Input
-          placeholder="baseUrl"
-          value={draft.baseUrl}
-          onChange={function (event) {
-            updateDraft({ ...draft, baseUrl: event.target.value })
-          }}
-        />
-        <Input
-          placeholder="API Key（可选）"
-          type="password"
-          value={draft.apiKey}
-          onChange={function (event) {
-            updateDraft({ ...draft, apiKey: event.target.value })
-          }}
-        />
+    <ConsolePage
+      actions={
         <Button
+          size="lg"
+          className="h-10 px-4"
           onClick={function () {
-            if (!draft.name || !draft.baseUrl) {
-              toast.error('填写名称与 baseUrl')
-              return
-            }
-            createProvider.mutate({
-              kind: draft.kind,
-              name: draft.name,
-              baseUrl: draft.baseUrl,
-              apiKey: draft.apiKey || undefined
-            })
+            updateSheetOpen(true)
           }}>
-          创建
+          新建供应商
         </Button>
-      </div>
+      }>
+      <QueryState
+        isLoading={providers.isLoading}
+        isError={providers.isError}
+        error={providers.error}
+        onRetry={function () {
+          void providers.refetch()
+        }}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}>
+          <SortableContext
+            items={order}
+            strategy={verticalListSortingStrategy}>
+            <ul>
+              {rows.map(function (provider) {
+                return (
+                  <SortableProvider
+                    key={provider.id}
+                    provider={provider}
+                    onToggle={function (item) {
+                      patchProvider.mutate(item)
+                    }}
+                    onRemove={function (item) {
+                      updatePendingDelete(item)
+                    }}
+                  />
+                )
+              })}
+            </ul>
+          </SortableContext>
+        </DndContext>
+        {!providers.isLoading && rows.length === 0 ? (
+          <p className="px-4 py-10 text-center text-sm text-muted-foreground">暂无供应商</p>
+        ) : null}
+      </QueryState>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}>
-        <SortableContext
-          items={order}
-          strategy={verticalListSortingStrategy}>
-          <ul>
-            {rows.map(function (provider) {
-              return (
-                <SortableProvider
-                  key={provider.id}
-                  provider={provider}
-                  onToggle={function (item) {
-                    patchProvider.mutate(item)
-                  }}
-                  onRemove={function (id) {
-                    removeProvider.mutate(id)
-                  }}
-                />
-              )
-            })}
-          </ul>
-        </SortableContext>
-      </DndContext>
-    </div>
+      <EntitySheet
+        open={sheetOpen}
+        title="新建供应商"
+        description="API Key 写入后不可回读，仅显示是否已托管。"
+        submitLabel="创建"
+        isPending={createProvider.isPending}
+        onOpenChange={updateSheetOpen}
+        onSubmit={function () {
+          if (!draft.name || !draft.baseUrl) {
+            toast.error('填写名称与接口地址')
+            return
+          }
+          createProvider.mutate({
+            kind: draft.kind,
+            name: draft.name,
+            baseUrl: draft.baseUrl,
+            apiKey: draft.apiKey || undefined
+          })
+        }}>
+        <div className="space-y-2">
+          <Label>名称</Label>
+          <Input
+            value={draft.name}
+            onChange={function (event) {
+              updateDraft({ ...draft, name: event.target.value })
+            }}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>类型</Label>
+          <Input
+            placeholder="如 openai / azure"
+            value={draft.kind}
+            onChange={function (event) {
+              updateDraft({ ...draft, kind: event.target.value })
+            }}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>接口地址</Label>
+          <Input
+            placeholder="https://…"
+            value={draft.baseUrl}
+            onChange={function (event) {
+              updateDraft({ ...draft, baseUrl: event.target.value })
+            }}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>API Key（可选）</Label>
+          <Input
+            type="password"
+            value={draft.apiKey}
+            onChange={function (event) {
+              updateDraft({ ...draft, apiKey: event.target.value })
+            }}
+          />
+        </div>
+      </EntitySheet>
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title={`删除供应商 ${pendingDelete?.name ?? ''}？`}
+        description="关联模型可能受影响。确认后不可撤销。"
+        confirmLabel="删除"
+        destructive
+        isPending={removeProvider.isPending}
+        onOpenChange={function (open) {
+          if (!open) updatePendingDelete(null)
+        }}
+        onConfirm={function () {
+          if (pendingDelete) removeProvider.mutate(pendingDelete.id)
+        }}
+      />
+    </ConsolePage>
   )
 }

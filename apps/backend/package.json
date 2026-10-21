@@ -23,6 +23,7 @@
     "@iconify/json": "catalog:",
     "@iconify/react": "catalog:",
     "clsx": "catalog:",
+    "dayjs": "^1.11.23",
     "go-captcha-react": "catalog:",
     "shaders": "catalog:",
     "zod": "catalog:"

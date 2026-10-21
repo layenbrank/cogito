@@ -1,80 +1,162 @@
 import { Input } from '@i-thinking/design/components/input'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { GET_GATEWAY_USAGE } from '@/apis/gateway.ts'
-import { PageHeader } from '@/components/data-table/page-header.tsx'
+import { ConsolePage } from '@/components/console/console-page.tsx'
+import { DataTable, TableFooter } from '@/components/console/data-table.tsx'
+import { FilterBar } from '@/components/console/filter-bar.tsx'
+import { QueryState } from '@/components/console/query-state.tsx'
+import { RefreshButton } from '@/components/console/refresh-button.tsx'
 
 export default function UsageView() {
-  const [tenantID, updateTenantID] = useState('')
-  const [modelID, updateModelID] = useState('')
+  const [tenantFilter, updateTenantFilter] = useState('')
+  const [modelFilter, updateModelFilter] = useState('')
+  const [page, updatePage] = useState(1)
+  const size = 50
+
   const usage = useQuery({
-    queryKey: ['gateway-usage', tenantID, modelID],
+    queryKey: ['gateway-usage', tenantFilter, modelFilter, page],
     queryFn: function () {
       return GET_GATEWAY_USAGE({
-        tenantID: tenantID || undefined,
-        modelID: modelID || undefined,
-        size: 50
+        tenantID: tenantFilter || undefined,
+        modelID: modelFilter || undefined,
+        page,
+        size
       })
     }
   })
 
+  const pageData = usage.data
+
   return (
-    <div>
-      <PageHeader
-        title="用量"
-        description="跨租户 token 用量抽样。用租户 / 模型 ID 收窄。"
-      />
-      <div className="mb-4 flex flex-wrap gap-3">
-        <Input
-          className="max-w-xs"
-          placeholder="tenantID"
-          value={tenantID}
-          onChange={function (event) {
-            updateTenantID(event.target.value)
+    <ConsolePage
+      toolbar={
+        <FilterBar>
+          <Input
+            className="h-10 max-w-xs"
+            placeholder="租户"
+            aria-label="租户"
+            value={tenantFilter}
+            onChange={function (event) {
+              updatePage(1)
+              updateTenantFilter(event.target.value)
+            }}
+          />
+          <Input
+            className="h-10 max-w-xs"
+            placeholder="模型"
+            aria-label="模型"
+            value={modelFilter}
+            onChange={function (event) {
+              updatePage(1)
+              updateModelFilter(event.target.value)
+            }}
+          />
+        </FilterBar>
+      }
+      actions={
+        <RefreshButton
+          isFetching={usage.isFetching}
+          onRefresh={function () {
+            void usage.refetch()
           }}
         />
-        <Input
-          className="max-w-xs"
-          placeholder="modelID"
-          value={modelID}
-          onChange={function (event) {
-            updateModelID(event.target.value)
+      }>
+      <QueryState
+        isLoading={usage.isLoading}
+        isError={usage.isError}
+        error={usage.error}
+        onRetry={function () {
+          void usage.refetch()
+        }}>
+        <DataTable
+          columns={[
+            {
+              key: 'time',
+              title: '时间',
+              className: 'text-muted-foreground whitespace-nowrap',
+              render(row) {
+                return new Date(row.createdAt).toLocaleString()
+              }
+            },
+            {
+              key: 'tenant',
+              title: '租户',
+              className: 'font-mono text-xs',
+              render(row) {
+                if (!row.tenantID) return '—'
+                return (
+                  <Link
+                    to={`/tenants?focus=${row.tenantID}`}
+                    className="text-[var(--backend-accent)] hover:underline">
+                    {row.tenantID}
+                  </Link>
+                )
+              }
+            },
+            {
+              key: 'user',
+              title: '用户',
+              className: 'font-mono text-xs',
+              render(row) {
+                return (
+                  <Link
+                    to={`/users?focus=${row.userID}`}
+                    className="text-[var(--backend-accent)] hover:underline">
+                    {row.userID}
+                  </Link>
+                )
+              }
+            },
+            {
+              key: 'model',
+              title: '模型',
+              className: 'font-mono text-xs',
+              render(row) {
+                return (
+                  <Link
+                    to={`/gateway/models?focus=${row.modelID}`}
+                    className="text-[var(--backend-accent)] hover:underline">
+                    {row.modelID}
+                  </Link>
+                )
+              }
+            },
+            {
+              key: 'tokens',
+              title: 'tokens',
+              className: 'tabular-nums',
+              render(row) {
+                return row.totalTokens
+              }
+            },
+            {
+              key: 'latency',
+              title: '延迟',
+              className: 'tabular-nums',
+              render(row) {
+                return `${row.latencyMs}ms`
+              }
+            }
+          ]}
+          rows={pageData?.items ?? []}
+          rowKey={function (row) {
+            return row.id
           }}
+          emptyTitle="窗口内无用量"
         />
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-left text-sm">
-          <thead className="text-xs text-muted-foreground uppercase">
-            <tr className="border-b border-border">
-              <th className="pb-2 font-medium">时间</th>
-              <th className="pb-2 font-medium">租户</th>
-              <th className="pb-2 font-medium">用户</th>
-              <th className="pb-2 font-medium">模型</th>
-              <th className="pb-2 font-medium">tokens</th>
-              <th className="pb-2 font-medium">延迟</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(usage.data ?? []).map(function (row) {
-              return (
-                <tr
-                  key={row.id}
-                  className="border-b border-border/70">
-                  <td className="py-2 pr-3 text-muted-foreground">
-                    {new Date(row.createdAt).toLocaleString()}
-                  </td>
-                  <td className="py-2 pr-3 font-mono text-xs">{row.tenantID ?? '—'}</td>
-                  <td className="py-2 pr-3 font-mono text-xs">{row.userID}</td>
-                  <td className="py-2 pr-3 font-mono text-xs">{row.modelID}</td>
-                  <td className="py-2 pr-3">{row.totalTokens}</td>
-                  <td className="py-2">{row.latencyMs}ms</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
+        {pageData ? (
+          <TableFooter
+            count={pageData.count}
+            page={pageData.page}
+            total={pageData.total}
+            isFetching={usage.isFetching}
+            onPage={updatePage}
+          />
+        ) : null}
+      </QueryState>
+    </ConsolePage>
   )
 }

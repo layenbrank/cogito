@@ -1,6 +1,7 @@
 import { lazy } from 'react'
-import { createBrowserRouter, Navigate, redirect } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet, redirect } from 'react-router-dom'
 
+import { Fallback } from '@/components/fallback/index.tsx'
 import { AppShell } from '@/components/shell/app-shell.tsx'
 import { isAdmin, isAuthenticated } from '@/utils/auth.ts'
 
@@ -25,8 +26,11 @@ const ModelsView = lazy(function () {
 const UsageView = lazy(function () {
   return import('@/views/gateway/usage/usage.tsx')
 })
-const AuditView = lazy(function () {
-  return import('@/views/gateway/audit/audit.tsx')
+const LogsView = lazy(function () {
+  return import('@/views/logs/logs.tsx')
+})
+const ExceptionsView = lazy(function () {
+  return import('@/views/exceptions/exceptions.tsx')
 })
 const PricesView = lazy(function () {
   return import('@/views/billing/prices/prices.tsx')
@@ -42,6 +46,9 @@ const AgentView = lazy(function () {
 })
 const RagView = lazy(function () {
   return import('@/views/rag/rag.tsx')
+})
+const PreferencesView = lazy(function () {
+  return import('@/views/preferences/preferences.tsx')
 })
 
 function requireAdmin() {
@@ -64,19 +71,28 @@ const router = createBrowserRouter([
     element: <AppShell />,
     loader: requireAdmin,
     children: [
-      { index: true, element: <Navigate to="/overview" replace /> },
-      { path: 'overview', element: <OverviewView /> },
-      { path: 'users', element: <UsersView /> },
-      { path: 'tenants', element: <TenantsView /> },
-      { path: 'gateway/providers', element: <ProvidersView /> },
-      { path: 'gateway/models', element: <ModelsView /> },
-      { path: 'gateway/usage', element: <UsageView /> },
-      { path: 'gateway/audit', element: <AuditView /> },
-      { path: 'billing/prices', element: <PricesView /> },
-      { path: 'billing/reconciliation', element: <ReconciliationView /> },
-      { path: 'sso', element: <SsoView /> },
-      { path: 'agent', element: <AgentView /> },
-      { path: 'rag', element: <RagView /> }
+      {
+        element: <Outlet />,
+        errorElement: <Fallback.RouteError />,
+        children: [
+          { index: true, element: <Navigate to="/overview" replace /> },
+          { path: 'overview', element: <OverviewView /> },
+          { path: 'users', element: <UsersView /> },
+          { path: 'tenants', element: <TenantsView /> },
+          { path: 'gateway/providers', element: <ProvidersView /> },
+          { path: 'gateway/models', element: <ModelsView /> },
+          { path: 'gateway/usage', element: <UsageView /> },
+          { path: 'logs', element: <LogsView /> },
+          { path: 'exceptions', element: <ExceptionsView /> },
+          { path: 'gateway/audit', element: <Navigate to="/logs" replace /> },
+          { path: 'billing/prices', element: <PricesView /> },
+          { path: 'billing/reconciliation', element: <ReconciliationView /> },
+          { path: 'sso', element: <SsoView /> },
+          { path: 'agent', element: <AgentView /> },
+          { path: 'rag', element: <RagView /> },
+          { path: 'preferences', element: <PreferencesView /> }
+        ]
+      }
     ]
   },
   { path: '*', element: <Navigate to="/overview" replace /> }

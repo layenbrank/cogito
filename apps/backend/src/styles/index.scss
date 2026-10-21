@@ -6,5 +6,5 @@ body,
 
 body {
   margin: 0;
-  background: var(--backend-shell, var(--background));
+  background: var(--backend-canvas, var(--backend-shell, var(--background)));
 }
