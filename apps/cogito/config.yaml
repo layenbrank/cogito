@@ -51,6 +51,12 @@ auth:
     burst_size: 20
     requests_per_minute: 30
   trust_proxy: false
+  # 启动时幂等就位平台 ADMIN（Backend Console 入口）。username/password 皆空 = 关闭。
+  # Docker / 本机开发见 config.development.yaml 与 docker/stack.env.example。
+  bootstrap_admin:
+    username: ""
+    password: ""
+    sync_password: false
 
 logging:
   filter: info

@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 
 pub mod bootstrap {
+    pub mod admin;
     pub mod errors;
     pub mod module;
     pub mod static_assets;
@@ -9,6 +10,7 @@ pub mod bootstrap {
     #[cfg(feature = "openapi")]
     pub mod swagger;
 
+    pub use admin::ensure_bootstrap_admin;
     pub use module::{BootstrapModule, BootstrapOptions};
     pub use static_assets::{IndexFileConfig, StaticAssetsConfig, StaticMount};
 }

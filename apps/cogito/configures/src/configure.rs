@@ -193,6 +193,37 @@ impl Default for AuthRateLimitConfig {
     }
 }
 
+/// 启动时幂等就位的平台超级管理员（`auth.role = ADMIN`）。
+///
+/// `username` / `password` 皆非空才启用；已存在同名账号时只确保角色为 ADMIN，
+/// 默认不改密码（除非 `sync_password = true`）。生产禁用占位密码。
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct BootstrapAdminConfig {
+    pub username: String,
+    pub password: String,
+    /// 账号已存在时是否把密码同步成配置值（首次起栈改密用；日常保持 false）
+    pub sync_password: bool,
+}
+
+impl Default for BootstrapAdminConfig {
+    fn default() -> Self {
+        Self {
+            username: String::new(),
+            password: String::new(),
+            sync_password: false,
+        }
+    }
+}
+
+impl BootstrapAdminConfig {
+    /// 用户名与密码都配了才算启用。
+    #[must_use]
+    pub fn is_enabled(&self) -> bool {
+        !self.username.trim().is_empty() && !self.password.is_empty()
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct AuthConfig {
@@ -201,6 +232,7 @@ pub struct AuthConfig {
     pub signin: SigninConfig,
     pub rate_limit: AuthRateLimitConfig,
     pub trust_proxy: bool,
+    pub bootstrap_admin: BootstrapAdminConfig,
 }
 
 impl Default for AuthConfig {
@@ -211,6 +243,7 @@ impl Default for AuthConfig {
             signin: SigninConfig::default(),
             rate_limit: AuthRateLimitConfig::default(),
             trust_proxy: false,
+            bootstrap_admin: BootstrapAdminConfig::default(),
         }
     }
 }
@@ -813,6 +846,18 @@ impl Configure {
             }
             if is_placeholder_secret(&self.security.jwt_secret) {
                 bail!("security.jwt_secret must not use placeholder values in production");
+            }
+        }
+
+        let bootstrap = &self.auth.bootstrap_admin;
+        if bootstrap.is_enabled() {
+            if bootstrap.password.trim().len() < 6 {
+                bail!("auth.bootstrap_admin.password must be at least 6 characters");
+            }
+            if self.is_production() && is_placeholder_secret(&bootstrap.password) {
+                bail!(
+                    "auth.bootstrap_admin.password must not use placeholder values in production"
+                );
             }
         }
 

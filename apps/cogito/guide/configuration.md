@@ -42,6 +42,9 @@
 | `auth.rate_limit.burst_size`          | `20`                               | 突发请求上限                                                   |
 | `auth.rate_limit.requests_per_minute` | `30`                               | 每分钟每 IP 补充配额                                           |
 | `auth.trust_proxy`                    | `false`                            | 是否信任 `X-Forwarded-For`（反向代理场景）                     |
+| `auth.bootstrap_admin.username`       | `''`（development：`admin`）       | 启动种子平台 ADMIN 用户名；与 password 皆非空才启用            |
+| `auth.bootstrap_admin.password`       | `''`（development：`admin123456`） | 同上；≥6 字符；生产禁用占位值；可用 `COGITO__AUTH__BOOTSTRAP_ADMIN__*` 覆盖 |
+| `auth.bootstrap_admin.sync_password`  | `false`                            | 账号已存在时是否把密码同步成配置值（改密后记得关掉）           |
 | `aliyun.access_key_id`                | `''`                               | 出站凭据（短信 / 邮件 / OSS 共用），生产放 `config.local.yaml` |
 | `aliyun.access_key_secret`            | `''`                               | 同上；两个都为空表示「本部署不发出站请求」                     |
 | `aliyun.signature_version`            | `v3`                               | `v3`（`ACS3-HMAC-SHA256`）或 `v1`（`HMAC-SHA1`，只留给老网关） |

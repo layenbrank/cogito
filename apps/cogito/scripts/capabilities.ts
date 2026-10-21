@@ -396,6 +396,11 @@ export const UNSCOPED_DB_ALLOWED: Record<string, { max: number; reason: string }
     max: 1,
     reason: '健康检查：只对连接做 ping，不读任何业务表'
   },
+  'src/bootstrap/admin.rs': {
+    max: 3,
+    reason:
+      '启动种子：按 auth.bootstrap_admin 幂等创建/提升平台 ADMIN。auth 是全局身份表，无行级安全；种子发生在请求管道之前，只能走未作用域连接'
+  },
   'src/services/auth/service.rs': {
     max: 11,
     reason:

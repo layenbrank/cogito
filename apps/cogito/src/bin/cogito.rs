@@ -31,6 +31,10 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("Failed to connect to database");
 
+    cogito::bootstrap::ensure_bootstrap_admin(&storage, &configure)
+        .await
+        .expect("Failed to ensure bootstrap admin");
+
     let redis = RedisPool::new(configure.redis_url(), configure.redis_pool_size())
         .await
         .expect("Failed to connect to Redis");

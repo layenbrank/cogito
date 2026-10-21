@@ -145,6 +145,28 @@ docker compose exec ai-worker curl -fsS http://127.0.0.1:8081/internal/v1/health
 docker compose exec postgres psql -U machenike -d postgres -c 'SELECT datname FROM pg_database'
 ```
 
+### 6.1.1 默认平台管理员（Backend Console）
+
+公开注册只会建 `USER`，`apps/backend` 全挂 `Auth::admin()`，没有首个 `ADMIN` 就进不了管理面。
+
+`cogito-api` 启动时按 `auth.bootstrap_admin` **幂等**就位平台管理员（见 [`bootstrap/admin.rs`](../src/bootstrap/admin.rs)）：
+
+| profile | 默认账号 | 说明 |
+|---------|----------|------|
+| `development`（compose 默认） | `admin` / `admin123456` | 写在 `config.development.yaml` |
+| `production` | 关闭（空用户名） | 必须用 `COGITO__AUTH__BOOTSTRAP_ADMIN__*` 显式配置真密码 |
+
+覆盖示例（写 `docker/stack.env`，不要写 `.env`）：
+
+```bash
+COGITO__AUTH__BOOTSTRAP_ADMIN__USERNAME=admin
+COGITO__AUTH__BOOTSTRAP_ADMIN__PASSWORD=<真随机密码>
+# 仅当需要把已有账号的密码改成配置值时开一次，改完关掉
+# COGITO__AUTH__BOOTSTRAP_ADMIN__SYNC_PASSWORD=true
+```
+
+改完库里的 `role` 后仍要用**新签发的令牌**（重新登录）：`Auth::admin()` 会先按 JWT 声明快速拒绝。
+
 ### 6.2 一个容易误判的现象
 
 - **首次冷启动慢**：全栈从零（`./data` 为空）起齐要等 Postgres 首次 initdb、`migrate` 跑完，
