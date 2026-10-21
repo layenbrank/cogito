@@ -22,6 +22,7 @@ import { parseAcpStreamEvent, type AcpStreamContext } from '@/features/agent/acp
 import { parseModels } from '@/features/agent/model/providers'
 import { findSendBlocker, isGatewayTarget } from '@/features/quota/gate'
 import { useProviderStore, type AgentProvider } from '@/stores/provider'
+import { reportCaught } from '@/utils/exception-report'
 
 /** 宿主扩展：本轮运行要用哪个会话（thread = 本地会话行） */
 interface AgentRunHost {
@@ -180,7 +181,7 @@ function createModelPort(): ChatModelPort {
         try {
           await ensureCogitoProvider()
         } catch (error) {
-          console.warn('[agent/port] 注册网关 provider 失败:', error)
+          reportCaught('agent.port.ensureCogitoProvider', error, 'warning')
           yield {
             kind: 'error',
             message: error instanceof Error ? error.message : '网关 provider 未就绪，请稍后重试',
@@ -223,7 +224,7 @@ function createModelPort(): ChatModelPort {
       } catch (error) {
         // 异常也要走事件流（适配器要先交一份快照再抛，否则界面只剩 status 变了）；
         // 事件流之外再留一条带堆栈的控制台记录 —— 界面只拿得到一句话，排查得靠它
-        console.error('[agent/port] 运行失败:', error)
+        reportCaught('agent.port.run', error)
         yield {
           kind: 'error',
           message: error instanceof Error ? error.message : String(error),

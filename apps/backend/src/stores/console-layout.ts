@@ -17,6 +17,7 @@ import {
   RAIL_DEFAULT_COLLAPSED
 } from '@/constants/nav.ts'
 import { isAdmin, isAuthenticated } from '@/utils/auth.ts'
+import { reportCaught } from '@/utils/exception-report.ts'
 
 interface ConsoleLayoutStore extends ConsolePreference {
   isHydrated: boolean
@@ -60,7 +61,8 @@ const syncPreference = debounce(async function (body: ConsolePreference) {
   if (!isAuthenticated() || !isAdmin()) return
   try {
     await PUT_CONSOLE_PREFERENCE(body)
-  } catch {
+  } catch (error) {
+    reportCaught('console-layout.syncPreference', error)
     /* 本地 persist 仍可用；服务端失败不打断操作 */
   }
 }, 600)
@@ -124,7 +126,8 @@ const useConsoleLayoutStore = create<ConsoleLayoutStore>()(
             }
             await PUT_CONSOLE_PREFERENCE(snapshot(get()))
             set({ isHydrated: true, isSyncing: false })
-          } catch {
+          } catch (error) {
+            reportCaught('console-layout.hydrateFromServer', error)
             set({ isHydrated: true, isSyncing: false })
           }
         },

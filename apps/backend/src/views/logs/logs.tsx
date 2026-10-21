@@ -11,6 +11,7 @@ import { DataTable, TableFooter } from '@/components/console/data-table.tsx'
 import { FilterBar } from '@/components/console/filter-bar.tsx'
 import { QueryState } from '@/components/console/query-state.tsx'
 import { RefreshButton } from '@/components/console/refresh-button.tsx'
+import { reportCaught } from '@/utils/exception-report.ts'
 import { HttpError } from '@/utils/http/errors.ts'
 
 /** 平台操作日志：对接 cogito `GET /gateway/audit` */
@@ -35,6 +36,7 @@ export default function LogsView() {
       await EXPORT_GATEWAY_AUDIT({ action: action || undefined, format: 'csv' })
       toast.success('已开始下载')
     } catch (error) {
+      reportCaught('logs.handleExport', error)
       toast.error(HttpError(error).message)
     } finally {
       updateExporting(false)

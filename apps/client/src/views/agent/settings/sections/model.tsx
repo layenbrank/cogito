@@ -46,6 +46,7 @@ import {
 } from '@/features/agent/model/display'
 import { parseModels } from '@/features/agent/model/providers'
 import { useProviderStore } from '@/stores/provider'
+import { reportCaught } from '@/utils/exception-report'
 import styles from '@/views/agent/settings/settings.module.scss'
 import type { ProbeStatus } from '../provider-card-header'
 import { ProviderCardForm } from '../provider-card-form'
@@ -352,7 +353,7 @@ function ModelSection() {
         }
       }
     } catch (error) {
-      console.error('[agent-settings/model] loadInventory failed:', error)
+      reportCaught('agent-settings.model.loadInventory', error)
       const detail = error instanceof Error ? error.message : '加载失败'
       toast.error(detail)
     } finally {
@@ -435,7 +436,7 @@ function ModelSection() {
       closeEditor()
       await loadInventory()
     } catch (error) {
-      console.error('[agent-settings/model] save failed:', error)
+      reportCaught('agent-settings.model.save', error)
       const detail = error instanceof Error ? error.message : '保存失败'
       toast.error(`${findProviderLabel(active.providerId, active.providerName)}：${detail}`)
       patchProbe(active.providerId, 'fail')

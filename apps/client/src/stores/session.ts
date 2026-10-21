@@ -16,6 +16,7 @@ import {
   isSessionInvalid,
   subscribeAuthToken
 } from '@/utils/auth.ts'
+import { reportCaught } from '@/utils/exception-report'
 
 type SessionUser = {
   id: string
@@ -79,7 +80,7 @@ async function hydrateSessionUser(
       return
     }
     // 网络不通：保留令牌，界面先按未拿到资料处理
-    console.warn('[session] 资料拉取失败，保留令牌', error)
+    reportCaught('session.hydrate', error, 'warning')
     setters({ isLoading: false }, false, 'hydrate/unavailable')
   } finally {
     isHydrating = false

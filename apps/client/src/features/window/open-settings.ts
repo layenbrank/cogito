@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 
 import { findTileWindowOptions } from '@/constants/magnetic-tile/window'
 import { openWindow } from '@/features/window/open'
+import { reportCaught } from '@/utils/exception-report'
 import type { SectionKey } from '@/views/settings/constant'
 
 /** 程序化打开全局设置窗时的固定 label（与磁贴窗 `settings:<id>` 分离） */
@@ -37,7 +38,7 @@ async function openSettingsWindow(section?: SectionKey) {
       findTileWindowOptions('settings')
     )
   } catch (error) {
-    console.error('[settings] 打开设置窗口失败', error)
+    reportCaught('settings.openWindow', error)
     toast.error('设置窗口打开失败')
     return null
   }

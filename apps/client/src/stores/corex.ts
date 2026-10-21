@@ -21,6 +21,7 @@ import {
   type ListRunsReply
 } from '@/lib/directive-ipc.ts'
 import type { DirectiveContent } from '@/shared/ipc/specs/sidecar'
+import { reportCaught } from '@/utils/exception-report'
 import { createDirective } from '@/views/directive/model/draft.ts'
 import { sanitizeSteps, stampSteps } from '@/views/directive/model/step-utils.ts'
 
@@ -250,7 +251,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
         const [catalog, directives] = await Promise.all([fetchActions(), fetchDirectives()])
         setter({ catalog, directives, isLoaded: true, isLoading: false, loadError: null })
       } catch (error) {
-        console.error('[corex] 初始化失败', error)
+        reportCaught('corex.init', error)
         setter({
           isLoaded: false,
           isLoading: false,
@@ -263,7 +264,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
       try {
         setter({ directives: await fetchDirectives() })
       } catch (error) {
-        console.error('[corex] 重读指令目录失败', error)
+        reportCaught('corex.refreshDirectives', error)
         toast.error('重新读取指令目录失败', {
           description: parseErrorMessage(error, '')
         })

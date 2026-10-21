@@ -16,12 +16,13 @@ import { isMainWindow } from '@/keyboard/global'
 import { useCommands } from '@/keyboard/react'
 import type { Command } from '@/keyboard/types'
 import { CHANNELS } from '@/shared/ipc/channels'
+import { reportCaught } from '@/utils/exception-report'
 
 async function openCapture(): Promise<void> {
   try {
     await invoke(CHANNELS.CAPTURE.OPEN)
   } catch (error) {
-    console.error('[capture] 启动截屏失败', error)
+    reportCaught('capture.open', error)
     const text = error instanceof Error ? error.message : String(error)
     toast.error(`截屏没能打开：${text}`)
   }

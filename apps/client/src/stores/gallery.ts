@@ -4,6 +4,7 @@ import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
 import { CHANNELS } from '@/shared/ipc/channels'
+import { reportCaught } from '@/utils/exception-report'
 import {
   pickAndImportFiles,
   pickAndImportFolders
@@ -137,7 +138,7 @@ const useGalleryStore = create<GalleryStore>()(
 
             return medias
           } catch (err) {
-            console.error('[gallery-store] toReadMedias failed:', err)
+            reportCaught('gallery-store.toReadMedias', err)
             setter(
               function (state) {
                 state.loaded = true

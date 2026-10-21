@@ -23,6 +23,7 @@ import { useCaptureStage, type Phase } from '@/features/capture/use-capture-stag
 import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
 import { useCommands, useShortcut } from '@/keyboard/react'
 import { DETECT_WINDOW, useSettingsStore } from '@/stores/setting'
+import { reportCaught } from '@/utils/exception-report'
 
 import styles from '@/features/capture/capture.module.scss'
 
@@ -166,7 +167,7 @@ function Capture(props: CaptureProps = {}) {
       onUpdateSourceImage(img)
       onUpdateCaptureStatus('ready')
     } catch (err) {
-      console.error('[capture] 真实截图失败', err)
+      reportCaught('capture.pipeline', err)
       onUpdateCaptureError(String(err))
       onUpdateCaptureStatus('error')
     }
@@ -213,7 +214,7 @@ function Capture(props: CaptureProps = {}) {
           onUpdateCaptureStatus('ready')
         } catch (err) {
           if (cancelled) return
-          console.error('[capture] 真实截图失败', err)
+          reportCaught('capture.pipeline', err)
           onUpdateCaptureError(String(err))
           onUpdateCaptureStatus('error')
         }

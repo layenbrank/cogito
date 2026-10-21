@@ -4,6 +4,7 @@ import { create, type StateCreator } from 'zustand'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 import { CHANNELS } from '@/shared/ipc/channels'
+import { reportCaught } from '@/utils/exception-report'
 
 type Session = MagneticTile.Agent.Session
 type Message = MagneticTile.Agent.Message
@@ -217,7 +218,7 @@ const sessionSlice: SliceCreator<SessionSlice> = function (setters, getters) {
         })
         return sessions
       } catch (error) {
-        console.error('[agent-store] toReadSessions failed:', error)
+        reportCaught('agent-store.toReadSessions', error)
         setters(
           function (state) {
             state.sessionsLoaded = true
@@ -395,7 +396,7 @@ const messageSlice: SliceCreator<MessageSlice> = function (setters, getters) {
         })
         return messages
       } catch (error) {
-        console.error('[agent-store] toReadMessages failed:', error)
+        reportCaught('agent-store.toReadMessages', error)
         setters(
           function (state) {
             state.messagesLoaded = true
@@ -560,7 +561,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
         })
         return workspaces
       } catch (error) {
-        console.error('[agent-store] toReadWorkspaces failed:', error)
+        reportCaught('agent-store.toReadWorkspaces', error)
         setters(
           function (state) {
             state.workspacesLoaded = true
@@ -722,7 +723,7 @@ const workspaceSlice: SliceCreator<WorkspaceSlice> = function (setters, getters)
         })
         return folders
       } catch (error) {
-        console.error('[agent-store] toReadWorkspaceFolders failed:', error)
+        reportCaught('agent-store.toReadWorkspaceFolders', error)
         setters(
           function (state) {
             state.workspaceFoldersLoaded = true
@@ -890,7 +891,7 @@ const usageSlice: SliceCreator<UsageSlice> = function (setters, getters) {
         )
         return usages
       } catch (error) {
-        console.error('[agent-store] toReadUsages failed:', error)
+        reportCaught('agent-store.toReadUsages', error)
         setters(
           function (state) {
             state.usagesLoaded = true

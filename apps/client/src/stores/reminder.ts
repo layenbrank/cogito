@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 import { CHANNELS } from '@/shared/ipc/channels'
+import { reportCaught } from '@/utils/exception-report'
 
 interface Reminder {
   id: string
@@ -95,7 +96,7 @@ const useReminderStore = create<ReminderStore>()(
             )
             return reminders
           } catch (err) {
-            console.error('[reminder-store] toReadReminders failed:', err)
+            reportCaught('reminder-store.toReadReminders', err)
             setter(
               function (state) {
                 state.loaded = true
@@ -126,7 +127,7 @@ const useReminderStore = create<ReminderStore>()(
             await getter().toReadReminders()
             return ids[0]
           } catch (err) {
-            console.error('[reminder-store] toWriteReminder failed:', err)
+            reportCaught('reminder-store.toWriteReminder', err)
             return undefined
           }
         },
@@ -155,7 +156,7 @@ const useReminderStore = create<ReminderStore>()(
               false,
               'toUpdateReminder/rollback'
             )
-            console.error('[reminder-store] toUpdateReminder failed:', err)
+            reportCaught('reminder-store.toUpdateReminder', err)
             throw err
           }
         },
@@ -181,7 +182,7 @@ const useReminderStore = create<ReminderStore>()(
               false,
               'toRemoveReminder/rollback'
             )
-            console.error('[reminder-store] toRemoveReminder failed:', err)
+            reportCaught('reminder-store.toRemoveReminder', err)
             throw err
           }
         }

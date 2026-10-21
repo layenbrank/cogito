@@ -18,6 +18,7 @@ import {
 } from '@/features/agent/model/gateway-labels'
 import { stringifyModels, parseModels } from '@/features/agent/model/providers'
 import { GATEWAY_PROVIDER_KIND } from '@/features/quota/gate'
+import { reportCaught } from '@/utils/exception-report'
 import { syncActiveTenant } from '@/features/quota/tenant'
 import { CHANNELS } from '@/shared/ipc/channels'
 import { useProviderStore, type AgentProvider } from '@/stores/provider'
@@ -95,7 +96,7 @@ async function syncCogitoGatewayCatalog(): Promise<AgentProvider | null> {
   try {
     models = await findGatewayModels()
   } catch (error) {
-    console.warn('[acp/cogito-provider] 拉取网关目录失败:', error)
+    reportCaught('acp.cogito-provider.syncCatalog', error, 'warning')
     clearGatewayLabels()
     await dropStaleCogitoRow()
     return null
@@ -160,7 +161,7 @@ async function dropStaleCogitoRow(): Promise<void> {
   try {
     await store.toRemoveProvider([row.id])
   } catch (error) {
-    console.warn('[acp/cogito-provider] 清理幽灵组织模型行失败:', error)
+    reportCaught('acp.cogito-provider.dropStaleRow', error, 'warning')
   }
 }
 
@@ -179,7 +180,7 @@ async function ensureCogitoProvider(): Promise<void> {
   await invoke<boolean>(CHANNELS.COGITO.PROVIDER_ENSURE, { tenantID, baseUrl, models })
   // 发送前顺手把选择器那一行对齐，避免目录变了 UI 还停在旧清单
   void syncCogitoGatewayCatalog().catch(function (error) {
-    console.warn('[acp/cogito-provider] 同步组织模型行失败:', error)
+    reportCaught('acp.cogito-provider.syncGatewayCatalog', error, 'warning')
   })
 }
 
@@ -188,7 +189,7 @@ async function setCogitoTenant(tenantID: string): Promise<void> {
   try {
     await invoke<boolean>(CHANNELS.COGITO.PROVIDER_SET_TENANT, { tenantID })
   } catch (error) {
-    console.warn('[acp/cogito-provider] 更新网关租户失败:', error)
+    reportCaught('acp.cogito-provider.setTenant', error, 'warning')
   }
 }
 

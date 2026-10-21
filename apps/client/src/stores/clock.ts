@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 import { CHANNELS } from '@/shared/ipc/channels'
+import { reportCaught } from '@/utils/exception-report'
 
 export type ClockStyle = 'digital' | 'analog' | 'flip' | 'neon' | 'minimal'
 
@@ -71,7 +72,7 @@ export const useClockStore = create<ClockStore>()(
               state.loaded = true
             })
           } catch (e) {
-            console.error('[clock-store] initialize failed:', e)
+            reportCaught('clock-store.initialize', e, 'warning')
             setter(function (state) {
               state.loaded = true
             })
@@ -91,7 +92,7 @@ export const useClockStore = create<ClockStore>()(
             setter(function (state) {
               state.config = prev
             })
-            console.error('[clock-store] updateConfig failed:', e)
+            reportCaught('clock-store.updateConfig', e)
             throw e
           }
         },

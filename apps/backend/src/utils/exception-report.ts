@@ -26,7 +26,8 @@ interface ReportInput {
 }
 
 let isInstalled = false
-let isReporting = false
+/** 正在 POST /exception，防止上报失败再触发上报 */
+let isPosting = false
 
 function findRelease(): string | undefined {
   const value = String(import.meta.env.VITE_APP_VERSION ?? '').trim()
@@ -59,6 +60,7 @@ function parseStack(error: unknown): string | undefined {
 }
 
 function shouldSkip(error: unknown): boolean {
+  if (isPosting) return true
   if (isSessionInvalid(error)) return true
   if (!(error instanceof HttpException)) return false
   // 业务信封失败（非网络/非 5xx）通常已 toast，不当作崩溃上报
@@ -69,7 +71,7 @@ function shouldSkip(error: unknown): boolean {
 }
 
 async function reportException(input: ReportInput): Promise<void> {
-  if (isReporting) return
+  if (isPosting) return
   const message = input.message.trim()
   if (!message) return
 
@@ -91,17 +93,21 @@ async function reportException(input: ReportInput): Promise<void> {
     fingerprint: input.fingerprint
   }
 
-  isReporting = true
+  isPosting = true
   try {
     await POST_EXCEPTION(body)
   } catch (error) {
     console.warn('[exception-report] 上报失败', error)
   } finally {
-    isReporting = false
+    isPosting = false
   }
 }
 
-function reportUnknown(error: unknown, context?: Record<string, unknown>, level: ExceptionLevel = 'error') {
+function reportUnknown(
+  error: unknown,
+  context?: Record<string, unknown>,
+  level: ExceptionLevel = 'error'
+) {
   if (shouldSkip(error)) return
   const http = error instanceof HttpException ? error : null
   void reportException({
@@ -116,6 +122,17 @@ function reportUnknown(error: unknown, context?: Record<string, unknown>, level:
       code: http?.code
     }
   })
+}
+
+/** catch 现场：打日志 + 上报（主要逻辑点统一入口） */
+function reportCaught(
+  scope: string,
+  error: unknown,
+  level: ExceptionLevel = 'error',
+  context?: Record<string, unknown>
+) {
+  console.error(`[${scope}]`, error)
+  reportUnknown(error, { kind: scope, ...context }, level)
 }
 
 function installExceptionReporting(): void {
@@ -134,5 +151,12 @@ function installExceptionReporting(): void {
   })
 }
 
-export { REPORT_PATH, SOURCE, installExceptionReporting, reportException, reportUnknown }
+export {
+  REPORT_PATH,
+  SOURCE,
+  installExceptionReporting,
+  reportCaught,
+  reportException,
+  reportUnknown
+}
 export type { ExceptionLevel, ReportInput }

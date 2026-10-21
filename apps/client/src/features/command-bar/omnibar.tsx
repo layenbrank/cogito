@@ -32,6 +32,7 @@ import {
   isUrlKeyword,
   parseKeywordUrl
 } from '@/features/command-bar/url'
+import { reportCaught } from '@/utils/exception-report'
 
 bootstrapCommandBar()
 
@@ -140,7 +141,7 @@ function CommandOmnibar() {
       setSurfaceOpen(false)
       setRailOpen(false)
     } catch (error) {
-      console.error('[command-bar] 激活失败:', error)
+      reportCaught('command-bar.activateHit', error)
       toast.error('无法打开该项')
     }
   }
@@ -159,7 +160,7 @@ function CommandOmnibar() {
       }
       setSurfaceOpen(false)
     } catch (error) {
-      console.error('[command-bar] 外跳失败:', error)
+      reportCaught('command-bar.submit', error)
       toast.error('无法打开链接')
     }
   }

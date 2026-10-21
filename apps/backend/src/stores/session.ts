@@ -14,6 +14,7 @@ import {
   isSessionInvalid,
   subscribeAuthToken
 } from '@/utils/auth.ts'
+import { reportCaught } from '@/utils/exception-report.ts'
 import { clearActiveTenantCache } from '@/utils/tenant.ts'
 
 interface SessionUser {
@@ -59,6 +60,7 @@ async function hydrateSessionUser(
       set({ user: null, isLoading: false })
       return
     }
+    reportCaught('session.hydrateSessionUser', error)
     set({ isLoading: false })
     toast.error(error instanceof Error ? error.message : '加载会话失败')
   }

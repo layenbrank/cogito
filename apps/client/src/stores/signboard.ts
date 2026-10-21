@@ -9,6 +9,7 @@ import {
   type AutomationEvent
 } from '@/features/signboard/automation'
 import { CHANNELS } from '@/shared/ipc/channels'
+import { reportCaught } from '@/utils/exception-report'
 
 interface SignboardBoard {
   id: string
@@ -221,7 +222,7 @@ const useSignboardStore = create<SignboardStore>()(
         entriesInColumn(columnID) {
           return getter()
             .entries.filter(function (card) {
-              return card.columnID === columnID && card.archivedAt == null
+              return card.columnID === columnID && card.archivedAt === null
             })
             .slice()
             .sort(function (a, b) {
@@ -243,7 +244,7 @@ const useSignboardStore = create<SignboardStore>()(
             )
             return boards
           } catch (error) {
-            console.error('[signboard-store] toReadBoards failed:', error)
+            reportCaught('signboard-store.toReadBoards', error)
             return []
           }
         },
@@ -309,7 +310,7 @@ const useSignboardStore = create<SignboardStore>()(
               'toActivateBoard'
             )
           } catch (error) {
-            console.error('[signboard-store] toActivateBoard failed:', error)
+            reportCaught('signboard-store.toActivateBoard', error)
             setter(
               function (state) {
                 state.loaded = true
@@ -344,7 +345,7 @@ const useSignboardStore = create<SignboardStore>()(
               await getter().toActivateBoard(boardID)
               return
             } catch (error) {
-              console.error('[signboard-store] seed failed:', error)
+              reportCaught('signboard-store.seed', error)
               setter(
                 function (state) {
                   state.loaded = true
@@ -362,7 +363,7 @@ const useSignboardStore = create<SignboardStore>()(
               return board.id === getter().activeBoardID
             })
               ? getter().activeBoardID!
-              : boards[0]!.id
+              : boards[0].id
           await getter().toActivateBoard(active)
         },
 
@@ -376,7 +377,7 @@ const useSignboardStore = create<SignboardStore>()(
             if (id) await getter().toActivateBoard(id)
             return id
           } catch (error) {
-            console.error('[signboard-store] toWriteBoard failed:', error)
+            reportCaught('signboard-store.toWriteBoard', error)
             return undefined
           }
         },
@@ -389,7 +390,7 @@ const useSignboardStore = create<SignboardStore>()(
             await getter().toReadBoards()
             return true
           } catch (error) {
-            console.error('[signboard-store] toUpdateBoard failed:', error)
+            reportCaught('signboard-store.toUpdateBoard', error)
             return false
           }
         },
@@ -405,7 +406,7 @@ const useSignboardStore = create<SignboardStore>()(
             await getter().toActivateBoard(boardID)
             return ids[0]
           } catch (error) {
-            console.error('[signboard-store] toWriteColumn failed:', error)
+            reportCaught('signboard-store.toWriteColumn', error)
             return undefined
           }
         },
@@ -419,7 +420,7 @@ const useSignboardStore = create<SignboardStore>()(
             if (boardID) await getter().toActivateBoard(boardID)
             return true
           } catch (error) {
-            console.error('[signboard-store] toUpdateColumn failed:', error)
+            reportCaught('signboard-store.toUpdateColumn', error)
             return false
           }
         },
@@ -454,7 +455,7 @@ const useSignboardStore = create<SignboardStore>()(
             }
             return entryID
           } catch (error) {
-            console.error('[signboard-store] toWriteEntry failed:', error)
+            reportCaught('signboard-store.toWriteEntry', error)
             return undefined
           }
         },
@@ -471,7 +472,7 @@ const useSignboardStore = create<SignboardStore>()(
             })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
-            if (dueChanged && change.dueAt != null) {
+            if (dueChanged && change.dueAt !== null && change.dueAt !== undefined) {
               await runAutomations(getter, {
                 trigger: 'entryDueSet',
                 entryID: key,
@@ -481,7 +482,7 @@ const useSignboardStore = create<SignboardStore>()(
             }
             return true
           } catch (error) {
-            console.error('[signboard-store] toUpdateEntry failed:', error)
+            reportCaught('signboard-store.toUpdateEntry', error)
             return false
           }
         },
@@ -580,7 +581,7 @@ const useSignboardStore = create<SignboardStore>()(
             }
             return true
           } catch (error) {
-            console.error('[signboard-store] toMoveEntry failed:', error)
+            reportCaught('signboard-store.toMoveEntry', error)
             setter(
               function (state) {
                 state.entries = previous.entries
@@ -599,7 +600,7 @@ const useSignboardStore = create<SignboardStore>()(
             if (boardID) await getter().toActivateBoard(boardID)
             return true
           } catch (error) {
-            console.error('[signboard-store] toRemoveEntry failed:', error)
+            reportCaught('signboard-store.toRemoveEntry', error)
             return false
           }
         },
@@ -612,7 +613,7 @@ const useSignboardStore = create<SignboardStore>()(
             await getter().toActivateBoard(boardID)
             return ids[0]
           } catch (error) {
-            console.error('[signboard-store] toWriteTag failed:', error)
+            reportCaught('signboard-store.toWriteTag', error)
             return undefined
           }
         },
@@ -626,7 +627,7 @@ const useSignboardStore = create<SignboardStore>()(
             if (boardID) await getter().toActivateBoard(boardID)
             return true
           } catch (error) {
-            console.error('[signboard-store] toTagEntry failed:', error)
+            reportCaught('signboard-store.toTagEntry', error)
             return false
           }
         },
@@ -640,7 +641,7 @@ const useSignboardStore = create<SignboardStore>()(
             if (boardID) await getter().toActivateBoard(boardID)
             return true
           } catch (error) {
-            console.error('[signboard-store] toUntagEntry failed:', error)
+            reportCaught('signboard-store.toUntagEntry', error)
             return false
           }
         },
@@ -655,7 +656,7 @@ const useSignboardStore = create<SignboardStore>()(
             if (boardID) await getter().toActivateBoard(boardID)
             return ids[0]
           } catch (error) {
-            console.error('[signboard-store] toWriteCheck failed:', error)
+            reportCaught('signboard-store.toWriteCheck', error)
             return undefined
           }
         },
@@ -669,7 +670,7 @@ const useSignboardStore = create<SignboardStore>()(
             if (boardID) await getter().toActivateBoard(boardID)
             return true
           } catch (error) {
-            console.error('[signboard-store] toUpdateCheck failed:', error)
+            reportCaught('signboard-store.toUpdateCheck', error)
             return false
           }
         },
@@ -681,7 +682,7 @@ const useSignboardStore = create<SignboardStore>()(
             if (boardID) await getter().toActivateBoard(boardID)
             return true
           } catch (error) {
-            console.error('[signboard-store] toRemoveCheck failed:', error)
+            reportCaught('signboard-store.toRemoveCheck', error)
             return false
           }
         },
@@ -707,7 +708,7 @@ const useSignboardStore = create<SignboardStore>()(
             await getter().toActivateBoard(value.boardID)
             return ids[0]
           } catch (error) {
-            console.error('[signboard-store] toWriteAutomation failed:', error)
+            reportCaught('signboard-store.toWriteAutomation', error)
             return undefined
           }
         },
@@ -721,7 +722,7 @@ const useSignboardStore = create<SignboardStore>()(
             if (boardID) await getter().toActivateBoard(boardID)
             return true
           } catch (error) {
-            console.error('[signboard-store] toUpdateAutomation failed:', error)
+            reportCaught('signboard-store.toUpdateAutomation', error)
             return false
           }
         },
@@ -733,7 +734,7 @@ const useSignboardStore = create<SignboardStore>()(
             if (boardID) await getter().toActivateBoard(boardID)
             return true
           } catch (error) {
-            console.error('[signboard-store] toRemoveAutomation failed:', error)
+            reportCaught('signboard-store.toRemoveAutomation', error)
             return false
           }
         }
@@ -785,7 +786,7 @@ async function applyAction(
         const boardID = getter().activeBoardID
         if (boardID) await getter().toActivateBoard(boardID)
       } catch (error) {
-        console.error('[signboard-store] automation attachTag failed:', error)
+        reportCaught('signboard-store.automationAttachTag', error)
       }
       return
     case 'archiveCard':
@@ -810,7 +811,7 @@ async function persistCardChange(
     const boardID = getter().activeBoardID
     if (boardID) await getter().toActivateBoard(boardID)
   } catch (error) {
-    console.error('[signboard-store] automation card update failed:', error)
+    reportCaught('signboard-store.automationCardUpdate', error)
   }
 }
 

@@ -24,7 +24,8 @@ interface ReportInput {
 }
 
 let isInstalled = false
-let isReporting = false
+/** 正在 POST /exception，防止上报失败再触发上报 */
+let isPosting = false
 
 function findRelease(): string | undefined {
   const value = String(import.meta.env.VITE_APP_VERSION ?? '').trim()
@@ -57,6 +58,7 @@ function parseStack(error: unknown): string | undefined {
 }
 
 function shouldSkip(error: unknown): boolean {
+  if (isPosting) return true
   if (!(error instanceof HttpException)) return false
   if (error.code > 0 && error.code !== 200000 && (!error.status || error.status < 500)) {
     return true
@@ -65,7 +67,7 @@ function shouldSkip(error: unknown): boolean {
 }
 
 async function reportException(input: ReportInput): Promise<void> {
-  if (isReporting) return
+  if (isPosting) return
   const message = input.message.trim()
   if (!message) return
 
@@ -87,13 +89,13 @@ async function reportException(input: ReportInput): Promise<void> {
     fingerprint: input.fingerprint
   }
 
-  isReporting = true
+  isPosting = true
   try {
     await POST_EXCEPTION(body)
   } catch (error) {
     console.warn('[exception-report] 上报失败', error)
   } finally {
-    isReporting = false
+    isPosting = false
   }
 }
 
@@ -118,6 +120,17 @@ function reportUnknown(
   })
 }
 
+/** catch 现场：打日志 + 上报（主要逻辑点统一入口） */
+function reportCaught(
+  scope: string,
+  error: unknown,
+  level: ExceptionLevel = 'error',
+  context?: Record<string, unknown>
+) {
+  console.error(`[${scope}]`, error)
+  reportUnknown(error, { kind: scope, ...context }, level)
+}
+
 function installExceptionReporting(): void {
   if (isInstalled || typeof window === 'undefined') return
   isInstalled = true
@@ -133,5 +146,5 @@ function installExceptionReporting(): void {
   })
 }
 
-export { SOURCE, installExceptionReporting, reportException, reportUnknown }
+export { SOURCE, installExceptionReporting, reportCaught, reportException, reportUnknown }
 export type { ExceptionLevel, ReportInput }

@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { POST_CAPTCHA, type CaptchaChallenge, type SlideProof } from '@/apis/auth.ts'
+import { reportCaught } from '@/utils/exception-report.ts'
 import { HttpError } from '@/utils/http/errors.ts'
 
 interface SlidePoint {
@@ -53,6 +54,7 @@ function SlideDialog(props: SlideDialogProps) {
         })
         .catch(function (error) {
           if (!isCurrent) return
+          reportCaught('signin.slide-dialog.loadCaptcha', error)
           toast.error(HttpError(error).message || '验证码加载失败')
           finish(null)
         })

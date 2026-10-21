@@ -14,10 +14,11 @@ import { ConsolePage } from '@/components/console/console-page.tsx'
 import { DataTable } from '@/components/console/data-table.tsx'
 import { FilterBar } from '@/components/console/filter-bar.tsx'
 import { QueryState } from '@/components/console/query-state.tsx'
+import { reportCaught } from '@/utils/exception-report.ts'
 import { HttpError } from '@/utils/http/errors.ts'
 
 function formatFen(amount: number | undefined | null) {
-  if (amount == null) return '—'
+  if (amount === null || amount === undefined) return '—'
   return (amount / 100).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
@@ -60,6 +61,7 @@ export default function ReconciliationView() {
       await EXPORT_BILLING_RECONCILIATION({ ...query, format: 'csv' })
       toast.success('已开始下载')
     } catch (error) {
+      reportCaught('billing.reconciliation.handleExport', error)
       toast.error(HttpError(error).message)
     } finally {
       updateExporting(false)
