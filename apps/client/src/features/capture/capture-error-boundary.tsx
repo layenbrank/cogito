@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
 import styles from '@/features/capture/capture.module.scss'
+import { reportUnknown } from '@/utils/exception-report.ts'
 
 interface CaptureErrorBoundaryProps {
   children: ReactNode
@@ -21,6 +22,11 @@ class CaptureErrorBoundary extends Component<CaptureErrorBoundaryProps, CaptureE
 
   override componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('[CaptureErrorBoundary]', error, info)
+    reportUnknown(
+      error,
+      { kind: 'CaptureErrorBoundary', componentStack: info.componentStack ?? undefined },
+      'error'
+    )
     this.props.onError()
   }
 

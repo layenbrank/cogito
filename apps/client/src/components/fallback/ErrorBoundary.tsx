@@ -1,6 +1,8 @@
 import { Button } from '@i-thinking/design/components/button'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
+import { reportUnknown } from '@/utils/exception-report.ts'
+
 import { ERROR } from './constants.ts'
 import styles from './error-boundary.module.scss'
 
@@ -31,6 +33,11 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
   override componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('[ErrorBoundary]', error, info.componentStack)
+    reportUnknown(
+      error,
+      { kind: 'ErrorBoundary', componentStack: info.componentStack ?? undefined },
+      'fatal'
+    )
     this.props.onError?.(error, info)
   }
 
