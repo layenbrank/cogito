@@ -43,6 +43,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ai_worker"]
+# 迁移 SQL 必须随 wheel 进 site-packages（Docker --no-editable 运行时无 src/ 树）。
+# 无 VCS 的构建上下文（镜像构建）也要带上，不能只靠 git tracked。
+[tool.hatch.build.targets.wheel.force-include]
+"src/ai_worker/sql" = "ai_worker/sql"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
