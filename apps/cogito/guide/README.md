@@ -50,6 +50,7 @@ Token 来自 `POST /api/v1/auth/signin` 或 `signup` 响应的 `data.token`。
 | 上传 | `/api/v1/upload` | [upload](../src/services/upload/README.md) | [`http/03-upload.http`](../http/03-upload.http) |
 | 搜索引擎代理 | `/api/v1/engine` | [engine](../src/services/engine/README.md) | [`http/04-engine.http`](../http/04-engine.http) |
 | 应用 | `/api/v1/application` | [application](../src/services/application/README.md) | [`http/05-application.http`](../http/05-application.http) |
+| 异常上报 | `/api/v1/exception` | [exception](../src/services/exception/README.md) | [`http/09-exception.http`](../http/09-exception.http) |
 | 订阅 | `/api/v1/tenants/{id}/subscriptions` | [subscription](../src/services/subscription/README.md) | OpenAPI |
 | 支付 | `/api/v1/tenants/{id}/orders` | [payment](../src/services/payment/README.md) | OpenAPI |
 | 模型网关 | `/api/v1/gateway` · `/api/v1/tenants/{id}/audit` | [gateway](../src/services/gateway/README.md) | [`http/07-gateway-audit.http`](../http/07-gateway-audit.http) |

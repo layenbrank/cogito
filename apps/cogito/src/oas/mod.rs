@@ -7,6 +7,7 @@ pub mod chat;
 pub mod common;
 pub mod console;
 pub mod engine;
+pub mod exception;
 pub mod gateway;
 pub mod mcp;
 pub mod paths;
@@ -25,16 +26,17 @@ use utoipa::OpenApi;
 use crate::oas::common::{
     ApplicationEnvelope, ApprovalEnvelope, CaptchaEnvelope, CatalogEnvelope, ChatChangesEnvelope,
     ChatSyncEnvelope, ChunkUploadEnvelope, ChunkUploadForm, DependencyCheck, EmptyEnvelope, EmptyR,
-    Exception, FinalizeUploadEnvelope, Health, HealthEnvelope, IndexTaskEnvelope, Liveness,
-    LivenessEnvelope, MemberEnvelope, MemberListEnvelope, ModelEnvelope, ModelListEnvelope,
-    OrderEnvelope, OrderListEnvelope, PlansEnvelope, PreferenceEnvelope, PriceEnvelope,
-    PriceListEnvelope, ProfileEnvelope, ProviderEnvelope, ProviderListEnvelope, QuotaEnvelope,
-    Readiness, ReadinessEnvelope, ReconcileEnvelope, SelfQuotaEnvelope, SigninEnvelope,
-    SigninErrorExample, SigninSuccessExample, SignupEnvelope, SsoConnectionEnvelope,
-    SsoConnectionListEnvelope, SsoLoginEnvelope, SubscriptionEnvelope, SubscriptionListEnvelope,
-    SuggestionEnvelope, TaskEnvelope, TenantEnvelope, TenantListEnvelope, UploadFilesEnvelope,
-    UploadHashEnvelope, UploadPrepareEnvelope, UploadProgressEnvelope, UserEnvelope,
-    UserListEnvelope,
+    Exception, ExceptionEnvelope, ExceptionGroupPageEnvelope, ExceptionPageEnvelope,
+    ExceptionSourcesEnvelope, ExceptionSummaryEnvelope, FinalizeUploadEnvelope, Health,
+    HealthEnvelope, IndexTaskEnvelope, Liveness, LivenessEnvelope, MemberEnvelope,
+    MemberListEnvelope, ModelEnvelope, ModelListEnvelope, OrderEnvelope, OrderListEnvelope,
+    PlansEnvelope, PreferenceEnvelope, PriceEnvelope, PriceListEnvelope, ProfileEnvelope,
+    ProviderEnvelope, ProviderListEnvelope, QuotaEnvelope, Readiness, ReadinessEnvelope,
+    ReconcileEnvelope, SelfQuotaEnvelope, SigninEnvelope, SigninErrorExample, SigninSuccessExample,
+    SignupEnvelope, SsoConnectionEnvelope, SsoConnectionListEnvelope, SsoLoginEnvelope,
+    SubscriptionEnvelope, SubscriptionListEnvelope, SuggestionEnvelope, TaskEnvelope,
+    TenantEnvelope, TenantListEnvelope, UploadFilesEnvelope, UploadHashEnvelope,
+    UploadPrepareEnvelope, UploadProgressEnvelope, UserEnvelope, UserListEnvelope,
 };
 use crate::services::agent::schema::{ApprovalP, ApprovalR, TaskP, TaskR};
 use crate::services::application::schema::{App, Component, Direction, Shape, Size};
@@ -49,6 +51,10 @@ use crate::services::chat::schema::{
 };
 use crate::services::console::schema::{PreferenceP, PreferenceR};
 use crate::services::engine::schema::{EmptySchema, ISchema, QueryP, SuggestionR, TSchema};
+use crate::services::exception::schema::{
+    ExceptionR, GroupPageR, GroupR, PageR, QueryP as ExceptionQueryP, SummaryR,
+    WriteP as ExceptionWriteP,
+};
 use crate::services::gateway::schema::{
     ChatCompletionsP, EmbeddingsP, ModelR, ModelUpdateP, ModelWriteP, PlanR, PlansR, ProviderR,
     ProviderUpdateP, ProviderWriteP, SelfQuotaP, SelfQuotaR, ServiceTokenP, ServiceTokenR,
@@ -118,6 +124,13 @@ use crate::services::user::schema::{Avatar as UserAvatar, UpdateP, UserR, WriteP
         user::toRemove_doc,
         console::toRead_doc,
         console::toUpdate_doc,
+        exception::toWrite_doc,
+        exception::toList_doc,
+        exception::groups_doc,
+        exception::sources_doc,
+        exception::summary_doc,
+        exception::toRead_doc,
+        exception::toRemove_doc,
         upload::prepare_upload_doc,
         upload::bind_hash_doc,
         upload::chunk_upload_doc,
@@ -238,6 +251,18 @@ use crate::services::user::schema::{Avatar as UserAvatar, UpdateP, UserR, WriteP
             PreferenceP,
             PreferenceR,
             PreferenceEnvelope,
+            ExceptionWriteP,
+            ExceptionQueryP,
+            ExceptionR,
+            PageR,
+            GroupR,
+            GroupPageR,
+            SummaryR,
+            ExceptionEnvelope,
+            ExceptionPageEnvelope,
+            ExceptionGroupPageEnvelope,
+            ExceptionSummaryEnvelope,
+            ExceptionSourcesEnvelope,
             PrepareP,
             PrepareR,
             UploadedChunk,

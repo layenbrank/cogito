@@ -8,6 +8,7 @@ use crate::services::{
     chat::schema::{ChatChangesR, ChatSyncR},
     console::schema::PreferenceR,
     engine::schema::SuggestionR,
+    exception::schema::{ExceptionR, GroupPageR, PageR, SummaryR},
     gateway::schema::{ModelR, PlansR, ProviderR, SelfQuotaR},
     payment::schema::{CatalogR, OrderR, PriceR, ReconcileR},
     rag::schema::IndexTaskR,
@@ -48,6 +49,11 @@ envelope!(ProfileEnvelope, ProfileR);
 envelope!(UserEnvelope, UserR);
 envelope!(UserListEnvelope, Vec<UserR>);
 envelope!(PreferenceEnvelope, PreferenceR);
+envelope!(ExceptionEnvelope, ExceptionR);
+envelope!(ExceptionPageEnvelope, PageR);
+envelope!(ExceptionGroupPageEnvelope, GroupPageR);
+envelope!(ExceptionSummaryEnvelope, SummaryR);
+envelope!(ExceptionSourcesEnvelope, Vec<String>);
 envelope!(UploadPrepareEnvelope, PrepareR);
 envelope!(UploadHashEnvelope, HashR);
 envelope!(ChunkUploadEnvelope, ChunkR);

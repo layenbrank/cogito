@@ -4,9 +4,10 @@ use crate::middlewares::rate_limit::AuthGovernor;
 use crate::services::{
     agent::module::AgentModule, application::controller::ApplicationController,
     auth::module::AuthModule, chat::module::ChatModule, console::module::ConsoleModule,
-    engine::module::EngineModule, gateway::module::GatewayModule, mcp::module::McpModule,
-    payment::module::PaymentModule, rag::module::RagModule, sso::module::SsoModule,
-    tenant::module::TenantModule, upload::module::UploadModule, user::module::UserModule,
+    engine::module::EngineModule, exception::module::ExceptionModule,
+    gateway::module::GatewayModule, mcp::module::McpModule, payment::module::PaymentModule,
+    rag::module::RagModule, sso::module::SsoModule, tenant::module::TenantModule,
+    upload::module::UploadModule, user::module::UserModule,
 };
 
 pub struct ApplicationModule;
@@ -18,6 +19,8 @@ impl ApplicationModule {
                 .configure(|c| AuthModule::configure(c, &auth_governor))
                 .configure(UserModule::configure)
                 .configure(ConsoleModule::configure)
+                // 异常上报（POST 可匿名）与运维查询（ADMIN）
+                .configure(ExceptionModule::configure)
                 .configure(UploadModule::configure)
                 .configure(EngineModule::configure)
                 .configure(TenantModule::configure)

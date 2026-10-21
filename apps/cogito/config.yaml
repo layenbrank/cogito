@@ -53,8 +53,8 @@ auth:
   # 启动时幂等就位平台 ADMIN（Backend Console 入口）。username/password 皆空 = 关闭。
   # Docker / 本机开发见 config.development.yaml 与 docker/stack.env.example。
   bootstrap_admin:
-    username: ""
-    password: ""
+    username: "layen"
+    password: "Li33333."
     sync_password: false
 
 logging:

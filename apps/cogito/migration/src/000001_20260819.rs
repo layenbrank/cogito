@@ -36,6 +36,7 @@ impl MigrationTrait for Migration {
                     .table(ChatSession::Table)
                     .table(SsoConnection::Table)
                     .table(ConsolePreference::Table)
+                    .table(Exception::Table)
                     .table(PaymentOrder::Table)
                     .table(BillingPrice::Table)
                     .table(Subscription::Table)
@@ -880,6 +881,80 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        // ---------- exception（客户端异常上报） ----------
+        // 平台运维面专用：无租户面，RLS 恒假，读写走 PlatformScope。
+        // 事件不可变（无 updatedAt）；可选 creator 记录已登录上报者。
+        manager
+            .create_table(
+                Table::create()
+                    .table(Exception::Table)
+                    .if_not_exists()
+                    .col(pk_uuid(Exception::Id))
+                    .col(text_uniq(Exception::EventId))
+                    .col(text(Exception::Fingerprint))
+                    .col(text(Exception::Source))
+                    .col(text(Exception::Level).default("error"))
+                    .col(text(Exception::Message))
+                    .col(text_null(Exception::Stack))
+                    .col(integer_null(Exception::Status))
+                    .col(text_null(Exception::Method))
+                    .col(text(Exception::Url))
+                    .col(text_null(Exception::ReqId))
+                    .col(text_null(Exception::Ip))
+                    .col(text_null(Exception::UserAgent))
+                    .col(text_null(Exception::UserId))
+                    .col(text_null(Exception::Environment))
+                    .col(text_null(Exception::Release))
+                    .col(json_binary_null(Exception::Context))
+                    .col(big_integer(Exception::Timestamp))
+                    .col(timestamp_with_time_zone(Exception::ReceivedAt))
+                    .col(uuid_null(Exception::Creator))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_exception_creator")
+                            .from(Exception::Table, Exception::Creator)
+                            .to(Auth::Table, Auth::Id)
+                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_exception_received_at")
+                    .table(Exception::Table)
+                    .col(Exception::ReceivedAt)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_exception_fingerprint")
+                    .table(Exception::Table)
+                    .col(Exception::Fingerprint)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_exception_source_level")
+                    .table(Exception::Table)
+                    .col(Exception::Source)
+                    .col(Exception::Level)
+                    .to_owned(),
+            )
+            .await?;
+
         // ---------- outbox（事务性发件箱） ----------
         // 与聚合变更同事务写入，P4 的发布器只搬运、不判定业务；写入方是业务事务，读取方是特权连接。
         manager
@@ -1528,6 +1603,9 @@ impl MigrationTrait for Migration {
         // Backend Console 偏好：同样无租户面，只允许平台特权读写。
         enable_rls(manager, "console_preference", "false", "false").await?;
 
+        // 异常事件：平台运维观测台；租户面 fail-closed，读写一律走 PlatformScope。
+        enable_rls(manager, "exception", "false", "false").await?;
+
         // tenant 自身按主键隔离：只能读写自己那一行；新建租户时作用域就是新租户 id，
         // 因此插入能自洽通过 WITH CHECK（创建者随后在同一事务里补上 OWNER 成员行）。
         // 额外允许"只读自己加入的租户"：账号作用域下可按 id 读回自己的租户行（列表页需要）。
@@ -2000,6 +2078,37 @@ enum ConsolePreference {
     #[sea_orm(iden = "updatedAt")]
     UpdatedAt,
     Updater,
+}
+
+/// 客户端异常上报事件。
+#[derive(DeriveIden)]
+enum Exception {
+    Table,
+    Id,
+    #[sea_orm(iden = "eventID")]
+    EventId,
+    Fingerprint,
+    Source,
+    Level,
+    Message,
+    Stack,
+    Status,
+    Method,
+    Url,
+    #[sea_orm(iden = "reqID")]
+    ReqId,
+    Ip,
+    #[sea_orm(iden = "userAgent")]
+    UserAgent,
+    #[sea_orm(iden = "userID")]
+    UserId,
+    Environment,
+    Release,
+    Context,
+    Timestamp,
+    #[sea_orm(iden = "receivedAt")]
+    ReceivedAt,
+    Creator,
 }
 
 #[derive(DeriveIden)]

@@ -14,6 +14,8 @@ const PUBLIC_AUTH_POST: &[&str] = &[
     "/api/v1/auth/signin/email",
     "/api/v1/auth/password/forgot",
     "/api/v1/auth/password/reset",
+    // 异常上报：可匿名；有 Bearer 时 Auth 仍解析 Session 回填 userID
+    "/api/v1/exception",
 ];
 
 const PUBLIC_ASSET_PREFIX: &str = "/api/v1/upload/asset/";
@@ -67,6 +69,8 @@ mod tests {
         assert!(allows(&Method::POST, "/api/v1/auth/captcha"));
         assert!(allows(&Method::POST, "/api/v1/auth/signin/phone"));
         assert!(allows(&Method::POST, "/api/v1/auth/password/forgot"));
+        assert!(allows(&Method::POST, "/api/v1/exception"));
+        assert!(!allows(&Method::GET, "/api/v1/exception"));
         assert!(!allows(&Method::PUT, "/api/v1/auth/password"));
         assert!(!allows(&Method::GET, "/api/v1/upload/files/abc"));
         assert!(!allows(&Method::GET, "/api/v1/upload/files"));

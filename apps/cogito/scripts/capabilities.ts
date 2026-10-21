@@ -78,7 +78,7 @@ export const CAPABILITIES: readonly Capability[] = [
   {
     name: 'audit',
     title: '事件与审计',
-    owns: ['outbox', 'consumed_event'],
+    owns: ['outbox', 'consumed_event', 'exception'],
     dependsOn: ['identity'],
     publicModules: [],
     absorbs: [],
@@ -227,6 +227,10 @@ export const LEGACY_SERVICES: Record<string, { owner: string; note: string }> = 
   console: {
     owner: 'identity',
     note: 'Backend Console 偏好（新写）：表 console_preference，HTTP 层留在 api 二进制'
+  },
+  exception: {
+    owner: 'audit',
+    note: '客户端异常上报（新写）：表 exception，HTTP 层留在 api 二进制；管理面走 PlatformScope'
   }
 }
 
@@ -365,6 +369,11 @@ export const PLATFORM_ENTRY_ALLOWED: Record<string, { max: number; reason: strin
     max: 2,
     reason:
       'Backend Console 偏好（平台 ADMIN 个人布局）：2 个 handler 各开一段特权作用域；表 RLS 恒假，业务按 actor 过滤本人行'
+  },
+  'src/services/exception/controller.rs': {
+    max: 7,
+    reason:
+      '异常上报与运维查询：表 exception RLS 恒假；7 个 handler（上报/列表/详情/删除/groups/sources/summary）各开一段 PlatformScope'
   },
   'src/worker/runner.rs': {
     max: 1,

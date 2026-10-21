@@ -210,6 +210,14 @@ pub mod services {
         pub mod service;
     }
 
+    /// 客户端异常上报与平台运维查询（对标 Node Exception）。
+    pub mod exception {
+        pub mod controller;
+        pub mod module;
+        pub mod schema;
+        pub mod service;
+    }
+
     pub mod auth {
         pub mod captcha;
         pub mod controller;

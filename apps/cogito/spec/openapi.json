@@ -1635,6 +1635,509 @@
         ],
         "type": "object"
       },
+      "ExceptionEnvelope": {
+        "properties": {
+          "code": {
+            "description": "业务状态码（200000=成功）",
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ExceptionR"
+              }
+            ]
+          },
+          "msg": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "traceID": {
+            "description": "链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "success",
+          "msg",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "ExceptionGroupPageEnvelope": {
+        "properties": {
+          "code": {
+            "description": "业务状态码（200000=成功）",
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/GroupPageR"
+              }
+            ]
+          },
+          "msg": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "traceID": {
+            "description": "链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "success",
+          "msg",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "ExceptionPageEnvelope": {
+        "properties": {
+          "code": {
+            "description": "业务状态码（200000=成功）",
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PageR"
+              }
+            ]
+          },
+          "msg": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "traceID": {
+            "description": "链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "success",
+          "msg",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "ExceptionQueryP": {
+        "description": "列表 / 聚合共用查询参数",
+        "properties": {
+          "environment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "level": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "q": {
+            "description": "message / url 模糊搜索（≤200）",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "receivedFrom": {
+            "description": "入库时间下界（ISO8601）",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "receivedTo": {
+            "description": "入库时间上界（ISO8601）",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "skip": {
+            "description": "偏移，默认 0",
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "take": {
+            "description": "分页大小 1–100，默认 50",
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "ExceptionR": {
+        "description": "单条异常事件响应",
+        "properties": {
+          "context": {},
+          "environment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "eventID": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "ip": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "level": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "method": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "receivedAt": {
+            "description": "入库毫秒时间戳",
+            "format": "int64",
+            "type": "integer"
+          },
+          "release": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reqID": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "stack": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "url": {
+            "type": "string"
+          },
+          "userAgent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "userID": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "eventID",
+          "fingerprint",
+          "source",
+          "level",
+          "message",
+          "url",
+          "timestamp",
+          "receivedAt"
+        ],
+        "type": "object"
+      },
+      "ExceptionSourcesEnvelope": {
+        "properties": {
+          "code": {
+            "description": "业务状态码（200000=成功）",
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "msg": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "traceID": {
+            "description": "链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "success",
+          "msg",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "ExceptionSummaryEnvelope": {
+        "properties": {
+          "code": {
+            "description": "业务状态码（200000=成功）",
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SummaryR"
+              }
+            ]
+          },
+          "msg": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "traceID": {
+            "description": "链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "success",
+          "msg",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "ExceptionWriteP": {
+        "description": "客户端上报请求体",
+        "properties": {
+          "context": {
+            "description": "扩展上下文"
+          },
+          "environment": {
+            "description": "运行环境（≤32）",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "eventID": {
+            "description": "客户端生成的事件 UUID（幂等键；服务端不代填）",
+            "type": "string"
+          },
+          "fingerprint": {
+            "description": "聚合指纹（≤64）；缺省服务端按 message|url|status 生成",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ip": {
+            "description": "客户端 IP（≤64）",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "level": {
+            "description": "fatal | error | warning | info；缺省 error",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "description": "错误消息摘要（≤2000）",
+            "type": "string"
+          },
+          "method": {
+            "description": "HTTP 方法（≤16）",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "release": {
+            "description": "应用版本（≤64）",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reqID": {
+            "description": "请求链路 ID（≤128）",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "description": "来源项目名（≤64）；缺省 client",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stack": {
+            "description": "堆栈（≤20000）",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "description": "HTTP 状态码 100–599",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "timestamp": {
+            "description": "异常发生毫秒时间戳",
+            "format": "int64",
+            "type": "integer"
+          },
+          "url": {
+            "description": "页面 / 接口 URL",
+            "type": "string"
+          },
+          "userAgent": {
+            "description": "User-Agent（≤500）",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "userID": {
+            "description": "业务用户 ID（≤128）；有 Session 且为空时由服务端填充",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "eventID",
+          "message",
+          "timestamp",
+          "url"
+        ],
+        "type": "object"
+      },
       "FilesP": {
         "description": "本人文件列表查询",
         "properties": {
@@ -1858,6 +2361,84 @@
           "FEMALE"
         ],
         "type": "string"
+      },
+      "GroupPageR": {
+        "description": "Issue 分页",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GroupR"
+            },
+            "type": "array"
+          },
+          "total": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "type": "object"
+      },
+      "GroupR": {
+        "description": "按 fingerprint 聚合的 Issue",
+        "properties": {
+          "count": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "environment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "firstSeen": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "lastSeen": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "level": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fingerprint",
+          "count",
+          "lastSeen",
+          "firstSeen",
+          "message",
+          "level",
+          "source",
+          "url"
+        ],
+        "type": "object"
       },
       "HashP": {
         "example": {
@@ -2852,6 +3433,27 @@
           "target",
           "captchaKey",
           "captchaValue"
+        ],
+        "type": "object"
+      },
+      "PageR": {
+        "description": "分页列表",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExceptionR"
+            },
+            "type": "array"
+          },
+          "total": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
         ],
         "type": "object"
       },
@@ -5596,6 +6198,44 @@
         "required": [
           "s",
           "i"
+        ],
+        "type": "object"
+      },
+      "SummaryR": {
+        "description": "汇总统计",
+        "properties": {
+          "byLevel": {
+            "additionalProperties": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "bySource": {
+            "additionalProperties": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "total": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "byLevel",
+          "bySource"
         ],
         "type": "object"
       },
@@ -9165,6 +9805,767 @@
         "summary": "获取搜索建议",
         "tags": [
           "Engine"
+        ]
+      }
+    },
+    "/api/v1/exception": {
+      "get": {
+        "description": "仅平台 ADMIN。支持 source/level/fingerprint/environment/q/receivedFrom/receivedTo 筛选与 take/skip 分页。",
+        "operationId": "exception.toList",
+        "parameters": [
+          {
+            "description": "分页大小 1–100，默认 50",
+            "in": "query",
+            "name": "take",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "偏移，默认 0",
+            "in": "query",
+            "name": "skip",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "精确匹配来源",
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "fatal|error|warning|info",
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "精确匹配指纹",
+            "in": "query",
+            "name": "fingerprint",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "运行环境",
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "message/url 模糊搜索",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "入库时间下界 ISO8601",
+            "in": "query",
+            "name": "receivedFrom",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "入库时间上界 ISO8601",
+            "in": "query",
+            "name": "receivedTo",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionPageEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常（未登录或权限不足）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "异常事件列表",
+        "tags": [
+          "Exception"
+        ]
+      },
+      "post": {
+        "description": "可匿名。必填 eventID（客户端 UUID）、message、timestamp、url。有 Bearer 且未传 userID 时回填 Session 用户。成功 body.code=200000。重复 eventID 返回 DUPLICATE_DATA。",
+        "operationId": "exception.toWrite",
+        "parameters": [
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "eventID": "550e8400-e29b-41d4-a716-446655440000",
+                "level": "error",
+                "message": "TypeError: x is not a function",
+                "source": "studio",
+                "timestamp": 1746748800000,
+                "url": "http://localhost:5173/app"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ExceptionWriteP"
+              }
+            }
+          },
+          "description": "异常事件",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常（参数非法或 eventID 冲突）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "上报异常事件",
+        "tags": [
+          "Exception"
+        ]
+      }
+    },
+    "/api/v1/exception/groups": {
+      "get": {
+        "description": "仅平台 ADMIN。按 fingerprint 聚合；故意忽略 query.fingerprint。",
+        "operationId": "exception.groups",
+        "parameters": [
+          {
+            "description": "分页大小 1–100，默认 50",
+            "in": "query",
+            "name": "take",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "偏移，默认 0",
+            "in": "query",
+            "name": "skip",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "精确匹配来源",
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "fatal|error|warning|info",
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "运行环境",
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "message/url 模糊搜索",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "入库时间下界 ISO8601",
+            "in": "query",
+            "name": "receivedFrom",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "入库时间上界 ISO8601",
+            "in": "query",
+            "name": "receivedTo",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionGroupPageEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "异常 Issue 分组",
+        "tags": [
+          "Exception"
+        ]
+      }
+    },
+    "/api/v1/exception/sources": {
+      "get": {
+        "description": "仅平台 ADMIN。返回去重升序的 source 字符串数组。",
+        "operationId": "exception.sources",
+        "parameters": [
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionSourcesEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "异常来源列表",
+        "tags": [
+          "Exception"
+        ]
+      }
+    },
+    "/api/v1/exception/summary": {
+      "get": {
+        "description": "仅平台 ADMIN。返回 total / byLevel / bySource；忽略 query.fingerprint。",
+        "operationId": "exception.summary",
+        "parameters": [
+          {
+            "description": "精确匹配来源",
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "fatal|error|warning|info",
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "运行环境",
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "message/url 模糊搜索",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "入库时间下界 ISO8601",
+            "in": "query",
+            "name": "receivedFrom",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "入库时间上界 ISO8601",
+            "in": "query",
+            "name": "receivedTo",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionSummaryEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "异常汇总",
+        "tags": [
+          "Exception"
+        ]
+      }
+    },
+    "/api/v1/exception/{id}": {
+      "delete": {
+        "description": "仅平台 ADMIN。硬删除；路径 id 为库内主键。",
+        "operationId": "exception.toRemove",
+        "parameters": [
+          {
+            "description": "库内主键 UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000，无 data）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "删除异常事件",
+        "tags": [
+          "Exception"
+        ]
+      },
+      "get": {
+        "description": "仅平台 ADMIN。路径 id 为库内主键，不是 eventID。",
+        "operationId": "exception.toRead",
+        "parameters": [
+          {
+            "description": "库内主键 UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常（不存在或权限不足）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "异常事件详情",
+        "tags": [
+          "Exception"
         ]
       }
     },

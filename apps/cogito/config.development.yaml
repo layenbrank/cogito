@@ -10,8 +10,8 @@ auth:
   # 本机 / compose development：起 api 后可用 admin / admin123456 登录 apps/backend。
   # 生产必须在 stack.env 用真随机密码覆盖，且禁止 change-me 占位值。
   bootstrap_admin:
-    username: admin
-    password: admin123456
+    username: layen
+    password: Li33333.
     sync_password: false
 
 logging:

@@ -1,0 +1,69 @@
+@host = http://127.0.0.1:3000
+@base = {{host}}/api/v1/exception
+@token = {{signin.response.body.$.data.token}}
+@eventID = {{$guid}}
+
+### 最小上报（匿名）
+POST {{base}}
+Content-Type: application/json
+
+{
+  "eventID": "{{eventID}}",
+  "message": "TypeError: x is not a function",
+  "timestamp": 1746748800000,
+  "url": "http://localhost:5173/app"
+}
+
+### 完整上报（带 source）
+POST {{base}}
+Content-Type: application/json
+
+{
+  "eventID": "{{$guid}}",
+  "message": "Network Error",
+  "timestamp": 1746748800000,
+  "url": "http://localhost:5173/api/users",
+  "source": "studio",
+  "level": "error",
+  "status": 500,
+  "method": "GET",
+  "userAgent": "Mozilla/5.0",
+  "environment": "development",
+  "release": "0.1.0"
+}
+
+### 带 JWT 上报（回填 userID）
+POST {{base}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "eventID": "{{$guid}}",
+  "message": "logged-in report",
+  "timestamp": 1746748800000,
+  "url": "http://localhost:5173/settings"
+}
+
+### 列表（ADMIN）
+GET {{base}}?take=20&skip=0
+Authorization: Bearer {{token}}
+
+### Groups（ADMIN）
+GET {{base}}/groups?take=20
+Authorization: Bearer {{token}}
+
+### Sources（ADMIN）
+GET {{base}}/sources
+Authorization: Bearer {{token}}
+
+### Summary（ADMIN）
+GET {{base}}/summary
+Authorization: Bearer {{token}}
+
+### 详情（ADMIN，替换 id）
+GET {{base}}/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+### 删除（ADMIN，替换 id）
+DELETE {{base}}/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}

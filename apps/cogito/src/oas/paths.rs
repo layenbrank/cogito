@@ -32,6 +32,13 @@ pub const USERS_BY_ID: &str = "/api/v1/users/{id}";
 // --- Console（Backend Console 偏好，仅平台 ADMIN） ---
 pub const CONSOLE_PREFERENCE: &str = "/api/v1/console/preference";
 
+// --- Exception（客户端上报 + 平台运维查询） ---
+pub const EXCEPTION: &str = "/api/v1/exception";
+pub const EXCEPTION_GROUPS: &str = "/api/v1/exception/groups";
+pub const EXCEPTION_SOURCES: &str = "/api/v1/exception/sources";
+pub const EXCEPTION_SUMMARY: &str = "/api/v1/exception/summary";
+pub const EXCEPTION_BY_ID: &str = "/api/v1/exception/{id}";
+
 // --- Upload ---
 pub const UPLOAD_PREPARE: &str = "/api/v1/upload/prepare";
 pub const UPLOAD_HASH: &str = "/api/v1/upload/hash";
@@ -204,6 +211,34 @@ pub const ALL_ROUTES: &[RouteDef] = &[
     RouteDef {
         method: "PUT",
         path: CONSOLE_PREFERENCE,
+    },
+    RouteDef {
+        method: "POST",
+        path: EXCEPTION,
+    },
+    RouteDef {
+        method: "GET",
+        path: EXCEPTION,
+    },
+    RouteDef {
+        method: "GET",
+        path: EXCEPTION_GROUPS,
+    },
+    RouteDef {
+        method: "GET",
+        path: EXCEPTION_SOURCES,
+    },
+    RouteDef {
+        method: "GET",
+        path: EXCEPTION_SUMMARY,
+    },
+    RouteDef {
+        method: "GET",
+        path: EXCEPTION_BY_ID,
+    },
+    RouteDef {
+        method: "DELETE",
+        path: EXCEPTION_BY_ID,
     },
     RouteDef {
         method: "POST",

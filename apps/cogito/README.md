@@ -196,6 +196,7 @@ spec/                     # OpenAPI 生成物 + cogito↔ai-worker 内部契约�
 | 模型网关     | `/api/v1/gateway`                    | [gateway](src/services/gateway/README.md)           |
 | 单点登录     | `/api/v1/sso`                        | [sso](src/services/sso/README.md)                   |
 | 应用         | `/api/v1/application`                | [application](src/services/application/README.md)   |
+| 异常上报     | `/api/v1/exception`                  | [exception](src/services/exception/README.md)       |
 | agent 任务   | `/api/v1/agent/tasks`                | [agent](src/services/agent/README.md)               |
 | rag 索引任务 | `/api/v1/rag/index-tasks`            | [rag](src/services/rag/README.md)                   |
 
