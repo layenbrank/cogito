@@ -1,35 +1,35 @@
 use tauri::State;
 use thinking_core::CommandResult;
-use thinking_core::signboard_card::Service;
+use thinking_core::signboard_automation::Service;
 use thinking_database::Storage;
-use thinking_database::entity::signboard_card::{Model, ReadP, RemoveP, UpdateP, WriteP};
+use thinking_database::entity::signboard_automation::{Model, ReadP, RemoveP, UpdateP, WriteP};
 
-#[tauri::command(rename = "signboard-card:write")]
-pub async fn signboard_card_write(
+#[tauri::command(rename = "signboard-automation:write")]
+pub async fn signboard_automation_write(
     state: State<'_, Storage>,
     params: WriteP,
 ) -> CommandResult<Vec<String>> {
     Service::toWrite(state.connection(), params).await
 }
 
-#[tauri::command(rename = "signboard-card:read")]
-pub async fn signboard_card_read(
+#[tauri::command(rename = "signboard-automation:read")]
+pub async fn signboard_automation_read(
     state: State<'_, Storage>,
     params: ReadP,
 ) -> CommandResult<Vec<Model>> {
     Service::toRead(state.connection(), params).await
 }
 
-#[tauri::command(rename = "signboard-card:update")]
-pub async fn signboard_card_update(
+#[tauri::command(rename = "signboard-automation:update")]
+pub async fn signboard_automation_update(
     state: State<'_, Storage>,
     params: UpdateP,
 ) -> CommandResult<Vec<String>> {
     Service::toUpdate(state.connection(), params).await
 }
 
-#[tauri::command(rename = "signboard-card:remove")]
-pub async fn signboard_card_remove(
+#[tauri::command(rename = "signboard-automation:remove")]
+pub async fn signboard_automation_remove(
     state: State<'_, Storage>,
     params: RemoveP,
 ) -> CommandResult<Vec<String>> {

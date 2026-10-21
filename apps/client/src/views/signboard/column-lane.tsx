@@ -12,26 +12,32 @@ import { Input } from '@i-thinking/design/components/input'
 import { clsx } from 'clsx'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 
-import type { SignboardCard, SignboardColumn, SignboardTag } from '@/stores/signboard'
+import type {
+  SignboardEntry,
+  SignboardCheck,
+  SignboardColumn,
+  SignboardTag
+} from '@/stores/signboard'
 import { CardItem } from '@/views/signboard/card-item'
 import styles from '@/views/signboard/signboard.module.scss'
 
 interface ColumnLaneProps {
   column: SignboardColumn
-  cards: SignboardCard[]
+  entries: SignboardEntry[]
   tagsByCard: Map<string, SignboardTag[]>
-  isDimmedCard: (cardID: string) => boolean
+  checksForEntry: (entryID: string) => SignboardCheck[]
+  isDimmedCard: (entryID: string) => boolean
   selectedCardID: string | null
   semantic: 'todo' | 'doing' | 'done' | 'other'
   requestAdd?: boolean
   onConsumedAddRequest?: () => void
-  onOpenCard: (cardID: string) => void
-  onFocusCard: (cardID: string) => void
-  onKeyMove: (cardID: string, event: KeyboardEvent) => void
+  onOpenCard: (entryID: string) => void
+  onFocusCard: (entryID: string) => void
+  onKeyMove: (entryID: string, event: KeyboardEvent) => void
   onWriteCard: (columnID: string, title: string) => Promise<void>
   onRenameColumn: (column: SignboardColumn) => void
   onArchiveColumn: (columnID: string) => void
-  onArchiveCard: (cardID: string) => void
+  onArchiveCard: (entryID: string) => void
 }
 
 function ColumnLane(props: ColumnLaneProps) {
@@ -43,7 +49,7 @@ function ColumnLane(props: ColumnLaneProps) {
   const [draft, setDraft] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const cardIDs = props.cards.map(function (card) {
+  const cardIDs = props.entries.map(function (card) {
     return card.id
   })
 
@@ -76,17 +82,30 @@ function ColumnLane(props: ColumnLaneProps) {
         <h3 className={styles.columnTitle}>
           <span
             className={clsx(
-              styles.columnDot,
-              props.semantic === 'doing' && styles.columnDotDoing,
-              props.semantic === 'done' && styles.columnDotDone
+              styles.columnIcon,
+              props.semantic === 'doing' && styles.columnIconDoing,
+              props.semantic === 'done' && styles.columnIconDone
             )}
-          />
+            aria-hidden>
+            <Icon
+              icon={
+                props.semantic === 'done'
+                  ? 'lucide:check'
+                  : props.semantic === 'doing'
+                    ? 'lucide:circle-dot'
+                    : props.semantic === 'todo'
+                      ? 'lucide:circle'
+                      : 'lucide:columns-3'
+              }
+              className="size-3"
+            />
+          </span>
           <span className="truncate">{props.column.title}</span>
+          <span className={styles.columnCount}>({props.entries.length})</span>
         </h3>
-        <span className={styles.columnCount}>{props.cards.length}</span>
         <DropdownMenu>
           <DropdownMenuTrigger
-            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-70 hover:bg-muted hover:opacity-100"
+            className={styles.menuTrigger}
             aria-label="列菜单">
             <Icon
               icon="lucide:more-horizontal"
@@ -139,15 +158,13 @@ function ColumnLane(props: ColumnLaneProps) {
         <ul
           ref={setNodeRef}
           className={styles.cards}>
-          {props.cards.length === 0 ? (
-            <li className={clsx(styles.cardsEmpty, 'list-none')}>拖到这里，或点下方添加</li>
-          ) : null}
-          {props.cards.map(function (card) {
+          {props.entries.map(function (card) {
             return (
               <CardItem
                 key={card.id}
                 card={card}
                 tags={props.tagsByCard.get(card.id) ?? []}
+                checklist={props.checksForEntry(card.id)}
                 isDimmed={props.isDimmedCard(card.id)}
                 isSelected={props.selectedCardID === card.id}
                 onOpen={props.onOpenCard}
@@ -160,7 +177,7 @@ function ColumnLane(props: ColumnLaneProps) {
         </ul>
       </SortableContext>
 
-      <div className="px-2 pb-3">
+      <div className={styles.columnFooter}>
         {isAdding ? (
           <Input
             ref={inputRef}
@@ -188,14 +205,15 @@ function ColumnLane(props: ColumnLaneProps) {
         ) : (
           <Button
             type="button"
-            variant="ghost"
-            className="h-9 w-full border border-dashed border-border text-muted-foreground"
+            size="lg"
+            variant="outline"
+            className={styles.addCard}
             onClick={function () {
               setIsAdding(true)
             }}>
             <Icon
               icon="lucide:plus"
-              className="size-3.5"
+              className="size-4"
             />
             添加卡片
           </Button>

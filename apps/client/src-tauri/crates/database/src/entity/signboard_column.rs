@@ -2,24 +2,19 @@ use sea_orm::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "signboardColumn")]
+#[sea_orm(table_name = "signboard_column")]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: String,
     #[serde(rename = "boardID")]
-    #[sea_orm(column_name = "boardID")]
     pub board_id: String,
     pub title: String,
     pub index: i32,
     pub color: Option<String>,
-    #[sea_orm(column_name = "wipLimit")]
     pub wip_limit: Option<i32>,
-    #[sea_orm(column_name = "archivedAt")]
     pub archived_at: Option<i64>,
-    #[sea_orm(column_name = "createdAt")]
     pub created_at: i64,
-    #[sea_orm(column_name = "updatedAt")]
     pub updated_at: i64,
 }
 
@@ -35,8 +30,8 @@ pub enum Relation {
         on_update = "Cascade"
     )]
     Board,
-    #[sea_orm(has_many = "super::signboard_card::Entity")]
-    Cards,
+    #[sea_orm(has_many = "super::signboard_entry::Entity")]
+    Entries,
 }
 
 impl Related<super::signboard::Entity> for Entity {
@@ -45,9 +40,9 @@ impl Related<super::signboard::Entity> for Entity {
     }
 }
 
-impl Related<super::signboard_card::Entity> for Entity {
+impl Related<super::signboard_entry::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Cards.def()
+        Relation::Entries.def()
     }
 }
 

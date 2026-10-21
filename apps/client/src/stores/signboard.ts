@@ -3,6 +3,11 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
+import {
+  applyRules,
+  type AutomationAction,
+  type AutomationEvent
+} from '@/features/signboard/automation'
 import { CHANNELS } from '@/shared/ipc/channels'
 
 interface SignboardBoard {
@@ -27,13 +32,14 @@ interface SignboardColumn {
   updatedAt: number
 }
 
-interface SignboardCard {
+interface SignboardEntry {
   id: string
   columnID: string
   title: string
   notes: string
   index: number
   dueAt: number | null
+  startAt: number | null
   reminderID: string | null
   priority: number
   color: string | null
@@ -51,28 +57,53 @@ interface SignboardTag {
   updatedAt: number
 }
 
-interface SignboardCardTag {
-  cardID: string
+interface SignboardTagged {
+  entryID: string
   tagID: string
 }
 
-interface CardWrite {
+interface SignboardCheck {
+  id: string
+  entryID: string
+  title: string
+  done: boolean
+  index: number
+  createdAt: number
+  updatedAt: number
+}
+
+interface SignboardAutomation {
+  id: string
+  boardID: string
+  title: string
+  enabled: boolean
+  trigger: string
+  conditionJson: string
+  actionJson: string
+  index: number
+  createdAt: number
+  updatedAt: number
+}
+
+interface EntryWrite {
   columnID: string
   title: string
   notes?: string
   index?: number
   dueAt?: number | null
+  startAt?: number | null
   reminderID?: string | null
   priority?: number
   color?: string | null
 }
 
-interface CardChange {
+interface EntryChange {
   columnID?: string
   title?: string
   notes?: string
   index?: number
   dueAt?: number | null
+  startAt?: number | null
   reminderID?: string | null
   priority?: number
   color?: string | null
@@ -93,12 +124,33 @@ interface ColumnChange {
   archivedAt?: number | null
 }
 
+interface AutomationWrite {
+  boardID: string
+  title: string
+  enabled?: boolean
+  trigger: string
+  conditionJson?: string
+  actionJson?: string
+  index?: number
+}
+
+interface AutomationChange {
+  title?: string
+  enabled?: boolean
+  trigger?: string
+  conditionJson?: string
+  actionJson?: string
+  index?: number
+}
+
 interface SignboardStore {
   boards: SignboardBoard[]
   columns: SignboardColumn[]
-  cards: SignboardCard[]
+  entries: SignboardEntry[]
   tags: SignboardTag[]
-  cardTags: SignboardCardTag[]
+  tagged: SignboardTagged[]
+  checks: SignboardCheck[]
+  automations: SignboardAutomation[]
   activeBoardID: string | null
   loaded: boolean
   toBootstrap: () => Promise<void>
@@ -108,15 +160,25 @@ interface SignboardStore {
   toUpdateBoard: (key: string, change: BoardChange) => Promise<boolean>
   toWriteColumn: (boardID: string, title: string) => Promise<string | undefined>
   toUpdateColumn: (key: string, change: ColumnChange) => Promise<boolean>
-  toWriteCard: (value: CardWrite) => Promise<string | undefined>
-  toUpdateCard: (key: string, change: CardChange) => Promise<boolean>
-  toMoveCard: (cardID: string, toColumnID: string, toIndex: number) => Promise<boolean>
-  toRemoveCard: (key: string) => Promise<boolean>
+  toWriteEntry: (value: EntryWrite) => Promise<string | undefined>
+  toUpdateEntry: (key: string, change: EntryChange) => Promise<boolean>
+  toMoveEntry: (entryID: string, toColumnID: string, toIndex: number) => Promise<boolean>
+  toRemoveEntry: (key: string) => Promise<boolean>
   toWriteTag: (boardID: string, title: string) => Promise<string | undefined>
-  toAttachTag: (cardID: string, tagID: string) => Promise<boolean>
-  toDetachTag: (cardID: string, tagID: string) => Promise<boolean>
-  tagIDsForCard: (cardID: string) => string[]
-  cardsInColumn: (columnID: string) => SignboardCard[]
+  toTagEntry: (entryID: string, tagID: string) => Promise<boolean>
+  toUntagEntry: (entryID: string, tagID: string) => Promise<boolean>
+  toWriteCheck: (entryID: string, title: string) => Promise<string | undefined>
+  toUpdateCheck: (
+    key: string,
+    change: { title?: string; done?: boolean; index?: number }
+  ) => Promise<boolean>
+  toRemoveCheck: (key: string) => Promise<boolean>
+  toWriteAutomation: (value: AutomationWrite) => Promise<string | undefined>
+  toUpdateAutomation: (key: string, change: AutomationChange) => Promise<boolean>
+  toRemoveAutomation: (key: string) => Promise<boolean>
+  tagIDsForEntry: (entryID: string) => string[]
+  entriesInColumn: (columnID: string) => SignboardEntry[]
+  checksForEntry: (entryID: string) => SignboardCheck[]
 }
 
 const SEED_COLUMNS = ['待办', '进行中', '完成'] as const
@@ -127,25 +189,38 @@ const useSignboardStore = create<SignboardStore>()(
       return {
         boards: [],
         columns: [],
-        cards: [],
+        entries: [],
         tags: [],
-        cardTags: [],
+        tagged: [],
+        checks: [],
+        automations: [],
         activeBoardID: null,
         loaded: false,
 
-        tagIDsForCard(cardID) {
+        tagIDsForEntry(entryID) {
           return getter()
-            .cardTags.filter(function (row) {
-              return row.cardID === cardID
+            .tagged.filter(function (row) {
+              return row.entryID === entryID
             })
             .map(function (row) {
               return row.tagID
             })
         },
 
-        cardsInColumn(columnID) {
+        checksForEntry(entryID) {
           return getter()
-            .cards.filter(function (card) {
+            .checks.filter(function (item) {
+              return item.entryID === entryID
+            })
+            .slice()
+            .sort(function (a, b) {
+              return a.index - b.index
+            })
+        },
+
+        entriesInColumn(columnID) {
+          return getter()
+            .entries.filter(function (card) {
               return card.columnID === columnID && card.archivedAt == null
             })
             .slice()
@@ -175,11 +250,14 @@ const useSignboardStore = create<SignboardStore>()(
 
         async toActivateBoard(boardID) {
           try {
-            const [columns, tags] = await Promise.all([
+            const [columns, tags, automations] = await Promise.all([
               invoke<SignboardColumn[]>(CHANNELS.SIGNBOARD_COLUMN.READ, {
                 params: { boardID }
               }),
               invoke<SignboardTag[]>(CHANNELS.SIGNBOARD_TAG.READ, {
+                params: { boardID }
+              }),
+              invoke<SignboardAutomation[]>(CHANNELS.SIGNBOARD_AUTOMATION.READ, {
                 params: { boardID }
               })
             ])
@@ -187,34 +265,44 @@ const useSignboardStore = create<SignboardStore>()(
             const columnIDs = columns.map(function (column) {
               return column.id
             })
-            let cards: SignboardCard[] = []
+            let entries: SignboardEntry[] = []
             if (columnIDs.length > 0) {
-              cards = await invoke<SignboardCard[]>(CHANNELS.SIGNBOARD_CARD.READ, {
+              entries = await invoke<SignboardEntry[]>(CHANNELS.SIGNBOARD_ENTRY.READ, {
                 params: columnIDs.map(function (columnID) {
                   return { columnID }
                 })
               })
             }
 
-            const cardIDs = cards.map(function (card) {
+            const cardIDs = entries.map(function (card) {
               return card.id
             })
-            let cardTags: SignboardCardTag[] = []
+            let tagged: SignboardTagged[] = []
+            let checks: SignboardCheck[] = []
             if (cardIDs.length > 0) {
-              cardTags = await invoke<SignboardCardTag[]>(CHANNELS.SIGNBOARD_CARD_TAG.READ, {
-                params: cardIDs.map(function (cardID) {
-                  return { cardID }
+              ;[tagged, checks] = await Promise.all([
+                invoke<SignboardTagged[]>(CHANNELS.SIGNBOARD_TAGGED.READ, {
+                  params: cardIDs.map(function (entryID) {
+                    return { entryID }
+                  })
+                }),
+                invoke<SignboardCheck[]>(CHANNELS.SIGNBOARD_CHECK.READ, {
+                  params: cardIDs.map(function (entryID) {
+                    return { entryID }
+                  })
                 })
-              })
+              ])
             }
 
             setter(
               function (state) {
                 state.activeBoardID = boardID
                 state.columns = columns
-                state.cards = cards
+                state.entries = entries
                 state.tags = tags
-                state.cardTags = cardTags
+                state.tagged = tagged
+                state.checks = checks
+                state.automations = automations
                 state.loaded = true
               },
               false,
@@ -336,62 +424,84 @@ const useSignboardStore = create<SignboardStore>()(
           }
         },
 
-        async toWriteCard(value) {
+        async toWriteEntry(value) {
           try {
             const index =
-              value.index ??
-              getter().cardsInColumn(value.columnID).length
-            const ids = await invoke<string[]>(CHANNELS.SIGNBOARD_CARD.WRITE, {
+              value.index ?? getter().entriesInColumn(value.columnID).length
+            const ids = await invoke<string[]>(CHANNELS.SIGNBOARD_ENTRY.WRITE, {
               params: {
                 columnID: value.columnID,
                 title: value.title,
                 notes: value.notes ?? '',
                 index,
                 dueAt: value.dueAt ?? null,
+                startAt: value.startAt ?? null,
                 reminderID: value.reminderID ?? null,
                 priority: value.priority ?? 0,
                 color: value.color ?? null
               }
             })
+            const entryID = ids[0]
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
-            return ids[0]
+            if (entryID) {
+              await runAutomations(getter, {
+                trigger: 'entryCreated',
+                entryID,
+                toColumnID: value.columnID,
+                tagIDs: []
+              })
+            }
+            return entryID
           } catch (error) {
-            console.error('[signboard-store] toWriteCard failed:', error)
+            console.error('[signboard-store] toWriteEntry failed:', error)
             return undefined
           }
         },
 
-        async toUpdateCard(key, change) {
+        async toUpdateEntry(key, change) {
           try {
-            await invoke(CHANNELS.SIGNBOARD_CARD.UPDATE, {
+            const previous = getter().entries.find(function (card) {
+              return card.id === key
+            })
+            const dueChanged =
+              change.dueAt !== undefined && change.dueAt !== previous?.dueAt
+            await invoke(CHANNELS.SIGNBOARD_ENTRY.UPDATE, {
               params: { key, change }
             })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
+            if (dueChanged && change.dueAt != null) {
+              await runAutomations(getter, {
+                trigger: 'entryDueSet',
+                entryID: key,
+                toColumnID: previous?.columnID,
+                tagIDs: getter().tagIDsForEntry(key)
+              })
+            }
             return true
           } catch (error) {
-            console.error('[signboard-store] toUpdateCard failed:', error)
+            console.error('[signboard-store] toUpdateEntry failed:', error)
             return false
           }
         },
 
-        async toMoveCard(cardID, toColumnID, toIndex) {
+        async toMoveEntry(entryID, toColumnID, toIndex) {
           const previous = {
-            cards: getter().cards.map(function (card) {
+            entries: getter().entries.map(function (card) {
               return { ...card }
             })
           }
-          const moving = getter().cards.find(function (card) {
-            return card.id === cardID
+          const moving = getter().entries.find(function (card) {
+            return card.id === entryID
           })
           if (!moving) return false
 
           const fromColumnID = moving.columnID
           setter(
             function (state) {
-              const others = state.cards.filter(function (card) {
-                return card.id !== cardID
+              const others = state.entries.filter(function (card) {
+                return card.id !== entryID
               })
               const dest = others
                 .filter(function (card) {
@@ -403,7 +513,7 @@ const useSignboardStore = create<SignboardStore>()(
               const clamped = Math.max(0, Math.min(toIndex, dest.length))
               dest.splice(clamped, 0, { ...moving, columnID: toColumnID })
 
-              const reindexed = new Map<string, SignboardCard>()
+              const reindexed = new Map<string, SignboardEntry>()
               dest.forEach(function (card, index) {
                 reindexed.set(card.id, { ...card, columnID: toColumnID, index })
               })
@@ -421,18 +531,18 @@ const useSignboardStore = create<SignboardStore>()(
                   })
               }
 
-              state.cards = state.cards.map(function (card) {
+              state.entries = state.entries.map(function (card) {
                 return reindexed.get(card.id) ?? card
               })
             },
             false,
-            'toMoveCard/optimistic'
+            'toMoveEntry/optimistic'
           )
 
           try {
             const updates = getter()
-              .cards.filter(function (card) {
-                if (card.id === cardID) return true
+              .entries.filter(function (card) {
+                if (card.id === entryID) return true
                 if (card.columnID === toColumnID) return true
                 if (card.columnID === fromColumnID) return true
                 return false
@@ -447,31 +557,49 @@ const useSignboardStore = create<SignboardStore>()(
                 }
               })
 
-            await invoke(CHANNELS.SIGNBOARD_CARD.UPDATE, {
+            await invoke(CHANNELS.SIGNBOARD_ENTRY.UPDATE, {
               params: updates.length === 1 ? updates[0] : updates
             })
+
+            if (fromColumnID !== toColumnID) {
+              const tagIDs = getter().tagIDsForEntry(entryID)
+              await runAutomations(getter, {
+                trigger: 'entryLeaveColumn',
+                entryID,
+                fromColumnID,
+                toColumnID,
+                tagIDs
+              })
+              await runAutomations(getter, {
+                trigger: 'entryEnterColumn',
+                entryID,
+                fromColumnID,
+                toColumnID,
+                tagIDs
+              })
+            }
             return true
           } catch (error) {
-            console.error('[signboard-store] toMoveCard failed:', error)
+            console.error('[signboard-store] toMoveEntry failed:', error)
             setter(
               function (state) {
-                state.cards = previous.cards
+                state.entries = previous.entries
               },
               false,
-              'toMoveCard/rollback'
+              'toMoveEntry/rollback'
             )
             return false
           }
         },
 
-        async toRemoveCard(key) {
+        async toRemoveEntry(key) {
           try {
-            await invoke(CHANNELS.SIGNBOARD_CARD.REMOVE, { params: key })
+            await invoke(CHANNELS.SIGNBOARD_ENTRY.REMOVE, { params: key })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             return true
           } catch (error) {
-            console.error('[signboard-store] toRemoveCard failed:', error)
+            console.error('[signboard-store] toRemoveEntry failed:', error)
             return false
           }
         },
@@ -489,30 +617,123 @@ const useSignboardStore = create<SignboardStore>()(
           }
         },
 
-        async toAttachTag(cardID, tagID) {
+        async toTagEntry(entryID, tagID) {
           try {
-            await invoke(CHANNELS.SIGNBOARD_CARD_TAG.WRITE, {
-              params: { cardID, tagID }
+            await invoke(CHANNELS.SIGNBOARD_TAGGED.WRITE, {
+              params: { entryID, tagID }
             })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             return true
           } catch (error) {
-            console.error('[signboard-store] toAttachTag failed:', error)
+            console.error('[signboard-store] toTagEntry failed:', error)
             return false
           }
         },
 
-        async toDetachTag(cardID, tagID) {
+        async toUntagEntry(entryID, tagID) {
           try {
-            await invoke(CHANNELS.SIGNBOARD_CARD_TAG.REMOVE, {
-              params: { cardID, tagID }
+            await invoke(CHANNELS.SIGNBOARD_TAGGED.REMOVE, {
+              params: { entryID, tagID }
             })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
             return true
           } catch (error) {
-            console.error('[signboard-store] toDetachTag failed:', error)
+            console.error('[signboard-store] toUntagEntry failed:', error)
+            return false
+          }
+        },
+
+        async toWriteCheck(entryID, title) {
+          try {
+            const index = getter().checksForEntry(entryID).length
+            const ids = await invoke<string[]>(CHANNELS.SIGNBOARD_CHECK.WRITE, {
+              params: { entryID, title, done: false, index }
+            })
+            const boardID = getter().activeBoardID
+            if (boardID) await getter().toActivateBoard(boardID)
+            return ids[0]
+          } catch (error) {
+            console.error('[signboard-store] toWriteCheck failed:', error)
+            return undefined
+          }
+        },
+
+        async toUpdateCheck(key, change) {
+          try {
+            await invoke(CHANNELS.SIGNBOARD_CHECK.UPDATE, {
+              params: { key, change }
+            })
+            const boardID = getter().activeBoardID
+            if (boardID) await getter().toActivateBoard(boardID)
+            return true
+          } catch (error) {
+            console.error('[signboard-store] toUpdateCheck failed:', error)
+            return false
+          }
+        },
+
+        async toRemoveCheck(key) {
+          try {
+            await invoke(CHANNELS.SIGNBOARD_CHECK.REMOVE, { params: key })
+            const boardID = getter().activeBoardID
+            if (boardID) await getter().toActivateBoard(boardID)
+            return true
+          } catch (error) {
+            console.error('[signboard-store] toRemoveCheck failed:', error)
+            return false
+          }
+        },
+
+        async toWriteAutomation(value) {
+          try {
+            const index =
+              value.index ??
+              getter().automations.filter(function (row) {
+                return row.boardID === value.boardID
+              }).length
+            const ids = await invoke<string[]>(CHANNELS.SIGNBOARD_AUTOMATION.WRITE, {
+              params: {
+                boardID: value.boardID,
+                title: value.title,
+                enabled: value.enabled ?? true,
+                trigger: value.trigger,
+                conditionJson: value.conditionJson ?? '{}',
+                actionJson: value.actionJson ?? '[]',
+                index
+              }
+            })
+            await getter().toActivateBoard(value.boardID)
+            return ids[0]
+          } catch (error) {
+            console.error('[signboard-store] toWriteAutomation failed:', error)
+            return undefined
+          }
+        },
+
+        async toUpdateAutomation(key, change) {
+          try {
+            await invoke(CHANNELS.SIGNBOARD_AUTOMATION.UPDATE, {
+              params: { key, change }
+            })
+            const boardID = getter().activeBoardID
+            if (boardID) await getter().toActivateBoard(boardID)
+            return true
+          } catch (error) {
+            console.error('[signboard-store] toUpdateAutomation failed:', error)
+            return false
+          }
+        },
+
+        async toRemoveAutomation(key) {
+          try {
+            await invoke(CHANNELS.SIGNBOARD_AUTOMATION.REMOVE, { params: key })
+            const boardID = getter().activeBoardID
+            if (boardID) await getter().toActivateBoard(boardID)
+            return true
+          } catch (error) {
+            console.error('[signboard-store] toRemoveAutomation failed:', error)
             return false
           }
         }
@@ -522,15 +743,90 @@ const useSignboardStore = create<SignboardStore>()(
   )
 )
 
+const AUTOMATION_DEPTH = { value: 0 }
+
+async function runAutomations(
+  getter: () => SignboardStore,
+  event: AutomationEvent
+) {
+  if (AUTOMATION_DEPTH.value >= 3) return
+  AUTOMATION_DEPTH.value += 1
+  try {
+    const matched = applyRules(event, getter().automations)
+    for (const row of matched) {
+      for (const action of row.actions) {
+        await applyAction(getter, event.entryID, action)
+      }
+    }
+  } finally {
+    AUTOMATION_DEPTH.value -= 1
+  }
+}
+
+async function applyAction(
+  getter: () => SignboardStore,
+  entryID: string,
+  action: AutomationAction
+) {
+  switch (action.type) {
+    case 'setPriority':
+      await persistCardChange(getter, entryID, { priority: action.priority })
+      return
+    case 'setDueOffsetDays': {
+      const dueAt = Date.now() + action.days * 24 * 60 * 60 * 1000
+      await persistCardChange(getter, entryID, { dueAt })
+      return
+    }
+    case 'attachTag':
+      try {
+        await invoke(CHANNELS.SIGNBOARD_TAGGED.WRITE, {
+          params: { entryID, tagID: action.tagID }
+        })
+        const boardID = getter().activeBoardID
+        if (boardID) await getter().toActivateBoard(boardID)
+      } catch (error) {
+        console.error('[signboard-store] automation attachTag failed:', error)
+      }
+      return
+    case 'archiveCard':
+      await persistCardChange(getter, entryID, { archivedAt: Date.now() })
+      return
+    case 'setColor':
+      await persistCardChange(getter, entryID, { color: action.color })
+      return
+  }
+}
+
+/** 自动化写卡：不二次触发规则，避免同 trigger 递归。 */
+async function persistCardChange(
+  getter: () => SignboardStore,
+  key: string,
+  change: EntryChange
+) {
+  try {
+    await invoke(CHANNELS.SIGNBOARD_ENTRY.UPDATE, {
+      params: { key, change }
+    })
+    const boardID = getter().activeBoardID
+    if (boardID) await getter().toActivateBoard(boardID)
+  } catch (error) {
+    console.error('[signboard-store] automation card update failed:', error)
+  }
+}
+
 export { useSignboardStore }
 export type {
+  AutomationChange,
+  AutomationWrite,
   BoardChange,
-  CardChange,
-  CardWrite,
+  EntryChange,
+  EntryWrite,
   ColumnChange,
+  SignboardAutomation,
   SignboardBoard,
-  SignboardCard,
-  SignboardCardTag,
+  SignboardEntry,
+  SignboardTagged,
+  SignboardCheck,
   SignboardColumn,
   SignboardTag
 }

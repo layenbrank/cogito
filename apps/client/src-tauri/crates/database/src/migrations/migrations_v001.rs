@@ -947,10 +947,414 @@ impl MigrationTrait for Migration {
         )
         .await?;
 
+        // ── signboard（看板：column / entry / tag / tagged / check / automation）──
+        manager
+            .create_table(
+                Table::create()
+                    .table(Signboard::Table)
+                    .if_not_exists()
+                    .col(ColumnDef::new(Signboard::Id).string().not_null().primary_key())
+                    .col(ColumnDef::new(Signboard::Title).string().not_null())
+                    .col(
+                        ColumnDef::new(Signboard::Index)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(ColumnDef::new(Signboard::ArchivedAt).big_integer().null())
+                    .col(ColumnDef::new(Signboard::SyncedAt).big_integer().null())
+                    .col(ColumnDef::new(Signboard::CreatedAt).big_integer().not_null())
+                    .col(ColumnDef::new(Signboard::UpdatedAt).big_integer().not_null())
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(SignboardColumn::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(SignboardColumn::Id)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(ColumnDef::new(SignboardColumn::BoardId).string().not_null())
+                    .col(ColumnDef::new(SignboardColumn::Title).string().not_null())
+                    .col(
+                        ColumnDef::new(SignboardColumn::Index)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(ColumnDef::new(SignboardColumn::Color).string().null())
+                    .col(ColumnDef::new(SignboardColumn::WipLimit).integer().null())
+                    .col(ColumnDef::new(SignboardColumn::ArchivedAt).big_integer().null())
+                    .col(
+                        ColumnDef::new(SignboardColumn::CreatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(SignboardColumn::UpdatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_signboard_column_board")
+                            .from(SignboardColumn::Table, SignboardColumn::BoardId)
+                            .to(Signboard::Table, Signboard::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(SignboardEntry::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(SignboardEntry::Id)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(ColumnDef::new(SignboardEntry::ColumnId).string().not_null())
+                    .col(ColumnDef::new(SignboardEntry::Title).string().not_null())
+                    .col(
+                        ColumnDef::new(SignboardEntry::Notes)
+                            .string()
+                            .not_null()
+                            .default(""),
+                    )
+                    .col(
+                        ColumnDef::new(SignboardEntry::Index)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(ColumnDef::new(SignboardEntry::DueAt).big_integer().null())
+                    .col(ColumnDef::new(SignboardEntry::StartAt).big_integer().null())
+                    .col(ColumnDef::new(SignboardEntry::ReminderId).string().null())
+                    .col(
+                        ColumnDef::new(SignboardEntry::Priority)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(ColumnDef::new(SignboardEntry::Color).string().null())
+                    .col(ColumnDef::new(SignboardEntry::ArchivedAt).big_integer().null())
+                    .col(
+                        ColumnDef::new(SignboardEntry::CreatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(SignboardEntry::UpdatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_signboard_entry_column")
+                            .from(SignboardEntry::Table, SignboardEntry::ColumnId)
+                            .to(SignboardColumn::Table, SignboardColumn::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_signboard_entry_reminder")
+                            .from(SignboardEntry::Table, SignboardEntry::ReminderId)
+                            .to(Reminder::Table, Reminder::Id)
+                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(SignboardTag::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(SignboardTag::Id)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(ColumnDef::new(SignboardTag::BoardId).string().not_null())
+                    .col(ColumnDef::new(SignboardTag::Title).string().not_null())
+                    .col(ColumnDef::new(SignboardTag::Color).string().null())
+                    .col(
+                        ColumnDef::new(SignboardTag::CreatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(SignboardTag::UpdatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_signboard_tag_board")
+                            .from(SignboardTag::Table, SignboardTag::BoardId)
+                            .to(Signboard::Table, Signboard::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(SignboardTagged::Table)
+                    .if_not_exists()
+                    .col(ColumnDef::new(SignboardTagged::EntryId).string().not_null())
+                    .col(ColumnDef::new(SignboardTagged::TagId).string().not_null())
+                    .primary_key(
+                        Index::create()
+                            .col(SignboardTagged::EntryId)
+                            .col(SignboardTagged::TagId),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_signboard_tagged_entry")
+                            .from(SignboardTagged::Table, SignboardTagged::EntryId)
+                            .to(SignboardEntry::Table, SignboardEntry::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_signboard_tagged_tag")
+                            .from(SignboardTagged::Table, SignboardTagged::TagId)
+                            .to(SignboardTag::Table, SignboardTag::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(SignboardCheck::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(SignboardCheck::Id)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(ColumnDef::new(SignboardCheck::EntryId).string().not_null())
+                    .col(ColumnDef::new(SignboardCheck::Title).string().not_null())
+                    .col(
+                        ColumnDef::new(SignboardCheck::Done)
+                            .boolean()
+                            .not_null()
+                            .default(false),
+                    )
+                    .col(
+                        ColumnDef::new(SignboardCheck::Index)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(
+                        ColumnDef::new(SignboardCheck::CreatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(SignboardCheck::UpdatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_signboard_check_entry")
+                            .from(SignboardCheck::Table, SignboardCheck::EntryId)
+                            .to(SignboardEntry::Table, SignboardEntry::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(SignboardAutomation::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(SignboardAutomation::Id)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(SignboardAutomation::BoardId)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(SignboardAutomation::Title)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(SignboardAutomation::Enabled)
+                            .boolean()
+                            .not_null()
+                            .default(true),
+                    )
+                    .col(
+                        ColumnDef::new(SignboardAutomation::Trigger)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(SignboardAutomation::ConditionJson)
+                            .string()
+                            .not_null()
+                            .default("{}"),
+                    )
+                    .col(
+                        ColumnDef::new(SignboardAutomation::ActionJson)
+                            .string()
+                            .not_null()
+                            .default("[]"),
+                    )
+                    .col(
+                        ColumnDef::new(SignboardAutomation::Index)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(
+                        ColumnDef::new(SignboardAutomation::CreatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(SignboardAutomation::UpdatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_signboard_automation_board")
+                            .from(SignboardAutomation::Table, SignboardAutomation::BoardId)
+                            .to(Signboard::Table, Signboard::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        let db = manager.get_connection();
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_signboard_index ON signboard (\"index\")",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_signboard_column_board_id_index ON signboard_column (board_id, \"index\")",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_column_id_index ON signboard_entry (column_id, \"index\")",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_reminder_id ON signboard_entry (reminder_id)",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_due_at ON signboard_entry (due_at)",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_start_at ON signboard_entry (start_at)",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_signboard_tag_board_id ON signboard_tag (board_id)",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_signboard_tag_board_id_title ON signboard_tag (board_id, title)",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_signboard_tagged_tag_id ON signboard_tagged (tag_id)",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_signboard_check_entry_id_index ON signboard_check (entry_id, \"index\")",
+        )
+        .await?;
+        db.execute_unprepared(
+            "CREATE INDEX IF NOT EXISTS idx_signboard_automation_board_id_index ON signboard_automation (board_id, \"index\")",
+        )
+        .await?;
+
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let db = manager.get_connection();
+        for index in [
+            "idx_signboard_automation_board_id_index",
+            "idx_signboard_check_entry_id_index",
+            "idx_signboard_tagged_tag_id",
+            "idx_signboard_tag_board_id_title",
+            "idx_signboard_tag_board_id",
+            "idx_signboard_entry_start_at",
+            "idx_signboard_entry_due_at",
+            "idx_signboard_entry_reminder_id",
+            "idx_signboard_entry_column_id_index",
+            "idx_signboard_column_board_id_index",
+            "idx_signboard_index",
+        ] {
+            db.execute_unprepared(&format!("DROP INDEX IF EXISTS {index}"))
+                .await?;
+        }
+
+        manager
+            .drop_table(Table::drop().table(SignboardAutomation::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(SignboardCheck::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(SignboardTagged::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(SignboardTag::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(SignboardEntry::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(SignboardColumn::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(Signboard::Table).to_owned())
+            .await?;
         manager
             .drop_table(Table::drop().table(Calendar::Table).to_owned())
             .await?;
@@ -1356,4 +1760,99 @@ enum AgentUsage {
     TotalTokens,
     #[iden = "createdAt"]
     CreatedAt,
+}
+
+#[derive(Iden)]
+enum Signboard {
+    Table,
+    Id,
+    Title,
+    Index,
+    ArchivedAt,
+    SyncedAt,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(Iden)]
+enum SignboardColumn {
+    #[iden = "signboard_column"]
+    Table,
+    Id,
+    BoardId,
+    Title,
+    Index,
+    Color,
+    WipLimit,
+    ArchivedAt,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(Iden)]
+enum SignboardEntry {
+    #[iden = "signboard_entry"]
+    Table,
+    Id,
+    ColumnId,
+    Title,
+    Notes,
+    Index,
+    DueAt,
+    StartAt,
+    ReminderId,
+    Priority,
+    Color,
+    ArchivedAt,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(Iden)]
+enum SignboardTag {
+    #[iden = "signboard_tag"]
+    Table,
+    Id,
+    BoardId,
+    Title,
+    Color,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(Iden)]
+enum SignboardTagged {
+    #[iden = "signboard_tagged"]
+    Table,
+    EntryId,
+    TagId,
+}
+
+#[derive(Iden)]
+enum SignboardCheck {
+    #[iden = "signboard_check"]
+    Table,
+    Id,
+    EntryId,
+    Title,
+    Done,
+    Index,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(Iden)]
+enum SignboardAutomation {
+    #[iden = "signboard_automation"]
+    Table,
+    Id,
+    BoardId,
+    Title,
+    Enabled,
+    Trigger,
+    ConditionJson,
+    ActionJson,
+    Index,
+    CreatedAt,
+    UpdatedAt,
 }

@@ -1,19 +1,13 @@
-import {
-  DndContext,
-  DragOverlay,
-  KeyboardSensor,
-  PointerSensor,
-  closestCorners,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragOverEvent,
-  type DragStartEvent
-} from '@dnd-kit/core'
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@i-thinking/design/components/dropdown-menu'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@i-thinking/design/components/input-group'
 import {
   Select,
   SelectContent,
@@ -23,28 +17,46 @@ import {
 } from '@i-thinking/design/components/select'
 import { Spinner } from '@i-thinking/design/components/spinner'
 import { debounce } from 'lodash-es'
-import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { useSignboardStore, type SignboardColumn, type SignboardTag } from '@/stores/signboard'
+import { AutomationSheet } from '@/views/signboard/automation-sheet'
 import { CardSheet } from '@/views/signboard/card-sheet'
-import { ColumnLane } from '@/views/signboard/column-lane'
 import { EmptyAtmosphere } from '@/views/signboard/empty-atmosphere'
 import { NameDialog } from '@/views/signboard/name-dialog'
 import styles from '@/views/signboard/signboard.module.scss'
-
-function parseSemantic(title: string, index: number) {
-  if (title.includes('完成') || title.toLowerCase().includes('done')) return 'done' as const
-  if (title.includes('进行') || title.toLowerCase().includes('doing')) return 'doing' as const
-  if (index === 0 || title.includes('待办')) return 'todo' as const
-  return 'other' as const
-}
+import { ViewTabs, type ViewMode } from '@/views/signboard/view-tabs'
+import { CalendarView } from '@/views/signboard/views/calendar-view'
+import { GanttView } from '@/views/signboard/views/gantt-view'
+import { KanbanView } from '@/views/signboard/views/kanban-view'
+import { StatsView } from '@/views/signboard/views/stats-view'
+import { TableView } from '@/views/signboard/views/table-view'
+import { WorkloadView } from '@/views/signboard/views/workload-view'
 
 type NameDialogState =
   | { kind: 'board-create' }
   | { kind: 'board-rename'; boardID: string; title: string }
   | { kind: 'column-rename'; column: SignboardColumn }
   | null
+
+const VIEW_STORAGE_PREFIX = 'signboard.viewMode.'
+
+function readStoredView(boardID: string | null): ViewMode {
+  if (!boardID || typeof localStorage === 'undefined') return 'board'
+  const raw = localStorage.getItem(`${VIEW_STORAGE_PREFIX}${boardID}`)
+  if (
+    raw === 'board' ||
+    raw === 'table' ||
+    raw === 'gantt' ||
+    raw === 'calendar' ||
+    raw === 'stats' ||
+    raw === 'workload'
+  ) {
+    return raw
+  }
+  return 'board'
+}
 
 function BoardView() {
   const boards = useSignboardStore(function (state) {
@@ -53,8 +65,8 @@ function BoardView() {
   const columns = useSignboardStore(function (state) {
     return state.columns
   })
-  const cards = useSignboardStore(function (state) {
-    return state.cards
+  const entries = useSignboardStore(function (state) {
+    return state.entries
   })
   const tags = useSignboardStore(function (state) {
     return state.tags
@@ -83,20 +95,14 @@ function BoardView() {
   const toUpdateColumn = useSignboardStore(function (state) {
     return state.toUpdateColumn
   })
-  const toWriteCard = useSignboardStore(function (state) {
-    return state.toWriteCard
+  const toUpdateEntry = useSignboardStore(function (state) {
+    return state.toUpdateEntry
   })
-  const toUpdateCard = useSignboardStore(function (state) {
-    return state.toUpdateCard
+  const entriesInColumn = useSignboardStore(function (state) {
+    return state.entriesInColumn
   })
-  const toMoveCard = useSignboardStore(function (state) {
-    return state.toMoveCard
-  })
-  const cardsInColumn = useSignboardStore(function (state) {
-    return state.cardsInColumn
-  })
-  const tagIDsForCard = useSignboardStore(function (state) {
-    return state.tagIDsForCard
+  const tagIDsForEntry = useSignboardStore(function (state) {
+    return state.tagIDsForEntry
   })
 
   const [search, setSearch] = useState('')
@@ -105,20 +111,12 @@ function BoardView() {
   const [dueOnly, setDueOnly] = useState(false)
   const [selectedCardID, setSelectedCardID] = useState<string | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [activeDragID, setActiveDragID] = useState<string | null>(null)
+  const [automationOpen, setAutomationOpen] = useState(false)
   const [nameDialog, setNameDialog] = useState<NameDialogState>(null)
   const [addingColumn, setAddingColumn] = useState(false)
   const [columnDraft, setColumnDraft] = useState('')
   const [addRequestColumnID, setAddRequestColumnID] = useState<string | null>(null)
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 }
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates
-    })
-  )
+  const [viewMode, setViewMode] = useState<ViewMode>('board')
 
   const applySearch = useMemo(
     function () {
@@ -145,11 +143,30 @@ function BoardView() {
     [applySearch]
   )
 
+  useEffect(
+    function () {
+      setViewMode(readStoredView(activeBoardID))
+    },
+    [activeBoardID]
+  )
+
+  function changeViewMode(mode: ViewMode) {
+    setViewMode(mode)
+    if (activeBoardID && typeof localStorage !== 'undefined') {
+      localStorage.setItem(`${VIEW_STORAGE_PREFIX}${activeBoardID}`, mode)
+    }
+  }
+
   const orderedColumns = useMemo(
     function () {
-      return columns.slice().sort(function (a, b) {
-        return a.index - b.index
-      })
+      return columns
+        .filter(function (column) {
+          return column.archivedAt == null
+        })
+        .slice()
+        .sort(function (a, b) {
+          return a.index - b.index
+        })
     },
     [columns]
   )
@@ -161,8 +178,8 @@ function BoardView() {
   const tagsByCard = useMemo(
     function () {
       const map = new Map<string, SignboardTag[]>()
-      for (const card of cards) {
-        const ids = tagIDsForCard(card.id)
+      for (const card of entries) {
+        const ids = tagIDsForEntry(card.id)
         map.set(
           card.id,
           tags.filter(function (tag) {
@@ -172,12 +189,12 @@ function BoardView() {
       }
       return map
     },
-    [cards, tags, tagIDsForCard]
+    [entries, tags, tagIDsForEntry]
   )
 
-  function isDimmedCard(cardID: string) {
-    const card = cards.find(function (row) {
-      return row.id === cardID
+  function isDimmedCard(entryID: string) {
+    const card = entries.find(function (row) {
+      return row.id === entryID
     })
     if (!card) return true
     const q = query.trim().toLowerCase()
@@ -187,117 +204,15 @@ function BoardView() {
     }
     if (dueOnly && card.dueAt == null) return true
     if (tagFilter !== 'all') {
-      const ids = tagIDsForCard(cardID)
+      const ids = tagIDsForEntry(entryID)
       if (!ids.includes(tagFilter)) return true
     }
     return false
   }
 
-  function openCard(cardID: string) {
-    setSelectedCardID(cardID)
+  function openCard(entryID: string) {
+    setSelectedCardID(entryID)
     setSheetOpen(true)
-  }
-
-  function onDragStart(event: DragStartEvent) {
-    setActiveDragID(String(event.active.id))
-  }
-
-  function resolveTarget(event: DragEndEvent | DragOverEvent) {
-    const { active, over } = event
-    if (!over) return null
-    const activeID = String(active.id)
-    const overID = String(over.id)
-    const overData = over.data.current as { type?: string; columnID?: string } | undefined
-
-    let toColumnID = overData?.columnID
-    if (!toColumnID) {
-      const overCard = cards.find(function (card) {
-        return card.id === overID
-      })
-      toColumnID = overCard?.columnID
-    }
-    if (
-      !toColumnID &&
-      orderedColumns.some(function (column) {
-        return column.id === overID
-      })
-    ) {
-      toColumnID = overID
-    }
-    if (!toColumnID) return null
-
-    const destCards = cardsInColumn(toColumnID).filter(function (card) {
-      return card.id !== activeID
-    })
-    let toIndex = destCards.length
-    const overCardIndex = destCards.findIndex(function (card) {
-      return card.id === overID
-    })
-    if (overCardIndex >= 0) toIndex = overCardIndex
-
-    return { activeID, toColumnID, toIndex }
-  }
-
-  function onDragEnd(event: DragEndEvent) {
-    setActiveDragID(null)
-    const target = resolveTarget(event)
-    if (!target) return
-    const moving = cards.find(function (card) {
-      return card.id === target.activeID
-    })
-    if (
-      moving &&
-      moving.columnID === target.toColumnID &&
-      moving.index === target.toIndex
-    ) {
-      return
-    }
-    void toMoveCard(target.activeID, target.toColumnID, target.toIndex).then(function (ok) {
-      if (!ok) toast.error('没能保存顺序，已恢复')
-    })
-  }
-
-  function onKeyMove(cardID: string, event: KeyboardEvent) {
-    const meta = event.metaKey || event.ctrlKey
-    if (!meta) {
-      if (event.key === 'Enter') {
-        event.preventDefault()
-        openCard(cardID)
-      }
-      return
-    }
-
-    const card = cards.find(function (row) {
-      return row.id === cardID
-    })
-    if (!card) return
-    const colIndex = orderedColumns.findIndex(function (column) {
-      return column.id === card.columnID
-    })
-    if (colIndex < 0) return
-    const columnCards = cardsInColumn(card.columnID)
-    const index = columnCards.findIndex(function (row) {
-      return row.id === cardID
-    })
-
-    if (event.key === 'ArrowUp' && index > 0) {
-      event.preventDefault()
-      void toMoveCard(cardID, card.columnID, index - 1)
-    }
-    if (event.key === 'ArrowDown' && index < columnCards.length - 1) {
-      event.preventDefault()
-      void toMoveCard(cardID, card.columnID, index + 1)
-    }
-    if (event.key === 'ArrowLeft' && colIndex > 0) {
-      event.preventDefault()
-      const dest = orderedColumns[colIndex - 1]!
-      void toMoveCard(cardID, dest.id, cardsInColumn(dest.id).length)
-    }
-    if (event.key === 'ArrowRight' && colIndex < orderedColumns.length - 1) {
-      event.preventDefault()
-      const dest = orderedColumns[colIndex + 1]!
-      void toMoveCard(cardID, dest.id, cardsInColumn(dest.id).length)
-    }
   }
 
   useEffect(
@@ -311,7 +226,10 @@ function BoardView() {
         if (meta && event.key.toLowerCase() === 'n') {
           event.preventDefault()
           const first = orderedColumns[0]
-          if (first) setAddRequestColumnID(first.id)
+          if (first) {
+            changeViewMode('board')
+            setAddRequestColumnID(first.id)
+          }
         }
         if (meta && event.key.toLowerCase() === 'f') {
           event.preventDefault()
@@ -323,7 +241,7 @@ function BoardView() {
         window.removeEventListener('keydown', onGlobalKey)
       }
     },
-    [orderedColumns]
+    [orderedColumns, activeBoardID]
   )
 
   async function commitColumn() {
@@ -339,8 +257,8 @@ function BoardView() {
     toast.success('已添加列')
   }
 
-  async function archiveCard(cardID: string) {
-    const ok = await toUpdateCard(cardID, { archivedAt: Date.now() })
+  async function archiveCard(entryID: string) {
+    const ok = await toUpdateEntry(entryID, { archivedAt: Date.now() })
     if (!ok) {
       toast.error('归档失败')
       return
@@ -349,7 +267,7 @@ function BoardView() {
   }
 
   async function archiveColumn(columnID: string) {
-    const count = cardsInColumn(columnID).length
+    const count = entriesInColumn(columnID).length
     if (count > 0) {
       toast.error('请先清空或移走列中的卡片')
       return
@@ -362,11 +280,8 @@ function BoardView() {
     toast.success('已归档列')
   }
 
-  const activeCard = cards.find(function (card) {
+  const activeCard = entries.find(function (card) {
     return card.id === selectedCardID
-  })
-  const dragCard = cards.find(function (card) {
-    return card.id === activeDragID
   })
 
   if (!loaded) {
@@ -384,293 +299,271 @@ function BoardView() {
 
       <div className={styles.chrome}>
         <div className={styles.chromeMeta}>
-          <div className="flex items-center gap-2">
-            <Select
-              items={boards.map(function (board) {
-                return { value: board.id, label: board.title }
+          <Select
+            items={boards.map(function (board) {
+              return { value: board.id, label: board.title }
+            })}
+            value={activeBoardID}
+            onValueChange={function (value) {
+              if (value === null) return
+              void toActivateBoard(value)
+            }}>
+            <SelectTrigger className="h-9 w-44">
+              <SelectValue placeholder="选择看板" />
+            </SelectTrigger>
+            <SelectContent>
+              {boards.map(function (board) {
+                return (
+                  <SelectItem
+                    key={board.id}
+                    value={board.id}>
+                    {board.title}
+                  </SelectItem>
+                )
               })}
-              value={activeBoardID}
-              onValueChange={function (value) {
-                if (value === null) return
-                void toActivateBoard(value)
-              }}>
-              <SelectTrigger className="h-9 w-[168px]">
-                <SelectValue placeholder="选择看板" />
-              </SelectTrigger>
-              <SelectContent>
-                {boards.map(function (board) {
-                  return (
-                    <SelectItem
-                      key={board.id}
-                      value={board.id}>
-                      {board.title}
-                    </SelectItem>
-                  )
-                })}
-              </SelectContent>
-            </Select>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-8 px-2"
-              disabled={!activeBoard}
-              onClick={function () {
-                if (!activeBoard) return
-                setNameDialog({
-                  kind: 'board-rename',
-                  boardID: activeBoard.id,
-                  title: activeBoard.title
-                })
-              }}>
-              <Icon
-                icon="lucide:pencil"
-                className="size-3.5"
-              />
-            </Button>
-          </div>
+            </SelectContent>
+          </Select>
           <p className={styles.chromeHint}>
-            {activeBoard?.title ?? '看板'} · {cards.length} 张卡片 · {orderedColumns.length} 列
+            {entries.length} 张 · {orderedColumns.length} 列
           </p>
         </div>
 
-        <div className={styles.filters}>
-          <Input
-            id="signboard-search"
-            className="h-9 w-[200px]"
-            placeholder="搜索标题或备注…"
-            value={search}
-            onChange={function (event) {
-              setSearch(event.target.value)
-              applySearch(event.target.value)
-            }}
-          />
-          <Button
-            type="button"
-            size="sm"
-            variant={dueOnly ? 'default' : 'outline'}
-            onClick={function () {
-              setDueOnly(function (prev) {
-                return !prev
-              })
-            }}>
-            <Icon
-              icon="lucide:calendar-clock"
-              className="size-3.5"
-            />
-            有到期
-          </Button>
-          {tags.map(function (tag) {
-            return (
-              <Button
-                key={tag.id}
-                type="button"
-                size="sm"
-                variant={tagFilter === tag.id ? 'default' : 'outline'}
-                onClick={function () {
-                  setTagFilter(function (prev) {
-                    return prev === tag.id ? 'all' : tag.id
-                  })
-                }}>
-                {tag.title}
-              </Button>
-            )
-          })}
-        </div>
+        <ViewTabs
+          value={viewMode}
+          onChange={changeViewMode}
+        />
 
-        <div className={styles.chromeActions}>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={function () {
-              setNameDialog({ kind: 'board-create' })
-            }}>
-            <Icon
-              icon="lucide:layout-dashboard"
-              className="size-3.5"
-            />
-            新建看板
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={function () {
-              setAddingColumn(true)
-            }}>
-            <Icon
-              icon="lucide:columns-3"
-              className="size-3.5"
-            />
-            添加列
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={function () {
-              const first = orderedColumns[0]
-              if (!first) {
-                setAddingColumn(true)
-                toast.message('请先添加一列')
-                return
-              }
-              setAddRequestColumnID(first.id)
-            }}>
-            <Icon
-              icon="lucide:plus"
-              className="size-3.5"
-            />
-            新建卡片
-          </Button>
+        <div className={styles.chromeTools}>
+          <div className={styles.filters}>
+            <InputGroup className="w-52">
+              <InputGroupInput
+                id="signboard-search"
+                placeholder="搜索…"
+                value={search}
+                onChange={function (event) {
+                  setSearch(event.target.value)
+                  applySearch(event.target.value)
+                }}
+              />
+              <InputGroupAddon>
+                <Icon
+                  icon="lucide:search"
+                  className="size-4 opacity-50"
+                />
+              </InputGroupAddon>
+            </InputGroup>
+            <Button
+              type="button"
+              size="lg"
+              className={dueOnly ? styles.filterChipOn : styles.filterChip}
+              variant={dueOnly ? 'secondary' : 'ghost'}
+              aria-pressed={dueOnly}
+              onClick={function () {
+                setDueOnly(function (prev) {
+                  return !prev
+                })
+              }}>
+              <Icon
+                icon="lucide:calendar-clock"
+                className="size-4"
+              />
+              有到期
+            </Button>
+            {tags.map(function (tag) {
+              const isOn = tagFilter === tag.id
+              return (
+                <Button
+                  key={tag.id}
+                  type="button"
+                  size="lg"
+                  className={isOn ? styles.filterChipOn : styles.filterChip}
+                  variant={isOn ? 'secondary' : 'ghost'}
+                  aria-pressed={isOn}
+                  onClick={function () {
+                    setTagFilter(function (prev) {
+                      return prev === tag.id ? 'all' : tag.id
+                    })
+                  }}>
+                  {tag.title}
+                </Button>
+              )
+            })}
+          </div>
+
+          <div className={styles.chromeActions}>
+            <Button
+              type="button"
+              size="lg"
+              className="px-3"
+              onClick={function () {
+                const first = orderedColumns[0]
+                if (!first) {
+                  setAddingColumn(true)
+                  changeViewMode('board')
+                  toast.message('请先添加一列')
+                  return
+                }
+                changeViewMode('board')
+                setAddRequestColumnID(first.id)
+              }}>
+              <Icon
+                icon="lucide:plus"
+                className="size-4"
+              />
+              新建卡片
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    type="button"
+                    size="icon-lg"
+                    variant="ghost"
+                    aria-label="更多操作"
+                  />
+                }>
+                <Icon
+                  icon="lucide:ellipsis"
+                  className="size-4"
+                />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={function () {
+                    setAddingColumn(true)
+                    changeViewMode('board')
+                  }}>
+                  <Icon
+                    icon="lucide:columns-3"
+                    className="size-4"
+                  />
+                  添加列
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={function () {
+                    setAutomationOpen(true)
+                  }}>
+                  <Icon
+                    icon="lucide:zap"
+                    className="size-4"
+                  />
+                  自动化
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={function () {
+                    setNameDialog({ kind: 'board-create' })
+                  }}>
+                  <Icon
+                    icon="lucide:layout-dashboard"
+                    className="size-4"
+                  />
+                  新建看板
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  disabled={!activeBoard}
+                  onClick={function () {
+                    if (!activeBoard) return
+                    setNameDialog({
+                      kind: 'board-rename',
+                      boardID: activeBoard.id,
+                      title: activeBoard.title
+                    })
+                  }}>
+                  <Icon
+                    icon="lucide:pencil"
+                    className="size-4"
+                  />
+                  重命名看板
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}>
-        <div className={styles.board}>
-          {orderedColumns.length === 0 ? (
-            <div className={styles.emptyBoard}>
-              <div className={styles.emptyIcon}>
-                <Icon
-                  icon="lucide:kanban"
-                  className="size-5"
-                />
-              </div>
-              <p className={styles.emptyTitle}>还没有列</p>
-              <p className={styles.emptyDesc}>先建一列工作流状态，再把事情放进去。默认可用「待办 / 进行中 / 完成」。</p>
-              <Button
-                type="button"
-                onClick={function () {
-                  setAddingColumn(true)
-                }}>
-                添加第一列
-              </Button>
-            </div>
-          ) : (
-            orderedColumns.map(function (column) {
-              return (
-                <ColumnLane
-                  key={column.id}
-                  column={column}
-                  cards={cardsInColumn(column.id)}
-                  tagsByCard={tagsByCard}
-                  isDimmedCard={isDimmedCard}
-                  selectedCardID={selectedCardID}
-                  semantic={parseSemantic(column.title, column.index)}
-                  requestAdd={addRequestColumnID === column.id}
-                  onConsumedAddRequest={function () {
-                    setAddRequestColumnID(null)
-                  }}
-                  onOpenCard={openCard}
-                  onFocusCard={setSelectedCardID}
-                  onKeyMove={onKeyMove}
-                  onWriteCard={async function (columnID, title) {
-                    const id = await toWriteCard({ columnID, title })
-                    if (!id) {
-                      toast.error('添加卡片失败')
-                      return
-                    }
-                    toast.success('已添加卡片')
-                  }}
-                  onRenameColumn={function (column) {
-                    setNameDialog({ kind: 'column-rename', column })
-                  }}
-                  onArchiveColumn={function (columnID) {
-                    void archiveColumn(columnID)
-                  }}
-                  onArchiveCard={function (cardID) {
-                    void archiveCard(cardID)
-                  }}
-                />
-              )
-            })
-          )}
+      {viewMode === 'board' ? (
+        <KanbanView
+          columns={orderedColumns}
+          entries={entries}
+          tagsByCard={tagsByCard}
+          isDimmedCard={isDimmedCard}
+          selectedCardID={selectedCardID}
+          addRequestColumnID={addRequestColumnID}
+          addingColumn={addingColumn}
+          columnDraft={columnDraft}
+          onColumnDraftChange={setColumnDraft}
+          onAddingColumnChange={setAddingColumn}
+          onConsumedAddRequest={function () {
+            setAddRequestColumnID(null)
+          }}
+          onOpenCard={openCard}
+          onFocusCard={setSelectedCardID}
+          onRenameColumn={function (column) {
+            setNameDialog({ kind: 'column-rename', column })
+          }}
+          onArchiveColumn={function (columnID) {
+            void archiveColumn(columnID)
+          }}
+          onArchiveCard={function (entryID) {
+            void archiveCard(entryID)
+          }}
+          onCommitColumn={commitColumn}
+        />
+      ) : null}
 
-          {addingColumn || orderedColumns.length > 0 ? (
-            <div className={styles.addColumn}>
-              {addingColumn ? (
-                <>
-                  <Input
-                    autoFocus
-                    value={columnDraft}
-                    placeholder="列名称，例如：评审中"
-                    className="h-9"
-                    onChange={function (event) {
-                      setColumnDraft(event.target.value)
-                    }}
-                    onKeyDown={function (event) {
-                      if (event.key === 'Enter') {
-                        event.preventDefault()
-                        void commitColumn()
-                      }
-                      if (event.key === 'Escape') {
-                        setAddingColumn(false)
-                        setColumnDraft('')
-                      }
-                    }}
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="flex-1"
-                      onClick={function () {
-                        void commitColumn()
-                      }}>
-                      添加
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={function () {
-                        setAddingColumn(false)
-                        setColumnDraft('')
-                      }}>
-                      取消
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-9 justify-start text-muted-foreground"
-                  onClick={function () {
-                    setAddingColumn(true)
-                  }}>
-                  <Icon
-                    icon="lucide:plus"
-                    className="size-3.5"
-                  />
-                  添加列
-                </Button>
-              )}
-            </div>
-          ) : null}
-        </div>
+      {viewMode === 'table' ? (
+        <TableView
+          columns={orderedColumns}
+          entries={entries}
+          tagsByCard={tagsByCard}
+          isDimmedCard={isDimmedCard}
+          onOpenCard={openCard}
+        />
+      ) : null}
 
-        <DragOverlay dropAnimation={null}>
-          {dragCard ? (
-            <div className={styles.overlayCard}>
-              <p className="text-sm font-medium">{dragCard.title}</p>
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+      {viewMode === 'gantt' ? (
+        <GanttView
+          columns={orderedColumns}
+          entries={entries}
+          onOpenCard={openCard}
+        />
+      ) : null}
+
+      {viewMode === 'calendar' ? (
+        <CalendarView
+          entries={entries}
+          onOpenCard={openCard}
+        />
+      ) : null}
+
+      {viewMode === 'stats' ? (
+        <StatsView
+          columns={orderedColumns}
+          entries={entries}
+        />
+      ) : null}
+
+      {viewMode === 'workload' ? <WorkloadView columns={orderedColumns} /> : null}
 
       <p className={styles.footerHint}>
-        手柄拖拽跨列 · ⌘/Ctrl+N 在首列新建 · ⌘/Ctrl+F 搜索 · 选中卡片后 ⌘/Ctrl+↑↓←→ 移动
+        {viewMode === 'board'
+          ? '手柄拖拽跨列 · ⌘/Ctrl+N 在首列新建 · ⌘/Ctrl+F 搜索 · 选中卡片后 ⌘/Ctrl+↑↓←→ 移动'
+          : '同一看板数据 · 点行/条/日打开详情 · 菜单中可配置自动化规则'}
       </p>
 
       <CardSheet
         card={activeCard ?? null}
         open={sheetOpen}
         onUpdateOpen={setSheetOpen}
+      />
+
+      <AutomationSheet
+        open={automationOpen}
+        onUpdateOpen={setAutomationOpen}
+        boardID={activeBoardID}
+        columns={orderedColumns}
+        tags={tags}
       />
 
       <NameDialog

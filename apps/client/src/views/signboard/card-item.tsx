@@ -10,18 +10,23 @@ import {
 import { clsx } from 'clsx'
 import type { KeyboardEvent } from 'react'
 
-import type { SignboardCard, SignboardTag } from '@/stores/signboard'
+import type {
+  SignboardEntry,
+  SignboardCheck,
+  SignboardTag
+} from '@/stores/signboard'
 import styles from '@/views/signboard/signboard.module.scss'
 
 interface CardItemProps {
-  card: SignboardCard
+  card: SignboardEntry
   tags: SignboardTag[]
+  checklist: SignboardCheck[]
   isDimmed: boolean
   isSelected: boolean
-  onOpen: (cardID: string) => void
-  onFocusCard: (cardID: string) => void
-  onKeyMove: (cardID: string, event: KeyboardEvent) => void
-  onArchive: (cardID: string) => void
+  onOpen: (entryID: string) => void
+  onFocusCard: (entryID: string) => void
+  onKeyMove: (entryID: string, event: KeyboardEvent) => void
+  onArchive: (entryID: string) => void
 }
 
 function formatDue(dueAt: number) {
@@ -49,6 +54,10 @@ function CardItem(props: CardItemProps) {
 
   const tone = dueTone(props.card.dueAt)
   const visibleTags = props.tags.slice(0, 2)
+  const checklistTotal = props.checklist.length
+  const checklistDone = props.checklist.filter(function (item) {
+    return item.done
+  }).length
 
   return (
     <li
@@ -78,7 +87,7 @@ function CardItem(props: CardItemProps) {
         {...listeners}>
         <Icon
           icon="lucide:grip-vertical"
-          className="size-3.5"
+          className="size-4"
         />
       </button>
 
@@ -105,13 +114,31 @@ function CardItem(props: CardItemProps) {
                 tone === 'overdue' && styles.dueOverdue,
                 tone === 'today' && styles.dueToday
               )}>
+              <Icon
+                icon="lucide:calendar"
+                className="size-3"
+                aria-hidden
+              />
               {formatDue(props.card.dueAt)}
             </span>
+          ) : null}
+          {checklistTotal > 0 ? (
+            <span className={styles.checklistBadge}>
+              <Icon
+                icon="lucide:list-checks"
+                className="size-3"
+                aria-hidden
+              />
+              {checklistDone}/{checklistTotal}
+            </span>
+          ) : null}
+          {props.card.priority > 0 ? (
+            <span className={styles.priorityBadge}>P{props.card.priority}</span>
           ) : null}
           {props.card.reminderID ? (
             <Icon
               icon="lucide:bell"
-              className="size-3 text-muted-foreground"
+              className="size-3.5 text-muted-foreground"
               aria-label="已设提醒"
             />
           ) : null}
@@ -120,7 +147,7 @@ function CardItem(props: CardItemProps) {
 
       <DropdownMenu>
         <DropdownMenuTrigger
-          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-70 hover:bg-muted hover:opacity-100"
+          className={styles.menuTrigger}
           aria-label="卡片菜单"
           onClick={function (event) {
             event.stopPropagation()

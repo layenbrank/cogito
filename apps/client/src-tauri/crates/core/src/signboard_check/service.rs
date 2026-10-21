@@ -3,7 +3,7 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
     QueryFilter, QueryOrder, TransactionTrait,
 };
-use thinking_database::entity::signboard_card as schema;
+use thinking_database::entity::signboard_check as schema;
 use uuid::Uuid;
 
 use crate::exception::Exception;
@@ -17,10 +17,7 @@ impl Service {
         params: schema::WriteP,
     ) -> Result<Vec<String>, Exception> {
         match params {
-            schema::WriteP::One(p) => {
-                let id = Self::write_one(db, p).await?;
-                Ok(vec![id])
-            }
+            schema::WriteP::One(p) => Ok(vec![Self::write_one(db, p).await?]),
             schema::WriteP::Many(ps) => {
                 if ps.is_empty() {
                     return Ok(vec![]);
@@ -46,7 +43,7 @@ impl Service {
                 let rows = schema::Entity::find()
                     .filter(Self::build_read_filter(&p))
                     .order_by_asc(schema::Column::Index)
-                    .order_by_desc(schema::Column::CreatedAt)
+                    .order_by_asc(schema::Column::CreatedAt)
                     .all(db)
                     .await?;
                 Ok(rows)
@@ -61,7 +58,7 @@ impl Service {
                 let rows = schema::Entity::find()
                     .filter(combined)
                     .order_by_asc(schema::Column::Index)
-                    .order_by_desc(schema::Column::CreatedAt)
+                    .order_by_asc(schema::Column::CreatedAt)
                     .all(db)
                     .await?;
                 Ok(rows)
@@ -75,10 +72,7 @@ impl Service {
         params: schema::UpdateP,
     ) -> Result<Vec<String>, Exception> {
         match params {
-            schema::UpdateP::One(p) => {
-                let updated_id = Self::update_one(db, p).await?;
-                Ok(vec![updated_id])
-            }
+            schema::UpdateP::One(p) => Ok(vec![Self::update_one(db, p).await?]),
             schema::UpdateP::Many(ps) => {
                 if ps.is_empty() {
                     return Ok(vec![]);
@@ -137,15 +131,10 @@ impl Service {
         let id = Uuid::new_v4().to_string();
         let model = schema::ActiveModel {
             id: Set(id.clone()),
-            column_id: Set(p.column_id),
+            entry_id: Set(p.entry_id),
             title: Set(p.title),
-            notes: Set(p.notes),
+            done: Set(p.done),
             index: Set(p.index),
-            due_at: Set(p.due_at),
-            reminder_id: Set(p.reminder_id),
-            priority: Set(p.priority),
-            color: Set(p.color),
-            archived_at: Set(None),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -160,35 +149,17 @@ impl Service {
         let existing = schema::Entity::find_by_id(p.key.clone())
             .one(db)
             .await?
-            .ok_or_else(|| Exception::NotFound(format!("signboard_card:{}", p.key)))?;
+            .ok_or_else(|| Exception::NotFound(format!("signboard_check:{}", p.key)))?;
         let mut active: schema::ActiveModel = existing.into();
         let change = p.change;
-        if let Some(column_id) = change.column_id {
-            active.column_id = Set(column_id);
-        }
         if let Some(title) = change.title {
             active.title = Set(title);
         }
-        if let Some(notes) = change.notes {
-            active.notes = Set(notes);
+        if let Some(done) = change.done {
+            active.done = Set(done);
         }
         if let Some(index) = change.index {
             active.index = Set(index);
-        }
-        if let Some(due_at) = change.due_at {
-            active.due_at = Set(due_at);
-        }
-        if let Some(reminder_id) = change.reminder_id {
-            active.reminder_id = Set(reminder_id);
-        }
-        if let Some(priority) = change.priority {
-            active.priority = Set(priority);
-        }
-        if let Some(color) = change.color {
-            active.color = Set(color);
-        }
-        if let Some(archived_at) = change.archived_at {
-            active.archived_at = Set(archived_at);
         }
         active.updated_at = Set(Utc::now().timestamp_millis());
         active.update(db).await?;
@@ -200,17 +171,8 @@ impl Service {
         if let Some(id) = &p.id {
             condition = condition.add(schema::Column::Id.eq(id.clone()));
         }
-        if let Some(column_id) = &p.column_id {
-            condition = condition.add(schema::Column::ColumnId.eq(column_id.clone()));
-        }
-        if let Some(title) = &p.title {
-            condition = condition.add(schema::Column::Title.eq(title.clone()));
-        }
-        if let Some(reminder_id) = &p.reminder_id {
-            condition = condition.add(schema::Column::ReminderId.eq(reminder_id.clone()));
-        }
-        if !p.archived {
-            condition = condition.add(schema::Column::ArchivedAt.is_null());
+        if let Some(entry_id) = &p.entry_id {
+            condition = condition.add(schema::Column::EntryId.eq(entry_id.clone()));
         }
         condition
     }

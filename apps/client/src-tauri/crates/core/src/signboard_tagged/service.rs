@@ -2,7 +2,7 @@ use sea_orm::{
     ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter,
     TransactionTrait,
 };
-use thinking_database::entity::signboard_card_tag as schema;
+use thinking_database::entity::signboard_tagged as schema;
 
 use crate::exception::Exception;
 
@@ -89,9 +89,9 @@ impl Service {
     }
 
     async fn write_one<C: ConnectionTrait>(db: &C, p: schema::Write) -> Result<String, Exception> {
-        let key = format!("{}:{}", p.card_id, p.tag_id);
+        let key = format!("{}:{}", p.entry_id, p.tag_id);
         let model = schema::ActiveModel {
-            card_id: Set(p.card_id),
+            entry_id: Set(p.entry_id),
             tag_id: Set(p.tag_id),
         };
         schema::Entity::insert(model).exec(db).await?;
@@ -103,32 +103,32 @@ impl Service {
         p: schema::Remove,
     ) -> Result<String, Exception> {
         if let Some(tag_id) = p.tag_id {
-            let key = format!("{}:{}", p.card_id, tag_id);
-            let exists = schema::Entity::find_by_id((p.card_id.clone(), tag_id.clone()))
+            let key = format!("{}:{}", p.entry_id, tag_id);
+            let exists = schema::Entity::find_by_id((p.entry_id.clone(), tag_id.clone()))
                 .one(db)
                 .await?;
             if exists.is_none() {
                 return Ok(key);
             }
             schema::Entity::delete_many()
-                .filter(schema::Column::CardId.eq(p.card_id))
+                .filter(schema::Column::EntryId.eq(p.entry_id))
                 .filter(schema::Column::TagId.eq(tag_id))
                 .exec(db)
                 .await?;
             Ok(key)
         } else {
             schema::Entity::delete_many()
-                .filter(schema::Column::CardId.eq(p.card_id.clone()))
+                .filter(schema::Column::EntryId.eq(p.entry_id.clone()))
                 .exec(db)
                 .await?;
-            Ok(p.card_id)
+            Ok(p.entry_id)
         }
     }
 
     fn build_read_filter(p: &schema::Read) -> Condition {
         let mut condition = Condition::all();
-        if let Some(card_id) = &p.card_id {
-            condition = condition.add(schema::Column::CardId.eq(card_id.clone()));
+        if let Some(entry_id) = &p.entry_id {
+            condition = condition.add(schema::Column::EntryId.eq(entry_id.clone()));
         }
         if let Some(tag_id) = &p.tag_id {
             condition = condition.add(schema::Column::TagId.eq(tag_id.clone()));

@@ -109,11 +109,11 @@ export const CHANNELS = {
     UPDATE: 'signboard-column:update',
     REMOVE: 'signboard-column:remove'
   },
-  SIGNBOARD_CARD: {
-    READ: 'signboard-card:read',
-    WRITE: 'signboard-card:write',
-    UPDATE: 'signboard-card:update',
-    REMOVE: 'signboard-card:remove'
+  SIGNBOARD_ENTRY: {
+    READ: 'signboard-entry:read',
+    WRITE: 'signboard-entry:write',
+    UPDATE: 'signboard-entry:update',
+    REMOVE: 'signboard-entry:remove'
   },
   SIGNBOARD_TAG: {
     READ: 'signboard-tag:read',
@@ -121,10 +121,22 @@ export const CHANNELS = {
     UPDATE: 'signboard-tag:update',
     REMOVE: 'signboard-tag:remove'
   },
-  SIGNBOARD_CARD_TAG: {
-    READ: 'signboard-card-tag:read',
-    WRITE: 'signboard-card-tag:write',
-    REMOVE: 'signboard-card-tag:remove'
+  SIGNBOARD_TAGGED: {
+    READ: 'signboard-tagged:read',
+    WRITE: 'signboard-tagged:write',
+    REMOVE: 'signboard-tagged:remove'
+  },
+  SIGNBOARD_CHECK: {
+    READ: 'signboard-check:read',
+    WRITE: 'signboard-check:write',
+    UPDATE: 'signboard-check:update',
+    REMOVE: 'signboard-check:remove'
+  },
+  SIGNBOARD_AUTOMATION: {
+    READ: 'signboard-automation:read',
+    WRITE: 'signboard-automation:write',
+    UPDATE: 'signboard-automation:update',
+    REMOVE: 'signboard-automation:remove'
   },
   REMINDER: {
     READ: 'reminder:read',

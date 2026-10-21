@@ -9,10 +9,12 @@ pub mod mirror;
 pub mod overlay;
 pub mod reminder;
 pub mod signboard;
-pub mod signboard_card;
-pub mod signboard_card_tag;
+pub mod signboard_automation;
+pub mod signboard_check;
 pub mod signboard_column;
+pub mod signboard_entry;
 pub mod signboard_tag;
+pub mod signboard_tagged;
 
 #[allow(non_snake_case)]
 pub mod agent_workspace {

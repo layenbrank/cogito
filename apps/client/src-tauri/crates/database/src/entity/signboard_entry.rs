@@ -2,29 +2,24 @@ use sea_orm::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "signboardCard")]
+#[sea_orm(table_name = "signboard_entry")]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: String,
     #[serde(rename = "columnID")]
-    #[sea_orm(column_name = "columnID")]
     pub column_id: String,
     pub title: String,
     pub notes: String,
     pub index: i32,
-    #[sea_orm(column_name = "dueAt")]
     pub due_at: Option<i64>,
+    pub start_at: Option<i64>,
     #[serde(rename = "reminderID")]
-    #[sea_orm(column_name = "reminderID")]
     pub reminder_id: Option<String>,
     pub priority: i32,
     pub color: Option<String>,
-    #[sea_orm(column_name = "archivedAt")]
     pub archived_at: Option<i64>,
-    #[sea_orm(column_name = "createdAt")]
     pub created_at: i64,
-    #[sea_orm(column_name = "updatedAt")]
     pub updated_at: i64,
 }
 
@@ -93,6 +88,7 @@ pub struct Write {
     #[serde(default)]
     pub index: i32,
     pub due_at: Option<i64>,
+    pub start_at: Option<i64>,
     #[serde(rename = "reminderID")]
     pub reminder_id: Option<String>,
     #[serde(default)]
@@ -116,6 +112,7 @@ pub struct Change {
     pub notes: Option<String>,
     pub index: Option<i32>,
     pub due_at: Option<Option<i64>>,
+    pub start_at: Option<Option<i64>>,
     #[serde(rename = "reminderID")]
     pub reminder_id: Option<Option<String>>,
     pub priority: Option<i32>,

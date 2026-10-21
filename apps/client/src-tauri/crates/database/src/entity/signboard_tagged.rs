@@ -2,16 +2,14 @@ use sea_orm::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "signboardCardTag")]
+#[sea_orm(table_name = "signboard_tagged")]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    #[serde(rename = "cardID")]
-    #[sea_orm(column_name = "cardID")]
-    pub card_id: String,
+    #[serde(rename = "entryID")]
+    pub entry_id: String,
     #[sea_orm(primary_key, auto_increment = false)]
     #[serde(rename = "tagID")]
-    #[sea_orm(column_name = "tagID")]
     pub tag_id: String,
 }
 
@@ -20,13 +18,13 @@ impl ActiveModelBehavior for ActiveModel {}
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(
-        belongs_to = "super::signboard_card::Entity",
-        from = "Column::CardId",
-        to = "super::signboard_card::Column::Id",
+        belongs_to = "super::signboard_entry::Entity",
+        from = "Column::EntryId",
+        to = "super::signboard_entry::Column::Id",
         on_delete = "Cascade",
         on_update = "Cascade"
     )]
-    Card,
+    Entry,
     #[sea_orm(
         belongs_to = "super::signboard_tag::Entity",
         from = "Column::TagId",
@@ -37,9 +35,9 @@ pub enum Relation {
     Tag,
 }
 
-impl Related<super::signboard_card::Entity> for Entity {
+impl Related<super::signboard_entry::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Card.def()
+        Relation::Entry.def()
     }
 }
 
@@ -52,8 +50,8 @@ impl Related<super::signboard_tag::Entity> for Entity {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Read {
-    #[serde(rename = "cardID")]
-    pub card_id: Option<String>,
+    #[serde(rename = "entryID")]
+    pub entry_id: Option<String>,
     #[serde(rename = "tagID")]
     pub tag_id: Option<String>,
 }
@@ -68,8 +66,8 @@ pub enum ReadP {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Write {
-    #[serde(rename = "cardID")]
-    pub card_id: String,
+    #[serde(rename = "entryID")]
+    pub entry_id: String,
     #[serde(rename = "tagID")]
     pub tag_id: String,
 }
@@ -84,8 +82,8 @@ pub enum WriteP {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Remove {
-    #[serde(rename = "cardID")]
-    pub card_id: String,
+    #[serde(rename = "entryID")]
+    pub entry_id: String,
     #[serde(rename = "tagID")]
     pub tag_id: Option<String>,
 }

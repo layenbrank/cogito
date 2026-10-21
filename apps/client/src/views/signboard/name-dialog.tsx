@@ -84,12 +84,14 @@ function NameDialog(props: NameDialogProps) {
         <DialogFooter>
           <Button
             type="button"
+            size="lg"
             variant="outline"
             onClick={props.onClose}>
             取消
           </Button>
           <Button
             type="button"
+            size="lg"
             disabled={!value.trim() || submitting}
             onClick={function () {
               void submit()

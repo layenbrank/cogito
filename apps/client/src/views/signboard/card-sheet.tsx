@@ -1,7 +1,15 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
+import { Checkbox } from '@i-thinking/design/components/checkbox'
 import { Input } from '@i-thinking/design/components/input'
 import { Label } from '@i-thinking/design/components/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@i-thinking/design/components/select'
 import { Sheet, SheetContent, SheetTitle } from '@i-thinking/design/components/sheet'
 import { Switch } from '@i-thinking/design/components/switch'
 import { Textarea } from '@i-thinking/design/components/textarea'
@@ -10,11 +18,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { useReminderStore } from '@/stores/reminder'
-import { useSignboardStore, type SignboardCard } from '@/stores/signboard'
+import { useSignboardStore, type SignboardEntry } from '@/stores/signboard'
 import styles from '@/views/signboard/signboard.module.scss'
 
 interface CardSheetProps {
-  card: SignboardCard | null
+  card: SignboardEntry | null
   open: boolean
   onUpdateOpen: (open: boolean) => void
 }
@@ -35,6 +43,14 @@ function parseDateInput(value: string) {
   return Number.isNaN(ms) ? null : ms
 }
 
+const PRIORITY_OPTIONS = [
+  { value: '0', label: '无' },
+  { value: '1', label: '低' },
+  { value: '2', label: '中' },
+  { value: '3', label: '高' },
+  { value: '4', label: '紧急' }
+] as const
+
 function CardSheet(props: CardSheetProps) {
   const tags = useSignboardStore(function (state) {
     return state.tags
@@ -42,20 +58,32 @@ function CardSheet(props: CardSheetProps) {
   const activeBoardID = useSignboardStore(function (state) {
     return state.activeBoardID
   })
-  const tagIDsForCard = useSignboardStore(function (state) {
-    return state.tagIDsForCard
+  const tagIDsForEntry = useSignboardStore(function (state) {
+    return state.tagIDsForEntry
   })
-  const toUpdateCard = useSignboardStore(function (state) {
-    return state.toUpdateCard
+  const checksForEntry = useSignboardStore(function (state) {
+    return state.checksForEntry
+  })
+  const toUpdateEntry = useSignboardStore(function (state) {
+    return state.toUpdateEntry
   })
   const toWriteTag = useSignboardStore(function (state) {
     return state.toWriteTag
   })
-  const toAttachTag = useSignboardStore(function (state) {
-    return state.toAttachTag
+  const toTagEntry = useSignboardStore(function (state) {
+    return state.toTagEntry
   })
-  const toDetachTag = useSignboardStore(function (state) {
-    return state.toDetachTag
+  const toUntagEntry = useSignboardStore(function (state) {
+    return state.toUntagEntry
+  })
+  const toWriteCheck = useSignboardStore(function (state) {
+    return state.toWriteCheck
+  })
+  const toUpdateCheck = useSignboardStore(function (state) {
+    return state.toUpdateCheck
+  })
+  const toRemoveCheck = useSignboardStore(function (state) {
+    return state.toRemoveCheck
   })
   const toWriteReminder = useReminderStore(function (state) {
     return state.toWriteReminder
@@ -67,11 +95,15 @@ function CardSheet(props: CardSheetProps) {
   const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
   const [due, setDue] = useState('')
+  const [start, setStart] = useState('')
+  const [priority, setPriority] = useState('0')
   const [remind, setRemind] = useState(false)
   const [tagDraft, setTagDraft] = useState('')
+  const [checklistDraft, setChecklistDraft] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const attached = props.card ? tagIDsForCard(props.card.id) : []
+  const attached = props.card ? tagIDsForEntry(props.card.id) : []
+  const checklist = props.card ? checksForEntry(props.card.id) : []
 
   useEffect(
     function () {
@@ -79,16 +111,19 @@ function CardSheet(props: CardSheetProps) {
       setTitle(props.card.title)
       setNotes(props.card.notes)
       setDue(toDateInput(props.card.dueAt))
+      setStart(toDateInput(props.card.startAt))
+      setPriority(String(props.card.priority ?? 0))
       setRemind(Boolean(props.card.reminderID))
       setTagDraft('')
+      setChecklistDraft('')
     },
     [props.card]
   )
 
   const persistTitle = useMemo(
     function () {
-      return debounce(function (cardID: string, next: string, reminderID: string | null) {
-        void toUpdateCard(cardID, { title: next }).then(function (ok) {
+      return debounce(function (entryID: string, next: string, reminderID: string | null) {
+        void toUpdateEntry(entryID, { title: next }).then(function (ok) {
           if (!ok) toast.error('标题保存失败')
         })
         if (reminderID) {
@@ -98,7 +133,7 @@ function CardSheet(props: CardSheetProps) {
         }
       }, 400)
     },
-    [toUpdateCard, toUpdateReminder]
+    [toUpdateEntry, toUpdateReminder]
   )
 
   useEffect(
@@ -112,16 +147,21 @@ function CardSheet(props: CardSheetProps) {
 
   if (!props.card) return null
 
-  const cardID = props.card.id
+  const entryID = props.card.id
   const reminderID = props.card.reminderID
 
   async function saveDueAndRemind() {
     setSaving(true)
     try {
       const dueAt = parseDateInput(due)
-      const updated = await toUpdateCard(cardID, { dueAt })
+      const startAt = parseDateInput(start)
+      const updated = await toUpdateEntry(entryID, {
+        dueAt,
+        startAt,
+        priority: Number(priority) || 0
+      })
       if (!updated) {
-        toast.error('到期日保存失败')
+        toast.error('保存失败')
         return
       }
 
@@ -145,7 +185,7 @@ function CardSheet(props: CardSheetProps) {
             toast.error('创建提醒失败')
             return
           }
-          await toUpdateCard(cardID, { reminderID: id, dueAt })
+          await toUpdateEntry(entryID, { reminderID: id, dueAt })
         }
         toast.success('已保存并开启提醒')
         props.onUpdateOpen(false)
@@ -157,7 +197,7 @@ function CardSheet(props: CardSheetProps) {
           key: reminderID,
           change: { enabled: false, archivedAt: Date.now() }
         })
-        await toUpdateCard(cardID, { reminderID: null, dueAt })
+        await toUpdateEntry(entryID, { reminderID: null, dueAt })
       }
       toast.success('已保存')
       props.onUpdateOpen(false)
@@ -170,7 +210,7 @@ function CardSheet(props: CardSheetProps) {
 
   async function toggleTag(tagID: string) {
     const isOn = attached.includes(tagID)
-    const ok = isOn ? await toDetachTag(cardID, tagID) : await toAttachTag(cardID, tagID)
+    const ok = isOn ? await toUntagEntry(entryID, tagID) : await toTagEntry(entryID, tagID)
     if (!ok) toast.error(isOn ? '移除标签失败' : '添加标签失败')
   }
 
@@ -190,9 +230,20 @@ function CardSheet(props: CardSheetProps) {
       toast.error('创建标签失败')
       return
     }
-    await toAttachTag(cardID, id)
+    await toTagEntry(entryID, id)
     setTagDraft('')
     toast.success('已添加标签')
+  }
+
+  async function addChecklistItem() {
+    const titleValue = checklistDraft.trim()
+    if (!titleValue) return
+    const id = await toWriteCheck(entryID, titleValue)
+    if (!id) {
+      toast.error('添加清单项失败')
+      return
+    }
+    setChecklistDraft('')
   }
 
   return (
@@ -215,7 +266,7 @@ function CardSheet(props: CardSheetProps) {
               onChange={function (event) {
                 const next = event.target.value
                 setTitle(next)
-                persistTitle(cardID, next, reminderID)
+                persistTitle(entryID, next, reminderID)
               }}
             />
           </div>
@@ -231,23 +282,67 @@ function CardSheet(props: CardSheetProps) {
                 setNotes(event.target.value)
               }}
               onBlur={function () {
-                void toUpdateCard(cardID, { notes }).then(function (ok) {
+                void toUpdateEntry(entryID, { notes }).then(function (ok) {
                   if (!ok) toast.error('备注保存失败')
                 })
               }}
             />
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="signboard-card-start">开始</Label>
+              <Input
+                id="signboard-card-start"
+                type="date"
+                value={start}
+                onChange={function (event) {
+                  setStart(event.target.value)
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="signboard-card-due">到期</Label>
+              <Input
+                id="signboard-card-due"
+                type="date"
+                value={due}
+                onChange={function (event) {
+                  setDue(event.target.value)
+                }}
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
-            <Label htmlFor="signboard-card-due">到期</Label>
-            <Input
-              id="signboard-card-due"
-              type="date"
-              value={due}
-              onChange={function (event) {
-                setDue(event.target.value)
-              }}
-            />
+            <Label>优先级</Label>
+            <Select
+              items={PRIORITY_OPTIONS.map(function (row) {
+                return { value: row.value, label: row.label }
+              })}
+              value={priority}
+              onValueChange={function (value) {
+                if (value === null) return
+                setPriority(value)
+                void toUpdateEntry(entryID, { priority: Number(value) || 0 }).then(function (ok) {
+                  if (!ok) toast.error('优先级保存失败')
+                })
+              }}>
+              <SelectTrigger className="h-9 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PRIORITY_OPTIONS.map(function (row) {
+                  return (
+                    <SelectItem
+                      key={row.value}
+                      value={row.value}>
+                      {row.label}
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className={styles.sheetRow}>
@@ -262,6 +357,66 @@ function CardSheet(props: CardSheetProps) {
                 setRemind(checked)
               }}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label>清单</Label>
+            <ul className={styles.checklistList}>
+              {checklist.map(function (item) {
+                return (
+                  <li
+                    key={item.id}
+                    className={styles.checklistItem}>
+                    <Checkbox
+                      checked={item.done}
+                      onCheckedChange={function (checked) {
+                        void toUpdateCheck(item.id, { done: Boolean(checked) })
+                      }}
+                    />
+                    <span className={item.done ? styles.checklistDone : undefined}>{item.title}</span>
+                    <Button
+                      type="button"
+                      size="icon-lg"
+                      variant="ghost"
+                      className="ml-auto size-7"
+                      aria-label="删除清单项"
+                      onClick={function () {
+                        void toRemoveCheck(item.id)
+                      }}>
+                      <Icon
+                        icon="lucide:x"
+                        className="size-3.5"
+                      />
+                    </Button>
+                  </li>
+                )
+              })}
+            </ul>
+            <div className="flex gap-2">
+              <Input
+                value={checklistDraft}
+                placeholder="添加清单项"
+                className="h-9"
+                onChange={function (event) {
+                  setChecklistDraft(event.target.value)
+                }}
+                onKeyDown={function (event) {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    void addChecklistItem()
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                onClick={function () {
+                  void addChecklistItem()
+                }}>
+                添加
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -300,8 +455,7 @@ function CardSheet(props: CardSheetProps) {
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                className="h-9"
+                size="lg"
                 onClick={function () {
                   void createTag()
                 }}>
@@ -312,7 +466,8 @@ function CardSheet(props: CardSheetProps) {
 
           <Button
             type="button"
-            className="w-full"
+            size="lg"
+            className="mt-1 w-full"
             disabled={saving}
             onClick={function () {
               void saveDueAndRemind()
@@ -322,10 +477,11 @@ function CardSheet(props: CardSheetProps) {
 
           <Button
             type="button"
+            size="lg"
             variant="ghost"
             className="w-full text-destructive"
             onClick={function () {
-              void toUpdateCard(cardID, { archivedAt: Date.now() }).then(function (ok) {
+              void toUpdateEntry(entryID, { archivedAt: Date.now() }).then(function (ok) {
                 if (!ok) {
                   toast.error('归档失败')
                   return

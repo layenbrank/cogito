@@ -9,13 +9,9 @@ pub struct Model {
     pub id: String,
     pub title: String,
     pub index: i32,
-    #[sea_orm(column_name = "archivedAt")]
     pub archived_at: Option<i64>,
-    #[sea_orm(column_name = "syncedAt")]
     pub synced_at: Option<i64>,
-    #[sea_orm(column_name = "createdAt")]
     pub created_at: i64,
-    #[sea_orm(column_name = "updatedAt")]
     pub updated_at: i64,
 }
 

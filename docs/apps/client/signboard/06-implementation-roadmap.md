@@ -11,7 +11,7 @@
 
 ## Phase 1 — 持久化
 
-1. [x] `migrations_v004.rs`：五表 + 索引 + down  
+1. [x] `migrations_v001.rs`：七表 + 索引 + down（signboard 并入第一代）  
 2. [x] Entity + `lib.rs` 注册  
 3. [x] `core/signboard*/service.rs`：CRUD One|Many  
 4. [x] `command` + `CHANNELS.SIGNBOARD*`  
