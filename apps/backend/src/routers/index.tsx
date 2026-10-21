@@ -1,9 +1,20 @@
 import { lazy } from 'react'
-import { createBrowserRouter, Navigate, Outlet, redirect } from 'react-router-dom'
+import {
+  createBrowserRouter,
+  Navigate,
+  Outlet,
+  redirect,
+  type LoaderFunctionArgs
+} from 'react-router-dom'
 
 import { Fallback } from '@/components/fallback/index.tsx'
 import { AppShell } from '@/components/shell/app-shell.tsx'
-import { isAdmin, isAuthenticated } from '@/utils/auth.ts'
+import { findAuthToken, isAdmin } from '@/utils/auth.ts'
+
+function findSignInPath(next?: string): string {
+  if (!next || next === '/' || next.startsWith('/signin')) return '/signin'
+  return `/signin?next=${encodeURIComponent(next)}`
+}
 
 const SignInView = lazy(function () {
   return import('@/views/signin/signin.tsx')
@@ -51,12 +62,13 @@ const PreferencesView = lazy(function () {
   return import('@/views/preferences/preferences.tsx')
 })
 
-function requireAdmin() {
-  if (!isAuthenticated()) {
-    return redirect('/signin')
+function requireAdmin({ request }: LoaderFunctionArgs) {
+  if (!findAuthToken()) {
+    const url = new URL(request.url)
+    return redirect(findSignInPath(url.pathname + url.search))
   }
   if (!isAdmin()) {
-    return redirect('/signin?next=/overview')
+    return redirect(findSignInPath('/overview'))
   }
   return null
 }

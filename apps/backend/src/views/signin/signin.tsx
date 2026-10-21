@@ -2,7 +2,7 @@ import { Button } from '@i-thinking/design/components/button'
 import { Checkbox } from '@i-thinking/design/components/checkbox'
 import { Input } from '@i-thinking/design/components/input'
 import { Label } from '@i-thinking/design/components/label'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -10,6 +10,7 @@ import { POST_SIGNIN, type SlideProof } from '@/apis/auth.ts'
 import { BrandShader } from '@/components/brand/shader.tsx'
 import { SlideDialog } from '@/features/signin/slide-dialog.tsx'
 import {
+  findAuthToken,
   findRememberedUsername,
   isAdmin,
   writeAuthToken,
@@ -27,6 +28,15 @@ export default function SignInView() {
   const [isRemembered, updateRemembered] = useState(true)
   const [isSubmitting, updateSubmitting] = useState(false)
   const [isCaptchaOpen, updateCaptchaOpen] = useState(false)
+
+  useEffect(
+    function () {
+      if (!findAuthToken() || !isAdmin()) return
+      const next = searchParams.get('next') || '/overview'
+      void navigate(next, { replace: true })
+    },
+    [navigate, searchParams]
+  )
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()

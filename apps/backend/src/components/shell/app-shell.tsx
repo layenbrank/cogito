@@ -8,8 +8,8 @@ import {
 } from '@i-thinking/design/components/tooltip'
 import { Icon } from '@iconify/react/offline'
 import clsx from 'clsx'
-import { useCallback, useEffect, useState } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { ConfirmDialog } from '@/components/console/confirm-dialog.tsx'
 import { CommandPalette } from '@/components/shell/command-palette.tsx'
@@ -18,6 +18,7 @@ import { SortableNav } from '@/components/shell/sortable-nav.tsx'
 import { TopBar } from '@/components/shell/top-bar.tsx'
 import { useConsoleLayoutStore } from '@/stores/console-layout.ts'
 import { useSessionStore } from '@/stores/session.ts'
+import { findAuthToken, subscribeAuthToken } from '@/utils/auth.ts'
 
 function findRoleLabel(role: string | undefined) {
   if (!role) return '操作员'
@@ -35,8 +36,13 @@ function findInitials(name: string | undefined) {
 
 function AppShell() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const token = useSyncExternalStore(subscribeAuthToken, findAuthToken, findAuthToken)
   const user = useSessionStore(function (state) {
     return state.user
+  })
+  const isSessionLoading = useSessionStore(function (state) {
+    return state.isLoading
   })
   const toSignOut = useSessionStore(function (state) {
     return state.toSignOut
@@ -54,6 +60,21 @@ function AppShell() {
   const [signOutOpen, updateSignOutOpen] = useState(false)
   /** 宽度跟 isRailCollapsed；图标居中布局等 width 过渡结束再切，避免中途 justify-center 跳动 */
   const [isIconMode, updateIconMode] = useState(isRailCollapsed)
+
+  // loader 只拦首屏；会话失效清令牌后要在壳层立刻踢回登录，不能继续停在业务页
+  useEffect(
+    function () {
+      if (isSessionLoading) return
+      if (token) return
+      const next = location.pathname + location.search
+      const target =
+        next && next !== '/' && !next.startsWith('/signin')
+          ? `/signin?next=${encodeURIComponent(next)}`
+          : '/signin'
+      void navigate(target, { replace: true })
+    },
+    [isSessionLoading, location.pathname, location.search, navigate, token]
+  )
 
   useEffect(
     function () {
