@@ -11,6 +11,8 @@ node_modules
 
 # Logs
 logs
+# …但 apps/backend 的日志页就叫这个名（是视图源码，不是产物），别把它的目录也忽略掉。
+!apps/backend/src/views/logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
