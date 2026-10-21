@@ -79,6 +79,20 @@ interface CardChange {
   archivedAt?: number | null
 }
 
+interface BoardChange {
+  title?: string
+  index?: number
+  archivedAt?: number | null
+}
+
+interface ColumnChange {
+  title?: string
+  index?: number
+  color?: string | null
+  wipLimit?: number | null
+  archivedAt?: number | null
+}
+
 interface SignboardStore {
   boards: SignboardBoard[]
   columns: SignboardColumn[]
@@ -91,14 +105,16 @@ interface SignboardStore {
   toReadBoards: () => Promise<SignboardBoard[]>
   toActivateBoard: (boardID: string) => Promise<void>
   toWriteBoard: (title: string) => Promise<string | undefined>
+  toUpdateBoard: (key: string, change: BoardChange) => Promise<boolean>
   toWriteColumn: (boardID: string, title: string) => Promise<string | undefined>
+  toUpdateColumn: (key: string, change: ColumnChange) => Promise<boolean>
   toWriteCard: (value: CardWrite) => Promise<string | undefined>
-  toUpdateCard: (key: string, change: CardChange) => Promise<void>
-  toMoveCard: (cardID: string, toColumnID: string, toIndex: number) => Promise<void>
-  toRemoveCard: (key: string) => Promise<void>
+  toUpdateCard: (key: string, change: CardChange) => Promise<boolean>
+  toMoveCard: (cardID: string, toColumnID: string, toIndex: number) => Promise<boolean>
+  toRemoveCard: (key: string) => Promise<boolean>
   toWriteTag: (boardID: string, title: string) => Promise<string | undefined>
-  toAttachTag: (cardID: string, tagID: string) => Promise<void>
-  toDetachTag: (cardID: string, tagID: string) => Promise<void>
+  toAttachTag: (cardID: string, tagID: string) => Promise<boolean>
+  toDetachTag: (cardID: string, tagID: string) => Promise<boolean>
   tagIDsForCard: (cardID: string) => string[]
   cardsInColumn: (columnID: string) => SignboardCard[]
 }
@@ -277,6 +293,19 @@ const useSignboardStore = create<SignboardStore>()(
           }
         },
 
+        async toUpdateBoard(key, change) {
+          try {
+            await invoke(CHANNELS.SIGNBOARD.UPDATE, {
+              params: { key, change }
+            })
+            await getter().toReadBoards()
+            return true
+          } catch (error) {
+            console.error('[signboard-store] toUpdateBoard failed:', error)
+            return false
+          }
+        },
+
         async toWriteColumn(boardID, title) {
           try {
             const index = getter().columns.filter(function (column) {
@@ -290,6 +319,20 @@ const useSignboardStore = create<SignboardStore>()(
           } catch (error) {
             console.error('[signboard-store] toWriteColumn failed:', error)
             return undefined
+          }
+        },
+
+        async toUpdateColumn(key, change) {
+          try {
+            await invoke(CHANNELS.SIGNBOARD_COLUMN.UPDATE, {
+              params: { key, change }
+            })
+            const boardID = getter().activeBoardID
+            if (boardID) await getter().toActivateBoard(boardID)
+            return true
+          } catch (error) {
+            console.error('[signboard-store] toUpdateColumn failed:', error)
+            return false
           }
         },
 
@@ -326,8 +369,10 @@ const useSignboardStore = create<SignboardStore>()(
             })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
+            return true
           } catch (error) {
             console.error('[signboard-store] toUpdateCard failed:', error)
+            return false
           }
         },
 
@@ -340,7 +385,7 @@ const useSignboardStore = create<SignboardStore>()(
           const moving = getter().cards.find(function (card) {
             return card.id === cardID
           })
-          if (!moving) return
+          if (!moving) return false
 
           const fromColumnID = moving.columnID
           setter(
@@ -405,6 +450,7 @@ const useSignboardStore = create<SignboardStore>()(
             await invoke(CHANNELS.SIGNBOARD_CARD.UPDATE, {
               params: updates.length === 1 ? updates[0] : updates
             })
+            return true
           } catch (error) {
             console.error('[signboard-store] toMoveCard failed:', error)
             setter(
@@ -414,6 +460,7 @@ const useSignboardStore = create<SignboardStore>()(
               false,
               'toMoveCard/rollback'
             )
+            return false
           }
         },
 
@@ -422,8 +469,10 @@ const useSignboardStore = create<SignboardStore>()(
             await invoke(CHANNELS.SIGNBOARD_CARD.REMOVE, { params: key })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
+            return true
           } catch (error) {
             console.error('[signboard-store] toRemoveCard failed:', error)
+            return false
           }
         },
 
@@ -447,8 +496,10 @@ const useSignboardStore = create<SignboardStore>()(
             })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
+            return true
           } catch (error) {
             console.error('[signboard-store] toAttachTag failed:', error)
+            return false
           }
         },
 
@@ -459,8 +510,10 @@ const useSignboardStore = create<SignboardStore>()(
             })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
+            return true
           } catch (error) {
             console.error('[signboard-store] toDetachTag failed:', error)
+            return false
           }
         }
       }
@@ -471,8 +524,10 @@ const useSignboardStore = create<SignboardStore>()(
 
 export { useSignboardStore }
 export type {
+  BoardChange,
   CardChange,
   CardWrite,
+  ColumnChange,
   SignboardBoard,
   SignboardCard,
   SignboardCardTag,
