@@ -1,5 +1,7 @@
 [build]
 target-dir    = "target"  # 构建输出目录
+# sccache 在 Windows 上走 TCP；端口勿落在动态区(≥49152)，否则易被 Hyper-V/WSL 排除(os error 10013)。
+# 本机用用户环境变量 SCCACHE_SERVER_PORT（推荐 42222）+ PowerShell Ensure-SccachePort 自动纠偏。
 rustc-wrapper = "sccache"
 
 # Windows (MSVC)
