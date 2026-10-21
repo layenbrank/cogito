@@ -1,7 +1,8 @@
 # Signboard（看板）产品设计包
 
-> 状态：**已落地 MVP**（设计确认后实现）。实现细节见 [06-implementation-roadmap.md](./06-implementation-roadmap.md)。  
-> 场景：**2A+2B+2C** — 个人本地 + 日历/提醒联动 + 多看板/标签预留；团队同步延后。
+> 状态：**企业级交互抛光中**（已去掉 `window.prompt`，补齐 Dialog / 菜单 / Toast / 拖拽手柄 / Switch 侧栏）。  
+> 场景：**2A+2B+2C** — 个人本地 + 日历/提醒联动 + 多看板/标签预留；团队同步延后。  
+> 实现见 [06-implementation-roadmap.md](./06-implementation-roadmap.md)。
 
 | 文档 | 内容 |
 |------|------|
