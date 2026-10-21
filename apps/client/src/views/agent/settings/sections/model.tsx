@@ -24,6 +24,10 @@ import { toast } from 'sonner'
 
 import { findAcpHandle } from '@/features/agent/acp/connection'
 import {
+  COGITO_PROVIDER_ID,
+  syncCogitoGatewayCatalog
+} from '@/features/agent/acp/cogito-provider'
+import {
   checkAcpReadiness,
   enableAcpProvider,
   fetchGooseProviders,
@@ -55,7 +59,9 @@ function ModelHeader(props: { onAdd: () => void }) {
     <header className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <h2 className={styles.title}>模型</h2>
-        <p className={styles.desc}>使用自己的 API Key 添加并管理个人模型；密钥只保存在本机。</p>
+        <p className={styles.desc}>
+          组织模型由管理员在后台配置；个人模型用自己的 API Key 添加，密钥只保存在本机。
+        </p>
       </div>
       <Button
         type="button"
@@ -73,6 +79,85 @@ function ModelHeader(props: { onAdd: () => void }) {
 }
 
 type StoreProviderRow = ReturnType<typeof useProviderStore.getState>['providers'][number]
+
+/** 组织模型：只读展示网关目录镜像（不可改密钥） */
+function PlatformModelsSection(props: {
+  loading: boolean
+  provider: StoreProviderRow | null
+  onModelChange: (providerId: string, model: string) => unknown
+}) {
+  const models = props.provider ? parseModels(props.provider.models) : []
+
+  return (
+    <section className={styles.section}>
+      <div className={styles.sectionHead}>
+        <span className={styles.sectionTitle}>组织模型</span>
+        <span className={styles.sectionMeta}>
+          {props.loading ? '加载中…' : `${models.length} 个`}
+        </span>
+      </div>
+
+      {props.loading ? (
+        <div className="flex justify-center py-8">
+          <Spinner className="size-5" />
+        </div>
+      ) : !props.provider || models.length === 0 ? (
+        <p className={`${styles.empty} text-muted-foreground`}>
+          暂无可用组织模型。请确认已登录，且管理员已在后台启用模型。
+        </p>
+      ) : (
+        <div className={styles.list}>
+          <div className={styles.row}>
+            <div className={styles.rowIdentity}>
+              <span className={styles.cardBadge}>
+                <Icon
+                  icon="lucide:building-2"
+                  width={16}
+                  height={16}
+                />
+              </span>
+              <div className="min-w-0">
+                <span className={styles.cardName}>
+                  {findProviderLabel(props.provider.kind, props.provider.name)}
+                </span>
+                <p className={styles.rowMeta}>
+                  {findProviderBilling(props.provider.kind, props.provider.name)}
+                  {' · '}
+                  {models.length} 个可用
+                </p>
+              </div>
+            </div>
+            <div className={styles.rowActions}>
+              <Select
+                value={props.provider.model ?? models[0] ?? null}
+                onValueChange={function (model) {
+                  if (model === null) return
+                  void props.onModelChange(props.provider!.id, model)
+                }}>
+                <SelectTrigger
+                  aria-label="默认组织模型"
+                  className={styles.modelSelect}>
+                  <SelectValue placeholder="默认模型" />
+                </SelectTrigger>
+                <SelectContent align="center">
+                  {models.map(function (model) {
+                    return (
+                      <SelectItem
+                        key={model}
+                        value={model}>
+                        {findModelLabel(model)}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
 
 /** 已配置的个人模型：扁平行 + 默认模型选择 + 更新密钥 */
 function ProviderListSection(props: {
@@ -239,11 +324,19 @@ function ModelSection() {
       await waitGooseReady()
       const handle = await findAcpHandle()
       const all = await fetchGooseProviders(handle.connection)
-      const visible = findSettingsProviders(all)
+      const visible = findSettingsProviders(all).filter(function (entry) {
+        // 组织模型由网关目录镜像，不走 BYOK 表单
+        return entry.providerId !== COGITO_PROVIDER_ID
+      })
       updateEntries(visible)
 
       const store = useProviderStore.getState()
       await store.toReadProviders()
+      try {
+        await syncCogitoGatewayCatalog()
+      } catch (error) {
+        console.warn('[agent-settings/model] 同步组织模型失败:', error)
+      }
       const upserts = await Promise.allSettled(
         visible
           .filter(function (entry) {
@@ -386,9 +479,20 @@ function ModelSection() {
         ? `为「${findProviderLabel(active.providerId, active.providerName)}」输入新的 API Key。旧密钥不会显示，校验失败时仍会保留。`
         : '输入新的 API Key。旧密钥不会显示，校验失败时仍会保留。'
 
+  const platformProvider =
+    storeProviders.find(function (provider) {
+      return provider.id === COGITO_PROVIDER_ID || provider.kind === COGITO_PROVIDER_ID
+    }) ?? null
+
   return (
     <div className="flex flex-col gap-5">
       <ModelHeader onAdd={handleOpenAdd} />
+
+      <PlatformModelsSection
+        loading={loading}
+        provider={platformProvider}
+        onModelChange={handleModelChange}
+      />
 
       <ProviderListSection
         loading={loading}

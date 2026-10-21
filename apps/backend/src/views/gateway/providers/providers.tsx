@@ -15,6 +15,10 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { Button } from '@i-thinking/design/components/button'
 import { Input } from '@i-thinking/design/components/input'
+import {
+  NativeSelect,
+  NativeSelectOption
+} from '@i-thinking/design/components/native-select'
 import { Icon } from '@iconify/react/offline'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
@@ -22,6 +26,9 @@ import { toast } from 'sonner'
 
 import {
   DELETE_GATEWAY_PROVIDER,
+  GATEWAY_PROVIDER_KIND_LABELS,
+  GATEWAY_PROVIDER_KINDS,
+  GATEWAY_PROVIDER_STATUS_LABELS,
   GET_GATEWAY_PROVIDERS,
   POST_GATEWAY_PROVIDER,
   PUT_GATEWAY_PROVIDER,
@@ -32,6 +39,15 @@ import { HttpError } from '@/utils/http/errors.ts'
 
 const ORDER_KEY = 'backend-provider-order'
 
+type ProviderKind = (typeof GATEWAY_PROVIDER_KINDS)[number]
+
+function parseProviderKind(value: string): ProviderKind {
+  for (const kind of GATEWAY_PROVIDER_KINDS) {
+    if (kind === value) return kind
+  }
+  return GATEWAY_PROVIDER_KINDS[0]
+}
+
 function SortableProvider(props: {
   provider: GatewayProvider
   onToggle: (provider: GatewayProvider) => void
@@ -40,6 +56,10 @@ function SortableProvider(props: {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: props.provider.id
   })
+  const kindLabel =
+    GATEWAY_PROVIDER_KIND_LABELS[props.provider.kind] ?? props.provider.kind
+  const statusLabel =
+    GATEWAY_PROVIDER_STATUS_LABELS[props.provider.status] ?? props.provider.status
 
   return (
     <li
@@ -64,8 +84,8 @@ function SortableProvider(props: {
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{props.provider.name}</p>
         <p className="truncate text-xs text-muted-foreground">
-          {props.provider.kind} · {props.provider.baseUrl}
-          {props.provider.hasApiKey ? ' · 已托管密钥' : ' · 无密钥'}
+          {kindLabel} · {props.provider.baseUrl}
+          {props.provider.hasApiKey ? ' · 已托管密钥' : ' · 无密钥'} · {statusLabel}
         </p>
       </div>
       <Button
@@ -109,8 +129,13 @@ export default function ProvidersView() {
   const queryClient = useQueryClient()
   const providers = useQuery({ queryKey: ['gateway-providers'], queryFn: GET_GATEWAY_PROVIDERS })
   const [orderOverride, updateOrderOverride] = useState<string[] | null>(null)
-  const [draft, updateDraft] = useState({
-    kind: 'openai',
+  const [draft, updateDraft] = useState<{
+    kind: ProviderKind
+    name: string
+    baseUrl: string
+    apiKey: string
+  }>({
+    kind: GATEWAY_PROVIDER_KINDS[0],
     name: '',
     baseUrl: '',
     apiKey: ''
@@ -142,7 +167,7 @@ export default function ProvidersView() {
     onSuccess() {
       toast.success('已创建供应商')
       void queryClient.invalidateQueries({ queryKey: ['gateway-providers'] })
-      updateDraft({ kind: 'openai', name: '', baseUrl: '', apiKey: '' })
+      updateDraft({ kind: GATEWAY_PROVIDER_KINDS[0], name: '', baseUrl: '', apiKey: '' })
     },
     onError(error) {
       toast.error(HttpError(error).message)
@@ -213,15 +238,25 @@ export default function ProvidersView() {
             updateDraft({ ...draft, name: event.target.value })
           }}
         />
-        <Input
-          placeholder="kind（openai…）"
+        <NativeSelect
+          className="w-full"
+          aria-label="供应商类型"
           value={draft.kind}
           onChange={function (event) {
-            updateDraft({ ...draft, kind: event.target.value })
-          }}
-        />
+            updateDraft({ ...draft, kind: parseProviderKind(event.target.value) })
+          }}>
+          {GATEWAY_PROVIDER_KINDS.map(function (kind) {
+            return (
+              <NativeSelectOption
+                key={kind}
+                value={kind}>
+                {GATEWAY_PROVIDER_KIND_LABELS[kind]}
+              </NativeSelectOption>
+            )
+          })}
+        </NativeSelect>
         <Input
-          placeholder="baseUrl"
+          placeholder="baseUrl（OpenAI 兼容根路径）"
           value={draft.baseUrl}
           onChange={function (event) {
             updateDraft({ ...draft, baseUrl: event.target.value })
@@ -245,7 +280,8 @@ export default function ProvidersView() {
               kind: draft.kind,
               name: draft.name,
               baseUrl: draft.baseUrl,
-              apiKey: draft.apiKey || undefined
+              apiKey: draft.apiKey || undefined,
+              status: 'ACTIVE'
             })
           }}>
           创建

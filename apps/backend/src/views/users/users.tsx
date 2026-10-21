@@ -1,17 +1,42 @@
 import { Button } from '@i-thinking/design/components/button'
 import { Input } from '@i-thinking/design/components/input'
+import {
+  NativeSelect,
+  NativeSelectOption
+} from '@i-thinking/design/components/native-select'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
-import { DELETE_USER, GET_USERS, POST_USER, PUT_USER, type UserRecord } from '@/apis/user.ts'
+import {
+  DELETE_USER,
+  GET_USERS,
+  POST_USER,
+  PUT_USER,
+  USER_ROLES,
+  USER_STATUSES,
+  type UserRecord
+} from '@/apis/user.ts'
 import { PageHeader } from '@/components/data-table/page-header.tsx'
 import { HttpError } from '@/utils/http/errors.ts'
+
+type UserRole = (typeof USER_ROLES)[number]
+
+function parseUserRole(value: string): UserRole {
+  for (const role of USER_ROLES) {
+    if (role === value) return role
+  }
+  return USER_ROLES[0]
+}
 
 export default function UsersView() {
   const queryClient = useQueryClient()
   const [keyword, updateKeyword] = useState('')
-  const [draft, updateDraft] = useState({ username: '', password: '', role: 'USER' })
+  const [draft, updateDraft] = useState<{
+    username: string
+    password: string
+    role: UserRole
+  }>({ username: '', password: '', role: USER_ROLES[0] })
 
   const users = useQuery({ queryKey: ['users'], queryFn: GET_USERS })
 
@@ -35,7 +60,7 @@ export default function UsersView() {
     onSuccess() {
       toast.success('已创建用户')
       void queryClient.invalidateQueries({ queryKey: ['users'] })
-      updateDraft({ username: '', password: '', role: 'USER' })
+      updateDraft({ username: '', password: '', role: USER_ROLES[0] })
     },
     onError(error) {
       toast.error(HttpError(error).message)
@@ -73,26 +98,42 @@ export default function UsersView() {
         <td className="py-2.5 pr-3 font-medium">{user.username}</td>
         <td className="py-2.5 pr-3 text-muted-foreground">{user.email ?? '—'}</td>
         <td className="py-2.5 pr-3">
-          <select
-            className="rounded border border-input bg-background px-2 py-1"
+          <NativeSelect
+            size="sm"
+            aria-label={`${user.username} 角色`}
             value={user.role}
             onChange={function (event) {
               patchUser.mutate({ id: user.id, role: event.target.value })
             }}>
-            <option value="USER">USER</option>
-            <option value="ADMIN">ADMIN</option>
-          </select>
+            {USER_ROLES.map(function (role) {
+              return (
+                <NativeSelectOption
+                  key={role}
+                  value={role}>
+                  {role}
+                </NativeSelectOption>
+              )
+            })}
+          </NativeSelect>
         </td>
         <td className="py-2.5 pr-3">
-          <select
-            className="rounded border border-input bg-background px-2 py-1"
+          <NativeSelect
+            size="sm"
+            aria-label={`${user.username} 状态`}
             value={user.status}
             onChange={function (event) {
               patchUser.mutate({ id: user.id, status: event.target.value })
             }}>
-            <option value="ACTIVE">ACTIVE</option>
-            <option value="DISABLED">DISABLED</option>
-          </select>
+            {USER_STATUSES.map(function (status) {
+              return (
+                <NativeSelectOption
+                  key={status}
+                  value={status}>
+                  {status}
+                </NativeSelectOption>
+              )
+            })}
+          </NativeSelect>
         </td>
         <td className="py-2.5 text-right">
           <Button
@@ -132,15 +173,23 @@ export default function UsersView() {
             updateDraft({ ...draft, password: event.target.value })
           }}
         />
-        <select
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+        <NativeSelect
+          className="w-full"
+          aria-label="角色"
           value={draft.role}
           onChange={function (event) {
-            updateDraft({ ...draft, role: event.target.value })
+            updateDraft({ ...draft, role: parseUserRole(event.target.value) })
           }}>
-          <option value="USER">USER</option>
-          <option value="ADMIN">ADMIN</option>
-        </select>
+          {USER_ROLES.map(function (role) {
+            return (
+              <NativeSelectOption
+                key={role}
+                value={role}>
+                {role}
+              </NativeSelectOption>
+            )
+          })}
+        </NativeSelect>
         <Button
           disabled={createUser.isPending}
           onClick={function () {

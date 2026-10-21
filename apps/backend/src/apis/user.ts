@@ -1,6 +1,10 @@
 import { HttpEnvelope } from '@/utils/http/errors.ts'
 import { http } from '@/utils/http/http.ts'
 
+const USER_ROLES = ['USER', 'ADMIN'] as const
+
+const USER_STATUSES = ['ACTIVE', 'DISABLED'] as const
+
 interface UserAvatar {
   id: string
   url: string
@@ -68,5 +72,5 @@ function DELETE_USER(id: string) {
   return unwrap(http.delete<RSF<null>>(`/users/${id}`, ENV))
 }
 
-export { DELETE_USER, GET_USER, GET_USERS, POST_USER, PUT_USER }
+export { DELETE_USER, GET_USER, GET_USERS, POST_USER, PUT_USER, USER_ROLES, USER_STATUSES }
 export type { UserRecord, UserUpdate, UserWrite }
