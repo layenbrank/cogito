@@ -2,6 +2,20 @@ import { HttpEnvelope } from '@/utils/http/errors.ts'
 import { downloadFile } from '@/utils/http/download.ts'
 import { http } from '@/utils/http/http.ts'
 
+/** 网关能路由的供应商类型（与 cogito `validate_kind` / 出站白名单对齐） */
+const GATEWAY_PROVIDER_KINDS = ['openai', 'deepseek', 'qwen', 'zhipu', 'ollama'] as const
+
+const GATEWAY_PROVIDER_KIND_LABELS: Record<string, string> = {
+  openai: 'OpenAI',
+  deepseek: 'DeepSeek',
+  qwen: '通义千问',
+  zhipu: '智谱',
+  ollama: 'Ollama'
+}
+
+/** 模型可见角色：平台角色 + 租户角色（服务端按字面量匹配） */
+const GATEWAY_MODEL_ROLES = ['USER', 'ADMIN', 'OWNER', 'MEMBER'] as const
+
 interface GatewayProvider {
   id: string
   kind: string
@@ -177,6 +191,9 @@ export {
   DELETE_GATEWAY_ADMIN_MODEL,
   DELETE_GATEWAY_PROVIDER,
   EXPORT_GATEWAY_AUDIT,
+  GATEWAY_MODEL_ROLES,
+  GATEWAY_PROVIDER_KIND_LABELS,
+  GATEWAY_PROVIDER_KINDS,
   GET_GATEWAY_ADMIN_MODELS,
   GET_GATEWAY_AUDIT,
   GET_GATEWAY_PROVIDERS,

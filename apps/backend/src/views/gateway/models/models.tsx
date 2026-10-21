@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@i-thinking/design/components/select'
+import { Switch } from '@i-thinking/design/components/switch'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { groupBy } from 'lodash-es'
 import { useMemo, useState } from 'react'
@@ -17,6 +18,7 @@ import { toast } from 'sonner'
 
 import {
   DELETE_GATEWAY_ADMIN_MODEL,
+  GATEWAY_MODEL_ROLES,
   GET_GATEWAY_ADMIN_MODELS,
   GET_GATEWAY_PROVIDERS,
   POST_GATEWAY_ADMIN_MODEL,
@@ -29,6 +31,45 @@ import { EntitySheet } from '@/components/console/entity-sheet.tsx'
 import { QueryState } from '@/components/console/query-state.tsx'
 import { HttpError } from '@/utils/http/errors.ts'
 
+interface ModelDraft {
+  providerID: string
+  name: string
+  label: string
+  allowRoles: string[]
+  enabled: boolean
+  dailyTokenQuota: string
+  tools: boolean
+  reasoning: boolean
+  vision: boolean
+  contextWindow: string
+}
+
+function emptyDraft(providerID: string): ModelDraft {
+  return {
+    providerID,
+    name: '',
+    label: '',
+    allowRoles: [],
+    enabled: true,
+    dailyTokenQuota: '0',
+    tools: true,
+    reasoning: false,
+    vision: false,
+    contextWindow: ''
+  }
+}
+
+function parseWindow(raw: string): number | undefined {
+  const value = Number(raw)
+  if (!Number.isFinite(value) || value <= 0) return undefined
+  return Math.floor(value)
+}
+
+function formatRoles(roles: string[] | null | undefined): string {
+  if (!roles || roles.length === 0) return '全部'
+  return roles.join('、')
+}
+
 export default function ModelsView() {
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
@@ -37,11 +78,8 @@ export default function ModelsView() {
   const providers = useQuery({ queryKey: ['gateway-providers'], queryFn: GET_GATEWAY_PROVIDERS })
   const [sheetOpen, updateSheetOpen] = useState(false)
   const [pendingDelete, updatePendingDelete] = useState<GatewayModel | null>(null)
-  const [draft, updateDraft] = useState({
-    providerID: '',
-    name: '',
-    label: '',
-    dailyTokenQuota: '0'
+  const [draft, updateDraft] = useState<ModelDraft>(function () {
+    return emptyDraft('')
   })
 
   const grouped = useMemo(
@@ -68,11 +106,26 @@ export default function ModelsView() {
       toast.success('已创建模型')
       void queryClient.invalidateQueries({ queryKey: ['gateway-admin-models'] })
       updateSheetOpen(false)
+      updateDraft(emptyDraft(draft.providerID))
     },
     onError(error) {
       toast.error(HttpError(error).message)
     }
   })
+
+  function toggleRole(role: string) {
+    updateDraft(function (prev) {
+      const hasRole = prev.allowRoles.includes(role)
+      return {
+        ...prev,
+        allowRoles: hasRole
+          ? prev.allowRoles.filter(function (item) {
+              return item !== role
+            })
+          : [...prev.allowRoles, role]
+      }
+    })
+  }
 
   const toggleModel = useMutation({
     mutationFn: function (input: { id: string; enabled: boolean }) {
@@ -145,7 +198,8 @@ export default function ModelsView() {
                             </span>
                           </p>
                           <p className="mt-0.5 text-xs text-muted-foreground">
-                            配额 {model.dailyTokenQuota || '继承'}
+                            角色 {formatRoles(model.allowRoles)} · 配额{' '}
+                            {model.dailyTokenQuota || '继承'}
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -184,19 +238,33 @@ export default function ModelsView() {
       <EntitySheet
         open={sheetOpen}
         title="新建模型"
+        description="模型名须与上游约定一致；可见角色留空表示全部可见。"
         submitLabel="创建"
         isPending={createModel.isPending}
-        onOpenChange={updateSheetOpen}
+        onOpenChange={function (open) {
+          updateSheetOpen(open)
+          if (open && !draft.providerID && providers.data?.[0]) {
+            updateDraft(emptyDraft(providers.data[0].id))
+          }
+        }}
         onSubmit={function () {
           if (!draft.providerID || !draft.name || !draft.label) {
-            toast.error('填写供应商、name、label')
+            toast.error('填写供应商、模型名、显示名')
             return
           }
           createModel.mutate({
             providerID: draft.providerID,
             name: draft.name,
             label: draft.label,
-            dailyTokenQuota: Number(draft.dailyTokenQuota) || 0
+            allowRoles: draft.allowRoles.length > 0 ? draft.allowRoles : undefined,
+            enabled: draft.enabled,
+            dailyTokenQuota: Number(draft.dailyTokenQuota) || 0,
+            capabilities: {
+              tools: draft.tools,
+              reasoning: draft.reasoning,
+              vision: draft.vision
+            },
+            contextWindow: parseWindow(draft.contextWindow)
           })
         }}>
         <div className="space-y-2">
@@ -226,9 +294,9 @@ export default function ModelsView() {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>名称</Label>
+          <Label>模型名</Label>
           <Input
-            placeholder="模型名称"
+            placeholder="上游约定，如 gpt-4o-mini"
             value={draft.name}
             onChange={function (event) {
               updateDraft({ ...draft, name: event.target.value })
@@ -246,13 +314,91 @@ export default function ModelsView() {
           />
         </div>
         <div className="space-y-2">
-          <Label>日配额（token）</Label>
+          <Label>日配额（token，0 = 继承）</Label>
           <Input
+            type="number"
+            min={0}
             value={draft.dailyTokenQuota}
             onChange={function (event) {
               updateDraft({ ...draft, dailyTokenQuota: event.target.value })
             }}
           />
+        </div>
+        <div className="space-y-2">
+          <Label>上下文窗口（留空 = 未知）</Label>
+          <Input
+            type="number"
+            min={0}
+            value={draft.contextWindow}
+            onChange={function (event) {
+              updateDraft({ ...draft, contextWindow: event.target.value })
+            }}
+          />
+        </div>
+        <div className="space-y-3 rounded-md border border-border/70 p-3">
+          <p className="text-sm font-medium">能力与可见性</p>
+          <div className="flex flex-wrap gap-4">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="model-tools"
+                checked={draft.tools}
+                onCheckedChange={function (checked) {
+                  updateDraft({ ...draft, tools: checked })
+                }}
+              />
+              <Label htmlFor="model-tools">工具</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="model-reasoning"
+                checked={draft.reasoning}
+                onCheckedChange={function (checked) {
+                  updateDraft({ ...draft, reasoning: checked })
+                }}
+              />
+              <Label htmlFor="model-reasoning">推理</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="model-vision"
+                checked={draft.vision}
+                onCheckedChange={function (checked) {
+                  updateDraft({ ...draft, vision: checked })
+                }}
+              />
+              <Label htmlFor="model-vision">视觉</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="model-enabled"
+                checked={draft.enabled}
+                onCheckedChange={function (checked) {
+                  updateDraft({ ...draft, enabled: checked })
+                }}
+              />
+              <Label htmlFor="model-enabled">对外可见</Label>
+            </div>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label>可见角色（不选 = 全部）</Label>
+          <div className="flex flex-wrap gap-2">
+            {GATEWAY_MODEL_ROLES.map(function (role) {
+              const isActive = draft.allowRoles.includes(role)
+              return (
+                <Button
+                  key={role}
+                  type="button"
+                  size="sm"
+                  variant={isActive ? 'default' : 'outline'}
+                  onClick={function () {
+                    toggleRole(role)
+                  }}>
+                  {role}
+                </Button>
+              )
+            })}
+          </div>
         </div>
       </EntitySheet>
 

@@ -1,6 +1,8 @@
 /**
  * 模型 / 接入的面向用户展示名（隐藏 goose 内部 id 与英文说明书）。
  */
+import { findGatewayModelLabel } from '@/features/agent/model/gateway-labels'
+import { GATEWAY_PROVIDER_KIND } from '@/features/quota/gate'
 
 interface ProviderDisplay {
   /** 列表与分组标题 */
@@ -141,6 +143,11 @@ const PROVIDER_DISPLAY: Record<string, ProviderDisplay> = {
     label: 'Amp',
     hint: '通过 Amp 订阅在本机调用对应能力',
     billing: '订阅账号'
+  },
+  [GATEWAY_PROVIDER_KIND]: {
+    label: '组织模型',
+    hint: '由管理员在后台配置的平台模型，登录后即可选用',
+    billing: '组织额度'
   }
 }
 
@@ -224,6 +231,9 @@ function findModelLabel(model: string) {
   const value = model.trim()
   if (!value) return '未选模型'
   if (value === 'auto') return 'Auto（自动）'
+
+  const gatewayLabel = findGatewayModelLabel(value)
+  if (gatewayLabel) return gatewayLabel
 
   // `…-v1:0` / `…:latest` — 不能按 `:` 切段，否则会显示成「0」
   let core = value.replace(/:(?:\d+|latest)$/i, '')
