@@ -51,6 +51,7 @@
     "@iconify/react": "catalog:",
     "@opencode/client": "catalog:",
     "better-sqlite3": "catalog:",
+    "dayjs": "catalog:",
     "drizzle-orm": "catalog:",
     "electron-store": "catalog:",
     "electron-updater": "^6.8.9",

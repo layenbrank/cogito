@@ -1,7 +1,9 @@
 import { Icon } from '@iconify/react/offline'
 import { Avatar, AvatarFallback, AvatarImage } from '@i-thinking/design/components/avatar'
 import { Button } from '@i-thinking/design/components/button'
+import { DatePicker } from '@i-thinking/design/components/date-picker'
 import { Input } from '@i-thinking/design/components/input'
+import dayjs from 'dayjs'
 import {
   Select,
   SelectContent,
@@ -205,13 +207,12 @@ function AccountPanel() {
         <SettingsRow
           label="生日"
           hint="格式 YYYY-MM-DD">
-          <Input
-            type="date"
-            value={draft.birthday}
+          <DatePicker
             className="max-w-xs"
             aria-label="生日"
-            onChange={function (event) {
-              updateDraft({ ...draft, birthday: event.target.value })
+            value={draft.birthday ? dayjs(draft.birthday) : null}
+            onChange={function (_date, dateString) {
+              updateDraft({ ...draft, birthday: dateString })
             }}
           />
         </SettingsRow>

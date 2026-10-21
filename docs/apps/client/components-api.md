@@ -12,13 +12,14 @@
 Source: `apps/client/src/components/contextmenu/`
 
 ---
+
 category: Components
 title: ContextMenu
 subtitle: 右键菜单
 description: 企业级可无限嵌套的右键菜单，支持声明式与命令式 API，主题走设计 token。
 group:
-  title: 通用
-  order: 1
+title: 通用
+order: 1
 ---
 
 ## 实现总结 {#implementation-summary}
@@ -29,15 +30,15 @@ ContextMenu **未**使用设计系统的 `DropdownMenu` 组合，而是自研递
 2. 需要统一的 motion 进退场与多级定制渲染
 3. 需要细粒度视口边界策略（每级子菜单独立 flip / shift）
 
-| 能力 | 实现 |
-|------|------|
-| 面板 | 自研递归 `MenuPanel`（`panel.tsx`） |
-| 数据结构 | `ContextMenuItem` 递归 `children`，`parseItems` 规范化 |
-| 定位 | `parsePopupOrigin`：根菜单相对指针，子菜单相对父项；flip + shift + `boundaryPadding` |
-| 主题 | `contextmenu.scss` 全部使用设计 token（`var(--popover)` / `var(--border)` …） |
-| 动效 | `motion/react`（导入别名 `motion as Motion`）+ `useReducedMotion` |
-| 声明式 | `<ContextMenu items={...}>{children}</ContextMenu>` |
-| 命令式 | `useContextMenu().open({ x, y, items })` + `<ContextMenu.Host />` |
+| 能力     | 实现                                                                                 |
+| -------- | ------------------------------------------------------------------------------------ |
+| 面板     | 自研递归 `MenuPanel`（`panel.tsx`）                                                  |
+| 数据结构 | `ContextMenuItem` 递归 `children`，`parseItems` 规范化                               |
+| 定位     | `parsePopupOrigin`：根菜单相对指针，子菜单相对父项；flip + shift + `boundaryPadding` |
+| 主题     | `contextmenu.scss` 全部使用设计 token（`var(--popover)` / `var(--border)` …）        |
+| 动效     | `motion/react`（导入别名 `motion as Motion`）+ `useReducedMotion`                    |
+| 声明式   | `<ContextMenu items={...}>{children}</ContextMenu>`                                  |
+| 命令式   | `useContextMenu().open({ x, y, items })` + `<ContextMenu.Host />`                    |
 
 键盘：↑↓ 移动、→ 进子级、← 回退、Enter / Space 激活、Esc 关闭。点击外部或窗口 resize 关闭。
 
@@ -60,9 +61,19 @@ export default function Demo() {
   return (
     <ContextMenu
       items={[
-        { key: 'copy', label: '复制', icon: <Icon icon="ant-design:copy-outlined" />, shortcut: 'Ctrl+C' },
+        {
+          key: 'copy',
+          label: '复制',
+          icon: <Icon icon="ant-design:copy-outlined" />,
+          shortcut: 'Ctrl+C'
+        },
         { type: 'divider' },
-        { key: 'delete', label: '删除', icon: <Icon icon="ant-design:delete-outlined" />, danger: true }
+        {
+          key: 'delete',
+          label: '删除',
+          icon: <Icon icon="ant-design:delete-outlined" />,
+          danger: true
+        }
       ]}
       onClick={function (info) {
         console.log(info.key, info.keyPath)
@@ -153,51 +164,51 @@ function Canvas() {
 
 ### ContextMenu
 
-| 属性 | 说明 | 类型 | 默认值 |
-| --- | --- | --- | --- |
-| items | 菜单数据（可递归 `children`） | `ContextMenuItem[]` | — |
-| children | 触发区域；右键打开菜单。可为单一可克隆元素或任意节点 | `ReactNode` | — |
-| disabled | 禁用右键菜单 | `boolean` | `false` |
-| open | 受控打开状态 | `boolean` | — |
-| className | 触发器 class（合并到子元素或包装 div） | `string` | — |
-| classNames | 语义化 class，见 Semantic 文档 | `ContextMenuClassNames` | — |
-| styles | 语义化行内样式 | `ContextMenuStyles` | — |
-| motion | 覆盖根面板 / 子菜单 motion variants | `ContextMenuMotion` | 内置 |
-| offset | 根菜单相对指针偏移 `[x, y]` | `[number, number]` | `[0, 4]` |
-| submenuOffset | 子菜单相对父项偏移 | `[number, number]` | `[4, 0]` |
-| boundaryPadding | 视口 / 容器内边距 | `number` | `8` |
-| submenuOpenDelay | 悬停打开子菜单延迟（ms） | `number` | `100` |
-| submenuCloseDelay | 离开后关闭子菜单延迟（ms） | `number` | `160` |
-| findPopupContainer | 弹层挂载容器 | `() => HTMLElement` | `() => document.body` |
-| renderItem | 自定义单项渲染 | `(item, node) => ReactNode` | — |
-| renderPanel | 自定义面板内容包装 | `(nodes, meta) => ReactNode` | — |
-| onOpenChange | 打开状态变化 | `(open: boolean) => void` | — |
-| onClick | 点击叶子项 | `(info: ContextMenuClickInfo) => void` | — |
+| 属性               | 说明                                                 | 类型                                   | 默认值                |
+| ------------------ | ---------------------------------------------------- | -------------------------------------- | --------------------- |
+| items              | 菜单数据（可递归 `children`）                        | `ContextMenuItem[]`                    | —                     |
+| children           | 触发区域；右键打开菜单。可为单一可克隆元素或任意节点 | `ReactNode`                            | —                     |
+| disabled           | 禁用右键菜单                                         | `boolean`                              | `false`               |
+| open               | 受控打开状态                                         | `boolean`                              | —                     |
+| className          | 触发器 class（合并到子元素或包装 div）               | `string`                               | —                     |
+| classNames         | 语义化 class，见 Semantic 文档                       | `ContextMenuClassNames`                | —                     |
+| styles             | 语义化行内样式                                       | `ContextMenuStyles`                    | —                     |
+| motion             | 覆盖根面板 / 子菜单 motion variants                  | `ContextMenuMotion`                    | 内置                  |
+| offset             | 根菜单相对指针偏移 `[x, y]`                          | `[number, number]`                     | `[0, 4]`              |
+| submenuOffset      | 子菜单相对父项偏移                                   | `[number, number]`                     | `[4, 0]`              |
+| boundaryPadding    | 视口 / 容器内边距                                    | `number`                               | `8`                   |
+| submenuOpenDelay   | 悬停打开子菜单延迟（ms）                             | `number`                               | `100`                 |
+| submenuCloseDelay  | 离开后关闭子菜单延迟（ms）                           | `number`                               | `160`                 |
+| findPopupContainer | 弹层挂载容器                                         | `() => HTMLElement`                    | `() => document.body` |
+| renderItem         | 自定义单项渲染                                       | `(item, node) => ReactNode`            | —                     |
+| renderPanel        | 自定义面板内容包装                                   | `(nodes, meta) => ReactNode`           | —                     |
+| onOpenChange       | 打开状态变化                                         | `(open: boolean) => void`              | —                     |
+| onClick            | 点击叶子项                                           | `(info: ContextMenuClickInfo) => void` | —                     |
 
 ### ContextMenuItem
 
-| 属性 | 说明 | 类型 | 默认值 |
-| --- | --- | --- | --- |
-| key | 唯一键；缺省时由 `parseItems` 生成 | `string` | — |
-| type | `item` / `divider` / `group`；可省略，按结构推断 | `ContextMenuItemKind` | `item` |
-| label | 文案 | `ReactNode` | — |
-| icon | 左侧图标 | `ReactNode` | — |
-| shortcut | 右侧快捷键提示（亦可使用 `extra`） | `ReactNode` | — |
-| extra | 额外节点（与 shortcut 二选一展示逻辑） | `ReactNode` | — |
-| danger | 危险样式 | `boolean` | `false` |
-| disabled | 禁用 | `boolean` | `false` |
-| children | 子菜单项（无限级） | `ContextMenuItem[]` | — |
-| className / style | 单项样式 | — | — |
-| onClick | 单项点击（先于菜单级 `onClick`） | `(info) => void` | — |
+| 属性              | 说明                                             | 类型                  | 默认值  |
+| ----------------- | ------------------------------------------------ | --------------------- | ------- |
+| key               | 唯一键；缺省时由 `parseItems` 生成               | `string`              | —       |
+| type              | `item` / `divider` / `group`；可省略，按结构推断 | `ContextMenuItemKind` | `item`  |
+| label             | 文案                                             | `ReactNode`           | —       |
+| icon              | 左侧图标                                         | `ReactNode`           | —       |
+| shortcut          | 右侧快捷键提示（亦可使用 `extra`）               | `ReactNode`           | —       |
+| extra             | 额外节点（与 shortcut 二选一展示逻辑）           | `ReactNode`           | —       |
+| danger            | 危险样式                                         | `boolean`             | `false` |
+| disabled          | 禁用                                             | `boolean`             | `false` |
+| children          | 子菜单项（无限级）                               | `ContextMenuItem[]`   | —       |
+| className / style | 单项样式                                         | —                     | —       |
+| onClick           | 单项点击（先于菜单级 `onClick`）                 | `(info) => void`      | —       |
 
 ### ContextMenuClickInfo
 
-| 字段 | 说明 | 类型 |
-| --- | --- | --- |
-| key | 当前项 key | `string` |
-| keyPath | 从根到当前的 key 路径 | `string[]` |
-| domEvent | 鼠标或键盘事件 | `MouseEvent \| KeyboardEvent` |
-| item | 原始项（解析后） | `ContextMenuItem` |
+| 字段     | 说明                  | 类型                          |
+| -------- | --------------------- | ----------------------------- |
+| key      | 当前项 key            | `string`                      |
+| keyPath  | 从根到当前的 key 路径 | `string[]`                    |
+| domEvent | 鼠标或键盘事件        | `MouseEvent \| KeyboardEvent` |
+| item     | 原始项（解析后）      | `ContextMenuItem`             |
 
 ### useContextMenu
 
@@ -216,11 +227,11 @@ close(): void
 
 ### 工具函数
 
-| 函数 | 说明 |
-| --- | --- |
-| `parseItems(items)` | 规范化 items，补全 key / type / 递归 children |
+| 函数                        | 说明                                                      |
+| --------------------------- | --------------------------------------------------------- |
+| `parseItems(items)`         | 规范化 items，补全 key / type / 递归 children             |
 | `findFocusableItems(items)` | 可键盘聚焦的 item 列表（跳过 divider / group / disabled） |
-| `parsePopupOrigin(input)` | 计算面板 `left/top` 与 `flipX/flipY` |
+| `parsePopupOrigin(input)`   | 计算面板 `left/top` 与 `flipX/flipY`                      |
 
 ---
 
@@ -229,13 +240,14 @@ close(): void
 Source: `apps/client/src/components/combobox/`
 
 ---
+
 category: Components
 title: Combobox
 subtitle: 组合输入框
 description: 带可展开下拉区的输入组合框，支持前缀/后缀、IME 合成与 motion 展开动画。
 group:
-  title: 通用
-  order: 2
+title: 通用
+order: 2
 ---
 
 ## 何时使用 {#when-to-use}
@@ -290,7 +302,11 @@ export default function Demo() {
     <Combobox.Series
       options={options}
       single={function (option) {
-        return <span>{option.label} ({option.value})</span>
+        return (
+          <span>
+            {option.label} ({option.value})
+          </span>
+        )
       }}
     />
   }
@@ -301,38 +317,38 @@ export default function Demo() {
 
 ### Combobox
 
-| 属性 | 说明 | 类型 | 默认值 |
-| --- | --- | --- | --- |
-| value | 受控输入值 | `string` | — |
-| placeholder | 占位符 | `string` | — |
-| className | 根 class | `string` | — |
-| classNames | `root` / `trigger` / `section` | `object` | — |
-| offset | 下拉相对根高度的偏移（px）；不传则用测量高度 | `number` | 测量值 |
-| prefix | 输入前缀 | `ReactNode` | — |
-| suffix | 输入后缀 | `ReactNode` | — |
-| section | 下拉面板内容 | `ReactNode` | —（必填） |
-| visible | 是否展示下拉 | `boolean` | — |
-| onUpdate | 输入更新（IME 合成中不触发；合成结束触发） | `(value, domStringified, event) => void` | — |
-| onClick | 根节点点击 | `(event) => void` | — |
-| ref | 根 div ref | `Ref<HTMLDivElement>` | — |
+| 属性        | 说明                                         | 类型                                     | 默认值    |
+| ----------- | -------------------------------------------- | ---------------------------------------- | --------- |
+| value       | 受控输入值                                   | `string`                                 | —         |
+| placeholder | 占位符                                       | `string`                                 | —         |
+| className   | 根 class                                     | `string`                                 | —         |
+| classNames  | `root` / `trigger` / `section`               | `object`                                 | —         |
+| offset      | 下拉相对根高度的偏移（px）；不传则用测量高度 | `number`                                 | 测量值    |
+| prefix      | 输入前缀                                     | `ReactNode`                              | —         |
+| suffix      | 输入后缀                                     | `ReactNode`                              | —         |
+| section     | 下拉面板内容                                 | `ReactNode`                              | —（必填） |
+| visible     | 是否展示下拉                                 | `boolean`                                | —         |
+| onUpdate    | 输入更新（IME 合成中不触发；合成结束触发）   | `(value, domStringified, event) => void` | —         |
+| onClick     | 根节点点击                                   | `(event) => void`                        | —         |
+| ref         | 根 div ref                                   | `Ref<HTMLDivElement>`                    | —         |
 
 展开时根节点带 `is-active` class；下拉使用 `motion` 做 scaleY / opacity 动画。
 
 ### Combobox.Series
 
-| 属性 | 说明 | 类型 | 默认值 |
-| --- | --- | --- | --- |
-| options | 选项列表 | `SeriesOption[]` | — |
-| single | 自定义单项渲染 | `(option) => ReactNode` | 默认 mark + label |
+| 属性    | 说明           | 类型                    | 默认值            |
+| ------- | -------------- | ----------------------- | ----------------- |
+| options | 选项列表       | `SeriesOption[]`        | —                 |
+| single  | 自定义单项渲染 | `(option) => ReactNode` | 默认 mark + label |
 
 ### SeriesOption
 
-| 属性 | 说明 | 类型 |
-| --- | --- | --- |
-| key | React key | `string` |
-| label | 展示文案 | `string` |
-| value | 选项值（写入 `datatype`） | `string` |
-| mark | 可选标记节点 | `ReactNode` |
+| 属性  | 说明                      | 类型        |
+| ----- | ------------------------- | ----------- |
+| key   | React key                 | `string`    |
+| label | 展示文案                  | `string`    |
+| value | 选项值（写入 `datatype`） | `string`    |
+| mark  | 可选标记节点              | `ReactNode` |
 
 ---
 
@@ -341,13 +357,14 @@ export default function Demo() {
 Source: `apps/client/src/components/glide/`
 
 ---
+
 category: Components
 title: Glide
 subtitle: 滚动容器
 description: 横向 / 纵向滚动容器。`Glide.X` 通过 CSS 旋转技巧将垂直滚轮映射为水平滚动。
 group:
-  title: 通用
-  order: 3
+title: 通用
+order: 3
 ---
 
 ## 何时使用 {#when-to-use}
@@ -367,7 +384,9 @@ export default function Demo() {
     <Glide.X style={{ height: 120, width: 320 }}>
       {Array.from({ length: 12 }, function (_, i) {
         return (
-          <div key={i} style={{ width: 80, height: 80, flexShrink: 0, marginRight: 8, background: '#eee' }}>
+          <div
+            key={i}
+            style={{ width: 80, height: 80, flexShrink: 0, marginRight: 8, background: '#eee' }}>
             {i}
           </div>
         )
@@ -397,14 +416,14 @@ export default function Demo() {
 
 二者 Props 相同。
 
-| 属性 | 说明 | 类型 | 默认值 |
-| --- | --- | --- | --- |
-| children | 滚动内容 | `ReactNode` | — |
-| className | 根 class（`ClassValue`） | `ClassValue` | — |
-| classNames | `root` / `wrapper` / `inner` | `object` | — |
-| style | 根行内样式 | `CSSProperties` | — |
-| styles | `root` / `wrapper` / `inner` 行内样式 | `object` | — |
-| onScroll | 滚动回调（绑在 wrapper 上） | `(event) => void` | — |
+| 属性       | 说明                                  | 类型              | 默认值 |
+| ---------- | ------------------------------------- | ----------------- | ------ |
+| children   | 滚动内容                              | `ReactNode`       | —      |
+| className  | 根 class（`ClassValue`）              | `ClassValue`      | —      |
+| classNames | `root` / `wrapper` / `inner`          | `object`          | —      |
+| style      | 根行内样式                            | `CSSProperties`   | —      |
+| styles     | `root` / `wrapper` / `inner` 行内样式 | `object`          | —      |
+| onScroll   | 滚动回调（绑在 wrapper 上）           | `(event) => void` | —      |
 
 **结构**
 
@@ -418,13 +437,14 @@ export default function Demo() {
 Source: `apps/client/src/components/fallback/`
 
 ---
+
 category: Components
 title: Fallback
 subtitle: 回退占位
 description: 路由级全屏加载占位。
 group:
-  title: 通用
-  order: 4
+title: 通用
+order: 4
 ---
 
 ## 何时使用 {#when-to-use}
@@ -480,13 +500,14 @@ export const Fallback = { Route, ErrorBoundary }
 Source: `apps/client/src/components/caption/`
 
 ---
+
 category: Components
 title: Caption
 subtitle: 窗口标题栏（窗口装饰）
 description: decorations: false 的自绘桌面壳：拖拽区 + 窗口键。
 group:
-  title: 窗口
-  order: 1
+title: 窗口
+order: 1
 ---
 
 ## 何时使用 {#when-to-use}
@@ -519,12 +540,12 @@ export default function Panel() {
 
 ### Caption
 
-| 属性        | 说明                                              | 类型                                                             | 默认值 |
-| ----------- | ------------------------------------------------- | ---------------------------------------------------------------- | ------ |
-| className   | 根 class                                          | `ClassValue`                                                     | —      |
-| begin       | 顶栏左侧主区域                                    | `ReactNode`                                                      | —      |
-| final       | 顶栏右侧扩展区域（渲染在窗口键左侧）；与 `begin` 对立 | `ReactNode`                                                 | —      |
-| controls    | 窗口键开关；`true` 默认键全开；对象可关单项或开可选键（`pin`） | `boolean \| Partial<Record<'minimize' \| 'maximize' \| 'close' \| 'pin', boolean>>` | `true` |
+| 属性      | 说明                                                           | 类型                                                                                | 默认值 |
+| --------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------ |
+| className | 根 class                                                       | `ClassValue`                                                                        | —      |
+| begin     | 顶栏左侧主区域                                                 | `ReactNode`                                                                         | —      |
+| final     | 顶栏右侧扩展区域（渲染在窗口键左侧）；与 `begin` 对立          | `ReactNode`                                                                         | —      |
+| controls  | 窗口键开关；`true` 默认键全开；对象可关单项或开可选键（`pin`） | `boolean \| Partial<Record<'minimize' \| 'maximize' \| 'close' \| 'pin', boolean>>` | `true` |
 
 **结构 / 状态**
 
@@ -542,13 +563,14 @@ export default function Panel() {
 Source: `apps/client/src/components/decorations/`
 
 ---
+
 category: Components
 title: Decorations
 subtitle: 窗口容器（自绘装饰壳）
 description: 对应 decorations: false；透明根节点 + 顶栏装饰 + 内容区 + 可选底栏。
 group:
-  title: 窗口
-  order: 2
+title: 窗口
+order: 2
 ---
 
 ## 何时使用 {#when-to-use}
@@ -597,16 +619,16 @@ export default function Overview() {
 
 ### Decorations
 
-| 属性       | 说明                                       | 类型                      | 默认值 |
-| ---------- | ------------------------------------------ | ------------------------- | ------ |
-| children   | 内容区                                     | `ReactNode`               | —      |
-| className  | 根容器 class                               | `ClassValue`              | —      |
-| summary    | 顶栏标题（`begin` 缺省时使用）             | `string`                  | —      |
-| begin      | 顶栏左侧主区域，优先于 `summary`           | `ReactNode`               | —      |
-| final      | 顶栏右侧扩展区域；与 `begin` 对立          | `ReactNode`               | —      |
-| controls   | 窗口键开关（透传 `Caption`）               | `CaptionProps['controls']` | `true` |
-| section    | 底栏区域；不传则不渲染                     | `ReactNode`               | —      |
-| scrollable | 内容区由外壳统一滚动；内部已有滚动区传 `false` | `boolean`             | `true` |
+| 属性       | 说明                                           | 类型                       | 默认值 |
+| ---------- | ---------------------------------------------- | -------------------------- | ------ |
+| children   | 内容区                                         | `ReactNode`                | —      |
+| className  | 根容器 class                                   | `ClassValue`               | —      |
+| summary    | 顶栏标题（`begin` 缺省时使用）                 | `string`                   | —      |
+| begin      | 顶栏左侧主区域，优先于 `summary`               | `ReactNode`                | —      |
+| final      | 顶栏右侧扩展区域；与 `begin` 对立              | `ReactNode`                | —      |
+| controls   | 窗口键开关（透传 `Caption`）                   | `CaptionProps['controls']` | `true` |
+| section    | 底栏区域；不传则不渲染                         | `ReactNode`                | —      |
+| scrollable | 内容区由外壳统一滚动；内部已有滚动区传 `false` | `boolean`                  | `true` |
 
 **结构**
 
@@ -627,11 +649,11 @@ export default function Overview() {
 
 应用**不再内置浏览器**。网址一律走系统默认浏览器（`@tauri-apps/plugin-opener` 的 `openUrl`）。
 
-| 窗口 | label | 内容 |
-| --- | --- | --- |
-| 工作台 | `main` | 磁贴墙、集合展开、登录弹窗；顶栏 `BrowserBar` 中间挂 Command Omnibar（`features/command-bar`），右侧镜像 / 状态 / 账号 |
-| 磁贴窗 | `${component}:${id}` | 各业务独立窗（笔记、代码、日历等） |
-| 截屏浮层 | `overlay` | 截图标注 |
+| 窗口     | label                | 内容                                                                                                                   |
+| -------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 工作台   | `main`               | 磁贴墙、集合展开、登录弹窗；顶栏 `BrowserBar` 中间挂 Command Omnibar（`features/command-bar`），右侧镜像 / 状态 / 账号 |
+| 磁贴窗   | `${component}:${id}` | 各业务独立窗（笔记、代码、日历等）                                                                                     |
+| 截屏浮层 | `overlay`            | 截图标注                                                                                                               |
 
 打开网址：
 
@@ -653,13 +675,13 @@ Chrome 书签导入（主路径）：
 
 原来的 `MagneticTile.Overlay`（antd `Modal` 门面）已删除：**磁贴双击一律开独立窗口**。
 
-| 环节     | 位置                                                              |
-| -------- | ----------------------------------------------------------------- |
-| 激活     | `src/features/magnetic-tile/activate.ts`（`activateTile`）        |
-| 窗口配置 | `src/constants/magnetic-tile/window.ts`（`WINDOW` / `DEFAULT`）   |
-| 窗口键   | `src/components/caption/`                                          |
-| 内容     | `src/views/<component>/<component>.tsx`                            |
-| 路由     | `src/routers/index.tsx`                                            |
+| 环节     | 位置                                                            |
+| -------- | --------------------------------------------------------------- |
+| 激活     | `src/features/magnetic-tile/activate.ts`（`activateTile`）      |
+| 窗口配置 | `src/constants/magnetic-tile/window.ts`（`WINDOW` / `DEFAULT`） |
+| 窗口键   | `src/components/caption/`                                       |
+| 内容     | `src/views/<component>/<component>.tsx`                         |
+| 路由     | `src/routers/index.tsx`                                         |
 
 - 窗口 label 为 `${component}:${磁贴 id}` —— 一个组件有多条记录时一窗对一记录（等价于原来「每个磁贴一个 Dialog」）
 - 记录上的 `url` 只能在建窗时经查询串传入（`?url=`），窗口内用 `URLSearchParams` 读
@@ -669,11 +691,11 @@ Chrome 书签导入（主路径）：
 
 `tauri.conf.json` 的 `main` 窗口也是 `decorations: false`，同样走 `Decorations` 当**容器**（根透明让 mica 透出来），标题栏内容全部由 `views/overview/caption/` 提供：
 
-| 位置          | 内容                                                                 |
-| ------------- | -------------------------------------------------------------------- |
+| 位置          | 内容                                                                  |
+| ------------- | --------------------------------------------------------------------- |
 | `begin`（左） | 品牌 `i-thinking` · 分隔线 · **镜像入口**（`caption/mirror.tsx`）     |
 | `final`（右） | **状态区**（`caption/status.tsx`）+ **账号**（`caption/account.tsx`） |
-| 窗口键        | `Caption` 自绘（最小化 / 最大化 / 关闭）                             |
+| 窗口键        | `Caption` 自绘（最小化 / 最大化 / 关闭）                              |
 
 - **镜像入口**（切换 + 管理）：触发按钮＝「序号 + 当前镜像标题」+ chevron，**始终可点** —— 多个时点开是切换，单个时点开是管理面，一个都没有时直接给「新建镜像」。列表支持 ↑↓、Home/End、Enter，Esc 关闭；每行带「重命名」（行内输入，Enter 保存 / Esc 取消 / 失焦保存）与「删除」（`AlertDialog` 二次确认，删的若是当前镜像会自动切到剩下的第一个）；底部「新建镜像」（按 `镜像-0N` 顺延命名）。注意这几个操作原先**全仓没有任何 UI**，`stores/mirror.ts` 的 `toInsertMirror` / `toUpdateMirror` / `toRemoveMirror` 因此一直没有调用者
 - **状态区**：把原来两颗一次性 toast 变成常驻芯片 —— `corex 未就绪`（点击重新检测）、`可更新 vX.Y.Z`（点击安装，✕ 忽略）。更新来自启动时的静默检查（`autoCheckUpdate`），状态由 `utils/updater.ts` 的 `subscribeUpdateStatus` 暴露
@@ -686,11 +708,11 @@ Chrome 书签导入（主路径）：
 
 一个组件有两块实现，**别混着放**（`views/<tile>` 是窗口，`features/magnetic-tiles/<tile>` 是板上那块磁贴）：
 
-| 目录                                  | 归属          | 放什么                                                                 |
-| ------------------------------------- | ------------- | ---------------------------------------------------------------------- |
-| `src/views/<tile>/`                   | 磁贴窗口页     | 双击磁贴后开的整个界面：`<tile>.tsx` + 其私有实现（`workspace/**`、`panels/**`、`calendar-view.tsx` …） |
-| `src/features/magnetic-tiles/<tile>/` | 磁贴表面       | 板上那块磁贴：`<tile>.tsx`（`MagneticTile.Section`）、`marker.tsx`、尺寸 scss |
-| 两侧共用件                             | 同上           | 表面与窗口都要用的（如 clock 的 `faces/**`、`flip-digit.tsx`、`alarm-time.ts`）放 `features/…/<tile>/` |
+| 目录                                  | 归属       | 放什么                                                                                                  |
+| ------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------- |
+| `src/views/<tile>/`                   | 磁贴窗口页 | 双击磁贴后开的整个界面：`<tile>.tsx` + 其私有实现（`workspace/**`、`panels/**`、`calendar-view.tsx` …） |
+| `src/features/magnetic-tiles/<tile>/` | 磁贴表面   | 板上那块磁贴：`<tile>.tsx`（`MagneticTile.Section`）、`marker.tsx`、尺寸 scss                           |
+| 两侧共用件                            | 同上       | 表面与窗口都要用的（如 clock 的 `faces/**`、`flip-digit.tsx`、`alarm-time.ts`）放 `features/…/<tile>/`  |
 
 - 判定口径：只被 `views/<tile>/**` 可达 → 属于窗口；磁贴表面（`features/controller/reflection.tsx`）也用到 → 留在 features
 - 窗口页的代码分割按 `views/<component>/**` 归到 `tile-<component>` chunk（见 `vite.chunk.ts`）
@@ -701,10 +723,10 @@ Chrome 书签导入（主路径）：
 
 | 位置                                    | 职责                                                     |
 | --------------------------------------- | -------------------------------------------------------- |
-| `src/views/agent/agent.tsx`             | 出口：全局设置初始化 + `<Outlet />`（无自有 UI）          |
-| `src/views/agent/chat/chat.tsx`         | 子页：三栏工作台（工作区 \| 主对话 \| Plan）              |
-| `src/views/agent/settings/settings.tsx` | 子页：模型接入（原聊天页里的 Dialog）                     |
-| `src/views/agent/components/`           | 两个子页共用（`titlebar.tsx` 窗口标题栏）                 |
+| `src/views/agent/agent.tsx`             | 出口：全局设置初始化 + `<Outlet />`（无自有 UI）         |
+| `src/views/agent/chat/chat.tsx`         | 子页：三栏工作台（工作区 \| 主对话 \| Plan）             |
+| `src/views/agent/settings/settings.tsx` | 子页：模型接入（原聊天页里的 Dialog）                    |
+| `src/views/agent/components/`           | 两个子页共用（`titlebar.tsx` 窗口标题栏）                |
 | `src/routers/index.tsx`                 | `/agent` 布局路由；`index` 重定向到 `chat`（查询串随带） |
 
 - URL 只有两个：`/agent/chat`（默认）与 `/agent/settings`；磁贴窗口仍开 `/agent`，靠重定向落到默认子页
@@ -717,13 +739,14 @@ Chrome 书签导入（主路径）：
 Source: `apps/client/src/components/provider/`
 
 ---
+
 category: Components
 title: Provider
 subtitle: 应用级提供者
 description: React Query Provider。
 group:
-  title: 通用
-  order: 5
+title: 通用
+order: 5
 ---
 
 ## 何时使用 {#when-to-use}
@@ -754,8 +777,8 @@ export default function App() {
 
 ### QueryProvider
 
-| 属性 | 说明 | 类型 | 默认值 |
-| --- | --- | --- | --- |
-| children | 子树 | `ReactNode` | — |
+| 属性     | 说明 | 类型        | 默认值 |
+| -------- | ---- | ----------- | ------ |
+| children | 子树 | `ReactNode` | —      |
 
 内部使用 `useState(buildQueryClient)` 创建稳定的 `QueryClient`，再包 `QueryClientProvider`。

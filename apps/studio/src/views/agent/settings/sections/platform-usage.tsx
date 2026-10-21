@@ -1,4 +1,5 @@
 import { Button } from '@i-thinking/design/components/button'
+import { DatePicker } from '@i-thinking/design/components/date-picker'
 import { Input } from '@i-thinking/design/components/input'
 import { Label } from '@i-thinking/design/components/label'
 import {
@@ -9,6 +10,7 @@ import {
   SelectValue
 } from '@i-thinking/design/components/select'
 import { useQuery } from '@tanstack/react-query'
+import type { Dayjs } from 'dayjs'
 import { useState } from 'react'
 
 import {
@@ -23,7 +25,7 @@ import { DataTable, TableFooter, TableLoading } from '@/views/agent/settings/com
 /**
  * 平台 · 用量：每次补全落一条，是计费与排障的原始账单。
  *
- * 时间筛选用 `datetime-local`（浏览器给的是本地时间），转成毫秒再发；服务端按闭区间过滤。
+ * 时间筛选用 DatePicker.showTime（本地时间），转成毫秒再发；服务端按闭区间过滤。
  */
 
 const PAGE_SIZE = 20
@@ -32,18 +34,18 @@ const ALL = 'all'
 interface UsageFilter {
   tenantID: string
   modelID: string
-  /** `datetime-local` 的原始值，空串表示不筛 */
-  from: string
-  to: string
+  /** 空表示不筛 */
+  from: Dayjs | null
+  to: Dayjs | null
 }
 
 function emptyFilter(): UsageFilter {
-  return { tenantID: '', modelID: ALL, from: '', to: '' }
+  return { tenantID: '', modelID: ALL, from: null, to: null }
 }
 
-function findMilliseconds(local: string): number | undefined {
-  if (!local) return undefined
-  const at = new Date(local).getTime()
+function findMilliseconds(value: Dayjs | null): number | undefined {
+  if (!value) return undefined
+  const at = value.valueOf()
   return Number.isNaN(at) ? undefined : at
 }
 
@@ -156,26 +158,26 @@ function UsageSection() {
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="gateway-usage-from">开始</Label>
-          <Input
+          <DatePicker
             id="gateway-usage-from"
-            type="datetime-local"
+            showTime
             value={pending.from}
             className="w-52"
-            onChange={function (event) {
-              updatePending({ ...pending, from: event.target.value })
+            onChange={function (date) {
+              updatePending({ ...pending, from: date })
             }}
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="gateway-usage-to">结束</Label>
-          <Input
+          <DatePicker
             id="gateway-usage-to"
-            type="datetime-local"
+            showTime
             value={pending.to}
             className="w-52"
-            onChange={function (event) {
-              updatePending({ ...pending, to: event.target.value })
+            onChange={function (date) {
+              updatePending({ ...pending, to: date })
             }}
           />
         </div>

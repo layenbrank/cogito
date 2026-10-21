@@ -1,6 +1,7 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
 import { Checkbox } from '@i-thinking/design/components/checkbox'
+import { DatePicker } from '@i-thinking/design/components/date-picker'
 import { Input } from '@i-thinking/design/components/input'
 import { Label } from '@i-thinking/design/components/label'
 import {
@@ -13,6 +14,8 @@ import {
 import { Sheet, SheetContent, SheetTitle } from '@i-thinking/design/components/sheet'
 import { Switch } from '@i-thinking/design/components/switch'
 import { Textarea } from '@i-thinking/design/components/textarea'
+import type { Dayjs } from 'dayjs'
+import dayjs from 'dayjs'
 import { debounce } from 'lodash-es'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
@@ -27,20 +30,15 @@ interface CardSheetProps {
   onUpdateOpen: (open: boolean) => void
 }
 
-function toDateInput(dueAt: number | null) {
-  if (dueAt == null) return ''
-  const date = new Date(dueAt)
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
+function parseDayjs(ms: number | null): Dayjs | null {
+  if (ms === null) return null
+  return dayjs(ms)
 }
 
-function parseDateInput(value: string) {
+/** 存盘用本地 09:00，与原先 `YYYY-MM-DD` + T09:00:00 行为一致 */
+function parseTimestamp(value: Dayjs | null): number | null {
   if (!value) return null
-  const date = new Date(`${value}T09:00:00`)
-  const ms = date.getTime()
-  return Number.isNaN(ms) ? null : ms
+  return value.hour(9).minute(0).second(0).millisecond(0).valueOf()
 }
 
 const PRIORITY_OPTIONS = [
@@ -94,8 +92,8 @@ function CardSheet(props: CardSheetProps) {
 
   const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
-  const [due, setDue] = useState('')
-  const [start, setStart] = useState('')
+  const [due, setDue] = useState<Dayjs | null>(null)
+  const [start, setStart] = useState<Dayjs | null>(null)
   const [priority, setPriority] = useState('0')
   const [remind, setRemind] = useState(false)
   const [tagDraft, setTagDraft] = useState('')
@@ -110,8 +108,8 @@ function CardSheet(props: CardSheetProps) {
       if (!props.card) return
       setTitle(props.card.title)
       setNotes(props.card.notes)
-      setDue(toDateInput(props.card.dueAt))
-      setStart(toDateInput(props.card.startAt))
+      setDue(parseDayjs(props.card.dueAt))
+      setStart(parseDayjs(props.card.startAt))
       setPriority(String(props.card.priority ?? 0))
       setRemind(Boolean(props.card.reminderID))
       setTagDraft('')
@@ -153,8 +151,8 @@ function CardSheet(props: CardSheetProps) {
   async function saveDueAndRemind() {
     setSaving(true)
     try {
-      const dueAt = parseDateInput(due)
-      const startAt = parseDateInput(start)
+      const dueAt = parseTimestamp(due)
+      const startAt = parseTimestamp(start)
       const updated = await toUpdateEntry(entryID, {
         dueAt,
         startAt,
@@ -292,23 +290,21 @@ function CardSheet(props: CardSheetProps) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="signboard-card-start">开始</Label>
-              <Input
+              <DatePicker
                 id="signboard-card-start"
-                type="date"
                 value={start}
-                onChange={function (event) {
-                  setStart(event.target.value)
+                onChange={function (date) {
+                  setStart(date)
                 }}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="signboard-card-due">到期</Label>
-              <Input
+              <DatePicker
                 id="signboard-card-due"
-                type="date"
                 value={due}
-                onChange={function (event) {
-                  setDue(event.target.value)
+                onChange={function (date) {
+                  setDue(date)
                 }}
               />
             </div>
