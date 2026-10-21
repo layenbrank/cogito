@@ -5,6 +5,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
 import { MediaIpc } from '@/lib/media-ipc'
+import { reportCaught } from '@/utils/exception-report'
 import {
   MAX_UNDO,
   STICKER_LIBRARY,
@@ -615,7 +616,7 @@ const useClipchampStore = create<ClipchampState>()(
               window.setTimeout(resolve, 700)
             })
           } catch (error) {
-            console.error(error)
+            reportCaught('clipchamp.exportVideo', error)
             toast.error(error instanceof Error ? error.message : '导出失败')
           } finally {
             unlisten()
@@ -634,7 +635,7 @@ const useClipchampStore = create<ClipchampState>()(
             toast.success('项目已保存到本地')
           } catch (error) {
             toast.error('保存失败')
-            console.error(error)
+            reportCaught('clipchamp.persistProject', error)
           }
         },
 
@@ -695,7 +696,7 @@ const useClipchampStore = create<ClipchampState>()(
             if (!options?.silent) toast.success('已恢复本地项目')
           } catch (error) {
             if (!options?.silent) toast.error('恢复失败')
-            console.error(error)
+            reportCaught('clipchamp.restoreProject', error)
           }
         },
 

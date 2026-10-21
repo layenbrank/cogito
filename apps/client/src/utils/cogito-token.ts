@@ -8,13 +8,14 @@
 import { invoke } from '@tauri-apps/api/core'
 
 import { CHANNELS } from '@/shared/ipc/channels'
+import { reportCaught } from '@/utils/exception-report'
 
 function syncCogitoJwt(token: string | null): void {
   const action = token ? CHANNELS.COGITO.TOKEN_WRITE : CHANNELS.COGITO.TOKEN_CLEAR
   const args = token ? { token } : {}
   invoke(action, args).catch(function (error) {
     // 网关侧车鉴权依赖这个文件，失败要留痕（登录不该因为一个旁路文件写失败而失败）
-    console.warn('[cogito] 同步 JWT 文件失败:', error)
+    reportCaught('cogito.syncJwt', error, 'warning')
   })
 }
 

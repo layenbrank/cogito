@@ -5,6 +5,7 @@ import { findTileRoute } from '@/constants/magnetic-tile/window'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 import { admitSession } from '@/features/magnetic-tile/session'
 import { parseOriginRect, useCollectionStore } from '@/stores/collection'
+import { reportCaught } from '@/utils/exception-report'
 
 type Tile = Pick<MagneticTile, 'component' | 'url' | 'id'>
 
@@ -76,7 +77,7 @@ async function activateTile(tile: Tile): Promise<void> {
   try {
     await run(tile)
   } catch (error) {
-    console.error('[magnetic-tile] 打开应用失败', error)
+    reportCaught('magnetic-tile.activate', error)
     toast.error(`${findComponentLabel(tile.component)}打开失败`)
   }
 }

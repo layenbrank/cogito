@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 import { CHANNELS } from '@/shared/ipc/channels'
+import { reportCaught } from '@/utils/exception-report'
 
 import type { SurfaceStyleInput } from '@/features/magnetic-tile/surface-style'
 import {
@@ -584,7 +585,7 @@ const useOverlayStore = create<OverlayStore>()(
               await getter().toShow()
             }
           } catch (e) {
-            console.warn('[overlay] toInitialize failed:', e)
+            reportCaught('overlay.toInitialize', e, 'warning')
           }
         }
       }

@@ -3,6 +3,7 @@ import { create, type StateCreator } from 'zustand'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 import { CHANNELS } from '@/shared/ipc/channels'
+import { reportCaught } from '@/utils/exception-report'
 
 /** goose inventory providerId（历史伪 kind「goose」已过滤） */
 type ProviderKind = string
@@ -95,7 +96,7 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
         )
         return providers
       } catch (error) {
-        console.error('[provider-store] toReadProviders failed:', error)
+        reportCaught('provider-store.toReadProviders', error)
         setters(
           function (state) {
             state.providersLoaded = true

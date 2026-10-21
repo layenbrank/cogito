@@ -3,6 +3,7 @@ import type { RefObject } from 'react'
 import { copyImage, pinTexture, saveToUserPath } from '@/features/capture/clipboard'
 import type { AnnotationHandle } from '@/features/capture/components/annotation'
 import { toRecordCapture } from '@/features/capture/history'
+import { reportCaught } from '@/utils/exception-report'
 
 interface CaptureExportInput {
   annotationRef: RefObject<AnnotationHandle | null>
@@ -22,7 +23,7 @@ async function withStagePng(
   try {
     await action(dataUrl)
   } catch (err) {
-    console.error('[capture] 处理截图结果失败', err)
+    reportCaught('capture.export', err)
   }
 }
 

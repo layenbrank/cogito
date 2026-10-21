@@ -7,6 +7,7 @@ import { GET_AGENT_TASK, type AgentTask } from '@/apis/agent.ts'
 import { ConsolePage } from '@/components/console/console-page.tsx'
 import { findFieldLabel, formatFieldValue } from '@/components/console/field-label.ts'
 import { StatusBadge } from '@/components/console/status-badge.tsx'
+import { reportCaught } from '@/utils/exception-report.ts'
 import { HttpError } from '@/utils/http/errors.ts'
 
 export default function AgentView() {
@@ -23,6 +24,7 @@ export default function AgentView() {
     try {
       updateTask(await GET_AGENT_TASK(taskID.trim()))
     } catch (error) {
+      reportCaught('agent.loadTask', error)
       updateTask(null)
       toast.error(HttpError(error).message)
     } finally {

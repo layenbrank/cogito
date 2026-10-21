@@ -7,6 +7,7 @@ import { GET_RAG_INDEX_TASK, type RagIndexTask } from '@/apis/rag.ts'
 import { ConsolePage } from '@/components/console/console-page.tsx'
 import { findFieldLabel, formatFieldValue } from '@/components/console/field-label.ts'
 import { StatusBadge } from '@/components/console/status-badge.tsx'
+import { reportCaught } from '@/utils/exception-report.ts'
 import { HttpError } from '@/utils/http/errors.ts'
 
 export default function RagView() {
@@ -23,6 +24,7 @@ export default function RagView() {
     try {
       updateTask(await GET_RAG_INDEX_TASK(taskID.trim()))
     } catch (error) {
+      reportCaught('rag.loadTask', error)
       updateTask(null)
       toast.error(HttpError(error).message)
     } finally {

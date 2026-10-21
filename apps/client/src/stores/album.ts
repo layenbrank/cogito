@@ -4,6 +4,7 @@ import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
 import { CHANNELS } from '@/shared/ipc/channels'
+import { reportCaught } from '@/utils/exception-report'
 import { buildChange, useGalleryStore } from '@/stores/gallery'
 import { parseMeta } from '@/views/gallery/model/media'
 
@@ -66,7 +67,7 @@ const useAlbumStore = create<AlbumStore>()(
             )
             return albums
           } catch (error) {
-            console.error('[album-store] toReadAlbums failed:', error)
+            reportCaught('album-store.toReadAlbums', error)
             setter(
               function (state) {
                 state.loaded = true
@@ -91,7 +92,7 @@ const useAlbumStore = create<AlbumStore>()(
             await getter().toReadAlbums()
             return ids[0]
           } catch (error) {
-            console.error('[album-store] toWriteAlbum failed:', error)
+            reportCaught('album-store.toWriteAlbum', error)
             return undefined
           }
         },
@@ -103,7 +104,7 @@ const useAlbumStore = create<AlbumStore>()(
             })
             await getter().toReadAlbums()
           } catch (error) {
-            console.error('[album-store] toUpdateAlbum failed:', error)
+            reportCaught('album-store.toUpdateAlbum', error)
           }
         },
 
@@ -112,7 +113,7 @@ const useAlbumStore = create<AlbumStore>()(
             await invoke(CHANNELS.ALBUM.REMOVE, { params: key })
             await getter().toReadAlbums()
           } catch (error) {
-            console.error('[album-store] toRemoveAlbum failed:', error)
+            reportCaught('album-store.toRemoveAlbum', error)
           }
         },
 

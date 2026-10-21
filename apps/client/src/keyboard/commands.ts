@@ -14,6 +14,7 @@
  */
 
 import type { Command, CommandID } from '@/keyboard/types'
+import { reportCaught } from '@/utils/exception-report'
 
 type CommandHandler = () => boolean | void | Promise<boolean | void>
 
@@ -178,7 +179,7 @@ async function runCommand(id: CommandID): Promise<boolean> {
     try {
       if ((await item.handler()) === true) return true
     } catch (error) {
-      console.error('[keyboard] command handler error', { id, error })
+      reportCaught('keyboard.commandHandler', error, 'error', { id })
     }
   }
 

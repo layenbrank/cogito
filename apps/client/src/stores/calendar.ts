@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 import { CHANNELS } from '@/shared/ipc/channels'
+import { reportCaught } from '@/utils/exception-report'
 
 interface Calendar {
   id: string
@@ -85,7 +86,7 @@ const useCalendarStore = create<CalendarStore>()(
             )
             return events
           } catch (err) {
-            console.error('[calendar-store] toReadEvents failed:', err)
+            reportCaught('calendar-store.toReadEvents', err)
             setter(
               function (state) {
                 state.loaded = true
@@ -102,7 +103,7 @@ const useCalendarStore = create<CalendarStore>()(
             const ids = await invoke<string[]>(CHANNELS.CALENDAR.WRITE, { params: value })
             return ids[0]
           } catch (err) {
-            console.error('[calendar-store] toWriteEvent failed:', err)
+            reportCaught('calendar-store.toWriteEvent', err)
             return undefined
           }
         },
@@ -111,7 +112,7 @@ const useCalendarStore = create<CalendarStore>()(
           try {
             await invoke(CHANNELS.CALENDAR.UPDATE, { params: value })
           } catch (err) {
-            console.error('[calendar-store] toUpdateEvent failed:', err)
+            reportCaught('calendar-store.toUpdateEvent', err)
           }
         },
 
@@ -119,7 +120,7 @@ const useCalendarStore = create<CalendarStore>()(
           try {
             await invoke(CHANNELS.CALENDAR.REMOVE, { params: key })
           } catch (err) {
-            console.error('[calendar-store] toRemoveEvent failed:', err)
+            reportCaught('calendar-store.toRemoveEvent', err)
           }
         }
       }

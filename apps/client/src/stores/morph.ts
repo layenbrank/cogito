@@ -6,6 +6,7 @@ import { immer } from 'zustand/middleware/immer'
 
 import { parseRangesToOffsets } from '@/features/magnetic-tiles/morph/page-ranges'
 import { MorphIpc } from '@/lib/morph-ipc'
+import { reportCaught } from '@/utils/exception-report'
 
 // import {
 //   countAnnotationsByPage,
@@ -473,7 +474,7 @@ const useMorphStore = create<MorphState>()(
               s.renders[offset] = image
             })
           } catch (e) {
-            console.error('[morph] toFetchRender failed:', e)
+            reportCaught('morph.toFetchRender', e)
           } finally {
             pending.delete(offset)
           }
@@ -521,7 +522,7 @@ const useMorphStore = create<MorphState>()(
               s.thumbnailsError = null
             })
           } catch (e) {
-            console.error('[morph] toFetchThumbnails failed:', e)
+            reportCaught('morph.toFetchThumbnails', e)
             setter((s) => {
               s.thumbnails = []
               s.thumbnailsError = String(e)

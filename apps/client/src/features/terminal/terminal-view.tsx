@@ -12,6 +12,7 @@ import '@xterm/xterm/css/xterm.css'
 import { Terminal } from '@/lib/terminal'
 import { EVENTS } from '@/shared/ipc/channels'
 import { useTerminalStore } from '@/stores/terminal'
+import { reportCaught } from '@/utils/exception-report'
 
 const textEncoder = new TextEncoder()
 
@@ -163,7 +164,7 @@ function TerminalView(props: TerminalViewProps) {
             console.debug('xterm 初始 fit 未就绪', error)
           }
         } catch (error) {
-          console.error('终端创建失败', error)
+          reportCaught('terminal.create', error)
           terminal.write(
             `\r\n\x1b[91m[终端创建失败：${error instanceof Error ? error.message : String(error)}]\x1b[0m\r\n`
           )

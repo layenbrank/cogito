@@ -23,6 +23,7 @@ import { toast } from 'sonner'
 import { toAcceleratorText, validateBinding } from '@/keyboard/binding'
 import { runCommand } from '@/keyboard/commands'
 import { GLOBAL_SHORTCUTS, resolveBinding } from '@/keyboard/definitions'
+import { reportCaught } from '@/utils/exception-report'
 import { publishGlobalShortcuts, readGlobalShortcuts } from '@/keyboard/state'
 import type { GlobalShortcutDefinition, GlobalShortcutRuntime } from '@/keyboard/types'
 import { useSettingsStore } from '@/stores/setting'
@@ -234,7 +235,7 @@ function useGlobalShortcuts(): void {
           await applyGlobalShortcuts(findDesiredGlobalBindings())
         } catch (error) {
           if (cancelled) return
-          console.error('[keyboard] 注册全局快捷键失败', error)
+          reportCaught('keyboard.applyGlobalShortcuts', error)
           const text = error instanceof Error ? error.message : String(error)
           toast.error(`快捷键没能生效：${text}`)
         }
