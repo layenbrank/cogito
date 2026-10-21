@@ -35,7 +35,7 @@ const COREX_CLI_ENV = 'COREX_CLI'
 const COREX_DATA_DIR_ENV = 'COREX_DATA_DIR'
 const COREX_TOKEN_ENV = 'COREX_TOKEN'
 
-/** 指令库文件名：`paths --json` 没报 `database` 时按数据目录下的这个默认名推（对齐 i-thinking.db） */
+/** 指令库文件名：`paths --json` 没报 `database` 时按数据目录下的这个默认名推（对齐 cogito-client.db） */
 const DATABASE_FILE = 'corex.db'
 
 /** 探测 `corex paths` 的超时：启动路径上不该被一条命令拖住。 */

@@ -5,7 +5,7 @@ import { findSharedDataDir } from '@/host/capabilities/database'
 
 const CAPTURE_DIRECTIVE = 'capture-screenshot'
 
-/** 预截图暂存：与 client 同根 `…/com.i-thinking.corex/screenshots` */
+/** 预截图暂存：与 client 同根 `…/com.cogito.client/screenshots` */
 function findScreenshotDir(): string {
   return path.join(findSharedDataDir(), 'screenshots')
 }

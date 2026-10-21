@@ -5,7 +5,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// 与 `tauri.conf.json` 的 `identifier` 一致；helper 在 Tauri 启动前跑，只能靠它定位 appData。
-const APP_IDENTIFIER: &str = "com.i-thinking.corex";
+const APP_IDENTIFIER: &str = "com.cogito.client";
 
 fn main() {
     // goose 自定义 provider 的 `auth.command` 指向主程序自身（`--token-helper`）：

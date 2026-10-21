@@ -32,12 +32,12 @@ let client: Conn | null = null
 let logger: { info: (message: string) => void } | null = null
 
 /** client（Tauri）的 bundle identifier，取自 apps/client/src-tauri/tauri.conf.json */
-const CLIENT_IDENTIFIER = 'com.i-thinking.corex'
+const CLIENT_IDENTIFIER = 'com.cogito.client'
 /** 库文件名，取自 apps/client/src-tauri/crates/database/src/storage.rs 的 database_path() */
-const DATABASE_FILE = 'i-thinking.db'
+const DATABASE_FILE = 'cogito-client.db'
 
 /**
- * 与 client 共用的本地数据根目录（`LocalAppData/com.i-thinking.corex` 等）。
+ * 与 client 共用的本地数据根目录（`LocalAppData/com.cogito.client` 等）。
  * 库文件、textures、screenshots 都挂在这下面，两客户端互切可复用。
  */
 function findSharedDataDir(): string {
@@ -55,7 +55,7 @@ function findSharedDataDir(): string {
 /**
  * 库文件路径：与 client（Tauri 版，另一架构的同实现）**保持同一位置与格式**，
  * 这样两版互切时数据可复用；但用户只装其一，建表由各自完成（本文件负责 studio）。
- * client 侧取 Tauri 的 `app_local_data_dir()/i-thinking.db`（见 src-tauri/src/app/bootstrap.rs），
+ * client 侧取 Tauri 的 `app_local_data_dir()/cogito-client.db`（见 src-tauri/src/app/bootstrap.rs），
  * 这里按平台复刻该目录 —— 不能用 Electron 的 userData，
  * Windows 下二者根目录不同（LocalAppData vs Roaming）。
  */

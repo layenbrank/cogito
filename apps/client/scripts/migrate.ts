@@ -25,8 +25,8 @@ const MANIFEST = path.join(CLIENT_DIR, 'src-tauri', 'Cargo.toml')
 const LOG_PREFIX = '[migrate]'
 
 /** 与 src-tauri/tauri.conf.json 的 `identifier` 一致：应用数据目录名 */
-const APP_IDENTIFIER = 'com.i-thinking.corex'
-const DATABASE_FILE = 'i-thinking.db'
+const APP_IDENTIFIER = 'com.cogito.client'
+const DATABASE_FILE = 'cogito-client.db'
 
 /** 会清空 / 回滚数据的子命令：执行前自动备份 */
 const DESTRUCTIVE = new Set(['fresh', 'reset', 'refresh'])
@@ -99,7 +99,7 @@ function parseArgs(argv: string[]): Options {
 
 function findDatabasePath(options: Options): string {
   if (options.dbPath) return path.resolve(CLIENT_DIR, options.dbPath)
-  if (process.env.I_THINKING_DB) return path.resolve(process.env.I_THINKING_DB)
+  if (process.env.COGITO_CLIENT_DB) return path.resolve(process.env.COGITO_CLIENT_DB)
   return path.join(findAppLocalDataDir(), DATABASE_FILE)
 }
 

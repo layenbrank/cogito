@@ -37,7 +37,7 @@ const tempDirs: string[] = []
 function openDb(): SqliteHandle {
   const dir = mkdtempSync(join(tmpdir(), 'studio-chat-db-'))
   tempDirs.push(dir)
-  const db = new Database(join(dir, 'i-thinking.db'))
+  const db = new Database(join(dir, 'cogito-client.db'))
   // 与 src/plugins/database.ts 的连接 pragma 保持一致（外键必须显式打开）
   db.pragma('journal_mode = WAL')
   db.pragma('synchronous = NORMAL')

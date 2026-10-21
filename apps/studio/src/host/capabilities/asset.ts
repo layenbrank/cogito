@@ -13,7 +13,7 @@ import { findClient } from './database'
 
 /**
  * 本地资产仓储（对齐 client `thinking_core::asset`）。
- * 截屏贴图：PNG 落 `textures/`，再 insert 一行，与 Tauri 版共用 i-thinking.db。
+ * 截屏贴图：PNG 落 `textures/`，再 insert 一行，与 Tauri 版共用 cogito-client.db。
  */
 
 type AssetReadR = Out<typeof CHANNELS.ASSET.READ>[number]

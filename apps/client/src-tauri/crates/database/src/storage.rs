@@ -97,5 +97,5 @@ pub fn database_path(appdata: &std::path::Path) -> std::path::PathBuf {
     if let Err(e) = std::fs::create_dir_all(appdata) {
         error!("创建数据库目录失败: {}", e);
     }
-    appdata.join("i-thinking.db")
+    appdata.join("cogito-client.db")
 }

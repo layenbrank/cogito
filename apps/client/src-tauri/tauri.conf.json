@@ -237,7 +237,7 @@
       }
     }
   },
-  "identifier": "com.i-thinking.corex",
+  "identifier": "com.cogito.client",
   "mainBinaryName": "i-thinking",
   "plugins": {
     "cli": {
