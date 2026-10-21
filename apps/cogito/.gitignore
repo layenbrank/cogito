@@ -9,6 +9,7 @@
 /.env*
 # 但样例必须入库：compose 的三个凭据变量没有默认值，模板就是它的唯一说明
 !/.env.example
+!/.env.production.example
 
 # 全栈 compose 的可选环境文件（复制 docker/stack.env.example）
 /docker/stack.env

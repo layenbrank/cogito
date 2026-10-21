@@ -1,42 +1,24 @@
-# cogito 全栈编排：依赖（Postgres+pgvector / Redis / go-captcha）+ 四个后端进程
-# （cogito-api / cogito-worker / cogito-orchestrator / ai-worker）一次起齐，外加一个 Jaeger 收链路。
+# 开发全栈：Postgres+pgvector / Redis / go-captcha + api / worker / orchestrator / ai-worker + Jaeger。
 #
-# 用法（任何 up 之前都要先 `cp .env.example .env`，见下）：
-#   全栈       docker compose up -d
-#   只起依赖   docker compose up -d postgres redis gocaptcha
-#   看 cogito    docker compose logs -f cogito-api
-#   看链路     http://127.0.0.1:16686（三端 span 都往 jaeger 送，见 guide/deployment.md §9）
-#   停止       docker compose down
-#   清数据     删掉 ./data 下对应目录后重新 up（绑定挂载，便于备份/清理）
+#   cp .env.example .env
+#   docker compose build && docker compose up -d
 #
-# 项目名固定为 cogito（替代 COMPOSE_PROJECT_NAME / .env.compose）：
-# 业务库名 cogito-service；容器名一律 cogito-<角色>，本地镜像 tag 也是 cogito-*。
-#
-# 变量：三个凭据变量（POSTGRES_PASSWORD /
-# AI_WORKER_INTERNAL_TOKEN / SERVICE_TOKEN_SECRET）**没有默认值**，必须先在 apps/cogito/.env 里给出
-# （`cp .env.example .env`，该文件不入库），否则 compose 直接报错退出——只起依赖也一样，插值发生在
-# 启动任何服务之前；其余变量都有指向本机开发环境的默认值。密钥类变量一律通过 COGITO__* / AI_WORKER_*
-# 注入容器，不写进 config*.yaml；额外的 COGITO__* 覆盖项可写 docker/stack.env（模板 docker/stack.env.example）。
+# pull_policy: missing → up 复用镜像；改代码后显式 build。
+# 生产见 docker-compose.prod.yml。说明：guide/deployment.md
 
 name: cogito
 
-# cogito 的四个进程是同一个镜像、同一份配置，只是 command 不同：
-# service=HTTP API、worker=outbox 投递、orchestrator=可靠执行运行时、migration=一次性迁移。
+# cogito 四进程同一镜像，compose 用 command 区分。
 x-cogito-image: &cogito-image
   build:
     context: .
     dockerfile: docker/cogito/Dockerfile
   image: cogito:local
-  # 本地自建 tag：compose 默认「先 pull 再 build」，而加速镜像站对自建 tag 有白名单，
-  # 拉不到就直接报错。声明 build 即表明这个 tag 只在本机构建，不必去 registry 问。
-  pull_policy: build
-  # 可选的额外覆盖（任意 COGITO__* 键）：不存在时跳过，所以不建这个文件也能 up。
-  # 下面 environment 里显式列出的键优先级更高（连接串要改就改 .env 的插值变量）。
+  pull_policy: missing
   env_file:
     - path: docker/stack.env
       required: false
 
-# 三个常驻 cogito 进程共享的环境：容器内互访用服务名，宿主机默认值（127.0.0.1）全部失效于此。
 x-cogito-env: &cogito-env
   COGITO__APP__ENV: ${APP_ENV:-development}
   COGITO__SERVER__HOST: 0.0.0.0
@@ -46,17 +28,9 @@ x-cogito-env: &cogito-env
   COGITO__AUTH__CAPTCHA__BASE_URL: http://gocaptcha:8080
   COGITO__AI_WORKER__BASE_URL: http://ai-worker:8081
   COGITO__AI_WORKER__TOKEN: ${AI_WORKER_INTERNAL_TOKEN:?AI_WORKER_INTERNAL_TOKEN 必填，见 apps/cogito/.env.example}
-  # ai-worker 用它在 /api/v1/service/** 上换短期服务令牌；留空则整个服务面 503（ai-worker 的
-  # 摄取与嵌入会因此失败）。本机开发值见 .env.example，生产换随机值。
   COGITO__GATEWAY__SERVICE_TOKEN_SECRET: ${SERVICE_TOKEN_SECRET:?SERVICE_TOKEN_SECRET 必填，见 apps/cogito/.env.example}
-  # 链路追踪：默认开，span 走 OTLP/HTTP 送到同网络的 jaeger；服务名由 cogito 自己拼成
-  # cogito-{api,worker,orchestrator}（telemetry.service_name + 进程角色）。
-  # 不想要链路就 TELEMETRY_ENABLED=0（导出器只影响后台批量上报，失败不影响请求）。
   COGITO__TELEMETRY__ENABLED: ${TELEMETRY_ENABLED:-true}
   COGITO__TELEMETRY__ENDPOINT: ${OTLP_ENDPOINT:-http://jaeger:4318}
-  # 生产必须显式给出（占位值会被 validate() 拒绝，空串则被 validate() 直接拦下，
-  # 且 worker 要求 events.endpoint 非空）。
-  # COGITO__SECURITY__SECRET / COGITO__SECURITY__JWT_SECRET / COGITO__EVENTS__ENDPOINT 见 stack.env.example
 
 services:
   postgres:
@@ -64,8 +38,7 @@ services:
       context: ./docker/postgres
       dockerfile: Dockerfile
     image: cogito-postgres:18-zh-pgvector
-    # 同 x-cogito-image：本地自建（带 zh_CN locale），别去 registry 拉。
-    pull_policy: build
+    pull_policy: missing
     container_name: cogito-postgres
     ports:
       - '5432:5432'
@@ -73,15 +46,12 @@ services:
       POSTGRES_USER: machenike
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填，见 apps/cogito/.env.example}
       POSTGRES_DB: cogito-service
-      # locale 仅在首次 initdb（空 data/postgres）时生效
       LANG: zh_CN.UTF-8
       LC_ALL: zh_CN.UTF-8
       POSTGRES_INITDB_ARGS: '--locale=zh_CN.UTF-8 --encoding=UTF8'
     volumes:
-      # Postgres 18+ 挂载 /var/lib/postgresql
       - ./data/postgres:/var/lib/postgresql
     healthcheck:
-      # pg_isready -d <missing> 仍可能成功；必须真连上目标库才算 healthy。
       test: ['CMD-SHELL', 'psql -U machenike -d cogito-service -c "SELECT 1" >/dev/null']
       interval: 5s
       timeout: 5s
@@ -104,7 +74,6 @@ services:
     restart: unless-stopped
 
   gocaptcha:
-    # 官方最新镜像标签为 1.0.5（内嵌 go-captcha/v2 v2.0.5）；无 2.x / latest 标签
     image: wenlng/go-captcha-service:1.0.5
     platform: linux/amd64
     container_name: cogito-gocaptcha
@@ -126,22 +95,11 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    # 故意禁用 healthcheck：该镜像是 distroless（无 sh/curl/wget），镜像自带的自检
-    # （`/app/go-captcha-service --health-check`）在 1.0.5 里恒失败——它少传参且要求
-    # /status/health 返回 404，而实际返回 200。留着只会永远是 unhealthy。
-    # 手工验证用：curl http://127.0.0.1:8080/status/health   # 期望 HTTP 200
+    # distroless 自带 healthcheck 在 1.0.5 恒失败；手工 curl :8080/status/health
     healthcheck:
       disable: true
     restart: unless-stopped
 
-  # --- 集成层：阿里云出站已收敛进 cogito 进程（见 crates/aliyun、clients/aliyun.rs），
-  # 不再有独立的 Go 边车容器；凭据走 config.local.yaml 的 aliyun.* ---
-
-  # 链路追踪后端（OTel Collector + UI 一体的 Jaeger v2）：4318 是 OTLP/HTTP 入口，
-  # 16686 是查询界面。cogito 三个进程与 ai-worker 都在同一条链路上，按 trace-id 就能看到
-  # 「Rust → Python → Rust」的跨语言调用树。存储是内存，容器重启即清空（开发够用）。
-  # 只起依赖时（up -d postgres redis gocaptcha）不启这个，链路导出会打警告，
-  # 但请求本身不受影响。
   jaeger:
     image: jaegertracing/jaeger:2.9.0
     container_name: cogito-jaeger
@@ -150,8 +108,6 @@ services:
       - '4318:4318'
     restart: unless-stopped
 
-  # 一次性迁移：cogito 的业务库（migration crate 的 sea-orm CLI 世代）。
-  # ai-worker 的库由它自己启动时 apply（apps/ai-worker/src/ai_worker/db.py）。
   migrate:
     <<: *cogito-image
     container_name: cogito-migrate
@@ -163,7 +119,6 @@ services:
         condition: service_healthy
     restart: 'no'
 
-  # HTTP API（端口 3000；8080 是 go-captcha 侧车，不是它）。
   cogito-api:
     <<: *cogito-image
     container_name: cogito-api
@@ -182,7 +137,6 @@ services:
       gocaptcha:
         condition: service_started
     healthcheck:
-      # /api/live 只判进程活着；依赖是否就绪看 /api/ready（见 guide/deployment.md）
       test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:3000/api/live >/dev/null || exit 1']
       interval: 10s
       timeout: 5s
@@ -190,7 +144,6 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  # outbox → 下游事件投递。development 下 events.endpoint 留空 = 只记日志。
   cogito-worker:
     <<: *cogito-image
     container_name: cogito-worker
@@ -204,8 +157,6 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
-  # 可靠执行运行时（durable schema + 调 ai-worker）。停机时给在跑活动留收尾窗口，
-  # 所以 stop_grace_period 要大于 durable.shutdown_grace_ms（默认 5000）。
   cogito-orchestrator:
     <<: *cogito-image
     container_name: cogito-orchestrator
@@ -222,32 +173,23 @@ services:
     stop_grace_period: 30s
     restart: unless-stopped
 
-  # Python 叶子计算服务（RAG 摄取 / agent 运行时）。只在内网监听，不对宿主机发布端口：
-  # 它的 X-Internal-Token 是一把长期共享密钥，暴露出去等于把内部接口挂到公网。
   ai-worker:
     build:
       context: ../ai-worker
       dockerfile: Dockerfile
     image: cogito-ai-worker:local
-    # 同 x-cogito-image：本地自建，别去 registry 拉。
-    pull_policy: build
+    pull_policy: missing
     container_name: cogito-ai-worker
-    # 可选的额外覆盖（分块、批量、超时等）：下面的 environment 优先级更高，
-    # 所以本机开发用的 .env（127.0.0.1 的 DSN）不会把容器里的地址带偏。
     env_file:
       - path: ../ai-worker/.env
         required: false
     environment:
       AI_WORKER_ENVIRONMENT: ${AI_WORKER_ENVIRONMENT:-development}
-      # 镜像里必须监听 0.0.0.0：默认 127.0.0.1 只会在容器自己的 loopback 上开端口。
       AI_WORKER_HOST: 0.0.0.0
       AI_WORKER_PORT: '8081'
-      # 与 cogito 的 ai_worker.token（上面那个环境变量）必须完全一致
       AI_WORKER_INTERNAL_TOKEN: ${AI_WORKER_INTERNAL_TOKEN:?AI_WORKER_INTERNAL_TOKEN 必填，见 apps/cogito/.env.example}
       AI_WORKER_DATABASE_URL: postgres://machenike:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填，见 apps/cogito/.env.example}@postgres:5432/ai_worker
       AI_WORKER_COGITO_BASE_URL: http://cogito-api:3000
-      # 与 cogito 共用一条链路：端点写成基址，ai-worker 自己补 /v1/traces（cogito 侧同规则）。
-      # 关掉就 TELEMETRY_ENABLED=0，两个服务一起静默。
       AI_WORKER_TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}
       AI_WORKER_TELEMETRY_ENDPOINT: ${OTLP_ENDPOINT:-http://jaeger:4318}
     expose:
@@ -256,7 +198,6 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      # /internal/v1/health 免令牌；DB/pgvector 不可用时回 503（迁移是启动时自动 apply 的）
       test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:8081/internal/v1/health >/dev/null || exit 1']
       interval: 10s
       timeout: 5s

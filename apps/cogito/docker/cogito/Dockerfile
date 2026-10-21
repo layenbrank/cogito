@@ -4,6 +4,11 @@
 # 构建（上下文必须是 apps/cogito）：
 #   docker compose build cogito-api
 #   docker build -t cogito:local -f docker/cogito/Dockerfile .
+#
+# 需要 BuildKit（Docker 默认已开）：cargo registry / git / target 走 cache mount，
+# 改业务源码重建时不必重下 crates，增量编译也能命中。
+
+# syntax=docker/dockerfile:1.7
 
 # ------------------------------- 构建段 -------------------------------
 FROM rust:1.98-bookworm AS builder
@@ -34,8 +39,15 @@ COPY . .
 # --locked：Cargo.lock 是真相，镜像里不允许静默升级依赖。
 # --workspace 不能省：workspace 根同时是 `cogito` 包，不带它只会构建当前这一个包，
 # `migration` 的二进制就不会出现在 target/release 里。
-RUN cargo build --release --locked --workspace --bins \
-    && strip target/release/cogito target/release/worker target/release/orchestrator target/release/migration
+# cache mount 里的 target/ 不会进镜像层，必须把产物拷到 /out 再给 runtime 段 COPY。
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/target \
+    cargo build --release --locked --workspace --bins \
+    && mkdir -p /out \
+    && cp target/release/cogito target/release/worker \
+          target/release/orchestrator target/release/migration /out/ \
+    && strip /out/cogito /out/worker /out/orchestrator /out/migration
 
 # ------------------------------- 运行段 -------------------------------
 FROM debian:bookworm-slim AS runtime
@@ -51,10 +63,10 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY --from=builder \
-    /build/target/release/cogito \
-    /build/target/release/worker \
-    /build/target/release/orchestrator \
-    /build/target/release/migration \
+    /out/cogito \
+    /out/worker \
+    /out/orchestrator \
+    /out/migration \
     /app/
 
 # configures/src/loader.rs 的 config_dir() 优先用可执行文件所在目录，所以配置必须与二进制同目录，

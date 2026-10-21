@@ -12,7 +12,7 @@
 | API 版本与兼容策略 | [`api-versioning.md`](api-versioning.md) |
 | 契约代码生成 | [`contract-codegen.md`](contract-codegen.md) |
 | 数据库协作 | [`database.md`](database.md) |
-| 部署与运维探针 | [`deployment.md`](deployment.md) |
+| 部署（本地 · 生产 · 探针 · 链路） | [`deployment.md`](deployment.md) |
 | 事件发布（outbox → 下游） | [`../crates/audit/README.md`](../crates/audit/README.md) |
 | 能力边界（crate 划分与门禁） | [`architecture-capabilities.md`](architecture-capabilities.md) |
 | 配置（YAML） | [`configuration.md`](configuration.md) |

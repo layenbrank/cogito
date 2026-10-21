@@ -23,6 +23,10 @@ docker/stack.env
 # compose 编排文件也不该进上下文：它在上下文里时，任何一次端口/环境变量调整都会改掉
 # `COPY . .` 的哈希，令整个 cargo 构建缓存失效（实测多花约 12 分钟）。
 docker-compose.yml
+docker-compose.prod.yml
+.env.production.example
+docker/build-images.ps1
+docker/build-images.sh
 
 .git/
 .gitignore
