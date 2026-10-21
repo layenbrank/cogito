@@ -1,6 +1,8 @@
 import { Button } from '@i-thinking/design/components/button'
-import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { Component, useEffect, type ErrorInfo, type ReactNode } from 'react'
 import { isRouteErrorResponse, useRouteError } from 'react-router-dom'
+
+import { reportUnknown } from '@/utils/exception-report.ts'
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -23,6 +25,14 @@ function parseErrorMessage(error: unknown) {
 function RouteError() {
   const error = useRouteError()
   const message = parseErrorMessage(error)
+
+  useEffect(
+    function () {
+      if (!error) return
+      reportUnknown(error, { kind: 'react-router.RouteError' }, 'error')
+    },
+    [error]
+  )
 
   return (
     <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 p-8 text-sm text-muted-foreground">
@@ -50,6 +60,11 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error('Backend route error', error, info)
+    reportUnknown(
+      error,
+      { kind: 'ErrorBoundary', componentStack: info.componentStack ?? undefined },
+      'fatal'
+    )
   }
 
   handleRetry() {

@@ -64,10 +64,35 @@ interface ExceptionSummary {
   bySource: Record<string, number>
 }
 
+interface ExceptionWrite {
+  eventID: string
+  message: string
+  timestamp: number
+  url: string
+  stack?: string
+  level?: string
+  status?: number
+  method?: string
+  reqID?: string
+  ip?: string
+  userAgent?: string
+  userID?: string
+  environment?: string
+  release?: string
+  context?: unknown
+  fingerprint?: string
+  source?: string
+}
+
 const ENV = { env: 'thinking' as const }
 
 async function unwrap<T>(pending: Promise<RSF<T>>): Promise<T> {
   return HttpEnvelope(await pending)
+}
+
+/** 客户端上报；失败由调用方吞掉，勿再包 toast */
+function POST_EXCEPTION(body: ExceptionWrite) {
+  return unwrap(http.post<RSF<ExceptionRecord>>('/exception', body, ENV))
 }
 
 function GET_EXCEPTIONS(query: ExceptionQuery = {}) {
@@ -100,7 +125,8 @@ export {
   GET_EXCEPTIONS,
   GET_EXCEPTION_GROUPS,
   GET_EXCEPTION_SOURCES,
-  GET_EXCEPTION_SUMMARY
+  GET_EXCEPTION_SUMMARY,
+  POST_EXCEPTION
 }
 export type {
   ExceptionGroup,
@@ -108,5 +134,6 @@ export type {
   ExceptionPage,
   ExceptionQuery,
   ExceptionRecord,
-  ExceptionSummary
+  ExceptionSummary,
+  ExceptionWrite
 }
