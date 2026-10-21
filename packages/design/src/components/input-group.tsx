@@ -6,7 +6,7 @@ import { Button } from '@i-thinking/design/components/button'
 import { Textarea } from '@i-thinking/design/components/textarea'
 
 /**
- * 成组输入壳：与 Input / TimePicker 同高（h-9），聚焦环对齐包内 1px 规范。
+ * 成组输入壳：与 Input / DatePicker / TimePicker 同高（h-9），聚焦环对齐包内 1px 规范。
  */
 function InputGroup({ className, ...props }: React.ComponentProps<'div'>) {
   return (

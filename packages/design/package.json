@@ -23,6 +23,8 @@
     "clsx": "catalog:",
     "cmdk": "^1.1.1",
     "cn": "catalog:",
+    "dayjs": "catalog:",
+    "lodash-es": "^4.17.21",
     "motion": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
@@ -35,6 +37,7 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
+    "@types/lodash-es": "^4.17.12",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "shadcn": "catalog:",
@@ -42,6 +45,8 @@
     "tw-animate-css": "catalog:"
   },
   "imports": {
+    "#components/date-picker": "./src/components/date-picker/index.tsx",
+    "#components/date-picker/*": "./src/components/date-picker/*",
     "#components/*": "./src/components/*.tsx",
     "#assistant/*": "./src/assistant/*.tsx",
     "#hooks/*": "./src/hooks/*.ts",
@@ -49,6 +54,8 @@
   },
   "exports": {
     "./globals.css": "./src/styles/globals.css",
+    "./components/date-picker": "./src/components/date-picker/index.tsx",
+    "./components/date-picker/*": "./src/components/date-picker/*",
     "./components/*": "./src/components/*.tsx",
     "./assistant/*": "./src/assistant/*.tsx",
     "./hooks/*": "./src/hooks/*.ts",
