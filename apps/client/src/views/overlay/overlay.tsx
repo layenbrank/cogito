@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { clsx } from 'clsx'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
@@ -291,6 +292,12 @@ function OverlayShell() {
           unlistenConceal = await track(
             listen(EVENTS.OVERLAY_CONCEAL, function () {
               setConcealed(true)
+              // 截屏只 hide DOM；若窗壳仍挂着 mica，毛玻璃会进位图。再清一次作兜底。
+              void getCurrentWindow()
+                .clearEffects()
+                .catch(function (error: unknown) {
+                  console.warn('[overlay] conceal 时 clearEffects 失败', error)
+                })
             })
           )
           unlistenReveal = await track(

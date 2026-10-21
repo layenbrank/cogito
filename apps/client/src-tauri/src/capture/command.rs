@@ -121,7 +121,8 @@ async fn grab_screenshot(app: &AppHandle) -> Result<ScreenshotResult, String> {
         .map_err(|e| format!("[capture:screenshot] 截图处理线程异常: {e}"))?
 }
 
-/// 不 hide 窗口：壳保持透明显示，仅把内容 visibility:hidden，避免磁贴/截图 UI 进位图
+/// 不 hide 窗口：壳保持**真**透明显示，仅把内容 visibility:hidden，避免磁贴/截图 UI 进位图。
+/// 前提：overlay 不得套 mica/acrylic（见前端 `appearance.syncNativeWindow`）；否则毛玻璃仍会进位图。
 async fn conceal_overlay_visuals(app: &AppHandle) -> bool {
     let Some(window) = app.get_webview_window(OVERLAY_LABEL) else {
         return false;
