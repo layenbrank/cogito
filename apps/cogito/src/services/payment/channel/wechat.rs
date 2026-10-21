@@ -169,7 +169,7 @@ pub async fn prepay(config: &Configure, input: &PrepayInput<'_>) -> Result<Strin
         .header(AUTHORIZATION, authorization(config, "POST", path, &body)?)
         .header(ACCEPT, "application/json")
         .header(CONTENT_TYPE, "application/json")
-        .header(USER_AGENT, "i-thinking-service/1.0")
+        .header(USER_AGENT, "cogito-service/1.0")
         .body(body)
         .send()
         .await
@@ -201,7 +201,7 @@ pub async fn query(config: &Configure, order_no: &str) -> Result<RemoteOrder, Ch
         .get(format!("{}{path}", wechat.api_base.trim_end_matches('/')))
         .header(AUTHORIZATION, authorization(config, "GET", &path, "")?)
         .header(ACCEPT, "application/json")
-        .header(USER_AGENT, "i-thinking-service/1.0")
+        .header(USER_AGENT, "cogito-service/1.0")
         .send()
         .await
         .map_err(|err| ChannelError::Upstream(format!("请求微信查单接口失败: {err}")))?;

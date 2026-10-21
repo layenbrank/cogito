@@ -3,7 +3,7 @@
 //! 需要独立测试库（库名必须含 `test`，避免误伤开发库）：
 //!
 //! ```text
-//! TEST_DATABASE_URL=******127.0.0.1:5432/i_thinking_test cargo test --test asset_scope
+//! TEST_DATABASE_URL=******127.0.0.1:5432/cogito_service_test cargo test --test asset_scope
 //! ```
 //!
 //! 未设置 `TEST_DATABASE_URL` 时整体跳过。

@@ -120,7 +120,7 @@ cargo test --lib -p cogito
 cargo test --test oas_consistency
 
 # 长任务（需要独立测试库，见 tests/orchestration.rs 头部）
-TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/i_thinking_test \
+TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/cogito_service_test \
   cargo test --test orchestration -- --test-threads=1
 
 # 同一测试库（先 export / set 一次 TEST_DATABASE_URL 即可复用）

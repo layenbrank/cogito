@@ -12,7 +12,7 @@ cargo install sea-orm-cli@^2.0
 
 ```powershell
 # PowerShell：密码与 apps/cogito/.env 的 POSTGRES_PASSWORD 一致（本机连 Docker 的 cogito-postgres）
-$env:DATABASE_URL='postgres://machenike:<POSTGRES_PASSWORD>@127.0.0.1:5432/i-thinking'
+$env:DATABASE_URL='postgres://machenike:<POSTGRES_PASSWORD>@127.0.0.1:5432/cogito-service'
 sea-orm-cli migrate fresh
 ```
 

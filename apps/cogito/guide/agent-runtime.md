@@ -186,7 +186,7 @@ happy path（实时进度 → 第 3 步 `allowedTools=[]` → 终态）、记忆
 cd apps/cogito
 
 # 真库与 Redis；DSN 里的凭据用你本地开发库的值
-$env:TEST_DATABASE_URL = 'postgres://<user>:<password>@127.0.0.1:55433/i_thinking_test'
+$env:TEST_DATABASE_URL = 'postgres://<user>:<password>@127.0.0.1:55433/cogito_service_test'
 $env:TEST_REDIS_URL = 'redis://127.0.0.1:6379'
 
 cargo test --test agent_scope -- --test-threads=1

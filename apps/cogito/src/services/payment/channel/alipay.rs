@@ -174,7 +174,7 @@ async fn call(config: &Configure, params: &[(String, String)]) -> Result<String,
             CONTENT_TYPE,
             "application/x-www-form-urlencoded;charset=utf-8",
         )
-        .header(USER_AGENT, "i-thinking-service/1.0")
+        .header(USER_AGENT, "cogito-service/1.0")
         .body(encode_form(params))
         .send()
         .await

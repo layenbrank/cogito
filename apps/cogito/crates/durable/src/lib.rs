@@ -15,7 +15,7 @@
 //! # use std::time::Duration;
 //! # use durable::{Activities, DurableSettings, Orchestrations, Runtime, RuntimeTuning, Store};
 //! # async fn demo() -> Result<(), durable::DurableError> {
-//! let store = Store::connect(&DurableSettings::new("postgres://.../i_thinking", "durable", true)).await?;
+//! let store = Store::connect(&DurableSettings::new("postgres://.../cogito-service", "durable", true)).await?;
 //!
 //! // ① 编排：只写「做什么」，步骤结果由框架持久化，重放时直接复用
 //! let orchestrations = Orchestrations::builder().register("IndexDocument", |ctx, input: String| async move {

@@ -64,6 +64,6 @@ fn database_name(uri: &str) -> String {
         .next()
         .and_then(|tail| tail.split('?').next())
         .filter(|name| !name.is_empty())
-        .unwrap_or("i-thinking")
+        .unwrap_or("cogito-service")
         .to_string()
 }

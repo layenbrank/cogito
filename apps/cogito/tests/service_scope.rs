@@ -16,7 +16,7 @@
 //! 需要独立测试库（库名必须含 `test`，避免误伤开发库）与一个真 Redis：
 //!
 //! ```text
-//! TEST_DATABASE_URL=postgres://user:pw@127.0.0.1:5432/i_thinking_test \
+//! TEST_DATABASE_URL=postgres://user:pw@127.0.0.1:5432/cogito_service_test \
 //! TEST_REDIS_URL=redis://127.0.0.1:6379/9 \
 //!   cargo test --test service_scope
 //! ```

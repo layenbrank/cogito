@@ -72,10 +72,10 @@ pub struct DatabaseConfig {
 impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
-            // 默认不带密码：本机开发连 Docker 的 cogito-postgres（127.0.0.1:5432，用户名 machenike、
-            // 库 i-thinking），真实密码写在 config.local.yaml（不入库），与 apps/cogito/.env 的
-            // POSTGRES_PASSWORD 一致。这里只是兜底默认，让「没建 local 文件」也能起进程、由探测报错。
-            url: "postgres://machenike:@127.0.0.1:5432/i-thinking".to_string(),
+            // 默认不带密码：本机开发连 Docker 的 cogito-postgres（127.0.0.1:5432，
+            // 用户名 machenike、库 cogito-service）。真实密码写在 config.local.yaml（不入库），
+            // 与 apps/cogito/.env 的 POSTGRES_PASSWORD 一致。
+            url: "postgres://machenike:@127.0.0.1:5432/cogito-service".to_string(),
         }
     }
 }

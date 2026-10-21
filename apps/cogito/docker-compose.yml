@@ -10,8 +10,7 @@
 #   清数据     删掉 ./data 下对应目录后重新 up（绑定挂载，便于备份/清理）
 #
 # 项目名固定为 cogito（替代 COMPOSE_PROJECT_NAME / .env.compose）：
-# cogito 是笛卡尔的「我思」（cogito, ergo sum），与产品名 i-thinking 同源；
-# 容器名一律是 cogito-<角色>，本地镜像 tag 也是 cogito-*。
+# 业务库名 cogito-service；容器名一律 cogito-<角色>，本地镜像 tag 也是 cogito-*。
 #
 # 变量：三个凭据变量（POSTGRES_PASSWORD /
 # AI_WORKER_INTERNAL_TOKEN / SERVICE_TOKEN_SECRET）**没有默认值**，必须先在 apps/cogito/.env 里给出
@@ -42,7 +41,7 @@ x-cogito-env: &cogito-env
   COGITO__APP__ENV: ${APP_ENV:-development}
   COGITO__SERVER__HOST: 0.0.0.0
   COGITO__SERVER__PORT: '3000'
-  COGITO__DATABASE__URL: postgres://machenike:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填，见 apps/cogito/.env.example}@postgres:5432/i-thinking
+  COGITO__DATABASE__URL: postgres://machenike:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填，见 apps/cogito/.env.example}@postgres:5432/cogito-service
   COGITO__REDIS__URL: redis://redis:6379
   COGITO__AUTH__CAPTCHA__BASE_URL: http://gocaptcha:8080
   COGITO__AI_WORKER__BASE_URL: http://ai-worker:8081
@@ -73,7 +72,7 @@ services:
     environment:
       POSTGRES_USER: machenike
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填，见 apps/cogito/.env.example}
-      POSTGRES_DB: i-thinking
+      POSTGRES_DB: cogito-service
       # locale 仅在首次 initdb（空 data/postgres）时生效
       LANG: zh_CN.UTF-8
       LC_ALL: zh_CN.UTF-8
@@ -82,7 +81,8 @@ services:
       # Postgres 18+ 挂载 /var/lib/postgresql
       - ./data/postgres:/var/lib/postgresql
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U machenike -d i-thinking']
+      # pg_isready -d <missing> 仍可能成功；必须真连上目标库才算 healthy。
+      test: ['CMD-SHELL', 'psql -U machenike -d cogito-service -c "SELECT 1" >/dev/null']
       interval: 5s
       timeout: 5s
       retries: 10

@@ -42,7 +42,7 @@ info:
     字段命名：JSON 一律 camelCase，标识后缀固定 `ID`（`assetID` / `tenantID`）。
     所有非健康检查端点都必须带 `traceparent`（W3C），跨语言排障只能靠它。
   contact:
-    name: i-thinking cogito
+    name: cogito-service
     url: https://github.com/i-thinking
 license:
   name: UNLICENSED

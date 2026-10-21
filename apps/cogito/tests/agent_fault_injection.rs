@@ -3,7 +3,7 @@
 //! 需要独立测试库（库名必须含 `test`）：
 //!
 //! ```text
-//! TEST_DATABASE_URL=******127.0.0.1:5432/i_thinking_test \
+//! TEST_DATABASE_URL=******127.0.0.1:5432/cogito_service_test \
 //!   cargo test --test agent_fault_injection -- --test-threads=1
 //! ```
 //!

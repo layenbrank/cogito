@@ -125,7 +125,7 @@ async function generateRust(): Promise<void> {
       '-o',
       '.generated/rust',
       '--additional-properties',
-      'packageName=i_thinking_cogito_client',
+      'packageName=cogito_client',
       '--global-property',
       'apiTests=false,modelTests=false,apiDocs=false,modelDocs=false'
     ],

@@ -8,7 +8,7 @@ $ErrorActionPreference = 'Stop'
 
 # cogito 的地址可覆盖：cogito 换端口或跑在别处时不用改脚本。
 $script:E2EBase = if ($env:E2E_COGITO_BASE) { $env:E2E_COGITO_BASE } else { 'http://127.0.0.1:3000' }
-$script:E2EOut = Join-Path ([System.IO.Path]::GetTempPath()) 'i-thinking-agent-e2e'
+$script:E2EOut = Join-Path ([System.IO.Path]::GetTempPath()) 'cogito-service-agent-e2e'
 if (-not (Test-Path $script:E2EOut)) { New-Item -ItemType Directory -Path $script:E2EOut | Out-Null }
 
 # 无 BOM 的 UTF-8：默认 `Set-Content -Encoding utf8` 在 Windows PowerShell 5.1 下会写 BOM，

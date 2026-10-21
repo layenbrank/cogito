@@ -70,7 +70,7 @@ export function loadConfig(): AppConfig {
       url:
         isObject(database) && typeof database.url === 'string'
           ? database.url
-          : 'postgres://machenike:@127.0.0.1:5432/i-thinking'
+          : 'postgres://machenike:@127.0.0.1:5432/cogito-service'
     }
   }
   return cached

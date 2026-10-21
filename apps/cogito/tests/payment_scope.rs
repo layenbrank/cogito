@@ -3,7 +3,7 @@
 //! 需要独立测试库与独立 Redis（库名必须含 `test`，避免误伤开发库）：
 //!
 //! ```text
-//! TEST_DATABASE_URL=******127.0.0.1:5432/i_thinking_test \
+//! TEST_DATABASE_URL=******127.0.0.1:5432/cogito_service_test \
 //! TEST_REDIS_URL=redis://127.0.0.1:6379 \
 //! cargo test --test payment_scope
 //! ```
