@@ -5,6 +5,10 @@ incremental = true
 # 默认目标平台（可通过--target覆盖）
 target = "x86_64-pc-windows-msvc"
 
+# Windows Hyper-V/WSL 会排除动态端口(≥49152)；强制低于该区，压住 Cursor 继承的旧 SCCACHE_SERVER_PORT。
+[env]
+SCCACHE_SERVER_PORT = { value = "42222", force = true }
+
 # -------------------------- Windows 平台配置 --------------------------
 [target.x86_64-pc-windows-msvc]
 # 使用MSVC链接器（需安装Visual Studio构建工具）
