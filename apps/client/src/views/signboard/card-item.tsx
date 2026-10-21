@@ -1,9 +1,17 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { Icon } from '@iconify/react/offline'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@i-thinking/design/components/dropdown-menu'
 import { clsx } from 'clsx'
 import type { KeyboardEvent } from 'react'
 
 import type { SignboardCard, SignboardTag } from '@/stores/signboard'
+import styles from '@/views/signboard/signboard.module.scss'
 
 interface CardItemProps {
   card: SignboardCard
@@ -13,6 +21,7 @@ interface CardItemProps {
   onOpen: (cardID: string) => void
   onFocusCard: (cardID: string) => void
   onKeyMove: (cardID: string, event: KeyboardEvent) => void
+  onArchive: (cardID: string) => void
 }
 
 function formatDue(dueAt: number) {
@@ -49,48 +58,102 @@ function CardItem(props: CardItemProps) {
         transition
       }}
       className={clsx(
-        'mb-2 list-none rounded-[var(--radius)] border border-border bg-card p-3 shadow-xs',
-        'cursor-grab touch-none transition-[box-shadow,opacity,transform] duration-150',
-        'hover:-translate-y-px hover:shadow-sm focus-visible:outline-2 focus-visible:outline-ring',
-        isDragging && 'opacity-40',
-        props.isDimmed && 'opacity-30',
-        props.isSelected && 'outline-2 outline-ring'
+        styles.card,
+        isDragging && styles.cardDragging,
+        props.isDimmed && styles.cardDimmed,
+        props.isSelected && styles.cardSelected
       )}
       tabIndex={0}
-      {...attributes}
-      {...listeners}
-      onClick={function () {
-        props.onOpen(props.card.id)
-      }}
       onFocus={function () {
         props.onFocusCard(props.card.id)
       }}
       onKeyDown={function (event) {
         props.onKeyMove(props.card.id, event)
       }}>
-      <p className="mb-2 text-sm font-medium leading-snug text-foreground">{props.card.title}</p>
-      <div className="flex flex-wrap items-center gap-1.5">
-        {visibleTags.map(function (tag) {
-          return (
+      <button
+        type="button"
+        className={styles.handle}
+        aria-label="拖拽卡片"
+        {...attributes}
+        {...listeners}>
+        <Icon
+          icon="lucide:grip-vertical"
+          className="size-3.5"
+        />
+      </button>
+
+      <div
+        className={styles.cardBody}
+        onClick={function () {
+          props.onOpen(props.card.id)
+        }}>
+        <p className={styles.cardTitle}>{props.card.title}</p>
+        <div className={styles.cardMeta}>
+          {visibleTags.map(function (tag) {
+            return (
+              <span
+                key={tag.id}
+                className={styles.tag}>
+                {tag.title}
+              </span>
+            )
+          })}
+          {props.card.dueAt != null ? (
             <span
-              key={tag.id}
-              className="rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-              {tag.title}
+              className={clsx(
+                styles.due,
+                tone === 'overdue' && styles.dueOverdue,
+                tone === 'today' && styles.dueToday
+              )}>
+              {formatDue(props.card.dueAt)}
             </span>
-          )
-        })}
-        {props.card.dueAt != null ? (
-          <span
-            className={clsx(
-              'rounded-md px-2 py-0.5 text-[11px] font-medium',
-              tone === 'overdue' && 'bg-destructive/15 text-destructive',
-              tone === 'today' && 'bg-warning/25 text-warning-foreground',
-              tone === 'later' && 'bg-muted text-muted-foreground'
-            )}>
-            {formatDue(props.card.dueAt)}
-          </span>
-        ) : null}
+          ) : null}
+          {props.card.reminderID ? (
+            <Icon
+              icon="lucide:bell"
+              className="size-3 text-muted-foreground"
+              aria-label="已设提醒"
+            />
+          ) : null}
+        </div>
       </div>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-70 hover:bg-muted hover:opacity-100"
+          aria-label="卡片菜单"
+          onClick={function (event) {
+            event.stopPropagation()
+          }}>
+          <Icon
+            icon="lucide:more-horizontal"
+            className="size-4"
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            onClick={function () {
+              props.onOpen(props.card.id)
+            }}>
+            <Icon
+              icon="lucide:panel-right"
+              className="size-4"
+            />
+            打开详情
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={function () {
+              props.onArchive(props.card.id)
+            }}>
+            <Icon
+              icon="lucide:archive"
+              className="size-4"
+            />
+            归档
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </li>
   )
 }

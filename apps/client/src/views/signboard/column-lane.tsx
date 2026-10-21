@@ -1,12 +1,20 @@
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@i-thinking/design/components/dropdown-menu'
 import { Input } from '@i-thinking/design/components/input'
 import { clsx } from 'clsx'
-import { useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 
 import type { SignboardCard, SignboardColumn, SignboardTag } from '@/stores/signboard'
 import { CardItem } from '@/views/signboard/card-item'
+import styles from '@/views/signboard/signboard.module.scss'
 
 interface ColumnLaneProps {
   column: SignboardColumn
@@ -15,10 +23,15 @@ interface ColumnLaneProps {
   isDimmedCard: (cardID: string) => boolean
   selectedCardID: string | null
   semantic: 'todo' | 'doing' | 'done' | 'other'
+  requestAdd?: boolean
+  onConsumedAddRequest?: () => void
   onOpenCard: (cardID: string) => void
   onFocusCard: (cardID: string) => void
   onKeyMove: (cardID: string, event: KeyboardEvent) => void
   onWriteCard: (columnID: string, title: string) => Promise<void>
+  onRenameColumn: (column: SignboardColumn) => void
+  onArchiveColumn: (columnID: string) => void
+  onArchiveCard: (cardID: string) => void
 }
 
 function ColumnLane(props: ColumnLaneProps) {
@@ -28,10 +41,23 @@ function ColumnLane(props: ColumnLaneProps) {
   })
   const [isAdding, setIsAdding] = useState(false)
   const [draft, setDraft] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const cardIDs = props.cards.map(function (card) {
     return card.id
   })
+
+  useEffect(
+    function () {
+      if (!props.requestAdd) return
+      setIsAdding(true)
+      props.onConsumedAddRequest?.()
+      requestAnimationFrame(function () {
+        inputRef.current?.focus()
+      })
+    },
+    [props.requestAdd, props.onConsumedAddRequest]
+  )
 
   async function commit() {
     const title = draft.trim()
@@ -39,29 +65,71 @@ function ColumnLane(props: ColumnLaneProps) {
     setDraft('')
     await props.onWriteCard(props.column.id, title)
     setIsAdding(true)
+    requestAnimationFrame(function () {
+      inputRef.current?.focus()
+    })
   }
 
   return (
-    <section
-      className={clsx(
-        'flex max-h-full w-[288px] shrink-0 flex-col rounded-[calc(var(--radius)+2px)]',
-        'border border-border/80 bg-muted/50',
-        isOver && 'border-primary/45 shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--primary)_25%,transparent)]'
-      )}>
-      <header className="flex items-center gap-2 px-3 pt-3 pb-2">
-        <h3 className="flex items-center gap-2 text-[13px] font-semibold">
+    <section className={clsx(styles.column, isOver && styles.columnOver)}>
+      <header className={styles.columnHeader}>
+        <h3 className={styles.columnTitle}>
           <span
             className={clsx(
-              'size-2 rounded-full',
-              props.semantic === 'done' && 'bg-success',
-              props.semantic === 'doing' && 'bg-primary',
-              props.semantic === 'todo' && 'bg-muted-foreground',
-              props.semantic === 'other' && 'bg-muted-foreground'
+              styles.columnDot,
+              props.semantic === 'doing' && styles.columnDotDoing,
+              props.semantic === 'done' && styles.columnDotDone
             )}
           />
-          {props.column.title}
+          <span className="truncate">{props.column.title}</span>
         </h3>
-        <span className="ml-auto text-xs font-medium text-muted-foreground">{props.cards.length}</span>
+        <span className={styles.columnCount}>{props.cards.length}</span>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-70 hover:bg-muted hover:opacity-100"
+            aria-label="列菜单">
+            <Icon
+              icon="lucide:more-horizontal"
+              className="size-4"
+            />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={function () {
+                props.onRenameColumn(props.column)
+              }}>
+              <Icon
+                icon="lucide:pencil"
+                className="size-4"
+              />
+              重命名
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={function () {
+                setIsAdding(true)
+                requestAnimationFrame(function () {
+                  inputRef.current?.focus()
+                })
+              }}>
+              <Icon
+                icon="lucide:plus"
+                className="size-4"
+              />
+              添加卡片
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={function () {
+                props.onArchiveColumn(props.column.id)
+              }}>
+              <Icon
+                icon="lucide:archive"
+                className="size-4"
+              />
+              归档列
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
 
       <SortableContext
@@ -70,11 +138,9 @@ function ColumnLane(props: ColumnLaneProps) {
         strategy={verticalListSortingStrategy}>
         <ul
           ref={setNodeRef}
-          className="min-h-12 flex-1 overflow-y-auto px-2 pb-2">
+          className={styles.cards}>
           {props.cards.length === 0 ? (
-            <li className="mx-1 my-1 list-none rounded-[var(--radius)] border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">
-              拖到这里，或点下方添加
-            </li>
+            <li className={clsx(styles.cardsEmpty, 'list-none')}>拖到这里，或点下方添加</li>
           ) : null}
           {props.cards.map(function (card) {
             return (
@@ -87,6 +153,7 @@ function ColumnLane(props: ColumnLaneProps) {
                 onOpen={props.onOpenCard}
                 onFocusCard={props.onFocusCard}
                 onKeyMove={props.onKeyMove}
+                onArchive={props.onArchiveCard}
               />
             )
           })}
@@ -96,6 +163,7 @@ function ColumnLane(props: ColumnLaneProps) {
       <div className="px-2 pb-3">
         {isAdding ? (
           <Input
+            ref={inputRef}
             autoFocus
             value={draft}
             placeholder="卡片标题，Enter 添加"
@@ -125,6 +193,10 @@ function ColumnLane(props: ColumnLaneProps) {
             onClick={function () {
               setIsAdding(true)
             }}>
+            <Icon
+              icon="lucide:plus"
+              className="size-3.5"
+            />
             添加卡片
           </Button>
         )}
