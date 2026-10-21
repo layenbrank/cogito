@@ -181,7 +181,7 @@ pnpm test:db       # 真实引擎的数据库集成测试（建表 / 种子 / �
 - **迁移只有一个文件**：`drizzle/migrations/0000_init.sql`（全量建表 + 138 条种子 `INSERT OR IGNORE`）。开发阶段不保留历史版本 —— 改 schema 后直接重新生成，把种子并回去，并删掉本地库让它重建。
 - 工作区现为 `workspace` + `workspaceFolder`（会话挂 `workspaceID`）。本地若仍是旧 `workspaceRoot` 结构，**删库重建**即可。
 - **studio 自己建表**：启动时跑 Drizzle 官方 `migrate()`（`src/host/capabilities/database.ts`）。库里已有同名表会让 migrator 直接报错 —— **不支持「库是别的版本建的」**这种情况，冲突当场暴露比猜别人的 schema 好。
-- 两个 app 的库路径仍指向同一文件（`app_local_data_dir()/i-thinking.db`，identifier `com.i-thinking.corex`），以便日后互读；但建表/迁移互不负责。
+- 两个 app 的库路径仍指向同一文件（`app_local_data_dir()/cogito-client.db`，identifier `com.cogito.client`），以便日后互读；但建表/迁移互不负责。
 - 改 schema 的流程：改 `drizzle/schema/*.ts` → `pnpm --filter @i-thinking/studio exec drizzle-kit generate --name <名字>`；确认没多余产物后重启 app。
 - 迁移背景与逐表映射见 [prisma-to-drizzle.md](../../decisions/prisma-to-drizzle.md)。
 

@@ -20,9 +20,9 @@ pnpm --filter @i-thinking/client migrate:down # 回滚 1 步（透传：… migr
 pnpm --filter @i-thinking/client migrate:fresh # 清空全部表后重跑全部迁移
 ```
 
-库路径默认取 `%LOCALAPPDATA%\com.i-thinking.corex\i-thinking.db`（其他平台为各自的应用数据目录），可用 `--db <路径>` 或环境变量 `I_THINKING_DB` 覆盖；`migrate` 不带子命令时等价于 `migrate:status`；`--no-backup` 跳过备份；`--` 之后的参数原样透传给 bin（如 `-n 2`）。
+库路径默认取 `%LOCALAPPDATA%\com.cogito.client\cogito-client.db`（其他平台为各自的应用数据目录），可用 `--db <路径>` 或环境变量 `COGITO_CLIENT_DB` 覆盖；`migrate` 不带子命令时等价于 `migrate:status`；`--no-backup` 跳过备份；`--` 之后的参数原样透传给 bin（如 `-n 2`）。
 
-**破坏性子命令自动备份**：`fresh` / `reset` / `refresh` 执行前会把库文件（含 `-wal` / `-shm`）复制为同目录的 `i-thinking.db.<时间戳>.bak*`，并提示先完全退出应用（库被占用时会报错）。
+**破坏性子命令自动备份**：`fresh` / `reset` / `refresh` 执行前会把库文件（含 `-wal` / `-shm`）复制为同目录的 `cogito-client.db.<时间戳>.bak*`，并提示先完全退出应用（库被占用时会报错）。
 
 | 子命令              | 作用                      | 破坏性                       |
 | ------------------- | ------------------------- | ---------------------------- |
@@ -61,7 +61,7 @@ migration/                              # -d 默认 ./migration
 
 ### 库文件位置
 
-- Windows：`%LOCALAPPDATA%\com.i-thinking.corex\i-thinking.db`（Tauri `app_local_data_dir()/i-thinking.db`，见 [`storage.rs`](../../../../apps/client/src-tauri/crates/database/src/storage.rs)）
+- Windows：`%LOCALAPPDATA%\com.cogito.client\cogito-client.db`（Tauri `app_local_data_dir()/cogito-client.db`，见 [`storage.rs`](../../../../apps/client/src-tauri/crates/database/src/storage.rs)）
 - **client 与 studio 共用同一文件**（studio 侧见 [`database.ts`](../../../../apps/studio/src/host/capabilities/database.ts)）：`fresh` 会连 studio 的 `auth` / `chat*` / `workspace*` / `__drizzle_migrations` 一起删；studio 下次启动会重跑自己的迁移（全部 `IF NOT EXISTS` / 条件 `UPDATE`，可安全重跑）。`migrate:fresh` 会先自动备份，但恢复仍需手工做。
 
 ### v001 表清单

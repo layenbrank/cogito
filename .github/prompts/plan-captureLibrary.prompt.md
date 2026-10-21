@@ -107,7 +107,7 @@
 
 ## Decisions
 
-- 记录落点：`asset` + `metadata` JSON，**不给 `asset` 加列**（client/studio 共用 `i-thinking.db`，studio drizzle 按列名 SELECT，缺列即报错）；`asset.metadata` 无查询能力 → 列表仍"全量读 + 前端筛"，量级上千后再议专用列/表；`asset:remove` 只删行不删文件，故清理走新命令 `capture:prune`。
+- 记录落点：`asset` + `metadata` JSON，**不给 `asset` 加列**（client/studio 共用 `cogito-client.db`，studio drizzle 按列名 SELECT，缺列即报错）；`asset.metadata` 无查询能力 → 列表仍"全量读 + 前端筛"，量级上千后再议专用列/表；`asset:remove` 只删行不删文件，故清理走新命令 `capture:prune`。
 - 一次会话一条记录；成品文件固定落 `<AppLocalData>/captures/`（corex 原始暂存 `screenshots/` 仅作暂存，孤儿会被回收）；贴图域零改动（仍写 `textures/`）。
 - 保留策略默认值：截图 `7 天 / 100 张 / 500 MB`，录屏 `30 天 / 50 个 / 5 GB`，分类独立配额、三项同时生效。
 - 相簿：`album` 表存定义，成员放 `metadata.albums`；加入相簿**不等于**免清理，只有「标记保存」免清理；将被清理的用角标预警。

@@ -54,7 +54,7 @@ Clock 侧筛选：`fireTime != null && archivedAt == null`（见 `apps/client/sr
 ## 冷启动
 
 1. 退出应用
-2. 删除本地 `i-thinking.db`（应用 data 目录下）
+2. 删除本地 `cogito-client.db`（应用 data 目录下）
 3. 重新启动，由 v001 建库
 
 未删旧库时：迁移版本/表结构不一致，读写会失败或行为异常。详见 [06-pitfalls.md](./06-pitfalls.md)。

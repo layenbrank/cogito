@@ -94,7 +94,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 
 function findClient() {
-  const dbPath = findSharedDatabasePath() // 不变：Local/identifier/i-thinking.db
+  const dbPath = findSharedDatabasePath() // 不变：Local/identifier/cogito-client.db
   const sqlite = new Database(dbPath)
   sqlite.pragma('journal_mode = WAL') // 与 Tauri 版一致的 pragma 组
   sqlite.pragma('synchronous = NORMAL')

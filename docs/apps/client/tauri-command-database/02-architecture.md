@@ -44,7 +44,7 @@ pub async fn reminder_write(
 ## Storage
 
 - 类型：`Storage` 持有 `Arc<DatabaseConnection>`
-- 路径：`database_path(app_data_dir)` → `{appdata}/i-thinking.db`
+- 路径：`database_path(app_data_dir)` → `{appdata}/cogito-client.db`
 - 启动：`initialize` → `migration::run` → `app.manage(db_state)`
 - 消费：Command / Worker 通过 `state.connection()` 传入 Service
 

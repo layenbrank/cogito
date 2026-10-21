@@ -101,7 +101,7 @@ const usage = useMemo(() => readUsage(message?.metadata), [message])
 复现后先看主进程日志里的 `CHAT_MESSAGE_APPEND_FAILED`：它会把 `sessionID` / `parentID` 各自
 是否在库一并报出来，据此判断是「会话 id 不对」还是「父消息那步丢了」。
 DB 取证（只读，别碰用户的库）：
-`Copy-Item "$env:LOCALAPPDATA\com.i-thinking.corex\i-thinking.db*" $env:TEMP\probe\` 后用
+`Copy-Item "$env:LOCALAPPDATA\com.cogito.client\cogito-client.db*" $env:TEMP\probe\` 后用
 python `sqlite3` 查 `chatSession` / `chatMessage`（Node 跑不了 better-sqlite3，ABI 不同）。
 
 ## 点开左侧会话看不到历史
@@ -260,7 +260,7 @@ dev 态下平台额度问的是**本机 service**（`.env.development` 的 `VITE
 
 | 数据     | 位置                                                                                          |
 | -------- | --------------------------------------------------------------------------------------------- |
-| 本机账本 | `%LOCALAPPDATA%\com.i-thinking.corex\i-thinking.db` 的 `chatUsage`（与 Tauri 版 client 共用） |
+| 本机账本 | `%LOCALAPPDATA%\com.cogito.client\cogito-client.db` 的 `chatUsage`（与 Tauri 版 client 共用） |
 | 平台额度 | 服务端 `services/gateway`，studio 只读镜像（`GET /gateway/quota/me`）                         |
 
 ## IPC 信任排查步骤
