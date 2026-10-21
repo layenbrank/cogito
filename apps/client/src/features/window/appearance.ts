@@ -7,6 +7,8 @@
  *
  * 动效：不改 OS `prefers-reduced-motion`，只在应用边界写 `data-motion`，
  * 并驱动 MotionConfig / JS 读点，供用户强制开或关。
+ *
+ * `overlay` 窗只 paintDocument、禁止 mica：截屏链 conceal 只藏 DOM，窗壳仍参与合成。
  */
 
 import { emit } from '@tauri-apps/api/event'
@@ -16,6 +18,14 @@ const APPEARANCE_KEY = 'client.appearance'
 
 /** 独立设置窗写入后通知主窗口。主窗口里的磁贴不再逐窗广播。 */
 const APPEARANCE_SYNC = 'appearance://sync'
+
+/** 真透明浮层：与 `tauri.conf.json` / Rust `OVERLAY_LABEL` 对齐，不得套 windowEffects */
+const OVERLAY_WINDOW_LABEL = 'overlay'
+
+/** 主窗 / 磁贴窗可套 mica；overlay 必须保持真透明（截屏 conceal 依赖这一点） */
+function canApplyWindowEffects(label: string) {
+  return label !== OVERLAY_WINDOW_LABEL
+}
 
 const APPEARANCE_MODES = [
   { value: 'system', label: '跟随系统' },
@@ -193,29 +203,38 @@ function findWindowEffects(isDark: boolean) {
   }
 }
 
+/**
+ * 主窗 / 磁贴窗同步原生 theme + mica；overlay 清掉材质并返回。
+ * 全进程共用 `main.tsx` → `watchAppearance()`，若不按 label 分流，
+ * overlay 会被误套 mica，截屏 conceal 后仍把云母背景打进位图。
+ */
 function syncNativeWindow(appearance: Appearance) {
   if (typeof window === 'undefined') return
   // 非 Tauri 环境（浏览器预览）没有原生窗 API
   if (!('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window)) return
 
+  const win = getCurrentWindow()
+  if (!canApplyWindowEffects(win.label)) {
+    void win.clearEffects().catch(function (error: unknown) {
+      console.warn('[appearance] clearEffects 失败', error)
+    })
+    return
+  }
+
   const isDark = isDarkMode(appearance.mode)
   const theme = findWindowTheme(appearance.mode)
   const effects = findWindowEffects(isDark)
 
-  void getCurrentWindow()
-    .setTheme(theme)
-    .catch(function (error: unknown) {
-      console.warn('[appearance] setTheme 失败', error)
-    })
+  void win.setTheme(theme).catch(function (error: unknown) {
+    console.warn('[appearance] setTheme 失败', error)
+  })
 
-  void getCurrentWindow()
-    .setEffects(effects)
-    .catch(function (error: unknown) {
-      console.warn('[appearance] setEffects 失败', error)
-    })
+  void win.setEffects(effects).catch(function (error: unknown) {
+    console.warn('[appearance] setEffects 失败', error)
+  })
 }
 
-/** 只把外观套到当前文档。子 WebView 用它：它没有自己的窗口，不能去改材质。 */
+/** 只把外观套到当前文档（CSS token）。原生材质走 syncNativeWindow，且 overlay 不套 mica。 */
 function paintDocument() {
   if (typeof document === 'undefined') return
   const appearance = readAppearance()
@@ -341,6 +360,7 @@ export {
   PRIMARY_PRESETS,
   RADIUS_PRESETS,
   adoptAppearance,
+  canApplyWindowEffects,
   findEffectiveMotion,
   findMotionConfig,
   findReducedMotion,
