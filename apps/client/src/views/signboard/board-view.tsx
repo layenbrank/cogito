@@ -107,7 +107,7 @@ function BoardView() {
 
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
-  const [tagFilter, setTagFilter] = useState<'all' | string>('all')
+  const [tagFilters, setTagFilters] = useState<string[]>([])
   const [dueOnly, setDueOnly] = useState(false)
   const [selectedCardID, setSelectedCardID] = useState<string | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -203,9 +203,12 @@ function BoardView() {
       if (!hay.includes(q)) return true
     }
     if (dueOnly && card.dueAt == null) return true
-    if (tagFilter !== 'all') {
+    if (tagFilters.length > 0) {
       const ids = tagIDsForEntry(entryID)
-      if (!ids.includes(tagFilter)) return true
+      const hit = tagFilters.some(function (tagID) {
+        return ids.includes(tagID)
+      })
+      if (!hit) return true
     }
     return false
   }
@@ -370,7 +373,7 @@ function BoardView() {
               有到期
             </Button>
             {tags.map(function (tag) {
-              const isOn = tagFilter === tag.id
+              const isOn = tagFilters.includes(tag.id)
               return (
                 <Button
                   key={tag.id}
@@ -379,15 +382,47 @@ function BoardView() {
                   className={isOn ? styles.filterChipOn : styles.filterChip}
                   variant={isOn ? 'secondary' : 'ghost'}
                   aria-pressed={isOn}
+                  style={
+                    tag.color && isOn
+                      ? {
+                          background: `color-mix(in oklab, ${tag.color} 18%, var(--card))`,
+                          color: tag.color
+                        }
+                      : undefined
+                  }
                   onClick={function () {
-                    setTagFilter(function (prev) {
-                      return prev === tag.id ? 'all' : tag.id
+                    setTagFilters(function (prev) {
+                      if (prev.includes(tag.id)) {
+                        return prev.filter(function (id) {
+                          return id !== tag.id
+                        })
+                      }
+                      return [...prev, tag.id]
                     })
                   }}>
+                  {tag.color ? (
+                    <span
+                      className={styles.filterSwatch}
+                      style={{ background: tag.color }}
+                      aria-hidden
+                    />
+                  ) : null}
                   {tag.title}
                 </Button>
               )
             })}
+            {tagFilters.length > 0 ? (
+              <Button
+                type="button"
+                size="lg"
+                variant="ghost"
+                className={styles.filterChip}
+                onClick={function () {
+                  setTagFilters([])
+                }}>
+                清除标签
+              </Button>
+            ) : null}
           </div>
 
           <div className={styles.chromeActions}>

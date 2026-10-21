@@ -21,6 +21,9 @@ interface CardItemProps {
   card: SignboardEntry
   tags: SignboardTag[]
   checklist: SignboardCheck[]
+  coverSrc: string | null
+  attachmentCount: number
+  showDropBefore: boolean
   isDimmed: boolean
   isSelected: boolean
   onOpen: (entryID: string) => void
@@ -79,6 +82,8 @@ function CardItem(props: CardItemProps) {
       onKeyDown={function (event) {
         props.onKeyMove(props.card.id, event)
       }}>
+      {props.showDropBefore ? <div className={styles.dropIndicator} aria-hidden /> : null}
+
       <button
         type="button"
         className={styles.handle}
@@ -96,13 +101,30 @@ function CardItem(props: CardItemProps) {
         onClick={function () {
           props.onOpen(props.card.id)
         }}>
+        {props.coverSrc ? (
+          <div className={styles.cardCover}>
+            <img
+              src={props.coverSrc}
+              alt=""
+              draggable={false}
+            />
+          </div>
+        ) : null}
         <p className={styles.cardTitle}>{props.card.title}</p>
         <div className={styles.cardMeta}>
           {visibleTags.map(function (tag) {
             return (
               <span
                 key={tag.id}
-                className={styles.tag}>
+                className={styles.tag}
+                style={
+                  tag.color
+                    ? {
+                        background: `color-mix(in oklab, ${tag.color} 18%, var(--card))`,
+                        color: tag.color
+                      }
+                    : undefined
+                }>
                 {tag.title}
               </span>
             )
@@ -130,6 +152,16 @@ function CardItem(props: CardItemProps) {
                 aria-hidden
               />
               {checklistDone}/{checklistTotal}
+            </span>
+          ) : null}
+          {props.attachmentCount > 0 ? (
+            <span className={styles.checklistBadge}>
+              <Icon
+                icon="lucide:paperclip"
+                className="size-3"
+                aria-hidden
+              />
+              {props.attachmentCount}
             </span>
           ) : null}
           {props.card.priority > 0 ? (

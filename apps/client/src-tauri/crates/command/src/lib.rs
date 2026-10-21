@@ -12,6 +12,7 @@ pub mod signboard_automation;
 pub mod signboard_check;
 pub mod signboard_column;
 pub mod signboard_entry;
+pub mod signboard_entry_asset;
 pub mod signboard_tag;
 pub mod signboard_tagged;
 

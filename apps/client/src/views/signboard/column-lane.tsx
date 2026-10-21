@@ -26,6 +26,9 @@ interface ColumnLaneProps {
   entries: SignboardEntry[]
   tagsByCard: Map<string, SignboardTag[]>
   checksForEntry: (entryID: string) => SignboardCheck[]
+  coverSrcByCard: Map<string, string>
+  attachmentCountByCard: Map<string, number>
+  dropBeforeID: string | null
   isDimmedCard: (entryID: string) => boolean
   selectedCardID: string | null
   semantic: 'todo' | 'doing' | 'done' | 'other'
@@ -165,6 +168,9 @@ function ColumnLane(props: ColumnLaneProps) {
                 card={card}
                 tags={props.tagsByCard.get(card.id) ?? []}
                 checklist={props.checksForEntry(card.id)}
+                coverSrc={props.coverSrcByCard.get(card.id) ?? null}
+                attachmentCount={props.attachmentCountByCard.get(card.id) ?? 0}
+                showDropBefore={props.dropBeforeID === card.id}
                 isDimmed={props.isDimmedCard(card.id)}
                 isSelected={props.selectedCardID === card.id}
                 onOpen={props.onOpenCard}
@@ -174,6 +180,12 @@ function ColumnLane(props: ColumnLaneProps) {
               />
             )
           })}
+          {props.dropBeforeID === props.column.id ? (
+            <li
+              className={styles.dropWell}
+              aria-hidden
+            />
+          ) : null}
         </ul>
       </SortableContext>
 
