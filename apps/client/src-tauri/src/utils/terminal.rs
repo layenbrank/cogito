@@ -553,15 +553,28 @@ fn wt_package_settings_rank(path: &std::path::Path) -> u8 {
     }
 }
 
+/// Local AppData：优先 `LOCALAPPDATA`；turbo/pnpm→cargo 链有时不继承该变量，回退 `dirs`。
+#[cfg(windows)]
+fn local_app_data_dir() -> Option<PathBuf> {
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+        return Some(PathBuf::from(local));
+    }
+    let fallback = dirs::data_local_dir()?;
+    log::warn!(
+        "[terminal] LOCALAPPDATA 缺失，回退 {}",
+        fallback.display()
+    );
+    Some(fallback)
+}
+
 /// 候选 settings.json：扫描 `%LOCALAPPDATA%\Packages\Microsoft.WindowsTerminal*`，
 /// 再加非商店 `%LOCALAPPDATA%\Microsoft\Windows Terminal\settings.json`。
 #[cfg(windows)]
 fn windows_terminal_settings_paths() -> Vec<std::path::PathBuf> {
     let mut paths = Vec::new();
-    let Some(local) = std::env::var_os("LOCALAPPDATA") else {
+    let Some(local) = local_app_data_dir() else {
         return paths;
     };
-    let local = std::path::PathBuf::from(local);
     let packages_dir = local.join("Packages");
     if let Ok(entries) = std::fs::read_dir(&packages_dir) {
         let mut package_settings: Vec<std::path::PathBuf> = entries
@@ -752,6 +765,41 @@ mod tests {
         );
     }
 
+    /// 模拟 turbo→cargo 不继承 LOCALAPPDATA 时仍能读到 WT settings。
+    #[test]
+    fn resolve_terminal_font_without_localappdata_env() {
+        let saved = std::env::var_os("LOCALAPPDATA");
+        // SAFETY: 单测进程内临时改环境变量，结束即还原
+        unsafe {
+            std::env::remove_var("LOCALAPPDATA");
+        }
+        let font = resolve_terminal_font();
+        match saved {
+            Some(value) => unsafe {
+                std::env::set_var("LOCALAPPDATA", value);
+            },
+            None => unsafe {
+                std::env::remove_var("LOCALAPPDATA");
+            },
+        }
+        eprintln!(
+            "no-LOCALAPPDATA font family={:?} path={:?}",
+            font.family, font.file_path
+        );
+        assert_eq!(
+            font.family.as_deref(),
+            Some("MesloLGM Nerd Font"),
+            "缺 LOCALAPPDATA 时应仍读到 WT defaults.font"
+        );
+        assert!(
+            font.file_path
+                .as_deref()
+                .is_some_and(|p| std::path::Path::new(p).is_file()),
+            "path={:?}",
+            font.file_path
+        );
+    }
+
     #[test]
     fn strip_verbatim_prefix_for_drive_and_unc() {
         assert_eq!(
@@ -936,8 +984,7 @@ fn normalize_font_file_path(raw: &str) -> String {
 /// 用户字体目录启发式：`MesloLGM Nerd Font` → `MesloLGMNerdFont-Regular.ttf`
 #[cfg(windows)]
 fn guess_user_font_file(family: &str) -> Option<String> {
-    let local = std::env::var_os("LOCALAPPDATA")?;
-    let dir = std::path::Path::new(&local)
+    let dir = local_app_data_dir()?
         .join("Microsoft")
         .join("Windows")
         .join("Fonts");
