@@ -32,12 +32,12 @@ const TILE_HINTS: Partial<Record<MagneticTile.Component, string>> = {
   markdown: '备忘录与 Markdown 笔记',
   morph: '形态变换与视觉实验',
   settings: '应用偏好与系统设置',
-  agent: 'AI Hub 智能助手',
+  agent: 'AI 对话；可口述实现并验证指令',
   developer: '开发者工具与调试',
   gallery: '图库浏览与管理',
   signboard: '看板任务与状态流转',
   capture: '截屏与标注工具',
-  directive: '指令编排与自动化运行',
+  directive: '指令编排与自动化；可与智能助手联用',
   example: '示例磁贴与演示',
   navigation: '网址快捷入口'
 }

@@ -7,7 +7,7 @@
  */
 
 /** 输入区的场景模式：决定 prompt 包装与产出部件解析 */
-type Scenario = 'compare' | 'plan' | 'code'
+type Scenario = 'compare' | 'plan' | 'code' | 'directive'
 
 export type { Scenario }
 

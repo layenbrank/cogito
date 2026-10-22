@@ -50,8 +50,13 @@ import { ASSISTANT_LABELS_ZH } from '@/views/agent/chat/labels'
 import { AgentRuntimeProvider } from '@/views/agent/chat/runtime'
 import { AgentTitlebar } from '@/views/agent/components/titlebar'
 import { syncCogitoGatewayCatalog } from '@/features/agent/acp/cogito-provider'
-import { findLatestPlan } from '@/features/agent/plan'
+import {
+  findActiveScenario,
+  setActiveScenario,
+  watchActiveScenario
+} from '@/features/agent/model/active-scenario'
 import type { ScenarioKey } from '@/features/agent/model/scenarios'
+import { findLatestPlan } from '@/features/agent/plan'
 import { useAgentStore } from '@/stores/agent.ts'
 import { useProviderStore } from '@/stores/provider'
 import styles from '@/views/agent/chat/chat.module.scss'
@@ -102,7 +107,7 @@ function AgentChatLayout() {
   const [isSidebarOpen, updateSidebarOpen] = useState(openState.isSidebarOpen)
   const [isAsideOpen, updateAsideOpen] = useState(openState.isAsideOpen)
   const [isSearchOpen, updateSearchOpen] = useState(false)
-  const [scenario, updateScenario] = useState<ScenarioKey>('general')
+  const [scenario, updateScenario] = useState<ScenarioKey>(findActiveScenario)
   const sidebarRef = usePanelRef()
   const asideRef = usePanelRef()
   const openRef = useRef({ isSidebarOpen, isAsideOpen })
@@ -113,6 +118,15 @@ function AgentChatLayout() {
     },
     [isSidebarOpen, isAsideOpen]
   )
+
+  useEffect(function () {
+    return watchActiveScenario(updateScenario)
+  }, [])
+
+  function onScenarioChange(next: ScenarioKey) {
+    setActiveScenario(next)
+    updateScenario(next)
+  }
 
   function openAside() {
     updateAsideOpen(true)
@@ -238,7 +252,7 @@ function AgentChatLayout() {
               className={styles.sidebar}
               scenario={scenario}
               isSearchOpen={isSearchOpen}
-              onScenarioChange={updateScenario}
+              onScenarioChange={onScenarioChange}
               onSearchOpenChange={updateSearchOpen}
               onOpenSettings={openSettings}
             />
