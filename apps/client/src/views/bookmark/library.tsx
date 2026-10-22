@@ -43,6 +43,7 @@ function BookmarkLibrary(props: BookmarkLibraryProps) {
   const [roots, setRoots] = useState<BookmarkNode[]>([])
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([])
   const [isBusy, setBusy] = useState(false)
+  const [isLoading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState<BookmarkViewMode>(readViewMode)
   const [sortKey, setSortKey] = useState<BookmarkSortKey>(readSortKey)
 
@@ -50,13 +51,21 @@ function BookmarkLibrary(props: BookmarkLibraryProps) {
     function () {
       if (!activeMirrorID) return
       let cancelled = false
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 换镜像/导入后先进入加载态，避免闪空库
+      setLoading(true)
+      setSelectedNodeIds([])
       void fetchBookmarkTree(activeMirrorID)
         .then(function (tree) {
-          if (!cancelled) setRoots(tree)
+          if (cancelled) return
+          setRoots(tree)
+          setLoading(false)
         })
         .catch(function (error) {
           console.error(error)
-          if (!cancelled) toast.error('加载书签库失败')
+          if (cancelled) return
+          setRoots([])
+          setLoading(false)
+          toast.error('加载书签库失败')
         })
       return function () {
         cancelled = true
@@ -176,7 +185,15 @@ function BookmarkLibrary(props: BookmarkLibraryProps) {
         </div>
       </section>
 
-      {roots.length === 0 ? (
+      {isLoading ? (
+        <div className={styles.empty}>
+          <Icon
+            icon="lucide:loader-circle"
+            className="size-5 animate-spin text-muted-foreground"
+          />
+          <p className={styles.emptyDesc}>加载书签库…</p>
+        </div>
+      ) : roots.length === 0 ? (
         <div className={styles.empty}>
           <div className={styles.emptyIcon}>
             <Icon
@@ -194,20 +211,19 @@ function BookmarkLibrary(props: BookmarkLibraryProps) {
           </Button>
         </div>
       ) : (
-        <div className={styles.body}>
-          <BookmarkExplorer
-            roots={roots}
-            selectedFolders={[]}
-            onUpdateSelectedFolders={function () {}}
-            selectionMode="node-id"
-            selectedNodeIds={selectedNodeIds}
-            onUpdateSelectedNodeIds={setSelectedNodeIds}
-            viewMode={viewMode}
-            sortKey={sortKey}
-            onUpdateViewMode={onUpdateViewMode}
-            onUpdateSortKey={onUpdateSortKey}
-          />
-        </div>
+        <BookmarkExplorer
+          key={`${activeMirrorID}:${props.refreshToken}`}
+          roots={roots}
+          selectedFolders={[]}
+          onUpdateSelectedFolders={function () {}}
+          selectionMode="node-id"
+          selectedNodeIds={selectedNodeIds}
+          onUpdateSelectedNodeIds={setSelectedNodeIds}
+          viewMode={viewMode}
+          sortKey={sortKey}
+          onUpdateViewMode={onUpdateViewMode}
+          onUpdateSortKey={onUpdateSortKey}
+        />
       )}
     </div>
   )

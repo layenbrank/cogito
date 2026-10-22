@@ -1,23 +1,34 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { Decorations } from '@/components/decorations/index.ts'
+import { useMirrorStore } from '@/stores/mirror'
 import styles from '@/views/bookmark/bookmark.module.scss'
 import { BookmarkImportSheet } from '@/views/bookmark/import-sheet'
 import { BookmarkLibrary } from '@/views/bookmark/library'
 
-function findInitialImportOpen() {
-  const params = new URLSearchParams(location.search)
+function wantsImportOpen(params: URLSearchParams) {
   if (params.get('import') === '1') return true
   if (params.get('tab') === 'import') return true
   return false
 }
 
 export default function Bookmark() {
-  const initialImportOpen = useMemo(function () {
-    return findInitialImportOpen()
-  }, [])
-  const [isImportOpen, setImportOpen] = useState(initialImportOpen)
+  const [searchParams, updateSearchParams] = useSearchParams()
+  const isImportOpen = wantsImportOpen(searchParams)
   const [refreshToken, bumpRefresh] = useState(0)
+
+  function onUpdateImportOpen(open: boolean) {
+    const next = new URLSearchParams(searchParams)
+    if (open) {
+      next.set('import', '1')
+      next.delete('tab')
+    } else {
+      next.delete('import')
+      next.delete('tab')
+    }
+    updateSearchParams(next, { replace: true })
+  }
 
   return (
     <Decorations
@@ -28,14 +39,15 @@ export default function Bookmark() {
           <BookmarkLibrary
             refreshToken={refreshToken}
             onOpenImport={function () {
-              setImportOpen(true)
+              onUpdateImportOpen(true)
             }}
           />
         </div>
         <BookmarkImportSheet
           open={isImportOpen}
-          onUpdateOpen={setImportOpen}
-          onImported={function () {
+          onUpdateOpen={onUpdateImportOpen}
+          onImported={function (mirrorID) {
+            void useMirrorStore.getState().toReadMirror(mirrorID)
             bumpRefresh(function (n) {
               return n + 1
             })

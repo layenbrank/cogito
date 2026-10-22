@@ -37,7 +37,7 @@ import {
 } from '@/views/bookmark/view-prefs'
 
 type WizardProps = {
-  onImported?: () => void
+  onImported?: (mirrorID: string) => void
 }
 
 const STRATEGY_ITEMS = [
@@ -64,7 +64,7 @@ function BookmarkImportWizard(props: WizardProps) {
     [mirrors]
   )
 
-  const [mirrorID, setMirrorID] = useState(activeMirrorID ?? '')
+  const [mirrorID, setMirrorID] = useState('')
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [selectedFolders, setSelectedFolders] = useState<string[]>([])
   const [strategy, setStrategy] = useState<DuplicateStrategy>('skip')
@@ -74,7 +74,20 @@ function BookmarkImportWizard(props: WizardProps) {
   const [viewMode, setViewMode] = useState<BookmarkViewMode>(readViewMode)
   const [sortKey, setSortKey] = useState<BookmarkSortKey>(readSortKey)
 
-  const resolvedMirrorID = mirrorID || activeMirrorID || ''
+  const resolvedMirrorID = useMemo(
+    function () {
+      if (
+        mirrorID &&
+        mirrors.some(function (mirror) {
+          return mirror.id === mirrorID
+        })
+      ) {
+        return mirrorID
+      }
+      return activeMirrorID ?? ''
+    },
+    [mirrorID, mirrors, activeMirrorID]
+  )
 
   useEffect(function () {
     let cancelled = false
@@ -149,7 +162,7 @@ function BookmarkImportWizard(props: WizardProps) {
       toast.success(
         `已存入书签库：新增 ${result.inserted}，跳过 ${result.skipped}，覆盖 ${result.updated}`
       )
-      props.onImported?.()
+      props.onImported?.(resolvedMirrorID)
     } catch (error) {
       console.error(error)
       toast.error(error instanceof Error ? error.message : '导入失败')
@@ -161,7 +174,7 @@ function BookmarkImportWizard(props: WizardProps) {
 
   return (
     <div className={styles.body}>
-      <section className={styles.chrome}>
+      <section className={`${styles.chrome} ${styles.sheetChrome}`}>
         <p className={styles.sheetTitle}>导入书签</p>
         <div className={styles.toolbarGrow}>
           <div className={styles.fieldInline}>
@@ -256,23 +269,22 @@ function BookmarkImportWizard(props: WizardProps) {
           <p className={styles.metaLine}>
             {preview.sourceLabel} · 书签表 · 已选 {selectedLeaves.length}/{preview.leaves.length}
           </p>
-          <div className={styles.body}>
-            <BookmarkExplorer
-              roots={preview.roots}
-              selectedFolders={selectedFolders}
-              onUpdateSelectedFolders={setSelectedFolders}
-              viewMode={viewMode}
-              sortKey={sortKey}
-              onUpdateViewMode={function (mode) {
-                setViewMode(mode)
-                writeViewMode(mode)
-              }}
-              onUpdateSortKey={function (key) {
-                setSortKey(key)
-                writeSortKey(key)
-              }}
-            />
-          </div>
+          <BookmarkExplorer
+            key={preview.sourceLabel}
+            roots={preview.roots}
+            selectedFolders={selectedFolders}
+            onUpdateSelectedFolders={setSelectedFolders}
+            viewMode={viewMode}
+            sortKey={sortKey}
+            onUpdateViewMode={function (mode) {
+              setViewMode(mode)
+              writeViewMode(mode)
+            }}
+            onUpdateSortKey={function (key) {
+              setSortKey(key)
+              writeSortKey(key)
+            }}
+          />
           {progress ? (
             <div className={styles.progressBar}>
               <Progress value={progress.percent} />
