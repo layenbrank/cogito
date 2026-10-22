@@ -35,7 +35,7 @@ function RecentExceptions(props: RecentExceptionsProps) {
             className="size-3.5 text-muted-foreground"
           />
           近期异常
-          {props.total != null ? (
+          {props.total !== null && props.total !== undefined ? (
             <span className="font-normal text-muted-foreground">· 共 {props.total}</span>
           ) : null}
         </div>

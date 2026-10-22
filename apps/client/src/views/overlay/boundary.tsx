@@ -1,5 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
+import { reportUnknown } from '@/utils/exception-report.ts'
+
 interface OverlayBoundaryProps {
   children: ReactNode
   /** 外部状态指纹（模式 / 贴图数量…）：变化后允许重试渲染 */
@@ -73,6 +75,11 @@ class OverlayBoundary extends Component<OverlayBoundaryProps, OverlayBoundarySta
 
   override componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('[OverlayBoundary]', error, info.componentStack)
+    reportUnknown(
+      error,
+      { kind: 'overlay.boundary', componentStack: info.componentStack ?? undefined },
+      'fatal'
+    )
     this.props.onRecover()
   }
 

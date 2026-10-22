@@ -28,8 +28,8 @@ installExceptionReporting()
 const rootElement = document.getElementById('root') as HTMLElement
 const appRoot = createRoot(rootElement, {
   onCaughtError(error) {
+    // 只打日志：ErrorBoundary / CaptureErrorBoundary / OverlayBoundary 已 reportUnknown
     console.error('Root caught an error:', error)
-    reportUnknown(error, { kind: 'react.onCaughtError' }, 'error')
   },
   onUncaughtError(error) {
     console.error('Root caught an uncaught error:', error)

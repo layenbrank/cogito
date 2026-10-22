@@ -43,7 +43,8 @@ function NameDialog(props: NameDialogProps) {
     try {
       await props.onConfirm(next)
       props.onClose()
-    } catch {
+    } catch (error) {
+      console.warn('NameDialog submit failed', error)
       /* 失败时保持打开，由调用方 toast */
     } finally {
       setSubmitting(false)

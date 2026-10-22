@@ -491,7 +491,9 @@ export default function ExceptionsView() {
                             <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                               {row.source}
                               {row.method ? ` · ${row.method}` : ''}
-                              {row.status != null ? ` ${row.status}` : ''}
+                              {row.status !== null && row.status !== undefined
+                                ? ` ${row.status}`
+                                : ''}
                             </p>
                           </div>
                         )
@@ -570,7 +572,8 @@ export default function ExceptionsView() {
               size="lg"
               className="h-10 w-full px-4 sm:w-auto sm:ms-auto"
               onClick={function () {
-                updatePendingDelete(detail.data!)
+                const row = detail.data
+                if (row) updatePendingDelete(row)
               }}>
               删除事件
             </Button>

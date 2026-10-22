@@ -16,7 +16,9 @@ function RefreshButton(props: RefreshButtonProps) {
       className="h-10 shrink-0 gap-2 px-3"
       disabled={props.isFetching}
       aria-label="刷新"
-      onClick={props.onRefresh}>
+      onClick={function () {
+        props.onRefresh()
+      }}>
       <Icon
         icon="lucide:refresh-cw"
         className={clsx('size-4', props.isFetching && 'animate-spin')}

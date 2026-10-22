@@ -41,7 +41,7 @@ function searchGallery(query: string): Hit[] {
         .map(function (row) {
           return {
             media: row.item,
-            score: row.score == null ? 1 : 1 - row.score
+            score: row.score === null || row.score === undefined ? 1 : 1 - row.score
           }
         })
     : medias.slice(0, OMNIBAR_UI.LOCAL_LIMIT).map(function (media) {

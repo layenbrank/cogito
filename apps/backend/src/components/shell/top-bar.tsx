@@ -23,7 +23,9 @@ function TopBar(props: TopBarProps) {
       <div className="flex min-w-0 items-center gap-2.5 text-sm">
         <RailToggle
           isCollapsed={props.isRailCollapsed}
-          onToggle={props.onToggleRail}
+          onToggle={function () {
+            props.onToggleRail()
+          }}
         />
         <span className="text-muted-foreground">{group}</span>
         <Icon
@@ -36,7 +38,9 @@ function TopBar(props: TopBarProps) {
         type="button"
         variant="outline"
         className="h-10 w-56 justify-start gap-2 px-3 text-muted-foreground sm:w-64 md:w-72"
-        onClick={props.onOpenCommand}>
+        onClick={function () {
+          props.onOpenCommand()
+        }}>
         <Icon
           icon="lucide:search"
           className="size-4 shrink-0"

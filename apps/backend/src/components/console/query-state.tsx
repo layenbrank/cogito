@@ -51,7 +51,9 @@ function QueryState(props: QueryStateProps) {
             size="lg"
             variant="outline"
             className="mt-2 h-10 px-4"
-            onClick={props.onRetry}>
+            onClick={function () {
+              props.onRetry?.()
+            }}>
             重试
           </Button>
         ) : null}

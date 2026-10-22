@@ -3,6 +3,7 @@
  *
  * 原则：上报失败绝不能再抛；也不上报「上报接口自身」以免回路。
  * 业务可预期错误留给 toast，只上报崩溃与意外失败。
+ * 同一 Error 实例只上报一次（边界 + onCaughtError / catch 再抛 等路径会撞到同一对象）。
  */
 import { POST_EXCEPTION, type ExceptionWrite } from '@/apis/exception'
 import { HttpException } from '@/utils/http/errors.ts'
@@ -24,8 +25,8 @@ interface ReportInput {
 }
 
 let isInstalled = false
-/** 正在 POST /exception，防止上报失败再触发上报 */
-let isPosting = false
+/** 已上报过的 Error 实例，避免同一根因被多层 catch/边界连报 */
+const reportedErrors = new WeakSet<object>()
 
 function findRelease(): string | undefined {
   const value = String(import.meta.env.VITE_APP_VERSION ?? '').trim()
@@ -58,7 +59,6 @@ function parseStack(error: unknown): string | undefined {
 }
 
 function shouldSkip(error: unknown): boolean {
-  if (isPosting) return true
   if (!(error instanceof HttpException)) return false
   if (error.code > 0 && error.code !== 200000 && (!error.status || error.status < 500)) {
     return true
@@ -66,8 +66,17 @@ function shouldSkip(error: unknown): boolean {
   return false
 }
 
+/** 若已报过同一对象则返回 true（应跳过）；否则记入并返回 false */
+function hasReported(error: unknown): boolean {
+  if (error === null || (typeof error !== 'object' && typeof error !== 'function')) {
+    return false
+  }
+  if (reportedErrors.has(error)) return true
+  reportedErrors.add(error)
+  return false
+}
+
 async function reportException(input: ReportInput): Promise<void> {
-  if (isPosting) return
   const message = input.message.trim()
   if (!message) return
 
@@ -89,13 +98,10 @@ async function reportException(input: ReportInput): Promise<void> {
     fingerprint: input.fingerprint
   }
 
-  isPosting = true
   try {
     await POST_EXCEPTION(body)
   } catch (error) {
     console.warn('[exception-report] 上报失败', error)
-  } finally {
-    isPosting = false
   }
 }
 
@@ -105,6 +111,7 @@ function reportUnknown(
   level: ExceptionLevel = 'error'
 ) {
   if (shouldSkip(error)) return
+  if (hasReported(error)) return
   const http = error instanceof HttpException ? error : null
   void reportException({
     message: parseMessage(error),

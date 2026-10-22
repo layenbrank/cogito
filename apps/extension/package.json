@@ -7,7 +7,7 @@
     "dev": "vite dev",
     "build": "run-s build:core build:post",
     "build:core": "run-p type-check \"build-only {@}\" --",
-    "build:post": "bun run scripts/build-suffix.ts",
+    "build:post": "node --experimental-strip-types scripts/build-suffix.ts",
     "build-only": "vite build",
     "type-check": "tsc --build",
     "preview": "vite preview",

@@ -12,7 +12,8 @@ function normalizeUrl(url: string) {
       href = href.slice(0, -1)
     }
     return href
-  } catch {
+  } catch (error) {
+    console.warn('[bookmark-import] normalizeUrl 失败', url, error)
     return url.trim()
   }
 }

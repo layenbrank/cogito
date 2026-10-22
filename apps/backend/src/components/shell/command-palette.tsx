@@ -51,7 +51,9 @@ function CommandPalette(props: CommandPaletteProps) {
   return (
     <CommandDialog
       open={props.open}
-      onOpenChange={props.onOpenChange}
+      onOpenChange={function (open) {
+        props.onOpenChange(open)
+      }}
       title="命令面板"
       description="跳转模块或搜索实体"
       className="top-[12%] max-h-[min(84vh,44rem)] sm:max-w-2xl">

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { GET_TENANT_MEMBERS, GET_TENANTS } from '@/apis/tenant.ts'
@@ -11,7 +11,8 @@ import { StatusBadge } from '@/components/console/status-badge.tsx'
 export default function TenantsView() {
   const [searchParams] = useSearchParams()
   const focus = searchParams.get('focus')
-  const [activeID, updateActiveID] = useState<string | null>(focus)
+  const [selectedID, updateSelectedID] = useState<string | null>(null)
+  const activeID = focus ?? selectedID
   const tenants = useQuery({ queryKey: ['tenants'], queryFn: GET_TENANTS })
   const members = useQuery({
     queryKey: ['tenant-members', activeID],
@@ -20,13 +21,6 @@ export default function TenantsView() {
     },
     enabled: Boolean(activeID)
   })
-
-  useEffect(
-    function () {
-      if (focus) updateActiveID(focus)
-    },
-    [focus]
-  )
 
   return (
     <ConsolePage bare>
@@ -72,7 +66,7 @@ export default function TenantsView() {
               }}
               emptyTitle="暂无租户"
               onRowClick={function (row) {
-                updateActiveID(row.id)
+                updateSelectedID(row.id)
               }}
             />
           </QueryState>

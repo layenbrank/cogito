@@ -1,22 +1,30 @@
 import styles from '@/components/glide/glide.module.scss'
 import { useResize } from '@/hooks/useResize.ts'
 import { clsx, type ClassValue } from 'clsx'
+import {
+  useCallback,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type UIEvent
+} from 'react'
 
 interface GlideProps {
-  children: React.ReactNode
+  children: ReactNode
   className?: ClassValue
   classNames?: {
     root?: ClassValue
     wrapper?: ClassValue
     inner?: ClassValue
   }
-  style?: React.CSSProperties
+  style?: CSSProperties
   styles?: {
-    root?: React.CSSProperties
-    wrapper?: React.CSSProperties
-    inner?: React.CSSProperties
+    root?: CSSProperties
+    wrapper?: CSSProperties
+    inner?: CSSProperties
   }
-  onScroll?: (event: React.UIEvent<HTMLDivElement, UIEvent>) => void
+  onScroll?: (event: UIEvent<HTMLDivElement>) => void
 }
 
 const Glide = {
@@ -27,7 +35,7 @@ const Glide = {
   X(props: GlideProps) {
     const [size, updateSize] = useState<DOMRectReadOnly>()
 
-    const properties = useMemo<React.CSSProperties>(
+    const properties = useMemo<CSSProperties>(
       function () {
         const width = size?.width ?? 0
         const height = size?.height ?? 0
@@ -41,7 +49,7 @@ const Glide = {
     )
 
     const nodeRef = useResize<HTMLDivElement>(
-      useCallback(function (rect) {
+      useCallback(function (rect: DOMRectReadOnly) {
         updateSize(rect)
       }, [])
     )

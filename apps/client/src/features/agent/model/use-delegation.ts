@@ -18,6 +18,7 @@ import {
   type SubmitAgentTaskParams
 } from '@/apis/agent-task.ts'
 import { derivePhase, isSettled, type DelegationPhase } from '@/features/agent/model/delegate.ts'
+import { reportCaught } from '@/utils/exception-report'
 
 /** 轮询间隔：台账快照是「落后一步」的进度，1.5s 足够跟手，也不会把服务端打热。 */
 const POLL_INTERVAL_MS = 1500
@@ -86,7 +87,7 @@ function useDelegation(): Delegation {
       taskIDRef.current = created.id
       updateTask(created)
     } catch (error) {
-      console.warn('[delegate] 提交任务失败:', error)
+      reportCaught('agent.delegate.submit', error)
       taskIDRef.current = null
       updateTask(null)
       updateError(errorMessage(error))
@@ -111,10 +112,14 @@ function useDelegation(): Delegation {
         const next = await GET_AGENT_TASK(id)
         updateTask(next)
       } catch (error) {
-        console.warn('[delegate] 决定后刷新任务失败:', error)
+        reportCaught('agent.delegate.refresh', error, 'warning', { taskID: id, approvalID })
       }
     } catch (error) {
-      console.warn('[delegate] 提交审批决定失败:', error)
+      reportCaught('agent.delegate.decide', error, 'error', {
+        taskID: id,
+        approvalID,
+        decision
+      })
       updateError(errorMessage(error))
     }
   }, [])

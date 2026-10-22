@@ -52,15 +52,16 @@ function EngineRail({
     function measureExpanded() {
       const node = chipsRef.current
       if (!node) return
+      const chips = node
 
       function measure() {
-        const next = Math.ceil(node.scrollWidth) + PAD_X
+        const next = Math.ceil(chips.scrollWidth) + PAD_X
         if (next > 0) setExpandedWidth(next)
       }
 
       measure()
       const observer = new ResizeObserver(measure)
-      observer.observe(node)
+      observer.observe(chips)
       return function () {
         observer.disconnect()
       }

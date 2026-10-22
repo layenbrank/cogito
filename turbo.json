@@ -79,6 +79,12 @@
       "outputLogs": "full",
       "persistent": true
     },
+    "type-check": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "src/**/*.{ts,tsx,vue}", "tsconfig*.json"],
+      "outputLogs": "full"
+    },
     "unit": {
       "cache": true,
       "inputs": [

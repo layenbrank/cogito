@@ -25,7 +25,9 @@ function ConfirmDialog(props: ConfirmDialogProps) {
   return (
     <AlertDialog
       open={props.open}
-      onOpenChange={props.onOpenChange}>
+      onOpenChange={function (open) {
+        props.onOpenChange(open)
+      }}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{props.title}</AlertDialogTitle>

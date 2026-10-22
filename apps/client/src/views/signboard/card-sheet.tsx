@@ -231,7 +231,8 @@ function CardSheet(props: CardSheetProps) {
                 return Boolean(row)
               })
           )
-        } catch {
+        } catch (error) {
+          console.warn('loadPreviews failed', error)
           if (!cancelled) setPreviews([])
         }
       }
@@ -289,7 +290,7 @@ function CardSheet(props: CardSheetProps) {
       }
 
       if (remind) {
-        if (dueAt == null) {
+        if (dueAt === null || dueAt === undefined) {
           toast.error('开启提醒需要先设置到期日')
           return
         }

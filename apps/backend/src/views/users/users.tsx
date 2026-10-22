@@ -187,7 +187,7 @@ export default function UsersView() {
                     items={ROLE_ITEMS}
                     value={row.role}
                     onValueChange={function (value) {
-                      if (value == null) return
+                      if (value === null || value === undefined) return
                       if (row.id === selfID && value !== 'ADMIN') {
                         toast.error('不能降低自己的管理员角色')
                         return
@@ -225,7 +225,7 @@ export default function UsersView() {
                     value={row.status}
                     disabled={row.id === selfID}
                     onValueChange={function (value) {
-                      if (value == null) return
+                      if (value === null || value === undefined) return
                       patchUser.mutate({ id: row.id, status: value })
                     }}>
                     <SelectTrigger

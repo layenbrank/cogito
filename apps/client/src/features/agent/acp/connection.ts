@@ -19,6 +19,7 @@ import { createWebSocketStream } from '@agentclientprotocol/sdk/experimental/ws-
 import { ensureAutoCompactThreshold } from '@/features/agent/acp/goose-providers'
 import { createPinnedWebSocketCtor } from '@/features/agent/acp/wss-stream'
 import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
+import { reportCaught } from '@/utils/exception-report'
 
 interface GooseServeConnection {
   url: string
@@ -151,6 +152,7 @@ async function openAcpHandle(): Promise<AcpHandle> {
     return handle
   } catch (error) {
     connection.close(error)
+    reportCaught('agent.acp.connect', error, 'error', { phase: 'initialize' })
     throw error
   }
 }

@@ -12,7 +12,9 @@ async function downloadFile(path: string, filename: string, query: DownloadQuery
   const base = ENV_URLS.thinking.replace(/\/$/, '')
   const url = new URL(`${base}${path.startsWith('/') ? path : `/${path}`}`)
   Object.entries(query).forEach(function ([key, value]) {
-    if (value != null && value !== '') url.searchParams.set(key, String(value))
+    if (value !== null && value !== undefined && value !== '') {
+      url.searchParams.set(key, String(value))
+    }
   })
 
   const headers = new Headers()
