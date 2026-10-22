@@ -9,7 +9,7 @@ import {
 } from '@i-thinking/design/components/select'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import clsx from 'clsx'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import {
@@ -77,14 +77,38 @@ function findLevelTone(level: string) {
   }
 }
 
-function LevelBadge(props: { level: string }) {
+function LevelBadge(props: { level: string; size?: 'sm' | 'md' }) {
   const tone = findLevelTone(props.level)
+  const isMd = props.size === 'md'
   return (
     <span
-      className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium"
+      className={clsx(
+        'inline-flex items-center rounded-md font-medium',
+        isMd ? 'px-2.5 py-1 text-sm' : 'px-2 py-0.5 text-xs'
+      )}
       style={{ color: tone.color, background: tone.background }}>
       {findLevelLabel(props.level)}
     </span>
+  )
+}
+
+function DetailField(props: {
+  label: string
+  children: ReactNode
+  className?: string
+  mono?: boolean
+}) {
+  return (
+    <div className={props.className}>
+      <dt className="text-sm text-muted-foreground">{props.label}</dt>
+      <dd
+        className={clsx(
+          'mt-1 text-sm break-words text-foreground',
+          props.mono && 'font-mono text-[0.8125rem] leading-relaxed'
+        )}>
+        {props.children}
+      </dd>
+    </div>
   )
 }
 
@@ -535,18 +559,27 @@ export default function ExceptionsView() {
         open={Boolean(detailID)}
         title="异常详情"
         description="只读事件；删除不可恢复。"
+        contentClassName="sm:max-w-lg"
         onOpenChange={function (open) {
           if (!open) updateDetailID(null)
-        }}>
+        }}
+        footer={
+          detail.data ? (
+            <Button
+              variant="destructive"
+              size="lg"
+              className="h-10 w-full px-4 sm:w-auto sm:ms-auto"
+              onClick={function () {
+                updatePendingDelete(detail.data!)
+              }}>
+              删除事件
+            </Button>
+          ) : null
+        }>
         {detail.isLoading ? (
           <p className="text-sm text-muted-foreground">加载中…</p>
         ) : detail.data ? (
-          <ExceptionDetail
-            row={detail.data}
-            onDelete={function () {
-              updatePendingDelete(detail.data!)
-            }}
-          />
+          <ExceptionDetail row={detail.data} />
         ) : (
           <p className="text-sm text-muted-foreground">加载失败</p>
         )}
@@ -570,56 +603,42 @@ export default function ExceptionsView() {
   )
 }
 
-function ExceptionDetail(props: { row: ExceptionRecord; onDelete(): void }) {
+function ExceptionDetail(props: { row: ExceptionRecord }) {
   const row = props.row
   return (
-    <div className="space-y-3 text-sm">
-      <LevelBadge level={row.level} />
-      <p className="font-medium break-words">{row.message}</p>
-      <dl className="grid gap-2 text-xs">
-        <div>
-          <dt className="text-muted-foreground">来源</dt>
-          <dd className="mt-0.5">{row.source}</dd>
+    <div className="space-y-5">
+      <div className="space-y-2.5">
+        <LevelBadge
+          level={row.level}
+          size="md"
+        />
+        <p className="text-base leading-snug font-semibold break-words text-foreground">
+          {row.message}
+        </p>
+      </div>
+      <dl className="grid gap-4">
+        <DetailField label="来源">{row.source}</DetailField>
+        <DetailField
+          label="地址"
+          mono>
+          <span className="break-all">{row.url}</span>
+        </DetailField>
+        <div className="grid grid-cols-2 gap-4">
+          <DetailField label="发生时间">{new Date(row.timestamp).toLocaleString()}</DetailField>
+          <DetailField label="入库时间">{new Date(row.receivedAt).toLocaleString()}</DetailField>
         </div>
-        <div>
-          <dt className="text-muted-foreground">地址</dt>
-          <dd className="mt-0.5 break-all font-mono">{row.url}</dd>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <dt className="text-muted-foreground">发生时间</dt>
-            <dd className="mt-0.5">{new Date(row.timestamp).toLocaleString()}</dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">入库时间</dt>
-            <dd className="mt-0.5">{new Date(row.receivedAt).toLocaleString()}</dd>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <dt className="text-muted-foreground">环境</dt>
-            <dd className="mt-0.5">{row.environment ?? '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">版本</dt>
-            <dd className="mt-0.5">{row.release ?? '—'}</dd>
-          </div>
+        <div className="grid grid-cols-2 gap-4">
+          <DetailField label="环境">{row.environment ?? '—'}</DetailField>
+          <DetailField label="版本">{row.release ?? '—'}</DetailField>
         </div>
         {row.stack ? (
-          <div>
-            <dt className="text-muted-foreground">堆栈</dt>
-            <dd className="mt-0.5 max-h-48 overflow-auto rounded-md bg-muted/50 p-2 font-mono text-[11px] whitespace-pre-wrap">
+          <DetailField label="堆栈">
+            <pre className="mt-0 max-h-64 overflow-auto rounded-lg border border-border/60 bg-muted/40 p-3 font-mono text-sm leading-relaxed whitespace-pre-wrap text-foreground">
               {row.stack}
-            </dd>
-          </div>
+            </pre>
+          </DetailField>
         ) : null}
       </dl>
-      <Button
-        size="sm"
-        variant="destructive"
-        onClick={props.onDelete}>
-        删除事件
-      </Button>
     </div>
   )
 }
