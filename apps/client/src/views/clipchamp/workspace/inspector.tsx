@@ -1,5 +1,6 @@
 import { Button } from '@i-thinking/design/components/button'
 import { ScrollArea } from '@i-thinking/design/components/scroll-area'
+import { parseSliderValue, Slider } from '@i-thinking/design/components/slider'
 import { Icon } from '@iconify/react/offline'
 import { clsx } from 'clsx'
 import { throttle } from 'lodash-es'
@@ -598,23 +599,23 @@ function RangeField(props: RangeFieldProps) {
           {display}
         </span>
       </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-muted accent-primary"
+      <div
         onPointerDown={function () {
           onPointerDown?.()
         }}
         onPointerUp={function () {
           onPointerUp?.()
-        }}
-        onChange={function (event) {
-          onChange(Number(event.target.value))
-        }}
-      />
+        }}>
+        <Slider
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onValueChange={function (next) {
+            onChange(parseSliderValue(next))
+          }}
+        />
+      </div>
     </label>
   )
 }

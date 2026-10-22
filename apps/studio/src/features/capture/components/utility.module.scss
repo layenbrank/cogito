@@ -176,35 +176,22 @@
   }
 }
 
-// ─── 粗细按钮 ──────────────────────────────────────────
-.thickness {
-  width: 160px;
-
-  // &:hover {
-  //   background: rgba(0, 0, 0, 0.06);
-  // }
-
-  // &.active {
-  //   background: rgba(64, 128, 255, 0.1);
-  // }
-
-  // .dot {
-  //   display: block;
-  //   border-radius: 50%;
-  //   background: #666;
-  // }
-}
-
 // ─── 字号 / 透明度滑块（紧凑版） ────────────────────────
 .compact {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   padding: 0 4px;
   color: #555;
+}
+
+.thickness {
+  width: 160px;
+  flex: none;
 }
 
 .fontSize,
 .opacity {
   width: 96px;
+  flex: none;
 }

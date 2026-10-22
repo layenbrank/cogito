@@ -8,6 +8,7 @@ import {
 } from '@i-thinking/design/components/form'
 import { Input } from '@i-thinking/design/components/input'
 import { Skeleton } from '@i-thinking/design/components/skeleton'
+import { parseSliderValue, Slider } from '@i-thinking/design/components/slider'
 import { Spinner } from '@i-thinking/design/components/spinner'
 import { cn } from 'cn'
 import type { Control } from 'react-hook-form'
@@ -151,15 +152,13 @@ function Fields(props: FieldsProps) {
                 </span>
               </div>
               <FormControl>
-                <input
-                  type="range"
+                <Slider
                   min={0}
                   max={BLUR_MAX}
                   value={field.value ?? 0}
                   aria-label="背景模糊"
-                  className="w-full accent-primary"
-                  onChange={function (event) {
-                    field.onChange(Number(event.target.value))
+                  onValueChange={function (next) {
+                    field.onChange(parseSliderValue(next))
                   }}
                 />
               </FormControl>
@@ -182,16 +181,14 @@ function Fields(props: FieldsProps) {
                 </span>
               </div>
               <FormControl>
-                <input
-                  type="range"
+                <Slider
                   min={0}
                   max={1}
                   step={0.05}
                   value={field.value ?? 0}
                   aria-label="背景透明"
-                  className="w-full accent-primary"
-                  onChange={function (event) {
-                    field.onChange(Number(event.target.value))
+                  onValueChange={function (next) {
+                    field.onChange(parseSliderValue(next))
                   }}
                 />
               </FormControl>

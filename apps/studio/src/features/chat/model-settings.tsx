@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@i-thinking/design/components/select'
+import { parseSliderValue, Slider } from '@i-thinking/design/components/slider'
 import { Switch } from '@i-thinking/design/components/switch'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -53,16 +54,15 @@ function ContextControl(props: { value: number; onChange: (contextWindow: number
 
   return (
     <label className="flex min-w-0 items-center gap-2">
-      <input
-        type="range"
+      <Slider
         min={0}
         max={CONTEXT_MARKS.length - 1}
         step={1}
         value={index}
         aria-label="上下文窗口"
-        className="accent-primary h-1 w-full min-w-16"
-        onChange={function (event) {
-          props.onChange(findContextByIndex(Number(event.target.value)))
+        className="min-w-16"
+        onValueChange={function (next) {
+          props.onChange(findContextByIndex(parseSliderValue(next)))
         }}
       />
       <span className="text-muted-foreground w-9 shrink-0 text-xs">{CONTEXT_MARKS[index]}</span>

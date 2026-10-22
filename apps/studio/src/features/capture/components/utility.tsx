@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react/offline'
+import { parseSliderValue, Slider } from '@i-thinking/design/components/slider'
 import { clsx } from 'clsx'
 import { AnimatePresence, motion } from 'motion/react'
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -285,9 +286,9 @@ export default function Utility(props: UtilityProps) {
             {visible ? (
               <motion.div
                 className={styles.row}
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ height: 0, opacity: 0 }}
+                initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                animate={{ opacity: 1, height: 'auto', overflow: 'visible' }}
+                exit={{ height: 0, opacity: 0, overflow: 'hidden' }}
                 transition={{ duration: 0.15 }}>
                 <label
                   className={clsx(styles.color, styles.palette, {
@@ -367,23 +368,21 @@ export default function Utility(props: UtilityProps) {
 
                 <div className={styles.separator} />
 
-                <div
-                  className={clsx(styles.ensemble, styles.compact)}
-                  title={`粗细 ${Math.round(thickness)}`}>
+                <div className={clsx(styles.ensemble, styles.compact)}>
                   <Icon
                     icon="mdi:format-line-weight"
                     width={14}
                     height={14}
                   />
-                  <input
-                    type="range"
+                  <Slider
                     className={styles.thickness}
                     min={1}
                     max={16}
                     step={1}
-                    value={thickness}
-                    onChange={function (event) {
-                      onUpdateThickness(Number(event.target.value))
+                    value={[thickness]}
+                    aria-label="粗细"
+                    onValueChange={function (next) {
+                      onUpdateThickness(Math.round(parseSliderValue(next)))
                     }}
                   />
                 </div>
@@ -411,23 +410,21 @@ export default function Utility(props: UtilityProps) {
                 {showFontSize ? (
                   <>
                     <div className={styles.separator} />
-                    <div
-                      className={clsx(styles.ensemble, styles.compact)}
-                      title={`字号 ${Math.round(fontSize)}`}>
+                    <div className={clsx(styles.ensemble, styles.compact)}>
                       <Icon
                         icon="mdi:format-size"
                         width={14}
                         height={14}
                       />
-                      <input
-                        type="range"
+                      <Slider
                         className={styles.fontSize}
                         min={10}
                         max={64}
                         step={1}
-                        value={fontSize}
-                        onChange={function (event) {
-                          onUpdateFontSize(Number(event.target.value))
+                        value={[fontSize]}
+                        aria-label="字号"
+                        onValueChange={function (next) {
+                          onUpdateFontSize(Math.round(parseSliderValue(next)))
                         }}
                       />
                     </div>
@@ -437,23 +434,26 @@ export default function Utility(props: UtilityProps) {
                 {showOpacity ? (
                   <>
                     <div className={styles.separator} />
-                    <div
-                      className={clsx(styles.ensemble, styles.compact)}
-                      title={`不透明度 ${Math.round(opacity * 100)}%`}>
+                    <div className={clsx(styles.ensemble, styles.compact)}>
                       <Icon
                         icon="mdi:opacity"
                         width={14}
                         height={14}
                       />
-                      <input
-                        type="range"
+                      <Slider
                         className={styles.opacity}
                         min={5}
                         max={100}
                         step={1}
-                        value={Math.round(opacity * 100)}
-                        onChange={function (event) {
-                          onUpdateOpacity(Math.max(0.05, Number(event.target.value) / 100))
+                        value={[Math.round(opacity * 100)]}
+                        aria-label="不透明度"
+                        tooltip={{
+                          formatter(value) {
+                            return `${Math.round(value)}%`
+                          }
+                        }}
+                        onValueChange={function (next) {
+                          onUpdateOpacity(Math.max(0.05, parseSliderValue(next) / 100))
                         }}
                       />
                     </div>
