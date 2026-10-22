@@ -1,5 +1,8 @@
 /**
- * 终端多 tab：标签栏 + 全部会话视图（非 active 仅 CSS 隐藏，切换不重建）。
+ * 终端多 tab：标签栏 + 会话视图。
+ *
+ * 非 active 用 `invisible`（保留布局尺寸），禁止 `hidden`/`display:none`——
+ * 否则 xterm FitAddon 量到 0 列，切换/新建后画面错乱。
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
@@ -30,7 +33,7 @@ function TerminalTabs(props: TerminalTabsProps) {
       toast.error(emptyCwdMessage)
       return
     }
-    useTerminalStore.getState().newTab(props.cwd)
+    useTerminalStore.getState().newTab(props.cwd, { reveal: false })
   }
 
   function handleCloseTab(id: string) {
@@ -70,7 +73,8 @@ function TerminalTabs(props: TerminalTabsProps) {
                 aria-label="关闭终端"
                 title="关闭终端"
                 className="text-muted-foreground hover:text-foreground size-5 shrink-0"
-                onClick={function () {
+                onClick={function (event) {
+                  event.stopPropagation()
                   handleCloseTab(tab.id)
                 }}>
                 <Icon
@@ -103,14 +107,19 @@ function TerminalTabs(props: TerminalTabsProps) {
           </div>
         ) : null}
         {tabs.map(function (tab) {
+          const active = tab.id === activeId
           return (
             <div
               key={tab.id}
-              className={clsx('h-full w-full', tab.id !== activeId && 'hidden')}>
+              className={clsx(
+                'absolute inset-0',
+                active ? 'z-10' : 'invisible pointer-events-none z-0'
+              )}
+              aria-hidden={!active}>
               <TerminalView
                 id={tab.id}
                 cwd={tab.cwd}
-                active={tab.id === activeId}
+                active={active}
               />
             </div>
           )

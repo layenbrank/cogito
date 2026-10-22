@@ -22,6 +22,13 @@ interface TerminalInfo {
 interface TerminalFont {
   family: string | null
   size: number | null
+  /** Windows Terminal font.weight（normal / bold / 数值字符串）；旧后端可能缺省 */
+  weight?: string | null
+  /**
+   * 字体文件绝对路径。WebView2 枚举不到用户 Nerd Font，
+   * 前端用 plugin-fs 读成 Blob → FontFace（勿经 IPC 传数 MB base64）。
+   */
+  filePath?: string | null
 }
 
 interface TerminalCreatedWithChannel extends TerminalCreated {
@@ -59,9 +66,15 @@ function resize(id: string, rows: number, cols: number): Promise<void> {
   })
 }
 
-/** 终止会话。 */
-function kill(id: string): Promise<void> {
-  return invoke(CHANNELS.TERMINAL.KILL, { id })
+/** 终止会话；已不存在时视为成功（卸载 / 重复 kill 幂等）。 */
+async function kill(id: string): Promise<void> {
+  try {
+    await invoke(CHANNELS.TERMINAL.KILL, { id })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes('不存在')) return
+    throw error
+  }
 }
 
 /** 列出存活会话（诊断 / 恢复用）。 */

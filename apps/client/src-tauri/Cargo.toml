@@ -120,7 +120,6 @@ anyhow = { workspace = true }
 tracing = { workspace = true }
 log = "0.4"
 uuid = { workspace = true }
-
 # --- 媒体 / 编解码 ---
 image = "0.25.10" # 截图解码、托盘徽章
 

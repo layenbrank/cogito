@@ -65,7 +65,7 @@
       "csp": {
         "connect-src": "* ipc: http://ipc.localhost https://api.yourdomain.com http://localhost:11434 data: *",
         "default-src": "* 'self' blob: data: filesystem: ws: wss: tauri: 'unsafe-eval' 'unsafe-inline' http://localhost:11434",
-        "font-src": "*",
+        "font-src": "* 'self' blob: data: asset: http://asset.localhost https://asset.localhost",
         "frame-src": "*",
         "img-src": "* 'self' blob: data: asset: http://asset.localhost https://asset.localhost https://*",
         "script-src": "* 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net",

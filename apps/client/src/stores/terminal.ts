@@ -17,16 +17,22 @@ interface TerminalTab {
   exitCode: number | null
 }
 
+interface NewTabOptions {
+  /** 是否同时掀开宿主面板（agent 右栏 / 指令列表底栏）；编排台内嵌终端传 false */
+  reveal?: boolean
+}
+
 interface TerminalState {
   tabs: TerminalTab[]
   activeId: string | null
   open: boolean
   openPanel: () => void
   closePanel: () => void
-  newTab: (cwd: string) => void
+  newTab: (cwd: string, options?: NewTabOptions) => void
   removeTab: (id: string) => void
   setActive: (id: string) => void
   markExited: (id: string, exitCode: number | null) => void
+  markPid: (id: string, pid: number | null) => void
 }
 
 /** tab 标题取工作区路径末段，便于在标签栏辨识。 */
@@ -58,7 +64,7 @@ const useTerminalStore = create<TerminalState>()(
           })
         },
 
-        newTab: function (cwd) {
+        newTab: function (cwd, options) {
           set(function (state) {
             const id = crypto.randomUUID()
             state.tabs.push({
@@ -70,7 +76,7 @@ const useTerminalStore = create<TerminalState>()(
               exitCode: null
             })
             state.activeId = id
-            state.open = true
+            if (options?.reveal !== false) state.open = true
           })
         },
 
@@ -104,6 +110,15 @@ const useTerminalStore = create<TerminalState>()(
               tab.exitCode = exitCode
             }
           })
+        },
+
+        markPid: function (id, pid) {
+          set(function (state) {
+            const tab = state.tabs.find(function (item) {
+              return item.id === id
+            })
+            if (tab) tab.pid = pid
+          })
         }
       }
     })
@@ -111,4 +126,4 @@ const useTerminalStore = create<TerminalState>()(
 )
 
 export { useTerminalStore }
-export type { TerminalTab }
+export type { TerminalTab, NewTabOptions }

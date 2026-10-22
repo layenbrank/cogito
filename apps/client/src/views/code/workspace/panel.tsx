@@ -85,15 +85,24 @@ function Panel() {
           />
         </Button>
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden">
-        {panelTab === 'terminal' ? (
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        {/* 终端用 invisible 保活：切到「问题」勿卸载，否则会 kill 全部 PTY */}
+        <div
+          className={cn(
+            'absolute inset-0',
+            panelTab === 'terminal' ? 'z-10' : 'invisible pointer-events-none z-0'
+          )}
+          aria-hidden={panelTab !== 'terminal'}>
           <TerminalTabs
             cwd={workspaceRoot}
             emptyCwdMessage="请先打开工作区文件夹"
           />
-        ) : (
-          <Problems />
-        )}
+        </div>
+        {panelTab === 'problems' ? (
+          <div className="absolute inset-0 z-10">
+            <Problems />
+          </div>
+        ) : null}
       </div>
     </div>
   )
