@@ -48,19 +48,30 @@ function isSamePath(a: string | null | undefined, b: string | null | undefined):
 /** 防止快速连续打开时，较慢的旧请求覆盖新文档 */
 let openSequence = 0
 
-async function openPath(path: string): Promise<boolean> {
+async function openPath(path: string, options: { force?: boolean } = {}): Promise<boolean> {
   const store = useMarkdownStore.getState()
-  if (isSamePath(store.activePath, path) && !store.isDirty && !store.isLoading) {
+  const same = isSamePath(store.activePath, path)
+  if (same && !options.force && !store.isDirty && !store.isLoading) {
     return true
   }
 
   const sequence = ++openSequence
-  // 先切高亮，让侧栏立刻响应
-  store.toBeginOpen(path)
+  // 强制重载同一文件时不闪 loading、不清 dirty（由调用方保证）
+  if (!same) {
+    store.toBeginOpen(path)
+  } else if (options.force && !store.isDirty) {
+    store.toSetLoading(true)
+  }
 
   try {
     const raw = await readMarkdownFile(path)
     if (sequence !== openSequence) return false
+
+    // 自身写入触发的 watch：内容未变则跳过，避免编辑器跳动
+    if (same && options.force && raw === store.markdown && !store.isDirty) {
+      store.toSetLoading(false)
+      return true
+    }
 
     const parsed = parseMarkdown(raw)
     const large = isLargeMarkdown(raw)
@@ -141,12 +152,16 @@ async function saveDocument(options?: {
       path = await pickSaveMarkdown(suggested)
       if (!path) return false
     }
+    const wasUntitled = !store.activePath || Boolean(options?.saveAs)
     await writeMarkdownFile(path, content)
     store.toUpdateMarkdown(content)
     store.toMarkSaved(path)
     syncDerived(content)
     store.toPushRecent(path)
     syncWorkspaceRootForFile(path)
+    if (wasUntitled) {
+      store.toBumpTree()
+    }
     void writeBackup(path, content).catch(function () {
       /* ignore backup errors */
     })

@@ -15,7 +15,7 @@ import { toast } from 'sonner'
 import { isMainWindow, MAIN_WINDOW_TITLE } from '@/features/magnetic-tile/session'
 import { useMarkdownStore } from '@/stores/markdown'
 import { writeBackup } from '@/views/markdown/lib/backup.ts'
-import { findDisplayTitle } from '@/views/markdown/lib/fs.ts'
+import { clearDirListCache, findDisplayTitle } from '@/views/markdown/lib/fs.ts'
 import { uploadMarkdownImage } from '@/views/markdown/lib/image-upload.ts'
 import { parseMarkdown } from '@/views/markdown/lib/parse-markdown.ts'
 import { serializeHtmlToMarkdown } from '@/views/markdown/lib/serialize-markdown.ts'
@@ -59,6 +59,7 @@ function useMarkdownDocumentEffects(input: {
   pendingActionRef: { current: PendingAction }
   search: string
   activePath: string | null
+  rootDir: string | null
   viewMode: WorkspaceState['viewMode']
   isDocLoading: boolean
   isDirty: boolean
@@ -66,6 +67,7 @@ function useMarkdownDocumentEffects(input: {
   markdown: string
   hydratePreferences: WorkspaceState['hydratePreferences']
   toSetExternalChanged: WorkspaceState['toSetExternalChanged']
+  toBumpTree: WorkspaceState['toBumpTree']
   setDiscardOpen: (value: boolean) => void
 }) {
   const {
@@ -76,6 +78,7 @@ function useMarkdownDocumentEffects(input: {
     pendingActionRef,
     search,
     activePath,
+    rootDir,
     viewMode,
     isDocLoading,
     isDirty,
@@ -83,6 +86,7 @@ function useMarkdownDocumentEffects(input: {
     markdown,
     hydratePreferences,
     toSetExternalChanged,
+    toBumpTree,
     setDiscardOpen
   } = input
 
@@ -196,7 +200,7 @@ function useMarkdownDocumentEffects(input: {
           if (disposed) return
           const state = useMarkdownStore.getState()
           if (!state.isDirty) {
-            void openPath(activePath)
+            void openPath(activePath, { force: true })
             return
           }
           toSetExternalChanged(true)
@@ -219,6 +223,45 @@ function useMarkdownDocumentEffects(input: {
       }
     },
     [activePath, toSetExternalChanged]
+  )
+
+  // 工作区目录递归监听：文件树随磁盘创建/删除/重命名刷新
+  useEffect(
+    function () {
+      if (!rootDir) return
+      let disposed = false
+      let unwatch: (() => void) | undefined
+      let debounceTimer = 0
+      void watch(
+        rootDir,
+        function () {
+          if (disposed) return
+          window.clearTimeout(debounceTimer)
+          debounceTimer = window.setTimeout(function () {
+            if (disposed) return
+            clearDirListCache()
+            toBumpTree()
+          }, 350)
+        },
+        { recursive: true, delayMs: 500 }
+      )
+        .then(function (fn) {
+          if (disposed) {
+            fn()
+            return
+          }
+          unwatch = fn
+        })
+        .catch(function () {
+          /* Command watch not found — 当前壳未启用 fs watch */
+        })
+      return function () {
+        disposed = true
+        window.clearTimeout(debounceTimer)
+        unwatch?.()
+      }
+    },
+    [rootDir, toBumpTree]
   )
 
   // 等打开完成再灌编辑器，避免 toBeginOpen 时用旧 markdown 覆盖。
@@ -557,6 +600,9 @@ export default function MarkdownWorkspace() {
   const activePath = useMarkdownStore(function (state) {
     return state.activePath
   })
+  const rootDir = useMarkdownStore(function (state) {
+    return state.rootDir
+  })
   const isSidebarOpen = useMarkdownStore(function (state) {
     return state.isSidebarOpen
   })
@@ -654,6 +700,7 @@ export default function MarkdownWorkspace() {
     pendingActionRef,
     search: location.search,
     activePath,
+    rootDir,
     viewMode,
     isDocLoading,
     isDirty,
@@ -661,6 +708,7 @@ export default function MarkdownWorkspace() {
     markdown,
     hydratePreferences: useMarkdownStore.getState().hydratePreferences,
     toSetExternalChanged: useMarkdownStore.getState().toSetExternalChanged,
+    toBumpTree: useMarkdownStore.getState().toBumpTree,
     setDiscardOpen
   })
 
