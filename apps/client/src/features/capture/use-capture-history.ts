@@ -2,17 +2,22 @@ import { useRef, useState } from 'react'
 
 import { type GraphicsProps } from '@/features/capture/components/graphics'
 
+interface CaptureHistorySnapshot {
+  annotations: GraphicsProps[]
+  selectedIDs: string[]
+}
+
 interface CaptureHistoryApi {
   canUndo: boolean
   canRedo: boolean
-  commitHistory(this: void, next: GraphicsProps[]): void
-  undo(this: void): GraphicsProps[] | null
-  redo(this: void): GraphicsProps[] | null
+  commitHistory(this: void, next: GraphicsProps[], selectedIDs?: string[]): void
+  undo(this: void): CaptureHistorySnapshot | null
+  redo(this: void): CaptureHistorySnapshot | null
   resetHistory(this: void): void
 }
 
 function useCaptureHistory(): CaptureHistoryApi {
-  const historyRef = useRef<GraphicsProps[][]>([[]])
+  const historyRef = useRef<CaptureHistorySnapshot[]>([{ annotations: [], selectedIDs: [] }])
   const historyStepRef = useRef(0)
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
@@ -22,22 +27,22 @@ function useCaptureHistory(): CaptureHistoryApi {
     setCanRedo(historyStepRef.current < historyRef.current.length - 1)
   }
 
-  function commitHistory(next: GraphicsProps[]) {
+  function commitHistory(next: GraphicsProps[], selectedIDs: string[] = []) {
     const truncated = historyRef.current.slice(0, historyStepRef.current + 1)
-    truncated.push(next)
+    truncated.push({ annotations: next, selectedIDs })
     historyRef.current = truncated
     historyStepRef.current = truncated.length - 1
     syncHistoryFlags()
   }
 
-  function undo(): GraphicsProps[] | null {
+  function undo(): CaptureHistorySnapshot | null {
     if (historyStepRef.current === 0) return null
     historyStepRef.current -= 1
     syncHistoryFlags()
     return historyRef.current[historyStepRef.current] ?? null
   }
 
-  function redo(): GraphicsProps[] | null {
+  function redo(): CaptureHistorySnapshot | null {
     if (historyStepRef.current >= historyRef.current.length - 1) return null
     historyStepRef.current += 1
     syncHistoryFlags()
@@ -45,7 +50,7 @@ function useCaptureHistory(): CaptureHistoryApi {
   }
 
   function resetHistory() {
-    historyRef.current = [[]]
+    historyRef.current = [{ annotations: [], selectedIDs: [] }]
     historyStepRef.current = 0
     syncHistoryFlags()
   }
@@ -60,5 +65,5 @@ function useCaptureHistory(): CaptureHistoryApi {
   }
 }
 
-export type { CaptureHistoryApi }
+export type { CaptureHistoryApi, CaptureHistorySnapshot }
 export { useCaptureHistory }

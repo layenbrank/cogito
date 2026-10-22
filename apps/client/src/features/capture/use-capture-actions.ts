@@ -17,6 +17,7 @@ import {
 import type { AnnotationHandle } from '@/features/capture/components/annotation'
 import type { GraphicsEnum, GraphicsProps } from '@/features/capture/components/graphics'
 import { createCaptureExport } from '@/features/capture/capture-export'
+import type { CaptureHistorySnapshot } from '@/features/capture/use-capture-history'
 import type { Phase } from '@/features/capture/use-capture-stage'
 
 interface CaptureActionsInput {
@@ -26,9 +27,9 @@ interface CaptureActionsInput {
   phase: Phase
   annotationRef: RefObject<AnnotationHandle | null>
   presentContextMenu: (payload: PresentInput) => void
-  commitHistory: (next: GraphicsProps[]) => void
-  undo: () => GraphicsProps[] | null
-  redo: () => GraphicsProps[] | null
+  commitHistory: (next: GraphicsProps[], selectedIDs?: string[]) => void
+  undo: () => CaptureHistorySnapshot | null
+  redo: () => CaptureHistorySnapshot | null
   resetHistory: () => void
   resetDragState: () => void
   onUpdateAnnotations: (next: GraphicsProps[]) => void
@@ -64,18 +65,26 @@ function useCaptureActions(input: CaptureActionsInput) {
     }
   }
 
+  function restoreSnapshot(snapshot: CaptureHistorySnapshot) {
+    input.onUpdateAnnotations(snapshot.annotations)
+    const valid = snapshot.selectedIDs.filter(function (id) {
+      return snapshot.annotations.some(function (a) {
+        return a.id === id
+      })
+    })
+    commitSelection(valid)
+  }
+
   function handleUndo() {
     const snapshot = input.undo()
     if (!snapshot) return
-    input.onUpdateAnnotations(snapshot)
-    commitSelection([])
+    restoreSnapshot(snapshot)
   }
 
   function handleRedo() {
     const snapshot = input.redo()
     if (!snapshot) return
-    input.onUpdateAnnotations(snapshot)
-    commitSelection([])
+    restoreSnapshot(snapshot)
   }
 
   function handleDelete() {
@@ -83,7 +92,7 @@ function useCaptureActions(input: CaptureActionsInput) {
     const ids = expandSelectionIDs(input.selectedIDs, input.annotations)
     const next = deleteAnnotations(input.annotations, ids)
     input.onUpdateAnnotations(next)
-    input.commitHistory(next)
+    input.commitHistory(next, [])
     commitSelection([])
   }
 
@@ -141,7 +150,7 @@ function useCaptureActions(input: CaptureActionsInput) {
 
   function applyAnnotations(next: GraphicsProps[], nextSelection?: string[]) {
     input.onUpdateAnnotations(next)
-    input.commitHistory(next)
+    input.commitHistory(next, nextSelection ?? input.selectedIDs)
     if (nextSelection) commitSelection(nextSelection)
   }
 
@@ -196,7 +205,7 @@ function useCaptureActions(input: CaptureActionsInput) {
           const result = toggleAnnotationsLock(input.annotations, ids)
           if (!result) return
           input.onUpdateAnnotations(result.next)
-          input.commitHistory(result.next)
+          input.commitHistory(result.next, result.nextLocked ? [] : input.selectedIDs)
           if (result.nextLocked) commitSelection([])
         },
         copy(ids) {
@@ -222,7 +231,7 @@ function useCaptureActions(input: CaptureActionsInput) {
       return v.id === next.id ? next : v
     })
     input.onUpdateAnnotations(updated)
-    if (shouldCommit) input.commitHistory(updated)
+    if (shouldCommit) input.commitHistory(updated, input.selectedIDs)
   }
 
   function handleAnnotationsBatchChange(nexts: GraphicsProps[]) {
@@ -236,7 +245,7 @@ function useCaptureActions(input: CaptureActionsInput) {
       return map.get(v.id) ?? v
     })
     input.onUpdateAnnotations(updated)
-    input.commitHistory(updated)
+    input.commitHistory(updated, input.selectedIDs)
   }
 
   function applyPropertyToSelected(patch: Partial<GraphicsProps>) {
@@ -247,7 +256,7 @@ function useCaptureActions(input: CaptureActionsInput) {
       return idSet.has(v.id) ? { ...v, ...patch } : v
     })
     input.onUpdateAnnotations(updated)
-    input.commitHistory(updated)
+    input.commitHistory(updated, input.selectedIDs)
   }
 
   function handleUpdateColor(next: string) {
