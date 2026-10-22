@@ -8,10 +8,16 @@
  * 渲染进程的模型选择器读的是本地 `useProviderStore`，不会自己打 `/gateway/models`。
  * 因此除了注册 goose，还要把服务端目录同步成 store 里固定的一行（`cogito_gateway`），
  * 否则后台配了模型，对话里仍然「没有可用模型」。
+ *
+ * 注意：只写本地 store、不注册 goose，会出现「UI 能选组织模型，切换/发送时 goose 不认识
+ * cogito_gateway」——同步目录成功后必须 best-effort 注册，发送前再校验一次。
  */
 import { invoke } from '@tauri-apps/api/core'
 
 import { GET_GATEWAY_MODELS, type GatewayModel } from '@/apis/gateway'
+import { findAcpHandle } from '@/features/agent/acp/connection'
+import { fetchProviderEntry } from '@/features/agent/acp/goose-providers'
+import { waitGooseReady } from '@/features/agent/acp/session'
 import {
   clearGatewayLabels,
   rememberGatewayLabels
@@ -75,38 +81,9 @@ function isCogitoRowCurrent(row: AgentProvider, baseUrl: string, models: string[
   )
 }
 
-/**
- * 保证本地 provider 表里有与网关目录一致的「组织模型」行；不可用时返回 null。
- *
- * 只写本地 store（选择器用），goose 注册仍由 `ensureCogitoProvider` 在发送前做。
- * 未登录 / 未配置服务地址 / 目录空 → 停用或移除幽灵行，避免 picker 选中后发送失败。
- */
-async function syncCogitoGatewayCatalog(): Promise<AgentProvider | null> {
-  const store = useProviderStore.getState()
-  if (!store.providersLoaded) await store.toReadProviders()
-
-  const baseUrl = findGatewayBaseURL()
-  if (!baseUrl || !findAuthToken()) {
-    clearGatewayLabels()
-    await dropStaleCogitoRow()
-    return null
-  }
-
-  let models: string[]
-  try {
-    models = await findGatewayModels()
-  } catch (error) {
-    reportCaught('acp.cogito-provider.syncCatalog', error, 'warning')
-    clearGatewayLabels()
-    await dropStaleCogitoRow()
-    return null
-  }
-
-  if (models.length === 0) {
-    clearGatewayLabels()
-    await dropStaleCogitoRow()
-    return null
-  }
+/** 把网关目录写成本地 store 的「组织模型」行；目录空则返回 null。 */
+async function upsertCogitoCatalogRow(baseUrl: string, models: string[]): Promise<AgentProvider | null> {
+  if (models.length === 0) return null
 
   const current = findCogitoRow(useProviderStore.getState().providers)
   if (current && isCogitoRowCurrent(current, baseUrl, models) && current.id === COGITO_PROVIDER_ID) {
@@ -153,6 +130,52 @@ async function syncCogitoGatewayCatalog(): Promise<AgentProvider | null> {
   return findCogitoRow(useProviderStore.getState().providers)
 }
 
+/**
+ * 保证本地 provider 表里有与网关目录一致的「组织模型」行；不可用时返回 null。
+ *
+ * 目录写入成功后会 best-effort 注册 goose（`ensureCogitoProvider`）。goose 未就绪时
+ * 仍返回 UI 行，发送路径会再 ensure 一次。
+ */
+async function syncCogitoGatewayCatalog(): Promise<AgentProvider | null> {
+  const store = useProviderStore.getState()
+  if (!store.providersLoaded) await store.toReadProviders()
+
+  const baseUrl = findGatewayBaseURL()
+  if (!baseUrl || !findAuthToken()) {
+    clearGatewayLabels()
+    await dropStaleCogitoRow()
+    return null
+  }
+
+  let models: string[]
+  try {
+    models = await findGatewayModels()
+  } catch (error) {
+    reportCaught('acp.cogito-provider.syncCatalog', error, 'warning')
+    clearGatewayLabels()
+    await dropStaleCogitoRow()
+    return null
+  }
+
+  if (models.length === 0) {
+    clearGatewayLabels()
+    await dropStaleCogitoRow()
+    return null
+  }
+
+  const row = await upsertCogitoCatalogRow(baseUrl, models)
+  if (!row) return null
+
+  try {
+    await ensureCogitoProvider()
+  } catch (error) {
+    // UI 行已可用；goose 注册留给发送/切换模型再试，避免目录同步整段失败
+    reportCaught('acp.cogito-provider.ensureAfterSync', error, 'warning')
+  }
+
+  return findCogitoRow(useProviderStore.getState().providers)
+}
+
 /** 未登录 / 目录空时滤掉幽灵组织行 */
 async function dropStaleCogitoRow(): Promise<void> {
   const store = useProviderStore.getState()
@@ -165,23 +188,72 @@ async function dropStaleCogitoRow(): Promise<void> {
   }
 }
 
+async function writeGooseProvider(tenantID: string, baseUrl: string, models: string[], force: boolean) {
+  return invoke<boolean>(CHANNELS.COGITO.PROVIDER_ENSURE, {
+    tenantID,
+    baseUrl,
+    models,
+    force
+  })
+}
+
+type GooseCogitoStatus = 'ready' | 'missing' | 'unknown'
+
+/**
+ * 查 goose inventory 是否已挂上组织模型供应商。
+ * `unknown`：goose/ACP 暂时不可用 —— 与「确认缺失」区分，避免误强制重启。
+ */
+async function findGooseCogitoStatus(): Promise<GooseCogitoStatus> {
+  try {
+    await waitGooseReady()
+    const handle = await findAcpHandle()
+    const entry = await fetchProviderEntry(handle.connection, COGITO_PROVIDER_ID)
+    return entry ? 'ready' : 'missing'
+  } catch (error) {
+    reportCaught('acp.cogito-provider.findGooseCogitoStatus', error, 'warning')
+    return 'unknown'
+  }
+}
+
 /**
  * 幂等注册 cogito provider。三个入参任何一个变了，Rust 侧都会重写 JSON 并重启 goose。
  *
  * 缺租户 / 缺端点 / 模型目录空 → 抛错，由发送路径中止并提示「网关未就绪」。
+ * 注册后若 goose inventory **确认**没有 `cogito_gateway`，强制重启再验一次；
+ * ACP 暂时不可用则直接报错，不连环重启。
  */
 async function ensureCogitoProvider(): Promise<void> {
   const tenantID = (await syncActiveTenant()) ?? findActiveTenantID()
-  if (!tenantID) throw new Error('未解析到租户，无法注册网关 provider')
+  if (!tenantID) throw new Error('未解析到租户，无法注册组织模型供应商')
   const baseUrl = findGatewayBaseURL()
-  if (!baseUrl) throw new Error('未配置思考服务地址，无法注册网关 provider')
+  if (!baseUrl) throw new Error('未配置思考服务地址，无法注册组织模型供应商')
   const models = await findGatewayModels()
-  if (models.length === 0) throw new Error('网关模型目录为空，无法注册 provider')
-  await invoke<boolean>(CHANNELS.COGITO.PROVIDER_ENSURE, { tenantID, baseUrl, models })
-  // 发送前顺手把选择器那一行对齐，避免目录变了 UI 还停在旧清单
-  void syncCogitoGatewayCatalog().catch(function (error) {
-    reportCaught('acp.cogito-provider.syncGatewayCatalog', error, 'warning')
-  })
+  if (models.length === 0) throw new Error('网关模型目录为空，无法注册组织模型供应商')
+
+  await writeGooseProvider(tenantID, baseUrl, models, false)
+
+  let status = await findGooseCogitoStatus()
+  if (status === 'missing') {
+    await writeGooseProvider(tenantID, baseUrl, models, true)
+    status = await findGooseCogitoStatus()
+  }
+
+  if (status === 'ready') {
+    try {
+      await upsertCogitoCatalogRow(baseUrl, models)
+    } catch (error) {
+      reportCaught('acp.cogito-provider.upsertAfterEnsure', error, 'warning')
+    }
+    return
+  }
+
+  if (status === 'unknown') {
+    throw new Error('goose serve 未就绪，无法确认组织模型供应商是否已载入')
+  }
+
+  throw new Error(
+    `goose 无法解析组织模型供应商（${COGITO_PROVIDER_ID}）。请确认已登录且思考服务可用后重试`
+  )
 }
 
 /** 租户切换：只更新 `X-Tenant-ID` 头（Rust 侧幂等，没变不重启）。 */

@@ -8,6 +8,7 @@ import { useState, type ReactElement } from 'react'
 
 import { AgentModelSettings } from './model-settings'
 import styles from './model-picker.module.scss'
+import { ensureCogitoProvider } from '@/features/agent/acp/cogito-provider'
 import { switchGooseProviderModel } from '@/features/agent/acp/session'
 import {
   findModelLabel,
@@ -16,6 +17,7 @@ import {
 } from '@/features/agent/model/display'
 import { findModelPref, readModelPrefs } from '@/features/agent/model/model-prefs'
 import { parseModels } from '@/features/agent/model/providers'
+import { isGatewayTarget } from '@/features/quota/gate'
 import { useProviderStore } from '@/stores/provider'
 
 interface ModelPickerProps {
@@ -41,11 +43,19 @@ function AgentModelPicker(props: ModelPickerProps) {
   })
 
   async function selectModel(providerId: string, model: string) {
+    const provider = useProviderStore.getState().providers.find(function (row) {
+      return row.id === providerId
+    })
+    // goose 认的是 providerId（行里的 kind），不是本地行 id
+    const gooseProviderId = provider?.kind || providerId
     useProviderStore.getState().toSetActiveProvider(providerId)
     await useProviderStore.getState().toUpdateProvider([{ id: providerId, model }])
     updateOpen(false)
     try {
-      await switchGooseProviderModel(providerId, model)
+      if (isGatewayTarget(gooseProviderId)) {
+        await ensureCogitoProvider()
+      }
+      await switchGooseProviderModel(gooseProviderId, model)
     } catch (error) {
       console.warn('[model-picker] 切换 goose session 失败:', error)
     }
