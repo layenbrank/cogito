@@ -289,8 +289,12 @@ function resolveSelectValue(
   })
   if (byName) return byName.value
 
+  const hint =
+    wanted === 'cogito_gateway'
+      ? '组织模型供应商未载入 goose，请重新打开对话或到「设置 → 模型」刷新后再试'
+      : '请先在设置中配置供应商'
   throw new Error(
-    `goose 未提供 ${configId}=${wanted}（可选：${ids.slice(0, 8).join(', ') || '无'}）。请先在设置中配置供应商`
+    `goose 未提供 ${configId}=${wanted}（可选：${ids.slice(0, 8).join(', ') || '无'}）。${hint}`
   )
 }
 

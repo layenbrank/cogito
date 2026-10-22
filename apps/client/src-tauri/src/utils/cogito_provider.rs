@@ -122,11 +122,15 @@ fn read_provider_json(app: &AppHandle) -> Option<Value> {
 }
 
 /// 幂等注册：JSON 与目标一致时不动；否则落盘并重启 goose 重读。返回是否发生了重启。
+///
+/// `force`：即使 JSON 已一致也重启 goose。用于「文件在、但当前 goose 进程没加载到
+/// `cogito_gateway`」的裂隙（例如首次写入后重启失败，或 goose 早于文件启动）。
 pub async fn ensure_provider(
     app: &AppHandle,
     tenant_id: &str,
     base_url: &str,
     models: &[String],
+    force: bool,
 ) -> Result<bool, String> {
     validate_gateway_base_url(base_url)?;
     if tenant_id.trim().is_empty() {
@@ -136,9 +140,11 @@ pub async fn ensure_provider(
         return Err("模型目录不能为空".to_string());
     }
     let target = build_provider_json(app, tenant_id, base_url, models)?;
-    if let Some(existing) = read_provider_json(app) {
-        if existing == target {
-            return Ok(false);
+    if !force {
+        if let Some(existing) = read_provider_json(app) {
+            if existing == target {
+                return Ok(false);
+            }
         }
     }
     write_provider_json(app, &target)?;
