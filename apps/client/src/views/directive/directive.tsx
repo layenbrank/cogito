@@ -5,8 +5,8 @@ import { safeDecodeURIComponent } from '@/utils/safe-decode.ts'
 import { Suspense, lazy } from 'react'
 import { Outlet, useParams } from 'react-router-dom'
 import { Spinner } from '@i-thinking/design/components/spinner'
-
 import { useCorexStore } from '@/stores/corex.ts'
+import { DirectiveFrame } from '@/views/directive/dock/directive-frame.tsx'
 import { DirectiveLibrary } from '@/views/directive/library/library.tsx'
 
 const DirectiveWorkspace = lazy(function () {
@@ -17,7 +17,6 @@ function DirectiveCaptionBegin(props: { name?: string }) {
   const editorName = useCorexStore(function (state) {
     return state.editorName
   })
-  // 先读 draft / baseline，保证脏态订阅；再算 isDraftDirty
   const isDirty = useCorexStore(function (state) {
     if (!state.draft || !state.baselineJson) return false
     return state.isDraftDirty()
@@ -56,10 +55,12 @@ function DirectiveCaptionBegin(props: { name?: string }) {
 
 function DirectiveLibraryPage() {
   return (
-    <Decorations summary={findComponentLabel('directive')}>
-      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+    <Decorations
+      summary={findComponentLabel('directive')}
+      scrollable={false}>
+      <DirectiveFrame>
         <DirectiveLibrary />
-      </div>
+      </DirectiveFrame>
     </Decorations>
   )
 }
@@ -74,17 +75,19 @@ function DirectiveWorkspacePage() {
       scrollable={false}>
       <Suspense
         fallback={
-          <div className="flex flex-1 items-center justify-center">
+          <div className="flex h-full min-h-0 flex-1 items-center justify-center">
             <Spinner className="size-10 text-muted-foreground" />
           </div>
         }>
-        <DirectiveWorkspace />
+        <DirectiveFrame>
+          <DirectiveWorkspace />
+        </DirectiveFrame>
       </Suspense>
     </Decorations>
   )
 }
 
-/** 路由出口：库列表 / 编排工作区 */
+/** 路由壳：仅透传子页；底栏在各页 Decorations 内容区内拆分高度 */
 function DirectiveShell() {
   return <Outlet />
 }

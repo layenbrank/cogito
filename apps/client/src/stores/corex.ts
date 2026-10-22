@@ -25,6 +25,7 @@ import { reportCaught } from '@/utils/exception-report'
 import { createDirective } from '@/views/directive/model/draft.ts'
 import { sanitizeSteps, stampSteps } from '@/views/directive/model/step-utils.ts'
 
+import { useTerminalStore } from './terminal'
 import type { CorexProgress } from './run-logs'
 import {
   appendRunFrame,
@@ -33,6 +34,10 @@ import {
   registerRun,
   unregisterRun
 } from './run-logs'
+
+function revealRunOutput(activity: 'run' | 'trial' = 'run') {
+  useTerminalStore.getState().revealDock({ activity })
+}
 
 type CorexAction = ActionEntry
 
@@ -454,6 +459,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
       if (alive) {
         toast.message(`「${name}」已在运行`)
         setter({ focusRunId: alive.id })
+        revealRunOutput()
         return alive.id
       }
 
@@ -471,6 +477,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
         trigger: 'manual'
       }
       setter({ ...commitRuns(reuseSeat(current, run)), focusRunId: id })
+      revealRunOutput()
 
       void (async function () {
         try {
@@ -507,6 +514,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
         trigger: 'manual'
       }
       setter({ ...commitRuns([...getter().runs, run]), focusRunId: id })
+      revealRunOutput('trial')
 
       void (async function () {
         try {

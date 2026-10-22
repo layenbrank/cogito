@@ -1,21 +1,19 @@
 /**
- * 终端多 tab：标签栏 + 会话视图。
+ * 交互 PTY 多 tab（底部 Dock「终端」活动页）。
  *
- * 非 active 用 `invisible`（保留布局尺寸），禁止 `hidden`/`display:none`——
- * 否则 xterm FitAddon 量到 0 列，切换/新建后画面错乱。
+ * 非 active 用 `invisible`（保留布局尺寸），禁止 `hidden`/`display:none`。
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@i-thinking/design/components/button'
 import { clsx } from 'clsx'
 import { toast } from 'sonner'
 
-import { TerminalView } from '@/features/terminal/terminal-view'
 import { useTerminalStore } from '@/stores/terminal'
 
+import { TerminalView } from './terminal-view'
+
 interface TerminalTabsProps {
-  /** 新建终端时的工作目录；缺省时提示用户 */
   cwd?: string | null
-  /** cwd 不可用时的错误提示 */
   emptyCwdMessage?: string
 }
 
@@ -42,7 +40,7 @@ function TerminalTabs(props: TerminalTabsProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-border flex shrink-0 items-center gap-1 overflow-x-auto border-b px-1.5 py-1">
+      <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b px-1.5 py-1">
         {tabs.map(function (tab) {
           const active = tab.id === activeId
           return (
@@ -70,9 +68,9 @@ function TerminalTabs(props: TerminalTabsProps) {
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                aria-label="关闭终端"
-                title="关闭终端"
-                className="text-muted-foreground hover:text-foreground size-5 shrink-0"
+                aria-label="关闭"
+                title="关闭"
+                className="size-5 shrink-0 text-muted-foreground hover:text-foreground"
                 onClick={function (event) {
                   event.stopPropagation()
                   handleCloseTab(tab.id)
@@ -90,8 +88,8 @@ function TerminalTabs(props: TerminalTabsProps) {
           variant="ghost"
           size="icon-sm"
           aria-label="新建终端"
-          title="新建终端"
-          className="text-muted-foreground hover:text-foreground size-6 shrink-0"
+          title="新建交互终端"
+          className="size-6 shrink-0 text-muted-foreground hover:text-foreground"
           onClick={handleNewTab}>
           <Icon
             icon="lucide:plus"
@@ -102,8 +100,8 @@ function TerminalTabs(props: TerminalTabsProps) {
 
       <div className="relative min-h-0 flex-1">
         {tabs.length === 0 ? (
-          <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
-            暂无终端，点击 + 新建
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+            暂无会话。点 + 新建交互终端。
           </div>
         ) : null}
         {tabs.map(function (tab) {

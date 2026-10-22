@@ -1,5 +1,4 @@
 import { Badge } from '@i-thinking/design/components/badge'
-import { Button } from '@i-thinking/design/components/button'
 import { Progress } from '@i-thinking/design/components/progress'
 import { cn } from 'cn'
 
@@ -9,12 +8,12 @@ import { RUN_STATUS_STYLES } from './run-status'
 interface RunPanelStatusProps {
   activeRun: CorexRun
   stepCount: number
-  /** 仅在「输出」通道有意义：停手后可一键贴底 */
-  isFollowing?: boolean
-  onResumeFollow?: () => void
+  /** 错误详情改由底部输出区展示时关掉，避免双份 */
+  showError?: boolean
 }
 
 function RunPanelStatus(props: RunPanelStatusProps) {
+  const showError = props.showError !== false
   const statusStyle = RUN_STATUS_STYLES[props.activeRun.status]
   const progressValue =
     props.stepCount > 0
@@ -24,11 +23,9 @@ function RunPanelStatus(props: RunPanelStatusProps) {
         : props.activeRun.status === 'ok'
           ? 100
           : 0
-  const showResume =
-    props.isFollowing === false && typeof props.onResumeFollow === 'function'
 
   return (
-    <div className="shrink-0 rounded-md border px-2.5 py-1.5 text-xs">
+    <div className="flex shrink-0 flex-col gap-1.5 rounded-md border px-2.5 py-1.5 text-xs">
       <div className="flex items-center gap-2">
         <Badge
           variant={
@@ -58,23 +55,13 @@ function RunPanelStatus(props: RunPanelStatusProps) {
             {props.activeRun.doneSteps}/{props.stepCount} 步
           </span>
         ) : null}
-        {showResume ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="ml-auto h-6 px-2 text-xs"
-            onClick={props.onResumeFollow}>
-            回到底部
-          </Button>
-        ) : null}
       </div>
       <Progress
-        className="mt-1.5 h-1"
+        className="h-1"
         value={progressValue}
       />
-      {props.activeRun.error ? (
-        <p className="mt-1.5 whitespace-pre-wrap wrap-break-word text-destructive">
+      {showError && props.activeRun.error ? (
+        <p className="whitespace-pre-wrap wrap-break-word text-destructive">
           {props.activeRun.error}
         </p>
       ) : null}

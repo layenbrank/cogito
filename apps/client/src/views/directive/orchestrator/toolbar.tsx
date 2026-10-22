@@ -246,8 +246,8 @@ function Toolbar(props: ToolbarProps) {
           open={props.isRunOpen}
           openIcon="lucide:panel-bottom-open"
           closeIcon="lucide:panel-bottom-close"
-          labelOpen="展开运行台"
-          labelClose="收起运行台"
+          labelOpen="展开底部面板"
+          labelClose="收起底部面板"
           onClick={props.onToggleRun}
         />
         <PanelToggle

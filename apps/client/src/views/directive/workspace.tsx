@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useBlocker, useNavigate, useParams } from 'react-router-dom'
 
 import { useCorexStore } from '@/stores/corex.ts'
+import { useTerminalStore } from '@/stores/terminal.ts'
 import { Toolbar } from '@/views/directive/orchestrator/toolbar.tsx'
 import { capsFromTriggers } from '@/views/directive/run/run-caps.ts'
 import { useWorkspaceDirective } from '@/views/directive/use-workspace-directive.ts'
@@ -14,6 +15,19 @@ function DirectiveWorkspace() {
   const name = decodeURIComponent(params.name ?? '')
   const navigate = useNavigate()
   const panels = useWorkspacePanels()
+
+  const terminalOpen = useTerminalStore(function (state) {
+    return state.open
+  })
+  const openPanel = useTerminalStore(function (state) {
+    return state.openPanel
+  })
+  const closePanel = useTerminalStore(function (state) {
+    return state.closePanel
+  })
+  const setActivity = useTerminalStore(function (state) {
+    return state.setActivity
+  })
 
   const directives = useCorexStore(function (state) {
     return state.directives
@@ -62,7 +76,7 @@ function DirectiveWorkspace() {
     isPending,
     isDirty,
     onOpenRunPanel() {
-      panels.setRunOpen(true)
+      setActivity('run')
     }
   })
 
@@ -103,7 +117,7 @@ function DirectiveWorkspace() {
         canRedo={redoStack.length > 0}
         isCatalogOpen={panels.isCatalogOpen}
         isInspectorOpen={panels.isInspectorOpen}
-        isRunOpen={panels.isRunOpen}
+        isRunOpen={terminalOpen}
         onToggleCatalog={function () {
           panels.setCatalogOpen(!panels.isCatalogOpen)
         }}
@@ -111,7 +125,11 @@ function DirectiveWorkspace() {
           panels.setInspectorOpen(!panels.isInspectorOpen)
         }}
         onToggleRun={function () {
-          panels.setRunOpen(!panels.isRunOpen)
+          if (terminalOpen) closePanel()
+          else {
+            openPanel()
+            setActivity('run')
+          }
         }}
         onBack={function () {
           void navigate('/directive')
@@ -130,24 +148,22 @@ function DirectiveWorkspace() {
         }}
       />
 
-      <WorkspacePanes
-        catalogRef={panels.catalogRef}
-        inspectorRef={panels.inspectorRef}
-        runRef={panels.runRef}
-        isCatalogOpen={panels.isCatalogOpen}
-        isInspectorOpen={panels.isInspectorOpen}
-        isRunOpen={panels.isRunOpen}
-        onCatalogOpenChange={panels.setCatalogOpen}
-        onInspectorOpenChange={panels.setInspectorOpen}
-        onRunOpenChange={panels.setRunOpen}
-        isEditorLoading={isEditorLoading}
-        draft={workspace.draft}
-        selectedToken={selectedToken}
-        directiveName={workspace.draft?.name ?? name}
-        onSelectToken={workspace.setSelectedToken}
-        onDraftChange={workspace.replaceDraft}
-        onInsertAction={workspace.insertAction}
-      />
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <WorkspacePanes
+          catalogRef={panels.catalogRef}
+          inspectorRef={panels.inspectorRef}
+          isCatalogOpen={panels.isCatalogOpen}
+          isInspectorOpen={panels.isInspectorOpen}
+          onCatalogOpenChange={panels.setCatalogOpen}
+          onInspectorOpenChange={panels.setInspectorOpen}
+          isEditorLoading={isEditorLoading}
+          draft={workspace.draft}
+          selectedToken={selectedToken}
+          onSelectToken={workspace.setSelectedToken}
+          onDraftChange={workspace.replaceDraft}
+          onInsertAction={workspace.insertAction}
+        />
+      </div>
 
       <WorkspaceLeaveDialog
         open={blocker.state === 'blocked'}

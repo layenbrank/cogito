@@ -1,15 +1,21 @@
 /**
- * 嵌入式交互终端 UI 状态（可序列化元数据）。
+ * 嵌入式终端 / 底部 Dock UI 状态（可序列化元数据）。
  *
- * `Terminal` / `Channel` 实例不进 store——由 `terminal-view` 组件用 ref 持有，
- * 组件卸载即随 ref 销毁。这里只存 tab 元数据与面板开关。
+ * - `pty`：交互会话；`Terminal` / Channel 由 `terminal-view` 持有
+ * - 指令执行流式只读回显挂在 Dock「运行 / 试跑」活动页，不再占独立 tab
  */
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { subscribeWithSelector } from 'zustand/middleware'
 
+type TerminalTabKind = 'pty'
+
+/** 底部面板活动页（VS Code 风格） */
+type DockActivity = 'run' | 'trial' | 'history' | 'terminal'
+
 interface TerminalTab {
   id: string
+  kind: TerminalTabKind
   title: string
   cwd: string
   pid: number | null
@@ -18,16 +24,26 @@ interface TerminalTab {
 }
 
 interface NewTabOptions {
-  /** 是否同时掀开宿主面板（agent 右栏 / 指令列表底栏）；编排台内嵌终端传 false */
+  /** 是否同时掀开宿主面板；默认 true */
   reveal?: boolean
+}
+
+interface RevealDockOptions {
+  activity?: DockActivity
 }
 
 interface TerminalState {
   tabs: TerminalTab[]
   activeId: string | null
   open: boolean
+  activity: DockActivity
   openPanel: () => void
   closePanel: () => void
+  setActivity: (activity: DockActivity) => void
+  /** 打开底部栏并切到指定活动页（默认「运行」） */
+  revealDock: (options?: RevealDockOptions) => void
+  /** @deprecated 用 revealDock；保留别名给既有调用 */
+  ensureOutputTab: () => void
   newTab: (cwd: string, options?: NewTabOptions) => void
   removeTab: (id: string) => void
   setActive: (id: string) => void
@@ -35,8 +51,7 @@ interface TerminalState {
   markPid: (id: string, pid: number | null) => void
 }
 
-/** tab 标题取工作区路径末段，便于在标签栏辨识。 */
-function makeTerminalTitle(cwd: string): string {
+function makePtyTitle(cwd: string): string {
   const segments = cwd.split(/[\\/]/).filter(Boolean)
   return segments[segments.length - 1] ?? '终端'
 }
@@ -48,6 +63,7 @@ const useTerminalStore = create<TerminalState>()(
         tabs: [],
         activeId: null,
         open: false,
+        activity: 'run' as DockActivity,
 
         openPanel: function () {
           set(function (state) {
@@ -58,9 +74,30 @@ const useTerminalStore = create<TerminalState>()(
         closePanel: function () {
           set(function (state) {
             state.open = false
-            // 关闭面板 = 结束全部会话并清空 tab（TerminalView 卸载时各自 kill）。
             state.tabs = []
             state.activeId = null
+            state.activity = 'run'
+          })
+        },
+
+        setActivity: function (activity) {
+          set(function (state) {
+            state.activity = activity
+            state.open = true
+          })
+        },
+
+        revealDock: function (options) {
+          set(function (state) {
+            state.open = true
+            state.activity = options?.activity ?? 'run'
+          })
+        },
+
+        ensureOutputTab: function () {
+          set(function (state) {
+            state.open = true
+            state.activity = 'run'
           })
         },
 
@@ -69,13 +106,15 @@ const useTerminalStore = create<TerminalState>()(
             const id = crypto.randomUUID()
             state.tabs.push({
               id,
-              title: makeTerminalTitle(cwd),
+              kind: 'pty',
+              title: makePtyTitle(cwd),
               cwd,
               pid: null,
               exited: false,
               exitCode: null
             })
             state.activeId = id
+            state.activity = 'terminal'
             if (options?.reveal !== false) state.open = true
           })
         },
@@ -97,6 +136,7 @@ const useTerminalStore = create<TerminalState>()(
         setActive: function (id) {
           set(function (state) {
             state.activeId = id
+            state.activity = 'terminal'
           })
         },
 
@@ -126,4 +166,4 @@ const useTerminalStore = create<TerminalState>()(
 )
 
 export { useTerminalStore }
-export type { TerminalTab, NewTabOptions }
+export type { TerminalTab, TerminalTabKind, NewTabOptions, DockActivity, RevealDockOptions }
