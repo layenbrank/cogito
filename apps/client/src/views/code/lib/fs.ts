@@ -1,8 +1,18 @@
 import { open } from '@tauri-apps/plugin-dialog'
-import { readDir, readTextFile, writeTextFile, type DirEntry } from '@tauri-apps/plugin-fs'
+import {
+  exists,
+  mkdir,
+  readDir,
+  readTextFile,
+  remove,
+  rename,
+  writeTextFile,
+  type DirEntry
+} from '@tauri-apps/plugin-fs'
 
 import {
   findFileName,
+  findParentDir,
   isPathInsideRoot,
   joinPath,
   normalizeSeparators
@@ -19,7 +29,9 @@ async function writeCodeFile(path: string, content: string): Promise<void> {
 async function pickRootDirectory(): Promise<string | null> {
   const selected = await open({
     directory: true,
-    multiple: false
+    multiple: false,
+    // 必须递归授权：否则只能列根目录，子目录操作会 forbidden
+    recursive: true
   })
   if (!selected || Array.isArray(selected)) return null
   return selected
@@ -109,6 +121,62 @@ async function searchWorkspaceFiles(params: {
   return hits
 }
 
+function isSamePath(a: string, b: string): boolean {
+  return normalizeSeparators(a).toLowerCase() === normalizeSeparators(b).toLowerCase()
+}
+
+async function createCodeFile(root: string, relativeDir: string, name: string): Promise<string> {
+  const fileName = name.trim().replace(/[/\\]/g, '')
+  if (!fileName) throw new Error('Empty file name')
+  const relative = relativeDir ? `${relativeDir}/${fileName}` : fileName
+  const absolute = joinPath(root, relative)
+  if (!isPathInsideRoot(root, absolute)) {
+    throw new Error('Path escapes workspace root')
+  }
+  const parent = relativeDir ? joinPath(root, relativeDir) : root
+  const hasParent = await exists(parent)
+  if (!hasParent) {
+    await mkdir(parent, { recursive: true })
+  }
+  const already = await exists(absolute)
+  if (already) {
+    throw new Error('文件已存在')
+  }
+  await writeTextFile(absolute, '')
+  return absolute
+}
+
+async function createCodeFolder(root: string, relativeDir: string, name: string): Promise<string> {
+  const folderName = name.trim().replace(/[/\\]/g, '')
+  if (!folderName) throw new Error('Empty folder name')
+  const relative = relativeDir ? `${relativeDir}/${folderName}` : folderName
+  const absolute = joinPath(root, relative)
+  if (!isPathInsideRoot(root, absolute)) {
+    throw new Error('Path escapes workspace root')
+  }
+  await mkdir(absolute, { recursive: false })
+  return absolute
+}
+
+async function renameCodePath(fromPath: string, toPath: string, root: string): Promise<void> {
+  if (!isPathInsideRoot(root, fromPath) || !isPathInsideRoot(root, toPath)) {
+    throw new Error('Path escapes workspace root')
+  }
+  if (isSamePath(fromPath, toPath)) return
+  await rename(fromPath, toPath)
+}
+
+async function removeCodePath(
+  path: string,
+  root: string,
+  options: { recursive?: boolean } = {}
+): Promise<void> {
+  if (!isPathInsideRoot(root, path)) {
+    throw new Error('Path escapes workspace root')
+  }
+  await remove(path, { recursive: options.recursive ?? false })
+}
+
 export {
   readCodeFile,
   writeCodeFile,
@@ -116,9 +184,15 @@ export {
   pickOpenFile,
   listWorkspaceEntries,
   searchWorkspaceFiles,
+  createCodeFile,
+  createCodeFolder,
+  renameCodePath,
+  removeCodePath,
   findFileName,
+  findParentDir,
   normalizeSeparators,
   joinPath,
-  isPathInsideRoot
+  isPathInsideRoot,
+  isSamePath
 }
 export type { TreeEntry, SearchHit }
