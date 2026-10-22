@@ -34,6 +34,7 @@ import {
   useSignboardStore,
   type SignboardEntry
 } from '@/stores/signboard'
+import { HintTooltip } from '@/views/signboard/hint-tooltip'
 import {
   findImageFiles,
   importImageFiles,
@@ -535,9 +536,12 @@ function CardSheet(props: CardSheetProps) {
           </div>
 
           <div className={styles.sheetRow}>
-            <div className="space-y-0.5">
+            <div className="inline-flex items-center gap-1">
               <Label htmlFor="signboard-card-remind">提醒我</Label>
-              <p className="text-xs text-muted-foreground">写入本地 Reminder，到点通知</p>
+              <HintTooltip
+                hint="写入本地 Reminder，到点通知"
+                label="提醒我 说明"
+              />
             </div>
             <Switch
               id="signboard-card-remind"
@@ -549,12 +553,13 @@ function CardSheet(props: CardSheetProps) {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1">
                 <Label>子任务</Label>
-                <p className={styles.sheetHint}>
-                  把这张卡拆成可勾选的步骤；进度会显示在卡片上（对标 Trello Checklist）。
-                </p>
+                <HintTooltip
+                  hint="把这张卡拆成可勾选的步骤；进度会显示在卡片上。"
+                  label="子任务 说明"
+                />
               </div>
               {checklistTotal > 0 ? (
                 <span className={styles.checklistProgressLabel}>
@@ -671,11 +676,12 @@ function CardSheet(props: CardSheetProps) {
           </div>
 
           <div className="space-y-2">
-            <div>
+            <div className="inline-flex items-center gap-1">
               <Label>标签</Label>
-              <p className={styles.sheetHint}>
-                色块用于扫视分类；点选切换挂载，新建时自动配色（对标 Trello Labels）。
-              </p>
+              <HintTooltip
+                hint="色块用于扫视分类；点选切换挂载，新建时自动配色。"
+                label="标签 说明"
+              />
             </div>
             <div className={styles.tagList}>
               {filteredTags.map(function (tag) {
@@ -789,12 +795,13 @@ function CardSheet(props: CardSheetProps) {
             onDragOver={handleAttachDragOver}
             onDragLeave={handleAttachDragLeave}
             onDrop={handleAttachDrop}>
-            <div className="flex items-baseline justify-between gap-2">
-              <div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1">
                 <Label>附件图片</Label>
-                <p className={styles.sheetHint}>
-                  首张为封面；可点选、拖入或 Ctrl+V / ⌘V 粘贴。
-                </p>
+                <HintTooltip
+                  hint="首张为封面；可点选、拖入或 Ctrl+V / ⌘V 粘贴。"
+                  label="附件图片 说明"
+                />
               </div>
               <Button
                 type="button"
