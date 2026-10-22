@@ -207,10 +207,15 @@ function useAnnotationController(
         return
       }
       const nodes: Konva.Node[] = []
+      const seenUnits = new Set<string>()
       for (const id of selectedIDs) {
         const annotation = annotationsById.get(id)
-        if (annotation?.locked) continue
-        const node = findKonvaByID(stage, id)
+        if (!annotation || annotation.locked) continue
+        // 同组成员只挂一次外层组合节点，避免逐个成员挂 Transformer
+        const unitKey = annotation.groupID ? `group:${annotation.groupID}` : `single:${id}`
+        if (seenUnits.has(unitKey)) continue
+        seenUnits.add(unitKey)
+        const node = findKonvaByID(stage, annotation.groupID ?? id)
         if (node) nodes.push(node)
       }
       tr.nodes(nodes)

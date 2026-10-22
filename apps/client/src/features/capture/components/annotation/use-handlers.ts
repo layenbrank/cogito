@@ -7,9 +7,11 @@ import {
   findAnnotationNode,
   findSelectedUnionBounds,
   isMarqueeBlockedTarget,
-  isSelectedAnnotationTarget
+  isSelectedAnnotationTarget,
+  resolveNodeID
 } from './hit'
 import {
+  bakeGroupTransform,
   bakeTransformSize,
   boundsContainsPoint
 } from '@/features/capture/components/graphics/geometry'
@@ -59,6 +61,14 @@ function useAnnotationHandlers(input: UseAnnotationHandlersInput) {
     const nodes = tr.nodes()
     const updates: GraphicsProps[] = []
     for (const node of nodes) {
+      if (node.name() === 'annotation-group') {
+        const groupID = node.id()
+        const members = input.annotations.filter(function (a) {
+          return a.groupID === groupID
+        })
+        updates.push(...bakeGroupTransform(node, members))
+        continue
+      }
       const id = node.id()
       const propsForNode = input.annotationsById.get(id)
       if (!propsForNode) continue
@@ -137,7 +147,7 @@ function useAnnotationHandlers(input: UseAnnotationHandlersInput) {
     }
 
     const blocked = isMarqueeBlockedTarget(event.target)
-    const onSelected = isSelectedAnnotationTarget(event.target, input.selectedIDs)
+    const onSelected = isSelectedAnnotationTarget(event.target, input.selectedIDs, input.annotations)
     const canMarquee =
       input.interactive &&
       input.phase !== 'selecting' &&
@@ -187,7 +197,7 @@ function useAnnotationHandlers(input: UseAnnotationHandlersInput) {
 
     const node = findAnnotationNode(event.target)
     if (node) {
-      const id = node.id()
+      const id = resolveNodeID(node, input.annotations)
       if (!id) return
       input.onContextMenuAnnotation?.({
         id,

@@ -1,6 +1,7 @@
 import { v4 as UUID } from 'uuid'
 
 import { type GraphicsProps } from '@/features/capture/components/graphics'
+import { rotatePointsAroundOrigin } from '@/features/capture/components/graphics/geometry'
 
 /** 选中集整块上移/下移一层（保持相对顺序） */
 function moveAnnotationsLayer(
@@ -77,7 +78,12 @@ function groupAnnotations(annotations: GraphicsProps[], ids: string[]): Graphics
   const groupID = UUID()
   const idSet = new Set(ids)
   return annotations.map(function (a) {
-    return idSet.has(a.id) ? { ...a, groupID } : a
+    if (!idSet.has(a.id)) return a
+    // 组合前把成员既有 rotation 烘焙进顶点并归零，保证组整体变换的烘焙口径一致
+    const normalized = a.rotation
+      ? { ...a, points: rotatePointsAroundOrigin(a.points, a.rotation), rotation: 0 }
+      : a
+    return { ...normalized, groupID }
   })
 }
 

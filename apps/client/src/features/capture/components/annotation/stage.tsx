@@ -12,10 +12,37 @@ import {
 } from '@/features/capture/components/corner-handle'
 import Graphics, { SpotlightMask } from '@/features/capture/components/graphics'
 import { findDragPeerIDs } from '@/features/capture/components/graphics/drag-peers'
-import type { Bounds } from '@/features/capture/components/graphics/geometry'
+import { bakeGroupTransform, findGraphicsBounds, findUnionBounds, type Bounds } from '@/features/capture/components/graphics/geometry'
 import type { GraphicsProps } from '@/features/capture/components/graphics/types'
 import { SelectionOverlay, type SelectionOverlayHandle } from '@/features/capture/components/selection-overlay'
+import { findUnderlyingID } from './hit'
 import { CanvasStage } from '@/lib/canvas'
+
+type RenderUnit =
+  | { kind: 'single'; annotation: GraphicsProps }
+  | { kind: 'group'; groupID: string; members: GraphicsProps[] }
+
+/** 按 annotations 顺序拆成渲染单元：未组合项单个渲染，同组成员包进一个组合节点 */
+function buildRenderUnits(annotations: GraphicsProps[]): RenderUnit[] {
+  const units: RenderUnit[] = []
+  const seenGroups = new Set<string>()
+  for (const annotation of annotations) {
+    if (annotation.groupID) {
+      if (seenGroups.has(annotation.groupID)) continue
+      seenGroups.add(annotation.groupID)
+      units.push({
+        kind: 'group',
+        groupID: annotation.groupID,
+        members: annotations.filter(function (a) {
+          return a.groupID === annotation.groupID
+        })
+      })
+    } else {
+      units.push({ kind: 'single', annotation })
+    }
+  }
+  return units
+}
 
 interface AnnotationStageProps {
   stageRef: RefObject<Konva.Stage | null>
@@ -118,14 +145,16 @@ function AnnotationStage(props: AnnotationStageProps) {
       onStageMouseUp={onStageMouseUp}
       onStageContextMenu={onStageContextMenu}
       background={
-        <Rect
-          x={0}
-          y={0}
-          width={stageWidth}
-          height={stageHeight}
-          fill="#0a0a0a"
-          listening={false}
-        />
+        background ? (
+          <Rect
+            x={0}
+            y={0}
+            width={stageWidth}
+            height={stageHeight}
+            fill="#0a0a0a"
+            listening={false}
+          />
+        ) : null
       }
       media={
         background ? (
@@ -151,27 +180,116 @@ function AnnotationStage(props: AnnotationStageProps) {
           <Group
             listening={annotations.length > 0}
             clipFunc={clipFunc}>
-            {annotations.map(function (annotation) {
-              const peerIDs = findDragPeerIDs(annotation, annotations, selectedIDs)
-              const isGrouped = Boolean(annotation.groupID)
+            {buildRenderUnits(annotations).map(function (unit) {
+              if (unit.kind === 'single') {
+                const annotation = unit.annotation
+                const peerIDs = findDragPeerIDs(annotation, annotations, selectedIDs)
+                return (
+                  <Graphics
+                    key={annotation.id}
+                    {...withSource(annotation)}
+                    interactive={interactive}
+                    isSelected={selectedIDSet.has(annotation.id)}
+                    hideSelectFrame={selectedIDs.length > 1}
+                    dragPeerIDs={peerIDs}
+                    findGraphics={function (id) {
+                      return annotationsById.get(id)
+                    }}
+                    isEditing={annotation.id === editingID}
+                    onSelect={onShapeSelect}
+                    onEditStart={onEditStart}
+                    onChange={onChange}
+                    onBatchChange={onBatchChange}
+                    marqueeStartRef={marqueeStartRef}
+                  />
+                )
+              }
+
+              const members = unit.members
+              const first = members[0]
+              const isGroupSelected = first ? selectedIDSet.has(first.id) : false
+              const groupLocked = members.some(function (m) {
+                return m.locked
+              })
+              const boxes = members
+                .map(findGraphicsBounds)
+                .filter(function (b): b is Bounds {
+                  return b !== null
+                })
+              const union = findUnionBounds(boxes)
               return (
-                <Graphics
-                  key={annotation.id}
-                  {...withSource(annotation)}
-                  interactive={interactive}
-                  isSelected={selectedIDSet.has(annotation.id)}
-                  hideSelectFrame={selectedIDs.length > 1 || isGrouped}
-                  dragPeerIDs={peerIDs}
-                  findGraphics={function (id) {
-                    return annotationsById.get(id)
+                <Group
+                  key={unit.groupID}
+                  id={unit.groupID}
+                  name="annotation-group"
+                  annotationLocked={groupLocked}
+                  draggable={interactive && isGroupSelected && !groupLocked}
+                  listening={interactive}
+                  onMouseDown={function (event) {
+                    if (!groupLocked || event.evt.button !== 0) return
+                    const stage = event.target.getStage()
+                    if (!stage) return
+                    const pos = stage.getPointerPosition()
+                    if (!pos) return
+                    const additive =
+                      event.evt.ctrlKey === true || event.evt.metaKey === true
+                    const id = findUnderlyingID(stage, pos, event.currentTarget, annotations)
+                    if (id) onShapeSelect(id, { additive })
+                    event.cancelBubble = true
                   }}
-                  isEditing={annotation.id === editingID}
-                  onSelect={onShapeSelect}
-                  onEditStart={onEditStart}
-                  onChange={onChange}
-                  onBatchChange={onBatchChange}
-                  marqueeStartRef={marqueeStartRef}
-                />
+                  onClick={function (event) {
+                    if (groupLocked || !first) return
+                    const native = event.evt
+                    const additive =
+                      ('ctrlKey' in native && native.ctrlKey === true) ||
+                      ('metaKey' in native && native.metaKey === true)
+                    onShapeSelect(first.id, { additive })
+                  }}
+                  onTap={function () {
+                    if (groupLocked || !first) return
+                    onShapeSelect(first.id)
+                  }}
+                  onDragStart={function (event) {
+                    if (marqueeStartRef?.current) event.target.stopDrag()
+                  }}
+                  onDragEnd={function (event) {
+                    const updates = bakeGroupTransform(event.target, members)
+                    if (updates.length === 0) return
+                    if (onBatchChange) {
+                      onBatchChange(updates)
+                    } else {
+                      for (const item of updates) {
+                        onChange(item, { history: true })
+                      }
+                    }
+                  }}>
+                  {union ? (
+                    <Rect
+                      x={union.x}
+                      y={union.y}
+                      width={union.w}
+                      height={union.h}
+                      fill="rgba(0, 0, 0, 0.001)"
+                      listening={true}
+                      perfectDrawEnabled={false}
+                    />
+                  ) : null}
+                  {members.map(function (member) {
+                    return (
+                      <Graphics
+                        key={member.id}
+                        {...withSource(member)}
+                        interactive={false}
+                        isSelected={false}
+                        hideSelectFrame
+                        findGraphics={function (id) {
+                          return annotationsById.get(id)
+                        }}
+                        marqueeStartRef={marqueeStartRef}
+                      />
+                    )
+                  })}
+                </Group>
               )
             })}
           </Group>

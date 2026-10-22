@@ -29,6 +29,17 @@ function transformPoints(
   })
 }
 
+/** 绕原点旋转顶点（组合时把成员既有 rotation 烘焙进顶点、归零 rotation） */
+function rotatePointsAroundOrigin(points: Point[], rotationDeg: number): Point[] {
+  if (!rotationDeg) return points
+  const rad = (rotationDeg * Math.PI) / 180
+  const cos = Math.cos(rad)
+  const sin = Math.sin(rad)
+  return points.map(function (p) {
+    return { x: p.x * cos - p.y * sin, y: p.x * sin + p.y * cos }
+  })
+}
+
 function bakeTransformSize(node: Konva.Node, props: GraphicsProps): GraphicsProps | null {
   const sx = node.scaleX()
   const sy = node.scaleY()
@@ -55,6 +66,46 @@ function bakeTransformSize(node: Konva.Node, props: GraphicsProps): GraphicsProp
   }
 
   return next
+}
+
+/**
+ * 把组合节点的变换烘焙回各成员绝对顶点。
+ * 成员 rotation 已在组合时归一为 0，故顶点直接按 `T·R·S·p` 正向变换。
+ */
+function bakeGroupTransform(node: Konva.Node, members: GraphicsProps[]): GraphicsProps[] {
+  const dx = node.x()
+  const dy = node.y()
+  const sx = node.scaleX()
+  const sy = node.scaleY()
+  const rotation = node.rotation()
+
+  if (sx === 1 && sy === 1 && dx === 0 && dy === 0 && rotation === 0) {
+    return []
+  }
+
+  node.scale({ x: 1, y: 1 })
+  node.position({ x: 0, y: 0 })
+  node.rotation(0)
+
+  const rad = (rotation * Math.PI) / 180
+  const cos = Math.cos(rad)
+  const sin = Math.sin(rad)
+
+  return members.map(function (m) {
+    const next: GraphicsProps = {
+      ...m,
+      points: m.points.map(function (p) {
+        return {
+          x: dx + p.x * sx * cos - p.y * sy * sin,
+          y: dy + p.x * sx * sin + p.y * sy * cos
+        }
+      })
+    }
+    if (m.type === 'text' && m.width !== null && m.width !== undefined && sx !== 1) {
+      next.width = Math.max(20, m.width * Math.abs(sx))
+    }
+    return next
+  })
 }
 
 function findKonvaByID(stage: Konva.Stage, id: string): Konva.Node | null {
@@ -168,11 +219,13 @@ function findUnionBounds(bounds: Bounds[]): Bounds | null {
 
 export type { Bounds }
 export {
+  bakeGroupTransform,
   bakeTransformSize,
   boundsContainsPoint,
   boundsIntersect,
   findGraphicsBounds,
   findKonvaByID,
   findUnionBounds,
+  rotatePointsAroundOrigin,
   transformPoints
 }

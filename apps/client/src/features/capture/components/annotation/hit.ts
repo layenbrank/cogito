@@ -10,11 +10,11 @@ import {
 } from '@/features/capture/components/graphics/geometry'
 import type { GraphicsProps } from '@/features/capture/components/graphics/types'
 
-/** 自命中节点向上查找 name=annotation 的 Group */
+/** 自命中节点向上查找标注（成员 name=annotation / 组合节点 name=annotation-group） */
 function findAnnotationNode(target: Konva.Node): Konva.Node | null {
   let node: Konva.Node | null = target
   while (node) {
-    if (node.name() === 'annotation') return node
+    if (node.name() === 'annotation' || node.name() === 'annotation-group') return node
     node = node.getParent()
   }
   return null
@@ -31,11 +31,58 @@ function isMarqueeBlockedTarget(target: Konva.Node): boolean {
   return false
 }
 
-/** 命中是否为当前已选中的标注（已选中则走拖拽，不抢橡皮筋） */
-function isSelectedAnnotationTarget(target: Konva.Node, selectedIDs: string[]): boolean {
-  const annotation = findAnnotationNode(target)
-  if (!annotation) return false
-  return selectedIDs.includes(annotation.id())
+/** 命中是否为当前已选中的标注（已选中则走拖拽，不抢橡皮筋）；组合节点解析成成员 id 再比对 */
+function isSelectedAnnotationTarget(
+  target: Konva.Node,
+  selectedIDs: string[],
+  annotations: GraphicsProps[]
+): boolean {
+  const node = findAnnotationNode(target)
+  if (!node) return false
+  const id = resolveNodeID(node, annotations)
+  if (!id) return false
+  return selectedIDs.includes(id)
+}
+
+/** 把节点 id 解析成成员 id：组合节点解析为其代表成员（选中/右键都按成员 id 走） */
+function resolveNodeID(node: Konva.Node, annotations: GraphicsProps[]): string | null {
+  const id = node.id()
+  if (!id) return null
+  if (node.name() === 'annotation-group') {
+    const member = annotations.find(function (a) {
+      return a.groupID === id
+    })
+    return member ? member.id : id
+  }
+  return id
+}
+
+/** 锁定节点的左键穿透：命中并选中下层未锁定标注（组合节点会解析成代表成员 id） */
+function findUnderlyingID(
+  stage: Konva.Stage,
+  pos: { x: number; y: number },
+  skipNode: Konva.Node,
+  annotations: GraphicsProps[]
+): string | null {
+  skipNode.listening(false)
+  const hits = stage.getAllIntersections(pos)
+  skipNode.listening(true)
+
+  for (const shape of hits) {
+    let node: Konva.Node | null = shape
+    while (node) {
+      const name = node.name()
+      if (
+        (name === 'annotation' || name === 'annotation-group') &&
+        node !== skipNode &&
+        node.getAttr('annotationLocked') !== true
+      ) {
+        return resolveNodeID(node, annotations)
+      }
+      node = node.getParent()
+    }
+  }
+  return null
 }
 
 /** 用 Konva 节点真实包围盒做相交（比纯 points AABB 更准） */
@@ -144,6 +191,8 @@ export {
   findMarqueeHitIDs,
   findNodeBounds,
   findSelectedUnionBounds,
+  findUnderlyingID,
   isMarqueeBlockedTarget,
-  isSelectedAnnotationTarget
+  isSelectedAnnotationTarget,
+  resolveNodeID
 }
