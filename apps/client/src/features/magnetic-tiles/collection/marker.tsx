@@ -1,14 +1,16 @@
 import { Icon } from '@iconify/react/offline'
-import { invoke } from '@tauri-apps/api/core'
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
-import { CHANNELS } from '@/shared/ipc/channels'
 
 import {
   MagneticTile,
   type MarkerProps
 } from '@/features/magnetic-tile/magnetic-tile.tsx'
 import styles from '@/features/magnetic-tiles/collection/marker.module.scss'
+import {
+  fetchCollectionMarkerPreviews,
+  readCollectionMarkerPreviews
+} from '@/features/magnetic-tiles/collection/preview-cache'
 import { useCollectionStore } from '@/stores/collection'
 
 type Props = Omit<MarkerProps, 'children'> & {
@@ -16,16 +18,13 @@ type Props = Omit<MarkerProps, 'children'> & {
   id?: string
 }
 
-const PREVIEW_COUNT = 4
-
-function findInitial(title: string) {
-  return [...title].at(0) ?? '?'
-}
-
 export default function Marker(props: Props) {
-  const [previews, onUpdatePreviews] = useState<string[]>([])
   const revision = useCollectionStore(function (state) {
     return state.revision
+  })
+  const [previews, onUpdatePreviews] = useState(function () {
+    if (!props.id) return []
+    return readCollectionMarkerPreviews(props.id, revision) ?? []
   })
 
   useEffect(
@@ -34,30 +33,9 @@ export default function Marker(props: Props) {
       if (!collectionId) return
 
       let cancelled = false
-
-      async function toLoad() {
-        try {
-          const members = await invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
-            params: { collectionID: collectionId }
-          })
-          if (cancelled) return
-          onUpdatePreviews(
-            members
-              .toSorted(function (a, b) {
-                return a.index - b.index
-              })
-              .slice(0, PREVIEW_COUNT)
-              .map(function (tile) {
-                return tile.mark || findInitial(tile.title)
-              })
-          )
-        } catch (error) {
-          console.warn('[collection-marker] preview load failed', error)
-          if (!cancelled) onUpdatePreviews([])
-        }
-      }
-
-      void toLoad()
+      void fetchCollectionMarkerPreviews(collectionId, revision).then(function (next) {
+        if (!cancelled) onUpdatePreviews(next)
+      })
       return function () {
         cancelled = true
       }

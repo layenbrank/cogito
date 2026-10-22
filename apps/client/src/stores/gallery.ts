@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
+import { invalidateGalleryMarkerThumbs } from '@/features/magnetic-tiles/gallery/preview-cache'
 import { CHANNELS } from '@/shared/ipc/channels'
 import { reportCaught } from '@/utils/exception-report'
 import {
@@ -164,6 +165,7 @@ const useGalleryStore = create<GalleryStore>()(
                 ? await pickAndImportFolders()
                 : await pickAndImportFiles()
             if (ids.length > 0) {
+              invalidateGalleryMarkerThumbs()
               await getter().toReadMedias()
             }
             return ids
@@ -200,6 +202,7 @@ const useGalleryStore = create<GalleryStore>()(
                     }
                   })
           })
+          invalidateGalleryMarkerThumbs()
           await getter().toReadMedias()
         },
 
@@ -213,6 +216,7 @@ const useGalleryStore = create<GalleryStore>()(
                     return { id }
                   })
           })
+          invalidateGalleryMarkerThumbs()
           await getter().toReadMedias()
         },
 

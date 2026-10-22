@@ -1,4 +1,3 @@
-import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 
@@ -7,51 +6,27 @@ import {
   type MarkerProps
 } from '@/features/magnetic-tile/magnetic-tile.tsx'
 import styles from '@/features/magnetic-tiles/gallery/marker.module.scss'
-import { CHANNELS } from '@/shared/ipc/channels'
 import {
-  filterVisible,
-  sortByCapturedAt,
-  toGalleryMedia,
-  type GalleryAsset
-} from '@/views/gallery/model/media'
+  fetchGalleryMarkerThumbs,
+  readGalleryMarkerThumbs
+} from '@/features/magnetic-tiles/gallery/preview-cache'
 
 type Props = Omit<MarkerProps, 'children'>
 
 function Marker(props: Props) {
-  const [thumbs, onThumbs] = useState<string[]>([])
+  const [thumbs, onThumbs] = useState(function () {
+    return readGalleryMarkerThumbs() ?? []
+  })
 
-  useEffect(
-    function () {
-      let active = true
-      void invoke<GalleryAsset[]>(CHANNELS.ASSET.READ, { params: {} })
-        .then(function (assets) {
-          if (!active) return
-          const medias = sortByCapturedAt(
-            filterVisible(
-              assets
-                .map(function (asset) {
-                  return toGalleryMedia(asset, convertFileSrc(asset.filePath))
-                })
-                .filter(function (media): media is NonNullable<typeof media> {
-                  return media !== null
-                })
-            )
-          ).slice(0, 4)
-          onThumbs(
-            medias.map(function (media) {
-              return media.src
-            })
-          )
-        })
-        .catch(function () {
-          if (active) onThumbs([])
-        })
-      return function () {
-        active = false
-      }
-    },
-    []
-  )
+  useEffect(function () {
+    let active = true
+    void fetchGalleryMarkerThumbs().then(function (next) {
+      if (active) onThumbs(next)
+    })
+    return function () {
+      active = false
+    }
+  }, [])
 
   return (
     <MagneticTile.Marker

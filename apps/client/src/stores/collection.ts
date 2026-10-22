@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
+import { invalidateCollectionMarkerPreviews } from '@/features/magnetic-tiles/collection/preview-cache'
+
 interface OriginRect {
   x: number
   y: number
@@ -66,6 +68,7 @@ const useCollectionStore = create<CollectionSlice>()(
             false,
             'toBumpRevision'
           )
+          invalidateCollectionMarkerPreviews()
         }
       }
     }),
