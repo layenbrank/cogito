@@ -9,8 +9,9 @@ import { RUN_STATUS_STYLES } from './run-status'
 interface RunPanelStatusProps {
   activeRun: CorexRun
   stepCount: number
-  isFollowing: boolean
-  onResumeFollow: () => void
+  /** 仅在「输出」通道有意义：停手后可一键贴底 */
+  isFollowing?: boolean
+  onResumeFollow?: () => void
 }
 
 function RunPanelStatus(props: RunPanelStatusProps) {
@@ -23,6 +24,8 @@ function RunPanelStatus(props: RunPanelStatusProps) {
         : props.activeRun.status === 'ok'
           ? 100
           : 0
+  const showResume =
+    props.isFollowing === false && typeof props.onResumeFollow === 'function'
 
   return (
     <div className="shrink-0 rounded-md border px-2.5 py-1.5 text-xs">
@@ -55,7 +58,7 @@ function RunPanelStatus(props: RunPanelStatusProps) {
             {props.activeRun.doneSteps}/{props.stepCount} 步
           </span>
         ) : null}
-        {!props.isFollowing ? (
+        {showResume ? (
           <Button
             type="button"
             size="sm"

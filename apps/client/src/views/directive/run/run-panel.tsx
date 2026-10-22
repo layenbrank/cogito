@@ -5,10 +5,15 @@ import { toast } from 'sonner'
 import { useCorexStore } from '@/stores/corex.ts'
 import { useRunFrames } from '@/stores/run-logs.ts'
 import type { DirectiveInput } from '@/shared/ipc/specs/sidecar'
+import { useTerminalCwd } from '@/views/directive/use-terminal-cwd.ts'
 
 import { capsFromTriggers } from './run-caps'
 import { buildInputPayload, parseJsonObject, seedInputValues } from './run-input.ts'
 import { formatRunLogText } from './run-log-text.ts'
+import {
+  RunPanelConsole,
+  type ConsoleChannel
+} from './run-panel-console.tsx'
 import { RunPanelHistoryTab } from './run-panel-history-tab.tsx'
 import { RunPanelRunTab } from './run-panel-run-tab.tsx'
 import { RunPanelTrialTab } from './run-panel-trial-tab.tsx'
@@ -150,8 +155,11 @@ function RunPanelView(props: RunPanelViewProps) {
   const trialAction = trialActionPick ?? catalog[0]?.id ?? ''
   const [trialParamsJson, setTrialParamsJson] = useState('{}')
   const [isFollowing, setFollowing] = useState(true)
+  const [consoleChannel, setConsoleChannel] = useState<ConsoleChannel>('output')
+  const { cwd, emptyCwdMessage } = useTerminalCwd()
 
   const hasDeclaredInputs = declaredInputs.length > 0
+  const showConsole = tab === 'run' || tab === 'trial'
 
   const caps = useMemo(
     function () {
@@ -215,6 +223,7 @@ function RunPanelView(props: RunPanelViewProps) {
     try {
       const input = resolveRunInput()
       setFollowing(true)
+      setConsoleChannel('output')
       setTab('run')
       startRun(directiveName, input)
     } catch (error) {
@@ -232,6 +241,7 @@ function RunPanelView(props: RunPanelViewProps) {
         return
       }
       setFollowing(true)
+      setConsoleChannel('output')
       setTab('trial')
       startTrial(trialAction, params)
     } catch (error) {
@@ -266,7 +276,7 @@ function RunPanelView(props: RunPanelViewProps) {
 
         <TabsContent
           value="run"
-          className="mt-0 flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-3 pb-3 pt-2">
+          className="mt-0 flex shrink-0 flex-col gap-2 overflow-hidden px-3 pb-2 pt-2">
           {tab === 'run' ? (
             <RunPanelRunTab
               directiveName={directiveName}
@@ -278,8 +288,7 @@ function RunPanelView(props: RunPanelViewProps) {
               paramsJson={paramsJson}
               activeRun={activeRun}
               stepCount={stepCount}
-              logText={logText}
-              isFollowing={isFollowing}
+              isFollowing={consoleChannel === 'output' ? isFollowing : true}
               onInputValuesChange={setInputValues}
               onParamsJsonChange={setParamsJson}
               onToggleAdvancedJson={function () {
@@ -292,7 +301,6 @@ function RunPanelView(props: RunPanelViewProps) {
                 void cancelRun(runId)
               }}
               beforeGuard={beforeGuard}
-              onFollowingChange={setFollowing}
               onResumeFollow={function () {
                 setFollowing(true)
               }}
@@ -302,18 +310,15 @@ function RunPanelView(props: RunPanelViewProps) {
 
         <TabsContent
           value="trial"
-          className="mt-0 flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-3 pb-3 pt-2">
+          className="mt-0 flex shrink-0 flex-col gap-2 overflow-hidden px-3 pb-2 pt-2">
           {tab === 'trial' ? (
             <RunPanelTrialTab
               catalog={catalog}
               trialAction={trialAction}
               trialParamsJson={trialParamsJson}
-              logText={logText}
-              isFollowing={isFollowing}
               onTrialActionChange={setTrialActionPick}
               onTrialParamsJsonChange={setTrialParamsJson}
               onTrial={handleTrial}
-              onFollowingChange={setFollowing}
             />
           ) : null}
         </TabsContent>
@@ -323,6 +328,22 @@ function RunPanelView(props: RunPanelViewProps) {
           className="mt-0 min-h-0 flex-1 overflow-hidden px-3 pb-3 pt-2">
           <RunPanelHistoryTab runHistory={runHistory} />
         </TabsContent>
+
+        {/* 始终挂载：切「历史」仅隐藏，避免卸载杀掉已开的 PTY */}
+        <div className={showConsole ? 'flex min-h-0 min-w-0 flex-1 flex-col' : 'hidden'}>
+          <RunPanelConsole
+            channel={consoleChannel}
+            onChannelChange={setConsoleChannel}
+            logText={logText}
+            logPlaceholder={
+              tab === 'trial' ? '试跑输出将显示在这里…' : '运行日志将显示在这里…'
+            }
+            isFollowing={isFollowing}
+            onFollowingChange={setFollowing}
+            cwd={cwd}
+            emptyCwdMessage={emptyCwdMessage}
+          />
+        </div>
       </Tabs>
     </div>
   )

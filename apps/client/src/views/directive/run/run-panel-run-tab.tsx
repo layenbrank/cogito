@@ -7,7 +7,6 @@ import type { DirectiveInput } from '@/shared/ipc/specs/sidecar'
 import type { CorexRun } from '@/stores/corex.ts'
 import type { Caps } from './run-caps'
 import { RunMenu } from './run-menu'
-import { RunPanelLog } from './run-panel-log.tsx'
 import { RunPanelStatus } from './run-panel-status.tsx'
 
 interface RunPanelRunTabProps {
@@ -20,7 +19,6 @@ interface RunPanelRunTabProps {
   paramsJson: string
   activeRun: CorexRun | undefined
   stepCount: number
-  logText: string
   isFollowing: boolean
   onInputValuesChange: (next: Record<string, string>) => void
   onParamsJsonChange: (text: string) => void
@@ -28,7 +26,6 @@ interface RunPanelRunTabProps {
   onRun: () => void
   onCancelRun: (runId: string) => void
   beforeGuard: () => Promise<string | null>
-  onFollowingChange: (following: boolean) => void
   onResumeFollow: () => void
 }
 
@@ -124,13 +121,6 @@ function RunPanelRunTab(props: RunPanelRunTabProps) {
           onResumeFollow={props.onResumeFollow}
         />
       ) : null}
-
-      <RunPanelLog
-        logText={props.logText}
-        placeholder="运行日志将显示在这里…"
-        isFollowing={props.isFollowing}
-        onFollowingChange={props.onFollowingChange}
-      />
     </>
   )
 }

@@ -9,6 +9,10 @@ interface RunPanelLogProps {
   onFollowingChange: (following: boolean) => void
 }
 
+/**
+ * corex 进度帧只读输出（非 PTY）。
+ * 与 `features/terminal` 职责分离：这里展示 sidecar 进度，不往交互终端灌帧。
+ */
 function RunPanelLog(props: RunPanelLogProps) {
   const logScrollerRef = useRef<HTMLDivElement | null>(null)
   const logEndRef = useRef<HTMLDivElement | null>(null)
