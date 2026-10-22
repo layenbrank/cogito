@@ -1,4 +1,3 @@
-import { Input } from '@i-thinking/design/components/input'
 import { Label } from '@i-thinking/design/components/label'
 import {
   Select,
@@ -9,8 +8,13 @@ import {
 } from '@i-thinking/design/components/select'
 import { Switch } from '@i-thinking/design/components/switch'
 import { Textarea } from '@i-thinking/design/components/textarea'
+import { useEffect, useState, type ReactNode } from 'react'
 
 import type { ActionEntry } from '@/shared/ipc/specs/sidecar'
+
+import { ParamRefPicker, ParamRefSummary } from './param-ref-picker.tsx'
+import { findPathKind, parsePureRef, type ParamRefContext } from './param-ref.ts'
+import { RefValueInput } from './ref-value-input.tsx'
 
 type ActionParam = ActionEntry['params'][number]
 
@@ -18,6 +22,8 @@ interface ParamFieldsProps {
   params: ActionParam[]
   values: Record<string, unknown>
   onChange: (next: Record<string, unknown>) => void
+  /** 可供点选的 variables / inputs / steps / env */
+  refContext: ParamRefContext
 }
 
 function parseEnumOptions(param: ActionParam): string[] | null {
@@ -66,6 +72,71 @@ function stringifyValue(value: unknown): string {
   }
 }
 
+interface RefAwareControlProps {
+  id: string
+  value: unknown
+  refContext: ParamRefContext
+  onWrite: (value: unknown) => void
+  /** 非引用态的字面量控件 */
+  literal: (helpers: {
+    value: unknown
+    onWrite: (value: unknown) => void
+    onPickRef: (wrapped: string) => void
+    purePath: string | null
+  }) => ReactNode
+}
+
+/**
+ * 纯 `{{…}}` → 引用摘要；否则字面量。
+ * 「改为手写」强制字面量；在字面量里写完整一段 `{{expr}}` 后失焦则自动回到引用态。
+ */
+function RefAwareControl(props: RefAwareControlProps) {
+  const purePath = parsePureRef(props.value)
+  const [forceLiteral, setForceLiteral] = useState(false)
+  const showRef = Boolean(purePath) && !forceLiteral
+
+  useEffect(
+    function () {
+      // 外部已不是纯引用时，清掉强制字面量标记
+      if (!purePath) setForceLiteral(false)
+    },
+    [purePath]
+  )
+
+  function pickRef(wrapped: string) {
+    setForceLiteral(false)
+    props.onWrite(wrapped)
+  }
+
+  if (showRef && purePath) {
+    return (
+      <ParamRefSummary
+        path={purePath}
+        context={props.refContext}
+        onChange={pickRef}
+        onClear={function () {
+          setForceLiteral(false)
+          props.onWrite(undefined)
+        }}
+        onEditLiteral={function () {
+          setForceLiteral(true)
+        }}
+      />
+    )
+  }
+
+  return (
+    <>
+      {props.literal({
+        value: props.value,
+        onWrite: props.onWrite,
+        onPickRef: pickRef,
+        purePath
+      })}
+    </>
+  )
+}
+
 function ParamFields(props: ParamFieldsProps) {
   function writeParam(name: string, value: unknown) {
     const next = { ...props.values }
@@ -98,15 +169,36 @@ function ParamFields(props: ParamFieldsProps) {
             <div
               key={param.name}
               className="space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                {label}
-                <Switch
-                  checked={current === true}
-                  onCheckedChange={function (checked) {
-                    writeParam(param.name, checked === true)
-                  }}
-                />
-              </div>
+              {label}
+              <RefAwareControl
+                id={`param-${param.name}`}
+                value={current}
+                refContext={props.refContext}
+                onWrite={function (value) {
+                  writeParam(param.name, value)
+                }}
+                literal={function (helpers) {
+                  return (
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id={`param-${param.name}`}
+                        checked={helpers.value === true}
+                        onCheckedChange={function (checked) {
+                          helpers.onWrite(checked === true)
+                        }}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {helpers.value === true ? 'true' : 'false'}
+                      </span>
+                      <ParamRefPicker
+                        context={props.refContext}
+                        currentPath={helpers.purePath}
+                        onPick={helpers.onPickRef}
+                      />
+                    </div>
+                  )
+                }}
+              />
               {param.description ? (
                 <p className="text-xs text-muted-foreground">{param.description}</p>
               ) : null}
@@ -115,8 +207,6 @@ function ParamFields(props: ParamFieldsProps) {
         }
 
         if (options) {
-          const selected =
-            typeof current === 'string' && options.includes(current) ? current : '__unset'
           const optionItems = Object.fromEntries([
             ['__unset', '未设置'],
             ...options.map(function (option) {
@@ -128,31 +218,54 @@ function ParamFields(props: ParamFieldsProps) {
               key={param.name}
               className="space-y-1.5">
               {label}
-              <Select
-                items={optionItems}
-                value={selected}
-                onValueChange={function (value) {
-                  if (value === null) return
-                  writeParam(param.name, value === '__unset' ? undefined : value)
-                }}>
-                <SelectTrigger
-                  id={`param-${param.name}`}
-                  className="w-full">
-                  <SelectValue placeholder="未设置" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__unset">未设置</SelectItem>
-                  {options.map(function (option) {
-                    return (
-                      <SelectItem
-                        key={option}
-                        value={option}>
-                        {option}
-                      </SelectItem>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
+              <RefAwareControl
+                id={`param-${param.name}`}
+                value={current}
+                refContext={props.refContext}
+                onWrite={function (value) {
+                  writeParam(param.name, value)
+                }}
+                literal={function (helpers) {
+                  const selected =
+                    typeof helpers.value === 'string' && options.includes(helpers.value)
+                      ? helpers.value
+                      : '__unset'
+                  return (
+                    <div className="flex gap-1">
+                      <Select
+                        items={optionItems}
+                        value={selected}
+                        onValueChange={function (value) {
+                          if (value === null) return
+                          helpers.onWrite(value === '__unset' ? undefined : value)
+                        }}>
+                        <SelectTrigger
+                          id={`param-${param.name}`}
+                          className="min-w-0 flex-1">
+                          <SelectValue placeholder="未设置" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__unset">未设置</SelectItem>
+                          {options.map(function (option) {
+                            return (
+                              <SelectItem
+                                key={option}
+                                value={option}>
+                                {option}
+                              </SelectItem>
+                            )
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <ParamRefPicker
+                        context={props.refContext}
+                        currentPath={helpers.purePath}
+                        onPick={helpers.onPickRef}
+                      />
+                    </div>
+                  )
+                }}
+              />
             </div>
           )
         }
@@ -163,29 +276,52 @@ function ParamFields(props: ParamFieldsProps) {
               key={param.name}
               className="space-y-1.5">
               {label}
-              <Textarea
+              <RefAwareControl
                 id={`param-${param.name}`}
-                rows={3}
-                className="font-mono text-xs"
-                placeholder='JSON 数组，如 ["*.md"] 或模板 ${inputs.x}'
-                value={stringifyValue(current)}
-                onChange={function (event) {
-                  const text = event.target.value.trim()
-                  if (!text) {
-                    writeParam(param.name, undefined)
-                    return
-                  }
-                  if (text.startsWith('${') || text.startsWith('{{')) {
-                    writeParam(param.name, text)
-                    return
-                  }
-                  try {
-                    writeParam(param.name, JSON.parse(text) as unknown)
-                  } catch (error) {
-                    // 输入本来就可以是普通字符串（不是 JSON）：回落原文本
-                    console.debug('[directive] 参数不是 JSON，按纯文本处理:', error)
-                    writeParam(param.name, text)
-                  }
+                value={current}
+                refContext={props.refContext}
+                onWrite={function (value) {
+                  writeParam(param.name, value)
+                }}
+                literal={function (helpers) {
+                  return (
+                    <div className="relative">
+                      <Textarea
+                        id={`param-${param.name}`}
+                        rows={3}
+                        className="pr-9 font-mono text-xs"
+                        placeholder='JSON 数组，如 ["*.md"]；或点右侧选引用'
+                        value={stringifyValue(helpers.value)}
+                        onChange={function (event) {
+                          const text = event.target.value.trim()
+                          if (!text) {
+                            helpers.onWrite(undefined)
+                            return
+                          }
+                          if (text.startsWith('{{')) {
+                            helpers.onWrite(text)
+                            return
+                          }
+                          try {
+                            helpers.onWrite(JSON.parse(text) as unknown)
+                          } catch (error) {
+                            console.debug('[directive] 参数不是 JSON，按纯文本处理:', error)
+                            helpers.onWrite(text)
+                          }
+                        }}
+                        onBlur={function () {
+                          if (parsePureRef(helpers.value)) helpers.onPickRef(String(helpers.value))
+                        }}
+                      />
+                      <div className="absolute top-1.5 right-1.5">
+                        <ParamRefPicker
+                          context={props.refContext}
+                          currentPath={helpers.purePath}
+                          onPick={helpers.onPickRef}
+                        />
+                      </div>
+                    </div>
+                  )
                 }}
               />
               {param.description ? (
@@ -200,26 +336,26 @@ function ParamFields(props: ParamFieldsProps) {
             key={param.name}
             className="space-y-1.5">
             {label}
-            <Input
+            <RefValueInput
               id={`param-${param.name}`}
-              type={isNumberType(param.ty) && typeof current === 'number' ? 'number' : 'text'}
+              value={stringifyValue(current)}
+              refContext={props.refContext}
+              pathKind={findPathKind(param)}
               placeholder={
                 param.default !== undefined && param.default !== null
                   ? `默认 ${stringifyValue(param.default)}`
-                  : '值或模板，如 ${inputs.src}'
+                  : '字面量，或点右侧插入引用'
               }
-              value={stringifyValue(current)}
-              onChange={function (event) {
-                const text = event.target.value
-                if (text === '') {
+              onChange={function (next) {
+                if (next === '') {
                   writeParam(param.name, undefined)
                   return
                 }
-                if (isNumberType(param.ty) && /^-?\d+(\.\d+)?$/.test(text)) {
-                  writeParam(param.name, Number(text))
+                if (isNumberType(param.ty) && /^-?\d+(\.\d+)?$/.test(next)) {
+                  writeParam(param.name, Number(next))
                   return
                 }
-                writeParam(param.name, text)
+                writeParam(param.name, next)
               }}
             />
             {param.description ? (

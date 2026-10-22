@@ -4,6 +4,7 @@ import { Icon } from '@iconify/react/offline'
 import { makeCondition } from '@/views/directive/model/condition.ts'
 import type { ConditionKind, ConditionObject } from '@/views/directive/model/condition.ts'
 import type { Condition } from '@/views/directive/model/types.ts'
+import type { ParamRefContext } from '@/views/directive/orchestrator/inspector/param-ref.ts'
 
 import { ConditionKindSelect } from '@/views/directive/orchestrator/inspector/condition-kind-select.tsx'
 import { conditionChildKey } from '@/views/directive/orchestrator/inspector/condition-operand.ts'
@@ -12,6 +13,7 @@ import { ConditionNode } from '@/views/directive/orchestrator/inspector/conditio
 interface ConditionNodeLogicProps {
   kind: 'and' | 'or'
   condition: ConditionObject
+  refContext: ParamRefContext
   onChange: (next: Condition) => void
 }
 
@@ -59,6 +61,7 @@ function ConditionNodeLogic(props: ConditionNodeLogicProps) {
               <div className="min-w-0 flex-1">
                 <ConditionNode
                   condition={child}
+                  refContext={props.refContext}
                   onChange={function (next) {
                     const nextChildren = [...children]
                     nextChildren[index] = next

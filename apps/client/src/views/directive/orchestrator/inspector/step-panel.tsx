@@ -19,6 +19,7 @@ import type { Step } from '@/views/directive/model/types.ts'
 
 import { ConditionField } from '@/views/directive/orchestrator/inspector/condition-field.tsx'
 import { ParamFields } from '@/views/directive/orchestrator/inspector/param-fields.tsx'
+import type { ParamRefContext } from '@/views/directive/orchestrator/inspector/param-ref.ts'
 
 interface StepParamsJsonEditorProps {
   step: Step
@@ -88,6 +89,7 @@ interface StepPanelProps {
   step: Step | null
   selectedToken: string | null
   catalog: ActionEntry[]
+  refContext: ParamRefContext
   onPatchStep: (next: Step) => void
 }
 
@@ -176,7 +178,8 @@ function StepPanel(props: StepPanelProps) {
           </h3>
           <ParamFields
             params={actionMeta?.params ?? []}
-            values={(step.params ?? {})}
+            values={step.params ?? {}}
+            refContext={props.refContext}
             onChange={function (next) {
               patchStep({ ...step, params: next })
             }}
@@ -217,6 +220,7 @@ function StepPanel(props: StepPanelProps) {
           <ConditionField
             label="when 条件"
             value={step.when}
+            refContext={props.refContext}
             onChange={function (next) {
               patchStep({ ...step, when: next })
             }}
@@ -227,6 +231,7 @@ function StepPanel(props: StepPanelProps) {
         <ConditionField
           label="if 条件"
           value={step.if}
+          refContext={props.refContext}
           onChange={function (next) {
             if (next !== undefined) patchStep({ ...step, if: next })
           }}

@@ -1,5 +1,3 @@
-import { Input } from '@i-thinking/design/components/input'
-
 import {
   COMPARE_PLACEHOLDER,
   CONDITION_LABELS,
@@ -8,13 +6,16 @@ import {
 } from '@/views/directive/model/condition.ts'
 import type { ConditionKind, ConditionObject } from '@/views/directive/model/condition.ts'
 import type { Condition } from '@/views/directive/model/types.ts'
+import type { ParamRefContext } from '@/views/directive/orchestrator/inspector/param-ref.ts'
 
 import { ConditionKindSelect } from '@/views/directive/orchestrator/inspector/condition-kind-select.tsx'
 import { operandText } from '@/views/directive/orchestrator/inspector/condition-operand.ts'
+import { RefValueInput } from '@/views/directive/orchestrator/inspector/ref-value-input.tsx'
 
 interface ConditionNodeCompareProps {
   kind: Exclude<ConditionKind, 'expr' | 'and' | 'or' | 'not'>
   condition: ConditionObject
+  refContext: ParamRefContext
   onChange: (next: Condition) => void
 }
 
@@ -35,25 +36,27 @@ function ConditionNodeCompare(props: ConditionNodeCompareProps) {
         />
         <span className="text-xs text-muted-foreground">{CONDITION_LABELS[props.kind]}</span>
       </div>
-      <Input
+      <RefValueInput
         value={operandText(pair[0])}
-        onChange={function (event) {
-          props.onChange({
-            ...props.condition,
-            [props.kind]: [parseOperand(event.target.value), pair[1]]
-          })
-        }}
+        refContext={props.refContext}
         placeholder={COMPARE_PLACEHOLDER[props.kind][0]}
-      />
-      <Input
-        value={operandText(pair[1])}
-        onChange={function (event) {
+        onChange={function (next) {
           props.onChange({
             ...props.condition,
-            [props.kind]: [pair[0], parseOperand(event.target.value)]
+            [props.kind]: [parseOperand(next), pair[1]]
           })
         }}
+      />
+      <RefValueInput
+        value={operandText(pair[1])}
+        refContext={props.refContext}
         placeholder={COMPARE_PLACEHOLDER[props.kind][1]}
+        onChange={function (next) {
+          props.onChange({
+            ...props.condition,
+            [props.kind]: [pair[0], parseOperand(next)]
+          })
+        }}
       />
     </div>
   )

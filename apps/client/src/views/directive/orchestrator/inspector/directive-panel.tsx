@@ -13,6 +13,8 @@ import { Textarea } from '@i-thinking/design/components/textarea'
 
 import { BUCKETS, isValidDirectiveName } from '@/shared/ipc/specs/sidecar'
 import type { DirectiveContent } from '@/views/directive/model/types.ts'
+import { InputsEditor } from '@/views/directive/orchestrator/inspector/inputs-editor.tsx'
+import { VariablesEditor } from '@/views/directive/orchestrator/inspector/variables-editor.tsx'
 
 interface DirectivePanelProps {
   draft: DirectiveContent
@@ -22,6 +24,8 @@ interface DirectivePanelProps {
 function DirectivePanel(props: DirectivePanelProps) {
   const nameError =
     props.draft.name && !isValidDirectiveName(props.draft.name) ? '名称不能含路径分隔符或 ..' : null
+  const variables = props.draft.variables ?? {}
+  const inputs = props.draft.inputs ?? []
 
   return (
     <div className="space-y-3">
@@ -100,6 +104,39 @@ function DirectivePanel(props: DirectivePanelProps) {
           <SelectItem value="skip">skip（跳过）</SelectItem>
         </SelectContent>
       </Select>
+
+      <Separator />
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        输入
+        {inputs.length > 0 ? (
+          <span className="ml-1 font-mono normal-case text-muted-foreground/80">
+            ({inputs.length})
+          </span>
+        ) : null}
+      </h3>
+      <InputsEditor
+        inputs={inputs}
+        onChange={function (next) {
+          props.onPatch({ inputs: next })
+        }}
+      />
+
+      <Separator />
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        变量
+        {Object.keys(variables).length > 0 ? (
+          <span className="ml-1 font-mono normal-case text-muted-foreground/80">
+            ({Object.keys(variables).length})
+          </span>
+        ) : null}
+      </h3>
+      <VariablesEditor
+        variables={variables}
+        onChange={function (next) {
+          props.onPatch({ variables: next })
+        }}
+      />
+
       <Separator />
       <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">权限</h3>
       {(['shell', 'filesystem', 'network', 'ui', 'capture', 'clipboard'] as const).map(

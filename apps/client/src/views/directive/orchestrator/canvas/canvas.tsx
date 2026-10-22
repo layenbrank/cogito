@@ -169,7 +169,7 @@ function Canvas(props: CanvasProps) {
         </Button>
         <span className="ml-auto text-xs text-muted-foreground">{steps.length} 步</span>
       </div>
-      <ScrollArea className="min-h-0 flex-1">
+      <ScrollArea className="h-0 min-h-0 flex-1">
         <div className="mx-auto flex w-full max-w-xl flex-col gap-4 px-4 py-6">
           {steps.length === 0 ? (
             <div className="rounded-xl border border-dashed bg-background px-6 py-10 text-center">

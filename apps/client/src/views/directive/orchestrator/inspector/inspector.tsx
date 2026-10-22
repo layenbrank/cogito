@@ -1,6 +1,6 @@
 import { ScrollArea } from '@i-thinking/design/components/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@i-thinking/design/components/tabs'
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 
 import { useCorexStore } from '@/stores/corex.ts'
 import { replaceStep } from '@/views/directive/model/step-utils.ts'
@@ -8,6 +8,7 @@ import type { DirectiveContent, Step } from '@/views/directive/model/types.ts'
 
 import { findStepByToken } from '@/views/directive/orchestrator/inspector/find-step-by-token.ts'
 import { DirectivePanel } from '@/views/directive/orchestrator/inspector/directive-panel.tsx'
+import { collectStepRefs } from '@/views/directive/orchestrator/inspector/param-ref.ts'
 import { StepPanel } from '@/views/directive/orchestrator/inspector/step-panel.tsx'
 
 interface InspectorProps {
@@ -22,6 +23,19 @@ function Inspector(props: InspectorProps) {
   })
   const step = findStepByToken(props.draft.steps, props.selectedToken)
   const tabKey = props.selectedToken ?? '__directive__'
+
+  const refContext = useMemo(
+    function () {
+      return {
+        variables: props.draft.variables ?? {},
+        inputs: props.draft.inputs ?? [],
+        steps: collectStepRefs(props.draft.steps, {
+          excludeId: step?.id ?? null
+        })
+      }
+    },
+    [props.draft.variables, props.draft.inputs, props.draft.steps, step?.id]
+  )
 
   function patchDraft(patch: Partial<DirectiveContent>) {
     props.onChange({ ...props.draft, ...patch })
@@ -45,12 +59,13 @@ function Inspector(props: InspectorProps) {
       step={step}
       selectedToken={props.selectedToken}
       catalog={catalog}
+      refContext={refContext}
       onPatchStep={patchStep}
     />
   )
 
   return (
-    <div className="flex h-full min-h-0 flex-col border-l bg-background">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden border-l bg-background">
       <InspectorTabShell
         key={tabKey}
         selectedToken={props.selectedToken}
@@ -83,7 +98,7 @@ function InspectorTabShell(props: InspectorTabShellProps) {
           <TabsTrigger value="directive">指令</TabsTrigger>
         </TabsList>
       </div>
-      <ScrollArea className="min-h-0 flex-1">
+      <ScrollArea className="h-0 min-h-0 flex-1">
         <div className="space-y-4 p-3 text-sm">
           <TabsContent
             value="step"

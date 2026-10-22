@@ -2,13 +2,14 @@ import { Button } from '@i-thinking/design/components/button'
 import { Label } from '@i-thinking/design/components/label'
 
 import type { Condition } from '@/views/directive/model/types.ts'
-
+import type { ParamRefContext } from '@/views/directive/orchestrator/inspector/param-ref.ts'
 import { ConditionNode } from '@/views/directive/orchestrator/inspector/condition-node.tsx'
 
 interface ConditionFieldProps {
   value: Condition | undefined
   onChange: (next: Condition | undefined) => void
   label?: string
+  refContext: ParamRefContext
 }
 
 function ConditionField(props: ConditionFieldProps) {
@@ -29,6 +30,7 @@ function ConditionField(props: ConditionFieldProps) {
         <div className="space-y-2">
           <ConditionNode
             condition={props.value}
+            refContext={props.refContext}
             onChange={props.onChange}
           />
           <Button

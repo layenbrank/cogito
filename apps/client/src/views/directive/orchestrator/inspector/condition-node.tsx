@@ -1,6 +1,7 @@
 import { makeCondition, conditionKind } from '@/views/directive/model/condition.ts'
 import type { ConditionKind } from '@/views/directive/model/condition.ts'
 import type { Condition } from '@/views/directive/model/types.ts'
+import type { ParamRefContext } from '@/views/directive/orchestrator/inspector/param-ref.ts'
 
 import { ConditionKindSelect } from '@/views/directive/orchestrator/inspector/condition-kind-select.tsx'
 import { ConditionNodeCompare } from '@/views/directive/orchestrator/inspector/condition-node-compare.tsx'
@@ -9,6 +10,7 @@ import { ConditionNodeLogic } from '@/views/directive/orchestrator/inspector/con
 
 interface ConditionNodeProps {
   condition: Condition
+  refContext: ParamRefContext
   onChange: (next: Condition) => void
 }
 
@@ -32,6 +34,7 @@ function ConditionNodeNot(props: ConditionNodeProps) {
       </div>
       <ConditionNode
         condition={props.condition.not ?? ''}
+        refContext={props.refContext}
         onChange={function (next) {
           props.onChange({ not: next })
         }}
@@ -48,6 +51,7 @@ function ConditionNode(props: ConditionNodeProps) {
       <ConditionNodeExpr
         kind={kind}
         value={typeof props.condition === 'string' ? props.condition : ''}
+        refContext={props.refContext}
         onChange={props.onChange}
       />
     )
@@ -58,6 +62,7 @@ function ConditionNode(props: ConditionNodeProps) {
       <ConditionNodeLogic
         kind={kind}
         condition={props.condition}
+        refContext={props.refContext}
         onChange={props.onChange}
       />
     )
@@ -67,6 +72,7 @@ function ConditionNode(props: ConditionNodeProps) {
     return (
       <ConditionNodeNot
         condition={props.condition}
+        refContext={props.refContext}
         onChange={props.onChange}
       />
     )
@@ -76,6 +82,7 @@ function ConditionNode(props: ConditionNodeProps) {
     <ConditionNodeCompare
       kind={kind}
       condition={props.condition}
+      refContext={props.refContext}
       onChange={props.onChange}
     />
   )

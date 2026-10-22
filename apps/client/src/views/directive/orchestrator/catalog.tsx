@@ -46,7 +46,7 @@ function Catalog(props: CatalogProps) {
         placeholder="筛选动作…"
         className="h-8"
       />
-      <ScrollArea className="min-h-0 flex-1">
+      <ScrollArea className="h-0 min-h-0 flex-1">
         <ul className="space-y-0.5 pr-2">
           {filtered.length === 0 ? (
             <li className="px-1 py-4 text-xs text-muted-foreground">没有匹配的动作</li>
