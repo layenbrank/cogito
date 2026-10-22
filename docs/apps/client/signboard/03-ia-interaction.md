@@ -66,7 +66,10 @@
 
 ### 3.7 附件图片
 
-1. 侧栏「添加图片」→ 本机选图 → `ASSET.INSERT` → `signboard-entry-asset:write`  
+1. 侧栏支持三种入口，最终都走 `ASSET.INSERT` → `signboard-entry-asset:write`：  
+   - **点选**：系统文件对话框（可多选）  
+   - **拖入**：把图片拖到附件区域  
+   - **粘贴**：侧栏打开时 `Ctrl+V` / `⌘V`（截图 / 剪贴板图片）；落盘到 AppLocalData `signboard/`  
 2. `index=0` 为封面，卡片顶部 16:9 展示  
 3. 「设为封面」把该图 `index` 提到 0  
 

@@ -18,7 +18,13 @@ import { Textarea } from '@i-thinking/design/components/textarea'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
 import { debounce } from 'lodash-es'
-import { useEffect, useMemo, useState } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ClipboardEvent,
+  type DragEvent
+} from 'react'
 import { toast } from 'sonner'
 
 import { CHANNELS } from '@/shared/ipc/channels'
@@ -28,7 +34,11 @@ import {
   useSignboardStore,
   type SignboardEntry
 } from '@/stores/signboard'
-import { pickAndImportImages } from '@/views/signboard/import-attachment'
+import {
+  findImageFiles,
+  importImageFiles,
+  pickAndImportImages
+} from '@/views/signboard/import-attachment'
 import styles from '@/views/signboard/signboard.module.scss'
 import type { GalleryAsset } from '@/views/gallery/model/media'
 
@@ -135,6 +145,7 @@ function CardSheet(props: CardSheetProps) {
   const [editingCheckTitle, setEditingCheckTitle] = useState('')
   const [saving, setSaving] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [isAttachDragOver, setIsAttachDragOver] = useState(false)
   const [previews, setPreviews] = useState<AttachmentPreview[]>([])
   const [colorPickerTagID, setColorPickerTagID] = useState<string | null>(null)
 
@@ -366,23 +377,68 @@ function CardSheet(props: CardSheetProps) {
     if (!ok) toast.error('子任务保存失败')
   }
 
+  async function attachAssetIDs(ids: string[]) {
+    if (ids.length === 0) return
+    let failed = 0
+    for (const assetID of ids) {
+      const ok = await toAttachAsset(entryID, assetID)
+      if (!ok) failed += 1
+    }
+    if (failed > 0) toast.error(`${failed} 张图片附加失败`)
+    else toast.success(ids.length === 1 ? '已添加图片' : `已添加 ${ids.length} 张图片`)
+  }
+
   async function attachImages() {
     setImporting(true)
     try {
       const ids = await pickAndImportImages()
-      if (ids.length === 0) return
-      let failed = 0
-      for (const assetID of ids) {
-        const ok = await toAttachAsset(entryID, assetID)
-        if (!ok) failed += 1
-      }
-      if (failed > 0) toast.error(`${failed} 张图片附加失败`)
-      else toast.success(ids.length === 1 ? '已添加图片' : `已添加 ${ids.length} 张图片`)
+      await attachAssetIDs(ids)
     } catch {
       toast.error('导入图片失败')
     } finally {
       setImporting(false)
     }
+  }
+
+  async function attachFromFiles(files: File[]) {
+    if (files.length === 0 || importing) return
+    setImporting(true)
+    try {
+      const ids = await importImageFiles(files)
+      await attachAssetIDs(ids)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '导入图片失败'
+      toast.error(message)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  function handleAttachPaste(event: ClipboardEvent) {
+    const files = findImageFiles(event.clipboardData)
+    if (files.length === 0) return
+    event.preventDefault()
+    void attachFromFiles(files)
+  }
+
+  function handleAttachDragOver(event: DragEvent) {
+    if (!event.dataTransfer?.types.includes('Files')) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    setIsAttachDragOver(true)
+  }
+
+  function handleAttachDragLeave(event: DragEvent) {
+    const next = event.relatedTarget as Node | null
+    if (next && event.currentTarget.contains(next)) return
+    setIsAttachDragOver(false)
+  }
+
+  function handleAttachDrop(event: DragEvent) {
+    event.preventDefault()
+    setIsAttachDragOver(false)
+    const files = findImageFiles(event.dataTransfer)
+    void attachFromFiles(files)
   }
 
   return (
@@ -393,7 +449,8 @@ function CardSheet(props: CardSheetProps) {
         side="right"
         showCloseButton
         overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-xs"
-        className="w-[min(400px,94vw)] gap-0 overflow-y-auto sm:max-w-none">
+        className="w-[min(400px,94vw)] gap-0 overflow-y-auto sm:max-w-none"
+        onPaste={handleAttachPaste}>
         <SheetTitle className="mb-4 text-lg">卡片详情</SheetTitle>
 
         <div className={styles.sheetSection}>
@@ -732,12 +789,16 @@ function CardSheet(props: CardSheetProps) {
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div
+            className="space-y-2"
+            onDragOver={handleAttachDragOver}
+            onDragLeave={handleAttachDragLeave}
+            onDrop={handleAttachDrop}>
             <div className="flex items-baseline justify-between gap-2">
               <div>
                 <Label>附件图片</Label>
                 <p className={styles.sheetHint}>
-                  首张为封面，显示在卡片顶部；支持多图（对标 Trello Attachments）。
+                  首张为封面；可点选、拖入或 Ctrl+V / ⌘V 粘贴。
                 </p>
               </div>
               <Button
@@ -758,7 +819,11 @@ function CardSheet(props: CardSheetProps) {
             {previews.length === 0 ? (
               <button
                 type="button"
-                className={styles.attachEmpty}
+                className={
+                  isAttachDragOver
+                    ? `${styles.attachEmpty} ${styles.attachEmptyActive}`
+                    : styles.attachEmpty
+                }
                 disabled={importing}
                 onClick={function () {
                   void attachImages()
@@ -767,10 +832,19 @@ function CardSheet(props: CardSheetProps) {
                   icon="lucide:image"
                   className="size-5 opacity-60"
                 />
-                <span>从本机添加截图或参考图</span>
+                <span>
+                  {isAttachDragOver
+                    ? '松开以添加图片'
+                    : '点选本机图片，或拖入 / 粘贴截图'}
+                </span>
               </button>
             ) : (
-              <ul className={styles.attachGrid}>
+              <ul
+                className={
+                  isAttachDragOver
+                    ? `${styles.attachGrid} ${styles.attachGridActive}`
+                    : styles.attachGrid
+                }>
                 {previews.map(function (item) {
                   return (
                     <li
