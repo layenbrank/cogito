@@ -165,6 +165,17 @@ function OverlayShell() {
 
   useThrough(OVERLAY_SHELL_SOURCE, { rootRef: shellRef, enabled: !isScreenshot })
 
+  // overlay 常驻可见：内容变化时上报，供宿主判断截屏前是否需要 conceal
+  useEffect(
+    function () {
+      const hasContent = mode !== 'screenshot' && items.length > 0
+      void invoke(CHANNELS.OVERLAY.REPORT_CONTENT, { hasContent }).catch(function (error) {
+        console.warn('[overlay] report-content failed', error)
+      })
+    },
+    [mode, items.length]
+  )
+
   const lastRecoverRef = useRef(0)
 
   /**
@@ -287,7 +298,6 @@ function OverlayShell() {
             listen(EVENTS.OVERLAY_HIDE, function () {
               toMode('idle')
               setConcealed(false)
-              void invoke(CHANNELS.OVERLAY.HIDE)
             })
           )
           unlistenConceal = await track(
@@ -299,6 +309,14 @@ function OverlayShell() {
                 .catch(function (error: unknown) {
                   console.warn('[overlay] conceal 时 clearEffects 失败', error)
                 })
+              // 等 DOM 隐藏绘制完成后回报，宿主据此继续截屏（替代固定 sleep）
+              requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                  void invoke(CHANNELS.OVERLAY.CONCEALED).catch(function (error) {
+                    console.warn('[overlay] concealed 回报失败', error)
+                  })
+                })
+              })
             })
           )
           unlistenReveal = await track(
@@ -314,6 +332,8 @@ function OverlayShell() {
           )
           if (cancelled) return
           setReady(true)
+          // 预热 Capture chunk：消除首次进入截屏态的懒加载空白
+          void import('@/features/capture/capture')
         } catch (err) {
           if (!cancelled) console.warn('[overlay] bootstrap failed', err)
         }

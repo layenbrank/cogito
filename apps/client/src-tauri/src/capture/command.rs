@@ -12,7 +12,7 @@ use thinking_database::entity::asset::{Read, ReadP, Remove, RemoveP};
 
 use crate::capture::region::find_overlay_regions;
 use crate::capture::schema::ScreenshotResult;
-use crate::capture::state::CapturePending;
+use crate::capture::state::{CaptureConceal, CapturePending};
 use crate::overlay::command::{OVERLAY_LABEL, overlay_update_mode};
 use crate::utils::capture_retention::{
     ORPHAN_PROTECT_MS, PruneResult, RetentionPolicy, find_captures_dir, find_prune_ids,
@@ -123,16 +123,32 @@ async fn grab_screenshot(app: &AppHandle) -> Result<ScreenshotResult, String> {
 
 /// 不 hide 窗口：壳保持**真**透明显示，仅把内容 visibility:hidden，避免磁贴/截图 UI 进位图。
 /// 前提：overlay 不得套 mica/acrylic（见前端 `appearance.syncNativeWindow`）；否则毛玻璃仍会进位图。
+///
+/// 仅在 overlay 有可见内容时 conceal，并用「前端 DOM 隐藏确认」握手替代固定 sleep；
+/// 无内容时直接跳过，缩短快捷键到出图的端到端延迟。
 async fn conceal_overlay_visuals(app: &AppHandle) -> bool {
     let Some(window) = app.get_webview_window(OVERLAY_LABEL) else {
         return false;
     };
-    let was_visible = window.is_visible().unwrap_or(false);
-    if was_visible {
-        let _ = app.emit("overlay://conceal", ());
-        tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+    if !window.is_visible().unwrap_or(false) {
+        return false;
     }
-    was_visible
+    let has_content = app
+        .try_state::<CaptureConceal>()
+        .map(|state| state.has_content())
+        .unwrap_or(false);
+    if !has_content {
+        return false;
+    }
+
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    if let Some(state) = app.try_state::<CaptureConceal>() {
+        state.arm_ack(tx).await;
+    }
+    let _ = app.emit("overlay://conceal", ());
+    // 等待前端 DOM 隐藏确认；超时兜底（渲染进程异常时不至于卡死）
+    let _ = tokio::time::timeout(std::time::Duration::from_millis(120), rx).await;
+    true
 }
 
 fn reveal_overlay_visuals(app: &AppHandle) {
@@ -203,6 +219,26 @@ pub async fn capture_close(
         *guard = None;
     }
     overlay_update_mode(app, "idle".into()).await
+}
+
+/// overlay 前端在内容（磁贴/贴图）变化时上报，供截屏前判断是否要 conceal。
+#[tauri::command(rename = "overlay:report-content")]
+pub async fn overlay_report_content(app: AppHandle, has_content: bool) -> Result<(), String> {
+    if let Some(state) = app.try_state::<CaptureConceal>() {
+        state.set_has_content(has_content);
+    }
+    Ok(())
+}
+
+/// overlay 前端 conceal DOM 隐藏完成后的确认；宿主据此继续截屏（替代固定 sleep）。
+#[tauri::command(rename = "overlay:concealed")]
+pub async fn overlay_concealed(app: AppHandle) -> Result<(), String> {
+    if let Some(state) = app.try_state::<CaptureConceal>() {
+        if let Some(tx) = state.take_ack().await {
+            let _ = tx.send(());
+        }
+    }
+    Ok(())
 }
 
 /// 按保留策略清理捕获历史，并回收 captures/screenshots 孤儿文件。

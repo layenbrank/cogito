@@ -6,7 +6,7 @@ use thinking_database::{Storage, database_path, initialize, migration};
 use crate::{
     app::{handlers, plugins},
     autostart,
-    capture::CapturePending,
+    capture::{CaptureConceal, CapturePending},
     overlay::{OverlayHealth, OverlayPending},
     reminder,
     through::{self, ThroughState},
@@ -55,6 +55,7 @@ impl Bootstrap {
                 app.manage(OverlayPending::default());
                 app.manage(OverlayHealth::default());
                 app.manage(CapturePending::default());
+                app.manage(CaptureConceal::default());
                 through::spawn_worker(app.handle().clone());
                 reminder::spawn_worker(app.handle().clone());
                 tray::setup(app)?;

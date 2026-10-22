@@ -378,7 +378,6 @@ const useOverlayStore = create<OverlayStore>()(
           void invoke(CHANNELS.OVERLAY.REMOVE, { ids: [id] }).catch(function (e) {
             console.warn('[overlay] remove failed:', e)
           })
-          void getter().toHide()
         },
 
         toClear() {
@@ -400,7 +399,6 @@ const useOverlayStore = create<OverlayStore>()(
               console.warn('[overlay] clear failed:', e)
             })
           }
-          void getter().toHide()
         },
 
         toFront(id) {
@@ -420,14 +418,9 @@ const useOverlayStore = create<OverlayStore>()(
           return getter().items.length > 0 || getter().mode === 'screenshot'
         },
 
-        async toHide() {
-          const { mode, items } = getter()
-          if (mode === 'screenshot' || items.length > 0) return
-          try {
-            await invoke(CHANNELS.OVERLAY.HIDE)
-          } catch (e) {
-            console.warn('[overlay] toHide failed:', e)
-          }
+        toHide() {
+          // overlay 常驻可见：idle 时靠 through 穿透放行鼠标，不再隐藏窗口
+          return Promise.resolve()
         },
 
         async toShow() {
@@ -580,10 +573,8 @@ const useOverlayStore = create<OverlayStore>()(
               }
             }
 
-            // 有内容则自动恢复显示
-            if (clampedItems.length > 0) {
-              await getter().toShow()
-            }
+            // overlay 常驻可见：无论有无内容都确保窗口显示（idle 时 through 穿透）
+            await getter().toShow()
           } catch (e) {
             reportCaught('overlay.toInitialize', e, 'warning')
           }

@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { clsx } from 'clsx'
-import { useReducedMotion } from 'motion/react'
-import * as m from 'motion/react-m'
 
 import { ContextMenu, useContextMenu } from '@/components/contextmenu'
 import { CaptureErrorBoundary } from '@/features/capture/capture-error-boundary'
@@ -63,7 +61,6 @@ function Capture(props: CaptureProps = {}) {
     return state.settings.capture.detect
   })
   const isWindowDetect = detect === DETECT_WINDOW
-  const isReducedMotion = useReducedMotion()
   const { present: presentContextMenu } = useContextMenu()
   const annotationRef = useRef<AnnotationHandle>(null)
   const [sessionID, onSessionID] = useState(createCaptureSessionID)
@@ -244,14 +241,7 @@ function Capture(props: CaptureProps = {}) {
         ) : (
           <>
             {captureStatus === 'loading' ? <CaptureLoadingMask /> : null}
-            <m.div
-              key="capture-ready"
-              initial={isReducedMotion ? undefined : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{
-                duration: 0.1,
-                ease: [0.22, 1, 0.36, 1]
-              }}>
+            <div>
               <Annotation
                 ref={annotationRef}
                 onClose={onClose ?? function () {}}
@@ -277,7 +267,7 @@ function Capture(props: CaptureProps = {}) {
                 onSelectionChange={onUpdateSelection}
                 graphicsActive={graphics !== null}
               />
-            </m.div>
+            </div>
 
             <Magnifier
               sourceImage={sourceImage}

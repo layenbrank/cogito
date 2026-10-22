@@ -107,9 +107,11 @@ pub async fn overlay_ensure(app: AppHandle) -> Result<(), String> {
     }
 
     if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
-        apply_primary_monitor_bounds(&app, OVERLAY_LABEL)?;
-        let _ = window.show();
-        let _ = window.set_always_on_top(true);
+        if !window.is_visible().unwrap_or(false) {
+            apply_primary_monitor_bounds(&app, OVERLAY_LABEL)?;
+            let _ = window.set_always_on_top(true);
+            let _ = window.show();
+        }
         return Ok(());
     }
 

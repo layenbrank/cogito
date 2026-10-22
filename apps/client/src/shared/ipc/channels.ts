@@ -55,7 +55,9 @@ export const CHANNELS = {
     READ: 'overlay:read',
     WRITE: 'overlay:write',
     UPDATE: 'overlay:update',
-    REMOVE: 'overlay:remove'
+    REMOVE: 'overlay:remove',
+    REPORT_CONTENT: 'overlay:report-content',
+    CONCEALED: 'overlay:concealed'
   },
   ASSET: {
     READ: 'asset:read',
