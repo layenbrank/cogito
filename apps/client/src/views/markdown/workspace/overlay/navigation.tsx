@@ -1,5 +1,5 @@
 /**
- * Markdown 工作区 · 左侧文件导航：搜索/新建工具条 + 文件树 + 重命名/删除确认。
+ * Markdown 工作区 · 左侧文件导航：搜索/新建工具条 + 文件树 + 右键新建/重命名/删除。
  */
 import {
   AlertDialog,
@@ -15,8 +15,9 @@ import { Button } from '@i-thinking/design/components/button'
 import { Input } from '@i-thinking/design/components/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
 import { Icon } from '@iconify/react/offline'
+import { resolve } from '@tauri-apps/api/path'
 import { cn } from 'cn'
-import { useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ContextMenu, type MenuItem } from '@/components/contextmenu'
@@ -24,35 +25,80 @@ import { useMarkdownStore } from '@/stores/markdown'
 import {
   clearDirListCache,
   createMarkdownFile,
+  createMarkdownFolder,
   removeMarkdownPath,
   renameMarkdownPath
 } from '@/views/markdown/lib/fs.ts'
-import { findFileName } from '@/views/markdown/lib/path.ts'
-import { ensureRootDir } from '@/views/markdown/lib/session.ts'
+import { findFileName, findParentDir, isPathInsideRoot, normalizeSeparators } from '@/views/markdown/lib/path.ts'
+import { createUntitled, ensureRootDir, openPath } from '@/views/markdown/lib/session.ts'
 import { t } from '@/views/markdown/locale.ts'
 import { FileTreeItem } from '@/views/workspace/overlay/file-tree-item.tsx'
-import { useNavigationTree } from '@/views/markdown/workspace/overlay/use-navigation-tree.ts'
+import {
+  ROOT_KEY,
+  useNavigationTree
+} from '@/views/markdown/workspace/overlay/use-navigation-tree.ts'
 
 interface NavigationProps {
   onOpenPath: (path: string) => void
 }
 
+type CreateKind = 'file' | 'folder'
+
+interface CreateTarget {
+  kind: CreateKind
+  /** 相对工作区的父目录；根为 '' */
+  relativeDir: string
+  name: string
+}
+
+interface RenameTarget {
+  absolute: string
+  name: string
+  isDirectory: boolean
+}
+
+interface DeleteTarget {
+  absolute: string
+  isDirectory: boolean
+}
+
+function isSamePath(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false
+  return a.replace(/\\/g, '/').toLowerCase() === b.replace(/\\/g, '/').toLowerCase()
+}
+
+function findRelativeDirForCreate(treeKey: string, isDirectory: boolean): string {
+  if (treeKey === ROOT_KEY) return ''
+  if (isDirectory) return treeKey
+  const parent = treeKey.replace(/[/\\][^/\\]+$/, '')
+  return parent === treeKey ? '' : parent
+}
+
+async function findAbsoluteFromKey(root: string, treeKey: string): Promise<string> {
+  if (treeKey === ROOT_KEY) return root
+  const segments = normalizeSeparators(treeKey).split('/').filter(Boolean)
+  return resolve(root, ...segments)
+}
+
 /** 删除确认：只展示待删路径 */
 function DeleteConfirmDialog(props: {
-  path: string | null
+  target: DeleteTarget | null
   onCancel: () => void
   onConfirm: () => void
 }) {
+  const target = props.target
   return (
     <AlertDialog
-      open={props.path !== null}
+      open={target !== null}
       onOpenChange={function (open) {
         if (!open) props.onCancel()
       }}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{t('DELETE_CONFIRM')}</AlertDialogTitle>
-          <AlertDialogDescription>{props.path}</AlertDialogDescription>
+          <AlertDialogTitle>
+            {target?.isDirectory ? t('DELETE_FOLDER_CONFIRM') : t('DELETE_CONFIRM')}
+          </AlertDialogTitle>
+          <AlertDialogDescription>{target?.absolute}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{t('CONFIRM_CANCEL')}</AlertDialogCancel>
@@ -63,8 +109,9 @@ function DeleteConfirmDialog(props: {
   )
 }
 
-/** 重命名：单行输入 */
-function RenameDialog(props: {
+/** 重命名 / 新建名称：单行输入 */
+function NameDialog(props: {
+  title: string
   name: string | null
   onChange: (name: string) => void
   onCancel: () => void
@@ -78,18 +125,25 @@ function RenameDialog(props: {
       }}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{t('RENAME')}</AlertDialogTitle>
+          <AlertDialogTitle>{props.title}</AlertDialogTitle>
         </AlertDialogHeader>
         <Input
           value={props.name ?? ''}
           className="h-8"
+          placeholder={t('CREATE_NAME')}
           onChange={function (event) {
             props.onChange(event.target.value)
+          }}
+          onKeyDown={function (event) {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              props.onConfirm()
+            }
           }}
         />
         <AlertDialogFooter>
           <AlertDialogCancel>{t('CONFIRM_CANCEL')}</AlertDialogCancel>
-          <AlertDialogAction onClick={props.onConfirm}>{t('RENAME')}</AlertDialogAction>
+          <AlertDialogAction onClick={props.onConfirm}>{props.title}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -127,13 +181,11 @@ function Navigation(props: NavigationProps) {
     onOpenPath: props.onOpenPath
   })
 
-  const [pendingDelete, setPendingDelete] = useState<string | null>(null)
-  const [renameTarget, setRenameTarget] = useState<{
-    absolute: string
-    name: string
-  } | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<DeleteTarget | null>(null)
+  const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
+  const [createTarget, setCreateTarget] = useState<CreateTarget | null>(null)
 
-  async function onCreate() {
+  async function onCreateAtRoot() {
     try {
       const root = await ensureRootDir()
       clearDirListCache(root)
@@ -146,12 +198,43 @@ function Navigation(props: NavigationProps) {
     }
   }
 
+  async function onConfirmCreate() {
+    if (!createTarget) return
+    const name = createTarget.name.trim()
+    if (!name) return
+    try {
+      const root = await ensureRootDir()
+      if (createTarget.kind === 'folder') {
+        await createMarkdownFolder(root, createTarget.relativeDir, name)
+        toBumpTree()
+      } else {
+        const absolute = await createMarkdownFile(root, createTarget.relativeDir, name)
+        toBumpTree()
+        props.onOpenPath(absolute)
+      }
+      setCreateTarget(null)
+    } catch (error) {
+      console.error(error)
+      toast.error(createTarget.kind === 'folder' ? t('CREATE_FOLDER_FAILED') : t('CREATE_FAILED'))
+    }
+  }
+
   async function onConfirmDelete() {
     if (!pendingDelete || !rootDir) return
     try {
-      await removeMarkdownPath(pendingDelete, rootDir)
-      clearDirListCache()
+      await removeMarkdownPath(pendingDelete.absolute, rootDir, {
+        recursive: pendingDelete.isDirectory
+      })
+      const current = useMarkdownStore.getState().activePath
+      if (
+        current &&
+        (isSamePath(current, pendingDelete.absolute) ||
+          isPathInsideRoot(pendingDelete.absolute, current))
+      ) {
+        createUntitled()
+      }
       setPendingDelete(null)
+      tree.clearAbsolutePathCache()
       toBumpTree()
     } catch (error) {
       console.error(error)
@@ -161,11 +244,49 @@ function Navigation(props: NavigationProps) {
 
   async function onConfirmRename() {
     if (!renameTarget || !rootDir) return
+    const nextName = renameTarget.name.trim()
+    if (!nextName) return
     try {
-      const parent = renameTarget.absolute.replace(/[/\\][^/\\]+$/, '')
-      const next = `${parent}/${renameTarget.name}`
+      const parent = findParentDir(renameTarget.absolute)
+      const next = `${parent}/${nextName}`
+      if (isSamePath(renameTarget.absolute, next)) {
+        setRenameTarget(null)
+        return
+      }
       await renameMarkdownPath(renameTarget.absolute, next, rootDir)
-      clearDirListCache()
+      const state = useMarkdownStore.getState()
+      const current = state.activePath
+      if (current) {
+        if (isSamePath(current, renameTarget.absolute)) {
+          if (state.isDirty) {
+            state.toOpenDocument({
+              path: next,
+              markdown: state.markdown,
+              frontMatter: state.frontMatter,
+              html: state.html
+            })
+            state.toMarkDirty(true)
+          } else {
+            void openPath(next, { force: true })
+          }
+        } else if (isPathInsideRoot(renameTarget.absolute, current)) {
+          const fromNorm = normalizeSeparators(renameTarget.absolute).replace(/\/+$/, '')
+          const curNorm = normalizeSeparators(current)
+          const suffix = curNorm.slice(fromNorm.length)
+          const relocated = `${normalizeSeparators(next).replace(/\/+$/, '')}${suffix}`
+          if (state.isDirty) {
+            state.toOpenDocument({
+              path: relocated,
+              markdown: state.markdown,
+              frontMatter: state.frontMatter,
+              html: state.html
+            })
+            state.toMarkDirty(true)
+          } else {
+            void openPath(relocated, { force: true })
+          }
+        }
+      }
       tree.clearAbsolutePathCache()
       setRenameTarget(null)
       toBumpTree()
@@ -175,13 +296,58 @@ function Navigation(props: NavigationProps) {
     }
   }
 
-  const treeMenuItems = useMemo(
-    function (): MenuItem[] {
-      return [
+  const findTreeMenuItems = useCallback(
+    function (trigger: Element): MenuItem[] {
+      const treeKey = trigger.getAttribute('data-tree-key')
+      if (!treeKey) return []
+      const kind = trigger.getAttribute('data-tree-kind')
+      const isDirectory = kind === 'directory' || treeKey === ROOT_KEY
+      const isRoot = treeKey === ROOT_KEY
+      const relativeDir = findRelativeDirForCreate(treeKey, isDirectory)
+
+      const items: MenuItem[] = [
+        {
+          key: 'new-file',
+          label: t('NEW_FILE'),
+          icon: (
+            <Icon
+              icon="lucide:file-plus-2"
+              className="size-3.5"
+            />
+          ),
+          onSelect() {
+            setCreateTarget({
+              kind: 'file',
+              relativeDir,
+              name: `note-${Date.now()}.md`
+            })
+          }
+        },
+        {
+          key: 'new-folder',
+          label: t('NEW_FOLDER'),
+          icon: (
+            <Icon
+              icon="lucide:folder-plus"
+              className="size-3.5"
+            />
+          ),
+          onSelect() {
+            setCreateTarget({
+              kind: 'folder',
+              relativeDir,
+              name: `folder-${Date.now()}`
+            })
+          }
+        }
+      ]
+
+      if (isRoot) return items
+
+      items.push(
         {
           key: 'rename',
           label: t('RENAME'),
-          disabled: !activePath,
           icon: (
             <Icon
               icon="lucide:pencil"
@@ -189,16 +355,26 @@ function Navigation(props: NavigationProps) {
             />
           ),
           onSelect() {
-            if (!activePath) return
-            const name = activePath.split(/[/\\]/).pop() ?? 'note.md'
-            setRenameTarget({ absolute: activePath, name })
+            void (async function () {
+              try {
+                const root = await ensureRootDir()
+                const absolute = await findAbsoluteFromKey(root, treeKey)
+                setRenameTarget({
+                  absolute,
+                  name: findFileName(absolute),
+                  isDirectory
+                })
+              } catch (error) {
+                console.error(error)
+                toast.error(t('RENAME'))
+              }
+            })()
           }
         },
         {
           key: 'delete',
           label: t('DELETE'),
           danger: true,
-          disabled: !activePath,
           icon: (
             <Icon
               icon="lucide:trash-2"
@@ -206,13 +382,23 @@ function Navigation(props: NavigationProps) {
             />
           ),
           onSelect() {
-            if (!activePath) return
-            setPendingDelete(activePath)
+            void (async function () {
+              try {
+                const root = await ensureRootDir()
+                const absolute = await findAbsoluteFromKey(root, treeKey)
+                setPendingDelete({ absolute, isDirectory })
+              } catch (error) {
+                console.error(error)
+                toast.error(t('DELETE'))
+              }
+            })()
           }
         }
-      ]
+      )
+
+      return items
     },
-    [activePath]
+    []
   )
 
   return (
@@ -242,7 +428,7 @@ function Navigation(props: NavigationProps) {
                 className="size-7 shrink-0 rounded-md"
                 aria-label={t('NEW_FILE')}
                 onClick={function () {
-                  void onCreate()
+                  void onCreateAtRoot()
                 }}
               />
             }>
@@ -254,8 +440,12 @@ function Navigation(props: NavigationProps) {
           <TooltipContent side="bottom">{t('NEW_FILE')}</TooltipContent>
         </Tooltip>
       </div>
-      <ContextMenu items={treeMenuItems}>
+      <ContextMenu
+        trigger="[data-tree-key]"
+        findItems={findTreeMenuItems}>
         <ul
+          data-tree-key={ROOT_KEY}
+          data-tree-kind="directory"
           className={cn('min-h-0 flex-1 list-none overflow-x-hidden overflow-y-auto p-1 text-sm')}>
           {tree.nodes.map(function (node) {
             return (
@@ -274,7 +464,7 @@ function Navigation(props: NavigationProps) {
       </ContextMenu>
 
       <DeleteConfirmDialog
-        path={pendingDelete}
+        target={pendingDelete}
         onCancel={function () {
           setPendingDelete(null)
         }}
@@ -283,7 +473,8 @@ function Navigation(props: NavigationProps) {
         }}
       />
 
-      <RenameDialog
+      <NameDialog
+        title={t('RENAME')}
         name={renameTarget?.name ?? null}
         onChange={function (name) {
           setRenameTarget(function (prev) {
@@ -296,6 +487,23 @@ function Navigation(props: NavigationProps) {
         }}
         onConfirm={function () {
           void onConfirmRename()
+        }}
+      />
+
+      <NameDialog
+        title={createTarget?.kind === 'folder' ? t('NEW_FOLDER') : t('NEW_FILE')}
+        name={createTarget?.name ?? null}
+        onChange={function (name) {
+          setCreateTarget(function (prev) {
+            if (!prev) return prev
+            return { ...prev, name }
+          })
+        }}
+        onCancel={function () {
+          setCreateTarget(null)
+        }}
+        onConfirm={function () {
+          void onConfirmCreate()
         }}
       />
     </div>

@@ -13,6 +13,7 @@ import {
 
 import {
   findFileName,
+  findParentDir,
   isMarkdownName,
   isPathInsideRoot,
   joinPath,
@@ -190,7 +191,33 @@ async function createMarkdownFile(root: string, relativeDir: string, name: strin
   if (!isPathInsideRoot(root, absolute)) {
     throw new Error('Path escapes workspace root')
   }
+  const parent = relativeDir ? joinPath(root, relativeDir) : root
+  const hasParent = await exists(parent)
+  if (!hasParent) {
+    await mkdir(parent, { recursive: true })
+  }
   await writeTextFile(absolute, '# New note\n\n')
+  clearDirListCache(parent)
+  return absolute
+}
+
+async function createMarkdownFolder(
+  root: string,
+  relativeDir: string,
+  name: string
+): Promise<string> {
+  const folderName = name.trim().replace(/[/\\]/g, '')
+  if (!folderName) {
+    throw new Error('Empty folder name')
+  }
+  const relative = relativeDir ? `${relativeDir}/${folderName}` : folderName
+  const absolute = joinPath(root, relative)
+  if (!isPathInsideRoot(root, absolute)) {
+    throw new Error('Path escapes workspace root')
+  }
+  await mkdir(absolute, { recursive: false })
+  const parent = relativeDir ? joinPath(root, relativeDir) : root
+  clearDirListCache(parent)
   return absolute
 }
 
@@ -199,13 +226,20 @@ async function renameMarkdownPath(fromPath: string, toPath: string, root: string
     throw new Error('Path escapes workspace root')
   }
   await rename(fromPath, toPath)
+  clearDirListCache(findParentDir(fromPath))
+  clearDirListCache(findParentDir(toPath))
 }
 
-async function removeMarkdownPath(path: string, root: string): Promise<void> {
+async function removeMarkdownPath(
+  path: string,
+  root: string,
+  options: { recursive?: boolean } = {}
+): Promise<void> {
   if (!isPathInsideRoot(root, path)) {
     throw new Error('Path escapes workspace root')
   }
-  await remove(path)
+  await remove(path, { recursive: options.recursive ?? false })
+  clearDirListCache(findParentDir(path))
 }
 
 async function ensureAssetsDir(docPath: string): Promise<string> {
@@ -246,6 +280,7 @@ export {
   pickRootDirectory,
   listMarkdownEntries,
   createMarkdownFile,
+  createMarkdownFolder,
   renameMarkdownPath,
   removeMarkdownPath,
   ensureAssetsDir,
