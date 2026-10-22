@@ -212,7 +212,10 @@ function CollectionExpanded() {
             onClick={function (event) {
               event.stopPropagation()
             }}>
-            <CollectionPanel id={session.id} />
+            <CollectionPanel
+              key={session.id}
+              id={session.id}
+            />
           </m.div>
         </m.div>
       ) : null}

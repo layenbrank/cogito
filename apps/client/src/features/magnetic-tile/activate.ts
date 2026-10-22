@@ -34,7 +34,7 @@ function findCollectionOriginRect(id: string) {
 
 /** 特殊组件：走专属激活；未登记的组件走 `activateRoute` */
 const ACTIVATE: Partial<Record<MagneticTile.Component, ActivateHandler>> = {
-  async collection(tile) {
+  collection(tile) {
     const rect = findCollectionOriginRect(tile.id)
     if (!rect) {
       toast.error('无法定位集合磁贴')

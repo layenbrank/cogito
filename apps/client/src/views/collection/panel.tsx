@@ -32,13 +32,6 @@ function CollectionPanel(props: CollectionPanelProps) {
 
   useEffect(
     function () {
-      setStack([props.id])
-    },
-    [props.id]
-  )
-
-  useEffect(
-    function () {
       let cancelled = false
 
       async function toFetchMembers() {

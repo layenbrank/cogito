@@ -9,7 +9,7 @@ import {
 } from '@i-thinking/design/components/dialog'
 import { Input } from '@i-thinking/design/components/input'
 import { Label } from '@i-thinking/design/components/label'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 interface NameDialogProps {
   open: boolean
@@ -26,15 +26,6 @@ interface NameDialogProps {
 function NameDialog(props: NameDialogProps) {
   const [value, setValue] = useState(props.initialValue ?? '')
   const [submitting, setSubmitting] = useState(false)
-
-  useEffect(
-    function () {
-      if (!props.open) return
-      setValue(props.initialValue ?? '')
-      setSubmitting(false)
-    },
-    [props.open, props.initialValue]
-  )
 
   async function submit() {
     const next = value.trim()

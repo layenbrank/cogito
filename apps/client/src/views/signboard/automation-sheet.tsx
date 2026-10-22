@@ -403,8 +403,12 @@ function AutomationSheet(props: AutomationSheetProps) {
                 value={draft.actionType}
                 onValueChange={function (value) {
                   if (value === null) return
+                  const matched = ACTION_OPTIONS.find(function (row) {
+                    return row.value === value
+                  })
+                  if (!matched) return
                   setDraft(function (prev) {
-                    return { ...prev, actionType: value as ActionKind }
+                    return { ...prev, actionType: matched.value }
                   })
                 }}>
                 <SelectTrigger className="h-9 w-full">

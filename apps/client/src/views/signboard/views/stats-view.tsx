@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 import type { SignboardEntry, SignboardColumn } from '@/stores/signboard'
 import styles from '@/views/signboard/signboard.module.scss'
@@ -46,7 +46,9 @@ function StatsView(props: StatsViewProps) {
     })
   )
 
-  const today = startOfDay(Date.now())
+  const [today] = useState(function () {
+    return startOfDay(Date.now())
+  })
   const weekEnd = today + 7 * DAY_MS
 
   const overdue = active.filter(function (card) {

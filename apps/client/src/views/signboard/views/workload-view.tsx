@@ -11,21 +11,20 @@ function WorkloadView(props: WorkloadViewProps) {
   const entries = useSignboardStore(function (state) {
     return state.entries
   })
-  const entriesInColumn = useSignboardStore(function (state) {
-    return state.entriesInColumn
-  })
 
   const rows = useMemo(
     function () {
       return props.columns.map(function (column) {
-        const count = entriesInColumn(column.id).length
+        const count = entries.filter(function (card) {
+          return card.columnID === column.id && card.archivedAt === null
+        }).length
         const limit = column.wipLimit
         const ratio = limit !== null && limit !== undefined && limit > 0 ? count / limit : null
         const isOver = ratio !== null && ratio !== undefined && ratio > 1
         return { column, count, limit, ratio, isOver }
       })
     },
-    [props.columns, entries, entriesInColumn]
+    [props.columns, entries]
   )
 
   return (

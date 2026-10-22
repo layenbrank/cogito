@@ -273,12 +273,14 @@ function KanbanView(props: KanbanViewProps) {
     }
     if (event.key === 'ArrowLeft' && colIndex > 0) {
       event.preventDefault()
-      const dest = props.columns[colIndex - 1]!
+      const dest = props.columns[colIndex - 1]
+      if (!dest) return
       void toMoveEntry(entryID, dest.id, entriesInColumn(dest.id).length)
     }
     if (event.key === 'ArrowRight' && colIndex < props.columns.length - 1) {
       event.preventDefault()
-      const dest = props.columns[colIndex + 1]!
+      const dest = props.columns[colIndex + 1]
+      if (!dest) return
       void toMoveEntry(entryID, dest.id, entriesInColumn(dest.id).length)
     }
   }

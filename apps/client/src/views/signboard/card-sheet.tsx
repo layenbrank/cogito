@@ -133,12 +133,24 @@ function CardSheet(props: CardSheetProps) {
     return state.toUpdateReminder
   })
 
-  const [title, setTitle] = useState('')
-  const [notes, setNotes] = useState('')
-  const [due, setDue] = useState<Dayjs | null>(null)
-  const [start, setStart] = useState<Dayjs | null>(null)
-  const [priority, setPriority] = useState('0')
-  const [remind, setRemind] = useState(false)
+  const [title, setTitle] = useState(function () {
+    return props.card?.title ?? ''
+  })
+  const [notes, setNotes] = useState(function () {
+    return props.card?.notes ?? ''
+  })
+  const [due, setDue] = useState<Dayjs | null>(function () {
+    return parseDayjs(props.card?.dueAt ?? null)
+  })
+  const [start, setStart] = useState<Dayjs | null>(function () {
+    return parseDayjs(props.card?.startAt ?? null)
+  })
+  const [priority, setPriority] = useState(function () {
+    return String(props.card?.priority ?? 0)
+  })
+  const [remind, setRemind] = useState(function () {
+    return Boolean(props.card?.reminderID)
+  })
   const [tagDraft, setTagDraft] = useState('')
   const [checklistDraft, setChecklistDraft] = useState('')
   const [editingCheckID, setEditingCheckID] = useState<string | null>(null)
@@ -152,7 +164,6 @@ function CardSheet(props: CardSheetProps) {
   const attached = props.card ? tagIDsForEntry(props.card.id) : []
   const checklist = props.card ? checksForEntry(props.card.id) : []
   const links = props.card ? assetsForEntry(props.card.id) : []
-  const coverID = props.card ? coverAssetID(props.card.id) : null
   const linkKey = links
     .map(function (row) {
       return `${row.assetID}:${row.index}`
@@ -174,23 +185,6 @@ function CardSheet(props: CardSheetProps) {
       })
     },
     [tags, tagDraft]
-  )
-
-  useEffect(
-    function () {
-      if (!props.card) return
-      setTitle(props.card.title)
-      setNotes(props.card.notes)
-      setDue(parseDayjs(props.card.dueAt))
-      setStart(parseDayjs(props.card.startAt))
-      setPriority(String(props.card.priority ?? 0))
-      setRemind(Boolean(props.card.reminderID))
-      setTagDraft('')
-      setChecklistDraft('')
-      setEditingCheckID(null)
-      setColorPickerTagID(null)
-    },
-    [props.card]
   )
 
   useEffect(

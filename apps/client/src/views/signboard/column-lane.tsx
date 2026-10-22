@@ -51,6 +51,11 @@ function ColumnLane(props: ColumnLaneProps) {
   const [isAdding, setIsAdding] = useState(false)
   const [draft, setDraft] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const { requestAdd, onConsumedAddRequest } = props
+
+  if (requestAdd && !isAdding) {
+    setIsAdding(true)
+  }
 
   const cardIDs = props.entries.map(function (card) {
     return card.id
@@ -58,14 +63,13 @@ function ColumnLane(props: ColumnLaneProps) {
 
   useEffect(
     function () {
-      if (!props.requestAdd) return
-      setIsAdding(true)
-      props.onConsumedAddRequest?.()
+      if (!requestAdd) return
+      onConsumedAddRequest?.()
       requestAnimationFrame(function () {
         inputRef.current?.focus()
       })
     },
-    [props.requestAdd, props.onConsumedAddRequest]
+    [requestAdd, onConsumedAddRequest]
   )
 
   async function commit() {

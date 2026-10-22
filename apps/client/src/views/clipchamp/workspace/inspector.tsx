@@ -611,7 +611,7 @@ function RangeField(props: RangeFieldProps) {
           max={max}
           step={step}
           value={value}
-          onValueChange={function (next) {
+          onValueChange={function (next: number | readonly number[]) {
             onChange(parseSliderValue(next))
           }}
         />

@@ -201,7 +201,7 @@ function UtilityPropsPanel(props: UtilityPropsPanelProps) {
               step={1}
               value={[thickness]}
               aria-label="粗细"
-              onValueChange={function (next) {
+              onValueChange={function (next: number | readonly number[]) {
                 onUpdateThickness(Math.round(parseSliderValue(next)))
               }}
             />
@@ -249,7 +249,7 @@ function UtilityPropsPanel(props: UtilityPropsPanelProps) {
                   step={1}
                   value={[fontSize]}
                   aria-label="字号"
-                  onValueChange={function (next) {
+                  onValueChange={function (next: number | readonly number[]) {
                     onUpdateFontSize(Math.round(parseSliderValue(next)))
                   }}
                 />
@@ -278,7 +278,7 @@ function UtilityPropsPanel(props: UtilityPropsPanelProps) {
                       return `${Math.round(value)}%`
                     }
                   }}
-                  onValueChange={function (next) {
+                  onValueChange={function (next: number | readonly number[]) {
                     onUpdateOpacity(Math.max(0.05, parseSliderValue(next) / 100))
                   }}
                 />

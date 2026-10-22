@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 import type { SignboardEntry, SignboardColumn } from '@/stores/signboard'
 import styles from '@/views/signboard/signboard.module.scss'
@@ -33,6 +33,10 @@ function formatDay(ms: number) {
 }
 
 function GanttView(props: GanttViewProps) {
+  const [today] = useState(function () {
+    return startOfDay(Date.now())
+  })
+
   const activeCards = useMemo(
     function () {
       return props.entries.filter(function (card) {
@@ -69,7 +73,6 @@ function GanttView(props: GanttViewProps) {
   const { rangeStart, days } = useMemo(
     function () {
       if (scheduled.length === 0) {
-        const today = startOfDay(Date.now())
         return {
           rangeStart: today,
           days: Array.from({ length: 14 }, function (_, i) {
@@ -94,7 +97,7 @@ function GanttView(props: GanttViewProps) {
         })
       }
     },
-    [scheduled]
+    [scheduled, today]
   )
 
   const columnTitle = useMemo(

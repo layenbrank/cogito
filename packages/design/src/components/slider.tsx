@@ -43,8 +43,9 @@ function formatTip(formatter: TipFormatter | undefined, value: number) {
 }
 
 /** 单拇指取值；range 时取首项 */
-function parseSliderValue(value: number | readonly number[]) {
-  return Array.isArray(value) ? (value[0] ?? 0) : value
+function parseSliderValue(value: number | readonly number[]): number {
+  if (typeof value === 'number') return value
+  return value[0] ?? 0
 }
 
 function SliderTip(props: { children: React.ReactNode; isVisible: boolean }) {

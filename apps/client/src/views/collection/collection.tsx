@@ -33,7 +33,10 @@ export default function Collection() {
 
   return (
     <div className="h-full min-h-120">
-      <CollectionPanel id={id} />
+      <CollectionPanel
+        key={id}
+        id={id}
+      />
     </div>
   )
 }

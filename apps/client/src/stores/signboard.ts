@@ -103,7 +103,7 @@ function pickTagColor(existing: SignboardTag[]): string {
   const free = TAG_COLORS.find(function (color) {
     return !used.has(color)
   })
-  return free ?? TAG_COLORS[existing.length % TAG_COLORS.length]!
+  return free ?? TAG_COLORS[existing.length % TAG_COLORS.length]
 }
 
 interface SignboardAutomation {

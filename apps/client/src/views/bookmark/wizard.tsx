@@ -74,13 +74,7 @@ function BookmarkImportWizard(props: WizardProps) {
   const [viewMode, setViewMode] = useState<BookmarkViewMode>(readViewMode)
   const [sortKey, setSortKey] = useState<BookmarkSortKey>(readSortKey)
 
-  useEffect(
-    function () {
-      if (mirrorID || !activeMirrorID) return
-      setMirrorID(activeMirrorID)
-    },
-    [activeMirrorID, mirrorID]
-  )
+  const resolvedMirrorID = mirrorID || activeMirrorID || ''
 
   useEffect(function () {
     let cancelled = false
@@ -134,7 +128,7 @@ function BookmarkImportWizard(props: WizardProps) {
   }
 
   async function onCommit() {
-    if (!mirrorID) {
+    if (!resolvedMirrorID) {
       toast.error('请选择目标镜像')
       return
     }
@@ -146,7 +140,7 @@ function BookmarkImportWizard(props: WizardProps) {
       setBusy(true)
       setProgress({ percent: 0, label: '准备写入书签库…' })
       const result = await commitBookmarkImport({
-        mirrorID,
+        mirrorID: resolvedMirrorID,
         roots: preview!.roots,
         selectedFolders,
         strategy,
@@ -174,7 +168,7 @@ function BookmarkImportWizard(props: WizardProps) {
             <span className={styles.fieldLabel}>镜像</span>
             <Select
               items={mirrorItems}
-              value={mirrorID || null}
+              value={resolvedMirrorID || null}
               onValueChange={function (value) {
                 if (value === null) return
                 setMirrorID(value)

@@ -33,7 +33,7 @@ async function previewFromHtmlFile(): Promise<ImportPreview | null> {
   return buildPreview(roots, selected)
 }
 
-async function previewFromChromeJsonText(raw: string, label: string): Promise<ImportPreview> {
+function previewFromChromeJsonText(raw: string, label: string): ImportPreview {
   const roots = parseChromeBookmarksJson(raw)
   if (!roots.length) {
     throw new Error('未能从 Chrome Bookmarks JSON 解析出书签')

@@ -48,10 +48,7 @@ function BookmarkLibrary(props: BookmarkLibraryProps) {
 
   useEffect(
     function () {
-      if (!activeMirrorID) {
-        setRoots([])
-        return
-      }
+      if (!activeMirrorID) return
       let cancelled = false
       void fetchBookmarkTree(activeMirrorID)
         .then(function (tree) {

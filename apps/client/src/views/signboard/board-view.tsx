@@ -116,7 +116,15 @@ function BoardView() {
   const [addingColumn, setAddingColumn] = useState(false)
   const [columnDraft, setColumnDraft] = useState('')
   const [addRequestColumnID, setAddRequestColumnID] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('board')
+  const [viewMode, setViewMode] = useState<ViewMode>(function () {
+    return readStoredView(activeBoardID)
+  })
+  const [viewBoardID, setViewBoardID] = useState(activeBoardID)
+
+  if (activeBoardID !== viewBoardID) {
+    setViewBoardID(activeBoardID)
+    setViewMode(readStoredView(activeBoardID))
+  }
 
   const applySearch = useMemo(
     function () {
@@ -141,13 +149,6 @@ function BoardView() {
       }
     },
     [applySearch]
-  )
-
-  useEffect(
-    function () {
-      setViewMode(readStoredView(activeBoardID))
-    },
-    [activeBoardID]
   )
 
   function changeViewMode(mode: ViewMode) {
@@ -230,7 +231,10 @@ function BoardView() {
           event.preventDefault()
           const first = orderedColumns[0]
           if (first) {
-            changeViewMode('board')
+            setViewMode('board')
+            if (activeBoardID && typeof localStorage !== 'undefined') {
+              localStorage.setItem(`${VIEW_STORAGE_PREFIX}${activeBoardID}`, 'board')
+            }
             setAddRequestColumnID(first.id)
           }
         }
@@ -588,6 +592,7 @@ function BoardView() {
       </p>
 
       <CardSheet
+        key={activeCard?.id ?? 'closed'}
         card={activeCard ?? null}
         open={sheetOpen}
         onUpdateOpen={setSheetOpen}
@@ -602,6 +607,7 @@ function BoardView() {
       />
 
       <NameDialog
+        key={nameDialog?.kind === 'board-create' ? 'board-create' : 'board-create-idle'}
         open={nameDialog?.kind === 'board-create'}
         title="新建看板"
         description="用于区分工作流主题，例如个人、副业或项目代号。"
@@ -621,6 +627,11 @@ function BoardView() {
       />
 
       <NameDialog
+        key={
+          nameDialog?.kind === 'board-rename'
+            ? `board-rename-${nameDialog.boardID}`
+            : 'board-rename-idle'
+        }
         open={nameDialog?.kind === 'board-rename'}
         title="重命名看板"
         initialValue={nameDialog?.kind === 'board-rename' ? nameDialog.title : ''}
@@ -640,6 +651,11 @@ function BoardView() {
       />
 
       <NameDialog
+        key={
+          nameDialog?.kind === 'column-rename'
+            ? `column-rename-${nameDialog.column.id}`
+            : 'column-rename-idle'
+        }
         open={nameDialog?.kind === 'column-rename'}
         title="重命名列"
         initialValue={nameDialog?.kind === 'column-rename' ? nameDialog.column.title : ''}
