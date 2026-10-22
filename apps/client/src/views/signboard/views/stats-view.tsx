@@ -21,7 +21,7 @@ function StatsView(props: StatsViewProps) {
   const active = useMemo(
     function () {
       return props.entries.filter(function (card) {
-        return card.archivedAt == null
+        return card.archivedAt === null || card.archivedAt === undefined
       })
     },
     [props.entries]
@@ -50,11 +50,16 @@ function StatsView(props: StatsViewProps) {
   const weekEnd = today + 7 * DAY_MS
 
   const overdue = active.filter(function (card) {
-    return card.dueAt != null && card.dueAt < today
+    return card.dueAt !== null && card.dueAt !== undefined && card.dueAt < today
   }).length
 
   const dueThisWeek = active.filter(function (card) {
-    return card.dueAt != null && card.dueAt >= today && card.dueAt < weekEnd
+    return (
+      card.dueAt !== null &&
+      card.dueAt !== undefined &&
+      card.dueAt >= today &&
+      card.dueAt < weekEnd
+    )
   }).length
 
   const priorityBuckets = useMemo(

@@ -30,7 +30,8 @@ interface AutomationEvent {
 function parseCondition(raw: string): AutomationCondition {
   try {
     return JSON.parse(raw) as AutomationCondition
-  } catch {
+  } catch (error) {
+    console.warn('parseCondition failed', error)
     return {}
   }
 }
@@ -39,7 +40,8 @@ function parseActions(raw: string): AutomationAction[] {
   try {
     const parsed = JSON.parse(raw) as AutomationAction[]
     return Array.isArray(parsed) ? parsed : []
-  } catch {
+  } catch (error) {
+    console.warn('parseActions failed', error)
     return []
   }
 }

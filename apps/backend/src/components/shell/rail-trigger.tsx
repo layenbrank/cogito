@@ -20,7 +20,9 @@ function RailTriggerBar(props: RailTriggerProps) {
       aria-label={label}
       aria-pressed={props.isCollapsed}
       title={`${label} ⌘B`}
-      onClick={props.onToggle}>
+      onClick={function () {
+        props.onToggle()
+      }}>
       <Icon
         icon={props.isCollapsed ? 'lucide:chevrons-right' : 'lucide:chevrons-left'}
         width="var(--backend-rail-icon-glyph)"
@@ -40,7 +42,9 @@ function RailTriggerEdge(props: RailTriggerProps) {
       aria-label={label}
       aria-pressed={props.isCollapsed}
       title={`${label} ⌘B`}
-      onClick={props.onToggle}>
+      onClick={function () {
+        props.onToggle()
+      }}>
       <Icon
         icon={props.isCollapsed ? 'lucide:chevron-right' : 'lucide:chevron-left'}
         className="size-3.5"

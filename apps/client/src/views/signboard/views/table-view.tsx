@@ -28,7 +28,7 @@ interface TableViewProps {
 const PRIORITY_LABELS = ['无', '低', '中', '高', '紧急'] as const
 
 function formatDue(dueAt: number | null) {
-  if (dueAt == null) return '—'
+  if (dueAt === null || dueAt === undefined) return '—'
   const date = new Date(dueAt)
   const m = String(date.getMonth() + 1).padStart(2, '0')
   const d = String(date.getDate()).padStart(2, '0')
@@ -69,7 +69,7 @@ function TableView(props: TableViewProps) {
     function () {
       return props.entries
         .filter(function (card) {
-          return card.archivedAt == null
+          return card.archivedAt === null || card.archivedAt === undefined
         })
         .slice()
         .sort(function (a, b) {

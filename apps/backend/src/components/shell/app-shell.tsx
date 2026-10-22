@@ -85,20 +85,16 @@ function AppShell() {
 
   useEffect(
     function () {
-      if (!isRailCollapsed) {
-        updateIconMode(false)
-        return
-      }
-      const preferReduced =
-        typeof window !== 'undefined' &&
-        window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      if (preferReduced) {
-        updateIconMode(true)
-        return
-      }
+      // 展开立刻退回图标态；收起等宽度过渡结束再切，避免 justify-center 中途跳动
+      const delay = !isRailCollapsed
+        ? 0
+        : typeof window !== 'undefined' &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          ? 0
+          : 280
       const timer = window.setTimeout(function () {
-        updateIconMode(true)
-      }, 280)
+        updateIconMode(isRailCollapsed)
+      }, delay)
       return function () {
         window.clearTimeout(timer)
       }

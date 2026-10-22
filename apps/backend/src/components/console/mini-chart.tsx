@@ -114,7 +114,8 @@ function MiniAreaChart(props: MiniAreaChartProps) {
       return `${index === 0 ? 'M' : 'L'}${coord.x},${coord.y}`
     })
     .join(' ')
-  const area = `${line} L${coords[coords.length - 1]!.x},${height} L0,${height} Z`
+  const last = coords[coords.length - 1]
+  const area = `${line} L${last.x},${height} L0,${height} Z`
 
   return (
     <div>

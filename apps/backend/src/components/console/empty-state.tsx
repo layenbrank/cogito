@@ -27,7 +27,9 @@ function EmptyState(props: EmptyStateProps) {
         <Button
           size="lg"
           className="mt-2"
-          onClick={props.onAction}>
+          onClick={function () {
+            props.onAction?.()
+          }}>
           {props.actionLabel}
         </Button>
       ) : null}

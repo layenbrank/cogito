@@ -1,6 +1,8 @@
-// import { readdir} from 'node:fs'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
-import { resolve, basename } from 'node:path'
+import { basename, dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 
 export interface Manifest {
   name: string
@@ -38,7 +40,7 @@ export interface Resource {
   resources: string[]
 }
 
-const dist = resolve(__dirname, '..', 'dist')
+const dist = resolve(SCRIPT_DIR, '..', 'dist')
 const manifestPath = resolve(dist, 'manifest.json')
 
 type Handler = (manifest: Manifest, file: string) => void

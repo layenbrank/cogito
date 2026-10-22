@@ -61,10 +61,12 @@ jobs:
           pnpm --filter @i-thinking/client run unit
           pnpm turbo run unit --continue --filter=!@i-thinking/client || true
 
-      - name: Build (exclude Tauri desktop)
+      # client = Tauri 桌面包；studio = Electron Forge 打包（需 sidecar bootstrap）。
+      # 二者各有独立 release/desktop workflow；此处只编库与 web 应用。
+      - name: Build (exclude desktop packages)
         env:
           NODE_ENV: production
-        run: pnpm turbo run build --filter=!@i-thinking/client
+        run: pnpm turbo run build --filter=!@i-thinking/client --filter=!@i-thinking/studio
 
       - name: Build client web (Vite)
         env:
@@ -106,6 +108,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
 
+      - name: Neutralize local cargo wrappers for CI
+        working-directory: apps/client/src-tauri
+        run: |
+          # .cargo/config.toml 面向 Windows + sccache，不适合 GitHub Linux runner
+          printf '%s\n' '[build]' 'target-dir = "target"' > .cargo/config.toml
+
       # build.rs 只校验 binaries/ 下产物存在且非空；真实产物要跑
       # `pnpm command sidecar bootstrap client`（联网拉几百 MB），而 cargo check 不产出安装包，
       # 故用同名占位文件满足校验即可。
@@ -117,7 +125,10 @@ jobs:
           for stem in corex-daemon corex-mcp goose; do
             printf 'ci-placeholder\n' > "binaries/${stem}-${host}"
           done
-          printf 'ci-placeholder\n' > binaries/pdfium.dll
+          # tauri.conf.json bundle.resources 也校验这些路径存在
+          for name in pdfium.dll pandoc.exe ffmpeg.exe ffprobe.exe; do
+            printf 'ci-placeholder\n' > "binaries/${name}"
+          done
 
       - name: Cargo check
         working-directory: apps/client/src-tauri

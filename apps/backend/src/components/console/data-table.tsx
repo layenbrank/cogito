@@ -30,7 +30,13 @@ function DataTable<T>(props: DataTableProps<T>) {
         title={props.emptyTitle ?? '暂无数据'}
         description={props.emptyDescription}
         actionLabel={props.emptyActionLabel}
-        onAction={props.onEmptyAction}
+        onAction={
+          props.onEmptyAction
+            ? function () {
+                props.onEmptyAction?.()
+              }
+            : undefined
+        }
       />
     )
   }

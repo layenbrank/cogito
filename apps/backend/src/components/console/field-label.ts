@@ -25,12 +25,18 @@ function findFieldLabel(key: string) {
 }
 
 function formatFieldValue(value: unknown) {
-  if (value == null) return '—'
+  if (value === null || value === undefined) return '—'
   if (typeof value === 'number' && value > 1_000_000_000_000) {
     return new Date(value).toLocaleString()
   }
-  if (typeof value === 'object') return JSON.stringify(value)
-  return String(value)
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return '—'
+  }
 }
 
 export { findFieldLabel, formatFieldValue }

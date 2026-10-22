@@ -8,8 +8,8 @@ function readViewMode(): BookmarkViewMode {
   try {
     const raw = localStorage.getItem(VIEW_KEY)
     if (raw === 'list' || raw === 'grid') return raw
-  } catch {
-    /* ignore */
+  } catch (error) {
+    console.warn('[bookmark.view-prefs] readViewMode 失败', error)
   }
   return 'list'
 }
@@ -17,8 +17,8 @@ function readViewMode(): BookmarkViewMode {
 function writeViewMode(mode: BookmarkViewMode) {
   try {
     localStorage.setItem(VIEW_KEY, mode)
-  } catch {
-    /* ignore */
+  } catch (error) {
+    console.warn('[bookmark.view-prefs] writeViewMode 失败', error)
   }
 }
 
@@ -34,8 +34,8 @@ function readSortKey(): BookmarkSortKey {
     ) {
       return raw
     }
-  } catch {
-    /* ignore */
+  } catch (error) {
+    console.warn('[bookmark.view-prefs] readSortKey 失败', error)
   }
   return 'type'
 }
@@ -43,8 +43,8 @@ function readSortKey(): BookmarkSortKey {
 function writeSortKey(key: BookmarkSortKey) {
   try {
     localStorage.setItem(SORT_KEY, key)
-  } catch {
-    /* ignore */
+  } catch (error) {
+    console.warn('[bookmark.view-prefs] writeSortKey 失败', error)
   }
 }
 

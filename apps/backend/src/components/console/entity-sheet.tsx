@@ -26,13 +26,15 @@ interface EntitySheetProps {
 }
 
 function EntitySheet(props: EntitySheetProps) {
-  const hasSubmit = Boolean(props.onSubmit)
+  const hasSubmit = typeof props.onSubmit === 'function'
   const hasFooter = Boolean(props.footer) || hasSubmit
 
   return (
     <Sheet
       open={props.open}
-      onOpenChange={props.onOpenChange}>
+      onOpenChange={function (open) {
+        props.onOpenChange(open)
+      }}>
       <SheetContent
         side="right"
         className={clsx('flex w-full flex-col sm:max-w-md', props.contentClassName)}>
@@ -61,7 +63,9 @@ function EntitySheet(props: EntitySheetProps) {
                 <Button
                   className="h-10 px-4"
                   disabled={props.isPending}
-                  onClick={props.onSubmit}>
+                  onClick={function () {
+                    props.onSubmit?.()
+                  }}>
                   {props.submitLabel ?? '保存'}
                 </Button>
               </>

@@ -40,7 +40,8 @@ async function discoverChromeProfiles(): Promise<ChromeProfileBookmarks[]> {
     let entries
     try {
       entries = await readDir(userData)
-    } catch {
+    } catch (error) {
+      console.warn('[bookmark-import] 读取 User Data 失败', userData, error)
       continue
     }
 

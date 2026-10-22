@@ -62,6 +62,7 @@ function useOverlayHostGuards(recover: () => void): void {
       let errorTimes: number[] = []
 
       function recordError(source: string, detail: unknown) {
+        // 全局 `installExceptionReporting` 已上报 window error / rejection；这里只做风暴恢复
         console.error(`[overlay] ${source}`, detail)
         const now = Date.now()
         errorTimes = errorTimes.filter(function (at) {

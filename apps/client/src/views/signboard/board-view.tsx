@@ -161,7 +161,7 @@ function BoardView() {
     function () {
       return columns
         .filter(function (column) {
-          return column.archivedAt == null
+          return column.archivedAt === null || column.archivedAt === undefined
         })
         .slice()
         .sort(function (a, b) {
@@ -202,7 +202,7 @@ function BoardView() {
       const hay = `${card.title} ${card.notes}`.toLowerCase()
       if (!hay.includes(q)) return true
     }
-    if (dueOnly && card.dueAt == null) return true
+    if (dueOnly && (card.dueAt === null || card.dueAt === undefined)) return true
     if (tagFilters.length > 0) {
       const ids = tagIDsForEntry(entryID)
       const hit = tagFilters.some(function (tagID) {

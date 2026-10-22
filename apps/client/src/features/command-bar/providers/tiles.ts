@@ -99,7 +99,7 @@ function searchTiles(query: string): Hit[] {
     .search(query)
     .slice(0, OMNIBAR_UI.LOCAL_LIMIT)
     .map(function (row) {
-      const score = row.score == null ? 1 : 1 - row.score
+      const score = row.score === null || row.score === undefined ? 1 : 1 - row.score
       return toHit(row.item, score)
     })
 }

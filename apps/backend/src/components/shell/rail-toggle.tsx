@@ -24,7 +24,9 @@ function RailToggle(props: RailToggleProps) {
       aria-label={label}
       aria-pressed={props.isCollapsed}
       title={`${label} ⌘B`}
-      onClick={props.onToggle}>
+      onClick={function () {
+        props.onToggle()
+      }}>
       <Icon
         icon={props.isCollapsed ? 'lucide:panel-left-open' : 'lucide:panel-left-close'}
         className="size-4"

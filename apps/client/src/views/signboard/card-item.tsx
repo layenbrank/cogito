@@ -40,7 +40,7 @@ function formatDue(dueAt: number) {
 }
 
 function dueTone(dueAt: number | null) {
-  if (dueAt == null) return null
+  if (dueAt === null || dueAt === undefined) return null
   const start = new Date()
   start.setHours(0, 0, 0, 0)
   if (dueAt < start.getTime()) return 'overdue'
@@ -129,7 +129,7 @@ function CardItem(props: CardItemProps) {
               </span>
             )
           })}
-          {props.card.dueAt != null ? (
+          {props.card.dueAt !== null && props.card.dueAt !== undefined ? (
             <span
               className={clsx(
                 styles.due,

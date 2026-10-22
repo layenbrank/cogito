@@ -1,5 +1,7 @@
 /** Command Omnibar UI / 解析常量 */
 
+import type { DomainFilter, HitDomain } from './types'
+
 const RECENT_ID_PREFIX = 'recent:'
 
 const OMNIBAR_UI = {
@@ -16,7 +18,7 @@ const OMNIBAR_UI = {
 } as const
 
 /** 前缀 → 域过滤 */
-const PREFIX_DOMAIN: Record<string, import('./types').HitDomain> = {
+const PREFIX_DOMAIN: Record<string, HitDomain> = {
   tile: 'tile',
   col: 'collection',
   collection: 'collection',
@@ -39,7 +41,7 @@ const PREFIX_DOMAIN: Record<string, import('./types').HitDomain> = {
   web: 'web'
 }
 
-const DOMAIN_LABEL: Record<import('./types').HitDomain | 'all', string> = {
+const DOMAIN_LABEL: Record<HitDomain | 'all', string> = {
   all: '全部',
   tile: '磁贴',
   collection: '集合',
@@ -53,7 +55,7 @@ const DOMAIN_LABEL: Record<import('./types').HitDomain | 'all', string> = {
   web: 'Web'
 }
 
-const DOMAIN_ORDER: import('./types').HitDomain[] = [
+const DOMAIN_ORDER: HitDomain[] = [
   'tile',
   'collection',
   'navigation',
@@ -66,7 +68,7 @@ const DOMAIN_ORDER: import('./types').HitDomain[] = [
   'web'
 ]
 
-const FILTER_CHIPS: Array<import('./types').DomainFilter> = [
+const FILTER_CHIPS: DomainFilter[] = [
   'all',
   'tile',
   'navigation',

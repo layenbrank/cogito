@@ -30,7 +30,10 @@ function CalendarView(props: CalendarViewProps) {
   const undated = useMemo(
     function () {
       return props.entries.filter(function (card) {
-        return card.archivedAt == null && card.dueAt == null
+        return (
+          (card.archivedAt === null || card.archivedAt === undefined) &&
+          (card.dueAt === null || card.dueAt === undefined)
+        )
       })
     },
     [props.entries]
@@ -40,7 +43,12 @@ function CalendarView(props: CalendarViewProps) {
     function () {
       const map = new Map<string, SignboardEntry[]>()
       for (const card of props.entries) {
-        if (card.archivedAt != null || card.dueAt == null) continue
+        if (
+          (card.archivedAt !== null && card.archivedAt !== undefined) ||
+          card.dueAt === null ||
+          card.dueAt === undefined
+        )
+          continue
         const key = dayKey(card.dueAt)
         const bucket = map.get(key) ?? []
         bucket.push(card)

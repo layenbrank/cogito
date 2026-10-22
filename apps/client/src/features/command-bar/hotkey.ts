@@ -19,7 +19,9 @@ function useCommandBarHotkey(): void {
         id: COMMAND.COMMAND_BAR_FOCUS,
         title: '聚焦命令栏',
         keywords: 'command bar omnibar search',
-        run: focusCommandBar
+        run: function () {
+          void focusCommandBar()
+        }
       }
     ]
   }, [])

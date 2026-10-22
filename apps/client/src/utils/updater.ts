@@ -4,6 +4,7 @@ import { check } from '@tauri-apps/plugin-updater'
 import { toast } from 'sonner'
 import { CHANNELS } from '@/shared/ipc/channels'
 
+import { reportCaught } from '@/utils/exception-report'
 import { relaunchApp } from '@/utils/process'
 
 /**
@@ -80,6 +81,7 @@ async function checkUpdate() {
   } catch (error) {
     toast.dismiss('updater')
     const text = error instanceof Error ? error.message : String(error)
+    reportCaught('updater.check', error)
     toast.info(`更新失败：${text}`)
   }
 }

@@ -21,7 +21,7 @@ function startOfDay(ms: number) {
 function cardRange(card: SignboardEntry) {
   const start = startOfDay(card.startAt ?? card.createdAt)
   const end =
-    card.dueAt != null
+    card.dueAt !== null && card.dueAt !== undefined
       ? startOfDay(card.dueAt) + DAY_MS
       : start + DEFAULT_SPAN_DAYS * DAY_MS
   return { start, end: Math.max(end, start + DAY_MS) }
@@ -36,7 +36,7 @@ function GanttView(props: GanttViewProps) {
   const activeCards = useMemo(
     function () {
       return props.entries.filter(function (card) {
-        return card.archivedAt == null
+        return card.archivedAt === null || card.archivedAt === undefined
       })
     },
     [props.entries]
@@ -45,7 +45,10 @@ function GanttView(props: GanttViewProps) {
   const scheduled = useMemo(
     function () {
       return activeCards.filter(function (card) {
-        return card.startAt != null || card.dueAt != null
+        return (
+          (card.startAt !== null && card.startAt !== undefined) ||
+          (card.dueAt !== null && card.dueAt !== undefined)
+        )
       })
     },
     [activeCards]
@@ -54,7 +57,10 @@ function GanttView(props: GanttViewProps) {
   const unscheduled = useMemo(
     function () {
       return activeCards.filter(function (card) {
-        return card.startAt == null && card.dueAt == null
+        return (
+          (card.startAt === null || card.startAt === undefined) &&
+          (card.dueAt === null || card.dueAt === undefined)
+        )
       })
     },
     [activeCards]

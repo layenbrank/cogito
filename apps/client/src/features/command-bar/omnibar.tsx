@@ -47,7 +47,7 @@ function CommandOmnibar() {
 
   const [keyword, setKeyword] = useState('')
   const [hits, setHits] = useState<Hit[]>([])
-  const [navigation, setNavigation] = useState(OMNIBAR_UI.NONE)
+  const [navigation, setNavigation] = useState<number>(OMNIBAR_UI.NONE)
   const [isSurfaceOpen, setSurfaceOpen] = useState(false)
   const [isRailOpen, setRailOpen] = useState(false)
   const [engineKey, setEngineKey] = useState(readEngineKey)
@@ -84,7 +84,13 @@ function CommandOmnibar() {
       })
     }, OMNIBAR_UI.DEBOUNCE_MS)
 
-    suggestWeb.current = run
+    function suggest(value: string, chip: DomainFilter) {
+      void run(value, chip)
+    }
+    suggest.cancel = function () {
+      run.cancel()
+    }
+    suggestWeb.current = suggest
     return function () {
       run.cancel()
       abortRef.current?.abort()

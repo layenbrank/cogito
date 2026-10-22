@@ -140,7 +140,8 @@ function KanbanView(props: KanbanViewProps) {
             if (asset) next.set(pair.entryID, convertFileSrc(asset.filePath))
           }
           setCoverSrcByCard(next)
-        } catch {
+        } catch (error) {
+          console.warn('loadCovers failed', error)
           if (!cancelled) setCoverSrcByCard(new Map())
         }
       }

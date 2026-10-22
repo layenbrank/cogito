@@ -57,7 +57,8 @@ async function insertImagePath(path: string): Promise<string | undefined> {
   try {
     const info = await stat(path)
     size = typeof info.size === 'number' ? info.size : null
-  } catch {
+  } catch (error) {
+    console.warn('insertImagePath: stat failed', error)
     size = null
   }
 
