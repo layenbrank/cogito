@@ -56,12 +56,20 @@ function LoadMoreRow(props: { title: string; depth: number; onSelect: () => void
 }
 
 /** 文件行：没有子节点，点击即打开 */
-function FileRow(props: { title: string; depth: number; isActive: boolean; onSelect: () => void }) {
+function FileRow(props: {
+  title: string
+  depth: number
+  isActive: boolean
+  treeKey: string
+  onSelect: () => void
+}) {
   const isActive = props.isActive
   return (
     <li>
       <button
         type="button"
+        data-tree-key={props.treeKey}
+        data-tree-kind="file"
         aria-current={isActive ? 'page' : undefined}
         onClick={props.onSelect}
         style={{ paddingLeft: rowPadLeft(props.depth) }}
@@ -109,6 +117,7 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
         title={node.title}
         depth={depth}
         isActive={isActive}
+        treeKey={node.key}
         onSelect={function () {
           props.onSelect(node)
         }}
@@ -126,6 +135,8 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
           if (open) void props.onLoad(node)
         }}>
         <CollapsibleTrigger
+          data-tree-key={node.key}
+          data-tree-kind="directory"
           className={cn(
             'flex w-full items-center gap-1 border-l-2 border-transparent py-0.75 pr-2 text-left text-sm transition-colors hover:bg-muted/60',
             isActive && 'border-l-primary bg-primary/10 font-medium text-foreground'

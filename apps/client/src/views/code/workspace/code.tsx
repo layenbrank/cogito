@@ -16,7 +16,7 @@ import { useSettingsStore } from '@/stores/setting'
 import { useTerminalStore } from '@/stores/terminal'
 import { CODE_COMMANDS } from '@/views/code/lib/commands.ts'
 import { readCodeFile } from '@/views/code/lib/fs.ts'
-import { disposeAllModels, findOrCreateModel } from '@/views/code/lib/monaco-models.ts'
+import { disposeAllModels, findModel, findOrCreateModel } from '@/views/code/lib/monaco-models.ts'
 import { ActivityBar } from '@/views/code/workspace/activity-bar.tsx'
 import { CommandPalette } from '@/views/code/workspace/command-palette.tsx'
 import { Breadcrumbs } from '@/views/code/workspace/breadcrumbs.tsx'
@@ -33,6 +33,12 @@ export default function Code() {
   })
   const isPanelOpen = useCodeStore(function (state) {
     return state.isPanelOpen
+  })
+  const workspaceRoot = useCodeStore(function (state) {
+    return state.workspaceRoot
+  })
+  const toBumpTree = useCodeStore(function (state) {
+    return state.toBumpTree
   })
   const activeTabId = useCodeStore(function (state) {
     return state.activeTabId
@@ -60,50 +66,104 @@ export default function Code() {
     }
   }, [])
 
-  // 外部文件变更：脏则提示，否则静默重载
+  // 外部文件变更：脏则提示，否则静默重载（内容未变则跳过，避免自身保存触发跳动）
   useEffect(
     function () {
       if (!activeTab?.path) return
       let disposed = false
       let unwatch: (() => void) | undefined
+      const watchedPath = activeTab.path
       void watch(
-        activeTab.path,
+        watchedPath,
         function () {
           if (disposed) return
           const store = useCodeStore.getState()
           const tab = store.tabs.find(function (item) {
-            return item.path === activeTab.path
+            return item.path === watchedPath
           })
           if (!tab) return
-          if (tab.isDirty) {
-            toast.message('磁盘上的文件已更改', {
-              description: tab.title,
-              action: {
-                label: '重新加载',
-                onClick: function () {
-                  void readCodeFile(tab.path).then(function (content) {
-                    findOrCreateModel(tab.path, content)
-                    store.toMarkDirty(tab.id, false)
-                  })
-                }
+          void readCodeFile(tab.path)
+            .then(function (content) {
+              if (disposed) return
+              if (tab.isDirty) {
+                const existing = findModel(tab.path)
+                if (existing && existing.getValue() === content) return
+                toast.message('磁盘上的文件已更改', {
+                  description: tab.title,
+                  action: {
+                    label: '重新加载',
+                    onClick: function () {
+                      void readCodeFile(tab.path).then(function (next) {
+                        findOrCreateModel(tab.path, next)
+                        store.toMarkDirty(tab.id, false)
+                      })
+                    }
+                  }
+                })
+                return
               }
+              findOrCreateModel(tab.path, content)
             })
-            return
-          }
-          void readCodeFile(tab.path).then(function (content) {
-            findOrCreateModel(tab.path, content)
-          })
+            .catch(function () {
+              /* 文件可能已被删除；树 watch 会刷新 */
+            })
         },
         { delayMs: 400 }
-      ).then(function (fn) {
-        unwatch = fn
-      })
+      )
+        .then(function (fn) {
+          if (disposed) {
+            fn()
+            return
+          }
+          unwatch = fn
+        })
+        .catch(function () {
+          /* Command watch not found — 当前壳未启用 fs watch */
+        })
       return function () {
         disposed = true
         unwatch?.()
       }
     },
     [activeTab?.path]
+  )
+
+  // 工作区目录递归监听：资源管理器随磁盘创建/删除/重命名刷新
+  useEffect(
+    function () {
+      if (!workspaceRoot) return
+      let disposed = false
+      let unwatch: (() => void) | undefined
+      let debounceTimer = 0
+      void watch(
+        workspaceRoot,
+        function () {
+          if (disposed) return
+          window.clearTimeout(debounceTimer)
+          debounceTimer = window.setTimeout(function () {
+            if (disposed) return
+            toBumpTree()
+          }, 350)
+        },
+        { recursive: true, delayMs: 500 }
+      )
+        .then(function (fn) {
+          if (disposed) {
+            fn()
+            return
+          }
+          unwatch = fn
+        })
+        .catch(function () {
+          /* Command watch not found — 当前壳未启用 fs watch */
+        })
+      return function () {
+        disposed = true
+        window.clearTimeout(debounceTimer)
+        unwatch?.()
+      }
+    },
+    [workspaceRoot, toBumpTree]
   )
 
   // 键位与命令的对应关系全在 `keyboard/definitions.ts`；没挂载这里时，

@@ -6,7 +6,7 @@ import { immer } from 'zustand/middleware/immer'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
 
 import { findLanguageId } from '@/views/code/lib/language.ts'
-import { findFileName } from '@/views/code/lib/path.ts'
+import { findFileName, isPathInsideRoot, normalizeSeparators } from '@/views/code/lib/path.ts'
 
 type SidebarView = 'explorer' | 'search' | 'scm'
 type PanelTab = 'terminal' | 'problems'
@@ -43,6 +43,10 @@ interface CodeState {
   toOpenTab(params: { path: string; language?: string }): void
   toActivateTab: (id: string) => void
   toCloseTab: (id: string) => void
+  /** 关闭 path 本身或位于该目录下的所有 tab，返回被关 tab 的 path */
+  toCloseByPath: (path: string) => string[]
+  /** 文件/目录重命名后迁移打开的 tab 路径 */
+  toRelocatePath: (fromPath: string, toPath: string) => void
   toMarkDirty: (id: string, isDirty?: boolean) => void
   toMarkSaved: (id: string) => void
   toSetSidebarView: (view: SidebarView) => void
@@ -56,6 +60,19 @@ interface CodeState {
   toSetPaletteMode: (mode: PaletteMode) => void
   toBumpTree: () => void
   toSetProblemCount: (count: number) => void
+}
+
+function isSamePath(a: string, b: string): boolean {
+  return normalizeSeparators(a).toLowerCase() === normalizeSeparators(b).toLowerCase()
+}
+
+function relocateTabPath(tabPath: string, fromPath: string, toPath: string): string | null {
+  if (isSamePath(tabPath, fromPath)) return toPath
+  if (!isPathInsideRoot(fromPath, tabPath)) return null
+  const fromNorm = normalizeSeparators(fromPath).replace(/\/+$/, '')
+  const tabNorm = normalizeSeparators(tabPath)
+  const suffix = tabNorm.slice(fromNorm.length)
+  return `${normalizeSeparators(toPath).replace(/\/+$/, '')}${suffix}`
 }
 
 function findActiveTab(state: CodeState): CodeTab | undefined {
@@ -154,6 +171,55 @@ const useCodeStore = create<CodeState>()(
               },
               false,
               'toCloseTab'
+            )
+          },
+
+          toCloseByPath(path) {
+            const closed: string[] = []
+            set(
+              function (state) {
+                const nextTabs: CodeTab[] = []
+                let removedActive = false
+                for (const tab of state.tabs) {
+                  if (isSamePath(tab.path, path) || isPathInsideRoot(path, tab.path)) {
+                    closed.push(tab.path)
+                    if (tab.id === state.activeTabId) removedActive = true
+                    continue
+                  }
+                  nextTabs.push(tab)
+                }
+                state.tabs = nextTabs
+                if (removedActive) {
+                  const fallback = nextTabs[0]
+                  state.activeTabId = fallback?.id ?? null
+                  state.languageId = fallback?.language ?? 'plaintext'
+                  if (!fallback) {
+                    state.cursor = { line: 1, column: 1 }
+                  }
+                }
+              },
+              false,
+              'toCloseByPath'
+            )
+            return closed
+          },
+
+          toRelocatePath(fromPath, toPath) {
+            set(
+              function (state) {
+                for (const tab of state.tabs) {
+                  const next = relocateTabPath(tab.path, fromPath, toPath)
+                  if (!next) continue
+                  tab.path = next
+                  tab.title = findFileName(next)
+                  tab.language = findLanguageId(next)
+                  if (tab.id === state.activeTabId) {
+                    state.languageId = tab.language
+                  }
+                }
+              },
+              false,
+              'toRelocatePath'
             )
           },
 

@@ -59,6 +59,15 @@ function disposeModel(path: string): void {
   if (!model.isDisposed()) model.dispose()
 }
 
+/** 重命名后迁移 model：复制内容到新 URI，销毁旧 model */
+function relocateModel(fromPath: string, toPath: string): monaco.editor.ITextModel | null {
+  const existing = findModel(fromPath)
+  if (!existing) return null
+  const value = existing.getValue()
+  disposeModel(fromPath)
+  return findOrCreateModel(toPath, value)
+}
+
 function disposeAllModels(): void {
   for (const model of modelsByPath.values()) {
     if (!model.isDisposed()) model.dispose()
@@ -66,4 +75,11 @@ function disposeAllModels(): void {
   modelsByPath.clear()
 }
 
-export { findOrCreateModel, findModel, findPathForModel, disposeModel, disposeAllModels }
+export {
+  findOrCreateModel,
+  findModel,
+  findPathForModel,
+  disposeModel,
+  relocateModel,
+  disposeAllModels
+}
