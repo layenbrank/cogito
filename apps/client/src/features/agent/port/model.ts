@@ -19,6 +19,8 @@ import type {
 import { ensureCogitoProvider } from '@/features/agent/acp/cogito-provider'
 import { runThreadPrompt, respondToApproval, respondToElicitation } from '@/features/agent/acp/session'
 import { parseAcpStreamEvent, type AcpStreamContext } from '@/features/agent/acp/stream'
+import { findActiveScenario } from '@/features/agent/model/active-scenario'
+import { findSystemPrompt } from '@/features/agent/model/prompts'
 import { parseModels } from '@/features/agent/model/providers'
 import { findSendBlocker, isGatewayTarget } from '@/features/quota/gate'
 import { useProviderStore, type AgentProvider } from '@/stores/provider'
@@ -164,6 +166,9 @@ function createModelPort(): ChatModelPort {
         return
       }
 
+      // 场景系统提示：消息里已有 system 优先；否则按当前工作场景注入（含指令编排 playbook）
+      const systemText = parsed.systemText?.trim() || findSystemPrompt(findActiveScenario())
+
       // 平台网关发送前查一次配额（BYOK 直接放行）；拦到就当成一次「失败」发给 UI，
       // 用户点下发送就能看到原因，不用等半截运行失败。判定失败一律放行 —— 守门的是服务端。
       const isGateway = isGatewayTarget(provider.kind)
@@ -196,7 +201,7 @@ function createModelPort(): ChatModelPort {
       try {
         for await (const item of runThreadPrompt(host.threadID, {
           text,
-          systemText: parsed.systemText,
+          systemText,
           // goose 的会话配置项认 providerId（行里的 `kind`），不是本地行 id
           providerID: provider.kind,
           modelID: input.model,

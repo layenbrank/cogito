@@ -26,7 +26,20 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   skill: '调用技能',
   subagent: '派生子任务',
   memory: '记忆',
-  todo: '待办'
+  todo: '待办',
+  // corex MCP（与指令磁贴共用；goose 名可能带 server 前缀，靠 includes 命中）
+  list_actions: '列出动作',
+  list_directives: '列出指令',
+  directives: '列出指令',
+  read_directive: '读取指令',
+  save_directive: '保存指令',
+  delete_directive: '删除指令',
+  validate_directive: '校验指令',
+  run_directive: '运行指令',
+  import_directives: '导入指令',
+  list_runs: '列出运行',
+  cancel_execution: '取消运行',
+  invoke: '试跑动作'
 }
 
 function toAgentToolLabel(name: string): string {

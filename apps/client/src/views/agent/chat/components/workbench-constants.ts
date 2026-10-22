@@ -1,21 +1,8 @@
 import type { ScenarioKey } from '@/features/agent/model/scenarios'
+import { findSystemPrompt } from '@/features/agent/model/prompts'
 
 /** 携带的历史消息上限，防止长会话撑爆上下文 */
 const CONTEXT_MESSAGE_LIMIT = 20
-
-const TOOLS_HINT =
-  '回答简洁、结构清晰；用户消息中的文件路径请用工具读取后再回答，不要臆造文件内容。'
-
-const SYSTEM_PROMPT_MAP: Record<ScenarioKey, string> = {
-  general: `你是 i-thinking 桌面端的智能助手，回答简洁、结构清晰，涉及代码时使用围栏代码块输出。\n${TOOLS_HINT}`,
-  compare: '你是购物与选型顾问，必须按要求以单个 JSON 代码块输出对比结果。',
-  plan: '你是时间管理助手，必须按要求以单个 JSON 代码块输出日程计划。',
-  code: `你是代码编辑助手。修改代码时，用单个围栏代码块输出修改后的完整文件内容，并简述改动点。\n${TOOLS_HINT}`
-}
-
-function findSystemPrompt(scenario: ScenarioKey) {
-  return SYSTEM_PROMPT_MAP[scenario]
-}
 
 interface QuickPrompt {
   key: string
@@ -26,6 +13,13 @@ interface QuickPrompt {
 }
 
 const QUICK_PROMPTS: QuickPrompt[] = [
+  {
+    key: 'directive',
+    scenario: 'directive',
+    label: '根据这段描述实现一条指令并验证能否跑通',
+    description: '用 corex 动作库一键编排、校验并试跑',
+    icon: 'lucide:workflow'
+  },
   {
     key: 'compare',
     scenario: 'compare',
