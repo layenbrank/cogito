@@ -1,12 +1,9 @@
 import { lazy } from 'react'
 import { Navigate, createBrowserRouter, useLocation, type RouteObject } from 'react-router-dom'
 import { AppHost } from '@/features/magnetic-tile/host'
+import { WorkspaceShell } from '@/features/magnetic-tile/workspace-shell'
 import Overlay from '@/views/overlay/overlay'
 import { RouteTransition } from '@/routers/transition.tsx'
-
-const Overview = lazy(function () {
-  return import('@/views/overview/overview.tsx')
-})
 
 /** agent 窗口的布局路由（出口）；聊天与设置是它的两个子页，互斥渲染 */
 const Agent = lazy(function () {
@@ -30,6 +27,11 @@ function AgentIndex() {
       to={{ pathname: 'chat', search: location.search }}
     />
   )
+}
+
+/** `/overview` 路由占位：墙面由 WorkspaceShell Activity 渲染，此处只匹配 URL */
+function OverviewRouteSlot() {
+  return null
 }
 
 /** 磁贴窗口：每个组件一个路由，与 `views/<component>` 一一对应（见 activate.ts） */
@@ -122,76 +124,81 @@ const Signboard = lazy(function () {
 })
 
 /**
- * 各页面挂在同一个**无路径布局路由**下：切页面统一走转场（见 `transition.tsx`），
- * 新增路由不用各自处理动效。
+ * AppHost → WorkspaceShell（磁贴墙 Activity 常驻）→ RouteTransition（应用页转场）。
+ * `/overview` 由 WorkspaceShell 渲染，outlet 只挂应用页，避免双挂 / 整墙 remount。
  */
 const routes: RouteObject[] = [
   {
     element: <AppHost />,
     children: [
-  {
-    element: <RouteTransition />,
-    children: [
       {
-        path: '/',
-        element: (
-          <Navigate
-            replace
-            to={'/overview'}
-          />
-        )
-      },
-      {
-        path: '/overview',
-        element: <Overview />
-      },
-      {
-        path: '/overlay',
-        element: <Overlay />
-      },
-      {
-        path: '/agent',
-        element: <Agent />,
+        element: <WorkspaceShell />,
         children: [
-          { index: true, element: <AgentIndex /> },
-          { path: 'chat', element: <AgentChat /> },
-          { path: 'settings', element: <AgentSettings /> }
+          {
+            element: <RouteTransition />,
+            children: [
+              {
+                path: '/',
+                element: (
+                  <Navigate
+                    replace
+                    to={'/overview'}
+                  />
+                )
+              },
+              {
+                path: '/overview',
+                element: <OverviewRouteSlot />
+              },
+              {
+                path: '/overlay',
+                element: <Overlay />
+              },
+              {
+                path: '/agent',
+                element: <Agent />,
+                children: [
+                  { index: true, element: <AgentIndex /> },
+                  { path: 'chat', element: <AgentChat /> },
+                  { path: 'settings', element: <AgentSettings /> }
+                ]
+              },
+              { path: '/bookmark', element: <Bookmark /> },
+              { path: '/calendar', element: <Calendar /> },
+              { path: '/clipchamp', element: <Clipchamp /> },
+              { path: '/clock', element: <Clock /> },
+              { path: '/code', element: <Code /> },
+              { path: '/collection', element: <Collection /> },
+              { path: '/countdown', element: <Countdown /> },
+              { path: '/developer', element: <Developer /> },
+              {
+                path: '/directive',
+                element: <Directive />,
+                children: [
+                  { index: true, element: <DirectiveLibraryPage /> },
+                  { path: ':name', element: <DirectiveWorkspacePage /> }
+                ]
+              },
+              { path: '/example', element: <Example /> },
+              { path: '/gallery', element: <Gallery /> },
+              {
+                path: '/capture',
+                element: <Capture />,
+                children: [
+                  { index: true, element: <CaptureScreenshot /> },
+                  { path: 'recording', element: <CaptureRecording /> }
+                ]
+              },
+              { path: '/markdown', element: <Markdown /> },
+              { path: '/marketplace', element: <Marketplace /> },
+              { path: '/morph', element: <Morph /> },
+              { path: '/navigation', element: <Navigate replace to="/overview" /> },
+              { path: '/settings', element: <Settings /> },
+              { path: '/signboard', element: <Signboard /> }
+            ]
+          }
         ]
-      },
-      { path: '/bookmark', element: <Bookmark /> },
-      { path: '/calendar', element: <Calendar /> },
-      { path: '/clipchamp', element: <Clipchamp /> },
-      { path: '/clock', element: <Clock /> },
-      { path: '/code', element: <Code /> },
-      { path: '/collection', element: <Collection /> },
-      { path: '/countdown', element: <Countdown /> },
-      { path: '/developer', element: <Developer /> },
-      {
-        path: '/directive',
-        element: <Directive />,
-        children: [
-          { index: true, element: <DirectiveLibraryPage /> },
-          { path: ':name', element: <DirectiveWorkspacePage /> }
-        ]
-      },
-      { path: '/example', element: <Example /> },
-      { path: '/gallery', element: <Gallery /> },
-      {
-        path: '/capture',
-        element: <Capture />,
-        children: [
-          { index: true, element: <CaptureScreenshot /> },
-          { path: 'recording', element: <CaptureRecording /> }
-        ]
-      },
-      { path: '/markdown', element: <Markdown /> },
-      { path: '/marketplace', element: <Marketplace /> },
-      { path: '/morph', element: <Morph /> },
-      { path: '/navigation', element: <Navigate replace to="/overview" /> },
-      { path: '/settings', element: <Settings /> },
-      { path: '/signboard', element: <Signboard /> }
-    ]
-  }
+      }
     ]
   }
 ]

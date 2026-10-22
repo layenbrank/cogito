@@ -13,10 +13,25 @@ const ENTER_IDLE: EnterValue = {
 
 const EnterContext = createContext<EnterValue>(ENTER_IDLE)
 
+/** 按镜面记是否已播过墙面入场；回墙 / Activity 再 visible 时不再重播 */
+const enteredMirrors = new Set<string>()
+
+function hasWallEntered(mirrorId: string | null | undefined) {
+  if (!mirrorId) return false
+  return enteredMirrors.has(mirrorId)
+}
+
+function markWallEntered(mirrorId: string | null | undefined) {
+  if (!mirrorId) return
+  enteredMirrors.add(mirrorId)
+}
+
 type EnterProps = {
   children: ReactNode
   /** 装配序号。入场不再按序号错开，视口内的磁贴同时播放 */
   index?: number
+  /** 默认 true；冷启动后置 false 跳过入场 */
+  isActive?: boolean
 }
 
 /**
@@ -24,12 +39,16 @@ type EnterProps = {
  * 包一层即启用；未包则默认无入场（浮层等复用方不受影响）。
  */
 function Enter(props: EnterProps) {
-  const value = useMemo(function () {
-    return {
-      isActive: true,
-      index: props.index ?? 0
-    } satisfies EnterValue
-  }, [props.index])
+  const isActive = props.isActive ?? true
+  const value = useMemo(
+    function () {
+      return {
+        isActive,
+        index: props.index ?? 0
+      } satisfies EnterValue
+    },
+    [props.index, isActive]
+  )
   return <EnterContext value={value}>{props.children}</EnterContext>
 }
 
@@ -67,5 +86,12 @@ const ENTER = {
   }
 }
 
-export { Enter, EnterContext, ENTER, useEnter }
+export {
+  Enter,
+  EnterContext,
+  ENTER,
+  hasWallEntered,
+  markWallEntered,
+  useEnter
+}
 export type { EnterProps, EnterValue }

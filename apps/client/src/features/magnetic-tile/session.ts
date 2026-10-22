@@ -6,9 +6,9 @@ import { useMarkdownStore } from '@/stores/markdown'
 /**
  * 主窗口里的磁贴会话。
  *
- * 同一组件只留一条（store 是单例）。名单里的条目不是第二份界面，
- * 切走路由就会卸掉界面。后台超过上限只从名单拿掉，不清 store。
- * 笔记还脏着时留在名单里。
+ * 同一组件只留一条（store 是单例）。名单只记 path，不复制应用界面：
+ * 切走路由仍卸掉对应应用页。磁贴墙由 WorkspaceShell + Activity 常驻，
+ * 与名单无关。后台超过上限只从名单拿掉，不清 store。笔记还脏着时留在名单里。
  */
 
 interface TileSession {

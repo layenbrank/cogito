@@ -1,8 +1,9 @@
 import { AnimatePresence, m, useReducedMotion } from 'motion/react'
-import { Suspense } from 'react'
-import { NavigationType, useMatches, useNavigationType, useOutlet } from 'react-router-dom'
+import { Suspense, useEffect, useRef } from 'react'
+import { NavigationType, useLocation, useMatches, useNavigationType, useOutlet } from 'react-router-dom'
 
 import { Fallback } from '@/components/fallback/index.ts'
+import { isOverviewPath } from '@/features/magnetic-tile/overview-path'
 
 import { findTransitionKey } from './transition-key.ts'
 
@@ -20,23 +21,37 @@ import { findTransitionKey } from './transition-key.ts'
  *
  * `initial={false}` 只关掉「窗口刚打开那一次」的动画：启动时页面应该直接就是亮的。
  * 时长刻意短（~0.2s）；`prefers-reduced-motion` 下只留淡入，不做位移。
+ * 磁贴墙 ↔ 应用：不做位移、不做淡入，避免与应用页首帧抢主线程。
  */
 function RouteTransition() {
   const matches = useMatches()
   const outlet = useOutlet()
+  const location = useLocation()
   const navigationType = useNavigationType()
   const isReducedMotion = useReducedMotion()
+  const prevPathRef = useRef(location.pathname)
+  const fromPath = prevPathRef.current
+  const isWallSwitch = isOverviewPath(fromPath) || isOverviewPath(location.pathname)
+
+  useEffect(
+    function () {
+      prevPathRef.current = location.pathname
+    },
+    [location.pathname]
+  )
+
   const direction = navigationType === NavigationType.Pop ? -1 : 1
-  const distance = isReducedMotion ? 0 : 24 * direction
+  const distance = isReducedMotion || isWallSwitch ? 0 : 24 * direction
+  const duration = isWallSwitch ? 0 : 0.2
 
   return (
     <AnimatePresence initial={false}>
       <m.div
         key={findTransitionKey(matches)}
         className="flex h-full min-h-0 w-full flex-col"
-        initial={{ opacity: 0, x: distance }}
+        initial={{ opacity: isWallSwitch ? 1 : 0, x: distance }}
         animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.2, ease: 'easeOut' }}>
+        transition={{ duration, ease: 'easeOut' }}>
         <Suspense fallback={<Fallback.Route />}>{outlet}</Suspense>
       </m.div>
     </AnimatePresence>

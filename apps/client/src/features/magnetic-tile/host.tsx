@@ -18,7 +18,8 @@ import { checkUpdate } from '@/utils/updater'
 
 /**
  * 主窗口常驻壳：会话名单、外观同步。
- * 离开 `/overview` 时工作台壳会卸掉，这些监听不能跟着走。
+ * 磁贴墙由 WorkspaceShell Activity 保活；应用页仍随路由卸挂。
+ * 这些监听挂在壳上，不跟单页一起走。
  */
 function AppHost() {
   const navigate = useNavigate()

@@ -12,6 +12,7 @@ import styles from '@/features/controller/controller.module.scss'
 import { Reflection } from '@/features/controller/reflection.tsx'
 import { CLASS_NAMES } from '@/features/magnetic-tile/layout-menu/constants'
 import { buildItems } from '@/features/magnetic-tile/layout-menu/items'
+import { hasWallEntered, markWallEntered } from '@/features/magnetic-tile/enter'
 import { MagneticTile } from '@/features/magnetic-tile/magnetic-tile.tsx'
 import {
   bindMirrorTransition,
@@ -124,14 +125,26 @@ const Controller = {
   },
   MagneticTile() {
     const magneticTiles = useMirrorStore((state) => state.magneticTiles)
+    const mirrorId = useMirrorStore((state) => state.active.mirror?.id ?? null)
     const gridRef = useRef<HTMLDivElement>(null)
     const sortableRef = useRef<SortableSession | null>(null)
     const control = useKeyModifier('Control')
     const controlRef = useRef(control)
     const tilesRef = useRef(magneticTiles)
+    /** 本挂载周期是否播入场：按镜面只冷启动一次，Activity 回墙不重播 */
+    const [shouldEnter] = useState(function () {
+      return !hasWallEntered(mirrorId)
+    })
 
     controlRef.current = control
     tilesRef.current = magneticTiles
+
+    useEffect(
+      function () {
+        markWallEntered(mirrorId)
+      },
+      [mirrorId]
+    )
 
     const scrollFx = useScrollFx(gridRef)
 
@@ -259,7 +272,8 @@ const Controller = {
             return (
               <MagneticTile.Enter
                 key={value.id}
-                index={index}>
+                index={index}
+                isActive={shouldEnter}>
                 <MagneticTile.Suspense
                   id={value.id}
                   size={value.size}
