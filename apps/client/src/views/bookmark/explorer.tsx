@@ -267,9 +267,11 @@ function BookmarkExplorer(props: ExplorerProps) {
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label="刷新"
+              aria-label="回到根目录"
+              title="回到根目录"
               className="size-7 rounded-md"
               onClick={function () {
+                setCwd('')
                 setQuery('')
               }}>
               <Icon icon="lucide:refresh-cw" />

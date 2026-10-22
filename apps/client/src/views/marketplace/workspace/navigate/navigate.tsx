@@ -14,10 +14,10 @@ async function openBookmarkImport() {
       component: 'bookmark',
       id: 'bookmark',
       url: '',
-      path: '/bookmark'
+      path: '/bookmark?import=1'
     })
     const { router } = await import('@/routers')
-    await router.navigate('/bookmark')
+    await router.navigate('/bookmark?import=1')
   } catch (error) {
     console.error(error)
     toast.error('无法打开书签导入')
@@ -31,7 +31,7 @@ export default function Navigate() {
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
       <div className="mx-3 mt-2 flex shrink-0 items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
-          把 Chrome 书签导入为网址磁贴，之后可随时升格为集合。
+          打开书签库导入 Chrome 书签；导入后可勾选挂到网址或集合磁贴。
         </p>
         <Button
           size="sm"

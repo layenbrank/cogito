@@ -420,9 +420,9 @@
   white-space: nowrap;
 }
 
-.importSheet {
-  height: min(92vh, 880px);
-  max-height: 92vh;
+/* 抽屉自带右上角关闭按钮，工具条右侧留空避免重叠 */
+.sheetChrome {
+  padding-right: 2.5rem;
 }
 
 .viewTools {
