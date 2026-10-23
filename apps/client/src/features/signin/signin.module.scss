@@ -29,10 +29,17 @@
   padding: 32px 28px 22px;
   overflow: hidden;
   color: var(--signin-brand-foreground);
-  // 底色留给 shader；失败时仍有深色兜底
-  background-color: #0b1220;
+  /*
+   * WebGPU 不可用 / 驱动拒绝时的常驻兜底：与「天在水」同一套配色（靛蓝夜空 +
+   * 地平线微光），让入场动效永远不等 GPU，失败时也不是一块死黑。
+   */
+  background:
+    radial-gradient(120% 26% at 50% 62%, oklch(0.62 0.13 268 / 45%) 0%, transparent 68%),
+    radial-gradient(90% 42% at 30% 16%, #0d1840 0%, transparent 74%),
+    linear-gradient(180deg, #0a1233 0%, #0d1840 30%, #16224f 52%, #1d2a5c 61%, #05070f 100%);
   box-shadow: inset -1px 0 0 var(--signin-brand-border);
   isolation: isolate;
+  z-index: 1;
 
   @media (max-width: 768px) {
     flex: none;
@@ -44,23 +51,17 @@
   }
 }
 
-/** 懒挂载宿主：与 .brandShader 同层，便于淡入 */
+/** 懒挂载宿主：与 .brandShaderMount 同层，负责整层的淡入与落位 */
 .brandShaderHost {
   pointer-events: none;
   position: absolute;
   inset: 0;
   z-index: 0;
+  transform-origin: left center;
+  will-change: opacity, transform;
 }
 
-/** WebGPU 氛围层：铺满左侧；pointer-events:none，波纹仍跟全局指针 */
-.brandShader {
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-}
-
+/** WebGPU 氛围层：铺满左侧；pointer-events:none，涟漪仍跟全局指针 */
 .brandShaderMount {
   position: absolute !important;
   inset: 0 !important;
@@ -191,6 +192,8 @@
 }
 
 .panel {
+  position: relative;
+  z-index: 1;
   flex: 0 0 480px;
   width: 480px;
   min-width: 0;
@@ -205,6 +208,40 @@
     flex: none;
     width: auto;
     padding: 24px;
+  }
+}
+
+/**
+ * 品牌外溢：shader 在左栏，光从接缝渗到表单内侧 ~36px（小于 40px 内边距，
+ * 不会压到控件文字）。色值取自 shader 的青绿而非应用主色，跟随品牌栏；
+ * 用半透明 tint 而非 screen —— 浅色主题的白底上 screen 等于不可见。
+ * z-index 为负：只盖住 panel 背景，永远在表单内容之下。
+ */
+.seam {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 36px;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    oklch(0.6 0.12 268 / 22%) 0%,
+    oklch(0.6 0.12 268 / 8%) 45%,
+    transparent 100%
+  );
+  box-shadow: inset 1px 0 0 oklch(0.88 0.05 268 / 55%);
+
+  @media (max-width: 768px) {
+    inset: 0 0 auto 0;
+    width: auto;
+    height: 20px;
+    background: linear-gradient(
+      180deg,
+      oklch(0.6 0.12 268 / 22%) 0%,
+      oklch(0.6 0.12 268 / 8%) 45%,
+      transparent 100%
+    );
+    box-shadow: inset 0 1px 0 oklch(0.88 0.05 268 / 55%);
   }
 }
 

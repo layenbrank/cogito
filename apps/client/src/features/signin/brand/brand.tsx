@@ -1,7 +1,7 @@
 import { Icon } from '@iconify/react/offline'
 import { useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
-import { Suspense, lazy, useEffect, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 
 import styles from '../signin.module.scss'
 
@@ -50,10 +50,20 @@ function warmShaderChunk() {
   void import('./shader')
 }
 
+interface BrandProps {
+  /** 本次打开的入场时长（ms），首次与后续不同，见 ./intro */
+  introMs: number
+}
+
 /** 登录弹窗左侧：品牌 + 延迟挂载的 shader 氛围 + 能力列表 */
-function Brand() {
+function Brand(props: BrandProps) {
   const isReducedMotion = useReducedMotion()
   const [isShaderReady, setIsShaderReady] = useState(false)
+  const [isShaderUnavailable, setIsShaderUnavailable] = useState(false)
+
+  const onShaderUnavailable = useCallback(function () {
+    setIsShaderUnavailable(true)
+  }, [])
 
   useEffect(
     function () {
@@ -84,20 +94,19 @@ function Brand() {
     [isReducedMotion]
   )
 
+  const introSeconds = isReducedMotion ? 0 : props.introMs / 1000
+
   return (
     <aside className={styles.brand}>
-      {isShaderReady && (
+      {isShaderReady && !isShaderUnavailable && (
         <Suspense fallback={null}>
           <m.div
             className={styles.brandShaderHost}
             aria-hidden
-            initial={isReducedMotion ? false : { opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{
-              duration: isReducedMotion ? 0 : 0.4,
-              ease: [0.22, 1, 0.36, 1]
-            }}>
-            <BrandShader />
+            initial={isReducedMotion ? false : { opacity: 0, scale: 1.035 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: introSeconds, ease: [0.22, 1, 0.36, 1] }}>
+            <BrandShader onUnavailable={onShaderUnavailable} />
           </m.div>
         </Suspense>
       )}
@@ -139,3 +148,5 @@ function Brand() {
 }
 
 export { Brand }
+export type { BrandProps }
+
