@@ -1,5 +1,5 @@
 import { AnimatePresence, m, useReducedMotion } from 'motion/react'
-import { Suspense, useEffect, useRef } from 'react'
+import { Suspense, useState } from 'react'
 import { NavigationType, useLocation, useMatches, useNavigationType, useOutlet } from 'react-router-dom'
 
 import { Fallback } from '@/components/fallback/index.ts'
@@ -29,16 +29,16 @@ function RouteTransition() {
   const location = useLocation()
   const navigationType = useNavigationType()
   const isReducedMotion = useReducedMotion()
-  const prevPathRef = useRef(location.pathname)
-  const fromPath = prevPathRef.current
-  const isWallSwitch = isOverviewPath(fromPath) || isOverviewPath(location.pathname)
+  const [trackedPath, setTrackedPath] = useState(location.pathname)
+  const [fromPath, setFromPath] = useState(location.pathname)
 
-  useEffect(
-    function () {
-      prevPathRef.current = location.pathname
-    },
-    [location.pathname]
-  )
+  // 路径变化时在 render 中同步上一跳，供墙↔应用判断（替代 render 读 ref）
+  if (trackedPath !== location.pathname) {
+    setFromPath(trackedPath)
+    setTrackedPath(location.pathname)
+  }
+
+  const isWallSwitch = isOverviewPath(fromPath) || isOverviewPath(location.pathname)
 
   const direction = navigationType === NavigationType.Pop ? -1 : 1
   const distance = isReducedMotion || isWallSwitch ? 0 : 24 * direction

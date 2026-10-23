@@ -17,6 +17,20 @@ function parseDefault(raw: string): string | undefined {
   return raw === '' ? undefined : raw
 }
 
+function stringifyDefault(value: unknown): string {
+  if (value === undefined || value === null) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value)
+  }
+  try {
+    return JSON.stringify(value) ?? ''
+  } catch (error) {
+    console.debug('[directive] 输入默认值无法序列化，按空串处理:', error)
+    return ''
+  }
+}
+
 function InputsEditor(props: InputsEditorProps) {
   const inputs = props.inputs
 
@@ -100,11 +114,7 @@ function InputsEditor(props: InputsEditorProps) {
             <div className="space-y-1">
               <Label className="text-xs">默认值</Label>
               <Input
-                value={
-                  input.default === undefined || input.default === null
-                    ? ''
-                    : String(input.default)
-                }
+                value={stringifyDefault(input.default)}
                 placeholder="留空 = 无默认值"
                 className="h-8 font-mono text-xs"
                 onChange={function (event) {

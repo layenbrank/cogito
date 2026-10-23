@@ -87,17 +87,6 @@ const GENERAL: Setting.General = {
   language: 'zh-CN'
 }
 
-const SHORTCUTS: Setting.Shortcuts = {
-  version: SHORTCUTS_VERSION,
-  bindings: {}
-}
-
-const DEFAULT_SETTINGS: Setting.Composite = {
-  general: GENERAL,
-  capture: CAPTURE,
-  shortcuts: SHORTCUTS
-}
-
 /** 每次给一份新对象：避免 `toReset` / `toInitialize` 共享同一份默认值被就地改到 */
 function createDefaultSettings(): Setting.Composite {
   return {
@@ -248,7 +237,7 @@ export const useSettingsStore = create<SettingsStore>(function (setter, getter) 
 
       const next = { ...current, [section]: merged }
       setter({ settings: next })
-      await patchPref('settings', { [section]: merged } as Partial<Setting.Composite>)
+      await patchPref('settings', { [section]: merged })
     },
 
     async toSetBinding(id, binding) {

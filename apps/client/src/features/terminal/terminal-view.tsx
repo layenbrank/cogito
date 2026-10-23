@@ -110,7 +110,7 @@ function TerminalView(props: TerminalViewProps) {
             void Terminal.kill(props.id)
             return
           }
-          if (created.pid != null) {
+          if (created.pid !== null && created.pid !== undefined) {
             useTerminalStore.getState().markPid(props.id, created.pid)
           }
           terminal.onData(function (data) {

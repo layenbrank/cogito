@@ -8,7 +8,7 @@ import {
 } from '@i-thinking/design/components/select'
 import { Switch } from '@i-thinking/design/components/switch'
 import { Textarea } from '@i-thinking/design/components/textarea'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import type { ActionEntry } from '@/shared/ipc/specs/sidecar'
 
@@ -92,19 +92,13 @@ interface RefAwareControlProps {
  */
 function RefAwareControl(props: RefAwareControlProps) {
   const purePath = parsePureRef(props.value)
-  const [forceLiteral, setForceLiteral] = useState(false)
+  // 仅在「同一段纯引用」上保持手写覆盖；路径变了或不再是纯引用时自动失效
+  const [literalOverride, setLiteralOverride] = useState<string | null>(null)
+  const forceLiteral = literalOverride !== null && literalOverride === purePath
   const showRef = Boolean(purePath) && !forceLiteral
 
-  useEffect(
-    function () {
-      // 外部已不是纯引用时，清掉强制字面量标记
-      if (!purePath) setForceLiteral(false)
-    },
-    [purePath]
-  )
-
   function pickRef(wrapped: string) {
-    setForceLiteral(false)
+    setLiteralOverride(null)
     props.onWrite(wrapped)
   }
 
@@ -115,11 +109,11 @@ function RefAwareControl(props: RefAwareControlProps) {
         context={props.refContext}
         onChange={pickRef}
         onClear={function () {
-          setForceLiteral(false)
+          setLiteralOverride(null)
           props.onWrite(undefined)
         }}
         onEditLiteral={function () {
-          setForceLiteral(true)
+          setLiteralOverride(purePath)
         }}
       />
     )

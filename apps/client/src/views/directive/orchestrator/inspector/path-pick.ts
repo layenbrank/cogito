@@ -10,8 +10,12 @@ async function pickLocalPath(kind: PathKind): Promise<string | null> {
     title: kind === 'directory' ? '选择目录' : '选择文件'
   })
   if (selected === null || selected === undefined) return null
-  if (Array.isArray(selected)) return selected[0] ?? null
-  return selected
+  if (typeof selected === 'string') return selected
+  if (Array.isArray(selected)) {
+    const first = selected[0]
+    return typeof first === 'string' ? first : null
+  }
+  return null
 }
 
 export { pickLocalPath }

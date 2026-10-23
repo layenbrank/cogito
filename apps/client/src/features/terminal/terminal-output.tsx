@@ -58,7 +58,12 @@ function TerminalOutput(props: TerminalOutputProps) {
   const placeholderRef = useRef(placeholder)
   const [isReady, setReady] = useState(false)
 
-  placeholderRef.current = placeholder
+  useEffect(
+    function () {
+      placeholderRef.current = placeholder
+    },
+    [placeholder]
+  )
 
   useEffect(
     function () {

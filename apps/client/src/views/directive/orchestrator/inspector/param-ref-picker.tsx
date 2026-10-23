@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@i-thinking/design/comp
 import { ScrollArea } from '@i-thinking/design/components/scroll-area'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import {
   buildRefGroups,
@@ -76,18 +76,17 @@ function ParamRefPicker(props: ParamRefPickerProps) {
   const [scope, setScope] = useState<RefScope | null>(null)
   const [branchPath, setBranchPath] = useState<string | null>(null)
 
-  useEffect(
-    function () {
-      if (!open) return
+  function syncCascader(nextOpen: boolean) {
+    if (nextOpen) {
       const nextScope = findInitialScope(groups, canonicalPath)
       setScope(nextScope)
       const group = groups.find(function (item) {
         return item.scope === nextScope
       })
       setBranchPath(findInitialBranch(group, canonicalPath))
-    },
-    [open, groups, canonicalPath]
-  )
+    }
+    setOpen(nextOpen)
+  }
 
   const activeGroup = groups.find(function (group) {
     return group.scope === scope
@@ -156,7 +155,7 @@ function ParamRefPicker(props: ParamRefPickerProps) {
   return (
     <Popover
       open={open}
-      onOpenChange={setOpen}>
+      onOpenChange={syncCascader}>
       {trigger}
       <PopoverContent
         align="end"

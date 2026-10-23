@@ -63,7 +63,7 @@ const useTerminalStore = create<TerminalState>()(
         tabs: [],
         activeId: null,
         open: false,
-        activity: 'run' as DockActivity,
+        activity: 'run',
 
         openPanel: function () {
           set(function (state) {

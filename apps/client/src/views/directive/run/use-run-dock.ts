@@ -73,6 +73,9 @@ function useRunDock(directiveName: string | null) {
   )
 
   const hasInputsOnMount = declaredInputs.length > 0
+  const [formKey, setFormKey] = useState(function () {
+    return `${directiveName ?? ''}:${inputSignature}`
+  })
   const [paramsJson, setParamsJson] = useState('{}')
   const [inputValues, setInputValues] = useState<Record<string, string>>(function () {
     return hasInputsOnMount ? seedInputValues(declaredInputs) : {}
@@ -82,16 +85,14 @@ function useRunDock(directiveName: string | null) {
   const trialAction = trialActionPick ?? catalog[0]?.id ?? ''
   const [trialParamsJson, setTrialParamsJson] = useState('{}')
 
-  // 输入声明变化时重置表单（与原先 RunPanel key 行为一致）
-  useEffect(
-    function () {
-      setInputValues(seedInputValues(declaredInputs))
-      setShowAdvancedJson(declaredInputs.length === 0)
-      setParamsJson('{}')
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅跟随声明签名
-    [directiveName, inputSignature]
-  )
+  // 输入声明变化时重置表单（与原先 RunPanel key 行为一致；render 期同步避免 effect 级联）
+  const nextFormKey = `${directiveName ?? ''}:${inputSignature}`
+  if (formKey !== nextFormKey) {
+    setFormKey(nextFormKey)
+    setInputValues(seedInputValues(declaredInputs))
+    setShowAdvancedJson(declaredInputs.length === 0)
+    setParamsJson('{}')
+  }
 
   const hasDeclaredInputs = declaredInputs.length > 0
 

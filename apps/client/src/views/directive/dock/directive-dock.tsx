@@ -132,7 +132,9 @@ function DirectiveDock(props: DirectiveDockProps) {
                   stepCount={run.stepCount}
                   onInputValuesChange={run.setInputValues}
                   onParamsJsonChange={run.setParamsJson}
-                  onToggleAdvancedJson={run.toggleAdvancedJson}
+                  onToggleAdvancedJson={function () {
+                    run.toggleAdvancedJson()
+                  }}
                   onRun={run.handleRun}
                   onCancelRun={function (runId) {
                     void run.cancelRun(runId)
@@ -159,8 +161,8 @@ function DirectiveDock(props: DirectiveDockProps) {
                   onCancelRun={function (runId) {
                     void run.cancelRun(runId)
                   }}
-                  beforeGuard={async function () {
-                    return null
+                  beforeGuard={function () {
+                    return Promise.resolve(null)
                   }}
                   readOnly
                 />

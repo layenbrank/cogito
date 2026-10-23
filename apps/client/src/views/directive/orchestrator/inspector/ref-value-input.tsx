@@ -7,7 +7,7 @@
 import { Button } from '@i-thinking/design/components/button'
 import { InputGroup, InputGroupAddon } from '@i-thinking/design/components/input-group'
 import { Icon } from '@iconify/react/offline'
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ParamRefPicker, ParamRefSummary } from './param-ref-picker.tsx'
@@ -32,17 +32,12 @@ interface RefValueInputProps {
 
 function RefValueInput(props: RefValueInputProps) {
   const purePath = parsePureRef(props.value)
-  const [forceLiteral, setForceLiteral] = useState(false)
+  // 仅在「同一段纯引用」上保持手写覆盖；路径变了或不再是纯引用时自动失效
+  const [literalOverride, setLiteralOverride] = useState<string | null>(null)
+  const forceLiteral = literalOverride !== null && literalOverride === purePath
   const showRef = Boolean(purePath) && !forceLiteral
   const inputRef = useRef<HTMLInputElement>(null)
   const selectionRef = useRef({ start: 0, end: 0 })
-
-  useEffect(
-    function () {
-      if (!purePath) setForceLiteral(false)
-    },
-    [purePath]
-  )
 
   function rememberSelection() {
     const el = inputRef.current
@@ -54,7 +49,7 @@ function RefValueInput(props: RefValueInputProps) {
   }
 
   function replaceAll(wrapped: string) {
-    setForceLiteral(false)
+    setLiteralOverride(null)
     props.onChange(wrapped)
   }
 
@@ -68,7 +63,7 @@ function RefValueInput(props: RefValueInputProps) {
 
     const { start, end } = selectionRef.current
     const next = insertAt(text, start, end, wrapped)
-    setForceLiteral(true)
+    setLiteralOverride(parsePureRef(next))
     props.onChange(next)
 
     requestAnimationFrame(function () {
@@ -87,7 +82,7 @@ function RefValueInput(props: RefValueInputProps) {
       const picked = await pickLocalPath(props.pathKind)
       if (!picked) return
       // 路径选择：整段替换为绝对路径（不是插入引用）
-      setForceLiteral(true)
+      setLiteralOverride(null)
       props.onChange(picked)
     } catch (error) {
       toast.error('选择路径失败', {
@@ -123,11 +118,11 @@ function RefValueInput(props: RefValueInputProps) {
             context={props.refContext}
             onChange={replaceAll}
             onClear={function () {
-              setForceLiteral(false)
+              setLiteralOverride(null)
               props.onChange('')
             }}
             onEditLiteral={function () {
-              setForceLiteral(true)
+              setLiteralOverride(purePath)
             }}
           />
         </div>
