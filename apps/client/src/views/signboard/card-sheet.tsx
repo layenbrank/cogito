@@ -903,12 +903,12 @@ function CardSheet(props: CardSheetProps) {
           </section>
         </div>
 
-        <SheetFooter className="!rounded-none !flex-col gap-2 sm:!flex-col sm:items-stretch">
+        <SheetFooter className="!rounded-none flex-row gap-2 sm:justify-end">
           <Button
             type="button"
             size="lg"
             variant="ghost"
-            className="w-full text-destructive hover:text-destructive"
+            className="text-destructive hover:text-destructive"
             onClick={function () {
               void toUpdateEntry(entryID, { archivedAt: Date.now() }).then(function (ok) {
                 if (!ok) {
@@ -928,7 +928,7 @@ function CardSheet(props: CardSheetProps) {
           <Button
             type="button"
             size="lg"
-            className="w-full"
+            className="flex-1 sm:flex-none"
             disabled={saving}
             onClick={function () {
               void saveDueAndRemind()
