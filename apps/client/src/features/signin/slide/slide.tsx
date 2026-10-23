@@ -25,9 +25,11 @@ function useSlideProof() {
     resolve?.(proof)
   }
 
+  // key 只用于每次 askSlide 时重挂载重置滑块；必须加前缀，
+  // 否则初始值 0 会与表单里 <FormStagger key={motionKey}> 的 0 撞 key。
   const dialog = (
     <SlideDialog
-      key={ticket}
+      key={`slide-${ticket}`}
       open={isOpen}
       onFinish={finish}
     />

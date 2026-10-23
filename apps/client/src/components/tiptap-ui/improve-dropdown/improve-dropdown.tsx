@@ -269,16 +269,16 @@ export function ImproveDropdown({
         <Card>
           <CardBody>
             <ButtonGroup>
-              {subMenuActions.map((action, index) => (
+              {subMenuActions.map((action) => (
                 <SubMenuButton
-                  key={index}
+                  key={action.label}
                   action={action}
                 />
               ))}
 
-              {menuActions.map((action, index) => (
+              {menuActions.map((action) => (
                 <DropdownMenuItem
-                  key={index}
+                  key={action.command}
                   asChild>
                   <Button
                     type="button"
@@ -301,9 +301,9 @@ export function ImproveDropdown({
                 />
               </DropdownMenuItem>
 
-              {secondaryActions.map((action, index) => (
+              {secondaryActions.map((action) => (
                 <DropdownMenuItem
-                  key={index}
+                  key={action.command}
                   asChild>
                   <Button
                     type="button"
