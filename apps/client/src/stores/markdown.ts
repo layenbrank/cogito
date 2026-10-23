@@ -77,6 +77,10 @@ const useMarkdownStore = create<MarkdownStore>()(
       const initial = parsePreferences()
 
       function writePrefs(state: MarkdownStore): void {
+        // state 是 immer 草稿代理；recentPaths 若按引用传入异步落盘，
+        // 等 patchPref await 后草稿已被 revoke，parse 时 Array.isArray 会抛
+        // 「Cannot perform 'IsArray' on a proxy that has been revoked」。
+        // 这里先展开成普通数组，切断对草稿代理的引用。
         persistPreferences({
           rootDir: state.rootDir,
           isSidebarOpen: state.isSidebarOpen,
@@ -88,7 +92,7 @@ const useMarkdownStore = create<MarkdownStore>()(
           isTypographyEnabled: state.isTypographyEnabled,
           isFocusMode: state.isFocusMode,
           isTypewriter: state.isTypewriter,
-          recentPaths: state.recentPaths
+          recentPaths: [...state.recentPaths]
         })
       }
 
