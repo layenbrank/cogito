@@ -142,7 +142,7 @@
     "marked": "^17.0.0",
     "mathjs": "^15.1.0",
     "mermaid": "^11.12.1",
-    "monaco-editor": "^0.55.1",
+    "monaco-editor": "^0.57.0",
     "motion": "catalog:",
     "mp4box": "^2.1.1",
     "ofetch": "^1.5.1",

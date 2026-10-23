@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 import * as monaco from 'monaco-editor'
-import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
-import 'monaco-editor/esm/vs/basic-languages/markdown/markdown.contribution'
+import editorWorker from 'monaco-editor/editor/editor.worker?worker'
 
 import { cn } from 'cn'
 
