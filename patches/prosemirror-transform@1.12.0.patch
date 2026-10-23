@@ -1,0 +1,43 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 41e662cd55d8f4e762ced47a7a4a4a35f093f88d..2233237ca4cc41cabd65a4dd1b1f21611bf7bf52 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -1413,8 +1413,13 @@ function closeNodeStart(node, openStart, openEnd) {
+   var frag = node.content;
+   if (openStart > 1) frag = frag.replaceChild(0, closeNodeStart(frag.firstChild, openStart - 1, frag.childCount == 1 ? openEnd - 1 : 0));
+   if (openStart > 0) {
+-    frag = node.type.contentMatch.fillBefore(frag).append(frag);
+-    if (openEnd <= 0) frag = frag.append(node.type.contentMatch.matchFragment(frag).fillBefore(prosemirrorModel.Fragment.empty, true));
++    var before = node.type.contentMatch.fillBefore(frag);
++    if (before) frag = before.append(frag);
++    if (openEnd <= 0) {
++      var matched = node.type.contentMatch.matchFragment(frag);
++      var after = matched && matched.fillBefore(prosemirrorModel.Fragment.empty, true);
++      if (after) frag = frag.append(after);
++    }
+   }
+   return node.copy(frag);
+ }
+diff --git a/dist/index.js b/dist/index.js
+index 850a20ce9ab2916fc5bb35ddcfb0f7de49ec292b..320c06694526e596c58f5eabdd14911f5ccfe6dc 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1625,9 +1625,15 @@ function closeNodeStart(node, openStart, openEnd) {
+     if (openStart > 1)
+         frag = frag.replaceChild(0, closeNodeStart(frag.firstChild, openStart - 1, frag.childCount == 1 ? openEnd - 1 : 0));
+     if (openStart > 0) {
+-        frag = node.type.contentMatch.fillBefore(frag).append(frag);
+-        if (openEnd <= 0)
+-            frag = frag.append(node.type.contentMatch.matchFragment(frag).fillBefore(Fragment.empty, true));
++        let before = node.type.contentMatch.fillBefore(frag);
++        if (before)
++            frag = before.append(frag);
++        if (openEnd <= 0) {
++            let matched = node.type.contentMatch.matchFragment(frag);
++            let after = matched && matched.fillBefore(Fragment.empty, true);
++            if (after)
++                frag = frag.append(after);
++        }
+     }
+     return node.copy(frag);
+ }

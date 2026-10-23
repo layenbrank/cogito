@@ -433,6 +433,9 @@ overrides:
   use-sync-external-store: 1.6.0
   '@napi-rs/wasm-runtime': 1.2.2
 
+patchedDependencies:
+  prosemirror-transform@1.12.0: 25aec3fc6335e14e58a306a75ee209191a5e31207a40aa1a6e1e714f35b20ce2
+
 importers:
 
   .:
@@ -18225,7 +18228,7 @@ snapshots:
       prosemirror-schema-list: 1.5.1
       prosemirror-state: 1.4.4
       prosemirror-tables: 1.8.5
-      prosemirror-transform: 1.12.0
+      prosemirror-transform: 1.12.0(patch_hash=25aec3fc6335e14e58a306a75ee209191a5e31207a40aa1a6e1e714f35b20ce2)
       prosemirror-view: 1.42.0
 
   '@tiptap/react@3.27.3(@floating-ui/dom@1.8.0)(@tiptap/core@3.27.3(@tiptap/pm@3.27.3))(@tiptap/pm@3.27.3)(@types/react-dom@19.2.4(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
@@ -24397,18 +24400,18 @@ snapshots:
 
   prosemirror-changeset@2.4.1:
     dependencies:
-      prosemirror-transform: 1.12.0
+      prosemirror-transform: 1.12.0(patch_hash=25aec3fc6335e14e58a306a75ee209191a5e31207a40aa1a6e1e714f35b20ce2)
 
   prosemirror-commands@1.7.1:
     dependencies:
       prosemirror-model: 1.25.10
       prosemirror-state: 1.4.4
-      prosemirror-transform: 1.12.0
+      prosemirror-transform: 1.12.0(patch_hash=25aec3fc6335e14e58a306a75ee209191a5e31207a40aa1a6e1e714f35b20ce2)
 
   prosemirror-dropcursor@1.8.3:
     dependencies:
       prosemirror-state: 1.4.4
-      prosemirror-transform: 1.12.0
+      prosemirror-transform: 1.12.0(patch_hash=25aec3fc6335e14e58a306a75ee209191a5e31207a40aa1a6e1e714f35b20ce2)
       prosemirror-view: 1.42.0
 
   prosemirror-gapcursor@1.4.1:
@@ -24421,14 +24424,14 @@ snapshots:
   prosemirror-history@1.5.0:
     dependencies:
       prosemirror-state: 1.4.4
-      prosemirror-transform: 1.12.0
+      prosemirror-transform: 1.12.0(patch_hash=25aec3fc6335e14e58a306a75ee209191a5e31207a40aa1a6e1e714f35b20ce2)
       prosemirror-view: 1.42.0
       rope-sequence: 1.3.4
 
   prosemirror-inputrules@1.5.1:
     dependencies:
       prosemirror-state: 1.4.4
-      prosemirror-transform: 1.12.0
+      prosemirror-transform: 1.12.0(patch_hash=25aec3fc6335e14e58a306a75ee209191a5e31207a40aa1a6e1e714f35b20ce2)
 
   prosemirror-keymap@1.2.3:
     dependencies:
@@ -24443,12 +24446,12 @@ snapshots:
     dependencies:
       prosemirror-model: 1.25.10
       prosemirror-state: 1.4.4
-      prosemirror-transform: 1.12.0
+      prosemirror-transform: 1.12.0(patch_hash=25aec3fc6335e14e58a306a75ee209191a5e31207a40aa1a6e1e714f35b20ce2)
 
   prosemirror-state@1.4.4:
     dependencies:
       prosemirror-model: 1.25.10
-      prosemirror-transform: 1.12.0
+      prosemirror-transform: 1.12.0(patch_hash=25aec3fc6335e14e58a306a75ee209191a5e31207a40aa1a6e1e714f35b20ce2)
       prosemirror-view: 1.42.0
 
   prosemirror-tables@1.8.5:
@@ -24456,10 +24459,10 @@ snapshots:
       prosemirror-keymap: 1.2.3
       prosemirror-model: 1.25.10
       prosemirror-state: 1.4.4
-      prosemirror-transform: 1.12.0
+      prosemirror-transform: 1.12.0(patch_hash=25aec3fc6335e14e58a306a75ee209191a5e31207a40aa1a6e1e714f35b20ce2)
       prosemirror-view: 1.42.0
 
-  prosemirror-transform@1.12.0:
+  prosemirror-transform@1.12.0(patch_hash=25aec3fc6335e14e58a306a75ee209191a5e31207a40aa1a6e1e714f35b20ce2):
     dependencies:
       prosemirror-model: 1.25.10
 
@@ -24467,7 +24470,7 @@ snapshots:
     dependencies:
       prosemirror-model: 1.25.10
       prosemirror-state: 1.4.4
-      prosemirror-transform: 1.12.0
+      prosemirror-transform: 1.12.0(patch_hash=25aec3fc6335e14e58a306a75ee209191a5e31207a40aa1a6e1e714f35b20ce2)
 
   proxy-addr@2.0.7:
     dependencies:
