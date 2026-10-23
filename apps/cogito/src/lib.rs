@@ -240,6 +240,7 @@ pub mod services {
     }
 
     pub mod tenant {
+        pub mod admin_controller;
         pub mod controller;
         pub mod module;
         pub mod schema;

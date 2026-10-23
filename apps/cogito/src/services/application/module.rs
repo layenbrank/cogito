@@ -24,6 +24,8 @@ impl ApplicationModule {
                 .configure(UploadModule::configure)
                 .configure(EngineModule::configure)
                 .configure(TenantModule::configure)
+                // 平台运维面：全量租户（与「我的租户」/tenants 分离）
+                .configure(TenantModule::configure_admin)
                 .configure(GatewayModule::configure)
                 .configure(SsoModule::configure)
                 // agent 任务：起任务 / 查任务（`/api/v1/agent/tasks`）

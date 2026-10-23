@@ -1,10 +1,14 @@
 use std::sync::Arc;
 
 use actix_web::{HttpRequest, HttpResponse, Result, web};
+use identity::UserId;
 
 use crate::configures::configure::Configure;
 use crate::filters::exception::Exception;
+use crate::guards::platform::PlatformScope;
 use crate::interceptors::envelope::Envelope;
+use crate::services::tenant::service::TenantService;
+use crate::utils::code::external;
 use crate::{
     databases::database::Storage,
     services::user::{
@@ -22,6 +26,35 @@ impl UserController {
             Ok(ReadR::One(user)) => Envelope::success(user, "获取用户成功").transform(),
             Ok(ReadR::Many(users)) => Envelope::success(users, "获取用户列表成功").transform(),
             Err(err) => Exception::from(err).transform(),
+        }
+    }
+
+    /// 用户所属租户联查（平台 ADMIN + PlatformScope）。
+    pub async fn tenants(
+        db: web::Data<Arc<Storage>>,
+        path: web::Path<String>,
+    ) -> Result<HttpResponse> {
+        let user = path
+            .into_inner()
+            .parse::<UserId>()
+            .map_err(|_| Exception::bad_request("用户 ID 无效"))?;
+        let scope = PlatformScope::open(&db).await.map_err(|err| {
+            tracing::error!(error = %err, "platform scope open failed");
+            Exception::custom(external::DATABASE_ERROR, "数据库错误")
+        })?;
+
+        match TenantService::admin_tenants_of_user(&scope, user).await {
+            Ok(items) => {
+                scope.rollback().await.map_err(|err| {
+                    tracing::error!(error = %err, "platform scope rollback failed");
+                    Exception::custom(external::DATABASE_ERROR, "数据库错误")
+                })?;
+                Envelope::success(items, "获取用户所属租户成功").transform()
+            }
+            Err(err) => {
+                let _ = scope.rollback().await;
+                Exception::from(err).transform()
+            }
         }
     }
 

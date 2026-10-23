@@ -21,19 +21,29 @@
 
 ## 路由一览
 
-| 方法   | 路径                 | 鉴权 | 说明     |
-| ------ | -------------------- | ---- | -------- |
-| GET    | `/api/v1/users`      | JWT + ADMIN | 用户列表 |
-| POST   | `/api/v1/users`      | JWT + ADMIN | 创建用户 |
-| GET    | `/api/v1/users/{id}` | JWT + ADMIN | 用户详情 |
-| PUT    | `/api/v1/users/{id}` | JWT + ADMIN | 更新用户 |
-| DELETE | `/api/v1/users/{id}` | JWT + ADMIN | 删除用户 |
+| 方法   | 路径                         | 鉴权 | 说明 |
+| ------ | ---------------------------- | ---- | ---- |
+| GET    | `/api/v1/users`              | JWT + ADMIN | 用户列表（含 phone / 时间 / 资料字段） |
+| POST   | `/api/v1/users`              | JWT + ADMIN | 创建用户 |
+| GET    | `/api/v1/users/{id}`         | JWT + ADMIN | 用户详情 |
+| PUT    | `/api/v1/users/{id}`         | JWT + ADMIN | 更新用户（资料 / 角色 / 状态 / 密码） |
+| DELETE | `/api/v1/users/{id}`         | JWT + ADMIN | 删除用户 |
+| GET    | `/api/v1/users/{id}/tenants` | JWT + ADMIN | 所属租户联查（含租户内角色） |
 
 ## 鉴权说明
 
 全路由挂载 [`Auth::admin()`](../../guards/auth.rs)：令牌有效，且**库中的平台角色**为 `ADMIN`（令牌里的声明只用于快速拒绝），否则 `300006` 权限不足。
 
 注册默认 `role=USER`；管理员可通过本模块 `WriteP.role` / `UpdateP.role` 提升为 `ADMIN`。
+
+### 停用与成员关系
+
+| 操作 | 对 `tenant_member` 的影响 |
+| ---- | ------------------------- |
+| `PUT` 将 `status=DISABLED` | **不改**成员行：用户无法登录（会话拒绝），既有成员关系仍在；恢复 `ACTIVE` 后可继续以原角色进入租户 |
+| `DELETE` 删除用户 | FK `fk_tenant_member_user` **CASCADE**：该用户所有成员行一并删除 |
+
+运维若只想「踢出某租户」请走 [`DELETE /admin/tenants/{id}/members/{userID}`](../tenant/README.md)，不要误用账号停用。
 
 ## 数据表 — auth
 
@@ -59,11 +69,10 @@
 ## 实现架构
 
 ```
-UserController::find_all / find_one / insert / update / remove
-  └── UserService
-        └── auth::Entity（CRUD）
-        └── asset::Entity::find_by_id（avatar 联查，包在作用域里）
-        └── encrypt_password（create/update 密码）
+UserController::toRead / toWrite / toUpdate / toRemove / tenants
+  └── UserService（账号 CRUD + avatar）
+  └── tenants 联查：PlatformScope → TenantService::admin_tenants_of_user
+        └── identity::tenant::memberships_of_user + find_many
 ```
 
 源码：[`module.rs`](module.rs) · [`controller.rs`](controller.rs) · [`service.rs`](service.rs) · [`schema.rs`](schema.rs)
@@ -135,7 +144,27 @@ UserController::find_all / find_one / insert / update / remove
 
 ### DELETE /api/v1/users/{id}
 
-**成功**：`msg`「删除用户成功」，无 `data`。
+**成功**：`msg`「删除用户成功」，无 `data`。成员关系随外键 CASCADE 删除（见上）。
+
+### GET /api/v1/users/{id}/tenants
+
+**成功 data**：`UserTenantR[]`
+
+```json
+[
+  {
+    "tenantID": "uuid",
+    "name": "Acme",
+    "slug": "acme",
+    "status": "ACTIVE",
+    "type": "TEAM",
+    "role": "MEMBER",
+    "memberStatus": "ACTIVE"
+  }
+]
+```
+
+走 [`PlatformScope`](../../guards/platform.rs) 跨租户读成员关系；用户不存在 `500101`。
 
 **常见错误**
 

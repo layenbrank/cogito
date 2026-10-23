@@ -5,18 +5,32 @@
 //! 这里只做三件事——把 wire 入参解析成领域入参、把领域结果映射成 wire 出参、
 //! 把失败翻译成契约错误码；「能不能做」交给 `authz`。
 
+use std::collections::HashMap;
+
 use authz::{Action, Permission, Resource};
+use entity::auth;
 use identity::tenant::{
     self as tenants, Member, MemberChanges, Tenant as TenantRecord, TenantChanges, TenantDraft,
-    TenantType,
+    TenantQuery, TenantType,
 };
-use identity::{AccountStatus, PersistError, TenantRole, UserId};
+use identity::{AccountStatus, PersistError, TenantId, TenantRole, UserId};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use uuid::Uuid;
 
+use crate::clients::redis::RedisPool;
+use crate::configures::configure::Configure;
 use crate::filters::exception::Exception;
 use crate::guards::account::AccountScope;
+use crate::guards::platform::PlatformScope;
 use crate::guards::tenant::TenantCtx;
+use crate::interceptors::envelope::Paginated;
+use crate::services::gateway::schema::{AuditFilter, AuditR};
+use crate::services::gateway::service::GatewayService;
+use crate::services::subscription::schema::{QuotaR, SubscribeP, SubscriptionR};
+use crate::services::subscription::service::SubscriptionService;
 use crate::services::tenant::schema::{
-    MemberR, MemberUpdateP, MemberWriteP, TenantR, TenantUpdateP, TenantWriteP,
+    AdminTenantQueryP, MemberR, MemberUpdateP, MemberWriteP, TenantDetailR, TenantR,
+    TenantSummaryR, TenantUpdateP, TenantWriteP, UserTenantR,
 };
 use crate::utils::code::{auth as auth_codes, business, external, request, resource};
 use crate::utils::db::is_unique_violation;
@@ -161,14 +175,14 @@ impl TenantService {
         }
     }
 
-    /// 成员名单（含已停用成员）。
+    /// 成员名单（含已停用成员）；附带 username / email 展示字段。
     pub async fn list_members(ctx: &TenantCtx) -> Result<Vec<MemberR>, TenantError> {
         authorize(ctx, READ_MEMBER)?;
         let members = tenants::members(ctx.tx(), ctx.tenant_id())
             .await
             .map_err(persist_err)?;
 
-        Ok(members.iter().map(member_to_r).collect())
+        enrich_members(ctx.tx(), &members).await
     }
 
     /// 新增成员：账号必须存在，重复成员由唯一索引拒绝。
@@ -194,7 +208,7 @@ impl TenantService {
         .await
         .map_err(|err| conflict(err, TenantError::AlreadyMember))?;
 
-        Ok(member_to_r(&member))
+        enrich_member(ctx.tx(), &member).await
     }
 
     /// 改成员的角色或状态。
@@ -220,7 +234,177 @@ impl TenantService {
         .map_err(persist_err)?
         .ok_or(TenantError::NotFound)?;
 
-        Ok(member_to_r(&member))
+        enrich_member(ctx.tx(), &member).await
+    }
+
+    // ---------- 平台运维面（PlatformScope / Auth::admin） ----------
+
+    /// 平台全量租户列表（分页 / 搜索）。
+    pub async fn admin_list(
+        scope: &PlatformScope,
+        query: AdminTenantQueryP,
+    ) -> Result<Paginated<TenantSummaryR>, TenantError> {
+        let (page, size, skip) = page_bounds(query.page, query.size)?;
+        let domain_query = TenantQuery {
+            q: query.q,
+            status: query.status.as_deref().map(parse_status).transpose()?,
+            tenant_type: query
+                .tenant_type
+                .as_deref()
+                .map(parse_tenant_type)
+                .transpose()?,
+            skip,
+            take: size as u64,
+        };
+        let (tenants, total) = tenants::list_all(scope.tx(), &domain_query)
+            .await
+            .map_err(persist_err)?;
+        let counts = tenants::count_members_many(
+            scope.tx(),
+            &tenants.iter().map(|t| t.id()).collect::<Vec<_>>(),
+        )
+        .await
+        .map_err(persist_err)?;
+
+        let items = tenants
+            .iter()
+            .map(|tenant| {
+                let member_count = counts.get(&tenant.id().as_uuid()).copied().unwrap_or(0);
+                TenantSummaryR {
+                    id: tenant.id().to_string(),
+                    name: tenant.name().to_owned(),
+                    slug: tenant.slug().to_owned(),
+                    status: tenant.status().as_str().to_owned(),
+                    r#type: tenant.tenant_type().as_str().to_owned(),
+                    member_count,
+                    created_at: tenant.created_at_ms(),
+                    updated_at: tenant.updated_at_ms(),
+                }
+            })
+            .collect();
+
+        Ok(Paginated::new(items, total, page, size))
+    }
+
+    /// 平台租户详情：租户 + 成员（含展示字段）+ 订阅历史 + 配额 + 近期审计。
+    pub async fn admin_detail(
+        ctx: &TenantCtx,
+        config: &Configure,
+        redis: &RedisPool,
+    ) -> Result<TenantDetailR, Exception> {
+        authorize(ctx, READ_TENANT).map_err(Exception::from)?;
+        let tenant = tenants::find(ctx.tx(), ctx.tenant_id())
+            .await
+            .map_err(persist_err)
+            .map_err(Exception::from)?
+            .ok_or_else(|| Exception::from(TenantError::NotFound))?;
+        let members = tenants::members(ctx.tx(), ctx.tenant_id())
+            .await
+            .map_err(persist_err)
+            .map_err(Exception::from)?;
+        let enriched = enrich_members(ctx.tx(), &members)
+            .await
+            .map_err(Exception::from)?;
+        let subscriptions = SubscriptionService::list(ctx).await?;
+        let quota = match SubscriptionService::quota(ctx, config, redis).await {
+            Ok(item) => Some(item),
+            Err(err) => {
+                tracing::warn!(error = %err, "admin tenant quota unavailable");
+                None
+            }
+        };
+        let recent_audit = load_recent_audit(ctx).await;
+
+        Ok(TenantDetailR {
+            id: tenant.id().to_string(),
+            name: tenant.name().to_owned(),
+            slug: tenant.slug().to_owned(),
+            status: tenant.status().as_str().to_owned(),
+            r#type: tenant.tenant_type().as_str().to_owned(),
+            member_count: enriched.len() as u64,
+            created_at: tenant.created_at_ms(),
+            updated_at: tenant.updated_at_ms(),
+            members: enriched,
+            subscriptions,
+            quota,
+            recent_audit,
+        })
+    }
+
+    /// 平台代开 / 续订订阅（可信通道 `grant`；不造计费，只写档位）。
+    pub async fn admin_grant_subscription(
+        ctx: &TenantCtx,
+        config: &Configure,
+        redis: &RedisPool,
+        req: SubscribeP,
+    ) -> Result<SubscriptionR, Exception> {
+        // 与租户 Manage 对齐：仅平台 ADMIN（authz 旁路）或租户 OWNER 可代开
+        authorize(ctx, MANAGE_TENANT).map_err(Exception::from)?;
+        SubscriptionService::grant(ctx.scope(), config, redis, ctx.principal().user_id(), req)
+            .await
+            .map_err(Exception::from)
+    }
+
+    /// 平台只读：订阅历史（复用租户面 list，会惰性标 EXPIRED）。
+    pub async fn admin_list_subscriptions(ctx: &TenantCtx) -> Result<Vec<SubscriptionR>, Exception> {
+        authorize(ctx, READ_TENANT).map_err(Exception::from)?;
+        SubscriptionService::list(ctx).await
+    }
+
+    /// 平台只读：当前配额快照。
+    pub async fn admin_quota(
+        ctx: &TenantCtx,
+        config: &Configure,
+        redis: &RedisPool,
+    ) -> Result<QuotaR, Exception> {
+        authorize(ctx, READ_TENANT).map_err(Exception::from)?;
+        SubscriptionService::quota(ctx, config, redis).await
+    }
+
+    /// 某用户所属的全部租户（含成员角色）；须在特权作用域内。
+    pub async fn admin_tenants_of_user(
+        scope: &PlatformScope,
+        user: UserId,
+    ) -> Result<Vec<UserTenantR>, TenantError> {
+        let account = identity::persistence::find_account(scope.tx(), user)
+            .await
+            .map_err(persist_err)?;
+        if account.is_none() {
+            return Err(TenantError::UserNotFound);
+        }
+
+        let memberships = tenants::memberships_of_user(scope.tx(), user)
+            .await
+            .map_err(persist_err)?;
+        if memberships.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let tenant_ids: Vec<TenantId> = memberships.iter().map(|m| m.tenant_id()).collect();
+        let tenants = tenants::find_many(scope.tx(), &tenant_ids)
+            .await
+            .map_err(persist_err)?;
+        let by_id: HashMap<Uuid, &TenantRecord> = tenants
+            .iter()
+            .map(|tenant| (tenant.id().as_uuid(), tenant))
+            .collect();
+
+        let mut rows = Vec::with_capacity(memberships.len());
+        for member in &memberships {
+            let Some(tenant) = by_id.get(&member.tenant_id().as_uuid()) else {
+                continue;
+            };
+            rows.push(UserTenantR {
+                tenant_id: tenant.id().to_string(),
+                name: tenant.name().to_owned(),
+                slug: tenant.slug().to_owned(),
+                status: tenant.status().as_str().to_owned(),
+                r#type: tenant.tenant_type().as_str().to_owned(),
+                role: member.role().as_str().to_owned(),
+                member_status: member.status().as_str().to_owned(),
+            });
+        }
+        Ok(rows)
     }
 
     /// 移除成员。
@@ -255,14 +439,75 @@ fn tenant_to_r(tenant: &TenantRecord) -> TenantR {
     }
 }
 
-fn member_to_r(member: &Member) -> MemberR {
+fn member_to_r(member: &Member, username: Option<String>, email: Option<String>) -> MemberR {
     MemberR {
         id: member.row_id().to_string(),
         tenant_id: member.tenant_id().to_string(),
         user_id: member.user_id().to_string(),
         role: member.role().as_str().to_owned(),
         status: member.status().as_str().to_owned(),
+        username,
+        email,
     }
+}
+
+async fn enrich_members<C: ConnectionTrait>(
+    conn: &C,
+    members: &[Member],
+) -> Result<Vec<MemberR>, TenantError> {
+    if members.is_empty() {
+        return Ok(Vec::new());
+    }
+    let ids: Vec<Uuid> = members.iter().map(|m| m.user_id().as_uuid()).collect();
+    let accounts = auth::Entity::find()
+        .filter(auth::Column::Id.is_in(ids))
+        .all(conn)
+        .await
+        .map_err(|err| TenantError::Db(err.to_string()))?;
+    let by_id: HashMap<Uuid, auth::Model> =
+        accounts.into_iter().map(|row| (row.id, row)).collect();
+
+    Ok(members
+        .iter()
+        .map(|member| {
+            let account = by_id.get(&member.user_id().as_uuid());
+            member_to_r(
+                member,
+                account.map(|a| a.username.clone()),
+                account.and_then(|a| a.email.clone()),
+            )
+        })
+        .collect())
+}
+
+async fn enrich_member<C: ConnectionTrait>(
+    conn: &C,
+    member: &Member,
+) -> Result<MemberR, TenantError> {
+    let mut rows = enrich_members(conn, std::slice::from_ref(member)).await?;
+    Ok(rows.pop().unwrap_or_else(|| member_to_r(member, None, None)))
+}
+
+async fn load_recent_audit(ctx: &TenantCtx) -> Vec<AuditR> {
+    let Ok(filter) =
+        AuditFilter::parse_for_tenant(ctx.tenant_id(), None, None, None, None, None)
+    else {
+        return Vec::new();
+    };
+    match GatewayService::list_audit_in_tenant(ctx, filter, 1, 20).await {
+        Ok((items, _)) => items,
+        Err(err) => {
+            tracing::warn!(error = %err, "admin tenant recent audit unavailable");
+            Vec::new()
+        }
+    }
+}
+
+fn page_bounds(page: Option<u32>, size: Option<u32>) -> Result<(u32, u32, u64), TenantError> {
+    let page = page.unwrap_or(1).max(1);
+    let size = size.unwrap_or(50).clamp(1, 100);
+    let skip = u64::from(page.saturating_sub(1)) * u64::from(size);
+    Ok((page, size, skip))
 }
 
 /// 租户名称：去空白，空即拒绝。

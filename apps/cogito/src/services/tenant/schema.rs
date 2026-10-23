@@ -135,4 +135,83 @@ pub struct MemberR {
     pub user_id: String,
     pub role: String,
     pub status: String,
+    /// 展示用：账号用户名；账号已删则为 null
+    pub username: Option<String>,
+    /// 展示用：邮箱；可能为空
+    pub email: Option<String>,
+}
+
+/// 平台运维面：租户列表查询
+#[derive(Debug, Clone, Default, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminTenantQueryP {
+    /// 名称 / slug 模糊搜索
+    pub q: Option<String>,
+    /// PERSONAL / TEAM
+    #[serde(rename = "type")]
+    pub tenant_type: Option<String>,
+    /// ACTIVE / DISABLED
+    pub status: Option<String>,
+    /// 页码，从 1 起，默认 1
+    pub page: Option<u32>,
+    /// 每页条数 1–100，默认 50
+    pub size: Option<u32>,
+}
+
+/// 平台运维面：租户摘要（列表行）
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TenantSummaryR {
+    pub id: String,
+    pub name: String,
+    pub slug: String,
+    pub status: String,
+    /// PERSONAL / TEAM
+    pub r#type: String,
+    #[serde(rename = "memberCount")]
+    pub member_count: u64,
+    #[serde(rename = "createdAt")]
+    pub created_at: i64,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: i64,
+}
+
+/// 平台运维面：租户详情聚合
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TenantDetailR {
+    pub id: String,
+    pub name: String,
+    pub slug: String,
+    pub status: String,
+    pub r#type: String,
+    #[serde(rename = "memberCount")]
+    pub member_count: u64,
+    #[serde(rename = "createdAt")]
+    pub created_at: i64,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: i64,
+    pub members: Vec<MemberR>,
+    pub subscriptions: Vec<crate::services::subscription::schema::SubscriptionR>,
+    pub quota: Option<crate::services::subscription::schema::QuotaR>,
+    /// 近期审计（最多 20 条）；读失败时为空数组
+    #[serde(rename = "recentAudit")]
+    pub recent_audit: Vec<crate::services::gateway::schema::AuditR>,
+}
+
+/// 用户所属租户（后台联查）
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UserTenantR {
+    #[serde(rename = "tenantID")]
+    pub tenant_id: String,
+    pub name: String,
+    pub slug: String,
+    pub status: String,
+    pub r#type: String,
+    /// 该用户在租户内的角色
+    pub role: String,
+    /// 成员关系状态 ACTIVE / DISABLED
+    #[serde(rename = "memberStatus")]
+    pub member_status: String,
 }

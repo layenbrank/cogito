@@ -9,7 +9,8 @@ use std::{fmt, str::FromStr};
 use chrono::Utc;
 use entity::{tenant, tenant_member};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, EntityTrait, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use uuid::Uuid;
 
@@ -275,6 +276,121 @@ pub async fn list_for_user<C: ConnectionTrait>(
         .all(conn)
         .await?;
 
+    models.into_iter().map(tenant_from_model).collect()
+}
+
+/// 平台运维面：跨租户列出租户（须在 [`PlatformScope`](crate) / `BYPASSRLS` 事务内调用）。
+///
+/// `q` 对 `name` / `slug` 做大小写不敏感模糊匹配；`skip` / `take` 控制分页。
+pub struct TenantQuery {
+    /// 名称或 slug 关键字。
+    pub q: Option<String>,
+    /// 状态过滤。
+    pub status: Option<AccountStatus>,
+    /// 类型过滤。
+    pub tenant_type: Option<TenantType>,
+    /// 偏移。
+    pub skip: u64,
+    /// 每页条数（调用方已夹紧）。
+    pub take: u64,
+}
+
+/// 平台全量列表；返回本页与总数。
+pub async fn list_all<C: ConnectionTrait>(
+    conn: &C,
+    query: &TenantQuery,
+) -> Result<(Vec<Tenant>, u64), PersistError> {
+    let mut select = tenant::Entity::find();
+    if let Some(status) = query.status {
+        select = select.filter(tenant::Column::Status.eq(status.as_str()));
+    }
+    if let Some(kind) = query.tenant_type {
+        select = select.filter(tenant::Column::TenantType.eq(kind.as_str()));
+    }
+    if let Some(raw) = query.q.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        let pattern = format!("%{raw}%");
+        select = select.filter(
+            Condition::any()
+                .add(tenant::Column::Name.like(&pattern))
+                .add(tenant::Column::Slug.like(&pattern)),
+        );
+    }
+
+    let total = select.clone().count(conn).await?;
+    let models = select
+        .order_by_desc(tenant::Column::CreatedAt)
+        .offset(query.skip)
+        .limit(query.take)
+        .all(conn)
+        .await?;
+
+    let tenants = models
+        .into_iter()
+        .map(tenant_from_model)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((tenants, total))
+}
+
+/// 统计某租户的成员行数（含已停用）。
+pub async fn count_members<C: ConnectionTrait>(
+    conn: &C,
+    tenant: TenantId,
+) -> Result<u64, PersistError> {
+    let count = tenant_member::Entity::find()
+        .filter(tenant_member::Column::TenantId.eq(tenant.as_uuid()))
+        .count(conn)
+        .await?;
+    Ok(count)
+}
+
+/// 批量统计多个租户的成员数；返回 `tenantID → count`。
+pub async fn count_members_many<C: ConnectionTrait>(
+    conn: &C,
+    tenants: &[TenantId],
+) -> Result<std::collections::HashMap<Uuid, u64>, PersistError> {
+    let mut map = std::collections::HashMap::new();
+    if tenants.is_empty() {
+        return Ok(map);
+    }
+    let ids: Vec<Uuid> = tenants.iter().map(|id| id.as_uuid()).collect();
+    let rows = tenant_member::Entity::find()
+        .filter(tenant_member::Column::TenantId.is_in(ids))
+        .all(conn)
+        .await?;
+    for row in rows {
+        *map.entry(row.tenant_id).or_insert(0) += 1;
+    }
+    Ok(map)
+}
+
+/// 某账号在所有租户上的成员关系（含停用）；须在特权作用域内调用才能跨租户读全。
+pub async fn memberships_of_user<C: ConnectionTrait>(
+    conn: &C,
+    user: UserId,
+) -> Result<Vec<Member>, PersistError> {
+    let models = tenant_member::Entity::find()
+        .filter(tenant_member::Column::UserId.eq(user.as_uuid()))
+        .order_by_asc(tenant_member::Column::CreatedAt)
+        .all(conn)
+        .await?;
+
+    models.into_iter().map(member_from_model).collect()
+}
+
+/// 按标识批量读租户；不可见的跳过。
+pub async fn find_many<C: ConnectionTrait>(
+    conn: &C,
+    tenants: &[TenantId],
+) -> Result<Vec<Tenant>, PersistError> {
+    if tenants.is_empty() {
+        return Ok(Vec::new());
+    }
+    let ids: Vec<Uuid> = tenants.iter().map(|id| id.as_uuid()).collect();
+    let models = tenant::Entity::find()
+        .filter(tenant::Column::Id.is_in(ids))
+        .order_by_asc(tenant::Column::CreatedAt)
+        .all(conn)
+        .await?;
     models.into_iter().map(tenant_from_model).collect()
 }
 

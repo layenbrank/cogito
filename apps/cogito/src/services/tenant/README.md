@@ -1,6 +1,11 @@
 # Tenant
 
-路由前缀：`/api/v1/tenants`
+两套前缀，语义刻意分开：
+
+| 前缀 | 对象 | 说明 |
+| ---- | ---- | ---- |
+| `/api/v1/tenants` | 当前登录用户 | 「我的租户」：只见自己是成员的行 |
+| `/api/v1/admin/tenants` | 平台 ADMIN | 全平台运维：列表 / 详情聚合 / CRUD / 成员 / 订阅与配额 |
 
 ## 概述
 
@@ -13,30 +18,53 @@
 
 租户**不持有配额数字**：配额由「订阅档位 / 免费档 / 全局兜底」表达，优先级见 [`guide/configuration.md`](../../../guide/configuration.md#模型网关配额)。
 
+成员响应 `MemberR` 附带展示字段 `username` / `email`（联查 `auth`；账号已删则为 `null`），避免后台只见 UUID。
+
 ## 与同域其他模块的区别
 
-- [`subscription`](../subscription/README.md)：只管个人租户的付费档位与有效期，路由挂在本模块前缀下（`/tenants/{id}/subscriptions`）。
+- [`subscription`](../subscription/README.md)：只管个人租户的付费档位与有效期，路由挂在本模块前缀下（`/tenants/{id}/subscriptions`）；运维面另有 `/admin/tenants/{id}/subscriptions`（含代开）。
 - [`payment`](../payment/README.md)：收钱并开通订阅，路由同样挂在本模块前缀下（`/tenants/{id}/orders`、`/tenants/{id}/pay/catalog`）。
 - [`sso`](../sso/README.md)：按 `tenantID` 配置 OIDC 连接。
 - [`gateway`](../gateway/README.md)：消费租户身份做配额与审计；审计**读侧**（列表 / 导出）的路由挂在本模块前缀下，可见性由租户作用域收口。
+- [`user`](../user/README.md)：用户所属租户联查走 `GET /users/{id}/tenants`（本模块领域函数 + `PlatformScope`）。
 
-## 路由一览
+## 路由一览 — 我的租户
 
 | 方法   | 路径                                    | 鉴权              | 说明                                  |
 | ------ | --------------------------------------- | ----------------- | ------------------------------------- |
-| GET    | `/api/v1/tenants`                       | JWT               | 我所属的租户                          |
+| GET    | `/api/v1/tenants`                       | JWT               | **我所属的租户**（非全平台）          |
 | POST   | `/api/v1/tenants`                       | JWT               | 创建租户（创建者自动成为 OWNER 成员） |
 | GET    | `/api/v1/tenants/{id}`                  | JWT + 成员        | 租户详情                              |
 | PUT    | `/api/v1/tenants/{id}`                  | JWT + OWNER       | 更新名称 / 状态 / 类型                |
 | DELETE | `/api/v1/tenants/{id}`                  | JWT + OWNER       | 删除租户                              |
-| GET    | `/api/v1/tenants/{id}/members`          | JWT + 成员        | 成员列表                              |
+| GET    | `/api/v1/tenants/{id}/members`          | JWT + 成员        | 成员列表（含 username / email）       |
 | POST   | `/api/v1/tenants/{id}/members`          | JWT + OWNER/ADMIN | 添加成员                              |
 | PUT    | `/api/v1/tenants/{id}/members/{userId}` | JWT + OWNER/ADMIN | 改成员角色 / 状态                     |
 | DELETE | `/api/v1/tenants/{id}/members/{userId}` | JWT + OWNER/ADMIN | 移除成员                              |
 | GET    | `/api/v1/tenants/{id}/audit`            | JWT + OWNER/ADMIN | 本租户审计查询（handler 在 gateway 模块） |
 | GET    | `/api/v1/tenants/{id}/audit/export`     | JWT + OWNER/ADMIN | 本租户审计导出（文件流，同上）        |
 
+## 路由一览 — 平台运维面
+
+鉴权一律 `Auth::admin()`（库中平台角色 `ADMIN`）。列表走 [`PlatformScope`](../../guards/platform.rs)（`BYPASSRLS`）；单租户读写走 [`TenantCtx::enter`](../../guards/tenant.rs)（平台 ADMIN **不要求成员身份**，与下方「旁路」一致）。
+
+| 方法   | 路径                                              | 说明 |
+| ------ | ------------------------------------------------- | ---- |
+| GET    | `/api/v1/admin/tenants`                           | 全量分页列表：`q` / `type` / `status` / `page` / `size`；含 `memberCount` |
+| POST   | `/api/v1/admin/tenants`                           | 创建租户（body 同租户面：`name` / `slug` / `type`，可建 TEAM） |
+| GET    | `/api/v1/admin/tenants/{id}`                      | 详情聚合：租户 + 成员 + 订阅历史 + 配额快照 + 近期审计（≤20） |
+| PUT    | `/api/v1/admin/tenants/{id}`                      | 更新名称 / 状态 / 类型 |
+| DELETE | `/api/v1/admin/tenants/{id}`                      | 删除租户（成员 CASCADE） |
+| GET/POST/PUT/DELETE | `/api/v1/admin/tenants/{id}/members…` | 成员 CRUD（响应含 username / email） |
+| GET    | `/api/v1/admin/tenants/{id}/subscriptions`        | 订阅历史（惰性标 EXPIRED，读后 commit） |
+| POST   | `/api/v1/admin/tenants/{id}/subscriptions`        | 运维代开 / 续订（`SubscriptionService::grant`，不造计费） |
+| GET    | `/api/v1/admin/tenants/{id}/quota`                | 当前生效配额快照 |
+
+列表响应为分页信封 `Paginated<TenantSummaryR>`（`items` / `count` / `page` / `size` / `total` / `next` / `prev`）。
+
 ## 鉴权说明
+
+### 我的租户（`/tenants`）
 
 - 整个 scope 挂 `Auth::isRequired()`，未登录返回 `300001`。
 - 列表接口（`GET /tenants`）还没选定租户，走 [`AccountScope`](../../guards/account.rs)：账号级只读，
@@ -54,6 +82,15 @@
 - 已知策略缺口（不在本步修复）：`update_member` 是资源/动作级判定而非取值级，因此 **ADMIN 可以把自己提升为 OWNER**；
   收紧需要在策略层引入「目标角色不得高于自身」的取值约束。
 - 作用域之外的租户一律按「不存在」处理（`400001`，HTTP 404）：`update` / `remove` 不再出现静默成功的空操作。
+
+### 平台运维面（`/admin/tenants`）与 OWNER 旁路
+
+| 入口 | 作用域 | 成员关系 | `authz` |
+| ---- | ------ | -------- | ------- |
+| `GET /admin/tenants`（列表） | `PlatformScope` | 不读成员 | 路由层 `Auth::admin()` 已确权 |
+| 单租户读写 / 成员 / 订阅 / 配额 | `TenantCtx::enter` | 平台 ADMIN 可无成员行进入 | 平台角色旁路租户角色；OWNER 路径仍要求 Owner 权限位 |
+
+**不要**把 `GET /tenants` 加上 `scope=all`：客户端「我的租户」语义保持不变；全平台列表只用独立 admin 路径。
 
 ## 数据表
 
@@ -74,10 +111,17 @@ TenantModule::configure
               ├── AccountScope::enter → 列表（账号级只读，未选定租户）
               ├── TenantCtx::open_new → 建租户（作用域 = 新租户）
               ├── TenantCtx::enter    → 已有租户（作用域内读成员关系 → Principal）
-              └── TenantService            # 只做 HTTP 语义与错误码映射：作用域与鉴权由 TenantCtx / authz 提供
+              └── TenantService
                     ├── create / list / get / update / remove
-                    ├── list_members / add_member / update_member / remove_member
-                    └── identity::tenant::*                # 领域写入（事务都由 TenantCtx 提供）
+                    ├── list_members / add_member / update_member / remove_member（MemberR 含 username）
+                    └── identity::tenant::*
+
+TenantModule::configure_admin
+  └── scope("/admin/tenants") .wrap(Auth::admin())
+        └── AdminTenantController
+              ├── PlatformScope::open → admin_list（全量分页）
+              ├── TenantCtx::open_new / enter → 写与详情
+              └── TenantService::admin_* + SubscriptionService / GatewayService（详情内嵌）
 ```
 
 ## 错误码

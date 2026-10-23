@@ -14,7 +14,9 @@ impl UserModule {
                 .route("", web::post().to(UserController::toWrite))
                 .route("/{id}", web::get().to(UserController::toRead))
                 .route("/{id}", web::put().to(UserController::toUpdate))
-                .route("/{id}", web::delete().to(UserController::toRemove)),
+                .route("/{id}", web::delete().to(UserController::toRemove))
+                // 所属租户联查：须注册在 /{id} 同级更具体路径（actix 按 resource 匹配）
+                .route("/{id}/tenants", web::get().to(UserController::tenants)),
         );
     }
 }
