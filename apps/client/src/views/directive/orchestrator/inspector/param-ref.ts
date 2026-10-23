@@ -155,7 +155,7 @@ function collectStepRefs(steps: Step[], options?: { excludeId?: string | null })
         if (step.else) walk(step.else)
       } else if ('parallel' in step) {
         walk(step.parallel)
-      } else if ('steps' in step || 'repeat' in step) {
+      } else if ('steps' in step) {
         walk(step.steps)
       }
     })

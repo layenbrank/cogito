@@ -1,10 +1,9 @@
 import {
   findCodeTilePrefs,
   persistCodeTilePrefs,
-  type CodePanelTab,
-  type CodePreferences,
-  type CodeSidebarView
+  type CodePreferences
 } from '@/features/magnetic-tile/tile-prefs'
+import type { CodePanelTab, CodeSidebarView } from '@/features/persist/types'
 
 function parseCodePreferences(): CodePreferences {
   return findCodeTilePrefs()
