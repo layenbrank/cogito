@@ -1,51 +1,54 @@
-import { Icon } from '@iconify/react/offline'
+import { Label } from '@i-thinking/design/components/label'
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger
 } from '@i-thinking/design/components/tooltip'
-import { useState } from 'react'
+import { cn } from 'cn'
+import { useState, type ReactNode } from 'react'
 
 interface HintTooltipProps {
   hint: string
-  label: string
+  children: ReactNode
+  htmlFor?: string
+  className?: string
 }
 
 /**
- * 标签旁说明：悬停才挂载 Content，关掉即销毁，不占纵向空间。
+ * 说明挂在标签文字上：悬停才挂载 Content，关掉即销毁。
+ * 虚线下划线提示可悬停，不再单独放 ⓘ。
  */
 function HintTooltip(props: HintTooltipProps) {
   const [isOpen, updateOpen] = useState(false)
 
   return (
-    <Tooltip
-      open={isOpen}
-      onOpenChange={updateOpen}>
-      <TooltipTrigger
-        render={
-          <button
-            type="button"
-            className="inline-flex size-3.5 shrink-0 items-center justify-center rounded-full text-foreground/45 hover:text-foreground"
-            aria-label={props.label}
-            onPointerDown={function (event) {
-              // 不抢焦点，避免输入框失焦
-              event.preventDefault()
-            }}>
-            <Icon
-              icon="mdi:information-outline"
-              className="size-3.5"
+    <TooltipProvider delay={320}>
+      <Tooltip
+        open={isOpen}
+        onOpenChange={updateOpen}>
+        <TooltipTrigger
+          render={
+            <Label
+              htmlFor={props.htmlFor}
+              className={cn(
+                'w-fit cursor-help underline decoration-dotted decoration-foreground/30 underline-offset-[3px]',
+                'hover:decoration-foreground/55',
+                props.className
+              )}
             />
-          </button>
-        }
-      />
-      {isOpen ? (
-        <TooltipContent
-          side="top"
-          className="max-w-64 text-left text-balance">
-          {props.hint}
-        </TooltipContent>
-      ) : null}
-    </Tooltip>
+          }>
+          {props.children}
+        </TooltipTrigger>
+        {isOpen ? (
+          <TooltipContent
+            side="top"
+            className="max-w-64 text-left text-balance">
+            {props.hint}
+          </TooltipContent>
+        ) : null}
+      </Tooltip>
+    </TooltipProvider>
   )
 }
 
