@@ -169,8 +169,13 @@ async function syncCogitoGatewayCatalog(): Promise<AgentProvider | null> {
   try {
     await ensureCogitoProvider()
   } catch (error) {
-    // UI 行已可用；goose 注册留给发送/切换模型再试，避免目录同步整段失败
-    reportCaught('acp.cogito-provider.ensureAfterSync', error, 'warning')
+    // UI 行已可用；goose 注册留给发送/切换模型再试，避免目录同步整段失败。
+    // 缺租户是可预期降级（会再补建/提示），不要打 exception-report 刷屏。
+    if (isCogitoSoftFailure(error)) {
+      console.warn('[acp.cogito-provider.ensureAfterSync]', error)
+    } else {
+      reportCaught('acp.cogito-provider.ensureAfterSync', error, 'warning')
+    }
   }
 
   return findCogitoRow(useProviderStore.getState().providers)
@@ -215,20 +220,45 @@ async function findGooseCogitoStatus(): Promise<GooseCogitoStatus> {
   }
 }
 
+/** 组织模型不可用时的软失败（预期降级，勿 exception-report） */
+const COGITO_SOFT_ERROR = 'CogitoSoftFailure'
+
+function softFailure(message: string): Error {
+  const error = new Error(message)
+  error.name = COGITO_SOFT_ERROR
+  return error
+}
+
+function isCogitoSoftFailure(error: unknown): boolean {
+  return error instanceof Error && error.name === COGITO_SOFT_ERROR
+}
+
 /**
  * 幂等注册 cogito provider。三个入参任何一个变了，Rust 侧都会重写 JSON 并重启 goose。
  *
- * 缺租户 / 缺端点 / 模型目录空 → 抛错，由发送路径中止并提示「网关未就绪」。
+ * 缺租户 / 缺端点 / 模型目录空 → 抛软失败，由发送路径 yield 可读错误（不 Uncaught）。
  * 注册后若 goose inventory **确认**没有 `cogito_gateway`，强制重启再验一次；
  * ACP 暂时不可用则直接报错，不连环重启。
  */
 async function ensureCogitoProvider(): Promise<void> {
+  // 无缓存租户时 sync 会跳过「空结果新鲜度」并尝试补建 PERSONAL
   const tenantID = (await syncActiveTenant()) ?? findActiveTenantID()
-  if (!tenantID) throw new Error('未解析到租户，无法注册组织模型供应商')
+  if (!tenantID) {
+    await dropStaleCogitoRow()
+    throw softFailure(
+      '组织模型暂不可用：未解析到个人租户。请重新登录，或检查思考服务是否可达后再试'
+    )
+  }
   const baseUrl = findGatewayBaseURL()
-  if (!baseUrl) throw new Error('未配置思考服务地址，无法注册组织模型供应商')
+  if (!baseUrl) {
+    await dropStaleCogitoRow()
+    throw softFailure('组织模型暂不可用：未配置思考服务地址')
+  }
   const models = await findGatewayModels()
-  if (models.length === 0) throw new Error('网关模型目录为空，无法注册组织模型供应商')
+  if (models.length === 0) {
+    await dropStaleCogitoRow()
+    throw softFailure('组织模型暂不可用：网关模型目录为空，请联系管理员启用模型')
+  }
 
   await writeGooseProvider(tenantID, baseUrl, models, false)
 
@@ -248,11 +278,11 @@ async function ensureCogitoProvider(): Promise<void> {
   }
 
   if (status === 'unknown') {
-    throw new Error('goose serve 未就绪，无法确认组织模型供应商是否已载入')
+    throw softFailure('组织模型暂不可用：goose serve 未就绪，请稍后重试')
   }
 
-  throw new Error(
-    `goose 无法解析组织模型供应商（${COGITO_PROVIDER_ID}）。请确认已登录且思考服务可用后重试`
+  throw softFailure(
+    `组织模型暂不可用：goose 无法载入供应商（${COGITO_PROVIDER_ID}）。请确认已登录且思考服务可用后重试`
   )
 }
 
@@ -269,6 +299,7 @@ export {
   COGITO_PROVIDER_ID,
   COGITO_PROVIDER_NAME,
   ensureCogitoProvider,
+  isCogitoSoftFailure,
   setCogitoTenant,
   syncCogitoGatewayCatalog
 }

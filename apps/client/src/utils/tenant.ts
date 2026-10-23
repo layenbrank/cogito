@@ -23,9 +23,14 @@ function findActiveTenantID(): string | null {
   return cachedID
 }
 
-/** 已经解析过（含「确实没有个人租户」这个结论）且在有效期内，可以跳过再次解析 */
+/**
+ * 已经解析出**非空**租户 id 且在有效期内，可以跳过再次解析。
+ *
+ * 故意不把「解析结果为 null」算新鲜：无个人租户时要允许补建/重试，不能被 5 分钟空缓存挡住。
+ */
 function isActiveTenantFresh(ttlMs: number): boolean {
   if (cachedToken === null || cachedToken !== findAuthToken()) return false
+  if (cachedID === null) return false
   return Date.now() - cachedAt < ttlMs
 }
 

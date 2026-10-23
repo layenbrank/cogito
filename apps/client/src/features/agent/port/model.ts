@@ -16,7 +16,10 @@ import type {
   ChatUsage
 } from '@i-thinking/chat/ports'
 
-import { ensureCogitoProvider } from '@/features/agent/acp/cogito-provider'
+import {
+  ensureCogitoProvider,
+  isCogitoSoftFailure
+} from '@/features/agent/acp/cogito-provider'
 import { runThreadPrompt, respondToApproval, respondToElicitation } from '@/features/agent/acp/session'
 import { parseAcpStreamEvent, type AcpStreamContext } from '@/features/agent/acp/stream'
 import { findActiveScenario } from '@/features/agent/model/active-scenario'
@@ -181,15 +184,17 @@ function createModelPort(): ChatModelPort {
         return
       }
 
-      // 平台网关走 goose 的自定义 provider：发送前幂等注册；失败则中止，避免「找不到 provider」难排查
+      // 平台网关走 goose 的自定义 provider：发送前幂等注册；失败则中止并进事件流（不 Uncaught）
       if (isGateway) {
         try {
           await ensureCogitoProvider()
         } catch (error) {
-          reportCaught('agent.port.ensureCogitoProvider', error, 'warning')
+          if (!isCogitoSoftFailure(error)) {
+            reportCaught('agent.port.ensureCogitoProvider', error, 'warning')
+          }
           yield {
             kind: 'error',
-            message: error instanceof Error ? error.message : '网关 provider 未就绪，请稍后重试',
+            message: error instanceof Error ? error.message : '组织模型未就绪，请稍后重试或改用个人模型',
             usage: RUN_USAGE
           }
           return
