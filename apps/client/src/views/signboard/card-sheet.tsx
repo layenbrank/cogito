@@ -12,7 +12,14 @@ import {
   SelectTrigger,
   SelectValue
 } from '@i-thinking/design/components/select'
-import { Sheet, SheetContent, SheetTitle } from '@i-thinking/design/components/sheet'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle
+} from '@i-thinking/design/components/sheet'
 import { Switch } from '@i-thinking/design/components/switch'
 import { Textarea } from '@i-thinking/design/components/textarea'
 import type { Dayjs } from 'dayjs'
@@ -445,122 +452,124 @@ function CardSheet(props: CardSheetProps) {
         side="right"
         showCloseButton
         overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-xs"
-        className="w-[min(400px,94vw)] gap-0 overflow-y-auto sm:max-w-none"
+        className="w-[min(420px,94vw)] gap-0 sm:max-w-none"
         onPaste={handleAttachPaste}>
-        <SheetTitle className="mb-4 text-lg">卡片详情</SheetTitle>
+        <SheetHeader className="gap-1 pb-3">
+          <SheetTitle>卡片详情</SheetTitle>
+          <SheetDescription className="truncate">
+            {title.trim() || '未命名卡片'}
+          </SheetDescription>
+        </SheetHeader>
 
         <div className={styles.sheetSection}>
-          <div className="space-y-2">
-            <Label htmlFor="signboard-card-title">标题</Label>
-            <Input
-              id="signboard-card-title"
-              value={title}
-              onChange={function (event) {
-                const next = event.target.value
-                setTitle(next)
-                persistTitle(entryID, next, reminderID)
-              }}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="signboard-card-notes">备注</Label>
-            <Textarea
-              id="signboard-card-notes"
-              value={notes}
-              placeholder="补充上下文、验收标准或链接…"
-              className="min-h-28"
-              onChange={function (event) {
-                setNotes(event.target.value)
-              }}
-              onBlur={function () {
-                void toUpdateEntry(entryID, { notes }).then(function (ok) {
-                  if (!ok) toast.error('备注保存失败')
-                })
-              }}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="signboard-card-start">开始</Label>
-              <DatePicker
-                id="signboard-card-start"
-                value={start}
-                onChange={function (date) {
-                  setStart(date)
+          <section className={styles.sheetBlock}>
+            <p className={styles.sheetBlockTitle}>基本</p>
+            <div className={styles.sheetField}>
+              <Label htmlFor="signboard-card-title">标题</Label>
+              <Input
+                id="signboard-card-title"
+                value={title}
+                onChange={function (event) {
+                  const next = event.target.value
+                  setTitle(next)
+                  persistTitle(entryID, next, reminderID)
                 }}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="signboard-card-due">到期</Label>
-              <DatePicker
-                id="signboard-card-due"
-                value={due}
-                onChange={function (date) {
-                  setDue(date)
+            <div className={styles.sheetField}>
+              <Label htmlFor="signboard-card-notes">备注</Label>
+              <Textarea
+                id="signboard-card-notes"
+                value={notes}
+                placeholder="补充上下文、验收标准或链接…"
+                className="min-h-24"
+                onChange={function (event) {
+                  setNotes(event.target.value)
+                }}
+                onBlur={function () {
+                  void toUpdateEntry(entryID, { notes }).then(function (ok) {
+                    if (!ok) toast.error('备注保存失败')
+                  })
                 }}
               />
             </div>
-          </div>
+          </section>
 
-          <div className="space-y-2">
-            <Label>优先级</Label>
-            <Select
-              items={PRIORITY_OPTIONS.map(function (row) {
-                return { value: row.value, label: row.label }
-              })}
-              value={priority}
-              onValueChange={function (value) {
-                if (value === null) return
-                setPriority(value)
-                void toUpdateEntry(entryID, { priority: Number(value) || 0 }).then(function (ok) {
-                  if (!ok) toast.error('优先级保存失败')
-                })
-              }}>
-              <SelectTrigger className="h-9 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PRIORITY_OPTIONS.map(function (row) {
-                  return (
-                    <SelectItem
-                      key={row.value}
-                      value={row.value}>
-                      {row.label}
-                    </SelectItem>
-                  )
-                })}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className={styles.sheetRow}>
-            <div className="inline-flex items-center gap-1">
-              <Label htmlFor="signboard-card-remind">提醒我</Label>
-              <HintTooltip
-                hint="写入本地 Reminder，到点通知"
-                label="提醒我 说明"
-              />
-            </div>
-            <Switch
-              id="signboard-card-remind"
-              checked={remind}
-              onCheckedChange={function (checked) {
-                setRemind(checked)
-              }}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="inline-flex items-center gap-1">
-                <Label>子任务</Label>
-                <HintTooltip
-                  hint="把这张卡拆成可勾选的步骤；进度会显示在卡片上。"
-                  label="子任务 说明"
+          <section className={styles.sheetBlock}>
+            <p className={styles.sheetBlockTitle}>日程</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className={styles.sheetField}>
+                <Label htmlFor="signboard-card-start">开始</Label>
+                <DatePicker
+                  id="signboard-card-start"
+                  value={start}
+                  onChange={function (date) {
+                    setStart(date)
+                  }}
                 />
               </div>
+              <div className={styles.sheetField}>
+                <Label htmlFor="signboard-card-due">到期</Label>
+                <DatePicker
+                  id="signboard-card-due"
+                  value={due}
+                  onChange={function (date) {
+                    setDue(date)
+                  }}
+                />
+              </div>
+            </div>
+            <div className={styles.sheetField}>
+              <Label>优先级</Label>
+              <Select
+                items={PRIORITY_OPTIONS.map(function (row) {
+                  return { value: row.value, label: row.label }
+                })}
+                value={priority}
+                onValueChange={function (value) {
+                  if (value === null) return
+                  setPriority(value)
+                  void toUpdateEntry(entryID, { priority: Number(value) || 0 }).then(function (ok) {
+                    if (!ok) toast.error('优先级保存失败')
+                  })
+                }}>
+                <SelectTrigger className="h-9 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRIORITY_OPTIONS.map(function (row) {
+                    return (
+                      <SelectItem
+                        key={row.value}
+                        value={row.value}>
+                        {row.label}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className={styles.sheetRow}>
+              <HintTooltip
+                hint="写入本地 Reminder，到点通知"
+                htmlFor="signboard-card-remind">
+                提醒我
+              </HintTooltip>
+              <Switch
+                id="signboard-card-remind"
+                checked={remind}
+                onCheckedChange={function (checked) {
+                  setRemind(checked)
+                }}
+              />
+            </div>
+          </section>
+
+          <section className={styles.sheetBlock}>
+            <div className={styles.sheetFieldHeader}>
+              <HintTooltip hint="把这张卡拆成可勾选的步骤；进度会显示在卡片上。">
+                子任务
+              </HintTooltip>
               {checklistTotal > 0 ? (
                 <span className={styles.checklistProgressLabel}>
                   {checklistDone}/{checklistTotal}
@@ -673,139 +682,135 @@ function CardSheet(props: CardSheetProps) {
                 添加
               </Button>
             </div>
-          </div>
+          </section>
 
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-1">
-              <Label>标签</Label>
-              <HintTooltip
-                hint="色块用于扫视分类；点选切换挂载，新建时自动配色。"
-                label="标签 说明"
-              />
-            </div>
-            <div className={styles.tagList}>
-              {filteredTags.map(function (tag) {
-                const active = attached.includes(tag.id)
-                const picking = colorPickerTagID === tag.id
-                return (
-                  <div
-                    key={tag.id}
-                    className={styles.tagChipWrap}>
-                    <button
-                      type="button"
-                      className={active ? `${styles.tagChip} ${styles.tagChipActive}` : styles.tagChip}
-                      style={
-                        tag.color
-                          ? {
-                              borderColor: active
-                                ? tag.color
-                                : `color-mix(in oklab, ${tag.color} 35%, transparent)`,
-                              background: active
-                                ? `color-mix(in oklab, ${tag.color} 22%, var(--card))`
-                                : `color-mix(in oklab, ${tag.color} 10%, var(--card))`,
-                              color: active ? tag.color : 'var(--foreground)'
-                            }
-                          : undefined
-                      }
-                      onClick={function () {
-                        void toggleTag(tag.id)
-                      }}>
-                      <span
-                        className={styles.tagSwatch}
-                        style={{ background: tag.color ?? 'var(--muted-foreground)' }}
-                        aria-hidden
-                      />
-                      {tag.title}
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.tagColorToggle}
-                      aria-label={`调整 ${tag.title} 颜色`}
-                      aria-expanded={picking}
-                      onClick={function () {
-                        setColorPickerTagID(function (prev) {
-                          return prev === tag.id ? null : tag.id
-                        })
-                      }}>
-                      <Icon
-                        icon="lucide:palette"
-                        className="size-3.5"
-                      />
-                    </button>
-                    {picking ? (
-                      <div
-                        className={styles.tagColorRow}
-                        role="group"
-                        aria-label={`${tag.title} 颜色`}>
-                        {TAG_COLORS.map(function (color) {
-                          return (
-                            <button
-                              key={color}
-                              type="button"
-                              className={styles.tagColorDot}
-                              style={{ background: color }}
-                              aria-label={`设为 ${color}`}
-                              onClick={function () {
-                                void toUpdateTag(tag.id, { color }).then(function (ok) {
-                                  if (!ok) toast.error('改色失败')
-                                  else setColorPickerTagID(null)
-                                })
-                              }}
-                            />
-                          )
-                        })}
-                      </div>
-                    ) : null}
-                  </div>
-                )
-              })}
-            </div>
-            {tags.length > 0 && filteredTags.length === 0 ? (
-              <p className="text-xs text-muted-foreground">无匹配标签，回车可新建</p>
-            ) : null}
-            <div className="flex gap-2">
-              <Input
-                value={tagDraft}
-                placeholder="搜索或新建标签"
-                className="h-9"
-                onChange={function (event) {
-                  setTagDraft(event.target.value)
-                }}
-                onKeyDown={function (event) {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
+          <section className={styles.sheetBlock}>
+            <div className={styles.sheetField}>
+              <HintTooltip hint="色块用于扫视分类；点选切换挂载，新建时自动配色。">
+                标签
+              </HintTooltip>
+              <div className={styles.tagList}>
+                {filteredTags.map(function (tag) {
+                  const active = attached.includes(tag.id)
+                  const picking = colorPickerTagID === tag.id
+                  return (
+                    <div
+                      key={tag.id}
+                      className={styles.tagChipWrap}>
+                      <button
+                        type="button"
+                        className={
+                          active ? `${styles.tagChip} ${styles.tagChipActive}` : styles.tagChip
+                        }
+                        style={
+                          tag.color
+                            ? {
+                                borderColor: active
+                                  ? tag.color
+                                  : `color-mix(in oklab, ${tag.color} 35%, transparent)`,
+                                background: active
+                                  ? `color-mix(in oklab, ${tag.color} 22%, var(--card))`
+                                  : `color-mix(in oklab, ${tag.color} 10%, var(--card))`,
+                                color: active ? tag.color : 'var(--foreground)'
+                              }
+                            : undefined
+                        }
+                        onClick={function () {
+                          void toggleTag(tag.id)
+                        }}>
+                        <span
+                          className={styles.tagSwatch}
+                          style={{ background: tag.color ?? 'var(--muted-foreground)' }}
+                          aria-hidden
+                        />
+                        {tag.title}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.tagColorToggle}
+                        aria-label={`调整 ${tag.title} 颜色`}
+                        aria-expanded={picking}
+                        onClick={function () {
+                          setColorPickerTagID(function (prev) {
+                            return prev === tag.id ? null : tag.id
+                          })
+                        }}>
+                        <Icon
+                          icon="lucide:palette"
+                          className="size-3.5"
+                        />
+                      </button>
+                      {picking ? (
+                        <div
+                          className={styles.tagColorRow}
+                          role="group"
+                          aria-label={`${tag.title} 颜色`}>
+                          {TAG_COLORS.map(function (color) {
+                            return (
+                              <button
+                                key={color}
+                                type="button"
+                                className={styles.tagColorDot}
+                                style={{ background: color }}
+                                aria-label={`设为 ${color}`}
+                                onClick={function () {
+                                  void toUpdateTag(tag.id, { color }).then(function (ok) {
+                                    if (!ok) toast.error('改色失败')
+                                    else setColorPickerTagID(null)
+                                  })
+                                }}
+                              />
+                            )
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                })}
+              </div>
+              {tags.length > 0 && filteredTags.length === 0 ? (
+                <p className="text-xs text-muted-foreground">无匹配标签，回车可新建</p>
+              ) : null}
+              <div className="flex gap-2">
+                <Input
+                  value={tagDraft}
+                  placeholder="搜索或新建标签"
+                  className="h-9"
+                  onChange={function (event) {
+                    setTagDraft(event.target.value)
+                  }}
+                  onKeyDown={function (event) {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      void createTag()
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  onClick={function () {
                     void createTag()
-                  }
-                }}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                onClick={function () {
-                  void createTag()
-                }}>
-                添加
-              </Button>
+                  }}>
+                  添加
+                </Button>
+              </div>
             </div>
-          </div>
+          </section>
 
-          <div
-            className="space-y-2"
+          <section
+            className={styles.sheetBlock}
             onDragOver={handleAttachDragOver}
             onDragLeave={handleAttachDragLeave}
             onDrop={handleAttachDrop}>
-            <div className="flex items-center justify-between gap-2">
-              <div className="inline-flex items-center gap-1">
-                <Label>附件图片</Label>
-                <HintTooltip
-                  hint="首张为封面；可点选、拖入或 Ctrl+V / ⌘V 粘贴。"
-                  label="附件图片 说明"
-                />
-              </div>
+            <div className={styles.sheetFieldHeader}>
+              <HintTooltip hint="首张为封面；可点选、拖入或 Ctrl+V / ⌘V 粘贴。">
+                附件图片
+              </HintTooltip>
               <Button
                 type="button"
-                size="lg"
+                size="sm"
                 variant="outline"
                 disabled={importing}
                 onClick={function () {
@@ -813,9 +818,9 @@ function CardSheet(props: CardSheetProps) {
                 }}>
                 <Icon
                   icon="lucide:image-plus"
-                  className="size-4"
+                  className="size-3.5"
                 />
-                {importing ? '导入中…' : '添加图片'}
+                {importing ? '导入中…' : '添加'}
               </Button>
             </div>
             {previews.length === 0 ? (
@@ -895,24 +900,15 @@ function CardSheet(props: CardSheetProps) {
                 })}
               </ul>
             )}
-          </div>
+          </section>
+        </div>
 
-          <Button
-            type="button"
-            size="lg"
-            className="mt-1 w-full"
-            disabled={saving}
-            onClick={function () {
-              void saveDueAndRemind()
-            }}>
-            {saving ? '保存中…' : '保存'}
-          </Button>
-
+        <SheetFooter className="!rounded-none !flex-col gap-2 sm:!flex-col sm:items-stretch">
           <Button
             type="button"
             size="lg"
             variant="ghost"
-            className="w-full text-destructive"
+            className="w-full text-destructive hover:text-destructive"
             onClick={function () {
               void toUpdateEntry(entryID, { archivedAt: Date.now() }).then(function (ok) {
                 if (!ok) {
@@ -929,7 +925,17 @@ function CardSheet(props: CardSheetProps) {
             />
             归档卡片
           </Button>
-        </div>
+          <Button
+            type="button"
+            size="lg"
+            className="w-full"
+            disabled={saving}
+            onClick={function () {
+              void saveDueAndRemind()
+            }}>
+            {saving ? '保存中…' : '保存日程与提醒'}
+          </Button>
+        </SheetFooter>
       </SheetContent>
     </Sheet>
   )
