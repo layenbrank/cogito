@@ -62,18 +62,6 @@ const TOOLS: ToolDef[] = [
     label: '签章',
     command: SHORTCUT_COMMAND.MORPH_TOOL_STAMP,
     icon: 'ant-design:safety-certificate-outlined'
-  },
-  {
-    key: 'crop',
-    label: '裁剪',
-    command: SHORTCUT_COMMAND.MORPH_TOOL_CROP,
-    icon: 'ant-design:scissor-outlined'
-  },
-  {
-    key: 'rotate',
-    label: '旋转',
-    command: SHORTCUT_COMMAND.MORPH_TOOL_ROTATE,
-    icon: 'ant-design:rotate-right-outlined'
   }
 ]
 

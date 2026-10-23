@@ -13,7 +13,5 @@ export const MORPH_SHORTCUTS: readonly LocalShortcutDefinition[] = [
   viewShortcut(COMMAND.MORPH_TOOL_TEXT, 'PDF 标注：文本工具', 't'),
   viewShortcut(COMMAND.MORPH_TOOL_HIGHLIGHT, 'PDF 标注：高亮工具', 'h'),
   viewShortcut(COMMAND.MORPH_TOOL_SHAPE, 'PDF 标注：形状工具', 'r'),
-  viewShortcut(COMMAND.MORPH_TOOL_STAMP, 'PDF 标注：签章工具', 'p'),
-  viewShortcut(COMMAND.MORPH_TOOL_CROP, 'PDF 标注：裁剪工具', 'c'),
-  viewShortcut(COMMAND.MORPH_TOOL_ROTATE, 'PDF 标注：旋转工具', 'o')
+  viewShortcut(COMMAND.MORPH_TOOL_STAMP, 'PDF 标注：签章工具', 'p')
 ]

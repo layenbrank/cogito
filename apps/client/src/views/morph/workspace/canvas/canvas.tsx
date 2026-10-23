@@ -224,7 +224,7 @@ function DraftLayer({ draft, tool }: { draft: DraftRect | null; tool: Morph.Tool
     )
   }
 
-  if (tool === 'shape' || tool === 'crop' || tool === 'text') {
+  if (tool === 'shape' || tool === 'text' || tool === 'stamp') {
     return (
       <Rect
         {...draft}
@@ -277,7 +277,7 @@ function PageStage({
       if (e.target === e.target.getStage()) onSelect(null)
       return
     }
-    if (!['highlight', 'shape', 'crop', 'text'].includes(activeTool)) return
+    if (!['highlight', 'shape', 'text', 'stamp'].includes(activeTool)) return
     const pos = e.target.getStage()!.getPointerPosition()!
     drawStart.current = pos
     setDraft({ x: pos.x, y: pos.y, width: 0, height: 0 })
@@ -306,12 +306,24 @@ function PageStage({
     drawStart.current = null
     setDraft(null)
 
-    if (width < 4 || height < 4) return
-
     const nx = x / stageW
     const ny = y / stageH
     const nw = width / stageW
     const nh = height / stageH
+
+    if (activeTool === 'stamp') {
+      const stampW = Math.max(nw, 0.14)
+      const stampH = Math.max(nh, 0.07)
+      await onAddAnnotation({
+        offset,
+        type: 'stamp',
+        rect: { x: nx, y: ny, w: stampW, h: stampH },
+        data: { label: '已核验', color: DEFAULT_COLORS.stamp }
+      })
+      return
+    }
+
+    if (width < 4 || height < 4) return
 
     if (activeTool === 'highlight') {
       await onAddAnnotation({
@@ -459,7 +471,7 @@ export default function Canvas() {
   const count = file?.count ?? 0
   /* 只按路径变化重挂副作用：file 对象本身每次 store 更新都会换引用 */
   const filePath = file?.path ?? null
-  const isCursorCrosshair = ['highlight', 'shape', 'crop', 'text'].includes(activeTool)
+  const isCursorCrosshair = ['highlight', 'shape', 'text', 'stamp'].includes(activeTool)
 
   function slotSize(slot: number): { width: number; height: number } {
     const render = renders[slot]

@@ -31,9 +31,25 @@ function parseData<T>(resp: IpcResponse): T {
 function parsePath(resp: IpcResponse): string {
   if (!resp.ok) throw new Error(resp.error ?? `IPC ${resp.id} failed`)
 
-  if (!resp.path) throw new Error('IPC 响应缺少 path')
+  if (typeof resp.path === 'string' && resp.path.length > 0) {
+    return resp.path
+  }
 
-  return resp.path
+  // Value::File 经 daemon 序列化为字符串；Tauri 层也会填 path，此处双保险
+  if (typeof resp.data === 'string' && resp.data.length > 0) {
+    return resp.data
+  }
+
+  if (
+    resp.data &&
+    typeof resp.data === 'object' &&
+    !Array.isArray(resp.data) &&
+    typeof (resp.data as { path?: unknown }).path === 'string'
+  ) {
+    return (resp.data as { path: string }).path
+  }
+
+  throw new Error('IPC 响应缺少 path')
 }
 
 export { ipcInvoke, parseData, parsePath }

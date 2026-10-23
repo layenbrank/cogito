@@ -10,9 +10,7 @@ const DEFAULT_COLORS: Record<Morph.Tool, string> = {
   text: '#000000',
   highlight: HIGHLIGHT,
   shape: PRIMARY,
-  stamp: ERROR,
-  crop: '#000000',
-  rotate: '#000000'
+  stamp: ERROR
 }
 
 export { DEFAULT_COLORS, SELECTION_STROKE }

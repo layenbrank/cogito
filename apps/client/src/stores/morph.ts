@@ -8,14 +8,14 @@ import { parseRangesToOffsets } from '@/features/magnetic-tiles/morph/page-range
 import { MorphIpc } from '@/lib/morph-ipc'
 import { reportCaught } from '@/utils/exception-report'
 
-// import {
-//   countAnnotationsByPage,
-//   insertAnnotation,
-//   queryAnnotations,
-//   removeAnnotation,
-//   updateAnnotation,
-//   upsertFile
-// } from '@/databases/morph.ts'
+import {
+  countAnnotationsByPage,
+  insertAnnotation,
+  queryAnnotations,
+  removeAnnotation,
+  updateAnnotation,
+  upsertFile
+} from '@/databases/morph.ts'
 
 type Tool = Morph.Tool
 type ViewMode = Morph.ViewMode
@@ -24,6 +24,15 @@ type Meta = Morph.Meta
 type Render = Morph.Render
 type Hit = Morph.Hit
 type HistoryEntry = Morph.HistoryEntry
+
+/** 打开 PDF 失败时的可读提示（缺 pdfium / 旧 daemon 不 Uncaught） */
+function formatMorphOpenError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+  if (/当前构建未启用|pdfium/i.test(message)) {
+    return '无法打开 PDF：本机 PDF 引擎未就绪。请更新并重启 corex-daemon（确认 pdfium.dll 与守护进程同目录）后重试'
+  }
+  return `无法打开 PDF：${message}`
+}
 
 // ─── State shape ─────────────────────────────────────────────────────────────
 
@@ -213,7 +222,7 @@ const useMorphStore = create<MorphState>()(
         selectedId: null,
 
         search: { query: '', results: [], active: -1 },
-        exportState: { format: 'pdf', range: 'all', customRange: '' },
+        exportState: { format: 'pdf', range: 'all', customRange: '' }, // format/range 仅保留 PDF 全量拷贝语义
 
         toUndoStack: [],
         toRedoStack: [],
@@ -280,7 +289,8 @@ const useMorphStore = create<MorphState>()(
                   }
                 })
               } catch (error) {
-                console.log('error', error)
+                toast.error(formatMorphOpenError(error))
+                console.warn('[morph.toOpenFilePicker]', error)
               }
             })
           )
@@ -292,10 +302,10 @@ const useMorphStore = create<MorphState>()(
           })
           try {
             const meta: Meta = await MorphIpc.toMeta(path)
-            // await upsertFile(meta)
+            await upsertFile(meta)
 
-            // const annotations = await queryAnnotations(path)
-            // const counts = await countAnnotationsByPage(path)
+            const annotations = await queryAnnotations(path)
+            const counts = await countAnnotationsByPage(path)
 
             setter((s) => {
               // Maintain files
@@ -306,8 +316,8 @@ const useMorphStore = create<MorphState>()(
               s.file = meta
               s.offset = 0
               s.seekSource = null
-              // s.annotations = annotations
-              // s.annCounts = counts
+              s.annotations = annotations
+              s.annCounts = counts
               s.renders = {}
               s.thumbnails = []
               s.thumbnailsError = null
@@ -320,6 +330,9 @@ const useMorphStore = create<MorphState>()(
             await getter().toWarmOffsets(nearOffsets(0, meta.count))
             // Load thumbnails in background
             void getter().toFetchThumbnails()
+          } catch (error) {
+            toast.error(formatMorphOpenError(error))
+            console.warn('[morph.toOpenFile]', error)
           } finally {
             setter((s) => {
               s.isLoading = false
@@ -336,14 +349,14 @@ const useMorphStore = create<MorphState>()(
             s.isLoading = true
           })
           try {
-            // const annotations = await queryAnnotations(path)
-            // const counts = await countAnnotationsByPage(path)
+            const annotations = await queryAnnotations(path)
+            const counts = await countAnnotationsByPage(path)
             setter((s) => {
               s.file = target
               s.offset = 0
               s.seekSource = null
-              // s.annotations = annotations
-              // s.annCounts = counts
+              s.annotations = annotations
+              s.annCounts = counts
               s.renders = {}
               s.thumbnails = []
               s.thumbnailsError = null
@@ -577,28 +590,27 @@ const useMorphStore = create<MorphState>()(
             updatedAt: now
           }
 
-          // await insertAnnotation(annotation)
+          return insertAnnotation(annotation).then(function () {
+            setter((s) => {
+              s.annotations.push(annotation)
+              s.annCounts[annotation.offset] = (s.annCounts[annotation.offset] ?? 0) + 1
+            })
 
-          setter((s) => {
-            s.annotations.push(annotation)
-            s.annCounts[annotation.offset] = (s.annCounts[annotation.offset] ?? 0) + 1
+            pushHistory({
+              kind: 'ADD_ANNOTATION',
+              label: `添加${annotation.type}批注`,
+              timestamp: now,
+              before: null,
+              after: annotation
+            })
           })
-
-          pushHistory({
-            kind: 'ADD_ANNOTATION',
-            label: `添加${annotation.type}批注`,
-            timestamp: now,
-            before: null,
-            after: annotation
-          })
-          return Promise.resolve()
         },
 
-        toPatchAnnotation(id, changes) {
+        async toPatchAnnotation(id, changes) {
           const before = getter().annotations.find((a) => a.id === id) ?? null
-          if (!before) return Promise.resolve()
+          if (!before) return
 
-          // await updateAnnotation(id, changes)
+          await updateAnnotation(id, changes)
 
           const now = Date.now()
           setter((s) => {
@@ -617,14 +629,13 @@ const useMorphStore = create<MorphState>()(
             before,
             after: { ...before, ...changes, updatedAt: now }
           })
-          return Promise.resolve()
         },
 
-        toRemoveAnnotation(id) {
+        async toRemoveAnnotation(id) {
           const before = getter().annotations.find((a) => a.id === id) ?? null
-          if (!before) return Promise.resolve()
+          if (!before) return
 
-          // await removeAnnotation(id)
+          await removeAnnotation(id)
 
           setter((s) => {
             s.annotations = s.annotations.filter((a) => a.id !== id)
@@ -641,7 +652,6 @@ const useMorphStore = create<MorphState>()(
             before,
             after: null
           })
-          return Promise.resolve()
         },
 
         toSelectAnnotation(id) {

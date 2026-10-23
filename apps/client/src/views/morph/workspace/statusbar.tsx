@@ -8,9 +8,7 @@ const TOOL_LABELS: Record<Morph.Tool, string> = {
   text: '文本',
   highlight: '高亮',
   shape: '形状',
-  stamp: '签章',
-  crop: '裁剪',
-  rotate: '旋转'
+  stamp: '签章'
 }
 
 export default function StatusBar() {

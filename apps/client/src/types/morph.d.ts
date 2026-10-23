@@ -16,14 +16,16 @@
  */
 declare global {
   namespace Morph {
-    type Tool = 'select' | 'text' | 'highlight' | 'shape' | 'stamp' | 'crop' | 'rotate'
+    /** 画布标注工具；页旋转走「整理」操作，裁剪未实现故不暴露 */
+    type Tool = 'select' | 'text' | 'highlight' | 'shape' | 'stamp'
     type ViewMode = 'view' | 'edit'
     /** 文档级操作（工具栏发起） */
     type Operation = 'merge' | 'split' | 'convert' | 'organize' | 'extract'
     type AnnKind = 'highlight' | 'shape' | 'stamp' | 'text-note'
     type ShapeKind = 'rect' | 'ellipse' | 'line' | 'arrow'
-    type ExportFormat = 'pdf' | 'pdf-a' | 'png'
-    type ExportRange = 'all' | 'current' | 'custom'
+    /** 与 morph.export 对齐：仅拷贝整份 PDF */
+    type ExportFormat = 'pdf'
+    type ExportRange = 'all'
     /** seekOffset 来源 */
     type SeekSource = 'toolbar' | 'scroll' | 'thumb'
     type HistoryKind = 'ADD_ANNOTATION' | 'UPDATE_ANNOTATION' | 'REMOVE_ANNOTATION'

@@ -18,18 +18,6 @@ import styles from '@/views/morph/workspace/summary.module.scss'
 import { selectSelectedAnnotation, useMorphStore } from '@/stores/morph.ts'
 import { normalizeHex, PRESET_PRIMARY_COLORS } from '@/utils/color.ts'
 
-const FORMAT_OPTIONS = [
-  { label: 'PDF', value: 'pdf' },
-  { label: 'PDF/A', value: 'pdf-a' },
-  { label: 'PNG（逐页）', value: 'png' }
-] satisfies readonly { label: string; value: Morph.ExportFormat }[]
-
-const RANGE_OPTIONS = [
-  { label: '全部页面', value: 'all' },
-  { label: '当前页', value: 'current' },
-  { label: '自定义', value: 'custom' }
-] satisfies readonly { label: string; value: Morph.ExportRange }[]
-
 const NUMBER_INPUT =
   'h-7 w-full min-w-0 rounded-md border border-input bg-background px-1.5 text-xs tabular-nums outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40'
 
@@ -227,8 +215,6 @@ function PropertiesTab() {
 
 function ExportTab() {
   const file = useMorphStore((s) => s.file)
-  const exportState = useMorphStore((s) => s.exportState)
-  const setExport = useMorphStore((s) => s.toPatchExport)
   const toExportDoc = useMorphStore((s) => s.toExportDoc)
 
   async function handleExport() {
@@ -243,65 +229,15 @@ function ExportTab() {
 
   return (
     <div className={styles.exportForm}>
-      <div className={styles.fieldBlock}>
-        <span className={styles.fieldLabel}>导出格式</span>
-        <Select
-          items={FORMAT_OPTIONS}
-          value={exportState.format}
-          onValueChange={(value) => {
-            if (value) setExport({ format: value })
-          }}>
-          <SelectTrigger
-            size="sm"
-            className="w-full"
-            aria-label="导出格式">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {FORMAT_OPTIONS.map(function (option) {
-              return (
-                <SelectItem
-                  key={option.value}
-                  value={option.value}>
-                  {option.label}
-                </SelectItem>
-              )
-            })}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className={styles.fieldBlock}>
-        <span className={styles.fieldLabel}>页面范围</span>
-        <Select
-          items={RANGE_OPTIONS}
-          value={exportState.range}
-          onValueChange={(value) => {
-            if (value) setExport({ range: value })
-          }}>
-          <SelectTrigger
-            size="sm"
-            className="w-full"
-            aria-label="页面范围">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {RANGE_OPTIONS.map(function (option) {
-              return (
-                <SelectItem
-                  key={option.value}
-                  value={option.value}>
-                  {option.label}
-                </SelectItem>
-              )
-            })}
-          </SelectContent>
-        </Select>
-      </div>
+      <p className="text-muted-foreground mb-3 text-xs leading-relaxed">
+        将当前 PDF 完整复制到目标路径（与 morph.export 一致；PDF/A
+        与按页导出请用「转换」）。
+      </p>
       <Button
         className="w-full"
         onClick={handleExport}
         disabled={!file}>
-        导出
+        导出 PDF
       </Button>
     </div>
   )
