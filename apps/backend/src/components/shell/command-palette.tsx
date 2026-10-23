@@ -13,7 +13,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 
 import { GET_GATEWAY_ADMIN_MODELS } from '@/apis/gateway.ts'
-import { GET_TENANTS } from '@/apis/tenant.ts'
+import { GET_ADMIN_TENANTS } from '@/apis/tenant.ts'
 import { GET_USERS } from '@/apis/user.ts'
 import { NAV_GROUPS, NAV_ITEMS } from '@/constants/nav.ts'
 
@@ -31,8 +31,10 @@ function CommandPalette(props: CommandPaletteProps) {
     staleTime: 60_000
   })
   const tenants = useQuery({
-    queryKey: ['tenants', 'cmdk'],
-    queryFn: GET_TENANTS,
+    queryKey: ['admin-tenants', 'cmdk'],
+    queryFn: function () {
+      return GET_ADMIN_TENANTS({ page: 1, size: 20 })
+    },
     enabled: props.open,
     staleTime: 60_000
   })
@@ -112,11 +114,11 @@ function CommandPalette(props: CommandPaletteProps) {
             })}
           </CommandGroup>
           <CommandGroup heading="租户">
-            {(tenants.data ?? []).slice(0, 8).map(function (tenant) {
+            {(tenants.data?.items ?? []).slice(0, 8).map(function (tenant) {
               return (
                 <CommandItem
                   key={tenant.id}
-                  value={`tenant ${tenant.name} ${tenant.id}`}
+                  value={`tenant ${tenant.name} ${tenant.slug} ${tenant.id}`}
                   onSelect={function () {
                     go(`/tenants?focus=${tenant.id}`)
                   }}>

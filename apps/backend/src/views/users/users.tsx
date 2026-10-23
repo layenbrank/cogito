@@ -10,16 +10,24 @@ import {
 } from '@i-thinking/design/components/select'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
-import { DELETE_USER, GET_USERS, POST_USER, PUT_USER, type UserRecord } from '@/apis/user.ts'
+import {
+  DELETE_USER,
+  GET_USERS,
+  GET_USER_TENANTS,
+  POST_USER,
+  PUT_USER,
+  type UserRecord
+} from '@/apis/user.ts'
 import { ConfirmDialog } from '@/components/console/confirm-dialog.tsx'
 import { ConsolePage } from '@/components/console/console-page.tsx'
 import { DataTable } from '@/components/console/data-table.tsx'
 import { EntitySheet } from '@/components/console/entity-sheet.tsx'
 import { FilterBar } from '@/components/console/filter-bar.tsx'
 import { QueryState } from '@/components/console/query-state.tsx'
+import { StatusBadge } from '@/components/console/status-badge.tsx'
 import { useSessionStore } from '@/stores/session.ts'
 import { HttpError } from '@/utils/http/errors.ts'
 
@@ -33,8 +41,23 @@ const STATUS_ITEMS = [
   { value: 'DISABLED', label: 'DISABLED' }
 ]
 
+const GENDER_NONE = '__none__'
+const GENDER_ITEMS = [
+  { value: GENDER_NONE, label: '未设置' },
+  { value: 'MALE', label: 'MALE' },
+  { value: 'FEMALE', label: 'FEMALE' }
+]
+
 function stopRowClick(event: { stopPropagation(): void }) {
   event.stopPropagation()
+}
+
+function formatTime(ms: number) {
+  return new Date(ms).toLocaleString()
+}
+
+function shortID(id: string) {
+  return id.length > 8 ? `${id.slice(0, 8)}…` : id
 }
 
 export default function UsersView() {
@@ -51,11 +74,23 @@ export default function UsersView() {
     username: '',
     password: '',
     role: 'USER',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    email: '',
+    phone: '',
+    gender: GENDER_NONE,
+    birthday: ''
   })
   const [pendingDelete, updatePendingDelete] = useState<UserRecord | null>(null)
 
   const users = useQuery({ queryKey: ['users'], queryFn: GET_USERS })
+
+  const userTenants = useQuery({
+    queryKey: ['user-tenants', editing?.id],
+    queryFn: function () {
+      return GET_USER_TENANTS(editing!.id)
+    },
+    enabled: Boolean(editing?.id) && sheetOpen
+  })
 
   const filtered = useMemo(
     function () {
@@ -66,6 +101,8 @@ export default function UsersView() {
         return (
           user.username.toLowerCase().includes(needle) ||
           (user.email ?? '').toLowerCase().includes(needle) ||
+          (user.phone ?? '').toLowerCase().includes(needle) ||
+          user.id.toLowerCase().includes(needle) ||
           user.role.toLowerCase().includes(needle)
         )
       })
@@ -86,16 +123,32 @@ export default function UsersView() {
   })
 
   const patchUser = useMutation({
-    mutationFn: function (input: { id: string; role?: string; status?: string; password?: string }) {
+    mutationFn: function (input: {
+      id: string
+      role?: string
+      status?: string
+      password?: string
+      email?: string | null
+      phone?: string | null
+      gender?: string | null
+      birthday?: string | null
+      username?: string
+    }) {
       return PUT_USER(input.id, {
         role: input.role,
         status: input.status,
-        password: input.password || undefined
+        password: input.password || undefined,
+        email: input.email,
+        phone: input.phone,
+        gender: input.gender,
+        birthday: input.birthday,
+        username: input.username
       })
     },
     onSuccess() {
       toast.success('已更新')
       void queryClient.invalidateQueries({ queryKey: ['users'] })
+      void queryClient.invalidateQueries({ queryKey: ['user-tenants'] })
       updateSheetOpen(false)
     },
     onError(error) {
@@ -117,7 +170,16 @@ export default function UsersView() {
 
   function openCreate() {
     updateEditing(null)
-    updateDraft({ username: '', password: '', role: 'USER', status: 'ACTIVE' })
+    updateDraft({
+      username: '',
+      password: '',
+      role: 'USER',
+      status: 'ACTIVE',
+      email: '',
+      phone: '',
+      gender: GENDER_NONE,
+      birthday: ''
+    })
     updateSheetOpen(true)
   }
 
@@ -127,7 +189,11 @@ export default function UsersView() {
       username: user.username,
       password: '',
       role: user.role,
-      status: user.status
+      status: user.status,
+      email: user.email ?? '',
+      phone: user.phone ?? '',
+      gender: user.gender ?? GENDER_NONE,
+      birthday: user.birthday ?? ''
     })
     updateSheetOpen(true)
   }
@@ -145,7 +211,7 @@ export default function UsersView() {
       toolbar={
         <FilterBar
           search={keyword}
-          searchPlaceholder="搜索用户名 / 邮箱 / 角色"
+          searchPlaceholder="搜索用户名 / 邮箱 / 手机 / ID / 角色"
           onSearchChange={updateKeyword}
         />
       }>
@@ -163,10 +229,19 @@ export default function UsersView() {
               title: '用户名',
               render(row) {
                 return (
-                  <span
-                    className={row.id === focusID ? 'font-semibold text-foreground' : 'font-medium'}>
-                    {row.username}
-                  </span>
+                  <div>
+                    <span
+                      className={
+                        row.id === focusID ? 'font-semibold text-foreground' : 'font-medium'
+                      }>
+                      {row.username}
+                    </span>
+                    <div
+                      className="font-mono text-xs text-muted-foreground"
+                      title={row.id}>
+                      {shortID(row.id)}
+                    </div>
+                  </div>
                 )
               }
             },
@@ -176,6 +251,14 @@ export default function UsersView() {
               className: 'text-muted-foreground',
               render(row) {
                 return row.email ?? '—'
+              }
+            },
+            {
+              key: 'phone',
+              title: '手机',
+              className: 'text-muted-foreground',
+              render(row) {
+                return row.phone ?? '—'
               }
             },
             {
@@ -250,6 +333,14 @@ export default function UsersView() {
               }
             },
             {
+              key: 'created',
+              title: '创建',
+              className: 'text-xs text-muted-foreground',
+              render(row) {
+                return formatTime(row.createdAt)
+              }
+            },
+            {
               key: 'actions',
               title: '操作',
               headerClassName: 'text-right',
@@ -294,7 +385,12 @@ export default function UsersView() {
       <EntitySheet
         open={sheetOpen}
         title={editing ? `编辑 ${editing.username}` : '新建用户'}
-        description={editing ? '可重置密码、调整角色与状态。' : '创建后立即生效。'}
+        description={
+          editing
+            ? '可改资料、重置密码、调整角色与状态。停用账号不会自动移除租户成员关系。'
+            : '创建后立即生效。'
+        }
+        contentClassName="sm:max-w-lg"
         submitLabel={editing ? '保存' : '创建'}
         isPending={createUser.isPending || patchUser.isPending}
         onOpenChange={updateSheetOpen}
@@ -302,9 +398,14 @@ export default function UsersView() {
           if (editing) {
             patchUser.mutate({
               id: editing.id,
+              username: draft.username.trim() || undefined,
               role: draft.role,
               status: draft.status,
-              password: draft.password || undefined
+              password: draft.password || undefined,
+              email: draft.email.trim() || null,
+              phone: draft.phone.trim() || null,
+              gender: draft.gender === GENDER_NONE ? null : draft.gender,
+              birthday: draft.birthday.trim() || null
             })
             return
           }
@@ -318,15 +419,23 @@ export default function UsersView() {
             role: draft.role
           })
         }}>
-        {!editing ? (
-          <div className="space-y-2">
-            <Label>用户名</Label>
-            <Input
-              value={draft.username}
-              onChange={function (event) {
-                updateDraft({ ...draft, username: event.target.value })
-              }}
-            />
+        <div className="space-y-2">
+          <Label>用户名</Label>
+          <Input
+            value={draft.username}
+            onChange={function (event) {
+              updateDraft({ ...draft, username: event.target.value })
+            }}
+          />
+        </div>
+        {editing ? (
+          <div className="space-y-1 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+            <div>
+              ID{' '}
+              <span className="font-mono text-foreground">{editing.id}</span>
+            </div>
+            <div>创建 {formatTime(editing.createdAt)}</div>
+            <div>更新 {formatTime(editing.updatedAt)}</div>
           </div>
         ) : null}
         <div className="space-y-2">
@@ -339,6 +448,64 @@ export default function UsersView() {
             }}
           />
         </div>
+        {editing ? (
+          <>
+            <div className="space-y-2">
+              <Label>邮箱</Label>
+              <Input
+                value={draft.email}
+                onChange={function (event) {
+                  updateDraft({ ...draft, email: event.target.value })
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>手机</Label>
+              <Input
+                value={draft.phone}
+                onChange={function (event) {
+                  updateDraft({ ...draft, phone: event.target.value })
+                }}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>性别</Label>
+                <Select
+                  items={GENDER_ITEMS}
+                  value={draft.gender}
+                  onValueChange={function (value) {
+                    updateDraft({ ...draft, gender: value ?? GENDER_NONE })
+                  }}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="未设置" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GENDER_ITEMS.map(function (item) {
+                      return (
+                        <SelectItem
+                          key={item.value}
+                          value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>生日</Label>
+                <Input
+                  placeholder="YYYY-MM-DD"
+                  value={draft.birthday}
+                  onChange={function (event) {
+                    updateDraft({ ...draft, birthday: event.target.value })
+                  }}
+                />
+              </div>
+            </div>
+          </>
+        ) : null}
         <div className="space-y-2">
           <Label>角色</Label>
           <Select
@@ -389,12 +556,47 @@ export default function UsersView() {
             </Select>
           </div>
         ) : null}
+
+        {editing ? (
+          <div className="space-y-2 border-t border-border/60 pt-4">
+            <Label>所属租户</Label>
+            {userTenants.isLoading ? (
+              <p className="text-sm text-muted-foreground">加载中…</p>
+            ) : userTenants.isError ? (
+              <p className="text-sm text-destructive">无法加载所属租户</p>
+            ) : (userTenants.data ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">未加入任何租户</p>
+            ) : (
+              <ul className="space-y-2">
+                {(userTenants.data ?? []).map(function (tenant) {
+                  return (
+                    <li
+                      key={tenant.tenantID}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-border/60 px-3 py-2 text-sm">
+                      <div>
+                        <Link
+                          className="font-medium underline-offset-2 hover:underline"
+                          to={`/tenants?focus=${tenant.tenantID}`}>
+                          {tenant.name}
+                        </Link>
+                        <div className="text-xs text-muted-foreground">
+                          {tenant.slug} · {tenant.type} · {tenant.role}
+                        </div>
+                      </div>
+                      <StatusBadge status={tenant.memberStatus} />
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        ) : null}
       </EntitySheet>
 
       <ConfirmDialog
         open={Boolean(pendingDelete)}
         title={`删除用户 ${pendingDelete?.username ?? ''}？`}
-        description="此操作不可撤销。若该用户仍有活跃会话，将在下次请求时失效。"
+        description="此操作不可撤销。该用户的租户成员关系将一并删除（CASCADE）。若仍有活跃会话，将在下次请求时失效。"
         confirmLabel="删除"
         destructive
         isPending={removeUser.isPending}

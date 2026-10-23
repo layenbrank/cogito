@@ -21,11 +21,13 @@ import { Link } from 'react-router-dom'
 
 import { GET_EXCEPTIONS, GET_EXCEPTION_SUMMARY } from '@/apis/exception.ts'
 import { GET_GATEWAY_PROVIDERS, GET_GATEWAY_USAGE } from '@/apis/gateway.ts'
+import { GET_ADMIN_TENANTS } from '@/apis/tenant.ts'
 import { GET_USERS } from '@/apis/user.ts'
 import { ConsolePage } from '@/components/console/console-page.tsx'
-import { MiniAreaChart, MiniBarChart } from '@/components/console/mini-chart.tsx'
+import { AreaSparkline, BarSparkline } from '@/components/console/sparkline.tsx'
 import { useConsoleLayoutStore } from '@/stores/console-layout.ts'
 
+import { OverviewCharts } from './overview-charts.tsx'
 import {
   buildDailyActive,
   buildExceptionSeries,
@@ -121,6 +123,12 @@ export default function OverviewView() {
 
   const users = useQuery({ queryKey: ['users'], queryFn: GET_USERS })
   const providers = useQuery({ queryKey: ['gateway-providers'], queryFn: GET_GATEWAY_PROVIDERS })
+  const tenants = useQuery({
+    queryKey: ['admin-tenants-overview'],
+    queryFn: function () {
+      return GET_ADMIN_TENANTS({ size: 200 })
+    }
+  })
   const usage = useQuery({
     queryKey: ['gateway-usage-overview'],
     queryFn: function () {
@@ -172,7 +180,7 @@ export default function OverviewView() {
         unit="今日"
         hint={`近 14 日 · 账号 ${users.data?.length ?? '—'}`}
         chart={
-          <MiniBarChart
+          <BarSparkline
             points={dailyPoints}
             height={CHART_HEIGHT}
             emptyHint="暂无调用"
@@ -187,7 +195,7 @@ export default function OverviewView() {
           unit="本月"
           hint={`近窗 tokens ${tokenTotal.toLocaleString()}`}
           chart={
-            <MiniAreaChart
+            <AreaSparkline
               points={monthlyPoints}
               height={CHART_HEIGHT}
               emptyHint="暂无调用"
@@ -212,7 +220,7 @@ export default function OverviewView() {
             }).length ?? 0
           }`}
           chart={
-            <MiniBarChart
+            <BarSparkline
               points={exceptionPoints}
               height={CHART_HEIGHT}
               color="var(--destructive)"
@@ -291,6 +299,15 @@ export default function OverviewView() {
             </div>
           </SortableContext>
         </DndContext>
+
+        <OverviewCharts
+          usageItems={usageItems}
+          exceptionSummary={exceptionSummary.data}
+          tenants={tenants.data?.items ?? []}
+          isUsageLoading={isUsageLoading}
+          isExceptionLoading={isExceptionLoading}
+          isTenantLoading={tenants.isLoading}
+        />
 
         <RecentExceptions
           items={exceptionItems}

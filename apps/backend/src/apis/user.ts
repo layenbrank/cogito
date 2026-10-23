@@ -68,5 +68,19 @@ function DELETE_USER(id: string) {
   return unwrap(http.delete<RSF<null>>(`/users/${id}`, ENV))
 }
 
-export { DELETE_USER, GET_USER, GET_USERS, POST_USER, PUT_USER }
-export type { UserRecord, UserUpdate, UserWrite }
+interface UserTenant {
+  tenantID: string
+  name: string
+  slug: string
+  status: string
+  type: string
+  role: string
+  memberStatus: string
+}
+
+function GET_USER_TENANTS(id: string) {
+  return unwrap(http.get<RSF<UserTenant[]>>(`/users/${id}/tenants`, ENV))
+}
+
+export { DELETE_USER, GET_USER, GET_USER_TENANTS, GET_USERS, POST_USER, PUT_USER }
+export type { UserRecord, UserTenant, UserUpdate, UserWrite }

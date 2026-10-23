@@ -1,11 +1,8 @@
 import { useId } from 'react'
 
-interface ChartPoint {
-  label: string
-  value: number
-}
+import type { ChartPoint } from '@/components/console/chart.ts'
 
-interface MiniBarChartProps {
+interface BarSparklineProps {
   points: ChartPoint[]
   /** 柱色，默认 backend accent */
   color?: string
@@ -16,7 +13,7 @@ interface MiniBarChartProps {
   showLabels?: boolean
 }
 
-interface MiniAreaChartProps {
+interface AreaSparklineProps {
   points: ChartPoint[]
   color?: string
   height?: number
@@ -35,7 +32,7 @@ function findMax(points: ChartPoint[]) {
   )
 }
 
-function MiniBarChart(props: MiniBarChartProps) {
+function BarSparkline(props: BarSparklineProps) {
   const height = props.height ?? 36
   const color = props.color ?? 'var(--backend-accent)'
   const showLabels = props.showLabels ?? false
@@ -86,12 +83,12 @@ function MiniBarChart(props: MiniBarChartProps) {
   )
 }
 
-function MiniAreaChart(props: MiniAreaChartProps) {
+function AreaSparkline(props: AreaSparklineProps) {
   const height = props.height ?? 36
   const color = props.color ?? 'var(--backend-accent)'
   const showLabels = props.showLabels ?? false
   const autoId = useId().replace(/:/g, '')
-  const gradientId = props.gradientId ?? `mini-area-${autoId}`
+  const gradientId = props.gradientId ?? `area-spark-${autoId}`
   if (props.points.length === 0) {
     return (
       <p className="py-2 text-center text-[11px] text-muted-foreground">
@@ -167,5 +164,4 @@ function MiniAreaChart(props: MiniAreaChartProps) {
   )
 }
 
-export { MiniAreaChart, MiniBarChart }
-export type { ChartPoint }
+export { AreaSparkline, BarSparkline }

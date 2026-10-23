@@ -23,12 +23,14 @@
     "@iconify/json": "catalog:",
     "@iconify/react": "catalog:",
     "clsx": "catalog:",
+    "d3": "^7.9.0",
     "dayjs": "^1.11.23",
     "go-captcha-react": "catalog:",
     "shaders": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@i-thinking/shared": "workspace:*"
+    "@i-thinking/shared": "workspace:*",
+    "@types/d3": "^7.4.3"
   }
 }
