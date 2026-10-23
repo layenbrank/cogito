@@ -22,7 +22,7 @@
     "types": ["node", "vite/client"],
 
     "paths": {
-      "@i-thinking/design/*": ["./src/*"]
+      "@cogito/design/*": ["./src/*"]
     }
   },
   "include": ["src", "eslint.config.ts"],

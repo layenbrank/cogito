@@ -1,13 +1,13 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
-import { Label } from '@i-thinking/design/components/label'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
+import { Label } from '@cogito/design/components/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
+} from '@cogito/design/components/select'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'

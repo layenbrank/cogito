@@ -1,4 +1,4 @@
-import type { SidecarToolKey } from '@i-thinking/sidecar'
+import type { SidecarToolKey } from '@cogito/sidecar'
 
 interface ToolStrategy {
   /** 工具键（`pandoc` / `ffmpeg` / `opencode` …） */

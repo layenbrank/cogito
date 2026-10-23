@@ -2,7 +2,7 @@
  * 设置 · 模型：对齐 Qoder — 扁平行列表 +「更新 API Key」对话框。
  */
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   Dialog,
   DialogContent,
@@ -10,15 +10,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle
-} from '@i-thinking/design/components/dialog'
+} from '@cogito/design/components/dialog'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { Spinner } from '@i-thinking/design/components/spinner'
+} from '@cogito/design/components/select'
+import { Spinner } from '@cogito/design/components/spinner'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 

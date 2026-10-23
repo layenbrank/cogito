@@ -1,15 +1,15 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import { Checkbox } from '@i-thinking/design/components/checkbox'
-import { Input } from '@i-thinking/design/components/input'
+import { Button } from '@cogito/design/components/button'
+import { Checkbox } from '@cogito/design/components/checkbox'
+import { Input } from '@cogito/design/components/input'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { ToggleGroup, ToggleGroupItem } from '@i-thinking/design/components/toggle-group'
+} from '@cogito/design/components/select'
+import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
 import { cn } from 'cn'
 import { useMemo, useState } from 'react'
 

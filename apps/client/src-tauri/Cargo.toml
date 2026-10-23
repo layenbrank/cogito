@@ -34,14 +34,14 @@ thinking-core = { path = "crates/core" }
 thinking-command = { path = "crates/command" }
 
 [package]
-name = "i-thinking"
+name = "cogito"
 version = "1.5.0"
-description = "i thinking is a privacy-first extension that enhances your browsing experience with intelligent features while prioritizing your data security."
+description = "cogito is a privacy-first extension that enhances your browsing experience with intelligent features while prioritizing your data security."
 authors = ["layen"]
 edition = "2024"
 
 [[bin]]
-name = "i-thinking"
+name = "cogito"
 path = "src/main.rs"
 
 [lib]

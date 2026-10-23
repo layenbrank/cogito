@@ -4,7 +4,7 @@
  * 面板恒为深色：会话区浅色主题下若用浅底会与正文糊在一起。
  */
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { useState, type ReactNode } from 'react'
 
 import { collapseOutput, TERMINAL_PREVIEW_LINES } from './tool-output'

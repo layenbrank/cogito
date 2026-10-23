@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
 import { ERROR } from './constants.ts'

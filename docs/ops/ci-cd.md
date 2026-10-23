@@ -85,7 +85,7 @@ Authenticode 则是 CA 签发的 Windows 代码签名证书，导出为 `.pfx` �
 生成密钥（本地一次即可）：
 
 ```bash
-npm run tauri signer generate -w ~/.tauri/i-thinking.key
+npm run tauri signer generate -w ~/.tauri/cogito.key
 # 公钥写入 tauri.conf.json；私钥内容放入 TAURI_SIGNING_PRIVATE_KEY
 ```
 
@@ -152,8 +152,8 @@ base64 -i ./codesign.pfx | pbcopy   # 或重定向到文件再粘贴进 Secret
 2. `pnpm lint`
 3. 类型检查（extension / client）
 4. 单元测试（`pnpm turbo run unit`，失败不阻断）
-5. `pnpm turbo run build --filter=!@i-thinking/client`
-6. `pnpm --filter @i-thinking/client run build:core`（仅 Web，避免 Ubuntu 上跑 Tauri）
+5. `pnpm turbo run build --filter=!@cogito/client`
+6. `pnpm --filter @cogito/client run build:core`（仅 Web，避免 Ubuntu 上跑 Tauri）
 7. 上传 `dist` 等为 artifact
 
 **注意：** PR CI **不构建** Tauri 桌面包；桌面安装包只在 `client-release`（`windows-latest`）产出。
@@ -248,7 +248,7 @@ Actions → Client Release → Run workflow → 填 tag → 勾选 `draft`。
 ```bash
 pnpm build:client
 # 或
-pnpm --filter @i-thinking/client build
+pnpm --filter @cogito/client build
 ```
 
 `scripts/build.ts` 会注入空的 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`；私钥仍从本机环境变量读取。

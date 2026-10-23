@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react/offline'
-import { Dialog, DialogContent } from '@i-thinking/design/components/dialog'
-import { ToggleGroup, ToggleGroupItem } from '@i-thinking/design/components/toggle-group'
+import { Dialog, DialogContent } from '@cogito/design/components/dialog'
+import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
 import { invoke } from '@tauri-apps/api/core'
 import { useEffect, useState } from 'react'
 import { CHANNELS } from '@/shared/ipc/channels'

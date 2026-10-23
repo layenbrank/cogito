@@ -15,7 +15,7 @@
 5. **与时间脱节** — 到期日是「装饰」，不进真正的提醒系统  
 6. **本地工具缺失** — 云端优先，桌面端离线与隐私场景被忽视  
 
-i-thinking client 已有 Signboard 磁贴占位与本地 SQLite（Calendar / Reminder），具备差异化落地条件。
+cogito client 已有 Signboard 磁贴占位与本地 SQLite（Calendar / Reminder），具备差异化落地条件。
 
 ## 3. 目标用户
 
@@ -74,7 +74,7 @@ i-thinking client 已有 Signboard 磁贴占位与本地 SQLite（Calendar / Rem
 ## 9. 依赖与约束
 
 - 路由 / 磁贴：已有 `signboard` component、`/signboard`  
-- UI：`@i-thinking/design` + Tailwind v4  
+- UI：`@cogito/design` + Tailwind v4  
 - DnD：优先 `@dnd-kit`（仓库已装；browser sidebar 有垂直先例）  
 - 工具：`lodash-es`（`debounce` 搜索、`throttle` 滚动）  
 - 持久化：client SQLite migrations（对齐 album / calendar）

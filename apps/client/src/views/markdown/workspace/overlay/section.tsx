@@ -1,4 +1,4 @@
-import { Separator } from '@i-thinking/design/components/separator'
+import { Separator } from '@cogito/design/components/separator'
 import {
   EditorContext as ComposerContext,
   EditorContent as ComposerMarkdown,

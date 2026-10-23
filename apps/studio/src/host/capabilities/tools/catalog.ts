@@ -5,12 +5,12 @@ import {
   findOnlineTool,
   findPlatformKey,
   parseOnlineManifest
-} from '@i-thinking/sidecar'
+} from '@cogito/sidecar'
 
 import { findBinaryName } from '@/host/framework/binaries'
 import { TOOL_KEYS, ToolKeySchema } from '@/shared/ipc/specs/tools'
 
-import type { OnlineTool, SidecarPackage } from '@i-thinking/sidecar'
+import type { OnlineTool, SidecarPackage } from '@cogito/sidecar'
 import type { ToolKey } from '@/shared/ipc/specs/tools'
 
 /**
@@ -21,7 +21,7 @@ import type { ToolKey } from '@/shared/ipc/specs/tools'
  * - 仓库 CLI（`pnpm command sidecar manifest`）：发新包后照着它核对 R2 上的东西对不对。
  *
  * 形状（`schemaVersion` / `platforms` / 各平台那份包的直链 + `sha256`）由契约包
- * `@i-thinking/sidecar` 定义 —— CLI、宿主、forge 读的是同一份类型与解析器，
+ * `@cogito/sidecar` 定义 —— CLI、宿主、forge 读的是同一份类型与解析器，
  * 以前这里自己写一遍 interface 再校验一次，改一边就容易漏另一边。
  *
  * 与 `tools.lock.json` 的关系：那份钉的是**完整版落盘**用的归档 —— pandoc / opencode 用

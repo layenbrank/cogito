@@ -13,7 +13,7 @@ description: CoreX Rust HTTP 服务的命名、Schema、CRUD、模块结构、�
 2. **简洁优雅** — 去掉冗余前缀/后缀（`Info`、`Api`、`Request`、`Response`）
 3. **禁止 `api` 词语** — 结构体、宏、函数名均不出现 `Api`、`api_`（URL 路径 `/api/v1/...` 除外）
 4. **lib.rs 统一导出** — 子目录不写 `mod.rs`，在 `src/lib.rs` 内联声明模块树
-5. **use 导入顺序** — `std` → 外部依赖（含 `entity` 等 workspace crate）→ 本 crate（`crate::` / `super::` / `self::`），**组间空一行**；组内按路径字母序。可用 `bun run imports` 批量整理。
+5. **use 导入顺序** — `std` → 外部依赖（含 `entity` 等 workspace crate）→ 本 crate（`crate::` / `super::` / `self::`），**组间空一行**；组内按路径字母序。可用 `pnpm imports` 批量整理。
 
 ---
 
@@ -139,7 +139,7 @@ src/services/{name}/
 
 禁止新建 `services/shared`；跨模块复用优先放在**拥有该领域**的模块（如 profile 辅助在 `auth::service`），或 `utils/` / `guards/` 等横切层。
 
-架构卫生：`bun run arch`（CI 会跑）。
+架构卫生：`pnpm arch`（CI 会跑）。
 
 ---
 
@@ -235,7 +235,7 @@ src/services/{name}/
 - [ ] `oas/` 文档 + `oas_consistency` 测试通过
 - [ ] `services/{name}/README.md` 已写并链到根 README
 - [ ] `#![allow(non_snake_case)]` 已在 lib.rs（允许 `toRead` 等 camelCase）
-- [ ] `bun run arch` 通过（复杂度例外已登记）
+- [ ] `pnpm arch` 通过（复杂度例外已登记）
 
 ---
 

@@ -9,11 +9,11 @@ import { REPO_ROOT } from '../../core/paths.ts'
 import type { CommandModule } from '../../core/registry.ts'
 
 /**
- * i-thinking 资源分发端点：它是一个**独立 workspace 包**（`apps/distribution`），本命令只是仓库里的
+ * cogito 资源分发端点：它是一个**独立 workspace 包**（`apps/distribution`），本命令只是仓库里的
  * 统一入口 —— 不自己拼 wrangler 参数，工具链（含版本）归那个包的 devDependencies。
  */
 const DISTRIBUTION_ROOT = path.join(REPO_ROOT, 'apps', 'distribution')
-const DISTRIBUTION_PACKAGE = '@i-thinking/distribution'
+const DISTRIBUTION_PACKAGE = '@cogito/distribution'
 
 function assertDistributionRoot(): void {
   if (!existsSync(path.join(DISTRIBUTION_ROOT, 'wrangler.jsonc'))) {
@@ -75,7 +75,7 @@ function runUpload(action: string, script: string, cmd: Command): void {
 function registerDistribution(program: Command): void {
   const distribution = program
     .command('distribution')
-    .description('i-thinking 资源分发端点（Cloudflare Worker，apps/distribution）')
+    .description('cogito 资源分发端点（Cloudflare Worker，apps/distribution）')
 
   distribution
     .command('deploy')
@@ -127,7 +127,7 @@ function registerDistribution(program: Command): void {
 
 const DistributionCommand: CommandModule = {
   name: 'distribution',
-  description: 'i-thinking 资源分发端点（Cloudflare Worker）',
+  description: 'cogito 资源分发端点（Cloudflare Worker）',
   register(program) {
     registerDistribution(program)
   }

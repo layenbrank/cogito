@@ -4,7 +4,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle
-} from '@i-thinking/design/components/dialog'
+} from '@cogito/design/components/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,8 +14,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
-} from '@i-thinking/design/components/alert-dialog'
-import { ScrollArea } from '@i-thinking/design/components/scroll-area'
+} from '@cogito/design/components/alert-dialog'
+import { ScrollArea } from '@cogito/design/components/scroll-area'
 
 interface ToolbarYamlDialogProps {
   name: string

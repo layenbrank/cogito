@@ -158,7 +158,7 @@ function summarizeToolCalls(messages: readonly ThreadMessage[]): ToolCallSummary
 /**
  * 最后活动时刻：最后一条消息的创建时间。
  *
- * 落库时 `createdAt` 一并写进 payload（见 `@i-thinking/chat/adapters/thread-history`），
+ * 落库时 `createdAt` 一并写进 payload（见 `@cogito/chat/adapters/thread-history`），
  * 所以刷新 / 切会话读回来的还是真实时间。
  */
 function findLastActivityAt(messages: readonly ThreadMessage[]): Date | null {

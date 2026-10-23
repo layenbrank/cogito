@@ -1,7 +1,7 @@
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 
-import { AnimatedDigits } from '@i-thinking/design/components/animated-digits'
+import { AnimatedDigits } from '@cogito/design/components/animated-digits'
 import { findDecadeStart } from './calendar-math'
 import type { SurfaceMode } from './types'
 

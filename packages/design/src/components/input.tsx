@@ -2,7 +2,7 @@ import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import * as React from 'react'
 
-import { TimePicker } from '@i-thinking/design/components/time-picker'
+import { TimePicker } from '@cogito/design/components/time-picker'
 import { FOCUS_WITHIN, FOCUS_WITHIN_INVALID } from '../lib/focus'
 import { FIELD_SHELL } from '../lib/surface'
 

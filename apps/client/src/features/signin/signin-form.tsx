@@ -1,16 +1,16 @@
 import { Icon } from '@iconify/react/offline'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Button } from '@i-thinking/design/components/button'
-import { Checkbox } from '@i-thinking/design/components/checkbox'
-import { Spinner } from '@i-thinking/design/components/spinner'
+import { Button } from '@cogito/design/components/button'
+import { Checkbox } from '@cogito/design/components/checkbox'
+import { Spinner } from '@cogito/design/components/spinner'
 import {
   Form,
   FormControl,
   FormField,
   FormItem,
   FormLabel
-} from '@i-thinking/design/components/form'
-import { Tabs, TabsList, TabsTrigger } from '@i-thinking/design/components/tabs'
+} from '@cogito/design/components/form'
+import { Tabs, TabsList, TabsTrigger } from '@cogito/design/components/tabs'
 import { useEffect, useRef } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { toast } from 'sonner'

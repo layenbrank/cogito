@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { ONLINE_TOOL_KEYS } from '@i-thinking/sidecar'
+import { ONLINE_TOOL_KEYS } from '@cogito/sidecar'
 
 import type { ChannelOfDomain } from '@/shared/ipc/channels'
 import { CHANNELS } from '@/shared/ipc/channels'
@@ -9,7 +9,7 @@ import type { ChannelSpec, PushChannelSpec } from '@/shared/ipc/spec'
 /**
  * 可以在线下载的工具。
  *
- * 取值域来自契约包 `@i-thinking/sidecar`（= `tools.lock.json` 里标 `onDemand` 的那批
+ * 取值域来自契约包 `@cogito/sidecar`（= `tools.lock.json` 里标 `onDemand` 的那批
  * = `sidecar/manifest.json` 的 keys），不再在这里抄一份。它同时是**入参的取值域**
  * （install / remove 只认这几个），`z.enum` 才能把「拼错 key」在 IPC 边界上拦住
  * （以前只写 min(1)，错 key 要到主进程才报）。三处一致由 `catalog.test.ts` 守着。

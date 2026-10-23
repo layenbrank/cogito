@@ -2,7 +2,7 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup
-} from '@i-thinking/design/components/resizable'
+} from '@cogito/design/components/resizable'
 import { exists, watch } from '@tauri-apps/plugin-fs'
 import { clsx } from 'clsx'
 import { useEffect } from 'react'

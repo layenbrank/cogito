@@ -130,7 +130,7 @@ Preload 的 `invoke` 失败时抛 `IpcClientError`，**code 已编进 message �
 
 下载地址与哈希都写在 `apps/studio/sidecar/manifest.json`（宿主构建期内联，`tools/catalog.ts` 只做取值）：
 每个工具的在线包按平台记在 `platforms` 下，形状（`schemaVersion` / `platforms` / 直链 + `sha256`）由契约包
-[`@i-thinking/sidecar`](../../../packages/sidecar/README.md) 定义 —— CLI、宿主、forge 读的是同一份。
+[`@cogito/sidecar`](../../../packages/sidecar/README.md) 定义 —— CLI、宿主、forge 读的是同一份。
 在线源是自建的 Cloudflare R2，**一个工具一个 bucket**，所以按「工具 × 平台」记整条直链，不拼公共前缀。
 归档是**重打包**的（可执行文件平铺在包根），因此哈希与 `tools.lock.json` 里那份 release 归档不同 ——
 那份是完整版落盘用的。下载后按 manifest 里的 sha256 校验。
@@ -346,7 +346,7 @@ Agent 的**沙箱边界**：工作区（可挂多个源文件夹，其一为 pri
 
 - 渲染侧：composer 的 `@` 按钮（`views/agent/components/reference-picker.tsx`）基于 `workspace:readDir / search`
   选文件，落成 assistant-ui 的 **file 附件**（`aui.composer.addAttachment`）—— 所以引用在输入区可移除、随消息落库
-- 适配器（`@i-thinking/chat/adapters/chat-model`）把用户消息里的 file/image part 收成消息上的 `attachments: string[]`
+- 适配器（`@cogito/chat/adapters/chat-model`）把用户消息里的 file/image part 收成消息上的 `attachments: string[]`
 - 主进程清洗后（`opencode/session.ts`：只收工作区**相对**路径、拒绝对路径与 `..`、限长 1024、最多 32 条、去重）
   变成 opencode prompt 的 `files`（`file://` URI），由服务端自己去读
 - 于是文件内容从不进 payload（拖进来一个大文件也不会顶爆 1MB 上限），也不用往提示词里塞一份名单：
@@ -383,14 +383,14 @@ Agent 的**沙箱边界**：工作区（可挂多个源文件夹，其一为 pri
 
 网关**不是**一条独立通路：它是 provider 表里的一行（固定 id `platform-gateway`、展示名「组织模型」），
 对话仍走上节的 assistant 端口，只是 `resolveConnection` 把凭据换成登录令牌、端点换成
-`findGatewayBaseURL()`（`VITE_THINKING` 后补 `/gateway`）。
+`findGatewayBaseURL()`（`VITE_COGITO` 后补 `/gateway`）。
 
 | 用途     | 请求                                                    | 说明                                                                                           |
 | -------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 对话     | `POST ${VITE_THINKING}/gateway/chat/completions`（SSE） | body `{ model, stream: true, messages, tools?, ... }`；`tools` / `system` 由网关原样透传给上游 |
-| 模型目录 | `GET ${VITE_THINKING}/gateway/models`                   | 信封 `data: ModelR[]`；只列 `enabled` 且当前角色允许的模型                                     |
+| 对话     | `POST ${VITE_COGITO}/gateway/chat/completions`（SSE） | body `{ model, stream: true, messages, tools?, ... }`；`tools` / `system` 由网关原样透传给上游 |
+| 模型目录 | `GET ${VITE_COGITO}/gateway/models`                   | 信封 `data: ModelR[]`；只列 `enabled` 且当前角色允许的模型                                     |
 
-`VITE_THINKING` 含版本前缀（如 `http://127.0.0.1:3000/api/v1`），网关根地址由 `findGatewayBaseURL()` 在其后补 `/gateway`。
+`VITE_COGITO` 含版本前缀（如 `http://127.0.0.1:3000/api/v1`），网关根地址由 `findGatewayBaseURL()` 在其后补 `/gateway`。
 
 管理面（全部要求 `role === "ADMIN"`，服务端非管理员回 `300006`）：
 
@@ -413,7 +413,7 @@ Agent 的**沙箱边界**：工作区（可挂多个源文件夹，其一为 pri
   （如配额触顶时指向「设置 → 额度」）。
 - 网关无状态（不存服务端会话）：`reconnectToStream()` 返回 `null`。
 - **配额归属靠请求头 `X-Tenant-ID`**：不带这个头时网关按用户身份兜底，**订阅档位永不生效**。studio 只在「已解析出个人租户」时写这个头，注入点有两处：
-  - 渲染层 HTTP 客户端：[`utils/http.ts`](../../../apps/studio/src/utils/http.ts) 对 `/gateway/*`（`isThinkingUrl` 命中自家 API）统一补该头，值同步读自 [`utils/tenant.ts`](../../../apps/studio/src/utils/tenant.ts) 的值缓存；
+  - 渲染层 HTTP 客户端：[`utils/http.ts`](../../../apps/studio/src/utils/http.ts) 对 `/gateway/*`（`isCogitoUrl` 命中自家 API）统一补该头，值同步读自 [`utils/tenant.ts`](../../../apps/studio/src/utils/tenant.ts) 的值缓存；
   - agent 运行链路：由 [`assistant/model.ts`](../../../apps/studio/src/host/capabilities/assistant/model.ts) 的 `resolveConnection` 写进 opencode 的 provider headers。
     缓存 5 分钟 + 登录令牌指纹（[`features/quota/tenant.ts`](../../../apps/studio/src/features/quota/tenant.ts)），本机 BYOK provider 与第三方域名都不写。
 

@@ -3,8 +3,8 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger
-} from '@i-thinking/design/components/collapsible'
-import { Spinner } from '@i-thinking/design/components/spinner'
+} from '@cogito/design/components/collapsible'
+import { Spinner } from '@cogito/design/components/spinner'
 import { cn } from 'cn'
 import { memo, useState } from 'react'
 

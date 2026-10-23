@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   Form,
   FormControl,
@@ -8,16 +8,16 @@ import {
   FormItem,
   FormLabel,
   FormMessage
-} from '@i-thinking/design/components/form'
-import { Input } from '@i-thinking/design/components/input'
+} from '@cogito/design/components/form'
+import { Input } from '@cogito/design/components/input'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { Switch } from '@i-thinking/design/components/switch'
+} from '@cogito/design/components/select'
+import { Switch } from '@cogito/design/components/switch'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useState } from 'react'
 import { useForm, useWatch, type Control, type ControllerRenderProps } from 'react-hook-form'

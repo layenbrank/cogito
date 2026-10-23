@@ -1,6 +1,6 @@
-# i thinking Studio
+# cogito Studio
 
-Electron 桌面应用（`@i-thinking/studio`）：Forge + Vite，主进程域模块 + 契约 IPC（`window.itc`），业务 HTTP 走远程 API。
+Electron 桌面应用（`@cogito/studio`）：Forge + Vite，主进程域模块 + 契约 IPC（`window.itc`），业务 HTTP 走远程 API。
 
 ## 文档
 
@@ -21,7 +21,7 @@ Electron 桌面应用（`@i-thinking/studio`）：Forge + Vite，主进程域模
 ```bash
 pnpm install
 pnpm command sidecar bootstrap studio   # tools.lock → .cache → staging（无需系统 7-Zip）
-pnpm --filter @i-thinking/studio dev
+pnpm --filter @cogito/studio dev
 ```
 
 落盘是**全量**（含 pandoc / ffmpeg / opencode）；带不带进安装包由打包档位定（默认精简版：
@@ -30,13 +30,13 @@ pnpm --filter @i-thinking/studio dev
 仅网页预览（无 `window.itc`）：
 
 ```bash
-pnpm --filter @i-thinking/studio dev:core
+pnpm --filter @cogito/studio dev:core
 ```
 
 单元测试：
 
 ```bash
-pnpm --filter @i-thinking/studio test:unit
+pnpm --filter @cogito/studio test:unit
 ```
 
 ## 源码结构

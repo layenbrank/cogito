@@ -1,7 +1,7 @@
 /**
  * backend 渲染层 Tailwind v4 入口。
  */
-@import '@i-thinking/design/globals.css';
+@import '@cogito/design/globals.css';
 
 @source '../';
 

@@ -36,15 +36,15 @@ describe('parseArgs（两个上传脚本共用的参数解析）', function () {
 describe('findUploadTarget（源文件 + 对象键）', function () {
   it('--release 推出规范的默认对象名', function () {
     const target = findUploadTarget(parseArgs(['--source', SELF, '--release', '1.3.0']), USAGE)
-    expect(target).toEqual({ source: SELF, key: '1.3.0/i-thinking_1.3.0_x64-setup.exe' })
+    expect(target).toEqual({ source: SELF, key: '1.3.0/cogito_1.3.0_x64-setup.exe' })
   })
 
   it('--name 覆盖对象名，--key 直接给整个键', function () {
     const named = parseArgs(['--source', SELF, '--release', '1.3.0', '--name', 'other-setup.exe'])
     expect(findUploadTarget(named, USAGE).key).toBe('1.3.0/other-setup.exe')
 
-    const keyed = parseArgs(['--source', SELF, '--key', '9.9.9/i-thinking_9.9.9_x64-setup.exe'])
-    expect(findUploadTarget(keyed, USAGE).key).toBe('9.9.9/i-thinking_9.9.9_x64-setup.exe')
+    const keyed = parseArgs(['--source', SELF, '--key', '9.9.9/cogito_9.9.9_x64-setup.exe'])
+    expect(findUploadTarget(keyed, USAGE).key).toBe('9.9.9/cogito_9.9.9_x64-setup.exe')
   })
 
   it('读侧白名单外的键直接拒收（传上去也下载不了）', function () {

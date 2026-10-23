@@ -1,14 +1,14 @@
 import { Icon } from '@iconify/react/offline'
-import { Input } from '@i-thinking/design/components/input'
+import { Input } from '@cogito/design/components/input'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { Separator } from '@i-thinking/design/components/separator'
-import { ToggleGroup, ToggleGroupItem } from '@i-thinking/design/components/toggle-group'
+} from '@cogito/design/components/select'
+import { Separator } from '@cogito/design/components/separator'
+import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
 import { useContext, useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 

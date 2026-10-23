@@ -1,6 +1,6 @@
-import { Button } from '@i-thinking/design/components/button'
-import { ScrollArea } from '@i-thinking/design/components/scroll-area'
-import { Separator } from '@i-thinking/design/components/separator'
+import { Button } from '@cogito/design/components/button'
+import { ScrollArea } from '@cogito/design/components/scroll-area'
+import { Separator } from '@cogito/design/components/separator'
 import { Icon } from '@iconify/react/offline'
 import { memo } from 'react'
 

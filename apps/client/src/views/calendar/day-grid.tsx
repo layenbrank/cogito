@@ -4,9 +4,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { ToggleGroup, ToggleGroupItem } from '@i-thinking/design/components/toggle-group'
-import { calendar, timeSphere } from '@i-thinking/utils'
+} from '@cogito/design/components/select'
+import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
+import { calendar, timeSphere } from '@cogito/utils'
 import { clsx } from 'clsx'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'

@@ -1,4 +1,4 @@
-import { Input } from '@i-thinking/design/components/input'
+import { Input } from '@cogito/design/components/input'
 import { cn } from 'cn'
 
 import type { CountdownSnapshot } from '@/features/magnetic-tiles/countdown/compute'

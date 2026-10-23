@@ -1,6 +1,6 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Skeleton } from '@i-thinking/design/components/skeleton'
-import { Spinner } from '@i-thinking/design/components/spinner'
+import { Button } from '@cogito/design/components/button'
+import { Skeleton } from '@cogito/design/components/skeleton'
+import { Spinner } from '@cogito/design/components/spinner'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 

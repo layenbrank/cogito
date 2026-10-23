@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react/offline'
-import { Badge } from '@i-thinking/design/components/badge'
-import { Button } from '@i-thinking/design/components/button'
+import { Badge } from '@cogito/design/components/badge'
+import { Button } from '@cogito/design/components/button'
 import {
   Dialog,
   DialogContent,
@@ -8,9 +8,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle
-} from '@i-thinking/design/components/dialog'
-import { Progress } from '@i-thinking/design/components/progress'
-import { Skeleton } from '@i-thinking/design/components/skeleton'
+} from '@cogito/design/components/dialog'
+import { Progress } from '@cogito/design/components/progress'
+import { Skeleton } from '@cogito/design/components/skeleton'
 import { useState } from 'react'
 import { toast } from 'sonner'
 

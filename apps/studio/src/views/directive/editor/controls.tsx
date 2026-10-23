@@ -1,12 +1,12 @@
-import { Input } from '@i-thinking/design/components/input'
-import { Label } from '@i-thinking/design/components/label'
-import { Textarea } from '@i-thinking/design/components/textarea'
+import { Input } from '@cogito/design/components/input'
+import { Label } from '@cogito/design/components/label'
+import { Textarea } from '@cogito/design/components/textarea'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
-} from '@i-thinking/design/components/tooltip'
+} from '@cogito/design/components/tooltip'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import {

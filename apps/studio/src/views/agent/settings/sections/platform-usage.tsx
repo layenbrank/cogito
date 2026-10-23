@@ -1,14 +1,14 @@
-import { Button } from '@i-thinking/design/components/button'
-import { DatePicker } from '@i-thinking/design/components/date-picker'
-import { Input } from '@i-thinking/design/components/input'
-import { Label } from '@i-thinking/design/components/label'
+import { Button } from '@cogito/design/components/button'
+import { DatePicker } from '@cogito/design/components/date-picker'
+import { Input } from '@cogito/design/components/input'
+import { Label } from '@cogito/design/components/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
+} from '@cogito/design/components/select'
 import { useQuery } from '@tanstack/react-query'
 import type { Dayjs } from 'dayjs'
 import { useState } from 'react'

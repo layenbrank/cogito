@@ -3,7 +3,7 @@
  */
 import { useAui } from '@assistant-ui/react'
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 
 import { setActiveScenario } from '@/features/agent/model/active-scenario'
 import { QUICK_PROMPTS, type QuickPrompt } from '@/views/agent/chat/components/workbench-constants'

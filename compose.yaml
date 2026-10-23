@@ -1,0 +1,207 @@
+# 开发全栈：Postgres+pgvector / Redis / go-captcha + api / worker / orchestrator / compute + Jaeger。
+#
+#   cp .env.example .env
+#   docker compose build && docker compose up -d
+#
+# pull_policy: missing → up 复用镜像；改代码后显式 build。
+# 生产见 compose.prod.yaml。说明：guide/deployment.md
+
+name: cogito
+
+# cogito 四进程同一镜像，compose 用 command 区分。
+x-cogito-image: &cogito-image
+  build:
+    context: ./apps/service
+    # Dockerfile 在仓库根，但构建上下文保持 app 目录（.dockerignore 才生效）
+    dockerfile: ../../docker/cogito/Dockerfile
+  image: cogito:local
+  pull_policy: missing
+  env_file:
+    - path: docker/stack.env
+      required: false
+
+x-cogito-env: &cogito-env
+  COGITO__APP__ENV: ${APP_ENV:-development}
+  COGITO__SERVER__HOST: 0.0.0.0
+  COGITO__SERVER__PORT: '3000'
+  COGITO__DATABASE__URL: postgres://machenike:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填，见 .env.example}@postgres:5432/cogito-service
+  COGITO__REDIS__URL: redis://redis:6379
+  COGITO__AUTH__CAPTCHA__BASE_URL: http://gocaptcha:8080
+  COGITO__COMPUTE__BASE_URL: http://compute:8081
+  COGITO__COMPUTE__TOKEN: ${COMPUTE_INTERNAL_TOKEN:?COMPUTE_INTERNAL_TOKEN 必填，见 .env.example}
+  COGITO__GATEWAY__SERVICE_TOKEN_SECRET: ${SERVICE_TOKEN_SECRET:?SERVICE_TOKEN_SECRET 必填，见 .env.example}
+  COGITO__TELEMETRY__ENABLED: ${TELEMETRY_ENABLED:-true}
+  COGITO__TELEMETRY__ENDPOINT: ${OTLP_ENDPOINT:-http://jaeger:4318}
+
+services:
+  postgres:
+    build:
+      context: ./docker/postgres
+      dockerfile: Dockerfile
+    image: cogito-postgres:18-zh-pgvector
+    pull_policy: missing
+    container_name: cogito-postgres
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: machenike
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填，见 .env.example}
+      POSTGRES_DB: cogito-service
+      LANG: zh_CN.UTF-8
+      LC_ALL: zh_CN.UTF-8
+      POSTGRES_INITDB_ARGS: '--locale=zh_CN.UTF-8 --encoding=UTF8'
+    volumes:
+      - ./data/postgres:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'psql -U machenike -d cogito-service -c "SELECT 1" >/dev/null']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    container_name: cogito-redis
+    ports:
+      - '6379:6379'
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  gocaptcha:
+    image: wenlng/go-captcha-service:1.0.5
+    platform: linux/amd64
+    container_name: cogito-gocaptcha
+    ports:
+      - '8080:8080'
+    expose:
+      - '8080'
+      - '50051'
+    volumes:
+      - ./docker/gocaptcha/config.json:/app/config.json:ro
+      - ./docker/gocaptcha/gocaptcha.json:/app/gocaptcha.json:ro
+    environment:
+      CONFIG: config.json
+      GO_CAPTCHA_CONFIG: gocaptcha.json
+      SERVICE_NAME: go-captcha-service
+      CACHE_TYPE: redis
+      CACHE_ADDRS: redis:6379
+      LOG_LEVEL: info
+    depends_on:
+      redis:
+        condition: service_healthy
+    # distroless 自带 healthcheck 在 1.0.5 恒失败；手工 curl :8080/status/health
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/jaeger:2.9.0
+    container_name: cogito-jaeger
+    ports:
+      - '16686:16686'
+      - '4318:4318'
+    restart: unless-stopped
+
+  migrate:
+    <<: *cogito-image
+    container_name: cogito-migrate
+    command: ['./migration', 'up']
+    environment:
+      <<: *cogito-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  cogito-service:
+    <<: *cogito-image
+    container_name: cogito-service
+    command: ['./cogito']
+    environment:
+      <<: *cogito-env
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      gocaptcha:
+        condition: service_started
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:3000/api/live >/dev/null || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  cogito-worker:
+    <<: *cogito-image
+    container_name: cogito-worker
+    command: ['./worker']
+    environment:
+      <<: *cogito-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  cogito-orchestrator:
+    <<: *cogito-image
+    container_name: cogito-orchestrator
+    command: ['./orchestrator']
+    environment:
+      <<: *cogito-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      compute:
+        condition: service_started
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+  compute:
+    build:
+      context: ./apps/compute
+      dockerfile: Dockerfile
+    image: cogito-compute:local
+    pull_policy: missing
+    container_name: cogito-compute
+    env_file:
+      - path: ./apps/compute/.env
+        required: false
+    environment:
+      COMPUTE_ENVIRONMENT: ${COMPUTE_ENVIRONMENT:-development}
+      COMPUTE_HOST: 0.0.0.0
+      COMPUTE_PORT: '8081'
+      COMPUTE_INTERNAL_TOKEN: ${COMPUTE_INTERNAL_TOKEN:?COMPUTE_INTERNAL_TOKEN 必填，见 .env.example}
+      COMPUTE_DATABASE_URL: postgres://machenike:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填，见 .env.example}@postgres:5432/compute
+      COMPUTE_COGITO_BASE_URL: http://cogito-service:3000
+      COMPUTE_TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}
+      COMPUTE_TELEMETRY_ENDPOINT: ${OTLP_ENDPOINT:-http://jaeger:4318}
+    expose:
+      - '8081'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:8081/internal/v1/health >/dev/null || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped

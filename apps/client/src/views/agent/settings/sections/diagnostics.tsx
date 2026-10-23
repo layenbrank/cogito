@@ -4,8 +4,8 @@
  * `diagnostics/get` 要 goose session 上下文，所以得有活跃会话；`full` 才带配置正文、日志与
  * 提示词（体积大），摘要就只有系统信息与扩展清单。报告原文原样保留，复制 / 导出都出全量 JSON。
  */
-import { Button } from '@i-thinking/design/components/button'
-import { Spinner } from '@i-thinking/design/components/spinner'
+import { Button } from '@cogito/design/components/button'
+import { Spinner } from '@cogito/design/components/spinner'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
@@ -104,7 +104,7 @@ function DiagnosticsSection() {
     if (!report) return
     try {
       const target = await save({
-        defaultPath: `i-thinking-diagnostics-${Date.now()}.json`,
+        defaultPath: `cogito-diagnostics-${Date.now()}.json`,
         filters: [{ name: 'JSON', extensions: ['json'] }]
       })
       if (!target) return

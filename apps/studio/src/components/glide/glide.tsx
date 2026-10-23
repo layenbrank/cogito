@@ -1,4 +1,4 @@
-import { useResize } from '@i-thinking/hooks'
+import { useResize } from '@cogito/hooks'
 import { clsx, type ClassValue } from 'clsx'
 import { useCallback, useMemo, useState } from 'react'
 

@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { findBinaryName, findPlatformKey } from '@i-thinking/sidecar'
+import { findBinaryName, findPlatformKey } from '@cogito/sidecar'
 
 import { findAppRoot } from './paths'
 
@@ -11,14 +11,14 @@ import { findAppRoot } from './paths'
  *
  * 外壳（packaged/开发态）、userData、随包目录、运行时下载目录这几件事实，宿主的每个域都要用：
  * corex 侧车、pandoc、ffmpeg、opencode 各问一次。以前各域自己拼一份，落到多份实现迟早对不上
- * —— `findUserDataDir` 的兜底目录就已经分叉过一次（`~/.corex-studio` 与 `~/.i-thinking`）。
+ * —— `findUserDataDir` 的兜底目录就已经分叉过一次（`~/.corex-studio` 与 `~/.cogito`）。
  *
  * 这里只回答「目录在哪」与「按优先级取第一份存在的」，**不回答「哪个域该用哪几份」**：
  * 来源的取舍属于各域（corex 还有用户自己装的那份要探，pandoc / opencode 只认自带与下载的那份）。
  */
 
 /**
- * 平台键与二进制文件名（`win32-x64` / `pandoc.exe`）的唯一实现在契约包 `@i-thinking/sidecar`：
+ * 平台键与二进制文件名（`win32-x64` / `pandoc.exe`）的唯一实现在契约包 `@cogito/sidecar`：
  * 侧车那三份 JSON（lock / manifest / checksums）与这里必须用同一套拼法。下面按原名再导出，
  * 宿主其它模块照旧从 `@/host/framework/binaries` 取。
  */
@@ -34,7 +34,7 @@ function isPackagedApp(): boolean {
   }
 }
 
-/** electron 的 userData；测试等非 electron 环境退回 `~/.i-thinking`。 */
+/** electron 的 userData；测试等非 electron 环境退回 `~/.cogito`。 */
 function findUserDataDir(): string {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -44,9 +44,9 @@ function findUserDataDir(): string {
       return dir
     }
   } catch (error) {
-    console.warn('[binaries] 读 electron userData 失败，改用 ~/.i-thinking', error)
+    console.warn('[binaries] 读 electron userData 失败，改用 ~/.cogito', error)
   }
-  return path.join(os.homedir(), '.i-thinking')
+  return path.join(os.homedir(), '.cogito')
 }
 
 /**

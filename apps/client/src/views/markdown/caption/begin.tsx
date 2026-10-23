@@ -4,14 +4,14 @@
  * 搜文件在侧栏；打开等勿再堆到内容区工具条。
  */
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
+} from '@cogito/design/components/dropdown-menu'
 import { cn } from 'cn'
 
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'

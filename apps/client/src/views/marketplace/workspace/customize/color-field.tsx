@@ -1,12 +1,12 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   FormField,
   FormItem,
   FormLabel,
   FormMessage
-} from '@i-thinking/design/components/form'
-import { Popover, PopoverContent, PopoverTrigger } from '@i-thinking/design/components/popover'
+} from '@cogito/design/components/form'
+import { Popover, PopoverContent, PopoverTrigger } from '@cogito/design/components/popover'
 import { cn } from 'cn'
 
 import { normalizeHex } from '@/utils/color'

@@ -1,0 +1,87 @@
+[project]
+name = "compute"
+version = "0.1.0"
+description = "cogito 的叶子计算服务：RAG 摄取与 agent 运行时（Python 专属生态）"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+	"asyncpg>=0.30.0",
+	"fastapi>=0.115.0",
+	"httpx>=0.28.0",
+	"numpy>=2.0.0",
+	"opentelemetry-api>=1.45.0",
+	"opentelemetry-exporter-otlp-proto-http>=1.45.0",
+	"opentelemetry-sdk>=1.45.0",
+	"pgvector>=0.3.6",
+	"pydantic>=2.10.0",
+	"pydantic-settings>=2.7.0",
+	# PDF 抽取：纯 Python 实现，没有系统库依赖（不用 poppler 那类二进制）。
+	"pypdf>=5.1.0",
+	"uvicorn[standard]>=0.34.0",
+]
+
+[project.scripts]
+compute = "compute.__main__:main"
+
+[dependency-groups]
+dev = [
+	# 契约一致性测试：把真实响应体交给 `internal.yaml` 的 schema 校验
+	# （手写校验器只会验到自己想到的规则，漏掉的正是想不到的那些）。
+	"jsonschema>=4.23.0",
+	"mypy>=1.14.0",
+	"pytest>=8.3.0",
+	"pytest-asyncio>=0.25.0",
+	"pyyaml>=6.0.2",
+	"ruff>=0.9.0",
+	"types-jsonschema>=4.23.0",
+	"types-pyyaml>=6.0.12",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/compute"]
+# sql/ 由下面的 force-include 单独登记，这里必须排除，否则同一路径会被写两次
+# （hatchling 在 `--no-editable` 构建时直接报错）。
+exclude = ["src/compute/sql"]
+
+# 迁移 SQL 必须随 wheel 进 site-packages（Docker --no-editable 运行时无 src/ 树）。
+# 无 VCS 的构建上下文（镜像构建）也要带上，不能只靠 git tracked。
+[tool.hatch.build.targets.wheel.force-include]
+"src/compute/sql" = "compute/sql"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = ["error"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["A", "ASYNC", "B", "C4", "DTZ", "E", "F", "I", "N", "RUF", "S", "SIM", "UP"]
+# RUF001/2/3 是「全角标点看起来像 ASCII」的提醒：本项目的注释与文档一律用中文标点，
+# 这些提醒全部是噪声，关掉。
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["compute"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src", "tests"]
+strict = true
+plugins = ["pydantic.mypy"]
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["asyncpg", "asyncpg.*", "pgvector", "pgvector.*"]
+ignore_missing_imports = true

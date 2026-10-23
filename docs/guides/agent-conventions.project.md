@@ -28,7 +28,7 @@
 ### 推荐流程
 
 1. 查能力：`corex actions --bucket ui`（另有 `data` / `system`）。
-2. 找窗口：`corex ui window list`，按标题过滤（`Qoder` / `i thinking`）。
+2. 找窗口：`corex ui window list`，按标题过滤（`Qoder` / `cogito`）。
 3. 写 YAML 到 `.cache/corex/directives/` → `corex validate <path>` → `corex run <path>`。
 4. 读产物：截图 `.cache/corex/captures/{qoder,studio}/`，OCR / 探测 `.cache/corex/probes/`（已 gitignore）。别把指令 / 截图留 `apps/studio/scripts/`，别提交 `.cache/`。
 

@@ -1,4 +1,4 @@
-import { Input } from '@i-thinking/design/components/input'
+import { Input } from '@cogito/design/components/input'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'

@@ -3,7 +3,7 @@
  * 每个选项卡独占一页；仅「终端」PTY 用 invisible 保活，其余 inactive 用 hidden。
  */
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { cn } from 'cn'
 import { useEffect, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'

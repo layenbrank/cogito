@@ -18,7 +18,7 @@
     "moduleDetection": "force",
     "isolatedModules": true,
     "resolveJsonModule": true,
-    "types": ["vite/client", "@types/react", "@types/react-dom", "@i-thinking/shared/response"],
+    "types": ["vite/client", "@types/react", "@types/react-dom", "@cogito/shared/response"],
     "strict": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true,

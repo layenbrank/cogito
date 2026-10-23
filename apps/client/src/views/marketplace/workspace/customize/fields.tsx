@@ -1,15 +1,15 @@
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   FormControl,
   FormField,
   FormItem,
   FormLabel,
   FormMessage
-} from '@i-thinking/design/components/form'
-import { Input } from '@i-thinking/design/components/input'
-import { Skeleton } from '@i-thinking/design/components/skeleton'
-import { parseSliderValue, Slider } from '@i-thinking/design/components/slider'
-import { Spinner } from '@i-thinking/design/components/spinner'
+} from '@cogito/design/components/form'
+import { Input } from '@cogito/design/components/input'
+import { Skeleton } from '@cogito/design/components/skeleton'
+import { parseSliderValue, Slider } from '@cogito/design/components/slider'
+import { Spinner } from '@cogito/design/components/spinner'
 import { cn } from 'cn'
 import type { Control } from 'react-hook-form'
 

@@ -4,8 +4,8 @@
  * - 混合文本 → 在光标处插入引用
  * - 路径类参数可本机选文件/目录
  */
-import { Button } from '@i-thinking/design/components/button'
-import { InputGroup, InputGroupAddon } from '@i-thinking/design/components/input-group'
+import { Button } from '@cogito/design/components/button'
+import { InputGroup, InputGroupAddon } from '@cogito/design/components/input-group'
 import { Icon } from '@iconify/react/offline'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'

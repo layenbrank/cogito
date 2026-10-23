@@ -68,7 +68,7 @@ const HEAD = {
   },
   [PANEL.SIGNUP]: {
     title: '创建账号',
-    subtitle: '注册后即可使用 i-thinking'
+    subtitle: '注册后即可使用 cogito'
   }
 } satisfies Record<PanelView, HeadText>
 

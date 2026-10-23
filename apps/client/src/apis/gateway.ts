@@ -66,12 +66,12 @@ interface GatewaySelfQuotaQuery {
 
 /** 当前用户可见的模型（服务端已按启用状态与角色过滤） */
 function GET_GATEWAY_MODELS(signal?: AbortSignal) {
-  return http.get<RSF<GatewayModel[]>>('/gateway/models', { env: 'thinking', signal }).then(HttpEnvelope)
+  return http.get<RSF<GatewayModel[]>>('/gateway/models', { env: 'cogito', signal }).then(HttpEnvelope)
 }
 
 function GET_GATEWAY_QUOTA_ME(query: GatewaySelfQuotaQuery = {}) {
   return http
-    .get<RSF<GatewaySelfQuota>>('/gateway/quota/me', { env: 'thinking', query })
+    .get<RSF<GatewaySelfQuota>>('/gateway/quota/me', { env: 'cogito', query })
     .then(HttpEnvelope)
 }
 

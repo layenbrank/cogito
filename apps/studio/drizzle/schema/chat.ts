@@ -27,7 +27,7 @@ export const chatProvider = sqliteTable(
     kind: text('kind').notNull(),
     name: text('name').notNull(),
     baseUrl: text('baseUrl'),
-    /** JSON 数组文本：模型条目（`@i-thinking/agent/provider` 的 `ModelEntry`）；早期只存模型名，读取时归一 */
+    /** JSON 数组文本：模型条目（`@cogito/agent/provider` 的 `ModelEntry`）；早期只存模型名，读取时归一 */
     models: text('models'),
     /** 该 provider 的默认模型 */
     model: text('model'),

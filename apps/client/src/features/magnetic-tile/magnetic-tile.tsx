@@ -1,4 +1,4 @@
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { Icon } from '@iconify/react/offline'
 import { cn, type ClassValue } from 'cn'
 import { useReducedMotion } from 'motion/react'

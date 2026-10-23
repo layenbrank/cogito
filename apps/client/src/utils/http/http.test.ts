@@ -70,7 +70,7 @@ describe('traceparent header', function () {
   })
 
   it('opens a trace on an absolute url of our own api', async function () {
-    vi.stubEnv('VITE_THINKING', OWN_API)
+    vi.stubEnv('VITE_COGITO', OWN_API)
     vi.resetModules()
     await loadHttp()
 

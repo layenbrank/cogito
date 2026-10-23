@@ -52,6 +52,8 @@ interface PieChartProps extends EmptyableChartProps {
 }
 
 interface ChartTooltipState {
+  /** 生成该浮层时的数据/尺寸指纹：数据一变，旧浮层就不再渲染（避免 effect 里 setState）。 */
+  dataKey: string
   left: number
   top: number
   label: string
@@ -93,13 +95,17 @@ function ChartTooltip(props: ChartTooltipState) {
   )
 }
 
-function ChartTooltipLayer(props: { tooltip: ChartTooltipState | null }) {
+function ChartTooltipLayer(props: { tooltip: ChartTooltipState | null; dataKey: string }) {
+  // 浮层属于某一份数据：数据/尺寸变了旧坐标就失效，直接不渲染。
+  // 在渲染期判断而不是在 effect 里 setState(null)——后者会触发级联渲染（react-hooks/set-state-in-effect）。
+  const tooltip =
+    props.tooltip && props.tooltip.dataKey === props.dataKey ? props.tooltip : null
   return (
     <AnimatePresence>
-      {props.tooltip ? (
+      {tooltip ? (
         <ChartTooltip
           key="chart-tooltip"
-          {...props.tooltip}
+          {...tooltip}
         />
       ) : null}
     </AnimatePresence>
@@ -121,6 +127,7 @@ function hoverMs(isReduced: boolean) {
 
 /** 将浮层锚在指针旁，并限制在宿主矩形内 */
 function placeTooltip(args: {
+  dataKey: string
   host: HTMLElement
   clientX: number
   clientY: number
@@ -139,6 +146,7 @@ function placeTooltip(args: {
     ? localY + TOOLTIP_OFFSET
     : Math.max(TOOLTIP_EDGE, localY - TOOLTIP_OFFSET - 40)
   return {
+    dataKey: args.dataKey,
     left: Math.min(left, Math.max(TOOLTIP_EDGE, rect.width - 140)),
     top: Math.min(top, Math.max(TOOLTIP_EDGE, rect.height - 44)),
     label: args.label,
@@ -179,6 +187,7 @@ function LineChart(props: LineChartProps) {
   const isReduced = useReducedMotion() === true
   const height = props.height ?? CHART_HEIGHT
   const width = useSvgWidth(svgRef)
+  const dataKey = JSON.stringify(props)
 
   useEffect(
     function () {
@@ -194,7 +203,6 @@ function LineChart(props: LineChartProps) {
       if (!first || !last) return
 
       clearSvg(svgEl)
-      updateTooltip(null)
       const root = select(svgEl)
         .attr('viewBox', `0 0 ${width} ${height}`)
         .attr('width', '100%')
@@ -347,6 +355,7 @@ function LineChart(props: LineChartProps) {
 
           updateTooltip(
             placeTooltip({
+              dataKey,
               host: hostEl,
               clientX: event.clientX,
               clientY: event.clientY,
@@ -392,7 +401,7 @@ function LineChart(props: LineChartProps) {
         })
         .on('mouseleave', hideFocus)
     },
-    [props.points, props.isEmpty, height, width, isReduced]
+    [props.points, props.isEmpty, height, width, isReduced, dataKey]
   )
 
   if (props.isEmpty) {
@@ -416,7 +425,7 @@ function LineChart(props: LineChartProps) {
         role="img"
         aria-label="折线图"
       />
-      <ChartTooltipLayer tooltip={tooltip} />
+      <ChartTooltipLayer tooltip={tooltip} dataKey={dataKey} />
     </div>
   )
 }
@@ -428,6 +437,7 @@ function BarChart(props: BarChartProps) {
   const isReduced = useReducedMotion() === true
   const height = props.height ?? CHART_HEIGHT
   const width = useSvgWidth(svgRef)
+  const dataKey = JSON.stringify(props)
 
   useEffect(
     function () {
@@ -441,7 +451,6 @@ function BarChart(props: BarChartProps) {
       const items = [...props.items].reverse()
 
       clearSvg(svgEl)
-      updateTooltip(null)
       const root = select(svgEl)
         .attr('viewBox', `0 0 ${width} ${height}`)
         .attr('width', '100%')
@@ -516,6 +525,7 @@ function BarChart(props: BarChartProps) {
         .on('mousemove', function (event: MouseEvent, item) {
           updateTooltip(
             placeTooltip({
+              dataKey,
               host: hostEl,
               clientX: event.clientX,
               clientY: event.clientY,
@@ -539,7 +549,7 @@ function BarChart(props: BarChartProps) {
           updateTooltip(null)
         })
     },
-    [props.items, props.isEmpty, height, width, isReduced]
+    [props.items, props.isEmpty, height, width, isReduced, dataKey]
   )
 
   if (props.isEmpty) {
@@ -563,7 +573,7 @@ function BarChart(props: BarChartProps) {
         role="img"
         aria-label="柱状图"
       />
-      <ChartTooltipLayer tooltip={tooltip} />
+      <ChartTooltipLayer tooltip={tooltip} dataKey={dataKey} />
     </div>
   )
 }
@@ -575,6 +585,7 @@ function PieChart(props: PieChartProps) {
   const isReduced = useReducedMotion() === true
   const height = props.height ?? CHART_HEIGHT
   const width = useSvgWidth(svgRef)
+  const dataKey = JSON.stringify(props)
 
   useEffect(
     function () {
@@ -590,7 +601,6 @@ function PieChart(props: PieChartProps) {
       const innerRadius = radius * 0.55
 
       clearSvg(svgEl)
-      updateTooltip(null)
       const root = select(svgEl)
         .attr('viewBox', `0 0 ${width} ${height}`)
         .attr('width', '100%')
@@ -645,6 +655,7 @@ function PieChart(props: PieChartProps) {
           const pct = total > 0 ? Math.round((datum.data.value / total) * 100) : 0
           updateTooltip(
             placeTooltip({
+              dataKey,
               host: hostEl,
               clientX: event.clientX,
               clientY: event.clientY,
@@ -714,7 +725,7 @@ function PieChart(props: PieChartProps) {
           return item.name.length > 6 ? `${item.name.slice(0, 5)}…` : item.name
         })
     },
-    [props.items, props.isEmpty, height, width, isReduced]
+    [props.items, props.isEmpty, height, width, isReduced, dataKey]
   )
 
   if (props.isEmpty) {
@@ -738,7 +749,7 @@ function PieChart(props: PieChartProps) {
         role="img"
         aria-label="饼图"
       />
-      <ChartTooltipLayer tooltip={tooltip} />
+      <ChartTooltipLayer tooltip={tooltip} dataKey={dataKey} />
     </div>
   )
 }

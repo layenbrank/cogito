@@ -1,9 +1,9 @@
 {
-  "name": "@i-thinking/design",
+  "name": "@cogito/design",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "i thinking 设计系统：shadcn/ui 原子组件 + assistant-ui elements + 设计 token",
+  "description": "cogito 设计系统：shadcn/ui 原子组件 + assistant-ui elements + 设计 token",
   "scripts": {
     "type-check": "tsc --noEmit",
     "lint": "run-s lint:*",

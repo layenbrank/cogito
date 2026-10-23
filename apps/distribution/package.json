@@ -1,8 +1,8 @@
 {
-  "name": "@i-thinking/distribution",
+  "name": "@cogito/distribution",
   "version": "0.0.0",
   "private": true,
-  "description": "i-thinking 资源分发端点：Cloudflare Worker，发布流水线把版本化产物（安装包、ffmpeg / corex / pandoc / goose / pdfium 等）推入 R2 桶 i-thinking，用户与开发环境按版本路径取稳定直链",
+  "description": "cogito 资源分发端点：Cloudflare Worker，发布流水线把版本化产物（安装包、ffmpeg / corex / pandoc / goose / pdfium 等）推入 R2 桶 cogito，用户与开发环境按版本路径取稳定直链",
   "type": "module",
   "scripts": {
     "deploy": "wrangler deploy",

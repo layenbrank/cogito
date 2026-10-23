@@ -120,7 +120,7 @@
         "resizable": true,
         "shadow": true,
         "skipTaskbar": false,
-        "title": "i thinking",
+        "title": "cogito",
         "titleBarStyle": "Overlay",
         "transparent": true,
         "visible": true,
@@ -223,7 +223,7 @@
         "installerIcon": "icons/icon.ico",
         "installMode": "currentUser",
         "languages": ["SimpChinese", "English"],
-        "startMenuFolder": "i thinking"
+        "startMenuFolder": "cogito"
       },
       "signCommand": null,
       "timestampUrl": "http://timestamp.digicert.com",
@@ -238,10 +238,10 @@
     }
   },
   "identifier": "com.cogito.client",
-  "mainBinaryName": "i-thinking",
+  "mainBinaryName": "cogito",
   "plugins": {
     "cli": {
-      "description": "i thinking desktop CLI",
+      "description": "cogito desktop CLI",
       "args": [
         {
           "name": "minimized",
@@ -258,13 +258,13 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk4RTQwMDZERTc1MTc2ODMKUldTRGRsSG5iUURrbUdJR2ZGRGxKTGN5ZWxBTWVoeVdWMVpmdXd3dnZrQTg2ZnkwU2dBaG12eUUK",
       "endpoints": [
-        "https://github.com/layenbrank/i-thinking/releases/download/updater-stable/latest.json"
+        "https://github.com/layenbrank/cogito/releases/download/updater-stable/latest.json"
       ],
       "windows": {
         "installMode": "passive"
       }
     }
   },
-  "productName": "i thinking",
+  "productName": "cogito",
   "version": "1.5.0"
 }

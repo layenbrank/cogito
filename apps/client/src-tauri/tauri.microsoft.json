@@ -1,6 +1,6 @@
 {
-  "productName": "i thinking",
-  "mainBinaryName": "i-thinking",
+  "productName": "cogito",
+  "mainBinaryName": "cogito",
   "bundle": {
     "publisher": "layen",
     "targets": ["nsis"],

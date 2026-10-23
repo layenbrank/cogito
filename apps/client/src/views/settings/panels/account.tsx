@@ -1,8 +1,8 @@
 import { Icon } from '@iconify/react/offline'
-import { Avatar, AvatarFallback, AvatarImage } from '@i-thinking/design/components/avatar'
-import { Button } from '@i-thinking/design/components/button'
-import { DatePicker } from '@i-thinking/design/components/date-picker'
-import { Input } from '@i-thinking/design/components/input'
+import { Avatar, AvatarFallback, AvatarImage } from '@cogito/design/components/avatar'
+import { Button } from '@cogito/design/components/button'
+import { DatePicker } from '@cogito/design/components/date-picker'
+import { Input } from '@cogito/design/components/input'
 import dayjs from 'dayjs'
 import {
   Select,
@@ -10,7 +10,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
+} from '@cogito/design/components/select'
 import { useState } from 'react'
 import { toast } from 'sonner'
 

@@ -1,10 +1,10 @@
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuSeparator,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
+} from '@cogito/design/components/dropdown-menu'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { useState } from 'react'

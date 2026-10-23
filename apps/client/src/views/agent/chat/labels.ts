@@ -1,7 +1,7 @@
 /**
  * assistant 组件的界面文案（中文）。未覆盖的字段沿用英文兜底。
  */
-import type { AssistantLabelsOverride } from '@i-thinking/design/assistant/labels'
+import type { AssistantLabelsOverride } from '@cogito/design/assistant/labels'
 
 const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   newThread: '新建对话',

@@ -1,4 +1,4 @@
-import type { ChatImage, ChatRunMessage } from '@i-thinking/chat/ports'
+import type { ChatImage, ChatRunMessage } from '@cogito/chat/ports'
 
 import { canSeeImages } from './vision.ts'
 

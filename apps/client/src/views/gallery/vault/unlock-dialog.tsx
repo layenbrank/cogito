@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   Dialog,
   DialogContent,
@@ -7,8 +7,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle
-} from '@i-thinking/design/components/dialog'
-import { Input } from '@i-thinking/design/components/input'
+} from '@cogito/design/components/dialog'
+import { Input } from '@cogito/design/components/input'
 import { useState } from 'react'
 
 import { PIN_MAX_LENGTH, PIN_MIN_LENGTH } from '@/views/gallery/constraints'

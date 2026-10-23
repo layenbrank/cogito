@@ -2,9 +2,9 @@
  * 文档内查找/替换：对齐 VS Code 右上角浮动栏，Ctrl+F / Ctrl+H 打开。
  */
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import type { Editor } from '@tiptap/react'
 import { cn } from 'cn'
 import { useEffect, useRef, useState, type RefObject } from 'react'

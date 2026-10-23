@@ -6,7 +6,7 @@
  */
 import { useAui, useAuiState } from '@assistant-ui/react'
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { clsx } from 'clsx'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'

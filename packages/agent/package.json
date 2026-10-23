@@ -1,9 +1,9 @@
 {
-  "name": "@i-thinking/agent",
+  "name": "@cogito/agent",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "i thinking agent 运行时：在线模型 provider + 工具/权限/技能 + 会话流（对齐 opencode v2，Effect）",
+  "description": "cogito agent 运行时：在线模型 provider + 工具/权限/技能 + 会话流（对齐 opencode v2，Effect）",
   "exports": {
     ".": "./src/index.ts",
     "./provider": "./src/provider.ts",

@@ -1,5 +1,5 @@
-import { GATEWAY_PROVIDER_KIND, supportsTools } from '@i-thinking/agent/provider'
-import type { ChatTarget } from '@i-thinking/chat/ports'
+import { GATEWAY_PROVIDER_KIND, supportsTools } from '@cogito/agent/provider'
+import type { ChatTarget } from '@cogito/chat/ports'
 
 import { findActiveTenantID } from '@/features/quota/tenant.ts'
 import { useAgentStore } from '@/stores/agent.ts'

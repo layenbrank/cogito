@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useState, type ReactNode } from 'react'
 

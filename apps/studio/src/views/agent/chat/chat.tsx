@@ -1,12 +1,12 @@
 import { useAui, useAuiState } from '@assistant-ui/react'
-import { AssistantLabelsProvider } from '@i-thinking/design/assistant/labels'
-import { Thread } from '@i-thinking/design/assistant/thread.aui'
+import { AssistantLabelsProvider } from '@cogito/design/assistant/labels'
+import { Thread } from '@cogito/design/assistant/thread.aui'
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
   usePanelRef
-} from '@i-thinking/design/components/resizable'
+} from '@cogito/design/components/resizable'
 import { clsx } from 'clsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'

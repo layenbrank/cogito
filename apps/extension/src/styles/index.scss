@@ -4,7 +4,7 @@
 // 1. 基础样式一律写进 `@layer base` —— **无层级**样式会压过 Tailwind 的 `@layer utilities`，
 //    之前那条 `* { margin: 0; padding: 0; font-weight: normal }` 正是这样把
 //    `p-*` / `m-*` / `px-*` / `font-*` 全量打成失效的（布局贴边、图标压住文字、标题不加粗）。
-// 2. 排版（字体 / 行高 / 字号）交给 Tailwind 与 `@i-thinking/design` 的 token，不在此重复声明。
+// 2. 排版（字体 / 行高 / 字号）交给 Tailwind 与 `@cogito/design` 的 token，不在此重复声明。
 
 @layer base {
   *,

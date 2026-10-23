@@ -2,7 +2,7 @@
 
 ## 现象
 
-- **网页模式**（如 `pnpm --filter @i-thinking/studio dev:core` 或 client 的 vite）：正常。
+- **网页模式**（如 `pnpm --filter @cogito/studio dev:core` 或 client 的 vite）：正常。
 - **Electron 模式**（`pnpm dev:studio` → electron-forge start）：报错
   `The requested module '.../highlight.js/lib/core.js' does not provide an export named 'default'`
   以及 lowlight、highlight.js 语言路径等解析问题。
@@ -10,7 +10,7 @@
 ## 根因（与「依赖在项目根」有关）
 
 1. **依赖在 monorepo 根目录**
-   - studio 未直接依赖 `react-syntax-highlighter`、`lowlight`、`highlight.js`，它们通过 @i-thinking/utils 等装在**仓库根** `node_modules`（pnpm 提升/符号链接）。
+   - studio 未直接依赖 `react-syntax-highlighter`、`lowlight`、`highlight.js`，它们通过 @cogito/utils 等装在**仓库根** `node_modules`（pnpm 提升/符号链接）。
    - Electron Forge 启动的 **Vite 渲染器** 在解析这些包时，会解析到 **根目录** 下的 `node_modules/...`。
 
 2. **Vite 对「根目录里的文件」的处理方式**
@@ -60,11 +60,11 @@
 上面说的是「该预构建的没预构建」。同一条链上还有一个反方向的坑，症状完全不同：
 
 ```
-SyntaxError: The requested module '/node_modules/.vite/deps/@i-thinking_agent_provider.js?v=73b0e299'
+SyntaxError: The requested module '/node_modules/.vite/deps/@cogito_agent_provider.js?v=73b0e299'
 does not provide an export named 'PROVIDER_SOURCE_NOTES'
 ```
 
-（2026-09 实测：给 `@i-thinking/agent/provider` 加了 `PROVIDER_SOURCE_NOTES`，dev 里整页被
+（2026-09 实测：给 `@cogito/agent/provider` 加了 `PROVIDER_SOURCE_NOTES`，dev 里整页被
 ErrorBoundary 接住。）
 
 **根因**：这套包的 `exports` 指向 `src/*.ts`。一旦它没被 `optimizeDeps.exclude`，
@@ -75,11 +75,11 @@ Vite 会把**启动那一刻的那份源码**冻进 `.vite/deps/*.js`；之后�
 
 **判据（`vite.renderer.config.mts` 的 `optimizeDeps`）**：
 
-- `exports` 指向 `src` 的包 → **必须 exclude**（当前：`@i-thinking/design`、`@i-thinking/chat`、
-  `@i-thinking/agent`）。它们因此走源码，`packages/*` 的改动是真 HMR；若这类包有第三方依赖，
+- `exports` 指向 `src` 的包 → **必须 exclude**（当前：`@cogito/design`、`@cogito/chat`、
+  `@cogito/agent`）。它们因此走源码，`packages/*` 的改动是真 HMR；若这类包有第三方依赖，
   再把源码 glob 登记进 `entries`，让优化器在启动时仍能顺着包内 import 收全依赖
   （`agent` 是纯 TS，`dependencies` 为空，所以没有这一项）。
-- `exports` 指向 `dist` 的包（如 `@i-thinking/hooks`）→ **保持预构建**：它们本来就靠各自的
+- `exports` 指向 `dist` 的包（如 `@cogito/hooks`）→ **保持预构建**：它们本来就靠各自的
   `build` 出新产物，排除只会让它读同一个 `dist` 文件。
 
 **改完怎么办**：`optimizeDeps` 是启动时读的，旧会话里那份 `deps/*.js` 还在磁盘上 ——

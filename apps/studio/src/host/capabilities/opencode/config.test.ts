@@ -306,7 +306,7 @@ describe('buildStudioAgents · 档位落成自定义 primary agent', function ()
   })
 
   it('工作区的其它根授权给 external_directory（排在越界守卫之后才生效）', function () {
-    const folders = ['D:\\Documents\\Rust\\service\\master', 'D:/Documents/monorepo/i-thinking/master/']
+    const folders = ['D:\\Documents\\Rust\\service\\master', 'D:/Documents/monorepo/cogito/master/']
     const agents = buildStudioAgents(folders) as Record<string, AgentEntry>
 
     for (const profile of ['auto', 'ask', 'readonly'] as const) {
@@ -326,8 +326,8 @@ describe('buildStudioAgents · 档位落成自定义 primary agent', function ()
       ).toEqual([
         'D:/Documents/Rust/service/master',
         'D:/Documents/Rust/service/master/*',
-        'D:/Documents/monorepo/i-thinking/master',
-        'D:/Documents/monorepo/i-thinking/master/*'
+        'D:/Documents/monorepo/cogito/master',
+        'D:/Documents/monorepo/cogito/master/*'
       ])
       expect(
         grants.every(function (rule) {

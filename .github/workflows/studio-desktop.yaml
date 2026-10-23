@@ -120,18 +120,18 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build workspace packages
-        # make 的 vite 构建要解析 @i-thinking/hooks / utils 这类 exports 指向 dist 的包，
+        # make 的 vite 构建要解析 @cogito/hooks / utils 这类 exports 指向 dist 的包，
         # 全新检出必须先构建它们。用 `studio...` 再显式排除 studio：`studio^...` 里的 `^`
         # 在 cmd 下是转义符，CI 里会被吃掉，于是把 studio 自己（build = type-check + forge
         # package，需要 sidecar staging）也拉进来，而 staging 那时还没 restore。
         env:
           NODE_ENV: production
-        run: pnpm turbo run build --filter=@i-thinking/studio... --filter=!@i-thinking/studio
+        run: pnpm turbo run build --filter=@cogito/studio... --filter=!@cogito/studio
 
       - name: Rebuild natives
         # 必须是 `run rebuild`：裸 `pnpm rebuild` 是 pnpm 内置命令，不会执行 studio 的
         # electron-rebuild 脚本（会对全仓包重跑 install 脚本，把 Electron ABI 的 better-sqlite3 换成宿主 ABI）
-        run: pnpm --filter @i-thinking/studio run rebuild
+        run: pnpm --filter @cogito/studio run rebuild
 
       - name: Download sidecar artifact
         uses: actions/download-artifact@v6
@@ -152,10 +152,10 @@ jobs:
       - name: Make installers
         env:
           NODE_ENV: production
-        run: pnpm --filter @i-thinking/studio make
+        run: pnpm --filter @cogito/studio make
 
       - name: Smoke packaged exe
-        run: pnpm --filter @i-thinking/studio test:pack
+        run: pnpm --filter @cogito/studio test:pack
 
       - name: Upload artifacts
         if: always()

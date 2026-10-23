@@ -1,7 +1,7 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import { Spinner } from '@i-thinking/design/components/spinner'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+import { Button } from '@cogito/design/components/button'
+import { Spinner } from '@cogito/design/components/spinner'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { clsx } from 'clsx'
 import type { ReactNode } from 'react'
 

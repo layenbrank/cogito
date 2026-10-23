@@ -23,7 +23,7 @@ const SPAN_ID_BYTES = 8
  * 新建链路根上下文（浏览器侧一次请求一条链路）。
  *
  * flags 段置 `01`（sampled）：前端请求都是用户可感知的交互，标成已采样后服务端 `ParentBased`
- * 采样器会沿用该决定（见 `apps/cogito/guide/configuration.md` 的 `telemetry.sample_ratio`），
+ * 采样器会沿用该决定（见 `apps/service/guide/configuration.md` 的 `telemetry.sample_ratio`），
  * 保证这些流程一定有链路可查；要按比例降采样得改服务端采样器。
  */
 export function createTraceparent(): string {

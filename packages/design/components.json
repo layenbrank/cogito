@@ -12,10 +12,10 @@
   },
   "iconLibrary": "lucide",
   "aliases": {
-    "components": "@i-thinking/design/components",
-    "ui": "@i-thinking/design/components",
-    "lib": "@i-thinking/design/lib",
-    "hooks": "@i-thinking/design/hooks",
+    "components": "@cogito/design/components",
+    "ui": "@cogito/design/components",
+    "lib": "@cogito/design/lib",
+    "hooks": "@cogito/design/hooks",
     "utils": "cn"
   },
   "rtl": false,

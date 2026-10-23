@@ -1,8 +1,8 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import { Skeleton } from '@i-thinking/design/components/skeleton'
-import { ToggleGroup, ToggleGroupItem } from '@i-thinking/design/components/toggle-group'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+import { Button } from '@cogito/design/components/button'
+import { Skeleton } from '@cogito/design/components/skeleton'
+import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { clsx } from 'clsx'
 import { useState } from 'react'
 

@@ -1,6 +1,6 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
-import { Spinner } from '@i-thinking/design/components/spinner'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
+import { Spinner } from '@cogito/design/components/spinner'
 
 import type { GooseProviderEntry } from '@/features/agent/acp/goose-providers'
 import { findFieldLabel, findProviderLabel } from '@/features/agent/model/display'

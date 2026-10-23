@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react/offline'
-import { Badge } from '@i-thinking/design/components/badge'
-import { Button } from '@i-thinking/design/components/button'
+import { Badge } from '@cogito/design/components/badge'
+import { Button } from '@cogito/design/components/button'
 import {
   Dialog,
   DialogContent,
@@ -8,9 +8,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle
-} from '@i-thinking/design/components/dialog'
-import { Separator } from '@i-thinking/design/components/separator'
-import { Spinner } from '@i-thinking/design/components/spinner'
+} from '@cogito/design/components/dialog'
+import { Separator } from '@cogito/design/components/separator'
+import { Spinner } from '@cogito/design/components/spinner'
 import { QRCodeSVG } from 'qrcode.react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'

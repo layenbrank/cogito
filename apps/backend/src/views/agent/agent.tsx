@@ -1,5 +1,5 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
 import { useState } from 'react'
 import { toast } from 'sonner'
 

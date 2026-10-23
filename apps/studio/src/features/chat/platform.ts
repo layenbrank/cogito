@@ -1,5 +1,5 @@
-import { GATEWAY_PROVIDER_KIND, type ModelEntry } from '@i-thinking/agent/provider'
-import type { ChatTarget } from '@i-thinking/chat/ports'
+import { GATEWAY_PROVIDER_KIND, type ModelEntry } from '@cogito/agent/provider'
+import type { ChatTarget } from '@cogito/chat/ports'
 
 import { GET_GATEWAY_MODELS, type GatewayModel } from '@/apis/gateway.ts'
 import type { ProviderRow } from '@/features/chat/provider/row.ts'
@@ -26,17 +26,17 @@ const PLATFORM_PROVIDER_ID = 'platform-gateway'
 const PLATFORM_PROVIDER_NAME = '组织模型'
 
 /**
- * 网关根地址：服务地址（构建时的 `VITE_THINKING`，含 URI 版本前缀）+ `/gateway`。
+ * 网关根地址：服务地址（构建时的 `VITE_COGITO`，含 URI 版本前缀）+ `/gateway`。
  * 补全与目录都挂在它下面，与管理面共用同一份 base。
  */
 function findGatewayBaseURL(): string | null {
-  const base = (import.meta.env.VITE_THINKING ?? '').trim()
+  const base = (import.meta.env.VITE_COGITO ?? '').trim()
   return base ? `${base.replace(/\/+$/, '')}/gateway` : null
 }
 
 /** 平台模型不可用的原因；可用时 null（给 picker 与设置页显示同一句人话） */
 function findPlatformBlocker(): string | null {
-  if (!findGatewayBaseURL()) return '未配置服务地址（构建时的 VITE_THINKING）'
+  if (!findGatewayBaseURL()) return '未配置服务地址（构建时的 VITE_COGITO）'
   if (!findAuthToken()) return '未登录'
   return null
 }
@@ -48,7 +48,7 @@ function findPlatformBlocker(): string | null {
  * 而 picker 只有一行的空间。
  */
 function findPlatformSendBlocker(): string | null {
-  if (!findGatewayBaseURL()) return '平台模型不可用：这次构建没有配置服务地址（VITE_THINKING）。'
+  if (!findGatewayBaseURL()) return '平台模型不可用：这次构建没有配置服务地址（VITE_COGITO）。'
   if (!findAuthToken()) return '平台模型需要登录：请先登录后再发送，或改用本地 / BYOK 模型。'
   return null
 }
@@ -66,7 +66,7 @@ function isPlatformReady(): boolean {
  * 服务端目录 → 声明态模型清单。
  *
  * `name` 才是请求里 `model` 字段要的值，所以它当 `id`；`label` 是给人看的名字。
- * 能力与上下文窗口服务端给多少就落多少，缺的交给契约兜底（见 `@i-thinking/agent/provider`）。
+ * 能力与上下文窗口服务端给多少就落多少，缺的交给契约兜底（见 `@cogito/agent/provider`）。
  */
 function toPlatformModels(catalog: GatewayModel[]): ModelEntry[] {
   return catalog.map(function (item) {

@@ -91,7 +91,7 @@ impl Bootstrap {
                             let _ = app
                                 .notification()
                                 .builder()
-                                .title("i thinking")
+                                .title("cogito")
                                 .body("应用已最小化到系统托盘，点击托盘图标可重新显示")
                                 .show();
                         }

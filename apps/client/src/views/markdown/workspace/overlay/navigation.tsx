@@ -10,10 +10,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
-} from '@i-thinking/design/components/alert-dialog'
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+} from '@cogito/design/components/alert-dialog'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { Icon } from '@iconify/react/offline'
 import { resolve } from '@tauri-apps/api/path'
 import { cn } from 'cn'

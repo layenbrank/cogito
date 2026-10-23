@@ -1,7 +1,7 @@
 /**
  * 两个上传脚本共用的参数解析：
  * - `--x 值` / `--x=值`，布尔旗标只有 `--help`；pnpm 原样递过来的 `--` 跳过；
- * - 「源文件 + 对象键」按 `--release|--version` + `--name`（默认 i-thinking_<版本>_x64-setup.exe）拼，
+ * - 「源文件 + 对象键」按 `--release|--version` + `--name`（默认 cogito_<版本>_x64-setup.exe）拼，
  *   并用读侧白名单先卡一道 —— 读侧下不了的键，传上去也是白传；
  * - 脚本入口统一收尾（出错打一行、退出码 1）。
  */
@@ -62,14 +62,14 @@ function findUploadTarget(args: Map<string, string>, usage: string): UploadTarge
   // --release 是主名；--version 留作别名（根 CLI 有同名旗标，直接写 --version 会被它截走）
   const version = args.get('release') ?? args.get('version')
   const name =
-    args.get('name') ?? (version ? `i-thinking_${version}_x64-setup.exe` : basename(source))
+    args.get('name') ?? (version ? `cogito_${version}_x64-setup.exe` : basename(source))
   const key = args.get('key') ?? (version ? `${version}/${name}` : undefined)
   if (!key) {
     throw new Error(`--release 或 --key 必须给一个\n\n${usage}`)
   }
   if (!isSetupKey(key)) {
     throw new Error(
-      `对象键 ${key} 不在读侧白名单内（形如 1.3.0/i-thinking_1.3.0_x64-setup.exe）——` +
+      `对象键 ${key} 不在读侧白名单内（形如 1.3.0/cogito_1.3.0_x64-setup.exe）——` +
         '传上去也下载不了，先对齐名字。'
     )
   }

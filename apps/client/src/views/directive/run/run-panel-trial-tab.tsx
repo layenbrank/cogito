@@ -1,13 +1,13 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Label } from '@i-thinking/design/components/label'
+import { Button } from '@cogito/design/components/button'
+import { Label } from '@cogito/design/components/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { Textarea } from '@i-thinking/design/components/textarea'
+} from '@cogito/design/components/select'
+import { Textarea } from '@cogito/design/components/textarea'
 
 import type { ActionEntry } from '@/lib/directive-ipc.ts'
 

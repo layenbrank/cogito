@@ -7,7 +7,7 @@
  * - 有可用更新：启动时静默检查发现，点芯片继续安装，点 ✕ 忽略本次提醒。
  */
 import { Icon } from '@iconify/react/offline'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { cn } from 'cn'

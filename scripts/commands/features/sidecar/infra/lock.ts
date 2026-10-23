@@ -8,15 +8,15 @@ import {
   listOnDemandTools,
   parseToolsLock,
   requireLockPin
-} from '@i-thinking/sidecar'
+} from '@cogito/sidecar'
 
 import { TOOLS_LOCK_PATH } from './constants.ts'
 
-import type { LockedTool, SidecarPin, ToolsLock } from '@i-thinking/sidecar'
+import type { LockedTool, SidecarPin, ToolsLock } from '@cogito/sidecar'
 
 /**
  * 读 `tools.lock.json`：形状（schemaVersion / tools / platforms / onDemand）由
- * `@i-thinking/sidecar` 定，这里只负责「文件 → JSON → 校验」，取值的活也交给它。
+ * `@cogito/sidecar` 定，这里只负责「文件 → JSON → 校验」，取值的活也交给它。
  *
  * 版本漂移必须响亮失败（缓存命中不是「有文件就算」），所以缺平台一律抛，不给默认值。
  */

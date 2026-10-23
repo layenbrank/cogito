@@ -2,7 +2,7 @@
  * 新建 / 编辑工作区：源文件夹（多选，其一主要）+ 名称 + 图标 + 副色
  */
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle
-} from '@i-thinking/design/components/dialog'
+} from '@cogito/design/components/dialog'
 import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
 import { useEffect, useMemo, useState } from 'react'
 import { v4 as UUIDV4 } from 'uuid'

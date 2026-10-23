@@ -4,7 +4,7 @@
  * 非 active 用 `invisible`（保留布局尺寸），禁止 `hidden`/`display:none`。
  */
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { clsx } from 'clsx'
 import { toast } from 'sonner'
 

@@ -4,8 +4,8 @@ import {
   PROVIDER_SOURCE_LABELS,
   PROVIDER_SOURCE_NOTES,
   supportsTools
-} from '@i-thinking/agent/provider'
-import { Button } from '@i-thinking/design/components/button'
+} from '@cogito/agent/provider'
+import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,8 +14,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
-import { Input } from '@i-thinking/design/components/input'
+} from '@cogito/design/components/dropdown-menu'
+import { Input } from '@cogito/design/components/input'
 import { useState } from 'react'
 
 import { canThink, findModelKey, findModelPref, readModelPrefs } from './model-prefs.ts'

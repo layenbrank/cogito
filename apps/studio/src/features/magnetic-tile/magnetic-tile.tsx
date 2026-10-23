@@ -1,4 +1,4 @@
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { cn, type ClassValue } from 'cn'
 import { motion, useReducedMotion } from 'motion/react'
 import type { CSSProperties, MouseEventHandler, ReactNode } from 'react'

@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { cn } from 'cn'
 import type { MouseEvent } from 'react'
 import { toast } from 'sonner'

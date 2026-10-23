@@ -14,7 +14,7 @@ import type {
   ChatTarget,
   ChatToolApproval,
   ChatUsage
-} from '@i-thinking/chat/ports'
+} from '@cogito/chat/ports'
 
 import {
   ensureCogitoProvider,

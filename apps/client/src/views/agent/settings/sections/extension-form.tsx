@@ -4,17 +4,17 @@
  * 「表单文本 → 线格式」的转换在 `features/agent/model/extension.ts`（纯函数，有单测）；
  * 这里只管取值、报错与提交。
  */
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { Spinner } from '@i-thinking/design/components/spinner'
-import { Textarea } from '@i-thinking/design/components/textarea'
+} from '@cogito/design/components/select'
+import { Spinner } from '@cogito/design/components/spinner'
+import { Textarea } from '@cogito/design/components/textarea'
 import { useState } from 'react'
 import { toast } from 'sonner'
 

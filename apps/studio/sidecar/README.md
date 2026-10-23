@@ -31,7 +31,7 @@ pnpm command sidecar bootstrap studio
 
 **`manifest.json`** 是这三个工具的**在线包清单**（按平台记在 `platforms` 下：R2 直链 + sha256，外加
 解压后要留下的文件名），宿主构建期内联它、CLI 也能读它核对。三份 JSON（本清单 / `tools.lock.json` /
-`checksums.json`）的字段与解析器都在 [`@i-thinking/sidecar`](../../../packages/sidecar/README.md)：
+`checksums.json`）的字段与解析器都在 [`@cogito/sidecar`](../../../packages/sidecar/README.md)：
 
 ```bash
 pnpm command sidecar manifest            # 打印当前平台的声明

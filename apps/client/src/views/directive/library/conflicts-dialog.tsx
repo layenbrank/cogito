@@ -7,7 +7,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
-} from '@i-thinking/design/components/alert-dialog'
+} from '@cogito/design/components/alert-dialog'
 
 import { NAMED_LIMIT } from './import.ts'
 

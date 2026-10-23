@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-ROOT = Path(r"D:/Documents/monorepo/i-thinking/master")
+ROOT = Path(r"D:/Documents/monorepo/cogito/master")
 SKIP = {"node_modules", "dist", "out", ".git", "coverage"}
 
 IMPORT_RE = re.compile(

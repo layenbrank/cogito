@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
 import { clsx } from 'clsx'
 
 import styles from '@/views/morph/workspace/tasks/path-field.module.scss'

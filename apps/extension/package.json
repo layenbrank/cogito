@@ -1,5 +1,5 @@
 {
-  "name": "@i-thinking/extension",
+  "name": "@cogito/extension",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -30,8 +30,8 @@
     "reflect-metadata": "catalog:"
   },
   "devDependencies": {
-    "@i-thinking/design": "workspace:*",
-    "@i-thinking/shared": "workspace:*",
+    "@cogito/design": "workspace:*",
+    "@cogito/shared": "workspace:*",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react-swc": "catalog:"

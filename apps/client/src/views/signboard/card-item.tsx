@@ -6,7 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
+} from '@cogito/design/components/dropdown-menu'
 import { clsx } from 'clsx'
 import type { KeyboardEvent } from 'react'
 

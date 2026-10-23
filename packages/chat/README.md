@@ -1,4 +1,4 @@
-# @i-thinking/chat
+# @cogito/chat
 
 共享 chat 层：**领域类型 + 端口接口 + assistant-ui 适配器**。被 `apps/studio`（Electron）与 `apps/extension`（MV3）共用。
 

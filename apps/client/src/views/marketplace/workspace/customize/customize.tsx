@@ -1,6 +1,6 @@
-import { Card } from '@i-thinking/design/components/card'
-import { Form } from '@i-thinking/design/components/form'
-import { Label } from '@i-thinking/design/components/label'
+import { Card } from '@cogito/design/components/card'
+import { Form } from '@cogito/design/components/form'
+import { Label } from '@cogito/design/components/label'
 import {
   Select,
   SelectContent,
@@ -9,7 +9,7 @@ import {
   SelectLabel,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
+} from '@cogito/design/components/select'
 import { useMemo, useState, useSyncExternalStore } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'

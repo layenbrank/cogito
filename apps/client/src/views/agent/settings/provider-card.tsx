@@ -4,7 +4,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
+} from '@cogito/design/components/select'
 
 import type { GooseProviderEntry } from '@/features/agent/acp/goose-providers'
 import { findModelLabel } from '@/features/agent/model/display'

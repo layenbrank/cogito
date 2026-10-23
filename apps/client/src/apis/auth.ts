@@ -74,7 +74,7 @@ async function unwrap<T>(pending: Promise<RSF<T>>): Promise<T> {
   return HttpEnvelope(await pending)
 }
 
-const ENV = { env: 'thinking' as const }
+const ENV = { env: 'cogito' as const }
 
 function POST_CAPTCHA() {
   return unwrap(http.post<RSF<CaptchaChallenge>>('/auth/captcha', {}, ENV))

@@ -4,7 +4,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
+} from '@cogito/design/components/select'
 import { useMemo } from 'react'
 import { toast } from 'sonner'
 

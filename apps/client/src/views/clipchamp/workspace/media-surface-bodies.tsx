@@ -4,7 +4,7 @@
  * 面板本身只负责「标题 + 切哪一支」，五种分支各自独立成组件：否则一个函数里塞 5 段互不相干的
  * JSX，认知复杂度会一路顶上去（react-doctor 的 no-high-complexity-react-function）。
  */
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import { clsx } from 'clsx'
 

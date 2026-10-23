@@ -7,7 +7,7 @@ const TRUE = /^(1|true|yes|on)$/i
  * - `lite`（默认）：pandoc / ffmpeg / opencode 不进安装包，由 Studio 运行时从在线源下载；
  * - `full`：全部侧车内置，离线可用。
  *
- * 用 `apps/studio/scripts/run-forge.ts` 跑打包（`pnpm --filter @i-thinking/studio make:full`）。
+ * 用 `apps/studio/scripts/run-forge.ts` 跑打包（`pnpm --filter @cogito/studio make:full`）。
  */
 type SidecarVariant = 'lite' | 'full'
 
@@ -36,7 +36,7 @@ const PUBLISH_GITHUB = isEnabled('STUDIO_PUBLISH_GITHUB')
 const PUBLISH_S3 = isEnabled('STUDIO_PUBLISH_S3')
 
 const GITHUB_OWNER = findEnv('STUDIO_GITHUB_OWNER') ?? 'layenbrank'
-const GITHUB_REPO = findEnv('STUDIO_GITHUB_REPO') ?? 'i-thinking'
+const GITHUB_REPO = findEnv('STUDIO_GITHUB_REPO') ?? 'cogito'
 const GITHUB_TOKEN = findEnv('GITHUB_TOKEN') ?? findEnv('STUDIO_GITHUB_TOKEN')
 
 const S3_BUCKET = findEnv('STUDIO_S3_BUCKET')
@@ -58,8 +58,8 @@ const OSX_NOTARIZE = Boolean(APPLE_ID && APPLE_ID_PASSWORD && APPLE_TEAM_ID)
 /** electron-updater generic feed：STUDIO_UPDATE_URL 或 STUDIO_S3_UPDATE_BASE（make 时写入 STUDIO_UPDATE_FEED_URL） */
 const UPDATE_URL = findEnv('STUDIO_UPDATE_URL')
 
-const MSIX_PUBLISHER = findEnv('STUDIO_MSIX_PUBLISHER') ?? 'CN=i-thinking'
-const MSIX_IDENTITY = findEnv('STUDIO_MSIX_IDENTITY') ?? 'i-thinking.studio'
+const MSIX_PUBLISHER = findEnv('STUDIO_MSIX_PUBLISHER') ?? 'CN=cogito'
+const MSIX_IDENTITY = findEnv('STUDIO_MSIX_IDENTITY') ?? 'cogito.studio'
 
 const SIDECAR_VARIANT = parseVariant(process.env.STUDIO_SIDECAR_VARIANT)
 

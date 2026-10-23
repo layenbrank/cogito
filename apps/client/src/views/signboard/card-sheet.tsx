@@ -1,17 +1,17 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import { Checkbox } from '@i-thinking/design/components/checkbox'
-import { DatePicker } from '@i-thinking/design/components/date-picker'
-import { Input } from '@i-thinking/design/components/input'
-import { Label } from '@i-thinking/design/components/label'
+import { Button } from '@cogito/design/components/button'
+import { Checkbox } from '@cogito/design/components/checkbox'
+import { DatePicker } from '@cogito/design/components/date-picker'
+import { Input } from '@cogito/design/components/input'
+import { Label } from '@cogito/design/components/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
+} from '@cogito/design/components/select'
 import {
   Sheet,
   SheetContent,
@@ -19,9 +19,9 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle
-} from '@i-thinking/design/components/sheet'
-import { Switch } from '@i-thinking/design/components/switch'
-import { Textarea } from '@i-thinking/design/components/textarea'
+} from '@cogito/design/components/sheet'
+import { Switch } from '@cogito/design/components/switch'
+import { Textarea } from '@cogito/design/components/textarea'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
 import { debounce } from 'lodash-es'

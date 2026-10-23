@@ -3,10 +3,10 @@
  * 通过分发端点的 multipart 接口上传一个大文件（跨平台：Node 24 直接跑 .ts）。
  *
  *   pnpm command distribution upload --source <文件> --release 1.3.0
- *   pnpm --filter @i-thinking/distribution run upload -- --source <文件> --key 1.3.0/x-setup.exe
+ *   pnpm --filter @cogito/distribution run upload -- --source <文件> --key 1.3.0/x-setup.exe
  *
  * 鉴权：--auth-key-file（只放密钥的文件，或 wrangler 的 .dev.vars），或环境变量 AUTH_KEY_SECRET，
- * 或 <临时目录>/i-thinking-auth-key.txt。
+ * 或 <临时目录>/cogito-auth-key.txt。
  * 任何一步失败都会调 mpu-abort —— 残缺分片不出现在对象列表里，R2 也会在 7 天后自动清（期间占存储）。
  */
 import { readFileSync } from 'node:fs'
@@ -16,7 +16,7 @@ import { join } from 'node:path'
 
 import { findUploadTarget, parseArgs, runMain } from './upload-args.ts'
 
-const DEFAULT_WORKER = 'https://i-thinking-distribution.layenbrank.workers.dev'
+const DEFAULT_WORKER = 'https://cogito-distribution.layenbrank.workers.dev'
 const DEFAULT_PART_MB = 8
 const DEFAULT_RETRIES = 5
 /** R2 的硬约束：非末片最小 5 MiB */
@@ -27,7 +27,7 @@ const USAGE = `用法: upload-via-worker --source <文件> (--release <x.y.z> | 
 
 选项:
   --source <文件>          要上传的文件（必填）
-  --release <x.y.z>        版本目录；默认对象名 i-thinking_<版本>_x64-setup.exe（--version 亦可用）
+  --release <x.y.z>        版本目录；默认对象名 cogito_<版本>_x64-setup.exe（--version 亦可用）
   --name <文件名>          覆盖对象文件名
   --key <对象键>           直接指定整个对象键（与 --release 二选一）
   --worker <base url>      端点地址（默认 ${DEFAULT_WORKER}）
@@ -56,7 +56,7 @@ function findAuthKey(explicitPath: string | undefined): string {
   if (fromEnv) {
     return fromEnv
   }
-  const fallback = join(tmpdir(), 'i-thinking-auth-key.txt')
+  const fallback = join(tmpdir(), 'cogito-auth-key.txt')
   try {
     return parseAuthKey(readFileSync(fallback, 'utf8'))
   } catch {

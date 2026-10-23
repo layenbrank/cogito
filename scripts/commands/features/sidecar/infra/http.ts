@@ -23,7 +23,7 @@ function createHttpClient(): KyInstance {
   return ky.create({
     timeout: DOWNLOAD_TIMEOUT_MS,
     retry: { limit: 0 },
-    headers: { 'User-Agent': 'i-thinking-sidecar' }
+    headers: { 'User-Agent': 'cogito-sidecar' }
   })
 }
 

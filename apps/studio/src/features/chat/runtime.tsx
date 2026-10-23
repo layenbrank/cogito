@@ -8,12 +8,12 @@ import {
   type AssistantRuntime,
   type ThreadHistoryAdapter
 } from '@assistant-ui/react'
-import { createChatModelAdapter } from '@i-thinking/chat/adapters/chat-model'
+import { createChatModelAdapter } from '@cogito/chat/adapters/chat-model'
 import {
   createThreadHistoryAdapter,
   type ThreadIdentity
-} from '@i-thinking/chat/adapters/thread-history'
-import { createThreadListAdapter } from '@i-thinking/chat/adapters/thread-list'
+} from '@cogito/chat/adapters/thread-history'
+import { createThreadListAdapter } from '@cogito/chat/adapters/thread-list'
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 
 import { createHistoryPort } from '@/features/chat/port/history.ts'

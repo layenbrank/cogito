@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import type { ModelEntry } from '@i-thinking/agent/provider'
+import type { ModelEntry } from '@cogito/agent/provider'
 
 import { CHANNELS } from '@/shared/ipc/channels'
 import type { ChannelOfDomain } from '@/shared/ipc/channels'
@@ -22,7 +22,7 @@ const ProviderID = z.string().min(1).max(64)
  * `IPC_INVALID_PAYLOAD` 挡掉（历史一条都存不下来）。
  */
 const MessageID = z.string().min(1).max(64)
-/** 模型能力声明：缺项按「未知＝不支持」处理，由 `@i-thinking/agent/provider` 补默认 */
+/** 模型能力声明：缺项按「未知＝不支持」处理，由 `@cogito/agent/provider` 补默认 */
 const ModelCapabilitiesSchema = z.object({
   tools: z.boolean().optional(),
   reasoning: z.boolean().optional(),
@@ -36,7 +36,7 @@ const ModelLimitSchema = z.object({
 })
 
 /**
- * 模型条目。契约真源在 `@i-thinking/agent/provider`，这里用 `z.ZodType` 标注
+ * 模型条目。契约真源在 `@cogito/agent/provider`，这里用 `z.ZodType` 标注
  * 让两边不一致时直接编译报错（而不是等运行时才发现）。
  */
 const ModelEntrySchema: z.ZodType<ModelEntry> = z.object({

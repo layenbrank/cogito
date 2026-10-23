@@ -22,9 +22,9 @@ lerna-debug.log*
 
 # Test
 e2e
-# …但 apps/cogito 的跨进程联调工装就叫这个名（是配方，不是产物），别把它的目录也忽略掉。
+# …但 apps/service 的跨进程联调工装就叫这个名（是配方，不是产物），别把它的目录也忽略掉。
 # 只否定「目录本身」是有效的：父目录没被排除，git 会进去逐文件判断。
-!apps/cogito/tests/e2e/
+!apps/service/tests/e2e/
 playwright-report
 coverage
 .vitest
@@ -59,6 +59,16 @@ release
 
 # Environment files
 # .env
+
+# 本地部署变量（样例入库）：docker compose 在仓库根读取
+/.env
+/.env.*
+!/.env.example
+!/.env.production.example
+# compose 的可选环境文件（复制 docker/stack.env.example）
+/docker/stack.env
+# 本地栈数据（Postgres / Redis）
+/data/
 
 # Cache
 .cache
@@ -107,22 +117,22 @@ apps/studio/out
 # browser：Vite outDir 已由上方全局 `dist` 覆盖；stage/pack 产物在 build/
 apps/browser/build
 # browser sync 写入的 WebUI 快照（由 dist 生成，勿当源码提交）
-apps/browser/overlay/chrome/browser/resources/i_thinking/**
-!apps/browser/overlay/chrome/browser/resources/i_thinking/OWNERS
+apps/browser/overlay/chrome/browser/resources/cogito/**
+!apps/browser/overlay/chrome/browser/resources/cogito/OWNERS
 apps/browser/gn/args.release.local.gn
 apps/browser/gn/*.local.gn
 # Python bytecode / coverage (including under .cursor/skills)
 *.pyc
 __pycache__/
 .coverage
-# Python 虚拟环境与工具缓存（ai-worker 用 uv 管理，见 apps/ai-worker/README.md）
+# Python 虚拟环境与工具缓存（compute 用 uv 管理，见 apps/compute/README.md）
 .venv/
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-# ai-worker 的本地 .env（示例见 apps/ai-worker/.env.example）
-apps/ai-worker/.env
+# compute 的本地 .env（示例见 apps/compute/.env.example）
+apps/compute/.env
 
 # planning-with-files-zh 的「磁盘工作记忆」：skill 写在 cwd，属临时状态，勿提交
 findings.md

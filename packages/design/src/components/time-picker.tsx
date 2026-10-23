@@ -2,7 +2,7 @@ import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import * as React from 'react'
 
-import { Popover, PopoverContent, PopoverTrigger } from '@i-thinking/design/components/popover'
+import { Popover, PopoverContent, PopoverTrigger } from '@cogito/design/components/popover'
 import { FIELD_SHELL } from '../lib/surface'
 
 const HOURS = Array.from({ length: 24 }, function (_, index) {

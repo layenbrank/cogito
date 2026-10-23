@@ -2,7 +2,7 @@
  * 输入区右下角：仅模型（审批已挪到 ComposerStart）。
  */
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { useNavigate } from 'react-router-dom'
 
 import { AgentModelPicker } from './model-picker'

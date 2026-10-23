@@ -3,8 +3,8 @@
  * 「返回应用」+ 搜索落在左栏顶；右主区白卡片内容。
  */
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
 import { clsx } from 'clsx'
 import { useMemo, useState, type ComponentType } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'

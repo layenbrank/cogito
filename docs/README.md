@@ -110,7 +110,7 @@
 | [renderer-vite-root-cause.md](./decisions/renderer-vite-root-cause.md) | Studio renderer 构建根因分析               |
 | [durable-execution-engine.md](./decisions/durable-execution-engine.md)  | cogito 可靠执行引擎：duroxide 而非 pg_durable   |
 | [approval-channel.md](./decisions/approval-channel.md)                  | cogito agent 写操作的人工审批通道：闸门在编排、决定走邮箱 |
-| [no-langchain.md](./decisions/no-langchain.md)                          | ai-worker agent 运行时：自持薄层，不引入 LangChain / LangGraph |
+| [no-langchain.md](./decisions/no-langchain.md)                          | compute agent 运行时：自持薄层，不引入 LangChain / LangGraph |
 
 ## 调试入口
 

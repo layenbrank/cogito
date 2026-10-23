@@ -1,4 +1,4 @@
-import { Badge } from '@i-thinking/design/components/badge'
+import { Badge } from '@cogito/design/components/badge'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 

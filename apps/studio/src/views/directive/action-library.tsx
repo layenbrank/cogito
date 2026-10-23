@@ -1,14 +1,14 @@
-import { Badge } from '@i-thinking/design/components/badge'
-import { Card, CardContent } from '@i-thinking/design/components/card'
+import { Badge } from '@cogito/design/components/badge'
+import { Card, CardContent } from '@cogito/design/components/card'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle
-} from '@i-thinking/design/components/dialog'
-import { Input } from '@i-thinking/design/components/input'
-import { ToggleGroup, ToggleGroupItem } from '@i-thinking/design/components/toggle-group'
+} from '@cogito/design/components/dialog'
+import { Input } from '@cogito/design/components/input'
+import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
 import { Icon } from '@iconify/react/offline'
 import { memo, useEffect, useMemo, useState } from 'react'
 

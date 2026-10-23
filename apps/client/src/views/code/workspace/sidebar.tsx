@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { Input } from '@i-thinking/design/components/input'
+import { Input } from '@cogito/design/components/input'
 import { cn } from 'cn'
 import { useEffect, useState } from 'react'
 

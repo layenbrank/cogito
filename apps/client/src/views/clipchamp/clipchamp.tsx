@@ -1,4 +1,4 @@
-import { Spinner } from '@i-thinking/design/components/spinner'
+import { Spinner } from '@cogito/design/components/spinner'
 import { Suspense, lazy } from 'react'
 
 import { Decorations } from '@/components/decorations/index.ts'

@@ -1,4 +1,4 @@
-import { GATEWAY_PROVIDER_KIND } from '@i-thinking/agent/provider'
+import { GATEWAY_PROVIDER_KIND } from '@cogito/agent/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { GatewaySelfQuota } from '@/apis/gateway.ts'
@@ -62,7 +62,7 @@ beforeEach(function () {
     return undefined
   })
   // 平台地址与令牌是闸门的前置条件：这里给全，好让下面的用例专心量配额那一段
-  vi.stubEnv('VITE_THINKING', 'http://127.0.0.1:3000/api/v1')
+  vi.stubEnv('VITE_COGITO', 'http://127.0.0.1:3000/api/v1')
   deps.token = 'jwt'
   deps.syncActiveTenant.mockResolvedValue('t1')
   deps.getQuota.mockResolvedValue(selfQuota())

@@ -4,7 +4,7 @@ import { PROVIDER_KINDS } from './constants.ts'
  * 模型名候选清单（「默认模型」与「可选用模型」两个下拉的唯一数据源）。
  *
  * 候选来自预设与这一行已声明的名字。预设是**预填清单不是白名单**
- * （见 `@i-thinking/agent/provider` 的 `ProviderPreset.models`）：清单外的名字一律允许手填，
+ * （见 `@cogito/agent/provider` 的 `ProviderPreset.models`）：清单外的名字一律允许手填，
  * 候选只解决「不用去官网抄模型名」。本地运行时压根没有公开清单，所以候选可以为空。
  */
 

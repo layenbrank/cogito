@@ -29,7 +29,7 @@ import type {
   ChatElicitationResponse,
   ChatStreamEvent,
   ChatToolApproval
-} from '@i-thinking/chat/ports'
+} from '@cogito/chat/ports'
 
 import { bindAcpRequestRouter, bindGooseNotReady, findAcpHandle } from '@/features/agent/acp/connection'
 import { clearGooseUsage, writeGooseUsage } from '@/features/agent/acp/goose-usage'
@@ -497,7 +497,7 @@ async function openThreadSession(
     .buildSession({
       cwd,
       mcpServers,
-      _meta: { client: 'i-thinking' }
+      _meta: { client: 'cogito' }
     })
     .start()
 
@@ -604,7 +604,7 @@ async function* runThreadPrompt(
       await thread.connection.agent.request(GOOSE_SYSTEM_PROMPT_SET, {
         sessionId: thread.acpSessionID,
         mode: 'append',
-        key: 'i-thinking',
+        key: 'cogito',
         text: input.systemText.trim()
       })
     } catch (error) {

@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { Skeleton } from '@i-thinking/design/components/skeleton'
+import { Skeleton } from '@cogito/design/components/skeleton'
 import { clsx } from 'clsx'
 import { useState, type CSSProperties, type DragEvent } from 'react'
 

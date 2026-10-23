@@ -1,7 +1,7 @@
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 
-import { timeSphere } from '@i-thinking/utils'
+import { timeSphere } from '@cogito/utils'
 import type { MagneticTileWrite } from '@/stores/mirror.ts'
 
 const FILE_FILTER = [{ name: 'JSON', extensions: ['json'] }]

@@ -1,12 +1,12 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle
-} from '@i-thinking/design/components/dialog'
+} from '@cogito/design/components/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,7 +19,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
+} from '@cogito/design/components/dropdown-menu'
 import { useState } from 'react'
 
 import {
@@ -141,7 +141,7 @@ export function ProfileMenu(props: ProfileMenuProps) {
           <DialogHeader>
             <DialogTitle>关于</DialogTitle>
             <DialogDescription>
-              i-thinking Studio。模型和密钥都在这台机器上，不经过在线账号。
+              cogito Studio。模型和密钥都在这台机器上，不经过在线账号。
             </DialogDescription>
           </DialogHeader>
         </DialogContent>

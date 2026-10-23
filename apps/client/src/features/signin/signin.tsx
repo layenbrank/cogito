@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogTitle } from '@i-thinking/design/components/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@cogito/design/components/dialog'
 import { clsx } from 'clsx'
 import { AnimatePresence, useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
@@ -80,7 +80,7 @@ function SignIn(props: SignInProps) {
       <DialogContent
         overlayClassName="bg-black/45 supports-backdrop-filter:backdrop-blur-sm"
         className="w-[min(94vw,1000px)] max-h-[min(92vh,720px)] max-w-none gap-0 overflow-hidden rounded-2xl border-border/60 bg-card p-0 shadow-2xl ring-1 ring-black/5 sm:max-w-none dark:ring-white/10 **:data-[slot=dialog-body]:gap-0 **:data-[slot=dialog-body]:overflow-hidden **:data-[slot=dialog-body]:p-0">
-        <DialogTitle className="sr-only">登录 i-thinking</DialogTitle>
+        <DialogTitle className="sr-only">登录 cogito</DialogTitle>
         <div className={styles.body}>
           <Brand />
           <section className={styles.panel}>

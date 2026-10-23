@@ -51,27 +51,27 @@ jobs:
 
       - name: Type check
         run: |
-          pnpm turbo run type-check --continue --filter=@i-thinking/extension || true
-          pnpm turbo run type-check --continue --filter=@i-thinking/client
+          pnpm turbo run type-check --continue --filter=@cogito/extension || true
+          pnpm turbo run type-check --continue --filter=@cogito/client
           pnpm check:scripts
           pnpm command distribution check
 
       - name: Unit tests
         run: |
-          pnpm --filter @i-thinking/client run unit
-          pnpm turbo run unit --continue --filter=!@i-thinking/client || true
+          pnpm --filter @cogito/client run unit
+          pnpm turbo run unit --continue --filter=!@cogito/client || true
 
       # client = Tauri 桌面包；studio = Electron Forge 打包（需 sidecar bootstrap）。
       # 二者各有独立 release/desktop workflow；此处只编库与 web 应用。
       - name: Build (exclude desktop packages)
         env:
           NODE_ENV: production
-        run: pnpm turbo run build --filter=!@i-thinking/client --filter=!@i-thinking/studio
+        run: pnpm turbo run build --filter=!@cogito/client --filter=!@cogito/studio
 
       - name: Build client web (Vite)
         env:
           NODE_ENV: production
-        run: pnpm --filter @i-thinking/client run build:core
+        run: pnpm --filter @cogito/client run build:core
 
       - name: Archive build artifacts
         if: always()

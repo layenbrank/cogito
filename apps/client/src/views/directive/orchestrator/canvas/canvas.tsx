@@ -1,11 +1,11 @@
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
-import { ScrollArea } from '@i-thinking/design/components/scroll-area'
+} from '@cogito/design/components/dropdown-menu'
+import { ScrollArea } from '@cogito/design/components/scroll-area'
 import { Icon } from '@iconify/react/offline'
 import type { ReactNode } from 'react'
 

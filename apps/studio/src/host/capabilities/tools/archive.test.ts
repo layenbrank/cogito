@@ -24,7 +24,7 @@ describe('findFileInTree', function () {
   const roots: string[] = []
 
   function buildTree(): string {
-    const root = path.join(os.tmpdir(), `i-thinking-tools-${process.pid}-${roots.length}`)
+    const root = path.join(os.tmpdir(), `cogito-tools-${process.pid}-${roots.length}`)
     rmSync(root, { recursive: true, force: true })
     mkdirSync(path.join(root, 'pandoc-3.6.4', 'bin'), { recursive: true })
     writeFileSync(path.join(root, 'pandoc-3.6.4', 'bin', 'pandoc.exe'), 'binary')

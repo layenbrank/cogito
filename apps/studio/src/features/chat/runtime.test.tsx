@@ -156,8 +156,8 @@ vi.mock('@/features/chat/port/instance.ts', function () {
 
 const { ChatRuntimeProvider } = await import('./runtime.tsx')
 // 排版断言要挂真组件：`Thread` 是设计包渲染整条会话的入口，过程折叠也在它里面
-const { Thread } = await import('@i-thinking/design/assistant/thread.aui')
-const { AssistantLabelsProvider } = await import('@i-thinking/design/assistant/labels')
+const { Thread } = await import('@cogito/design/assistant/thread.aui')
+const { AssistantLabelsProvider } = await import('@cogito/design/assistant/labels')
 const { ASSISTANT_LABELS_ZH } = await import('./labels.ts')
 const { AgentProcessFold } = await import('@/views/agent/chat/components/process-group.tsx')
 

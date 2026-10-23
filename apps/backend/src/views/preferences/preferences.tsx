@@ -1,6 +1,6 @@
-import { Badge } from '@i-thinking/design/components/badge'
-import { Button } from '@i-thinking/design/components/button'
-import { Switch } from '@i-thinking/design/components/switch'
+import { Badge } from '@cogito/design/components/badge'
+import { Button } from '@cogito/design/components/button'
+import { Switch } from '@cogito/design/components/switch'
 
 import { ConsolePage } from '@/components/console/console-page.tsx'
 import {

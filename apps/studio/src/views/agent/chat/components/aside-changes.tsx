@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react/offline'
-import { Badge } from '@i-thinking/design/components/badge'
-import { Button } from '@i-thinking/design/components/button'
+import { Badge } from '@cogito/design/components/badge'
+import { Button } from '@cogito/design/components/button'
 import { useState } from 'react'
 
 import { useChangePatch, useSessionChanges, useUndoChanges } from '@/features/agent/changes.ts'

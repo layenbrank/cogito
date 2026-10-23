@@ -1,4 +1,4 @@
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   Sheet,
   SheetContent,
@@ -6,7 +6,7 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle
-} from '@i-thinking/design/components/sheet'
+} from '@cogito/design/components/sheet'
 import clsx from 'clsx'
 import type { ReactNode } from 'react'
 

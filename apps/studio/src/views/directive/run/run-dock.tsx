@@ -1,4 +1,4 @@
-import { ResizablePanel } from '@i-thinking/design/components/resizable'
+import { ResizablePanel } from '@cogito/design/components/resizable'
 
 import ActionLibraryDialog from '@/views/directive/action-library'
 

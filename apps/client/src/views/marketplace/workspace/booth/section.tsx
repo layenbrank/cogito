@@ -4,7 +4,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
+} from '@cogito/design/components/select'
 import { EmptyHint } from '@/views/marketplace/workspace/empty-hint'
 import { IncrementButton } from '@/views/marketplace/workspace/increment-button'
 import { memo, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react'

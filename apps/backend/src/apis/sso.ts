@@ -31,7 +31,7 @@ interface SsoUpdate {
   status?: string
 }
 
-const ENV = { env: 'thinking' as const }
+const ENV = { env: 'cogito' as const }
 
 async function unwrap<T>(pending: Promise<RSF<T>>): Promise<T> {
   return HttpEnvelope(await pending)

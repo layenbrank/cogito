@@ -1,13 +1,13 @@
-# ai-worker 的 agent 运行时：自持薄层（不采用 LangChain / LangGraph）
+# compute 的 agent 运行时：自持薄层（不采用 LangChain / LangGraph）
 
-> 目标：ai-worker 的 agent 运行时里，「这一步怎么跟模型说话、工具怎么跑、失败怎么喂回去、记忆怎么收拾」
+> 目标：compute 的 agent 运行时里，「这一步怎么跟模型说话、工具怎么跑、失败怎么喂回去、记忆怎么收拾」
 > 需要 Python 生态（PDF 抽取、向量、将来的多格式解析与评测），
 > 但**不需要**再有第二个地方来决定「要不要下一步、谁批准、历史存在哪」。
 > 结论：**自持一层薄运行时**（`agent_runtime/`，共 1,952 行，运行期依赖只有 pydantic / httpx 与契约本身），
 > **不采用** `langchain` / `langgraph` 作为这一层的框架。
 
 > **这是一条补记**。P6b–P10b 落地时只留下了「工具面就是安全边界」这类做法
-> （[`../../apps/ai-worker/src/ai_worker/agent_runtime/__init__.py`](../../apps/ai-worker/src/ai_worker/agent_runtime/__init__.py)），
+> （[`../../apps/compute/src/compute/agent_runtime/__init__.py`](../../apps/compute/src/compute/agent_runtime/__init__.py)），
 > 没有留下「为什么不用现成 agent 框架」的取舍理由。本记录于 P10b 之后补写，**不改动任何实现**：
 > 涉及本仓库的部分以仓库内既有文档与门禁为准；上游事实于 2026-09-28 逐个核对（来源见 §7）。
 
@@ -15,7 +15,7 @@
 
 | 候选                                            | 形态                                                                                                                            | 结论                                                                       |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| **自持薄层（现状）**                            | 契约形状的 pydantic 模型 + 一个协议翻译层 + 一张工具登记表 + 一个手写 JSON Schema 子集校验器                                     | **采用**，落地在 `apps/ai-worker/src/ai_worker/agent_runtime/`              |
+| **自持薄层（现状）**                            | 契约形状的 pydantic 模型 + 一个协议翻译层 + 一张工具登记表 + 一个手写 JSON Schema 子集校验器                                     | **采用**，落地在 `apps/compute/src/compute/agent_runtime/`              |
 | `langchain` 1.x                                 | 预置 agent 架构 + 模型/工具集成；官方自述 agent 运行**建在 LangGraph 上**                                                       | 不采用，见 §2.1、§2.2                                                      |
 | `langgraph`                                     | 低层 agent 编排运行时 + checkpointer                                                                                            | 不采用，见 §2.3：与 durable 编排**职责重叠**                               |
 | 只借 `langchain-core`（消息与工具抽象，不带编排） | 「窄依赖」折中                                                                                                                 | 1.x 里这个折中不成立（§2.2）；且它硬拉 `langsmith` / `tenacity`（§2.5）    |
@@ -25,11 +25,11 @@
 
 | #   | 约束                                                                                                                        | 出处                                                                    |
 | --- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| 1   | **唯一 LLM 出网点 = cogito 的 `gateway`**（唯一计量点、唯一审计点）；ai-worker 不许持有 API Key、base URL、模型清单            | [`providers/__init__.py`](../../apps/ai-worker/src/ai_worker/providers/__init__.py)、[`gateway/README.md`](../../apps/cogito/src/services/gateway/README.md) |
-| 2   | **循环的宿主是 durable 编排**：要不要再来一步、剩余几步、这一步允许哪些工具、历史里有什么，都由 cogito 决定                     | [`agent_runtime/__init__.py`](../../apps/ai-worker/src/ai_worker/agent_runtime/__init__.py)、`orchestrations/agent.rs`（`remaining_steps` / `tools_for_step`） |
-| 3   | **人工审批的闸门在编排里**：ai-worker 只负责「申报这次调用要人批」与「批准后真的执行它」                                       | [`approval-channel.md`](./approval-channel.md)                          |
-| 4   | **失败分级是契约的一部分**：`ok=false` 是正常结果、只有暂时性故障才 503、审批不合规是终局拒绝（403 + `500509` → 400）        | [`tools.py`](../../apps/ai-worker/src/ai_worker/agent_runtime/tools.py)、[`cogito_client.py`](../../apps/ai-worker/src/ai_worker/cogito_client.py) |
-| 5   | 工程门禁：mypy `strict` + `warn_unreachable`、pytest `filterwarnings = ["error"]`、ruff 含 `S`（安全）规则、单一 lock（uv）   | [`pyproject.toml`](../../apps/ai-worker/pyproject.toml)                 |
+| 1   | **唯一 LLM 出网点 = cogito 的 `gateway`**（唯一计量点、唯一审计点）；compute 不许持有 API Key、base URL、模型清单            | [`providers/__init__.py`](../../apps/compute/src/compute/providers/__init__.py)、[`gateway/README.md`](../../apps/service/src/services/gateway/README.md) |
+| 2   | **循环的宿主是 durable 编排**：要不要再来一步、剩余几步、这一步允许哪些工具、历史里有什么，都由 cogito 决定                     | [`agent_runtime/__init__.py`](../../apps/compute/src/compute/agent_runtime/__init__.py)、`orchestrations/agent.rs`（`remaining_steps` / `tools_for_step`） |
+| 3   | **人工审批的闸门在编排里**：compute 只负责「申报这次调用要人批」与「批准后真的执行它」                                       | [`approval-channel.md`](./approval-channel.md)                          |
+| 4   | **失败分级是契约的一部分**：`ok=false` 是正常结果、只有暂时性故障才 503、审批不合规是终局拒绝（403 + `500509` → 400）        | [`tools.py`](../../apps/compute/src/compute/agent_runtime/tools.py)、[`cogito_client.py`](../../apps/compute/src/compute/cogito_client.py) |
+| 5   | 工程门禁：mypy `strict` + `warn_unreachable`、pytest `filterwarnings = ["error"]`、ruff 含 `S`（安全）规则、单一 lock（uv）   | [`pyproject.toml`](../../apps/compute/pyproject.toml)                 |
 
 ## 2. 决定性理由
 
@@ -38,7 +38,7 @@
 | 框架卖什么                            | 本仓库谁在管                                                                                                    | 引入后拿到什么         |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------- |
 | **厂商适配**（几十种 LLM / embedding） | Rust `gateway`：`gateway_provider`（`baseURL / apiKeyEnc / status`）、`gateway_model`（能力、配额）、`gateway_usage`、`gateway_audit` | 拿不到。位置是**刻意**留的 |
-| **向量库 / 检索器抽象**               | 只有一个库：自己的 Postgres + pgvector，表（`rag_chunk` / `agent_memory` 等）归 ai-worker，跨库边界有测试钉着      | 多一层抽象，少一点确定性 |
+| **向量库 / 检索器抽象**               | 只有一个库：自己的 Postgres + pgvector，表（`rag_chunk` / `agent_memory` 等）归 compute，跨库边界有测试钉着      | 多一层抽象，少一点确定性 |
 | **Agent 循环 / 持久化**               | durable 编排（duroxide + Postgres）：`/agents/steps` 只跑**一步**，`/agents/tool-executions` 只跑**一次已批准的调用** | 第二个控制面（§2.2、§2.3） |
 
 一句话：不是「没必要」，而是**必要性已经被别的东西满足**——而这些「别的东西」正是为了满足 §1 的约束才存在的。
@@ -65,7 +65,7 @@ pydantic>=2.7.4
 `checkpoint` 与可靠执行的差别，[`durable-execution-engine.md`](./durable-execution-engine.md) 已经在候选表里判过一次
 （第 19 行：「框架自带 checkpoint（LangGraph 等）→ 不采用：checkpoint ≠ 可靠执行」）。这里只补三点与本层直接相关的：
 
-- **换进程接着跑**：编排可能在新进程里继续，ai-worker 不持有对话状态（`agent_runtime/__init__.py` 的原话）。
+- **换进程接着跑**：编排可能在新进程里继续，compute 不持有对话状态（`agent_runtime/__init__.py` 的原话）。
   框架的 checkpointer 假设状态在**它自己的进程/存储**里，这与「一步一个活动、重投能收敛」的形状相反。
 - **至少一次重投递**：每个工具的写入用确定性主键收敛，所以 cogito 重投一步安全。框架的「恢复」会带来它自己的一套重放语义。
 - **审批窗口**：人在编排还没走到订阅点时就点了批准，是靠**邮箱**接住的（见 approval-channel ADR）。
@@ -77,11 +77,11 @@ pydantic>=2.7.4
 
 `agent_runtime/` 1,952 行的构成：工具面 751、单步流程 350、记忆 317、契约模型 299、协议翻译 173、能力登记 62。
 
-- **协议翻译**（173 行，[`dialogue.py`](../../apps/ai-worker/src/ai_worker/agent_runtime/dialogue.py)）：
+- **协议翻译**（173 行，[`dialogue.py`](../../apps/compute/src/compute/agent_runtime/dialogue.py)）：
   契约是**扁平**的（`arguments` 是 JSON 字符串，cogito 不必反序列化就能整条存下再回灌），OpenAI 线格式是**嵌套**的。
   模块 docstring 写下的保证是「翻译只发生在一个位置，所以『cogito 看到的历史』和『模型看到的历史』不可能各自漂移」。
   引入框架的消息对象，等于把这句话变成三种表示之间的三方同步。
-- **工具面**（751 行，[`tools.py`](../../apps/ai-worker/src/ai_worker/agent_runtime/tools.py)）：
+- **工具面**（751 行，[`tools.py`](../../apps/compute/src/compute/agent_runtime/tools.py)）：
   说明书与校验**共用同一份声明**（给模型看的 `parameters` 就是校验器读的那份，所以不会出现「写着 1–20、代码允许 1000」）。
   这一条框架也能做（Pydantic `args_schema`），但它**承载不了这里的语义**：
   审批占位（`awaitingApproval=true` 是 200 的稳定机器码）、失败分级（`ok=false` 喂回模型 vs 暂时性故障才 503）、
@@ -93,8 +93,8 @@ pydantic>=2.7.4
 | #   | 成本                                                                                                                              | 依据                                                                |
 | --- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | 1   | `langchain-core` **硬依赖 `langsmith>=0.3.45`**：面向第三方平台的观测 SDK 进依赖树，而本仓观测口径已定在 OTel + cogito 的计量与审计 | PyPI 元数据（2026-09-28）                                           |
-| 2   | `langchain-core` **硬依赖 `tenacity`**：重试/退避在这个框架里是一等公民，与本仓「重试与否由 cogito 决定」的口径会有两个来源         | PyPI 元数据；本仓口径见 [`cogito_client.py`](../../apps/ai-worker/src/ai_worker/cogito_client.py) 的错误映射注释 |
-| 3   | pytest `filterwarnings = ["error"]`：第三方 deprecation 会让测试套**直接红**，等于把 CI 稳定性外包给框架的发版节奏                  | [`pyproject.toml`](../../apps/ai-worker/pyproject.toml)             |
+| 2   | `langchain-core` **硬依赖 `tenacity`**：重试/退避在这个框架里是一等公民，与本仓「重试与否由 cogito 决定」的口径会有两个来源         | PyPI 元数据；本仓口径见 [`cogito_client.py`](../../apps/compute/src/compute/cogito_client.py) 的错误映射注释 |
+| 3   | pytest `filterwarnings = ["error"]`：第三方 deprecation 会让测试套**直接红**，等于把 CI 稳定性外包给框架的发版节奏                  | [`pyproject.toml`](../../apps/compute/pyproject.toml)             |
 | 4   | `langgraph-sdk` 是 `langgraph` 的必装依赖：它面向 LangGraph 平台/服务端，而本仓没有、也不打算有那个服务端                           | PyPI 元数据                                                         |
 | 5   | mypy `strict` + `warn_unreachable`：框架把大量行为放在运行时（Pydantic / `Any` 泄漏），要额外写 override 才过得去                   | `pyproject.toml`                                                    |
 
@@ -117,7 +117,7 @@ classifiers 覆盖到 3.14，与本仓的 `>=3.12,<3.13` 不冲突。**Python �
 
 - 上游线格式变化要自己跟（好处是**只有一处**要改：`dialogue.py`）；没有现成的结构化输出解析与解析失败重试。
 - 没有现成的多格式文档加载器：目前只有 `pypdf`（纯 Python、无系统库依赖），
-  新增格式是「加一条 `_register(...)`」的显式登记（见 [`extract.py`](../../apps/ai-worker/src/ai_worker/rag_ingest/extract.py)）。
+  新增格式是「加一条 `_register(...)`」的显式登记（见 [`extract.py`](../../apps/compute/src/compute/rag_ingest/extract.py)）。
 - 没有 LangSmith 那类评测 / 回放平台：要做评测集回归得自己搭，或单独评估窄工具。
 - 厂商适配要 cogito 那边加 provider——这是**正确的位置**，不是代价。
 - Python 侧没有 `cargo deny` 那样的「封禁依赖」门禁，所以这条决定只能靠文档 + `pyproject.toml` 的显式审阅来守。
@@ -140,16 +140,16 @@ classifiers 覆盖到 3.14，与本仓的 `>=3.12,<3.13` 不冲突。**Python �
 
 | 位置                                                                                                        | 说明                                                     |
 | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| [`agent_runtime/__init__.py`](../../apps/ai-worker/src/ai_worker/agent_runtime/__init__.py)                  | 三个端点、与 cogito 的分工（谁是循环宿主）                 |
-| [`tools.py`](../../apps/ai-worker/src/ai_worker/agent_runtime/tools.py)                                      | 工具面三条硬边界 + 审批声明（`requires_approval`）        |
-| [`dialogue.py`](../../apps/ai-worker/src/ai_worker/agent_runtime/dialogue.py)                                | 契约 ↔ OpenAI 线格式的唯一翻译点                         |
-| [`cogito_client.py`](../../apps/ai-worker/src/ai_worker/cogito_client.py)                                        | 唯一出网点；错误映射口径（谁能重试）                     |
-| [`providers/__init__.py`](../../apps/ai-worker/src/ai_worker/providers/__init__.py)                          | 「本包不会有 API Key，也不会有 base_url」                |
-| [`gateway/README.md`](../../apps/cogito/src/services/gateway/README.md)                                        | 厂商适配 / 配额 / 审计 / 写令牌                          |
+| [`agent_runtime/__init__.py`](../../apps/compute/src/compute/agent_runtime/__init__.py)                  | 三个端点、与 cogito 的分工（谁是循环宿主）                 |
+| [`tools.py`](../../apps/compute/src/compute/agent_runtime/tools.py)                                      | 工具面三条硬边界 + 审批声明（`requires_approval`）        |
+| [`dialogue.py`](../../apps/compute/src/compute/agent_runtime/dialogue.py)                                | 契约 ↔ OpenAI 线格式的唯一翻译点                         |
+| [`cogito_client.py`](../../apps/compute/src/compute/cogito_client.py)                                        | 唯一出网点；错误映射口径（谁能重试）                     |
+| [`providers/__init__.py`](../../apps/compute/src/compute/providers/__init__.py)                          | 「本包不会有 API Key，也不会有 base_url」                |
+| [`gateway/README.md`](../../apps/service/src/services/gateway/README.md)                                        | 厂商适配 / 配额 / 审计 / 写令牌                          |
 | [`durable-execution-engine.md`](./durable-execution-engine.md)                                               | 可靠执行的形状；候选表里已判过框架 checkpoint            |
 | [`approval-channel.md`](./approval-channel.md)                                                               | 审批闸门在编排、决定走邮箱                               |
-| [`../apps/cogito/guide/agent-runtime.md`](../../apps/cogito/guide/agent-runtime.md)                              | 三进程分工、工具表、三条立场                             |
-| [`../../apps/ai-worker/README.md`](../../apps/ai-worker/README.md)                                           | 「设计决策」小节（与「为什么不用 Alembic？」并列）        |
+| [`../apps/service/guide/agent-runtime.md`](../../apps/service/guide/agent-runtime.md)                              | 三进程分工、工具表、三条立场                             |
+| [`../../apps/compute/README.md`](../../apps/compute/README.md)                                           | 「设计决策」小节（与「为什么不用 Alembic？」并列）        |
 
 ## 7. 上游来源（2026-09-28 核对）
 

@@ -1,5 +1,5 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Progress } from '@i-thinking/design/components/progress'
+import { Button } from '@cogito/design/components/button'
+import { Progress } from '@cogito/design/components/progress'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { useEffect, useMemo, useRef, useState } from 'react'

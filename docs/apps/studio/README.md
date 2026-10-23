@@ -1,6 +1,6 @@
 # Studio 文档
 
-**i thinking Studio** 是基于 Electron Forge + Vite 的桌面应用：主进程域模块 + 契约 IPC + 安全白名单 preload；业务 HTTP 走远程 API，**不**嵌入 Nest sidecar。
+**cogito Studio** 是基于 Electron Forge + Vite 的桌面应用：主进程域模块 + 契约 IPC + 安全白名单 preload；业务 HTTP 走远程 API，**不**嵌入 Nest sidecar。
 
 ## 按角色阅读
 

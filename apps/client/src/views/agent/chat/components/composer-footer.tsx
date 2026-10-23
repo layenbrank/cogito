@@ -1,11 +1,11 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
+} from '@cogito/design/components/dropdown-menu'
 import { invoke } from '@tauri-apps/api/core'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'

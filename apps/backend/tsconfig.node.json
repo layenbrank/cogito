@@ -9,7 +9,7 @@
     "lib": ["ESNext"],
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["@types/node", "@i-thinking/shared/process-env"],
+    "types": ["@types/node", "@cogito/shared/process-env"],
     "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,

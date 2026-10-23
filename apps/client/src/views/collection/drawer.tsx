@@ -1,5 +1,5 @@
-import { Sheet, SheetContent, SheetTitle } from '@i-thinking/design/components/sheet'
-import { Input } from '@i-thinking/design/components/input'
+import { Sheet, SheetContent, SheetTitle } from '@cogito/design/components/sheet'
+import { Input } from '@cogito/design/components/input'
 import { invoke } from '@tauri-apps/api/core'
 import Fuse from 'fuse.js'
 import { useCallback, useEffect, useMemo, useState } from 'react'

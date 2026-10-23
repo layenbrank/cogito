@@ -44,7 +44,7 @@ const noInlineRegexes: readonly RegExp[] = [
  */
 function WorkSpace(): Plugin {
   const workspacePackages = fileURLToPath(new URL('../../packages/', import.meta.url))
-  const linkedMarker = `${sep}node_modules${sep}@i-thinking${sep}`
+  const linkedMarker = `${sep}node_modules${sep}@cogito${sep}`
 
   return {
     name: 'studio:workspace-source-hmr',
@@ -170,13 +170,13 @@ export default defineConfig(function ({ mode }: ConfigEnv): UserConfig {
        * 这些包 exports 指向 `src/*.ts`（不是 dist），预构建会把它们的**当前一份**源码冻进
        * `.vite/deps/*.js`：改源码加个导出，vite 侧确实热更了（源码包不在 vite root 内、
        * 又是 pnpm 软链，见上面的 `WorkSpace` 插件说明），但浏览器拿的仍是旧 bundle ——
-       * 报 `The requested module '/node_modules/.vite/deps/@i-thinking_agent_provider.js'
+       * 报 `The requested module '/node_modules/.vite/deps/@cogito_agent_provider.js'
        * does not provide an export named 'X'`，整页被 ErrorBoundary 接住。
        *
-       * 判据：凭 `exports` 指向 `src` 的包都排除；指向 `dist` 的（如 `@i-thinking/hooks`）保持
+       * 判据：凭 `exports` 指向 `src` 的包都排除；指向 `dist` 的（如 `@cogito/hooks`）保持
        * 预构建 —— 那些包本来就靠各自 `build` 出新产物，排除只会让它读同一个 dist 文件。
        */
-      exclude: ['@i-thinking/design', '@i-thinking/chat', '@i-thinking/agent']
+      exclude: ['@cogito/design', '@cogito/chat', '@cogito/agent']
     },
     build: {
       target: 'esnext',

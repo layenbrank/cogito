@@ -9,12 +9,12 @@ type HttpOptions = Omit<FetchOptions<'json'>, 'method' | 'body'>
 type HttpBody = FetchOptions['body']
 
 const fetcher = ofetch.create({
-  baseURL: import.meta.env.VITE_THINKING,
+  baseURL: import.meta.env.VITE_COGITO,
   timeout: TIMEOUT_MS,
   onRequest({ request, options }) {
     const url = findRequestUrl(request)
     // 自家接口带上链路：服务端据此把入口日志、下游调用与响应回显串成同一条链路
-    if (isThinkingUrl(url) && !options.headers.has(TRACEPARENT_HEADER)) {
+    if (isCogitoUrl(url) && !options.headers.has(TRACEPARENT_HEADER)) {
       options.headers.set(TRACEPARENT_HEADER, createTraceparent())
     }
 
@@ -22,7 +22,7 @@ const fetcher = ofetch.create({
     if (tenantID) options.headers.set('X-Tenant-ID', tenantID)
 
     const token = findAuthToken()
-    if (!token || !isThinkingUrl(url)) return
+    if (!token || !isCogitoUrl(url)) return
     options.headers.set('Authorization', `Bearer ${token}`)
   }
 })
@@ -33,10 +33,10 @@ function findRequestUrl(request: RequestInfo) {
   return request.url
 }
 
-/** 相对路径走自家接口；绝对地址只有落在 VITE_THINKING 上才带登录令牌。 */
-function isThinkingUrl(url: string) {
+/** 相对路径走自家接口；绝对地址只有落在 VITE_COGITO 上才带登录令牌。 */
+function isCogitoUrl(url: string) {
   if (!/^https?:\/\//i.test(url)) return true
-  const base = import.meta.env.VITE_THINKING
+  const base = import.meta.env.VITE_COGITO
   if (!base) return false
   return url.startsWith(base)
 }
@@ -49,7 +49,7 @@ function isThinkingUrl(url: string) {
  * 调网关（`baseURL` 已含 `/api/v1`），绝对地址这里只按路径片段判断。
  */
 function isGatewayUrl(url: string): boolean {
-  if (!isThinkingUrl(url)) return false
+  if (!isCogitoUrl(url)) return false
   return url.includes('/gateway/')
 }
 

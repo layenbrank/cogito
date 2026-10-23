@@ -95,7 +95,7 @@ $env:ELECTRON_MIRROR = [Environment]::GetEnvironmentVariable('ELECTRON_MIRROR','
 
 | 方案 | 说明 |
 |------|------|
-| filter 安装 | `pnpm install --filter @i-thinking/client...` 可避开 electron |
+| filter 安装 | `pnpm install --filter @cogito/client...` 可避开 electron |
 | `ELECTRON_SKIP_BINARY_DOWNLOAD=1` | 跳过下载；studio 无法运行 |
 | packageExtensions | 向 electron 注入 config；需实测 |
 | 包装脚本 | `cross-env ELECTRON_MIRROR=... pnpm install`；直接 `pnpm install` 仍可能卡住 |

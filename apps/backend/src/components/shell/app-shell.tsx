@@ -1,11 +1,11 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@i-thinking/design/components/avatar'
-import { Button } from '@i-thinking/design/components/button'
+import { Avatar, AvatarFallback, AvatarImage } from '@cogito/design/components/avatar'
+import { Button } from '@cogito/design/components/button'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
-} from '@i-thinking/design/components/tooltip'
+} from '@cogito/design/components/tooltip'
 import { Icon } from '@iconify/react/offline'
 import clsx from 'clsx'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
@@ -165,7 +165,7 @@ function AppShell() {
               {!isIconMode ? (
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs tracking-[0.14em] text-[var(--backend-rail-muted)] uppercase">
-                    i-thinking
+                    cogito
                   </p>
                   <h1 className="truncate text-sm font-semibold tracking-tight">Backend</h1>
                 </div>

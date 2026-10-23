@@ -2,7 +2,7 @@
  * 终端面板容器：标题栏（标题 + 关闭）+ 多 tab 内容。
  */
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 
 import { TerminalTabs } from '@/features/terminal/terminal-tabs'
 import { useTerminalStore } from '@/stores/terminal'

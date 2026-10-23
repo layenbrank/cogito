@@ -2,8 +2,8 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from 'cn'
 import * as React from 'react'
 
-import { Button } from '@i-thinking/design/components/button'
-import { Textarea } from '@i-thinking/design/components/textarea'
+import { Button } from '@cogito/design/components/button'
+import { Textarea } from '@cogito/design/components/textarea'
 
 /**
  * 成组输入壳：与 Input / DatePicker / TimePicker 同高（h-9），聚焦环对齐包内 1px 规范。

@@ -9,7 +9,7 @@ import {
 } from 'node:fs'
 import path from 'node:path'
 
-import { parseOnlineManifest as parseManifestDocument } from '@i-thinking/sidecar'
+import { parseOnlineManifest as parseManifestDocument } from '@cogito/sidecar'
 
 import { REPO_ROOT } from '../../../core/paths.ts'
 import { VENDOR_DIR } from './constants.ts'
@@ -17,7 +17,7 @@ import { fetchVerified } from './download.ts'
 import { extractArchive, findFileInTree } from './extract.ts'
 import { findBinaryName, findPlatformKey } from './platform.ts'
 
-import type { OnlineManifest, OnlineTool, SidecarPackage } from '@i-thinking/sidecar'
+import type { OnlineManifest, OnlineTool, SidecarPackage } from '@cogito/sidecar'
 
 /**
  * Studio 的**在线包清单**：`apps/studio/sidecar/manifest.json`。

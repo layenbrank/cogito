@@ -1,15 +1,15 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
-import { Label } from '@i-thinking/design/components/label'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
+import { Label } from '@cogito/design/components/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
+} from '@cogito/design/components/select'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -64,13 +64,14 @@ function formatTime(ms: number) {
 export default function TenantsView() {
   const queryClient = useQueryClient()
   const [searchParams, updateSearchParams] = useSearchParams()
-  const focus = searchParams.get('focus')
+  // URL 的 `focus` 是选中租户的唯一真值：外部跳转、前进/后退、点击行都写它。
+  // 不用 state + effect 同步——effect 里同步 setState 会触发级联渲染。
+  const selectedID = searchParams.get('focus')
 
   const [keyword, updateKeyword] = useState('')
   const [typeFilter, updateTypeFilter] = useState(FILTER_ALL)
   const [statusFilter, updateStatusFilter] = useState(FILTER_ALL)
   const [page, updatePage] = useState(1)
-  const [selectedID, updateSelectedID] = useState<string | null>(focus)
   const [sheetOpen, updateSheetOpen] = useState(false)
   const [editing, updateEditing] = useState<TenantSummary | null>(null)
   const [draft, updateDraft] = useState({
@@ -83,13 +84,6 @@ export default function TenantsView() {
   const [planDraft, updatePlanDraft] = useState('')
   const [pendingDelete, updatePendingDelete] = useState<TenantSummary | null>(null)
   const [pendingMemberRemove, updatePendingMemberRemove] = useState<string | null>(null)
-
-  useEffect(
-    function () {
-      if (focus) updateSelectedID(focus)
-    },
-    [focus]
-  )
 
   const tenants = useQuery({
     queryKey: ['admin-tenants', keyword, typeFilter, statusFilter, page],
@@ -157,11 +151,7 @@ export default function TenantsView() {
     onSuccess() {
       toast.success('已删除租户')
       if (pendingDelete?.id === selectedID) {
-        updateSelectedID(null)
-        updateSearchParams(function (prev) {
-          prev.delete('focus')
-          return prev
-        })
+        selectTenant(null)
       }
       updatePendingDelete(null)
       invalidateTenants()
@@ -254,10 +244,10 @@ export default function TenantsView() {
     updateSheetOpen(true)
   }
 
-  function selectTenant(id: string) {
-    updateSelectedID(id)
+  function selectTenant(id: string | null) {
     updateSearchParams(function (prev) {
-      prev.set('focus', id)
+      if (id) prev.set('focus', id)
+      else prev.delete('focus')
       return prev
     })
   }
@@ -568,7 +558,7 @@ export default function TenantsView() {
                           disabled={!planDraft.trim() || grantSubscription.isPending}
                           onClick={function () {
                             grantSubscription.mutate({
-                              tenantID: detail.data!.id,
+                              tenantID: detail.data.id,
                               plan: planDraft.trim()
                             })
                           }}>
@@ -616,7 +606,7 @@ export default function TenantsView() {
                                 onValueChange={function (value) {
                                   if (!value) return
                                   patchMember.mutate({
-                                    tenantID: detail.data!.id,
+                                    tenantID: detail.data.id,
                                     userID: row.userID,
                                     role: value
                                   })
@@ -653,7 +643,7 @@ export default function TenantsView() {
                                 onValueChange={function (value) {
                                   if (!value) return
                                   patchMember.mutate({
-                                    tenantID: detail.data!.id,
+                                    tenantID: detail.data.id,
                                     userID: row.userID,
                                     status: value
                                   })
@@ -738,7 +728,7 @@ export default function TenantsView() {
                         disabled={!memberDraft.userID.trim() || addMember.isPending}
                         onClick={function () {
                           addMember.mutate({
-                            tenantID: detail.data!.id,
+                            tenantID: detail.data.id,
                             userID: memberDraft.userID.trim(),
                             role: memberDraft.role
                           })

@@ -11,8 +11,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { Spinner } from '@i-thinking/design/components/spinner'
+} from '@cogito/design/components/select'
+import { Spinner } from '@cogito/design/components/spinner'
 import { useEffect, useState } from 'react'
 
 import { findAcpHandle } from '@/features/agent/acp/connection'

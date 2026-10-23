@@ -3,8 +3,8 @@ import {
   ToolGroupContent,
   ToolGroupRoot,
   ToolGroupTrigger
-} from '@i-thinking/design/assistant/tool-group.aui'
-import type { ThreadGroupPart } from '@i-thinking/design/assistant/thread.aui'
+} from '@cogito/design/assistant/tool-group.aui'
+import type { ThreadGroupPart } from '@cogito/design/assistant/thread.aui'
 import { useState, type PropsWithChildren } from 'react'
 
 import { countToolFailures } from '@/features/agent/tool-stats.ts'

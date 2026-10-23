@@ -7,12 +7,12 @@ import {
   listOnDemandFiles,
   parseStagingChecksums as parseChecksumsDocument,
   ONLINE_TOOL_KEYS
-} from '@i-thinking/sidecar'
+} from '@cogito/sidecar'
 
 import { PACKAGE_ROOT } from '../constants'
 import { SIDECAR_VARIANT } from '../env'
 
-import type { StagingChecksums } from '@i-thinking/sidecar'
+import type { StagingChecksums } from '@cogito/sidecar'
 
 const CHECKSUMS_FILE = 'checksums.json'
 
@@ -36,7 +36,7 @@ function findStagedSidecarDir(key = findPlatformKey()): string {
 
 /**
  * 读 + 校验落盘清单：形状（`schemaVersion` / `platform` / 逐文件的 `tool` + `version` + `sha256`）
- * 归契约包 `@i-thinking/sidecar` 管 —— 旧版（没有逐条 `onDemand`）会在这里响亮失败，
+ * 归契约包 `@cogito/sidecar` 管 —— 旧版（没有逐条 `onDemand`）会在这里响亮失败，
  * 而不是被猜着读（以前按文件名正则兜底，猜漏了就是把 800MB 的按需工具打进精简版）。
  */
 function parseStagingChecksums(key: string): StagingChecksums {

@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
   type DialogSide
-} from '@i-thinking/design/components/dialog'
+} from '@cogito/design/components/dialog'
 
 function Sheet(props: React.ComponentProps<typeof Dialog>) {
   return (

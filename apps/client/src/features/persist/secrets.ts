@@ -8,7 +8,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { CHANNELS } from '@/shared/ipc/channels'
 
 const AUTH_CHANGED = 'auth:changed'
-const SECRET_SERVICE = 'i-thinking'
+const SECRET_SERVICE = 'cogito'
 
 type SecretAccount = 'jwt' | `provider:${string}`
 

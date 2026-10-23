@@ -1,6 +1,6 @@
 interface ImportMetaEnv {
   readonly VITE_APP_TITLE: string
-  readonly VITE_THINKING?: string
+  readonly VITE_COGITO?: string
   readonly VITE_HOSTNAME?: string
   readonly VITE_PORT?: string
   readonly VITE_PROTOCOL?: string

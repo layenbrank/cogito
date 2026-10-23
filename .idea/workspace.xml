@@ -70,7 +70,7 @@
     &quot;javascript.nodejs.core.library.typings.version&quot;: &quot;26.6.2&quot;,
     &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
     &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;D:/Documents/monorepo/i-thinking/master&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/Documents/monorepo/cogito/master&quot;,
     &quot;list.type.of.created.stylesheet&quot;: &quot;SCSS&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.stylelint&quot;: &quot;true&quot;,
@@ -83,11 +83,11 @@
     &quot;npm.build:client.executor&quot;: &quot;Run&quot;,
     &quot;npm.client &gt; dev:core.executor&quot;: &quot;Debug&quot;,
     &quot;npm.dev:client.executor&quot;: &quot;Run&quot;,
-    &quot;prettierjs.PrettierConfiguration.Package&quot;: &quot;C:\\Users\\MACHENIKE\\Documents\\Vue3\\i-thinking\\node_modules\\prettier&quot;,
+    &quot;prettierjs.PrettierConfiguration.Package&quot;: &quot;C:\\Users\\MACHENIKE\\Documents\\Vue3\\cogito\\node_modules\\prettier&quot;,
     &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
     &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
     &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;C:\\Users\\MACHENIKE\\Documents\\Vue3\\i-thinking\\node_modules\\typescript\\lib&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;C:\\Users\\MACHENIKE\\Documents\\Vue3\\cogito\\node_modules\\typescript\\lib&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   },
   &quot;keyToStringList&quot;: {
@@ -104,17 +104,17 @@
   </component>
   <component name="QodanaReportsService">
     <option name="descriptions">
-      <ReportDescription localRun="true" path="C:\Users\MACHENIKE\AppData\Local\Temp\qodana_output\qodana.sarif.json" publishedReportLink="https://qodana.cloud/projects/v5krw/reports/YOoedJ" reportGuid="8fd553d7-8011-4947-b63e-dab0b56c57e6" reportId="i-thinking/qodana/2026-01-01" />
-      <ReportDescription localRun="true" path="C:\Users\MACHENIKE\AppData\Local\Temp\qodana_output1\qodana.sarif.json" reportGuid="31cf1748-aed0-4ea8-86f7-60f61ecf98a3" reportId="i-thinking/qodana/2026-01-01" />
+      <ReportDescription localRun="true" path="C:\Users\MACHENIKE\AppData\Local\Temp\qodana_output\qodana.sarif.json" publishedReportLink="https://qodana.cloud/projects/v5krw/reports/YOoedJ" reportGuid="8fd553d7-8011-4947-b63e-dab0b56c57e6" reportId="cogito/qodana/2026-01-01" />
+      <ReportDescription localRun="true" path="C:\Users\MACHENIKE\AppData\Local\Temp\qodana_output1\qodana.sarif.json" reportGuid="31cf1748-aed0-4ea8-86f7-60f61ecf98a3" reportId="cogito/qodana/2026-01-01" />
     </option>
   </component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
-      <recent name="C:\Users\MACHENIKE\Documents\Vue3\i-thinking\apps\client\src\components" />
-      <recent name="C:\Users\MACHENIKE\Documents\Vue3\i-thinking\apps\client\src\styles" />
-      <recent name="C:\Users\MACHENIKE\Documents\Vue3\i-thinking\apps\client\src\hooks" />
-      <recent name="C:\Users\MACHENIKE\Documents\Vue3\i-thinking\apps\client\src" />
-      <recent name="C:\Users\MACHENIKE\Documents\Vue3\i-thinking" />
+      <recent name="C:\Users\MACHENIKE\Documents\Vue3\cogito\apps\client\src\components" />
+      <recent name="C:\Users\MACHENIKE\Documents\Vue3\cogito\apps\client\src\styles" />
+      <recent name="C:\Users\MACHENIKE\Documents\Vue3\cogito\apps\client\src\hooks" />
+      <recent name="C:\Users\MACHENIKE\Documents\Vue3\cogito\apps\client\src" />
+      <recent name="C:\Users\MACHENIKE\Documents\Vue3\cogito" />
     </key>
   </component>
   <component name="RunManager" selected="npm.dev:client">

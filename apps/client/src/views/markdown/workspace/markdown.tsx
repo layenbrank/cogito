@@ -2,7 +2,7 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup
-} from '@i-thinking/design/components/resizable'
+} from '@cogito/design/components/resizable'
 import { cn } from 'cn'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { watch } from '@tauri-apps/plugin-fs'

@@ -1,5 +1,5 @@
 {
-  "name": "@i-thinking/client",
+  "name": "@cogito/client",
   "private": true,
   "type": "module",
   "version": "1.5.0",
@@ -33,11 +33,11 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@i-thinking/chat": "workspace:*",
-    "@i-thinking/design": "workspace:*",
-    "@i-thinking/types": "workspace:*",
-    "@i-thinking/utils": "workspace:*",
-    "@i-thinking/wasm": "workspace:*",
+    "@cogito/chat": "workspace:*",
+    "@cogito/design": "workspace:*",
+    "@cogito/types": "workspace:*",
+    "@cogito/utils": "workspace:*",
+    "@cogito/wasm": "workspace:*",
     "@iconify/json": "catalog:",
     "@iconify/react": "catalog:",
     "@tiptap/extension-bubble-menu": "^3.32.0",
@@ -55,6 +55,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@i-thinking/shared": "workspace:*"
+    "@cogito/shared": "workspace:*"
   }
 }

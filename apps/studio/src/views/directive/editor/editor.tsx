@@ -8,34 +8,34 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger
-} from '@i-thinking/design/components/alert-dialog'
-import { Badge } from '@i-thinking/design/components/badge'
-import { Button } from '@i-thinking/design/components/button'
-import { Checkbox } from '@i-thinking/design/components/checkbox'
+} from '@cogito/design/components/alert-dialog'
+import { Badge } from '@cogito/design/components/badge'
+import { Button } from '@cogito/design/components/button'
+import { Checkbox } from '@cogito/design/components/checkbox'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle
-} from '@i-thinking/design/components/dialog'
-import { Input } from '@i-thinking/design/components/input'
-import { Label } from '@i-thinking/design/components/label'
+} from '@cogito/design/components/dialog'
+import { Input } from '@cogito/design/components/input'
+import { Label } from '@cogito/design/components/label'
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup
-} from '@i-thinking/design/components/resizable'
+} from '@cogito/design/components/resizable'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { Spinner } from '@i-thinking/design/components/spinner'
-import { Textarea } from '@i-thinking/design/components/textarea'
-import { ToggleGroup, ToggleGroupItem } from '@i-thinking/design/components/toggle-group'
+} from '@cogito/design/components/select'
+import { Spinner } from '@cogito/design/components/spinner'
+import { Textarea } from '@cogito/design/components/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
 import { cn } from 'cn'
 import { motion, useReducedMotion } from 'motion/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'

@@ -4,7 +4,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
+} from '@cogito/design/components/select'
 
 import { CONDITION_KINDS, CONDITION_LABELS } from '@/views/directive/model/condition.ts'
 import type { ConditionKind } from '@/views/directive/model/condition.ts'

@@ -1,4 +1,4 @@
-import { usePanelRef } from '@i-thinking/design/components/resizable'
+import { usePanelRef } from '@cogito/design/components/resizable'
 import { useEffect, useState } from 'react'
 
 /**

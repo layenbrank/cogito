@@ -1,10 +1,10 @@
-import { Label } from '@i-thinking/design/components/label'
+import { Label } from '@cogito/design/components/label'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
-} from '@i-thinking/design/components/tooltip'
+} from '@cogito/design/components/tooltip'
 import { cn } from 'cn'
 import { useState, type ReactNode } from 'react'
 

@@ -1,8 +1,8 @@
 /**
  * Command Omnibar 壳：输入 / 引擎轨 / 结果表面
  */
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
 import { Icon } from '@iconify/react/offline'
 import { useClickOutside } from '@reactuses/core'
 import { openUrl } from '@tauri-apps/plugin-opener'

@@ -2,8 +2,8 @@ import { cn } from 'cn'
 import { AnimatePresence, motion } from 'motion/react'
 import type { ReactNode } from 'react'
 
-import { useAppReducedMotion } from '@i-thinking/design/hooks/use-app-reduced-motion'
-import { DIGIT_OFFSET, DIGIT_TRANSITION } from '@i-thinking/design/lib/motion'
+import { useAppReducedMotion } from '@cogito/design/hooks/use-app-reduced-motion'
+import { DIGIT_OFFSET, DIGIT_TRANSITION } from '@cogito/design/lib/motion'
 
 interface AnimatedDigitsProps {
   /** 变化时作为 AnimatePresence key；未变则不动效 */

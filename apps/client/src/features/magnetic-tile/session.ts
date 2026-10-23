@@ -31,7 +31,7 @@ interface SessionInput {
 }
 
 const MAIN_WINDOW_LABEL = 'main'
-const MAIN_WINDOW_TITLE = 'i thinking'
+const MAIN_WINDOW_TITLE = 'cogito'
 const BACKGROUND_CAP = 3
 
 let sessions: readonly TileSession[] = []

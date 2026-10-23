@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { clsx } from 'clsx'
 import * as m from 'motion/react-m'
 

@@ -3,7 +3,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
   usePanelRef
-} from '@i-thinking/design/components/resizable'
+} from '@cogito/design/components/resizable'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 

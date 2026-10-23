@@ -1,4 +1,4 @@
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
 import { reportUnknown } from '@/utils/exception-report.ts'

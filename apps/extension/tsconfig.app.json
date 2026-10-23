@@ -28,12 +28,12 @@
       "vite/client",
       "@types/chrome",
       "reflect-metadata",
-      "@i-thinking/shared/response",
-      "@i-thinking/shared/user-profile",
-      "@i-thinking/shared/mirror",
-      "@i-thinking/shared/backup",
-      "@i-thinking/shared/settings",
-      "@i-thinking/shared/magnetic-tile"
+      "@cogito/shared/response",
+      "@cogito/shared/user-profile",
+      "@cogito/shared/mirror",
+      "@cogito/shared/backup",
+      "@cogito/shared/settings",
+      "@cogito/shared/magnetic-tile"
     ],
     "rootDir": ".",
     "paths": {

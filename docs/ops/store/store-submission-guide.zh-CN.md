@@ -1,12 +1,12 @@
-# Microsoft Store 发布填写手册（i thinking）
+# Microsoft Store 发布填写手册（cogito）
 
 面向 Partner Center **EXE/MSI（Win32）** 提交。与包托管细节交叉引用：[`store-package-handoff.md`](./store-package-handoff.md)。
 
 | 项 | 当前值 |
 |----|--------|
-| 产品名 | i thinking |
+| 产品名 | cogito |
 | 版本 | 1.3.0（随发版更新） |
-| 发布者 / 开发者展示名 | i thinking / layen |
+| 发布者 / 开发者展示名 | cogito / layen |
 | 包形态 | Tauri NSIS `.exe`（非 MSIX） |
 | 文档日期 | 2026-08-10 |
 
@@ -160,8 +160,8 @@ x64 处理器
 
 | 字段 | 值 |
 |------|-----|
-| 包 URL（推荐） | `https://i-thinking-distribution.layenbrank.workers.dev/1.3.0/i-thinking_1.3.0_x64-setup.exe` |
-| 包 URL（备用） | `https://pub-7a57d3acde3e4d7b9c42f56423f83c93.r2.dev/1.3.0/i-thinking_1.3.0_x64-setup.exe` |
+| 包 URL（推荐） | `https://cogito-distribution.layenbrank.workers.dev/1.3.0/cogito_1.3.0_x64-setup.exe` |
+| 包 URL（备用） | `https://pub-7a57d3acde3e4d7b9c42f56423f83c93.r2.dev/1.3.0/cogito_1.3.0_x64-setup.exe` |
 | 体系结构 | `x64` |
 | 应用类型 | `EXE` |
 | 安装程序参数 | `/S`（大写） |
@@ -181,7 +181,7 @@ x64 处理器
 
 ```text
 https://{主机}/{版本}/{文件名}.exe
-# 例：…/1.3.0/i-thinking_1.3.0_x64-setup.exe
+# 例：…/1.3.0/cogito_1.3.0_x64-setup.exe
 ```
 
 - 自定义域未就绪时可用 Worker / r2.dev
@@ -207,14 +207,14 @@ https://{主机}/{版本}/{文件名}.exe
 
 ### 6.1 产品名称
 
-使用已保留名称：**i thinking**（与安装包显示名一致）。
+使用已保留名称：**cogito**（与安装包显示名一致）。
 
 ### 6.2 说明（必填，≤10000）
 
 可直接粘贴：
 
 ```text
-i thinking 是一款 Windows 桌面生产力工具，提供可自由排布的磁贴工作台，帮助你把导航、日程、笔记与常用工具放在同一块桌面画布上。
+cogito 是一款 Windows 桌面生产力工具，提供可自由排布的磁贴工作台，帮助你把导航、日程、笔记与常用工具放在同一块桌面画布上。
 
 主要能力包括：
 • 磁贴工作台：自由排布、镜像桌面、收藏与外观定制，布局默认保存在本地
@@ -289,17 +289,17 @@ Morph 本地文档处理
 推荐粘贴：
 
 ```text
-© 2026 i thinking. 保留所有权利。
+© 2026 cogito. 保留所有权利。
 ```
 
 备选：
 
 ```text
-© 2026 i thinking. All rights reserved.
+© 2026 cogito. All rights reserved.
 ```
 
 ```text
-© 2026 i thinking / layen. 保留所有权利。
+© 2026 cogito / layen. 保留所有权利。
 ```
 
 配置要点：
@@ -311,7 +311,7 @@ Morph 本地文档处理
 | 年份 | 首次发布年或当前年（2026） |
 | 商标符号 | 未注册一般不用 ®；已注册再用 |
 | 勿粘贴 | 整份许可条款、隐私全文 |
-| 与「开发者」字段 | 「开发者」可填 `layen`；版权行可用产品名 `i thinking` |
+| 与「开发者」字段 | 「开发者」可填 `layen`；版权行可用产品名 `cogito` |
 
 ### 6.8 适用的许可条款（必填，≤10000）
 
@@ -320,7 +320,7 @@ Morph 本地文档处理
 也可极简（不推荐，完整稿更稳）：
 
 ```text
-专有软件许可（Proprietary）。© 2026 i thinking. 保留所有权利。详见产品内或发布方提供的完整许可条款与隐私声明。
+专有软件许可（Proprietary）。© 2026 cogito. 保留所有权利。详见产品内或发布方提供的完整许可条款与隐私声明。
 ```
 
 未提供自有条款时，部分市场可能适用微软标准应用许可条款；仍建议提交自有条款。
@@ -331,7 +331,7 @@ Morph 本地文档处理
 layen
 ```
 
-或与对外品牌统一为 `i thinking`（与版权行一致即可，避免互相矛盾）。
+或与对外品牌统一为 `cogito`（与版权行一致即可，避免互相矛盾）。
 
 ### 6.10 图像资产
 
@@ -401,7 +401,7 @@ layen
 **版权和商标信息**
 
 ```text
-© 2026 i thinking. 保留所有权利。
+© 2026 cogito. 保留所有权利。
 ```
 
 **开发者**
@@ -440,7 +440,7 @@ A：否。只要是 `.exe`/`.msi` 的版本化 HTTPS 直链即可。
 **Q：必须买域名吗？**  
 A：否。Worker / r2.dev 可用于上架；自定义域仅影响品牌与长期运维。
 
-**Q：为什么绑不下 downloads.i-thinking.com？**  
+**Q：为什么绑不下 downloads.cogito.com？**  
 A：该根域须已在本 Cloudflare 账号用 Cloudflare DNS 托管；账号「域名」为空时无法绑定。
 
 **Q：MSIX 在哪配置？**  

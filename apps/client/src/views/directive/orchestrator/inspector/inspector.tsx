@@ -1,5 +1,5 @@
-import { ScrollArea } from '@i-thinking/design/components/scroll-area'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@i-thinking/design/components/tabs'
+import { ScrollArea } from '@cogito/design/components/scroll-area'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@cogito/design/components/tabs'
 import { useMemo, useState, type ReactNode } from 'react'
 
 import { useCorexStore } from '@/stores/corex.ts'

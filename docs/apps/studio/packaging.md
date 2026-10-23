@@ -23,23 +23,23 @@
 | Preload  | `src/preload.ts`                   | `.vite/build/preload.js`（CJS，sandbox） |
 | Renderer | `src/renderer.tsx`（`index.html`） | Forge `main_window`                      |
 
-`appId` / AUMID：`com.i-thinking.studio`。
+`appId` / AUMID：`com.cogito.studio`。
 
 ## 2. 常用命令
 
 ```bash
-pnpm --filter @i-thinking/studio dev
+pnpm --filter @cogito/studio dev
 pnpm command sidecar bootstrap studio            # 全量落盘（档位不在这里决定）
-pnpm --filter @i-thinking/studio package
-pnpm --filter @i-thinking/studio package:full
-pnpm --filter @i-thinking/studio make            # 默认：NSIS Setup.exe + ZIP（lite）
-pnpm --filter @i-thinking/studio make:nsis       # 同 make:win，显式 NSIS
-pnpm --filter @i-thinking/studio make:full
+pnpm --filter @cogito/studio package
+pnpm --filter @cogito/studio package:full
+pnpm --filter @cogito/studio make            # 默认：NSIS Setup.exe + ZIP（lite）
+pnpm --filter @cogito/studio make:nsis       # 同 make:win，显式 NSIS
+pnpm --filter @cogito/studio make:full
 # Windows MSI / MSIX（在默认 NSIS+ZIP 之外额外产出；需本机工具链）
-pnpm --filter @i-thinking/studio make:msi
-pnpm --filter @i-thinking/studio make:msix
+pnpm --filter @cogito/studio make:msi
+pnpm --filter @cogito/studio make:msix
 # 发版（需开启 publishers 环境变量）
-pnpm --filter @i-thinking/studio publish
+pnpm --filter @cogito/studio publish
 ```
 
 **默认 Windows 产物路径：**
@@ -49,7 +49,7 @@ pnpm --filter @i-thinking/studio publish
 | NSIS Setup | `out/studio/make/nsis/x64/*Setup*.exe` |
 | `latest.yml`（electron-updater） | `out/studio/make/nsis/x64/latest.yml` |
 | 便携 ZIP | `out/studio/make/zip/win32/x64/*.zip` |
-| 未打包目录 | `out/studio/i-thinking-win32-x64/` |
+| 未打包目录 | `out/studio/cogito-win32-x64/` |
 | MSI（可选） | `out/studio/make/wix/x64/*.msi` |
 
 **两档产物：** `package` / `make` / `publish` 默认 **精简版（lite）** —— pandoc / ffmpeg / opencode
@@ -67,7 +67,7 @@ pnpm --filter @i-thinking/studio publish
 
 ```bash
 pnpm command sidecar stage studio   # 重写 checksums（逐文件标 onDemand），且不落 goose
-pnpm --filter @i-thinking/studio make
+pnpm --filter @cogito/studio make
 ```
 
 日志应类似：`侧车档位 lite：已复制 N 个文件，未随包：pandoc.exe, ffmpeg.exe, …`。
@@ -92,7 +92,7 @@ Studio：`apps/studio/forge/makers.ts` + `nsis/installer-hooks.nsh`（经 maker 
 | -------------- | ----------- | ------ |
 | `languages: SimpChinese, English` | `installerLanguages: ['zh_CN', 'en_US']`，`displayLanguageSelector: false` | ✅ |
 | `installMode: currentUser` | `perMachine: false` + `customInstallMode` 强制当前用户 | ✅ |
-| `startMenuFolder: i thinking` | `menuCategory` / `shortcutName` | ✅ |
+| `startMenuFolder: cogito` | `menuCategory` / `shortcutName` | ✅ |
 | `installerIcon` | `installerIcon` ← `resources/icon.ico` | ✅ |
 | `installerHooks` 杀 `corex-daemon` | `customInit` / `customUnInit` 用 `taskkill`（无 Tauri 插件） | ✅（实现不同） |
 | `compression: lzma` | app-builder-lib 默认 | 部分（未单独钉死） |
@@ -104,10 +104,10 @@ Studio：`apps/studio/forge/makers.ts` + `nsis/installer-hooks.nsh`（经 maker 
 | -------------------- | --------------- | ---- |
 | `publisher: layen` | `manufacturer: layen`（`APP_PUBLISHER`） | 产品名与发布者 |
 | `wix.language: zh-CN, en-US` | `language: 2052` + `cultures: zh-CN;en-US` | Product 语言以简中为主 |
-| `nsis.installMode: currentUser` | `defaultInstallMode: perUser` + `beforeCreate` 修补 | 去掉上游 `InstallScope`，靠 `MSIINSTALLPERUSER` 重定向到 `%LOCALAPPDATA%\Programs\i thinking\`；产品名无 Machine 后缀 |
-| `nsis.startMenuFolder: i thinking` | `shortcutFolderName` / `shortcutName` | 开始菜单文件夹 |
+| `nsis.installMode: currentUser` | `defaultInstallMode: perUser` + `beforeCreate` 修补 | 去掉上游 `InstallScope`，靠 `MSIINSTALLPERUSER` 重定向到 `%LOCALAPPDATA%\Programs\cogito\`；产品名无 Machine 后缀 |
+| `nsis.startMenuFolder: cogito` | `shortcutFolderName` / `shortcutName` | 开始菜单文件夹 |
 | `nsis.installerIcon` | `icon` ← `resources/icon.ico` | 与 Client 同源 |
-| AUMID | `appUserModelId` = `com.i-thinking.studio` | 与 `main.ts` 一致 |
+| AUMID | `appUserModelId` = `com.cogito.studio` | 与 `main.ts` 一致 |
 | （升级身份） | **固定** `upgradeCode`（`WIX_UPGRADE_CODE`） | 必须钉死才能覆盖升级 |
 | `nsis.installerHooks` | — | MSI **无** NSIS hooks；升级前请先退出 Studio / 停侧车 |
 | — | `features.autoUpdate/autoLaunch: false` | 更新走 NSIS + electron-updater |
@@ -140,7 +140,7 @@ light -?
 
 ```powershell
 # 精简版 MSI；完整版用 make:msi:full
-pnpm --filter @i-thinking/studio make:msi
+pnpm --filter @cogito/studio make:msi
 # 产物：out/studio/make/wix/x64/*.msi（同一次 make 仍会打 NSIS + ZIP）
 ```
 
@@ -154,10 +154,10 @@ pnpm --filter @i-thinking/studio make:msi
 | Making nsis / zip / wix 一并 ✖ | Forge 并行 maker，WiX 失败打断整次 `make` | 先修好 WiX；不需要 MSI 时用 `make` / `make:nsis` |
 | `[sass] JSONError … package.json … trailing comma` | `package.json` 尾逗号 | 去掉尾逗号后再 `make` |
 | 安装 UI 标题仍是 `(Machine - MSI)` | 旧 MSI（未打 `beforeCreate` 补丁） | 用当前仓库重打；卸载旧包后再装 |
-| 错误 **1303**（无法访问 `C:\Program Files\i thinking`） | 旧包把 perUser 写到 Program Files | 用当前补丁后的 MSI；或改用 NSIS |
+| 错误 **1303**（无法访问 `C:\Program Files\cogito`） | 旧包把 perUser 写到 Program Files | 用当前补丁后的 MSI；或改用 NSIS |
 | 错误 **2349**（程序包/CAB） | 中断安装、残留、或损坏的 MSI | 见 [troubleshooting.md](./troubleshooting.md)；日常用 NSIS |
 
-**Windows：** 打包配置 `tmpdir: false`，直接在 `out/studio/` 构建。打包前会结束本仓库路径下的 `electron` / `i-thinking` 进程并清理 `out/studio`。第三方杀毒建议将 `out/studio` 加入排除列表。
+**Windows：** 打包配置 `tmpdir: false`，直接在 `out/studio/` 构建。打包前会结束本仓库路径下的 `electron` / `cogito` 进程并清理 `out/studio`。第三方杀毒建议将 `out/studio` 加入排除列表。
 
 NSIS 工具链（`nsis-*.7z`）由 app-builder 下载：`run-forge.ts` 在未设置时默认
 `ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/`
@@ -191,7 +191,7 @@ NSIS 工具链（`nsis-*.7z`）由 app-builder 下载：`run-forge.ts` 在未设
 | 变量                                                         | 用途                                          |
 | ------------------------------------------------------------ | --------------------------------------------- |
 | `STUDIO_PUBLISH_GITHUB=1` + `GITHUB_TOKEN`                   | GitHub Releases（默认 draft）                 |
-| `STUDIO_GITHUB_OWNER` / `STUDIO_GITHUB_REPO`                 | 仓库（默认 `layenbrank/i-thinking`）          |
+| `STUDIO_GITHUB_OWNER` / `STUDIO_GITHUB_REPO`                 | 仓库（默认 `layenbrank/cogito`）          |
 | `STUDIO_PUBLISH_S3=1` + `STUDIO_S3_BUCKET`                   | S3 发布（**自动更新 feed 走这里**）           |
 | `STUDIO_S3_REGION` / `STUDIO_S3_FOLDER` / `STUDIO_S3_PUBLIC` | S3 可选                                       |
 | `STUDIO_S3_UPDATE_BASE`                                      | 客户端 generic feed 前缀（拼 `{base}/win32/x64`） |
@@ -216,17 +216,17 @@ Windows 使用 **generic** provider：`latest.yml` + NSIS Setup.exe。Renderer A
 
 开发态 / 未 packaged / 未配置 → `toRead().enabled === false`。未签名包默认 `verifyUpdateCodeSignature = false`，便于本地/CI 测 feed。
 
-Windows AUMID：`com.i-thinking.studio`（与 `appId` 一致；已离开旧 `com.squirrel.*`）。
+Windows AUMID：`com.cogito.studio`（与 `appId` 一致；已离开旧 `com.squirrel.*`）。
 
 不要用 `electron.autoUpdater`（Squirrel）或 `update-electron-app` 系统弹窗。
 
 ## 7. asar / Sidecar / Fuses / CI / 图标
 
-- asar 保留 `.vite` / `package.json` / `drizzle` / `node_modules`（排除 `@i-thinking/*`）；Vite external 仅 **better-sqlite3** 闭包由 `forge/hooks/external-deps.ts` 复制；**禁止 asar 热更**（Fuses `EnableEmbeddedAsarIntegrityValidation` + `OnlyLoadAppFromAsar`）。
-- 图标：与 Client 共用品牌源 `apps/client/src-tauri/icons/`。`pnpm --filter @i-thinking/studio icons` 同步到 `resources/` 与 `public/`。
+- asar 保留 `.vite` / `package.json` / `drizzle` / `node_modules`（排除 `@cogito/*`）；Vite external 仅 **better-sqlite3** 闭包由 `forge/hooks/external-deps.ts` 复制；**禁止 asar 热更**（Fuses `EnableEmbeddedAsarIntegrityValidation` + `OnlyLoadAppFromAsar`）。
+- 图标：与 Client 共用品牌源 `apps/client/src-tauri/icons/`。`pnpm --filter @cogito/studio icons` 同步到 `resources/` 与 `public/`。
 - 二进制**不进 Git**：`staging/`、`.cache/sidecar/`、exe/dll 均 gitignore
 - 版本真相：`scripts/commands/features/sidecar/tools.lock.json`；corex sidecar **目前仅 win32-x64**
 - **corex 始终随包**（lock 里**不标** `onDemand`）
 - 开发：`pnpm command sidecar bootstrap studio`
-- 冒烟：`pnpm --filter @i-thinking/studio test:pack` 启动 `out/studio/i-thinking-win32-x64/i-thinking.exe`（**不要**跑 Setup.exe）
+- 冒烟：`pnpm --filter @cogito/studio test:pack` 启动 `out/studio/cogito-win32-x64/cogito.exe`（**不要**跑 Setup.exe）
 - Fuses 见 [security.md](./security.md)；CI：[`.github/workflows/studio-desktop.yaml`](../../../.github/workflows/studio-desktop.yaml)

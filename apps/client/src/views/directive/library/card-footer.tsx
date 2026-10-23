@@ -1,6 +1,6 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Progress } from '@i-thinking/design/components/progress'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+import { Button } from '@cogito/design/components/button'
+import { Progress } from '@cogito/design/components/progress'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { Icon } from '@iconify/react/offline'
 import type { MouseEvent } from 'react'
 

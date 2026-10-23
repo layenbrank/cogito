@@ -13,7 +13,7 @@
 
 | 候选                                  | 形态                                                                                   | 结论                                                                    |
 | ------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| **duroxide + duroxide-pg**            | Rust 库，进程内嵌（Tokio），编排写成 `async` Rust；`Provider` 背后是 Postgres 表       | **采用**，落地在 `apps/cogito/crates/durable/`                            |
+| **duroxide + duroxide-pg**            | Rust 库，进程内嵌（Tokio），编排写成 `async` Rust；`Provider` 背后是 Postgres 表       | **采用**，落地在 `apps/service/crates/durable/`                            |
 | pg_durable                            | Postgres **扩展**：编排写成 SQL（`df.start(...)`、`~>`、`\|=>`），后台 worker 在库内跑 | 不采用，理由见 §2                                                       |
 | Temporal / 外部编排服务               | 独立服务端 + 自己的存储                                                                | 不采用：多一个常驻组件，与「一个 Postgres」的取舍相反                   |
 | 框架自带 checkpoint（LangGraph 等）   | 内存里的「存档点」                                                                     | 不采用：checkpoint ≠ 可靠执行（无自动故障检测与恢复、无防重复、单进程） |
@@ -25,10 +25,10 @@
 
 | #   | 约束                                                                                              | 出处                                            |
 | --- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| 1   | 应用角色**不是**超级用户；租户表 `ENABLE + FORCE ROW LEVEL SECURITY`，提权只走一个登记入口        | `apps/cogito/guide/database.md`、门禁 R8          |
-| 2   | **唯一 LLM 出网点 = `gateway`**（唯一计量点、唯一审计点），业务侧不许自己出网                     | `apps/cogito/crates/gateway/`、P9a 的服务受众设计 |
-| 3   | 编排跑的是**代码**：agent 循环里「剩余轮次 ≤ 1 就清空工具白名单」、组请求、解析内部契约、写进度串 | `apps/cogito/src/orchestrations/agent.rs`         |
-| 4   | 一个 Postgres，且**不假设我们能对数据库服务器动手**（托管 Postgres 也得跑得起来）                 | `apps/cogito/guide/deployment.md`                 |
+| 1   | 应用角色**不是**超级用户；租户表 `ENABLE + FORCE ROW LEVEL SECURITY`，提权只走一个登记入口        | `apps/service/guide/database.md`、门禁 R8          |
+| 2   | **唯一 LLM 出网点 = `gateway`**（唯一计量点、唯一审计点），业务侧不许自己出网                     | `apps/service/crates/gateway/`、P9a 的服务受众设计 |
+| 3   | 编排跑的是**代码**：agent 循环里「剩余轮次 ≤ 1 就清空工具白名单」、组请求、解析内部契约、写进度串 | `apps/service/src/orchestrations/agent.rs`         |
+| 4   | 一个 Postgres，且**不假设我们能对数据库服务器动手**（托管 Postgres 也得跑得起来）                 | `apps/service/guide/deployment.md`                 |
 
 ## 2. 决定性理由
 
@@ -41,7 +41,7 @@ pg_durable 是**扩展**：官方发布物是按 PG 大版本切分的 Debian �
 
 `duroxide-pg` 相反，它是一个**客户端**：表由它自己 `CREATE TABLE`，版本记在它自己的
 `_duroxide_migrations` 里，对 Postgres 的要求只有「能建表、能跑 SQL」。托管 Postgres 能跑，
-本机 `docker compose` 也能跑——`apps/cogito/docker/postgres/Dockerfile` 不需要为它加任何东西。
+本机 `docker compose` 也能跑——`docker/postgres/Dockerfile` 不需要为它加任何东西。
 
 ### 2.2 权限姿态与 RLS 冲突（最硬的一条）
 
@@ -54,14 +54,14 @@ pg_durable 的执行体在**数据库服务器进程内**，执行的是库内�
 
 duroxide 的运行时跑在**我们自己的进程**里（`orchestrator` 二进制），走我们自己的配置、traceparent
 和 HTTP 契约；它能碰到的 Postgres 权限不比 `api` / `worker` 多。边界也写清楚了：`durable` schema
-不用业务连接通道、没有 RLS、编排历史是**平台级数据**（见 `apps/cogito/crates/durable/README.md`）。
+不用业务连接通道、没有 RLS、编排历史是**平台级数据**（见 `apps/service/crates/durable/README.md`）。
 
 ### 2.3 编排是代码，不是 SQL
 
 pg_durable 的模型是 SQL 形状的。它的 Limitations 明说：某个步骤需要任意代码、非 HTTP 的 SDK、
 或者丰富的内存控制流时，得把逻辑包进 SQL 函数、暴露成 HTTP 端点交给 `df.http()`、或者另找通用编排器。
 
-对得上约束 3：我们的编排**就是**「任意代码 + 内存控制流」——每步组装请求、解析 ai-worker 的返回、
+对得上约束 3：我们的编排**就是**「任意代码 + 内存控制流」——每步组装请求、解析 compute 的返回、
 按剩余轮次收窄工具白名单、把进度写进 `custom_status`、按失败分类决定重试。把它塞进 SQL 字符串，
 类型安全、单元测试与确定性重放会一起消失，也和 R1（能力 crate 不许依赖 Web 框架）/R10（封禁依赖）
 的 crate 边界门禁对不上。
@@ -88,7 +88,7 @@ pg_durable 的模型是 SQL 形状的。它的 Limitations 明说：某个步骤
 
 | 依赖                 | 许可证                                | 结论                                                    |
 | -------------------- | ------------------------------------- | ------------------------------------------------------- |
-| `duroxide` 0.1.30    | MIT                                   | 在 `apps/cogito/deny.toml` 白名单内，CI 门禁绿            |
+| `duroxide` 0.1.30    | MIT                                   | 在 `apps/service/deny.toml` 白名单内，CI 门禁绿            |
 | `duroxide-pg` 0.1.35 | MIT                                   | 同上                                                    |
 | pg_durable           | PostgreSQL License（同样 permissive） | 它是数据库扩展、不是 Rust 依赖，本就不参与 `cargo deny` |
 
@@ -117,10 +117,10 @@ pg_durable 的模型是 SQL 形状的。它的 Limitations 明说：某个步骤
 
 | 位置                                                                                                 | 说明                                                         |
 | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `apps/cogito/crates/durable/README.md`                                                                 | 端口、语义、边界约束、崩溃恢复长什么样                       |
-| `apps/cogito/guide/configuration.md`                                                                   | `durable` 配置段（连接串 / schema / 并发 / 停机宽限 / 租约） |
-| `apps/cogito/scripts/capabilities.ts`、`apps/cogito/scripts/arch.ts`                                     | R10：封禁依赖只能出现在允许的 crate 里                       |
-| `apps/cogito/tests/orchestration.rs`、`tests/rag_fault_injection.rs`、`tests/agent_fault_injection.rs` | 重启续跑、已完成步骤不重跑、真杀进程的故障注入               |
+| `apps/service/crates/durable/README.md`                                                                 | 端口、语义、边界约束、崩溃恢复长什么样                       |
+| `apps/service/guide/configuration.md`                                                                   | `durable` 配置段（连接串 / schema / 并发 / 停机宽限 / 租约） |
+| `apps/service/scripts/capabilities.ts`、`apps/service/scripts/arch.ts`                                     | R10：封禁依赖只能出现在允许的 crate 里                       |
+| `apps/service/tests/orchestration.rs`、`tests/rag_fault_injection.rs`、`tests/agent_fault_injection.rs` | 重启续跑、已完成步骤不重跑、真杀进程的故障注入               |
 
 ## 6. 上游来源（2026-09-28 核对）
 

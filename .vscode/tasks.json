@@ -9,7 +9,7 @@
       "label": "dev:extension",
       "detail": "extension 开发服务器（https://<本机 IP>:1024，自签证书）",
       "type": "shell",
-      "command": "bun",
+      "command": "pnpm",
       "args": ["dev:extension"],
       "isBackground": true,
       "problemMatcher": {
@@ -22,7 +22,7 @@
       "label": "dev:client",
       "detail": "client 开发服务器（Tauri：http://<本机 IP>:5173）",
       "type": "shell",
-      "command": "bun",
+      "command": "pnpm",
       "args": ["dev:client"],
       "isBackground": true,
       "problemMatcher": {
@@ -35,7 +35,7 @@
       "label": "dev:devtools",
       "detail": "devtools 开发服务器（端口与 extension 同为 1024；同时启动时 Vite 会自行落到 1025）",
       "type": "shell",
-      "command": "bun",
+      "command": "pnpm",
       "args": ["dev:devtools"],
       "isBackground": true,
       "problemMatcher": {
@@ -48,7 +48,7 @@
       "label": "dev:studio",
       "detail": "studio（Electron：forge 启动，renderer dev server 9523）",
       "type": "shell",
-      "command": "bun",
+      "command": "pnpm",
       "args": ["dev:studio"],
       "isBackground": true,
       "problemMatcher": {
@@ -61,7 +61,7 @@
       "label": "dev",
       "detail": "全量开发服务器（turbo run dev，排除 client）",
       "type": "shell",
-      "command": "bun",
+      "command": "pnpm",
       "args": ["dev"],
       "isBackground": true,
       "problemMatcher": {
@@ -74,7 +74,7 @@
       "label": "lint",
       "detail": "全仓 lint（turbo run lint，排除 client）",
       "type": "shell",
-      "command": "bun",
+      "command": "pnpm",
       "args": ["lint"],
       "problemMatcher": []
     },
@@ -82,7 +82,7 @@
       "label": "unit",
       "detail": "单元测试（turbo run unit，排除 client）",
       "type": "shell",
-      "command": "bun",
+      "command": "pnpm",
       "args": ["unit"],
       "group": "test",
       "problemMatcher": []

@@ -1,0 +1,26 @@
+/target/
+/chunks/
+/cas/
+/uploads/
+/logs/
+/.tmp/
+/config.local.yaml
+
+# 部署变量、compose 与栈数据已统一到仓库根（见根 .gitignore 与 compose.yaml）
+
+# Node
+/node_modules/
+
+# 契约按需生成物（Python/Rust 客户端暂无消费者；见 guide/contract-codegen.md）
+/.generated/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# planning-with-files 的「磁盘工作记忆」，仅存会话工作区
+findings.md
+progress.md
+task_plan.md

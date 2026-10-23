@@ -2,8 +2,8 @@
  * 右侧 Plan 面板：展示 goose 结构化计划（只读：条目状态由 goose 整份覆盖）。
  */
 import { Icon } from '@iconify/react/offline'
-import { Badge } from '@i-thinking/design/components/badge'
-import { Button } from '@i-thinking/design/components/button'
+import { Badge } from '@cogito/design/components/badge'
+import { Button } from '@cogito/design/components/button'
 import { clsx } from 'clsx'
 
 import styles from './plan-pane.module.scss'

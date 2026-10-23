@@ -33,7 +33,7 @@
 
 ## 密钥红线
 
-- JWT：Keyring `service=i-thinking` / `account=jwt`；未勾选「记住我」只留内存
+- JWT：Keyring `service=cogito` / `account=jwt`；未勾选「记住我」只留内存
 - goose 侧车：Rust 从 Keyring/会话写入既有 `cogito/jwt` 桥接文件，FE 不直接碰该文件
 - provider apiKey：Keyring `account=provider:<id>`；SQLite / goose 配置侧只配合非密元数据
 - PIN 明文永不落盘；hash 只在 `vault.json`

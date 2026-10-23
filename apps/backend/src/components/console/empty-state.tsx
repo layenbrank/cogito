@@ -1,4 +1,4 @@
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import type { ReactNode } from 'react'
 

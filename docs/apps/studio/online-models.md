@@ -47,7 +47,7 @@ Effect 在 agent 运行时里承担：依赖注入（Provider/Config 作环境�
 
 | 维度     | Cursor                                  | VS Code GitHub Copilot                                               | Qoder CN（本产品）                                                               |
 | -------- | --------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| 模型接入 | 订阅模型 + BYOK（自带 Key，应用内加密） | GitHub OAuth，多模型（GPT/Claude/Gemini）；企业 BYOK（Azure OpenAI） | 组织模型走 Thinking 服务网关 + JWT；我的模型是本机 BYOK provider（同一运行链路） |
+| 模型接入 | 订阅模型 + BYOK（自带 Key，应用内加密） | GitHub OAuth，多模型（GPT/Claude/Gemini）；企业 BYOK（Azure OpenAI） | 组织模型走 Cogito 服务网关 + JWT；我的模型是本机 BYOK provider（同一运行链路） |
 | 密钥     | 本地加密存储                            | GitHub 托管（个人）/ 企业集中（BYOK）                                | 现无云端密钥管理                                                                 |
 | 企业     | SSO、组织模型开关、用量分析、审计       | SSO/SCIM、组织策略、审计、IP 保障                                    | 缺（本次补齐）                                                                   |
 
@@ -90,12 +90,12 @@ Effect 在 agent 运行时里承担：依赖注入（Provider/Config 作环境�
 分别由 `kind: 'gateway'` 与 `models` 两列表达。于是发送链路只有一条：
 
 - `features/chat/runtime.tsx` 里只有一个 runtime（`useRemoteThreadListRuntime` + 一个
-  `useLocalRuntime` + `ChatModelPort`）；`chat.transport` 开关、`@i-thinking/chat/adapters/online-transport`
+  `useLocalRuntime` + `ChatModelPort`）；`chat.transport` 开关、`@cogito/chat/adapters/online-transport`
   适配器、`transport-switch.tsx` 均已删除（旧配置键在读库时被丢弃，见
   [`stores/agent.ts`](../../../apps/studio/src/stores/agent.ts)）。
 - **平台行**：[`features/chat/platform.ts`](../../../apps/studio/src/features/chat/platform.ts) 把
-  `GET ${VITE_THINKING}/gateway/models` 的目录写成 provider 表里的固定一行：id `platform-gateway`、
-  展示名「组织模型」、`baseUrl = ${VITE_THINKING}/gateway`。发送前 `ensurePlatformProvider()` 同步一次，
+  `GET ${VITE_COGITO}/gateway/models` 的目录写成 provider 表里的固定一行：id `platform-gateway`、
+  展示名「组织模型」、`baseUrl = ${VITE_COGITO}/gateway`。发送前 `ensurePlatformProvider()` 同步一次，
   与目录一致就不写库；网关不可用时返回 null、不落库。设置页对它是**只读**的。
   目录请求走渲染层 HTTP 客户端，会自动带上 `X-Tenant-ID`（见 §7.4）—— 早期版本**从不发这个头**，
   服务端只能按身份兜底，团队共享的模型会整批看不见。
@@ -312,7 +312,7 @@ sea-orm `fetch_page` 是 0 起的，之前少了 `-1`，导致 `count` 有值而
   （换账号/退登立刻失效，绝不把配额记到别人租户上；指纹记的是**发起解析时**的令牌，
   解析途中换了账号就把结果丢掉、下次为新账号重解析）。注入点有两条：
   - 渲染层的 HTTP 客户端：[`utils/http.ts`](../../../apps/studio/src/utils/http.ts) 的 `onRequest`
-    对 `/gateway/*` 且 `isThinkingUrl` 命中自家 API 的请求统一补 `X-Tenant-ID`，值从
+    对 `/gateway/*` 且 `isCogitoUrl` 命中自家 API 的请求统一补 `X-Tenant-ID`，值从
     [`utils/tenant.ts`](../../../apps/studio/src/utils/tenant.ts) 的值缓存**同步**读出
     （解析与写入在 [`features/quota/tenant.ts`](../../../apps/studio/src/features/quota/tenant.ts)；
     值缓存放 `utils/` 是为了避开 `apis/* → http.ts` 的循环引用）。

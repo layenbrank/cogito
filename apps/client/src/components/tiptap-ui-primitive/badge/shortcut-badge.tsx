@@ -1,6 +1,6 @@
 import { Fragment } from 'react'
 
-import { Kbd, KbdGroup } from '@i-thinking/design/components/kbd'
+import { Kbd, KbdGroup } from '@cogito/design/components/kbd'
 import { parseShortcutKeys } from '@/lib/tiptap-utils.ts'
 
 interface ShortcutBadgeProps {

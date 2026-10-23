@@ -6,8 +6,8 @@
  * （不随 Dialog 开合卸载），所以关掉面板轮询继续跑，下次打开还在同一份状态上。
  */
 import { Icon } from '@iconify/react/offline'
-import { Badge } from '@i-thinking/design/components/badge'
-import { Button } from '@i-thinking/design/components/button'
+import { Badge } from '@cogito/design/components/badge'
+import { Button } from '@cogito/design/components/button'
 import {
   Dialog,
   DialogContent,
@@ -15,12 +15,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle
-} from '@i-thinking/design/components/dialog'
-import { Input } from '@i-thinking/design/components/input'
-import { Label } from '@i-thinking/design/components/label'
-import { Spinner } from '@i-thinking/design/components/spinner'
-import { Textarea } from '@i-thinking/design/components/textarea'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+} from '@cogito/design/components/dialog'
+import { Input } from '@cogito/design/components/input'
+import { Label } from '@cogito/design/components/label'
+import { Spinner } from '@cogito/design/components/spinner'
+import { Textarea } from '@cogito/design/components/textarea'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { useState } from 'react'
 
 import { isApprovalPrompting, parseToolArguments, type DelegationPhase } from '@/features/agent/model/delegate'

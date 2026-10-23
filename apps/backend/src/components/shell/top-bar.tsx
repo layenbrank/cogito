@@ -1,5 +1,5 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Kbd } from '@i-thinking/design/components/kbd'
+import { Button } from '@cogito/design/components/button'
+import { Kbd } from '@cogito/design/components/kbd'
 import { Icon } from '@iconify/react/offline'
 import { useLocation } from 'react-router-dom'
 

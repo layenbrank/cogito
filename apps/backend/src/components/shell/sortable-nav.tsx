@@ -13,13 +13,13 @@ import {
   verticalListSortingStrategy
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
-} from '@i-thinking/design/components/tooltip'
+} from '@cogito/design/components/tooltip'
 import { Icon } from '@iconify/react/offline'
 import clsx from 'clsx'
 import { type ReactElement } from 'react'

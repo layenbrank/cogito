@@ -3,7 +3,7 @@ import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
 import * as React from 'react'
 
-import { Popover, PopoverContent } from '@i-thinking/design/components/popover'
+import { Popover, PopoverContent } from '@cogito/design/components/popover'
 
 import { clampCursor, isDateDisabled } from './calendar-math'
 import { findDefaultFormat, formatDate, startOfPicker } from './format'

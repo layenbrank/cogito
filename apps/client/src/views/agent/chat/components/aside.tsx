@@ -3,7 +3,7 @@
  */
 import { Icon } from '@iconify/react/offline'
 import { useAuiState } from '@assistant-ui/react'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { clsx } from 'clsx'
 import { useMemo } from 'react'
 

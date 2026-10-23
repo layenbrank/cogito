@@ -1,4 +1,4 @@
-# i-thinking Client 组件语义化描述
+# cogito Client 组件语义化描述
 
 本文档包含业务通用组件的语义化（Semantic）描述信息。
 

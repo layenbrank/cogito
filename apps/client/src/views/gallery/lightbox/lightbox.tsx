@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import { Dialog, DialogContent, DialogTitle } from '@i-thinking/design/components/dialog'
+import { Button } from '@cogito/design/components/button'
+import { Dialog, DialogContent, DialogTitle } from '@cogito/design/components/dialog'
 import { cn } from 'cn'
 import { useReducedMotion } from 'motion/react'
 import { useMemo, useRef, useState } from 'react'

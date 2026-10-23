@@ -2,8 +2,8 @@
  * 工作区文件选择器：Composer `+` 双栏「工作区」面板复用。
  */
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
 import { clsx } from 'clsx'
 import { useEffect, useState } from 'react'
 

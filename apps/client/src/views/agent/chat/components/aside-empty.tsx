@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react/offline'
 import { useAui } from '@assistant-ui/react'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'

@@ -3,8 +3,8 @@ import type { Dayjs } from 'dayjs'
 import { AnimatePresence, motion } from 'motion/react'
 import type { ReactNode } from 'react'
 
-import { useAppReducedMotion } from '@i-thinking/design/hooks/use-app-reduced-motion'
-import { DIGIT_TRANSITION, EASE_OUT } from '@i-thinking/design/lib/motion'
+import { useAppReducedMotion } from '@cogito/design/hooks/use-app-reduced-motion'
+import { DIGIT_TRANSITION, EASE_OUT } from '@cogito/design/lib/motion'
 
 import { shiftCursor } from './calendar-math'
 import { DaySurface } from './day-surface'

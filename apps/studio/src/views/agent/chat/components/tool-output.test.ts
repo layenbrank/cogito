@@ -10,8 +10,8 @@ import { collapseOutput, TERMINAL_PREVIEW_LINES, toCodeSource, toShellCommand } 
 describe('toShellCommand', function () {
   it('reads command / workdir / background', function () {
     expect(
-      toShellCommand({ command: 'bun test', workdir: 'packages/core', background: true })
-    ).toEqual({ command: 'bun test', workdir: 'packages/core', background: true })
+      toShellCommand({ command: 'pnpm test', workdir: 'packages/core', background: true })
+    ).toEqual({ command: 'pnpm test', workdir: 'packages/core', background: true })
   })
 
   it('defaults workdir to null and background to false', function () {
@@ -30,7 +30,7 @@ describe('toShellCommand', function () {
     expect(toShellCommand({ description: 'run tests' })).toBeNull()
     expect(toShellCommand({ command: '  ' })).toBeNull()
     expect(toShellCommand(null)).toBeNull()
-    expect(toShellCommand('bun test')).toBeNull()
+    expect(toShellCommand('pnpm test')).toBeNull()
   })
 })
 

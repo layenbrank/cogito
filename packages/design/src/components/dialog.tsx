@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { cn } from 'cn'
 
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import {
   findOverlaySideClass,

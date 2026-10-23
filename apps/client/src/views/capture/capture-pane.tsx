@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { findPruneHints } from '@/features/capture/model/prune-hints'

@@ -26,7 +26,7 @@ fn configure_log_levels(builder: tauri_plugin_log::Builder) -> tauri_plugin_log:
     #[cfg(debug_assertions)]
     let builder = builder
         .level_for("thinking", LevelFilter::Debug)
-        .level_for("i_thinking", LevelFilter::Debug);
+        .level_for("cogito", LevelFilter::Debug);
 
     builder
 }

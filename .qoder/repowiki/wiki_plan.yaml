@@ -41,4 +41,4 @@ knowledgecard:
     - text: studio 采用 Electron 三进程架构：main（主进程，含 Prisma ORM）、preload（预加载桥接）、renderer（渲染进程 React UI），shared 目录存放跨进程共享类型和工具。
     - text: extension 的 src 目录遵循 Vue 3 标准分层：composables（组合式函数）、components（组件）、views（页面）、stores（Pinia 状态管理）、database（Dexie IndexedDB 层）。
     - text: 编码规范要点：项目使用 ESLint + Prettier 统一代码风格；TypeScript 严格模式；React 组件使用函数式 + Hooks；Vue 组件使用 <script setup> 语法。
-    - text: 模块间依赖通过 workspace:* 协议引用，packages 层不允许反向依赖 apps 层；@i-thinking/shared 作为开发依赖提供构建期工具。
+    - text: 模块间依赖通过 workspace:* 协议引用，packages 层不允许反向依赖 apps 层；@cogito/shared 作为开发依赖提供构建期工具。

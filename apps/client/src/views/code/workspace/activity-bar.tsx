@@ -1,10 +1,10 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger
-} from '@i-thinking/design/components/tooltip'
+} from '@cogito/design/components/tooltip'
 import { cn } from 'cn'
 
 import { useCodeStore, type SidebarView } from '@/stores/code'

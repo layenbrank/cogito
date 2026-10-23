@@ -2,7 +2,7 @@ import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import * as React from 'react'
 
-import { PopoverTrigger } from '@i-thinking/design/components/popover'
+import { PopoverTrigger } from '@cogito/design/components/popover'
 import { FIELD_SHELL } from '#lib/surface'
 
 interface PickerTriggerProps {

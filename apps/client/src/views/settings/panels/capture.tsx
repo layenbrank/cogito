@@ -1,4 +1,4 @@
-import { Switch } from '@i-thinking/design/components/switch'
+import { Switch } from '@cogito/design/components/switch'
 import { useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 

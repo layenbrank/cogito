@@ -33,7 +33,7 @@ async function unwrap<T>(pending: Promise<RSF<T>>): Promise<T> {
   return HttpEnvelope(await pending)
 }
 
-const ENV = { env: 'thinking' as const }
+const ENV = { env: 'cogito' as const }
 
 /** 我所属的租户；合法登录用户通常至少有一条个人租户（可由客户端补建） */
 function GET_MY_TENANTS(signal?: AbortSignal) {

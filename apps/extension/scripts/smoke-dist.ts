@@ -2,10 +2,10 @@
  * 打包产物冒烟：用真实浏览器加载 `dist`，验证 MV3 能装起来、service worker 能注册、
  * 页面能渲染（覆盖 manifest 里 hash 文件名的重写结果）。
  *
- *   pnpm --filter @i-thinking/extension run build
- *   pnpm --filter @i-thinking/extension run smoke:dist
+ *   pnpm --filter @cogito/extension run build
+ *   pnpm --filter @cogito/extension run smoke:dist
  *
- * 截图写到系统临时目录 `i-thinking-smoke`。
+ * 截图写到系统临时目录 `cogito-smoke`。
  */
 import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
@@ -20,7 +20,7 @@ import {
 } from '@playwright/test'
 
 const DIST = resolve(import.meta.dirname, '..', 'dist')
-const OUT = join(tmpdir(), 'i-thinking-smoke')
+const OUT = join(tmpdir(), 'cogito-smoke')
 // 每次用新 profile：复用同一个目录时上一次残留的 Chromium 会锁住它，启动直接超时
 const PROFILE = join(OUT, `profile-${Date.now()}`)
 

@@ -1,4 +1,4 @@
-# i-thinking Client 业务组件文档
+# cogito Client 业务组件文档
 
 本文件包含 `apps/client/src/components` 下业务通用组件的聚合文档。
 
@@ -584,7 +584,7 @@ order: 2
 ### 磁贴窗
 
 ```tsx
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { Decorations } from '@/components/decorations'
 
 export default function Bookmark() {
@@ -607,7 +607,7 @@ export default function Overview() {
   return (
     <Decorations
       scrollable={false}
-      begin={<span>i-thinking</span>}>
+      begin={<span>cogito</span>}>
       <header>搜索</header>
       <main className="flex-1">镜像</main>
     </Decorations>
@@ -693,7 +693,7 @@ Chrome 书签导入（主路径）：
 
 | 位置          | 内容                                                                  |
 | ------------- | --------------------------------------------------------------------- |
-| `begin`（左） | 品牌 `i-thinking` · 分隔线 · **镜像入口**（`caption/mirror.tsx`）     |
+| `begin`（左） | 品牌 `cogito` · 分隔线 · **镜像入口**（`caption/mirror.tsx`）     |
 | `final`（右） | **状态区**（`caption/status.tsx`）+ **账号**（`caption/account.tsx`） |
 | 窗口键        | `Caption` 自绘（最小化 / 最大化 / 关闭）                              |
 

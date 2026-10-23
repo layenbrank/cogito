@@ -6,7 +6,7 @@
 apps/backend (React SPA)
     │  Bearer JWT + 可选 X-Tenant-ID
     ▼
-apps/cogito /api/v1/*
+apps/service /api/v1/*
     │
     ├── 既有 ADMIN 面：users / gateway/* / billing/* / sso/connections / tenants…
     └── 新增：console/preference（控制台布局持久化）
@@ -30,7 +30,7 @@ src/
   routers/       # createBrowserRouter + ADMIN loader
 ```
 
-共享：`@i-thinking/design`、`@i-thinking/shared`（RSF 等 ambient）、根依赖 `ofetch` / `zustand` / `lodash-es` / `@dnd-kit/*` / `shaders` / `motion`。
+共享：`@cogito/design`、`@cogito/shared`（RSF 等 ambient）、根依赖 `ofetch` / `zustand` / `lodash-es` / `@dnd-kit/*` / `shaders` / `motion`。
 
 ## 偏好表 `console_preference`
 

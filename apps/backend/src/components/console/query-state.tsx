@@ -1,5 +1,5 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Skeleton } from '@i-thinking/design/components/skeleton'
+import { Button } from '@cogito/design/components/button'
+import { Skeleton } from '@cogito/design/components/skeleton'
 import { Icon } from '@iconify/react/offline'
 import type { ReactNode } from 'react'
 

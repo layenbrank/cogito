@@ -1,4 +1,4 @@
-# @i-thinking/sidecar
+# @cogito/sidecar
 
 侧车产物的**唯一契约**：三份 JSON 的形状（类型 + 解析器）都在这里，CLI、Studio 宿主、forge 打包钩子共用。
 
@@ -40,7 +40,7 @@ import {
   listOnDemandFiles,
   parseStagingChecksums,
   parseToolsLock
-} from '@i-thinking/sidecar'
+} from '@cogito/sidecar'
 
 const lock = parseToolsLock(JSON.parse(readFileSync(lockPath, 'utf8')) as unknown, lockPath)
 findLockPin(lock, 'pandoc', 'win32-x64')?.version
@@ -50,5 +50,5 @@ listOnDemandFiles(
 ```
 
 ```bash
-pnpm --filter @i-thinking/sidecar test:unit
+pnpm --filter @cogito/sidecar test:unit
 ```

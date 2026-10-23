@@ -2,8 +2,8 @@
  * 模型浮层选择器：按接入分组（面向普通用户的名称）+ 模型设置入口
  */
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@i-thinking/design/components/popover'
+import { Button } from '@cogito/design/components/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@cogito/design/components/popover'
 import { useState, type ReactElement } from 'react'
 
 import { AgentModelSettings } from './model-settings'

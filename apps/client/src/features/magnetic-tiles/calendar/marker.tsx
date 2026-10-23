@@ -1,5 +1,5 @@
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
-import { calendar, timeSphere } from '@i-thinking/utils'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
+import { calendar, timeSphere } from '@cogito/utils'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'

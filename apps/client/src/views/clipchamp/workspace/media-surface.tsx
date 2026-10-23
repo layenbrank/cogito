@@ -1,4 +1,4 @@
-import { ScrollArea } from '@i-thinking/design/components/scroll-area'
+import { ScrollArea } from '@cogito/design/components/scroll-area'
 
 import { useClipchampStore } from '@/stores/clipchamp.ts'
 import {

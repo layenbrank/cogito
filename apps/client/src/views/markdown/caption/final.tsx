@@ -3,12 +3,12 @@
  * 对齐 VS Code 标题栏 Layout Control；应用菜单在 begin 最左侧。
  */
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger
-} from '@i-thinking/design/components/tooltip'
+} from '@cogito/design/components/tooltip'
 import { cn } from 'cn'
 
 import { useMarkdownStore } from '@/stores/markdown'

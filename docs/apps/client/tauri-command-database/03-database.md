@@ -14,10 +14,10 @@ Crate：`thinking-database`（`apps/client/src-tauri/crates/database`）。
 统一走 [`scripts/migrate.ts`](../../../../apps/client/scripts/migrate.ts)：它自己解析库路径并调用迁移 bin，**不再需要 `sea-orm-cli` 与 `-d` / `-u`**。
 
 ```powershell
-pnpm --filter @i-thinking/client migrate:status # 各迁移 Applied / Pending
-pnpm --filter @i-thinking/client migrate:up # 应用未执行的迁移（已应用则 no-op）
-pnpm --filter @i-thinking/client migrate:down # 回滚 1 步（透传：… migrate down -- -n 2）
-pnpm --filter @i-thinking/client migrate:fresh # 清空全部表后重跑全部迁移
+pnpm --filter @cogito/client migrate:status # 各迁移 Applied / Pending
+pnpm --filter @cogito/client migrate:up # 应用未执行的迁移（已应用则 no-op）
+pnpm --filter @cogito/client migrate:down # 回滚 1 步（透传：… migrate down -- -n 2）
+pnpm --filter @cogito/client migrate:fresh # 清空全部表后重跑全部迁移
 ```
 
 库路径默认取 `%LOCALAPPDATA%\com.cogito.client\cogito-client.db`（其他平台为各自的应用数据目录），可用 `--db <路径>` 或环境变量 `COGITO_CLIENT_DB` 覆盖；`migrate` 不带子命令时等价于 `migrate:status`；`--no-backup` 跳过备份；`--` 之后的参数原样透传给 bin（如 `-n 2`）。

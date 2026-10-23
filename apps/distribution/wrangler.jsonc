@@ -1,12 +1,12 @@
 {
-  "name": "i-thinking-distribution",
+  "name": "cogito-distribution",
   "main": "src/worker.ts",
   "compatibility_date": "2026-08-01",
   "workers_dev": true,
   "r2_buckets": [
     {
       "binding": "DOWNLOADS",
-      "bucket_name": "i-thinking"
+      "bucket_name": "cogito"
     }
   ]
 }

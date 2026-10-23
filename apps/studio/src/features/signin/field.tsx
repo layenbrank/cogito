@@ -5,8 +5,8 @@ import {
   FormItem,
   FormLabel,
   FormMessage
-} from '@i-thinking/design/components/form'
-import { Input } from '@i-thinking/design/components/input'
+} from '@cogito/design/components/form'
+import { Input } from '@cogito/design/components/input'
 import { useState, type ReactNode } from 'react'
 import type { Control, FieldPath, FieldValues } from 'react-hook-form'
 

@@ -1,5 +1,5 @@
-import { Badge } from '@i-thinking/design/components/badge'
-import { ScrollArea } from '@i-thinking/design/components/scroll-area'
+import { Badge } from '@cogito/design/components/badge'
+import { ScrollArea } from '@cogito/design/components/scroll-area'
 
 import type { ListRunsReply } from '@/lib/directive-ipc.ts'
 

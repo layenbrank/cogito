@@ -6,8 +6,8 @@
  * Electron 自带 `ELECTRON_RUN_AS_NODE=1`，可把它当 Node 用，且加载的原生模块就是
  * Electron ABI —— 与打包后应用里的运行环境一致。
  *
- *   pnpm --filter @i-thinking/studio test:db
- *   pnpm --filter @i-thinking/studio test:db -- --watch     # 额外参数原样透传
+ *   pnpm --filter @cogito/studio test:db
+ *   pnpm --filter @cogito/studio test:db -- --watch     # 额外参数原样透传
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'

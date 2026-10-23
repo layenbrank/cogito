@@ -8,8 +8,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
-} from '@i-thinking/design/components/alert-dialog'
-import { Button } from '@i-thinking/design/components/button'
+} from '@cogito/design/components/alert-dialog'
+import { Button } from '@cogito/design/components/button'
 import { save as dialogSave } from '@tauri-apps/plugin-dialog'
 import { useEffect, useMemo, useState } from 'react'
 

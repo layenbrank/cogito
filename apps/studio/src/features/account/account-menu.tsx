@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react/offline'
-import { Avatar, AvatarFallback } from '@i-thinking/design/components/avatar'
-import { Button } from '@i-thinking/design/components/button'
+import { Avatar, AvatarFallback } from '@cogito/design/components/avatar'
+import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,7 +8,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
+} from '@cogito/design/components/dropdown-menu'
 import { useState } from 'react'
 
 import { useAccountSession, useSignOut } from './session.ts'
@@ -96,7 +96,7 @@ export function AccountMenuContent(props: AccountMenuContentProps) {
       ) : (
         <DropdownMenuItem onClick={props.onSignIn}>
           <Icon icon="lucide:log-in" />
-          登录 i-thinking
+          登录 cogito
         </DropdownMenuItem>
       )}
     </DropdownMenuContent>

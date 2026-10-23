@@ -2,7 +2,7 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup
-} from '@i-thinking/design/components/resizable'
+} from '@cogito/design/components/resizable'
 import { clsx } from 'clsx'
 
 import Navigation from '@/views/morph/workspace/navigation.tsx'

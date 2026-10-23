@@ -1,13 +1,13 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   FormControl,
   FormField,
   FormItem,
   FormLabel,
   FormMessage
-} from '@i-thinking/design/components/form'
-import { Input } from '@i-thinking/design/components/input'
+} from '@cogito/design/components/form'
+import { Input } from '@cogito/design/components/input'
 import { useEffect, useState } from 'react'
 import type { FieldPath, FieldValues, UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'

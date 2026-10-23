@@ -23,7 +23,7 @@ function AgentTitlebar(props: TitlebarProps) {
       )}
       begin={
         <span className="text-foreground shrink-0 pl-1 text-sm font-semibold tracking-tight">
-          i-thinking
+          cogito
         </span>
       }
       final={props.actions}

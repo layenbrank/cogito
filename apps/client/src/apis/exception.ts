@@ -38,7 +38,7 @@ interface ExceptionRecord {
 
 function POST_EXCEPTION(body: ExceptionWrite) {
   return http
-    .post<RSF<ExceptionRecord>>('/exception', body, { env: 'thinking' })
+    .post<RSF<ExceptionRecord>>('/exception', body, { env: 'cogito' })
     .then(HttpEnvelope)
 }
 

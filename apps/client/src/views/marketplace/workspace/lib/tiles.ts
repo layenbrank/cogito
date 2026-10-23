@@ -1,5 +1,5 @@
 import Fuse from 'fuse.js'
-import { timeSphere } from '@i-thinking/utils'
+import { timeSphere } from '@cogito/utils'
 
 import {
   matchBoothBucket,

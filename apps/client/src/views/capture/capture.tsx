@@ -2,9 +2,9 @@
  * 捕获库布局：顶栏（截屏/录屏分段、占用条、清理）+ 相簿侧栏 + Outlet。
  * 控件密度对齐 gallery / code（h-6~h-7、text-xs），不用 min-h-11。
  */
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
-import { Tabs, TabsList, TabsTrigger } from '@i-thinking/design/components/tabs'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
+import { Tabs, TabsList, TabsTrigger } from '@cogito/design/components/tabs'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { useEffect, useMemo, useState } from 'react'

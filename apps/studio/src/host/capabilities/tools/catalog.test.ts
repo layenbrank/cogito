@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { findLockPin, listOnDemandTools, parseToolsLock } from '@i-thinking/sidecar'
+import { findLockPin, listOnDemandTools, parseToolsLock } from '@cogito/sidecar'
 
 import { TOOL_KEYS } from '@/shared/ipc/specs/tools'
 import { findTool, findToolBinaryNames, findTools } from './catalog'
@@ -16,7 +16,7 @@ import { findTool, findToolBinaryNames, findTools } from './catalog'
  * 1. 覆盖面对得上：哪些工具算「按需」由 lock 说了算；
  * 2. **版本不漂**：pandoc / opencode / ffmpeg(win32) 必须与 lock 逐字一致（见 VERSION_CHECKED）。
  *
- * 两份 JSON 都交给契约包 `@i-thinking/sidecar` 解析：这里顺带让它的解析器对着真文件跑一遍。
+ * 两份 JSON 都交给契约包 `@cogito/sidecar` 解析：这里顺带让它的解析器对着真文件跑一遍。
  */
 const LOCK_PATH = fileURLToPath(
   new URL('../../../../../../scripts/commands/features/sidecar/tools.lock.json', import.meta.url)

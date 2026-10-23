@@ -126,10 +126,10 @@ export type AgentPermissionProfile = (typeof AGENT_PERMISSION_PROFILES)[number]
 
 /** 档位 → 自定义 agent 的说明（渲染进程不做展示，供 opencode 侧 agent 列表与排障用） */
 const PROFILE_DESCRIPTIONS: Readonly<Record<AgentPermissionProfile, string>> = {
-  auto: 'i-thinking Studio 自动档：工作区内改动直接执行',
-  ask: 'i-thinking Studio 询问档：改动前逐条征得同意',
-  readonly: 'i-thinking Studio 只读档：不修改任何文件',
-  chat: 'i-thinking Studio 纯聊天：当前模型不支持工具'
+  auto: 'cogito Studio 自动档：工作区内改动直接执行',
+  ask: 'cogito Studio 询问档：改动前逐条征得同意',
+  readonly: 'cogito Studio 只读档：不修改任何文件',
+  chat: 'cogito Studio 纯聊天：当前模型不支持工具'
 }
 
 /** 自定义 agent 的 id：config 生成与 engine 切换共用同一份命名，避免两处字符串漂移 */

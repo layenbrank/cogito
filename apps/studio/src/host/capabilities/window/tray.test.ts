@@ -47,7 +47,7 @@ vi.mock('electron', function () {
   return {
     app: {
       getName: function () {
-        return 'i thinking'
+        return 'cogito'
       },
       quit: function () {
         state.quitCount += 1
@@ -142,7 +142,7 @@ describe('tray plugin', function () {
     registerTray(deps)
 
     expect(state.created).toBe(1)
-    expect(state.tooltips).toEqual(['i thinking'])
+    expect(state.tooltips).toEqual(['cogito'])
     expect(state.templates).toHaveLength(1)
   })
 
@@ -154,7 +154,7 @@ describe('tray plugin', function () {
     const labels = template.map(function (item) {
       return item.label ?? item.type
     })
-    expect(labels).toEqual(['打开主窗口', '打开 Agent 窗口', 'separator', '退出 i thinking'])
+    expect(labels).toEqual(['打开主窗口', '打开 Agent 窗口', 'separator', '退出 cogito'])
 
     ;(template[0].click as () => void)()
     ;(template[1].click as () => void)()

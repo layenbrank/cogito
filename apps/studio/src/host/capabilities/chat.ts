@@ -4,8 +4,8 @@ import { desc, eq, gte, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import { chatMessage, chatProvider, chatSession, chatUsage } from '@schema'
-import { normalizeModelEntries } from '@i-thinking/agent/provider'
-import type { ProviderSource } from '@i-thinking/agent/provider'
+import { normalizeModelEntries } from '@cogito/agent/provider'
+import type { ProviderSource } from '@cogito/agent/provider'
 import type { CHANNELS } from '@/shared/ipc/channels'
 import { IpcError } from '@/shared/ipc/error'
 import { type In, type Out } from '@/shared/ipc/specs'
@@ -87,7 +87,7 @@ async function sumUsage(where: SQL): Promise<UsageSummary> {
 /**
  * `models` 在 API 侧是数组、落库是 JSON 文本。
  *
- * 归一交给 `@i-thinking/agent/provider` 的 `normalizeModelEntries`：它同时吃掉
+ * 归一交给 `@cogito/agent/provider` 的 `normalizeModelEntries`：它同时吃掉
  * 早期只存模型名的 `string[]` 与新写的对象数组，所以老库不用迁移。
  */
 function parseModels(value: string | null): ModelEntry[] | null {

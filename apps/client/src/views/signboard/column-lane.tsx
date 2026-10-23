@@ -1,14 +1,14 @@
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
-import { Input } from '@i-thinking/design/components/input'
+} from '@cogito/design/components/dropdown-menu'
+import { Input } from '@cogito/design/components/input'
 import { clsx } from 'clsx'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 

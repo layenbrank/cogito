@@ -1,12 +1,12 @@
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { Switch } from '@i-thinking/design/components/switch'
+} from '@cogito/design/components/select'
+import { Switch } from '@cogito/design/components/switch'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
@@ -111,7 +111,7 @@ function GeneralPanel() {
           <ConfirmAction
             label="退出应用"
             title="退出应用"
-            description="确定要完全退出 i thinking 吗？（不会保留在托盘）"
+            description="确定要完全退出 cogito 吗？（不会保留在托盘）"
             confirmLabel="退出"
             isPending={exiting}
             onConfirm={onExit}

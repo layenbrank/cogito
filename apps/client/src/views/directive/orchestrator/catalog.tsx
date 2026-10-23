@@ -1,6 +1,6 @@
-import { Badge } from '@i-thinking/design/components/badge'
-import { Input } from '@i-thinking/design/components/input'
-import { ScrollArea } from '@i-thinking/design/components/scroll-area'
+import { Badge } from '@cogito/design/components/badge'
+import { Input } from '@cogito/design/components/input'
+import { ScrollArea } from '@cogito/design/components/scroll-area'
 import { useMemo, useState } from 'react'
 
 import { useCorexStore } from '@/stores/corex.ts'

@@ -1,10 +1,10 @@
 /**
  * Extension 渲染进程的 Tailwind v4 入口。
  *
- * - 设计 token 的唯一源在 `@i-thinking/design`（globals.css）
+ * - 设计 token 的唯一源在 `@cogito/design`（globals.css）
  * - `@source` 显式声明本 app 源码（v4 自动探测以 CSS 文件目录为基准）
  * - Vue→React 重写期间本入口保持可用；重写完成后与 studio 共用同一 token 契约
  */
-@import '@i-thinking/design/globals.css';
+@import '@cogito/design/globals.css';
 
 @source '../';

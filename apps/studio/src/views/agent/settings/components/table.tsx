@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import { Spinner } from '@i-thinking/design/components/spinner'
+import { Button } from '@cogito/design/components/button'
+import { Spinner } from '@cogito/design/components/spinner'
 import { cn } from 'cn'
 import type { ReactNode } from 'react'
 

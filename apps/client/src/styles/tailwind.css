@@ -1,12 +1,12 @@
 /**
  * client 渲染层的 Tailwind v4 入口。
  *
- * - 设计 token 的唯一源在 `@i-thinking/design`（globals.css），此处只补应用级来源扫描
+ * - 设计 token 的唯一源在 `@cogito/design`（globals.css），此处只补应用级来源扫描
  * - `@source` 让 Tailwind 扫描本 app 的源码（v4 的自动探测以 CSS 文件所在目录为基准，
  *   跨 workspace 的类名必须显式声明来源）
  * - 应用级 base 覆盖保留在 `./index.scss` 的 `@layer base` 块中，靠引入顺序与 preflight 同层
  */
-@import '@i-thinking/design/globals.css';
+@import '@cogito/design/globals.css';
 
 /* app feature：盘面磁贴（非 design 组件库） */
 @import '../features/magnetic-tile/magnetic-tile.css';

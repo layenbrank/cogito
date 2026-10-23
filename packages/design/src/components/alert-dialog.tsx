@@ -2,7 +2,7 @@ import * as React from 'react'
 import { AlertDialog as AlertDialogPrimitive } from '@base-ui/react/alert-dialog'
 import { cn } from 'cn'
 
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { OVERLAY_BACKDROP_MOTION, OVERLAY_CENTER_MOTION } from '../lib/overlay-motion'
 
 function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {

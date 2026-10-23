@@ -3,8 +3,8 @@
  *
  * 资料编辑统一走全局设置「账号」分区；登录弹窗仍由主窗口持有（`ReSignIn`）。
  */
-import { Avatar, AvatarFallback, AvatarImage } from '@i-thinking/design/components/avatar'
-import { Button } from '@i-thinking/design/components/button'
+import { Avatar, AvatarFallback, AvatarImage } from '@cogito/design/components/avatar'
+import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,8 +13,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+} from '@cogito/design/components/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { Icon } from '@iconify/react/offline'
 import { clsx } from 'clsx'
 

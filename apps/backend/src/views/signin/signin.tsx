@@ -1,7 +1,7 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Checkbox } from '@i-thinking/design/components/checkbox'
-import { Input } from '@i-thinking/design/components/input'
-import { Label } from '@i-thinking/design/components/label'
+import { Button } from '@cogito/design/components/button'
+import { Checkbox } from '@cogito/design/components/checkbox'
+import { Input } from '@cogito/design/components/input'
+import { Label } from '@cogito/design/components/label'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -81,7 +81,7 @@ export default function SignInView() {
       <section className="relative hidden overflow-hidden lg:block">
         <BrandShader />
         <div className="relative z-10 flex h-full flex-col justify-between p-10 text-[var(--signin-brand-foreground)]">
-          <p className="text-sm tracking-[0.2em] uppercase opacity-80">i-thinking</p>
+          <p className="text-sm tracking-[0.2em] uppercase opacity-80">cogito</p>
           <div>
             <h1 className="max-w-md text-4xl font-semibold tracking-tight">Backend Console</h1>
             <p className="mt-3 max-w-sm text-sm text-[var(--signin-brand-muted)]">

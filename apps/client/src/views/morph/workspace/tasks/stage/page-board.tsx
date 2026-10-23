@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import { Skeleton } from '@i-thinking/design/components/skeleton'
+import { Button } from '@cogito/design/components/button'
+import { Skeleton } from '@cogito/design/components/skeleton'
 import { clsx } from 'clsx'
 import { useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'

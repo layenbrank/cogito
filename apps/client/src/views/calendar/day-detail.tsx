@@ -1,5 +1,5 @@
-import { Badge } from '@i-thinking/design/components/badge'
-import { calendar, timeSphere } from '@i-thinking/utils'
+import { Badge } from '@cogito/design/components/badge'
+import { calendar, timeSphere } from '@cogito/utils'
 import { clsx } from 'clsx'
 import type { Dayjs } from 'dayjs'
 

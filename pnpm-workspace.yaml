@@ -2,9 +2,8 @@
 packages:
   - apps/*
   - packages/*
-  # Rust / Python 应用依赖各自生态（cargo / uv）管理，不进入 pnpm workspace
-  - "!apps/cogito"
-  - "!apps/ai-worker"
+  # Python 应用依赖走 uv；Rust 走 cargo（JS 侧脚本仍由 pnpm 管理）
+  - "!apps/compute"
 
 # 注册源（替代 .npmrc 中的 registry / @scope:registry）
 # https://pnpm.io/zh/blog/releases/11.0
@@ -23,7 +22,7 @@ shamefullyHoist: true
 
 hoistPattern:
   - "*"
-  - "!@i-thinking/*"
+  - "!@cogito/*"
 
 publicHoistPattern:
   - "*eslint*"
@@ -41,6 +40,7 @@ publicHoistPattern:
 allowBuilds:
   "@bitdisaster/exe-icon-extractor": false
   "@nestjs/core": true
+  '@openapitools/openapi-generator-cli': true
   "@parcel/watcher": true
   "@prisma/client": true
   "@prisma/engines": true

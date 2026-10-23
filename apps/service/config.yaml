@@ -1,0 +1,241 @@
+app:
+  env: development
+  swagger: true
+
+server:
+  host: 0.0.0.0
+  port: 3000
+
+database:
+  # 本机开发连 Docker 的 cogito-postgres（127.0.0.1:5432，库 cogito-service）。
+  # 真实密码写在 config.local.yaml（不入库），与仓库根 `.env` 的 POSTGRES_PASSWORD 一致。
+  url: postgres://machenike:Li33333.@127.0.0.1:5432/cogito-service
+
+redis:
+  url: redis://127.0.0.1:6379
+  pool_size: 8
+
+security:
+  # 通用应用密钥（预留；生产环境禁止占位值，任何环境下都不允许为空，当前业务代码未直接读取）
+  secret: change-me-secret
+  # JWT 签发/校验密钥（signin 等返回的 token）；至少 32 字符，不允许为空
+  # 本机留占位值即可（改了会让已发出的 token 失效）；生产必须由
+  # COGITO__SECURITY__JWT_SECRET 注入真随机值，占位值会被 validate() 拒绝启动
+  jwt_secret: change-me-jwt-secret-at-least-32-characters-long
+  # 用户密码入库算法：argon2（推荐）| aes（仅开发/迁移，生产禁用）
+  encryption: aes # argon2, aes
+  # encryption=aes 时必填；AES-256 密钥，Base64 编码（cargo run --bin generate）
+  aes_key: nFXrKNkTp/HcFcaRCbiyocEu19vg1TyqfDdDz67E6Nw=
+
+auth:
+  captcha:
+    # false：跳过 check-data（终端/Apifox 联调）；生产必须 true
+    enabled: true
+    base_url: http://127.0.0.1:8080
+    # 与 docker/gocaptcha/config.json 的 api_keys 一致；请求侧车时放在 X-API-Key 头
+    api_key: change-me-gocaptcha-key
+    kind: slide-default
+    timeout_ms: 5000
+    ip_rate_limit: 30
+  otp:
+    ttl_secs: 300
+    cooldown_secs: 60
+    max_attempts: 5
+    lock_secs: 900
+    mock: true
+  signin:
+    max_failures: 5
+  rate_limit:
+    enabled: true
+    burst_size: 20
+    requests_per_minute: 30
+  trust_proxy: false
+  # 启动时幂等就位平台 ADMIN（Backend Console 入口）。username/password 皆空 = 关闭。
+  # Docker / 本机开发见 config.development.yaml 与 docker/stack.env.example。
+  bootstrap_admin:
+    username: "layen"
+    password: "Li33333."
+    sync_password: false
+
+logging:
+  filter: info
+  dir: logs
+  retention_days: 14
+  format: pretty
+  body_max: 8192
+
+# 链路追踪（OTLP/HTTP）。`enabled: false` 时整条链路零开销，只保留请求头里的 traceparent 透传。
+# 端点要写全路径（默认的 /v1/traces 不会被自动补上）。
+telemetry:
+  enabled: false
+  endpoint: http://127.0.0.1:4318/v1/traces
+  service_name: cogito
+  # 1.0 = 全采样；多副本/高流量下按需下调
+  sample_ratio: 1.0
+  timeout_ms: 10000
+
+cors:
+  # 浏览器跨域白名单，**精确匹配**（协议 + 主机 + 端口都要一致；`localhost` 与 `127.0.0.1` 算两个来源）。
+  # `*` = 放行任意 Origin，仅非生产生效：生产会告警并拒绝（见 src/middlewares/cors.rs）。
+  # 本文件是 COPY 进镜像的：改了这里要重建镜像；不想重建就用环境变量覆盖（见 docker/stack.env.example）。
+  origins: ["*"]
+
+# 事件发布（outbox → 下游）。由 `worker` 二进制读取；`endpoint` 留空 = 只记日志。
+# 生产环境（app.env=production）必须配好 endpoint 与 token，否则 worker 只会把事件留在 outbox 里。
+events:
+  poll_interval_ms: 500
+  batch_size: 64
+  backoff_base_ms: 1000
+  backoff_max_ms: 60000
+  endpoint: ""
+  timeout_ms: 5000
+  token: ""
+  # 默认直连内网终点：禁用系统/环境变量代理（同 clients/ 下的内部客户端）
+  use_system_proxy: false
+
+# 可靠执行（编排运行时）。由 `orchestrator` 二进制读取。
+# 编排历史不是业务表：provider 自己建表、自己管迁移，放在独立 schema 里，
+# 不进 `migration` 世代，也不参与租户/平台通道。schema 不可为 public/空。
+durable:
+  # 留空 = 复用 database.url
+  database_url: ""
+  schema: durable
+  # 启动时自动建表（生产可置 false 改为仅校验，缺表则启动失败）
+  auto_migrate: true
+  # 并发数最小为 1
+  orchestration_concurrency: 2
+  worker_concurrency: 2
+  # 停机时给在跑活动留的收尾窗口（毫秒）
+  shutdown_grace_ms: 5000
+  # 活动租约时长：进程被硬杀后，这一步要等租约过期才会被别人接手，
+  # 所以它同时是「崩溃恢复最慢多久」。调小 = 恢复更快（本地/测试常用 3000）。
+  worker_lock_timeout_ms: 30000
+  # 租约续期提前量，必须小于 worker_lock_timeout_ms
+  worker_lock_renewal_buffer_ms: 5000
+
+# AI 计算车间（compute，Python）内部调用。契约在 spec/internal.yaml。
+# 由 `orchestrator` 读取：长任务的每一步都要调它，地址或令牌缺失则启动即失败。
+# 本地没有 compute 时（P6 才实现）orchestrator 起不来是预期行为。
+compute:
+  base_url: http://127.0.0.1:8081
+  # 与 compute 侧的内部共享令牌一致（请求头 X-Internal-Token）
+  # 本机可改成自己的值；生产必须真随机，占位值会被 orchestrator 拒绝启动
+  token: change-me-internal-token
+  timeout_ms: 30000
+  # 默认直连内网终点：禁用系统/环境变量代理
+  use_system_proxy: false
+  # 每次嵌入活动处理的块数（编排历史的一步）
+  embed_batch_size: 16
+  embed_model: text-embedding-3-small
+
+# 服务端 agent（P9c）的任务默认值。由 `api` 读取：起任务时把它写进编排输入。
+# 前几项都是**上限**：请求体可以往下收（更少轮次、更小的工具集合），不能往上越。
+agent:
+  # 推理用的对话模型：必须是 gateway_model 目录里的一行，且支持工具调用
+  # （capabilities.tools 不为 false），否则 agent 会退化成一次性问答
+  chat_model: deepseek-chat
+  # 一次任务最多几步「推理 + 工具」
+  max_steps: 6
+  # 单次人工审批最多等多久（秒）。只对**需要审批的写工具**有效：
+  # 到点没人处理就按「超时」作废这次调用（工具不会执行），任务继续往下走。
+  #
+  # 必须明显小于等待者的预算（3600s）：审批等太久，任务会先被等待者判超时，
+  # 于是「人在批准」与「任务已被判死」同时发生，决定就投给了已经没有人在等的实例。
+  approval_ttl_secs: 1800
+  # 允许 agent 使用的工具（下划线命名，不能带点号——点号是能力名的写法）
+  #
+  # 默认只给只读工具 + `memory_recall`（读别人的经验也是只读）。
+  # **写工具故意不在默认里**：`memory_write` 写下的是记忆，会被**之后的任务**当成既有事实召回，
+  # 写坏一次就持续影响后续每次召回（投毒面）；`asset_visibility_write` 改的是资产**可见性**，
+  # 等于改「谁能看到这个文件」。两者都必须由运维显式启用。
+  # 一旦启用，它们的每一次调用都要先过人工审批（审批是编排的闸门，不是工具的开关）。
+  # 任务收尾的结论摘要是编排自己写的，不受这个开关影响。
+  allowed_tools:
+    - knowledge_search
+    - asset_read
+    - memory_recall
+
+aliyun:
+  # 出站凭据（短信 / 邮件 / OSS 共用）。本地留空：`auth.otp.mock` 打开时不会真的发出去。
+  access_key_id: ""
+  access_key_secret: ""
+  # v3（ACS3-HMAC-SHA256，默认）；只有老网关才需要 v1
+  signature_version: v3
+  timeout_ms: 10000
+  sms:
+    endpoint: https://dysmsapi.aliyuncs.com
+    # 控制台审核通过的签名与模板（模板变量名必须是 code）
+    sign_name: 你的应用
+    template_code: SMS_xxxx
+  mail:
+    endpoint: https://dm.aliyuncs.com
+    # 控制台验证过的发信地址
+    account_name: noreply@example.com
+    from_alias: 你的应用
+    address_type: 1
+    reply_to_address: true
+    subject: 验证码
+    body_template: "您的验证码是 {code}，请勿泄露给他人。"
+  oss:
+    # bucket 留空表示本部署不使用对象存储
+    endpoint: https://oss-cn-hangzhou.aliyuncs.com
+    bucket: ""
+    root: ""
+    addressing_style: virtual
+    presign_endpoint: ""
+    presign_expires_secs: 900
+
+gateway:
+  # 全局兜底：无租户身份（用户维度）与团队租户使用
+  daily_token_quota: 1000000
+  # 个人租户免费档：无有效订阅时使用
+  free_daily_token_quota: 100000
+  # 个人租户订阅档位：档位名 -> 日 token 配额（与 subscription.plan 对应）
+  plan_daily_token_quota:
+    BASIC: 500000
+    PRO: 5000000
+  # 上游模型流式读超时（毫秒）
+  upstream_timeout_ms: 120000
+  # 审计落库开关
+  audit_enabled: true
+  # 服务身份出站面（/api/v1/service/**）：compute 等受信服务换短期令牌用的共享密钥。
+  # 默认留空 = 整个服务面关闭（503）：这些端点在公开的 api 端口上，不能靠「别人不知道」来兜底。
+  # 本机联调 / 部署时放 config.local.yaml 或 profile 覆盖，不入库。
+  service_token_secret: ""
+  # 服务令牌有效期（秒）：1..3600，0 视为默认 300
+  service_token_ttl_secs: 300
+
+# 支付（订单与渠道凭据）。凭据放 config.local.yaml / 部署环境的 profile 覆盖，不入库。
+# plans 里定价（amount > 0）的档位只能由支付回调开通：自助开通用 500408 拒绝。
+# 详见 src/services/payment/README.md
+pay:
+  # 订单有效期（秒）：超过即自动关单，逾期支付走「迟到支付」补偿
+  order_ttl_secs: 300
+  plans:
+    PRO:
+      amount: 1990 # 分（CNY）
+      duration_days: 30 # null = 永久
+      label: 专业版
+  wechat:
+    enabled: false
+    mch_id: ""
+    app_id: ""
+    # APIv3 密钥（32 字符），同时用于回调解密与应答签名
+    api_v3_key: ""
+    # 商户 API 证书序列号（请求签名头 serial_no）
+    serial_no: ""
+    # 商户 API 私钥（PKCS#8 PEM，即 apiclient_key.pem 的内容）
+    private_key: ""
+    # 微信支付平台证书公钥（PEM：openssl x509 -pubkey -noout -in cert.pem）
+    platform_public_key: ""
+    # 必须为公网可达的 https 地址，微信只回调这里
+    notify_url: https://example.com/api/v1/pay/notify/wechat
+    api_base: https://api.mch.weixin.qq.com
+  alipay:
+    enabled: false
+    app_id: ""
+    # 应用私钥（PKCS#8 PEM）与支付宝公钥（PEM 内容）
+    private_key: ""
+    alipay_public_key: ""
+    gateway_url: https://openapi.alipay.com/gateway.do
+    notify_url: https://example.com/api/v1/pay/notify/alipay

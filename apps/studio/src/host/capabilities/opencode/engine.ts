@@ -1,8 +1,8 @@
 import path from 'node:path'
 
 import type { ModelRef, OpenCodeClient, SessionInfo } from '@opencode/client'
-import { findProviderSource } from '@i-thinking/agent/provider'
-import type { ProviderSource } from '@i-thinking/agent/provider'
+import { findProviderSource } from '@cogito/agent/provider'
+import type { ProviderSource } from '@cogito/agent/provider'
 import Store from 'electron-store'
 
 import { createApprovalTicket, type ApprovalTicket } from '@/host/capabilities/assistant/approval'

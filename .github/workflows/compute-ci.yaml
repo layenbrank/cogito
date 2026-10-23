@@ -1,0 +1,96 @@
+name: Compute CI
+
+# compute（apps/compute，Python）的独立流水线：与根 pnpm/turbo 流水线解耦，
+# 由 apps/compute 自己的 uv 工具链负责。
+# 同时监听 apps/service/spec/internal.yaml —— 它是两侧唯一的契约源，
+# tests/test_route_surface.py 会直接读这份文件做跨包校验。
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'apps/compute/**'
+      - 'apps/service/spec/internal.yaml'
+      - '.github/workflows/compute-ci.yaml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'apps/compute/**'
+      - 'apps/service/spec/internal.yaml'
+      - '.github/workflows/compute-ci.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: apps/compute
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # 迁移会 `CREATE EXTENSION vector`，探针也会检查该扩展是否在，所以必须是带 pgvector 的镜像。
+    # 库名必须含 test（测试自身会校验，防止误连非测试库）。
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: compute_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # tests/support.py 的夹具读这个变量（默认值是本地容器的 55433 端口）。
+      # 连不上时数据库相关用例会 **skip 并说明原因**，所以这里必须指对，
+      # 否则 CI 会「绿着」跳过掉一半断言。
+      COMPUTE_TEST_DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/compute_test"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10
+
+      - name: Install dependencies
+        # --frozen：uv.lock 与 pyproject.toml 不同步就直接失败，而不是在 CI 里静默改锁。
+        run: uv sync --frozen
+
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Type check
+        run: uv run mypy
+
+      - name: Assert the test database is reachable
+        # 数据库相关用例在连不上时会 skip（本地开发友好），CI 里这意味着「绿着跳过一半断言」。
+        # 所以先在这里把连接钉死：连不上就失败，后面的 pytest 才不会自我欺骗。
+        run: |
+          uv run python -c "
+          import asyncio, os, asyncpg
+          async def main() -> None:
+              conn = await asyncpg.connect(os.environ['COMPUTE_TEST_DATABASE_URL'])
+              await conn.close()
+              print('test database reachable')
+          asyncio.run(main())
+          "
+
+      - name: Test
+        # pyproject 里 filterwarnings = ["error"]：依赖的告警会直接把用例判失败。
+        # -rs 让任何 skip 都带着原因出现在日志里。
+        run: uv run pytest -q -rs

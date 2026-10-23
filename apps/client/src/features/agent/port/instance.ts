@@ -5,7 +5,7 @@
  * 审批回执要回到「发起这次审批的那次运行」—— 各自 new 一份端口就回不去了（会话控制器
  * 按票据 id 记着回执该投给谁）。
  */
-import type { ChatTarget } from '@i-thinking/chat/ports'
+import type { ChatTarget } from '@cogito/chat/ports'
 
 import { createHistoryPort } from '@/features/agent/port/history'
 import { createModelPort } from '@/features/agent/port/model'

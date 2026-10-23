@@ -15,7 +15,7 @@ const BrandShader = lazy(function () {
 })
 
 const TAGLINE = '一块桌面，装下磁贴、Agent 与指令。'
-const FOOTNOTE = '© 2026 i-thinking'
+const FOOTNOTE = '© 2026 cogito'
 
 /** 左侧能力叙事：磁贴 / Agent / 镜像 / 指令 */
 const CAPABILITIES = [
@@ -103,7 +103,7 @@ function Brand() {
       )}
       <div className={styles.core}>
         <p className={styles.eyebrow}>桌面工作台</p>
-        <h3>i-thinking</h3>
+        <h3>cogito</h3>
         <p className={styles.tagline}>{TAGLINE}</p>
 
         <ul className={styles.capabilities}>

@@ -2,12 +2,12 @@ import {
   GATEWAY_PROVIDER_KIND,
   PROVIDER_KIND_LABELS,
   PROVIDER_PRESETS
-} from '@i-thinking/agent/provider'
+} from '@cogito/agent/provider'
 
 /**
  * provider 表单常量（原始数据）。
  *
- * 类型列表直接取 `@i-thinking/agent/provider` 的预设表（唯一真源）：加一家厂商只改契约包，
+ * 类型列表直接取 `@cogito/agent/provider` 的预设表（唯一真源）：加一家厂商只改契约包，
  * 表单、展示名、默认地址、预填模型自动跟上。平台网关那条不是用户手建的，从选项里排除。
  *
  * 所有类型都是 OpenAI 兼容端点，区别只是默认地址与命名（便于用户认）；

@@ -5,10 +5,10 @@
  * 不再适用；这里直接跑 `crates/database` 的迁移 bin（`thinking-database`），只需给出库地址。
  *
  * 用法：
- *   pnpm --filter @i-thinking/client migrate:status
- *   pnpm --filter @i-thinking/client migrate:up
- *   pnpm --filter @i-thinking/client migrate:fresh
- *   pnpm --filter @i-thinking/client migrate down -- -n 2      # 透传额外参数
+ *   pnpm --filter @cogito/client migrate:status
+ *   pnpm --filter @cogito/client migrate:up
+ *   pnpm --filter @cogito/client migrate:fresh
+ *   pnpm --filter @cogito/client migrate down -- -n 2      # 透传额外参数
  *   node scripts/migrate.ts status --db ./tmp/dev.db           # 指向别的库
  *   node scripts/migrate.ts fresh --no-backup                  # 跳过自动备份
  */

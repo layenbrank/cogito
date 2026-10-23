@@ -69,7 +69,7 @@ pub fn setup(app: &mut tauri::App) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let sep1 = PredefinedMenuItem::separator(handle)?;
-    let about_item = MenuItem::with_id(handle, "about", "关于 i-thinking", true, None::<&str>)?;
+    let about_item = MenuItem::with_id(handle, "about", "关于 cogito", true, None::<&str>)?;
     let sep2 = PredefinedMenuItem::separator(handle)?;
     let quit_item = MenuItem::with_id(handle, "quit", "退出", true, None::<&str>)?;
 
@@ -91,7 +91,7 @@ pub fn setup(app: &mut tauri::App) -> tauri::Result<()> {
 
     TrayIconBuilder::with_id("main-tray")
         .icon(icon)
-        .tooltip("i-thinking")
+        .tooltip("cogito")
         .menu(&menu)
         // 左键由 on_tray_icon_event 处理，不直接弹出菜单
         .show_menu_on_left_click(false)
@@ -172,7 +172,7 @@ fn show_about(app: &AppHandle) {
     use tauri_plugin_dialog::DialogExt;
     app.dialog()
         .message("版本: 0.1.0\n\n一个专注隐私的智能工具箱")
-        .title("关于 i-thinking")
+        .title("关于 cogito")
         .show(|_| {});
 }
 

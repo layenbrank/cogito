@@ -17,7 +17,7 @@ transforming, and record gaps in the report.
    current base, STYLE (e.g. `radix-lyra`), tailwind version, aliases,
    installed components, and package manager. Trust it over inference.
 2. Detect the package manager (packageManager field / lockfile:
-   pnpm-lock.yaml, bun.lock, yarn.lock, package-lock.json) and use IT for
+   pnpm-lock.yaml, yarn.lock, package-lock.json) and use IT for
    every install. Never leave a stale lockfile.
 3. Require a clean git tree; work on a branch; one commit per component.
 4. Baseline check BEFORE touching dependencies: run the project's

@@ -1,4 +1,4 @@
-import { usePanelRef } from '@i-thinking/design/components/resizable'
+import { usePanelRef } from '@cogito/design/components/resizable'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { useCorexStore } from '@/stores/corex'

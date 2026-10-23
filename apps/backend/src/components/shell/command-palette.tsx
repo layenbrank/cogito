@@ -7,7 +7,7 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator
-} from '@i-thinking/design/components/command'
+} from '@cogito/design/components/command'
 import { Icon } from '@iconify/react/offline'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'

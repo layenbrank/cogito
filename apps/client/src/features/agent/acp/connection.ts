@@ -54,7 +54,7 @@ function bindAcpRequestRouter(next: AcpRequestRouter) {
 }
 
 const ACP_INITIALIZE_TIMEOUT_MS = 10_000
-const CLIENT_NAME = 'i-thinking'
+const CLIENT_NAME = 'cogito'
 const CLIENT_VERSION = '1.4.0'
 const GOOSE_PROVIDER_AUTH_ID = 'goose-provider'
 

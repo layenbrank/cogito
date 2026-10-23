@@ -9,8 +9,8 @@ import { fileURLToPath } from 'node:url'
 
 const STUDIO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const MONOREPO_ROOT = path.resolve(STUDIO_ROOT, '..', '..')
-const PACKAGED_DIR = path.join(MONOREPO_ROOT, 'out', 'studio', 'i-thinking-win32-x64')
-const EXE = path.join(PACKAGED_DIR, 'i-thinking.exe')
+const PACKAGED_DIR = path.join(MONOREPO_ROOT, 'out', 'studio', 'cogito-win32-x64')
+const EXE = path.join(PACKAGED_DIR, 'cogito.exe')
 const WAIT_MS = 8000
 
 function main() {

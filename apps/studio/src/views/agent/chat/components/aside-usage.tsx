@@ -1,7 +1,7 @@
-import { Badge } from '@i-thinking/design/components/badge'
-import { Button } from '@i-thinking/design/components/button'
-import { Progress } from '@i-thinking/design/components/progress'
-import { Skeleton } from '@i-thinking/design/components/skeleton'
+import { Badge } from '@cogito/design/components/badge'
+import { Button } from '@cogito/design/components/button'
+import { Progress } from '@cogito/design/components/progress'
+import { Skeleton } from '@cogito/design/components/skeleton'
 import { useNavigate } from 'react-router-dom'
 
 import { useAccountSession } from '@/features/account/session.ts'

@@ -5,7 +5,7 @@ import { OpencodeTool } from './opencode.ts'
 import { PandocTool } from './pandoc.ts'
 import { PdfiumTool } from './pdfium.ts'
 
-import type { SidecarToolKey } from '@i-thinking/sidecar'
+import type { SidecarToolKey } from '@cogito/sidecar'
 
 import type { ToolStrategy } from './types.ts'
 

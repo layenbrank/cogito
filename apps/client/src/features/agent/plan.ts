@@ -10,7 +10,7 @@
  */
 import type { ThreadMessage } from '@assistant-ui/react'
 
-import type { ChatPlanEntry } from '@i-thinking/chat/ports'
+import type { ChatPlanEntry } from '@cogito/chat/ports'
 
 const PLAN_PART_NAME = 'plan'
 

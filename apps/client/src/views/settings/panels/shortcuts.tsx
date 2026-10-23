@@ -1,6 +1,6 @@
-import { Badge } from '@i-thinking/design/components/badge'
-import { Button } from '@i-thinking/design/components/button'
-import { Kbd, KbdGroup } from '@i-thinking/design/components/kbd'
+import { Badge } from '@cogito/design/components/badge'
+import { Button } from '@cogito/design/components/button'
+import { Kbd, KbdGroup } from '@cogito/design/components/kbd'
 import { useMemo, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 

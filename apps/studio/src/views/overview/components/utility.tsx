@@ -1,4 +1,4 @@
-import { DropdownMenu, DropdownMenuTrigger } from '@i-thinking/design/components/dropdown-menu'
+import { DropdownMenu, DropdownMenuTrigger } from '@cogito/design/components/dropdown-menu'
 import { toast } from 'sonner'
 
 import { Utility, UtilityButton } from '@/components/utility'

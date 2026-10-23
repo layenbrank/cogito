@@ -1,4 +1,4 @@
-import type { AssistantLabelsOverride } from '@i-thinking/design/assistant/labels'
+import type { AssistantLabelsOverride } from '@cogito/design/assistant/labels'
 
 /**
  * 设计包 label 之外的 agent 文案：库不认识这些概念（"不显示次数"这种偏好是 app 的），

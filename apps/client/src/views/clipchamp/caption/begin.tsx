@@ -2,13 +2,13 @@
  * Clipchamp 窗 Caption 左侧（Decorations.begin）：
  * 项目名可拖拽；撤销/重做/比例/预览全屏仅控件标 data-region=false。
  */
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
+} from '@cogito/design/components/dropdown-menu'
 import { Icon } from '@iconify/react/offline'
 
 import { useClipchampStore } from '@/stores/clipchamp.ts'

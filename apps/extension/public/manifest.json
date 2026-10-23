@@ -1,10 +1,10 @@
 {
-  "name": "i thinking",
+  "name": "cogito",
   "version": "1.0.0",
   "incognito": "split",
   "manifest_version": 3,
   "host_permissions": ["<all_urls>", "https://*/*", "http://*/*"],
-  "description": "i thinking is a privacy-first extension that enhances your browsing experience with intelligent features while prioritizing your data security.",
+  "description": "cogito is a privacy-first extension that enhances your browsing experience with intelligent features while prioritizing your data security.",
   "permissions": [
     "tts",
     "tabs",

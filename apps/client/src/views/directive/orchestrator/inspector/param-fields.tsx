@@ -1,13 +1,13 @@
-import { Label } from '@i-thinking/design/components/label'
+import { Label } from '@cogito/design/components/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { Switch } from '@i-thinking/design/components/switch'
-import { Textarea } from '@i-thinking/design/components/textarea'
+} from '@cogito/design/components/select'
+import { Switch } from '@cogito/design/components/switch'
+import { Textarea } from '@cogito/design/components/textarea'
 import { useState, type ReactNode } from 'react'
 
 import type { ActionEntry } from '@/shared/ipc/specs/sidecar'

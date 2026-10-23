@@ -1,12 +1,12 @@
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
-import { Input } from '@i-thinking/design/components/input'
-import { ToggleGroup, ToggleGroupItem } from '@i-thinking/design/components/toggle-group'
+} from '@cogito/design/components/dropdown-menu'
+import { Input } from '@cogito/design/components/input'
+import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { AnimatePresence, motion } from 'motion/react'

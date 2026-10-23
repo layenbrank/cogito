@@ -7,7 +7,7 @@
   // true = 自动在项目 target/ 下建 rust-analyzer/ 子目录，避免与 cargo build 竞争锁
   "rust-analyzer.cargo.targetDir": true,
   // 仅分析显式声明的 Cargo.toml，不扫描整个 monorepo
-  "rust-analyzer.linkedProjects": ["apps/client/src-tauri/Cargo.toml", "apps/cogito/Cargo.toml"],
+  "rust-analyzer.linkedProjects": ["apps/client/src-tauri/Cargo.toml", "apps/service/Cargo.toml"],
   // 限制并发线程数，减少内存压力（4 核以上机器可适当调高）
   "rust-analyzer.numThreads": 4,
   // 不分析 examples/tests/benches，只分析 lib+bin
@@ -78,14 +78,14 @@
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[yaml]": {
-    // pnpm-workspace.yaml / docker-compose 走 redhat（prettier 的 yaml 不在 `pnpm format` 的 glob 里）
+    // pnpm-workspace.yaml / compose.yaml 走 redhat（prettier 的 yaml 不在 `pnpm format` 的 glob 里）
     "editor.defaultFormatter": "redhat.vscode-yaml"
   },
   "breadcrumbs.filePath": "on",
   "breadcrumbs.symbolSortOrder": "type",
   "chat.extensionUnification.enabled": false,
   "chat.mcp.serverSampling": {
-    "i-thinking/.vscode/mcp.json: github-mcp": {
+    "cogito/.vscode/mcp.json: github-mcp": {
       "allowedModels": [
         "copilot/claude-sonnet-4.5",
         "copilot/auto",
@@ -178,7 +178,7 @@
     ".gitignore": ".gitattributes, .gitconfig, .gitpod.yml, .git*, git*",
     "*.env": "$(capture).env.*",
     "dist.pem": "dist.*",
-    "Dockerfile": "docker-compose.*, .dockerignore",
+    "Dockerfile": "compose.*, .dockerignore",
     "eslint.config.ts": ".eslint*, eslint*, .prettier*, prettier*, oxlint*, oxlint*, .editorconfig, .lintstagedrc, .browserslistrc",
     "index.html": "*.html",
     "package.json": "package-lock.json, pnpm*, .yarnrc*, yarn*, .node-version, .npmrc",
@@ -228,11 +228,12 @@
     "**/.venv": true,
     "**/.vscode": true,
     "**/__pycache__": true,
-    "**/apps/cogito/cas": true,
-    "**/apps/cogito/chunks": true,
-    "**/apps/cogito/data": true,
-    "**/apps/cogito/logs": true,
-    "**/apps/cogito/uploads": true,
+    "**/apps/service/cas": true,
+    "**/apps/service/chunks": true,
+    "**/data/postgres": true,
+    "**/data/redis": true,
+    "**/apps/service/logs": true,
+    "**/apps/service/uploads": true,
     "**/build": true,
     "**/dist": true,
     "**/node_modules": true,
@@ -359,8 +360,8 @@
   "prettier.trailingComma": "none",
   "prettier.useTabs": true,
   "prettier.vueIndentScriptAndStyle": false,
-  // ai-worker 的实测环境由 uv 建在 apps/ai-worker/.venv（见该目录 README 的 uv sync）
-  "python.defaultInterpreterPath": "${workspaceFolder}/apps/ai-worker/.venv/Scripts/python.exe",
+  // compute 的实测环境由 uv 建在 apps/compute/.venv（见该目录 README 的 uv sync）
+  "python.defaultInterpreterPath": "${workspaceFolder}/apps/compute/.venv/Scripts/python.exe",
   "scm.inputFontSize": 16,
   "scss.format.newlineBetweenSelectors": true,
   "scss.hover.documentation": true,
@@ -380,11 +381,12 @@
     "**/.venv": true,
     "**/.vscode": true,
     "**/__pycache__": true,
-    "**/apps/cogito/cas": true,
-    "**/apps/cogito/chunks": true,
-    "**/apps/cogito/data": true,
-    "**/apps/cogito/logs": true,
-    "**/apps/cogito/uploads": true,
+    "**/apps/service/cas": true,
+    "**/apps/service/chunks": true,
+    "**/data/postgres": true,
+    "**/data/redis": true,
+    "**/apps/service/logs": true,
+    "**/apps/service/uploads": true,
     "**/build": true,
     "**/dist": true,
     "**/node_modules": true,

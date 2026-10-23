@@ -17,7 +17,7 @@
 用户从系统托盘右键菜单选择「检查更新」，流程走到下载并安装时，NSIS 弹出错误：
 
 > 无法打开要写入的文件：  
-> `…\i thinking\corex-serve.exe`
+> `…\cogito\corex-serve.exe`
 
 安装器引擎为 Nullsoft Install System；更新插件配置为 `installMode: passive`。
 

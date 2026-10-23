@@ -1,8 +1,8 @@
-import { Badge } from '@i-thinking/design/components/badge'
-import { Button } from '@i-thinking/design/components/button'
-import { DialogDescription, DialogHeader, DialogTitle } from '@i-thinking/design/components/dialog'
-import { Spinner } from '@i-thinking/design/components/spinner'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+import { Badge } from '@cogito/design/components/badge'
+import { Button } from '@cogito/design/components/button'
+import { DialogDescription, DialogHeader, DialogTitle } from '@cogito/design/components/dialog'
+import { Spinner } from '@cogito/design/components/spinner'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { Icon } from '@iconify/react/offline'
 import { useState } from 'react'
 

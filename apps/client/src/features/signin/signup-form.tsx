@@ -1,8 +1,8 @@
 import { Icon } from '@iconify/react/offline'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Button } from '@i-thinking/design/components/button'
-import { Form } from '@i-thinking/design/components/form'
-import { Spinner } from '@i-thinking/design/components/spinner'
+import { Button } from '@cogito/design/components/button'
+import { Form } from '@cogito/design/components/form'
+import { Spinner } from '@cogito/design/components/spinner'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 

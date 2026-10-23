@@ -1,4 +1,4 @@
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'

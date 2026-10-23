@@ -1,4 +1,4 @@
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { toast } from 'sonner'

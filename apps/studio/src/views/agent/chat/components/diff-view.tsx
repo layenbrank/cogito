@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { useMemo, useState } from 'react'
 
 import { DIFF_PREVIEW_LIMIT, toDiffPreview } from './diff-lines.ts'

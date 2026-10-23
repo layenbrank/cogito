@@ -15,7 +15,7 @@ import type {
   ChatSchemaField,
   ChatStreamEvent,
   ChatToolApproval
-} from '@i-thinking/chat/ports'
+} from '@cogito/chat/ports'
 import type {
   CreateElicitationRequest,
   CreateElicitationResponse,

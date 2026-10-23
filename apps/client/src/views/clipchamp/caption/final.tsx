@@ -2,13 +2,13 @@
  * Clipchamp 窗 Caption 右侧（Decorations.final）：保存 / 恢复 / 导出预设与导出。
  * final 槽本身已在共享 Caption 内 data-region=false，无需再包一层。
  */
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
+} from '@cogito/design/components/dropdown-menu'
 
 import { useState } from 'react'
 

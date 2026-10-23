@@ -1,4 +1,4 @@
-import type { ChatHistoryPort, ChatStoredMessage, ChatThread } from '@i-thinking/chat/ports'
+import type { ChatHistoryPort, ChatStoredMessage, ChatThread } from '@cogito/chat/ports'
 
 import { useAgentStore } from '@/stores/agent.ts'
 

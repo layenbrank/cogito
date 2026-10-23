@@ -2,7 +2,7 @@
  * 跨进程链路标识（W3C Trace Context）。
  *
  * 服务端契约：所有跨进程端点都接受并回显 `traceparent`，响应信封另带 `traceID`。前端在请求
- * 发出前注入一条新链路的根上下文，服务端据此把入口日志与下游调用（ai-worker 等）串成同一条
+ * 发出前注入一条新链路的根上下文，服务端据此把入口日志与下游调用（compute 等）串成同一条
  * 链路；失败时再把服务端回显的 trace-id 带回 `HttpException.traceId`（见 `http.errors.ts`）。
  */
 
@@ -23,7 +23,7 @@ const SPAN_ID_BYTES = 8
  * 新建链路根上下文（浏览器侧一次请求一条链路）。
  *
  * flags 段置 `01`（sampled）：前端请求都是用户可感知的交互，标成已采样后服务端 `ParentBased`
- * 采样器会沿用该决定（见 `apps/cogito/guide/configuration.md` 的 `telemetry.sample_ratio`），
+ * 采样器会沿用该决定（见 `apps/service/guide/configuration.md` 的 `telemetry.sample_ratio`），
  * 保证这些流程一定有链路可查；要按比例降采样得改服务端采样器。
  */
 export function createTraceparent(): string {

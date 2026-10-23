@@ -1,7 +1,7 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
-import { Label } from '@i-thinking/design/components/label'
-import { Switch } from '@i-thinking/design/components/switch'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
+import { Label } from '@cogito/design/components/label'
+import { Switch } from '@cogito/design/components/switch'
 import { Icon } from '@iconify/react/offline'
 
 interface VariablesEditorProps {

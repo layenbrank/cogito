@@ -4,7 +4,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle
-} from '@i-thinking/design/components/dialog'
+} from '@cogito/design/components/dialog'
 import GoCaptcha from 'go-captcha-react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'

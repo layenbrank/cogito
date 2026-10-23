@@ -54,7 +54,7 @@ vi.mock('./tenant.ts', function () {
   return { findActiveTenantID: tenant.findActiveTenantID }
 })
 
-const THINKING_BASE = 'https://api.example.com/api/v1'
+const COGITO_BASE = 'https://api.example.com/api/v1'
 
 function send(request: RequestInfo | URL, headers = new Headers()): Headers {
   ofetchMock.configs[0].onRequest({ request, options: { headers } })
@@ -63,7 +63,7 @@ function send(request: RequestInfo | URL, headers = new Headers()): Headers {
 
 beforeEach(function () {
   vi.clearAllMocks()
-  vi.stubEnv('VITE_THINKING', THINKING_BASE)
+  vi.stubEnv('VITE_COGITO', COGITO_BASE)
   auth.findAuthToken.mockReturnValue('jwt-token')
   tenant.findActiveTenantID.mockReturnValue('t1')
 })
@@ -84,8 +84,8 @@ describe('gateway tenant header', function () {
   })
 
   it('tags an absolute gateway url on our own api', function () {
-    expect(send(`${THINKING_BASE}/gateway/quota/me`).get('X-Tenant-ID')).toBe('t1')
-    expect(send(new URL(`${THINKING_BASE}/gateway/models`)).get('X-Tenant-ID')).toBe('t1')
+    expect(send(`${COGITO_BASE}/gateway/quota/me`).get('X-Tenant-ID')).toBe('t1')
+    expect(send(new URL(`${COGITO_BASE}/gateway/models`)).get('X-Tenant-ID')).toBe('t1')
   })
 
   it('never leaks the tenant to another host', function () {
@@ -127,7 +127,7 @@ describe('traceparent header', function () {
 
   it('opens a trace on our own api, sampled', function () {
     expect(send('/gateway/models').get('traceparent')).toMatch(TRACEPARENT)
-    expect(send(`${THINKING_BASE}/tenants`).get('traceparent')).toMatch(TRACEPARENT)
+    expect(send(`${COGITO_BASE}/tenants`).get('traceparent')).toMatch(TRACEPARENT)
   })
 
   it('opens a fresh trace per request', function () {

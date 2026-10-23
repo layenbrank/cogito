@@ -7,25 +7,25 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
-} from '@i-thinking/design/components/alert-dialog'
-import { Button } from '@i-thinking/design/components/button'
+} from '@cogito/design/components/alert-dialog'
+import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
-import { Input } from '@i-thinking/design/components/input'
+} from '@cogito/design/components/dropdown-menu'
+import { Input } from '@cogito/design/components/input'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { ScrollArea } from '@i-thinking/design/components/scroll-area'
-import { Skeleton } from '@i-thinking/design/components/skeleton'
-import { Spinner } from '@i-thinking/design/components/spinner'
+} from '@cogito/design/components/select'
+import { ScrollArea } from '@cogito/design/components/scroll-area'
+import { Skeleton } from '@cogito/design/components/skeleton'
+import { Spinner } from '@cogito/design/components/spinner'
 import { Icon } from '@iconify/react/offline'
 import { toast } from 'sonner'
 

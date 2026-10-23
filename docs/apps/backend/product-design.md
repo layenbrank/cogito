@@ -4,7 +4,7 @@
 
 | 项 | 定义 |
 | -- | ---- |
-| 产品 | i-thinking **平台运维控制台**（管理 `client` 所依赖的 cogito 能力面） |
+| 产品 | cogito **平台运维控制台**（管理 `client` 所依赖的 cogito 能力面） |
 | 用户 | 平台角色 `ADMIN`（JWT + 库内角色双检） |
 | 非目标 | 终端用户产品、桌面壳、Studio、内容 CMS、YAML 密钥可视化编辑（密钥仅「是否已托管」） |
 
@@ -64,7 +64,7 @@
 
 ## 4. 视觉与动效原则
 
-对齐仓库 design token（`@i-thinking/design`），品牌气质取 client 登录侧：**深海蓝 → 青绿**，避免紫白渐变 / 奶油衬线套路。
+对齐仓库 design token（`@cogito/design`），品牌气质取 client 登录侧：**深海蓝 → 青绿**，避免紫白渐变 / 奶油衬线套路。
 
 | 层 | 做法 |
 | -- | ---- |

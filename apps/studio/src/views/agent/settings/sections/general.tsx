@@ -5,8 +5,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { Switch } from '@i-thinking/design/components/switch'
+} from '@cogito/design/components/select'
+import { Switch } from '@cogito/design/components/switch'
 import { APPROVAL_POLICIES, findApprovalPolicy } from '@/features/chat/approval.ts'
 import { findPlatformBlocker, findPlatformRow } from '@/features/chat/platform.ts'
 import { useProviders } from '@/features/chat/provider/query.ts'

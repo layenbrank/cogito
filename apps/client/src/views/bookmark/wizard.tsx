@@ -1,13 +1,13 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import { Progress } from '@i-thinking/design/components/progress'
+import { Button } from '@cogito/design/components/button'
+import { Progress } from '@cogito/design/components/progress'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
+} from '@cogito/design/components/select'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useShallow } from 'zustand/react/shallow'

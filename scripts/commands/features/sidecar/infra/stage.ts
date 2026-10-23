@@ -4,7 +4,7 @@ import path from 'node:path'
 import {
   SIDECAR_SCHEMA_VERSION,
   parseStagingChecksums as parseChecksumsDocument
-} from '@i-thinking/sidecar'
+} from '@cogito/sidecar'
 
 import { TOOLS } from '../tools/catalog.ts'
 
@@ -14,7 +14,7 @@ import { hasLockPin, isOnDemandTool, readToolsLock, requireLockPin } from './loc
 import { findOnlineTool, stageOnlineTool } from './manifest.ts'
 import { findPlatformKey } from './platform.ts'
 
-import type { StagedFile, StagingChecksums } from '@i-thinking/sidecar'
+import type { StagedFile, StagingChecksums } from '@cogito/sidecar'
 import type { ToolStrategy } from '../tools/types.ts'
 
 interface StageTarget {

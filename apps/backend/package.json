@@ -1,5 +1,5 @@
 {
-  "name": "@i-thinking/backend",
+  "name": "@cogito/backend",
   "private": true,
   "type": "module",
   "version": "0.1.0",
@@ -18,8 +18,8 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@i-thinking/design": "workspace:*",
-    "@i-thinking/utils": "workspace:*",
+    "@cogito/design": "workspace:*",
+    "@cogito/utils": "workspace:*",
     "@iconify/json": "catalog:",
     "@iconify/react": "catalog:",
     "clsx": "catalog:",
@@ -30,7 +30,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@i-thinking/shared": "workspace:*",
+    "@cogito/shared": "workspace:*",
     "@types/d3": "^7.4.3"
   }
 }

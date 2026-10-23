@@ -19,16 +19,16 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
-} from '@i-thinking/design/components/alert-dialog'
-import { Button } from '@i-thinking/design/components/button'
+} from '@cogito/design/components/alert-dialog'
+import { Button } from '@cogito/design/components/button'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle
-} from '@i-thinking/design/components/dialog'
-import { Input } from '@i-thinking/design/components/input'
+} from '@cogito/design/components/dialog'
+import { Input } from '@cogito/design/components/input'
 import { cn } from 'cn'
 import { useState } from 'react'
 import { toast } from 'sonner'

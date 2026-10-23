@@ -1,10 +1,10 @@
-# i-thinking Client (Tauri)
+# cogito Client (Tauri)
 
 桌面客户端，Tauri 壳层 + React 前端；重能力经 **corex-daemon** sidecar IPC 提供；Agent 经内置 **goose** ACP sidecar（引擎保留，UI 层对齐 studio）。
 
 ## 架构要点
 
-- 样式栈 **Tailwind v4 + `@i-thinking/design`**：入口 `src/styles/tailwind.css`（`@import '@i-thinking/design/globals.css'` + `@source '../'`）；无 antd / `--ith-*` / 旧 v3 `@tailwind`。
+- 样式栈 **Tailwind v4 + `@cogito/design`**：入口 `src/styles/tailwind.css`（`@import '@cogito/design/globals.css'` + `@source '../'`）；无 antd / `--ith-*` / 旧 v3 `@tailwind`。
 - 窗口一律 `decorations: false`，桌面壳自绘：`Decorations`（`src/components/decorations/`）是窗口容器（标题栏 + 撑满内容 + 纵向 flex，根透明让 mica / 透明材质透出），`Caption`（`src/components/caption/`）是标题栏（拖拽区带 `data-region`，槽位内交互元素带 `data-region="false"`）。
 - **无内置浏览器**：网址与 Web 搜索结果一律 `openUrl`；主窗 Command Omnibar（`features/command-bar`）本地优先检索磁贴 / 日程 / Agent 等，引擎切换为横向展开。
 - 磁贴不用 Dialog，双击开独立窗口（`navigation` 磁贴则外跳）；分两层：`views/<tile>/` 是窗口页，`features/magnetic-tiles/<tile>/` 是板上磁贴。
@@ -47,7 +47,7 @@ pnpm dev          # tauri dev（beforeDevCommand 只起 vite）
 ```bash
 # 仓库根先准备 binaries
 pnpm sidecar bootstrap client
-pnpm --filter @i-thinking/client check:tauri
+pnpm --filter @cogito/client check:tauri
 ```
 
 ## 打包

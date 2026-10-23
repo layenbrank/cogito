@@ -11,12 +11,12 @@ const MONOREPO_ROOT = path.resolve(FORGE_DIR, '..', '..', '..')
 /** apps/studio 包根目录 */
 const PACKAGE_ROOT = path.resolve(FORGE_DIR, '..')
 
-const APP_ID = 'com.i-thinking.studio'
+const APP_ID = 'com.cogito.studio'
 /** 与 appId 一致；已离开 Squirrel 命名（旧 `com.squirrel.…`） */
 const APP_AUMID = APP_ID
 
-const APP_NAME = 'i-thinking'
-const APP_EXECUTABLE = 'i-thinking'
+const APP_NAME = 'cogito'
+const APP_EXECUTABLE = 'cogito'
 const APP_VERSION = pkg.version
 const APP_DESCRIPTION = pkg.description
 const APP_AUTHORS = pkg.author.name
@@ -27,7 +27,8 @@ const PRODUCT_NAME = pkg.productName
 /**
  * MakerWix / electron-wix-msi 的 UpgradeCode。
  * 未固定时每次 make 会 `randomUUID()`，导致无法覆盖升级——必须钉死。
- * （由 `com.i-thinking.studio.wix-upgrade` 派生，勿改。）
+ * （历史值：由改名前的 appId 派生，与当前 `APP_ID` 解耦，勿重算——
+ * 重算会让已安装的老版本无法覆盖升级。）
  */
 const WIX_UPGRADE_CODE = '35A339DF-812F-5910-A60F-037F00044BA7'
 
@@ -38,7 +39,7 @@ const WIX_LANGUAGE = 2052
 const WIX_CULTURES = 'zh-CN;en-US'
 
 /** 开始菜单文件夹，对齐 Client NSIS `startMenuFolder` */
-const START_MENU_FOLDER = 'i thinking'
+const START_MENU_FOLDER = 'cogito'
 
 export {
   APP_AUMID,

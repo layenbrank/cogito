@@ -5,7 +5,7 @@
 //! goose 每次启动/重启都会扫描该目录（`register_declarative_providers`），写完后
 //! `goose_serve::restart` 让 goose 重读。
 //!
-//! 鉴权：`auth.command` 指向主程序自身（`i-thinking --token-helper --file <jwt>`），helper
+//! 鉴权：`auth.command` 指向主程序自身（`cogito --token-helper --file <jwt>`），helper
 //! 每次读 `<appData>/cogito/jwt` 输出令牌（登录/刷新时由 `cogito_token` 原子落盘）。
 //! goose 会把它拼成 `Authorization: Bearer <token>` 打到网关，与渲染进程一致。
 use std::fs;

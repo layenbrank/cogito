@@ -694,6 +694,114 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/exception": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 异常事件列表
+         * @description 仅平台 ADMIN。支持 source/level/fingerprint/environment/q/receivedFrom/receivedTo 筛选与 take/skip 分页。
+         */
+        get: operations["exception.toList"];
+        put?: never;
+        /**
+         * 上报异常事件
+         * @description 可匿名。必填 eventID（客户端 UUID）、message、timestamp、url。有 Bearer 且未传 userID 时回填 Session 用户。成功 body.code=200000。重复 eventID 返回 DUPLICATE_DATA。
+         */
+        post: operations["exception.toWrite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/exception/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 异常 Issue 分组
+         * @description 仅平台 ADMIN。按 fingerprint 聚合；故意忽略 query.fingerprint。
+         */
+        get: operations["exception.groups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/exception/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 异常来源列表
+         * @description 仅平台 ADMIN。返回去重升序的 source 字符串数组。
+         */
+        get: operations["exception.sources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/exception/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 异常汇总
+         * @description 仅平台 ADMIN。返回 total / byLevel / bySource；忽略 query.fingerprint。
+         */
+        get: operations["exception.summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/exception/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 异常事件详情
+         * @description 仅平台 ADMIN。路径 id 为库内主键，不是 eventID。
+         */
+        get: operations["exception.toRead"];
+        put?: never;
+        post?: never;
+        /**
+         * 删除异常事件
+         * @description 仅平台 ADMIN。硬删除；路径 id 为库内主键。
+         */
+        delete: operations["exception.toRemove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gateway/admin/models": {
         parameters: {
             query?: never;
@@ -946,7 +1054,7 @@ export interface paths {
          *     `ping`。
          *
          *     **工具目录**（前缀 `cogito_`，五个）：`cogito_knowledge_search` / `cogito_asset_read` /
-         *     `cogito_memory_recall` 三个**读**工具同步执行（转发 ai-worker 的直通通道）；
+         *     `cogito_memory_recall` 三个**读**工具同步执行（转发 compute 的直通通道）；
          *     `cogito_memory_write` / `cogito_asset_visibility_write` 两个**写**工具进目录但
          *     **调用即拒绝**——它们需要人工审批，而 MCP 的同步协议装不下审批这半程，
          *     要写长期记忆或改可见性请走服务端 agent（`POST /api/v1/agent/tasks`）。
@@ -1020,10 +1128,10 @@ export interface paths {
          *     资产必须是 `COMPLETED` 且未归档：在途、失败或已删除的资产在下游取不到内容，
          *     这里会提前拒绝（`500602` / `500603`），不会留下一条注定失败的任务记录。
          *
-         *     嵌入用的模型与批大小由部署配置决定（`ai_worker.embed_model` / `ai_worker.embed_batch_size`），
+         *     嵌入用的模型与批大小由部署配置决定（`compute.embed_model` / `compute.embed_batch_size`），
          *     向量维度取自嵌入服务的实际返回，调用方都**不能指定**。
          *
-         *     切片与嵌入都由 ai-worker 完成，模型调用走 cogito 网关，所以**配额、用量与审计自动生效**。
+         *     切片与嵌入都由 compute 完成，模型调用走 cogito 网关，所以**配额、用量与审计自动生效**。
          *
          *     索引是派生数据：重跑同一资产是安全操作（旧索引被覆盖），不需要先删除。
          *
@@ -1057,7 +1165,7 @@ export interface paths {
          *     问不到不影响返回；编排运行时没接通时也照样返回台账原样。
          *
          *     成功结束时 `result` 是索引结果（区块集 ID、块数、批次数、维度、集合名），
-         *     可以拿 `chunkSetID` 去 ai-worker 的检索面查这份资产的内容。
+         *     可以拿 `chunkSetID` 去 compute 的检索面查这份资产的内容。
          *
          *     有一处刻意的延迟：台账显示 `RUNNING` 但编排里查不到该实例时，5 分钟内仍按 `RUNNING` 返回，
          *     超过才判定失败。原因是「刚起、还没被运行时领走」与「实例真丢了」在编排侧长得一样，只有行龄能区分。
@@ -1092,7 +1200,7 @@ export interface paths {
          *     租户作用域的行级策略决定可见性：别的租户的行等同不存在（`500204`，HTTP 404，不暴露存在性）；
          *     本租户内尚未完成上传的资产返回 `200003`。
          *     受众是硬边界：嵌入受众的令牌打到这里一律 `300002`（HTTP 401），反之亦然。
-         *     这是 ai-worker 取分片字节的通道，不做用量计量（计量发生在出站调用上）。
+         *     这是 compute 取分片字节的通道，不做用量计量（计量发生在出站调用上）。
          */
         get: operations["service.assetContent"];
         put?: never;
@@ -1190,7 +1298,7 @@ export interface paths {
         put?: never;
         /**
          * 服务身份令牌（内部）
-         * @description **仅限受信服务进程**（当前只有 ai-worker）：用共享的 `X-Internal-Token` 换取一枚短期令牌，
+         * @description **仅限受信服务进程**（当前只有 compute）：用共享的 `X-Internal-Token` 换取一枚短期令牌，
          *
          *     令牌自带作用域：`scope=embeddings`（缺省）限定 `tenantID` + `model`，
          *     `scope=chat` 限定 `tenantID` + `model`，`scope=asset-read` 限定 `tenantID` + 单个 `assetID`。
@@ -2394,9 +2502,9 @@ export interface components {
         DependencyCheck: {
             /** @description 是否关键依赖：关键依赖故障 ⇒ 503（不接流量） */
             critical: boolean;
-            /** @description 补充说明（如 ai-worker 版本与能力） */
+            /** @description 补充说明（如 compute 版本与能力） */
             detail?: string | null;
-            /** @description `postgres` / `redis` / `ai-worker` */
+            /** @description `postgres` / `redis` / `compute` */
             name: string;
             /** @description `up` / `down` / `unconfigured` */
             status: string;
@@ -2470,6 +2578,170 @@ export interface components {
             timestamp: number;
             /** @description 链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用 */
             traceID?: string | null;
+        };
+        ExceptionEnvelope: {
+            /**
+             * Format: int32
+             * @description 业务状态码（200000=成功）
+             */
+            code: number;
+            data?: null | components["schemas"]["ExceptionR"];
+            msg: string;
+            success: boolean;
+            /** Format: int64 */
+            timestamp: number;
+            /** @description 链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用 */
+            traceID?: string | null;
+        };
+        ExceptionGroupPageEnvelope: {
+            /**
+             * Format: int32
+             * @description 业务状态码（200000=成功）
+             */
+            code: number;
+            data?: null | components["schemas"]["GroupPageR"];
+            msg: string;
+            success: boolean;
+            /** Format: int64 */
+            timestamp: number;
+            /** @description 链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用 */
+            traceID?: string | null;
+        };
+        ExceptionPageEnvelope: {
+            /**
+             * Format: int32
+             * @description 业务状态码（200000=成功）
+             */
+            code: number;
+            data?: null | components["schemas"]["PageR"];
+            msg: string;
+            success: boolean;
+            /** Format: int64 */
+            timestamp: number;
+            /** @description 链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用 */
+            traceID?: string | null;
+        };
+        /** @description 列表 / 聚合共用查询参数 */
+        ExceptionQueryP: {
+            environment?: string | null;
+            fingerprint?: string | null;
+            level?: string | null;
+            /** @description message / url 模糊搜索（≤200） */
+            q?: string | null;
+            /** @description 入库时间下界（ISO8601） */
+            receivedFrom?: string | null;
+            /** @description 入库时间上界（ISO8601） */
+            receivedTo?: string | null;
+            /**
+             * Format: int64
+             * @description 偏移，默认 0
+             */
+            skip?: number | null;
+            source?: string | null;
+            /**
+             * Format: int64
+             * @description 分页大小 1–100，默认 50
+             */
+            take?: number | null;
+        };
+        /** @description 单条异常事件响应 */
+        ExceptionR: {
+            context?: unknown;
+            environment?: string | null;
+            eventID: string;
+            fingerprint: string;
+            id: string;
+            ip?: string | null;
+            level: string;
+            message: string;
+            method?: string | null;
+            /**
+             * Format: int64
+             * @description 入库毫秒时间戳
+             */
+            receivedAt: number;
+            release?: string | null;
+            reqID?: string | null;
+            source: string;
+            stack?: string | null;
+            /** Format: int32 */
+            status?: number | null;
+            /** Format: int64 */
+            timestamp: number;
+            url: string;
+            userAgent?: string | null;
+            userID?: string | null;
+        };
+        ExceptionSourcesEnvelope: {
+            /**
+             * Format: int32
+             * @description 业务状态码（200000=成功）
+             */
+            code: number;
+            data?: string[] | null;
+            msg: string;
+            success: boolean;
+            /** Format: int64 */
+            timestamp: number;
+            /** @description 链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用 */
+            traceID?: string | null;
+        };
+        ExceptionSummaryEnvelope: {
+            /**
+             * Format: int32
+             * @description 业务状态码（200000=成功）
+             */
+            code: number;
+            data?: null | components["schemas"]["SummaryR"];
+            msg: string;
+            success: boolean;
+            /** Format: int64 */
+            timestamp: number;
+            /** @description 链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用 */
+            traceID?: string | null;
+        };
+        /** @description 客户端上报请求体 */
+        ExceptionWriteP: {
+            /** @description 扩展上下文 */
+            context?: unknown;
+            /** @description 运行环境（≤32） */
+            environment?: string | null;
+            /** @description 客户端生成的事件 UUID（幂等键；服务端不代填） */
+            eventID: string;
+            /** @description 聚合指纹（≤64）；缺省服务端按 message|url|status 生成 */
+            fingerprint?: string | null;
+            /** @description 客户端 IP（≤64） */
+            ip?: string | null;
+            /** @description fatal | error | warning | info；缺省 error */
+            level?: string | null;
+            /** @description 错误消息摘要（≤2000） */
+            message: string;
+            /** @description HTTP 方法（≤16） */
+            method?: string | null;
+            /** @description 应用版本（≤64） */
+            release?: string | null;
+            /** @description 请求链路 ID（≤128） */
+            reqID?: string | null;
+            /** @description 来源项目名（≤64）；缺省 client */
+            source?: string | null;
+            /** @description 堆栈（≤20000） */
+            stack?: string | null;
+            /**
+             * Format: int32
+             * @description HTTP 状态码 100–599
+             */
+            status?: number | null;
+            /**
+             * Format: int64
+             * @description 异常发生毫秒时间戳
+             */
+            timestamp: number;
+            /** @description 页面 / 接口 URL */
+            url: string;
+            /** @description User-Agent（≤500） */
+            userAgent?: string | null;
+            /** @description 业务用户 ID（≤128）；有 Session 且为空时由服务端填充 */
+            userID?: string | null;
         };
         /** @description 本人文件列表查询 */
         FilesP: {
@@ -2554,6 +2826,29 @@ export interface components {
         };
         /** @enum {string} */
         Gender: "MALE" | "FEMALE";
+        /** @description Issue 分页 */
+        GroupPageR: {
+            items: components["schemas"]["GroupR"][];
+            /** Format: int64 */
+            total: number;
+        };
+        /** @description 按 fingerprint 聚合的 Issue */
+        GroupR: {
+            /** Format: int64 */
+            count: number;
+            environment?: string | null;
+            fingerprint: string;
+            /** Format: int64 */
+            firstSeen: number;
+            /** Format: int64 */
+            lastSeen: number;
+            level: string;
+            message: string;
+            source: string;
+            /** Format: int32 */
+            status?: number | null;
+            url: string;
+        };
         /**
          * @example {
          *       "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -2909,6 +3204,12 @@ export interface components {
              * @example 13800138000
              */
             target: string;
+        };
+        /** @description 分页列表 */
+        PageR: {
+            items: components["schemas"]["ExceptionR"][];
+            /** Format: int64 */
+            total: number;
         };
         /**
          * @example {
@@ -3965,6 +4266,17 @@ export interface components {
         SuggestionR: {
             i: components["schemas"]["ISchema"];
             s: components["schemas"]["EmptySchema"][];
+        };
+        /** @description 汇总统计 */
+        SummaryR: {
+            byLevel: {
+                [key: string]: number;
+            };
+            bySource: {
+                [key: string]: number;
+            };
+            /** Format: int64 */
+            total: number;
         };
         /** @enum {string} */
         TSchema: "LT" | "MT" | "SC" | "CT" | "UT" | "PN" | "MB" | "RI" | "NWB" | "OS";
@@ -5604,6 +5916,328 @@ export interface operations {
                 };
             };
             /** @description 业务异常（未登录或上游失败）：HTTP 状态码按错误码归属返回，响应体为统一错误信封 */
+            default: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "exception.toList": {
+        parameters: {
+            query?: {
+                /** @description 分页大小 1–100，默认 50 */
+                take?: number;
+                /** @description 偏移，默认 0 */
+                skip?: number;
+                /** @description 精确匹配来源 */
+                source?: string;
+                /** @description fatal|error|warning|info */
+                level?: string;
+                /** @description 精确匹配指纹 */
+                fingerprint?: string;
+                /** @description 运行环境 */
+                environment?: string;
+                /** @description message/url 模糊搜索 */
+                q?: string;
+                /** @description 入库时间下界 ISO8601 */
+                receivedFrom?: string;
+                /** @description 入库时间上界 ISO8601 */
+                receivedTo?: string;
+            };
+            header?: {
+                /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                traceparent?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功（code=200000） */
+            200: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionPageEnvelope"];
+                };
+            };
+            /** @description 业务异常（未登录或权限不足） */
+            default: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "exception.toWrite": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                traceparent?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 异常事件 */
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "eventID": "550e8400-e29b-41d4-a716-446655440000",
+                 *       "level": "error",
+                 *       "message": "TypeError: x is not a function",
+                 *       "source": "studio",
+                 *       "timestamp": 1746748800000,
+                 *       "url": "http://localhost:5173/app"
+                 *     }
+                 */
+                "application/json": components["schemas"]["ExceptionWriteP"];
+            };
+        };
+        responses: {
+            /** @description 成功（code=200000） */
+            200: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionEnvelope"];
+                };
+            };
+            /** @description 业务异常（参数非法或 eventID 冲突） */
+            default: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "exception.groups": {
+        parameters: {
+            query?: {
+                /** @description 分页大小 1–100，默认 50 */
+                take?: number;
+                /** @description 偏移，默认 0 */
+                skip?: number;
+                /** @description 精确匹配来源 */
+                source?: string;
+                /** @description fatal|error|warning|info */
+                level?: string;
+                /** @description 运行环境 */
+                environment?: string;
+                /** @description message/url 模糊搜索 */
+                q?: string;
+                /** @description 入库时间下界 ISO8601 */
+                receivedFrom?: string;
+                /** @description 入库时间上界 ISO8601 */
+                receivedTo?: string;
+            };
+            header?: {
+                /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                traceparent?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功（code=200000） */
+            200: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionGroupPageEnvelope"];
+                };
+            };
+            /** @description 业务异常 */
+            default: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "exception.sources": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                traceparent?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功（code=200000） */
+            200: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionSourcesEnvelope"];
+                };
+            };
+            /** @description 业务异常 */
+            default: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "exception.summary": {
+        parameters: {
+            query?: {
+                /** @description 精确匹配来源 */
+                source?: string;
+                /** @description fatal|error|warning|info */
+                level?: string;
+                /** @description 运行环境 */
+                environment?: string;
+                /** @description message/url 模糊搜索 */
+                q?: string;
+                /** @description 入库时间下界 ISO8601 */
+                receivedFrom?: string;
+                /** @description 入库时间上界 ISO8601 */
+                receivedTo?: string;
+            };
+            header?: {
+                /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                traceparent?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功（code=200000） */
+            200: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionSummaryEnvelope"];
+                };
+            };
+            /** @description 业务异常 */
+            default: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "exception.toRead": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                traceparent?: string;
+            };
+            path: {
+                /** @description 库内主键 UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功（code=200000） */
+            200: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionEnvelope"];
+                };
+            };
+            /** @description 业务异常（不存在或权限不足） */
+            default: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "exception.toRemove": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                traceparent?: string;
+            };
+            path: {
+                /** @description 库内主键 UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功（code=200000，无 data） */
+            200: {
+                headers: {
+                    /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */
+                    traceparent?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmptyEnvelope"];
+                };
+            };
+            /** @description 业务异常 */
             default: {
                 headers: {
                     /** @description W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。 */

@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
 import { cn } from 'cn'
 import { AnimatePresence, useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'

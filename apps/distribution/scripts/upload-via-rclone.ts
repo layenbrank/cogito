@@ -13,14 +13,14 @@ import { delimiter, join } from 'node:path'
 
 import { findUploadTarget, parseArgs, runMain } from './upload-args.ts'
 
-const DEFAULT_BUCKET = 'i-thinking'
+const DEFAULT_BUCKET = 'cogito'
 const DEFAULT_REMOTE = 'cfr2'
 
 const USAGE = `用法: upload-via-rclone --source <文件> (--release <x.y.z> | --key <对象键>) [选项]
 
 选项:
   --source <文件>            要上传的文件（必填）
-  --release <x.y.z>          版本目录；默认对象名 i-thinking_<版本>_x64-setup.exe（--version 亦可用）
+  --release <x.y.z>          版本目录；默认对象名 cogito_<版本>_x64-setup.exe（--version 亦可用）
   --key <对象键>             直接指定整个对象键（与 --release 二选一）
   --name <文件名>            覆盖对象文件名
   --bucket <桶>              默认 ${DEFAULT_BUCKET}
@@ -109,7 +109,7 @@ function main(): void {
   const credentials = findCredentials(args)
 
   // 配置里带密钥：放临时目录、只给当前用户读，跑完就删
-  const workDir = mkdtempSync(join(tmpdir(), 'i-thinking-rclone-'))
+  const workDir = mkdtempSync(join(tmpdir(), 'cogito-rclone-'))
   try {
     const configPath = join(workDir, 'rclone.conf')
     writeFileSync(

@@ -11,7 +11,7 @@ import {
 } from '@/components/tiptap-ui-primitive/tooltip/tooltip.tsx'
 
 // --- Lib ---
-import { Kbd, KbdGroup } from '@i-thinking/design/components/kbd'
+import { Kbd, KbdGroup } from '@cogito/design/components/kbd'
 import { cn, parseShortcutKeys } from '@/lib/tiptap-utils'
 
 import '@/components/tiptap-ui-primitive/button/button-colors.scss'

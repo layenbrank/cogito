@@ -1,4 +1,4 @@
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { Component, useEffect, type ErrorInfo, type ReactNode } from 'react'
 import { isRouteErrorResponse, useRouteError } from 'react-router-dom'
 

@@ -1,11 +1,11 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
-} from '@i-thinking/design/components/tooltip'
+} from '@cogito/design/components/tooltip'
 
 import { formatBindingText } from '@/keyboard/binding'
 import { SHORTCUT_COMMAND, resolveBinding } from '@/keyboard/definitions'

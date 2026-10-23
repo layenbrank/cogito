@@ -1,7 +1,7 @@
 import { Icon } from '@iconify/react/offline'
-import { Avatar, AvatarImage } from '@i-thinking/design/components/avatar'
-import { Button } from '@i-thinking/design/components/button'
-import { Card } from '@i-thinking/design/components/card'
+import { Avatar, AvatarImage } from '@cogito/design/components/avatar'
+import { Button } from '@cogito/design/components/button'
+import { Card } from '@cogito/design/components/card'
 
 import { PANEL_ACTIONS, PANEL_OPTIONS } from './panel-options'
 

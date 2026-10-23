@@ -1,5 +1,5 @@
 {
-  "name": "@i-thinking/wasm",
+  "name": "@cogito/wasm",
   "type": "module",
   "collaborators": [
     "李贺 <15638470820@163.com>"

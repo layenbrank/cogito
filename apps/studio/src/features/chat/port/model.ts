@@ -4,7 +4,7 @@ import type {
   ChatPortRequest,
   ChatStreamEvent,
   ChatTarget
-} from '@i-thinking/chat/ports'
+} from '@cogito/chat/ports'
 import { toast } from 'sonner'
 
 /**
@@ -25,7 +25,7 @@ import {
 import { findDefaultModel, findSourceLabel } from '@/features/chat/provider/row.ts'
 import { findSendBlocker, isGatewayTarget } from '@/features/quota/gate.ts'
 import { syncActiveTenant } from '@/features/quota/tenant.ts'
-import { findProviderSource, GATEWAY_PROVIDER_KIND } from '@i-thinking/agent/provider'
+import { findProviderSource, GATEWAY_PROVIDER_KIND } from '@cogito/agent/provider'
 
 import { subscribeAssistantPort } from './assistant-port.ts'
 

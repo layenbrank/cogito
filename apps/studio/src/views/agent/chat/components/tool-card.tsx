@@ -1,12 +1,12 @@
 import { Icon } from '@iconify/react/offline'
 import type { ToolCallMessagePartProps } from '@assistant-ui/react'
-import { Badge } from '@i-thinking/design/components/badge'
-import { Button } from '@i-thinking/design/components/button'
+import { Badge } from '@cogito/design/components/badge'
+import { Button } from '@cogito/design/components/button'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger
-} from '@i-thinking/design/components/collapsible'
+} from '@cogito/design/components/collapsible'
 import { useState } from 'react'
 import { toast } from 'sonner'
 

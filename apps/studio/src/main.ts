@@ -46,7 +46,7 @@ export async function bootstrap(): Promise<void> {
   }
 
   // 与 forge/constants APP_AUMID / appId 一致（已离开 com.squirrel.*）
-  if (process.platform === 'win32') app.setAppUserModelId('com.i-thinking.studio')
+  if (process.platform === 'win32') app.setAppUserModelId('com.cogito.studio')
 
   process.on('uncaughtException', function (err) {
     log.error('uncaughtException', err)

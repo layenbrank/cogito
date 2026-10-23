@@ -1,15 +1,15 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
-import { Label } from '@i-thinking/design/components/label'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
+import { Label } from '@cogito/design/components/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { Separator } from '@i-thinking/design/components/separator'
-import { Textarea } from '@i-thinking/design/components/textarea'
+} from '@cogito/design/components/select'
+import { Separator } from '@cogito/design/components/separator'
+import { Textarea } from '@cogito/design/components/textarea'
 import { useState } from 'react'
 
 import type { ActionEntry } from '@/lib/directive-ipc.ts'

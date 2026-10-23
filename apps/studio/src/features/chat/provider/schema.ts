@@ -1,4 +1,4 @@
-import type { ModelEntry } from '@i-thinking/agent/provider'
+import type { ModelEntry } from '@cogito/agent/provider'
 import { z } from 'zod'
 
 /**

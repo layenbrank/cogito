@@ -2,8 +2,8 @@ import { cn } from 'cn'
 import { motion } from 'motion/react'
 import type { ReactNode } from 'react'
 
-import { useAppReducedMotion } from '@i-thinking/design/hooks/use-app-reduced-motion'
-import { TAP_SCALE, TAP_TRANSITION } from '@i-thinking/design/lib/motion'
+import { useAppReducedMotion } from '@cogito/design/hooks/use-app-reduced-motion'
+import { TAP_SCALE, TAP_TRANSITION } from '@cogito/design/lib/motion'
 
 interface CellButtonProps {
   children: ReactNode

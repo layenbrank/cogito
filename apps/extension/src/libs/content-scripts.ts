@@ -3,5 +3,5 @@
  * 目前没有注入逻辑，保留入口以免 manifest 指向不存在的文件；真正需要时在这里加。
  */
 if (import.meta.env.DEV) {
-  console.info('[i-thinking] content script loaded')
+  console.info('[cogito] content script loaded')
 }

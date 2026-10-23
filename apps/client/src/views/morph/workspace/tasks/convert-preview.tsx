@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 
 import { PageBoard } from '@/views/morph/workspace/tasks/stage/page-board.tsx'
 import styles from '@/views/morph/workspace/tasks/tasks.module.scss'

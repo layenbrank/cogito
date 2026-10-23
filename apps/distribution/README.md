@@ -1,19 +1,19 @@
-# distribution：i-thinking 资源分发端点
+# distribution：cogito 资源分发端点
 
-Cloudflare Worker（TypeScript）：**发布流水线**把版本化产物推到 R2 桶 `i-thinking`，**用户与开发环境**
+Cloudflare Worker（TypeScript）：**发布流水线**把版本化产物推到 R2 桶 `cogito`，**用户与开发环境**
 按版本路径取稳定直链。今天分发的是 Store 安装包；目标是同一入口也供给 `ffmpeg` / `corex` / `pandoc` /
 `goose` / `pdfium` 这些工具的版本化产物（见下文「现状与目标态」）。
 
 | 项       | 值                                                                                                                |
 | -------- | ----------------------------------------------------------------------------------------------------------------- |
-| 位置     | `apps/distribution`（workspace 包 `@i-thinking/distribution`；与 `apps/cogito`、`apps/ai-worker` 同为可部署服务） |
-| 线上地址 | `https://i-thinking-distribution.layenbrank.workers.dev`                                                          |
+| 位置     | `apps/distribution`（workspace 包 `@cogito/distribution`；与 `apps/service`、`apps/compute` 同为可部署服务） |
+| 线上地址 | `https://cogito-distribution.layenbrank.workers.dev`                                                          |
 | 入口     | [`src/worker.ts`](./src/worker.ts)                                                                                |
-| 绑定     | `DOWNLOADS` → 桶 `i-thinking`                                                                                     |
+| 绑定     | `DOWNLOADS` → 桶 `cogito`                                                                                     |
 | 密钥     | `AUTH_KEY_SECRET`（写操作：PUT / DELETE / multipart）                                                             |
 | 工具链   | `wrangler` / `@cloudflare/workers-types` 在**本包** devDependencies（不借仓库根）                                 |
 
-> **改名迁移**：Cloudflare 侧的旧身份 `i-thinking-downloads` 仍在服务 Partner Center 已登记的包 URL。
+> **改名迁移**：Cloudflare 侧的旧身份 `cogito-downloads` 仍在服务 Partner Center 已登记的包 URL。
 > 让新身份生效的顺序：`pnpm command distribution deploy` → 更新 Partner Center 的包 URL（见
 > [`store-package-handoff.md`](../../docs/ops/store/store-package-handoff.md)）→ 删除旧 Worker。
 
@@ -22,11 +22,11 @@ Cloudflare Worker（TypeScript）：**发布流水线**把版本化产物推到 
 本包自己的脚本（Cloudflare 侧的常规写法）：
 
 ```powershell
-pnpm --filter @i-thinking/distribution run deploy
-pnpm --filter @i-thinking/distribution run dev
-pnpm --filter @i-thinking/distribution run secret
-pnpm --filter @i-thinking/distribution run type-check
-pnpm --filter @i-thinking/distribution run upload -- --source … --release 1.3.0
+pnpm --filter @cogito/distribution run deploy
+pnpm --filter @cogito/distribution run dev
+pnpm --filter @cogito/distribution run secret
+pnpm --filter @cogito/distribution run type-check
+pnpm --filter @cogito/distribution run upload -- --source … --release 1.3.0
 ```
 
 仓库里的统一入口（根 CLI；等价且更短，`pnpm distribution deploy` 也可）：
@@ -53,19 +53,19 @@ pnpm command distribution upload:rclone  # 上传（→ rclone 直连 R2，走 S
 | `upload:rclone` | rclone `copyto` 直连 R2 的 S3 API（`R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`） | 大文件、批量（工具产物）、以及以后读侧放行的其它键 |
 
 ```powershell
-# 版本 -> 键 1.3.0/i-thinking_1.3.0_x64-setup.exe
-pnpm command distribution upload --source .\dist\i-thinking_1.3.0_x64-setup.exe --release 1.3.0
+# 版本 -> 键 1.3.0/cogito_1.3.0_x64-setup.exe
+pnpm command distribution upload --source .\dist\cogito_1.3.0_x64-setup.exe --release 1.3.0
 
 # 对着本地 dev server 跑（只写本机 .wrangler/）
 pnpm command distribution upload --source … --release 1.3.0 --worker http://127.0.0.1:8787
 
 # 直接指定键 / 换桶（rclone）
-pnpm command distribution upload:rclone --source .\pkg.zip --release 1.3.0 --bucket i-thinking
+pnpm command distribution upload:rclone --source .\pkg.zip --release 1.3.0 --bucket cogito
 ```
 
 密钥走 `AUTH_KEY_SECRET` 环境变量，或 `--auth-key-file`（只放密钥的文件，也可以直接指 wrangler 的
 `.dev.vars`）。路径类参数（`--source` / `--auth-key-file` / `--rclone`）经根 CLI 转发时会补成绝对路径，
-按你当前所在的目录解析；`pnpm --filter @i-thinking/distribution run upload` 直调时则相对 `apps/distribution`。
+按你当前所在的目录解析；`pnpm --filter @cogito/distribution run upload` 直调时则相对 `apps/distribution`。
 
 两个脚本上传前都会用 [`src/setup-key.ts`](./src/setup-key.ts) 校验对象键：**读侧下不了的键直接拒收**
 （今天只有 `*-setup.exe`，工具产物放行时改这一处，worker 与两个脚本一起生效）。`--help` 有全部参数。
@@ -115,8 +115,8 @@ pnpm command distribution upload:rclone --source .\pkg.zip --release 1.3.0 --buc
 
 ```powershell
 pnpm command distribution check                    # 两个 TS program 的类型检查（CI 也跑这步）
-pnpm --filter @i-thinking/distribution run lint    # eslint + oxlint（规则与 app 侧一致：禁箭头函数、eqeqeq …）
-pnpm --filter @i-thinking/distribution run test:unit
+pnpm --filter @cogito/distribution run lint    # eslint + oxlint（规则与 app 侧一致：禁箭头函数、eqeqeq …）
+pnpm --filter @cogito/distribution run test:unit
 ```
 
 单测覆盖两块纯逻辑：`src/conditional.ts`（条件 304/412、`If-Range`、206 的字节窗口）与

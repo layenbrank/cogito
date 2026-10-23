@@ -1,7 +1,7 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
-import { Label } from '@i-thinking/design/components/label'
-import { Textarea } from '@i-thinking/design/components/textarea'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
+import { Label } from '@cogito/design/components/label'
+import { Textarea } from '@cogito/design/components/textarea'
 
 import type { DirectiveInput } from '@/shared/ipc/specs/sidecar'
 import type { CorexRun } from '@/stores/corex.ts'

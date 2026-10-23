@@ -1,13 +1,13 @@
 import { Icon } from '@iconify/react/offline'
 import { useAui } from '@assistant-ui/react'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+} from '@cogito/design/components/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
 import { toast } from 'sonner'
 

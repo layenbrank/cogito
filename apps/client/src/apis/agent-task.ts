@@ -16,7 +16,7 @@ interface PendingApproval {
   approvalID: string
   /** 第几轮请求的（人需要这个上下文才知道模型在干什么） */
   step: number
-  /** 工具名（ai-worker 工具名，如 `memory_write`，无 `cogito_` 前缀） */
+  /** 工具名（compute 工具名，如 `memory_write`，无 `cogito_` 前缀） */
   tool: string
   /** 模型给的参数 JSON 字符串（原文，审批批的就是这一份） */
   arguments: string
@@ -97,17 +97,17 @@ interface AgentTaskResult {
 }
 
 function POST_AGENT_TASKS(params: SubmitAgentTaskParams) {
-  return http.post<RSF<AgentTask>>('/agent/tasks', params, { env: 'thinking' }).then(HttpEnvelope)
+  return http.post<RSF<AgentTask>>('/agent/tasks', params, { env: 'cogito' }).then(HttpEnvelope)
 }
 
 function GET_AGENT_TASK(id: string, signal?: AbortSignal) {
-  return http.get<RSF<AgentTask>>(`/agent/tasks/${id}`, { env: 'thinking', signal }).then(HttpEnvelope)
+  return http.get<RSF<AgentTask>>(`/agent/tasks/${id}`, { env: 'cogito', signal }).then(HttpEnvelope)
 }
 
 function POST_AGENT_TASK_APPROVAL(id: string, approvalID: string, decision: ApprovalDecision) {
   return http
     .post<RSF<ApprovalResult>>(`/agent/tasks/${id}/approvals/${approvalID}`, decision, {
-      env: 'thinking'
+      env: 'cogito'
     })
     .then(HttpEnvelope)
 }

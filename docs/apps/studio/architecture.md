@@ -4,7 +4,7 @@
 
 ## 1. 定位
 
-**i thinking Studio**（`@i-thinking/studio`）是 monorepo 内的 Electron 桌面壳：
+**cogito Studio**（`@cogito/studio`）是 monorepo 内的 Electron 桌面壳：
 
 | 做                                          | 不做                      |
 | ------------------------------------------- | ------------------------- |
@@ -12,7 +12,7 @@
 | host 能力模块 + 薄组合根                    | 跨进程物理 feature 共目录 |
 | 契约 IPC（`window.itc` / 全局 `itc`）       | 暴露裸 `ipcRenderer`      |
 | 本地能力：store / dialog / SQLite / sidecar | Renderer 任意 SQL         |
-| 业务 HTTP → 远程 `VITE_THINKING`            | 本地再起一套 Nest         |
+| 业务 HTTP → 远程 `VITE_COGITO`            | 本地再起一套 Nest         |
 | Agent 运行：内嵌 `opencode serve` + SDK     | 主进程自己实现 agent 循环 |
 
 独立后端（Rust 服务，独立仓库）与 Studio **零运行时耦合**：它只做业务 —— 登录/注册、租户与配额、
@@ -26,7 +26,7 @@ flowchart TB
   subgraph renderer [renderer]
     UI[React UI]
     SDK["window.itc / itc"]
-    HTTP[ky VITE_THINKING]
+    HTTP[ky VITE_COGITO]
   end
   subgraph preload [preload]
     Bridge[contextBridge 白名单]
@@ -36,7 +36,7 @@ flowchart TB
     Caps[capabilities]
     Runtime["agent 运行时<br/>capabilities/opencode"]
   end
-  Cloud[Remote Thinking API]
+  Cloud[Remote Cogito API]
   Oc["opencode serve<br/>127.0.0.1:随机端口"]
   UI --> SDK
   SDK --> Bridge
@@ -118,7 +118,7 @@ ESLint：renderer / preload / host / shared 四条边界规则（`eslint.config.
 | 来源                  | 端点与凭据                                                              | 要点                                                                          |
 | --------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | 我的模型（本机 BYOK） | 用户填的 OpenAI 兼容 `baseUrl`；密钥来自 safeStorage                    | 密钥只进主进程，渲染进程不读回                                                |
-| 组织模型（平台网关）  | `findGatewayBaseURL()` = `${VITE_THINKING}/gateway`；凭据是当前登录令牌 | 网关是 provider 表里固定的一行（id `platform-gateway`），模型由服务端目录下发 |
+| 组织模型（平台网关）  | `findGatewayBaseURL()` = `${VITE_COGITO}/gateway`；凭据是当前登录令牌 | 网关是 provider 表里固定的一行（id `platform-gateway`），模型由服务端目录下发 |
 
 - **运行链路只有一条**：renderer → `assistant:connect` → MessagePort（纯数据，不用 IPC 传每个 token）
   → main 的 [`capabilities/assistant/index.ts`](../../../apps/studio/src/host/capabilities/assistant/index.ts)（只做 Electron 接线）
@@ -143,7 +143,7 @@ ESLint：renderer / preload / host / shared 四条边界规则（`eslint.config.
   写回复时崩在 `parentID` 外键」，只能靠 DB 取证。主进程侧的
   `CHAT_MESSAGE_APPEND_FAILED` 会把当事 id 与它们是否在库一并报出来。
 - **平台行由目录派生**：发送前 `ensurePlatformProvider()` 读 `GET /gateway/models` 写成 provider 行，
-  与目录一致就不写库；未配 `VITE_THINKING` 或未登录时返回 null（不落库），选择器提示未就绪原因。
+  与目录一致就不写库；未配 `VITE_COGITO` 或未登录时返回 null（不落库），选择器提示未就绪原因。
 - **模型清单**：目录下发 `name` / `label` / `capabilities` / `contextWindow` / `providerName`，
   缺省按 `packages/agent/src/provider.ts` 的契约兜底；首项 `auto` 由服务端补全。
   选中项落 `chat.providerID` + `chat.model`，请求里 `model` 就是目录里的 `name`。

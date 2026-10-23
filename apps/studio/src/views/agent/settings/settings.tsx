@@ -1,5 +1,5 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
 import { Icon } from '@iconify/react/offline'
 import { useMemo, useState, type ComponentType } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'

@@ -8,8 +8,8 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle
-} from '@i-thinking/design/components/dialog'
-import { InputGroup, InputGroupAddon } from '@i-thinking/design/components/input-group'
+} from '@cogito/design/components/dialog'
+import { InputGroup, InputGroupAddon } from '@cogito/design/components/input-group'
 import { Icon } from '@iconify/react/offline'
 
 function Command({ className, ...props }: React.ComponentProps<typeof CommandPrimitive>) {

@@ -1,7 +1,7 @@
 import { Icon } from '@iconify/react/offline'
-import { Avatar, AvatarFallback } from '@i-thinking/design/components/avatar'
-import { Button } from '@i-thinking/design/components/button'
-import { Skeleton } from '@i-thinking/design/components/skeleton'
+import { Avatar, AvatarFallback } from '@cogito/design/components/avatar'
+import { Button } from '@cogito/design/components/button'
+import { Skeleton } from '@cogito/design/components/skeleton'
 import { useState } from 'react'
 
 import { useAccountSession, useSignOut } from '@/features/account/session.ts'

@@ -1,5 +1,5 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Label } from '@i-thinking/design/components/label'
+import { Button } from '@cogito/design/components/button'
+import { Label } from '@cogito/design/components/label'
 
 import type { Condition } from '@/views/directive/model/types.ts'
 import type { ParamRefContext } from '@/views/directive/orchestrator/inspector/param-ref.ts'

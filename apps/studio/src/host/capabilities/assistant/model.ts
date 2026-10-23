@@ -2,7 +2,7 @@ import {
   findCredentialKind,
   GATEWAY_PROVIDER_KIND,
   requiresApiKey
-} from '@i-thinking/agent/provider'
+} from '@cogito/agent/provider'
 
 /**
  * 把「provider 行 + 拿到的凭据」解析成一次请求的连接参数。

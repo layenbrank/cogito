@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogTitle } from '@i-thinking/design/components/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@cogito/design/components/dialog'
 import { clsx } from 'clsx'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useState } from 'react'
@@ -79,7 +79,7 @@ function SignIn(props: SignInProps) {
       open={visible}
       onOpenChange={onVisibleChange}>
       <DialogContent className="w-[min(94vw,1080px)] max-w-none gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-none">
-        <DialogTitle className="sr-only">登录 i-thinking</DialogTitle>
+        <DialogTitle className="sr-only">登录 cogito</DialogTitle>
         <div className={styles.body}>
           <Brand />
           <section className={styles.panel}>

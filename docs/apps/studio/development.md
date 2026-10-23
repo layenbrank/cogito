@@ -21,11 +21,11 @@ pnpm install
 
 | 脚本                                         | 作用                                             |
 | -------------------------------------------- | ------------------------------------------------ |
-| `pnpm --filter @i-thinking/studio dev`       | Electron Forge 开发（Main + Preload + Renderer） |
-| `pnpm --filter @i-thinking/studio dev:core`  | 仅 Vite 网页模式（**无** `window.itc`）          |
-| `pnpm --filter @i-thinking/studio test:unit` | Vitest（单测，不含集成测试）                     |
-| `pnpm --filter @i-thinking/studio test:db`   | 数据库集成测试（在 Electron 运行时里跑，见 §8）  |
-| `pnpm --filter @i-thinking/studio lint`      | ESLint                                           |
+| `pnpm --filter @cogito/studio dev`       | Electron Forge 开发（Main + Preload + Renderer） |
+| `pnpm --filter @cogito/studio dev:core`  | 仅 Vite 网页模式（**无** `window.itc`）          |
+| `pnpm --filter @cogito/studio test:unit` | Vitest（单测，不含集成测试）                     |
+| `pnpm --filter @cogito/studio test:db`   | 数据库集成测试（在 Electron 运行时里跑，见 §8）  |
+| `pnpm --filter @cogito/studio lint`      | ESLint                                           |
 | `pnpm command sidecar bootstrap studio`      | tools.lock → downloads → studio staging（**全量落盘**，含按需工具） |
 | `pnpm command sidecar manifest`              | 打印当前平台的在线包（`sidecar/manifest.json`）；`--verify` 下载并核 sha256 |
 | `pnpm command sidecar opencode`              | 仅下载 opencode（按 tools.lock 的 pin 校验版本） |
@@ -34,13 +34,13 @@ pnpm install
 | `pnpm command sidecar pandoc`                | 仅下载 pandoc                                    |
 | `pnpm command sidecar stage studio`          | stage → studio staging                           |
 | `pnpm command sidecar verify studio`         | 校验 staging checksums                           |
-| `pnpm --filter @i-thinking/studio package`   | 打出可运行目录到 `out/`（需先 bootstrap）        |
-| `pnpm --filter @i-thinking/studio package:full` | 同上，但带上按需工具（staging 里已经都在） |
-| `pnpm --filter @i-thinking/studio build`     | 同 `package`（供 turbo / PR CI）                 |
-| `pnpm --filter @i-thinking/studio make`      | `electron-forge make` → `out/studio/make`（精简版；Win 默认 NSIS+ZIP） |
-| `pnpm --filter @i-thinking/studio make:nsis` | 同 `make:win`，显式打 NSIS Setup.exe                                  |
-| `pnpm --filter @i-thinking/studio make:full` | 同上，完整版（内置 pandoc / ffmpeg / opencode）                       |
-| `pnpm --filter @i-thinking/studio make:msi`  | 额外打 WiX MSI（需本机 WiX Toolset；见 packaging.md）                 |
+| `pnpm --filter @cogito/studio package`   | 打出可运行目录到 `out/`（需先 bootstrap）        |
+| `pnpm --filter @cogito/studio package:full` | 同上，但带上按需工具（staging 里已经都在） |
+| `pnpm --filter @cogito/studio build`     | 同 `package`（供 turbo / PR CI）                 |
+| `pnpm --filter @cogito/studio make`      | `electron-forge make` → `out/studio/make`（精简版；Win 默认 NSIS+ZIP） |
+| `pnpm --filter @cogito/studio make:nsis` | 同 `make:win`，显式打 NSIS Setup.exe                                  |
+| `pnpm --filter @cogito/studio make:full` | 同上，完整版（内置 pandoc / ffmpeg / opencode）                       |
+| `pnpm --filter @cogito/studio make:msi`  | 额外打 WiX MSI（需本机 WiX Toolset；见 packaging.md）                 |
 
 ### 两档产物：精简版 / 完整版
 
@@ -58,7 +58,7 @@ cmd/pwsh 没有 `VAR=值 命令` 这种写法，故用一个极小的 runner，�
 - 哪些工具算「按需」由 `tools.lock.json` 的 `onDemand` 决定；打包时按档过滤（完整版反而要求它们都在）。
 - **形状只有一份**：`tools.lock.json` / `sidecar/manifest.json` / staging `checksums.json` 三份 JSON
   的字段（`schemaVersion` / `platforms` / `sha256` / `onDemand`）与解析器都在
-  [`@i-thinking/sidecar`](../../../packages/sidecar/README.md)，CLI、宿主、forge 共用。
+  [`@cogito/sidecar`](../../../packages/sidecar/README.md)，CLI、宿主、forge 共用。
 - **在线源**：`apps/studio/sidecar/manifest.json`（宿主构建期内联，CLI 也能读它核对）。
   归档是重打包的（可执行文件平铺），地址 + sha256 都在这份 JSON 里；取用顺序 **已下载 → 随包内置**，
   落点 `<userData>/sidecar/<tool>/<版本>/`，入口在「设置 → 工具」。
@@ -68,10 +68,10 @@ cmd/pwsh 没有 `VAR=值 命令` 这种写法，故用一个极小的 runner，�
 > `<工具>/.version` 记号判定（不是「文件在不在」），对不上就重装；版本没变的工具只会
 > 从本地缓存的归档重新解压一次，不走网络。判定逻辑见 `infra/vendor.ts`。
 
-> 全新检出（含 CI）直接 `make` 会失败在 renderer 解析上：`@i-thinking/hooks`、`@i-thinking/utils`
+> 全新检出（含 CI）直接 `make` 会失败在 renderer 解析上：`@cogito/hooks`、`@cogito/utils`
 > 的 `exports` 指向 `dist`（见 `vite.renderer.config.mts` 的 `linkedMarker` 与 `optimizeDeps.exclude`
 > 注释），本地之所以没暴露，是因为 `dist` 早就构建过、且被 gitignore。先补一步：
-> `pnpm turbo run build --filter=@i-thinking/studio... --filter=!@i-thinking/studio`（只构建 studio 的 workspace 依赖）。
+> `pnpm turbo run build --filter=@cogito/studio... --filter=!@cogito/studio`（只构建 studio 的 workspace 依赖）。
 
 ### corex 的三份来源（别混）
 
@@ -98,13 +98,13 @@ cmd/pwsh 没有 `VAR=值 命令` 这种写法，故用一个极小的 runner，�
 
 | 变量                                            | 用途                                                                          |
 | ----------------------------------------------- | ----------------------------------------------------------------------------- |
-| `VITE_THINKING`                                 | Renderer HTTP `prefix`（远程 Thinking API；平台模型走其下的 `/gateway` 网关） |
+| `VITE_COGITO`                                 | Renderer HTTP `prefix`（远程 Cogito API；平台模型走其下的 `/gateway` 网关） |
 | `VITE_APP_TITLE`                                | `index.html` 标题占位                                                         |
 | `VITE_HOSTNAME` / `VITE_PORT` / `VITE_PROTOCOL` | 遗留本地服务相关（当前已不启 Nest；可按需清理）                               |
 
-> **业务后端不在这个仓库**：`apps/service`（NestJS）已下线 —— 登录 / 注册 / 租户 / 配额 / 订阅与
-> AI 网关（`/gateway/*`）都在独立的 Rust 仓库里维护，本地这样起：
-> `cargo watch -x "run --bin cogito --features openapi"`，再把 `VITE_THINKING` 指到它的 `/api/v1`
+> **业务后端就在本仓库**：`apps/service`（Rust / Actix Web + SeaORM）—— 登录 / 注册 / 租户 / 配额 / 订阅与
+> AI 网关（`/gateway/*`）都在这里维护，本地这样起：
+> `cd apps/service && pnpm dev`（或 `cargo run --bin cogito --features openapi`），再把 `VITE_COGITO` 指到它的 `/api/v1`
 > （如 `http://127.0.0.1:3000/api/v1`）。studio 只依赖这套 HTTP 契约，不 vendor 后端代码；
 > agent 的运行则在 studio 自己的内嵌 opencode 里，与服务端无关。
 
@@ -159,7 +159,7 @@ src/main.ts | src/preload.ts | src/renderer.tsx | src/host/capabilities/ | sidec
   - `components/contextmenu/contextmenu.test.tsx`、`views/agent/chat/components/{diff-view,tool-terminal}.test.tsx`（组件渲染，走 `@testing-library/react`）
 
 ```bash
-pnpm --filter @i-thinking/studio test:unit
+pnpm --filter @cogito/studio test:unit
 ```
 
 ## 8. 数据库 / 原生模块
@@ -171,7 +171,7 @@ pnpm run rebuild   # = electron-rebuild -f：按 Electron ABI 重建 better-sqli
 pnpm test:db       # 真实引擎的数据库集成测试（建表 / 种子 / 迁移幂等）
 ```
 
-- 必须显式写 `pnpm run rebuild`（等价 `pnpm --filter @i-thinking/studio run rebuild`）：裸 `pnpm rebuild` 是 pnpm 的**内置命令**，不会执行这个 script，而是对全仓包重跑 install 脚本（为**宿主 Node** 构建原生模块，会把 Electron ABI 的 `better-sqlite3` 覆盖成宿主 ABI → `NODE_MODULE_VERSION` 不匹配）。为此 [pnpm-workspace.yaml](../../../pnpm-workspace.yaml) 里 `allowBuilds.better-sqlite3: false` 关掉了 better-sqlite3 自己的 install 脚本，构建统一交给 `@electron/rebuild`。
+- 必须显式写 `pnpm run rebuild`（等价 `pnpm --filter @cogito/studio run rebuild`）：裸 `pnpm rebuild` 是 pnpm 的**内置命令**，不会执行这个 script，而是对全仓包重跑 install 脚本（为**宿主 Node** 构建原生模块，会把 Electron ABI 的 `better-sqlite3` 覆盖成宿主 ABI → `NODE_MODULE_VERSION` 不匹配）。为此 [pnpm-workspace.yaml](../../../pnpm-workspace.yaml) 里 `allowBuilds.better-sqlite3: false` 关掉了 better-sqlite3 自己的 install 脚本，构建统一交给 `@electron/rebuild`。
 - 该 script 带 `-f`：`@electron/rebuild` 只读 `build/Release/.forge-meta`（内容 `<arch>--<ABI>`）判断「是否已构建」，**不校验二进制是否存在或正确**；marker 与当前 Electron 一致时会打印 `✔ Rebuild Complete` 却什么都不做，所以修 ABI 问题必须强制重建。
 
 - 集成测试 `src/host/**/*.integration.test.ts` 需要 **Electron ABI** 的 `better-sqlite3`，普通 Node 加载会 ABI 不匹配，所以它们被排除在 `test:unit` 之外；`test:db` 用 `ELECTRON_RUN_AS_NODE=1` 把 Electron 当 Node 跑 vitest（`scripts/run-db-tests.mjs`）。
@@ -182,7 +182,7 @@ pnpm test:db       # 真实引擎的数据库集成测试（建表 / 种子 / �
 - 工作区现为 `workspace` + `workspaceFolder`（会话挂 `workspaceID`）。本地若仍是旧 `workspaceRoot` 结构，**删库重建**即可。
 - **studio 自己建表**：启动时跑 Drizzle 官方 `migrate()`（`src/host/capabilities/database.ts`）。库里已有同名表会让 migrator 直接报错 —— **不支持「库是别的版本建的」**这种情况，冲突当场暴露比猜别人的 schema 好。
 - 两个 app 的库路径仍指向同一文件（`app_local_data_dir()/cogito-client.db`，identifier `com.cogito.client`），以便日后互读；但建表/迁移互不负责。
-- 改 schema 的流程：改 `drizzle/schema/*.ts` → `pnpm --filter @i-thinking/studio exec drizzle-kit generate --name <名字>`；确认没多余产物后重启 app。
+- 改 schema 的流程：改 `drizzle/schema/*.ts` → `pnpm --filter @cogito/studio exec drizzle-kit generate --name <名字>`；确认没多余产物后重启 app。
 - 迁移背景与逐表映射见 [prisma-to-drizzle.md](../../decisions/prisma-to-drizzle.md)。
 
 ## 9. 下一步

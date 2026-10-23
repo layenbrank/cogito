@@ -33,7 +33,7 @@ const ELECTRON_DOWNLOAD_MIRROR =
  * - `drizzle/`（迁移 SQL + meta/journal，运行时 migrator 要读）
  * - `node_modules/`（external 模块：better-sqlite3 及其依赖闭包需进 asar，
  *   因 Fuses OnlyLoadAppFromAsar 禁止从 asar 外加载）
- * 排除 `@i-thinking/*`：pnpm workspace 符号链接指向包外，asar 无法处理；
+ * 排除 `@cogito/*`：pnpm workspace 符号链接指向包外，asar 无法处理；
  * Vite 已将这些 workspace 依赖打包进 .vite/build/main.js
  * hoisted 到仓库根的 external 依赖与 native 侧车由 afterCopy 写入
  *
@@ -48,7 +48,7 @@ function isIgnoredPath(filePath: string): boolean {
     /^\/package\.json$/,
     // 运行时 Drizzle migrator 需要读取 drizzle/migrations/（SQL + meta/journal）
     /^\/drizzle(\/|$)/,
-    /^\/node_modules(\/(?!@i-thinking\/)|$)/
+    /^\/node_modules(\/(?!@cogito\/)|$)/
   ]
   if (keep.some(function (pattern) {
     return pattern.test(normalized)
@@ -142,7 +142,7 @@ function buildPackagerConfig(): NonNullable<ForgeConfig['packagerConfig']> {
     executableName: APP_EXECUTABLE,
     appBundleId: APP_ID,
     appCategoryType: 'public.app-category.developer-tools',
-    appCopyright: `Copyright © ${new Date().getFullYear()} i-thinking`,
+    appCopyright: `Copyright © ${new Date().getFullYear()} cogito`,
     ignore: isIgnoredPath,
     extraResource: findExtraResources(),
     download: {

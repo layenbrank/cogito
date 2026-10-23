@@ -1,5 +1,5 @@
 import eslint from '@eslint/js'
-import ith from '@i-thinking/eslint-plugin'
+import ith from '@cogito/eslint-plugin'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'

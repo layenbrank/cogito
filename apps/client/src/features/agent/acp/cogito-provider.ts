@@ -41,7 +41,7 @@ const COGITO_PROVIDER_NAME = '组织模型'
 let modelsCache: { at: number; models: string[] } | null = null
 
 function findGatewayBaseURL(): string | null {
-  const base = ENV_URLS.thinking?.trim()
+  const base = ENV_URLS.cogito?.trim()
   if (!base) return null
   return `${base.replace(/\/+$/, '')}${GATEWAY_CHAT_PATH}`
 }

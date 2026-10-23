@@ -17,7 +17,7 @@ interface DataBase extends Dexie {
   user: EntityTable<UserProfile, 'id'>
 }
 
-const DBNAME: Readonly<string> = 'i thinking'
+const DBNAME: Readonly<string> = 'cogito'
 
 export const database = new Dexie(DBNAME) as DataBase
 

@@ -14,7 +14,7 @@
  * better-sqlite3 是按 Electron ABI 编译的原生模块，普通 Node 加载会 ABI 不匹配，
  * 因此本文件被 vitest.config.ts 排除在 test:unit 之外，改用 Electron 运行时执行：
  *
- *   pnpm --filter @i-thinking/studio test:db
+ *   pnpm --filter @cogito/studio test:db
  */
 import type { Database as SqliteHandle } from 'better-sqlite3'
 import Database from 'better-sqlite3'

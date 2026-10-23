@@ -1,0 +1,219 @@
+name: Cogito CI
+
+# Rust 核心服务（apps/service）的独立流水线：与根 pnpm/turbo 流水线解耦，
+# 由 apps/service 自己的 pnpm + cargo 工具链负责。
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'apps/service/**'
+      - 'packages/types/src/openapi.d.ts'
+      - '.github/workflows/cogito-ci.yaml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'apps/service/**'
+      - 'packages/types/src/openapi.d.ts'
+      - '.github/workflows/cogito-ci.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: apps/service
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test-and-openapi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/service
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Neutralize local cargo wrappers for CI
+        run: |
+          # .cargo/config.toml 面向 Windows + sccache，不适合 GitHub Linux runner
+          printf '%s\n' '[build]' 'target-dir = "target"' > .cargo/config.toml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --filter @cogito/service
+
+      - name: Architecture hygiene
+        run: pnpm run arch
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run unit tests
+        run: cargo test --workspace --lib
+
+      - name: Run integration tests
+        run: |
+          cargo test --test oas_consistency
+          cargo test --test route_reachability
+
+      - name: Export OpenAPI spec
+        run: cargo run --bin docs
+
+      - name: Verify openapi.json is up to date
+        run: git diff --exit-code spec/
+
+      - name: Build with openapi feature
+        run: cargo build --features openapi --bin cogito
+
+  tenant-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # RLS/outbox 的真实语义只能在真 Postgres 上验证；
+    # 库名必须含 test（测试自身会校验，防止误连非测试库）。
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cogito_service_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+      # 订阅配额/计划缓存走 Redis，且 Redis 不可达时连接池直接失败，因此必须真起一个。
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: "postgres://postgres:postgres@127.0.0.1:5432/cogito_service_test"
+      TEST_REDIS_URL: "redis://127.0.0.1:6379"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/service
+
+      - name: Neutralize local cargo wrappers for CI
+        run: |
+          # .cargo/config.toml 面向 Windows + sccache，不适合 GitHub Linux runner
+          printf '%s\n' '[build]' 'target-dir = "target"' > .cargo/config.toml
+
+      - name: Run tenant isolation tests
+        run: cargo test --test tenant_isolation
+
+      - name: Run identity context tests
+        run: cargo test --test identity_context
+
+      - name: Run subscription scope tests
+        run: cargo test --test subscription_scope
+
+      # agent 域的端到端判据：真起 cogito（非 stub）+ durable 编排，桩掉 compute。
+      # 用例内部自带 DB_LOCK 串行，显式单线程是为了让失败输出可读、资源占用可预测。
+      - name: Run agent orchestration end-to-end tests
+        run: cargo test --test agent_scope -- --test-threads=1
+
+      # rag 索引任务的用户面判据：同一条链路，验的是「长任务的生产入口」本身。
+      - name: Run rag index task end-to-end tests
+        run: cargo test --test rag_index_scope -- --test-threads=1
+
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --filter @cogito/service
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # 消费的是已提交的 spec（其新鲜度由 test-and-openapi 的漂移门禁保证），故本 job 不需要 cargo。
+      # 三个生成器同时充当 spec 的第三方校验器：任一对契约报错即失败。
+      - name: Verify generated clients match the contract
+        run: pnpm run contracts --check
+
+  licenses:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/service
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@cargo-deny
+
+      - name: Check dependency licenses, bans and advisories
+        run: cargo deny check

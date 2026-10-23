@@ -1,4 +1,4 @@
-import { Badge } from '@i-thinking/design/components/badge'
+import { Badge } from '@cogito/design/components/badge'
 
 function StatusBadge(props: { status: string }) {
   const status = props.status.toUpperCase()

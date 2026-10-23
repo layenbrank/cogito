@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import { save as dialogSave } from '@tauri-apps/plugin-dialog'
 import { useEffect, useMemo } from 'react'
 

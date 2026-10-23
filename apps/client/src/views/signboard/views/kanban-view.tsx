@@ -13,8 +13,8 @@ import {
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import { Input } from '@i-thinking/design/components/input'
+import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { toast } from 'sonner'
 

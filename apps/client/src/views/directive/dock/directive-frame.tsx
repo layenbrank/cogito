@@ -7,7 +7,7 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup
-} from '@i-thinking/design/components/resizable'
+} from '@cogito/design/components/resizable'
 
 import { useTerminalStore } from '@/stores/terminal'
 import { DirectiveDock } from '@/views/directive/dock/directive-dock.tsx'

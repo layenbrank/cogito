@@ -6,10 +6,10 @@
  * 重新拉取（不猜 goose 侧算出来的 key）。
  */
 import type { ClientConnection } from '@agentclientprotocol/sdk'
-import { Badge } from '@i-thinking/design/components/badge'
-import { Button } from '@i-thinking/design/components/button'
-import { Spinner } from '@i-thinking/design/components/spinner'
-import { Switch } from '@i-thinking/design/components/switch'
+import { Badge } from '@cogito/design/components/badge'
+import { Button } from '@cogito/design/components/button'
+import { Spinner } from '@cogito/design/components/spinner'
+import { Switch } from '@cogito/design/components/switch'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 

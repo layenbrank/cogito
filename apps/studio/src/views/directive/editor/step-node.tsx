@@ -1,20 +1,20 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Card, CardContent } from '@i-thinking/design/components/card'
+import { Button } from '@cogito/design/components/button'
+import { Card, CardContent } from '@cogito/design/components/card'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger
-} from '@i-thinking/design/components/collapsible'
-import { Input } from '@i-thinking/design/components/input'
-import { Popover, PopoverContent, PopoverTrigger } from '@i-thinking/design/components/popover'
+} from '@cogito/design/components/collapsible'
+import { Input } from '@cogito/design/components/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@cogito/design/components/popover'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+} from '@cogito/design/components/select'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { cn } from 'cn'
 import { memo, useState, type ReactNode } from 'react'
 

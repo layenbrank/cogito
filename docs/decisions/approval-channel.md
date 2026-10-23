@@ -6,10 +6,10 @@
 > 结论：**闸门（等待 + 判定）放在 durable 编排里**，人的决定由 api 落台账后投进实例的
 > **邮箱**（`enqueue_event`），编排 `select` 「邮箱消息 vs 超时定时器」二者之一。
 
-> 这条 ADR 修正了 P9c 留下的一个说法：[`../apps/cogito/guide/agent-runtime.md`](../apps/cogito/guide/agent-runtime.md)
+> 这条 ADR 修正了 P9c 留下的一个说法：[`../apps/service/guide/agent-runtime.md`](../apps/service/guide/agent-runtime.md)
 > 当时写「将来要接写操作，durable 的 `raise_event` 已经具备承载能力」——**能力具备，但语义不对**，
 > 见 §2.2。落地在 P10a（cogito 侧审批闸门 + `agent_approval` 台账 + 审批接口），
-> ai-worker 侧只负责「申报这次调用要人批」。P10b 补上第二条落地路径——**拿审批行换写令牌**，
+> compute 侧只负责「申报这次调用要人批」。P10b 补上第二条落地路径——**拿审批行换写令牌**，
 > 让编排不必持有能改 cogito 业务数据的凭据，见 §5。
 
 ## 0. 候选对照
@@ -101,7 +101,7 @@
 
 落地形状（P10a）：
 
-- 模型要写 → ai-worker 在工具结果里**申报** `awaitingApproval=true`（占位结果**不进历史**，
+- 模型要写 → compute 在工具结果里**申报** `awaitingApproval=true`（占位结果**不进历史**，
   免得模型把「没执行」当既成事实）；
 - 编排 `approve_and_execute`：把待办编进 custom status（`step:{n}/{max} tools:{k} approval:{JSON}`）→
   `select(邮箱消息, 超时定时器)` → 取出决定后立刻把进度串**改回**纯进度（别让运维看到一个已经批过的待办）；
@@ -113,13 +113,13 @@
 
 门禁：
 
-- `apps/cogito/tests/agent_approval.rs`（4 个用例，进 CI）：批准真的执行 / 驳回不执行并把理由喂回模型 /
+- `apps/service/tests/agent_approval.rs`（4 个用例，进 CI）：批准真的执行 / 驳回不执行并把理由喂回模型 /
   没人处理到点作废 / 决定的四道闸（跨租户、待办状态、决定词表、不属于本次的消息被忽略）。
-- `apps/cogito/crates/agent` 单测钉住状态机（`EXPIRED` 不是人能给的、改判是冲突）。
+- `apps/service/crates/agent` 单测钉住状态机（`EXPIRED` 不是人能给的、改判是冲突）。
 
 ## 5. 第二种落地：拿审批换「写令牌」（P10b）
 
-P10a 走的是「编排拿到决定后**自己**执行」——适用 `memory_write`（写的是 ai-worker 自己的存储，编排有凭据）。
+P10a 走的是「编排拿到决定后**自己**执行」——适用 `memory_write`（写的是 compute 自己的存储，编排有凭据）。
 `asset_visibility_write`（改 cogito 里的资产可见性）不能照抄：叶子服务不该持有能改 cogito 业务数据的长期凭据，
 所以改成**审批行本身当凭据**去换一枚短期令牌。
 
@@ -138,8 +138,8 @@ P10a 走的是「编排拿到决定后**自己**执行」——适用 `memory_wr
 
 早先的推进记录里记的是用户面的 `/api/v1/assets/{assetID}/visibility`，实现时改到服务面，理由三条：
 
-- **调用方是 ai-worker，不是用户会话**。放用户面就得让叶子服务持有用户 JWT——把用户的长期凭据塞进
-  计算车间，正是服务身份面存在的意义（见 [`architecture-capabilities.md`](../apps/cogito/guide/architecture-capabilities.md)）。
+- **调用方是 compute，不是用户会话**。放用户面就得让叶子服务持有用户 JWT——把用户的长期凭据塞进
+  计算车间，正是服务身份面存在的意义（见 [`architecture-capabilities.md`](../apps/service/guide/architecture-capabilities.md)）。
   而 P10b 的授权输入（真凭实据的审批原文 + 批准人）在签发那刻就齐了，端点连请求体都没有，
   它本来就是服务面的形状。
 - **与读内容同族**：`GET /service/assets/{id}/content` 已经在这里，可见性判定共用同一段逻辑

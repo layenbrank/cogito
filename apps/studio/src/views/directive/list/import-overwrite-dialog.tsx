@@ -7,7 +7,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
-} from '@i-thinking/design/components/alert-dialog'
+} from '@cogito/design/components/alert-dialog'
 
 /** 导入前发现同名时要问的那一问 */
 interface OverwritePrompt {

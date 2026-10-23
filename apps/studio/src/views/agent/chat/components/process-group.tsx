@@ -1,12 +1,12 @@
 import { useAuiState } from '@assistant-ui/react'
-import { useAssistantLabels } from '@i-thinking/design/assistant/labels'
+import { useAssistantLabels } from '@cogito/design/assistant/labels'
 import {
   ReasoningContent,
   ReasoningRoot,
   ReasoningText,
   ReasoningTrigger
-} from '@i-thinking/design/assistant/reasoning.aui'
-import type { ThreadGroupPart } from '@i-thinking/design/assistant/thread.aui'
+} from '@cogito/design/assistant/reasoning.aui'
+import type { ThreadGroupPart } from '@cogito/design/assistant/thread.aui'
 import type { PropsWithChildren } from 'react'
 
 import { formatDurationSeconds } from '@/features/agent/duration.ts'

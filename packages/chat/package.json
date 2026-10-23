@@ -1,9 +1,9 @@
 {
-  "name": "@i-thinking/chat",
+  "name": "@cogito/chat",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "i thinking 共享 chat 层：领域类型 + 端口接口 + assistant-ui 适配器（环境无关）",
+  "description": "cogito 共享 chat 层：领域类型 + 端口接口 + assistant-ui 适配器（环境无关）",
   "exports": {
     "./ports": "./src/ports.ts",
     "./adapters/*": "./src/adapters/*.ts"

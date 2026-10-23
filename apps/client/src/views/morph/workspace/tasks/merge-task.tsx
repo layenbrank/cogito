@@ -1,4 +1,4 @@
-import { ToggleGroup, ToggleGroupItem } from '@i-thinking/design/components/toggle-group'
+import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
 import { open as dialogOpen, save as dialogSave } from '@tauri-apps/plugin-dialog'
 import { useEffect, useState } from 'react'
 

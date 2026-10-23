@@ -5,7 +5,7 @@
  * `event$` 广播），绕过它会让左栏、用量等订阅方一直读着过期数据 —— 同一条记录两条路，
  * 迟早对不上。
  */
-import type { ChatHistoryPort, ChatStoredMessage, ChatThread } from '@i-thinking/chat/ports'
+import type { ChatHistoryPort, ChatStoredMessage, ChatThread } from '@cogito/chat/ports'
 import dayjs from 'dayjs'
 import { v4 as UUIDV4 } from 'uuid'
 

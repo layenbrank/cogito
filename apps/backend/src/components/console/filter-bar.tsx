@@ -2,7 +2,7 @@ import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput
-} from '@i-thinking/design/components/input-group'
+} from '@cogito/design/components/input-group'
 import { Icon } from '@iconify/react/offline'
 import type { ReactNode } from 'react'
 

@@ -6,10 +6,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
-} from '@i-thinking/design/components/alert-dialog'
-import { Button } from '@i-thinking/design/components/button'
-import { DropdownMenuItem } from '@i-thinking/design/components/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@i-thinking/design/components/tooltip'
+} from '@cogito/design/components/alert-dialog'
+import { Button } from '@cogito/design/components/button'
+import { DropdownMenuItem } from '@cogito/design/components/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 

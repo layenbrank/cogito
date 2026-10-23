@@ -25,7 +25,7 @@ async function main(): Promise<void> {
 
   program
     .name('command')
-    .description(chalk.cyan('i-thinking 仓库命令行工具'))
+    .description(chalk.cyan('cogito 仓库命令行工具'))
     .version('1.1.0', '-v, --version', '显示版本号')
     .option('--no-banner', '不显示启动横幅')
     .helpOption('-h, --help', '显示帮助')
@@ -33,13 +33,13 @@ async function main(): Promise<void> {
   registerModules(program, FEATURES)
 
   if (!process.argv.slice(2).length) {
-    printBanner('I-THINKING')
+    printBanner('COGITO')
     program.help()
     return
   }
 
   if (process.argv.includes('--help') || process.argv.includes('-h')) {
-    printBanner('I-THINKING')
+    printBanner('COGITO')
   }
 
   await program.parseAsync(process.argv)

@@ -3,8 +3,8 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
   type PanelImperativeHandle
-} from '@i-thinking/design/components/resizable'
-import { Spinner } from '@i-thinking/design/components/spinner'
+} from '@cogito/design/components/resizable'
+import { Spinner } from '@cogito/design/components/spinner'
 import type { RefObject } from 'react'
 
 import type { DirectiveContent } from '@/views/directive/model/types.ts'

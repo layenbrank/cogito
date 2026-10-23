@@ -31,12 +31,12 @@ interface WindowSpec {
 
 const WINDOW_SPECS = {
   agent: {
-    title: 'i thinking · Agent',
+    title: 'cogito · Agent',
     hash: '/agent/chat',
     size: { width: 960, height: 720, minWidth: 640, minHeight: 480 }
   },
   directive: {
-    title: 'i thinking · 指令',
+    title: 'cogito · 指令',
     hash: '/directive',
     size: { width: 1160, height: 780, minWidth: 820, minHeight: 600 }
   }

@@ -12,15 +12,15 @@
  *
  * 列表交互：↑↓ / Home / End 移动高亮，Enter 切换高亮项；有描述时悬停延迟 Tooltip 展示（列表默认不展示描述）。
  */
-import { Button } from '@i-thinking/design/components/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@i-thinking/design/components/popover'
-import { Spinner } from '@i-thinking/design/components/spinner'
+import { Button } from '@cogito/design/components/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@cogito/design/components/popover'
+import { Spinner } from '@cogito/design/components/spinner'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
-} from '@i-thinking/design/components/tooltip'
+} from '@cogito/design/components/tooltip'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { useEffect, useState, type KeyboardEvent } from 'react'

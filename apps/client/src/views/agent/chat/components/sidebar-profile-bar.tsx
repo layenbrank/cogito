@@ -1,13 +1,13 @@
 import { Icon } from '@iconify/react/offline'
-import { Avatar, AvatarFallback, AvatarImage } from '@i-thinking/design/components/avatar'
-import { Button } from '@i-thinking/design/components/button'
+import { Avatar, AvatarFallback, AvatarImage } from '@cogito/design/components/avatar'
+import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
+} from '@cogito/design/components/dropdown-menu'
 import { toast } from 'sonner'
 
 import { openSettingsWindow } from '@/features/window/open-settings'
@@ -97,7 +97,7 @@ function SidebarProfileBar(props: SidebarProfileBarProps) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={function () {
-              toast.info('i-thinking Agent')
+              toast.info('cogito Agent')
             }}>
             <Icon
               icon="lucide:info"

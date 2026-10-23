@@ -2,14 +2,14 @@
  * Qoder 式会话搜索弹框：无边框 Input + 键盘导航 + 结果列表
  */
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogTitle
-} from '@i-thinking/design/components/dialog'
-import { Input } from '@i-thinking/design/components/input'
+} from '@cogito/design/components/dialog'
+import { Input } from '@cogito/design/components/input'
 import { clsx } from 'clsx'
 import dayjs from 'dayjs'
 import { throttle } from 'lodash-es'

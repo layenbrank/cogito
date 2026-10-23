@@ -1,20 +1,20 @@
 import { Icon } from '@iconify/react/offline'
 import { ThreadListPrimitive, useAui, useAuiState } from '@assistant-ui/react'
-import { useAssistantLabels } from '@i-thinking/design/assistant/labels'
-import { ThreadListItem, ThreadListSearch } from '@i-thinking/design/assistant/thread-list.aui'
-import { Button } from '@i-thinking/design/components/button'
+import { useAssistantLabels } from '@cogito/design/assistant/labels'
+import { ThreadListItem, ThreadListSearch } from '@cogito/design/assistant/thread-list.aui'
+import { Button } from '@cogito/design/components/button'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger
-} from '@i-thinking/design/components/collapsible'
+} from '@cogito/design/components/collapsible'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
+} from '@cogito/design/components/dropdown-menu'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 

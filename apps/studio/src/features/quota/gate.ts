@@ -1,4 +1,4 @@
-import { GATEWAY_PROVIDER_KIND } from '@i-thinking/agent/provider'
+import { GATEWAY_PROVIDER_KIND } from '@cogito/agent/provider'
 
 import { GET_GATEWAY_QUOTA_ME, type GatewaySelfQuota } from '@/apis/gateway.ts'
 import { findPlatformSendBlocker } from '@/features/chat/platform.ts'

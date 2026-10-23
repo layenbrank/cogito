@@ -59,7 +59,7 @@ Tauri client / 桌面端应走离线注册（使用 **offline** 入口，无 CDN
 import { addCollection } from '@iconify/react/offline'
 import mdi from '@iconify/json/json/mdi.json'
 import antDesign from '@iconify/json/json/ant-design.json'
-import custom from '@i-thinking/shared/iconify.json' // → icons/custom.json
+import custom from '@cogito/shared/iconify.json' // → icons/custom.json
 
 addCollection(mdi)
 addCollection(antDesign)
@@ -172,7 +172,7 @@ packages/shared/.../icons/custom.json ──┘
 
 - **已删除** `icons/*.svg`
 - **已删除** 手维护子集 `icons/mdi.json`、`icons/ant-design.json`（改由 `@iconify/json` 提供）
-- **仅保留** `icons/custom.json`（exports：`@i-thinking/shared/iconify.json`）
+- **仅保留** `icons/custom.json`（exports：`@cogito/shared/iconify.json`）
 - client / extension / ui：**已移除** Vite `Icons()` / `~icons` / `FileSystemIconLoader`
 - 组件与注册均使用 **offline** 入口，无 CDN
 

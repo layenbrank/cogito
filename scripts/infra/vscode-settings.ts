@@ -1,4 +1,4 @@
-// 把 `.vscode/settings.json`（唯一真相）同步进 `i-thinking.code-workspace` 的 `settings` 段。
+// 把 `.vscode/settings.json`（唯一真相）同步进 `cogito.code-workspace` 的 `settings` 段。
 //
 // 为什么必须有两份：
 //   多根工作区里，每个 folder 的文件只吃**它自己那个 folder** 的 `.vscode/settings.json`
@@ -7,7 +7,7 @@
 //   对**所有** folder 生效。所以：仓库设置写在 `.vscode/settings.json`，
 //   工作区那份由本脚本生成，**不要手改**。
 //
-// 唯一改写：`${workspaceFolder}` → `${workspaceFolder:i-thinking}`。工作区文件里必须给变量
+// 唯一改写：`${workspaceFolder}` → `${workspaceFolder:cogito}`。工作区文件里必须给变量
 // 指定 folder 名（官方要求），而单根模式下的 `.vscode/settings.json` 用裸 `${workspaceFolder}`。
 // 已有的 `${workspaceFolder:client}` 这类别名不受影响。
 //
@@ -24,21 +24,21 @@ import { fileURLToPath } from 'node:url'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const sourcePath = join(repoRoot, '.vscode', 'settings.json')
-const targetPath = join(repoRoot, 'i-thinking.code-workspace')
+const targetPath = join(repoRoot, 'cogito.code-workspace')
 
 /** root folder 的名字：`${workspaceFolder:<name>}` 里的 name 必须与它逐字一致。 */
-const ROOT_FOLDER = 'i-thinking'
+const ROOT_FOLDER = 'cogito'
 
 /**
- * 聚焦视图；`i-thinking` 必须排第一，根目录的设置与 launch/tasks/mcp 才会被读到。
+ * 聚焦视图；`cogito` 必须排第一，根目录的设置与 launch/tasks/mcp 才会被读到。
  * 这些 app/package 只是「视图」，不是独立仓库。
  */
 const folders = [
-  { name: 'i-thinking', path: '.' },
+  { name: 'cogito', path: '.' },
   { name: 'extension', path: 'apps/extension' },
   { name: 'client', path: 'apps/client' },
   { name: 'devtools', path: 'apps/devtools' },
-  { name: 'cogito', path: 'apps/cogito' },
+  { name: 'service', path: 'apps/service' },
   { name: 'docs', path: 'docs' },
   { name: 'shared', path: 'packages/shared' }
 ]
@@ -92,17 +92,17 @@ const normalize = (text: string): string => text.replaceAll('\r\n', '\n')
 
 if (!checkOnly) {
   writeFileSync(targetPath, withCrlf(expected), 'utf8')
-  console.log(`已同步 → i-thinking.code-workspace（${expected.split('\n').length} 行）`)
+  console.log(`已同步 → cogito.code-workspace（${expected.split('\n').length} 行）`)
 } else {
   let current = ''
   try {
     current = readFileSync(targetPath, 'utf8')
   } catch {
-    console.error('缺少 i-thinking.code-workspace，请先跑：node scripts/infra/vscode-settings.ts')
+    console.error('缺少 cogito.code-workspace，请先跑：node scripts/infra/vscode-settings.ts')
     process.exit(1)
   }
   if (normalize(current) === expected) {
-    console.log('i-thinking.code-workspace 与 .vscode/settings.json 已一致')
+    console.log('cogito.code-workspace 与 .vscode/settings.json 已一致')
   } else {
     console.error('两份设置已分叉：\n' + firstDifference(normalize(current), expected))
     console.error('\n修正：node scripts/infra/vscode-settings.ts')

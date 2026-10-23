@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   Dialog,
   DialogContent,
@@ -7,16 +7,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle
-} from '@i-thinking/design/components/dialog'
+} from '@cogito/design/components/dialog'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { parseSliderValue, Slider } from '@i-thinking/design/components/slider'
-import { Switch } from '@i-thinking/design/components/switch'
+} from '@cogito/design/components/select'
+import { parseSliderValue, Slider } from '@cogito/design/components/slider'
+import { Switch } from '@cogito/design/components/switch'
 import { useState } from 'react'
 import { toast } from 'sonner'
 

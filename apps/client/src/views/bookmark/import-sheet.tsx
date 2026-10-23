@@ -1,4 +1,4 @@
-import { Sheet, SheetContent, SheetTitle } from '@i-thinking/design/components/sheet'
+import { Sheet, SheetContent, SheetTitle } from '@cogito/design/components/sheet'
 
 import { BookmarkImportWizard } from '@/views/bookmark/wizard'
 

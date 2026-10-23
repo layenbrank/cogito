@@ -1,4 +1,4 @@
-import { ToggleGroup, ToggleGroupItem } from '@i-thinking/design/components/toggle-group'
+import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
 
 type Option<T extends string> = {
   label: string

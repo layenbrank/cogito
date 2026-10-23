@@ -1,7 +1,7 @@
-import { Button } from '@i-thinking/design/components/button'
-import { Checkbox } from '@i-thinking/design/components/checkbox'
-import { Input } from '@i-thinking/design/components/input'
-import { Textarea } from '@i-thinking/design/components/textarea'
+import { Button } from '@cogito/design/components/button'
+import { Checkbox } from '@cogito/design/components/checkbox'
+import { Input } from '@cogito/design/components/input'
+import { Textarea } from '@cogito/design/components/textarea'
 import { cn } from 'cn'
 
 import {

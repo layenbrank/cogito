@@ -1,0 +1,61 @@
+# 复制为 config.local.yaml（不入库），覆盖本机密钥与连接串。
+#
+# 本机开发连 Docker 的 cogito-postgres（先在仓库根 `docker compose up -d postgres redis gocaptcha`）：
+#   用户名 machenike、库 cogito-service、端口 5432 与 compose.yaml 一致；
+#   密码填仓库根 `.env` 里的 POSTGRES_PASSWORD（两处保持同一个值）。
+#
+# 不想手填也可以直接复制 .env 的密码：
+#   $pw = (Select-String '^POSTGRES_PASSWORD=' .env).Line -replace '^POSTGRES_PASSWORD=',''
+
+database:
+  url: postgres://machenike:<POSTGRES_PASSWORD>@127.0.0.1:5432/cogito-service
+
+security:
+  secret: your-local-secret
+  jwt_secret: your-local-jwt-secret-at-least-32-characters-long
+  # encryption: aes
+  # aes_key: your-base64-aes-key
+
+auth:
+  captcha:
+    # enabled: false   # 临时关闭校验（开发联调）
+    api_key: change-me-gocaptcha-key
+
+aliyun:
+  # 出站凭据由 config.local.yaml 提供（不入库）
+  access_key_id: your-local-access-key-id
+  access_key_secret: your-local-access-key-secret
+
+gateway:
+  # 服务身份出站面共享密钥（compute 用它换短期令牌）。config.yaml 默认留空（端点关闭），
+  # 本机联调必须在这里给出，否则 /api/v1/service/** 一律 503。
+  service_token_secret: your-local-service-token-secret
+
+# 事件发布终点与鉴权（只有 worker 用得到；api 二进制不读它）。
+# 本机联调可留空：endpoint 为空时 worker 只记日志。
+events:
+  endpoint: ''
+  token: ''
+
+redis:
+  url: redis://127.0.0.1:6379
+
+# 支付渠道凭据（均为敏感值，只放本机/部署环境，见 src/services/payment/README.md）。
+# enabled: true 时会强校验必填项：宁启动失败，也不带半截凭据上线。
+# 回调地址必须公网 HTTPS；本机联调用内网穿透或反向代理，否则只能靠订单 sync 兜底。
+pay:
+  wechat:
+    enabled: false
+    mch_id: ''
+    app_id: ''
+    api_v3_key: '' # 32 字符
+    serial_no: ''
+    private_key: '' # apiclient_key.pem 内容
+    platform_public_key: '' # 平台证书公钥 PEM
+    notify_url: https://your-domain.com/api/v1/pay/notify/wechat
+  alipay:
+    enabled: false
+    app_id: ''
+    private_key: ''
+    alipay_public_key: ''
+    notify_url: https://your-domain.com/api/v1/pay/notify/alipay

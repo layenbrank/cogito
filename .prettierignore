@@ -1,5 +1,5 @@
 target
 static
 pnpm-lock.yaml
-# 契约生成物：必须与 apps/cogito 生成器输出逐字节一致，格式化会破坏漂移门禁
+# 契约生成物：必须与 apps/service 生成器输出逐字节一致，格式化会破坏漂移门禁
 packages/types/src/openapi.d.ts

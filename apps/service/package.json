@@ -1,0 +1,32 @@
+{
+  "name": "@cogito/service",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "arch": "node ./scripts/arch.ts",
+    "build": "cargo build --release",
+    "contracts": "node ./scripts/contracts.ts all",
+    "contracts:check": "node ./scripts/contracts.ts all --check",
+    "contracts:ts": "node ./scripts/contracts.ts ts",
+    "dev": "node ./scripts/dev.ts",
+    "dev:stable": "node ./scripts/dev.ts --no-restart",
+    "docs": "cargo run --bin docs",
+    "format": "prettier --write \"scripts/**/*.ts\"",
+    "imports": "node ./scripts/imports.ts",
+    "migrate:fresh": "cargo run -p migration -- fresh",
+    "upload": "node ./scripts/upload.ts"
+  },
+  "dependencies": {
+    "ky": "^2.0.2",
+    "yaml": "^2.8.0"
+  },
+  "devDependencies": {
+    "@openapitools/openapi-generator-cli": "2.30.0",
+    "openapi-typescript": "7.10.1",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=24.18.0"
+  }
+}

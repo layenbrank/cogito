@@ -1,5 +1,5 @@
-import { Badge } from '@i-thinking/design/components/badge'
-import { Progress } from '@i-thinking/design/components/progress'
+import { Badge } from '@cogito/design/components/badge'
+import { Progress } from '@cogito/design/components/progress'
 import { cn } from 'cn'
 
 import type { CorexRun } from '@/stores/corex.ts'

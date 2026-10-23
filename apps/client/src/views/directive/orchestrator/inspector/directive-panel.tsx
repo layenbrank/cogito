@@ -1,15 +1,15 @@
-import { Input } from '@i-thinking/design/components/input'
-import { Label } from '@i-thinking/design/components/label'
+import { Input } from '@cogito/design/components/input'
+import { Label } from '@cogito/design/components/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { Separator } from '@i-thinking/design/components/separator'
-import { Switch } from '@i-thinking/design/components/switch'
-import { Textarea } from '@i-thinking/design/components/textarea'
+} from '@cogito/design/components/select'
+import { Separator } from '@cogito/design/components/separator'
+import { Switch } from '@cogito/design/components/switch'
+import { Textarea } from '@cogito/design/components/textarea'
 
 import { BUCKETS, isValidDirectiveName } from '@/shared/ipc/specs/sidecar'
 import type { DirectiveContent } from '@/views/directive/model/types.ts'

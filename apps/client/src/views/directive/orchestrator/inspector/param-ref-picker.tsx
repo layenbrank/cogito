@@ -1,9 +1,9 @@
 /**
  * 两级（步骤为三级）级联引用选择器：作用域 → 叶 →（可选）子路径。
  */
-import { Button } from '@i-thinking/design/components/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@i-thinking/design/components/popover'
-import { ScrollArea } from '@i-thinking/design/components/scroll-area'
+import { Button } from '@cogito/design/components/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@cogito/design/components/popover'
+import { ScrollArea } from '@cogito/design/components/scroll-area'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { useMemo, useState } from 'react'

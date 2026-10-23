@@ -3,7 +3,7 @@
  *
  * 与 database.integration.test.ts 同一路径（普通 Node 跑不了 better-sqlite3）：
  *
- *   pnpm --filter @i-thinking/studio test:db
+ *   pnpm --filter @cogito/studio test:db
  *
  * 覆盖迁移落地后的 schema 语义：
  *   1. chat 三表齐备（旧 ai 域已不存在）

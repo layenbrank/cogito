@@ -1,4 +1,4 @@
-import { timeSphere } from '@i-thinking/utils'
+import { timeSphere } from '@cogito/utils'
 import { clsx } from 'clsx'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'

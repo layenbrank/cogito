@@ -18,4 +18,4 @@
 
 ## 一句话
 
-**Signboard** 是 i-thinking 桌面端磁贴应用：本地持久化的多列看板，拖拽手感与即时反馈优先，并与现有 Reminder / Calendar 到期语义打通。
+**Signboard** 是 cogito 桌面端磁贴应用：本地持久化的多列看板，拖拽手感与即时反馈优先，并与现有 Reminder / Calendar 到期语义打通。

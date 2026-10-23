@@ -119,7 +119,7 @@ function findClient() {
 | 改   | `package.json`：移除 `prisma`/`@prisma/client`/`@prisma/adapter-better-sqlite3`，加 `drizzle-orm`/`drizzle-kit`；`postinstall` 去掉 `prisma generate`（保留 `electron-rebuild`） |
 | 改   | `forge/packager.ts`：asar keep 列表 `/prisma` → `/drizzle`（迁移 SQL + journal 必须随包）                                                                                        |
 | 改   | `apps/studio/tsconfig.json`：删除 `@generated/*` 路径别名                                                                                                                        |
-| 改   | `i-thinking.code-workspace`：删除 `prisma.schemaPath`（Prisma 扩展不再需要）                                                                                                     |
+| 改   | `cogito.code-workspace`：删除 `prisma.schemaPath`（Prisma 扩展不再需要）                                                                                                     |
 | 改   | `.gitignore`：去掉 `apps/studio/generated/`、`apps/studio/prisma/dev.db*`，加 drizzle 的本地库文件                                                                               |
 | 改   | `docs/apps/studio/development.md` §8：改写为 Drizzle 工作流（schema 改动 → `drizzle-kit generate` → 启动时自动迁移）                                                             |
 | 改   | `scripts/sync-seed.mjs`：输出目标改为 drizzle 自定义迁移目录                                                                                                                     |
@@ -170,8 +170,8 @@ function findClient() {
 
 | 命令                                               | 结果                                                                                                                              |
 | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm --filter @i-thinking/studio test:db`         | 2 文件 / 6 用例全绿：真实 `better-sqlite3` + 官方 `migrate()` —— 空库建表+种子、启动幂等（不重复播种）、chat 域的三件 schema 语义 |
-| `pnpm --filter @i-thinking/studio exec vitest run` | 32 文件 / 203 用例全绿（`test:unit`，不含 `test:db`）                                                                             |
+| `pnpm --filter @cogito/studio test:db`         | 2 文件 / 6 用例全绿：真实 `better-sqlite3` + 官方 `migrate()` —— 空库建表+种子、启动幂等（不重复播种）、chat 域的三件 schema 语义 |
+| `pnpm --filter @cogito/studio exec vitest run` | 32 文件 / 203 用例全绿（`test:unit`，不含 `test:db`）                                                                             |
 
 集成测试为何单独一条命令：`better-sqlite3` 是按 Electron ABI 编译的原生模块，普通 Node 加载会 ABI 不匹配，故用 `ELECTRON_RUN_AS_NODE=1` 把 Electron 当 Node 跑（`scripts/run-db-tests.mjs`），并被排除在 `test:unit` 之外。
 
@@ -198,7 +198,7 @@ function findClient() {
 | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | schema | 删 `drizzle/schema/ai.ts`，新增 `chat.ts`；消息的 `format` + `content` 是主进程不解析的不透明载荷，`parentID` 表达分支                                                                                                     |
 | 迁移   | 旧 ai 五表直接不建；chat 三表 + `workspace` / `workspaceFolder` 由 `0000_init.sql` 建出；`chatSession.workspaceID` 内联在列定义里（开发期 schema 变更可 wipe 本地库） |
-| 验证   | `pnpm --filter @i-thinking/studio test:db` 6/6（含 chat 级联 / 分支 / provider set null 的集成用例）                                                                                                                       |
+| 验证   | `pnpm --filter @cogito/studio test:db` 6/6（含 chat 级联 / 分支 / provider set null 的集成用例）                                                                                                                       |
 
 ### 9.5 开发期把迁移压成一个文件
 

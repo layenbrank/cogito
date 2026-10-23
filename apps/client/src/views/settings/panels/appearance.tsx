@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
-import { ToggleGroup, ToggleGroupItem } from '@i-thinking/design/components/toggle-group'
+import { Button } from '@cogito/design/components/button'
+import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
 import { cn } from 'cn'
 import { useState } from 'react'
 import { toast } from 'sonner'

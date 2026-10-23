@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { parseSliderValue, Slider } from '@i-thinking/design/components/slider'
+import { parseSliderValue, Slider } from '@cogito/design/components/slider'
 import { clsx } from 'clsx'
 import { AnimatePresence, motion } from 'motion/react'
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'

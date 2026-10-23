@@ -1,18 +1,18 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger
-} from '@i-thinking/design/components/collapsible'
+} from '@cogito/design/components/collapsible'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
-import { Popover, PopoverContent, PopoverTrigger } from '@i-thinking/design/components/popover'
+} from '@cogito/design/components/dropdown-menu'
+import { Popover, PopoverContent, PopoverTrigger } from '@cogito/design/components/popover'
 import { clsx } from 'clsx'
 import dayjs from 'dayjs'
 

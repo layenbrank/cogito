@@ -14,7 +14,7 @@
   ; Best-effort: close the app if it's running to avoid file-in-use errors.
   ; Ignore failures (process may not exist).
   ClearErrors
-  ExecWait '"$SYSDIR\\taskkill.exe" /F /T /IM "i-thinking.exe"' $0
+  ExecWait '"$SYSDIR\\taskkill.exe" /F /T /IM "cogito.exe"' $0
   Sleep 800
 !macroend
 
@@ -25,7 +25,7 @@
 !macro NSIS_HOOK_PREUNINSTALL
   ; Best-effort: close the app if it's running.
   ClearErrors
-  ExecWait '"$SYSDIR\\taskkill.exe" /F /T /IM "i-thinking.exe"' $0
+  ExecWait '"$SYSDIR\\taskkill.exe" /F /T /IM "cogito.exe"' $0
   Sleep 800
 !macroend
 

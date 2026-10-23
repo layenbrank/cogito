@@ -1,4 +1,4 @@
-import { TooltipProvider } from '@i-thinking/design/components/tooltip'
+import { TooltipProvider } from '@cogito/design/components/tooltip'
 
 import { ApprovalSwitch } from './approval-switch'
 import { ComposerClip } from './composer-clip.tsx'

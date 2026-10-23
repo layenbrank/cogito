@@ -4,7 +4,7 @@ import { atlas } from 'gradient-string'
 
 import { logger } from './logger.ts'
 
-function printBanner(title = 'I-THINKING'): void {
+function printBanner(title = 'COGITO'): void {
   try {
     const ascii = figlet.textSync(title, {
       font: 'Slant',

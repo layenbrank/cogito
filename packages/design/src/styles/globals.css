@@ -1,5 +1,5 @@
 /**
- * @i-thinking/design —— 设计 token 与 Tailwind v4 入口（唯一源）
+ * @cogito/design —— 设计 token 与 Tailwind v4 入口（唯一源）
  *
  * 标准 shadcn 约定：
  * - 语义 token 在 `:root` 定义，`.dark` 覆盖同名变量；经 `@theme inline` 暴露为工具类

@@ -1,21 +1,21 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@i-thinking/design/components/button'
+import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger
-} from '@i-thinking/design/components/dropdown-menu'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@i-thinking/design/components/input-group'
+} from '@cogito/design/components/dropdown-menu'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@cogito/design/components/input-group'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@i-thinking/design/components/select'
-import { Spinner } from '@i-thinking/design/components/spinner'
+} from '@cogito/design/components/select'
+import { Spinner } from '@cogito/design/components/spinner'
 import { debounce } from 'lodash-es'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'

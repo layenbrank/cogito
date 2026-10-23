@@ -4,8 +4,8 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle
-} from '@i-thinking/design/components/dialog'
-import { Input } from '@i-thinking/design/components/input'
+} from '@cogito/design/components/dialog'
+import { Input } from '@cogito/design/components/input'
 import { cn } from 'cn'
 import { useEffect, useMemo, useState } from 'react'
 

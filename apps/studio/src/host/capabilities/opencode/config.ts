@@ -1,4 +1,4 @@
-import { toModel, type ModelEntry } from '@i-thinking/agent/provider'
+import { toModel, type ModelEntry } from '@cogito/agent/provider'
 
 import { isGatewayProvider, resolveConnection } from '@/host/capabilities/assistant/model'
 import {

@@ -1,4 +1,4 @@
-import type { ChatUsage } from '@i-thinking/chat/ports'
+import type { ChatUsage } from '@cogito/chat/ports'
 import { useAuiState, type ThreadMessage } from '@assistant-ui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef } from 'react'
@@ -10,7 +10,7 @@ import { QUOTA_KEY } from '@/features/quota/usage.ts'
  * 用量有两个口径，**分工**：
  *
  * - 消息口径（本文件上半部分）：主进程把 `ChatUsage` 挂在消息 `metadata.custom.usage` 上
- *   （见 `@i-thinking/chat/adapters/chat-model`），这里把它读回来。这是历史里自带的数字，
+ *   （见 `@cogito/chat/adapters/chat-model`），这里把它读回来。这是历史里自带的数字，
  *   跟着消息走 —— 取消运行的那一条会被 runtime 丢掉，所以它只能当「消息上标了多少」。
  * - 账本口径（下半部分）：主进程每轮运行**结算时**记一笔（`engine.settle` 先记账再发终态），
  *   成功 / 取消 / 失败都算。取消不再漏计，也不依赖消息还在不在。
@@ -18,7 +18,7 @@ import { QUOTA_KEY } from '@/features/quota/usage.ts'
 
 /**
  * 用量：主进程 `finish` 事件把 `ChatUsage` 挂在消息 `metadata.custom.usage` 上
- * （见 `@i-thinking/chat/adapters/chat-model`），这里把它读回来。
+ * （见 `@cogito/chat/adapters/chat-model`），这里把它读回来。
  *
  * 读的是**我们自己的**契约，不是 provider 的原始字段 —— 换后端（opencode / 其它）
  * 这段都不用动。

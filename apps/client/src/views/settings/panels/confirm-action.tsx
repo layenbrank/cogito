@@ -7,8 +7,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
-} from '@i-thinking/design/components/alert-dialog'
-import { Button } from '@i-thinking/design/components/button'
+} from '@cogito/design/components/alert-dialog'
+import { Button } from '@cogito/design/components/button'
 import { useState } from 'react'
 
 interface ConfirmActionProps {

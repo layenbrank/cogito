@@ -1,0 +1,187 @@
+# 生产全栈（独立文件，无 build:）。先构建再部署，见 guide/deployment.md §3。
+#
+#   cp .env.production.example .env.production
+#   ./docker/build-images.sh    # 或 .ps1
+#   docker compose -f compose.prod.yaml --env-file .env.production up -d
+#
+# registry：先 pull 再 up。链路：--profile tracing。
+
+name: cogito
+
+x-cogito-image: &cogito-image
+  image: ${COGITO_IMAGE:?COGITO_IMAGE 必填：预构建 Rust 镜像（registry/... 或本机验产用 cogito:local）}
+  pull_policy: missing
+  env_file:
+    - path: docker/stack.env
+      required: false
+
+x-cogito-env: &cogito-env
+  COGITO__APP__ENV: ${APP_ENV:-production}
+  COGITO__SERVER__HOST: 0.0.0.0
+  COGITO__SERVER__PORT: '3000'
+  COGITO__DATABASE__URL: postgres://machenike:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填，见 .env.production.example}@postgres:5432/cogito-service
+  COGITO__REDIS__URL: redis://redis:6379
+  COGITO__AUTH__CAPTCHA__BASE_URL: http://gocaptcha:8080
+  COGITO__COMPUTE__BASE_URL: http://compute:8081
+  COGITO__COMPUTE__TOKEN: ${COMPUTE_INTERNAL_TOKEN:?COMPUTE_INTERNAL_TOKEN 必填，见 .env.production.example}
+  COGITO__GATEWAY__SERVICE_TOKEN_SECRET: ${SERVICE_TOKEN_SECRET:?SERVICE_TOKEN_SECRET 必填，见 .env.production.example}
+  COGITO__TELEMETRY__ENABLED: ${TELEMETRY_ENABLED:-false}
+  COGITO__TELEMETRY__ENDPOINT: ${OTLP_ENDPOINT:-http://jaeger:4318}
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:?POSTGRES_IMAGE 必填：预构建镜像（registry/... 或本机验产用 cogito-postgres:18-zh-pgvector）}
+    pull_policy: missing
+    container_name: cogito-postgres
+    environment:
+      POSTGRES_USER: machenike
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填，见 .env.production.example}
+      POSTGRES_DB: cogito-service
+      LANG: zh_CN.UTF-8
+      LC_ALL: zh_CN.UTF-8
+      POSTGRES_INITDB_ARGS: '--locale=zh_CN.UTF-8 --encoding=UTF8'
+    volumes:
+      - ./data/postgres:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'psql -U machenike -d cogito-service -c "SELECT 1" >/dev/null']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    container_name: cogito-redis
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  gocaptcha:
+    image: wenlng/go-captcha-service:1.0.5
+    platform: linux/amd64
+    container_name: cogito-gocaptcha
+    expose:
+      - '8080'
+      - '50051'
+    volumes:
+      - ./docker/gocaptcha/config.json:/app/config.json:ro
+      - ./docker/gocaptcha/gocaptcha.json:/app/gocaptcha.json:ro
+    environment:
+      CONFIG: config.json
+      GO_CAPTCHA_CONFIG: gocaptcha.json
+      SERVICE_NAME: go-captcha-service
+      CACHE_TYPE: redis
+      CACHE_ADDRS: redis:6379
+      LOG_LEVEL: info
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/jaeger:2.9.0
+    container_name: cogito-jaeger
+    profiles: [tracing]
+    ports:
+      - '16686:16686'
+      - '4318:4318'
+    restart: unless-stopped
+
+  migrate:
+    <<: *cogito-image
+    container_name: cogito-migrate
+    command: ['./migration', 'up']
+    environment:
+      <<: *cogito-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  cogito-service:
+    <<: *cogito-image
+    container_name: cogito-service
+    command: ['./cogito']
+    environment:
+      <<: *cogito-env
+    ports:
+      - '${COGITO_API_PORT:-3000}:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      gocaptcha:
+        condition: service_started
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:3000/api/live >/dev/null || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  cogito-worker:
+    <<: *cogito-image
+    container_name: cogito-worker
+    command: ['./worker']
+    environment:
+      <<: *cogito-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  cogito-orchestrator:
+    <<: *cogito-image
+    container_name: cogito-orchestrator
+    command: ['./orchestrator']
+    environment:
+      <<: *cogito-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      compute:
+        condition: service_started
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+  compute:
+    image: ${COMPUTE_IMAGE:?COMPUTE_IMAGE 必填：预构建 Python 镜像（registry/... 或本机验产用 cogito-compute:local）}
+    pull_policy: missing
+    container_name: cogito-compute
+    environment:
+      COMPUTE_ENVIRONMENT: ${COMPUTE_ENVIRONMENT:-production}
+      COMPUTE_HOST: 0.0.0.0
+      COMPUTE_PORT: '8081'
+      COMPUTE_INTERNAL_TOKEN: ${COMPUTE_INTERNAL_TOKEN:?COMPUTE_INTERNAL_TOKEN 必填，见 .env.production.example}
+      COMPUTE_DATABASE_URL: postgres://machenike:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填，见 .env.production.example}@postgres:5432/compute
+      COMPUTE_COGITO_BASE_URL: http://cogito-service:3000
+      COMPUTE_TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-false}
+      COMPUTE_TELEMETRY_ENDPOINT: ${OTLP_ENDPOINT:-http://jaeger:4318}
+    expose:
+      - '8081'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:8081/internal/v1/health >/dev/null || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped

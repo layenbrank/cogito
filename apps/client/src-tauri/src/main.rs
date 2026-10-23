@@ -54,14 +54,14 @@ fn run_token_helper() -> bool {
     }
 
     let Some(expected) = expected_jwt_path() else {
-        eprintln!("i-thinking-token: cannot resolve app data dir");
+        eprintln!("cogito-token: cannot resolve app data dir");
         std::process::exit(1);
     };
 
     if let Some(ref requested) = file {
         if !paths_refer_same(Path::new(requested), &expected) {
             eprintln!(
-                "i-thinking-token: --file must be {}",
+                "cogito-token: --file must be {}",
                 expected.display()
             );
             std::process::exit(1);
@@ -71,12 +71,12 @@ fn run_token_helper() -> bool {
     let token = match std::fs::read_to_string(&expected) {
         Ok(content) => content.trim().to_string(),
         Err(error) => {
-            eprintln!("i-thinking-token: read {}: {error}", expected.display());
+            eprintln!("cogito-token: read {}: {error}", expected.display());
             std::process::exit(1);
         }
     };
     if token.is_empty() {
-        eprintln!("i-thinking-token: {} is empty", expected.display());
+        eprintln!("cogito-token: {} is empty", expected.display());
         std::process::exit(1);
     }
 

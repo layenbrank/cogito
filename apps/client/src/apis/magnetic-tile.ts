@@ -3,13 +3,13 @@ import { safeDecodeURIComponent } from '@/utils/safe-decode.ts'
 
 function GET_TILES() {
   return http.get('/magnetic-tile', {
-    env: 'thinking'
+    env: 'cogito'
   })
 }
 
 function GET_SINGLETON(id: string) {
   return http.get(`/magnetic-tile/singleton/${id}`, {
-    env: 'thinking'
+    env: 'cogito'
   })
 }
 
@@ -18,7 +18,7 @@ function GET_FAVICON(url: string) {
     query: {
       url: safeDecodeURIComponent(url)
     },
-    env: 'thinking'
+    env: 'cogito'
   })
 }
 

@@ -89,7 +89,7 @@ function buildPlugin(overlay: OverlayWindowPort): WindowPlugin {
           center: true,
           hasShadow: true,
           backgroundColor: '#00000000',
-          title: 'i thinking',
+          title: 'cogito',
           frame: true,
           backgroundMaterial: 'mica',
           titleBarStyle: 'hidden',

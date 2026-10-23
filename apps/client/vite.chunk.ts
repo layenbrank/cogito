@@ -144,8 +144,8 @@ export const chunks: CodeSplitting[] = [
     priority: 50,
     test(id) {
       const patterns = [
-        /[\\/]node_modules[\\/]@i-thinking[\\/]design[\\/]/,
-        /[\\/]node_modules[\\/]@i-thinking[\\/]chat[\\/]/,
+        /[\\/]node_modules[\\/]@cogito[\\/]design[\\/]/,
+        /[\\/]node_modules[\\/]@cogito[\\/]chat[\\/]/,
         /[\\/]node_modules[\\/]@base-ui[\\/]/,
         /[\\/]node_modules[\\/]@assistant-ui[\\/]/,
         /[\\/]node_modules[\\/]assistant-stream[\\/]/,

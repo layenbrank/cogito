@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback } from '@i-thinking/design/components/avatar'
+import { Avatar, AvatarFallback } from '@cogito/design/components/avatar'
 import { clsx } from 'clsx'
 
 import { MagneticTile, type MarkerProps } from '@/features/magnetic-tile/magnetic-tile.tsx'

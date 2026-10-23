@@ -1,4 +1,4 @@
-import { findProviderSource, PROVIDER_SOURCE_LABELS } from '@i-thinking/agent/provider'
+import { findProviderSource, PROVIDER_SOURCE_LABELS } from '@cogito/agent/provider'
 
 /**
  * provider 行的渲染侧类型：形状从 IPC 契约推导，不在这里重抄一份。
@@ -9,7 +9,7 @@ import { findProviderSource, PROVIDER_SOURCE_LABELS } from '@i-thinking/agent/pr
 
 type ProviderRow = Awaited<ReturnType<typeof itc.chat.provider.toRead>>[number]
 
-/** 声明态模型条目（真源：`@i-thinking/agent/provider` 的 `ModelEntry`） */
+/** 声明态模型条目（真源：`@cogito/agent/provider` 的 `ModelEntry`） */
 type ProviderModel = NonNullable<ProviderRow['models']>[number]
 
 /** 来源文案（组织模型 / 我的模型）：由 kind 派生，不落库，所以不需要迁移 */

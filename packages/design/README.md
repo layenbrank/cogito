@@ -1,4 +1,4 @@
-# @i-thinking/design
+# @cogito/design
 
 设计系统：**shadcn/ui 原子组件** + **assistant-ui elements** + 设计 token。被 `apps/studio`（Electron）与 `apps/extension`（MV3）共用。
 
@@ -22,23 +22,23 @@ packages/design/
 
 | 导入写法                                         | 实际文件                             |
 | ------------------------------------------------ | ------------------------------------ |
-| `@i-thinking/design/components/button`           | `src/components/button.tsx`          |
-| `@i-thinking/design/assistant/thread.aui`        | `src/assistant/thread.aui.tsx`       |
-| `@i-thinking/design/hooks/use-copy-to-clipboard` | `src/hooks/use-copy-to-clipboard.ts` |
-| `@i-thinking/design/globals.css`                 | `src/styles/globals.css`             |
+| `@cogito/design/components/button`           | `src/components/button.tsx`          |
+| `@cogito/design/assistant/thread.aui`        | `src/assistant/thread.aui.tsx`       |
+| `@cogito/design/hooks/use-copy-to-clipboard` | `src/hooks/use-copy-to-clipboard.ts` |
+| `@cogito/design/globals.css`                 | `src/styles/globals.css`             |
 
 `package.json` 里 **`exports`（对外）与 `imports`（包内自引用）两张表并存** —— 官方模板同款：
 
 | 表        | 前缀                                        | 用途                 |
 | --------- | ------------------------------------------- | -------------------- |
-| `exports` | `@i-thinking/design/*`                      | 各 app 消费          |
+| `exports` | `@cogito/design/*`                      | 各 app 消费          |
 | `imports` | `#components/*`、`#assistant/*`、`#hooks/*` | 本包组件之间互相引用 |
 
 新增一类组件 = 在 `src/` 建目录，并同时补 `exports` 与 `imports` 两张表。
 
 ## 约束
 
-- **token 只在 `src/styles/globals.css` 定义**；app 侧通过 `@import "@i-thinking/design/globals.css"` 引入，不要再定义同名变量。
+- **token 只在 `src/styles/globals.css` 定义**；app 侧通过 `@import "@cogito/design/globals.css"` 引入，不要再定义同名变量。
 - 类名合并统一用 `cn`，直接从 `cn` 包导入（`import { cn } from 'cn'`）；不要再包一层 re-export。
 - **包内互相引用用 `#components/*`、`#hooks/*`**（`package.json` 的 `imports` 表），不要用 `@/...`：
   app 的 `resolve.tsconfigPaths` 会用 app 自己的 tsconfig 解析**所有 importer** 的 `@/*`，
@@ -48,10 +48,10 @@ packages/design/
 
 ```bash
 # 在本包目录下执行（CLI 读本包的 components.json）
-pnpm --filter @i-thinking/design registry:add @assistant-ui/thread @assistant-ui/thread-list
+pnpm --filter @cogito/design registry:add @assistant-ui/thread @assistant-ui/thread-list
 ```
 
-CLI 靠本包 `tsconfig.json` 的 `paths`（`@i-thinking/design/*` → `./src/*`）解析 `components.json` 里的别名，
+CLI 靠本包 `tsconfig.json` 的 `paths`（`@cogito/design/*` → `./src/*`）解析 `components.json` 里的别名，
 产物因此**直接落到** `src/components/`、`src/assistant/`，不需要任何后处理脚本。
 
 > **覆盖策略（2026-10 起）**：组件保持 registry 原样 —— 需要更新时用 `--overwrite` 覆盖，
