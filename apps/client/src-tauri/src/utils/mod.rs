@@ -9,5 +9,6 @@ pub mod goose_serve;
 pub mod goose_tls;
 pub mod ipc;
 pub mod log_retention;
+pub mod secret;
 pub mod sidecar;
 pub mod terminal;

@@ -3,8 +3,9 @@ import { createRoot } from 'react-dom/client'
 import 'reflect-metadata'
 
 import App from '@/App.tsx'
+import { ensurePersist, ensureSecrets, findPref } from '@/features/persist'
 import { watchActiveTenant } from '@/features/quota/tenant.ts'
-import { watchAppearance } from '@/features/window/appearance'
+import { adoptAppearance, watchAppearance } from '@/features/window/appearance'
 import {
   installExceptionReporting,
   reportUnknown
@@ -42,7 +43,14 @@ const appRoot = createRoot(rootElement, {
   identifierPrefix: IDENTIFIER_PREFIX
 })
 
-watchAppearance()
-// 租户身份：登录 / 切账号后重新解析，好让请求带上 `X-Tenant-ID`（网关按它算配额归属）
-watchActiveTenant()
-appRoot.render(<App />)
+async function bootstrap() {
+  await ensurePersist()
+  await ensureSecrets()
+  adoptAppearance(findPref('window').appearance)
+  watchAppearance()
+  // 租户身份：登录 / 切账号后重新解析，好让请求带上 `X-Tenant-ID`（网关按它算配额归属）
+  watchActiveTenant()
+  appRoot.render(<App />)
+}
+
+void bootstrap()

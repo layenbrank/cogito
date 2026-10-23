@@ -6,6 +6,7 @@ import {
 import { clsx } from 'clsx'
 import { useEffect } from 'react'
 
+import { findPref } from '@/features/persist'
 import { useClipchampStore } from '@/stores/clipchamp.ts'
 import { Inspector } from '@/views/clipchamp/workspace/inspector.tsx'
 import { MediaSurface } from '@/views/clipchamp/workspace/media-surface.tsx'
@@ -34,7 +35,8 @@ function Workspace() {
     function () {
       // soft restore on mount if saved
       try {
-        if (localStorage.getItem('clipchamp.project.v1')) {
+        const saved = findPref('clipchamp')
+        if (saved && typeof saved === 'object' && 'project' in saved && saved.project) {
           // don't auto toast — silent attempt only when empty
           const assets = useClipchampStore.getState().assets
           const duration = useClipchampStore.getState().project.durationMs

@@ -1,6 +1,8 @@
+import {
+  findMarkdownTilePrefs,
+  persistMarkdownTilePrefs
+} from '@/features/magnetic-tile/tile-prefs'
 import type { MarkdownViewMode } from '@/views/markdown/lib/types.ts'
-
-const STORAGE_KEY = 'MARKDOWN_EDITOR_PREFERENCES'
 
 interface MarkdownPreferences {
   rootDir: string | null
@@ -30,25 +32,28 @@ const PREFERENCES: MarkdownPreferences = {
   recentPaths: []
 }
 
+/** 同步读：依赖 ensurePersist 后的 tiles cache */
 function parsePreferences(): MarkdownPreferences {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { ...PREFERENCES }
-    const parsed = JSON.parse(raw) as Partial<MarkdownPreferences>
-    return {
-      ...PREFERENCES,
-      ...parsed,
-      recentPaths: Array.isArray(parsed.recentPaths) ? parsed.recentPaths.slice(0, 20) : []
-    }
+    return findMarkdownTilePrefs()
   } catch (error) {
     console.warn('[markdown] parsePreferences failed', error)
-    return { ...PREFERENCES }
+    return { ...PREFERENCES, recentPaths: [] }
   }
 }
 
+function hydratePreferencesFromStore(): MarkdownPreferences {
+  return findMarkdownTilePrefs()
+}
+
 function persistPreferences(prefs: MarkdownPreferences): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))
+  void persistMarkdownTilePrefs(prefs)
 }
 
 export type { MarkdownPreferences }
-export { PREFERENCES, STORAGE_KEY, parsePreferences, persistPreferences }
+export {
+  PREFERENCES,
+  parsePreferences,
+  hydratePreferencesFromStore,
+  persistPreferences
+}

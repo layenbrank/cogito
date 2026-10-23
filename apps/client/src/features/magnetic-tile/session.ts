@@ -1,6 +1,11 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
 import { isMagneticTileComponent } from '@/constants/magnetic-tile/components'
+import {
+  findTileSessions,
+  persistTileSessions,
+  type TileSessionPref
+} from '@/features/magnetic-tile/tile-prefs'
 import { useMarkdownStore } from '@/stores/markdown'
 
 /**
@@ -57,6 +62,30 @@ function isMarkdownDirty() {
 }
 
 function publish() {
+  for (const listener of listeners) listener()
+  const snapshot: TileSessionPref[] = sessions.map(function (session) {
+    return {
+      component: session.component,
+      tileId: session.tileId,
+      url: session.url,
+      path: session.path
+    }
+  })
+  void persistTileSessions(snapshot)
+}
+
+/** 启动时从 tiles.json 灌回会话名单 */
+function hydrateSessionsFromPrefs() {
+  const stored = findTileSessions()
+  if (stored.length === 0) return
+  sessions = stored.map(function (session) {
+    return {
+      component: session.component,
+      tileId: session.tileId,
+      url: session.url,
+      path: session.path
+    }
+  })
   for (const listener of listeners) listener()
 }
 
@@ -166,6 +195,7 @@ export {
   bindSessionHome,
   dismissSession,
   findAppComponent,
+  hydrateSessionsFromPrefs,
   isMainWindow,
   leaveTileSession,
   parkSessions,

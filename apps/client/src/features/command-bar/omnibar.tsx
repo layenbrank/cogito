@@ -142,7 +142,7 @@ function CommandOmnibar() {
 
   async function activateHit(hit: Hit) {
     try {
-      writeRecentHit(hit)
+      await writeRecentHit(hit)
       await hit.run()
       setSurfaceOpen(false)
       setRailOpen(false)
@@ -235,7 +235,7 @@ function CommandOmnibar() {
           onExpand={setRailOpen}
           onChoose={function (key) {
             setEngineKey(key)
-            writeEngineKey(key)
+            void writeEngineKey(key)
             refreshHits(keywordRef.current, filterRef.current)
           }}
         />

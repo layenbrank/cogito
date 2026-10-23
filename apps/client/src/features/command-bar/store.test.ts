@@ -1,19 +1,23 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { ENGINE_STORE_KEY, ENGINES } from '@/constants/engine'
+import { ENGINES } from '@/constants/engine'
 import {
   parseEngineKey,
   readEngineKey,
-  RECENT_STORE_KEY,
   readRecentHits,
   writeEngineKey,
   writeRecentHit
 } from '@/features/command-bar/store'
+import { ensurePersist, resetPersistForTests } from '@/features/persist'
 
 describe('command-bar store', function () {
+  beforeEach(async function () {
+    resetPersistForTests()
+    await ensurePersist()
+  })
+
   afterEach(function () {
-    localStorage.removeItem(ENGINE_STORE_KEY)
-    localStorage.removeItem(RECENT_STORE_KEY)
+    resetPersistForTests()
   })
 
   it('falls back to the first engine for unknown payloads', function () {
@@ -21,33 +25,32 @@ describe('command-bar store', function () {
     expect(parseEngineKey({ key: 'unknown' })).toBe(ENGINES[0].key)
   })
 
-  it('round-trips the selected engine key', function () {
-    writeEngineKey('baidu')
+  it('round-trips the selected engine key', async function () {
+    await writeEngineKey('baidu')
     expect(readEngineKey()).toBe('baidu')
-    expect(JSON.parse(localStorage.getItem(ENGINE_STORE_KEY) ?? '{}')).toEqual({
-      key: 'baidu'
-    })
   })
 
-  it('stores recent hits with dedupe', function () {
-    writeRecentHit({
+  it('stores recent hits with dedupe', async function () {
+    await writeRecentHit({
       domain: 'tile',
       id: 'a',
       title: 'Alpha'
     })
-    writeRecentHit({
+    await writeRecentHit({
       domain: 'tile',
       id: 'b',
       title: 'Beta'
     })
-    writeRecentHit({
+    await writeRecentHit({
       domain: 'tile',
       id: 'a',
       title: 'Alpha'
     })
     const recent = readRecentHits()
-    expect(recent.map(function (item) {
-      return item.id
-    })).toEqual(['a', 'b'])
+    expect(
+      recent.map(function (item) {
+        return item.id
+      })
+    ).toEqual(['a', 'b'])
   })
 })

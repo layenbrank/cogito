@@ -122,7 +122,7 @@ const useSessionStore = create<SessionStore>()(
   )
 )
 
-/** 令牌变化（本窗 writeAuthToken / 他窗 storage）时重拉资料 */
+/** 令牌变化（本窗 writeAuthToken / 他窗 auth:changed）时重拉资料 */
 subscribeAuthToken(function () {
   void hydrateSessionUser(applySessionState)
 })

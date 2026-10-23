@@ -1,9 +1,12 @@
-import { syncCogitoJwt } from '@/utils/cogito-token.ts'
+import {
+  ensureSecrets,
+  findJwtCache,
+  findPref,
+  patchPref,
+  subscribeAuthChanged,
+  writeJwtSecret
+} from '@/features/persist'
 import { HttpError } from '@/utils/http/errors.ts'
-
-const AUTH_TOKEN_KEY = 'auth-token'
-/** 「记住我」勾选登录时留下的用户名；退出登录后回填表单，不存密码 */
-const AUTH_REMEMBER_USERNAME_KEY = 'auth-remember-username'
 
 /** 与 service 的 `role()` 对齐：只有精确 ADMIN 才算管理员 */
 const ADMIN_ROLE = 'ADMIN'
@@ -26,72 +29,41 @@ interface AuthClaims {
 type AuthTokenListener = () => void
 
 /**
- * 令牌读写是同步的，但界面得跟着刷 —— 登录/登出不该要求用户重开窗口。
- * 每次写入都通知订阅者，`useAuthToken` 就挂在这上面。
+ * 令牌读写：内存 cache 同步读；「记住我」落 OS Keyring；侧车 jwt 仅 Rust 桥接。
+ * 跨窗经 Tauri `auth:changed`，不再用 Web Storage / storage 事件。
  */
 const authTokenListeners = new Set<AuthTokenListener>()
-
-/** 「记住我」进 localStorage，否则只留到这次会话结束；两处都可能存着旧令牌，一律按这两个存储处理 */
-function findAuthStores(): Storage[] {
-  const stores: Storage[] = []
-  if (typeof localStorage !== 'undefined') stores.push(localStorage)
-  if (typeof sessionStorage !== 'undefined') stores.push(sessionStorage)
-  return stores
-}
 
 function notifyAuthToken(): void {
   for (const listener of [...authTokenListeners]) listener()
 }
 
-/**
- * 跨窗口同步：Electron 每个窗口一个渲染进程，`storage` 事件是它们之间唯一的信号。
- *
- * 只听本窗口的订阅者，会让「主窗口登录成功、agent 窗口的左栏还挂着未登录的假头像」——
- * 令牌本来就在同一份 localStorage 里（所有窗口共用默认 session），差的只是没人让它重读。
- * 按规范事件只发给**其它**文档，本窗口的写入由 `notifyAuthToken` 自己广播，不会重复通知。
- */
-function handleStorageEvent(event: StorageEvent): void {
-  // 整份存储被清掉时 `key` 是 null，令牌也可能跟着没了，一样要重读
-  if (event.key !== null && event.key !== AUTH_TOKEN_KEY) return
-  notifyAuthToken()
-}
-
-let isCrossWindowListening = false
+let stopCrossWindow: (() => void) | null = null
 
 function listenCrossWindow(): void {
-  if (isCrossWindowListening || typeof window === 'undefined') return
-
-  window.addEventListener('storage', handleStorageEvent)
-  isCrossWindowListening = true
+  if (stopCrossWindow) return
+  stopCrossWindow = subscribeAuthChanged(function () {
+    notifyAuthToken()
+  })
 }
 
-/** 没有订阅者了就别再挂着监听（热更与测试里反复订阅不该越积越多） */
 function unlistenCrossWindow(): void {
-  if (!isCrossWindowListening || authTokenListeners.size > 0) return
-
-  window.removeEventListener('storage', handleStorageEvent)
-  isCrossWindowListening = false
+  if (!stopCrossWindow || authTokenListeners.size > 0) return
+  stopCrossWindow()
+  stopCrossWindow = null
 }
 
 function findAuthToken(): string | null {
-  let sawExpired = false
-  for (const store of findAuthStores()) {
-    const token = store.getItem(AUTH_TOKEN_KEY)
-    if (!token) continue
-    // 过期令牌不是登录态：留着它只会让每个接口回一句「登录已过期」，
-    // 界面却一直显示「已登录」—— 用户看到的就是「明明登录着，却总说登录过期」
-    if (isAuthTokenExpired(token)) {
-      sawExpired = true
-      continue
-    }
-    return token
+  const token = findJwtCache()
+  if (!token) return null
+  // 过期令牌不是登录态：留着它只会让每个接口回一句「登录已过期」
+  if (isAuthTokenExpired(token)) {
+    void writeJwtSecret(null, false).then(function () {
+      notifyAuthToken()
+    })
+    return null
   }
-  // 内存已视为未登录时，同步清掉磁盘 JWT，避免 goose auth.command 继续带废票
-  if (sawExpired) {
-    for (const store of findAuthStores()) store.removeItem(AUTH_TOKEN_KEY)
-    syncCogitoJwt(null)
-  }
-  return null
+  return token
 }
 
 /** 取 JWT payload；令牌缺失/不是 JWT/解不开都返回 null（脏令牌不能变成身份） */
@@ -147,21 +119,18 @@ function isAdmin(): boolean {
   return findAuthRole() === ADMIN_ROLE
 }
 
-/** 记住我进 localStorage，否则只留到这次会话结束 */
+/** 记住我进 Keyring，否则只留内存到本次会话；侧车桥接由 secrets 统一处理 */
 function writeAuthToken(token: string, isRemembered: boolean): void {
-  const keep = isRemembered ? localStorage : sessionStorage
-  const drop = isRemembered ? sessionStorage : localStorage
-  drop.removeItem(AUTH_TOKEN_KEY)
-  keep.setItem(AUTH_TOKEN_KEY, token)
+  void writeJwtSecret(token, isRemembered).then(function () {
+    notifyAuthToken()
+  })
+  // 同步通知：jwtCache 已在 writeJwtSecret 开头写入
   notifyAuthToken()
-  // 同步到 goose 侧车读得到的 JWT 文件（auth.command 用它调网关）
-  syncCogitoJwt(token)
 }
 
 /** 读出上次「记住我」留下的用户名；没有 / 不可用时返回 null */
 function findRememberedUsername(): string | null {
-  if (typeof localStorage === 'undefined') return null
-  const username = localStorage.getItem(AUTH_REMEMBER_USERNAME_KEY)
+  const username = findPref('window').rememberedUsername
   return username && username.trim() ? username : null
 }
 
@@ -172,19 +141,16 @@ function findRememberedUsername(): string | null {
  * 退出登录**不清**这一项 —— 否则「记住我」在登出后再打开登录框就等于没记住。
  */
 function writeRememberedUsername(username: string | null): void {
-  if (typeof localStorage === 'undefined') return
-  if (!username || !username.trim()) {
-    localStorage.removeItem(AUTH_REMEMBER_USERNAME_KEY)
-    return
-  }
-  localStorage.setItem(AUTH_REMEMBER_USERNAME_KEY, username.trim())
+  const next = username && username.trim() ? username.trim() : null
+  void patchPref('window', { rememberedUsername: next })
 }
 
-/** 退出登录、或令牌被判失效时用：两处存储都清掉，界面立刻回到未登录。不碰「记住的用户名」。 */
+/** 退出登录、或令牌被判失效时用：清 Keyring + 内存 + 侧车桥接。不碰「记住的用户名」。 */
 function clearAuthToken(): void {
-  for (const store of findAuthStores()) store.removeItem(AUTH_TOKEN_KEY)
+  void writeJwtSecret(null, false).then(function () {
+    notifyAuthToken()
+  })
   notifyAuthToken()
-  syncCogitoJwt(null)
 }
 
 /**
@@ -214,10 +180,11 @@ function isSessionInvalid(error: unknown): boolean {
   return SESSION_INVALID_CODES.includes(HttpError(error).code)
 }
 
-/** 令牌变化的订阅入口（React 侧经 `useAuthToken` 使用）；同时接上跨窗口的 `storage` 事件 */
+/** 令牌变化的订阅入口（React 侧经 `useAuthToken` 使用）；同时接上跨窗口的 `auth:changed` */
 function subscribeAuthToken(listener: AuthTokenListener): () => void {
   authTokenListeners.add(listener)
   listenCrossWindow()
+  void ensureSecrets()
 
   return function () {
     authTokenListeners.delete(listener)

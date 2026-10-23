@@ -5,10 +5,12 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   bindSessionHome,
   findAppComponent,
+  hydrateSessionsFromPrefs,
   isMainWindow,
   parkSessions,
   rememberRoute
 } from '@/features/magnetic-tile/session'
+import { ensurePersist, ensureSecrets, findPref } from '@/features/persist'
 import { adoptAppearance, APPEARANCE_SYNC, type Appearance } from '@/features/window/appearance'
 import { EVENTS } from '@/shared/ipc/channels'
 import { useMirrorStore } from '@/stores/mirror.ts'
@@ -51,6 +53,10 @@ function AppHost() {
   useEffect(function () {
     if (!isMainWindow()) return
     async function bootstrap() {
+      await ensurePersist()
+      await ensureSecrets()
+      adoptAppearance(findPref('window').appearance)
+      hydrateSessionsFromPrefs()
       await useMirrorStore.getState().toInitialize()
       await useSettingsStore.getState().toInitialize()
     }

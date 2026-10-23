@@ -6,8 +6,6 @@ interface SearchEngine {
   match: string
 }
 
-const ENGINE_STORE_KEY = 'overview.engine'
-
 const ENGINES: readonly SearchEngine[] = [
   {
     key: 'bing',
@@ -41,4 +39,4 @@ function findEngine(key: string): SearchEngine {
 }
 
 export type { SearchEngine }
-export { ENGINE_STORE_KEY, ENGINES, findEngine }
+export { ENGINES, findEngine }

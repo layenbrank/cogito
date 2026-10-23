@@ -2,17 +2,15 @@ import { invoke } from '@tauri-apps/api/core'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
+
+import { findPref, patchPref, type ClockStyle } from '@/features/persist'
 import { CHANNELS } from '@/shared/ipc/channels'
 import { reportCaught } from '@/utils/exception-report'
 
-export type ClockStyle = 'digital' | 'analog' | 'flip' | 'neon' | 'minimal'
-
-const CLOCK_STYLE_KEY = 'i-thinking:clock-style'
+export type { ClockStyle }
 
 function loadClockStyle(): ClockStyle {
-  const saved = localStorage.getItem(CLOCK_STYLE_KEY)
-  const valid: ClockStyle[] = ['digital', 'analog', 'flip', 'neon', 'minimal']
-  return valid.includes(saved as ClockStyle) ? (saved as ClockStyle) : 'digital'
+  return findPref('window').clockStyle
 }
 
 // CountdownConfig — countdown work settings only, no clockStyle
@@ -69,11 +67,13 @@ export const useClockStore = create<ClockStore>()(
             const config = await invoke<CountdownConfig | null>(CHANNELS.COUNTDOWN.READ)
             setter(function (state) {
               state.config = config ?? COUNTDOWN_CONFIG
+              state.clockStyle = loadClockStyle()
               state.loaded = true
             })
           } catch (e) {
             reportCaught('clock-store.initialize', e, 'warning')
             setter(function (state) {
+              state.clockStyle = loadClockStyle()
               state.loaded = true
             })
           }
@@ -101,7 +101,7 @@ export const useClockStore = create<ClockStore>()(
           setter(function (state) {
             state.clockStyle = style
           })
-          localStorage.setItem(CLOCK_STYLE_KEY, style)
+          void patchPref('window', { clockStyle: style })
         }
       }
     }),

@@ -8,6 +8,11 @@ import {
   type AutomationAction,
   type AutomationEvent
 } from '@/features/signboard/automation'
+import {
+  ensureTilePrefs,
+  findSignboardTilePrefs,
+  persistSignboardTilePrefs
+} from '@/features/magnetic-tile/tile-prefs'
 import { CHANNELS } from '@/shared/ipc/channels'
 import { reportCaught } from '@/utils/exception-report'
 
@@ -380,6 +385,7 @@ const useSignboardStore = create<SignboardStore>()(
               false,
               'toActivateBoard'
             )
+            void persistSignboardTilePrefs({ activeBoardID: boardID })
           } catch (error) {
             reportCaught('signboard-store.toActivateBoard', error)
             setter(
@@ -393,6 +399,18 @@ const useSignboardStore = create<SignboardStore>()(
         },
 
         async toBootstrap() {
+          await ensureTilePrefs()
+          const remembered = findSignboardTilePrefs().activeBoardID
+          if (remembered && !getter().activeBoardID) {
+            setter(
+              function (state) {
+                state.activeBoardID = remembered
+              },
+              false,
+              'toBootstrap/remember'
+            )
+          }
+
           const boards = await getter().toReadBoards()
           if (boards.length === 0) {
             try {

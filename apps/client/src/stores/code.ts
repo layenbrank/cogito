@@ -1,12 +1,19 @@
 /**
  * 代码窗口 workbench 状态：工作区根、多 tab、侧栏/底栏、光标与命令面板。
+ * 交互布局与上次打开的文件写入 tiles.json，重启后恢复。
  */
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
 
+import { ensureTilePrefs } from '@/features/magnetic-tile/tile-prefs'
 import { findLanguageId } from '@/views/code/lib/language.ts'
 import { findFileName, isPathInsideRoot, normalizeSeparators } from '@/views/code/lib/path.ts'
+import {
+  parseCodePreferences,
+  persistCodePreferences,
+  type CodePreferences
+} from '@/views/code/lib/preferences.ts'
 
 type SidebarView = 'explorer' | 'search' | 'scm'
 type PanelTab = 'terminal' | 'problems'
@@ -38,6 +45,8 @@ interface CodeState {
   paletteMode: PaletteMode
   treeRevision: number
   problemCount: number
+  /** 正在从 store 恢复，跳过写回 */
+  isHydrating: boolean
 
   toSetWorkspaceRoot: (root: string) => void
   toOpenTab(params: { path: string; language?: string }): void
@@ -60,6 +69,8 @@ interface CodeState {
   toSetPaletteMode: (mode: PaletteMode) => void
   toBumpTree: () => void
   toSetProblemCount: (count: number) => void
+  /** 从 tiles.json 恢复 chrome（不含打开文件内容） */
+  hydrateFromStore: () => Promise<CodePreferences>
 }
 
 function isSamePath(a: string, b: string): boolean {
@@ -81,6 +92,22 @@ function findActiveTab(state: CodeState): CodeTab | undefined {
   })
 }
 
+function writeCodePrefs(state: CodeState): void {
+  if (state.isHydrating) return
+  const active = findActiveTab(state)
+  persistCodePreferences({
+    workspaceRoot: state.workspaceRoot,
+    tabPaths: state.tabs.map(function (tab) {
+      return tab.path
+    }),
+    activePath: active?.path ?? null,
+    isSidebarOpen: state.isSidebarOpen,
+    sidebarView: state.sidebarView,
+    isPanelOpen: state.isPanelOpen,
+    panelTab: state.panelTab
+  })
+}
+
 const useCodeStore = create<CodeState>()(
   devtools(
     subscribeWithSelector(
@@ -98,6 +125,7 @@ const useCodeStore = create<CodeState>()(
           paletteMode: null,
           treeRevision: 0,
           problemCount: 0,
+          isHydrating: false,
 
           toSetWorkspaceRoot(root) {
             set(
@@ -375,6 +403,32 @@ const useCodeStore = create<CodeState>()(
               false,
               'toSetProblemCount'
             )
+          },
+
+          async hydrateFromStore() {
+            await ensureTilePrefs()
+            const prefs = parseCodePreferences()
+            set(
+              function (state) {
+                state.isHydrating = true
+                state.workspaceRoot = prefs.workspaceRoot
+                state.isSidebarOpen = prefs.isSidebarOpen
+                state.sidebarView = prefs.sidebarView
+                state.isPanelOpen = prefs.isPanelOpen
+                state.panelTab = prefs.panelTab
+                if (prefs.workspaceRoot) state.treeRevision += 1
+              },
+              false,
+              'hydrateFromStore'
+            )
+            set(
+              function (state) {
+                state.isHydrating = false
+              },
+              false,
+              'hydrateFromStore.done'
+            )
+            return prefs
           }
         }
       })
@@ -385,6 +439,22 @@ const useCodeStore = create<CodeState>()(
     }
   )
 )
+
+useCodeStore.subscribe(function (state, previous) {
+  if (state.isHydrating || previous.isHydrating) return
+  if (
+    state.workspaceRoot === previous.workspaceRoot &&
+    state.tabs === previous.tabs &&
+    state.activeTabId === previous.activeTabId &&
+    state.isSidebarOpen === previous.isSidebarOpen &&
+    state.sidebarView === previous.sidebarView &&
+    state.isPanelOpen === previous.isPanelOpen &&
+    state.panelTab === previous.panelTab
+  ) {
+    return
+  }
+  writeCodePrefs(state)
+})
 
 export { useCodeStore }
 export type { CodeTab, CursorPosition, SidebarView, PanelTab, PaletteMode }

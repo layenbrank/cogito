@@ -1,18 +1,9 @@
 /**
- * 模型偏好：思考强度 / 显示 / 上下文窗口（本地持久化）
+ * 模型偏好：思考强度 / 显示 / 上下文窗口（agent.json）
  */
 
-type ThinkingLevel = 'off' | 'low' | 'medium' | 'high' | 'max'
-
-interface ModelPref {
-  /** 是否在选择器中显示 */
-  visible: boolean
-  thinking: ThinkingLevel
-  /** 上下文窗口 token 数 */
-  contextWindow: number
-}
-
-const MODEL_PREFS_KEY = 'ith.agent.modelPrefs'
+import { findPref, patchPref } from '@/features/persist'
+import type { ModelPref, ThinkingLevel } from '@/features/persist'
 
 const THINKING_OPTIONS: { value: ThinkingLevel; label: string }[] = [
   { value: 'off', label: '关闭思考' },
@@ -42,30 +33,12 @@ function findModelKey(providerID: string, model: string) {
   return `${providerID}::${model}`
 }
 
-function parseModelPrefs(raw: string | null): Record<string, ModelPref> {
-  if (!raw) return {}
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-    return parsed as Record<string, ModelPref>
-  } catch (error) {
-    console.warn('[model-prefs] 存档不是合法 JSON，回落默认:', error)
-    return {}
-  }
-}
-
 function readModelPrefs(): Record<string, ModelPref> {
-  try {
-    return parseModelPrefs(localStorage.getItem(MODEL_PREFS_KEY))
-  } catch (error) {
-    // localStorage 可能整体不可用（隐私模式 / 配额）
-    console.warn('[model-prefs] 读取模型偏好失败，回落默认:', error)
-    return {}
-  }
+  return findPref('agent').modelPrefs
 }
 
 function writeModelPrefs(prefs: Record<string, ModelPref>) {
-  localStorage.setItem(MODEL_PREFS_KEY, JSON.stringify(prefs))
+  void patchPref('agent', { modelPrefs: prefs })
 }
 
 function findModelPref(providerID: string, model: string, prefs?: Record<string, ModelPref>) {

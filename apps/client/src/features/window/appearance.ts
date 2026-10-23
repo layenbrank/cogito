@@ -2,7 +2,7 @@
  * 外观：明暗模式 + 主色 + 圆角 + 动效。
  *
  * 设计 token 只认根节点上的 `.dark` 与 `--primary` / `--radius` 两个 CSS 变量，
- * 这里负责读写、持久化（localStorage，启动同步可读，避免首屏闪主题）并套到根节点上。
+ * 这里负责读写、持久化（window.json via persist，ensurePersist 后同步可读）并套到根节点上。
  * 同时把有效明暗同步到 Tauri `setTheme` / `setEffects`（mica 明暗），与 CSS 主题一致。
  *
  * 动效：不改 OS `prefers-reduced-motion`，只在应用边界写 `data-motion`，
@@ -14,7 +14,7 @@
 import { emit } from '@tauri-apps/api/event'
 import { Effect, getCurrentWindow, type Theme } from '@tauri-apps/api/window'
 
-const APPEARANCE_KEY = 'client.appearance'
+import { findPref, patchPref } from '@/features/persist'
 
 /** 独立设置窗写入后通知主窗口。主窗口里的磁贴不再逐窗广播。 */
 const APPEARANCE_SYNC = 'appearance://sync'
@@ -101,10 +101,8 @@ function subscribeAppearance(listener: () => void) {
 }
 
 function loadAppearance(): Appearance {
-  if (typeof localStorage === 'undefined') return DEFAULT_APPEARANCE
   try {
-    const raw = localStorage.getItem(APPEARANCE_KEY)
-    return raw ? parseAppearance(JSON.parse(raw)) : DEFAULT_APPEARANCE
+    return parseAppearance(findPref('window').appearance)
   } catch (error) {
     console.warn('[appearance] 读不到外观配置', error)
     return DEFAULT_APPEARANCE
@@ -265,11 +263,9 @@ function readMotionConfig(): MotionConfigValue {
 }
 
 function storeAppearance(next: Appearance) {
-  try {
-    localStorage.setItem(APPEARANCE_KEY, JSON.stringify(next))
-  } catch (error) {
+  void patchPref('window', { appearance: next }).catch(function (error: unknown) {
     console.warn('[appearance] 写不了外观配置', error)
-  }
+  })
 }
 
 function isTauriWindow() {
@@ -300,11 +296,7 @@ function adoptAppearance(raw: unknown) {
 }
 
 function resetAppearance() {
-  try {
-    localStorage.removeItem(APPEARANCE_KEY)
-  } catch (error) {
-    console.warn('[appearance] 重置外观配置失败', error)
-  }
+  storeAppearance(DEFAULT_APPEARANCE)
   rememberAppearance(DEFAULT_APPEARANCE)
   watchAppearance()
   publishAppearance(DEFAULT_APPEARANCE)

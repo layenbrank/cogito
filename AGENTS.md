@@ -7,3 +7,4 @@
 - 新增组件走 registry：`pnpm --filter @i-thinking/design registry:add <items>`
 - chat 相关走 assistant-ui（`packages/chat` 提供端口契约与适配器）
 - 窗口装饰自绘：窗口一律 `decorations: false`，桌面壳走 app 的 `Caption` / `Decorations`（见 [client 组件文档](./docs/apps/client/components-api.md)）
+- 前端持久化：非密偏好走 Tauri Store（`features/persist`），密钥走 OS Keyring，领域实体仍 SQLite；见 [persist 分层](./docs/apps/client/persist.md)

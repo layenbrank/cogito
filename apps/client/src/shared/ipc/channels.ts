@@ -205,6 +205,11 @@ export const CHANNELS = {
     PROVIDER_ENSURE: 'cogito:provider:ensure',
     PROVIDER_SET_TENANT: 'cogito:provider:set-tenant'
   },
+  SECRET: {
+    GET: 'secret:get',
+    SET: 'secret:set',
+    DELETE: 'secret:delete'
+  },
   WORKSPACE_GIT: {
     PROBE: 'workspaceGit:probe',
     BRANCHES: 'workspaceGit:branches',

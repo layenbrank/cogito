@@ -20,6 +20,7 @@ import { debounce } from 'lodash-es'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { findPref, patchPref, type SignboardViewMode } from '@/features/persist'
 import { useSignboardStore, type SignboardColumn, type SignboardTag } from '@/stores/signboard'
 import { AutomationSheet } from '@/views/signboard/automation-sheet'
 import { CardSheet } from '@/views/signboard/card-sheet'
@@ -40,22 +41,22 @@ type NameDialogState =
   | { kind: 'column-rename'; column: SignboardColumn }
   | null
 
-const VIEW_STORAGE_PREFIX = 'signboard.viewMode.'
-
 function readStoredView(boardID: string | null): ViewMode {
-  if (!boardID || typeof localStorage === 'undefined') return 'board'
-  const raw = localStorage.getItem(`${VIEW_STORAGE_PREFIX}${boardID}`)
-  if (
-    raw === 'board' ||
-    raw === 'table' ||
-    raw === 'gantt' ||
-    raw === 'calendar' ||
-    raw === 'stats' ||
-    raw === 'workload'
-  ) {
-    return raw
-  }
-  return 'board'
+  if (!boardID) return 'board'
+  return findPref('tiles').signboard.viewModeByBoard[boardID] ?? 'board'
+}
+
+function persistViewMode(boardID: string | null, mode: SignboardViewMode) {
+  if (!boardID) return
+  void patchPref('tiles', {
+    signboard: {
+      ...findPref('tiles').signboard,
+      viewModeByBoard: {
+        ...findPref('tiles').signboard.viewModeByBoard,
+        [boardID]: mode
+      }
+    }
+  })
 }
 
 function BoardView() {
@@ -153,9 +154,7 @@ function BoardView() {
 
   function changeViewMode(mode: ViewMode) {
     setViewMode(mode)
-    if (activeBoardID && typeof localStorage !== 'undefined') {
-      localStorage.setItem(`${VIEW_STORAGE_PREFIX}${activeBoardID}`, mode)
-    }
+    persistViewMode(activeBoardID, mode)
   }
 
   const orderedColumns = useMemo(
@@ -232,9 +231,7 @@ function BoardView() {
           const first = orderedColumns[0]
           if (first) {
             setViewMode('board')
-            if (activeBoardID && typeof localStorage !== 'undefined') {
-              localStorage.setItem(`${VIEW_STORAGE_PREFIX}${activeBoardID}`, 'board')
-            }
+            persistViewMode(activeBoardID, 'board')
             setAddRequestColumnID(first.id)
           }
         }

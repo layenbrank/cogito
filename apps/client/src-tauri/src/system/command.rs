@@ -135,6 +135,21 @@ pub async fn goose_restart(app: tauri::AppHandle) -> Result<(), String> {
     goose_serve::restart(&app).await
 }
 
+#[tauri::command(rename = "secret:get")]
+pub fn secret_get(service: String, account: String) -> Result<Option<String>, String> {
+    crate::utils::secret::get_secret(&service, &account)
+}
+
+#[tauri::command(rename = "secret:set")]
+pub fn secret_set(service: String, account: String, secret: String) -> Result<(), String> {
+    crate::utils::secret::set_secret(&service, &account, &secret)
+}
+
+#[tauri::command(rename = "secret:delete")]
+pub fn secret_delete(service: String, account: String) -> Result<(), String> {
+    crate::utils::secret::delete_secret(&service, &account)
+}
+
 /// 登录/刷新令牌时，把 JWT 原子写到 `<appData>/cogito/jwt`，供 goose 的 token helper 读取。
 #[tauri::command(rename = "cogito:token:write")]
 pub fn cogito_token_write(app: tauri::AppHandle, token: String) -> Result<(), String> {

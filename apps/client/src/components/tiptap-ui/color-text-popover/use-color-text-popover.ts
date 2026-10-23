@@ -17,6 +17,7 @@ import { getActiveMarkAttrs } from '@/lib/tiptap-advanced-utils.ts'
 // --- Tiptap UI ---
 import { canColorText } from '@/components/tiptap-ui/color-text-button/use-color-text.ts'
 import { canColorHighlight } from '@/components/tiptap-ui/color-highlight-button/use-color-highlight.ts'
+import { findPref, patchPref } from '@/features/persist'
 
 export type ColorType = 'text' | 'highlight'
 
@@ -92,14 +93,33 @@ export function shouldShowColorTextPopover(params: {
 }
 
 /**
- * Hook to manage recently used colors
+ * Hook to manage recently used colors（window.json tiptapRecentColors）
  */
+function parseStoredColor(raw: string): RecentColor | null {
+  try {
+    const parsed = JSON.parse(raw) as RecentColor
+    if (
+      (parsed.type === 'text' || parsed.type === 'highlight') &&
+      typeof parsed.value === 'string' &&
+      typeof parsed.label === 'string'
+    ) {
+      return parsed
+    }
+  } catch {
+    // legacy / plain hex
+  }
+  if (typeof raw === 'string' && raw.startsWith('#')) {
+    return { type: 'text', label: raw, value: raw }
+  }
+  return null
+}
+
 function readStoredRecentColors(maxColors: number): RecentColor[] {
   try {
-    const storedColors = localStorage.getItem('tiptapRecentlyUsedColors')
-    if (!storedColors) return []
-    const colors = JSON.parse(storedColors) as RecentColor[]
-    return colors.slice(0, maxColors)
+    return findPref('window')
+      .tiptapRecentColors.map(parseStoredColor)
+      .filter(Boolean)
+      .slice(0, maxColors)
   } catch (e) {
     console.error('Failed to load stored colors:', e)
     return []
@@ -129,14 +149,13 @@ export function useRecentColors(maxColors: number = 3) {
       )
       setRecentColors(updated)
 
-      try {
-        localStorage.setItem(
-          'tiptapRecentlyUsedColors',
-          JSON.stringify(updated)
-        )
-      } catch (e) {
+      void patchPref('window', {
+        tiptapRecentColors: updated.map(function (item) {
+          return JSON.stringify(item)
+        })
+      }).catch(function (e) {
         console.error('Failed to store colors:', e)
-      }
+      })
     },
     [maxColors, recentColors]
   )

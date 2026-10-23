@@ -3,7 +3,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup
 } from '@i-thinking/design/components/resizable'
-import { watch } from '@tauri-apps/plugin-fs'
+import { exists, watch } from '@tauri-apps/plugin-fs'
 import { clsx } from 'clsx'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
@@ -17,6 +17,7 @@ import { useTerminalStore } from '@/stores/terminal'
 import { CODE_COMMANDS } from '@/views/code/lib/commands.ts'
 import { readCodeFile } from '@/views/code/lib/fs.ts'
 import { disposeAllModels, findModel, findOrCreateModel } from '@/views/code/lib/monaco-models.ts'
+import { openAbsolutePath } from '@/views/code/lib/open-file.ts'
 import { ActivityBar } from '@/views/code/workspace/activity-bar.tsx'
 import { CommandPalette } from '@/views/code/workspace/command-palette.tsx'
 import { Breadcrumbs } from '@/views/code/workspace/breadcrumbs.tsx'
@@ -63,6 +64,40 @@ export default function Code() {
   useEffect(function () {
     return function () {
       disposeAllModels()
+    }
+  }, [])
+
+  // 从 tiles.json 恢复工作区与上次打开的文件
+  useEffect(function () {
+    let cancelled = false
+    void (async function () {
+      const store = useCodeStore.getState()
+      if (store.tabs.length > 0 || store.workspaceRoot) return
+      const prefs = await store.hydrateFromStore()
+      if (cancelled) return
+      const paths = prefs.tabPaths.slice()
+      if (prefs.activePath && !paths.includes(prefs.activePath)) {
+        paths.push(prefs.activePath)
+      }
+      for (const path of paths) {
+        if (cancelled) return
+        try {
+          const ok = await exists(path)
+          if (!ok) continue
+          await openAbsolutePath(path)
+        } catch (error) {
+          console.warn('[code] restore tab skipped', path, error)
+        }
+      }
+      if (cancelled || !prefs.activePath) return
+      const next = useCodeStore.getState()
+      const active = next.tabs.find(function (tab) {
+        return tab.path === prefs.activePath
+      })
+      if (active) next.toActivateTab(active.id)
+    })()
+    return function () {
+      cancelled = true
     }
   }, [])
 

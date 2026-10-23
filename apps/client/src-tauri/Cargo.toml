@@ -89,6 +89,7 @@ tauri-plugin-websocket = "2.5.0" # WebSocket（前端能力预留）
 tauri-plugin-dialog = "2.8.3" # 原生对话框
 tauri-plugin-shell = "2.5.0" # sidecar / 外部命令（corex-daemon）
 tauri-plugin-store = "2.5.0" # 持久化 KV
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] } # OS 密钥环
 tauri-plugin-process = "2.4.0" # 退出 / 重启
 tauri-plugin-notification = "2.7.0" # 系统通知
 tauri-plugin-clipboard-manager = "2.5.0" # 剪贴板

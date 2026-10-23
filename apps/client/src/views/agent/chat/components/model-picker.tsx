@@ -29,7 +29,7 @@ interface ModelPickerProps {
 function AgentModelPicker(props: ModelPickerProps) {
   const [open, updateOpen] = useState(false)
   const [settingsOpen, updateSettingsOpen] = useState(false)
-  /** 模型偏好落在 localStorage：挂载时读一次，设置弹窗关闭（可能改过偏好）时再读一次 */
+  /** 模型偏好落在 agent.json：挂载时读一次，设置弹窗关闭（可能改过偏好）时再读一次 */
   const [prefs, updatePrefs] = useState(readModelPrefs)
   const providers = useProviderStore(function (state) {
     return state.providers

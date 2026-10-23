@@ -1,10 +1,11 @@
 /**
  * 工具审批策略（对齐 Qoder「自动审批 / 询问审批」）。
  *
- * 取值落 localStorage；切换时尽量批量写 goose `tools/permissions`。
+ * 取值落 agent.json；切换时尽量批量写 goose `tools/permissions`。
  */
 
-type ApprovalMode = 'ask' | 'auto' | 'readonly'
+import { findPref, patchPref } from '@/features/persist'
+import type { ApprovalMode } from '@/features/persist'
 
 interface ApprovalPolicyMeta {
   value: ApprovalMode
@@ -19,7 +20,6 @@ const APPROVAL_POLICIES: readonly ApprovalPolicyMeta[] = [
 ]
 
 const APPROVAL_MODE = 'ask'
-const STORAGE_KEY = 'agent.approval.mode'
 
 function findApprovalPolicy(value: string) {
   return (
@@ -30,21 +30,11 @@ function findApprovalPolicy(value: string) {
 }
 
 function readApprovalMode(): ApprovalMode {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw === 'ask' || raw === 'auto' || raw === 'readonly') return raw
-  } catch (error) {
-    console.warn('[approval] 读取审批模式失败，回落默认:', error)
-  }
-  return APPROVAL_MODE
+  return findPref('agent').approvalMode
 }
 
 function writeApprovalMode(mode: ApprovalMode) {
-  try {
-    localStorage.setItem(STORAGE_KEY, mode)
-  } catch (error) {
-    console.warn('[approval] 写入审批模式失败:', error)
-  }
+  void patchPref('agent', { approvalMode: mode })
 }
 
 /** 只读档要收紧的工具名关键词（小写匹配） */

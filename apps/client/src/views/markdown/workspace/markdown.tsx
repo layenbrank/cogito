@@ -104,18 +104,27 @@ function useMarkdownDocumentEffects(input: {
     [hydratePreferences]
   )
 
-  // Consume ?url= or restore last recent file once
+  // 灌入 tiles 偏好后：消费 ?url=，否则恢复上次打开的文件
   useEffect(
     function () {
-      const params = new URLSearchParams(search)
-      const url = params.get('url')
-      if (url) {
-        void openPath(decodeURIComponent(url))
-        return
-      }
-      const recent = useMarkdownStore.getState().recentPaths[0]
-      if (recent && !useMarkdownStore.getState().hasOpened) {
-        void openPath(recent)
+      let cancelled = false
+      void (async function () {
+        await useMarkdownStore.getState().hydrateFromStore()
+        if (cancelled) return
+        const params = new URLSearchParams(search)
+        const url = params.get('url')
+        if (url) {
+          void openPath(decodeURIComponent(url))
+          return
+        }
+        const state = useMarkdownStore.getState()
+        const recent = state.recentPaths[0]
+        if (recent && !state.hasOpened) {
+          void openPath(recent)
+        }
+      })()
+      return function () {
+        cancelled = true
       }
     },
     [search]

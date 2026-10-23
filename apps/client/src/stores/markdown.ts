@@ -2,8 +2,10 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
+import { ensureTilePrefs } from '@/features/magnetic-tile/tile-prefs'
 import type { OutlineItem } from '@/views/markdown/lib/outline.ts'
 import {
+  hydratePreferencesFromStore,
   parsePreferences,
   persistPreferences,
   type MarkdownPreferences
@@ -33,6 +35,8 @@ interface MarkdownSession {
 
 interface MarkdownStore extends MarkdownSession, MarkdownPreferences {
   hydratePreferences: () => void
+  /** 从 tiles.json 灌入（启动后） */
+  hydrateFromStore: () => Promise<void>
   toPatchPreferences: (patch: Partial<MarkdownPreferences>) => void
   toOpenDocument(params: {
     path: string | null
@@ -116,6 +120,18 @@ const useMarkdownStore = create<MarkdownStore>()(
             },
             false,
             'hydratePreferences'
+          )
+        },
+
+        async hydrateFromStore() {
+          await ensureTilePrefs()
+          const prefs = hydratePreferencesFromStore()
+          setters(
+            function (state) {
+              Object.assign(state, prefs)
+            },
+            false,
+            'hydrateFromStore'
           )
         },
 

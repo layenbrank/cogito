@@ -1,6 +1,6 @@
-import { LazyStore } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
 
+import { ensurePersist, findPref, patchPref, replacePref } from '@/features/persist'
 import { syncAutostart } from '@/features/magnetic-tiles/settings/autostart'
 
 declare namespace Setting {
@@ -107,11 +107,6 @@ function createDefaultSettings(): Setting.Composite {
   }
 }
 
-const settingStore = new LazyStore('settings.json', {
-  defaults: DEFAULT_SETTINGS as unknown as Record<string, unknown>,
-  autoSave: 300
-})
-
 interface SettingsStore {
   settings: Setting.Composite
   loaded: boolean
@@ -211,34 +206,22 @@ export const useSettingsStore = create<SettingsStore>(function (setter, getter) 
 
     async toInitialize() {
       if (getter().loaded) return
-      await settingStore.init()
-
-      const [general, capture, shortcuts] = await Promise.all([
-        settingStore.get<Partial<Setting.General>>('general'),
-        // v0 的 `capture.shortcut` 只在迁移时读一次，类型上仍带着它
-        settingStore.get<Partial<Setting.Capture> & { shortcut?: unknown }>('capture'),
-        settingStore.get<Partial<Setting.Shortcuts>>('shortcuts')
-      ])
-
+      await ensurePersist()
+      const stored = findPref('settings')
       const settings: Setting.Composite = {
-        general: { ...GENERAL, ...general },
-        capture: mergeCapture(capture),
-        shortcuts: migrateShortcuts(shortcuts, capture?.shortcut)
+        general: { ...GENERAL, ...stored.general },
+        capture: mergeCapture(stored.capture),
+        shortcuts: mergeShortcuts(stored.shortcuts)
       }
 
       try {
         const enabled = await syncAutostart(settings.general.autostart)
         settings.general = { ...settings.general, autostart: enabled }
-        await settingStore.set('general', settings.general)
       } catch (error) {
         console.warn('[settings] syncAutostart on init failed', error)
       }
 
-      // 把迁移结果与归一化后的章节落盘：顺带把 v0 的 `capture.shortcut` 从文件里抹掉，
-      // 不让新旧两条路径并存。顺序 await 即可，没必要再包一层 Promise.all
-      await settingStore.set('capture', settings.capture)
-      await settingStore.set('shortcuts', settings.shortcuts)
-
+      await replacePref('settings', settings)
       setter({ settings, loaded: true })
     },
 
@@ -263,8 +246,9 @@ export const useSettingsStore = create<SettingsStore>(function (setter, getter) 
         }
       }
 
-      setter({ settings: { ...current, [section]: merged } })
-      await settingStore.set(section, merged)
+      const next = { ...current, [section]: merged }
+      setter({ settings: next })
+      await patchPref('settings', { [section]: merged } as Partial<Setting.Composite>)
     },
 
     async toSetBinding(id, binding) {
@@ -275,13 +259,13 @@ export const useSettingsStore = create<SettingsStore>(function (setter, getter) 
 
       const next: Setting.Shortcuts = { version: SHORTCUTS_VERSION, bindings }
       setter({ settings: { ...current, shortcuts: next } })
-      await settingStore.set('shortcuts', next)
+      await patchPref('settings', { shortcuts: next })
     },
 
     async toReset() {
       const settings = createDefaultSettings()
       setter({ settings })
-      await settingStore.reset()
+      await replacePref('settings', settings)
       try {
         await syncAutostart(settings.general.autostart)
       } catch (error) {

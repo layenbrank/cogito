@@ -1,24 +1,11 @@
-import { LazyStore } from '@tauri-apps/plugin-store'
+/**
+ * 跨域 PIN/锁：读写 `vault.json`（persist.vault），图库等只消费本 API。
+ */
+import { ensurePersist, findPref, patchPref } from '@/features/persist'
 
 import { PIN_MAX_LENGTH, PIN_MIN_LENGTH } from '@/views/gallery/constraints'
 
-interface VaultPersisted {
-  pinHash: string | null
-}
-
-const VAULT_STORE = new LazyStore('gallery-vault.json', {
-  defaults: { pinHash: null } as VaultPersisted as unknown as Record<string, unknown>,
-  autoSave: 200
-})
-
-let isVaultReady = false
 let sessionUnlocked = false
-
-async function ensureVaultStore(): Promise<void> {
-  if (isVaultReady) return
-  await VAULT_STORE.init()
-  isVaultReady = true
-}
 
 async function hashPin(pin: string): Promise<string> {
   const bytes = new TextEncoder().encode(pin)
@@ -35,9 +22,8 @@ function isValidPin(pin: string): boolean {
 }
 
 async function findPinHash(): Promise<string | null> {
-  await ensureVaultStore()
-  const value = await VAULT_STORE.get<string | null>('pinHash')
-  return value ?? null
+  await ensurePersist()
+  return findPref('vault').pinHash
 }
 
 async function hasVaultPin(): Promise<boolean> {
@@ -49,9 +35,8 @@ async function setupVaultPin(pin: string): Promise<{ ok: true } | { ok: false; r
   if (!isValidPin(pin)) {
     return { ok: false, reason: `PIN 需为 ${PIN_MIN_LENGTH}–${PIN_MAX_LENGTH} 位数字` }
   }
-  await ensureVaultStore()
   const pinHash = await hashPin(pin)
-  await VAULT_STORE.set('pinHash', pinHash)
+  await patchPref('vault', { pinHash })
   sessionUnlocked = true
   return { ok: true }
 }

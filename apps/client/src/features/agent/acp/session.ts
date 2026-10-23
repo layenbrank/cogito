@@ -34,6 +34,7 @@ import type {
 import { bindAcpRequestRouter, bindGooseNotReady, findAcpHandle } from '@/features/agent/acp/connection'
 import { clearGooseUsage, writeGooseUsage } from '@/features/agent/acp/goose-usage'
 import { saveDefaults } from '@/features/agent/acp/goose-providers'
+import { findPref } from '@/features/persist'
 import {
   parseAcpApprovalRequest,
   parseAcpElicitationRequest,
@@ -77,7 +78,6 @@ const READY_POLL_MS = 500
 const READY_TIMEOUT_MS = 30_000
 const GOOSE_SERVE_NOT_READY = 'goose serve 未就绪'
 const GOOSE_SYSTEM_PROMPT_SET = '_goose/unstable/session/system-prompt/set'
-const COREX_MCP_PREF_KEY = 'corex.mcp.tools'
 
 /**
  * 票据超时（两边一起等，谁先到算谁）。
@@ -190,14 +190,13 @@ async function waitGooseReady(): Promise<void> {
   throw new Error(GOOSE_SERVE_NOT_READY)
 }
 
-/** 开关：默认开；`VITE_COREX_MCP=0` 或 localStorage `corex.mcp.tools=0` 关闭 */
+/** 开关：默认开；`VITE_COREX_MCP=0` 或 agent.json `corexMcpTools=0` 关闭 */
 function isCorexToolsEnabled(): boolean {
   try {
     if (import.meta.env.VITE_COREX_MCP === '0') return false
-    const stored = localStorage.getItem(COREX_MCP_PREF_KEY)
-    if (stored === '0' || stored === 'false') return false
+    if (findPref('agent').corexMcpTools === '0') return false
   } catch (error) {
-    // 读不到偏好（隐私模式等）时按默认「开」处理，但要留痕
+    // 读不到偏好时按默认「开」处理，但要留痕
     console.warn('[acp/session] 读取 corex-mcp 开关失败，按默认开启处理:', error)
   }
   return true

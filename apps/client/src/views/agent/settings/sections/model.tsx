@@ -45,6 +45,7 @@ import {
   findProviderLabel
 } from '@/features/agent/model/display'
 import { parseModels } from '@/features/agent/model/providers'
+import { writeProviderSecret } from '@/features/persist'
 import { useProviderStore } from '@/stores/provider'
 import { reportCaught } from '@/utils/exception-report'
 import styles from '@/views/agent/settings/settings.module.scss'
@@ -420,6 +421,12 @@ function ModelSection() {
       const handle = await findAcpHandle()
       const fields = parseConfigFields(active.configKeys, formValues)
       await saveProviderConfig(handle.connection, active.providerId, fields)
+      // 密钥双写 OS Keyring（goose 仍持自己的配置；SQLite 只存非密元数据）
+      for (const key of active.configKeys) {
+        if (!key.secret) continue
+        const secret = formValues[key.name]?.trim() || null
+        await writeProviderSecret(active.providerId, secret)
+      }
       if (active.isAcp) {
         await enableAcpProvider(handle.connection, active.providerId)
         const readiness = await checkAcpReadiness(handle.connection, active.providerId)

@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
+import { findPref, replacePref } from '@/features/persist'
 import { MediaIpc } from '@/lib/media-ipc'
 import { reportCaught } from '@/utils/exception-report'
 import {
@@ -99,7 +100,6 @@ interface ClipchampState {
   resetProject: () => void
 }
 
-const STORAGE_KEY = 'clipchamp.project.v1'
 let lastActiveKey = ''
 
 function pushHistory(
@@ -625,31 +625,31 @@ const useClipchampStore = create<ClipchampState>()(
         },
 
         persistProject() {
-          try {
-            const payload = {
-              project: getter().project,
-              assets: getter().assets,
-              exportPresetId: getter().exportPresetId
-            }
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
-            toast.success('项目已保存到本地')
-          } catch (error) {
-            toast.error('保存失败')
-            reportCaught('clipchamp.persistProject', error)
+          const payload = {
+            project: getter().project,
+            assets: getter().assets,
+            exportPresetId: getter().exportPresetId
           }
+          void replacePref('clipchamp', payload)
+            .then(function () {
+              toast.success('项目已保存到本地')
+            })
+            .catch(function (error: unknown) {
+              toast.error('保存失败')
+              reportCaught('clipchamp.persistProject', error)
+            })
         },
 
         restoreProject(options?: { silent?: boolean }) {
           try {
-            const raw = localStorage.getItem(STORAGE_KEY)
-            if (!raw) {
+            const parsed = findPref('clipchamp') as {
+              project?: Project
+              assets?: MediaAsset[]
+              exportPresetId?: string
+            }
+            if (!parsed.project) {
               if (!options?.silent) toast.message('没有可恢复的项目')
               return
-            }
-            const parsed = JSON.parse(raw) as {
-              project: Project
-              assets: MediaAsset[]
-              exportPresetId?: string
             }
             const assets = (parsed.assets || []).map(function (asset) {
               // asset protocol URL 不可持久化，恢复时按磁盘路径重建
@@ -757,5 +757,5 @@ function findSelectedClip(state: ClipchampState): Clip | undefined {
   return findClip(state.project, state.selectedClipId)
 }
 
-export { useClipchampStore, findSelectedClip, formatTimecode, STORAGE_KEY }
+export { useClipchampStore, findSelectedClip, formatTimecode }
 export type { ClipchampState }

@@ -134,5 +134,27 @@ export default defineConfig(
     rules: {
       'ith/catch-must-report': 'error'
     }
+  },
+  {
+    name: 'client/no-web-storage',
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/**/*.{test,spec}.{ts,tsx}', 'src/__test__/**'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.object.name='localStorage'][callee.property.name=/^(get|set|remove)Item$/]",
+          message:
+            '禁止业务路径使用 localStorage；非密偏好走 @/features/persist，密钥走 secrets/Keyring。'
+        },
+        {
+          selector:
+            "CallExpression[callee.object.name='sessionStorage'][callee.property.name=/^(get|set|remove)Item$/]",
+          message:
+            '禁止业务路径使用 sessionStorage；JWT 走 OS Keyring + 内存 cache（@/features/persist/secrets）。'
+        }
+      ]
+    }
   }
 )
