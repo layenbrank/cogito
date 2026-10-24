@@ -1,0 +1,76 @@
+# Learn more: https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# Dependencies
+node_modules/
+
+# Expo / Metro
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.metro-health-check*
+
+# Native (local prebuild)
+.kotlin/
+/ios
+/android
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# Env & secrets
+.env
+.env*.local
+!.env.example
+.dev.vars*
+!.dev.vars.example
+
+# Debug / logs
+logs/
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.pnpm-debug.log*
+
+# OS
+.DS_Store
+
+# TypeScript / tooling caches
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+.cache/
+coverage/
+*.lcov
+.nyc_output/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Editors
+.vscode/
+.idea/
+
+# Package managers
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Planning session files (allow under .cursor/)
+findings.md
+progress.md
+task_plan.md
+!.cursor/**/findings.md
+!.cursor/**/progress.md
+!.cursor/**/task_plan.md
