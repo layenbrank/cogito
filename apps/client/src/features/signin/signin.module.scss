@@ -30,13 +30,13 @@
   overflow: hidden;
   color: var(--signin-brand-foreground);
   /*
-   * WebGPU 不可用 / 驱动拒绝时的常驻兜底：与「天在水」同一套配色（靛蓝夜空 +
-   * 地平线微光），让入场动效永远不等 GPU，失败时也不是一块死黑。
+   * WebGPU 不可用 / 驱动拒绝时的常驻兜底：与「思 · 台」同一套配色（深靛蓝底 +
+   * 两处蓝紫光晕），让入场动效永远不等 GPU，失败时也不是一块死黑。
    */
   background:
-    radial-gradient(120% 26% at 50% 62%, oklch(0.62 0.13 268 / 45%) 0%, transparent 68%),
-    radial-gradient(90% 42% at 30% 16%, #0d1840 0%, transparent 74%),
-    linear-gradient(180deg, #0a1233 0%, #0d1840 30%, #16224f 52%, #1d2a5c 61%, #05070f 100%);
+    radial-gradient(90% 60% at 70% 18%, oklch(0.55 0.22 264 / 30%) 0%, transparent 70%),
+    radial-gradient(80% 55% at 18% 88%, oklch(0.45 0.2 264 / 22%) 0%, transparent 72%),
+    linear-gradient(180deg, #0d1230 0%, #0b0e20 55%, #080a18 100%);
   box-shadow: inset -1px 0 0 var(--signin-brand-border);
   isolation: isolate;
   z-index: 1;
