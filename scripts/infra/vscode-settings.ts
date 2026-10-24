@@ -37,6 +37,7 @@ const folders = [
   { name: 'cogito', path: '.' },
   { name: 'extension', path: 'apps/extension' },
   { name: 'client', path: 'apps/client' },
+  { name: 'mobile', path: 'apps/mobile' },
   { name: 'devtools', path: 'apps/devtools' },
   { name: 'service', path: 'apps/service' },
   { name: 'docs', path: 'docs' },

@@ -139,3 +139,15 @@ findings.md
 progress.md
 task_plan.md
 .planning/
+
+# Expo / React Native (apps/mobile)
+.expo/
+apps/mobile/expo-env.d.ts
+apps/mobile/ios/
+apps/mobile/android/
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+*.pem
+.metro-health-check*

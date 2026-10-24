@@ -7,28 +7,20 @@
       "path": "."
     },
     {
-      "name": "backend",
-      "path": "apps/backend"
-    },
-    {
-      "name": "compute",
-      "path": "apps/compute"
+      "name": "extension",
+      "path": "apps/extension"
     },
     {
       "name": "client",
       "path": "apps/client"
     },
     {
-      "name": "distribution",
-      "path": "apps/distribution"
+      "name": "mobile",
+      "path": "apps/mobile"
     },
     {
       "name": "devtools",
       "path": "apps/devtools"
-    },
-    {
-      "name": "extension",
-      "path": "apps/extension"
     },
     {
       "name": "service",
@@ -48,7 +40,10 @@
       "./.vscode/schemas/pnpm-workspace.json": "/pnpm-workspace.yaml"
     },
     "rust-analyzer.cargo.targetDir": true,
-    "rust-analyzer.linkedProjects": ["apps/client/src-tauri/Cargo.toml", "apps/service/Cargo.toml"],
+    "rust-analyzer.linkedProjects": [
+      "apps/client/src-tauri/Cargo.toml",
+      "apps/service/Cargo.toml"
+    ],
     "rust-analyzer.numThreads": 4,
     "rust-analyzer.cargo.allTargets": false,
     "rust-analyzer.cachePriming.enable": false,
@@ -196,7 +191,13 @@
       "vue": "html",
       "vue-html": "html"
     },
-    "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact", "vue"],
+    "eslint.validate": [
+      "javascript",
+      "javascriptreact",
+      "typescript",
+      "typescriptreact",
+      "vue"
+    ],
     "eslint.workingDirectories": [
       {
         "mode": "auto"
@@ -283,16 +284,33 @@
     "i18n-ally.annotationInPlace": true,
     "i18n-ally.dirStructure": "dir",
     "i18n-ally.displayLanguage": "zh-CN",
-    "i18n-ally.enabledFrameworks": ["vue", "vue-sfc"],
-    "i18n-ally.enabledParsers": ["ts", "json"],
+    "i18n-ally.enabledFrameworks": [
+      "vue",
+      "vue-sfc"
+    ],
+    "i18n-ally.enabledParsers": [
+      "ts",
+      "json"
+    ],
     "i18n-ally.encoding": "utf-8",
     "i18n-ally.extract.autoDetect": true,
     "i18n-ally.extract.keygenStrategy": "source",
     "i18n-ally.extract.keygenStyle": "kebab-case",
     "i18n-ally.extract.keyPrefix": "prefix-",
     "i18n-ally.extract.parsers.html": {
-      "attributes": ["title", "alt", "aria-label", "placeholder", "label", "text", "sub-title"],
-      "ignoredTags": ["script", "style"],
+      "attributes": [
+        "title",
+        "alt",
+        "aria-label",
+        "placeholder",
+        "label",
+        "text",
+        "sub-title"
+      ],
+      "ignoredTags": [
+        "script",
+        "style"
+      ],
       "inlineText": true,
       "vBind": true
     },
@@ -321,7 +339,9 @@
     ],
     "i18n-ally.indent": 2,
     "i18n-ally.keystyle": "nested",
-    "i18n-ally.localesPaths": ["apps/extension/src/locales"],
+    "i18n-ally.localesPaths": [
+      "apps/extension/src/locales"
+    ],
     "i18n-ally.pathMatcher": "{locale}/index.ts",
     "i18n-ally.preferredDelimiter": "-",
     "i18n-ally.review.enabled": true,
@@ -346,10 +366,22 @@
     "iconify.customCollectionIdsMap": {
       "custom": "custom"
     },
-    "iconify.customCollectionJsonPaths": ["packages/shared/src/assets/icons/custom.json"],
-    "iconify.languageIds": ["typescript", "typescriptreact", "vue"],
-    "iconify.preview.exclude": ["package.json"],
-    "iconify.preview.include": ["**/*.vue", "**/*.jsx", "**/*.tsx"],
+    "iconify.customCollectionJsonPaths": [
+      "packages/shared/src/assets/icons/custom.json"
+    ],
+    "iconify.languageIds": [
+      "typescript",
+      "typescriptreact",
+      "vue"
+    ],
+    "iconify.preview.exclude": [
+      "package.json"
+    ],
+    "iconify.preview.include": [
+      "**/*.vue",
+      "**/*.jsx",
+      "**/*.tsx"
+    ],
     "js/ts.enablePromptUseWorkspaceTsdk": true,
     "js/ts.format.semicolons": "remove",
     "js/ts.implicitProjectConfig.checkJs": true,
@@ -427,7 +459,12 @@
     },
     "search.followSymlinks": false,
     "search.searchEditor.singleClickBehaviour": "peekDefinition",
-    "tailwindCSS.files.exclude": ["**/.git/**", "**/node_modules/**", "**/.hg/**", "**/.svn/**"],
+    "tailwindCSS.files.exclude": [
+      "**/.git/**",
+      "**/node_modules/**",
+      "**/.hg/**",
+      "**/.svn/**"
+    ],
     "tailwindCSS.suggestions": true,
     "terminal.explorerKind": "external",
     "terminal.integrated.cursorBlinking": true,
@@ -470,7 +507,9 @@
     "vue.inlayHints.missingProps": true,
     "vue.inlayHints.optionsWrapper": true,
     "vue.inlayHints.vBindShorthand": true,
-    "vue.server.includeLanguages": ["vue"],
+    "vue.server.includeLanguages": [
+      "vue"
+    ],
     "vue.suggest.componentNameCasing": "alwaysPascalCase",
     "vue.suggest.defineAssignment": true,
     "vue.suggest.propNameCasing": "alwaysCamelCase",

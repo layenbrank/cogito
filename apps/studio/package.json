@@ -54,7 +54,7 @@
     "dayjs": "catalog:",
     "drizzle-orm": "catalog:",
     "electron-store": "catalog:",
-    "electron-updater": "^6.8.9",
+    "electron-updater": "catalog:",
     "go-captcha-react": "catalog:",
     "konva": "catalog:",
     "qrcode.react": "catalog:",
@@ -62,7 +62,7 @@
     "react-konva": "catalog:",
     "sonner": "catalog:",
     "uuid": "catalog:",
-    "yaml": "^2.9.1",
+    "yaml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
