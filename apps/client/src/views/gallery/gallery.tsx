@@ -61,7 +61,7 @@ function GalleryBottomBar(props: {
 }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex items-end justify-center gap-2 px-4">
-      <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-border/50 bg-card/90 p-1 shadow-lg backdrop-blur-md">
+      <div className="pointer-events-auto flex h-10 items-center gap-1 rounded-full border border-border/50 bg-card/90 p-1 shadow-lg backdrop-blur-md">
         {GALLERY_TABS.map(function (item) {
           const isActive = props.tab === item
           const label = item === 'library' ? '图库' : '精选集'
@@ -71,7 +71,7 @@ function GalleryBottomBar(props: {
               key={item}
               type="button"
               className={cn(
-                'flex min-h-10 items-center gap-1.5 rounded-full px-3.5 text-sm transition-colors',
+                'flex h-full items-center gap-1.5 rounded-full px-3.5 text-sm transition-colors',
                 isActive
                   ? 'bg-primary/15 text-foreground'
                   : 'text-muted-foreground hover:text-foreground'
@@ -91,7 +91,7 @@ function GalleryBottomBar(props: {
       <Button
         type="button"
         size="icon"
-        className="pointer-events-auto size-11 rounded-full shadow-lg"
+        className="pointer-events-auto size-10 rounded-full shadow-lg"
         aria-label="搜索"
         disabled={!props.canSearch}
         onClick={props.onToggleSearch}>

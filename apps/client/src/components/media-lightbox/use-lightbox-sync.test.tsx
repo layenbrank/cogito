@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { SwiperClass } from 'swiper/react'
 
-import { useLightboxSwiper } from './use-lightbox-sync.ts'
+import { useLightboxSwiper } from '@/components/media-lightbox/use-lightbox-sync'
 
 type FakeSwiper = {
   destroyed: boolean

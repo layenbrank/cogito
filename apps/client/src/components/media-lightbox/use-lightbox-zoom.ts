@@ -5,7 +5,7 @@ import {
   LIGHTBOX_ZOOM_MAX,
   LIGHTBOX_ZOOM_MIN,
   LIGHTBOX_ZOOM_STEP
-} from '@/views/gallery/constraints'
+} from '@/components/media-lightbox/constants'
 
 interface UseLightboxZoomOptions {
   stageRef: RefObject<HTMLElement | null>

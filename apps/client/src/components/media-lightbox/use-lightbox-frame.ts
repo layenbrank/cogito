@@ -3,8 +3,8 @@
  */
 import { useEffect, useLayoutEffect, useState } from 'react'
 
-import { LIGHTBOX_FRAME_ASPECT } from '@/views/gallery/constraints'
-import { type GalleryMedia } from '@/views/gallery/model/media'
+import { LIGHTBOX_FRAME_ASPECT } from '@/components/media-lightbox/constants'
+import type { LightboxMedia } from '@/components/media-lightbox/types'
 
 const HEADER_Y = 48
 const THUMB_Y = 64
@@ -66,7 +66,7 @@ function findContainFit(stageW: number, stageH: number, mediaAspect: number, pad
 
 export function useLightboxFrame(input: {
   open: boolean
-  active: GalleryMedia | undefined
+  active: LightboxMedia | undefined
   isFullscreen: boolean
   showThumbStrip: boolean
 }) {

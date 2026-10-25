@@ -13,13 +13,13 @@ import {
   type Viewport
 } from '@/lib/canvas'
 
-interface GalleryImageStageProps {
+interface MediaImageStageProps {
   src: string
   onZoomedChange?: (zoomed: boolean) => void
   onScaleChange?: (ratio: number) => void
 }
 
-function GalleryImageStage(props: GalleryImageStageProps) {
+function MediaImageStage(props: MediaImageStageProps) {
   const [image, setImage] = useState<HTMLImageElement | null>(null)
   const [view, setView] = useState<Size>({ width: 1, height: 1 })
   const [viewport, setViewport] = useState<Viewport>({ scale: 1, x: 0, y: 0 })
@@ -226,4 +226,4 @@ function GalleryImageStage(props: GalleryImageStageProps) {
   )
 }
 
-export { GalleryImageStage }
+export { MediaImageStage }

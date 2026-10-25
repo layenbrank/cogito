@@ -35,7 +35,7 @@ function MediaCellComponent(props: MediaCellProps) {
       ref={ref}
       type="button"
       className={cn(
-        'group relative aspect-square overflow-hidden bg-muted/40 outline-none',
+        'group relative aspect-square overflow-hidden rounded-md bg-muted/40 outline-none',
         '[content-visibility:auto] [contain-intrinsic-size:auto_120px]',
         'transition-[box-shadow,transform] duration-200 ease-out',
         'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',

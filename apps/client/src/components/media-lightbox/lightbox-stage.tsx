@@ -11,8 +11,8 @@ import { Swiper, type SwiperClass, SwiperSlide } from 'swiper/react'
 import 'swiper/css'
 import 'swiper/css/virtual'
 
-import { GalleryImageStage } from '@/views/gallery/lightbox/image-stage'
-import { type GalleryMedia } from '@/views/gallery/model/media'
+import { MediaImageStage } from '@/components/media-lightbox/image-stage'
+import type { LightboxMedia } from '@/components/media-lightbox/types'
 
 function LightboxNavButton(props: {
   label: string
@@ -45,7 +45,7 @@ function LightboxNavButton(props: {
 }
 
 function LightboxStage(props: {
-  medias: GalleryMedia[]
+  medias: LightboxMedia[]
   activeIndex: number
   initialIndex: number
   fit: { width: number; height: number }
@@ -104,13 +104,13 @@ function LightboxStage(props: {
           const isActive = index === activeIndex
           return (
             <SwiperSlide
-              key={media.asset.id}
+              key={media.id}
               virtualIndex={index}
               className="relative! size-full">
               {isActive ? (
                 media.kind === 'video' ? (
                   <div
-                    key={media.asset.id}
+                    key={media.id}
                     ref={mediaRef}
                     className="absolute top-0 left-0 overflow-hidden"
                     style={{ width: fit.width, height: fit.height }}>
@@ -124,8 +124,8 @@ function LightboxStage(props: {
                     />
                   </div>
                 ) : (
-                  <GalleryImageStage
-                    key={media.asset.id}
+                  <MediaImageStage
+                    key={media.id}
                     src={media.src}
                     onZoomedChange={onZoomedChange}
                     onScaleChange={onScaleChange}

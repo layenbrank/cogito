@@ -6,11 +6,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@cogito/design/components/dropdown-menu'
-import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
-import { cn } from 'cn'
+import { Tabs, TabsList, TabsTrigger } from '@cogito/design/components/tabs'
 import { AnimatePresence, useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
-import { useEffect, useRef, useState } from 'react'
+import { startTransition, useEffect, useRef, useState } from 'react'
 
 import {
   GRID_ZOOM_LEVELS,
@@ -42,11 +41,7 @@ interface LibraryProps {
   hideLabel?: string
 }
 
-/** Base UI Toggle 用 data-pressed，不是 Radix 的 data-state=on */
-const TOGGLE_ACTIVE =
-  'data-[pressed]:bg-primary/15 data-[pressed]:text-primary data-[pressed]:shadow-sm aria-pressed:bg-primary/15 aria-pressed:text-primary'
-
-/** 顶栏：标题 + 时间范围 / 布局切换 + 缩放 + 选择 + 导入 */
+/** 顶栏控件统一 h-8：Tabs sm / Button default / icon */
 function LibraryToolbar(props: {
   title: string
   count: number
@@ -63,65 +58,49 @@ function LibraryToolbar(props: {
   importing?: boolean
 }) {
   return (
-    <div className="flex shrink-0 items-start justify-between gap-3 bg-background px-4 pt-2 pb-3">
+    <div className="flex shrink-0 items-center justify-between gap-3 bg-background px-4 pt-2 pb-3">
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold tracking-tight">{props.title}</h1>
         <p className="text-sm text-muted-foreground">{props.count} 个项目</p>
       </div>
-      <div className="flex flex-wrap items-center justify-end gap-1.5">
-        <ToggleGroup
-          value={[props.scope]}
-          onValueChange={function (values) {
-            const next = values[0] as TimeScope | undefined
-            if (next) props.onScope(next)
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Tabs
+          value={props.scope}
+          onValueChange={function (value) {
+            if (value) props.onScope(value as TimeScope)
           }}
-          variant="outline"
-          size="sm"
-          spacing={0}
           className="hidden sm:flex">
-          <ToggleGroupItem
-            value="years"
-            className={TOGGLE_ACTIVE}>
-            年
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="months"
-            className={TOGGLE_ACTIVE}>
-            月
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="all"
-            className={TOGGLE_ACTIVE}>
-            全部
-          </ToggleGroupItem>
-        </ToggleGroup>
+          <TabsList size="sm">
+            <TabsTrigger value="years">年</TabsTrigger>
+            <TabsTrigger value="months">月</TabsTrigger>
+            <TabsTrigger value="all">全部</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-        <ToggleGroup
-          value={[props.layout]}
-          onValueChange={function (values) {
-            const next = values[0] as LibraryLayout | undefined
-            if (next) props.onLayout(next)
-          }}
-          variant="outline"
-          size="sm"
-          spacing={0}>
-          <ToggleGroupItem
-            value="grid"
-            aria-label="网格视图"
-            className={cn('px-2', TOGGLE_ACTIVE)}>
-            <Icon icon="lucide:layout-grid" />
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="axis"
-            aria-label="时间轴视图"
-            className={cn('px-2', TOGGLE_ACTIVE)}>
-            <Icon icon="lucide:gallery-vertical" />
-          </ToggleGroupItem>
-        </ToggleGroup>
+        <Tabs
+          value={props.layout}
+          onValueChange={function (value) {
+            if (value) props.onLayout(value as LibraryLayout)
+          }}>
+          <TabsList size="sm">
+            <TabsTrigger
+              value="grid"
+              aria-label="网格视图"
+              className="px-2.5">
+              <Icon icon="lucide:layout-grid" />
+            </TabsTrigger>
+            <TabsTrigger
+              value="axis"
+              aria-label="时间轴视图"
+              className="px-2.5">
+              <Icon icon="lucide:gallery-vertical" />
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         <Button
           type="button"
-          size="icon-sm"
+          size="icon"
           variant="ghost"
           aria-label="缩小缩略图"
           disabled={props.zoomIndex >= GRID_ZOOM_LEVELS.length - 1}
@@ -134,7 +113,7 @@ function LibraryToolbar(props: {
         </Button>
         <Button
           type="button"
-          size="icon-sm"
+          size="icon"
           variant="ghost"
           aria-label="放大缩略图"
           disabled={props.zoomIndex <= 0}
@@ -147,7 +126,6 @@ function LibraryToolbar(props: {
         </Button>
         <Button
           type="button"
-          size="sm"
           variant={props.selecting ? 'secondary' : 'outline'}
           className={props.selecting ? 'bg-primary/15 text-foreground' : undefined}
           onClick={function () {
@@ -162,7 +140,6 @@ function LibraryToolbar(props: {
             render={
               <Button
                 type="button"
-                size="sm"
                 disabled={props.importing}>
                 <Icon icon="lucide:plus" />
                 导入
@@ -223,7 +200,6 @@ function LibrarySelectionBar(props: {
           <div className="ml-auto flex gap-1.5">
             <Button
               type="button"
-              size="sm"
               variant="outline"
               onClick={props.onHideSelected}>
               <Icon icon={props.hideLabel === '取消隐藏' ? 'lucide:eye' : 'lucide:eye-off'} />
@@ -231,7 +207,6 @@ function LibrarySelectionBar(props: {
             </Button>
             <Button
               type="button"
-              size="sm"
               variant="destructive"
               onClick={props.onRemoveSelected}>
               <Icon icon="lucide:trash-2" />
@@ -291,7 +266,9 @@ function LibraryEmptyState(props: {
 /**
  * 内容区：空态 / 时间轴 / 网格。
  *
- * 同样地，`AnimatePresence` 常驻在外层，切布局时旧视图才能播退场。
+ * 切布局 / 时间粒度时不要用 AnimatePresence mode=wait 整树卸载：
+ * 会拆掉 MediaCell、IntersectionObserver 与 streamed 分片，切换必卡。
+ * 网格内部改 props 即可；仅空态保留轻量进出场。
  */
 function LibraryContent(props: {
   medias: GalleryMedia[]
@@ -309,30 +286,26 @@ function LibraryContent(props: {
   motionSec: number
 }) {
   const isEmpty = props.medias.length === 0
-  const transition =
-    props.isReducedMotion || isEmpty
-      ? undefined
-      : { duration: props.motionSec, ease: [0.22, 1, 0.36, 1] as const }
 
   return (
     <AnimatePresence
-      mode="wait"
+      mode="popLayout"
       initial={false}>
-      <m.div
-        key={isEmpty ? 'empty' : `${props.layout}:${props.scope}`}
-        initial={
-          isEmpty || props.isReducedMotion ? false : { opacity: 0.4, y: 8 }
-        }
-        animate={{ opacity: 1, y: 0 }}
-        exit={props.isReducedMotion ? undefined : { opacity: 0.35, y: -4 }}
-        transition={transition}>
-        {isEmpty ? (
+      {isEmpty ? (
+        <m.div
+          key="empty"
+          initial={props.isReducedMotion ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={props.isReducedMotion ? undefined : { opacity: 0 }}
+          transition={{ duration: props.motionSec * 0.7, ease: [0.22, 1, 0.36, 1] }}>
           <LibraryEmptyState
             emptyHint={props.emptyHint}
             importing={props.importing}
             onImport={props.onImport}
           />
-        ) : props.layout === 'axis' ? (
+        </m.div>
+      ) : props.layout === 'axis' ? (
+        <div key="axis">
           <TimelineAxis
             medias={props.medias}
             selecting={props.selecting}
@@ -340,7 +313,9 @@ function LibraryContent(props: {
             onOpen={props.onOpen}
             onToggleSelect={props.onToggleSelect}
           />
-        ) : (
+        </div>
+      ) : (
+        <div key="grid">
           <MediaGrid
             medias={props.medias}
             scope={props.scope}
@@ -350,8 +325,8 @@ function LibraryContent(props: {
             onOpen={props.onOpen}
             onToggleSelect={props.onToggleSelect}
           />
-        )}
-      </m.div>
+        </div>
+      )}
     </AnimatePresence>
   )
 }
@@ -377,15 +352,27 @@ function Library(props: LibraryProps) {
 
   const hasSelection = props.selectedIds.size > 0
 
+  function switchScope(next: TimeScope) {
+    startTransition(function () {
+      onScope(next)
+    })
+  }
+
+  function switchLayout(next: LibraryLayout) {
+    startTransition(function () {
+      onLayout(next)
+    })
+  }
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col bg-background">
       <LibraryToolbar
         title={props.title ?? '图库'}
         count={props.medias.length}
         scope={scope}
-        onScope={onScope}
+        onScope={switchScope}
         layout={layout}
-        onLayout={onLayout}
+        onLayout={switchLayout}
         zoomIndex={zoomIndex}
         onZoomIndex={onZoomIndex}
         selecting={props.selecting}
