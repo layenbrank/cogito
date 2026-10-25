@@ -25,6 +25,7 @@ import {
   PUT_ADMIN_TENANT_MEMBER,
   type TenantSummary
 } from '@/apis/tenant.ts'
+import { GET_USERS } from '@/apis/user.ts'
 import { ConfirmDialog } from '@/components/console/confirm-dialog.tsx'
 import { ConsolePage } from '@/components/console/console-page.tsx'
 import { DataTable } from '@/components/console/data-table.tsx'
@@ -78,9 +79,11 @@ export default function TenantsView() {
     name: '',
     slug: '',
     type: 'TEAM',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    ownerUserID: ''
   })
   const [memberDraft, updateMemberDraft] = useState({ userID: '', role: 'MEMBER' })
+  const users = useQuery({ queryKey: ['users'], queryFn: GET_USERS })
   const [planDraft, updatePlanDraft] = useState('')
   const [pendingDelete, updatePendingDelete] = useState<TenantSummary | null>(null)
   const [pendingMemberRemove, updatePendingMemberRemove] = useState<string | null>(null)
@@ -112,11 +115,34 @@ export default function TenantsView() {
   }
 
   const createTenant = useMutation({
-    mutationFn: POST_ADMIN_TENANT,
-    onSuccess() {
-      toast.success('已创建租户')
+    mutationFn: async function (input: {
+      name: string
+      slug: string
+      type: string
+      ownerUserID?: string
+    }) {
+      const tenant = await POST_ADMIN_TENANT({
+        name: input.name,
+        slug: input.slug,
+        type: input.type
+      })
+      if (input.ownerUserID) {
+        await POST_ADMIN_TENANT_MEMBER(tenant.id, {
+          userID: input.ownerUserID,
+          role: 'OWNER'
+        })
+      }
+      return tenant
+    },
+    onSuccess(tenant, variables) {
+      toast.success(
+        variables.type === 'PERSONAL' && variables.ownerUserID
+          ? '已创建个人租户并挂上用户（免费配额）'
+          : '已创建租户'
+      )
       invalidateTenants()
       updateSheetOpen(false)
+      selectTenant(tenant.id)
     },
     onError(error) {
       toast.error(HttpError(error).message)
@@ -229,7 +255,7 @@ export default function TenantsView() {
 
   function openCreate() {
     updateEditing(null)
-    updateDraft({ name: '', slug: '', type: 'TEAM', status: 'ACTIVE' })
+    updateDraft({ name: '', slug: '', type: 'TEAM', status: 'ACTIVE', ownerUserID: '' })
     updateSheetOpen(true)
   }
 
@@ -239,10 +265,15 @@ export default function TenantsView() {
       name: row.name,
       slug: row.slug,
       type: row.type,
-      status: row.status
+      status: row.status,
+      ownerUserID: ''
     })
     updateSheetOpen(true)
   }
+
+  const userSelectItems = (users.data ?? []).map(function (user) {
+    return { value: user.id, label: `${user.username}（${user.id.slice(0, 8)}…）` }
+  })
 
   function selectTenant(id: string | null) {
     updateSearchParams(function (prev) {
@@ -426,6 +457,7 @@ export default function TenantsView() {
                 return row.id
               }}
               emptyTitle="暂无租户"
+              emptyDescription="给用户免费配额：到「用户」打开该用户 →「开通免费配额」；或新建 PERSONAL 并指定归属用户。"
               emptyActionLabel="新建租户"
               onEmptyAction={openCreate}
               onRowClick={function (row) {
@@ -468,7 +500,13 @@ export default function TenantsView() {
           className="space-y-4 rounded-xl border border-border/80 bg-[var(--backend-surface)] p-4"
           style={{ boxShadow: 'var(--backend-elevation-1)' }}>
           {!selectedID ? (
-            <p className="text-sm text-muted-foreground">选择左侧租户查看详情</p>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p>选择左侧租户查看详情、成员与配额。</p>
+              <p>
+                免费配额只对 <span className="font-medium text-foreground">PERSONAL</span>{' '}
+                个人租户生效；TEAM 走全局兜底。
+              </p>
+            </div>
           ) : (
             <QueryState
               isLoading={detail.isLoading}
@@ -695,14 +733,27 @@ export default function TenantsView() {
                       emptyTitle="无成员"
                     />
                     <div className="flex flex-wrap gap-2">
-                      <Input
-                        className="min-w-[12rem] flex-1"
-                        placeholder="用户 UUID"
-                        value={memberDraft.userID}
-                        onChange={function (event) {
-                          updateMemberDraft({ ...memberDraft, userID: event.target.value })
-                        }}
-                      />
+                      <Select
+                        items={userSelectItems}
+                        value={memberDraft.userID || null}
+                        onValueChange={function (value) {
+                          if (value) updateMemberDraft({ ...memberDraft, userID: value })
+                        }}>
+                        <SelectTrigger className="h-9 min-w-[12rem] flex-1">
+                          <SelectValue placeholder="选择用户" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(users.data ?? []).map(function (user) {
+                            return (
+                              <SelectItem
+                                key={user.id}
+                                value={user.id}>
+                                {user.username}
+                              </SelectItem>
+                            )
+                          })}
+                        </SelectContent>
+                      </Select>
                       <Select
                         items={ROLE_ITEMS}
                         value={memberDraft.role}
@@ -786,7 +837,7 @@ export default function TenantsView() {
         description={
           editing
             ? '可改名称、类型与状态。slug 创建后不可改。'
-            : '建议创建 TEAM；PERSONAL 走免费/订阅配额。'
+            : 'TEAM 为团队空间；PERSONAL 才走免费/订阅配额。给用户免费额度请选 PERSONAL 并指定归属用户，或到「用户」页点「开通免费配额」。'
         }
         submitLabel={editing ? '保存' : '创建'}
         isPending={createTenant.isPending || patchTenant.isPending}
@@ -805,10 +856,15 @@ export default function TenantsView() {
             toast.error('填写名称与 slug')
             return
           }
+          if (draft.type === 'PERSONAL' && !draft.ownerUserID) {
+            toast.error('个人租户请指定归属用户，否则只有管理员能用')
+            return
+          }
           createTenant.mutate({
             name: draft.name.trim(),
             slug: draft.slug.trim(),
-            type: draft.type
+            type: draft.type,
+            ownerUserID: draft.ownerUserID || undefined
           })
         }}>
         <div className="space-y-2">
@@ -846,7 +902,7 @@ export default function TenantsView() {
             items={TYPE_ITEMS}
             value={draft.type}
             onValueChange={function (value) {
-              if (value) updateDraft({ ...draft, type: value })
+              if (value) updateDraft({ ...draft, type: value, ownerUserID: '' })
             }}>
             <SelectTrigger className="w-full">
               <SelectValue />
@@ -864,6 +920,47 @@ export default function TenantsView() {
             </SelectContent>
           </Select>
         </div>
+        {!editing && draft.type === 'PERSONAL' ? (
+          <div className="space-y-2">
+            <Label>归属用户（免费配额主体）</Label>
+            <Select
+              items={userSelectItems}
+              value={draft.ownerUserID || null}
+              onValueChange={function (value) {
+                if (!value) return
+                const user = (users.data ?? []).find(function (item) {
+                  return item.id === value
+                })
+                updateDraft({
+                  ...draft,
+                  ownerUserID: value,
+                  name: draft.name.trim()
+                    ? draft.name
+                    : user
+                      ? `${user.username}的个人空间`
+                      : draft.name,
+                  slug: draft.slug.trim()
+                    ? draft.slug
+                    : `personal-${value.replace(/[^a-z0-9]/gi, '').slice(0, 16).toLowerCase()}`
+                })
+              }}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="选择用户" />
+              </SelectTrigger>
+              <SelectContent>
+                {(users.data ?? []).map(function (user) {
+                  return (
+                    <SelectItem
+                      key={user.id}
+                      value={user.id}>
+                      {user.username}
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
         {editing ? (
           <div className="space-y-2">
             <Label>状态</Label>

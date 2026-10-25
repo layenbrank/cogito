@@ -10,7 +10,7 @@ import {
 } from '@cogito/design/components/select'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import {
@@ -28,6 +28,7 @@ import { EntitySheet } from '@/components/console/entity-sheet.tsx'
 import { FilterBar } from '@/components/console/filter-bar.tsx'
 import { QueryState } from '@/components/console/query-state.tsx'
 import { StatusBadge } from '@/components/console/status-badge.tsx'
+import { provisionPersonalTenant } from '@/features/tenant/provision-personal.ts'
 import { useSessionStore } from '@/stores/session.ts'
 import { HttpError } from '@/utils/http/errors.ts'
 
@@ -62,6 +63,7 @@ function shortID(id: string) {
 
 export default function UsersView() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const focusID = searchParams.get('focus')
   const selfID = useSessionStore(function (state) {
@@ -162,6 +164,31 @@ export default function UsersView() {
       toast.success('已删除')
       void queryClient.invalidateQueries({ queryKey: ['users'] })
       updatePendingDelete(null)
+    },
+    onError(error) {
+      toast.error(HttpError(error).message)
+    }
+  })
+
+  const grantFreeQuota = useMutation({
+    mutationFn: function (user: UserRecord) {
+      return provisionPersonalTenant({ userID: user.id, username: user.username })
+    },
+    onSuccess(result) {
+      const tenantID = result.tenant.id
+      toast.success(
+        result.alreadyHad ? '该用户已有个人租户（免费配额）' : '已开通个人租户，可使用免费配额',
+        {
+          action: {
+            label: '查看租户',
+            onClick() {
+              navigate(`/tenants?focus=${tenantID}`)
+            }
+          }
+        }
+      )
+      void queryClient.invalidateQueries({ queryKey: ['user-tenants'] })
+      void queryClient.invalidateQueries({ queryKey: ['admin-tenants'] })
     },
     onError(error) {
       toast.error(HttpError(error).message)
@@ -558,8 +585,24 @@ export default function UsersView() {
         ) : null}
 
         {editing ? (
-          <div className="space-y-2 border-t border-border/60 pt-4">
-            <Label>所属租户</Label>
+          <div className="space-y-3 border-t border-border/60 pt-4">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <Label>所属租户</Label>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  免费配额挂在 PERSONAL 个人租户上；无则点击右侧开通。
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={grantFreeQuota.isPending}
+                onClick={function () {
+                  grantFreeQuota.mutate(editing)
+                }}>
+                {grantFreeQuota.isPending ? '开通中…' : '开通免费配额'}
+              </Button>
+            </div>
             {userTenants.isLoading ? (
               <p className="text-sm text-muted-foreground">加载中…</p>
             ) : userTenants.isError ? (
@@ -581,6 +624,7 @@ export default function UsersView() {
                         </Link>
                         <div className="text-xs text-muted-foreground">
                           {tenant.slug} · {tenant.type} · {tenant.role}
+                          {String(tenant.type).toUpperCase() === 'PERSONAL' ? ' · 免费/订阅档' : ''}
                         </div>
                       </div>
                       <StatusBadge status={tenant.memberStatus} />
