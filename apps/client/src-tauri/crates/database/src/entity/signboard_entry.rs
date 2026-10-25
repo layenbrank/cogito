@@ -17,6 +17,9 @@ pub struct Model {
     #[serde(rename = "reminderID")]
     pub reminder_id: Option<String>,
     pub priority: i32,
+    /// 0–100 卡片进度；有子任务时由清单同步
+    #[serde(default)]
+    pub progress: i32,
     pub color: Option<String>,
     pub archived_at: Option<i64>,
     pub created_at: i64,
@@ -93,6 +96,8 @@ pub struct Write {
     pub reminder_id: Option<String>,
     #[serde(default)]
     pub priority: i32,
+    #[serde(default)]
+    pub progress: i32,
     pub color: Option<String>,
 }
 
@@ -116,6 +121,7 @@ pub struct Change {
     #[serde(rename = "reminderID")]
     pub reminder_id: Option<Option<String>>,
     pub priority: Option<i32>,
+    pub progress: Option<i32>,
     pub color: Option<Option<String>>,
     pub archived_at: Option<Option<i64>>,
 }

@@ -26,6 +26,8 @@ interface SignboardBoard {
   updatedAt: number
 }
 
+type ColumnRole = 'todo' | 'doing' | 'done'
+
 interface SignboardColumn {
   id: string
   boardID: string
@@ -33,6 +35,7 @@ interface SignboardColumn {
   index: number
   color: string | null
   wipLimit: number | null
+  role: ColumnRole | null
   archivedAt: number | null
   createdAt: number
   updatedAt: number
@@ -48,6 +51,8 @@ interface SignboardEntry {
   startAt: number | null
   reminderID: string | null
   priority: number
+  /** 0–100；有子任务时由清单同步 */
+  progress: number
   color: string | null
   archivedAt: number | null
   createdAt: number
@@ -97,6 +102,20 @@ const TAG_COLORS = [
   '#5F8A7B'
 ] as const
 
+/** 列底色：对齐 Trello list color（柔和色直接铺满整列） */
+const COLUMN_COLORS = [
+  '#F5CD47',
+  '#7EE2B8',
+  '#FEA362',
+  '#F87168',
+  '#9F8FEF',
+  '#579DFF',
+  '#94C748',
+  '#E774BB',
+  '#8590A2',
+  '#85B8FF'
+] as const
+
 function pickTagColor(existing: SignboardTag[]): string {
   const used = new Set(
     existing
@@ -133,6 +152,7 @@ interface EntryWrite {
   startAt?: number | null
   reminderID?: string | null
   priority?: number
+  progress?: number
   color?: string | null
 }
 
@@ -145,6 +165,7 @@ interface EntryChange {
   startAt?: number | null
   reminderID?: string | null
   priority?: number
+  progress?: number
   color?: string | null
   archivedAt?: number | null
 }
@@ -160,7 +181,35 @@ interface ColumnChange {
   index?: number
   color?: string | null
   wipLimit?: number | null
+  role?: ColumnRole | null
   archivedAt?: number | null
+}
+
+interface ColumnWrite {
+  boardID: string
+  title: string
+  index?: number
+  color?: string | null
+  wipLimit?: number | null
+  role?: ColumnRole | null
+}
+
+const SEED_COLUMN_DEFS: { title: string; role: ColumnRole }[] = [
+  { title: '待办', role: 'todo' },
+  { title: '进行中', role: 'doing' },
+  { title: '完成', role: 'done' }
+]
+
+function clampProgress(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
+function findChecklistPct(checks: SignboardCheck[]) {
+  if (checks.length === 0) return null
+  const done = checks.filter(function (item) {
+    return item.done
+  }).length
+  return clampProgress((done / checks.length) * 100)
 }
 
 interface AutomationWrite {
@@ -198,8 +247,13 @@ interface SignboardStore {
   toActivateBoard: (boardID: string) => Promise<void>
   toWriteBoard: (title: string) => Promise<string | undefined>
   toUpdateBoard: (key: string, change: BoardChange) => Promise<boolean>
-  toWriteColumn: (boardID: string, title: string) => Promise<string | undefined>
+  toWriteColumn: (
+    boardID: string,
+    title: string,
+    role?: ColumnRole | null
+  ) => Promise<string | undefined>
   toUpdateColumn: (key: string, change: ColumnChange) => Promise<boolean>
+  toMoveColumn: (columnID: string, toIndex: number) => Promise<boolean>
   toWriteEntry: (value: EntryWrite) => Promise<string | undefined>
   toUpdateEntry: (key: string, change: EntryChange) => Promise<boolean>
   toMoveEntry: (entryID: string, toColumnID: string, toIndex: number) => Promise<boolean>
@@ -213,6 +267,7 @@ interface SignboardStore {
     key: string,
     change: { title?: string; color?: string | null }
   ) => Promise<boolean>
+  toRemoveTag: (key: string) => Promise<boolean>
   toTagEntry: (entryID: string, tagID: string) => Promise<boolean>
   toUntagEntry: (entryID: string, tagID: string) => Promise<boolean>
   toWriteCheck: (entryID: string, title: string) => Promise<string | undefined>
@@ -233,8 +288,6 @@ interface SignboardStore {
   assetsForEntry: (entryID: string) => SignboardEntryAsset[]
   coverAssetID: (entryID: string) => string | null
 }
-
-const SEED_COLUMNS = ['待办', '进行中', '完成'] as const
 
 const useSignboardStore = create<SignboardStore>()(
   devtools(
@@ -420,14 +473,15 @@ const useSignboardStore = create<SignboardStore>()(
               const boardID = boardIDs[0]
               if (!boardID) return
               await invoke<string[]>(CHANNELS.SIGNBOARD_COLUMN.WRITE, {
-                params: SEED_COLUMNS.map(function (title, index) {
+                params: SEED_COLUMN_DEFS.map(function (row, index) {
                   return {
                     boardID,
-                    title,
+                    title: row.title,
                     index,
                     color: null,
-                    wipLimit: null
-                  }
+                    wipLimit: null,
+                    role: row.role
+                  } satisfies ColumnWrite
                 })
               })
               await getter().toReadBoards()
@@ -484,13 +538,20 @@ const useSignboardStore = create<SignboardStore>()(
           }
         },
 
-        async toWriteColumn(boardID, title) {
+        async toWriteColumn(boardID, title, role) {
           try {
             const index = getter().columns.filter(function (column) {
               return column.boardID === boardID
             }).length
             const ids = await invoke<string[]>(CHANNELS.SIGNBOARD_COLUMN.WRITE, {
-              params: { boardID, title, index, color: null, wipLimit: null }
+              params: {
+                boardID,
+                title,
+                index,
+                color: null,
+                wipLimit: null,
+                role: role ?? null
+              } satisfies ColumnWrite
             })
             await getter().toActivateBoard(boardID)
             return ids[0]
@@ -510,6 +571,74 @@ const useSignboardStore = create<SignboardStore>()(
             return true
           } catch (error) {
             reportCaught('signboard-store.toUpdateColumn', error)
+            return false
+          }
+        },
+
+        async toMoveColumn(columnID, toIndex) {
+          const moving = getter().columns.find(function (column) {
+            return column.id === columnID
+          })
+          if (!moving) return false
+          const boardID = moving.boardID
+          const previous = {
+            columns: getter().columns.map(function (column) {
+              return { ...column }
+            })
+          }
+
+          setter(
+            function (state) {
+              const siblings = state.columns
+                .filter(function (column) {
+                  return column.boardID === boardID && column.archivedAt === null
+                })
+                .sort(function (a, b) {
+                  return a.index - b.index
+                })
+              const without = siblings.filter(function (column) {
+                return column.id !== columnID
+              })
+              const clamped = Math.max(0, Math.min(toIndex, without.length))
+              without.splice(clamped, 0, moving)
+              const order = new Map<string, number>()
+              without.forEach(function (column, index) {
+                order.set(column.id, index)
+              })
+              state.columns = state.columns.map(function (column) {
+                const nextIndex = order.get(column.id)
+                if (nextIndex === undefined) return column
+                return { ...column, index: nextIndex }
+              })
+            },
+            false,
+            'toMoveColumn/optimistic'
+          )
+
+          try {
+            const updates = getter()
+              .columns.filter(function (column) {
+                return column.boardID === boardID && column.archivedAt === null
+              })
+              .map(function (column) {
+                return {
+                  key: column.id,
+                  change: { index: column.index }
+                }
+              })
+            await invoke(CHANNELS.SIGNBOARD_COLUMN.UPDATE, {
+              params: updates.length === 1 ? updates[0] : updates
+            })
+            return true
+          } catch (error) {
+            reportCaught('signboard-store.toMoveColumn', error)
+            setter(
+              function (state) {
+                state.columns = previous.columns
+              },
+              false,
+              'toMoveColumn/rollback'
+            )
             return false
           }
         },
@@ -729,6 +858,18 @@ const useSignboardStore = create<SignboardStore>()(
           }
         },
 
+        async toRemoveTag(key) {
+          try {
+            await invoke(CHANNELS.SIGNBOARD_TAG.REMOVE, { params: key })
+            const boardID = getter().activeBoardID
+            if (boardID) await getter().toActivateBoard(boardID)
+            return true
+          } catch (error) {
+            reportCaught('signboard-store.toRemoveTag', error)
+            return false
+          }
+        },
+
         async toTagEntry(entryID, tagID) {
           try {
             await invoke(CHANNELS.SIGNBOARD_TAGGED.WRITE, {
@@ -765,6 +906,7 @@ const useSignboardStore = create<SignboardStore>()(
             })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
+            await syncEntryProgressFromChecks(getter, entryID)
             return ids[0]
           } catch (error) {
             reportCaught('signboard-store.toWriteCheck', error)
@@ -774,11 +916,15 @@ const useSignboardStore = create<SignboardStore>()(
 
         async toUpdateCheck(key, change) {
           try {
+            const existing = getter().checks.find(function (item) {
+              return item.id === key
+            })
             await invoke(CHANNELS.SIGNBOARD_CHECK.UPDATE, {
               params: { key, change }
             })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
+            if (existing) await syncEntryProgressFromChecks(getter, existing.entryID)
             return true
           } catch (error) {
             reportCaught('signboard-store.toUpdateCheck', error)
@@ -788,9 +934,13 @@ const useSignboardStore = create<SignboardStore>()(
 
         async toRemoveCheck(key) {
           try {
+            const existing = getter().checks.find(function (item) {
+              return item.id === key
+            })
             await invoke(CHANNELS.SIGNBOARD_CHECK.REMOVE, { params: key })
             const boardID = getter().activeBoardID
             if (boardID) await getter().toActivateBoard(boardID)
+            if (existing) await syncEntryProgressFromChecks(getter, existing.entryID)
             return true
           } catch (error) {
             reportCaught('signboard-store.toRemoveCheck', error)
@@ -967,6 +1117,25 @@ async function applyAction(
   }
 }
 
+/** 有子任务时把 entry.progress 写回为 done/total*100；清空清单时不强制改（保留手工进度）。 */
+async function syncEntryProgressFromChecks(getter: () => SignboardStore, entryID: string) {
+  const pct = findChecklistPct(getter().checksForEntry(entryID))
+  if (pct === null) return
+  const entry = getter().entries.find(function (item) {
+    return item.id === entryID
+  })
+  if (!entry || entry.progress === pct) return
+  try {
+    await invoke(CHANNELS.SIGNBOARD_ENTRY.UPDATE, {
+      params: { key: entryID, change: { progress: pct } satisfies EntryChange }
+    })
+    const boardID = getter().activeBoardID
+    if (boardID) await getter().toActivateBoard(boardID)
+  } catch (error) {
+    reportCaught('signboard-store.syncEntryProgress', error)
+  }
+}
+
 /** 自动化写卡：不二次触发规则，避免同 trigger 递归。 */
 async function persistCardChange(
   getter: () => SignboardStore,
@@ -984,11 +1153,12 @@ async function persistCardChange(
   }
 }
 
-export { TAG_COLORS, useSignboardStore }
+export { COLUMN_COLORS, TAG_COLORS, useSignboardStore }
 export type {
   AutomationChange,
   AutomationWrite,
   BoardChange,
+  ColumnRole,
   EntryChange,
   EntryWrite,
   ColumnChange,

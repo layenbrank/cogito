@@ -8,13 +8,17 @@ import {
   DropdownMenuTrigger
 } from '@cogito/design/components/dropdown-menu'
 import { clsx } from 'clsx'
-import type { KeyboardEvent } from 'react'
+import type { CSSProperties, KeyboardEvent } from 'react'
+import { toast } from 'sonner'
 
-import type {
-  SignboardEntry,
-  SignboardCheck,
-  SignboardTag
+import {
+  useSignboardStore,
+  type SignboardEntry,
+  type SignboardCheck,
+  type SignboardTag
 } from '@/stores/signboard'
+import { CardQuickPanel } from '@/views/signboard/card-quick-panel'
+import { findChecklistProgress } from '@/views/signboard/progress'
 import styles from '@/views/signboard/signboard.module.scss'
 
 interface CardItemProps {
@@ -23,7 +27,7 @@ interface CardItemProps {
   checklist: SignboardCheck[]
   coverSrc: string | null
   attachmentCount: number
-  showDropBefore: boolean
+  dragDisabled?: boolean
   isDimmed: boolean
   isSelected: boolean
   onOpen: (entryID: string) => void
@@ -49,30 +53,66 @@ function dueTone(dueAt: number | null) {
   return 'later'
 }
 
+function hasNotes(notes: string) {
+  return notes.trim().length > 0
+}
+
 function CardItem(props: CardItemProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const disabled = props.dragDisabled === true
+  const toUntagEntry = useSignboardStore(function (state) {
+    return state.toUntagEntry
+  })
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({
     id: props.card.id,
-    data: { type: 'card', columnID: props.card.columnID }
+    data: { type: 'card', columnID: props.card.columnID },
+    disabled,
+    transition: {
+      duration: 220,
+      easing: 'cubic-bezier(0.25, 1, 0.5, 1)'
+    }
   })
 
   const tone = dueTone(props.card.dueAt)
-  const visibleTags = props.tags.slice(0, 2)
-  const checklistTotal = props.checklist.length
-  const checklistDone = props.checklist.filter(function (item) {
-    return item.done
-  }).length
+  const visibleTags = props.tags.slice(0, 5)
+  const hiddenTagCount = Math.max(0, props.tags.length - visibleTags.length)
+  const checklist = findChecklistProgress(props.checklist)
+  const showNotes = hasNotes(props.card.notes)
+  const showDue =
+    props.card.dueAt !== null && props.card.dueAt !== undefined
+  const hasMeta =
+    showNotes ||
+    showDue ||
+    checklist.total > 0 ||
+    props.attachmentCount > 0 ||
+    props.card.priority > 0 ||
+    Boolean(props.card.reminderID)
+
+  async function removeTag(tagID: string) {
+    const ok = await toUntagEntry(props.card.id, tagID)
+    if (!ok) toast.error('移除标签失败')
+  }
+
+  const style: CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition: transition ?? undefined
+  }
 
   return (
     <li
       ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition
-      }}
+      style={style}
       className={clsx(
         styles.card,
-        isDragging && styles.cardDragging,
-        props.isDimmed && styles.cardDimmed,
+        isDragging && styles.dragSource,
+        props.isDimmed && !isDragging && styles.cardDimmed,
         props.isSelected && styles.cardSelected
       )}
       tabIndex={0}
@@ -82,137 +122,198 @@ function CardItem(props: CardItemProps) {
       onKeyDown={function (event) {
         props.onKeyMove(props.card.id, event)
       }}>
-      {props.showDropBefore ? <div className={styles.dropIndicator} aria-hidden /> : null}
+      {props.coverSrc ? (
+        <div
+          className={styles.cardCover}
+          onClick={function () {
+            props.onOpen(props.card.id)
+          }}>
+          <img
+            src={props.coverSrc}
+            alt=""
+            draggable={false}
+          />
+        </div>
+      ) : null}
 
-      <button
-        type="button"
-        className={styles.handle}
-        aria-label="拖拽卡片"
-        {...attributes}
-        {...listeners}>
-        <Icon
-          icon="lucide:grip-vertical"
-          className="size-4"
-        />
-      </button>
+      <div className={styles.cardMain}>
+        <button
+          type="button"
+          className={styles.handle}
+          aria-label="拖拽卡片"
+          {...attributes}
+          {...listeners}>
+          <Icon
+            icon="lucide:grip-vertical"
+            className="size-3.5"
+          />
+        </button>
 
-      <div
-        className={styles.cardBody}
-        onClick={function () {
-          props.onOpen(props.card.id)
-        }}>
-        {props.coverSrc ? (
-          <div className={styles.cardCover}>
-            <img
-              src={props.coverSrc}
-              alt=""
-              draggable={false}
+        <div
+          className={styles.cardBody}
+          onClick={function () {
+            props.onOpen(props.card.id)
+          }}>
+          <div className={styles.cardHead}>
+            <div className={styles.cardLabelRow}>
+              {visibleTags.map(function (tag) {
+                return (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    className={styles.cardLabel}
+                    title={`移除标签「${tag.title}」`}
+                    style={{
+                      background: tag.color ?? 'var(--muted-foreground)'
+                    }}
+                    onClick={function (event) {
+                      event.stopPropagation()
+                      void removeTag(tag.id)
+                    }}
+                    onPointerDown={function (event) {
+                      event.stopPropagation()
+                    }}>
+                    <span className={styles.cardLabelText}>{tag.title}</span>
+                  </button>
+                )
+              })}
+              {hiddenTagCount > 0 ? (
+                <span className={styles.tagMore}>+{hiddenTagCount}</span>
+              ) : null}
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className={styles.menuTrigger}
+                aria-label="卡片菜单"
+                onClick={function (event) {
+                  event.stopPropagation()
+                }}
+                onPointerDown={function (event) {
+                  event.stopPropagation()
+                }}>
+                <Icon
+                  icon="lucide:more-horizontal"
+                  className="size-4"
+                />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side="bottom"
+                align="end"
+                sideOffset={4}
+                className="min-w-36">
+                <DropdownMenuItem
+                  onClick={function () {
+                    props.onOpen(props.card.id)
+                  }}>
+                  <Icon
+                    icon="lucide:panel-right"
+                    className="size-4"
+                  />
+                  打开详情
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={function () {
+                    props.onArchive(props.card.id)
+                  }}>
+                  <Icon
+                    icon="lucide:archive"
+                    className="size-4"
+                  />
+                  归档
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <p className={styles.cardTitle}>{props.card.title}</p>
+
+          <div className={hasMeta ? styles.cardMeta : styles.cardMetaEmpty}>
+            {showNotes ? (
+              <span
+                className={styles.metaBadge}
+                title="有描述"
+                aria-label="有描述">
+                <Icon
+                  icon="lucide:align-left"
+                  className="size-3.5"
+                  aria-hidden
+                />
+              </span>
+            ) : null}
+            {showDue ? (
+              <span
+                className={clsx(
+                  styles.due,
+                  tone === 'overdue' && styles.dueOverdue,
+                  tone === 'today' && styles.dueToday
+                )}>
+                <Icon
+                  icon="lucide:calendar"
+                  className="size-3"
+                  aria-hidden
+                />
+                {formatDue(props.card.dueAt as number)}
+              </span>
+            ) : null}
+            {checklist.total > 0 ? (
+              <CardQuickPanel
+                card={props.card}
+                checklist={props.checklist}
+                focus="checks"
+                trigger={
+                  <button
+                    type="button"
+                    className={styles.metaBadge}
+                    title="清单"
+                    onClick={function (event) {
+                      event.stopPropagation()
+                    }}
+                    onPointerDown={function (event) {
+                      event.stopPropagation()
+                    }}>
+                    <Icon
+                      icon="lucide:square-check-big"
+                      className="size-3.5"
+                      aria-hidden
+                    />
+                    {checklist.done}/{checklist.total}
+                  </button>
+                }
+              />
+            ) : null}
+            {props.attachmentCount > 0 ? (
+              <span className={styles.metaBadge}>
+                <Icon
+                  icon="lucide:paperclip"
+                  className="size-3.5"
+                  aria-hidden
+                />
+                {props.attachmentCount}
+              </span>
+            ) : null}
+            {props.card.priority > 0 ? (
+              <span className={styles.priorityBadge}>P{props.card.priority}</span>
+            ) : null}
+            {props.card.reminderID ? (
+              <span
+                className={styles.metaBadge}
+                aria-label="已设提醒">
+                <Icon
+                  icon="lucide:bell"
+                  className="size-3.5"
+                  aria-hidden
+                />
+              </span>
+            ) : null}
+            <CardQuickPanel
+              card={props.card}
+              checklist={props.checklist}
+              focus="tags"
             />
           </div>
-        ) : null}
-        <p className={styles.cardTitle}>{props.card.title}</p>
-        <div className={styles.cardMeta}>
-          {visibleTags.map(function (tag) {
-            return (
-              <span
-                key={tag.id}
-                className={styles.tag}
-                style={
-                  tag.color
-                    ? {
-                        background: `color-mix(in oklab, ${tag.color} 18%, var(--card))`,
-                        color: tag.color
-                      }
-                    : undefined
-                }>
-                {tag.title}
-              </span>
-            )
-          })}
-          {props.card.dueAt !== null && props.card.dueAt !== undefined ? (
-            <span
-              className={clsx(
-                styles.due,
-                tone === 'overdue' && styles.dueOverdue,
-                tone === 'today' && styles.dueToday
-              )}>
-              <Icon
-                icon="lucide:calendar"
-                className="size-3"
-                aria-hidden
-              />
-              {formatDue(props.card.dueAt)}
-            </span>
-          ) : null}
-          {checklistTotal > 0 ? (
-            <span className={styles.checklistBadge}>
-              <Icon
-                icon="lucide:list-checks"
-                className="size-3"
-                aria-hidden
-              />
-              {checklistDone}/{checklistTotal}
-            </span>
-          ) : null}
-          {props.attachmentCount > 0 ? (
-            <span className={styles.checklistBadge}>
-              <Icon
-                icon="lucide:paperclip"
-                className="size-3"
-                aria-hidden
-              />
-              {props.attachmentCount}
-            </span>
-          ) : null}
-          {props.card.priority > 0 ? (
-            <span className={styles.priorityBadge}>P{props.card.priority}</span>
-          ) : null}
-          {props.card.reminderID ? (
-            <Icon
-              icon="lucide:bell"
-              className="size-3.5 text-muted-foreground"
-              aria-label="已设提醒"
-            />
-          ) : null}
         </div>
       </div>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          className={styles.menuTrigger}
-          aria-label="卡片菜单"
-          onClick={function (event) {
-            event.stopPropagation()
-          }}>
-          <Icon
-            icon="lucide:more-horizontal"
-            className="size-4"
-          />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            onClick={function () {
-              props.onOpen(props.card.id)
-            }}>
-            <Icon
-              icon="lucide:panel-right"
-              className="size-4"
-            />
-            打开详情
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={function () {
-              props.onArchive(props.card.id)
-            }}>
-            <Icon
-              icon="lucide:archive"
-              className="size-4"
-            />
-            归档
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </li>
   )
 }

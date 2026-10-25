@@ -2,19 +2,24 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
+  MeasuringStrategy,
   PointerSensor,
-  closestCorners,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent
 } from '@dnd-kit/core'
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
+import {
+  horizontalListSortingStrategy,
+  SortableContext,
+  sortableKeyboardCoordinates
+} from '@dnd-kit/sortable'
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { Input } from '@cogito/design/components/input'
+import { clsx } from 'clsx'
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { toast } from 'sonner'
 
@@ -26,6 +31,19 @@ import {
   type SignboardTag
 } from '@/stores/signboard'
 import { ColumnLane } from '@/views/signboard/column-lane'
+import {
+  CardDragPreview,
+  ColumnDragPreview,
+  type OverlaySize
+} from '@/views/signboard/drag-preview'
+import {
+  createKanbanCollision,
+  moveEntryDraft,
+  parseColumnDropID,
+  resolveCardDrop,
+  type DragKind,
+  type DroppableData
+} from '@/views/signboard/dnd'
 import styles from '@/views/signboard/signboard.module.scss'
 import type { GalleryAsset } from '@/views/gallery/model/media'
 
@@ -49,28 +67,50 @@ interface KanbanViewProps {
   onCommitColumn: () => Promise<void>
 }
 
-function parseSemantic(title: string, index: number) {
+function parseSemantic(column: { title: string; index: number; role: string | null }) {
+  if (column.role === 'todo' || column.role === 'doing' || column.role === 'done') {
+    return column.role
+  }
+  const title = column.title
   if (title.includes('完成') || title.toLowerCase().includes('done')) return 'done' as const
   if (title.includes('进行') || title.toLowerCase().includes('doing')) return 'doing' as const
-  if (index === 0 || title.includes('待办')) return 'todo' as const
+  if (column.index === 0 || title.includes('待办')) return 'todo' as const
   return 'other' as const
 }
 
+function findEntriesInColumn(entries: SignboardEntry[], columnID: string) {
+  return entries
+    .filter(function (card) {
+      return card.columnID === columnID && card.archivedAt === null
+    })
+    .slice()
+    .sort(function (a, b) {
+      return a.index - b.index
+    })
+}
+
+function findCardColumnID(entries: SignboardEntry[], cardID: string) {
+  const card = entries.find(function (row) {
+    return row.id === cardID
+  })
+  return card?.columnID ?? null
+}
+
 function KanbanView(props: KanbanViewProps) {
-  const entriesInColumn = useSignboardStore(function (state) {
+  const storeEntriesInColumn = useSignboardStore(function (state) {
     return state.entriesInColumn
   })
   const toMoveEntry = useSignboardStore(function (state) {
     return state.toMoveEntry
+  })
+  const toMoveColumn = useSignboardStore(function (state) {
+    return state.toMoveColumn
   })
   const toWriteEntry = useSignboardStore(function (state) {
     return state.toWriteEntry
   })
   const checksForEntry = useSignboardStore(function (state) {
     return state.checksForEntry
-  })
-  const assetsForEntry = useSignboardStore(function (state) {
-    return state.assetsForEntry
   })
   const coverAssetID = useSignboardStore(function (state) {
     return state.coverAssetID
@@ -79,12 +119,28 @@ function KanbanView(props: KanbanViewProps) {
     return state.entryAssets
   })
 
+  const [dragKind, setDragKind] = useState<DragKind | null>(null)
   const [activeDragID, setActiveDragID] = useState<string | null>(null)
-  const [dropBeforeID, setDropBeforeID] = useState<string | null>(null)
+  const [overlaySize, setOverlaySize] = useState<OverlaySize | null>(null)
+  /** 仅跨列拖卡时使用；同列靠 sortable transform，避免 onDragOver 改序闪烁 */
+  const [liveEntries, setLiveEntries] = useState<SignboardEntry[] | null>(null)
+  const [originCardSlot, setOriginCardSlot] = useState<{
+    columnID: string
+    index: number
+  } | null>(null)
   const [coverSrcByCard, setCoverSrcByCard] = useState<Map<string, string>>(
     function () {
       return new Map()
     }
+  )
+
+  const boardEntries = liveEntries ?? props.entries
+
+  const collisionDetection = useMemo(
+    function () {
+      return createKanbanCollision(dragKind)
+    },
+    [dragKind]
   )
 
   const attachmentCountByCard = useMemo(
@@ -155,73 +211,98 @@ function KanbanView(props: KanbanViewProps) {
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 }
+      activationConstraint: { distance: 10 }
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates
     })
   )
 
-  function resolveTarget(event: DragEndEvent | DragOverEvent) {
-    const { active, over } = event
-    if (!over) return null
-    const activeID = String(active.id)
-    const overID = String(over.id)
-    const overData = over.data.current as { type?: string; columnID?: string } | undefined
+  function entriesInColumn(columnID: string) {
+    if (liveEntries) return findEntriesInColumn(liveEntries, columnID)
+    return storeEntriesInColumn(columnID)
+  }
 
-    let toColumnID = overData?.columnID
-    if (!toColumnID) {
-      const overCard = props.entries.find(function (card) {
-        return card.id === overID
-      })
-      toColumnID = overCard?.columnID
-    }
-    if (
-      !toColumnID &&
-      props.columns.some(function (column) {
-        return column.id === overID
-      })
-    ) {
-      toColumnID = overID
-    }
-    if (!toColumnID) return null
-
-    const destCards = entriesInColumn(toColumnID).filter(function (card) {
-      return card.id !== activeID
-    })
-    let toIndex = destCards.length
-    const overCardIndex = destCards.findIndex(function (card) {
-      return card.id === overID
-    })
-    if (overCardIndex >= 0) toIndex = overCardIndex
-
-    return { activeID, toColumnID, toIndex, overID, overType: overData?.type }
+  function clearDragState() {
+    setDragKind(null)
+    setActiveDragID(null)
+    setOverlaySize(null)
+    setLiveEntries(null)
+    setOriginCardSlot(null)
   }
 
   function onDragStart(event: DragStartEvent) {
-    setActiveDragID(String(event.active.id))
+    const activeData = event.active.data.current as DroppableData | undefined
+    const kind = activeData?.type === 'column-sort' ? 'column-sort' : 'card'
+    const initial = event.active.rect.current.initial
+    setDragKind(kind)
+    setOverlaySize(
+      initial
+        ? { width: Math.round(initial.width), height: Math.round(initial.height) }
+        : null
+    )
+
+    if (kind === 'column-sort') {
+      const columnID = activeData?.columnID ?? String(event.active.id)
+      setActiveDragID(columnID)
+      setLiveEntries(null)
+      setOriginCardSlot(null)
+      return
+    }
+
+    const cardID = String(event.active.id)
+    const card = props.entries.find(function (row) {
+      return row.id === cardID
+    })
+    setActiveDragID(cardID)
+    // 同列不预建 liveEntries，避免整板重渲染打断 sortable transform 过渡
+    setLiveEntries(null)
+    setOriginCardSlot(
+      card ? { columnID: card.columnID, index: card.index } : null
+    )
   }
 
   function onDragOver(event: DragOverEvent) {
-    const target = resolveTarget(event)
-    if (!target || target.activeID === target.overID) {
-      setDropBeforeID(null)
-      return
-    }
-    if (target.overType === 'column' || target.overID === target.toColumnID) {
-      setDropBeforeID(target.toColumnID)
-      return
-    }
-    setDropBeforeID(target.overID)
-  }
+    const activeData = event.active.data.current as DroppableData | undefined
+    if (activeData?.type === 'column-sort') return
+    if (activeData?.type !== 'card') return
 
-  function onDragEnd(event: DragEndEvent) {
-    setActiveDragID(null)
-    setDropBeforeID(null)
-    const target = resolveTarget(event)
-    if (!target) return
-    const moving = props.entries.find(function (card) {
-      return card.id === target.activeID
+    const over = event.over
+    if (!over) return
+
+    const overData = over.data.current as DroppableData | undefined
+    const activeID = String(event.active.id)
+    const overColumnID =
+      overData?.columnID ?? parseColumnDropID(String(over.id)) ?? null
+    if (!overColumnID) return
+
+    const sourceEntries = liveEntries ?? props.entries
+    const fromColumnID = findCardColumnID(sourceEntries, activeID)
+    if (!fromColumnID) return
+
+    // 同列：完全不碰 React 状态，只靠 useSortable 的 transform/transition
+    if (fromColumnID === overColumnID) return
+
+    const translated = event.active.rect.current.translated
+    const target = resolveCardDrop({
+      activeID,
+      overID: String(over.id),
+      overType: overData?.type,
+      overColumnID,
+      pointerY: translated
+        ? translated.top + translated.height / 2
+        : null,
+      overRect: over.rect
+        ? { top: over.rect.top, height: over.rect.height }
+        : null,
+      entriesInColumn: function (columnID) {
+        return findEntriesInColumn(sourceEntries, columnID)
+      }
+    })
+    if (!target || target.toColumnID === fromColumnID) return
+
+    const moving = sourceEntries.find(function (card) {
+      return card.id === activeID
     })
     if (
       moving &&
@@ -230,14 +311,107 @@ function KanbanView(props: KanbanViewProps) {
     ) {
       return
     }
-    void toMoveEntry(target.activeID, target.toColumnID, target.toIndex).then(function (ok) {
+
+    setLiveEntries(
+      moveEntryDraft(
+        sourceEntries.map(function (row) {
+          return { ...row }
+        }),
+        target.activeID,
+        target.toColumnID,
+        target.toIndex
+      )
+    )
+  }
+
+  function onDragEnd(event: DragEndEvent) {
+    const kind = dragKind
+    const finalEntries = liveEntries
+    const startCardSlot = originCardSlot
+    const { active, over } = event
+    clearDragState()
+
+    if (!over) return
+
+    const activeData = active.data.current as DroppableData | undefined
+    const overData = over.data.current as DroppableData | undefined
+
+    if (kind === 'column-sort' || activeData?.type === 'column-sort') {
+      const activeColumnID = activeData?.columnID ?? String(active.id)
+      const overColumnID = overData?.columnID ?? String(over.id)
+      const fromIndex = props.columns.findIndex(function (column) {
+        return column.id === activeColumnID
+      })
+      const toIndex = props.columns.findIndex(function (column) {
+        return column.id === overColumnID
+      })
+      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return
+      void toMoveColumn(activeColumnID, toIndex).then(function (ok) {
+        if (!ok) toast.error('列顺序保存失败，已恢复')
+      })
+      return
+    }
+
+    const activeID = String(active.id)
+    const entries = finalEntries ?? props.entries
+    const liveCard = finalEntries?.find(function (card) {
+      return card.id === activeID
+    })
+
+    // 跨列：dragOver 已写入 liveEntries，直接按最终槽位落库
+    if (
+      liveCard &&
+      startCardSlot &&
+      liveCard.columnID !== startCardSlot.columnID
+    ) {
+      void toMoveEntry(activeID, liveCard.columnID, liveCard.index).then(
+        function (ok) {
+          if (!ok) toast.error('没能保存顺序，已恢复')
+        }
+      )
+      return
+    }
+
+    const fromColumnID =
+      startCardSlot?.columnID ?? findCardColumnID(entries, activeID)
+    if (!fromColumnID) return
+
+    const cards = findEntriesInColumn(entries, fromColumnID)
+    const fromIndex = cards.findIndex(function (card) {
+      return card.id === activeID
+    })
+    if (fromIndex < 0) return
+
+    const overIsColumnDrop =
+      overData?.type === 'column-drop' ||
+      parseColumnDropID(String(over.id)) !== null
+
+    let toIndex = -1
+    if (overIsColumnDrop) {
+      toIndex = cards.length - 1
+    } else if (overData?.type === 'card' || cards.some(function (card) {
+      return card.id === String(over.id)
+    })) {
+      toIndex = cards.findIndex(function (card) {
+        return card.id === String(over.id)
+      })
+    }
+
+    if (toIndex < 0 || fromIndex === toIndex) return
+
+    void toMoveEntry(activeID, fromColumnID, toIndex).then(function (ok) {
       if (!ok) toast.error('没能保存顺序，已恢复')
     })
   }
 
+  function moveColumnByMenu(columnID: string, toIndex: number) {
+    void toMoveColumn(columnID, toIndex).then(function (ok) {
+      if (!ok) toast.error('列顺序保存失败，已恢复')
+    })
+  }
+
   function onDragCancel() {
-    setActiveDragID(null)
-    setDropBeforeID(null)
+    clearDragState()
   }
 
   function onKeyMove(entryID: string, event: KeyboardEvent) {
@@ -258,7 +432,7 @@ function KanbanView(props: KanbanViewProps) {
       return column.id === card.columnID
     })
     if (colIndex < 0) return
-    const columnCards = entriesInColumn(card.columnID)
+    const columnCards = storeEntriesInColumn(card.columnID)
     const index = columnCards.findIndex(function (row) {
       return row.id === entryID
     })
@@ -275,29 +449,50 @@ function KanbanView(props: KanbanViewProps) {
       event.preventDefault()
       const dest = props.columns[colIndex - 1]
       if (!dest) return
-      void toMoveEntry(entryID, dest.id, entriesInColumn(dest.id).length)
+      void toMoveEntry(entryID, dest.id, storeEntriesInColumn(dest.id).length)
     }
     if (event.key === 'ArrowRight' && colIndex < props.columns.length - 1) {
       event.preventDefault()
       const dest = props.columns[colIndex + 1]
       if (!dest) return
-      void toMoveEntry(entryID, dest.id, entriesInColumn(dest.id).length)
+      void toMoveEntry(entryID, dest.id, storeEntriesInColumn(dest.id).length)
     }
   }
 
-  const dragCard = props.entries.find(function (card) {
-    return card.id === activeDragID
+  const columnIDs = props.columns.map(function (column) {
+    return column.id
   })
+
+  const dragCard =
+    dragKind === 'card'
+      ? boardEntries.find(function (card) {
+          return card.id === activeDragID
+        })
+      : undefined
+  const dragColumn =
+    dragKind === 'column-sort'
+      ? props.columns.find(function (column) {
+          return column.id === activeDragID
+        })
+      : undefined
 
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={collisionDetection}
+      measuring={{
+        droppable: { strategy: MeasuringStrategy.Always }
+      }}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       onDragCancel={onDragCancel}>
-      <div className={styles.board}>
+      <div
+        className={clsx(
+          styles.board,
+          dragKind === 'card' && styles.boardDraggingCard,
+          dragKind === 'column-sort' && styles.boardDraggingColumn
+        )}>
         {props.columns.length === 0 ? (
           <div className={styles.emptyBoard}>
             <div className={styles.emptyIcon}>
@@ -321,39 +516,47 @@ function KanbanView(props: KanbanViewProps) {
             </Button>
           </div>
         ) : (
-          props.columns.map(function (column) {
-            return (
-              <ColumnLane
-                key={column.id}
-                column={column}
-                entries={entriesInColumn(column.id)}
-                tagsByCard={props.tagsByCard}
-                checksForEntry={checksForEntry}
-                coverSrcByCard={coverSrcByCard}
-                attachmentCountByCard={attachmentCountByCard}
-                dropBeforeID={dropBeforeID}
-                isDimmedCard={props.isDimmedCard}
-                selectedCardID={props.selectedCardID}
-                semantic={parseSemantic(column.title, column.index)}
-                requestAdd={props.addRequestColumnID === column.id}
-                onConsumedAddRequest={props.onConsumedAddRequest}
-                onOpenCard={props.onOpenCard}
-                onFocusCard={props.onFocusCard}
-                onKeyMove={onKeyMove}
-                onWriteCard={async function (columnID, title) {
-                  const id = await toWriteEntry({ columnID, title })
-                  if (!id) {
-                    toast.error('添加卡片失败')
-                    return
-                  }
-                  toast.success('已添加卡片')
-                }}
-                onRenameColumn={props.onRenameColumn}
-                onArchiveColumn={props.onArchiveColumn}
-                onArchiveCard={props.onArchiveCard}
-              />
-            )
-          })
+          <SortableContext
+            items={columnIDs}
+            strategy={horizontalListSortingStrategy}>
+            {props.columns.map(function (column, columnIndex) {
+              return (
+                <ColumnLane
+                  key={column.id}
+                  column={column}
+                  columnIndex={columnIndex}
+                  canMoveLeft={columnIndex > 0}
+                  canMoveRight={columnIndex < props.columns.length - 1}
+                  onMoveColumn={moveColumnByMenu}
+                  entries={entriesInColumn(column.id)}
+                  tagsByCard={props.tagsByCard}
+                  checksForEntry={checksForEntry}
+                  coverSrcByCard={coverSrcByCard}
+                  attachmentCountByCard={attachmentCountByCard}
+                  dragKind={dragKind}
+                  isDimmedCard={props.isDimmedCard}
+                  selectedCardID={props.selectedCardID}
+                  semantic={parseSemantic(column)}
+                  requestAdd={props.addRequestColumnID === column.id}
+                  onConsumedAddRequest={props.onConsumedAddRequest}
+                  onOpenCard={props.onOpenCard}
+                  onFocusCard={props.onFocusCard}
+                  onKeyMove={onKeyMove}
+                  onWriteCard={async function (columnID, title) {
+                    const id = await toWriteEntry({ columnID, title })
+                    if (!id) {
+                      toast.error('添加卡片失败')
+                      return
+                    }
+                    toast.success('已添加卡片')
+                  }}
+                  onRenameColumn={props.onRenameColumn}
+                  onArchiveColumn={props.onArchiveColumn}
+                  onArchiveCard={props.onArchiveCard}
+                />
+              )
+            })}
+          </SortableContext>
         )}
 
         {props.addingColumn || props.columns.length > 0 ? (
@@ -421,31 +624,30 @@ function KanbanView(props: KanbanViewProps) {
         ) : null}
       </div>
 
-      <DragOverlay dropAnimation={null}>
+      <DragOverlay
+        dropAnimation={null}
+        adjustScale={false}>
         {dragCard ? (
-          <div className={styles.overlayCard}>
-            {coverSrcByCard.get(dragCard.id) ? (
-              <img
-                src={coverSrcByCard.get(dragCard.id)}
-                alt=""
-                className={styles.overlayCover}
-              />
-            ) : null}
-            <p className="text-sm font-medium">{dragCard.title}</p>
-            {assetsForEntry(dragCard.id).length > 0 ||
-            checksForEntry(dragCard.id).length > 0 ? (
-              <p className={styles.overlayMeta}>
-                {checksForEntry(dragCard.id).length > 0
-                  ? `子任务 ${checksForEntry(dragCard.id).filter(function (item) {
-                      return item.done
-                    }).length}/${checksForEntry(dragCard.id).length}`
-                  : null}
-                {assetsForEntry(dragCard.id).length > 0
-                  ? `${checksForEntry(dragCard.id).length > 0 ? ' · ' : ''}附件 ${assetsForEntry(dragCard.id).length}`
-                  : null}
-              </p>
-            ) : null}
-          </div>
+          <CardDragPreview
+            card={dragCard}
+            tags={props.tagsByCard.get(dragCard.id) ?? []}
+            checklist={checksForEntry(dragCard.id)}
+            coverSrc={coverSrcByCard.get(dragCard.id) ?? null}
+            attachmentCount={attachmentCountByCard.get(dragCard.id) ?? 0}
+            size={overlaySize}
+          />
+        ) : null}
+        {dragColumn ? (
+          <ColumnDragPreview
+            column={dragColumn}
+            semantic={parseSemantic(dragColumn)}
+            entries={entriesInColumn(dragColumn.id)}
+            tagsByCard={props.tagsByCard}
+            checksForEntry={checksForEntry}
+            coverSrcByCard={coverSrcByCard}
+            attachmentCountByCard={attachmentCountByCard}
+            size={overlaySize}
+          />
         ) : null}
       </DragOverlay>
     </DndContext>

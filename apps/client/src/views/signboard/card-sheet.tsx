@@ -13,27 +13,32 @@ import {
   SelectValue
 } from '@cogito/design/components/select'
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle
-} from '@cogito/design/components/sheet'
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@cogito/design/components/dialog'
 import { Switch } from '@cogito/design/components/switch'
 import { Textarea } from '@cogito/design/components/textarea'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
 import { debounce } from 'lodash-es'
+import { cn } from 'cn'
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ClipboardEvent,
   type DragEvent
 } from 'react'
 import { toast } from 'sonner'
 
+import {
+  MediaLightbox,
+  type LightboxMedia
+} from '@/components/media-lightbox'
 import { CHANNELS } from '@/shared/ipc/channels'
 import { useReminderStore } from '@/stores/reminder'
 import {
@@ -167,7 +172,22 @@ function CardSheet(props: CardSheetProps) {
   const [importing, setImporting] = useState(false)
   const [isAttachDragOver, setIsAttachDragOver] = useState(false)
   const [previews, setPreviews] = useState<AttachmentPreview[]>([])
-  const [colorPickerTagID, setColorPickerTagID] = useState<string | null>(null)
+  const [lightboxID, setLightboxID] = useState<string | null>(null)
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false)
+  const [wasSheetOpen, setWasSheetOpen] = useState(props.open)
+  // 随弹层关闭复位预览态（渲染期同步，避免 effect 内 setState）
+  if (props.open !== wasSheetOpen) {
+    setWasSheetOpen(props.open)
+    if (!props.open) {
+      setIsLightboxOpen(false)
+      setLightboxID(null)
+    }
+  }
+  // native TS DOM lib 暂无 HTMLSectionElement，用 HTMLElement 承接 <section>
+  const labelsRef = useRef<HTMLElement | null>(null)
+  const datesRef = useRef<HTMLElement | null>(null)
+  const checksRef = useRef<HTMLElement | null>(null)
+  const attachRef = useRef<HTMLElement | null>(null)
 
   const attached = props.card ? tagIDsForEntry(props.card.id) : []
   const checklist = props.card ? checksForEntry(props.card.id) : []
@@ -183,6 +203,29 @@ function CardSheet(props: CardSheetProps) {
   const checklistTotal = checklist.length
   const checklistPct =
     checklistTotal === 0 ? 0 : Math.round((checklistDone / checklistTotal) * 100)
+  const displayPct = checklistPct
+  const lightboxMedias = useMemo(
+    function (): LightboxMedia[] {
+      return previews.map(function (item) {
+        return {
+          id: item.assetID,
+          src: item.src,
+          fileName: item.fileName,
+          kind: 'image'
+        }
+      })
+    },
+    [previews]
+  )
+
+  function scrollToSection(ref: { current: HTMLElement | null }) {
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  function openLightbox(assetID: string) {
+    setLightboxID(assetID)
+    setIsLightboxOpen(true)
+  }
 
   const filteredTags = useMemo(
     function () {
@@ -276,24 +319,34 @@ function CardSheet(props: CardSheetProps) {
   const entryID = props.card.id
   const reminderID = props.card.reminderID
 
-  async function saveDueAndRemind() {
+  async function persistSchedule(next: {
+    due?: Dayjs | null
+    start?: Dayjs | null
+    priority?: string
+    remind?: boolean
+  }) {
+    const nextDue = next.due !== undefined ? next.due : due
+    const nextStart = next.start !== undefined ? next.start : start
+    const nextPriority = next.priority !== undefined ? next.priority : priority
+    const nextRemind = next.remind !== undefined ? next.remind : remind
     setSaving(true)
     try {
-      const dueAt = parseTimestamp(due)
-      const startAt = parseTimestamp(start)
+      const dueAt = parseTimestamp(nextDue)
+      const startAt = parseTimestamp(nextStart)
       const updated = await toUpdateEntry(entryID, {
         dueAt,
         startAt,
-        priority: Number(priority) || 0
+        priority: Number(nextPriority) || 0
       })
       if (!updated) {
-        toast.error('保存失败')
+        toast.error('日程保存失败')
         return
       }
 
-      if (remind) {
+      if (nextRemind) {
         if (dueAt === null || dueAt === undefined) {
           toast.error('开启提醒需要先设置到期日')
+          setRemind(false)
           return
         }
         if (reminderID) {
@@ -309,12 +362,11 @@ function CardSheet(props: CardSheetProps) {
           })
           if (!id) {
             toast.error('创建提醒失败')
+            setRemind(false)
             return
           }
           await toUpdateEntry(entryID, { reminderID: id, dueAt })
         }
-        toast.success('已保存并开启提醒')
-        props.onUpdateOpen(false)
         return
       }
 
@@ -325,10 +377,8 @@ function CardSheet(props: CardSheetProps) {
         })
         await toUpdateEntry(entryID, { reminderID: null, dueAt })
       }
-      toast.success('已保存')
-      props.onUpdateOpen(false)
     } catch {
-      toast.error('保存失败')
+      toast.error('日程保存失败')
     } finally {
       setSaving(false)
     }
@@ -445,30 +495,37 @@ function CardSheet(props: CardSheetProps) {
   }
 
   return (
-    <Sheet
+    <>
+    <Dialog
       open={props.open}
       onOpenChange={props.onUpdateOpen}>
-      <SheetContent
-        side="right"
+      <DialogContent
+        side="center"
         showCloseButton
-        overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-xs"
-        className="w-[min(420px,94vw)] gap-0 sm:max-w-none"
+        overlayClassName="bg-black/45 supports-backdrop-filter:backdrop-blur-[2px]"
+        className={cn(
+          styles.cardDialog,
+          // 盖掉 Dialog 默认 sm:max-w-sm 与 max-h 40rem
+          'h-[min(88vh,56rem)]! max-h-[min(88vh,56rem)]! w-[min(960px,94vw)]! max-w-[min(960px,94vw)]! sm:max-w-[min(960px,94vw)]!'
+        )}
         onPaste={handleAttachPaste}>
-        <SheetHeader className="gap-1 pb-3">
-          <SheetTitle>卡片详情</SheetTitle>
-          <SheetDescription className="truncate">
-            {title.trim() || '未命名卡片'}
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className={styles.sheetSection}>
-          <section className={styles.sheetBlock}>
-            <p className={styles.sheetBlockTitle}>基本</p>
-            <div className={styles.sheetField}>
-              <Label htmlFor="signboard-card-title">标题</Label>
+        <DialogHeader className={styles.cardDialogHeader}>
+          <div className={styles.cardDialogHeaderInner}>
+            <DialogTitle className="sr-only">{title.trim() || '卡片详情'}</DialogTitle>
+            <div className={styles.cardDialogTitleRow}>
+              <span
+                className={styles.cardDialogTitleIcon}
+                aria-hidden>
+                <Icon
+                  icon="lucide:credit-card"
+                  className="size-5"
+                />
+              </span>
               <Input
                 id="signboard-card-title"
                 value={title}
+                className={styles.cardDialogTitleInput}
+                placeholder="卡片标题"
                 onChange={function (event) {
                   const next = event.target.value
                   setTitle(next)
@@ -476,120 +533,127 @@ function CardSheet(props: CardSheetProps) {
                 }}
               />
             </div>
-            <div className={styles.sheetField}>
-              <Label htmlFor="signboard-card-notes">备注</Label>
-              <Textarea
-                id="signboard-card-notes"
-                value={notes}
-                placeholder="补充上下文、验收标准或链接…"
-                className="min-h-24"
-                onChange={function (event) {
-                  setNotes(event.target.value)
-                }}
-                onBlur={function () {
-                  void toUpdateEntry(entryID, { notes }).then(function (ok) {
-                    if (!ok) toast.error('备注保存失败')
-                  })
-                }}
-              />
-            </div>
-          </section>
-
-          <section className={styles.sheetBlock}>
-            <p className={styles.sheetBlockTitle}>日程</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className={styles.sheetField}>
-                <Label htmlFor="signboard-card-start">开始</Label>
-                <DatePicker
-                  id="signboard-card-start"
-                  value={start}
-                  onChange={function (date) {
-                    setStart(date)
-                  }}
-                />
-              </div>
-              <div className={styles.sheetField}>
-                <Label htmlFor="signboard-card-due">到期</Label>
-                <DatePicker
-                  id="signboard-card-due"
-                  value={due}
-                  onChange={function (date) {
-                    setDue(date)
-                  }}
-                />
-              </div>
-            </div>
-            <div className={styles.sheetField}>
-              <Label>优先级</Label>
-              <Select
-                items={PRIORITY_OPTIONS.map(function (row) {
-                  return { value: row.value, label: row.label }
-                })}
-                value={priority}
-                onValueChange={function (value) {
-                  if (value === null) return
-                  setPriority(value)
-                  void toUpdateEntry(entryID, { priority: Number(value) || 0 }).then(function (ok) {
-                    if (!ok) toast.error('优先级保存失败')
-                  })
+            <div className={styles.cardDialogActions}>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className={styles.cardDialogAction}
+                onClick={function () {
+                  scrollToSection(labelsRef)
                 }}>
-                <SelectTrigger className="h-9 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRIORITY_OPTIONS.map(function (row) {
-                    return (
-                      <SelectItem
-                        key={row.value}
-                        value={row.value}>
-                        {row.label}
-                      </SelectItem>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
+                <Icon
+                  icon="lucide:tags"
+                  className="size-3.5"
+                />
+                标签
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className={styles.cardDialogAction}
+                onClick={function () {
+                  scrollToSection(datesRef)
+                }}>
+                <Icon
+                  icon="lucide:calendar"
+                  className="size-3.5"
+                />
+                日期
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className={styles.cardDialogAction}
+                onClick={function () {
+                  scrollToSection(checksRef)
+                }}>
+                <Icon
+                  icon="lucide:square-check-big"
+                  className="size-3.5"
+                />
+                清单
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className={styles.cardDialogAction}
+                onClick={function () {
+                  scrollToSection(attachRef)
+                }}>
+                <Icon
+                  icon="lucide:paperclip"
+                  className="size-3.5"
+                />
+                附件
+              </Button>
             </div>
-            <div className={styles.sheetRow}>
-              <HintTooltip
-                hint="写入本地 Reminder，到点通知"
-                htmlFor="signboard-card-remind">
-                提醒我
-              </HintTooltip>
-              <Switch
-                id="signboard-card-remind"
-                checked={remind}
-                onCheckedChange={function (checked) {
-                  setRemind(checked)
-                }}
+          </div>
+        </DialogHeader>
+
+        <div className={styles.cardDialogBody}>
+          <div className={styles.cardDialogLayout}>
+            <div className={styles.cardDialogMain}>
+          <section className={styles.sheetBlock}>
+            <div className={styles.dialogSectionHead}>
+              <Icon
+                icon="lucide:align-left"
+                className="size-4"
+                aria-hidden
               />
+              <h3 className={styles.dialogSectionTitle}>描述</h3>
             </div>
+            <Textarea
+              id="signboard-card-notes"
+              value={notes}
+              placeholder="补充上下文、验收标准或链接…"
+              className={styles.cardDialogNotes}
+              onChange={function (event) {
+                setNotes(event.target.value)
+              }}
+              onBlur={function () {
+                void toUpdateEntry(entryID, { notes }).then(function (ok) {
+                  if (!ok) toast.error('备注保存失败')
+                })
+              }}
+            />
           </section>
 
-          <section className={styles.sheetBlock}>
-            <div className={styles.sheetFieldHeader}>
-              <HintTooltip hint="把这张卡拆成可勾选的步骤；进度会显示在卡片上。">
-                子任务
+          <section
+            ref={checksRef}
+            className={styles.sheetBlock}>
+            <div className={styles.dialogSectionHead}>
+              <Icon
+                icon="lucide:square-check-big"
+                className="size-4"
+                aria-hidden
+              />
+              <HintTooltip
+                hint="把这张卡拆成可勾选的步骤；勾选后自动更新进度。"
+                className={styles.dialogSectionTitle}>
+                清单
               </HintTooltip>
-              {checklistTotal > 0 ? (
-                <span className={styles.checklistProgressLabel}>
-                  {checklistDone}/{checklistTotal}
-                </span>
-              ) : null}
+              <span className={`${styles.checklistProgressLabel} ${styles.dialogSectionAside}`}>
+                {checklistTotal > 0
+                  ? `${checklistDone}/${checklistTotal} · ${displayPct}%`
+                  : '暂无步骤'}
+              </span>
             </div>
-            {checklistTotal > 0 ? (
+            <div
+              className={styles.checklistTrack}
+              role="progressbar"
+              aria-valuenow={displayPct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="清单进度">
               <div
-                className={styles.checklistTrack}
-                role="progressbar"
-                aria-valuenow={checklistPct}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label="子任务进度">
-                <div
-                  className={styles.checklistFill}
-                  style={{ width: `${checklistPct}%` }}
-                />
-              </div>
-            ) : null}
+                className={styles.checklistFill}
+                style={{ width: `${displayPct}%` }}
+              />
+            </div>
             <ul className={styles.checklistList}>
               {checklist.map(function (item) {
                 const isEditing = editingCheckID === item.id
@@ -644,7 +708,7 @@ function CardSheet(props: CardSheetProps) {
                       size="icon-lg"
                       variant="ghost"
                       className="ml-auto size-7"
-                      aria-label="删除子任务"
+                      aria-label="删除清单项"
                       onClick={function () {
                         void toRemoveCheck(item.id)
                       }}>
@@ -684,134 +748,28 @@ function CardSheet(props: CardSheetProps) {
             </div>
           </section>
 
-          <section className={styles.sheetBlock}>
-            <div className={styles.sheetField}>
-              <HintTooltip hint="色块用于扫视分类；点选切换挂载，新建时自动配色。">
-                标签
-              </HintTooltip>
-              <div className={styles.tagList}>
-                {filteredTags.map(function (tag) {
-                  const active = attached.includes(tag.id)
-                  const picking = colorPickerTagID === tag.id
-                  return (
-                    <div
-                      key={tag.id}
-                      className={styles.tagChipWrap}>
-                      <button
-                        type="button"
-                        className={
-                          active ? `${styles.tagChip} ${styles.tagChipActive}` : styles.tagChip
-                        }
-                        style={
-                          tag.color
-                            ? {
-                                borderColor: active
-                                  ? tag.color
-                                  : `color-mix(in oklab, ${tag.color} 35%, transparent)`,
-                                background: active
-                                  ? `color-mix(in oklab, ${tag.color} 22%, var(--card))`
-                                  : `color-mix(in oklab, ${tag.color} 10%, var(--card))`,
-                                color: active ? tag.color : 'var(--foreground)'
-                              }
-                            : undefined
-                        }
-                        onClick={function () {
-                          void toggleTag(tag.id)
-                        }}>
-                        <span
-                          className={styles.tagSwatch}
-                          style={{ background: tag.color ?? 'var(--muted-foreground)' }}
-                          aria-hidden
-                        />
-                        {tag.title}
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.tagColorToggle}
-                        aria-label={`调整 ${tag.title} 颜色`}
-                        aria-expanded={picking}
-                        onClick={function () {
-                          setColorPickerTagID(function (prev) {
-                            return prev === tag.id ? null : tag.id
-                          })
-                        }}>
-                        <Icon
-                          icon="lucide:palette"
-                          className="size-3.5"
-                        />
-                      </button>
-                      {picking ? (
-                        <div
-                          className={styles.tagColorRow}
-                          role="group"
-                          aria-label={`${tag.title} 颜色`}>
-                          {TAG_COLORS.map(function (color) {
-                            return (
-                              <button
-                                key={color}
-                                type="button"
-                                className={styles.tagColorDot}
-                                style={{ background: color }}
-                                aria-label={`设为 ${color}`}
-                                onClick={function () {
-                                  void toUpdateTag(tag.id, { color }).then(function (ok) {
-                                    if (!ok) toast.error('改色失败')
-                                    else setColorPickerTagID(null)
-                                  })
-                                }}
-                              />
-                            )
-                          })}
-                        </div>
-                      ) : null}
-                    </div>
-                  )
-                })}
-              </div>
-              {tags.length > 0 && filteredTags.length === 0 ? (
-                <p className="text-xs text-muted-foreground">无匹配标签，回车可新建</p>
-              ) : null}
-              <div className="flex gap-2">
-                <Input
-                  value={tagDraft}
-                  placeholder="搜索或新建标签"
-                  className="h-9"
-                  onChange={function (event) {
-                    setTagDraft(event.target.value)
-                  }}
-                  onKeyDown={function (event) {
-                    if (event.key === 'Enter') {
-                      event.preventDefault()
-                      void createTag()
-                    }
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  onClick={function () {
-                    void createTag()
-                  }}>
-                  添加
-                </Button>
-              </div>
-            </div>
-          </section>
-
           <section
+            ref={attachRef}
             className={styles.sheetBlock}
             onDragOver={handleAttachDragOver}
             onDragLeave={handleAttachDragLeave}
             onDrop={handleAttachDrop}>
-            <div className={styles.sheetFieldHeader}>
-              <HintTooltip hint="首张为封面；可点选、拖入或 Ctrl+V / ⌘V 粘贴。">
-                附件图片
+            <div className={styles.dialogSectionHead}>
+              <Icon
+                icon="lucide:paperclip"
+                className="size-4"
+                aria-hidden
+              />
+              <HintTooltip
+                hint="首张为封面；可点选、拖入或 Ctrl+V / ⌘V 粘贴。"
+                className={styles.dialogSectionTitle}>
+                附件
               </HintTooltip>
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
+                variant="ghost"
+                className={`${styles.cardDialogAction} ${styles.dialogSectionAside}`}
                 disabled={importing}
                 onClick={function () {
                   void attachImages()
@@ -856,38 +814,96 @@ function CardSheet(props: CardSheetProps) {
                   return (
                     <li
                       key={item.assetID}
-                      className={styles.attachItem}>
-                      <img
-                        src={item.src}
-                        alt={item.fileName}
-                        className={styles.attachThumb}
-                      />
+                      className={
+                        item.isCover
+                          ? `${styles.attachItem} ${styles.attachItemCover}`
+                          : styles.attachItem
+                      }>
+                      <button
+                        type="button"
+                        className={styles.attachThumbBtn}
+                        aria-label={`预览 ${item.fileName}`}
+                        onClick={function () {
+                          openLightbox(item.assetID)
+                        }}>
+                        <img
+                          src={item.src}
+                          alt=""
+                          className={styles.attachThumb}
+                          draggable={false}
+                        />
+                        <span
+                          className={styles.attachThumbHint}
+                          aria-hidden>
+                          <Icon
+                            icon="lucide:expand"
+                            className="size-3.5"
+                          />
+                        </span>
+                      </button>
+                      <div className={styles.attachMeta}>
+                        <button
+                          type="button"
+                          className={styles.attachName}
+                          title={item.fileName}
+                          onClick={function () {
+                            openLightbox(item.assetID)
+                          }}>
+                          {item.fileName}
+                        </button>
+                        <div className={styles.attachMetaRow}>
+                          {item.isCover ? (
+                            <span className={styles.coverBadge}>
+                              <Icon
+                                icon="lucide:image"
+                                className="size-3"
+                                aria-hidden
+                              />
+                              封面
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className={styles.attachCoverLink}
+                              onClick={function () {
+                                void toPromoteCover(entryID, item.assetID).then(
+                                  function (ok) {
+                                    if (!ok) toast.error('设为封面失败')
+                                  }
+                                )
+                              }}>
+                              设为封面
+                            </button>
+                          )}
+                        </div>
+                      </div>
                       <div className={styles.attachActions}>
-                        {item.isCover ? (
-                          <span className={styles.coverBadge}>封面</span>
-                        ) : (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="secondary"
-                            onClick={function () {
-                              void toPromoteCover(entryID, item.assetID).then(function (ok) {
-                                if (!ok) toast.error('设为封面失败')
-                              })
-                            }}>
-                            设为封面
-                          </Button>
-                        )}
                         <Button
                           type="button"
-                          size="icon-lg"
+                          size="icon-sm"
                           variant="ghost"
-                          className="size-7"
+                          className={styles.attachActionBtn}
+                          aria-label={`预览 ${item.fileName}`}
+                          onClick={function () {
+                            openLightbox(item.assetID)
+                          }}>
+                          <Icon
+                            icon="lucide:eye"
+                            className="size-3.5"
+                          />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          className={`${styles.attachActionBtn} ${styles.attachActionDanger}`}
                           aria-label="移除附件"
                           onClick={function () {
-                            void toDetachAsset(entryID, item.assetID).then(function (ok) {
-                              if (!ok) toast.error('移除失败')
-                            })
+                            void toDetachAsset(entryID, item.assetID).then(
+                              function (ok) {
+                                if (!ok) toast.error('移除失败')
+                              }
+                            )
                           }}>
                           <Icon
                             icon="lucide:trash-2"
@@ -901,12 +917,218 @@ function CardSheet(props: CardSheetProps) {
               </ul>
             )}
           </section>
+            </div>
+
+            <aside className={styles.cardDialogSide}>
+              <section
+                ref={datesRef}
+                className={styles.sheetBlock}>
+                <div className={styles.dialogSectionHead}>
+                  <Icon
+                    icon="lucide:calendar-clock"
+                    className="size-4"
+                    aria-hidden
+                  />
+                  <h3 className={styles.dialogSectionTitle}>日程</h3>
+                </div>
+                <div className={styles.sheetField}>
+                  <Label htmlFor="signboard-card-start">开始</Label>
+                  <DatePicker
+                    id="signboard-card-start"
+                    value={start}
+                    onChange={function (date) {
+                      setStart(date)
+                      void persistSchedule({ start: date })
+                    }}
+                  />
+                </div>
+                <div className={styles.sheetField}>
+                  <Label htmlFor="signboard-card-due">到期</Label>
+                  <DatePicker
+                    id="signboard-card-due"
+                    value={due}
+                    onChange={function (date) {
+                      setDue(date)
+                      void persistSchedule({ due: date })
+                    }}
+                  />
+                </div>
+                <div className={styles.sheetField}>
+                  <Label>优先级</Label>
+                  <Select
+                    items={PRIORITY_OPTIONS.map(function (row) {
+                      return { value: row.value, label: row.label }
+                    })}
+                    value={priority}
+                    onValueChange={function (value) {
+                      if (value === null) return
+                      setPriority(value)
+                      void persistSchedule({ priority: value })
+                    }}>
+                    <SelectTrigger className="h-9 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRIORITY_OPTIONS.map(function (row) {
+                        return (
+                          <SelectItem
+                            key={row.value}
+                            value={row.value}>
+                            {row.label}
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className={styles.sheetRow}>
+                  <HintTooltip
+                    hint="写入本地 Reminder，到点通知"
+                    htmlFor="signboard-card-remind">
+                    提醒我
+                  </HintTooltip>
+                  <Switch
+                    id="signboard-card-remind"
+                    checked={remind}
+                    onCheckedChange={function (checked) {
+                      setRemind(checked)
+                      void persistSchedule({ remind: checked })
+                    }}
+                  />
+                </div>
+                {saving ? (
+                  <p className="text-xs text-muted-foreground">正在保存日程…</p>
+                ) : null}
+              </section>
+
+              <section
+                ref={labelsRef}
+                className={styles.sheetBlock}>
+                <div className={styles.dialogSectionHead}>
+                  <Icon
+                    icon="lucide:tags"
+                    className="size-4"
+                    aria-hidden
+                  />
+                  <HintTooltip
+                    hint="色块用于扫视分类；点选切换挂载，新建时自动配色。"
+                    className={styles.dialogSectionTitle}>
+                    标签
+                  </HintTooltip>
+                </div>
+                <div className={styles.sheetField}>
+                  <div className={styles.tagList}>
+                    {filteredTags.map(function (tag) {
+                      const active = attached.includes(tag.id)
+                      return (
+                        <div
+                          key={tag.id}
+                          className={styles.tagChipWrap}>
+                          <button
+                            type="button"
+                            className={
+                              active
+                                ? `${styles.tagChip} ${styles.tagChipActive}`
+                                : styles.tagChip
+                            }
+                            style={
+                              tag.color
+                                ? {
+                                    borderColor: active
+                                      ? tag.color
+                                      : `color-mix(in oklab, ${tag.color} 35%, transparent)`,
+                                    background: active
+                                      ? `color-mix(in oklab, ${tag.color} 22%, var(--card))`
+                                      : `color-mix(in oklab, ${tag.color} 10%, var(--card))`,
+                                    color: active ? tag.color : 'var(--foreground)'
+                                  }
+                                : undefined
+                            }
+                            onClick={function () {
+                              void toggleTag(tag.id)
+                            }}>
+                            <span
+                              className={styles.tagSwatch}
+                              style={{
+                                background: tag.color ?? 'var(--muted-foreground)'
+                              }}
+                              aria-hidden
+                            />
+                            {tag.title}
+                          </button>
+                          <div
+                            className={styles.tagColorRow}
+                            role="group"
+                            aria-label={`${tag.title} 颜色`}>
+                            {TAG_COLORS.map(function (color) {
+                              const isCurrent = tag.color === color
+                              return (
+                                <button
+                                  key={color}
+                                  type="button"
+                                  className={
+                                    isCurrent
+                                      ? `${styles.tagColorDot} ${styles.tagColorDotActive}`
+                                      : styles.tagColorDot
+                                  }
+                                  style={{ background: color }}
+                                  aria-label={`设为 ${color}`}
+                                  aria-pressed={isCurrent}
+                                  onClick={function () {
+                                    void toUpdateTag(tag.id, { color }).then(
+                                      function (ok) {
+                                        if (!ok) toast.error('改色失败')
+                                      }
+                                    )
+                                  }}
+                                />
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {tags.length > 0 && filteredTags.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      无匹配标签，回车可新建
+                    </p>
+                  ) : null}
+                  <div className={styles.sideCompose}>
+                    <Input
+                      value={tagDraft}
+                      placeholder="搜索或新建"
+                      className="h-9"
+                      onChange={function (event) {
+                        setTagDraft(event.target.value)
+                      }}
+                      onKeyDown={function (event) {
+                        if (event.key === 'Enter') {
+                          event.preventDefault()
+                          void createTag()
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      onClick={function () {
+                        void createTag()
+                      }}>
+                      添加
+                    </Button>
+                  </div>
+                </div>
+              </section>
+            </aside>
+          </div>
         </div>
 
-        <SheetFooter className="!rounded-none flex-row gap-2 sm:justify-end">
+        <DialogFooter className={styles.cardDialogFooter}>
           <Button
             type="button"
-            size="lg"
+            size="sm"
             variant="ghost"
             className="text-destructive hover:text-destructive"
             onClick={function () {
@@ -923,21 +1145,31 @@ function CardSheet(props: CardSheetProps) {
               icon="lucide:archive"
               className="size-4"
             />
-            归档卡片
+            归档
           </Button>
           <Button
             type="button"
-            size="lg"
-            className="flex-1 sm:flex-none"
-            disabled={saving}
+            size="sm"
+            variant="secondary"
             onClick={function () {
-              void saveDueAndRemind()
+              props.onUpdateOpen(false)
             }}>
-            {saving ? '保存中…' : '保存日程与提醒'}
+            关闭
           </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <MediaLightbox
+      open={isLightboxOpen}
+      medias={lightboxMedias}
+      initialId={lightboxID}
+      onOpenChange={function (open) {
+        setIsLightboxOpen(open)
+        if (!open) setLightboxID(null)
+      }}
+    />
+    </>
   )
 }
 

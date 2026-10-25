@@ -1,6 +1,11 @@
 import { useMemo, useState } from 'react'
 
-import type { SignboardEntry, SignboardColumn } from '@/stores/signboard'
+import {
+  useSignboardStore,
+  type SignboardEntry,
+  type SignboardColumn
+} from '@/stores/signboard'
+import { findChecklistProgress } from '@/views/signboard/progress'
 import styles from '@/views/signboard/signboard.module.scss'
 
 interface GanttViewProps {
@@ -33,6 +38,9 @@ function formatDay(ms: number) {
 }
 
 function GanttView(props: GanttViewProps) {
+  const checksForEntry = useSignboardStore(function (state) {
+    return state.checksForEntry
+  })
   const [today] = useState(function () {
     return startOfDay(Date.now())
   })
@@ -138,6 +146,8 @@ function GanttView(props: GanttViewProps) {
               const range = cardRange(card)
               const left = ((range.start - rangeStart) / DAY_MS) * 36
               const width = Math.max(((range.end - range.start) / DAY_MS) * 36, 24)
+              const checklist = findChecklistProgress(checksForEntry(card.id))
+              const fillPct = checklist.pct
               return (
                 <div
                   key={card.id}
@@ -152,6 +162,9 @@ function GanttView(props: GanttViewProps) {
                     <span className={styles.ganttLabelTitle}>{card.title}</span>
                     <span className={styles.ganttLabelMeta}>
                       {columnTitle.get(card.columnID) ?? ''}
+                      {checklist.total > 0
+                        ? ` · ${checklist.done}/${checklist.total}`
+                        : ' · 0/0'}
                     </span>
                   </button>
                   <div className={styles.ganttTrack}>
@@ -159,11 +172,23 @@ function GanttView(props: GanttViewProps) {
                       type="button"
                       className={styles.ganttBar}
                       style={{ left, width }}
-                      title={card.title}
+                      title={
+                        checklist.total > 0
+                          ? `${card.title} · ${checklist.done}/${checklist.total}`
+                          : `${card.title} · 0/0`
+                      }
                       onClick={function () {
                         props.onOpenCard(card.id)
-                      }}
-                    />
+                      }}>
+                      <span
+                        className={styles.ganttBarTrack}
+                        aria-hidden>
+                        <span
+                          className={styles.ganttBarFill}
+                          style={{ width: `${fillPct}%` }}
+                        />
+                      </span>
+                    </button>
                   </div>
                 </div>
               )

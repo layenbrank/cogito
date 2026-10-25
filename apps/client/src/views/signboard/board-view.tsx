@@ -27,7 +27,8 @@ import { CardSheet } from '@/views/signboard/card-sheet'
 import { EmptyAtmosphere } from '@/views/signboard/empty-atmosphere'
 import { NameDialog } from '@/views/signboard/name-dialog'
 import styles from '@/views/signboard/signboard.module.scss'
-import { ViewTabs, type ViewMode } from '@/views/signboard/view-tabs'
+import { TagFilter } from '@/views/signboard/tag-filter'
+import { ViewModeSelect, type ViewMode } from '@/views/signboard/view-tabs'
 import { CalendarView } from '@/views/signboard/views/calendar-view'
 import { GanttView } from '@/views/signboard/views/gantt-view'
 import { KanbanView } from '@/views/signboard/views/kanban-view'
@@ -109,7 +110,7 @@ function BoardView() {
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [tagFilters, setTagFilters] = useState<string[]>([])
-  const [dueOnly, setDueOnly] = useState(false)
+  const [overdueOnly, setOverdueOnly] = useState(false)
   const [selectedCardID, setSelectedCardID] = useState<string | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [automationOpen, setAutomationOpen] = useState(false)
@@ -202,7 +203,13 @@ function BoardView() {
       const hay = `${card.title} ${card.notes}`.toLowerCase()
       if (!hay.includes(q)) return true
     }
-    if (dueOnly && (card.dueAt === null || card.dueAt === undefined)) return true
+    if (overdueOnly) {
+      const start = new Date()
+      start.setHours(0, 0, 0, 0)
+      if (card.dueAt === null || card.dueAt === undefined || card.dueAt >= start.getTime()) {
+        return true
+      }
+    }
     if (tagFilters.length > 0) {
       const ids = tagIDsForEntry(entryID)
       const hit = tagFilters.some(function (tagID) {
@@ -312,7 +319,9 @@ function BoardView() {
               if (value === null) return
               void toActivateBoard(value)
             }}>
-            <SelectTrigger className="h-9 w-44">
+            <SelectTrigger
+              size="sm"
+              className="h-8 w-40">
               <SelectValue placeholder="选择看板" />
             </SelectTrigger>
             <SelectContent>
@@ -327,22 +336,22 @@ function BoardView() {
               })}
             </SelectContent>
           </Select>
+          <ViewModeSelect
+            value={viewMode}
+            onChange={changeViewMode}
+          />
           <p className={styles.chromeHint}>
             {entries.length} 张 · {orderedColumns.length} 列
           </p>
         </div>
 
-        <ViewTabs
-          value={viewMode}
-          onChange={changeViewMode}
-        />
-
         <div className={styles.chromeTools}>
           <div className={styles.filters}>
-            <InputGroup className="w-52">
+            <InputGroup className="h-8 w-40">
               <InputGroupInput
                 id="signboard-search"
-                placeholder="搜索…"
+                className="h-8"
+                placeholder="搜索卡片…"
                 value={search}
                 onChange={function (event) {
                   setSearch(event.target.value)
@@ -352,85 +361,41 @@ function BoardView() {
               <InputGroupAddon>
                 <Icon
                   icon="lucide:search"
-                  className="size-4 opacity-50"
+                  className="size-3.5 opacity-50"
                 />
               </InputGroupAddon>
             </InputGroup>
             <Button
               type="button"
-              size="lg"
-              className={dueOnly ? styles.filterChipOn : styles.filterChip}
-              variant={dueOnly ? 'secondary' : 'ghost'}
-              aria-pressed={dueOnly}
+              size="sm"
+              className={overdueOnly ? styles.filterChipOn : styles.filterChip}
+              variant={overdueOnly ? 'secondary' : 'ghost'}
+              aria-pressed={overdueOnly}
+              title="只显示已过截止日的卡片"
               onClick={function () {
-                setDueOnly(function (prev) {
+                setOverdueOnly(function (prev) {
                   return !prev
                 })
               }}>
               <Icon
                 icon="lucide:calendar-clock"
-                className="size-4"
+                className="size-3.5"
               />
-              有到期
+              已到期
             </Button>
-            {tags.map(function (tag) {
-              const isOn = tagFilters.includes(tag.id)
-              return (
-                <Button
-                  key={tag.id}
-                  type="button"
-                  size="lg"
-                  className={isOn ? styles.filterChipOn : styles.filterChip}
-                  variant={isOn ? 'secondary' : 'ghost'}
-                  aria-pressed={isOn}
-                  style={
-                    tag.color && isOn
-                      ? {
-                          background: `color-mix(in oklab, ${tag.color} 18%, var(--card))`,
-                          color: tag.color
-                        }
-                      : undefined
-                  }
-                  onClick={function () {
-                    setTagFilters(function (prev) {
-                      if (prev.includes(tag.id)) {
-                        return prev.filter(function (id) {
-                          return id !== tag.id
-                        })
-                      }
-                      return [...prev, tag.id]
-                    })
-                  }}>
-                  {tag.color ? (
-                    <span
-                      className={styles.filterSwatch}
-                      style={{ background: tag.color }}
-                      aria-hidden
-                    />
-                  ) : null}
-                  {tag.title}
-                </Button>
-              )
-            })}
-            {tagFilters.length > 0 ? (
-              <Button
-                type="button"
-                size="lg"
-                variant="ghost"
-                className={styles.filterChip}
-                onClick={function () {
-                  setTagFilters([])
-                }}>
-                清除标签
-              </Button>
-            ) : null}
+            <TagFilter
+              tags={tags}
+              selectedIDs={tagFilters}
+              boardID={activeBoardID}
+              onChange={setTagFilters}
+            />
           </div>
 
           <div className={styles.chromeActions}>
             <Button
               type="button"
-              size="lg"
-              className="px-3"
+              size="sm"
+              className="h-8 px-3"
               onClick={function () {
                 const first = orderedColumns[0]
                 if (!first) {
@@ -444,7 +409,7 @@ function BoardView() {
               }}>
               <Icon
                 icon="lucide:plus"
-                className="size-4"
+                className="size-3.5"
               />
               新建卡片
             </Button>
@@ -453,14 +418,15 @@ function BoardView() {
                 render={
                   <Button
                     type="button"
-                    size="icon-lg"
+                    size="icon-sm"
                     variant="ghost"
+                    className="h-8 w-8"
                     aria-label="更多操作"
                   />
                 }>
                 <Icon
                   icon="lucide:ellipsis"
-                  className="size-4"
+                  className="size-3.5"
                 />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -584,8 +550,8 @@ function BoardView() {
 
       <p className={styles.footerHint}>
         {viewMode === 'board'
-          ? '手柄拖拽跨列 · ⌘/Ctrl+N 在首列新建 · ⌘/Ctrl+F 搜索 · 选中卡片后 ⌘/Ctrl+↑↓←→ 移动'
-          : '同一看板数据 · 点行/条/日打开详情 · 菜单中可配置自动化规则'}
+          ? '拖手柄调序 · ⌘/Ctrl+N 新建 · ⌘/Ctrl+F 搜索'
+          : '点条目打开详情 · 菜单可配自动化'}
       </p>
 
       <CardSheet

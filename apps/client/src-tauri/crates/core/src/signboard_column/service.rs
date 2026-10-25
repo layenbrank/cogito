@@ -142,6 +142,7 @@ impl Service {
             index: Set(p.index),
             color: Set(p.color),
             wip_limit: Set(p.wip_limit),
+            role: Set(p.role),
             archived_at: Set(None),
             created_at: Set(now),
             updated_at: Set(now),
@@ -167,10 +168,14 @@ impl Service {
             active.index = Set(index);
         }
         if let Some(color) = change.color {
-            active.color = Set(color);
+            // 空串视为清除（serde 对 Option<Option> 的 null 会当成「不更新」）
+            active.color = Set(color.filter(|value| !value.is_empty()));
         }
         if let Some(wip_limit) = change.wip_limit {
             active.wip_limit = Set(wip_limit);
+        }
+        if let Some(role) = change.role {
+            active.role = Set(role);
         }
         if let Some(archived_at) = change.archived_at {
             active.archived_at = Set(archived_at);

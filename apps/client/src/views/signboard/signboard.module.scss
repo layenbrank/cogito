@@ -12,116 +12,69 @@
   z-index: 1;
   display: flex;
   flex-shrink: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 0.45rem 0.65rem;
-  border-bottom: 1px solid var(--border);
+  gap: 0.35rem 0.5rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
   background: var(--card);
-  padding: 0.55rem 1rem 0.5rem;
+  padding: 0.45rem 0.85rem;
+  overflow-x: auto;
 }
 
 .chromeMeta {
   display: flex;
   min-width: 0;
+  flex-shrink: 0;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .chromeHint {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
   line-height: 1;
   white-space: nowrap;
+  opacity: 0.85;
 }
 
 .chromeTools {
   display: flex;
   min-width: 0;
-  flex: 1 1 320px;
-  flex-wrap: wrap;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.5rem;
-}
-
-.viewTabs {
-  display: flex;
-  flex-shrink: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.15rem;
-  margin-inline: 0.25rem;
-}
-
-.viewTab {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  height: 2rem;
-  border: none;
-  border-radius: 0.4rem;
-  background: transparent;
-  color: var(--muted-foreground);
-  cursor: pointer;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  padding: 0 0.65rem;
-  position: relative;
-  transition:
-    color 120ms ease,
-    background-color 120ms ease;
-}
-
-.viewTab:hover {
-  color: var(--foreground);
-  background: color-mix(in oklab, var(--muted) 70%, transparent);
-}
-
-.viewTab:focus-visible {
-  outline: 1.5px solid color-mix(in oklab, var(--ring) 70%, transparent);
-  outline-offset: 0;
-}
-
-.viewTabActive {
-  color: var(--primary);
-  background: transparent;
-}
-
-.viewTabActive::after {
-  content: '';
-  position: absolute;
-  right: 0.55rem;
-  bottom: 0.15rem;
-  left: 0.55rem;
-  height: 2px;
-  border-radius: 999px;
-  background: var(--primary);
+  gap: 0.4rem;
 }
 
 .chromeActions {
   display: flex;
-  flex-wrap: wrap;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 0.375rem;
+  gap: 0.3rem;
 }
 
 .filters {
   display: flex;
   min-width: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.2rem;
+  overflow-x: auto;
 }
 
 .filterChip {
+  height: 2rem;
   color: var(--muted-foreground);
-  padding-inline: 0.65rem;
+  padding-inline: 0.55rem;
 }
 
 .filterChipOn {
-  padding-inline: 0.65rem;
+  height: 2rem;
+  padding-inline: 0.55rem;
 }
 
 .filterSwatch {
@@ -131,16 +84,188 @@
   flex-shrink: 0;
 }
 
+.tagFilterPanel {
+  width: min(17.5rem, calc(100vw - 2rem));
+  padding-bottom: 0.65rem;
+}
+
+.tagFilterHeader {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.tagFilterBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.tagFilterList {
+  display: flex;
+  max-height: 14rem;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  overflow-y: auto;
+  padding: 0;
+  list-style: none;
+}
+
+.tagFilterItem,
+.tagFilterItemOn {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  border: none;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 0.8125rem;
+  padding: 0.45rem 0.5rem;
+  text-align: left;
+}
+
+.tagFilterItem:hover {
+  background: var(--muted);
+}
+
+.tagFilterItemOn {
+  background: color-mix(in oklab, var(--primary) 12%, var(--card));
+  color: var(--primary);
+}
+
+.tagManager,
+.tagManagerCompact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.tagManagerHint {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.tagManagerList {
+  display: flex;
+  max-height: 14rem;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  overflow-y: auto;
+  padding: 0;
+  list-style: none;
+}
+
+.tagManagerEmpty {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  padding: 0.35rem 0.15rem;
+  list-style: none;
+}
+
+.tagManagerRow {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.35rem 0.45rem;
+  border-radius: 0.4rem;
+  padding: 0.2rem 0.15rem;
+}
+
+.tagManagerSwatch {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+}
+
+.tagManagerTitle {
+  min-width: 0;
+  overflow: hidden;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  cursor: text;
+  font-size: 0.8125rem;
+  padding: 0.2rem 0;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tagManagerTitle:hover {
+  color: var(--primary);
+}
+
+.tagManagerActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.tagManagerIconBtn {
+  display: inline-flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  padding: 0;
+}
+
+.tagManagerIconBtn:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.tagManagerCreate {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.tagManagerRow .tagColorRow {
+  grid-column: 1 / -1;
+}
+
 .board {
   position: relative;
   z-index: 1;
   display: flex;
   min-height: 0;
   flex: 1;
-  gap: 0.65rem;
+  align-items: stretch;
+  gap: 0.75rem;
   overflow: auto;
   background: color-mix(in oklab, var(--muted) 55%, var(--background));
-  padding: 0.85rem 1rem 1rem;
+  padding: 0.75rem 0.85rem 0.9rem;
+}
+
+.boardDraggingCard {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.boardDraggingColumn {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.boardDraggingColumn .handle {
+  pointer-events: none;
 }
 
 .footerHint {
@@ -154,27 +279,105 @@
   padding: 0.4rem 1rem 0.5rem;
 }
 
+.columnSlot {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  align-self: stretch;
+  gap: 0;
+  height: auto;
+  max-height: 100%;
+  min-height: 0;
+  will-change: transform;
+}
+
+.columnInsert {
+  width: 3px;
+  flex: 0 0 3px;
+  align-self: stretch;
+  margin: 0.35rem 0.2rem;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 30%, transparent);
+}
+
 .column {
   display: flex;
-  width: 280px;
+  width: 272px;
+  height: 100%;
   max-height: 100%;
-  flex: 0 0 280px;
+  min-height: 0;
+  flex: 0 0 272px;
   flex-direction: column;
+  overflow: hidden;
   border: none;
   border-radius: 0.75rem;
-  background: color-mix(in oklab, var(--muted) 70%, var(--card));
+  background: var(--card);
+  box-shadow: none;
   transition: background-color 150ms ease;
 }
 
 .columnOver {
-  background: color-mix(in oklab, var(--primary) 8%, var(--muted));
+  background: color-mix(in oklab, var(--primary) 6%, var(--card));
+}
+
+.columnSortOver {
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--primary) 40%, transparent);
+}
+
+.cardsDropTarget {
+  background: color-mix(in oklab, var(--primary) 5%, transparent);
+  border-radius: 0.5rem;
+  outline: 1.5px dashed color-mix(in oklab, var(--primary) 40%, var(--border));
+  outline-offset: -2px;
+}
+
+.columnHandle {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: none;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: grab;
+  opacity: 0.55;
+  padding: 0;
+  touch-action: none;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
+}
+
+.columnHandle:active {
+  cursor: grabbing;
+}
+
+.columnHeader:hover .columnHandle,
+.columnHeader:focus-within .columnHandle,
+.columnHandle:hover {
+  opacity: 1;
+}
+
+.columnHandle:hover {
+  background: color-mix(in oklab, var(--foreground) 6%, transparent);
+  color: var(--foreground);
 }
 
 .columnHeader {
   display: flex;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.6rem 0.4rem 0.35rem 0.65rem;
+  gap: 0.1rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.4rem 0.3rem 0.7rem;
+  border-radius: 0.75rem 0.75rem 0 0;
+  background: transparent;
 }
 
 .columnTitle {
@@ -182,60 +385,115 @@
   min-width: 0;
   flex: 1;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
   margin: 0;
   color: var(--foreground);
-  font-size: 0.8125rem;
-  font-weight: 600;
+  font-size: 0.875rem;
+  font-weight: 650;
   letter-spacing: -0.01em;
+  line-height: 1.25;
 }
 
 .columnIcon {
   display: grid;
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1rem;
+  height: 1rem;
   flex-shrink: 0;
   place-items: center;
-  border-radius: 0.3rem;
-  background: color-mix(in oklab, var(--muted-foreground) 14%, transparent);
+  border-radius: 0;
+  background: transparent;
   color: var(--muted-foreground);
 }
 
 .columnIconDoing {
-  background: color-mix(in oklab, var(--primary) 16%, transparent);
+  background: transparent;
   color: var(--primary);
 }
 
 .columnIconDone {
-  background: color-mix(in oklab, var(--success) 18%, transparent);
+  background: transparent;
   color: var(--success);
 }
 
 .columnCount {
-  color: var(--muted-foreground);
-  font-size: 0.75rem;
-  font-weight: 500;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--foreground) 10%, transparent);
+  color: color-mix(in oklab, var(--foreground) 72%, transparent);
+  font-size: 0.6875rem;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .columnFooter {
-  padding: 0.15rem 0.5rem 0.55rem;
+  flex-shrink: 0;
+  padding: 0.2rem 0.45rem 0.55rem;
+  background: transparent;
+}
+
+.columnMenu {
+  min-width: 14rem;
+}
+
+.columnColorRow {
+  display: grid;
+  grid-template-columns: repeat(5, 1.75rem);
+  justify-content: space-evenly;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.25rem 0.45rem 0.5rem;
+}
+
+.columnColorSwatch {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: 0 0 1.75rem;
+  place-items: center;
+  border: none;
+  border-radius: 0.35rem;
+  color: #172b4d;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, #000 12%, transparent);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.columnColorSwatch:hover {
+  transform: scale(1.06);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, #000 18%, transparent),
+    0 0 0 2px color-mix(in oklab, var(--foreground) 12%, transparent);
+}
+
+.columnColorSwatchActive {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, #000 18%, transparent),
+    0 0 0 2px var(--foreground);
 }
 
 .addCard {
   width: 100%;
+  height: 2rem;
   justify-content: flex-start;
-  border: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
-  background: color-mix(in oklab, var(--card) 72%, transparent);
-  color: var(--muted-foreground);
-  padding-inline: 0.65rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: color-mix(in oklab, var(--foreground) 70%, transparent);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding-inline: 0.55rem;
   box-shadow: none;
 }
 
 .addCard:hover {
-  border-color: color-mix(in oklab, var(--border) 70%, var(--foreground));
-  background: var(--card);
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
   color: var(--foreground);
 }
 
@@ -259,10 +517,14 @@
     opacity 120ms ease;
 }
 
+.columnHeader .menuTrigger {
+  opacity: 0.55;
+}
+
 .columnHeader:hover .menuTrigger,
 .columnHeader:focus-within .menuTrigger,
 .menuTrigger[aria-expanded='true'] {
-  opacity: 0.85;
+  opacity: 1;
 }
 
 .menuTrigger:hover,
@@ -279,104 +541,194 @@
 }
 
 .cards {
-  min-height: 3.5rem;
-  flex: 1;
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.5rem;
   margin: 0;
+  overflow-x: hidden;
   overflow-y: auto;
-  padding: 0.15rem 0.5rem 0.25rem;
+  padding: 0.1rem 0.5rem 0.2rem;
   list-style: none;
+  background: transparent;
 }
 
 .card {
-  position: relative;
   display: flex;
-  align-items: flex-start;
-  gap: 0;
-  margin-bottom: 0.4rem;
-  border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+  flex-shrink: 0;
+  flex-direction: column;
+  border: none;
   border-radius: 0.5rem;
   background: var(--card);
-  box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 4%, transparent);
+  /* 白列底上用细描边 + 轻阴影区分卡片 */
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--foreground) 7%, transparent),
+    0 1px 1px color-mix(in oklab, var(--foreground) 8%, transparent);
   outline: none;
-  padding: 0.65rem 0.35rem 0.65rem 0.15rem;
+  padding: 0;
+  overflow: hidden;
   transition:
     box-shadow 120ms ease,
     opacity 120ms ease,
-    border-color 120ms ease,
-    background-color 120ms ease;
+    transform 120ms ease;
 }
 
 .card:hover {
-  border-color: color-mix(in oklab, var(--border) 40%, var(--foreground));
-  box-shadow: 0 1px 3px color-mix(in oklab, var(--foreground) 7%, transparent);
+  box-shadow:
+    0 0 0 1.5px color-mix(in oklab, var(--foreground) 16%, transparent),
+    0 1px 2px color-mix(in oklab, var(--foreground) 10%, transparent);
 }
 
 .card:focus-visible {
-  border-color: color-mix(in oklab, var(--primary) 50%, var(--border));
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--ring) 40%, transparent);
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--ring) 40%, transparent),
+    0 1px 2px color-mix(in oklab, var(--foreground) 8%, transparent);
 }
 
 .cardSelected {
-  border-color: color-mix(in oklab, var(--primary) 50%, var(--border));
-  background: var(--card);
-  box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 4%, transparent);
+  box-shadow:
+    0 0 0 1.5px color-mix(in oklab, var(--primary) 45%, transparent),
+    0 1px 2px color-mix(in oklab, var(--foreground) 8%, transparent);
 }
 
-.cardSelected:focus-visible {
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--ring) 35%, transparent);
+.cardMain {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.1rem;
+  padding: 0.45rem 0.5rem 0.5rem 0.2rem;
 }
 
 .card:hover .handle,
-.card:hover .menuTrigger,
 .card:focus-within .handle,
-.card:focus-within .menuTrigger,
-.cardSelected .handle,
-.cardSelected .menuTrigger {
+.card:hover .cardHead .menuTrigger,
+.card:focus-within .cardHead .menuTrigger {
   opacity: 0.9;
+}
+
+.card:hover .quickTrigger,
+.card:focus-within .quickTrigger {
+  opacity: 1;
+}
+
+.dragPreview .handle {
+  opacity: 0.55;
 }
 
 .cardDimmed {
   opacity: 0.28;
 }
 
-.cardDragging {
-  opacity: 0.4;
+/* 原位占位：保留尺寸；视觉交给 DragOverlay + sortable transform */
+.dragSource {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dragPreview {
+  box-sizing: border-box;
+  box-shadow: 0 14px 32px color-mix(in oklab, var(--foreground) 16%, transparent);
+  cursor: grabbing;
+  pointer-events: none;
+}
+
+.dragPreviewFooterHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  height: 2.25rem;
+  border: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, var(--card) 72%, transparent);
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  padding-inline: 0.65rem;
 }
 
 .dropIndicator {
   position: absolute;
-  top: -0.28rem;
-  right: 0.35rem;
-  left: 0.35rem;
-  height: 2px;
+  top: -0.3rem;
+  right: 0.4rem;
+  left: 0.4rem;
+  height: 3px;
   border-radius: 999px;
   background: var(--primary);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 25%, transparent);
   pointer-events: none;
   z-index: 2;
 }
 
 .dropWell {
-  height: 2.5rem;
-  margin: 0.15rem 0.15rem 0.35rem;
-  border: 1.5px dashed color-mix(in oklab, var(--primary) 45%, var(--border));
-  border-radius: 0.5rem;
-  background: color-mix(in oklab, var(--primary) 6%, transparent);
+  height: 2.75rem;
+  margin: 0.2rem 0.15rem 0.4rem;
+  border: 1.5px dashed color-mix(in oklab, var(--primary) 50%, var(--border));
+  border-radius: 0.55rem;
+  background: color-mix(in oklab, var(--primary) 8%, transparent);
   list-style: none;
+  animation: dropWellPulse 900ms ease-in-out infinite;
+}
+
+@keyframes dropWellPulse {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dropWell {
+    animation: none;
+  }
 }
 
 .cardBody {
+  display: flex;
   min-width: 0;
   flex: 1;
+  flex-direction: column;
+  gap: 0.3rem;
   cursor: pointer;
-  padding-top: 0.05rem;
+  padding: 0.05rem 0.1rem 0 0;
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 1.5rem;
+}
+
+.cardHead .cardLabelRow {
+  flex: 1;
+  min-width: 0;
+}
+
+.cardHead .menuTrigger {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  margin: 0;
+  background: transparent;
+}
+
+.cardHead .menuTrigger:hover,
+.cardHead .menuTrigger[aria-expanded='true'] {
+  background: color-mix(in oklab, var(--foreground) 6%, transparent);
+  color: var(--foreground);
+  opacity: 1;
 }
 
 .cardCover {
-  margin: -0.05rem -0.15rem 0.45rem;
+  flex-shrink: 0;
   overflow: hidden;
-  border-radius: 0.35rem;
+  max-height: 9.5rem;
   aspect-ratio: 16 / 9;
   background: color-mix(in oklab, var(--muted) 70%, var(--card));
+  cursor: pointer;
 }
 
 .cardCover img {
@@ -386,23 +738,97 @@
   object-fit: cover;
 }
 
+.cardLabelRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 1.5rem;
+}
+
+.cardLabel {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  padding: 0 0.45rem;
+}
+
+.cardLabelText {
+  overflow: hidden;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 1px color-mix(in oklab, #000 35%, transparent);
+  white-space: nowrap;
+}
+
+.cardLabel:hover {
+  filter: brightness(1.06);
+}
+
 .cardTitle {
   margin: 0;
-  font-size: 0.8125rem;
+  color: var(--foreground);
+  font-size: 0.875rem;
   font-weight: 500;
-  line-height: 1.45;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+  word-break: break-word;
 }
 
 .cardMeta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.3rem;
-  margin-top: 0.45rem;
+  gap: 0.25rem;
 }
 
-.cardMeta:empty {
-  display: none;
+.cardMetaEmpty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 0;
+}
+
+.cardMetaEmpty .quickTrigger {
+  margin-top: 0.05rem;
+}
+
+/* Trello 式徽章：浅灰底方框 + 图标/计数，常显不透明 */
+.metaBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 1.25rem;
+  border: none;
+  border-radius: 0.2rem;
+  background: color-mix(in oklab, var(--muted) 88%, var(--foreground) 4%);
+  color: var(--muted-foreground);
+  cursor: default;
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  padding: 0.15rem 0.35rem;
+}
+
+button.metaBadge {
+  cursor: pointer;
+}
+
+button.metaBadge:hover {
+  background: color-mix(in oklab, var(--muted) 72%, var(--foreground) 6%);
+  color: var(--foreground);
 }
 
 .handle {
@@ -412,13 +838,14 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
+  align-self: flex-start;
   border: none;
-  border-radius: 0.3rem;
+  border-radius: 0.25rem;
   background: transparent;
   color: var(--muted-foreground);
   cursor: grab;
-  margin-top: 0.1rem;
   opacity: 0;
+  padding: 0;
   touch-action: none;
   transition:
     background-color 120ms ease,
@@ -437,40 +864,58 @@
 }
 
 .handle:hover {
-  background: var(--muted);
+  background: color-mix(in oklab, var(--foreground) 6%, transparent);
   color: var(--foreground);
 }
 
 .tag {
+  display: inline-flex;
+  max-width: 5.5rem;
+  overflow: hidden;
+  border: none;
   border-radius: 0.25rem;
   background: color-mix(in oklab, var(--primary) 12%, var(--card));
   color: color-mix(in oklab, var(--primary) 65%, var(--foreground));
+  cursor: pointer;
   font-size: 0.6875rem;
   font-weight: 500;
   line-height: 1.2;
   padding: 0.12rem 0.4rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag:hover {
+  outline: 1px solid color-mix(in oklab, currentColor 35%, transparent);
+}
+
+.tagMore {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  font-weight: 500;
 }
 
 .due {
   display: inline-flex;
   align-items: center;
-  gap: 0.2rem;
-  border-radius: 0.25rem;
-  background: color-mix(in oklab, var(--foreground) 5%, var(--card));
+  gap: 0.25rem;
+  min-height: 1.25rem;
+  border-radius: 0.2rem;
+  background: color-mix(in oklab, var(--muted) 88%, var(--foreground) 4%);
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  line-height: 1.2;
-  padding: 0.12rem 0.4rem;
+  line-height: 1;
+  padding: 0.15rem 0.35rem;
 }
 
 .dueToday {
-  background: color-mix(in oklab, var(--warning) 20%, var(--card));
-  color: color-mix(in oklab, var(--warning) 40%, var(--foreground));
+  background: color-mix(in oklab, var(--warning) 22%, var(--muted));
+  color: color-mix(in oklab, var(--warning) 45%, var(--foreground));
 }
 
 .dueOverdue {
-  background: color-mix(in oklab, var(--destructive) 10%, var(--card));
+  background: color-mix(in oklab, var(--destructive) 14%, var(--muted));
   color: var(--destructive);
 }
 
@@ -478,19 +923,342 @@
 .priorityBadge {
   display: inline-flex;
   align-items: center;
-  gap: 0.2rem;
-  border-radius: 0.25rem;
-  background: color-mix(in oklab, var(--foreground) 5%, var(--card));
+  gap: 0.25rem;
+  min-height: 1.25rem;
+  border-radius: 0.2rem;
+  background: color-mix(in oklab, var(--muted) 88%, var(--foreground) 4%);
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  line-height: 1.2;
-  padding: 0.12rem 0.4rem;
+  line-height: 1;
+  padding: 0.15rem 0.35rem;
 }
 
 .priorityBadge {
-  background: color-mix(in oklab, var(--warning) 16%, var(--card));
-  color: color-mix(in oklab, var(--warning) 35%, var(--foreground));
+  background: color-mix(in oklab, var(--warning) 18%, var(--muted));
+  color: color-mix(in oklab, var(--warning) 40%, var(--foreground));
+}
+
+.progressText {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.progressEmpty {
+  color: var(--muted-foreground);
+}
+
+.progressBar {
+  display: block;
+  width: 100%;
+  min-width: 2.5rem;
+  height: 0.25rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--muted-foreground) 14%, transparent);
+}
+
+.progressBarMd {
+  height: 0.375rem;
+  min-width: 3.5rem;
+}
+
+.progressBarFill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transition: width 180ms ease;
+}
+
+.progressBarFillSuccess {
+  background: var(--success);
+}
+
+.progressBarFillDanger {
+  background: var(--destructive);
+}
+
+.progressCell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 4.5rem;
+}
+
+.progressMetaRow {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+
+.progressPct {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.quickTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: none;
+  border-radius: 0.2rem;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  opacity: 0;
+  padding: 0;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    opacity 120ms ease;
+}
+
+.quickTrigger:hover,
+.quickTrigger[aria-expanded='true'],
+.quickTrigger:focus-visible {
+  background: color-mix(in oklab, var(--foreground) 6%, transparent);
+  color: var(--foreground);
+  opacity: 1;
+}
+
+.quickPanel {
+  width: min(17.5rem, calc(100vw - 2rem));
+  max-height: min(22rem, 70vh);
+  overflow: auto;
+  padding: 0.65rem 0.75rem 0.75rem;
+}
+
+.quickHeader {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-bottom: 0.45rem;
+}
+
+.quickTabs {
+  display: inline-flex;
+  gap: 0.1rem;
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  border-radius: 0.4rem;
+  background: color-mix(in oklab, var(--muted) 40%, transparent);
+  padding: 0.12rem;
+}
+
+.quickTab,
+.quickTabOn {
+  border: none;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.22rem 0.55rem;
+}
+
+.quickTabOn {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--border) 70%, transparent);
+}
+
+.quickSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.quickProgress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.quickProgressTrack {
+  width: 100%;
+  height: 0.35rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--muted) 80%, var(--border));
+}
+
+.quickProgressFill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--success);
+  transition: width 160ms ease;
+}
+
+.quickLabel {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.quickTagList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.quickTag,
+.quickTagOn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
+  border-radius: 0.35rem;
+  background: color-mix(in oklab, var(--muted) 35%, var(--card));
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  padding: 0.22rem 0.5rem;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+
+.quickTagOn {
+  border-color: transparent;
+  font-weight: 550;
+}
+
+.quickRow {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.quickCheckList {
+  display: flex;
+  max-height: 8rem;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  overflow: auto;
+  padding: 0;
+  list-style: none;
+}
+
+.quickCheckItem {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8125rem;
+}
+
+.quickCheckDone {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+}
+
+.quickRange {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--primary);
+}
+
+.columnProgress {
+  display: flex;
+  width: 100%;
+  flex-basis: 100%;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+  padding-inline: 0.15rem;
+}
+
+.columnProgressLabel {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ganttBarFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: color-mix(in oklab, var(--primary) 92%, white);
+  pointer-events: none;
+  transition: width 180ms ease;
+}
+
+.ganttBarTrack {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: color-mix(in oklab, var(--primary) 28%, var(--muted));
+}
+
+.calendarEventMeta {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.chartHost {
+  width: 100%;
+  min-height: 8rem;
+}
+
+.chartHostTall {
+  min-height: 10rem;
+}
+
+.donutHost {
+  position: relative;
+  width: 7.5rem;
+  height: 7.5rem;
+  margin-inline: auto;
+}
+
+.donutCenter {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+}
+
+.donutCenterValue {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.donutCenterLabel {
+  margin: 0.1rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
 }
 
 .checklistList {
@@ -542,7 +1310,7 @@
 .checklistFill {
   height: 100%;
   border-radius: inherit;
-  background: var(--primary);
+  background: var(--success);
   transition: width 160ms ease;
 }
 
@@ -747,9 +1515,10 @@
   position: absolute;
   top: 0.55rem;
   height: 1.25rem;
+  padding: 0;
   border: none;
   border-radius: 0.3rem;
-  background: color-mix(in oklab, var(--primary) 72%, var(--card));
+  background: transparent;
   cursor: pointer;
   opacity: 0.92;
 }
@@ -867,7 +1636,10 @@
 }
 
 .calendarEvent {
+  display: flex;
   width: 100%;
+  align-items: center;
+  gap: 0.15rem;
   overflow: hidden;
   border: none;
   border-radius: 0.25rem;
@@ -877,7 +1649,6 @@
   font-size: 0.6875rem;
   padding: 0.15rem 0.3rem;
   text-align: left;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -885,6 +1656,27 @@
   color: var(--muted-foreground);
   font-size: 0.6875rem;
   padding-inline: 0.2rem;
+}
+
+.chartsGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.statsMetricsBar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.65rem;
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  border-radius: 0.65rem;
+  background: var(--card);
+  padding: 0.55rem 0.85rem;
 }
 
 .statsGrid {
@@ -970,10 +1762,13 @@
 }
 
 .workloadList {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 0.75rem;
-  max-width: 40rem;
+
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .workloadCardOver {
@@ -1003,15 +1798,20 @@
 
 .addColumn {
   display: flex;
-  width: 280px;
-  flex: 0 0 280px;
+  width: 272px;
+  flex: 0 0 272px;
   align-self: flex-start;
   flex-direction: column;
   gap: 0.45rem;
-  border: 1px dashed color-mix(in oklab, var(--border) 75%, var(--foreground));
+  border: none;
   border-radius: 0.75rem;
-  background: color-mix(in oklab, var(--card) 35%, transparent);
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
   padding: 0.55rem;
+  transition: background-color 120ms ease;
+}
+
+.addColumn:hover {
+  background: color-mix(in oklab, var(--foreground) 12%, transparent);
 }
 
 .emptyBoard {
@@ -1052,18 +1852,253 @@
   line-height: 1.55;
 }
 
+.cardDialog {
+  width: min(960px, 94vw) !important;
+  max-width: min(960px, 94vw) !important;
+  height: min(88vh, 56rem) !important;
+  max-height: min(88vh, 56rem) !important;
+  padding: 0 !important;
+  isolation: isolate;
+  overflow: hidden !important;
+  border-radius: 0.85rem !important;
+  background: var(--popover) !important;
+  box-shadow:
+    0 12px 28px color-mix(in oklab, var(--foreground) 14%, transparent),
+    0 0 1px color-mix(in oklab, var(--foreground) 18%, transparent) !important;
+
+  /* 外壳 body 不滚：左右栏各自滚动 */
+  :global([data-slot='dialog-body']) {
+    display: flex !important;
+    min-height: 0 !important;
+    flex: 1 1 auto !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    overflow: hidden !important;
+    padding-bottom: 0 !important;
+  }
+}
+
+.cardDialogHeader {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  text-align: left;
+  border-radius: 0.85rem 0.85rem 0 0;
+  background: var(--popover);
+}
+
+.cardDialogHeaderInner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1rem 2.75rem 0.75rem 1.25rem;
+}
+
+.cardDialogTitleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+
+.cardDialogTitleIcon {
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  place-items: center;
+  margin-top: 0.2rem;
+  color: var(--muted-foreground);
+}
+
+.cardDialogTitleInput {
+  height: auto !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: 1.25rem !important;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  padding: 0.1rem 0 !important;
+}
+
+.cardDialogTitleInput:focus-visible {
+  box-shadow: none !important;
+}
+
+.cardDialogActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding-left: 2.05rem;
+}
+
+.cardDialogAction {
+  height: 2rem !important;
+  border: none !important;
+  border-radius: 0.4rem !important;
+  background: color-mix(in oklab, var(--foreground) 6%, transparent) !important;
+  color: var(--foreground) !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+}
+
+.cardDialogAction:hover {
+  background: color-mix(in oklab, var(--foreground) 10%, transparent) !important;
+}
+
+.cardDialogBody {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  padding: 0.35rem 1.15rem 0.85rem;
+}
+
+.cardDialogLayout {
+  display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
+  grid-template-columns: minmax(0, 1fr) 13rem;
+  gap: 1.15rem 1.25rem;
+  align-items: stretch;
+}
+
+.cardDialogMain,
+.cardDialogSide {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.cardDialogMain {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.15rem 0.2rem 0.15rem 0.05rem;
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+}
+
+.cardDialogNotes {
+  field-sizing: fixed;
+  height: 150px !important;
+  min-height: 150px !important;
+  max-height: 150px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  resize: none !important;
+  scroll-behavior: smooth;
+}
+
+/* 自身 overflow 会裁掉外扩 ring，聚焦改画在边框内侧 */
+.cardDialogNotes:focus-visible {
+  border-color: var(--ring) !important;
+  outline: none !important;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ring) 55%, transparent) !important;
+}
+
+.cardDialogSide {
+  gap: 1.1rem;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.2rem 0.2rem 0.35rem 0.85rem;
+  border-left: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+}
+
+.cardDialogSide .dialogSectionTitle {
+  font-size: 0.875rem;
+}
+
+.cardDialogSide .sheetField {
+  gap: 0.35rem;
+}
+
+.sideCompose {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.cardDialogFooter {
+  margin: 0 !important;
+  border-radius: 0 0 0.85rem 0.85rem !important;
+  border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent) !important;
+  padding: 0.65rem 1.15rem 0.85rem !important;
+  background: var(--popover) !important;
+}
+
+@media (max-width: 720px) {
+  .cardDialog :global([data-slot='dialog-body']) {
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  .cardDialogLayout {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .cardDialogMain {
+    overflow: visible;
+  }
+
+  .cardDialogSide {
+    overflow: visible;
+    padding: 0.85rem 0 0;
+    border-left: none;
+    border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  }
+
+  .sideCompose {
+    flex-direction: row;
+  }
+}
+
+.dialogSectionHead {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 1.5rem;
+}
+
+.dialogSectionHead > svg,
+.dialogSectionHead :global(svg) {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+
+.dialogSectionTitle {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.dialogSectionHead .sheetFieldHeader,
+.dialogSectionAside {
+  margin-left: auto;
+}
+
 .sheetSection {
   display: flex;
   flex-direction: column;
-  gap: 1.15rem;
+  gap: 1.35rem;
 }
 
 .sheetBlock {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
-  padding-bottom: 1.05rem;
-  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  gap: 0.75rem;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .sheetBlock:last-of-type {
@@ -1073,12 +2108,12 @@
 
 .sheetBlockTitle {
   margin: 0;
-  color: var(--muted-foreground);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  line-height: 1;
-  text-transform: uppercase;
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  text-transform: none;
 }
 
 .sheetRow {
@@ -1120,16 +2155,16 @@
 .tagChip {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  height: 2rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
-  background: color-mix(in oklab, var(--muted) 70%, var(--card));
+  gap: 0.4rem;
+  height: 1.75rem;
+  border: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
+  border-radius: 0.35rem;
+  background: color-mix(in oklab, var(--muted) 55%, var(--card));
   color: var(--foreground);
   cursor: pointer;
   font-size: 0.8125rem;
   font-weight: 500;
-  padding: 0 0.7rem;
+  padding: 0 0.65rem;
   transition:
     background-color 120ms ease,
     border-color 120ms ease,
@@ -1137,8 +2172,8 @@
 }
 
 .tagSwatch {
-  width: 0.55rem;
-  height: 0.55rem;
+  width: 1.1rem;
+  height: 0.4rem;
   border-radius: 999px;
   flex-shrink: 0;
 }
@@ -1184,6 +2219,11 @@
   outline-offset: 1px;
 }
 
+.tagColorDotActive {
+  outline: 1.5px solid var(--foreground);
+  outline-offset: 1px;
+}
+
 .tagChip:hover {
   background: var(--muted);
 }
@@ -1205,19 +2245,30 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  min-height: 6.5rem;
-  border: 1.5px dashed var(--border);
-  border-radius: 0.55rem;
-  background: color-mix(in oklab, var(--muted) 40%, var(--card));
+  gap: 0.45rem;
+  min-height: 7rem;
+  border: 1.5px dashed color-mix(in oklab, var(--border) 85%, var(--foreground));
+  border-radius: 0.65rem;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--muted) 55%, var(--card)),
+      color-mix(in oklab, var(--muted) 28%, var(--card))
+    );
   color: var(--muted-foreground);
   cursor: pointer;
   font-size: 0.8125rem;
-  padding: 1rem;
+  line-height: 1.4;
+  padding: 1.1rem 1rem;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
 }
 
 .attachEmpty:hover:not(:disabled) {
-  border-color: color-mix(in oklab, var(--primary) 35%, var(--border));
+  border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
+  background: color-mix(in oklab, var(--primary) 6%, var(--card));
   color: var(--foreground);
 }
 
@@ -1233,8 +2284,8 @@
 }
 
 .attachGrid {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 0.55rem;
   margin: 0;
   padding: 0;
@@ -1243,47 +2294,189 @@
 
 .attachGridActive {
   outline: 1.5px dashed color-mix(in oklab, var(--primary) 55%, var(--border));
-  outline-offset: 0.35rem;
-  border-radius: 0.55rem;
+  outline-offset: 0.4rem;
+  border-radius: 0.7rem;
 }
 
 .attachItem {
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: color-mix(in oklab, var(--muted) 30%, var(--card));
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0.75rem;
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  border-radius: 0.65rem;
+  background: color-mix(in oklab, var(--muted) 28%, var(--card));
   overflow: hidden;
-  padding: 0.4rem;
+  padding: 0.45rem;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.attachItem:hover {
+  border-color: color-mix(in oklab, var(--foreground) 14%, var(--border));
+  background: color-mix(in oklab, var(--muted) 18%, var(--card));
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 5%, transparent);
+}
+
+.attachItemCover {
+  border-color: color-mix(in oklab, var(--primary) 28%, var(--border));
+  background: color-mix(in oklab, var(--primary) 7%, var(--card));
+}
+
+.attachItemCover:hover {
+  border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
+  background: color-mix(in oklab, var(--primary) 9%, var(--card));
+}
+
+.attachThumbBtn {
+  position: relative;
+  display: block;
+  flex-shrink: 0;
+  align-self: center;
+  overflow: hidden;
+  border: none;
+  border-radius: 0.45rem;
+  background: color-mix(in oklab, var(--muted) 70%, var(--card));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 6%, transparent);
+  cursor: zoom-in;
+  padding: 0;
+}
+
+.attachThumbBtn:hover .attachThumb {
+  transform: scale(1.03);
+}
+
+.attachThumbBtn:hover .attachThumbHint,
+.attachThumbBtn:focus-visible .attachThumbHint {
+  opacity: 1;
+}
+
+.attachThumbBtn:focus-visible {
+  outline: 1.5px solid color-mix(in oklab, var(--ring) 70%, transparent);
+  outline-offset: 1px;
 }
 
 .attachThumb {
   display: block;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: 0.35rem;
+  width: 7.25rem;
+  height: 5.1rem;
   object-fit: cover;
   background: var(--muted);
+  transition: transform 180ms ease;
+}
+
+.attachThumbHint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklab, #000 38%, transparent);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 140ms ease;
+  pointer-events: none;
+}
+
+.attachMeta {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0;
+}
+
+.attachMetaRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.attachName {
+  overflow: hidden;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0;
+}
+
+.attachName:hover {
+  color: var(--primary);
+}
+
+.attachCoverLink {
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  padding: 0;
+}
+
+.attachCoverLink:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .attachActions {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.35rem;
+  align-self: center;
+  gap: 0.15rem;
+  opacity: 0.55;
+  transition: opacity 120ms ease;
+}
+
+.attachItem:hover .attachActions,
+.attachItem:focus-within .attachActions {
+  opacity: 1;
+}
+
+.attachActionBtn {
+  color: var(--muted-foreground) !important;
+}
+
+.attachActionBtn:hover {
+  background: color-mix(in oklab, var(--foreground) 7%, transparent) !important;
+  color: var(--foreground) !important;
+}
+
+.attachActionDanger:hover {
+  background: color-mix(in oklab, var(--destructive) 12%, transparent) !important;
+  color: var(--destructive) !important;
 }
 
 .coverBadge {
   display: inline-flex;
   align-items: center;
-  height: 1.5rem;
-  border-radius: 0.3rem;
-  background: color-mix(in oklab, var(--primary) 14%, var(--card));
-  color: var(--primary);
+  gap: 0.25rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+  color: color-mix(in oklab, var(--foreground) 72%, transparent);
   font-size: 0.6875rem;
   font-weight: 600;
-  padding: 0 0.5rem;
+  letter-spacing: 0.01em;
+  padding: 0 0.55rem;
+}
+
+.attachItemCover .coverBadge {
+  background: color-mix(in oklab, var(--primary) 16%, transparent);
+  color: var(--primary);
 }
 
 .overlayCard {
@@ -1293,6 +2486,7 @@
   background: var(--card);
   box-shadow: 0 8px 24px color-mix(in oklab, var(--foreground) 12%, transparent);
   padding: 0.7rem 0.8rem;
+  cursor: grabbing;
 }
 
 .overlayCover {
@@ -1310,6 +2504,54 @@
   font-size: 0.75rem;
 }
 
+.overlayColumn {
+  display: flex;
+  width: 280px;
+  flex-direction: column;
+  gap: 0.45rem;
+  border: none;
+  border-radius: 0.75rem;
+  background: color-mix(in oklab, var(--muted) 70%, var(--card));
+  box-shadow: 0 14px 32px color-mix(in oklab, var(--foreground) 16%, transparent);
+  padding: 0.6rem 0.65rem 0.75rem;
+  cursor: grabbing;
+}
+
+.overlayColumnHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding: 0.15rem 0.2rem;
+}
+
+.overlayColumnTitle {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.overlayColumnCards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.overlayColumnCard {
+  border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+  border-radius: 0.45rem;
+  background: var(--card);
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  padding: 0.55rem 0.65rem;
+}
+
+.overlayCardMetaRow {
+  margin-top: 0.35rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .column,
   .card,
@@ -1323,7 +2565,8 @@
 @media (hover: none) {
   .handle,
   .menuTrigger,
-  .columnHeader .menuTrigger {
+  .columnHeader .menuTrigger,
+  .attachActions {
     opacity: 0.75;
   }
 }

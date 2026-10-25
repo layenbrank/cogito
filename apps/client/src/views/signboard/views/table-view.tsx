@@ -11,10 +11,12 @@ import { toast } from 'sonner'
 import {
   useSignboardStore,
   type SignboardEntry,
-  type SignboardCheck,
   type SignboardColumn,
   type SignboardTag
 } from '@/stores/signboard'
+import { CardQuickPanel } from '@/views/signboard/card-quick-panel'
+import { findChecklistProgress } from '@/views/signboard/progress'
+import { ProgressCell } from '@/views/signboard/progress-ui'
 import styles from '@/views/signboard/signboard.module.scss'
 
 interface TableViewProps {
@@ -33,14 +35,6 @@ function formatDue(dueAt: number | null) {
   const m = String(date.getMonth() + 1).padStart(2, '0')
   const d = String(date.getDate()).padStart(2, '0')
   return `${m}-${d}`
-}
-
-function checklistProgress(items: SignboardCheck[]) {
-  if (items.length === 0) return '—'
-  const done = items.filter(function (item) {
-    return item.done
-  }).length
-  return `${done}/${items.length}`
 }
 
 function TableView(props: TableViewProps) {
@@ -106,6 +100,8 @@ function TableView(props: TableViewProps) {
             {rows.map(function (card) {
               const tags = props.tagsByCard.get(card.id) ?? []
               const dimmed = props.isDimmedCard(card.id)
+              const checklist = findChecklistProgress(checksForEntry(card.id))
+              const progressPct = checklist.pct
               return (
                 <tr
                   key={card.id}
@@ -145,7 +141,10 @@ function TableView(props: TableViewProps) {
                   </td>
                   <td>{PRIORITY_LABELS[card.priority] ?? card.priority}</td>
                   <td>{formatDue(card.dueAt)}</td>
-                  <td>
+                  <td
+                    onClick={function (event) {
+                      event.stopPropagation()
+                    }}>
                     <div className={styles.tableTags}>
                       {tags.slice(0, 3).map(function (tag) {
                         return (
@@ -156,9 +155,19 @@ function TableView(props: TableViewProps) {
                           </span>
                         )
                       })}
+                      <CardQuickPanel
+                        card={card}
+                        checklist={checksForEntry(card.id)}
+                      />
                     </div>
                   </td>
-                  <td>{checklistProgress(checksForEntry(card.id))}</td>
+                  <td>
+                    <ProgressCell
+                      done={checklist.done}
+                      total={checklist.total}
+                      pct={progressPct}
+                    />
+                  </td>
                 </tr>
               )
             })}

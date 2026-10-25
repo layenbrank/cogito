@@ -1,4 +1,6 @@
-use crate::migrations::{migrations_v001, migrations_v002, migrations_v003, migrations_v004};
+use crate::migrations::{
+    migrations_v001, migrations_v002, migrations_v003, migrations_v004, migrations_v005,
+};
 use crate::storage::Connection;
 use sea_orm::DbErr;
 use sea_orm::sea_query::IntoIden;
@@ -18,6 +20,7 @@ impl MigratorTrait for AppMigrator {
             Box::new(migrations_v002::Migration),
             Box::new(migrations_v003::Migration),
             Box::new(migrations_v004::Migration),
+            Box::new(migrations_v005::Migration),
         ]
     }
 }

@@ -145,6 +145,7 @@ impl Service {
             start_at: Set(p.start_at),
             reminder_id: Set(p.reminder_id),
             priority: Set(p.priority),
+            progress: Set(p.progress.clamp(0, 100)),
             color: Set(p.color),
             archived_at: Set(None),
             created_at: Set(now),
@@ -187,6 +188,9 @@ impl Service {
         }
         if let Some(priority) = change.priority {
             active.priority = Set(priority);
+        }
+        if let Some(progress) = change.progress {
+            active.progress = Set(progress.clamp(0, 100));
         }
         if let Some(color) = change.color {
             active.color = Set(color);

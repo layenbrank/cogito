@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react'
 
-import type { SignboardEntry, SignboardColumn } from '@/stores/signboard'
+import { useSignboardStore, type SignboardEntry, type SignboardColumn } from '@/stores/signboard'
+import { BarChart } from '@/views/signboard/charts/charts'
+import { ChartPanel } from '@/views/signboard/charts/panel'
+import { findChartTheme } from '@/views/signboard/charts/theme'
+import { findBoardProgress, findChecklistProgress } from '@/views/signboard/progress'
 import styles from '@/views/signboard/signboard.module.scss'
 
 interface StatsViewProps {
@@ -18,6 +22,10 @@ function startOfDay(ms: number) {
 }
 
 function StatsView(props: StatsViewProps) {
+  const checksForEntry = useSignboardStore(function (state) {
+    return state.checksForEntry
+  })
+
   const active = useMemo(
     function () {
       return props.entries.filter(function (card) {
@@ -27,23 +35,23 @@ function StatsView(props: StatsViewProps) {
     [props.entries]
   )
 
-  const columnCounts = useMemo(
+  const boardProgress = useMemo(
+    function () {
+      return findBoardProgress(active, checksForEntry)
+    },
+    [active, checksForEntry]
+  )
+
+  const columnItems = useMemo(
     function () {
       return props.columns.map(function (column) {
         const count = active.filter(function (card) {
           return card.columnID === column.id
         }).length
-        return { column, count }
+        return { name: column.title, value: count }
       })
     },
     [props.columns, active]
-  )
-
-  const maxColumn = Math.max(
-    1,
-    ...columnCounts.map(function (row) {
-      return row.count
-    })
   )
 
   const [today] = useState(function () {
@@ -64,7 +72,7 @@ function StatsView(props: StatsViewProps) {
     )
   }).length
 
-  const priorityBuckets = useMemo(
+  const priorityItems = useMemo(
     function () {
       const buckets = [0, 0, 0, 0, 0]
       for (const card of active) {
@@ -72,78 +80,108 @@ function StatsView(props: StatsViewProps) {
         buckets[idx] = (buckets[idx] ?? 0) + 1
       }
       return buckets
+        .map(function (count, index) {
+          return {
+            name: PRIORITY_LABELS[index] ?? String(index),
+            value: count
+          }
+        })
+        .filter(function (item) {
+          return item.value > 0
+        })
     },
     [active]
   )
 
-  const maxPriority = Math.max(1, ...priorityBuckets)
+  const progressBuckets = useMemo(
+    function () {
+      let zero = 0
+      let low = 0
+      let mid = 0
+      let full = 0
+      for (const card of active) {
+        const progress = findChecklistProgress(checksForEntry(card.id))
+        if (progress.total === 0 || progress.pct <= 0) zero += 1
+        else if (progress.pct < 50) low += 1
+        else if (progress.pct < 100) mid += 1
+        else full += 1
+      }
+      const theme = findChartTheme()
+      return [
+        { name: '未开始', value: zero, fill: theme.muted },
+        { name: '1–49%', value: low, fill: theme.warn },
+        { name: '50–99%', value: mid, fill: theme.accent },
+        { name: '已完成', value: full, fill: theme.ok }
+      ]
+    },
+    [active, checksForEntry]
+  )
+
+  const isColumnEmpty = columnItems.every(function (item) {
+    return item.value === 0
+  })
+  const isPriorityEmpty = priorityItems.length === 0
+  const isProgressEmpty = active.length === 0
 
   return (
     <div className={styles.paneView}>
-      <div className={styles.statsGrid}>
-        <section className={styles.statsCard}>
-          <h3 className={styles.statsTitle}>概览</h3>
-          <div className={styles.statsMetrics}>
-            <div>
-              <p className={styles.statsMetricValue}>{active.length}</p>
-              <p className={styles.statsMetricLabel}>活跃卡片</p>
-            </div>
-            <div>
-              <p className={styles.statsMetricValue}>{overdue}</p>
-              <p className={styles.statsMetricLabel}>已逾期</p>
-            </div>
-            <div>
-              <p className={styles.statsMetricValue}>{dueThisWeek}</p>
-              <p className={styles.statsMetricLabel}>本周到期</p>
-            </div>
-          </div>
-        </section>
+      <div className={styles.statsMetricsBar}>
+        <div>
+          <p className={styles.statsMetricValue}>{boardProgress.pct}%</p>
+          <p className={styles.statsMetricLabel}>
+            完成率
+            {boardProgress.total > 0
+              ? ` · ${boardProgress.done}/${boardProgress.total}`
+              : ' · 暂无清单'}
+          </p>
+        </div>
+        <div>
+          <p className={styles.statsMetricValue}>{overdue}</p>
+          <p className={styles.statsMetricLabel}>已逾期</p>
+        </div>
+        <div>
+          <p className={styles.statsMetricValue}>{dueThisWeek}</p>
+          <p className={styles.statsMetricLabel}>本周到期</p>
+        </div>
+        <div>
+          <p className={styles.statsMetricValue}>{active.length}</p>
+          <p className={styles.statsMetricLabel}>活跃卡片</p>
+        </div>
+      </div>
 
-        <section className={styles.statsCard}>
-          <h3 className={styles.statsTitle}>列分布</h3>
-          <ul className={styles.statsBars}>
-            {columnCounts.map(function (row) {
-              const pct = (row.count / maxColumn) * 100
-              return (
-                <li key={row.column.id}>
-                  <div className={styles.statsBarLabel}>
-                    <span>{row.column.title}</span>
-                    <span>{row.count}</span>
-                  </div>
-                  <div className={styles.statsBarTrack}>
-                    <div
-                      className={styles.statsBarFill}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        </section>
+      <div className={styles.chartsGrid}>
+        <ChartPanel
+          title="列分布"
+          icon="lucide:columns-3"
+          hint="按列计数">
+          <BarChart
+            items={columnItems}
+            isEmpty={isColumnEmpty}
+            emptyHint="暂无卡片"
+          />
+        </ChartPanel>
 
-        <section className={styles.statsCard}>
-          <h3 className={styles.statsTitle}>优先级</h3>
-          <ul className={styles.statsBars}>
-            {priorityBuckets.map(function (count, index) {
-              const pct = (count / maxPriority) * 100
-              return (
-                <li key={PRIORITY_LABELS[index]}>
-                  <div className={styles.statsBarLabel}>
-                    <span>{PRIORITY_LABELS[index]}</span>
-                    <span>{count}</span>
-                  </div>
-                  <div className={styles.statsBarTrack}>
-                    <div
-                      className={styles.statsBarFillAlt}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        </section>
+        <ChartPanel
+          title="优先级"
+          icon="lucide:flag"
+          hint="活跃卡">
+          <BarChart
+            items={priorityItems}
+            isEmpty={isPriorityEmpty}
+            emptyHint="暂无卡片"
+          />
+        </ChartPanel>
+
+        <ChartPanel
+          title="进度分布"
+          icon="lucide:chart-column"
+          hint="按清单完成度分桶">
+          <BarChart
+            items={progressBuckets}
+            isEmpty={isProgressEmpty}
+            emptyHint="暂无卡片"
+          />
+        </ChartPanel>
       </div>
     </div>
   )

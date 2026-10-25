@@ -2,7 +2,8 @@ import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { useMemo, useState } from 'react'
 
-import type { SignboardEntry } from '@/stores/signboard'
+import { useSignboardStore, type SignboardEntry } from '@/stores/signboard'
+import { findChecklistProgress } from '@/views/signboard/progress'
 import styles from '@/views/signboard/signboard.module.scss'
 
 interface CalendarViewProps {
@@ -22,6 +23,9 @@ function dayKey(ms: number) {
 }
 
 function CalendarView(props: CalendarViewProps) {
+  const checksForEntry = useSignboardStore(function (state) {
+    return state.checksForEntry
+  })
   const [cursor, setCursor] = useState(function () {
     const now = new Date()
     return { year: now.getFullYear(), month: now.getMonth() }
@@ -157,6 +161,7 @@ function CalendarView(props: CalendarViewProps) {
                   <span className={styles.calendarDayNum}>{cell.date.getDate()}</span>
                   <ul className={styles.calendarEvents}>
                     {dayCards.slice(0, 3).map(function (card) {
+                      const checklist = findChecklistProgress(checksForEntry(card.id))
                       return (
                         <li key={card.id}>
                           <button
@@ -165,7 +170,10 @@ function CalendarView(props: CalendarViewProps) {
                             onClick={function () {
                               props.onOpenCard(card.id)
                             }}>
-                            {card.title}
+                            <span className="truncate">{card.title}</span>
+                            <span className={styles.calendarEventMeta}>
+                              {checklist.done}/{checklist.total}
+                            </span>
                           </button>
                         </li>
                       )

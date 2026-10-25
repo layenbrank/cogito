@@ -13,6 +13,8 @@ pub struct Model {
     pub index: i32,
     pub color: Option<String>,
     pub wip_limit: Option<i32>,
+    /// todo | doing | done；驱动漏斗完成率
+    pub role: Option<String>,
     pub archived_at: Option<i64>,
     pub created_at: i64,
     pub updated_at: i64,
@@ -74,6 +76,7 @@ pub struct Write {
     pub index: i32,
     pub color: Option<String>,
     pub wip_limit: Option<i32>,
+    pub role: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,6 +93,7 @@ pub struct Change {
     pub index: Option<i32>,
     pub color: Option<Option<String>>,
     pub wip_limit: Option<Option<i32>>,
+    pub role: Option<Option<String>>,
     pub archived_at: Option<Option<i64>>,
 }
 
