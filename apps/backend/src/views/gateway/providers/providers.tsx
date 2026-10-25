@@ -48,12 +48,45 @@ const ORDER_KEY = 'backend-provider-order'
 
 type ProviderKind = (typeof GATEWAY_PROVIDER_KINDS)[number]
 
+interface ProviderDraft {
+  kind: ProviderKind
+  name: string
+  baseUrl: string
+  apiKey: string
+}
+
 const KIND_ITEMS = GATEWAY_PROVIDER_KINDS.map(function (kind) {
   return { value: kind, label: GATEWAY_PROVIDER_KIND_LABELS[kind] }
 })
 
+function emptyDraft(): ProviderDraft {
+  return {
+    kind: GATEWAY_PROVIDER_KINDS[0],
+    name: '',
+    baseUrl: '',
+    apiKey: ''
+  }
+}
+
+function parseKind(value: string): ProviderKind {
+  for (const kind of GATEWAY_PROVIDER_KINDS) {
+    if (kind === value) return kind
+  }
+  return GATEWAY_PROVIDER_KINDS[0]
+}
+
+function draftFromProvider(provider: GatewayProvider): ProviderDraft {
+  return {
+    kind: parseKind(provider.kind),
+    name: provider.name,
+    baseUrl: provider.baseUrl,
+    apiKey: ''
+  }
+}
+
 function SortableProvider(props: {
   provider: GatewayProvider
+  onEdit: (provider: GatewayProvider) => void
   onToggle: (provider: GatewayProvider) => void
   onRemove: (provider: GatewayProvider) => void
 }) {
@@ -95,6 +128,13 @@ function SortableProvider(props: {
       <Button
         variant="outline"
         onClick={function () {
+          props.onEdit(props.provider)
+        }}>
+        编辑
+      </Button>
+      <Button
+        variant="outline"
+        onClick={function () {
           props.onToggle(props.provider)
         }}>
         {props.provider.status === 'ACTIVE' ? '停用' : '启用'}
@@ -132,18 +172,11 @@ export default function ProvidersView() {
   const providers = useQuery({ queryKey: ['gateway-providers'], queryFn: GET_GATEWAY_PROVIDERS })
   const [orderOverride, updateOrderOverride] = useState<string[] | null>(null)
   const [sheetOpen, updateSheetOpen] = useState(false)
+  const [editingID, updateEditingID] = useState<string | null>(null)
   const [pendingDelete, updatePendingDelete] = useState<GatewayProvider | null>(null)
-  const [draft, updateDraft] = useState<{
-    kind: ProviderKind
-    name: string
-    baseUrl: string
-    apiKey: string
-  }>({
-    kind: GATEWAY_PROVIDER_KINDS[0],
-    name: '',
-    baseUrl: '',
-    apiKey: ''
-  })
+  const [draft, updateDraft] = useState<ProviderDraft>(emptyDraft)
+
+  const isEditing = Boolean(editingID)
 
   const order = useMemo(
     function () {
@@ -166,13 +199,45 @@ export default function ProvidersView() {
     [providers.data, orderOverride]
   )
 
-  const createProvider = useMutation({
-    mutationFn: POST_GATEWAY_PROVIDER,
+  function closeSheet() {
+    updateSheetOpen(false)
+    updateEditingID(null)
+    updateDraft(emptyDraft())
+  }
+
+  function openCreate() {
+    updateEditingID(null)
+    updateDraft(emptyDraft())
+    updateSheetOpen(true)
+  }
+
+  function openEdit(provider: GatewayProvider) {
+    updateEditingID(provider.id)
+    updateDraft(draftFromProvider(provider))
+    updateSheetOpen(true)
+  }
+
+  const saveProvider = useMutation({
+    mutationFn: async function () {
+      if (editingID) {
+        return PUT_GATEWAY_PROVIDER(editingID, {
+          kind: draft.kind,
+          name: draft.name,
+          baseUrl: draft.baseUrl,
+          apiKey: draft.apiKey.trim() ? draft.apiKey : undefined
+        })
+      }
+      return POST_GATEWAY_PROVIDER({
+        kind: draft.kind,
+        name: draft.name,
+        baseUrl: draft.baseUrl,
+        apiKey: draft.apiKey.trim() ? draft.apiKey : undefined
+      })
+    },
     onSuccess() {
-      toast.success('已创建供应商')
+      toast.success(isEditing ? '已保存供应商' : '已创建供应商')
       void queryClient.invalidateQueries({ queryKey: ['gateway-providers'] })
-      updateSheetOpen(false)
-      updateDraft({ kind: GATEWAY_PROVIDER_KINDS[0], name: '', baseUrl: '', apiKey: '' })
+      closeSheet()
     },
     onError(error) {
       toast.error(HttpError(error).message)
@@ -236,9 +301,7 @@ export default function ProvidersView() {
         <Button
           size="lg"
           className="h-10 px-4"
-          onClick={function () {
-            updateSheetOpen(true)
-          }}>
+          onClick={openCreate}>
           新建供应商
         </Button>
       }>
@@ -262,6 +325,7 @@ export default function ProvidersView() {
                   <SortableProvider
                     key={provider.id}
                     provider={provider}
+                    onEdit={openEdit}
                     onToggle={function (item) {
                       patchProvider.mutate(item)
                     }}
@@ -281,22 +345,24 @@ export default function ProvidersView() {
 
       <EntitySheet
         open={sheetOpen}
-        title="新建供应商"
-        description="API Key 写入后不可回读，仅显示是否已托管。"
-        submitLabel="创建"
-        isPending={createProvider.isPending}
-        onOpenChange={updateSheetOpen}
+        title={isEditing ? '编辑供应商' : '新建供应商'}
+        description={
+          isEditing
+            ? 'API Key 留空则保留原密钥；填写则覆盖。密钥写入后不可回读。'
+            : 'API Key 写入后不可回读，仅显示是否已托管。'
+        }
+        submitLabel={isEditing ? '保存' : '创建'}
+        isPending={saveProvider.isPending}
+        onOpenChange={function (open) {
+          if (!open) closeSheet()
+          else updateSheetOpen(true)
+        }}
         onSubmit={function () {
-          if (!draft.name || !draft.baseUrl) {
+          if (!draft.name.trim() || !draft.baseUrl.trim()) {
             toast.error('填写名称与接口地址')
             return
           }
-          createProvider.mutate({
-            kind: draft.kind,
-            name: draft.name,
-            baseUrl: draft.baseUrl,
-            apiKey: draft.apiKey || undefined
-          })
+          saveProvider.mutate()
         }}>
         <div className="space-y-2">
           <Label>名称</Label>
@@ -314,12 +380,7 @@ export default function ProvidersView() {
             value={draft.kind}
             onValueChange={function (value) {
               if (!value) return
-              for (const kind of GATEWAY_PROVIDER_KINDS) {
-                if (kind === value) {
-                  updateDraft({ ...draft, kind })
-                  return
-                }
-              }
+              updateDraft({ ...draft, kind: parseKind(value) })
             }}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="选择供应商类型" />
@@ -348,9 +409,10 @@ export default function ProvidersView() {
           />
         </div>
         <div className="space-y-2">
-          <Label>API Key（可选）</Label>
+          <Label>{isEditing ? 'API Key（留空保留原密钥）' : 'API Key（可选）'}</Label>
           <Input
             type="password"
+            placeholder={isEditing ? '••••••••' : undefined}
             value={draft.apiKey}
             onChange={function (event) {
               updateDraft({ ...draft, apiKey: event.target.value })

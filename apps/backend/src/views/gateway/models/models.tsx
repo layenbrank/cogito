@@ -59,6 +59,30 @@ function emptyDraft(providerID: string): ModelDraft {
   }
 }
 
+function parseCapabilityFlag(
+  capabilities: Record<string, unknown> | null | undefined,
+  key: string,
+  fallback: boolean
+): boolean {
+  if (!capabilities || typeof capabilities[key] !== 'boolean') return fallback
+  return capabilities[key] as boolean
+}
+
+function draftFromModel(model: GatewayModel): ModelDraft {
+  return {
+    providerID: model.providerID,
+    name: model.name,
+    label: model.label,
+    allowRoles: model.allowRoles ?? [],
+    enabled: model.enabled,
+    dailyTokenQuota: String(model.dailyTokenQuota ?? 0),
+    tools: parseCapabilityFlag(model.capabilities, 'tools', true),
+    reasoning: parseCapabilityFlag(model.capabilities, 'reasoning', false),
+    vision: parseCapabilityFlag(model.capabilities, 'vision', false),
+    contextWindow: model.contextWindow ? String(model.contextWindow) : ''
+  }
+}
+
 function parseWindow(raw: string): number | undefined {
   const value = Number(raw)
   if (!Number.isFinite(value) || value <= 0) return undefined
@@ -77,10 +101,13 @@ export default function ModelsView() {
   const models = useQuery({ queryKey: ['gateway-admin-models'], queryFn: GET_GATEWAY_ADMIN_MODELS })
   const providers = useQuery({ queryKey: ['gateway-providers'], queryFn: GET_GATEWAY_PROVIDERS })
   const [sheetOpen, updateSheetOpen] = useState(false)
+  const [editingID, updateEditingID] = useState<string | null>(null)
   const [pendingDelete, updatePendingDelete] = useState<GatewayModel | null>(null)
   const [draft, updateDraft] = useState<ModelDraft>(function () {
     return emptyDraft('')
   })
+
+  const isEditing = Boolean(editingID)
 
   const grouped = useMemo(
     function () {
@@ -100,13 +127,62 @@ export default function ModelsView() {
     [providers.data]
   )
 
-  const createModel = useMutation({
-    mutationFn: POST_GATEWAY_ADMIN_MODEL,
+  function closeSheet() {
+    updateSheetOpen(false)
+    updateEditingID(null)
+    updateDraft(emptyDraft(providers.data?.[0]?.id ?? ''))
+  }
+
+  function openCreate() {
+    updateEditingID(null)
+    updateDraft(emptyDraft(providers.data?.[0]?.id ?? ''))
+    updateSheetOpen(true)
+  }
+
+  function openEdit(model: GatewayModel) {
+    updateEditingID(model.id)
+    updateDraft(draftFromModel(model))
+    updateSheetOpen(true)
+  }
+
+  const saveModel = useMutation({
+    mutationFn: async function () {
+      const capabilities = {
+        tools: draft.tools,
+        reasoning: draft.reasoning,
+        vision: draft.vision
+      }
+      const dailyTokenQuota = Number(draft.dailyTokenQuota) || 0
+      const contextWindow = parseWindow(draft.contextWindow)
+
+      if (editingID) {
+        return PUT_GATEWAY_ADMIN_MODEL(editingID, {
+          name: draft.name,
+          label: draft.label,
+          allowRoles: draft.allowRoles,
+          enabled: draft.enabled,
+          dailyTokenQuota,
+          capabilities,
+          // 编辑时空窗要用 0 清空（服务端 ≤0 = 未知）；新建则可不传
+          contextWindow: contextWindow ?? 0
+        })
+      }
+
+      return POST_GATEWAY_ADMIN_MODEL({
+        providerID: draft.providerID,
+        name: draft.name,
+        label: draft.label,
+        allowRoles: draft.allowRoles.length > 0 ? draft.allowRoles : undefined,
+        enabled: draft.enabled,
+        dailyTokenQuota,
+        capabilities,
+        contextWindow
+      })
+    },
     onSuccess() {
-      toast.success('已创建模型')
+      toast.success(isEditing ? '已保存模型' : '已创建模型')
       void queryClient.invalidateQueries({ queryKey: ['gateway-admin-models'] })
-      updateSheetOpen(false)
-      updateDraft(emptyDraft(draft.providerID))
+      closeSheet()
     },
     onError(error) {
       toast.error(HttpError(error).message)
@@ -157,9 +233,7 @@ export default function ModelsView() {
         <Button
           size="lg"
           className="h-10 px-4"
-          onClick={function () {
-            updateSheetOpen(true)
-          }}>
+          onClick={openCreate}>
           新建模型
         </Button>
       }
@@ -209,6 +283,13 @@ export default function ModelsView() {
                           <Button
                             variant="outline"
                             onClick={function () {
+                              openEdit(model)
+                            }}>
+                            编辑
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={function () {
                               toggleModel.mutate({ id: model.id, enabled: !model.enabled })
                             }}>
                             {model.enabled ? '停用' : '启用'}
@@ -237,35 +318,30 @@ export default function ModelsView() {
 
       <EntitySheet
         open={sheetOpen}
-        title="新建模型"
-        description="模型名须与上游约定一致；可见角色留空表示全部可见。"
-        submitLabel="创建"
-        isPending={createModel.isPending}
+        title={isEditing ? '编辑模型' : '新建模型'}
+        description={
+          isEditing
+            ? '供应商归属创建后不可改；模型名须与上游约定一致。'
+            : '模型名须与上游约定一致；可见角色留空表示全部可见。'
+        }
+        submitLabel={isEditing ? '保存' : '创建'}
+        isPending={saveModel.isPending}
         onOpenChange={function (open) {
-          updateSheetOpen(open)
-          if (open && !draft.providerID && providers.data?.[0]) {
+          if (!open) {
+            closeSheet()
+            return
+          }
+          updateSheetOpen(true)
+          if (!isEditing && !draft.providerID && providers.data?.[0]) {
             updateDraft(emptyDraft(providers.data[0].id))
           }
         }}
         onSubmit={function () {
-          if (!draft.providerID || !draft.name || !draft.label) {
-            toast.error('填写供应商、模型名、显示名')
+          if ((!isEditing && !draft.providerID) || !draft.name.trim() || !draft.label.trim()) {
+            toast.error(isEditing ? '填写模型名、显示名' : '填写供应商、模型名、显示名')
             return
           }
-          createModel.mutate({
-            providerID: draft.providerID,
-            name: draft.name,
-            label: draft.label,
-            allowRoles: draft.allowRoles.length > 0 ? draft.allowRoles : undefined,
-            enabled: draft.enabled,
-            dailyTokenQuota: Number(draft.dailyTokenQuota) || 0,
-            capabilities: {
-              tools: draft.tools,
-              reasoning: draft.reasoning,
-              vision: draft.vision
-            },
-            contextWindow: parseWindow(draft.contextWindow)
-          })
+          saveModel.mutate()
         }}>
         <div className="space-y-2">
           <Label>供应商</Label>
@@ -277,7 +353,9 @@ export default function ModelsView() {
             onValueChange={function (value) {
               if (value) updateDraft({ ...draft, providerID: value })
             }}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger
+              className="w-full"
+              disabled={isEditing}>
               <SelectValue placeholder="选择供应商" />
             </SelectTrigger>
             <SelectContent>
