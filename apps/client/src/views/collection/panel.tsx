@@ -8,15 +8,19 @@ import { CHANNELS } from '@/shared/ipc/channels'
 
 import { useCollectionStore } from '@/stores/collection'
 import { useMirrorStore } from '@/stores/mirror'
+import { AddSheet } from '@/views/collection/add-sheet.tsx'
 import { Controller } from '@/views/collection/controller.tsx'
-import { OverlayDrawer } from '@/views/collection/drawer.tsx'
 
 interface CollectionPanelProps {
   id: string
+  /** 与 URL `?add=1` 同步 */
+  isAddOpen: boolean
+  onUpdateAddOpen: (open: boolean) => void
+  /** 同步顶栏标题 */
+  onTitleChange?: (title: string) => void
 }
 
 function CollectionPanel(props: CollectionPanelProps) {
-  const [drawerVisible, onUpdateDrawerVisible] = useState(false)
   const [stack, setStack] = useState<string[]>([props.id])
   const [magneticTiles, onUpdateMagneticTiles] = useState<MagneticTile[]>([])
   const [title, onUpdateTitle] = useState('文件夹')
@@ -28,6 +32,7 @@ function CollectionPanel(props: CollectionPanelProps) {
   })
 
   const currentId = stack[stack.length - 1] ?? props.id
+  const onTitleChange = props.onTitleChange
   const [membersToken, bumpMembersToken] = useState(0)
 
   useEffect(
@@ -51,7 +56,9 @@ function CollectionPanel(props: CollectionPanelProps) {
             })
           )
           const [host] = hosts
-          if (host?.title) onUpdateTitle(host.title)
+          const nextTitle = host?.title?.trim() || '文件夹'
+          onUpdateTitle(nextTitle)
+          onTitleChange?.(nextTitle)
         } catch {
           if (cancelled) return
           onUpdateMagneticTiles([])
@@ -64,7 +71,7 @@ function CollectionPanel(props: CollectionPanelProps) {
         cancelled = true
       }
     },
-    [currentId, membersToken]
+    [currentId, membersToken, onTitleChange]
   )
 
   const handleRemove = useCallback(
@@ -101,11 +108,28 @@ function CollectionPanel(props: CollectionPanelProps) {
     }
   }
 
+  async function openBookmarkLibrary() {
+    try {
+      const { admitSession } = await import('@/features/magnetic-tile/session')
+      admitSession({
+        component: 'bookmark',
+        id: 'bookmark',
+        url: '',
+        path: '/bookmark'
+      })
+      const { router } = await import('@/routers')
+      await router.navigate('/bookmark')
+    } catch (error) {
+      console.error(error)
+      toast.error('无法打开书签库')
+    }
+  }
+
   const canGoBack = stack.length > 1
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
+      <header className="flex shrink-0 items-center justify-between gap-3 px-6 pb-3 pt-4">
         <div className="flex min-w-0 items-center gap-2">
           {canGoBack ? (
             <Button
@@ -125,7 +149,16 @@ function CollectionPanel(props: CollectionPanelProps) {
               />
             </Button>
           ) : null}
-          <h2 className="truncate text-base font-semibold text-foreground">{title}</h2>
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-semibold tracking-tight text-foreground">
+              {title}
+            </h2>
+            <p className="truncate text-xs text-muted-foreground">
+              {magneticTiles.length
+                ? `${magneticTiles.length} 个项目`
+                : '空集合'}
+            </p>
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <Button
@@ -133,22 +166,7 @@ function CollectionPanel(props: CollectionPanelProps) {
             size="sm"
             className="text-muted-foreground"
             onClick={function () {
-              void (async function () {
-                try {
-                  const { admitSession } = await import('@/features/magnetic-tile/session')
-                  admitSession({
-                    component: 'bookmark',
-                    id: 'bookmark',
-                    url: '',
-                    path: '/bookmark'
-                  })
-                  const { router } = await import('@/routers')
-                  await router.navigate('/bookmark')
-                } catch (error) {
-                  console.error(error)
-                  toast.error('无法打开书签文件夹')
-                }
-              })()
+              void openBookmarkLibrary()
             }}>
             打开书签库
           </Button>
@@ -159,9 +177,10 @@ function CollectionPanel(props: CollectionPanelProps) {
                   variant="ghost"
                   size="icon-sm"
                   aria-label="新增网址"
+                  aria-pressed={props.isAddOpen}
                   className="size-10 rounded-md text-muted-foreground"
                   onClick={function () {
-                    onUpdateDrawerVisible(true)
+                    props.onUpdateAddOpen(!props.isAddOpen)
                   }}
                 />
               }>
@@ -175,24 +194,58 @@ function CollectionPanel(props: CollectionPanelProps) {
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-4 scrollbar-thin">
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-6 pb-8 scrollbar-thin">
         {magneticTiles.length ? (
           <Controller
             magneticTiles={magneticTiles}
             onPick={handlePick}
             onRemove={handleRemove}
+            density="comfortable"
           />
         ) : (
-          <p className="py-12 text-center text-sm text-muted-foreground">
-            暂无内容，点击右上角新增网址
-          </p>
+          <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+            <div className="flex size-14 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground">
+              <Icon
+                icon="lucide:folder-open"
+                className="size-7"
+                aria-hidden
+              />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">还没有内容</p>
+              <p className="text-sm text-muted-foreground">
+                从主镜未归组的网址磁贴里挑选，或去书签库批量挂载
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button
+                size="sm"
+                onClick={function () {
+                  props.onUpdateAddOpen(true)
+                }}>
+                <Icon
+                  icon="lucide:plus"
+                  aria-hidden
+                />
+                新增网址
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={function () {
+                  void openBookmarkLibrary()
+                }}>
+                打开书签库
+              </Button>
+            </div>
+          </div>
         )}
       </div>
 
-      <OverlayDrawer
+      <AddSheet
         id={currentId}
-        visible={drawerVisible}
-        onUpdateVisible={onUpdateDrawerVisible}
+        open={props.isAddOpen}
+        onUpdateOpen={props.onUpdateAddOpen}
         onJoined={function () {
           bumpMembersToken(function (token) {
             return token + 1

@@ -106,8 +106,8 @@ const MagneticTile = {
     )
   },
   /**
-   * 磁贴表面。双击默认走 `activateTile`（collection 为 scale 展开，其它在主窗口打开）；
-   * 可用 `onDoubleClick` 覆盖（如集合抽屉选贴）。
+   * 磁贴表面。双击默认走 `activateTile`（主窗口打开对应路由）；
+   * 可用 `onDoubleClick` 覆盖（如集合内选贴）。
    */
   Section(props: SectionProps) {
     const nodeRef = useRef<HTMLDivElement>(null)

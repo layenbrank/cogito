@@ -4,16 +4,19 @@ import styles from '@/views/collection/controller.module.scss'
 
 interface ControllerProps {
   magneticTiles: readonly MagneticTile[]
-  /** 抽屉选贴 / 钻入子文件夹：点击卡片回调 */
+  /** 选贴 / 钻入子文件夹：点击卡片回调 */
   onPick?: (id: string) => void
-  /** 阻止 navigation Section 双击开窗（抽屉选贴） */
+  /** 阻止 navigation Section 双击外跳（选贴模式） */
   onPrevent?: React.MouseEventHandler<HTMLDivElement>
   /** 成员移出集合 */
   onRemove?: (id: string) => void
+  /** 主内容区宽松；侧栏选贴用紧凑 */
+  density?: 'comfortable' | 'compact'
 }
 
 function Controller(props: ControllerProps) {
-  // 集合内用 1×1 方块，窄抽屉也能整齐两列对齐
+  const density = props.density ?? 'comfortable'
+  // 集合内用 1×1 方块，网格对齐稳定
   const size: Mirror.Size = 1
   const shape: Mirror.Shape = 'square'
   const direction: Mirror.Direction = 'vertical'
@@ -41,6 +44,7 @@ function Controller(props: ControllerProps) {
     <div
       role="toolbar"
       aria-label="集合内容"
+      data-density={density}
       className={styles.magneticTile}
       onClick={function (event) {
         pickFromEvent(event, Boolean(props.onPick))
@@ -58,7 +62,7 @@ function Controller(props: ControllerProps) {
               size={size}
               shape={shape}
               direction={direction}
-              // 子文件夹：单击钻入，禁止双击再开一层展开动画
+              // 子文件夹：单击钻入，禁止双击再跳转新页
               onDoubleClick={
                 props.onPick
                   ? function (event) {
@@ -88,7 +92,7 @@ function Controller(props: ControllerProps) {
             size={size}
             shape={shape}
             direction={direction}
-            // 网址仍双击外跳；抽屉选贴模式才拦截
+            // 网址仍双击外跳；选贴模式才拦截
             onPrevent={props.onPrevent}
             onTrash={
               props.onRemove

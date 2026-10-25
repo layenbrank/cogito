@@ -4,10 +4,17 @@
   padding: 0;
   margin: 0;
   outline: none;
-  justify-content: center;
+  justify-content: start;
   justify-items: center;
   grid-auto-flow: row dense;
-  row-gap: var(--magnetic-tile-row-gap, 30px);
-  column-gap: var(--magnetic-tile-col-gap, 30px);
-  grid-template-columns: repeat(auto-fill, var(--magnetic-tile-unit, 60px));
+  row-gap: var(--magnetic-tile-row-gap, 28px);
+  column-gap: var(--magnetic-tile-col-gap, 28px);
+  grid-template-columns: repeat(auto-fill, var(--magnetic-tile-unit, 72px));
+
+  &[data-density='compact'] {
+    --magnetic-tile-unit: 60px;
+    --magnetic-tile-row-gap: 20px;
+    --magnetic-tile-col-gap: 20px;
+    justify-content: center;
+  }
 }

@@ -1,13 +1,6 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@cogito/design/components/popover'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@cogito/design/components/select'
 import { Separator } from '@cogito/design/components/separator'
 import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
 import { save } from '@tauri-apps/plugin-dialog'
