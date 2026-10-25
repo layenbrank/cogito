@@ -22,6 +22,7 @@ use crate::guards::sso::{SsoConnectionScope, SsoLoginScope};
 use crate::services::sso::schema::{
     SsoConnectionR, SsoConnectionUpdateP, SsoConnectionWriteP, SsoLoginR,
 };
+use crate::services::tenant::service::TenantService;
 use crate::utils::code::{auth as auth_codes, external, request, resource, system};
 use crate::utils::encryption::{EncryptionError, decrypt_field, encrypt_field, encrypt_password};
 use crate::utils::jwt::generate_token;
@@ -314,7 +315,7 @@ impl SsoService {
             .map_err(db_err)?;
 
         let outcome = async {
-            let user = upsert_user(scope.tx(), config, &sub, email.as_deref()).await?;
+            let (user, is_new) = upsert_user(scope.tx(), config, &sub, email.as_deref()).await?;
             bind_membership(scope.tx(), conn.tenant_id, user.id).await?;
             let jwt = generate_token(
                 &user.id.to_string(),
@@ -323,13 +324,18 @@ impl SsoService {
                 config.jwt_secret(),
                 None,
             )?;
-            Ok::<SsoLoginR, SsoError>(SsoLoginR { token: jwt })
+            Ok::<_, SsoError>((SsoLoginR { token: jwt }, user, is_new))
         }
         .await;
 
         match outcome {
-            Ok(login) => {
+            Ok((login, user, is_new)) => {
                 scope.commit().await.map_err(db_err)?;
+                if is_new {
+                    TenantService::provision_personal(db, user.id, &user.username)
+                        .await
+                        .map_err(|err| SsoError::Db(err.to_string()))?;
+                }
                 Ok(login)
             }
             Err(err) => {
@@ -487,12 +493,13 @@ async fn validate_id_token(
     Ok(claims)
 }
 
+/// 按邮箱或 `sso_{sub}` 落账号；第二个返回值表示本次是否新建。
 async fn upsert_user(
     tx: &DatabaseTransaction,
     config: &Configure,
     sub: &str,
     email: Option<&str>,
-) -> Result<auth::Model, SsoError> {
+) -> Result<(auth::Model, bool), SsoError> {
     if let Some(email) = email.filter(|e| !e.trim().is_empty()) {
         let lower = email.trim().to_ascii_lowercase();
         let existing = auth::Entity::find()
@@ -501,7 +508,7 @@ async fn upsert_user(
             .await
             .map_err(db_err)?;
         if let Some(user) = existing {
-            return Ok(user);
+            return Ok((user, false));
         }
 
         let username = lower.clone();
@@ -511,7 +518,7 @@ async fn upsert_user(
             config.aes_key(),
         )?;
         let now = Utc::now().fixed_offset();
-        return auth::ActiveModel {
+        let user = auth::ActiveModel {
             id: Set(Uuid::new_v4()),
             username: Set(username),
             password: Set(password),
@@ -532,18 +539,27 @@ async fn upsert_user(
         }
         .insert(tx)
         .await
-        .map_err(db_err);
+        .map_err(db_err)?;
+        return Ok((user, true));
     }
 
     // 无邮箱：用 sub 生成用户名
-    let username = format!("sso_{}", sub);
+    let username = format!("sso_{sub}");
+    if let Some(user) = auth::Entity::find_by_username(&username)
+        .one(tx)
+        .await
+        .map_err(db_err)?
+    {
+        return Ok((user, false));
+    }
+
     let password = encrypt_password(
         &format!("sso-{}", Uuid::new_v4()),
         &config.encryption(),
         config.aes_key(),
     )?;
     let now = Utc::now().fixed_offset();
-    auth::ActiveModel {
+    let user = auth::ActiveModel {
         id: Set(Uuid::new_v4()),
         username: Set(username),
         password: Set(password),
@@ -564,7 +580,8 @@ async fn upsert_user(
     }
     .insert(tx)
     .await
-    .map_err(db_err)
+    .map_err(db_err)?;
+    Ok((user, true))
 }
 
 async fn bind_membership(

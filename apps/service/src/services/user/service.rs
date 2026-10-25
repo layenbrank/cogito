@@ -18,6 +18,7 @@ use crate::{
                 phone_free,
             },
         },
+        tenant::service::TenantService,
         user::schema::{UpdateP, UserR, WriteP},
     },
     utils::{
@@ -127,6 +128,10 @@ impl UserService {
         .insert(db.raw())
         .await
         .map_err(map_db_err)?;
+
+        TenantService::provision_personal(db, user.id, &user.username)
+            .await
+            .map_err(|err| UserError::DatabaseError(err.to_string()))?;
 
         Ok(UserR::from_parts(user, None))
     }

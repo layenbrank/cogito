@@ -17,6 +17,7 @@ use crate::services::auth::schema::{
     CaptchaR, EmailSigninP, ForgotPasswordP, Gender, OtpChannel, OtpP, PasswordP, PhoneSigninP,
     ProfileP, ProfileR, ResetPasswordP, SigninP, SigninR, SignupP, SignupR,
 };
+use crate::services::tenant::service::TenantService;
 use crate::services::upload::schema::Visibility;
 use crate::utils::code::{auth as auth_codes, business, external, request, resource, system};
 use crate::utils::db::is_unique_violation;
@@ -674,6 +675,10 @@ impl AuthService {
         .insert(db.raw())
         .await
         .map_err(map_db_err)?;
+
+        TenantService::provision_personal(db, user.id, &user.username)
+            .await
+            .map_err(|err| AuthError::DatabaseError(err.to_string()))?;
 
         let token = generate_token(
             &user.id.to_string(),

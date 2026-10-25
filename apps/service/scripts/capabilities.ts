@@ -307,6 +307,11 @@ export const TENANT_SCOPE_LEGACY: Record<string, { max: number; reason: string }
     reason:
       'OIDC 匿名流程的引导调用点（连接 id 读回连接行、再按该租户开写事务）；守卫本身在 src/guards/sso.rs，这里只是调用'
   },
+  'src/services/tenant/service.rs': {
+    max: 2,
+    reason:
+      '注册/管理建号/SSO 新建后的机器路径：账号面 AccountScope 查是否已有 PERSONAL，再 TenantScope::open + create_owned 开通个人租户'
+  },
   'src/services/agent/dispatch.rs': {
     max: 1,
     reason:

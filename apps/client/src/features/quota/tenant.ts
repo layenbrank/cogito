@@ -1,5 +1,5 @@
-import { GET_MY_TENANTS, PERSONAL_TENANT, POST_TENANT, type Tenant } from '@/apis/tenant.ts'
-import { findAuthToken, parseAuthClaims, subscribeAuthToken } from '@/utils/auth.ts'
+import { GET_MY_TENANTS, PERSONAL_TENANT, type Tenant } from '@/apis/tenant.ts'
+import { findAuthToken, subscribeAuthToken } from '@/utils/auth.ts'
 import {
   cacheActiveTenant,
   clearActiveTenantCache,
@@ -17,7 +17,7 @@ import {
  * 是**异步**落盘的，发起时不该再等一次网络；值缓存在 `utils/tenant.ts`（`http.ts` 也要同步读它），
  * 这里负责「怎么解析、什么时候作废」。
  *
- * 注册不会自动建个人租户：列表里没有 PERSONAL 时用 `POST /tenants` 补建一条。
+ * 个人租户由注册 / 管理建号 / SSO 新建在服务端开通；客户端只解析，不再补建。
  */
 
 /** 缓存有效期：租户归属很少变，但换账号必须能立刻反映（`utils/tenant.ts` 用令牌指纹兜底） */
@@ -49,55 +49,6 @@ function findPersonalTenant(tenants: Tenant[]): Tenant | null {
 /** 无 PERSONAL 时的兜底：任意已归属租户仍可带 X-Tenant-ID（配额按服务端规则回落） */
 function findFallbackTenant(tenants: Tenant[]): Tenant | null {
   return tenants[0] ?? null
-}
-
-/** slug：小写字母/数字/中划线；优先用 JWT sub，否则随机 */
-function buildPersonalSlug(userID: string | undefined): string {
-  const raw = (userID ?? crypto.randomUUID()).toLowerCase().replace(/[^a-z0-9-]/g, '')
-  const stem = raw || crypto.randomUUID().replace(/-/g, '')
-  return `personal-${stem}`
-}
-
-/**
- * 列表没有 PERSONAL 时补建一条。
- * 补建失败则重拉列表（并发建过）；仍无 PERSONAL 时回落任意已有租户；都没有才 null。
- */
-async function ensurePersonalTenant(tenants: Tenant[]): Promise<Tenant | null> {
-  const existing = findPersonalTenant(tenants)
-  if (existing) return existing
-
-  const claims = parseAuthClaims(findAuthToken())
-  const userID = typeof claims?.sub === 'string' ? claims.sub : undefined
-  const username =
-    typeof claims?.username === 'string' && claims.username.trim()
-      ? claims.username.trim()
-      : '用户'
-
-  async function create(slug: string): Promise<Tenant> {
-    return POST_TENANT({
-      name: `${username}的个人空间`,
-      slug,
-      type: PERSONAL_TENANT
-    })
-  }
-
-  try {
-    return await create(buildPersonalSlug(userID))
-  } catch (firstError) {
-    try {
-      return await create(`personal-${crypto.randomUUID().replace(/-/g, '')}`)
-    } catch (secondError) {
-      console.warn('[quota] 自动创建个人租户失败', firstError, secondError)
-    }
-  }
-
-  try {
-    const refreshed = await GET_MY_TENANTS()
-    return findPersonalTenant(refreshed) ?? findFallbackTenant(refreshed)
-  } catch (error) {
-    console.warn('[quota] 补建后重拉租户列表失败', error)
-    return findFallbackTenant(tenants)
-  }
 }
 
 function clearActiveTenant(): void {
@@ -136,7 +87,7 @@ async function syncActiveTenant(options: { force?: boolean } = {}): Promise<stri
       // 令牌换人了：这份结果属于上一个账号，丢掉（本次不带租户头，服务端按账号归属兜底）
       if (token !== findAuthToken()) return null
 
-      const personal = await ensurePersonalTenant(tenants)
+      const personal = findPersonalTenant(tenants) ?? findFallbackTenant(tenants)
       if (token !== findAuthToken()) return null
 
       cacheActiveTenant(personal ? personal.id : null, token)

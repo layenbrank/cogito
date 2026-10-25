@@ -19,10 +19,11 @@ use uuid::Uuid;
 
 use crate::clients::redis::RedisPool;
 use crate::configures::configure::Configure;
+use crate::databases::database::Storage;
 use crate::filters::exception::Exception;
 use crate::guards::account::AccountScope;
 use crate::guards::platform::PlatformScope;
-use crate::guards::tenant::TenantCtx;
+use crate::guards::tenant::{TenantCtx, TenantScope};
 use crate::interceptors::envelope::Paginated;
 use crate::services::gateway::schema::{AuditFilter, AuditR};
 use crate::services::gateway::service::GatewayService;
@@ -91,6 +92,80 @@ impl From<TenantError> for Exception {
 pub struct TenantService;
 
 impl TenantService {
+    /// 为账号开通个人租户（注册 / 管理建号 / SSO 新建后调用）。
+    ///
+    /// 已有 PERSONAL 成员关系则幂等返回。机器路径：账号面查重 → 租户面
+    /// [`tenants::create_owned`]（用户本人为 OWNER）。
+    pub async fn provision_personal(
+        storage: &Storage,
+        user_id: Uuid,
+        username: &str,
+    ) -> Result<TenantR, TenantError> {
+        let user = UserId::from_uuid(user_id);
+        let account = AccountScope::open(storage, user)
+            .await
+            .map_err(|err| TenantError::Db(err.to_string()))?;
+        let owned = tenants::list_for_user(account.tx(), user)
+            .await
+            .map_err(persist_err)?;
+        let existing = owned
+            .into_iter()
+            .find(|tenant| tenant.tenant_type().is_personal());
+        account
+            .rollback()
+            .await
+            .map_err(|err| TenantError::Db(err.to_string()))?;
+        if let Some(tenant) = existing {
+            return Ok(tenant_to_r(&tenant));
+        }
+
+        let trimmed = username.trim();
+        let name = if trimmed.is_empty() {
+            "个人空间".to_owned()
+        } else {
+            format!("{trimmed}的个人空间")
+        };
+
+        let slug_candidates = [
+            personal_slug_from_user(user_id),
+            format!("personal-{}", Uuid::new_v4().as_simple()),
+        ];
+
+        for candidate in slug_candidates {
+            let Ok(slug) = normalized_slug(&candidate) else {
+                continue;
+            };
+            let tenant_id = TenantId::generate();
+            let scope = TenantScope::open(storage, tenant_id)
+                .await
+                .map_err(|err| TenantError::Db(err.to_string()))?;
+            let draft = TenantDraft {
+                id: tenant_id,
+                name: name.clone(),
+                slug,
+                tenant_type: TenantType::Personal,
+            };
+            match tenants::create_owned(scope.tx(), draft, user).await {
+                Ok(tenant) => {
+                    scope
+                        .commit()
+                        .await
+                        .map_err(|err| TenantError::Db(err.to_string()))?;
+                    return Ok(tenant_to_r(&tenant));
+                }
+                Err(err) => {
+                    let _ = scope.rollback().await;
+                    match conflict(err, TenantError::SlugTaken) {
+                        TenantError::SlugTaken => continue,
+                        other => return Err(other),
+                    }
+                }
+            }
+        }
+
+        Err(TenantError::SlugTaken)
+    }
+
     /// 新建租户：调用者是它的 Owner。
     ///
     /// 标识由调用方生成并已写进作用域，这里直接用——租户行与首条成员关系都必须落在
@@ -518,6 +593,17 @@ fn normalized_name(value: &str) -> Result<String, TenantError> {
     }
 
     Ok(name.to_owned())
+}
+
+/// 个人租户标识：`personal-` + 用户 id 前 16 位十六进制。
+fn personal_slug_from_user(user_id: Uuid) -> String {
+    let stem: String = user_id
+        .as_simple()
+        .to_string()
+        .chars()
+        .take(16)
+        .collect();
+    format!("personal-{stem}")
 }
 
 /// 租户标识：去空白 + 转小写，只允许小写字母 / 数字 / 中划线。
