@@ -94,7 +94,9 @@ function ForgotForm(props: ForgotFormProps) {
               onValueChange={function (value) {
                 onModeChange(value as AuthMode)
               }}>
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList
+                size="lg"
+                className="grid w-full grid-cols-3">
                 {MODE.options.map(function (option) {
                   return (
                     <TabsTrigger

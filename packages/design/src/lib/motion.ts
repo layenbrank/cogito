@@ -34,6 +34,17 @@ const CHECK_TRANSITION = {
 } as const satisfies Transition
 
 /**
+ * Tabs 激活块滑动（`TabsIndicator`）—— CSS transition 时长 / 曲线。
+ * 跟登录 ModeSwap 同档 ease，略短于数字翻页，保证分段切换跟手。
+ */
+const TAB_INDICATOR_EASE = [0.22, 1, 0.36, 1] as const
+const TAB_INDICATOR_DURATION = 0.22
+const TAB_INDICATOR_TRANSITION = {
+  duration: TAB_INDICATOR_DURATION,
+  ease: TAB_INDICATOR_EASE
+} as const satisfies Transition
+
+/**
  * 数字切换（`AnimatedDigits`）—— 略长于点按反馈，ease-out 收尾更顺；
  * 只动 opacity + y，避免 layout 抖动。
  */
@@ -73,6 +84,9 @@ export {
   POP_EXIT,
   POP_INITIAL,
   POP_TRANSITION,
+  TAB_INDICATOR_DURATION,
+  TAB_INDICATOR_EASE,
+  TAB_INDICATOR_TRANSITION,
   TAP_SCALE,
   TAP_TRANSITION
 }

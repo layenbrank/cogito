@@ -118,7 +118,9 @@ function DialogContent({
           />
           <div
             data-slot="dialog-body"
-            className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto pb-4">
+            // px 留给 focus ring：overflow-y:auto 时 overflow-x 也会变成可裁切，
+            // 贴边 Input 的 ring 会被左右切掉（看板卡片详情即此例）
+            className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto px-1 pb-4">
             {children}
           </div>
           <div
