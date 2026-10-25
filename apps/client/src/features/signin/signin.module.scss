@@ -19,24 +19,21 @@
   flex: 1 1 0;
   align-self: stretch;
   position: relative;
-  min-width: 280px;
+  min-width: 300px;
   min-height: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  row-gap: 20px;
-  padding: 32px 28px 22px;
+  row-gap: 28px;
+  padding: 40px 32px 28px;
   overflow: hidden;
   color: var(--signin-brand-foreground);
-  /*
-   * WebGPU 不可用 / 驱动拒绝时的常驻兜底：与「思 · 台」同一套配色（深靛蓝底 +
-   * 两处蓝紫光晕），让入场动效永远不等 GPU，失败时也不是一块死黑。
-   */
+  /* 形状兜底：深底 + 右上淡形块暗示（无缎面褶） */
   background:
-    radial-gradient(90% 60% at 70% 18%, oklch(0.55 0.22 264 / 30%) 0%, transparent 70%),
-    radial-gradient(80% 55% at 18% 88%, oklch(0.45 0.2 264 / 22%) 0%, transparent 72%),
-    linear-gradient(180deg, #0d1230 0%, #0b0e20 55%, #080a18 100%);
+    radial-gradient(28% 22% at 82% 28%, oklch(0.45 0.08 264 / 16%) 0%, transparent 70%),
+    radial-gradient(22% 18% at 78% 58%, oklch(0.5 0.06 264 / 10%) 0%, transparent 72%),
+    linear-gradient(168deg, #0a0d18 0%, #0c1020 46%, #080a14 100%);
   box-shadow: inset -1px 0 0 var(--signin-brand-border);
   isolation: isolate;
   z-index: 1;
@@ -45,34 +42,33 @@
     flex: none;
     height: auto;
     min-height: 0;
-    row-gap: 12px;
-    padding: 22px 18px 16px;
+    row-gap: 14px;
+    padding: 24px 20px 18px;
     box-shadow: inset 0 -1px 0 var(--signin-brand-border);
   }
 }
 
-/** 懒挂载宿主：与 .brandShaderMount 同层，负责整层的淡入与落位 */
 .brandShaderHost {
-  pointer-events: none;
+  pointer-events: auto;
   position: absolute;
   inset: 0;
   z-index: 0;
-  transform-origin: left center;
-  will-change: opacity, transform;
+  will-change: opacity;
 }
 
-/** WebGPU 氛围层：铺满左侧；pointer-events:none，涟漪仍跟全局指针 */
 .brandShaderMount {
   position: absolute !important;
   inset: 0 !important;
   display: block !important;
   width: 100% !important;
   height: 100% !important;
+  pointer-events: auto !important;
 
   :global(canvas) {
     display: block;
     width: 100% !important;
     height: 100% !important;
+    pointer-events: auto;
   }
 }
 
@@ -82,40 +78,50 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  row-gap: 10px;
+  row-gap: 28px;
   min-height: 0;
   flex: 1;
-  // 入场 y 位移由 .brand 裁切，勿在此开滚动条
   overflow: hidden;
+  pointer-events: none;
+}
 
-  h3 {
-    margin: 0;
-    color: var(--signin-brand-foreground);
-    font-weight: 600;
-    font-size: 22px;
-    letter-spacing: -0.03em;
-    line-height: 1.15;
-  }
+.brandHero {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  row-gap: 10px;
+  max-width: 320px;
+  padding-left: 14px;
+  border-left: 1px solid oklch(1 0 0 / 0.14);
 }
 
 .eyebrow {
   margin: 0;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.12em;
   color: var(--signin-brand-faint);
 }
 
+.brandName {
+  margin: 0;
+  color: var(--signin-brand-foreground);
+  font-weight: 600;
+  font-size: 34px;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
 .tagline {
-  margin: 0 0 8px;
-  max-width: 300px;
+  margin: 2px 0 0;
+  max-width: 260px;
   color: var(--signin-brand-muted);
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.55;
 }
 
 .capabilities {
-  margin: 16px 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
   display: flex;
@@ -129,36 +135,26 @@
   }
 }
 
-/** 非交互列表：分隔行，无假 hover */
 .capability {
-  display: flex;
-  align-items: flex-start;
-  column-gap: 12px;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--signin-brand-border);
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  column-gap: 14px;
+  align-items: start;
+  padding: 13px 0;
+  border-top: 1px solid oklch(1 0 0 / 0.06);
 
   &:last-child {
-    border-bottom: none;
+    border-bottom: 1px solid oklch(1 0 0 / 0.06);
   }
 }
 
-.capabilityIcon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  flex-shrink: 0;
-  margin-top: 1px;
-  border-radius: 8px;
-  background: oklch(1 0 0 / 0.1);
-  color: var(--signin-brand-foreground);
-  box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.06);
-
-  :global(svg) {
-    width: 15px;
-    height: 15px;
-  }
+.capabilityIndex {
+  padding-top: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  color: oklch(0.72 0.06 264 / 0.72);
 }
 
 .capabilityBody {
@@ -168,14 +164,14 @@
   min-width: 0;
 
   strong {
-    font-size: 13px;
+    font-size: 13.5px;
     font-weight: 600;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
     color: var(--signin-brand-foreground);
   }
 
   span {
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 1.45;
     color: var(--signin-brand-subtle);
   }
@@ -188,7 +184,9 @@
   flex-shrink: 0;
   font-size: 11px;
   color: var(--signin-brand-faint);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+  pointer-events: none;
 }
 
 .panel {
@@ -225,11 +223,11 @@
   pointer-events: none;
   background: linear-gradient(
     90deg,
-    oklch(0.6 0.12 268 / 22%) 0%,
-    oklch(0.6 0.12 268 / 8%) 45%,
+    oklch(0.55 0.1 264 / 18%) 0%,
+    oklch(0.55 0.1 264 / 6%) 45%,
     transparent 100%
   );
-  box-shadow: inset 1px 0 0 oklch(0.88 0.05 268 / 55%);
+  box-shadow: inset 1px 0 0 oklch(0.86 0.04 264 / 45%);
 
   @media (max-width: 768px) {
     inset: 0 0 auto 0;
@@ -237,11 +235,11 @@
     height: 20px;
     background: linear-gradient(
       180deg,
-      oklch(0.6 0.12 268 / 22%) 0%,
-      oklch(0.6 0.12 268 / 8%) 45%,
+      oklch(0.55 0.1 264 / 18%) 0%,
+      oklch(0.55 0.1 264 / 6%) 45%,
       transparent 100%
     );
-    box-shadow: inset 0 1px 0 oklch(0.88 0.05 268 / 55%);
+    box-shadow: inset 0 1px 0 oklch(0.86 0.04 264 / 45%);
   }
 }
 
@@ -331,7 +329,6 @@
 .tabs {
   margin-bottom: 22px;
   width: 100%;
-  font-size: 13px;
 }
 
 .captcha {

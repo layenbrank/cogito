@@ -1,4 +1,3 @@
-import { Icon } from '@iconify/react/offline'
 import { useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
@@ -17,37 +16,36 @@ const BrandShader = lazy(function () {
 const TAGLINE = '一块桌面，装下磁贴、Agent 与指令。'
 const FOOTNOTE = '© 2026 cogito'
 
-/** 左侧能力叙事：磁贴 / Agent / 镜像 / 指令 */
+/** 左侧能力叙事：索引式排版，取代图标方块 */
 const CAPABILITIES = [
   {
     key: 'tiles',
-    icon: 'lucide:layout-grid',
     title: '磁贴',
     detail: '书签、日历、截屏、商店…一览随手开'
   },
   {
     key: 'agent',
-    icon: 'lucide:sparkles',
     title: 'Agent',
     detail: 'AI Hub 对话与工具调用，留在同一处'
   },
   {
     key: 'mirror',
-    icon: 'lucide:layers',
     title: '镜像',
     detail: '多工作台隔离，切换不丢现场'
   },
   {
     key: 'directive',
-    icon: 'lucide:workflow',
     title: '指令',
     detail: '流水线与自动化，从上次停的地方接着跑'
   }
 ] as const
 
-/** 预拉取 shader chunk，延迟期间即可下载，挂载时少等网络 */
 function warmShaderChunk() {
   void import('./shader')
+}
+
+function formatIndex(index: number) {
+  return String(index + 1).padStart(2, '0')
 }
 
 interface BrandProps {
@@ -55,7 +53,7 @@ interface BrandProps {
   introMs: number
 }
 
-/** 登录弹窗左侧：品牌 + 延迟挂载的 shader 氛围 + 能力列表 */
+/** 登录弹窗左侧：品牌英雄 + 缎面 shader + 索引能力列表 */
 function Brand(props: BrandProps) {
   const isReducedMotion = useReducedMotion()
   const [isShaderReady, setIsShaderReady] = useState(false)
@@ -73,7 +71,6 @@ function Brand(props: BrandProps) {
       let timer = 0
       let innerFrame = 0
       const outerFrame = requestAnimationFrame(function () {
-        // 再等一帧，确保 Dialog 首屏已提交
         innerFrame = requestAnimationFrame(function () {
           timer = window.setTimeout(
             function () {
@@ -103,17 +100,27 @@ function Brand(props: BrandProps) {
           <m.div
             className={styles.brandShaderHost}
             aria-hidden
-            initial={isReducedMotion ? false : { opacity: 0, scale: 1.035 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: introSeconds, ease: [0.22, 1, 0.36, 1] }}>
+            initial={isReducedMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: introSeconds * 0.85, ease: [0.22, 1, 0.36, 1] }}>
             <BrandShader onUnavailable={onShaderUnavailable} />
           </m.div>
         </Suspense>
       )}
+
       <div className={styles.core}>
-        <p className={styles.eyebrow}>桌面工作台</p>
-        <h3>cogito</h3>
-        <p className={styles.tagline}>{TAGLINE}</p>
+        <m.div
+          className={styles.brandHero}
+          initial={isReducedMotion ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            duration: isReducedMotion ? 0 : 0.45,
+            ease: [0.22, 1, 0.36, 1]
+          }}>
+          <p className={styles.eyebrow}>桌面工作台</p>
+          <h3 className={styles.brandName}>cogito</h3>
+          <p className={styles.tagline}>{TAGLINE}</p>
+        </m.div>
 
         <ul className={styles.capabilities}>
           {CAPABILITIES.map(function (item, index) {
@@ -121,17 +128,17 @@ function Brand(props: BrandProps) {
               <m.li
                 key={item.key}
                 className={styles.capability}
-                initial={isReducedMotion ? false : { opacity: 0, y: 10 }}
+                initial={isReducedMotion ? false : { opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{
-                  duration: isReducedMotion ? 0 : 0.28,
-                  delay: isReducedMotion ? 0 : 0.06 * index,
+                  duration: isReducedMotion ? 0 : 0.32,
+                  delay: isReducedMotion ? 0 : 0.08 + 0.05 * index,
                   ease: [0.22, 1, 0.36, 1]
                 }}>
                 <span
-                  className={styles.capabilityIcon}
+                  className={styles.capabilityIndex}
                   aria-hidden>
-                  <Icon icon={item.icon} />
+                  {formatIndex(index)}
                 </span>
                 <span className={styles.capabilityBody}>
                   <strong>{item.title}</strong>
@@ -142,6 +149,7 @@ function Brand(props: BrandProps) {
           })}
         </ul>
       </div>
+
       <footer className={styles.foot}>{FOOTNOTE}</footer>
     </aside>
   )
@@ -149,4 +157,3 @@ function Brand(props: BrandProps) {
 
 export { Brand }
 export type { BrandProps }
-
