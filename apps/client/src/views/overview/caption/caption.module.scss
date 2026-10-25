@@ -612,14 +612,16 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+  height: 36px;
 }
 
 .chip {
   display: inline-flex;
   align-items: center;
-  height: 24px;
+  height: 36px;
   border-radius: 999px;
   font-size: 12px;
+  font-weight: 500;
   line-height: 1;
   white-space: nowrap;
 }
@@ -627,8 +629,9 @@
 .chipAction {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 0 9px;
+  gap: 6px;
+  height: 100%;
+  padding: 0 10px;
   border: none;
   background: transparent;
   color: inherit;
@@ -637,8 +640,8 @@
 
 .chipIcon {
   flex-shrink: 0;
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
 }
 
 .chipInfo {
@@ -663,9 +666,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  margin-right: 2px;
+  width: 28px;
+  height: 28px;
+  margin-right: 4px;
   border: none;
   border-radius: 999px;
   background: transparent;
@@ -679,8 +682,8 @@
   }
 
   svg {
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
   }
 }
 

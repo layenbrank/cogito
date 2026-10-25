@@ -5,6 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { cn } from 'cn'
 
 import { WINDOW_CONTROLS, type CaptionState, type WindowControl } from '@/components/caption/caption'
+import { BROWSER_CONTROL } from '@/features/browser-bar/metrics'
 
 interface ControlButtonProps {
   control: WindowControl
@@ -30,13 +31,14 @@ function ControlButton(props: ControlButtonProps) {
             aria-label={label}
             aria-disabled={!isEnabled}
             className={cn(
-              'size-10 min-w-10 shrink-0 rounded-lg border-0',
+              'shrink-0 rounded-lg border-0',
               'text-muted-foreground hover:bg-foreground/8 hover:text-foreground',
               props.control.isDestructive &&
                 isEnabled &&
                 'hover:bg-destructive hover:text-white active:bg-destructive/90',
               !isEnabled && 'pointer-events-none opacity-40'
             )}
+            style={{ width: BROWSER_CONTROL, height: BROWSER_CONTROL, minWidth: BROWSER_CONTROL }}
             onClick={function () {
               if (!isEnabled) return
               void props.control.run(getCurrentWindow(), props.state).then(function () {
@@ -76,7 +78,9 @@ function WindowControls(props: WindowControlsProps) {
   if (controls.length === 0) return null
 
   return (
-    <div className="flex shrink-0 items-center self-center pr-1.5">
+    <div
+      className="flex h-9 shrink-0 items-center gap-0.5"
+      style={{ height: BROWSER_CONTROL }}>
       {controls.map(function (control) {
         return (
           <ControlButton

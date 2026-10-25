@@ -49,16 +49,22 @@ function BrowserBar({
         !state.isFocused && 'opacity-80'
       )}
       style={{ height: BROWSER_BAR, minHeight: BROWSER_BAR }}>
-      <div className="flex min-w-0 items-center justify-start gap-0.5 pl-1">
+      <div className="flex h-full min-w-0 items-center justify-start gap-1 pl-1.5">
         {leading}
       </div>
       <div
-        className="flex w-full min-w-0 items-center justify-center px-2"
+        className="flex h-full w-full min-w-0 items-center justify-center px-2"
         data-region="false">
         {children}
       </div>
-      <div className="flex min-w-0 items-center justify-end gap-0.5 pr-1">
-        {trailing}
+      <div
+        data-region="false"
+        className="flex h-full min-w-0 items-center justify-end gap-1 pr-1.5">
+        {trailing ? (
+          <div className="flex h-9 min-w-0 items-center justify-end gap-1">
+            {trailing}
+          </div>
+        ) : null}
         <WindowControls
           state={state}
           tooltipSide={controlsTooltipSide}

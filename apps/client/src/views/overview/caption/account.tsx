@@ -49,7 +49,7 @@ function CaptionAccount(props: CaptionAccountProps) {
               size={props.isIcon ? 'icon' : 'sm'}
               data-region="false"
               className={clsx(
-                props.isIcon && 'size-10 min-w-10 rounded-full [&_svg]:size-4.5',
+                props.isIcon && 'size-9 min-w-9 rounded-lg [&_svg]:size-4',
                 !props.isIcon && styles.accountSignIn,
                 props.isWide && 'w-full justify-start'
               )}
@@ -81,7 +81,7 @@ function CaptionAccount(props: CaptionAccountProps) {
                   variant="ghost"
                   size="icon"
                   data-region="false"
-                  className="size-10 min-w-10 overflow-hidden rounded-full p-0"
+                  className="size-9 min-w-9 overflow-hidden rounded-lg p-0"
                   aria-label={`已登录：${user.username}`}
                 />
               }

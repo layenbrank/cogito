@@ -286,9 +286,9 @@ function Caption(props: CaptionProps) {
       </div>
       <div
         data-region="false"
-        className="flex shrink-0 items-center self-center">
+        className="flex h-full shrink-0 items-center justify-end gap-1 pr-1.5">
         {props.final ? (
-          <div className="flex items-center gap-0.5 pr-1 pl-1">{props.final}</div>
+          <div className="flex h-9 items-center gap-1">{props.final}</div>
         ) : null}
         <WindowControls
           controls={controls}

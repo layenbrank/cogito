@@ -196,7 +196,7 @@ function MirrorSwitcher(props: MirrorSwitcherProps) {
                 className={cn(
                   styles.mirrorTrigger,
                   props.isCompact
-                    ? 'size-10 min-w-10 rounded-full p-0 [&_svg]:size-4.5'
+                    ? 'size-9 min-w-9 rounded-lg p-0 [&_svg]:size-4'
                     : 'w-full justify-start'
                 )}
                 aria-label="新建镜像"
@@ -246,7 +246,7 @@ function MirrorSwitcher(props: MirrorSwitcherProps) {
                     className={cn(
                       styles.mirrorTrigger,
                       props.isCompact
-                        ? 'size-10 min-w-10 rounded-full p-0 [&_svg]:size-4.5'
+                        ? 'size-9 min-w-9 rounded-lg p-0 [&_svg]:size-4'
                         : 'w-full justify-start',
                       props.isCompact && accent && styles.mirrorTriggerTint,
                       isOpen && styles.mirrorTriggerOpen
