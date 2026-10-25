@@ -192,11 +192,14 @@ function createModelPort(): ChatModelPort {
           if (!isCogitoSoftFailure(error)) {
             reportCaught('agent.port.ensureCogitoProvider', error, 'warning')
           }
-          yield {
-            kind: 'error',
-            message: error instanceof Error ? error.message : '组织模型未就绪，请稍后重试或改用个人模型',
-            usage: RUN_USAGE
-          }
+          // Tauri invoke 常 reject string，不能只认 Error
+          const message =
+            error instanceof Error
+              ? error.message
+              : typeof error === 'string' && error.trim()
+                ? error
+                : '组织模型未就绪，请稍后重试或改用个人模型'
+          yield { kind: 'error', message, usage: RUN_USAGE }
           return
         }
       }

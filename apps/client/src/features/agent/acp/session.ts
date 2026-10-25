@@ -421,11 +421,25 @@ function parseAuthRequired(error: unknown): Error {
       `${message}（Ollama/Qwen 工具环常见问题：已尽量内联 @ 文件内容；请新开对话重试，或升级 Ollama）`
     )
   }
+  // 网关 401 / 用户未登录：组织模型走 JWT helper，不是 goose configure
+  if (/用户未登录|401\s*unauthorized|authentication failed for .*gateway/i.test(message)) {
+    return new Error(
+      '组织模型鉴权失败（网关未收到有效登录令牌）。请重新登录后重试；若仍失败，完整重启客户端以重载 goose',
+      { cause: error instanceof Error ? error : undefined }
+    )
+  }
   if (code === -32000 || /auth|sign.?in|api.?key|configure|provider/i.test(message)) {
     return new Error(`${message}（请在设置中保存供应商配置，或执行 goose configure）`)
   }
   if (/invalid\s*params/i.test(message)) {
     return wrapInvalidParams(error, '请求参数无效')
+  }
+  // goose 常把上游/网关失败收成这一句；组织模型场景补一句可操作提示
+  if (/^internal\s*error$/i.test(message.trim())) {
+    return new Error(
+      '组织模型调用失败（网关或上游模型服务异常）。请确认思考服务与上游供应商可用，或改用个人模型',
+      { cause: error instanceof Error ? error : undefined }
+    )
   }
   // 默认透传，但把 JSON-RPC code / data 一并拼出，避免只看到一个笼统的 "Internal error"。
   const data = error && typeof error === 'object' ? (error as { data?: unknown }).data : undefined

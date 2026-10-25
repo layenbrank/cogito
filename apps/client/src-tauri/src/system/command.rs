@@ -164,6 +164,8 @@ pub fn cogito_token_clear(app: tauri::AppHandle) -> Result<(), String> {
 
 /// 幂等注册 cogito 网关 provider：写声明式 JSON，有变化才重启 goose。返回是否重启过。
 /// `force` 为真时即使 JSON 已一致也重启（修复 goose 未加载自定义 provider 的裂隙）。
+///
+/// IPC 键名跟 Tauri 默认：`tenant_id` → `tenantId`（不是业务侧的 `tenantID`）。
 #[tauri::command(rename = "cogito:provider:ensure")]
 pub async fn cogito_provider_ensure(
     app: tauri::AppHandle,
@@ -183,6 +185,7 @@ pub async fn cogito_provider_ensure(
 }
 
 /// 租户切换：只更新 provider 的 `X-Tenant-ID` 头，必要时重启 goose。返回是否重启过。
+/// IPC 键名：`tenantId`（见 `cogito_provider_ensure`）。
 #[tauri::command(rename = "cogito:provider:set-tenant")]
 pub async fn cogito_provider_set_tenant(
     app: tauri::AppHandle,

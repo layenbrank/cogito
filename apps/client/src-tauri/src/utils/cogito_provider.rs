@@ -24,6 +24,8 @@ const PROVIDER_FILE: &str = "cogito_gateway.json";
 const REFRESH_INTERVAL_SECS: u64 = 120;
 /// 网关 completions 路径（前端只能传完整 URL，Rust 侧强制校验路径，防 JWT 被导向任意主机）
 const GATEWAY_CHAT_PATH: &str = "/api/v1/gateway/chat/completions";
+/// goose 声明式 `models[]` 现要求必填 `context_limit`；目录未下发时用与前端偏好一致的默认值。
+const MODEL_CONTEXT_LIMIT: u64 = 128_000;
 
 /// 校验前端传入的网关 URL：https（或本机 http）+ 精确 completions 路径，禁止 userinfo。
 fn validate_gateway_base_url(base_url: &str) -> Result<(), String> {
@@ -80,8 +82,18 @@ fn build_provider_json(
         "engine": "openai",
         "display_name": "Cogito Gateway",
         "base_url": base_url,
-        "models": models.iter().map(|m| json!({ "name": m })).collect::<Vec<_>>(),
+        "models": models
+            .iter()
+            .map(|m| {
+                json!({
+                    "name": m,
+                    "context_limit": MODEL_CONTEXT_LIMIT
+                })
+            })
+            .collect::<Vec<_>>(),
         "headers": { "X-Tenant-ID": tenant_id },
+        // base_url 已是 chat/completions，禁止 goose 再去探 /v1/models
+        "dynamic_models": false,
         "requires_auth": true,
         "supports_streaming": true,
         "preserves_thinking": true,

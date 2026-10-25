@@ -32,7 +32,12 @@ import { findAuthToken } from '@/utils/auth'
 import { ENV_URLS } from '@/utils/http/env'
 import { findActiveTenantID } from '@/utils/tenant'
 
-const GATEWAY_CHAT_PATH = '/api/v1/gateway/chat/completions'
+/**
+ * 补全路径（相对 `VITE_COGITO`）。
+ * `VITE_COGITO` 已含版本前缀（如 `…/api/v1`），这里只拼网关后缀；
+ * 拼出来的绝对路径须等于 Rust 侧校验的 `/api/v1/gateway/chat/completions`。
+ */
+const GATEWAY_CHAT_PATH = '/gateway/chat/completions'
 const MODELS_TTL_MS = 5 * 60_000
 /** 平台行在 provider 表里的固定 id（与 goose providerId / Rust PROVIDER_ID 一致） */
 const COGITO_PROVIDER_ID = GATEWAY_PROVIDER_KIND
@@ -44,6 +49,17 @@ function findGatewayBaseURL(): string | null {
   const base = ENV_URLS.cogito?.trim()
   if (!base) return null
   return `${base.replace(/\/+$/, '')}${GATEWAY_CHAT_PATH}`
+}
+
+/** Tauri invoke 常 reject string；归一成 Error 好把 Rust 原文送到 UI */
+function asError(error: unknown, fallback: string): Error {
+  if (error instanceof Error) return error
+  if (typeof error === 'string' && error.trim()) return new Error(error)
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message
+    if (typeof message === 'string' && message.trim()) return new Error(message)
+  }
+  return new Error(fallback)
 }
 
 function rememberCatalog(catalog: GatewayModel[]): string[] {
@@ -194,8 +210,9 @@ async function dropStaleCogitoRow(): Promise<void> {
 }
 
 async function writeGooseProvider(tenantID: string, baseUrl: string, models: string[], force: boolean) {
+  // Tauri 把 `tenant_id` 解成 `tenantId`（不是业务约定的 `tenantID`）
   return invoke<boolean>(CHANNELS.COGITO.PROVIDER_ENSURE, {
-    tenantID,
+    tenantId: tenantID,
     baseUrl,
     models,
     force
@@ -241,7 +258,7 @@ function isCogitoSoftFailure(error: unknown): boolean {
  * ACP 暂时不可用则直接报错，不连环重启。
  */
 async function ensureCogitoProvider(): Promise<void> {
-  // 无缓存租户时 sync 会跳过「空结果新鲜度」并尝试补建 PERSONAL
+  // 个人租户由服务端在注册/建号时开通；这里只解析缓存或现拉列表
   const tenantID = (await syncActiveTenant()) ?? findActiveTenantID()
   if (!tenantID) {
     await dropStaleCogitoRow()
@@ -260,11 +277,23 @@ async function ensureCogitoProvider(): Promise<void> {
     throw softFailure('组织模型暂不可用：网关模型目录为空，请联系管理员启用模型')
   }
 
-  await writeGooseProvider(tenantID, baseUrl, models, false)
+  try {
+    await writeGooseProvider(tenantID, baseUrl, models, false)
+  } catch (error) {
+    throw softFailure(
+      `组织模型暂不可用：${asError(error, '注册网关供应商失败').message}`
+    )
+  }
 
   let status = await findGooseCogitoStatus()
   if (status === 'missing') {
-    await writeGooseProvider(tenantID, baseUrl, models, true)
+    try {
+      await writeGooseProvider(tenantID, baseUrl, models, true)
+    } catch (error) {
+      throw softFailure(
+        `组织模型暂不可用：${asError(error, '强制重载网关供应商失败').message}`
+      )
+    }
     status = await findGooseCogitoStatus()
   }
 
@@ -282,14 +311,15 @@ async function ensureCogitoProvider(): Promise<void> {
   }
 
   throw softFailure(
-    `组织模型暂不可用：goose 无法载入供应商（${COGITO_PROVIDER_ID}）。请确认已登录且思考服务可用后重试`
+    `组织模型暂不可用：goose 未载入供应商（${COGITO_PROVIDER_ID}）。多为声明式配置未被接受，可查看 goose 日志或稍后重试`
   )
 }
 
 /** 租户切换：只更新 `X-Tenant-ID` 头（Rust 侧幂等，没变不重启）。 */
 async function setCogitoTenant(tenantID: string): Promise<void> {
   try {
-    await invoke<boolean>(CHANNELS.COGITO.PROVIDER_SET_TENANT, { tenantID })
+    // 键名须为 `tenantId`，与 `writeGooseProvider` 同一套 Tauri 解包规则
+    await invoke<boolean>(CHANNELS.COGITO.PROVIDER_SET_TENANT, { tenantId: tenantID })
   } catch (error) {
     reportCaught('acp.cogito-provider.setTenant', error, 'warning')
   }
