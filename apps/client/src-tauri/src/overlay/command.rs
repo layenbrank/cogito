@@ -20,9 +20,14 @@ pub enum OverlayMode {
     Screenshot,
 }
 
-fn apply_primary_monitor_bounds(app: &AppHandle, label: &str) -> Result<(), String> {
+/// 把浮层铺满主显示器（**含**任务栏区域）。
+///
+/// 为什么不用 `maximized`：最大化只覆盖「工作区」，任务栏那条会漏出来，
+/// 截屏遮罩必须盖住整屏。所以一律按监视器的物理矩形精确摆放，
+/// 并先退出最大化，避免系统把尺寸重算回工作区。
+pub(crate) fn apply_bounds(app: &AppHandle) -> Result<(), String> {
     let window = app
-        .get_webview_window(label)
+        .get_webview_window(OVERLAY_LABEL)
         .ok_or_else(|| "overlay window missing".to_string())?;
     let monitor = app
         .primary_monitor()
@@ -30,8 +35,18 @@ fn apply_primary_monitor_bounds(app: &AppHandle, label: &str) -> Result<(), Stri
         .ok_or_else(|| "no primary monitor".to_string())?;
     let pos = monitor.position();
     let size = monitor.size();
-    let _ = window.set_position(PhysicalPosition::new(pos.x, pos.y));
-    let _ = window.set_size(PhysicalSize::new(size.width, size.height));
+
+    // 尺寸已对就不重设：常驻窗口每次截屏都重放 bounds 会闪
+    let is_sized = window
+        .inner_size()
+        .map(|current| current.width == size.width && current.height == size.height)
+        .unwrap_or(false);
+    if !is_sized {
+        let _ = window.unmaximize();
+        let _ = window.set_position(PhysicalPosition::new(pos.x, pos.y));
+        let _ = window.set_size(PhysicalSize::new(size.width, size.height));
+    }
+    let _ = window.set_always_on_top(true);
     Ok(())
 }
 
@@ -95,27 +110,39 @@ fn reload_stale_overlay(app: &AppHandle, reason: &str) {
     });
 }
 
+/// 把浮层摆到主显示器上并保证处于可见状态（不销毁、不重建）。
+///
+/// 常驻映射：浮层窗口自应用启动起就一直 `show`，隐藏只走 DOM（`overlay://conceal`）。
+/// 一旦 `hide()`，WebView2 会挂起渲染进程的合成，再次 `show()` 后必须等一次窗口激活
+/// （用户点击）才恢复绘制 —— 表现为「按了快捷键没有遮罩、点一下才出来」。
+fn ensure_overlay_visible(app: &AppHandle) -> Result<(), String> {
+    let Some(window) = app.get_webview_window(OVERLAY_LABEL) else {
+        return build_overlay_window(app);
+    };
+    // 每次都校准：分辨率/缩放/任务栏变化后仍要铺满整屏
+    let _ = apply_bounds(app);
+    if !window.is_visible().unwrap_or(false) {
+        let _ = window.show();
+        // 先按穿透显示，免得透明全屏窗在 50ms 轮询间隙里挡住桌面
+        let _ = window.set_ignore_cursor_events(true);
+    }
+    Ok(())
+}
+
 /// Create (or show) the single always-on-top overlay window covering the primary monitor.
 #[tauri::command(rename = "overlay:ensure")]
 pub async fn overlay_ensure(app: AppHandle) -> Result<(), String> {
-    // 渲染进程疑似已挂（白屏）：先把页面重载回来，别把白层展示给用户
-    if let Some(health) = app.try_state::<OverlayHealth>()
-        && health.is_stale(now_ms())
-    {
+    // 渲染进程疑似已挂（白屏）：先把窗口放出来，再重载页面。
+    // 注意不能早退 —— 早退会让这一次截屏完全没反应（用户得再按一次）。
+    let is_stale = app
+        .try_state::<OverlayHealth>()
+        .map(|health| health.is_stale(now_ms()))
+        .unwrap_or(false);
+    ensure_overlay_visible(&app)?;
+    if is_stale {
         reload_stale_overlay(&app, "overlay:ensure");
-        return Ok(());
     }
-
-    if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
-        if !window.is_visible().unwrap_or(false) {
-            apply_primary_monitor_bounds(&app, OVERLAY_LABEL)?;
-            let _ = window.set_always_on_top(true);
-            let _ = window.show();
-        }
-        return Ok(());
-    }
-
-    build_overlay_window(&app)
+    Ok(())
 }
 
 /// 创建 overlay 窗口：覆盖主显示器、透明、置顶、不进任务栏。
@@ -134,8 +161,8 @@ fn build_overlay_window(app: &AppHandle) -> Result<(), String> {
         .always_on_top(true)
         .skip_taskbar(true)
         .resizable(false)
-        .maximizable(true)
-        .maximized(true)
+        .maximizable(false)
+        .maximized(false)
         .shadow(false)
         .fullscreen(false)
         .focused(false)
@@ -146,13 +173,30 @@ fn build_overlay_window(app: &AppHandle) -> Result<(), String> {
         .map_err(|e| format!("无法创建 overlay 窗口: {e}"))?;
 
     // Re-apply physical bounds in case DPI/monitor mapping differed at build time.
-    apply_primary_monitor_bounds(app, OVERLAY_LABEL)?;
+    apply_bounds(app)?;
     Ok(())
 }
 
-/// Hide the overlay window without destroying it.
+/// 退出截屏态：**不**隐藏窗口，只把交互切回穿透并广播 idle。
+///
+/// 窗口常驻是本模块的硬约束：hide/show 会让 WebView2 的合成挂起，下次截屏首帧
+/// 要等窗口被激活才画出来。DOM 内容由前端 `overlay://conceal` / idle 自行隐藏。
 #[tauri::command(rename = "overlay:hide")]
 pub async fn overlay_hide(app: AppHandle) -> Result<(), String> {
+    if let Some(through) = app.try_state::<ThroughState>() {
+        through.set_screenshot_mode(false);
+    }
+    if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
+        let _ = window.set_ignore_cursor_events(true);
+        let _ = window.set_always_on_top(true);
+    }
+    emit_mode(&app, OverlayMode::Idle);
+    Ok(())
+}
+
+/// 真正隐藏浮层窗口（只在渲染进程异常 / 应用退出这类兜底路径使用）。
+#[tauri::command(rename = "overlay:park")]
+pub async fn overlay_park(app: AppHandle) -> Result<(), String> {
     if let Some(through) = app.try_state::<ThroughState>() {
         through.set_screenshot_mode(false);
     }
@@ -182,6 +226,9 @@ pub async fn overlay_update_mode(app: AppHandle, mode: String) -> Result<(), Str
             let _ = window.set_focus();
             let _ = window.set_ignore_cursor_events(false);
         }
+    } else if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
+        // idle：窗口常驻但不吃指针，立刻切回穿透（不靠 50ms 的轮询窗口）
+        let _ = window.set_ignore_cursor_events(true);
     }
 
     emit_mode(&app, parsed);

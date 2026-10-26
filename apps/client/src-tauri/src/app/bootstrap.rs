@@ -6,7 +6,7 @@ use thinking_database::{Storage, database_path, initialize, migration};
 use crate::{
     app::{handlers, plugins},
     autostart,
-    capture::{CaptureConceal, CapturePending},
+    capture::{CaptureHandshake, CapturePending},
     overlay::{OverlayHealth, OverlayPending},
     reminder,
     through::{self, ThroughState},
@@ -55,7 +55,31 @@ impl Bootstrap {
                 app.manage(OverlayPending::default());
                 app.manage(OverlayHealth::default());
                 app.manage(CapturePending::default());
-                app.manage(CaptureConceal::default());
+                app.manage(CaptureHandshake::default());
+                // 浮层窗口常驻映射（hide/show 会让 WebView2 挂起合成，下次首帧要等一次点击）：
+                // 启动即铺满整屏（含任务栏）+ 置顶 + 穿透，避免透明窗挡住桌面
+                if app
+                    .get_webview_window(crate::overlay::command::OVERLAY_LABEL)
+                    .is_some()
+                {
+                    if let Err(error) = crate::overlay::command::apply_bounds(app.handle()) {
+                        tracing::warn!("overlay 初始化 bounds 失败: {error}");
+                    }
+                    if let Some(overlay) =
+                        app.get_webview_window(crate::overlay::command::OVERLAY_LABEL)
+                    {
+                        let _ = overlay.set_ignore_cursor_events(true);
+                    }
+                } else {
+                    // config 窗口可能晚于 setup 创建：稍后再校准一次
+                    let handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(Duration::from_millis(1_200)).await;
+                        if let Err(error) = crate::overlay::command::apply_bounds(&handle) {
+                            tracing::warn!("overlay 延迟 bounds 失败: {error}");
+                        }
+                    });
+                }
                 through::spawn_worker(app.handle().clone());
                 reminder::spawn_worker(app.handle().clone());
                 tray::setup(app)?;

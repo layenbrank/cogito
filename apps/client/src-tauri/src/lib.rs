@@ -25,7 +25,8 @@ pub mod capture {
     pub mod region;
     pub mod schema;
     pub mod state;
-    pub use state::{CaptureConceal, CapturePending};
+    pub mod uia;
+    pub use state::{CaptureHandshake, CapturePending};
 }
 
 pub mod media;
