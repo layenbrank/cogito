@@ -316,11 +316,14 @@ function Capture(props: CaptureProps = {}) {
       let cancelled = false
       void (async function () {
         try {
-          const result = await takePendingScreenshot()
+          // pending 是宿主在切截屏态之前预抓好的；万一已被消费（例如浮层中途重载）
+          // 就现抓一帧兜底，别因为一次时序问题把用户挡在「未找到预截图」的错误面板上。
+          const pending = await takePendingScreenshot(function () {
+            return cancelled
+          })
           if (cancelled) return
-          if (!result) {
-            throw new Error('未找到预截图，请点重试')
-          }
+          const result = pending ?? (await takeScreenshot())
+          if (cancelled) return
           const img = await fetchImageFromPath(result.path)
           if (cancelled) return
           regionsRef.current = result.regions ?? []

@@ -10,6 +10,9 @@ import type { CaptureRegion } from '@/features/capture/region'
  * `capture:*` 命令通信。
  */
 
+/** 取 pending 的重试间隔；总预算 ≈ 250ms，正常路径第一次就命中 */
+const PENDING_RETRY_DELAYS_MS = [16, 32, 64, 128]
+
 interface ScreenshotResult {
   /** 截图保存后的磁盘绝对路径 */
   path: string
@@ -29,9 +32,27 @@ async function takeScreenshot(): Promise<ScreenshotResult> {
   return invoke<ScreenshotResult>(CHANNELS.CAPTURE.SCREENSHOT)
 }
 
-/** 消费 capture:open 预截好的结果；无则返回 null */
-async function takePendingScreenshot(): Promise<ScreenshotResult | null> {
-  return invoke<ScreenshotResult | null>(CHANNELS.CAPTURE.TAKE_PENDING)
+/**
+ * 消费 `capture:open` 预截好的结果；无则返回 null。
+ *
+ * 宿主是「先发布 pending 再切截屏态」的，正常一次就能取到；这里仍留几次短重试，
+ * 兜住浮层刚重载完、事件比 IPC 先到的极端时序（否则会直接跳「未找到预截图」）。
+ *
+ * `shouldStop`：组件已卸载/取消时别再继续 take —— pending 是一次性的，
+ * 让已经废弃的实例把新一帧抢走，新实例就只能拿到空值。
+ */
+async function takePendingScreenshot(shouldStop?: () => boolean): Promise<ScreenshotResult | null> {
+  for (let attempt = 0; attempt <= PENDING_RETRY_DELAYS_MS.length; attempt += 1) {
+    if (shouldStop?.()) return null
+    const result = await invoke<ScreenshotResult | null>(CHANNELS.CAPTURE.TAKE_PENDING)
+    if (result) return result
+    const delay = PENDING_RETRY_DELAYS_MS[attempt]
+    if (delay === undefined) break
+    await new Promise(function (resolve) {
+      setTimeout(resolve, delay)
+    })
+  }
+  return null
 }
 
 /** 重新抓一帧（整体重来），新帧直接返回，不走 pending */

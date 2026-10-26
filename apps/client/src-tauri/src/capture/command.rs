@@ -189,14 +189,22 @@ async fn wait_ready(ready: Option<oneshot::Receiver<()>>) {
 }
 
 /// 一次完整抓屏：
-/// conceal（藏旧 UI）→ 摆好浮层 → 枚举选区窗口 → 抓帧 → 切截屏态 → 等首帧 → reveal。
+/// conceal（藏旧 UI）→ 摆好浮层 → 枚举选区窗口 → 抓帧 → **发布 pending** → 切截屏态 → 等首帧 → reveal。
 ///
 /// 顺序是硬约束：`find_overlay_regions` 需要浮层自己的 hwnd 与 scale factor；
 /// reveal 必须晚于前端把冻结帧画上屏，否则会露出实时桌面。
 ///
+/// `publish`：能拿到 `CapturePending` 时，帧必须在**切模式之前**写进去 ——
+/// 前端一收到 `overlay://mode: screenshot` 就会挂载截屏 UI 并立刻 `capture:take-pending`，
+/// 晚一步就取到空值，表现为「未找到预截图」，且这次 ready 握手必然超时。
+///
 /// `await_first_frame`：重新截图时前端仍挂载着（loading 蒙版已不透明），
 /// 不能等它回报 ready —— 那要等本次调用返回之后才会发生，会白等一个超时。
-async fn capture_once(app: &AppHandle, await_first_frame: bool) -> Result<ScreenshotResult, String> {
+async fn capture_once(
+    app: &AppHandle,
+    await_first_frame: bool,
+    publish: Option<&CapturePending>,
+) -> Result<ScreenshotResult, String> {
     let concealed = conceal_overlay_visuals(app).await;
     overlay_ensure(app.clone()).await?;
 
@@ -212,6 +220,10 @@ async fn capture_once(app: &AppHandle, await_first_frame: bool) -> Result<Screen
     };
     shot.regions = regions;
 
+    if let Some(pending) = publish {
+        *pending.screenshot.lock().await = Some(shot.clone());
+    }
+
     // 先挂 ready 再切模式：前端可能在 emit 返回前就回报
     let ready = if await_first_frame {
         arm_ready(app).await
@@ -222,7 +234,14 @@ async fn capture_once(app: &AppHandle, await_first_frame: bool) -> Result<Screen
     wait_ready(ready).await;
     // 无论切模式是否成功都要撤掉 conceal，否则浮层会一直是隐藏态
     reveal_overlay_visuals(app);
-    mode?;
+
+    if let Err(error) = mode {
+        // 切态失败：把刚发布的帧收回去，避免下一次打开拿到一张过期的截图
+        if let Some(pending) = publish {
+            *pending.screenshot.lock().await = None;
+        }
+        return Err(error);
+    }
     Ok(shot)
 }
 
@@ -252,12 +271,10 @@ pub async fn capture_open(
     if !pending.try_begin() {
         return Ok(());
     }
-    let result = capture_once(&app, true).await;
+    // 帧在 capture_once 内、切模式之前就写进 pending：前端拿到模式事件立刻能取到
+    let result = capture_once(&app, true, Some(&pending)).await;
     pending.end();
-
-    let shot = result?;
-    *pending.screenshot.lock().await = Some(shot);
-    Ok(())
+    result.map(|_| ())
 }
 
 /// 重新截图：整体重来一遍，新帧直接返回（前端重置标注后重新载入）。
@@ -269,7 +286,8 @@ pub async fn capture_refresh(
     if !pending.try_begin() {
         return Err("[capture:refresh] 上一次截屏还没结束".to_string());
     }
-    let result = capture_once(&app, false).await;
+    // 重拍由调用方直接拿返回值，不再经过 pending
+    let result = capture_once(&app, false, None).await;
     pending.end();
     result
 }

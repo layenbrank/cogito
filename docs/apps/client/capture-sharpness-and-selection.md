@@ -126,7 +126,9 @@ bufferH = stageHeight × pixelRatio ≈ naturalHeight
 | overlay 窗口**常驻映射**（启动即显示），`overlay:hide` 只藏 DOM + 切穿透 | `hide()`/`show()` 会让 WebView2 挂起合成 | 按快捷键后没有遮罩、没有吸附，点一下鼠标才出来 |
 | 尺寸必须按监视器**物理矩形**铺满（`apply_bounds`），不能用 `maximized` | 最大化只覆盖工作区 | 遮罩漏掉任务栏那条，且启动时窗口停在默认 800×600 |
 | 真隐藏只走 `overlay:park`（渲染进程异常 / 退出） | 坏窗口不能一直吃点击 | 白屏浮层卡住桌面 |
-| 出图顺序：ensure → 抓帧 → 切模式 → 首帧 ack（`capture:ready`）→ reveal | reveal 早于首帧会露出实时桌面 | 截屏瞬间闪一下桌面 |
+| 出图顺序：ensure → 抓帧 → **发布 pending** → 切模式 → 首帧 ack（`capture:ready`）→ reveal | reveal 早于首帧会露出实时桌面 | 截屏瞬间闪一下桌面 |
+| pending 必须在切模式**之前**写好（`capture_once` 内） | 前端一收到 `overlay://mode: screenshot` 就挂载截屏 UI 并立刻 `capture:take-pending` | 取到空值 → 「未找到预截图」；首帧 ack 也必然超时，白等 400ms |
+| 截屏态下再按快捷键**不刷新 UI** | `capture:open` 会重抓一帧写进 pending，但已挂载的截屏 UI 不会重新取（否则误触会丢掉标注） | 按了像没反应 —— 重拍请用「重新截图」（`capture:refresh`）或错误面板上的「重试」 |
 | `capture:open` 单飞 | 连按会覆盖 pending、并把遮罩拍进新图 | 出了怪图 / 按几次才有反应 |
 | 窗口区域在 `overlay_ensure` 之后枚举 | 需要浮层自己的 hwnd 与 scale factor | 首次/重建后没有窗口吸附 |
 
@@ -201,3 +203,4 @@ apps/client/src/features/capture/
 | 日期 | 说明 |
 |------|------|
 | 2026-08-17 | 首次记录：亚像素再采样导致发糊；HTML backdrop 导致 Windows 透明窗无法框选；定案为 Konva 底图 + `natural/dpr` + 关闭平滑。 |
+| 2026-10-26 | 补「发布 pending 早于切模式」硬约束：修复快捷键触发时偶发「未找到预截图」（前端挂载时 pending 还没写）。 |
