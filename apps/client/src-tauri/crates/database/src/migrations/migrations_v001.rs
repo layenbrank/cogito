@@ -427,7 +427,7 @@ impl MigrationTrait for Migration {
         db.execute_unprepared(r##"INSERT OR IGNORE INTO magneticTile (id,[index],title,url,round,mark,component,description,background,backdrop,mirrorID,textColor,collectionID,size,shape,direction,downloadCount,archivedAt,createdAt,updatedAt) VALUES ('5c03e12b-f7c1-4312-a9f5-ebe410915f1e',5,'Clipchamp',NULL,'12px',NULL,'clipchamp','Clipchamp','{"color":"#DBEAFE"}',NULL,'b7bc5d50-3b4a-46d7-b834-2938df56de24','1E3A8A',NULL,1,'square','vertical',0,NULL,1785423438774,1785423438774)"##).await?;
         db.execute_unprepared(r##"INSERT OR IGNORE INTO magneticTile (id,[index],title,url,round,mark,component,description,background,backdrop,mirrorID,textColor,collectionID,size,shape,direction,downloadCount,archivedAt,createdAt,updatedAt) VALUES ('9ba4c4a7-ccd7-4965-b447-5d74a9f96b56',6,'应用集合',NULL,'12px',NULL,'collection','应用集合','{"color":"#E0E7FF"}',NULL,'b7bc5d50-3b4a-46d7-b834-2938df56de24','312E81',NULL,1,'square','vertical',0,NULL,1785423438774,1785423438774)"##).await?;
         db.execute_unprepared(r##"INSERT OR IGNORE INTO magneticTile (id,[index],title,url,round,mark,component,description,background,backdrop,mirrorID,textColor,collectionID,size,shape,direction,downloadCount,archivedAt,createdAt,updatedAt) VALUES ('bc55915c-5552-4e65-95c6-bb88c28f8060',7,'应用商店',NULL,'12px',NULL,'marketplace','应用商店','{"color":"#EFF6FF"}',NULL,'b7bc5d50-3b4a-46d7-b834-2938df56de24','1E40AF',NULL,1,'square','vertical',0,NULL,1785423438774,1785423438774)"##).await?;
-        db.execute_unprepared(r##"INSERT OR IGNORE INTO magneticTile (id,[index],title,url,round,mark,component,description,background,backdrop,mirrorID,textColor,collectionID,size,shape,direction,downloadCount,archivedAt,createdAt,updatedAt) VALUES ('63e46df5-44a7-494f-a9ca-b4303186a511',8,'备忘录',NULL,'12px',NULL,'markdown','备忘录','{"color":"#ECFDF5"}',NULL,'b7bc5d50-3b4a-46d7-b834-2938df56de24','065F46',NULL,1,'square','vertical',0,NULL,1785423438774,1785423438774)"##).await?;
+        db.execute_unprepared(r##"INSERT OR IGNORE INTO magneticTile (id,[index],title,url,round,mark,component,description,background,backdrop,mirrorID,textColor,collectionID,size,shape,direction,downloadCount,archivedAt,createdAt,updatedAt) VALUES ('63e46df5-44a7-494f-a9ca-b4303186a511',8,'知识库',NULL,'12px',NULL,'knowledge','知识库','{"color":"#ECFDF5"}',NULL,'b7bc5d50-3b4a-46d7-b834-2938df56de24','065F46',NULL,1,'square','vertical',0,NULL,1785423438774,1785423438774)"##).await?;
         db.execute_unprepared(r##"INSERT OR IGNORE INTO magneticTile (id,[index],title,url,round,mark,component,description,background,backdrop,mirrorID,textColor,collectionID,size,shape,direction,downloadCount,archivedAt,createdAt,updatedAt) VALUES ('447f9800-edaa-4f85-a0f1-97b76e375706',9,'morph',NULL,'12px',NULL,'morph','morph','{"color":"#F5F3FF"}',NULL,'b7bc5d50-3b4a-46d7-b834-2938df56de24','5B21B6',NULL,1,'square','vertical',0,NULL,1785423438774,1785423438774)"##).await?;
         db.execute_unprepared(r##"INSERT OR IGNORE INTO magneticTile (id,[index],title,url,round,mark,component,description,background,backdrop,mirrorID,textColor,collectionID,size,shape,direction,downloadCount,archivedAt,createdAt,updatedAt) VALUES ('705ad233-7068-4c45-a079-967e5a79a6d6',10,'设置',NULL,'12px',NULL,'settings','设置','{"color":"#F8FAFC"}',NULL,'b7bc5d50-3b4a-46d7-b834-2938df56de24','0F172A',NULL,1,'square','vertical',0,NULL,1785423438774,1785423438774)"##).await?;
         db.execute_unprepared(r##"INSERT OR IGNORE INTO magneticTile (id,[index],title,url,round,mark,component,description,background,backdrop,mirrorID,textColor,collectionID,size,shape,direction,downloadCount,archivedAt,createdAt,updatedAt) VALUES ('f3ed970a-b07c-44bc-b54d-4bdfb454f207',11,'AI Hub',NULL,'12px',NULL,'agent','AI Hub','{"color":"#EEF2FF"}',NULL,'b7bc5d50-3b4a-46d7-b834-2938df56de24','3730A3',NULL,1,'square','vertical',0,NULL,1785423438774,1785423438774)"##).await?;
@@ -1312,11 +1312,186 @@ impl MigrationTrait for Migration {
         )
         .await?;
 
+        // ── 原先的 v002–v005 已并入本文件（不再有独立迁移文件）──
+        for statement in [
+            // v002：album（捕获库相簿）
+            "CREATE TABLE IF NOT EXISTS album (\
+                 id TEXT PRIMARY KEY NOT NULL, \
+                 name TEXT NOT NULL, \
+                 \"index\" INTEGER NOT NULL DEFAULT 0, \
+                 \"coverAssetID\" TEXT NULL, \
+                 status TEXT NOT NULL DEFAULT '001', \
+                 \"archivedAt\" INTEGER NULL, \
+                 \"createdAt\" INTEGER NOT NULL, \
+                 \"updatedAt\" INTEGER NOT NULL)",
+            "CREATE INDEX IF NOT EXISTS idx_album_archivedAt ON album (\"archivedAt\")",
+            "CREATE INDEX IF NOT EXISTS idx_album_index ON album (\"index\")",
+            // v003：bookmark（树形书签库）
+            "CREATE TABLE IF NOT EXISTS bookmark (\
+                 id TEXT PRIMARY KEY NOT NULL, \
+                 \"mirrorID\" TEXT NOT NULL, \
+                 \"parentID\" TEXT NULL, \
+                 title TEXT NOT NULL, \
+                 url TEXT NULL, \
+                 \"index\" INTEGER NOT NULL DEFAULT 0, \
+                 \"createdAt\" INTEGER NOT NULL, \
+                 \"updatedAt\" INTEGER NOT NULL)",
+            "CREATE INDEX IF NOT EXISTS idx_bookmark_mirror ON bookmark (\"mirrorID\")",
+            "CREATE INDEX IF NOT EXISTS idx_bookmark_parent ON bookmark (\"parentID\")",
+            "CREATE INDEX IF NOT EXISTS idx_bookmark_mirror_url ON bookmark (\"mirrorID\", url)",
+            // v004：signboard_entry_asset（卡片 ↔ 本地 asset）
+            "CREATE TABLE IF NOT EXISTS signboard_entry_asset (\
+                 entry_id TEXT NOT NULL, \
+                 asset_id TEXT NOT NULL, \
+                 \"index\" INTEGER NOT NULL DEFAULT 0, \
+                 \"createdAt\" INTEGER NOT NULL, \
+                 PRIMARY KEY (entry_id, asset_id), \
+                 CONSTRAINT fk_signboard_entry_asset_entry FOREIGN KEY (entry_id) \
+                     REFERENCES signboard_entry (id) ON DELETE CASCADE ON UPDATE CASCADE, \
+                 CONSTRAINT fk_signboard_entry_asset_asset FOREIGN KEY (asset_id) \
+                     REFERENCES asset (id) ON DELETE CASCADE ON UPDATE CASCADE)",
+            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_asset_entry_id_index ON signboard_entry_asset (entry_id, \"index\")",
+            "CREATE INDEX IF NOT EXISTS idx_signboard_entry_asset_asset_id ON signboard_entry_asset (asset_id)",
+            // v005：看板进度与列角色（旧库靠 ALTER 补齐）
+            "ALTER TABLE signboard_entry ADD COLUMN progress INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE signboard_column ADD COLUMN role TEXT NULL",
+            "UPDATE signboard_column SET role = 'todo' WHERE role IS NULL AND (title LIKE '%待办%' OR lower(title) LIKE '%todo%')",
+            "UPDATE signboard_column SET role = 'doing' WHERE role IS NULL AND (title LIKE '%进行%' OR lower(title) LIKE '%doing%' OR lower(title) LIKE '%progress%')",
+            "UPDATE signboard_column SET role = 'done' WHERE role IS NULL AND (title LIKE '%完成%' OR lower(title) LIKE '%done%')",
+            // ── Knowledge（知识库）──
+            "CREATE TABLE IF NOT EXISTS knowledge_base (\
+                 id TEXT PRIMARY KEY NOT NULL, \
+                 name TEXT NOT NULL, \
+                 slug TEXT NOT NULL, \
+                 description TEXT NULL, \
+                 \"rootPath\" TEXT NOT NULL, \
+                 \"autoUpdate\" INTEGER NOT NULL DEFAULT 0, \
+                 \"autoExport\" INTEGER NOT NULL DEFAULT 0, \
+                 citation INTEGER NOT NULL DEFAULT 1, \
+                 \"cloudModel\" TEXT NULL, \
+                 \"cloudDimensions\" INTEGER NULL, \
+                 \"archivedAt\" INTEGER NULL, \
+                 \"createdAt\" INTEGER NOT NULL, \
+                 \"updatedAt\" INTEGER NOT NULL)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_base_slug ON knowledge_base (slug)",
+            "CREATE TABLE IF NOT EXISTS knowledge_doc (\
+                 id TEXT PRIMARY KEY NOT NULL, \
+                 \"baseId\" TEXT NOT NULL, \
+                 title TEXT NOT NULL, \
+                 \"relPath\" TEXT NOT NULL, \
+                 hash TEXT NOT NULL, \
+                 content TEXT NOT NULL, \
+                 size INTEGER NOT NULL DEFAULT 0, \
+                 \"wordCount\" INTEGER NOT NULL DEFAULT 0, \
+                 status TEXT NOT NULL DEFAULT 'draft', \
+                 source TEXT NOT NULL DEFAULT 'manual', \
+                 \"sessionId\" TEXT NULL, \
+                 \"assetId\" TEXT NULL, \
+                 \"assetHash\" TEXT NULL, \
+                 \"archivedAt\" INTEGER NULL, \
+                 \"createdAt\" INTEGER NOT NULL, \
+                 \"updatedAt\" INTEGER NOT NULL, \
+                 CONSTRAINT fk_knowledge_doc_base FOREIGN KEY (\"baseId\") \
+                     REFERENCES knowledge_base (id) ON DELETE CASCADE ON UPDATE CASCADE)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_doc_base_path ON knowledge_doc (\"baseId\", \"relPath\")",
+            "CREATE INDEX IF NOT EXISTS idx_knowledge_doc_base_updated ON knowledge_doc (\"baseId\", \"updatedAt\")",
+            "CREATE INDEX IF NOT EXISTS idx_knowledge_doc_status ON knowledge_doc (status)",
+            // FTS5 外部内容表：正文由 knowledge_doc.content 镜像，触发器保持同步
+            "CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_doc_fts USING fts5(\
+                 title, content, tokenize='trigram', content='knowledge_doc', content_rowid='rowid')",
+            "CREATE TRIGGER IF NOT EXISTS knowledge_doc_ai AFTER INSERT ON knowledge_doc BEGIN \
+                 INSERT INTO knowledge_doc_fts(rowid, title, content) VALUES (new.rowid, new.title, new.content); \
+             END",
+            "CREATE TRIGGER IF NOT EXISTS knowledge_doc_ad AFTER DELETE ON knowledge_doc BEGIN \
+                 INSERT INTO knowledge_doc_fts(knowledge_doc_fts, rowid, title, content) \
+                 VALUES ('delete', old.rowid, old.title, old.content); \
+             END",
+            "CREATE TRIGGER IF NOT EXISTS knowledge_doc_au AFTER UPDATE ON knowledge_doc BEGIN \
+                 INSERT INTO knowledge_doc_fts(knowledge_doc_fts, rowid, title, content) \
+                 VALUES ('delete', old.rowid, old.title, old.content); \
+                 INSERT INTO knowledge_doc_fts(rowid, title, content) VALUES (new.rowid, new.title, new.content); \
+             END",
+            "CREATE TABLE IF NOT EXISTS knowledge_index_state (\
+                 \"docId\" TEXT PRIMARY KEY NOT NULL, \
+                 \"baseId\" TEXT NOT NULL, \
+                 \"tenantId\" TEXT NULL, \
+                 \"localIndexedAt\" INTEGER NULL, \
+                 \"cloudStatus\" TEXT NOT NULL DEFAULT 'idle', \
+                 \"cloudAssetId\" TEXT NULL, \
+                 \"cloudAssetHash\" TEXT NULL, \
+                 \"cloudModel\" TEXT NULL, \
+                 \"cloudDimensions\" INTEGER NULL, \
+                 \"cloudIndexedAt\" INTEGER NULL, \
+                 \"lastError\" TEXT NULL, \
+                 \"createdAt\" INTEGER NOT NULL, \
+                 \"updatedAt\" INTEGER NOT NULL)",
+            "CREATE INDEX IF NOT EXISTS idx_knowledge_index_state_cloud ON knowledge_index_state (\"cloudStatus\", \"updatedAt\")",
+            // ── 自动化 ──
+            "CREATE TABLE IF NOT EXISTS automation (\
+                 id TEXT PRIMARY KEY NOT NULL, \
+                 name TEXT NOT NULL, \
+                 prompt TEXT NOT NULL, \
+                 \"knowledgeBaseId\" TEXT NULL, \
+                 schedule TEXT NOT NULL, \
+                 timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai', \
+                 enabled INTEGER NOT NULL DEFAULT 1, \
+                 owner TEXT NOT NULL DEFAULT 'client', \
+                 \"nextRunAt\" INTEGER NULL, \
+                 \"lastRunAt\" INTEGER NULL, \
+                 \"createdAt\" INTEGER NOT NULL, \
+                 \"updatedAt\" INTEGER NOT NULL)",
+            "CREATE INDEX IF NOT EXISTS idx_automation_due ON automation (enabled, \"nextRunAt\")",
+            "CREATE TABLE IF NOT EXISTS automation_run (\
+                 id TEXT PRIMARY KEY NOT NULL, \
+                 \"automationId\" TEXT NOT NULL, \
+                 \"scheduledFor\" INTEGER NOT NULL, \
+                 \"startedAt\" INTEGER NULL, \
+                 \"finishedAt\" INTEGER NULL, \
+                 status TEXT NOT NULL DEFAULT 'pending', \
+                 output TEXT NULL, \
+                 error TEXT NULL, \
+                 \"createdAt\" INTEGER NOT NULL, \
+                 CONSTRAINT fk_automation_run_automation FOREIGN KEY (\"automationId\") \
+                     REFERENCES automation (id) ON DELETE CASCADE ON UPDATE CASCADE)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_run_slot ON automation_run (\"automationId\", \"scheduledFor\")",
+            "CREATE INDEX IF NOT EXISTS idx_automation_run_status ON automation_run (status, \"createdAt\")",
+            // ── 指令草稿收件箱（agent 生成，用户确认后才写入 corex.db）──
+            "CREATE TABLE IF NOT EXISTS directive_draft (\
+                 id TEXT PRIMARY KEY NOT NULL, \
+                 \"threadId\" TEXT NULL, \
+                 \"workspaceId\" TEXT NULL, \
+                 name TEXT NOT NULL, \
+                 definition TEXT NOT NULL, \
+                 status TEXT NOT NULL DEFAULT 'pending', \
+                 error TEXT NULL, \
+                 \"createdAt\" INTEGER NOT NULL, \
+                 \"updatedAt\" INTEGER NOT NULL)",
+            "CREATE INDEX IF NOT EXISTS idx_directive_draft_status ON directive_draft (status, \"updatedAt\")",
+        ] {
+            db.execute_unprepared(statement).await?;
+        }
+
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let db = manager.get_connection();
+        // 本文件新增的表：先删依赖方，再走原有的删表顺序（索引/触发器随表一起消失）
+        for table in [
+            "knowledge_doc_fts",
+            "directive_draft",
+            "automation_run",
+            "automation",
+            "knowledge_index_state",
+            "knowledge_doc",
+            "knowledge_base",
+            "signboard_entry_asset",
+            "bookmark",
+            "album",
+        ] {
+            db.execute_unprepared(&format!("DROP TABLE IF EXISTS {table}"))
+                .await?;
+        }
         for index in [
             "idx_signboard_automation_board_id_index",
             "idx_signboard_check_entry_id_index",
