@@ -23,7 +23,11 @@ import {
 import { runThreadPrompt, respondToApproval, respondToElicitation } from '@/features/agent/acp/session'
 import { parseAcpStreamEvent, type AcpStreamContext } from '@/features/agent/acp/stream'
 import { findActiveScenario } from '@/features/agent/model/active-scenario'
+import { buildPromptContext } from '@/features/agent/model/prompt-context'
 import { findSystemPrompt } from '@/features/agent/model/prompts'
+import { captureDirectiveDraft } from '@/features/agent/directive-draft'
+import { parseSchedulePlan } from '@/features/agent/schedule-plan'
+import { useScheduleDraftStore } from '@/stores/schedule-draft'
 import { parseModels } from '@/features/agent/model/providers'
 import { findSendBlocker, isGatewayTarget } from '@/features/quota/gate'
 import { useProviderStore, type AgentProvider } from '@/stores/provider'
@@ -169,8 +173,10 @@ function createModelPort(): ChatModelPort {
         return
       }
 
-      // 场景系统提示：消息里已有 system 优先；否则按当前工作场景注入（含指令编排 playbook）
-      const systemText = parsed.systemText?.trim() || findSystemPrompt(findActiveScenario())
+      // 场景系统提示：消息里已有 system 优先；否则按当前工作场景注入
+      // （含 corex 能力地图；plan 场景还带当前时间/时区）
+      const systemText =
+        parsed.systemText?.trim() || findSystemPrompt(findActiveScenario(), buildPromptContext())
 
       // 平台网关发送前查一次配额（BYOK 直接放行）；拦到就当成一次「失败」发给 UI，
       // 用户点下发送就能看到原因，不用等半截运行失败。判定失败一律放行 —— 守门的是服务端。
@@ -205,11 +211,16 @@ function createModelPort(): ChatModelPort {
       }
 
       const context: AcpStreamContext = { blockID: createBlockIDFinder() }
+      // directive 场景要把助手正文攒起来，收尾时抽 JSON 落成草稿（不落 corex.db）
+      const scenario = findActiveScenario()
+      let capturedText = ''
 
       try {
         for await (const item of runThreadPrompt(host.threadID, {
           text,
           systemText,
+          // cwd 认**本会话**的工作区：后台会话不能跟着全局指针漂
+          workspaceID: host.workspaceID,
           // goose 的会话配置项认 providerId（行里的 `kind`），不是本地行 id
           providerID: provider.kind,
           modelID: input.model,
@@ -218,7 +229,10 @@ function createModelPort(): ChatModelPort {
           switch (item.kind) {
             case 'update': {
               const event = parseAcpStreamEvent(item.update, context)
-              if (event) yield event
+              if (event) {
+                if (event.kind === 'text') capturedText += event.text
+                yield event
+              }
               break
             }
             case 'approval':
@@ -228,6 +242,19 @@ function createModelPort(): ChatModelPort {
               break
             case 'stop':
               // 每轮**只发一个终态**：取消不是错误（但也不是「说完」），其余按正常收尾
+              if (item.stopReason !== 'cancelled' && scenario === 'directive' && capturedText.trim()) {
+                void captureDirectiveDraft(capturedText, {
+                  threadID: host.threadID,
+                  workspaceID: host.workspaceID
+                }).catch(function (error) {
+                  reportCaught('agent.port.captureDirectiveDraft', error, 'warning')
+                })
+              }
+              // plan 场景：把 {"events":[...]} 变成预览行（写入要用户点确认）
+              if (item.stopReason !== 'cancelled' && scenario === 'plan' && capturedText.trim()) {
+                const rows = parseSchedulePlan(capturedText)
+                if (rows.length > 0) useScheduleDraftStore.getState().setRows(rows)
+              }
               yield item.stopReason === 'cancelled'
                 ? { kind: 'aborted', usage: RUN_USAGE }
                 : { kind: 'finish', finishReason: item.stopReason, usage: RUN_USAGE }

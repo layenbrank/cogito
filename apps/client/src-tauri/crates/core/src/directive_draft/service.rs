@@ -1,0 +1,117 @@
+#![allow(non_snake_case)]
+
+//! 指令草稿的读写（只服务客户端「AI 生成指令」闭环，不碰 corex.db）。
+
+use chrono::Utc;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, TransactionTrait,
+};
+use serde::{Deserialize, Serialize};
+use thinking_database::entity::directive_draft as schema;
+use uuid::Uuid;
+
+use crate::exception::Exception;
+
+/// 新建/覆盖草稿
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DraftInput {
+    /// 有值则覆盖该草稿（同一会话反复生成时避免堆一堆）
+    pub id: Option<String>,
+    pub threadID: Option<String>,
+    pub workspaceID: Option<String>,
+    pub name: String,
+    /// 指令定义 JSON 字符串
+    pub definition: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DraftStatusInput {
+    pub id: String,
+    /// pending / saved / discarded
+    pub status: String,
+    pub error: Option<String>,
+}
+
+pub struct Service;
+
+impl Service {
+    pub async fn toSave<C: ConnectionTrait + TransactionTrait>(
+        db: &C,
+        input: DraftInput,
+    ) -> Result<schema::Model, Exception> {
+        let now = Utc::now().timestamp_millis();
+        if let Some(id) = input.id.clone() {
+            let existing = schema::Entity::find_by_id(id.clone()).one(db).await?;
+            if let Some(existing) = existing {
+                let mut active: schema::ActiveModel = existing.into();
+                active.name = sea_orm::ActiveValue::Set(input.name);
+                active.definition = sea_orm::ActiveValue::Set(input.definition);
+                active.status = sea_orm::ActiveValue::Set("pending".to_owned());
+                active.error = sea_orm::ActiveValue::Set(None);
+                active.updatedAt = sea_orm::ActiveValue::Set(now);
+                return Ok(active.update(db).await?);
+            }
+            return Err(Exception::NotFound(format!("草稿不存在: {id}")));
+        }
+
+        let model = schema::ActiveModel {
+            id: sea_orm::ActiveValue::Set(Uuid::new_v4().to_string()),
+            threadID: sea_orm::ActiveValue::Set(input.threadID),
+            workspaceID: sea_orm::ActiveValue::Set(input.workspaceID),
+            name: sea_orm::ActiveValue::Set(input.name),
+            definition: sea_orm::ActiveValue::Set(input.definition),
+            status: sea_orm::ActiveValue::Set("pending".to_owned()),
+            error: sea_orm::ActiveValue::Set(None),
+            createdAt: sea_orm::ActiveValue::Set(now),
+            updatedAt: sea_orm::ActiveValue::Set(now),
+        };
+        Ok(schema::Entity::insert(model)
+            .exec_with_returning(db)
+            .await?)
+    }
+
+    /// 待确认草稿（新的在前）；`status` 为空时只取 pending
+    pub async fn toList<C: ConnectionTrait + TransactionTrait>(
+        db: &C,
+        status: Option<String>,
+        limit: Option<u64>,
+    ) -> Result<Vec<schema::Model>, Exception> {
+        let status = status.filter(|value| !value.trim().is_empty());
+        let mut query = schema::Entity::find();
+        query = match status {
+            Some(status) => query.filter(schema::Column::Status.eq(status)),
+            None => query.filter(schema::Column::Status.eq("pending")),
+        };
+        Ok(query
+            .order_by_desc(schema::Column::UpdatedAt)
+            .limit(limit.unwrap_or(20))
+            .all(db)
+            .await?)
+    }
+
+    pub async fn toSetStatus<C: ConnectionTrait + TransactionTrait>(
+        db: &C,
+        input: DraftStatusInput,
+    ) -> Result<schema::Model, Exception> {
+        let existing = schema::Entity::find_by_id(input.id.clone())
+            .one(db)
+            .await?
+            .ok_or_else(|| Exception::NotFound(format!("草稿不存在: {}", input.id)))?;
+        let mut active: schema::ActiveModel = existing.into();
+        active.status = sea_orm::ActiveValue::Set(input.status);
+        active.error = sea_orm::ActiveValue::Set(input.error);
+        active.updatedAt = sea_orm::ActiveValue::Set(Utc::now().timestamp_millis());
+        Ok(active.update(db).await?)
+    }
+
+    pub async fn toRemove<C: ConnectionTrait + TransactionTrait>(
+        db: &C,
+        id: String,
+    ) -> Result<u64, Exception> {
+        let result = schema::Entity::delete_by_id(id).exec(db).await?;
+        Ok(result.rows_affected)
+    }
+}

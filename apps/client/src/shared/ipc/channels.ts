@@ -28,6 +28,12 @@ export const CHANNELS = {
     STOP_JOB: 'sidecar:stopJob',
     SHUTDOWN: 'sidecar:shutdown'
   },
+  DIRECTIVE_DRAFT: {
+    SAVE: 'directiveDraft:save',
+    LIST: 'directiveDraft:list',
+    SET_STATUS: 'directiveDraft:setStatus',
+    REMOVE: 'directiveDraft:remove'
+  },
   AUTOSTART: {
     READ: 'autostart:read',
     UPDATE: 'autostart:update'

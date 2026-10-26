@@ -3,6 +3,7 @@ pub mod asset;
 pub mod bookmark;
 pub mod calendar;
 pub mod countdown;
+pub mod directive_draft;
 pub mod exception;
 pub mod magnetic_tile;
 pub mod mirror;

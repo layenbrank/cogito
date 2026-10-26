@@ -43,6 +43,7 @@ import {
   type SplitterLayout
 } from '@/views/agent/chat/components/splitter-sizes'
 import { AgentProcessFold, AgentProcessGroup } from '@/views/agent/chat/components/process-group'
+import { PlanScheduleCard } from '@/views/agent/chat/components/plan-schedule-card'
 import { AgentToolCard } from '@/views/agent/chat/components/tool-card'
 import { AgentToolGroup } from '@/views/agent/chat/components/tool-group'
 import { ThreadWelcome } from '@/views/agent/chat/components/thread-welcome'
@@ -299,6 +300,7 @@ function AgentChatLayout() {
                     ComposerTriggers: ComposerTriggers
                   }}
                 />
+                <PlanScheduleCard />
               </main>
             </div>
           </ResizablePanel>

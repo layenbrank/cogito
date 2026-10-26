@@ -8,6 +8,7 @@ pub mod entity {
     pub mod bookmark;
     pub mod calendar;
     pub mod countdown;
+    pub mod directive_draft;
     pub mod magnetic_tile;
     pub mod mirror;
     pub mod overlay;
@@ -45,6 +46,7 @@ pub mod entity {
     pub use bookmark::Entity as BookmarkEntity;
     pub use calendar::Entity as CalendarEntity;
     pub use countdown::Entity as CountdownEntity;
+    pub use directive_draft::Entity as DirectiveDraftEntity;
     pub use magnetic_tile::Entity as MagneticTileEntity;
     pub use mirror::Entity as MirrorEntity;
     pub use overlay::Entity as OverlayEntity;

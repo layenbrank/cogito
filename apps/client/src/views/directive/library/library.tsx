@@ -33,8 +33,10 @@ import { useTerminalStore } from '@/stores/terminal'
 import { useNow } from '@/views/directive/use-now.ts'
 import { useTerminalCwd } from '@/views/directive/use-terminal-cwd.ts'
 import { EMPTY_RUNS } from '@/views/directive/run/run-status'
+import { setNextPrompt } from '@/features/agent/model/pending-prompt'
 import Card from './card'
 import { ConflictsDialog } from './conflicts-dialog.tsx'
+import { DraftInbox } from './draft-inbox.tsx'
 import { useLibrary } from './use-library'
 
 interface DirectiveLibraryProps {
@@ -108,6 +110,27 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
             />
             新建
           </Button>
+          <Button
+            variant="outline"
+            className="bg-background"
+            aria-label="用 AI 生成指令"
+            title="用 AI 生成指令"
+            onClick={function () {
+              // 交给智能体聊天：预设 directive 场景与提示词，草稿生成后自动进收件箱
+              setNextPrompt({
+                text: '请帮我实现一条指令：',
+                scenario: 'directive'
+              })
+              void import('@/routers').then(function (module) {
+                return module.router.navigate('/agent/chat')
+              })
+            }}>
+            <Icon
+              icon="lucide:sparkles"
+              className="size-4"
+            />
+            AI 生成
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -168,6 +191,7 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
         </div>
 
         <ScrollArea className="h-0 min-h-0 flex-1">
+          <DraftInbox />
           {library.isLoading && !library.isLoaded ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
               <Skeleton className="h-28 w-full rounded-xl" />
