@@ -62,7 +62,7 @@ function parseSignboardViewMode(raw: unknown): SignboardViewMode | null {
 function parseTiles(raw: unknown): TilesPref {
   const base = PERSIST_DEFAULTS.tiles
   if (!isRecord(raw)) return structuredClone(base)
-  const markdown = isRecord(raw.markdown) ? raw.markdown : {}
+  const knowledge = isRecord(raw.knowledge) ? raw.knowledge : {}
   const code = isRecord(raw.code) ? raw.code : {}
   const signboard = isRecord(raw.signboard) ? raw.signboard : {}
   const bookmark = isRecord(raw.bookmark) ? raw.bookmark : {}
@@ -84,9 +84,9 @@ function parseTiles(raw: unknown): TilesPref {
       ? code.panelTab
       : base.code.panelTab
   const mdView =
-    markdown.viewMode === 'source' || markdown.viewMode === 'split' || markdown.viewMode === 'live'
-      ? markdown.viewMode
-      : base.markdown.viewMode
+    knowledge.viewMode === 'source' || knowledge.viewMode === 'split' || knowledge.viewMode === 'live'
+      ? knowledge.viewMode
+      : base.knowledge.viewMode
   const bookmarkView =
     bookmark.viewMode === 'grid' || bookmark.viewMode === 'list'
       ? bookmark.viewMode
@@ -102,12 +102,12 @@ function parseTiles(raw: unknown): TilesPref {
 
   return {
     sessions: parseSessions(raw.sessions),
-    markdown: {
-      ...base.markdown,
-      ...markdown,
+    knowledge: {
+      ...base.knowledge,
+      ...knowledge,
       viewMode: mdView,
-      recentPaths: Array.isArray(markdown.recentPaths)
-        ? markdown.recentPaths.filter(function (item) {
+      recentPaths: Array.isArray(knowledge.recentPaths)
+        ? knowledge.recentPaths.filter(function (item) {
             return typeof item === 'string'
           }).slice(0, 20)
         : []

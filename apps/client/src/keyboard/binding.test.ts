@@ -270,7 +270,7 @@ describe('findConflicts', function () {
       findConflicts(
         [
           entry('code.save', 'view', 'mod+s', 'main'),
-          entry('markdown.save', 'view', 'mod+s', 'main')
+          entry('knowledge.save', 'view', 'mod+s', 'main')
         ],
         'other'
       )

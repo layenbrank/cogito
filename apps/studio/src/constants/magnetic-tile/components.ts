@@ -11,7 +11,7 @@ const MAGNETIC_TILE_COMPONENTS = [
   'calendar',
   'clipchamp',
   'collection',
-  'markdown',
+  'knowledge',
   'morph',
   'settings',
   'agent',

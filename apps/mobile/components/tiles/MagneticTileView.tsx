@@ -4,7 +4,7 @@ import * as WebBrowser from 'expo-web-browser'
 
 import { ClockTile } from '@/components/tiles/ClockTile'
 import { IntelligenceTile } from '@/components/tiles/IntelligenceTile'
-import { MarkdownTile } from '@/components/tiles/MarkdownTile'
+import { KnowledgeTile } from '@/components/tiles/KnowledgeTile'
 import { NavigationTile } from '@/components/tiles/NavigationTile'
 import type { MagneticTile } from '@/types/magnetic-tile'
 
@@ -64,11 +64,11 @@ function MagneticTileView({ tile, width, height }: MagneticTileViewProps) {
       <View className="flex-1">
         {tile.component === 'clock' ? <ClockTile tile={tile} /> : null}
         {tile.component === 'navigation' ? <NavigationTile tile={tile} /> : null}
-        {tile.component === 'markdown' ? <MarkdownTile tile={tile} /> : null}
+        {tile.component === 'knowledge' ? <KnowledgeTile tile={tile} /> : null}
         {tile.component === 'intelligence' ? <IntelligenceTile tile={tile} /> : null}
         {tile.component !== 'clock' &&
         tile.component !== 'navigation' &&
-        tile.component !== 'markdown' &&
+        tile.component !== 'knowledge' &&
         tile.component !== 'intelligence' ? (
           <NavigationTile tile={tile} />
         ) : null}

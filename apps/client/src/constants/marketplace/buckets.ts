@@ -29,7 +29,7 @@ const COMPONENT_BUCKET: Partial<Record<MagneticTile.Component, Exclude<BoothBuck
   clock: 'schedule',
   countdown: 'schedule',
   bookmark: 'notes',
-  markdown: 'notes',
+  knowledge: 'notes',
   signboard: 'notes',
   clipchamp: 'media',
   gallery: 'media',

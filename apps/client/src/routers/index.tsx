@@ -103,8 +103,8 @@ const CaptureRecording = lazy(function () {
   return import('@/views/capture/recording/recording.tsx')
 })
 
-const Markdown = lazy(function () {
-  return import('@/views/markdown/markdown.tsx')
+const Knowledge = lazy(function () {
+  return import('@/views/knowledge/knowledge.tsx')
 })
 
 const Marketplace = lazy(function () {
@@ -189,7 +189,7 @@ const routes: RouteObject[] = [
                   { path: 'recording', element: <CaptureRecording /> }
                 ]
               },
-              { path: '/markdown', element: <Markdown /> },
+              { path: '/knowledge', element: <Knowledge /> },
               { path: '/marketplace', element: <Marketplace /> },
               { path: '/morph', element: <Morph /> },
               { path: '/navigation', element: <Navigate replace to="/overview" /> },

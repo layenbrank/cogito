@@ -6,7 +6,7 @@ import {
   persistTileSessions,
   type TileSessionPref
 } from '@/features/magnetic-tile/tile-prefs'
-import { useMarkdownStore } from '@/stores/markdown'
+import { useKnowledgeStore } from '@/stores/knowledge'
 
 /**
  * 主窗口里的磁贴会话。
@@ -57,8 +57,8 @@ function findAppComponent(pathname: string): MagneticTile.Component | null {
   return segment
 }
 
-function isMarkdownDirty() {
-  return useMarkdownStore.getState().isDirty
+function isKnowledgeDirty() {
+  return useKnowledgeStore.getState().isDirty
 }
 
 function publish() {
@@ -105,7 +105,7 @@ function trimSessions(
   const kept = background.slice(0, BACKGROUND_CAP)
   const overflow = background.slice(BACKGROUND_CAP)
   for (const session of overflow) {
-    if (session.component === 'markdown' && isDirty) kept.push(session)
+    if (session.component === 'knowledge' && isDirty) kept.push(session)
   }
   return [...front, ...kept]
 }
@@ -120,7 +120,7 @@ function admitSession(input: SessionInput) {
   const rest = sessions.filter(function (session) {
     return session.component !== input.component
   })
-  sessions = trimSessions([next, ...rest], input.component, isMarkdownDirty())
+  sessions = trimSessions([next, ...rest], input.component, isKnowledgeDirty())
   publish()
 }
 
@@ -144,7 +144,7 @@ function rememberRoute(component: MagneticTile.Component, path: string) {
 }
 
 function parkSessions() {
-  const next = trimSessions(sessions, null, isMarkdownDirty())
+  const next = trimSessions(sessions, null, isKnowledgeDirty())
   if (next.length === sessions.length) return
   sessions = next
   publish()

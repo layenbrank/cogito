@@ -20,7 +20,7 @@ const PERSIST_DEFAULTS: PersistShape = {
   },
   tiles: {
     sessions: [],
-    markdown: {
+    knowledge: {
       rootDir: null,
       isSidebarOpen: true,
       isOutlineOpen: true,

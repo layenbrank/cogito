@@ -20,7 +20,7 @@ export type {
   PersistShape,
   PersistValue,
   TileSessionPref,
-  MarkdownChrome,
+  KnowledgeChrome,
   CodeChrome,
   TilesPref,
   AgentPref,

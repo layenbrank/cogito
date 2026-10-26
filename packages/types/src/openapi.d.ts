@@ -2497,7 +2497,7 @@ export interface components {
             index: number;
         };
         /** @enum {string} */
-        Component: "Bookmark" | "Calendar" | "Markdown" | "Settings" | "Clipchamp" | "Intelligence" | "Navigation" | "Marketplace" | "Developer" | "Collection" | "Signboard" | "Clock" | "Gallery";
+        Component: "Bookmark" | "Calendar" | "Knowledge" | "Settings" | "Clipchamp" | "Intelligence" | "Navigation" | "Marketplace" | "Developer" | "Collection" | "Signboard" | "Clock" | "Gallery";
         /** @description 单个依赖的探测结果 */
         DependencyCheck: {
             /** @description 是否关键依赖：关键依赖故障 ⇒ 503（不接流量） */

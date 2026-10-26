@@ -61,15 +61,15 @@ describe('persist store (memory)', function () {
     expect(findPref('window').appearance.radius).toBe(6)
   })
 
-  it('deep-merges tiles.markdown without wiping siblings', async function () {
+  it('deep-merges tiles.knowledge without wiping siblings', async function () {
     await patchPref('tiles', {
-      markdown: { ...findPref('tiles').markdown, fontSize: 20 }
+      knowledge: { ...findPref('tiles').knowledge, fontSize: 20 }
     })
     await patchPref('tiles', {
       code: { ...findPref('tiles').code, isPanelOpen: true }
     })
     const tiles = findPref('tiles')
-    expect(tiles.markdown.fontSize).toBe(20)
+    expect(tiles.knowledge.fontSize).toBe(20)
     expect(tiles.code.isPanelOpen).toBe(true)
     expect(tiles.bookmark.viewMode).toBe('list')
   })

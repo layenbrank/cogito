@@ -6,7 +6,7 @@ type MagneticTileComponent =
   | 'bookmark'
   | 'clock'
   | 'calendar'
-  | 'markdown'
+  | 'knowledge'
   | 'intelligence'
   | 'navigation'
   | 'settings'

@@ -35,8 +35,8 @@ const ClipchampMarker = lazyMarker(function () {
 const CollectionMarker = lazyMarker(function () {
   return import('@/features/magnetic-tiles/collection/marker')
 })
-const MarkdownMarker = lazyMarker(function () {
-  return import('@/features/magnetic-tiles/markdown/marker')
+const KnowledgeMarker = lazyMarker(function () {
+  return import('@/features/magnetic-tiles/knowledge/marker')
 })
 const MorphMarker = lazyMarker(function () {
   return import('@/features/magnetic-tiles/morph/marker')
@@ -97,7 +97,7 @@ const MARKERS: Partial<Record<MagneticTile.Component, (props: MarkerRenderProps)
   code: bindMarker(CodeMarker),
   clipchamp: bindMarker(ClipchampMarker),
   collection: bindMarker(CollectionMarker),
-  markdown: bindMarker(MarkdownMarker),
+  knowledge: bindMarker(KnowledgeMarker),
   morph: bindMarker(MorphMarker),
   settings: bindMarker(SettingsMarker),
   agent: bindMarker(AgentMarker),

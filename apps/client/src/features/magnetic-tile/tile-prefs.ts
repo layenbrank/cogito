@@ -4,13 +4,13 @@
 import { ensurePersist, findPref, patchPref } from '@/features/persist'
 import type {
   CodeChrome,
-  MarkdownChrome,
+  KnowledgeChrome,
   TileSessionPref,
   TilesPref
 } from '@/features/persist'
 
 type CodePreferences = CodeChrome
-type MarkdownTilePreferences = MarkdownChrome
+type KnowledgeTilePreferences = KnowledgeChrome
 
 interface SignboardPreferences {
   activeBoardID: string | null
@@ -35,12 +35,12 @@ async function persistTileSessions(sessions: TileSessionPref[]): Promise<void> {
   await patchPref('tiles', { sessions })
 }
 
-function findMarkdownTilePrefs(): MarkdownTilePreferences {
-  return findPref('tiles').markdown
+function findKnowledgeTilePrefs(): KnowledgeTilePreferences {
+  return findPref('tiles').knowledge
 }
 
-async function persistMarkdownTilePrefs(prefs: MarkdownTilePreferences): Promise<void> {
-  await patchPref('tiles', { markdown: prefs })
+async function persistKnowledgeTilePrefs(prefs: KnowledgeTilePreferences): Promise<void> {
+  await patchPref('tiles', { knowledge: prefs })
 }
 
 function findCodeTilePrefs(): CodePreferences {
@@ -70,7 +70,7 @@ function findTilesPref(): TilesPref {
 
 export type {
   TileSessionPref,
-  MarkdownTilePreferences,
+  KnowledgeTilePreferences,
   CodePreferences,
   SignboardPreferences,
   TilesPref
@@ -81,8 +81,8 @@ export {
   findTileSessions,
   findSessionPath,
   persistTileSessions,
-  findMarkdownTilePrefs,
-  persistMarkdownTilePrefs,
+  findKnowledgeTilePrefs,
+  persistKnowledgeTilePrefs,
   findCodeTilePrefs,
   persistCodeTilePrefs,
   findSignboardTilePrefs,

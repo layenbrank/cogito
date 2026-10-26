@@ -158,7 +158,7 @@ describe('dispatchKeydown · 视图级键位', function () {
     registerCodeSave(runCode)
     disposers.push(
       registerCommands([
-        { id: SHORTCUT_COMMAND.MARKDOWN_SAVE, title: '笔记窗：保存', run: runMarkdown } satisfies Command
+        { id: SHORTCUT_COMMAND.KNOWLEDGE_SAVE, title: '笔记窗：保存', run: runMarkdown } satisfies Command
       ])
     )
 

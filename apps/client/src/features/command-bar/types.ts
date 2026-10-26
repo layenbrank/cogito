@@ -8,7 +8,7 @@ type HitDomain =
   | 'calendar'
   | 'reminder'
   | 'gallery'
-  | 'markdown'
+  | 'knowledge'
   | 'command'
   | 'web'
 

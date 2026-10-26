@@ -75,7 +75,7 @@ const WINDOW: WindowConfigure = {
   example: DEFAULT,
   gallery: DEFAULT,
   agent: DEFAULT,
-  markdown: DEFAULT,
+  knowledge: DEFAULT,
   morph: DEFAULT,
   marketplace: {
     ...DEFAULT,

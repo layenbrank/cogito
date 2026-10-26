@@ -21,7 +21,7 @@ export default defineConfig({
           'src/views/code/lib/monaco-models.ts',
           'src/views/code/workspace/monaco-host.tsx',
           'src/views/code/workspace/problems.tsx',
-          'src/views/markdown/workspace/source-editor.tsx'
+          'src/views/knowledge/workspace/source-editor.tsx'
         ],
         rules: ['react-doctor/prefer-dynamic-import']
       },

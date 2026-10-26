@@ -16,18 +16,18 @@ describe('command-bar rank', function () {
     const hits = uniqueHits([
       stub({ domain: 'tile', id: 'a', title: '代码', score: 0.9 }),
       stub({ domain: 'tile', id: 'a', title: '代码', score: 0.1 }),
-      stub({ domain: 'markdown', id: 'a', title: '其它' })
+      stub({ domain: 'knowledge', id: 'a', title: '其它' })
     ])
     expect(hits).toHaveLength(2)
     expect(hits[0].score).toBe(0.9)
-    expect(hits[1].domain).toBe('markdown')
+    expect(hits[1].domain).toBe('knowledge')
   })
 
   it('sortHits also dedupes', function () {
     const hits = sortHits([
-      stub({ domain: 'markdown', id: 'p', title: 'prompt.md' }),
-      stub({ domain: 'markdown', id: 'p', title: 'prompt.md' }),
-      stub({ domain: 'markdown', id: 'p', title: 'prompt.md' })
+      stub({ domain: 'knowledge', id: 'p', title: 'prompt.md' }),
+      stub({ domain: 'knowledge', id: 'p', title: 'prompt.md' }),
+      stub({ domain: 'knowledge', id: 'p', title: 'prompt.md' })
     ])
     expect(hits).toHaveLength(1)
   })

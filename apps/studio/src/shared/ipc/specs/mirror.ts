@@ -99,7 +99,7 @@ const COMPONENT = z.enum([
   'calendar',
   'clipchamp',
   'collection',
-  'markdown',
+  'knowledge',
   'morph',
   'settings',
   'agent',

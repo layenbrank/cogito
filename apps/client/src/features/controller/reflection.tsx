@@ -30,8 +30,8 @@ const Agent = React.lazy(function () {
 const Morph = React.lazy(function () {
   return import('@/features/magnetic-tiles/morph/morph.tsx')
 })
-const Markdown = React.lazy(function () {
-  return import('@/features/magnetic-tiles/markdown/markdown.tsx')
+const Knowledge = React.lazy(function () {
+  return import('@/features/magnetic-tiles/knowledge/knowledge.tsx')
 })
 const Navigation = React.lazy(function () {
   return import('@/features/magnetic-tiles/navigation/navigation.tsx')
@@ -69,7 +69,7 @@ const Reflection: Readonly<MagneticTile.Reflection> = {
   agent: Agent,
   settings: Settings,
   navigation: Navigation,
-  markdown: Markdown,
+  knowledge: Knowledge,
   morph: Morph,
   marketplace: Marketplace,
   developer: Developer,
@@ -95,7 +95,7 @@ export {
   Example,
   Gallery,
   Agent,
-  Markdown,
+  Knowledge,
   Marketplace,
   Navigation,
   Reflection,

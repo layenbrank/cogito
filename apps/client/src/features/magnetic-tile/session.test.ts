@@ -10,7 +10,7 @@ describe('trimSessions', function () {
   it('keeps the foreground app and only three background apps', function () {
     const current = [
       session('calendar'),
-      session('markdown'),
+      session('knowledge'),
       session('agent'),
       session('gallery'),
       session('code')
@@ -18,20 +18,20 @@ describe('trimSessions', function () {
     const trimmed = trimSessions(current, 'calendar', false)
     expect(trimmed.map(function (item) {
       return item.component
-    })).toEqual(['calendar', 'markdown', 'agent', 'gallery'])
+    })).toEqual(['calendar', 'knowledge', 'agent', 'gallery'])
   })
 
-  it('keeps a dirty markdown session past the background cap', function () {
+  it('keeps a dirty knowledge session past the background cap', function () {
     const current = [
       session('calendar'),
       session('agent'),
       session('gallery'),
       session('code'),
-      session('markdown')
+      session('knowledge')
     ]
     const trimmed = trimSessions(current, 'calendar', true)
     expect(trimmed.map(function (item) {
       return item.component
-    })).toEqual(['calendar', 'agent', 'gallery', 'code', 'markdown'])
+    })).toEqual(['calendar', 'agent', 'gallery', 'code', 'knowledge'])
   })
 })

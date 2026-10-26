@@ -4,8 +4,8 @@ import type { Editor, NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, NodeViewContent } from '@tiptap/react'
 
 import { isValidPosition } from '@/lib/tiptap-utils.ts'
-import { useMarkdownStore } from '@/stores/markdown'
-import { findImageSrc } from '@/views/markdown/lib/image-src.ts'
+import { useKnowledgeStore } from '@/stores/knowledge'
+import { findImageSrc } from '@/views/knowledge/lib/image-src.ts'
 
 import { ImageResizeHandles } from './image-resize-handles.tsx'
 import { useImageResize } from './use-image-resize.ts'
@@ -38,7 +38,7 @@ export function ImageNodeView(props: NodeViewProps) {
   const { editor, node, updateAttributes, getPos } = props
   const hasContent = node.content.size > 0
   // markdown 里存的是相对路径（assets/xxx），渲染时按当前文档目录解析成 asset 协议 URL
-  const activePath = useMarkdownStore(function (state) {
+  const activePath = useKnowledgeStore(function (state) {
     return state.activePath
   })
 

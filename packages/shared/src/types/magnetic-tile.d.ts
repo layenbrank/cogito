@@ -54,7 +54,7 @@ declare namespace MagneticTile {
     | 'calendar'
     | 'clipchamp'
     | 'collection'
-    | 'markdown'
+    | 'knowledge' // 知识库（原 markdown 磁贴）
     | 'morph'
     | 'settings'
     | 'navigation'

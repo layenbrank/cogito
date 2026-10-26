@@ -33,9 +33,9 @@ const PREFIX_DOMAIN: Record<string, HitDomain> = {
   gal: 'gallery',
   gallery: 'gallery',
   capture: 'gallery',
-  md: 'markdown',
-  markdown: 'markdown',
-  memo: 'markdown',
+  md: 'knowledge',
+  markdown: 'knowledge',
+  memo: 'knowledge',
   cmd: 'command',
   command: 'command',
   web: 'web'
@@ -50,7 +50,7 @@ const DOMAIN_LABEL: Record<HitDomain | 'all', string> = {
   calendar: '日程',
   reminder: '闹钟',
   gallery: '媒体',
-  markdown: '备忘',
+  knowledge: '知识库',
   command: '命令',
   web: 'Web'
 }
@@ -63,7 +63,7 @@ const DOMAIN_ORDER: HitDomain[] = [
   'calendar',
   'reminder',
   'gallery',
-  'markdown',
+  'knowledge',
   'command',
   'web'
 ]
@@ -75,7 +75,7 @@ const FILTER_CHIPS: DomainFilter[] = [
   'agent',
   'calendar',
   'gallery',
-  'markdown',
+  'knowledge',
   'command',
   'web'
 ]

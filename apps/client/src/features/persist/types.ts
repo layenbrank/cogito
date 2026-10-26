@@ -19,7 +19,7 @@ interface TileSessionPref {
   path: string
 }
 
-interface MarkdownChrome {
+interface KnowledgeChrome {
   rootDir: string | null
   isSidebarOpen: boolean
   isOutlineOpen: boolean
@@ -55,7 +55,7 @@ interface BookmarkChrome {
 
 interface TilesPref {
   sessions: TileSessionPref[]
-  markdown: MarkdownChrome
+  knowledge: KnowledgeChrome
   code: CodeChrome
   signboard: SignboardChrome
   bookmark: BookmarkChrome
@@ -165,7 +165,7 @@ export type {
   PersistShape,
   PersistValue,
   TileSessionPref,
-  MarkdownChrome,
+  KnowledgeChrome,
   CodeChrome,
   SignboardChrome,
   BookmarkChrome,

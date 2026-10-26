@@ -6,7 +6,7 @@ import { agentProvider } from '@/features/command-bar/providers/agent'
 import { calendarProvider } from '@/features/command-bar/providers/calendar'
 import { commandsProvider } from '@/features/command-bar/providers/commands'
 import { galleryProvider } from '@/features/command-bar/providers/gallery'
-import { markdownProvider } from '@/features/command-bar/providers/markdown'
+import { knowledgeProvider } from '@/features/command-bar/providers/knowledge'
 import { reminderProvider } from '@/features/command-bar/providers/reminder'
 import {
   collectionProvider,
@@ -24,7 +24,7 @@ const PROVIDERS: readonly SearchProvider[] = [
   calendarProvider,
   reminderProvider,
   galleryProvider,
-  markdownProvider,
+  knowledgeProvider,
   commandsProvider,
   webProvider
 ]

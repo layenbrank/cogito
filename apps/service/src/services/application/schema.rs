@@ -23,7 +23,7 @@ pub enum Shape {
 pub enum Component {
     Bookmark,
     Calendar,
-    Markdown,
+    Knowledge,
     Settings,
     Clipchamp,
     Intelligence,
