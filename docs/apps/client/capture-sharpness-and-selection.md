@@ -117,7 +117,33 @@ bufferH = stageHeight × pixelRatio ≈ naturalHeight
 | 仅 Konva 底图 + `viewport × dpr`（未对齐 PNG） | 易糊 | ✅ | 清晰度差，勿回退 |
 | HTML backdrop + 透明 Stage | 更锐 | ❌ | Windows 透明窗丢命中 |
 | DOM 层自做框选（绕开 Konva） | — | 曾可用 | 产品侧明确拒绝双轨，已撤回 |
+---
 
+## 5. 浮层窗口生命周期（硬约束）
+
+| 约束 | 原因 | 违反后的现象 |
+|------|------|--------------|
+| overlay 窗口**常驻映射**（启动即显示），`overlay:hide` 只藏 DOM + 切穿透 | `hide()`/`show()` 会让 WebView2 挂起合成 | 按快捷键后没有遮罩、没有吸附，点一下鼠标才出来 |
+| 尺寸必须按监视器**物理矩形**铺满（`apply_bounds`），不能用 `maximized` | 最大化只覆盖工作区 | 遮罩漏掉任务栏那条，且启动时窗口停在默认 800×600 |
+| 真隐藏只走 `overlay:park`（渲染进程异常 / 退出） | 坏窗口不能一直吃点击 | 白屏浮层卡住桌面 |
+| 出图顺序：ensure → 抓帧 → 切模式 → 首帧 ack（`capture:ready`）→ reveal | reveal 早于首帧会露出实时桌面 | 截屏瞬间闪一下桌面 |
+| `capture:open` 单飞 | 连按会覆盖 pending、并把遮罩拍进新图 | 出了怪图 / 按几次才有反应 |
+| 窗口区域在 `overlay_ensure` 之后枚举 | 需要浮层自己的 hwnd 与 scale factor | 首次/重建后没有窗口吸附 |
+
+## 6. 选择器候选栈
+
+`capture/region.rs` 产出 `CaptureRegion { x, y, w, h, kind, hwnd, title, z, control_type }`
+（`kind`：`element | child | client | frame | screen`），`features/capture/region.ts` 的
+`findHoverStack` 把它组织成「由细到粗」的候选栈：
+
+- 元素链（UIA，`capture:elements`）→ 子控件（面积升序）→ 客户区 → 窗口框 → 其它窗口（z 序）→ 整屏
+- **移动中不探测**：窗口级候选由本地几何实时给出；光标停住 `80ms` 后补一次元素级（`hover-probe.ts`），
+  两次探测至少隔 `180ms`，查询期间又移动会收敛到最新坐标
+- 候选分组/排序在 `regions` 变化时做一次（`buildRegionIndex`），mousemove 只做矩形命中
+- 滚轮：逐层移动（上滚更粗）；Shift+滚轮：跳到相邻窗口组的最细一层
+- UIA 查询前必须让浮层**临时穿透**，否则 `ElementFromPoint` 命中的是我们自己；穿透由 RAII guard 负责复原
+- UIA 引擎常驻专用线程（`uia-probe`），不要每次查询重建 `IUIAutomation`
+- UIA 超时/失败一律退化为窗口级候选，不能阻塞悬停
 ---
 
 ## 5. 代码地图
