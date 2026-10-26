@@ -8,15 +8,12 @@ import { capsFromTriggers } from './run-caps'
 import { buildInputPayload, parseJsonObject, seedInputValues } from './run-input.ts'
 
 /**
- * 底部 Dock「运行 / 试跑 / 历史」共用状态。
+ * 底部 Dock「输出 / 参数 / 历史」共用状态。
  * `directiveName` 为空时（指令列表页）只提供运行态只读信息。
  */
 function useRunDock(directiveName: string | null) {
   const runs = useCorexStore(function (state) {
     return state.runs
-  })
-  const focusRunId = useCorexStore(function (state) {
-    return state.focusRunId
   })
   const runHistory = useCorexStore(function (state) {
     return state.runHistory
@@ -47,9 +44,6 @@ function useRunDock(directiveName: string | null) {
   })
   const isDraftDirty = useCorexStore(function (state) {
     return state.isDraftDirty
-  })
-  const directives = useCorexStore(function (state) {
-    return state.directives
   })
 
   const declaredInputs = useMemo(
@@ -103,32 +97,14 @@ function useRunDock(directiveName: string | null) {
     [draft?.triggers]
   )
 
-  const stepCount = useMemo(
-    function () {
-      if (!directiveName) return 0
-      if (draft && editorName === directiveName) {
-        return Array.isArray(draft.steps) ? draft.steps.length : 0
-      }
-      const entry = directives.find(function (item) {
-        return item.name === directiveName
-      })
-      return entry?.summary?.step_count ?? 0
-    },
-    [draft, editorName, directiveName, directives]
-  )
-
   const activeRun = useMemo(
     function () {
-      const byFocus = runs.find(function (run) {
-        return run.id === focusRunId
-      })
-      if (byFocus) return byFocus
       if (!directiveName) return undefined
       return runs.find(function (run) {
         return run.name === directiveName && run.status === 'running'
       })
     },
-    [runs, focusRunId, directiveName]
+    [runs, directiveName]
   )
 
   useEffect(
@@ -168,7 +144,7 @@ function useRunDock(directiveName: string | null) {
         toast.error('请选择动作')
         return
       }
-      useTerminalStore.getState().setActivity('trial')
+      useTerminalStore.getState().setActivity('run')
       startTrial(trialAction, params)
     } catch (error) {
       toast.error('试跑参数无效', {
@@ -200,7 +176,6 @@ function useRunDock(directiveName: string | null) {
     catalog,
     caps,
     activeRun,
-    stepCount,
     runHistory,
     setInputValues,
     setParamsJson,
@@ -219,3 +194,4 @@ function useRunDock(directiveName: string | null) {
 }
 
 export { useRunDock }
+export type RunDockState = ReturnType<typeof useRunDock>

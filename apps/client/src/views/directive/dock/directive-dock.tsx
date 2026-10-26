@@ -1,5 +1,5 @@
 /**
- * 指令底栏：VS Code 风格活动页（运行 / 试跑 / 历史 / 终端）。
+ * 指令底栏：VS Code 风格活动页（输出 / 参数 / 历史 / 终端）。
  * 每个选项卡独占一页；仅「终端」PTY 用 invisible 保活，其余 inactive 用 hidden。
  */
 import { Icon } from '@iconify/react/offline'
@@ -8,14 +8,14 @@ import { cn } from 'cn'
 import { useEffect, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 
-import { TerminalOutputTab } from '@/features/terminal/terminal-output-tab'
 import { TerminalTabs } from '@/features/terminal/terminal-tabs'
 import { useTerminalStore, type DockActivity } from '@/stores/terminal'
 import { safeDecodeURIComponent } from '@/utils/safe-decode.ts'
 import { RunPanelHistoryTab } from '@/views/directive/run/run-panel-history-tab.tsx'
-import { RunPanelRunTab } from '@/views/directive/run/run-panel-run-tab.tsx'
-import { RunPanelTrialTab } from '@/views/directive/run/run-panel-trial-tab.tsx'
 import { useRunDock } from '@/views/directive/run/use-run-dock.ts'
+
+import { RunInputPage } from './run-input-page.tsx'
+import { RunOutputPage } from './run-output-page.tsx'
 
 interface DirectiveDockProps {
   cwd?: string | null
@@ -26,13 +26,13 @@ interface ActivityItem {
   id: DockActivity
   label: string
   icon: string
-  /** 无指令名时隐藏（试跑 / 历史需要上下文） */
+  /** 无指令名时隐藏（参数 / 历史需要上下文） */
   needsName?: boolean
 }
 
 const ACTIVITIES: ActivityItem[] = [
-  { id: 'run', label: '运行', icon: 'lucide:play' },
-  { id: 'trial', label: '试跑动作', icon: 'lucide:flask-conical', needsName: true },
+  { id: 'run', label: '输出', icon: 'lucide:square-terminal' },
+  { id: 'input', label: '参数', icon: 'lucide:sliders-horizontal', needsName: true },
   { id: 'history', label: '历史', icon: 'lucide:history', needsName: true },
   { id: 'terminal', label: '终端', icon: 'lucide:terminal' }
 ]
@@ -60,7 +60,7 @@ function DirectiveDock(props: DirectiveDockProps) {
   useEffect(
     function () {
       if (directiveName) return
-      if (activity === 'trial' || activity === 'history') setActivity('run')
+      if (activity === 'input' || activity === 'history') setActivity('run')
     },
     [directiveName, activity, setActivity]
   )
@@ -115,81 +115,13 @@ function DirectiveDock(props: DirectiveDockProps) {
       </div>
 
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        {/* 运行 / 试跑 / 历史：inactive 用 hidden，互不叠显 */}
+        {/* 输出 / 参数 / 历史：inactive 用 hidden，互不叠显 */}
         <DockPage active={activity === 'run'}>
-          <div className="flex h-full min-h-0 flex-col">
-            {directiveName ? (
-              <div className="max-h-[40%] shrink-0 space-y-2 overflow-y-auto border-b px-3 py-2">
-                <RunPanelRunTab
-                  directiveName={directiveName}
-                  caps={run.caps}
-                  declaredInputs={run.declaredInputs}
-                  hasDeclaredInputs={run.hasDeclaredInputs}
-                  showAdvancedJson={run.showAdvancedJson}
-                  inputValues={run.inputValues}
-                  paramsJson={run.paramsJson}
-                  activeRun={run.activeRun}
-                  stepCount={run.stepCount}
-                  onInputValuesChange={run.setInputValues}
-                  onParamsJsonChange={run.setParamsJson}
-                  onToggleAdvancedJson={function () {
-                    run.toggleAdvancedJson()
-                  }}
-                  onRun={run.handleRun}
-                  onCancelRun={function (runId) {
-                    void run.cancelRun(runId)
-                  }}
-                  beforeGuard={run.beforeGuard}
-                />
-              </div>
-            ) : run.activeRun ? (
-              <div className="shrink-0 border-b px-3 py-2">
-                <RunPanelRunTab
-                  directiveName={run.activeRun.name}
-                  caps={run.caps}
-                  declaredInputs={[]}
-                  hasDeclaredInputs={false}
-                  showAdvancedJson
-                  inputValues={{}}
-                  paramsJson="{}"
-                  activeRun={run.activeRun}
-                  stepCount={run.stepCount}
-                  onInputValuesChange={function () {}}
-                  onParamsJsonChange={function () {}}
-                  onToggleAdvancedJson={function () {}}
-                  onRun={function () {}}
-                  onCancelRun={function (runId) {
-                    void run.cancelRun(runId)
-                  }}
-                  beforeGuard={function () {
-                    return Promise.resolve(null)
-                  }}
-                  readOnly
-                />
-              </div>
-            ) : null}
-            <div className="min-h-0 flex-1">
-              <TerminalOutputTab active={activity === 'run'} />
-            </div>
-          </div>
+          <RunOutputPage active={activity === 'run'} />
         </DockPage>
 
-        <DockPage active={activity === 'trial'}>
-          <div className="flex h-full min-h-0 flex-col">
-            <div className="max-h-[45%] shrink-0 space-y-2 overflow-y-auto border-b px-3 py-2">
-              <RunPanelTrialTab
-                catalog={run.catalog}
-                trialAction={run.trialAction}
-                trialParamsJson={run.trialParamsJson}
-                onTrialActionChange={run.setTrialActionPick}
-                onTrialParamsJsonChange={run.setTrialParamsJson}
-                onTrial={run.handleTrial}
-              />
-            </div>
-            <div className="min-h-0 flex-1">
-              <TerminalOutputTab active={activity === 'trial'} />
-            </div>
-          </div>
+        <DockPage active={activity === 'input'}>
+          <RunInputPage run={run} />
         </DockPage>
 
         <DockPage active={activity === 'history'}>

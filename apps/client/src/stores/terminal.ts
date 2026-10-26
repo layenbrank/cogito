@@ -2,7 +2,7 @@
  * 嵌入式终端 / 底部 Dock UI 状态（可序列化元数据）。
  *
  * - `pty`：交互会话；`Terminal` / Channel 由 `terminal-view` 持有
- * - 指令执行流式只读回显挂在 Dock「运行 / 试跑」活动页，不再占独立 tab
+ * - 指令执行流式只读回显挂在 Dock「输出」活动页，不再占独立 tab
  */
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
@@ -10,8 +10,8 @@ import { subscribeWithSelector } from 'zustand/middleware'
 
 type TerminalTabKind = 'pty'
 
-/** 底部面板活动页（VS Code 风格） */
-type DockActivity = 'run' | 'trial' | 'history' | 'terminal'
+/** 底部面板活动页（VS Code 风格）；`input` 承载运行 / 试跑的参数表单 */
+type DockActivity = 'run' | 'input' | 'history' | 'terminal'
 
 interface TerminalTab {
   id: string

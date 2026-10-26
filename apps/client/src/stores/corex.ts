@@ -35,8 +35,8 @@ import {
   unregisterRun
 } from './run-logs'
 
-function revealRunOutput(activity: 'run' | 'trial' = 'run') {
-  useTerminalStore.getState().revealDock({ activity })
+function revealRunOutput() {
+  useTerminalStore.getState().revealDock({ activity: 'run' })
 }
 
 type CorexAction = ActionEntry
@@ -48,9 +48,13 @@ const MAX_UNDO = 50
 
 type RunTrigger = 'manual' | 'cron' | 'watch'
 
+/** 运行来源：指令执行 or 单动作试跑；输出页按它区分标签图标 */
+type RunKind = 'directive' | 'trial'
+
 interface CorexRun {
   id: string
   name: string
+  kind: RunKind
   status: RunStatus
   startedAt: Date
   endedAt: Date | null
@@ -114,6 +118,8 @@ interface CorexStore {
   cancelRun: (runId: string) => Promise<void>
   removeRun: (id: string) => void
   clearRuns: () => void
+  /** 输出页标签切换：把焦点挪到某个运行实例 */
+  focusRun: (id: string) => void
   clearFocusRun: () => void
   /** 强制终止：把该指令下对应触发的进行中任务标失败 */
   cancelTriggerRuns: (name: string, kind: 'cron' | 'watch') => void
@@ -468,6 +474,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
       const run: CorexRun = {
         id,
         name,
+        kind: 'directive',
         status: 'running',
         startedAt: new Date(),
         endedAt: null,
@@ -505,6 +512,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
       const run: CorexRun = {
         id,
         name: actionId,
+        kind: 'trial',
         status: 'running',
         startedAt: new Date(),
         endedAt: null,
@@ -514,7 +522,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
         trigger: 'manual'
       }
       setter({ ...commitRuns([...getter().runs, run]), focusRunId: id })
-      revealRunOutput('trial')
+      revealRunOutput()
 
       void (async function () {
         try {
@@ -576,6 +584,10 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
       setter({ focusRunId: null })
     },
 
+    focusRun(id) {
+      setter({ focusRunId: id })
+    },
+
     cancelTriggerRuns(name, kind) {
       flushRunFrames()
       setter(function (state) {
@@ -608,4 +620,4 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
 })
 
 export { useCorexStore }
-export type { CorexAction, CorexRun, RunStatus, RunTrigger }
+export type { CorexAction, CorexRun, RunKind, RunStatus, RunTrigger }

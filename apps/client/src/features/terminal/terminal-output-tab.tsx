@@ -1,8 +1,7 @@
 /**
- * 共享「运行」输出 tab：订阅当前 focus 运行的进度帧，灌入只读 xterm。
+ * 共享「输出」tab：订阅传入运行实例的进度帧，灌入只读 xterm。
+ * 并发运行时由外层按标签选中实例，再逐个回放各自的帧。
  */
-import { useMemo } from 'react'
-
 import { useCorexStore } from '@/stores/corex.ts'
 import { useRunFrames } from '@/stores/run-logs.ts'
 
@@ -10,36 +9,28 @@ import { TerminalOutput } from './terminal-output'
 
 interface TerminalOutputTabProps {
   active: boolean
+  /** 要回显的运行实例；null 表示还没有任何运行 */
+  runId: string | null
+  placeholder?: string
 }
 
 function TerminalOutputTab(props: TerminalOutputTabProps) {
-  const focusRunId = useCorexStore(function (state) {
-    return state.focusRunId
+  const frames = useRunFrames(props.runId)
+  const error = useCorexStore(function (state) {
+    if (!props.runId) return null
+    const run = state.runs.find(function (item) {
+      return item.id === props.runId
+    })
+    return run?.error ?? null
   })
-  const runs = useCorexStore(function (state) {
-    return state.runs
-  })
-  const frames = useRunFrames(focusRunId)
-
-  const activeRun = useMemo(
-    function () {
-      if (!focusRunId) return null
-      return (
-        runs.find(function (run) {
-          return run.id === focusRunId
-        }) ?? null
-      )
-    },
-    [runs, focusRunId]
-  )
 
   return (
     <TerminalOutput
       active={props.active}
-      runId={focusRunId}
+      runId={props.runId}
       frames={frames.frames}
-      error={activeRun?.error ?? null}
-      placeholder="运行指令后，stdout/stderr 将流式显示在这里…"
+      error={error}
+      placeholder={props.placeholder ?? '运行指令后，stdout/stderr 将流式显示在这里…'}
     />
   )
 }
