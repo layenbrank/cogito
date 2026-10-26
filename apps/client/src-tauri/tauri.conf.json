@@ -139,8 +139,8 @@
         "focus": false,
         "fullscreen": false,
         "label": "overlay",
-        "maximizable": false,
-        "maximized": false,
+        "maximizable": true,
+        "maximized": true,
         "minimizable": false,
         "resizable": false,
         "shadow": false,
@@ -148,7 +148,7 @@
         "title": "Overlay",
         "transparent": true,
         "url": "/overlay",
-        "visible": true
+        "visible": false
       }
     ],
     "withGlobalTauri": true
