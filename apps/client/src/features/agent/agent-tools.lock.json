@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "corex": [
+    "corex_actions",
+    "corex_action",
+    "corex_invoke",
+    "corex_run",
+    "corex_directives",
+    "corex_directive",
+    "corex_validate"
+  ],
+  "local": [
+    "app_calendar_read",
+    "app_knowledge_list_bases",
+    "app_knowledge_list_docs",
+    "app_knowledge_read_doc",
+    "app_knowledge_search",
+    "app_knowledge_write_doc",
+    "app_workspace_list",
+    "app_workspace_read"
+  ]
+}

@@ -28,6 +28,24 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   memory: '记忆',
   todo: '待办',
   // corex MCP（与指令磁贴共用；goose 名可能带 server 前缀，靠 includes 命中）
+  // 注意：复数名放前面，避免 `corex_actions` 被 `corex_action` 先命中
+  corex_actions: '列出动作',
+  corex_action: '动作详情',
+  corex_invoke: '试跑动作',
+  corex_run: '运行指令',
+  corex_directives: '列出指令',
+  corex_directive: '读取指令',
+  corex_validate: '校验指令',
+  // 本地工具（cogito-mcp，app_ 前缀）
+  app_calendar_read: '读取日程',
+  app_knowledge_list_bases: '列出知识库',
+  app_knowledge_list_docs: '列出文档',
+  app_knowledge_read_doc: '读取文档',
+  app_knowledge_search: '检索知识',
+  app_knowledge_write_doc: '写入知识草稿',
+  app_workspace_list: '列出工作区',
+  app_workspace_read: '读取工作区文件',
+  // 旧 daemon RPC 名（兼容历史会话里的工具名）
   list_actions: '列出动作',
   list_directives: '列出指令',
   directives: '列出指令',

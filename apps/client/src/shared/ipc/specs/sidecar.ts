@@ -34,6 +34,8 @@ const ActionEntrySchema = z.object({
   params: z.array(ActionParamSchema).default([]),
   tags: z.array(z.string()).default([]),
   permissions: z.array(z.string()).default([]),
+  /** MCP 的 `corex_action` 会返回风险等级；daemon 的 list_actions 可能不带 */
+  risk: z.unknown().optional(),
   input_schema: z.unknown().optional()
 })
 
