@@ -13,5 +13,6 @@ export const OVERLAY_SHORTCUTS: readonly LocalShortcutDefinition[] = [
   overlayShortcut(COMMAND.CAPTURE_DELETE_SELECTION, '截屏：删除选中标注', 'delete', {
     extraBindings: ['backspace']
   }),
-  overlayShortcut(COMMAND.CAPTURE_RETAKE, '截屏：重新截图', 'mod+r')
+  overlayShortcut(COMMAND.CAPTURE_RETAKE, '截屏：重新截图', 'mod+r'),
+  overlayShortcut(COMMAND.CAPTURE_OCR, '截屏：取字', 'mod+t')
 ]

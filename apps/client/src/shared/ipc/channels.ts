@@ -38,13 +38,18 @@ export const CHANNELS = {
   CAPTURE: {
     SCREENSHOT: 'capture:screenshot',
     OPEN: 'capture:open',
+    REFRESH: 'capture:refresh',
     CLOSE: 'capture:close',
     TAKE_PENDING: 'capture:take-pending',
+    READY: 'capture:ready',
+    ELEMENTS: 'capture:elements',
+    OCR: 'capture:ocr',
     PRUNE: 'capture:prune'
   },
   OVERLAY: {
     ENSURE: 'overlay:ensure',
     HIDE: 'overlay:hide',
+    PARK: 'overlay:park',
     UPDATE_MODE: 'overlay:update-mode',
     PING: 'overlay:ping',
     READ_MODE: 'overlay:read-mode',

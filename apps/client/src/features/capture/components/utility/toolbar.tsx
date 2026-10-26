@@ -12,10 +12,12 @@ interface UtilityToolbarProps {
   active: GraphicsEnum | null
   canUndo: boolean
   canRedo: boolean
+  ocrBusy: boolean
   onUpdateUtility: (shape: GraphicsEnum | null) => void
   onUndo: () => void
   onRedo: () => void
   onRefresh: () => void
+  onOcr: () => void
   onCopy: () => void
   onPin: () => void
   onSave: () => void
@@ -26,10 +28,12 @@ function UtilityToolbar(props: UtilityToolbarProps) {
     active,
     canUndo,
     canRedo,
+    ocrBusy,
     onUpdateUtility,
     onUndo,
     onRedo,
     onRefresh,
+    onOcr,
     onCopy,
     onPin,
     onSave
@@ -129,6 +133,25 @@ function UtilityToolbar(props: UtilityToolbarProps) {
             />
           </TooltipTrigger>
           <TooltipContent>重选</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <m.button
+                type="button"
+                className={styles.button}
+                disabled={ocrBusy}
+                whileTap={{ scale: 0.9 }}
+                onClick={onOcr}
+              />
+            }>
+            <Icon
+              icon="mdi:text-recognition"
+              width={18}
+              height={18}
+            />
+          </TooltipTrigger>
+          <TooltipContent>取字 Ctrl+T</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger

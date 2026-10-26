@@ -35,11 +35,15 @@ interface AnnotationProps {
   onRelease: KonvaNodeEvents['onMouseUp']
   onPress: KonvaNodeEvents['onMouseDown']
   onMove: KonvaNodeEvents['onMouseMove']
+  /** 滚轮：选择器换层 / Shift+滚轮换窗口 */
+  onWheel?: KonvaNodeEvents['onWheel']
   onEditStart: (id: string, text: string) => void
   /** 右键命中标注，或落在当前选中并集 AABB 内 */
   onContextMenuAnnotation?: (payload: AnnotationContextMenuPayload) => void
   selection: { x: number; y: number; w: number; h: number } | null
   phase: 'selecting' | 'annotating' | 'editing'
+  /** 悬停候选的描述（控件类型 / 窗口标题） */
+  hoverLabel?: string
   onSelectionChange: (selection: { x: number; y: number; w: number; h: number }) => void
   graphicsActive?: boolean
   onClose: () => void
@@ -69,11 +73,13 @@ const Annotation = forwardRef<AnnotationHandle, AnnotationProps>(function Annota
         marqueeBox={ctrl.marqueeBox}
         selection={props.selection}
         phase={props.phase}
+        hoverLabel={props.hoverLabel}
         graphicsActive={props.graphicsActive}
         withSource={ctrl.withSource}
         onStageMouseMove={ctrl.handleStageMouseMove}
         onMouseDown={ctrl.handleMouseDown}
         onStageMouseUp={ctrl.handleStageMouseUp}
+        onStageWheel={props.onWheel}
         onStageContextMenu={ctrl.handleStageContextMenu}
         onSelectionChange={props.onSelectionChange}
         onShapeSelect={ctrl.handleShapeSelect}

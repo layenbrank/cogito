@@ -9,7 +9,7 @@ const PERSIST_DEFAULTS: PersistShape = {
   settings: {
     general: { autostart: true, language: 'zh-CN' },
     capture: {
-      detect: 'window',
+      detect: 'element',
       isRetentionEnabled: true,
       retention: {
         screenshot: { days: 7, count: 100, maxBytes: 500 * 1024 * 1024 },

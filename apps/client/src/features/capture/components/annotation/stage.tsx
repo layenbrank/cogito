@@ -63,11 +63,14 @@ interface AnnotationStageProps {
   marqueeBox: Bounds | null
   selection: { x: number; y: number; w: number; h: number } | null
   phase: 'selecting' | 'annotating' | 'editing'
+  /** 悬停候选描述（控件类型 / 窗口标题） */
+  hoverLabel?: string
   graphicsActive?: boolean
   withSource: (annotation: GraphicsProps) => GraphicsProps
   onStageMouseMove: KonvaNodeEvents['onMouseMove']
   onMouseDown: KonvaNodeEvents['onMouseDown']
   onStageMouseUp: KonvaNodeEvents['onMouseUp']
+  onStageWheel?: KonvaNodeEvents['onWheel']
   onStageContextMenu: (event: Konva.KonvaEventObject<PointerEvent>) => void
   onSelectionChange: (selection: { x: number; y: number; w: number; h: number }) => void
   onShapeSelect: (id: string, options?: { additive?: boolean }) => void
@@ -96,11 +99,13 @@ function AnnotationStage(props: AnnotationStageProps) {
     marqueeBox,
     selection,
     phase,
+    hoverLabel,
     graphicsActive,
     withSource,
     onStageMouseMove,
     onMouseDown,
     onStageMouseUp,
+    onStageWheel,
     onStageContextMenu,
     onSelectionChange,
     onShapeSelect,
@@ -143,6 +148,7 @@ function AnnotationStage(props: AnnotationStageProps) {
       onStageMouseDown={onMouseDown}
       onStageMouseMove={onStageMouseMove}
       onStageMouseUp={onStageMouseUp}
+      onStageWheel={onStageWheel}
       onStageContextMenu={onStageContextMenu}
       background={
         background ? (
@@ -302,6 +308,7 @@ function AnnotationStage(props: AnnotationStageProps) {
             embedded
             selection={selection}
             phase={phase}
+            label={hoverLabel}
             width={stageWidth}
             height={stageHeight}
             onSelectionChange={onSelectionChange}

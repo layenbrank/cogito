@@ -6,6 +6,7 @@ export const COMMAND = {
   CAPTURE_REDO: 'capture.redo',
   CAPTURE_DELETE_SELECTION: 'capture.deleteSelection',
   CAPTURE_RETAKE: 'capture.retake',
+  CAPTURE_OCR: 'capture.ocr',
   OVERLAY_ESCAPE: 'overlay.escape',
 
   /** 主窗 Command Omnibar */

@@ -45,6 +45,8 @@ interface CaptureActionsInput {
   onUpdateSelection: (selection: { x: number; y: number; w: number; h: number } | null) => void
   onExit?: () => void
   onTexture?: (input: { src: string; w: number; h: number }) => void
+  /** 重新抓一帧（会先整体重置）；不传则只重置不重拍 */
+  onRetake?: () => void
   sessionID: string
   onHistoryWritten?: () => void
 }
@@ -280,7 +282,8 @@ function useCaptureActions(input: CaptureActionsInput) {
     applyPropertyToSelected({ fontSize: next })
   }
 
-  function handleRefresh() {
+  /** 清空当前选区与标注，回到初始选择态（不重新抓屏） */
+  function resetStage() {
     input.onUpdateSelection(null)
     input.onUpdateGraphics(null)
     commitSelection([])
@@ -288,6 +291,12 @@ function useCaptureActions(input: CaptureActionsInput) {
     input.onUpdatePhase('selecting')
     input.resetDragState()
     input.resetHistory()
+  }
+
+  /** 重新截图：整体重来（清空标注后让上层重新抓帧） */
+  function handleRefresh() {
+    resetStage()
+    input.onRetake?.()
   }
 
   function handleEscape() {
@@ -299,8 +308,14 @@ function useCaptureActions(input: CaptureActionsInput) {
       handleSelect(null)
       return
     }
+    // 窗口选择阶段（还没落定选区）直接退出：悬停会自动选中，
+    // 若在这里只清空选区，就变成需要按两次 ESC
+    if (input.phase === 'selecting') {
+      input.onExit?.()
+      return
+    }
     if (input.selection) {
-      handleRefresh()
+      resetStage()
       return
     }
     input.onExit?.()

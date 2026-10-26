@@ -14,7 +14,8 @@
   position: absolute;
   inset: 0;
   z-index: 150;
-  background: transparent;
+  /* 不透明：冻结帧还没画出来之前，绝不能露出实时桌面 */
+  background: #0a0a0a;
   pointer-events: auto;
   cursor: wait;
 }
@@ -135,3 +136,106 @@
   }
 }
 
+
+/* 取字结果面板 */
+.ocrPanel {
+  position: absolute;
+  top: 16px;
+  right: 60px;
+  z-index: 205;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 320px;
+  max-height: 62vh;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(18, 20, 26, 0.94);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(14px);
+  color: #f2f4f8;
+  pointer-events: auto;
+}
+
+.ocrHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ocrTitle {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: rgba(242, 244, 248, 0.72);
+}
+
+.ocrClose {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(242, 244, 248, 0.72);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #f2f4f8;
+  }
+}
+
+.ocrText {
+  margin: 0;
+  max-height: 42vh;
+  overflow: auto;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+
+.ocrActions {
+  display: flex;
+  gap: 8px;
+}
+
+.ocrButton {
+  appearance: none;
+  flex: 1;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(242, 244, 248, 0.86);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+.ocrPrimary {
+  border-color: transparent;
+  background: #4080ff;
+  color: #fff;
+
+  &:hover:not(:disabled) {
+    background: #5690ff;
+  }
+}

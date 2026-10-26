@@ -282,7 +282,10 @@ function parseSettings(raw: unknown): SettingsPref {
       language: typeof general.language === 'string' ? general.language : base.general.language
     },
     capture: {
-      detect: capture.detect === 'off' || capture.detect === 'window' ? capture.detect : base.capture.detect,
+      detect:
+        capture.detect === 'off' || capture.detect === 'window' || capture.detect === 'element'
+          ? capture.detect
+          : base.capture.detect,
       isRetentionEnabled:
         typeof capture.isRetentionEnabled === 'boolean'
           ? capture.isRetentionEnabled

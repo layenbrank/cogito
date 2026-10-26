@@ -181,6 +181,7 @@ function OverlayShell() {
   /**
    * 出错后的统一恢复：退出截屏态 + 关掉浮层。
    * 浮层是透明置顶层，一旦子树坏掉而窗口还显示着，它就会一直吃点击（用户被卡住）。
+   * 这里走 `PARK`（真隐藏）：常规隐藏只藏 DOM，坏窗口只能整个收起来。
    */
   const recover = useCallback(function () {
     const now = Date.now()
@@ -193,8 +194,8 @@ function OverlayShell() {
       .catch(function (error) {
         console.warn('[overlay] 恢复时退出截屏失败', error)
       })
-    void invoke(CHANNELS.OVERLAY.HIDE).catch(function (error) {
-      console.warn('[overlay] 恢复时隐藏浮层失败', error)
+    void invoke(CHANNELS.OVERLAY.PARK).catch(function (error) {
+      console.warn('[overlay] 恢复时收起浮层失败', error)
     })
   }, [])
 

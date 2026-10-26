@@ -4,7 +4,8 @@ import { toast } from 'sonner'
 
 import { findCaptureUsage } from '@/features/capture/model/usage'
 import { UsageMeter } from '@/features/capture/model/usage-meter'
-import { DETECT_OFF, DETECT_WINDOW, useSettingsStore } from '@/stores/setting'
+import { DETECT_ELEMENT, DETECT_OFF, DETECT_WINDOW, useSettingsStore } from '@/stores/setting'
+import type { Setting } from '@/stores/setting'
 import { useGalleryStore } from '@/stores/gallery'
 import { SettingsRow, SettingsSection } from '@/views/settings/panels/section.tsx'
 import { findCaptureHistory } from '@/views/gallery/model/media'
@@ -74,9 +75,9 @@ function CapturePanel() {
     [medias]
   )
 
-  async function onDetectChange(checked: boolean) {
+  async function onDetectChange(next: Setting.CaptureDetect) {
     try {
-      await toUpdate('capture', { detect: checked ? DETECT_WINDOW : DETECT_OFF })
+      await toUpdate('capture', { detect: next })
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error)
       toast.error(`窗口检测设置失败：${text}`)
@@ -137,9 +138,20 @@ function CapturePanel() {
           label="窗口检测"
           hint="截图时悬停高亮窗口，单击吸附为选区；关闭后仅自由框选">
           <Switch
-            checked={capture.detect === DETECT_WINDOW}
+            checked={capture.detect !== DETECT_OFF}
             onCheckedChange={function (checked) {
-              void onDetectChange(checked)
+              void onDetectChange(checked ? DETECT_WINDOW : DETECT_OFF)
+            }}
+          />
+        </SettingsRow>
+        <SettingsRow
+          label="元素检测"
+          hint="在窗口内继续识别按钮、输入框等界面元素，按更细的层级吸附">
+          <Switch
+            checked={capture.detect === DETECT_ELEMENT}
+            disabled={capture.detect === DETECT_OFF}
+            onCheckedChange={function (checked) {
+              void onDetectChange(checked ? DETECT_ELEMENT : DETECT_WINDOW)
             }}
           />
         </SettingsRow>

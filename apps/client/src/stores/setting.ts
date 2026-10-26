@@ -9,7 +9,10 @@ declare namespace Setting {
     language: string
   }
 
-  export type CaptureDetect = 'off' | 'window'
+  /**
+   * 截屏吸附粒度：`off` 自由框选 / `window` 窗口与子控件 / `element` 再加元素级
+   */
+  export type CaptureDetect = 'off' | 'window' | 'element'
 
   export interface RetentionPolicy {
     days: number
@@ -49,6 +52,7 @@ declare namespace Setting {
 
 const DETECT_OFF: Setting.CaptureDetect = 'off'
 const DETECT_WINDOW: Setting.CaptureDetect = 'window'
+const DETECT_ELEMENT: Setting.CaptureDetect = 'element'
 
 const SCREENSHOT_RETENTION: Setting.RetentionPolicy = {
   days: 7,
@@ -74,7 +78,7 @@ const LEGACY_CAPTURE_SHORTCUT_ID = 'capture.screenshot'
 const LEGACY_CAPTURE_SHORTCUT_DEFAULT = 'Alt+Q'
 
 const CAPTURE: Setting.Capture = {
-  detect: DETECT_WINDOW,
+  detect: DETECT_ELEMENT,
   isRetentionEnabled: true,
   retention: {
     screenshot: { ...SCREENSHOT_RETENTION },
@@ -267,6 +271,7 @@ export const useSettingsStore = create<SettingsStore>(function (setter, getter) 
 export {
   DETECT_OFF,
   DETECT_WINDOW,
+  DETECT_ELEMENT,
   LEGACY_CAPTURE_SHORTCUT_ID,
   RECORDING_RETENTION,
   SCREENSHOT_RETENTION,
@@ -276,3 +281,4 @@ export {
   mergeShortcuts,
   migrateShortcuts
 }
+export type { Setting }

@@ -130,7 +130,7 @@ interface SettingsCaptureRetention {
 }
 
 interface SettingsCapture {
-  detect: 'off' | 'window'
+  detect: 'off' | 'window' | 'element'
   isRetentionEnabled: boolean
   retention: {
     screenshot: SettingsCaptureRetention

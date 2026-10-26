@@ -34,6 +34,21 @@ async function takePendingScreenshot(): Promise<ScreenshotResult | null> {
   return invoke<ScreenshotResult | null>(CHANNELS.CAPTURE.TAKE_PENDING)
 }
 
+/** 重新抓一帧（整体重来），新帧直接返回，不走 pending */
+async function refreshCapture(): Promise<ScreenshotResult> {
+  return invoke<ScreenshotResult>(CHANNELS.CAPTURE.REFRESH)
+}
+
+/** 告知宿主「冻结帧已画上屏」，宿主收到后才撤掉 conceal */
+async function notifyCaptureReady(): Promise<void> {
+  await invoke(CHANNELS.CAPTURE.READY)
+}
+
+/** 光标下的元素级候选（overlay 逻辑像素入参） */
+async function probeElements(x: number, y: number): Promise<CaptureRegion[]> {
+  return invoke<CaptureRegion[]>(CHANNELS.CAPTURE.ELEMENTS, { params: { x, y } })
+}
+
 /**
  * 磁盘路径 → HTMLImageElement（Konva / toDataURL 可用）。
  * 使用 asset URL + crossOrigin 直解码；勿走 plugin-http fetch（那是远程 HTTP，会多一次 IPC 整图拷贝）。
@@ -59,6 +74,11 @@ async function ensureOverlay(): Promise<void> {
 
 async function hideOverlay(): Promise<void> {
   await invoke(CHANNELS.OVERLAY.HIDE)
+}
+
+/** 真正隐藏浮层窗口（仅退出 / 渲染进程异常时用） */
+async function parkOverlay(): Promise<void> {
+  await invoke(CHANNELS.OVERLAY.PARK)
 }
 
 async function updateOverlayMode(mode: 'idle' | 'screenshot'): Promise<void> {
@@ -98,6 +118,10 @@ export {
   fetchImageFromPath,
   hideOverlay,
   mountOverlayTile,
+  notifyCaptureReady,
+  parkOverlay,
+  probeElements,
+  refreshCapture,
   removeOverlayTile,
   takePendingScreenshot,
   takeScreenshot,

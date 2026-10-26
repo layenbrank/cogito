@@ -1,26 +1,30 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { clsx } from 'clsx'
+import { v4 as UUID } from 'uuid'
 
 import { ContextMenu, useContextMenu } from '@/components/contextmenu'
+import { copyText } from '@/features/capture/clipboard'
 import { CaptureErrorBoundary } from '@/features/capture/capture-error-boundary'
 import { CaptureErrorPanel, CaptureLoadingMask } from '@/features/capture/capture-status'
 import { Annotation, type AnnotationHandle } from '@/features/capture/components/annotation'
 import { type GraphicsEnum, type GraphicsProps } from '@/features/capture/components/graphics'
 import Magnifier from '@/features/capture/components/magnifier'
+import { OcrPanel } from '@/features/capture/components/ocr-panel'
 import Utility from '@/features/capture/components/utility'
 import {
   clearCaptureSession,
   createCaptureSessionID
 } from '@/features/capture/history'
+import { recognizeText } from '@/features/capture/ocr'
 import { runCapturePrune } from '@/features/capture/retention'
-import { fetchImageFromPath, takePendingScreenshot, takeScreenshot } from '@/features/capture/tauri'
+import { fetchImageFromPath, notifyCaptureReady, probeElements, refreshCapture, takePendingScreenshot, takeScreenshot } from '@/features/capture/tauri'
 import { useCaptureActions } from '@/features/capture/use-capture-actions'
 import { useCaptureHistory } from '@/features/capture/use-capture-history'
 import { useCaptureStage, type Phase } from '@/features/capture/use-capture-stage'
 import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
 import { useCommands, useShortcut } from '@/keyboard/react'
-import { DETECT_WINDOW, useSettingsStore } from '@/stores/setting'
+import { DETECT_ELEMENT, DETECT_WINDOW, useSettingsStore } from '@/stores/setting'
 import { reportCaught } from '@/utils/exception-report'
 
 import styles from '@/features/capture/capture.module.scss'
@@ -54,36 +58,114 @@ function Capture(props: CaptureProps = {}) {
   const [selectedID, onUpdateSelectedID] = useState<string | null>(null)
   const [selectedIDs, onUpdateSelectedIDs] = useState<string[]>([])
   const [sourceImage, onUpdateSourceImage] = useState<HTMLImageElement | null>(null)
+  const [sourcePath, onUpdateSourcePath] = useState<string | null>(null)
   const [captureStatus, onUpdateCaptureStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [captureError, onUpdateCaptureError] = useState<string | null>(null)
+  const [ocrText, onUpdateOcrText] = useState<string | null>(null)
+  const [ocrBusy, onUpdateOcrBusy] = useState(false)
 
   const detect = useSettingsStore(function (state) {
     return state.settings.capture.detect
   })
-  const isWindowDetect = detect === DETECT_WINDOW
+  const isWindowDetect = detect === DETECT_WINDOW || detect === DETECT_ELEMENT
+  const isElementDetect = detect === DETECT_ELEMENT
   const { present: presentContextMenu } = useContextMenu()
   const annotationRef = useRef<AnnotationHandle>(null)
   const [sessionID, onSessionID] = useState(createCaptureSessionID)
   const sessionIDRef = useRef(sessionID)
   const { canUndo, canRedo, commitHistory, undo, redo, resetHistory } = useCaptureHistory()
 
-  const { regionsRef, handlePress, handleMove, handleRelease, resetDragState } = useCaptureStage({
-    phase,
-    graphics,
-    annotations,
-    selection,
-    color,
-    thickness,
-    filled,
-    opacity,
-    fontSize,
-    isWindowDetect,
-    annotationRef,
-    onUpdateAnnotations,
-    onUpdateSelection,
-    onUpdatePhase,
-    commitHistory
-  })
+  const { regionsRef, hoverLabel, handlePress, handleMove, handleRelease, handleWheel, resetDragState } =
+    useCaptureStage({
+      phase,
+      graphics,
+      annotations,
+      selection,
+      color,
+      thickness,
+      filled,
+      opacity,
+      fontSize,
+      isWindowDetect,
+      isElementDetect,
+      probeElements: isElementDetect ? probeElements : undefined,
+      annotationRef,
+      onUpdateAnnotations,
+      onUpdateSelection,
+      onUpdatePhase,
+      commitHistory
+    })
+
+  /** 重新抓一帧：上层已清空标注（整体重来），这里只换底图 */
+  async function retake() {
+    onUpdateCaptureStatus('loading')
+    onUpdateCaptureError(null)
+    try {
+      const result = await refreshCapture()
+      const image = await fetchImageFromPath(result.path)
+      regionsRef.current = result.regions ?? []
+      onUpdateSourcePath(result.path)
+      onUpdateSourceImage(image)
+      onUpdateCaptureStatus('ready')
+    } catch (err) {
+      reportCaught('capture.pipeline', err)
+      onUpdateCaptureError(String(err))
+      onUpdateCaptureStatus('error')
+    }
+  }
+
+  /**
+   * 取字：有选区就只识别选区，否则整张图。
+   *
+   * 选区是浮层逻辑像素，原图是物理像素，换算比例用 `naturalWidth / innerWidth`
+   * （浮层窗口正好铺满屏幕）。
+   */
+  async function runOcr() {
+    if (!sourcePath || !sourceImage || ocrBusy) return
+    onUpdateOcrBusy(true)
+    onUpdateOcrText('')
+    try {
+      const scale = sourceImage.naturalWidth / Math.max(window.innerWidth, 1)
+      const crop = selection
+        ? {
+            x: Math.round(selection.x * scale),
+            y: Math.round(selection.y * scale),
+            width: Math.round(selection.w * scale),
+            height: Math.round(selection.h * scale)
+          }
+        : null
+      const text = await recognizeText({ path: sourcePath, crop })
+      onUpdateOcrText(text.trim() || '没有识别到文字')
+    } catch (err) {
+      reportCaught('capture.ocr', err)
+      onUpdateOcrText(`取字失败：${String(err)}`)
+    } finally {
+      onUpdateOcrBusy(false)
+    }
+  }
+
+  /** 把识别结果落成一条文字标注，放在选区左上角 */
+  function insertOcrText() {
+    const text = ocrText?.trim()
+    if (!text || !selection) return
+    const id = UUID()
+    const next = annotations.concat([
+      {
+        id,
+        type: 'text',
+        color,
+        thickness,
+        fontSize,
+        filled,
+        opacity,
+        text,
+        points: [{ x: selection.x + 8, y: selection.y + 8 }]
+      }
+    ])
+    onUpdateAnnotations(next)
+    commitHistory(next)
+    onUpdateOcrText(null)
+  }
 
   const actions = useCaptureActions({
     annotations,
@@ -97,6 +179,9 @@ function Capture(props: CaptureProps = {}) {
     redo,
     resetHistory,
     resetDragState,
+    onRetake: function () {
+      void retake()
+    },
     onUpdateAnnotations,
     onUpdateSelectedIDs,
     onUpdateSelectedID,
@@ -143,6 +228,14 @@ function Capture(props: CaptureProps = {}) {
       title: '截屏：重新截图',
       group: '截屏',
       run: actions.handleRefresh
+    },
+    {
+      id: SHORTCUT_COMMAND.CAPTURE_OCR,
+      title: '截屏：取字',
+      group: '截屏',
+      run: function () {
+        void runOcr()
+      }
     }
   ])
 
@@ -161,6 +254,7 @@ function Capture(props: CaptureProps = {}) {
       }
       const img = await fetchImageFromPath(result.path)
       regionsRef.current = result.regions ?? []
+      onUpdateSourcePath(result.path)
       onUpdateSourceImage(img)
       onUpdateCaptureStatus('ready')
     } catch (err) {
@@ -171,6 +265,29 @@ function Capture(props: CaptureProps = {}) {
   }
 
   const loadStartedRef = useRef(false)
+
+  /** 首帧画上屏后告诉宿主：宿主收到才撤掉 conceal，否则会露出实时桌面 */
+  const readyNotifiedRef = useRef(false)
+  useEffect(
+    function () {
+      if (captureStatus !== 'ready' || !sourceImage) {
+        readyNotifiedRef.current = false
+        return
+      }
+      if (readyNotifiedRef.current) return
+      readyNotifiedRef.current = true
+      let cancelled = false
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          if (!cancelled) void notifyCaptureReady()
+        })
+      })
+      return function () {
+        cancelled = true
+      }
+    },
+    [captureStatus, sourceImage]
+  )
 
   /** 会话 id 只在 effect 里同步进 ref：渲染期写 ref 会被 react-hooks/refs 拦下 */
   useEffect(
@@ -207,6 +324,7 @@ function Capture(props: CaptureProps = {}) {
           const img = await fetchImageFromPath(result.path)
           if (cancelled) return
           regionsRef.current = result.regions ?? []
+          onUpdateSourcePath(result.path)
           onUpdateSourceImage(img)
           onUpdateCaptureStatus('ready')
         } catch (err) {
@@ -246,6 +364,10 @@ function Capture(props: CaptureProps = {}) {
                 ref={annotationRef}
                 onClose={onClose ?? function () {}}
                 onMove={handleMove}
+                onWheel={function (event) {
+                  // 滚轮换层 / Shift+滚轮换窗口；消费掉事件避免页面滚动
+                  if (handleWheel(event.evt.deltaY, event.evt.shiftKey)) event.evt.preventDefault()
+                }}
                 clipRect={selection}
                 onPress={handlePress}
                 selectedID={selectedID}
@@ -264,6 +386,7 @@ function Capture(props: CaptureProps = {}) {
                 }}
                 selection={selection}
                 phase={phase}
+                hoverLabel={hoverLabel}
                 onSelectionChange={onUpdateSelection}
                 graphicsActive={graphics !== null}
               />
@@ -283,6 +406,10 @@ function Capture(props: CaptureProps = {}) {
                 canUndo={canUndo}
                 active={graphics}
                 opacity={opacity}
+                ocrBusy={ocrBusy}
+                onOcr={function () {
+                  void runOcr()
+                }}
                 onCopy={actions.handleCopy}
                 onPin={actions.handlePin}
                 fontSize={fontSize}
@@ -301,6 +428,21 @@ function Capture(props: CaptureProps = {}) {
                 selection={phase === 'selecting' ? null : selection}
               />
             )}
+
+            {ocrText !== null ? (
+              <OcrPanel
+                text={ocrText}
+                busy={ocrBusy}
+                canInsert={Boolean(selection)}
+                onCopy={function () {
+                  void copyText(ocrText)
+                }}
+                onInsert={insertOcrText}
+                onClose={function () {
+                  onUpdateOcrText(null)
+                }}
+              />
+            ) : null}
             <ContextMenu.Host />
           </>
         )}

@@ -20,6 +20,7 @@ interface UtilityProps {
   fontSize: number
   canUndo: boolean
   canRedo: boolean
+  ocrBusy: boolean
   onUpdateUtility: (shape: GraphicsEnum | null) => void
   onUpdateColor: (color: string) => void
   onUpdateThickness: (thickness: number) => void
@@ -28,6 +29,7 @@ interface UtilityProps {
   onUpdateFontSize: (fontSize: number) => void
   onUndo: () => void
   onRedo: () => void
+  onOcr: () => void
   onCopy: () => void
   onPin: () => void
   onSave: () => void
@@ -43,6 +45,7 @@ function Utility(props: UtilityProps) {
     color,
     filled,
     fontSize,
+    ocrBusy,
     opacity,
     selection,
     thickness,
@@ -52,6 +55,7 @@ function Utility(props: UtilityProps) {
     onUpdateOpacity,
     onRedo,
     onRefresh,
+    onOcr,
     onCopy,
     onPin,
     onSave,
@@ -108,10 +112,12 @@ function Utility(props: UtilityProps) {
             active={active}
             canUndo={canUndo}
             canRedo={canRedo}
+            ocrBusy={ocrBusy}
             onUpdateUtility={onUpdateUtility}
             onUndo={onUndo}
             onRedo={onRedo}
             onRefresh={onRefresh}
+            onOcr={onOcr}
             onCopy={onCopy}
             onPin={onPin}
             onSave={onSave}

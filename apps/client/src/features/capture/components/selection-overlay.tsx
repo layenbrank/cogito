@@ -39,6 +39,8 @@ interface SelectionOverlayProps {
   graphicsActive?: boolean
   /** 已有标注时禁裁剪框平移，把空白命中留给失焦 / 橡皮筋多选 */
   hasAnnotations?: boolean
+  /** 光标位置候选的描述（控件类型 / 窗口标题）；仅选择阶段显示 */
+  label?: string
   /**
    * 嵌入共享 CanvasStage 的 interaction 层时为 true：用 Group 代替 Layer，
    * 避免 Konva Layer 嵌套。
@@ -92,7 +94,8 @@ export const SelectionOverlay = forwardRef<SelectionOverlayHandle, SelectionOver
       onSelectionChange,
       dimOpacity,
       graphicsActive,
-      hasAnnotations
+      hasAnnotations,
+      label
     } = props
     const isSelecting = phase === 'selecting'
     // 有工具或已有标注时透明 Rect 不拦截；无标注且无工具时可平移裁剪框
@@ -225,6 +228,11 @@ export const SelectionOverlay = forwardRef<SelectionOverlayHandle, SelectionOver
 
     const { x, y, w, h } = selection
 
+    const sizeText = `${Math.round(w)} \u00d7 ${Math.round(h)}`
+    const badgeText = isSelecting && label ? `${label}   ${sizeText}` : sizeText
+    const badgeWidth =
+      Math.round(sizeText.length * 8) + (badgeText.length > sizeText.length ? label!.length * 12 + 6 : 0) + 12
+
     function onHandleDown(type: HandleType, e: Konva.KonvaEventObject<MouseEvent>) {
       e.cancelBubble = true
       const stage = e.target.getStage()
@@ -289,7 +297,7 @@ export const SelectionOverlay = forwardRef<SelectionOverlayHandle, SelectionOver
 
           <Group y={y >= 24 ? -22 : 4} listening={false}>
             <Rect
-              width={String(`${Math.round(w)} \u00d7 ${Math.round(h)}`).length * 8 + 12}
+              width={badgeWidth}
               height={20}
               fill="rgba(0, 0, 0, 0.72)"
               cornerRadius={3}
@@ -297,7 +305,7 @@ export const SelectionOverlay = forwardRef<SelectionOverlayHandle, SelectionOver
             <Text
               x={6}
               y={3}
-              text={`${Math.round(w)} \u00d7 ${Math.round(h)}`}
+              text={badgeText}
               fontSize={12}
               fontFamily="ui-monospace, monospace"
               fill="#ffffff"
