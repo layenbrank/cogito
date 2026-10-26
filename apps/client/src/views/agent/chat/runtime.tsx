@@ -8,17 +8,43 @@
 import {
   AssistantRuntimeProvider,
   useAui,
+  useAuiState,
   useLocalRuntime,
   useRemoteThreadListRuntime,
+  type AssistantClient,
   type AssistantRuntime,
   type ThreadHistoryAdapter
 } from '@assistant-ui/react'
 import { createChatModelAdapter } from '@cogito/chat/adapters/chat-model'
 import { createThreadHistoryAdapter, type ThreadIdentity } from '@cogito/chat/adapters/thread-history'
 import { createThreadListAdapter } from '@cogito/chat/adapters/thread-list'
-import { useMemo, useRef, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 
+import { takeNextThreadWorkspace } from '@/features/agent/port/draft-workspace'
 import { chatModelPort, findHostOptions, historyPort } from '@/features/agent/port/instance'
+
+/**
+ * 把会话的**归属**发回列表项。
+ *
+ * 左栏按条目的 `custom.workspaceID` 归拢会话，而库 `initialize()` 只回 `remoteId`，
+ * 不会把 `createThread` 写进库的那一行带回来 —— 不补这一次，新建会话会一直落在「未分组」，
+ * 直到整张列表重载（重启）。归属读**落库的那一行**：草稿里记的是点击时的意图，
+ * 真实归属以库为准，两者不一致时听库的。
+ *
+ * 失败不抛：列表项的归属只是侧栏分组的乐观视图，库里那行仍然是对的。
+ */
+async function publishThreadWorkspace(aui: AssistantClient, threadID: string): Promise<void> {
+  const item = aui.threadListItem.getState()
+  // 老会话的归属随 `list()` 一起来，不必再问一次库
+  if (item.custom && 'workspaceID' in item.custom) return
+  try {
+    const thread = await historyPort.findThread(threadID)
+    if (!thread) return
+    void aui.threadListItem.updateCustom({ ...item.custom, workspaceID: thread.workspaceID })
+  } catch (error) {
+    console.warn('[agent/runtime] 会话归属未能发回列表项:', error)
+  }
+}
 
 /**
  * 本线程的库内会话 id。
@@ -31,16 +57,20 @@ import { chatModelPort, findHostOptions, historyPort } from '@/features/agent/po
  * - `resolve()`：读路径（load），不建会话，拿不到就返回 null
  * - `ensure()`：写路径（历史写入、运行取 host），拿不到 id 就抛错
  *
- * 与 studio 的差别：这里不需要「把归属发回列表项」那一步 —— 客户端的 `createThread` 端口
- * 在落库时就把 `workspaceID` 写定了（读的是创建那一刻的工作区指针），列表项不必再补一次。
+ * 与 studio 的差别：客户端在 `createThread` 落库时就把归属写定了（草稿里记着点击的工作区），
+ * 但**列表项**的 `custom` 仍需在这里补一次 —— 库不会把落库时写的归属带回来。
  */
 function useThreadIdentity(): ThreadIdentity {
   const aui = useAui()
+  /** 落库之后才有的权威 id —— 归属的发布挂在这个跳变上 */
+  const remoteId = useAuiState(function (state) {
+    return state.threadListItem.remoteId
+  })
 
   /** 「这一线程的那次建会话」放在 ref 里：它在渲染之外被读写，且要跨重渲染活着 */
   const created = useRef<{ localID: string; task: Promise<string> } | null>(null)
 
-  return useMemo(
+  const identity = useMemo(
     function () {
       function itemState() {
         return aui.threadListItem.getState()
@@ -84,6 +114,17 @@ function useThreadIdentity(): ThreadIdentity {
     },
     [aui, created]
   )
+
+  // 不 await：`updateCustom` 同步改列表项状态（乐观），落库在后台 —— 侧栏分组不必等它
+  useEffect(
+    function () {
+      if (!remoteId) return
+      void publishThreadWorkspace(aui, remoteId)
+    },
+    [aui, remoteId]
+  )
+
+  return identity
 }
 
 function useThreadHistory(identity: ThreadIdentity): ThreadHistoryAdapter {
@@ -115,7 +156,12 @@ function useThreadRuntime(): AssistantRuntime {
 
 function AgentRuntimeProvider(props: { children: ReactNode }) {
   const list = useMemo(function () {
-    return createThreadListAdapter(historyPort)
+    // 新建会话的归属取「用户点下的那个 +」；草稿只在落库那一刻用得上
+    return createThreadListAdapter(historyPort, {
+      resolveWorkspaceID: function () {
+        return takeNextThreadWorkspace()?.workspaceID
+      }
+    })
   }, [])
 
   const runtime = useRemoteThreadListRuntime({ adapter: list, runtimeHook: useThreadRuntime })

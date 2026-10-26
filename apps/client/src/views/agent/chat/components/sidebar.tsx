@@ -19,6 +19,7 @@ import { SidebarScenarioNav } from './sidebar-scenario-nav.tsx'
 import { SidebarWorkspaceTree } from './sidebar-workspace-tree.tsx'
 import { WorkspaceForm } from './workspace-form'
 import { useSidebarBranches, type SidebarSession } from './use-sidebar-branches.ts'
+import { setNextThreadWorkspace } from '@/features/agent/port/draft-workspace'
 import { historyPort } from '@/features/agent/port/instance'
 import { type ScenarioKey } from '@/features/agent/model/scenarios'
 import { useAgentStore } from '@/stores/agent.ts'
@@ -88,21 +89,16 @@ function AgentSidebar(props: SidebarProps) {
   }
 
   function handleInsertSession(workspaceID?: string | null) {
-    let targetID = workspaceID ?? activeWorkspaceID
-    if (!targetID) {
-      targetID = workspaces[0]?.id ?? null
-    }
-    if (!targetID) {
-      toast.info('请先新建工作区')
-      updateEditingWorkspaceID(null)
-      updateFormOpen(true)
-      return
-    }
-    // 新建会话的归属读「当前工作区」指针（historyPort.createThread），故先切工作区再新建
-    useAgentStore.getState().toActivateWorkspace(targetID)
+    // 「新的任务」跟随当前激活工作区；工作区节点上的「+」显式带归属。
+    // 一个工作区都没有时不再拦人去新建：会话落在「未分组」。
+    const targetID =
+      workspaceID === undefined ? (activeWorkspaceID ?? workspaces[0]?.id ?? null) : workspaceID
+    if (targetID) useAgentStore.getState().toActivateWorkspace(targetID)
+    // 归属记在落库那一刻用：先把这次点击选的归属存好，再种新会话
+    setNextThreadWorkspace(targetID ?? null)
     aui.threads.switchToNewThread()
     if (!sectionOpen) updateSectionOpen(true)
-    if (!branchState.expandedKeys.includes(targetID)) {
+    if (targetID && !branchState.expandedKeys.includes(targetID)) {
       branchState.updateExpandedKeys(function (keys) {
         return [...keys, targetID]
       })

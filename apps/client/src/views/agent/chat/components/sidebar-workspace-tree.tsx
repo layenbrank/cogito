@@ -193,6 +193,13 @@ function SidebarWorkspaceTree(props: SidebarWorkspaceTreeProps) {
                     className="size-3.5 shrink-0"
                   />
                   <span className={styles.sessionTitle}>{session.title}</span>
+                  {session.isRunning ? (
+                    <Icon
+                      icon="lucide:loader-2"
+                      className="text-muted-foreground size-3.5 shrink-0 animate-spin"
+                      aria-label="正在生成"
+                    />
+                  ) : null}
                 </PopoverTrigger>
                 <PopoverContent
                   side="right"

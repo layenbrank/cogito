@@ -2,6 +2,7 @@ import { useAuiState } from '@assistant-ui/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { WorkspaceBranch } from './sidebar-workspace-tree.tsx'
+import { useRunningThreads } from '@/features/agent/acp/run-state'
 import { UNGROUPED_WORKSPACE } from '@/features/agent/model/workspace'
 import { useAgentStore } from '@/stores/agent.ts'
 
@@ -18,6 +19,8 @@ interface SidebarSession {
   pinned: boolean
   workspaceID: string | null
   updatedAt: number
+  /** 这一轮仍在生成（切走的会话也会继续跑，左栏要能看出来） */
+  isRunning: boolean
 }
 
 function sortSessions(a: SidebarSession, b: SidebarSession) {
@@ -59,6 +62,7 @@ function useSidebarBranches() {
   const threadItems = useAuiState(function (state) {
     return state.threads.threadItems
   })
+  const runningThreadIDs = useRunningThreads()
 
   const [expandedKeys, updateExpandedKeys] = useState<string[]>([])
   const expandedKeySet = useMemo(function () {
@@ -75,11 +79,12 @@ function useSidebarBranches() {
           title: item?.title ?? '新对话',
           pinned: custom?.pinned === true,
           workspaceID: typeof custom?.workspaceID === 'string' ? custom.workspaceID : null,
-          updatedAt: item?.lastMessageAt ? item.lastMessageAt.getTime() : 0
+          updatedAt: item?.lastMessageAt ? item.lastMessageAt.getTime() : 0,
+          isRunning: runningThreadIDs.has(id) || runningThreadIDs.has(item?.remoteId ?? id)
         }
       })
     },
-    [threadIds, threadItems]
+    [threadIds, threadItems, runningThreadIDs]
   )
 
   const branches: WorkspaceBranch[] = useMemo(

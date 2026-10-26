@@ -732,6 +732,24 @@ describe('createThreadListAdapter', function () {
     expect((await adapter.list()).threads).toHaveLength(0)
   })
 
+  it('initialize 把「触发点选定的工作区」带到落库（含明确的未分组）', async function () {
+    const port = new MemoryPort()
+    const adapter = createThreadListAdapter(port, {
+      resolveWorkspaceID(threadId) {
+        if (threadId === 'local-a') return 'ws-a'
+        if (threadId === 'local-ungrouped') return null
+        return undefined
+      }
+    })
+
+    const grouped = await adapter.initialize('local-a')
+    expect((await adapter.fetch(grouped.remoteId)).custom?.workspaceID).toBe('ws-a')
+
+    // `null` 是「不属于任何工作区」：不能被端口的当前工作区默认值顶掉
+    const ungrouped = await adapter.initialize('local-ungrouped')
+    expect((await adapter.fetch(ungrouped.remoteId)).custom?.workspaceID).toBeNull()
+  })
+
   it('updateCustom 只写 workspaceID：把归属落库，别的键不碰', async function () {
     const port = new MemoryPort()
     const adapter = createThreadListAdapter(port)

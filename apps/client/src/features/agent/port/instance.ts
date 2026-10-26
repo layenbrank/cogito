@@ -22,9 +22,15 @@ const chatModelPort = createModelPort()
  * 全在 `port/model.ts` 里按这次运行的目标裁。
  */
 function findHostOptions(target: ChatTarget, threadID: string): Record<string, unknown> {
+  const state = useAgentStore.getState()
+  // 归属看**这个会话自己的**那一行：库允许多会话同时跑，切走的会话下一轮不一定还站在
+  // 「当前工作区」上。还没水合（或行缺失）时才退回全局指针。
+  const session = state.sessions.find(function (item) {
+    return item.id === threadID
+  })
   return {
     threadID,
-    workspaceID: useAgentStore.getState().activeWorkspaceID,
+    workspaceID: session ? session.workspaceID : state.activeWorkspaceID,
     providerID: target.providerID
   }
 }

@@ -67,14 +67,19 @@ function createHistoryPort(): ChatHistoryPort {
     },
 
     async createThread(input) {
-      // 归属读"当前工作区"指针（左栏按它归拢会话）；指针本身已由 workspace 逻辑自愈
+      // 调用方没表态时才读「当前工作区」指针（左栏按它归拢会话）。
+      // 显式的 `null` 必须保留：那是「不属于任何工作区」，会被 `??` 悄悄改写回当前工作区
+      const workspaceID =
+        input?.workspaceID === undefined
+          ? useAgentStore.getState().activeWorkspaceID
+          : input.workspaceID
       const now = Date.now()
       const session: Session = {
         id: UUIDV4(),
         title: input?.title ?? '新对话 ' + dayjs().format('MM-DD HH:mm'),
         pinned: false,
         providerID: input?.providerID ?? null,
-        workspaceID: input?.workspaceID ?? useAgentStore.getState().activeWorkspaceID,
+        workspaceID,
         createdAt: now,
         updatedAt: now
       }

@@ -38,9 +38,18 @@ function AgentModelPicker(props: ModelPickerProps) {
     return state.activeProviderID
   })
 
-  const enabledProviders = providers.filter(function (provider) {
-    return provider.enabled
-  })
+  const enabledProviders = providers
+    .filter(function (provider) {
+      return provider.enabled
+    })
+    // 组织模型固定排最前：登录即可用，不该被个人接入的「最近更新」挤到后面；
+    // 其余分组保持 store 顺序（即最近更新的接入在前）
+    .toSorted(function (a, b) {
+      const aGateway = isGatewayTarget(a.kind || a.id)
+      const bGateway = isGatewayTarget(b.kind || b.id)
+      if (aGateway === bGateway) return 0
+      return aGateway ? -1 : 1
+    })
 
   async function selectModel(providerId: string, model: string) {
     const provider = useProviderStore.getState().providers.find(function (row) {

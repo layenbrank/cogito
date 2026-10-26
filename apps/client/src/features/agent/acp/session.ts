@@ -33,7 +33,9 @@ import type {
 
 import { bindAcpRequestRouter, bindGooseNotReady, findAcpHandle } from '@/features/agent/acp/connection'
 import { clearGooseUsage, writeGooseUsage } from '@/features/agent/acp/goose-usage'
-import { saveDefaults } from '@/features/agent/acp/goose-providers'
+import { fetchSessionTools, saveDefaults } from '@/features/agent/acp/goose-providers'
+import { clearRunState, markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
+import { verifyAgentTools } from '@/features/agent/agent-tools'
 import { findPref } from '@/features/persist'
 import {
   parseAcpApprovalRequest,
@@ -112,6 +114,9 @@ interface ThreadRun {
 /** 会话登记表：按 thread 查（UI 侧），也按 ACP sessionId 查（agent 回调侧） */
 const sessionByThread = new Map<string, ThreadSession>()
 const sessionByAcpID = new Map<string, ThreadSession>()
+
+/** 工具面自检按 ACP session 去重（每次建会话只查一次 tools/list） */
+const verifiedToolSessions = new Set<string>()
 
 /** session（按 ACP session id）的上一次累计用量：本轮增量 = 本轮结束累计 − 基线 */
 const usageBaseline = new Map<
@@ -230,18 +235,26 @@ async function findCorexMcpServers(sessionID: string): Promise<AcpMcpServer[]> {
   }
 }
 
-/** 会话的工作目录：取当前工作区的主目录，没有就退回用户家目录 */
-async function findWorkspaceCwd(): Promise<string> {
-  const state = useAgentStore.getState()
-  const workspaceID = state.activeWorkspaceID
-  const primary = state.workspaceFolders.find(function (item) {
-    return item.workspaceID === workspaceID && item.isPrimary
-  })
-  if (primary?.path) return primary.path
-  const anyFolder = state.workspaceFolders.find(function (item) {
-    return item.workspaceID === workspaceID
-  })
-  if (anyFolder?.path) return anyFolder.path
+/**
+ * 会话的工作目录：按**这个会话自己的工作区**取主目录，没有就退回用户家目录。
+ *
+ * 不能读全局的「当前工作区」指针：库允许多个会话同时跑，用户切到 B 会话后 A 还在后台跑，
+ * 指针已经变成了 B 的工作区 —— 拿它算 A 的 cwd 会得到不一致的值，`ensureThreadSession`
+ * 就会把 A 的 ACP session 重建（上下文清零），这就是「多会话不能同时干活」的根因。
+ */
+async function findWorkspaceCwd(workspaceID: string | null): Promise<string> {
+  if (workspaceID) {
+    const state = useAgentStore.getState()
+    const owned = state.workspaceFolders.filter(function (item) {
+      return item.workspaceID === workspaceID
+    })
+    const primary = owned.find(function (item) {
+      return item.isPrimary
+    })
+    if (primary?.path) return primary.path
+    const anyFolder = owned[0]
+    if (anyFolder?.path) return anyFolder.path
+  }
   return homeDir()
 }
 
@@ -485,7 +498,34 @@ function clearThreadSessions() {
   }
   sessionByThread.clear()
   sessionByAcpID.clear()
+  verifiedToolSessions.clear()
   clearGooseUsage()
+  clearRunState()
+}
+
+/**
+ * 建会话后对一次 corex 工具面：实际名与 `agent-tools.lock.json` 不一致时告警。
+ * 只打日志、不抛错：工具名漂移不该阻断用户发消息。
+ */
+async function verifyCorexToolSurface(thread: ThreadSession): Promise<void> {
+  if (!isCorexToolsEnabled() || verifiedToolSessions.has(thread.acpSessionID)) return
+  verifiedToolSessions.add(thread.acpSessionID)
+  try {
+    const tools = await fetchSessionTools(thread.connection, thread.acpSessionID)
+    const result = verifyAgentTools(
+      tools.map(function (tool) {
+        return tool.name
+      }),
+      'corex'
+    )
+    if (result.missing.length > 0) {
+      console.warn('[acp/session] corex 工具名与基线不一致，缺少:', result.missing, '实际:', tools.map(function (tool) {
+        return tool.name
+      }))
+    }
+  } catch (error) {
+    console.warn('[acp/session] corex 工具自检失败:', error)
+  }
 }
 
 bindGooseNotReady(clearThreadSessions)
@@ -556,11 +596,12 @@ async function openThreadSession(
  */
 async function ensureThreadSession(
   threadID: string,
+  workspaceID: string | null,
   providerID: string,
   modelID: string | undefined
 ): Promise<ThreadSession> {
   await waitGooseReady()
-  const [handle, cwd] = await Promise.all([findAcpHandle(), findWorkspaceCwd()])
+  const [handle, cwd] = await Promise.all([findAcpHandle(), findWorkspaceCwd(workspaceID)])
   const cached = sessionByThread.get(threadID)
 
   if (cached && cached.cwd === cwd && cached.connection === handle.connection) {
@@ -589,6 +630,7 @@ async function ensureThreadSession(
 
   const opened = await openThreadSession(threadID, cwd, providerID, modelID)
   sessionByThread.set(threadID, opened)
+  void verifyCorexToolSurface(opened)
   return opened
 }
 
@@ -600,7 +642,15 @@ async function ensureThreadSession(
  */
 async function* runThreadPrompt(
   threadID: string,
-  input: { text: string; systemText?: string; providerID: string; modelID?: string; signal?: AbortSignal }
+  input: {
+    text: string
+    systemText?: string
+    /** 本会话所属工作区：cwd 跟着**会话**走，不跟全局指针走 */
+    workspaceID?: string | null
+    providerID: string
+    modelID?: string
+    signal?: AbortSignal
+  }
 ): AsyncGenerator<ThreadRunItem, void, unknown> {
   const promptText = input.text.trim()
   if (!promptText) {
@@ -608,7 +658,12 @@ async function* runThreadPrompt(
     return
   }
 
-  const thread = await ensureThreadSession(threadID, input.providerID, input.modelID)
+  const thread = await ensureThreadSession(
+    threadID,
+    input.workspaceID ?? null,
+    input.providerID,
+    input.modelID
+  )
   if (thread.run) {
     throw new Error('这个会话已经有一轮在进行中，请先等它结束或中止')
   }
@@ -687,6 +742,8 @@ async function* runThreadPrompt(
       releaseBox.release?.()
     })
 
+  // 从这里开始到 finally 之间不能有同步抛出的路径，否则左栏会一直显示「生成中」
+  markRunStarted(threadID)
   try {
     while (true) {
       const item = await queue.take()
@@ -699,6 +756,7 @@ async function* runThreadPrompt(
     }
   } finally {
     thread.run = null
+    markRunFinished(threadID)
     releaseBox.release?.()
     // 这一轮没被回答的票据全部作废：留着的 promise 会让 goose 侧一直等，且用户看到的
     // 「待审批」永远不会消失（票随轮次生死）
@@ -927,6 +985,9 @@ async function switchGooseProviderModel(providerID: string, modelID: string | un
 
   for (const thread of sessionByThread.values()) {
     if (thread.connection !== handle.connection) continue
+    // 正在跑的会话不碰：改配置会打断别处那一轮（多会话并发时它可能正在后台生成）。
+    // 它下一轮开始时 `ensureThreadSession` 会按当时选中的目标重新应用。
+    if (thread.run) continue
     const applied = await applyProviderModel(
       handle.connection,
       thread.acpSessionID,

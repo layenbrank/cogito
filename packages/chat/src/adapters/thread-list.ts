@@ -15,6 +15,17 @@ const NEW_THREAD_TITLE = '新会话'
 /** 启发式标题长度上限 */
 const MAX_TITLE_CHARS = 24
 
+interface ThreadListAdapterOptions {
+  /**
+   * 新建线程要归属的工作区（按**触发点**决定：左侧工作区「+」就是那个工作区）。
+   *
+   * 返回 `undefined` 表示「调用方没表态」，交给端口自己的默认值（多数 app 是「当前工作区」）；
+   * 返回 `null` 是明确表态「不属于任何工作区」——不能与 `undefined` 混为一谈，否则
+   * 「没有工作区的新会话」会被端口默默挂到当前工作区上。
+   */
+  resolveWorkspaceID?: (threadId: string) => string | null | undefined
+}
+
 function toMetadata(thread: ChatThread): ThreadMetadata {
   return {
     status: 'regular',
@@ -46,15 +57,24 @@ function buildTitle(messages: readonly ThreadMessage[]): string {
   return NEW_THREAD_TITLE
 }
 
-function createThreadListAdapter(port: ChatHistoryPort): RemoteThreadListAdapter {
+function createThreadListAdapter(
+  port: ChatHistoryPort,
+  options?: ThreadListAdapterOptions
+): RemoteThreadListAdapter {
   return {
     async list() {
       const threads = await port.findThreads()
       return { threads: threads.map(toMetadata) }
     },
 
-    async initialize(): Promise<InitializeResponse> {
-      const thread = await port.createThread({ title: NEW_THREAD_TITLE })
+    async initialize(threadId): Promise<InitializeResponse> {
+      // `initialize` 的入参是本线程的列表项 id（`__LOCALID_…`），是唯一能把
+      // 「用户点的是哪个工作区的 +」带到落库那一刻的通道
+      const workspaceID = options?.resolveWorkspaceID?.(threadId)
+      const thread = await port.createThread({
+        title: NEW_THREAD_TITLE,
+        ...(workspaceID === undefined ? {} : { workspaceID })
+      })
       return { remoteId: thread.id }
     },
 
@@ -112,3 +132,4 @@ function createThreadListAdapter(port: ChatHistoryPort): RemoteThreadListAdapter
 }
 
 export { createThreadListAdapter, NEW_THREAD_TITLE }
+export type { ThreadListAdapterOptions }
