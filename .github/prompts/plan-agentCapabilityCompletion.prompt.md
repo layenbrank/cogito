@@ -373,10 +373,30 @@
 - studio：新增 `drizzle/migrations/0003_magnetic_tile_knowledge.sql`（存量库 `markdown` → `knowledge`）+ `_journal.json` + `MIGRATION_COUNT=4`。
 - ⚠️ 本地库已跑过旧 v001，**需再执行一次 `pnpm --filter @cogito/client migrate:fresh`** 才会补上新列（脚本会自动备份）。
 
+**Phase 5 ①（服务 + 工具 + 检索，2026-10-27）**
+- entity：`knowledge_base` / `knowledge_doc` / `knowledge_index_state` 三张表建 entity 并纳入 `entity_columns_match_ddl`（现 27 张表，`cargo test -p cogito-database` 6/6）。
+- `crates/core/src/knowledge/`：
+  - `service.rs`：`toEnsureDefaultBase`（启动幂等建默认库）、`toCreateBase`（slug 去重）、`toListBases/Docs`、`toReadDoc/Content`（文件优先、快照兜底）、`toWriteStaging`（`<root>/.staging/<session>/<slug>-<8hex>.md`）、`toPublish`（只接受 staging 内的文件，`Replace` / `KeepBoth` 冲突策略，写正式文件后落库）、`toRescanBase`（磁盘回灌 + 文件消失就删行，hash 未变不动 revision）、`toRemoveDoc`。
+  - `search.rs`：FTS5 `MATCH`（短语包引号，bm25 排序 + `snippet()`）+ **`<3` 字符回退 `LIKE`**（`%`/`_`/`\` 已转义，命中位置居中截 40 字符窗口）；FTS 零命中也会自动回退。
+  - `text.rs`：`slugify`（保留 CJK、压分隔符）、`hash_content`（长度 + FNV-1a，仅本地变更判定）、`find_title`（一级标题 → 首行 → 文件名）、`count_words`（非空白字符数，中文不按空格切）。
+- `crates/core/src/tools/knowledge.rs`：注册 `app_knowledge_list_bases`（含每库 docCount）、`app_knowledge_list_docs`、`app_knowledge_read_doc`（默认 8k/上限 20k 字符）、`app_knowledge_search`（1–2 字走 `like` 并在返回值里标注 `mode`）、`app_knowledge_write_doc`（**只写 staging**，上限 20 万字符；发布入口 `publish()` 不暴露给工具面）。`tools::call` 已分发，`catalog()` 断言改成「写工具必须自称 Write」。
+- `app/bootstrap.rs`：`<app_local_data_dir>/knowledge` 下确保默认库（工具缺省 baseId 靠它兜底）。
+- 前端：`agent-tools.lock.json` 的 local 基线补到 8 个；`general` 场景提示词写清知识库工作流（先 list/search 去重 → read_doc 读正文 → write_doc 只进 staging → 提示用户发布）。
+- 顺带修一个真实 bug：TEXT 主键 + SQLite 下 `exec_with_returning` / `ActiveModel::insert` 会再发一次 SELECT，取不到就报 `Failed to find inserted item`；`knowledge::Service` 与 `directive_draft::Service` 统一改为「先建 Model → `insert(ActiveModel::from(model)).exec()`」。
+- 验证：`cargo test -p cogito-core` **21/21**（含「3 字走 fts / 2 字走 like」「staging 外文件拒绝发布」「回灌新增与删除」「revision 不虚增」「write_doc 不产生正式文档」）；`cargo test -p cogito-database` 6/6；`cargo check -p cogito` 通过（需先构建 `binaries/cogito-mcp-*.exe`，见下）；agent 域单测 10 文件 66 测试通过。
+- 环境注意：`cogito` crate 的 `build.rs` 要求 `binaries/cogito-mcp-<triple>.exe` 存在，本次用 `cargo build -p cogito-mcp --offline` 后复制到 `binaries/` 才通过 `cargo check -p cogito`；正式流程仍走 `pnpm command sidecar stage client`。
+
+**Phase 5 ②（IPC + 知识库面板，2026-10-27）**
+- service 补：`toListDocSummaries`（列表不带正文）、`toResolveRoot`（默认库目录的父目录，新建库用）、`toListStaging`（扫 `.staging/**`，带 session / size / modifiedAt）、`toDiscardStaging`（只允许删 staging 内文件）。新增 `DocSummary` / `StagedFile` 两个序列化结构。
+- 命令层 `crates/command/src/knowledge.rs` + `handlers.rs` 注册 9 个命令：`knowledge:listBases|createBase|listDocs|search|listStaging|publish|discardStaging|rescan|removeDoc`（`publish` 的 `mode` 取 `replace` / `keepboth`）。
+- 前端：`CHANNELS.KNOWLEDGE`、`shared/ipc/specs/knowledge.ts`（zod 契约）、`lib/knowledge-ipc.ts`、`stores/knowledge-base.ts`（库/文档/检索/草稿，**与编辑态 `stores/knowledge.ts` 分开**）。
+- UI：`views/knowledge/hub/knowledge-hub.tsx`（右侧 Sheet：库切换 + 新建库 + 检索 + 文档列表 + 待发布草稿的「覆盖同名 / 保留两者 / 丢弃」），入口在知识库窗标题栏新增的 `lucide:library-big` 按钮（`views/knowledge/caption/final.tsx`）。点文档走现有 `openPath`，会把编辑器根目录切到该库目录，侧栏文件树同步。
+- 验证：`cargo test -p cogito-core` **23/23**（新增「staging 按会话分组与越界拒删」「摘要不带正文」）；`cargo check -p cogito` 通过；client `tsc` / `eslint` / 全量 63 文件 363 测试通过。
+
 ### 待办（按依赖顺序，尚需继续）
 
-1. **Phase 2（已完成 2026-10-27）**：桥 / 工具目录 / 注入 / `app_workspace_read` / 本地工具自检均落地。**仅剩人工复核**：`pnpm dev:client` 起应用后，新建会话应看到 3 个 `app_*` 且日志无「工具名与基线不一致」；让 agent 调 `app_calendar_read` 应返回真实日程。
-2. **Phase 5**：`knowledge::Service`（文件为准 + DB 快照 + FTS 重建 + staging 原子提交）、`app_knowledge_*` 工具、检索（trigram + `<3 字符` → `LIKE` 回退 + RRF）、生成/发布 UI。
+1. **Phase 2（已完成 2026-10-27）**：桥 / 工具目录 / 注入 / `app_workspace_read` / 本地工具自检均落地。**仅剩人工复核**：`pnpm dev:client` 起应用后，新建会话应看到 8 个 `app_*` 且日志无「工具名与基线不一致」；让 agent 调 `app_calendar_read` 应返回真实日程。
+2. **Phase 5 ③（剩生成编排与编辑器联动）**：生成编排（大纲 → 分章 → 合并 + 进度事件 + `autoUpdate/autoExport/citation` 选项）；tiptap「AI 续写/重写选区/总结」（结果进 diff 预览再应用）；编辑器保存时同步落库（目前只靠「重新扫描」或发布）；脏编辑器与外部改文件的冲突策略（保留 / 重载）；旧 `rootDir` 偏好与 `markdown-backups/` 清理。
 3. **Phase 6/7/8**：云端 RAG（compute `assetIDs` 过滤 + service `/rag/search` + 客户端上传/索引 + RRF）、自动化（A 客户端 worker / B goose schedules / C 服务端 `scheduled_job`）、导出收尾与文档。
 
 ### 待决问题（已决 2026-10-27）
