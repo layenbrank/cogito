@@ -2,12 +2,21 @@ import { Switch } from '@cogito/design/components/switch'
 import { useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 
-import { findCaptureUsage } from '@/features/capture/model/usage'
+import {
+  buildCaptureByteSeries,
+  buildUsageShare,
+  findCaptureUsage
+} from '@/features/capture/model/usage'
 import { UsageMeter } from '@/features/capture/model/usage-meter'
 import { DETECT_ELEMENT, DETECT_OFF, DETECT_WINDOW, useSettingsStore } from '@/stores/setting'
 import type { Setting } from '@/stores/setting'
 import { useGalleryStore } from '@/stores/gallery'
-import { SettingsRow, SettingsSection } from '@/views/settings/panels/section.tsx'
+import { CaptureUsageCharts } from '@/views/settings/panels/capture-usage-charts.tsx'
+import {
+  PANEL_STACK,
+  SettingsRow,
+  SettingsSection
+} from '@/views/settings/panels/section.tsx'
 import { findCaptureHistory } from '@/views/gallery/model/media'
 
 const FIELD =
@@ -68,11 +77,46 @@ function CapturePanel() {
     void toReadMedias({ skipHydrate: true })
   }, [toReadMedias])
 
-  const usage = useMemo(
+  const history = useMemo(
     function () {
-      return findCaptureUsage(findCaptureHistory(medias))
+      return findCaptureHistory(medias)
     },
     [medias]
+  )
+
+  const usage = useMemo(
+    function () {
+      return findCaptureUsage(history)
+    },
+    [history]
+  )
+
+  const screenshotTrend = useMemo(
+    function () {
+      return buildCaptureByteSeries(history, 'screenshot')
+    },
+    [history]
+  )
+
+  const recordingTrend = useMemo(
+    function () {
+      return buildCaptureByteSeries(history, 'recording')
+    },
+    [history]
+  )
+
+  const screenshotShare = useMemo(
+    function () {
+      return buildUsageShare(usage.screenshot.bytes, capture.retention.screenshot.maxBytes)
+    },
+    [usage.screenshot.bytes, capture.retention.screenshot.maxBytes]
+  )
+
+  const recordingShare = useMemo(
+    function () {
+      return buildUsageShare(usage.recording.bytes, capture.retention.recording.maxBytes)
+    },
+    [usage.recording.bytes, capture.retention.recording.maxBytes]
   )
 
   async function onDetectChange(next: Setting.CaptureDetect) {
@@ -132,7 +176,7 @@ function CapturePanel() {
   const recordingGb = Math.round(recording.maxBytes / (1024 * 1024 * 1024))
 
   return (
-    <div className="flex max-w-full flex-col gap-3 text-sm">
+    <div className={PANEL_STACK}>
       <SettingsSection title="截屏检测">
         <SettingsRow
           label="窗口检测"
@@ -176,6 +220,7 @@ function CapturePanel() {
             count={usage.screenshot.count}
             maxCount={screenshot.count}
             unitLabel="张"
+            points={screenshotTrend}
           />
           <UsageMeter
             label="录屏占用"
@@ -184,8 +229,17 @@ function CapturePanel() {
             count={usage.recording.count}
             maxCount={recording.count}
             unitLabel="个"
+            points={recordingTrend}
           />
         </div>
+        <CaptureUsageCharts
+          screenshotTrend={screenshotTrend}
+          recordingTrend={recordingTrend}
+          screenshotShare={screenshotShare}
+          recordingShare={recordingShare}
+          isEmptyScreenshot={usage.screenshot.bytes === 0}
+          isEmptyRecording={usage.recording.bytes === 0}
+        />
       </SettingsSection>
 
       <SettingsSection title="截屏保留">

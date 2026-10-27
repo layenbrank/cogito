@@ -1,3 +1,4 @@
+import { AreaSparkline, type ChartPoint } from '@cogito/design/components/charts'
 import { cn } from 'cn'
 
 import { formatUsageBytes } from '@/features/capture/model/usage'
@@ -9,6 +10,8 @@ interface UsageMeterProps {
   count: number
   maxCount: number
   unitLabel: string
+  /** 近窗每日占用（MB）；有数据时用面积趋势图替代进度条 */
+  points?: ChartPoint[]
   className?: string
 }
 
@@ -18,12 +21,16 @@ function findRatio(used: number, max: number): number {
 }
 
 /**
- * 紧凑占用条：容量 + 数量双轨，对齐工具窗密度。
+ * 捕获占用条：容量/数量摘要 + 近窗占用趋势（共享 AreaSparkline）。
  */
 function UsageMeter(props: UsageMeterProps) {
   const sizeRatio = findRatio(props.used, props.max)
   const countRatio = findRatio(props.count, props.maxCount)
   const isHot = sizeRatio >= 0.85 || countRatio >= 0.85
+  const points = props.points ?? []
+  const hasTrend = points.some(function (point) {
+    return point.value > 0
+  })
 
   return (
     <div className={cn('min-w-0 space-y-1', props.className)}>
@@ -34,25 +41,17 @@ function UsageMeter(props: UsageMeterProps) {
           {props.unitLabel} · {formatUsageBytes(props.used)}/{formatUsageBytes(props.max)}
         </span>
       </div>
-      <div className="flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-muted">
-        <div
-          className={cn(
-            'h-full rounded-full transition-[width] duration-200',
-            isHot ? 'bg-warning' : 'bg-primary/70'
-          )}
-          style={{ width: `${Math.max(sizeRatio * 100, props.used > 0 ? 4 : 0)}%` }}
-          title="容量占用"
-        />
-      </div>
-      <div className="h-0.5 overflow-hidden rounded-full bg-muted/80">
-        <div
-          className={cn(
-            'h-full rounded-full transition-[width] duration-200',
-            isHot ? 'bg-warning/80' : 'bg-primary/40'
-          )}
-          style={{ width: `${Math.max(countRatio * 100, props.count > 0 ? 4 : 0)}%` }}
-          title="数量占用"
-        />
+      <AreaSparkline
+        points={hasTrend ? points : []}
+        height={28}
+        color={isHot ? 'var(--warning)' : undefined}
+        emptyHint="暂无占用"
+      />
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+        <span title="容量占用">{Math.round(sizeRatio * 100)}% 容量</span>
+        <span title="数量占用">
+          {Math.round(countRatio * 100)}% 数量
+        </span>
       </div>
     </div>
   )

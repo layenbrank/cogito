@@ -14,7 +14,10 @@ import { toast } from 'sonner'
 import { Decorations } from '@/components/decorations/index.ts'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 import { useShowsTileSession } from '@/features/magnetic-tile/session-bar'
-import { findCaptureUsage } from '@/features/capture/model/usage'
+import {
+  buildCaptureByteSeries,
+  findCaptureUsage
+} from '@/features/capture/model/usage'
 import { UsageMeter } from '@/features/capture/model/usage-meter'
 import { runCapturePrune } from '@/features/capture/retention'
 import { useAlbumStore } from '@/stores/album'
@@ -86,6 +89,20 @@ function CaptureLayout() {
   const usage = useMemo(
     function () {
       return findCaptureUsage(history)
+    },
+    [history]
+  )
+
+  const screenshotPoints = useMemo(
+    function () {
+      return buildCaptureByteSeries(history, 'screenshot')
+    },
+    [history]
+  )
+
+  const recordingPoints = useMemo(
+    function () {
+      return buildCaptureByteSeries(history, 'recording')
     },
     [history]
   )
@@ -170,6 +187,7 @@ function CaptureLayout() {
               count={usage.screenshot.count}
               maxCount={retention.screenshot.count}
               unitLabel="张"
+              points={screenshotPoints}
             />
             <UsageMeter
               label="录屏"
@@ -178,6 +196,7 @@ function CaptureLayout() {
               count={usage.recording.count}
               maxCount={retention.recording.count}
               unitLabel="个"
+              points={recordingPoints}
             />
           </div>
 
