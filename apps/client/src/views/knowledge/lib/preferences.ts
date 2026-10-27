@@ -2,13 +2,13 @@ import {
   findKnowledgeTilePrefs,
   persistKnowledgeTilePrefs
 } from '@/features/magnetic-tile/tile-prefs'
-import type { MarkdownViewMode } from '@/views/knowledge/lib/types.ts'
+import type { KnowledgeViewMode } from '@/views/knowledge/lib/types.ts'
 
-interface MarkdownPreferences {
+interface KnowledgePreferences {
   rootDir: string | null
   isSidebarOpen: boolean
   isOutlineOpen: boolean
-  viewMode: MarkdownViewMode
+  viewMode: KnowledgeViewMode
   fontSize: number
   contentMaxWidth: number
   autosaveMs: number
@@ -18,7 +18,7 @@ interface MarkdownPreferences {
   recentPaths: string[]
 }
 
-const PREFERENCES: MarkdownPreferences = {
+const PREFERENCES: KnowledgePreferences = {
   rootDir: null,
   isSidebarOpen: true,
   isOutlineOpen: true,
@@ -33,7 +33,7 @@ const PREFERENCES: MarkdownPreferences = {
 }
 
 /** 同步读：依赖 ensurePersist 后的 tiles cache */
-function parsePreferences(): MarkdownPreferences {
+function parsePreferences(): KnowledgePreferences {
   try {
     return findKnowledgeTilePrefs()
   } catch (error) {
@@ -42,15 +42,15 @@ function parsePreferences(): MarkdownPreferences {
   }
 }
 
-function hydratePreferencesFromStore(): MarkdownPreferences {
+function hydratePreferencesFromStore(): KnowledgePreferences {
   return findKnowledgeTilePrefs()
 }
 
-function persistPreferences(prefs: MarkdownPreferences): void {
+function persistPreferences(prefs: KnowledgePreferences): void {
   void persistKnowledgeTilePrefs(prefs)
 }
 
-export type { MarkdownPreferences }
+export type { KnowledgePreferences }
 export {
   PREFERENCES,
   parsePreferences,

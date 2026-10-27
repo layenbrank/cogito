@@ -21,7 +21,7 @@ import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { t } from '@/views/knowledge/locale.ts'
 
-function MarkdownCaptionBegin() {
+function KnowledgeCaptionBegin() {
   const isDirty = useKnowledgeStore(function (state) {
     return state.isDirty
   })
@@ -152,4 +152,4 @@ function MarkdownCaptionBegin() {
   )
 }
 
-export { MarkdownCaptionBegin }
+export { KnowledgeCaptionBegin }

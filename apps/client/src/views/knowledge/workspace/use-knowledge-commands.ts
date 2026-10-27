@@ -11,7 +11,7 @@ import { exportHtmlDocument, printDocument } from '@/views/knowledge/lib/export.
 import { serializeHtmlToMarkdown } from '@/views/knowledge/lib/serialize-markdown.ts'
 import { t } from '@/views/knowledge/locale.ts'
 
-export function useMarkdownCommands(input: {
+export function useKnowledgeCommands(input: {
   composerRef: { current: Editor | null }
   onSave: () => void | Promise<void>
   onOpenFile: () => void | Promise<void>

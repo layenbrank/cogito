@@ -2,7 +2,7 @@ import type { PersistNamespace } from '@/features/persist/files'
 
 type CodeSidebarView = 'explorer' | 'search' | 'scm'
 type CodePanelTab = 'terminal' | 'problems'
-type MarkdownViewMode = 'live' | 'source' | 'split'
+type KnowledgeViewMode = 'live' | 'source' | 'split'
 type SignboardViewMode = 'board' | 'table' | 'gantt' | 'calendar' | 'stats' | 'workload'
 type BookmarkViewMode = 'list' | 'grid'
 type BookmarkSortKey = 'name-asc' | 'name-desc' | 'type' | 'links' | 'index'
@@ -23,7 +23,7 @@ interface KnowledgeChrome {
   rootDir: string | null
   isSidebarOpen: boolean
   isOutlineOpen: boolean
-  viewMode: MarkdownViewMode
+  viewMode: KnowledgeViewMode
   fontSize: number
   contentMaxWidth: number
   autosaveMs: number
@@ -182,7 +182,7 @@ export type {
   SettingsPref,
   CodeSidebarView,
   CodePanelTab,
-  MarkdownViewMode,
+  KnowledgeViewMode,
   SignboardViewMode,
   BookmarkViewMode,
   BookmarkSortKey,

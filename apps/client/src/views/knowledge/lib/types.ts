@@ -1,3 +1,3 @@
-type MarkdownViewMode = 'live' | 'source' | 'split'
+type KnowledgeViewMode = 'live' | 'source' | 'split'
 
-export type { MarkdownViewMode }
+export type { KnowledgeViewMode }

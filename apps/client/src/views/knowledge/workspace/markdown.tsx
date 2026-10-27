@@ -39,7 +39,7 @@ import { FocusExit } from '@/views/knowledge/workspace/focus-exit.tsx'
 import { Overlay } from '@/views/knowledge/workspace/overlay/index.ts'
 import { PreferencesSheet } from '@/views/knowledge/workspace/preferences-sheet.tsx'
 import { SourceEditor } from '@/views/knowledge/workspace/source-editor.tsx'
-import { useMarkdownCommands } from '@/views/knowledge/workspace/use-markdown-commands.ts'
+import { useKnowledgeCommands } from '@/views/knowledge/workspace/use-knowledge-commands.ts'
 
 import styles from '@/views/knowledge/workspace/markdown.module.scss'
 
@@ -51,7 +51,7 @@ type WorkspaceState = ReturnType<typeof useKnowledgeStore.getState>
  * 工作区文档级副作用：编辑器灌入、偏好加载、?url 还原、窗口标题、关闭拦截、
  * 自动保存、周期备份与外部文件监听。
  */
-function useMarkdownDocumentEffects(input: {
+function useKnowledgeDocumentEffects(input: {
   composer: Editor | null
   composerRef: { current: Editor | null }
   syncingRef: { current: boolean }
@@ -306,7 +306,7 @@ function useMarkdownDocumentEffects(input: {
 }
 
 /** 打开 / 新建 / 保存 与源码⇄实时 的文档动作 */
-function useMarkdownFileActions(input: {
+function useKnowledgeFileActions(input: {
   composer: Editor | null
   composerRef: { current: Editor | null }
   syncingRef: { current: boolean }
@@ -579,7 +579,7 @@ function WorkspaceSurfaces(props: {
   )
 }
 
-export default function MarkdownWorkspace() {
+export default function KnowledgeWorkspace() {
   const location = useLocation()
   const composerRef = useRef<Editor | null>(null)
   const [discardOpen, setDiscardOpen] = useState(false)
@@ -704,7 +704,7 @@ export default function MarkdownWorkspace() {
     [isTypographyEnabled]
   )
 
-  useMarkdownDocumentEffects({
+  useKnowledgeDocumentEffects({
     composer,
     composerRef,
     syncingRef,
@@ -733,7 +733,7 @@ export default function MarkdownWorkspace() {
     onSourceChange,
     syncSourceToLive,
     syncLiveToSource
-  } = useMarkdownFileActions({
+  } = useKnowledgeFileActions({
     composer,
     composerRef,
     syncingRef,
@@ -762,7 +762,7 @@ export default function MarkdownWorkspace() {
     [viewMode]
   )
 
-  useMarkdownCommands({
+  useKnowledgeCommands({
     composerRef,
     onSave: handleSave,
     onOpenFile: handleOpenFile,

@@ -54,7 +54,7 @@ function LayoutButton(props: LayoutButtonProps) {
   )
 }
 
-function MarkdownCaptionFinal() {
+function KnowledgeCaptionFinal() {
   const isFocusMode = useKnowledgeStore(function (state) {
     return state.isFocusMode
   })
@@ -120,4 +120,4 @@ function MarkdownCaptionFinal() {
   )
 }
 
-export { MarkdownCaptionFinal }
+export { KnowledgeCaptionFinal }

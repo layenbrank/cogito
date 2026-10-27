@@ -3,16 +3,16 @@ import { Suspense, lazy } from 'react'
 import { Decorations } from '@/components/decorations/index.ts'
 import { Fallback } from '@/components/fallback/index.ts'
 import { useKnowledgeStore } from '@/stores/knowledge'
-import { MarkdownCaptionBegin } from '@/views/knowledge/caption/begin.tsx'
-import { MarkdownCaptionFinal } from '@/views/knowledge/caption/final.tsx'
+import { KnowledgeCaptionBegin } from '@/views/knowledge/caption/begin.tsx'
+import { KnowledgeCaptionFinal } from '@/views/knowledge/caption/final.tsx'
 import Summary from '@/views/knowledge/workspace/overlay/summary.tsx'
 import styles from '@/views/knowledge/markdown.module.scss'
 
-const MarkdownWorkspace = lazy(function () {
+const KnowledgeWorkspace = lazy(function () {
   return import('@/views/knowledge/workspace/markdown.tsx')
 })
 
-function MarkdownSkeleton() {
+function KnowledgeSkeleton() {
   return (
     <div className="flex h-full min-h-0 animate-pulse flex-col gap-2 p-3">
       <div className="flex min-h-0 flex-1 gap-2">
@@ -31,15 +31,15 @@ function MarkdownSkeleton() {
  * - section：状态栏
  * - children：工作区（Utility / 侧栏 / 编辑器 / 大纲）
  */
-export default function Markdown() {
+export default function Knowledge() {
   const isFocusMode = useKnowledgeStore(function (state) {
     return state.isFocusMode
   })
 
   return (
     <Decorations
-      begin={<MarkdownCaptionBegin />}
-      final={<MarkdownCaptionFinal />}
+      begin={<KnowledgeCaptionBegin />}
+      final={<KnowledgeCaptionFinal />}
       section={isFocusMode ? undefined : <Summary />}
       sectionClassName="justify-stretch gap-0 border-border/50 bg-background/70 p-0 backdrop-blur-md"
       scrollable={false}>
@@ -47,8 +47,8 @@ export default function Markdown() {
         <Fallback.ErrorBoundary
           title="Markdown 编辑器出现问题"
           subTitle="编辑器遇到意外错误。可重试恢复，或刷新页面。">
-          <Suspense fallback={<MarkdownSkeleton />}>
-            <MarkdownWorkspace />
+          <Suspense fallback={<KnowledgeSkeleton />}>
+            <KnowledgeWorkspace />
           </Suspense>
         </Fallback.ErrorBoundary>
       </div>

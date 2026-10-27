@@ -11,7 +11,7 @@ import { cn } from 'cn'
 import { formatBindingText } from '@/keyboard/binding'
 import { SHORTCUT_COMMAND, resolveBinding } from '@/keyboard/definitions'
 import { useKnowledgeStore } from '@/stores/knowledge'
-import type { MarkdownViewMode } from '@/views/knowledge/lib/types.ts'
+import type { KnowledgeViewMode } from '@/views/knowledge/lib/types.ts'
 import { t } from '@/views/knowledge/locale.ts'
 import styles from '@/views/knowledge/workspace/overlay/utility.module.scss'
 
@@ -20,10 +20,10 @@ interface UtilityProps {
 }
 
 function ModeButton(props: {
-  mode: MarkdownViewMode
-  current: MarkdownViewMode
+  mode: KnowledgeViewMode
+  current: KnowledgeViewMode
   label: string
-  onPick: (mode: MarkdownViewMode) => void
+  onPick: (mode: KnowledgeViewMode) => void
 }) {
   return (
     <Button

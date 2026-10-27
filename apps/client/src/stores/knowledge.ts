@@ -9,12 +9,12 @@ import {
   hydratePreferencesFromStore,
   parsePreferences,
   persistPreferences,
-  type MarkdownPreferences
+  type KnowledgePreferences
 } from '@/views/knowledge/lib/preferences.ts'
 import type { DocStats } from '@/views/knowledge/lib/stats.ts'
-import type { MarkdownViewMode } from '@/views/knowledge/lib/types.ts'
+import type { KnowledgeViewMode } from '@/views/knowledge/lib/types.ts'
 
-interface MarkdownSession {
+interface KnowledgeSession {
   activePath: string | null
   markdown: string
   frontMatter: string | null
@@ -38,11 +38,11 @@ interface MarkdownSession {
   treeRevision: number
 }
 
-interface MarkdownStore extends MarkdownSession, MarkdownPreferences {
+interface KnowledgeStore extends KnowledgeSession, KnowledgePreferences {
   hydratePreferences: () => void
   /** 从 tiles.json 灌入（启动后） */
   hydrateFromStore: () => Promise<void>
-  toPatchPreferences: (patch: Partial<MarkdownPreferences>) => void
+  toPatchPreferences: (patch: Partial<KnowledgePreferences>) => void
   toOpenDocument(params: {
     path: string | null
     markdown: string
@@ -61,7 +61,7 @@ interface MarkdownStore extends MarkdownSession, MarkdownPreferences {
   toMarkDirty: (isDirty?: boolean) => void
   toUpdateOutline: (outline: OutlineItem[]) => void
   toUpdateStats: (stats: DocStats) => void
-  toSetViewMode: (mode: MarkdownViewMode) => void
+  toSetViewMode: (mode: KnowledgeViewMode) => void
   toToggleSidebar: () => void
   toToggleOutline: () => void
   toSetFindOpen: (isOpen: boolean) => void
@@ -78,12 +78,12 @@ interface MarkdownStore extends MarkdownSession, MarkdownPreferences {
 
 const EMPTY_STATS: DocStats = { chars: 0, words: 0, lines: 0 }
 
-const useKnowledgeStore = create<MarkdownStore>()(
+const useKnowledgeStore = create<KnowledgeStore>()(
   devtools(
     immer(function (setters, _finders) {
       const initial = parsePreferences()
 
-      function writePrefs(state: MarkdownStore): void {
+      function writePrefs(state: KnowledgeStore): void {
         // state 是 immer 草稿代理；recentPaths 若按引用传入异步落盘，
         // 等 patchPref await 后草稿已被 revoke，parse 时 Array.isArray 会抛
         // 「Cannot perform 'IsArray' on a proxy that has been revoked」。
@@ -446,5 +446,5 @@ const useKnowledgeStore = create<MarkdownStore>()(
   )
 )
 
-export type { MarkdownViewMode, MarkdownStore, MarkdownSession }
+export type { KnowledgeViewMode, KnowledgeStore, KnowledgeSession }
 export { useKnowledgeStore }
