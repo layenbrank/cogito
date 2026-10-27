@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import {
   createBase,
   discardStaged,
+  exportBundle as bundleExport,
   listBases,
   listCloudStates,
   listDocs,
@@ -67,6 +68,8 @@ interface KnowledgeBaseState {
   merge: (paths: string[], title: string) => Promise<boolean>
   /** 把本库还没上云的文档逐篇传上去建索引 */
   syncCloud: () => Promise<void>
+  /** 整包导出：把当前库的 Markdown 打成 zip，弹提示告知落盘路径 */
+  exportBundle: () => Promise<void>
 }
 
 function toMessage(error: unknown): string {
@@ -383,6 +386,18 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
         setter({ error: toMessage(error) })
       } finally {
         setter({ isSyncingCloud: false })
+      }
+    },
+
+    async exportBundle() {
+      const baseID = getter().activeBaseID
+      if (!baseID) return
+      try {
+        const path = await bundleExport(baseID)
+        toast.success('已导出：' + path)
+      } catch (error) {
+        reportCaught('knowledgeBase.exportBundle', error)
+        toast.error(toMessage(error))
       }
     }
   }

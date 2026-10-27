@@ -217,9 +217,19 @@ async function writeDoc(input: {
   }
 }
 
+// 整包导出：把库里的 Markdown 打成 zip（后端写在 <库目录>/exports/），返回绝对路径
+async function exportBundle(baseId: string): Promise<string> {
+  try {
+    return await invoke<string>(CHANNELS.KNOWLEDGE.EXPORT_BUNDLE, { baseId })
+  } catch (error) {
+    throw asError(error, '导出知识库失败')
+  }
+}
+
 export {
   createBase,
   discardStaged,
+  exportBundle,
   listBases,
   listCloudDocs,
   listCloudStates,

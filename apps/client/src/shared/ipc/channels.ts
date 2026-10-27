@@ -53,7 +53,8 @@ export const CHANNELS = {
     RESCAN: 'knowledge:rescan',
     REMOVE_DOC: 'knowledge:removeDoc',
     RESOLVE_DOC: 'knowledge:resolveDoc',
-    WRITE_DOC: 'knowledge:writeDoc'
+    WRITE_DOC: 'knowledge:writeDoc',
+    EXPORT_BUNDLE: 'knowledge:exportBundle'
   },
   AUTOMATION: {
     SAVE: 'automation:save',

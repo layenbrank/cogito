@@ -368,6 +368,52 @@ impl Service {
         search::search(db, query, base_id, top_k).await
     }
 
+    /// 整包导出：把一个库的 Markdown 打成一个 zip，写到 `<库目录>/exports/` 下。
+    ///
+    /// 正文取**文件**（读不到再用快照），与「文件为准」的不变量一致；
+    /// 不压缩（store-only）：库里多是文本，压缩收益有限，而 store 模式任何工具都能打开。
+    pub async fn toExportBundle(
+        db: &DatabaseConnection,
+        base_id: &str,
+    ) -> Result<PathBuf, Exception> {
+        let base = Self::find_base(db, base_id).await?;
+        let root = Self::knowledge_root(&base)?;
+        let dir = root.join("exports");
+        fs::create_dir_all(&dir)?;
+
+        let docs = doc_schema::Entity::find()
+            .filter(doc_schema::Column::BaseId.eq(base_id))
+            .order_by_asc(doc_schema::Column::RelPath)
+            .all(db)
+            .await?;
+        if docs.is_empty() {
+            return Err(Exception::Validation("这个库还没有文档可导出".to_string()));
+        }
+
+        let stamp = Utc::now().format("%Y%m%d-%H%M%S");
+        let path = dir.join(format!("{}-{stamp}.zip", base.slug));
+        let file = fs::File::create(&path)?;
+        let mut zip = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+
+        for doc in &docs {
+            // 压缩包内用相对路径还原目录结构，解压后与库目录同形
+            let entry = doc.relPath.replace('\\', "/");
+            let content = match fs::read_to_string(Path::new(&base.rootPath).join(&doc.relPath)) {
+                Ok(content) => content,
+                Err(_) => doc.content.clone(),
+            };
+            zip.start_file(entry, options)
+                .map_err(|error| Exception::Internal(format!("写压缩包失败：{error}")))?;
+            use std::io::Write;
+            zip.write_all(content.as_bytes())?;
+        }
+        zip.finish()
+            .map_err(|error| Exception::Internal(format!("收尾压缩包失败：{error}")))?;
+        Ok(path)
+    }
+
     /// 写 staging（agent 唯一被允许的写入点）：不落库、不进正式目录。
     pub async fn toWriteStaging(
         db: &DatabaseConnection,

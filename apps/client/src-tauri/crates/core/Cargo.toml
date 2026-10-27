@@ -9,6 +9,7 @@ sea-orm           = { workspace = true }
 chrono            = { workspace = true }
 chrono-tz         = { workspace = true }
 cron              = { workspace = true }
+zip               = { workspace = true }
 uuid              = { workspace = true }
 serde             = { workspace = true }
 serde_json        = { workspace = true }

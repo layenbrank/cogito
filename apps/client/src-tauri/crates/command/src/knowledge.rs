@@ -189,3 +189,13 @@ pub async fn knowledge_write_doc(
     )
     .await
 }
+
+/// 整包导出：把一个库的 Markdown 打成 zip（写在 <库目录>/exports/ 下），返回路径
+#[tauri::command(rename = "knowledge:exportBundle")]
+pub async fn knowledge_export_bundle(
+    state: State<'_, Storage>,
+    baseId: String,
+) -> CommandResult<String> {
+    let path = Service::toExportBundle(state.connection(), &baseId).await?;
+    Ok(path.to_string_lossy().into_owned())
+}

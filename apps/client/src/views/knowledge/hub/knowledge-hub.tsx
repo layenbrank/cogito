@@ -210,6 +210,9 @@ function KnowledgeHub(props: KnowledgeHubProps) {
   const isSyncingCloud = useKnowledgeBaseStore(function (state) {
     return state.isSyncingCloud
   })
+  const exportBundle = useKnowledgeBaseStore(function (state) {
+    return state.exportBundle
+  })
   const [newName, setNewName] = useState('')
   const [isGenerateOpen, setIsGenerateOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -325,6 +328,20 @@ function KnowledgeHub(props: KnowledgeHubProps) {
               }}>
               <Icon
                 icon="lucide:refresh-cw"
+                className="size-4"
+              />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label="整包导出"
+              title="把本库的 Markdown 打成一个 zip（写到库目录的 exports/）"
+              disabled={!activeBase || docs.length === 0}
+              onClick={function () {
+                void exportBundle()
+              }}>
+              <Icon
+                icon="lucide:archive"
                 className="size-4"
               />
             </Button>
