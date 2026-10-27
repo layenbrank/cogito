@@ -34,8 +34,8 @@ function Card(props: Props) {
         'active:bg-accent-active',
         'has-focus-visible:ring-2 has-focus-visible:ring-ring/50',
         props.isActive
-          ? 'border-primary bg-accent text-accent-foreground shadow-xs'
-          : 'border-border/70 hover:border-border hover:bg-accent-hover hover:shadow-md'
+          ? 'border-primary bg-accent text-accent-foreground shadow-sm'
+          : 'border-border hover:border-border hover:bg-accent-hover hover:shadow-sm'
       )}
       onClick={function () {
         props.onOpen(entry.name)

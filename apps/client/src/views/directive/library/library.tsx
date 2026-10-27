@@ -37,6 +37,7 @@ import { setNextPrompt } from '@/features/agent/model/pending-prompt'
 import Card from './card'
 import { ConflictsDialog } from './conflicts-dialog.tsx'
 import { DraftInbox } from './draft-inbox.tsx'
+import { LibraryInsights } from './insights.tsx'
 import { useLibrary } from './use-library'
 
 interface DirectiveLibraryProps {
@@ -72,9 +73,9 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
   }
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col bg-muted/35">
-      <div className="flex h-full min-h-0 flex-col gap-3 p-3">
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="relative flex h-full min-h-0 flex-col bg-background">
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/60 bg-background px-3 py-2.5">
           <Input
             value={library.query}
             onChange={function (event) {
@@ -190,75 +191,94 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
           </Button>
         </div>
 
-        <ScrollArea className="h-0 min-h-0 flex-1">
-          <DraftInbox />
-          {library.isLoading && !library.isLoaded ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-              <Skeleton className="h-28 w-full rounded-xl" />
-              <Skeleton className="h-28 w-full rounded-xl" />
-              <Skeleton className="h-28 w-full rounded-xl" />
-              <Skeleton className="h-28 w-full rounded-xl" />
-            </div>
-          ) : null}
-
-          {library.loadError ? (
-            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm">
-              <p className="font-medium text-destructive">无法加载指令库</p>
-              <p className="mt-1 text-muted-foreground">{library.loadError}</p>
-              <Button
-                size="sm"
-                className="mt-3"
-                variant="outline"
-                onClick={function () {
-                  void library.initialize()
-                }}>
-                重试
-              </Button>
-            </div>
-          ) : null}
-
-          {!library.loadError && library.isLoaded && library.filtered.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">还没有指令，点「新建」开始编排。</p>
-          ) : null}
-
-          {[...library.groups.entries()].map(function ([folder, entries]) {
-            return (
-              <div
-                key={folder ?? '__root'}
-                className="mb-5">
-                <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                  <Icon
-                    icon="lucide:folder-open"
-                    className="size-3.5"
-                  />
-                  {folder ?? '未分组'}
-                  <span className="text-muted-foreground/70">{entries.length}</span>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-                  {entries.map(function (entry) {
-                    return (
-                      <Card
-                        key={entry.name}
-                        entry={entry}
-                        isActive={props.activeName === entry.name}
-                        runs={library.runSummaries[entry.name] ?? EMPTY_RUNS}
-                        stepCount={library.stepCounts[entry.name] ?? 0}
-                        now={now}
-                        onOpen={library.openDirective}
-                        onRun={library.quickRun}
-                        onDelete={library.askDelete}
-                      />
-                    )
-                  })}
-                </div>
+        {/*
+          始终左右：左列表主列、右洞察侧栏。
+          flex-row 下交叉轴是高度——主列用 min-h-0 + self-stretch，禁止 h-0（会把高度锁成 0）。
+        */}
+        <div className="flex min-h-0 flex-1 flex-row items-stretch bg-background">
+          <ScrollArea className="min-h-0 min-w-0 flex-1 self-stretch bg-background px-3 py-3">
+            <DraftInbox />
+            {library.isLoading && !library.isLoaded ? (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
+                <Skeleton className="h-28 w-full rounded-xl" />
+                <Skeleton className="h-28 w-full rounded-xl" />
+                <Skeleton className="h-28 w-full rounded-xl" />
+                <Skeleton className="h-28 w-full rounded-xl" />
               </div>
-            )
-          })}
-        </ScrollArea>
+            ) : null}
+
+            {library.loadError ? (
+              <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm">
+                <p className="font-medium text-destructive">无法加载指令库</p>
+                <p className="mt-1 text-muted-foreground">{library.loadError}</p>
+                <Button
+                  size="sm"
+                  className="mt-3"
+                  variant="outline"
+                  onClick={function () {
+                    void library.initialize()
+                  }}>
+                  重试
+                </Button>
+              </div>
+            ) : null}
+
+            {!library.loadError && library.isLoaded && library.filtered.length === 0 ? (
+              <p className="p-4 text-sm text-muted-foreground">还没有指令，点「新建」开始编排。</p>
+            ) : null}
+
+            {[...library.groups.entries()].map(function ([folder, entries]) {
+              return (
+                <div
+                  key={folder ?? '__root'}
+                  className="mb-5">
+                  <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                    <Icon
+                      icon="lucide:folder-open"
+                      className="size-3.5"
+                    />
+                    {folder ?? '未分组'}
+                    <span className="text-muted-foreground/70">{entries.length}</span>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
+                    {entries.map(function (entry) {
+                      return (
+                        <Card
+                          key={entry.name}
+                          entry={entry}
+                          isActive={props.activeName === entry.name}
+                          runs={library.runSummaries[entry.name] ?? EMPTY_RUNS}
+                          stepCount={library.stepCounts[entry.name] ?? 0}
+                          now={now}
+                          onOpen={library.openDirective}
+                          onRun={library.quickRun}
+                          onDelete={library.askDelete}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </ScrollArea>
+
+          {library.isLoaded && !library.loadError ? (
+            /*
+              侧栏加宽到约 20–24rem，主列仍 flex-1；max-w 限制不抢主列一半以上。
+            */
+            <aside className="flex min-h-0 w-80 max-w-[min(24rem,42%)] min-w-72 shrink-0 flex-col self-stretch overflow-y-auto border-l border-border bg-muted px-3 py-3 md:w-[22rem] xl:w-96 xl:max-w-[min(24rem,40%)]">
+              <LibraryInsights
+                metrics={library.insights}
+                onOpen={library.openDirective}
+                onFocusRun={library.focusRunning}
+              />
+            </aside>
+          ) : null}
+        </div>
       </div>
 
       {library.isDeleting || library.isImporting ? (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/40">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/60">
           <Spinner className="size-6" />
         </div>
       ) : null}

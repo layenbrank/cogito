@@ -6,6 +6,7 @@ import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
 import type { ImportResult } from '@/shared/ipc/specs/sidecar'
 
 import { useCorexStore } from '@/stores/corex.ts'
+import { useTerminalStore } from '@/stores/terminal'
 import { findFreeName } from '@/views/directive/model/draft.ts'
 import { indexLastRuns, indexRunSummaries, indexStepCounts } from '@/views/directive/run/run-status'
 
@@ -16,6 +17,7 @@ import {
   joinNames,
   mergeImportResults
 } from './import.ts'
+import { buildLibraryMetrics } from './metrics.ts'
 
 type SortKey = 'name' | 'recent'
 
@@ -77,6 +79,9 @@ function useLibrary(options: UseLibraryOptions) {
   })
   const startRun = useCorexStore(function (state) {
     return state.startRun
+  })
+  const focusRun = useCorexStore(function (state) {
+    return state.focusRun
   })
 
   const [query, updateQuery] = useState('')
@@ -152,6 +157,16 @@ function useLibrary(options: UseLibraryOptions) {
     [filtered]
   )
 
+  const insights = useMemo(
+    function () {
+      return buildLibraryMetrics({
+        directives,
+        runs
+      })
+    },
+    [directives, runs]
+  )
+
   const onOpen = options.onOpen
   const openDirective = useCallback(
     function (name: string) {
@@ -159,6 +174,14 @@ function useLibrary(options: UseLibraryOptions) {
       else void navigate('/directive/' + encodeURIComponent(name))
     },
     [navigate, onOpen]
+  )
+
+  const focusRunning = useCallback(
+    function (id: string) {
+      focusRun(id)
+      useTerminalStore.getState().setActivity('run')
+    },
+    [focusRun]
   )
 
   const quickRun = useCallback(
@@ -343,7 +366,9 @@ function useLibrary(options: UseLibraryOptions) {
     groups,
     runSummaries,
     stepCounts,
+    insights,
     openDirective,
+    focusRunning,
     quickRun,
     askDelete,
     handleNew,
