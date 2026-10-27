@@ -292,6 +292,19 @@ pub mod business {
         /// 本模块全部状态码
         pub const ALL: &[i32] = &[BATCH_INVALID, SESSION_MISSING, CURSOR_INVALID];
     }
+
+    /// 服务端定时任务（50xx08 段）
+    pub mod schedule {
+        /// 任务不存在（或不属于当前租户）
+        pub const JOB_NOT_FOUND: i32 = 500801;
+        /// 定时表达式或时区不合法（保存时校验，不留到 worker tick）
+        pub const SCHEDULE_INVALID: i32 = 500802;
+        /// 任务名或内容为空
+        pub const JOB_INVALID: i32 = 500803;
+
+        /// 本模块全部状态码
+        pub const ALL: &[i32] = &[JOB_NOT_FOUND, SCHEDULE_INVALID, JOB_INVALID];
+    }
 }
 
 /// 外部服务错误 (60xxxx)
@@ -347,6 +360,7 @@ pub fn all_codes() -> Vec<i32> {
         business::agent::ALL,
         business::rag::ALL,
         business::chat::ALL,
+        business::schedule::ALL,
         external::ALL,
         data::ALL,
     ] {
@@ -451,6 +465,11 @@ pub fn description(code: i32) -> &'static str {
         business::chat::BATCH_INVALID => "同步批次不合法",
         business::chat::SESSION_MISSING => "消息引用的会话不存在",
         business::chat::CURSOR_INVALID => "同步游标不合法",
+
+        // 50xx08 服务端定时任务
+        business::schedule::JOB_NOT_FOUND => "定时任务不存在",
+        business::schedule::SCHEDULE_INVALID => "定时表达式不合法",
+        business::schedule::JOB_INVALID => "定时任务参数不合法",
 
         external::DATABASE_ERROR => "数据库连接失败",
         external::DATABASE_OPERATION_FAILED => "数据库操作失败",
@@ -578,6 +597,10 @@ pub fn http_status(code: i32) -> u16 {
         business::chat::BATCH_INVALID => 422,
         business::chat::SESSION_MISSING => 422,
         business::chat::CURSOR_INVALID => 422,
+
+        business::schedule::JOB_NOT_FOUND => 404,
+        business::schedule::SCHEDULE_INVALID => 400,
+        business::schedule::JOB_INVALID => 422,
 
         // 60xxxx 外部依赖（我方视角的服务端故障）
         external::DATABASE_ERROR => 500,

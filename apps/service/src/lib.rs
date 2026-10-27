@@ -51,6 +51,7 @@ macro_rules! bootstrap_app {
 
 pub mod clients {
     pub mod compute;
+    pub mod durable;
     pub mod aliyun;
     pub mod gocaptcha;
     pub mod redis;
@@ -65,6 +66,7 @@ pub mod databases {
 pub mod worker {
     pub mod dispatcher;
     pub mod runner;
+    pub mod scheduler;
 }
 
 /// 长任务（可靠执行）：编排与活动的装配点，只有 orchestrator 二进制会运行它。
@@ -165,6 +167,14 @@ pub mod services {
         pub mod controller;
         pub mod dispatch;
         pub mod error;
+        pub mod module;
+        pub mod schema;
+        pub mod service;
+    }
+
+    /// 服务端定时任务（`owner=cloud`）：CRUD 在 API，执行在 worker。
+    pub mod schedule {
+        pub mod controller;
         pub mod module;
         pub mod schema;
         pub mod service;

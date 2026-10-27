@@ -20,6 +20,7 @@ pub mod gateway_usage;
 pub mod outbox;
 pub mod payment_order;
 pub mod rag_index_task;
+pub mod scheduled_job;
 pub mod sso_connection;
 pub mod subscription;
 pub mod tenant;

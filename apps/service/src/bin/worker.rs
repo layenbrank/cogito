@@ -38,6 +38,10 @@ async fn main() {
         WorkerDispatcher::from_configure(&configure).expect("Failed to build dispatcher");
     let options = runner::LoopOptions::from_configure(&configure);
 
+    // 定时任务是独立的 tick：与事件发布共用一个进程，但互不阻塞。
+    // 起不了编排也照跑 —— 每个到期任务各自落 `lastError`，比让整个 worker 起不来清楚。
+    spawn_scheduler(storage.clone(), configure.clone());
+
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
     let signal = tokio::spawn(async move {
         if let Err(error) = tokio::signal::ctrl_c().await {
@@ -58,4 +62,29 @@ async fn main() {
     }
 
     log_guard.shutdown();
+}
+
+/// 定时任务循环：认领到期任务 → 起 agent 任务 → 回写状态。
+///
+/// 间隔取 `events.poll_interval_ms`（同一份部署配置里的「后台轮询节奏」）；
+/// 有活时立刻再跑一轮，没活才按间隔等 —— tick 本身只是几条 SQL。
+fn spawn_scheduler(storage: Storage, configure: Configure) {
+    let interval = std::time::Duration::from_millis(configure.events.poll_interval_ms.max(1_000));
+    let _ = tokio::spawn(async move {
+        let durable = cogito::clients::durable::connect(&configure).await;
+        if durable.is_none() {
+            tracing::warn!("编排库未接通：定时任务会以失败状态记录（原因写进 lastError）");
+        }
+        loop {
+            let now = chrono::Utc::now().timestamp_millis();
+            let count = cogito::worker::scheduler::tick(&storage, &configure, durable.as_ref(), now)
+                .await;
+            let wait = if count > 0 {
+                std::time::Duration::from_secs(1)
+            } else {
+                interval
+            };
+            tokio::time::sleep(wait).await;
+        }
+    });
 }

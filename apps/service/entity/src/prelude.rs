@@ -16,6 +16,7 @@ pub use super::gateway_usage::Entity as GatewayUsage;
 pub use super::outbox::Entity as Outbox;
 pub use super::payment_order::Entity as PaymentOrder;
 pub use super::rag_index_task::Entity as RagIndexTask;
+pub use super::scheduled_job::Entity as ScheduledJob;
 pub use super::sso_connection::Entity as SsoConnection;
 pub use super::subscription::Entity as Subscription;
 pub use super::tenant::Entity as Tenant;

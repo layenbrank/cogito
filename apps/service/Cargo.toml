@@ -47,6 +47,8 @@ serde_json = "1.0.151"
 thiserror = "2.0.20"
 uuid = { version = "1.24.1", features = ["v4", "serde"] }
 chrono = { version = "0.4.45", features = ["serde"] }
+chrono-tz = "0.10"
+cron = "0.17"
 entity = { version = "0.1.0", path = "entity" }
 
 # 出站 HTTP 与其签名原语（service 与能力 crate 共用同一份 feature 集合）
@@ -174,6 +176,8 @@ thiserror = { workspace = true } # 类型化错误定义
 
 # 时间
 chrono = { workspace = true } # 时间戳 / JWT 过期
+chrono-tz = { workspace = true } # 定时任务按任务时区解释 cron
+cron      = { workspace = true } # 定时任务排期
 
 # 能力 crate（业务内核，逐块迁入；见 crates/*/README.md）
 identity = { workspace = true }

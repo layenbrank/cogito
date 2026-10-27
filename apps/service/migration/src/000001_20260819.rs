@@ -29,6 +29,8 @@ impl MigrationTrait for Migration {
                     .table(AgentApproval::Table)
                     .table(AgentTask::Table)
                     .table(RagIndexTask::Table)
+                    // 服务端定时任务：与客户端 automation 同名不同库
+                    .table(ScheduledJob::Table)
                     // chat_* 四表：消息指向会话，且都指向 tenant（cascade 是兜底，顺序才是意图）
                     .table(ChatSyncBatch::Table)
                     .table(ChatUsage::Table)
@@ -1232,6 +1234,87 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        // ---------- scheduled_job（服务端定时任务，owner=cloud） ----------
+        // 与客户端 automation 表同名不同库：客户端那份「应用开着才跑」，这份「关掉客户端也照跑」。
+        // 排期字段全在库里（cron + timezone + nextRunAt），worker 只用 SKIP LOCKED 抢到期行。
+        manager
+            .create_table(
+                Table::create()
+                    .table(ScheduledJob::Table)
+                    .if_not_exists()
+                    .col(pk_uuid(ScheduledJob::Id))
+                    .col(uuid(ScheduledJob::TenantId))
+                    .col(uuid(ScheduledJob::Creator))
+                    .col(text(ScheduledJob::Name))
+                    // 起一次 agent 任务的目标
+                    .col(text(ScheduledJob::Prompt))
+                    // 5 段 crontab + 时区：表达式永远按任务自己的时区解释
+                    .col(text(ScheduledJob::Cron))
+                    .col(text(ScheduledJob::Timezone).default("Asia/Shanghai"))
+                    .col(boolean(ScheduledJob::Enabled).default(true))
+                    // user = 创建者本人（执行时校验仍是租户成员）；tenant = 租户服务身份
+                    .col(text(ScheduledJob::RunAsKind).default("user"))
+                    .col(uuid_null(ScheduledJob::RunAsUserId))
+                    .col(big_integer_null(ScheduledJob::NextRunAt))
+                    .col(big_integer_null(ScheduledJob::LastRunAt))
+                    .col(text_null(ScheduledJob::LastStatus))
+                    .col(text_null(ScheduledJob::LastError))
+                    .col(uuid_null(ScheduledJob::LastTaskId))
+                    .col(timestamp_with_time_zone(ScheduledJob::CreatedAt))
+                    .col(timestamp_with_time_zone(ScheduledJob::UpdatedAt))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_scheduled_job_tenant")
+                            .from(ScheduledJob::Table, ScheduledJob::TenantId)
+                            .to(Tenant::Table, Tenant::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_scheduled_job_creator")
+                            .from(ScheduledJob::Table, ScheduledJob::Creator)
+                            .to(Auth::Table, Auth::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_scheduled_job_run_as")
+                            .from(ScheduledJob::Table, ScheduledJob::RunAsUserId)
+                            .to(Auth::Table, Auth::Id)
+                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_scheduled_job_tenant")
+                    .table(ScheduledJob::Table)
+                    .col(ScheduledJob::TenantId)
+                    .col(ScheduledJob::CreatedAt)
+                    .to_owned(),
+            )
+            .await?;
+
+        // worker 每轮都按 (enabled, nextRunAt) 找到期行，这个索引就是它的全部工作集
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_scheduled_job_due")
+                    .table(ScheduledJob::Table)
+                    .col(ScheduledJob::Enabled)
+                    .col(ScheduledJob::NextRunAt)
+                    .to_owned(),
+            )
+            .await?;
+
         // ---------- chat_*（客户端会话/消息/用量的同步面） ----------
         // 本地为主、服务端只负责「接住并单调编号」：这里没有业务解读（消息内容是不透明的），
         // 只有 `revision` 这一份服务端独占的事实，它是增量拉取的游标。
@@ -1636,6 +1719,7 @@ impl MigrationTrait for Migration {
                     .table(ConsumedEvent::Table)
                     .table(AgentTask::Table)
                     .table(RagIndexTask::Table)
+                    .table(ScheduledJob::Table)
                     .table(ChatSyncBatch::Table)
                     .table(ChatUsage::Table)
                     .table(ChatMessage::Table)
@@ -1727,12 +1811,14 @@ $fn$"#
 /// - `payment_order`：按订单号（能力键）反解租户的只读分支；
 /// - `sso_connection`：按连接 id（能力键）读回匿名 OIDC 流程的那一行；
 /// - `gateway_usage` / `gateway_audit`：无租户行的归属分支（NULL 租户 + 本人）。
-const STRICT_TENANT_TABLES: [&str; 9] = [
+const STRICT_TENANT_TABLES: [&str; 10] = [
     "subscription",
     "outbox",
     "agent_task",
     "agent_approval",
     "rag_index_task",
+    // 定时任务：只属于一个租户；worker 代跑时用同一租户作用域读写
+    "scheduled_job",
     // 同步面：会话 / 消息 / 用量 / 批次台账都只属于一个租户，没有全局行也没有能力键分支
     "chat_session",
     "chat_message",
@@ -2290,6 +2376,39 @@ enum RagIndexTask {
     InstanceId,
     Result,
     Error,
+    #[sea_orm(iden = "createdAt")]
+    CreatedAt,
+    #[sea_orm(iden = "updatedAt")]
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+/// 服务端定时任务（`owner=cloud`）。列名与 `entity::scheduled_job` 一致。
+enum ScheduledJob {
+    Table,
+    Id,
+    #[sea_orm(iden = "tenantID")]
+    TenantId,
+    Creator,
+    Name,
+    Prompt,
+    Cron,
+    Timezone,
+    Enabled,
+    #[sea_orm(iden = "runAsKind")]
+    RunAsKind,
+    #[sea_orm(iden = "runAsUserID")]
+    RunAsUserId,
+    #[sea_orm(iden = "nextRunAt")]
+    NextRunAt,
+    #[sea_orm(iden = "lastRunAt")]
+    LastRunAt,
+    #[sea_orm(iden = "lastStatus")]
+    LastStatus,
+    #[sea_orm(iden = "lastError")]
+    LastError,
+    #[sea_orm(iden = "lastTaskID")]
+    LastTaskId,
     #[sea_orm(iden = "createdAt")]
     CreatedAt,
     #[sea_orm(iden = "updatedAt")]

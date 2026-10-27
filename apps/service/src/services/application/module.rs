@@ -6,8 +6,8 @@ use crate::services::{
     auth::module::AuthModule, chat::module::ChatModule, console::module::ConsoleModule,
     engine::module::EngineModule, exception::module::ExceptionModule,
     gateway::module::GatewayModule, mcp::module::McpModule, payment::module::PaymentModule,
-    rag::module::RagModule, sso::module::SsoModule, tenant::module::TenantModule,
-    upload::module::UploadModule, user::module::UserModule,
+    rag::module::RagModule, schedule::module::ScheduleModule, sso::module::SsoModule,
+    tenant::module::TenantModule, upload::module::UploadModule, user::module::UserModule,
 };
 
 pub struct ApplicationModule;
@@ -32,6 +32,8 @@ impl ApplicationModule {
                 .configure(AgentModule::configure)
                 // rag 索引：起任务 / 查任务（`/api/v1/rag/index-tasks`）
                 .configure(RagModule::configure)
+                // 定时任务：CRUD（`/api/v1/automations`），执行在 worker
+                .configure(ScheduleModule::configure)
                 // 会话同步：推一批 / 拉增量（`/api/v1/chat/sync`）
                 .configure(ChatModule::configure)
                 // MCP：JSON-RPC 端点（`/api/v1/mcp`）

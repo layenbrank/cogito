@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use actix_web::HttpServer;
-use durable::{Client, DurableSettings, Store};
+use durable::Client;
 use cogito::{
     bootstrap::BootstrapOptions, bootstrap_app, clients::compute::ComputeClient,
     clients::redis::RedisPool, configures::configure::Configure,
@@ -112,41 +112,8 @@ async fn main() -> std::io::Result<()> {
     result
 }
 
-/// 连编排库（durable 的独立 schema）。
-///
-/// **连不上不阻塞启动**：其余接口与编排无关，让整个 api 起不来只会把一个「agent 不可用」
-/// 放大成「全站不可用」。连不上时返回 `None`，agent 两个接口分别回 503 与台账原样。
-///
-/// 迁移策略沿用配置里的 `auto_migrate`（默认开），**不用 `VerifyOnly`**：api 是持有业务库
-/// DDL 权限的应用后端，`duroxide-pg` 的 verify 只在不做 DDL 的前提下才成立，schema 还没建时
-/// 它会直接硬失败。两个进程同时应用迁移也是安全的——provider 用 schema 名哈希出的
-/// advisory lock 把迁移串行化了。
 async fn connect_durable(config: &Configure) -> Option<Arc<Client>> {
-    let url = match config.require_durable_settings() {
-        Ok(url) => url,
-        Err(error) => {
-            tracing::warn!(error = %error, "编排库未配置：agent 任务接口不可用");
-            return None;
-        }
-    };
-
-    let settings = DurableSettings::new(
-        url,
-        config.durable.schema.clone(),
-        config.durable.auto_migrate,
-    );
-
-    match Store::connect(&settings).await {
-        Ok(store) => Some(Arc::new(store.client())),
-        Err(error) => {
-            tracing::error!(
-                error = %error,
-                schema = %config.durable.schema,
-                "编排库连接失败：agent 任务接口不可用"
-            );
-            None
-        }
-    }
+    cogito::clients::durable::connect(config).await
 }
 
 /// 连 compute（Python 计算车间）。
