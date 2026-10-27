@@ -12,6 +12,7 @@ import { RouterProvider } from 'react-router-dom'
 
 import { Fallback } from '@/components/fallback/index.ts'
 import { QueryProvider } from '@/components/provider/query'
+import { useAutomationRunner } from '@/features/automation/use-automation-runner'
 import { useCaptureCommands } from '@/features/capture/commands'
 import { readMotionConfig, subscribeAppearance } from '@/features/window/appearance'
 import { useKeyboard } from '@/keyboard/react'
@@ -30,6 +31,7 @@ function App() {
   const reducedMotion = useAppearanceMotion()
   useKeyboard()
   useCaptureCommands()
+  useAutomationRunner()
 
   return (
     <>

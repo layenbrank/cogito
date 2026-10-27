@@ -55,6 +55,15 @@ export const CHANNELS = {
     RESOLVE_DOC: 'knowledge:resolveDoc',
     WRITE_DOC: 'knowledge:writeDoc'
   },
+  AUTOMATION: {
+    SAVE: 'automation:save',
+    LIST: 'automation:list',
+    SET_ENABLED: 'automation:setEnabled',
+    REMOVE: 'automation:remove',
+    RUN_NOW: 'automation:runNow',
+    FINISH_RUN: 'automation:finishRun',
+    RUNS: 'automation:runs'
+  },
   AUTOSTART: {
     READ: 'autostart:read',
     UPDATE: 'autostart:update'
@@ -272,6 +281,8 @@ export const CHANNELS = {
 export const EVENTS = {
   TRAY_ACTION: 'tray:action',
   REMINDER_FIRED: 'reminder:fired',
+  /** 定时任务到期：worker 已 claim，等前端起会话执行后回写 */
+  AUTOMATION_DUE: 'automation:due',
   COREX_NOT_READY: 'corex://not-ready',
   /** corex run / invoke 流式步骤帧（带 runId） */
   SIDECAR_PROGRESS: 'sidecar:progress',

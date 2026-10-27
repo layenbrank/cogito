@@ -7,13 +7,10 @@
  * 内联**不挂工具**（system 提示里明说）：一轮里若触发审批，这里没有审批 UI，
  * 只能等票据超时，用户看到的就是「卡住」。
  */
-import { ensureCogitoProvider, isCogitoSoftFailure } from '@/features/agent/acp/cogito-provider'
 import { closeThreadSession, runThreadPrompt } from '@/features/agent/acp/session'
 import { parseAcpStreamEvent } from '@/features/agent/acp/stream'
+import { prepareTarget } from '@/features/agent/acp/target-guard'
 import { createModelPort } from '@/features/agent/port/model'
-import { findSendBlocker, isGatewayTarget } from '@/features/quota/gate'
-import { useProviderStore } from '@/stores/provider'
-import { reportCaught } from '@/utils/exception-report'
 
 /** 内联会话的 thread 前缀：这些 id 不会出现在会话列表里，仅用于区分日志 */
 const INLINE_THREAD_PREFIX = 'inline-'
@@ -38,25 +35,7 @@ function createTextBlockID(): (messageId: string | null | undefined, kind: strin
 }
 
 async function prepareProvider(providerID: string, modelID: string): Promise<void> {
-  const provider = useProviderStore
-    .getState()
-    .providers.find(function (item) {
-      return item.id === providerID
-    })
-  if (!provider) throw new Error('选中的模型供应商已不存在，请到设置里重新选择')
-  if (!provider.enabled) throw new Error('选中的模型供应商已停用，请到设置里启用')
-
-  const isGateway = isGatewayTarget(provider.kind)
-  const blocker = await findSendBlocker({ isGateway, modelID })
-  if (blocker) throw new Error(blocker)
-  if (!isGateway) return
-  // 平台网关走 goose 的自定义 provider：发送前幂等注册，失败就别发（否则报错更难懂）
-  try {
-    await ensureCogitoProvider()
-  } catch (error) {
-    if (!isCogitoSoftFailure(error)) throw error
-    reportCaught('agent.inline.ensureCogitoProvider', error, 'warning')
-  }
+  return prepareTarget(providerID, modelID, 'agent.inline')
 }
 
 /**

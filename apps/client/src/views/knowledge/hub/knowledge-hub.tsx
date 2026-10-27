@@ -39,6 +39,7 @@ import { setNextPrompt } from '@/features/agent/model/pending-prompt'
 import type { BasePatch, StagedFile } from '@/lib/knowledge-ipc'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { openPath } from '@/views/knowledge/lib/session.ts'
+import { AutomationSheet } from '@/views/knowledge/hub/automation-sheet'
 
 function joinPath(root: string, relative: string): string {
   const base = root.replace(/[\\/]+$/, '')
@@ -212,6 +213,7 @@ function KnowledgeHub(props: KnowledgeHubProps) {
   const [newName, setNewName] = useState('')
   const [isGenerateOpen, setIsGenerateOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isAutomationOpen, setIsAutomationOpen] = useState(false)
   const [topic, setTopic] = useState('')
   const [withCitation, setWithCitation] = useState(true)
   const [mergeTarget, setMergeTarget] = useState<StagedFile[] | null>(null)
@@ -323,6 +325,19 @@ function KnowledgeHub(props: KnowledgeHubProps) {
               }}>
               <Icon
                 icon="lucide:refresh-cw"
+                className="size-4"
+              />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label="自动化"
+              title="定时任务（到点让智能体跑一次）"
+              onClick={function () {
+                setIsAutomationOpen(true)
+              }}>
+              <Icon
+                icon="lucide:timer"
                 className="size-4"
               />
             </Button>
@@ -709,6 +724,13 @@ function KnowledgeHub(props: KnowledgeHubProps) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <AutomationSheet
+          open={isAutomationOpen}
+          onOpenChange={setIsAutomationOpen}
+          bases={bases}
+          activeBaseID={activeBaseID}
+        />
       </SheetContent>
     </Sheet>
   )
