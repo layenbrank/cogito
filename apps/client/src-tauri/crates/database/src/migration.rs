@@ -46,7 +46,8 @@ mod tests {
     use crate::entity::{
         AgentMessageEntity, AgentProviderEntity, AgentSessionEntity, AgentUsageEntity,
         AgentWorkspaceEntity, AgentWorkspaceFolderEntity, AlbumEntity, AssetEntity, BookmarkEntity,
-        CalendarEntity, CountdownEntity, DirectiveDraftEntity, MagneticTileEntity, MirrorEntity,
+        CalendarEntity, CountdownEntity, DirectiveDraftEntity, KnowledgeBaseEntity,
+        KnowledgeDocEntity, KnowledgeIndexStateEntity, MagneticTileEntity, MirrorEntity,
         OverlayEntity, ReminderEntity, SignboardAutomationEntity, SignboardCheckEntity,
         SignboardColumnEntity, SignboardEntity, SignboardEntryAssetEntity, SignboardEntryEntity,
         SignboardTagEntity, SignboardTaggedEntity,
@@ -262,6 +263,12 @@ mod tests {
             ("calendar", entity_columns::<CalendarEntity>()),
             ("countdown", entity_columns::<CountdownEntity>()),
             ("directive_draft", entity_columns::<DirectiveDraftEntity>()),
+            ("knowledge_base", entity_columns::<KnowledgeBaseEntity>()),
+            ("knowledge_doc", entity_columns::<KnowledgeDocEntity>()),
+            (
+                "knowledge_index_state",
+                entity_columns::<KnowledgeIndexStateEntity>(),
+            ),
             ("magneticTile", entity_columns::<MagneticTileEntity>()),
             ("mirror", entity_columns::<MirrorEntity>()),
             ("overlay", entity_columns::<OverlayEntity>()),

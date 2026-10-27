@@ -5,6 +5,7 @@ pub mod calendar;
 pub mod countdown;
 pub mod directive_draft;
 pub mod exception;
+pub mod knowledge;
 pub mod magnetic_tile;
 pub mod mirror;
 pub mod overlay;

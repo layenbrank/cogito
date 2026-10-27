@@ -9,6 +9,9 @@ pub mod entity {
     pub mod calendar;
     pub mod countdown;
     pub mod directive_draft;
+    pub mod knowledge_base;
+    pub mod knowledge_doc;
+    pub mod knowledge_index_state;
     pub mod magnetic_tile;
     pub mod mirror;
     pub mod overlay;
@@ -47,6 +50,9 @@ pub mod entity {
     pub use calendar::Entity as CalendarEntity;
     pub use countdown::Entity as CountdownEntity;
     pub use directive_draft::Entity as DirectiveDraftEntity;
+    pub use knowledge_base::Entity as KnowledgeBaseEntity;
+    pub use knowledge_doc::Entity as KnowledgeDocEntity;
+    pub use knowledge_index_state::Entity as KnowledgeIndexStateEntity;
     pub use magnetic_tile::Entity as MagneticTileEntity;
     pub use mirror::Entity as MirrorEntity;
     pub use overlay::Entity as OverlayEntity;
