@@ -221,6 +221,29 @@ impl Service {
         Ok(result.rows_affected)
     }
 
+    /// 记下「远端（goose）那边同步到了哪一步」。
+    ///
+    /// `owner=goose` 的排期在 goose 手里，本地这份只是镜像；同步失败把原因写进
+    /// `lastError`，用户能在列表里直接看到，而不是只有日志。
+    pub async fn toSetRemote<C: ConnectionTrait + TransactionTrait>(
+        db: &C,
+        id: String,
+        remote_id: Option<String>,
+        last_error: Option<String>,
+    ) -> Result<schema::Model, Exception> {
+        let existing = schema::Entity::find_by_id(id.clone())
+            .one(db)
+            .await?
+            .ok_or_else(|| Exception::NotFound(format!("任务不存在：{id}")))?;
+        let status = if last_error.is_some() { "failed" } else { "" };
+        let mut active: schema::ActiveModel = existing.into();
+        active.remoteId = Set(remote_id);
+        active.lastError = Set(last_error);
+        active.lastStatus = Set(Some(status.to_string()).filter(|value| !value.is_empty()));
+        active.updatedAt = Set(Utc::now().timestamp_millis());
+        Ok(active.update(db).await?)
+    }
+
     /// 认领到期任务（owner=client）。返回空表示这一轮没事可做。
     pub async fn toClaimDue<C: ConnectionTrait + TransactionTrait>(
         db: &C,

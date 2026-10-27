@@ -259,6 +259,48 @@ fn build_goose_command(
         .env("GOOSE_PATH_ROOT", &path_root))
 }
 
+/// 跑一次 goose 子命令并收集输出（`schedule` 这类一次性命令用）。
+///
+/// 复用 serve 的二进制解析与 `GOOSE_PATH_ROOT`：goose 的调度数据因此落在应用自己的
+/// `<appData>/goose` 下，不会和用户全局安装的 goose 混在一起。
+pub async fn run_goose(app: &AppHandle, args: &[&str]) -> Result<String, String> {
+    // 一次性命令不需要密钥，但 build 要一个值；用完即弃
+    let token = random_token();
+    let command = build_goose_command(app, args, &token)?;
+    let (mut rx, _child) = command
+        .spawn()
+        .map_err(|e| format!("启动 goose 失败: {e}"))?;
+
+    let mut stdout = String::new();
+    let mut stderr = String::new();
+    let mut code: Option<i32> = None;
+    while let Some(event) = rx.recv().await {
+        match event {
+            CommandEvent::Stdout(bytes) => stdout.push_str(&String::from_utf8_lossy(&bytes)),
+            CommandEvent::Stderr(bytes) => stderr.push_str(&String::from_utf8_lossy(&bytes)),
+            CommandEvent::Terminated(payload) => {
+                code = payload.code;
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    if code == Some(0) {
+        Ok(stdout)
+    } else {
+        let detail = if stderr.trim().is_empty() {
+            stdout.trim().to_string()
+        } else {
+            stderr.trim().to_string()
+        };
+        Err(format!(
+            "goose {} 失败（exit={code:?}）：{detail}",
+            args.join(" ")
+        ))
+    }
+}
+
 /// goose 的 config/data/state 根目录：`<appData>/goose`。
 ///
 /// goose 读 `GOOSE_PATH_ROOT`（须绝对路径）后把 config 落到 `<root>/config`。这样

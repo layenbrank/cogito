@@ -7,5 +7,7 @@
 //! 由此带来一个必须写清的语义：**应用没运行就等于没执行**。`owner=client` 本来就是这个
 //! 含义；需要「关掉客户端也照跑」的任务应当用 `owner=cloud`（Phase 7C）。
 
+pub mod command;
+pub mod goose;
 pub mod worker;
 pub use worker::spawn_worker;

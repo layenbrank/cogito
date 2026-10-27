@@ -56,9 +56,11 @@ async function removeAutomation(id: string): Promise<number> {
   }
 }
 
-async function runAutomationNow(id: string): Promise<{ automation: Automation; run: AutomationRun }> {
+/** 返回 `null` 表示这次执行交给了 goose（本地不落执行记录，记录在 goose 侧） */
+async function runAutomationNow(id: string): Promise<{ automation: Automation; run: AutomationRun } | null> {
   try {
-    return DueRunSchema.parse(await invoke(CHANNELS.AUTOMATION.RUN_NOW, { id }))
+    const raw = await invoke(CHANNELS.AUTOMATION.RUN_NOW, { id })
+    return raw ? DueRunSchema.parse(raw) : null
   } catch (error) {
     throw asError(error, '立即执行失败')
   }

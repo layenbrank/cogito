@@ -47,6 +47,8 @@ interface DraftState {
   schedule: string
   knowledgeBaseId: string | null
   enabled: boolean
+  /** client = 本机 worker；goose = 交给 goose 自己的调度器 */
+  owner: 'client' | 'goose'
 }
 
 const EMPTY_DRAFT: DraftState = {
@@ -55,7 +57,8 @@ const EMPTY_DRAFT: DraftState = {
   prompt: '',
   schedule: '0 9 * * *',
   knowledgeBaseId: null,
-  enabled: true
+  enabled: true,
+  owner: 'client'
 }
 
 function formatTime(ms: number | null | undefined): string {
@@ -145,7 +148,9 @@ function AutomationSheet(props: AutomationSheetProps) {
       prompt: item.prompt,
       schedule: item.schedule,
       knowledgeBaseId: item.knowledgeBaseId ?? null,
-      enabled: item.enabled
+      enabled: item.enabled,
+      // cloud 任务不在本地编辑（排期在服务端），这里当成本机处理
+      owner: item.owner === 'goose' ? 'goose' : 'client'
     })
   }
 
@@ -158,7 +163,8 @@ function AutomationSheet(props: AutomationSheetProps) {
       prompt: current.prompt.trim(),
       knowledgeBaseId: current.knowledgeBaseId,
       schedule: current.schedule.trim(),
-      enabled: current.enabled
+      enabled: current.enabled,
+      owner: current.owner
     })
     if (ok) setDraft(null)
   }
@@ -215,7 +221,10 @@ function AutomationSheet(props: AutomationSheetProps) {
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="truncate text-xs font-medium">{item.name}</span>
                         <span className="truncate text-xs text-muted-foreground">
-                          {describeSchedule(item.schedule)} · 下次 {formatTime(item.nextRunAt)}
+                          {describeSchedule(item.schedule)} ·{' '}
+                          {item.owner === 'goose'
+                            ? '由 goose 排期'
+                            : `下次 ${formatTime(item.nextRunAt)}`}
                         </span>
                         {item.lastStatus ? (
                           <span className="truncate text-xs text-muted-foreground">
@@ -381,6 +390,28 @@ function AutomationSheet(props: AutomationSheetProps) {
                   }}
                 />
               </label>
+              <Label className="text-xs">执行方</Label>
+              <Select
+                value={draft?.owner ?? 'client'}
+                onValueChange={function (value) {
+                  const owner = value === 'goose' ? 'goose' : 'client'
+                  setDraft(function (prev) {
+                    return prev ? { ...prev, owner } : prev
+                  })
+                }}>
+                <SelectTrigger size="sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="client">本机（应用运行时执行）</SelectItem>
+                  <SelectItem value="goose">goose 调度器</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {draft?.owner === 'goose'
+                  ? '交给 goose 排期：本机会把任务写成一个最小 recipe；需要 goose 的调度服务在运行。'
+                  : '本机执行：应用关闭时不跑；错过的时段重启后只补一次。'}
+              </p>
             </div>
             <DialogFooter>
               <Button

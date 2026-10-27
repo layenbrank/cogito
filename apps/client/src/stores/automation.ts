@@ -109,6 +109,11 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
       set({ running: { ...get().running, [id]: true } })
       try {
         const due = await runAutomationNow(id)
+        if (!due) {
+          // owner=goose：执行在 goose 侧，本地没有执行记录
+          toast.success('已交给 goose 执行，记录请看 goose 会话')
+          return
+        }
         // 手动执行与定时执行走同一条执行路径：跑完由 runner 回写结果
         await runDue({
           runId: due.run.id,
