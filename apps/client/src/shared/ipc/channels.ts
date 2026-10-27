@@ -37,6 +37,17 @@ export const CHANNELS = {
     SET_STATUS: 'directiveDraft:setStatus',
     REMOVE: 'directiveDraft:remove'
   },
+  KNOWLEDGE: {
+    LIST_BASES: 'knowledge:listBases',
+    CREATE_BASE: 'knowledge:createBase',
+    LIST_DOCS: 'knowledge:listDocs',
+    SEARCH: 'knowledge:search',
+    LIST_STAGING: 'knowledge:listStaging',
+    PUBLISH: 'knowledge:publish',
+    DISCARD_STAGING: 'knowledge:discardStaging',
+    RESCAN: 'knowledge:rescan',
+    REMOVE_DOC: 'knowledge:removeDoc'
+  },
   AUTOSTART: {
     READ: 'autostart:read',
     UPDATE: 'autostart:update'

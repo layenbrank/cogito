@@ -10,9 +10,11 @@ import {
   TooltipTrigger
 } from '@cogito/design/components/tooltip'
 import { cn } from 'cn'
+import { useState } from 'react'
 
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { t } from '@/views/knowledge/locale.ts'
+import { KnowledgeHub } from '@/views/knowledge/hub/knowledge-hub.tsx'
 
 interface LayoutButtonProps {
   label: string
@@ -71,6 +73,8 @@ function MarkdownCaptionFinal() {
   const toSetPrefsOpen = useKnowledgeStore(function (state) {
     return state.toSetPrefsOpen
   })
+  // 知识库面板是「库级」操作（列表/检索/待发布草稿），与编辑器偏好分开入口
+  const [isHubOpen, setIsHubOpen] = useState(false)
 
   if (isFocusMode) return null
 
@@ -93,12 +97,24 @@ function MarkdownCaptionFinal() {
         className="mx-0.5 h-4 w-px shrink-0 bg-border"
       />
       <LayoutButton
+        label="知识库"
+        icon="lucide:library-big"
+        isPressed={isHubOpen}
+        onClick={function () {
+          setIsHubOpen(true)
+        }}
+      />
+      <LayoutButton
         label={t('PREFERENCES')}
         icon="lucide:settings-2"
         isPressed={false}
         onClick={function () {
           toSetPrefsOpen(true)
         }}
+      />
+      <KnowledgeHub
+        open={isHubOpen}
+        onOpenChange={setIsHubOpen}
       />
     </div>
   )
