@@ -413,10 +413,19 @@
 - 进度：不另做进度事件——聊天里的逐章工具调用就是进度，草稿列表每次合并/发布后 `refresh()`。
 - 验证：`cargo test -p cogito-core` **28/28**（新增「乱序传入仍按文件名拼接且分片清理」「staging 外文件拒绝且不动原文件」）；`cargo test -p cogito-database` 6/6；`cargo check -p cogito-command` 通过；client `tsc` 通过、全量 63 文件 363 测试通过。
 
+**Phase 5 ③-3（编辑器 AI + 收尾，2026-10-27）**
+- 内联 AI：`features/agent/inline-prompt.ts` 用 `runThreadPrompt` 起**一次性 ACP session**（`inline-<uuid>`），跑完 `closeThreadSession`。不复用聊天会话：内联不需要历史，复用会把草稿混进用户对话；不关会话则登记表只增不减。内联不挂工具（没有审批 UI，触发审批只会卡到票据超时）。
+- 动作表在 `views/knowledge/lib/ai-edit.ts`（`AI_ACTIONS`）：续写取光标前 2000 字、重写必须选区、总结无选区时读全文前 6000 字并落到文末；续写按纯文本插入，改写/总结走 Markdown → HTML 插入（一次 `insertContentAt` = 一步撤销）。结果先进 `ai-preview-dialog` 的 diff 预览，`lib/diff.ts` 手写行级 LCS（>1200 行退化为整块删加）。
+- 符号收口：`MarkdownViewMode/Preferences/Session/Store`、`MarkdownCaptionBegin/Final`、`MarkdownWorkspace/Skeleton`、`useMarkdownCommands` → `Knowledge*`；`use-markdown-commands.ts` → `use-knowledge-commands.ts`。**格式层保留 Markdown 名**（`parseMarkdown` / `readMarkdownFile` / `isMarkdownName` …）。
+- `rootDir` 不再是持久偏好：改为运行时状态 `toSetRootDir`，值来自**当前库目录**（`findActiveBaseRoot`），切库/首次拿到库列表时同步；偏好面板里只读展示。打开库外文件仍临时改到它所在目录。
+- 删掉 `lib/backup.ts`：每 30 秒一份 `.bak` 是纯垃圾（保存已走 `writeDoc` 的写盘 + 落库 + hash 冲突判定），`isLargeMarkdown` 移到 `lib/stats.ts`。**旧的 `appDataDir()/markdown-backups` 目录留在磁盘上不再写入**，未做自动删除。
+- 库选项接上行为：`knowledge:updateBase`（`toUpdateBase`，只改传入项）+ 面板「库设置」三个开关；`autoUpdate` → 打开面板先 `rescanBase`；`autoExport` → 发布后把 HTML 另存到 `<库目录>/exports/`；`citation` → 生成对话框默认值，改了就回写。
+- 验证：core **29/29**（新增「只改传入的库选项」）、database 6/6、`cargo check -p cogito` 通过；client `tsc`/`eslint` 干净、全量 65 文件 **377** 测试通过。
+
 ### 待办（按依赖顺序，尚需继续）
 
 1. **Phase 2（已完成 2026-10-27）**：桥 / 工具目录 / 注入 / `app_workspace_read` / 本地工具自检均落地。**仅剩人工复核**：`pnpm dev:client` 起应用后，新建会话应看到 8 个 `app_*` 且日志无「工具名与基线不一致」；让 agent 调 `app_calendar_read` 应返回真实日程。
-2. **Phase 5 ③（余下：编辑器 AI 与收尾）**：保存落库与冲突（③-1）、生成编排（③-2）已落地。还剩：tiptap「AI 续写/重写选区/总结」（结果进 diff 预览再应用）；生成/发布流程接上 `autoUpdate/autoExport` 选项；旧 `rootDir` 偏好改为「当前库目录」与 `markdown-backups/` 清理；`Markdown*` 符号改名为 `Knowledge*`（决策 5 定的时机已到）。
+2. **Phase 5 ③（已全部落地 2026-10-27）**：保存落库与冲突（③-1）、生成编排（③-2）、编辑器内联 AI 与收尾（③-3）。**仅剩人工复核**：内联 AI 在真机走一轮（续写/重写/总结 + diff 应用 + Ctrl+Z），发布后 `exports/*.html` 有产物，切库后侧栏根跟随。
 3. **Phase 6/7/8**：云端 RAG（compute `assetIDs` 过滤 + service `/rag/search` + 客户端上传/索引 + RRF）、自动化（A 客户端 worker / B goose schedules / C 服务端 `scheduled_job`）、导出收尾与文档。
 
 ### 待决问题（已决 2026-10-27）
