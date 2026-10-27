@@ -428,13 +428,18 @@
 - service：`POST /api/v1/rag/search`（`SearchService::find`）：**模型由服务端定**（`compute.embed_model`，必须与索引时一致），客户端不传；空查询 400（`500606`），compute 未接/失败 503（`500607`）；错误只分「参数问题不重试」与「下游暂时不行可重试」两类。OAS 与模块 README 同步。
 - 客户端：`apis/rag.ts`（`POST /rag/search`）+ `knowledge:cloudDocs`（`cloudStatus=succeeded` 的 docID ↔ assetID 对照表）+ `views/knowledge/lib/hybrid-search.ts`（本地 FTS 与云端按 RRF 融合，k=60，同文档多块只取最高分那块）。降级：云端任何失败只让结果变「本地 + 标注」，没有云端索引时连请求都不发。
 - 验证：compute `pytest` **354 passed**（含新 8 条）+ `ruff check/format` 干净；service `cargo test -p cogito --lib` **311 passed**，`cargo check --features openapi` 通过；client `tsc`/`eslint` 干净、**66 文件 383 测试**通过（含 6 条 RRF 用例）。
-- **待续**：客户端还**没有资产上传通道**（`apis/` 里没有 upload），所以「把文档传到云端并建索引」这一半还没接；`knowledge_index_state.cloudStatus` 目前只由本地回灌写入 `idle`。等 upload 面接通后：上传 → `POST /api/v1/rag/index-tasks` → 轮询写入 `cloudAssetId/cloudModel`，云通道才真正有数据。
+- **客户端上云（2026-10-27 补齐写半边）**：`apis/upload.ts`（先算整文件 SHA-256，`prepare` 带 hash，命中整文件秒传连分片都不传；分片 10MB 下限，小文档就是一个分片）→ `apis/rag.ts` 的 `POST/GET rag/index-tasks` → `views/knowledge/lib/cloud-sync.ts` 串起来，并把状态写回 `knowledge_index_state`。
+  - 状态机：`running`（带 assetID，先落再等）→ `succeeded`（带 indexedAt）／`failed`（带原因）；写状态前先确认文档行存在，不造孤儿行。
+  - 串行同步：服务端同一资产只允许一个索引任务，并发只会互相 409。
+  - 面板：标题栏「同步到云端」（只挑状态不是 succeeded 的文档）+ 每篇文档的角标（待上云 / 索引中 / 已上云 / 同步失败，悬停看原因）。
+  - 验证：core `cargo test -p cogito-core knowledge` **27/27**（新增状态 upsert 与「文档不存在不建孤儿行」）；`cargo check -p cogito` 通过；client `tsc`/`eslint` 干净、**67 文件 386 测试**（含 3 条编排用例）。
+  - **未做**：真机联调需要在 service/compute 镜像里带上新增端点（当前 compose 里跑的是旧镜像），以及一个已登录账号。
 
 ### 待办（按依赖顺序，尚需继续）
 
 1. **Phase 2（已完成 2026-10-27）**：桥 / 工具目录 / 注入 / `app_workspace_read` / 本地工具自检均落地。**仅剩人工复核**：`pnpm dev:client` 起应用后，新建会话应看到 8 个 `app_*` 且日志无「工具名与基线不一致」；让 agent 调 `app_calendar_read` 应返回真实日程。
 2. **Phase 5 ③（已全部落地 2026-10-27）**：保存落库与冲突（③-1）、生成编排（③-2）、编辑器内联 AI 与收尾（③-3）。**仅剩人工复核**：内联 AI 在真机走一轮（续写/重写/总结 + diff 应用 + Ctrl+Z），发布后 `exports/*.html` 有产物，切库后侧栏根跟随。
-3. **Phase 6 余下 / 7 / 8**：客户端资产上传与云端索引（上传 → index-tasks → 回写 `cloudAssetId`）、自动化（A 客户端 worker / B goose schedules / C 服务端 `scheduled_job`）、导出收尾与文档。
+3. **Phase 6 余下 / 7 / 8**：云端检索的**真机联调**（重建 service/compute 镜像 + 登录账号，跑一遍上传→索引→召回）、自动化（A 客户端 worker / B goose schedules / C 服务端 `scheduled_job`）、导出收尾与文档。
 
 ### 待决问题（已决 2026-10-27）
 
