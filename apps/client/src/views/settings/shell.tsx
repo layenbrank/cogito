@@ -11,7 +11,6 @@ import {
   type SettingsNavigatePayload
 } from '@/features/window/open-settings'
 import {
-  HEAD,
   MOTION,
   NAVS,
   SECTION,
@@ -64,11 +63,6 @@ function Shell() {
     updateSearchParams({ section: key }, { replace: true })
   }
 
-  const headText = HEAD[section]
-  const headVariants = MOTION.variants({
-    isReducedMotion: !!isReducedMotion,
-    offset: MOTION.OFFSET.HEAD
-  })
   const viewVariants = MOTION.fadeVariants(!!isReducedMotion)
   const viewTransition = MOTION.transition(!!isReducedMotion)
 
@@ -118,21 +112,6 @@ function Shell() {
       </aside>
 
       <section className={styles.main}>
-        <AnimatePresence
-          mode="wait"
-          initial={false}>
-          <m.header
-            key={section}
-            className={styles.head}
-            initial={headVariants.initial}
-            animate={headVariants.animate}
-            exit={headVariants.exit}
-            transition={viewTransition}>
-            <h1 className={styles.headTitle}>{headText.title}</h1>
-            <p className={styles.headSubtitle}>{headText.subtitle}</p>
-          </m.header>
-        </AnimatePresence>
-
         <div className={styles.stage}>
           <AnimatePresence
             mode="wait"

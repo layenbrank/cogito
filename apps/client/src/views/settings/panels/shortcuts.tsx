@@ -23,7 +23,7 @@ import { readGlobalShortcuts, subscribeGlobalShortcuts } from '@/keyboard/state'
 import type { GlobalShortcutSnapshot } from '@/keyboard/state'
 import type { GlobalShortcutRuntime, ShortcutDefinition, ShortcutScope } from '@/keyboard/types'
 import { useSettingsStore } from '@/stores/setting'
-import { SettingsSection } from '@/views/settings/panels/section.tsx'
+import { PANEL_STACK, SettingsSection } from '@/views/settings/panels/section.tsx'
 import { ShortcutInput } from '@/views/settings/panels/shortcut-input'
 
 const EMPTY_RUNTIME: GlobalShortcutSnapshot = {}
@@ -79,9 +79,9 @@ function ShortcutRow(props: ShortcutRowProps) {
   const hint = conflict?.message ?? runtime?.error
 
   return (
-    <div className="flex items-start gap-4 border-b border-border/40 py-2 last:border-b-0">
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="flex items-start gap-3 border-b border-border/40 py-1.5 last:border-b-0">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex min-h-7 flex-wrap items-center gap-2">
           <span className="text-sm text-foreground">{definition.title}</span>
           <GlobalStatus runtime={runtime} />
           {conflict ? (
@@ -209,9 +209,9 @@ function ShortcutsPanel() {
   }
 
   return (
-    <div className="flex flex-col gap-3 text-sm">
+    <div className={PANEL_STACK}>
       {customized.length > 0 ? (
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card px-4 py-2.5">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3.5 py-2">
           <span className="text-xs text-muted-foreground">
             已自定义 {customized.length} 项；恢复默认后跟随代码里的默认键位
           </span>

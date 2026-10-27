@@ -1,10 +1,5 @@
 type SectionKey = 'general' | 'appearance' | 'account' | 'capture' | 'shortcuts'
 
-type HeadText = {
-  title: string
-  subtitle: string
-}
-
 type NavMeta = {
   key: SectionKey
   icon: string
@@ -34,29 +29,6 @@ const NAVS: NavMeta[] = [
   { key: SECTION.APPEARANCE, icon: 'ant-design:bg-colors-outlined', label: '外观' }
 ]
 
-const HEAD: Record<SectionKey, HeadText> = {
-  general: {
-    title: '通用',
-    subtitle: '应用基础偏好与系统行为'
-  },
-  appearance: {
-    title: '外观',
-    subtitle: '定制界面风格、密度与组件样式'
-  },
-  account: {
-    title: '账号',
-    subtitle: '个人资料、头像与登录状态'
-  },
-  capture: {
-    title: '截屏',
-    subtitle: '窗口检测与自动清理策略'
-  },
-  shortcuts: {
-    title: '快捷键',
-    subtitle: '系统级与窗口内键位；系统级在任何应用前台都生效'
-  }
-}
-
 const SECTION_KEYS: readonly SectionKey[] = [
   SECTION.ACCOUNT,
   SECTION.GENERAL,
@@ -74,7 +46,6 @@ const MOTION = {
   DURATION: 0.22,
   EASE: [0.22, 1, 0.36, 1] as const,
   OFFSET: {
-    HEAD: 4,
     VIEW: 8
   },
   transition(isReducedMotion: boolean) {
@@ -113,5 +84,5 @@ function findNavMeta(key: SectionKey): NavMeta | undefined {
   })
 }
 
-export { HEAD, MOTION, NAVS, SECTION, SECTION_KEYS, findNavMeta, parseSectionKey }
-export type { HeadText, NavMeta, SectionKey }
+export { MOTION, NAVS, SECTION, SECTION_KEYS, findNavMeta, parseSectionKey }
+export type { NavMeta, SectionKey }

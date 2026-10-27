@@ -11,7 +11,11 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { ConfirmAction } from '@/views/settings/panels/confirm-action.tsx'
-import { SettingsRow, SettingsSection } from '@/views/settings/panels/section.tsx'
+import {
+  PANEL_STACK,
+  SettingsRow,
+  SettingsSection
+} from '@/views/settings/panels/section.tsx'
 import { useSettingsStore } from '@/stores/setting'
 import { exitApp } from '@/utils/process'
 import { checkUpdate } from '@/utils/updater'
@@ -58,7 +62,7 @@ function GeneralPanel() {
   }
 
   return (
-    <div className="flex max-w-full flex-col gap-3 text-sm">
+    <div className={PANEL_STACK}>
       <SettingsSection title="系统行为">
         <SettingsRow
           label="开机自启"
@@ -99,7 +103,7 @@ function GeneralPanel() {
       </SettingsSection>
 
       <SettingsSection title="应用">
-        <div className="flex flex-wrap items-center gap-2.5 py-2">
+        <div className="flex flex-wrap items-center gap-2 py-1">
           <Button
             variant="outline"
             disabled={checking}

@@ -1,9 +1,12 @@
 import { cn } from 'cn'
 import type { ReactNode } from 'react'
 
-const SECTION = 'rounded-xl border border-border bg-card p-4'
+/** 各设置 panel 外层栈：统一卡片间距 */
+const PANEL_STACK = 'flex max-w-full flex-col gap-2 text-sm'
+
+const SECTION = 'rounded-xl border border-border bg-card px-3.5 py-3'
 const SECTION_TITLE =
-  'mb-3 border-b border-border/60 pb-2 text-sm font-semibold text-foreground select-none'
+  'mb-2 border-b border-border/60 pb-1.5 text-sm font-semibold text-foreground select-none'
 
 interface SettingsSectionProps {
   title: string
@@ -28,20 +31,23 @@ interface SettingsRowProps {
   children: ReactNode
 }
 
-/** 设置项：固定宽标签 + 控件（+ 说明） */
+/**
+ * 紧凑设置行：左标签（约四字宽）+ 右控件，说明贴控件。
+ * 控件行用 min-h-7 保留可点高度，不用大 margin 撑开。
+ */
 function SettingsRow(props: SettingsRowProps) {
   return (
-    <div className="flex items-start gap-4 py-2">
-      <span className="mt-1.5 w-20 shrink-0 text-sm text-muted-foreground">{props.label}</span>
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="flex flex-wrap items-center gap-2.5">{props.children}</div>
+    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-x-2.5 py-1">
+      <span className="pt-1.5 text-sm leading-none text-muted-foreground">{props.label}</span>
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <div className="flex min-h-7 flex-wrap items-center gap-2">{props.children}</div>
         {props.hint ? (
-          <p className="text-xs leading-relaxed text-muted-foreground">{props.hint}</p>
+          <p className="text-xs leading-snug text-muted-foreground">{props.hint}</p>
         ) : null}
       </div>
     </div>
   )
 }
 
-export { SettingsRow, SettingsSection }
+export { PANEL_STACK, SettingsRow, SettingsSection }
 export type { SettingsRowProps, SettingsSectionProps }

@@ -5,7 +5,11 @@ import { cn } from 'cn'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
-import { SettingsRow, SettingsSection } from '@/views/settings/panels/section.tsx'
+import {
+  PANEL_STACK,
+  SettingsRow,
+  SettingsSection
+} from '@/views/settings/panels/section.tsx'
 import {
   APPEARANCE_MODES,
   MOTION_PRESETS,
@@ -46,7 +50,7 @@ function AppearancePanel() {
   }
 
   return (
-    <div className="flex max-w-full flex-col gap-3 text-sm">
+    <div className={PANEL_STACK}>
       <SettingsSection title="基础外观">
         <SettingsRow label="外观模式">
           <ToggleGroup
