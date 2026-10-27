@@ -422,11 +422,19 @@
 - 库选项接上行为：`knowledge:updateBase`（`toUpdateBase`，只改传入项）+ 面板「库设置」三个开关；`autoUpdate` → 打开面板先 `rescanBase`；`autoExport` → 发布后把 HTML 另存到 `<库目录>/exports/`；`citation` → 生成对话框默认值，改了就回写。
 - 验证：core **29/29**（新增「只改传入的库选项」）、database 6/6、`cargo check -p cogito` 通过；client `tsc`/`eslint` 干净、全量 65 文件 **377** 测试通过。
 
+**Phase 6（云端 RAG，2026-10-27 部分落地）**
+- compute：`rag.search` 补成端点（`POST /internal/v1/rag/search`）：原本只作为 agent 步的内部工具，客户端云通道需要能被 cogito 调到的入口。只读、**不进幂等账本**；新增 `assetIDs` 收窄（`$6::uuid[]` 为 NULL 即全租户，空数组 = 没有可查的资产，不退化成全租户）。测试 8 条（租户隔离 / 收窄 / 空数组 / 模型不一致 / 只读无账本 / topK / 400）。
+- 契约与测试：`spec/internal.yaml` 增 `SearchRequest/SearchHit/SearchResponse`；`test_route_surface.py` 的 `rag.search` 从空集改成真路由。**顺带修好一处静默失效**：两处测试按旧目录名 `apps/cogito` 找契约，找不到就 skip —— 改为 `apps/service` 后本地 pgvector 测试库下 compute 全量 **346 → 354** 全绿。
+- service：`POST /api/v1/rag/search`（`SearchService::find`）：**模型由服务端定**（`compute.embed_model`，必须与索引时一致），客户端不传；空查询 400（`500606`），compute 未接/失败 503（`500607`）；错误只分「参数问题不重试」与「下游暂时不行可重试」两类。OAS 与模块 README 同步。
+- 客户端：`apis/rag.ts`（`POST /rag/search`）+ `knowledge:cloudDocs`（`cloudStatus=succeeded` 的 docID ↔ assetID 对照表）+ `views/knowledge/lib/hybrid-search.ts`（本地 FTS 与云端按 RRF 融合，k=60，同文档多块只取最高分那块）。降级：云端任何失败只让结果变「本地 + 标注」，没有云端索引时连请求都不发。
+- 验证：compute `pytest` **354 passed**（含新 8 条）+ `ruff check/format` 干净；service `cargo test -p cogito --lib` **311 passed**，`cargo check --features openapi` 通过；client `tsc`/`eslint` 干净、**66 文件 383 测试**通过（含 6 条 RRF 用例）。
+- **待续**：客户端还**没有资产上传通道**（`apis/` 里没有 upload），所以「把文档传到云端并建索引」这一半还没接；`knowledge_index_state.cloudStatus` 目前只由本地回灌写入 `idle`。等 upload 面接通后：上传 → `POST /api/v1/rag/index-tasks` → 轮询写入 `cloudAssetId/cloudModel`，云通道才真正有数据。
+
 ### 待办（按依赖顺序，尚需继续）
 
 1. **Phase 2（已完成 2026-10-27）**：桥 / 工具目录 / 注入 / `app_workspace_read` / 本地工具自检均落地。**仅剩人工复核**：`pnpm dev:client` 起应用后，新建会话应看到 8 个 `app_*` 且日志无「工具名与基线不一致」；让 agent 调 `app_calendar_read` 应返回真实日程。
 2. **Phase 5 ③（已全部落地 2026-10-27）**：保存落库与冲突（③-1）、生成编排（③-2）、编辑器内联 AI 与收尾（③-3）。**仅剩人工复核**：内联 AI 在真机走一轮（续写/重写/总结 + diff 应用 + Ctrl+Z），发布后 `exports/*.html` 有产物，切库后侧栏根跟随。
-3. **Phase 6/7/8**：云端 RAG（compute `assetIDs` 过滤 + service `/rag/search` + 客户端上传/索引 + RRF）、自动化（A 客户端 worker / B goose schedules / C 服务端 `scheduled_job`）、导出收尾与文档。
+3. **Phase 6 余下 / 7 / 8**：客户端资产上传与云端索引（上传 → index-tasks → 回写 `cloudAssetId`）、自动化（A 客户端 worker / B goose schedules / C 服务端 `scheduled_job`）、导出收尾与文档。
 
 ### 待决问题（已决 2026-10-27）
 
