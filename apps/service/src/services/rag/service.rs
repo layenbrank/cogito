@@ -26,13 +26,16 @@ use uuid::Uuid;
 
 use authz::{Action, Permission, Resource};
 
+use crate::clients::compute::{
+    CallMeta, ComputeClient, ComputeError, INTERNAL_SCHEMA_VERSION, SearchRequest,
+};
 use crate::databases::database::Storage;
 use crate::filters::exception::Exception;
 use crate::guards::tenant::TenantCtx;
 use crate::orchestrations::rag::{INDEX_ASSET, IndexAssetInput};
 use crate::services::rag::dispatch;
 use crate::services::rag::error::RagError;
-use crate::services::rag::schema::{IndexTaskP, IndexTaskR};
+use crate::services::rag::schema::{IndexTaskP, IndexTaskR, SearchHitR, SearchP, SearchR};
 use crate::services::upload::schema::UploadStatus;
 use crate::utils::telemetry::current_traceparent;
 
@@ -242,6 +245,105 @@ impl IndexService {
     }
 }
 
+/// 检索：把查询转给 compute，回传命中的块。
+///
+/// 与索引路径的关系只有一条：**嵌入模型必须与索引时用的一致**，所以 `model` 从服务端配置取
+/// （`compute.embed_model`），不接受客户端指指定 —— 客户端传错只会得到一份空结果，
+/// 而排查方向会被引到「索引没建好」上。
+///
+/// 没有台账、没有编排：检索是只读的一次外部调用，失败就如实报失败（可重试的 503/429）。
+pub struct SearchService;
+
+impl SearchService {
+    /// 在本租户已索引的内容里检索。
+    ///
+    /// # Errors
+    /// 权限不足 403；compute 未接通 503；compute 报错按分类映射（429 限流、5xx 暂不可用）。
+    pub async fn find(
+        ctx: TenantCtx,
+        compute: Option<&Arc<ComputeClient>>,
+        embed_model: &str,
+        req: SearchP,
+        traceparent: Option<String>,
+    ) -> Result<SearchR, Exception> {
+        ctx.require(READ_ASSET)?;
+
+        let query = req.query.trim();
+        if query.is_empty() {
+            return Err(RagError::EmptyQuery.into());
+        }
+
+        let tenant_id = ctx.tenant_id();
+        // compute 是外部调用，不能挂在请求事务上。
+        ctx.rollback().await?;
+
+        let Some(client) = compute else {
+            return Err(RagError::ComputeUnavailable(
+                "compute 未配置（api 进程未接计算车间）".into(),
+            )
+            .into());
+        };
+
+        let request = SearchRequest {
+            schema_version: INTERNAL_SCHEMA_VERSION,
+            tenant_id: tenant_id.as_uuid().to_string(),
+            model: embed_model.to_owned(),
+            query: query.to_owned(),
+            top_k: req.top_k,
+            asset_ids: req.asset_ids,
+        };
+        // 幂等键只是头的占位（检索端点不进幂等账本）；按「租户 + 查询 + 资产集」派生，
+        // 重试时下游看到的仍是同一次请求。
+        let meta = CallMeta::new(
+            format!(
+                "rag-search:{}:{}:{}",
+                tenant_id.as_uuid(),
+                request.query,
+                request.asset_ids.as_ref().map_or(0, Vec::len)
+            ),
+            traceparent,
+        );
+
+        let response = client
+            .rag_search(&request, &meta)
+            .await
+            .map_err(search_error)?;
+
+        Ok(SearchR {
+            hits: response
+                .hits
+                .into_iter()
+                .map(|hit| SearchHitR {
+                    asset_id: hit.asset_id,
+                    ordinal: hit.ordinal,
+                    score: hit.score,
+                    text: hit.text,
+                })
+                .collect(),
+        })
+    }
+}
+
+/// compute 的错误 → 对外失败。
+///
+/// 只分两类：**请求本身有问题**（400，重试没意义）与**下游暂时不行**（503，可重试）。
+/// 把两类混成一句「检索失败」会让客户端在参数写错时反复重试。
+fn search_error(err: ComputeError) -> Exception {
+    match err {
+        ComputeError::Rejected { status, .. } if (400..500).contains(&status) => {
+            tracing::warn!(status, "rag 检索被 compute 拒绝");
+            Exception::custom(
+                crate::utils::code::request::INVALID_PARAMETER_VALUE,
+                "检索参数不合法",
+            )
+        }
+        other => {
+            tracing::error!(error = %other, "rag 检索调用 compute 失败");
+            RagError::ComputeUnavailable(other.to_string()).into()
+        }
+    }
+}
+
 /// 编排里没有这个实例：只有行龄够老才判失败，否则保持 `RUNNING` 等它被领走。
 async fn settle_after_missing(
     storage: &Storage,
@@ -258,7 +360,6 @@ async fn settle_after_missing(
 
     Ok(render(settled.as_ref().unwrap_or(&row), None))
 }
-
 /// 把「编排起不来」落成失败台账，返回这个 503。
 ///
 /// 落库失败只记日志：响应还是要说「这次没跑起来」，但那一行最坏也只是停在 `RUNNING` 上，
@@ -338,6 +439,35 @@ mod tests {
     fn render_without_progress_does_not_invent_one() {
         let rendered = render(&row(), None);
         assert_eq!(rendered.progress, None);
+    }
+
+    /// 检索失败只分两类：参数问题不重试，下游暂时不行才重试。
+    #[test]
+    fn search_errors_split_into_rejected_and_unavailable() {
+        let rejected = search_error(ComputeError::Rejected {
+            status: 400,
+            body: "bad query".into(),
+        });
+        assert_eq!(
+            rejected.code,
+            crate::utils::code::request::INVALID_PARAMETER_VALUE
+        );
+
+        let unavailable = search_error(ComputeError::Unavailable {
+            status: 502,
+            body: "down".into(),
+        });
+        assert_eq!(
+            unavailable.code,
+            crate::utils::code::business::rag::SEARCH_UNAVAILABLE
+        );
+
+        // 429 也归到「可重试」，不能因为它是 4xx 就判成参数错。
+        let limited = search_error(ComputeError::RateLimited);
+        assert_eq!(
+            limited.code,
+            crate::utils::code::business::rag::SEARCH_UNAVAILABLE
+        );
     }
 
     #[test]

@@ -11,7 +11,7 @@ use crate::services::{
     exception::schema::{ExceptionR, GroupPageR, PageR, SummaryR},
     gateway::schema::{ModelR, PlansR, ProviderR, SelfQuotaR},
     payment::schema::{CatalogR, OrderR, PriceR, ReconcileR},
-    rag::schema::IndexTaskR,
+    rag::schema::{IndexTaskR, SearchR},
     sso::schema::{SsoConnectionR, SsoLoginR},
     subscription::schema::{QuotaR, SubscriptionR},
     tenant::schema::{MemberR, TenantR},
@@ -88,6 +88,7 @@ envelope!(ReconcileEnvelope, ReconcileR);
 envelope!(TaskEnvelope, TaskR);
 envelope!(ApprovalEnvelope, ApprovalR);
 envelope!(IndexTaskEnvelope, IndexTaskR);
+envelope!(SearchEnvelope, SearchR);
 envelope!(ChatSyncEnvelope, ChatSyncR);
 envelope!(ChatChangesEnvelope, ChatChangesR);
 

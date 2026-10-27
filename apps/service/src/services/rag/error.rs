@@ -34,6 +34,12 @@ pub enum RagError {
     /// 台账读写故障：状态字面量不认识、写回终态被拒等。
     #[error("{0}")]
     Ledger(String),
+    /// 检索词是空的：没有语义，比返回一堆随机块有用。
+    #[error("检索词不能为空")]
+    EmptyQuery,
+    /// compute 未接通（api 进程没接计算车间）。
+    #[error("{0}")]
+    ComputeUnavailable(String),
 }
 
 impl From<rag::Error> for RagError {
@@ -84,6 +90,14 @@ impl From<RagError> for Exception {
             RagError::Ledger(msg) => {
                 tracing::error!(error = %msg, "rag 索引台账错误");
                 Exception::custom(system::INTERNAL_ERROR, "内部错误")
+            }
+            RagError::EmptyQuery => Exception::custom(business::rag::EMPTY_QUERY, "检索词不能为空"),
+            RagError::ComputeUnavailable(msg) => {
+                tracing::error!(error = %msg, "rag 检索不可用");
+                Exception::custom(
+                    business::rag::SEARCH_UNAVAILABLE,
+                    "检索服务暂时不可用，请稍后重试",
+                )
             }
         }
     }

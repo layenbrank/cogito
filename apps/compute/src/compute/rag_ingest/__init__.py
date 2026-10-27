@@ -4,12 +4,13 @@
 
 * 分块 `rag.chunk`（**P6b-3**）：`POST /internal/v1/assets/{assetID}/chunks`；
 * 嵌入 `rag.embed`（**P6b-4**）：`POST /internal/v1/assets/{assetID}/embeddings`；
-* 落索引 `rag.index`（**P6b-4**）：`PUT /internal/v1/assets/{assetID}/index`。
+* 落索引 `rag.index`（**P6b-4**）：`PUT /internal/v1/assets/{assetID}/index`；
+* 检索 `rag.search`（**P6b-5**）：`POST /internal/v1/rag/search`。
 
-检索面 `rag.search`（**P9b**）与前三个不一样：它**不暴露端点**，只作为 agent 步内部的工具被调用
-（`search.find()`），因为「查一次」不是一个 cogito 会自己发起的编排步骤——那是模型的决定。
-能力登记表里仍然要出现它：核心能力要能被 cogito 与运维看见（见 `tests/test_route_surface.py`
-里 `CAPABILITY_ROUTES["rag.search"]` 的空集语义）。
+检索面与前三者不同：它**只读**，不进幂等账本。同样的 `search.find()` 被两个消费者用着 ——
+服务端 agent 步在进程内直接调它（检索是模型的一次工具调用），客户端知识库经 cogito
+`POST /api/v1/rag/search` 转进来（检索是用户点的按钮）。所以 `rag.search` **有**端点，
+它是客户端云通道的入口。
 
 一个能力包只暴露一个 `ROUTER`（`app.create_app` 按这个名字取），所以新增路由要在这里聚合，
 不能各自往 `app` 上挂。
@@ -31,12 +32,13 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from compute import capabilities
-from compute.rag_ingest import embed, index, router
+from compute.rag_ingest import embed, index, router, search
 
 ROUTER = APIRouter()
 ROUTER.include_router(router.ROUTER)
 ROUTER.include_router(embed.ROUTER)
 ROUTER.include_router(index.ROUTER)
+ROUTER.include_router(search.ROUTER)
 
 #: 登记进健康探针的能力名（契约词汇，别改拼写）。
 registry = capabilities.registry.register("rag.chunk", implemented_in="compute.rag_ingest")

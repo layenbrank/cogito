@@ -202,6 +202,7 @@ use crate::services::user::schema::{Avatar as UserAvatar, UpdateP, UserR, WriteP
         agent::decide_approval_doc,
         rag::create_index_task_doc,
         rag::read_index_task_doc,
+        rag::search_doc,
         chat::push_changes_doc,
         chat::pull_changes_doc,
         mcp::handle_doc,

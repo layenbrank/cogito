@@ -108,6 +108,7 @@ pub const AGENT_TASK_APPROVAL: &str = "/api/v1/agent/tasks/{id}/approvals/{appro
 // --- RAG（索引任务，需 JWT + X-Tenant-ID） ---
 pub const RAG_INDEX_TASKS: &str = "/api/v1/rag/index-tasks";
 pub const RAG_INDEX_TASK_BY_ID: &str = "/api/v1/rag/index-tasks/{id}";
+pub const RAG_SEARCH: &str = "/api/v1/rag/search";
 
 // --- Chat（会话同步，需 JWT + X-Tenant-ID） ---
 /// 同一个资源两种方法：POST 推一批，GET 拉增量。

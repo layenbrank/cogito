@@ -13,13 +13,15 @@ use std::sync::Arc;
 use actix_web::{HttpRequest, HttpResponse, Result, web};
 use identity::TenantId;
 
+use crate::clients::compute::ComputeClient;
+use crate::configures::configure::Configure;
 use crate::databases::database::Storage;
 use crate::filters::exception::Exception;
 use crate::guards::session::Session;
 use crate::guards::tenant::TenantCtx;
 use crate::interceptors::envelope::Envelope;
-use crate::services::rag::schema::IndexTaskP;
-use crate::services::rag::service::IndexService;
+use crate::services::rag::schema::{IndexTaskP, SearchP};
+use crate::services::rag::service::{IndexService, SearchService};
 use crate::utils::code::request;
 
 pub struct IndexController;
@@ -71,12 +73,39 @@ impl IndexController {
             Err(err) => err.transform(),
         }
     }
+
+    /// 检索：把查询转给 compute，回传命中的块。
+    ///
+    /// 租户来自 `X-Tenant-ID`（同一个作用域约定）；嵌入模型取服务端配置，
+    /// 与索引时用的那个必须是同一个，否则距离没有可比性。
+    pub async fn search(
+        db: web::Data<Arc<Storage>>,
+        compute: web::Data<Option<Arc<ComputeClient>>>,
+        config: web::Data<Arc<Configure>>,
+        http: HttpRequest,
+        req: web::Json<SearchP>,
+    ) -> Result<HttpResponse> {
+        let session = session(&http)?;
+        let ctx = enter(&db, &session, &http).await?;
+
+        match SearchService::find(
+            ctx,
+            compute.get_ref().as_ref(),
+            &config.compute.embed_model,
+            req.into_inner(),
+            None,
+        )
+        .await
+        {
+            Ok(result) => Envelope::success(result, "检索成功").transform(),
+            Err(err) => err.transform(),
+        }
+    }
 }
 
 fn session(http: &HttpRequest) -> Result<Session, Exception> {
     Session::of(http).ok_or_else(|| Exception::unauthorized("用户未登录"))
 }
-
 /// 进入 `X-Tenant-ID` 指向的租户作用域：非成员在这里就被拒（403）。
 async fn enter(
     db: &Storage,

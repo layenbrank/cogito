@@ -45,3 +45,41 @@ pub struct IndexTaskR {
     #[serde(rename = "updatedAt")]
     pub updated_at: i64,
 }
+
+/// 检索请求（`POST /api/v1/rag/search`）。
+///
+/// `assetIDs` 是**收窄**而不是必填：不传表示「本租户全部已索引内容」，由 `model` 决定
+/// 用哪个向量空间。客户端要把范围钉在自己库里的文档上时才传它。
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchP {
+    /// 查询文本（原样送去嵌成向量）
+    pub query: String,
+    /// 嵌入模型；必须与索引时用的模型一致，否则距离没有可比性
+    pub model: String,
+    /// 最多返回多少块；缺省由服务端定上限
+    #[serde(rename = "topK")]
+    pub top_k: Option<i32>,
+    /// 只在这些资产里检索
+    #[serde(rename = "assetIDs")]
+    pub asset_ids: Option<Vec<String>>,
+}
+
+/// 一块命中。
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchHitR {
+    #[serde(rename = "assetID")]
+    pub asset_id: String,
+    pub ordinal: i32,
+    /// 余弦相似度（1 - 距离），越大越相近
+    pub score: f64,
+    pub text: String,
+}
+
+/// 检索结果。空列表是正常结果（没有已索引内容或没有相近块），不是错误。
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchR {
+    pub hits: Vec<SearchHitR>,
+}

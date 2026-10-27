@@ -30,6 +30,8 @@ pub const CHUNK_OBJECT_PATH: &str = "/internal/v1/assets/{assetID}/chunks";
 pub const EMBED_RANGE_PATH: &str = "/internal/v1/assets/{assetID}/embeddings";
 /// 把块集落进检索索引
 pub const UPSERT_INDEX_PATH: &str = "/internal/v1/assets/{assetID}/index";
+/// 按查询文本检索本租户已索引的块（只读）
+pub const RAG_SEARCH_PATH: &str = "/internal/v1/rag/search";
 /// 服务端 agent 的一步（无状态：一次推理 + 至多一轮工具）
 pub const AGENT_STEP_PATH: &str = "/internal/v1/agents/steps";
 /// 执行一次**已获人工批准**的工具调用（审批通道的执行半边）
@@ -188,8 +190,20 @@ impl ComputeClient {
         read_json(response).await
     }
 
-    /// 走一步 agent：一次推理 + 至多一轮工具。
+    /// 按查询文本检索（只读）：结果直接给客户端展示，不在服务端做融合。
     ///
+    /// 幂等键只是头的占位：compute 的检索端点**不进幂等账本**，重发同一个查询不会写账。
+    /// 这里按「租户 + 模型 + 查询 + 资产集」派一个确定性的键，重试时下游看到的仍是同一次请求。
+    pub async fn rag_search(
+        &self,
+        request: &SearchRequest,
+        meta: &CallMeta,
+    ) -> Result<SearchResponse, ComputeError> {
+        let url = format!("{}{}", self.base_url, RAG_SEARCH_PATH);
+        self.post_json_url(&url, request, meta).await
+    }
+
+    /// 走一步 agent：一次推理 + 至多一轮工具。    ///
     /// 路径没有占位符（租户与目标都在请求体里），所以不走 `post_json` 的占位符填充。
     pub async fn agent_step(
         &self,
@@ -471,6 +485,38 @@ pub struct IndexRequest {
 pub struct IndexResponse {
     pub indexed: i32,
     pub collection: String,
+}
+
+/// 检索请求（只读）。`assetIDs` 缺省 = 本租户全部；空数组 = 没有可查的资产。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchRequest {
+    pub schema_version: i32,
+    #[serde(rename = "tenantID")]
+    pub tenant_id: String,
+    pub model: String,
+    pub query: String,
+    #[serde(rename = "topK", skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<i32>,
+    #[serde(rename = "assetIDs", skip_serializing_if = "Option::is_none")]
+    pub asset_ids: Option<Vec<String>>,
+}
+
+/// 一块命中。`score` 是余弦相似度（越大越相近）。
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchHit {
+    #[serde(rename = "assetID")]
+    pub asset_id: String,
+    pub ordinal: i32,
+    pub score: f64,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchResponse {
+    pub hits: Vec<SearchHit>,
 }
 
 /// 单步 agent 的请求：目标 + **到目前为止的历史** + 本步可用工具 + 剩余轮次。
@@ -763,8 +809,8 @@ mod tests {
 
     #[test]
     fn from_parts_trims_slash_and_rejects_empty_url() {
-        let client = ComputeClient::from_parts("http://127.0.0.1:8081/", "t", 5_000, false)
-            .expect("client");
+        let client =
+            ComputeClient::from_parts("http://127.0.0.1:8081/", "t", 5_000, false).expect("client");
         assert_eq!(client.base_url, "http://127.0.0.1:8081");
         assert_eq!(
             client.url(CHUNK_OBJECT_PATH, "{assetID}", "a-1"),

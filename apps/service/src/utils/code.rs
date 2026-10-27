@@ -263,6 +263,10 @@ pub mod business {
         pub const INDEX_ALREADY_RUNNING: i32 = 500604;
         /// 编排不可用：可靠执行运行时未接或起实例失败
         pub const ORCHESTRATION_UNAVAILABLE: i32 = 500605;
+        /// 检索词为空（没有语义，400 比返回随机块有用）
+        pub const EMPTY_QUERY: i32 = 500606;
+        /// compute 未接通（api 进程没接计算车间）
+        pub const SEARCH_UNAVAILABLE: i32 = 500607;
 
         /// 本模块全部状态码
         pub const ALL: &[i32] = &[
@@ -271,6 +275,8 @@ pub mod business {
             ASSET_NOT_INDEXABLE,
             INDEX_ALREADY_RUNNING,
             ORCHESTRATION_UNAVAILABLE,
+            EMPTY_QUERY,
+            SEARCH_UNAVAILABLE,
         ];
     }
 
@@ -439,6 +445,8 @@ pub fn description(code: i32) -> &'static str {
         business::rag::ASSET_NOT_INDEXABLE => "资产不可索引",
         business::rag::INDEX_ALREADY_RUNNING => "该资产已有正在运行的索引任务",
         business::rag::ORCHESTRATION_UNAVAILABLE => "索引编排不可用",
+        business::rag::EMPTY_QUERY => "检索词为空",
+        business::rag::SEARCH_UNAVAILABLE => "检索服务不可用",
 
         business::chat::BATCH_INVALID => "同步批次不合法",
         business::chat::SESSION_MISSING => "消息引用的会话不存在",
@@ -563,6 +571,8 @@ pub fn http_status(code: i32) -> u16 {
         business::rag::ASSET_NOT_INDEXABLE => 422,
         business::rag::INDEX_ALREADY_RUNNING => 409,
         business::rag::ORCHESTRATION_UNAVAILABLE => 503,
+        business::rag::EMPTY_QUERY => 400,
+        business::rag::SEARCH_UNAVAILABLE => 503,
 
         // 同步的三类拒绝都是「请求里写的值不能用」：改参数重发即可，没有服务端状态问题
         business::chat::BATCH_INVALID => 422,

@@ -135,3 +135,59 @@ class IndexResponse(BaseModel):
 
     def wire(self) -> dict[str, object]:
         return self.model_dump(by_alias=True, mode="json")
+
+
+class SearchRequest(BaseModel):
+    """契约 `SearchRequest`：按查询文本取最相近的块。
+
+    `assetIDs` 缺省表示「本租户全部已索引内容」；客户端只查自己那一批文档时才传。
+    空数组是合法的，语义是「没有可查的资产」→ 空集，不退化成全租户。
+    """
+
+    model_config = _CONTRACT
+
+    schema_version: Literal[1] = Field(alias="schemaVersion")
+    tenant_id: str = Field(alias="tenantID", min_length=1)
+    model: str = Field(min_length=1)
+    query: str = Field(min_length=1)
+    top_k: int = Field(default=8, alias="topK", ge=1, le=50)
+    asset_ids: list[UUID] | None = Field(default=None, alias="assetIDs")
+
+
+class SearchHit(BaseModel):
+    """契约 `SearchHit`：一块命中。`score` 是余弦相似度（越大越相近）。"""
+
+    model_config = _CONTRACT
+
+    asset_id: UUID = Field(alias="assetID", serialization_alias="assetID")
+    ordinal: int = Field(ge=0)
+    score: float
+    text: str
+
+
+class SearchResponse(BaseModel):
+    """契约 `SearchResponse`：命中列表；空集是正常结果，不是错误。"""
+
+    model_config = _CONTRACT
+
+    hits: list[SearchHit]
+
+    @classmethod
+    def from_hits(cls, hits: list[object]) -> SearchResponse:
+        """按属性名构造（`search.Hit` 是 dataclass，这里只做字段搬运）。"""
+        return cls.model_validate(
+            {
+                "hits": [
+                    {
+                        "asset_id": hit.asset_id,
+                        "ordinal": hit.ordinal,
+                        "score": hit.score,
+                        "text": hit.text,
+                    }
+                    for hit in hits
+                ]
+            }
+        )
+
+    def wire(self) -> dict[str, object]:
+        return self.model_dump(by_alias=True, mode="json")

@@ -22,7 +22,9 @@ impl RagModule {
                 .service(
                     web::resource("/index-tasks/{id}")
                         .route(web::get().to(IndexController::toRead)),
-                ),
+                )
+                // 检索：只读，结果由客户端自己与本地命中融合（服务端不做 RRF）。
+                .service(web::resource("/search").route(web::post().to(IndexController::search))),
         );
     }
 }

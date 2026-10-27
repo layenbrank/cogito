@@ -202,6 +202,45 @@ paths:
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
 
+  /internal/v1/rag/search:
+    post:
+      operationId: internalRagSearch
+      tags: [rag]
+      summary: 按查询文本检索本租户已索引的块
+      description: |
+        只读，**不进幂等账本**：重发同一查询不该占幂等键，也不该让账本随查询量膨胀。
+
+        两个消费者共用实现：服务端 agent 步在进程内直调；客户端知识库经 cogito
+        `POST /api/v1/rag/search` 转进来（那是用户点的按钮，不是模型的决定）。
+
+        `assetIDs` 用于把范围收窄到调用方关心的那几个资产（客户端只查自己库里已建过索引的文档）；
+        省略表示本租户全部。`model` 必须与 `rag.index` 落库时用的模型一致，否则距离没有可比性。
+        空集是正常结果（没有已索引内容或没有相近块），不是错误。
+      parameters:
+        - $ref: '#/components/parameters/InternalToken'
+        - $ref: '#/components/parameters/Traceparent'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: 命中列表（可能为空）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+
   /internal/v1/agents/steps:
     post:
       operationId: internalAgentStep
@@ -633,6 +672,55 @@ components:
         collection:
           type: string
           description: 索引集合名（排障与审计用）。
+
+    SearchRequest:
+      type: object
+      required: [schemaVersion, tenantID, model, query]
+      properties:
+        schemaVersion:
+          type: integer
+          const: 1
+        tenantID:
+          type: string
+        model:
+          type: string
+          description: 检索用的嵌入模型，必须与 `rag.index` 落库时用的模型一致。
+        query:
+          type: string
+        topK:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 8
+        assetIDs:
+          type: array
+          description: 只在这些资产里检索；省略表示本租户全部。空数组表示没有可查的资产（返回空集）。
+          items:
+            type: string
+
+    SearchHit:
+      type: object
+      required: [assetID, ordinal, score, text]
+      properties:
+        assetID:
+          type: string
+        ordinal:
+          type: integer
+          minimum: 0
+        score:
+          type: number
+          description: 余弦相似度（1 - 距离），越大越相近。
+        text:
+          type: string
+
+    SearchResponse:
+      type: object
+      required: [hits]
+      properties:
+        hits:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchHit'
 
     AgentStepRequest:
       type: object

@@ -1,5 +1,5 @@
-use super::common::{Exception, IndexTaskEnvelope};
-use crate::services::rag::schema::IndexTaskP;
+use super::common::{Exception, IndexTaskEnvelope, SearchEnvelope};
+use crate::services::rag::schema::{IndexTaskP, SearchP};
 
 /// `X-Tenant-ID` 在 rag 域是**必填**请求头：索引的资产按租户隔离，没有「账号级索引」这种落脚点。
 /// 缺头直接 400，不降级也不猜默认租户——猜错会把 A 租户的文档索引到 B 租户的检索面里。
@@ -69,3 +69,29 @@ pub fn create_index_task_doc() {}
     )
 )]
 pub fn read_index_task_doc() {}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/rag/search",
+    tag = "RAG",
+    operation_id = "rag.search",
+    summary = "在本租户已索引的内容里检索",
+    description = "把查询文本送去嵌入，再在向量索引里取最相近的若干块。\n\n\
+        **只读**：不建任务、不写台账，重发同一查询是安全的。\n\n\
+        `assetIDs` 用于把范围收窄到调用方关心的资产（客户端只查自己知识库里已建过索引的文档）；\n\
+        省略表示本租户全部，空数组表示「没有可查的资产」（返回空列表，不退化成全租户）。\n\n\
+        **模型由服务端决定**（`compute.embed_model`），与索引时用的那个必须是同一个：\n\
+        不同向量空间的距离没有可比性，所以调用方不能指定模型。\n\n\
+        空列表是正常结果（没有已索引内容、或没有相近的块），不是错误。\n\n\
+        需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员，并具备资产的读权限。\n\n\
+        `body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效；\n\
+        `500606` 检索词为空；`500607` compute 未接通或检索失败（可重试）。",
+    security(("bearer_auth" = [])),
+    params(("X-Tenant-ID" = String, Header, description = tenant_header())),
+    request_body(content = SearchP, description = "检索词与可选的范围"),
+    responses(
+        (status = 200, description = "成功（可能为空列表）", body = SearchEnvelope),
+        (status = "default", description = "业务异常（检索词为空 / 非租户成员 / 检索不可用）：HTTP 状态码按错误码归属返回，响应体为统一错误信封", body = Exception),
+    )
+)]
+pub fn search_doc() {}
