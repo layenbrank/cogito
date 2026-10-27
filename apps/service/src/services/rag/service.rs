@@ -330,8 +330,9 @@ impl SearchService {
 /// 把两类混成一句「检索失败」会让客户端在参数写错时反复重试。
 fn search_error(err: ComputeError) -> Exception {
     match err {
-        ComputeError::Rejected { status, .. } if (400..500).contains(&status) => {
-            tracing::warn!(status, "rag 检索被 compute 拒绝");
+        ComputeError::Rejected { status, body } if (400..500).contains(&status) => {
+            // body 里有真正的下游原因（模型没声明能力、上游 404……）：只进日志，不回给调用方
+            tracing::warn!(status, body = %body, "rag 检索被 compute 拒绝");
             Exception::custom(
                 crate::utils::code::request::INVALID_PARAMETER_VALUE,
                 "检索参数不合法",

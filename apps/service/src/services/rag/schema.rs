@@ -55,8 +55,6 @@ pub struct IndexTaskR {
 pub struct SearchP {
     /// 查询文本（原样送去嵌成向量）
     pub query: String,
-    /// 嵌入模型；必须与索引时用的模型一致，否则距离没有可比性
-    pub model: String,
     /// 最多返回多少块；缺省由服务端定上限
     #[serde(rename = "topK")]
     pub top_k: Option<i32>,
