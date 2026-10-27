@@ -170,7 +170,6 @@ function ForgotForm(props: ForgotFormProps) {
               type="password"
               label="新密码"
               placeholder="请输入新密码"
-              icon={<Icon icon="lucide:lock" />}
               maxLength={LIMIT.PASSWORD}
               autoComplete="new-password"
             />
@@ -183,7 +182,6 @@ function ForgotForm(props: ForgotFormProps) {
               type="password"
               label="确认密码"
               placeholder="请再次输入新密码"
-              icon={<Icon icon="lucide:lock" />}
               maxLength={LIMIT.PASSWORD}
               autoComplete="new-password"
             />

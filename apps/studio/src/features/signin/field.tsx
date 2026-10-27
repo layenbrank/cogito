@@ -7,6 +7,7 @@ import {
   FormMessage
 } from '@cogito/design/components/form'
 import { Input } from '@cogito/design/components/input'
+import { cn } from 'cn'
 import { useState, type ReactNode } from 'react'
 import type { Control, FieldPath, FieldValues } from 'react-hook-form'
 
@@ -15,8 +16,8 @@ interface AuthFieldProps<T extends FieldValues> {
   name: FieldPath<T>
   label: string
   placeholder: string
-  /** 左侧装饰图标（lucide） */
-  icon: ReactNode
+  /** 左侧装饰图标（lucide）；密码框已有显隐切换，一般不传 */
+  icon?: ReactNode
   /** 传 password 时渲染为可切换明文的密码框 */
   type?: 'text' | 'password'
   maxLength?: number
@@ -44,6 +45,7 @@ function AuthField<T extends FieldValues>(props: AuthFieldProps<T>) {
   } = props
   const [isRevealed, updateRevealed] = useState(false)
   const isPassword = type === 'password'
+  const hasPrefix = icon != null
 
   return (
     <FormField
@@ -54,14 +56,16 @@ function AuthField<T extends FieldValues>(props: AuthFieldProps<T>) {
           <FormItem>
             <FormLabel>{label}</FormLabel>
             <div className="relative">
-              <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground [&_svg]:size-4">
-                {icon}
-              </span>
+              {hasPrefix && (
+                <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground [&_svg]:size-4">
+                  {icon}
+                </span>
+              )}
               <FormControl>
                 <Input
                   {...field}
                   value={(field.value as string | undefined) ?? ''}
-                  className="h-11 pl-9"
+                  className={cn('h-11', hasPrefix && 'pl-9', isPassword && 'pr-10')}
                   type={isPassword && !isRevealed ? 'password' : 'text'}
                   maxLength={maxLength}
                   inputMode={inputMode}
@@ -73,14 +77,24 @@ function AuthField<T extends FieldValues>(props: AuthFieldProps<T>) {
               {isPassword && (
                 <button
                   type="button"
-                  className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-muted-foreground transition-colors hover:text-foreground"
+                  className="absolute top-1/2 right-1.5 flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
                   onClick={function () {
                     updateRevealed(function (prev) {
                       return !prev
                     })
                   }}
                   aria-label={isRevealed ? '隐藏密码' : '显示密码'}>
-                  {isRevealed ? <Icon icon="lucide:eye-off" className="size-4" /> : <Icon icon="lucide:eye" className="size-4" />}
+                  {isRevealed ? (
+                    <Icon
+                      icon="lucide:eye-off"
+                      className="size-4"
+                    />
+                  ) : (
+                    <Icon
+                      icon="lucide:eye"
+                      className="size-4"
+                    />
+                  )}
                 </button>
               )}
             </div>

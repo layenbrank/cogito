@@ -79,7 +79,6 @@ function SignupForm(props: SignupFormProps) {
               type="password"
               label="密码"
               placeholder="请输入密码"
-              icon={<Icon icon="lucide:lock" />}
               maxLength={LIMIT.PASSWORD}
               autoComplete="new-password"
             />
@@ -92,7 +91,6 @@ function SignupForm(props: SignupFormProps) {
               type="password"
               label="确认密码"
               placeholder="请再次输入密码"
-              icon={<Icon icon="lucide:lock" />}
               maxLength={LIMIT.PASSWORD}
               autoComplete="new-password"
             />
