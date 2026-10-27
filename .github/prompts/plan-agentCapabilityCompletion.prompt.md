@@ -456,12 +456,33 @@
 - 验证：`cargo test -p cogito-core` **43/43**（新增 automation 11 条：时区换算 / 6–7 段 / 非法拒绝 / 保存即校验 / 只认领一次 / 补跑一次 / 回写 / 停用后可手动跑 / 陈旧回收 / 级联删除）；`cargo test -p cogito-database` 6/6（含 29 张表的 entity↔DDL 比对）；`cargo check -p cogito` 通过；client `tsc`/`eslint` 干净、**69 文件 393 测试**（新增 `describe-schedule` 3 条）。
 - 未做（留给 7B/7C）：`owner=goose`（等 S-3 spike）、`owner=cloud`（服务端 `scheduled_job`）、按 `knowledgeBaseId` 的确定性动作（当前一律走 prompt）。
 
+**Phase 7B（goose 调度，2026-10-27）**
+- spike 结论（实测 goose 1.54）：`schedule add/list/remove/run-now` 可用，ACP 侧有 `_goose/unstable/schedules/*`；但 **只接受 recipe 源**（文件或 base64），没有「一句话」入口，且 `schedule add` 无 update、`list` 无 JSON 输出。
+- 落地：`src-tauri/src/automation/goose.rs` 把 prompt 渲染成最小 recipe 写到 `<appData>/goose/automation-recipes/<id>.yaml`，交给 `goose schedule add`；改任务 = 先 remove 再 add；停用 = remove；「立即执行」= `run-now`（本地不落执行记录）。
+- 边界写进代码注释：本地行只是**镜像**（`nextRunAt` 为空、`remoteId` = 任务 id），同步失败写 `lastError` 而不是阻断保存；`goose schedule list` 解析不可靠，所以不镜像远端运行状态。
+- 命令层从 `crates/command` 搬到 app 侧（只有它有 shell 插件）：`src/automation/command.rs`；`runNow` 返回 `null` 表示「已交给 goose」。
+
+**Phase 7C（服务端定时任务，2026-10-27）**
+- 表：`scheduled_job`（cron + timezone + nextRunAt + runAsKind/runAsUserID + lastTaskID），并入既有单个迁移文件（该项目就是「单一世代 + 整体重建」）并启用租户 RLS。
+- API：`/api/v1/automations` GET/POST、`/{id}` PATCH/DELETE；cron/时区**保存时**就校验（`500802`），`X-Tenant-ID` 必填。
+- worker：`src/worker/scheduler.rs` — 跨租户认领走 `platform_tx()`（与 outbox 发布器同一通道）；认领用 **CAS**（`WHERE nextRunAt = ?`）而非行锁，多副本只有一个能推进；错过多轮只补一次；随后**以 `runAs` 身份**起一次 agent 任务（user = 创建人/指定本人，进租户校验成员；tenant = `SERVICE_ACTOR_ID`），失败原因写 `lastError`。
+- 收口：durable 客户端装配抽到 `clients/durable.rs`，api 与 worker 共用。
+- 验证：`cargo check -p cogito --all-targets` 通过；`cargo test -p cogito --lib` **314 passed**（新增排期 3 条）。
+- 未做：OAS 登记（`src/oas/*`）与模块 README。
+
+**Phase 8（导出与收尾，部分）**
+- 整包导出：`knowledge::Service::toExportBundle` + `knowledge:exportBundle` + 侧栏按钮。按 `relPath` 遍历、**文件优先（快照兜底）**，写到 `<库目录>/exports/<slug>-<时间戳>.zip`，保留目录结构；压缩用 store-only（文本压缩收益有限，也不引额外依赖，`zip 2.4` 可离线解析）。
+- 删除/归档链路早已完整（文件 + FTS 触发器 + `knowledge_index_state`），本次未动。
+- 未做：`docs/apps/client/**` 更新、旧 `markdown-backups/` 清理入口、旧偏好键清理提示。
+
 ### 待办（按依赖顺序，尚需继续）
 
 1. **Phase 2（已完成 2026-10-27）**：桥 / 工具目录 / 注入 / `app_workspace_read` / 本地工具自检均落地。**仅剩人工复核**：`pnpm dev:client` 起应用后，新建会话应看到 8 个 `app_*` 且日志无「工具名与基线不一致」；让 agent 调 `app_calendar_read` 应返回真实日程。
 2. **Phase 5 ③（已全部落地 2026-10-27）**：保存落库与冲突（③-1）、生成编排（③-2）、编辑器内联 AI 与收尾（③-3）。**仅剩人工复核**：内联 AI 在真机走一轮（续写/重写/总结 + diff 应用 + Ctrl+Z），发布后 `exports/*.html` 有产物，切库后侧栏根跟随。
 3. **Phase 7A（已完成 2026-10-27）**：entity / 排期服务 / worker / IPC / 面板 / 执行回写均落地。**仅剩人工复核**：面板建一条「每分钟」任务 → 到点自动跑一次 → 记录里出现 `schedule` 一次；点「立即执行」出现 `manual`；应用关掉一段时间再打开，只补跑一次（`catchup`）。
-4. **Phase 7B / 7C / 8**：goose schedules（先 spike）、服务端 `scheduled_job`、导出与文档收尾。
+4. **Phase 7B（已完成 2026-10-27）**：goose 侧同步（recipe + add/remove/run-now）已接。**人工复核**：选「goose 调度器」建一条任务 → `goose schedule list` 能看到；改 cron → 列表里跟着变；停用 → 消失。
+5. **Phase 7C（已完成 2026-10-27，未入库联调）**：表/API/worker 均落地，编译与单测绿。**需人工**：重建服务镜像后建一条每分钟任务，观察 worker 日志 `定时任务已起` 与 `lastTaskID`。
+6. **Phase 8 余下**：OAS 登记、`docs/apps/client/**`、旧 `markdown-backups` 清理入口。
 
 ### 待决问题（已决 2026-10-27）
 
