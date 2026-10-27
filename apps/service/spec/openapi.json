@@ -4516,7 +4516,8 @@
           "birthday": "1990-01-01",
           "email": "admin@example.com",
           "gender": "MALE",
-          "phone": "13800138000"
+          "phone": "13800138000",
+          "username": "admin"
         },
         "properties": {
           "avatar": {
@@ -4549,6 +4550,14 @@
           },
           "phone": {
             "example": "13800138000",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "description": "用户名（唯一；2–12 个字符）",
+            "example": "admin",
             "type": [
               "string",
               "null"
@@ -8649,7 +8658,7 @@
         ]
       },
       "put": {
-        "description": "需要 JWT 鉴权。可更新 `email`、`phone`、`gender`、`birthday`、`avatar`（asset UUID）。\n所有字段可选；`avatar` 传 `null` 可清空头像。\n`avatar` 须是本人已完成（COMPLETED）的资产；绑定后该资产可见性会提为 `PUBLIC`（头像属于公开档案数据）。",
+        "description": "需要 JWT 鉴权。可更新 `username`、`email`、`phone`、`gender`、`birthday`、`avatar`（asset UUID）。\n所有字段可选；`avatar` 传 `null` 可清空头像。\n`username` 须唯一且长度为 2–12 个字符；冲突时返回 code=500102。\n`avatar` 须是本人已完成（COMPLETED）的资产；绑定后该资产可见性会提为 `PUBLIC`（头像属于公开档案数据）。",
         "operationId": "auth.toUpdate",
         "parameters": [
           {
@@ -8674,7 +8683,8 @@
                 "birthday": "1990-01-01",
                 "email": "admin@example.com",
                 "gender": "MALE",
-                "phone": "13800138000"
+                "phone": "13800138000",
+                "username": "admin"
               },
               "schema": {
                 "$ref": "#/components/schemas/ProfileP"

@@ -110,6 +110,7 @@ function POST_PASSWORD_RESET(data: ResetParams) {
 
 /** 更新资料；字段均为可选，avatar 传 asset id（null 清空） */
 interface AuthProfilePatch {
+  username?: string
   email?: string | null
   phone?: string | null
   gender?: string | null

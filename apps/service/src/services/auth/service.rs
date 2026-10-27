@@ -26,6 +26,8 @@ use crate::utils::jwt::{JwtError, generate_token};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProfileError {
+    #[error("Username already exists")]
+    UsernameTaken,
     #[error("Phone already exists")]
     PhoneTaken,
     #[error("Avatar not found")]
@@ -41,6 +43,9 @@ pub enum ProfileError {
 impl From<ProfileError> for Exception {
     fn from(err: ProfileError) -> Self {
         match err {
+            ProfileError::UsernameTaken => {
+                Exception::custom(business::user::USERNAME_EXISTS, "用户名已存在")
+            }
             ProfileError::PhoneTaken => {
                 Exception::custom(business::user::PHONE_EXISTS, "手机号已被注册")
             }
@@ -259,6 +264,37 @@ pub async fn phone_free(
     }
 
     Ok(())
+}
+
+pub async fn username_free(
+    db: &Storage,
+    username: &str,
+    exclude_id: Option<Uuid>,
+) -> Result<(), ProfileError> {
+    let existing = auth::Entity::find_by_username(username)
+        .one(db.raw())
+        .await
+        .map_err(|e| ProfileError::Db(e.to_string()))?;
+
+    if let Some(user) = existing {
+        if exclude_id != Some(user.id) {
+            return Err(ProfileError::UsernameTaken);
+        }
+    }
+
+    Ok(())
+}
+
+/// 与客户端注册/资料表单一致：trim 后 2–12 个字符（按 Unicode 标量计）。
+fn parse_username(value: &str) -> Result<String, AuthError> {
+    let username = value.trim();
+    let len = username.chars().count();
+    if !(2..=12).contains(&len) {
+        return Err(AuthError::InvalidParameter(
+            "用户名长度为 2–12 个字符".to_string(),
+        ));
+    }
+    Ok(username.to_string())
 }
 
 /// 校验「这份资产可以当这个人的头像吗」，并把头像登记为**公开档案数据**。
@@ -717,6 +753,14 @@ impl AuthService {
             .map_err(|_| AuthError::InvalidParameter("用户 ID 无效".to_string()))?;
         let user = Self::find_user(db, user_id).await?;
 
+        let username = if let Some(value) = req.username.as_ref() {
+            let parsed = parse_username(value)?;
+            username_free(db, &parsed, Some(id)).await?;
+            Some(parsed)
+        } else {
+            None
+        };
+
         if let Some(phone) = req.phone.as_ref() {
             phone_free(db, phone, Some(id)).await?;
         }
@@ -741,6 +785,9 @@ impl AuthService {
         };
 
         let mut active: auth::ActiveModel = user.into();
+        if let Some(name) = username {
+            active.username = Set(name);
+        }
         if let Some(email) = req.email {
             active.email = Set(Some(email));
         }
@@ -768,7 +815,12 @@ impl AuthService {
 
         let updated = active.update(db.raw()).await.map_err(|err| {
             if is_unique_violation(&err) {
-                AuthError::Profile(ProfileError::PhoneTaken)
+                // username / phone 均有唯一约束；预检后仍撞车时优先按请求字段归因
+                if req.username.is_some() {
+                    AuthError::Profile(ProfileError::UsernameTaken)
+                } else {
+                    AuthError::Profile(ProfileError::PhoneTaken)
+                }
             } else {
                 AuthError::DatabaseError(err.to_string())
             }

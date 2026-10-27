@@ -342,6 +342,7 @@ pub struct PasswordP {
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 #[serde(rename_all = "camelCase")]
 #[schema(example = json!({
+    "username": "admin",
     "email": "admin@example.com",
     "phone": "13800138000",
     "gender": "MALE",
@@ -349,6 +350,9 @@ pub struct PasswordP {
     "avatar": "550e8400-e29b-41d4-a716-446655440000"
 }))]
 pub struct ProfileP {
+    /// 用户名（唯一；2–12 个字符）
+    #[schema(example = "admin")]
+    pub username: Option<String>,
     #[schema(example = "admin@example.com")]
     pub email: Option<String>,
     #[schema(example = "13800138000")]

@@ -194,14 +194,16 @@ pub fn toRead_doc() {}
     tag = "Auth",
     operation_id = "auth.toUpdate",
     summary = "更新个人信息",
-    description = "需要 JWT 鉴权。可更新 `email`、`phone`、`gender`、`birthday`、`avatar`（asset UUID）。\n\
+    description = "需要 JWT 鉴权。可更新 `username`、`email`、`phone`、`gender`、`birthday`、`avatar`（asset UUID）。\n\
         所有字段可选；`avatar` 传 `null` 可清空头像。\n\
+        `username` 须唯一且长度为 2–12 个字符；冲突时返回 code=500102。\n\
         `avatar` 须是本人已完成（COMPLETED）的资产；绑定后该资产可见性会提为 `PUBLIC`（头像属于公开档案数据）。",
     security(("bearer_auth" = [])),
     request_body(
         content = ProfileP,
         description = "可更新字段（均为可选）",
         example = json!({
+            "username": "admin",
             "email": "admin@example.com",
             "phone": "13800138000",
             "gender": "MALE",

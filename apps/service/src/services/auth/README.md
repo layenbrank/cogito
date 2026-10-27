@@ -12,7 +12,7 @@
 | 找回/重置密码 | username 或 channel+target 发 OTP，OTP 一步重置新密码           |
 | 修改密码    | 已登录用户改密（与 profile 分离），成功后吊销当前 JWT             |
 | 登出        | JWT 写入 Redis 黑名单，直至原 token 过期                        |
-| Profile     | 当前用户读/改个人信息（email、phone、gender、birthday、avatar） |
+| Profile     | 当前用户读/改个人信息（username、email、phone、gender、birthday、avatar） |
 
 **与 user 模块区别**：auth 面向**当前登录用户**；[`user`](../user/README.md) 面向**后台管理员** CRUD 任意用户。
 
