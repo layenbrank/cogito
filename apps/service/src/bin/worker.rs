@@ -68,23 +68,49 @@ async fn main() {
 ///
 /// 间隔取 `events.poll_interval_ms`（同一份部署配置里的「后台轮询节奏」）；
 /// 有活时立刻再跑一轮，没活才按间隔等 —— tick 本身只是几条 SQL。
+///
+/// **必须跑在独立的 current-thread runtime + `LocalSet` 上**：编排客户端（duroxide）
+/// 内部用 `spawn_local`，多线程 runtime 的 worker 线程没有 LocalSet，会直接 panic
+/// （实测：`spawn_local called from outside of a task::LocalSet`）。api 侧没事是因为
+/// `#[actix_web::main]` 本身就是单线程 runtime + LocalSet。
 fn spawn_scheduler(storage: Storage, configure: Configure) {
-    let interval = std::time::Duration::from_millis(configure.events.poll_interval_ms.max(1_000));
-    let _ = tokio::spawn(async move {
-        let durable = cogito::clients::durable::connect(&configure).await;
-        if durable.is_none() {
-            tracing::warn!("编排库未接通：定时任务会以失败状态记录（原因写进 lastError）");
-        }
-        loop {
-            let now = chrono::Utc::now().timestamp_millis();
-            let count = cogito::worker::scheduler::tick(&storage, &configure, durable.as_ref(), now)
-                .await;
-            let wait = if count > 0 {
-                std::time::Duration::from_secs(1)
-            } else {
-                interval
+    let spawned = std::thread::Builder::new()
+        .name("scheduler".to_owned())
+        .spawn(move || {
+            let runtime = match tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(runtime) => runtime,
+                Err(error) => {
+                    tracing::error!(error = %error, "创建调度 runtime 失败");
+                    return;
+                }
             };
-            tokio::time::sleep(wait).await;
-        }
-    });
+            let local = tokio::task::LocalSet::new();
+            local.block_on(&runtime, scheduler_loop(storage, configure));
+        });
+
+    if let Err(error) = spawned {
+        tracing::error!(error = %error, "启动调度线程失败");
+    }
+}
+
+async fn scheduler_loop(storage: Storage, configure: Configure) {
+    let interval = std::time::Duration::from_millis(configure.events.poll_interval_ms.max(1_000));
+    let durable = cogito::clients::durable::connect(&configure).await;
+    if durable.is_none() {
+        tracing::warn!("编排库未接通：定时任务会以失败状态记录（原因写进 lastError）");
+    }
+    loop {
+        let now = chrono::Utc::now().timestamp_millis();
+        let count =
+            cogito::worker::scheduler::tick(&storage, &configure, durable.as_ref(), now).await;
+        let wait = if count > 0 {
+            std::time::Duration::from_secs(1)
+        } else {
+            interval
+        };
+        tokio::time::sleep(wait).await;
+    }
 }

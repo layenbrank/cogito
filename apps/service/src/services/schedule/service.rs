@@ -11,10 +11,8 @@ use chrono::{DateTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use cron::Schedule;
 use entity::scheduled_job::{self, Entity as Jobs};
-use identity::TenantId;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
-    TransactionTrait,
 };
 use std::str::FromStr;
 use uuid::Uuid;
@@ -288,7 +286,7 @@ impl Service {
         task_id: Option<Uuid>,
     ) -> Result<(), Exception> {
         let tx = storage.platform_tx().await.map_err(db_error)?;
-        let mut active = scheduled_job::ActiveModel {
+        let active = scheduled_job::ActiveModel {
             id: Set(id),
             last_status: Set(Some(
                 if error.is_some() { "failed" } else { "succeeded" }.to_owned(),
