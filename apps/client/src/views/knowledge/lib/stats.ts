@@ -4,6 +4,13 @@ interface DocStats {
   lines: number
 }
 
+/** 超过这个体量就不让实时预览渲染全文（会卡死主线程），改走源码模式 */
+const LARGE_FILE_BYTES = 2 * 1024 * 1024
+
+function isLargeMarkdown(content: string): boolean {
+  return new TextEncoder().encode(content).byteLength >= LARGE_FILE_BYTES
+}
+
 function findDocStats(source: string): DocStats {
   const text = source.replace(/\r\n/g, '\n')
   const trimmed = text.trim()
@@ -19,4 +26,4 @@ function findDocStats(source: string): DocStats {
 }
 
 export type { DocStats }
-export { findDocStats }
+export { findDocStats, isLargeMarkdown, LARGE_FILE_BYTES }

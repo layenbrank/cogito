@@ -16,6 +16,8 @@ import type { KnowledgeViewMode } from '@/views/knowledge/lib/types.ts'
 
 interface KnowledgeSession {
   activePath: string | null
+  /** 侧栏文件树的根：跟随**当前知识库目录**，不落偏好（切库就变） */
+  rootDir: string | null
   markdown: string
   frontMatter: string | null
   html: string
@@ -62,6 +64,8 @@ interface KnowledgeStore extends KnowledgeSession, KnowledgePreferences {
   toUpdateOutline: (outline: OutlineItem[]) => void
   toUpdateStats: (stats: DocStats) => void
   toSetViewMode: (mode: KnowledgeViewMode) => void
+  /** 切工作区根（打开库外文件/文件夹时用）：只在本会话生效，不写偏好 */
+  toSetRootDir: (rootDir: string | null) => void
   toToggleSidebar: () => void
   toToggleOutline: () => void
   toSetFindOpen: (isOpen: boolean) => void
@@ -89,7 +93,6 @@ const useKnowledgeStore = create<KnowledgeStore>()(
         // 「Cannot perform 'IsArray' on a proxy that has been revoked」。
         // 这里先展开成普通数组，切断对草稿代理的引用。
         persistPreferences({
-          rootDir: state.rootDir,
           isSidebarOpen: state.isSidebarOpen,
           isOutlineOpen: state.isOutlineOpen,
           viewMode: state.viewMode,
@@ -105,6 +108,7 @@ const useKnowledgeStore = create<KnowledgeStore>()(
 
       return {
         activePath: null,
+        rootDir: null,
         markdown: '',
         frontMatter: null,
         html: '',
@@ -309,6 +313,16 @@ const useKnowledgeStore = create<KnowledgeStore>()(
             },
             false,
             'toSetViewMode'
+          )
+        },
+
+        toSetRootDir(rootDir) {
+          setters(
+            function (state) {
+              state.rootDir = rootDir
+            },
+            false,
+            'toSetRootDir'
           )
         },
 

@@ -20,7 +20,6 @@ interface TileSessionPref {
 }
 
 interface KnowledgeChrome {
-  rootDir: string | null
   isSidebarOpen: boolean
   isOutlineOpen: boolean
   viewMode: KnowledgeViewMode

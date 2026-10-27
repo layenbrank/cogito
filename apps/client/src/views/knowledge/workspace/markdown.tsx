@@ -14,7 +14,6 @@ import { toast } from 'sonner'
 
 import { isMainWindow, MAIN_WINDOW_TITLE } from '@/features/magnetic-tile/session'
 import { useKnowledgeStore } from '@/stores/knowledge'
-import { writeBackup } from '@/views/knowledge/lib/backup.ts'
 import { clearDirListCache, findDisplayTitle } from '@/views/knowledge/lib/fs.ts'
 import { uploadMarkdownImage } from '@/views/knowledge/lib/image-upload.ts'
 import { parseMarkdown } from '@/views/knowledge/lib/parse-markdown.ts'
@@ -22,7 +21,6 @@ import { serializeHtmlToMarkdown } from '@/views/knowledge/lib/serialize-markdow
 import { findOutlineFromEditor } from '@/views/knowledge/lib/outline.ts'
 import {
   createUntitled,
-  findCurrentMarkdown,
   openFolderAsWorkspace,
   openPath,
   openWithDialog,
@@ -180,21 +178,6 @@ function useKnowledgeDocumentEffects(input: {
       }
     },
     [isDirty, activePath, autosaveMs, markdown, composerRef]
-  )
-
-  // Periodic backup
-  useEffect(
-    function () {
-      if (!isDirty) return
-      const timer = window.setInterval(function () {
-        const content = findCurrentMarkdown(composerRef.current?.getHTML())
-        void writeBackup(activePath, content)
-      }, 30000)
-      return function () {
-        window.clearInterval(timer)
-      }
-    },
-    [isDirty, activePath, composerRef]
   )
 
   // External file watch（插件未注册时静默跳过）

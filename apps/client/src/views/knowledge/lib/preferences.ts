@@ -5,7 +5,6 @@ import {
 import type { KnowledgeViewMode } from '@/views/knowledge/lib/types.ts'
 
 interface KnowledgePreferences {
-  rootDir: string | null
   isSidebarOpen: boolean
   isOutlineOpen: boolean
   viewMode: KnowledgeViewMode
@@ -19,7 +18,6 @@ interface KnowledgePreferences {
 }
 
 const PREFERENCES: KnowledgePreferences = {
-  rootDir: null,
   isSidebarOpen: true,
   isOutlineOpen: true,
   viewMode: 'live',

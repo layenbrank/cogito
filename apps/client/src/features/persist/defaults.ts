@@ -21,7 +21,6 @@ const PERSIST_DEFAULTS: PersistShape = {
   tiles: {
     sessions: [],
     knowledge: {
-      rootDir: null,
       isSidebarOpen: true,
       isOutlineOpen: true,
       viewMode: 'live',

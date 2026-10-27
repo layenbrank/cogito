@@ -1,4 +1,3 @@
-import { Button } from '@cogito/design/components/button'
 import { Input } from '@cogito/design/components/input'
 import { Label } from '@cogito/design/components/label'
 import {
@@ -10,7 +9,6 @@ import {
 import { Switch } from '@cogito/design/components/switch'
 
 import { useKnowledgeStore } from '@/stores/knowledge'
-import { pickRootDirectory } from '@/views/knowledge/lib/fs.ts'
 import { t } from '@/views/knowledge/locale.ts'
 
 function PreferencesSheet() {
@@ -42,13 +40,6 @@ function PreferencesSheet() {
     return state.toPatchPreferences
   })
 
-  async function onPickRoot() {
-    const root = await pickRootDirectory()
-    if (!root) return
-    toPatchPreferences({ rootDir: root })
-    useKnowledgeStore.getState().toBumpTree()
-  }
-
   return (
     <Sheet
       open={isPrefsOpen}
@@ -62,22 +53,13 @@ function PreferencesSheet() {
         <div className="mt-6 space-y-5 px-1">
           <div className="space-y-2">
             <Label>{t('PREF_ROOT')}</Label>
-            <div className="flex gap-2">
-              <Input
-                readOnly
-                value={rootDir ?? ''}
-                className="h-8 text-xs"
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                onClick={function () {
-                  void onPickRoot()
-                }}>
-                …
-              </Button>
-            </div>
+            {/* 根目录由当前知识库决定（切库就变），这里只看不改 */}
+            <Input
+              readOnly
+              value={rootDir ?? ''}
+              className="h-8 text-xs"
+            />
+            <p className="text-xs text-muted-foreground">{t('PREF_ROOT_HINT')}</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="md-font">{t('PREF_FONT')}</Label>

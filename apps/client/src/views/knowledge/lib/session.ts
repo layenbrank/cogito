@@ -1,8 +1,8 @@
 import { toast } from 'sonner'
 
-import { resolveDoc, writeDoc } from '@/lib/knowledge-ipc'
+import { listBases, resolveDoc, writeDoc } from '@/lib/knowledge-ipc'
+import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useKnowledgeStore } from '@/stores/knowledge'
-import { isLargeMarkdown, writeBackup } from '@/views/knowledge/lib/backup.ts'
 import {
   findDefaultRoot,
   findDisplayTitle,
@@ -16,15 +16,36 @@ import { parseMarkdown } from '@/views/knowledge/lib/parse-markdown.ts'
 import { findOutlineFromMarkdown } from '@/views/knowledge/lib/outline.ts'
 import { findParentDir, isPathInsideRoot } from '@/views/knowledge/lib/path.ts'
 import { serializeHtmlToMarkdown } from '@/views/knowledge/lib/serialize-markdown.ts'
-import { findDocStats } from '@/views/knowledge/lib/stats.ts'
+import { findDocStats, isLargeMarkdown } from '@/views/knowledge/lib/stats.ts'
 import { t } from '@/views/knowledge/locale.ts'
 
+/**
+ * 工作区根目录 = **当前知识库的目录**。
+ *
+ * 以前这是个独立偏好，用户可能在设置里选一个与库无关的文件夹，于是侧栏文件树、
+ * 库列表、保存落库三者的「根」各说各话。现在根只由库决定：有库就用库目录，
+ * 一个库都没有（首次启动、库目录被删）才回落到老的应用数据目录。
+ */
 async function ensureRootDir(): Promise<string> {
   const store = useKnowledgeStore.getState()
   if (store.rootDir) return store.rootDir
-  const root = await findDefaultRoot()
-  store.toPatchPreferences({ rootDir: root })
+  const root = await findActiveBaseRoot()
+  store.toSetRootDir(root)
   return root
+}
+
+async function findActiveBaseRoot(): Promise<string> {
+  try {
+    const bases = await listBases()
+    const active = bases.find(function (base) {
+      return base.id === useKnowledgeBaseStore.getState().activeBaseID
+    })
+    const picked = active ?? bases[0]
+    if (picked?.rootPath) return picked.rootPath
+  } catch (error) {
+    console.warn('[knowledge] 读取知识库目录失败，回落到默认目录:', error)
+  }
+  return findDefaultRoot()
 }
 
 function syncDerived(markdown: string): void {
@@ -37,7 +58,7 @@ function syncWorkspaceRootForFile(path: string): void {
   const store = useKnowledgeStore.getState()
   if (store.rootDir && isPathInsideRoot(store.rootDir, path)) return
   const parent = findParentDir(path)
-  store.toPatchPreferences({ rootDir: parent })
+  store.toSetRootDir(parent)
   store.toBumpTree()
 }
 
@@ -129,7 +150,7 @@ async function openFolderAsWorkspace(dir?: string | null): Promise<boolean> {
   const selected = dir ?? (await pickRootDirectory())
   if (!selected) return false
   const store = useKnowledgeStore.getState()
-  store.toPatchPreferences({ rootDir: selected })
+  store.toSetRootDir(selected)
   store.toBumpTree()
   if (!store.hasOpened) {
     store.toNewDocument()
@@ -205,9 +226,6 @@ async function saveDocument(options?: {
     if (wasUntitled) {
       store.toBumpTree()
     }
-    void writeBackup(path, content).catch(function () {
-      /* ignore backup errors */
-    })
     return true
   } catch (error) {
     console.error('[markdown] save failed', error)
