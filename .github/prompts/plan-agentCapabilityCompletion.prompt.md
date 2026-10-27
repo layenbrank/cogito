@@ -468,6 +468,9 @@
 - worker：`src/worker/scheduler.rs` — 跨租户认领走 `platform_tx()`（与 outbox 发布器同一通道）；认领用 **CAS**（`WHERE nextRunAt = ?`）而非行锁，多副本只有一个能推进；错过多轮只补一次；随后**以 `runAs` 身份**起一次 agent 任务（user = 创建人/指定本人，进租户校验成员；tenant = `SERVICE_ACTOR_ID`），失败原因写 `lastError`。
 - 收口：durable 客户端装配抽到 `clients/durable.rs`，api 与 worker 共用。
 - 验证：`cargo check -p cogito --all-targets` 通过；`cargo test -p cogito --lib` **314 passed**（新增排期 3 条）。
+- **真机验证（2026-10-27，容器化）**：重建 `cogito:local`（含 `scheduled_job` 迁移与 worker tick）→ **重建业务库**（该项目迁移是单一世代，`up` 只跑一次）→ 建一条 `* * * * *` 任务：非法 cron 当场 400；到点后 worker 认领、`lastStatus=succeeded`、`lastTaskID` 非空、`nextRunAt` 推进到下一个 slot（不重跑）。
+  - 踩到的坑（已修）：worker 用 `tokio::spawn` 跑调度会在 `duroxide` 客户端处 panic —— `spawn_local called from outside of a task::LocalSet`。api 没事是因为 `#[actix_web::main]` 本身就是 current-thread runtime + LocalSet；调度改成**独立线程 + current-thread runtime + LocalSet**。
+  - 语义确认：`lastStatus` 记的是**“把任务起起来了”**，agent 任务里的 RUNNING/FAILED 才是它自己的执行结果（`lastTaskID` 可点进去看）；本次没有配对话模型，所以 agent 任务本身是 FAILED，属预期。
 - 未做：OAS 登记（`src/oas/*`）与模块 README。
 
 **Phase 8（导出与收尾，部分）**
@@ -481,7 +484,7 @@
 2. **Phase 5 ③（已全部落地 2026-10-27）**：保存落库与冲突（③-1）、生成编排（③-2）、编辑器内联 AI 与收尾（③-3）。**仅剩人工复核**：内联 AI 在真机走一轮（续写/重写/总结 + diff 应用 + Ctrl+Z），发布后 `exports/*.html` 有产物，切库后侧栏根跟随。
 3. **Phase 7A（已完成 2026-10-27）**：entity / 排期服务 / worker / IPC / 面板 / 执行回写均落地。**仅剩人工复核**：面板建一条「每分钟」任务 → 到点自动跑一次 → 记录里出现 `schedule` 一次；点「立即执行」出现 `manual`；应用关掉一段时间再打开，只补跑一次（`catchup`）。
 4. **Phase 7B（已完成 2026-10-27）**：goose 侧同步（recipe + add/remove/run-now）已接。**人工复核**：选「goose 调度器」建一条任务 → `goose schedule list` 能看到；改 cron → 列表里跟着变；停用 → 消失。
-5. **Phase 7C（已完成 2026-10-27，未入库联调）**：表/API/worker 均落地，编译与单测绿。**需人工**：重建服务镜像后建一条每分钟任务，观察 worker 日志 `定时任务已起` 与 `lastTaskID`。
+5. **Phase 7C（已完成 2026-10-27，已真机验证）**：表/API/worker 均落地，并在重建库+重建镜像后跑通「建任务 → 认领 → 起 agent 任务 → 回写 → 推进排期」。**仅剩**：配一个可用对话模型后，确认 agent 任务能真正跑到成功。
 6. **Phase 8 余下**：OAS 登记、`docs/apps/client/**`、旧 `markdown-backups` 清理入口。
 
 ### 待决问题（已决 2026-10-27）
