@@ -80,6 +80,24 @@ function POST_FINALIZE(id: string): Promise<FinalizeResult> {
 }
 
 /**
+ * 还需要补传的分片序号。
+ *
+ * 服务端 `prepare` 回的是 **`uploaded`（已传过哪些）**，不是「待传哪些」：
+ * 新建会话时两者都为空，照 `chunks` 去传会一片都不传，finalize 直接报「缺少分片」。
+ * 所以分片总数由客户端按 size / chunk 自己算（服务端校验的也是这个数）。
+ */
+function planMissingChunks(size: number, uploaded: number[]): number[] {
+  if (size <= 0) return []
+  const total = Math.ceil(size / CHUNK_SIZE)
+  const done = new Set(uploaded)
+  const missing: number[] = []
+  for (let index = 0; index < total; index += 1) {
+    if (!done.has(index)) missing.push(index)
+  }
+  return missing
+}
+
+/**
  * 上传一份字节，返回资产 id（可直接拿去建索引）。
  *
  * 失败时抛 `HttpException`：服务端对「大小/分片不合法」回的是业务码，重试没意义。
@@ -97,8 +115,11 @@ async function uploadAsset(params: {
     hash
   })
 
-  // `chunks` 是服务端算出来的「还缺哪些分片」：秒传命中时为空，断点续传时只补缺的
-  for (const index of prepared.chunks) {
+  // `uploaded` 是「服务端已有哪几片」：秒传命中时为空但 `exists=true`，此时一片都不用传
+  const missing = prepared.exists
+    ? []
+    : planMissingChunks(params.bytes.length, prepared.uploaded.map((item) => item.index))
+  for (const index of missing) {
     const start = index * CHUNK_SIZE
     const slice = params.bytes.subarray(start, Math.min(start + CHUNK_SIZE, params.bytes.length))
     await POST_CHUNK({ id: prepared.id, index, hash: await sha256Hex(slice), bytes: slice })
@@ -108,5 +129,5 @@ async function uploadAsset(params: {
   return finalized.id
 }
 
-export { CHUNK_SIZE, sha256Hex, uploadAsset }
+export { CHUNK_SIZE, planMissingChunks, sha256Hex, uploadAsset }
 export type { FinalizeResult, PrepareResult }
