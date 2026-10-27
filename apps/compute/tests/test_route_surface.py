@@ -26,7 +26,7 @@ from starlette.routing import BaseRoute, Route
 from compute import capabilities
 from compute.api.health import HEALTH_PATH
 
-SPEC_PATH = Path(__file__).resolve().parents[2] / "cogito" / "spec" / "internal.yaml"
+SPEC_PATH = Path(__file__).resolve().parents[2] / "service" / "spec" / "internal.yaml"
 
 #: 骨架自己就有的路由（不属于任何可选能力）。
 BASELINE_ROUTES = {("GET", HEALTH_PATH)}

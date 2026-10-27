@@ -43,7 +43,7 @@ from support import (
     tool_call,
 )
 
-SPEC_PATH = Path(__file__).resolve().parents[2] / "cogito" / "spec" / "internal.yaml"
+SPEC_PATH = Path(__file__).resolve().parents[2] / "service" / "spec" / "internal.yaml"
 SPEC_URI = "urn:cogito:internal-contract"
 
 CHUNK_SET_ID = "7a1c9f2e-3b4d-4c5e-8f60-1a2b3c4d5e6f"
