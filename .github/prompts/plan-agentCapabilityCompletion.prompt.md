@@ -187,7 +187,7 @@
 5. 打包链：`tauri.conf.json` externalBin、`build.rs` 必检、`scripts/.../targets/client.ts`、CI 占位（加 `cogito-mcp`）、`sidecar bootstrap` 的本地构建分支；`dev/build` 前置 stage。**不改 `capabilities/default.json`**（goose 拉起，不经 app shell）。
 6. 只读工具先行：`app_calendar_read`、`app_workspace_list`（`app_knowledge_*` 依赖 Phase 4 的表，放 Phase 5）。
    文件：`Cargo.toml(workspace+app)`、`crates/mcp/**`、`src-tauri/src/{bridge,app}/*`、`tauri.conf.json`、`build.rs`、`scripts/commands/features/sidecar/**`、`.github/workflows/continuous-integration.yaml`。
-   验证：`cargo test -p thinking-core -p thinking-mcp`；实机 `tools/list` 出现 `app_*`；`app_calendar_read` 返回真实数据；删掉二进制后构建要给可读错误。
+   验证：`cargo test -p cogito-core -p cogito-mcp`；实机 `tools/list` 出现 `app_*`；`app_calendar_read` 返回真实数据；删掉二进制后构建要给可读错误。
 
 ### Phase 3 — 日历一键生成（依赖 Phase 1 的解析范式、Phase 2 的 `app_calendar_read`）
 
@@ -216,7 +216,7 @@
 6. 目录与写入不变量：每个 base 一个目录（`<root>/<slug>/`），`assets/` 同目录；不再全局单根；旧 `rootDir` 不再读取。`knowledge::Service` 统一写文件 + DB 快照 + FTS 重建；自身写入抑制 watch，外部修改按 hash 回灌，脏编辑器走「保留 / 重载」。
 7. **tiptap AI 交互**：编辑器工具栏加「AI 续写 / 重写选区 / 总结」，走同一 `app_knowledge_*` 通道；结果先进 diff 预览再应用，保留 undo。
 8. UI：知识库列表（grid/list）、文档列表、编辑器（复用 tiptap）、新建/导入/导出。
-   验证：`cargo test -p thinking-database`（空库全量迁移 + 种子 `component='knowledge'` 断言 + 只有 v001）；`migrate:fresh` 后实机新建/编辑/外部改文件/搜索/选区 AI；extension/mobile/studio 单测通过。
+   验证：`cargo test -p cogito-database`（空库全量迁移 + 种子 `component='knowledge'` 断言 + 只有 v001）；`migrate:fresh` 后实机新建/编辑/外部改文件/搜索/选区 AI；extension/mobile/studio 单测通过。
 
 ### Phase 5 — 本地检索与知识生成（依赖 Phase 2 + Phase 4）
 
@@ -272,9 +272,9 @@
 
 1. **Phase S**：三个 spike 各自出结论文档；打包不通不得进 Phase 2。
 2. Phase 0/1：`pnpm --filter @cogito/client exec vitest run src/features/agent` + 实机指令生成闭环 + `agent-tools.lock.json` 漂移告警单测。
-3. Phase 2：`cargo test -p thinking-core -p thinking-mcp`；实机 `tools/list` 出现 `app_*`；`app_calendar_read` 真实数据；**删二进制后构建给可读错误**。
+3. Phase 2：`cargo test -p cogito-core -p cogito-mcp`；实机 `tools/list` 出现 `app_*`；`app_calendar_read` 真实数据；**删二进制后构建给可读错误**。
 4. Phase 3：fixture 解析（含时区/DST/全天）+ 日历批量写入/回滚/撤销实机。
-5. Phase 4：`cargo test -p thinking-database`（空库全量迁移 + **只有 v001** + 种子 `component='knowledge'`）；`pnpm --filter @cogito/client migrate:fresh`；**FTS5 原生 SQL**；外部改文件回灌与脏编辑器冲突；client/studio/extension/mobile 改名后的单测与类型检查。
+5. Phase 4：`cargo test -p cogito-database`（空库全量迁移 + **只有 v001** + 种子 `component='knowledge'`）；`pnpm --filter @cogito/client migrate:fresh`；**FTS5 原生 SQL**；外部改文件回灌与脏编辑器冲突；client/studio/extension/mobile 改名后的单测与类型检查。
 6. Phase 5：中文 1–2 字/英文/混合查询召回；staging 越界写入被拒；生成→发布→检索命中。
 7. Phase 6：compute/service 单测；上传→索引 SUCCEEDED；**模型/维度不一致时云端不参与**；跨租户不污染；无权限降级。
 8. Phase 7：三路各一次；重启只补一次；重复 tick/多副本不重复；长任务不阻塞 tick。
@@ -309,7 +309,22 @@
 - 实测入参：`corex_actions{bucket,ids,limit}`、`corex_action{id}`、`corex_directives{names,limit}`、`corex_directive{name}`、`corex_validate{definition,strict}`、`corex_invoke{id,params}`、`corex_run{name|path,input}`（oneOf）。
 - **重要修正**：工具上**没有 `risk` 字段**，只有 MCP `annotations`（`readOnlyHint` / `destructiveHint` / `openWorldHint`）；动作级风险在 `corex_actions` 的**返回值**里，形状是对象 `{is_read_only,is_destructive,is_open_world}`（不是字符串/数字）。
   - 已据此改 `capabilities.ts` 的 `formatRisk`（支持对象→「只读/破坏性/开放世界」）。
-- 未做：S-1（`cogito-mcp` 打包 spike）、S-3（goose schedules spike）—— 需要先产出 `crates/mcp`，见「待办」。
+- **S-1（`cogito-mcp` 打包 spike，已完成 2026-10-27）**：空壳 crate 打通「构建 → stage → binaries」链路。
+  - 新 crate `crates/mcp`（`rmcp 3.4` + `transport-io`，手写 `ServerHandler`，只有一个占位工具 `app_ping`）；workspace 成员已加。
+  - 打包链：`tauri.conf.json` externalBin、`build.rs` 必检、CI 占位循环、`targets/client.ts`（映射 + 必检名）全部加入 `cogito-mcp`。
+  - 落盘：`packages/sidecar` 的 `SIDECAR_TOOL_KEYS` 加 `cogito`；新增 `tools/cogito.ts` 策略（`isLocal` → `cargo build --profile release`，不参与 lock 钉版校验）；`stage.ts` / `command.ts` 对 `isLocal` 放行 lock 检查。
+  - 实测：`pnpm command sidecar stage client` 产出 `binaries/cogito-mcp-x86_64-pc-windows-msvc.exe`；`node tmp/mcp-spike.mjs <exe>` → `initialize` 回 `cogito-mcp 0.1.0`、`tools/list` 回 `[app_ping]`、`tools/call` 回 `pong`（PASS）；`pnpm command sidecar verify client` 通过（11 文件）；`cargo check -p cogito` 通过（build.rs 必检）。
+  - 备注：本机 crates.io 不可达，首次构建需 `--offline`（rmcp 3.4.0 已在本地 registry 缓存）；`Cargo.lock` 已含 rmcp，CI 的 `cargo check --locked` 需带上该 lock。
+- **Phase 2 ②③④（已完成 2026-10-27）**：本地工具面打通「MCP → 桥 → core Service」。
+  - ③ `crates/core/src/tools/{mod,calendar,workspace}.rs`：`ToolSpec{name,description,inputSchema,effect}` 单一目录 + `call()` 分发；已实现 `app_calendar_read`（区间读，复用 `calendar::Service::toRead`）、`app_workspace_list`（复用 `agent_workspace_folder::Service::toRead`）。`Storage` 加 `Clone`（Arc 句柄）供桥共享。
+  - ② `src/bridge/{mod,http,command}.rs`：axum 绑 `127.0.0.1:0`，token 用 uuid 每次启动轮换；`GET /internal/tools/list`、`POST /internal/tools/call`；校验 `x-bridge-token` 且 `Host` 必须是回环（挡 DNS rebinding）；不挂 CORS。`bridge:info` 返回 `{url, token, mcpPath}`。
+  - ④ `crates/mcp` 改为转发：读 `COGITO_BRIDGE_URL/TOKEN`，`tools/list` 取桥目录、`tools/call` POST 转发；缺 env 退化为 `app_ping` 并在 instructions 里写明原因。前端 `findCogitoMcpServers`（`acp/session.ts`）与 `CHANNELS.BRIDGE.INFO` + `shared/ipc/specs/bridge.ts`；会话 mcpServers 合并 corex + cogito。
+  - `sidecar_command.rs` 的 MCP 解析泛化为 `find_sidecar_mcp(stem, env)`，新增 `find_cogito_mcp_path()`；`agent-tools.lock.json` 的 `local` 基线改为实际存在的 2 个工具（Phase 5 落地 knowledge 工具后再补）。
+  - 验证：`cargo test -p cogito-core -p cogito --lib` **17/17（含桥 3 项：无 token 401 / list / call）**；`node tmp/mcp-bridge-spike.mjs <binary>` 用同契约假桥跑通 MCP→桥 两段转发（PASS）；`pnpm --filter @cogito/client type-check` 通过；agent 域单测 10 文件 66 测试通过。
+  - **收尾（同日）**：`app_workspace_read` 落地（目标与白名单目录均 `canonicalize` 后按路径分量比对前缀，symlink 越界被拒；默认 256 KB / 硬上限 1 MB；截断用 lossy 解码）；本地工具面自检接入（`ThreadSession.mountsCogito` → `verifyAgentTools(names, 'local')`，未注入时不校验）；lock 基线补齐为 3 个 `app_*`。`cargo test -p cogito-core` 5/5（含白名单内/外/截断 3 项）、app 17/17。
+  - **仅剩人工复核**：`pnpm dev:client` 起应用 → 新建会话应看到 3 个 `app_*` 且日志无「工具名与基线不一致」；让 agent 调 `app_calendar_read` 应返回真实日程。
+  - 顺带修掉一个与本任务无关的陈旧单测：`capture::tests::screenshot_target_is_a_png_file` 未考虑文件名里的自增序号（既有失败）。
+- 未做：S-3（goose schedules spike）—— 需先有 `cogito-mcp` 注入（Phase 2 ④）才谈得上调度。
 
 **Phase 0（地基校正，已完成）**
 - `features/agent/agent-tools.lock.json`：pin corex 7 个工具 + 本地 8 个 `app_*`。
@@ -326,7 +341,7 @@
 - 迁移合并：`migrations_v001.rs` 吸收 v002–v005（album / bookmark / signboard_entry_asset / `progress`+`role` 列），删除 v002–v005，`mod.rs` 与 `migration.rs` 只注册 v001。
 - v001 内新增：`knowledge_base`、`knowledge_doc`、`knowledge_doc_fts`（FTS5 external content + 三个同步触发器）、`knowledge_index_state`、`automation`、`automation_run`、`directive_draft`。
 - 种子行改 `component='knowledge'`、标题/描述「知识库」。
-- `cargo test -p thinking-database` 5 个测试通过（含「只有 v001」「种子为 knowledge」「FTS 插入/删除触发器」「v002–v005 对象存在」）。
+- `cargo test -p cogito-database` 5 个测试通过（含「只有 v001」「种子为 knowledge」「FTS 插入/删除触发器」「v002–v005 对象存在」）。
 - `pnpm --filter @cogito/client migrate:fresh` 已执行成功。
 - 全仓改名 `markdown` → `knowledge`（tile/组件 id、路由、偏好键、命令 id、命令面板域）：
   - client：`features/magnetic-tiles/knowledge/**`、`views/knowledge/**`、`stores/knowledge.ts`、`keyboard/definitions/knowledge.ts`（`KNOWLEDGE_*`）、`@/views/knowledge/*` 别名、`tiles.knowledge` 偏好键、`findKnowledgeTilePrefs`、路由 `/knowledge`、命令面板 `knowledge` 域与 `knowledgeProvider`。
@@ -345,17 +360,30 @@
 - plan 提示词改为精确 JSON 形状（带本地偏移的 ISO、`entireDay` 规则）。
 - 单测：`directive-draft.test.ts`(7) + `schedule-plan.test.ts`(6) 通过。
 
+**Phase 4 补（schema 一次改齐，2026-10-27）**
+- v001 内补齐团队/自动化所需列，避免 Phase 5/7 再改迁移：
+  - `knowledge_base`：`scope`（user|tenant）、`tenantId` + `idx_knowledge_base_scope`
+  - `knowledge_doc`：`revision`、`error`
+  - `automation`：`runAsKind`（user|tenant）、`runAsUserId`、`tenantId`、`remoteId`、`lastStatus`、`lastError`
+  - `automation_run`：`triggerKind`（schedule|manual|catchup）、`runAsKind`、`runAsUserId`
+- `migration.rs` 测试新增列存在性断言（13 条），`cargo test -p cogito-database` 5/5 通过。
+- **一致性守卫**：`migration::tests::entity_columns_match_ddl` 用 `pragma_table_info` 与各 entity 的 `Column` 双向比对（24 张表）。首跑即抓出两处真实漂移并修正：`signboard_entry_asset.created_at` 补 `column_name = "createdAt"`（否则 `Entity::find()` 会查不存在的列）、`asset.version` 为无人引用的死列，从 DDL 移除。`cargo test -p cogito-database` 6/6 通过。
+  → 约定改为：**运行期以 entity 为准**，DDL 必须与之对齐（已写入 `migrations_v001.rs` 文件头）。
+  → 待清理：`user` / `notification` / `comment` 三张表既无 entity 也无引用（历史残留），未纳入比对清单；`knowledge_*` / `automation*` 待 Phase 5/7 建 entity 后再加入清单。
+- studio：新增 `drizzle/migrations/0003_magnetic_tile_knowledge.sql`（存量库 `markdown` → `knowledge`）+ `_journal.json` + `MIGRATION_COUNT=4`。
+- ⚠️ 本地库已跑过旧 v001，**需再执行一次 `pnpm --filter @cogito/client migrate:fresh`** 才会补上新列（脚本会自动备份）。
+
 ### 待办（按依赖顺序，尚需继续）
 
-1. **Phase 2（`cogito-mcp`）**：`crates/mcp`（rmcp stdio）+ `src-tauri/src/bridge/{mod,http}.rs`（axum loopback + token）+ `crates/core/src/tools/{mod,calendar,workspace}.rs` + 打包链（`tauri.conf.json` externalBin、`build.rs` 必检、`scripts/.../sidecar/targets/client.ts`、CI 占位）。**这是 Phase 3 之后所有「agent 读真实数据」能力的前置**。
+1. **Phase 2（已完成 2026-10-27）**：桥 / 工具目录 / 注入 / `app_workspace_read` / 本地工具自检均落地。**仅剩人工复核**：`pnpm dev:client` 起应用后，新建会话应看到 3 个 `app_*` 且日志无「工具名与基线不一致」；让 agent 调 `app_calendar_read` 应返回真实日程。
 2. **Phase 5**：`knowledge::Service`（文件为准 + DB 快照 + FTS 重建 + staging 原子提交）、`app_knowledge_*` 工具、检索（trigram + `<3 字符` → `LIKE` 回退 + RRF）、生成/发布 UI。
 3. **Phase 6/7/8**：云端 RAG（compute `assetIDs` 过滤 + service `/rag/search` + 客户端上传/索引 + RRF）、自动化（A 客户端 worker / B goose schedules / C 服务端 `scheduled_job`）、导出收尾与文档。
 
-### 待决问题（需你拍板）
+### 待决问题（已决 2026-10-27）
 
-1. **服务端调度身份**（Phase 7C 前置）：`runAsUserID` 代跑（需校验租户成员）还是租户服务账号？不选则 7C 不成立。
-2. **goose schedules**（Phase 7B）：是否允许依赖 `_goose/unstable/schedules/*`？不通就只保留 A/C。
-3. **studio 覆盖安装**：`drizzle/migrations/0000_init.sql` 只对新库生效，本地 dev 需要删 studio 库重建；要不要我加一条 dev 脚本来做这件事？
-4. **service 枚举破坏性变更**：`Component::Knowledge` 已改并同步了 `openapi.d.ts`；若有外部（镜像/旧客户端）依赖 `Markdown`，需要确认是否要保留别名。
-5. **`views/knowledge` 里 tiptap 相关符号仍叫 `Markdown*`**（`MarkdownViewMode`、`parseMarkdown`、`serializeHtmlToMarkdown`、`markdown` 字段）：按「只改 id 与文案」的边界保留，如希望连内部符号也统一，我再做一轮。
+1. **服务端调度身份** → **A+B 并存**（因存在 team）。规则：`runAsKind=user` 以创建者身份跑（执行时校验仍是租户成员，失效则置 `blocked` 并提示改派，**不自动降级**）；`runAsKind=tenant` 才以租户服务身份跑（团队共享知识库）。service 侧已有现成主体：`guards/service.rs` 的 `ServiceScope`（`SERVICE_ACTOR_ID` 全零 UUID）。
+2. **goose schedules** → 只做 0.5 天 spike，**默认不依赖**；不通则 A 扩展（worker 到期起 ACP 会话跑 prompt）。
+3. **studio 覆盖安装** → 允许新增 drizzle 迁移。已加 `0003_magnetic_tile_knowledge.sql`（`markdown` → `knowledge`）+ journal + `MIGRATION_COUNT=4`。
+4. **service 枚举** → **B：不留 `Markdown` 别名**。要求 client/mobile/extension/studio 同批发布；存量库靠 0003 修补。
+5. **`views/knowledge` 的 `Markdown*` 符号** → **B：暂不改**，等 Phase 5 重构时随结构一次到位（现在改只会被重构覆盖）。
 
