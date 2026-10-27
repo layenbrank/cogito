@@ -3,13 +3,13 @@ use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime};
 
+use cogito_core::asset::Service as AssetService;
+use cogito_database::Storage;
+use cogito_database::entity::asset::{Read, ReadP, Remove, RemoveP};
 use image::ImageReader;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager, State};
-use thinking_core::asset::Service as AssetService;
-use thinking_database::Storage;
-use thinking_database::entity::asset::{Read, ReadP, Remove, RemoveP};
 use tokio::sync::oneshot;
 
 use crate::capture::region::find_overlay_regions;
@@ -31,7 +31,6 @@ const READY_TIMEOUT_MS: u64 = 400;
 
 /// 抓屏文件名序号：同一毫秒内的两次抓屏不会互相覆盖
 static SCREENSHOT_SEQ: AtomicU64 = AtomicU64::new(0);
-
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -456,11 +455,10 @@ pub async fn capture_ocr(app: AppHandle, params: OcrParams) -> Result<OcrResult,
         payload["language"] = json!(language);
     }
 
-    let resp = tokio::task::spawn_blocking(move || {
-        ipc::invoke_with("capture", Some("ocr"), payload)
-    })
-    .await
-    .map_err(|e| format!("[capture:ocr] IPC 线程异常: {e}"))??;
+    let resp =
+        tokio::task::spawn_blocking(move || ipc::invoke_with("capture", Some("ocr"), payload))
+            .await
+            .map_err(|e| format!("[capture:ocr] IPC 线程异常: {e}"))??;
 
     if !resp.ok {
         return Err(resp
@@ -472,7 +470,6 @@ pub async fn capture_ocr(app: AppHandle, params: OcrParams) -> Result<OcrResult,
         text: find_ocr_text(&data),
     })
 }
-
 
 /// 光标下的元素链（由细到粗）。查询失败返回空数组，前端自动退化为窗口级。
 #[tauri::command(rename = "capture:elements")]
@@ -606,9 +603,14 @@ mod tests {
     #[test]
     fn screenshot_target_is_a_png_file() {
         let target = build_screenshot_target(Path::new("C:/data/screenshots"), 1_700_000_000_000);
-        assert_eq!(
-            target.file_name().and_then(|name| name.to_str()),
-            Some("screenshot-1700000000000.png")
+        let name = target
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default();
+        // 名字里带进程内自增序号（同一毫秒多次截图不能撞名），故只断言前缀
+        assert!(
+            name.starts_with("screenshot-1700000000000-"),
+            "实际文件名: {name}"
         );
         assert_eq!(target.extension().and_then(|ext| ext.to_str()), Some("png"));
     }
