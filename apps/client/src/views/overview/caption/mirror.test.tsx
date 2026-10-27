@@ -6,6 +6,23 @@ import { registerMirrorSwitch, requestMirrorSwitch } from '@/features/controller
 import { useMirrorStore } from '@/stores/mirror.ts'
 import { MirrorSwitcher } from '@/views/overview/caption/mirror.tsx'
 
+/**
+ * 图标运行时（离线图标集）在 jsdom 里很贵：每个 `<Icon>` 都要解析图标数据并插 DOM，
+ * 管理对话框一次要画几十个。这些用例断言的是 aria-label 与交互，不关心图形，换成空壳。
+ */
+vi.mock('@iconify/react/offline', function () {
+  return {
+    Icon: function StubIcon(props: { icon: string; className?: string }) {
+      return (
+        <span
+          data-icon={props.icon}
+          className={props.className}
+        />
+      )
+    }
+  }
+})
+
 function buildMirror(id: string, title: string, index: number, description = ''): Mirror {
   const now = Date.now()
   return {
@@ -163,7 +180,8 @@ describe('MirrorSwitcher', function () {
         { key: 'm1', change: { mark: 'lucide:briefcase' } }
       ])
     })
-  })
+    // 这一条要开管理对话框（弹层 + 图标网格 + 列表），默认 5s 在整包并发时不够用
+  }, 15_000)
 
   it('管理镜像：删除先二次确认，确认后按 id 删除', async function () {
     seed(MIRRORS)
@@ -184,7 +202,7 @@ describe('MirrorSwitcher', function () {
     await waitFor(function () {
       expect(toRemoveMirror).toHaveBeenCalledWith(['m2'])
     })
-  })
+  }, 15_000)
 
   it('切换中禁用触发按钮', function () {
     seed(MIRRORS)
