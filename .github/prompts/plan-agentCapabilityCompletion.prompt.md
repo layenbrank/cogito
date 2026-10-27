@@ -393,10 +393,30 @@
 - UI：`views/knowledge/hub/knowledge-hub.tsx`（右侧 Sheet：库切换 + 新建库 + 检索 + 文档列表 + 待发布草稿的「覆盖同名 / 保留两者 / 丢弃」），入口在知识库窗标题栏新增的 `lucide:library-big` 按钮（`views/knowledge/caption/final.tsx`）。点文档走现有 `openPath`，会把编辑器根目录切到该库目录，侧栏文件树同步。
 - 验证：`cargo test -p cogito-core` **23/23**（新增「staging 按会话分组与越界拒删」「摘要不带正文」）；`cargo check -p cogito` 通过；client `tsc` / `eslint` / 全量 63 文件 363 测试通过。
 
+**Phase 5 ③-1（编辑器保存落库 + 冲突，2026-10-27）**
+- `knowledge::Service`：
+  - `toResolveDoc(path)` → `DocRef{matched, docId, baseId, relPath, hash, revision}`：打开文档时取一次，保存时带回 `hash`；
+  - `toWriteDoc(path, content, expectedHash, force)` → `WriteDocOutcome`：**服务端写正式文件 + 落库**（`upsert_from_content`，source=`authored`）；`expectedHash` 与库内不一致且未 `force` → 返回冲突且**不写盘**；文件不在任何 base 下 → `matched=false`，由调用方按普通文件处理；
+  - `find_base_by_path`：canonicalize 后取**最深**的 base（相对路径最短者）；新文件先 canonicalize 父目录再拼文件名，避免「另存为」被当成越界；嵌套库不会认错。
+- 命令层：`knowledge:resolveDoc` / `knowledge:writeDoc`（`force` 由用户在冲突弹窗里选）。
+- 前端：`stores/knowledge.ts` 新增 `activeDoc` / `saveConflict`；`openPath` 后异步 `resolveDoc` 填引用；`saveDocument` 先走 `writeDoc`（`matched=false` 才回落到前端写文件），冲突时弹「保留我的（force 重存）/ 重载（丢弃我的）」；切换/新建文档时清掉引用与冲突态。
+- 验证：`cargo test -p cogito-core` **26/26**（新增「新建→更新 revision 递增」「hash 落后即冲突且不写盘」「force 才覆盖」「不在库内 matched=false 且不写盘」）；`pnpm --filter @cogito/client type-check` 通过；client 全量单测 63 文件 363 测试通过；改动文件 eslint 无报错。
+- 语义说明：外部改文件仍由既有 fs watch 负责（脏编辑器弹同一张对话框）；保存路径的冲突判定用的是**库内 hash**，所以 agent 发布/回灌改过同一篇时能被拦住。
+- 待续：watch 自身写入的抑制仍靠「内容未变则跳过」，未引入显式 suppress 标记（当前 400ms delay 下保存后 dirty 已清，实测无抖动）；若后续出现自写触发重载，再加写入标记。
+
+**Phase 5 ③-2（生成编排：大纲 → 分章 → 合并，2026-10-27）**
+- 分工判定：模型驱动只有一条路（`createModelPort().run()` 驱动**当前** thread，`runThreadPrompt` 未导出），程序里另起一路会和聊天输入框抢同一个会话。所以**内容生成留在聊天**（单驱动不变），**合并/发布是应用侧的确定性动作**。
+- `knowledge::Service::toMergeStaging(db, baseId, paths, title)`：只接受 staging 内文件（canonicalize 后 `starts_with`）；按**文件名**排序后 `\n\n` 拼接（`01-`/`02-` 前缀即顺序，不依赖传参顺序）；整体没有一级标题时才补 `# title`；结果写在**同一会话目录**、分片删除；越界直接拒绝且不动任何文件。
+- 命令层 `knowledge:mergeStaging`；前端 `CHANNELS.KNOWLEDGE.MERGE_STAGING`、`StagedDocSchema`、`mergeStaging()`、store `merge(paths, title)`（完成后 `refresh()`）。
+- 场景：`Scenario` 增 `knowledge`（标签「知识库」，`lucide:library-big`），新增 `KNOWLEDGE_PLAYBOOK`：① `app_knowledge_list_docs` / `app_knowledge_search` 去重（相近就先问用户是更新、并入还是新建）② 只输出大纲围栏 JSON `{"chapters":[{"title","brief"}]}` ③ 确认后逐章 `app_knowledge_write_doc`（两位序号前缀、`##` 章节标题、同 session 默认 `agent`）④ 收尾提示去待发布区「合并」再发布。分章写盘后不再复述全文。
+- UI：面板标题栏「生成」→ 小对话框（主题 + 「引用库里已有的相关文档」开关）→ `setNextPrompt({scenario:'knowledge'})` + `router.navigate('/agent/chat')`；staging 按 **session 分组**，同组 ≥2 章才出现「合并」（标题对话框，默认取首章名去掉序号）→ `mergeStaging` → 仍留在待发布列表。
+- 进度：不另做进度事件——聊天里的逐章工具调用就是进度，草稿列表每次合并/发布后 `refresh()`。
+- 验证：`cargo test -p cogito-core` **28/28**（新增「乱序传入仍按文件名拼接且分片清理」「staging 外文件拒绝且不动原文件」）；`cargo test -p cogito-database` 6/6；`cargo check -p cogito-command` 通过；client `tsc` 通过、全量 63 文件 363 测试通过。
+
 ### 待办（按依赖顺序，尚需继续）
 
 1. **Phase 2（已完成 2026-10-27）**：桥 / 工具目录 / 注入 / `app_workspace_read` / 本地工具自检均落地。**仅剩人工复核**：`pnpm dev:client` 起应用后，新建会话应看到 8 个 `app_*` 且日志无「工具名与基线不一致」；让 agent 调 `app_calendar_read` 应返回真实日程。
-2. **Phase 5 ③（剩生成编排与编辑器联动）**：生成编排（大纲 → 分章 → 合并 + 进度事件 + `autoUpdate/autoExport/citation` 选项）；tiptap「AI 续写/重写选区/总结」（结果进 diff 预览再应用）；编辑器保存时同步落库（目前只靠「重新扫描」或发布）；脏编辑器与外部改文件的冲突策略（保留 / 重载）；旧 `rootDir` 偏好与 `markdown-backups/` 清理。
+2. **Phase 5 ③（余下：编辑器 AI 与收尾）**：保存落库与冲突（③-1）、生成编排（③-2）已落地。还剩：tiptap「AI 续写/重写选区/总结」（结果进 diff 预览再应用）；生成/发布流程接上 `autoUpdate/autoExport` 选项；旧 `rootDir` 偏好改为「当前库目录」与 `markdown-backups/` 清理；`Markdown*` 符号改名为 `Knowledge*`（决策 5 定的时机已到）。
 3. **Phase 6/7/8**：云端 RAG（compute `assetIDs` 过滤 + service `/rag/search` + 客户端上传/索引 + RRF）、自动化（A 客户端 worker / B goose schedules / C 服务端 `scheduled_job`）、导出收尾与文档。
 
 ### 待决问题（已决 2026-10-27）
