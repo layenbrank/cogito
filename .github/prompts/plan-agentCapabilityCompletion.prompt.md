@@ -433,9 +433,13 @@
   - 串行同步：服务端同一资产只允许一个索引任务，并发只会互相 409。
   - 面板：标题栏「同步到云端」（只挑状态不是 succeeded 的文档）+ 每篇文档的角标（待上云 / 索引中 / 已上云 / 同步失败，悬停看原因）。
   - 验证：core `cargo test -p cogito-core knowledge` **27/27**（新增状态 upsert 与「文档不存在不建孤儿行」）；`cargo check -p cogito` 通过；client `tsc`/`eslint` 干净、**67 文件 386 测试**（含 3 条编排用例）。
-- **真机联调（2026-10-27，已跑通）**：镜像重建被网络封死（BuildKit 里 `apt-get update` 连不上 `deb.debian.org`），改为**宿主进程**跑同一套代码：本地 service（`:3000`）+ 本地 orchestrator + 本地 compute（`uv run python -m compute`，`:8081`）+ 嵌入桩（`:9099`，确定性向量），Postgres/Redis 仍用 Docker。
+- **真机联调（2026-10-27，已跑通两轮）**
+  - 第一轮：BuildKit 里 `apt-get update` 连不上 `deb.debian.org`，判定「镜像重建被网络封死」，改用**宿主进程**跑同一套代码（本地 service `:3000` + orchestrator + compute `:8081` + 嵌入桩 `:9099`，Postgres/Redis 仍用 Docker）。
+  - 第二轮：**该判定是错的** —— 网络只是慢与抽风（`deb.debian.org` 约 100 kB/s，`apt-get update` 91 秒；`rsproxy.cn` / Docker Hub / ghcr.io 都通，`files.pythonhosted.org` 时好时坏）。`docker compose build cogito-service`（Rust release 全量约 10 分钟）与 `compute`（uv 命中 cache mount，约 30 秒）均成功，`cogito:local` / `cogito-compute:local` 已是新代码；容器化闭环同样通过。
+    - 对照证据：旧 `cogito:local` 里 `grep 'rag/search' /app/cogito` = 0，新镜像 = 1。
   - 闭环：`signin → tenant → upload(prepare/finalize) → POST rag/index-tasks → GET 轮询 SUCCEEDED → POST /api/v1/rag/search` 返回 1 条命中；`assetIDs: []` 返回 0 条（不退化成全租户）。
-  - **网关必须声明嵌入能力**：`gateway_model.capabilities` 为空时，索引报 400「模型 text-embedding-3-small 未声明 embeddings 能力」。用 `PUT /api/v1/gateway/admin/models/{id}` 写 `{"embeddings":true,"tools":false}` 后正常。provider 的 `baseUrl` 要指到 `.../v1`（上游拼 `{base_url}/embeddings`）。
+  - **网关必须声明嵌入能力**：`gateway_model.capabilities` 为空时，索引报 400「模型 text-embedding-3-small 未声明 embeddings 能力」。用 `PUT /api/v1/gateway/admin/models/{id}` 写 `{"embeddings":true,"tools":false}` 后正常。provider 的 `baseUrl` 要指到 `.../v1`（上游拼 `{base_url}/embeddings`）；供应商接口在 `/api/v1/gateway/providers`（`/gateway/admin/providers` 是 404）。
+  - 脚本登录要过站点验证码 → 临时 `docker/stack.env` 写 `COGITO__AUTH__CAPTCHA__ENABLED=false`（gitignored），用完删除。
   - **联调抓出的两个真 bug**（已修）：① `prepare` 返回的 `chunks` 是**已传过的**分片，客户端据此规划会一片不传 → 改为按 `size / CHUNK_SIZE` 本地规划；② `/rag/search` 请求体多一个必填 `model`（服务端本来就用 `compute.embed_model`）→ 删掉，且 compute 拒绝时把 body 记进日志（真正的下游原因只留日志，不回给调用方）。
   - 纠偏记录：契约测试曾按旧目录 `apps/cogito` 找 `internal.yaml`，找不到就 **skip**，等于没测；改到 `apps/service` 后才真正开跑。
 
@@ -443,7 +447,7 @@
 
 1. **Phase 2（已完成 2026-10-27）**：桥 / 工具目录 / 注入 / `app_workspace_read` / 本地工具自检均落地。**仅剩人工复核**：`pnpm dev:client` 起应用后，新建会话应看到 8 个 `app_*` 且日志无「工具名与基线不一致」；让 agent 调 `app_calendar_read` 应返回真实日程。
 2. **Phase 5 ③（已全部落地 2026-10-27）**：保存落库与冲突（③-1）、生成编排（③-2）、编辑器内联 AI 与收尾（③-3）。**仅剩人工复核**：内联 AI 在真机走一轮（续写/重写/总结 + diff 应用 + Ctrl+Z），发布后 `exports/*.html` 有产物，切库后侧栏根跟随。
-3. **Phase 6 余下 / 7 / 8**：云端检索的**真机联调已完成**（2026-10-27，宿主进程跑通上传→索引→召回；compose 里的 service/compute 镜像仍是旧代码，需要能联网的环境重建）、自动化（A 客户端 worker / B goose schedules / C 服务端 `scheduled_job`）、导出收尾与文档。
+3. **Phase 6 余下 / 7 / 8**：云端检索的**真机联调已完成**（2026-10-27；镜像已重建、宿主与容器两种跑法都跑通上传→索引→召回）、自动化（A 客户端 worker / B goose schedules / C 服务端 `scheduled_job`）、导出收尾与文档。
 
 ### 待决问题（已决 2026-10-27）
 
