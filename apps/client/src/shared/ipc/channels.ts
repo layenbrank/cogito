@@ -54,7 +54,9 @@ export const CHANNELS = {
     REMOVE_DOC: 'knowledge:removeDoc',
     RESOLVE_DOC: 'knowledge:resolveDoc',
     WRITE_DOC: 'knowledge:writeDoc',
-    EXPORT_BUNDLE: 'knowledge:exportBundle'
+    EXPORT_BUNDLE: 'knowledge:exportBundle',
+    LEGACY_SCAN: 'knowledge:legacyScan',
+    LEGACY_REMOVE: 'knowledge:legacyRemove'
   },
   AUTOMATION: {
     SAVE: 'automation:save',

@@ -14,6 +14,7 @@ import {
   KnowledgeDocRefSchema,
   KnowledgeDocSummarySchema,
   KnowledgeHitSchema,
+  LegacyBackupSchema,
   PublishedDocSchema,
   StagedDocSchema,
   StagedFileSchema,
@@ -24,6 +25,7 @@ import {
   type KnowledgeDocRef,
   type KnowledgeDocSummary,
   type KnowledgeHit,
+  type LegacyBackup,
   type PublishedDoc,
   type PublishMode,
   type StagedDoc,
@@ -225,7 +227,24 @@ async function exportBundle(baseId: string): Promise<string> {
     throw asError(error, '导出知识库失败')
   }
 }
+// 旧版自动备份目录：没残留返回 null（界面不显示这一项）
+async function scanLegacy(): Promise<LegacyBackup | null> {
+  try {
+    const raw = await invoke(CHANNELS.KNOWLEDGE.LEGACY_SCAN)
+    return raw === null ? null : LegacyBackupSchema.parse(raw)
+  } catch (error) {
+    throw asError(error, '检查旧备份失败')
+  }
+}
 
+// 删旧备份目录，返回释放的字节数
+async function removeLegacy(): Promise<number> {
+  try {
+    return await invoke<number>(CHANNELS.KNOWLEDGE.LEGACY_REMOVE)
+  } catch (error) {
+    throw asError(error, '删除旧备份失败')
+  }
+}
 export {
   createBase,
   discardStaged,
@@ -238,8 +257,10 @@ export {
   mergeStaging,
   publishDoc,
   removeDoc,
+  removeLegacy,
   rescanBase,
   resolveDoc,
+  scanLegacy,
   searchDocs,
   setCloudState,
   updateBase,
@@ -251,5 +272,6 @@ export type {
   KnowledgeBase,
   KnowledgeDocSummary,
   KnowledgeHit,
+  LegacyBackup,
   StagedFile
 }

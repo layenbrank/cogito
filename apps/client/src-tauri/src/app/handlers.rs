@@ -167,6 +167,8 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         cogito_command::knowledge::knowledge_resolve_doc,
         cogito_command::knowledge::knowledge_write_doc,
         cogito_command::knowledge::knowledge_export_bundle,
+        crate::knowledge::legacy::knowledge_legacy_scan,
+        crate::knowledge::legacy::knowledge_legacy_remove,
         crate::automation::command::automation_save,
         crate::automation::command::automation_list,
         crate::automation::command::automation_set_enabled,

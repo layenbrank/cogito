@@ -1,3 +1,14 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@cogito/design/components/alert-dialog'
+import { Button } from '@cogito/design/components/button'
 import { Input } from '@cogito/design/components/input'
 import { Label } from '@cogito/design/components/label'
 import {
@@ -7,8 +18,12 @@ import {
   SheetTitle
 } from '@cogito/design/components/sheet'
 import { Switch } from '@cogito/design/components/switch'
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
+import { removeLegacy, scanLegacy, type LegacyBackup } from '@/lib/knowledge-ipc'
 import { useKnowledgeStore } from '@/stores/knowledge'
+import { formatSize } from '@/views/knowledge/lib/stats.ts'
 import { t } from '@/views/knowledge/locale.ts'
 
 function PreferencesSheet() {
@@ -39,6 +54,43 @@ function PreferencesSheet() {
   const toPatchPreferences = useKnowledgeStore(function (state) {
     return state.toPatchPreferences
   })
+
+  // 旧版自动备份：只在真有残留时出现（没有就不打扰）
+  const [legacy, setLegacy] = useState<LegacyBackup | null>(null)
+  const [isLegacyConfirmOpen, toSetLegacyConfirmOpen] = useState(false)
+  const [isLegacyBusy, toSetLegacyBusy] = useState(false)
+
+  useEffect(
+    function () {
+      if (!isPrefsOpen) return
+      let isCancelled = false
+      scanLegacy()
+        .then(function (found) {
+          if (!isCancelled) setLegacy(found)
+        })
+        .catch(function (error) {
+          console.warn('[knowledge-prefs] 检查旧备份失败:', error)
+        })
+      return function () {
+        isCancelled = true
+      }
+    },
+    [isPrefsOpen]
+  )
+
+  async function toRemoveLegacy() {
+    toSetLegacyBusy(true)
+    try {
+      const freed = await removeLegacy()
+      setLegacy(null)
+      toast.success(`${t('PREF_LEGACY_DONE')}（释放 ${formatSize(freed)}）`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error))
+    } finally {
+      toSetLegacyBusy(false)
+      toSetLegacyConfirmOpen(false)
+    }
+  }
 
   return (
     <Sheet
@@ -127,8 +179,48 @@ function PreferencesSheet() {
               }}
             />
           </div>
+          {legacy ? (
+            <div className="space-y-2 rounded-md border border-border p-3">
+              <Label>{t('PREF_LEGACY')}</Label>
+              <p className="text-xs text-muted-foreground">
+                {t('PREF_LEGACY_HINT')}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {legacy.files} 个文件 · {formatSize(legacy.bytes)}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isLegacyBusy}
+                onClick={function () {
+                  toSetLegacyConfirmOpen(true)
+                }}>
+                {t('PREF_LEGACY_BUTTON')}
+              </Button>
+            </div>
+          ) : null}
         </div>
       </SheetContent>
+      <AlertDialog
+        open={isLegacyConfirmOpen}
+        onOpenChange={toSetLegacyConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('PREF_LEGACY_CONFIRM_TITLE')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('PREF_LEGACY_CONFIRM_DESC')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('CONFIRM_CANCEL')}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isLegacyBusy}
+              onClick={toRemoveLegacy}>
+              {t('CONFIRM_REMOVE')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   )
 }

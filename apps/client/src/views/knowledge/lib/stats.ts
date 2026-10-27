@@ -11,6 +11,13 @@ function isLargeMarkdown(content: string): boolean {
   return new TextEncoder().encode(content).byteLength >= LARGE_FILE_BYTES
 }
 
+/** 人读的文件尺寸（列表与清理提示共用同一口径） */
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
 function findDocStats(source: string): DocStats {
   const text = source.replace(/\r\n/g, '\n')
   const trimmed = text.trim()
@@ -26,4 +33,4 @@ function findDocStats(source: string): DocStats {
 }
 
 export type { DocStats }
-export { findDocStats, isLargeMarkdown, LARGE_FILE_BYTES }
+export { findDocStats, formatSize, isLargeMarkdown, LARGE_FILE_BYTES }

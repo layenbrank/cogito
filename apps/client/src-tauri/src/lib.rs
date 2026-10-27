@@ -2,6 +2,7 @@ pub mod app;
 pub mod autostart;
 pub mod automation;
 pub mod bridge;
+pub mod knowledge;
 pub mod reminder;
 pub mod search;
 pub mod system;

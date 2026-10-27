@@ -38,6 +38,7 @@ import { toast } from 'sonner'
 import { setNextPrompt } from '@/features/agent/model/pending-prompt'
 import type { BasePatch, StagedFile } from '@/lib/knowledge-ipc'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { formatSize } from '@/views/knowledge/lib/stats.ts'
 import { openPath } from '@/views/knowledge/lib/session.ts'
 import { AutomationSheet } from '@/views/knowledge/hub/automation-sheet'
 
@@ -59,12 +60,6 @@ function formatTime(ms: number): string {
     console.warn('[knowledge-hub] 时间格式化失败:', error)
     return ''
   }
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
 interface StagingGroup {
