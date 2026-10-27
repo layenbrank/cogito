@@ -540,6 +540,23 @@ function clearThreadSessions() {
 }
 
 /**
+ * 关掉某个 thread 的 ACP session（一次性用途，如编辑器内联改写）。
+ *
+ * 只在**没有在跑**的时候关：正在跑的那一轮还握着 `session.nextUpdate()`，
+ * 提前 dispose 会让它拿到一个永远不会结束的流。
+ */
+function closeThreadSession(threadID: string): void {
+  const thread = sessionByThread.get(threadID)
+  if (!thread) return
+  if (thread.run) {
+    console.warn('[acp/session] 会话仍有运行中，跳过关闭:', threadID)
+    return
+  }
+  disposeThreadSession(thread)
+  forgetThreadSession(thread)
+}
+
+/**
  * 建会话后对一次工具面：实际名与 `agent-tools.lock.json` 不一致时告警。
  * 只打日志、不抛错：工具名漂移不该阻断用户发消息。
  *
@@ -1064,6 +1081,7 @@ function findThreadAcpSessionID(threadID: string): string | null {
 
 export {
   clearThreadSessions,
+  closeThreadSession,
   compactThreadSession,
   ensureThreadSession,
   findThreadAcpSessionID,

@@ -31,6 +31,7 @@ import { TextButton } from '@/components/tiptap-ui/text-button/text-button.tsx'
 import { TurnIntoDropdown } from '@/components/tiptap-ui/turn-into-dropdown/turn-into-dropdown.tsx'
 import { UndoRedoButton } from '@/components/tiptap-ui/undo-redo-button/undo-redo-button.tsx'
 import { useKnowledgeStore } from '@/stores/knowledge'
+import { AiMenu } from '@/views/knowledge/workspace/ai-menu.tsx'
 
 import '@/components/tiptap-node/blockquote-node/blockquote-node.scss'
 import '@/components/tiptap-node/code-block-node/code-block-node.scss'
@@ -226,6 +227,11 @@ function FormatToolbar(props: { composer: Editor | null }) {
         tooltip="清除格式"
         hideWhenUnavailable
       />
+      <Separator
+        orientation="vertical"
+        className="mx-0.5 h-auto shrink-0 self-stretch"
+      />
+      <AiMenu editor={props.composer} />
     </Glide.X>
   )
 }

@@ -71,7 +71,17 @@ const MD_LOCALE = {
   NO_OUTLINE: '暂无标题',
   RECENT: '最近打开',
   PRINT: '打印',
-  AI_IMPROVE: 'AI 改进'
+  AI_CONTINUE: 'AI 续写',
+  AI_REWRITE: 'AI 重写选区',
+  AI_SUMMARIZE: 'AI 总结',
+  AI_NEED_SELECTION: '先选中一段正文再试',
+  AI_NEED_CONTEXT: '光标前还没有内容，先写一点再续写',
+  AI_NEED_CONTENT: '当前没有可处理的内容',
+  AI_RUNNING: '正在生成…',
+  AI_PREVIEW_TITLE: 'AI 结果预览',
+  AI_APPLY: '应用',
+  AI_RETRY: '重新生成',
+  AI_FAILED: '生成失败'
 } as const
 
 type MdLocaleKey = keyof typeof MD_LOCALE
