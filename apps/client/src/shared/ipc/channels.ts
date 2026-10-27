@@ -9,6 +9,9 @@ export const CHANNELS = {
   SYSTEM: {
     OS: 'system:os'
   },
+  BRIDGE: {
+    INFO: 'bridge:info'
+  },
   SIDECAR: {
     TO_READ: 'sidecar:toRead',
     ACTIONS: 'sidecar:actions',

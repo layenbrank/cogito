@@ -1,11 +1,11 @@
 #![allow(non_snake_case)]
 
 use chrono::Utc;
+use cogito_database::entity::agent_usage as schema;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
     QueryFilter, QueryOrder, TransactionTrait,
 };
-use thinking_database::entity::agent_usage as schema;
 use uuid::Uuid;
 
 use crate::exception::Exception;
@@ -150,7 +150,9 @@ impl Service {
         let model = schema::Entity::find_by_id(payload.key.clone())
             .one(db)
             .await?
-            .ok_or_else(|| Exception::NotFound(format!("agent_usage not found: {}", payload.key)))?;
+            .ok_or_else(|| {
+                Exception::NotFound(format!("agent_usage not found: {}", payload.key))
+            })?;
 
         let mut active: schema::ActiveModel = model.into();
         if let Some(v) = payload.change.sessionID {

@@ -1,9 +1,9 @@
 //! 指令草稿 IPC：pending 草稿的新增/列出/确认/丢弃
+use cogito_core::CommandResult;
+use cogito_core::directive_draft::{DraftInput, DraftStatusInput, Service};
+use cogito_database::Storage;
+use cogito_database::entity::directive_draft::Model;
 use tauri::State;
-use thinking_core::CommandResult;
-use thinking_core::directive_draft::{DraftInput, DraftStatusInput, Service};
-use thinking_database::Storage;
-use thinking_database::entity::directive_draft::Model;
 
 #[tauri::command(rename = "directiveDraft:save")]
 pub async fn directive_draft_save(

@@ -1,9 +1,9 @@
 use chrono::{Datelike, Local, Timelike, Utc};
+use cogito_database::entity::reminder as schema;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
     QueryFilter, QueryOrder, TransactionTrait,
 };
-use thinking_database::entity::reminder as schema;
 use uuid::Uuid;
 
 use crate::exception::Exception;

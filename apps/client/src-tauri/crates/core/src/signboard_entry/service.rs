@@ -1,9 +1,9 @@
 use chrono::Utc;
+use cogito_database::entity::signboard_entry as schema;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
     QueryFilter, QueryOrder, TransactionTrait,
 };
-use thinking_database::entity::signboard_entry as schema;
 use uuid::Uuid;
 
 use crate::exception::Exception;

@@ -1,8 +1,8 @@
+use cogito_core::CommandResult;
+use cogito_core::signboard::Service;
+use cogito_database::Storage;
+use cogito_database::entity::signboard::{Model, ReadP, RemoveP, UpdateP, WriteP};
 use tauri::State;
-use thinking_core::CommandResult;
-use thinking_core::signboard::Service;
-use thinking_database::Storage;
-use thinking_database::entity::signboard::{Model, ReadP, RemoveP, UpdateP, WriteP};
 
 #[tauri::command(rename = "signboard:write")]
 pub async fn signboard_write(
@@ -13,10 +13,7 @@ pub async fn signboard_write(
 }
 
 #[tauri::command(rename = "signboard:read")]
-pub async fn signboard_read(
-    state: State<'_, Storage>,
-    params: ReadP,
-) -> CommandResult<Vec<Model>> {
+pub async fn signboard_read(state: State<'_, Storage>, params: ReadP) -> CommandResult<Vec<Model>> {
     Service::toRead(state.connection(), params).await
 }
 

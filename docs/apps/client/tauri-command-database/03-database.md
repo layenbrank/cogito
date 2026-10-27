@@ -1,6 +1,6 @@
 # 03 — Database：迁移、Entity、CRUD 载荷
 
-Crate：`thinking-database`（`apps/client/src-tauri/crates/database`）。
+Crate：`cogito-database`（`apps/client/src-tauri/crates/database`）。
 
 ## 迁移
 
@@ -31,9 +31,9 @@ pnpm --filter @cogito/client migrate:fresh # 清空全部表后重跑全部迁�
 | `reset` / `refresh` | 全部回滚 / 回滚后重跑     | 是                           |
 | `fresh`             | 清空全部表后重跑全部迁移  | 是（等价删库冷启动）         |
 
-- 脚本实际执行 `cargo run --manifest-path src-tauri/Cargo.toml -p thinking-database --bin thinking-database -- -u <url> <子命令>`，首次会先编译 `thinking-database`
+- 脚本实际执行 `cargo run --manifest-path src-tauri/Cargo.toml -p cogito-database --bin cogito-database -- -u <url> <子命令>`，首次会先编译 `cogito-database`
 - 手敲 bin 时的等价变量：`-u` ↔ `DATABASE_URL`，`-s` ↔ `DATABASE_SCHEMA`（SQLite 忽略）
-- 只验证迁移本身：`cargo test -p thinking-database`
+- 只验证迁移本身：`cargo test -p cogito-database`
 - 报 `Migration file of version '…' is missing` 说明库里留存了**已从代码删除**的迁移记录（典型是旧世代的 v002 / v003）：`up`、`status` 与 App 启动都会失败。重置用 `migrate:fresh`（会先自动备份），只想保数据可手工删掉 `migrations` 表里那一行。
 
 ### 为什么不用 `sea-orm-cli`

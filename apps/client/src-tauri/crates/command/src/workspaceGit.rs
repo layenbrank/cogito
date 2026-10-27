@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 
+use cogito_core::{CommandResult, Exception};
 use serde::{Deserialize, Serialize};
-use thinking_core::{CommandResult, Exception};
 use tokio::process::Command;
 
 #[derive(Debug, Deserialize)]

@@ -1,9 +1,9 @@
 use chrono::Utc;
+use cogito_database::entity::bookmark as schema;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
     QueryFilter, QueryOrder, TransactionTrait,
 };
-use thinking_database::entity::bookmark as schema;
 use uuid::Uuid;
 
 use crate::exception::Exception;
@@ -168,7 +168,12 @@ impl Service {
         let title = node.title.trim();
         let title = if title.is_empty() { "未命名" } else { title };
 
-        if let Some(raw_url) = node.url.as_ref().map(|u| u.trim()).filter(|u| !u.is_empty()) {
+        if let Some(raw_url) = node
+            .url
+            .as_ref()
+            .map(|u| u.trim())
+            .filter(|u| !u.is_empty())
+        {
             if raw_url.starts_with("javascript:")
                 || raw_url.starts_with("data:")
                 || raw_url.starts_with("vbscript:")
@@ -314,7 +319,9 @@ impl Service {
         for child in children {
             Box::pin(Self::remove_subtree(db, &child.id)).await?;
         }
-        schema::Entity::delete_by_id(id.to_string()).exec(db).await?;
+        schema::Entity::delete_by_id(id.to_string())
+            .exec(db)
+            .await?;
         Ok(())
     }
 

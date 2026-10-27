@@ -1,8 +1,8 @@
+use cogito_core::CommandResult;
+use cogito_core::signboard_entry_asset::Service;
+use cogito_database::Storage;
+use cogito_database::entity::signboard_entry_asset::{Model, ReadP, RemoveP, UpdateP, WriteP};
 use tauri::State;
-use thinking_core::CommandResult;
-use thinking_core::signboard_entry_asset::Service;
-use thinking_database::Storage;
-use thinking_database::entity::signboard_entry_asset::{Model, ReadP, RemoveP, UpdateP, WriteP};
 
 #[tauri::command(rename = "signboard-entry-asset:write")]
 pub async fn signboard_entry_asset_write(

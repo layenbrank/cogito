@@ -3,8 +3,8 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use cogito_core::{CommandResult, Exception};
 use serde::{Deserialize, Serialize};
-use thinking_core::{CommandResult, Exception};
 
 const SKILL_FILE: &str = "SKILL.md";
 const DESC_MAX: usize = 80;

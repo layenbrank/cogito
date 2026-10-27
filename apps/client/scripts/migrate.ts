@@ -2,7 +2,7 @@
  * 数据库迁移入口。
  *
  * 背景：src-tauri 已改成 Cargo workspace，`sea-orm-cli migrate …`（依赖 `-d` 定位 Cargo.toml）
- * 不再适用；这里直接跑 `crates/database` 的迁移 bin（`thinking-database`），只需给出库地址。
+ * 不再适用；这里直接跑 `crates/database` 的迁移 bin（`cogito-database`），只需给出库地址。
  *
  * 用法：
  *   pnpm --filter @cogito/client migrate:status
@@ -136,9 +136,9 @@ function run(options: Options, databaseUrl: string): number {
     '--manifest-path',
     MANIFEST,
     '-p',
-    'thinking-database',
+    'cogito-database',
     '--bin',
-    'thinking-database',
+    'cogito-database',
     '--',
     '-u',
     databaseUrl,

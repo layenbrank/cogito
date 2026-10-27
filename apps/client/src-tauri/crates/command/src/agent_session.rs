@@ -1,10 +1,10 @@
 #![allow(non_snake_case)]
 
+use cogito_core::CommandResult;
+use cogito_core::agent_session::Service;
+use cogito_database::Storage;
+use cogito_database::entity::agent_session::{Model, ReadP, RemoveP, UpdateP, WriteP};
 use tauri::State;
-use thinking_core::CommandResult;
-use thinking_core::agent_session::Service;
-use thinking_database::Storage;
-use thinking_database::entity::agent_session::{Model, ReadP, RemoveP, UpdateP, WriteP};
 
 #[tauri::command(rename = "agentSession:toWrite")]
 pub async fn agentSessionToWrite(

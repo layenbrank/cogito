@@ -3,12 +3,12 @@
 //! 指令草稿的读写（只服务客户端「AI 生成指令」闭环，不碰 corex.db）。
 
 use chrono::Utc;
+use cogito_database::entity::directive_draft as schema;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
-use thinking_database::entity::directive_draft as schema;
 use uuid::Uuid;
 
 use crate::exception::Exception;

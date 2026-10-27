@@ -1,11 +1,11 @@
 [package]
-name    = "thinking-command"
+name    = "cogito-command"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-thinking-database = { workspace = true }
-thinking-core     = { workspace = true }
+cogito-database = { workspace = true }
+cogito-core     = { workspace = true }
 tauri             = { workspace = true }
 serde             = { workspace = true }
 serde_json        = { workspace = true }

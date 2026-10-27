@@ -1,8 +1,8 @@
+use cogito_core::CommandResult;
+use cogito_core::magnetic_tile::Service;
+use cogito_database::Storage;
+use cogito_database::entity::magnetic_tile::{Model, ReadP, RemoveP, UpdateP, WriteP};
 use tauri::State;
-use thinking_core::CommandResult;
-use thinking_core::magnetic_tile::Service;
-use thinking_database::Storage;
-use thinking_database::entity::magnetic_tile::{Model, ReadP, RemoveP, UpdateP, WriteP};
 
 #[tauri::command(rename = "magnetic-tile:write")]
 pub async fn magnetic_tile_write(

@@ -1,8 +1,8 @@
+use cogito_core::CommandResult;
+use cogito_core::signboard_automation::Service;
+use cogito_database::Storage;
+use cogito_database::entity::signboard_automation::{Model, ReadP, RemoveP, UpdateP, WriteP};
 use tauri::State;
-use thinking_core::CommandResult;
-use thinking_core::signboard_automation::Service;
-use thinking_database::Storage;
-use thinking_database::entity::signboard_automation::{Model, ReadP, RemoveP, UpdateP, WriteP};
 
 #[tauri::command(rename = "signboard-automation:write")]
 pub async fn signboard_automation_write(

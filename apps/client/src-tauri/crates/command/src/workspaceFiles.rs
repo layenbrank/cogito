@@ -3,8 +3,8 @@
 use std::collections::HashSet;
 use std::path::{Component, Path, PathBuf};
 
+use cogito_core::{CommandResult, Exception};
 use serde::{Deserialize, Serialize};
-use thinking_core::{CommandResult, Exception};
 use tokio::process::Command;
 
 const SEARCH_LIMIT: usize = 50;

@@ -1,11 +1,11 @@
 #![allow(non_snake_case)]
 
 use chrono::Utc;
+use cogito_database::entity::agent_workspace_folder as schema;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
     QueryFilter, QueryOrder, TransactionTrait,
 };
-use thinking_database::entity::agent_workspace_folder as schema;
 use uuid::Uuid;
 
 use crate::exception::Exception;

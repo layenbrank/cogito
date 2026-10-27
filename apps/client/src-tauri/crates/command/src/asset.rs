@@ -1,8 +1,8 @@
+use cogito_core::CommandResult;
+use cogito_core::asset::Service;
+use cogito_database::Storage;
+use cogito_database::entity::asset::{InsertP, InsertR, Model, ReadP, RemoveP, UpdateP};
 use tauri::State;
-use thinking_core::CommandResult;
-use thinking_core::asset::Service;
-use thinking_database::Storage;
-use thinking_database::entity::asset::{InsertP, InsertR, Model, ReadP, RemoveP, UpdateP};
 
 #[tauri::command(rename = "asset:read")]
 pub async fn asset_read(state: State<'_, Storage>, params: ReadP) -> CommandResult<Vec<Model>> {

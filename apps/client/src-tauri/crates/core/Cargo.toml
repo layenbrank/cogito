@@ -1,10 +1,10 @@
 [package]
-name    = "thinking-core"
+name    = "cogito-core"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-thinking-database = { workspace = true }
+cogito-database = { workspace = true }
 sea-orm           = { workspace = true }
 chrono            = { workspace = true }
 uuid              = { workspace = true }
@@ -12,3 +12,7 @@ serde             = { workspace = true }
 serde_json        = { workspace = true }
 anyhow            = { workspace = true }
 thiserror         = { workspace = true }
+
+[dev-dependencies]
+# 工具面单测需要 async runtime
+tokio = { workspace = true }

@@ -13,7 +13,7 @@ fn main() {
     if run_token_helper() {
         return;
     }
-    thinking::app::bootstrap::Bootstrap::run();
+    cogito::app::bootstrap::Bootstrap::run();
 }
 
 /// 固定 JWT 路径：`%APPDATA%/<identifier>/cogito/jwt`（与 `cogito_token::cogito_jwt_path` 对齐）。
@@ -60,10 +60,7 @@ fn run_token_helper() -> bool {
 
     if let Some(ref requested) = file {
         if !paths_refer_same(Path::new(requested), &expected) {
-            eprintln!(
-                "cogito-token: --file must be {}",
-                expected.display()
-            );
+            eprintln!("cogito-token: --file must be {}", expected.display());
             std::process::exit(1);
         }
     }

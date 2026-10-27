@@ -7,6 +7,8 @@ use tracing::{error, info};
 
 pub type Connection = Arc<DatabaseConnection>;
 
+/// 可克隆：`Arc` 只克隆句柄，供 Tauri state 与 loopback 桥共享同一连接。
+#[derive(Clone)]
 pub struct Storage {
     connection: Connection,
 }

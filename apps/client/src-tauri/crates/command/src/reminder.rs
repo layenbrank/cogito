@@ -1,8 +1,8 @@
+use cogito_core::CommandResult;
+use cogito_core::reminder::Service;
+use cogito_database::Storage;
+use cogito_database::entity::reminder::{Model, ReadP, RemoveP, UpdateP, WriteP};
 use tauri::State;
-use thinking_core::CommandResult;
-use thinking_core::reminder::Service;
-use thinking_database::Storage;
-use thinking_database::entity::reminder::{Model, ReadP, RemoveP, UpdateP, WriteP};
 
 #[tauri::command(rename = "reminder:write")]
 pub async fn reminder_write(

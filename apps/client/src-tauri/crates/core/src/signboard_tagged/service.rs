@@ -1,8 +1,8 @@
+use cogito_database::entity::signboard_tagged as schema;
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter,
     TransactionTrait,
 };
-use thinking_database::entity::signboard_tagged as schema;
 
 use crate::exception::Exception;
 
@@ -54,10 +54,7 @@ impl Service {
                 let combined = ps.iter().fold(Condition::any(), |any, p| {
                     any.add(Self::build_read_filter(p))
                 });
-                let rows = schema::Entity::find()
-                    .filter(combined)
-                    .all(db)
-                    .await?;
+                let rows = schema::Entity::find().filter(combined).all(db).await?;
                 Ok(rows)
             }
         }

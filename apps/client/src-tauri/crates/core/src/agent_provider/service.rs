@@ -1,11 +1,11 @@
 #![allow(non_snake_case)]
 
 use chrono::Utc;
+use cogito_database::entity::agent_provider as schema;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
     QueryFilter, QueryOrder, TransactionTrait,
 };
-use thinking_database::entity::agent_provider as schema;
 use uuid::Uuid;
 
 use crate::exception::Exception;
@@ -152,7 +152,9 @@ impl Service {
         let model = schema::Entity::find_by_id(payload.key.clone())
             .one(db)
             .await?
-            .ok_or_else(|| Exception::NotFound(format!("agent_provider not found: {}", payload.key)))?;
+            .ok_or_else(|| {
+                Exception::NotFound(format!("agent_provider not found: {}", payload.key))
+            })?;
 
         let mut active: schema::ActiveModel = model.into();
         let now = Utc::now().timestamp_millis();

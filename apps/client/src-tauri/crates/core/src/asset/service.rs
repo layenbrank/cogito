@@ -1,13 +1,13 @@
 use chrono::Utc;
+use cogito_database::entity::asset::{
+    self as schema, ActiveModel, Change, Insert, InsertP, InsertR, Model, Read, ReadP, Remove,
+    RemoveP, Update, UpdateP,
+};
 use sea_orm::ActiveValue::Set;
 use sea_orm::Condition;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect, TransactionTrait,
-};
-use thinking_database::entity::asset::{
-    self as schema, ActiveModel, Change, Insert, InsertP, InsertR, Model, Read, ReadP, Remove,
-    RemoveP, Update, UpdateP,
 };
 use uuid::Uuid;
 

@@ -92,7 +92,7 @@
 ## Verification
 
 1. 前端：`pnpm --filter @cogito/client unit`（新增 `formatShortcut`/`isValidShortcut`/`findPruneHints`/`usage` 单测）、`type-check`、`lint`。
-2. Rust：`pnpm --filter @cogito/client check:cargo`；`cargo test -p thinking-core`；迁移改前/改后各跑一次 `sea-orm-cli migrate status`（只应多出 `migrations_v002` 一行且 Applied）。
+2. Rust：`pnpm --filter @cogito/client check:cargo`；`cargo test -p cogito-core`；迁移改前/改后各跑一次 `sea-orm-cli migrate status`（只应多出 `migrations_v002` 一行且 Applied）。
 3. 手工（`pnpm --filter @cogito/client dev`，tauri dev）：
    ① 默认 `Alt+Q` 唤起截屏，**打开设置页后快捷键仍然可用**（本次回归点）；
    ② 改成 `Control+Shift+A` 生效、旧键失效；设成被系统占用的组合 → 明确提示并回滚；

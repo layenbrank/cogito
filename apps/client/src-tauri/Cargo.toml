@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/database", "crates/core", "crates/command"]
+members = [".", "crates/database", "crates/core", "crates/command", "crates/mcp"]
 resolver = "2"
 
 [workspace.dependencies]
@@ -12,6 +12,7 @@ sea-orm = { version = "1.1.19", features = [
 ] }
 sea-query = "1.0.0"
 sea-orm-migration = "1.1.19"
+axum = "0.8"
 tokio = { version = "1.52.3", features = ["full"] }
 async-trait = "0.1"
 chrono = { version = "0.4.44", features = ["serde"] }
@@ -29,9 +30,9 @@ tauri = { version = "2.12.4", features = [
   "image-png",
   "unstable",
 ] }
-thinking-database = { path = "crates/database" }
-thinking-core = { path = "crates/core" }
-thinking-command = { path = "crates/command" }
+cogito-database = { path = "crates/database" }
+cogito-core = { path = "crates/core" }
+cogito-command = { path = "crates/command" }
 
 [package]
 name = "cogito"
@@ -45,7 +46,7 @@ name = "cogito"
 path = "src/main.rs"
 
 [lib]
-name = "thinking"
+name = "cogito"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [profile.dev]
@@ -75,12 +76,15 @@ tauri-build = { version = "2.7.3", features = [
 ] }
 
 [dependencies]
-thinking-database = { workspace = true }
-thinking-core = { workspace = true }
-thinking-command = { workspace = true }
+cogito-database = { workspace = true }
+cogito-core = { workspace = true }
+cogito-command = { workspace = true }
 
 # --- Tauri 核心 ---
 tauri = { workspace = true } # 应用壳、窗口、tray、IPC
+
+# --- 本地工具桥（`cogito-mcp` 経 loopback 调用）---
+axum = { workspace = true }
 
 # --- Tauri 插件（已在 bootstrap 注册）---
 tauri-plugin-opener = "2.7.2" # 用系统默认应用打开 URL/路径
@@ -169,3 +173,7 @@ windows = { version = "0.62", features = [
 [target.'cfg(target_os = "macos")'.dependencies]
 # --- macOS FFI ---
 core-graphics = "0.25" # 光标坐标
+
+[dev-dependencies]
+# 桥的单测直接 drive axum Router（`ServiceExt::oneshot`），无需真起 TCP。
+tower = { version = "0.5", features = ["util"] }

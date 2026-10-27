@@ -1,8 +1,8 @@
+use cogito_core::CommandResult;
+use cogito_core::mirror::Service;
+use cogito_database::Storage;
+use cogito_database::entity::mirror::{Model, ReadP, RemoveP, UpdateP, WriteP};
 use tauri::State;
-use thinking_core::CommandResult;
-use thinking_core::mirror::Service;
-use thinking_database::Storage;
-use thinking_database::entity::mirror::{Model, ReadP, RemoveP, UpdateP, WriteP};
 
 #[tauri::command(rename = "mirror:write")]
 pub async fn mirror_write(state: State<'_, Storage>, params: WriteP) -> CommandResult<Vec<String>> {

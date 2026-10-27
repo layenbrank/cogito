@@ -1,6 +1,6 @@
 use chrono::Utc;
+use cogito_database::entity::countdown as schema;
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, EntityTrait, TransactionTrait};
-use thinking_database::entity::countdown as schema;
 
 use crate::exception::Exception;
 

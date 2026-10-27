@@ -1,7 +1,7 @@
 use std::time::Duration;
 
+use cogito_database::{Storage, database_path, initialize, migration};
 use tauri::{Manager, RunEvent, generate_context};
-use thinking_database::{Storage, database_path, initialize, migration};
 
 use crate::{
     app::{handlers, plugins},
@@ -30,7 +30,7 @@ impl Bootstrap {
         builder
             .setup(move |app| {
                 let handle_for_db = app.handle().clone();
-                let db_state = tauri::async_runtime::block_on(async move {
+                let (db_state, bridge_state) = tauri::async_runtime::block_on(async move {
                     let app_dir = handle_for_db
                         .path()
                         .app_local_data_dir()
@@ -42,10 +42,14 @@ impl Bootstrap {
                     let connection = initialize(&db_url).await?;
                     migration::run(&connection).await?;
 
-                    Ok::<_, anyhow::Error>(Storage::new(connection))
+                    let storage = Storage::new(connection);
+                    // 本地工具桥：`cogito-mcp` 只经它读写，app 始终是唯一写者。
+                    let bridge = crate::bridge::start(storage.clone()).await?;
+                    Ok::<_, anyhow::Error>((storage, bridge))
                 })
                 .expect("failed to initialize database");
                 app.manage(db_state);
+                app.manage(bridge_state);
                 app.manage(SidecarState::new());
                 app.manage(GooseServeState::new());
                 app.manage(GooseAcpHub::new());

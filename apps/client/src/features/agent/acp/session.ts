@@ -36,6 +36,7 @@ import { clearGooseUsage, writeGooseUsage } from '@/features/agent/acp/goose-usa
 import { fetchSessionTools, saveDefaults } from '@/features/agent/acp/goose-providers'
 import { clearRunState, markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
 import { verifyAgentTools } from '@/features/agent/agent-tools'
+import type { AgentToolServer } from '@/features/agent/agent-tools'
 import { findPref } from '@/features/persist'
 import {
   parseAcpApprovalRequest,
@@ -45,6 +46,7 @@ import {
 } from '@/features/agent/acp/stream'
 import { parseModels, stringifyModels } from '@/features/agent/model/providers'
 import { CHANNELS } from '@/shared/ipc/channels'
+import { BridgeInfoSchema } from '@/shared/ipc/specs/bridge'
 import { StatusSchema } from '@/shared/ipc/specs/sidecar'
 import { useAgentStore } from '@/stores/agent'
 import { useProviderStore } from '@/stores/provider'
@@ -98,6 +100,8 @@ interface ThreadSession {
   modelID: string | null
   configOptions: SessionConfigOption[] | null
   connection: ClientConnection
+  /** 本次会话是否注入了 `cogito-mcp`（决定要不要校 `local` 工具基线） */
+  mountsCogito: boolean
   /** 正在跑的那一轮（同一会话同时只允许一轮：并发 prompt 会让 goose 侧乱序） */
   run: ThreadRun | null
 }
@@ -231,6 +235,38 @@ async function findCorexMcpServers(sessionID: string): Promise<AcpMcpServer[]> {
     ]
   } catch (error) {
     console.warn('[acp/session] 解析 corex-mcp 注入失败:', error)
+    return []
+  }
+}
+
+/**
+ * 本地工具面 `cogito-mcp`：由 goose 按 env 拉起，所有调用再代理回 app 内的 loopback 桥。
+ *
+ * 桥信息（url/token）只在内存里传递：`bridge:info` 每次都取当前进程的值，token 随进程轮换。
+ * 缺 `mcpPath` 时不注入（未 stage / 平台不支持），而不是注入一个必然失败的命令。
+ */
+async function findCogitoMcpServers(sessionID: string): Promise<AcpMcpServer[]> {
+  try {
+    const info = BridgeInfoSchema.parse(await invoke(CHANNELS.BRIDGE.INFO))
+    const command = info.mcpPath.trim()
+    if (!command || !info.url.trim() || !info.token.trim()) {
+      console.info('[acp/session] 未注入 cogito-mcp：缺少 mcpPath 或桥信息')
+      return []
+    }
+    return [
+      {
+        name: 'cogito',
+        command,
+        args: [],
+        env: [
+          { name: 'COGITO_BRIDGE_URL', value: info.url },
+          { name: 'COGITO_BRIDGE_TOKEN', value: info.token },
+          { name: 'COGITO_SESSION_ID', value: `goose-acp:${sessionID}` }
+        ]
+      }
+    ]
+  } catch (error) {
+    console.warn('[acp/session] 解析 cogito-mcp 注入失败:', error)
     return []
   }
 }
@@ -504,27 +540,35 @@ function clearThreadSessions() {
 }
 
 /**
- * 建会话后对一次 corex 工具面：实际名与 `agent-tools.lock.json` 不一致时告警。
+ * 建会话后对一次工具面：实际名与 `agent-tools.lock.json` 不一致时告警。
  * 只打日志、不抛错：工具名漂移不该阻断用户发消息。
+ *
+ * `local`（cogito-mcp）只在本次会话确实注入了侧车时校验 —— 没注入时缺工具是预期行为。
  */
-async function verifyCorexToolSurface(thread: ThreadSession): Promise<void> {
-  if (!isCorexToolsEnabled() || verifiedToolSessions.has(thread.acpSessionID)) return
+async function verifyToolSurface(thread: ThreadSession): Promise<void> {
+  if (verifiedToolSessions.has(thread.acpSessionID)) return
   verifiedToolSessions.add(thread.acpSessionID)
   try {
     const tools = await fetchSessionTools(thread.connection, thread.acpSessionID)
-    const result = verifyAgentTools(
-      tools.map(function (tool) {
-        return tool.name
-      }),
-      'corex'
-    )
-    if (result.missing.length > 0) {
-      console.warn('[acp/session] corex 工具名与基线不一致，缺少:', result.missing, '实际:', tools.map(function (tool) {
-        return tool.name
-      }))
+    const names = tools.map(function (tool) {
+      return tool.name
+    })
+    const servers: AgentToolServer[] = []
+    if (isCorexToolsEnabled()) servers.push('corex')
+    if (thread.mountsCogito) servers.push('local')
+    for (const server of servers) {
+      const result = verifyAgentTools(names, server)
+      if (result.missing.length > 0) {
+        console.warn(
+          `[acp/session] ${server} 工具名与基线不一致，缺少:`,
+          result.missing,
+          '实际:',
+          names
+        )
+      }
     }
   } catch (error) {
-    console.warn('[acp/session] corex 工具自检失败:', error)
+    console.warn('[acp/session] 工具自检失败:', error)
   }
 }
 
@@ -546,7 +590,10 @@ async function openThreadSession(
     console.info('[acp/session] authMethods 含 goose-provider，请确认已在设置中配置供应商')
   }
 
-  const mcpServers = await findCorexMcpServers(threadID)
+  const mcpServers = [
+    ...(await findCorexMcpServers(threadID)),
+    ...(await findCogitoMcpServers(threadID))
+  ]
   const session = await handle.connection.agent
     .buildSession({
       cwd,
@@ -574,6 +621,9 @@ async function openThreadSession(
     modelID: applied.modelId,
     configOptions: applied.configOptions,
     connection: handle.connection,
+    mountsCogito: mcpServers.some(function (server) {
+      return server.name === 'cogito'
+    }),
     run: null
   }
   sessionByAcpID.set(thread.acpSessionID, thread)
@@ -630,7 +680,7 @@ async function ensureThreadSession(
 
   const opened = await openThreadSession(threadID, cwd, providerID, modelID)
   sessionByThread.set(threadID, opened)
-  void verifyCorexToolSurface(opened)
+  void verifyToolSurface(opened)
   return opened
 }
 

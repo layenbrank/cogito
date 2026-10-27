@@ -3,10 +3,10 @@
 use std::time::Duration;
 
 use chrono::{Local, TimeZone, Utc};
+use cogito_core::reminder::{Service, is_one_shot, should_fire};
+use cogito_database::Storage;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_notification::NotificationExt;
-use thinking_core::reminder::{Service, is_one_shot, should_fire};
-use thinking_database::Storage;
 
 const POLL_INTERVAL_SECS: u64 = 12;
 

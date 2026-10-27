@@ -130,9 +130,11 @@ fn is_valid_directive_name(name: &str) -> bool {
     !name.is_empty() && !name.contains('\\') && !name.contains('/') && !name.contains("..")
 }
 
-/// 解析 `corex-mcp`：`COREX_MCP` → 与当前 exe 同目录（externalBin）→ binaries/ → PATH。
-fn find_corex_mcp_path() -> Option<PathBuf> {
-    if let Ok(explicit) = std::env::var("COREX_MCP") {
+/// 解析随包的 MCP 二进制：`<env_key>` → 与当前 exe 同目录（externalBin）→ binaries/ → PATH。
+///
+/// 两种 MCP 共用同一套顺序：`corex-mcp`（corex 工具面）与 `cogito-mcp`（本地工具面）。
+fn find_sidecar_mcp(stem: &str, env_key: &str) -> Option<PathBuf> {
+    if let Ok(explicit) = std::env::var(env_key) {
         let trimmed = explicit.trim();
         if !trimmed.is_empty() {
             let path = PathBuf::from(trimmed);
@@ -154,34 +156,29 @@ fn find_corex_mcp_path() -> Option<PathBuf> {
     }
 
     for dir in dirs {
-        let Some(path) = find_mcp_in_dir(&dir) else {
+        let Some(path) = find_mcp_in_dir(&dir, stem) else {
             continue;
         };
         return Some(path);
     }
 
     #[cfg(windows)]
-    if let Ok(path_var) = std::env::var("PATH") {
-        for entry in path_var.split(';') {
-            if entry.is_empty() {
-                continue;
-            }
-            let candidate = PathBuf::from(entry).join("corex-mcp.exe");
-            if candidate.is_file() {
-                return Some(candidate);
-            }
-        }
-    }
-
+    let separator = ';';
     #[cfg(not(windows))]
+    let separator = ':';
+
     if let Ok(path_var) = std::env::var("PATH") {
-        for entry in path_var.split(':') {
+        for entry in path_var.split(separator) {
             if entry.is_empty() {
                 continue;
             }
-            let candidate = PathBuf::from(entry).join("corex-mcp");
-            if candidate.is_file() {
-                return Some(candidate);
+            for candidate in [
+                PathBuf::from(entry).join(stem),
+                PathBuf::from(entry).join(format!("{stem}.exe")),
+            ] {
+                if candidate.is_file() {
+                    return Some(candidate);
+                }
             }
         }
     }
@@ -189,7 +186,19 @@ fn find_corex_mcp_path() -> Option<PathBuf> {
     None
 }
 
-fn find_mcp_in_dir(dir: &std::path::Path) -> Option<PathBuf> {
+fn find_corex_mcp_path() -> Option<PathBuf> {
+    find_sidecar_mcp("corex-mcp", "COREX_MCP")
+}
+
+/// `cogito-mcp` 的绝对路径：Agent ACP 注入用（`bridge:info` 返回给前端）。
+#[must_use]
+pub fn find_cogito_mcp_path() -> Option<PathBuf> {
+    find_sidecar_mcp("cogito-mcp", "COGITO_MCP")
+}
+
+fn find_mcp_in_dir(dir: &std::path::Path, stem: &str) -> Option<PathBuf> {
+    let prefix = format!("{stem}-");
+    let exe = format!("{stem}.exe");
     let entries = std::fs::read_dir(dir).ok()?;
     let mut matched: Vec<PathBuf> = entries
         .filter_map(|entry| entry.ok().map(|e| e.path()))
@@ -199,8 +208,7 @@ fn find_mcp_in_dir(dir: &std::path::Path) -> Option<PathBuf> {
                 .and_then(|n| n.to_str())
                 .unwrap_or_default();
             let lower = name.to_ascii_lowercase();
-            (lower == "corex-mcp" || lower == "corex-mcp.exe" || lower.starts_with("corex-mcp-"))
-                && path.is_file()
+            (lower == stem || lower == exe || lower.starts_with(&prefix)) && path.is_file()
         })
         .collect();
     matched.sort();

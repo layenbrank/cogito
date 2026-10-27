@@ -17,6 +17,7 @@ pub mod signboard_entry;
 pub mod signboard_entry_asset;
 pub mod signboard_tag;
 pub mod signboard_tagged;
+pub mod tools;
 
 #[allow(non_snake_case)]
 pub mod agent_workspace {

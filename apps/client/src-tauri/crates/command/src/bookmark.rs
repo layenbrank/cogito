@@ -1,10 +1,8 @@
+use cogito_core::CommandResult;
+use cogito_core::bookmark::Service;
+use cogito_database::Storage;
+use cogito_database::entity::bookmark::{ImportP, ImportR, Model, ReadP, RemoveP, UpdateP, WriteP};
 use tauri::State;
-use thinking_core::CommandResult;
-use thinking_core::bookmark::Service;
-use thinking_database::Storage;
-use thinking_database::entity::bookmark::{
-    ImportP, ImportR, Model, ReadP, RemoveP, UpdateP, WriteP,
-};
 
 #[tauri::command(rename = "bookmark:write")]
 pub async fn bookmark_write(
@@ -15,10 +13,7 @@ pub async fn bookmark_write(
 }
 
 #[tauri::command(rename = "bookmark:read")]
-pub async fn bookmark_read(
-    state: State<'_, Storage>,
-    params: ReadP,
-) -> CommandResult<Vec<Model>> {
+pub async fn bookmark_read(state: State<'_, Storage>, params: ReadP) -> CommandResult<Vec<Model>> {
     Service::toRead(state.connection(), params).await
 }
 
@@ -39,9 +34,6 @@ pub async fn bookmark_remove(
 }
 
 #[tauri::command(rename = "bookmark:import")]
-pub async fn bookmark_import(
-    state: State<'_, Storage>,
-    params: ImportP,
-) -> CommandResult<ImportR> {
+pub async fn bookmark_import(state: State<'_, Storage>, params: ImportP) -> CommandResult<ImportR> {
     Service::toImport(state.connection(), params).await
 }

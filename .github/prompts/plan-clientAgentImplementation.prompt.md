@@ -255,11 +255,11 @@ export type ChatElicitationSchema = {
 
 ```powershell
 cd apps/client/src-tauri
-cargo run -p thinking-database --bin thinking-database -- fresh -u "sqlite://<appdata>/cogito-client.db"
+cargo run -p cogito-database --bin cogito-database -- fresh -u "sqlite://<appdata>/cogito-client.db"
 # 或直接删 `cogito-client.db`（路径见 crates/database/src/storage.rs::database_path），让启动时迁移重建
 ```
 
-> 该 crate 自带 `src/bin/migrate.rs`（`sea_orm_migration::cli` 入口，包名/bin 名均为 `thinking-database`），故也支持 `sea-orm-cli migrate fresh -u sqlite:…`。
+> 该 crate 自带 `src/bin/migrate.rs`（`sea_orm_migration::cli` 入口，包名/bin 名均为 `cogito-database`），故也支持 `sea-orm-cli migrate fresh -u sqlite:…`。
 
 ### D5 网关 provider 与只读 helper（对应 WS-3）
 

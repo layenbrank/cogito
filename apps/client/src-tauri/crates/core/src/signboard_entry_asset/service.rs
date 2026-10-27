@@ -1,9 +1,9 @@
 use chrono::Utc;
+use cogito_database::entity::signboard_entry_asset as schema;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
     QueryFilter, QueryOrder, TransactionTrait,
 };
-use thinking_database::entity::signboard_entry_asset as schema;
 
 use crate::exception::Exception;
 
@@ -152,10 +152,9 @@ impl Service {
         p: schema::Update,
     ) -> Result<String, Exception> {
         let key = format!("{}:{}", p.entry_id, p.asset_id);
-        let Some(row) =
-            schema::Entity::find_by_id((p.entry_id.clone(), p.asset_id.clone()))
-                .one(db)
-                .await?
+        let Some(row) = schema::Entity::find_by_id((p.entry_id.clone(), p.asset_id.clone()))
+            .one(db)
+            .await?
         else {
             return Ok(key);
         };

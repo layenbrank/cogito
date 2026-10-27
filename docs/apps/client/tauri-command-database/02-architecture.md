@@ -4,9 +4,9 @@
 
 | Crate / 模块 | 路径 | 职责 |
 |--------------|------|------|
-| `thinking-command` | `apps/client/src-tauri/crates/command` | 薄 IPC：解析参数、取 `Storage`、调用 Service |
-| `thinking-core` | `apps/client/src-tauri/crates/core` | 业务：`toWrite` / `toRead` / `toUpdate` / `toRemove`、调度 `toClaimFire` |
-| `thinking-database` | `apps/client/src-tauri/crates/database` | DDL 迁移、Entity / DTO（`*P`）、`Storage` 连接 |
+| `cogito-command` | `apps/client/src-tauri/crates/command` | 薄 IPC：解析参数、取 `Storage`、调用 Service |
+| `cogito-core` | `apps/client/src-tauri/crates/core` | 业务：`toWrite` / `toRead` / `toUpdate` / `toRemove`、调度 `toClaimFire` |
+| `cogito-database` | `apps/client/src-tauri/crates/database` | DDL 迁移、Entity / DTO（`*P`）、`Storage` 连接 |
 | App bootstrap | `apps/client/src-tauri/src/app` | 打开 DB、跑迁移、`manage(Storage)`、注册 handlers、启动 worker |
 
 **边界**：Command **不写**业务规则；Database **不写**业务规则；校验与事务在 Cogito。
@@ -15,9 +15,9 @@
 
 ```mermaid
 flowchart LR
-  FE[Frontend invoke] --> CMD[thinking_command]
-  CMD --> COGITO[thinking_core Service]
-  COGITO --> DB[thinking_database Entity]
+  FE[Frontend invoke] --> CMD[cogito_command]
+  CMD --> COGITO[cogito_core Service]
+  COGITO --> DB[cogito_database Entity]
   BOOT[bootstrap] --> STOR[Storage]
   BOOT --> WORK[reminder worker]
   WORK --> COGITO
@@ -65,6 +65,6 @@ pub async fn reminder_write(
 
 ## 模块清单（command crate）
 
-当前 `thinking_command` 导出：`asset`、`calendar`、`countdown`、`magnetic_tile`、`mirror`、`reminder`。
+当前 `cogito_command` 导出：`asset`、`calendar`、`countdown`、`magnetic_tile`、`mirror`、`reminder`。
 
 另有 app 本地 command（如 `overlay:*`、`capture:*`），不在本 crate，本文不展开。

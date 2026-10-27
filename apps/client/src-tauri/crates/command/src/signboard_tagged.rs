@@ -1,8 +1,8 @@
+use cogito_core::CommandResult;
+use cogito_core::signboard_tagged::Service;
+use cogito_database::Storage;
+use cogito_database::entity::signboard_tagged::{Model, ReadP, RemoveP, WriteP};
 use tauri::State;
-use thinking_core::CommandResult;
-use thinking_core::signboard_tagged::Service;
-use thinking_database::Storage;
-use thinking_database::entity::signboard_tagged::{Model, ReadP, RemoveP, WriteP};
 
 #[tauri::command(rename = "signboard-tagged:write")]
 pub async fn signboard_tagged_write(
