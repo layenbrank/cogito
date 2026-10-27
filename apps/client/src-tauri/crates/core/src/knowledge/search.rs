@@ -51,7 +51,8 @@ pub fn make_snippet(content: &str, query: &str) -> String {
     let position = if needle.is_empty() || hay.len() < needle.len() {
         None
     } else {
-        hay.windows(needle.len()).position(|window| window == needle)
+        hay.windows(needle.len())
+            .position(|window| window == needle)
     };
     let start = position
         .map(|index| index.saturating_sub(SNIPPET_RADIUS))

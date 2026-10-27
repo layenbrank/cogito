@@ -2,7 +2,9 @@
 //!
 //! 语义都在 `cogito_core::knowledge::Service`；这里只做参数整形与错误透传。
 use cogito_core::CommandResult;
-use cogito_core::knowledge::{DocSummary, Hit, PublishMode, Service, StagedFile};
+use cogito_core::knowledge::{
+    DocRef, DocSummary, Hit, PublishMode, Service, StagedDoc, StagedFile, WriteDocOutcome,
+};
 use cogito_database::Storage;
 use cogito_database::entity::knowledge_base::Model as BaseModel;
 use cogito_database::entity::knowledge_doc::Model as DocModel;
@@ -70,6 +72,17 @@ pub async fn knowledge_publish(
     Service::toPublish(state.connection(), &baseId, &path, mode, "agent").await
 }
 
+/// 合并分章：确定性拼接，结果仍留在 staging（发布仍要用户确认）。
+#[tauri::command(rename = "knowledge:mergeStaging")]
+pub async fn knowledge_merge_staging(
+    state: State<'_, Storage>,
+    baseId: String,
+    paths: Vec<String>,
+    title: String,
+) -> CommandResult<StagedDoc> {
+    Service::toMergeStaging(state.connection(), &baseId, &paths, &title).await
+}
+
 #[tauri::command(rename = "knowledge:discardStaging")]
 pub async fn knowledge_discard_staging(
     state: State<'_, Storage>,
@@ -86,4 +99,32 @@ pub async fn knowledge_rescan(state: State<'_, Storage>, baseId: String) -> Comm
 #[tauri::command(rename = "knowledge:removeDoc")]
 pub async fn knowledge_remove_doc(state: State<'_, Storage>, id: String) -> CommandResult<u64> {
     Service::toRemoveDoc(state.connection(), &id).await
+}
+
+/// 打开文档时取引用（带库内 hash），保存时用于判断期间是否被别处改过。
+#[tauri::command(rename = "knowledge:resolveDoc")]
+pub async fn knowledge_resolve_doc(
+    state: State<'_, Storage>,
+    path: String,
+) -> CommandResult<DocRef> {
+    Service::toResolveDoc(state.connection(), &path).await
+}
+
+/// 编辑器保存：写正式文件 + 落库；`expectedHash` 不一致且未 `force` 时只返回冲突、不写盘。
+#[tauri::command(rename = "knowledge:writeDoc")]
+pub async fn knowledge_write_doc(
+    state: State<'_, Storage>,
+    path: String,
+    content: String,
+    expectedHash: Option<String>,
+    force: Option<bool>,
+) -> CommandResult<WriteDocOutcome> {
+    Service::toWriteDoc(
+        state.connection(),
+        &path,
+        &content,
+        expectedHash.as_deref(),
+        force.unwrap_or(false),
+    )
+    .await
 }

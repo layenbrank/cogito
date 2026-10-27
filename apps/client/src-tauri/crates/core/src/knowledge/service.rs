@@ -85,6 +85,32 @@ pub struct StagedFile {
     pub modified_at: i64,
 }
 
+/// 编辑器的文档引用：打开时取一次，保存时用 `hash` 判断期间是否被别人改过。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocRef {
+    /// 文件是否落在某个知识库目录下；false = 按普通文件处理（不落库）
+    pub matched: bool,
+    pub doc_id: Option<String>,
+    pub base_id: Option<String>,
+    pub rel_path: Option<String>,
+    pub hash: Option<String>,
+    pub revision: Option<i64>,
+}
+
+/// 编辑器保存的结果。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WriteDocOutcome {
+    pub matched: bool,
+    /// 期间库内已被别处更新（与编辑器打开时的 hash 不一致）；本次**没有写盘**
+    pub conflict: bool,
+    pub doc: Option<DocSummary>,
+    /// 冲突时给出库内当前 hash / revision，便于界面提示后重试
+    pub hash: Option<String>,
+    pub revision: Option<i64>,
+}
+
 pub struct Service;
 
 impl Service {
@@ -318,10 +344,7 @@ impl Service {
     }
 
     /// 从磁盘回灌：新增/改动入库，文件已消失的行删掉。返回处理的文件数。
-    pub async fn toRescanBase(
-        db: &DatabaseConnection,
-        base_id: &str,
-    ) -> Result<usize, Exception> {
+    pub async fn toRescanBase(db: &DatabaseConnection, base_id: &str) -> Result<usize, Exception> {
         let base = Self::find_base(db, base_id).await?;
         let root = PathBuf::from(&base.rootPath);
         fs::create_dir_all(&root)?;
@@ -372,9 +395,7 @@ impl Service {
         index_schema::Entity::delete_by_id(doc.id.clone())
             .exec(db)
             .await?;
-        let result = doc_schema::Entity::delete_by_id(doc.id)
-            .exec(db)
-            .await?;
+        let result = doc_schema::Entity::delete_by_id(doc.id).exec(db).await?;
         Ok(result.rows_affected)
     }
 
@@ -384,20 +405,145 @@ impl Service {
         base_id: Option<&str>,
     ) -> Result<Vec<DocSummary>, Exception> {
         let docs = Self::toListDocs(db, base_id).await?;
-        Ok(docs
-            .into_iter()
-            .map(|doc| DocSummary {
-                id: doc.id,
-                base_id: doc.baseID,
-                title: doc.title,
-                rel_path: doc.relPath,
-                word_count: doc.wordCount,
-                revision: doc.revision,
-                status: doc.status,
-                source: doc.source,
-                updated_at: doc.updatedAt,
-            })
-            .collect())
+        Ok(docs.into_iter().map(Self::to_summary).collect())
+    }
+
+    /// 打开文档时取引用：不在任何 base 目录下就返回 `matched = false`。
+    ///
+    /// 前端保存时要带回这里的 `hash`，服务端据此判断「编辑器打开之后，库内是否又被别处改过」。
+    pub async fn toResolveDoc(db: &DatabaseConnection, path: &str) -> Result<DocRef, Exception> {
+        let Some((base, rel_path, _)) = Self::find_base_by_path(db, path).await? else {
+            return Ok(DocRef {
+                matched: false,
+                doc_id: None,
+                base_id: None,
+                rel_path: None,
+                hash: None,
+                revision: None,
+            });
+        };
+        let row = doc_schema::Entity::find()
+            .filter(doc_schema::Column::BaseId.eq(base.id.as_str()))
+            .filter(doc_schema::Column::RelPath.eq(rel_path.as_str()))
+            .one(db)
+            .await?;
+        Ok(DocRef {
+            matched: true,
+            doc_id: row.as_ref().map(|doc| doc.id.clone()),
+            hash: row.as_ref().map(|doc| doc.hash.clone()),
+            revision: row.as_ref().map(|doc| doc.revision),
+            base_id: Some(base.id),
+            rel_path: Some(rel_path),
+        })
+    }
+
+    /// 编辑器保存：**写正式文件 + 落库**（app 是唯一写者）。
+    ///
+    /// 冲突规则：`expected_hash` 与库内当前 hash 不一致（且未 `force`）→ 直接返回冲突、
+    /// **不写盘**，让界面先问「保留我的 / 重载」。文件不在任何 base 下时 `matched = false`，
+    /// 调用方按普通文件自己写。
+    pub async fn toWriteDoc(
+        db: &DatabaseConnection,
+        path: &str,
+        content: &str,
+        expected_hash: Option<&str>,
+        force: bool,
+    ) -> Result<WriteDocOutcome, Exception> {
+        let Some((base, rel_path, target)) = Self::find_base_by_path(db, path).await? else {
+            return Ok(WriteDocOutcome {
+                matched: false,
+                conflict: false,
+                doc: None,
+                hash: None,
+                revision: None,
+            });
+        };
+
+        let existing = doc_schema::Entity::find()
+            .filter(doc_schema::Column::BaseId.eq(base.id.as_str()))
+            .filter(doc_schema::Column::RelPath.eq(rel_path.as_str()))
+            .one(db)
+            .await?;
+
+        if !force
+            && let (Some(expected), Some(row)) = (expected_hash, existing.as_ref())
+            && row.hash != expected
+        {
+            return Ok(WriteDocOutcome {
+                matched: true,
+                conflict: true,
+                doc: None,
+                hash: Some(row.hash.clone()),
+                revision: Some(row.revision),
+            });
+        }
+
+        ensure_inside(&target, Path::new(&base.rootPath))?;
+        fs::write(&target, content)?;
+
+        let doc = Self::upsert_from_content(db, &base, &rel_path, content, "authored").await?;
+        Ok(WriteDocOutcome {
+            matched: true,
+            conflict: false,
+            hash: Some(doc.hash.clone()),
+            revision: Some(doc.revision),
+            doc: Some(Self::to_summary(doc)),
+        })
+    }
+
+    /// 找到 `path` 所属的 base（取最深的那个，嵌套库时不会认错），
+    /// 返回 `(base, "/" 分隔的相对路径, 目标绝对路径)`。
+    async fn find_base_by_path(
+        db: &DatabaseConnection,
+        path: &str,
+    ) -> Result<Option<(base_schema::Model, String, PathBuf)>, Exception> {
+        let raw = Path::new(path);
+        // 新文件还不存在：canonicalize 父目录后拼文件名，避免「另存为」被当成越界
+        let target = match fs::canonicalize(raw) {
+            Ok(target) => target,
+            Err(_) => {
+                let (Some(parent), Some(name)) = (raw.parent(), raw.file_name()) else {
+                    return Ok(None);
+                };
+                fs::canonicalize(parent)?.join(name)
+            }
+        };
+
+        let mut best: Option<(base_schema::Model, String)> = None;
+        for base in Self::toListBases(db).await? {
+            let Ok(root) = fs::canonicalize(&base.rootPath) else {
+                continue;
+            };
+            let Ok(rel) = target.strip_prefix(&root) else {
+                continue;
+            };
+            let rel = rel.to_string_lossy().replace('\\', "/");
+            if rel.is_empty() {
+                continue;
+            }
+            // 相对路径越短 = 所属目录越深
+            if best
+                .as_ref()
+                .is_none_or(|(_, current)| rel.len() < current.len())
+            {
+                best = Some((base, rel));
+            }
+        }
+        Ok(best.map(|(base, rel)| (base, rel, target)))
+    }
+
+    fn to_summary(doc: doc_schema::Model) -> DocSummary {
+        DocSummary {
+            id: doc.id,
+            base_id: doc.baseID,
+            title: doc.title,
+            rel_path: doc.relPath,
+            word_count: doc.wordCount,
+            revision: doc.revision,
+            status: doc.status,
+            source: doc.source,
+            updated_at: doc.updatedAt,
+        }
     }
 
     /// 知识库总目录（默认库目录的父目录）；新建 base 时用。
@@ -467,10 +613,7 @@ impl Service {
     }
 
     /// 丢弃 staging 草稿（只允许删 staging 内的文件）。
-    pub async fn toDiscardStaging(
-        db: &DatabaseConnection,
-        path: &str,
-    ) -> Result<bool, Exception> {
+    pub async fn toDiscardStaging(db: &DatabaseConnection, path: &str) -> Result<bool, Exception> {
         let target = fs::canonicalize(path)
             .map_err(|error| Exception::Validation(format!("草稿不存在：{error}")))?;
         for base in Self::toListBases(db).await? {
@@ -486,6 +629,76 @@ impl Service {
         Err(Exception::Validation(
             "只能丢弃 staging 目录下的草稿".to_string(),
         ))
+    }
+
+    /// 合并分章：把 staging 里的多份草稿按路径顺序拼成一份，**留在 staging** 等用户发布。
+    ///
+    /// 模型只负责分章内容；拼接是确定性动作，不该让模型自己「复述一遍全文」。
+    /// 只接受 staging 内的文件；成功后删除分片，失败时不动任何东西。
+    pub async fn toMergeStaging(
+        db: &DatabaseConnection,
+        base_id: &str,
+        paths: &[String],
+        title: &str,
+    ) -> Result<StagedDoc, Exception> {
+        let title = title.trim();
+        if title.is_empty() {
+            return Err(Exception::Validation("合并后的标题不能为空".to_string()));
+        }
+        if paths.is_empty() {
+            return Err(Exception::Validation("没有可合并的分章".to_string()));
+        }
+
+        let base = Self::find_base(db, base_id).await?;
+        let staging_root = Self::staging_root(&base)?;
+
+        let mut parts: Vec<(PathBuf, String)> = Vec::with_capacity(paths.len());
+        for raw in paths {
+            let path = fs::canonicalize(raw)
+                .map_err(|error| Exception::Validation(format!("分章不存在：{error}")))?;
+            if !path.starts_with(&staging_root) {
+                return Err(Exception::Validation(
+                    "只能合并 staging 目录下的草稿".to_string(),
+                ));
+            }
+            let content = fs::read_to_string(&path)?;
+            parts.push((path, content));
+        }
+        // 分章顺序靠文件名（`01-…` / `02-…`），不依赖调用方传参顺序
+        parts.sort_by(|left, right| left.0.cmp(&right.0));
+
+        let dir = parts[0]
+            .0
+            .parent()
+            .ok_or_else(|| Exception::Validation("分章缺少所在目录".to_string()))?
+            .to_path_buf();
+        let body = parts
+            .iter()
+            .map(|(_, content)| content.trim())
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        // 分章一般自带小标题；只有整体没有一级标题时才补
+        let merged = if body.starts_with("# ") {
+            body
+        } else {
+            format!("# {title}\n\n{body}")
+        };
+
+        let slug = slugify(title, 60);
+        let short = Uuid::new_v4().simple().to_string();
+        let target = dir.join(format!("{slug}-{}.md", &short[..8]));
+        fs::write(&target, &merged)?;
+        for (path, _) in &parts {
+            // 合并结果已落盘；分片删不掉不阻断
+            let _ = fs::remove_file(path);
+        }
+
+        Ok(StagedDoc {
+            base_id: base.id,
+            path: target.to_string_lossy().into_owned(),
+            title: find_title(&merged, title),
+            slug,
+        })
     }
 
     async fn find_base(
@@ -540,7 +753,9 @@ impl Service {
             }
             attempt += 1;
             if attempt > 99 {
-                return Err(Exception::Validation("同名文档过多，请改名后再发布".to_string()));
+                return Err(Exception::Validation(
+                    "同名文档过多，请改名后再发布".to_string(),
+                ));
             }
         }
     }
@@ -755,7 +970,9 @@ mod tests {
         let conn = fresh_db().await;
         let db = conn.as_ref();
         let root = temp_root("search");
-        let base = Service::toEnsureDefaultBase(db, &root).await.expect("默认库");
+        let base = Service::toEnsureDefaultBase(db, &root)
+            .await
+            .expect("默认库");
         let content = "# 知识库设计\n\n本文说明知识库的目录结构与写入不变量。";
 
         let staged = Service::toWriteStaging(db, &base.id, "s1", "知识库设计", content)
@@ -773,14 +990,18 @@ mod tests {
         assert!(!Path::new(&staged.path).exists());
 
         // 3 个字：FTS5 trigram 命中
-        let hits = Service::toSearch(db, "知识库", None, 5).await.expect("检索");
+        let hits = Service::toSearch(db, "知识库", None, 5)
+            .await
+            .expect("检索");
         assert_eq!(hits.len(), 1, "FTS 应命中 1 篇");
         assert_eq!(hits[0].mode, "fts");
         assert_eq!(hits[0].doc_id, doc.id);
         assert!(!hits[0].snippet.is_empty());
 
         // 2 个字：trigram 查不到，必须回退 LIKE
-        let short = Service::toSearch(db, "知识", None, 5).await.expect("短词检索");
+        let short = Service::toSearch(db, "知识", None, 5)
+            .await
+            .expect("短词检索");
         assert_eq!(short.len(), 1, "短词应靠 LIKE 命中");
         assert_eq!(short[0].mode, "like");
         assert!(short[0].snippet.contains("知识"));
@@ -791,7 +1012,9 @@ mod tests {
         let conn = fresh_db().await;
         let db = conn.as_ref();
         let root = temp_root("escape");
-        let base = Service::toEnsureDefaultBase(db, &root).await.expect("默认库");
+        let base = Service::toEnsureDefaultBase(db, &root)
+            .await
+            .expect("默认库");
 
         let outside = root.join("escape.md");
         fs::write(&outside, "# 越界\n\n不在 staging 里").expect("写文件");
@@ -812,20 +1035,26 @@ mod tests {
         let conn = fresh_db().await;
         let db = conn.as_ref();
         let root = temp_root("rescan");
-        let base = Service::toEnsureDefaultBase(db, &root).await.expect("默认库");
+        let base = Service::toEnsureDefaultBase(db, &root)
+            .await
+            .expect("默认库");
 
         let file = Path::new(&base.rootPath).join("外部写入.md");
         fs::write(&file, "# 外部写入\n\n由编辑器直接落盘。").expect("写文件");
         let handled = Service::toRescanBase(db, &base.id).await.expect("回灌");
         assert_eq!(handled, 1);
-        let docs = Service::toListDocs(db, Some(&base.id)).await.expect("列文档");
+        let docs = Service::toListDocs(db, Some(&base.id))
+            .await
+            .expect("列文档");
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].title, "外部写入");
         assert_eq!(docs[0].source, "import");
 
         fs::remove_file(&file).expect("删文件");
         Service::toRescanBase(db, &base.id).await.expect("再回灌");
-        let docs = Service::toListDocs(db, Some(&base.id)).await.expect("列文档");
+        let docs = Service::toListDocs(db, Some(&base.id))
+            .await
+            .expect("列文档");
         assert!(docs.is_empty(), "文件消失后行应被清掉");
     }
 
@@ -834,19 +1063,27 @@ mod tests {
         let conn = fresh_db().await;
         let db = conn.as_ref();
         let root = temp_root("revision");
-        let base = Service::toEnsureDefaultBase(db, &root).await.expect("默认库");
+        let base = Service::toEnsureDefaultBase(db, &root)
+            .await
+            .expect("默认库");
         let file = Path::new(&base.rootPath).join("稳定.md");
         fs::write(&file, "# 稳定\n\n内容不变。").expect("写文件");
 
         Service::toRescanBase(db, &base.id).await.expect("首次回灌");
         Service::toRescanBase(db, &base.id).await.expect("再次回灌");
-        let docs = Service::toListDocs(db, Some(&base.id)).await.expect("列文档");
+        let docs = Service::toListDocs(db, Some(&base.id))
+            .await
+            .expect("列文档");
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].revision, 1, "内容没变不该制造新版本");
 
         fs::write(&file, "# 稳定\n\n内容变了。").expect("改写文件");
-        Service::toRescanBase(db, &base.id).await.expect("第三次回灌");
-        let docs = Service::toListDocs(db, Some(&base.id)).await.expect("列文档");
+        Service::toRescanBase(db, &base.id)
+            .await
+            .expect("第三次回灌");
+        let docs = Service::toListDocs(db, Some(&base.id))
+            .await
+            .expect("列文档");
         assert_eq!(docs[0].revision, 2);
     }
 
@@ -855,7 +1092,9 @@ mod tests {
         let conn = fresh_db().await;
         let db = conn.as_ref();
         let root = temp_root("staging-list");
-        let base = Service::toEnsureDefaultBase(db, &root).await.expect("默认库");
+        let base = Service::toEnsureDefaultBase(db, &root)
+            .await
+            .expect("默认库");
 
         Service::toWriteStaging(db, &base.id, "s-alpha", "甲", "# 甲\n")
             .await
@@ -878,7 +1117,11 @@ mod tests {
             .find(|file| file.session == "s-alpha")
             .expect("找到甲的草稿")
             .clone();
-        assert!(Service::toDiscardStaging(db, &victim.path).await.expect("丢弃"));
+        assert!(
+            Service::toDiscardStaging(db, &victim.path)
+                .await
+                .expect("丢弃")
+        );
         assert!(!Path::new(&victim.path).exists());
         assert_eq!(
             Service::toListStaging(db, Some(&base.id))
@@ -902,7 +1145,9 @@ mod tests {
         let conn = fresh_db().await;
         let db = conn.as_ref();
         let root = temp_root("summary");
-        let base = Service::toEnsureDefaultBase(db, &root).await.expect("默认库");
+        let base = Service::toEnsureDefaultBase(db, &root)
+            .await
+            .expect("默认库");
         let file = Path::new(&base.rootPath).join("摘要.md");
         fs::write(&file, "# 摘要标题\n\n正文内容。").expect("写文件");
         Service::toRescanBase(db, &base.id).await.expect("回灌");
@@ -918,5 +1163,186 @@ mod tests {
         // 摘要结构里根本没有正文字段：编不出来也就传不出去
         let json = serde_json::to_value(&summaries[0]).expect("序列化");
         assert!(json.get("content").is_none());
+    }
+
+    #[tokio::test]
+    async fn write_doc_creates_then_updates_snapshot() {
+        let conn = fresh_db().await;
+        let db = conn.as_ref();
+        let root = temp_root("write");
+        let base = Service::toEnsureDefaultBase(db, &root)
+            .await
+            .expect("默认库");
+        let file = Path::new(&base.rootPath).join("手写.md");
+        let path = file.to_string_lossy().into_owned();
+
+        // 新文件：create 一次，revision 从 1 起
+        let created = Service::toWriteDoc(db, &path, "# 手写\n\n第一版", None, false)
+            .await
+            .expect("首次保存");
+        assert!(created.matched);
+        assert!(!created.conflict);
+        let doc = created.doc.expect("应有摘要");
+        assert_eq!(doc.title, "手写");
+        assert_eq!(doc.revision, 1);
+        assert_eq!(doc.source, "authored");
+        assert!(file.exists());
+
+        // 内容变了：revision 递增，文件与快照同步
+        let updated = Service::toWriteDoc(
+            db,
+            &path,
+            "# 手写\n\n第二版",
+            created.hash.as_deref(),
+            false,
+        )
+        .await
+        .expect("再次保存");
+        assert!(!updated.conflict);
+        assert_eq!(updated.revision, Some(2));
+        assert_eq!(
+            fs::read_to_string(&file).expect("读文件"),
+            "# 手写\n\n第二版"
+        );
+
+        // 打开时拿到的引用能对上库内行
+        let reference = Service::toResolveDoc(db, &path).await.expect("解析引用");
+        assert!(reference.matched);
+        assert_eq!(reference.hash, updated.hash);
+        assert_eq!(reference.revision, Some(2));
+    }
+
+    #[tokio::test]
+    async fn write_doc_conflicts_when_snapshot_moved_on() {
+        let conn = fresh_db().await;
+        let db = conn.as_ref();
+        let root = temp_root("conflict");
+        let base = Service::toEnsureDefaultBase(db, &root)
+            .await
+            .expect("默认库");
+        let file = Path::new(&base.rootPath).join("冲突.md");
+        let path = file.to_string_lossy().into_owned();
+
+        let opened = Service::toWriteDoc(db, &path, "# 冲突\n\n我的版本", None, false)
+            .await
+            .expect("首次保存");
+        let opened_hash = opened.hash.expect("hash");
+
+        // 别处（agent 发布 / 回灌）更新了同一篇：磁盘与库内都必须变
+        fs::write(&file, "# 冲突\n\n别处的版本").expect("模拟外部写盘");
+        Service::upsert_from_content(db, &base, "冲突.md", "# 冲突\n\n别处的版本", "import")
+            .await
+            .expect("模拟别处更新");
+
+        // 用打开时的 hash 保存 → 冲突，且**不写盘**
+        let conflict =
+            Service::toWriteDoc(db, &path, "# 冲突\n\n我的版本", Some(&opened_hash), false)
+                .await
+                .expect("保存应返回冲突而不是报错");
+        assert!(conflict.conflict);
+        assert!(conflict.doc.is_none());
+        assert_eq!(
+            fs::read_to_string(&file).expect("读文件"),
+            "# 冲突\n\n别处的版本"
+        );
+
+        // force 才允许覆盖
+        let forced = Service::toWriteDoc(db, &path, "# 冲突\n\n我的版本", Some(&opened_hash), true)
+            .await
+            .expect("强制保存");
+        assert!(!forced.conflict);
+        assert_eq!(
+            fs::read_to_string(&file).expect("读文件"),
+            "# 冲突\n\n我的版本"
+        );
+    }
+
+    #[tokio::test]
+    async fn write_doc_outside_any_base_is_not_matched() {
+        let conn = fresh_db().await;
+        let db = conn.as_ref();
+        let root = temp_root("outside");
+        Service::toEnsureDefaultBase(db, &root)
+            .await
+            .expect("默认库");
+
+        let outside = temp_root("outside-file").join("普通.md");
+        let outcome =
+            Service::toWriteDoc(db, &outside.to_string_lossy(), "# 普通文件\n", None, false)
+                .await
+                .expect("不在库内不算错误");
+        assert!(!outcome.matched);
+        assert!(!outcome.conflict);
+        // 不匹配时服务层不写盘：由调用方按普通文件处理
+        assert!(!outside.exists());
+    }
+
+    #[tokio::test]
+    async fn merge_staging_joins_parts_in_file_order() {
+        let conn = fresh_db().await;
+        let db = conn.as_ref();
+        let root = temp_root("merge");
+        let base = Service::toEnsureDefaultBase(db, &root)
+            .await
+            .expect("默认库");
+        let dir = Path::new(&base.rootPath)
+            .parent()
+            .expect("父目录")
+            .join(".staging")
+            .join("s-merge");
+        fs::create_dir_all(&dir).expect("建会话目录");
+        // 故意乱序传入：顺序应由文件名决定
+        let third = dir.join("03-c.md");
+        let first = dir.join("01-a.md");
+        let second = dir.join("02-b.md");
+        fs::write(&third, "## 第三章\n\n丙").expect("写 3");
+        fs::write(&first, "## 第一章\n\n甲").expect("写 1");
+        fs::write(&second, "## 第二章\n\n乙").expect("写 2");
+
+        let paths = vec![
+            third.to_string_lossy().into_owned(),
+            first.to_string_lossy().into_owned(),
+            second.to_string_lossy().into_owned(),
+        ];
+        let merged = Service::toMergeStaging(db, &base.id, &paths, "年度总结")
+            .await
+            .expect("合并");
+
+        let merged_path = PathBuf::from(&merged.path);
+        assert!(merged_path.starts_with(&dir), "合并结果应留在同一会话目录");
+        let content = fs::read_to_string(&merged_path).expect("读合并结果");
+        assert!(content.starts_with("# 年度总结"), "{content}");
+        let a = content.find("## 第一章").expect("有第一章");
+        let b = content.find("## 第二章").expect("有第二章");
+        let c = content.find("## 第三章").expect("有第三章");
+        assert!(a < b && b < c, "分章顺序应按文件名：{content}");
+
+        // 分片已清理
+        for path in [&first, &second, &third] {
+            assert!(!path.exists(), "{} 应已删除", path.display());
+        }
+    }
+
+    #[tokio::test]
+    async fn merge_staging_rejects_files_outside_staging() {
+        let conn = fresh_db().await;
+        let db = conn.as_ref();
+        let root = temp_root("merge-escape");
+        let base = Service::toEnsureDefaultBase(db, &root)
+            .await
+            .expect("默认库");
+        let outside = Path::new(&base.rootPath).join("正文.md");
+        fs::write(&outside, "# 正文\n").expect("写正式文件");
+
+        let error = Service::toMergeStaging(
+            db,
+            &base.id,
+            &[outside.to_string_lossy().into_owned()],
+            "越界",
+        )
+        .await
+        .expect_err("必须拒绝 staging 之外的文件");
+        assert!(error.to_string().contains("staging"), "{error}");
+        assert!(outside.exists(), "被拒时不得动原文件");
     }
 }

@@ -27,7 +27,11 @@ const HARD_MAX_TOP_K: usize = 20;
 
 #[must_use]
 pub fn owns(name: &str) -> bool {
-    name == LIST_BASES || name == LIST_DOCS || name == READ_DOC || name == SEARCH || name == WRITE_DOC
+    name == LIST_BASES
+        || name == LIST_DOCS
+        || name == READ_DOC
+        || name == SEARCH
+        || name == WRITE_DOC
 }
 
 #[must_use]
@@ -202,7 +206,8 @@ async fn read_doc(db: &DatabaseConnection, arguments: &Value) -> Result<Value, S
                 .get("title")
                 .and_then(Value::as_str)
                 .ok_or_else(|| "需要 id 或 title".to_string())?;
-            let base_id = resolve_base_id(db, arguments.get("baseId").and_then(Value::as_str)).await?;
+            let base_id =
+                resolve_base_id(db, arguments.get("baseId").and_then(Value::as_str)).await?;
             Service::toFindDocByTitle(db, &base_id, title)
                 .await
                 .map_err(|error| error.to_string())?
@@ -354,9 +359,7 @@ mod tests {
     async fn list_bases_exposes_default_with_doc_count() {
         let (conn, _root) = setup("bases").await;
         let db = conn.as_ref();
-        let value = call(db, LIST_BASES, &json!({}))
-            .await
-            .expect("列库");
+        let value = call(db, LIST_BASES, &json!({})).await.expect("列库");
         let bases = value.get("bases").and_then(Value::as_array).expect("bases");
         assert_eq!(bases.len(), 1);
         assert_eq!(bases[0]["slug"], "default");
@@ -393,11 +396,7 @@ mod tests {
     async fn search_and_read_after_user_publishes() {
         let (conn, _root) = setup("publish").await;
         let db = conn.as_ref();
-        let base_id = Service::toListBases(db)
-            .await
-            .expect("列库")[0]
-            .id
-            .clone();
+        let base_id = Service::toListBases(db).await.expect("列库")[0].id.clone();
         let staged = call(
             db,
             WRITE_DOC,
@@ -424,15 +423,14 @@ mod tests {
         assert_eq!(hits["mode"], "fts");
 
         let doc_id = list[0]["docId"].as_str().expect("docId");
-        let doc = call(
-            db,
-            READ_DOC,
-            &json!({ "id": doc_id, "maxChars": 12 }),
-        )
-        .await
-        .expect("读正文");
+        let doc = call(db, READ_DOC, &json!({ "id": doc_id, "maxChars": 12 }))
+            .await
+            .expect("读正文");
         assert_eq!(doc["truncated"], true);
-        assert_eq!(doc["content"].as_str().expect("content").chars().count(), 12);
+        assert_eq!(
+            doc["content"].as_str().expect("content").chars().count(),
+            12
+        );
         assert_eq!(doc["title"], "发布契约");
     }
 
