@@ -67,7 +67,7 @@ function DirectiveDock(props: DirectiveDockProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <div className="flex h-9 shrink-0 items-stretch gap-0.5 border-b bg-muted/40 px-1">
+      <div className="flex h-9 shrink-0 items-stretch gap-0.5 border-b border-border bg-muted px-1">
         {visibleActivities.map(function (item) {
           const active = activity === item.id
           return (

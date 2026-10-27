@@ -1,6 +1,7 @@
 /**
  * Decorations 内容区内的主区 + 底栏：高度吃满 Caption 以下剩余空间，
  * 底栏展开不会把窗口操作栏顶出视口。
+ * 整层铺 `bg-background` 实底：窗壳透明 + mica 时，工作区不透壁纸。
  */
 import { useEffect, type ReactNode } from 'react'
 import {
@@ -39,12 +40,14 @@ function DirectiveFrame(props: DirectiveFrameProps) {
   return (
     <ResizablePanelGroup
       orientation="vertical"
-      className="h-full min-h-0 w-full flex-1 overflow-hidden">
+      className="h-full min-h-0 w-full flex-1 overflow-hidden bg-background">
       <ResizablePanel
         defaultSize={terminalOpen ? '68%' : '100%'}
         minSize={180}
-        className="min-h-0 overflow-hidden">
-        <div className="flex h-full min-h-0 flex-col overflow-hidden">{props.children}</div>
+        className="min-h-0 overflow-hidden bg-background">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+          {props.children}
+        </div>
       </ResizablePanel>
       {terminalOpen ? (
         <>
@@ -53,7 +56,7 @@ function DirectiveFrame(props: DirectiveFrameProps) {
             defaultSize="32%"
             minSize={140}
             maxSize="55%"
-            className="min-h-0 overflow-hidden border-t">
+            className="min-h-0 overflow-hidden border-t border-border bg-background">
             <DirectiveDock
               cwd={cwd}
               emptyCwdMessage={emptyCwdMessage}

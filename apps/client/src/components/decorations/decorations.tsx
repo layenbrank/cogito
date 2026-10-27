@@ -6,7 +6,8 @@ import { useShowsTileSession } from '@/features/magnetic-tile/session-bar'
 
 /**
  * 窗口容器：Caption + 内容区 + 可选底栏。
- * 根透明（透出 mica / 亚克力）；纵向 flex 撑满窗口，子节点不必再写 `100vh`。
+ * 根透明（圆角外沿可透 mica）；内容槽铺 `bg-background` 实底，主工作区不透壁纸。
+ * 纵向 flex 撑满窗口，子节点不必再写 `100vh`。
  */
 
 interface DecorationsProps {
@@ -56,7 +57,7 @@ function Decorations(props: DecorationsProps) {
       />
       <div
         className={cn(
-          'flex min-h-0 flex-1 flex-col',
+          'flex min-h-0 flex-1 flex-col bg-background',
           scrollable ? 'overflow-auto' : 'overflow-hidden'
         )}>
         {props.children}
@@ -64,7 +65,7 @@ function Decorations(props: DecorationsProps) {
       {props.section ? (
         <section
           className={cn(
-            'flex shrink-0 justify-end gap-2.5 border-t border-border/50 bg-background/70 px-5 py-3 backdrop-blur-md',
+            'flex shrink-0 justify-end gap-2.5 border-t border-border bg-background px-5 py-3',
             props.sectionClassName
           )}>
           {props.section}

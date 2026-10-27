@@ -120,7 +120,7 @@ function Canvas(props: CanvasProps) {
   const steps = props.draft.steps
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-muted/20">
+    <div className="flex h-full min-h-0 flex-col bg-muted">
       <div className="flex items-center gap-2 border-b bg-background px-3 py-2">
         <DropdownMenu>
           <DropdownMenuTrigger className="inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs hover:bg-muted">

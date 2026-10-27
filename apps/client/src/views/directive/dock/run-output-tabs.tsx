@@ -51,7 +51,7 @@ function RunOutputTabs(props: RunOutputTabsProps) {
       <div
         role="tablist"
         aria-label="运行输出"
-        className="flex h-8 shrink-0 items-center gap-1 border-b bg-muted/30 px-1.5">
+        className="flex h-8 shrink-0 items-center gap-1 border-b border-border bg-muted px-1.5">
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
           {tabs.map(function (run) {
             const style = RUN_STATUS_STYLES[run.status]
