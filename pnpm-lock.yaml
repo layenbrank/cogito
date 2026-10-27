@@ -1650,6 +1650,9 @@ importers:
       '@iconify/react':
         specifier: 'catalog:'
         version: 6.0.2(react@19.2.3)
+      '@types/d3':
+        specifier: ^7.4.3
+        version: 7.4.3
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -1662,6 +1665,9 @@ importers:
       cn:
         specifier: 'catalog:'
         version: 0.3.0
+      d3:
+        specifier: ^7.9.0
+        version: 7.9.0
       dayjs:
         specifier: 1.11.21
         version: 1.11.21

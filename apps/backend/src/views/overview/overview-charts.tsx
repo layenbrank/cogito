@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import type { ExceptionSummary } from '@/apis/exception.ts'
 import type { UsageRecord } from '@/apis/gateway.ts'
 import type { TenantSummary } from '@/apis/tenant.ts'
-import { BarChart, LineChart, PieChart } from '@/components/console/charts.tsx'
+import { BarChart, LineChart, PieChart } from '@cogito/design/components/charts'
 
 import {
   buildExceptionLevelCounts,

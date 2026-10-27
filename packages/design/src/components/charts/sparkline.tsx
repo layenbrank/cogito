@@ -1,10 +1,12 @@
 import { useId } from 'react'
 
-import type { ChartPoint } from '@/components/console/chart.ts'
+import type { ChartPoint } from './theme'
+
+const SPARKLINE_COLOR = 'var(--chart-1, var(--backend-accent, var(--primary)))'
 
 interface BarSparklineProps {
   points: ChartPoint[]
-  /** 柱色，默认 backend accent */
+  /** 柱色，默认 chart / accent token */
   color?: string
   /** 图表区高度（不含轴标签），默认 36 */
   height?: number
@@ -34,7 +36,7 @@ function findMax(points: ChartPoint[]) {
 
 function BarSparkline(props: BarSparklineProps) {
   const height = props.height ?? 36
-  const color = props.color ?? 'var(--backend-accent)'
+  const color = props.color ?? SPARKLINE_COLOR
   const showLabels = props.showLabels ?? false
   if (props.points.length === 0) {
     return (
@@ -85,7 +87,7 @@ function BarSparkline(props: BarSparklineProps) {
 
 function AreaSparkline(props: AreaSparklineProps) {
   const height = props.height ?? 36
-  const color = props.color ?? 'var(--backend-accent)'
+  const color = props.color ?? SPARKLINE_COLOR
   const showLabels = props.showLabels ?? false
   const autoId = useId().replace(/:/g, '')
   const gradientId = props.gradientId ?? `area-spark-${autoId}`

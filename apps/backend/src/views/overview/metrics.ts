@@ -1,7 +1,7 @@
 import type { ExceptionRecord, ExceptionSummary } from '@/apis/exception.ts'
 import type { UsageRecord } from '@/apis/gateway.ts'
 import type { TenantSummary } from '@/apis/tenant.ts'
-import type { ChartPoint } from '@/components/console/chart.ts'
+import type { ChartPoint } from '@cogito/design/components/charts'
 
 const DAY_MS = 86_400_000
 const DAILY_WINDOW = 14

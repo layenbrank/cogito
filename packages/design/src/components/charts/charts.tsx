@@ -16,7 +16,7 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 
-import { findChartTheme, type ChartPoint } from '@/components/console/chart.ts'
+import { findChartTheme, type ChartPoint, type NamedCount } from './theme'
 
 const CHART_HEIGHT = 240
 const MARGIN = { top: 16, right: 12, bottom: 28, left: 40 }
@@ -26,11 +26,6 @@ const TOOLTIP_EDGE = 8
 /** hover 动效时长（毫秒），克制在 150–250ms */
 const MOTION_MS = 180
 const TOOLTIP_MOTION_S = MOTION_MS / 1000
-
-interface NamedCount {
-  name: string
-  value: number
-}
 
 interface EmptyableChartProps {
   height?: number
@@ -594,7 +589,7 @@ function PieChart(props: PieChartProps) {
       if (!svgEl || !hostEl || props.isEmpty || props.items.length === 0 || width <= 0) return
 
       const theme = findChartTheme()
-      const palette = [theme.accent, theme.warn, theme.danger, theme.ok, theme.muted]
+      const palette = theme.palette
       const legendH = 36
       const chartH = height - legendH
       const radius = Math.min(width, chartH) / 2 - 8

@@ -24,7 +24,7 @@ import { GET_GATEWAY_PROVIDERS, GET_GATEWAY_USAGE } from '@/apis/gateway.ts'
 import { GET_ADMIN_TENANTS } from '@/apis/tenant.ts'
 import { GET_USERS } from '@/apis/user.ts'
 import { ConsolePage } from '@/components/console/console-page.tsx'
-import { AreaSparkline, BarSparkline } from '@/components/console/sparkline.tsx'
+import { AreaSparkline, BarSparkline } from '@cogito/design/components/charts'
 import { useConsoleLayoutStore } from '@/stores/console-layout.ts'
 
 import { OverviewCharts } from './overview-charts.tsx'
