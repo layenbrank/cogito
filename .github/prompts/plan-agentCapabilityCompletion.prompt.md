@@ -443,11 +443,25 @@
   - **联调抓出的两个真 bug**（已修）：① `prepare` 返回的 `chunks` 是**已传过的**分片，客户端据此规划会一片不传 → 改为按 `size / CHUNK_SIZE` 本地规划；② `/rag/search` 请求体多一个必填 `model`（服务端本来就用 `compute.embed_model`）→ 删掉，且 compute 拒绝时把 body 记进日志（真正的下游原因只留日志，不回给调用方）。
   - 纠偏记录：契约测试曾按旧目录 `apps/cogito` 找 `internal.yaml`，找不到就 **skip**，等于没测；改到 `apps/service` 后才真正开跑。
 
+**Phase 7A（客户端定时任务，2026-10-27）**
+- 地基：`entity/automation` + `entity/automation_run` 建 entity（纳入 `entity_columns_match_ddl`，现 29 张表）；新依赖 `cron 0.17` + `chrono-tz 0.10`（本地 registry 已缓存，可离线构建）。
+- `crates/core/src/automation/service.rs`：
+  - `toNext`：cron 按**任务自己的时区**解释；用户习惯的 **5 段 crontab**自动补 `0` 秒（`cron` crate 要求 6–7 段），非法表达式/时区在**保存时**就报 `Validation`。
+  - `toClaimDue`：事务内「认领 + 推进 `nextRunAt`」，`(automationId, scheduledFor)` 唯一 → 重复 tick 不重跑；错过多轮**只补一次**（迟到 >2 分钟标 `catchup`）。
+  - `toRunNow`（手动，不看 enabled、不动排期）、`toFinish`（回写 run + 任务上的 `lastStatus/lastError`）、`toReapStale`（30 分钟没回写判失败，避免永远「执行中」）。
+- `src/automation/worker.rs`：照 `reminder/worker.rs` 的 12 秒 tick，但**只做 claim + 发 `automation:due`** —— 会话只能在 WebView 里起，Rust 侧没有模型通道。
+- 前端：`shared/ipc/specs/automation.ts` + `CHANNELS.AUTOMATION` + `lib/automation-ipc.ts` + `stores/automation.ts`；`features/automation/runner.ts` 收到事件起一次性会话（`automation-<runId>`），**自动拒绝审批与追问**（无人值守，等只会卡到票据超时），拒绝次数写进输出；`features/automation/describe-schedule.ts` 把 cron 说成人话（不认识的形状原样显示）。
+- UI：知识库侧栏新增「自动化」按钮 → 独立对话框（列表 / 启停 / 立即执行 / 记录 / 编辑），cron 输入配常用预设。
+- 顺带收口：把「供应商存在 + 启用 + 配额 + 网关幂等注册」抽成 `features/agent/acp/target-guard.ts` 的 `prepareTarget`，内联改写与定时任务共用一份（原先只存在于 `inline-prompt.ts`）。
+- 验证：`cargo test -p cogito-core` **43/43**（新增 automation 11 条：时区换算 / 6–7 段 / 非法拒绝 / 保存即校验 / 只认领一次 / 补跑一次 / 回写 / 停用后可手动跑 / 陈旧回收 / 级联删除）；`cargo test -p cogito-database` 6/6（含 29 张表的 entity↔DDL 比对）；`cargo check -p cogito` 通过；client `tsc`/`eslint` 干净、**69 文件 393 测试**（新增 `describe-schedule` 3 条）。
+- 未做（留给 7B/7C）：`owner=goose`（等 S-3 spike）、`owner=cloud`（服务端 `scheduled_job`）、按 `knowledgeBaseId` 的确定性动作（当前一律走 prompt）。
+
 ### 待办（按依赖顺序，尚需继续）
 
 1. **Phase 2（已完成 2026-10-27）**：桥 / 工具目录 / 注入 / `app_workspace_read` / 本地工具自检均落地。**仅剩人工复核**：`pnpm dev:client` 起应用后，新建会话应看到 8 个 `app_*` 且日志无「工具名与基线不一致」；让 agent 调 `app_calendar_read` 应返回真实日程。
 2. **Phase 5 ③（已全部落地 2026-10-27）**：保存落库与冲突（③-1）、生成编排（③-2）、编辑器内联 AI 与收尾（③-3）。**仅剩人工复核**：内联 AI 在真机走一轮（续写/重写/总结 + diff 应用 + Ctrl+Z），发布后 `exports/*.html` 有产物，切库后侧栏根跟随。
-3. **Phase 6 余下 / 7 / 8**：云端检索的**真机联调已完成**（2026-10-27；镜像已重建、宿主与容器两种跑法都跑通上传→索引→召回）、自动化（A 客户端 worker / B goose schedules / C 服务端 `scheduled_job`）、导出收尾与文档。
+3. **Phase 7A（已完成 2026-10-27）**：entity / 排期服务 / worker / IPC / 面板 / 执行回写均落地。**仅剩人工复核**：面板建一条「每分钟」任务 → 到点自动跑一次 → 记录里出现 `schedule` 一次；点「立即执行」出现 `manual`；应用关掉一段时间再打开，只补跑一次（`catchup`）。
+4. **Phase 7B / 7C / 8**：goose schedules（先 spike）、服务端 `scheduled_job`、导出与文档收尾。
 
 ### 待决问题（已决 2026-10-27）
 
