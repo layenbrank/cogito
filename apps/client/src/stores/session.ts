@@ -17,6 +17,7 @@ import {
   subscribeAuthToken
 } from '@/utils/auth.ts'
 import { reportCaught } from '@/utils/exception-report'
+import { findCogitoMediaUrl } from '@/utils/http/media.ts'
 
 type SessionUser = {
   id: string
@@ -42,7 +43,7 @@ function parseSessionUser(profile: AuthProfile): SessionUser {
   return {
     id: profile.id,
     username: profile.username,
-    avatarUrl: profile.avatar?.url ?? null,
+    avatarUrl: findCogitoMediaUrl(profile.avatar?.url),
     email: profile.email,
     phone: profile.phone,
     gender: profile.gender,
