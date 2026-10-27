@@ -17,7 +17,7 @@ const RRF_K = 60
 /** 每路先各取这么多条，再融合截断 */
 const CANDIDATE_LIMIT = 20
 
-type CloudState = 'ok' | 'unavailable' | 'off'
+type CloudChannel = 'ok' | 'unavailable' | 'off'
 
 interface HybridHit extends KnowledgeHit {
   /** 融合分（只用于排序，不可跨查询比较） */
@@ -29,7 +29,7 @@ interface HybridHit extends KnowledgeHit {
 interface HybridResult {
   hits: HybridHit[]
   /** `off` = 没有文档建过云端索引（不必提示） */
-  cloud: CloudState
+  cloud: CloudChannel
   /** 本地/云端各自命中的条数 */
   counts: { local: number; cloud: number }
 }
@@ -140,7 +140,7 @@ async function searchHybrid(query: string, options: HybridOptions = {}): Promise
   )
 
   let cloud: RagHit[] = []
-  let state: CloudState = 'ok'
+  let state: CloudChannel = 'ok'
   try {
     cloud = await POST_RAG_SEARCH(
       { query, topK: CANDIDATE_LIMIT, assetIDs: cloudDocs.map((doc) => doc.assetId) },
@@ -174,4 +174,4 @@ function toHybrid(local: KnowledgeHit[], topK: number): HybridHit[] {
 }
 
 export { fuseHits, rankWeight, RRF_K, searchHybrid }
-export type { CloudState, HybridHit, HybridOptions, HybridResult }
+export type { CloudChannel, HybridHit, HybridOptions, HybridResult }

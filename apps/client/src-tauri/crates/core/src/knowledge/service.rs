@@ -123,6 +123,29 @@ pub struct CloudDoc {
     pub asset_id: String,
 }
 
+/// 一篇文档的云端索引状态：界面据此显示角标，同步流程据此决定该不该重传。
+///
+/// `status` 取 `idle` / `pending` / `running` / `succeeded` / `failed`
+/// （与 `knowledge_index_state.cloudStatus` 同一套字面量）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CloudState {
+    pub doc_id: String,
+    pub status: String,
+    pub asset_id: Option<String>,
+    pub indexed_at: Option<i64>,
+    pub error: Option<String>,
+}
+
+/// 云端状态的写入项。`None` 表示「这次不动这一列」的例外只有 `indexed_at` /
+/// `error` —— 它们是**上一次尝试**的痕迹，没给就该清掉，否则失败原因会一直挂着。
+pub struct CloudPatch {
+    pub status: String,
+    pub asset_id: Option<String>,
+    pub indexed_at: Option<i64>,
+    pub error: Option<String>,
+}
+
 pub struct Service;
 
 impl Service {
@@ -301,7 +324,8 @@ impl Service {
                     asset_id,
                 })
             })
-            .collect())    }
+            .collect())
+    }
 
     pub async fn toReadDoc(
         db: &DatabaseConnection,
@@ -460,6 +484,97 @@ impl Service {
             .await?;
         let result = doc_schema::Entity::delete_by_id(doc.id).exec(db).await?;
         Ok(result.rows_affected)
+    }
+
+    /// 一篇文档的云端索引状态；没有行就是 `idle`（从未同步过）。
+    ///
+    /// 与 `toListCloudStates` 的区别：那个给列表画角标，这个给单篇回写之后确认结果。
+    pub async fn toFindCloudState(
+        db: &DatabaseConnection,
+        doc_id: &str,
+    ) -> Result<Option<CloudState>, Exception> {
+        let row = index_schema::Entity::find_by_id(doc_id.to_string())
+            .one(db)
+            .await?;
+        Ok(row.map(Self::to_cloud_state))
+    }
+
+    /// 一个库（或全部）的云端索引状态。
+    ///
+    /// 只回**有状态行**的文档：没有行就是 `idle`，让界面自己当默认值，
+    /// 免得每次列表都把每篇文档撮一遍可能不存在的记录。
+    pub async fn toListCloudStates(
+        db: &DatabaseConnection,
+        base_id: Option<&str>,
+    ) -> Result<Vec<CloudState>, Exception> {
+        let mut query = index_schema::Entity::find();
+        if let Some(base_id) = base_id {
+            query = query.filter(index_schema::Column::BaseId.eq(base_id));
+        }
+        let rows = query.all(db).await?;
+        Ok(rows.into_iter().map(Self::to_cloud_state).collect())
+    }
+
+    /// 写回一篇文档的云端索引状态（没有行就建）。
+    ///
+    /// 不从入参拿 `base_id`：它由文档行决定，客户端传错只会把状态挂到别的库上。
+    pub async fn toSetCloudState(
+        db: &DatabaseConnection,
+        doc_id: &str,
+        patch: CloudPatch,
+    ) -> Result<CloudState, Exception> {
+        let doc = doc_schema::Entity::find_by_id(doc_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| Exception::NotFound(format!("文档不存在：{doc_id}")))?;
+        let now = Utc::now().timestamp_millis();
+        let existing = index_schema::Entity::find_by_id(doc_id.to_string())
+            .one(db)
+            .await?;
+
+        let row = match existing {
+            Some(current) => {
+                let mut active: index_schema::ActiveModel = current.into();
+                active.cloudStatus = Set(patch.status);
+                active.cloudAssetID = Set(patch.asset_id);
+                active.cloudIndexedAt = Set(patch.indexed_at);
+                active.lastError = Set(patch.error);
+                active.updatedAt = Set(now);
+                active.update(db).await?
+            }
+            None => {
+                let model = index_schema::Model {
+                    docID: doc_id.to_string(),
+                    baseID: doc.baseID.clone(),
+                    tenantID: None,
+                    localIndexedAt: None,
+                    cloudStatus: patch.status,
+                    cloudAssetID: patch.asset_id,
+                    cloudAssetHash: None,
+                    cloudModel: None,
+                    cloudDimensions: None,
+                    cloudIndexedAt: patch.indexed_at,
+                    lastError: patch.error,
+                    createdAt: now,
+                    updatedAt: now,
+                };
+                index_schema::Entity::insert(index_schema::ActiveModel::from(model.clone()))
+                    .exec(db)
+                    .await?;
+                model
+            }
+        };
+        Ok(Self::to_cloud_state(row))
+    }
+
+    fn to_cloud_state(row: index_schema::Model) -> CloudState {
+        CloudState {
+            doc_id: row.docID,
+            status: row.cloudStatus,
+            asset_id: row.cloudAssetID,
+            indexed_at: row.cloudIndexedAt,
+            error: row.lastError,
+        }
     }
 
     /// 文档摘要：列表页只要元数据，不把整篇正文带进渲染进程。
@@ -1048,7 +1163,9 @@ mod tests {
         let conn = fresh_db().await;
         let db = conn.as_ref();
         let root = temp_root("cloud-docs");
-        let base = Service::toEnsureDefaultBase(db, &root).await.expect("默认库");
+        let base = Service::toEnsureDefaultBase(db, &root)
+            .await
+            .expect("默认库");
         let now = Utc::now().timestamp_millis();
         for (doc_id, status, asset) in [
             ("doc-ok", "succeeded", Some("asset-ok")),
@@ -1075,10 +1192,117 @@ mod tests {
             .expect("写索引状态");
         }
 
-        let docs = Service::toListCloudDocs(db, Some(&base.id)).await.expect("列表");
+        let docs = Service::toListCloudDocs(db, Some(&base.id))
+            .await
+            .expect("列表");
         assert_eq!(docs.len(), 1, "只有 succeeded 且有 assetID 的文档算");
         assert_eq!(docs[0].doc_id, "doc-ok");
         assert_eq!(docs[0].asset_id, "asset-ok");
+    }
+
+    /// 云端状态是 upsert：第一次写要建行，第二次写要把上一次的失败原因清掉。
+    #[tokio::test]
+    async fn cloud_state_upsert_keeps_the_row_consistent() {
+        let conn = fresh_db().await;
+        let db = conn.as_ref();
+        let root = temp_root("cloud-state");
+        let base = Service::toEnsureDefaultBase(db, &root)
+            .await
+            .expect("默认库");
+        let now = Utc::now().timestamp_millis();
+        doc_schema::Entity::insert(doc_schema::ActiveModel {
+            id: Set("doc-1".to_string()),
+            baseID: Set(base.id.clone()),
+            title: Set("第一篇".to_string()),
+            relPath: Set("第一篇.md".to_string()),
+            hash: Set("h".to_string()),
+            content: Set("正文".to_string()),
+            size: Set(6),
+            wordCount: Set(2),
+            revision: Set(1),
+            status: Set("published".to_string()),
+            source: Set("authored".to_string()),
+            error: Set(None),
+            sessionID: Set(None),
+            assetID: Set(None),
+            assetHash: Set(None),
+            archivedAt: Set(None),
+            createdAt: Set(now),
+            updatedAt: Set(now),
+        })
+        .exec(db)
+        .await
+        .expect("写文档");
+
+        let started = Service::toSetCloudState(
+            db,
+            "doc-1",
+            CloudPatch {
+                status: "running".to_string(),
+                asset_id: Some("asset-1".to_string()),
+                indexed_at: None,
+                error: None,
+            },
+        )
+        .await
+        .expect("首次写");
+        assert_eq!(started.status, "running");
+        assert_eq!(started.asset_id.as_deref(), Some("asset-1"));
+
+        let failed = Service::toSetCloudState(
+            db,
+            "doc-1",
+            CloudPatch {
+                status: "failed".to_string(),
+                asset_id: Some("asset-1".to_string()),
+                indexed_at: None,
+                error: Some("compute 不可用".to_string()),
+            },
+        )
+        .await
+        .expect("写失败态");
+        assert_eq!(failed.error.as_deref(), Some("compute 不可用"));
+
+        let done = Service::toSetCloudState(
+            db,
+            "doc-1",
+            CloudPatch {
+                status: "succeeded".to_string(),
+                asset_id: Some("asset-1".to_string()),
+                indexed_at: Some(now),
+                error: None,
+            },
+        )
+        .await
+        .expect("写成功态");
+        assert_eq!(done.status, "succeeded");
+        assert!(done.error.is_none(), "成功之后不该还挂着上一次的失败原因");
+        assert_eq!(done.indexed_at, Some(now));
+
+        let states = Service::toListCloudStates(db, Some(&base.id))
+            .await
+            .expect("列表");
+        assert_eq!(states.len(), 1, "upsert 不该写出第二行");
+    }
+
+    /// 状态行挂在文档上：文档不存在时不建孤儿行（否则永远是查不到主人的垃圾）。
+    #[tokio::test]
+    async fn cloud_state_requires_an_existing_doc() {
+        let conn = fresh_db().await;
+        let db = conn.as_ref();
+        let error = Service::toSetCloudState(
+            db,
+            "missing",
+            CloudPatch {
+                status: "running".to_string(),
+                asset_id: None,
+                indexed_at: None,
+                error: None,
+            },
+        )
+        .await
+        .expect_err("文档不存在应报错");
+        assert!(error.to_string().contains("文档不存在"), "{error}");
     }
 
     #[tokio::test]

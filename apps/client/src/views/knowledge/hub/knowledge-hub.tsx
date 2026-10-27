@@ -120,6 +120,14 @@ function mergeTitleOf(files: StagedFile[]): string {
     .trim()
 }
 
+/** 云端角标：只有「有状态」的文档才显示，未同步不占位置 */
+const CLOUD_BADGE: Record<string, { label: string; className: string }> = {
+  pending: { label: '待上云', className: 'text-muted-foreground' },
+  running: { label: '索引中', className: 'text-amber-700 dark:text-amber-400' },
+  succeeded: { label: '已上云', className: 'text-emerald-700 dark:text-emerald-400' },
+  failed: { label: '同步失败', className: 'text-destructive' }
+}
+
 interface KnowledgeHubProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -191,6 +199,15 @@ function KnowledgeHub(props: KnowledgeHubProps) {
   })
   const updateBase = useKnowledgeBaseStore(function (state) {
     return state.updateBase
+  })
+  const syncCloud = useKnowledgeBaseStore(function (state) {
+    return state.syncCloud
+  })
+  const cloudStates = useKnowledgeBaseStore(function (state) {
+    return state.cloudStates
+  })
+  const isSyncingCloud = useKnowledgeBaseStore(function (state) {
+    return state.isSyncingCloud
   })
   const [newName, setNewName] = useState('')
   const [isGenerateOpen, setIsGenerateOpen] = useState(false)
@@ -280,6 +297,20 @@ function KnowledgeHub(props: KnowledgeHubProps) {
                 className="size-4"
               />
               生成
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label="同步到云端"
+              title="把本库还没上云的文档传上去建索引"
+              disabled={isSyncingCloud || !activeBase || docs.length === 0}
+              onClick={function () {
+                void syncCloud()
+              }}>
+              <Icon
+                icon="lucide:cloud-upload"
+                className="size-4"
+              />
             </Button>
             <Button
               size="sm"
@@ -442,6 +473,7 @@ function KnowledgeHub(props: KnowledgeHubProps) {
           ) : null}
           <ul className="flex flex-col gap-0.5">
             {docs.map(function (doc) {
+              const badge = CLOUD_BADGE[cloudStates[doc.id]?.status ?? '']
               return (
                 <li key={doc.id}>
                   <button
@@ -450,7 +482,16 @@ function KnowledgeHub(props: KnowledgeHubProps) {
                     onClick={function () {
                       void openDoc(doc.relPath)
                     }}>
-                    <span className="block truncate text-sm">{doc.title}</span>
+                    <span className="flex items-center gap-1">
+                      <span className="truncate text-sm">{doc.title}</span>
+                      {badge ? (
+                        <span
+                          className={`shrink-0 text-[11px] ${badge.className}`}
+                          title={cloudStates[doc.id]?.error ?? undefined}>
+                          {badge.label}
+                        </span>
+                      ) : null}
+                    </span>
                     <span className="block truncate text-xs text-muted-foreground">
                       {doc.relPath} · {doc.wordCount} 字 · {formatTime(doc.updatedAt)}
                     </span>

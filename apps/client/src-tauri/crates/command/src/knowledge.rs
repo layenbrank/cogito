@@ -3,7 +3,8 @@
 //! 语义都在 `cogito_core::knowledge::Service`；这里只做参数整形与错误透传。
 use cogito_core::CommandResult;
 use cogito_core::knowledge::{
-    CloudDoc, DocRef, DocSummary, Hit, PublishMode, Service, StagedDoc, StagedFile, WriteDocOutcome,
+    CloudDoc, CloudPatch, CloudState, DocRef, DocSummary, Hit, PublishMode, Service, StagedDoc,
+    StagedFile, WriteDocOutcome,
 };
 use cogito_database::Storage;
 use cogito_database::entity::knowledge_base::Model as BaseModel;
@@ -58,6 +59,38 @@ pub async fn knowledge_cloud_docs(
     baseId: Option<String>,
 ) -> CommandResult<Vec<CloudDoc>> {
     Service::toListCloudDocs(state.connection(), baseId.as_deref()).await
+}
+
+/// 云端索引状态列表（界面画角标、决定该不该重传）。
+#[tauri::command(rename = "knowledge:cloudStates")]
+pub async fn knowledge_cloud_states(
+    state: State<'_, Storage>,
+    baseId: Option<String>,
+) -> CommandResult<Vec<CloudState>> {
+    Service::toListCloudStates(state.connection(), baseId.as_deref()).await
+}
+
+/// 回写一篇文档的云端索引状态。`indexedAt` / `error` 不传即清空（上一次尝试的痕迹）。
+#[tauri::command(rename = "knowledge:cloudState")]
+pub async fn knowledge_set_cloud_state(
+    state: State<'_, Storage>,
+    docId: String,
+    status: String,
+    assetId: Option<String>,
+    indexedAt: Option<i64>,
+    error: Option<String>,
+) -> CommandResult<CloudState> {
+    Service::toSetCloudState(
+        state.connection(),
+        &docId,
+        CloudPatch {
+            status,
+            asset_id: assetId,
+            indexed_at: indexedAt,
+            error,
+        },
+    )
+    .await
 }
 
 #[tauri::command(rename = "knowledge:search")]

@@ -79,6 +79,15 @@ const CloudDocSchema = z.object({
   assetId: z.string()
 })
 
+/** 一篇文档的云端索引状态；没有行就是 idle */
+const CloudStateSchema = z.object({
+  docId: z.string(),
+  status: z.string(),
+  assetId: z.string().nullish(),
+  indexedAt: z.number().nullish(),
+  error: z.string().nullish()
+})
+
 const PublishModeSchema = z.enum(['replace', 'keepboth'])
 
 /** 文档引用：打开时取一次，保存时把 `hash` 带回去做冲突判定 */
@@ -112,6 +121,7 @@ type KnowledgeDocSummary = z.infer<typeof KnowledgeDocSummarySchema>
 type KnowledgeHit = z.infer<typeof KnowledgeHitSchema>
 type StagedFile = z.infer<typeof StagedFileSchema>
 type CloudDoc = z.infer<typeof CloudDocSchema>
+type CloudState = z.infer<typeof CloudStateSchema>
 type StagedDoc = z.infer<typeof StagedDocSchema>
 type PublishedDoc = z.infer<typeof PublishedDocSchema>
 type PublishMode = z.infer<typeof PublishModeSchema>
@@ -126,6 +136,7 @@ export {
   PublishedDocSchema,
   SearchInputSchema,
   CloudDocSchema,
+  CloudStateSchema,
   StagedDocSchema,
   StagedFileSchema,
   WriteDocOutcomeSchema
@@ -138,6 +149,7 @@ export type {
   PublishedDoc,
   PublishMode,
   CloudDoc,
+  CloudState,
   StagedDoc,
   StagedFile,
   WriteDocOutcome

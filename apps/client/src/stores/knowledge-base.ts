@@ -11,6 +11,7 @@ import {
   createBase,
   discardStaged,
   listBases,
+  listCloudStates,
   listDocs,
   listStaging,
   mergeStaging,
@@ -18,6 +19,7 @@ import {
   rescanBase,
   updateBase,
   type BasePatch,
+  type CloudState,
   type KnowledgeBase,
   type KnowledgeDocSummary,
   type StagedFile
@@ -25,13 +27,14 @@ import {
 import type { PublishMode } from '@/shared/ipc/specs/knowledge'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { reportCaught } from '@/utils/exception-report'
+import { syncDocsToCloud } from '@/views/knowledge/lib/cloud-sync.ts'
 import { exportDocHtml } from '@/views/knowledge/lib/export.ts'
 import {
   searchHybrid,
-  type CloudState,
+  type CloudChannel,
   type HybridHit
 } from '@/views/knowledge/lib/hybrid-search.ts'
-import { findFileName } from '@/views/knowledge/lib/path.ts'
+import { findFileName, joinPath } from '@/views/knowledge/lib/path.ts'
 
 interface KnowledgeBaseState {
   bases: KnowledgeBase[]
@@ -39,8 +42,11 @@ interface KnowledgeBaseState {
   docs: KnowledgeDocSummary[]
   hits: HybridHit[]
   /** 上一次检索里云端通道的状态：`off` = 没有文档建过云端索引 */
-  cloudState: CloudState
+  cloudState: CloudChannel
   counts: { local: number; cloud: number }
+  /** 每篇文档的云端索引状态（只有写过状态的文档才有条目） */
+  cloudStates: Record<string, CloudState>
+  isSyncingCloud: boolean
   staging: StagedFile[]
   query: string
   isLoading: boolean
@@ -59,6 +65,8 @@ interface KnowledgeBaseState {
   discard: (file: StagedFile) => Promise<void>
   /** 把同一次生成的多章拼成一篇（结果仍待发布） */
   merge: (paths: string[], title: string) => Promise<boolean>
+  /** 把本库还没上云的文档逐篇传上去建索引 */
+  syncCloud: () => Promise<void>
 }
 
 function toMessage(error: unknown): string {
@@ -110,6 +118,17 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
     setter({ staging })
   }
 
+  async function loadCloudStates(baseID: string | null): Promise<void> {
+    const states = await listCloudStates(baseID ?? undefined)
+    setter({
+      cloudStates: Object.fromEntries(
+        states.map(function (state) {
+          return [state.docId, state]
+        })
+      )
+    })
+  }
+
   /**
    * 库开了「自动更新」时，打开面板就先回灌一次磁盘：
    * 用户在外面改文件不用再想起来点「重新扫描」。失败只告警，不影响列表。
@@ -133,6 +152,8 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
     hits: [],
     cloudState: 'off',
     counts: { local: 0, cloud: 0 },
+    cloudStates: {},
+    isSyncingCloud: false,
     staging: [],
     query: '',
     isLoading: false,
@@ -150,7 +171,11 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
         setter({ bases, activeBaseID })
         syncWorkspaceRoot(activeBaseID)
         await syncFromDisk(activeBaseID)
-        await Promise.all([loadDocs(activeBaseID), loadStaging(activeBaseID)])
+        await Promise.all([
+          loadDocs(activeBaseID),
+          loadStaging(activeBaseID),
+          loadCloudStates(activeBaseID)
+        ])
         setter({ isLoading: false })
       } catch (error) {
         reportCaught('knowledgeBase.refresh', error, 'warning')
@@ -163,7 +188,11 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
       syncWorkspaceRoot(baseID)
       try {
         await syncFromDisk(baseID)
-        await Promise.all([loadDocs(baseID), loadStaging(baseID)])
+        await Promise.all([
+          loadDocs(baseID),
+          loadStaging(baseID),
+          loadCloudStates(baseID)
+        ])
       } catch (error) {
         reportCaught('knowledgeBase.selectBase', error, 'warning')
         setter({ error: toMessage(error) })
@@ -287,6 +316,73 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
         reportCaught('knowledgeBase.merge', error, 'warning')
         setter({ isPublishing: false, error: toMessage(error) })
         return false
+      }
+    },
+
+    /**
+     * 同步到云端：只挑「还没成功过」的文档，逐篇上传 + 建索引。
+     *
+     * 串行是必须的：服务端同一资产只允许一个索引任务在跑，并发只会互相 409。
+     * 每篇的状态立刻写回 `cloudStates`，面板上的角标因此是实时的。
+     */
+    async syncCloud() {
+      const baseID = getter().activeBaseID
+      const base = getter().bases.find(function (item) {
+        return item.id === baseID
+      })
+      if (!base) return
+
+      const pending = getter().docs.filter(function (doc) {
+        return getter().cloudStates[doc.id]?.status !== 'succeeded'
+      })
+      if (pending.length === 0) {
+        toast.message('这个库的文档都已同步到云端')
+        return
+      }
+
+      setter({ isSyncingCloud: true, error: null })
+      const targets = pending.map(function (doc) {
+        return {
+          docId: doc.id,
+          path: joinPath(base.rootPath, doc.relPath),
+          name: `${doc.title}.md`
+        }
+      })
+
+      try {
+        const results = await syncDocsToCloud(targets, function (done, total, last) {
+          const current = getter().cloudStates
+          setter({
+            cloudStates: {
+              ...current,
+              [last.docId]: {
+                docId: last.docId,
+                status: last.status,
+                assetId: current[last.docId]?.assetId ?? null,
+                indexedAt: last.status === 'succeeded' ? Date.now() : null,
+                error: last.error ?? null
+              }
+            }
+          })
+          toast.loading(`正在同步到云端 ${done}/${total}`, { id: 'knowledge-cloud-sync' })
+        })
+
+        const failed = results.filter(function (item) {
+          return item.status === 'failed'
+        })
+        toast.dismiss('knowledge-cloud-sync')
+        if (failed.length === 0) {
+          toast.success(`已同步 ${results.length} 篇到云端`)
+        } else {
+          toast.error(`${failed.length} 篇同步失败：${failed[0]?.error ?? '原因未知'}`)
+        }
+        await getter().refresh()
+      } catch (error) {
+        reportCaught('knowledgeBase.syncCloud', error, 'warning')
+        toast.dismiss('knowledge-cloud-sync')
+        setter({ error: toMessage(error) })
+      } finally {
+        setter({ isSyncingCloud: false })
       }
     }
   }
