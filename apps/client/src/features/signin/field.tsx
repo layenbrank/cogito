@@ -45,7 +45,7 @@ function AuthField<T extends FieldValues>(props: AuthFieldProps<T>) {
   } = props
   const [isRevealed, updateRevealed] = useState(false)
   const isPassword = type === 'password'
-  const hasPrefix = icon != null
+  const hasPrefix = icon !== null && icon !== undefined
 
   return (
     <FormField

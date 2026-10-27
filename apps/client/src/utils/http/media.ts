@@ -14,7 +14,8 @@ function findCogitoMediaUrl(path: string | null | undefined): string | null {
   try {
     const origin = new URL(base).origin
     return `${origin}${path.startsWith('/') ? path : `/${path}`}`
-  } catch {
+  } catch (error) {
+    console.warn('[media] findCogitoMediaUrl: invalid VITE_COGITO', error)
     return path
   }
 }

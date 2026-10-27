@@ -74,14 +74,6 @@ function AddSheet(props: AddSheetProps) {
     [props.open]
   )
 
-  useEffect(
-    function () {
-      if (props.open) return
-      onUpdateKeyword('')
-    },
-    [props.open]
-  )
-
   const fuse = useMemo(
     function () {
       return new Fuse(magneticTiles, { ...FUSE_OPTIONS, keys: [...FUSE_OPTIONS.keys] })
@@ -132,7 +124,10 @@ function AddSheet(props: AddSheetProps) {
   return (
     <Sheet
       open={props.open}
-      onOpenChange={props.onUpdateOpen}>
+      onOpenChange={function (open) {
+        if (!open) onUpdateKeyword('')
+        props.onUpdateOpen(open)
+      }}>
       <SheetContent
         side="right"
         showCloseButton={false}

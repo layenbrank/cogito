@@ -88,7 +88,7 @@ function parsePhone(value: string): string | null {
   if (
     phone.length < 8 ||
     !Array.from(phone).every(function (char) {
-      return /[0-9+\-]/.test(char)
+      return /[0-9+-]/.test(char)
     })
   ) {
     throw new Error('手机号格式无效')

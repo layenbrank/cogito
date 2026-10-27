@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import type { ChartPoint, NamedCount } from '@cogito/design/components/charts'
 
 import { CHANNELS } from '@/shared/ipc/channels'
+import { reportCaught } from '@/utils/exception-report'
 
 /** 侧栏宿主状态刷新间隔 */
 const POLL_MS = 2_000
@@ -122,17 +123,19 @@ function buildBars(used: number, total: number): NamedCount[] {
 }
 
 function useHostMetrics(): HostMetrics {
-  const [state, updateState] = useState<HostMetrics>(EMPTY)
-
-  useEffect(function () {
+  const [state, updateState] = useState<HostMetrics>(function () {
     if (!isTauriRuntime()) {
-      updateState({
+      return {
         ...EMPTY,
         isReady: true,
         error: '非 Tauri 环境'
-      })
-      return
+      }
     }
+    return EMPTY
+  })
+
+  useEffect(function () {
+    if (!isTauriRuntime()) return
 
     let cancelled = false
     let memoryUsedTrend: ChartPoint[] = []
@@ -172,6 +175,7 @@ function useHostMetrics(): HostMetrics {
           pollMs: POLL_MS
         })
       } catch (error) {
+        reportCaught('directive.hostMetrics.sample', error, 'warning')
         if (cancelled) return
         const message = error instanceof Error ? error.message : String(error)
         updateState(function (previous) {
