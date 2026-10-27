@@ -152,6 +152,7 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         cogito_command::directive_draft::directive_draft_remove,
         cogito_command::knowledge::knowledge_list_bases,
         cogito_command::knowledge::knowledge_create_base,
+        cogito_command::knowledge::knowledge_update_base,
         cogito_command::knowledge::knowledge_list_docs,
         cogito_command::knowledge::knowledge_search,
         cogito_command::knowledge::knowledge_list_staging,

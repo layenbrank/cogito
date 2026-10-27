@@ -40,6 +40,7 @@ export const CHANNELS = {
   KNOWLEDGE: {
     LIST_BASES: 'knowledge:listBases',
     CREATE_BASE: 'knowledge:createBase',
+    UPDATE_BASE: 'knowledge:updateBase',
     LIST_DOCS: 'knowledge:listDocs',
     SEARCH: 'knowledge:search',
     LIST_STAGING: 'knowledge:listStaging',

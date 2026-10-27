@@ -24,6 +24,25 @@ pub async fn knowledge_create_base(
     Service::toCreateBase(state.connection(), &name, &root).await
 }
 
+/// 改库级选项；未给的参数保持原值。
+#[tauri::command(rename = "knowledge:updateBase")]
+pub async fn knowledge_update_base(
+    state: State<'_, Storage>,
+    baseId: String,
+    autoUpdate: Option<bool>,
+    autoExport: Option<bool>,
+    citation: Option<bool>,
+) -> CommandResult<BaseModel> {
+    Service::toUpdateBase(
+        state.connection(),
+        &baseId,
+        autoUpdate,
+        autoExport,
+        citation,
+    )
+    .await
+}
+
 #[tauri::command(rename = "knowledge:listDocs")]
 pub async fn knowledge_list_docs(
     state: State<'_, Storage>,

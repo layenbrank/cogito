@@ -1,8 +1,11 @@
+import { join } from '@tauri-apps/api/path'
 import { save } from '@tauri-apps/plugin-dialog'
-import { writeTextFile } from '@tauri-apps/plugin-fs'
+import { mkdir, writeTextFile } from '@tauri-apps/plugin-fs'
 import { toast } from 'sonner'
 
 import { findFileName } from '@/views/knowledge/lib/path.ts'
+import { readMarkdownFile } from '@/views/knowledge/lib/fs.ts'
+import { parseMarkdown } from '@/views/knowledge/lib/parse-markdown.ts'
 import { t } from '@/views/knowledge/locale.ts'
 
 function buildPrintableHtml(title: string, bodyHtml: string): string {
@@ -93,4 +96,35 @@ function printDocument(title: string, bodyHtml: string): void {
   }
 }
 
-export { buildPrintableHtml, exportHtmlDocument, printDocument }
+/**
+ * 自动导出：把库内一篇文档另存一份 HTML 到 `<库目录>/exports/`。
+ *
+ * 只读库里的 markdown（正文以文件为准），不碰索引；导出物是副产物，
+ * 不进文档表也不进侧栏（侧栏只列 markdown）。
+ */
+async function exportDocHtml(params: {
+  rootPath: string
+  relPath: string
+  title: string
+}): Promise<string | null> {
+  try {
+    const markdown = await readMarkdownFile(await join(params.rootPath, params.relPath))
+    const relative = params.relPath.replace(/\.mdx?$/i, '.html')
+    const target = await join(params.rootPath, 'exports', relative)
+    const dir = await join(params.rootPath, 'exports', findParentTail(relative))
+    if (dir) await mkdir(dir, { recursive: true })
+    await writeTextFile(target, buildPrintableHtml(params.title, parseMarkdown(markdown).html))
+    return target
+  } catch (error) {
+    console.warn('[knowledge] 自动导出 HTML 失败:', error)
+    return null
+  }
+}
+
+/** `a/b/c.html` → `a/b`；没有子目录时返回空串 */
+function findParentTail(relative: string): string {
+  const index = relative.lastIndexOf('/')
+  return index < 0 ? '' : relative.slice(0, index)
+}
+
+export { buildPrintableHtml, exportDocHtml, exportHtmlDocument, printDocument }

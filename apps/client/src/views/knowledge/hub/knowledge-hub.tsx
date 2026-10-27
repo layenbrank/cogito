@@ -36,7 +36,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { setNextPrompt } from '@/features/agent/model/pending-prompt'
-import type { StagedFile } from '@/lib/knowledge-ipc'
+import type { BasePatch, StagedFile } from '@/lib/knowledge-ipc'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { openPath } from '@/views/knowledge/lib/session.ts'
 
@@ -69,6 +69,28 @@ function formatSize(bytes: number): string {
 interface StagingGroup {
   session: string
   files: StagedFile[]
+}
+
+type BaseFlag = 'autoUpdate' | 'autoExport' | 'citation'
+
+/** 库级选项：标签与含义（选项本身存在库里，这里只是展示表） */
+const BASE_FLAGS: readonly { key: BaseFlag; label: string; hint: string }[] = [
+  { key: 'autoUpdate', label: '自动更新', hint: '打开本面板时把磁盘上的改动更新进来' },
+  { key: 'autoExport', label: '自动导出', hint: '发布后另存一份 HTML 到库目录的 exports/' },
+  { key: 'citation', label: '生成带引用', hint: '生成文档时标注引用了哪几篇' }
+]
+
+/** 单个开关 → 只带这一项的 patch（后端按「未给的保持不变」处理） */
+const FLAG_PATCH: Record<BaseFlag, (value: boolean) => BasePatch> = {
+  autoUpdate: function (value) {
+    return { autoUpdate: value }
+  },
+  autoExport: function (value) {
+    return { autoExport: value }
+  },
+  citation: function (value) {
+    return { citation: value }
+  }
 }
 
 /** 同一次生成的分章都落在同一个会话目录，按会话分组才能给出「合并」动作 */
@@ -161,8 +183,12 @@ function KnowledgeHub(props: KnowledgeHubProps) {
   const merge = useKnowledgeBaseStore(function (state) {
     return state.merge
   })
+  const updateBase = useKnowledgeBaseStore(function (state) {
+    return state.updateBase
+  })
   const [newName, setNewName] = useState('')
   const [isGenerateOpen, setIsGenerateOpen] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [topic, setTopic] = useState('')
   const [withCitation, setWithCitation] = useState(true)
   const [mergeTarget, setMergeTarget] = useState<StagedFile[] | null>(null)
@@ -195,6 +221,10 @@ function KnowledgeHub(props: KnowledgeHubProps) {
     const citation = withCitation
       ? '先检索库里已有的相关文档，相近内容先说明；引用结论时标注来源。'
       : '不必引用现有文档。'
+    // 这次的选择回报给库，下次打开对话框就按上次的来
+    if (activeBase && activeBase.citation !== withCitation) {
+      void updateBase({ citation: withCitation })
+    }
     setNextPrompt({
       text: `请帮我写一篇知识库文档：${title}\n${citation}`,
       scenario: 'knowledge'
@@ -236,6 +266,7 @@ function KnowledgeHub(props: KnowledgeHubProps) {
               variant="secondary"
               title="让智能体按大纲生成文档"
               onClick={function () {
+                setWithCitation(activeBase?.citation ?? true)
                 setIsGenerateOpen(true)
               }}>
               <Icon
@@ -287,6 +318,20 @@ function KnowledgeHub(props: KnowledgeHubProps) {
               })}
             </SelectContent>
           </Select>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label="库设置"
+            title="库设置（自动更新 / 自动导出 / 生成带引用）"
+            disabled={!activeBase}
+            onClick={function () {
+              setIsSettingsOpen(true)
+            }}>
+            <Icon
+              icon="lucide:settings-2"
+              className="size-4"
+            />
+          </Button>
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -532,6 +577,47 @@ function KnowledgeHub(props: KnowledgeHubProps) {
                 disabled={!topic.trim()}
                 onClick={startGenerate}>
                 开始
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={isSettingsOpen}
+          onOpenChange={setIsSettingsOpen}>
+          <DialogContent className="sm:max-w-105">
+            <DialogHeader>
+              <DialogTitle className="text-sm">库设置 · {activeBase?.name ?? ''}</DialogTitle>
+            </DialogHeader>
+            <DialogDescription className="text-xs text-muted-foreground">
+              只影响这台机器上的使用习惯；文档本身仍以库目录里的文件为准。
+            </DialogDescription>
+            <div className="flex flex-col gap-3">
+              {BASE_FLAGS.map(function (flag) {
+                return (
+                  <label
+                    key={flag.key}
+                    className="flex items-start justify-between gap-3">
+                    <span className="flex flex-col gap-0.5">
+                      <span className="text-xs">{flag.label}</span>
+                      <span className="text-xs text-muted-foreground">{flag.hint}</span>
+                    </span>
+                    <Switch
+                      checked={activeBase?.[flag.key] ?? false}
+                      onCheckedChange={function (checked) {
+                        void updateBase(FLAG_PATCH[flag.key](checked))
+                      }}
+                    />
+                  </label>
+                )
+              })}
+            </div>
+            <DialogFooter>
+              <Button
+                onClick={function () {
+                  setIsSettingsOpen(false)
+                }}>
+                完成
               </Button>
             </DialogFooter>
           </DialogContent>

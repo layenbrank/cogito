@@ -227,6 +227,32 @@ impl Service {
         Ok(model)
     }
 
+    /// 改库级选项（`autoUpdate` / `autoExport` / `citation`）：三者都可缺省，传 `None` 表示不动。
+    ///
+    /// 这些选项眼下只影响**本机行为**（面板打开时自动回灌、发布后另存 HTML、生成带引用），
+    /// 所以不触碰文档与索引，只更新这一行。
+    pub async fn toUpdateBase(
+        db: &DatabaseConnection,
+        base_id: &str,
+        auto_update: Option<bool>,
+        auto_export: Option<bool>,
+        citation: Option<bool>,
+    ) -> Result<base_schema::Model, Exception> {
+        let existing = Self::find_base(db, base_id).await?;
+        let mut active: base_schema::ActiveModel = existing.into();
+        if let Some(value) = auto_update {
+            active.autoUpdate = Set(value);
+        }
+        if let Some(value) = auto_export {
+            active.autoExport = Set(value);
+        }
+        if let Some(value) = citation {
+            active.citation = Set(value);
+        }
+        active.updatedAt = Set(Utc::now().timestamp_millis());
+        Ok(active.update(db).await?)
+    }
+
     pub async fn toListDocs(
         db: &DatabaseConnection,
         base_id: Option<&str>,
@@ -950,6 +976,33 @@ mod tests {
             .await
             .expect("迁移应成功");
         connection
+    }
+
+    /// 库级选项是「按需改动」：没传的那几项必须保持原值。
+    #[tokio::test]
+    async fn update_base_keeps_fields_that_were_not_given() {
+        let conn = fresh_db().await;
+        let db = conn.as_ref();
+        let root = temp_root("base-flags");
+        let base = Service::toEnsureDefaultBase(db, &root)
+            .await
+            .expect("默认库");
+        assert!(!base.autoUpdate);
+        assert!(base.citation, "默认库生成带引用");
+
+        let changed = Service::toUpdateBase(db, &base.id, Some(true), Some(true), None)
+            .await
+            .expect("更新");
+        assert!(changed.autoUpdate);
+        assert!(changed.autoExport);
+        assert!(changed.citation, "没传的 citation 不该被改");
+
+        let reloaded = Service::toListBases(db).await.expect("列表");
+        let row = reloaded
+            .into_iter()
+            .find(|item| item.id == base.id)
+            .expect("应还在列表里");
+        assert!(row.autoUpdate && row.autoExport && row.citation);
     }
 
     #[tokio::test]

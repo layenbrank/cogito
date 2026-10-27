@@ -5,6 +5,7 @@
  * 这里只关心库与列表，互不干扰。
  */
 import { create } from 'zustand'
+import { toast } from 'sonner'
 
 import {
   createBase,
@@ -16,13 +17,18 @@ import {
   publishDoc,
   rescanBase,
   searchDocs,
+  updateBase,
+  type BasePatch,
   type KnowledgeBase,
   type KnowledgeDocSummary,
   type KnowledgeHit,
   type StagedFile
 } from '@/lib/knowledge-ipc'
 import type { PublishMode } from '@/shared/ipc/specs/knowledge'
+import { useKnowledgeStore } from '@/stores/knowledge'
 import { reportCaught } from '@/utils/exception-report'
+import { exportDocHtml } from '@/views/knowledge/lib/export.ts'
+import { findFileName } from '@/views/knowledge/lib/path.ts'
 
 interface KnowledgeBaseState {
   bases: KnowledgeBase[]
@@ -40,6 +46,8 @@ interface KnowledgeBaseState {
   runSearch: () => Promise<void>
   clearSearch: () => void
   create: (name: string) => Promise<boolean>
+  /** 改当前库的选项（自动更新 / 自动导出 / 生成带引用） */
+  updateBase: (patch: BasePatch) => Promise<boolean>
   rescan: () => Promise<void>
   publish: (file: StagedFile, mode: PublishMode) => Promise<boolean>
   discard: (file: StagedFile) => Promise<void>
@@ -54,6 +62,38 @@ function toMessage(error: unknown): string {
 }
 
 const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, getter) {
+  /**
+   * 侧栏的根 = 当前库目录。切库 / 首次拿到库列表都要同步，
+   * 否则文件树还停在上一个库的目录上。值没变就不 bump，避免多余的目录重扫。
+   */
+  function syncWorkspaceRoot(baseID: string | null): void {
+    const base = getter().bases.find(function (item) {
+      return item.id === baseID
+    })
+    const next = base?.rootPath ?? null
+    const workspace = useKnowledgeStore.getState()
+    if (workspace.rootDir === next) return
+    workspace.toSetRootDir(next)
+    workspace.toBumpTree()
+  }
+
+  /**
+   * 库开了「自动导出」时，发布成功顺手另存一份 HTML（失败不挽回发布）。
+   * 导出物是副产物：不进文档表、不进侧栏，只方便分享与浏览。
+   */
+  async function exportIfEnabled(
+    baseID: string,
+    relPath: string,
+    title: string
+  ): Promise<void> {
+    const base = getter().bases.find(function (item) {
+      return item.id === baseID
+    })
+    if (!base?.autoExport) return
+    const target = await exportDocHtml({ rootPath: base.rootPath, relPath, title })
+    if (target) toast.success(`已导出 HTML：${findFileName(target)}`)
+  }
+
   async function loadDocs(baseID: string | null): Promise<void> {
     const docs = await listDocs(baseID ?? undefined)
     setter({ docs })
@@ -62,6 +102,22 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
   async function loadStaging(baseID: string | null): Promise<void> {
     const staging = await listStaging(baseID ?? undefined)
     setter({ staging })
+  }
+
+  /**
+   * 库开了「自动更新」时，打开面板就先回灌一次磁盘：
+   * 用户在外面改文件不用再想起来点「重新扫描」。失败只告警，不影响列表。
+   */
+  async function syncFromDisk(baseID: string | null): Promise<void> {
+    const base = getter().bases.find(function (item) {
+      return item.id === baseID
+    })
+    if (!base?.autoUpdate) return
+    try {
+      await rescanBase(base.id)
+    } catch (error) {
+      reportCaught('knowledgeBase.syncFromDisk', error, 'warning')
+    }
   }
 
   return {
@@ -84,6 +140,8 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
             ? getter().activeBaseID
             : (bases[0]?.id ?? null)
         setter({ bases, activeBaseID })
+        syncWorkspaceRoot(activeBaseID)
+        await syncFromDisk(activeBaseID)
         await Promise.all([loadDocs(activeBaseID), loadStaging(activeBaseID)])
         setter({ isLoading: false })
       } catch (error) {
@@ -94,7 +152,9 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
 
     async selectBase(baseID) {
       setter({ activeBaseID: baseID, hits: [], query: '' })
+      syncWorkspaceRoot(baseID)
       try {
+        await syncFromDisk(baseID)
         await Promise.all([loadDocs(baseID), loadStaging(baseID)])
       } catch (error) {
         reportCaught('knowledgeBase.selectBase', error, 'warning')
@@ -152,10 +212,30 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
       }
     },
 
+    async updateBase(patch) {
+      const baseID = getter().activeBaseID
+      if (!baseID) return false
+      try {
+        const updated = await updateBase(baseID, patch)
+        setter({
+          bases: getter().bases.map(function (item) {
+            return item.id === updated.id ? updated : item
+          }),
+          error: null
+        })
+        return true
+      } catch (error) {
+        reportCaught('knowledgeBase.updateBase', error, 'warning')
+        setter({ error: toMessage(error) })
+        return false
+      }
+    },
+
     async publish(file, mode) {
       setter({ isPublishing: true, error: null })
       try {
-        await publishDoc(file.baseId, file.path, mode)
+        const published = await publishDoc(file.baseId, file.path, mode)
+        await exportIfEnabled(file.baseId, published.relPath, published.title)
         const baseID = getter().activeBaseID
         await Promise.all([loadDocs(baseID), loadStaging(baseID)])
         setter({ isPublishing: false })

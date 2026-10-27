@@ -49,6 +49,21 @@ async function createBase(name: string): Promise<KnowledgeBase> {
   }
 }
 
+/** 库级选项：只传要改的那几项，其余保持原值 */
+interface BasePatch {
+  autoUpdate?: boolean
+  autoExport?: boolean
+  citation?: boolean
+}
+
+async function updateBase(baseId: string, patch: BasePatch): Promise<KnowledgeBase> {
+  try {
+    return KnowledgeBaseSchema.parse(await invoke(CHANNELS.KNOWLEDGE.UPDATE_BASE, { baseId, ...patch }))
+  } catch (error) {
+    throw asError(error, '保存知识库设置失败')
+  }
+}
+
 async function listDocs(baseId?: string): Promise<KnowledgeDocSummary[]> {
   try {
     const raw = await invoke(CHANNELS.KNOWLEDGE.LIST_DOCS, { baseId })
@@ -174,6 +189,7 @@ export {
   rescanBase,
   resolveDoc,
   searchDocs,
+  updateBase,
   writeDoc
 }
-export type { KnowledgeBase, KnowledgeDocSummary, KnowledgeHit, StagedFile }
+export type { BasePatch, KnowledgeBase, KnowledgeDocSummary, KnowledgeHit, StagedFile }
