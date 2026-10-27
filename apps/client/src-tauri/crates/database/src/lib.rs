@@ -5,6 +5,8 @@ pub mod storage;
 pub mod entity {
     pub mod album;
     pub mod asset;
+    pub mod automation;
+    pub mod automation_run;
     pub mod bookmark;
     pub mod calendar;
     pub mod countdown;
@@ -46,6 +48,8 @@ pub mod entity {
     pub use agent_workspace_folder::Entity as AgentWorkspaceFolderEntity;
     pub use album::Entity as AlbumEntity;
     pub use asset::Entity as AssetEntity;
+    pub use automation::Entity as AutomationEntity;
+    pub use automation_run::Entity as AutomationRunEntity;
     pub use bookmark::Entity as BookmarkEntity;
     pub use calendar::Entity as CalendarEntity;
     pub use countdown::Entity as CountdownEntity;

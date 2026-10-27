@@ -1,5 +1,6 @@
 pub mod album;
 pub mod asset;
+pub mod automation;
 pub mod bookmark;
 pub mod calendar;
 pub mod countdown;

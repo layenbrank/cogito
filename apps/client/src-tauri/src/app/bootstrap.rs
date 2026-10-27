@@ -5,7 +5,7 @@ use tauri::{Manager, RunEvent, generate_context};
 
 use crate::{
     app::{handlers, plugins},
-    autostart,
+    autostart, automation,
     capture::{CaptureHandshake, CapturePending},
     overlay::{OverlayHealth, OverlayPending},
     reminder,
@@ -94,6 +94,7 @@ impl Bootstrap {
                 }
                 through::spawn_worker(app.handle().clone());
                 reminder::spawn_worker(app.handle().clone());
+                automation::spawn_worker(app.handle().clone());
                 tray::setup(app)?;
                 log_retention::prune_stale_logs(app.handle());
                 autostart::reconcile(app.handle());

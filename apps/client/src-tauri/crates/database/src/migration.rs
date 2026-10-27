@@ -45,7 +45,8 @@ mod tests {
     use super::*;
     use crate::entity::{
         AgentMessageEntity, AgentProviderEntity, AgentSessionEntity, AgentUsageEntity,
-        AgentWorkspaceEntity, AgentWorkspaceFolderEntity, AlbumEntity, AssetEntity, BookmarkEntity,
+        AgentWorkspaceEntity, AgentWorkspaceFolderEntity, AlbumEntity, AssetEntity, AutomationEntity,
+        AutomationRunEntity, BookmarkEntity,
         CalendarEntity, CountdownEntity, DirectiveDraftEntity, KnowledgeBaseEntity,
         KnowledgeDocEntity, KnowledgeIndexStateEntity, MagneticTileEntity, MirrorEntity,
         OverlayEntity, ReminderEntity, SignboardAutomationEntity, SignboardCheckEntity,
@@ -259,6 +260,8 @@ mod tests {
         let entities: Vec<(&str, Vec<String>)> = vec![
             ("album", entity_columns::<AlbumEntity>()),
             ("asset", entity_columns::<AssetEntity>()),
+            ("automation", entity_columns::<AutomationEntity>()),
+            ("automation_run", entity_columns::<AutomationRunEntity>()),
             ("bookmark", entity_columns::<BookmarkEntity>()),
             ("calendar", entity_columns::<CalendarEntity>()),
             ("countdown", entity_columns::<CountdownEntity>()),
