@@ -475,10 +475,7 @@ fn parse_daemon_response(raw: &str, request_id: u64) -> Result<IpcResponse, Stri
             // Value::File 序列化为 JSON 字符串；对象结果则取 data.path
             let path = match &data {
                 Value::String(s) => Some(s.clone()),
-                Value::Object(m) => m
-                    .get("path")
-                    .and_then(|v| v.as_str())
-                    .map(str::to_string),
+                Value::Object(m) => m.get("path").and_then(|v| v.as_str()).map(str::to_string),
                 _ => None,
             };
             Ok(IpcResponse {

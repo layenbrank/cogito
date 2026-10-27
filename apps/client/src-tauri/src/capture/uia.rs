@@ -5,8 +5,8 @@
 //!    查询前必须临时把浮层切成穿透，查完立刻复原。
 //! 2. UIA 是跨进程调用，卡住的应用可能拖住几百毫秒 —— 每次查询都有总预算，超时就用已有的部分。
 
-use std::sync::mpsc::{self, Sender};
 use std::sync::OnceLock;
+use std::sync::mpsc::{self, Sender};
 use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Manager};
@@ -39,7 +39,6 @@ pub struct UiElement {
     /// 元素名称（通常是可见文字）
     pub name: String,
 }
-
 
 /// 串行化「临时穿透 + 查询」，避免并发时提前把穿透状态还原
 fn probe_lock() -> &'static tokio::sync::Mutex<()> {
@@ -145,7 +144,9 @@ impl Probe {
                 break;
             }
             if let Some(entry) = read_element(&current) {
-                let duplicated = chain.last().is_some_and(|prev| same_rect(prev.rect, entry.rect));
+                let duplicated = chain
+                    .last()
+                    .is_some_and(|prev| same_rect(prev.rect, entry.rect));
                 if !duplicated {
                     chain.push(entry);
                 }
@@ -198,7 +199,6 @@ fn find_element_chain(x: i32, y: i32) -> Vec<UiElement> {
 fn same_rect(a: RECT, b: RECT) -> bool {
     a.left == b.left && a.top == b.top && a.right == b.right && a.bottom == b.bottom
 }
-
 
 fn read_element(element: &IUIAutomationElement) -> Option<UiElement> {
     let rect = unsafe { element.CurrentBoundingRectangle() }.ok()?;

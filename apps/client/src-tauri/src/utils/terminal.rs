@@ -463,10 +463,7 @@ fn resolve_terminal_font() -> TerminalFont {
             .as_deref()
             .is_some_and(is_placeholder_font_family)
         {
-            log::warn!(
-                "[terminal] 忽略占位字体族名 family={:?}",
-                resolved.family
-            );
+            log::warn!("[terminal] 忽略占位字体族名 family={:?}", resolved.family);
             resolved.family = None;
         }
 
@@ -520,12 +517,7 @@ fn resolve_terminal_font() -> TerminalFont {
 /// 配置字体缺失时的系统兜底（Windows 自带 / WT 默认），勿塞用户私有 Nerd Font。
 #[cfg(windows)]
 fn discover_system_terminal_font() -> Option<TerminalFont> {
-    const FAMILIES: &[&str] = &[
-        "Cascadia Mono",
-        "Cascadia Code",
-        "Consolas",
-        "Courier New",
-    ];
+    const FAMILIES: &[&str] = &["Cascadia Mono", "Cascadia Code", "Consolas", "Courier New"];
     for family in FAMILIES {
         if let Some(path) = resolve_font_file_path(family) {
             log::info!("[terminal] 系统兜底字体 family={family} path={path}");
@@ -560,10 +552,7 @@ fn local_app_data_dir() -> Option<PathBuf> {
         return Some(PathBuf::from(local));
     }
     let fallback = dirs::data_local_dir()?;
-    log::warn!(
-        "[terminal] LOCALAPPDATA 缺失，回退 {}",
-        fallback.display()
-    );
+    log::warn!("[terminal] LOCALAPPDATA 缺失，回退 {}", fallback.display());
     Some(fallback)
 }
 
@@ -861,7 +850,10 @@ fn read_font_path_from_registry(family: &str) -> Option<String> {
 
     let family_lower = family.to_ascii_lowercase();
     let keys = [
-        (HKEY_CURRENT_USER, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts"),
+        (
+            HKEY_CURRENT_USER,
+            "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts",
+        ),
         (
             HKEY_LOCAL_MACHINE,
             "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts",
@@ -931,12 +923,15 @@ fn read_font_path_from_registry(family: &str) -> Option<String> {
             if enumerated.is_err() {
                 continue;
             }
-            let name = String::from_utf16_lossy(&name_buf[..name_len as usize]).to_ascii_lowercase();
+            let name =
+                String::from_utf16_lossy(&name_buf[..name_len as usize]).to_ascii_lowercase();
             if !name.starts_with(&family_lower) {
                 continue;
             }
             let data_len = (data_bytes as usize / std::mem::size_of::<u16>()).saturating_sub(1);
-            let raw = String::from_utf16_lossy(&data_buf[..data_len]).trim().to_string();
+            let raw = String::from_utf16_lossy(&data_buf[..data_len])
+                .trim()
+                .to_string();
             if raw.is_empty() {
                 continue;
             }
