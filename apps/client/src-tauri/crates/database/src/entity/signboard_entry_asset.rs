@@ -12,6 +12,7 @@ pub struct Model {
     #[serde(rename = "assetID")]
     pub asset_id: String,
     pub index: i32,
+    #[sea_orm(column_name = "createdAt")]
     pub created_at: i64,
 }
 

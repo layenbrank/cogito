@@ -43,7 +43,18 @@ pub async fn check(db: &Connection) -> Result<(), DbErr> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sea_orm::{ConnectionTrait, Database, DatabaseBackend, Statement};
+    use crate::entity::{
+        AgentMessageEntity, AgentProviderEntity, AgentSessionEntity, AgentUsageEntity,
+        AgentWorkspaceEntity, AgentWorkspaceFolderEntity, AlbumEntity, AssetEntity, BookmarkEntity,
+        CalendarEntity, CountdownEntity, DirectiveDraftEntity, MagneticTileEntity, MirrorEntity,
+        OverlayEntity, ReminderEntity, SignboardAutomationEntity, SignboardCheckEntity,
+        SignboardColumnEntity, SignboardEntity, SignboardEntryAssetEntity, SignboardEntryEntity,
+        SignboardTagEntity, SignboardTaggedEntity,
+    };
+    use sea_orm::{
+        ConnectionTrait, Database, DatabaseBackend, EntityTrait, IdenStatic, Iterable, Statement,
+        entity::prelude::*,
+    };
 
     async fn fresh() -> Connection {
         let db = Database::connect("sqlite::memory:")
@@ -154,6 +165,32 @@ mod tests {
             assert_eq!(count, 1, "{table} 应该存在");
         }
 
+        // 团队（tenant）场景与自动化身份/失败态所需的列：缺了会在 Phase 5/7 再改一次迁移
+        for (table, column) in [
+            ("knowledge_base", "scope"),
+            ("knowledge_base", "tenantId"),
+            ("knowledge_doc", "revision"),
+            ("knowledge_doc", "error"),
+            ("automation", "runAsKind"),
+            ("automation", "runAsUserId"),
+            ("automation", "tenantId"),
+            ("automation", "remoteId"),
+            ("automation", "lastStatus"),
+            ("automation", "lastError"),
+            ("automation_run", "triggerKind"),
+            ("automation_run", "runAsKind"),
+            ("automation_run", "runAsUserId"),
+        ] {
+            let found = scalar_i64(
+                &db,
+                &format!(
+                    "SELECT count(*) AS v FROM pragma_table_info('{table}') WHERE name = '{column}'"
+                ),
+            )
+            .await;
+            assert_eq!(found, 1, "{table}.{column} 应该存在");
+        }
+
         for statement in [
             "INSERT INTO knowledge_base (id,name,slug,\"rootPath\",\"createdAt\",\"updatedAt\") VALUES ('b1','默认','default','/tmp/kb',1,1)",
             "INSERT INTO knowledge_doc (id,\"baseId\",title,\"relPath\",hash,content,\"createdAt\",\"updatedAt\") VALUES ('d1','b1','知识库设计','a.md','h1','这是知识库正文内容',1,1)",
@@ -185,5 +222,99 @@ mod tests {
         )
         .await;
         assert_eq!(after, 0);
+    }
+
+    /// DDL 里某张表的列名（`pragma_table_info`，按定义顺序）。
+    async fn ddl_columns(db: &Connection, table: &str) -> Vec<String> {
+        let rows = db
+            .query_all(Statement::from_string(
+                DatabaseBackend::Sqlite,
+                format!("SELECT name AS v FROM pragma_table_info('{table}')"),
+            ))
+            .await
+            .expect("pragma_table_info should succeed");
+        rows.iter()
+            .map(|row| row.try_get::<String>("", "v").expect("column name"))
+            .collect()
+    }
+
+    /// entity 声明的列名（`Column` 枚举 + `#[sea_orm(column_name = ...)]`）。
+    fn entity_columns<E>() -> Vec<String>
+    where
+        E: EntityTrait,
+        E::Column: Iterable + ColumnTrait + IdenStatic,
+    {
+        E::Column::iter()
+            .map(|column| column.as_str().to_string())
+            .collect()
+    }
+
+    /// 运行期唯一真相是 entity：DDL 只允许与之对齐，多一列/少一列都算漂移。
+    ///
+    /// 新增表时把 entity 与表名追加到下面的清单即可（未建 entity 的表不在此列）。
+    #[tokio::test]
+    async fn entity_columns_match_ddl() {
+        let db = fresh().await;
+        let entities: Vec<(&str, Vec<String>)> = vec![
+            ("album", entity_columns::<AlbumEntity>()),
+            ("asset", entity_columns::<AssetEntity>()),
+            ("bookmark", entity_columns::<BookmarkEntity>()),
+            ("calendar", entity_columns::<CalendarEntity>()),
+            ("countdown", entity_columns::<CountdownEntity>()),
+            ("directive_draft", entity_columns::<DirectiveDraftEntity>()),
+            ("magneticTile", entity_columns::<MagneticTileEntity>()),
+            ("mirror", entity_columns::<MirrorEntity>()),
+            ("overlay", entity_columns::<OverlayEntity>()),
+            ("reminder", entity_columns::<ReminderEntity>()),
+            ("signboard", entity_columns::<SignboardEntity>()),
+            (
+                "signboard_automation",
+                entity_columns::<SignboardAutomationEntity>(),
+            ),
+            ("signboard_check", entity_columns::<SignboardCheckEntity>()),
+            (
+                "signboard_column",
+                entity_columns::<SignboardColumnEntity>(),
+            ),
+            ("signboard_entry", entity_columns::<SignboardEntryEntity>()),
+            (
+                "signboard_entry_asset",
+                entity_columns::<SignboardEntryAssetEntity>(),
+            ),
+            ("signboard_tag", entity_columns::<SignboardTagEntity>()),
+            (
+                "signboard_tagged",
+                entity_columns::<SignboardTaggedEntity>(),
+            ),
+            ("agent_message", entity_columns::<AgentMessageEntity>()),
+            ("agent_provider", entity_columns::<AgentProviderEntity>()),
+            ("agent_session", entity_columns::<AgentSessionEntity>()),
+            ("agent_usage", entity_columns::<AgentUsageEntity>()),
+            ("agent_workspace", entity_columns::<AgentWorkspaceEntity>()),
+            (
+                "agent_workspace_folder",
+                entity_columns::<AgentWorkspaceFolderEntity>(),
+            ),
+        ];
+
+        let mut problems = Vec::new();
+        for (table, expected) in entities {
+            let actual = ddl_columns(&db, table).await;
+            for column in &expected {
+                if !actual.contains(column) {
+                    problems.push(format!("{table}.{column}：entity 有，DDL 缺"));
+                }
+            }
+            for column in &actual {
+                if !expected.contains(column) {
+                    problems.push(format!("{table}.{column}：DDL 有，entity 缺"));
+                }
+            }
+        }
+        assert!(
+            problems.is_empty(),
+            "entity 与 DDL 列不一致：\n{}",
+            problems.join("\n")
+        );
     }
 }

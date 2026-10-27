@@ -1,5 +1,8 @@
-//! Agent workspace schema（agent_workspace / agent_workspace_folder / agent_provider）。
-//! 未发版阶段以本文件为唯一真相；若本地库仍是旧 aiCollection 结构，请删除应用数据库后重建。
+//! 客户端本地库 schema（未发版阶段唯一迁移文件，所有 DDL 并入本文件）。
+//!
+//! 真相归属：**运行期以 `crates/database/src/entity/*.rs` 为准**，本文件的 DDL 必须与之逐列对齐；
+//! `migration::tests::entity_columns_match_ddl` 做双向比对（entity 多列 / DDL 多列都报错）。
+//! 改完必须 `migrate:fresh`（本地库不会自己补列）。
 use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]
@@ -140,12 +143,6 @@ impl MigrationTrait for Migration {
                             .string()
                             .not_null()
                             .default("001"),
-                    )
-                    .col(
-                        ColumnDef::new(Asset::Version)
-                            .big_integer()
-                            .not_null()
-                            .default(1),
                     )
                     .col(ColumnDef::new(Asset::DeviceId).string().null())
                     .col(ColumnDef::new(Asset::ArchivedAt).big_integer().null())
@@ -681,7 +678,11 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default(false),
                     )
-                    .col(ColumnDef::new(AgentWorkspace::ArchivedAt).big_integer().null())
+                    .col(
+                        ColumnDef::new(AgentWorkspace::ArchivedAt)
+                            .big_integer()
+                            .null(),
+                    )
                     .col(
                         ColumnDef::new(AgentWorkspace::CreatedAt)
                             .big_integer()
@@ -712,7 +713,11 @@ impl MigrationTrait for Migration {
                             .string()
                             .not_null(),
                     )
-                    .col(ColumnDef::new(AgentWorkspaceFolder::Path).string().not_null())
+                    .col(
+                        ColumnDef::new(AgentWorkspaceFolder::Path)
+                            .string()
+                            .not_null(),
+                    )
                     .col(
                         ColumnDef::new(AgentWorkspaceFolder::IsPrimary)
                             .boolean()
@@ -738,7 +743,10 @@ impl MigrationTrait for Migration {
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_agent_workspace_folder_workspaceID")
-                            .from(AgentWorkspaceFolder::Table, AgentWorkspaceFolder::WorkspaceID)
+                            .from(
+                                AgentWorkspaceFolder::Table,
+                                AgentWorkspaceFolder::WorkspaceID,
+                            )
                             .to(AgentWorkspace::Table, AgentWorkspace::Id)
                             .on_delete(ForeignKeyAction::Cascade)
                             .on_update(ForeignKeyAction::NoAction),
@@ -914,7 +922,12 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(AgentUsage::RunId).string().not_null().unique_key())
+                    .col(
+                        ColumnDef::new(AgentUsage::RunId)
+                            .string()
+                            .not_null()
+                            .unique_key(),
+                    )
                     .col(ColumnDef::new(AgentUsage::SessionId).string().null())
                     .col(ColumnDef::new(AgentUsage::ProviderId).string().null())
                     .col(ColumnDef::new(AgentUsage::Model).string().not_null())
@@ -953,7 +966,12 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(Signboard::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(Signboard::Id).string().not_null().primary_key())
+                    .col(
+                        ColumnDef::new(Signboard::Id)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
                     .col(ColumnDef::new(Signboard::Title).string().not_null())
                     .col(
                         ColumnDef::new(Signboard::Index)
@@ -963,8 +981,16 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Signboard::ArchivedAt).big_integer().null())
                     .col(ColumnDef::new(Signboard::SyncedAt).big_integer().null())
-                    .col(ColumnDef::new(Signboard::CreatedAt).big_integer().not_null())
-                    .col(ColumnDef::new(Signboard::UpdatedAt).big_integer().not_null())
+                    .col(
+                        ColumnDef::new(Signboard::CreatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Signboard::UpdatedAt)
+                            .big_integer()
+                            .not_null(),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -990,7 +1016,11 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(SignboardColumn::Color).string().null())
                     .col(ColumnDef::new(SignboardColumn::WipLimit).integer().null())
-                    .col(ColumnDef::new(SignboardColumn::ArchivedAt).big_integer().null())
+                    .col(
+                        ColumnDef::new(SignboardColumn::ArchivedAt)
+                            .big_integer()
+                            .null(),
+                    )
                     .col(
                         ColumnDef::new(SignboardColumn::CreatedAt)
                             .big_integer()
@@ -1048,7 +1078,11 @@ impl MigrationTrait for Migration {
                             .default(0),
                     )
                     .col(ColumnDef::new(SignboardEntry::Color).string().null())
-                    .col(ColumnDef::new(SignboardEntry::ArchivedAt).big_integer().null())
+                    .col(
+                        ColumnDef::new(SignboardEntry::ArchivedAt)
+                            .big_integer()
+                            .null(),
+                    )
                     .col(
                         ColumnDef::new(SignboardEntry::CreatedAt)
                             .big_integer()
@@ -1359,11 +1393,14 @@ impl MigrationTrait for Migration {
             "UPDATE signboard_column SET role = 'doing' WHERE role IS NULL AND (title LIKE '%进行%' OR lower(title) LIKE '%doing%' OR lower(title) LIKE '%progress%')",
             "UPDATE signboard_column SET role = 'done' WHERE role IS NULL AND (title LIKE '%完成%' OR lower(title) LIKE '%done%')",
             // ── Knowledge（知识库）──
+            // scope=user 属个人；scope=tenant 为团队共享（用 \"tenantId\" 圈定租户）
             "CREATE TABLE IF NOT EXISTS knowledge_base (\
                  id TEXT PRIMARY KEY NOT NULL, \
                  name TEXT NOT NULL, \
                  slug TEXT NOT NULL, \
                  description TEXT NULL, \
+                 scope TEXT NOT NULL DEFAULT 'user', \
+                 \"tenantId\" TEXT NULL, \
                  \"rootPath\" TEXT NOT NULL, \
                  \"autoUpdate\" INTEGER NOT NULL DEFAULT 0, \
                  \"autoExport\" INTEGER NOT NULL DEFAULT 0, \
@@ -1374,6 +1411,7 @@ impl MigrationTrait for Migration {
                  \"createdAt\" INTEGER NOT NULL, \
                  \"updatedAt\" INTEGER NOT NULL)",
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_base_slug ON knowledge_base (slug)",
+            "CREATE INDEX IF NOT EXISTS idx_knowledge_base_scope ON knowledge_base (scope, \"tenantId\")",
             "CREATE TABLE IF NOT EXISTS knowledge_doc (\
                  id TEXT PRIMARY KEY NOT NULL, \
                  \"baseId\" TEXT NOT NULL, \
@@ -1383,8 +1421,10 @@ impl MigrationTrait for Migration {
                  content TEXT NOT NULL, \
                  size INTEGER NOT NULL DEFAULT 0, \
                  \"wordCount\" INTEGER NOT NULL DEFAULT 0, \
+                 revision INTEGER NOT NULL DEFAULT 0, \
                  status TEXT NOT NULL DEFAULT 'draft', \
                  source TEXT NOT NULL DEFAULT 'manual', \
+                 error TEXT NULL, \
                  \"sessionId\" TEXT NULL, \
                  \"assetId\" TEXT NULL, \
                  \"assetHash\" TEXT NULL, \
@@ -1427,6 +1467,8 @@ impl MigrationTrait for Migration {
                  \"updatedAt\" INTEGER NOT NULL)",
             "CREATE INDEX IF NOT EXISTS idx_knowledge_index_state_cloud ON knowledge_index_state (\"cloudStatus\", \"updatedAt\")",
             // ── 自动化 ──
+            // owner=client 由本机 worker 跑；owner=cloud 时 \"remoteId\" 记服务端任务 id，本地只镜像状态。
+            // \"runAsKind\"=user 以创建者身份跑（需校验仍是租户成员）；=tenant 以租户服务身份跑（团队共享库）。
             "CREATE TABLE IF NOT EXISTS automation (\
                  id TEXT PRIMARY KEY NOT NULL, \
                  name TEXT NOT NULL, \
@@ -1436,15 +1478,26 @@ impl MigrationTrait for Migration {
                  timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai', \
                  enabled INTEGER NOT NULL DEFAULT 1, \
                  owner TEXT NOT NULL DEFAULT 'client', \
+                 \"runAsKind\" TEXT NOT NULL DEFAULT 'user', \
+                 \"runAsUserId\" TEXT NULL, \
+                 \"tenantId\" TEXT NULL, \
+                 \"remoteId\" TEXT NULL, \
                  \"nextRunAt\" INTEGER NULL, \
                  \"lastRunAt\" INTEGER NULL, \
+                 \"lastStatus\" TEXT NULL, \
+                 \"lastError\" TEXT NULL, \
                  \"createdAt\" INTEGER NOT NULL, \
                  \"updatedAt\" INTEGER NOT NULL)",
             "CREATE INDEX IF NOT EXISTS idx_automation_due ON automation (enabled, \"nextRunAt\")",
+            // \"triggerKind\" 区分准点 / 手动 / 重启补跑（补跑只补一次）；
+            // \"runAsKind\"+\"runAsUserId\" 留档本次实际以谁的身份执行。
             "CREATE TABLE IF NOT EXISTS automation_run (\
                  id TEXT PRIMARY KEY NOT NULL, \
                  \"automationId\" TEXT NOT NULL, \
                  \"scheduledFor\" INTEGER NOT NULL, \
+                 \"triggerKind\" TEXT NOT NULL DEFAULT 'schedule', \
+                 \"runAsKind\" TEXT NOT NULL DEFAULT 'user', \
+                 \"runAsUserId\" TEXT NULL, \
                  \"startedAt\" INTEGER NULL, \
                  \"finishedAt\" INTEGER NULL, \
                  status TEXT NOT NULL DEFAULT 'pending', \
@@ -1730,7 +1783,6 @@ enum Asset {
     FilePath,
     Metadata,
     Status,
-    Version,
     #[iden = "deviceID"]
     DeviceId,
     #[iden = "archivedAt"]
