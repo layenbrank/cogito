@@ -1,3 +1,4 @@
+import { CogitoTool } from './cogito.ts'
 import { CorexTool } from './corex.ts'
 import { FfmpegTool } from './ffmpeg.ts'
 import { GooseTool } from './goose.ts'
@@ -11,6 +12,7 @@ import type { ToolStrategy } from './types.ts'
 
 /** Registry: add a tool by importing its strategy and registering here. */
 const TOOLS: Record<SidecarToolKey, ToolStrategy> = {
+  cogito: CogitoTool,
   corex: CorexTool,
   ffmpeg: FfmpegTool,
   goose: GooseTool,

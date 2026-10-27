@@ -122,7 +122,7 @@ jobs:
         run: |
           mkdir -p binaries
           host=$(rustc --print host-tuple)
-          for stem in corex-daemon corex-mcp goose; do
+          for stem in corex-daemon corex-mcp cogito-mcp goose; do
             printf 'ci-placeholder\n' > "binaries/${stem}-${host}"
           done
           # tauri.conf.json bundle.resources 也校验这些路径存在

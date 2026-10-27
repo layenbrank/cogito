@@ -62,7 +62,7 @@ async function runBootstrap(app: string): Promise<void> {
       console.log(`[sidecar] 跳过 ${tool.key}（${app} 用不到）`)
       continue
     }
-    if (!hasLockPin(lock, tool.key, key)) {
+    if (!tool.isLocal && !hasLockPin(lock, tool.key, key)) {
       if (isRequiredTool(tool.key, app)) {
         throw new Error(`[sidecar] 当前平台无 ${tool.key} 钉死版本: ${key}（应用=${app}）`)
       }

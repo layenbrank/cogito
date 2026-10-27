@@ -17,11 +17,14 @@ fn main() {
         "run `pnpm command sidecar bootstrap client` at repo root",
     );
 
-    // externalBin：daemon（IPC）+ mcp（Agent）+ goose（ACP）
+    // externalBin：daemon（IPC）+ corex mcp（Agent）+ cogito mcp（本地工具面）+ goose（ACP）
     let suffix = if cfg!(windows) { ".exe" } else { "" };
-    for stem in ["corex-daemon", "corex-mcp", "goose"] {
+    for stem in ["corex-daemon", "corex-mcp", "cogito-mcp", "goose"] {
         let path = format!("binaries/{stem}-{host}{suffix}");
-        require_nonempty(&path, "run `pnpm command sidecar bootstrap client` at repo root");
+        require_nonempty(
+            &path,
+            "run `pnpm command sidecar bootstrap client` at repo root",
+        );
     }
 
     tauri_build::build()

@@ -76,7 +76,7 @@ async function stageVendoredTools(
       console.log(`[stage:${target.id}] 跳过 ${tool.key}（该目标用不到）`)
       continue
     }
-    if (!hasLockPin(lock, tool.key, platform)) {
+    if (!tool.isLocal && !hasLockPin(lock, tool.key, platform)) {
       // corex / pdfium 缺了起不来；client 另需 goose（build.rs / externalBin）
       const required =
         tool.key === 'corex' ||
@@ -89,14 +89,17 @@ async function stageVendoredTools(
     }
     // 取包顺序：**在线包优先**（R2，与运行时下载同一份字节，也不依赖连不上的 GitHub），
     // 没有在线包的（corex / goose / 未发布在线包的平台）回落到 lock 的 release 归档。
-    const online = findOnlineTool(tool.key, platform)
+    // 本仓自建工具（`isLocal`）没有这两种来源：`ensure` 直接 cargo 构建。
+    const online = tool.isLocal ? undefined : findOnlineTool(tool.key, platform)
     const sources = online
       ? await stageOnlineTool(online.key, online.tool, online.package, platform)
       : await ensureVendored(tool, platform)
     // 版本取自「这一趟真正用的那份」：在线包与 lock 在同一条版本线上（宿主测试守着），
     // 只有在线包没发的平台才回落 lock。
-    const version = online?.tool.version ?? requireLockPin(lock, tool.key, platform).version
-    const onDemand = isOnDemandTool(lock, tool.key)
+    const version = tool.isLocal
+      ? 'local'
+      : (online?.tool.version ?? requireLockPin(lock, tool.key, platform).version)
+    const onDemand = tool.isLocal ? false : isOnDemandTool(lock, tool.key)
 
     for (const src of sources) {
       const rawName = path.basename(src)

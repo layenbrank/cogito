@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { REPO_ROOT } from '../../../core/paths.ts'
 
-import { COREX_DAEMON, COREX_MCP, GOOSE_BINARY } from '../infra/constants.ts'
+import { COGITO_MCP, COREX_DAEMON, COREX_MCP, GOOSE_BINARY } from '../infra/constants.ts'
 import { findBinaryName } from '../infra/platform.ts'
 
 import type { StageTarget } from '../infra/stage.ts'
@@ -17,7 +17,7 @@ function findExeSuffix(): string {
 }
 
 /**
- * Tauri externalBin expects corex-daemon / corex-mcp / goose with -<host-triple>[.exe].
+ * Tauri externalBin expects corex-daemon / corex-mcp / cogito-mcp / goose with -<host-triple>[.exe].
  * Other tools keep simple names (pandoc.exe, ffmpeg.exe, pdfium.dll).
  */
 const ClientTarget: StageTarget = {
@@ -36,6 +36,10 @@ const ClientTarget: StageTarget = {
     if (fileName === mcp) {
       return `corex-mcp-${triple}${suffix}`
     }
+    const cogitoMcp = findBinaryName(COGITO_MCP)
+    if (fileName === cogitoMcp) {
+      return `cogito-mcp-${triple}${suffix}`
+    }
     const goose = findBinaryName(GOOSE_BINARY)
     if (fileName === goose) {
       return `goose-${triple}${suffix}`
@@ -48,6 +52,7 @@ const ClientTarget: StageTarget = {
     const names = [
       `corex-daemon-${triple}${suffix}`,
       `corex-mcp-${triple}${suffix}`,
+      `cogito-mcp-${triple}${suffix}`,
       `goose-${triple}${suffix}`
     ]
     if (process.platform === 'win32') {

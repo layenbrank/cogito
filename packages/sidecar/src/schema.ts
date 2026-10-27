@@ -27,7 +27,7 @@
 const SIDECAR_SCHEMA_VERSION = 2
 
 /** 侧车工具键全集：与 CLI 的 `TOOLS` 注册表一一对应（少一个/多一个都编译不过） */
-const SIDECAR_TOOL_KEYS = ['corex', 'ffmpeg', 'goose', 'opencode', 'pandoc', 'pdfium'] as const
+const SIDECAR_TOOL_KEYS = ['corex', 'cogito', 'ffmpeg', 'goose', 'opencode', 'pandoc', 'pdfium'] as const
 
 /**
  * 在线包工具（= lock 里标 `onDemand` 的那批 = manifest 的 `tools` keys）。
