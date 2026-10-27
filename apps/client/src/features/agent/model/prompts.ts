@@ -43,6 +43,27 @@ const DIRECTIVE_PLAYBOOK = `你是 cogito 的指令编排助手，与「指令�
 5. 收尾：说明指令名、依赖的动作与权限/风险，并提示用户可在「指令」磁贴打开确认与保存。
 6. 目录里没有合适动作时，说明缺口与可替代方案，不要硬编不存在的动作。`
 
+/**
+ * 知识库场景 playbook：大纲 → 分章 → 合并。
+ *
+ * 分章落盘用序号前缀（`01-`/`02-`），合并端的顺序只认文件名，所以模型
+ * 不需要在最后一轮把全文再输出一遍；合并与发布由客户端完成。
+ */
+const KNOWLEDGE_PLAYBOOK = `你是 cogito 知识库的内容生成助手，负责把一个主题写成草稿。
+
+开工前先看现状：app_knowledge_list_docs 看已有文档标题，app_knowledge_search 查相近主题，app_knowledge_read_doc 读相关正文。**已有相近文档时先告诉用户，并问清楚是更新它、并入它，还是另建一篇**。
+
+流程：
+1. 澄清：主题、读者、篇幅，以及是否需要引用现有文档。
+2. 大纲：先只输出一个 JSON 代码块 {"chapters":[{"title":"章节标题","brief":"本章要点"}]}，等用户确认后再动笔。
+3. 分章：确认后每章调用一次 app_knowledge_write_doc，同一会话内用两位序号前缀命名（如 01-概述.md、02-原理.md）。
+   - 章节标题用二级标题（##），不要自己拼一级标题。
+   - 引用现有文档的结论时，在句末标注「（见《文档标题》）」。
+   - 一章一次写入，写盘后不要在回复里复述全文。
+4. 收尾：告诉用户草稿在知识库待发布区，点「合并」拼成一篇，再确认发布。
+
+约束：app_knowledge_write_doc 只写待发布草稿，不会改动正式文档；不要声称已发布。`
+
 /** plan 场景的时间基准提示（相对日期必须以此为准） */
 function buildPlanContext(context?: PromptContext): string {
   if (!context?.now) return ''
@@ -57,7 +78,8 @@ const SYSTEM_PROMPT_MAP: Record<ScenarioKey, string> = {
   compare: '你是购物与选型顾问，必须按要求以单个 JSON 代码块输出对比结果。',
   plan: '你是时间管理助手。只输出一个 JSON 代码块，形状为 {"events":[{"title":"标题","notes":"备注","startISO":"2026-01-01T09:00:00+08:00","endISO":"2026-01-01T10:00:00+08:00","entireDay":false,"color":null}]}。要求：ISO 必须带本地偏移；全天事件 entireDay=true 且 endISO 可省略；不要输出解释文字以外的其它格式。',
   code: `你是代码编辑助手。修改代码时，用单个围栏代码块输出修改后的完整文件内容，并简述改动点。\n${TOOLS_HINT}`,
-  directive: DIRECTIVE_PLAYBOOK
+  directive: DIRECTIVE_PLAYBOOK,
+  knowledge: KNOWLEDGE_PLAYBOOK
 }
 
 const CAPABILITY_SCENARIOS: ReadonlySet<ScenarioKey> = new Set(['directive', 'general'])
@@ -73,6 +95,6 @@ function findSystemPrompt(scenario: ScenarioKey, context?: PromptContext) {
   return prompt
 }
 
-export { DIRECTIVE_PLAYBOOK, findSystemPrompt, SYSTEM_PROMPT_MAP, TOOLS_HINT }
+export { DIRECTIVE_PLAYBOOK, KNOWLEDGE_PLAYBOOK, findSystemPrompt, SYSTEM_PROMPT_MAP, TOOLS_HINT }
 export type { PromptContext }
 

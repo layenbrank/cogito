@@ -1,5 +1,6 @@
 import { toast } from 'sonner'
 
+import { resolveDoc, writeDoc } from '@/lib/knowledge-ipc'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { isLargeMarkdown, writeBackup } from '@/views/knowledge/lib/backup.ts'
 import {
@@ -45,6 +46,19 @@ function isSamePath(a: string | null | undefined, b: string | null | undefined):
   return a.replace(/\\/g, '/').toLowerCase() === b.replace(/\\/g, '/').toLowerCase()
 }
 
+/** 打开后取库内引用（含 hash）：保存时用它判断「期间是否被别人改过」 */
+async function syncActiveDoc(path: string): Promise<void> {
+  try {
+    const reference = await resolveDoc(path)
+    const store = useKnowledgeStore.getState()
+    // 期间可能已经切到别的文档
+    if (!isSamePath(store.activePath, path)) return
+    store.toSetActiveDoc(reference.matched ? reference : null)
+  } catch (error) {
+    console.warn('[knowledge] 解析文档引用失败:', error)
+  }
+}
+
 /** 防止快速连续打开时，较慢的旧请求覆盖新文档 */
 let openSequence = 0
 
@@ -82,6 +96,7 @@ async function openPath(path: string, options: { force?: boolean } = {}): Promis
       html: parsed.html,
       isLargeFile: large
     })
+    void syncActiveDoc(path)
     syncWorkspaceRootForFile(path)
     requestAnimationFrame(function () {
       if (sequence !== openSequence) return
@@ -140,6 +155,8 @@ function findCurrentMarkdown(liveHtml?: string): string {
 async function saveDocument(options?: {
   saveAs?: boolean
   liveHtml?: string
+  /** 用户已选择「保留我的」：忽略冲突直接覆盖 */
+  force?: boolean
 }): Promise<boolean> {
   const store = useKnowledgeStore.getState()
   const content = findCurrentMarkdown(options?.liveHtml)
@@ -153,7 +170,33 @@ async function saveDocument(options?: {
       if (!path) return false
     }
     const wasUntitled = !store.activePath || Boolean(options?.saveAs)
-    await writeMarkdownFile(path, content)
+
+    // 知识库文档由服务端写盘 + 落库（app 是唯一写者）；普通文件仍走前端写。
+    // 带 expectedHash 是为了发现「打开之后库内又被 agent 发布/回灌改过」的冲突。
+    const outcome = await writeDoc({
+      path,
+      content,
+      expectedHash: options?.force ? null : (store.activeDoc?.hash ?? null),
+      force: options?.force ?? false
+    })
+    if (outcome.conflict) {
+      store.toSetSaveConflict(true)
+      return false
+    }
+    if (outcome.matched) {
+      store.toSetActiveDoc({
+        matched: true,
+        docId: outcome.doc?.id ?? null,
+        baseId: outcome.doc?.baseId ?? null,
+        relPath: outcome.doc?.relPath ?? null,
+        hash: outcome.hash ?? null,
+        revision: outcome.revision ?? null
+      })
+    } else {
+      await writeMarkdownFile(path, content)
+    }
+    store.toSetSaveConflict(false)
+
     store.toUpdateMarkdown(content)
     store.toMarkSaved(path)
     syncDerived(content)

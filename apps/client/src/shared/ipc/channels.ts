@@ -45,8 +45,11 @@ export const CHANNELS = {
     LIST_STAGING: 'knowledge:listStaging',
     PUBLISH: 'knowledge:publish',
     DISCARD_STAGING: 'knowledge:discardStaging',
+    MERGE_STAGING: 'knowledge:mergeStaging',
     RESCAN: 'knowledge:rescan',
-    REMOVE_DOC: 'knowledge:removeDoc'
+    REMOVE_DOC: 'knowledge:removeDoc',
+    RESOLVE_DOC: 'knowledge:resolveDoc',
+    WRITE_DOC: 'knowledge:writeDoc'
   },
   AUTOSTART: {
     READ: 'autostart:read',

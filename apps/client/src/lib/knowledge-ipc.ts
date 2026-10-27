@@ -9,16 +9,22 @@ import { invoke } from '@tauri-apps/api/core'
 import { CHANNELS } from '@/shared/ipc/channels'
 import {
   KnowledgeBaseSchema,
+  KnowledgeDocRefSchema,
   KnowledgeDocSummarySchema,
   KnowledgeHitSchema,
   PublishedDocSchema,
+  StagedDocSchema,
   StagedFileSchema,
+  WriteDocOutcomeSchema,
   type KnowledgeBase,
+  type KnowledgeDocRef,
   type KnowledgeDocSummary,
   type KnowledgeHit,
   type PublishedDoc,
   type PublishMode,
-  type StagedFile
+  type StagedDoc,
+  type StagedFile,
+  type WriteDocOutcome
 } from '@/shared/ipc/specs/knowledge'
 
 function asError(error: unknown, label: string): Error {
@@ -87,6 +93,16 @@ async function publishDoc(
   }
 }
 
+/** 合并分章（确定性拼接）：结果仍是 staging 草稿，发布要用户确认 */
+async function mergeStaging(baseId: string, paths: string[], title: string): Promise<StagedDoc> {
+  try {
+    const raw = await invoke(CHANNELS.KNOWLEDGE.MERGE_STAGING, { baseId, paths, title })
+    return StagedDocSchema.parse(raw)
+  } catch (error) {
+    throw asError(error, '合并草稿失败')
+  }
+}
+
 async function discardStaged(path: string): Promise<boolean> {
   try {
     return await invoke<boolean>(CHANNELS.KNOWLEDGE.DISCARD_STAGING, { path })
@@ -111,15 +127,53 @@ async function removeDoc(id: string): Promise<number> {
   }
 }
 
+/** 取文档引用（库内 hash）；不在任何知识库里时 `matched=false` */
+async function resolveDoc(path: string): Promise<KnowledgeDocRef> {
+  try {
+    return KnowledgeDocRefSchema.parse(await invoke(CHANNELS.KNOWLEDGE.RESOLVE_DOC, { path }))
+  } catch (error) {
+    throw asError(error, '读取文档信息失败')
+  }
+}
+
+/**
+ * 保存文档：写正式文件 + 落库。
+ *
+ * - `matched=false`：不在知识库里，调用方自己写普通文件；
+ * - `conflict=true`：期间库内被别处改过，**没有写盘**，等用户选「保留我的 / 重载」；
+ * - `force=true`：用户已选择保留我的，直接覆盖。
+ */
+async function writeDoc(input: {
+  path: string
+  content: string
+  expectedHash?: string | null
+  force?: boolean
+}): Promise<WriteDocOutcome> {
+  try {
+    const raw = await invoke(CHANNELS.KNOWLEDGE.WRITE_DOC, {
+      path: input.path,
+      content: input.content,
+      expectedHash: input.expectedHash ?? null,
+      force: input.force ?? false
+    })
+    return WriteDocOutcomeSchema.parse(raw)
+  } catch (error) {
+    throw asError(error, '保存文档失败')
+  }
+}
+
 export {
   createBase,
   discardStaged,
   listBases,
   listDocs,
   listStaging,
+  mergeStaging,
   publishDoc,
   removeDoc,
   rescanBase,
-  searchDocs
+  resolveDoc,
+  searchDocs,
+  writeDoc
 }
 export type { KnowledgeBase, KnowledgeDocSummary, KnowledgeHit, StagedFile }

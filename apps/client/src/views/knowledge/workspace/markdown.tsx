@@ -639,6 +639,9 @@ export default function MarkdownWorkspace() {
   const externalChanged = useKnowledgeStore(function (state) {
     return state.externalChanged
   })
+  const saveConflict = useKnowledgeStore(function (state) {
+    return state.saveConflict
+  })
   const frontMatter = useKnowledgeStore(function (state) {
     return state.frontMatter
   })
@@ -857,6 +860,27 @@ export default function MarkdownWorkspace() {
               })
               syncingRef.current = false
             }
+          })
+        }}
+      />
+      {/* 保存时发现库内已被别处改过：保留我的（强制覆盖）或重载 */}
+      <ExternalDialog
+        open={saveConflict}
+        onKeep={function () {
+          useKnowledgeStore.getState().toSetSaveConflict(false)
+          void saveDocument({ liveHtml: composer?.getHTML(), force: true })
+        }}
+        onReload={function () {
+          useKnowledgeStore.getState().toSetSaveConflict(false)
+          if (!activePath) return
+          void openPath(activePath, { force: true }).then(function () {
+            if (!composer) return
+            const state = useKnowledgeStore.getState()
+            syncingRef.current = true
+            composer.commands.setContent(state.html || '<p></p>', {
+              emitUpdate: false
+            })
+            syncingRef.current = false
           })
         }}
       />

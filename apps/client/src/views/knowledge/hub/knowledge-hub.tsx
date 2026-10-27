@@ -6,6 +6,14 @@
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@cogito/design/components/dialog'
 import { Input } from '@cogito/design/components/input'
 import { ScrollArea } from '@cogito/design/components/scroll-area'
 import { Separator } from '@cogito/design/components/separator'
@@ -23,9 +31,12 @@ import {
   SheetTitle
 } from '@cogito/design/components/sheet'
 import { Spinner } from '@cogito/design/components/spinner'
+import { Switch } from '@cogito/design/components/switch'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
+import { setNextPrompt } from '@/features/agent/model/pending-prompt'
+import type { StagedFile } from '@/lib/knowledge-ipc'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { openPath } from '@/views/knowledge/lib/session.ts'
 
@@ -53,6 +64,38 @@ function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+interface StagingGroup {
+  session: string
+  files: StagedFile[]
+}
+
+/** 同一次生成的分章都落在同一个会话目录，按会话分组才能给出「合并」动作 */
+function groupStaging(files: StagedFile[]): StagingGroup[] {
+  const buckets = new Map<string, StagedFile[]>()
+  for (const file of files) {
+    const bucket = buckets.get(file.session)
+    if (bucket) bucket.push(file)
+    else buckets.set(file.session, [file])
+  }
+  return [...buckets.entries()].map(function ([session, items]) {
+    return {
+      session,
+      files: [...items].sort(function (left, right) {
+        return left.path.localeCompare(right.path)
+      })
+    }
+  })
+}
+
+/** 合并标题默认取首章名（去掉序号与扩展名），用户可改 */
+function mergeTitleOf(files: StagedFile[]): string {
+  const firstName = files[0]?.name ?? ''
+  return firstName
+    .replace(/\.md$/i, '')
+    .replace(/^\d+\s*[-_.、]?\s*/, '')
+    .trim()
 }
 
 interface KnowledgeHubProps {
@@ -115,7 +158,15 @@ function KnowledgeHub(props: KnowledgeHubProps) {
   const discard = useKnowledgeBaseStore(function (state) {
     return state.discard
   })
+  const merge = useKnowledgeBaseStore(function (state) {
+    return state.merge
+  })
   const [newName, setNewName] = useState('')
+  const [isGenerateOpen, setIsGenerateOpen] = useState(false)
+  const [topic, setTopic] = useState('')
+  const [withCitation, setWithCitation] = useState(true)
+  const [mergeTarget, setMergeTarget] = useState<StagedFile[] | null>(null)
+  const [mergeTitle, setMergeTitle] = useState('')
 
   useEffect(
     function () {
@@ -129,10 +180,45 @@ function KnowledgeHub(props: KnowledgeHubProps) {
     return base.id === activeBaseID
   })
 
+  const stagingGroups = groupStaging(staging)
+
   async function openDoc(relative: string) {
     if (!activeBase) return
     const ok = await openPath(joinPath(activeBase.rootPath, relative))
     if (ok) props.onOpenChange(false)
+  }
+
+  /** 生成交给聊天：讲清主题后由 knowledge 场景的 playbook 驱动，分章写入 staging */
+  function startGenerate() {
+    const title = topic.trim()
+    if (!title) return
+    const citation = withCitation
+      ? '先检索库里已有的相关文档，相近内容先说明；引用结论时标注来源。'
+      : '不必引用现有文档。'
+    setNextPrompt({
+      text: `请帮我写一篇知识库文档：${title}\n${citation}`,
+      scenario: 'knowledge'
+    })
+    setTopic('')
+    props.onOpenChange(false)
+    void import('@/routers').then(function (module) {
+      return module.router.navigate('/agent/chat')
+    })
+  }
+
+  async function confirmMerge() {
+    const target = mergeTarget
+    const title = mergeTitle.trim()
+    if (!target || !title) return
+    const ok = await merge(
+      target.map(function (file) {
+        return file.path
+      }),
+      title
+    )
+    if (!ok) return
+    setMergeTarget(null)
+    toast.success(`已合并为「${title}」`)
   }
 
   return (
@@ -144,20 +230,35 @@ function KnowledgeHub(props: KnowledgeHubProps) {
         className="flex w-[440px] max-w-[92vw] flex-col gap-3 p-4 sm:max-w-[440px]">
         <div className="flex items-center justify-between gap-2">
           <SheetTitle className="text-sm">知识库</SheetTitle>
-          <Button
-            size="sm"
-            variant="ghost"
-            aria-label="重新扫描磁盘"
-            title="重新扫描磁盘（外部改动入库）"
-            disabled={isLoading || !activeBaseID}
-            onClick={function () {
-              void rescan()
-            }}>
-            <Icon
-              icon="lucide:refresh-cw"
-              className="size-4"
-            />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="secondary"
+              title="让智能体按大纲生成文档"
+              onClick={function () {
+                setIsGenerateOpen(true)
+              }}>
+              <Icon
+                icon="lucide:sparkles"
+                className="size-4"
+              />
+              生成
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label="重新扫描磁盘"
+              title="重新扫描磁盘（外部改动入库）"
+              disabled={isLoading || !activeBaseID}
+              onClick={function () {
+                void rescan()
+              }}>
+              <Icon
+                icon="lucide:refresh-cw"
+                className="size-4"
+              />
+            </Button>
+          </div>
         </div>
         <SheetDescription className="text-xs text-muted-foreground">
           正文以磁盘文件为准；智能体只能写「待发布草稿」，是否入库由你确认。
@@ -316,55 +417,163 @@ function KnowledgeHub(props: KnowledgeHubProps) {
                 />
                 待发布草稿 {staging.length}
               </div>
-              <ul className="flex flex-col gap-2">
-                {staging.map(function (file) {
+              <div className="flex flex-col gap-3">
+                {stagingGroups.map(function (group) {
                   return (
-                    <li
-                      key={file.path}
-                      className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2">
-                      <p className="truncate text-sm">{file.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        来自 {file.session} · {formatSize(file.size)} ·{' '}
-                        {formatTime(file.modifiedAt)}
-                      </p>
-                      <div className="mt-1.5 flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          disabled={isPublishing}
-                          onClick={function () {
-                            void publish(file, 'replace').then(function (ok) {
-                              if (ok) toast.success(`已发布「${file.name}」`)
-                            })
-                          }}>
-                          覆盖同名
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={isPublishing}
-                          onClick={function () {
-                            void publish(file, 'keepboth').then(function (ok) {
-                              if (ok) toast.success(`已发布「${file.name}」（保留两者）`)
-                            })
-                          }}>
-                          保留两者
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={function () {
-                            void discard(file)
-                          }}>
-                          丢弃
-                        </Button>
-                      </div>
-                    </li>
+                    <div
+                      key={group.session}
+                      className="flex flex-col gap-2">
+                      {group.files.length > 1 ? (
+                        <div className="flex items-center justify-between gap-2 px-1 text-xs text-muted-foreground">
+                          <span className="truncate">同批生成 {group.files.length} 章</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-xs"
+                            disabled={isPublishing}
+                            title="按文件名顺序拼成一篇，仍是待发布草稿"
+                            onClick={function () {
+                              setMergeTarget(group.files)
+                              setMergeTitle(mergeTitleOf(group.files))
+                            }}>
+                            合并
+                          </Button>
+                        </div>
+                      ) : null}
+                      <ul className="flex flex-col gap-2">
+                        {group.files.map(function (file) {
+                          return (
+                            <li
+                              key={file.path}
+                              className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2">
+                              <p className="truncate text-sm">{file.name}</p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {formatSize(file.size)} · {formatTime(file.modifiedAt)}
+                              </p>
+                              <div className="mt-1.5 flex items-center gap-1">
+                                <Button
+                                  size="sm"
+                                  disabled={isPublishing}
+                                  onClick={function () {
+                                    void publish(file, 'replace').then(function (ok) {
+                                      if (ok) toast.success(`已发布「${file.name}」`)
+                                    })
+                                  }}>
+                                  覆盖同名
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={isPublishing}
+                                  onClick={function () {
+                                    void publish(file, 'keepboth').then(function (ok) {
+                                      if (ok)
+                                        toast.success(`已发布「${file.name}」（保留两者）`)
+                                    })
+                                  }}>
+                                  保留两者
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={function () {
+                                    void discard(file)
+                                  }}>
+                                  丢弃
+                                </Button>
+                              </div>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
                   )
                 })}
-              </ul>
+              </div>
             </>
           ) : null}
         </ScrollArea>
+
+        <Dialog
+          open={isGenerateOpen}
+          onOpenChange={setIsGenerateOpen}>
+          <DialogContent className="sm:max-w-105">
+            <DialogHeader>
+              <DialogTitle className="text-sm">生成文档</DialogTitle>
+            </DialogHeader>
+            <DialogDescription className="text-xs text-muted-foreground">
+              智能体会先与你确认大纲，再逐章写入待发布草稿；是否入库仍由你在这里确认。
+            </DialogDescription>
+            <Input
+              value={topic}
+              placeholder="要写什么？例如「季度复盘模板」"
+              onChange={function (event) {
+                setTopic(event.target.value)
+              }}
+            />
+            <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>引用库里已有的相关文档</span>
+              <Switch
+                checked={withCitation}
+                onCheckedChange={function (checked) {
+                  setWithCitation(checked)
+                }}
+              />
+            </label>
+            <DialogFooter>
+              <Button
+                variant="ghost"
+                onClick={function () {
+                  setIsGenerateOpen(false)
+                }}>
+                取消
+              </Button>
+              <Button
+                disabled={!topic.trim()}
+                onClick={startGenerate}>
+                开始
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={mergeTarget !== null}
+          onOpenChange={function (open) {
+            if (!open) setMergeTarget(null)
+          }}>
+          <DialogContent className="sm:max-w-105">
+            <DialogHeader>
+              <DialogTitle className="text-sm">合并分章</DialogTitle>
+            </DialogHeader>
+            <DialogDescription className="text-xs text-muted-foreground">
+              按文件名顺序拼成一篇，结果仍是待发布草稿。
+            </DialogDescription>
+            <Input
+              value={mergeTitle}
+              placeholder="文档标题"
+              onChange={function (event) {
+                setMergeTitle(event.target.value)
+              }}
+            />
+            <DialogFooter>
+              <Button
+                variant="ghost"
+                onClick={function () {
+                  setMergeTarget(null)
+                }}>
+                取消
+              </Button>
+              <Button
+                disabled={!mergeTitle.trim() || isPublishing}
+                onClick={function () {
+                  void confirmMerge()
+                }}>
+                合并
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </SheetContent>
     </Sheet>
   )

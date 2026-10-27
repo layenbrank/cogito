@@ -3,6 +3,7 @@ import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
 import { ensureTilePrefs } from '@/features/magnetic-tile/tile-prefs'
+import type { KnowledgeDocRef } from '@/shared/ipc/specs/knowledge'
 import type { OutlineItem } from '@/views/knowledge/lib/outline.ts'
 import {
   hydratePreferencesFromStore,
@@ -30,6 +31,10 @@ interface MarkdownSession {
   isPrefsOpen: boolean
   externalChanged: boolean
   isLargeFile: boolean
+  /** 当前文档在知识库里的行引用（保存时用 hash 判冲突）；普通文件为 null */
+  activeDoc: KnowledgeDocRef | null
+  /** 保存时发现库内已被别处改过：等用户选「保留我的 / 重载」 */
+  saveConflict: boolean
   treeRevision: number
 }
 
@@ -65,6 +70,8 @@ interface MarkdownStore extends MarkdownSession, MarkdownPreferences {
   toSetFileQuery: (query: string) => void
   toSetPrefsOpen: (isOpen: boolean) => void
   toSetExternalChanged: (isChanged: boolean) => void
+  toSetActiveDoc: (doc: KnowledgeDocRef | null) => void
+  toSetSaveConflict: (isConflict: boolean) => void
   toBumpTree: () => void
   toPushRecent: (path: string) => void
 }
@@ -113,6 +120,8 @@ const useKnowledgeStore = create<MarkdownStore>()(
         isPrefsOpen: false,
         externalChanged: false,
         isLargeFile: false,
+        activeDoc: null,
+        saveConflict: false,
         treeRevision: 0,
         ...initial,
 
@@ -161,6 +170,8 @@ const useKnowledgeStore = create<MarkdownStore>()(
               state.hasOpened = true
               state.isLoading = false
               state.externalChanged = false
+              state.activeDoc = null
+              state.saveConflict = false
               state.isLargeFile = params.isLargeFile ?? false
               if (params.isLargeFile) {
                 state.viewMode = 'source'
@@ -205,6 +216,8 @@ const useKnowledgeStore = create<MarkdownStore>()(
               state.isDirty = false
               state.hasOpened = true
               state.externalChanged = false
+              state.activeDoc = null
+              state.saveConflict = false
               state.isLargeFile = false
               state.outline = []
               state.stats = EMPTY_STATS
@@ -378,6 +391,26 @@ const useKnowledgeStore = create<MarkdownStore>()(
             },
             false,
             'toSetExternalChanged'
+          )
+        },
+
+        toSetActiveDoc(doc) {
+          setters(
+            function (state) {
+              state.activeDoc = doc
+            },
+            false,
+            'toSetActiveDoc'
+          )
+        },
+
+        toSetSaveConflict(isConflict) {
+          setters(
+            function (state) {
+              state.saveConflict = isConflict
+            },
+            false,
+            'toSetSaveConflict'
           )
         },
 

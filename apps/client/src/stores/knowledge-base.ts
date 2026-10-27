@@ -12,6 +12,7 @@ import {
   listBases,
   listDocs,
   listStaging,
+  mergeStaging,
   publishDoc,
   rescanBase,
   searchDocs,
@@ -42,6 +43,8 @@ interface KnowledgeBaseState {
   rescan: () => Promise<void>
   publish: (file: StagedFile, mode: PublishMode) => Promise<boolean>
   discard: (file: StagedFile) => Promise<void>
+  /** 把同一次生成的多章拼成一篇（结果仍待发布） */
+  merge: (paths: string[], title: string) => Promise<boolean>
 }
 
 function toMessage(error: unknown): string {
@@ -175,6 +178,22 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
       } catch (error) {
         reportCaught('knowledgeBase.discard', error, 'warning')
         setter({ error: toMessage(error) })
+      }
+    },
+
+    async merge(paths, title) {
+      const baseID = getter().activeBaseID
+      if (!baseID) return false
+      setter({ isPublishing: true, error: null })
+      try {
+        await mergeStaging(baseID, paths, title)
+        await getter().refresh()
+        setter({ isPublishing: false })
+        return true
+      } catch (error) {
+        reportCaught('knowledgeBase.merge', error, 'warning')
+        setter({ isPublishing: false, error: toMessage(error) })
+        return false
       }
     }
   }

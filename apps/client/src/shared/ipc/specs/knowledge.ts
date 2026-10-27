@@ -65,7 +65,34 @@ const PublishedDocSchema = z.object({
   revision: z.number()
 })
 
+/** 合并后的 staging 草稿（仍是草稿，发布要用户点） */
+const StagedDocSchema = z.object({
+  baseId: z.string(),
+  path: z.string(),
+  title: z.string(),
+  slug: z.string()
+})
+
 const PublishModeSchema = z.enum(['replace', 'keepboth'])
+
+/** 文档引用：打开时取一次，保存时把 `hash` 带回去做冲突判定 */
+const KnowledgeDocRefSchema = z.object({
+  matched: z.boolean(),
+  docId: z.string().nullish(),
+  baseId: z.string().nullish(),
+  relPath: z.string().nullish(),
+  hash: z.string().nullish(),
+  revision: z.number().nullish()
+})
+
+/** 保存结果：`matched=false` 表示不在任何库里（按普通文件自己写） */
+const WriteDocOutcomeSchema = z.object({
+  matched: z.boolean(),
+  conflict: z.boolean(),
+  doc: KnowledgeDocSummarySchema.nullish(),
+  hash: z.string().nullish(),
+  revision: z.number().nullish()
+})
 
 const SearchInputSchema = z.object({
   query: z.string().min(1),
@@ -74,26 +101,35 @@ const SearchInputSchema = z.object({
 })
 
 type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
+type KnowledgeDocRef = z.infer<typeof KnowledgeDocRefSchema>
 type KnowledgeDocSummary = z.infer<typeof KnowledgeDocSummarySchema>
 type KnowledgeHit = z.infer<typeof KnowledgeHitSchema>
 type StagedFile = z.infer<typeof StagedFileSchema>
+type StagedDoc = z.infer<typeof StagedDocSchema>
 type PublishedDoc = z.infer<typeof PublishedDocSchema>
 type PublishMode = z.infer<typeof PublishModeSchema>
+type WriteDocOutcome = z.infer<typeof WriteDocOutcomeSchema>
 
 export {
   KnowledgeBaseSchema,
+  KnowledgeDocRefSchema,
   KnowledgeDocSummarySchema,
   KnowledgeHitSchema,
   PublishModeSchema,
   PublishedDocSchema,
   SearchInputSchema,
-  StagedFileSchema
+  StagedDocSchema,
+  StagedFileSchema,
+  WriteDocOutcomeSchema
 }
 export type {
   KnowledgeBase,
+  KnowledgeDocRef,
   KnowledgeDocSummary,
   KnowledgeHit,
   PublishedDoc,
   PublishMode,
-  StagedFile
+  StagedDoc,
+  StagedFile,
+  WriteDocOutcome
 }
