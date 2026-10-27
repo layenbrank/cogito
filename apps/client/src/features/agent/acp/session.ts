@@ -32,6 +32,7 @@ import type {
 } from '@cogito/chat/ports'
 
 import { bindAcpRequestRouter, bindGooseNotReady, findAcpHandle } from '@/features/agent/acp/connection'
+import { mountCloudMcp } from '@/features/agent/acp/cloud-mcp'
 import { clearGooseUsage, writeGooseUsage } from '@/features/agent/acp/goose-usage'
 import { fetchSessionTools, saveDefaults } from '@/features/agent/acp/goose-providers'
 import { clearRunState, markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
@@ -629,6 +630,15 @@ async function openThreadSession(
   )
   await syncModelsToStore(applied.providerId, applied.configOptions)
 
+  // 本地工具网关没挂上时（cogito-mcp 缺失/桥没起），把云端检索作为会话扩展补上；
+  // 两边同时存在会让模型对同一个查询调两次（`app_knowledge_search` + `cogito_knowledge_search`）。
+  const mountsLocalGateway = mcpServers.some(function (server) {
+    return server.name === 'cogito'
+  })
+  if (!mountsLocalGateway) {
+    await mountCloudMcp(handle.connection, session.sessionId)
+  }
+
   const thread: ThreadSession = {
     threadID,
     acpSessionID: session.sessionId,
@@ -638,9 +648,7 @@ async function openThreadSession(
     modelID: applied.modelId,
     configOptions: applied.configOptions,
     connection: handle.connection,
-    mountsCogito: mcpServers.some(function (server) {
-      return server.name === 'cogito'
-    }),
+    mountsCogito: mountsLocalGateway,
     run: null
   }
   sessionByAcpID.set(thread.acpSessionID, thread)
