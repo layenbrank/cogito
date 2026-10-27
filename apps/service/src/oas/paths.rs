@@ -110,6 +110,10 @@ pub const RAG_INDEX_TASKS: &str = "/api/v1/rag/index-tasks";
 pub const RAG_INDEX_TASK_BY_ID: &str = "/api/v1/rag/index-tasks/{id}";
 pub const RAG_SEARCH: &str = "/api/v1/rag/search";
 
+/// 定时任务：列表 / 新建（GET / POST），改名与删除在 `{id}`
+pub const AUTOMATIONS: &str = "/api/v1/automations";
+pub const AUTOMATIONS_BY_ID: &str = "/api/v1/automations/{id}";
+
 // --- Chat（会话同步，需 JWT + X-Tenant-ID） ---
 /// 同一个资源两种方法：POST 推一批，GET 拉增量。
 pub const CHAT_SYNC: &str = "/api/v1/chat/sync";
@@ -476,6 +480,22 @@ pub const ALL_ROUTES: &[RouteDef] = &[
     RouteDef {
         method: "GET",
         path: RAG_INDEX_TASK_BY_ID,
+    },
+    RouteDef {
+        method: "GET",
+        path: AUTOMATIONS,
+    },
+    RouteDef {
+        method: "POST",
+        path: AUTOMATIONS,
+    },
+    RouteDef {
+        method: "PATCH",
+        path: AUTOMATIONS_BY_ID,
+    },
+    RouteDef {
+        method: "DELETE",
+        path: AUTOMATIONS_BY_ID,
     },
     RouteDef {
         method: "POST",

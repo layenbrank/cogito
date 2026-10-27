@@ -12,6 +12,7 @@ use crate::services::{
     gateway::schema::{ModelR, PlansR, ProviderR, SelfQuotaR},
     payment::schema::{CatalogR, OrderR, PriceR, ReconcileR},
     rag::schema::{IndexTaskR, SearchR},
+    schedule::schema::JobR,
     sso::schema::{SsoConnectionR, SsoLoginR},
     subscription::schema::{QuotaR, SubscriptionR},
     tenant::schema::{MemberR, TenantR},
@@ -89,6 +90,10 @@ envelope!(TaskEnvelope, TaskR);
 envelope!(ApprovalEnvelope, ApprovalR);
 envelope!(IndexTaskEnvelope, IndexTaskR);
 envelope!(SearchEnvelope, SearchR);
+envelope!(JobEnvelope, JobR);
+envelope!(JobListEnvelope, Vec<JobR>);
+// 删除返回被删行数
+envelope!(JobRemovedEnvelope, u64);
 envelope!(ChatSyncEnvelope, ChatSyncR);
 envelope!(ChatChangesEnvelope, ChatChangesR);
 

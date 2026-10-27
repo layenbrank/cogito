@@ -1429,7 +1429,7 @@
         "enum": [
           "Bookmark",
           "Calendar",
-          "Markdown",
+          "Knowledge",
           "Settings",
           "Clipchamp",
           "Intelligence",
@@ -2703,6 +2703,320 @@
         ],
         "type": "object"
       },
+      "JobEnvelope": {
+        "properties": {
+          "code": {
+            "description": "业务状态码（200000=成功）",
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JobR"
+              }
+            ]
+          },
+          "msg": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "traceID": {
+            "description": "链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "success",
+          "msg",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "JobListEnvelope": {
+        "properties": {
+          "code": {
+            "description": "业务状态码（200000=成功）",
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/JobR"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "msg": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "traceID": {
+            "description": "链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "success",
+          "msg",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "JobP": {
+        "description": "新建（`id` 为空）或整体替换（`id` 非空）一个任务",
+        "properties": {
+          "cron": {
+            "description": "5 段 crontab（分 时 日 月 周）",
+            "type": "string"
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "prompt": {
+            "description": "起一次 agent 任务的目标",
+            "type": "string"
+          },
+          "runAsKind": {
+            "description": "user | tenant，缺省 user",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runAsUserId": {
+            "description": "`runAsKind=user` 时的执行身份，缺省用创建人",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timezone": {
+            "description": "IANA 时区，缺省 `Asia/Shanghai`",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "prompt",
+          "cron"
+        ],
+        "type": "object"
+      },
+      "JobPatchP": {
+        "description": "局部更新：只改传入的项",
+        "properties": {
+          "cron": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "prompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runAsKind": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runAsUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timezone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "JobR": {
+        "properties": {
+          "createdAt": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cron": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastRunAt": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "lastStatus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastTaskId": {
+            "description": "最近一次起出来的 agent 任务 id",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "nextRunAt": {
+            "description": "下次触发（epoch ms）；停用或非本机排期的任务为空",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "runAsKind": {
+            "type": "string"
+          },
+          "runAsUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prompt",
+          "cron",
+          "timezone",
+          "enabled",
+          "runAsKind",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "JobRemovedEnvelope": {
+        "properties": {
+          "code": {
+            "description": "业务状态码（200000=成功）",
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "msg": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "traceID": {
+            "description": "链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "success",
+          "msg",
+          "timestamp"
+        ],
+        "type": "object"
+      },
       "Liveness": {
         "description": "存活探针 data：只描述进程自身，**不含任何依赖**",
         "properties": {
@@ -2855,6 +3169,13 @@
       },
       "MemberR": {
         "properties": {
+          "email": {
+            "description": "展示用：邮箱；可能为空",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -2869,6 +3190,13 @@
           },
           "userID": {
             "type": "string"
+          },
+          "username": {
+            "description": "展示用：账号用户名；账号已删则为 null",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -5164,6 +5492,122 @@
         "required": [
           "code",
           "newPassword"
+        ],
+        "type": "object"
+      },
+      "SearchEnvelope": {
+        "properties": {
+          "code": {
+            "description": "业务状态码（200000=成功）",
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SearchR"
+              }
+            ]
+          },
+          "msg": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "traceID": {
+            "description": "链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "success",
+          "msg",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "SearchHitR": {
+        "description": "一块命中。",
+        "properties": {
+          "assetID": {
+            "type": "string"
+          },
+          "ordinal": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "score": {
+            "description": "余弦相似度（1 - 距离），越大越相近",
+            "format": "double",
+            "type": "number"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "assetID",
+          "ordinal",
+          "score",
+          "text"
+        ],
+        "type": "object"
+      },
+      "SearchP": {
+        "description": "检索请求（`POST /api/v1/rag/search`）。\n\n`assetIDs` 是**收窄**而不是必填：不传表示「本租户全部已索引内容」，由 `model` 决定\n用哪个向量空间。客户端要把范围钉在自己库里的文档上时才传它。",
+        "properties": {
+          "assetIDs": {
+            "description": "只在这些资产里检索",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "query": {
+            "description": "查询文本（原样送去嵌成向量）",
+            "type": "string"
+          },
+          "topK": {
+            "description": "最多返回多少块；缺省由服务端定上限",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "SearchR": {
+        "description": "检索结果。空列表是正常结果（没有已索引内容或没有相近块），不是错误。",
+        "properties": {
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHitR"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "hits"
         ],
         "type": "object"
       },
@@ -8706,6 +9150,374 @@
         "summary": "用户注册",
         "tags": [
           "Auth"
+        ]
+      }
+    },
+    "/api/v1/automations": {
+      "get": {
+        "description": "按创建时间升序返回任务定义与最近一次执行状态。\n\n`lastStatus` 记的是**「把任务起起来了」**：`running` = worker 已认领并在起 agent 任务；\n`succeeded` = 起成功（真正的执行结果在 `lastTaskID` 指向的 agent 任务里）；\n`failed` 时看 `lastError`。\n\n`nextRunAt` 是下次触发时间（epoch ms），停用时为空。\n\n需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员。\n\n`body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效。",
+        "operationId": "schedule.list",
+        "parameters": [
+          {
+            "description": "目标租户 ID（UUID）。**必填**：任务归属与执行身份都按这个租户判定。\n调用者须为该租户有效成员，且具备 agent 任务的读/写权限（平台 ADMIN 可旁路）。",
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobListEnvelope"
+                }
+              }
+            },
+            "description": "成功（可能为空列表）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常（未登录 / 非租户成员）：HTTP 状态码按错误码归属返回，响应体为统一错误信封",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "列出本租户的定时任务",
+        "tags": [
+          "Automation"
+        ]
+      },
+      "post": {
+        "description": "`id` 为空是新建，非空是整体替换（同租户内找不到该 id 回 404）。\n\n**cron 与 timezone 在保存时就校验**：表达式要 5 段（分 时 日 月 周），时区要 IANA 名；\n写错当场 400，不会留下一条永远算不出下次时间、每轮 tick 都刷错的任务。\ncron 按任务自己的 `timezone` 解释（缺省 `Asia/Shanghai`），`nextRunAt` 由服务端算，\n请求里带的值会被忽略。\n\n`runAsKind`：`user` = 以创建人（或 `runAsUserId` 指定的本人）身份执行，执行时仍会校验\n其为该租户成员；`tenant` = 以租户服务身份执行（团队共享场景）。\n\n`enabled=false` 时不排期（`nextRunAt` 为空）。\n\n需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员，并具备 agent 任务写权限。\n\n`body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效；\n`500801` 任务不存在（带 id 时）；`500802` cron 或时区不合法；`500803` 名称为空或执行身份非法。",
+        "operationId": "schedule.save",
+        "parameters": [
+          {
+            "description": "目标租户 ID（UUID）。**必填**：任务归属与执行身份都按这个租户判定。\n调用者须为该租户有效成员，且具备 agent 任务的读/写权限（平台 ADMIN 可旁路）。",
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobP"
+              }
+            }
+          },
+          "description": "任务定义",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobEnvelope"
+                }
+              }
+            },
+            "description": "成功（返回落库后的任务，含算好的 nextRunAt）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常（参数不合法 / 任务不存在 / 非租户成员）：HTTP 状态码按错误码归属返回，响应体为统一错误信封",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "新建或整体替换一个定时任务",
+        "tags": [
+          "Automation"
+        ]
+      }
+    },
+    "/api/v1/automations/{id}": {
+      "delete": {
+        "description": "删除后不会再被 worker 认领；已经起出来的 agent 任务不受影响（它有自己的台账）。\n\n返回被删除的行数（0 或已回 404，正常是 1）。\n\n需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员，并具备 agent 任务写权限。\n\n`body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效；\n`500801` 任务不存在（含不属于该租户与 id 不是 UUID，三者合并避免用 id 探测别的租户）。",
+        "operationId": "schedule.remove",
+        "parameters": [
+          {
+            "description": "目标租户 ID（UUID）。**必填**：任务归属与执行身份都按这个租户判定。\n调用者须为该租户有效成员，且具备 agent 任务的读/写权限（平台 ADMIN 可旁路）。",
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "任务 ID（UUID）",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRemovedEnvelope"
+                }
+              }
+            },
+            "description": "成功（被删除的行数）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常（任务不存在 / 非租户成员）：HTTP 状态码按错误码归属返回，响应体为统一错误信封",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "删除一个定时任务",
+        "tags": [
+          "Automation"
+        ]
+      },
+      "patch": {
+        "description": "只改传入的字段；其余保持不变。\n\n**启用会从「现在」重排**，不会补停用期间错过的时间点；停用会清空 `nextRunAt`。\n改 cron 或时区同样会重排，并立刻返回新的 `nextRunAt`。\n\n需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员，并具备 agent 任务写权限。\n\n`body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效；\n`500801` 任务不存在；`500802` cron 或时区不合法；`500803` 执行身份非法。",
+        "operationId": "schedule.patch",
+        "parameters": [
+          {
+            "description": "目标租户 ID（UUID）。**必填**：任务归属与执行身份都按这个租户判定。\n调用者须为该租户有效成员，且具备 agent 任务的读/写权限（平台 ADMIN 可旁路）。",
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "任务 ID（UUID）",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobPatchP"
+              }
+            }
+          },
+          "description": "要修改的字段",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobEnvelope"
+                }
+              }
+            },
+            "description": "成功",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常（任务不存在 / 参数不合法 / 非租户成员）：HTTP 状态码按错误码归属返回，响应体为统一错误信封",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "局部更新一个定时任务",
+        "tags": [
+          "Automation"
         ]
       }
     },
@@ -12345,6 +13157,100 @@
           }
         ],
         "summary": "查询索引任务",
+        "tags": [
+          "RAG"
+        ]
+      }
+    },
+    "/api/v1/rag/search": {
+      "post": {
+        "description": "把查询文本送去嵌入，再在向量索引里取最相近的若干块。\n\n**只读**：不建任务、不写台账，重发同一查询是安全的。\n\n`assetIDs` 用于把范围收窄到调用方关心的资产（客户端只查自己知识库里已建过索引的文档）；\n省略表示本租户全部，空数组表示「没有可查的资产」（返回空列表，不退化成全租户）。\n\n**模型由服务端决定**（`compute.embed_model`），与索引时用的那个必须是同一个：\n不同向量空间的距离没有可比性，所以调用方不能指定模型。\n\n空列表是正常结果（没有已索引内容、或没有相近的块），不是错误。\n\n需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员，并具备资产的读权限。\n\n`body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效；\n`500606` 检索词为空；`500607` compute 未接通或检索失败（可重试）。",
+        "operationId": "rag.search",
+        "parameters": [
+          {
+            "description": "目标租户 ID（UUID）。**必填**：被索引的资产按租户隔离，缺了这个头没有正确的作用域可进。\n调用者须为该租户有效成员，且需要该资产的可读权限（平台 ADMIN 可旁路）。",
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchP"
+              }
+            }
+          },
+          "description": "检索词与可选的范围",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchEnvelope"
+                }
+              }
+            },
+            "description": "成功（可能为空列表）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常（检索词为空 / 非租户成员 / 检索不可用）：HTTP 状态码按错误码归属返回，响应体为统一错误信封",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "在本租户已索引的内容里检索",
         "tags": [
           "RAG"
         ]
@@ -16460,6 +17366,10 @@
     {
       "description": "RAG 索引任务：起任务 / 查任务（需 JWT + X-Tenant-ID）",
       "name": "RAG"
+    },
+    {
+      "description": "定时任务：列表 / 建改删，由 worker 到点起 agent 任务（需 JWT + X-Tenant-ID）",
+      "name": "Automation"
     },
     {
       "description": "会话同步：推一批 / 拉增量（需 JWT + X-Tenant-ID）",

@@ -13,6 +13,7 @@ pub mod mcp;
 pub mod paths;
 pub mod payment;
 pub mod rag;
+pub mod schedule;
 pub mod sso;
 pub mod subscription;
 pub mod system;
@@ -28,7 +29,8 @@ use crate::oas::common::{
     ChatSyncEnvelope, ChunkUploadEnvelope, ChunkUploadForm, DependencyCheck, EmptyEnvelope, EmptyR,
     Exception, ExceptionEnvelope, ExceptionGroupPageEnvelope, ExceptionPageEnvelope,
     ExceptionSourcesEnvelope, ExceptionSummaryEnvelope, FinalizeUploadEnvelope, Health,
-    HealthEnvelope, IndexTaskEnvelope, Liveness, LivenessEnvelope, MemberEnvelope,
+    HealthEnvelope, IndexTaskEnvelope, JobEnvelope, JobListEnvelope, JobRemovedEnvelope, Liveness,
+    LivenessEnvelope, MemberEnvelope,
     MemberListEnvelope, ModelEnvelope, ModelListEnvelope, OrderEnvelope, OrderListEnvelope,
     PlansEnvelope, PreferenceEnvelope, PriceEnvelope, PriceListEnvelope, ProfileEnvelope,
     ProviderEnvelope, ProviderListEnvelope, QuotaEnvelope, Readiness, ReadinessEnvelope,
@@ -65,6 +67,7 @@ use crate::services::payment::schema::{
     ReconcileTenantR, ReconcileTotalsR,
 };
 use crate::services::rag::schema::{IndexTaskP, IndexTaskR};
+use crate::services::schedule::schema::{JobPatchP, JobP, JobR};
 use crate::services::sso::schema::{
     SsoConnectionR, SsoConnectionUpdateP, SsoConnectionWriteP, SsoLoginR,
 };
@@ -203,6 +206,10 @@ use crate::services::user::schema::{Avatar as UserAvatar, UpdateP, UserR, WriteP
         rag::create_index_task_doc,
         rag::read_index_task_doc,
         rag::search_doc,
+        schedule::list_doc,
+        schedule::save_doc,
+        schedule::patch_doc,
+        schedule::remove_doc,
         chat::push_changes_doc,
         chat::pull_changes_doc,
         mcp::handle_doc,
@@ -371,6 +378,12 @@ use crate::services::user::schema::{Avatar as UserAvatar, UpdateP, UserR, WriteP
             IndexTaskP,
             IndexTaskR,
             IndexTaskEnvelope,
+            JobP,
+            JobPatchP,
+            JobR,
+            JobEnvelope,
+            JobListEnvelope,
+            JobRemovedEnvelope,
             ChatSyncP,
             ChatSessionP,
             ChatMessageP,
@@ -403,6 +416,7 @@ use crate::services::user::schema::{Avatar as UserAvatar, UpdateP, UserR, WriteP
         (name = "Billing", description = "计费运维面：模型价目与计量对账（仅平台 ADMIN）"),
         (name = "Agent", description = "租户级自治 agent：长任务编排与台账（需 JWT + X-Tenant-ID）"),
         (name = "RAG", description = "RAG 索引任务：起任务 / 查任务（需 JWT + X-Tenant-ID）"),
+        (name = "Automation", description = "定时任务：列表 / 建改删，由 worker 到点起 agent 任务（需 JWT + X-Tenant-ID）"),
         (name = "Chat", description = "会话同步：推一批 / 拉增量（需 JWT + X-Tenant-ID）"),
     ),
     modifiers(&ContractAddon),
