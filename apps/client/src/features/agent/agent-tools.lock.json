@@ -12,6 +12,11 @@
   "local": [
     "app_calendar_read",
     "app_workspace_list",
-    "app_workspace_read"
+    "app_workspace_read",
+    "app_knowledge_list_bases",
+    "app_knowledge_list_docs",
+    "app_knowledge_read_doc",
+    "app_knowledge_search",
+    "app_knowledge_write_doc"
   ]
 }

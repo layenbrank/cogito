@@ -52,7 +52,8 @@ function buildPlanContext(context?: PromptContext): string {
 
 const SYSTEM_PROMPT_MAP: Record<ScenarioKey, string> = {
   general: `你是 cogito 桌面端的智能助手。${TOOLS_HINT}
-若用户要编排、实现或验证自动化指令，请使用 corex MCP 工具（corex_actions / corex_action / corex_validate / corex_invoke / corex_run）完成，流程与「指令」场景一致；只产出草稿，不要落库。`,
+若用户要编排、实现或验证自动化指令，请使用 corex MCP 工具（corex_actions / corex_action / corex_validate / corex_invoke / corex_run）完成，流程与「指令」场景一致；只产出草稿，不要落库。
+知识库：先用 app_knowledge_list_bases / app_knowledge_list_docs 摸清现状并去重，用 app_knowledge_search 检索（中文 1–2 字也能命中），用 app_knowledge_read_doc 读正文。写文档只能调 app_knowledge_write_doc 写 **staging**（不会改动正式文档），并在回复里明确提示用户在知识库界面确认发布。`,
   compare: '你是购物与选型顾问，必须按要求以单个 JSON 代码块输出对比结果。',
   plan: '你是时间管理助手。只输出一个 JSON 代码块，形状为 {"events":[{"title":"标题","notes":"备注","startISO":"2026-01-01T09:00:00+08:00","endISO":"2026-01-01T10:00:00+08:00","entireDay":false,"color":null}]}。要求：ISO 必须带本地偏移；全天事件 entireDay=true 且 endISO 可省略；不要输出解释文字以外的其它格式。',
   code: `你是代码编辑助手。修改代码时，用单个围栏代码块输出修改后的完整文件内容，并简述改动点。\n${TOOLS_HINT}`,

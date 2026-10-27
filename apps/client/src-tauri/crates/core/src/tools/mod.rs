@@ -6,6 +6,7 @@
 //! 边界：这里**只读**；写工具（Phase 5 的 knowledge staging）同样在此注册，
 //! 并且必须由 app 侧执行，保持「app 是数据库唯一写者」。
 pub mod calendar;
+pub mod knowledge;
 pub mod workspace;
 
 use sea_orm::DatabaseConnection;
@@ -45,6 +46,7 @@ fn describe(name: &str, description: &str, effect: Effect, input_schema: Value) 
 pub fn catalog() -> Vec<ToolSpec> {
     let mut tools = vec![calendar::spec()];
     tools.extend(workspace::specs());
+    tools.extend(knowledge::specs());
     tools
 }
 
@@ -55,6 +57,9 @@ pub async fn call(db: &DatabaseConnection, name: &str, arguments: &Value) -> Res
     }
     if workspace::owns(name) {
         return workspace::call(db, name, arguments).await;
+    }
+    if knowledge::owns(name) {
+        return knowledge::call(db, name, arguments).await;
     }
     Err(format!("未知工具：{name}"))
 }
@@ -70,8 +75,18 @@ mod tests {
         assert!(names.contains(&calendar::NAME));
         assert!(names.contains(&workspace::LIST));
         assert!(names.contains(&workspace::READ));
+        assert!(names.contains(&knowledge::LIST_BASES));
+        assert!(names.contains(&knowledge::LIST_DOCS));
+        assert!(names.contains(&knowledge::READ_DOC));
+        assert!(names.contains(&knowledge::SEARCH));
+        assert!(names.contains(&knowledge::WRITE_DOC));
         for tool in &tools {
-            assert_eq!(tool.effect, Effect::Read, "{} 应为只读", tool.name);
+            // 除了 staging 写入，目录里都应该是只读；写的那个必须自己声明 Write
+            if tool.name == knowledge::WRITE_DOC {
+                assert_eq!(tool.effect, Effect::Write, "{} 应为写", tool.name);
+            } else {
+                assert_eq!(tool.effect, Effect::Read, "{} 应为只读", tool.name);
+            }
             assert_eq!(
                 tool.input_schema.get("type").and_then(Value::as_str),
                 Some("object"),
