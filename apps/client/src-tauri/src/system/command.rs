@@ -47,11 +47,11 @@ pub fn greet(name: &str) -> String {
 
 #[tauri::command(rename = "system:os")]
 pub fn os() -> Result<OsContext, String> {
-    let resp = ipc::invoke("scan", json!({ "Os": {} }))?;
+    let resp = ipc::invoke_with("scan", Some("os"), json!({}))?;
     if !resp.ok {
-        return Err(resp.error.unwrap_or_else(|| "scan Os 失败".to_string()));
+        return Err(resp.error.unwrap_or_else(|| "scan.os 失败".to_string()));
     }
-    let data = resp.data.ok_or_else(|| "scan 未返回 data".to_string())?;
+    let data = resp.data.ok_or_else(|| "scan.os 未返回 data".to_string())?;
     serde_json::from_value(data).map_err(|e| format!("解析 OsContext 失败: {e}"))
 }
 
