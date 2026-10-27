@@ -73,6 +73,12 @@ const StagedDocSchema = z.object({
   slug: z.string()
 })
 
+/** 有云端索引的文档：docID ↔ 云端 assetID（两路召回靠它对回去重） */
+const CloudDocSchema = z.object({
+  docId: z.string(),
+  assetId: z.string()
+})
+
 const PublishModeSchema = z.enum(['replace', 'keepboth'])
 
 /** 文档引用：打开时取一次，保存时把 `hash` 带回去做冲突判定 */
@@ -105,6 +111,7 @@ type KnowledgeDocRef = z.infer<typeof KnowledgeDocRefSchema>
 type KnowledgeDocSummary = z.infer<typeof KnowledgeDocSummarySchema>
 type KnowledgeHit = z.infer<typeof KnowledgeHitSchema>
 type StagedFile = z.infer<typeof StagedFileSchema>
+type CloudDoc = z.infer<typeof CloudDocSchema>
 type StagedDoc = z.infer<typeof StagedDocSchema>
 type PublishedDoc = z.infer<typeof PublishedDocSchema>
 type PublishMode = z.infer<typeof PublishModeSchema>
@@ -118,6 +125,7 @@ export {
   PublishModeSchema,
   PublishedDocSchema,
   SearchInputSchema,
+  CloudDocSchema,
   StagedDocSchema,
   StagedFileSchema,
   WriteDocOutcomeSchema
@@ -129,6 +137,7 @@ export type {
   KnowledgeHit,
   PublishedDoc,
   PublishMode,
+  CloudDoc,
   StagedDoc,
   StagedFile,
   WriteDocOutcome

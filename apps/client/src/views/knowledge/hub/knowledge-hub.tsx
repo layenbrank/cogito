@@ -138,6 +138,12 @@ function KnowledgeHub(props: KnowledgeHubProps) {
   const hits = useKnowledgeBaseStore(function (state) {
     return state.hits
   })
+  const cloudState = useKnowledgeBaseStore(function (state) {
+    return state.cloudState
+  })
+  const counts = useKnowledgeBaseStore(function (state) {
+    return state.counts
+  })
   const staging = useKnowledgeBaseStore(function (state) {
     return state.staging
   })
@@ -401,6 +407,8 @@ function KnowledgeHub(props: KnowledgeHubProps) {
             <ul className="mb-3 flex flex-col gap-1">
               <li className="px-1 text-xs font-medium text-muted-foreground">
                 检索命中 {hits.length} 条
+                {counts.cloud > 0 ? `（本地 ${counts.local} · 云端 ${counts.cloud}）` : ''}
+                {cloudState === 'unavailable' ? ' · 云端暂不可用，仅本地结果' : ''}
                 {hits[0]?.mode === 'like' ? '（短词，按更新时间）' : ''}
               </li>
               {hits.map(function (hit) {

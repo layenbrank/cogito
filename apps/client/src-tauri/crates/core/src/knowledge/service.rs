@@ -34,6 +34,8 @@ const DEFAULT_NAME: &str = "默认知识库";
 const STAGING_DIR: &str = ".staging";
 /// 认作文档的扩展名。
 const DOC_EXTENSIONS: [&str; 2] = ["md", "markdown"];
+/// `knowledge_index_state.cloudStatus` 里「云端索引可用」的那个值。
+const CLOUD_SUCCEEDED: &str = "succeeded";
 
 /// 发布冲突策略。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -109,6 +111,16 @@ pub struct WriteDocOutcome {
     /// 冲突时给出库内当前 hash / revision，便于界面提示后重试
     pub hash: Option<String>,
     pub revision: Option<i64>,
+}
+
+/// 一篇文档的云端索引坐标（本地 docID ↔ 云端 assetID）。
+///
+/// 云端检索按资产 id 命中，本地按 docID 命中；两路要对齐才能去重，这里就是那张对照表。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CloudDoc {
+    pub doc_id: String,
+    pub asset_id: String,
 }
 
 pub struct Service;
@@ -265,6 +277,31 @@ impl Service {
         }
         Ok(query.all(db).await?)
     }
+
+    /// 已建好云端索引的文档（`cloudStatus=succeeded` 且有 assetID）。
+    ///
+    /// 只给**可用**的那些：在途、失败、「模型换了」的文档进不去云端召回，
+    /// 把它们混进来只会让 `assetIDs` 变长而召回不变。
+    pub async fn toListCloudDocs(
+        db: &DatabaseConnection,
+        base_id: Option<&str>,
+    ) -> Result<Vec<CloudDoc>, Exception> {
+        let mut query = index_schema::Entity::find()
+            .filter(index_schema::Column::CloudStatus.eq(CLOUD_SUCCEEDED))
+            .filter(index_schema::Column::CloudAssetId.is_not_null());
+        if let Some(base_id) = base_id {
+            query = query.filter(index_schema::Column::BaseId.eq(base_id));
+        }
+        let rows = query.all(db).await?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|row| {
+                row.cloudAssetID.map(|asset_id| CloudDoc {
+                    doc_id: row.docID,
+                    asset_id,
+                })
+            })
+            .collect())    }
 
     pub async fn toReadDoc(
         db: &DatabaseConnection,
@@ -1003,6 +1040,45 @@ mod tests {
             .find(|item| item.id == base.id)
             .expect("应还在列表里");
         assert!(row.autoUpdate && row.autoExport && row.citation);
+    }
+
+    /// 云端召回只认「已建好索引」的文档：在途与失败的文档混进来只会让 assetIDs 变长。
+    #[tokio::test]
+    async fn cloud_docs_lists_only_succeeded_assets() {
+        let conn = fresh_db().await;
+        let db = conn.as_ref();
+        let root = temp_root("cloud-docs");
+        let base = Service::toEnsureDefaultBase(db, &root).await.expect("默认库");
+        let now = Utc::now().timestamp_millis();
+        for (doc_id, status, asset) in [
+            ("doc-ok", "succeeded", Some("asset-ok")),
+            ("doc-running", "running", Some("asset-running")),
+            ("doc-failed", "failed", None),
+        ] {
+            index_schema::Entity::insert(index_schema::ActiveModel {
+                docID: Set(doc_id.to_string()),
+                baseID: Set(base.id.clone()),
+                tenantID: Set(None),
+                localIndexedAt: Set(Some(now)),
+                cloudStatus: Set(status.to_string()),
+                cloudAssetID: Set(asset.map(str::to_string)),
+                cloudAssetHash: Set(None),
+                cloudModel: Set(None),
+                cloudDimensions: Set(None),
+                cloudIndexedAt: Set(None),
+                lastError: Set(None),
+                createdAt: Set(now),
+                updatedAt: Set(now),
+            })
+            .exec(db)
+            .await
+            .expect("写索引状态");
+        }
+
+        let docs = Service::toListCloudDocs(db, Some(&base.id)).await.expect("列表");
+        assert_eq!(docs.len(), 1, "只有 succeeded 且有 assetID 的文档算");
+        assert_eq!(docs[0].doc_id, "doc-ok");
+        assert_eq!(docs[0].asset_id, "asset-ok");
     }
 
     #[tokio::test]

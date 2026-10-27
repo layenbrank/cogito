@@ -8,6 +8,7 @@ import { invoke } from '@tauri-apps/api/core'
 
 import { CHANNELS } from '@/shared/ipc/channels'
 import {
+  CloudDocSchema,
   KnowledgeBaseSchema,
   KnowledgeDocRefSchema,
   KnowledgeDocSummarySchema,
@@ -16,6 +17,7 @@ import {
   StagedDocSchema,
   StagedFileSchema,
   WriteDocOutcomeSchema,
+  type CloudDoc,
   type KnowledgeBase,
   type KnowledgeDocRef,
   type KnowledgeDocSummary,
@@ -70,6 +72,16 @@ async function listDocs(baseId?: string): Promise<KnowledgeDocSummary[]> {
     return KnowledgeDocSummarySchema.array().parse(raw ?? [])
   } catch (error) {
     throw asError(error, '读取文档列表失败')
+  }
+}
+
+/** 已建好云端索引的文档（docID ↔ assetID）；没有就返回空数组，调用方据此跳过云那一路 */
+async function listCloudDocs(baseId?: string): Promise<CloudDoc[]> {
+  try {
+    const raw = await invoke(CHANNELS.KNOWLEDGE.CLOUD_DOCS, { baseId })
+    return CloudDocSchema.array().parse(raw ?? [])
+  } catch (error) {
+    throw asError(error, '读取云端索引状态失败')
   }
 }
 
@@ -181,6 +193,7 @@ export {
   createBase,
   discardStaged,
   listBases,
+  listCloudDocs,
   listDocs,
   listStaging,
   mergeStaging,

@@ -42,6 +42,7 @@ export const CHANNELS = {
     CREATE_BASE: 'knowledge:createBase',
     UPDATE_BASE: 'knowledge:updateBase',
     LIST_DOCS: 'knowledge:listDocs',
+    CLOUD_DOCS: 'knowledge:cloudDocs',
     SEARCH: 'knowledge:search',
     LIST_STAGING: 'knowledge:listStaging',
     PUBLISH: 'knowledge:publish',

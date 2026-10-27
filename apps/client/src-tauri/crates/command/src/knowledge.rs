@@ -3,7 +3,7 @@
 //! 语义都在 `cogito_core::knowledge::Service`；这里只做参数整形与错误透传。
 use cogito_core::CommandResult;
 use cogito_core::knowledge::{
-    DocRef, DocSummary, Hit, PublishMode, Service, StagedDoc, StagedFile, WriteDocOutcome,
+    CloudDoc, DocRef, DocSummary, Hit, PublishMode, Service, StagedDoc, StagedFile, WriteDocOutcome,
 };
 use cogito_database::Storage;
 use cogito_database::entity::knowledge_base::Model as BaseModel;
@@ -49,6 +49,15 @@ pub async fn knowledge_list_docs(
     baseId: Option<String>,
 ) -> CommandResult<Vec<DocSummary>> {
     Service::toListDocSummaries(state.connection(), baseId.as_deref()).await
+}
+
+/// 已建好云端索引的文档（docID ↔ 云端 assetID）：云端召回要用它对回去重。
+#[tauri::command(rename = "knowledge:cloudDocs")]
+pub async fn knowledge_cloud_docs(
+    state: State<'_, Storage>,
+    baseId: Option<String>,
+) -> CommandResult<Vec<CloudDoc>> {
+    Service::toListCloudDocs(state.connection(), baseId.as_deref()).await
 }
 
 #[tauri::command(rename = "knowledge:search")]

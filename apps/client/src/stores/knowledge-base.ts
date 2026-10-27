@@ -16,25 +16,31 @@ import {
   mergeStaging,
   publishDoc,
   rescanBase,
-  searchDocs,
   updateBase,
   type BasePatch,
   type KnowledgeBase,
   type KnowledgeDocSummary,
-  type KnowledgeHit,
   type StagedFile
 } from '@/lib/knowledge-ipc'
 import type { PublishMode } from '@/shared/ipc/specs/knowledge'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { reportCaught } from '@/utils/exception-report'
 import { exportDocHtml } from '@/views/knowledge/lib/export.ts'
+import {
+  searchHybrid,
+  type CloudState,
+  type HybridHit
+} from '@/views/knowledge/lib/hybrid-search.ts'
 import { findFileName } from '@/views/knowledge/lib/path.ts'
 
 interface KnowledgeBaseState {
   bases: KnowledgeBase[]
   activeBaseID: string | null
   docs: KnowledgeDocSummary[]
-  hits: KnowledgeHit[]
+  hits: HybridHit[]
+  /** 上一次检索里云端通道的状态：`off` = 没有文档建过云端索引 */
+  cloudState: CloudState
+  counts: { local: number; cloud: number }
   staging: StagedFile[]
   query: string
   isLoading: boolean
@@ -125,6 +131,8 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
     activeBaseID: null,
     docs: [],
     hits: [],
+    cloudState: 'off',
+    counts: { local: 0, cloud: 0 },
     staging: [],
     query: '',
     isLoading: false,
@@ -169,12 +177,17 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
     async runSearch() {
       const query = getter().query.trim()
       if (!query) {
-        setter({ hits: [] })
+        setter({ hits: [], cloudState: 'off', counts: { local: 0, cloud: 0 } })
         return
       }
       try {
-        const hits = await searchDocs(query, getter().activeBaseID ?? undefined)
-        setter({ hits, error: null })
+        const result = await searchHybrid(query, { baseId: getter().activeBaseID ?? undefined })
+        setter({
+          hits: result.hits,
+          cloudState: result.cloud,
+          counts: result.counts,
+          error: null
+        })
       } catch (error) {
         reportCaught('knowledgeBase.runSearch', error, 'warning')
         setter({ error: toMessage(error) })
@@ -182,7 +195,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
     },
 
     clearSearch() {
-      setter({ query: '', hits: [] })
+      setter({ query: '', hits: [], cloudState: 'off', counts: { local: 0, cloud: 0 } })
     },
 
     async create(name) {

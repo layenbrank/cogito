@@ -7,5 +7,5 @@ mod text;
 
 pub use search::Hit;
 pub use service::{
-    DocRef, DocSummary, PublishMode, Service, StagedDoc, StagedFile, WriteDocOutcome,
+    CloudDoc, DocRef, DocSummary, PublishMode, Service, StagedDoc, StagedFile, WriteDocOutcome,
 };
