@@ -57,20 +57,22 @@ impl Service {
             return Err(Exception::NotFound(format!("草稿不存在: {id}")));
         }
 
-        let model = schema::ActiveModel {
-            id: sea_orm::ActiveValue::Set(Uuid::new_v4().to_string()),
-            threadID: sea_orm::ActiveValue::Set(input.threadID),
-            workspaceID: sea_orm::ActiveValue::Set(input.workspaceID),
-            name: sea_orm::ActiveValue::Set(input.name),
-            definition: sea_orm::ActiveValue::Set(input.definition),
-            status: sea_orm::ActiveValue::Set("pending".to_owned()),
-            error: sea_orm::ActiveValue::Set(None),
-            createdAt: sea_orm::ActiveValue::Set(now),
-            updatedAt: sea_orm::ActiveValue::Set(now),
+        let model = schema::Model {
+            id: Uuid::new_v4().to_string(),
+            threadID: input.threadID,
+            workspaceID: input.workspaceID,
+            name: input.name,
+            definition: input.definition,
+            status: "pending".to_owned(),
+            error: None,
+            createdAt: now,
+            updatedAt: now,
         };
-        Ok(schema::Entity::insert(model)
-            .exec_with_returning(db)
-            .await?)
+        // TEXT 主键 + SQLite 下 `insert()` 会再发一次 SELECT，故用 exec 后直接返回 Model
+        schema::Entity::insert(schema::ActiveModel::from(model.clone()))
+            .exec(db)
+            .await?;
+        Ok(model)
     }
 
     /// 待确认草稿（新的在前）；`status` 为空时只取 pending
