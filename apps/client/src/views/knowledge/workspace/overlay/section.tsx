@@ -243,6 +243,7 @@ function FormatToolbar(props: { composer: Editor | null }) {
           const editor = props.composer
           if (!editor) return
           const { from, to } = editor.state.selection
+          // 右栏 tabs 接到 dock 开合；有选区则预选「改写选区」
           useDockStore.getState().toOpen(from === to ? undefined : 'rewrite')
         }}>
         <Icon

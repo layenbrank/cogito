@@ -146,7 +146,7 @@ function DockActionBar({ scope }: { scope: DockScope }) {
   )
 }
 
-function AgentDock(props: { className?: string }) {
+function AgentDock(props: { className?: string; /** 嵌在右栏 tabs 内：占满父级，开合由父级管 */ embedded?: boolean }) {
   const scope = useDockStore(function (state) {
     return state.scope
   })
@@ -165,12 +165,19 @@ function AgentDock(props: { className?: string }) {
 
   if (!scope) return null
 
+  const isEmbedded = props.embedded === true
+  const showsChrome = isEmbedded || isOpen
+
   return (
     <aside
-      aria-hidden={!isOpen}
+      aria-hidden={!showsChrome}
       className={clsx(
         'flex h-full min-h-0 flex-col border-border bg-background',
-        isOpen ? 'w-80 border-l' : 'pointer-events-none w-0 overflow-hidden opacity-0',
+        isEmbedded
+          ? 'w-full'
+          : isOpen
+            ? 'w-80 border-l'
+            : 'pointer-events-none w-0 overflow-hidden opacity-0',
         props.className
       )}>
       <header className="flex items-center gap-1 border-b border-border px-2 py-1.5">
@@ -190,17 +197,19 @@ function AgentDock(props: { className?: string }) {
             className="size-3.5"
           />
         </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          title="收起"
-          onClick={toClose}>
-          <Icon
-            icon="lucide:panel-right-close"
-            className="size-3.5"
-          />
-        </Button>
+        {isEmbedded ? null : (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            title="收起"
+            onClick={toClose}>
+            <Icon
+              icon="lucide:panel-right-close"
+              className="size-3.5"
+            />
+          </Button>
+        )}
       </header>
       <div
         className="flex min-h-0 flex-1 flex-col"

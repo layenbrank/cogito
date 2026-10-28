@@ -421,11 +421,8 @@ function useKnowledgeFileActions(input: {
   }
 }
 
-/** 主工作区：侧栏 / 编辑区 / 大纲三栏，按视图模式切换源码 / 实时 / 分屏 */
+/** 中栏编辑区：源码 / 实时 / 内部分屏；左右 chrome 在窗壳三列里 */
 function WorkspaceSurfaces(props: {
-  isShellVisible: boolean
-  isSidebarOpen: boolean
-  isOutlineOpen: boolean
   isFindOpen: boolean
   isFocusMode: boolean
   isDocLoading: boolean
@@ -435,7 +432,6 @@ function WorkspaceSurfaces(props: {
   markdown: string
   fontSize: number
   isDark: boolean
-  onOpenPath: (path: string) => void
   onSourceChange: (value: string) => void
 }) {
   const liveScrollRef = useRef<HTMLDivElement | null>(null)
@@ -456,109 +452,67 @@ function WorkspaceSurfaces(props: {
     if (max > 0) host.scrollTop = max * ratio
   }
 
-  function onOutlineJump(pos: number) {
-    if (props.viewMode === 'source') {
-      // approximate: scroll monaco via ratio later
-      return
-    }
-    if (!props.composer) return
-    props.composer.chain().focus().setTextSelection(pos).run()
-    const dom = props.composer.view.domAtPos(pos)
-    const element = (dom.node as HTMLElement).parentElement
-    element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }
-
   return (
-    <ResizablePanelGroup
-      orientation="horizontal"
-      className="min-h-0 flex-1">
-        {props.isShellVisible && props.isSidebarOpen ? (
-        <>
-          <ResizablePanel
-            defaultSize="16%"
-            minSize="12%"
-            maxSize="30%"
-            className="min-h-0 min-w-0 overflow-hidden">
-            <Overlay.Navigation onOpenPath={props.onOpenPath} />
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-        </>
+    <div className="relative min-h-0 flex-1 overflow-hidden bg-background/92">
+      {props.isFindOpen ? (
+        <FindBar
+          editor={props.composer}
+          preferReplace={props.findPreferReplace}
+          clearToolbar={props.viewMode === 'live' && !props.isFocusMode}
+        />
+      ) : null}
+      {props.isDocLoading ? (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/60">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+        </div>
+      ) : null}
+      {props.viewMode === 'source' ? (
+        <SourceEditor
+          value={props.markdown}
+          fontSize={props.fontSize}
+          isDark={props.isDark}
+          onChange={props.onSourceChange}
+          onScrollRatio={onSourceScroll}
+          scrollRatio={scrollRatio}
+        />
       ) : null}
 
-      <ResizablePanel className="relative min-h-0 min-w-0 overflow-hidden bg-background/92">
-        {props.isFindOpen ? (
-          <FindBar
-            editor={props.composer}
-            preferReplace={props.findPreferReplace}
-            clearToolbar={props.viewMode === 'live' && !props.isFocusMode}
-          />
-        ) : null}
-        {props.isDocLoading ? (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/60">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-          </div>
-        ) : null}
-        {props.viewMode === 'source' ? (
-          <SourceEditor
-            value={props.markdown}
-            fontSize={props.fontSize}
-            isDark={props.isDark}
-            onChange={props.onSourceChange}
-            onScrollRatio={onSourceScroll}
-            scrollRatio={scrollRatio}
-          />
-        ) : null}
-
-        {props.viewMode === 'live' ? (
-          <Overlay.Section
-            composer={props.composer}
-            scrollHostRef={liveScrollRef}
-            onScrollRatio={onLiveScroll}
-          />
-        ) : null}
-
-        {props.viewMode === 'split' ? (
-          <ResizablePanelGroup
-            orientation="horizontal"
-            className="h-full min-h-0">
-            <ResizablePanel
-              defaultSize="50%"
-              className="min-h-0 min-w-0 overflow-hidden">
-              <SourceEditor
-                value={props.markdown}
-                fontSize={props.fontSize}
-                isDark={props.isDark}
-                onChange={props.onSourceChange}
-                onScrollRatio={onSourceScroll}
-                scrollRatio={scrollRatio}
-              />
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel className="min-h-0 min-w-0 overflow-hidden">
-              <Overlay.Section
-                composer={props.composer}
-                isToolbarHidden
-                scrollHostRef={liveScrollRef}
-                onScrollRatio={onLiveScroll}
-              />
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        ) : null}
-      </ResizablePanel>
-
-        {props.isShellVisible && props.isOutlineOpen ? (
-        <>
-          <ResizableHandle withHandle />
-          <ResizablePanel
-            defaultSize="14%"
-            minSize="10%"
-            maxSize="28%"
-            className="min-h-0 min-w-0 overflow-hidden">
-            <Overlay.Outline onJump={onOutlineJump} />
-          </ResizablePanel>
-        </>
+      {props.viewMode === 'live' ? (
+        <Overlay.Section
+          composer={props.composer}
+          scrollHostRef={liveScrollRef}
+          onScrollRatio={onLiveScroll}
+        />
       ) : null}
-    </ResizablePanelGroup>
+
+      {props.viewMode === 'split' ? (
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="h-full min-h-0">
+          <ResizablePanel
+            defaultSize="50%"
+            className="min-h-0 min-w-0 overflow-hidden">
+            <SourceEditor
+              value={props.markdown}
+              fontSize={props.fontSize}
+              isDark={props.isDark}
+              onChange={props.onSourceChange}
+              onScrollRatio={onSourceScroll}
+              scrollRatio={scrollRatio}
+            />
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel className="min-h-0 min-w-0 overflow-hidden">
+            <Overlay.Section
+              composer={props.composer}
+              isToolbarHidden
+              scrollHostRef={liveScrollRef}
+              onScrollRatio={onLiveScroll}
+            />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      ) : null}
+    </div>
   )
 }
 
@@ -594,12 +548,6 @@ export default function KnowledgeWorkspace() {
   })
   const rootDir = useKnowledgeStore(function (state) {
     return state.rootDir
-  })
-  const isSidebarOpen = useKnowledgeStore(function (state) {
-    return state.isSidebarOpen
-  })
-  const isOutlineOpen = useKnowledgeStore(function (state) {
-    return state.isOutlineOpen
   })
   const isFocusMode = useKnowledgeStore(function (state) {
     return state.isFocusMode
@@ -687,38 +635,6 @@ export default function KnowledgeWorkspace() {
     [isTypographyEnabled]
   )
 
-  // 编辑器 ↔ 对话坞的桥：坞按需读「当前文档/选区」，并把结果写回光标处/选区
-  useEffect(
-    function () {
-      if (!composer) {
-        setEditorBridge(null)
-        return
-      }
-      setEditorBridge({
-        findContext: function () {
-          const { from, to } = composer.state.selection
-          return {
-            path: useKnowledgeStore.getState().activePath,
-            content: composer.getText(),
-            selection: from === to ? '' : composer.state.doc.textBetween(from, to, '\n')
-          }
-        },
-        write: function (text) {
-          const { from, to } = composer.state.selection
-          if (from === to) {
-            composer.chain().focus().insertContent(text).run()
-            return
-          }
-          composer.chain().focus().insertContentAt({ from, to }, text).run()
-        }
-      })
-      return function () {
-        setEditorBridge(null)
-      }
-    },
-    [composer]
-  )
-
   useKnowledgeDocumentEffects({
     composer,
     composerRef,
@@ -759,6 +675,51 @@ export default function KnowledgeWorkspace() {
     toUpdateHtml: useKnowledgeStore.getState().toUpdateHtml,
     setDiscardOpen
   })
+
+  const openPathRef = useRef(handleOpenPath)
+  openPathRef.current = handleOpenPath
+
+  // 编辑器 ↔ 对话坞 / 左栏 / 大纲：读选区、写回、打开路径、跳转
+  useEffect(
+    function () {
+      if (!composer) {
+        setEditorBridge(null)
+        return
+      }
+      setEditorBridge({
+        findContext: function () {
+          const { from, to } = composer.state.selection
+          return {
+            path: useKnowledgeStore.getState().activePath,
+            content: composer.getText(),
+            selection: from === to ? '' : composer.state.doc.textBetween(from, to, '\n')
+          }
+        },
+        write: function (text) {
+          const { from, to } = composer.state.selection
+          if (from === to) {
+            composer.chain().focus().insertContent(text).run()
+            return
+          }
+          composer.chain().focus().insertContentAt({ from, to }, text).run()
+        },
+        openPath: function (path) {
+          openPathRef.current(path)
+        },
+        jumpToPos: function (pos) {
+          if (useKnowledgeStore.getState().viewMode === 'source') return
+          composer.chain().focus().setTextSelection(pos).run()
+          const dom = composer.view.domAtPos(pos)
+          const element = (dom.node as HTMLElement).parentElement
+          element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      })
+      return function () {
+        setEditorBridge(null)
+      }
+    },
+    [composer]
+  )
 
   // When leaving a mode, flush SoT
   const prevModeRef = useRef(viewMode)
@@ -820,9 +781,6 @@ export default function KnowledgeWorkspace() {
         />
       ) : (
         <WorkspaceSurfaces
-          isShellVisible={isShellVisible}
-          isSidebarOpen={isSidebarOpen}
-          isOutlineOpen={isOutlineOpen}
           isFindOpen={isFindOpen}
           isFocusMode={isFocusMode}
           isDocLoading={isDocLoading}
@@ -832,7 +790,6 @@ export default function KnowledgeWorkspace() {
           markdown={markdown}
           fontSize={fontSize}
           isDark={isDark}
-          onOpenPath={handleOpenPath}
           onSourceChange={onSourceChange}
         />
       )}

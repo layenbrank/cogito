@@ -7,16 +7,14 @@ interface OutlineProps {
   onJump(pos: number): void
 }
 
+/** 大纲列表（标题由右栏 tabs 提供，这里只渲染条目） */
 function Outline(props: OutlineProps) {
   const outline = useKnowledgeStore(function (state) {
     return state.outline
   })
 
   return (
-    <div className="flex h-full min-h-0 flex-col border-l border-border/50 bg-background/65 backdrop-blur-md">
-      <div className="flex h-8 shrink-0 items-center border-b border-border/50 px-2 text-xs font-medium text-muted-foreground">
-        {t('OUTLINE')}
-      </div>
+    <div className="flex h-full min-h-0 flex-col bg-background/65 backdrop-blur-md">
       <ul className="min-h-0 flex-1 list-none overflow-y-auto p-1 text-sm">
         {outline.length === 0 ? (
           <li className="px-2 py-3 text-xs text-muted-foreground">{t('NO_OUTLINE')}</li>
