@@ -29,6 +29,7 @@ import {
 import type { DomainFilter, Hit } from '@/features/command-bar/types'
 import {
   buildMatchUrl,
+  findDefaultNavigation,
   isUrlKeyword,
   parseKeywordUrl
 } from '@/features/command-bar/url'
@@ -82,6 +83,10 @@ function CommandOmnibar() {
       setHits(function (prior) {
         return mergeWebSuggestions(prior, suggestions)
       })
+      // 建议回来时：网址模式继续不预选，避免 Enter 误开建议而非地址
+      if (findDefaultNavigation(value) === OMNIBAR_UI.NONE) {
+        setNavigation(OMNIBAR_UI.NONE)
+      }
     }, OMNIBAR_UI.DEBOUNCE_MS)
 
     function suggest(value: string, chip: DomainFilter) {
@@ -121,7 +126,8 @@ function CommandOmnibar() {
     querySeq.current += 1
     const next = findSyncHits(value, chip)
     setHits(next)
-    setNavigation(next.length ? 0 : OMNIBAR_UI.NONE)
+    // 网址默认不预选结果：Enter 直接打开地址栏语义；普通查询预选首条
+    setNavigation(next.length ? findDefaultNavigation(value) : OMNIBAR_UI.NONE)
     suggestWeb.current?.(value, chip)
   }
 
@@ -130,7 +136,13 @@ function CommandOmnibar() {
     setKeyword(value)
     setSurfaceOpen(true)
     setRailOpen(false)
-    refreshHits(value, filterRef.current)
+    const parsed = parseQuery(value, filterRef.current)
+    // 前缀（web: / cal: …）与 chip 对齐，避免「chip 显示 Agent、结果却是 Web」
+    if (parsed.filter !== filterRef.current) {
+      filterRef.current = parsed.filter
+      setFilter(parsed.filter)
+    }
+    refreshHits(value, parsed.filter)
   }
 
   function changeFilter(next: DomainFilter) {
@@ -140,12 +152,22 @@ function CommandOmnibar() {
     refreshHits(keywordRef.current, next)
   }
 
+  function resetQuerySurface() {
+    keywordRef.current = ''
+    setKeyword('')
+    setHits([])
+    setNavigation(OMNIBAR_UI.NONE)
+    setSurfaceOpen(false)
+    setRailOpen(false)
+  }
+
   async function activateHit(hit: Hit) {
     try {
       await writeRecentHit(hit)
       await hit.run()
-      setSurfaceOpen(false)
-      setRailOpen(false)
+      resetQuerySurface()
+      setFocused(false)
+      inputRef.current?.blur()
     } catch (error) {
       reportCaught('command-bar.activateHit', error)
       toast.error('无法打开该项')
@@ -164,7 +186,9 @@ function CommandOmnibar() {
       } else {
         await openUrl(buildMatchUrl(engine.match, trimmed))
       }
-      setSurfaceOpen(false)
+      resetQuerySurface()
+      setFocused(false)
+      inputRef.current?.blur()
     } catch (error) {
       reportCaught('command-bar.submit', error)
       toast.error('无法打开链接')
@@ -186,6 +210,7 @@ function CommandOmnibar() {
         return
       }
       inputRef.current?.blur()
+      setFocused(false)
       return
     }
 
@@ -201,6 +226,7 @@ function CommandOmnibar() {
     if (event.key === 'ArrowUp' && isShellOpen && flat.length) {
       event.preventDefault()
       setNavigation(function (index) {
+        // NONE 或首条再上 → 跳到末条，便于从「不预选的网址」进入列表
         if (index <= 0) return flat.length - 1
         return index - 1
       })
@@ -235,8 +261,10 @@ function CommandOmnibar() {
           onExpand={setRailOpen}
           onChoose={function (key) {
             setEngineKey(key)
-            void writeEngineKey(key)
-            refreshHits(keywordRef.current, filterRef.current)
+            // 必须先写入偏好再刷新：即时 Web 行读的是 persist 里的 engineKey
+            void writeEngineKey(key).then(function () {
+              refreshHits(keywordRef.current, filterRef.current)
+            })
           }}
         />
         <Input
@@ -263,6 +291,10 @@ function CommandOmnibar() {
           size="icon"
           aria-label="搜索"
           className="size-8 shrink-0 rounded-full"
+          onMouseDown={function (event) {
+            // 避免按钮抢焦点导致 isShellOpen 在 click 前因失焦抖动；提交仍用当前高亮
+            event.preventDefault()
+          }}
           onClick={function () {
             void submit()
           }}>

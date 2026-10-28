@@ -1,13 +1,43 @@
 /**
  * 检索编排：同步本地命中 + 异步 Web 建议合并
  */
+import { openUrl } from '@tauri-apps/plugin-opener'
+
+import { findEngine } from '@/constants/engine'
 import { RECENT_ID_PREFIX } from '@/features/command-bar/constants'
 import { matchesFilter, parseQuery } from '@/features/command-bar/query'
 import { findInstantWebHits } from '@/features/command-bar/providers/web'
 import { searchLocalProviders } from '@/features/command-bar/registry'
 import { sortHits } from '@/features/command-bar/rank'
-import { readRecentHits } from '@/features/command-bar/store'
+import { readEngineKey, readRecentHits } from '@/features/command-bar/store'
 import type { DomainFilter, Hit } from '@/features/command-bar/types'
+import { buildMatchUrl } from '@/features/command-bar/url'
+
+/** 复活最近项：优先精确命中；Web 建议等无法复活时退回当前引擎搜索标题 */
+async function reviveRecentHit(item: {
+  domain: Hit['domain']
+  id: string
+  title: string
+}): Promise<void> {
+  const revivedLocal = searchLocalProviders(parseQuery(item.title, item.domain))
+  const revivedWeb = findInstantWebHits(item.title).filter(function (hit) {
+    return matchesFilter(hit.domain, item.domain)
+  })
+  const match =
+    [...revivedLocal, ...revivedWeb].find(function (hit) {
+      return hit.domain === item.domain && hit.id === item.id
+    }) ??
+    revivedLocal[0] ??
+    revivedWeb[0]
+  if (match) {
+    await match.run()
+    return
+  }
+  if (item.domain === 'web' && item.title.trim()) {
+    const engine = findEngine(readEngineKey())
+    await openUrl(buildMatchUrl(engine.match, item.title.trim()))
+  }
+}
 
 function findRecentHits(): Hit[] {
   return readRecentHits().map(function (item): Hit {
@@ -19,17 +49,7 @@ function findRecentHits(): Hit[] {
       score: 1.1,
       icon: item.icon,
       async run() {
-        const revivedLocal = searchLocalProviders(
-          parseQuery(item.title, item.domain)
-        )
-        const revivedWeb = findInstantWebHits(item.title).filter(function (hit) {
-          return matchesFilter(hit.domain, item.domain)
-        })
-        const match =
-          [...revivedLocal, ...revivedWeb].find(function (hit) {
-            return hit.domain === item.domain && hit.id === item.id
-          }) ?? revivedLocal[0]
-        if (match) await match.run()
+        await reviveRecentHit(item)
       }
     }
   })
@@ -85,5 +105,6 @@ export {
   findRecentHits,
   mergeWebSuggestions,
   isSuggestHit,
-  parseEntityId
+  parseEntityId,
+  reviveRecentHit
 }
