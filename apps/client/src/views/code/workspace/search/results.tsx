@@ -4,7 +4,7 @@
 import { Icon } from '@iconify/react/offline'
 import type { ContentHit } from '@/lib/workspace-files'
 import { cn } from 'cn'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { buildPattern } from '@/views/code/lib/search-query.ts'
 import type { SearchQuery } from '@/views/code/lib/search-query.ts'
@@ -31,7 +31,10 @@ function groupHits(hits: ContentHit[]): FileGroup[] {
 }
 
 /** 在预览行里切出命中片段，用强调色标出来 */
-function splitPreview(preview: string, query: SearchQuery): { before: string; hit: string; after: string } {
+function splitPreview(
+  preview: string,
+  query: SearchQuery
+): { before: string; hit: string; after: string } {
   const pattern = buildPattern(query)
   const matcher = new RegExp(pattern, query.isCaseSensitive ? '' : 'i')
   const found = matcher.exec(preview)
@@ -46,10 +49,18 @@ function splitPreview(preview: string, query: SearchQuery): { before: string; hi
 function FileGroupRow(props: {
   group: FileGroup
   query: SearchQuery
+  collapseToken: number
   onOpen: (hit: ContentHit) => void
 }) {
   const [isOpen, updateOpen] = useState(true)
   const name = props.group.relative.split('/').pop() ?? props.group.relative
+
+  useEffect(
+    function () {
+      if (props.collapseToken > 0) updateOpen(false)
+    },
+    [props.collapseToken]
+  )
 
   return (
     <li className="mb-0.5">
@@ -111,6 +122,7 @@ function SearchResults(props: {
   hits: ContentHit[]
   query: SearchQuery
   isTruncated: boolean
+  collapseToken?: number
   onOpen: (hit: ContentHit) => void
 }) {
   const groups = useMemo(
@@ -119,6 +131,7 @@ function SearchResults(props: {
     },
     [props.hits]
   )
+  const collapseToken = props.collapseToken ?? 0
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
@@ -134,6 +147,7 @@ function SearchResults(props: {
               key={group.relative}
               group={group}
               query={props.query}
+              collapseToken={collapseToken}
               onOpen={props.onOpen}
             />
           )

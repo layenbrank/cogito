@@ -18,6 +18,84 @@ interface ReplaceOutcome {
 }
 
 /**
+ * 按命中文本的大小写形态改写替换串（对齐 VS Code Preserve Case）。
+ *
+ * - 全大写 / 全小写 → 整体同态
+ * - 首字母大写其余小写 → Title 态
+ * - 其它 → 逐字符映射，多余字符沿用末位大小写
+ */
+function preserveCase(matched: string, replacement: string): string {
+  if (!matched || !replacement) return replacement
+  if (matched === matched.toUpperCase()) return replacement.toUpperCase()
+  if (matched === matched.toLowerCase()) return replacement.toLowerCase()
+
+  const isTitle =
+    matched[0] === matched[0]!.toUpperCase() &&
+    matched.slice(1) === matched.slice(1).toLowerCase()
+  if (isTitle) {
+    return replacement.charAt(0).toUpperCase() + replacement.slice(1).toLowerCase()
+  }
+
+  let out = ''
+  for (let index = 0; index < replacement.length; index += 1) {
+    const source = matched[Math.min(index, matched.length - 1)] ?? ''
+    const ch = replacement[index]!
+    out +=
+      source === source.toUpperCase() && source !== source.toLowerCase()
+        ? ch.toUpperCase()
+        : ch.toLowerCase()
+  }
+  return out
+}
+
+/** 展开 JS 替换模板：`$$` / `$&` / `$`` / `$'` / `$n` */
+function expandRegexReplacement(replacement: string, match: RegExpExecArray): string {
+  return replacement.replace(/\$\$|\$&|\$`|\$'|\$(\d+)/g, function (token, group) {
+    if (token === '$$') return '$'
+    if (token === '$&') return match[0]
+    if (token === '$`') return match.input.slice(0, match.index)
+    if (token === "$'") return match.input.slice(match.index + match[0].length)
+    const index = Number(group)
+    return match[index] ?? token
+  })
+}
+
+function replaceContent(
+  content: string,
+  matcher: RegExp,
+  query: SearchQuery,
+  replacement: string,
+  isPreserveCase: boolean
+): string {
+  if (!isPreserveCase && query.isRegex) {
+    return content.replace(matcher, replacement)
+  }
+  if (!isPreserveCase) {
+    return content.replace(matcher, function () {
+      return replacement
+    })
+  }
+
+  matcher.lastIndex = 0
+  let out = ''
+  let last = 0
+  let found: RegExpExecArray | null
+  while ((found = matcher.exec(content)) !== null) {
+    out += content.slice(last, found.index)
+    const expanded = query.isRegex
+      ? expandRegexReplacement(replacement, found)
+      : replacement
+    out += preserveCase(found[0], expanded)
+    last = found.index + found[0].length
+    if (found[0].length === 0) {
+      matcher.lastIndex += 1
+    }
+  }
+  out += content.slice(last)
+  return out
+}
+
+/**
  * 逐个文件替换并写盘。
  *
  * 已打开的模型同步为新内容并标记为已保存 —— 磁盘已经改过了，再留着「未保存」会误导。
@@ -26,22 +104,25 @@ async function replaceInFiles(params: {
   paths: string[]
   query: SearchQuery
   replacement: string
+  isPreserveCase?: boolean
 }): Promise<ReplaceOutcome> {
   const matcher = buildMatcher(params.query)
   if (!matcher) throw new Error('搜索内容不能为空')
 
+  const isPreserveCase = Boolean(params.isPreserveCase)
   const changed: ReplaceOutcome['changed'] = []
   const failed: ReplaceOutcome['failed'] = []
 
   for (const path of params.paths) {
     try {
       const content = await readCodeFile(path)
-      // 非正则模式下 `$1` 不该被当成捕获组引用
-      const next = params.query.isRegex
-        ? content.replace(matcher, params.replacement)
-        : content.replace(matcher, function () {
-            return params.replacement
-          })
+      const next = replaceContent(
+        content,
+        matcher,
+        params.query,
+        params.replacement,
+        isPreserveCase
+      )
       if (next === content) continue
       const count = content.match(matcher)?.length ?? 0
       await writeCodeFile(path, next)
@@ -63,5 +144,5 @@ async function replaceInFiles(params: {
   return { changed, failed }
 }
 
-export { replaceInFiles }
+export { replaceInFiles, preserveCase }
 export type { SearchQuery, ReplaceOutcome }

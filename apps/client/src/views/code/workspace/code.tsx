@@ -178,6 +178,7 @@ export default function Code() {
           debounceTimer = window.setTimeout(function () {
             if (disposed) return
             toBumpTree()
+            void useCodeGitStore.getState().toRefresh()
           }, 350)
         },
         { recursive: true, delayMs: 500 }
@@ -199,6 +200,14 @@ export default function Code() {
       }
     },
     [workspaceRoot, toBumpTree]
+  )
+
+  // 与资源管理器同一 workspaceRoot：打开/切换工作区即探测 Git（角标不依赖 SCM 面板挂载）
+  useEffect(
+    function () {
+      void useCodeGitStore.getState().toSync(workspaceRoot)
+    },
+    [workspaceRoot]
   )
 
   // 键位与命令的对应关系全在 `keyboard/definitions.ts`；没挂载这里时，

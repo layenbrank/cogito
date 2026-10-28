@@ -54,8 +54,19 @@ function Sidebar() {
 
   if (!isSidebarOpen) return null
 
-  const title =
-    sidebarView === 'explorer' ? '资源管理器' : sidebarView === 'search' ? '搜索' : '源代码管理'
+  // 搜索面板自带标题栏（刷新 / 清除 / 折叠），避免与通用 Header 叠两层
+  if (sidebarView === 'search') {
+    return (
+      <aside
+        className={cn(
+          'flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden border-r border-border/50 bg-background/65 backdrop-blur-md'
+        )}>
+        <SearchPanel />
+      </aside>
+    )
+  }
+
+  const title = sidebarView === 'explorer' ? '资源管理器' : '源代码管理'
 
   return (
     <aside
@@ -92,7 +103,6 @@ function Sidebar() {
       </SidebarHeader>
       <div className="min-h-0 flex-1 overflow-hidden">
         {sidebarView === 'explorer' ? <Navigation /> : null}
-        {sidebarView === 'search' ? <SearchPanel /> : null}
         {sidebarView === 'scm' ? <ScmPanel /> : null}
       </div>
     </aside>

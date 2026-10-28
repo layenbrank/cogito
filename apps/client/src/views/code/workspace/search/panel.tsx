@@ -1,7 +1,7 @@
 /**
- * 侧栏搜索面板：工作区内容检索 + 批量替换。
+ * 侧栏搜索面板：对齐 VS Code Search 视图的交互骨架。
  *
- * 检索走 Rust（能套 git 索引），替换走前端同一份正则，两者共用一套开关。
+ * 检索走 Rust（能套 git 索引 + include/exclude）；替换走前端同一份正则。
  */
 import { Icon } from '@iconify/react/offline'
 import {
@@ -14,11 +14,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@cogito/design/components/alert-dialog'
-import { Button } from '@cogito/design/components/button'
-import { Input } from '@cogito/design/components/input'
 import { WorkspaceFiles, type ContentHit } from '@/lib/workspace-files'
 import { cn } from 'cn'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import { useCodeStore } from '@/stores/code'
@@ -29,7 +27,6 @@ import { SearchResults, groupHits } from '@/views/code/workspace/search/results.
 
 const SEARCH_DELAY_MS = 300
 
-/** 三个开关共用一个按钮样式 */
 function ToggleButton(props: {
   icon: string
   label: string
@@ -43,7 +40,7 @@ function ToggleButton(props: {
       aria-pressed={props.isActive}
       title={props.label}
       className={cn(
-        'flex size-6 items-center justify-center rounded-sm border border-transparent',
+        'flex size-5 shrink-0 items-center justify-center rounded-sm border border-transparent',
         props.isActive
           ? 'bg-primary/15 text-primary border-primary/30'
           : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -57,6 +54,48 @@ function ToggleButton(props: {
   )
 }
 
+function HeaderAction(props: {
+  icon: string
+  label: string
+  isDisabled?: boolean
+  onClick(): void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={props.label}
+      title={props.label}
+      disabled={props.isDisabled}
+      className={cn(
+        'hover:bg-muted hover:text-foreground text-muted-foreground flex size-5 items-center justify-center rounded-sm',
+        props.isDisabled && 'pointer-events-none opacity-40'
+      )}
+      onClick={function () {
+        props.onClick()
+      }}>
+      <Icon
+        icon={props.icon}
+        className="size-3.5"
+      />
+    </button>
+  )
+}
+
+function FieldShell(props: {
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        'border-input bg-background focus-within:border-ring flex min-h-7 items-center gap-0.5 rounded-md border px-1',
+        props.className
+      )}>
+      {props.children}
+    </div>
+  )
+}
+
 function SearchPanel() {
   const workspaceRoot = useCodeStore(function (state) {
     return state.workspaceRoot
@@ -66,12 +105,17 @@ function SearchPanel() {
   const [isWholeWord, setWholeWord] = useState(false)
   const [isRegex, setRegex] = useState(false)
   const [isReplaceOpen, setReplaceOpen] = useState(false)
+  const [isDetailsOpen, setDetailsOpen] = useState(false)
   const [replacement, updateReplacement] = useState('')
+  const [isPreserveCase, setPreserveCase] = useState(false)
+  const [includes, updateIncludes] = useState('')
+  const [excludes, updateExcludes] = useState('')
   const [hits, updateHits] = useState<ContentHit[]>([])
   const [isTruncated, setTruncated] = useState(false)
   const [isSearching, setSearching] = useState(false)
   const [isConfirmOpen, setConfirmOpen] = useState(false)
   const [refreshToken, setRefreshToken] = useState(0)
+  const [collapseToken, setCollapseToken] = useState(0)
 
   const searchQuery: SearchQuery = useMemo(
     function () {
@@ -81,7 +125,6 @@ function SearchPanel() {
   )
   const isQueryValid = isValidQuery(searchQuery)
   const trimmed = query.trim()
-  // 输入被清空或表达式无效时不再展示旧结果，也不必在 effect 里清 state
   const isActive = Boolean(trimmed) && isQueryValid
   const groups = useMemo(
     function () {
@@ -101,7 +144,9 @@ function SearchPanel() {
           query: trimmed,
           isRegex,
           isCaseSensitive,
-          isWholeWord
+          isWholeWord,
+          includes,
+          excludes
         })
           .then(function (result) {
             if (cancelled) return
@@ -123,11 +168,40 @@ function SearchPanel() {
         window.clearTimeout(timer)
       }
     },
-    [workspaceRoot, trimmed, isRegex, isCaseSensitive, isWholeWord, isQueryValid, refreshToken]
+    [
+      workspaceRoot,
+      trimmed,
+      isRegex,
+      isCaseSensitive,
+      isWholeWord,
+      isQueryValid,
+      refreshToken,
+      includes,
+      excludes
+    ]
   )
 
   function onOpenHit(hit: ContentHit) {
     void revealLocation(hit.path, hit.line, hit.column)
+  }
+
+  function onClear() {
+    updateQuery('')
+    updateReplacement('')
+    updateHits([])
+    setTruncated(false)
+  }
+
+  function onRefresh() {
+    setRefreshToken(function (value) {
+      return value + 1
+    })
+  }
+
+  function onCollapseAll() {
+    setCollapseToken(function (value) {
+      return value + 1
+    })
   }
 
   async function onConfirmReplace() {
@@ -138,7 +212,8 @@ function SearchPanel() {
           return group.path
         }),
         query: searchQuery,
-        replacement
+        replacement,
+        isPreserveCase
       })
       const total = outcome.changed.reduce(function (sum, item) {
         return sum + item.count
@@ -151,129 +226,219 @@ function SearchPanel() {
         toast.message('没有可替换的内容')
       }
       useCodeStore.getState().toBumpTree()
-      setRefreshToken(function (value) {
-        return value + 1
-      })
+      onRefresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '替换失败')
     }
   }
 
   const totalMatches = isActive ? hits.length : 0
-  const canReplace = totalMatches > 0 && replacement.length > 0
+  const canReplace = totalMatches > 0
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-2 p-2">
-      <div className="flex items-center gap-1">
-        <Input
-          value={query}
-          placeholder={isRegex ? '输入正则表达式' : '输入要在文件中查找的内容'}
-          aria-label="在工作区中查找"
-          className={cn('h-8', !isQueryValid && 'border-destructive')}
-          onChange={function (event) {
-            updateQuery(event.target.value)
-          }}
-          onKeyDown={function (event) {
-            if (event.key === 'Enter') {
-              setRefreshToken(function (value) {
-                return value + 1
-              })
-            }
-          }}
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={isReplaceOpen ? '收起替换' : '展开替换'}
-          aria-pressed={isReplaceOpen}
-          title="替换"
-          className={cn('size-6 shrink-0', isReplaceOpen && 'bg-muted text-foreground')}
-          onClick={function () {
-            setReplaceOpen(!isReplaceOpen)
-          }}>
-          <Icon
-            icon="lucide:replace"
-            className="size-3.5"
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="border-border/60 text-muted-foreground flex h-7 shrink-0 items-center gap-2 px-3 text-xs font-semibold tracking-wider uppercase">
+        <span className="truncate">搜索</span>
+        <div className="ml-auto flex shrink-0 items-center gap-0.5">
+          <HeaderAction
+            icon="lucide:refresh-cw"
+            label="刷新"
+            isDisabled={!trimmed || !isQueryValid}
+            onClick={onRefresh}
           />
-        </Button>
-      </div>
-
-      <div className="flex items-center gap-1">
-        <ToggleButton
-          icon="lucide:case-sensitive"
-          label="区分大小写"
-          isActive={isCaseSensitive}
-          onClick={function () {
-            setCaseSensitive(!isCaseSensitive)
-          }}
-        />
-        <ToggleButton
-          icon="lucide:whole-word"
-          label="全字匹配"
-          isActive={isWholeWord}
-          onClick={function () {
-            setWholeWord(!isWholeWord)
-          }}
-        />
-        <ToggleButton
-          icon="lucide:regex"
-          label="使用正则表达式"
-          isActive={isRegex}
-          onClick={function () {
-            setRegex(!isRegex)
-          }}
-        />
-        <span className="text-muted-foreground ml-auto text-[11px]">
-          {isSearching
-            ? '搜索中…'
-            : trimmed && isQueryValid
-              ? `${groups.length} 个文件 ${totalMatches} 处`
-              : ''}
-        </span>
-      </div>
-
-      {!isQueryValid ? (
-        <p className="text-destructive px-1 text-[11px]">表达式无效</p>
-      ) : null}
-
-      {isReplaceOpen ? (
-        <div className="flex items-center gap-1">
-          <Input
-            value={replacement}
-            placeholder="替换为"
-            aria-label="替换为"
-            className="h-8"
-            onChange={function (event) {
-              updateReplacement(event.target.value)
-            }}
+          <HeaderAction
+            icon="lucide:list-x"
+            label="清除搜索结果"
+            isDisabled={!trimmed && hits.length === 0}
+            onClick={onClear}
           />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 shrink-0 text-xs"
-            disabled={!canReplace}
-            onClick={function () {
-              setConfirmOpen(true)
-            }}>
-            全部替换
-          </Button>
+          <HeaderAction
+            icon="lucide:fold-vertical"
+            label="折叠全部"
+            isDisabled={groups.length === 0}
+            onClick={onCollapseAll}
+          />
         </div>
-      ) : null}
+      </div>
 
-      {!workspaceRoot ? (
-        <p className="text-muted-foreground px-1 text-xs">尚未打开文件夹</p>
-      ) : trimmed && !isSearching && isQueryValid && hits.length === 0 ? (
-        <p className="text-muted-foreground px-1 text-xs">没有匹配内容</p>
-      ) : null}
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 p-2 pt-1">
+        <div className="flex items-start gap-0.5">
+          <button
+            type="button"
+            aria-label={isReplaceOpen ? '收起替换' : '展开替换'}
+            aria-pressed={isReplaceOpen}
+            title="切换替换"
+            className="text-muted-foreground hover:text-foreground mt-1 flex size-5 shrink-0 items-center justify-center"
+            onClick={function () {
+              setReplaceOpen(!isReplaceOpen)
+            }}>
+            <Icon
+              icon={isReplaceOpen ? 'lucide:chevron-down' : 'lucide:chevron-right'}
+              className="size-3.5"
+            />
+          </button>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <FieldShell className={!isQueryValid ? 'border-destructive' : undefined}>
+              <input
+                value={query}
+                placeholder="搜索"
+                aria-label="在工作区中查找"
+                className="text-foreground placeholder:text-muted-foreground h-6 min-w-0 flex-1 bg-transparent px-1 text-xs outline-none"
+                onChange={function (event) {
+                  updateQuery(event.target.value)
+                }}
+                onKeyDown={function (event) {
+                  if (event.key === 'Enter') onRefresh()
+                }}
+              />
+              <ToggleButton
+                icon="lucide:case-sensitive"
+                label="区分大小写"
+                isActive={isCaseSensitive}
+                onClick={function () {
+                  setCaseSensitive(!isCaseSensitive)
+                }}
+              />
+              <ToggleButton
+                icon="lucide:whole-word"
+                label="全字匹配"
+                isActive={isWholeWord}
+                onClick={function () {
+                  setWholeWord(!isWholeWord)
+                }}
+              />
+              <ToggleButton
+                icon="lucide:regex"
+                label="使用正则表达式"
+                isActive={isRegex}
+                onClick={function () {
+                  setRegex(!isRegex)
+                }}
+              />
+            </FieldShell>
 
-      <SearchResults
-        hits={isActive ? hits : []}
-        query={searchQuery}
-        isTruncated={isActive && isTruncated}
-        onOpen={onOpenHit}
-      />
+            {isReplaceOpen ? (
+              <FieldShell>
+                <input
+                  value={replacement}
+                  placeholder="替换"
+                  aria-label="替换为"
+                  className="text-foreground placeholder:text-muted-foreground h-6 min-w-0 flex-1 bg-transparent px-1 text-xs outline-none"
+                  onChange={function (event) {
+                    updateReplacement(event.target.value)
+                  }}
+                />
+                <ToggleButton
+                  icon="lucide:case-upper"
+                  label="保留大小写"
+                  isActive={isPreserveCase}
+                  onClick={function () {
+                    setPreserveCase(!isPreserveCase)
+                  }}
+                />
+                <button
+                  type="button"
+                  aria-label="全部替换"
+                  title="全部替换"
+                  disabled={!canReplace}
+                  className={cn(
+                    'flex size-5 shrink-0 items-center justify-center rounded-sm',
+                    canReplace
+                      ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      : 'text-muted-foreground/40 pointer-events-none'
+                  )}
+                  onClick={function () {
+                    setConfirmOpen(true)
+                  }}>
+                  <Icon
+                    icon="lucide:replace-all"
+                    className="size-3.5"
+                  />
+                </button>
+              </FieldShell>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end px-0.5">
+          <button
+            type="button"
+            aria-label={isDetailsOpen ? '收起文件筛选' : '展开文件筛选'}
+            aria-pressed={isDetailsOpen}
+            title="切换搜索详细信息"
+            className={cn(
+              'text-muted-foreground hover:bg-muted hover:text-foreground flex size-5 items-center justify-center rounded-sm',
+              isDetailsOpen && 'bg-muted text-foreground'
+            )}
+            onClick={function () {
+              setDetailsOpen(!isDetailsOpen)
+            }}>
+            <Icon
+              icon="lucide:ellipsis"
+              className="size-3.5"
+            />
+          </button>
+        </div>
+
+        {isDetailsOpen ? (
+          <div className="flex flex-col gap-1.5 pl-[22px]">
+            <label className="flex flex-col gap-0.5">
+              <span className="text-muted-foreground text-[11px]">包含的文件</span>
+              <FieldShell>
+                <input
+                  value={includes}
+                  placeholder="例如 *.ts, src"
+                  aria-label="包含的文件"
+                  className="text-foreground placeholder:text-muted-foreground h-6 min-w-0 flex-1 bg-transparent px-1 text-xs outline-none"
+                  onChange={function (event) {
+                    updateIncludes(event.target.value)
+                  }}
+                />
+              </FieldShell>
+            </label>
+            <label className="flex flex-col gap-0.5">
+              <span className="text-muted-foreground text-[11px]">排除的文件</span>
+              <FieldShell>
+                <input
+                  value={excludes}
+                  placeholder="例如 dist, **/*.min.js"
+                  aria-label="排除的文件"
+                  className="text-foreground placeholder:text-muted-foreground h-6 min-w-0 flex-1 bg-transparent px-1 text-xs outline-none"
+                  onChange={function (event) {
+                    updateExcludes(event.target.value)
+                  }}
+                />
+              </FieldShell>
+            </label>
+          </div>
+        ) : null}
+
+        {!isQueryValid ? (
+          <p className="text-destructive px-1 text-[11px]">表达式无效</p>
+        ) : (
+          <p className="text-muted-foreground px-1 text-[11px]">
+            {isSearching
+              ? '搜索中…'
+              : trimmed && isQueryValid
+                ? `${groups.length} 个文件，${totalMatches} 个结果`
+                : '\u00a0'}
+          </p>
+        )}
+
+        {!workspaceRoot ? (
+          <p className="text-muted-foreground px-1 text-xs">尚未打开文件夹</p>
+        ) : trimmed && !isSearching && isQueryValid && hits.length === 0 ? (
+          <p className="text-muted-foreground px-1 text-xs">没有匹配内容</p>
+        ) : null}
+
+        <SearchResults
+          hits={isActive ? hits : []}
+          query={searchQuery}
+          isTruncated={isActive && isTruncated}
+          collapseToken={collapseToken}
+          onOpen={onOpenHit}
+        />
+      </div>
 
       <AlertDialog
         open={isConfirmOpen}
@@ -283,7 +448,7 @@ function SearchPanel() {
             <AlertDialogTitle>替换全部结果？</AlertDialogTitle>
             <AlertDialogDescription>
               将在 {groups.length} 个文件的 {totalMatches} 处内容中替换为「{replacement}
-              」，并直接写入磁盘。
+              」{isPreserveCase ? '（保留大小写）' : ''}，并直接写入磁盘。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -45,6 +45,10 @@ interface ContentQuery {
   isRegex?: boolean
   isCaseSensitive?: boolean
   isWholeWord?: boolean
+  /** 逗号分隔 glob；空 = 不限 */
+  includes?: string
+  /** 逗号分隔 glob */
+  excludes?: string
   limit?: number
 }
 
@@ -74,6 +78,8 @@ async function content(query: ContentQuery) {
       isRegex: query.isRegex ?? false,
       isCaseSensitive: query.isCaseSensitive ?? false,
       isWholeWord: query.isWholeWord ?? false,
+      includes: query.includes?.trim() || null,
+      excludes: query.excludes?.trim() || null,
       limit: query.limit
     }
   })

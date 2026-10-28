@@ -179,31 +179,61 @@ fn to_relative(root: &Path, absolute: &Path) -> String {
         .unwrap_or_default()
 }
 
+fn path_for_safe_directory(path: &Path) -> String {
+    let raw = path.to_string_lossy().replace('\\', "/");
+    if let Some(rest) = raw.strip_prefix("//?/UNC/") {
+        format!("//{rest}")
+    } else if let Some(rest) = raw.strip_prefix("//?/") {
+        rest.to_string()
+    } else {
+        raw
+    }
+}
+
+fn git_command(cwd: &Path, args: &[&str]) -> Command {
+    let safe = path_for_safe_directory(cwd);
+    let mut command = Command::new("git");
+    command
+        .arg("-c")
+        .arg(format!("safe.directory={safe}"))
+        .args(args)
+        .current_dir(cwd);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command
+}
+
 async fn is_git_repo(cwd: &Path) -> bool {
-    let Ok(output) = Command::new("git")
-        .args(["rev-parse", "--is-inside-work-tree"])
-        .current_dir(cwd)
+    let Ok(output) = git_command(cwd, &["rev-parse", "--is-inside-work-tree"])
         .output()
         .await
     else {
         return false;
     };
     output.status.success()
+        && String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .eq_ignore_ascii_case("true")
 }
 
 async fn git_ls_files(cwd: &Path) -> CommandResult<Vec<String>> {
-    let output = Command::new("git")
-        .args([
+    let output = git_command(
+        cwd,
+        &[
             "ls-files",
             "-z",
             "--cached",
             "--others",
             "--exclude-standard",
-        ])
-        .current_dir(cwd)
-        .output()
-        .await
-        .map_err(|err| Exception::Internal(format!("无法执行 git ls-files：{err}")))?;
+        ],
+    )
+    .output()
+    .await
+    .map_err(|err| Exception::Internal(format!("无法执行 git ls-files：{err}")))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(Exception::Internal(if stderr.is_empty() {
@@ -458,6 +488,10 @@ pub struct ContentP {
     pub is_regex: Option<bool>,
     pub is_case_sensitive: Option<bool>,
     pub is_whole_word: Option<bool>,
+    /// 逗号分隔的 glob；空 = 全部。Search 视图约定：无 `/` 时隐含 `**/` 前缀。
+    pub includes: Option<String>,
+    /// 逗号分隔的 glob；命中则跳过。
+    pub excludes: Option<String>,
     pub limit: Option<usize>,
 }
 
@@ -500,6 +534,108 @@ fn build_content_matcher(params: &ContentP) -> CommandResult<regex::Regex> {
         .map_err(|err| Exception::Validation(format!("搜索表达式无效：{err}")))
 }
 
+/// 拆逗号分隔的 glob，并按 VS Code Search 视图规则补 `**/` 与目录 `/**`。
+fn parse_globs(raw: Option<&str>) -> Vec<String> {
+    let Some(text) = raw.map(str::trim).filter(|item| !item.is_empty()) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for part in text.split(',') {
+        let trimmed = part.trim().trim_start_matches("./");
+        if trimmed.is_empty() {
+            continue;
+        }
+        let normalized = if trimmed.contains('/') || trimmed.starts_with("**/") {
+            trimmed.to_string()
+        } else {
+            format!("**/{trimmed}")
+        };
+        out.push(normalized.clone());
+        if !normalized.ends_with("/**") && !normalized.ends_with('*') {
+            out.push(format!("{normalized}/**"));
+        }
+    }
+    out
+}
+
+fn push_glob_char(re: &mut String, ch: char) {
+    match ch {
+        '*' => re.push_str("[^/]*"),
+        '?' => re.push_str("[^/]"),
+        '.' | '+' | '(' | ')' | '|' | '^' | '$' | '[' | ']' | '\\' => {
+            re.push('\\');
+            re.push(ch);
+        }
+        _ => re.push(ch),
+    }
+}
+
+/// 把单个 VS Code 风格 glob 转成正则（支持 `*` / `**` / `?` / `{a,b}`）。
+fn glob_to_regex(glob: &str) -> String {
+    let mut re = String::from("^");
+    let chars: Vec<char> = glob.chars().collect();
+    let mut index = 0usize;
+    while index < chars.len() {
+        match chars[index] {
+            '*' if index + 1 < chars.len() && chars[index + 1] == '*' => {
+                if index + 2 < chars.len() && chars[index + 2] == '/' {
+                    re.push_str("(?:.*/)?");
+                    index += 3;
+                } else {
+                    re.push_str(".*");
+                    index += 2;
+                }
+            }
+            '{' => {
+                index += 1;
+                re.push_str("(?:");
+                while index < chars.len() && chars[index] != '}' {
+                    if chars[index] == ',' {
+                        re.push('|');
+                        index += 1;
+                        continue;
+                    }
+                    push_glob_char(&mut re, chars[index]);
+                    index += 1;
+                }
+                re.push(')');
+                if index < chars.len() {
+                    index += 1;
+                }
+            }
+            ch => {
+                push_glob_char(&mut re, ch);
+                index += 1;
+            }
+        }
+    }
+    re.push('$');
+    re
+}
+
+fn compile_globs(raw: Option<&str>) -> CommandResult<Vec<regex::Regex>> {
+    let mut compiled = Vec::new();
+    for pattern in parse_globs(raw) {
+        let source = glob_to_regex(&pattern);
+        let matcher = regex::RegexBuilder::new(&source)
+            .case_insensitive(true)
+            .build()
+            .map_err(|err| Exception::Validation(format!("路径过滤无效：{err}")))?;
+        compiled.push(matcher);
+    }
+    Ok(compiled)
+}
+
+fn path_allowed(relative: &str, includes: &[regex::Regex], excludes: &[regex::Regex]) -> bool {
+    if excludes.iter().any(|matcher| matcher.is_match(relative)) {
+        return false;
+    }
+    if includes.is_empty() {
+        return true;
+    }
+    includes.iter().any(|matcher| matcher.is_match(relative))
+}
+
 fn looks_like_binary(bytes: &[u8]) -> bool {
     bytes.iter().take(BINARY_SNIFF_BYTES).any(|byte| *byte == 0)
 }
@@ -517,6 +653,8 @@ fn truncate_preview(line: &str) -> String {
 pub async fn workspaceFilesContent(params: ContentP) -> CommandResult<ContentR> {
     let root = validate_root(&params.root)?;
     let matcher = build_content_matcher(&params)?;
+    let includes = compile_globs(params.includes.as_deref())?;
+    let excludes = compile_globs(params.excludes.as_deref())?;
     let limit = params.limit.unwrap_or(CONTENT_LIMIT).clamp(1, CONTENT_LIMIT);
 
     let relatives = if is_git_repo(&root).await {
@@ -540,6 +678,10 @@ pub async fn workspaceFilesContent(params: ContentP) -> CommandResult<ContentR> 
                 is_truncated = true;
                 break;
             }
+            let relative_front = relative.replace('\\', "/");
+            if !path_allowed(&relative_front, &includes, &excludes) {
+                continue;
+            }
             let Ok(safe_relative) = normalize_relative(&relative) else {
                 continue;
             };
@@ -559,7 +701,6 @@ pub async fn workspaceFilesContent(params: ContentP) -> CommandResult<ContentR> 
                 continue;
             }
             let text = String::from_utf8_lossy(&bytes);
-            let relative_front = safe_relative.to_string_lossy().replace('\\', "/");
             let path_front = to_frontend_path(&absolute);
             let mut file_matches = 0usize;
             for (index, line) in text.lines().enumerate() {
@@ -592,4 +733,32 @@ pub async fn workspaceFilesContent(params: ContentP) -> CommandResult<ContentR> 
     })
     .await
     .map_err(|err| Exception::Internal(format!("content 任务失败：{err}")))?
+}
+
+#[cfg(test)]
+mod content_glob_tests {
+    use super::*;
+
+    #[test]
+    fn plain_name_implies_star_star_prefix() {
+        let patterns = parse_globs(Some("src"));
+        assert!(patterns.iter().any(|item| item == "**/src"));
+        assert!(patterns.iter().any(|item| item == "**/src/**"));
+    }
+
+    #[test]
+    fn include_filters_relative_paths() {
+        let includes = compile_globs(Some("*.ts")).unwrap();
+        let excludes = compile_globs(None).unwrap();
+        assert!(path_allowed("apps/client/a.ts", &includes, &excludes));
+        assert!(!path_allowed("apps/client/a.rs", &includes, &excludes));
+    }
+
+    #[test]
+    fn exclude_wins_over_include() {
+        let includes = compile_globs(Some("**/*")).unwrap();
+        let excludes = compile_globs(Some("dist")).unwrap();
+        assert!(!path_allowed("dist/index.js", &includes, &excludes));
+        assert!(path_allowed("src/index.js", &includes, &excludes));
+    }
 }
