@@ -2,6 +2,7 @@
  * 标题栏的账号入口：未登录是「登录」按钮，已登录是头像菜单。
  *
  * 资料编辑统一走全局设置「账号」分区；登录弹窗仍由主窗口持有（`ReSignIn`）。
+ * 设置入口同窗导航，不另开 `settings:global`。
  */
 import { Avatar, AvatarFallback, AvatarImage } from '@cogito/design/components/avatar'
 import { Button } from '@cogito/design/components/button'
@@ -17,8 +18,8 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { Icon } from '@iconify/react/offline'
 import { clsx } from 'clsx'
-import { useNavigate } from 'react-router-dom'
 
+import { openSettings } from '@/features/window/open-settings'
 import { useSessionStore } from '@/stores/session.ts'
 import styles from '@/views/overview/caption/caption.module.scss'
 import { SECTION } from '@/views/settings/constant'
@@ -32,7 +33,6 @@ interface CaptionAccountProps {
 }
 
 function CaptionAccount(props: CaptionAccountProps) {
-  const navigate = useNavigate()
   const user = useSessionStore(function (state) {
     return state.user
   })
@@ -115,7 +115,7 @@ function CaptionAccount(props: CaptionAccountProps) {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={function () {
-            void navigate(`/settings?section=${SECTION.ACCOUNT}`)
+            void openSettings(SECTION.ACCOUNT)
           }}>
           <Icon
             icon="lucide:user-round"
@@ -125,7 +125,7 @@ function CaptionAccount(props: CaptionAccountProps) {
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={function () {
-            void navigate(`/settings?section=${SECTION.APPEARANCE}`)
+            void openSettings(SECTION.APPEARANCE)
           }}>
           <Icon
             icon="lucide:palette"
