@@ -9,8 +9,8 @@ import {
   DropdownMenuTrigger
 } from '@cogito/design/components/dropdown-menu'
 import { toast } from 'sonner'
+import { useNavigate } from 'react-router-dom'
 
-import { openSettingsWindow } from '@/features/window/open-settings'
 import { SECTION } from '@/views/settings/constant'
 
 import styles from './sidebar.module.scss'
@@ -22,6 +22,8 @@ interface SidebarProfileBarProps {
 }
 
 function SidebarProfileBar(props: SidebarProfileBarProps) {
+  const navigate = useNavigate()
+
   return (
     <div className={`${styles.profile} flex items-center justify-between gap-2`}>
       <div className={`${styles.profileUser} flex items-center gap-2`}>
@@ -74,7 +76,7 @@ function SidebarProfileBar(props: SidebarProfileBarProps) {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={function () {
-              void openSettingsWindow(SECTION.APPEARANCE)
+              void navigate(`/settings?section=${SECTION.APPEARANCE}`)
             }}>
             <Icon
               icon="lucide:palette"
@@ -85,7 +87,7 @@ function SidebarProfileBar(props: SidebarProfileBarProps) {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={function () {
-              void openSettingsWindow(SECTION.ACCOUNT)
+              void navigate(`/settings?section=${SECTION.ACCOUNT}`)
             }}>
             <Icon
               icon="lucide:user-round"
