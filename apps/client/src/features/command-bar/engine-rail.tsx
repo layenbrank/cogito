@@ -6,6 +6,7 @@
  * - 图标与芯片双层叠放 + opacity 交叉淡入，不做 absolute↔flow 切换
  * - 像素宽 + tween（无 spring / 无 overshoot）
  */
+import { Button } from '@cogito/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { motion, useReducedMotion } from 'motion/react'
@@ -31,13 +32,8 @@ interface EngineRailProps {
   onChoose: (key: string) => void
 }
 
-function EngineRail({
-  engineKey,
-  isExpanded,
-  isShellOpen = false,
-  onExpand,
-  onChoose
-}: EngineRailProps) {
+function EngineRail(props: EngineRailProps) {
+  const isShellOpen = props.isShellOpen ?? false
   const isReduced = useReducedMotion()
   const duration = isReduced ? 0 : OMNIBAR_UI.RAIL_MS / 1000
   const chipsRef = useRef<HTMLDivElement>(null)
@@ -45,7 +41,7 @@ function EngineRail({
 
   const active =
     ENGINES.find(function (item) {
-      return item.key === engineKey
+      return item.key === props.engineKey
     }) ?? ENGINES[0]
 
   useLayoutEffect(
@@ -70,7 +66,7 @@ function EngineRail({
   )
 
   const radius = isShellOpen
-    ? isExpanded
+    ? props.isExpanded
       ? 'rounded-tl-[10px] rounded-tr-lg rounded-br-lg rounded-bl-md'
       : 'rounded-tl-[10px] rounded-tr-md rounded-b-md'
     : 'rounded-full'
@@ -82,7 +78,7 @@ function EngineRail({
     duration: duration * 0.35,
     ease: RAIL_EASE
   }
-  const chipsFade = isExpanded
+  const chipsFade = props.isExpanded
     ? {
         type: 'tween' as const,
         duration: duration * 0.5,
@@ -100,70 +96,84 @@ function EngineRail({
       className={cn(
         'relative h-8 shrink-0 self-center overflow-hidden p-0.5',
         'transition-colors',
-        isExpanded ? 'bg-muted/60' : 'bg-transparent',
+        props.isExpanded ? 'bg-muted/60' : 'bg-transparent',
         radius
       )}
       style={{ transitionDuration: `${OMNIBAR_UI.RAIL_MS}ms` }}
       initial={false}
-      animate={{ width: isExpanded ? expandedWidth : COLLAPSED_PX }}
+      animate={{ width: props.isExpanded ? expandedWidth : COLLAPSED_PX }}
       transition={widthTransition}>
-      <motion.button
-        type="button"
-        tabIndex={isExpanded ? -1 : 0}
-        aria-hidden={isExpanded}
-        aria-label={`搜索引擎：${active.label}`}
-        aria-expanded={isExpanded}
-        title={active.label}
-        className={cn(
-          'absolute left-0.5 top-0.5 z-[1] flex size-7 items-center justify-center',
-          'text-muted-foreground hover:bg-muted hover:text-foreground',
-          isShellOpen ? 'rounded-md' : 'rounded-full'
-        )}
+      <motion.div
+        className="absolute top-0.5 left-0.5 z-[1]"
         initial={false}
-        animate={{ opacity: isExpanded ? 0 : 1 }}
+        animate={{ opacity: props.isExpanded ? 0 : 1 }}
         transition={iconFade}
-        style={{ pointerEvents: isExpanded ? 'none' : 'auto' }}
-        onClick={function () {
-          onExpand(true)
-        }}>
-        <Icon icon={active.icon} aria-hidden className="size-4" />
-      </motion.button>
+        style={{ pointerEvents: props.isExpanded ? 'none' : 'auto' }}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          tabIndex={props.isExpanded ? -1 : 0}
+          aria-hidden={props.isExpanded}
+          aria-label={`搜索引擎：${active.label}`}
+          aria-expanded={props.isExpanded}
+          title={active.label}
+          className={cn(
+            'size-7 text-muted-foreground hover:bg-muted hover:text-foreground',
+            isShellOpen ? 'rounded-md' : 'rounded-full'
+          )}
+          onClick={function () {
+            props.onExpand(true)
+          }}>
+          <Icon
+            icon={active.icon}
+            aria-hidden
+            className="size-4"
+          />
+        </Button>
+      </motion.div>
 
       <motion.div
         ref={chipsRef}
-        className="absolute left-0.5 top-0.5 flex h-7 min-w-max items-center gap-0"
+        className="absolute top-0.5 left-0.5 flex h-7 min-w-max items-center gap-0"
         role="listbox"
-        aria-hidden={!isExpanded}
+        aria-hidden={!props.isExpanded}
         aria-label="选择搜索引擎"
         initial={false}
-        animate={{ opacity: isExpanded ? 1 : 0 }}
+        animate={{ opacity: props.isExpanded ? 1 : 0 }}
         transition={chipsFade}
-        style={{ pointerEvents: isExpanded ? 'auto' : 'none' }}>
+        style={{ pointerEvents: props.isExpanded ? 'auto' : 'none' }}>
         {ENGINES.map(function (item) {
-          const isActive = item.key === engineKey
+          const isActive = item.key === props.engineKey
           return (
-            <button
+            <Button
               key={item.key}
               type="button"
+              variant="ghost"
+              size="sm"
               role="option"
-              tabIndex={isExpanded ? 0 : -1}
+              tabIndex={props.isExpanded ? 0 : -1}
               aria-selected={isActive}
               className={cn(
-                'flex h-full items-center gap-1 rounded-full px-2 text-xs transition-colors',
+                'h-full gap-1 rounded-full px-2 text-xs',
                 isActive
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-background text-foreground shadow-sm hover:bg-background'
+                  : 'text-muted-foreground hover:bg-transparent hover:text-foreground'
               )}
               onMouseDown={function (event) {
                 event.preventDefault()
               }}
               onClick={function () {
-                onChoose(item.key)
-                onExpand(false)
+                props.onChoose(item.key)
+                props.onExpand(false)
               }}>
-              <Icon icon={item.icon} aria-hidden className="size-3.5 shrink-0" />
+              <Icon
+                icon={item.icon}
+                aria-hidden
+                className="size-3.5 shrink-0"
+              />
               <span className="whitespace-nowrap">{item.label}</span>
-            </button>
+            </Button>
           )
         })}
       </motion.div>

@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const openUrlMock = vi.fn(function () {
-  return Promise.resolve()
+const { openUrlMock } = vi.hoisted(function () {
+  return {
+    openUrlMock: vi.fn(function () {
+      return Promise.resolve()
+    })
+  }
 })
 
 vi.mock('@tauri-apps/plugin-opener', function () {
@@ -54,7 +58,8 @@ describe('reviveRecentHit', function () {
     )
   })
 
-  it('非 web 且无法复活时保持静默', async function () {
+  it('非 web 且无法复活时留痕且不打开链接', async function () {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(function () {})
     const { reviveRecentHit } = await import('@/features/command-bar/search')
     await reviveRecentHit({
       domain: 'tile',
@@ -62,5 +67,7 @@ describe('reviveRecentHit', function () {
       title: 'gone'
     })
     expect(openUrlMock).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
   })
 })

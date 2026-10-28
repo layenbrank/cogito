@@ -56,10 +56,10 @@ function CommandOmnibar() {
   const [isFocused, setFocused] = useState(false)
 
   const engine = findEngine(engineKey)
-  const flat = findFlatHits(hits)
+  const flatHits = findFlatHits(hits)
   const trimmed = keyword.trim()
   const isShellOpen =
-    isSurfaceOpen && isFocused && (trimmed.length > 0 || flat.length > 0)
+    isSurfaceOpen && isFocused && (trimmed.length > 0 || flatHits.length > 0)
 
   const suggestWeb = useRef<
     (((value: string, chip: DomainFilter) => void) & { cancel: () => void }) | null
@@ -175,8 +175,8 @@ function CommandOmnibar() {
   }
 
   async function submit() {
-    if (isShellOpen && navigation >= 0 && flat[navigation]) {
-      await activateHit(flat[navigation])
+    if (isShellOpen && navigation >= 0 && flatHits[navigation]) {
+      await activateHit(flatHits[navigation])
       return
     }
     if (!trimmed) return
@@ -214,20 +214,20 @@ function CommandOmnibar() {
       return
     }
 
-    if (event.key === 'ArrowDown' && isShellOpen && flat.length) {
+    if (event.key === 'ArrowDown' && isShellOpen && flatHits.length) {
       event.preventDefault()
       setNavigation(function (index) {
         if (index < 0) return 0
-        return index >= flat.length - 1 ? 0 : index + 1
+        return index >= flatHits.length - 1 ? 0 : index + 1
       })
       return
     }
 
-    if (event.key === 'ArrowUp' && isShellOpen && flat.length) {
+    if (event.key === 'ArrowUp' && isShellOpen && flatHits.length) {
       event.preventDefault()
       setNavigation(function (index) {
         // NONE 或首条再上 → 跳到末条，便于从「不预选的网址」进入列表
-        if (index <= 0) return flat.length - 1
+        if (index <= 0) return flatHits.length - 1
         return index - 1
       })
       return
@@ -262,9 +262,14 @@ function CommandOmnibar() {
           onChoose={function (key) {
             setEngineKey(key)
             // 必须先写入偏好再刷新：即时 Web 行读的是 persist 里的 engineKey
-            void writeEngineKey(key).then(function () {
-              refreshHits(keywordRef.current, filterRef.current)
-            })
+            void writeEngineKey(key)
+              .then(function () {
+                refreshHits(keywordRef.current, filterRef.current)
+              })
+              .catch(function (error: unknown) {
+                reportCaught('command-bar.writeEngineKey', error)
+                toast.error('切换搜索引擎失败')
+              })
           }}
         />
         <Input

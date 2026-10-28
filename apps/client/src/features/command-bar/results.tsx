@@ -1,6 +1,7 @@
 /**
  * Everything 式结果列表（栏下非模态）
  */
+import { Button } from '@cogito/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
@@ -19,20 +20,12 @@ interface ResultsSurfaceProps {
   onSelect: (hit: Hit) => void
 }
 
-function ResultsSurface({
-  hits,
-  navigation,
-  filter,
-  isOpen,
-  onFilter,
-  onNavigate,
-  onSelect
-}: ResultsSurfaceProps) {
+function ResultsSurface(props: ResultsSurfaceProps) {
   const isReduced = useReducedMotion()
-  const flat = findFlatHits(hits)
-  const groups = groupHits(hits)
+  const flatHits = findFlatHits(props.hits)
+  const groups = groupHits(props.hits)
 
-  if (!isOpen) return null
+  if (!props.isOpen) return null
 
   return (
     <AnimatePresence>
@@ -51,64 +44,64 @@ function ResultsSurface({
         aria-label="搜索结果">
         <div className="flex flex-wrap gap-1 border-b border-border px-2 py-1.5">
           {FILTER_CHIPS.map(function (chip) {
-            const isActive = filter === chip
+            const isActive = props.filter === chip
             return (
-              <button
+              <Button
                 key={chip}
                 type="button"
-                className={cn(
-                  'rounded-md px-2 py-0.5 text-xs transition-colors',
-                  isActive
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                )}
+                variant={isActive ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-6 rounded-md px-2 text-xs"
                 onMouseDown={function (event) {
                   event.preventDefault()
                 }}
                 onClick={function () {
-                  onFilter(chip)
+                  props.onFilter(chip)
                 }}>
                 {DOMAIN_LABEL[chip]}
-              </button>
+              </Button>
             )
           })}
         </div>
 
         <div className="max-h-[min(34vh,18rem)] overflow-y-auto overscroll-contain p-1.5">
-          {flat.length === 0 ? (
+          {flatHits.length === 0 ? (
             <p className="px-3 py-6 text-center text-sm text-muted-foreground">
               无匹配结果
             </p>
           ) : (
             groups.map(function (group) {
               return (
-                <div key={group.domain} className="mb-1.5 last:mb-0">
+                <div
+                  key={group.domain}
+                  className="mb-1.5 last:mb-0">
                   <div className="px-2 py-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
                     {DOMAIN_LABEL[group.domain]}
                   </div>
                   {group.hits.map(function (hit) {
-                    const index = flat.indexOf(hit)
-                    const isActive = index === navigation
+                    const index = flatHits.indexOf(hit)
+                    const isActive = index === props.navigation
                     return (
-                      <button
+                      <Button
                         key={`${hit.domain}:${hit.id}`}
                         type="button"
+                        variant="ghost"
                         role="option"
                         aria-selected={isActive}
                         className={cn(
-                          'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors',
+                          'h-auto w-full justify-start gap-2 rounded-lg px-2 py-1.5 text-left font-normal',
                           isActive
-                            ? 'bg-accent text-accent-foreground'
+                            ? 'bg-accent text-accent-foreground hover:bg-accent'
                             : 'hover:bg-muted'
                         )}
                         onMouseEnter={function () {
-                          onNavigate(index)
+                          props.onNavigate(index)
                         }}
                         onMouseDown={function (event) {
                           event.preventDefault()
                         }}
                         onClick={function () {
-                          onSelect(hit)
+                          props.onSelect(hit)
                         }}>
                         <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted/80 text-muted-foreground">
                           <Icon
@@ -127,7 +120,7 @@ function ResultsSurface({
                             </span>
                           ) : null}
                         </span>
-                      </button>
+                      </Button>
                     )
                   })}
                 </div>
