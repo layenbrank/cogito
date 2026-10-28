@@ -1,13 +1,15 @@
 import { Icon } from '@iconify/react/offline'
-import { useAui } from '@assistant-ui/react'
 import { Button } from '@cogito/design/components/button'
-import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
-import { attachWorkspacePaths } from '@/features/agent/attachment.ts'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 import { useTerminalStore } from '@/stores/terminal'
+
+interface AsideEmptyProps {
+  onOpenFiles: () => void
+  onOpenReview: () => void
+}
 
 interface AsideCard {
   key: string
@@ -18,32 +20,10 @@ interface AsideCard {
   onClick?: () => void
 }
 
-/** 空对话右栏：Qoder 式快捷卡骨架 */
-function AsideEmpty() {
-  const aui = useAui()
+/** 空对话右栏：Qoder 式快捷卡 */
+function AsideEmpty(props: AsideEmptyProps) {
   const navigate = useNavigate()
   const { primaryPath } = useActiveWorkspace()
-
-  function handleOpenWorkspaceFile() {
-    void dialogOpen({ multiple: true })
-      .then(function (paths) {
-        const list = Array.isArray(paths) ? paths : paths ? [paths] : null
-        return attachWorkspacePaths(aui, list, primaryPath)
-      })
-      .then(function (result) {
-        if (result.isMissingWorkspace) {
-          toast.error('先在左栏添加一个工作区')
-          return
-        }
-        if (result.attached > 0) toast.success(`已引用 ${result.attached} 项`)
-        if (result.skipped.length > 0) {
-          toast.warning(`${result.skipped.join('、')} 不在当前工作区内，已跳过`)
-        }
-      })
-      .catch(function (error: unknown) {
-        toast.error(error instanceof Error ? error.message : '选择文件失败')
-      })
-  }
 
   function handleOpenTerminal() {
     if (!primaryPath) {
@@ -56,11 +36,19 @@ function AsideEmpty() {
   const cards: AsideCard[] = [
     {
       key: 'files',
-      icon: 'lucide:folder',
+      icon: 'lucide:folder-tree',
       label: '打开工作区文件',
-      hint: '引用到输入框',
+      hint: '浏览文件树并预览',
       enabled: true,
-      onClick: handleOpenWorkspaceFile
+      onClick: props.onOpenFiles
+    },
+    {
+      key: 'review',
+      icon: 'lucide:git-compare',
+      label: '打开审阅',
+      hint: '查看未提交变更并对比',
+      enabled: true,
+      onClick: props.onOpenReview
     },
     {
       key: 'model',
@@ -71,13 +59,6 @@ function AsideEmpty() {
       onClick: function () {
         void navigate('/agent/settings?section=model')
       }
-    },
-    {
-      key: 'review',
-      icon: 'lucide:square-plus',
-      label: '打开审阅',
-      hint: '即将推出',
-      enabled: false
     },
     {
       key: 'terminal',
