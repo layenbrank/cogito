@@ -47,6 +47,12 @@ interface AgentRunHost {
 interface ModelPortOverrides {
   /** 覆盖系统提示（不传则按当前场景 + 能力地图） */
   findSystemText?: (input: ChatRunInput) => string
+  /**
+   * 覆盖本轮要发的话：把「可见消息」与「发给模型的组合提示词」解耦。
+   * 一键动作只在输入框里显示一句短标签，真正带全文/选区/定义的提示词走这里。
+   * 不传则直接用最后一条用户消息的文本（`visibleText`）。
+   */
+  findUserText?: (input: ChatRunInput, visibleText: string) => string
   /** 回合正常收尾（未取消）时的钩子；传了就不再走 directive / plan 的全局副作用 */
   onFinish?: (capturedText: string, host: AgentRunHost) => void
 }
@@ -176,10 +182,13 @@ function createModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
       if (!provider.enabled) throw new Error('[agent/port] 选中的 provider 已被停用，请在设置里启用')
 
       const parsed = parseRunMessages(input.messages)
-      const text = appendImages(
+      const visibleText = appendImages(
         appendAttachments(parsed.text, parsed.attachments),
         input.messages.at(-1)?.images
       )
+      const text = overrides.findUserText
+        ? overrides.findUserText(input, visibleText)
+        : visibleText
       if (!text.trim()) {
         yield { kind: 'finish', finishReason: 'end_turn', usage: RUN_USAGE }
         return

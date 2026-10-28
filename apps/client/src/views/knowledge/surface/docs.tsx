@@ -5,6 +5,13 @@
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@cogito/design/components/dropdown-menu'
 import { Input } from '@cogito/design/components/input'
 import { ScrollArea } from '@cogito/design/components/scroll-area'
 import {
@@ -227,51 +234,60 @@ function DocsTab() {
           />
           生成
         </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-6 gap-1 px-1.5 text-[11px] font-normal"
-          disabled={isSyncingCloud || !activeBase || docs.length === 0}
-          title="把还没上云的文档传上去建索引"
-          onClick={function () {
-            void syncCloud()
-          }}>
-          <Icon
-            icon="lucide:cloud-upload"
-            className="size-3"
-          />
-          上云
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-6 gap-1 px-1.5 text-[11px] font-normal"
-          disabled={isLoading || !activeBaseID}
-          title="重新扫描磁盘（外部改动入库）"
-          onClick={function () {
-            void rescan()
-          }}>
-          <Icon
-            icon="lucide:refresh-cw"
-            className="size-3"
-          />
-          重扫
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-6 gap-1 px-1.5 text-[11px] font-normal"
-          disabled={!activeBase || docs.length === 0}
-          title="把本库 Markdown 打成 zip 放到 exports/"
-          onClick={function () {
-            void exportBundle()
-          }}>
-          <Icon
-            icon="lucide:archive"
-            className="size-3"
-          />
-          导出
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 px-0"
+                title="库操作"
+              />
+            }>
+            <Icon
+              icon="lucide:ellipsis"
+              className="size-3.5"
+            />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            className="min-w-32">
+            <DropdownMenuItem
+              disabled={isSyncingCloud || !activeBase || docs.length === 0}
+              onClick={function () {
+                void syncCloud()
+              }}>
+              <Icon
+                icon="lucide:cloud-upload"
+                className="size-3.5"
+              />
+              上云
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={isLoading || !activeBaseID}
+              onClick={function () {
+                void rescan()
+              }}>
+              <Icon
+                icon="lucide:refresh-cw"
+                className="size-3.5"
+              />
+              重扫
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              disabled={!activeBase || docs.length === 0}
+              onClick={function () {
+                void exportBundle()
+              }}>
+              <Icon
+                icon="lucide:archive"
+                className="size-3.5"
+              />
+              导出
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         {isLoading ? <Spinner className="ml-auto size-3" /> : null}
       </div>
 

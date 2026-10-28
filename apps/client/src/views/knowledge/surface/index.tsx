@@ -1,8 +1,8 @@
 /**
- * 知识库左侧栏：浏览（文件树）| 文档 | 待发布 | 任务 | 设置。
+ * 知识库左侧栏：浏览（文件树）| 文档 | 待发布；任务 / 设置收成右侧小图标。
  *
- * 定位：与右栏、编辑器组成最多三列；库级操作与文件树共用一栏，用 tabs 切换，
- * 不再并排叠「库面板 + 文件树」两列。
+ * 分类原则：日常只有「看文件、看文档、发草稿」三件事，占主 tab；
+ * 任务（定时）与设置低频，退成图标，不占主视觉。
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
@@ -19,10 +19,15 @@ import { StagingTab } from '@/views/knowledge/surface/staging.tsx'
 import { useSurfaceStore, type RailTab } from '@/views/knowledge/surface/store.ts'
 import { TasksTab } from '@/views/knowledge/surface/tasks.tsx'
 
+/** 主工作流：高频，带文字标签 */
 const TABS: readonly { key: RailTab; label: string; icon: string }[] = [
   { key: 'browse', label: '浏览', icon: 'lucide:folder-tree' },
   { key: 'docs', label: '库', icon: 'lucide:library-big' },
-  { key: 'staging', label: '待发布', icon: 'lucide:sparkles' },
+  { key: 'staging', label: '待发布', icon: 'lucide:sparkles' }
+]
+
+/** 管理与低频：只留图标（悬停有标题） */
+const TOOLS: readonly { key: RailTab; label: string; icon: string }[] = [
   { key: 'tasks', label: '任务', icon: 'lucide:timer' },
   { key: 'settings', label: '设置', icon: 'lucide:settings-2' }
 ]
@@ -36,9 +41,6 @@ function KnowledgeSurface() {
   })
   const toSetTab = useSurfaceStore(function (state) {
     return state.toSetTab
-  })
-  const toOpenAside = useSurfaceStore(function (state) {
-    return state.toOpenAside
   })
   const refresh = useKnowledgeBaseStore(function (state) {
     return state.refresh
@@ -88,6 +90,32 @@ function KnowledgeSurface() {
             </Button>
           )
         })}
+
+        <div className="ml-auto flex items-center gap-0.5">
+          {TOOLS.map(function (item) {
+            const isActive = item.key === tab
+            return (
+              <Button
+                key={item.key}
+                type="button"
+                size="sm"
+                variant="ghost"
+                className={clsx(
+                  'h-7 w-7 px-0',
+                  isActive && 'bg-muted'
+                )}
+                title={item.label}
+                onClick={function () {
+                  toSetTab(item.key)
+                }}>
+                <Icon
+                  icon={item.icon}
+                  className="size-3.5"
+                />
+              </Button>
+            )
+          })}
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
@@ -116,23 +144,6 @@ function KnowledgeSurface() {
             <SettingsTab />
           </div>
         ) : null}
-      </div>
-
-      <div className="border-t border-border px-2 py-1.5">
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="h-7 w-full justify-start gap-1.5 px-1.5 text-[11px] font-normal"
-          onClick={function () {
-            toOpenAside('assistant')
-          }}>
-          <Icon
-            icon="lucide:sparkles"
-            className="size-3.5"
-          />
-          让助手帮忙（不跳页）
-        </Button>
       </div>
     </aside>
   )

@@ -19,7 +19,7 @@
 | --- | --- |
 | `features/agent/dock/store.ts` | 打开状态、当前 scope、待执行动作（`toOpen(id)`）/ 待发一句话（`toAsk(text)`）、`resetKey` |
 | `features/agent/dock/port.ts` | 复用共享模型端口，只替换「系统提示」与「收尾副作用」 |
-| `features/agent/dock/runtime.tsx` | assistant-ui `useLocalRuntime` + 会话 id `dock:<scopeKey>`；一键动作走 `composer.setText + send` |
+| `features/agent/dock/runtime.tsx` | assistant-ui `useLocalRuntime` + 会话 id `dock:<scopeKey>`；一键动作把**短标签**放进输入框，组合提示词走 `findUserText` 覆盖 |
 | `features/agent/dock/dock.tsx` | 容器（标题/动作条/Thread/应用/升级）、`DockApply`、`DockEscalate` |
 | `features/agent/dock/handoff.ts` | 显式升级到完整会话（一次性交接，见下） |
 | 各域 `*-scope.ts` | 注册动作：知识库 `views/knowledge/workspace/dock-scope.ts`、指令 `views/directive/ai-scope.ts` |
@@ -29,8 +29,9 @@
 1. **会话不落库**：会话 id 是 `dock:<scopeKey>`，不写 `agent_session`，所以不会污染聊天侧栏；
    折叠只是变窄，运行时与消息都还在（不卸载）。重启即丢弃（跨重启恢复未做）。
 2. **动作 = 一句话**：`buildPrompt()` 实时读上下文（当前文档/选区/指令 JSON），返回 `null` 表示
-   当前不可用（按钮置灰）。所以「改写选区」在没有选区时直接禁用，而不是跑一轮空任务。
-3. **先建议后应用**：结果永远留在对话里；`toApply` 只在用户点「应用到文档」时执行
+   当前不可用（按钮置灰）。组合提示词（带全文/选区/定义）**不进输入框**——用户看到的只有一句
+   动作标签，真正发给模型的话由端口覆盖。
+3. **先建议后应用**：结果永远留在对话里；`toWrite` 只在用户点「应用到文档」时执行
    （知识库 = 插入/替换选区；指令 = 替换编辑器草稿），都可撤销。
 4. **不读全局场景**：聊天页的系统提示按 `findActiveScenario()` 选，坞用 scope 自己的 `systemText`；
    端口因此不写全局草稿/计划预览（`onFinish` 传空实现）。
@@ -45,7 +46,7 @@ useDockStore.getState().toBind({
   title: '画板助手',
   hint: '一句话说明这个坞能干什么',
   systemText: '只做画板相关的事……',
-  toApply: (text) => applyToCanvas(text),   // 可选：没有落点就不传
+  toWrite: (text) => applyToCanvas(text),   // 可选：没有落点就不传
   actions: [{ id: 'summarize', label: '总结', buildPrompt: () => text || null }]
 })
 ```
