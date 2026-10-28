@@ -9,8 +9,6 @@
  */
 import { HttpEnvelope } from '@/utils/http/errors.ts'
 import { http } from '@/utils/http/http.ts'
-import { findAuthToken } from '@/utils/auth'
-import { findActiveTenantID } from '@/utils/tenant.ts'
 
 /** 服务端任务行（`JobR`） */
 interface CloudJob {
@@ -57,11 +55,6 @@ interface CloudJobPatch {
   runAsUserId?: string
 }
 
-/** 服务端任务需要一个登录身份与激活租户；缺一个就当「不可用」，不去猜 */
-function isCloudReady(): boolean {
-  return Boolean(findAuthToken()) && Boolean(findActiveTenantID())
-}
-
 function GET_JOBS(signal?: AbortSignal): Promise<CloudJob[]> {
   return http
     .get<RSF<CloudJob[]>>('/automations', { env: 'cogito', signal })
@@ -89,5 +82,5 @@ function DELETE_JOB(id: string): Promise<number> {
     .then(HttpEnvelope)
 }
 
-export { DELETE_JOB, GET_JOBS, PATCH_JOB, SAVE_JOB, isCloudReady }
+export { DELETE_JOB, GET_JOBS, PATCH_JOB, SAVE_JOB }
 export type { CloudJob, CloudJobInput, CloudJobPatch }
