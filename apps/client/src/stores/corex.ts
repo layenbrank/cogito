@@ -25,6 +25,8 @@ import { reportCaught } from '@/utils/exception-report'
 import { createDirective } from '@/views/directive/model/draft.ts'
 import { sanitizeSteps, stampSteps } from '@/views/directive/model/step-utils.ts'
 
+import { useDirectiveDraftStore } from './directive-draft'
+
 import { useTerminalStore } from './terminal'
 import type { CorexProgress } from './run-logs'
 import {
@@ -87,6 +89,8 @@ interface CorexStore {
   selectedToken: string | null
   isEditorLoading: boolean
   isSaving: boolean
+  /** 当前编辑的定义来自收件箱哪一行；不是草稿打开则为空 */
+  sourceDraftID: string | null
 
   initialize: () => Promise<void>
   refreshDirectives: () => Promise<void>
@@ -204,14 +208,23 @@ function parseErrorMessage(error: unknown, fallback: string): string {
  * `seedPendingDraft`，导航前直接替换 draft 会被这一步清掉 —— 表现为「打开了但内容没了」。
  */
 let pendingDefinition: DirectiveContent | null = null
+/** 这份定义来自收件箱的哪一行（保存后要把该行标成 saved） */
+let pendingDraftID: string | null = null
 
-function setPendingDefinition(definition: DirectiveContent | null): void {
+function setPendingDefinition(definition: DirectiveContent | null, draftID?: string | null): void {
   pendingDefinition = definition
+  pendingDraftID = draftID ?? null
 }
 
 function takePendingDefinition(): DirectiveContent | null {
   const value = pendingDefinition
   pendingDefinition = null
+  return value
+}
+
+function takePendingDraftID(): string | null {
+  const value = pendingDraftID
+  pendingDraftID = null
   return value
 }
 
@@ -252,6 +265,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
     selectedToken: null,
     isEditorLoading: false,
     isSaving: false,
+    sourceDraftID: null,
 
     async initialize() {
       if (getter().isLoading) return
@@ -333,7 +347,8 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
         baselineJson: null,
         undoStack: [],
         redoStack: [],
-        selectedToken: null
+        selectedToken: null,
+        sourceDraftID: null
       })
     },
 
@@ -350,7 +365,8 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
         baselineJson: snapshotDraft(stamped),
         undoStack: [],
         redoStack: [],
-        isEditorLoading: false
+        isEditorLoading: false,
+        sourceDraftID: takePendingDraftID()
       })
     },
 
@@ -384,7 +400,8 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
         baselineJson: null,
         undoStack: [],
         redoStack: [],
-        selectedToken: null
+        selectedToken: null,
+        sourceDraftID: null
       })
     },
 
@@ -466,6 +483,12 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
           redoStack: [],
           isSaving: false
         })
+        // 收件箱那行到这就没用了：标成已保存并从列表里去掉，别留一条「待确认」的双轨
+        const sourceDraftID = getter().sourceDraftID
+        if (sourceDraftID) {
+          setter({ sourceDraftID: null })
+          void useDirectiveDraftStore.getState().markSaved(sourceDraftID)
+        }
         await getter().refreshDirectives()
         toast.success('指令已保存')
         return saved.name

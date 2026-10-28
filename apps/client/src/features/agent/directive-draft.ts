@@ -169,8 +169,8 @@ async function openDraftInEditor(draft: DirectiveDraft): Promise<void> {
     return
   }
   // 定义先放进「待应用」槽：进编辑器时工作区会 openEditor + seedPendingDraft，
-  // 在导航前直接替换 draft 会被那一步清空
-  setPendingDefinition(definition)
+  // 在导航前直接替换 draft 会被那一步清空。带上行 id，保存后才能把收件箱那行收尾
+  setPendingDefinition(definition, draft.id)
   const { router } = await import('@/routers')
   await router.navigate(`/directive/${encodeURIComponent(definition.name)}`)
 }
