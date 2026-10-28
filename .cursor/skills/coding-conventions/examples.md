@@ -4,16 +4,19 @@
 
 ## 命名
 
-| Bad | Prefer |
-|-----|--------|
-| `getUserInfo` | `findUserInfo` |
-| `getUsers` | `findUsers` / `fetchUsers` |
-| `resolveDate` | `parseDate` |
-| `const date = resolveDate(raw)` | `const parsed = parseDate(raw)` |
-| `userList` | `users` |
-| `DEFAULT_PAGE_SIZE` | `PAGE_SIZE` |
+| Bad                               | Prefer                             |
+| --------------------------------- | ---------------------------------- |
+| `getUserInfo`                     | `findUserInfo`                     |
+| `getUsers`                        | `findUsers` / `fetchUsers`         |
+| `resolveDate`                     | `parseDate`                        |
+| `const date = resolveDate(raw)`   | `const parsed = parseDate(raw)`    |
+| `userList`                        | `users`                            |
+| `DEFAULT_PAGE_SIZE`               | `PAGE_SIZE`                        |
 | `setFlag(true)`（非 React state） | `updateFlag(true)` / `flag = true` |
-| `empty`（布尔语义不清） | `isEmpty` |
+| `empty`（布尔语义不清）           | `isEmpty`                          |
+| `KnowledgeChrome` / `showsChrome` | `KnowledgeSurface` / `showsShell`  |
+| `leftPanel`（UI 区域）            | `leftSurface`                      |
+| `loadPrefs`                       | `bootstrapPrefs`                   |
 
 ## API 函数与信封
 
@@ -22,7 +25,7 @@
 ```ts
 import { http } from '@/utils/http.ts'
 
-const API_BASE_URL = '/auth'
+const BASE_URL = '/auth'
 
 interface SignInBody {
   username: string
@@ -35,7 +38,7 @@ interface SignInResult {
 }
 
 function POST_SIGNIN(data: SignInBody) {
-  return http.post<RSF<SignInResult>>(`${API_BASE_URL}/signin`, data)
+  return http.post<RSF<SignInResult>>(`${BASE_URL}/signin`, data)
 }
 
 function POST_SIGNUP(_data: SignInBody) {
@@ -63,11 +66,11 @@ function POST_signIn() {}
 **Correct**
 
 ```ts
-function findUserById(id: string) {
-  return users.find(user => user.id === id)
+function findUserByID(id: string) {
+  return users.find((user) => user.id === id)
 }
 
-const ids = users.map(user => user.id)
+const ids = users.map((user) => user.id)
 
 const session = {
   pause() {},
@@ -85,8 +88,8 @@ bindGrid(el, {
 **Incorrect**
 
 ```ts
-const findUserById = (id: string) => {
-  return users.find(user => user.id === id)
+const findUserByID = (id: string) => {
+  return users.find((user) => user.id === id)
 }
 
 const session = {
@@ -102,6 +105,7 @@ bindGrid(el, {
 ```
 
 对象方法用简写（`pause() {}`），不要 `key: function () {}` 或箭头方法。
+
 ## 类型位置
 
 **Correct**（非专用类型文件）

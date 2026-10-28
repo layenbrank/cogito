@@ -13,21 +13,33 @@ alwaysApply: true
 
 ## 命名
 
+- **禁止 `chrome`**（与浏览器 Chrome 重名）→ UI 外壳用 `shell` / 区域用 `surface`
 - 禁止 `get` 前缀 → 用 `find` / `fetch`；解析用 `parse`，结果用 `parsed`
   - ❌ `getUserInfo` → ✅ `findUserInfo`
   - ❌ `resolveDate` → ✅ `parseDate`
-- 常量、枚举键、全局配置：**全大写** + 下划线（`API_BASE_URL`），默认值不加 `DEFAULT` 前缀
+- 常量、枚举键、全局配置：**全大写** + 下划线（`API_BASE_URL`），不加 `DEFAULT` / `default` 前缀
+- 禁 `load` → `bootstrap`；禁 `apply`；禁泛化 `create`
 - 非 `useState` 禁止 `set`；布尔用 `is` / `has` / `can`
 - 用单复数区分语义，避免 `list` 后缀（`users` 非 `userList`）
+- UI 区域 / 容器用 `surface`，不用 `panel`
 - 名称简洁明确；除 `i`、`k` 外避免单字母；超过 20 字符应拆分
+
+## 文件与导入
+
+- 粒度适中；导出名 = 文件名 = 职责；模块末尾 `export { ... }`
+- 一个域多个文件 → 开目录；默认不建 barrel
+- 同目录 `./x`；跨目录用别名 `@/...`，不写 `../../`
 
 ## 函数
 
 - **非必要禁止箭头函数**；导出与对外 API 用 `function` 声明
 - **对象方法用简写**（`onDragStart() {}`），不要 `key: function () {}`
 - 箭头函数仅用于：简短回调、`this` 绑定、compose/pipe 等约定工具
-- 按模块划分文件；导出名与文件名、职责一致；模块末尾命名导出
-- 一个域多个文件就开目录（内部短名）；默认不建 barrel，仅对外统一入口时放 `index.ts`
+
+## 错误与异步
+
+- `catch` / `.catch()` 必须 throw 或至少输出一次（`console.*` / toast）；禁止静默；降级前也要留痕
+- 非必要不用 `Promise.all`；互相独立用 `Promise.allSettled`
 
 ## 类型与质量
 
@@ -35,3 +47,8 @@ alwaysApply: true
 - 对象形状优先 `interface`；联合 / 不便 `extends` 的交叉 / 映射类型用 `type`
 - 优先 TypeScript/JSDoc 类型，避免 `any`；公开 API 需有类型
 - 遵循 ESLint/格式化；复杂逻辑补充注释
+
+## UI
+
+- 一律用 `@cogito/design`；不手写原生 button/dialog；新组件走 registry
+- 语义 token；禁硬编码色；按压用色阶，不用位移/缩放
