@@ -29,9 +29,15 @@ describe('command-bar query', function () {
     })
   })
 
+  it('domain prefix overrides the active chip filter', function () {
+    expect(parseQuery('web:rust', 'agent').filter).toBe('web')
+    expect(parseQuery('cal:周会', 'all').filter).toBe('calendar')
+  })
+
   it('matches tile filter to collection', function () {
     expect(matchesFilter('collection', 'tile')).toBe(true)
     expect(matchesFilter('navigation', 'tile')).toBe(false)
     expect(matchesFilter('agent', 'all')).toBe(true)
   })
 })
+

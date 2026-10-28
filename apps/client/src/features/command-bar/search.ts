@@ -9,16 +9,18 @@ import { matchesFilter, parseQuery } from '@/features/command-bar/query'
 import { findInstantWebHits } from '@/features/command-bar/providers/web'
 import { searchLocalProviders } from '@/features/command-bar/registry'
 import { sortHits } from '@/features/command-bar/rank'
-import { readEngineKey, readRecentHits } from '@/features/command-bar/store'
+import {
+  readEngineKey,
+  readRecentHits,
+  type RecentHit
+} from '@/features/command-bar/store'
 import type { DomainFilter, Hit } from '@/features/command-bar/types'
 import { buildMatchUrl } from '@/features/command-bar/url'
 
+type RecentHitRevive = Pick<RecentHit, 'domain' | 'id' | 'title'>
+
 /** 复活最近项：优先精确命中；Web 建议等无法复活时退回当前引擎搜索标题 */
-async function reviveRecentHit(item: {
-  domain: Hit['domain']
-  id: string
-  title: string
-}): Promise<void> {
+async function reviveRecentHit(item: RecentHitRevive): Promise<void> {
   const revivedLocal = searchLocalProviders(parseQuery(item.title, item.domain))
   const revivedWeb = findInstantWebHits(item.title).filter(function (hit) {
     return matchesFilter(hit.domain, item.domain)
@@ -36,7 +38,9 @@ async function reviveRecentHit(item: {
   if (item.domain === 'web' && item.title.trim()) {
     const engine = findEngine(readEngineKey())
     await openUrl(buildMatchUrl(engine.match, item.title.trim()))
+    return
   }
+  console.warn('[command-bar] 最近项无法复活:', item.domain, item.id, item.title)
 }
 
 function findRecentHits(): Hit[] {
