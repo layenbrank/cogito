@@ -34,9 +34,6 @@ function KnowledgeSurface() {
   const tab = useSurfaceStore(function (state) {
     return state.tab
   })
-  const toClose = useSurfaceStore(function (state) {
-    return state.toClose
-  })
   const toSetTab = useSurfaceStore(function (state) {
     return state.toSetTab
   })
@@ -91,18 +88,6 @@ function KnowledgeSurface() {
             </Button>
           )
         })}
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="ml-auto h-7 px-1.5"
-          title="收起侧栏"
-          onClick={toClose}>
-          <Icon
-            icon="lucide:panel-left-close"
-            className="size-3.5"
-          />
-        </Button>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">

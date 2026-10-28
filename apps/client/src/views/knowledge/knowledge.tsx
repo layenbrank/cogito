@@ -1,13 +1,14 @@
 import {
   ResizableHandle,
   ResizablePanel,
-  ResizablePanelGroup
+  ResizablePanelGroup,
+  usePanelRef
 } from '@cogito/design/components/resizable'
-import { clsx } from 'clsx'
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useEffect, useRef } from 'react'
 
 import { Decorations } from '@/components/decorations/index.ts'
 import { Fallback } from '@/components/fallback/index.ts'
+import { useDockStore } from '@/features/agent/dock'
 import { useDockCommand } from '@/features/agent/dock/use-dock-command'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { KnowledgeCaptionBegin } from '@/views/knowledge/caption/begin.tsx'
@@ -22,6 +23,18 @@ const KnowledgeWorkspace = lazy(function () {
   return import('@/views/knowledge/workspace/markdown.tsx')
 })
 
+const LEFT_ID = 'knowledge-left'
+const MAIN_ID = 'knowledge-main'
+const RIGHT_ID = 'knowledge-right'
+
+const LEFT_SIZE = '20%'
+const LEFT_MIN = 180
+const LEFT_MAX = '36%'
+
+const RIGHT_SIZE = '22%'
+const RIGHT_MIN = 240
+const RIGHT_MAX = '40%'
+
 function KnowledgeSkeleton() {
   return (
     <div className="flex h-full min-h-0 animate-pulse flex-col gap-2 p-3">
@@ -35,12 +48,10 @@ function KnowledgeSkeleton() {
 }
 
 /**
- * Markdown 磁贴窗壳（最多三列）：
+ * Markdown 磁贴窗壳（最多三列，均可拖宽）：
  * - 左栏：浏览 / 库 / 待发布 / 任务 / 设置（tabs）
  * - 中栏：编辑器（源码|预览分栏只在中栏内部）
- * - 右栏：大纲 | AI（tabs，互斥；收起零宽仍挂载，会话不丢）
- *
- * begin：窗口标题；final：布局开关；section：状态栏。
+ * - 右栏：大纲 | AI（tabs；collapse 零宽仍挂载，会话不丢）
  */
 export default function Knowledge() {
   const isFocusMode = useKnowledgeStore(function (state) {
@@ -52,13 +63,83 @@ export default function Knowledge() {
   const isAsideOpen = useKnowledgeStore(function (state) {
     return state.isOutlineOpen
   })
-  // 对话坞的 scope 跟着窗口走：切磁贴就解绑，不会串上下文
+  const leftRef = usePanelRef()
+  const rightRef = usePanelRef()
+  const openRef = useRef({ isSidebarOpen, isAsideOpen, isFocusMode })
+
   useKnowledgeDockScope()
-  // mod+j 开关对话坞（命令面板里也能搜到）
   useDockCommand()
 
-  const showsLeft = !isFocusMode && isSidebarOpen
-  const showsRight = !isFocusMode && isAsideOpen
+  useEffect(
+    function () {
+      openRef.current = { isSidebarOpen, isAsideOpen, isFocusMode }
+    },
+    [isSidebarOpen, isAsideOpen, isFocusMode]
+  )
+
+  // 挂载后按存档开合一次
+  useEffect(
+    function () {
+      const left = leftRef.current
+      const right = rightRef.current
+      if (!left || !right) return
+
+      const open = openRef.current
+      if (!open.isFocusMode && open.isSidebarOpen) left.expand()
+      else left.collapse()
+
+      if (!open.isFocusMode && open.isAsideOpen) {
+        right.expand()
+        if (right.getSize().inPixels < RIGHT_MIN) right.resize(RIGHT_SIZE)
+      } else {
+        right.collapse()
+      }
+    },
+    [leftRef, rightRef]
+  )
+
+  useEffect(
+    function () {
+      const panel = leftRef.current
+      if (!panel) return
+      if (!isFocusMode && isSidebarOpen) panel.expand()
+      else panel.collapse()
+    },
+    [isSidebarOpen, isFocusMode, leftRef]
+  )
+
+  useEffect(
+    function () {
+      const panel = rightRef.current
+      if (!panel) return
+      if (!isFocusMode && isAsideOpen) {
+        if (panel.isCollapsed()) {
+          panel.expand()
+          if (panel.getSize().inPixels < RIGHT_MIN) panel.resize(RIGHT_SIZE)
+        }
+        return
+      }
+      panel.collapse()
+    },
+    [isAsideOpen, isFocusMode, rightRef]
+  )
+
+  function handleLeftResize() {
+    if (openRef.current.isFocusMode) return
+    const collapsed = leftRef.current?.isCollapsed() ?? false
+    const nextOpen = !collapsed
+    if (nextOpen === openRef.current.isSidebarOpen) return
+    useKnowledgeStore.getState().toToggleSidebar()
+  }
+
+  function handleRightResize() {
+    if (openRef.current.isFocusMode) return
+    const collapsed = rightRef.current?.isCollapsed() ?? false
+    const nextOpen = !collapsed
+    if (nextOpen === openRef.current.isAsideOpen) return
+    useKnowledgeStore.getState().toPatchPreferences({ isOutlineOpen: nextOpen })
+    if (!nextOpen) useDockStore.getState().toClose()
+  }
 
   return (
     <Decorations
@@ -69,22 +150,30 @@ export default function Knowledge() {
       scrollable={false}>
       <div className={styles.workspace}>
         <ResizablePanelGroup
+          id="knowledge-shell"
           orientation="horizontal"
-          className="h-full min-h-0 min-w-0 flex-1">
-          {showsLeft ? (
-            <>
-              <ResizablePanel
-                defaultSize="22%"
-                minSize="14%"
-                maxSize="36%"
-                className="min-h-0 min-w-0 overflow-hidden border-r border-border">
-                <KnowledgeSurface />
-              </ResizablePanel>
-              <ResizableHandle withHandle />
-            </>
-          ) : null}
+          className="h-full min-h-0 w-full flex-1">
+          <ResizablePanel
+            id={LEFT_ID}
+            panelRef={leftRef}
+            defaultSize={LEFT_SIZE}
+            minSize={LEFT_MIN}
+            maxSize={LEFT_MAX}
+            collapsible
+            collapsedSize={0}
+            collapsibleOnDrag={false}
+            groupResizeBehavior="preserve-pixel-size"
+            onResize={handleLeftResize}
+            className="min-h-0 min-w-0 overflow-hidden border-r border-border">
+            <KnowledgeSurface />
+          </ResizablePanel>
 
-          <ResizablePanel className="min-h-0 min-w-0 overflow-hidden">
+          <ResizableHandle withHandle />
+
+          <ResizablePanel
+            id={MAIN_ID}
+            minSize={280}
+            className="min-h-0 min-w-0 overflow-hidden">
             <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
               <Fallback.ErrorBoundary
                 title="Markdown 编辑器出现问题"
@@ -95,18 +184,24 @@ export default function Knowledge() {
               </Fallback.ErrorBoundary>
             </div>
           </ResizablePanel>
-        </ResizablePanelGroup>
 
-        {!isFocusMode ? (
-          <div
-            aria-hidden={!showsRight}
-            className={clsx(
-              'flex h-full min-h-0 shrink-0 flex-col overflow-hidden bg-background transition-[width,opacity] duration-200 ease-out motion-reduce:transition-none',
-              showsRight ? 'w-80 border-l border-border opacity-100' : 'pointer-events-none w-0 opacity-0'
-            )}>
+          <ResizableHandle withHandle />
+
+          <ResizablePanel
+            id={RIGHT_ID}
+            panelRef={rightRef}
+            defaultSize={RIGHT_SIZE}
+            minSize={RIGHT_MIN}
+            maxSize={RIGHT_MAX}
+            collapsible
+            collapsedSize={0}
+            collapsibleOnDrag={false}
+            groupResizeBehavior="preserve-pixel-size"
+            onResize={handleRightResize}
+            className="min-h-0 min-w-0 overflow-hidden border-l border-border">
             <KnowledgeAside />
-          </div>
-        ) : null}
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
     </Decorations>
   )
