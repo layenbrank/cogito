@@ -42,8 +42,7 @@ interface TerminalState {
   setActivity: (activity: DockActivity) => void
   /** 打开底部栏并切到指定活动页（默认「运行」） */
   revealDock: (options?: RevealDockOptions) => void
-  /** @deprecated 用 revealDock；保留别名给既有调用 */
-  ensureOutputTab: () => void
+
   newTab: (cwd: string, options?: NewTabOptions) => void
   removeTab: (id: string) => void
   setActive: (id: string) => void
@@ -91,13 +90,6 @@ const useTerminalStore = create<TerminalState>()(
           set(function (state) {
             state.open = true
             state.activity = options?.activity ?? 'run'
-          })
-        },
-
-        ensureOutputTab: function () {
-          set(function (state) {
-            state.open = true
-            state.activity = 'run'
           })
         },
 

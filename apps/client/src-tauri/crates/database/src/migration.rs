@@ -120,7 +120,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn merged_v002_v005_objects_exist() {
+    async fn signboard_and_album_tables_exist() {
         let db = fresh().await;
         for table in ["album", "bookmark", "signboard_entry_asset"] {
             let count = scalar_i64(

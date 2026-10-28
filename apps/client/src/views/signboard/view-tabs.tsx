@@ -87,8 +87,5 @@ function ViewModeSelect(props: ViewModeSelectProps) {
   )
 }
 
-/** @deprecated 使用 ViewModeSelect；保留别名以免外部误引用 */
-const ViewTabs = ViewModeSelect
-
-export { ViewModeSelect, ViewTabs, VIEW_TABS }
+export { ViewModeSelect, VIEW_TABS }
 export type { ViewMode }

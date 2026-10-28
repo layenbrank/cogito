@@ -3,14 +3,14 @@ import { Text, View } from 'react-native'
 
 import type { MagneticTile } from '@/types/magnetic-tile'
 
-interface IntelligenceTileProps {
+interface AgentTileProps {
   tile: MagneticTile
 }
 
 /**
- * Intelligence / Agent entry magnetic tile.
+ * Agent 入口磁贴。
  */
-function IntelligenceTile({ tile }: IntelligenceTileProps) {
+function AgentTile({ tile }: AgentTileProps) {
   return (
     <View className="flex-1 justify-between px-3 py-3">
       <View className="flex-row items-center gap-2">
@@ -35,4 +35,4 @@ function IntelligenceTile({ tile }: IntelligenceTileProps) {
   )
 }
 
-export { IntelligenceTile }
+export { AgentTile }

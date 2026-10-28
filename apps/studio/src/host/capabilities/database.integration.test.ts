@@ -6,10 +6,9 @@
  *   2. 幂等：重复 migrate() 不重复执行、不二次播种
  *   3. 可重跑：记账丢失（库是别的版本建的）时重跑，DDL 撞不到已存在的表
  *
- * 开发阶段只有 0000_init / 0001 / 0002 三条迁移：整库 DDL 全是 IF NOT EXISTS、种子全是 INSERT OR IGNORE。
+ * 开发阶段只有 0000_init / 0001_chat_usage 两条迁移：整库 DDL 全是 IF NOT EXISTS、种子全是 INSERT OR IGNORE。
  * 所以「表已存在」是正常状态而不是错误 —— 迁移无论重跑几次都安全。
  * 但幂等不等于会迁移旧 schema：结构真改了请直接删掉本地 dev 库重建，别指望重跑能改表。
- * 0002 是**数据修补**（组件改名 intelligence → agent），所以额外断言它真的改到了历史行。
  *
  * better-sqlite3 是按 Electron ABI 编译的原生模块，普通 Node 加载会 ABI 不匹配，
  * 因此本文件被 vitest.config.ts 排除在 test:unit 之外，改用 Electron 运行时执行：
@@ -32,8 +31,8 @@ const MIGRATIONS_FOLDER = join(PACKAGE_ROOT, 'drizzle', 'migrations')
 
 /** 业务表数量（不含 Drizzle 记账表）：v1 的 8 张 + chat 域 4 张 + workspace/workspaceFolder 2 张 = 14 */
 const BUSINESS_TABLE_COUNT = 14
-/** 迁移文件数：0000_init（建表 + 种子）+ 0001_chat_usage（用量账本）+ 0002_magnetic_tile_agent（组件改名数据修补）+ 0003_magnetic_tile_knowledge（同上） */
-const MIGRATION_COUNT = 4
+/** 迁移文件数：0000_init（建表 + 种子）+ 0001_chat_usage（用量账本） */
+const MIGRATION_COUNT = 2
 /** 种子行数（139 条 INSERT OR IGNORE；client 已废弃，不再同步） */
 const SEED_ROWS = { magneticTile: 137, mirror: 1, countdown: 1 }
 
@@ -82,14 +81,11 @@ function seedRowCounts(db: SqliteHandle) {
   }
 }
 
-function componentCounts(db: SqliteHandle) {
-  const count = db.prepare(
-    'SELECT COUNT(*) AS count FROM "magneticTile" WHERE "component" = ?'
-  )
-  return {
-    legacy: (count.get('intelligence') as { count: number }).count,
-    renamed: (count.get('agent') as { count: number }).count
-  }
+function agentSeedCount(db: SqliteHandle): number {
+  const row = db
+    .prepare('SELECT COUNT(*) AS count FROM "magneticTile" WHERE "component" = ?')
+    .get('agent') as { count: number }
+  return row.count
 }
 
 afterEach(function () {
@@ -113,13 +109,12 @@ describe('Drizzle 迁移（真实引擎 better-sqlite3）', function () {
     expect(seedRowCounts(db)).toEqual(SEED_ROWS)
   })
 
-  it('组件改名：种子里的 intelligence 被 0002 重写为 agent', function () {
+  it('种子里的 AI Hub 直接写 agent（无遗留旧组件名）', function () {
     const db = openDb()
 
     bootstrap(db)
 
-    // 0000_init 的种子写的是旧组件名，0002 负责把它改成 agent
-    expect(componentCounts(db)).toEqual({ legacy: 0, renamed: 1 })
+    expect(agentSeedCount(db)).toBe(1)
   })
 
   it('重复启动：迁移与播种都幂等', function () {

@@ -72,7 +72,7 @@ export const CAPABILITIES: readonly Capability[] = [
     owns: ['asset', 'chunk'],
     dependsOn: ['identity'],
     publicModules: [],
-    absorbs: ['src/services/upload', 'src/services/markdown'],
+    absorbs: ['src/services/upload'],
     status: 'pending'
   },
   {
@@ -117,7 +117,7 @@ export const CAPABILITIES: readonly Capability[] = [
   {
     name: 'agent',
     title: '服务端 agent',
-    owns: ['agent_task', 'agent_approval'],
+    owns: ['agent_task', 'agent_approval', 'scheduled_job'],
     dependsOn: [],
     publicModules: ['persistence'],
     // 新增能力，没有遗留路径可吸收：HTTP 层是**新写**的，按 R6 留在 api 二进制（见 LEGACY_SERVICES）。
@@ -209,7 +209,6 @@ export const LEGACY_SERVICES: Record<string, { owner: string; note: string }> = 
   },
   engine: { owner: 'cogito', note: '对话/智能体编排，留在 api 二进制' },
   gateway: { owner: 'gateway', note: '模型网关' },
-  markdown: { owner: 'document', note: '文档解析' },
   mcp: {
     owner: 'mcp',
     note: 'MCP 的 HTTP 层（新写，非遗留）：工具目录与名字映射在 crates/mcp'
@@ -218,6 +217,10 @@ export const LEGACY_SERVICES: Record<string, { owner: string; note: string }> = 
   rag: {
     owner: 'rag',
     note: 'RAG 索引任务的 HTTP 层（新写，非遗留）：台账与状态词汇在 crates/rag'
+  },
+  schedule: {
+    owner: 'agent',
+    note: '定时任务的 HTTP 层（新写，非遗留）：排期算法与台账在 services/schedule，到点后复用 crates/agent 起任务'
   },
   sso: { owner: 'identity', note: 'SSO 连接' },
   subscription: { owner: 'billing', note: '订阅与配额' },
@@ -394,6 +397,11 @@ export const PLATFORM_ENTRY_ALLOWED: Record<string, { max: number; reason: strin
     max: 1,
     reason:
       '事件发布 worker：outbox 强制行级安全，而发布者要跨租户读全部待发布事件，只属于平台级消费者——这是请求路径之外唯一的提权点，作用域是「读一批 outbox + 回写置位」'
+  },
+  'src/services/schedule/service.rs': {
+    max: 2,
+    reason:
+      '定时任务调度器：认领到期任务与回写结果都不带请求上下文（worker 线程），要跨租户读写 scheduled_job；只碰这一张表，且认领用 CAS（nextRunAt 原值）保证多副本不重复'
   }
 }
 
@@ -426,7 +434,7 @@ export const UNSCOPED_DB_ALLOWED: Record<string, { max: number; reason: string }
       '启动种子：按 auth.bootstrap_admin 幂等创建/提升平台 ADMIN。auth 是全局身份表，无行级安全；种子发生在请求管道之前，只能走未作用域连接'
   },
   'src/services/auth/service.rs': {
-    max: 11,
+    max: 12,
     reason:
       '账号与认证：按用户名/手机号/邮箱跨租户查账号、建号、改密、改角色。auth 是全局身份表——没有行级安全、也不属于任何租户，登录时先查到账号才知道进哪个作用域，所以这些读写只能走未作用域连接'
   },

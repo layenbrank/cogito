@@ -75,12 +75,6 @@ agent（app_knowledge_write_doc） → .staging/<session>/xxx.md
 云端 MCP（`cogito-cloud`）**只在本地网关缺失时挂载**：两边同时在，模型会对同一个查询调两次。
 见 `features/agent/acp/cloud-mcp.ts`。
 
-## 清理入口
-
-旧版本每 30 秒往 `<应用数据>/markdown-backups` 写一份 `.bak`；新版不再写，但**不自动删除**。
-偏好面板（编辑器右上「偏好」）在检测到残留时显示「旧版本留下的备份 · N 个文件 · X MB」并给删除按钮
-（`knowledge:legacyScan` / `knowledge:legacyRemove`）。删的是副本，不影响当前文档。
-
 ## 排查
 
 | 现象 | 先看哪里 |

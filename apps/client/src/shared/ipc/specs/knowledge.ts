@@ -90,13 +90,6 @@ const CloudStateSchema = z.object({
 
 const PublishModeSchema = z.enum(['replace', 'keepboth'])
 
-/** 旧版自动生成的备份目录（已不再写入，只等用户确认后清掉） */
-const LegacyBackupSchema = z.object({
-  path: z.string(),
-  files: z.number(),
-  bytes: z.number()
-})
-
 /** 文档引用：打开时取一次，保存时把 `hash` 带回去做冲突判定 */
 const KnowledgeDocRefSchema = z.object({
   matched: z.boolean(),
@@ -126,7 +119,6 @@ type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
 type KnowledgeDocRef = z.infer<typeof KnowledgeDocRefSchema>
 type KnowledgeDocSummary = z.infer<typeof KnowledgeDocSummarySchema>
 type KnowledgeHit = z.infer<typeof KnowledgeHitSchema>
-type LegacyBackup = z.infer<typeof LegacyBackupSchema>
 type StagedFile = z.infer<typeof StagedFileSchema>
 type CloudDoc = z.infer<typeof CloudDocSchema>
 type CloudState = z.infer<typeof CloudStateSchema>
@@ -136,30 +128,28 @@ type PublishMode = z.infer<typeof PublishModeSchema>
 type WriteDocOutcome = z.infer<typeof WriteDocOutcomeSchema>
 
 export {
+  CloudDocSchema,
+  CloudStateSchema,
   KnowledgeBaseSchema,
   KnowledgeDocRefSchema,
   KnowledgeDocSummarySchema,
   KnowledgeHitSchema,
-  LegacyBackupSchema,
-  PublishModeSchema,
   PublishedDocSchema,
+  PublishModeSchema,
   SearchInputSchema,
-  CloudDocSchema,
-  CloudStateSchema,
   StagedDocSchema,
   StagedFileSchema,
   WriteDocOutcomeSchema
 }
 export type {
+  CloudDoc,
+  CloudState,
   KnowledgeBase,
   KnowledgeDocRef,
   KnowledgeDocSummary,
   KnowledgeHit,
-  LegacyBackup,
   PublishedDoc,
   PublishMode,
-  CloudDoc,
-  CloudState,
   StagedDoc,
   StagedFile,
   WriteDocOutcome

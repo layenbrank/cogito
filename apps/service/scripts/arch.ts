@@ -44,7 +44,7 @@ const ROLE_VOCAB_OWNERS = ['crates/identity', 'crates/authz'] as const
 
 const CAPABILITY_NAMES = new Set(CAPABILITIES.map((c) => c.name))
 
-const STANDARD_SERVICES = ['auth', 'user', 'engine', 'application', 'markdown'] as const
+const STANDARD_SERVICES = ['auth', 'user', 'engine', 'application'] as const
 
 const COMPLEX_SERVICES: Record<string, { extra: Set<string> }> = {
   upload: {

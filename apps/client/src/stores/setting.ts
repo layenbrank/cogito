@@ -68,15 +68,6 @@ const RECORDING_RETENTION: Setting.RetentionPolicy = {
 
 const SHORTCUTS_VERSION = 1
 
-/**
- * v0 里唯一可配置的键：`capture.shortcut`，现已迁进 `shortcuts.bindings`。
- *
- * 默认值**故意写死**：迁移是一次性历史逻辑，判断依据应当是当年那个默认值；
- * 跟着键位表走的话，表以后改默认值就会把老用户的默认值误判成「改过」。
- */
-const LEGACY_CAPTURE_SHORTCUT_ID = 'capture.screenshot'
-const LEGACY_CAPTURE_SHORTCUT_DEFAULT = 'Alt+Q'
-
 const CAPTURE: Setting.Capture = {
   detect: DETECT_ELEMENT,
   isRetentionEnabled: true,
@@ -150,27 +141,6 @@ function mergeShortcuts(stored?: Partial<Setting.Shortcuts>): Setting.Shortcuts 
     if (typeof binding === 'string' && binding.trim()) bindings[id] = binding
   }
   return { version: SHORTCUTS_VERSION, bindings }
-}
-
-/**
- * v0 → v1：把旧的 `capture.shortcut` 搬成覆盖。
- *
- * 只在「存过且不是当年默认值」时才搬 —— 否则会把默认值误记成「用户改过」，
- * 以后改代码里的默认键位就再也推不动了。
- */
-function migrateShortcuts(
-  stored: Partial<Setting.Shortcuts> | undefined,
-  legacyCaptureShortcut: unknown
-): Setting.Shortcuts {
-  const shortcuts = mergeShortcuts(stored)
-  if (shortcuts.bindings[LEGACY_CAPTURE_SHORTCUT_ID]) return shortcuts
-  if (typeof legacyCaptureShortcut !== 'string') return shortcuts
-  const legacy = legacyCaptureShortcut.trim()
-  if (!legacy || legacy === LEGACY_CAPTURE_SHORTCUT_DEFAULT) return shortcuts
-  return {
-    version: SHORTCUTS_VERSION,
-    bindings: { ...shortcuts.bindings, [LEGACY_CAPTURE_SHORTCUT_ID]: legacy }
-  }
 }
 
 function mergeCaptureUpdate(
@@ -272,13 +242,11 @@ export {
   DETECT_OFF,
   DETECT_WINDOW,
   DETECT_ELEMENT,
-  LEGACY_CAPTURE_SHORTCUT_ID,
   RECORDING_RETENTION,
   SCREENSHOT_RETENTION,
   SHORTCUTS_VERSION,
   mergeCapture,
   mergeCaptureUpdate,
-  mergeShortcuts,
-  migrateShortcuts
+  mergeShortcuts
 }
 export type { Setting }

@@ -63,7 +63,7 @@ function createSeedTiles(): MagneticTile[] {
       archivedAt: null
     },
     {
-      id: 'tile-markdown',
+      id: 'tile-knowledge',
       index: navigationTiles.length + 1,
       title: 'Notes',
       url: null,
@@ -86,7 +86,7 @@ function createSeedTiles(): MagneticTile[] {
       content: '# i-thinking\n\n磁贴首页 + Agent\n\n- Studio 参考\n- rust-service gateway'
     },
     {
-      id: 'tile-intelligence',
+      id: 'tile-agent',
       index: navigationTiles.length + 2,
       title: 'Agent',
       url: 'agent',
@@ -99,7 +99,7 @@ function createSeedTiles(): MagneticTile[] {
       updatedAt: STAMP,
       createdAt: STAMP,
       textColor: '#FFFFFF',
-      component: 'intelligence',
+      component: 'agent',
       description: 'Open agent chat',
       collectionID: null,
       downloadCount: 0,

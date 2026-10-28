@@ -20,8 +20,6 @@ function ProgressText(props: ProgressTextProps) {
 
 interface ProgressBarProps {
   pct: number
-  /** 兼容旧调用：传 total≤0 时仍渲染轨道（进度始终可见） */
-  total?: number
   className?: string
   /** 紧凑：用于卡片 meta / 列头 */
   size?: 'sm' | 'md'
@@ -83,4 +81,4 @@ function ProgressCell(props: ProgressCellProps) {
   )
 }
 
-export { ProgressBar, ProgressCell, ProgressText }
+export { ProgressCell }

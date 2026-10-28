@@ -14,11 +14,9 @@ describe('指令场景系统提示', function () {
     expect(prompt).toContain('corex_directive')
   })
 
-  it('directive 场景明确不落库，且不指示调用不存在的保存工具', function () {
+  it('directive 场景明确不落库，保存由客户端完成', function () {
     const prompt = findSystemPrompt('directive')
     expect(prompt).toContain('不要落库')
-    expect(prompt).toContain('不要调用 save_directive')
-    expect(prompt).not.toContain('用 save_directive 写入')
   })
 
   it('general 场景也提示可用 corex MCP 编排指令', function () {
@@ -49,10 +47,5 @@ describe('corex 工具中文标签', function () {
     expect(toAgentToolLabel('mcp_corex-mcp_corex_actions')).toBe('列出动作')
     expect(toAgentToolLabel('corex__corex_run')).toBe('运行指令')
     expect(toAgentToolLabel('corex_validate')).toBe('校验指令')
-  })
-
-  it('保留旧 daemon RPC 名的兼容标签', function () {
-    expect(toAgentToolLabel('save_directive')).toBe('保存指令')
-    expect(toAgentToolLabel('run_directive')).toBe('运行指令')
   })
 })

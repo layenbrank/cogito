@@ -1,23 +1,27 @@
 [build]
 target-dir = "target"
-rustc-wrapper = "sccache"  # 替换为 sccache 实际路径
+rustc-wrapper = "sccache" # 替换为 sccache 实际路径
 incremental = true
 # 默认目标平台（可通过--target覆盖）
 target = "x86_64-pc-windows-msvc"
 
 # Windows Hyper-V/WSL 会排除动态端口(≥49152)；强制低于该区，压住 Cursor 继承的旧 SCCACHE_SERVER_PORT。
-[env]
-SCCACHE_SERVER_PORT = { value = "42222", force = true }
+# [env]
+# SCCACHE_SERVER_PORT = { value = "42222", force = true }
 
 # -------------------------- Windows 平台配置 --------------------------
 [target.x86_64-pc-windows-msvc]
 # 使用MSVC链接器（需安装Visual Studio构建工具）
 linker = "link.exe"
 rustflags = [
-  "-C", "target-cpu=native",
-  "-C", "target-feature=+crt-static",
-  "-C", "link-arg=/SUBSYSTEM:CONSOLE",
-  "-C", "link-arg=/OPT:REF",
+  "-C",
+  "target-cpu=native",
+  "-C",
+  "target-feature=+crt-static",
+  "-C",
+  "link-arg=/SUBSYSTEM:CONSOLE",
+  "-C",
+  "link-arg=/OPT:REF",
 ]
 
 # -------------------------- Linux 平台配置 --------------------------
@@ -27,27 +31,27 @@ linker = "lld"
 # 编译优化：最高级别优化+静态链接+二进制瘦身
 rustflags = [
   "-C",
-  "target-feature=+crt-static",  # 静态链接C运行时
+  "target-feature=+crt-static", # 静态链接C运行时
   "-C",
-  "opt-level=3",  # 代码优化等级（0-3，3最优）
+  "opt-level=3",                # 代码优化等级（0-3，3最优）
   "-C",
-  "target-cpu=native",  # 针对当前CPU架构优化指令集
+  "target-cpu=native",          # 针对当前CPU架构优化指令集
   "-C",
-  "link-arg=-s",  # 移除符号表，减小二进制体积
+  "link-arg=-s",                # 移除符号表，减小二进制体积
   "-C",
-  "strip=debuginfo",  # 剥离调试信息
+  "strip=debuginfo",            # 剥离调试信息
   "-C",
   "link-arg=-fuse-ld=lld",
 ]
 
 [target.aarch64-unknown-linux-gnu]
 # ARM64 Linux交叉编译配置（需安装aarch64-linux-gnu-gcc工具链）
-linker = "aarch64-linux-gnu-gcc"  # 交叉编译器
+linker = "aarch64-linux-gnu-gcc" # 交叉编译器
 rustflags = [
   "-C",
   "opt-level=3",
   "-C",
-  "target-feature=+crt-static",  # 静态链接C运行时
+  "target-feature=+crt-static", # 静态链接C运行时
 ]
 
 # -------------------------- macOS 平台配置 --------------------------
@@ -57,9 +61,9 @@ rustflags = [
   "-C",
   "opt-level=3",
   "-C",
-  "link-arg=-dead_strip",  # 移除未使用代码
+  "link-arg=-dead_strip",                # 移除未使用代码
   "-C",
-  "link-arg=-mmacosx-version-min=10.15",  # 最低支持macOS 10.15
+  "link-arg=-mmacosx-version-min=10.15", # 最低支持macOS 10.15
 ]
 
 [target.aarch64-apple-darwin]
@@ -69,7 +73,7 @@ rustflags = [
   "-C",
   "opt-level=3",
   "-C",
-  "target-cpu=apple-m1",  # 针对M1/M2芯片优化
+  "target-cpu=apple-m1", # 针对M1/M2芯片优化
 ]
 
 # [source]

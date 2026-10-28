@@ -26,7 +26,7 @@ pub enum Component {
     Knowledge,
     Settings,
     Clipchamp,
-    Intelligence,
+    Agent,
     Navigation,
     Marketplace,
     Developer,
@@ -34,6 +34,12 @@ pub enum Component {
     Signboard,
     Clock,
     Gallery,
+    Code,
+    Countdown,
+    Morph,
+    Capture,
+    Directive,
+    Example,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]

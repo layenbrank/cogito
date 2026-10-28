@@ -7,9 +7,6 @@ interface RatioProgress {
   pct: number
 }
 
-/** @deprecated 使用 RatioProgress；保留别名兼容旧引用 */
-type ChecklistProgress = RatioProgress
-
 interface ColumnProgressRow {
   column: SignboardColumn
   count: number
@@ -99,4 +96,4 @@ export {
   findColumnProgress,
   findRatioProgress
 }
-export type { ChecklistProgress, ColumnProgressRow, RatioProgress }
+export type { ColumnProgressRow, RatioProgress }

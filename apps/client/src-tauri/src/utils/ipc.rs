@@ -150,8 +150,6 @@ fn token_candidates() -> Vec<PathBuf> {
     if let Ok(appdata) = std::env::var("APPDATA") {
         let root = PathBuf::from(&appdata).join("corex");
         paths.push(root.join("token"));
-        // 旧错误路径：仍试一次，兼容历史部署
-        paths.push(root.join("data").join("token"));
     }
     if let Ok(local) = std::env::var("LOCALAPPDATA") {
         paths.push(PathBuf::from(&local).join("corex").join("token"));

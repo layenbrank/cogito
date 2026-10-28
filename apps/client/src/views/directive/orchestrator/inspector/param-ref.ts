@@ -165,13 +165,6 @@ function collectStepRefs(steps: Step[], options?: { excludeId?: string | null })
   return refs
 }
 
-/** @deprecated 用 collectStepRefs */
-function collectStepIds(steps: Step[], options?: { excludeId?: string | null }): string[] {
-  return collectStepRefs(steps, options).map(function (ref) {
-    return ref.id
-  })
-}
-
 function buildRefGroups(context: ParamRefContext): RefGroup[] {
   const variableLeaves = Object.keys(context.variables).map(function (name) {
     const value = context.variables[name]
@@ -261,7 +254,6 @@ export {
   parsePureRef,
   normalizeRefPath,
   formatRefLabel,
-  collectStepIds,
   collectStepRefs,
   buildRefGroups,
   insertAt,

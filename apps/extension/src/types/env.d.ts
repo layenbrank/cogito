@@ -2,18 +2,11 @@
 
 interface ImportMetaEnv {
   readonly VITE_APP_TITLE: string
-
-  readonly VITE_ENGINE: string
-  readonly VITE_EXTENSION: string
-  readonly VITE_INTELLIGENCE: string
-  readonly VITE_COGITO: string
 }
 
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
-
-type EnvURL = 'engine' | 'intelligence' | 'corex'
 
 interface Window {
   MediaStreamTrackProcessor: typeof MediaStreamTrackProcessor

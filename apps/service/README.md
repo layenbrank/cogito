@@ -189,7 +189,6 @@ spec/                     # OpenAPI 生成物 + cogito↔compute 内部契约（
 | 用户(后台)   | `/api/v1/users`                      | [user](src/services/user/README.md)                 |
 | 上传         | `/api/v1/upload`                     | [upload](src/services/upload/README.md)             |
 | 搜索引擎代理 | `/api/v1/engine`                     | [engine](src/services/engine/README.md)             |
-| Markdown     | —（未挂载）                          | [markdown](src/services/markdown/README.md)         |
 | 租户         | `/api/v1/tenants`                    | [tenant](src/services/tenant/README.md)             |
 | 订阅         | `/api/v1/tenants/{id}/subscriptions` | [subscription](src/services/subscription/README.md) |
 | 支付         | `/api/v1/tenants/{id}/orders`        | [payment](src/services/payment/README.md)           |
@@ -238,7 +237,6 @@ spec/                     # OpenAPI 生成物 + cogito↔compute 内部契约（
 | 上传             | [src/services/upload/README.md](src/services/upload/README.md)           |
 | 搜索引擎         | [src/services/engine/README.md](src/services/engine/README.md)           |
 | 应用             | [src/services/application/README.md](src/services/application/README.md) |
-| Markdown（占位） | [src/services/markdown/README.md](src/services/markdown/README.md)       |
 
 ## HTTP 测试
 

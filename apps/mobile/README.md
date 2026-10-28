@@ -15,7 +15,7 @@
 |------|------|
 | 登录 / 注册 | `POST /api/v1/auth/captcha` → 滑块验证 → `signin` / `signup` |
 | 会话 | `GET /api/v1/auth/profile` 校验 JWT；`POST /signout` 拉黑名单 |
-| 磁贴 | 本地镜像：navigation / clock / markdown / intelligence |
+| 磁贴 | 本地镜像：navigation / clock / knowledge / agent |
 | Agent | `GET /gateway/models` + `POST /gateway/chat/completions`（XHR 流式） |
 
 ## 配置

@@ -44,20 +44,7 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   app_knowledge_search: '检索知识',
   app_knowledge_write_doc: '写入知识草稿',
   app_workspace_list: '列出工作区',
-  app_workspace_read: '读取工作区文件',
-  // 旧 daemon RPC 名（兼容历史会话里的工具名）
-  list_actions: '列出动作',
-  list_directives: '列出指令',
-  directives: '列出指令',
-  read_directive: '读取指令',
-  save_directive: '保存指令',
-  delete_directive: '删除指令',
-  validate_directive: '校验指令',
-  run_directive: '运行指令',
-  import_directives: '导入指令',
-  list_runs: '列出运行',
-  cancel_execution: '取消运行',
-  invoke: '试跑动作'
+  app_workspace_read: '读取工作区文件'
 }
 
 function toAgentToolLabel(name: string): string {

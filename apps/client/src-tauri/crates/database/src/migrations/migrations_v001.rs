@@ -155,98 +155,6 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(User::Table)
-                    .if_not_exists()
-                    .col(ColumnDef::new(User::Id).string().not_null().primary_key())
-                    .col(ColumnDef::new(User::Username).string().not_null())
-                    .col(ColumnDef::new(User::Password).string().not_null())
-                    .col(ColumnDef::new(User::Avatar).string().not_null().default(""))
-                    .col(ColumnDef::new(User::DeviceId).string().not_null())
-                    .col(ColumnDef::new(User::ArchivedAt).big_integer().null())
-                    .col(ColumnDef::new(User::CreatedAt).big_integer().not_null())
-                    .col(ColumnDef::new(User::UpdatedAt).big_integer().not_null())
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .create_table(
-                Table::create()
-                    .table(Notification::Table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new(Notification::Id)
-                            .string()
-                            .not_null()
-                            .primary_key(),
-                    )
-                    .col(ColumnDef::new(Notification::Type).string().not_null())
-                    .col(ColumnDef::new(Notification::Title).string().not_null())
-                    .col(ColumnDef::new(Notification::Body).string().not_null())
-                    .col(ColumnDef::new(Notification::TenantId).string().null())
-                    .col(
-                        ColumnDef::new(Notification::Version)
-                            .big_integer()
-                            .not_null()
-                            .default(1),
-                    )
-                    .col(ColumnDef::new(Notification::DeviceId).string().not_null())
-                    .col(
-                        ColumnDef::new(Notification::ArchivedAt)
-                            .big_integer()
-                            .null(),
-                    )
-                    .col(
-                        ColumnDef::new(Notification::CreatedAt)
-                            .big_integer()
-                            .not_null(),
-                    )
-                    .col(
-                        ColumnDef::new(Notification::UpdatedAt)
-                            .big_integer()
-                            .not_null(),
-                    )
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .create_table(
-                Table::create()
-                    .table(Comment::Table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new(Comment::Id)
-                            .string()
-                            .not_null()
-                            .primary_key(),
-                    )
-                    .col(ColumnDef::new(Comment::TenantId).string().not_null())
-                    .col(ColumnDef::new(Comment::Username).string().not_null())
-                    .col(
-                        ColumnDef::new(Comment::Avatar)
-                            .string()
-                            .not_null()
-                            .default(""),
-                    )
-                    .col(ColumnDef::new(Comment::Description).string().not_null())
-                    .col(
-                        ColumnDef::new(Comment::Version)
-                            .big_integer()
-                            .not_null()
-                            .default(1),
-                    )
-                    .col(ColumnDef::new(Comment::DeviceId).string().not_null())
-                    .col(ColumnDef::new(Comment::ArchivedAt).big_integer().null())
-                    .col(ColumnDef::new(Comment::CreatedAt).big_integer().not_null())
-                    .col(ColumnDef::new(Comment::UpdatedAt).big_integer().not_null())
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .create_table(
-                Table::create()
                     .table(Countdown::Table)
                     .if_not_exists()
                     .col(
@@ -561,12 +469,6 @@ impl MigrationTrait for Migration {
         db.execute_unprepared("CREATE INDEX IF NOT EXISTS idx_asset_hash ON asset (hash)")
             .await?;
         db.execute_unprepared("CREATE INDEX IF NOT EXISTS idx_asset_path ON asset (filePath)")
-            .await?;
-        db.execute_unprepared(
-            "CREATE INDEX IF NOT EXISTS idx_notif_tenant ON notification (tenantID)",
-        )
-        .await?;
-        db.execute_unprepared("CREATE INDEX IF NOT EXISTS idx_cmt_tenant ON comment (tenantID)")
             .await?;
         db.execute_unprepared("CREATE INDEX IF NOT EXISTS idx_reminder_dueAt ON reminder (dueAt)")
             .await?;
@@ -1016,6 +918,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(SignboardColumn::Color).string().null())
                     .col(ColumnDef::new(SignboardColumn::WipLimit).integer().null())
+                    .col(ColumnDef::new(SignboardColumn::Role).string().null())
                     .col(
                         ColumnDef::new(SignboardColumn::ArchivedAt)
                             .big_integer()
@@ -1078,6 +981,12 @@ impl MigrationTrait for Migration {
                             .default(0),
                     )
                     .col(ColumnDef::new(SignboardEntry::Color).string().null())
+                    .col(
+                        ColumnDef::new(SignboardEntry::Progress)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
                     .col(
                         ColumnDef::new(SignboardEntry::ArchivedAt)
                             .big_integer()
@@ -1386,12 +1295,7 @@ impl MigrationTrait for Migration {
                      REFERENCES asset (id) ON DELETE CASCADE ON UPDATE CASCADE)",
             "CREATE INDEX IF NOT EXISTS idx_signboard_entry_asset_entry_id_index ON signboard_entry_asset (entry_id, \"index\")",
             "CREATE INDEX IF NOT EXISTS idx_signboard_entry_asset_asset_id ON signboard_entry_asset (asset_id)",
-            // v005：看板进度与列角色（旧库靠 ALTER 补齐）
-            "ALTER TABLE signboard_entry ADD COLUMN progress INTEGER NOT NULL DEFAULT 0",
-            "ALTER TABLE signboard_column ADD COLUMN role TEXT NULL",
-            "UPDATE signboard_column SET role = 'todo' WHERE role IS NULL AND (title LIKE '%待办%' OR lower(title) LIKE '%todo%')",
-            "UPDATE signboard_column SET role = 'doing' WHERE role IS NULL AND (title LIKE '%进行%' OR lower(title) LIKE '%doing%' OR lower(title) LIKE '%progress%')",
-            "UPDATE signboard_column SET role = 'done' WHERE role IS NULL AND (title LIKE '%完成%' OR lower(title) LIKE '%done%')",
+            // 看板进度与列角色
             // ── Knowledge（知识库）──
             // scope=user 属个人；scope=tenant 为团队共享（用 \"tenantId\" 圈定租户）
             "CREATE TABLE IF NOT EXISTS knowledge_base (\
@@ -1596,15 +1500,6 @@ impl MigrationTrait for Migration {
             .drop_table(Table::drop().table(Mirror::Table).to_owned())
             .await?;
         manager
-            .drop_table(Table::drop().table(Comment::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(Notification::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(User::Table).to_owned())
-            .await?;
-        manager
             .drop_table(Table::drop().table(Asset::Table).to_owned())
             .await?;
         manager
@@ -1794,63 +1689,6 @@ enum Asset {
 }
 
 #[derive(Iden)]
-enum User {
-    Table,
-    Id,
-    Username,
-    Password,
-    Avatar,
-    #[iden = "deviceID"]
-    DeviceId,
-    #[iden = "archivedAt"]
-    ArchivedAt,
-    #[iden = "createdAt"]
-    CreatedAt,
-    #[iden = "updatedAt"]
-    UpdatedAt,
-}
-
-#[derive(Iden)]
-enum Notification {
-    Table,
-    Id,
-    Type,
-    Title,
-    Body,
-    #[iden = "archivedAt"]
-    ArchivedAt,
-    #[iden = "tenantID"]
-    TenantId,
-    Version,
-    #[iden = "deviceID"]
-    DeviceId,
-    #[iden = "createdAt"]
-    CreatedAt,
-    #[iden = "updatedAt"]
-    UpdatedAt,
-}
-
-#[derive(Iden)]
-enum Comment {
-    Table,
-    Id,
-    #[iden = "tenantID"]
-    TenantId,
-    Username,
-    Avatar,
-    Description,
-    Version,
-    #[iden = "deviceID"]
-    DeviceId,
-    #[iden = "archivedAt"]
-    ArchivedAt,
-    #[iden = "createdAt"]
-    CreatedAt,
-    #[iden = "updatedAt"]
-    UpdatedAt,
-}
-
-#[derive(Iden)]
 enum Overlay {
     Table,
     Id,
@@ -2011,6 +1849,7 @@ enum SignboardColumn {
     Index,
     Color,
     WipLimit,
+    Role,
     ArchivedAt,
     CreatedAt,
     UpdatedAt,
@@ -2030,6 +1869,7 @@ enum SignboardEntry {
     ReminderId,
     Priority,
     Color,
+    Progress,
     ArchivedAt,
     CreatedAt,
     UpdatedAt,

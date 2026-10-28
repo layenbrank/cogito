@@ -170,15 +170,9 @@ async function pickAndImportFolders(): Promise<string[]> {
   return importPaths(files)
 }
 
-/** @deprecated 使用 pickAndImportFiles */
-async function pickAndImportMedias(): Promise<string[]> {
-  return pickAndImportFiles()
-}
-
 export {
   MAX_FOLDER_FILES,
   pickAndImportFiles,
   pickAndImportFolders,
-  pickAndImportMedias,
   probeVideoDurationMs
 }

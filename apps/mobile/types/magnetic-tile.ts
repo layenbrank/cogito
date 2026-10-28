@@ -7,7 +7,7 @@ type MagneticTileComponent =
   | 'clock'
   | 'calendar'
   | 'knowledge'
-  | 'intelligence'
+  | 'agent'
   | 'navigation'
   | 'settings'
   | 'example'
@@ -44,7 +44,7 @@ interface MagneticTile {
   background: MagneticTileBackground | null
   backdrop: MagneticTileBackdrop | null
   archivedAt: number | null
-  /** markdown / intelligence payload */
+  /** knowledge / agent payload */
   content?: string
 }
 

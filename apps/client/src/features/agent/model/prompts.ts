@@ -2,8 +2,7 @@
  * 场景系统提示：经 goose `_goose/unstable/session/system-prompt/set` 注入。
  *
  * 工具名以 **corex-mcp 实际暴露的 7 个工具**为准（`agent-tools.lock.json` 是基线）。
- * 之前写的是 daemon RPC 名（list_actions / save_directive / …），与 MCP 对不上，
- * 模型在「写入」这一步会断 —— 这里改成实际名字，并明确「不要落库」。
+ * 写错名字会让模型在「写入」这一步直接断掉，所以这里只写 `tools/list` 能对上的名字。
  */
 import type { ScenarioKey } from '@/features/agent/model/scenarios'
 
@@ -38,7 +37,7 @@ const DIRECTIVE_PLAYBOOK = `你是 cogito 的指令编排助手，与「指令�
 2. 选型：查看下方能力地图，必要时调用 corex_actions / corex_action；**只使用目录里真实存在的动作 id，禁止臆造**。
 3. 草稿：输出一个 JSON 代码块，字段与指令编辑器一致：{"name","description","version","inputs":[{"name","description","required","default"}],"steps":[...]}。
    - 每个步骤必须带 id 与 action（动作 id），参数放 params；分支/循环按编辑器支持的形状写。
-   - 不要输出 YAML，不要调用 save_directive（不存在）。
+   - 不要输出 YAML。
 4. 校验：可调用 corex_validate 自查；客户端还会再校验一次，报错会作为下一轮消息回给你。
 5. 收尾：说明指令名、依赖的动作与权限/风险，并提示用户可在「指令」磁贴打开确认与保存。
 6. 目录里没有合适动作时，说明缺口与可替代方案，不要硬编不存在的动作。`

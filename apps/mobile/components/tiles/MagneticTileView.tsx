@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native'
 import * as WebBrowser from 'expo-web-browser'
 
 import { ClockTile } from '@/components/tiles/ClockTile'
-import { IntelligenceTile } from '@/components/tiles/IntelligenceTile'
+import { AgentTile } from '@/components/tiles/AgentTile'
 import { KnowledgeTile } from '@/components/tiles/KnowledgeTile'
 import { NavigationTile } from '@/components/tiles/NavigationTile'
 import type { MagneticTile } from '@/types/magnetic-tile'
@@ -31,7 +31,7 @@ function findSpan(size: MagneticTile['size']) {
  * Handles tile activation: open URL, agent route, or no-op.
  */
 async function activateTile(tile: MagneticTile) {
-  if (tile.component === 'intelligence' || tile.url === 'agent') {
+  if (tile.component === 'agent' || tile.url === 'agent') {
     router.push('/(navigation)/agent')
     return
   }
@@ -65,11 +65,11 @@ function MagneticTileView({ tile, width, height }: MagneticTileViewProps) {
         {tile.component === 'clock' ? <ClockTile tile={tile} /> : null}
         {tile.component === 'navigation' ? <NavigationTile tile={tile} /> : null}
         {tile.component === 'knowledge' ? <KnowledgeTile tile={tile} /> : null}
-        {tile.component === 'intelligence' ? <IntelligenceTile tile={tile} /> : null}
+        {tile.component === 'agent' ? <AgentTile tile={tile} /> : null}
         {tile.component !== 'clock' &&
         tile.component !== 'navigation' &&
         tile.component !== 'knowledge' &&
-        tile.component !== 'intelligence' ? (
+        tile.component !== 'agent' ? (
           <NavigationTile tile={tile} />
         ) : null}
       </View>

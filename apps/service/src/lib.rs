@@ -131,13 +131,6 @@ pub mod services {
         pub mod service;
     }
 
-    pub mod markdown {
-        pub mod controller;
-        pub mod module;
-        pub mod schema;
-        pub mod service;
-    }
-
     /// agent 任务：编排入口与台账查询。
     ///
     /// 四文件约定之外多两个文件——`error.rs` 是领域错误，`dispatch.rs` 是编排状态回收。
