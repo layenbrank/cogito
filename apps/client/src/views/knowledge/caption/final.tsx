@@ -15,7 +15,7 @@ import { useDockStore } from '@/features/agent/dock'
 
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { t } from '@/views/knowledge/locale.ts'
-import { usePanelStore } from '@/views/knowledge/panel/store.ts'
+import { useSurfaceStore } from '@/views/knowledge/surface/store.ts'
 
 interface LayoutButtonProps {
   label: string
@@ -71,10 +71,10 @@ function KnowledgeCaptionFinal() {
   const toToggleOutline = useKnowledgeStore(function (state) {
     return state.toToggleOutline
   })
-  const isPanelOpen = usePanelStore(function (state) {
+  const isSurfaceOpen = useSurfaceStore(function (state) {
     return state.isOpen
   })
-  const toTogglePanel = usePanelStore(function (state) {
+  const toToggleSurface = useSurfaceStore(function (state) {
     return state.toToggle
   })
 
@@ -101,13 +101,13 @@ function KnowledgeCaptionFinal() {
       <LayoutButton
         label="知识库"
         icon="lucide:library-big"
-        isPressed={isPanelOpen}
+        isPressed={isSurfaceOpen}
         onClick={function () {
-          toTogglePanel()
+          toToggleSurface()
         }}
       />
       <LayoutButton
-        label="AI 助手"
+        label="AI 助手（Ctrl+J）"
         icon="lucide:sparkles"
         isPressed={false}
         onClick={function () {

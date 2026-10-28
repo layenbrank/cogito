@@ -1,5 +1,5 @@
 /**
- * 知识库左面板：文档 / 待发布 / 任务 / 设置。
+ * 知识库左侧面板（surface）：文档 / 待发布 / 任务 / 设置。
  *
  * 定位：**不再有弹出层**。库级操作全在这四页里就地完成；AI 相关在右侧对话坞。
  */
@@ -10,30 +10,30 @@ import { useEffect } from 'react'
 
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useDockStore } from '@/features/agent/dock'
-import { DocsTab } from '@/views/knowledge/panel/docs.tsx'
-import { SettingsTab } from '@/views/knowledge/panel/settings.tsx'
-import { StagingTab } from '@/views/knowledge/panel/staging.tsx'
-import { usePanelStore, type PanelTab } from '@/views/knowledge/panel/store.ts'
-import { TasksTab } from '@/views/knowledge/panel/tasks.tsx'
+import { DocsTab } from '@/views/knowledge/surface/docs.tsx'
+import { SettingsTab } from '@/views/knowledge/surface/settings.tsx'
+import { StagingTab } from '@/views/knowledge/surface/staging.tsx'
+import { useSurfaceStore, type SurfaceTab } from '@/views/knowledge/surface/store.ts'
+import { TasksTab } from '@/views/knowledge/surface/tasks.tsx'
 
-const TABS: readonly { key: PanelTab; label: string; icon: string }[] = [
+const TABS: readonly { key: SurfaceTab; label: string; icon: string }[] = [
   { key: 'docs', label: '文档', icon: 'lucide:files' },
   { key: 'staging', label: '待发布', icon: 'lucide:sparkles' },
   { key: 'tasks', label: '任务', icon: 'lucide:timer' },
   { key: 'settings', label: '设置', icon: 'lucide:settings-2' }
 ]
 
-function KnowledgePanel() {
-  const isOpen = usePanelStore(function (state) {
+function KnowledgeSurface() {
+  const isOpen = useSurfaceStore(function (state) {
     return state.isOpen
   })
-  const tab = usePanelStore(function (state) {
+  const tab = useSurfaceStore(function (state) {
     return state.tab
   })
-  const toClose = usePanelStore(function (state) {
+  const toClose = useSurfaceStore(function (state) {
     return state.toClose
   })
-  const toSetTab = usePanelStore(function (state) {
+  const toSetTab = useSurfaceStore(function (state) {
     return state.toSetTab
   })
   const refresh = useKnowledgeBaseStore(function (state) {
@@ -124,4 +124,4 @@ function KnowledgePanel() {
   )
 }
 
-export { KnowledgePanel }
+export { KnowledgeSurface }

@@ -11,9 +11,9 @@ import {
 } from '@cogito/design/components/resizable'
 
 import { AgentDock } from '@/features/agent/dock'
-import { useAgentDockCommand } from '@/features/agent/dock/use-dock-command'
+import { useDockCommand } from '@/features/agent/dock/use-dock-command'
 import { useTerminalStore } from '@/stores/terminal'
-import { useDirectiveDockScope } from '@/views/directive/ai-scope.ts'
+import { useDirectiveDockScope } from '@/views/directive/dock-scope.ts'
 import { DirectiveDock } from '@/views/directive/dock/directive-dock.tsx'
 import { useTerminalCwd } from '@/views/directive/use-terminal-cwd.ts'
 
@@ -32,7 +32,7 @@ function DirectiveFrame(props: DirectiveFrameProps) {
   // 指令域的 AI 入口跟着磁贴走：切磁贴就解绑，不会串上下文
   useDirectiveDockScope()
   // mod+j 开关对话坞（命令面板里也能搜到）
-  useAgentDockCommand()
+  useDockCommand()
 
   useEffect(
     function () {

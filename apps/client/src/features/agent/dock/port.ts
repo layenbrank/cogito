@@ -10,7 +10,7 @@ import { createModelPort } from '@/features/agent/port/model'
 
 import type { DockScope } from './types'
 
-function createDockPort(scope: () => DockScope): ChatModelPort {
+function buildDockPort(scope: () => DockScope): ChatModelPort {
   return createModelPort({
     // 每轮现读：scope 的闭包会随磁贴状态（当前文档/选区）更新
     findSystemText: function () {
@@ -21,4 +21,4 @@ function createDockPort(scope: () => DockScope): ChatModelPort {
   })
 }
 
-export { createDockPort }
+export { buildDockPort }

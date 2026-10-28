@@ -16,7 +16,7 @@ interface EditorContext {
 interface EditorBridge {
   findContext: () => EditorContext
   /** 有选区就替换选区，否则插到光标处（一次操作 = 一步撤销） */
-  apply: (text: string) => void
+  write: (text: string) => void
 }
 
 const EMPTY: EditorContext = { path: null, content: '', selection: '' }
@@ -32,11 +32,11 @@ function findEditorContext(): EditorContext {
 }
 
 /** 返回 false 表示当前没有可写的编辑器（坞据此提示而不是静默失败） */
-function applyToEditor(text: string): boolean {
+function writeEditor(text: string): boolean {
   if (!bridge || !text.trim()) return false
-  bridge.apply(text)
+  bridge.write(text)
   return true
 }
 
-export { applyToEditor, findEditorContext, setEditorBridge }
+export { findEditorContext, setEditorBridge, writeEditor }
 export type { EditorBridge, EditorContext }

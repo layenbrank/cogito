@@ -32,7 +32,7 @@ interface DockScope {
    *
    * 只由用户点「应用到文档」触发 —— 结果永远先当建议，不自动覆盖。
    */
-  toApply?: (text: string) => void
+  toWrite?: (text: string) => void
   /**
    * 一轮跑完后的落点（把结果应用到编辑器/草稿）。
    *

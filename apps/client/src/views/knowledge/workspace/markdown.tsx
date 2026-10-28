@@ -703,7 +703,7 @@ export default function KnowledgeWorkspace() {
             selection: from === to ? '' : composer.state.doc.textBetween(from, to, '\n')
           }
         },
-        apply: function (text) {
+        write: function (text) {
           const { from, to } = composer.state.selection
           if (from === to) {
             composer.chain().focus().insertContent(text).run()

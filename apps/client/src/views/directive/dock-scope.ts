@@ -52,7 +52,7 @@ function useDirectiveDockScope(): void {
         title: '指令助手',
         hint: '说一句要做什么就出草稿；改完点「应用到编辑器」，再保存。',
         systemText: SYSTEM_TEXT,
-        toApply: function (text) {
+        toWrite: function (text) {
           const parsed = parseDirectiveDraft(text)
           if (!parsed.ok) {
             toast.error('这段回复里没有可用的指令定义', { description: parsed.reason })

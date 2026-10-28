@@ -1,22 +1,22 @@
 /**
- * 知识库左面板的开关与当前页签。
+ * 知识库左侧面板（surface）的开关与当前页签。
  *
  * 与 dock 一样只存「壳」状态：数据都在 `stores/knowledge-base` 与 `stores/automation` 里。
  */
 import { create } from 'zustand'
 
-type PanelTab = 'docs' | 'staging' | 'tasks' | 'settings'
+type SurfaceTab = 'docs' | 'staging' | 'tasks' | 'settings'
 
-interface PanelState {
+interface SurfaceState {
   isOpen: boolean
-  tab: PanelTab
-  toOpen: (tab?: PanelTab) => void
+  tab: SurfaceTab
+  toOpen: (tab?: SurfaceTab) => void
   toClose: () => void
-  toToggle: (tab?: PanelTab) => void
-  toSetTab: (tab: PanelTab) => void
+  toToggle: (tab?: SurfaceTab) => void
+  toSetTab: (tab: SurfaceTab) => void
 }
 
-const usePanelStore = create<PanelState>(function (set, get) {
+const useSurfaceStore = create<SurfaceState>(function (set, get) {
   return {
     isOpen: true,
     tab: 'docs',
@@ -43,5 +43,5 @@ const usePanelStore = create<PanelState>(function (set, get) {
   }
 })
 
-export { usePanelStore }
-export type { PanelState, PanelTab }
+export { useSurfaceStore }
+export type { SurfaceState, SurfaceTab }

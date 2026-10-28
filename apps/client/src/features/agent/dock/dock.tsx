@@ -21,7 +21,7 @@ import { useDockStore } from './store'
 import type { DockAction, DockScope } from './types'
 
 /** 把最后一条助手回复写回宿主（知识库 = 插入/替换选区）。没有落点的域不渲染 */
-function DockApply({ scope }: { scope: DockScope }) {
+function DockWrite({ scope }: { scope: DockScope }) {
   const lastAssistant = useAuiState(function (state) {
     const messages = state.thread.messages
     for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -41,7 +41,7 @@ function DockApply({ scope }: { scope: DockScope }) {
     return state.thread.isRunning
   })
 
-  if (!scope.toApply) return null
+  if (!scope.toWrite) return null
 
   return (
     <Button
@@ -51,7 +51,7 @@ function DockApply({ scope }: { scope: DockScope }) {
       disabled={!lastAssistant || isRunning}
       title="把上一条回复写进编辑器（一次操作，可撤销）"
       onClick={function () {
-        scope.toApply?.(lastAssistant)
+        scope.toWrite?.(lastAssistant)
       }}>
       <Icon
         icon="lucide:corner-down-left"
@@ -220,7 +220,7 @@ function AgentDock(props: { className?: string }) {
             />
           </div>
           <div className="flex items-center justify-between gap-1 border-t border-border px-2 py-1">
-            <DockApply scope={scope} />
+            <DockWrite scope={scope} />
             <DockEscalate />
           </div>
         </DockRuntime>

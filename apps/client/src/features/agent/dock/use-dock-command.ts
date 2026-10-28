@@ -8,7 +8,7 @@ import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
 
 import { useDockStore } from './store'
 
-function useAgentDockCommand(): void {
+function useDockCommand(): void {
   useCommands([
     {
       id: SHORTCUT_COMMAND.AGENT_DOCK_TOGGLE,
@@ -22,4 +22,4 @@ function useAgentDockCommand(): void {
   ])
 }
 
-export { useAgentDockCommand }
+export { useDockCommand }

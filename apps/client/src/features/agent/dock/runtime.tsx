@@ -12,7 +12,7 @@ import { useEffect, useMemo, type ReactNode } from 'react'
 
 import { ASSISTANT_LABELS_ZH } from '@/views/agent/chat/labels'
 
-import { createDockPort } from './port'
+import { buildDockPort } from './port'
 import { useDockStore } from './store'
 import type { DockScope } from './types'
 
@@ -56,7 +56,7 @@ function DockActionRunner({ scope }: { scope: DockScope }) {
 function DockRuntime({ scope, children }: DockRuntimeProps) {
   const adapter = useMemo(
     function () {
-      return createChatModelAdapter(createDockPort(function () {
+      return createChatModelAdapter(buildDockPort(function () {
         return scope
       }), {
         findHost: function () {

@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 
 import { useDockStore, type DockScope } from '@/features/agent/dock'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
-import { applyToEditor, findEditorContext } from '@/views/knowledge/workspace/editor-context.ts'
+import { findEditorContext, writeEditor } from '@/views/knowledge/workspace/editor-context.ts'
 
 /** 知识库域的会话提示：只做内容，不碰别的域 */
 const SYSTEM_TEXT = `你是 cogito 知识库里写作助手，与「知识库」磁贴共用同一个库目录。
@@ -47,8 +47,8 @@ function useKnowledgeDockScope(): void {
         title: '知识库助手',
         hint: '总结、续写、改写都在这；结果留在对话里，点「应用到文档」才落到正文。',
         systemText: SYSTEM_TEXT,
-        toApply: function (text) {
-          if (!applyToEditor(text)) {
+        toWrite: function (text) {
+          if (!writeEditor(text)) {
             toast.error('先把要改的文档打开，再应用结果')
             return
           }
