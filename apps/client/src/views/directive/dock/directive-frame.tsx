@@ -2,6 +2,8 @@
  * Decorations 内容区内的主区 + 底栏：高度吃满 Caption 以下剩余空间，
  * 底栏展开不会把窗口操作栏顶出视口。
  * 整层铺 `bg-background` 实底：窗壳透明 + mica 时，工作区不透壁纸。
+ *
+ * AI 对话坞由各页右栏 tabs 嵌入（库：洞察|AI；编排：检查器|AI），这里不再旁挂一列。
  */
 import { useEffect, type ReactNode } from 'react'
 import {
@@ -10,7 +12,6 @@ import {
   ResizablePanelGroup
 } from '@cogito/design/components/resizable'
 
-import { AgentDock } from '@/features/agent/dock'
 import { useDockCommand } from '@/features/agent/dock/use-dock-command'
 import { useTerminalStore } from '@/stores/terminal'
 import { useDirectiveDockScope } from '@/views/directive/dock-scope.ts'
@@ -29,9 +30,7 @@ function DirectiveFrame(props: DirectiveFrameProps) {
     return state.activity
   })
   const { cwd, emptyCwdMessage } = useTerminalCwd()
-  // 指令域的 AI 入口跟着磁贴走：切磁贴就解绑，不会串上下文
   useDirectiveDockScope()
-  // mod+j 开关对话坞（命令面板里也能搜到）
   useDockCommand()
 
   useEffect(
@@ -53,12 +52,7 @@ function DirectiveFrame(props: DirectiveFrameProps) {
         minSize={180}
         className="min-h-0 overflow-hidden bg-background">
         <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-          <div className="flex min-h-0 flex-1">
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-              {props.children}
-            </div>
-            <AgentDock />
-          </div>
+          {props.children}
         </div>
       </ResizablePanel>
       {terminalOpen ? (

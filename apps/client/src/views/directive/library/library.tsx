@@ -34,10 +34,10 @@ import { useNow } from '@/views/directive/use-now.ts'
 import { useTerminalCwd } from '@/views/directive/use-terminal-cwd.ts'
 import { EMPTY_RUNS } from '@/views/directive/run/run-status'
 import { useDockStore } from '@/features/agent/dock'
+import { LibraryAside } from '@/views/directive/library/aside.tsx'
 import Card from './card'
 import { ConflictsDialog } from './conflicts-dialog.tsx'
 import { DraftInbox } from './draft-inbox.tsx'
-import { LibraryInsights } from './insights.tsx'
 import { useLibrary } from './use-library'
 
 interface DirectiveLibraryProps {
@@ -186,8 +186,8 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
         </div>
 
         {/*
-          始终左右：左列表主列、右洞察侧栏。
-          flex-row 下交叉轴是高度——主列用 min-h-0 + self-stretch，禁止 h-0（会把高度锁成 0）。
+          两列：左卡片主列、右栏 tabs（洞察 | AI）。
+          flex-row 下交叉轴是高度——主列用 min-h-0 + self-stretch，禁止 h-0。
         */}
         <div className="flex min-h-0 flex-1 flex-row items-stretch bg-background">
           <ScrollArea className="min-h-0 min-w-0 flex-1 self-stretch bg-background px-3 py-3">
@@ -257,16 +257,11 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
           </ScrollArea>
 
           {library.isLoaded && !library.loadError ? (
-            /*
-              侧栏加宽到约 20–24rem，主列仍 flex-1；max-w 限制不抢主列一半以上。
-            */
-            <aside className="flex min-h-0 w-80 max-w-[min(24rem,42%)] min-w-72 shrink-0 flex-col self-stretch overflow-y-auto border-l border-border bg-muted px-3 py-3 md:w-[22rem] xl:w-96 xl:max-w-[min(24rem,40%)]">
-              <LibraryInsights
-                metrics={library.insights}
-                onOpen={library.openDirective}
-                onFocusRun={library.focusRunning}
-              />
-            </aside>
+            <LibraryAside
+              metrics={library.insights}
+              onOpen={library.openDirective}
+              onFocusRun={library.focusRunning}
+            />
           ) : null}
         </div>
       </div>

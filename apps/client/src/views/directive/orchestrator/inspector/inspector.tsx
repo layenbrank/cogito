@@ -65,7 +65,7 @@ function Inspector(props: InspectorProps) {
   )
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden border-l bg-background">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
       <InspectorTabShell
         key={tabKey}
         selectedToken={props.selectedToken}

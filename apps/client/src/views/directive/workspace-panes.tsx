@@ -10,11 +10,12 @@ import type { RefObject } from 'react'
 import type { DirectiveContent } from '@/views/directive/model/types.ts'
 import { Canvas } from '@/views/directive/orchestrator/canvas/canvas.tsx'
 import { Catalog } from '@/views/directive/orchestrator/catalog.tsx'
-import { Inspector } from '@/views/directive/orchestrator/inspector/inspector.tsx'
+import { InspectorAside } from '@/views/directive/orchestrator/inspector/aside.tsx'
 
 /**
- * 编排台分栏（动作库 / 画布 / 检查器）。
- * 运行 / 试跑 / 历史 / 终端统一落在壳层底部 Dock，这里不再叠第二块输出区。
+ * 编排台分栏（动作库 / 画布 / 右栏）。
+ * 右栏用 tabs 收束「检查器 | AI」，避免旁挂对话坞变成第四列。
+ * 运行 / 试跑 / 历史 / 终端统一落在壳层底部 Dock。
  */
 interface WorkspacePanesProps {
   catalogRef: RefObject<PanelImperativeHandle | null>
@@ -100,7 +101,7 @@ function WorkspacePanes(props: WorkspacePanesProps) {
         style={PANEL_CLIP}
         className="h-full min-h-0 min-w-0 overflow-hidden">
         {props.draft ? (
-          <Inspector
+          <InspectorAside
             draft={props.draft}
             selectedToken={props.selectedToken}
             onChange={props.onDraftChange}
