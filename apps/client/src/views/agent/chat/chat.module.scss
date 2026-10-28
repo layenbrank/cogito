@@ -48,7 +48,18 @@
   flex-direction: column;
   min-width: 0;
   height: 100%;
-  background: var(--card);
+  background:
+    radial-gradient(
+      120% 80% at 50% -10%,
+      color-mix(in oklab, var(--primary) 7%, transparent),
+      transparent 55%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--muted) 42%, var(--background)) 0%,
+      var(--background) 42%,
+      var(--background) 100%
+    );
 }
 
 .thread {
@@ -65,6 +76,21 @@
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
+}
+
+:global(.dark) .workbench {
+  background:
+    radial-gradient(
+      120% 80% at 50% -10%,
+      color-mix(in oklab, var(--primary) 12%, transparent),
+      transparent 58%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--card) 70%, var(--background)) 0%,
+      var(--background) 48%,
+      var(--background) 100%
+    );
 }
 
 .planPane {

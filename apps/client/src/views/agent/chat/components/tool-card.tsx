@@ -87,7 +87,7 @@ function ApprovalBar(props: Pick<ToolCallMessagePartProps, 'approval' | 'toolCal
   }
 
   return (
-    <div className="bg-muted/50 flex items-center gap-2 rounded-md px-2 py-1.5">
+    <div className="border-primary/20 bg-primary/6 flex items-center gap-2 rounded-xl border px-2.5 py-2 shadow-xs">
       <Icon
         icon="lucide:shield-alert"
         className="text-primary size-3.5 shrink-0"
@@ -99,6 +99,7 @@ function ApprovalBar(props: Pick<ToolCallMessagePartProps, 'approval' | 'toolCal
         type="button"
         variant="outline"
         size="sm"
+        className="h-7 rounded-full"
         onClick={function () {
           handleApprove(false)
         }}>
@@ -108,6 +109,7 @@ function ApprovalBar(props: Pick<ToolCallMessagePartProps, 'approval' | 'toolCal
       <Button
         type="button"
         size="sm"
+        className="h-7 rounded-full"
         onClick={function () {
           handleApprove(true)
         }}>
@@ -125,21 +127,37 @@ interface GenericToolCardProps extends ToolCallMessagePartProps {
 
 function GenericToolCard(props: GenericToolCardProps) {
   const [isOpen, updateOpen] = useState(props.needsApproval || props.isRunning)
+  const summary = summarize(props.args)
+  const label = toAgentToolLabel(props.toolName)
 
   return (
     <Collapsible
       open={isOpen}
-      onOpenChange={updateOpen}>
+      onOpenChange={updateOpen}
+      className="border-border/50 bg-muted/25 hover:bg-muted/40 my-1 overflow-hidden rounded-xl border transition-colors">
       <CollapsibleTrigger
-        className="text-muted-foreground hover:text-foreground flex w-full cursor-pointer items-center gap-1.5 py-1 text-start text-xs"
-        aria-label={`${toAgentToolLabel(props.toolName)} 详情`}>
-        <span className="shrink-0">{toAgentToolLabel(props.toolName)}</span>
-        <span className="min-w-0 flex-1 truncate opacity-80">{summarize(props.args)}</span>
-        <Icon
-          icon="lucide:chevron-down"
-          data-open={isOpen ? 'true' : 'false'}
-          className="size-3.5 shrink-0 opacity-70 transition-transform data-[open=true]:rotate-0 -rotate-90"
-        />
+        className="text-foreground/85 hover:text-foreground flex w-full cursor-pointer items-center gap-2 px-2.5 py-2 text-start text-xs"
+        aria-label={`${label} 详情`}>
+        <span className="bg-background/80 text-muted-foreground ring-border/60 flex size-6 shrink-0 items-center justify-center rounded-md ring-1">
+          <Icon
+            icon={
+              isShellTool(props.toolName)
+                ? 'lucide:terminal'
+                : isCodeTool(props.toolName)
+                  ? 'lucide:braces'
+                  : 'lucide:wrench'
+            }
+            className="size-3.5"
+          />
+        </span>
+        <span className="shrink-0 font-medium">{label}</span>
+        {summary ? (
+          <span className="text-muted-foreground min-w-0 flex-1 truncate font-mono text-xs">
+            {summary}
+          </span>
+        ) : (
+          <span className="min-w-0 flex-1" />
+        )}
         {props.isRunning ? (
           <Icon
             icon="lucide:loader-circle"
@@ -153,21 +171,30 @@ function GenericToolCard(props: GenericToolCardProps) {
             待审批
           </Badge>
         ) : null}
+        <Icon
+          icon="lucide:chevron-down"
+          data-open={isOpen ? 'true' : 'false'}
+          className="text-muted-foreground size-3.5 shrink-0 opacity-70 transition-transform data-[open=true]:rotate-0 -rotate-90"
+        />
       </CollapsibleTrigger>
 
-      <CollapsibleContent className="flex flex-col gap-1.5 ps-3 pb-1.5">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-muted-foreground text-xs">参数</span>
-          <pre className="bg-muted/60 m-0 max-h-72 overflow-auto rounded-md p-2 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap">
+      <CollapsibleContent className="border-border/40 flex flex-col gap-2 border-t px-2.5 py-2">
+        <div className="flex flex-col gap-1">
+          <span className="text-muted-foreground text-xs tracking-wide uppercase">参数</span>
+          <pre className="bg-background/70 ring-border/40 m-0 max-h-72 overflow-auto rounded-lg p-2.5 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap ring-1">
             {formatDetail(props.args)}
           </pre>
         </div>
         {props.result === undefined ? null : (
-          <div className="flex flex-col gap-0.5">
-            <span className="text-muted-foreground text-xs">
+          <div className="flex flex-col gap-1">
+            <span className="text-muted-foreground text-xs tracking-wide uppercase">
               {props.isError ? '错误' : '结果'}
             </span>
-            <pre className="bg-muted/60 m-0 max-h-80 overflow-auto rounded-md p-2 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap">
+            <pre
+              className={[
+                'bg-background/70 m-0 max-h-80 overflow-auto rounded-lg p-2.5 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap ring-1',
+                props.isError ? 'ring-destructive/30' : 'ring-border/40'
+              ].join(' ')}>
               {formatTerminalText(props.result)}
             </pre>
           </div>
@@ -191,7 +218,7 @@ function AgentToolCard(props: ToolCallMessagePartProps) {
     <div
       data-slot="agent-tool-card"
       data-state={needsApproval ? 'approval' : isRunning ? 'running' : isDone ? 'done' : 'error'}
-      className={`my-0.5 flex flex-col gap-1 overflow-hidden data-[state=approval]:rounded-md data-[state=approval]:ring-1 data-[state=approval]:ring-primary ${FRAME_CLASSES[variant]}`}>
+      className={`my-1 flex flex-col gap-1.5 overflow-hidden ${FRAME_CLASSES[variant]}`}>
       {shell ? (
         <ToolCommand
           command={shell.command}
