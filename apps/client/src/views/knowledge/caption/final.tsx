@@ -12,6 +12,8 @@ import {
 import { cn } from 'cn'
 import { useState } from 'react'
 
+import { useDockStore } from '@/features/agent/dock'
+
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { t } from '@/views/knowledge/locale.ts'
 import { KnowledgeHub } from '@/views/knowledge/hub/knowledge-hub.tsx'
@@ -110,6 +112,14 @@ function KnowledgeCaptionFinal() {
         isPressed={false}
         onClick={function () {
           toSetPrefsOpen(true)
+        }}
+      />
+      <LayoutButton
+        label="AI 助手"
+        icon="lucide:sparkles"
+        isPressed={false}
+        onClick={function () {
+          useDockStore.getState().toToggle()
         }}
       />
       <KnowledgeHub

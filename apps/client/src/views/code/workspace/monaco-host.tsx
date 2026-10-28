@@ -37,6 +37,13 @@ const EDITOR_OPTIONS: monaco.editor.IStandaloneEditorConstructionOptions = {
   smoothScrolling: true,
   scrollBeyondLastLine: false,
   fixedOverflowWidgets: true,
+  /*
+   * Monaco 把 --vscode-* 主题变量只声明在 .monaco-editor / .monaco-component 上。
+   * 同时开 fixedOverflowWidgets 时，右键菜单会被放进 shadow root，而 shadow host
+   * 挂在宿主 div（#monacoGraph）上，继承不到这些变量 → 菜单背景/前景全变透明。
+   * 关掉 shadow DOM 后菜单直接挂进宿主 div，靠自身的 .monaco-component 取到变量。
+   */
+  useShadowDOM: false,
   minimap: {
     enabled: true,
     maxColumn: 80,

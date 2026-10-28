@@ -39,6 +39,18 @@ interface AgentRunHost {
   workspaceID: string | null
 }
 
+/**
+ * 端口覆盖：给「另一个宿主」（磁贴内 dock）用。
+ *
+ * dock 的会话不挂在聊天页上，所以不能读全局场景；系统提示与收尾副作用都改由调用方给。
+ */
+interface ModelPortOverrides {
+  /** 覆盖系统提示（不传则按当前场景 + 能力地图） */
+  findSystemText?: (input: ChatRunInput) => string
+  /** 回合正常收尾（未取消）时的钩子；传了就不再走 directive / plan 的全局副作用 */
+  onFinish?: (capturedText: string, host: AgentRunHost) => void
+}
+
 function findHost(input: ChatRunInput): AgentRunHost {
   const host = input.host as Partial<AgentRunHost> | undefined
   const threadID = typeof host?.threadID === 'string' ? host.threadID : ''
@@ -144,7 +156,7 @@ function createBlockIDFinder(): AcpStreamContext['blockID'] {
  */
 const RUN_USAGE: ChatUsage = {}
 
-function createModelPort(): ChatModelPort {
+function createModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
   return {
     /** 端口契约是 Promise，但解析本身是同步的（provider/model 都在本地 store 里） */
     findTarget(): Promise<ChatTarget | null> {
@@ -176,7 +188,8 @@ function createModelPort(): ChatModelPort {
       // 场景系统提示：消息里已有 system 优先；否则按当前工作场景注入
       // （含 corex 能力地图；plan 场景还带当前时间/时区）
       const systemText =
-        parsed.systemText?.trim() || findSystemPrompt(findActiveScenario(), buildPromptContext())
+        overrides.findSystemText?.(input) ??
+        (parsed.systemText?.trim() || findSystemPrompt(findActiveScenario(), buildPromptContext()))
 
       // 平台网关发送前查一次配额（BYOK 直接放行）；拦到就当成一次「失败」发给 UI，
       // 用户点下发送就能看到原因，不用等半截运行失败。判定失败一律放行 —— 守门的是服务端。
@@ -212,7 +225,7 @@ function createModelPort(): ChatModelPort {
 
       const context: AcpStreamContext = { blockID: createBlockIDFinder() }
       // directive 场景要把助手正文攒起来，收尾时抽 JSON 落成草稿（不落 corex.db）
-      const scenario = findActiveScenario()
+      const scenario = overrides.onFinish ? null : findActiveScenario()
       let capturedText = ''
 
       try {
@@ -242,13 +255,17 @@ function createModelPort(): ChatModelPort {
               break
             case 'stop':
               // 每轮**只发一个终态**：取消不是错误（但也不是「说完」），其余按正常收尾
-              if (item.stopReason !== 'cancelled' && scenario === 'directive' && capturedText.trim()) {
-                void captureDirectiveDraft(capturedText, {
-                  threadID: host.threadID,
-                  workspaceID: host.workspaceID
-                }).catch(function (error) {
-                  reportCaught('agent.port.captureDirectiveDraft', error, 'warning')
-                })
+              if (item.stopReason !== 'cancelled' && capturedText.trim()) {
+                if (overrides.onFinish) {
+                  overrides.onFinish(capturedText, host)
+                } else if (scenario === 'directive') {
+                  void captureDirectiveDraft(capturedText, {
+                    threadID: host.threadID,
+                    workspaceID: host.workspaceID
+                  }).catch(function (error) {
+                    reportCaught('agent.port.captureDirectiveDraft', error, 'warning')
+                  })
+                }
               }
               // plan 场景：把 {"events":[...]} 变成预览行（写入要用户点确认）
               if (item.stopReason !== 'cancelled' && scenario === 'plan' && capturedText.trim()) {
@@ -288,3 +305,4 @@ function createModelPort(): ChatModelPort {
 }
 
 export { createModelPort }
+export type { AgentRunHost, ModelPortOverrides }

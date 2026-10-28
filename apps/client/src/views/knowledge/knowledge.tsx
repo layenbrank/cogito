@@ -2,9 +2,11 @@ import { Suspense, lazy } from 'react'
 
 import { Decorations } from '@/components/decorations/index.ts'
 import { Fallback } from '@/components/fallback/index.ts'
+import { AgentDock } from '@/features/agent/dock'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { KnowledgeCaptionBegin } from '@/views/knowledge/caption/begin.tsx'
 import { KnowledgeCaptionFinal } from '@/views/knowledge/caption/final.tsx'
+import { useKnowledgeDockScope } from '@/views/knowledge/workspace/dock-scope.ts'
 import Summary from '@/views/knowledge/workspace/overlay/summary.tsx'
 import styles from '@/views/knowledge/markdown.module.scss'
 
@@ -35,6 +37,8 @@ export default function Knowledge() {
   const isFocusMode = useKnowledgeStore(function (state) {
     return state.isFocusMode
   })
+  // 对话坞的 scope 跟着窗口走：切磁贴就解绑，不会串上下文
+  useKnowledgeDockScope()
 
   return (
     <Decorations
@@ -44,13 +48,16 @@ export default function Knowledge() {
       sectionClassName="justify-stretch gap-0 border-border/50 bg-background/70 p-0 backdrop-blur-md"
       scrollable={false}>
       <div className={styles.workspace}>
-        <Fallback.ErrorBoundary
-          title="Markdown 编辑器出现问题"
-          subTitle="编辑器遇到意外错误。可重试恢复，或刷新页面。">
-          <Suspense fallback={<KnowledgeSkeleton />}>
-            <KnowledgeWorkspace />
-          </Suspense>
-        </Fallback.ErrorBoundary>
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+          <Fallback.ErrorBoundary
+            title="Markdown 编辑器出现问题"
+            subTitle="编辑器遇到意外错误。可重试恢复，或刷新页面。">
+            <Suspense fallback={<KnowledgeSkeleton />}>
+              <KnowledgeWorkspace />
+            </Suspense>
+          </Fallback.ErrorBoundary>
+        </div>
+        <AgentDock />
       </div>
     </Decorations>
   )
