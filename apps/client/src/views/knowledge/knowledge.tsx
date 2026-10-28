@@ -3,6 +3,7 @@ import { Suspense, lazy } from 'react'
 import { Decorations } from '@/components/decorations/index.ts'
 import { Fallback } from '@/components/fallback/index.ts'
 import { AgentDock } from '@/features/agent/dock'
+import { useAgentDockCommand } from '@/features/agent/dock/use-dock-command'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { KnowledgeCaptionBegin } from '@/views/knowledge/caption/begin.tsx'
 import { KnowledgeCaptionFinal } from '@/views/knowledge/caption/final.tsx'
@@ -40,6 +41,8 @@ export default function Knowledge() {
   })
   // 对话坞的 scope 跟着窗口走：切磁贴就解绑，不会串上下文
   useKnowledgeDockScope()
+  // mod+j 开关对话坞（命令面板里也能搜到）
+  useAgentDockCommand()
 
   return (
     <Decorations

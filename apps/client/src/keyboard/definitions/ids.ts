@@ -52,6 +52,9 @@ export const COMMAND = {
   CLIPCHAMP_REMOVE_SELECTED: 'clipchamp.removeSelected',
   CLIPCHAMP_EXIT_FULLSCREEN: 'clipchamp.exitFullscreen',
 
+  // 通用（所有磁贴共用）：AI 助手对话埞
+  AGENT_DOCK_TOGGLE: 'agent.dockToggle',
+
   // directive（编排工作区）
   DIRECTIVE_SAVE: 'directive.save',
   DIRECTIVE_VALIDATE: 'directive.validate',

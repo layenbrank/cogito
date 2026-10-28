@@ -24,6 +24,7 @@ import { bindingKeyOfText, findConflicts, findPlatform } from '@/keyboard/bindin
 import type { BindingConflict, ShortcutBindingEntry } from '@/keyboard/binding'
 import { CLIPCHAMP_SHORTCUTS } from '@/keyboard/definitions/clipchamp'
 import { CODE_SHORTCUTS } from '@/keyboard/definitions/code'
+import { AGENT_SHORTCUTS } from '@/keyboard/definitions/dock'
 import { DIRECTIVE_SHORTCUTS } from '@/keyboard/definitions/directive'
 import { EDITOR_SHORTCUTS, NATIVE_EDITOR_SHORTCUTS } from '@/keyboard/definitions/editor'
 import { GLOBAL_SHORTCUTS } from '@/keyboard/definitions/global'
@@ -40,6 +41,7 @@ import type {
 import { useSettingsStore } from '@/stores/setting'
 
 const LOCAL_SHORTCUTS: readonly LocalShortcutDefinition[] = [
+  ...AGENT_SHORTCUTS,
   ...OVERVIEW_SHORTCUTS,
   ...OVERLAY_SHORTCUTS,
   ...CODE_SHORTCUTS,

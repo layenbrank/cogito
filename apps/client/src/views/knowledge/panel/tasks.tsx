@@ -23,7 +23,7 @@ import { useAutomationStore } from '@/stores/automation'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { formatTime } from '@/views/knowledge/lib/format.ts'
 
-type Owner = 'client' | 'goose'
+type Owner = 'client' | 'goose' | 'cloud'
 
 interface Draft {
   id: string | null
@@ -119,36 +119,41 @@ function TaskForm(props: { draft: Draft; onClose: () => void }) {
         })}
       </div>
       <div className="flex items-center gap-1">
-        <Select
-          value={draft.knowledgeBaseId ?? 'none'}
-          onValueChange={function (value) {
-            setDraft({
-              ...draft,
-              knowledgeBaseId: value === 'none' || typeof value !== 'string' ? null : value
-            })
-          }}>
-          <SelectTrigger
-            size="sm"
-            className="min-w-0 flex-1">
-            <SelectValue placeholder="关联知识库" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">不关联知识库</SelectItem>
-            {bases.map(function (base) {
-              return (
-                <SelectItem
-                  key={base.id}
-                  value={base.id}>
-                  {base.name}
-                </SelectItem>
-              )
-            })}
-          </SelectContent>
-        </Select>
+        {draft.owner === 'cloud' ? null : (
+          <Select
+            value={draft.knowledgeBaseId ?? 'none'}
+            onValueChange={function (value) {
+              setDraft({
+                ...draft,
+                knowledgeBaseId: value === 'none' || typeof value !== 'string' ? null : value
+              })
+            }}>
+            <SelectTrigger
+              size="sm"
+              className="min-w-0 flex-1">
+              <SelectValue placeholder="关联知识库" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">不关联知识库</SelectItem>
+              {bases.map(function (base) {
+                return (
+                  <SelectItem
+                    key={base.id}
+                    value={base.id}>
+                    {base.name}
+                  </SelectItem>
+                )
+              })}
+            </SelectContent>
+          </Select>
+        )}
         <Select
           value={draft.owner}
+          disabled={draft.owner === 'cloud' && Boolean(draft.id)}
           onValueChange={function (value) {
-            if (value === 'client' || value === 'goose') setDraft({ ...draft, owner: value })
+            if (value === 'client' || value === 'goose' || value === 'cloud') {
+              setDraft({ ...draft, owner: value })
+            }
           }}>
           <SelectTrigger
             size="sm"
@@ -158,6 +163,7 @@ function TaskForm(props: { draft: Draft; onClose: () => void }) {
           <SelectContent>
             <SelectItem value="client">本机</SelectItem>
             <SelectItem value="goose">goose</SelectItem>
+            <SelectItem value="cloud">服务端</SelectItem>
           </SelectContent>
         </Select>
         <Switch
@@ -202,6 +208,15 @@ function TasksTab() {
   const items = useAutomationStore(function (state) {
     return state.items
   })
+  const cloudItems = useAutomationStore(function (state) {
+    return state.cloudItems
+  })
+  const cloudStatus = useAutomationStore(function (state) {
+    return state.cloudStatus
+  })
+  const cloudError = useAutomationStore(function (state) {
+    return state.cloudError
+  })
   const isLoading = useAutomationStore(function (state) {
     return state.isLoading
   })
@@ -235,6 +250,9 @@ function TasksTab() {
 
   const [draft, setDraft] = useState<Draft | null>(null)
 
+  // 本机在前、服务端在后：两边的「立即执行」语义不同，不混着排
+  const all = [...items, ...cloudItems]
+
   useEffect(
     function () {
       void refresh()
@@ -245,7 +263,9 @@ function TasksTab() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex items-center justify-between px-0.5 text-[11px] text-muted-foreground">
-        <span>共 {items.length} 条 · 只有「本机」会在应用运行时执行</span>
+        <span>
+          共 {all.length} 条 · 本机任务需应用运行时才执行，服务端任务由服务端排期
+        </span>
         <Button
           size="sm"
           variant="ghost"
@@ -261,6 +281,12 @@ function TasksTab() {
         </Button>
       </div>
 
+      {cloudStatus === 'error' ? (
+        <p className="rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1 text-[11px] text-destructive">
+          服务端任务读取失败：{cloudError}
+        </p>
+      ) : null}
+
       {draft ? (
         <TaskForm
           draft={draft}
@@ -271,12 +297,13 @@ function TasksTab() {
       ) : null}
 
       <ScrollArea className="min-h-0 flex-1">
-        {items.length === 0 && !isLoading ? (
+        {all.length === 0 && !isLoading ? (
           <p className="px-1 py-2 text-[11px] text-muted-foreground">还没有定时任务。</p>
         ) : null}
         <ul className="flex flex-col gap-1.5">
-          {items.map(function (item) {
+          {all.map(function (item) {
             const isOpen = activeId === item.id
+            const isCloud = item.owner === 'cloud'
             return (
               <li
                 key={item.id}
@@ -300,13 +327,13 @@ function TasksTab() {
                     {formatTime(item.lastRunAt)}
                     {item.lastError ? ` · ${item.lastError}` : ''}
                   </p>
-                ) : null}
-                <div className="mt-1 flex flex-wrap items-center gap-1">
+                ) : null}                <div className="mt-1 flex flex-wrap items-center gap-1">
                   <Button
                     size="sm"
                     variant="outline"
                     className="h-6 px-2 text-[11px]"
-                    disabled={running[item.id]}
+                    disabled={running[item.id] || isCloud}
+                    title={isCloud ? '服务端任务按排期执行，不能手动触发' : '立即跑一次'}
                     onClick={function () {
                       void runNow(item.id)
                     }}>
@@ -316,6 +343,8 @@ function TasksTab() {
                     size="sm"
                     variant="ghost"
                     className="h-6 px-1.5 text-[11px]"
+                    disabled={isCloud}
+                    title={isCloud ? '服务端任务的执行记录在服务端' : '查看执行记录'}
                     onClick={function () {
                       if (isOpen) closeRuns()
                       else void openRuns(item.id)
@@ -326,10 +355,6 @@ function TasksTab() {
                     size="sm"
                     variant="ghost"
                     className="h-6 px-1.5 text-[11px]"
-                    disabled={item.owner === 'cloud'}
-                    title={
-                      item.owner === 'cloud' ? '服务端任务请在服务端管理' : '编辑这条任务'
-                    }
                     onClick={function () {
                       setDraft({
                         id: item.id,
@@ -338,7 +363,7 @@ function TasksTab() {
                         schedule: item.schedule,
                         knowledgeBaseId: item.knowledgeBaseId ?? null,
                         enabled: item.enabled,
-                        owner: item.owner === 'goose' ? 'goose' : 'client'
+                        owner: item.owner === 'goose' ? 'goose' : isCloud ? 'cloud' : 'client'
                       })
                     }}>
                     编辑
