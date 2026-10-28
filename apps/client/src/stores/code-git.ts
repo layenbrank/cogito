@@ -96,12 +96,26 @@ const useCodeGitStore = create<CodeGitState>()(
             state.repoRoot = probeResult.isRepo ? root : null
             state.isRepo = probeResult.isRepo
             state.branch = probeResult.branch ?? ''
+            state.error = null
+            if (!probeResult.isRepo) {
+              state.entries = []
+              state.ahead = 0
+              state.behind = 0
+              state.diff = null
+            }
           })
           if (!probeResult.isRepo) return
           await get().toRefresh()
         } catch (error) {
           console.error('[code] git sync failed', error)
           set(function (state) {
+            state.repoRoot = null
+            state.isRepo = false
+            state.branch = ''
+            state.entries = []
+            state.ahead = 0
+            state.behind = 0
+            state.diff = null
             state.error = toMessage(error, '无法读取仓库信息')
           })
         }

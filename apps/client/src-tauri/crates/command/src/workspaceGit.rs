@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
 
+use std::path::{Path, PathBuf};
+
 use cogito_core::{CommandResult, Exception};
 use serde::{Deserialize, Serialize};
 use tokio::process::Command;
@@ -37,25 +39,57 @@ pub struct CheckoutR {
     pub branch: String,
 }
 
-fn validate_path(path: &str) -> CommandResult<std::path::PathBuf> {
+/// Windows `canonicalize` 会加 `\\?\`；git / 部分 Win32 API 不认，剥掉后再当 cwd。
+fn strip_windows_verbatim_prefix(path: PathBuf) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let text = path.to_string_lossy();
+        if let Some(rest) = text.strip_prefix(r"\\?\") {
+            if let Some(unc) = rest.strip_prefix("UNC\\") {
+                return PathBuf::from(format!(r"\\{unc}"));
+            }
+            return PathBuf::from(rest);
+        }
+    }
+    path
+}
+
+/// `safe.directory` 比较用正斜杠路径（与 git 自己的提示一致）。
+fn path_for_safe_directory(path: &Path) -> String {
+    strip_windows_verbatim_prefix(path.to_path_buf())
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+/// 与资源管理器同一判据：工作区根下存在 `.git` 目录或 worktree 的 `.git` 文件。
+fn has_git_marker(cwd: &Path) -> bool {
+    let marker = cwd.join(".git");
+    match std::fs::symlink_metadata(&marker) {
+        Ok(meta) => meta.is_dir() || meta.is_file(),
+        Err(_) => false,
+    }
+}
+
+fn validate_path(path: &str) -> CommandResult<PathBuf> {
     let trimmed = path.trim();
     if trimmed.is_empty() {
         return Err(Exception::Validation("路径不能为空".into()));
     }
-    if trimmed.contains("..") {
+    let normalized = strip_windows_verbatim_prefix(PathBuf::from(trimmed));
+    let text = normalized.to_string_lossy();
+    if text.split(['/', '\\']).any(|seg| seg == "..") {
         return Err(Exception::Validation("路径非法".into()));
     }
-    let buf = std::path::PathBuf::from(trimmed);
-    if !buf.is_absolute() {
+    if !normalized.is_absolute() {
         return Err(Exception::Validation("路径必须为绝对路径".into()));
     }
-    let canonical = buf
+    let canonical = normalized
         .canonicalize()
         .map_err(|err| Exception::Validation(format!("路径无效：{err}")))?;
     if !canonical.is_dir() {
         return Err(Exception::Validation("路径不是有效目录".into()));
     }
-    Ok(canonical)
+    Ok(strip_windows_verbatim_prefix(canonical))
 }
 
 fn validate_branch(branch: &str) -> CommandResult<&str> {
@@ -75,10 +109,25 @@ fn validate_branch(branch: &str) -> CommandResult<&str> {
     Ok(trimmed)
 }
 
-async fn run_git_args(cwd: &std::path::Path, args: &[String]) -> CommandResult<(bool, String, String)> {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(cwd)
+async fn run_git_args(cwd: &Path, args: &[String]) -> CommandResult<(bool, String, String)> {
+    // 用户显式打开的工作区视为可信：对齐 VS Code「信任工作区」后可操作 Git。
+    // 否则跨用户拷贝 / SID 不可转换时，git 会因 dubious ownership 直接失败，
+    // 资源管理器能看见 `.git`，SCM 却误报「不是 Git 仓库」。
+    let safe = path_for_safe_directory(cwd);
+    let mut full_args = Vec::with_capacity(args.len() + 2);
+    full_args.push("-c".to_string());
+    full_args.push(format!("safe.directory={safe}"));
+    full_args.extend(args.iter().cloned());
+
+    let mut command = Command::new("git");
+    command.args(&full_args).current_dir(cwd);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    let output = command
         .output()
         .await
         .map_err(|err| Exception::Internal(format!("无法执行 git：{err}")))?;
@@ -87,7 +136,7 @@ async fn run_git_args(cwd: &std::path::Path, args: &[String]) -> CommandResult<(
     Ok((output.status.success(), stdout, stderr))
 }
 
-async fn run_git(cwd: &std::path::Path, args: &[&str]) -> CommandResult<(bool, String, String)> {
+async fn run_git(cwd: &Path, args: &[&str]) -> CommandResult<(bool, String, String)> {
     let owned: Vec<String> = args.iter().map(|item| (*item).to_string()).collect();
     run_git_args(cwd, &owned).await
 }
@@ -95,8 +144,11 @@ async fn run_git(cwd: &std::path::Path, args: &[&str]) -> CommandResult<(bool, S
 #[tauri::command(rename = "workspaceGit:probe")]
 pub async fn workspaceGitProbe(params: PathP) -> CommandResult<ProbeR> {
     let cwd = validate_path(&params.path)?;
-    let (ok, _, _) = run_git(&cwd, &["rev-parse", "--is-inside-work-tree"]).await?;
-    if !ok {
+    let marker = has_git_marker(&cwd);
+    let (ok, inside, _) = run_git(&cwd, &["rev-parse", "--is-inside-work-tree"]).await?;
+    let is_inside = ok && inside.eq_ignore_ascii_case("true");
+    // 文件系统 `.git` 与 git 探测任一成立即视为仓库（对齐 VS Code isGitRepository）
+    if !is_inside && !marker {
         return Ok(ProbeR {
             is_repo: false,
             branch: None,
@@ -526,4 +578,44 @@ pub async fn workspaceGitPull(params: PathP) -> CommandResult<ActionR> {
             stdout
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{has_git_marker, path_for_safe_directory, strip_windows_verbatim_prefix};
+    use std::path::PathBuf;
+
+    #[test]
+    fn strips_windows_verbatim_drive_and_unc() {
+        assert_eq!(
+            strip_windows_verbatim_prefix(PathBuf::from(r"\\?\D:\Documents\electron\vite-ts")),
+            PathBuf::from(r"D:\Documents\electron\vite-ts")
+        );
+        assert_eq!(
+            strip_windows_verbatim_prefix(PathBuf::from(r"\\?\UNC\server\share\dir")),
+            PathBuf::from(r"\\server\share\dir")
+        );
+        assert_eq!(
+            strip_windows_verbatim_prefix(PathBuf::from(r"D:\Documents\electron\vite-ts")),
+            PathBuf::from(r"D:\Documents\electron\vite-ts")
+        );
+    }
+
+    #[test]
+    fn safe_directory_uses_forward_slashes() {
+        let path = PathBuf::from(r"D:\Documents\electron\vite-ts");
+        assert_eq!(
+            path_for_safe_directory(&path),
+            "D:/Documents/electron/vite-ts"
+        );
+    }
+
+    #[test]
+    fn git_marker_detects_directory() {
+        let dir = std::env::temp_dir().join(format!("cogito-git-marker-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join(".git")).expect("mkdir .git");
+        assert!(has_git_marker(&dir));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

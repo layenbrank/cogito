@@ -190,7 +190,8 @@ function ScmPanel() {
           icon="lucide:git-branch"
           className="size-8 opacity-40"
         />
-        <p>当前文件夹不是 Git 仓库</p>
+        <p>{error ? '无法读取 Git 仓库' : '当前文件夹不是 Git 仓库'}</p>
+        {error ? <p className="text-destructive max-w-56 break-words">{error}</p> : null}
       </div>
     )
   }
