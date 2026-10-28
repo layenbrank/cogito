@@ -1,6 +1,7 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { Separator } from '@cogito/design/components/separator'
+import { TooltipProvider } from '@cogito/design/components/tooltip'
 import {
   EditorContext as ComposerContext,
   EditorContent as ComposerMarkdown,
@@ -137,6 +138,7 @@ function FormatToolbar(props: { composer: Editor | null }) {
         <LinkPopover
           editor={props.composer}
           hideWhenUnavailable
+          autoOpenOnLinkActive={false}
         />
       ) : null}
       <ColorHighlightPopover
@@ -271,89 +273,97 @@ function Section(props: SectionProps) {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-      {!isToolbarHidden && !isFocusMode ? <FormatToolbar composer={composer} /> : null}
-
-      <ComposerContext value={{ editor: composer }}>
-        <div
-          ref={scrollHostRef}
-          className={cn(styles.composer, styles.markdown, 'relative')}
-          style={{ fontSize }}
-          onScroll={function (event) {
-            const target = event.currentTarget
-            const max = target.scrollHeight - target.clientHeight
-            onScrollRatio?.(max <= 0 ? 0 : target.scrollTop / max)
-          }}>
+      <TooltipProvider delay={200}>
+        <ComposerContext value={{ editor: composer }}>
+          {!isToolbarHidden && !isFocusMode ? (
+            <FormatToolbar composer={composer} />
+          ) : null}
           <div
-            className="mx-auto w-full"
-            style={{ maxWidth: contentMaxWidth }}>
-            <ComposerMarkdown
+            ref={scrollHostRef}
+            className={cn(styles.composer, styles.markdown, 'relative')}
+            style={{ fontSize }}
+            onScroll={function (event) {
+              const target = event.currentTarget
+              const max = target.scrollHeight - target.clientHeight
+              onScrollRatio?.(max <= 0 ? 0 : target.scrollTop / max)
+            }}>
+            <div
+              className="mx-auto w-full"
+              style={{ maxWidth: contentMaxWidth }}>
+              <ComposerMarkdown
+                editor={composer}
+                role="presentation"
+              />
+            </div>
+            {composer ? (
+              <BubbleMenu
+                editor={composer}
+                data-slot="tiptap-bubble-menu"
+                className="flex items-center gap-0.5 rounded-md border border-border bg-popover p-1 shadow-md">
+                <MarkButton
+                  editor={composer}
+                  type="bold"
+                  hideWhenUnavailable
+                  showShortcut={false}
+                />
+                <MarkButton
+                  editor={composer}
+                  type="italic"
+                  hideWhenUnavailable
+                  showShortcut={false}
+                />
+                <LinkPopover
+                  editor={composer}
+                  hideWhenUnavailable
+                  portal={false}
+                  autoOpenOnLinkActive={false}
+                />
+                <ColorHighlightPopover
+                  editor={composer}
+                  hideWhenUnavailable
+                  portal={false}
+                />
+                {/*
+                  这里不能用 portal：Tiptap 气泡菜单的默认 shouldShow 是
+                  「编辑器有焦点 或 document.activeElement 在菜单元素内」，
+                  内容 portal 到 body 后焦点就被算到菜单外 →
+                  气泡菜单隐藏、下拉内容成了孤儿并落到窗口左上角。
+                */}
+                <TurnIntoDropdown
+                  editor={composer}
+                  hideWhenUnavailable
+                  portal={false}
+                />
+              </BubbleMenu>
+            ) : null}
+            {composer ? <SlashDropdownMenu editor={composer} /> : null}
+            <Fallback.ErrorBoundary
+              compact
+              title="表格工具暂时不可用">
+              <TableHandle editor={composer} />
+              <TableSelectionOverlay
+                editor={composer}
+                showResizeHandles
+                cellMenu={function (menuProps) {
+                  return (
+                    <TableCellHandleMenu
+                      editor={menuProps.editor}
+                      onMouseDown={function (event) {
+                        menuProps.onResizeStart?.('br')(event)
+                      }}
+                    />
+                  )
+                }}
+              />
+              <TableExtendRowColumnButtons editor={composer} />
+            </Fallback.ErrorBoundary>
+            <DragContextMenu
               editor={composer}
-              role="presentation"
+              withSlashCommandTrigger
             />
           </div>
-          {composer ? (
-            <BubbleMenu
-              editor={composer}
-              className="flex items-center gap-0.5 rounded-md border border-border bg-popover p-1 shadow-md">
-              <MarkButton
-                editor={composer}
-                type="bold"
-                hideWhenUnavailable
-                showShortcut={false}
-              />
-              <MarkButton
-                editor={composer}
-                type="italic"
-                hideWhenUnavailable
-                showShortcut={false}
-              />
-              <LinkPopover
-                editor={composer}
-                hideWhenUnavailable
-              />
-              <ColorHighlightPopover
-                editor={composer}
-                hideWhenUnavailable
-              />
-              {/*
-                这里不能用 portal：Tiptap 气泡菜单的默认 shouldShow 是
-                「编辑器有焦点 或 document.activeElement 在菜单元素内」，
-                Radix 把下拉内容 portal 到 body 后焦点就被算到菜单外 →
-                气泡菜单隐藏、下拉内容成了孤儿并落到窗口左上角。
-              */}
-              <TurnIntoDropdown
-                editor={composer}
-                hideWhenUnavailable
-              />
-            </BubbleMenu>
-          ) : null}
-          {composer ? <SlashDropdownMenu editor={composer} /> : null}
-          <Fallback.ErrorBoundary
-            compact
-            title="表格工具暂时不可用">
-            <TableHandle editor={composer} />
-            <TableSelectionOverlay
-              editor={composer}
-              showResizeHandles
-              cellMenu={function (menuProps) {
-                return (
-                  <TableCellHandleMenu
-                    editor={menuProps.editor}
-                    onMouseDown={function (event) {
-                      menuProps.onResizeStart?.('br')(event)
-                    }}
-                  />
-                )
-              }}
-            />
-            <TableExtendRowColumnButtons editor={composer} />
-          </Fallback.ErrorBoundary>
-          <DragContextMenu
-            editor={composer}
-            withSlashCommandTrigger
-          />
-        </div>
-      </ComposerContext>
+        </ComposerContext>
+      </TooltipProvider>
     </div>
   )
 }

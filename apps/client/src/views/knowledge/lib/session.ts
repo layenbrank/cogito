@@ -1,3 +1,4 @@
+import { exists } from '@tauri-apps/plugin-fs'
 import { toast } from 'sonner'
 
 import { listBases, resolveDoc, writeDoc } from '@/lib/knowledge-ipc'
@@ -83,6 +84,41 @@ async function syncActiveDoc(path: string): Promise<void> {
 /** 防止快速连续打开时，较慢的旧请求覆盖新文档 */
 let openSequence = 0
 
+/** 首屏 hydrate + 恢复上次文件：单例，避免壳与 lazy 工作区重复跑 */
+let sessionBootstrap: Promise<void> | null = null
+
+/**
+ * 知识库首屏引导：灌入偏好、定工作区根、尝试打开最近文件。
+ * 可在壳层尽早调用，不必等 lazy 编辑器 chunk。
+ */
+async function bootstrapKnowledgeSession(search = ''): Promise<void> {
+  if (!sessionBootstrap) {
+    sessionBootstrap = runSessionBootstrap()
+  }
+  await sessionBootstrap
+  const url = new URLSearchParams(search).get('url')
+  if (!url) return
+  await openPath(decodeURIComponent(url))
+}
+
+async function runSessionBootstrap(): Promise<void> {
+  const store = useKnowledgeStore.getState()
+  try {
+    await store.hydrateFromStore()
+    await ensureRootDir()
+    const state = useKnowledgeStore.getState()
+    if (state.hasOpened) return
+    for (const path of state.recentPaths) {
+      const opened = await openPath(path)
+      if (opened) break
+    }
+  } catch (error) {
+    console.warn('[knowledge] session bootstrap failed:', error)
+  } finally {
+    useKnowledgeStore.getState().toMarkSessionReady()
+  }
+}
+
 async function openPath(path: string, options: { force?: boolean } = {}): Promise<boolean> {
   const store = useKnowledgeStore.getState()
   const same = isSamePath(store.activePath, path)
@@ -90,7 +126,21 @@ async function openPath(path: string, options: { force?: boolean } = {}): Promis
     return true
   }
 
+  // 缺失路径不要 toBeginOpen：否则 hasOpened=true 却灌不进内容，主栏整片空白
+  if (!same) {
+    try {
+      const isPresent = await exists(path)
+      if (!isPresent) {
+        console.warn('[markdown] open skipped, missing path:', path)
+        return false
+      }
+    } catch (error) {
+      console.warn('[markdown] exists check failed:', path, error)
+    }
+  }
+
   const sequence = ++openSequence
+  const wasOpened = store.hasOpened
   // 强制重载同一文件时不闪 loading、不清 dirty（由调用方保证）
   if (!same) {
     store.toBeginOpen(path)
@@ -131,7 +181,11 @@ async function openPath(path: string, options: { force?: boolean } = {}): Promis
   } catch (error) {
     if (sequence !== openSequence) return false
     console.error('[markdown] open failed', error)
-    store.toSetLoading(false)
+    if (!same && !wasOpened) {
+      store.toRevertFailedOpen()
+    } else {
+      store.toSetLoading(false)
+    }
     toast.error(t('OPEN_FAILED'))
     return false
   }
@@ -247,6 +301,7 @@ async function confirmIfDirty(
 
 export {
   ensureRootDir,
+  bootstrapKnowledgeSession,
   openPath,
   openWithDialog,
   openFolderAsWorkspace,

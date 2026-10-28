@@ -454,6 +454,7 @@ function Navigation(props: NavigationProps) {
                 node={node}
                 activeKey={tree.activeKey}
                 expandedKeys={tree.expandedKeys}
+                emptyHint={t('TREE_EMPTY')}
                 onLoad={tree.loadChildren}
                 onSelect={tree.onSelect}
                 onExpandChange={tree.onExpandChange}

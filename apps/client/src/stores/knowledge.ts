@@ -24,6 +24,11 @@ interface KnowledgeSession {
   isDirty: boolean
   isLoading: boolean
   hasOpened: boolean
+  /**
+   * 首屏会话是否已完成 hydrate + 尝试恢复上次文件。
+   * 未就绪时主栏应显示骨架，避免 EmptyState / 空白编辑器闪一下。
+   */
+  isSessionReady: boolean
   stats: DocStats
   outline: OutlineItem[]
   findQuery: string
@@ -53,6 +58,9 @@ interface KnowledgeStore extends KnowledgeSession, KnowledgePreferences {
   }): void
   /** 先切 activePath / 侧栏高亮，编辑器内容稍后灌入 */
   toBeginOpen: (path: string) => void
+  /** 打开失败：撤掉 beginOpen 留下的空壳，回到未打开态 */
+  toRevertFailedOpen: () => void
+  toMarkSessionReady: () => void
   toSetLoading: (isLoading: boolean) => void
   toNewDocument: () => void
   toUpdateMarkdown: (markdown: string) => void
@@ -113,6 +121,7 @@ const useKnowledgeStore = create<KnowledgeStore>()(
         isDirty: false,
         isLoading: false,
         hasOpened: false,
+        isSessionReady: false,
         stats: EMPTY_STATS,
         outline: [],
         findQuery: '',
@@ -197,6 +206,38 @@ const useKnowledgeStore = create<KnowledgeStore>()(
           )
         },
 
+        toRevertFailedOpen() {
+          setters(
+            function (state) {
+              state.activePath = null
+              state.markdown = ''
+              state.frontMatter = null
+              state.html = ''
+              state.isDirty = false
+              state.isLoading = false
+              state.hasOpened = false
+              state.externalChanged = false
+              state.activeDoc = null
+              state.saveConflict = false
+              state.isLargeFile = false
+              state.outline = []
+              state.stats = EMPTY_STATS
+            },
+            false,
+            'toRevertFailedOpen'
+          )
+        },
+
+        toMarkSessionReady() {
+          setters(
+            function (state) {
+              state.isSessionReady = true
+            },
+            false,
+            'toMarkSessionReady'
+          )
+        },
+
         toSetLoading(isLoading) {
           setters(
             function (state) {
@@ -216,6 +257,7 @@ const useKnowledgeStore = create<KnowledgeStore>()(
               state.html = '<p></p>'
               state.isDirty = false
               state.hasOpened = true
+              state.isSessionReady = true
               state.externalChanged = false
               state.activeDoc = null
               state.saveConflict = false

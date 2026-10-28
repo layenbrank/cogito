@@ -5,6 +5,7 @@ import {
   usePanelRef
 } from '@cogito/design/components/resizable'
 import { Suspense, lazy, useEffect, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 
 import { Decorations } from '@/components/decorations/index.ts'
 import { Fallback } from '@/components/fallback/index.ts'
@@ -13,6 +14,7 @@ import { useDockCommand } from '@/features/agent/dock/use-dock-command'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { KnowledgeCaptionBegin } from '@/views/knowledge/caption/begin.tsx'
 import { KnowledgeCaptionFinal } from '@/views/knowledge/caption/final.tsx'
+import { bootstrapKnowledgeSession } from '@/views/knowledge/lib/session.ts'
 import { KnowledgeAside } from '@/views/knowledge/surface/aside.tsx'
 import { KnowledgeSurface } from '@/views/knowledge/surface/index.tsx'
 import { useKnowledgeDockScope } from '@/views/knowledge/workspace/dock-scope.ts'
@@ -54,6 +56,7 @@ function KnowledgeSkeleton() {
  * - 右栏：大纲 | AI（tabs；collapse 零宽仍挂载，会话不丢）
  */
 export default function Knowledge() {
+  const location = useLocation()
   const isFocusMode = useKnowledgeStore(function (state) {
     return state.isFocusMode
   })
@@ -69,6 +72,14 @@ export default function Knowledge() {
 
   useKnowledgeDockScope()
   useDockCommand()
+
+  // 壳一挂载就引导：不等 lazy 编辑器 chunk，尽早定根目录并恢复上次文件
+  useEffect(
+    function () {
+      void bootstrapKnowledgeSession(location.search)
+    },
+    [location.search]
+  )
 
   useEffect(
     function () {

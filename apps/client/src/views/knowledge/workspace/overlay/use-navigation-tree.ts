@@ -83,7 +83,8 @@ export function useNavigationTree(input: {
       title: rootTitle,
       key: ROOT_KEY,
       isDirectory: true,
-      isLoaded: false
+      isLoaded: false,
+      isLoading: false
     }
   ])
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(function () {
@@ -131,7 +132,8 @@ export function useNavigationTree(input: {
     options: { force?: boolean; append?: boolean } = {}
   ) {
     const current = findFileTreeNode(treeNodesRef.current, node.key) ?? node
-    if (current.isLoading) return
+    // force 必须能打断「预置 isLoading / 上一代未 settle」的假加载，否则 ROOT 会永久骨架
+    if (current.isLoading && !options.force) return
     if (current.isLoaded && !options.force && !options.append) return
 
     const gen = ++loadGenRef.current
@@ -174,6 +176,7 @@ export function useNavigationTree(input: {
       }
 
       // 首批立即上屏，其余分帧追加；完成后再挂 Load more 哨兵
+      // 空目录也走 scheduleChunkedChildren（空数组同步 apply），以清 isLoading
       const contentNodes = mapped.filter(function (item) {
         return !item.isLoadMore
       })
@@ -231,30 +234,70 @@ export function useNavigationTree(input: {
       cancelPendingChunk()
       loadGenRef.current += 1
 
-      void ensureRootDir().then(function () {
-        setTreeNodes([
-          {
-            title: rootTitle,
-            key: ROOT_KEY,
-            isDirectory: true,
-            isLoaded: false,
-            isLoading: false
-          }
-        ])
-        setExpandedKeys(function (prev) {
-          const next = new Set(prev)
-          next.add(ROOT_KEY)
-          return next
-        })
-        void loadChildren({ title: rootTitle, key: ROOT_KEY, isDirectory: true }, { force: true })
+      // 不预置 isLoading：由 loadChildren 置位。预置 true 会与「isLoading 则 return」互锁，骨架永不结束
+      setTreeNodes([
+        {
+          title: rootTitle,
+          key: ROOT_KEY,
+          isDirectory: true,
+          isLoaded: false,
+          isLoading: false
+        }
+      ])
+      setExpandedKeys(function (prev) {
+        const next = new Set(prev)
+        next.add(ROOT_KEY)
+        return next
       })
+
+      void loadChildren(
+        { title: rootTitle, key: ROOT_KEY, isDirectory: true },
+        { force: true }
+      )
 
       return function () {
         cancelPendingChunk()
       }
     },
-     
     [rootDir, treeRevision, rootTitle, loadChildren]
+  )
+
+  // 恢复上次文件后：展开祖先目录并按需灌入，避免只看见根文件夹
+  useEffect(
+    function () {
+      if (!activeKey || activeKey === ROOT_KEY) return
+      const segments = normalizeSeparators(activeKey).split('/').filter(Boolean)
+      if (segments.length < 2) return
+
+      const ancestorKeys: string[] = []
+      let acc = ''
+      for (let i = 0; i < segments.length - 1; i += 1) {
+        acc = acc ? `${acc}/${segments[i]}` : segments[i]
+        ancestorKeys.push(acc)
+      }
+
+      setExpandedKeys(function (prev) {
+        let changed = !prev.has(ROOT_KEY)
+        const next = new Set(prev)
+        next.add(ROOT_KEY)
+        for (const key of ancestorKeys) {
+          if (!next.has(key)) {
+            next.add(key)
+            changed = true
+          }
+        }
+        return changed ? next : prev
+      })
+
+      const pending = ancestorKeys.find(function (key) {
+        const node = findFileTreeNode(treeNodes, key)
+        return Boolean(node && !node.isLoaded && !node.isLoading)
+      })
+      if (!pending) return
+      const node = findFileTreeNode(treeNodes, pending)
+      if (node) void loadChildren(node)
+    },
+    [activeKey, loadChildren, treeNodes]
   )
 
   const onExpandChange = useCallback(function (key: string, open: boolean) {

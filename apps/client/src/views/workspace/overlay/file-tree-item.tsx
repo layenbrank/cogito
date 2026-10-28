@@ -26,6 +26,7 @@ interface FileTreeItemProps {
   depth?: number
   activeKey?: string | null
   expandedKeys?: Set<string>
+  emptyHint?: string
   onLoad: (node: FileTreeNode, options?: { force?: boolean; append?: boolean }) => Promise<void>
   onSelect: (node: FileTreeNode) => void
   onExpandChange?: (key: string, open: boolean) => void
@@ -125,6 +126,9 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
     )
   }
 
+  const hasChildren = Boolean(node.children && node.children.length > 0)
+  const isEmptyLoaded = Boolean(node.isLoaded && !node.isLoading && !hasChildren)
+
   return (
     <li>
       <Collapsible
@@ -132,7 +136,10 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
         onOpenChange={function (open) {
           if (!isControlled) setUncontrolledOpen(open)
           props.onExpandChange?.(node.key, open)
-          if (open) void props.onLoad(node)
+          if (!open) return
+          // 假加载（isLoading 但未 isLoaded）时 force 重试，避免永久骨架
+          const shouldForce = Boolean(node.isLoading && !node.isLoaded)
+          void props.onLoad(node, shouldForce ? { force: true } : undefined)
         }}>
         <CollapsibleTrigger
           data-tree-key={node.key}
@@ -159,10 +166,44 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
           />
           <span className="truncate">{node.title}</span>
         </CollapsibleTrigger>
-        <CollapsibleContent>
-          {isOpen && node.children && node.children.length > 0 ? (
+        {/*
+          子节点在 open=true 之后异步灌入。空 Panel 会先把
+          --collapsible-panel-height 量成 0，之后 overflow 把子树裁掉。
+          有内容再挂载 Panel，避免空高锁定。
+          加载中用普通 ul 骨架（不走 CollapsibleContent），防止空高锁死。
+        */}
+        {isOpen && node.isLoading && !hasChildren ? (
+          <ul
+            className="list-none py-0.5"
+            aria-hidden>
+            {[0, 1, 2].map(function (index) {
+              return (
+                <li
+                  key={index}
+                  className="py-1 pr-2"
+                  style={{ paddingLeft: rowPadLeft(depth + 1) }}>
+                  <div
+                    className="h-3 animate-pulse rounded bg-muted"
+                    style={{ width: `${72 - index * 12}%` }}
+                  />
+                </li>
+              )
+            })}
+          </ul>
+        ) : null}
+        {isOpen && isEmptyLoaded ? (
+          <ul className="list-none py-0.5">
+            <li
+              className="text-muted-foreground py-0.75 pr-2 text-xs"
+              style={{ paddingLeft: rowPadLeft(depth + 1) }}>
+              {props.emptyHint ?? 'Empty'}
+            </li>
+          </ul>
+        ) : null}
+        {isOpen && hasChildren ? (
+          <CollapsibleContent>
             <ul className="list-none">
-              {node.children.map(function (child) {
+              {node.children!.map(function (child) {
                 return (
                   <FileTreeItem
                     key={child.key}
@@ -170,6 +211,7 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
                     depth={depth + 1}
                     activeKey={props.activeKey}
                     expandedKeys={props.expandedKeys}
+                    emptyHint={props.emptyHint}
                     onLoad={props.onLoad}
                     onSelect={props.onSelect}
                     onExpandChange={props.onExpandChange}
@@ -177,8 +219,8 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
                 )
               })}
             </ul>
-          ) : null}
-        </CollapsibleContent>
+          </CollapsibleContent>
+        ) : null}
       </Collapsible>
     </li>
   )
@@ -188,6 +230,7 @@ function isFileTreeItemEqual(prev: FileTreeItemProps, next: FileTreeItemProps): 
   if (prev.node !== next.node) return false
   if (prev.depth !== next.depth) return false
   if (prev.expandedKeys !== next.expandedKeys) return false
+  if (prev.emptyHint !== next.emptyHint) return false
   if (prev.onLoad !== next.onLoad) return false
   if (prev.onSelect !== next.onSelect) return false
   if (prev.onExpandChange !== next.onExpandChange) return false
