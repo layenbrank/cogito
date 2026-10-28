@@ -1,30 +1,13 @@
 /**
- * xterm 主题：把设计 token CSS 变量解析成 canvas 可用的 rgb/rgba。
+ * xterm 主题：把设计 token CSS 变量解析成 canvas 可用的具体色值（`#RRGGBB`）。
  * 交互终端与指令「输出」只读 xterm 共用。
  */
 import type { ITheme } from '@xterm/xterm'
 
-/** 应用外观以根节点 `.dark` 为唯一来源（见 features/window/appearance.ts）。 */
-function isDarkMode(): boolean {
-  return document.documentElement.classList.contains('dark')
-}
+import { isDarkTheme, resolveCssColor } from '@/features/window/css-color.ts'
 
-/**
- * 把 CSS 变量解析成 canvas 可用的 `rgb()` / `rgba()`。
- * xterm 走 canvas，直接塞 oklch 在部分 WebView 上不稳定。
- */
-function resolveCssColor(variable: string, fallback: string): string {
-  if (typeof document === 'undefined') return fallback
-  const probe = document.createElement('span')
-  probe.style.color = `var(${variable})`
-  probe.style.position = 'absolute'
-  probe.style.visibility = 'hidden'
-  document.body.appendChild(probe)
-  const resolved = getComputedStyle(probe).color
-  probe.remove()
-  if (!resolved || resolved === 'rgba(0, 0, 0, 0)') return fallback
-  return resolved
-}
+/** 应用外观以根节点 `.dark` 为唯一来源（见 features/window/appearance.ts）。 */
+const isDarkMode = isDarkTheme
 
 /**
  * 终端主题跟随设计 token（`--background` / `--foreground` 等）。
