@@ -326,6 +326,10 @@ function TasksTab() {
                     size="sm"
                     variant="ghost"
                     className="h-6 px-1.5 text-[11px]"
+                    disabled={item.owner === 'cloud'}
+                    title={
+                      item.owner === 'cloud' ? '服务端任务请在服务端管理' : '编辑这条任务'
+                    }
                     onClick={function () {
                       setDraft({
                         id: item.id,
