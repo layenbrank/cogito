@@ -1,13 +1,10 @@
 [build]
 target-dir = "target"
-rustc-wrapper = "sccache" # 替换为 sccache 实际路径
 incremental = true
 # 默认目标平台（可通过--target覆盖）
 target = "x86_64-pc-windows-msvc"
 
-# Windows Hyper-V/WSL 会排除动态端口(≥49152)；强制低于该区，压住 Cursor 继承的旧 SCCACHE_SERVER_PORT。
-# [env]
-# SCCACHE_SERVER_PORT = { value = "42222", force = true }
+# 编译缓存（sccache）属于个人环境：不写 rustc-wrapper / SCCACHE_*，否则端口不可绑的设备会直接卡死。
 
 # -------------------------- Windows 平台配置 --------------------------
 [target.x86_64-pc-windows-msvc]

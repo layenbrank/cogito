@@ -1,13 +1,9 @@
 [build]
 target-dir = "target" # 构建输出目录
-# sccache 在 Windows 上走 TCP；端口勿落在动态区(≥49152)，否则易被 Hyper-V/WSL 排除(os error 10013)。
-# 端口必须与 apps/service/.cargo/config.toml 及用户 profile 一致，否则服务端/客户端会连到不同端口。
-# rustc-wrapper = "sccache"
 
-# 强制压住 Cursor/旧终端里继承的坏端口（如 50100 落在排除区）。
-# 端口必须与 apps/service/.cargo/config.toml 及用户 profile 一致（本机 42222 被保留无法绑定，统一用 4226）。
-[env]
-SCCACHE_SERVER_PORT = { value = "4226", force = true }
+# 编译缓存（sccache 等）属于**个人环境**，由 `~/.cargo/config.toml` / `RUSTC_WRAPPER` 决定。
+# 不要在这里写 rustc-wrapper / SCCACHE_*：端口在不同设备上未必可绑，会把所有人都卡在
+# 「cargo 探针失败」上。机器差异用 `pnpm check:cargo-config` 拦。
 
 # Windows (MSVC)
 # [target.x86_64-pc-windows-msvc]
