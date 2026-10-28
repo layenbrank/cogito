@@ -6,7 +6,6 @@ import * as m from 'motion/react-m'
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
-import { isMainWindow } from '@/features/magnetic-tile/session'
 import { useShowsTileSession } from '@/features/magnetic-tile/session-bar'
 import { findWindowLabel } from '@/features/window/kind'
 import {
@@ -28,6 +27,16 @@ function findInitialSection(searchParams: URLSearchParams): SectionKey {
   return parseSectionKey(searchParams.get('section')) ?? SECTION.ACCOUNT
 }
 
+/**
+ * 主窗应用页已有 TileSessionBar（回墙）；独立设置磁贴窗关窗即可。
+ * 仅「非主窗应用内同窗切入设置」时在侧栏提供返回（history.back）。
+ */
+function findShowsShellBack(showsSession: boolean, windowLabel: string) {
+  if (showsSession) return false
+  if (windowLabel.startsWith('settings:')) return false
+  return true
+}
+
 function Shell() {
   const navigate = useNavigate()
   const isReducedMotion = useReducedMotion()
@@ -35,10 +44,8 @@ function Shell() {
   const [section, onSectionChange] = useState<SectionKey>(function () {
     return findInitialSection(searchParams)
   })
-  // 主窗有 TileSessionBar；独立设置磁贴窗关窗即可；其余同窗进入时需要返回
   const showsSession = useShowsTileSession()
-  const windowLabel = findWindowLabel()
-  const showsBack = !showsSession && !windowLabel.startsWith('settings:')
+  const showsBack = findShowsShellBack(showsSession, findWindowLabel())
   // 查询串里的 section 变了就跟随：渲染期按变化调整，不用 effect
   const querySection = searchParams.get('section') ?? ''
   const [seenQuerySection, updateSeenQuerySection] = useState(querySection)
@@ -51,14 +58,6 @@ function Shell() {
   function selectSection(key: SectionKey) {
     onSectionChange(key)
     updateSearchParams({ section: key }, { replace: true })
-  }
-
-  function goBack() {
-    if (isMainWindow()) {
-      void navigate('/overview')
-      return
-    }
-    void navigate(-1)
   }
 
   const viewVariants = MOTION.fadeVariants(!!isReducedMotion)
@@ -85,7 +84,9 @@ function Shell() {
               data-region="false"
               aria-label="返回"
               className="shrink-0 gap-1 px-2"
-              onClick={goBack}>
+              onClick={function () {
+                void navigate(-1)
+              }}>
               <Icon
                 icon="lucide:chevron-left"
                 className="size-3.5"
@@ -153,3 +154,4 @@ function Shell() {
 }
 
 export default Shell
+export { findShowsShellBack }
