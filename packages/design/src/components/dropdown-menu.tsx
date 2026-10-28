@@ -38,27 +38,41 @@ function DropdownMenuContent({
   side = 'bottom',
   sideOffset = 4,
   className,
+  /** false：Portal 挂到 container（默认 body 会破坏 TipTap BubbleMenu） */
+  portal = true,
+  container,
   ...props
 }: MenuPrimitive.Popup.Props &
-  Pick<MenuPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset'>) {
+  Pick<MenuPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset'> & {
+    portal?: boolean
+    container?: HTMLElement | null
+  }) {
+  const positioned = (
+    <MenuPrimitive.Positioner
+      className="isolate z-50 outline-none"
+      align={align}
+      alignOffset={alignOffset}
+      side={side}
+      sideOffset={sideOffset}>
+      <MenuPrimitive.Popup
+        data-slot="dropdown-menu-content"
+        className={cn(
+          OVERLAY_SHELL,
+          'z-50 max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto p-1 outline-none data-closed:overflow-hidden',
+          className
+        )}
+        {...props}
+      />
+    </MenuPrimitive.Positioner>
+  )
+  // Base UI：Positioner 必须在 Portal 上下文内，绝不可裸渲染。
+  // portal=true → body；portal=false → 有 container 挂气泡，无则仍 Portal（默认 body）。
+  if (portal) {
+    return <MenuPrimitive.Portal>{positioned}</MenuPrimitive.Portal>
+  }
   return (
-    <MenuPrimitive.Portal>
-      <MenuPrimitive.Positioner
-        className="isolate z-50 outline-none"
-        align={align}
-        alignOffset={alignOffset}
-        side={side}
-        sideOffset={sideOffset}>
-        <MenuPrimitive.Popup
-          data-slot="dropdown-menu-content"
-          className={cn(
-            OVERLAY_SHELL,
-            'z-50 max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto p-1 outline-none data-closed:overflow-hidden',
-            className
-          )}
-          {...props}
-        />
-      </MenuPrimitive.Positioner>
+    <MenuPrimitive.Portal container={container ?? undefined}>
+      {positioned}
     </MenuPrimitive.Portal>
   )
 }
@@ -96,11 +110,16 @@ function DropdownMenuItem({
   className,
   inset,
   variant = 'default',
+  nativeButton,
+  render,
   ...props
 }: MenuPrimitive.Item.Props & {
   inset?: boolean
   variant?: 'default' | 'destructive'
 }) {
+  // Base UI Menu.Item 默认 nativeButton=false（渲染 div）。
+  // 通过 render 合成到 <button>（如 TipTap Button）时必须为 true，否则刷屏警告。
+  const resolvedNativeButton = nativeButton ?? (render != null ? true : false)
   return (
     <MenuPrimitive.Item
       data-slot="dropdown-menu-item"
@@ -111,6 +130,8 @@ function DropdownMenuItem({
         className
       )}
       {...props}
+      render={render}
+      nativeButton={resolvedNativeButton}
     />
   )
 }
@@ -128,10 +149,13 @@ function DropdownMenuSubTrigger({
   className,
   inset,
   children,
+  nativeButton,
+  render,
   ...props
 }: MenuPrimitive.SubmenuTrigger.Props & {
   inset?: boolean
 }) {
+  const resolvedNativeButton = nativeButton ?? (render != null ? true : false)
   return (
     <MenuPrimitive.SubmenuTrigger
       data-slot="dropdown-menu-sub-trigger"
@@ -140,7 +164,9 @@ function DropdownMenuSubTrigger({
         "flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground not-data-[variant=destructive]:data-highlighted:**:text-accent-foreground data-inset:pl-7 data-popup-open:bg-accent data-popup-open:text-accent-foreground data-open:bg-accent data-open:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
-      {...props}>
+      {...props}
+      render={render}
+      nativeButton={resolvedNativeButton}>
       {children}
       <Icon
         icon="lucide:chevron-right"
