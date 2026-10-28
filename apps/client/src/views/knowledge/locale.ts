@@ -44,6 +44,8 @@ const MD_LOCALE = {
   OPEN_FAILED: '打开失败',
   TREE_FORBIDDEN: '该文件夹未在当前会话获得授权，请重新选择一次',
   TREE_EMPTY: '空文件夹',
+  TREE_NO_ROOT_TITLE: '尚未打开工作区',
+  TREE_NO_ROOT_DESC: '打开一个文件夹作为文件树根目录，刷新后会记住。',
   CHOOSE_FOLDER: '重新选择文件夹',
   IMAGE_UPLOAD_FAILED: '图片插入失败',
   IMAGE_UPLOAD_NEED_FILE: '请先保存笔记，再插入本地图片',

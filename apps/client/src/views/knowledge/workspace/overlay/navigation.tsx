@@ -21,6 +21,7 @@ import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ContextMenu, type MenuItem } from '@/components/contextmenu'
+import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import {
   clearDirListCache,
@@ -29,8 +30,19 @@ import {
   removeMarkdownPath,
   renameMarkdownPath
 } from '@/views/knowledge/lib/fs.ts'
-import { findFileName, findParentDir, isPathInsideRoot, normalizeSeparators } from '@/views/knowledge/lib/path.ts'
-import { createUntitled, ensureRootDir, openPath } from '@/views/knowledge/lib/session.ts'
+import {
+  findFileName,
+  findParentDir,
+  isPathInsideRoot,
+  isSamePath,
+  normalizeSeparators
+} from '@/views/knowledge/lib/path.ts'
+import {
+  createUntitled,
+  ensureRootDir,
+  openFolderAsWorkspace,
+  openPath
+} from '@/views/knowledge/lib/session.ts'
 import { t } from '@/views/knowledge/locale.ts'
 import { FileTreeItem } from '@/views/workspace/overlay/file-tree-item.tsx'
 import {
@@ -169,8 +181,23 @@ function Navigation(props: NavigationProps) {
   const toSetFileQuery = useKnowledgeStore(function (state) {
     return state.toSetFileQuery
   })
+  const bases = useKnowledgeBaseStore(function (state) {
+    return state.bases
+  })
+  const activeBaseID = useKnowledgeBaseStore(function (state) {
+    return state.activeBaseID
+  })
 
-  const rootTitle = rootDir ? findFileName(rootDir) || t('WORKSPACE') : t('WORKSPACE')
+  const activeBase = bases.find(function (base) {
+    return base.id === activeBaseID
+  })
+  // 根目录若正是当前库，用库名（「默认知识库」），不要展示文件夹 slug「default」
+  const rootTitle =
+    rootDir && activeBase && isSamePath(rootDir, activeBase.rootPath)
+      ? activeBase.name
+      : rootDir
+        ? findFileName(rootDir) || t('WORKSPACE')
+        : t('WORKSPACE')
 
   const tree = useNavigationTree({
     rootDir,
@@ -400,6 +427,33 @@ function Navigation(props: NavigationProps) {
     },
     []
   )
+
+  if (!rootDir) {
+    return (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 border-r border-border/50 bg-background/65 px-4 text-center backdrop-blur-md">
+        <Icon
+          icon="lucide:folder-open"
+          className="size-8 text-muted-foreground/70"
+        />
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-foreground">{t('TREE_NO_ROOT_TITLE')}</p>
+          <p className="text-xs text-muted-foreground">{t('TREE_NO_ROOT_DESC')}</p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          onClick={function () {
+            void openFolderAsWorkspace()
+          }}>
+          <Icon
+            icon="lucide:folder-open"
+            className="size-3.5"
+          />
+          {t('OPEN_FOLDER')}
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col border-r border-border/50 bg-background/65 backdrop-blur-md">

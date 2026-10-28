@@ -2,6 +2,7 @@ import { exists } from '@tauri-apps/plugin-fs'
 import { toast } from 'sonner'
 
 import { listBases, resolveDoc, writeDoc } from '@/lib/knowledge-ipc'
+import { useDictStore } from '@/stores/dict'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import {
@@ -15,24 +16,26 @@ import {
 } from '@/views/knowledge/lib/fs.ts'
 import { parseMarkdown } from '@/views/knowledge/lib/parse-markdown.ts'
 import { findOutlineFromMarkdown } from '@/views/knowledge/lib/outline.ts'
-import { findParentDir, isPathInsideRoot } from '@/views/knowledge/lib/path.ts'
+import { isSamePath } from '@/views/knowledge/lib/path.ts'
 import { serializeHtmlToMarkdown } from '@/views/knowledge/lib/serialize-markdown.ts'
 import { findDocStats, isLargeMarkdown } from '@/views/knowledge/lib/stats.ts'
 import { t } from '@/views/knowledge/locale.ts'
 
 /**
- * 工作区根目录 = **当前知识库的目录**。
- *
- * 以前这是个独立偏好，用户可能在设置里选一个与库无关的文件夹，于是侧栏文件树、
- * 库列表、保存落库三者的「根」各说各话。现在根只由库决定：有库就用库目录，
- * 一个库都没有（首次启动、库目录被删）才回落到老的应用数据目录。
+ * 侧栏工作区根：
+ * 1. 优先用户「打开文件夹」写入并落盘的 `workspaceRoot`
+ * 2. 否则才用当前知识库目录（系统默认库目录名是 `default`，空库时不应抢占侧栏）
+ * 3. 打开/保存文件不得改写 rootDir（旧逻辑会缩成文件父目录）
  */
 async function ensureRootDir(): Promise<string> {
   const store = useKnowledgeStore.getState()
   if (store.rootDir) return store.rootDir
-  const root = await findActiveBaseRoot()
-  store.toSetRootDir(root)
-  return root
+  if (store.workspaceRoot) {
+    store.toSetRootDir(store.workspaceRoot)
+    return store.workspaceRoot
+  }
+  // 没有用户工作区时不把 default 库目录写进侧栏 rootDir，只返回路径给新建/读写
+  return findActiveBaseRoot()
 }
 
 async function findActiveBaseRoot(): Promise<string> {
@@ -55,19 +58,6 @@ function syncDerived(markdown: string): void {
   store.toUpdateOutline(findOutlineFromMarkdown(markdown))
 }
 
-function syncWorkspaceRootForFile(path: string): void {
-  const store = useKnowledgeStore.getState()
-  if (store.rootDir && isPathInsideRoot(store.rootDir, path)) return
-  const parent = findParentDir(path)
-  store.toSetRootDir(parent)
-  store.toBumpTree()
-}
-
-function isSamePath(a: string | null | undefined, b: string | null | undefined): boolean {
-  if (!a || !b) return false
-  return a.replace(/\\/g, '/').toLowerCase() === b.replace(/\\/g, '/').toLowerCase()
-}
-
 /** 打开后取库内引用（含 hash）：保存时用它判断「期间是否被别人改过」 */
 async function syncActiveDoc(path: string): Promise<void> {
   try {
@@ -83,6 +73,20 @@ async function syncActiveDoc(path: string): Promise<void> {
 
 /** 防止快速连续打开时，较慢的旧请求覆盖新文档 */
 let openSequence = 0
+
+/** 保存世代：写盘完成后若已有更新的保存在飞，丢弃旧结果的「已保存」标记 */
+let saveSequence = 0
+
+/** 自身写盘后短时间内忽略 file watch，避免刚保存又 force 重载冲掉编辑 */
+let ignoreWatchUntil = 0
+
+function noteSelfWrite(): void {
+  ignoreWatchUntil = Date.now() + 1_500
+}
+
+function shouldIgnoreFileWatch(): boolean {
+  return Date.now() < ignoreWatchUntil
+}
 
 /** 首屏 hydrate + 恢复上次文件：单例，避免壳与 lazy 工作区重复跑 */
 let sessionBootstrap: Promise<void> | null = null
@@ -104,13 +108,16 @@ async function bootstrapKnowledgeSession(search = ''): Promise<void> {
 async function runSessionBootstrap(): Promise<void> {
   const store = useKnowledgeStore.getState()
   try {
+    // 字典 cache 与偏好并行灌入；角标/任务态依赖 label
+    void useDictStore.getState().bootstrap()
+    // hydrate 会把落盘的 workspaceRoot 灌进 rootDir；没有则 rootDir 保持 null
     await store.hydrateFromStore()
-    await ensureRootDir()
     const state = useKnowledgeStore.getState()
-    if (state.hasOpened) return
-    for (const path of state.recentPaths) {
-      const opened = await openPath(path)
-      if (opened) break
+    if (!state.hasOpened) {
+      for (const path of state.recentPaths) {
+        const opened = await openPath(path)
+        if (opened) break
+      }
     }
   } catch (error) {
     console.warn('[knowledge] session bootstrap failed:', error)
@@ -123,6 +130,11 @@ async function openPath(path: string, options: { force?: boolean } = {}): Promis
   const store = useKnowledgeStore.getState()
   const same = isSamePath(store.activePath, path)
   if (same && !options.force && !store.isDirty && !store.isLoading) {
+    return true
+  }
+
+  // 自身保存触发的 watch：直接跳过，避免把未落盘编辑冲掉
+  if (same && options.force && shouldIgnoreFileWatch()) {
     return true
   }
 
@@ -158,6 +170,13 @@ async function openPath(path: string, options: { force?: boolean } = {}): Promis
       return true
     }
 
+    // 强制重载时若编辑器又脏了（保存竞态窗口），不要用磁盘覆盖
+    if (same && options.force && useKnowledgeStore.getState().isDirty) {
+      store.toSetLoading(false)
+      store.toSetExternalChanged(true)
+      return false
+    }
+
     const parsed = parseMarkdown(raw)
     const large = isLargeMarkdown(raw)
     store.toOpenDocument({
@@ -168,7 +187,6 @@ async function openPath(path: string, options: { force?: boolean } = {}): Promis
       isLargeFile: large
     })
     void syncActiveDoc(path)
-    syncWorkspaceRootForFile(path)
     requestAnimationFrame(function () {
       if (sequence !== openSequence) return
       syncDerived(raw)
@@ -204,7 +222,7 @@ async function openFolderAsWorkspace(dir?: string | null): Promise<boolean> {
   const selected = dir ?? (await pickRootDirectory())
   if (!selected) return false
   const store = useKnowledgeStore.getState()
-  store.toSetRootDir(selected)
+  store.toSetRootDir(selected, { persist: true })
   store.toBumpTree()
   if (!store.hasOpened) {
     store.toNewDocument()
@@ -232,9 +250,14 @@ async function saveDocument(options?: {
   liveHtml?: string
   /** 用户已选择「保留我的」：忽略冲突直接覆盖 */
   force?: boolean
+  /** 内部：追赶保存深度，防止序列化抖动死循环 */
+  depth?: number
 }): Promise<boolean> {
   const store = useKnowledgeStore.getState()
+  const depth = options?.depth ?? 0
   const content = findCurrentMarkdown(options?.liveHtml)
+  const sequence = ++saveSequence
+
   try {
     let path = store.activePath
     if (!path || options?.saveAs) {
@@ -245,21 +268,23 @@ async function saveDocument(options?: {
       if (!path) return false
     }
     const wasUntitled = !store.activePath || Boolean(options?.saveAs)
+    // 捕获开始保存时的 hash，避免 await 期间 activeDoc 被换掉用错
+    const expectedHash = options?.force ? null : (store.activeDoc?.hash ?? null)
 
     // 知识库文档由服务端写盘 + 落库（app 是唯一写者）；普通文件仍走前端写。
-    // 带 expectedHash 是为了发现「打开之后库内又被 agent 发布/回灌改过」的冲突。
+    noteSelfWrite()
     const outcome = await writeDoc({
       path,
       content,
-      expectedHash: options?.force ? null : (store.activeDoc?.hash ?? null),
+      expectedHash,
       force: options?.force ?? false
     })
     if (outcome.conflict) {
-      store.toSetSaveConflict(true)
+      useKnowledgeStore.getState().toSetSaveConflict(true)
       return false
     }
     if (outcome.matched) {
-      store.toSetActiveDoc({
+      useKnowledgeStore.getState().toSetActiveDoc({
         matched: true,
         docId: outcome.doc?.id ?? null,
         baseId: outcome.doc?.baseId ?? null,
@@ -268,20 +293,36 @@ async function saveDocument(options?: {
         revision: outcome.revision ?? null
       })
     } else {
+      noteSelfWrite()
       await writeMarkdownFile(path, content)
     }
-    store.toSetSaveConflict(false)
 
-    store.toUpdateMarkdown(content)
-    store.toMarkSaved(path)
+    // 已有更新的保存在飞：本轮只负责写盘，不要清 dirty / 回写旧快照
+    if (sequence !== saveSequence) return true
+
+    const latest = useKnowledgeStore.getState()
+    if (!isSamePath(latest.activePath, path)) return true
+
+    // 写盘期间用户又改了：保留 dirty，切勿用旧 content 覆盖 store / 假装已保存
+    const currentContent = findCurrentMarkdown()
+    if (currentContent !== content) {
+      latest.toSetSaveConflict(false)
+      if (depth >= 2) {
+        // 仍脏着，留给下一次 autosave / 手动保存；不要死循环
+        return true
+      }
+      return saveDocument({ force: options?.force, depth: depth + 1 })
+    }
+
+    latest.toCommitSaved({ path, markdown: content })
     syncDerived(content)
-    store.toPushRecent(path)
-    syncWorkspaceRootForFile(path)
+    latest.toPushRecent(path)
     if (wasUntitled) {
-      store.toBumpTree()
+      latest.toBumpTree()
     }
     return true
   } catch (error) {
+    if (sequence !== saveSequence) return false
     console.error('[markdown] save failed', error)
     toast.error(t('SAVE_FAILED'))
     return false
@@ -310,5 +351,7 @@ export {
   saveDocument,
   confirmIfDirty,
   findDisplayTitle,
-  syncDerived
+  syncDerived,
+  shouldIgnoreFileWatch,
+  noteSelfWrite
 }

@@ -30,6 +30,8 @@ interface KnowledgeChrome {
   isFocusMode: boolean
   isTypewriter: boolean
   recentPaths: string[]
+  /** 用户打开的侧栏工作区根；刷新后恢复，避免落回空的 default 库目录 */
+  workspaceRoot: string | null
 }
 
 interface CodeChrome {

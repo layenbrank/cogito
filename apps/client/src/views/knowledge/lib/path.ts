@@ -24,6 +24,14 @@ function isMarkdownName(name: string): boolean {
   })
 }
 
+function isSamePath(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false
+  return (
+    normalizeSeparators(a).replace(/\/+$/, '').toLowerCase() ===
+    normalizeSeparators(b).replace(/\/+$/, '').toLowerCase()
+  )
+}
+
 /** 校验 candidate 是否落在 root 之下（防路径穿越） */
 function isPathInsideRoot(root: string, candidate: string): boolean {
   const rootNorm = normalizeSeparators(root).replace(/\/+$/, '').toLowerCase()
@@ -45,6 +53,7 @@ export {
   findFileName,
   findParentDir,
   isMarkdownName,
+  isSamePath,
   isPathInsideRoot,
   joinPath
 }

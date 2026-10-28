@@ -30,7 +30,8 @@ const PERSIST_DEFAULTS: PersistShape = {
       isTypographyEnabled: true,
       isFocusMode: false,
       isTypewriter: false,
-      recentPaths: []
+      recentPaths: [],
+      workspaceRoot: null
     },
     code: {
       workspaceRoot: null,

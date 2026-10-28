@@ -16,7 +16,10 @@ import type { KnowledgeViewMode } from '@/views/knowledge/lib/types.ts'
 
 interface KnowledgeSession {
   activePath: string | null
-  /** 侧栏文件树的根：跟随**当前知识库目录**，不落偏好（切库就变） */
+  /**
+   * 侧栏文件树的根。优先恢复偏好里的 `workspaceRoot`（用户打开的文件夹）；
+   * 切库时写入并落盘。打开/保存文件不得改写为「文件父目录」。
+   */
   rootDir: string | null
   markdown: string
   frontMatter: string | null
@@ -67,12 +70,17 @@ interface KnowledgeStore extends KnowledgeSession, KnowledgePreferences {
   toUpdateHtml: (html: string) => void
   toUpdateFrontMatter: (frontMatter: string | null) => void
   toMarkSaved: (path: string) => void
+  /** 保存成功且内容仍是最新：一次写入 markdown + 清 dirty，避免先 dirty 再清除的闪烁 */
+  toCommitSaved: (params: { path: string; markdown: string }) => void
   toMarkDirty: (isDirty?: boolean) => void
   toUpdateOutline: (outline: OutlineItem[]) => void
   toUpdateStats: (stats: DocStats) => void
   toSetViewMode: (mode: KnowledgeViewMode) => void
-  /** 切工作区根（打开库外文件/文件夹时用）：只在本会话生效，不写偏好 */
-  toSetRootDir: (rootDir: string | null) => void
+  /**
+   * 切工作区根。
+   * `persist: true`（打开文件夹 / 切库）会写入 `workspaceRoot`，刷新后可恢复。
+   */
+  toSetRootDir: (rootDir: string | null, options?: { persist?: boolean }) => void
   toToggleSidebar: () => void
   toToggleOutline: () => void
   toSetFindOpen: (isOpen: boolean) => void
@@ -108,13 +116,14 @@ const useKnowledgeStore = create<KnowledgeStore>()(
           isTypographyEnabled: state.isTypographyEnabled,
           isFocusMode: state.isFocusMode,
           isTypewriter: state.isTypewriter,
-          recentPaths: [...state.recentPaths]
+          recentPaths: [...state.recentPaths],
+          workspaceRoot: state.workspaceRoot
         })
       }
 
       return {
         activePath: null,
-        rootDir: null,
+        rootDir: initial.workspaceRoot,
         markdown: '',
         frontMatter: null,
         html: '',
@@ -140,6 +149,7 @@ const useKnowledgeStore = create<KnowledgeStore>()(
           setters(
             function (state) {
               Object.assign(state, prefs)
+              state.rootDir = prefs.workspaceRoot
             },
             false,
             'hydratePreferences'
@@ -152,6 +162,7 @@ const useKnowledgeStore = create<KnowledgeStore>()(
           setters(
             function (state) {
               Object.assign(state, prefs)
+              state.rootDir = prefs.workspaceRoot
             },
             false,
             'hydrateFromStore'
@@ -314,6 +325,20 @@ const useKnowledgeStore = create<KnowledgeStore>()(
           )
         },
 
+        toCommitSaved(params) {
+          setters(
+            function (state) {
+              state.activePath = params.path
+              state.markdown = params.markdown
+              state.isDirty = false
+              state.externalChanged = false
+              state.saveConflict = false
+            },
+            false,
+            'toCommitSaved'
+          )
+        },
+
         toMarkDirty(isDirty = true) {
           setters(
             function (state) {
@@ -355,10 +380,14 @@ const useKnowledgeStore = create<KnowledgeStore>()(
           )
         },
 
-        toSetRootDir(rootDir) {
+        toSetRootDir(rootDir, options) {
           setters(
             function (state) {
               state.rootDir = rootDir
+              if (options?.persist) {
+                state.workspaceRoot = rootDir
+                writePrefs(state)
+              }
             },
             false,
             'toSetRootDir'

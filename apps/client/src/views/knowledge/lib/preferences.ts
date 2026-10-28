@@ -15,6 +15,7 @@ interface KnowledgePreferences {
   isFocusMode: boolean
   isTypewriter: boolean
   recentPaths: string[]
+  workspaceRoot: string | null
 }
 
 /** isSidebarOpen = 左栏；isOutlineOpen = 右栏（大纲|AI 共用） */
@@ -28,7 +29,8 @@ const PREFERENCES: KnowledgePreferences = {
   isTypographyEnabled: true,
   isFocusMode: false,
   isTypewriter: false,
-  recentPaths: []
+  recentPaths: [],
+  workspaceRoot: null
 }
 
 /** 同步读：依赖 ensurePersist 后的 tiles cache */
@@ -37,7 +39,7 @@ function parsePreferences(): KnowledgePreferences {
     return findKnowledgeTilePrefs()
   } catch (error) {
     console.warn('[knowledge] parsePreferences failed', error)
-    return { ...PREFERENCES, recentPaths: [] }
+    return { ...PREFERENCES, recentPaths: [], workspaceRoot: null }
   }
 }
 

@@ -24,6 +24,7 @@ import {
   openPath,
   openWithDialog,
   saveDocument,
+  shouldIgnoreFileWatch,
   syncDerived
 } from '@/views/knowledge/lib/session.ts'
 import { t } from '@/views/knowledge/locale.ts'
@@ -164,6 +165,8 @@ function useKnowledgeDocumentEffects(input: {
         activePath,
         function () {
           if (disposed) return
+          // 刚由本会话写入触发的 change：忽略，避免 force 重载冲掉正在编辑的内容
+          if (shouldIgnoreFileWatch()) return
           const state = useKnowledgeStore.getState()
           if (!state.isDirty) {
             void openPath(activePath, { force: true })
@@ -397,6 +400,7 @@ function useKnowledgeFileActions(input: {
 
 /** 中栏编辑区：源码 / 实时 / 内部分屏；左右栏在窗壳三列里 */
 function WorkspaceSurfaces(props: {
+  activePath: string | null
   isFindOpen: boolean
   isFocusMode: boolean
   isDocLoading: boolean
@@ -411,6 +415,39 @@ function WorkspaceSurfaces(props: {
   const liveScrollRef = useRef<HTMLDivElement | null>(null)
   const scrollRatioRef = useRef(0)
   const [scrollRatio, setScrollRatio] = useState(0)
+  const [scrollDocKey, setScrollDocKey] = useState(props.activePath)
+  const [wasDocLoading, setWasDocLoading] = useState(props.isDocLoading)
+
+  // 打开另一文件或同源 force 重载结束：同步把比例清零，避免旧 ratio 写回新文档
+  if (props.activePath !== scrollDocKey) {
+    setScrollDocKey(props.activePath)
+    scrollRatioRef.current = 0
+    if (scrollRatio !== 0) setScrollRatio(0)
+  }
+  if (props.isDocLoading !== wasDocLoading) {
+    setWasDocLoading(props.isDocLoading)
+    if (!props.isDocLoading) {
+      scrollRatioRef.current = 0
+      if (scrollRatio !== 0) setScrollRatio(0)
+    }
+  }
+
+  useEffect(
+    function () {
+      if (props.isDocLoading) return
+      function resetLiveScroll() {
+        const host = liveScrollRef.current
+        if (host) host.scrollTop = 0
+      }
+      resetLiveScroll()
+      // setContent 在 microtask / 下一帧才灌入，再补一次以免高度变化后残留
+      const frame = window.requestAnimationFrame(resetLiveScroll)
+      return function () {
+        window.cancelAnimationFrame(frame)
+      }
+    },
+    [props.activePath, props.isDocLoading]
+  )
 
   function onLiveScroll(ratio: number) {
     scrollRatioRef.current = ratio
@@ -448,6 +485,7 @@ function WorkspaceSurfaces(props: {
           onChange={props.onSourceChange}
           onScrollRatio={onSourceScroll}
           scrollRatio={scrollRatio}
+          documentKey={props.activePath}
         />
       ) : null}
 
@@ -473,6 +511,7 @@ function WorkspaceSurfaces(props: {
               onChange={props.onSourceChange}
               onScrollRatio={onSourceScroll}
               scrollRatio={scrollRatio}
+              documentKey={props.activePath}
             />
           </ResizablePanel>
           <ResizableHandle withHandle />
@@ -757,6 +796,7 @@ export default function KnowledgeWorkspace() {
         />
       ) : (
         <WorkspaceSurfaces
+          activePath={activePath}
           isFindOpen={isFindOpen}
           isFocusMode={isFocusMode}
           isDocLoading={isDocLoading}

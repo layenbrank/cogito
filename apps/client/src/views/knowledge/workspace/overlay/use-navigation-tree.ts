@@ -13,7 +13,7 @@ import {
   type TreeEntry
 } from '@/views/knowledge/lib/fs.ts'
 import { normalizeSeparators } from '@/views/knowledge/lib/path.ts'
-import { ensureRootDir, openFolderAsWorkspace } from '@/views/knowledge/lib/session.ts'
+import { openFolderAsWorkspace } from '@/views/knowledge/lib/session.ts'
 import { t } from '@/views/knowledge/locale.ts'
 import { type FileTreeNode } from '@/views/workspace/overlay/file-tree-item.tsx'
 import {
@@ -144,7 +144,18 @@ export function useNavigationTree(input: {
     })
 
     try {
-      const root = await ensureRootDir()
+      // 侧栏根必须来自调用方；禁止在这里 ensure 出 default 库目录
+      const root = rootDir
+      if (!root) {
+        setTreeNodes(function (origin) {
+          return patchFileTreeNode(origin, node.key, {
+            isLoading: false,
+            isLoaded: true,
+            children: []
+          })
+        })
+        return
+      }
       if (gen !== loadGenRef.current) return
 
       const relative = node.key === ROOT_KEY ? '' : node.key
@@ -224,7 +235,7 @@ export function useNavigationTree(input: {
       }
       toast.error(t('OPEN_FAILED'))
     }
-  }, [])
+  }, [rootDir])
 
   // 工作区根 / revision：清缓存并 reload ROOT（分帧灌入）
   useEffect(
@@ -249,6 +260,11 @@ export function useNavigationTree(input: {
         next.add(ROOT_KEY)
         return next
       })
+
+      // 无工作区根时不 ensureRootDir：否则会把空的 default 库目录塞进侧栏
+      if (!rootDir) return function () {
+        cancelPendingChunk()
+      }
 
       void loadChildren(
         { title: rootTitle, key: ROOT_KEY, isDirectory: true },
@@ -336,14 +352,14 @@ export function useNavigationTree(input: {
           onOpenPathRef.current(cached)
           return
         }
-        const root = await ensureRootDir()
+        if (!rootDir) return
         const segments = normalizeSeparators(node.key).split('/').filter(Boolean)
-        const absolute = await resolve(root, ...segments)
+        const absolute = await resolve(rootDir, ...segments)
         absolutePathCacheRef.current.set(node.key, absolute)
         onOpenPathRef.current(absolute)
       })()
     },
-    [loadChildren]
+    [loadChildren, rootDir]
   )
 
   function clearAbsolutePathCache() {

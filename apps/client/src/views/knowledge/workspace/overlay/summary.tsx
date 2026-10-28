@@ -2,7 +2,9 @@ import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { toast } from 'sonner'
 
+import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useKnowledgeStore } from '@/stores/knowledge'
+import { isSamePath } from '@/views/knowledge/lib/path.ts'
 import { t } from '@/views/knowledge/locale.ts'
 
 /** 窗口底栏状态（Decorations.section） */
@@ -31,12 +33,24 @@ function Summary() {
   const isDocLoading = useKnowledgeStore(function (state) {
     return state.isLoading
   })
+  const bases = useKnowledgeBaseStore(function (state) {
+    return state.bases
+  })
+  const activeBaseID = useKnowledgeBaseStore(function (state) {
+    return state.activeBaseID
+  })
 
   if (isFocusMode) return null
 
-  const workspaceLabel = rootDir
-    ? rootDir.split(/[\\/]/).filter(Boolean).pop()
-    : t('WORKSPACE')
+  const activeBase = bases.find(function (base) {
+    return base.id === activeBaseID
+  })
+  const workspaceLabel =
+    rootDir && activeBase && isSamePath(rootDir, activeBase.rootPath)
+      ? activeBase.name
+      : rootDir
+        ? rootDir.split(/[\\/]/).filter(Boolean).pop()
+        : t('WORKSPACE')
   const fileLabel = activePath?.split(/[/\\]/).pop() ?? t('UNTITLED')
   const isBootstrapping = !isSessionReady || isDocLoading
 
@@ -66,8 +80,10 @@ function Summary() {
           <span className="px-2 opacity-70">{t('SESSION_BOOTSTRAP')}</span>
         ) : isDirty ? (
           <span className="px-2 text-amber-600 dark:text-amber-400">{t('UNSAVED')}</span>
-        ) : (
+        ) : activePath ? (
           <span className="px-2 opacity-70">{t('SAVED')}</span>
+        ) : (
+          <span className="px-2 opacity-70">{t('UNTITLED')}</span>
         )}
         <button
           type="button"

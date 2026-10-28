@@ -14,6 +14,8 @@ interface SourceEditorProps {
   onChange: (value: string) => void
   onScrollRatio?: (ratio: number) => void
   scrollRatio?: number
+  /** 文档身份；变化时滚到顶部且不恢复旧光标 */
+  documentKey?: string | null
   className?: string
 }
 
@@ -21,6 +23,7 @@ function SourceEditor(props: SourceEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const suppressingRef = useRef(false)
+  const documentKeyRef = useRef(props.documentKey)
   const onChangeRef = useRef(props.onChange)
   const onScrollRef = useRef(props.onScrollRatio)
 
@@ -84,12 +87,27 @@ function SourceEditor(props: SourceEditorProps) {
     function () {
       const editor = editorRef.current
       if (!editor) return
-      if (editor.getValue() === props.value) return
-      const position = editor.getPosition()
-      editor.setValue(props.value)
-      if (position) editor.setPosition(position)
+      const isDocumentSwitch = documentKeyRef.current !== props.documentKey
+      documentKeyRef.current = props.documentKey
+      if (!isDocumentSwitch && editor.getValue() === props.value) return
+      suppressingRef.current = true
+      if (isDocumentSwitch) {
+        editor.setValue(props.value)
+        editor.setScrollTop(0)
+      } else {
+        const position = editor.getPosition()
+        editor.setValue(props.value)
+        if (position) editor.setPosition(position)
+        const height = editor.getScrollHeight() - editor.getLayoutInfo().height
+        const ratio = props.scrollRatio
+        editor.setScrollTop(height <= 0 || ratio == null ? 0 : height * ratio)
+      }
+      requestAnimationFrame(function () {
+        suppressingRef.current = false
+      })
     },
-    [props.value]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- scrollRatio 只在灌入时读取；日常同步走下方 effect
+    [props.value, props.documentKey]
   )
 
   useEffect(

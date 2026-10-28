@@ -35,7 +35,10 @@ import {
   type CloudChannel,
   type HybridHit
 } from '@/views/knowledge/lib/hybrid-search.ts'
-import { findFileName, joinPath } from '@/views/knowledge/lib/path.ts'
+import { DICT_VALUE } from '@/shared/ipc/specs/dict'
+import { findFileName, isSamePath, joinPath } from '@/views/knowledge/lib/path.ts'
+
+const CLOUD = DICT_VALUE.KNOWLEDGE_CLOUD_STATUS
 
 interface KnowledgeBaseState {
   bases: KnowledgeBase[]
@@ -80,17 +83,23 @@ function toMessage(error: unknown): string {
 
 const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, getter) {
   /**
-   * 侧栏的根 = 当前库目录。切库 / 首次拿到库列表都要同步，
-   * 否则文件树还停在上一个库的目录上。值没变就不 bump，避免多余的目录重扫。
+   * 侧栏根与库目录对齐。
+   * - 切库（force）：采用该库目录并落盘
+   * - 普通 refresh：若用户已有工作区根（打开的文件夹 / 已恢复的偏好），不要用空的
+   *   default 库目录把侧栏覆盖掉
    */
-  function syncWorkspaceRoot(baseID: string | null): void {
+  function syncWorkspaceRoot(
+    baseID: string | null,
+    options: { force?: boolean } = {}
+  ): void {
     const base = getter().bases.find(function (item) {
       return item.id === baseID
     })
     const next = base?.rootPath ?? null
     const workspace = useKnowledgeStore.getState()
-    if (workspace.rootDir === next) return
-    workspace.toSetRootDir(next)
+    if (!options.force && (workspace.rootDir || workspace.workspaceRoot)) return
+    if (isSamePath(workspace.rootDir, next)) return
+    workspace.toSetRootDir(next, { persist: Boolean(options.force) })
     workspace.toBumpTree()
   }
 
@@ -188,7 +197,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
 
     async selectBase(baseID) {
       setter({ activeBaseID: baseID, hits: [], query: '' })
-      syncWorkspaceRoot(baseID)
+      syncWorkspaceRoot(baseID, { force: true })
       try {
         await syncFromDisk(baseID)
         await Promise.all([
@@ -336,7 +345,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
       if (!base) return
 
       const pending = getter().docs.filter(function (doc) {
-        return getter().cloudStates[doc.id]?.status !== 'succeeded'
+        return getter().cloudStates[doc.id]?.status !== CLOUD.SUCCEEDED
       })
       if (pending.length === 0) {
         toast.message('这个库的文档都已同步到云端')
@@ -362,7 +371,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
                 docId: last.docId,
                 status: last.status,
                 assetId: current[last.docId]?.assetId ?? null,
-                indexedAt: last.status === 'succeeded' ? Date.now() : null,
+                indexedAt: last.status === CLOUD.SUCCEEDED ? Date.now() : null,
                 error: last.error ?? null
               }
             }
@@ -371,7 +380,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
         })
 
         const failed = results.filter(function (item) {
-          return item.status === 'failed'
+          return item.status === CLOUD.FAILED
         })
         toast.dismiss('knowledge-cloud-sync')
         if (failed.length === 0) {

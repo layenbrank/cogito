@@ -120,7 +120,11 @@ function parseTiles(raw: unknown): TilesPref {
         ? knowledge.recentPaths.filter(function (item) {
             return typeof item === 'string'
           }).slice(0, 20)
-        : []
+        : [],
+      workspaceRoot:
+        typeof knowledge.workspaceRoot === 'string' && knowledge.workspaceRoot.trim()
+          ? knowledge.workspaceRoot
+          : null
     },
     code: {
       ...base.code,
