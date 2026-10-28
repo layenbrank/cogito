@@ -19,11 +19,19 @@ import { Textarea } from '@cogito/design/components/textarea'
 import { useEffect, useState } from 'react'
 
 import { SCHEDULE_PRESETS, describeSchedule } from '@/features/automation/describe-schedule'
+import { DICT_TYPE, DICT_VALUE } from '@/shared/ipc/specs/dict'
 import { useAutomationStore } from '@/stores/automation'
+import { useDictStore } from '@/stores/dict'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { formatTime } from '@/views/knowledge/lib/format.ts'
 
-type Owner = 'client' | 'goose' | 'cloud'
+const OWNER = DICT_VALUE.AUTOMATION_OWNER
+const RUN_AS = DICT_VALUE.AUTOMATION_RUN_AS
+
+type Owner =
+  | typeof OWNER.CLIENT
+  | typeof OWNER.GOOSE
+  | typeof OWNER.CLOUD
 
 interface Draft {
   id: string | null
@@ -42,26 +50,11 @@ const EMPTY: Draft = {
   schedule: '0 9 * * *',
   knowledgeBaseId: null,
   enabled: true,
-  owner: 'client'
+  owner: OWNER.CLIENT
 }
 
-const STATUS_TEXT: Record<string, string> = {
-  running: '执行中',
-  succeeded: '成功',
-  failed: '失败',
-  pending: '等待中'
-}
-
-const TRIGGER_TEXT: Record<string, string> = {
-  schedule: '按时',
-  manual: '手动',
-  catchup: '补跑'
-}
-
-const OWNER_TEXT: Record<string, string> = {
-  client: '本机',
-  goose: 'goose',
-  cloud: '服务端'
+function isOwner(value: string): value is Owner {
+  return value === OWNER.CLIENT || value === OWNER.GOOSE || value === OWNER.CLOUD
 }
 
 function TaskForm(props: { draft: Draft; onClose: () => void }) {
@@ -72,31 +65,33 @@ function TaskForm(props: { draft: Draft; onClose: () => void }) {
   const save = useAutomationStore(function (state) {
     return state.save
   })
+  const findLabel = useDictStore(function (state) {
+    return state.findLabel
+  })
 
   const canSave = draft.name.trim() && draft.prompt.trim() && draft.schedule.trim()
 
   return (
     <div className="flex flex-col gap-1.5 rounded-md border border-border p-2">
       <Input
-        autoFocus
-        value={draft.name}
         placeholder="任务名称"
+        value={draft.name}
         className="h-7 text-xs"
         onChange={function (event) {
           setDraft({ ...draft, name: event.target.value })
         }}
       />
       <Textarea
+        placeholder="执行提示词"
         value={draft.prompt}
-        placeholder="到点要让助手做什么（一句话就行）"
         className="min-h-16 text-xs"
         onChange={function (event) {
           setDraft({ ...draft, prompt: event.target.value })
         }}
       />
       <Input
+        placeholder="crontab（分 时 日 月 周）"
         value={draft.schedule}
-        placeholder="分 时 日 月 周"
         className="h-7 font-mono text-xs"
         onChange={function (event) {
           setDraft({ ...draft, schedule: event.target.value })
@@ -119,7 +114,7 @@ function TaskForm(props: { draft: Draft; onClose: () => void }) {
         })}
       </div>
       <div className="flex items-center gap-1">
-        {draft.owner === 'cloud' ? null : (
+        {draft.owner === OWNER.CLOUD ? null : (
           <Select
             value={draft.knowledgeBaseId ?? 'none'}
             onValueChange={function (value) {
@@ -149,9 +144,9 @@ function TaskForm(props: { draft: Draft; onClose: () => void }) {
         )}
         <Select
           value={draft.owner}
-          disabled={draft.owner === 'cloud' && Boolean(draft.id)}
+          disabled={draft.owner === OWNER.CLOUD && Boolean(draft.id)}
           onValueChange={function (value) {
-            if (value === 'client' || value === 'goose' || value === 'cloud') {
+            if (typeof value === 'string' && isOwner(value)) {
               setDraft({ ...draft, owner: value })
             }
           }}>
@@ -161,9 +156,15 @@ function TaskForm(props: { draft: Draft; onClose: () => void }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="client">本机</SelectItem>
-            <SelectItem value="goose">goose</SelectItem>
-            <SelectItem value="cloud">服务端</SelectItem>
+            <SelectItem value={OWNER.CLIENT}>
+              {findLabel(DICT_TYPE.AUTOMATION_OWNER, OWNER.CLIENT)}
+            </SelectItem>
+            <SelectItem value={OWNER.GOOSE}>
+              {findLabel(DICT_TYPE.AUTOMATION_OWNER, OWNER.GOOSE)}
+            </SelectItem>
+            <SelectItem value={OWNER.CLOUD}>
+              {findLabel(DICT_TYPE.AUTOMATION_OWNER, OWNER.CLOUD)}
+            </SelectItem>
           </SelectContent>
         </Select>
         <Switch
@@ -186,7 +187,7 @@ function TaskForm(props: { draft: Draft; onClose: () => void }) {
               knowledgeBaseId: draft.knowledgeBaseId,
               enabled: draft.enabled,
               owner: draft.owner,
-              runAsKind: 'user'
+              runAsKind: RUN_AS.USER
             }).then(function (ok) {
               if (ok) props.onClose()
             })
@@ -247,6 +248,9 @@ function TasksTab() {
   const closeRuns = useAutomationStore(function (state) {
     return state.closeRuns
   })
+  const findLabel = useDictStore(function (state) {
+    return state.findLabel
+  })
 
   const [draft, setDraft] = useState<Draft | null>(null)
 
@@ -303,7 +307,7 @@ function TasksTab() {
         <ul className="flex flex-col gap-1.5">
           {all.map(function (item) {
             const isOpen = activeId === item.id
-            const isCloud = item.owner === 'cloud'
+            const isCloud = item.owner === OWNER.CLOUD
             return (
               <li
                 key={item.id}
@@ -318,16 +322,18 @@ function TasksTab() {
                   />
                 </div>
                 <p className="truncate text-[11px] text-muted-foreground">
-                  {describeSchedule(item.schedule)} · {OWNER_TEXT[item.owner] ?? item.owner}
+                  {describeSchedule(item.schedule)} ·{' '}
+                  {findLabel(DICT_TYPE.AUTOMATION_OWNER, item.owner)}
                   {item.enabled ? ` · 下次 ${formatTime(item.nextRunAt)}` : ' · 已停用'}
                 </p>
                 {item.lastStatus ? (
                   <p className="truncate text-[11px] text-muted-foreground">
-                    上次 {STATUS_TEXT[item.lastStatus] ?? item.lastStatus} ·{' '}
+                    上次 {findLabel(DICT_TYPE.AUTOMATION_RUN_STATUS, item.lastStatus)} ·{' '}
                     {formatTime(item.lastRunAt)}
                     {item.lastError ? ` · ${item.lastError}` : ''}
                   </p>
-                ) : null}                <div className="mt-1 flex flex-wrap items-center gap-1">
+                ) : null}
+                <div className="mt-1 flex flex-wrap items-center gap-1">
                   <Button
                     size="sm"
                     variant="outline"
@@ -363,7 +369,7 @@ function TasksTab() {
                         schedule: item.schedule,
                         knowledgeBaseId: item.knowledgeBaseId ?? null,
                         enabled: item.enabled,
-                        owner: item.owner === 'goose' ? 'goose' : isCloud ? 'cloud' : 'client'
+                        owner: isOwner(item.owner) ? item.owner : OWNER.CLIENT
                       })
                     }}>
                     编辑
@@ -389,8 +395,8 @@ function TasksTab() {
                           key={run.id}
                           className="truncate text-[11px] text-muted-foreground">
                           {formatTime(run.startedAt ?? run.createdAt)} ·{' '}
-                          {TRIGGER_TEXT[run.triggerKind] ?? run.triggerKind} ·{' '}
-                          {STATUS_TEXT[run.status] ?? run.status}
+                          {findLabel(DICT_TYPE.AUTOMATION_TRIGGER_KIND, run.triggerKind)} ·{' '}
+                          {findLabel(DICT_TYPE.AUTOMATION_RUN_STATUS, run.status)}
                           {run.error ? ` · ${run.error}` : ''}
                         </li>
                       )

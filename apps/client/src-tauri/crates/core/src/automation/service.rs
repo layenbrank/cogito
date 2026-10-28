@@ -19,6 +19,9 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use uuid::Uuid;
 
+use crate::dict::{
+    automation_owner, automation_run_as, automation_run_status, automation_trigger_kind,
+};
 use crate::exception::Exception;
 
 /// 默认时区。落库跟随任务而不是跟随系统：用户改系统时区不该让别人的班表漂移。
@@ -115,18 +118,18 @@ impl Service {
             .filter(|value| !value.is_empty())
             .unwrap_or_else(|| DEFAULT_TIMEZONE.to_string());
         let enabled = input.enabled.unwrap_or(true);
-        let owner = input.owner.unwrap_or_else(|| "client".to_string());
-        if !matches!(owner.as_str(), "client" | "goose" | "cloud") {
+        let owner = input.owner.unwrap_or_else(|| automation_owner::CLIENT.to_string());
+        if !matches!(owner.as_str(), automation_owner::CLIENT | automation_owner::GOOSE | automation_owner::CLOUD) {
             return Err(Exception::Validation(format!("不支持的执行方：{owner}")));
         }
-        let run_as_kind = input.runAsKind.unwrap_or_else(|| "user".to_string());
-        if !matches!(run_as_kind.as_str(), "user" | "tenant") {
+        let run_as_kind = input.runAsKind.unwrap_or_else(|| automation_run_as::USER.to_string());
+        if !matches!(run_as_kind.as_str(), automation_run_as::USER | automation_run_as::TENANT) {
             return Err(Exception::Validation(format!("不支持的执行身份：{run_as_kind}")));
         }
 
         let now = Utc::now().timestamp_millis();
         // 只有本机 worker 需要 nextRunAt；其它 owner 由远端排期，这里留空
-        let next_run = if enabled && owner == "client" {
+        let next_run = if enabled && owner == automation_owner::CLIENT {
             Some(Self::toNext(&schedule, &timezone, now)?)
         } else {
             None
@@ -200,7 +203,7 @@ impl Service {
             .ok_or_else(|| Exception::NotFound(format!("任务不存在：{id}")))?;
         let now = Utc::now().timestamp_millis();
         // 重新启用要从「现在」重排，否则会把停用期间错过的时间点补跑一遍
-        let next_run = if enabled && existing.owner == "client" {
+        let next_run = if enabled && existing.owner == automation_owner::CLIENT {
             Some(Self::toNext(&existing.schedule, &existing.timezone, now)?)
         } else {
             None
@@ -235,7 +238,7 @@ impl Service {
             .one(db)
             .await?
             .ok_or_else(|| Exception::NotFound(format!("任务不存在：{id}")))?;
-        let status = if last_error.is_some() { "failed" } else { "" };
+        let status = if last_error.is_some() { automation_run_status::FAILED } else { "" };
         let mut active: schema::ActiveModel = existing.into();
         active.remoteId = Set(remote_id);
         active.lastError = Set(last_error);
@@ -251,7 +254,7 @@ impl Service {
     ) -> Result<Vec<DueRun>, Exception> {
         let due = schema::Entity::find()
             .filter(schema::Column::Enabled.eq(true))
-            .filter(schema::Column::Owner.eq("client"))
+            .filter(schema::Column::Owner.eq(automation_owner::CLIENT))
             .filter(schema::Column::NextRunAt.lte(now_ms))
             .order_by_asc(schema::Column::NextRunAt)
             .limit(CLAIM_LIMIT)
@@ -273,7 +276,7 @@ impl Service {
                     let mut broken: schema::ActiveModel = item.into();
                     broken.enabled = Set(false);
                     broken.nextRunAt = Set(None);
-                    broken.lastStatus = Set(Some("failed".to_string()));
+                    broken.lastStatus = Set(Some(automation_run_status::FAILED.to_string()));
                     broken.lastError = Set(Some(error.to_string()));
                     broken.updatedAt = Set(now_ms);
                     broken.update(&tx).await?;
@@ -286,9 +289,9 @@ impl Service {
             let automation = active.update(&tx).await?;
 
             let trigger = if now_ms - scheduled_for > CATCHUP_GRACE_MS {
-                "catchup"
+                automation_trigger_kind::CATCHUP
             } else {
-                "schedule"
+                automation_trigger_kind::SCHEDULE
             };
             if let Some(run) =
                 Self::insert_run(&tx, &automation, scheduled_for, trigger, now_ms).await?
@@ -310,7 +313,7 @@ impl Service {
             .await?
             .ok_or_else(|| Exception::NotFound(format!("任务不存在：{id}")))?;
         let now = Utc::now().timestamp_millis();
-        let run = Self::insert_run(db, &automation, now, "manual", now)
+        let run = Self::insert_run(db, &automation, now, automation_trigger_kind::MANUAL, now)
             .await?
             .ok_or_else(|| Exception::Validation("这一毫秒已经触发过一次，请稍后重试".to_string()))?;
         Ok(DueRun { automation, run })
@@ -330,7 +333,7 @@ impl Service {
             .as_deref()
             .map(|value| !value.trim().is_empty())
             .unwrap_or(false);
-        let status = if failed { "failed" } else { "succeeded" };
+        let status = if failed { automation_run_status::FAILED } else { automation_run_status::SUCCEEDED };
         let now = Utc::now().timestamp_millis();
 
         let mut active: run_schema::ActiveModel = existing.clone().into();
@@ -361,14 +364,14 @@ impl Service {
         stale_ms: i64,
     ) -> Result<u64, Exception> {
         let stale = run_schema::Entity::find()
-            .filter(run_schema::Column::Status.eq("running"))
+            .filter(run_schema::Column::Status.eq(automation_run_status::RUNNING))
             .filter(run_schema::Column::StartedAt.lt(now_ms - stale_ms))
             .all(db)
             .await?;
         let mut reaped = 0;
         for run in stale {
             let mut active: run_schema::ActiveModel = run.clone().into();
-            active.status = Set("failed".to_string());
+            active.status = Set(automation_run_status::FAILED.to_string());
             active.error = Set(Some("执行没有回写结果（应用退出或会话中断）".to_string()));
             active.finishedAt = Set(Some(now_ms));
             active.update(db).await?;
@@ -377,7 +380,7 @@ impl Service {
                 .await?
             {
                 let mut active: schema::ActiveModel = automation.into();
-                active.lastStatus = Set(Some("failed".to_string()));
+                active.lastStatus = Set(Some(automation_run_status::FAILED.to_string()));
                 active.lastError =
                     Set(Some("执行没有回写结果（应用退出或会话中断）".to_string()));
                 active.updatedAt = Set(now_ms);
@@ -427,7 +430,7 @@ impl Service {
             runAsUserId: automation.runAsUserId.clone(),
             startedAt: Some(now_ms),
             finishedAt: None,
-            status: "running".to_string(),
+            status: automation_run_status::RUNNING.to_string(),
             output: None,
             error: None,
             createdAt: now_ms,
@@ -438,7 +441,7 @@ impl Service {
 
         let mut active: schema::ActiveModel = automation.clone().into();
         active.lastRunAt = Set(Some(now_ms));
-        active.lastStatus = Set(Some("running".to_string()));
+        active.lastStatus = Set(Some(automation_run_status::RUNNING.to_string()));
         active.lastError = Set(None);
         active.updatedAt = Set(now_ms);
         active.update(db).await?;
@@ -550,8 +553,8 @@ mod tests {
             .await
             .expect("保存成功");
         assert!(saved.nextRunAt.is_some(), "启用中的 client 任务要有排期");
-        assert_eq!(saved.owner, "client");
-        assert_eq!(saved.runAsKind, "user");
+        assert_eq!(saved.owner, automation_owner::CLIENT);
+        assert_eq!(saved.runAsKind, automation_run_as::USER);
 
         // 停用后不再排期
         let off = Service::toSetEnabled(db.as_ref(), saved.id.clone(), false)
@@ -580,8 +583,8 @@ mod tests {
             .await
             .expect("claim 成功");
         assert_eq!(claimed.len(), 1);
-        assert_eq!(claimed[0].run.triggerKind, "schedule");
-        assert_eq!(claimed[0].run.status, "running");
+        assert_eq!(claimed[0].run.triggerKind, automation_trigger_kind::SCHEDULE);
+        assert_eq!(claimed[0].run.status, automation_run_status::RUNNING);
         assert_eq!(claimed[0].run.scheduledFor, due_at);
         assert!(claimed[0].automation.nextRunAt.unwrap() > due_at, "排期要往前推");
 
@@ -606,7 +609,7 @@ mod tests {
             .await
             .expect("claim 成功");
         assert_eq!(claimed.len(), 1, "错过多少轮都只补一次");
-        assert_eq!(claimed[0].run.triggerKind, "catchup");
+        assert_eq!(claimed[0].run.triggerKind, automation_trigger_kind::CATCHUP);
         assert!(claimed[0].automation.nextRunAt.unwrap() > much_later);
     }
 
@@ -631,12 +634,12 @@ mod tests {
         )
         .await
         .expect("回写成功");
-        assert_eq!(done.status, "succeeded");
+        assert_eq!(done.status, automation_run_status::SUCCEEDED);
         assert_eq!(done.output.as_deref(), Some("整理完成"));
         assert!(done.finishedAt.is_some());
 
         let list = Service::toList(db.as_ref()).await.expect("列出任务");
-        assert_eq!(list[0].lastStatus.as_deref(), Some("succeeded"));
+        assert_eq!(list[0].lastStatus.as_deref(), Some(automation_run_status::SUCCEEDED));
     }
 
     #[tokio::test]
@@ -652,7 +655,7 @@ mod tests {
         let due = Service::toRunNow(db.as_ref(), disabled.id.clone())
             .await
             .expect("手动执行应可用");
-        assert_eq!(due.run.triggerKind, "manual");
+        assert_eq!(due.run.triggerKind, automation_trigger_kind::MANUAL);
         // 手动执行不改排期
         let after = Service::toList(db.as_ref()).await.expect("列出任务");
         assert!(after[0].nextRunAt.is_none());
@@ -685,7 +688,7 @@ mod tests {
         let runs = Service::toListRuns(db.as_ref(), saved.id.clone(), None)
             .await
             .expect("列出记录");
-        assert_eq!(runs[0].status, "failed");
+        assert_eq!(runs[0].status, automation_run_status::FAILED);
         assert!(runs[0].error.is_some());
     }
 

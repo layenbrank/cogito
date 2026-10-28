@@ -23,8 +23,11 @@ import { runDue } from '@/features/automation/runner'
 import { DELETE_JOB, GET_JOBS, PATCH_JOB, SAVE_JOB } from '@/apis/schedule'
 import { toCloudAutomation, toCloudInput } from '@/features/automation/cloud'
 import { syncActiveTenant } from '@/features/quota/tenant'
+import { DICT_VALUE } from '@/shared/ipc/specs/dict'
 import { findAuthToken } from '@/utils/auth'
 import { findActiveTenantID } from '@/utils/tenant.ts'
+
+const OWNER = DICT_VALUE.AUTOMATION_OWNER
 
 interface AutomationState {
   items: Automation[]
@@ -112,7 +115,7 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
 
     async save(input) {
       // 服务端任务走 HTTP：本地不落行，排期与执行都在服务端
-      if (input.owner === 'cloud') {
+      if (input.owner === OWNER.CLOUD) {
         try {
           await SAVE_JOB(toCloudInput(input))
           await get().refreshCloud()

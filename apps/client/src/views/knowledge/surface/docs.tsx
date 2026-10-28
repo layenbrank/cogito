@@ -26,15 +26,21 @@ import { useState } from 'react'
 
 import { useDockStore } from '@/features/agent/dock'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useDictStore } from '@/stores/dict'
+import { useKnowledgeStore } from '@/stores/knowledge'
+import { DICT_TYPE, DICT_VALUE } from '@/shared/ipc/specs/dict'
 import { formatTime } from '@/views/knowledge/lib/format.ts'
+import { isPathInsideRoot, isSamePath } from '@/views/knowledge/lib/path.ts'
 import { openPath } from '@/views/knowledge/lib/session.ts'
 
-/** 云端角标：只有「有状态」的文档才显示，未同步不占位置 */
-const CLOUD_BADGE: Record<string, { label: string; className: string }> = {
-  pending: { label: '待上云', className: 'text-muted-foreground' },
-  running: { label: '索引中', className: 'text-amber-700 dark:text-amber-400' },
-  succeeded: { label: '已上云', className: 'text-emerald-700 dark:text-emerald-400' },
-  failed: { label: '同步失败', className: 'text-destructive' }
+/** 云端角标样式按 value；文案走字典 label */
+const CLOUD_BADGE_CLASS: Record<string, string> = {
+  [DICT_VALUE.KNOWLEDGE_CLOUD_STATUS.PENDING]: 'text-muted-foreground',
+  [DICT_VALUE.KNOWLEDGE_CLOUD_STATUS.RUNNING]:
+    'text-amber-700 dark:text-amber-400',
+  [DICT_VALUE.KNOWLEDGE_CLOUD_STATUS.SUCCEEDED]:
+    'text-emerald-700 dark:text-emerald-400',
+  [DICT_VALUE.KNOWLEDGE_CLOUD_STATUS.FAILED]: 'text-destructive'
 }
 
 function joinPath(root: string, relative: string): string {
@@ -100,6 +106,9 @@ function DocsTab() {
   const exportBundle = useKnowledgeBaseStore(function (state) {
     return state.exportBundle
   })
+  const findLabel = useDictStore(function (state) {
+    return state.findLabel
+  })
 
   const [newName, setNewName] = useState('')
   const [isCreating, toSetCreating] = useState(false)
@@ -110,7 +119,16 @@ function DocsTab() {
 
   async function openDoc(relative: string) {
     if (!activeBase) return
-    await openPath(joinPath(activeBase.rootPath, relative))
+    const absolute = joinPath(activeBase.rootPath, relative)
+    const workspace = useKnowledgeStore.getState()
+    // 当前工作区已覆盖该文件：只打开。否则对齐到该库并落盘，避免冲掉用户文件夹时误改根。
+    const isInsideWorkspace =
+      Boolean(workspace.rootDir) && isPathInsideRoot(workspace.rootDir!, absolute)
+    if (!isInsideWorkspace && !isSamePath(workspace.rootDir, activeBase.rootPath)) {
+      workspace.toSetRootDir(activeBase.rootPath, { persist: true })
+      workspace.toBumpTree()
+    }
+    await openPath(absolute)
   }
 
   return (
@@ -327,7 +345,11 @@ function DocsTab() {
         ) : null}
         <ul className="flex flex-col gap-0.5">
           {docs.map(function (doc) {
-            const badge = CLOUD_BADGE[cloudStates[doc.id]?.status ?? '']
+            const cloudStatus = cloudStates[doc.id]?.status ?? ''
+            const badgeClass = CLOUD_BADGE_CLASS[cloudStatus]
+            const badgeLabel = badgeClass
+              ? findLabel(DICT_TYPE.KNOWLEDGE_CLOUD_STATUS, cloudStatus)
+              : null
             return (
               <li key={doc.id}>
                 <button
@@ -338,11 +360,11 @@ function DocsTab() {
                   }}>
                   <span className="flex items-center gap-1">
                     <span className="truncate text-xs">{doc.title}</span>
-                    {badge ? (
+                    {badgeLabel ? (
                       <span
-                        className={`shrink-0 text-[10px] ${badge.className}`}
+                        className={`shrink-0 text-[10px] ${badgeClass}`}
                         title={cloudStates[doc.id]?.error ?? undefined}>
-                        {badge.label}
+                        {badgeLabel}
                       </span>
                     ) : null}
                   </span>

@@ -19,7 +19,7 @@ pub struct Model {
     pub tenantID: Option<String>,
     #[sea_orm(column_name = "localIndexedAt")]
     pub localIndexedAt: Option<i64>,
-    /// idle | pending | running | succeeded | failed
+    /// 字典 knowledge_cloud_status：001 空闲 … 005 失败
     #[sea_orm(column_name = "cloudStatus")]
     pub cloudStatus: String,
     #[sea_orm(column_name = "cloudAssetId")]

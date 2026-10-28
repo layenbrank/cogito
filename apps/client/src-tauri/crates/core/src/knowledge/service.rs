@@ -25,6 +25,9 @@ use uuid::Uuid;
 
 use super::search::{self, Hit};
 use super::text::{count_words, find_title, hash_content, slugify};
+use crate::dict::{
+    knowledge_base_scope, knowledge_cloud_status, knowledge_doc_source, knowledge_doc_status,
+};
 use crate::exception::Exception;
 
 /// 默认知识库的固定 slug：启动时确保存在，用户不需要「先建一个库」。
@@ -34,8 +37,6 @@ const DEFAULT_NAME: &str = "默认知识库";
 const STAGING_DIR: &str = ".staging";
 /// 认作文档的扩展名。
 const DOC_EXTENSIONS: [&str; 2] = ["md", "markdown"];
-/// `knowledge_index_state.cloudStatus` 里「云端索引可用」的那个值。
-const CLOUD_SUCCEEDED: &str = "succeeded";
 
 /// 发布冲突策略。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -181,7 +182,7 @@ impl Service {
             name: DEFAULT_NAME.to_string(),
             slug: DEFAULT_SLUG.to_string(),
             description: None,
-            scope: "user".to_string(),
+            scope: knowledge_base_scope::USER.to_string(),
             tenantID: None,
             rootPath: dir.to_string_lossy().into_owned(),
             autoUpdate: false,
@@ -244,7 +245,7 @@ impl Service {
             name: name.to_string(),
             slug,
             description: None,
-            scope: "user".to_string(),
+            scope: knowledge_base_scope::USER.to_string(),
             tenantID: None,
             rootPath: dir.to_string_lossy().into_owned(),
             autoUpdate: false,
@@ -310,7 +311,7 @@ impl Service {
         base_id: Option<&str>,
     ) -> Result<Vec<CloudDoc>, Exception> {
         let mut query = index_schema::Entity::find()
-            .filter(index_schema::Column::CloudStatus.eq(CLOUD_SUCCEEDED))
+            .filter(index_schema::Column::CloudStatus.eq(knowledge_cloud_status::SUCCEEDED))
             .filter(index_schema::Column::CloudAssetId.is_not_null());
         if let Some(base_id) = base_id {
             query = query.filter(index_schema::Column::BaseId.eq(base_id));
@@ -494,7 +495,8 @@ impl Service {
                 continue;
             };
             seen.insert(rel_path.clone());
-            Self::upsert_from_content(db, &base, &rel_path, &content, "import").await?;
+            Self::upsert_from_content(db, &base, &rel_path, &content, knowledge_doc_source::IMPORT)
+                .await?;
             handled += 1;
         }
 
@@ -705,7 +707,9 @@ impl Service {
         ensure_inside(&target, Path::new(&base.rootPath))?;
         fs::write(&target, content)?;
 
-        let doc = Self::upsert_from_content(db, &base, &rel_path, content, "authored").await?;
+        let doc =
+            Self::upsert_from_content(db, &base, &rel_path, content, knowledge_doc_source::AUTHORED)
+                .await?;
         Ok(WriteDocOutcome {
             matched: true,
             conflict: false,
@@ -818,7 +822,7 @@ impl Service {
                         // 只剩文件本身一层时，它不是一个会话目录
                         parts.next().map(|_| first)
                     })
-                    .unwrap_or_else(|| "agent".to_string());
+                    .unwrap_or_else(|| knowledge_doc_source::AGENT.to_string());
                 files.push(StagedFile {
                     base_id: base.id.clone(),
                     path: path.to_string_lossy().into_owned(),
@@ -1017,7 +1021,7 @@ impl Service {
                 active.size = Set(size);
                 active.wordCount = Set(words);
                 active.revision = Set(revision);
-                active.status = Set("published".to_string());
+                active.status = Set(knowledge_doc_status::PUBLISHED.to_string());
                 active.source = Set(source.to_string());
                 active.error = Set(None);
                 active.updatedAt = Set(now);
@@ -1034,7 +1038,7 @@ impl Service {
                     size,
                     wordCount: words,
                     revision: 1,
-                    status: "published".to_string(),
+                    status: knowledge_doc_status::PUBLISHED.to_string(),
                     source: source.to_string(),
                     error: None,
                     sessionID: None,
@@ -1076,7 +1080,7 @@ impl Service {
                     baseID: Set(doc.baseID.clone()),
                     tenantID: Set(None),
                     localIndexedAt: Set(Some(now)),
-                    cloudStatus: Set("idle".to_string()),
+                    cloudStatus: Set(knowledge_cloud_status::IDLE.to_string()),
                     cloudAssetID: Set(None),
                     cloudAssetHash: Set(None),
                     cloudModel: Set(None),
@@ -1214,9 +1218,9 @@ mod tests {
             .expect("默认库");
         let now = Utc::now().timestamp_millis();
         for (doc_id, status, asset) in [
-            ("doc-ok", "succeeded", Some("asset-ok")),
-            ("doc-running", "running", Some("asset-running")),
-            ("doc-failed", "failed", None),
+            ("doc-ok", knowledge_cloud_status::SUCCEEDED, Some("asset-ok")),
+            ("doc-running", knowledge_cloud_status::RUNNING, Some("asset-running")),
+            ("doc-failed", knowledge_cloud_status::FAILED, None),
         ] {
             index_schema::Entity::insert(index_schema::ActiveModel {
                 docID: Set(doc_id.to_string()),
@@ -1266,8 +1270,8 @@ mod tests {
             size: Set(6),
             wordCount: Set(2),
             revision: Set(1),
-            status: Set("published".to_string()),
-            source: Set("authored".to_string()),
+            status: Set(knowledge_doc_status::PUBLISHED.to_string()),
+            source: Set(knowledge_doc_source::AUTHORED.to_string()),
             error: Set(None),
             sessionID: Set(None),
             assetID: Set(None),
@@ -1284,7 +1288,7 @@ mod tests {
             db,
             "doc-1",
             CloudPatch {
-                status: "running".to_string(),
+                status: knowledge_cloud_status::RUNNING.to_string(),
                 asset_id: Some("asset-1".to_string()),
                 indexed_at: None,
                 error: None,
@@ -1292,14 +1296,14 @@ mod tests {
         )
         .await
         .expect("首次写");
-        assert_eq!(started.status, "running");
+        assert_eq!(started.status, knowledge_cloud_status::RUNNING);
         assert_eq!(started.asset_id.as_deref(), Some("asset-1"));
 
         let failed = Service::toSetCloudState(
             db,
             "doc-1",
             CloudPatch {
-                status: "failed".to_string(),
+                status: knowledge_cloud_status::FAILED.to_string(),
                 asset_id: Some("asset-1".to_string()),
                 indexed_at: None,
                 error: Some("compute 不可用".to_string()),
@@ -1313,7 +1317,7 @@ mod tests {
             db,
             "doc-1",
             CloudPatch {
-                status: "succeeded".to_string(),
+                status: knowledge_cloud_status::SUCCEEDED.to_string(),
                 asset_id: Some("asset-1".to_string()),
                 indexed_at: Some(now),
                 error: None,
@@ -1321,7 +1325,7 @@ mod tests {
         )
         .await
         .expect("写成功态");
-        assert_eq!(done.status, "succeeded");
+        assert_eq!(done.status, knowledge_cloud_status::SUCCEEDED);
         assert!(done.error.is_none(), "成功之后不该还挂着上一次的失败原因");
         assert_eq!(done.indexed_at, Some(now));
 
@@ -1340,7 +1344,7 @@ mod tests {
             db,
             "missing",
             CloudPatch {
-                status: "running".to_string(),
+                status: knowledge_cloud_status::RUNNING.to_string(),
                 asset_id: None,
                 indexed_at: None,
                 error: None,
@@ -1380,10 +1384,10 @@ mod tests {
         assert!(staged.path.replace('\\', "/").contains("/.staging/"));
         assert_eq!(staged.title, "知识库设计");
 
-        let doc = Service::toPublish(db, &base.id, &staged.path, PublishMode::Replace, "agent")
+        let doc = Service::toPublish(db, &base.id, &staged.path, PublishMode::Replace, knowledge_doc_source::AGENT)
             .await
             .expect("发布");
-        assert_eq!(doc.status, "published");
+        assert_eq!(doc.status, knowledge_doc_status::PUBLISHED);
         assert!(Path::new(&base.rootPath).join(&doc.relPath).exists());
         // staging 副本已清理
         assert!(!Path::new(&staged.path).exists());
@@ -1422,7 +1426,7 @@ mod tests {
             &base.id,
             &outside.to_string_lossy(),
             PublishMode::Replace,
-            "agent",
+            knowledge_doc_source::AGENT,
         )
         .await
         .expect_err("必须拒绝 staging 之外的文件");
@@ -1447,7 +1451,7 @@ mod tests {
             .expect("列文档");
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].title, "外部写入");
-        assert_eq!(docs[0].source, "import");
+        assert_eq!(docs[0].source, knowledge_doc_source::IMPORT);
 
         fs::remove_file(&file).expect("删文件");
         Service::toRescanBase(db, &base.id).await.expect("再回灌");
@@ -1557,7 +1561,7 @@ mod tests {
         assert_eq!(summaries.len(), 1);
         assert_eq!(summaries[0].title, "摘要标题");
         assert_eq!(summaries[0].rel_path, "摘要.md");
-        assert_eq!(summaries[0].status, "published");
+        assert_eq!(summaries[0].status, knowledge_doc_status::PUBLISHED);
         assert!(summaries[0].word_count > 0);
         // 摘要结构里根本没有正文字段：编不出来也就传不出去
         let json = serde_json::to_value(&summaries[0]).expect("序列化");
@@ -1584,7 +1588,7 @@ mod tests {
         let doc = created.doc.expect("应有摘要");
         assert_eq!(doc.title, "手写");
         assert_eq!(doc.revision, 1);
-        assert_eq!(doc.source, "authored");
+        assert_eq!(doc.source, knowledge_doc_source::AUTHORED);
         assert!(file.exists());
 
         // 内容变了：revision 递增，文件与快照同步
@@ -1629,9 +1633,15 @@ mod tests {
 
         // 别处（agent 发布 / 回灌）更新了同一篇：磁盘与库内都必须变
         fs::write(&file, "# 冲突\n\n别处的版本").expect("模拟外部写盘");
-        Service::upsert_from_content(db, &base, "冲突.md", "# 冲突\n\n别处的版本", "import")
-            .await
-            .expect("模拟别处更新");
+        Service::upsert_from_content(
+            db,
+            &base,
+            "冲突.md",
+            "# 冲突\n\n别处的版本",
+            knowledge_doc_source::IMPORT,
+        )
+        .await
+        .expect("模拟别处更新");
 
         // 用打开时的 hash 保存 → 冲突，且**不写盘**
         let conflict =

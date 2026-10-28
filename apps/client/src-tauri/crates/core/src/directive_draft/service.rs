@@ -11,6 +11,7 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::dict::directive_draft_status;
 use crate::exception::Exception;
 
 /// 新建/覆盖草稿
@@ -30,7 +31,7 @@ pub struct DraftInput {
 #[serde(rename_all = "camelCase")]
 pub struct DraftStatusInput {
     pub id: String,
-    /// pending / saved / discarded
+    /// 字典 directive_draft_status value
     pub status: String,
     pub error: Option<String>,
 }
@@ -49,7 +50,8 @@ impl Service {
                 let mut active: schema::ActiveModel = existing.into();
                 active.name = sea_orm::ActiveValue::Set(input.name);
                 active.definition = sea_orm::ActiveValue::Set(input.definition);
-                active.status = sea_orm::ActiveValue::Set("pending".to_owned());
+                active.status =
+                    sea_orm::ActiveValue::Set(directive_draft_status::PENDING.to_owned());
                 active.error = sea_orm::ActiveValue::Set(None);
                 active.updatedAt = sea_orm::ActiveValue::Set(now);
                 return Ok(active.update(db).await?);
@@ -63,7 +65,7 @@ impl Service {
             workspaceID: input.workspaceID,
             name: input.name,
             definition: input.definition,
-            status: "pending".to_owned(),
+            status: directive_draft_status::PENDING.to_owned(),
             error: None,
             createdAt: now,
             updatedAt: now,
@@ -85,7 +87,7 @@ impl Service {
         let mut query = schema::Entity::find();
         query = match status {
             Some(status) => query.filter(schema::Column::Status.eq(status)),
-            None => query.filter(schema::Column::Status.eq("pending")),
+            None => query.filter(schema::Column::Status.eq(directive_draft_status::PENDING)),
         };
         Ok(query
             .order_by_desc(schema::Column::UpdatedAt)
@@ -98,6 +100,7 @@ impl Service {
         db: &C,
         input: DraftStatusInput,
     ) -> Result<schema::Model, Exception> {
+        crate::dict::Service::assertValue(db, directive_draft_status::TYPE, &input.status).await?;
         let existing = schema::Entity::find_by_id(input.id.clone())
             .one(db)
             .await?

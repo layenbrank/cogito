@@ -3,8 +3,8 @@
 //! 定时任务的定义。**执行**由 `crates/core/src/automation` 与客户端 worker 负责，
 //! 本表只存「什么时候跑、跑什么、以谁的身份跑」。
 //!
-//! `owner` 决定谁来跑：`client` = 本机 worker；`goose` = 交给 goose 的 schedules；
-//! `cloud` = 服务端定时任务。一个任务只有一个 owner，避免两处同时触发。
+//! `owner` 为字典 automation_owner（001 本机 / 002 goose / 003 云端）。
+//! 一个任务只有一个 owner，避免两处同时触发。
 use sea_orm::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -24,7 +24,7 @@ pub struct Model {
     pub schedule: String,
     pub timezone: String,
     pub enabled: bool,
-    /// client | goose | cloud
+    /// 字典 automation_owner：001 本机 / 002 goose / 003 云端
     pub owner: String,
     /// user | tenant
     #[sea_orm(column_name = "runAsKind")]

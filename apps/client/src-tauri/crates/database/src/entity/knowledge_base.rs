@@ -2,7 +2,7 @@
 
 //! 知识库（一个 base = 一个目录 + 一批文档）。
 //!
-//! `scope=user` 属个人；`scope=tenant` 为团队共享（用 `tenantId` 圈定租户）。
+//! `scope` 为字典 knowledge_base_scope（001 个人 / 002 租户，用 `tenantId` 圈定）。
 //! 正文永远以文件为准，`knowledge_doc.content` 只是快照。
 use sea_orm::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,7 @@ pub struct Model {
     /// 目录名：`<root>/<slug>/`，全库唯一
     pub slug: String,
     pub description: Option<String>,
-    /// user | tenant
+    /// 字典 knowledge_base_scope：001 个人 / 002 租户
     pub scope: String,
     #[sea_orm(column_name = "tenantId")]
     pub tenantID: Option<String>,

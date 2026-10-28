@@ -4,7 +4,7 @@ Crate：`cogito-database`（`apps/client/src-tauri/crates/database`）。
 
 ## 迁移
 
-- 已注册 [`migrations_v001`](../../../../apps/client/src-tauri/crates/database/src/migrations/migrations_v001.rs)（全量基线）与 [`migrations_v002`](../../../../apps/client/src-tauri/crates/database/src/migrations/migrations_v002.rs)（捕获库 `album` 表）
+- 已注册 [`migrations_v001`](../../../../apps/client/src-tauri/crates/database/src/migrations/migrations_v001.rs)（全量基线，含 `album` / `dict_type` / `dict_item` 与字典 seed）
 - 迁移记录表名：`migrations`（非默认 `seaql_migrations`）
 - API：`migration::run` / `rollback` / `check`；App 启动时 [`bootstrap.rs`](../../../../apps/client/src-tauri/src/app/bootstrap.rs) 调 `run`，失败即 `expect` panic
 - CLI 入口：[`src/bin/migrate.rs`](../../../../apps/client/src-tauri/crates/database/src/bin/migrate.rs)（`sea-orm-migration::cli::run_cli(AppMigrator)`）
@@ -77,16 +77,13 @@ migration/                              # -d 默认 ./migration
 | `countdown`    | `entity/countdown.rs`     | 含 seed 行                              |
 | `reminder`     | `entity/reminder.rs`      | 须先于 calendar（FK）                   |
 | `calendar`     | `entity/calendar.rs`      | FK → `reminder(id)`，ON DELETE SET NULL |
+| `album`        | `entity/album.rs`         | 捕获库相簿；成员在 `asset.metadata.albums` |
+| `dict_type`    | `entity/dict_type.rs`     | 状态字典类型（code PK）                    |
+| `dict_item`    | `entity/dict_item.rs`     | 字典项；`UNIQUE(typeCode, value)`；业务只认 value |
 
 时间戳统一为 **毫秒**（`timestamp_millis`）。
 
-### v002 表清单
-
-| 表      | Entity 模块       | 备注                                                                               |
-| ------- | ----------------- | ---------------------------------------------------------------------------------- |
-| `album` | `entity/album.rs` | 捕获库相簿定义（名称 / 顺序 / 封面）；**无外键**，成员存在 `asset.metadata.albums` |
-
-新增迁移一律照 v001 / v002 **手写**，再在 `AppMigrator::migrations()` 注册。
+新增迁移一律照 v001 **手写**，再在 `AppMigrator::migrations()` 注册。未发版阶段改 v001 后需 `migrate:fresh`。
 
 ## Entity 约定
 

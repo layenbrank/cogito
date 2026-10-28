@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 
 import { setDraftStatus } from '@/lib/directive-draft-ipc'
 import { validateDirective } from '@/lib/directive-ipc'
+import { DICT_VALUE } from '@/shared/ipc/specs/dict'
 import { DirectiveContentSchema, type DirectiveContent } from '@/shared/ipc/specs/sidecar'
 import { setPendingDefinition } from '@/stores/corex'
 import { useDirectiveDraftStore } from '@/stores/directive-draft'
@@ -148,7 +149,11 @@ async function captureDirectiveDraft(
   })
   if (!draft) return null
   if (!validation.ok) {
-    await setDraftStatus({ id: draft.id, status: 'pending', error: validation.error })
+    await setDraftStatus({
+      id: draft.id,
+      status: DICT_VALUE.DIRECTIVE_DRAFT_STATUS.PENDING,
+      error: validation.error
+    })
     toast.warning('已生成指令草稿，但校验未通过', { description: validation.error })
     return draft
   }

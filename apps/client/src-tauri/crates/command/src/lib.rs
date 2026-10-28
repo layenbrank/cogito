@@ -3,6 +3,7 @@ pub mod asset;
 pub mod bookmark;
 pub mod calendar;
 pub mod countdown;
+pub mod dict;
 pub mod directive_draft;
 pub mod knowledge;
 pub mod magnetic_tile;

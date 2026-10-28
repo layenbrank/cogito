@@ -37,6 +37,11 @@ export const CHANNELS = {
     SET_STATUS: 'directiveDraft:setStatus',
     REMOVE: 'directiveDraft:remove'
   },
+  DICT: {
+    LIST: 'dict:list',
+    LIST_BY_TYPES: 'dict:listByTypes',
+    UPDATE_ITEM: 'dict:updateItem'
+  },
   KNOWLEDGE: {
     LIST_BASES: 'knowledge:listBases',
     CREATE_BASE: 'knowledge:createBase',

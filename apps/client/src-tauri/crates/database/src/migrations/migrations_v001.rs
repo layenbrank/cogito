@@ -1303,7 +1303,7 @@ impl MigrationTrait for Migration {
                  name TEXT NOT NULL, \
                  slug TEXT NOT NULL, \
                  description TEXT NULL, \
-                 scope TEXT NOT NULL DEFAULT 'user', \
+                 scope TEXT NOT NULL DEFAULT '001', \
                  \"tenantId\" TEXT NULL, \
                  \"rootPath\" TEXT NOT NULL, \
                  \"autoUpdate\" INTEGER NOT NULL DEFAULT 0, \
@@ -1326,8 +1326,8 @@ impl MigrationTrait for Migration {
                  size INTEGER NOT NULL DEFAULT 0, \
                  \"wordCount\" INTEGER NOT NULL DEFAULT 0, \
                  revision INTEGER NOT NULL DEFAULT 0, \
-                 status TEXT NOT NULL DEFAULT 'draft', \
-                 source TEXT NOT NULL DEFAULT 'manual', \
+                 status TEXT NOT NULL DEFAULT '001', \
+                 source TEXT NOT NULL DEFAULT '001', \
                  error TEXT NULL, \
                  \"sessionId\" TEXT NULL, \
                  \"assetId\" TEXT NULL, \
@@ -1360,7 +1360,7 @@ impl MigrationTrait for Migration {
                  \"baseId\" TEXT NOT NULL, \
                  \"tenantId\" TEXT NULL, \
                  \"localIndexedAt\" INTEGER NULL, \
-                 \"cloudStatus\" TEXT NOT NULL DEFAULT 'idle', \
+                 \"cloudStatus\" TEXT NOT NULL DEFAULT '001', \
                  \"cloudAssetId\" TEXT NULL, \
                  \"cloudAssetHash\" TEXT NULL, \
                  \"cloudModel\" TEXT NULL, \
@@ -1381,8 +1381,8 @@ impl MigrationTrait for Migration {
                  schedule TEXT NOT NULL, \
                  timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai', \
                  enabled INTEGER NOT NULL DEFAULT 1, \
-                 owner TEXT NOT NULL DEFAULT 'client', \
-                 \"runAsKind\" TEXT NOT NULL DEFAULT 'user', \
+                 owner TEXT NOT NULL DEFAULT '001', \
+                 \"runAsKind\" TEXT NOT NULL DEFAULT '001', \
                  \"runAsUserId\" TEXT NULL, \
                  \"tenantId\" TEXT NULL, \
                  \"remoteId\" TEXT NULL, \
@@ -1399,12 +1399,12 @@ impl MigrationTrait for Migration {
                  id TEXT PRIMARY KEY NOT NULL, \
                  \"automationId\" TEXT NOT NULL, \
                  \"scheduledFor\" INTEGER NOT NULL, \
-                 \"triggerKind\" TEXT NOT NULL DEFAULT 'schedule', \
-                 \"runAsKind\" TEXT NOT NULL DEFAULT 'user', \
+                 \"triggerKind\" TEXT NOT NULL DEFAULT '001', \
+                 \"runAsKind\" TEXT NOT NULL DEFAULT '001', \
                  \"runAsUserId\" TEXT NULL, \
                  \"startedAt\" INTEGER NULL, \
                  \"finishedAt\" INTEGER NULL, \
-                 status TEXT NOT NULL DEFAULT 'pending', \
+                 status TEXT NOT NULL DEFAULT '001', \
                  output TEXT NULL, \
                  error TEXT NULL, \
                  \"createdAt\" INTEGER NOT NULL, \
@@ -1419,13 +1419,17 @@ impl MigrationTrait for Migration {
                  \"workspaceId\" TEXT NULL, \
                  name TEXT NOT NULL, \
                  definition TEXT NOT NULL, \
-                 status TEXT NOT NULL DEFAULT 'pending', \
+                 status TEXT NOT NULL DEFAULT '001', \
                  error TEXT NULL, \
                  \"createdAt\" INTEGER NOT NULL, \
                  \"updatedAt\" INTEGER NOT NULL)",
             "CREATE INDEX IF NOT EXISTS idx_directive_draft_status ON directive_draft (status, \"updatedAt\")",
         ] {
             db.execute_unprepared(statement).await?;
+        }
+
+        for statement in super::dict_seed::statements() {
+            db.execute_unprepared(&statement).await?;
         }
 
         Ok(())
@@ -1442,6 +1446,8 @@ impl MigrationTrait for Migration {
             "knowledge_index_state",
             "knowledge_doc",
             "knowledge_base",
+            "dict_item",
+            "dict_type",
             "signboard_entry_asset",
             "bookmark",
             "album",

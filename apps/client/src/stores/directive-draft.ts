@@ -13,7 +13,10 @@ import {
   type DirectiveDraft,
   type DraftSave
 } from '@/lib/directive-draft-ipc'
+import { DICT_VALUE } from '@/shared/ipc/specs/dict'
 import { reportCaught } from '@/utils/exception-report'
+
+const DRAFT = DICT_VALUE.DIRECTIVE_DRAFT_STATUS
 
 interface DirectiveDraftState {
   drafts: DirectiveDraft[]
@@ -40,7 +43,7 @@ const useDirectiveDraftStore = create<DirectiveDraftState>()(function (setter, g
     async refresh() {
       setter({ isLoading: true, loadError: null })
       try {
-        const drafts = await listDrafts('pending')
+        const drafts = await listDrafts(DRAFT.PENDING)
         setter({ drafts, isLoading: false })
       } catch (error) {
         setter({ isLoading: false, loadError: toMessage(error) })
@@ -66,7 +69,7 @@ const useDirectiveDraftStore = create<DirectiveDraftState>()(function (setter, g
 
     async markSaved(id) {
       try {
-        await setDraftStatus({ id, status: 'saved' })
+        await setDraftStatus({ id, status: DRAFT.SAVED })
         setter({
           drafts: getter().drafts.filter(function (item) {
             return item.id !== id

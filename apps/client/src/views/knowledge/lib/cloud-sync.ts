@@ -13,7 +13,10 @@ import { readFile } from '@tauri-apps/plugin-fs'
 import { POST_RAG_INDEX_TASK, GET_RAG_INDEX_TASK, type RagIndexTask } from '@/apis/rag'
 import { uploadAsset } from '@/apis/upload'
 import { setCloudState } from '@/lib/knowledge-ipc'
+import { DICT_VALUE } from '@/shared/ipc/specs/dict'
 import { reportCaught } from '@/utils/exception-report'
+
+const CLOUD = DICT_VALUE.KNOWLEDGE_CLOUD_STATUS
 
 /** 轮询索引任务的间隔与总预算：一份文档的索引是分钟级，但客户端不该无限等 */
 const POLL_INTERVAL_MS = 1_500
@@ -29,7 +32,8 @@ interface CloudSyncTarget {
 
 interface CloudSyncResult {
   docId: string
-  status: 'succeeded' | 'failed'
+  /** knowledge_cloud_status value */
+  status: typeof CLOUD.SUCCEEDED | typeof CLOUD.FAILED
   error?: string
 }
 
@@ -82,32 +86,37 @@ async function syncDocToCloud(
       bytes
     })
     // 先落「进行中 + assetID」：即使进程中途被杀，下次也知道这篇传的是哪个资产
-    await setCloudState({ docId: target.docId, status: 'running', assetId: assetID })
+    await setCloudState({ docId: target.docId, status: CLOUD.RUNNING, assetId: assetID })
 
     const task = await awaitIndexTask(assetID, signal)
     if (task.status === 'SUCCEEDED') {
       await setCloudState({
         docId: target.docId,
-        status: 'succeeded',
+        status: CLOUD.SUCCEEDED,
         assetId: assetID,
         indexedAt: task.updatedAt
       })
-      return { docId: target.docId, status: 'succeeded' }
+      return { docId: target.docId, status: CLOUD.SUCCEEDED }
     }
 
     const reason = task.error ?? (signal?.aborted ? '已取消' : '索引未在预期时间内完成')
-    await setCloudState({ docId: target.docId, status: 'failed', assetId: assetID, error: reason })
-    return { docId: target.docId, status: 'failed', error: reason }
+    await setCloudState({
+      docId: target.docId,
+      status: CLOUD.FAILED,
+      assetId: assetID,
+      error: reason
+    })
+    return { docId: target.docId, status: CLOUD.FAILED, error: reason }
   } catch (error) {
     reportCaught('knowledge.cloudSync', error, 'warning')
     const reason = toMessage(error)
     // 状态回写本身失败时不再递归报错：日志里已经有原因了
-    await setCloudState({ docId: target.docId, status: 'failed', error: reason }).catch(
+    await setCloudState({ docId: target.docId, status: CLOUD.FAILED, error: reason }).catch(
       function () {
         return undefined
       }
     )
-    return { docId: target.docId, status: 'failed', error: reason }
+    return { docId: target.docId, status: CLOUD.FAILED, error: reason }
   }
 }
 

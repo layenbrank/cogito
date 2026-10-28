@@ -20,6 +20,7 @@ import {
 import AccountPanel from '@/views/settings/panels/account.tsx'
 import AppearancePanel from '@/views/settings/panels/appearance.tsx'
 import CapturePanel from '@/views/settings/panels/capture.tsx'
+import DictPanel from '@/views/settings/panels/dict.tsx'
 import GeneralPanel from '@/views/settings/panels/general.tsx'
 import ShortcutsPanel from '@/views/settings/panels/shortcuts.tsx'
 import styles from '@/views/settings/shell.module.scss'
@@ -128,6 +129,7 @@ function Shell() {
               {section === SECTION.SHORTCUTS && <ShortcutsPanel />}
               {section === SECTION.APPEARANCE && <AppearancePanel />}
               {section === SECTION.ACCOUNT && <AccountPanel />}
+              {section === SECTION.DICT && <DictPanel />}
             </m.div>
           </AnimatePresence>
         </div>

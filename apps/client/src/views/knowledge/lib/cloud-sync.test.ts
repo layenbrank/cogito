@@ -31,7 +31,9 @@ vi.mock('@/lib/knowledge-ipc', function () {
   return { setCloudState }
 })
 
+const { DICT_VALUE } = await import('@/shared/ipc/specs/dict')
 const { syncDocToCloud } = await import('@/views/knowledge/lib/cloud-sync.ts')
+const CLOUD = DICT_VALUE.KNOWLEDGE_CLOUD_STATUS
 
 function task(status: string, extra: Record<string, unknown> = {}) {
   return {
@@ -67,19 +69,19 @@ describe('syncDocToCloud', function () {
     await vi.runAllTimersAsync()
     const result = await running
 
-    expect(result).toEqual({ docId: 'd1', status: 'succeeded' })
+    expect(result).toEqual({ docId: 'd1', status: CLOUD.SUCCEEDED })
     expect(uploadAsset).toHaveBeenCalledWith(
       expect.objectContaining({ name: '一篇.md', mime: 'text/markdown' })
     )
     // 先落「进行中 + assetID」，再收尾写 succeeded
     expect(setCloudState).toHaveBeenNthCalledWith(1, {
       docId: 'd1',
-      status: 'running',
+      status: CLOUD.RUNNING,
       assetId: 'asset-1'
     })
     expect(setCloudState).toHaveBeenLastCalledWith({
       docId: 'd1',
-      status: 'succeeded',
+      status: CLOUD.SUCCEEDED,
       assetId: 'asset-1',
       indexedAt: 42
     })
@@ -90,10 +92,14 @@ describe('syncDocToCloud', function () {
 
     const result = await syncDocToCloud(TARGET)
 
-    expect(result).toEqual({ docId: 'd1', status: 'failed', error: 'embedding 超时' })
+    expect(result).toEqual({
+      docId: 'd1',
+      status: CLOUD.FAILED,
+      error: 'embedding 超时'
+    })
     expect(setCloudState).toHaveBeenLastCalledWith({
       docId: 'd1',
-      status: 'failed',
+      status: CLOUD.FAILED,
       assetId: 'asset-1',
       error: 'embedding 超时'
     })
@@ -104,11 +110,11 @@ describe('syncDocToCloud', function () {
 
     const result = await syncDocToCloud(TARGET)
 
-    expect(result.status).toBe('failed')
+    expect(result.status).toBe(CLOUD.FAILED)
     expect(result.error).toContain('10MB')
     expect(setCloudState).toHaveBeenCalledTimes(1)
     expect(setCloudState).toHaveBeenCalledWith(
-      expect.objectContaining({ docId: 'd1', status: 'failed' })
+      expect.objectContaining({ docId: 'd1', status: CLOUD.FAILED })
     )
   })
 })

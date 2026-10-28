@@ -10,6 +10,8 @@ pub mod entity {
     pub mod bookmark;
     pub mod calendar;
     pub mod countdown;
+    pub mod dict_item;
+    pub mod dict_type;
     pub mod directive_draft;
     pub mod knowledge_base;
     pub mod knowledge_doc;
@@ -53,6 +55,8 @@ pub mod entity {
     pub use bookmark::Entity as BookmarkEntity;
     pub use calendar::Entity as CalendarEntity;
     pub use countdown::Entity as CountdownEntity;
+    pub use dict_item::Entity as DictItemEntity;
+    pub use dict_type::Entity as DictTypeEntity;
     pub use directive_draft::Entity as DirectiveDraftEntity;
     pub use knowledge_base::Entity as KnowledgeBaseEntity;
     pub use knowledge_doc::Entity as KnowledgeDocEntity;

@@ -1,4 +1,10 @@
-type SectionKey = 'general' | 'appearance' | 'account' | 'capture' | 'shortcuts'
+type SectionKey =
+  | 'general'
+  | 'appearance'
+  | 'account'
+  | 'capture'
+  | 'shortcuts'
+  | 'dict'
 
 type NavMeta = {
   key: SectionKey
@@ -18,7 +24,8 @@ const SECTION = {
   APPEARANCE: 'appearance',
   ACCOUNT: 'account',
   CAPTURE: 'capture',
-  SHORTCUTS: 'shortcuts'
+  SHORTCUTS: 'shortcuts',
+  DICT: 'dict'
 } as const satisfies Record<string, SectionKey>
 
 const NAVS: NavMeta[] = [
@@ -26,7 +33,8 @@ const NAVS: NavMeta[] = [
   { key: SECTION.GENERAL, icon: 'ant-design:setting-outlined', label: '通用' },
   { key: SECTION.CAPTURE, icon: 'lucide:camera', label: '截屏' },
   { key: SECTION.SHORTCUTS, icon: 'lucide:keyboard', label: '快捷键' },
-  { key: SECTION.APPEARANCE, icon: 'ant-design:bg-colors-outlined', label: '外观' }
+  { key: SECTION.APPEARANCE, icon: 'ant-design:bg-colors-outlined', label: '外观' },
+  { key: SECTION.DICT, icon: 'lucide:book-type', label: '状态文案' }
 ]
 
 const SECTION_KEYS: readonly SectionKey[] = [
@@ -34,7 +42,8 @@ const SECTION_KEYS: readonly SectionKey[] = [
   SECTION.GENERAL,
   SECTION.CAPTURE,
   SECTION.SHORTCUTS,
-  SECTION.APPEARANCE
+  SECTION.APPEARANCE,
+  SECTION.DICT
 ]
 
 function parseSectionKey(value: string | null | undefined): SectionKey | null {

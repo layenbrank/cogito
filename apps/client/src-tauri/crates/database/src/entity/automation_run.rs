@@ -28,7 +28,7 @@ pub struct Model {
     pub startedAt: Option<i64>,
     #[sea_orm(column_name = "finishedAt")]
     pub finishedAt: Option<i64>,
-    /// pending | running | succeeded | failed
+    /// 字典 automation_run_status：001 等待 … 004 失败
     pub status: String,
     /// 智能体最后一段输出（截断后存）
     pub output: Option<String>,

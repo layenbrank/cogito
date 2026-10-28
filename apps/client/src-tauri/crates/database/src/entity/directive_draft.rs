@@ -20,7 +20,7 @@ pub struct Model {
     pub name: String,
     /// 指令定义 JSON（与指令编辑器文档同形）
     pub definition: String,
-    /// pending / saved / discarded
+    /// 字典 directive_draft_status：001 待确认 / 002 已保存 / 003 已丢弃
     pub status: String,
     pub error: Option<String>,
     #[sea_orm(column_name = "createdAt")]

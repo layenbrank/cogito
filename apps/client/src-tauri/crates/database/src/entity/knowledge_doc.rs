@@ -28,9 +28,9 @@ pub struct Model {
     pub wordCount: i64,
     /// 每次落库 +1，前端据此判断「我手里的版本过期了」
     pub revision: i64,
-    /// published | draft
+    /// 字典 knowledge_doc_status：001 草稿 / 002 已发布
     pub status: String,
-    /// manual | agent | import
+    /// 字典 knowledge_doc_source：001 手动 / 002 智能体 / 003 导入 / 004 编辑撰写
     pub source: String,
     pub error: Option<String>,
     #[sea_orm(column_name = "sessionId")]

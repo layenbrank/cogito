@@ -320,7 +320,8 @@ pub async fn publish(
     staging_path: &str,
     mode: PublishMode,
 ) -> Result<doc_schema::Model, String> {
-    Service::toPublish(db, base_id, staging_path, mode, "agent")
+    use crate::dict::knowledge_doc_source;
+    Service::toPublish(db, base_id, staging_path, mode, knowledge_doc_source::AGENT)
         .await
         .map_err(|error| error.to_string())
 }

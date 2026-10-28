@@ -11,6 +11,7 @@ pub struct Model {
     pub index: i64,
     #[sea_orm(column_name = "coverAssetID")]
     pub cover_asset_id: Option<String>,
+    /// 字典 album_status：001 正常
     pub status: String,
     #[sea_orm(column_name = "archivedAt")]
     pub archived_at: Option<i64>,

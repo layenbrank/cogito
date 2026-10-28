@@ -1,13 +1,18 @@
 /**
  * 定时任务（`automation` / `automation_run` 表）IPC 契约。
  *
- * `owner` 说明谁来跑：`client` 由本机 worker claim；`goose` / `cloud` 只镜像远端状态，
- * 本机不参与排期（`nextRunAt` 为空）。
+ * `owner` 为字典 value（automation_owner）：001 本机 / 002 goose / 003 云端。
+ * 本机 worker 只 claim owner=001；云端任务只镜像远端状态，本机不参与排期。
  */
 import { z } from 'zod'
 
-const AutomationOwnerSchema = z.enum(['client', 'goose', 'cloud'])
-const AutomationRunAsSchema = z.enum(['user', 'tenant'])
+import { DICT_VALUE } from '@/shared/ipc/specs/dict'
+
+const OWNER = DICT_VALUE.AUTOMATION_OWNER
+const RUN_AS = DICT_VALUE.AUTOMATION_RUN_AS
+
+const AutomationOwnerSchema = z.enum([OWNER.CLIENT, OWNER.GOOSE, OWNER.CLOUD])
+const AutomationRunAsSchema = z.enum([RUN_AS.USER, RUN_AS.TENANT])
 
 const AutomationSchema = z.object({
   id: z.string(),
@@ -40,7 +45,7 @@ const AutomationRunSchema = z.object({
   runAsUserId: z.string().nullish(),
   startedAt: z.number().nullish(),
   finishedAt: z.number().nullish(),
-  /** pending | running | succeeded | failed */
+  /** automation_run_status value */
   status: z.string(),
   output: z.string().nullish(),
   error: z.string().nullish(),
@@ -89,6 +94,8 @@ type FinishRun = z.infer<typeof FinishRunSchema>
 
 export {
   AutomationDueSchema,
+  AutomationOwnerSchema,
+  AutomationRunAsSchema,
   AutomationRunSchema,
   AutomationSaveSchema,
   AutomationSchema,
