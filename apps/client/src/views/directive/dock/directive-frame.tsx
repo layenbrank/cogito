@@ -10,7 +10,9 @@ import {
   ResizablePanelGroup
 } from '@cogito/design/components/resizable'
 
+import { AgentDock } from '@/features/agent/dock'
 import { useTerminalStore } from '@/stores/terminal'
+import { useDirectiveDockScope } from '@/views/directive/ai-scope.ts'
 import { DirectiveDock } from '@/views/directive/dock/directive-dock.tsx'
 import { useTerminalCwd } from '@/views/directive/use-terminal-cwd.ts'
 
@@ -26,6 +28,8 @@ function DirectiveFrame(props: DirectiveFrameProps) {
     return state.activity
   })
   const { cwd, emptyCwdMessage } = useTerminalCwd()
+  // 指令域的 AI 入口跟着磁贴走：切磁贴就解绑，不会串上下文
+  useDirectiveDockScope()
 
   useEffect(
     function () {
@@ -46,7 +50,12 @@ function DirectiveFrame(props: DirectiveFrameProps) {
         minSize={180}
         className="min-h-0 overflow-hidden bg-background">
         <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-          {props.children}
+          <div className="flex min-h-0 flex-1">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+              {props.children}
+            </div>
+            <AgentDock />
+          </div>
         </div>
       </ResizablePanel>
       {terminalOpen ? (

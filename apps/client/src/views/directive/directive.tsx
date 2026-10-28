@@ -1,4 +1,6 @@
 import { Decorations } from '@/components/decorations/index.ts'
+import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 import { useShowsTileSession } from '@/features/magnetic-tile/session-bar'
 import { safeDecodeURIComponent } from '@/utils/safe-decode.ts'
@@ -6,6 +8,7 @@ import { Suspense, lazy } from 'react'
 import { Outlet, useParams } from 'react-router-dom'
 import { Spinner } from '@cogito/design/components/spinner'
 import { useCorexStore } from '@/stores/corex.ts'
+import { useDockStore } from '@/features/agent/dock'
 import { DirectiveFrame } from '@/views/directive/dock/directive-frame.tsx'
 import { DirectiveLibrary } from '@/views/directive/library/library.tsx'
 
@@ -49,6 +52,20 @@ function DirectiveCaptionBegin(props: { name?: string }) {
           className="size-1.5 shrink-0 rounded-full bg-amber-500"
         />
       ) : null}
+      <Button
+        size="sm"
+        variant="ghost"
+        className="ml-1 h-6 gap-1 px-1.5 text-[11px] font-normal"
+        title="打开 AI 助手（就地改这条指令）"
+        onClick={function () {
+          useDockStore.getState().toToggle()
+        }}>
+        <Icon
+          icon="lucide:sparkles"
+          className="size-3.5"
+        />
+        AI
+      </Button>
     </span>
   )
 }

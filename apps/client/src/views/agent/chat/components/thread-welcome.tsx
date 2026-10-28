@@ -7,7 +7,7 @@ import { Button } from '@cogito/design/components/button'
 import { useEffect } from 'react'
 
 import { setActiveScenario } from '@/features/agent/model/active-scenario'
-import { takeNextPrompt } from '@/features/agent/model/pending-prompt'
+import { takeChatHandoff } from '@/features/agent/model/chat-handoff'
 import { QUICK_PROMPTS, type QuickPrompt } from '@/views/agent/chat/components/workbench-constants'
 import styles from '@/views/agent/chat/components/workbench.module.scss'
 
@@ -19,12 +19,12 @@ function ThreadWelcome() {
     aui.composer.setText(item.label)
   }
 
-  // 从指令库「AI 生成」跳过来时，把预设场景与提示词灌进输入框（只用一次）
+  // 从磁贴点「完整会话」过来时，把这一轮与场景带进输入框（只用一次）
   useEffect(function () {
-    const pending = takeNextPrompt()
-    if (!pending) return
-    setActiveScenario(pending.scenario)
-    aui.composer.setText(pending.text)
+    const handoff = takeChatHandoff()
+    if (!handoff) return
+    setActiveScenario(handoff.scenario)
+    aui.composer.setText(handoff.text)
   }, [aui])
 
   return (

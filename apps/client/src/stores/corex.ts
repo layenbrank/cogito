@@ -197,6 +197,24 @@ function parseErrorMessage(error: unknown, fallback: string): string {
   return fallback
 }
 
+/**
+ * 一次性「待应用定义」槽：从收件箱 / dock 把一份完整定义带进编辑器。
+ *
+ * 为什么需要它：进 `/directive/:name` 时工作区先 `openEditor`（会清空 draft）再
+ * `seedPendingDraft`，导航前直接替换 draft 会被这一步清掉 —— 表现为「打开了但内容没了」。
+ */
+let pendingDefinition: DirectiveContent | null = null
+
+function setPendingDefinition(definition: DirectiveContent | null): void {
+  pendingDefinition = definition
+}
+
+function takePendingDefinition(): DirectiveContent | null {
+  const value = pendingDefinition
+  pendingDefinition = null
+  return value
+}
+
 const useCorexStore = create<CorexStore>(function (setter, getter) {
   function patchRun(id: string, patch: Partial<CorexRun> | ((run: CorexRun) => Partial<CorexRun>)) {
     flushRunFrames()
@@ -320,10 +338,11 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
     },
 
     seedPendingDraft(name) {
-      const content = createDirective(name)
+      // 带着完整定义进来就照用；否则才是「空骨架」
+      const settled = takePendingDefinition() ?? createDirective(name)
       const stamped = {
-        ...content,
-        steps: stampSteps(content.steps)
+        ...settled,
+        steps: stampSteps(settled.steps)
       }
       setter({
         draft: stamped,
@@ -619,5 +638,5 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
   }
 })
 
-export { useCorexStore }
+export { setPendingDefinition, useCorexStore }
 export type { CorexAction, CorexRun, RunKind, RunStatus, RunTrigger }

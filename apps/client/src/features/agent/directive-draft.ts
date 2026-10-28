@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 import { setDraftStatus } from '@/lib/directive-draft-ipc'
 import { validateDirective } from '@/lib/directive-ipc'
 import { DirectiveContentSchema, type DirectiveContent } from '@/shared/ipc/specs/sidecar'
-import { useCorexStore } from '@/stores/corex'
+import { setPendingDefinition } from '@/stores/corex'
 import { useDirectiveDraftStore } from '@/stores/directive-draft'
 import type { DirectiveDraft } from '@/lib/directive-draft-ipc'
 import { reportCaught } from '@/utils/exception-report'
@@ -168,9 +168,9 @@ async function openDraftInEditor(draft: DirectiveDraft): Promise<void> {
     reportCaught('agent.openDraftInEditor', error, 'warning')
     return
   }
-  const corex = useCorexStore.getState()
-  corex.seedPendingDraft(definition.name)
-  corex.replaceDraft(definition, false)
+  // 定义先放进「待应用」槽：进编辑器时工作区会 openEditor + seedPendingDraft，
+  // 在导航前直接替换 draft 会被那一步清空
+  setPendingDefinition(definition)
   const { router } = await import('@/routers')
   await router.navigate(`/directive/${encodeURIComponent(definition.name)}`)
 }

@@ -33,7 +33,7 @@ import { useTerminalStore } from '@/stores/terminal'
 import { useNow } from '@/views/directive/use-now.ts'
 import { useTerminalCwd } from '@/views/directive/use-terminal-cwd.ts'
 import { EMPTY_RUNS } from '@/views/directive/run/run-status'
-import { setNextPrompt } from '@/features/agent/model/pending-prompt'
+import { useDockStore } from '@/features/agent/dock'
 import Card from './card'
 import { ConflictsDialog } from './conflicts-dialog.tsx'
 import { DraftInbox } from './draft-inbox.tsx'
@@ -117,14 +117,8 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
             aria-label="用 AI 生成指令"
             title="用 AI 生成指令"
             onClick={function () {
-              // 交给智能体聊天：预设 directive 场景与提示词，草稿生成后自动进收件箱
-              setNextPrompt({
-                text: '请帮我实现一条指令：',
-                scenario: 'directive'
-              })
-              void import('@/routers').then(function (module) {
-                return module.router.navigate('/agent/chat')
-              })
+              // 就地开坞：不跳页，草稿结果直接落进编辑器
+              useDockStore.getState().toOpen('generate')
             }}>
             <Icon
               icon="lucide:sparkles"
