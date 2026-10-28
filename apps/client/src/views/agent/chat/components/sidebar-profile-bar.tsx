@@ -8,8 +8,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@cogito/design/components/dropdown-menu'
-import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 
 import { SECTION } from '@/views/settings/constant'
 
