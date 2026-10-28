@@ -36,7 +36,7 @@ function AgentHead(props: HeadProps) {
   }
 
   return (
-    <header className="border-border bg-background flex h-10 shrink-0 items-center gap-1.5 border-b px-2">
+    <header className="border-border/60 bg-background/75 flex h-10 shrink-0 items-center gap-1.5 border-b px-2 backdrop-blur-md">
       <Tooltip>
         <TooltipTrigger
           render={
@@ -66,9 +66,9 @@ function AgentHead(props: HeadProps) {
         <span
           aria-hidden
           data-running={isRunning ? 'true' : 'false'}
-          className="bg-muted-foreground data-[running=true]:bg-success size-1.5 shrink-0 rounded-full"
+          className="bg-muted-foreground/70 data-[running=true]:bg-success data-[running=true]:shadow-[0_0_0_3px_color-mix(in_oklab,var(--success)_25%,transparent)] size-1.5 shrink-0 rounded-full transition-shadow"
         />
-        <span className="truncate text-sm font-medium">{title || '新任务'}</span>
+        <span className="truncate text-sm font-medium tracking-tight">{title || '新任务'}</span>
         {isRunning ? (
           <span className="text-muted-foreground shrink-0 text-xs">生成中…</span>
         ) : null}
