@@ -17,8 +17,8 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { Icon } from '@iconify/react/offline'
 import { clsx } from 'clsx'
+import { useNavigate } from 'react-router-dom'
 
-import { openSettingsWindow } from '@/features/window/open-settings'
 import { useSessionStore } from '@/stores/session.ts'
 import styles from '@/views/overview/caption/caption.module.scss'
 import { SECTION } from '@/views/settings/constant'
@@ -32,6 +32,7 @@ interface CaptionAccountProps {
 }
 
 function CaptionAccount(props: CaptionAccountProps) {
+  const navigate = useNavigate()
   const user = useSessionStore(function (state) {
     return state.user
   })
@@ -114,7 +115,7 @@ function CaptionAccount(props: CaptionAccountProps) {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={function () {
-            void openSettingsWindow(SECTION.ACCOUNT)
+            void navigate(`/settings?section=${SECTION.ACCOUNT}`)
           }}>
           <Icon
             icon="lucide:user-round"
@@ -124,7 +125,7 @@ function CaptionAccount(props: CaptionAccountProps) {
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={function () {
-            void openSettingsWindow(SECTION.APPEARANCE)
+            void navigate(`/settings?section=${SECTION.APPEARANCE}`)
           }}>
           <Icon
             icon="lucide:palette"

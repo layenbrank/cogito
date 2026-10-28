@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { useSessionStore } from '@/stores/session.ts'
@@ -16,15 +17,32 @@ vi.mock('@/apis/auth.ts', function () {
   }
 })
 
+const navigateMock = vi.fn()
+
+vi.mock('react-router-dom', async function (importOriginal) {
+  const actual = await importOriginal<typeof import('react-router-dom')>()
+  return {
+    ...actual,
+    useNavigate: function () {
+      return navigateMock
+    }
+  }
+})
+
+function renderAccount(node: JSX.Element) {
+  return render(<MemoryRouter>{node}</MemoryRouter>)
+}
+
 /** zustand store 是模块级单例：每个用例自己复位 */
 afterEach(function () {
   useSessionStore.setState({ user: null, isLoading: false })
+  navigateMock.mockReset()
 })
 
 describe('CaptionAccount', function () {
   it('未登录时渲染登录按钮，点击回调 onSignIn', function () {
     const onSignIn = vi.fn()
-    render(<CaptionAccount onSignIn={onSignIn} />)
+    renderAccount(<CaptionAccount onSignIn={onSignIn} />)
 
     fireEvent.click(screen.getByRole('button', { name: '登录' }))
     expect(onSignIn).toHaveBeenCalledTimes(1)
@@ -42,7 +60,7 @@ describe('CaptionAccount', function () {
         birthday: null
       }
     })
-    render(<CaptionAccount onSignIn={vi.fn()} />)
+    renderAccount(<CaptionAccount onSignIn={vi.fn()} />)
 
     const trigger = screen.getByRole('button', { name: '已登录：iwell' })
     expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
@@ -54,5 +72,28 @@ describe('CaptionAccount', function () {
     await waitFor(function () {
       expect(useSessionStore.getState().user).toBeNull()
     })
+  })
+
+  it('已登录时账号设置与外观走同窗路由，不另开窗口', function () {
+    useSessionStore.setState({
+      user: {
+        id: 'u1',
+        username: 'iwell',
+        avatarUrl: null,
+        email: null,
+        phone: null,
+        gender: null,
+        birthday: null
+      }
+    })
+    renderAccount(<CaptionAccount onSignIn={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '已登录：iwell' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '账号设置' }))
+    expect(navigateMock).toHaveBeenCalledWith('/settings?section=account')
+
+    fireEvent.click(screen.getByRole('button', { name: '已登录：iwell' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '外观' }))
+    expect(navigateMock).toHaveBeenCalledWith('/settings?section=appearance')
   })
 })

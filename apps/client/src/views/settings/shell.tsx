@@ -1,15 +1,14 @@
 import { Icon } from '@iconify/react/offline'
-import { listen } from '@tauri-apps/api/event'
+import { Button } from '@cogito/design/components/button'
 import clsx from 'clsx'
 import { AnimatePresence, useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
-import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
-import {
-  SETTINGS_NAVIGATE_EVENT,
-  type SettingsNavigatePayload
-} from '@/features/window/open-settings'
+import { isMainWindow } from '@/features/magnetic-tile/session'
+import { useShowsTileSession } from '@/features/magnetic-tile/session-bar'
+import { findWindowLabel } from '@/features/window/kind'
 import {
   MOTION,
   NAVS,
@@ -30,11 +29,16 @@ function findInitialSection(searchParams: URLSearchParams): SectionKey {
 }
 
 function Shell() {
+  const navigate = useNavigate()
   const isReducedMotion = useReducedMotion()
   const [searchParams, updateSearchParams] = useSearchParams()
   const [section, onSectionChange] = useState<SectionKey>(function () {
     return findInitialSection(searchParams)
   })
+  // 主窗有 TileSessionBar；独立设置磁贴窗关窗即可；其余同窗进入时需要返回
+  const showsSession = useShowsTileSession()
+  const windowLabel = findWindowLabel()
+  const showsBack = !showsSession && !windowLabel.startsWith('settings:')
   // 查询串里的 section 变了就跟随：渲染期按变化调整，不用 effect
   const querySection = searchParams.get('section') ?? ''
   const [seenQuerySection, updateSeenQuerySection] = useState(querySection)
@@ -44,24 +48,17 @@ function Shell() {
     if (fromQuery && fromQuery !== section) onSectionChange(fromQuery)
   }
 
-  useEffect(function () {
-    let unlisten: (() => void) | undefined
-    void listen<SettingsNavigatePayload>(SETTINGS_NAVIGATE_EVENT, function (event) {
-      const next = parseSectionKey(event.payload.section)
-      if (!next) return
-      onSectionChange(next)
-      updateSearchParams({ section: next }, { replace: true })
-    }).then(function (fn) {
-      unlisten = fn
-    })
-    return function () {
-      unlisten?.()
-    }
-  }, [updateSearchParams])
-
   function selectSection(key: SectionKey) {
     onSectionChange(key)
     updateSearchParams({ section: key }, { replace: true })
+  }
+
+  function goBack() {
+    if (isMainWindow()) {
+      void navigate('/overview')
+      return
+    }
+    void navigate(-1)
   }
 
   const viewVariants = MOTION.fadeVariants(!!isReducedMotion)
@@ -80,6 +77,23 @@ function Shell() {
             </div>
             <h2 className={styles.asideTitleText}>设置</h2>
           </div>
+          {showsBack ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              data-region="false"
+              aria-label="返回"
+              className="shrink-0 gap-1 px-2"
+              onClick={goBack}>
+              <Icon
+                icon="lucide:chevron-left"
+                className="size-3.5"
+                aria-hidden
+              />
+              返回
+            </Button>
+          ) : null}
         </div>
 
         <nav
