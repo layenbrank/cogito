@@ -7,8 +7,15 @@ import { immer } from 'zustand/middleware/immer'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
 
 import { ensureTilePrefs } from '@/features/magnetic-tile/tile-prefs'
+import { PERSIST_DEFAULTS } from '@/features/persist/defaults'
 import { findLanguageId } from '@/views/code/lib/language.ts'
-import { findFileName, isPathInsideRoot, normalizeSeparators } from '@/views/code/lib/path.ts'
+import {
+  findFileName,
+  isPathInsideRoot,
+  isSamePath,
+  normalizeSeparators,
+  relocatePath
+} from '@/views/code/lib/path.ts'
 import {
   parseCodePreferences,
   persistCodePreferences,
@@ -18,6 +25,8 @@ import {
 type SidebarView = 'explorer' | 'search' | 'scm'
 type PanelTab = 'terminal' | 'problems'
 type PaletteMode = 'command' | 'file' | null
+/** 换行符：Monaco 只认这两种 */
+type Eol = 'LF' | 'CRLF'
 
 interface CodeTab {
   id: string
@@ -32,6 +41,34 @@ interface CursorPosition {
   column: number
 }
 
+/** 编辑器外观偏好：与 `tiles.json` 的 `code` 段一一对应 */
+interface CodeEditorPrefs {
+  fontSize: number
+  lineHeightRatio: number
+  fontFamily: string
+  isLigaturesEnabled: boolean
+}
+
+interface CodeIndentation {
+  tabSize: number
+  insertSpaces: boolean
+}
+
+/** 诊断计数：错误与警告分开，状态栏与问题面板共用 */
+interface ProblemCounts {
+  errors: number
+  warnings: number
+}
+
+/** 打开文件后要定位到的行列（搜索结果、问题跳转） */
+interface RevealRequest {
+  path: string
+  line: number
+  column: number
+}
+
+const CODE_DEFAULTS = PERSIST_DEFAULTS.tiles.code
+
 interface CodeState {
   workspaceRoot: string | null
   tabs: CodeTab[]
@@ -44,7 +81,18 @@ interface CodeState {
   languageId: string
   paletteMode: PaletteMode
   treeRevision: number
-  problemCount: number
+  problemCounts: ProblemCounts
+  /** 资源管理器已展开的目录（相对路径，根目录用 `ROOT`） */
+  expandedKeys: string[]
+  pendingReveal: RevealRequest | null
+  /** 等待用户确认关闭的标签（有未保存更改） */
+  pendingCloseIds: string[]
+  editorPrefs: CodeEditorPrefs
+  indentation: CodeIndentation
+  eol: Eol
+  isHiddenVisible: boolean
+  /** 当前文档超过只读阈值（大文件保护） */
+  isLargeFile: boolean
   /** 正在从 store 恢复，跳过写回 */
   isHydrating: boolean
 
@@ -68,22 +116,20 @@ interface CodeState {
   toSetLanguageId: (languageId: string) => void
   toSetPaletteMode: (mode: PaletteMode) => void
   toBumpTree: () => void
-  toSetProblemCount: (count: number) => void
+  toToggleExpanded: (key: string, isOpen: boolean) => void
+  /** 展开指定目录及其所有祖先（面包屑 / 在资源管理器中显示用） */
+  toRevealPath: (relativeDir: string) => void
+  toCollapseAll: () => void
+  toRequestReveal: (request: RevealRequest | null) => void
+  toSetPendingClose: (ids: string[]) => void
+  toSetProblemCounts: (counts: ProblemCounts) => void
+  toSetEditorPrefs: (patch: Partial<CodeEditorPrefs>) => void
+  toSetIndentation: (indentation: CodeIndentation) => void
+  toSetEol: (eol: Eol) => void
+  toToggleHiddenVisible: () => void
+  toSetLargeFile: (isLarge: boolean) => void
   /** 从 tiles.json 恢复 chrome（不含打开文件内容） */
   hydrateFromStore: () => Promise<CodePreferences>
-}
-
-function isSamePath(a: string, b: string): boolean {
-  return normalizeSeparators(a).toLowerCase() === normalizeSeparators(b).toLowerCase()
-}
-
-function relocateTabPath(tabPath: string, fromPath: string, toPath: string): string | null {
-  if (isSamePath(tabPath, fromPath)) return toPath
-  if (!isPathInsideRoot(fromPath, tabPath)) return null
-  const fromNorm = normalizeSeparators(fromPath).replace(/\/+$/, '')
-  const tabNorm = normalizeSeparators(tabPath)
-  const suffix = tabNorm.slice(fromNorm.length)
-  return `${normalizeSeparators(toPath).replace(/\/+$/, '')}${suffix}`
 }
 
 function findActiveTab(state: CodeState): CodeTab | undefined {
@@ -104,7 +150,12 @@ function writeCodePrefs(state: CodeState): void {
     isSidebarOpen: state.isSidebarOpen,
     sidebarView: state.sidebarView,
     isPanelOpen: state.isPanelOpen,
-    panelTab: state.panelTab
+    panelTab: state.panelTab,
+    editorFontSize: state.editorPrefs.fontSize,
+    editorLineHeightRatio: state.editorPrefs.lineHeightRatio,
+    editorFontFamily: state.editorPrefs.fontFamily,
+    isEditorLigaturesEnabled: state.editorPrefs.isLigaturesEnabled,
+    isHiddenVisible: state.isHiddenVisible
   })
 }
 
@@ -124,7 +175,20 @@ const useCodeStore = create<CodeState>()(
           languageId: 'plaintext',
           paletteMode: null,
           treeRevision: 0,
-          problemCount: 0,
+          problemCounts: { errors: 0, warnings: 0 },
+          expandedKeys: [],
+          pendingReveal: null,
+          pendingCloseIds: [],
+          editorPrefs: {
+            fontSize: CODE_DEFAULTS.editorFontSize,
+            lineHeightRatio: CODE_DEFAULTS.editorLineHeightRatio,
+            fontFamily: CODE_DEFAULTS.editorFontFamily,
+            isLigaturesEnabled: CODE_DEFAULTS.isEditorLigaturesEnabled
+          },
+          indentation: { tabSize: 2, insertSpaces: true },
+          eol: 'LF',
+          isHiddenVisible: CODE_DEFAULTS.isHiddenVisible,
+          isLargeFile: false,
           isHydrating: false,
 
           toSetWorkspaceRoot(root) {
@@ -236,7 +300,7 @@ const useCodeStore = create<CodeState>()(
             set(
               function (state) {
                 for (const tab of state.tabs) {
-                  const next = relocateTabPath(tab.path, fromPath, toPath)
+                  const next = relocatePath(tab.path, fromPath, toPath)
                   if (!next) continue
                   tab.path = next
                   tab.title = findFileName(next)
@@ -395,13 +459,120 @@ const useCodeStore = create<CodeState>()(
             )
           },
 
-          toSetProblemCount(count) {
+          toToggleExpanded(key, isOpen) {
             set(
               function (state) {
-                state.problemCount = count
+                const index = state.expandedKeys.indexOf(key)
+                if (isOpen && index < 0) state.expandedKeys.push(key)
+                if (!isOpen && index >= 0) state.expandedKeys.splice(index, 1)
               },
               false,
-              'toSetProblemCount'
+              'toToggleExpanded'
+            )
+          },
+
+          toRevealPath(relativeDir) {
+            set(
+              function (state) {
+                const segments = normalizeSeparators(relativeDir).split('/').filter(Boolean)
+                let current = ''
+                for (const segment of segments) {
+                  current = current ? `${current}/${segment}` : segment
+                  if (!state.expandedKeys.includes(current)) state.expandedKeys.push(current)
+                }
+              },
+              false,
+              'toRevealPath'
+            )
+          },
+
+          toCollapseAll() {
+            set(
+              function (state) {
+                state.expandedKeys = []
+              },
+              false,
+              'toCollapseAll'
+            )
+          },
+
+          toRequestReveal(request) {
+            set(
+              function (state) {
+                state.pendingReveal = request
+              },
+              false,
+              'toRequestReveal'
+            )
+          },
+
+          toSetPendingClose(ids) {
+            set(
+              function (state) {
+                state.pendingCloseIds = ids
+              },
+              false,
+              'toSetPendingClose'
+            )
+          },
+
+          toSetProblemCounts(counts) {
+            set(
+              function (state) {
+                state.problemCounts = counts
+              },
+              false,
+              'toSetProblemCounts'
+            )
+          },
+
+          toSetEditorPrefs(patch) {
+            set(
+              function (state) {
+                state.editorPrefs = { ...state.editorPrefs, ...patch }
+              },
+              false,
+              'toSetEditorPrefs'
+            )
+          },
+
+          toSetIndentation(indentation) {
+            set(
+              function (state) {
+                state.indentation = indentation
+              },
+              false,
+              'toSetIndentation'
+            )
+          },
+
+          toSetEol(eol) {
+            set(
+              function (state) {
+                state.eol = eol
+              },
+              false,
+              'toSetEol'
+            )
+          },
+
+          toToggleHiddenVisible() {
+            set(
+              function (state) {
+                state.isHiddenVisible = !state.isHiddenVisible
+              },
+              false,
+              'toToggleHiddenVisible'
+            )
+          },
+
+          toSetLargeFile(isLarge) {
+            set(
+              function (state) {
+                state.isLargeFile = isLarge
+              },
+              false,
+              'toSetLargeFile'
             )
           },
 
@@ -416,6 +587,13 @@ const useCodeStore = create<CodeState>()(
                 state.sidebarView = prefs.sidebarView
                 state.isPanelOpen = prefs.isPanelOpen
                 state.panelTab = prefs.panelTab
+                state.editorPrefs = {
+                  fontSize: prefs.editorFontSize,
+                  lineHeightRatio: prefs.editorLineHeightRatio,
+                  fontFamily: prefs.editorFontFamily,
+                  isLigaturesEnabled: prefs.isEditorLigaturesEnabled
+                }
+                state.isHiddenVisible = prefs.isHiddenVisible
                 if (prefs.workspaceRoot) state.treeRevision += 1
               },
               false,
@@ -449,7 +627,9 @@ useCodeStore.subscribe(function (state, previous) {
     state.isSidebarOpen === previous.isSidebarOpen &&
     state.sidebarView === previous.sidebarView &&
     state.isPanelOpen === previous.isPanelOpen &&
-    state.panelTab === previous.panelTab
+    state.panelTab === previous.panelTab &&
+    state.editorPrefs === previous.editorPrefs &&
+    state.isHiddenVisible === previous.isHiddenVisible
   ) {
     return
   }
@@ -457,4 +637,15 @@ useCodeStore.subscribe(function (state, previous) {
 })
 
 export { useCodeStore }
-export type { CodeTab, CursorPosition, SidebarView, PanelTab, PaletteMode }
+export type {
+  CodeTab,
+  CursorPosition,
+  SidebarView,
+  PanelTab,
+  PaletteMode,
+  Eol,
+  CodeEditorPrefs,
+  CodeIndentation,
+  ProblemCounts,
+  RevealRequest
+}

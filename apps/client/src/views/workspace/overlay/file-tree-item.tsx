@@ -6,7 +6,7 @@ import {
 } from '@cogito/design/components/collapsible'
 import { Spinner } from '@cogito/design/components/spinner'
 import { cn } from 'cn'
-import { memo, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 
 export interface FileTreeNode {
   title: string
@@ -99,6 +99,24 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
   const isControlled = props.expandedKeys !== undefined
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
   const isOpen = isControlled ? props.expandedKeys!.has(node.key) : uncontrolledOpen
+  /** 已发起过的加载：外部直接改 expandedKeys 时不会重复拉同一目录 */
+  const requestedRef = useRef<Set<string>>(new Set())
+  const loadRef = useRef(props.onLoad)
+
+  useEffect(function () {
+    loadRef.current = props.onLoad
+  })
+
+  // 受控展开（面包屑跳转、刷新恢复）不会走 onOpenChange，这里补一次按需加载
+  useEffect(
+    function () {
+      if (!isDirectory || !isOpen || node.isLoaded || node.isLoading) return
+      if (requestedRef.current.has(node.key)) return
+      requestedRef.current.add(node.key)
+      void loadRef.current(node)
+    },
+    [isDirectory, isOpen, node]
+  )
 
   if (node.isLoadMore) {
     return (

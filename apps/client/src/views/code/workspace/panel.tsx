@@ -16,9 +16,10 @@ function Panel() {
   const workspaceRoot = useCodeStore(function (state) {
     return state.workspaceRoot
   })
-  const problemCount = useCodeStore(function (state) {
-    return state.problemCount
+  const problemCounts = useCodeStore(function (state) {
+    return state.problemCounts
   })
+  const problemCount = problemCounts.errors + problemCounts.warnings
 
   if (!isPanelOpen) return null
 

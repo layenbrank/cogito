@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 
 import { useCodeStore } from '@/stores/code'
 import { findModel } from '@/views/code/lib/monaco-models.ts'
+import { findModelMarkers, pushProblemCounts } from '@/views/code/lib/monaco-markers.ts'
 
 interface ProblemRow {
   message: string
@@ -35,18 +36,13 @@ function Problems() {
   useEffect(
     function () {
       function refresh() {
-        if (!activeTab) {
-          setRows([])
-          useCodeStore.getState().toSetProblemCount(0)
-          return
-        }
-        const model = findModel(activeTab.path)
+        const model = activeTab ? findModel(activeTab.path) : null
         if (!model) {
           setRows([])
-          useCodeStore.getState().toSetProblemCount(0)
+          pushProblemCounts(null)
           return
         }
-        const markers = monaco.editor.getModelMarkers({ resource: model.uri })
+        const markers = findModelMarkers(model)
         setRows(
           markers.map(function (marker) {
             return {
@@ -58,7 +54,7 @@ function Problems() {
             }
           })
         )
-        useCodeStore.getState().toSetProblemCount(markers.length)
+        pushProblemCounts(model)
       }
 
       refresh()

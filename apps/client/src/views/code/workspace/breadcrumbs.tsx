@@ -48,14 +48,26 @@ function Breadcrumbs() {
                 className="size-3 shrink-0 opacity-40"
               />
             ) : null}
-            <span
-              className={cn(
-                'max-w-40 truncate',
-                isLast ? 'text-foreground/90' : 'hover:text-foreground'
-              )}
-              title={segment}>
-              {segment}
-            </span>
+            {isLast ? (
+              <span
+                className="text-foreground/90 max-w-40 truncate"
+                title={segment}>
+                {segment}
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="hover:text-foreground hover:bg-muted/60 max-w-40 cursor-pointer truncate rounded-sm px-0.5"
+                title={`在资源管理器中打开 ${segmentKey}`}
+                onClick={function () {
+                  const store = useCodeStore.getState()
+                  store.toSetSidebarView('explorer')
+                  if (!store.isSidebarOpen) store.toToggleSidebar()
+                  store.toRevealPath(segmentKey)
+                }}>
+                {segment}
+              </button>
+            )}
           </span>
         )
       })}

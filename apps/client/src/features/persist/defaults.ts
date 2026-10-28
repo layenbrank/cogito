@@ -39,7 +39,12 @@ const PERSIST_DEFAULTS: PersistShape = {
       isSidebarOpen: true,
       sidebarView: 'explorer',
       isPanelOpen: false,
-      panelTab: 'terminal'
+      panelTab: 'terminal',
+      editorFontSize: 13,
+      editorLineHeightRatio: 1.55,
+      editorFontFamily: '',
+      isEditorLigaturesEnabled: true,
+      isHiddenVisible: false
     },
     signboard: {
       activeBoardID: null,

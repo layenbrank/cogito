@@ -37,6 +37,11 @@ function joinPath(base: string, relative: string): string {
   return `${baseNorm}/${relNorm}`
 }
 
+/** 同一路径比较：Windows 下大小写不敏感，分隔符也要归一 */
+function isSamePath(a: string, b: string): boolean {
+  return normalizeSeparators(a).toLowerCase() === normalizeSeparators(b).toLowerCase()
+}
+
 /** 将绝对路径转为相对 workspace root 的路径；不在 root 下则返回文件名 */
 function findRelativePath(root: string, absolute: string): string {
   const rootNorm = normalizeSeparators(root).replace(/\/+$/, '')
@@ -57,13 +62,32 @@ function findPathSegments(relativeOrAbsolute: string): string[] {
     .filter(Boolean)
 }
 
+/**
+ * 文件/目录重命名后，把旧路径映射到新路径。
+ * 不相关（既不相同也不在目录下）时返回 null。
+ */
+function relocatePath(
+  path: string,
+  fromPath: string,
+  toPath: string
+): string | null {
+  if (isSamePath(path, fromPath)) return toPath
+  if (!isPathInsideRoot(fromPath, path)) return null
+  const fromNorm = normalizeSeparators(fromPath).replace(/\/+$/, '')
+  const pathNorm = normalizeSeparators(path)
+  const suffix = pathNorm.slice(fromNorm.length)
+  return `${normalizeSeparators(toPath).replace(/\/+$/, '')}${suffix}`
+}
+
 export {
   normalizeSeparators,
   findFileName,
   findParentDir,
   findExtension,
   isPathInsideRoot,
+  isSamePath,
   joinPath,
   findRelativePath,
-  findPathSegments
+  findPathSegments,
+  relocatePath
 }

@@ -8,6 +8,7 @@ import {
 import { cn } from 'cn'
 
 import { useCodeStore, type SidebarView } from '@/stores/code'
+import { findBindingText } from '@/views/code/lib/bindings.ts'
 
 interface ActivityItem {
   view: SidebarView
@@ -65,7 +66,9 @@ function ActivityBar() {
               side="right"
               sideOffset={6}>
               <span>{item.label}</span>
-              <span className="text-background/70 ml-2">Ctrl+B</span>
+              <span className="text-background/70 ml-2">
+                {findBindingText('CODE_TOGGLE_SIDEBAR')}
+              </span>
             </TooltipContent>
           </Tooltip>
         )

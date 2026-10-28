@@ -19,5 +19,7 @@ export const CODE_SHORTCUTS: readonly LocalShortcutDefinition[] = [
   codeShortcut(COMMAND.CODE_CLOSE_TAB, '代码窗：关闭当前标签', 'mod+w'),
   codeShortcut(COMMAND.CODE_OPEN_FOLDER, '代码窗：打开文件夹', 'mod+o'),
   codeShortcut(COMMAND.CODE_TOGGLE_SIDEBAR, '代码窗：切换侧栏', 'mod+b'),
+  codeShortcut(COMMAND.CODE_SEARCH, '代码窗：搜索', 'mod+shift+f'),
+  codeShortcut(COMMAND.CODE_SCM, '代码窗：源代码管理', 'mod+shift+g'),
   codeShortcut(COMMAND.CODE_TERMINAL, '代码窗：切换终端', 'mod+`')
 ]

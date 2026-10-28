@@ -12,6 +12,8 @@ import {
 import { cn } from 'cn'
 
 import { useCodeStore } from '@/stores/code'
+import { findBindingText } from '@/views/code/lib/bindings.ts'
+import { EditorAppearance } from '@/views/code/caption/editor-appearance.tsx'
 
 interface LayoutButtonProps {
   label: string
@@ -73,7 +75,7 @@ function CodeCaptionFinal() {
       <div className="flex items-center gap-0.5">
         <LayoutButton
           label="切换主侧栏"
-          shortcut="Ctrl+B"
+          shortcut={findBindingText('CODE_TOGGLE_SIDEBAR')}
           icon="lucide:panel-left"
           isPressed={isSidebarOpen}
           onClick={function () {
@@ -82,7 +84,7 @@ function CodeCaptionFinal() {
         />
         <LayoutButton
           label="切换底栏面板"
-          shortcut="Ctrl+`"
+          shortcut={findBindingText('CODE_TERMINAL')}
           icon="lucide:panel-bottom"
           isPressed={isPanelOpen}
           onClick={function () {
@@ -99,13 +101,20 @@ function CodeCaptionFinal() {
       {/* 菜单动作 */}
       <LayoutButton
         label="命令面板"
-        shortcut="Ctrl+Shift+P"
+        shortcut={findBindingText('CODE_PALETTE_COMMANDS')}
         icon="lucide:command"
         isPressed={false}
         onClick={function () {
           useCodeStore.getState().toSetPaletteMode('command')
         }}
       />
+
+      <span
+        aria-hidden
+        className="bg-border mx-0.5 h-4 w-px shrink-0"
+      />
+
+      <EditorAppearance />
     </div>
   )
 }

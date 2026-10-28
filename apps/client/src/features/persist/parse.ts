@@ -25,6 +25,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
+/** 数字段：非数字/NaN 回退默认值，超界按区间收敛 */
+function parseNumber(raw: unknown, fallback: number, min: number, max: number): number {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return fallback
+  return Math.min(max, Math.max(min, raw))
+}
+
+function parseBoolean(raw: unknown, fallback: boolean): boolean {
+  return typeof raw === 'boolean' ? raw : fallback
+}
+
 function parseSessions(raw: unknown): TileSessionPref[] {
   if (!Array.isArray(raw)) return []
   const sessions: TileSessionPref[] = []
@@ -125,7 +135,23 @@ function parseTiles(raw: unknown): TilesPref {
             .slice(0, CODE_TAB_CAP)
         : [],
       workspaceRoot: typeof code.workspaceRoot === 'string' ? code.workspaceRoot : null,
-      activePath: typeof code.activePath === 'string' ? code.activePath : null
+      activePath: typeof code.activePath === 'string' ? code.activePath : null,
+      editorFontSize: parseNumber(code.editorFontSize, base.code.editorFontSize, 10, 24),
+      editorLineHeightRatio: parseNumber(
+        code.editorLineHeightRatio,
+        base.code.editorLineHeightRatio,
+        1.2,
+        2.2
+      ),
+      editorFontFamily:
+        typeof code.editorFontFamily === 'string'
+          ? code.editorFontFamily
+          : base.code.editorFontFamily,
+      isEditorLigaturesEnabled: parseBoolean(
+        code.isEditorLigaturesEnabled,
+        base.code.isEditorLigaturesEnabled
+      ),
+      isHiddenVisible: parseBoolean(code.isHiddenVisible, base.code.isHiddenVisible)
     },
     signboard: {
       activeBoardID: typeof signboard.activeBoardID === 'string' ? signboard.activeBoardID : null,

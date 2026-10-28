@@ -40,6 +40,15 @@ interface CodeChrome {
   sidebarView: CodeSidebarView
   isPanelOpen: boolean
   panelTab: CodePanelTab
+  /** 编辑器字号（px） */
+  editorFontSize: number
+  /** 行高倍数，实际行高 = 字号 × 倍数 */
+  editorLineHeightRatio: number
+  /** 等宽字体族；空串表示用内置的等宽栈 */
+  editorFontFamily: string
+  isEditorLigaturesEnabled: boolean
+  /** 资源管理器是否显示 `.` 开头的隐藏条目 */
+  isHiddenVisible: boolean
 }
 
 interface SignboardChrome {

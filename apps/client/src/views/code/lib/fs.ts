@@ -6,20 +6,35 @@ import {
   readTextFile,
   remove,
   rename,
+  stat,
   writeTextFile,
   type DirEntry
 } from '@tauri-apps/plugin-fs'
 
+import { MAX_OPEN_BYTES, hasBinaryExtension, looksBinary } from '@/views/code/lib/file-limits.ts'
 import {
   findFileName,
   findParentDir,
   isPathInsideRoot,
+  isSamePath,
   joinPath,
   normalizeSeparators
 } from '@/views/code/lib/path.ts'
 
 async function readCodeFile(path: string): Promise<string> {
-  return readTextFile(path)
+  if (hasBinaryExtension(path)) {
+    throw new Error('这是二进制文件，无法在编辑器中打开')
+  }
+  // 先看体量，避免把超大文件整份读进内存
+  const info = await stat(path)
+  if (info.size > MAX_OPEN_BYTES) {
+    throw new Error('文件过大，无法在编辑器中打开')
+  }
+  const content = await readTextFile(path)
+  if (looksBinary(content)) {
+    throw new Error('这是二进制文件，无法在编辑器中打开')
+  }
+  return content
 }
 
 async function writeCodeFile(path: string, content: string): Promise<void> {
@@ -51,7 +66,11 @@ interface TreeEntry {
   isDirectory: boolean
 }
 
-async function listWorkspaceEntries(root: string, relative: string): Promise<TreeEntry[]> {
+async function listWorkspaceEntries(
+  root: string,
+  relative: string,
+  options: { isHiddenVisible?: boolean } = {}
+): Promise<TreeEntry[]> {
   const absolute = relative ? joinPath(root, relative) : root
   if (!isPathInsideRoot(root, absolute)) {
     throw new Error('Path escapes workspace root')
@@ -59,7 +78,7 @@ async function listWorkspaceEntries(root: string, relative: string): Promise<Tre
   const entries: DirEntry[] = await readDir(absolute)
   const mapped: TreeEntry[] = []
   for (const entry of entries) {
-    if (entry.name.startsWith('.')) continue
+    if (!options.isHiddenVisible && entry.name.startsWith('.')) continue
     mapped.push({
       name: entry.name,
       path: relative ? `${relative}/${entry.name}` : entry.name,
@@ -85,6 +104,7 @@ async function searchWorkspaceFiles(params: {
   query: string
   depth?: number
   limit?: number
+  isHiddenVisible?: boolean
 }): Promise<SearchHit[]> {
   const query = params.query.trim().toLowerCase()
   if (!query) return []
@@ -96,7 +116,9 @@ async function searchWorkspaceFiles(params: {
     if (hits.length >= limit || depth > maxDepth) return
     let entries: TreeEntry[]
     try {
-      entries = await listWorkspaceEntries(params.root, relative)
+      entries = await listWorkspaceEntries(params.root, relative, {
+        isHiddenVisible: params.isHiddenVisible
+      })
     } catch (error) {
       console.debug('[code] skip unreadable dir', relative, error)
       return
@@ -119,10 +141,6 @@ async function searchWorkspaceFiles(params: {
 
   await walk('', 0)
   return hits
-}
-
-function isSamePath(a: string, b: string): boolean {
-  return normalizeSeparators(a).toLowerCase() === normalizeSeparators(b).toLowerCase()
 }
 
 async function createCodeFile(root: string, relativeDir: string, name: string): Promise<string> {

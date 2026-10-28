@@ -8,19 +8,21 @@ import { clsx } from 'clsx'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 
-import { formatBindingText } from '@/keyboard/binding'
-import { SHORTCUT_COMMAND, resolveBinding } from '@/keyboard/definitions'
 import { useCommands } from '@/keyboard/react'
+import { useCodeGitStore } from '@/stores/code-git'
 import { useCodeStore } from '@/stores/code'
 import { useSettingsStore } from '@/stores/setting'
 import { useTerminalStore } from '@/stores/terminal'
+import { hint } from '@/views/code/lib/bindings.ts'
 import { CODE_COMMANDS } from '@/views/code/lib/commands.ts'
 import { readCodeFile } from '@/views/code/lib/fs.ts'
 import { disposeAllModels, findModel, findOrCreateModel } from '@/views/code/lib/monaco-models.ts'
 import { openAbsolutePath } from '@/views/code/lib/open-file.ts'
 import { ActivityBar } from '@/views/code/workspace/activity-bar.tsx'
-import { CommandPalette } from '@/views/code/workspace/command-palette.tsx'
 import { Breadcrumbs } from '@/views/code/workspace/breadcrumbs.tsx'
+import { CloseConfirmDialog } from '@/views/code/workspace/close-confirm.tsx'
+import { CommandPalette } from '@/views/code/workspace/command-palette.tsx'
+import { DiffHost } from '@/views/code/workspace/diff-host.tsx'
 import { EditorTabs } from '@/views/code/workspace/editor-tabs.tsx'
 import { MonacoHost } from '@/views/code/workspace/monaco-host.tsx'
 import { Panel } from '@/views/code/workspace/panel.tsx'
@@ -50,16 +52,14 @@ export default function Code() {
   const activeTab = tabs.find(function (tab) {
     return tab.id === activeTabId
   })
+  const diff = useCodeGitStore(function (state) {
+    return state.diff
+  })
 
   // 只为订阅覆盖值：用户改了键位，下面的空态提示要跟着变
   useSettingsStore(function (state) {
     return state.settings.shortcuts.bindings
   })
-
-  /** 空态提示直接读键位表，不再手写「Ctrl+P」这类会漂移的文案 */
-  function hint(id: keyof typeof SHORTCUT_COMMAND, label: string): string {
-    return `${formatBindingText(resolveBinding(SHORTCUT_COMMAND[id]))} ${label}`
-  }
 
   useEffect(function () {
     return function () {
@@ -223,6 +223,7 @@ export default function Code() {
   return (
     <div className={clsx([styles.code, styles.root])}>
       <CommandPalette />
+      <CloseConfirmDialog />
 
       <ResizablePanelGroup
         orientation="vertical"
@@ -266,6 +267,7 @@ export default function Code() {
                       </div>
                     ) : null}
                     <MonacoHost />
+                    {diff ? <DiffHost /> : null}
                   </div>
                 </div>
               </ResizablePanel>

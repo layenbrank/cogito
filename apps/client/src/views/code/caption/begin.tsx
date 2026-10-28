@@ -7,6 +7,7 @@ import { cn } from 'cn'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 import { useShowsTileSession } from '@/features/magnetic-tile/session-bar'
 import { useCodeStore } from '@/stores/code'
+import { findBindingText } from '@/views/code/lib/bindings.ts'
 
 function CodeCaptionBegin() {
   const showsSession = useShowsTileSession()
@@ -28,7 +29,7 @@ function CodeCaptionBegin() {
         onClick={function () {
           useCodeStore.getState().toSetPaletteMode('file')
         }}>
-        搜索文件…（Ctrl+P）
+        搜索文件…（{findBindingText('CODE_PALETTE_FILES')}）
       </button>
     </div>
   )

@@ -15,11 +15,12 @@ import { Button } from '@cogito/design/components/button'
 import { Input } from '@cogito/design/components/input'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ContextMenu, type MenuItem } from '@/components/contextmenu'
 import { useCodeStore } from '@/stores/code'
+import { hint } from '@/views/code/lib/bindings.ts'
 import {
   createCodeFile,
   createCodeFolder,
@@ -28,14 +29,14 @@ import {
   isSamePath,
   joinPath,
   listWorkspaceEntries,
-  normalizeSeparators,
   pickRootDirectory,
   removeCodePath,
-  renameCodePath
+  renameCodePath,
+  type TreeEntry
 } from '@/views/code/lib/fs.ts'
 import { disposeModel, relocateModel } from '@/views/code/lib/monaco-models.ts'
 import { openAbsolutePath } from '@/views/code/lib/open-file.ts'
-import { findRelativePath, isPathInsideRoot } from '@/views/code/lib/path.ts'
+import { findRelativePath, relocatePath } from '@/views/code/lib/path.ts'
 import {
   FileTreeItem,
   type FileTreeNode
@@ -80,13 +81,32 @@ function findAbsoluteFromKey(root: string, treeKey: string): string {
   return joinPath(root, treeKey)
 }
 
-function findRelocatedPath(tabPath: string, fromPath: string, toPath: string): string | null {
-  if (isSamePath(tabPath, fromPath)) return toPath
-  if (!isPathInsideRoot(fromPath, tabPath)) return null
-  const fromNorm = normalizeSeparators(fromPath).replace(/\/+$/, '')
-  const tabNorm = normalizeSeparators(tabPath)
-  const suffix = tabNorm.slice(fromNorm.length)
-  return `${normalizeSeparators(toPath).replace(/\/+$/, '')}${suffix}`
+function toTreeNode(entry: TreeEntry): FileTreeNode {
+  return {
+    title: entry.name,
+    key: entry.path,
+    isLeaf: !entry.isDirectory,
+    isDirectory: entry.isDirectory
+  }
+}
+
+/** 层级深度：用于让父目录先于子目录重读 */
+function countDepth(key: string): number {
+  if (key === ROOT_KEY) return 0
+  return key.split('/').length
+}
+
+/** 丢弃未展开目录的子节点缓存，下次展开时按需重读 */
+function pruneCollapsedNodes(nodes: FileTreeNode[], expandedKeys: Set<string>): FileTreeNode[] {
+  return nodes.map(function (node) {
+    if (!node.children) return node
+    const isExpanded = expandedKeys.has(node.key)
+    return {
+      ...node,
+      children: isExpanded ? pruneCollapsedNodes(node.children, expandedKeys) : undefined,
+      isLoaded: isExpanded ? node.isLoaded : false
+    }
+  })
 }
 
 function DeleteConfirmDialog(props: {
@@ -161,6 +181,25 @@ function ExplorerTree(props: ExplorerTreeProps) {
   const toBumpTree = useCodeStore(function (state) {
     return state.toBumpTree
   })
+  const treeRevision = useCodeStore(function (state) {
+    return state.treeRevision
+  })
+  const expandedKeys = useCodeStore(function (state) {
+    return state.expandedKeys
+  })
+  const isHiddenVisible = useCodeStore(function (state) {
+    return state.isHiddenVisible
+  })
+  const toToggleExpanded = useCodeStore(function (state) {
+    return state.toToggleExpanded
+  })
+
+  const expandedSet = useMemo(
+    function () {
+      return new Set(expandedKeys)
+    },
+    [expandedKeys]
+  )
 
   const [treeNodes, setTreeNodes] = useState<FileTreeNode[]>(function () {
     const folder = props.workspaceRoot.split(/[\\/]/).filter(Boolean).pop() ?? '工作区'
@@ -190,15 +229,10 @@ function ExplorerTree(props: ExplorerTreeProps) {
     if (node.children) return
     const relativePath = node.key === ROOT_KEY ? '' : node.key
     try {
-      const entries = await listWorkspaceEntries(props.workspaceRoot, relativePath)
-      const nextChildren: FileTreeNode[] = entries.map(function (entry) {
-        return {
-          title: entry.name,
-          key: entry.path,
-          isLeaf: !entry.isDirectory,
-          isDirectory: entry.isDirectory
-        }
+      const entries = await listWorkspaceEntries(props.workspaceRoot, relativePath, {
+        isHiddenVisible
       })
+      const nextChildren: FileTreeNode[] = entries.map(toTreeNode)
       setTreeNodes(function (origin) {
         return updateFileTreeNodes(origin, node.key, nextChildren)
       })
@@ -206,6 +240,45 @@ function ExplorerTree(props: ExplorerTreeProps) {
       toast.error(error instanceof Error ? error.message : '读取目录失败')
     }
   }
+
+  // 磁盘变化后重读「根 + 已展开目录」，不再靠重挂载整棵树（否则展开状态全丢）
+  useEffect(
+    function () {
+      let cancelled = false
+      // 展开状态从 store 现取：把它放进依赖会让每次展开/折叠都触发整棵树重读
+      const currentExpanded = useCodeStore.getState().expandedKeys
+      const currentExpandedSet = new Set(currentExpanded)
+      const keys = [ROOT_KEY, ...currentExpanded].sort(function (a, b) {
+        return countDepth(a) - countDepth(b)
+      })
+      void (async function () {
+        // 先丢弃未展开目录的缓存，下次展开时按需重读，避免看到旧内容
+        setTreeNodes(function (origin) {
+          return pruneCollapsedNodes(origin, currentExpandedSet)
+        })
+        for (const key of keys) {
+          const relativePath = key === ROOT_KEY ? '' : key
+          try {
+            const entries = await listWorkspaceEntries(props.workspaceRoot, relativePath, {
+              isHiddenVisible
+            })
+            if (cancelled) return
+            const nextChildren = entries.map(toTreeNode)
+            setTreeNodes(function (origin) {
+              return updateFileTreeNodes(origin, key, nextChildren)
+            })
+          } catch (error) {
+            if (cancelled) return
+            console.debug('[code] refresh tree node skipped', key, error)
+          }
+        }
+      })()
+      return function () {
+        cancelled = true
+      }
+    },
+    [treeRevision, props.workspaceRoot, isHiddenVisible]
+  )
 
   async function onConfirmCreate() {
     if (!createTarget) return
@@ -273,7 +346,7 @@ function ExplorerTree(props: ExplorerTreeProps) {
       const store = useCodeStore.getState()
       const snapshot = store.tabs.slice()
       for (const tab of snapshot) {
-        const relocated = findRelocatedPath(tab.path, renameTarget.absolute, next)
+        const relocated = relocatePath(tab.path, renameTarget.absolute, next)
         if (!relocated) continue
         relocateModel(tab.path, relocated)
       }
@@ -390,8 +463,10 @@ function ExplorerTree(props: ExplorerTreeProps) {
                 key={node.key}
                 node={node}
                 activeKey={props.activeKey}
+                expandedKeys={expandedSet}
                 onLoad={onLoad}
                 onSelect={onSelect}
+                onExpandChange={toToggleExpanded}
               />
             )
           })}
@@ -449,9 +524,6 @@ function Navigation() {
   const workspaceRoot = useCodeStore(function (state) {
     return state.workspaceRoot
   })
-  const treeRevision = useCodeStore(function (state) {
-    return state.treeRevision
-  })
   const tabs = useCodeStore(function (state) {
     return state.tabs
   })
@@ -491,14 +563,13 @@ function Navigation() {
           }}>
           打开文件夹
         </Button>
-        <p className="opacity-70">Ctrl+O</p>
+        <p className="opacity-70">{hint('CODE_OPEN_FOLDER', '打开文件夹')}</p>
       </div>
     )
   }
 
   return (
     <ExplorerTree
-      key={`${workspaceRoot}:${treeRevision}`}
       workspaceRoot={workspaceRoot}
       activeKey={activeKey}
     />

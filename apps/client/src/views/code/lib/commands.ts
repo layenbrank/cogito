@@ -14,7 +14,9 @@ import type { Command } from '@/keyboard/types'
 import { useCodeStore } from '@/stores/code'
 import { useTerminalStore } from '@/stores/terminal'
 import { pickOpenFile, pickRootDirectory, writeCodeFile } from '@/views/code/lib/fs.ts'
-import { disposeModel, findModel } from '@/views/code/lib/monaco-models.ts'
+import { requestCloseTabs } from '@/views/code/lib/close-tabs.ts'
+import { findModel } from '@/views/code/lib/monaco-models.ts'
+import { runEditorAction } from '@/views/code/lib/monaco-instance.ts'
 import { openAbsolutePath } from '@/views/code/lib/open-file.ts'
 
 async function saveActiveTab(): Promise<void> {
@@ -29,6 +31,10 @@ async function saveActiveTab(): Promise<void> {
   const model = findModel(tab.path)
   if (!model) {
     toast.error('编辑器模型不存在')
+    return
+  }
+  if (useCodeStore.getState().isLargeFile) {
+    toast.message('文件过大，已以只读方式打开')
     return
   }
   await writeCodeFile(tab.path, model.getValue())
@@ -54,16 +60,7 @@ async function openFolderDialog(): Promise<void> {
 function closeActiveTab(): void {
   const store = useCodeStore.getState()
   if (!store.activeTabId) return
-  const tab = store.tabs.find(function (item) {
-    return item.id === store.activeTabId
-  })
-  if (!tab) return
-  if (tab.isDirty) {
-    const confirmed = window.confirm(`「${tab.title}」有未保存更改，确定关闭？`)
-    if (!confirmed) return
-  }
-  disposeModel(tab.path)
-  store.toCloseTab(tab.id)
+  requestCloseTabs([store.activeTabId])
 }
 
 function toggleTerminal(): void {
@@ -85,6 +82,18 @@ function openCommandPalette(): void {
 
 function openFilePalette(): void {
   useCodeStore.getState().toSetPaletteMode('file')
+}
+
+/**
+ * 查找 / 替换面板由 Monaco 原生提供。
+ *
+ * 这里只做「命令面板可调起」：Ctrl+F / Ctrl+H 交给 Monaco 自己的键位，
+ * 若再注册到全局派发器，一次按键会触发两次。
+ */
+function openFindWidget(isReplace: boolean): void {
+  const actionID = isReplace ? 'editor.action.startFindReplaceAction' : 'actions.find'
+  if (runEditorAction(actionID)) return
+  toast.message('先打开一个文件')
 }
 
 const CODE_COMMANDS: Command[] = [
@@ -115,6 +124,24 @@ const CODE_COMMANDS: Command[] = [
     keywords: 'close tab',
     group: '文件',
     run: closeActiveTab
+  },
+  {
+    id: SHORTCUT_COMMAND.CODE_FIND,
+    title: '编辑: 查找',
+    keywords: 'find search',
+    group: '编辑',
+    run: function () {
+      openFindWidget(false)
+    }
+  },
+  {
+    id: SHORTCUT_COMMAND.CODE_FIND_REPLACE,
+    title: '编辑: 查找并替换',
+    keywords: 'find replace',
+    group: '编辑',
+    run: function () {
+      openFindWidget(true)
+    }
   },
   {
     id: SHORTCUT_COMMAND.CODE_PALETTE_COMMANDS,
@@ -155,6 +182,15 @@ const CODE_COMMANDS: Command[] = [
     group: '查看',
     run: function () {
       useCodeStore.getState().toSetSidebarView('search')
+    }
+  },
+  {
+    id: SHORTCUT_COMMAND.CODE_SCM,
+    title: '查看: 源代码管理',
+    keywords: 'git scm source control',
+    group: '查看',
+    run: function () {
+      useCodeStore.getState().toSetSidebarView('scm')
     }
   },
   {
