@@ -1,5 +1,5 @@
 /**
- * Markdown 窗 Caption 右侧（Decorations.final）：布局开关 + 偏好。
+ * 知识库窗 Caption 右侧（Decorations.final）：布局开关 + 面板 / 助手开关。
  * 对齐 VS Code 标题栏 Layout Control；应用菜单在 begin 最左侧。
  */
 import { Icon } from '@iconify/react/offline'
@@ -10,13 +10,12 @@ import {
   TooltipTrigger
 } from '@cogito/design/components/tooltip'
 import { cn } from 'cn'
-import { useState } from 'react'
 
 import { useDockStore } from '@/features/agent/dock'
 
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { t } from '@/views/knowledge/locale.ts'
-import { KnowledgeHub } from '@/views/knowledge/hub/knowledge-hub.tsx'
+import { usePanelStore } from '@/views/knowledge/panel/store.ts'
 
 interface LayoutButtonProps {
   label: string
@@ -72,11 +71,12 @@ function KnowledgeCaptionFinal() {
   const toToggleOutline = useKnowledgeStore(function (state) {
     return state.toToggleOutline
   })
-  const toSetPrefsOpen = useKnowledgeStore(function (state) {
-    return state.toSetPrefsOpen
+  const isPanelOpen = usePanelStore(function (state) {
+    return state.isOpen
   })
-  // 知识库面板是「库级」操作（列表/检索/待发布草稿），与编辑器偏好分开入口
-  const [isHubOpen, setIsHubOpen] = useState(false)
+  const toTogglePanel = usePanelStore(function (state) {
+    return state.toToggle
+  })
 
   if (isFocusMode) return null
 
@@ -101,17 +101,9 @@ function KnowledgeCaptionFinal() {
       <LayoutButton
         label="知识库"
         icon="lucide:library-big"
-        isPressed={isHubOpen}
+        isPressed={isPanelOpen}
         onClick={function () {
-          setIsHubOpen(true)
-        }}
-      />
-      <LayoutButton
-        label={t('PREFERENCES')}
-        icon="lucide:settings-2"
-        isPressed={false}
-        onClick={function () {
-          toSetPrefsOpen(true)
+          toTogglePanel()
         }}
       />
       <LayoutButton
@@ -121,10 +113,6 @@ function KnowledgeCaptionFinal() {
         onClick={function () {
           useDockStore.getState().toToggle()
         }}
-      />
-      <KnowledgeHub
-        open={isHubOpen}
-        onOpenChange={setIsHubOpen}
       />
     </div>
   )

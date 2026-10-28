@@ -30,7 +30,6 @@ interface KnowledgeSession {
   findReplace: string
   fileQuery: string
   isFindOpen: boolean
-  isPrefsOpen: boolean
   externalChanged: boolean
   isLargeFile: boolean
   /** 当前文档在知识库里的行引用（保存时用 hash 判冲突）；普通文件为 null */
@@ -72,7 +71,6 @@ interface KnowledgeStore extends KnowledgeSession, KnowledgePreferences {
   toSetFindQuery: (query: string) => void
   toSetFindReplace: (value: string) => void
   toSetFileQuery: (query: string) => void
-  toSetPrefsOpen: (isOpen: boolean) => void
   toSetExternalChanged: (isChanged: boolean) => void
   toSetActiveDoc: (doc: KnowledgeDocRef | null) => void
   toSetSaveConflict: (isConflict: boolean) => void
@@ -121,7 +119,6 @@ const useKnowledgeStore = create<KnowledgeStore>()(
         findReplace: '',
         fileQuery: '',
         isFindOpen: false,
-        isPrefsOpen: false,
         externalChanged: false,
         isLargeFile: false,
         activeDoc: null,
@@ -385,16 +382,6 @@ const useKnowledgeStore = create<KnowledgeStore>()(
             },
             false,
             'toSetFileQuery'
-          )
-        },
-
-        toSetPrefsOpen(isOpen) {
-          setters(
-            function (state) {
-              state.isPrefsOpen = isOpen
-            },
-            false,
-            'toSetPrefsOpen'
           )
         },
 

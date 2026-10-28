@@ -29,13 +29,13 @@ import {
 } from '@/views/knowledge/lib/session.ts'
 import { t } from '@/views/knowledge/locale.ts'
 import { DiscardDialog } from '@/views/knowledge/workspace/discard-dialog.tsx'
+import { setEditorBridge } from '@/views/knowledge/workspace/editor-context.ts'
 import { EmptyState } from '@/views/knowledge/workspace/empty-state.tsx'
 import { ExternalDialog } from '@/views/knowledge/workspace/external-dialog.tsx'
 import { findMarkdownExtensions } from '@/views/knowledge/workspace/extensions.ts'
 import { FindBar } from '@/views/knowledge/workspace/find-bar.tsx'
 import { FocusExit } from '@/views/knowledge/workspace/focus-exit.tsx'
 import { Overlay } from '@/views/knowledge/workspace/overlay/index.ts'
-import { PreferencesSheet } from '@/views/knowledge/workspace/preferences-sheet.tsx'
 import { SourceEditor } from '@/views/knowledge/workspace/source-editor.tsx'
 import { useKnowledgeCommands } from '@/views/knowledge/workspace/use-knowledge-commands.ts'
 
@@ -47,7 +47,7 @@ type WorkspaceState = ReturnType<typeof useKnowledgeStore.getState>
 
 /**
  * 工作区文档级副作用：编辑器灌入、偏好加载、?url 还原、窗口标题、关闭拦截、
- * 自动保存、周期备份与外部文件监听。
+ * 自动保存与外部文件监听。
  */
 function useKnowledgeDocumentEffects(input: {
   composer: Editor | null
@@ -687,6 +687,38 @@ export default function KnowledgeWorkspace() {
     [isTypographyEnabled]
   )
 
+  // 编辑器 ↔ 对话坞的桥：坞按需读「当前文档/选区」，并把结果写回光标处/选区
+  useEffect(
+    function () {
+      if (!composer) {
+        setEditorBridge(null)
+        return
+      }
+      setEditorBridge({
+        findContext: function () {
+          const { from, to } = composer.state.selection
+          return {
+            path: useKnowledgeStore.getState().activePath,
+            content: composer.getText(),
+            selection: from === to ? '' : composer.state.doc.textBetween(from, to, '\n')
+          }
+        },
+        apply: function (text) {
+          const { from, to } = composer.state.selection
+          if (from === to) {
+            composer.chain().focus().insertContent(text).run()
+            return
+          }
+          composer.chain().focus().insertContentAt({ from, to }, text).run()
+        }
+      })
+      return function () {
+        setEditorBridge(null)
+      }
+    },
+    [composer]
+  )
+
   useKnowledgeDocumentEffects({
     composer,
     composerRef,
@@ -805,7 +837,6 @@ export default function KnowledgeWorkspace() {
         />
       )}
 
-      <PreferencesSheet />
       <DiscardDialog
         open={discardOpen}
         onOpenChange={setDiscardOpen}

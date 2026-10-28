@@ -6,6 +6,7 @@ import { AgentDock } from '@/features/agent/dock'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { KnowledgeCaptionBegin } from '@/views/knowledge/caption/begin.tsx'
 import { KnowledgeCaptionFinal } from '@/views/knowledge/caption/final.tsx'
+import { KnowledgePanel } from '@/views/knowledge/panel/index.tsx'
 import { useKnowledgeDockScope } from '@/views/knowledge/workspace/dock-scope.ts'
 import Summary from '@/views/knowledge/workspace/overlay/summary.tsx'
 import styles from '@/views/knowledge/markdown.module.scss'
@@ -48,6 +49,7 @@ export default function Knowledge() {
       sectionClassName="justify-stretch gap-0 border-border/50 bg-background/70 p-0 backdrop-blur-md"
       scrollable={false}>
       <div className={styles.workspace}>
+        <KnowledgePanel />
         <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
           <Fallback.ErrorBoundary
             title="Markdown 编辑器出现问题"

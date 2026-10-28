@@ -20,6 +20,48 @@ import { DockRuntime } from './runtime'
 import { useDockStore } from './store'
 import type { DockAction, DockScope } from './types'
 
+/** 把最后一条助手回复写回宿主（知识库 = 插入/替换选区）。没有落点的域不渲染 */
+function DockApply({ scope }: { scope: DockScope }) {
+  const lastAssistant = useAuiState(function (state) {
+    const messages = state.thread.messages
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index]
+      if (message.role !== 'assistant') continue
+      const text = message.content
+        .map(function (part) {
+          return part.type === 'text' ? part.text : ''
+        })
+        .join('')
+        .trim()
+      if (text) return text
+    }
+    return ''
+  })
+  const isRunning = useAuiState(function (state) {
+    return state.thread.isRunning
+  })
+
+  if (!scope.toApply) return null
+
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="secondary"
+      disabled={!lastAssistant || isRunning}
+      title="把上一条回复写进编辑器（一次操作，可撤销）"
+      onClick={function () {
+        scope.toApply?.(lastAssistant)
+      }}>
+      <Icon
+        icon="lucide:corner-down-left"
+        className="size-3.5"
+      />
+      应用到文档
+    </Button>
+  )
+}
+
 /** 把这一轮最新的用户消息带到完整会话（dock → 聊天页的唯一交接口） */
 function DockEscalate() {
   const lastUser = useAuiState(function (state) {
@@ -57,7 +99,6 @@ function DockEscalate() {
     </Button>
   )
 }
-
 function DockWelcome({ scope }: { scope: DockScope }) {
   return (
     <div className="flex flex-col items-center gap-2 py-8 text-center">
@@ -129,7 +170,7 @@ function AgentDock(props: { className?: string }) {
       aria-hidden={!isOpen}
       className={clsx(
         'flex h-full min-h-0 flex-col border-border bg-background',
-        isOpen ? 'w-96 border-l' : 'pointer-events-none w-0 overflow-hidden opacity-0',
+        isOpen ? 'w-80 border-l' : 'pointer-events-none w-0 overflow-hidden opacity-0',
         props.className
       )}>
       <header className="flex items-center gap-1 border-b border-border px-2 py-1.5">
@@ -178,7 +219,8 @@ function AgentDock(props: { className?: string }) {
               }}
             />
           </div>
-          <div className="flex justify-end border-t border-border px-2 py-1">
+          <div className="flex items-center justify-between gap-1 border-t border-border px-2 py-1">
+            <DockApply scope={scope} />
             <DockEscalate />
           </div>
         </DockRuntime>

@@ -1,13 +1,14 @@
 /**
- * 知识库磁贴的 dock 绑定：把「当前库 + 当前文档」变成一键动作。
+ * 知识库磁贴的 dock 绑定：把「当前文档 + 选区」变成一键动作。
  *
- * 全部动作都读**实时** store（打开文档/切库后立即生效），所以 scope 只需注册一次。
+ * 全部动作都读**实时**上下文（编辑器桥 + store），所以 scope 只需注册一次。
  */
 import { useEffect } from 'react'
+import { toast } from 'sonner'
 
 import { useDockStore, type DockScope } from '@/features/agent/dock'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
-import { useKnowledgeStore } from '@/stores/knowledge'
+import { applyToEditor, findEditorContext } from '@/views/knowledge/workspace/editor-context.ts'
 
 /** 知识库域的会话提示：只做内容，不碰别的域 */
 const SYSTEM_TEXT = `你是 cogito 知识库里写作助手，与「知识库」磁贴共用同一个库目录。
@@ -17,15 +18,6 @@ const SYSTEM_TEXT = `你是 cogito 知识库里写作助手，与「知识库」
 - 要落文件时用 app_knowledge_write_doc：它只写待发布草稿（staging），不要声称已经发布；
 - 用户确认后由界面发布，你只负责把内容写对、写清楚；
 - 回答保持简洁；跨文档的问题先检索再答，并指出引用了哪些文档。`
-
-/** 当前打开文档的正文（没有就返回空串） */
-function findActiveContent(): string {
-  return useKnowledgeStore.getState().markdown.trim()
-}
-
-function findActivePath(): string | null {
-  return useKnowledgeStore.getState().activePath
-}
 
 function findBaseName(): string {
   const state = useKnowledgeBaseStore.getState()
@@ -53,18 +45,24 @@ function useKnowledgeDockScope(): void {
       const scope: DockScope = {
         key: 'knowledge',
         title: '知识库助手',
-        hint: '总结、续写、改写都在这；结果留在对话里，确认后才落到文档。',
+        hint: '总结、续写、改写都在这；结果留在对话里，点「应用到文档」才落到正文。',
         systemText: SYSTEM_TEXT,
+        toApply: function (text) {
+          if (!applyToEditor(text)) {
+            toast.error('先把要改的文档打开，再应用结果')
+            return
+          }
+          toast.success('已写入编辑器（可 Ctrl+Z 撤销）')
+        },
         actions: [
           {
             id: 'summarize',
             label: '总结这篇',
             icon: 'lucide:list-tree',
             buildPrompt: function () {
-              const path = findActivePath()
-              const content = findActiveContent()
-              if (!path || !content) return null
-              return `请总结这篇文档的要点（3–6 条），并指出结构上最该改的一处。\n\n文档：${path}\n\n${slice(content, 6_000)}`
+              const context = findEditorContext()
+              if (!context.path || !context.content) return null
+              return `请总结这篇文档的要点（3–6 条），并指出结构上最该改的一处。\n\n文档：${context.path}\n\n${slice(context.content, 6_000)}`
             }
           },
           {
@@ -72,22 +70,31 @@ function useKnowledgeDockScope(): void {
             label: '接着写',
             icon: 'lucide:pen-line',
             buildPrompt: function () {
-              const path = findActivePath()
-              const content = findActiveContent()
-              if (!path || !content) return null
+              const context = findEditorContext()
+              if (!context.path || !context.content) return null
               // 续写只看文末一段：全文给模型只会让它重写整篇
-              return `接在下面这段之后继续写（保持同样的语气与术语，不要重复已写内容，只输出新增部分）。\n\n文档：${path}\n\n${content.slice(-2_000)}`
+              return `接在下面这段之后继续写（保持同样的语气与术语，不要重复已写内容，只输出新增部分，不要解释）。\n\n文档：${context.path}\n\n${context.content.slice(-2_000)}`
             }
           },
           {
-            id: 'outline',
-            label: '改大纲',
-            icon: 'lucide:heading',
+            id: 'rewrite',
+            label: '改写选区',
+            icon: 'lucide:wand-sparkles',
             buildPrompt: function () {
-              const path = findActivePath()
-              const content = findActiveContent()
-              if (!path || !content) return null
-              return `按现有小标题整理这份文档的大纲（层级用列表表示），标出重复或该合并的小节。\n\n文档：${path}\n\n${slice(content, 4_000)}`
+              const context = findEditorContext()
+              const selected = context.selection.trim()
+              if (!selected) return null
+              return `把下面这段改写得更清楚、更简洁（保留原意与术语，只输出改写后的正文，不要解释）。\n\n${slice(selected, 4_000)}`
+            }
+          },
+          {
+            id: 'ask',
+            label: '问这篇',
+            icon: 'lucide:message-circle-question',
+            buildPrompt: function () {
+              const context = findEditorContext()
+              if (!context.path || !context.content) return null
+              return `基于下面这篇文档回答我的问题（如果文档里没有依据，直说没有，不要编）。\n\n文档：${context.path}\n\n${slice(context.content, 6_000)}\n\n问题：`
             }
           },
           {

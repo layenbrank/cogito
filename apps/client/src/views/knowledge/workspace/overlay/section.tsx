@@ -1,3 +1,5 @@
+import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { Separator } from '@cogito/design/components/separator'
 import {
   EditorContext as ComposerContext,
@@ -31,7 +33,7 @@ import { TextButton } from '@/components/tiptap-ui/text-button/text-button.tsx'
 import { TurnIntoDropdown } from '@/components/tiptap-ui/turn-into-dropdown/turn-into-dropdown.tsx'
 import { UndoRedoButton } from '@/components/tiptap-ui/undo-redo-button/undo-redo-button.tsx'
 import { useKnowledgeStore } from '@/stores/knowledge'
-import { AiMenu } from '@/views/knowledge/workspace/ai-menu.tsx'
+import { useDockStore } from '@/features/agent/dock'
 
 import '@/components/tiptap-node/blockquote-node/blockquote-node.scss'
 import '@/components/tiptap-node/code-block-node/code-block-node.scss'
@@ -231,7 +233,24 @@ function FormatToolbar(props: { composer: Editor | null }) {
         orientation="vertical"
         className="mx-0.5 h-auto shrink-0 self-stretch"
       />
-      <AiMenu editor={props.composer} />
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        className="h-7 gap-1 px-1.5 text-xs"
+        title="打开 AI 助手（选中文字时直接改写）"
+        onClick={function () {
+          const editor = props.composer
+          if (!editor) return
+          const { from, to } = editor.state.selection
+          useDockStore.getState().toOpen(from === to ? undefined : 'rewrite')
+        }}>
+        <Icon
+          icon="lucide:sparkles"
+          className="size-3.5"
+        />
+        AI
+      </Button>
     </Glide.X>
   )
 }

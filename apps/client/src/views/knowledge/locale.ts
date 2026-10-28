@@ -61,27 +61,9 @@ const MD_LOCALE = {
   LARGE_FILE_WARN: '文件较大，已切换到源码模式以保证性能。',
   IMAGE_SAVED: '图片已保存到 assets',
   PLACEHOLDER: '开始写作…',
-  PREF_FONT: '字号',
-  PREF_WIDTH: '内容宽度',
-  PREF_AUTOSAVE: '自动保存间隔 (ms)',
-  PREF_TYPOGRAPHY: '智能标点',
-  PREF_ROOT: '当前库目录',
-  PREF_ROOT_HINT: '跟随当前知识库；在知识库面板里切库，或在标题栏菜单里打开文件夹。',
-  PREF_TYPEWRITER: '打字机滚动',
   NO_OUTLINE: '暂无标题',
   RECENT: '最近打开',
-  PRINT: '打印',
-  AI_CONTINUE: 'AI 续写',
-  AI_REWRITE: 'AI 重写选区',
-  AI_SUMMARIZE: 'AI 总结',
-  AI_NEED_SELECTION: '先选中一段正文再试',
-  AI_NEED_CONTEXT: '光标前还没有内容，先写一点再续写',
-  AI_NEED_CONTENT: '当前没有可处理的内容',
-  AI_RUNNING: '正在生成…',
-  AI_PREVIEW_TITLE: 'AI 结果预览',
-  AI_APPLY: '应用',
-  AI_RETRY: '重新生成',
-  AI_FAILED: '生成失败'
+  PRINT: '打印'
 } as const
 
 type MdLocaleKey = keyof typeof MD_LOCALE
