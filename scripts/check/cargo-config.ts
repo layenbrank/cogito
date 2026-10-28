@@ -8,7 +8,7 @@
  * 规则：编译缓存（sccache 等）与工具链包装器属于**个人环境**，由 `~/.cargo/config.toml`
  * 或环境变量决定；仓库只保留与机器无关的构建参数。
  *
- * 用法：`pnpm check:cargo-config`（也可挂进 CI，零依赖、跨平台）。
+ * 用法：`pnpm check:cargo`（也可挂进 CI，零依赖、跨平台）。
  */
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
@@ -40,7 +40,7 @@ for (const file of FILES) {
     text = readFileSync(absolute, 'utf8')
   } catch (error) {
     // 配置缺失不是错误：仓库允许没有 .cargo/config.toml
-    console.debug(`[check:cargo-config] skip ${file}: ${String(error)}`)
+    console.debug(`[check:cargo] skip ${file}: ${String(error)}`)
     continue
   }
   const lines = text.split(/\r?\n/)
@@ -54,9 +54,9 @@ for (const file of FILES) {
 }
 
 if (failures.length > 0) {
-  console.error('[check:cargo-config] 发现机器特定配置：')
+  console.error('[check:cargo] 发现机器特定配置：')
   for (const failure of failures) console.error(`  - ${failure}`)
   process.exitCode = 1
 } else {
-  console.log('[check:cargo-config] OK：仓库 cargo 配置未包含 sccache / rustc 包装器设置')
+  console.log('[check:cargo] OK：仓库 cargo 配置未包含 sccache / rustc 包装器设置')
 }

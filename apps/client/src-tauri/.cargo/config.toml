@@ -3,7 +3,7 @@ target-dir = "target" # 构建输出目录
 
 # 编译缓存（sccache 等）属于**个人环境**，由 `~/.cargo/config.toml` / `RUSTC_WRAPPER` 决定。
 # 不要在这里写 rustc-wrapper / SCCACHE_*：端口在不同设备上未必可绑，会把所有人都卡在
-# 「cargo 探针失败」上。机器差异用 `pnpm check:cargo-config` 拦。
+# 「cargo 探针失败」上。机器差异用 `pnpm check:cargo` 拦。
 
 # Windows (MSVC)
 # [target.x86_64-pc-windows-msvc]

@@ -44,5 +44,5 @@
 
 - **编译缓存不进仓库**：`rustc-wrapper` / `RUSTC_*` / `SCCACHE_*` 一律不写进 `.cargo/config.toml`——这些值因机器而异（端口可能被保留、路径可能不同），写进仓库就会让「换台设备就起不来」。
 - 缓存由个人 `~/.cargo/config.toml` 或环境变量决定；想用 sccache 自己装、自己配。
-- 守卫：`pnpm check:cargo-config`（`dev:client` 会先跑），发现机器特定键即失败并给出替代写法。
+- 守卫：`pnpm check:cargo`（`dev:client` 会先跑），发现机器特定键即失败并给出替代写法。
 - 排查顺序：`sccache --show-stats`（服务在不在）→ 端口能否 `TcpListener` 绑定 → 最后才查环境变量。
