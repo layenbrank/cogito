@@ -67,7 +67,7 @@ function TableHandleMenuContent({
           aria-expanded={isMenuOpen}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}>
-          <MoreVerticalIcon className="tiptap-button-icon" />
+          <MoreVerticalIcon className="size-3.5 shrink-0" />
         </MenuButton>
       }>
       <TableActionMenu />

@@ -23,6 +23,7 @@ import {
 import { Button } from '@/components/tiptap-ui-primitive/button/button.tsx'
 import { ComboboxList } from '@/components/tiptap-ui-primitive/combobox/combobox.tsx'
 import { Separator } from '@/components/tiptap-ui-primitive/separator/separator.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface ActionItemProps {
   icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>
@@ -95,8 +96,8 @@ export const TableAlignMenu = ({
             <MenuItem
               render={
                 <Button data-style="ghost">
-                  <AlignmentIcon className="tiptap-button-icon" />
-                  <span className="tiptap-button-text">Alignment</span>
+                  <AlignmentIcon className="size-3.5 shrink-0" />
+                  <span className="truncate text-xs">{t('EDITOR_ALIGN')}</span>
                   <MenuButtonArrow render={<ChevronRightIcon />} />
                 </Button>
               }
@@ -158,8 +159,8 @@ const ActionItem = ({
     }
     onClick={onClick}
     disabled={disabled}>
-    <Icon className="tiptap-button-icon" />
-    <span className="tiptap-button-text">{label}</span>
+    <Icon className="size-3.5 shrink-0" />
+    <span className="truncate text-xs">{label}</span>
     {shortcutBadge}
   </MenuItem>
 )

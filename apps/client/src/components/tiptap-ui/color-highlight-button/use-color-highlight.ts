@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
 import { type Editor } from '@tiptap/react'
 import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
@@ -16,58 +15,59 @@ import {
 
 // --- Icons ---
 import { HighlighterIcon } from '@/components/tiptap-icons/highlighter-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export const COLOR_HIGHLIGHT_SHORTCUT_KEY = findShortcutDefault(
   SHORTCUT_COMMAND.EDITOR_COLOR_HIGHLIGHT
 )
 export const HIGHLIGHT_COLORS = [
   {
-    label: 'Default background',
+    label: t('EDITOR_DEFAULT_BG'),
     value: 'var(--tt-bg-color)',
     border: 'var(--tt-bg-color-contrast)'
   },
   {
-    label: 'Gray background',
+    label: t('EDITOR_GRAY_BG'),
     value: 'var(--tt-color-highlight-gray)',
     border: 'var(--tt-color-highlight-gray-contrast)'
   },
   {
-    label: 'Brown background',
+    label: t('EDITOR_BROWN_BG'),
     value: 'var(--tt-color-highlight-brown)',
     border: 'var(--tt-color-highlight-brown-contrast)'
   },
   {
-    label: 'Orange background',
+    label: t('EDITOR_ORANGE_BG'),
     value: 'var(--tt-color-highlight-orange)',
     border: 'var(--tt-color-highlight-orange-contrast)'
   },
   {
-    label: 'Yellow background',
+    label: t('EDITOR_YELLOW_BG'),
     value: 'var(--tt-color-highlight-yellow)',
     border: 'var(--tt-color-highlight-yellow-contrast)'
   },
   {
-    label: 'Green background',
+    label: t('EDITOR_GREEN_BG'),
     value: 'var(--tt-color-highlight-green)',
     border: 'var(--tt-color-highlight-green-contrast)'
   },
   {
-    label: 'Blue background',
+    label: t('EDITOR_BLUE_BG'),
     value: 'var(--tt-color-highlight-blue)',
     border: 'var(--tt-color-highlight-blue-contrast)'
   },
   {
-    label: 'Purple background',
+    label: t('EDITOR_PURPLE_BG'),
     value: 'var(--tt-color-highlight-purple)',
     border: 'var(--tt-color-highlight-purple-contrast)'
   },
   {
-    label: 'Pink background',
+    label: t('EDITOR_PINK_BG'),
     value: 'var(--tt-color-highlight-pink)',
     border: 'var(--tt-color-highlight-pink-contrast)'
   },
   {
-    label: 'Red background',
+    label: t('EDITOR_RED_BG'),
     value: 'var(--tt-color-highlight-red)',
     border: 'var(--tt-color-highlight-red-contrast)'
   }
@@ -307,7 +307,7 @@ export function useColorHighlight(config: UseColorHighlightConfig) {
   const handleRemoveHighlight = useCallback(() => {
     const success = removeHighlight(editor, mode)
     if (success) {
-      onApplied?.({ color: '', label: 'Remove highlight', mode })
+      onApplied?.({ color: '', label: t('EDITOR_REMOVE_HIGHLIGHT'), mode })
     }
     return success
   }, [editor, onApplied, mode])
@@ -328,7 +328,7 @@ export function useColorHighlight(config: UseColorHighlightConfig) {
     handleColorHighlight,
     handleRemoveHighlight,
     canColorHighlight: canColorHighlightState,
-    label: label || `Highlight`,
+    label: label || t('EDITOR_HIGHLIGHT'),
     shortcutKeys: COLOR_HIGHLIGHT_SHORTCUT_KEY,
     Icon: HighlighterIcon,
     mode

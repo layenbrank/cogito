@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
@@ -16,6 +15,7 @@ import {
   isNodeTypeSelected,
   sanitizeUrl
 } from '@/lib/tiptap-utils.ts'
+import { t } from '@/views/knowledge/locale.ts'
 
 /**
  * Configuration for the link popover functionality
@@ -280,7 +280,7 @@ export function useLinkPopover(config?: UseLinkPopoverConfig) {
     isVisible,
     canSet,
     isActive,
-    label: 'Link',
+    label: t('EDITOR_LINK'),
     Icon: LinkIcon,
     ...linkHandler
   }

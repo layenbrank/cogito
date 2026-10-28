@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { type Editor } from '@tiptap/react'
 import { getSelectedDOMElement } from '@/lib/tiptap-advanced-utils.ts'
 

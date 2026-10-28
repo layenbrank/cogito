@@ -192,17 +192,10 @@ export function isExtensionAvailable(
     ? extensionNames
     : [extensionNames]
 
-  const found = names.some((name) =>
+  // 静默探测：可选/未注册扩展（AI、mention 等）属预期，不刷 console
+  return names.some((name) =>
     editor.extensionManager.extensions.some((ext) => ext.name === name)
   )
-
-  if (!found) {
-    console.warn(
-      `None of the extensions [${names.join(", ")}] were found in the editor schema. Ensure they are included in the editor configuration.`
-    )
-  }
-
-  return found
 }
 
 /**

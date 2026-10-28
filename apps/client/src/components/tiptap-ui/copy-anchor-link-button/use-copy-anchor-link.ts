@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
@@ -18,6 +17,7 @@ import {
 
 // --- Icons ---
 import { LinkIcon } from '@/components/tiptap-icons/link-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export const COPY_ANCHOR_LINK_SHORTCUT_KEY = findShortcutDefault(
   SHORTCUT_COMMAND.EDITOR_COPY_ANCHOR_LINK
@@ -257,7 +257,7 @@ export function useCopyAnchorLink(config?: UseCopyAnchorLinkConfig) {
     isVisible,
     handleCopyAnchorLink,
     canCopyAnchorLink: canCopyAnchor,
-    label: 'Copy anchor link',
+    label: t('EDITOR_COPY_ANCHOR'),
     shortcutKeys: COPY_ANCHOR_LINK_SHORTCUT_KEY,
     Icon: LinkIcon
   }

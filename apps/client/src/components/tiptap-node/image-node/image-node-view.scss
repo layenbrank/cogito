@@ -1,16 +1,12 @@
 :root {
-  --tiptap-image-handle-bg: var(--tt-brand-color-600);
-}
-
-.dark {
-  --tiptap-image-handle-bg: var(--tt-brand-color-400);
+  --tiptap-image-handle-bg: var(--primary);
 }
 
 .tiptap.ProseMirror {
   .ProseMirror-selectednode .tiptap-image .tiptap-image-container {
     outline: 0.125rem solid transparent;
-    outline-color: var(--tt-brand-color-500);
-    border-radius: var(--tt-radius-xs, 0.25rem);
+    outline-color: var(--primary);
+    border-radius: var(--radius-sm, 0.25rem);
   }
 
   .tiptap-image {
@@ -45,7 +41,7 @@
 
   .tiptap-image-img {
     width: 100%;
-    border-radius: var(--tt-radius-xs, 0.25rem);
+    border-radius: var(--radius-sm, 0.25rem);
   }
 
   .tiptap-image-handle {
@@ -85,7 +81,7 @@
       )::before,
     &:has(> [data-node-view-content-react]:empty)::before {
       content: attr(data-placeholder);
-      color: #9ca3af;
+      color: var(--muted-foreground);
       pointer-events: none;
       position: absolute;
       left: 0;

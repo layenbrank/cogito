@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useEffect, useMemo, useRef } from 'react'
 
 // --- Lib ---
@@ -48,7 +47,7 @@ export const SlashDropdownMenu = (props: SlashDropdownMenuProps) => {
       char="/"
       pluginKey="slashDropdownMenu"
       decorationClass="tiptap-slash-decoration"
-      decorationContent="Filter..."
+      decorationContent={t('EDITOR_SLASH_FILTER')}
       selector="tiptap-slash-dropdown-menu"
       items={({ query, editor }) =>
         filterSuggestionItems(getSlashMenuItems(editor), query)
@@ -95,8 +94,8 @@ const Item = (props: {
       data-style="ghost"
       data-active-state={isSelected ? 'on' : 'off'}
       onClick={onSelect}>
-      {BadgeIcon && <BadgeIcon className="tiptap-button-icon" />}
-      <div className="tiptap-button-text">{item.title}</div>
+      {BadgeIcon && <BadgeIcon className="size-3.5 shrink-0" />}
+      <div className="truncate text-xs">{item.title}</div>
     </Button>
   )
 }
@@ -181,6 +180,7 @@ const List = ({
 
   return (
     <Card
+      surface
       className="tiptap-slash-card"
       style={{
         maxHeight: 'var(--suggestion-menu-max-height)'
@@ -189,3 +189,5 @@ const List = ({
     </Card>
   )
 }
+
+import { t } from '@/views/knowledge/locale.ts'

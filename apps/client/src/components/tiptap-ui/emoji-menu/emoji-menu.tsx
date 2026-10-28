@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -70,7 +69,7 @@ export const EmojiMenuItem = <T extends EmojiItem>(
       ) : (
         <span className="tiptap-button-emoji">{emoji.emoji}</span>
       )}
-      <span className="tiptap-button-text">:{emoji.name}:</span>
+      <span className="truncate text-xs">:{emoji.name}:</span>
     </Button>
   )
 }
@@ -124,13 +123,15 @@ export const EmojiMenu = <T extends EmojiItem>(props: EmojiMenuProps<T>) => {
   }, [filteredEmojis, selectedIndex, onSelect, selector])
 
   return (
-    <Card ref={containerRef}>
+    <Card
+      surface
+      ref={containerRef}>
       {showSearch && (
         <CardHeader>
           <Input
             ref={searchRef}
             type="text"
-            placeholder="Add a emoji reaction..."
+            placeholder={t('EDITOR_EMOJI_SEARCH')}
             value={searchQuery}
             autoFocus
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -147,3 +148,5 @@ export const EmojiMenu = <T extends EmojiItem>(props: EmojiMenuProps<T>) => {
     </Card>
   )
 }
+
+import { t } from '@/views/knowledge/locale.ts'

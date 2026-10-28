@@ -9,7 +9,6 @@ import { watch } from '@tauri-apps/plugin-fs'
 import { useEditor as useComposer, type Editor } from '@tiptap/react'
 import { clsx } from 'clsx'
 import { startTransition, useEffect, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { isMainWindow, MAIN_WINDOW_TITLE } from '@/features/magnetic-tile/session'
@@ -45,9 +44,21 @@ type PendingAction = (() => void) | null
 
 type WorkspaceState = ReturnType<typeof useKnowledgeStore.getState>
 
+function WorkspaceBootstrapSkeleton() {
+  return (
+    <div className="flex h-full min-h-0 animate-pulse flex-col gap-3 bg-background/92 p-6">
+      <div className="h-4 w-40 rounded bg-muted" />
+      <div className="h-3 w-full max-w-xl rounded bg-muted/80" />
+      <div className="h-3 w-full max-w-lg rounded bg-muted/70" />
+      <div className="mt-4 h-3 w-full max-w-2xl rounded bg-muted/60" />
+      <div className="h-3 w-full max-w-md rounded bg-muted/50" />
+    </div>
+  )
+}
+
 /**
- * 工作区文档级副作用：编辑器灌入、偏好加载、?url 还原、窗口标题、关闭拦截、
- * 自动保存与外部文件监听。
+ * 工作区文档级副作用：编辑器灌入、窗口标题、关闭拦截、
+ * 自动保存与外部文件监听。首屏 hydrate / 恢复上次文件由壳层 bootstrap。
  */
 function useKnowledgeDocumentEffects(input: {
   composer: Editor | null
@@ -55,7 +66,6 @@ function useKnowledgeDocumentEffects(input: {
   syncingRef: { current: boolean }
   lastSavedRef: { current: string }
   pendingActionRef: { current: PendingAction }
-  search: string
   activePath: string | null
   rootDir: string | null
   viewMode: WorkspaceState['viewMode']
@@ -63,7 +73,6 @@ function useKnowledgeDocumentEffects(input: {
   isDirty: boolean
   autosaveMs: number
   markdown: string
-  hydratePreferences: WorkspaceState['hydratePreferences']
   toSetExternalChanged: WorkspaceState['toSetExternalChanged']
   toBumpTree: WorkspaceState['toBumpTree']
   setDiscardOpen: (value: boolean) => void
@@ -74,7 +83,6 @@ function useKnowledgeDocumentEffects(input: {
     syncingRef,
     lastSavedRef,
     pendingActionRef,
-    search,
     activePath,
     rootDir,
     viewMode,
@@ -82,7 +90,6 @@ function useKnowledgeDocumentEffects(input: {
     isDirty,
     autosaveMs,
     markdown,
-    hydratePreferences,
     toSetExternalChanged,
     toBumpTree,
     setDiscardOpen
@@ -93,39 +100,6 @@ function useKnowledgeDocumentEffects(input: {
       composerRef.current = composer
     },
     [composer, composerRef]
-  )
-
-  useEffect(
-    function () {
-      hydratePreferences()
-    },
-    [hydratePreferences]
-  )
-
-  // 灌入 tiles 偏好后：消费 ?url=，否则恢复上次打开的文件
-  useEffect(
-    function () {
-      let cancelled = false
-      void (async function () {
-        await useKnowledgeStore.getState().hydrateFromStore()
-        if (cancelled) return
-        const params = new URLSearchParams(search)
-        const url = params.get('url')
-        if (url) {
-          void openPath(decodeURIComponent(url))
-          return
-        }
-        const state = useKnowledgeStore.getState()
-        const recent = state.recentPaths[0]
-        if (recent && !state.hasOpened) {
-          void openPath(recent)
-        }
-      })()
-      return function () {
-        cancelled = true
-      }
-    },
-    [search]
   )
 
   // Window title + close intercept
@@ -421,7 +395,7 @@ function useKnowledgeFileActions(input: {
   }
 }
 
-/** 中栏编辑区：源码 / 实时 / 内部分屏；左右 chrome 在窗壳三列里 */
+/** 中栏编辑区：源码 / 实时 / 内部分屏；左右栏在窗壳三列里 */
 function WorkspaceSurfaces(props: {
   isFindOpen: boolean
   isFocusMode: boolean
@@ -517,7 +491,6 @@ function WorkspaceSurfaces(props: {
 }
 
 export default function KnowledgeWorkspace() {
-  const location = useLocation()
   const composerRef = useRef<Editor | null>(null)
   const [discardOpen, setDiscardOpen] = useState(false)
   const [findPreferReplace, setFindPreferReplace] = useState(false)
@@ -525,6 +498,9 @@ export default function KnowledgeWorkspace() {
   const syncingRef = useRef(false)
   const lastSavedRef = useRef('')
 
+  const isSessionReady = useKnowledgeStore(function (state) {
+    return state.isSessionReady
+  })
   const hasOpened = useKnowledgeStore(function (state) {
     return state.hasOpened
   })
@@ -641,7 +617,6 @@ export default function KnowledgeWorkspace() {
     syncingRef,
     lastSavedRef,
     pendingActionRef,
-    search: location.search,
     activePath,
     rootDir,
     viewMode,
@@ -649,7 +624,6 @@ export default function KnowledgeWorkspace() {
     isDirty,
     autosaveMs,
     markdown,
-    hydratePreferences: useKnowledgeStore.getState().hydratePreferences,
     toSetExternalChanged: useKnowledgeStore.getState().toSetExternalChanged,
     toBumpTree: useKnowledgeStore.getState().toBumpTree,
     setDiscardOpen
@@ -759,7 +733,7 @@ export default function KnowledgeWorkspace() {
     <div className={clsx([styles.markdown, styles.root, 'relative'])}>
       {isFocusMode ? <FocusExit onExit={exitFocusMode} /> : null}
 
-      {isShellVisible ? (
+      {isShellVisible && isSessionReady && hasOpened ? (
         <Overlay.Utility
           onToggleFind={function () {
             setFindPreferReplace(false)
@@ -768,7 +742,9 @@ export default function KnowledgeWorkspace() {
         />
       ) : null}
 
-      {!hasOpened ? (
+      {!isSessionReady ? (
+        <WorkspaceBootstrapSkeleton />
+      ) : !hasOpened ? (
         <EmptyState
           onOpenFile={function () {
             void handleOpenFile()

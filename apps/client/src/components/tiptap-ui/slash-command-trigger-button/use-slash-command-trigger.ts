@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
@@ -19,6 +18,7 @@ import {
   isNodeTypeSelected,
   isValidPosition,
 } from "@/lib/tiptap-utils.ts"
+import { t } from '@/views/knowledge/locale.ts'
 
 export const SLASH_COMMAND_TRIGGER_SHORTCUT_KEY = findShortcutDefault(
   SHORTCUT_COMMAND.EDITOR_SLASH_TRIGGER
@@ -272,7 +272,7 @@ export function useSlashCommandTrigger(config?: UseSlashCommandTriggerConfig) {
     isVisible,
     handleSlashCommand,
     canInsert,
-    label: "Insert block",
+    label: t('EDITOR_INSERT_BLOCK'),
     shortcutKeys: SLASH_COMMAND_TRIGGER_SHORTCUT_KEY,
     trigger,
     Icon: PlusIcon,

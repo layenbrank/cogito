@@ -38,7 +38,7 @@
     width: var(--dot-size-small);
     height: var(--dot-size-small);
 
-    background: var(--tt-brand-color-600);
+    background: var(--primary);
     border-radius: var(--border-radius-full);
     transform: translateY(-50%);
 
@@ -55,7 +55,7 @@
 
     width: var(--button-size);
     height: var(--button-size);
-    color: var(--white);
+    color: var(--primary-foreground);
 
     opacity: 0;
     transform: scale(var(--icon-scale-small));
@@ -99,7 +99,7 @@
   }
 
   &:focus-visible {
-    outline: 2px solid var(--tt-brand-color-600);
+    outline: 2px solid var(--primary);
     outline-offset: 2px;
   }
 

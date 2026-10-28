@@ -14,6 +14,7 @@ import { isExtensionAvailable } from '@/lib/tiptap-utils.ts'
 // --- Icons ---
 import { TableCellMergeIcon } from '@/components/tiptap-icons/table-cell-merge-icon.tsx'
 import { TableCellSplitIcon } from '@/components/tiptap-icons/table-cell-split-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export type MergeSplitAction = 'merge' | 'split'
 
@@ -41,8 +42,8 @@ export interface UseTableMergeSplitCellConfig {
 const REQUIRED_EXTENSIONS = ['table']
 
 export const tableMergeSplitCellLabels: Record<MergeSplitAction, string> = {
-  merge: 'Merge cells',
-  split: 'Split cell'
+  merge: t('EDITOR_TABLE_MERGE'),
+  split: t('EDITOR_TABLE_SPLIT')
 }
 
 export const tableMergeSplitCellIcons = {

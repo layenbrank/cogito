@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { forwardRef, useCallback } from 'react'
@@ -19,6 +18,7 @@ import { ShortcutBadge } from '@/components/tiptap-ui-primitive/badge/shortcut-b
 // --- UI Primitives ---
 import type { ButtonProps } from '@/components/tiptap-ui-primitive/button/button.tsx'
 import { Button } from '@/components/tiptap-ui-primitive/button/button.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface BlockquoteButtonProps
   extends Omit<ButtonProps, 'type'>, UseBlockquoteConfig {
@@ -102,15 +102,15 @@ export const BlockquoteButton = forwardRef<
         data-disabled={!canToggle}
         aria-label={label}
         aria-pressed={isActive}
-        tooltip="Blockquote"
+        tooltip={t('EDITOR_BLOCKQUOTE')}
         shortcutKeys={shortcutKeys}
         onClick={handleClick}
         {...buttonProps}
         ref={ref}>
         {children ?? (
           <>
-            <Icon className="tiptap-button-icon" />
-            {text && <span className="tiptap-button-text">{text}</span>}
+            <Icon className="size-3.5 shrink-0" />
+            {text && <span className="truncate text-xs">{text}</span>}
             {showShortcut && (
               <BlockquoteShortcutBadge shortcutKeys={shortcutKeys} />
             )}

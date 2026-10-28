@@ -102,7 +102,7 @@ const GridCell = ({
     disabled={disabled}
     onMouseEnter={onMouseEnter}
     onClick={onClick}
-    aria-label={`Select ${row + 1}x${col + 1} table`}
+    aria-label={t('EDITOR_TABLE_SELECT_SIZE', { rows: row + 1, cols: col + 1 })}
   />
 )
 
@@ -215,3 +215,5 @@ export const TableGridSelector = forwardRef<
 )
 
 TableGridSelector.displayName = 'TableGridSelector'
+
+import { t } from '@/views/knowledge/locale.ts'

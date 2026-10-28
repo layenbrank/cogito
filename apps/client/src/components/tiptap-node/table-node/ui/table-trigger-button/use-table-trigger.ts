@@ -10,6 +10,7 @@ import { isExtensionAvailable } from '@/lib/tiptap-utils.ts'
 
 // --- Icons ---
 import { TableIcon } from '@/components/tiptap-icons/table-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 const REQUIRED_EXTENSIONS = ['table']
 
@@ -172,7 +173,7 @@ export function useTableTriggerButton(config?: UseTableTriggerButtonConfig) {
     handleCellHover,
     handleCellClick,
     resetHoveredCell,
-    label: 'Insert table',
+    label: t('EDITOR_INSERT_TABLE'),
     Icon: TableIcon
   }
 }

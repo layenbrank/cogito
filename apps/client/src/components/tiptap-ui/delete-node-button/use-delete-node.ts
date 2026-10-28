@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
 import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
 import { useShortcut } from '@/keyboard/react'
@@ -10,6 +9,7 @@ import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 
 // --- Icons ---
 import { TrashIcon } from '@/components/tiptap-icons/trash-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export const DELETE_NODE_SHORTCUT_KEY = findShortcutDefault(SHORTCUT_COMMAND.EDITOR_DELETE_NODE)
 
@@ -224,7 +224,7 @@ export function useDeleteNode(config?: UseDeleteNodeConfig) {
     isVisible,
     handleDeleteNode,
     canDeleteNode: canDeleteNodeState,
-    label: 'Delete',
+    label: t('DELETE'),
     shortcutKeys: DELETE_NODE_SHORTCUT_KEY,
     Icon: TrashIcon
   }

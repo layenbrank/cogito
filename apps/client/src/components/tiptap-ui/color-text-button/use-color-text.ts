@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
 import { type Editor } from '@tiptap/react'
 import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
@@ -16,56 +15,57 @@ import {
 
 // --- Icons ---
 import { TextColorSmallIcon } from '@/components/tiptap-icons/text-color-small-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export const COLOR_TEXT_SHORTCUT_KEY = findShortcutDefault(SHORTCUT_COMMAND.EDITOR_COLOR_TEXT)
 export const TEXT_COLORS = [
   {
-    label: 'Default text',
+    label: t('EDITOR_DEFAULT_TEXT'),
     value: 'var(--tt-color-text)',
     border: 'var(--tt-color-text-contrast)'
   },
   {
-    label: 'Gray text',
+    label: t('EDITOR_GRAY_TEXT'),
     value: 'var(--tt-color-text-gray)',
     border: 'var(--tt-color-text-gray-contrast)'
   },
   {
-    label: 'Brown text',
+    label: t('EDITOR_BROWN_TEXT'),
     value: 'var(--tt-color-text-brown)',
     border: 'var(--tt-color-text-brown-contrast)'
   },
   {
-    label: 'Orange text',
+    label: t('EDITOR_ORANGE_TEXT'),
     value: 'var(--tt-color-text-orange)',
     border: 'var(--tt-color-text-orange-contrast)'
   },
   {
-    label: 'Yellow text',
+    label: t('EDITOR_YELLOW_TEXT'),
     value: 'var(--tt-color-text-yellow)',
     border: 'var(--tt-color-text-yellow-contrast)'
   },
   {
-    label: 'Green text',
+    label: t('EDITOR_GREEN_TEXT'),
     value: 'var(--tt-color-text-green)',
     border: 'var(--tt-color-text-green-contrast)'
   },
   {
-    label: 'Blue text',
+    label: t('EDITOR_BLUE_TEXT'),
     value: 'var(--tt-color-text-blue)',
     border: 'var(--tt-color-text-blue-contrast)'
   },
   {
-    label: 'Purple text',
+    label: t('EDITOR_PURPLE_TEXT'),
     value: 'var(--tt-color-text-purple)',
     border: 'var(--tt-color-text-purple-contrast)'
   },
   {
-    label: 'Pink text',
+    label: t('EDITOR_PINK_TEXT'),
     value: 'var(--tt-color-text-pink)',
     border: 'var(--tt-color-text-pink-contrast)'
   },
   {
-    label: 'Red text',
+    label: t('EDITOR_RED_TEXT'),
     value: 'var(--tt-color-text-red)',
     border: 'var(--tt-color-text-red-contrast)'
   }
@@ -225,7 +225,7 @@ export function useColorText(config: UseColorTextConfig) {
     }
   }, [editor, hideWhenUnavailable])
 
-  const handleColorText = useCallback(() => {
+  const handleColorText = useCallback((): boolean => {
     if (!editor || !canColorTextState) return false
 
     if (editor.state.storedMarks) {
@@ -248,8 +248,8 @@ export function useColorText(config: UseColorTextConfig) {
       if (success) {
         onApplied?.({ color: textColor, label })
       }
-      return success
     }, 0)
+    return true
   }, [editor, canColorTextState, textColor, onApplied, label])
 
   useShortcut(
@@ -267,7 +267,7 @@ export function useColorText(config: UseColorTextConfig) {
     isActive,
     handleColorText,
     canColorText: canColorTextState,
-    label: label || `Color text to ${textColor}`,
+    label: label || t('EDITOR_COLOR_TEXT_TO', { color: textColor }),
     shortcutKeys: COLOR_TEXT_SHORTCUT_KEY,
     Icon: TextColorSmallIcon
   }

@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
@@ -20,6 +19,7 @@ import {
   isValidPosition,
   selectionWithinConvertibleTypes
 } from '@/lib/tiptap-utils.ts'
+import { t } from '@/views/knowledge/locale.ts'
 
 export const TEXT_SHORTCUT_KEY = findShortcutDefault(SHORTCUT_COMMAND.EDITOR_TEXT)
 
@@ -254,7 +254,7 @@ export function useText(config?: UseTextConfig) {
     isActive,
     handleToggle,
     canToggle,
-    label: 'Text',
+    label: t('EDITOR_TEXT'),
     shortcutKeys: TEXT_SHORTCUT_KEY,
     Icon: TypeIcon
   }

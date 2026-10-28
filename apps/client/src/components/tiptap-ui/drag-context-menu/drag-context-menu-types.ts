@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type { DragHandleProps } from "@tiptap/extension-drag-handle-react"
 import type { Node } from "@tiptap/pm/model"
 import type { Editor } from "@tiptap/react"

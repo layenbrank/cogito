@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
 import { type Editor } from '@tiptap/react'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
@@ -19,6 +18,7 @@ import {
   isValidPosition,
   selectionWithinConvertibleTypes
 } from '@/lib/tiptap-utils.ts'
+import { t } from '@/views/knowledge/locale.ts'
 
 export type ListType = 'bulletList' | 'orderedList' | 'taskList'
 
@@ -52,9 +52,9 @@ export const listIcons = {
 }
 
 export const listLabels: Record<ListType, string> = {
-  bulletList: 'Bullet List',
-  orderedList: 'Ordered List',
-  taskList: 'Task List'
+  bulletList: t('EDITOR_BULLET_LIST'),
+  orderedList: t('EDITOR_NUMBERED_LIST'),
+  taskList: t('EDITOR_TASK_LIST')
 }
 
 export const LIST_SHORTCUT_KEYS: Record<ListType, string> = {

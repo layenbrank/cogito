@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
 import { isNodeSelection, type Editor } from '@tiptap/react'
 import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
@@ -12,6 +11,7 @@ import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 
 // --- Icons ---
 import { AiSparklesIcon } from '@/components/tiptap-icons/ai-sparkles-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface UseAiAskConfig {
   /**
@@ -153,7 +153,7 @@ export function useAiAsk(config: UseAiAskConfig = {}) {
     isVisible,
     handleAiAsk,
     canAiAsk,
-    label: 'Ask AI Assistant',
+    label: t('EDITOR_ASK_AI_ASSISTANT'),
     shortcutKeys: AI_ASK_SHORTCUT_KEY,
     Icon: AiSparklesIcon
   }

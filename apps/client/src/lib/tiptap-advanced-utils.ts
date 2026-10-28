@@ -347,16 +347,10 @@ export function getEditorExtension(
 ) {
   if (!editor) return null
 
-  const extension = editor.extensionManager.extensions.find(
-    (ext) => ext.name === extensionName
+  // 静默探测：uniqueID 等可选扩展未注册时返回 null，由调用方隐藏对应 UI
+  return (
+    editor.extensionManager.extensions.find(
+      (ext) => ext.name === extensionName
+    ) ?? null
   )
-
-  if (!extension) {
-    console.warn(
-      `Extension "${extensionName}" not found in the editor schema. Ensure it is included in the editor configuration.`
-    )
-    return null
-  }
-
-  return extension
 }

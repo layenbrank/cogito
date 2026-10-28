@@ -20,6 +20,7 @@ import {
 
 // --- Icons ---
 import { CopyIcon } from '@/components/tiptap-icons/copy-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface UseTableDuplicateRowColumnConfig {
   /**
@@ -53,8 +54,8 @@ export interface UseTableDuplicateRowColumnConfig {
 const REQUIRED_EXTENSIONS = ['tableHandleExtension']
 
 export const tableDuplicateRowColumnLabels: Record<Orientation, string> = {
-  row: 'Duplicate row',
-  column: 'Duplicate column'
+  row: t('EDITOR_TABLE_DUP_ROW'),
+  column: t('EDITOR_TABLE_DUP_COL')
 }
 
 /**

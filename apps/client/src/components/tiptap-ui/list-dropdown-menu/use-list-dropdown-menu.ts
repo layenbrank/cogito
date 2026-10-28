@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
@@ -22,6 +21,7 @@ import {
   listIcons,
   type ListType
 } from '@/components/tiptap-ui/list-button/use-list.ts'
+import { t } from '@/views/knowledge/locale.ts'
 
 /**
  * Configuration for the list dropdown menu functionality
@@ -51,17 +51,17 @@ export interface ListOption {
 
 export const listOptions: ListOption[] = [
   {
-    label: '无序列表',
+    label: t('EDITOR_BULLET_LIST'),
     type: 'bulletList',
     icon: ListIcon
   },
   {
-    label: '有序列表',
+    label: t('EDITOR_NUMBERED_LIST'),
     type: 'orderedList',
     icon: ListOrderedIcon
   },
   {
-    label: '任务列表',
+    label: t('EDITOR_TASK_LIST'),
     type: 'taskList',
     icon: ListTodoIcon
   }
@@ -211,7 +211,7 @@ export function useListDropdownMenu(config?: UseListDropdownMenuConfig) {
     canToggle: canToggleAny,
     types,
     filteredLists,
-    label: 'List',
+    label: t('EDITOR_LIST'),
     Icon: activeList ? listIcons[activeList.type] : ListIcon
   }
 }

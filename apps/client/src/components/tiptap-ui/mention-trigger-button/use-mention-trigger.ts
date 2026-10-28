@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
 import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
 import { useShortcut } from '@/keyboard/react'
@@ -17,6 +16,7 @@ import {
 
 // --- Icons ---
 import { AtSignIcon } from '@/components/tiptap-icons/at-sign-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export const MENTION_TRIGGER_SHORTCUT_KEY = findShortcutDefault(
   SHORTCUT_COMMAND.EDITOR_MENTION_TRIGGER
@@ -328,7 +328,7 @@ export function useMentionTrigger(config?: UseMentionTriggerConfig) {
     isVisible,
     handleMention,
     canInsert,
-    label: 'Add mention',
+    label: t('EDITOR_ADD_MENTION'),
     shortcutKeys: MENTION_TRIGGER_SHORTCUT_KEY,
     trigger,
     Icon: AtSignIcon

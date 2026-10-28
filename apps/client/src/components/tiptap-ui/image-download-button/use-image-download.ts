@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
 import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
 import { useShortcut } from '@/keyboard/react'
@@ -17,6 +16,7 @@ import {
 
 // --- Icons ---
 import { ArrowDownToLineIcon } from '@/components/tiptap-icons/arrow-down-to-line-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export const IMAGE_DOWNLOAD_SHORTCUT_KEY = findShortcutDefault(
   SHORTCUT_COMMAND.EDITOR_IMAGE_DOWNLOAD
@@ -354,7 +354,7 @@ export function useImageDownload(config?: UseImageDownloadConfig) {
     isVisible,
     canDownload,
     handleDownload,
-    label: 'Download image',
+    label: t('EDITOR_DOWNLOAD_IMAGE'),
     shortcutKeys: IMAGE_DOWNLOAD_SHORTCUT_KEY,
     Icon: ArrowDownToLineIcon
   }

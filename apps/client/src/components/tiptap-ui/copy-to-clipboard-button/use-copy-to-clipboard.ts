@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
@@ -14,6 +13,7 @@ import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 
 // --- Icons ---
 import { ClipboardIcon } from '@/components/tiptap-icons/clipboard-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export const COPY_TO_CLIPBOARD_SHORTCUT_KEY = findShortcutDefault(
   SHORTCUT_COMMAND.EDITOR_COPY_TO_CLIPBOARD
@@ -244,7 +244,7 @@ export function useCopyToClipboard(config?: UseCopyToClipboardConfig) {
     isVisible,
     handleCopyToClipboard,
     canCopyToClipboard: canCopyToClipboardState,
-    label: 'Copy to clipboard',
+    label: t('EDITOR_COPY_CLIPBOARD'),
     shortcutKeys: COPY_TO_CLIPBOARD_SHORTCUT_KEY,
     Icon: ClipboardIcon
   }

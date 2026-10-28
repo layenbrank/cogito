@@ -1,19 +1,89 @@
 /* TipTap 变量桥接到 design semantic tokens，避免双轨色板硬编码 */
 :root {
+  --tt-brand-color-50: color-mix(in oklab, var(--primary) 12%, var(--background));
+  --tt-brand-color-100: color-mix(in oklab, var(--primary) 22%, var(--background));
+  --tt-brand-color-200: color-mix(in oklab, var(--primary) 35%, var(--background));
+  --tt-brand-color-300: color-mix(in oklab, var(--primary) 55%, var(--background));
+  --tt-brand-color-400: color-mix(in oklab, var(--primary) 75%, var(--background));
   --tt-brand-color-500: var(--primary);
   --tt-brand-color-600: var(--primary);
+  --tt-brand-color-700: color-mix(in oklab, var(--primary) 85%, black);
+  --tt-brand-color-800: color-mix(in oklab, var(--primary) 70%, black);
+  --tt-brand-color-900: color-mix(in oklab, var(--primary) 55%, black);
+
   --tt-gray-light-50: var(--background);
+  --tt-gray-light-100: var(--muted);
+  --tt-gray-light-200: var(--border);
+  --tt-gray-light-300: var(--border);
+  --tt-gray-light-400: var(--muted-foreground);
+  --tt-gray-light-500: var(--muted-foreground);
+  --tt-gray-light-600: var(--muted-foreground);
+  --tt-gray-light-700: var(--foreground);
+  --tt-gray-light-800: var(--foreground);
+  /* 正文色；blockquote 竖条改用 muted（见下方） */
   --tt-gray-light-900: var(--foreground);
+
+  --tt-gray-light-a-50: color-mix(in oklab, var(--foreground) 4%, transparent);
+  --tt-gray-light-a-100: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --tt-gray-light-a-200: color-mix(in oklab, var(--foreground) 10%, transparent);
+  --tt-gray-light-a-300: color-mix(in oklab, var(--foreground) 20%, transparent);
+  --tt-gray-light-a-400: color-mix(in oklab, var(--foreground) 42%, transparent);
+  --tt-gray-light-a-500: color-mix(in oklab, var(--foreground) 64%, transparent);
+  --tt-gray-light-a-600: color-mix(in oklab, var(--foreground) 78%, transparent);
+  --tt-gray-light-a-700: color-mix(in oklab, var(--foreground) 87%, transparent);
+  --tt-gray-light-a-800: color-mix(in oklab, var(--foreground) 95%, transparent);
+  --tt-gray-light-a-900: color-mix(in oklab, var(--foreground) 98%, transparent);
+
   --tt-gray-dark-50: var(--background);
+  --tt-gray-dark-100: var(--muted);
+  --tt-gray-dark-200: var(--border);
+  --tt-gray-dark-300: var(--border);
+  --tt-gray-dark-400: var(--muted-foreground);
+  --tt-gray-dark-500: var(--muted-foreground);
+  --tt-gray-dark-600: var(--muted-foreground);
+  --tt-gray-dark-700: var(--foreground);
+  --tt-gray-dark-800: var(--foreground);
   --tt-gray-dark-900: var(--foreground);
+
+  --tt-gray-dark-a-50: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --tt-gray-dark-a-100: color-mix(in oklab, var(--foreground) 7%, transparent);
+  --tt-gray-dark-a-200: color-mix(in oklab, var(--foreground) 11%, transparent);
+  --tt-gray-dark-a-300: color-mix(in oklab, var(--foreground) 22%, transparent);
+  --tt-gray-dark-a-400: color-mix(in oklab, var(--foreground) 37%, transparent);
+  --tt-gray-dark-a-500: color-mix(in oklab, var(--foreground) 50%, transparent);
+  --tt-gray-dark-a-600: color-mix(in oklab, var(--foreground) 64%, transparent);
+  --tt-gray-dark-a-700: color-mix(in oklab, var(--foreground) 75%, transparent);
+  --tt-gray-dark-a-800: color-mix(in oklab, var(--foreground) 88%, transparent);
+  --tt-gray-dark-a-900: color-mix(in oklab, var(--foreground) 96%, transparent);
+
+  --tt-bg-color: var(--background);
+  --tt-border-color: var(--border);
+  --tt-card-bg-color: var(--card);
+  --tt-card-border-color: var(--border);
+  --tt-selection-color: color-mix(in oklab, var(--primary) 28%, transparent);
+  --tt-cursor-color: var(--primary);
+
+  --white: var(--background);
+  --black: var(--foreground);
+
+  --tt-radius-xxs: var(--radius-sm, 0.125rem);
+  --tt-radius-xs: var(--radius-sm, 0.25rem);
+  --tt-radius-sm: var(--radius-md, 0.375rem);
+  --tt-radius-md: var(--radius-md, 0.5rem);
+  --tt-radius-lg: var(--radius-lg, 0.75rem);
+  --tt-radius-xl: var(--radius-xl, 1rem);
 }
 
-.dark {
-  --tt-brand-color-500: var(--primary);
-  --tt-brand-color-600: var(--primary);
+/* blockquote 竖条：用 muted，勿用 foreground */
+.tiptap.ProseMirror {
+  --blockquote-bg-color: var(--muted-foreground);
 }
 
-/* 文档内查找高亮（对齐 VS Code find decorations） */
+.dark .tiptap.ProseMirror {
+  --blockquote-bg-color: var(--muted-foreground);
+}
+
+/* 文档内查找高亮 */
 .ProseMirror {
   .md-search-hit {
     border-radius: 2px;
@@ -25,16 +95,5 @@
     background-color: color-mix(in oklab, var(--warning, #f59e0b) 75%, transparent);
     outline: 1px solid color-mix(in oklab, var(--warning, #d97706) 80%, transparent);
     outline-offset: 0;
-  }
-}
-
-.dark .ProseMirror {
-  .md-search-hit {
-    background-color: color-mix(in oklab, #ca8a04 40%, transparent);
-  }
-
-  .md-search-hit-current {
-    background-color: color-mix(in oklab, #eab308 55%, transparent);
-    outline-color: color-mix(in oklab, #fbbf24 70%, transparent);
   }
 }

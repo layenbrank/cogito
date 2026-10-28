@@ -9,6 +9,7 @@ import type { Orientation } from '@/components/tiptap-node/table-node/lib/tiptap
 import { selectCellsByCoords } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils'
 import { Menu } from '@/components/tiptap-ui-primitive/menu/menu.tsx'
 import { useTableHandleContext } from './table-handle-context.ts'
+import { t } from '@/views/knowledge/locale.ts'
 
 const MENU_PLACEMENT_MAP: Record<
   Orientation,
@@ -19,8 +20,8 @@ const MENU_PLACEMENT_MAP: Record<
 }
 
 const ARIA_LABELS: Record<Orientation, string> = {
-  row: 'Row actions',
-  column: 'Column actions'
+  row: t('EDITOR_ROW_ACTIONS'),
+  column: t('EDITOR_COL_ACTIONS')
 }
 
 function useTableHandleMenu(

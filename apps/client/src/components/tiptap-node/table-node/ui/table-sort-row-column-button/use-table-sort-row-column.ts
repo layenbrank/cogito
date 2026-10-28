@@ -22,6 +22,7 @@ import {
 // --- Icons ---
 import { ArrowDownAZIcon } from '@/components/tiptap-icons/arrow-down-a-z-icon.tsx'
 import { ArrowDownZAIcon } from '@/components/tiptap-icons/arrow-down-z-a-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export type SortDirection = 'asc' | 'desc'
 
@@ -67,12 +68,12 @@ export const tableSortRowColumnLabels: Record<
   Record<SortDirection, string>
 > = {
   row: {
-    asc: 'Sort row A-Z',
-    desc: 'Sort row Z-A'
+    asc: t('EDITOR_TABLE_SORT_ROW_ASC'),
+    desc: t('EDITOR_TABLE_SORT_ROW_DESC')
   },
   column: {
-    asc: 'Sort column A-Z',
-    desc: 'Sort column Z-A'
+    asc: t('EDITOR_TABLE_SORT_COL_ASC'),
+    desc: t('EDITOR_TABLE_SORT_COL_DESC')
   }
 }
 
@@ -461,7 +462,7 @@ export function useTableSortRowColumn(
       tableSortRowColumnLabels[selectionType?.orientation || 'row']
     return (
       orientationLabels[direction] ||
-      `Sort ${selectionType?.orientation} ${direction}`
+      t('EDITOR_TABLE_SORT_COL_ASC')
     )
   }, [selectionType, direction])
 

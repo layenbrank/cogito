@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import type { ChainedCommands } from '@tiptap/react'
@@ -20,6 +19,7 @@ import { AlignCenterIcon } from '@/components/tiptap-icons/align-center-icon.tsx
 import { AlignJustifyIcon } from '@/components/tiptap-icons/align-justify-icon.tsx'
 import { AlignLeftIcon } from '@/components/tiptap-icons/align-left-icon.tsx'
 import { AlignRightIcon } from '@/components/tiptap-icons/align-right-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export type TextAlign = 'left' | 'center' | 'right' | 'justify'
 
@@ -69,10 +69,10 @@ export const textAlignIcons = {
 }
 
 export const textAlignLabels: Record<TextAlign, string> = {
-  left: 'Align left',
-  center: 'Align center',
-  right: 'Align right',
-  justify: 'Align justify'
+  left: t('EDITOR_ALIGN_LEFT'),
+  center: t('EDITOR_ALIGN_CENTER'),
+  right: t('EDITOR_ALIGN_RIGHT'),
+  justify: t('EDITOR_ALIGN_JUSTIFY')
 }
 
 /**

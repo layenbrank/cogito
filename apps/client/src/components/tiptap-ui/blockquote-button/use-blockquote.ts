@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
@@ -17,6 +16,7 @@ import {
   isValidPosition,
   selectionWithinConvertibleTypes
 } from '@/lib/tiptap-utils.ts'
+import { t } from '@/views/knowledge/locale.ts'
 
 export const BLOCKQUOTE_SHORTCUT_KEY = 'mod+shift+b'
 
@@ -238,7 +238,7 @@ export function useBlockquote(config?: UseBlockquoteConfig) {
     isActive,
     handleToggle,
     canToggle,
-    label: 'Blockquote',
+    label: t('EDITOR_BLOCKQUOTE'),
     shortcutKeys: BLOCKQUOTE_SHORTCUT_KEY,
     Icon: BlockquoteIcon
   }

@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client"
 
 import { forwardRef, useCallback } from "react"
@@ -19,6 +18,7 @@ import {
 // --- UI Primitives ---
 import type { ButtonProps } from "@/components/tiptap-ui-primitive/button/button.tsx"
 import { Button } from "@/components/tiptap-ui-primitive/button/button.tsx"
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface CodeBlockButtonProps
   extends Omit<ButtonProps, "type">,
@@ -103,7 +103,7 @@ export const CodeBlockButton = forwardRef<
         tabIndex={-1}
         aria-label={label}
         aria-pressed={isActive}
-        tooltip="Code Block"
+        tooltip={t('EDITOR_CODE_BLOCK')}
         shortcutKeys={shortcutKeys}
         onClick={handleClick}
         {...buttonProps}
@@ -111,8 +111,8 @@ export const CodeBlockButton = forwardRef<
       >
         {children ?? (
           <>
-            <Icon className="tiptap-button-icon" />
-            {text && <span className="tiptap-button-text">{text}</span>}
+            <Icon className="size-3.5 shrink-0" />
+            {text && <span className="truncate text-xs">{text}</span>}
             {showShortcut && (
               <CodeBlockShortcutBadge shortcutKeys={shortcutKeys} />
             )}

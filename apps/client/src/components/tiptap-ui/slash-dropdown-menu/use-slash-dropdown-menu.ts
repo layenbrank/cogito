@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useCallback } from 'react'
@@ -32,6 +31,7 @@ import {
 import type { SuggestionItem } from '@/components/tiptap-ui-utils/suggestion-menu/suggestion-menu-types.ts'
 import { addEmojiTrigger } from '@/components/tiptap-ui/emoji-trigger-button/use-emoji-trigger.ts'
 import { addMentionTrigger } from '@/components/tiptap-ui/mention-trigger-button/use-mention-trigger.ts'
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface SlashMenuConfig {
   enabledItems?: SlashMenuItemType[]
@@ -45,119 +45,119 @@ export interface SlashMenuConfig {
 const texts = {
   // AI
   continue_writing: {
-    title: 'Continue Writing',
-    subtext: 'Continue writing from the current position',
-    keywords: ['continue', 'write', 'continue writing', 'ai'],
+    title: t('EDITOR_CONTINUE_WRITING'),
+    subtext: t('EDITOR_SLASH_CONTINUE_SUB'),
+    keywords: ['continue', 'write', 'continue writing', 'ai', '继续', '写作'],
     badge: AiSparklesIcon,
-    group: 'AI'
+    group: t('EDITOR_GROUP_AI')
   },
   ai_ask_button: {
-    title: 'Ask AI',
-    subtext: 'Ask AI to generate content',
-    keywords: ['ai', 'ask', 'generate'],
+    title: t('EDITOR_ASK_AI'),
+    subtext: t('EDITOR_SLASH_ASK_AI_SUB'),
+    keywords: ['ai', 'ask', 'generate', '询问', '生成'],
     badge: AiSparklesIcon,
-    group: 'AI'
+    group: t('EDITOR_GROUP_AI')
   },
 
   // Style
   text: {
-    title: 'Text',
-    subtext: 'Regular text paragraph',
-    keywords: ['p', 'paragraph', 'text'],
+    title: t('EDITOR_TEXT'),
+    subtext: t('EDITOR_SLASH_TEXT_SUB'),
+    keywords: ['p', 'paragraph', 'text', '正文', '段落'],
     badge: TypeIcon,
-    group: 'Style'
+    group: t('EDITOR_GROUP_STYLE')
   },
   heading_1: {
-    title: 'Heading 1',
-    subtext: 'Top-level heading',
-    keywords: ['h', 'heading1', 'h1'],
+    title: t('EDITOR_HEADING_1'),
+    subtext: t('EDITOR_SLASH_H1_SUB'),
+    keywords: ['h', 'heading1', 'h1', '标题'],
     badge: HeadingOneIcon,
-    group: 'Style'
+    group: t('EDITOR_GROUP_STYLE')
   },
   heading_2: {
-    title: 'Heading 2',
-    subtext: 'Key section heading',
+    title: t('EDITOR_HEADING_2'),
+    subtext: t('EDITOR_SLASH_H2_SUB'),
     keywords: ['h2', 'heading2', 'subheading'],
     badge: HeadingTwoIcon,
-    group: 'Style'
+    group: t('EDITOR_GROUP_STYLE')
   },
   heading_3: {
-    title: 'Heading 3',
-    subtext: 'Subsection and group heading',
+    title: t('EDITOR_HEADING_3'),
+    subtext: t('EDITOR_SLASH_H3_SUB'),
     keywords: ['h3', 'heading3', 'subheading'],
     badge: HeadingThreeIcon,
-    group: 'Style'
+    group: t('EDITOR_GROUP_STYLE')
   },
   bullet_list: {
-    title: 'Bullet List',
-    subtext: 'List with unordered items',
-    keywords: ['ul', 'li', 'list', 'bulletlist', 'bullet list'],
+    title: t('EDITOR_BULLET_LIST'),
+    subtext: t('EDITOR_SLASH_BULLET_SUB'),
+    keywords: ['ul', 'li', 'list', 'bulletlist', 'bullet list', '无序', '列表'],
     badge: ListIcon,
-    group: 'Style'
+    group: t('EDITOR_GROUP_STYLE')
   },
   ordered_list: {
-    title: 'Numbered List',
-    subtext: 'List with ordered items',
-    keywords: ['ol', 'li', 'list', 'numberedlist', 'numbered list'],
+    title: t('EDITOR_NUMBERED_LIST'),
+    subtext: t('EDITOR_SLASH_NUMBERED_SUB'),
+    keywords: ['ol', 'li', 'list', 'numberedlist', 'numbered list', '有序', '编号'],
     badge: ListOrderedIcon,
-    group: 'Style'
+    group: t('EDITOR_GROUP_STYLE')
   },
   task_list: {
-    title: 'To-do list',
-    subtext: 'List with tasks',
-    keywords: ['tasklist', 'task list', 'todo', 'checklist'],
+    title: t('EDITOR_TASK_LIST'),
+    subtext: t('EDITOR_SLASH_TASK_SUB'),
+    keywords: ['tasklist', 'task list', 'todo', 'checklist', '任务', '待办'],
     badge: ListTodoIcon,
-    group: 'Style'
+    group: t('EDITOR_GROUP_STYLE')
   },
   quote: {
-    title: 'Blockquote',
-    subtext: 'Blockquote block',
-    keywords: ['quote', 'blockquote'],
+    title: t('EDITOR_BLOCKQUOTE'),
+    subtext: t('EDITOR_SLASH_QUOTE_SUB'),
+    keywords: ['quote', 'blockquote', '引用'],
     badge: BlockquoteIcon,
-    group: 'Style'
+    group: t('EDITOR_GROUP_STYLE')
   },
   code_block: {
-    title: 'Code Block',
-    subtext: 'Code block with syntax highlighting',
-    keywords: ['code', 'pre'],
+    title: t('EDITOR_CODE_BLOCK'),
+    subtext: t('EDITOR_SLASH_CODE_SUB'),
+    keywords: ['code', 'pre', '代码'],
     badge: CodeBlockIcon,
-    group: 'Style'
+    group: t('EDITOR_GROUP_STYLE')
   },
 
   // Insert
   mention: {
-    title: 'Mention',
-    subtext: 'Mention a user or item',
+    title: t('EDITOR_MENTION'),
+    subtext: t('EDITOR_SLASH_MENTION_SUB'),
     keywords: ['mention', 'user', 'item', 'tag'],
     badge: AtSignIcon,
-    group: 'Insert'
+    group: t('EDITOR_GROUP_INSERT')
   },
   emoji: {
-    title: 'Emoji',
-    subtext: 'Insert an emoji',
+    title: t('EDITOR_EMOJI'),
+    subtext: t('EDITOR_SLASH_EMOJI_SUB'),
     keywords: ['emoji', 'emoticon', 'smiley'],
     badge: SmilePlusIcon,
-    group: 'Insert'
+    group: t('EDITOR_GROUP_INSERT')
   },
   table: {
-    title: 'Table',
-    subtext: 'Insert a table',
+    title: t('EDITOR_TABLE'),
+    subtext: t('EDITOR_SLASH_TABLE_SUB'),
     aliases: ['table', 'insertTable'],
     badge: TableIcon,
-    group: 'Insert'
+    group: t('EDITOR_GROUP_INSERT')
   },
   divider: {
-    title: 'Separator',
-    subtext: 'Horizontal line to separate content',
+    title: t('EDITOR_SEPARATOR'),
+    subtext: t('EDITOR_SLASH_SEPARATOR_SUB'),
     keywords: ['hr', 'horizontalRule', 'line', 'separator'],
     badge: MinusIcon,
-    group: 'Insert'
+    group: t('EDITOR_GROUP_INSERT')
   },
 
   // Upload
   image: {
-    title: 'Image',
-    subtext: 'Resizable image with caption',
+    title: t('EDITOR_IMAGE'),
+    subtext: t('EDITOR_SLASH_IMAGE_SUB'),
     keywords: [
       'image',
       'imageUpload',
@@ -168,7 +168,7 @@ const texts = {
       'url'
     ],
     badge: ImageIcon,
-    group: 'Upload'
+    group: t('EDITOR_GROUP_UPLOAD')
   }
 }
 
@@ -209,9 +209,15 @@ const getItemImplementations = () => {
             ? `Context: ${snippet}\n\nContinue writing from where the text above ends. Write ONLY ONE SENTENCE. DONT REPEAT THE TEXT.`
             : 'Start writing a new paragraph. Write ONLY ONE SENTENCE.'
 
-          editor
-            .chain()
-            .focus()
+          // AI 扩展可选；命令由 TipTap AI 包注入
+          const chain = editor.chain().focus() as unknown as {
+            aiTextPrompt: (opts: {
+              stream: boolean
+              format: string
+              text: string
+            }) => { run: () => boolean }
+          }
+          chain
             .aiTextPrompt({
               stream: true,
               format: 'rich-text',

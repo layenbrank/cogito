@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useCallback, useState } from 'react'
@@ -57,13 +56,13 @@ export function AiMenuInputPlaceholder({
       <div className="tiptap-ai-prompt-input-placeholder-content">
         <AiSparklesIcon className="tiptap-ai-prompt-input-placeholder-icon" />
         <span className="tiptap-ai-prompt-input-placeholder-text">
-          Tell AI what else needs to be changed...
+          {t('EDITOR_AI_CHANGE_PLACEHOLDER')}
         </span>
       </div>
       <Button
         data-style="primary"
         disabled>
-        <ArrowUpIcon className="tiptap-button-icon" />
+        <ArrowUpIcon className="size-3.5 shrink-0" />
       </Button>
     </button>
   )
@@ -85,9 +84,9 @@ export function ToneSelector({
           data-active-state={tone ? 'on' : 'off'}
           role="button"
           tabIndex={-1}
-          aria-label="Tone adjustment options">
-          <MicAiIcon className="tiptap-button-icon" />
-          <span className="tiptap-button-text">Tone</span>
+          aria-label={t('EDITOR_TONE_OPTIONS')}>
+          <MicAiIcon className="size-3.5 shrink-0" />
+          <span className="truncate text-xs">{t('EDITOR_TONE')}</span>
         </Button>
       </DropdownMenuTrigger>
 
@@ -105,7 +104,7 @@ export function ToneSelector({
                       tone === supportedTone.value ? 'on' : 'off'
                     }
                     onClick={() => onToneChange(supportedTone.value)}>
-                    <span className="tiptap-button-text">
+                    <span className="truncate text-xs">
                       {supportedTone.label}
                     </span>
                   </Button>
@@ -165,8 +164,8 @@ export function AiPromptInputToolbar({
           onClick={handleSubmit}
           disabled={isEmpty}
           data-style="primary"
-          aria-label="Submit prompt">
-          <ArrowUpIcon className="tiptap-button-icon" />
+          aria-label={t('EDITOR_AI_SUBMIT')}>
+          <ArrowUpIcon className="size-3.5 shrink-0" />
         </Button>
       </ToolbarGroup>
     </Toolbar>
@@ -182,7 +181,7 @@ export function AiMenuInputTextarea({
   onEmptyBlur,
   onPlaceholderClick,
   showPlaceholder = false,
-  placeholder = 'Ask AI what you want...',
+  placeholder = t('EDITOR_AI_PLACEHOLDER'),
   ...props
 }: AiMenuInputTextareaProps) {
   const [promptValue, setPromptValue] = useComboboxValueState()
@@ -266,3 +265,5 @@ export function AiMenuInputTextarea({
     </div>
   )
 }
+
+import { t } from '@/views/knowledge/locale.ts'

@@ -1,9 +1,5 @@
 :root {
-  --tt-table-handle-bg-color: var(--tt-gray-light-a-100);
-}
-
-.dark {
-  --tt-table-handle-bg-color: var(--tt-gray-dark-a-100);
+  --tt-table-handle-bg-color: color-mix(in oklab, var(--foreground) 5%, transparent);
 }
 
 .tiptap-table-handle-menu {
@@ -12,7 +8,7 @@
   align-items: center;
   justify-content: center;
   background-color: var(--tt-table-handle-bg-color);
-  border-radius: var(--tt-radius-lg);
+  border-radius: var(--radius-lg, 0.75rem);
   cursor: grab;
 
   .tiptap-button-icon {
@@ -22,19 +18,19 @@
   }
 
   &.menu-opened {
-    background-color: var(--tt-brand-color-500);
+    background-color: var(--primary);
 
     .tiptap-button-icon {
-      color: var(--white);
+      color: var(--primary-foreground);
     }
   }
 
   &.is-dragging {
     cursor: grabbing;
-    background-color: var(--tt-brand-color-500);
+    background-color: var(--primary);
 
     .tiptap-button-icon {
-      color: var(--white);
+      color: var(--primary-foreground);
     }
   }
 

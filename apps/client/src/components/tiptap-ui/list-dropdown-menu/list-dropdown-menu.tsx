@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useState } from 'react'
 import { type Editor } from '@tiptap/react'
 
@@ -27,6 +26,7 @@ import {
   DropdownMenuItem
 } from '@/components/tiptap-ui-primitive/dropdown-menu/dropdown-menu.tsx'
 import { Card, CardBody } from '@/components/tiptap-ui-primitive/card/card.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface ListDropdownMenuProps extends Omit<ButtonProps, 'type'> {
   /**
@@ -96,11 +96,11 @@ export function ListDropdownMenu({
           tabIndex={-1}
           disabled={!canToggle}
           data-disabled={!canToggle}
-          aria-label="List options"
-          tooltip="List"
+          aria-label={t('EDITOR_LIST_OPTIONS')}
+          tooltip={t('EDITOR_LIST')}
           {...props}>
-          <Icon className="tiptap-button-icon" />
-          <ChevronDownIcon className="tiptap-button-dropdown-small" />
+          <Icon className="size-3.5 shrink-0" />
+          <ChevronDownIcon className="size-3 shrink-0 opacity-70" />
         </Button>
       </DropdownMenuTrigger>
 

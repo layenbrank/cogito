@@ -1,114 +1,185 @@
-// @ts-nocheck
 'use client'
 
-import { forwardRef, Fragment, useMemo } from 'react'
+import {
+  Children,
+  Fragment,
+  forwardRef,
+  isValidElement,
+  useMemo,
+  type ButtonHTMLAttributes,
+  type MouseEvent,
+  type ReactNode
+} from 'react'
 
-// --- Tiptap UI Primitive ---
+import { Button as DesignButton } from '@cogito/design/components/button'
+import { Toggle } from '@cogito/design/components/toggle'
+import { Kbd, KbdGroup } from '@cogito/design/components/kbd'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger
-} from '@/components/tiptap-ui-primitive/tooltip/tooltip.tsx'
-
-// --- Lib ---
-import { Kbd, KbdGroup } from '@cogito/design/components/kbd'
+} from '@cogito/design/components/tooltip'
 import { cn, parseShortcutKeys } from '@/lib/tiptap-utils'
 
-import '@/components/tiptap-ui-primitive/button/button-colors.scss'
-import '@/components/tiptap-ui-primitive/button/button-group.scss'
-import '@/components/tiptap-ui-primitive/button/button.scss'
-
-export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   className?: string
   showTooltip?: boolean
-  tooltip?: React.ReactNode
+  tooltip?: ReactNode
   shortcutKeys?: string
+  'data-style'?: string
+  'data-active-state'?: 'on' | 'off'
+  'data-disabled'?: boolean | string
+  /**
+   * 为 true 时不在 mousedown 上 preventDefault，允许按钮抢焦点（如链接 URL 输入触发前）。
+   * 默认 false：保留 ProseMirror 选区。
+   */
+  allowFocusOnMouseDown?: boolean
 }
 
-/** Tooltip 内快捷键展示：用设计系统 Kbd，不挤在操作栏里 */
-export const ShortcutDisplay: React.FC<{ shortcuts: string[] }> = ({
-  shortcuts
-}) => {
-  if (shortcuts.length === 0) return null
-
+function ShortcutDisplay(props: { shortcuts: string[] }) {
+  if (props.shortcuts.length === 0) return null
   return (
     <KbdGroup>
-      {shortcuts.map((key, index) => (
-        <Fragment key={key}>
-          {index > 0 ? (
-            <span className="tiptap-shortcut-plus px-0.5 text-xs opacity-50">
-              +
-            </span>
-          ) : null}
-          <Kbd>{key}</Kbd>
-        </Fragment>
-      ))}
+      {props.shortcuts.map(function (key, index) {
+        return (
+          <Fragment key={`${index}-${key}`}>
+            {index > 0 ? <span className="px-0.5 text-xs opacity-50">+</span> : null}
+            <Kbd>{key}</Kbd>
+          </Fragment>
+        )
+      })}
     </KbdGroup>
   )
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  (
-    {
-      className,
-      children,
-      tooltip,
-      showTooltip = true,
-      shortcutKeys,
-      'aria-label': ariaLabel,
-      ...props
+function resolveVariant(dataStyle: string | undefined) {
+  if (dataStyle === 'primary' || dataStyle === 'default') return 'default' as const
+  if (dataStyle === 'outline') return 'outline' as const
+  return 'ghost' as const
+}
+
+/** 含文案（菜单行）时不能再用 icon 方钮 + justify-center，否则下拉会水平居中、留白过大 */
+function hasLabelChild(children: ReactNode): boolean {
+  return Children.toArray(children).some(function (child) {
+    if (typeof child === 'string' || typeof child === 'number') return String(child).trim().length > 0
+    if (!isValidElement<{ children?: ReactNode }>(child)) return false
+    if (child.type === 'span' || child.type === 'label') return true
+    if (child.props?.children != null) return hasLabelChild(child.props.children)
+    return false
+  })
+}
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function TipTapButton(
+  props,
+  ref
+) {
+  const {
+    className,
+    children,
+    tooltip,
+    showTooltip = true,
+    shortcutKeys,
+    'aria-label': ariaLabel,
+    'aria-pressed': ariaPressed,
+    'data-style': dataStyle,
+    'data-active-state': activeState,
+    'data-disabled': dataDisabled,
+    disabled,
+    type = 'button',
+    tabIndex = -1,
+    onClick,
+    onMouseDown,
+    allowFocusOnMouseDown = false,
+    value: _value,
+    ...rest
+  } = props
+
+  const shortcuts = useMemo(
+    function () {
+      return parseShortcutKeys({ shortcutKeys })
     },
-    ref
-  ) => {
-    const shortcuts = useMemo<string[]>(
-      () => parseShortcutKeys({ shortcutKeys }),
-      [shortcutKeys]
-    )
+    [shortcutKeys]
+  )
+  const isActive = activeState === 'on' || ariaPressed === true
+  const isDisabled = Boolean(disabled || dataDisabled === true || dataDisabled === '')
+  const variant = resolveVariant(dataStyle)
+  const useToggle = ariaPressed !== undefined || activeState !== undefined
+  const isMenuRow = hasLabelChild(children)
 
-    if (!tooltip || !showTooltip) {
-      return (
-        <button
-          className={cn('tiptap-button', className)}
-          ref={ref}
-          aria-label={ariaLabel}
-          {...props}>
-          {children}
-        </button>
-      )
+  const shared = {
+    ref,
+    type,
+    disabled: isDisabled,
+    'aria-label': ariaLabel,
+    tabIndex,
+    className: cn(
+      'shrink-0 [&_svg]:size-3.5',
+      // 有文案：用条形钮并左对齐；宽度由工具栏内容撑开，菜单行由 DropdownMenuItem 加 w-full
+      isMenuRow && 'h-7 justify-start gap-1.5 px-2',
+      className
+    ),
+    onClick,
+    onMouseDown(event: MouseEvent<HTMLButtonElement>) {
+      // 默认保留 ProseMirror 选区；需要聚焦的入口传 allowFocusOnMouseDown
+      if (!allowFocusOnMouseDown) {
+        event.preventDefault()
+      }
+      onMouseDown?.(event)
     }
-
-    return (
-      <Tooltip delay={200}>
-        <TooltipTrigger
-          className={cn('tiptap-button', className)}
-          ref={ref}
-          aria-label={ariaLabel}
-          {...props}>
-          {children}
-        </TooltipTrigger>
-        <TooltipContent>
-          <span className="inline-flex items-center gap-1.5">
-            <span>{tooltip}</span>
-            <ShortcutDisplay shortcuts={shortcuts} />
-          </span>
-        </TooltipContent>
-      </Tooltip>
-    )
   }
-)
+
+  const control = useToggle ? (
+    <Toggle
+      {...shared}
+      size="sm"
+      variant={variant === 'outline' ? 'outline' : 'default'}
+      pressed={isActive}
+      aria-pressed={isActive}
+      {...rest}>
+      {children}
+    </Toggle>
+  ) : (
+    <DesignButton
+      {...shared}
+      size={isMenuRow ? 'sm' : 'icon-sm'}
+      variant={variant}
+      {...rest}>
+      {children}
+    </DesignButton>
+  )
+
+  // TooltipProvider 由上层 Toolbar / Section 提供，避免每个按钮各挂一份
+  if (!tooltip || !showTooltip) return control
+
+  return (
+    <Tooltip>
+      <TooltipTrigger render={control} />
+      <TooltipContent side="bottom">
+        <span className="inline-flex items-center gap-1.5">
+          <span>{tooltip}</span>
+          <ShortcutDisplay shortcuts={shortcuts} />
+        </span>
+      </TooltipContent>
+    </Tooltip>
+  )
+})
 
 Button.displayName = 'Button'
 
 export const ButtonGroup = forwardRef<
   HTMLDivElement,
-  React.ComponentProps<'div'> & {
-    orientation?: 'horizontal' | 'vertical'
-  }
->(({ className, children, orientation = 'vertical', ...props }, ref) => {
+  React.ComponentProps<'div'> & { orientation?: 'horizontal' | 'vertical' }
+>(function ButtonGroup({ className, children, orientation = 'vertical', ...props }, ref) {
   return (
     <div
       ref={ref}
-      className={cn('tiptap-button-group', className)}
+      className={cn(
+        'flex gap-0.5',
+        orientation === 'horizontal'
+          ? 'flex-row flex-wrap items-center'
+          : 'w-full flex-col items-stretch',
+        className
+      )}
       data-orientation={orientation}
       role="group"
       {...props}>
@@ -116,6 +187,7 @@ export const ButtonGroup = forwardRef<
     </div>
   )
 })
+
 ButtonGroup.displayName = 'ButtonGroup'
 
 export default Button

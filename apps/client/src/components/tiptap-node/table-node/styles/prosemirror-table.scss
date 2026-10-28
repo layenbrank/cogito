@@ -27,14 +27,14 @@
   bottom: 0;
   width: 4px;
   z-index: 20;
-  background-color: #adf;
+  background-color: color-mix(in oklab, var(--primary) 55%, transparent);
   pointer-events: none;
 }
 .ProseMirror.resize-cursor {
   cursor: ew-resize;
   cursor: col-resize;
 }
-/* Give selected cells a blue overlay */
+/* Give selected cells a theme-aware overlay */
 .ProseMirror .selectedCell:after {
   z-index: 2;
   position: absolute;
@@ -43,6 +43,6 @@
   right: 0;
   top: 0;
   bottom: 0;
-  background: rgba(200, 200, 255, 0.4);
+  background: color-mix(in oklab, var(--primary) 28%, transparent);
   pointer-events: none;
 }

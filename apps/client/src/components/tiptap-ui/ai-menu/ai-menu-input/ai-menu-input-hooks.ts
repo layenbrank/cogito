@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { isHotkey } from "is-hotkey"
 import { useCallback } from "react"
 

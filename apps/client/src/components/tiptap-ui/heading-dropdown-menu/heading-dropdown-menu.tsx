@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { forwardRef, useCallback, useState } from 'react'
@@ -27,6 +26,7 @@ import {
   DropdownMenuItem
 } from '@/components/tiptap-ui-primitive/dropdown-menu/dropdown-menu.tsx'
 import { Card, CardBody } from '@/components/tiptap-ui-primitive/card/card.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface HeadingDropdownMenuProps
   extends Omit<ButtonProps, 'type'>, UseHeadingDropdownMenuConfig {
@@ -73,7 +73,7 @@ export const HeadingDropdownMenu = forwardRef<
 
     const handleOpenChange = useCallback(
       (open: boolean) => {
-        if (!editor || !canToggle) return
+        if (open && (!editor || !canToggle)) return
         setIsOpen(open)
         onOpenChange?.(open)
       },
@@ -86,7 +86,6 @@ export const HeadingDropdownMenu = forwardRef<
 
     return (
       <DropdownMenu
-        modal
         open={isOpen}
         onOpenChange={handleOpenChange}>
         <DropdownMenuTrigger asChild>
@@ -98,13 +97,13 @@ export const HeadingDropdownMenu = forwardRef<
             tabIndex={-1}
             disabled={!canToggle}
             data-disabled={!canToggle}
-            aria-label="Format text as heading"
+            aria-label={t('EDITOR_HEADING_OPTIONS')}
             aria-pressed={isActive}
-            tooltip="Heading"
+            tooltip={t('EDITOR_HEADING')}
             {...buttonProps}
             ref={ref}>
-            <Icon className="tiptap-button-icon" />
-            <ChevronDownIcon className="tiptap-button-dropdown-small" />
+            <Icon className="size-3.5 shrink-0" />
+            <ChevronDownIcon className="size-3 shrink-0 opacity-70" />
           </Button>
         </DropdownMenuTrigger>
 

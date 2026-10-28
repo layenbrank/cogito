@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
@@ -18,6 +17,7 @@ import { StrikeIcon } from '@/components/tiptap-icons/strike-icon.tsx'
 import { SubscriptIcon } from '@/components/tiptap-icons/subscript-icon.tsx'
 import { SuperscriptIcon } from '@/components/tiptap-icons/superscript-icon.tsx'
 import { UnderlineIcon } from '@/components/tiptap-icons/underline-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export type Mark =
   | 'bold'
@@ -123,8 +123,18 @@ export function shouldShowButton(props: {
 /**
  * Gets the formatted mark name
  */
+const MARK_LABELS: Record<Mark, string> = {
+  bold: t('EDITOR_BOLD'),
+  italic: t('EDITOR_ITALIC'),
+  underline: t('EDITOR_UNDERLINE'),
+  strike: t('EDITOR_STRIKE'),
+  code: t('EDITOR_CODE'),
+  superscript: t('EDITOR_SUPERSCRIPT'),
+  subscript: t('EDITOR_SUBSCRIPT')
+}
+
 export function getFormattedMarkName(type: Mark): string {
-  return type.charAt(0).toUpperCase() + type.slice(1)
+  return MARK_LABELS[type]
 }
 
 /**

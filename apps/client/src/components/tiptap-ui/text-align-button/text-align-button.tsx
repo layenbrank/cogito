@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { forwardRef, useCallback } from "react"
 
 // --- Lib ---
@@ -126,8 +125,8 @@ export const TextAlignButton = forwardRef<
       >
         {children ?? (
           <>
-            <RenderIcon className="tiptap-button-icon" />
-            {text && <span className="tiptap-button-text">{text}</span>}
+            <RenderIcon className="size-3.5 shrink-0" />
+            {text && <span className="truncate text-xs">{text}</span>}
             {showShortcut && (
               <TextAlignShortcutBadge
                 align={align}

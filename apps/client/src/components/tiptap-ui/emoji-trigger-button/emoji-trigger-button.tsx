@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client"
 
 import { forwardRef, useCallback } from "react"
@@ -19,6 +18,7 @@ import {
 // --- UI Primitives ---
 import type { ButtonProps } from "@/components/tiptap-ui-primitive/button/button.tsx"
 import { Button } from "@/components/tiptap-ui-primitive/button/button.tsx"
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface EmojiTriggerButtonProps
   extends Omit<ButtonProps, "type">,
@@ -106,15 +106,15 @@ export const EmojiTriggerButton = forwardRef<
         disabled={!canAddTrigger}
         data-disabled={!canAddTrigger}
         aria-label={label}
-        tooltip="Add emoji"
+        tooltip={t('EDITOR_ADD_EMOJI')}
         onClick={handleClick}
         {...buttonProps}
         ref={ref}
       >
         {children ?? (
           <>
-            <Icon className="tiptap-button-icon" />
-            {text && <span className="tiptap-button-text">{text}</span>}
+            <Icon className="size-3.5 shrink-0" />
+            {text && <span className="truncate text-xs">{text}</span>}
             {showShortcut && (
               <EmojiTriggerShortcutBadge shortcutKeys={shortcutKeys} />
             )}

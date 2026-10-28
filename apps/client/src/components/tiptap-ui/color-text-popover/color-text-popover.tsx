@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { forwardRef, useCallback, useMemo, useRef, useState } from 'react'
 
 // --- Hooks ---
@@ -197,7 +196,7 @@ export const TextStyleColorPanel: React.FC<TextStyleColorPanelProps> = ({
         ...recentColors.map((color) => ({
           type: color.type,
           value: color.value,
-          label: `Recent ${color.type === 'text' ? 'text' : 'highlight'} color`,
+          label: color.type === 'text' ? t('EDITOR_RECENT_TEXT_COLOR') : t('EDITOR_RECENT_HIGHLIGHT_COLOR'),
           group: 'recent'
         }))
       )
@@ -234,7 +233,7 @@ export const TextStyleColorPanel: React.FC<TextStyleColorPanelProps> = ({
       label: string
       value: string
     }) => {
-      if (!containerRef.current) return false
+      if (!containerRef.current) return
 
       const highlightedElement = containerRef.current.querySelector(
         '[data-highlighted="true"]'
@@ -387,13 +386,13 @@ export const ColorTextPopover = forwardRef<
                       : ({} as React.CSSProperties)
                   }>
                   <Icon
-                    className="tiptap-button-icon"
+                    className="size-3.5 shrink-0"
                     style={{
                       color: activeTextStyle.color || undefined
                     }}
                   />
                 </span>
-                <ChevronDownIcon className="tiptap-button-dropdown-small" />
+                <ChevronDownIcon className="size-3 shrink-0 opacity-70" />
               </>
             )}
           </Button>
@@ -403,7 +402,7 @@ export const ColorTextPopover = forwardRef<
           style={{
             zIndex: '1000'
           }}
-          aria-label="Text color options"
+          aria-label={t('EDITOR_TEXT_COLOR_OPTIONS')}
           side="bottom"
           align="start">
           <TextStyleColorPanel onColorChanged={handleColorChanged} />
@@ -416,3 +415,5 @@ export const ColorTextPopover = forwardRef<
 ColorTextPopover.displayName = 'ColorTextPopover'
 
 export default ColorTextPopover
+
+import { t } from '@/views/knowledge/locale.ts'

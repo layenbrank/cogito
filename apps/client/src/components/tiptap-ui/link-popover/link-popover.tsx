@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { forwardRef, useCallback, useEffect, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 
@@ -37,6 +36,7 @@ import {
   Input,
   InputGroup
 } from '@/components/tiptap-ui-primitive/input/input.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface LinkMainProps {
   /**
@@ -73,9 +73,16 @@ export interface LinkPopoverProps
   onOpenChange?: (isOpen: boolean) => void
   /**
    * Whether to automatically open the popover when a link is active.
-   * @default true
+   * 默认关闭：工具栏与气泡菜单各有一份时，打开文档光标落在链接上
+   * 会同时弹出两个 URL 输入框（且气泡未定位时会落到左上角）。
+   * @default false
    */
   autoOpenOnLinkActive?: boolean
+  /**
+   * BubbleMenu 内须为 false，避免 portal 到 body 导致气泡闪退。
+   * @default true
+   */
+  portal?: boolean
 }
 
 /**
@@ -90,11 +97,11 @@ export const LinkButton = forwardRef<HTMLButtonElement, ButtonProps>(
         data-style="ghost"
         role="button"
         tabIndex={-1}
-        aria-label="Link"
-        tooltip="Link"
+        aria-label={t('EDITOR_LINK')}
+        tooltip={t('EDITOR_LINK')}
         ref={ref}
         {...props}>
-        {children || <LinkIcon className="tiptap-button-icon" />}
+        {children || <LinkIcon className="size-3.5 shrink-0" />}
       </Button>
     )
   }
@@ -135,7 +142,7 @@ const LinkMain: React.FC<LinkMainProps> = ({
           <InputGroup>
             <Input
               type="url"
-              placeholder="Paste a link..."
+              placeholder={t('EDITOR_LINK_PLACEHOLDER')}
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -150,10 +157,10 @@ const LinkMain: React.FC<LinkMainProps> = ({
             <Button
               type="button"
               onClick={setLink}
-              title="Apply link"
+              title={t('EDITOR_LINK_APPLY')}
               disabled={!url && !isActive}
               data-style="ghost">
-              <CornerDownLeftIcon className="tiptap-button-icon" />
+              <CornerDownLeftIcon className="size-3.5 shrink-0" />
             </Button>
           </ButtonGroup>
 
@@ -163,19 +170,19 @@ const LinkMain: React.FC<LinkMainProps> = ({
             <Button
               type="button"
               onClick={openLink}
-              title="Open in new window"
+              title={t('EDITOR_LINK_OPEN')}
               disabled={!url && !isActive}
               data-style="ghost">
-              <ExternalLinkIcon className="tiptap-button-icon" />
+              <ExternalLinkIcon className="size-3.5 shrink-0" />
             </Button>
 
             <Button
               type="button"
               onClick={removeLink}
-              title="Remove link"
+              title={t('EDITOR_LINK_REMOVE')}
               disabled={!url && !isActive}
               data-style="ghost">
-              <TrashIcon className="tiptap-button-icon" />
+              <TrashIcon className="size-3.5 shrink-0" />
             </Button>
           </ButtonGroup>
         </CardItemGroup>
@@ -209,7 +216,8 @@ export const LinkPopover = forwardRef<HTMLButtonElement, LinkPopoverProps>(
       hideWhenUnavailable = false,
       onSetLink,
       onOpenChange,
-      autoOpenOnLinkActive = true,
+      autoOpenOnLinkActive = false,
+      portal = true,
       onClick,
       children,
       ...buttonProps
@@ -259,11 +267,14 @@ export const LinkPopover = forwardRef<HTMLButtonElement, LinkPopoverProps>(
     )
 
     useEffect(() => {
-      if (autoOpenOnLinkActive && isActive) {
+      if (!autoOpenOnLinkActive) return
+      if (isActive) {
         requestAnimationFrame(function () {
           setIsOpen(true)
         })
+        return
       }
+      setIsOpen(false)
     }, [autoOpenOnLinkActive, isActive])
 
     if (!isVisible) {
@@ -284,11 +295,11 @@ export const LinkPopover = forwardRef<HTMLButtonElement, LinkPopoverProps>(
             onClick={handleClick}
             {...buttonProps}
             ref={ref}>
-            {children ?? <Icon className="tiptap-button-icon" />}
+            {children ?? <Icon className="size-3.5 shrink-0" />}
           </LinkButton>
         </PopoverTrigger>
 
-        <PopoverContent>
+        <PopoverContent portal={portal}>
           <LinkMain
             url={url}
             setUrl={setUrl}

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
 import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
 import { useShortcut } from '@/keyboard/react'
@@ -17,6 +16,7 @@ import {
 
 // --- Icons ---
 import { SmilePlusIcon } from '@/components/tiptap-icons/smile-plus-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export const EMOJI_TRIGGER_SHORTCUT_KEY = findShortcutDefault(
   SHORTCUT_COMMAND.EDITOR_EMOJI_TRIGGER
@@ -304,7 +304,7 @@ export function useEmojiTrigger(config?: UseEmojiTriggerConfig) {
     isVisible,
     handleAddTrigger,
     canAddTrigger,
-    label: 'Add emoji',
+    label: t('EDITOR_ADD_EMOJI'),
     shortcutKeys: EMOJI_TRIGGER_SHORTCUT_KEY,
     trigger,
     Icon: SmilePlusIcon

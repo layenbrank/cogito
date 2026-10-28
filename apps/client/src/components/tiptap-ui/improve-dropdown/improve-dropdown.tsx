@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useMemo } from 'react'
 import { type Editor } from '@tiptap/react'
 import type { TextOptions, Tone } from '@tiptap-pro/extension-ai'
@@ -46,6 +45,7 @@ import {
 } from '@/components/tiptap-ui-primitive/dropdown-menu/dropdown-menu.tsx'
 import { Card, CardBody } from '@/components/tiptap-ui-primitive/card/card.tsx'
 import { Separator } from '@/components/tiptap-ui-primitive/separator/separator.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface ToneOption {
   label: string
@@ -104,8 +104,8 @@ function SubMenuButton({ action }: { action: SubMenuAction }) {
         <Button
           data-style="ghost"
           type="button">
-          <action.icon className="tiptap-button-icon" />
-          <span className="tiptap-button-text">{action.label}</span>
+          <action.icon className="size-3.5 shrink-0" />
+          <span className="truncate text-xs">{action.label}</span>
           <ChevronRightIcon className="tiptap-button-icon-sub" />
         </Button>
       </DropdownMenuSubTrigger>
@@ -121,8 +121,8 @@ function SubMenuButton({ action }: { action: SubMenuAction }) {
                     type="button"
                     data-style="ghost"
                     onClick={item.onClick}>
-                    {item.icon && <item.icon className="tiptap-button-icon" />}
-                    <span className="tiptap-button-text">{item.label}</span>
+                    {item.icon && <item.icon className="size-3.5 shrink-0" />}
+                    <span className="truncate text-xs">{item.label}</span>
                   </Button>
                 </DropdownMenuItem>
               ))}
@@ -159,31 +159,31 @@ export function ImproveDropdown({
     () => [
       {
         icon: CheckAiIcon,
-        label: 'Fix spelling & grammar',
+        label: t('EDITOR_FIX_SPELLING'),
         command: 'fixSpellingAndGrammar',
         onClick: () => executeAICommand('fixSpellingAndGrammar')
       },
       {
         icon: TextExtendIcon,
-        label: 'Extend text',
+        label: t('EDITOR_EXTEND_TEXT'),
         command: 'extend',
         onClick: () => executeAICommand('extend')
       },
       {
         icon: TextReduceIcon,
-        label: 'Reduce text',
+        label: t('EDITOR_REDUCE_TEXT'),
         command: 'shorten',
         onClick: () => executeAICommand('shorten')
       },
       {
         icon: Simplify2Icon,
-        label: 'Simplify text',
+        label: t('EDITOR_SIMPLIFY_TEXT'),
         command: 'simplify',
         onClick: () => executeAICommand('simplify')
       },
       {
         icon: SmileAiIcon,
-        label: 'Emojify',
+        label: t('EDITOR_EMOJIFY'),
         command: 'emojify',
         onClick: () => executeAICommand('emojify')
       }
@@ -195,13 +195,13 @@ export function ImproveDropdown({
     () => [
       {
         icon: CompleteSentenceIcon,
-        label: 'Complete sentence',
+        label: t('EDITOR_COMPLETE_SENTENCE'),
         command: 'complete',
         onClick: () => executeAICommand('complete')
       },
       {
         icon: SummarizeTextIcon,
-        label: 'Summarize',
+        label: t('EDITOR_SUMMARIZE'),
         command: 'summarize',
         onClick: () => executeAICommand('summarize')
       }
@@ -213,7 +213,7 @@ export function ImproveDropdown({
     () => [
       {
         icon: MicAiIcon,
-        label: 'Adjust tone',
+        label: t('EDITOR_ADJUST_TONE'),
         items: SUPPORTED_TONES.map((option) => ({
           label: option.label,
           value: option.value,
@@ -227,7 +227,7 @@ export function ImproveDropdown({
   const translateSubMenu: SubMenuAction = useMemo(
     () => ({
       icon: LanguagesIcon,
-      label: 'Translate',
+      label: t('EDITOR_TRANSLATE'),
       items: SUPPORTED_LANGUAGES.map((option) => ({
         label: option.label,
         value: option.value,
@@ -255,11 +255,11 @@ export function ImproveDropdown({
           data-disabled={isDisabled}
           role="button"
           tabIndex={-1}
-          aria-label="Improve"
-          tooltip="Improve"
+          aria-label={t('EDITOR_IMPROVE')}
+          tooltip={t('EDITOR_IMPROVE')}
           {...props}>
-          <AiSparklesIcon className="tiptap-button-icon" />
-          <span className="tiptap-button-text">Improve</span>
+          <AiSparklesIcon className="size-3.5 shrink-0" />
+          <span className="truncate text-xs">Improve</span>
         </Button>
       </DropdownMenuTrigger>
 
@@ -284,8 +284,8 @@ export function ImproveDropdown({
                     type="button"
                     data-style="ghost"
                     onClick={action.onClick}>
-                    <action.icon className="tiptap-button-icon" />
-                    <span className="tiptap-button-text">{action.label}</span>
+                    <action.icon className="size-3.5 shrink-0" />
+                    <span className="truncate text-xs">{action.label}</span>
                   </Button>
                 </DropdownMenuItem>
               ))}
@@ -296,7 +296,7 @@ export function ImproveDropdown({
             <ButtonGroup>
               <DropdownMenuItem asChild>
                 <AiAskButton
-                  text="Ask AI"
+                  text={t('EDITOR_ASK_AI')}
                   showTooltip={false}
                 />
               </DropdownMenuItem>
@@ -309,8 +309,8 @@ export function ImproveDropdown({
                     type="button"
                     data-style="ghost"
                     onClick={action.onClick}>
-                    <action.icon className="tiptap-button-icon" />
-                    <span className="tiptap-button-text">{action.label}</span>
+                    <action.icon className="size-3.5 shrink-0" />
+                    <span className="truncate text-xs">{action.label}</span>
                   </Button>
                 </DropdownMenuItem>
               ))}

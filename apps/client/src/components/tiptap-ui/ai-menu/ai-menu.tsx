@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useCallback, useEffect, useRef } from 'react'
@@ -218,7 +217,7 @@ export function AiMenuContent({
         onClickOutside={handleClickOutside}
         className="tiptap-ai-menu"
         flip={false}>
-        <Card>
+        <Card surface>
           {aiGenerationIsLoading && <AiMenuProgress editor={editor} />}
 
           {!aiGenerationIsLoading && (
@@ -297,9 +296,9 @@ export function AiMenuProgress({ editor }: { editor: Editor }) {
       <ButtonGroup>
         <Button
           data-style="ghost"
-          title="Stop"
+          title={t('EDITOR_AI_STOP')}
           onClick={handleStop}>
-          <StopCircle2Icon className="tiptap-button-icon" />
+          <StopCircle2Icon className="size-3.5 shrink-0" />
         </Button>
       </ButtonGroup>
     </div>
@@ -313,3 +312,5 @@ export function AiMenu({ editor }: { editor?: Editor | null }) {
     </AiMenuStateProvider>
   )
 }
+
+import { t } from '@/views/knowledge/locale.ts'

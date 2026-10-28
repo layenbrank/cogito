@@ -1,7 +1,7 @@
-// @ts-nocheck
 'use client'
 
 import { forwardRef } from 'react'
+import type { Editor } from '@tiptap/react'
 
 // --- Tiptap UI ---
 import type { UseTurnIntoDropdownConfig } from '@/components/tiptap-ui/turn-into-dropdown/use-turn-into-dropdown.ts'
@@ -9,16 +9,18 @@ import {
   useTurnIntoDropdown,
   getFilteredBlockTypeOptions
 } from '@/components/tiptap-ui/turn-into-dropdown/use-turn-into-dropdown.ts'
+import { useText } from '@/components/tiptap-ui/text-button/use-text.ts'
+import {
+  useHeading,
+  type Level
+} from '@/components/tiptap-ui/heading-button/use-heading.ts'
+import { useList } from '@/components/tiptap-ui/list-button/use-list.ts'
+import type { ListType } from '@/components/tiptap-ui/list-button/use-list.ts'
+import { useBlockquote } from '@/components/tiptap-ui/blockquote-button/use-blockquote.ts'
+import { useCodeBlock } from '@/components/tiptap-ui/code-block-button/use-code-block.ts'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
-
-// --- Tiptap UI Components ---
-import { TextButton } from '@/components/tiptap-ui/text-button/text-button.tsx'
-import { HeadingButton } from '@/components/tiptap-ui/heading-button/heading-button.tsx'
-import { ListButton } from '@/components/tiptap-ui/list-button/list-button.tsx'
-import { BlockquoteButton } from '@/components/tiptap-ui/blockquote-button/blockquote-button.tsx'
-import { CodeBlockButton } from '@/components/tiptap-ui/code-block-button/code-block-button.tsx'
 
 // --- UI Primitives ---
 import type { ButtonProps } from '@/components/tiptap-ui-primitive/button/button.tsx'
@@ -38,21 +40,202 @@ import {
   CardGroupLabel,
   CardItemGroup
 } from '@/components/tiptap-ui-primitive/card/card.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface TurnIntoDropdownContentProps {
+  editor?: Editor | null
   blockTypes?: string[]
   useCardLayout?: boolean
 }
 
+interface BlockMenuItemProps {
+  editor?: Editor | null
+  label: string
+}
+
+/**
+ * 不用 asChild+Button：Menu.Item 保持默认 div，避免 Base UI nativeButton 与内层 <button> 冲突。
+ */
+function ParagraphMenuItem({ editor, label }: BlockMenuItemProps) {
+  const { handleToggle, canToggle, isActive, Icon } = useText({ editor })
+  return (
+    <DropdownMenuItem
+      disabled={!canToggle}
+      onClick={function () {
+        handleToggle()
+      }}
+      data-active-state={isActive ? 'on' : 'off'}>
+      <Icon className="size-3.5 shrink-0" />
+      <span className="truncate text-xs">{label}</span>
+    </DropdownMenuItem>
+  )
+}
+
+function HeadingMenuItem({
+  editor,
+  label,
+  level
+}: BlockMenuItemProps & { level: Level }) {
+  const { handleToggle, canToggle, isActive, Icon } = useHeading({
+    editor,
+    level
+  })
+  return (
+    <DropdownMenuItem
+      disabled={!canToggle}
+      onClick={function () {
+        handleToggle()
+      }}
+      data-active-state={isActive ? 'on' : 'off'}>
+      <Icon className="size-3.5 shrink-0" />
+      <span className="truncate text-xs">{label}</span>
+    </DropdownMenuItem>
+  )
+}
+
+function ListMenuItem({
+  editor,
+  label,
+  type
+}: BlockMenuItemProps & { type: ListType }) {
+  const { handleToggle, canToggle, isActive, Icon } = useList({ editor, type })
+  return (
+    <DropdownMenuItem
+      disabled={!canToggle}
+      onClick={function () {
+        handleToggle()
+      }}
+      data-active-state={isActive ? 'on' : 'off'}>
+      <Icon className="size-3.5 shrink-0" />
+      <span className="truncate text-xs">{label}</span>
+    </DropdownMenuItem>
+  )
+}
+
+function BlockquoteMenuItem({ editor, label }: BlockMenuItemProps) {
+  const { handleToggle, canToggle, isActive, Icon } = useBlockquote({ editor })
+  return (
+    <DropdownMenuItem
+      disabled={!canToggle}
+      onClick={function () {
+        handleToggle()
+      }}
+      data-active-state={isActive ? 'on' : 'off'}>
+      <Icon className="size-3.5 shrink-0" />
+      <span className="truncate text-xs">{label}</span>
+    </DropdownMenuItem>
+  )
+}
+
+function CodeBlockMenuItem({ editor, label }: BlockMenuItemProps) {
+  const { handleToggle, canToggle, isActive, Icon } = useCodeBlock({ editor })
+  return (
+    <DropdownMenuItem
+      disabled={!canToggle}
+      onClick={function () {
+        handleToggle()
+      }}
+      data-active-state={isActive ? 'on' : 'off'}>
+      <Icon className="size-3.5 shrink-0" />
+      <span className="truncate text-xs">{label}</span>
+    </DropdownMenuItem>
+  )
+}
+
+function renderBlockTypeButton(
+  option: ReturnType<typeof getFilteredBlockTypeOptions>[0],
+  key: string,
+  editor?: Editor | null
+) {
+  switch (option.type) {
+    case 'paragraph':
+      return (
+        <ParagraphMenuItem
+          key={key}
+          editor={editor}
+          label={option.label}
+        />
+      )
+
+    case 'heading':
+      if (!option.level) {
+        return null
+      }
+      return (
+        <HeadingMenuItem
+          key={key}
+          editor={editor}
+          label={option.label}
+          level={option.level}
+        />
+      )
+
+    case 'bulletList':
+      return (
+        <ListMenuItem
+          key={key}
+          editor={editor}
+          label={option.label}
+          type="bulletList"
+        />
+      )
+
+    case 'orderedList':
+      return (
+        <ListMenuItem
+          key={key}
+          editor={editor}
+          label={option.label}
+          type="orderedList"
+        />
+      )
+
+    case 'taskList':
+      return (
+        <ListMenuItem
+          key={key}
+          editor={editor}
+          label={option.label}
+          type="taskList"
+        />
+      )
+
+    case 'blockquote':
+      return (
+        <BlockquoteMenuItem
+          key={key}
+          editor={editor}
+          label={option.label}
+        />
+      )
+
+    case 'codeBlock':
+      return (
+        <CodeBlockMenuItem
+          key={key}
+          editor={editor}
+          label={option.label}
+        />
+      )
+
+    default:
+      return null
+  }
+}
+
 export const TurnIntoDropdownContent: React.FC<
   TurnIntoDropdownContentProps
-> = ({ blockTypes, useCardLayout = true }) => {
+> = ({ editor, blockTypes, useCardLayout = true }) => {
   const filteredOptions = getFilteredBlockTypeOptions(blockTypes)
 
   const renderButtons = () => (
     <ButtonGroup>
       {filteredOptions.map((option, index) =>
-        renderBlockTypeButton(option, `${option.type}-${option.level ?? index}`)
+        renderBlockTypeButton(
+          option,
+          `${option.type}-${option.level ?? index}`,
+          editor
+        )
       )}
     </ButtonGroup>
   )
@@ -63,114 +246,12 @@ export const TurnIntoDropdownContent: React.FC<
     <Card>
       <CardBody>
         <CardItemGroup>
-          <CardGroupLabel>Turn into</CardGroupLabel>
+          <CardGroupLabel>{t('EDITOR_TURN_INTO')}</CardGroupLabel>
           {renderButtons()}
         </CardItemGroup>
       </CardBody>
     </Card>
   )
-}
-
-function renderBlockTypeButton(
-  option: ReturnType<typeof getFilteredBlockTypeOptions>[0],
-  key: string
-) {
-  switch (option.type) {
-    case 'paragraph':
-      return (
-        <DropdownMenuItem
-          key={key}
-          asChild>
-          <TextButton
-            showTooltip={false}
-            text={option.label}
-          />
-        </DropdownMenuItem>
-      )
-
-    case 'heading':
-      if (!option.level) {
-        return null
-      }
-
-      return (
-        <DropdownMenuItem
-          key={key}
-          asChild>
-          <HeadingButton
-            level={option.level || 1}
-            showTooltip={false}
-            text={option.label}
-          />
-        </DropdownMenuItem>
-      )
-
-    case 'bulletList':
-      return (
-        <DropdownMenuItem
-          key={key}
-          asChild>
-          <ListButton
-            type="bulletList"
-            showTooltip={false}
-            text={option.label}
-          />
-        </DropdownMenuItem>
-      )
-
-    case 'orderedList':
-      return (
-        <DropdownMenuItem
-          key={key}
-          asChild>
-          <ListButton
-            type="orderedList"
-            showTooltip={false}
-            text={option.label}
-          />
-        </DropdownMenuItem>
-      )
-
-    case 'taskList':
-      return (
-        <DropdownMenuItem
-          key={key}
-          asChild>
-          <ListButton
-            type="taskList"
-            showTooltip={false}
-            text={option.label}
-          />
-        </DropdownMenuItem>
-      )
-
-    case 'blockquote':
-      return (
-        <DropdownMenuItem
-          key={key}
-          asChild>
-          <BlockquoteButton
-            showTooltip={false}
-            text={option.label}
-          />
-        </DropdownMenuItem>
-      )
-
-    case 'codeBlock':
-      return (
-        <DropdownMenuItem
-          key={key}
-          asChild>
-          <CodeBlockButton
-            showTooltip={false}
-            text={option.label}
-          />
-        </DropdownMenuItem>
-      )
-
-    default:
-      return null
-  }
 }
 
 export interface TurnIntoDropdownProps
@@ -237,15 +318,15 @@ export const TurnIntoDropdown = forwardRef<
             role="button"
             tabIndex={-1}
             aria-label={label}
-            tooltip="Turn into"
+            tooltip={t('EDITOR_TURN_INTO')}
             {...buttonProps}
             ref={ref}>
             {children ?? (
               <>
-                <span className="tiptap-button-text">
-                  {activeBlockType?.label || 'Text'}
+                <span className="truncate text-xs">
+                  {activeBlockType?.label || t('EDITOR_TEXT')}
                 </span>
-                <Icon className="tiptap-button-dropdown-small" />
+                <Icon className="size-3 shrink-0 opacity-70" />
               </>
             )}
           </Button>
@@ -258,6 +339,7 @@ export const TurnIntoDropdown = forwardRef<
           }}
           align="start">
           <TurnIntoDropdownContent
+            editor={editor}
             blockTypes={blockTypes}
             useCardLayout={useCardLayout}
           />

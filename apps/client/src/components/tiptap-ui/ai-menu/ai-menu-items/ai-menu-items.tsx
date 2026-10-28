@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Fragment, useCallback, useMemo } from 'react'
 import { type Editor } from '@tiptap/react'
 import type { TextOptions } from '@tiptap-pro/extension-ai'
@@ -54,6 +53,7 @@ import { TextReduceIcon } from '@/components/tiptap-icons/text-reduce-icon.tsx'
 import { CompleteSentenceIcon } from '@/components/tiptap-icons/complete-sentence-icon.tsx'
 import { SmileAiIcon } from '@/components/tiptap-icons/smile-ai-icon.tsx'
 import { CheckAiIcon } from '@/components/tiptap-icons/check-ai-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 function initializeEditorMenuActions(): Record<
   MenuActionIdentifier,
@@ -64,15 +64,15 @@ function initializeEditorMenuActions(): Record<
       type: 'nested',
       component: ToneSelectionSubmenu,
       filterItems: true,
-      icon: <MicAiIcon className="tiptap-button-icon" />,
+      icon: <MicAiIcon className="size-3.5 shrink-0" />,
       items: SUPPORTED_TONES,
-      label: 'Adjust tone',
+      label: t('EDITOR_ADJUST_TONE'),
       value: 'adjustTone'
     },
     aiFixSpellingAndGrammar: {
       type: 'executable',
-      icon: <CheckAiIcon className="tiptap-button-icon" />,
-      label: 'Fix spelling & grammar',
+      icon: <CheckAiIcon className="size-3.5 shrink-0" />,
+      label: t('EDITOR_FIX_SPELLING'),
       value: 'aiFixSpellingAndGrammar',
       onSelect: ({ editor, options }) => {
         if (!editor) return
@@ -93,8 +93,8 @@ function initializeEditorMenuActions(): Record<
     },
     aiExtend: {
       type: 'executable',
-      icon: <TextExtendIcon className="tiptap-button-icon" />,
-      label: 'Make longer',
+      icon: <TextExtendIcon className="size-3.5 shrink-0" />,
+      label: t('EDITOR_MAKE_LONGER'),
       value: 'aiExtend',
       onSelect: ({ editor, options }) => {
         if (!editor) return
@@ -115,8 +115,8 @@ function initializeEditorMenuActions(): Record<
     },
     aiShorten: {
       type: 'executable',
-      icon: <TextReduceIcon className="tiptap-button-icon" />,
-      label: 'Make shorter',
+      icon: <TextReduceIcon className="size-3.5 shrink-0" />,
+      label: t('EDITOR_MAKE_SHORTER'),
       value: 'aiShorten',
       onSelect: ({ editor, options }) => {
         if (!editor) return
@@ -137,8 +137,8 @@ function initializeEditorMenuActions(): Record<
     },
     simplifyLanguage: {
       type: 'executable',
-      icon: <Simplify2Icon className="tiptap-button-icon" />,
-      label: 'Simplify language',
+      icon: <Simplify2Icon className="size-3.5 shrink-0" />,
+      label: t('EDITOR_SIMPLIFY_LANGUAGE'),
       value: 'simplifyLanguage',
       onSelect: ({ editor, options }) => {
         if (!editor) return
@@ -159,8 +159,8 @@ function initializeEditorMenuActions(): Record<
     },
     improveWriting: {
       type: 'executable',
-      icon: <SmileAiIcon className="tiptap-button-icon" />,
-      label: 'Improve writing',
+      icon: <SmileAiIcon className="size-3.5 shrink-0" />,
+      label: t('EDITOR_IMPROVE_WRITING'),
       value: 'improveWriting',
       onSelect: ({ editor, options }) => {
         if (!editor) return
@@ -181,8 +181,8 @@ function initializeEditorMenuActions(): Record<
     },
     emojify: {
       type: 'executable',
-      icon: <SmileAiIcon className="tiptap-button-icon" />,
-      label: 'Emojify',
+      icon: <SmileAiIcon className="size-3.5 shrink-0" />,
+      label: t('EDITOR_EMOJIFY'),
       value: 'emojify',
       onSelect: ({ editor, options }) => {
         if (!editor) return
@@ -203,8 +203,8 @@ function initializeEditorMenuActions(): Record<
     },
     continueWriting: {
       type: 'executable',
-      icon: <CompleteSentenceIcon className="tiptap-button-icon" />,
-      label: 'Continue writing',
+      icon: <CompleteSentenceIcon className="size-3.5 shrink-0" />,
+      label: t('EDITOR_CONTINUE_WRITING'),
       value: 'continueWriting',
       onSelect: ({ editor, options }) => {
         if (!editor) return
@@ -225,8 +225,8 @@ function initializeEditorMenuActions(): Record<
     },
     summarize: {
       type: 'executable',
-      icon: <SummarizeTextIcon className="tiptap-button-icon" />,
-      label: 'Add a summary',
+      icon: <SummarizeTextIcon className="size-3.5 shrink-0" />,
+      label: t('EDITOR_ADD_SUMMARY'),
       value: 'summarize',
       onSelect: ({ editor, options }) => {
         if (!editor) return
@@ -249,9 +249,9 @@ function initializeEditorMenuActions(): Record<
       type: 'nested',
       component: LanguageSelectionSubmenu,
       filterItems: true,
-      icon: <LanguagesIcon className="tiptap-button-icon" />,
+      icon: <LanguagesIcon className="size-3.5 shrink-0" />,
       items: SUPPORTED_LANGUAGES,
-      label: 'Languages',
+      label: t('EDITOR_LANGUAGES'),
       value: 'translateTo'
     }
   }
@@ -269,7 +269,7 @@ function mapInteractionContextToActions(
 
   const grouped: Action[] = [
     {
-      label: 'Edit',
+      label: t('EDITOR_EDIT'),
       items: Object.values([
         menuActions.adjustTone,
         menuActions.aiFixSpellingAndGrammar,
@@ -281,7 +281,7 @@ function mapInteractionContextToActions(
       ]).map(convertToMenuAction)
     },
     {
-      label: 'Write',
+      label: t('EDITOR_WRITE'),
       items: Object.values([
         menuActions.continueWriting,
         menuActions.summarize,
@@ -360,8 +360,8 @@ function LanguageSelectionSubmenu({
           }
           render={
             <Button data-style="ghost">
-              <LanguagesIcon className="tiptap-button-icon" />
-              <span className="tiptap-button-text">{language.label}</span>
+              <LanguagesIcon className="size-3.5 shrink-0" />
+              <span className="truncate text-xs">{language.label}</span>
             </Button>
           }
         />
@@ -382,8 +382,8 @@ function LanguageSelectionSubmenu({
             <MenuItem
               render={
                 <Button data-style="ghost">
-                  <LanguagesIcon className="tiptap-button-icon" />
-                  <span className="tiptap-button-text">Languages</span>
+                  <LanguagesIcon className="size-3.5 shrink-0" />
+                  <span className="truncate text-xs">Languages</span>
                   <MenuButtonArrow render={<ChevronRightIcon />} />
                 </Button>
               }
@@ -447,7 +447,7 @@ function ToneSelectionSubmenu({ editor }: { editor: Editor | null }) {
       onClick={() => handleToneSelection(tone.value || '')}
       render={
         <Button data-style="ghost">
-          <span className="tiptap-button-text">{tone.label}</span>
+          <span className="truncate text-xs">{tone.label}</span>
         </Button>
       }
     />
@@ -466,8 +466,8 @@ function ToneSelectionSubmenu({ editor }: { editor: Editor | null }) {
             <MenuItem
               render={
                 <Button data-style="ghost">
-                  <MicAiIcon className="tiptap-button-icon" />
-                  <span className="tiptap-button-text">Adjust Tone</span>
+                  <MicAiIcon className="size-3.5 shrink-0" />
+                  <span className="truncate text-xs">Adjust Tone</span>
                   <MenuButtonArrow render={<ChevronRightIcon />} />
                 </Button>
               }
@@ -533,7 +533,7 @@ function MenuActionRenderer({
         render={
           <Button data-style="ghost">
             {editorAction.icon}
-            <span className="tiptap-button-text">{editorAction.label}</span>
+            <span className="truncate text-xs">{editorAction.label}</span>
           </Button>
         }
       />

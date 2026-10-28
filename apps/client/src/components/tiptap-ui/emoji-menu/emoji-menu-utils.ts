@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type { EmojiItem } from "@tiptap/extension-emoji"
 
 const MAX_SUGGESTIONS = 100

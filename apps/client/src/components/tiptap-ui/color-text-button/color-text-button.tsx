@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { forwardRef, useCallback, useMemo } from 'react'
@@ -129,11 +128,11 @@ export const ColorTextButton = forwardRef<
               className="tiptap-button-color-text"
               style={{ color: textColor }}>
               <Icon
-                className="tiptap-button-icon"
+                className="size-3.5 shrink-0"
                 style={{ color: textColor, flexGrow: 1 }}
               />
             </span>
-            {text && <span className="tiptap-button-text">{text}</span>}
+            {text && <span className="truncate text-xs">{text}</span>}
             {showShortcut && (
               <ColorTextShortcutBadge shortcutKeys={shortcutKeys} />
             )}

@@ -192,9 +192,9 @@ export const TableExtendRowColumnButton: React.FC<
       onMouseDown={startDrag}
       type="button"
       aria-label={
-        isRowOrientation ? 'Add or remove rows' : 'Add or remove columns'
+        isRowOrientation ? t('EDITOR_ADD_REMOVE_ROWS') : t('EDITOR_ADD_REMOVE_COLS')
       }>
-      {children ?? <PlusSmallIcon className="tiptap-button-icon" />}
+      {children ?? <PlusSmallIcon className="size-3.5 shrink-0" />}
     </button>
   )
 }
@@ -262,3 +262,5 @@ export const TableExtendRowColumnButtons: React.FC<
     </FloatingPortal>
   )
 }
+
+import { t } from '@/views/knowledge/locale.ts'

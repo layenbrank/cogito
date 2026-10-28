@@ -502,12 +502,6 @@ importers:
       '@iconify/react':
         specifier: 'catalog:'
         version: 6.0.2(react@19.2.3)
-      '@radix-ui/react-dropdown-menu':
-        specifier: ^2.1.16
-        version: 2.1.24(@types/react-dom@19.2.4(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@radix-ui/react-popover':
-        specifier: ^1.1.15
-        version: 1.1.23(@types/react-dom@19.2.4(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@react-spring/konva':
         specifier: ^10.0.3
         version: 10.1.2(konva@10.7.0)(react-konva@19.2.5(@types/react@19.2.17)(konva@10.7.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)

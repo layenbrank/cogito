@@ -1,27 +1,22 @@
-// @ts-nocheck
 'use client'
 
+import { Input as DesignInput } from '@cogito/design/components/input'
 import { cn } from '@/lib/tiptap-utils.ts'
-import '@/components/tiptap-ui-primitive/input/input.scss'
 
 function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
   return (
-    <input
+    <DesignInput
       type={type}
-      className={cn('tiptap-input', className)}
+      className={cn('h-8', className)}
       {...props}
     />
   )
 }
 
-function InputGroup({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<'div'>) {
+function InputGroup({ className, children, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
-      className={cn('tiptap-input-group', className)}
+      className={cn('flex w-full items-center gap-1.5', className)}
       {...props}>
       {children}
     </div>

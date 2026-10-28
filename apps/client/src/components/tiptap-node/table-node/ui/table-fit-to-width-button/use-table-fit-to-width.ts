@@ -16,6 +16,7 @@ import {
 
 // --Icons ---
 import { MoveHorizontalIcon } from '@/components/tiptap-icons/move-horizontal-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface UseTableFitToWidthConfig {
   /**
@@ -230,7 +231,7 @@ export function useTableFitToWidth(config: UseTableFitToWidthConfig = {}) {
     return success
   }, [editor, onWidthAdjusted])
 
-  const label = 'Fit to width'
+  const label = t('EDITOR_FIT_TO_WIDTH')
   const Icon = MoveHorizontalIcon
 
   return {

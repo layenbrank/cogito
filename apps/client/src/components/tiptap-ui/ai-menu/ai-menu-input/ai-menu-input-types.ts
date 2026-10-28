@@ -1,4 +1,3 @@
-// @ts-nocheck
 export interface BaseAiMenuInputProps {
   onInputSubmit: (value: string) => void
   onToneChange?: (tone: string) => void

@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
@@ -12,6 +11,7 @@ import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 
 // --- Icons ---
 import { RotateCcwIcon } from '@/components/tiptap-icons/rotate-ccw-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export const RESET_ALL_FORMATTING_SHORTCUT_KEY = findShortcutDefault(
   SHORTCUT_COMMAND.EDITOR_RESET_FORMATTING
@@ -214,15 +214,24 @@ export function useResetAllFormatting(config?: UseResetAllFormattingConfig) {
 
   const { editor } = useTiptapEditor(providedEditor)
   const [isVisible, setIsVisible] = useState<boolean>(true)
+  // 调用方常写 preserveMarks: ['x']，引用每次 render 都变；用序列化键稳住 effect
+  const preserveMarksKey = preserveMarks?.join('\0') ?? ''
   const canReset = canResetFormatting(editor, preserveMarks)
 
   useEffect(() => {
     if (!editor) return
 
+    const marks = preserveMarksKey.length > 0 ? preserveMarksKey.split('\0') : undefined
+
     const handleSelectionUpdate = () => {
-      setIsVisible(
-        shouldShowButton({ editor, hideWhenUnavailable, preserveMarks })
-      )
+      const next = shouldShowButton({
+        editor,
+        hideWhenUnavailable,
+        preserveMarks: marks
+      })
+      setIsVisible(function (prev) {
+        return prev === next ? prev : next
+      })
     }
 
     handleSelectionUpdate()
@@ -232,7 +241,7 @@ export function useResetAllFormatting(config?: UseResetAllFormattingConfig) {
     return () => {
       editor.off('selectionUpdate', handleSelectionUpdate)
     }
-  }, [editor, hideWhenUnavailable, preserveMarks])
+  }, [editor, hideWhenUnavailable, preserveMarksKey])
 
   const handleResetFormatting = useCallback(() => {
     if (!editor) return false
@@ -258,7 +267,7 @@ export function useResetAllFormatting(config?: UseResetAllFormattingConfig) {
     isVisible,
     handleResetFormatting,
     canReset,
-    label: 'Reset formatting',
+    label: t('EDITOR_RESET_FORMATTING'),
     shortcutKeys: RESET_ALL_FORMATTING_SHORTCUT_KEY,
     Icon: RotateCcwIcon
   }

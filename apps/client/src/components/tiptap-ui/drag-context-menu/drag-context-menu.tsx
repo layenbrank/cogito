@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -75,6 +74,8 @@ import { ChevronRightIcon } from '@/components/tiptap-icons/chevron-right-icon'
 import { Repeat2Icon } from '@/components/tiptap-icons/repeat-2-icon'
 import './drag-context-menu.scss'
 
+const RESET_PRESERVE_MARKS = ['inlineThread']
+
 const useNodeTransformActions = () => {
   const text = useText()
   const heading1 = useHeading({ level: 1 })
@@ -134,8 +135,8 @@ const BaseMenuItem: React.FC<MenuItemProps> = ({
     }
     onClick={onClick}
     disabled={disabled}>
-    <Icon className="tiptap-button-icon" />
-    <span className="tiptap-button-text">{label}</span>
+    <Icon className="size-3.5 shrink-0" />
+    <span className="truncate text-xs">{label}</span>
     {shortcutBadge}
   </MenuItem>
 )
@@ -153,10 +154,10 @@ const SubMenuTrigger: React.FC<{
           <MenuButton
             render={
               <Button data-style="ghost">
-                <Icon className="tiptap-button-icon" />
-                <span className="tiptap-button-text">{label}</span>
+                <Icon className="size-3.5 shrink-0" />
+                <span className="truncate text-xs">{label}</span>
                 <Spacer />
-                <ChevronRightIcon className="tiptap-button-icon" />
+                <ChevronRightIcon className="size-3.5 shrink-0" />
               </Button>
             }
           />
@@ -178,7 +179,7 @@ const TransformActionGroup: React.FC = () => {
   const { canReset, handleResetFormatting, label, Icon } =
     useResetAllFormatting({
       hideWhenUnavailable: true,
-      preserveMarks: ['inlineThread']
+      preserveMarks: RESET_PRESERVE_MARKS
     })
 
   if (!actions && !canReset) return null
@@ -188,9 +189,9 @@ const TransformActionGroup: React.FC = () => {
       {actions && (
         <SubMenuTrigger
           icon={Repeat2Icon}
-          label="Turn Into">
+          label={t('EDITOR_TURN_INTO')}>
           <MenuGroup>
-            <MenuGroupLabel>Turn into</MenuGroupLabel>
+            <MenuGroupLabel>{t('EDITOR_TURN_INTO')}</MenuGroupLabel>
             {actions.map((action) => (
               <BaseMenuItem
                 key={action.label}
@@ -235,7 +236,7 @@ const TableFitToWidth: React.FC = () => {
       {clearAllContents.canClearRowColumnContent && (
         <BaseMenuItem
           icon={clearAllContents.Icon}
-          label={'Clear all contents'}
+          label={t('EDITOR_CLEAR_ALL_CONTENTS')}
           disabled={!clearAllContents.canClearRowColumnContent}
           onClick={clearAllContents.handleClear}
         />
@@ -281,9 +282,10 @@ const CogitoActionGroup: React.FC = () => {
   const {
     handleCopyAnchorLink,
     canCopyAnchorLink,
+    isVisible: isCopyAnchorVisible,
     label: copyAnchorLinkLabel,
     Icon: CopyAnchorLinkIcon
-  } = useCopyAnchorLink()
+  } = useCopyAnchorLink({ hideWhenUnavailable: true })
 
   return (
     <>
@@ -302,13 +304,14 @@ const CogitoActionGroup: React.FC = () => {
           disabled={!canCopyToClipboard}
           shortcutBadge={<CopyToClipboardShortcutBadge />}
         />
-        <BaseMenuItem
-          icon={CopyAnchorLinkIcon}
-          label={copyAnchorLinkLabel}
-          onClick={handleCopyAnchorLink}
-          disabled={!canCopyAnchorLink}
-          shortcutBadge={<CopyAnchorLinkShortcutBadge />}
-        />
+        {isCopyAnchorVisible && canCopyAnchorLink ? (
+          <BaseMenuItem
+            icon={CopyAnchorLinkIcon}
+            label={copyAnchorLinkLabel}
+            onClick={handleCopyAnchorLink}
+            shortcutBadge={<CopyAnchorLinkShortcutBadge />}
+          />
+        ) : null}
       </MenuGroup>
 
       <Separator orientation="horizontal" />
@@ -317,21 +320,21 @@ const CogitoActionGroup: React.FC = () => {
 }
 
 const AIActionGroup: React.FC = () => {
-  const { handleAiAsk, canAiAsk, Icon: AiAskIcon } = useAiAsk()
+  const { handleAiAsk, canAiAsk, isVisible, Icon: AiAskIcon } = useAiAsk({
+    hideWhenUnavailable: true
+  })
 
-  if (!canAiAsk) return null
+  if (!isVisible || !canAiAsk) return null
 
   return (
     <>
       <MenuGroup>
-        {canAiAsk && (
-          <BaseMenuItem
-            icon={AiAskIcon}
-            label="Ask AI"
-            onClick={handleAiAsk}
-            shortcutBadge={<AskAiShortcutBadge />}
-          />
-        )}
+        <BaseMenuItem
+          icon={AiAskIcon}
+          label={t('EDITOR_ASK_AI')}
+          onClick={handleAiAsk}
+          shortcutBadge={<AskAiShortcutBadge />}
+        />
       </MenuGroup>
 
       <Separator orientation="horizontal" />
@@ -468,8 +471,8 @@ export const DragContextMenu: React.FC<DragContextMenuProps> = ({
                     tabIndex={-1}
                     tooltip={
                       <>
-                        <div>Click for options</div>
-                        <div>Hold for drag</div>
+                        <div>{t('EDITOR_DRAG_CLICK')}</div>
+                        <div>{t('EDITOR_DRAG_HOLD')}</div>
                       </>
                     }
                     data-weight="small"
@@ -480,7 +483,7 @@ export const DragContextMenu: React.FC<DragContextMenuProps> = ({
                     onMouseDown={() =>
                       selectNodeAndHideFloating(editor, nodePos)
                     }>
-                    <GripVerticalIcon className="tiptap-button-icon" />
+                    <GripVerticalIcon className="size-3.5 shrink-0" />
                   </Button>
                 }
               />
@@ -517,3 +520,5 @@ export const DragContextMenu: React.FC<DragContextMenuProps> = ({
     </div>
   )
 }
+
+import { t } from '@/views/knowledge/locale.ts'

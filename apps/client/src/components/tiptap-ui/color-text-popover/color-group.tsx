@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type { ColorItem, ColorType } from '@/components/tiptap-ui/color-text-popover/use-color-text-popover.ts'
 import { ColorHighlightButton } from '@/components/tiptap-ui/color-highlight-button/color-highlight-button.tsx'
 import { ColorTextButton } from '@/components/tiptap-ui/color-text-button/color-text-button.tsx'

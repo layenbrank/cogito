@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { forwardRef, useMemo, useRef, useState } from 'react'
 import { type Editor } from '@tiptap/react'
 
@@ -39,6 +38,7 @@ import {
   useColorHighlight
 } from '@/components/tiptap-ui/color-highlight-button/use-color-highlight.ts'
 import { ColorHighlightButton } from '@/components/tiptap-ui/color-highlight-button/color-highlight-button.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface ColorHighlightPopoverContentProps {
   /**
@@ -64,6 +64,11 @@ export interface ColorHighlightPopoverProps
    * If not provided, defaults to a predefined set of colors.
    */
   colors?: HighlightColor[]
+  /**
+   * BubbleMenu 内须为 false。
+   * @default true
+   */
+  portal?: boolean
 }
 
 export const ColorHighlightPopoverButton = forwardRef<
@@ -77,11 +82,11 @@ export const ColorHighlightPopoverButton = forwardRef<
     data-appearance="default"
     role="button"
     tabIndex={-1}
-    aria-label="Highlight text"
-    tooltip="Highlight"
+    aria-label={t('EDITOR_HIGHLIGHT_TEXT')}
+    tooltip={t('EDITOR_HIGHLIGHT')}
     ref={ref}
     {...props}>
-    {children ?? <HighlighterIcon className="tiptap-button-icon" />}
+    {children ?? <HighlighterIcon className="size-3.5 shrink-0" />}
   </Button>
 ))
 
@@ -102,7 +107,7 @@ export function ColorHighlightPopoverContent({
   const containerRef = useRef<HTMLDivElement>(null)
 
   const menuItems = useMemo(
-    () => [...colors, { label: 'Remove highlight', value: 'none' }],
+    () => [...colors, { label: t('EDITOR_REMOVE_HIGHLIGHT'), value: 'none' }],
     [colors]
   )
 
@@ -146,14 +151,14 @@ export function ColorHighlightPopoverContent({
           <ButtonGroup orientation="horizontal">
             <Button
               onClick={handleRemoveHighlight}
-              aria-label="Remove highlight"
-              tooltip="Remove highlight"
+              aria-label={t('EDITOR_REMOVE_HIGHLIGHT')}
+              tooltip={t('EDITOR_REMOVE_HIGHLIGHT')}
               tabIndex={selectedIndex === colors.length ? 0 : -1}
               type="button"
               role="menuitem"
               data-style="ghost"
               data-highlighted={selectedIndex === colors.length}>
-              <BanIcon className="tiptap-button-icon" />
+              <BanIcon className="size-3.5 shrink-0" />
             </Button>
           </ButtonGroup>
         </CardItemGroup>
@@ -173,6 +178,7 @@ export function ColorHighlightPopover({
   ]),
   hideWhenUnavailable = false,
   onApplied,
+  portal = true,
   ...props
 }: ColorHighlightPopoverProps) {
   const { editor } = useTiptapEditor(providedEditor)
@@ -199,14 +205,15 @@ export function ColorHighlightPopover({
           aria-label={label}
           tooltip={label}
           {...props}>
-          <Icon className="tiptap-button-icon" />
+          <Icon className="size-3.5 shrink-0" />
         </ColorHighlightPopoverButton>
       </PopoverTrigger>
       <PopoverContent
+        portal={portal}
         style={{
           zIndex: '1000'
         }}
-        aria-label="Highlight colors">
+        aria-label={t('EDITOR_HIGHLIGHT_COLORS')}>
         <ColorHighlightPopoverContent
           editor={editor}
           colors={colors}

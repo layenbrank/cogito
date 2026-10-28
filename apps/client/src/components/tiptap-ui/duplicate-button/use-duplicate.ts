@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
@@ -12,6 +11,7 @@ import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 
 // --- Icons ---
 import { CopyIcon } from '@/components/tiptap-icons/copy-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export const DUPLICATE_SHORTCUT_KEY = findShortcutDefault(SHORTCUT_COMMAND.EDITOR_DUPLICATE)
 
@@ -207,7 +207,7 @@ export function useDuplicate(config?: UseDuplicateConfig) {
     isVisible,
     handleDuplicate,
     canDuplicate,
-    label: 'Duplicate node',
+    label: t('EDITOR_DUPLICATE_NODE'),
     shortcutKeys: DUPLICATE_SHORTCUT_KEY,
     Icon: CopyIcon
   }

@@ -34,6 +34,7 @@ import { ArrowLeftIcon } from '@/components/tiptap-icons/arrow-left-icon.tsx'
 import { ArrowRightIcon } from '@/components/tiptap-icons/arrow-right-icon.tsx'
 import { ArrowUpIcon } from '@/components/tiptap-icons/arrow-up-icon.tsx'
 import { ArrowDownIcon } from '@/components/tiptap-icons/arrow-down-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export type MoveDirection = 'up' | 'down' | 'left' | 'right'
 
@@ -79,16 +80,16 @@ export const tableMoveRowColumnLabels: Record<
   Record<MoveDirection, string>
 > = {
   row: {
-    up: 'Move row up',
-    down: 'Move row down',
-    left: 'Move row left',
-    right: 'Move row right'
+    up: t('EDITOR_TABLE_MOVE_ROW_UP'),
+    down: t('EDITOR_TABLE_MOVE_ROW_DOWN'),
+    left: t('EDITOR_MOVE_UP'),
+    right: t('EDITOR_MOVE_DOWN')
   },
   column: {
-    up: 'Move column up',
-    down: 'Move column down',
-    left: 'Move column left',
-    right: 'Move column right'
+    up: t('EDITOR_MOVE_UP'),
+    down: t('EDITOR_MOVE_DOWN'),
+    left: t('EDITOR_TABLE_MOVE_COL_LEFT'),
+    right: t('EDITOR_TABLE_MOVE_COL_RIGHT')
   }
 }
 
@@ -464,7 +465,7 @@ export function useTableMoveRowColumn(config: UseTableMoveRowColumnConfig) {
       tableMoveRowColumnLabels[selectionType?.orientation || 'row']
     return (
       orientationLabels[direction] ||
-      `Move ${selectionType?.orientation} ${direction}`
+      t('EDITOR_MOVE_DOWN')
     )
   }, [selectionType, direction])
 

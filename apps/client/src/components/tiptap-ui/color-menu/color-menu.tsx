@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import type { Editor } from '@tiptap/react'
@@ -37,6 +36,7 @@ import { PaintBucketIcon } from '@/components/tiptap-icons/paint-bucket-icon.tsx
 import { ChevronRightIcon } from '@/components/tiptap-icons/chevron-right-icon.tsx'
 import { TextColorSmallIcon } from '@/components/tiptap-icons/text-color-small-icon.tsx'
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
+import { t } from '@/views/knowledge/locale.ts'
 
 interface ColorMenuItemProps {
   color: { value: string; label: string }
@@ -64,11 +64,11 @@ const TextColorMenuItem: React.FC<ColorMenuItemProps> = ({ color }) => {
         className="tiptap-button-color-text"
         style={{ color: color.value }}>
         <TextColorSmallIcon
-          className="tiptap-button-icon"
+          className="size-3.5 shrink-0"
           style={{ color: color.value, flexGrow: 1 }}
         />
       </span>
-      <span className="tiptap-button-text">{label}</span>
+      <span className="truncate text-xs">{label}</span>
     </MenuItem>
   )
 }
@@ -96,7 +96,7 @@ const HighlightColorMenuItem: React.FC<ColorMenuItemProps> = ({ color }) => {
         className="tiptap-button-highlight"
         style={{ '--highlight-color': color.value } as React.CSSProperties}
       />
-      <span className="tiptap-button-text">{label}</span>
+      <span className="truncate text-xs">{label}</span>
     </MenuItem>
   )
 }
@@ -138,7 +138,7 @@ export interface ColorMenuProps {
 export const ColorMenu: React.FC<ColorMenuProps> = ({
   editor: providedEditor,
   trigger,
-  label = 'Color',
+  label = t('EDITOR_COLOR'),
   placement = 'right'
 }) => {
   const { editor } = useTiptapEditor(providedEditor)
@@ -160,10 +160,10 @@ export const ColorMenu: React.FC<ColorMenuProps> = ({
         <MenuButton
           render={
             <Button data-style="ghost">
-              <PaintBucketIcon className="tiptap-button-icon" />
-              <span className="tiptap-button-text">{label}</span>
+              <PaintBucketIcon className="size-3.5 shrink-0" />
+              <span className="truncate text-xs">{label}</span>
               <Spacer />
-              <ChevronRightIcon className="tiptap-button-icon" />
+              <ChevronRightIcon className="size-3.5 shrink-0" />
             </Button>
           }
         />
@@ -184,7 +184,7 @@ export const ColorMenu: React.FC<ColorMenuProps> = ({
           {/* Recent Colors */}
           {isInitialized && recentColors.length > 0 && (
             <MenuGroup>
-              <MenuGroupLabel>Recent colors</MenuGroupLabel>
+              <MenuGroupLabel>{t('EDITOR_RECENT_COLORS')}</MenuGroupLabel>
               {recentColors.map((colorObj) => (
                 <RecentColorMenuItem
                   key={colorObj.value}
@@ -197,7 +197,7 @@ export const ColorMenu: React.FC<ColorMenuProps> = ({
 
           {/* Text Colors */}
           <MenuGroup>
-            <MenuGroupLabel>Text color</MenuGroupLabel>
+            <MenuGroupLabel>{t('EDITOR_TEXT_COLOR')}</MenuGroupLabel>
             {TEXT_COLORS.map((textColor) => (
               <TextColorMenuItem
                 key={textColor.value}
@@ -210,7 +210,7 @@ export const ColorMenu: React.FC<ColorMenuProps> = ({
 
           {/* Background Colors */}
           <MenuGroup>
-            <MenuGroupLabel>Background color</MenuGroupLabel>
+            <MenuGroupLabel>{t('EDITOR_BACKGROUND_COLOR')}</MenuGroupLabel>
             {HIGHLIGHT_COLORS.map((highlightColor) => (
               <HighlightColorMenuItem
                 key={highlightColor.value}

@@ -1,26 +1,16 @@
-:root {
-  --tt-table-handle-bg-color: var(--tt-gray-light-a-100);
-  --tt-table-extend-icon-color: var(--tt-gray-light-a-400);
-}
-
-.dark {
-  --tt-table-handle-bg-color: var(--tt-gray-dark-a-100);
-  --tt-table-extend-icon-color: var(--tt-gray-dark-a-400);
-}
-
 .tiptap-table-extend-row-column-button {
   border: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--tt-table-handle-bg-color);
-  border-radius: var(--tt-radius-lg);
+  background-color: color-mix(in oklab, var(--foreground) 5%, transparent);
+  border-radius: var(--radius-lg, 0.75rem);
 
-  .tiptap-button-icon {
+  svg {
     width: 1rem;
     height: 1rem;
     flex-shrink: 0;
-    color: var(--tt-table-extend-icon-color);
+    color: var(--muted-foreground);
   }
 
   &.tiptap-table-row-end-add-remove {

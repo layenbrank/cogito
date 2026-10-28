@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { forwardRef, useCallback, useMemo } from 'react'
@@ -155,7 +154,7 @@ export const ColorHighlightButton = forwardRef<
                 { '--highlight-color': highlightColor } as React.CSSProperties
               }
             />
-            {text && <span className="tiptap-button-text">{text}</span>}
+            {text && <span className="truncate text-xs">{text}</span>}
             {showShortcut && (
               <ColorHighlightShortcutBadge shortcutKeys={shortcutKeys} />
             )}

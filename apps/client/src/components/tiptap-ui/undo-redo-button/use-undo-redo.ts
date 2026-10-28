@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
@@ -13,6 +12,7 @@ import { isNodeTypeSelected } from '@/lib/tiptap-utils.ts'
 // --- Icons ---
 import { Redo2Icon } from '@/components/tiptap-icons/redo2-icon.tsx'
 import { Undo2Icon } from '@/components/tiptap-icons/undo2-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export type UndoRedoAction = 'undo' | 'redo'
 
@@ -45,8 +45,8 @@ export const UNDO_REDO_SHORTCUT_KEYS: Record<UndoRedoAction, string> = {
 }
 
 export const historyActionLabels: Record<UndoRedoAction, string> = {
-  undo: 'Undo',
-  redo: 'Redo'
+  undo: t('EDITOR_UNDO'),
+  redo: t('EDITOR_REDO')
 }
 
 export const historyIcons = {

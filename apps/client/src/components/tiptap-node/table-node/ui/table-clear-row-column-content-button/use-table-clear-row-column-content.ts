@@ -23,6 +23,7 @@ import {
 
 // --- Icons ---
 import { SquareXIcon } from '@/components/tiptap-icons/square-x-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface UseTableClearRowColumnContentConfig {
   /**
@@ -63,8 +64,8 @@ export interface UseTableClearRowColumnContentConfig {
 const REQUIRED_EXTENSIONS = ['table']
 
 export const tableClearRowColumnContentLabels: Record<Orientation, string> = {
-  row: 'Clear row contents',
-  column: 'Clear column contents'
+  row: t('EDITOR_TABLE_CLEAR_ROW'),
+  column: t('EDITOR_TABLE_CLEAR_COL')
 }
 
 /**
@@ -454,7 +455,7 @@ export function useTableClearRowColumnContent(
     if (selectionType) {
       return tableClearRowColumnContentLabels[selectionType.orientation]
     }
-    return 'Clear contents'
+    return t('EDITOR_CLEAR_CONTENTS')
   }, [selectionType])
 
   const Icon = SquareXIcon

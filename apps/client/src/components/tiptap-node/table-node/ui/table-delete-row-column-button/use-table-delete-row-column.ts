@@ -18,6 +18,7 @@ import {
 
 // --- Icons ---
 import { TrashIcon } from '@/components/tiptap-icons/trash-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface UseTableDeleteRowColumnConfig {
   /**
@@ -51,8 +52,8 @@ export interface UseTableDeleteRowColumnConfig {
 const REQUIRED_EXTENSIONS = ['table']
 
 export const tableDeleteRowColumnLabels: Record<Orientation, string> = {
-  row: 'Delete row',
-  column: 'Delete column'
+  row: t('EDITOR_TABLE_DEL_ROW'),
+  column: t('EDITOR_TABLE_DEL_COL')
 }
 
 /**

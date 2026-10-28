@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
 import { type Editor } from '@tiptap/react'
 import { NodeSelection } from '@tiptap/pm/state'
@@ -11,6 +10,7 @@ import { isExtensionAvailable, isNodeTypeSelected } from '@/lib/tiptap-utils.ts'
 
 // --- Icons ---
 import { ImageCaptionIcon } from '@/components/tiptap-icons/image-caption-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 /**
  * Configuration for the image caption functionality
@@ -202,7 +202,7 @@ export function useImageCaption(config?: UseImageCaptionConfig) {
     isActive,
     canToggle,
     handleToggleCaption,
-    label: 'Caption',
+    label: t('EDITOR_CAPTION'),
     Icon: ImageCaptionIcon
   }
 }

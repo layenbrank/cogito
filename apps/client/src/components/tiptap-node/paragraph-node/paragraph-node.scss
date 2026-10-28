@@ -1,22 +1,10 @@
 .tiptap.ProseMirror {
-  --tt-collaboration-carets-label: var(--tt-gray-light-900);
-  --link-text-color: var(--tt-brand-color-500);
-  --thread-text: var(--tt-gray-light-900);
-  --placeholder-color: var(--tt-gray-light-a-400);
-  --thread-bg-color: var(--tt-color-yellow-inc-2);
-
-  // ai
-  --tiptap-ai-insertion-color: var(--tt-brand-color-600);
-
-  .dark & {
-    --tt-collaboration-carets-label: var(--tt-gray-dark-100);
-    --link-text-color: var(--tt-brand-color-400);
-    --thread-text: var(--tt-gray-dark-900);
-    --placeholder-color: var(--tt-gray-dark-a-400);
-    --thread-bg-color: var(--tt-color-yellow-dec-2);
-
-    --tiptap-ai-insertion-color: var(--tt-brand-color-400);
-  }
+  --tt-collaboration-carets-label: var(--foreground);
+  --link-text-color: var(--primary);
+  --thread-text: var(--foreground);
+  --placeholder-color: var(--muted-foreground);
+  --thread-bg-color: color-mix(in oklab, var(--warning, #eab308) 28%, transparent);
+  --tiptap-ai-insertion-color: var(--primary);
 }
 
 /* Ensure each top-level node has relative positioning 
@@ -154,7 +142,7 @@
 .tiptap.ProseMirror {
   [data-type="mention"] {
     display: inline-block;
-    color: var(--tt-brand-color-500);
+    color: var(--primary);
   }
 }
 
@@ -168,7 +156,7 @@
       color 0.2s ease-in-out,
       background-color 0.2s ease-in-out;
     color: var(--thread-text);
-    border-bottom: 2px dashed var(--tt-color-yellow-base);
+    border-bottom: 2px dashed var(--warning, #eab308);
     font-weight: 600;
 
     &.tiptap-thread--selected,
@@ -181,14 +169,14 @@
   // Block thread styles with images
   .tiptap-thread.tiptap-thread--unresolved.tiptap-thread--block {
     &:has(img) {
-      outline: 0.125rem solid var(--tt-color-yellow-base);
-      border-radius: var(--tt-radius-xs, 0.25rem);
+      outline: 0.125rem solid var(--warning, #eab308);
+      border-radius: var(--radius-sm, 0.25rem);
       overflow: hidden;
       width: fit-content;
 
       &.tiptap-thread--selected {
         outline-width: 0.25rem;
-        outline-color: var(--tt-color-yellow-base);
+        outline-color: var(--warning, #eab308);
       }
 
       &.tiptap-thread--hovered {
@@ -199,22 +187,21 @@
     // Block thread styles without images
     &:not(:has(img)) {
       border-radius: 0.25rem;
-      border-bottom: 0.125rem dashed var(--tt-color-yellow-base);
-      border-top: 0.125rem dashed var(--tt-color-yellow-base);
-      // padding-bottom: 0.5rem;
+      border-bottom: 0.125rem dashed var(--warning, #eab308);
+      border-top: 0.125rem dashed var(--warning, #eab308);
       outline: 0.25rem solid transparent;
 
       &.tiptap-thread--hovered,
       &.tiptap-thread--selected {
-        background-color: var(--tt-color-yellow-base);
-        outline-color: var(--tt-color-yellow-base);
+        background-color: var(--warning, #eab308);
+        outline-color: var(--warning, #eab308);
       }
     }
   }
 
   // Resolved thread styles
   .tiptap-thread.tiptap-thread--resolved.tiptap-thread--inline.tiptap-thread--selected {
-    background-color: var(--tt-color-yellow-base);
+    background-color: var(--warning, #eab308);
     border-color: transparent;
     opacity: 0.5;
   }
@@ -263,7 +250,7 @@
      ===================== */
 .prosemirror-dropcursor-block,
 .prosemirror-dropcursor-inline {
-  background: var(--tt-brand-color-400) !important;
+  background: var(--primary) !important;
   border-radius: 0.25rem;
   margin-left: -1px;
   margin-right: -1px;

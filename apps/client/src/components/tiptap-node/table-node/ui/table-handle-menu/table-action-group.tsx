@@ -33,8 +33,8 @@ const TableActionItem = ({
     }
     onClick={onClick}
     disabled={disabled}>
-    <Icon className="tiptap-button-icon" />
-    <span className="tiptap-button-text">{label}</span>
+    <Icon className="size-3.5 shrink-0" />
+    <span className="truncate text-xs">{label}</span>
     {shortcutBadge}
   </MenuItem>
 )

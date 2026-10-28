@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
 import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
 import { useShortcut } from '@/keyboard/react'
@@ -12,6 +11,7 @@ import { isExtensionAvailable } from '@/lib/tiptap-utils.ts'
 
 // --- Icons ---
 import { ImagePlusIcon } from '@/components/tiptap-icons/image-plus-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export const IMAGE_UPLOAD_SHORTCUT_KEY = findShortcutDefault(SHORTCUT_COMMAND.EDITOR_IMAGE_UPLOAD)
 
@@ -180,7 +180,7 @@ export function useImageUpload(config?: UseImageUploadConfig) {
     isActive,
     handleImage,
     canInsert,
-    label: 'Add image',
+    label: t('EDITOR_ADD_IMAGE'),
     shortcutKeys: IMAGE_UPLOAD_SHORTCUT_KEY,
     Icon: ImagePlusIcon
   }

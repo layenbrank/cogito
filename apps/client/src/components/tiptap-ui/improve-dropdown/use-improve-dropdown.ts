@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -14,6 +13,7 @@ import { AiSparklesIcon } from '@/components/tiptap-icons/ai-sparkles-icon.tsx'
 
 // --- Lib ---
 import { isNodeTypeSelected } from '@/lib/tiptap-utils.ts'
+import { t } from '@/views/knowledge/locale.ts'
 
 /**
  * AI commands that can be executed on selected text
@@ -172,10 +172,9 @@ export function useImproveDropdown(config?: UseImproveDropdownConfig) {
   )
 
   const handleOpenChange = useCallback(
-    (open: boolean, callback?: (isOpen: boolean) => void) => {
-      if (!editor || isDisabled) return
+    (open: boolean) => {
+      if (open && (!editor || isDisabled)) return
       setIsOpen(open)
-      callback?.(open)
     },
     [editor, isDisabled]
   )
@@ -268,7 +267,7 @@ export function useImproveDropdown(config?: UseImproveDropdownConfig) {
     executeAICommand,
     adjustTone,
     translate,
-    label: 'Improve',
+    label: t('EDITOR_IMPROVE'),
     Icon: AiSparklesIcon
   }
 }

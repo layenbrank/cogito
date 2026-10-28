@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
@@ -16,6 +15,7 @@ import { getAnchorNodeAndPos } from '@/lib/tiptap-advanced-utils.ts'
 // --- Icons ---
 import { AlignTopIcon } from '@/components/tiptap-icons/align-top-icon.tsx'
 import { AlignBottomIcon } from '@/components/tiptap-icons/align-bottom-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export const MOVE_UP_SHORTCUT_KEY = findShortcutDefault(SHORTCUT_COMMAND.EDITOR_MOVE_UP)
 export const MOVE_DOWN_SHORTCUT_KEY = findShortcutDefault(SHORTCUT_COMMAND.EDITOR_MOVE_DOWN)
@@ -189,7 +189,7 @@ export function useMoveNode(config: UseMoveNodeConfig) {
     }
   )
 
-  const label = direction === 'up' ? 'Move Up' : 'Move Down'
+  const label = direction === 'up' ? t('EDITOR_MOVE_UP') : t('EDITOR_MOVE_DOWN')
   const Icon = direction === 'up' ? AlignTopIcon : AlignBottomIcon
 
   return {

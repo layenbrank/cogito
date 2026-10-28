@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 import { NodeSelection } from '@tiptap/pm/state'
@@ -11,6 +10,7 @@ import { ChevronDownIcon } from '@/components/tiptap-icons/chevron-down-icon.tsx
 
 // --- Tiptap UI ---
 import type { Level } from '@/components/tiptap-ui/heading-button/use-heading.ts'
+import { t } from '@/views/knowledge/locale.ts'
 
 export const TURN_INTO_BLOCKS = [
   'paragraph',
@@ -49,7 +49,7 @@ export interface UseTurnIntoDropdownConfig {
 export const blockTypeOptions = [
   {
     type: 'paragraph',
-    label: 'Text',
+    label: t('EDITOR_TEXT'),
     isActive: (editor: Editor) =>
       editor.isActive('paragraph') &&
       !editor.isActive('heading') &&
@@ -61,45 +61,45 @@ export const blockTypeOptions = [
   },
   {
     type: 'heading',
-    label: 'Heading 1',
+    label: t('EDITOR_HEADING_1'),
     level: 1 as Level,
     isActive: (editor: Editor) => editor.isActive('heading', { level: 1 })
   },
   {
     type: 'heading',
-    label: 'Heading 2',
+    label: t('EDITOR_HEADING_2'),
     level: 2 as Level,
     isActive: (editor: Editor) => editor.isActive('heading', { level: 2 })
   },
   {
     type: 'heading',
-    label: 'Heading 3',
+    label: t('EDITOR_HEADING_3'),
     level: 3 as Level,
     isActive: (editor: Editor) => editor.isActive('heading', { level: 3 })
   },
   {
     type: 'bulletList',
-    label: 'Bulleted list',
+    label: t('EDITOR_BULLET_LIST'),
     isActive: (editor: Editor) => editor.isActive('bulletList')
   },
   {
     type: 'orderedList',
-    label: 'Numbered list',
+    label: t('EDITOR_NUMBERED_LIST'),
     isActive: (editor: Editor) => editor.isActive('orderedList')
   },
   {
     type: 'taskList',
-    label: 'To-do list',
+    label: t('EDITOR_TASK_LIST'),
     isActive: (editor: Editor) => editor.isActive('taskList')
   },
   {
     type: 'blockquote',
-    label: 'Blockquote',
+    label: t('EDITOR_BLOCKQUOTE'),
     isActive: (editor: Editor) => editor.isActive('blockquote')
   },
   {
     type: 'codeBlock',
-    label: 'Code block',
+    label: t('EDITOR_CODE_BLOCK'),
     isActive: (editor: Editor) => editor.isActive('codeBlock')
   }
 ]
@@ -231,7 +231,8 @@ export function useTurnIntoDropdown(config?: UseTurnIntoDropdownConfig) {
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
-      if (!editor || !canToggle) return
+      // 关闭始终放行，避免 modal=false 下改选区后 canToggle 变 false 卡死菜单
+      if (open && (!editor || !canToggle)) return
       setIsOpen(open)
       onOpenChange?.(open)
     },
@@ -267,7 +268,7 @@ export function useTurnIntoDropdown(config?: UseTurnIntoDropdownConfig) {
     activeBlockType,
     handleOpenChange,
     filteredOptions: getFilteredBlockTypeOptions(blockTypes),
-    label: `Turn into (current: ${activeBlockType?.label || 'Text'})`,
+    label: t('EDITOR_TURN_INTO_CURRENT', { current: activeBlockType?.label || t('EDITOR_TEXT') }),
     Icon: ChevronDownIcon
   }
 }

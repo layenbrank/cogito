@@ -16,7 +16,7 @@ function ShortcutBadge(props: ShortcutBadgeProps) {
     <KbdGroup className="tiptap-shortcut-badge ml-auto">
       {keys.map(function (key, index) {
         return (
-          <Fragment key={key}>
+          <Fragment key={`${index}-${key}`}>
             {index > 0 ? (
               <span className="text-muted-foreground/60 px-0.5 text-xs">+</span>
             ) : null}

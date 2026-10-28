@@ -5,6 +5,7 @@ import { FloatingPortal } from '@floating-ui/react'
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 import { createCornerHandleStyles, type ResizeHandle } from './selection-geometry.ts'
 import { useTableSelectionOverlay } from './use-table-selection-overlay.ts'
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface TableSelectionOverlayProps {
   editor?: Editor | null
@@ -93,7 +94,7 @@ export function TableSelectionOverlay({
               position: 'absolute',
               width: selectionRect.width,
               height: selectionRect.height,
-              border: `2px solid var(--tt-brand-color-400)`,
+              border: `2px solid var(--primary)`,
               borderRadius: 2,
               zIndex: 3,
               top: 0,
@@ -109,7 +110,7 @@ export function TableSelectionOverlay({
                       key={corner}
                       type="button"
                       tabIndex={-1}
-                      aria-label={`Resize table ${corner}`}
+                      aria-label={t('EDITOR_TABLE_RESIZE', { corner })}
                       style={createCornerHandleStyles(
                         corner,
                         !activeHandle || activeHandle === corner,

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
 import { type Editor } from '@tiptap/react'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
@@ -17,6 +16,7 @@ import {
 
 // --- Icons ---
 import { CodeBlockIcon } from '@/components/tiptap-icons/code-block-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export const CODE_BLOCK_SHORTCUT_KEY = 'mod+alt+c'
 
@@ -248,7 +248,7 @@ export function useCodeBlock(config?: UseCodeBlockConfig) {
     isActive,
     handleToggle,
     canToggle: canToggleState,
-    label: 'Code Block',
+    label: t('EDITOR_CODE_BLOCK'),
     shortcutKeys: CODE_BLOCK_SHORTCUT_KEY,
     Icon: CodeBlockIcon
   }

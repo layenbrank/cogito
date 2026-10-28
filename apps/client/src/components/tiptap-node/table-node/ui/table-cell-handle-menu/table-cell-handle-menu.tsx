@@ -124,8 +124,8 @@ const TableActionItem = ({ action }: { action: TableAction }) => {
         />
       }
       onClick={onClick}>
-      <Icon className="tiptap-button-icon" />
-      <span className="tiptap-button-text">{label}</span>
+      <Icon className="size-3.5 shrink-0" />
+      <span className="truncate text-xs">{label}</span>
       {shortcutBadge}
     </MenuItem>
   )
@@ -209,11 +209,11 @@ export const TableCellHandleMenu = forwardRef<
             isMenuOpen && 'menu-opened',
             className
           )}
-          aria-label="Table cells option"
+          aria-label={t('EDITOR_TABLE_CELLS_OPTION')}
           aria-haspopup="menu"
           aria-expanded={isMenuOpen}
           {...props}>
-          <Grip4Icon className="tiptap-button-icon" />
+          <Grip4Icon className="size-3.5 shrink-0" />
         </MenuButton>
       }>
       <TableActionMenu onClose={closeMenu} />
@@ -224,3 +224,5 @@ export const TableCellHandleMenu = forwardRef<
 TableCellHandleMenu.displayName = 'TableCellHandleMenu'
 
 export { TableActionMenu }
+
+import { t } from '@/views/knowledge/locale.ts'

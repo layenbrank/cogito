@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
 import { SHORTCUT_COMMAND, findShortcutDefault } from '@/keyboard/definitions'
 import { useShortcut } from '@/keyboard/react'
@@ -15,6 +14,7 @@ import { isExtensionAvailable } from '@/lib/tiptap-utils.ts'
 import { AlignCenterVerticalIcon } from '@/components/tiptap-icons/align-center-vertical-icon.tsx'
 import { AlignEndVerticalIcon } from '@/components/tiptap-icons/align-end-vertical-icon.tsx'
 import { AlignStartVerticalIcon } from '@/components/tiptap-icons/align-start-vertical-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export type ImageAlign = 'left' | 'center' | 'right'
 
@@ -71,9 +71,9 @@ export const imageAlignIcons = {
 }
 
 export const imageAlignLabels: Record<ImageAlign, string> = {
-  left: 'Image align left',
-  center: 'Image align center',
-  right: 'Image align right'
+  left: t('EDITOR_IMAGE_ALIGN_LEFT'),
+  center: t('EDITOR_IMAGE_ALIGN_CENTER'),
+  right: t('EDITOR_IMAGE_ALIGN_RIGHT')
 }
 
 /**

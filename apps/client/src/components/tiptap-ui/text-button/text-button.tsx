@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { forwardRef, useCallback } from 'react'
 
 // --- Lib ---
@@ -17,6 +16,7 @@ import {
 // --- UI Primitives ---
 import type { ButtonProps } from '@/components/tiptap-ui-primitive/button/button.tsx'
 import { Button } from '@/components/tiptap-ui-primitive/button/button.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface TextButtonProps
   extends Omit<ButtonProps, 'type'>, UseTextConfig {
@@ -97,15 +97,15 @@ export const TextButton = forwardRef<HTMLButtonElement, TextButtonProps>(
         data-disabled={!canToggle}
         aria-label={label}
         aria-pressed={isActive}
-        tooltip="Text"
+        tooltip={t('EDITOR_TEXT')}
         shortcutKeys={shortcutKeys}
         onClick={handleClick}
         {...buttonProps}
         ref={ref}>
         {children ?? (
           <>
-            <Icon className="tiptap-button-icon" />
-            {text && <span className="tiptap-button-text">{text}</span>}
+            <Icon className="size-3.5 shrink-0" />
+            {text && <span className="truncate text-xs">{text}</span>}
             {showShortcut && <TextShortcutBadge shortcutKeys={shortcutKeys} />}
           </>
         )}

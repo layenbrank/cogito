@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useEffect, useMemo, useRef } from 'react'
 import type { Editor, Range } from '@tiptap/react'
 
@@ -170,7 +169,7 @@ const MentionItem = ({ item, isSelected, onSelect }: MentionItemProps) => {
         <AvatarFallback>{item.title[0]?.toUpperCase()}</AvatarFallback>
       </Avatar>
 
-      <span className="tiptap-button-text">{item.title}</span>
+      <span className="truncate text-xs">{item.title}</span>
     </Button>
   )
 }
@@ -203,6 +202,7 @@ const MentionList = ({
 
   return (
     <Card
+      surface
       style={{
         maxHeight: 'var(--suggestion-menu-max-height)'
       }}>

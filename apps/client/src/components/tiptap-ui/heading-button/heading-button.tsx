@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client"
 
 import { forwardRef, useCallback } from "react"
@@ -112,8 +111,8 @@ export const HeadingButton = forwardRef<HTMLButtonElement, HeadingButtonProps>(
       >
         {children ?? (
           <>
-            <Icon className="tiptap-button-icon" />
-            {text && <span className="tiptap-button-text">{text}</span>}
+            <Icon className="size-3.5 shrink-0" />
+            {text && <span className="truncate text-xs">{text}</span>}
             {showShortcut && (
               <HeadingShortcutBadge level={level} shortcutKeys={shortcutKeys} />
             )}

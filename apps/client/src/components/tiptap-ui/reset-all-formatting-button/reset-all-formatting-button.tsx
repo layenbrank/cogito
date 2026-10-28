@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { forwardRef, useCallback } from "react"
 
 // --- Lib ---
@@ -17,6 +16,7 @@ import {
 // --- UI Primitives ---
 import type { ButtonProps } from "@/components/tiptap-ui-primitive/button/button.tsx"
 import { Button } from "@/components/tiptap-ui-primitive/button/button.tsx"
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface ResetAllFormattingButtonProps
   extends Omit<ButtonProps, "type">,
@@ -102,15 +102,15 @@ export const ResetAllFormattingButton = forwardRef<
         role="button"
         tabIndex={-1}
         aria-label={label}
-        tooltip="Reset formatting"
+        tooltip={t('EDITOR_RESET_FORMATTING')}
         onClick={handleClick}
         {...buttonProps}
         ref={ref}
       >
         {children ?? (
           <>
-            <Icon className="tiptap-button-icon" />
-            {text && <span className="tiptap-button-text">{text}</span>}
+            <Icon className="size-3.5 shrink-0" />
+            {text && <span className="truncate text-xs">{text}</span>}
             {showShortcut && (
               <ResetAllFormattingShortcutBadge shortcutKeys={shortcutKeys} />
             )}

@@ -21,6 +21,7 @@ import { AlignJustifyIcon } from '@/components/tiptap-icons/align-justify-icon.t
 import { AlignBottomIcon } from '@/components/tiptap-icons/align-bottom-icon.tsx'
 import { AlignTopIcon } from '@/components/tiptap-icons/align-top-icon.tsx'
 import { AlignMiddleIcon } from '@/components/tiptap-icons/align-middle-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export type TextAlignment = 'left' | 'center' | 'right' | 'justify'
 export type VerticalAlignment = 'top' | 'middle' | 'bottom'
@@ -66,15 +67,15 @@ const REQUIRED_EXTENSIONS = ['table']
 
 export const tableAlignCellLabels = {
   text: {
-    left: 'Align left',
-    center: 'Align center',
-    right: 'Align right',
-    justify: 'Justify'
+    left: t('EDITOR_ALIGN_LEFT'),
+    center: t('EDITOR_ALIGN_CENTER'),
+    right: t('EDITOR_ALIGN_RIGHT'),
+    justify: t('EDITOR_ALIGN_JUSTIFY')
   } as Record<TextAlignment, string>,
   vertical: {
-    top: 'Align top',
-    middle: 'Align middle',
-    bottom: 'Align bottom'
+    top: t('EDITOR_TABLE_ALIGN_TOP'),
+    middle: t('EDITOR_TABLE_ALIGN_MIDDLE'),
+    bottom: t('EDITOR_TABLE_ALIGN_BOTTOM')
   } as Record<VerticalAlignment, string>
 }
 

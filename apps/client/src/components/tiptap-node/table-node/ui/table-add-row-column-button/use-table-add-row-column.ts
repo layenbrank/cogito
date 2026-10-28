@@ -32,6 +32,7 @@ import { AddColLeftIcon } from '@/components/tiptap-icons/add-col-left-icon.tsx'
 import { AddColRightIcon } from '@/components/tiptap-icons/add-col-right-icon.tsx'
 import { AddRowBottomIcon } from '@/components/tiptap-icons/add-row-bottom-icon.tsx'
 import { AddRowTopIcon } from '@/components/tiptap-icons/add-row-top-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export type RowSide = 'above' | 'below'
 export type ColSide = 'left' | 'right'
@@ -75,12 +76,12 @@ const REQUIRED_EXTENSIONS = ['table']
 
 export const tableAddRowColumnLabels = {
   row: {
-    above: 'Insert row above',
-    below: 'Insert row below'
+    above: t('EDITOR_TABLE_ADD_ROW_ABOVE'),
+    below: t('EDITOR_TABLE_ADD_ROW_BELOW')
   } as Record<RowSide, string>,
   column: {
-    left: 'Insert column left',
-    right: 'Insert column right'
+    left: t('EDITOR_TABLE_ADD_COL_LEFT'),
+    right: t('EDITOR_TABLE_ADD_COL_RIGHT')
   } as Record<ColSide, string>
 } as const
 

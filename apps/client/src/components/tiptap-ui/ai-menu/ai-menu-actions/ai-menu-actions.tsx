@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback } from 'react'
 import type { Editor } from '@tiptap/react'
 import {
@@ -57,7 +56,7 @@ export function AiMenuActions({
             className="tiptap-button"
             onClick={handleRegenerate}
             disabled={aiGenerationIsLoading}>
-            <RefreshAiIcon className="tiptap-button-icon" />
+            <RefreshAiIcon className="size-3.5 shrink-0" />
             Try again
           </Button>
         </ButtonGroup>
@@ -69,14 +68,14 @@ export function AiMenuActions({
             data-style="ghost"
             className="tiptap-button"
             onClick={handleDiscard}>
-            <XIcon className="tiptap-button-icon" />
+            <XIcon className="size-3.5 shrink-0" />
             Discard
           </Button>
           <Button
             data-style="primary"
             className="tiptap-button"
             onClick={handleApply}>
-            <CheckIcon className="tiptap-button-icon" />
+            <CheckIcon className="size-3.5 shrink-0" />
             Apply
           </Button>
         </ButtonGroup>

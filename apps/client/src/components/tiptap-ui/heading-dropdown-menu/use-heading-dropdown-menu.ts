@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useEffect, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 
@@ -16,6 +15,7 @@ import {
   canToggle,
   shouldShowButton
 } from '@/components/tiptap-ui/heading-button/use-heading.ts'
+import { t } from '@/views/knowledge/locale.ts'
 
 /**
  * Configuration for the heading dropdown menu functionality
@@ -132,7 +132,7 @@ export function useHeadingDropdownMenu(config?: UseHeadingDropdownMenuConfig) {
     isActive,
     canToggle: canToggleState,
     levels,
-    label: 'Heading',
+    label: t('EDITOR_HEADING'),
     Icon: activeLevel ? headingIcons[activeLevel] : HeadingIcon
   }
 }

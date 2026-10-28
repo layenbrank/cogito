@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useState } from 'react'
 import { type Editor } from '@tiptap/react'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
@@ -22,6 +21,7 @@ import { HeadingThreeIcon } from '@/components/tiptap-icons/heading-three-icon.t
 import { HeadingFourIcon } from '@/components/tiptap-icons/heading-four-icon.tsx'
 import { HeadingFiveIcon } from '@/components/tiptap-icons/heading-five-icon.tsx'
 import { HeadingSixIcon } from '@/components/tiptap-icons/heading-six-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export type Level = 1 | 2 | 3 | 4 | 5 | 6
 
@@ -313,7 +313,7 @@ export function useHeading(config: UseHeadingConfig) {
     isActive,
     handleToggle,
     canToggle: canToggleState,
-    label: `Heading ${level}`,
+    label: t('EDITOR_HEADING_LEVEL', { level }),
     shortcutKeys: HEADING_SHORTCUT_KEYS[level],
     Icon: headingIcons[level]
   }

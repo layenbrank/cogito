@@ -1,8 +1,8 @@
 :root {
-  --tt-table-border-color: var(--tt-gray-light-a-300);
-  --tt-table-selected-bg: rgba(195, 189, 255, 0.4);
-  --tt-table-selected-stroke: var(--tt-brand-color-400);
-  --tt-table-column-resize-handle-bg: var(--tt-brand-color-400);
+  --tt-table-border-color: var(--border);
+  --tt-table-selected-bg: color-mix(in oklab, var(--primary) 28%, transparent);
+  --tt-table-selected-stroke: var(--primary);
+  --tt-table-column-resize-handle-bg: var(--primary);
 
   --tt-table-cell-padding: 0.5rem;
   --tt-table-margin-block: 1.25rem;
@@ -14,10 +14,10 @@
 }
 
 .dark {
-  --tt-table-border-color: var(--tt-gray-dark-a-300);
-  --tt-table-selected-bg: rgba(195, 189, 255, 0.2);
-  --tt-table-selected-stroke: var(--tt-brand-color-400);
-  --tt-table-column-resize-handle-bg: var(--tt-brand-color-400);
+  --tt-table-border-color: var(--border);
+  --tt-table-selected-bg: color-mix(in oklab, var(--primary) 22%, transparent);
+  --tt-table-selected-stroke: var(--primary);
+  --tt-table-column-resize-handle-bg: var(--primary);
 }
 
 .tiptap [data-content-type="table"] {
@@ -47,7 +47,7 @@
 }
 
 .tiptap table th {
-  background-color: var(--tt-gray-light-a-100);
+  background-color: var(--muted);
   font-weight: 700;
   text-align: left;
 }

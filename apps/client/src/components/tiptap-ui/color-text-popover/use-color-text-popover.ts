@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useCallback, useState } from 'react'
@@ -18,6 +17,7 @@ import { getActiveMarkAttrs } from '@/lib/tiptap-advanced-utils.ts'
 import { canColorText } from '@/components/tiptap-ui/color-text-button/use-color-text.ts'
 import { canColorHighlight } from '@/components/tiptap-ui/color-highlight-button/use-color-highlight.ts'
 import { findPref, patchPref } from '@/features/persist'
+import { t } from '@/views/knowledge/locale.ts'
 
 export type ColorType = 'text' | 'highlight'
 
@@ -118,7 +118,7 @@ function readStoredRecentColors(maxColors: number): RecentColor[] {
   try {
     return findPref('window')
       .tiptapRecentColors.map(parseStoredColor)
-      .filter(Boolean)
+      .filter((color): color is RecentColor => color != null)
       .slice(0, maxColors)
   } catch (e) {
     console.error('Failed to load stored colors:', e)
@@ -285,7 +285,7 @@ export function useColorTextPopover(config?: UseColorTextPopoverConfig) {
     activeTextStyle,
     activeHighlight,
     handleColorChanged,
-    label: 'Text color',
+    label: t('EDITOR_TEXT_COLOR'),
     Icon: TextColorSmallIcon
   }
 }

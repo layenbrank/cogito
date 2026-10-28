@@ -22,6 +22,7 @@ import {
 // --- Icons ---
 import { TableHeaderRowIcon } from '@/components/tiptap-icons/table-header-row-icon.tsx'
 import { TableHeaderColumnIcon } from '@/components/tiptap-icons/table-header-column-icon.tsx'
+import { t } from '@/views/knowledge/locale.ts'
 
 export interface UseTableHeaderRowColumnConfig {
   /**
@@ -58,8 +59,8 @@ export interface UseTableHeaderRowColumnConfig {
 const REQUIRED_EXTENSIONS = ['table']
 
 export const tableHeaderRowColumnLabels: Record<Orientation, string> = {
-  row: 'Header row',
-  column: 'Header column'
+  row: t('EDITOR_TABLE_HEADER_ROW'),
+  column: t('EDITOR_TABLE_HEADER_COL')
 }
 
 export const tableHeaderRowColumnIcons = {

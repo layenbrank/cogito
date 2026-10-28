@@ -2,6 +2,7 @@ import { NodeSelection, type Selection } from '@tiptap/pm/state'
 import { CellSelection } from '@tiptap/pm/tables'
 import type { Editor, JSONContent } from '@tiptap/react'
 import { isNodeSelection, isTextSelection, posToDOMRect } from '@tiptap/react'
+import { t } from '@/views/knowledge/locale.ts'
 
 // TipTap Collaboration / AI：公开标识可走 VITE_；JWT 必须由服务端签发，禁止 VITE_*TOKEN 内联进包
 /** 未配置或不是字符串都收敛成空串（`import.meta.env` 索引签名是 any） */
@@ -19,12 +20,12 @@ export const USE_JWT_API_ENDPOINT =
   import.meta.env.VITE_USE_JWT_API_ENDPOINT === '1'
 
 const NODE_TYPE_LABELS: Record<string, string> = {
-  paragraph: 'Text',
-  heading: 'Heading',
-  blockquote: 'Blockquote',
-  listItem: 'List Item',
-  codeBlock: 'Code Block',
-  table: 'Table'
+  paragraph: t('EDITOR_TEXT'),
+  heading: t('EDITOR_HEADING'),
+  blockquote: t('EDITOR_BLOCKQUOTE'),
+  listItem: t('EDITOR_LIST_ITEM'),
+  codeBlock: t('EDITOR_CODE_BLOCK'),
+  table: t('EDITOR_TABLE')
 }
 export type OverflowPosition = 'none' | 'top' | 'bottom' | 'both'
 
@@ -43,7 +44,7 @@ export const getUrlParam = (param: string): string | null => {
  * @returns The display name of the current node
  */
 export const getNodeDisplayName = (editor: Editor | null): string => {
-  if (!editor) return 'Node'
+  if (!editor) return t('EDITOR_NODE')
 
   const { selection } = editor.state
 
@@ -53,7 +54,7 @@ export const getNodeDisplayName = (editor: Editor | null): string => {
   }
 
   if (selection instanceof CellSelection) {
-    return 'Table'
+    return t('EDITOR_TABLE')
   }
 
   const { $anchor } = selection
