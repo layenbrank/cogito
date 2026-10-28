@@ -1,7 +1,8 @@
 /**
- * 知识库左侧面板（surface）：文档 / 待发布 / 任务 / 设置。
+ * 知识库左侧栏：浏览（文件树）| 文档 | 待发布 | 任务 | 设置。
  *
- * 定位：**不再有弹出层**。库级操作全在这四页里就地完成；AI 相关在右侧对话坞。
+ * 定位：与右栏、编辑器组成最多三列；库级操作与文件树共用一栏，用 tabs 切换，
+ * 不再并排叠「库面板 + 文件树」两列。
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
@@ -9,23 +10,26 @@ import { clsx } from 'clsx'
 import { useEffect } from 'react'
 
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
-import { useDockStore } from '@/features/agent/dock'
+import { useKnowledgeStore } from '@/stores/knowledge'
+import { openEditorPath } from '@/views/knowledge/workspace/editor-context.ts'
+import { Overlay } from '@/views/knowledge/workspace/overlay/index.ts'
 import { DocsTab } from '@/views/knowledge/surface/docs.tsx'
 import { SettingsTab } from '@/views/knowledge/surface/settings.tsx'
 import { StagingTab } from '@/views/knowledge/surface/staging.tsx'
-import { useSurfaceStore, type SurfaceTab } from '@/views/knowledge/surface/store.ts'
+import { useSurfaceStore, type RailTab } from '@/views/knowledge/surface/store.ts'
 import { TasksTab } from '@/views/knowledge/surface/tasks.tsx'
 
-const TABS: readonly { key: SurfaceTab; label: string; icon: string }[] = [
-  { key: 'docs', label: '文档', icon: 'lucide:files' },
+const TABS: readonly { key: RailTab; label: string; icon: string }[] = [
+  { key: 'browse', label: '浏览', icon: 'lucide:folder-tree' },
+  { key: 'docs', label: '库', icon: 'lucide:library-big' },
   { key: 'staging', label: '待发布', icon: 'lucide:sparkles' },
   { key: 'tasks', label: '任务', icon: 'lucide:timer' },
   { key: 'settings', label: '设置', icon: 'lucide:settings-2' }
 ]
 
 function KnowledgeSurface() {
-  const isOpen = useSurfaceStore(function (state) {
-    return state.isOpen
+  const isOpen = useKnowledgeStore(function (state) {
+    return state.isSidebarOpen
   })
   const tab = useSurfaceStore(function (state) {
     return state.tab
@@ -35,6 +39,9 @@ function KnowledgeSurface() {
   })
   const toSetTab = useSurfaceStore(function (state) {
     return state.toSetTab
+  })
+  const toOpenAside = useSurfaceStore(function (state) {
+    return state.toOpenAside
   })
   const refresh = useKnowledgeBaseStore(function (state) {
     return state.refresh
@@ -55,7 +62,7 @@ function KnowledgeSurface() {
   if (!isOpen) return null
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-background">
+    <aside className="flex h-full min-h-0 w-full flex-col bg-background">
       <div className="flex items-center gap-0.5 border-b border-border px-1 py-1">
         {TABS.map(function (item) {
           const isActive = item.key === tab
@@ -69,6 +76,7 @@ function KnowledgeSurface() {
                 'h-7 gap-1 px-1.5 text-[11px] font-normal',
                 isActive && 'bg-muted'
               )}
+              title={item.label}
               onClick={function () {
                 toSetTab(item.key)
               }}>
@@ -76,7 +84,7 @@ function KnowledgeSurface() {
                 icon={item.icon}
                 className="size-3.5"
               />
-              {item.label}
+              <span className="hidden min-[220px]:inline">{item.label}</span>
               {item.key === 'staging' && staging.length > 0 ? (
                 <span className="text-amber-600 dark:text-amber-400">{staging.length}</span>
               ) : null}
@@ -88,7 +96,7 @@ function KnowledgeSurface() {
           size="sm"
           variant="ghost"
           className="ml-auto h-7 px-1.5"
-          title="收起面板"
+          title="收起侧栏"
           onClick={toClose}>
           <Icon
             icon="lucide:panel-left-close"
@@ -97,11 +105,32 @@ function KnowledgeSurface() {
         </Button>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col p-2">
-        {tab === 'docs' ? <DocsTab /> : null}
-        {tab === 'staging' ? <StagingTab /> : null}
-        {tab === 'tasks' ? <TasksTab /> : null}
-        {tab === 'settings' ? <SettingsTab /> : null}
+      <div className="flex min-h-0 flex-1 flex-col">
+        {tab === 'browse' ? (
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <Overlay.Navigation onOpenPath={openEditorPath} />
+          </div>
+        ) : null}
+        {tab === 'docs' ? (
+          <div className="flex min-h-0 flex-1 flex-col p-2">
+            <DocsTab />
+          </div>
+        ) : null}
+        {tab === 'staging' ? (
+          <div className="flex min-h-0 flex-1 flex-col p-2">
+            <StagingTab />
+          </div>
+        ) : null}
+        {tab === 'tasks' ? (
+          <div className="flex min-h-0 flex-1 flex-col p-2">
+            <TasksTab />
+          </div>
+        ) : null}
+        {tab === 'settings' ? (
+          <div className="flex min-h-0 flex-1 flex-col p-2">
+            <SettingsTab />
+          </div>
+        ) : null}
       </div>
 
       <div className="border-t border-border px-2 py-1.5">
@@ -111,7 +140,7 @@ function KnowledgeSurface() {
           variant="ghost"
           className="h-7 w-full justify-start gap-1.5 px-1.5 text-[11px] font-normal"
           onClick={function () {
-            useDockStore.getState().toToggle()
+            toOpenAside('assistant')
           }}>
           <Icon
             icon="lucide:sparkles"

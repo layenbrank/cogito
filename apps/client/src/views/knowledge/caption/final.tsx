@@ -1,6 +1,6 @@
 /**
- * 知识库窗 Caption 右侧（Decorations.final）：布局开关 + 面板 / 助手开关。
- * 对齐 VS Code 标题栏 Layout Control；应用菜单在 begin 最左侧。
+ * 知识库窗 Caption 右侧（Decorations.final）：左栏 / 大纲 / AI。
+ * 右栏大纲与 AI 共用一列（tabs），不再各占一列。
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
@@ -12,7 +12,6 @@ import {
 import { cn } from 'cn'
 
 import { useDockStore } from '@/features/agent/dock'
-
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { t } from '@/views/knowledge/locale.ts'
 import { useSurfaceStore } from '@/views/knowledge/surface/store.ts'
@@ -62,23 +61,26 @@ function KnowledgeCaptionFinal() {
   const isSidebarOpen = useKnowledgeStore(function (state) {
     return state.isSidebarOpen
   })
-  const isOutlineOpen = useKnowledgeStore(function (state) {
+  const isAsideOpen = useKnowledgeStore(function (state) {
     return state.isOutlineOpen
   })
   const toToggleSidebar = useKnowledgeStore(function (state) {
     return state.toToggleSidebar
   })
-  const toToggleOutline = useKnowledgeStore(function (state) {
-    return state.toToggleOutline
+  const asideTab = useSurfaceStore(function (state) {
+    return state.asideTab
   })
-  const isSurfaceOpen = useSurfaceStore(function (state) {
+  const toToggleAside = useSurfaceStore(function (state) {
+    return state.toToggleAside
+  })
+  const isDockOpen = useDockStore(function (state) {
     return state.isOpen
-  })
-  const toToggleSurface = useSurfaceStore(function (state) {
-    return state.toToggle
   })
 
   if (isFocusMode) return null
+
+  const isOutlinePressed = isAsideOpen && asideTab === 'outline'
+  const isAssistantPressed = isAsideOpen && asideTab === 'assistant' && isDockOpen
 
   return (
     <div className="relative z-10 flex h-full items-center gap-0.5">
@@ -90,28 +92,18 @@ function KnowledgeCaptionFinal() {
       />
       <LayoutButton
         label={t('OUTLINE')}
-        icon="lucide:panel-right"
-        isPressed={isOutlineOpen}
-        onClick={toToggleOutline}
-      />
-      <span
-        aria-hidden
-        className="mx-0.5 h-4 w-px shrink-0 bg-border"
-      />
-      <LayoutButton
-        label="知识库"
-        icon="lucide:library-big"
-        isPressed={isSurfaceOpen}
+        icon="lucide:list-tree"
+        isPressed={isOutlinePressed}
         onClick={function () {
-          toToggleSurface()
+          toToggleAside('outline')
         }}
       />
       <LayoutButton
         label="AI 助手（Ctrl+J）"
         icon="lucide:sparkles"
-        isPressed={false}
+        isPressed={isAssistantPressed}
         onClick={function () {
-          useDockStore.getState().toToggle()
+          toToggleAside('assistant')
         }}
       />
     </div>

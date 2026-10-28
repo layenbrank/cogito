@@ -17,6 +17,7 @@ interface KnowledgePreferences {
   recentPaths: string[]
 }
 
+/** isSidebarOpen = 左栏；isOutlineOpen = 右栏（大纲|AI 共用） */
 const PREFERENCES: KnowledgePreferences = {
   isSidebarOpen: true,
   isOutlineOpen: true,
