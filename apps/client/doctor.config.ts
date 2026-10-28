@@ -17,6 +17,8 @@ export default defineConfig({
       {
         // Monaco 必须静态挂 worker（悬停/诊断/补全都依赖同一个实例），无法改成按需 import
         files: [
+          'src/lib/monaco-environment.ts',
+          'src/lib/monaco-theme.ts',
           'src/views/code/workspace/code.tsx',
           'src/views/code/lib/monaco-models.ts',
           'src/views/code/workspace/monaco-host.tsx',

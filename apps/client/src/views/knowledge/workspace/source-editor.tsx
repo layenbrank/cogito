@@ -1,14 +1,11 @@
 import { useEffect, useRef } from 'react'
 import * as monaco from 'monaco-editor'
-import editorWorker from 'monaco-editor/editor/editor.worker?worker'
 
 import { cn } from 'cn'
 
-self.MonacoEnvironment = {
-  getWorker() {
-    return new editorWorker()
-  }
-}
+import { CODE_THEME, applyCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
+// worker 装配只有一份，见 lib/monaco-environment.ts
+import '@/lib/monaco-environment.ts'
 
 interface SourceEditorProps {
   value: string
@@ -40,10 +37,13 @@ function SourceEditor(props: SourceEditorProps) {
       const host = hostRef.current
       if (!host) return
 
+      applyCodeTheme()
+      const stopThemeWatch = watchCodeTheme()
+
       const editor = monaco.editor.create(host, {
         value: props.value,
         language: 'markdown',
-        theme: props.isDark ? 'vs-dark' : 'vs',
+        theme: CODE_THEME,
         fontSize: props.fontSize,
         automaticLayout: true,
         wordWrap: 'on',
@@ -69,6 +69,7 @@ function SourceEditor(props: SourceEditorProps) {
       })
 
       return function () {
+        stopThemeWatch()
         subChange.dispose()
         subScroll.dispose()
         editor.dispose()
@@ -93,7 +94,8 @@ function SourceEditor(props: SourceEditorProps) {
 
   useEffect(
     function () {
-      monaco.editor.setTheme(props.isDark ? 'vs-dark' : 'vs')
+      // 主题跟随根节点 token；`isDark` 变化时重算一次，防止类名切换没触发观察器
+      applyCodeTheme()
     },
     [props.isDark]
   )
