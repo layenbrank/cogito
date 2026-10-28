@@ -442,3 +442,154 @@ pub async fn workspaceFilesReadFile(params: ReadFileP) -> CommandResult<ReadFile
     .await
     .map_err(|err| Exception::Internal(format!("readFile 任务失败：{err}")))?
 }
+
+/* ─── 内容检索 ─── */
+
+const CONTENT_LIMIT: usize = 200;
+const CONTENT_FILE_BYTES: u64 = 1024 * 1024;
+const CONTENT_PREVIEW_CHARS: usize = 240;
+const BINARY_SNIFF_BYTES: usize = 8 * 1024;
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentP {
+    pub root: String,
+    pub query: String,
+    pub is_regex: Option<bool>,
+    pub is_case_sensitive: Option<bool>,
+    pub is_whole_word: Option<bool>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentHitR {
+    pub path: String,
+    pub relative: String,
+    pub line: u32,
+    pub column: u32,
+    pub preview: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentR {
+    pub hits: Vec<ContentHitR>,
+    pub file_count: usize,
+    pub is_truncated: bool,
+}
+
+fn build_content_matcher(params: &ContentP) -> CommandResult<regex::Regex> {
+    let query = params.query.trim();
+    if query.is_empty() {
+        return Err(Exception::Validation("搜索内容不能为空".into()));
+    }
+    let pattern = if params.is_regex.unwrap_or(false) {
+        query.to_string()
+    } else {
+        regex::escape(query)
+    };
+    let pattern = if params.is_whole_word.unwrap_or(false) {
+        format!(r"\b{pattern}\b")
+    } else {
+        pattern
+    };
+    regex::RegexBuilder::new(&pattern)
+        .case_insensitive(!params.is_case_sensitive.unwrap_or(false))
+        .build()
+        .map_err(|err| Exception::Validation(format!("搜索表达式无效：{err}")))
+}
+
+fn looks_like_binary(bytes: &[u8]) -> bool {
+    bytes.iter().take(BINARY_SNIFF_BYTES).any(|byte| *byte == 0)
+}
+
+fn truncate_preview(line: &str) -> String {
+    let trimmed = line.trim();
+    if trimmed.chars().count() <= CONTENT_PREVIEW_CHARS {
+        return trimmed.to_string();
+    }
+    let head: String = trimmed.chars().take(CONTENT_PREVIEW_CHARS).collect();
+    format!("{head}…")
+}
+
+#[tauri::command(rename = "workspaceFiles:content")]
+pub async fn workspaceFilesContent(params: ContentP) -> CommandResult<ContentR> {
+    let root = validate_root(&params.root)?;
+    let matcher = build_content_matcher(&params)?;
+    let limit = params.limit.unwrap_or(CONTENT_LIMIT).clamp(1, CONTENT_LIMIT);
+
+    let relatives = if is_git_repo(&root).await {
+        git_ls_files(&root)
+            .await
+            .unwrap_or_else(|_| walk_files(&root, MAX_VISITED))
+    } else {
+        let root_clone = root.clone();
+        tokio::task::spawn_blocking(move || walk_files(&root_clone, MAX_VISITED))
+            .await
+            .unwrap_or_default()
+    };
+
+    tokio::task::spawn_blocking(move || -> CommandResult<ContentR> {
+        let mut hits: Vec<ContentHitR> = Vec::new();
+        let mut file_count = 0usize;
+        let mut is_truncated = false;
+
+        for relative in relatives {
+            if hits.len() >= limit {
+                is_truncated = true;
+                break;
+            }
+            let Ok(safe_relative) = normalize_relative(&relative) else {
+                continue;
+            };
+            let Ok(absolute) = resolve_under_root(&root, &safe_relative) else {
+                continue;
+            };
+            let Ok(meta) = std::fs::metadata(&absolute) else {
+                continue;
+            };
+            if !meta.is_file() || meta.len() > CONTENT_FILE_BYTES {
+                continue;
+            }
+            let Ok(bytes) = std::fs::read(&absolute) else {
+                continue;
+            };
+            if looks_like_binary(&bytes) {
+                continue;
+            }
+            let text = String::from_utf8_lossy(&bytes);
+            let relative_front = safe_relative.to_string_lossy().replace('\\', "/");
+            let path_front = to_frontend_path(&absolute);
+            let mut file_matches = 0usize;
+            for (index, line) in text.lines().enumerate() {
+                if hits.len() >= limit {
+                    is_truncated = true;
+                    break;
+                }
+                let Some(found) = matcher.find(line) else {
+                    continue;
+                };
+                file_matches += 1;
+                hits.push(ContentHitR {
+                    path: path_front.clone(),
+                    relative: relative_front.clone(),
+                    line: (index + 1) as u32,
+                    column: (line[..found.start()].chars().count() + 1) as u32,
+                    preview: truncate_preview(line),
+                });
+            }
+            if file_matches > 0 {
+                file_count += 1;
+            }
+        }
+
+        Ok(ContentR {
+            hits,
+            file_count,
+            is_truncated,
+        })
+    })
+    .await
+    .map_err(|err| Exception::Internal(format!("content 任务失败：{err}")))?
+}

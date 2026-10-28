@@ -255,11 +255,20 @@ export const CHANNELS = {
   WORKSPACE_GIT: {
     PROBE: 'workspaceGit:probe',
     BRANCHES: 'workspaceGit:branches',
-    CHECKOUT: 'workspaceGit:checkout'
+    CHECKOUT: 'workspaceGit:checkout',
+    STATUS: 'workspaceGit:status',
+    DIFF: 'workspaceGit:diff',
+    STAGE: 'workspaceGit:stage',
+    UNSTAGE: 'workspaceGit:unstage',
+    DISCARD: 'workspaceGit:discard',
+    COMMIT: 'workspaceGit:commit',
+    FETCH: 'workspaceGit:fetch',
+    PULL: 'workspaceGit:pull'
   },
   WORKSPACE_FILES: {
     LIST_DIR: 'workspaceFiles:listDir',
     SEARCH: 'workspaceFiles:search',
+    CONTENT: 'workspaceFiles:content',
     READ_FILE: 'workspaceFiles:readFile'
   },
   SEARCH: {

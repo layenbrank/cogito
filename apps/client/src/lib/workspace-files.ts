@@ -1,5 +1,5 @@
 /**
- * 工作区文件 IPC：按层列举 + 封顶搜索 + 受 roots 约束的读文件
+ * 工作区文件 IPC：按层列举 + 封顶搜索 + 内容检索 + 受 roots 约束的读文件
  */
 import { invoke } from '@tauri-apps/api/core'
 
@@ -24,6 +24,30 @@ interface ReadFileResult {
   content: string
 }
 
+interface ContentHit {
+  /** 绝对路径 */
+  path: string
+  relative: string
+  line: number
+  column: number
+  preview: string
+}
+
+interface ContentResult {
+  hits: ContentHit[]
+  fileCount: number
+  isTruncated: boolean
+}
+
+interface ContentQuery {
+  root: string
+  query: string
+  isRegex?: boolean
+  isCaseSensitive?: boolean
+  isWholeWord?: boolean
+  limit?: number
+}
+
 async function listDir(root: string, relative = '') {
   return invoke<DirEntry[]>(CHANNELS.WORKSPACE_FILES.LIST_DIR, {
     params: { root, relative: relative || null }
@@ -42,11 +66,25 @@ async function readFile(roots: string[], path: string) {
   })
 }
 
+async function content(query: ContentQuery) {
+  return invoke<ContentResult>(CHANNELS.WORKSPACE_FILES.CONTENT, {
+    params: {
+      root: query.root,
+      query: query.query,
+      isRegex: query.isRegex ?? false,
+      isCaseSensitive: query.isCaseSensitive ?? false,
+      isWholeWord: query.isWholeWord ?? false,
+      limit: query.limit
+    }
+  })
+}
+
 const WorkspaceFiles = {
   listDir,
   search,
+  content,
   readFile
 }
 
 export { WorkspaceFiles }
-export type { DirEntry, ReadFileResult, SearchHit }
+export type { DirEntry, ReadFileResult, SearchHit, ContentHit, ContentResult, ContentQuery }
