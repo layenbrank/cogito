@@ -209,6 +209,8 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         cogito_command::workspaceGit::workspaceGitDiff,
         cogito_command::workspaceGit::workspaceGitDiffMeta,
         cogito_command::workspaceGit::workspaceGitDiffHunks,
+        cogito_command::workspaceGit::workspaceGitSearch,
+        cogito_command::workspaceGit::workspaceGitShow,
         cogito_command::workspaceGit::workspaceGitStage,
         cogito_command::workspaceGit::workspaceGitUnstage,
         cogito_command::workspaceGit::workspaceGitDiscard,

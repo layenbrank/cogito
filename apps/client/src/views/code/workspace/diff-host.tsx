@@ -1,29 +1,153 @@
 /**
  * Git 差异视图。
  *
- * 小改动：Monaco DiffEditor 并排。
- * 大重写：结构化 hunk 虚拟列表（分页 IPC），禁止 DiffEditor LCS。
+ * 小改动：Monaco DiffEditor（宽屏并排 / 窄屏 inline，对齐 VS Code 900px 断点）。
+ * 大重写：结构化 hunk 列表；宽屏双列、窄屏统一视图。
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { cn } from 'cn'
 import * as monaco from 'monaco-editor'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 
 import { CODE_THEME, syncCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
 import type { DiffHunk } from '@/lib/workspace-git'
 import { useCodeGitStore } from '@/stores/code-git'
 import { useCodeStore } from '@/stores/code'
+import { requestCloseTabs } from '@/views/code/lib/close-tabs.ts'
 import { findLanguageId } from '@/views/code/lib/language.ts'
-import { openAbsolutePath } from '@/views/code/lib/open-file.ts'
 import '@/lib/monaco-environment.ts'
+
+/** 与 VS Code `diffEditor.renderSideBySideInlineBreakpoint` 默认一致；带滞回避免临界抖动 */
+const SIDE_BY_SIDE_BREAKPOINT = 900
+const SIDE_BY_SIDE_ENTER = 920
+const SIDE_BY_SIDE_EXIT = 880
+
+type DiffLayout = 'sideBySide' | 'inline'
+
+interface SideRow {
+  left: string | null
+  right: string | null
+  tag: 'ctx' | 'del' | 'add' | 'mod'
+}
 
 function findOriginalUri(relative: string): monaco.Uri {
   return monaco.Uri.parse(`inmemory://git-original/${encodeURIComponent(relative)}`)
 }
 
-function HunkBlock(props: { hunk: DiffHunk; isCollapsed: boolean; onToggle: () => void }) {
-  const { hunk, isCollapsed, onToggle } = props
+/**
+ * 将 unified hunk 行对齐成并排行（连续删改配对）。
+ */
+function toSideRows(lines: string[]): SideRow[] {
+  const rows: SideRow[] = []
+  let index = 0
+  while (index < lines.length) {
+    const kind = lines[index]?.charAt(0)
+    if (kind === ' ') {
+      const body = lines[index].slice(1)
+      rows.push({ left: body, right: body, tag: 'ctx' })
+      index += 1
+      continue
+    }
+    if (kind === '-') {
+      const deleted: string[] = []
+      while (index < lines.length && lines[index].charAt(0) === '-') {
+        deleted.push(lines[index].slice(1))
+        index += 1
+      }
+      const added: string[] = []
+      while (index < lines.length && lines[index].charAt(0) === '+') {
+        added.push(lines[index].slice(1))
+        index += 1
+      }
+      const count = Math.max(deleted.length, added.length)
+      for (let offset = 0; offset < count; offset += 1) {
+        const left = deleted[offset] ?? null
+        const right = added[offset] ?? null
+        const tag =
+          left !== null && right !== null ? 'mod' : left !== null ? 'del' : 'add'
+        rows.push({ left, right, tag })
+      }
+      continue
+    }
+    if (kind === '+') {
+      rows.push({ left: null, right: lines[index].slice(1), tag: 'add' })
+      index += 1
+      continue
+    }
+    index += 1
+  }
+  return rows
+}
+
+/**
+ * 观测内容区宽度，驱动单列/并排。
+ * 忽略 width≤0（节点 hidden 时），避免打开差异后卡在 inline。
+ */
+function useContainerLayout(isActive: boolean): {
+  hostRef: RefObject<HTMLDivElement | null>
+  layout: DiffLayout
+} {
+  const hostRef = useRef<HTMLDivElement>(null)
+  const [layout, updateLayout] = useState<DiffLayout>('sideBySide')
+  const layoutRef = useRef<DiffLayout>('sideBySide')
+
+  useEffect(
+    function () {
+      const node = hostRef.current
+      if (!node || typeof ResizeObserver === 'undefined') return
+
+      function syncWidth(width: number) {
+        if (!isActive || width < 1) return
+        const current = layoutRef.current
+        const next: DiffLayout =
+          current === 'sideBySide'
+            ? width < SIDE_BY_SIDE_EXIT
+              ? 'inline'
+              : 'sideBySide'
+            : width >= SIDE_BY_SIDE_ENTER
+              ? 'sideBySide'
+              : 'inline'
+        if (layoutRef.current === next) return
+        layoutRef.current = next
+        updateLayout(next)
+      }
+
+      const observer = new ResizeObserver(function (entries) {
+        const entry = entries[0]
+        if (!entry) return
+        const width = entry.contentRect.width || node.clientWidth
+        syncWidth(width)
+      })
+      observer.observe(node)
+
+      if (isActive) {
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            syncWidth(node.clientWidth)
+          })
+        })
+      }
+
+      return function () {
+        observer.disconnect()
+      }
+    },
+    [isActive]
+  )
+
+  return { hostRef, layout }
+}
+
+function HunkBlock(props: {
+  hunk: DiffHunk
+  isCollapsed: boolean
+  isSideBySide: boolean
+  onToggle: () => void
+}) {
+  const { hunk, isCollapsed, isSideBySide, onToggle } = props
+  const sideRows = isSideBySide ? toSideRows(hunk.lines) : null
+
   return (
     <div className="border-border border-b font-mono text-[12px] leading-[18px]">
       <button
@@ -39,7 +163,42 @@ function HunkBlock(props: { hunk: DiffHunk; isCollapsed: boolean; onToggle: () =
           {hunk.lines.length} 行
         </span>
       </button>
-      {isCollapsed ? null : (
+      {isCollapsed ? null : isSideBySide && sideRows ? (
+        <div className="grid grid-cols-2 divide-x divide-border">
+          <div className="min-w-0 overflow-x-auto">
+            {sideRows.map(function (row, index) {
+              return (
+                <div
+                  key={`l-${index}`}
+                  className={cn(
+                    'px-3 whitespace-pre',
+                    (row.tag === 'del' || row.tag === 'mod') &&
+                      'bg-rose-500/10 text-rose-700 dark:text-rose-300',
+                    row.left === null && 'bg-muted/20 text-transparent'
+                  )}>
+                  {row.left ?? '\u00a0'}
+                </div>
+              )
+            })}
+          </div>
+          <div className="min-w-0 overflow-x-auto">
+            {sideRows.map(function (row, index) {
+              return (
+                <div
+                  key={`r-${index}`}
+                  className={cn(
+                    'px-3 whitespace-pre',
+                    (row.tag === 'add' || row.tag === 'mod') &&
+                      'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+                    row.right === null && 'bg-muted/20 text-transparent'
+                  )}>
+                  {row.right ?? '\u00a0'}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : (
         <pre className="overflow-x-auto px-0 py-0 whitespace-pre">
           {hunk.lines.map(function (line, index) {
             const kind = line.charAt(0)
@@ -66,7 +225,7 @@ function HunkBlock(props: { hunk: DiffHunk; isCollapsed: boolean; onToggle: () =
   )
 }
 
-function HunksView() {
+function HunksView(props: { layout: DiffLayout }) {
   const diff = useCodeGitStore(function (state) {
     return state.diff
   })
@@ -78,6 +237,7 @@ function HunksView() {
     updateCollapsed({})
   }
   const scrollRef = useRef<HTMLDivElement>(null)
+  const isSideBySide = props.layout === 'sideBySide'
 
   useEffect(
     function () {
@@ -114,6 +274,7 @@ function HunksView() {
           已加载 {diff.hunks.length}
           {diff.hunkTotal > 0 ? ` / ${diff.hunkTotal}` : ''} 块
         </span>
+        <span className="ml-auto">{isSideBySide ? '并排' : '单列'}</span>
       </div>
       {diff.hunks.map(function (hunk, index) {
         const key = `${hunk.header}@${index}`
@@ -123,6 +284,7 @@ function HunksView() {
             key={key}
             hunk={hunk}
             isCollapsed={isCollapsed}
+            isSideBySide={isSideBySide}
             onToggle={function () {
               updateCollapsed(function (prev) {
                 return { ...prev, [key]: !prev[key] }
@@ -153,6 +315,8 @@ function DiffHost(props: { isOpen: boolean }) {
   const sideHostRef = useRef<HTMLDivElement>(null)
   const sideEditorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null)
   const modelsRef = useRef<monaco.editor.ITextModel[]>([])
+  const { hostRef: contentRef, layout } = useContainerLayout(props.isOpen)
+  const isSideBySide = layout === 'sideBySide'
   const diff = useCodeGitStore(function (state) {
     return state.diff
   })
@@ -168,6 +332,7 @@ function DiffHost(props: { isOpen: boolean }) {
     if (!sideHost) return
 
     syncCodeTheme()
+    // 关闭 Monaco 内置断点：由外层 ResizeObserver 显式切换，避免与 automaticLayout 抢状态
     const sideEditor = monaco.editor.createDiffEditor(sideHost, {
       theme: CODE_THEME,
       readOnly: true,
@@ -242,6 +407,10 @@ function DiffHost(props: { isOpen: boolean }) {
         }
       })
       sideEditor.setModel({ original, modified })
+      // 布局由下方 isSideBySide effect 统一驱动，避免切换列数时重建 model
+      requestAnimationFrame(function () {
+        sideEditor.layout()
+      })
     },
     [diff]
   )
@@ -274,32 +443,52 @@ function DiffHost(props: { isOpen: boolean }) {
     [editorPrefs]
   )
 
+  // 宽度变化 → 立即切换 Monaco 并排/inline（不依赖其内部断点）
   useEffect(
     function () {
-      if (!props.isOpen) return
-      if (diff?.mode !== 'sideBySide') return
+      const sideEditor = sideEditorRef.current
+      if (!props.isOpen || !sideEditor) return
+      sideEditor.updateOptions({
+        renderSideBySide: isSideBySide,
+        useInlineViewWhenSpaceIsLimited: false
+      })
       requestAnimationFrame(function () {
-        sideEditorRef.current?.layout()
+        sideEditor.layout()
       })
     },
-    [props.isOpen, diff?.mode]
+    [props.isOpen, isSideBySide]
   )
 
   function onOpenInEditor() {
     if (!diff || !repoRoot) return
     const absolute = `${repoRoot.replace(/[\\/]+$/, '')}/${diff.relative}`
+    // 打开/激活编辑标签，差异标签保留在标签栏（与 VS Code 并存）
+    useCodeStore.getState().toOpenTab({ path: absolute })
+  }
+
+  function onCloseDiffTab() {
+    const active = useCodeStore.getState().tabs.find(function (tab) {
+      return tab.id === useCodeStore.getState().activeTabId
+    })
+    if (active?.kind === 'diff') {
+      requestCloseTabs([active.id])
+      return
+    }
     useCodeGitStore.getState().toCloseDiff()
-    void openAbsolutePath(absolute)
   }
 
   const isLoading = Boolean(diff?.isLoading)
   const isHunks = diff?.mode === 'hunks'
   const title = diff?.relative ?? ''
+  const layoutHint = layout === 'sideBySide' ? '并排' : '单列'
+  const revHint = diff?.newOid
+    ? `${(diff.oldOid || '∅').slice(0, 7)} ↔ ${diff.newOid.slice(0, 7)}`
+    : 'HEAD ↔ 工作区'
   const modeHint = diff?.isIdentical
     ? '内容相同（仅换行差异已忽略）'
     : isHunks
-      ? '大改动 · hunks'
-      : 'HEAD ↔ 工作区'
+      ? `大改动 · hunks · ${layoutHint}`
+      : `${revHint} · ${layoutHint}`
 
   return (
     <div
@@ -330,14 +519,15 @@ function DiffHost(props: { isOpen: boolean }) {
             variant="ghost"
             size="sm"
             className="h-6 text-xs"
-            onClick={function () {
-              useCodeGitStore.getState().toCloseDiff()
-            }}>
-            返回编辑
+            onClick={onCloseDiffTab}>
+            关闭
           </Button>
         </div>
       </div>
-      <div className="relative isolate min-h-0 flex-1 overflow-hidden">
+      {/* 宽度观测挂在内容区：与 Monaco/hunks 同宽，不受顶栏影响 */}
+      <div
+        ref={contentRef}
+        className="relative isolate min-h-0 flex-1 overflow-hidden">
         <div
           ref={sideHostRef}
           className={cn(
@@ -345,7 +535,7 @@ function DiffHost(props: { isOpen: boolean }) {
             (isHunks || isLoading || diff?.isBinary || diff?.isIdentical) && 'hidden'
           )}
         />
-        {isHunks && !isLoading && !diff?.isBinary ? <HunksView /> : null}
+        {isHunks && !isLoading && !diff?.isBinary ? <HunksView layout={layout} /> : null}
         {isLoading ? (
           <div className="bg-background/80 text-muted-foreground absolute inset-0 flex items-center justify-center gap-2 text-xs backdrop-blur-[1px]">
             <Icon

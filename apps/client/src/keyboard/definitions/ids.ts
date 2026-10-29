@@ -28,6 +28,7 @@ export const COMMAND = {
   CODE_SCM: 'view.scm',
   CODE_TERMINAL: 'view.terminal',
   CODE_PROBLEMS: 'view.problems',
+  CODE_GIT_SEARCH: 'view.gitSearch',
 
   // markdown（笔记）窗
   KNOWLEDGE_SAVE: 'knowledge.save',

@@ -28,12 +28,23 @@ type PaletteMode = 'command' | 'file' | null
 /** 换行符：Monaco 只认这两种 */
 type Eol = 'LF' | 'CRLF'
 
+/** file：普通编辑；diff：工作区或提交间对比；commits：提交搜索（GitLens 式独立页） */
+type CodeTabKind = 'file' | 'diff' | 'commits'
+
+/** 提交搜索虚拟标签的固定 path，全局单例 */
+const COMMITS_TAB_PATH = 'cogito://git/commits'
+
 interface CodeTab {
   id: string
   path: string
   title: string
   language: string
   isDirty: boolean
+  kind: CodeTabKind
+  /** 提交 diff：父提交 oid（空串 = 空树）；缺省 = 工作区模式 */
+  baseOid?: string
+  /** 提交 diff：目标提交 oid */
+  headOid?: string
 }
 
 interface CursorPosition {
@@ -98,6 +109,16 @@ interface CodeState {
 
   toSetWorkspaceRoot: (root: string) => void
   toOpenTab(params: { path: string; language?: string }): void
+  /** 打开/激活差异标签；与编辑标签可并存。带 oid 时为提交间对比。 */
+  toOpenDiffTab(params: {
+    path: string
+    language?: string
+    baseOid?: string
+    headOid?: string
+    titleHint?: string
+  }): void
+  /** 打开/激活提交搜索标签（GitLens Commits 式独立页，全局单例） */
+  toOpenCommitsTab: () => void
   toActivateTab: (id: string) => void
   toCloseTab: (id: string) => void
   /** 关闭 path 本身或位于该目录下的所有 tab，返回被关 tab 的 path */
@@ -138,15 +159,27 @@ function findActiveTab(state: CodeState): CodeTab | undefined {
   })
 }
 
+function isFileTab(tab: CodeTab): boolean {
+  return tab.kind === 'file'
+}
+
 function writeCodePrefs(state: CodeState): void {
   if (state.isHydrating) return
+  const fileTabs = state.tabs.filter(isFileTab)
   const active = findActiveTab(state)
+  const activeFile =
+    active && isFileTab(active)
+      ? active
+      : fileTabs.find(function (tab) {
+          return tab.id === state.activeTabId
+        })
   persistCodePreferences({
     workspaceRoot: state.workspaceRoot,
-    tabPaths: state.tabs.map(function (tab) {
+    // 差异标签是会话态，不落盘（对齐 VS Code 不持久化 Working Tree 标签）
+    tabPaths: fileTabs.map(function (tab) {
       return tab.path
     }),
-    activePath: active?.path ?? null,
+    activePath: activeFile?.path ?? fileTabs[0]?.path ?? null,
     isSidebarOpen: state.isSidebarOpen,
     sidebarView: state.sidebarView,
     isSurfaceOpen: state.isSurfaceOpen,
@@ -195,6 +228,12 @@ const useCodeStore = create<CodeState>()(
             set(
               function (state) {
                 state.workspaceRoot = root
+                const commitsTab = state.tabs.find(function (tab) {
+                  return tab.kind === 'commits'
+                })
+                if (commitsTab) {
+                  commitsTab.title = `提交: ${findFileName(root)}`
+                }
               },
               false,
               'toSetWorkspaceRoot'
@@ -205,7 +244,7 @@ const useCodeStore = create<CodeState>()(
             set(
               function (state) {
                 const existing = state.tabs.find(function (tab) {
-                  return tab.path === params.path
+                  return isFileTab(tab) && isSamePath(tab.path, params.path)
                 })
                 if (existing) {
                   state.activeTabId = existing.id
@@ -219,13 +258,86 @@ const useCodeStore = create<CodeState>()(
                   path: params.path,
                   title: findFileName(params.path),
                   language,
-                  isDirty: false
+                  isDirty: false,
+                  kind: 'file'
                 })
                 state.activeTabId = id
                 state.languageId = language
               },
               false,
               'toOpenTab'
+            )
+          },
+
+          toOpenDiffTab(params) {
+            set(
+              function (state) {
+                const baseOid = params.baseOid
+                const headOid = params.headOid
+                const existing = state.tabs.find(function (tab) {
+                  return (
+                    tab.kind === 'diff' &&
+                    isSamePath(tab.path, params.path) &&
+                    tab.baseOid === baseOid &&
+                    tab.headOid === headOid
+                  )
+                })
+                if (existing) {
+                  state.activeTabId = existing.id
+                  state.languageId = existing.language
+                  return
+                }
+                const language = params.language ?? findLanguageId(params.path)
+                const id = crypto.randomUUID()
+                const name = findFileName(params.path)
+                const isRev = typeof headOid === 'string' && headOid.length > 0
+                const hint =
+                  params.titleHint ??
+                  (isRev ? headOid.slice(0, 7) : '工作区')
+                state.tabs.push({
+                  id,
+                  path: params.path,
+                  title: `${name} (${hint})`,
+                  language,
+                  isDirty: false,
+                  kind: 'diff',
+                  baseOid,
+                  headOid
+                })
+                state.activeTabId = id
+                state.languageId = language
+              },
+              false,
+              'toOpenDiffTab'
+            )
+          },
+
+          toOpenCommitsTab() {
+            set(
+              function (state) {
+                const existing = state.tabs.find(function (tab) {
+                  return tab.kind === 'commits'
+                })
+                if (existing) {
+                  state.activeTabId = existing.id
+                  return
+                }
+                const rootName = state.workspaceRoot
+                  ? findFileName(state.workspaceRoot)
+                  : '仓库'
+                const id = crypto.randomUUID()
+                state.tabs.push({
+                  id,
+                  path: COMMITS_TAB_PATH,
+                  title: `提交: ${rootName}`,
+                  language: 'plaintext',
+                  isDirty: false,
+                  kind: 'commits'
+                })
+                state.activeTabId = id
+              },
+              false,
+              'toOpenCommitsTab'
             )
           },
 
@@ -303,7 +415,11 @@ const useCodeStore = create<CodeState>()(
                   const next = relocatePath(tab.path, fromPath, toPath)
                   if (!next) continue
                   tab.path = next
-                  tab.title = findFileName(next)
+                  const name = findFileName(next)
+                  tab.title =
+                    tab.kind === 'diff'
+                      ? `${name} (${tab.headOid ? tab.headOid.slice(0, 7) : '工作区'})`
+                      : name
                   tab.language = findLanguageId(next)
                   if (tab.id === state.activeTabId) {
                     state.languageId = tab.language
@@ -636,9 +752,10 @@ useCodeStore.subscribe(function (state, previous) {
   writeCodePrefs(state)
 })
 
-export { useCodeStore }
+export { useCodeStore, COMMITS_TAB_PATH }
 export type {
   CodeTab,
+  CodeTabKind,
   CursorPosition,
   SidebarView,
   SurfaceTab,

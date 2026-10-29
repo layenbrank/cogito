@@ -291,7 +291,7 @@ function MonacoHost(props: MonacoHostProps) {
         if (previousPath) saveViewState(previousPath, editor)
       }
 
-      if (!activeTab) {
+      if (!activeTab || activeTab.kind !== 'file') {
         editor.setModel(null)
         pushProblemCounts(null)
         useCodeStore.getState().toSetLargeFile(false)

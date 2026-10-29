@@ -3,7 +3,7 @@ use std::path::Path;
 use cogito_core::{CommandResult, Exception};
 use serde::Serialize;
 
-use super::cli::run_git_args;
+use super::cli::run_git_bytes;
 use super::session::open_repo;
 use super::StatusBackend;
 
@@ -56,31 +56,13 @@ fn parse_branch_line(line: &str) -> (String, u32, u32) {
     (branch, ahead, behind)
 }
 
-pub async fn read_status_cli(cwd: &Path) -> CommandResult<StatusR> {
-    let args: Vec<String> = [
-        "status",
-        "--porcelain=v1",
-        "-z",
-        "--branch",
-        "--untracked-files=all",
-    ]
-    .iter()
-    .map(|item| (*item).to_string())
-    .collect();
-    let (ok, stdout, err) = run_git_args(cwd, &args).await?;
-    if !ok {
-        return Err(Exception::Internal(if err.is_empty() {
-            "读取 Git 状态失败".into()
-        } else {
-            err
-        }));
-    }
-
+/// 解析 `git status --porcelain=v1 -z --branch` 的原始字节（勿对整包 `.trim()`，会破坏 XY 前导空格）。
+fn parse_porcelain_z(raw: &str) -> StatusR {
     let mut branch = String::new();
     let mut ahead = 0;
     let mut behind = 0;
     let mut entries = Vec::new();
-    let mut tokens = stdout.split('\0');
+    let mut tokens = raw.split('\0');
     while let Some(token) = tokens.next() {
         if token.is_empty() {
             continue;
@@ -98,9 +80,15 @@ pub async fn read_status_cli(cwd: &Path) -> CommandResult<StatusR> {
         let mut chars = token.char_indices();
         let index_status = chars.next().map(|item| item.1).unwrap_or(' ');
         let worktree_status = chars.next().map(|item| item.1).unwrap_or(' ');
-        let path = token[3..].to_string();
+        // 跳过 XY 后的分隔空格，路径从下一字符起（兼容非 ASCII 路径）
+        let _ = chars.next();
+        let path = match chars.next() {
+            Some((start, _)) => token[start..].to_string(),
+            None => String::new(),
+        };
         if matches!(index_status, 'R' | 'C') {
-            tokens.next();
+            // rename/copy：下一段是原路径，展示用新路径即可
+            let _old = tokens.next();
         }
         entries.push(StatusEntryR {
             path,
@@ -109,14 +97,38 @@ pub async fn read_status_cli(cwd: &Path) -> CommandResult<StatusR> {
         });
     }
 
-    Ok(StatusR {
+    StatusR {
         branch,
         ahead,
         behind,
         entries,
         cache_hit: false,
         unchanged: false,
-    })
+    }
+}
+
+pub async fn read_status_cli(cwd: &Path) -> CommandResult<StatusR> {
+    let args: Vec<String> = [
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--branch",
+        "--untracked-files=all",
+    ]
+    .iter()
+    .map(|item| (*item).to_string())
+    .collect();
+    // 走 bytes：run_git_args 会对 stdout 做 .trim()，会吃掉首条 ` M path` 的前导空格，导致整表解析失败
+    let (ok, bytes, err) = run_git_bytes(cwd, &args).await?;
+    if !ok {
+        return Err(Exception::Internal(if err.is_empty() {
+            "读取 Git 状态失败".into()
+        } else {
+            err
+        }));
+    }
+    let raw = String::from_utf8_lossy(&bytes);
+    Ok(parse_porcelain_z(&raw))
 }
 
 pub async fn read_status(cwd: &Path, backend: StatusBackend) -> CommandResult<StatusR> {
@@ -213,7 +225,7 @@ async fn list_branches_cli(cwd: &Path) -> CommandResult<(String, Vec<String>)> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_branch_line;
+    use super::{parse_branch_line, parse_porcelain_z};
 
     #[test]
     fn parse_ahead_behind() {
@@ -230,5 +242,29 @@ mod tests {
         assert_eq!(branch, "feature/x");
         assert_eq!(ahead, 0);
         assert_eq!(behind, 0);
+    }
+
+    #[test]
+    fn parse_porcelain_z_worktree_modified() {
+        let raw = "## master...origin/master\0 M apps/a.ts\0 M apps/b.ts\0";
+        let status = parse_porcelain_z(raw);
+        assert_eq!(status.branch, "master");
+        assert_eq!(status.entries.len(), 2);
+        assert_eq!(status.entries[0].path, "apps/a.ts");
+        assert_eq!(status.entries[0].index_status, " ");
+        assert_eq!(status.entries[0].worktree_status, "M");
+        assert_eq!(status.entries[1].path, "apps/b.ts");
+    }
+
+    #[test]
+    fn parse_porcelain_z_untracked_and_staged() {
+        let raw = "## main\0M  staged.ts\0?? new.ts\0";
+        let status = parse_porcelain_z(raw);
+        assert_eq!(status.entries.len(), 2);
+        assert_eq!(status.entries[0].index_status, "M");
+        assert_eq!(status.entries[0].worktree_status, " ");
+        assert_eq!(status.entries[1].index_status, "?");
+        assert_eq!(status.entries[1].worktree_status, "?");
+        assert_eq!(status.entries[1].path, "new.ts");
     }
 }

@@ -111,18 +111,96 @@ async function invalidate(path: string) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.INVALIDATE, { params: { path } })
 }
 
-async function diff(path: string, filePath: string) {
-  return invoke<DiffResult>(CHANNELS.WORKSPACE_GIT.DIFF, { params: { path, filePath } })
+interface DiffRevs {
+  /** 父提交 / 左侧；空串 = 空树；与 newOid 皆缺省 = 工作区 diff */
+  oldOid?: string | null
+  /** 目标提交 / 右侧 */
+  newOid?: string | null
 }
 
-async function diffMeta(path: string, filePath: string) {
-  return invoke<DiffMeta>(CHANNELS.WORKSPACE_GIT.DIFF_META, { params: { path, filePath } })
+interface CommitHit {
+  oid: string
+  short: string
+  subject: string
+  authorName: string
+  committedAt: number
+  parentOid: string | null
+  isHead: boolean
 }
 
-async function diffHunks(path: string, filePath: string, offset = 0, limit = 40) {
-  return invoke<DiffHunksResult>(CHANNELS.WORKSPACE_GIT.DIFF_HUNKS, {
-    params: { path, filePath, offset, limit }
+type SearchField = 'all' | 'message' | 'author' | 'hash'
+
+interface SearchResult {
+  commits: CommitHit[]
+  hasMore: boolean
+  scanned: number
+  hitScanCap: boolean
+}
+
+interface ShowFile {
+  path: string
+  status: string
+  added: number | null
+  deleted: number | null
+}
+
+interface ShowResult {
+  oid: string
+  parentOid: string | null
+  files: ShowFile[]
+}
+
+function withRevs(params: Record<string, unknown>, revs?: DiffRevs) {
+  if (!revs) return params
+  if (revs.oldOid !== undefined && revs.oldOid !== null) {
+    params.oldOid = revs.oldOid
+  }
+  if (revs.newOid !== undefined && revs.newOid !== null) {
+    params.newOid = revs.newOid
+  }
+  return params
+}
+
+async function diff(path: string, filePath: string, revs?: DiffRevs) {
+  return invoke<DiffResult>(CHANNELS.WORKSPACE_GIT.DIFF, {
+    params: withRevs({ path, filePath }, revs)
   })
+}
+
+async function diffMeta(path: string, filePath: string, revs?: DiffRevs) {
+  return invoke<DiffMeta>(CHANNELS.WORKSPACE_GIT.DIFF_META, {
+    params: withRevs({ path, filePath }, revs)
+  })
+}
+
+async function diffHunks(path: string, filePath: string, offset = 0, limit = 40, revs?: DiffRevs) {
+  return invoke<DiffHunksResult>(CHANNELS.WORKSPACE_GIT.DIFF_HUNKS, {
+    params: withRevs({ path, filePath, offset, limit }, revs)
+  })
+}
+
+async function search(
+  path: string,
+  options: {
+    query?: string
+    field?: SearchField
+    limit?: number
+    cursor?: string
+  } = {}
+) {
+  return invoke<SearchResult>(CHANNELS.WORKSPACE_GIT.SEARCH, {
+    params: {
+      path,
+      query: options.query ?? '',
+      field: options.field ?? 'all',
+      limit: options.limit ?? 50,
+      cursor: options.cursor
+    }
+  })
+}
+
+async function show(path: string, oid: string) {
+  return invoke<ShowResult>(CHANNELS.WORKSPACE_GIT.SHOW, { params: { path, oid } })
 }
 
 async function stage(path: string, paths: string[]) {
@@ -162,6 +240,8 @@ const WorkspaceGit = {
   diff,
   diffMeta,
   diffHunks,
+  search,
+  show,
   stage,
   unstage,
   discard,
@@ -182,5 +262,11 @@ export type {
   DiffHunk,
   DiffHunksResult,
   DiffResult,
+  DiffRevs,
+  CommitHit,
+  SearchField,
+  SearchResult,
+  ShowFile,
+  ShowResult,
   ActionResult
 }

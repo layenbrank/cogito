@@ -3,8 +3,13 @@
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
+} from '@cogito/design/components/collapsible'
 import { cn } from 'cn'
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 
 import { ContextMenu, type MenuItem } from '@/components/contextmenu'
 import type { StatusEntry } from '@/lib/workspace-git'
@@ -50,18 +55,18 @@ function RowAction(props: {
   return (
     <Button
       variant="ghost"
-      size="icon-xs"
+      size="icon-sm"
       type="button"
       aria-label={props.label}
       title={props.label}
       className={cn(
-        'hover:bg-muted text-muted-foreground flex size-5 items-center justify-center rounded-sm',
+        'hover:bg-muted text-muted-foreground flex size-7 items-center justify-center rounded-sm',
         props.isDanger ? 'hover:text-destructive' : 'hover:text-foreground'
       )}
       onClick={props.onClick}>
       <Icon
         icon={props.icon}
-        className="size-3"
+        className="size-4"
       />
     </Button>
   )
@@ -95,21 +100,21 @@ function ChangeRow(props: {
       data-git-path={props.entry.path}
       data-git-kind={props.kind}
       data-git-badge={badge}
-      className="group/row hover:bg-muted/60 relative flex items-center gap-1 rounded-sm py-0.5 pr-1 pl-3">
+      className="group/row hover:bg-muted/60 relative flex items-center gap-1 rounded-sm py-1.5 pr-1 pl-3">
       <Button
         variant="ghost"
         type="button"
-        className="h-auto min-w-0 flex-1 shrink justify-start gap-1.5 rounded-sm px-0 text-left text-xs font-normal"
+        className="h-auto min-w-0 flex-1 shrink justify-start gap-1.5 rounded-sm px-0 text-left text-sm font-normal"
         title={`${props.entry.path}（点击查看差异）`}
         onClick={function () {
           props.onOpenDiff(props.entry.path)
         }}>
-        <span className="text-foreground min-w-0 truncate text-xs">{findName(props.entry.path)}</span>
+        <span className="text-foreground min-w-0 truncate text-sm">{findName(props.entry.path)}</span>
         {parent ? (
-          <span className="text-muted-foreground min-w-0 truncate text-[11px] opacity-70">{parent}</span>
+          <span className="text-muted-foreground min-w-0 truncate text-xs opacity-70">{parent}</span>
         ) : null}
       </Button>
-      <div className="bg-muted absolute right-6 hidden items-center gap-0.5 rounded-sm group-hover/row:flex">
+      <div className="bg-muted absolute right-8 hidden items-center gap-0.5 rounded-sm group-hover/row:flex">
         {isDeleted ? null : (
           <RowAction
             icon="lucide:square-arrow-out-up-right"
@@ -135,12 +140,92 @@ function ChangeRow(props: {
       </div>
       <span
         className={cn(
-          'w-4 shrink-0 text-center font-mono text-[11px] font-medium',
+          'w-5 shrink-0 text-center font-mono text-sm font-semibold',
           BADGE_STYLE[badge]
         )}>
         {badge}
       </span>
     </li>
+  )
+}
+
+function ChangeGroup(props: {
+  kind: GroupKind
+  title: string
+  entries: StatusEntry[]
+  onOpenDiff: (relative: string) => void
+  onOpenFile: (relative: string) => void
+  onStage: (paths: string[]) => void
+  onUnstage: (paths: string[]) => void
+  onDiscard: (paths: string[], isUntracked: boolean) => void
+}) {
+  const [isOpen, updateOpen] = useState(true)
+
+  return (
+    <Collapsible
+      open={isOpen}
+      onOpenChange={updateOpen}
+      className="mb-1">
+      <div className="group/header text-muted-foreground hover:bg-muted/60 flex h-7 items-center gap-0.5 px-1 text-xs font-medium">
+        <CollapsibleTrigger className="hover:text-foreground flex min-w-0 flex-1 items-center gap-1 rounded-sm px-2 py-0.5 text-left outline-none">
+          <Icon
+            icon="lucide:chevron-right"
+            className={cn(
+              'size-3.5 shrink-0 transition-transform duration-150',
+              isOpen && 'rotate-90'
+            )}
+          />
+          <span className="truncate">{props.title}</span>
+          <span className="bg-muted text-muted-foreground ml-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-medium tabular-nums">
+            {props.entries.length}
+          </span>
+        </CollapsibleTrigger>
+        <div className="mr-1 flex shrink-0 items-center gap-0.5 opacity-0 group-hover/header:opacity-100">
+          {props.kind === 'staged' ? null : (
+            <RowAction
+              icon="lucide:undo-2"
+              label={props.kind === 'untracked' ? '删除全部未跟踪文件' : '撤销全部更改'}
+              isDanger
+              onClick={function () {
+                const paths = props.entries.map(function (entry) {
+                  return entry.path
+                })
+                props.onDiscard(paths, props.kind === 'untracked')
+              }}
+            />
+          )}
+          <RowAction
+            icon={props.kind === 'staged' ? 'lucide:minus' : 'lucide:plus'}
+            label={props.kind === 'staged' ? '全部取消暂存' : '全部暂存'}
+            onClick={function () {
+              const paths = props.entries.map(function (entry) {
+                return entry.path
+              })
+              if (props.kind === 'staged') props.onUnstage(paths)
+              else props.onStage(paths)
+            }}
+          />
+        </div>
+      </div>
+      <CollapsibleContent>
+        <ul className="list-none">
+          {props.entries.map(function (entry) {
+            return (
+              <ChangeRow
+                key={`${props.kind}:${entry.path}`}
+                entry={entry}
+                kind={props.kind}
+                onOpenDiff={props.onOpenDiff}
+                onOpenFile={props.onOpenFile}
+                onStage={props.onStage}
+                onUnstage={props.onUnstage}
+                onDiscard={props.onDiscard}
+              />
+            )
+          })}
+        </ul>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 
@@ -207,60 +292,17 @@ function Changes(props: ChangesProps) {
         {props.groups.map(function (group) {
           if (group.entries.length === 0) return null
           return (
-            <section
+            <ChangeGroup
               key={group.kind}
-              className="mb-1">
-              <div className="group/header text-muted-foreground hover:bg-muted/60 flex h-6 items-center gap-1 px-3 text-[11px] font-medium">
-                <span className="min-w-0 flex-1 truncate">{group.title}</span>
-                <div className="ml-auto flex shrink-0 items-center gap-0.5">
-                  <div className="hidden items-center gap-0.5 group-hover/header:flex">
-                    {group.kind === 'staged' ? null : (
-                      <RowAction
-                        icon="lucide:undo-2"
-                        label={group.kind === 'untracked' ? '删除全部未跟踪文件' : '撤销全部更改'}
-                        isDanger
-                        onClick={function () {
-                          const paths = group.entries.map(function (entry) {
-                            return entry.path
-                          })
-                          props.onDiscard(paths, group.kind === 'untracked')
-                        }}
-                      />
-                    )}
-                    <RowAction
-                      icon={group.kind === 'staged' ? 'lucide:minus' : 'lucide:plus'}
-                      label={group.kind === 'staged' ? '全部取消暂存' : '全部暂存'}
-                      onClick={function () {
-                        const paths = group.entries.map(function (entry) {
-                          return entry.path
-                        })
-                        if (group.kind === 'staged') props.onUnstage(paths)
-                        else props.onStage(paths)
-                      }}
-                    />
-                  </div>
-                  <span className="bg-muted text-muted-foreground flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium">
-                    {group.entries.length}
-                  </span>
-                </div>
-              </div>
-              <ul className="list-none">
-                {group.entries.map(function (entry) {
-                  return (
-                    <ChangeRow
-                      key={`${group.kind}:${entry.path}`}
-                      entry={entry}
-                      kind={group.kind}
-                      onOpenDiff={props.onOpenDiff}
-                      onOpenFile={props.onOpenFile}
-                      onStage={props.onStage}
-                      onUnstage={props.onUnstage}
-                      onDiscard={props.onDiscard}
-                    />
-                  )
-                })}
-              </ul>
-            </section>
+              kind={group.kind}
+              title={group.title}
+              entries={group.entries}
+              onOpenDiff={props.onOpenDiff}
+              onOpenFile={props.onOpenFile}
+              onStage={props.onStage}
+              onUnstage={props.onUnstage}
+              onDiscard={props.onDiscard}
+            />
           )
         })}
       </div>

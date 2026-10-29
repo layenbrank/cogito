@@ -5,10 +5,24 @@ use serde::Serialize;
 use similar::{Algorithm, ChangeTag, TextDiff};
 
 use super::blob::{
-    looks_binary, prepare_side, read_head_bytes, read_worktree_bytes, worktree_fingerprint,
+    looks_binary, prepare_side, read_head_bytes, read_tree_bytes, read_worktree_bytes,
+    worktree_fingerprint,
 };
 use super::cli::run_git_args;
 use super::session::open_repo;
+
+/// 差异两侧：缺省 = HEAD ↔ 工作区；两侧 oid = 提交间对比。
+#[derive(Debug, Clone, Default)]
+pub struct DiffRevs {
+    pub old_oid: Option<String>,
+    pub new_oid: Option<String>,
+}
+
+impl DiffRevs {
+    pub fn is_worktree(&self) -> bool {
+        self.old_oid.is_none() && self.new_oid.is_none()
+    }
+}
 
 /// 两侧合计超过此字节数 → hunks，避免 Monaco LCS。
 pub const LARGE_DIFF_BYTES: usize = 80_000;
@@ -77,14 +91,27 @@ fn parse_numstat_line(line: &str) -> Option<(u32, u32, bool)> {
     Some((added, deleted, false))
 }
 
-async fn numstat_changes(cwd: &Path, relative: &str) -> (u32, u32, bool) {
-    let args = vec![
-        "diff".into(),
-        "--numstat".into(),
-        "HEAD".into(),
-        "--".into(),
-        relative.to_string(),
-    ];
+async fn numstat_changes(cwd: &Path, relative: &str, revs: &DiffRevs) -> (u32, u32, bool) {
+    let mut args = vec!["diff".into(), "--numstat".into()];
+    if revs.is_worktree() {
+        args.push("HEAD".into());
+    } else {
+        let old = revs.old_oid.as_deref().unwrap_or_default();
+        let new = revs.new_oid.as_deref().unwrap_or_default();
+        if old.is_empty() && !new.is_empty() {
+            // 相对空树：用 show / diff-tree 风格 — git diff 空树需 4b825d… 或 --root
+            args.push(format!("{new}^!"));
+        } else if !old.is_empty() && !new.is_empty() {
+            args.push(old.to_string());
+            args.push(new.to_string());
+        } else if !old.is_empty() {
+            args.push(old.to_string());
+        } else {
+            args.push("HEAD".into());
+        }
+    }
+    args.push("--".into());
+    args.push(relative.to_string());
     let Ok((_ok, out, _)) = run_git_args(cwd, &args).await else {
         return (0, 0, false);
     };
@@ -151,12 +178,39 @@ fn build_hunks(original: &str, modified: &str) -> (Vec<DiffHunk>, u32, u32) {
     (hunks, added, deleted)
 }
 
+fn read_sides(
+    cwd: &Path,
+    repo: &gix::Repository,
+    relative: &str,
+    revs: &DiffRevs,
+) -> CommandResult<(Vec<u8>, Vec<u8>)> {
+    if revs.is_worktree() {
+        let head_bytes = read_head_bytes(repo, relative)?;
+        let work_bytes = read_worktree_bytes(cwd, relative);
+        return Ok((head_bytes, work_bytes));
+    }
+    let old = revs.old_oid.as_deref().unwrap_or("");
+    let new = revs.new_oid.as_deref().unwrap_or("");
+    let original = if old.is_empty() {
+        Vec::new()
+    } else {
+        read_tree_bytes(repo, old, relative)?
+    };
+    let modified = if new.is_empty() {
+        // 无 new：退回工作区（少见）
+        read_worktree_bytes(cwd, relative)
+    } else {
+        read_tree_bytes(repo, new, relative)?
+    };
+    Ok((original, modified))
+}
+
 /// 规划差异：短路 → 选 mode；sideBySide 才带正文。
 ///
 /// gix `Repository` 含 RefCell，`&Repository` 非 Send；numstat 之后在 blocking 线程打开仓库。
-pub async fn plan_diff(cwd: &Path, relative: &str) -> CommandResult<DiffPlan> {
+pub async fn plan_diff(cwd: &Path, relative: &str, revs: DiffRevs) -> CommandResult<DiffPlan> {
     let relative = relative.replace('\\', "/");
-    let (ns_added, ns_deleted, ns_binary) = numstat_changes(cwd, &relative).await;
+    let (ns_added, ns_deleted, ns_binary) = numstat_changes(cwd, &relative, &revs).await;
 
     if ns_binary {
         return Ok(DiffPlan {
@@ -180,7 +234,7 @@ pub async fn plan_diff(cwd: &Path, relative: &str) -> CommandResult<DiffPlan> {
     let cwd_owned: PathBuf = cwd.to_path_buf();
     let relative_owned = relative;
     tokio::task::spawn_blocking(move || {
-        plan_diff_blocking(&cwd_owned, &relative_owned, ns_added, ns_deleted)
+        plan_diff_blocking(&cwd_owned, &relative_owned, ns_added, ns_deleted, &revs)
     })
     .await
     .map_err(|err| Exception::Internal(format!("diff 任务失败：{err}")))?
@@ -191,13 +245,13 @@ fn plan_diff_blocking(
     relative: &str,
     ns_added: u32,
     ns_deleted: u32,
+    revs: &DiffRevs,
 ) -> CommandResult<DiffPlan> {
     let ns_changes = ns_added.saturating_add(ns_deleted);
     let force_hunks = ns_changes >= LARGE_CHANGE_LINES;
     let repo = open_repo(cwd)?;
 
-    let head_bytes = read_head_bytes(&repo, relative)?;
-    let work_bytes = read_worktree_bytes(cwd, relative);
+    let (head_bytes, work_bytes) = read_sides(cwd, &repo, relative, revs)?;
     let file_bytes = (head_bytes.len() + work_bytes.len()) as u64;
 
     if looks_binary(&head_bytes) || looks_binary(&work_bytes) {
@@ -289,13 +343,15 @@ pub fn plan_diff_hunks(
     relative: &str,
     offset: u32,
     limit: u32,
+    revs: &DiffRevs,
 ) -> CommandResult<DiffHunksR> {
     let relative = relative.replace('\\', "/");
-    let _ = worktree_fingerprint(cwd, &relative);
+    if revs.is_worktree() {
+        let _ = worktree_fingerprint(cwd, &relative);
+    }
     let repo = open_repo(cwd)?;
 
-    let head_bytes = read_head_bytes(&repo, &relative)?;
-    let work_bytes = read_worktree_bytes(cwd, &relative);
+    let (head_bytes, work_bytes) = read_sides(cwd, &repo, &relative, revs)?;
     if looks_binary(&head_bytes) || looks_binary(&work_bytes) {
         return Ok(DiffHunksR {
             hunks: Vec::new(),

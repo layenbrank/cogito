@@ -88,6 +88,7 @@ function EditorTabs() {
         {
           key: 'copy-path',
           label: '复制路径',
+          disabled: tab.kind === 'commits',
           onSelect() {
             void navigator.clipboard.writeText(tab.path).then(function () {
               toast.success('已复制路径')
@@ -97,7 +98,7 @@ function EditorTabs() {
         {
           key: 'reveal',
           label: '在资源管理器中显示',
-          disabled: !useCodeStore.getState().workspaceRoot,
+          disabled: tab.kind !== 'file' || !useCodeStore.getState().workspaceRoot,
           onSelect() {
             revealInExplorer(tab.path)
           }
@@ -152,7 +153,19 @@ function EditorTabs() {
                 className="bg-foreground/80 absolute inset-x-0 bottom-0 h-0.5"
               />
             ) : null}
-            {isActive && isLargeFile ? (
+            {tab.kind === 'diff' ? (
+              <Icon
+                icon="lucide:git-compare"
+                className="text-muted-foreground size-3 shrink-0"
+                aria-label="差异"
+              />
+            ) : tab.kind === 'commits' ? (
+              <Icon
+                icon="lucide:git-commit-horizontal"
+                className="text-primary size-3 shrink-0"
+                aria-label="提交"
+              />
+            ) : isActive && isLargeFile ? (
               <Icon
                 icon="lucide:lock"
                 className="text-muted-foreground size-3 shrink-0"
@@ -170,7 +183,19 @@ function EditorTabs() {
                 className="size-3 shrink-0 opacity-50"
               />
             )}
-            <span className="truncate">{tab.title}</span>
+            <span
+              className="truncate"
+              title={
+                tab.kind === 'diff'
+                  ? tab.headOid
+                    ? `${tab.path} · ${(tab.baseOid || '∅').slice(0, 7)} ↔ ${tab.headOid.slice(0, 7)}`
+                    : `${tab.path} · HEAD ↔ 工作区`
+                  : tab.kind === 'commits'
+                    ? '搜索提交历史'
+                    : tab.path
+              }>
+              {tab.title}
+            </span>
             <Button
               type="button"
               variant="ghost"

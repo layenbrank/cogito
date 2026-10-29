@@ -9,16 +9,20 @@ mod blob;
 mod cache;
 mod cli;
 mod diff;
+mod history;
 mod path;
 mod session;
 mod status;
 
-pub use blob::{prepare_side, read_head_bytes, read_worktree_bytes};
+pub use blob::{prepare_side, read_head_bytes, read_tree_bytes, read_worktree_bytes};
 pub use cache::{
     bump_status, invalidate_status, mark_unchanged, status_cached, store_status, StatusLookup,
 };
 pub use cli::{run_git, run_git_args, run_git_bytes};
-pub use diff::{plan_diff, plan_diff_hunks, DiffHunk, DiffHunksR, DiffMetaR, DiffMode, DiffPlan};
+pub use diff::{
+    plan_diff, plan_diff_hunks, DiffHunk, DiffHunksR, DiffMetaR, DiffMode, DiffPlan, DiffRevs,
+};
+pub use history::{search_commits, show_commit, CommitHit, SearchField, SearchR, ShowFile, ShowR};
 pub use path::{has_git_marker, validate_branch, validate_path, validate_relative_paths};
 pub use session::{open_repo, probe_repo, ProbeInfo};
 pub use status::{list_branches, read_status, StatusEntryR, StatusR};

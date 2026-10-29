@@ -9,9 +9,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::git::{
     self, bump_status, invalidate_status, list_branches, mark_unchanged, open_repo, plan_diff,
-    plan_diff_hunks, probe_repo, read_status, run_git, status_backend, status_cached, store_status,
-    validate_branch, validate_path, validate_relative_paths, DiffHunksR, DiffMetaR, DiffMode,
-    StatusLookup, StatusR,
+    plan_diff_hunks, probe_repo, read_status, run_git, search_commits, show_commit, status_backend,
+    status_cached, store_status, validate_branch, validate_path, validate_relative_paths,
+    DiffHunksR, DiffMetaR, DiffMode, DiffRevs, SearchField, SearchR, ShowR, StatusLookup, StatusR,
 };
 
 // ─── 请求 / 响应（对前端稳定） ───
@@ -69,6 +69,10 @@ pub struct DiscardP {
 pub struct DiffP {
     pub path: String,
     pub file_path: String,
+    /// 父提交 / 左侧 oid；与 `new_oid` 同时缺省 = HEAD↔工作区
+    pub old_oid: Option<String>,
+    /// 目标提交 / 右侧 oid
+    pub new_oid: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -78,6 +82,51 @@ pub struct DiffHunksP {
     pub file_path: String,
     pub offset: Option<u32>,
     pub limit: Option<u32>,
+    pub old_oid: Option<String>,
+    pub new_oid: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchP {
+    pub path: String,
+    pub query: Option<String>,
+    pub field: Option<SearchField>,
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShowP {
+    pub path: String,
+    pub oid: String,
+}
+
+fn parse_diff_revs(old_oid: Option<String>, new_oid: Option<String>) -> DiffRevs {
+    let clean = |value: Option<String>| -> Option<String> {
+        value.and_then(|item| {
+            let trimmed = item.trim().to_string();
+            if trimmed.is_empty() {
+                // 空串表示空树侧（根提交父）
+                Some(String::new())
+            } else if trimmed.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                Some(trimmed)
+            } else {
+                None
+            }
+        })
+    };
+    let old = clean(old_oid);
+    let new = clean(new_oid);
+    // 仅当两侧都未传时走工作区模式；任一侧显式传入（含空串）即提交对比
+    match (&old, &new) {
+        (None, None) => DiffRevs::default(),
+        _ => DiffRevs {
+            old_oid: old,
+            new_oid: new,
+        },
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -196,7 +245,8 @@ pub async fn workspaceGitDiff(params: DiffP) -> CommandResult<DiffR> {
     let cwd = validate_path(&params.path)?;
     let mut cleaned = validate_relative_paths(&[params.file_path])?;
     let file_path = cleaned.remove(0);
-    let plan = plan_diff(&cwd, &file_path).await?;
+    let revs = parse_diff_revs(params.old_oid, params.new_oid);
+    let plan = plan_diff(&cwd, &file_path, revs).await?;
     Ok(DiffR {
         mode: plan.meta.mode,
         original: plan.original,
@@ -218,7 +268,8 @@ pub async fn workspaceGitDiffMeta(params: DiffP) -> CommandResult<DiffMetaR> {
     let cwd = validate_path(&params.path)?;
     let mut cleaned = validate_relative_paths(&[params.file_path])?;
     let file_path = cleaned.remove(0);
-    let plan = plan_diff(&cwd, &file_path).await?;
+    let revs = parse_diff_revs(params.old_oid, params.new_oid);
+    let plan = plan_diff(&cwd, &file_path, revs).await?;
     Ok(plan.meta)
 }
 
@@ -229,9 +280,33 @@ pub async fn workspaceGitDiffHunks(params: DiffHunksP) -> CommandResult<DiffHunk
     let file_path = cleaned.remove(0);
     let offset = params.offset.unwrap_or(0);
     let limit = params.limit.unwrap_or(40);
-    tokio::task::spawn_blocking(move || plan_diff_hunks(&cwd, &file_path, offset, limit))
+    let revs = parse_diff_revs(params.old_oid, params.new_oid);
+    tokio::task::spawn_blocking(move || plan_diff_hunks(&cwd, &file_path, offset, limit, &revs))
         .await
         .map_err(|err| Exception::Internal(format!("diffHunks 任务失败：{err}")))?
+}
+
+#[tauri::command(rename = "workspaceGit:search")]
+pub async fn workspaceGitSearch(params: SearchP) -> CommandResult<SearchR> {
+    let cwd = validate_path(&params.path)?;
+    let query = params.query.unwrap_or_default();
+    let field = params.field.unwrap_or(SearchField::All);
+    let limit = params.limit.unwrap_or(50);
+    let cursor = params.cursor.filter(|item| !item.trim().is_empty());
+    search_commits(
+        &cwd,
+        &query,
+        field,
+        limit,
+        cursor.as_deref(),
+    )
+    .await
+}
+
+#[tauri::command(rename = "workspaceGit:show")]
+pub async fn workspaceGitShow(params: ShowP) -> CommandResult<ShowR> {
+    let cwd = validate_path(&params.path)?;
+    show_commit(&cwd, &params.oid).await
 }
 
 // ─── 写路径（CLI） ───

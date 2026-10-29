@@ -208,6 +208,15 @@ const CODE_COMMANDS: Command[] = [
     run: function () {
       useCodeStore.getState().toToggleSurface('problems')
     }
+  },
+  {
+    id: SHORTCUT_COMMAND.CODE_GIT_SEARCH,
+    title: '查看: 提交历史',
+    keywords: 'git search commits history hash author message gitlens 提交',
+    group: '查看',
+    run: function () {
+      useCodeStore.getState().toOpenCommitsTab()
+    }
   }
 ]
 

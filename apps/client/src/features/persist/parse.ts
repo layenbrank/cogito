@@ -101,6 +101,7 @@ function parseTiles(raw: unknown): TilesPref {
     isPanelOpen?: unknown
   }
   const rawSurfaceTab = code.surfaceTab ?? legacyPanelTab
+  // 旧版 gitSearch 已迁到编辑器独立标签，落盘底栏只保留 terminal / problems
   const surfaceTab =
     rawSurfaceTab === 'problems' || rawSurfaceTab === 'terminal'
       ? rawSurfaceTab

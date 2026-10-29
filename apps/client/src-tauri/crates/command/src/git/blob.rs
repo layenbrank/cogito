@@ -55,13 +55,17 @@ pub fn prepare_side(bytes: Vec<u8>) -> (String, u32) {
     (text, lines)
 }
 
-/// 从 HEAD 树读取文件内容；文件不在 HEAD 时返回空。
-pub fn read_head_bytes(repo: &gix::Repository, relative: &str) -> CommandResult<Vec<u8>> {
+/// 从指定 treeish（如 `HEAD` / 完整 oid）读取文件；不存在时返回空。
+pub fn read_tree_bytes(
+    repo: &gix::Repository,
+    treeish: &str,
+    relative: &str,
+) -> CommandResult<Vec<u8>> {
     let relative = relative.replace('\\', "/");
-    if relative.is_empty() {
+    if relative.is_empty() || treeish.trim().is_empty() {
         return Ok(Vec::new());
     }
-    let spec = format!("HEAD:{relative}");
+    let spec = format!("{treeish}:{relative}");
     match repo.rev_parse_single(spec.as_str()) {
         Ok(id) => match id.object() {
             Ok(object) => Ok(object.data.clone()),
@@ -69,6 +73,11 @@ pub fn read_head_bytes(repo: &gix::Repository, relative: &str) -> CommandResult<
         },
         Err(_) => Ok(Vec::new()),
     }
+}
+
+/// 从 HEAD 树读取文件内容；文件不在 HEAD 时返回空。
+pub fn read_head_bytes(repo: &gix::Repository, relative: &str) -> CommandResult<Vec<u8>> {
+    read_tree_bytes(repo, "HEAD", relative)
 }
 
 pub fn read_worktree_bytes(cwd: &Path, relative: &str) -> Vec<u8> {

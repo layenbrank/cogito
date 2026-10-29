@@ -266,6 +266,8 @@ export const CHANNELS = {
     DIFF: 'workspaceGit:diff',
     DIFF_META: 'workspaceGit:diffMeta',
     DIFF_HUNKS: 'workspaceGit:diffHunks',
+    SEARCH: 'workspaceGit:search',
+    SHOW: 'workspaceGit:show',
     STAGE: 'workspaceGit:stage',
     UNSTAGE: 'workspaceGit:unstage',
     DISCARD: 'workspaceGit:discard',

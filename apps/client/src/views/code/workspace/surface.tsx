@@ -87,7 +87,7 @@ function BottomSurface() {
         </Button>
       </div>
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        {/* 终端用 invisible 保活：切到「问题」勿卸载，否则会 kill 全部 PTY */}
+        {/* 终端用 invisible 保活：切到其他页勿卸载，否则会 kill 全部 PTY */}
         <div
           className={cn(
             'absolute inset-0',

@@ -18,12 +18,15 @@ import { CODE_COMMANDS } from '@/views/code/lib/commands.ts'
 import { readCodeFile } from '@/views/code/lib/fs.ts'
 import { disposeAllModels, findModel, findOrCreateModel } from '@/views/code/lib/monaco-models.ts'
 import { openAbsolutePath } from '@/views/code/lib/open-file.ts'
+import { findRelativePath } from '@/views/code/lib/path.ts'
+import { requestCloseTabs } from '@/views/code/lib/close-tabs.ts'
 import { ActivityBar } from '@/views/code/workspace/activity-bar.tsx'
 import { Breadcrumbs } from '@/views/code/workspace/breadcrumbs.tsx'
 import { CloseConfirmDialog } from '@/views/code/workspace/close-confirm.tsx'
 import { CommandPalette } from '@/views/code/workspace/command-palette.tsx'
 import { DiffHost } from '@/views/code/workspace/diff-host.tsx'
 import { EditorTabs } from '@/views/code/workspace/editor-tabs.tsx'
+import { GitSearch } from '@/views/code/workspace/git-search.tsx'
 import { MonacoHost } from '@/views/code/workspace/monaco-host.tsx'
 import { BottomSurface } from '@/views/code/workspace/surface.tsx'
 import { Sidebar } from '@/views/code/workspace/sidebar.tsx'
@@ -52,10 +55,9 @@ export default function Code() {
   const activeTab = tabs.find(function (tab) {
     return tab.id === activeTabId
   })
-  const diff = useCodeGitStore(function (state) {
-    return state.diff
-  })
-  const isDiffOpen = Boolean(diff)
+  const isDiffOpen = activeTab?.kind === 'diff'
+  const isCommitsOpen = activeTab?.kind === 'commits'
+  const isEditorHidden = isDiffOpen || isCommitsOpen
   // DiffEditor 创建/销毁很贵；第一次打开后常驻，关掉时只 hidden
   const [isDiffHostReady, setDiffHostReady] = useState(false)
   if (isDiffOpen && !isDiffHostReady) {
@@ -110,7 +112,7 @@ export default function Code() {
   // 外部文件变更：脏则提示，否则静默重载（内容未变则跳过，避免自身保存触发跳动）
   useEffect(
     function () {
-      if (!activeTab?.path) return
+      if (!activeTab?.path || activeTab.kind !== 'file') return
       let disposed = false
       let unwatch: (() => void) | undefined
       const watchedPath = activeTab.path
@@ -120,7 +122,7 @@ export default function Code() {
           if (disposed) return
           const store = useCodeStore.getState()
           const tab = store.tabs.find(function (item) {
-            return item.path === watchedPath
+            return item.kind === 'file' && item.path === watchedPath
           })
           if (!tab) return
           void readCodeFile(tab.path)
@@ -217,6 +219,64 @@ export default function Code() {
     [workspaceRoot]
   )
 
+  // 差异标签激活时加载内容；切到编辑标签则收起差异（对齐 VS Code 标签切换）
+  useEffect(
+    function () {
+      if (!isDiffOpen || !activeTab || !workspaceRoot) {
+        if (!isDiffOpen) {
+          useCodeGitStore.getState().toCloseDiff()
+        }
+        return
+      }
+      const relative = findRelativePath(workspaceRoot, activeTab.path)
+      const revs =
+        typeof activeTab.headOid === 'string' && activeTab.headOid.length > 0
+          ? {
+              oldOid: activeTab.baseOid ?? '',
+              newOid: activeTab.headOid
+            }
+          : undefined
+      const current = useCodeGitStore.getState().diff
+      const sameRev =
+        current &&
+        current.relative === relative &&
+        current.oldOid === revs?.oldOid &&
+        current.newOid === revs?.newOid
+      if (sameRev && !current.isLoading) return
+      void useCodeGitStore
+        .getState()
+        .toOpenDiff(relative, revs)
+        .then(function (outcome) {
+          if (!outcome.ok) toast.error(outcome.message)
+        })
+    },
+    [
+      isDiffOpen,
+      activeTab?.id,
+      activeTab?.path,
+      activeTab?.baseOid,
+      activeTab?.headOid,
+      workspaceRoot
+    ]
+  )
+
+  // Escape：关闭当前差异标签（回到先前编辑标签）
+  useEffect(
+    function () {
+      if (!isDiffOpen || !activeTab) return
+      function onKeyDown(event: KeyboardEvent) {
+        if (event.key !== 'Escape' || event.defaultPrevented) return
+        event.preventDefault()
+        requestCloseTabs([activeTab.id])
+      }
+      window.addEventListener('keydown', onKeyDown)
+      return function () {
+        window.removeEventListener('keydown', onKeyDown)
+      }
+    },
+    [isDiffOpen, activeTab?.id]
+  )
+
   // 键位与命令的对应关系全在 `keyboard/definitions.ts`；没挂载这里时，
   // 这些命令不会出现在命令面板里，对应键位也不会被派发器认领。
   useCommands(CODE_COMMANDS)
@@ -283,14 +343,21 @@ export default function Code() {
                       </div>
                     ) : null}
                     {/*
-                      差异层盖在编辑器上时，必须把底层 Monaco 从布局里拿掉。
+                      差异 / 提交页盖在编辑器上时，必须把底层 Monaco 从布局里拿掉。
                       否则底层小地图仍可被点到，两边 automaticLayout 互相挤，顶栏边框会闪。
                     */}
                     <MonacoHost
-                      className={isDiffOpen ? 'hidden' : undefined}
-                      isActive={!isDiffOpen}
+                      className={isEditorHidden ? 'hidden' : undefined}
+                      isActive={!isEditorHidden}
                     />
-                    {isDiffHostReady ? <DiffHost isOpen={isDiffOpen} /> : null}
+                    {isDiffHostReady ? (
+                      <DiffHost isOpen={isDiffOpen && !isCommitsOpen} />
+                    ) : null}
+                    {isCommitsOpen ? (
+                      <div className="absolute inset-0 z-10 bg-background">
+                        <GitSearch />
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </ResizablePanel>
