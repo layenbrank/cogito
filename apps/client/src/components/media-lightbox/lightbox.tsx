@@ -118,9 +118,10 @@ function LightboxThumbStrip(props: {
       {medias.slice(range.start, range.end).map(function (media, offset) {
         const index = range.start + offset
         return (
-          <button
+          <Button
             key={media.id}
             type="button"
+            variant="ghost"
             data-thumb-index={index}
             aria-label={`切换到第 ${index + 1} 项`}
             className={cn(
@@ -147,7 +148,7 @@ function LightboxThumbStrip(props: {
                 loading="lazy"
               />
             )}
-          </button>
+          </Button>
         )
       })}
       {range.end < medias.length ? (

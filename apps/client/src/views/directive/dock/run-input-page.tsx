@@ -4,8 +4,8 @@
 import { Separator } from '@cogito/design/components/separator'
 import type { ReactNode } from 'react'
 
-import { RunPanelInputTab } from '@/views/directive/run/run-panel-input-tab.tsx'
-import { RunPanelTrialTab } from '@/views/directive/run/run-panel-trial-tab.tsx'
+import { RunSurfaceInputTab } from '@/views/directive/run/run-surface-input-tab.tsx'
+import { RunSurfaceTrialTab } from '@/views/directive/run/run-surface-trial-tab.tsx'
 import type { RunDockState } from '@/views/directive/run/use-run-dock.ts'
 
 interface RunInputPageProps {
@@ -41,7 +41,7 @@ function RunInputPage(props: RunInputPageProps) {
         <Section
           title="运行指令"
           hint="填写输入后运行；单次运行与守护任务共用同一入口">
-          <RunPanelInputTab
+          <RunSurfaceInputTab
             directiveName={name}
             caps={run.caps}
             declaredInputs={run.declaredInputs}
@@ -68,7 +68,7 @@ function RunInputPage(props: RunInputPageProps) {
         <Section
           title="试跑动作"
           hint="跳过指令编排，直接带参数调用单个动作验证效果">
-          <RunPanelTrialTab
+          <RunSurfaceTrialTab
             catalog={run.catalog}
             trialAction={run.trialAction}
             trialParamsJson={run.trialParamsJson}

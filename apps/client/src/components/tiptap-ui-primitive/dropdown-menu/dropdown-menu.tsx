@@ -117,7 +117,7 @@ const DropdownMenuSub = DesignSub
 const DropdownMenuRadioGroup = DesignRadioGroup
 
 /**
- * TipTap 菜单项 asChild 一律落到原生 `<button>`（Button / HeadingButton 等）。
+ * TipTap 菜单项 asChild 一律落到原生 button 元素（Button / HeadingButton 等）。
  * Base UI Menu.Item / SubmenuTrigger 默认 nativeButton=false（期望 div），
  * 不声明会刷屏警告并混入非原生属性。调用方仍可显式传 nativeButton 覆盖。
  */

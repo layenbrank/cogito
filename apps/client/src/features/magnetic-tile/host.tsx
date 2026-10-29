@@ -15,7 +15,7 @@ import { adoptAppearance, APPEARANCE_SYNC, type Appearance } from '@/features/wi
 import { EVENTS } from '@/shared/ipc/channels'
 import { useMirrorStore } from '@/stores/mirror.ts'
 import { useSettingsStore } from '@/stores/setting.ts'
-import { applyCliMatches } from '@/utils/cli'
+import { syncCliMatches } from '@/utils/cli'
 import { checkUpdate } from '@/utils/updater'
 
 /**
@@ -61,7 +61,7 @@ function AppHost() {
       await useSettingsStore.getState().toInitialize()
     }
     void bootstrap()
-    void applyCliMatches()
+    void syncCliMatches()
   }, [])
 
   useEffect(function () {

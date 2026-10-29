@@ -1,13 +1,13 @@
-// Morph dense productivity chrome — shared SCSS tokens & mixins
+// Morph dense productivity shell — shared SCSS tokens & mixins
 
 $control-h: 28px;
 $toolbar-h: 36px;
 $tool-size: 28px;
 $action-h: 28px;
 $statusbar-h: 24px;
-$panel-gap: 8px;
+$surface-gap: 8px;
 $tool-gap: 4px;
-$chrome-pad-x: 10px;
+$shell-pad-x: 10px;
 $focus-ring: 2px;
 $radius-control: 6px;
 $radius-field: 6px;
@@ -25,12 +25,12 @@ $transition: 150ms ease;
   }
 }
 
-@mixin chrome-surface {
+@mixin shell-surface {
   background: var(--card);
   border-color: color-mix(in oklab, var(--border) 70%, transparent);
 }
 
-@mixin panel-well {
+@mixin surface-well {
   background: var(--background);
 }
 
@@ -113,7 +113,7 @@ $transition: 150ms ease;
 
 $op-thumb-min: 168px;
 $op-footer-h: 64px;
-$op-chrome-h: 44px;
+$op-shell-h: 44px;
 $op-page-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 6px 16px rgba(0, 0, 0, 0.06);
 $op-page-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.12), 0 12px 28px rgba(0, 0, 0, 0.08);
 

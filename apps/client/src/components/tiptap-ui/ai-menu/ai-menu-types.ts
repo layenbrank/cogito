@@ -17,7 +17,7 @@ export interface AiMenuState {
 export interface AiMenuStateContextValue {
   state: AiMenuState
   updateState: (updates: Partial<AiMenuState>) => void
-  setFallbackAnchor: (
+  writeFallbackAnchor: (
     element: HTMLElement | null,
     rect?: DOMRect | null
   ) => void

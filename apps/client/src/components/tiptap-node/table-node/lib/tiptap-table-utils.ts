@@ -7,7 +7,7 @@ import type { FindNodeResult, Rect } from '@tiptap/pm/tables'
 import {
   TableMap,
   CellSelection,
-  findTable,
+  findTable as findTableNear,
   selectedRect,
   cellAround,
   selectionCell,
@@ -154,7 +154,7 @@ function resolveOrientationIndex(
 /**
  * Creates a CellInfo object from position data
  */
-function createCellInfo(
+function makeCellInfo(
   row: number,
   column: number,
   cellPos: number,
@@ -192,7 +192,7 @@ function collectCells(
   if (!editor) return EMPTY_CELLS_RESULT
 
   const { state } = editor
-  const table = getTable(editor, tablePos)
+  const table = findTable(editor, tablePos)
   if (!table) return EMPTY_CELLS_RESULT
 
   const tableStart = table.start
@@ -231,7 +231,7 @@ function collectCells(
     const cellNode = tableNode.nodeAt(mapCell)
     if (!cellNode) continue
 
-    const cell = createCellInfo(row, col, cellPos, cellNode)
+    const cell = makeCellInfo(row, col, cellPos, cellNode)
 
     if (isCellMerged(cellNode)) {
       if (!seenMerged.has(cellPos)) {
@@ -254,7 +254,7 @@ function countEmptyCellsFromEnd(
   tablePos: number,
   orientation: Orientation
 ): number {
-  const table = getTable(editor, tablePos)
+  const table = findTable(editor, tablePos)
   if (!table) return 0
 
   const { doc } = editor.state
@@ -307,7 +307,7 @@ function countEmptyCellsFromEnd(
  *
  * If no table is found, returns null.
  */
-export function getTable(editor: Editor | null, tablePos?: number) {
+export function findTable(editor: Editor | null, tablePos?: number) {
   if (!editor) return null
 
   let table = null
@@ -327,7 +327,7 @@ export function getTable(editor: Editor | null, tablePos?: number) {
   if (!table) {
     const { state } = editor
     const $from = state.doc.resolve(state.selection.from)
-    table = findTable($from)
+    table = findTableNear($from)
   }
 
   if (!table) return null
@@ -472,7 +472,7 @@ export function isCellEmpty(cellNode: Node): boolean {
  *
  * If the selection is not a full row/column, or if no table is found, returns null.
  */
-export function getTableSelectionType(
+export function findTableSelectionType(
   editor: Editor | null,
   index?: number,
   orientation?: Orientation,
@@ -486,7 +486,7 @@ export function getTableSelectionType(
 
   const { state } = editor
 
-  const table = getTable(editor, tablePos)
+  const table = findTable(editor, tablePos)
   if (!table) return null
 
   if (state.selection instanceof CellSelection) {
@@ -520,7 +520,7 @@ export function getTableSelectionType(
  *
  * If no valid selection or index is found, returns empty arrays.
  */
-export function getRowOrColumnCells(
+export function findRowOrColumnCells(
   editor: Editor | null,
   index?: number,
   orientation?: Orientation,
@@ -559,7 +559,7 @@ export function getRowOrColumnCells(
     !finalOrientation ||
     !['row', 'column'].includes(finalOrientation)
   ) {
-    const selectionType = getTableSelectionType(editor)
+    const selectionType = findTableSelectionType(editor)
     if (!selectionType) return emptyResult
 
     finalIndex = selectionType.index
@@ -575,7 +575,7 @@ export function getRowOrColumnCells(
  * - If `rowIndex` is provided, scans that row.
  * - If omitted, uses the first (topmost) selected row based on the current selection.
  */
-export function getRowCells(
+export function findRowCells(
   editor: Editor | null,
   rowIndex?: number,
   tablePos?: number
@@ -588,7 +588,7 @@ export function getRowCells(
  * - If `columnIndex` is provided, scans that column.
  * - If omitted, uses the first (leftmost) selected column based on the current selection.
  */
-export function getColumnCells(
+export function findColumnCells(
   editor: Editor | null,
   columnIndex?: number,
   tablePos?: number
@@ -614,7 +614,7 @@ export function updateSelectionAfterAction(
   tablePos?: number
 ): void {
   try {
-    const table = getTable(editor, tablePos)
+    const table = findTable(editor, tablePos)
     if (!table) return
 
     const { state } = editor
@@ -675,9 +675,9 @@ export function updateSelectionAfterAction(
  *
  * @public
  */
-export function setCellAttr(attrs: Record<string, unknown>): Command
-export function setCellAttr(name: string, value: unknown): Command
-export function setCellAttr(
+export function writeCellAttr(attrs: Record<string, unknown>): Command
+export function writeCellAttr(name: string, value: unknown): Command
+export function writeCellAttr(
   nameOrAttrs: string | Record<string, unknown>,
   value?: unknown
 ): Command {
@@ -808,7 +808,7 @@ export function rectEq(a?: DOMRect | null, b?: DOMRect | null): boolean {
 /**
  * Applies the transaction based on the specified mode
  */
-function applySelectionWithMode(
+function syncSelectionWithMode(
   state: EditorState,
   transaction: Transaction,
   options: BaseSelectionOptions | DispatchSelectionOptions
@@ -847,30 +847,30 @@ function applySelectionWithMode(
  * Example:
  * ```ts
  * // Get new state
- * const nextState = createTableCellSelection(state, tablePosition, { row: 1, col: 1 }, { row: 2, col: 3 })
+ * const nextState = makeTableCellSelection(state, tablePosition, { row: 1, col: 1 }, { row: 2, col: 3 })
  *
  * // Get transaction only
- * const tr = createTableCellSelection(state, tablePosition, { row: 0, col: 0 }, { row: 0, col: 2 }, { mode: "transaction" })
+ * const tr = makeTableCellSelection(state, tablePosition, { row: 0, col: 0 }, { row: 0, col: 2 }, { mode: "transaction" })
  *
  * // Dispatch directly
- * createTableCellSelection(state, tablePosition, { row: 1, col: 1 }, { row: 3, col: 2 }, { mode: "dispatch", dispatch })
+ * makeTableCellSelection(state, tablePosition, { row: 1, col: 1 }, { row: 3, col: 2 }, { mode: "dispatch", dispatch })
  * ```
  */
-export function createTableCellSelection(
+export function makeTableCellSelection(
   state: EditorState,
   tablePosition: number,
   startCell: CellCoordinates,
   endCell?: CellCoordinates,
   options?: StateSelectionOptions
 ): EditorState
-export function createTableCellSelection(
+export function makeTableCellSelection(
   state: EditorState,
   tablePosition: number,
   startCell: CellCoordinates,
   endCell: CellCoordinates | undefined,
   options: TransactionSelectionOptions
 ): Transaction
-export function createTableCellSelection(
+export function makeTableCellSelection(
   state: EditorState,
   tablePosition: number,
   startCell: CellCoordinates,
@@ -878,15 +878,15 @@ export function createTableCellSelection(
   options: DispatchSelectionOptions
 ): void
 
-export function createTableCellSelection(
+export function makeTableCellSelection(
   state: EditorState,
   tablePosition: number,
   startCell: CellCoordinates,
   endCell: CellCoordinates = startCell,
   options: BaseSelectionOptions | DispatchSelectionOptions = { mode: 'state' }
 ): EditorState | Transaction | void {
-  const startCellPosition = getCellPosition(state, tablePosition, startCell)
-  const endCellPosition = getCellPosition(state, tablePosition, endCell)
+  const startCellPosition = findCellPosition(state, tablePosition, startCell)
+  const endCellPosition = findCellPosition(state, tablePosition, endCell)
 
   if (!startCellPosition || !endCellPosition) {
     return
@@ -896,14 +896,14 @@ export function createTableCellSelection(
     new CellSelection(startCellPosition, endCellPosition)
   )
 
-  return applySelectionWithMode(state, transaction, options)
+  return syncSelectionWithMode(state, transaction, options)
 }
 
 /**
  * Get the position of a cell inside a table by relative row/col indices.
  * Returns the position *before* the cell, which is what `CellSelection` expects.
  */
-export function getCellPosition(
+export function findCellPosition(
   state: EditorState,
   tablePosition: number,
   cellCoordinates: CellCoordinates
@@ -961,7 +961,7 @@ export function selectCellsByCoords(
 ): EditorState | Transaction | void {
   if (!editor) return
 
-  const table = getTable(editor, tablePos)
+  const table = findTable(editor, tablePos)
   if (!table) return
 
   const { state } = editor
@@ -989,7 +989,7 @@ export function selectCellsByCoords(
 
   // --- Convert visual coordinates to document positions ---
   // Use TableMap.map array directly to handle merged cells correctly
-  const getCellPositionFromMap = (row: number, col: number): number | null => {
+  const findCellPositionFromMap = (row: number, col: number): number | null => {
     // TableMap.map is a flat array where each entry represents a cell
     // For merged cells, the same offset appears multiple times
     const cellOffset = tableMap.map[row * tableMap.width + col]
@@ -1001,11 +1001,11 @@ export function selectCellsByCoords(
   }
 
   // Anchor = where the selection starts (top-left of bounding box)
-  const anchorPosition = getCellPositionFromMap(topRow, leftCol)
+  const anchorPosition = findCellPositionFromMap(topRow, leftCol)
   if (anchorPosition === null) return
 
   // Head = where the selection ends (usually bottom-right of bounding box)
-  let headPosition = getCellPositionFromMap(bottomRow, rightCol)
+  let headPosition = findCellPositionFromMap(bottomRow, rightCol)
   if (headPosition === null) return
 
   // --- Handle edge case with merged cells ---
@@ -1017,7 +1017,7 @@ export function selectCellsByCoords(
     // Search backwards from bottom-right to find a cell with a different position
     for (let row = bottomRow; row >= topRow && !foundDifferentCell; row--) {
       for (let col = rightCol; col >= leftCol && !foundDifferentCell; col--) {
-        const candidatePosition = getCellPositionFromMap(row, col)
+        const candidatePosition = findCellPositionFromMap(row, col)
 
         if (
           candidatePosition !== null &&
@@ -1037,7 +1037,7 @@ export function selectCellsByCoords(
     const cellSelection = new CellSelection(anchorRef, headRef)
     const transaction = state.tr.setSelection(cellSelection)
 
-    return applySelectionWithMode(state, transaction, options)
+    return syncSelectionWithMode(state, transaction, options)
   } catch (error) {
     console.error('Failed to create cell selection:', error)
     return
@@ -1069,7 +1069,7 @@ export function selectCellAt({
   if (!editor) return false
 
   const { state, view } = editor
-  const found = getTable(editor, tablePos)
+  const found = findTable(editor, tablePos)
   if (!found) return false
 
   // Bounds check
@@ -1165,7 +1165,7 @@ export function selectLastCell(
  * @param tablePos    Optional position of the table node in the document
  * @returns Array of {row, col} objects or null if invalid
  */
-export function getIndexCoordinates({
+export function findIndexCoordinates({
   editor,
   index,
   orientation,
@@ -1178,7 +1178,7 @@ export function getIndexCoordinates({
 }): { row: number; col: number }[] | null {
   if (!editor) return null
 
-  const table = getTable(editor, tablePos)
+  const table = findTable(editor, tablePos)
   if (!table) return null
 
   const { map } = table
@@ -1211,7 +1211,7 @@ export function getIndexCoordinates({
  * @param editor    The Tiptap editor instance
  * @returns An object with { rowIndex, colIndex } or null if not found
  */
-export function getCellIndicesFromDOM(
+export function findCellIndicesFromDOM(
   cell: HTMLTableCellElement,
   tableNode: Node | null,
   editor: Editor
@@ -1260,7 +1260,7 @@ export function getCellIndicesFromDOM(
  * @param editor       The Tiptap editor instance
  * @returns An object with { node: tableNode, pos: tablePos } or null if not found
  */
-export function getTableFromDOM(
+export function findTableFromDOM(
   tableElement: HTMLElement,
   editor: Editor
 ): { node: Node; pos: number } | null {

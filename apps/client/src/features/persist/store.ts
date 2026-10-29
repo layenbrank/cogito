@@ -34,7 +34,7 @@ function findStore(ns: PersistNamespace): LazyStore {
   return store
 }
 
-async function loadNamespace<N extends PersistNamespace>(ns: N): Promise<void> {
+async function bootstrapNamespace<N extends PersistNamespace>(ns: N): Promise<void> {
   const store = findStore(ns)
   await store.init()
   // 整文件以单键 `value` 存一份对象，避免与旧 settings 多键格式混用时半读
@@ -66,7 +66,7 @@ async function ensurePersist(): Promise<void> {
       }
       await Promise.all(
         NAMESPACES.map(function (ns) {
-          return loadNamespace(ns)
+          return bootstrapNamespace(ns)
         })
       )
     } catch (error) {

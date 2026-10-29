@@ -213,8 +213,9 @@ function BookmarkExplorer(props: ExplorerProps) {
       <aside className={styles.aside}>
         <p className={styles.asideTitle}>位置</p>
         <nav className={styles.asideNav}>
-          <button
+          <Button
             type="button"
+            variant="ghost"
             className={cn(styles.asideItem, !cwd && styles.asideItemActive)}
             onClick={function () {
               setCwd('')
@@ -225,14 +226,15 @@ function BookmarkExplorer(props: ExplorerProps) {
               className="size-4 shrink-0"
             />
             <span className="truncate">全部</span>
-          </button>
+          </Button>
           {sidebarRoots.map(function (root) {
             const path = root.title
             const active = cwd === path || cwd.startsWith(`${path}/`)
             return (
-              <button
+              <Button
                 key={root.id}
                 type="button"
+                variant="ghost"
                 className={cn(styles.asideItem, active && styles.asideItemActive)}
                 onClick={function () {
                   openFolder(path)
@@ -242,7 +244,7 @@ function BookmarkExplorer(props: ExplorerProps) {
                   className="size-4 shrink-0 text-amber-500"
                 />
                 <span className="truncate">{root.title}</span>
-              </button>
+              </Button>
             )
           })}
         </nav>
@@ -283,14 +285,15 @@ function BookmarkExplorer(props: ExplorerProps) {
               icon="lucide:folder"
               className="size-3.5 shrink-0 text-amber-500"
             />
-            <button
+            <Button
               type="button"
+              variant="ghost"
               className="shrink-0 text-muted-foreground hover:text-foreground"
               onClick={function () {
                 goCrumb(-1)
               }}>
               书签
-            </button>
+            </Button>
             {crumbs.map(function (segment, index) {
               return (
                 <span
@@ -300,8 +303,9 @@ function BookmarkExplorer(props: ExplorerProps) {
                     icon="lucide:chevron-right"
                     className="size-3.5 shrink-0 text-muted-foreground/70"
                   />
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     className={cn(
                       'truncate',
                       index === crumbs.length - 1
@@ -312,7 +316,7 @@ function BookmarkExplorer(props: ExplorerProps) {
                       goCrumb(index)
                     }}>
                     {segment}
-                  </button>
+                  </Button>
                 </span>
               )
             })}
@@ -417,8 +421,9 @@ function BookmarkExplorer(props: ExplorerProps) {
                           />
                         </div>
                       ) : null}
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         className={styles.cardBody}
                         onClick={function () {
                           if (row.kind === 'folder') openFolder(row.path)
@@ -436,7 +441,7 @@ function BookmarkExplorer(props: ExplorerProps) {
                         <span className={styles.cardMeta}>
                           {row.kind === 'folder' ? `${row.count} 个链接` : row.url}
                         </span>
-                      </button>
+                      </Button>
                     </div>
                   )
                 })}
@@ -489,8 +494,9 @@ function BookmarkExplorer(props: ExplorerProps) {
                           </td>
                         ) : null}
                         <td className={styles.td}>
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
                             className={styles.nameBtn}
                             onClick={function () {
                               if (row.kind === 'folder') openFolder(row.path)
@@ -503,7 +509,7 @@ function BookmarkExplorer(props: ExplorerProps) {
                               )}
                             />
                             <span className="truncate font-medium">{row.title}</span>
-                          </button>
+                          </Button>
                         </td>
                         <td className={cn(styles.td, 'text-muted-foreground')}>
                           {row.kind === 'folder' ? '文件夹' : '网址'}

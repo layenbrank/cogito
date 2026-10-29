@@ -15,7 +15,7 @@ interface FileWriteOptions {
   replacement?: string
   pointer?: string
   value?: unknown
-  createDirs?: boolean
+  makeDirs?: boolean
   backup?: boolean
 }
 
@@ -36,7 +36,7 @@ function toWriteArgs(path: string, options: FileWriteOptions) {
     replacement: options.replacement,
     pointer: options.pointer,
     value: options.value,
-    create_dirs: options.createDirs ?? true,
+    create_dirs: options.makeDirs ?? true,
     backup: options.backup ?? false
   }
 }

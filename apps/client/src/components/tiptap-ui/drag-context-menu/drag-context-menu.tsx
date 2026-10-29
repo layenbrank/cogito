@@ -57,7 +57,7 @@ import { useTableClearRowColumnContent } from '@/components/tiptap-node/table-no
 
 // Utils
 import {
-  getNodeDisplayName,
+  findNodeDisplayName,
   isTextSelectionValid
 } from '@/lib/tiptap-collab-utils.ts'
 import { SR_ONLY } from '@/lib/tiptap-utils.ts'
@@ -427,7 +427,7 @@ export const DragContextMenu: React.FC<DragContextMenuProps> = ({
 
   if (!editor) return null
 
-  const nodeName = getNodeDisplayName(editor)
+  const nodeName = findNodeDisplayName(editor)
 
   return (
     <div

@@ -324,7 +324,7 @@ function ModelSection() {
 
   const isDialogOpen = editorMode !== null
 
-  async function loadInventory() {
+  async function bootstrapInventory() {
     updateLoading(true)
     try {
       await waitGooseReady()
@@ -358,7 +358,7 @@ function ModelSection() {
         }
       }
     } catch (error) {
-      reportCaught('agent-settings.model.loadInventory', error)
+      reportCaught('agent-settings.model.bootstrapInventory', error)
       const detail = error instanceof Error ? error.message : '加载失败'
       toast.error(detail)
     } finally {
@@ -367,11 +367,11 @@ function ModelSection() {
   }
 
   useEffect(function () {
-    // 放进微任务：loadInventory 首行就是 updateLoading(true)，直接在 effect 体里调会级联渲染
+    // 放进微任务：bootstrapInventory 首行就是 updateLoading(true)，直接在 effect 体里调会级联渲染
     let cancelled = false
     void Promise.resolve().then(function () {
       if (cancelled) return
-      return loadInventory()
+      return bootstrapInventory()
     })
     return function () {
       cancelled = true
@@ -445,7 +445,7 @@ function ModelSection() {
           : `${findProviderLabel(active.providerId, active.providerName)} 密钥已更新`
       )
       closeEditor()
-      await loadInventory()
+      await bootstrapInventory()
     } catch (error) {
       reportCaught('agent-settings.model.save', error)
       const detail = error instanceof Error ? error.message : '保存失败'

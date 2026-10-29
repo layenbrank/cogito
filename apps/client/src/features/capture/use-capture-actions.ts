@@ -16,7 +16,7 @@ import {
 } from '@/features/capture/capture-selection'
 import type { AnnotationHandle } from '@/features/capture/components/annotation'
 import type { GraphicsEnum, GraphicsProps } from '@/features/capture/components/graphics'
-import { createCaptureExport } from '@/features/capture/capture-export'
+import { buildCaptureExport } from '@/features/capture/capture-export'
 import type { CaptureHistorySnapshot } from '@/features/capture/use-capture-history'
 import type { Phase } from '@/features/capture/use-capture-stage'
 
@@ -150,7 +150,7 @@ function useCaptureActions(input: CaptureActionsInput) {
     if (current) syncToolbarFromAnnotation(current)
   }
 
-  function applyAnnotations(next: GraphicsProps[], nextSelection?: string[]) {
+  function writeAnnotations(next: GraphicsProps[], nextSelection?: string[]) {
     input.onUpdateAnnotations(next)
     input.commitHistory(next, nextSelection ?? input.selectedIDs)
     if (nextSelection) commitSelection(nextSelection)
@@ -194,14 +194,14 @@ function useCaptureActions(input: CaptureActionsInput) {
       actions: {
         moveLayer(ids, direction) {
           const next = moveAnnotationsLayer(input.annotations, ids, direction)
-          if (next) applyAnnotations(next)
+          if (next) writeAnnotations(next)
         },
         group(ids) {
           const next = groupAnnotations(input.annotations, ids)
-          if (next) applyAnnotations(next, ids)
+          if (next) writeAnnotations(next, ids)
         },
         ungroup(groupID) {
-          applyAnnotations(ungroupAnnotations(input.annotations, groupID))
+          writeAnnotations(ungroupAnnotations(input.annotations, groupID))
         },
         toggleLock(ids) {
           const result = toggleAnnotationsLock(input.annotations, ids)
@@ -212,10 +212,10 @@ function useCaptureActions(input: CaptureActionsInput) {
         },
         copy(ids) {
           const result = copyAnnotations(input.annotations, ids)
-          if (result) applyAnnotations(result.next, result.cloneIDs)
+          if (result) writeAnnotations(result.next, result.cloneIDs)
         },
         remove(ids) {
-          applyAnnotations(deleteAnnotations(input.annotations, ids), [])
+          writeAnnotations(deleteAnnotations(input.annotations, ids), [])
         }
       }
     })
@@ -250,7 +250,7 @@ function useCaptureActions(input: CaptureActionsInput) {
     input.commitHistory(updated, input.selectedIDs)
   }
 
-  function applyPropertyToSelected(patch: Partial<GraphicsProps>) {
+  function updateSelectedProperty(patch: Partial<GraphicsProps>) {
     if (input.selectedIDs.length === 0) return
     const ids = expandSelectionIDs(input.selectedIDs, input.annotations)
     const idSet = new Set(ids)
@@ -263,23 +263,23 @@ function useCaptureActions(input: CaptureActionsInput) {
 
   function handleUpdateColor(next: string) {
     input.onUpdateColor(next)
-    applyPropertyToSelected({ color: next })
+    updateSelectedProperty({ color: next })
   }
   function handleUpdateThickness(next: number) {
     input.onUpdateThickness(next)
-    applyPropertyToSelected({ thickness: next })
+    updateSelectedProperty({ thickness: next })
   }
   function handleUpdateFilled(next: boolean) {
     input.onUpdateFilled(next)
-    applyPropertyToSelected({ filled: next })
+    updateSelectedProperty({ filled: next })
   }
   function handleUpdateOpacity(next: number) {
     input.onUpdateOpacity(next)
-    applyPropertyToSelected({ opacity: next })
+    updateSelectedProperty({ opacity: next })
   }
   function handleUpdateFontSize(next: number) {
     input.onUpdateFontSize(next)
-    applyPropertyToSelected({ fontSize: next })
+    updateSelectedProperty({ fontSize: next })
   }
 
   /** 清空当前选区与标注，回到初始选择态（不重新抓屏） */
@@ -321,7 +321,7 @@ function useCaptureActions(input: CaptureActionsInput) {
     input.onExit?.()
   }
 
-  const exportActions = createCaptureExport({
+  const exportActions = buildCaptureExport({
     annotationRef: input.annotationRef,
     sessionID: input.sessionID,
     onExit: input.onExit,

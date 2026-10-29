@@ -10,12 +10,12 @@ import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 import { isExtensionAvailable } from '@/lib/tiptap-utils.ts'
 import type { Orientation } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 import {
-  getTable,
-  getTableSelectionType,
-  getRowOrColumnCells,
+  findTable,
+  findTableSelectionType,
+  findRowOrColumnCells,
   updateSelectionAfterAction,
   selectCellsByCoords,
-  getIndexCoordinates
+  findIndexCoordinates
 } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 
 // --- Icons ---
@@ -82,10 +82,10 @@ function canDuplicateRowColumn({
   }
 
   try {
-    const table = getTable(editor, tablePos)
+    const table = findTable(editor, tablePos)
     if (!table) return false
 
-    const cellData = getRowOrColumnCells(editor, index, orientation, tablePos)
+    const cellData = findRowOrColumnCells(editor, index, orientation, tablePos)
 
     if (cellData.mergedCells.length > 0) {
       return false
@@ -110,7 +110,7 @@ function duplicateRow({
   tablePos?: number
 }): boolean {
   try {
-    const originalRowCells = getRowOrColumnCells(editor, index, 'row', tablePos)
+    const originalRowCells = findRowOrColumnCells(editor, index, 'row', tablePos)
 
     if (originalRowCells.cells.length === 0) {
       return false
@@ -121,7 +121,7 @@ function duplicateRow({
       addSuccess = editor.chain().focus().addRowAfter().run()
     } else {
       if (!tablePos) return false
-      const sourceCoords = getIndexCoordinates({
+      const sourceCoords = findIndexCoordinates({
         editor,
         index,
         orientation: 'row',
@@ -137,7 +137,7 @@ function duplicateRow({
 
     if (!addSuccess) return false
 
-    const newRowCells = getRowOrColumnCells(editor, index + 1, 'row', tablePos)
+    const newRowCells = findRowOrColumnCells(editor, index + 1, 'row', tablePos)
 
     if (newRowCells.cells.length === 0) {
       return false
@@ -193,7 +193,7 @@ function duplicateColumn({
   tablePos?: number
 }): boolean {
   try {
-    const originalColumnCells = getRowOrColumnCells(
+    const originalColumnCells = findRowOrColumnCells(
       editor,
       index,
       'column',
@@ -206,7 +206,7 @@ function duplicateColumn({
       addSuccess = editor.chain().focus().addColumnAfter().run()
     } else {
       if (!tablePos) return false
-      const sourceCoords = getIndexCoordinates({
+      const sourceCoords = findIndexCoordinates({
         editor,
         index,
         orientation: 'column',
@@ -222,7 +222,7 @@ function duplicateColumn({
 
     if (!addSuccess) return false
 
-    const newColumnCells = getRowOrColumnCells(
+    const newColumnCells = findRowOrColumnCells(
       editor,
       index + 1,
       'column',
@@ -291,10 +291,10 @@ function tableDuplicateRowColumn({
     return false
   }
 
-  const table = getTable(editor, tablePos)
+  const table = findTable(editor, tablePos)
   if (!table) return false
 
-  const selectionType = getTableSelectionType(
+  const selectionType = findTableSelectionType(
     editor,
     index,
     orientation,
@@ -364,7 +364,7 @@ export function useTableDuplicateRowColumn(
 
   const { editor } = useTiptapEditor(providedEditor)
 
-  const selectionType = getTableSelectionType(editor, index, orientation)
+  const selectionType = findTableSelectionType(editor, index, orientation)
 
   const isVisible = shouldShowButton({
     editor,

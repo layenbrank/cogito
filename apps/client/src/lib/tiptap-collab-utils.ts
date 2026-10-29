@@ -32,7 +32,7 @@ export type OverflowPosition = 'none' | 'top' | 'bottom' | 'both'
 /**
  * Utility function to get URL parameters
  */
-export const getUrlParam = (param: string): string | null => {
+export const findUrlParam = (param: string): string | null => {
   if (typeof window === 'undefined') return null
   const params = new URLSearchParams(window.location.search)
   return params.get(param)
@@ -43,7 +43,7 @@ export const getUrlParam = (param: string): string | null => {
  * @param editor The Tiptap editor instance
  * @returns The display name of the current node
  */
-export const getNodeDisplayName = (editor: Editor | null): string => {
+export const findNodeDisplayName = (editor: Editor | null): string => {
   if (!editor) return t('EDITOR_NODE')
 
   const { selection } = editor.state
@@ -77,7 +77,7 @@ export const removeEmptyParagraphs = (content: JSONContent) => ({
 /**
  * Determines how a target element overflows relative to a container element
  */
-export function getElementOverflowPosition(
+export function findElementOverflowPosition(
   targetElement: Element,
   containerElement: HTMLElement
 ): OverflowPosition {
@@ -141,7 +141,7 @@ export const isTextSelectionValid = (editor: Editor | null): boolean => {
 /**
  * Gets the bounding rect of the current selection in the editor.
  */
-export const getSelectionBoundingRect = (editor: Editor): DOMRect | null => {
+export const findSelectionBoundingRect = (editor: Editor): DOMRect | null => {
   const { state } = editor.view
   const { selection } = state
   const { ranges } = selection
@@ -162,7 +162,7 @@ export const getSelectionBoundingRect = (editor: Editor): DOMRect | null => {
 /**
  * Generates a deterministic avatar URL from a user name
  */
-export const getAvatar = (name: string) => {
+export const findAvatar = (name: string) => {
   if (!name) {
     return '/avatars/memoji_01.png'
   }

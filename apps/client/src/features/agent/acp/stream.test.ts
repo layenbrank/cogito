@@ -19,7 +19,7 @@ import {
  * goose 换字段时这里应该先红，而不是 UI 上悄悄少一段文字。
  */
 
-function createContext(): AcpStreamContext & { usage: unknown[] } {
+function makeStreamContext(): AcpStreamContext & { usage: unknown[] } {
   const usage: unknown[] = []
   return {
     usage,
@@ -34,7 +34,7 @@ function createContext(): AcpStreamContext & { usage: unknown[] } {
 
 describe('parseAcpStreamEvent', function () {
   it('把文本与推理增量按 messageId 归组', function () {
-    const context = createContext()
+    const context = makeStreamContext()
 
     expect(
       parseAcpStreamEvent(
@@ -68,7 +68,7 @@ describe('parseAcpStreamEvent', function () {
   })
 
   it('非文本块与空文本不产出事件', function () {
-    const context = createContext()
+    const context = makeStreamContext()
 
     expect(
       parseAcpStreamEvent(
@@ -85,7 +85,7 @@ describe('parseAcpStreamEvent', function () {
   })
 
   it('tool_call 取程序名（name 优先，回退 title）与原始入参', function () {
-    const context = createContext()
+    const context = makeStreamContext()
 
     expect(
       parseAcpStreamEvent(
@@ -114,7 +114,7 @@ describe('parseAcpStreamEvent', function () {
   })
 
   it('tool_call_update 只在终态产出结果，失败标记 isError', function () {
-    const context = createContext()
+    const context = makeStreamContext()
 
     expect(
       parseAcpStreamEvent(
@@ -156,7 +156,7 @@ describe('parseAcpStreamEvent', function () {
   })
 
   it('计划整份替换，命令与模式各自成事件', function () {
-    const context = createContext()
+    const context = makeStreamContext()
 
     expect(
       parseAcpStreamEvent(
@@ -194,7 +194,7 @@ describe('parseAcpStreamEvent', function () {
   })
 
   it('usage_update 走回调而不是事件流', function () {
-    const context = createContext()
+    const context = makeStreamContext()
 
     expect(
       parseAcpStreamEvent({ sessionUpdate: 'usage_update', used: 12_000, size: 128_000 }, context)
@@ -203,7 +203,7 @@ describe('parseAcpStreamEvent', function () {
   })
 
   it('本地已回显 / 无关的种类一律不产出事件', function () {
-    const context = createContext()
+    const context = makeStreamContext()
 
     expect(
       parseAcpStreamEvent(

@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { cn } from 'cn'
 
 import { useCodeStore } from '@/stores/code'
@@ -55,9 +56,10 @@ function Breadcrumbs() {
                 {segment}
               </span>
             ) : (
-              <button
+              <Button
+                variant="ghost"
                 type="button"
-                className="hover:text-foreground hover:bg-muted/60 max-w-40 cursor-pointer truncate rounded-sm px-0.5"
+                className="hover:text-foreground hover:bg-muted/60 h-auto max-w-40 cursor-pointer truncate rounded-sm px-0.5"
                 title={`在资源管理器中打开 ${segmentKey}`}
                 onClick={function () {
                   const store = useCodeStore.getState()
@@ -66,7 +68,7 @@ function Breadcrumbs() {
                   store.toRevealPath(segmentKey)
                 }}>
                 {segment}
-              </button>
+              </Button>
             )}
           </span>
         )

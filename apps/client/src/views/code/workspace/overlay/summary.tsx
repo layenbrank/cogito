@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@cogito/design/components/popover'
 import { cn } from 'cn'
 import { toast } from 'sonner'
@@ -26,16 +27,17 @@ function StatusItem(props: {
   className?: string
 }) {
   return (
-    <button
+    <Button
+      variant="ghost"
       type="button"
       title={props.title ?? props.label}
       className={cn(
-        'hover:bg-foreground/5 hover:text-foreground shrink-0 px-2 py-0.5',
+        'h-auto hover:bg-foreground/5 hover:text-foreground shrink-0 px-2 py-0.5',
         props.className
       )}
       onClick={props.onClick}>
       {props.label}
-    </button>
+    </Button>
   )
 }
 
@@ -52,12 +54,13 @@ function StatusPicker(props: {
     <Popover>
       <PopoverTrigger
         render={
-          <button
+          <Button
+            variant="ghost"
             type="button"
             title={`${props.label}（点击切换）`}
-            className="hover:bg-foreground/5 hover:text-foreground shrink-0 px-2 py-0.5">
+            className="h-auto hover:bg-foreground/5 hover:text-foreground shrink-0 px-2 py-0.5">
             {props.label}
-          </button>
+          </Button>
         }
       />
       <PopoverContent
@@ -68,10 +71,11 @@ function StatusPicker(props: {
             const isActive = item.value === props.selected
             return (
               <li key={item.value}>
-                <button
+                <Button
+                  variant="ghost"
                   type="button"
                   className={cn(
-                    'hover:bg-muted flex w-full items-center gap-2 rounded-sm px-2 py-1 text-left text-xs',
+                    'h-auto hover:bg-muted flex w-full items-center gap-2 rounded-sm px-2 py-1 text-left text-xs',
                     isActive && 'text-primary'
                   )}
                   onClick={function () {
@@ -82,7 +86,7 @@ function StatusPicker(props: {
                     className={cn('size-3 shrink-0', !isActive && 'opacity-0')}
                   />
                   {item.label}
-                </button>
+                </Button>
               </li>
             )
           })}
@@ -170,9 +174,10 @@ function Summary() {
         'text-muted-foreground flex h-5.5 w-full min-w-0 items-center justify-between text-xs leading-none'
       )}>
       <div className="flex min-w-0 items-center">
-        <button
+        <Button
+          variant="ghost"
           type="button"
-          className="hover:bg-foreground/5 hover:text-foreground flex max-w-40 items-center gap-1 truncate px-2 py-0.5"
+          className="h-auto hover:bg-foreground/5 hover:text-foreground flex max-w-40 items-center gap-1 truncate px-2 py-0.5"
           title={workspaceRoot ?? '未打开工作区'}
           onClick={function () {
             useCodeStore.getState().toSetSidebarView('explorer')
@@ -182,13 +187,14 @@ function Summary() {
             className="size-3 shrink-0 opacity-60"
           />
           <span className="truncate">{workspaceLabel}</span>
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
           type="button"
-          className="hover:bg-foreground/5 hover:text-foreground flex items-center gap-1 px-2 py-0.5"
+          className="h-auto hover:bg-foreground/5 hover:text-foreground flex items-center gap-1 px-2 py-0.5"
           title="查看问题"
           onClick={function () {
-            useCodeStore.getState().toTogglePanel('problems')
+            useCodeStore.getState().toToggleSurface('problems')
           }}>
           <Icon
             icon="lucide:circle-x"
@@ -200,7 +206,7 @@ function Summary() {
             className="size-3 shrink-0 opacity-60"
           />
           <span>{problemCounts.warnings}</span>
-        </button>
+        </Button>
         {isLargeFile ? (
           <span
             className="px-2"

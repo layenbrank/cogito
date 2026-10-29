@@ -61,7 +61,7 @@ function useTableExtendRowColumnButtonPosition(
 
   const { isMounted, styles } = useTransitionStyles(context)
 
-  const createVirtualReference = useCallback(
+  const makeVirtualReference = useCallback(
     (rect: DOMRect) => ({
       getBoundingClientRect: () => rect
     }),
@@ -71,9 +71,9 @@ function useTableExtendRowColumnButtonPosition(
   useEffect(() => {
     if (!referencePosTable) return
 
-    refs.setReference(createVirtualReference(referencePosTable))
+    refs.setReference(makeVirtualReference(referencePosTable))
     update()
-  }, [referencePosTable, refs, update, createVirtualReference])
+  }, [referencePosTable, refs, update, makeVirtualReference])
 
   return useMemo(
     () => ({

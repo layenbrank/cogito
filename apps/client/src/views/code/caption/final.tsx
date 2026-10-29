@@ -65,8 +65,8 @@ function CodeCaptionFinal() {
   const isSidebarOpen = useCodeStore(function (state) {
     return state.isSidebarOpen
   })
-  const isPanelOpen = useCodeStore(function (state) {
-    return state.isPanelOpen
+  const isSurfaceOpen = useCodeStore(function (state) {
+    return state.isSurfaceOpen
   })
 
   return (
@@ -86,9 +86,9 @@ function CodeCaptionFinal() {
           label="切换底栏面板"
           shortcut={findBindingText('CODE_TERMINAL')}
           icon="lucide:panel-bottom"
-          isPressed={isPanelOpen}
+          isPressed={isSurfaceOpen}
           onClick={function () {
-            useCodeStore.getState().toTogglePanel('terminal')
+            useCodeStore.getState().toToggleSurface('terminal')
           }}
         />
       </div>

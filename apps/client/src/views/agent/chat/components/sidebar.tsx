@@ -19,7 +19,7 @@ import { SidebarScenarioNav } from './sidebar-scenario-nav.tsx'
 import { SidebarWorkspaceTree } from './sidebar-workspace-tree.tsx'
 import { WorkspaceForm } from './workspace-form'
 import { useSidebarBranches, type SidebarSession } from './use-sidebar-branches.ts'
-import { setNextThreadWorkspace } from '@/features/agent/port/draft-workspace'
+import { rememberNextThreadWorkspace } from '@/features/agent/port/draft-workspace'
 import { historyPort } from '@/features/agent/port/instance'
 import { type ScenarioKey } from '@/features/agent/model/scenarios'
 import { useAgentStore } from '@/stores/agent.ts'
@@ -95,7 +95,7 @@ function AgentSidebar(props: SidebarProps) {
       workspaceID === undefined ? (activeWorkspaceID ?? workspaces[0]?.id ?? null) : workspaceID
     if (targetID) useAgentStore.getState().toActivateWorkspace(targetID)
     // 归属记在落库那一刻用：先把这次点击选的归属存好，再种新会话
-    setNextThreadWorkspace(targetID ?? null)
+    rememberNextThreadWorkspace(targetID ?? null)
     aui.threads.switchToNewThread()
     if (!sectionOpen) updateSectionOpen(true)
     if (targetID && !branchState.expandedKeys.includes(targetID)) {

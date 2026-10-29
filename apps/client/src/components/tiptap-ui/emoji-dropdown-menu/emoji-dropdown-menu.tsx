@@ -13,7 +13,7 @@ import {
   EmojiMenuItem,
 } from "@/components/tiptap-ui/emoji-menu/emoji-menu.tsx"
 import {
-  getFilteredEmojis,
+  findFilteredEmojis,
 } from "@/components/tiptap-ui/emoji-menu/emoji-menu-utils.ts"
 import { Card, CardBody } from "@/components/tiptap-ui-primitive/card/card.tsx"
 import { ButtonGroup } from "@/components/tiptap-ui-primitive/button/button.tsx"
@@ -30,7 +30,7 @@ export const EmojiDropdownMenu = (props: EmojiDropdownMenuProps) => {
       pluginKey="emojiDropdownMenu"
       decorationClass="tiptap-emoji-decoration"
       selector="tiptap-emoji-dropdown-menu"
-      items={getSuggestionItems}
+      items={findSuggestionItems}
       {...props}
     >
       {(props) => <EmojiList {...props} />}
@@ -38,9 +38,9 @@ export const EmojiDropdownMenu = (props: EmojiDropdownMenuProps) => {
   )
 }
 
-const getSuggestionItems = async (props: { query: string; editor: Editor }) => {
+const findSuggestionItems = async (props: { query: string; editor: Editor }) => {
   const emojis: EmojiItem[] = props.editor.extensionStorage.emoji.emojis || []
-  const filteredEmojis = getFilteredEmojis({ query: props.query, emojis })
+  const filteredEmojis = findFilteredEmojis({ query: props.query, emojis })
 
   return filteredEmojis.map(
     (emoji): SuggestionItem => ({

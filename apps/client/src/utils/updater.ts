@@ -16,7 +16,7 @@ import { relaunchApp } from '@/utils/process'
 let pendingVersion: string | null = null
 const statusListeners = new Set<() => void>()
 
-function setPendingVersion(version: string | null) {
+function rememberPendingVersion(version: string | null) {
   if (pendingVersion === version) return
   pendingVersion = version
   for (const listener of statusListeners) listener()
@@ -35,7 +35,7 @@ function subscribeUpdateStatus(listener: () => void) {
 
 /** 忽略本次提醒；下次检查发现更新会重新出现 */
 function dismissPendingUpdate() {
-  setPendingVersion(null)
+  rememberPendingVersion(null)
 }
 
 async function prepareUpdate() {
@@ -52,12 +52,12 @@ async function checkUpdate() {
   try {
     const update = await check()
     if (!update) {
-      setPendingVersion(null)
+      rememberPendingVersion(null)
       toast.info('当前已是最新版本')
       return
     }
 
-    setPendingVersion(update.version)
+    rememberPendingVersion(update.version)
     const confirmed = await ask(
       `发现新版本 ${update.version}${update.body ? `\n\n${update.body}` : ''}\n\n是否下载并安装？`,
       {
@@ -90,7 +90,7 @@ async function checkUpdate() {
 async function autoCheckUpdate() {
   try {
     const update = await check()
-    setPendingVersion(update ? update.version : null)
+    rememberPendingVersion(update ? update.version : null)
   } catch (error) {
     // 离线、未配置更新端点等都可能失败，静默检查不打扰用户
     console.warn('[updater] 自动检查更新失败', error)

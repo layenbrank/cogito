@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useEffectEvent } from 'react'
 import type { Editor, NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, NodeViewContent } from '@tiptap/react'
+import { Button } from '@cogito/design/components/button'
 
 import { isValidPosition } from '@/lib/tiptap-utils.ts'
 import { useKnowledgeStore } from '@/stores/knowledge'
@@ -160,9 +161,10 @@ export function ResizableImage({
         className="tiptap-image-container"
         style={{ width: resize.width ? `${resize.width}px` : 'fit-content' }}>
         <div className="tiptap-image-content">
-          <button
+          <Button
             type="button"
-            className="tiptap-image-img-button"
+            variant="ghost"
+            className="tiptap-image-img-button h-auto w-auto rounded-none border-none bg-transparent p-0 hover:bg-transparent active:bg-transparent"
             onClick={handleImageClick}
             disabled={!editor?.isEditable}
             style={{
@@ -176,7 +178,7 @@ export function ResizableImage({
               contentEditable={false}
               draggable={false}
             />
-          </button>
+          </Button>
 
           {resize.showHandles && editor?.isEditable ? (
             <ImageResizeHandles

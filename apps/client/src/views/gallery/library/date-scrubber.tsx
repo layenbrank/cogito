@@ -1,3 +1,4 @@
+import { Button } from '@cogito/design/components/button'
 import type { RefObject } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from 'cn'
@@ -100,9 +101,10 @@ function DateScrubber(props: DateScrubberProps) {
         {props.marks.map(function (mark) {
           const isActive = mark.key === activeKey
           return (
-            <button
+            <Button
               key={mark.key}
               type="button"
+              variant="ghost"
               className={cn(
                 'absolute left-1/2 size-2.5 -translate-x-1/2 rounded-full border border-background bg-muted-foreground/50',
                 isActive && 'size-3 bg-primary'

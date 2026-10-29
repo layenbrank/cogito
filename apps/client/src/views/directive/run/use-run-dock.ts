@@ -128,7 +128,7 @@ function useRunDock(directiveName: string | null) {
     if (!directiveName) return
     try {
       const input = resolveRunInput()
-      useTerminalStore.getState().setActivity('run')
+      useTerminalStore.getState().writeActivity('run')
       startRun(directiveName, input)
     } catch (error) {
       toast.error('参数无效', {
@@ -144,7 +144,7 @@ function useRunDock(directiveName: string | null) {
         toast.error('请选择动作')
         return
       }
-      useTerminalStore.getState().setActivity('run')
+      useTerminalStore.getState().writeActivity('run')
       startTrial(trialAction, params)
     } catch (error) {
       toast.error('试跑参数无效', {

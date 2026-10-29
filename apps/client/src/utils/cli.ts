@@ -2,7 +2,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getMatches } from '@tauri-apps/plugin-cli'
 import { info } from '@tauri-apps/plugin-log'
 
-async function applyCliMatches() {
+async function syncCliMatches() {
   try {
     const matches = await getMatches()
     const minimized = matches.args.minimized?.value === true
@@ -21,8 +21,8 @@ async function applyCliMatches() {
       if (win.label === 'main') await win.hide()
     }
   } catch (error) {
-    console.warn('[cli] applyCliMatches failed', error)
+    console.warn('[cli] syncCliMatches failed', error)
   }
 }
 
-export { applyCliMatches }
+export { syncCliMatches }

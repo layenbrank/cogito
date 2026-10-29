@@ -2,6 +2,8 @@
 
 import { useCallback, useState } from 'react'
 
+import { Button } from '@cogito/design/components/button'
+
 // Tiptap Cogito Extensions
 import type { Tone } from '@tiptap-pro/extension-ai'
 
@@ -15,7 +17,7 @@ import { SUPPORTED_TONES } from '@/components/tiptap-ui/ai-menu/ai-menu-items/ai
 
 // UI Primitives
 import {
-  Button,
+  Button as TipTapButton,
   ButtonGroup
 } from '@/components/tiptap-ui-primitive/button/button.tsx'
 import { Spacer } from '@/components/tiptap-ui-primitive/spacer/spacer.tsx'
@@ -49,9 +51,10 @@ export function AiMenuInputPlaceholder({
   onPlaceholderClick: () => void
 }) {
   return (
-    <button
+    <Button
       type="button"
-      className="tiptap-ai-prompt-input-placeholder"
+      variant="ghost"
+      className="tiptap-ai-prompt-input-placeholder h-auto w-full justify-between rounded-none border-none p-0 hover:bg-transparent active:bg-transparent"
       onClick={onPlaceholderClick}>
       <div className="tiptap-ai-prompt-input-placeholder-content">
         <AiSparklesIcon className="tiptap-ai-prompt-input-placeholder-icon" />
@@ -59,12 +62,12 @@ export function AiMenuInputPlaceholder({
           {t('EDITOR_AI_CHANGE_PLACEHOLDER')}
         </span>
       </div>
-      <Button
-        data-style="primary"
-        disabled>
+      <span
+        aria-hidden
+        className="pointer-events-none inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground opacity-50">
         <ArrowUpIcon className="size-3.5 shrink-0" />
-      </Button>
-    </button>
+      </span>
+    </Button>
   )
 }
 
@@ -78,7 +81,7 @@ export function ToneSelector({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
+        <TipTapButton
           type="button"
           data-style="ghost"
           data-active-state={tone ? 'on' : 'off'}
@@ -87,7 +90,7 @@ export function ToneSelector({
           aria-label={t('EDITOR_TONE_OPTIONS')}>
           <MicAiIcon className="size-3.5 shrink-0" />
           <span className="truncate text-xs">{t('EDITOR_TONE')}</span>
-        </Button>
+        </TipTapButton>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="start">
@@ -98,7 +101,7 @@ export function ToneSelector({
                 <DropdownMenuItem
                   key={supportedTone.value}
                   asChild>
-                  <Button
+                  <TipTapButton
                     data-style="ghost"
                     data-active-state={
                       tone === supportedTone.value ? 'on' : 'off'
@@ -107,7 +110,7 @@ export function ToneSelector({
                     <span className="truncate text-xs">
                       {supportedTone.label}
                     </span>
-                  </Button>
+                  </TipTapButton>
                 </DropdownMenuItem>
               ))}
             </ButtonGroup>
@@ -160,13 +163,13 @@ export function AiPromptInputToolbar({
       <Spacer />
 
       <ToolbarGroup>
-        <Button
+        <TipTapButton
           onClick={handleSubmit}
           disabled={isEmpty}
           data-style="primary"
           aria-label={t('EDITOR_AI_SUBMIT')}>
           <ArrowUpIcon className="size-3.5 shrink-0" />
-        </Button>
+        </TipTapButton>
       </ToolbarGroup>
     </Toolbar>
   )

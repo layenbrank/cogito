@@ -7,7 +7,7 @@ import { CHANNELS } from '@/shared/ipc/channels'
 
 import { Decorations } from '@/components/decorations/index.ts'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
-import { PanelList } from './panel-list'
+import { SurfaceList } from './surface-list'
 
 type SegmentedGenre = 'collection' | 'mirror'
 
@@ -114,7 +114,7 @@ function Developer() {
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <PanelList
+          <SurfaceList
             onOpenConsole={function () {
               updateDrawerVisible(true)
             }}

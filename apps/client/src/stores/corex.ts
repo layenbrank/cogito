@@ -22,7 +22,7 @@ import {
 } from '@/lib/directive-ipc.ts'
 import type { DirectiveContent } from '@/shared/ipc/specs/sidecar'
 import { reportCaught } from '@/utils/exception-report'
-import { createDirective } from '@/views/directive/model/draft.ts'
+import { makeDirective } from '@/views/directive/model/draft.ts'
 import { sanitizeSteps, stampSteps } from '@/views/directive/model/step-utils.ts'
 
 import { useDirectiveDraftStore } from './directive-draft'
@@ -75,7 +75,7 @@ interface CorexStore {
   directives: DirectiveEntry[]
   isLoaded: boolean
   isLoading: boolean
-  loadError: string | null
+  fetchError: string | null
   runs: CorexRun[]
   focusRunId: string | null
   runHistory: ListRunsReply | null
@@ -94,7 +94,7 @@ interface CorexStore {
 
   initialize: () => Promise<void>
   refreshDirectives: () => Promise<void>
-  loadDirective: (name: string) => Promise<DirectiveDocument>
+  fetchDirective: (name: string) => Promise<DirectiveDocument>
   saveDirectiveToHost: (content: DirectiveContent, originalName?: string) => Promise<DirectiveDocument>
   deleteDirectiveFromHost: (name: string) => Promise<void>
   importDirectivesFromHost: (options: {
@@ -107,9 +107,9 @@ interface CorexStore {
 
   openEditor: (name: string, pending?: boolean) => void
   seedPendingDraft: (name: string) => void
-  loadEditor: (name: string) => Promise<void>
+  bootstrapEditor: (name: string) => Promise<void>
   closeEditor: () => void
-  setSelectedToken: (token: string | null) => void
+  writeSelectedToken: (token: string | null) => void
   replaceDraft: (next: DirectiveContent, recordHistory?: boolean) => void
   undoDraft: () => void
   redoDraft: () => void
@@ -211,7 +211,7 @@ let pendingDefinition: DirectiveContent | null = null
 /** 这份定义来自收件箱的哪一行（保存后要把该行标成 saved） */
 let pendingDraftID: string | null = null
 
-function setPendingDefinition(definition: DirectiveContent | null, draftID?: string | null): void {
+function rememberPendingDefinition(definition: DirectiveContent | null, draftID?: string | null): void {
   pendingDefinition = definition
   pendingDraftID = draftID ?? null
 }
@@ -251,7 +251,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
     directives: [],
     isLoaded: false,
     isLoading: false,
-    loadError: null,
+    fetchError: null,
     runs: [],
     focusRunId: null,
     runHistory: null,
@@ -269,9 +269,9 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
 
     async initialize() {
       if (getter().isLoading) return
-      setter({ isLoading: true, loadError: null })
+      setter({ isLoading: true, fetchError: null })
 
-      function applyProgressFrame(frame: CorexProgress) {
+      function rememberProgressFrame(frame: CorexProgress) {
         if (frame.kind === 'started') {
           patchRun(frame.runId, { targetId: frame.requestId })
           return
@@ -288,17 +288,17 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
         unsubscribeProgress()
         unsubscribeProgress = null
       }
-      unsubscribeProgress = listenProgress(applyProgressFrame)
+      unsubscribeProgress = listenProgress(rememberProgressFrame)
 
       try {
         const [catalog, directives] = await Promise.all([fetchActions(), fetchDirectives()])
-        setter({ catalog, directives, isLoaded: true, isLoading: false, loadError: null })
+        setter({ catalog, directives, isLoaded: true, isLoading: false, fetchError: null })
       } catch (error) {
         reportCaught('corex.init', error)
         setter({
           isLoaded: false,
           isLoading: false,
-          loadError: parseErrorMessage(error, 'corex 初始化失败')
+          fetchError: parseErrorMessage(error, 'corex 初始化失败')
         })
       }
     },
@@ -314,7 +314,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
       }
     },
 
-    loadDirective(name) {
+    fetchDirective(name) {
       return fetchDirective(name)
     },
 
@@ -354,7 +354,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
 
     seedPendingDraft(name) {
       // 带着完整定义进来就照用；否则才是「空骨架」
-      const settled = takePendingDefinition() ?? createDirective(name)
+      const settled = takePendingDefinition() ?? makeDirective(name)
       const stamped = {
         ...settled,
         steps: stampSteps(settled.steps)
@@ -370,7 +370,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
       })
     },
 
-    async loadEditor(name) {
+    async bootstrapEditor(name) {
       setter({ isEditorLoading: true, editorName: name })
       try {
         const doc = await fetchDirective(name)
@@ -405,7 +405,7 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
       })
     },
 
-    setSelectedToken(token) {
+    writeSelectedToken(token) {
       setter({ selectedToken: token })
     },
 
@@ -661,5 +661,5 @@ const useCorexStore = create<CorexStore>(function (setter, getter) {
   }
 })
 
-export { setPendingDefinition, useCorexStore }
+export { rememberPendingDefinition, useCorexStore }
 export type { CorexAction, CorexRun, RunKind, RunStatus, RunTrigger }

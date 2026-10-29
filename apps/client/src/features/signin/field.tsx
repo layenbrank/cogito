@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import {
   FormControl,
   FormField,
@@ -75,8 +76,10 @@ function AuthField<T extends FieldValues>(props: AuthFieldProps<T>) {
                 />
               </FormControl>
               {isPassword && (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon"
                   className="absolute top-1/2 right-1.5 flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
                   onClick={function () {
                     updateRevealed(function (prev) {
@@ -95,7 +98,7 @@ function AuthField<T extends FieldValues>(props: AuthFieldProps<T>) {
                       className="size-4"
                     />
                   )}
-                </button>
+                </Button>
               )}
             </div>
             <FormMessage />

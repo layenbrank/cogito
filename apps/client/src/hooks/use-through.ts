@@ -44,11 +44,15 @@ function clearSource(source: string) {
   void invoke(CHANNELS.THROUGH.UPDATE_RECTS, {
     source,
     rects: [] as ThroughRect[]
-  }).catch(function () {})
+  }).catch(function (error: unknown) {
+    console.debug('[through] 清空穿透区失败:', error)
+  })
 }
 
 function publishRects(source: string, rects: ThroughRect[]) {
-  void invoke(CHANNELS.THROUGH.UPDATE_RECTS, { source, rects }).catch(function () {})
+  void invoke(CHANNELS.THROUGH.UPDATE_RECTS, { source, rects }).catch(function (error: unknown) {
+    console.debug('[through] 更新穿透区失败:', error)
+  })
 }
 
 /**

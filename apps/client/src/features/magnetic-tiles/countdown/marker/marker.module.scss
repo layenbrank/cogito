@@ -376,7 +376,7 @@
 
 /* ── 大容量：发薪 / 薪酬面板（对齐历史 views 卡片信息） ── */
 
-.panels {
+.surfaces {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 8px;
@@ -438,7 +438,7 @@
   padding-left: 16px;
 }
 
-.wide .panels {
+.wide .surfaces {
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
@@ -458,7 +458,7 @@
 }
 
 .circle .footer,
-.circle .panels {
+.circle .surfaces {
   display: none;
 }
 

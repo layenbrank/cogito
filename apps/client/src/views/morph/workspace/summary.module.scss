@@ -9,7 +9,7 @@
     display: flex;
     flex-direction: column;
     border-left: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-    @include t.chrome-surface;
+    @include t.shell-surface;
     overflow: hidden;
   }
 }

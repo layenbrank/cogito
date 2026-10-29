@@ -8,11 +8,11 @@
  */
 import { toast } from 'sonner'
 
-import { setDraftStatus } from '@/lib/directive-draft-ipc'
+import { writeDraftStatus } from '@/lib/directive-draft-ipc'
 import { validateDirective } from '@/lib/directive-ipc'
 import { DICT_VALUE } from '@/shared/ipc/specs/dict'
 import { DirectiveContentSchema, type DirectiveContent } from '@/shared/ipc/specs/sidecar'
-import { setPendingDefinition } from '@/stores/corex'
+import { rememberPendingDefinition } from '@/stores/corex'
 import { useDirectiveDraftStore } from '@/stores/directive-draft'
 import type { DirectiveDraft } from '@/lib/directive-draft-ipc'
 import { reportCaught } from '@/utils/exception-report'
@@ -149,7 +149,7 @@ async function captureDirectiveDraft(
   })
   if (!draft) return null
   if (!validation.ok) {
-    await setDraftStatus({
+    await writeDraftStatus({
       id: draft.id,
       status: DICT_VALUE.DIRECTIVE_DRAFT_STATUS.PENDING,
       error: validation.error
@@ -175,7 +175,7 @@ async function openDraftInEditor(draft: DirectiveDraft): Promise<void> {
   }
   // 定义先放进「待应用」槽：进编辑器时工作区会 openEditor + seedPendingDraft，
   // 在导航前直接替换 draft 会被那一步清空。带上行 id，保存后才能把收件箱那行收尾
-  setPendingDefinition(definition, draft.id)
+  rememberPendingDefinition(definition, draft.id)
   const { router } = await import('@/routers')
   await router.navigate(`/directive/${encodeURIComponent(definition.name)}`)
 }

@@ -3,7 +3,7 @@ import * as m from 'motion/react-m'
 
 import { type GraphicsEnum } from '@/features/capture/components/graphics'
 
-import { UtilityPropsPanel } from './props-panel'
+import { UtilityPropsSurface } from './props-surface'
 import { UtilityToolbar } from './toolbar'
 import { useUtilityColor } from './use-color'
 import { useUtilityPosition } from './use-position'
@@ -122,7 +122,7 @@ function Utility(props: UtilityProps) {
             onPin={onPin}
             onSave={onSave}
           />
-          <UtilityPropsPanel
+          <UtilityPropsSurface
             active={active}
             color={color}
             thickness={thickness}

@@ -8,7 +8,7 @@
         .earn .value { font-size: 22px; }
         .status, .range { font-size: 12px; }
         .track { height: 4px; }
-        .panels { grid-template-columns: 1fr 1fr; }
+        .surfaces { grid-template-columns: 1fr 1fr; }
         .panelHero { font-size: 22px; }
       }
       &.vertical {
@@ -17,7 +17,7 @@
         .value { font-size: 24px; }
         .earn .value { font-size: 22px; }
         .track { height: 4px; }
-        .panels { grid-template-columns: 1fr; }
+        .surfaces { grid-template-columns: 1fr; }
         .panelHero { font-size: 22px; }
       }
     }
@@ -45,7 +45,7 @@
         .earn .value { font-size: 24px; }
         .status, .range { font-size: 12px; }
         .track { height: 5px; }
-        .panels { grid-template-columns: repeat(2, 1fr); }
+        .surfaces { grid-template-columns: repeat(2, 1fr); }
         .panelHero { font-size: 24px; }
       }
       &.vertical {
@@ -54,7 +54,7 @@
         .value { font-size: 22px; }
         .track { height: 4px; }
         .row { flex-direction: column; }
-        .panels { grid-template-columns: 1fr; }
+        .surfaces { grid-template-columns: 1fr; }
       }
     }
   }

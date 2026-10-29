@@ -11,7 +11,7 @@ import { useParams } from 'react-router-dom'
 import { TerminalTabs } from '@/features/terminal/terminal-tabs'
 import { useTerminalStore, type DockActivity } from '@/stores/terminal'
 import { safeDecodeURIComponent } from '@/utils/safe-decode.ts'
-import { RunPanelHistoryTab } from '@/views/directive/run/run-panel-history-tab.tsx'
+import { RunSurfaceHistoryTab } from '@/views/directive/run/run-surface-history-tab.tsx'
 import { useRunDock } from '@/views/directive/run/use-run-dock.ts'
 
 import { RunInputPage } from './run-input-page.tsx'
@@ -44,8 +44,8 @@ function DirectiveDock(props: DirectiveDockProps) {
   const activity = useTerminalStore(function (state) {
     return state.activity
   })
-  const setActivity = useTerminalStore(function (state) {
-    return state.setActivity
+  const writeActivity = useTerminalStore(function (state) {
+    return state.writeActivity
   })
   const closePanel = useTerminalStore(function (state) {
     return state.closePanel
@@ -60,9 +60,9 @@ function DirectiveDock(props: DirectiveDockProps) {
   useEffect(
     function () {
       if (directiveName) return
-      if (activity === 'input' || activity === 'history') setActivity('run')
+      if (activity === 'input' || activity === 'history') writeActivity('run')
     },
-    [directiveName, activity, setActivity]
+    [directiveName, activity, writeActivity]
   )
 
   return (
@@ -71,20 +71,21 @@ function DirectiveDock(props: DirectiveDockProps) {
         {visibleActivities.map(function (item) {
           const active = activity === item.id
           return (
-            <button
+            <Button
+              variant="ghost"
               key={item.id}
               type="button"
               aria-selected={active}
               className={cn(
-                'relative inline-flex items-center gap-1.5 px-2.5 text-xs transition-colors',
-                'rounded-none outline-none focus-visible:bg-muted/80',
+                'relative inline-flex h-full items-center gap-1.5 rounded-none px-2.5 text-xs transition-colors',
+                'outline-none focus-visible:bg-muted/80',
                 'after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary after:opacity-0 after:transition-opacity',
                 active
                   ? 'bg-background font-medium text-foreground after:opacity-100'
                   : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
               )}
               onClick={function () {
-                setActivity(item.id)
+                writeActivity(item.id)
               }}>
               <Icon
                 icon={item.icon}
@@ -92,7 +93,7 @@ function DirectiveDock(props: DirectiveDockProps) {
                 aria-hidden
               />
               {item.label}
-            </button>
+            </Button>
           )
         })}
         <div className="ml-auto flex items-center pr-0.5">
@@ -126,7 +127,7 @@ function DirectiveDock(props: DirectiveDockProps) {
 
         <DockPage active={activity === 'history'}>
           <div className="h-full min-h-0 overflow-hidden px-3 py-2">
-            <RunPanelHistoryTab runHistory={run.runHistory} />
+            <RunSurfaceHistoryTab runHistory={run.runHistory} />
           </div>
         </DockPage>
 

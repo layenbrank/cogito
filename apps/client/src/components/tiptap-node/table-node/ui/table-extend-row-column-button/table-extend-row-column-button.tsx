@@ -6,6 +6,7 @@ import { type Editor } from '@tiptap/react'
 import type { Node } from '@tiptap/pm/model'
 import { TableMap } from '@tiptap/pm/tables'
 import { FloatingPortal } from '@floating-ui/react'
+import { Button } from '@cogito/design/components/button'
 
 // --- Hooks ---
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
@@ -180,9 +181,11 @@ export const TableExtendRowColumnButton: React.FC<
   if (!editor?.isEditable) return null
 
   return (
-    <button
+    <Button
+      variant="ghost"
+      size="icon"
       className={cn(
-        'tiptap-table-extend-row-column-button',
+        'tiptap-table-extend-row-column-button h-auto w-auto rounded-none border-none p-0 hover:bg-transparent active:bg-transparent',
         isRowOrientation
           ? 'tiptap-table-row-end-add-remove'
           : 'tiptap-table-column-end-add-remove',
@@ -195,7 +198,7 @@ export const TableExtendRowColumnButton: React.FC<
         isRowOrientation ? t('EDITOR_ADD_REMOVE_ROWS') : t('EDITOR_ADD_REMOVE_COLS')
       }>
       {children ?? <PlusSmallIcon className="size-3.5 shrink-0" />}
-    </button>
+    </Button>
   )
 }
 

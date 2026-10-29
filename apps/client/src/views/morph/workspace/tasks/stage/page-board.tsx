@@ -55,7 +55,8 @@ function PageBoard(props: PageBoardProps) {
   function renderScaleChip() {
     if (boardScale === 1) return null
     return (
-      <button
+      <Button
+        variant="ghost"
         type="button"
         className={styles.scaleChip}
         title="双击复位缩放"
@@ -67,7 +68,7 @@ function PageBoard(props: PageBoardProps) {
           height={12}
         />
         {Math.round(boardScale * 100)}%
-      </button>
+      </Button>
     )
   }
 

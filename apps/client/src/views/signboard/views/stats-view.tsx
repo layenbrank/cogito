@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 
 import { useSignboardStore, type SignboardEntry, type SignboardColumn } from '@/stores/signboard'
 import { BarChart } from '@/views/signboard/charts/charts'
-import { ChartPanel } from '@/views/signboard/charts/panel'
+import { ChartSurface } from '@/views/signboard/charts/surface'
 import { findChartTheme } from '@/views/signboard/charts/theme'
 import { findBoardProgress, findChecklistProgress } from '@/views/signboard/progress'
 import styles from '@/views/signboard/signboard.module.scss'
@@ -150,7 +150,7 @@ function StatsView(props: StatsViewProps) {
       </div>
 
       <div className={styles.chartsGrid}>
-        <ChartPanel
+        <ChartSurface
           title="列分布"
           icon="lucide:columns-3"
           hint="按列计数">
@@ -159,9 +159,9 @@ function StatsView(props: StatsViewProps) {
             isEmpty={isColumnEmpty}
             emptyHint="暂无卡片"
           />
-        </ChartPanel>
+        </ChartSurface>
 
-        <ChartPanel
+        <ChartSurface
           title="优先级"
           icon="lucide:flag"
           hint="活跃卡">
@@ -170,9 +170,9 @@ function StatsView(props: StatsViewProps) {
             isEmpty={isPriorityEmpty}
             emptyHint="暂无卡片"
           />
-        </ChartPanel>
+        </ChartSurface>
 
-        <ChartPanel
+        <ChartSurface
           title="进度分布"
           icon="lucide:chart-column"
           hint="按清单完成度分桶">
@@ -181,7 +181,7 @@ function StatsView(props: StatsViewProps) {
             isEmpty={isProgressEmpty}
             emptyHint="暂无卡片"
           />
-        </ChartPanel>
+        </ChartSurface>
       </div>
     </div>
   )

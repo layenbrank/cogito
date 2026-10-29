@@ -9,7 +9,7 @@ interface ScheduleDraftState {
   rows: ScheduleRow[]
   /** 上一次批量写入的 id（用于一次性撤销） */
   lastBatchIDs: string[]
-  setRows: (rows: ScheduleRow[]) => void
+  writeRows: (rows: ScheduleRow[]) => void
   updateRow: (key: string, patch: Partial<ScheduleRow>) => void
   removeRow: (key: string) => void
   clear: () => void
@@ -22,7 +22,7 @@ const useScheduleDraftStore = create<ScheduleDraftState>()(function (setter, get
     rows: [],
     lastBatchIDs: [],
 
-    setRows(rows) {
+    writeRows(rows) {
       setter({ rows })
     },
 

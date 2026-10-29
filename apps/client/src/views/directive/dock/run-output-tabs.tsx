@@ -2,8 +2,8 @@
  * 输出页签条：一个运行实例一页，点标签把焦点挪过去。
  * 右侧固定显示当前选中运行的状态 / 步数 / 用时，运行中可取消。
  */
-import { Button } from '@cogito/design/components/button'
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { cn } from 'cn'
 
 import { useCorexStore } from '@/stores/corex.ts'
@@ -57,7 +57,8 @@ function RunOutputTabs(props: RunOutputTabsProps) {
             const style = RUN_STATUS_STYLES[run.status]
             const active = selected?.id === run.id
             return (
-              <button
+              <Button
+                variant="ghost"
                 key={run.id}
                 type="button"
                 role="tab"
@@ -89,7 +90,7 @@ function RunOutputTabs(props: RunOutputTabsProps) {
                   />
                 ) : null}
                 <span className="max-w-32 truncate">{run.name}</span>
-              </button>
+              </Button>
             )
           })}
         </div>

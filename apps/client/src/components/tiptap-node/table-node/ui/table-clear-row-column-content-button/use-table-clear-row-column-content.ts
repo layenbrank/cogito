@@ -14,10 +14,10 @@ import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 import { isExtensionAvailable } from '@/lib/tiptap-utils.ts'
 import type { Orientation } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 import {
-  getTable,
-  getTableSelectionType,
-  getRowOrColumnCells,
-  setCellAttr,
+  findTable,
+  findTableSelectionType,
+  findRowOrColumnCells,
+  writeCellAttr,
   isCellEmpty
 } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 
@@ -71,7 +71,7 @@ export const tableClearRowColumnContentLabels: Record<Orientation, string> = {
 /**
  * Default cell attributes to reset when clearing content
  */
-const DEFAULT_CELL_ATTRS = {
+const CELL_ATTRS = {
   backgroundColor: null,
   nodeVerticalAlign: null,
   nodeTextAlign: null
@@ -82,7 +82,7 @@ const DEFAULT_CELL_ATTRS = {
  */
 function resetCellAttributes(editor: Editor): boolean {
   try {
-    return setCellAttr(DEFAULT_CELL_ATTRS)(editor.state, editor.view.dispatch)
+    return writeCellAttr(CELL_ATTRS)(editor.state, editor.view.dispatch)
   } catch (error) {
     console.error('Error resetting cell attributes:', error)
     return false
@@ -113,10 +113,10 @@ function canClearRowColumnContent({
   }
 
   try {
-    const table = getTable(editor, tablePos)
+    const table = findTable(editor, tablePos)
     if (!table) return false
 
-    const selectionType = getTableSelectionType(
+    const selectionType = findTableSelectionType(
       editor,
       index,
       orientation,
@@ -124,7 +124,7 @@ function canClearRowColumnContent({
     )
 
     if (selectionType) {
-      const cellData = getRowOrColumnCells(
+      const cellData = findRowOrColumnCells(
         editor,
         selectionType.index,
         selectionType.orientation,
@@ -226,7 +226,7 @@ function clearRowColumnCells({
     const { state, view } = editor
     const tr = state.tr
 
-    const cellData = getRowOrColumnCells(editor, index, orientation, tablePos)
+    const cellData = findRowOrColumnCells(editor, index, orientation, tablePos)
 
     if (cellData.cells.length === 0) {
       return false
@@ -245,7 +245,7 @@ function clearRowColumnCells({
         if (resetAttrs) {
           tr.setNodeMarkup(cellInfo.pos, null, {
             ...cellInfo.node.attrs,
-            ...DEFAULT_CELL_ATTRS
+            ...CELL_ATTRS
           })
         }
       }
@@ -287,7 +287,7 @@ function tableClearRowColumnContent({
   }
 
   try {
-    const selectionType = getTableSelectionType(
+    const selectionType = findTableSelectionType(
       editor,
       index,
       orientation,
@@ -331,10 +331,10 @@ function shouldShowButton({
   if (!editor || !editor.isEditable) return false
   if (!isExtensionAvailable(editor, REQUIRED_EXTENSIONS)) return false
 
-  const table = getTable(editor, tablePos)
+  const table = findTable(editor, tablePos)
   if (!table) return false
 
-  const selectionType = getTableSelectionType(
+  const selectionType = findTableSelectionType(
     editor,
     index,
     orientation,
@@ -417,7 +417,7 @@ export function useTableClearRowColumnContent(
 
   const { editor } = useTiptapEditor(providedEditor)
 
-  const selectionType = getTableSelectionType(
+  const selectionType = findTableSelectionType(
     editor,
     index,
     orientation,

@@ -164,8 +164,9 @@ function CalendarView(props: CalendarViewProps) {
                       const checklist = findChecklistProgress(checksForEntry(card.id))
                       return (
                         <li key={card.id}>
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
                             className={styles.calendarEvent}
                             onClick={function () {
                               props.onOpenCard(card.id)
@@ -174,7 +175,7 @@ function CalendarView(props: CalendarViewProps) {
                             <span className={styles.calendarEventMeta}>
                               {checklist.done}/{checklist.total}
                             </span>
-                          </button>
+                          </Button>
                         </li>
                       )
                     })}
@@ -196,14 +197,15 @@ function CalendarView(props: CalendarViewProps) {
               {undated.map(function (card) {
                 return (
                   <li key={card.id}>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       className={styles.ganttSideItem}
                       onClick={function () {
                         props.onOpenCard(card.id)
                       }}>
                       {card.title}
-                    </button>
+                    </Button>
                   </li>
                 )
               })}

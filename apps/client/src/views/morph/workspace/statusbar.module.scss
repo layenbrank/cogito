@@ -6,7 +6,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  @include t.panel-well;
+  @include t.surface-well;
   border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
   flex-shrink: 0;
   font-size: 11px;

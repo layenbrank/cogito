@@ -11,8 +11,8 @@ import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 import { isExtensionAvailable } from '@/lib/tiptap-utils.ts'
 import type { Orientation } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 import {
-  getTable,
-  getTableSelectionType,
+  findTable,
+  findTableSelectionType,
   selectCellsByCoords
 } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 
@@ -80,10 +80,10 @@ function canDeleteRowColumn({
   }
 
   try {
-    const table = getTable(editor, tablePos)
+    const table = findTable(editor, tablePos)
     if (!table) return false
 
-    const selectionType = getTableSelectionType(editor, index, orientation)
+    const selectionType = findTableSelectionType(editor, index, orientation)
     if (!selectionType) return false
 
     return true
@@ -114,7 +114,7 @@ function tableDeleteRowColumn({
   }
 
   try {
-    const selectionType = getTableSelectionType(editor, index, orientation)
+    const selectionType = findTableSelectionType(editor, index, orientation)
     if (!selectionType) return false
 
     const { orientation: finalOrientation, index: finalIndex } = selectionType
@@ -127,7 +127,7 @@ function tableDeleteRowColumn({
       return deleteOperation(editor.state, dispatch)
     }
 
-    const table = getTable(editor, tablePos)
+    const table = findTable(editor, tablePos)
     if (!table) return false
 
     const cellCoords = isRow
@@ -225,7 +225,7 @@ export function useTableDeleteRowColumn(config: UseTableDeleteRowColumnConfig) {
 
   const { editor } = useTiptapEditor(providedEditor)
 
-  const selectionType = getTableSelectionType(editor, index, orientation)
+  const selectionType = findTableSelectionType(editor, index, orientation)
 
   const isVisible = shouldShowButton({
     editor,

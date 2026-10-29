@@ -7,7 +7,7 @@ import { Button } from '@cogito/design/components/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { useEffect } from 'react'
 
-import { setActiveScenario } from '@/features/agent/model/active-scenario'
+import { rememberActiveScenario } from '@/features/agent/model/active-scenario'
 import { takeChatHandoff } from '@/features/agent/model/chat-handoff'
 import { QUICK_PROMPTS, type QuickPrompt } from '@/views/agent/chat/components/workbench-constants'
 import styles from '@/views/agent/chat/components/workbench.module.scss'
@@ -16,7 +16,7 @@ function ThreadWelcome() {
   const aui = useAui()
 
   function pick(item: QuickPrompt) {
-    setActiveScenario(item.scenario)
+    rememberActiveScenario(item.scenario)
     aui.composer.setText(item.label)
   }
 
@@ -25,7 +25,7 @@ function ThreadWelcome() {
     function () {
       const handoff = takeChatHandoff()
       if (!handoff) return
-      setActiveScenario(handoff.scenario)
+      rememberActiveScenario(handoff.scenario)
       aui.composer.setText(handoff.text)
     },
     [aui]

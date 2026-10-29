@@ -33,8 +33,8 @@ interface HoverProbe {
   dispose(): void
 }
 
-const DEFAULT_SETTLE_MS = 80
-const DEFAULT_INTERVAL_MS = 180
+const SETTLE_MS = 80
+const INTERVAL_MS = 180
 
 /** 结果签名：只有「最细元素」变了才回调，避免同样的链反复触发重渲染 */
 function signatureOf(chain: CaptureRegion[]): string {
@@ -43,9 +43,9 @@ function signatureOf(chain: CaptureRegion[]): string {
   return `${chain.length}:${head.x},${head.y},${head.w},${head.h}`
 }
 
-function createHoverProbe(input: HoverProbeInput): HoverProbe {
-  const settleMs = input.settleMs ?? DEFAULT_SETTLE_MS
-  const intervalMs = input.intervalMs ?? DEFAULT_INTERVAL_MS
+function makeHoverProbe(input: HoverProbeInput): HoverProbe {
+  const settleMs = input.settleMs ?? SETTLE_MS
+  const intervalMs = input.intervalMs ?? INTERVAL_MS
   const now = input.now ?? (() => performance.now())
 
   let pending: ProbePoint | null = null
@@ -120,5 +120,5 @@ function createHoverProbe(input: HoverProbeInput): HoverProbe {
   }
 }
 
-export { createHoverProbe }
+export { makeHoverProbe }
 export type { HoverProbe, HoverProbeInput, ProbePoint }

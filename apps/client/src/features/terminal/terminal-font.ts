@@ -76,12 +76,12 @@ function injectTerminalFontFace(
   const pending = INJECT_TASKS.get(cacheKey)
   if (pending) return pending
 
-  const task = loadTerminalFontFace(systemFont, cssFaces)
+  const task = bootstrapTerminalFontFace(systemFont, cssFaces)
   INJECT_TASKS.set(cacheKey, task)
   return task
 }
 
-async function loadTerminalFontFace(
+async function bootstrapTerminalFontFace(
   systemFont: TerminalFont,
   cssFaces: string[]
 ): Promise<boolean> {

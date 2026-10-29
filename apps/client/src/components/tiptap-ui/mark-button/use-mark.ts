@@ -133,7 +133,7 @@ const MARK_LABELS: Record<Mark, string> = {
   subscript: t('EDITOR_SUBSCRIPT')
 }
 
-export function getFormattedMarkName(type: Mark): string {
+export function findFormattedMarkName(type: Mark): string {
   return MARK_LABELS[type]
 }
 
@@ -218,7 +218,7 @@ export function useMark(config: UseMarkConfig) {
     isActive,
     handleMark,
     canToggle,
-    label: getFormattedMarkName(type),
+    label: findFormattedMarkName(type),
     shortcutKeys: MARK_SHORTCUT_KEYS[type],
     Icon: markIcons[type]
   }

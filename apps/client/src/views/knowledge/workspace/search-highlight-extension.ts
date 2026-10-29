@@ -40,7 +40,7 @@ function buildFinder(meta: SearchHighlightMeta): RegExp | null {
   }
 }
 
-function createDecorations(
+function buildDecorations(
   doc: ProseMirrorNode,
   meta: SearchHighlightMeta
 ): DecorationSet {
@@ -94,13 +94,13 @@ const SearchHighlight = Extension.create({
             if (incoming) {
               return {
                 meta: incoming,
-                decorations: createDecorations(tr.doc, incoming)
+                decorations: buildDecorations(tr.doc, incoming)
               }
             }
             if (tr.docChanged && value.meta) {
               return {
                 meta: value.meta,
-                decorations: createDecorations(tr.doc, value.meta)
+                decorations: buildDecorations(tr.doc, value.meta)
               }
             }
             if (tr.docChanged) {
@@ -122,7 +122,7 @@ const SearchHighlight = Extension.create({
   }
 })
 
-function setSearchHighlight(
+function writeSearchHighlight(
   editor: Editor,
   meta: SearchHighlightMeta | null
 ): void {
@@ -134,8 +134,8 @@ function setSearchHighlight(
 }
 
 function clearSearchHighlight(editor: Editor): void {
-  setSearchHighlight(editor, null)
+  writeSearchHighlight(editor, null)
 }
 
 export type { SearchHighlightMeta }
-export { SearchHighlight, SEARCH_HIGHLIGHT_KEY, setSearchHighlight, clearSearchHighlight }
+export { SearchHighlight, SEARCH_HIGHLIGHT_KEY, writeSearchHighlight, clearSearchHighlight }

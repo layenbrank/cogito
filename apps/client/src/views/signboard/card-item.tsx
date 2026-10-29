@@ -1,3 +1,4 @@
+import { Button } from '@cogito/design/components/button'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Icon } from '@iconify/react/offline'
@@ -17,7 +18,7 @@ import {
   type SignboardCheck,
   type SignboardTag
 } from '@/stores/signboard'
-import { CardQuickPanel } from '@/views/signboard/card-quick-panel'
+import { CardQuickSurface } from '@/views/signboard/card-quick-surface'
 import { findChecklistProgress } from '@/views/signboard/progress'
 import styles from '@/views/signboard/signboard.module.scss'
 
@@ -137,8 +138,9 @@ function CardItem(props: CardItemProps) {
       ) : null}
 
       <div className={styles.cardMain}>
-        <button
+        <Button
           type="button"
+          variant="ghost"
           className={styles.handle}
           aria-label="拖拽卡片"
           {...attributes}
@@ -147,7 +149,7 @@ function CardItem(props: CardItemProps) {
             icon="lucide:grip-vertical"
             className="size-3.5"
           />
-        </button>
+        </Button>
 
         <div
           className={styles.cardBody}
@@ -158,9 +160,10 @@ function CardItem(props: CardItemProps) {
             <div className={styles.cardLabelRow}>
               {visibleTags.map(function (tag) {
                 return (
-                  <button
+                  <Button
                     key={tag.id}
                     type="button"
+                    variant="ghost"
                     className={styles.cardLabel}
                     title={`移除标签「${tag.title}」`}
                     style={{
@@ -174,7 +177,7 @@ function CardItem(props: CardItemProps) {
                       event.stopPropagation()
                     }}>
                     <span className={styles.cardLabelText}>{tag.title}</span>
-                  </button>
+                  </Button>
                 )
               })}
               {hiddenTagCount > 0 ? (
@@ -257,13 +260,14 @@ function CardItem(props: CardItemProps) {
               </span>
             ) : null}
             {checklist.total > 0 ? (
-              <CardQuickPanel
+              <CardQuickSurface
                 card={props.card}
                 checklist={props.checklist}
                 focus="checks"
                 trigger={
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     className={styles.metaBadge}
                     title="清单"
                     onClick={function (event) {
@@ -278,7 +282,7 @@ function CardItem(props: CardItemProps) {
                       aria-hidden
                     />
                     {checklist.done}/{checklist.total}
-                  </button>
+                  </Button>
                 }
               />
             ) : null}
@@ -306,7 +310,7 @@ function CardItem(props: CardItemProps) {
                 />
               </span>
             ) : null}
-            <CardQuickPanel
+            <CardQuickSurface
               card={props.card}
               checklist={props.checklist}
               focus="tags"

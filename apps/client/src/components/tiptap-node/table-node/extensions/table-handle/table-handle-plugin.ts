@@ -13,18 +13,18 @@ import {
 import {
   clamp,
   domCellAround,
-  getCellIndicesFromDOM,
-  getColumnCells,
-  getIndexCoordinates,
-  getRowCells,
-  getTableFromDOM,
+  findCellIndicesFromDOM,
+  findColumnCells,
+  findIndexCoordinates,
+  findRowCells,
+  findTableFromDOM,
   isHTMLElement,
   isTableNode,
   safeClosest,
   selectCellsByCoords
 } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 import { isValidPosition } from '@/lib/tiptap-utils.ts'
-import { createTableDragImage } from '@/components/tiptap-node/table-node/extensions/table-handle/helpers/create-image.ts'
+import { makeTableDragImage } from '@/components/tiptap-node/table-node/extensions/table-handle/helpers/create-image.ts'
 
 export type TableHandlesState = {
   show: boolean
@@ -243,7 +243,7 @@ class TableHandleView implements PluginView {
       }
     } else {
       // Hovering over a cell
-      const cellPosition = getCellIndicesFromDOM(
+      const cellPosition = findCellIndicesFromDOM(
         around.domNode as HTMLTableCellElement,
         blockInfo.node,
         this.editor
@@ -323,7 +323,7 @@ class TableHandleView implements PluginView {
       return
     }
 
-    const cellPosition = getCellIndicesFromDOM(
+    const cellPosition = findCellIndicesFromDOM(
       tableCellElement as HTMLTableCellElement,
       this.state.block,
       this.editor
@@ -402,7 +402,7 @@ class TableHandleView implements PluginView {
     const orientation = isRow ? 'row' : 'column'
     const destIndex = isRow ? rowIndex! : colIndex!
 
-    const cellCoords = getIndexCoordinates({
+    const cellCoords = findIndexCoordinates({
       editor: this.editor,
       index: draggingState.originalIndex,
       orientation,
@@ -459,7 +459,7 @@ class TableHandleView implements PluginView {
       return
     }
 
-    const tableInfo = getTableFromDOM(this.tableElement, this.editor)
+    const tableInfo = findTableFromDOM(this.tableElement, this.editor)
     if (!tableInfo) {
       this.hideHandles()
       return
@@ -611,7 +611,7 @@ export function TableHandlePlugin(
         if (
           tableHandleView.state.draggingState.draggedCellOrientation === 'row'
         ) {
-          const originalCells = getRowCells(
+          const originalCells = findRowCells(
             editor,
             originalIndex,
             tableHandleView.state.blockPos
@@ -626,7 +626,7 @@ export function TableHandlePlugin(
             }
           })
         } else {
-          const originalCells = getColumnCells(
+          const originalCells = findColumnCells(
             editor,
             originalIndex,
             tableHandleView.state.blockPos
@@ -652,7 +652,7 @@ export function TableHandlePlugin(
         if (
           tableHandleView.state.draggingState.draggedCellOrientation === 'row'
         ) {
-          const cellsInRow = getRowCells(
+          const cellsInRow = findRowCells(
             editor,
             newIndex,
             tableHandleView.state.blockPos
@@ -692,7 +692,7 @@ export function TableHandlePlugin(
             )
           })
         } else {
-          const cellsInColumn = getColumnCells(
+          const cellsInColumn = findColumnCells(
             editor,
             newIndex,
             tableHandleView.state.blockPos
@@ -774,7 +774,7 @@ const tableDragStart = (
     editor.view.dispatch(editor.state.tr.setSelection(safeSel))
   }
 
-  const dragImage = createTableDragImage(editor, orientation, index, blockPos)
+  const dragImage = makeTableDragImage(editor, orientation, index, blockPos)
 
   // Configure drag image
   if (event.dataTransfer) {

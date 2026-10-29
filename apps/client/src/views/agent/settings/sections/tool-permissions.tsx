@@ -18,7 +18,7 @@ import { useEffect, useState } from 'react'
 import { findAcpHandle } from '@/features/agent/acp/connection'
 import {
   fetchSessionTools,
-  setToolPermissions,
+  writeToolPermissions,
   type SessionTool,
   type ToolPermissionLevel
 } from '@/features/agent/acp/goose-providers'
@@ -76,7 +76,7 @@ function ToolPermissionsSection() {
     try {
       await waitGooseReady()
       const handle = await findAcpHandle()
-      await setToolPermissions(handle.connection, [{ toolName, permission }])
+      await writeToolPermissions(handle.connection, [{ toolName, permission }])
     } catch (error) {
       updateTools(former)
       console.warn('[settings/tool-permissions] 设置权限失败:', error)

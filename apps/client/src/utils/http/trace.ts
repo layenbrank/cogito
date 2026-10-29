@@ -26,7 +26,7 @@ const SPAN_ID_BYTES = 8
  * 采样器会沿用该决定（见 `apps/service/guide/configuration.md` 的 `telemetry.sample_ratio`），
  * 保证这些流程一定有链路可查；要按比例降采样得改服务端采样器。
  */
-export function createTraceparent(): string {
+export function makeTraceparent(): string {
   const bytes = randomBytes(TRACE_ID_BYTES + SPAN_ID_BYTES)
   // 全零标识非法，把两个标识的首字节最低位钉成 1
   bytes[0] |= 1

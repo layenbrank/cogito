@@ -20,7 +20,7 @@ import {
   fetchSessionExtensions,
   removeConfigExtension,
   removeSessionExtension,
-  setConfigExtensionEnabled
+  writeConfigExtensionEnabled
 } from '@/features/agent/acp/goose-extensions'
 import { findThreadAcpSessionID, waitGooseReady } from '@/features/agent/acp/session'
 import {
@@ -116,7 +116,7 @@ function ExtensionsSection() {
       })
     })
     const outcome = await runExtensionAction(key, function (connection) {
-      return setConfigExtensionEnabled(connection, key, next)
+      return writeConfigExtensionEnabled(connection, key, next)
     })
     if (!outcome.ok) {
       updateEntries(former)

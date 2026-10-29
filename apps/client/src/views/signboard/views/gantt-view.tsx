@@ -1,3 +1,4 @@
+import { Button } from '@cogito/design/components/button'
 import { useMemo, useState } from 'react'
 
 import {
@@ -15,7 +16,7 @@ interface GanttViewProps {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
-const DEFAULT_SPAN_DAYS = 7
+const SPAN_DAYS = 7
 
 function startOfDay(ms: number) {
   const date = new Date(ms)
@@ -28,7 +29,7 @@ function cardRange(card: SignboardEntry) {
   const end =
     card.dueAt !== null && card.dueAt !== undefined
       ? startOfDay(card.dueAt) + DAY_MS
-      : start + DEFAULT_SPAN_DAYS * DAY_MS
+      : start + SPAN_DAYS * DAY_MS
   return { start, end: Math.max(end, start + DAY_MS) }
 }
 
@@ -153,8 +154,9 @@ function GanttView(props: GanttViewProps) {
                   key={card.id}
                   className={styles.ganttRow}
                   style={{ gridTemplateColumns: `160px ${totalWidth}px` }}>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     className={styles.ganttLabel}
                     onClick={function () {
                       props.onOpenCard(card.id)
@@ -166,10 +168,11 @@ function GanttView(props: GanttViewProps) {
                         ? ` · ${checklist.done}/${checklist.total}`
                         : ' · 0/0'}
                     </span>
-                  </button>
+                  </Button>
                   <div className={styles.ganttTrack}>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       className={styles.ganttBar}
                       style={{ left, width }}
                       title={
@@ -188,7 +191,7 @@ function GanttView(props: GanttViewProps) {
                           style={{ width: `${fillPct}%` }}
                         />
                       </span>
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )
@@ -205,14 +208,15 @@ function GanttView(props: GanttViewProps) {
               {unscheduled.map(function (card) {
                 return (
                   <li key={card.id}>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       className={styles.ganttSideItem}
                       onClick={function () {
                         props.onOpenCard(card.id)
                       }}>
                       {card.title}
-                    </button>
+                    </Button>
                   </li>
                 )
               })}

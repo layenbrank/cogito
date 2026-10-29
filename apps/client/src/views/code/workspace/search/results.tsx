@@ -2,6 +2,7 @@
  * 搜索结果列表：按文件分组，命中行高亮，点击跳转。
  */
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import type { ContentHit } from '@/lib/workspace-files'
 import { cn } from 'cn'
 import { useEffect, useMemo, useState } from 'react'
@@ -64,9 +65,10 @@ function FileGroupRow(props: {
 
   return (
     <li className="mb-0.5">
-      <button
+      <Button
+        variant="ghost"
         type="button"
-        className="hover:bg-muted/60 flex w-full items-center gap-1 rounded-sm px-1.5 py-1 text-left"
+        className="h-auto hover:bg-muted/60 flex w-full items-center gap-1 rounded-sm px-1.5 py-1 text-left"
         title={props.group.relative}
         onClick={function () {
           updateOpen(!isOpen)
@@ -82,16 +84,17 @@ function FileGroupRow(props: {
         <span className="text-muted-foreground ml-auto shrink-0 text-[11px]">
           {props.group.hits.length}
         </span>
-      </button>
+      </Button>
       {isOpen ? (
         <ul className="list-none">
           {props.group.hits.map(function (hit) {
             const parts = splitPreview(hit.preview, props.query)
             return (
               <li key={`${hit.line}:${hit.column}`}>
-                <button
+                <Button
+                  variant="ghost"
                   type="button"
-                  className="hover:bg-muted/60 flex w-full items-baseline gap-2 rounded-sm py-0.5 pr-1.5 pl-6 text-left"
+                  className="h-auto hover:bg-muted/60 flex w-full items-baseline gap-2 rounded-sm py-0.5 pr-1.5 pl-6 text-left"
                   title={`第 ${hit.line} 行`}
                   onClick={function () {
                     props.onOpen(hit)
@@ -108,7 +111,7 @@ function FileGroupRow(props: {
                     ) : null}
                     {parts.after}
                   </span>
-                </button>
+                </Button>
               </li>
             )
           })}

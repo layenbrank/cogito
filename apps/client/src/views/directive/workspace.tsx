@@ -6,7 +6,7 @@ import { useTerminalStore } from '@/stores/terminal.ts'
 import { Toolbar } from '@/views/directive/orchestrator/toolbar.tsx'
 import { capsFromTriggers } from '@/views/directive/run/run-caps.ts'
 import { useWorkspaceDirective } from '@/views/directive/use-workspace-directive.ts'
-import { useWorkspacePanels } from '@/views/directive/use-workspace-panels.ts'
+import { useWorkspaceSurfaces } from '@/views/directive/use-workspace-surfaces.ts'
 import { WorkspaceLeaveDialog } from '@/views/directive/workspace-leave-dialog.tsx'
 import { WorkspacePanes } from '@/views/directive/workspace-panes.tsx'
 
@@ -14,7 +14,7 @@ function DirectiveWorkspace() {
   const params = useParams()
   const name = decodeURIComponent(params.name ?? '')
   const navigate = useNavigate()
-  const panels = useWorkspacePanels()
+  const panels = useWorkspaceSurfaces()
 
   const terminalOpen = useTerminalStore(function (state) {
     return state.open
@@ -25,8 +25,8 @@ function DirectiveWorkspace() {
   const closePanel = useTerminalStore(function (state) {
     return state.closePanel
   })
-  const setActivity = useTerminalStore(function (state) {
-    return state.setActivity
+  const writeActivity = useTerminalStore(function (state) {
+    return state.writeActivity
   })
 
   const directives = useCorexStore(function (state) {
@@ -76,7 +76,7 @@ function DirectiveWorkspace() {
     isPending,
     isDirty,
     onOpenRunPanel() {
-      setActivity('run')
+      writeActivity('run')
     }
   })
 
@@ -128,7 +128,7 @@ function DirectiveWorkspace() {
           if (terminalOpen) closePanel()
           else {
             openPanel()
-            setActivity('run')
+            writeActivity('run')
           }
         }}
         onBack={function () {
@@ -159,7 +159,7 @@ function DirectiveWorkspace() {
           isEditorLoading={isEditorLoading}
           draft={workspace.draft}
           selectedToken={selectedToken}
-          onSelectToken={workspace.setSelectedToken}
+          onSelectToken={workspace.writeSelectedToken}
           onDraftChange={workspace.replaceDraft}
           onInsertAction={workspace.insertAction}
         />

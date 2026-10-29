@@ -12,7 +12,7 @@ import type {
 import type { Point, Rect } from '@/components/contextmenu/position'
 import { buildSurfaceKeyboardActions } from './keyboard'
 import { MenuItems } from './items'
-import { Panel } from './panel'
+import { MenuSurface } from './menu-surface'
 import { useSurfaceHandlers } from './use-handlers'
 import { useSurfaceOrigin } from './use-origin'
 import { useSurfaceSubmenu } from './use-submenu'
@@ -146,7 +146,7 @@ function Surface(props: SurfaceProps) {
 
   return (
     <>
-      <Panel
+      <MenuSurface
         ref={surfaceRef}
         level={props.level}
         classNames={props.classNames}
@@ -157,7 +157,7 @@ function Surface(props: SurfaceProps) {
         onMouseEnter={cancelPendingClose}
         onKeyDown={onKeyDown}>
         {surfaceContent}
-      </Panel>
+      </MenuSurface>
 
       <AnimatePresence>
         {showSubmenu && expanded && childAnchor ? (

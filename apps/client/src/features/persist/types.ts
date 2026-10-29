@@ -1,7 +1,7 @@
 import type { PersistNamespace } from '@/features/persist/files'
 
 type CodeSidebarView = 'explorer' | 'search' | 'scm'
-type CodePanelTab = 'terminal' | 'problems'
+type CodeSurfaceTab = 'terminal' | 'problems'
 type KnowledgeViewMode = 'live' | 'source' | 'split'
 type SignboardViewMode = 'board' | 'table' | 'gantt' | 'calendar' | 'stats' | 'workload'
 type BookmarkViewMode = 'list' | 'grid'
@@ -19,7 +19,7 @@ interface TileSessionPref {
   path: string
 }
 
-interface KnowledgeChrome {
+interface KnowledgeShell {
   isSidebarOpen: boolean
   isOutlineOpen: boolean
   viewMode: KnowledgeViewMode
@@ -34,14 +34,14 @@ interface KnowledgeChrome {
   workspaceRoot: string | null
 }
 
-interface CodeChrome {
+interface CodeShell {
   workspaceRoot: string | null
   tabPaths: string[]
   activePath: string | null
   isSidebarOpen: boolean
   sidebarView: CodeSidebarView
-  isPanelOpen: boolean
-  panelTab: CodePanelTab
+  isSurfaceOpen: boolean
+  surfaceTab: CodeSurfaceTab
   /** 编辑器字号（px） */
   editorFontSize: number
   /** 行高倍数，实际行高 = 字号 × 倍数 */
@@ -53,22 +53,22 @@ interface CodeChrome {
   isHiddenVisible: boolean
 }
 
-interface SignboardChrome {
+interface SignboardShell {
   activeBoardID: string | null
   viewModeByBoard: Record<string, SignboardViewMode>
 }
 
-interface BookmarkChrome {
+interface BookmarkShell {
   viewMode: BookmarkViewMode
   sortKey: BookmarkSortKey
 }
 
 interface TilesPref {
   sessions: TileSessionPref[]
-  knowledge: KnowledgeChrome
-  code: CodeChrome
-  signboard: SignboardChrome
-  bookmark: BookmarkChrome
+  knowledge: KnowledgeShell
+  code: CodeShell
+  signboard: SignboardShell
+  bookmark: BookmarkShell
 }
 
 interface ModelPref {
@@ -175,10 +175,10 @@ export type {
   PersistShape,
   PersistValue,
   TileSessionPref,
-  KnowledgeChrome,
-  CodeChrome,
-  SignboardChrome,
-  BookmarkChrome,
+  KnowledgeShell,
+  CodeShell,
+  SignboardShell,
+  BookmarkShell,
   TilesPref,
   AgentPref,
   AgentSplitterOpen,
@@ -191,7 +191,7 @@ export type {
   ClipchampPref,
   SettingsPref,
   CodeSidebarView,
-  CodePanelTab,
+  CodeSurfaceTab,
   KnowledgeViewMode,
   SignboardViewMode,
   BookmarkViewMode,

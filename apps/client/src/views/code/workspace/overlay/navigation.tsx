@@ -22,8 +22,8 @@ import { ContextMenu, type MenuItem } from '@/components/contextmenu'
 import { useCodeStore } from '@/stores/code'
 import { hint } from '@/views/code/lib/bindings.ts'
 import {
-  createCodeFile,
-  createCodeFolder,
+  insertCodeFile,
+  insertCodeFolder,
   findFileName,
   findParentDir,
   isSamePath,
@@ -52,7 +52,7 @@ interface ExplorerTreeProps {
 
 type CreateKind = 'file' | 'folder'
 
-interface CreateTarget {
+interface NewTarget {
   kind: CreateKind
   relativeDir: string
   name: string
@@ -214,7 +214,7 @@ function ExplorerTree(props: ExplorerTreeProps) {
 
   const [pendingDelete, setPendingDelete] = useState<DeleteTarget | null>(null)
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
-  const [createTarget, setCreateTarget] = useState<CreateTarget | null>(null)
+  const [newTarget, setNewTarget] = useState<NewTarget | null>(null)
 
   function onSelect(node: FileTreeNode) {
     void (async function () {
@@ -225,7 +225,7 @@ function ExplorerTree(props: ExplorerTreeProps) {
     })()
   }
 
-  async function onLoad(node: FileTreeNode) {
+  async function onFetch(node: FileTreeNode) {
     if (node.children) return
     const relativePath = node.key === ROOT_KEY ? '' : node.key
     try {
@@ -281,27 +281,27 @@ function ExplorerTree(props: ExplorerTreeProps) {
   )
 
   async function onConfirmCreate() {
-    if (!createTarget) return
-    const name = createTarget.name.trim()
+    if (!newTarget) return
+    const name = newTarget.name.trim()
     if (!name) return
     try {
-      if (createTarget.kind === 'folder') {
-        await createCodeFolder(props.workspaceRoot, createTarget.relativeDir, name)
+      if (newTarget.kind === 'folder') {
+        await insertCodeFolder(props.workspaceRoot, newTarget.relativeDir, name)
         toBumpTree()
       } else {
-        const absolute = await createCodeFile(
+        const absolute = await insertCodeFile(
           props.workspaceRoot,
-          createTarget.relativeDir,
+          newTarget.relativeDir,
           name
         )
         toBumpTree()
         await openAbsolutePath(absolute)
       }
-      setCreateTarget(null)
+      setNewTarget(null)
     } catch (error) {
       console.error(error)
       toast.error(
-        createTarget.kind === 'folder'
+        newTarget.kind === 'folder'
           ? error instanceof Error
             ? error.message
             : '创建文件夹失败'
@@ -379,7 +379,7 @@ function ExplorerTree(props: ExplorerTreeProps) {
             />
           ),
           onSelect() {
-            setCreateTarget({
+            setNewTarget({
               kind: 'file',
               relativeDir,
               name: 'untitled.txt'
@@ -396,7 +396,7 @@ function ExplorerTree(props: ExplorerTreeProps) {
             />
           ),
           onSelect() {
-            setCreateTarget({
+            setNewTarget({
               kind: 'folder',
               relativeDir,
               name: 'new-folder'
@@ -464,7 +464,7 @@ function ExplorerTree(props: ExplorerTreeProps) {
                 node={node}
                 activeKey={props.activeKey}
                 expandedKeys={expandedSet}
-                onLoad={onLoad}
+                onFetch={onFetch}
                 onSelect={onSelect}
                 onExpandChange={toToggleExpanded}
               />
@@ -501,16 +501,16 @@ function ExplorerTree(props: ExplorerTreeProps) {
       />
 
       <NameDialog
-        title={createTarget?.kind === 'folder' ? '新建文件夹' : '新建文件'}
-        name={createTarget?.name ?? null}
+        title={newTarget?.kind === 'folder' ? '新建文件夹' : '新建文件'}
+        name={newTarget?.name ?? null}
         onChange={function (name) {
-          setCreateTarget(function (prev) {
+          setNewTarget(function (prev) {
             if (!prev) return prev
             return { ...prev, name }
           })
         }}
         onCancel={function () {
-          setCreateTarget(null)
+          setNewTarget(null)
         }}
         onConfirm={function () {
           void onConfirmCreate()

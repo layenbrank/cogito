@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { cn } from 'cn'
 import { memo } from 'react'
 
@@ -86,7 +87,8 @@ function Card(props: Props) {
         />
       </div>
 
-      <button
+      <Button
+        variant="ghost"
         type="button"
         aria-current={props.isActive}
         aria-label={`打开 ${entry.name}`}

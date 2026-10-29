@@ -19,7 +19,7 @@ export const searchEmojiData = <T extends EmojiItem>(
   )
 }
 
-export const getFilteredEmojis = <T extends EmojiItem>(props: {
+export const findFilteredEmojis = <T extends EmojiItem>(props: {
   query: string
   emojis: T[]
 }) => {

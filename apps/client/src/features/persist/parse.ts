@@ -89,10 +89,28 @@ function parseTiles(raw: unknown): TilesPref {
     code.sidebarView === 'search' || code.sidebarView === 'scm' || code.sidebarView === 'explorer'
       ? code.sidebarView
       : base.code.sidebarView
-  const panelTab =
-    code.panelTab === 'problems' || code.panelTab === 'terminal'
-      ? code.panelTab
-      : base.code.panelTab
+  // 兼容旧键 panelTab / isPanelOpen（tiles.json 历史字段）；写出时不再保留旧键
+  const legacyPanelTab = code.panelTab
+  const legacyIsPanelOpen = code.isPanelOpen
+  const {
+    panelTab: _legacyPanelTab,
+    isPanelOpen: _legacyIsPanelOpen,
+    ...codeFields
+  } = code as typeof code & {
+    panelTab?: unknown
+    isPanelOpen?: unknown
+  }
+  const rawSurfaceTab = code.surfaceTab ?? legacyPanelTab
+  const surfaceTab =
+    rawSurfaceTab === 'problems' || rawSurfaceTab === 'terminal'
+      ? rawSurfaceTab
+      : base.code.surfaceTab
+  const isSurfaceOpen =
+    typeof code.isSurfaceOpen === 'boolean'
+      ? code.isSurfaceOpen
+      : typeof legacyIsPanelOpen === 'boolean'
+        ? legacyIsPanelOpen
+        : base.code.isSurfaceOpen
   const mdView =
     knowledge.viewMode === 'source' || knowledge.viewMode === 'split' || knowledge.viewMode === 'live'
       ? knowledge.viewMode
@@ -128,9 +146,10 @@ function parseTiles(raw: unknown): TilesPref {
     },
     code: {
       ...base.code,
-      ...code,
+      ...codeFields,
       sidebarView,
-      panelTab,
+      surfaceTab,
+      isSurfaceOpen,
       tabPaths: Array.isArray(code.tabPaths)
         ? code.tabPaths
             .filter(function (item) {

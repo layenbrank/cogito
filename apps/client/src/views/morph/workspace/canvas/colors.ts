@@ -5,7 +5,7 @@ const HIGHLIGHT = '#FFE066'
 
 const SELECTION_STROKE = PRIMARY
 
-const DEFAULT_COLORS: Record<Morph.Tool, string> = {
+const TOOL_COLORS: Record<Morph.Tool, string> = {
   select: '#000000',
   text: '#000000',
   highlight: HIGHLIGHT,
@@ -13,4 +13,4 @@ const DEFAULT_COLORS: Record<Morph.Tool, string> = {
   stamp: ERROR
 }
 
-export { DEFAULT_COLORS, SELECTION_STROKE }
+export { TOOL_COLORS, SELECTION_STROKE }

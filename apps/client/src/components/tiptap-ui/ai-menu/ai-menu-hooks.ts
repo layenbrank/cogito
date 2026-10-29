@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { type Editor } from '@tiptap/react'
 import type { Transaction } from '@tiptap/pm/state'
-import { getSelectedDOMElement } from '@/lib/tiptap-advanced-utils.ts'
+import { findSelectedDOMElement } from '@/lib/tiptap-advanced-utils.ts'
 import {
   findPrioritizedAIElement,
   cleanupFallbackAnchors
@@ -50,7 +50,7 @@ export function useAiMenuStateProvider() {
     setState((prev) => ({ ...prev, ...updates }))
   }, [])
 
-  const setFallbackAnchor = useCallback(
+  const writeFallbackAnchor = useCallback(
     (element: HTMLElement | null, rect?: DOMRect | null) => {
       const anchorRect = rect || element?.getBoundingClientRect() || null
       updateState({
@@ -69,10 +69,10 @@ export function useAiMenuStateProvider() {
     () => ({
       state,
       updateState,
-      setFallbackAnchor,
+      writeFallbackAnchor,
       reset
     }),
-    [state, updateState, setFallbackAnchor, reset]
+    [state, updateState, writeFallbackAnchor, reset]
   )
 
   return { value, AiMenuStateContext }
@@ -81,12 +81,12 @@ export function useAiMenuStateProvider() {
 export function useAiContentTracker({
   editor,
   aiGenerationActive,
-  setAnchorElement,
+  writeAnchorElement,
   fallbackAnchor
 }: {
   editor: Editor | null
   aiGenerationActive: boolean
-  setAnchorElement: (element: HTMLElement) => void
+  writeAnchorElement: (element: HTMLElement) => void
   fallbackAnchor: AiMenuPosition
 }) {
   const fallbackAnchorRef = useRef<HTMLElement | null>(null)
@@ -105,7 +105,7 @@ export function useAiContentTracker({
             fallbackAnchorRef.current.remove()
             fallbackAnchorRef.current = null
           }
-          setAnchorElement(aiMarkedElement)
+          writeAnchorElement(aiMarkedElement)
         }
       }
     }
@@ -119,7 +119,7 @@ export function useAiContentTracker({
         fallbackAnchorRef.current = null
       }
     }
-  }, [editor, aiGenerationActive, setAnchorElement, fallbackAnchor])
+  }, [editor, aiGenerationActive, writeAnchorElement, fallbackAnchor])
 }
 
 export function useTextSelectionTracker({
@@ -152,7 +152,7 @@ export function useTextSelectionTracker({
     }) => {
       if (transaction.selection?.empty) return
 
-      const selectedElement = getSelectedDOMElement(editor)
+      const selectedElement = findSelectedDOMElement(editor)
       const shouldShow = Boolean(selectedElement && aiGenerationActive)
 
       setMenuVisible(shouldShow)

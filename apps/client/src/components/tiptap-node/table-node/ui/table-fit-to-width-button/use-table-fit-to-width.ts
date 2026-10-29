@@ -10,7 +10,7 @@ import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 // --Lib ---
 import { isExtensionAvailable } from '@/lib/tiptap-utils.ts'
 import {
-  getTable,
+  findTable,
   RESIZE_MIN_WIDTH
 } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 
@@ -77,11 +77,11 @@ function canFitTableToWidth(editor: Editor | null): boolean {
  * @param editor - The ProseMirror editor instance, or null
  * @returns true if the table width was successfully set, false otherwise
  */
-function setTableAutoWidth(editor: Editor | null): boolean {
+function writeTableAutoWidth(editor: Editor | null): boolean {
   if (!canFitTableToWidth(editor) || !editor) return false
 
   try {
-    const table = getTable(editor)
+    const table = findTable(editor)
     if (!table) return false
 
     // Calculate the editor width available for the table
@@ -142,7 +142,7 @@ function tableFitToWidth({ editor }: { editor: Editor | null }) {
   }
 
   try {
-    return setTableAutoWidth(editor)
+    return writeTableAutoWidth(editor)
   } catch (error) {
     console.error('Error adjusting table width:', error)
     return false

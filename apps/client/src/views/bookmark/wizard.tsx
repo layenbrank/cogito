@@ -111,7 +111,7 @@ function BookmarkImportWizard(props: WizardProps) {
     [preview, selectedFolders]
   )
 
-  function applyPreview(next: ImportPreview) {
+  function writePreview(next: ImportPreview) {
     setPreview(next)
     setSelectedFolders(findDefaultSelectedFolders(next.roots))
   }
@@ -121,7 +121,7 @@ function BookmarkImportWizard(props: WizardProps) {
       setBusy(true)
       const next = await previewFromHtmlFile()
       if (!next) return
-      applyPreview(next)
+      writePreview(next)
       toast.success(`已解析 ${next.leaves.length} 条链接`)
     } catch (error) {
       console.error(error)
@@ -132,7 +132,7 @@ function BookmarkImportWizard(props: WizardProps) {
   }
 
   function onPickProfile(profile: ChromeProfileBookmarks) {
-    applyPreview({
+    writePreview({
       roots: profile.roots,
       leaves: flattenBookmarkLeaves(profile.roots),
       sourceLabel: profile.label
@@ -174,7 +174,7 @@ function BookmarkImportWizard(props: WizardProps) {
 
   return (
     <div className={styles.body}>
-      <section className={`${styles.chrome} ${styles.sheetChrome}`}>
+      <section className={`${styles.shell} ${styles.sheetShell}`}>
         <p className={styles.sheetTitle}>导入书签</p>
         <div className={styles.toolbarGrow}>
           <div className={styles.fieldInline}>
@@ -248,9 +248,10 @@ function BookmarkImportWizard(props: WizardProps) {
           ) : null}
           {profiles.map(function (profile) {
             return (
-              <button
+              <Button
                 key={profile.path}
                 type="button"
+                variant="ghost"
                 className={styles.profileChip}
                 disabled={isBusy}
                 title={profile.path}
@@ -258,7 +259,7 @@ function BookmarkImportWizard(props: WizardProps) {
                   onPickProfile(profile)
                 }}>
                 {profile.label}
-              </button>
+              </Button>
             )
           })}
         </div>

@@ -1,3 +1,4 @@
+import { Button } from '@cogito/design/components/button'
 import { clsx } from 'clsx'
 
 import type { ClockStyle } from '@/stores/clock'
@@ -21,9 +22,10 @@ function ClockStylePicker(props: ClockStylePickerProps) {
         {STYLES.map(function (item) {
           const isActive = props.clockStyle === item.value
           return (
-            <button
+            <Button
               key={item.value}
               type="button"
+              variant="ghost"
               role="radio"
               aria-checked={isActive}
               className={clsx(styles.styleRow, isActive && styles.styleRowActive)}
@@ -42,7 +44,7 @@ function ClockStylePicker(props: ClockStylePickerProps) {
                 )}
               </span>
               <span className={clsx(styles.accent, isActive ? 'bg-primary' : 'bg-primary/35')} />
-            </button>
+            </Button>
           )
         })}
       </div>

@@ -10,7 +10,7 @@ import type { DirectiveContent } from '@/shared/ipc/specs/sidecar'
 /** 新指令的默认名，被占了就往后编号 */
 const NEW_DIRECTIVE_NAME = 'untitled'
 
-function createDirective(name: string): DirectiveContent {
+function makeDirective(name: string): DirectiveContent {
   return { name, description: '', version: '1.0', inputs: [], steps: [] }
 }
 
@@ -24,4 +24,4 @@ function findFreeName(taken: readonly string[]): string {
   return `${NEW_DIRECTIVE_NAME}-${seq}`
 }
 
-export { NEW_DIRECTIVE_NAME, createDirective, findFreeName }
+export { NEW_DIRECTIVE_NAME, makeDirective, findFreeName }

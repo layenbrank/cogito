@@ -1,6 +1,6 @@
 const ABORT_TIMEOUT_MS = 1000
-const DEFAULT_SKELETON_MIN_MS = 200
-const DEFAULT_SKELETON_FADE_MS = 200
+const SKELETON_MIN_MS = 200
+const SKELETON_FADE_MS = 200
 
 /** 与 MagneticTile.Component 同步；IPC 字符串校验用 */
 const MAGNETIC_TILE_COMPONENTS = [
@@ -31,8 +31,8 @@ function isMagneticTileComponent(value: string): value is MagneticTile.Component
 
 export {
   ABORT_TIMEOUT_MS,
-  DEFAULT_SKELETON_FADE_MS,
-  DEFAULT_SKELETON_MIN_MS,
+  SKELETON_FADE_MS,
+  SKELETON_MIN_MS,
   MAGNETIC_TILE_COMPONENTS,
   isMagneticTileComponent
 }

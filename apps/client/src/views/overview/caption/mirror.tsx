@@ -68,13 +68,14 @@ function MirrorItemMain(props: MirrorItemMainProps) {
 
   if (!props.description) {
     return (
-      <button
+      <Button
         type="button"
+        variant="ghost"
         data-region="false"
         className={styles.mirrorItemMain}
         onClick={props.onSelect}>
         {body}
-      </button>
+      </Button>
     )
   }
 
@@ -82,8 +83,9 @@ function MirrorItemMain(props: MirrorItemMainProps) {
     <Tooltip>
       <TooltipTrigger
         render={
-          <button
+          <Button
             type="button"
+            variant="ghost"
             data-region="false"
             className={styles.mirrorItemMain}
             onClick={props.onSelect}
@@ -340,8 +342,10 @@ function MirrorSwitcher(props: MirrorSwitcherProps) {
           </TooltipProvider>
 
           <div className={styles.mirrorActions}>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               data-region="false"
               className={styles.mirrorCreate}
               onClick={function () {
@@ -352,10 +356,12 @@ function MirrorSwitcher(props: MirrorSwitcherProps) {
                 aria-hidden
               />
               新建镜像
-            </button>
+            </Button>
 
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               data-region="false"
               className={styles.mirrorManageEntry}
               onClick={function () {
@@ -367,7 +373,7 @@ function MirrorSwitcher(props: MirrorSwitcherProps) {
                 aria-hidden
               />
               管理镜像
-            </button>
+            </Button>
           </div>
         </PopoverContent>
       </Popover>

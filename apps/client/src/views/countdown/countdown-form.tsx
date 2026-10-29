@@ -1,3 +1,4 @@
+import { Button } from '@cogito/design/components/button'
 import { Input } from '@cogito/design/components/input'
 import { cn } from 'cn'
 
@@ -84,16 +85,18 @@ function CountdownForm(props: CountdownFormProps) {
               {WEEKDAY_OPTIONS.map(function (opt) {
                 const isOn = localWorkDays.includes(opt.value)
                 return (
-                  <button
+                  <Button
                     key={opt.value}
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     className="mt-day-chip"
                     aria-pressed={isOn}
                     onClick={function () {
                       props.onToggleWorkDay(opt.value)
                     }}>
                     {opt.label}
-                  </button>
+                  </Button>
                 )
               })}
             </div>

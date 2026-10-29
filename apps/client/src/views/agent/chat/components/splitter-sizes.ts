@@ -24,7 +24,7 @@ const PLAN_MAX = 480
 type SplitterLayout = Record<string, number>
 type SplitterOpen = AgentSplitterOpen
 
-const PANEL_IDS = [SESSION_ID, MAIN_ID, PLAN_ID]
+const PANE_IDS = [SESSION_ID, MAIN_ID, PLAN_ID]
 
 const OPEN_STATE: SplitterOpen = {
   isSidebarOpen: true,
@@ -38,7 +38,7 @@ function parseSplitterLayout(raw: unknown): SplitterLayout | undefined {
   const layout: SplitterLayout = {}
   let total = 0
 
-  for (const id of PANEL_IDS) {
+  for (const id of PANE_IDS) {
     const value = record[id]
     if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return undefined
     layout[id] = value

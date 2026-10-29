@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { clsx } from 'clsx'
 import type Konva from 'konva'
 import { useEffect, useRef, useState } from 'react'
@@ -7,7 +8,7 @@ import useImage from 'use-image'
 
 import { useMorphStore } from '@/stores/morph.ts'
 import styles from './canvas.module.scss'
-import { DEFAULT_COLORS, SELECTION_STROKE } from './colors.ts'
+import { TOOL_COLORS, SELECTION_STROKE } from './colors.ts'
 
 const ZOOM_MIN = 0.25
 const ZOOM_MAX = 5
@@ -211,7 +212,7 @@ interface DraftRect {
 
 function DraftLayer({ draft, tool }: { draft: DraftRect | null; tool: Morph.Tool }) {
   if (!draft) return null
-  const color = DEFAULT_COLORS[tool]
+  const color = TOOL_COLORS[tool]
 
   if (tool === 'highlight') {
     return (
@@ -318,7 +319,7 @@ function PageStage({
         offset,
         type: 'stamp',
         rect: { x: nx, y: ny, w: stampW, h: stampH },
-        data: { label: '已核验', color: DEFAULT_COLORS.stamp }
+        data: { label: '已核验', color: TOOL_COLORS.stamp }
       })
       return
     }
@@ -330,7 +331,7 @@ function PageStage({
         offset,
         type: 'highlight',
         rect: { x: nx, y: ny, w: nw, h: nh },
-        data: { color: DEFAULT_COLORS.highlight, opacity: 0.4 }
+        data: { color: TOOL_COLORS.highlight, opacity: 0.4 }
       })
     } else if (activeTool === 'shape') {
       await onAddAnnotation({
@@ -339,7 +340,7 @@ function PageStage({
         rect: { x: nx, y: ny, w: nw, h: nh },
         data: {
           kind: 'rect',
-          stroke: DEFAULT_COLORS.shape,
+          stroke: TOOL_COLORS.shape,
           fill: 'none',
           strokeWidth: 2,
           opacity: 1
@@ -644,7 +645,8 @@ export default function Canvas() {
     return (
       <div className={clsx(styles.canvas)}>
         <div className={styles.empty}>
-          <button
+          <Button
+            variant="ghost"
             type="button"
             className={styles.emptyCta}
             onClick={toOpenFilePicker}>
@@ -654,7 +656,7 @@ export default function Canvas() {
               height={14}
             />
             打开 PDF
-          </button>
+          </Button>
           <p className={styles.emptyHint}>选择本地 PDF 开始浏览或批注</p>
         </div>
       </div>

@@ -37,7 +37,7 @@ import {
   type OverlaySize
 } from '@/views/signboard/drag-preview'
 import {
-  createKanbanCollision,
+  buildKanbanCollision,
   moveEntryDraft,
   parseColumnDropID,
   resolveCardDrop,
@@ -138,7 +138,7 @@ function KanbanView(props: KanbanViewProps) {
 
   const collisionDetection = useMemo(
     function () {
-      return createKanbanCollision(dragKind)
+      return buildKanbanCollision(dragKind)
     },
     [dragKind]
   )
@@ -168,7 +168,7 @@ function KanbanView(props: KanbanViewProps) {
   useEffect(
     function () {
       let cancelled = false
-      async function loadCovers() {
+      async function fetchCovers() {
         const pairs: { entryID: string; assetID: string }[] = []
         for (const card of props.entries) {
           const assetID = coverAssetID(card.id)
@@ -197,11 +197,11 @@ function KanbanView(props: KanbanViewProps) {
           }
           setCoverSrcByCard(next)
         } catch (error) {
-          console.warn('loadCovers failed', error)
+          console.warn('fetchCovers failed', error)
           if (!cancelled) setCoverSrcByCard(new Map())
         }
       }
-      void loadCovers()
+      void fetchCovers()
       return function () {
         cancelled = true
       }

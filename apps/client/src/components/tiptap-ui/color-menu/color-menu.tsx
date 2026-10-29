@@ -27,7 +27,7 @@ import {
 } from '@/components/tiptap-ui/color-highlight-button/use-color-highlight.ts'
 import type { RecentColor } from '@/components/tiptap-ui/color-text-popover/use-color-text-popover.ts'
 import {
-  getColorByValue,
+  findColorByValue,
   useRecentColors
 } from '@/components/tiptap-ui/color-text-popover/use-color-text-popover.ts'
 
@@ -105,7 +105,7 @@ const RecentColorMenuItem: React.FC<{
   colorObj: RecentColor
 }> = ({ colorObj }) => {
   const colorSet = colorObj.type === 'text' ? TEXT_COLORS : HIGHLIGHT_COLORS
-  const color = getColorByValue(colorObj.value, colorSet)
+  const color = findColorByValue(colorObj.value, colorSet)
 
   const ColorComponent =
     colorObj.type === 'text' ? TextColorMenuItem : HighlightColorMenuItem

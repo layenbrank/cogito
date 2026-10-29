@@ -241,7 +241,7 @@ function CardSheet(props: CardSheetProps) {
   useEffect(
     function () {
       let cancelled = false
-      async function loadPreviews() {
+      async function fetchPreviews() {
         if (!props.card || linkKey.length === 0) {
           setPreviews([])
           return
@@ -277,11 +277,11 @@ function CardSheet(props: CardSheetProps) {
               })
           )
         } catch (error) {
-          console.warn('loadPreviews failed', error)
+          console.warn('fetchPreviews failed', error)
           if (!cancelled) setPreviews([])
         }
       }
-      void loadPreviews()
+      void fetchPreviews()
       return function () {
         cancelled = true
       }
@@ -390,7 +390,7 @@ function CardSheet(props: CardSheetProps) {
     if (!ok) toast.error(isOn ? '移除标签失败' : '添加标签失败')
   }
 
-  async function createTag() {
+  async function insertTag() {
     const titleValue = tagDraft.trim()
     if (!titleValue || !activeBoardID) return
     const existing = tags.find(function (tag) {
@@ -689,8 +689,9 @@ function CardSheet(props: CardSheetProps) {
                         }}
                       />
                     ) : (
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         className={
                           item.done
                             ? `${styles.checklistTitle} ${styles.checklistDone}`
@@ -701,7 +702,7 @@ function CardSheet(props: CardSheetProps) {
                           setEditingCheckTitle(item.title)
                         }}>
                         {item.title}
-                      </button>
+                      </Button>
                     )}
                     <Button
                       type="button"
@@ -782,8 +783,9 @@ function CardSheet(props: CardSheetProps) {
               </Button>
             </div>
             {previews.length === 0 ? (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 className={
                   isAttachDragOver
                     ? `${styles.attachEmpty} ${styles.attachEmptyActive}`
@@ -802,7 +804,7 @@ function CardSheet(props: CardSheetProps) {
                     ? '松开以添加图片'
                     : '点选本机图片，或拖入 / 粘贴截图'}
                 </span>
-              </button>
+              </Button>
             ) : (
               <ul
                 className={
@@ -819,8 +821,9 @@ function CardSheet(props: CardSheetProps) {
                           ? `${styles.attachItem} ${styles.attachItemCover}`
                           : styles.attachItem
                       }>
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         className={styles.attachThumbBtn}
                         aria-label={`预览 ${item.fileName}`}
                         onClick={function () {
@@ -840,17 +843,18 @@ function CardSheet(props: CardSheetProps) {
                             className="size-3.5"
                           />
                         </span>
-                      </button>
+                      </Button>
                       <div className={styles.attachMeta}>
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
                           className={styles.attachName}
                           title={item.fileName}
                           onClick={function () {
                             openLightbox(item.assetID)
                           }}>
                           {item.fileName}
-                        </button>
+                        </Button>
                         <div className={styles.attachMetaRow}>
                           {item.isCover ? (
                             <span className={styles.coverBadge}>
@@ -862,8 +866,9 @@ function CardSheet(props: CardSheetProps) {
                               封面
                             </span>
                           ) : (
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost"
                               className={styles.attachCoverLink}
                               onClick={function () {
                                 void toPromoteCover(entryID, item.assetID).then(
@@ -873,7 +878,7 @@ function CardSheet(props: CardSheetProps) {
                                 )
                               }}>
                               设为封面
-                            </button>
+                            </Button>
                           )}
                         </div>
                       </div>
@@ -1024,8 +1029,9 @@ function CardSheet(props: CardSheetProps) {
                         <div
                           key={tag.id}
                           className={styles.tagChipWrap}>
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
                             className={
                               active
                                 ? `${styles.tagChip} ${styles.tagChipActive}`
@@ -1055,7 +1061,7 @@ function CardSheet(props: CardSheetProps) {
                               aria-hidden
                             />
                             {tag.title}
-                          </button>
+                          </Button>
                           <div
                             className={styles.tagColorRow}
                             role="group"
@@ -1063,9 +1069,10 @@ function CardSheet(props: CardSheetProps) {
                             {TAG_COLORS.map(function (color) {
                               const isCurrent = tag.color === color
                               return (
-                                <button
+                                <Button
                                   key={color}
                                   type="button"
+                                  variant="ghost"
                                   className={
                                     isCurrent
                                       ? `${styles.tagColorDot} ${styles.tagColorDotActive}`
@@ -1105,7 +1112,7 @@ function CardSheet(props: CardSheetProps) {
                       onKeyDown={function (event) {
                         if (event.key === 'Enter') {
                           event.preventDefault()
-                          void createTag()
+                          void insertTag()
                         }
                       }}
                     />
@@ -1114,7 +1121,7 @@ function CardSheet(props: CardSheetProps) {
                       variant="outline"
                       size="lg"
                       onClick={function () {
-                        void createTag()
+                        void insertTag()
                       }}>
                       添加
                     </Button>

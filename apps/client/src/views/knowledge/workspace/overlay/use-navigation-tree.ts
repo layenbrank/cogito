@@ -100,7 +100,7 @@ export function useNavigationTree(input: {
     [treeNodes]
   )
 
-  const loadGenRef = useRef(0)
+  const fetchGenRef = useRef(0)
   const cancelChunkRef = useRef<(() => void) | null>(null)
   const absolutePathCacheRef = useRef(new Map<string, string>())
 
@@ -127,7 +127,7 @@ export function useNavigationTree(input: {
     cancelChunkRef.current = null
   }
 
-  const loadChildren = useCallback(async function (
+  const fetchChildren = useCallback(async function (
     node: FileTreeNode,
     options: { force?: boolean; append?: boolean } = {}
   ) {
@@ -136,7 +136,7 @@ export function useNavigationTree(input: {
     if (current.isLoading && !options.force) return
     if (current.isLoaded && !options.force && !options.append) return
 
-    const gen = ++loadGenRef.current
+    const gen = ++fetchGenRef.current
     cancelPendingChunk()
 
     setTreeNodes(function (origin) {
@@ -156,7 +156,7 @@ export function useNavigationTree(input: {
         })
         return
       }
-      if (gen !== loadGenRef.current) return
+      if (gen !== fetchGenRef.current) return
 
       const relative = node.key === ROOT_KEY ? '' : node.key
       const offset = options.append
@@ -171,7 +171,7 @@ export function useNavigationTree(input: {
         offset,
         limit: TREE_PAGE_SIZE
       })
-      if (gen !== loadGenRef.current) return
+      if (gen !== fetchGenRef.current) return
 
       const nextOffset = offset + result.entries.length
       const mapped = mapEntriesToNodes(result.entries, node.key, result.hasMore, nextOffset)
@@ -197,7 +197,7 @@ export function useNavigationTree(input: {
       let painted = 0
 
       cancelChunkRef.current = scheduleChunkedChildren(function (chunk, isFirst, isDone) {
-        if (gen !== loadGenRef.current) return
+        if (gen !== fetchGenRef.current) return
         painted += chunk.length
         const finalExtra = isDone && sentinel ? [...chunk, sentinel] : chunk
         setTreeNodes(function (origin) {
@@ -214,7 +214,7 @@ export function useNavigationTree(input: {
         })
       }, contentNodes)
     } catch (error) {
-      if (gen !== loadGenRef.current) return
+      if (gen !== fetchGenRef.current) return
       console.error('[markdown] tree load failed', error)
       setTreeNodes(function (origin) {
         return patchFileTreeNode(origin, node.key, {
@@ -243,9 +243,9 @@ export function useNavigationTree(input: {
       clearDirListCache()
       absolutePathCacheRef.current.clear()
       cancelPendingChunk()
-      loadGenRef.current += 1
+      fetchGenRef.current += 1
 
-      // 不预置 isLoading：由 loadChildren 置位。预置 true 会与「isLoading 则 return」互锁，骨架永不结束
+      // 不预置 isLoading：由 fetchChildren 置位。预置 true 会与「isLoading 则 return」互锁，骨架永不结束
       setTreeNodes([
         {
           title: rootTitle,
@@ -266,7 +266,7 @@ export function useNavigationTree(input: {
         cancelPendingChunk()
       }
 
-      void loadChildren(
+      void fetchChildren(
         { title: rootTitle, key: ROOT_KEY, isDirectory: true },
         { force: true }
       )
@@ -275,7 +275,7 @@ export function useNavigationTree(input: {
         cancelPendingChunk()
       }
     },
-    [rootDir, treeRevision, rootTitle, loadChildren]
+    [rootDir, treeRevision, rootTitle, fetchChildren]
   )
 
   // 恢复上次文件后：展开祖先目录并按需灌入，避免只看见根文件夹
@@ -311,9 +311,9 @@ export function useNavigationTree(input: {
       })
       if (!pending) return
       const node = findFileTreeNode(treeNodes, pending)
-      if (node) void loadChildren(node)
+      if (node) void fetchChildren(node)
     },
-    [activeKey, loadChildren, treeNodes]
+    [activeKey, fetchChildren, treeNodes]
   )
 
   const onExpandChange = useCallback(function (key: string, open: boolean) {
@@ -340,7 +340,7 @@ export function useNavigationTree(input: {
       if (node.isLoadMore) {
         const parentKey = node.key.replace(/::__load_more$/, '')
         const parent = findFileTreeNode(treeNodesRef.current, parentKey)
-        if (parent) void loadChildren(parent, { append: true })
+        if (parent) void fetchChildren(parent, { append: true })
         return
       }
 
@@ -359,7 +359,7 @@ export function useNavigationTree(input: {
         onOpenPathRef.current(absolute)
       })()
     },
-    [loadChildren, rootDir]
+    [fetchChildren, rootDir]
   )
 
   function clearAbsolutePathCache() {
@@ -370,7 +370,7 @@ export function useNavigationTree(input: {
     nodes: visibleNodes,
     activeKey,
     expandedKeys,
-    loadChildren,
+    fetchChildren,
     onSelect,
     onExpandChange,
     clearAbsolutePathCache

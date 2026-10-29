@@ -143,7 +143,7 @@ async function searchWorkspaceFiles(params: {
   return hits
 }
 
-async function createCodeFile(root: string, relativeDir: string, name: string): Promise<string> {
+async function insertCodeFile(root: string, relativeDir: string, name: string): Promise<string> {
   const fileName = name.trim().replace(/[/\\]/g, '')
   if (!fileName) throw new Error('Empty file name')
   const relative = relativeDir ? `${relativeDir}/${fileName}` : fileName
@@ -164,7 +164,7 @@ async function createCodeFile(root: string, relativeDir: string, name: string): 
   return absolute
 }
 
-async function createCodeFolder(root: string, relativeDir: string, name: string): Promise<string> {
+async function insertCodeFolder(root: string, relativeDir: string, name: string): Promise<string> {
   const folderName = name.trim().replace(/[/\\]/g, '')
   if (!folderName) throw new Error('Empty folder name')
   const relative = relativeDir ? `${relativeDir}/${folderName}` : folderName
@@ -202,8 +202,8 @@ export {
   pickOpenFile,
   listWorkspaceEntries,
   searchWorkspaceFiles,
-  createCodeFile,
-  createCodeFolder,
+  insertCodeFile,
+  insertCodeFolder,
   renameCodePath,
   removeCodePath,
   findFileName,

@@ -11,7 +11,7 @@ import { useUiEditorState } from '@/hooks/use-ui-editor-state.ts'
 
 // -- Utils --
 import {
-  getSelectedDOMElement,
+  findSelectedDOMElement,
   selectionHasText
 } from '@/lib/tiptap-advanced-utils.ts'
 
@@ -35,7 +35,7 @@ import {
 } from '@/components/tiptap-ui-primitive/combobox/combobox.tsx'
 import { Card } from '@/components/tiptap-ui-primitive/card/card.tsx'
 
-import { getContextAndInsertAt } from '@/components/tiptap-ui/ai-menu/ai-menu-utils.ts'
+import { findContextAndInsertAt } from '@/components/tiptap-ui/ai-menu/ai-menu-utils.ts'
 import {
   useAiContentTracker,
   useAiMenuState,
@@ -68,7 +68,7 @@ export function AiMenuContent({
   editor?: Editor | null
 }) {
   const { editor } = useTiptapEditor(providedEditor)
-  const { state, updateState, setFallbackAnchor, reset } = useAiMenuState()
+  const { state, updateState, writeFallbackAnchor, reset } = useAiMenuState()
   const { show, store } = useFloatingMenuStore()
   const { aiGenerationIsLoading, aiGenerationActive, aiGenerationHasMessage } =
     useUiEditorState(editor)
@@ -85,7 +85,7 @@ export function AiMenuContent({
     (userPrompt: string) => {
       if (!editor || !userPrompt.trim()) return
 
-      const { context } = getContextAndInsertAt(editor)
+      const { context } = findContextAndInsertAt(editor)
       // if context, add it to the user prompt
       const promptWithContext = context
         ? `${context}\n\n${userPrompt}`
@@ -93,10 +93,10 @@ export function AiMenuContent({
 
       // Ensure fallback anchor is set before submitting
       if (!state.fallbackAnchor.element || !state.fallbackAnchor.rect) {
-        const currentSelectedElement = getSelectedDOMElement(editor)
+        const currentSelectedElement = findSelectedDOMElement(editor)
         if (currentSelectedElement) {
           const rect = currentSelectedElement.getBoundingClientRect()
-          setFallbackAnchor(currentSelectedElement, rect)
+          writeFallbackAnchor(currentSelectedElement, rect)
         }
       }
 
@@ -111,10 +111,10 @@ export function AiMenuContent({
         })
         .run()
     },
-    [editor, state.tone, state.fallbackAnchor, setFallbackAnchor]
+    [editor, state.tone, state.fallbackAnchor, writeFallbackAnchor]
   )
 
-  const setAnchorElement = useCallback(
+  const writeAnchorElement = useCallback(
     (element: HTMLElement) => {
       store.setAnchorElement(element)
     },
@@ -123,9 +123,9 @@ export function AiMenuContent({
 
   const handleSelectionChange = useCallback(
     (element: HTMLElement | null, rect: DOMRect | null) => {
-      setFallbackAnchor(element, rect)
+      writeFallbackAnchor(element, rect)
     },
-    [setFallbackAnchor]
+    [writeFallbackAnchor]
   )
 
   const handleOnReject = useCallback(() => {
@@ -162,7 +162,7 @@ export function AiMenuContent({
   useAiContentTracker({
     editor,
     aiGenerationActive,
-    setAnchorElement,
+    writeAnchorElement,
     fallbackAnchor: state.fallbackAnchor
   })
 

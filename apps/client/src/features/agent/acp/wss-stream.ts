@@ -142,7 +142,7 @@ class GoosePinnedWebSocket {
   }
 }
 
-function createPinnedWebSocketCtor(fingerprint: string): WebSocketConstructor {
+function makePinnedWebSocketCtor(fingerprint: string): WebSocketConstructor {
   return class PinnedWebSocket extends GoosePinnedWebSocket {
     constructor(url: string) {
       super(url, fingerprint)
@@ -150,4 +150,4 @@ function createPinnedWebSocketCtor(fingerprint: string): WebSocketConstructor {
   }
 }
 
-export { createPinnedWebSocketCtor }
+export { makePinnedWebSocketCtor }

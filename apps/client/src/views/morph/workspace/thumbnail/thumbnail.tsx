@@ -1,3 +1,4 @@
+import { Button } from '@cogito/design/components/button'
 import { clsx } from 'clsx'
 
 import styles from './thumbnail.module.scss'
@@ -15,7 +16,8 @@ export default function Thumbnail(props: ThumbnailProps) {
   const { image, offset, isActive, annotationCount, offsetLabel, onClick } = props
 
   return (
-    <button
+    <Button
+      variant="ghost"
       type="button"
       className={clsx(styles.thumbnail, isActive && styles.active)}
       onClick={onClick}>
@@ -36,6 +38,6 @@ export default function Thumbnail(props: ThumbnailProps) {
         <span className={styles.pageNum}>{offset + 1}</span>
         {offsetLabel ? <span className={styles.pageLabel}>{offsetLabel}</span> : null}
       </div>
-    </button>
+    </Button>
   )
 }

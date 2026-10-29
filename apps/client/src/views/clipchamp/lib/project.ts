@@ -263,7 +263,7 @@ const TRACK_KIND_LABEL: Record<TrackKind, string> = {
 
 const TRACK_KIND_ORDER: TrackKind[] = ['text', 'caption', 'overlay', 'video', 'audio']
 
-function createId(prefix = 'id'): string {
+function makeId(prefix = 'id'): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`
 }
 
@@ -294,9 +294,9 @@ function hasTrackOverlap(track: Track, startMs: number, durationMs: number, spee
   })
 }
 
-function createTrack(kind: TrackKind, name?: string): Track {
+function makeTrack(kind: TrackKind, name?: string): Track {
   return {
-    id: createId('track'),
+    id: makeId('track'),
     kind,
     name: name ?? TRACK_KIND_LABEL[kind],
     clips: [],
@@ -348,7 +348,7 @@ function placeClipOnLane(
       return { project, trackId: track.id }
     }
   }
-  const track = createTrack(kind)
+  const track = makeTrack(kind)
   return {
     project: insertTrackInKindGroup(project, track),
     trackId: track.id
@@ -376,7 +376,7 @@ function pruneEmptyLanes(project: Project): Project {
   // 确保五类轨都在
   for (const kind of TRACK_KIND_ORDER) {
     if (seenKind.has(kind)) continue
-    kept.push(createTrack(kind))
+    kept.push(makeTrack(kind))
     seenKind.add(kind)
   }
   // 按 kind 顺序重排，同类保持相对顺序
@@ -388,9 +388,9 @@ function pruneEmptyLanes(project: Project): Project {
   return { ...project, tracks: kept }
 }
 
-function createClipDefaults(partial: Partial<Clip> & Pick<Clip, 'kind' | 'trackId'>): Clip {
+function buildClipDefaults(partial: Partial<Clip> & Pick<Clip, 'kind' | 'trackId'>): Clip {
   return {
-    id: createId('clip'),
+    id: makeId('clip'),
     startMs: 0,
     durationMs: 3000,
     sourceInMs: 0,
@@ -413,9 +413,9 @@ function createClipDefaults(partial: Partial<Clip> & Pick<Clip, 'kind' | 'trackI
   }
 }
 
-function createEmptyProject(name = '未命名项目'): Project {
+function makeEmptyProject(name = '未命名项目'): Project {
   const textTrack: Track = {
-    id: createId('track'),
+    id: makeId('track'),
     kind: 'text',
     name: '文字',
     clips: [],
@@ -423,7 +423,7 @@ function createEmptyProject(name = '未命名项目'): Project {
     isLocked: false
   }
   const captionTrack: Track = {
-    id: createId('track'),
+    id: makeId('track'),
     kind: 'caption',
     name: '字幕',
     clips: [],
@@ -431,7 +431,7 @@ function createEmptyProject(name = '未命名项目'): Project {
     isLocked: false
   }
   const overlayTrack: Track = {
-    id: createId('track'),
+    id: makeId('track'),
     kind: 'overlay',
     name: '叠加',
     clips: [],
@@ -439,7 +439,7 @@ function createEmptyProject(name = '未命名项目'): Project {
     isLocked: false
   }
   const videoTrack: Track = {
-    id: createId('track'),
+    id: makeId('track'),
     kind: 'video',
     name: '视频',
     clips: [],
@@ -447,7 +447,7 @@ function createEmptyProject(name = '未命名项目'): Project {
     isLocked: false
   }
   const audioTrack: Track = {
-    id: createId('track'),
+    id: makeId('track'),
     kind: 'audio',
     name: '音频',
     clips: [],
@@ -455,7 +455,7 @@ function createEmptyProject(name = '未命名项目'): Project {
     isLocked: false
   }
   return {
-    id: createId('project'),
+    id: makeId('project'),
     name,
     aspect: '16:9',
     durationMs: 0,
@@ -535,7 +535,7 @@ function splitClipAt(project: Project, clipId: string, atMs: number): Project | 
   const left: Clip = { ...clip, durationMs: leftDuration }
   const right: Clip = {
     ...structuredClone(clip),
-    id: createId('clip'),
+    id: makeId('clip'),
     startMs: atMs,
     sourceInMs: clip.sourceInMs + sourceOffset,
     durationMs: rightDuration
@@ -564,7 +564,7 @@ function detachAudio(project: Project, clipId: string, assets: MediaAsset[]): Pr
   if (!asset?.hasAudio) return null
 
   const placed = placeClipOnLane(project, 'audio', clip.startMs, clip.durationMs, clip.speed)
-  const audioClip = createClipDefaults({
+  const audioClip = buildClipDefaults({
     kind: 'audio',
     trackId: placed.trackId,
     assetId: clip.assetId,
@@ -700,10 +700,10 @@ export {
   MAX_UNDO,
   TRACK_KIND_LABEL,
   TRACK_KIND_ORDER,
-  createId,
-  createClipDefaults,
-  createEmptyProject,
-  createTrack,
+  makeId,
+  buildClipDefaults,
+  makeEmptyProject,
+  makeTrack,
   findTrack,
   findTrackByKind,
   findTracksByKind,

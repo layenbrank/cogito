@@ -381,7 +381,7 @@ async function fetchSessionTools(
 }
 
 /** 设置一个或多个工具的用户权限（全局，落 permission.yaml） */
-async function setToolPermissions(
+async function writeToolPermissions(
   connection: ClientConnection,
   toolPermissions: Array<{ toolName: string; permission: ToolPermissionLevel }>
 ): Promise<void> {
@@ -417,5 +417,5 @@ export {
   saveAutoCompactThreshold,
   saveDefaults,
   saveProviderConfig,
-  setToolPermissions
+  writeToolPermissions
 }

@@ -174,7 +174,7 @@ const texts = {
 
 export type SlashMenuItemType = keyof typeof texts
 
-const getItemImplementations = () => {
+const findItemImplementations = () => {
   return {
     // AI
     continue_writing: {
@@ -381,7 +381,7 @@ function organizeItemsByGroups(
  * Custom hook for slash dropdown menu functionality
  */
 export function useSlashDropdownMenu(config?: SlashMenuConfig) {
-  const getSlashMenuItems = useCallback(
+  const findSlashMenuItems = useCallback(
     (editor: Editor) => {
       const items: SuggestionItem[] = []
 
@@ -389,7 +389,7 @@ export function useSlashDropdownMenu(config?: SlashMenuConfig) {
         config?.enabledItems || (Object.keys(texts) as SlashMenuItemType[])
       const showGroups = config?.showGroups !== false
 
-      const itemImplementations = getItemImplementations()
+      const itemImplementations = findItemImplementations()
 
       enabledItems.forEach((itemType) => {
         const itemImpl = itemImplementations[itemType]
@@ -422,7 +422,7 @@ export function useSlashDropdownMenu(config?: SlashMenuConfig) {
   )
 
   return {
-    getSlashMenuItems,
+    findSlashMenuItems,
     config
   }
 }

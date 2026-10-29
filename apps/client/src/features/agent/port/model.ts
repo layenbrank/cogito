@@ -150,7 +150,7 @@ function appendImages(text: string, images: readonly ChatImage[] | undefined): s
  * 块归组：同一个 `messageId` 的增量归一段；没有 `messageId` 时全轮共用一段 —— ACP 只在
  * 换 `messageId` 时才表示「新的一段」，凭空断开会让一段话被拆成好几块。
  */
-function createBlockIDFinder(): AcpStreamContext['blockID'] {
+function makeBlockIDFinder(): AcpStreamContext['blockID'] {
   return function (messageId, kind) {
     return messageId ? `${kind}:${messageId}` : `${kind}:run`
   }
@@ -162,7 +162,7 @@ function createBlockIDFinder(): AcpStreamContext['blockID'] {
  */
 const RUN_USAGE: ChatUsage = {}
 
-function createModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
+function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
   return {
     /** 端口契约是 Promise，但解析本身是同步的（provider/model 都在本地 store 里） */
     findTarget(): Promise<ChatTarget | null> {
@@ -232,7 +232,7 @@ function createModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
         }
       }
 
-      const context: AcpStreamContext = { blockID: createBlockIDFinder() }
+      const context: AcpStreamContext = { blockID: makeBlockIDFinder() }
       // directive 场景要把助手正文攒起来，收尾时抽 JSON 落成草稿（不落 corex.db）
       const scenario = overrides.onFinish ? null : findActiveScenario()
       let capturedText = ''
@@ -279,7 +279,7 @@ function createModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
               // plan 场景：把 {"events":[...]} 变成预览行（写入要用户点确认）
               if (item.stopReason !== 'cancelled' && scenario === 'plan' && capturedText.trim()) {
                 const rows = parseSchedulePlan(capturedText)
-                if (rows.length > 0) useScheduleDraftStore.getState().setRows(rows)
+                if (rows.length > 0) useScheduleDraftStore.getState().writeRows(rows)
               }
               yield item.stopReason === 'cancelled'
                 ? { kind: 'aborted', usage: RUN_USAGE }
@@ -313,5 +313,5 @@ function createModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
   }
 }
 
-export { createModelPort }
+export { buildModelPort }
 export type { AgentRunHost, ModelPortOverrides }

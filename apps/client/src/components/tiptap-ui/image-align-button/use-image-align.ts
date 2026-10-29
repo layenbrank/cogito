@@ -113,7 +113,7 @@ export function isImageAlignActive(
 /**
  * Sets image alignment in the editor
  */
-export function setImageAlign(
+export function writeImageAlign(
   editor: Editor | null,
   align: ImageAlign,
   extensionName: string = 'image',
@@ -268,7 +268,7 @@ export function useImageAlign(config: UseImageAlignConfig) {
   const handleImageAlign = useCallback(() => {
     if (!editor) return false
 
-    const success = setImageAlign(editor, align, extensionName, attributeName)
+    const success = writeImageAlign(editor, align, extensionName, attributeName)
     if (success) {
       onAligned?.()
     }

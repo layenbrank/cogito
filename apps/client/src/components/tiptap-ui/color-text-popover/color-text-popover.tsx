@@ -17,7 +17,7 @@ import type {
 import {
   useColorTextPopover,
   useRecentColors,
-  getColorByValue
+  findColorByValue
 } from '@/components/tiptap-ui/color-text-popover/use-color-text-popover.ts'
 import { TEXT_COLORS } from '@/components/tiptap-ui/color-text-button/use-color-text.ts'
 import { ColorTextButton } from '@/components/tiptap-ui/color-text-button/color-text-button.tsx'
@@ -70,7 +70,7 @@ export const RecentColorButton: React.FC<RenderColorButtonProps> = ({
   ...props
 }) => {
   const colorSet = colorObj.type === 'text' ? TEXT_COLORS : HIGHLIGHT_COLORS
-  const color = getColorByValue(colorObj.value, colorSet)
+  const color = findColorByValue(colorObj.value, colorSet)
 
   const commonProps = {
     tooltip: color.label,
@@ -137,7 +137,7 @@ const RecentColorsSection: React.FC<RecentColorsSectionProps> = ({
   )
 }
 
-export interface TextStyleColorPanelProps {
+export interface TextStyleColorSurfaceProps {
   maxColorsPerGroup?: number
   maxRecentColors?: number
   onColorChanged?: ({
@@ -151,7 +151,7 @@ export interface TextStyleColorPanelProps {
   }) => void
 }
 
-export const TextStyleColorPanel: React.FC<TextStyleColorPanelProps> = ({
+export const TextStyleColorSurface: React.FC<TextStyleColorSurfaceProps> = ({
   maxColorsPerGroup = 5,
   maxRecentColors = 3,
   onColorChanged
@@ -405,7 +405,7 @@ export const ColorTextPopover = forwardRef<
           aria-label={t('EDITOR_TEXT_COLOR_OPTIONS')}
           side="bottom"
           align="start">
-          <TextStyleColorPanel onColorChanged={handleColorChanged} />
+          <TextStyleColorSurface onColorChanged={handleColorChanged} />
         </PopoverContent>
       </Popover>
     )

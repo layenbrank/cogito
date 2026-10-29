@@ -110,8 +110,10 @@ function MirrorEditor(props: MirrorEditorProps) {
             />
             {props.isActive ? <span className={styles.mirrorManageBadge}>当前</span> : null}
             {props.canRemove ? (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-xs"
                 data-region="false"
                 className={styles.mirrorManageRemove}
                 aria-label={`删除「${mirror.title}」`}
@@ -123,7 +125,7 @@ function MirrorEditor(props: MirrorEditorProps) {
                   icon="lucide:trash-2"
                   aria-hidden
                 />
-              </button>
+              </Button>
             ) : null}
           </div>
 
@@ -162,8 +164,10 @@ function MirrorAppearance(props: { mirror: Mirror; onCommit: (change: MirrorChan
         className={styles.mirrorManageSwatches}
         role="listbox"
         aria-label={`「${props.mirror.title}」背景色`}>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-xs"
           data-region="false"
           role="option"
           aria-selected={!accent}
@@ -182,9 +186,11 @@ function MirrorAppearance(props: { mirror: Mirror; onCommit: (change: MirrorChan
         {MIRROR_COLOR_PRESETS.map(function (preset) {
           const isOn = accent === preset.value
           return (
-            <button
+            <Button
               key={preset.value}
               type="button"
+              variant="ghost"
+              size="icon-xs"
               data-region="false"
               role="option"
               aria-selected={isOn}
@@ -208,9 +214,11 @@ function MirrorAppearance(props: { mirror: Mirror; onCommit: (change: MirrorChan
         {MIRROR_MARK_ICONS.map(function (item) {
           const isOn = icon === item
           return (
-            <button
+            <Button
               key={item}
               type="button"
+              variant="ghost"
+              size="icon-sm"
               data-region="false"
               role="option"
               aria-selected={isOn}
@@ -224,7 +232,7 @@ function MirrorAppearance(props: { mirror: Mirror; onCommit: (change: MirrorChan
                 icon={item}
                 aria-hidden
               />
-            </button>
+            </Button>
           )
         })}
       </div>

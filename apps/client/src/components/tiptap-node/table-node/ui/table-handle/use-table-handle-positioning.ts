@@ -60,7 +60,7 @@ function makeCellRect(cell: DOMRect): DOMRect {
 /**
  * Gets the placement configuration for different handle orientations
  */
-function getPlacement(orientation: Orientation) {
+function findPlacement(orientation: Orientation) {
   switch (orientation) {
     case 'row':
       return 'left' as const
@@ -75,7 +75,7 @@ function getPlacement(orientation: Orientation) {
 /**
  * Gets the offset configuration for different handle orientations
  */
-function getOffset(orientation: Orientation) {
+function findOffset(orientation: Orientation) {
   switch (orientation) {
     case 'row':
       return 4
@@ -121,8 +121,8 @@ export function useTableHandlePosition(
   ref: (node: HTMLElement | null) => void
   style: React.CSSProperties
 } {
-  const placement = useMemo(() => getPlacement(orientation), [orientation])
-  const offsetValue = useMemo(() => getOffset(orientation), [orientation])
+  const placement = useMemo(() => findPlacement(orientation), [orientation])
+  const offsetValue = useMemo(() => findOffset(orientation), [orientation])
 
   const { refs, update, context, floatingStyles } = useFloating({
     open: show,

@@ -6,13 +6,13 @@
  */
 import { toast } from 'sonner'
 
-import { setChatHandoff } from '@/features/agent/model/chat-handoff'
+import { rememberChatHandoff } from '@/features/agent/model/chat-handoff'
 import { reportCaught } from '@/utils/exception-report'
 
 function toFullChat(text: string): void {
   const trimmed = text.trim()
   if (!trimmed) return
-  setChatHandoff({ text: trimmed, scenario: 'general' })
+  rememberChatHandoff({ text: trimmed, scenario: 'general' })
   // 动态 import：routers 会拉起整棵页面树，dock 不该在模块初始化时就把它带进来
   void import('@/routers')
     .then(function (module) {

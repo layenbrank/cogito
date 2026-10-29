@@ -10,9 +10,9 @@ import { reportCaught } from '@/utils/exception-report'
 import {
   MAX_UNDO,
   STICKER_LIBRARY,
-  createClipDefaults,
-  createEmptyProject,
-  createId,
+  buildClipDefaults,
+  makeEmptyProject,
+  makeId,
   detachAudio,
   findActiveClips,
   findClip,
@@ -56,7 +56,7 @@ interface ClipchampState {
 
   commit: (mutate: (project: Project) => Project) => void
   /** 实时拖拽等不入历史的变更 */
-  applyLive: (mutate: (project: Project) => Project) => void
+  updateLive: (mutate: (project: Project) => Project) => void
   /** 拖拽开始前调用，将当前工程推入 undo */
   captureUndoPoint: () => void
   undo: () => void
@@ -133,7 +133,7 @@ const useClipchampStore = create<ClipchampState>()(
   devtools(
     function (setter, getter) {
       return {
-        project: createEmptyProject('Video Project'),
+        project: makeEmptyProject('Video Project'),
         assets: [],
         playheadMs: 0,
         isPlaying: false,
@@ -158,7 +158,7 @@ const useClipchampStore = create<ClipchampState>()(
           setter({ project: next, ...history })
         },
 
-        applyLive(mutate) {
+        updateLive(mutate) {
           const next = mutate(structuredClone(getter().project))
           next.durationMs = refreshDuration(next)
           setter({ project: next })
@@ -311,7 +311,7 @@ const useClipchampStore = create<ClipchampState>()(
             }
 
             imported.push({
-              id: createId('asset'),
+              id: makeId('asset'),
               path,
               name,
               kind,
@@ -353,7 +353,7 @@ const useClipchampStore = create<ClipchampState>()(
             console.warn('[clipchamp] gallery probe failed, using HTML metadata', error)
           }
           const media: MediaAsset = {
-            id: createId('asset'),
+            id: makeId('asset'),
             path: asset.path,
             name: asset.name,
             kind,
@@ -407,7 +407,7 @@ const useClipchampStore = create<ClipchampState>()(
           let selectedId: string | null = null
           getter().commit(function (draft) {
             const placed = placeClipOnLane(draft, kindTrack, playhead, asset.durationMs)
-            const clip = createClipDefaults({
+            const clip = buildClipDefaults({
               kind: clipKind,
               trackId: placed.trackId,
               assetId: asset.id,
@@ -430,7 +430,7 @@ const useClipchampStore = create<ClipchampState>()(
           let selectedId: string | null = null
           getter().commit(function (draft) {
             const placed = placeClipOnLane(draft, 'text', playhead, 3000)
-            const clip = createClipDefaults({
+            const clip = buildClipDefaults({
               kind: 'text',
               trackId: placed.trackId,
               startMs: playhead,
@@ -467,7 +467,7 @@ const useClipchampStore = create<ClipchampState>()(
           let selectedId: string | null = null
           getter().commit(function (draft) {
             const placed = placeClipOnLane(draft, 'overlay', playhead, 3000)
-            const clip = createClipDefaults({
+            const clip = buildClipDefaults({
               kind: 'sticker',
               trackId: placed.trackId,
               startMs: playhead,
@@ -499,7 +499,7 @@ const useClipchampStore = create<ClipchampState>()(
           let selectedId: string | null = null
           getter().commit(function (draft) {
             const placed = placeClipOnLane(draft, 'caption', playhead, 2500)
-            const clip = createClipDefaults({
+            const clip = buildClipDefaults({
               kind: 'caption',
               trackId: placed.trackId,
               startMs: playhead,
@@ -562,7 +562,7 @@ const useClipchampStore = create<ClipchampState>()(
         patchSelected(patch) {
           const { selectedClipId } = getter()
           if (!selectedClipId) return
-          getter().applyLive(function (draft) {
+          getter().updateLive(function (draft) {
             return updateClip(draft, selectedClipId, patch)
           })
         },
@@ -704,7 +704,7 @@ const useClipchampStore = create<ClipchampState>()(
           writePlayheadMs(0)
           lastActiveKey = ''
           setter({
-            project: createEmptyProject('Video Project'),
+            project: makeEmptyProject('Video Project'),
             assets: [],
             playheadMs: 0,
             selectedClipId: null,

@@ -1,3 +1,4 @@
+import { Button } from '@cogito/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { memo, type ReactNode } from 'react'
@@ -31,9 +32,10 @@ function MediaCellComponent(props: MediaCellProps) {
   }
 
   return (
-    <button
+    <Button
       ref={ref}
       type="button"
+      variant="ghost"
       className={cn(
         'group relative aspect-square overflow-hidden rounded-md bg-muted/40 outline-none',
         '[content-visibility:auto] [contain-intrinsic-size:auto_120px]',
@@ -91,7 +93,7 @@ function MediaCellComponent(props: MediaCellProps) {
           {props.selected ? <Icon icon="lucide:check" className="size-3" /> : null}
         </span>
       ) : null}
-    </button>
+    </Button>
   )
 }
 

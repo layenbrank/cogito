@@ -1,11 +1,12 @@
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { cn } from 'cn'
 import type { ReactNode } from 'react'
 
 import { useCodeStore } from '@/stores/code'
 import Navigation from '@/views/code/workspace/overlay/navigation.tsx'
-import { ScmPanel } from '@/views/code/workspace/scm/panel.tsx'
-import { SearchPanel } from '@/views/code/workspace/search/panel.tsx'
+import { ScmSurface } from '@/views/code/workspace/scm/surface.tsx'
+import { SearchSurface } from '@/views/code/workspace/search/surface.tsx'
 
 function SidebarHeader(props: { title: string; children?: ReactNode }) {
   return (
@@ -21,7 +22,9 @@ function SidebarHeader(props: { title: string; children?: ReactNode }) {
 /** 工具栏图标按钮：保持 20px 口径，和标题同高 */
 function HeaderAction(props: { icon: string; label: string; isActive?: boolean; onClick(): void }) {
   return (
-    <button
+    <Button
+      variant="ghost"
+      size="icon-xs"
       type="button"
       aria-label={props.label}
       aria-pressed={props.isActive}
@@ -37,7 +40,7 @@ function HeaderAction(props: { icon: string; label: string; isActive?: boolean; 
         icon={props.icon}
         className="size-3.5"
       />
-    </button>
+    </Button>
   )
 }
 
@@ -61,7 +64,7 @@ function Sidebar() {
         className={cn(
           'flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden border-r border-border/50 bg-background/65 backdrop-blur-md'
         )}>
-        <SearchPanel />
+        <SearchSurface />
       </aside>
     )
   }
@@ -103,7 +106,7 @@ function Sidebar() {
       </SidebarHeader>
       <div className="min-h-0 flex-1 overflow-hidden">
         {sidebarView === 'explorer' ? <Navigation /> : null}
-        {sidebarView === 'scm' ? <ScmPanel /> : null}
+        {sidebarView === 'scm' ? <ScmSurface /> : null}
       </div>
     </aside>
   )

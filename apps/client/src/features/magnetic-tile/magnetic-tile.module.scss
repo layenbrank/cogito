@@ -1,5 +1,5 @@
 // 仅保留网格尺寸 mixin（lv / shape / direction）
-// chrome → 组件 Tailwind；深色孤岛 / 拖拽态 → magnetic-tile.css
+// shell → 组件 Tailwind；深色孤岛 / 拖拽态 → magnetic-tile.css
 
 .magnetic-tile {
   @include magnetic-tile;

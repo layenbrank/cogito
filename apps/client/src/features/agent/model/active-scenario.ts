@@ -13,7 +13,7 @@ function findActiveScenario() {
   return activeScenario
 }
 
-function setActiveScenario(scenario: ScenarioKey) {
+function rememberActiveScenario(scenario: ScenarioKey) {
   if (activeScenario === scenario) return
   activeScenario = scenario
   for (const listener of listeners) listener(scenario)
@@ -26,4 +26,4 @@ function watchActiveScenario(listener: ScenarioListener) {
   }
 }
 
-export { findActiveScenario, setActiveScenario, watchActiveScenario }
+export { findActiveScenario, rememberActiveScenario, watchActiveScenario }

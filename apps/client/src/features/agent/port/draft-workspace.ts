@@ -19,7 +19,7 @@ type DraftWorkspace = string | null
 let pending: { workspaceID: DraftWorkspace } | null = null
 
 /** 记下「下一个落库的新会话」归属哪个工作区 */
-function setNextThreadWorkspace(workspaceID: DraftWorkspace): void {
+function rememberNextThreadWorkspace(workspaceID: DraftWorkspace): void {
   pending = { workspaceID }
 }
 
@@ -30,4 +30,4 @@ function takeNextThreadWorkspace(): { workspaceID: DraftWorkspace } | null {
   return value
 }
 
-export { setNextThreadWorkspace, takeNextThreadWorkspace }
+export { rememberNextThreadWorkspace, takeNextThreadWorkspace }

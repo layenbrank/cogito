@@ -31,7 +31,7 @@ function toStoredMessage(message: Message): ChatStoredMessage {
   }
 }
 
-function createHistoryPort(): ChatHistoryPort {
+function buildHistoryPort(): ChatHistoryPort {
   function findSession(id: string): Session | null {
     const session = useAgentStore
       .getState()
@@ -145,4 +145,4 @@ function createHistoryPort(): ChatHistoryPort {
   }
 }
 
-export { createHistoryPort }
+export { buildHistoryPort }

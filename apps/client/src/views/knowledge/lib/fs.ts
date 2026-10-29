@@ -184,7 +184,7 @@ async function listMarkdownEntries(
   }
 }
 
-async function createMarkdownFile(root: string, relativeDir: string, name: string): Promise<string> {
+async function insertMarkdownFile(root: string, relativeDir: string, name: string): Promise<string> {
   const fileName = isMarkdownName(name) ? name : `${name}.md`
   const relative = relativeDir ? `${relativeDir}/${fileName}` : fileName
   const absolute = joinPath(root, relative)
@@ -201,7 +201,7 @@ async function createMarkdownFile(root: string, relativeDir: string, name: strin
   return absolute
 }
 
-async function createMarkdownFolder(
+async function insertMarkdownFolder(
   root: string,
   relativeDir: string,
   name: string
@@ -279,8 +279,8 @@ export {
   pickSaveMarkdown,
   pickRootDirectory,
   listMarkdownEntries,
-  createMarkdownFile,
-  createMarkdownFolder,
+  insertMarkdownFile,
+  insertMarkdownFolder,
   renameMarkdownPath,
   removeMarkdownPath,
   ensureAssetsDir,

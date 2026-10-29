@@ -2,7 +2,7 @@ import type { Editor } from '@tiptap/react'
 
 import {
   clearSearchHighlight,
-  setSearchHighlight
+  writeSearchHighlight
 } from '@/views/knowledge/workspace/search-highlight-extension.ts'
 
 interface FindOptions {
@@ -118,7 +118,7 @@ function syncHighlight(
     clearSearchHighlight(editor)
     return
   }
-  setSearchHighlight(editor, {
+  writeSearchHighlight(editor, {
     ...options,
     activeFrom: hit.from,
     activeTo: hit.to

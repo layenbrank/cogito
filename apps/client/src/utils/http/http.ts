@@ -4,7 +4,7 @@ import { ofetch, type FetchOptions } from 'ofetch'
 import { findAuthToken } from '@/utils/auth'
 import { findActiveTenantID } from '@/utils/tenant.ts'
 import { ENV_URLS } from './env.ts'
-import { createTraceparent, TRACEPARENT_HEADER } from './trace.ts'
+import { makeTraceparent, TRACEPARENT_HEADER } from './trace.ts'
 
 declare module 'ofetch' {
   interface FetchOptions {
@@ -30,7 +30,7 @@ const fetcher = ofetch.create(
       // 自家接口带上链路：服务端据此把入口日志、下游调用与响应回显串成同一条链路
       const url = findRequestUrl(request)
       if (isOwnUrl(url) && !options.headers.has(TRACEPARENT_HEADER)) {
-        options.headers.set(TRACEPARENT_HEADER, createTraceparent())
+        options.headers.set(TRACEPARENT_HEADER, makeTraceparent())
       }
 
       if (options.env) {

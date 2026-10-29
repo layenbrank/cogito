@@ -4,8 +4,8 @@
  * 面板本身只负责「标题 + 切哪一支」，五种分支各自独立成组件：否则一个函数里塞 5 段互不相干的
  * JSX，认知复杂度会一路顶上去（react-doctor 的 no-high-complexity-react-function）。
  */
-import { Button } from '@cogito/design/components/button'
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { clsx } from 'clsx'
 
 import { useClipchampStore } from '@/stores/clipchamp.ts'
@@ -57,7 +57,8 @@ function MediaListBody() {
         <div className="grid grid-cols-2 gap-2">
           {assets.map(function (asset) {
             return (
-              <button
+              <Button
+                variant="outline"
                 key={asset.id}
                 type="button"
                 draggable
@@ -78,7 +79,7 @@ function MediaListBody() {
                 <div className="truncate px-1.5 py-1.5 text-xs text-muted-foreground">
                   {asset.name}
                 </div>
-              </button>
+              </Button>
             )
           })}
         </div>
@@ -92,16 +93,17 @@ function MediaListBody() {
           <div className="grid grid-cols-2 gap-2">
             {galleryVideos.slice(0, 8).map(function (item) {
               return (
-                <button
+                <Button
+                  variant="outline"
                   key={item.id}
                   type="button"
-                  className="rounded-lg border border-border/80 px-2 py-2 text-left text-xs transition hover:border-primary/60"
+                  className="h-auto rounded-lg border border-border/80 px-2 py-2 text-left text-xs transition hover:border-primary/60"
                   onClick={function () {
                     void useClipchampStore.getState().importFromGallery(item)
                   }}>
                   <div className="truncate font-medium">{item.name}</div>
                   <div className="text-muted-foreground">加入素材库</div>
-                </button>
+                </Button>
               )
             })}
           </div>
@@ -159,7 +161,8 @@ function StickerBody() {
     <div className="grid grid-cols-4 gap-2">
       {STICKER_LIBRARY.map(function (sticker) {
         return (
-          <button
+          <Button
+            variant="outline"
             key={sticker.id}
             type="button"
             className="flex aspect-square items-center justify-center rounded-lg border border-border/80 bg-muted/20 text-2xl transition hover:border-primary/60 hover:bg-primary/5"
@@ -168,7 +171,7 @@ function StickerBody() {
               addSticker(sticker.id)
             }}>
             {sticker.emoji}
-          </button>
+          </Button>
         )
       })}
     </div>
@@ -271,7 +274,8 @@ function AudioBody() {
       <div className="grid grid-cols-1 gap-2">
         {audioAssets.map(function (asset) {
           return (
-            <button
+            <Button
+              variant="outline"
               key={asset.id}
               type="button"
               className={clsx(
@@ -285,7 +289,7 @@ function AudioBody() {
                 className="size-4 shrink-0 text-muted-foreground"
               />
               <span className="truncate">{asset.name}</span>
-            </button>
+            </Button>
           )
         })}
       </div>

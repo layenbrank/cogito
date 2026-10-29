@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import { editDirectiveExternal, fetchDirective } from '@/lib/directive-ipc.ts'
 import type { Caps } from '@/views/directive/run/run-caps'
 import { RunMenu } from '@/views/directive/run/run-menu'
-import { PanelToggle } from '@/views/directive/orchestrator/toolbar-panel-toggle.tsx'
+import { SurfaceToggle } from '@/views/directive/orchestrator/toolbar-surface-toggle.tsx'
 import {
   ToolbarDeleteDialog,
   ToolbarYamlDialog
@@ -114,7 +114,7 @@ function Toolbar(props: ToolbarProps) {
             className="size-4"
           />
         </Button>
-        <PanelToggle
+        <SurfaceToggle
           open={props.isCatalogOpen}
           openIcon="lucide:panel-left-open"
           closeIcon="lucide:panel-left-close"
@@ -242,7 +242,7 @@ function Toolbar(props: ToolbarProps) {
           beforeGuard={props.beforeGuard}
         />
 
-        <PanelToggle
+        <SurfaceToggle
           open={props.isRunOpen}
           openIcon="lucide:panel-bottom-open"
           closeIcon="lucide:panel-bottom-close"
@@ -250,7 +250,7 @@ function Toolbar(props: ToolbarProps) {
           labelClose="收起底部面板"
           onClick={props.onToggleRun}
         />
-        <PanelToggle
+        <SurfaceToggle
           open={props.isInspectorOpen}
           openIcon="lucide:panel-right-open"
           closeIcon="lucide:panel-right-close"

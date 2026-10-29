@@ -21,8 +21,8 @@ import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 import { isExtensionAvailable } from '@/lib/tiptap-utils.ts'
 import type { Orientation } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 import {
-  getTable,
-  getTableSelectionType,
+  findTable,
+  findTableSelectionType,
   selectCellsByCoords,
   updateSelectionAfterAction
 } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
@@ -126,10 +126,10 @@ function canAddRowColumn({
     return false
   }
 
-  const table = getTable(editor, tablePos)
+  const table = findTable(editor, tablePos)
   if (!table) return false
 
-  const selectionType = getTableSelectionType(editor, index, orientation)
+  const selectionType = findTableSelectionType(editor, index, orientation)
   if (!selectionType) return false
 
   const { map, node } = table
@@ -196,7 +196,7 @@ function tableAddRowColumn({
     return false
   }
 
-  const selectionType = getTableSelectionType(editor, index, orientation)
+  const selectionType = findTableSelectionType(editor, index, orientation)
   if (!selectionType) return false
 
   const { orientation: finalOrientation, index: finalIndex } = selectionType
@@ -217,7 +217,7 @@ function tableAddRowColumn({
     if (editor.state.selection instanceof CellSelection) {
       success = addOperation(editor.state, dispatch)
     } else {
-      const table = getTable(editor, tablePos)
+      const table = findTable(editor, tablePos)
       if (!table) return false
 
       const cellCoords =
@@ -272,7 +272,7 @@ function shouldShowButton({
     return canAddRowColumn({ editor, index, orientation, tablePos, side })
   }
 
-  const selectionType = getTableSelectionType(editor, index, orientation)
+  const selectionType = findTableSelectionType(editor, index, orientation)
   return Boolean(selectionType)
 }
 
@@ -293,7 +293,7 @@ export function useTableAddRowColumn(config: UseTableAddRowColumnConfig) {
 
   const { editor } = useTiptapEditor(providedEditor)
 
-  const selectionType = getTableSelectionType(editor, index, orientation)
+  const selectionType = findTableSelectionType(editor, index, orientation)
 
   const isVisible = shouldShowButton({
     editor,

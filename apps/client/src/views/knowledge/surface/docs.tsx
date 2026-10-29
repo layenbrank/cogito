@@ -85,8 +85,8 @@ function DocsTab() {
   const selectBase = useKnowledgeBaseStore(function (state) {
     return state.selectBase
   })
-  const setQuery = useKnowledgeBaseStore(function (state) {
-    return state.setQuery
+  const writeQuery = useKnowledgeBaseStore(function (state) {
+    return state.writeQuery
   })
   const runSearch = useKnowledgeBaseStore(function (state) {
     return state.runSearch
@@ -94,8 +94,8 @@ function DocsTab() {
   const clearSearch = useKnowledgeBaseStore(function (state) {
     return state.clearSearch
   })
-  const create = useKnowledgeBaseStore(function (state) {
-    return state.create
+  const insert = useKnowledgeBaseStore(function (state) {
+    return state.insert
   })
   const rescan = useKnowledgeBaseStore(function (state) {
     return state.rescan
@@ -182,7 +182,7 @@ function DocsTab() {
             }}
             onKeyDown={function (event) {
               if (event.key !== 'Enter' || !newName.trim()) return
-              void create(newName.trim()).then(function (ok) {
+              void insert(newName.trim()).then(function (ok) {
                 if (ok) {
                   setNewName('')
                   toSetCreating(false)
@@ -194,7 +194,7 @@ function DocsTab() {
             size="sm"
             disabled={!newName.trim()}
             onClick={function () {
-              void create(newName.trim()).then(function (ok) {
+              void insert(newName.trim()).then(function (ok) {
                 if (ok) {
                   setNewName('')
                   toSetCreating(false)
@@ -218,7 +218,7 @@ function DocsTab() {
           title="1–2 字也能命中"
           className="h-7 text-xs"
           onChange={function (event) {
-            setQuery(event.target.value)
+            writeQuery(event.target.value)
           }}
         />
         {hits.length > 0 ? (
@@ -321,9 +321,10 @@ function DocsTab() {
             {hits.map(function (hit) {
               return (
                 <li key={hit.docId}>
-                  <button
+                  <Button
+                    variant="ghost"
                     type="button"
-                    className="w-full rounded-md px-1.5 py-1 text-left hover:bg-muted"
+                    className="h-auto w-full rounded-md px-1.5 py-1 text-left hover:bg-muted"
                     onClick={function () {
                       void openDoc(hit.relPath)
                     }}>
@@ -331,7 +332,7 @@ function DocsTab() {
                     <span className="block truncate text-[11px] text-muted-foreground">
                       {hit.snippet}
                     </span>
-                  </button>
+                  </Button>
                 </li>
               )
             })}
@@ -351,9 +352,10 @@ function DocsTab() {
               : null
             return (
               <li key={doc.id}>
-                <button
+                <Button
+                  variant="ghost"
                   type="button"
-                  className="w-full rounded-md px-1.5 py-1 text-left hover:bg-muted"
+                  className="h-auto w-full rounded-md px-1.5 py-1 text-left hover:bg-muted"
                   onClick={function () {
                     void openDoc(doc.relPath)
                   }}>
@@ -370,7 +372,7 @@ function DocsTab() {
                   <span className="block truncate text-[11px] text-muted-foreground">
                     {doc.relPath} · {doc.wordCount} 字 · {formatTime(doc.updatedAt)}
                   </span>
-                </button>
+                </Button>
               </li>
             )
           })}

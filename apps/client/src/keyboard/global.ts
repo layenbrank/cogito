@@ -193,7 +193,7 @@ function findDesiredGlobalBindings(): Record<string, string> {
 /**
  * 按 diff 应用全局键（只动变化项）。串行执行，可重复调用。
  */
-function applyGlobalShortcuts(desired: Record<string, string>): Promise<void> {
+function syncGlobalShortcuts(desired: Record<string, string>): Promise<void> {
   return enqueue(async function () {
     const next = { ...readGlobalShortcuts() }
     for (const definition of GLOBAL_SHORTCUTS) {
@@ -232,10 +232,10 @@ function useGlobalShortcuts(): void {
         try {
           await useSettingsStore.getState().toInitialize()
           if (cancelled) return
-          await applyGlobalShortcuts(findDesiredGlobalBindings())
+          await syncGlobalShortcuts(findDesiredGlobalBindings())
         } catch (error) {
           if (cancelled) return
-          reportCaught('keyboard.applyGlobalShortcuts', error)
+          reportCaught('keyboard.syncGlobalShortcuts', error)
           const text = error instanceof Error ? error.message : String(error)
           toast.error(`快捷键没能生效：${text}`)
         }
@@ -251,7 +251,7 @@ function useGlobalShortcuts(): void {
 
 export {
   MAIN_WINDOW_LABEL,
-  applyGlobalShortcuts,
+  syncGlobalShortcuts,
   findActiveGlobalBinding,
   findDesiredGlobalBindings,
   isMainWindow,

@@ -214,7 +214,7 @@ function usePreviewNodes(input: {
   const endTransform = useCallback(function (clipId: string, node: Konva.Node) {
     const store = useClipchampStore.getState()
     const size = ASPECT_SIZE[store.canvasAspect ?? store.project.aspect]
-    store.applyLive(function (draft) {
+    store.updateLive(function (draft) {
       return updateClip(draft, clipId, {
         x: node.x() / size.width,
         y: node.y() / size.height,
@@ -807,7 +807,9 @@ function OffscreenMedia(props: OffscreenMediaProps) {
       video.addEventListener('seeked', onSeeked)
       place(!isPlaying)
       if (isPlaying) {
-        void video.play().catch(function () {})
+        void video.play().catch(function (error: unknown) {
+          console.debug('[clipchamp] video.play 被拒:', error)
+        })
       } else {
         video.pause()
       }
@@ -883,7 +885,9 @@ function OffscreenAudio(props: OffscreenAudioProps) {
       audio.volume = Math.min(1, Math.max(0, clip.volume))
       place(!isPlaying)
       if (isPlaying) {
-        void audio.play().catch(function () {})
+        void audio.play().catch(function (error: unknown) {
+          console.debug('[clipchamp] audio.play 被拒:', error)
+        })
       } else {
         audio.pause()
       }

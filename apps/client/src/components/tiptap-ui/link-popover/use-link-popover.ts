@@ -33,7 +33,7 @@ export interface UseLinkPopoverConfig {
   /**
    * Callback function called when the link is set.
    */
-  onSetLink?: () => void
+  onWriteLink?: () => void
 }
 
 /**
@@ -47,7 +47,7 @@ export interface LinkHandlerProps {
   /**
    * Callback function called when the link is set.
    */
-  onSetLink?: () => void
+  onWriteLink?: () => void
 }
 
 /**
@@ -96,7 +96,7 @@ export function shouldShowLinkButton(props: {
  * Custom hook for handling link operations in a Tiptap editor
  */
 export function useLinkHandler(props: LinkHandlerProps) {
-  const { editor, onSetLink } = props
+  const { editor, onWriteLink } = props
   const [url, setUrl] = useState<string | null>(null)
 
   useEffect(() => {
@@ -124,7 +124,7 @@ export function useLinkHandler(props: LinkHandlerProps) {
     }
   }, [editor])
 
-  const setLink = useCallback(() => {
+  const writeLink = useCallback(() => {
     if (!url || !editor) return
 
     const { selection } = editor.state
@@ -142,8 +142,8 @@ export function useLinkHandler(props: LinkHandlerProps) {
 
     setUrl(null)
 
-    onSetLink?.()
-  }, [editor, onSetLink, url])
+    onWriteLink?.()
+  }, [editor, onWriteLink, url])
 
   const removeLink = useCallback(() => {
     if (!editor) return
@@ -172,7 +172,7 @@ export function useLinkHandler(props: LinkHandlerProps) {
   return {
     url: url || '',
     setUrl,
-    setLink,
+    writeLink,
     removeLink,
     openLink
   }
@@ -239,7 +239,7 @@ export function useLinkState(props: {
  *   const { isVisible, canSet, isActive, Icon, label } = useLinkPopover({
  *     editor: myEditor,
  *     hideWhenUnavailable: true,
- *     onSetLink: () => console.log('Link set!')
+ *     onWriteLink: () => console.log('Link set!')
  *   })
  *
  *   if (!isVisible) return null
@@ -261,7 +261,7 @@ export function useLinkPopover(config?: UseLinkPopoverConfig) {
   const {
     editor: providedEditor,
     hideWhenUnavailable = false,
-    onSetLink
+    onWriteLink
   } = config || {}
 
   const { editor } = useTiptapEditor(providedEditor)
@@ -273,7 +273,7 @@ export function useLinkPopover(config?: UseLinkPopoverConfig) {
 
   const linkHandler = useLinkHandler({
     editor,
-    onSetLink
+    onWriteLink
   })
 
   return {

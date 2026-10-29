@@ -1,3 +1,4 @@
+import { Button } from '@cogito/design/components/button'
 import {
   Dialog,
   DialogContent,
@@ -185,12 +186,13 @@ function CommandPalette() {
             ? visibleFileHits.map(function (hit, index) {
                 return (
                   <li key={hit.absolute}>
-                    <button
+                    <Button
+                      variant="ghost"
                       type="button"
                       role="option"
                       aria-selected={index === activeIndex}
                       className={cn(
-                        'flex w-full flex-col rounded-md px-2 py-1.5 text-left text-sm',
+                        'flex h-auto w-full flex-col rounded-md px-2 py-1.5 text-left text-sm',
                         index === activeIndex ? 'bg-muted' : 'hover:bg-muted/60'
                       )}
                       onMouseEnter={function () {
@@ -201,19 +203,20 @@ function CommandPalette() {
                       }}>
                       <span className="text-foreground">{hit.name}</span>
                       <span className="text-muted-foreground truncate text-xs">{hit.relative}</span>
-                    </button>
+                    </Button>
                   </li>
                 )
               })
             : commands.map(function (command, index) {
                 return (
                   <li key={command.id}>
-                    <button
+                    <Button
+                      variant="ghost"
                       type="button"
                       role="option"
                       aria-selected={index === activeIndex}
                       className={cn(
-                        'w-full rounded-md px-2 py-1.5 text-left text-sm',
+                        'h-auto w-full rounded-md px-2 py-1.5 text-left text-sm',
                         index === activeIndex ? 'bg-muted' : 'hover:bg-muted/60'
                       )}
                       onMouseEnter={function () {
@@ -223,7 +226,7 @@ function CommandPalette() {
                         void activateItem(index)
                       }}>
                       {command.title}
-                    </button>
+                    </Button>
                   </li>
                 )
               })}

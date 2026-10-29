@@ -209,8 +209,9 @@ function Fields(props: FieldsProps) {
                 role="radiogroup"
                 aria-label="背景图片"
                 className="flex items-center gap-2 overflow-x-auto pb-1">
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   role="radio"
                   aria-checked={field.value === IMAGE_NONE}
                   aria-label="清空背景图"
@@ -226,7 +227,7 @@ function Fields(props: FieldsProps) {
                     field.onChange(IMAGE_NONE)
                   }}>
                   无
-                </button>
+                </Button>
                 {isImagesLoading
                   ? Array.from({ length: PICSUM_LIMIT }).map(function (_, index) {
                       return (
@@ -245,9 +246,10 @@ function Fields(props: FieldsProps) {
                       const isSelected = field.value === image.id
 
                       return (
-                        <button
+                        <Button
                           key={image.id}
                           type="button"
+                          variant="ghost"
                           role="radio"
                           aria-checked={isSelected}
                           aria-label={`背景图片 ${image.id}`}
@@ -266,7 +268,7 @@ function Fields(props: FieldsProps) {
                             loading="lazy"
                             className="h-full w-full object-cover"
                           />
-                        </button>
+                        </Button>
                       )
                     })}
               </div>

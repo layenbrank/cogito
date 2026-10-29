@@ -3,7 +3,7 @@ import * as monaco from 'monaco-editor'
 
 import { cn } from 'cn'
 
-import { CODE_THEME, applyCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
+import { CODE_THEME, syncCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
 // worker 装配只有一份，见 lib/monaco-environment.ts
 import '@/lib/monaco-environment.ts'
 
@@ -40,7 +40,7 @@ function SourceEditor(props: SourceEditorProps) {
       const host = hostRef.current
       if (!host) return
 
-      applyCodeTheme()
+      syncCodeTheme()
       const stopThemeWatch = watchCodeTheme()
 
       const editor = monaco.editor.create(host, {
@@ -113,7 +113,7 @@ function SourceEditor(props: SourceEditorProps) {
   useEffect(
     function () {
       // 主题跟随根节点 token；`isDark` 变化时重算一次，防止类名切换没触发观察器
-      applyCodeTheme()
+      syncCodeTheme()
     },
     [props.isDark]
   )

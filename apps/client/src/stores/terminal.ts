@@ -39,13 +39,13 @@ interface TerminalState {
   activity: DockActivity
   openPanel: () => void
   closePanel: () => void
-  setActivity: (activity: DockActivity) => void
+  writeActivity: (activity: DockActivity) => void
   /** 打开底部栏并切到指定活动页（默认「运行」） */
   revealDock: (options?: RevealDockOptions) => void
 
   newTab: (cwd: string, options?: NewTabOptions) => void
   removeTab: (id: string) => void
-  setActive: (id: string) => void
+  writeActive: (id: string) => void
   markExited: (id: string, exitCode: number | null) => void
   markPid: (id: string, pid: number | null) => void
 }
@@ -79,7 +79,7 @@ const useTerminalStore = create<TerminalState>()(
           })
         },
 
-        setActivity: function (activity) {
+        writeActivity: function (activity) {
           set(function (state) {
             state.activity = activity
             state.open = true
@@ -125,7 +125,7 @@ const useTerminalStore = create<TerminalState>()(
           })
         },
 
-        setActive: function (id) {
+        writeActive: function (id) {
           set(function (state) {
             state.activeId = id
             state.activity = 'terminal'

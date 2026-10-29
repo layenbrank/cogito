@@ -45,7 +45,7 @@ function SessionSearch(props: SessionSearchProps) {
         if (!open) props.onClose()
       }}>
       {props.open ? (
-        <SessionSearchPanel
+        <SessionSearchSurface
           onClose={props.onClose}
           onSelect={props.onSelect}
         />
@@ -54,7 +54,7 @@ function SessionSearch(props: SessionSearchProps) {
   )
 }
 
-function SessionSearchPanel(props: Pick<SessionSearchProps, 'onClose' | 'onSelect'>) {
+function SessionSearchSurface(props: Pick<SessionSearchProps, 'onClose' | 'onSelect'>) {
   const sessions = useAgentStore(function (state) {
     return state.sessions
   })

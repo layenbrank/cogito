@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useCorexStore, type CorexRun } from '@/stores/corex.ts'
 import { useTerminalStore } from '@/stores/terminal.ts'
-import { createDirective } from '@/views/directive/model/draft.ts'
+import { makeDirective } from '@/views/directive/model/draft.ts'
 
 import { DirectiveDock } from './directive-dock.tsx'
 
@@ -48,7 +48,7 @@ function resetStores(runs: CorexRun[], focusRunId: string | null, activity: 'run
     directives: [],
     catalog: [],
     draft: {
-      ...createDirective('nightly'),
+      ...makeDirective('nightly'),
       inputs: [{ name: 'env', description: '环境', required: true }]
     },
     editorName: 'nightly'

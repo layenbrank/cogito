@@ -9,8 +9,8 @@ import { useTiptapEditor } from '@/hooks/use-tiptap-editor'
 import { isExtensionAvailable } from '@/lib/tiptap-utils'
 import type { Orientation } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils'
 import {
-  getTable,
-  getRowOrColumnCells
+  findTable,
+  findRowOrColumnCells
 } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils'
 
 // --- Icons ---
@@ -135,10 +135,10 @@ function canAlignRowColumn({
   }
 
   try {
-    const table = getTable(editor)
+    const table = findTable(editor)
     if (!table) return false
 
-    const cellData = getRowOrColumnCells(editor, index, orientation)
+    const cellData = findRowOrColumnCells(editor, index, orientation)
 
     if (cellData.cells.length === 0) return false
 
@@ -151,7 +151,7 @@ function canAlignRowColumn({
 /**
  * Gets the current alignment value for the active cell.
  */
-function getCurrentAlignment(
+function findCurrentAlignment(
   editor: Editor | null,
   alignmentType: AlignmentType
 ): TextAlignment | VerticalAlignment | null {
@@ -187,7 +187,7 @@ function getCurrentAlignment(
 /**
  * Gets the current alignment for a specific row or column.
  */
-function getCurrentRowColumnAlignment(
+function findCurrentRowColumnAlignment(
   editor: Editor | null,
   alignmentType: AlignmentType,
   index?: number,
@@ -196,7 +196,7 @@ function getCurrentRowColumnAlignment(
   if (!editor) return null
 
   try {
-    const cellData = getRowOrColumnCells(editor, index, orientation)
+    const cellData = findRowOrColumnCells(editor, index, orientation)
 
     if (cellData.cells.length === 0) return null
 
@@ -218,7 +218,7 @@ function getCurrentRowColumnAlignment(
 /**
  * Sets the alignment attribute on the current table cell.
  */
-function setTableCellAlignment(
+function writeTableCellAlignment(
   editor: Editor | null,
   alignmentType: AlignmentType,
   alignment: TextAlignment | VerticalAlignment
@@ -240,7 +240,7 @@ function setTableCellAlignment(
 /**
  * Sets alignment for all cells in a specific row or column.
  */
-function setRowColumnAlignment({
+function writeRowColumnAlignment({
   editor,
   alignmentType,
   alignment,
@@ -261,7 +261,7 @@ function setRowColumnAlignment({
     const { state, view } = editor
     const tr = state.tr
 
-    const cellData = getRowOrColumnCells(editor, index, orientation)
+    const cellData = findRowOrColumnCells(editor, index, orientation)
 
     if (cellData.cells.length === 0) {
       return false
@@ -339,7 +339,7 @@ function tableAlignCell({
 
   try {
     if (typeof index === 'number' && orientation) {
-      return setRowColumnAlignment({
+      return writeRowColumnAlignment({
         editor,
         alignmentType,
         alignment,
@@ -347,7 +347,7 @@ function tableAlignCell({
         orientation
       })
     } else {
-      return setTableCellAlignment(editor, alignmentType, alignment)
+      return writeTableCellAlignment(editor, alignmentType, alignment)
     }
   } catch (error) {
     console.error('Error aligning table cell:', error)
@@ -493,14 +493,14 @@ export function useTableAlignCell(config: UseTableAlignCellConfig) {
 
   const currentAlignment = () => {
     if (typeof index === 'number' && orientation) {
-      return getCurrentRowColumnAlignment(
+      return findCurrentRowColumnAlignment(
         editor,
         alignmentType,
         index,
         orientation
       )
     }
-    return getCurrentAlignment(editor, alignmentType)
+    return findCurrentAlignment(editor, alignmentType)
   }
 
   const isActive = currentAlignment() === alignment

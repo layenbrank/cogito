@@ -125,16 +125,16 @@ const useSessionStore = create<SessionStore>()(
 
 /** 令牌变化（本窗 writeAuthToken / 他窗 auth:changed）时重拉资料 */
 subscribeAuthToken(function () {
-  void hydrateSessionUser(applySessionState)
+  void hydrateSessionUser(writeSessionState)
 })
 
 // 启动时若已有令牌，立刻补资料
 if (findAuthToken()) {
-  void hydrateSessionUser(applySessionState)
+  void hydrateSessionUser(writeSessionState)
 }
 
 /** 显式转发一层：直接把 store.setState 当回调传会丢 this（也会被 unbound-method 拦下） */
-function applySessionState(
+function writeSessionState(
   partial: Partial<SessionStore>,
   replace?: false,
   action?: string

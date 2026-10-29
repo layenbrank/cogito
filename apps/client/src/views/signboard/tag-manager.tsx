@@ -34,7 +34,7 @@ function TagManager(props: TagManagerProps) {
   const [editTitle, setEditTitle] = useState('')
   const [colorTagID, setColorTagID] = useState<string | null>(null)
 
-  async function createTag() {
+  async function insertTag() {
     const title = draft.trim()
     if (!title || !props.boardID) return
     const existing = props.tags.find(function (tag) {
@@ -121,8 +121,9 @@ function TagManager(props: TagManagerProps) {
                     }}
                   />
                 ) : (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     className={styles.tagManagerTitle}
                     onClick={function () {
                       setEditingID(tag.id)
@@ -130,11 +131,12 @@ function TagManager(props: TagManagerProps) {
                       setColorTagID(null)
                     }}>
                     {tag.title}
-                  </button>
+                  </Button>
                 )}
                 <div className={styles.tagManagerActions}>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     className={styles.tagManagerIconBtn}
                     aria-label={`调整 ${tag.title} 颜色`}
                     aria-expanded={isPicking}
@@ -148,9 +150,10 @@ function TagManager(props: TagManagerProps) {
                       icon="lucide:palette"
                       className="size-3.5"
                     />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="ghost"
                     className={styles.tagManagerIconBtn}
                     aria-label={`删除 ${tag.title}`}
                     onClick={function () {
@@ -160,7 +163,7 @@ function TagManager(props: TagManagerProps) {
                       icon="lucide:trash-2"
                       className="size-3.5"
                     />
-                  </button>
+                  </Button>
                 </div>
                 {isPicking ? (
                   <div
@@ -169,9 +172,10 @@ function TagManager(props: TagManagerProps) {
                     aria-label={`${tag.title} 颜色`}>
                     {TAG_COLORS.map(function (color) {
                       return (
-                        <button
+                        <Button
                           key={color}
                           type="button"
+                          variant="ghost"
                           className={styles.tagColorDot}
                           style={{ background: color }}
                           aria-label={`设为 ${color}`}
@@ -203,7 +207,7 @@ function TagManager(props: TagManagerProps) {
           onKeyDown={function (event) {
             if (event.key === 'Enter') {
               event.preventDefault()
-              void createTag()
+              void insertTag()
             }
           }}
         />
@@ -213,7 +217,7 @@ function TagManager(props: TagManagerProps) {
           className="h-8"
           disabled={!draft.trim() || !props.boardID}
           onClick={function () {
-            void createTag()
+            void insertTag()
           }}>
           新建
         </Button>

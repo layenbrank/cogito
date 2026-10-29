@@ -52,7 +52,8 @@ function WorkspaceSection() {
       </div>
 
       {files.length === 0 ? (
-        <button
+        <Button
+          variant="ghost"
           type="button"
           className={styles.emptyCta}
           onClick={toOpenFilePicker}>
@@ -63,7 +64,7 @@ function WorkspaceSection() {
             className={styles.emptyCtaIcon}
           />
           打开 PDF
-        </button>
+        </Button>
       ) : (
         <div className={styles.fileList}>
           {files.map(function (f) {
@@ -73,7 +74,8 @@ function WorkspaceSection() {
               <div
                 key={f.path}
                 className={clsx(styles.fileItem, isActive && styles.fileItemActive)}>
-                <button
+                <Button
+                  variant="ghost"
                   type="button"
                   className={styles.fileItemMain}
                   onClick={function () {
@@ -92,8 +94,10 @@ function WorkspaceSection() {
                     <div className={styles.fileItemName}>{name}</div>
                     <div className={styles.fileItemMeta}>{f.count} 页</div>
                   </div>
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
                   type="button"
                   className={styles.fileItemClose}
                   aria-label="关闭文件"
@@ -105,7 +109,7 @@ function WorkspaceSection() {
                     width={12}
                     height={12}
                   />
-                </button>
+                </Button>
               </div>
             )
           })}

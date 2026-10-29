@@ -9,7 +9,7 @@
 
 import { useEffect, useLayoutEffect, useRef } from 'react'
 
-import { DEFAULT_PRIORITY, registerCommands, registerHandler } from '@/keyboard/commands'
+import { COMMAND_PRIORITY, registerCommands, registerHandler } from '@/keyboard/commands'
 import type { CommandHandler } from '@/keyboard/commands'
 import { installKeyboardDispatcher } from '@/keyboard/dispatcher'
 import { useGlobalShortcuts } from '@/keyboard/global'
@@ -37,7 +37,7 @@ function useShortcut(
     latest.current = { handler, enabled: options?.enabled }
   })
 
-  const priority = options?.priority ?? DEFAULT_PRIORITY
+  const priority = options?.priority ?? COMMAND_PRIORITY
 
   useEffect(
     function () {

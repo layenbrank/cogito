@@ -53,7 +53,7 @@ async function removeConfigExtension(
   await connection.agent.request(GOOSE_CONFIG_EXTENSIONS_REMOVE, { configKey })
 }
 
-async function setConfigExtensionEnabled(
+async function writeConfigExtensionEnabled(
   connection: ClientConnection,
   configKey: string,
   enabled: boolean
@@ -97,5 +97,5 @@ export {
   fetchSessionExtensions,
   removeConfigExtension,
   removeSessionExtension,
-  setConfigExtensionEnabled
+  writeConfigExtensionEnabled
 }

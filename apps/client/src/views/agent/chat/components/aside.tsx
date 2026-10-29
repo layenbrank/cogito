@@ -11,7 +11,7 @@ import { AsideBusy } from './aside-busy'
 import { AsideEmpty } from './aside-empty'
 import { AsideFiles } from './aside-files'
 import { AsideReview } from './aside-review'
-import { TerminalPanel } from '@/features/terminal'
+import { TerminalSurface } from '@/features/terminal'
 import type { PlanSnapshot } from '@/features/agent/plan'
 import { useActiveWorkspace } from '@/features/agent/workspace/active'
 import { useTerminalStore } from '@/stores/terminal'
@@ -72,7 +72,7 @@ function AgentAside(props: AsideProps) {
   if (terminalOpen) {
     return (
       <div className={clsx('bg-background flex h-full min-h-0 flex-col', props.className)}>
-        <TerminalPanel
+        <TerminalSurface
           cwd={primaryPath}
           emptyCwdMessage="先在左栏添加一个工作区"
         />

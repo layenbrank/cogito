@@ -27,7 +27,7 @@ async function withStagePng(
   }
 }
 
-function createCaptureExport(input: CaptureExportInput) {
+function buildCaptureExport(input: CaptureExportInput) {
   let hasWritten = false
 
   async function recordHistory(dataUrl: string) {
@@ -72,4 +72,4 @@ function createCaptureExport(input: CaptureExportInput) {
   return { handleCopy, handlePin, handleSave, handleClose }
 }
 
-export { createCaptureExport }
+export { buildCaptureExport }

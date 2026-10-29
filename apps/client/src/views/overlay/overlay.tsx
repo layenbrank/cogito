@@ -254,7 +254,7 @@ function OverlayShell() {
         })
       }
 
-      function applyMount(payload: MountTilePayload | null | undefined) {
+      function rememberMount(payload: MountTilePayload | null | undefined) {
         if (!payload) return
         if (!isMagneticTileComponent(payload.kind) || !payload.magneticTileID) return
         toMount(payload.kind, payload.magneticTileID, {
@@ -268,7 +268,7 @@ function OverlayShell() {
         })
       }
 
-      function applyUnmount(payload: { magneticTileID?: string } | null | undefined) {
+      function rememberUnmount(payload: { magneticTileID?: string } | null | undefined) {
         if (!payload?.magneticTileID) return
         toRemove(payload.magneticTileID)
       }
@@ -282,12 +282,12 @@ function OverlayShell() {
           )
           unlistenMount = await track(
             listen<MountTilePayload>(EVENTS.OVERLAY_MOUNT, function (event) {
-              applyMount(event.payload)
+              rememberMount(event.payload)
             })
           )
           unlistenUnmount = await track(
             listen<{ magneticTileID: string }>(EVENTS.OVERLAY_UNMOUNT, function (event) {
-              applyUnmount(event.payload)
+              rememberUnmount(event.payload)
             })
           )
           unlistenClear = await track(
@@ -328,7 +328,7 @@ function OverlayShell() {
           await useOverlayStore.getState().toInitialize()
           // 页面可能是被宿主重载的：只靠事件会丢模式，这里主动同步一次
           toMode(await invoke<OverlayMode>(CHANNELS.OVERLAY.READ_MODE))
-          applyUnmount(
+          rememberUnmount(
             await invoke<{ magneticTileID: string } | null>(CHANNELS.OVERLAY.TAKE_PENDING_UNMOUNT)
           )
           if (cancelled) return

@@ -8,7 +8,7 @@ import { Button } from '@cogito/design/components/button'
 import * as monaco from 'monaco-editor'
 import { useEffect, useRef } from 'react'
 
-import { CODE_THEME, applyCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
+import { CODE_THEME, syncCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
 import { useCodeGitStore } from '@/stores/code-git'
 import { useCodeStore } from '@/stores/code'
 import { findLanguageId } from '@/views/code/lib/language.ts'
@@ -38,7 +38,7 @@ function DiffHost() {
     const host = hostRef.current
     if (!host) return
 
-    applyCodeTheme()
+    syncCodeTheme()
     const editor = monaco.editor.createDiffEditor(host, {
       theme: CODE_THEME,
       readOnly: true,

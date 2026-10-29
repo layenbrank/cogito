@@ -45,7 +45,7 @@ async function listBases(): Promise<KnowledgeBase[]> {
   }
 }
 
-async function createBase(name: string): Promise<KnowledgeBase> {
+async function insertBase(name: string): Promise<KnowledgeBase> {
   try {
     return KnowledgeBaseSchema.parse(await invoke(CHANNELS.KNOWLEDGE.CREATE_BASE, { name }))
   } catch (error) {
@@ -100,7 +100,7 @@ async function listCloudStates(baseId?: string): Promise<CloudState[]> {
 }
 
 /** 回写一篇文档的云端索引状态；`indexedAt` / `error` 不传即清空 */
-async function setCloudState(params: {
+async function writeCloudState(params: {
   docId: string
   status: string
   assetId?: string | null
@@ -221,7 +221,7 @@ async function exportBundle(baseId: string): Promise<string> {
 }
 
 export {
-  createBase,
+  insertBase,
   discardStaged,
   exportBundle,
   listBases,
@@ -235,7 +235,7 @@ export {
   rescanBase,
   resolveDoc,
   searchDocs,
-  setCloudState,
+  writeCloudState,
   updateBase,
   writeDoc
 }

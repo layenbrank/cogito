@@ -1,12 +1,12 @@
 /**
  * dock 的模型端口：复用聊天页那一条链路，只把「系统提示」和「收尾副作用」换成域自己的。
  *
- * 为什么不另写一套：`createModelPort` 已经把审批/追问/停止/错误/用量的翻译做完了，
+ * 为什么不另写一套：`buildModelPort` 已经把审批/追问/停止/错误/用量的翻译做完了，
  * 复制一份只会让两边行为慢慢跑偏。
  */
 import type { ChatModelPort } from '@cogito/chat/ports'
 
-import { createModelPort } from '@/features/agent/port/model'
+import { buildModelPort } from '@/features/agent/port/model'
 
 import type { DockScope } from './types'
 
@@ -16,7 +16,7 @@ import type { DockScope } from './types'
  */
 let runText: string | null = null
 
-function setDockRunText(text: string): void {
+function writeDockRunText(text: string): void {
   runText = text
 }
 
@@ -27,7 +27,7 @@ function takeDockRunText(): string | null {
 }
 
 function buildDockPort(scope: () => DockScope): ChatModelPort {
-  return createModelPort({
+  return buildModelPort({
     // 每轮现读：scope 的闭包会随磁贴状态（当前文档/选区）更新
     findSystemText: function () {
       return scope().systemText
@@ -41,4 +41,4 @@ function buildDockPort(scope: () => DockScope): ChatModelPort {
   })
 }
 
-export { buildDockPort, setDockRunText }
+export { buildDockPort, writeDockRunText }

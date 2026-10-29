@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 
 import { useSignboardStore, type SignboardColumn } from '@/stores/signboard'
 import { BarChart } from '@/views/signboard/charts/charts'
-import { ChartPanel } from '@/views/signboard/charts/panel'
+import { ChartSurface } from '@/views/signboard/charts/surface'
 import { findChartTheme } from '@/views/signboard/charts/theme'
 import styles from '@/views/signboard/signboard.module.scss'
 
@@ -73,7 +73,7 @@ function WorkloadView(props: WorkloadViewProps) {
   return (
     <div className={styles.paneView}>
       <div className={styles.chartsGrid}>
-        <ChartPanel
+        <ChartSurface
           title="WIP 占用"
           icon="lucide:gauge"
           hint="计数 vs 上限 · 超限标红">
@@ -82,9 +82,9 @@ function WorkloadView(props: WorkloadViewProps) {
             isEmpty={isWipEmpty}
             emptyHint={isEmpty ? '先添加列' : '暂无卡片'}
           />
-        </ChartPanel>
+        </ChartSurface>
 
-        <ChartPanel
+        <ChartSurface
           title="列流量"
           icon="lucide:git-commit-horizontal"
           hint={hasAnyRole ? '按列顺序 · 已设语义' : '按列顺序'}>
@@ -95,7 +95,7 @@ function WorkloadView(props: WorkloadViewProps) {
             })}
             emptyHint={isEmpty ? '先添加列' : '暂无卡片'}
           />
-        </ChartPanel>
+        </ChartSurface>
       </div>
     </div>
   )

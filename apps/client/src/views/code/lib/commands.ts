@@ -65,8 +65,8 @@ function closeActiveTab(): void {
 
 function toggleTerminal(): void {
   const store = useCodeStore.getState()
-  const willOpen = !(store.isPanelOpen && store.panelTab === 'terminal')
-  store.toTogglePanel('terminal')
+  const willOpen = !(store.isSurfaceOpen && store.surfaceTab === 'terminal')
+  store.toToggleSurface('terminal')
   if (willOpen) {
     const root = store.workspaceRoot
     if (root && useTerminalStore.getState().tabs.length === 0) {
@@ -206,7 +206,7 @@ const CODE_COMMANDS: Command[] = [
     keywords: 'problems markers',
     group: '查看',
     run: function () {
-      useCodeStore.getState().toTogglePanel('problems')
+      useCodeStore.getState().toToggleSurface('problems')
     }
   }
 ]

@@ -147,14 +147,14 @@ function clearCaptureSession(sessionID: string) {
   sessions.delete(sessionID)
 }
 
-function createCaptureSessionID(): string {
+function makeCaptureSessionID(): string {
   return `capture-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 export {
   CAPTURES_DIR,
   clearCaptureSession,
-  createCaptureSessionID,
+  makeCaptureSessionID,
   findCaptureDir,
   toRecordCapture
 }

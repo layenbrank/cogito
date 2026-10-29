@@ -265,7 +265,7 @@ function buildBracketColors(palette: CodePalette): Record<string, string> {
  * 重新定义并应用代码主题。切明暗或改主色后调用。
  * 需要在 DOM 挂载后执行（要读 `:root` / `.dark` 上的 token）。
  */
-function applyCodeTheme(): void {
+function syncCodeTheme(): void {
   try {
     const palette = readPalette()
     monaco.editor.defineTheme(CODE_THEME, {
@@ -293,7 +293,7 @@ function watchCodeTheme(onApplied?: (isDark: boolean) => void): () => void {
     if (frame) return
     frame = requestAnimationFrame(function () {
       frame = 0
-      applyCodeTheme()
+      syncCodeTheme()
       onApplied?.(isDarkTheme())
     })
   })
@@ -307,4 +307,4 @@ function watchCodeTheme(onApplied?: (isDark: boolean) => void): () => void {
   }
 }
 
-export { CODE_THEME, applyCodeTheme, watchCodeTheme }
+export { CODE_THEME, syncCodeTheme, watchCodeTheme }

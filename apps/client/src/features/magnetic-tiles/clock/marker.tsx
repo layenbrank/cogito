@@ -1,6 +1,6 @@
 import { MagneticTile, type MarkerProps } from '@/features/magnetic-tile/magnetic-tile.tsx'
 import { markerClass } from '@/features/magnetic-tile/marker'
-import { AsidePanel } from '@/features/magnetic-tiles/clock/aside-panel.tsx'
+import { AsideSurface } from '@/features/magnetic-tiles/clock/aside-surface.tsx'
 import { ClockFace } from '@/features/magnetic-tiles/clock/clock-face.tsx'
 import styles from '@/features/magnetic-tiles/clock/marker.module.scss'
 import { useClockMarker } from '@/features/magnetic-tiles/clock/use-clock-marker.ts'
@@ -33,7 +33,7 @@ function Marker(props: Props) {
           useFlipDots={state.useFlipDots}
         />
         {state.showAside ? (
-          <AsidePanel
+          <AsideSurface
             period={state.period}
             dateLabel={state.dateLabel}
             weekday={state.weekday}

@@ -62,8 +62,8 @@ function useLibrary(options: UseLibraryOptions) {
   const isLoading = useCorexStore(function (state) {
     return state.isLoading
   })
-  const loadError = useCorexStore(function (state) {
-    return state.loadError
+  const fetchError = useCorexStore(function (state) {
+    return state.fetchError
   })
   const initialize = useCorexStore(function (state) {
     return state.initialize
@@ -179,7 +179,7 @@ function useLibrary(options: UseLibraryOptions) {
   const focusRunning = useCallback(
     function (id: string) {
       focusRun(id)
-      useTerminalStore.getState().setActivity('run')
+      useTerminalStore.getState().writeActivity('run')
     },
     [focusRun]
   )
@@ -360,7 +360,7 @@ function useLibrary(options: UseLibraryOptions) {
     confirmImport,
     isLoaded,
     isLoading,
-    loadError,
+    fetchError,
     initialize,
     filtered,
     groups,
