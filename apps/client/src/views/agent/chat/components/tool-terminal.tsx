@@ -133,7 +133,7 @@ function TerminalShell(props: TerminalShellProps) {
         className={[
           'flex min-h-20 flex-col gap-1 overflow-auto px-3 py-2.5 font-mono text-xs leading-relaxed',
           'selection:bg-terminal-accent/25 selection:text-terminal-foreground',
-          '[scrollbar-color:var(--color-terminal-border)_transparent] scrollbar-thin',
+          '[scrollbar-color:var(--color-terminal-border)_transparent]',
           TERMINAL_BODY_MAX
         ].join(' ')}>
         {props.children}

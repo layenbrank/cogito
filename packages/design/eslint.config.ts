@@ -49,12 +49,16 @@ export default defineConfig([
       'no-restricted-syntax': [
         'error',
         {
-          selector: 'Literal[value=/scrollbar-width\\s*:\\s*thin/i]',
-          message: '设计包不得把滚动条设成 thin —— 宽度统一由 app 的 6px 全局规则决定'
+          selector:
+            'Literal[value=/\\bscrollbar-thin\\b|scrollbar-width\\s*:\\s*thin\\b|\\[scrollbar-width:thin\\]/i]',
+          message:
+            '禁止 scrollbar-width: thin / scrollbar-thin —— 宽度统一由 app 的 6px 全局规则决定；隐藏用 none'
         },
         {
-          selector: 'TemplateElement[value.raw=/scrollbar-width\\s*:\\s*thin/i]',
-          message: '设计包不得把滚动条设成 thin —— 宽度统一由 app 的 6px 全局规则决定'
+          selector:
+            'TemplateElement[value.raw=/\\bscrollbar-thin\\b|scrollbar-width\\s*:\\s*thin\\b|\\[scrollbar-width:thin\\]/i]',
+          message:
+            '禁止 scrollbar-width: thin / scrollbar-thin —— 宽度统一由 app 的 6px 全局规则决定；隐藏用 none'
         },
         // 字号只能取标准档位（xs 12 / sm 14 / base 16 …），禁止任意 px 值与自定义档位
         // 最小字号 12px，globals.css 里也不提供更小的 token。
@@ -65,6 +69,18 @@ export default defineConfig([
         {
           selector: 'TemplateElement[value.raw=/\\btext-\\[\\d+(?:\\.\\d+)?px\\]/]',
           message: '字号必须用配置刻度（text-xs 为 12px 下限），不要写任意 px 值'
+        },
+        {
+          selector:
+            'Literal[value=/\\boverscroll-(?:[xy]-)?contain\\b|overscroll-behavior(?:-[xy])?\\s*:\\s*contain\\b/i]',
+          message:
+            '禁止 overscroll-contain / overscroll-behavior: contain；用默认行为或 overscroll-auto / overscroll-none'
+        },
+        {
+          selector:
+            'TemplateElement[value.raw=/\\boverscroll-(?:[xy]-)?contain\\b|overscroll-behavior(?:-[xy])?\\s*:\\s*contain\\b/i]',
+          message:
+            '禁止 overscroll-contain / overscroll-behavior: contain；用默认行为或 overscroll-auto / overscroll-none'
         }
       ]
     }

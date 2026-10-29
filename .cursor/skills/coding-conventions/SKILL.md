@@ -27,6 +27,8 @@ description: >-
 - [ ] `catch` 必 throw 或输出一次；独立并行用 `Promise.allSettled`
 - [ ] 对象形状用 `interface`；联合/交叉/工具类型映射用 `type`
 - [ ] 组件走 `@cogito/design` + registry；语义 token；按压用色阶
+- [ ] 不用 `overscroll-contain` / `overscroll-behavior: contain`
+- [ ] 不用 `scrollbar-width: thin` / `scrollbar-thin`
 
 ## 命名
 
@@ -104,6 +106,15 @@ description: >-
 - 任务互相独立 → `Promise.allSettled`，逐条处理并各自报错
 - 仅真 fail-fast 用 `Promise.all`
 - 每项已自带 try/catch 的 `Promise.all` → 改 `allSettled`，错误收到一处
+
+## UI / 滚动
+
+- **禁止** `overscroll-contain`、`overscroll-x-contain`、`overscroll-y-contain`
+- **禁止** CSS `overscroll-behavior: contain`（及 `-x` / `-y`）
+- **禁止** `scrollbar-width: thin`、`scrollbar-thin`、`[scrollbar-width:thin]`（会盖掉全局 6px）
+- 滚动条：默认交给 app 全局 webkit 6px；隐藏用 `scrollbar-width: none` + `::-webkit-scrollbar { display:none }`
+- overscroll：默认行为，或 `overscroll-auto` / `overscroll-none`
+- ESLint：`ith/no-overscroll-contain`、`ith/no-scrollbar-width-thin`（client / studio）；design 走 `no-restricted-syntax`
 
 ## 简化写法
 

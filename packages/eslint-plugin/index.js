@@ -4,6 +4,8 @@
  * 命名空间固定 `ith`：规则 id 形如 `ith/catch-must-report`。
  */
 import { catchMustReport } from './rules/catch-must-report.js'
+import { noOverscrollContain } from './rules/no-overscroll-contain.js'
+import { noScrollbarWidthThin } from './rules/no-scrollbar-width-thin.js'
 
 const plugin = {
   meta: {
@@ -11,7 +13,9 @@ const plugin = {
     version: '0.0.1'
   },
   rules: {
-    'catch-must-report': catchMustReport
+    'catch-must-report': catchMustReport,
+    'no-overscroll-contain': noOverscrollContain,
+    'no-scrollbar-width-thin': noScrollbarWidthThin
   }
 }
 

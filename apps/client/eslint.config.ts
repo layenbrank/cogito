@@ -132,7 +132,9 @@ export default defineConfig(
     files: ['**/*.{ts,tsx,mts,cts}'],
     plugins: { ith },
     rules: {
-      'ith/catch-must-report': 'error'
+      'ith/catch-must-report': 'error',
+      'ith/no-overscroll-contain': 'error',
+      'ith/no-scrollbar-width-thin': 'error'
     }
   },
   {

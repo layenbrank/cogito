@@ -64,7 +64,7 @@ function ResultsSurface(props: ResultsSurfaceProps) {
           })}
         </div>
 
-        <div className="max-h-[min(34vh,18rem)] overflow-y-auto overscroll-contain p-1.5">
+        <div className="max-h-[min(34vh,18rem)] overflow-y-auto p-1.5">
           {flatHits.length === 0 ? (
             <p className="px-3 py-6 text-center text-sm text-muted-foreground">
               无匹配结果

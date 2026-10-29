@@ -99,7 +99,7 @@ function PickerListShell(props: { children: React.ReactNode; listClassName?: str
   return (
     <div
       className={clsx(
-        'min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5',
+        'min-h-0 flex-1 overflow-y-auto p-1.5',
         props.listClassName
       )}>
       {props.children}

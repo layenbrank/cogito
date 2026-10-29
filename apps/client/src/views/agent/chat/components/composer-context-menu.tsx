@@ -95,7 +95,7 @@ function SkillsPane(props: {
           }}
         />
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5">
+      <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
         {isLoading ? (
           <p className="text-muted-foreground flex items-center gap-1.5 p-2.5 text-xs">
             <Icon

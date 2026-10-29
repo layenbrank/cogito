@@ -394,7 +394,7 @@ function Library(props: LibraryProps) {
 
       <div
         ref={scrollRef}
-        className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background px-4">
+        className="relative min-h-0 flex-1 overflow-y-auto bg-background px-4">
         <LibraryContent
           medias={props.medias}
           layout={layout}

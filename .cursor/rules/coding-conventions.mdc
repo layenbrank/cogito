@@ -22,6 +22,8 @@ alwaysApply: true
 - 非 `useState` 禁止 `set`；布尔用 `is` / `has` / `can`
 - 用单复数区分语义，避免 `list` 后缀（`users` 非 `userList`）
 - UI 区域 / 容器用 `surface`，不用 `panel`
+- **禁止 `overscroll-contain`** / `overscroll-behavior: contain`（截断滚动链）；用默认或 `overscroll-auto` / `overscroll-none`
+- **禁止 `scrollbar-width: thin`** / `scrollbar-thin`（会盖掉全局 6px 滚动条）；隐藏用 `none`
 - 名称简洁明确；除 `i`、`k` 外避免单字母；超过 20 字符应拆分
 
 ## 文件与导入

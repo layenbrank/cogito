@@ -17,7 +17,7 @@ interface CollectionsProps {
 
 function Collections(props: CollectionsProps) {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background px-4 pt-2 pb-28">
+    <div className="min-h-0 flex-1 overflow-y-auto bg-background px-4 pt-2 pb-28">
       <div className="mb-4">
         <h1 className="text-2xl font-semibold tracking-tight">精选集</h1>
         <p className="text-sm text-muted-foreground">按类型浏览，敏感内容进入已隐藏</p>
