@@ -6,14 +6,30 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 
-import { WorkspaceGit, type StatusEntry } from '@/lib/workspace-git'
+import {
+  WorkspaceGit,
+  type DiffHunk,
+  type DiffMode,
+  type StatusEntry
+} from '@/lib/workspace-git'
 
 interface GitDiff {
   /** 相对仓库根的路径 */
   relative: string
+  mode: DiffMode
   original: string
   modified: string
   isBinary: boolean
+  isLarge: boolean
+  isIdentical: boolean
+  /** 壳已打开、内容还在路上（先出界面再等 IPC） */
+  isLoading: boolean
+  added: number
+  deleted: number
+  hunks: DiffHunk[]
+  hunkTotal: number
+  isHunksLoading: boolean
+  hasMoreHunks: boolean
 }
 
 /** 动作结果：失败时由调用方决定提示方式 */
@@ -35,6 +51,8 @@ interface CodeGitState {
 
   /** 工作区根变化时调用：probe 后按需读取状态 */
   toSync: (root: string | null) => Promise<void>
+  /** watch 回调：先失效缓存再刷新 */
+  toInvalidateAndRefresh: () => Promise<void>
   toRefresh: () => Promise<void>
   toStage: (paths: string[]) => Promise<GitOutcome>
   toUnstage: (paths: string[]) => Promise<GitOutcome>
@@ -43,8 +61,11 @@ interface CodeGitState {
   toFetch: () => Promise<GitOutcome>
   toPull: () => Promise<GitOutcome>
   toOpenDiff: (relative: string) => Promise<GitOutcome>
+  toLoadMoreHunks: () => Promise<void>
   toCloseDiff: () => void
 }
+
+const HUNK_PAGE = 40
 
 function toMessage(error: unknown, fallback: string): string {
   if (typeof error === 'string' && error.trim()) return error
@@ -121,6 +142,17 @@ const useCodeGitStore = create<CodeGitState>()(
         }
       },
 
+      async toInvalidateAndRefresh() {
+        const root = get().repoRoot
+        if (!root) return
+        try {
+          await WorkspaceGit.invalidate(root)
+        } catch (error) {
+          console.error('[code] git invalidate failed', error)
+        }
+        await get().toRefresh()
+      },
+
       async toRefresh() {
         const root = get().repoRoot
         if (!root) return
@@ -134,7 +166,10 @@ const useCodeGitStore = create<CodeGitState>()(
             state.branch = result.branch
             state.ahead = result.ahead
             state.behind = result.behind
-            state.entries = result.entries
+            // unchanged：指纹/载荷未变，跳过替换避免 SCM 列表闪烁
+            if (!result.unchanged) {
+              state.entries = result.entries
+            }
             state.isLoading = false
           })
         } catch (error) {
@@ -221,19 +256,144 @@ const useCodeGitStore = create<CodeGitState>()(
       async toOpenDiff(relative) {
         const root = get().repoRoot
         if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
+        set(function (state) {
+          state.diff = {
+            relative,
+            mode: 'sideBySide',
+            original: '',
+            modified: '',
+            isBinary: false,
+            isLarge: false,
+            isIdentical: false,
+            isLoading: true,
+            added: 0,
+            deleted: 0,
+            hunks: [],
+            hunkTotal: 0,
+            isHunksLoading: false,
+            hasMoreHunks: false
+          }
+        })
         try {
+          const meta = await WorkspaceGit.diffMeta(root, relative)
+          if (get().diff?.relative !== relative) {
+            return success('已切换到其他差异')
+          }
+
+          if (meta.isBinary || meta.isIdentical) {
+            set(function (state) {
+              state.diff = {
+                relative,
+                mode: meta.mode,
+                original: '',
+                modified: '',
+                isBinary: meta.isBinary,
+                isLarge: meta.isLarge,
+                isIdentical: meta.isIdentical,
+                isLoading: false,
+                added: meta.added,
+                deleted: meta.deleted,
+                hunks: [],
+                hunkTotal: 0,
+                isHunksLoading: false,
+                hasMoreHunks: false
+              }
+            })
+            return success('已打开差异')
+          }
+
+          if (meta.mode === 'hunks') {
+            set(function (state) {
+              state.diff = {
+                relative,
+                mode: 'hunks',
+                original: '',
+                modified: '',
+                isBinary: false,
+                isLarge: true,
+                isIdentical: false,
+                isLoading: false,
+                added: meta.added,
+                deleted: meta.deleted,
+                hunks: [],
+                hunkTotal: meta.hunkCount,
+                isHunksLoading: true,
+                hasMoreHunks: true
+              }
+            })
+            const page = await WorkspaceGit.diffHunks(root, relative, 0, HUNK_PAGE)
+            if (get().diff?.relative !== relative) {
+              return success('已切换到其他差异')
+            }
+            set(function (state) {
+              if (!state.diff || state.diff.relative !== relative) return
+              state.diff.hunks = page.hunks
+              state.diff.hunkTotal = page.total
+              state.diff.isHunksLoading = false
+              state.diff.hasMoreHunks = page.hunks.length < page.total
+            })
+            return success('已打开差异')
+          }
+
           const result = await WorkspaceGit.diff(root, relative)
+          if (get().diff?.relative !== relative) {
+            return success('已切换到其他差异')
+          }
           set(function (state) {
             state.diff = {
               relative,
+              mode: result.mode,
               original: result.original,
               modified: result.modified,
-              isBinary: result.isBinary
+              isBinary: result.isBinary,
+              isLarge: result.isLarge,
+              isIdentical: result.isIdentical,
+              isLoading: false,
+              added: result.added,
+              deleted: result.deleted,
+              hunks: [],
+              hunkTotal: 0,
+              isHunksLoading: false,
+              hasMoreHunks: false
             }
           })
           return success('已打开差异')
         } catch (error) {
+          if (get().diff?.relative === relative) {
+            set(function (state) {
+              state.diff = null
+            })
+          }
           return reportFailure(error, '读取差异失败')
+        }
+      },
+
+      async toLoadMoreHunks() {
+        const root = get().repoRoot
+        const diff = get().diff
+        if (!root || !diff || diff.mode !== 'hunks' || !diff.hasMoreHunks || diff.isHunksLoading) {
+          return
+        }
+        const relative = diff.relative
+        const offset = diff.hunks.length
+        set(function (state) {
+          if (state.diff) state.diff.isHunksLoading = true
+        })
+        try {
+          const page = await WorkspaceGit.diffHunks(root, relative, offset, HUNK_PAGE)
+          if (get().diff?.relative !== relative) return
+          set(function (state) {
+            if (!state.diff || state.diff.relative !== relative) return
+            state.diff.hunks = state.diff.hunks.concat(page.hunks)
+            state.diff.hunkTotal = page.total
+            state.diff.isHunksLoading = false
+            state.diff.hasMoreHunks = state.diff.hunks.length < page.total
+          })
+        } catch (error) {
+          console.error('[code] git diffHunks failed', error)
+          set(function (state) {
+            if (state.diff) state.diff.isHunksLoading = false
+          })
         }
       },
 

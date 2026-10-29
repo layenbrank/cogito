@@ -5,7 +5,7 @@ import {
 } from '@cogito/design/components/resizable'
 import { exists, watch } from '@tauri-apps/plugin-fs'
 import { clsx } from 'clsx'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { useCommands } from '@/keyboard/react'
@@ -55,11 +55,21 @@ export default function Code() {
   const diff = useCodeGitStore(function (state) {
     return state.diff
   })
+  const isDiffOpen = Boolean(diff)
+  // DiffEditor 创建/销毁很贵；第一次打开后常驻，关掉时只 hidden
+  const [isDiffHostReady, setDiffHostReady] = useState(false)
 
   // 只为订阅覆盖值：用户改了键位，下面的空态提示要跟着变
   useSettingsStore(function (state) {
     return state.settings.shortcuts.bindings
   })
+
+  useEffect(
+    function () {
+      if (isDiffOpen) setDiffHostReady(true)
+    },
+    [isDiffOpen]
+  )
 
   useEffect(function () {
     return function () {
@@ -178,7 +188,8 @@ export default function Code() {
           debounceTimer = window.setTimeout(function () {
             if (disposed) return
             toBumpTree()
-            void useCodeGitStore.getState().toRefresh()
+            // watch 只作失效信号：invalidate → refresh；unchanged 时前端不抖列表
+            void useCodeGitStore.getState().toInvalidateAndRefresh()
           }, 350)
         },
         { recursive: true, delayMs: 500 }
@@ -275,8 +286,15 @@ export default function Code() {
                         </p>
                       </div>
                     ) : null}
-                    <MonacoHost />
-                    {diff ? <DiffHost /> : null}
+                    {/*
+                      差异层盖在编辑器上时，必须把底层 Monaco 从布局里拿掉。
+                      否则底层小地图仍可被点到，两边 automaticLayout 互相挤，顶栏边框会闪。
+                    */}
+                    <MonacoHost
+                      className={isDiffOpen ? 'hidden' : undefined}
+                      isActive={!isDiffOpen}
+                    />
+                    {isDiffHostReady ? <DiffHost isOpen={isDiffOpen} /> : null}
                   </div>
                 </div>
               </ResizablePanel>

@@ -34,12 +34,57 @@ interface StatusResult {
   ahead: number
   behind: number
   entries: StatusEntry[]
+  /** Rust 指纹缓存命中 */
+  cacheHit?: boolean
+  /** 载荷与上次相同，前端可跳过替换 entries */
+  unchanged?: boolean
+}
+
+type DiffMode = 'sideBySide' | 'hunks'
+
+interface DiffMeta {
+  mode: DiffMode
+  isBinary: boolean
+  isLarge: boolean
+  isIdentical: boolean
+  originalLines: number
+  modifiedLines: number
+  hunkCount: number
+  added: number
+  deleted: number
+  fileBytes: number
+}
+
+interface DiffHunk {
+  oldStart: number
+  oldLines: number
+  newStart: number
+  newLines: number
+  header: string
+  lines: string[]
+}
+
+interface DiffHunksResult {
+  hunks: DiffHunk[]
+  total: number
+  offset: number
 }
 
 interface DiffResult {
+  /** sideBySide：Monaco DiffEditor；hunks：结构化块列表（大重写） */
+  mode: DiffMode
   original: string
   modified: string
+  /** @deprecated 整包 unified 已收掉；保留空串兼容旧调用方 */
+  patch: string
   isBinary: boolean
+  isLarge: boolean
+  isIdentical: boolean
+  originalLines: number
+  modifiedLines: number
+  hunkCount: number
+  added: number
+  deleted: number
 }
 
 interface ActionResult {
@@ -62,8 +107,22 @@ async function status(path: string) {
   return invoke<StatusResult>(CHANNELS.WORKSPACE_GIT.STATUS, { params: { path } })
 }
 
+async function invalidate(path: string) {
+  return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.INVALIDATE, { params: { path } })
+}
+
 async function diff(path: string, filePath: string) {
   return invoke<DiffResult>(CHANNELS.WORKSPACE_GIT.DIFF, { params: { path, filePath } })
+}
+
+async function diffMeta(path: string, filePath: string) {
+  return invoke<DiffMeta>(CHANNELS.WORKSPACE_GIT.DIFF_META, { params: { path, filePath } })
+}
+
+async function diffHunks(path: string, filePath: string, offset = 0, limit = 40) {
+  return invoke<DiffHunksResult>(CHANNELS.WORKSPACE_GIT.DIFF_HUNKS, {
+    params: { path, filePath, offset, limit }
+  })
 }
 
 async function stage(path: string, paths: string[]) {
@@ -99,7 +158,10 @@ const WorkspaceGit = {
   fetchBranches,
   checkout,
   status,
+  invalidate,
   diff,
+  diffMeta,
+  diffHunks,
   stage,
   unstage,
   discard,
@@ -115,6 +177,10 @@ export type {
   CheckoutResult,
   StatusEntry,
   StatusResult,
+  DiffMode,
+  DiffMeta,
+  DiffHunk,
+  DiffHunksResult,
   DiffResult,
   ActionResult
 }

@@ -13,15 +13,21 @@ import {
   AlertDialogTitle
 } from '@cogito/design/components/alert-dialog'
 import { Button } from '@cogito/design/components/button'
-import { Switch } from '@cogito/design/components/switch'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@cogito/design/components/dropdown-menu'
 import { Textarea } from '@cogito/design/components/textarea'
 import { cn } from 'cn'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { useCodeGitStore, type GitOutcome } from '@/stores/code-git'
 import { useCodeStore } from '@/stores/code'
 import { groupEntries } from '@/views/code/lib/git-status.ts'
+import { joinPath } from '@/views/code/lib/path.ts'
 import { Changes, type GroupKind } from '@/views/code/workspace/scm/changes.tsx'
 
 interface DiscardTarget {
@@ -33,6 +39,58 @@ interface DiscardTarget {
 function report(outcome: GitOutcome) {
   if (outcome.ok) toast.success(outcome.message)
   else toast.error(outcome.message)
+}
+
+function CommitBar(props: {
+  canCommitStaged: boolean
+  canCommitAll: boolean
+  onCommitStaged: () => void
+  onCommitAll: () => void
+}) {
+  const hasChoice = props.canCommitStaged || props.canCommitAll
+  return (
+    <div className="flex w-full">
+      <Button
+        type="button"
+        className="h-8 min-w-0 flex-1 rounded-none rounded-l-md text-xs"
+        disabled={!props.canCommitStaged}
+        title={props.canCommitStaged ? '提交暂存的更改' : '请先暂存要提交的更改'}
+        onClick={props.onCommitStaged}>
+        <Icon
+          icon="lucide:check"
+          className="size-3.5"
+        />
+        提交
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label="提交选项"
+          disabled={!hasChoice}
+          className="bg-primary text-primary-foreground hover:bg-primary-hover flex h-8 w-8 shrink-0 items-center justify-center rounded-r-md border-l border-primary-foreground/25 outline-none disabled:pointer-events-none disabled:opacity-50">
+          <Icon
+            icon="lucide:chevron-down"
+            className="size-4"
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          className="w-40">
+          <DropdownMenuItem
+            className="text-xs"
+            disabled={!props.canCommitStaged}
+            onClick={props.onCommitStaged}>
+            提交暂存的更改
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="text-xs"
+            disabled={!props.canCommitAll}
+            onClick={props.onCommitAll}>
+            提交所有更改
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
 }
 
 function ActionButton(props: {
@@ -89,7 +147,6 @@ function ScmSurface() {
   })
 
   const [message, updateMessage] = useState('')
-  const [isStageAll, setStageAll] = useState(true)
   const [discardTarget, setDiscardTarget] = useState<DiscardTarget | null>(null)
 
   const groups = useMemo(
@@ -106,15 +163,11 @@ function ScmSurface() {
   )
 
   const stagedCount = groups[0].entries.length
-  const canCommit = message.trim().length > 0 && (isStageAll || stagedCount > 0)
+  const hasMessage = message.trim().length > 0
+  const canCommitStaged = hasMessage && stagedCount > 0
+  const canCommitAll = hasMessage && entries.length > 0
 
-  // 工作区切换时重新探测仓库；同一工作区内由各操作自行刷新
-  useEffect(
-    function () {
-      void useCodeGitStore.getState().toSync(workspaceRoot)
-    },
-    [workspaceRoot]
-  )
+  // toSync 仅由 code.tsx 统一入口触发，避免打开 SCM 时双重 probe+status
 
   function onOpenDiff(relative: string) {
     void useCodeGitStore
@@ -123,6 +176,11 @@ function ScmSurface() {
       .then(function (outcome) {
         if (!outcome.ok) toast.error(outcome.message)
       })
+  }
+
+  function onOpenFile(relative: string) {
+    if (!workspaceRoot) return
+    useCodeStore.getState().toOpenTab({ path: joinPath(workspaceRoot, relative) })
   }
 
   function onStage(paths: string[]) {
@@ -157,7 +215,7 @@ function ScmSurface() {
     useCodeStore.getState().toBumpTree()
   }
 
-  async function onCommit() {
+  async function onCommit(isStageAll: boolean) {
     const outcome = await useCodeGitStore.getState().toCommit(message.trim(), isStageAll)
     report(outcome)
     if (outcome.ok) updateMessage('')
@@ -243,35 +301,25 @@ function ScmSurface() {
           value={message}
           placeholder="提交说明"
           aria-label="提交说明"
-          className="min-h-14 resize-none text-xs"
+          className={cn(
+            'field-sizing-fixed h-37.5 max-h-37.5 min-h-37.5 resize-none text-xs',
+            'overflow-y-auto overscroll-contain scroll-smooth',
+            '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+          )}
           onChange={function (event) {
             updateMessage(event.target.value)
           }}
         />
-        <div className="flex items-center justify-between gap-2">
-          <label className="text-muted-foreground flex items-center gap-1.5 text-[11px]">
-            <Switch
-              checked={isStageAll}
-              onCheckedChange={function (checked) {
-                setStageAll(checked === true)
-              }}
-            />
-            提交前暂存全部更改
-          </label>
-          <Button
-            type="button"
-            size="sm"
-            className="h-7 shrink-0 text-xs"
-            disabled={!canCommit}
-            onClick={function () {
-              void onCommit()
-            }}>
-            提交
-          </Button>
-        </div>
-        {!isStageAll && stagedCount === 0 ? (
-          <p className="text-muted-foreground text-[11px]">暂无已暂存的更改</p>
-        ) : null}
+        <CommitBar
+          canCommitStaged={canCommitStaged}
+          canCommitAll={canCommitAll}
+          onCommitStaged={function () {
+            void onCommit(false)
+          }}
+          onCommitAll={function () {
+            void onCommit(true)
+          }}
+        />
         {error ? <p className="text-destructive text-[11px]">{error}</p> : null}
       </div>
 
@@ -282,6 +330,7 @@ function ScmSurface() {
           <Changes
             groups={groups}
             onOpenDiff={onOpenDiff}
+            onOpenFile={onOpenFile}
             onStage={onStage}
             onUnstage={onUnstage}
             onDiscard={onDiscard}
