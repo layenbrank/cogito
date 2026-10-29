@@ -13,6 +13,7 @@ import { useCallback, useState } from 'react'
 
 import { ContextMenu, type MenuItem } from '@/components/contextmenu'
 import type { StatusEntry } from '@/lib/workspace-git'
+import { CODE_MENU_CLASS_NAMES } from '@/views/code/lib/context-menu.ts'
 import { findStatusBadge } from '@/views/code/lib/git-status.ts'
 
 type GroupKind = 'staged' | 'changed' | 'untracked'
@@ -287,6 +288,7 @@ function Changes(props: ChangesProps) {
   return (
     <ContextMenu
       trigger="[data-git-path]"
+      classNames={CODE_MENU_CLASS_NAMES}
       findItems={findMenuItems}>
       <div className="flex flex-col">
         {props.groups.map(function (group) {

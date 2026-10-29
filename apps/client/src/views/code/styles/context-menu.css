@@ -1,0 +1,68 @@
+/**
+ * Code 视图右键菜单：仅业务侧覆盖，不改 @/components/contextmenu。
+ * 原则：对比度先拉回来，再用清晰边框 + 分层阴影做质感，不压灰、不毛玻璃。
+ */
+.code-ctx-menu.contextmenu-surface {
+  min-width: 240px;
+  max-width: min(400px, calc(100vw - 16px));
+  padding: 4px;
+  border-radius: 8px;
+  border: none;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow:
+    0 1px 1px rgb(0 0 0 / 0.04),
+    0 4px 12px rgb(0 0 0 / 0.06),
+    0 16px 32px rgb(0 0 0 / 0.08);
+}
+
+.code-ctx-menu .contextmenu-item {
+  gap: 8px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  color: var(--popover-foreground);
+  transition: background-color 0.1s ease;
+}
+
+.code-ctx-menu .contextmenu-item:hover,
+.code-ctx-menu .contextmenu-item.is-active {
+  background: color-mix(in oklab, var(--primary) 9%, var(--muted));
+}
+
+.code-ctx-menu .contextmenu-item.is-danger {
+  color: var(--destructive);
+}
+
+.code-ctx-menu .contextmenu-item.is-danger:hover,
+.code-ctx-menu .contextmenu-item.is-danger.is-active {
+  background: color-mix(in oklab, var(--destructive) 12%, transparent);
+  color: var(--destructive);
+}
+
+.code-ctx-menu .contextmenu-icon {
+  flex-basis: 16px;
+  width: 16px;
+  height: 16px;
+  font-size: 15px;
+  color: inherit;
+}
+
+/* 无子菜单时不占箭头列，避免长中文被截断 */
+.code-ctx-menu .contextmenu-arrow-empty {
+  display: none;
+}
+
+.code-ctx-menu .contextmenu-shortcut {
+  margin-inline-start: 24px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  opacity: 1;
+}
+
+.code-ctx-menu .contextmenu-divider {
+  margin: 4px 8px;
+  background: color-mix(in oklab, var(--border) 100%, transparent);
+}

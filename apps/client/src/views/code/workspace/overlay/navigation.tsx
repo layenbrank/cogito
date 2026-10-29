@@ -1,5 +1,5 @@
 /**
- * Code 工作区 · 资源管理器：文件树 + 右键新建/重命名/删除。
+ * Code 工作区 · 侧栏文件树：右键菜单对齐 VS Code Explorer 常用项。
  */
 import {
   AlertDialog,
@@ -14,13 +14,16 @@ import {
 import { Button } from '@cogito/design/components/button'
 import { Input } from '@cogito/design/components/input'
 import { Icon } from '@iconify/react/offline'
+import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { cn } from 'cn'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ContextMenu, type MenuItem } from '@/components/contextmenu'
 import { useCodeStore } from '@/stores/code'
+import { useTerminalStore } from '@/stores/terminal'
 import { hint } from '@/views/code/lib/bindings.ts'
+import { CODE_MENU_CLASS_NAMES } from '@/views/code/lib/context-menu.ts'
 import {
   insertCodeFile,
   insertCodeFolder,
@@ -367,8 +370,89 @@ function ExplorerTree(props: ExplorerTreeProps) {
       const isDirectory = kind === 'directory' || treeKey === ROOT_KEY
       const isRoot = treeKey === ROOT_KEY
       const relativeDir = findRelativeDirForCreate(treeKey, isDirectory)
+      const absolute = findAbsoluteFromKey(props.workspaceRoot, treeKey)
+      const terminalCwd = isDirectory ? absolute : findParentDir(absolute)
+      const relativePath =
+        treeKey === ROOT_KEY ? '' : findRelativePath(props.workspaceRoot, absolute)
+
+      function copyText(text: string, success: string) {
+        void navigator.clipboard.writeText(text).then(
+          function () {
+            toast.success(success)
+          },
+          function (error: unknown) {
+            console.error('[code] clipboard write failed', error)
+            toast.error('复制失败')
+          }
+        )
+      }
+
+      function revealInSystemExplorer() {
+        void revealItemInDir(absolute).catch(function (error: unknown) {
+          console.error('[code] revealItemInDir failed', absolute, error)
+          toast.error(error instanceof Error ? error.message : '打开系统资源管理器失败')
+        })
+      }
+
+      function openInTerminal() {
+        useCodeStore.getState().toUpdateSurfaceTab('terminal')
+        useTerminalStore.getState().newTab(terminalCwd)
+      }
 
       const items: MenuItem[] = [
+        {
+          key: 'reveal-system',
+          label: '在文件资源管理器中显示',
+          shortcut: 'Shift+Alt+R',
+          icon: (
+            <Icon
+              icon="lucide:folder-symlink"
+              className="size-3.5"
+            />
+          ),
+          onSelect: revealInSystemExplorer
+        },
+        {
+          key: 'open-terminal',
+          label: '在集成终端中打开',
+          icon: (
+            <Icon
+              icon="lucide:terminal"
+              className="size-3.5"
+            />
+          ),
+          onSelect: openInTerminal
+        },
+        { key: 'divider-open', type: 'divider' },
+        {
+          key: 'copy-path',
+          label: '复制路径',
+          shortcut: 'Shift+Alt+C',
+          icon: (
+            <Icon
+              icon="lucide:clipboard-copy"
+              className="size-3.5"
+            />
+          ),
+          onSelect() {
+            copyText(absolute, '已复制路径')
+          }
+        },
+        {
+          key: 'copy-relative',
+          label: '复制相对路径',
+          icon: (
+            <Icon
+              icon="lucide:clipboard-list"
+              className="size-3.5"
+            />
+          ),
+          disabled: isRoot || !relativePath,
+          onSelect() {
+            copyText(relativePath, '已复制相对路径')
+          }
+        },
+        { key: 'divider-create', type: 'divider' },
         {
           key: 'new-file',
           label: '新建文件',
@@ -408,9 +492,11 @@ function ExplorerTree(props: ExplorerTreeProps) {
       if (isRoot) return items
 
       items.push(
+        { key: 'divider-edit', type: 'divider' },
         {
           key: 'rename',
           label: '重命名',
+          shortcut: 'F2',
           icon: (
             <Icon
               icon="lucide:pencil"
@@ -418,7 +504,6 @@ function ExplorerTree(props: ExplorerTreeProps) {
             />
           ),
           onSelect() {
-            const absolute = findAbsoluteFromKey(props.workspaceRoot, treeKey)
             setRenameTarget({
               absolute,
               name: findFileName(absolute),
@@ -429,6 +514,7 @@ function ExplorerTree(props: ExplorerTreeProps) {
         {
           key: 'delete',
           label: '删除',
+          shortcut: 'Del',
           danger: true,
           icon: (
             <Icon
@@ -437,7 +523,6 @@ function ExplorerTree(props: ExplorerTreeProps) {
             />
           ),
           onSelect() {
-            const absolute = findAbsoluteFromKey(props.workspaceRoot, treeKey)
             setPendingDelete({ absolute, isDirectory })
           }
         }
@@ -452,6 +537,7 @@ function ExplorerTree(props: ExplorerTreeProps) {
     <>
       <ContextMenu
         trigger="[data-tree-key]"
+        classNames={CODE_MENU_CLASS_NAMES}
         findItems={findTreeMenuItems}>
         <ul
           data-tree-key={ROOT_KEY}

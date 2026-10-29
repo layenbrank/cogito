@@ -138,7 +138,7 @@ interface CodeState {
   toSetPaletteMode: (mode: PaletteMode) => void
   toBumpTree: () => void
   toToggleExpanded: (key: string, isOpen: boolean) => void
-  /** 展开指定目录及其所有祖先（面包屑 / 在资源管理器中显示用） */
+  /** 展开侧栏文件树中指定目录及其祖先（面包屑定位用） */
   toRevealPath: (relativeDir: string) => void
   toCollapseAll: () => void
   toRequestReveal: (request: RevealRequest | null) => void
@@ -590,6 +590,8 @@ const useCodeStore = create<CodeState>()(
           toRevealPath(relativeDir) {
             set(
               function (state) {
+                // 根节点 key 为 ROOT；不展开则子路径展开无效
+                if (!state.expandedKeys.includes('ROOT')) state.expandedKeys.push('ROOT')
                 const segments = normalizeSeparators(relativeDir).split('/').filter(Boolean)
                 let current = ''
                 for (const segment of segments) {

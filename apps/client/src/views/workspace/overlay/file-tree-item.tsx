@@ -9,6 +9,8 @@ import { Spinner } from '@cogito/design/components/spinner'
 import { cn } from 'cn'
 import { memo, useEffect, useRef, useState } from 'react'
 
+import { findFileIcon, findFolderIcon } from '@/views/workspace/overlay/file-icon.ts'
+
 export interface FileTreeNode {
   title: string
   key: string
@@ -58,7 +60,7 @@ function LoadMoreRow(props: { title: string; depth: number; onSelect: () => void
   )
 }
 
-/** 文件行：没有子节点，点击即打开 */
+/** 文件行：没有子节点，点击即打开；激活时滚入可视区（资源管理器定位） */
 function FileRow(props: {
   title: string
   depth: number
@@ -67,8 +69,22 @@ function FileRow(props: {
   onSelect: () => void
 }) {
   const isActive = props.isActive
+  const icon = findFileIcon(props.title)
+  const rowRef = useRef<HTMLLIElement | null>(null)
+  useEffect(
+    function () {
+      if (!isActive) return
+      const frame = window.requestAnimationFrame(function () {
+        rowRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      })
+      return function () {
+        window.cancelAnimationFrame(frame)
+      }
+    },
+    [isActive, props.treeKey]
+  )
   return (
-    <li>
+    <li ref={rowRef}>
       <Button
         variant="ghost"
         type="button"
@@ -78,15 +94,12 @@ function FileRow(props: {
         onClick={props.onSelect}
         style={{ paddingLeft: rowPadLeft(props.depth) }}
         className={cn(
-          'flex h-auto w-full items-center justify-start gap-1.5 truncate border-l-2 border-transparent py-0.75 pr-2 text-left text-sm transition-colors hover:bg-muted/60',
-          isActive && 'border-l-primary bg-primary/15 font-medium text-foreground'
+          'flex h-auto w-full items-center justify-start gap-1.5 truncate py-0.75 pr-2 text-left text-sm transition-colors hover:bg-muted/60',
+          isActive && 'bg-primary/15 font-medium text-foreground'
         )}>
         <Icon
-          icon={isActive ? 'lucide:file-text' : 'lucide:file'}
-          className={cn(
-            'size-3.5 shrink-0',
-            isActive ? 'text-primary' : 'text-muted-foreground opacity-70'
-          )}
+          icon={icon.icon}
+          className={cn('size-3.5 shrink-0', icon.className)}
         />
         <span className="truncate">{props.title}</span>
       </Button>
@@ -149,6 +162,7 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
 
   const hasChildren = Boolean(node.children && node.children.length > 0)
   const isEmptyLoaded = Boolean(node.isLoaded && !node.isLoading && !hasChildren)
+  const folderIcon = findFolderIcon(node.title, isOpen)
 
   return (
     <li>
@@ -166,8 +180,8 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
           data-tree-key={node.key}
           data-tree-kind="directory"
           className={cn(
-            'flex w-full items-center gap-1 border-l-2 border-transparent py-0.75 pr-2 text-left text-sm transition-colors hover:bg-muted/60',
-            isActive && 'border-l-primary bg-primary/10 font-medium text-foreground'
+            'flex w-full items-center gap-1 py-0.75 pr-2 text-left text-sm transition-colors hover:bg-muted/60',
+            isActive && 'bg-primary/10 font-medium text-foreground'
           )}
           style={{ paddingLeft: rowPadLeft(depth) }}>
           {node.isLoading ? (
@@ -182,8 +196,8 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
             />
           )}
           <Icon
-            icon="lucide:folder"
-            className="text-muted-foreground size-3.5 shrink-0 opacity-80"
+            icon={folderIcon.icon}
+            className={cn('size-3.5 shrink-0', folderIcon.className)}
           />
           <span className="truncate">{node.title}</span>
         </CollapsibleTrigger>
