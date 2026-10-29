@@ -192,7 +192,7 @@ function CommandPalette() {
                       role="option"
                       aria-selected={index === activeIndex}
                       className={cn(
-                        'flex h-auto w-full flex-col rounded-md px-2 py-1.5 text-left text-sm',
+                        'flex h-auto w-full flex-col items-start justify-start rounded-md px-2 py-1.5 text-left text-sm',
                         index === activeIndex ? 'bg-muted' : 'hover:bg-muted/60'
                       )}
                       onMouseEnter={function () {
@@ -201,8 +201,10 @@ function CommandPalette() {
                       onClick={function () {
                         void activateItem(index)
                       }}>
-                      <span className="text-foreground">{hit.name}</span>
-                      <span className="text-muted-foreground truncate text-xs">{hit.relative}</span>
+                      <span className="text-foreground w-full truncate">{hit.name}</span>
+                      <span className="text-muted-foreground w-full truncate text-xs">
+                        {hit.relative}
+                      </span>
                     </Button>
                   </li>
                 )
@@ -216,7 +218,7 @@ function CommandPalette() {
                       role="option"
                       aria-selected={index === activeIndex}
                       className={cn(
-                        'h-auto w-full rounded-md px-2 py-1.5 text-left text-sm',
+                        'h-auto w-full justify-start rounded-md px-2 py-1.5 text-left text-sm',
                         index === activeIndex ? 'bg-muted' : 'hover:bg-muted/60'
                       )}
                       onMouseEnter={function () {

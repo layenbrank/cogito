@@ -51,7 +51,7 @@ function LoadMoreRow(props: { title: string; depth: number; onSelect: () => void
         type="button"
         onClick={props.onSelect}
         style={{ paddingLeft: rowPadLeft(props.depth) }}
-        className="text-muted-foreground hover:bg-muted/60 h-auto w-full truncate py-0.75 pr-2 text-left text-sm">
+        className="text-muted-foreground hover:bg-muted/60 h-auto w-full justify-start truncate py-0.75 pr-2 text-left text-sm">
         {props.title}
       </Button>
     </li>
@@ -78,7 +78,7 @@ function FileRow(props: {
         onClick={props.onSelect}
         style={{ paddingLeft: rowPadLeft(props.depth) }}
         className={cn(
-          'flex h-auto w-full items-center gap-1.5 truncate border-l-2 border-transparent py-0.75 pr-2 text-left text-sm transition-colors hover:bg-muted/60',
+          'flex h-auto w-full items-center justify-start gap-1.5 truncate border-l-2 border-transparent py-0.75 pr-2 text-left text-sm transition-colors hover:bg-muted/60',
           isActive && 'border-l-primary bg-primary/15 font-medium text-foreground'
         )}>
         <Icon
