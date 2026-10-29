@@ -7,9 +7,9 @@ import { replaceStep } from '@/views/directive/model/step-utils.ts'
 import type { DirectiveContent, Step } from '@/views/directive/model/types.ts'
 
 import { findStepByToken } from '@/views/directive/orchestrator/inspector/find-step-by-token.ts'
-import { DirectivePanel } from '@/views/directive/orchestrator/inspector/directive-panel.tsx'
+import { DirectiveSurface } from '@/views/directive/orchestrator/inspector/directive-surface.tsx'
 import { collectStepRefs } from '@/views/directive/orchestrator/inspector/param-ref.ts'
-import { StepPanel } from '@/views/directive/orchestrator/inspector/step-panel.tsx'
+import { StepSurface } from '@/views/directive/orchestrator/inspector/step-surface.tsx'
 
 interface InspectorProps {
   draft: DirectiveContent
@@ -48,14 +48,14 @@ function Inspector(props: InspectorProps) {
   }
 
   const directivePanel = (
-    <DirectivePanel
+    <DirectiveSurface
       draft={props.draft}
       onPatch={patchDraft}
     />
   )
 
   const stepPanel = (
-    <StepPanel
+    <StepSurface
       step={step}
       selectedToken={props.selectedToken}
       catalog={catalog}

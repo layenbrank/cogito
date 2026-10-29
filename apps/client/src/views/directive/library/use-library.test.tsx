@@ -20,7 +20,7 @@ const corex = vi.hoisted(function () {
     runs: [] as unknown[],
     isLoaded: true,
     isLoading: false,
-    loadError: null as string | null,
+    fetchError: null as string | null,
     initialize: vi.fn(function (): Promise<void> {
       return Promise.resolve()
     }),

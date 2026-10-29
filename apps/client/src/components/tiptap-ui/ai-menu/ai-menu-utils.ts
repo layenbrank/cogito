@@ -1,7 +1,7 @@
 import { type Editor } from '@tiptap/react'
-import { getSelectedDOMElement } from '@/lib/tiptap-advanced-utils.ts'
+import { findSelectedDOMElement } from '@/lib/tiptap-advanced-utils.ts'
 
-export function getContextAndInsertAt(editor: Editor) {
+export function findContextAndInsertAt(editor: Editor) {
   let context: string | undefined = ''
   let insertAt = { from: 0, to: 0 }
   let isSelection = true
@@ -35,7 +35,7 @@ export function getContextAndInsertAt(editor: Editor) {
   return { context, insertAt, isSelection }
 }
 
-export function createPositionAnchor(rect: DOMRect): HTMLElement {
+export function makePositionAnchor(rect: DOMRect): HTMLElement {
   const anchor = document.createElement('div')
   Object.assign(anchor.style, {
     position: 'absolute',
@@ -59,7 +59,7 @@ export function cleanupFallbackAnchors(): void {
     .forEach((el) => el.remove())
 }
 
-export function getTopMostParentInsideEditor(
+export function findTopMostParentInsideEditor(
   element: HTMLElement,
   editorRoot: HTMLElement
 ): HTMLElement {
@@ -93,7 +93,7 @@ export function findAiMarkedDOMElement(editor: Editor): HTMLElement | null {
 
   if (lastAiMarkElement && view.dom) {
     try {
-      return getTopMostParentInsideEditor(lastAiMarkElement, view.dom)
+      return findTopMostParentInsideEditor(lastAiMarkElement, view.dom)
     } catch {
       return lastAiMarkElement || null
     }
@@ -110,7 +110,7 @@ export function findPrioritizedAIElement(editor: Editor): HTMLElement | null {
   }
 
   // Currently selected element
-  const selectedElement = getSelectedDOMElement(editor)
+  const selectedElement = findSelectedDOMElement(editor)
   if (selectedElement) {
     return selectedElement
   }

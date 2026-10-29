@@ -25,7 +25,7 @@ import { CommandPalette } from '@/views/code/workspace/command-palette.tsx'
 import { DiffHost } from '@/views/code/workspace/diff-host.tsx'
 import { EditorTabs } from '@/views/code/workspace/editor-tabs.tsx'
 import { MonacoHost } from '@/views/code/workspace/monaco-host.tsx'
-import { Panel } from '@/views/code/workspace/panel.tsx'
+import { BottomSurface } from '@/views/code/workspace/surface.tsx'
 import { Sidebar } from '@/views/code/workspace/sidebar.tsx'
 
 import styles from '@/views/code/workspace/code.module.scss'
@@ -34,8 +34,8 @@ export default function Code() {
   const isSidebarOpen = useCodeStore(function (state) {
     return state.isSidebarOpen
   })
-  const isPanelOpen = useCodeStore(function (state) {
-    return state.isPanelOpen
+  const isSurfaceOpen = useCodeStore(function (state) {
+    return state.isSurfaceOpen
   })
   const workspaceRoot = useCodeStore(function (state) {
     return state.workspaceRoot
@@ -217,16 +217,16 @@ export default function Code() {
   // 打开终端面板时若无 tab，自动新建
   useEffect(
     function () {
-      if (!isPanelOpen) return
+      if (!isSurfaceOpen) return
       const store = useCodeStore.getState()
-      if (store.panelTab !== 'terminal') return
+      if (store.surfaceTab !== 'terminal') return
       const root = store.workspaceRoot
       if (!root) return
       if (useTerminalStore.getState().tabs.length === 0) {
         useTerminalStore.getState().newTab(root)
       }
     },
-    [isPanelOpen]
+    [isSurfaceOpen]
   )
 
   return (
@@ -238,7 +238,7 @@ export default function Code() {
         orientation="vertical"
         className="min-h-0 flex-1">
         <ResizablePanel
-          defaultSize={isPanelOpen ? '72%' : '100%'}
+          defaultSize={isSurfaceOpen ? '72%' : '100%'}
           minSize="30%"
           className="min-h-0 overflow-hidden">
           <div className="flex h-full min-h-0">
@@ -284,7 +284,7 @@ export default function Code() {
           </div>
         </ResizablePanel>
 
-        {isPanelOpen ? (
+        {isSurfaceOpen ? (
           <>
             <ResizableHandle withHandle />
             <ResizablePanel
@@ -292,7 +292,7 @@ export default function Code() {
               minSize="15%"
               maxSize="60%"
               className="min-h-0 overflow-hidden">
-              <Panel />
+              <BottomSurface />
             </ResizablePanel>
           </>
         ) : null}

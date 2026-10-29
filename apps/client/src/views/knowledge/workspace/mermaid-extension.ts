@@ -11,7 +11,7 @@ interface MermaidApi {
  */
 let mermaidPromise: Promise<MermaidApi> | null = null
 
-function loadMermaid(): Promise<MermaidApi> {
+function bootstrapMermaid(): Promise<MermaidApi> {
   mermaidPromise ??= import('mermaid').then(function (mod) {
     mod.default.initialize({
       startOnLoad: false,
@@ -77,7 +77,7 @@ const MermaidBlock = Node.create({
       const renderId = `mermaid-${mermaidSeq++}`
       const source = String(node.attrs.source ?? '')
 
-      void loadMermaid()
+      void bootstrapMermaid()
         .then(function (mermaid) {
           return mermaid.render(renderId, source)
         })

@@ -12,7 +12,7 @@ import { toast } from 'sonner'
 import { findAcpHandle } from '@/features/agent/acp/connection'
 import {
   fetchSessionTools,
-  setToolPermissions,
+  writeToolPermissions,
   type ToolPermissionLevel
 } from '@/features/agent/acp/goose-providers'
 import { findThreadAcpSessionID, waitGooseReady } from '@/features/agent/acp/session'
@@ -35,7 +35,7 @@ function ApprovalSwitch() {
 
   const current = findApprovalPolicy(mode)
 
-  async function applyMode(next: ApprovalMode) {
+  async function writeMode(next: ApprovalMode) {
     writeApprovalMode(next)
     updateMode(next)
 
@@ -61,7 +61,7 @@ function ApprovalSwitch() {
         return { toolName: tool.name, permission }
       })
       if (permissions.length > 0) {
-        await setToolPermissions(handle.connection, permissions)
+        await writeToolPermissions(handle.connection, permissions)
       }
       toast.success(`已设为「${findApprovalPolicy(next)?.label ?? next}」`)
     } catch (error) {
@@ -103,7 +103,7 @@ function ApprovalSwitch() {
               key={policy.value}
               className="items-start gap-2"
               onClick={function () {
-                void applyMode(policy.value)
+                void writeMode(policy.value)
               }}>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span>{policy.label}</span>

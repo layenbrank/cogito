@@ -66,7 +66,7 @@ export function isImageCaptionActive(editor: Editor | null): boolean {
 /**
  * Toggles the image caption in the editor
  */
-export function setImageCaption(editor: Editor | null): boolean {
+export function writeImageCaption(editor: Editor | null): boolean {
   if (!editor?.isEditable || !canToggleImageCaption(editor)) {
     return false
   }
@@ -190,7 +190,7 @@ export function useImageCaption(config?: UseImageCaptionConfig) {
   const handleToggleCaption = useCallback(() => {
     if (!editor) return false
 
-    const success = setImageCaption(editor)
+    const success = writeImageCaption(editor)
     if (success) {
       onSet?.()
     }

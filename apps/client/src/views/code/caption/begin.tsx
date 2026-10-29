@@ -2,6 +2,7 @@
  * 代码窗 Caption 左侧（Decorations.begin）：窗口标题 + 命令中心入口。
  * 快速打开属于窗口级菜单能力，放标题栏；编辑器工作台留在内容区。
  */
+import { Button } from '@cogito/design/components/button'
 import { cn } from 'cn'
 
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
@@ -19,7 +20,8 @@ function CodeCaptionBegin() {
           {findComponentLabel('code')}
         </span>
       )}
-      <button
+      <Button
+        variant="outline"
         type="button"
         data-region="false"
         className={cn(
@@ -30,7 +32,7 @@ function CodeCaptionBegin() {
           useCodeStore.getState().toSetPaletteMode('file')
         }}>
         搜索文件…（{findBindingText('CODE_PALETTE_FILES')}）
-      </button>
+      </Button>
     </div>
   )
 }

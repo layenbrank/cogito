@@ -95,12 +95,12 @@ function useThreadIdentity(): ThreadIdentity {
         const cached = created.current
         if (cached && cached.localID === localID) return cached.task
 
-        const task = createSessionID()
+        const task = makeSessionID()
         created.current = { localID, task }
         return task
       }
 
-      async function createSessionID(): Promise<string> {
+      async function makeSessionID(): Promise<string> {
         const resolved = await resolve()
         if (resolved) return resolved
 

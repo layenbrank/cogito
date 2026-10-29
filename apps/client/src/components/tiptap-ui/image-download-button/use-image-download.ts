@@ -25,7 +25,7 @@ export const IMAGE_DOWNLOAD_SHORTCUT_KEY = findShortcutDefault(
 /**
  * Extracts file extension from URL or content type
  */
-function getFileExtension(url: string, contentType?: string): string {
+function parseFileExtension(url: string, contentType?: string): string {
   const urlMatch = url.match(/\.([a-zA-Z0-9]+)(?:\?|#|$)/)
   if (urlMatch && urlMatch[1]) {
     return `.${urlMatch[1].toLowerCase()}`
@@ -89,7 +89,7 @@ export function canDownloadImage(editor: Editor | null): boolean {
 /**
  * Gets the currently selected image data
  */
-export function getSelectedImageData(editor: Editor | null): {
+export function findSelectedImageData(editor: Editor | null): {
   src?: string
   alt?: string
   title?: string
@@ -131,7 +131,7 @@ async function tryFetchDownload(
     const finalFilename = hasExtension
       ? filename
       : filename +
-        getFileExtension(url, response.headers.get('content-type') || undefined)
+        parseFileExtension(url, response.headers.get('content-type') || undefined)
 
     const link = document.createElement('a')
     link.href = blobUrl
@@ -157,7 +157,7 @@ function tryDirectDownload(url: string, filename: string): boolean {
     const hasExtension = /\.[a-zA-Z0-9]+$/.test(filename)
     const finalFilename = hasExtension
       ? filename
-      : filename + getFileExtension(url)
+      : filename + parseFileExtension(url)
 
     const link = document.createElement('a')
     link.href = url
@@ -199,7 +199,7 @@ export async function downloadSelectedImage(
 ): Promise<boolean> {
   if (!editor || !canDownloadImage(editor)) return false
 
-  const imageData = getSelectedImageData(editor)
+  const imageData = findSelectedImageData(editor)
   if (!imageData?.src) return false
 
   try {
@@ -325,7 +325,7 @@ export function useImageDownload(config?: UseImageDownloadConfig) {
   const handleDownload = useCallback(async () => {
     if (!editor) return false
 
-    const imageData = getSelectedImageData(editor)
+    const imageData = findSelectedImageData(editor)
     const filename = imageData?.alt || imageData?.title
 
     const success = await downloadSelectedImage(

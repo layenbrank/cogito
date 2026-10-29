@@ -128,7 +128,7 @@ function BoardView() {
     setViewMode(readStoredView(activeBoardID))
   }
 
-  const applySearch = useMemo(
+  const runSearch = useMemo(
     function () {
       return debounce(function (value: string) {
         setQuery(value)
@@ -147,10 +147,10 @@ function BoardView() {
   useEffect(
     function () {
       return function () {
-        applySearch.cancel()
+        runSearch.cancel()
       }
     },
-    [applySearch]
+    [runSearch]
   )
 
   function changeViewMode(mode: ViewMode) {
@@ -308,8 +308,8 @@ function BoardView() {
     <div className={styles.root}>
       {orderedColumns.length === 0 ? <EmptyAtmosphere /> : null}
 
-      <div className={styles.chrome}>
-        <div className={styles.chromeMeta}>
+      <div className={styles.shell}>
+        <div className={styles.shellMeta}>
           <Select
             items={boards.map(function (board) {
               return { value: board.id, label: board.title }
@@ -340,12 +340,12 @@ function BoardView() {
             value={viewMode}
             onChange={changeViewMode}
           />
-          <p className={styles.chromeHint}>
+          <p className={styles.shellHint}>
             {entries.length} 张 · {orderedColumns.length} 列
           </p>
         </div>
 
-        <div className={styles.chromeTools}>
+        <div className={styles.shellTools}>
           <div className={styles.filters}>
             <InputGroup className="h-8 w-40">
               <InputGroupInput
@@ -355,7 +355,7 @@ function BoardView() {
                 value={search}
                 onChange={function (event) {
                   setSearch(event.target.value)
-                  applySearch(event.target.value)
+                  runSearch(event.target.value)
                 }}
               />
               <InputGroupAddon>
@@ -391,7 +391,7 @@ function BoardView() {
             />
           </div>
 
-          <div className={styles.chromeActions}>
+          <div className={styles.shellActions}>
             <Button
               type="button"
               size="sm"

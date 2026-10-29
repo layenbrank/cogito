@@ -12,7 +12,7 @@ import { readFile } from '@tauri-apps/plugin-fs'
 
 import { POST_RAG_INDEX_TASK, GET_RAG_INDEX_TASK, type RagIndexTask } from '@/apis/rag'
 import { uploadAsset } from '@/apis/upload'
-import { setCloudState } from '@/lib/knowledge-ipc'
+import { writeCloudState } from '@/lib/knowledge-ipc'
 import { DICT_VALUE } from '@/shared/ipc/specs/dict'
 import { reportCaught } from '@/utils/exception-report'
 
@@ -86,11 +86,11 @@ async function syncDocToCloud(
       bytes
     })
     // 先落「进行中 + assetID」：即使进程中途被杀，下次也知道这篇传的是哪个资产
-    await setCloudState({ docId: target.docId, status: CLOUD.RUNNING, assetId: assetID })
+    await writeCloudState({ docId: target.docId, status: CLOUD.RUNNING, assetId: assetID })
 
     const task = await awaitIndexTask(assetID, signal)
     if (task.status === 'SUCCEEDED') {
-      await setCloudState({
+      await writeCloudState({
         docId: target.docId,
         status: CLOUD.SUCCEEDED,
         assetId: assetID,
@@ -100,7 +100,7 @@ async function syncDocToCloud(
     }
 
     const reason = task.error ?? (signal?.aborted ? '已取消' : '索引未在预期时间内完成')
-    await setCloudState({
+    await writeCloudState({
       docId: target.docId,
       status: CLOUD.FAILED,
       assetId: assetID,
@@ -111,7 +111,7 @@ async function syncDocToCloud(
     reportCaught('knowledge.cloudSync', error, 'warning')
     const reason = toMessage(error)
     // 状态回写本身失败时不再递归报错：日志里已经有原因了
-    await setCloudState({ docId: target.docId, status: CLOUD.FAILED, error: reason }).catch(
+    await writeCloudState({ docId: target.docId, status: CLOUD.FAILED, error: reason }).catch(
       function () {
         return undefined
       }

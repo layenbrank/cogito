@@ -115,7 +115,7 @@ function BookmarkLibrary(props: BookmarkLibraryProps) {
   if (!activeMirrorID) {
     return (
       <div className={styles.body}>
-        <section className={styles.chrome}>
+        <section className={styles.shell}>
           <p className="text-[11px] text-muted-foreground">书签库</p>
         </section>
         <div className={styles.empty}>
@@ -134,7 +134,7 @@ function BookmarkLibrary(props: BookmarkLibraryProps) {
 
   return (
     <div className={styles.body}>
-      <section className={styles.chrome}>
+      <section className={styles.shell}>
         <div className={styles.toolbarGrow}>
           <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
             书签库 · 勾选后可挂到磁贴墙

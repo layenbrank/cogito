@@ -4,7 +4,7 @@ import * as monaco from 'monaco-editor'
 // 根入口已注册全部 basic-languages 与语言特性，无需逐个 import contribution。
 import { useEffect, useRef } from 'react'
 
-import { CODE_THEME, applyCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
+import { CODE_THEME, syncCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
 import { useCodeStore, type CodeEditorPrefs } from '@/stores/code'
 import { readEol, readIndentation } from '@/views/code/lib/document-options.ts'
 import { isLargeDocument } from '@/views/code/lib/file-limits.ts'
@@ -18,7 +18,7 @@ import { restoreViewState, saveViewState } from '@/views/code/lib/monaco-view-st
 import '@/lib/monaco-environment.ts'
 
 /** 系统装了哪套等宽字体不可知，按流行度排一个栈，取第一个存在的 */
-const DEFAULT_FONT_FAMILY =
+const MONACO_FONT_FAMILY =
   "'Cascadia Code', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace"
 
 const EDITOR_OPTIONS: monaco.editor.IStandaloneEditorConstructionOptions = {
@@ -149,13 +149,13 @@ function toFontOptions(prefs: CodeEditorPrefs): monaco.editor.IEditorOptions {
   return {
     fontSize: prefs.fontSize,
     lineHeight: findLineHeight(prefs),
-    fontFamily: prefs.fontFamily.trim() || DEFAULT_FONT_FAMILY,
+    fontFamily: prefs.fontFamily.trim() || MONACO_FONT_FAMILY,
     fontLigatures: prefs.isLigaturesEnabled
   }
 }
 
 /** 把待定位请求落到当前 model 上；路径不匹配则留待下一次切模型 */
-function applyPendingReveal(editor: monaco.editor.IStandaloneCodeEditor, model: monaco.editor.ITextModel): void {
+function syncPendingReveal(editor: monaco.editor.IStandaloneCodeEditor, model: monaco.editor.ITextModel): void {
   const request = useCodeStore.getState().pendingReveal
   if (!request) return
   const path = findPathForModel(model)
@@ -195,7 +195,7 @@ function MonacoHost(props: MonacoHostProps) {
     if (!host) return
 
     // 主题依赖 :root / .dark 上的 token，必须在 DOM 就绪后先 define 再 create
-    applyCodeTheme()
+    syncCodeTheme()
     const editor = monaco.editor.create(host, {
       ...EDITOR_OPTIONS,
       ...toFontOptions(useCodeStore.getState().editorPrefs)
@@ -258,7 +258,7 @@ function MonacoHost(props: MonacoHostProps) {
       const editor = editorRef.current
       const model = editor?.getModel()
       if (!editor || !model) return
-      applyPendingReveal(editor, model)
+      syncPendingReveal(editor, model)
     },
     [pendingReveal]
   )
@@ -310,7 +310,7 @@ function MonacoHost(props: MonacoHostProps) {
           activeEditor.setModel(model)
           restoreViewState(activeTab.path, activeEditor)
         }
-        applyPendingReveal(activeEditor, model)
+        syncPendingReveal(activeEditor, model)
 
         const store = useCodeStore.getState()
         store.toSetLanguageId(activeTab.language)

@@ -87,7 +87,7 @@ const EXTENSION_TYPE_LABELS: Record<GooseExtension['type'], string> = {
 }
 
 /** 表单初始值：每次新建取新对象，避免共享可变草稿 */
-function createExtensionDraft(): ExtensionDraft {
+function makeExtensionDraft(): ExtensionDraft {
   return {
     kind: 'http',
     name: '',
@@ -184,7 +184,7 @@ export type {
 export {
   EXTENSION_TYPE_LABELS,
   buildExtension,
-  createExtensionDraft,
+  makeExtensionDraft,
   describeExtension,
   findExtensionKey,
   findExtensionName,

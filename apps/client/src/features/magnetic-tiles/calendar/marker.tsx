@@ -227,7 +227,7 @@ function YiJiBlock(props: { dayInfo: DayInfo; maxItems: number }) {
   )
 }
 
-function AgendaPanel(props: { items: AgendaItem[]; limit: number }) {
+function AgendaSurface(props: { items: AgendaItem[]; limit: number }) {
   const { items, limit } = props
   const visible = items.slice(0, limit)
   const rest = items.length - visible.length
@@ -456,7 +456,7 @@ function Marker(props: Props) {
             />
           </div>
           {showAgenda ? (
-            <AgendaPanel
+            <AgendaSurface
               items={agendaItems}
               limit={fields.agendaLimit}
             />

@@ -23,7 +23,7 @@ import {
 } from '@/views/code/lib/preferences.ts'
 
 type SidebarView = 'explorer' | 'search' | 'scm'
-type PanelTab = 'terminal' | 'problems'
+type SurfaceTab = 'terminal' | 'problems'
 type PaletteMode = 'command' | 'file' | null
 /** 换行符：Monaco 只认这两种 */
 type Eol = 'LF' | 'CRLF'
@@ -75,8 +75,8 @@ interface CodeState {
   activeTabId: string | null
   sidebarView: SidebarView
   isSidebarOpen: boolean
-  isPanelOpen: boolean
-  panelTab: PanelTab
+  isSurfaceOpen: boolean
+  surfaceTab: SurfaceTab
   cursor: CursorPosition
   languageId: string
   paletteMode: PaletteMode
@@ -109,9 +109,9 @@ interface CodeState {
   toSetSidebarView: (view: SidebarView) => void
   toToggleSidebar: () => void
   toToggleSidebarView: (view: SidebarView) => void
-  toSetPanelOpen: (isOpen: boolean) => void
-  toTogglePanel: (tab?: PanelTab) => void
-  toSetPanelTab: (tab: PanelTab) => void
+  toUpdateSurfaceOpen: (isOpen: boolean) => void
+  toToggleSurface: (tab?: SurfaceTab) => void
+  toUpdateSurfaceTab: (tab: SurfaceTab) => void
   toSetCursor: (cursor: CursorPosition) => void
   toSetLanguageId: (languageId: string) => void
   toSetPaletteMode: (mode: PaletteMode) => void
@@ -128,7 +128,7 @@ interface CodeState {
   toSetEol: (eol: Eol) => void
   toToggleHiddenVisible: () => void
   toSetLargeFile: (isLarge: boolean) => void
-  /** 从 tiles.json 恢复 chrome（不含打开文件内容） */
+  /** 从 tiles.json 恢复 shell 偏好（不含打开文件内容） */
   hydrateFromStore: () => Promise<CodePreferences>
 }
 
@@ -149,8 +149,8 @@ function writeCodePrefs(state: CodeState): void {
     activePath: active?.path ?? null,
     isSidebarOpen: state.isSidebarOpen,
     sidebarView: state.sidebarView,
-    isPanelOpen: state.isPanelOpen,
-    panelTab: state.panelTab,
+    isSurfaceOpen: state.isSurfaceOpen,
+    surfaceTab: state.surfaceTab,
     editorFontSize: state.editorPrefs.fontSize,
     editorLineHeightRatio: state.editorPrefs.lineHeightRatio,
     editorFontFamily: state.editorPrefs.fontFamily,
@@ -169,8 +169,8 @@ const useCodeStore = create<CodeState>()(
           activeTabId: null,
           sidebarView: 'explorer',
           isSidebarOpen: true,
-          isPanelOpen: false,
-          panelTab: 'terminal',
+          isSurfaceOpen: false,
+          surfaceTab: 'terminal',
           cursor: { line: 1, column: 1 },
           languageId: 'plaintext',
           paletteMode: null,
@@ -377,43 +377,43 @@ const useCodeStore = create<CodeState>()(
             )
           },
 
-          toSetPanelOpen(isOpen) {
+          toUpdateSurfaceOpen(isOpen) {
             set(
               function (state) {
-                state.isPanelOpen = isOpen
+                state.isSurfaceOpen = isOpen
               },
               false,
-              'toSetPanelOpen'
+              'toUpdateSurfaceOpen'
             )
           },
 
-          toTogglePanel(tab) {
+          toToggleSurface(tab) {
             set(
               function (state) {
                 if (tab) {
-                  if (state.isPanelOpen && state.panelTab === tab) {
-                    state.isPanelOpen = false
+                  if (state.isSurfaceOpen && state.surfaceTab === tab) {
+                    state.isSurfaceOpen = false
                     return
                   }
-                  state.panelTab = tab
-                  state.isPanelOpen = true
+                  state.surfaceTab = tab
+                  state.isSurfaceOpen = true
                   return
                 }
-                state.isPanelOpen = !state.isPanelOpen
+                state.isSurfaceOpen = !state.isSurfaceOpen
               },
               false,
-              'toTogglePanel'
+              'toToggleSurface'
             )
           },
 
-          toSetPanelTab(tab) {
+          toUpdateSurfaceTab(tab) {
             set(
               function (state) {
-                state.panelTab = tab
-                state.isPanelOpen = true
+                state.surfaceTab = tab
+                state.isSurfaceOpen = true
               },
               false,
-              'toSetPanelTab'
+              'toUpdateSurfaceTab'
             )
           },
 
@@ -585,8 +585,8 @@ const useCodeStore = create<CodeState>()(
                 state.workspaceRoot = prefs.workspaceRoot
                 state.isSidebarOpen = prefs.isSidebarOpen
                 state.sidebarView = prefs.sidebarView
-                state.isPanelOpen = prefs.isPanelOpen
-                state.panelTab = prefs.panelTab
+                state.isSurfaceOpen = prefs.isSurfaceOpen
+                state.surfaceTab = prefs.surfaceTab
                 state.editorPrefs = {
                   fontSize: prefs.editorFontSize,
                   lineHeightRatio: prefs.editorLineHeightRatio,
@@ -626,8 +626,8 @@ useCodeStore.subscribe(function (state, previous) {
     state.activeTabId === previous.activeTabId &&
     state.isSidebarOpen === previous.isSidebarOpen &&
     state.sidebarView === previous.sidebarView &&
-    state.isPanelOpen === previous.isPanelOpen &&
-    state.panelTab === previous.panelTab &&
+    state.isSurfaceOpen === previous.isSurfaceOpen &&
+    state.surfaceTab === previous.surfaceTab &&
     state.editorPrefs === previous.editorPrefs &&
     state.isHiddenVisible === previous.isHiddenVisible
   ) {
@@ -641,7 +641,7 @@ export type {
   CodeTab,
   CursorPosition,
   SidebarView,
-  PanelTab,
+  SurfaceTab,
   PaletteMode,
   Eol,
   CodeEditorPrefs,

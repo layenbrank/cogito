@@ -30,7 +30,7 @@ const EMPTY: EditorContext = { path: null, content: '', selection: '' }
 
 let bridge: EditorBridge | null = null
 
-function setEditorBridge(next: EditorBridge | null): void {
+function rememberEditorBridge(next: EditorBridge | null): void {
   bridge = next
 }
 
@@ -58,5 +58,5 @@ function jumpEditorPos(pos: number): void {
   bridge?.jumpToPos?.(pos)
 }
 
-export { findEditorContext, jumpEditorPos, openEditorPath, setEditorBridge, writeEditor }
+export { findEditorContext, jumpEditorPos, openEditorPath, rememberEditorBridge, writeEditor }
 export type { EditorBridge, EditorContext }

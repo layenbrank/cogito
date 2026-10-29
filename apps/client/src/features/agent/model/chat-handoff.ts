@@ -13,7 +13,7 @@ interface ChatHandoff {
 
 let handoff: ChatHandoff | null = null
 
-function setChatHandoff(next: ChatHandoff): void {
+function rememberChatHandoff(next: ChatHandoff): void {
   handoff = next
 }
 
@@ -23,5 +23,5 @@ function takeChatHandoff(): ChatHandoff | null {
   return value
 }
 
-export { setChatHandoff, takeChatHandoff }
+export { rememberChatHandoff, takeChatHandoff }
 export type { ChatHandoff }

@@ -83,7 +83,7 @@ const GENERAL: Setting.General = {
 }
 
 /** 每次给一份新对象：避免 `toReset` / `toInitialize` 共享同一份默认值被就地改到 */
-function createDefaultSettings(): Setting.Composite {
+function makeSettings(): Setting.Composite {
   return {
     general: { ...GENERAL },
     capture: mergeCapture(),
@@ -164,7 +164,7 @@ function mergeCaptureUpdate(
 
 export const useSettingsStore = create<SettingsStore>(function (setter, getter) {
   return {
-    settings: createDefaultSettings(),
+    settings: makeSettings(),
     loaded: false,
 
     async toInitialize() {
@@ -226,7 +226,7 @@ export const useSettingsStore = create<SettingsStore>(function (setter, getter) 
     },
 
     async toReset() {
-      const settings = createDefaultSettings()
+      const settings = makeSettings()
       setter({ settings })
       await replacePref('settings', settings)
       try {

@@ -1,3 +1,4 @@
+import { Button } from '@cogito/design/components/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { Icon } from '@iconify/react/offline'
 import { cn, type ClassValue } from 'cn'
@@ -53,7 +54,7 @@ interface MagneticTileSuspenseProps extends SkeletonProps {
 const TILE_SHELL =
   'magnetic-tile group/tile relative cursor-pointer overflow-visible bg-transparent outline-none'
 
-/** 表面 chrome：工具类在组件；深色孤岛 token / 拖拽态在 magnetic-tile.css */
+/** 表面 shell：工具类在组件；深色孤岛 token / 拖拽态在 magnetic-tile.css */
 const TILE_SURFACE =
   'magnetic-tile-surface size-full overflow-hidden [border-radius:inherit] [backface-visibility:hidden] shadow-[0_0_10px_rgba(0,0,0,0.1)] transition-shadow duration-300 ease-[cubic-bezier(0.165,0.84,0.44,1)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_6px_20px_rgba(0,0,0,0.38)]'
 
@@ -217,8 +218,10 @@ const MagneticTile = {
             <TooltipContent side="bottom">{props.title}</TooltipContent>
           </Tooltip>
         </span>
-        <button
+        <Button
           type="button"
+          variant="destructive"
+          size="icon-xs"
           aria-label="删除磁贴"
           onClick={props.onTrash}
           className={cn(
@@ -232,7 +235,7 @@ const MagneticTile = {
             width={10}
             height={10}
           />
-        </button>
+        </Button>
       </div>
     )
   }

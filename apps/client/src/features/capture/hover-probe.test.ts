@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createHoverProbe } from '@/features/capture/hover-probe'
+import { makeHoverProbe } from '@/features/capture/hover-probe'
 import type { CaptureRegion } from '@/features/capture/region'
 
 const SETTLE_MS = 10
@@ -21,7 +21,7 @@ function setup(onProbe?: (x: number, y: number) => CaptureRegion[]) {
     return Promise.resolve(onProbe ? onProbe(x, y) : chain(x))
   })
   const onResult = vi.fn()
-  const hover = createHoverProbe({
+  const hover = makeHoverProbe({
     probe,
     onResult,
     settleMs: SETTLE_MS,
@@ -30,7 +30,7 @@ function setup(onProbe?: (x: number, y: number) => CaptureRegion[]) {
   return { probe, onResult, hover }
 }
 
-describe('createHoverProbe', () => {
+describe('makeHoverProbe', () => {
   it('移动中不探测：连续请求只在停住后查一次（用最新坐标）', async function () {
     const { probe, hover } = setup()
 
@@ -68,7 +68,7 @@ describe('createHoverProbe', () => {
         })
       })
     })
-    const hover = createHoverProbe({
+    const hover = makeHoverProbe({
       probe,
       onResult: vi.fn(),
       settleMs: SETTLE_MS,

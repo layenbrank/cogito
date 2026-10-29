@@ -83,7 +83,7 @@ export function isAnyListActive(
   return listTypes.some((type) => isListActive(editor, type))
 }
 
-export function getFilteredListOptions(
+export function findFilteredListOptions(
   availableTypes: ListType[]
 ): typeof listOptions {
   return listOptions.filter(
@@ -114,7 +114,7 @@ export function shouldShowListDropdown(params: {
 /**
  * Gets the currently active list type from the available types
  */
-export function getActiveListType(
+export function findActiveListType(
   editor: Editor | null,
   availableTypes: ListType[]
 ): ListType | undefined {
@@ -173,11 +173,11 @@ export function useListDropdownMenu(config?: UseListDropdownMenuConfig) {
 
   const listInSchema = types.some((type) => isNodeInSchema(type, editor))
 
-  const filteredLists = useMemo(() => getFilteredListOptions(types), [types])
+  const filteredLists = useMemo(() => findFilteredListOptions(types), [types])
 
   const canToggleAny = canToggleAnyList(editor, types)
   const isAnyActive = isAnyListActive(editor, types)
-  const activeType = getActiveListType(editor, types)
+  const activeType = findActiveListType(editor, types)
   const activeList = filteredLists.find((option) => option.type === activeType)
 
   useEffect(() => {

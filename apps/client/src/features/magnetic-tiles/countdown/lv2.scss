@@ -81,7 +81,7 @@
         .decor {
           display: none;
         }
-        .panels {
+        .surfaces {
           display: none;
         }
       }
@@ -101,7 +101,7 @@
         }
         .decor { display: none; }
         .progress { padding: 0; }
-        .panels { display: none; }
+        .surfaces { display: none; }
       }
       &.vertical {
         padding: 8px;
@@ -117,7 +117,7 @@
         }
         .decor { display: none; }
         .progress { padding: 0; }
-        .panels { display: none; }
+        .surfaces { display: none; }
       }
     }
     /*
@@ -176,7 +176,7 @@
         .range {
           font-size: 11px;
         }
-        .panels {
+        .surfaces {
           display: none;
         }
       }
@@ -203,7 +203,7 @@
           border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
         }
         .decor { display: none; }
-        .panels { display: none; }
+        .surfaces { display: none; }
       }
     }
   }

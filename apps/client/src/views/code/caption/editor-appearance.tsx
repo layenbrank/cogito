@@ -5,6 +5,7 @@
  * 跨窗改写会被下一次写回覆盖，就地改最省事也最直观。
  */
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { Input } from '@cogito/design/components/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@cogito/design/components/popover'
 import { Switch } from '@cogito/design/components/switch'
@@ -54,7 +55,9 @@ function EditorAppearance() {
     <Popover>
       <PopoverTrigger
         render={
-          <button
+          <Button
+            variant="ghost"
+            size="icon-sm"
             type="button"
             data-region="false"
             aria-label="编辑器外观"
@@ -64,7 +67,7 @@ function EditorAppearance() {
               icon="lucide:settings-2"
               className="size-4"
             />
-          </button>
+          </Button>
         }
       />
       <PopoverContent

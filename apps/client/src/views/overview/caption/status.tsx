@@ -7,6 +7,7 @@
  * - 有可用更新：启动时静默检查发现，点芯片继续安装，点 ✕ 忽略本次提醒。
  */
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -105,8 +106,10 @@ function CaptionStatus() {
     <div className={styles.status}>
       {updateVersion ? (
         <span className={cn(styles.chip, styles.chipInfo)}>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             data-region="false"
             className={styles.chipAction}
             onClick={function () {
@@ -118,9 +121,11 @@ function CaptionStatus() {
               aria-hidden
             />
             可更新 {updateVersion}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
             data-region="false"
             className={styles.chipDismiss}
             aria-label="忽略本次更新提醒"
@@ -129,7 +134,7 @@ function CaptionStatus() {
               icon="lucide:x"
               aria-hidden
             />
-          </button>
+          </Button>
         </span>
       ) : null}
 
@@ -137,8 +142,10 @@ function CaptionStatus() {
         <Tooltip>
           <TooltipTrigger
             render={
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 data-region="false"
                 className={cn(styles.chip, styles.chipWarn, styles.chipAction)}
                 onClick={recheck}

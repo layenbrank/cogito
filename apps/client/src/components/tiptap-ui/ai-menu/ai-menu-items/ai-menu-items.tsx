@@ -7,7 +7,7 @@ import { type Language } from '@tiptap-pro/extension-ai'
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 
 // -- Tiptap UI --
-import { getContextAndInsertAt } from '@/components/tiptap-ui/ai-menu/ai-menu-utils.ts'
+import { findContextAndInsertAt } from '@/components/tiptap-ui/ai-menu/ai-menu-utils.ts'
 import { useAiMenuState } from '@/components/tiptap-ui/ai-menu/ai-menu-hooks.ts'
 
 // -- UI Primitives --
@@ -77,7 +77,7 @@ function initializeEditorMenuActions(): Record<
       onSelect: ({ editor, options }) => {
         if (!editor) return
 
-        const { insertAt, isSelection, context } = getContextAndInsertAt(editor)
+        const { insertAt, isSelection, context } = findContextAndInsertAt(editor)
         const newOptions: TextOptions = {
           ...options,
           insertAt,
@@ -99,7 +99,7 @@ function initializeEditorMenuActions(): Record<
       onSelect: ({ editor, options }) => {
         if (!editor) return
 
-        const { insertAt, isSelection, context } = getContextAndInsertAt(editor)
+        const { insertAt, isSelection, context } = findContextAndInsertAt(editor)
         const newOptions: TextOptions = {
           ...options,
           insertAt,
@@ -121,7 +121,7 @@ function initializeEditorMenuActions(): Record<
       onSelect: ({ editor, options }) => {
         if (!editor) return
 
-        const { insertAt, isSelection, context } = getContextAndInsertAt(editor)
+        const { insertAt, isSelection, context } = findContextAndInsertAt(editor)
         const newOptions: TextOptions = {
           ...options,
           insertAt,
@@ -143,7 +143,7 @@ function initializeEditorMenuActions(): Record<
       onSelect: ({ editor, options }) => {
         if (!editor) return
 
-        const { insertAt, isSelection, context } = getContextAndInsertAt(editor)
+        const { insertAt, isSelection, context } = findContextAndInsertAt(editor)
         const newOptions: TextOptions = {
           ...options,
           insertAt,
@@ -165,7 +165,7 @@ function initializeEditorMenuActions(): Record<
       onSelect: ({ editor, options }) => {
         if (!editor) return
 
-        const { insertAt, isSelection, context } = getContextAndInsertAt(editor)
+        const { insertAt, isSelection, context } = findContextAndInsertAt(editor)
         const newOptions: TextOptions = {
           ...options,
           insertAt,
@@ -187,7 +187,7 @@ function initializeEditorMenuActions(): Record<
       onSelect: ({ editor, options }) => {
         if (!editor) return
 
-        const { insertAt, isSelection, context } = getContextAndInsertAt(editor)
+        const { insertAt, isSelection, context } = findContextAndInsertAt(editor)
         const newOptions: TextOptions = {
           ...options,
           insertAt,
@@ -209,7 +209,7 @@ function initializeEditorMenuActions(): Record<
       onSelect: ({ editor, options }) => {
         if (!editor) return
 
-        const { insertAt, isSelection, context } = getContextAndInsertAt(editor)
+        const { insertAt, isSelection, context } = findContextAndInsertAt(editor)
         const newOptions: TextOptions = {
           ...options,
           insertAt,
@@ -231,7 +231,7 @@ function initializeEditorMenuActions(): Record<
       onSelect: ({ editor, options }) => {
         if (!editor) return
 
-        const { insertAt, isSelection, context } = getContextAndInsertAt(editor)
+        const { insertAt, isSelection, context } = findContextAndInsertAt(editor)
         const newOptions: TextOptions = {
           ...options,
           insertAt,
@@ -322,7 +322,7 @@ function LanguageSelectionSubmenu({
     (selectedLanguageCode: Language) => {
       if (!editor) return
 
-      const { insertAt, isSelection, context } = getContextAndInsertAt(editor)
+      const { insertAt, isSelection, context } = findContextAndInsertAt(editor)
 
       updateState({ language: selectedLanguageCode })
 
@@ -415,7 +415,7 @@ function ToneSelectionSubmenu({ editor }: { editor: Editor | null }) {
     (selectedTone: string) => {
       if (!editor) return
 
-      const { insertAt, isSelection, context } = getContextAndInsertAt(editor)
+      const { insertAt, isSelection, context } = findContextAndInsertAt(editor)
 
       if (!state.tone || state.tone !== selectedTone) {
         updateState({ tone: selectedTone })

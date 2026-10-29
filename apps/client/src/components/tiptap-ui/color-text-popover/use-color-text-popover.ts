@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 
 // --- Hooks ---
@@ -11,7 +11,7 @@ import { TextColorSmallIcon } from '@/components/tiptap-icons/text-color-small-i
 
 // --- Lib ---
 import { isMarkInSchema } from '@/lib/tiptap-utils.ts'
-import { getActiveMarkAttrs } from '@/lib/tiptap-advanced-utils.ts'
+import { findActiveMarkAttrs } from '@/lib/tiptap-advanced-utils.ts'
 
 // --- Tiptap UI ---
 import { canColorText } from '@/components/tiptap-ui/color-text-button/use-color-text.ts'
@@ -62,7 +62,7 @@ export interface UseColorTextPopoverConfig {
 /**
  * Get a color object by its value
  */
-export function getColorByValue(
+export function findColorByValue(
   value: string,
   colorArray: ColorItem[]
 ): ColorItem {
@@ -184,7 +184,7 @@ export function useRecentColors(maxColors: number = 3) {
  *         <button>Color Text</button>
  *       </PopoverTrigger>
  *       <PopoverContent>
- *         <TextStyleColorPanel onColorChanged={handleColorChanged} />
+ *         <TextStyleColorSurface onColorChanged={handleColorChanged} />
  *       </PopoverContent>
  *     </Popover>
  *   )
@@ -218,7 +218,7 @@ export function useRecentColors(maxColors: number = 3) {
  *         </Button>
  *       </PopoverTrigger>
  *       <PopoverContent>
- *         <TextStyleColorPanel onColorChanged={handleColorChanged} />
+ *         <TextStyleColorSurface onColorChanged={handleColorChanged} />
  *       </PopoverContent>
  *     </Popover>
  *   )
@@ -238,8 +238,8 @@ export function useColorTextPopover(config?: UseColorTextPopoverConfig) {
   const textStyleInSchema = isMarkInSchema('textStyle', editor)
   const highlightInSchema = isMarkInSchema('highlight', editor)
 
-  const activeTextStyle = getActiveMarkAttrs(editor, 'textStyle') || {}
-  const activeHighlight = getActiveMarkAttrs(editor, 'highlight') || {}
+  const activeTextStyle = findActiveMarkAttrs(editor, 'textStyle') || {}
+  const activeHighlight = findActiveMarkAttrs(editor, 'highlight') || {}
 
   const canToggle = canColorText(editor) || canColorHighlight(editor)
 

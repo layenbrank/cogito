@@ -6,7 +6,7 @@
     display: flex;
     align-items: stretch;
     border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-    @include t.chrome-surface;
+    @include t.shell-surface;
     flex-shrink: 0;
     overflow: hidden;
   }
@@ -16,7 +16,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 0 t.$chrome-pad-x;
+  padding: 0 t.$shell-pad-x;
   flex-shrink: 0;
   border-right: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
 }
@@ -58,7 +58,7 @@
   display: flex;
   align-items: center;
   gap: t.$tool-gap;
-  padding: 0 t.$chrome-pad-x;
+  padding: 0 t.$shell-pad-x;
   height: 100%;
   white-space: nowrap;
 }
@@ -77,7 +77,7 @@
   display: flex;
   align-items: center;
   gap: t.$tool-gap;
-  padding: 0 t.$chrome-pad-x;
+  padding: 0 t.$shell-pad-x;
   flex-shrink: 0;
   border-left: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
 }

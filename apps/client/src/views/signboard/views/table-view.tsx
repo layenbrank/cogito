@@ -14,7 +14,7 @@ import {
   type SignboardColumn,
   type SignboardTag
 } from '@/stores/signboard'
-import { CardQuickPanel } from '@/views/signboard/card-quick-panel'
+import { CardQuickSurface } from '@/views/signboard/card-quick-surface'
 import { findChecklistProgress } from '@/views/signboard/progress'
 import { ProgressCell } from '@/views/signboard/progress-ui'
 import styles from '@/views/signboard/signboard.module.scss'
@@ -155,7 +155,7 @@ function TableView(props: TableViewProps) {
                           </span>
                         )
                       })}
-                      <CardQuickPanel
+                      <CardQuickSurface
                         card={card}
                         checklist={checksForEntry(card.id)}
                       />

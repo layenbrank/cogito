@@ -42,7 +42,7 @@ let counter = 0
 let snapshot: readonly Command[] = []
 
 /** 组件接管的默认优先级；命令自身的 `run` 比它低，所以「接管」总是优先于「兜底」 */
-const DEFAULT_PRIORITY = 0
+const COMMAND_PRIORITY = 0
 const FALLBACK_PRIORITY = -1
 
 function readAllCommands(): readonly Command[] {
@@ -73,7 +73,7 @@ function registerHandler(
 ): () => void {
   const item: HandlerEntry = {
     token: Symbol('keyboard-handler'),
-    priority: options?.priority ?? DEFAULT_PRIORITY,
+    priority: options?.priority ?? COMMAND_PRIORITY,
     enabled: options?.enabled,
     handler,
     insertedAt: counter++
@@ -196,7 +196,7 @@ function subscribeCommands(listener: () => void): () => void {
 
 export type { CommandHandler }
 export {
-  DEFAULT_PRIORITY,
+  COMMAND_PRIORITY,
   FALLBACK_PRIORITY,
   defineCommand,
   findCommand,

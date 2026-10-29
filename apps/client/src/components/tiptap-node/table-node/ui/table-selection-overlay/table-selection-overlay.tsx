@@ -1,9 +1,10 @@
 // @ts-nocheck
 import type { Editor } from '@tiptap/react'
 import { FloatingPortal } from '@floating-ui/react'
+import { Button } from '@cogito/design/components/button'
 
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
-import { createCornerHandleStyles, type ResizeHandle } from './selection-geometry.ts'
+import { makeCornerHandleStyles, type ResizeHandle } from './selection-geometry.ts'
 import { useTableSelectionOverlay } from './use-table-selection-overlay.ts'
 import { t } from '@/views/knowledge/locale.ts'
 
@@ -33,7 +34,7 @@ export function TableSelectionOverlay({
     refs,
     floatingStyles,
     containerRef,
-    createResizeHandler,
+    makeResizeHandler,
     handleMenuOpenChange
   } = useTableSelectionOverlay({
     editor,
@@ -57,7 +58,7 @@ export function TableSelectionOverlay({
         <CellMenu
           onOpenChange={handleMenuOpenChange}
           editor={editor}
-          onResizeStart={createResizeHandler}
+          onResizeStart={makeResizeHandler}
         />
       </span>
     )
@@ -106,17 +107,20 @@ export function TableSelectionOverlay({
               <>
                 {(['tl', 'tr', 'bl', 'br'] as const).map(function (corner) {
                   return (
-                    <button
+                    <Button
                       key={corner}
                       type="button"
+                      variant="ghost"
+                      size="icon"
                       tabIndex={-1}
                       aria-label={t('EDITOR_TABLE_RESIZE', { corner })}
-                      style={createCornerHandleStyles(
+                      className="h-auto w-auto rounded-none border-none bg-transparent p-0 hover:bg-transparent active:bg-transparent"
+                      style={makeCornerHandleStyles(
                         corner,
                         !activeHandle || activeHandle === corner,
                         isMenuOpen
                       )}
-                      onMouseDown={createResizeHandler(corner)}
+                      onMouseDown={makeResizeHandler(corner)}
                     />
                   )
                 })}

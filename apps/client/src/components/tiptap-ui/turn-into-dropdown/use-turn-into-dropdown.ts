@@ -129,7 +129,7 @@ export function canTurnInto(
 /**
  * Gets filtered block type options based on available types
  */
-export function getFilteredBlockTypeOptions(blockTypes?: string[]) {
+export function findFilteredBlockTypeOptions(blockTypes?: string[]) {
   if (!blockTypes) return blockTypeOptions
 
   const blockTypeSet = new Set(blockTypes)
@@ -141,13 +141,13 @@ export function getFilteredBlockTypeOptions(blockTypes?: string[]) {
 /**
  * Gets the currently active block type from the available options
  */
-export function getActiveBlockType(
+export function findActiveBlockType(
   editor: Editor | null,
   blockTypes?: string[]
 ) {
-  if (!editor) return getFilteredBlockTypeOptions(blockTypes)[0]
+  if (!editor) return findFilteredBlockTypeOptions(blockTypes)[0]
 
-  const filteredOptions = getFilteredBlockTypeOptions(blockTypes)
+  const filteredOptions = findFilteredBlockTypeOptions(blockTypes)
   const activeOption = filteredOptions.find((option) => option.isActive(editor))
   return activeOption || filteredOptions[0]
 }
@@ -227,7 +227,7 @@ export function useTurnIntoDropdown(config?: UseTurnIntoDropdownConfig) {
   const [isVisible, setIsVisible] = useState(true)
 
   const canToggle = canTurnInto(editor, blockTypes)
-  const activeBlockType = getActiveBlockType(editor, blockTypes)
+  const activeBlockType = findActiveBlockType(editor, blockTypes)
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
@@ -267,7 +267,7 @@ export function useTurnIntoDropdown(config?: UseTurnIntoDropdownConfig) {
     setIsOpen,
     activeBlockType,
     handleOpenChange,
-    filteredOptions: getFilteredBlockTypeOptions(blockTypes),
+    filteredOptions: findFilteredBlockTypeOptions(blockTypes),
     label: t('EDITOR_TURN_INTO_CURRENT', { current: activeBlockType?.label || t('EDITOR_TEXT') }),
     Icon: ChevronDownIcon
   }

@@ -99,16 +99,18 @@ function ClockAlarms(props: ClockAlarmsProps) {
               {WEEKDAY_OPTIONS.map(function (opt) {
                 const isOn = props.draft.weekDays.includes(opt.value)
                 return (
-                  <button
+                  <Button
                     key={opt.value}
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     className="mt-day-chip"
                     aria-pressed={isOn}
                     onClick={function () {
                       props.onToggleDraftDay(opt.value)
                     }}>
                     {opt.label}
-                  </button>
+                  </Button>
                 )
               })}
             </div>
@@ -126,8 +128,9 @@ function ClockAlarms(props: ClockAlarmsProps) {
 
       <div className={styles.alarmList}>
         {props.clockReminders.length === 0 && !props.isEditing ? (
-          <button
+          <Button
             type="button"
+            variant="ghost"
             className={styles.empty}
             onClick={props.onBeginCreate}>
             <Icon
@@ -136,7 +139,7 @@ function ClockAlarms(props: ClockAlarmsProps) {
               height={20}
             />
             <span>添加闹钟</span>
-          </button>
+          </Button>
         ) : null}
         {props.clockReminders.map(function (reminder) {
           return (
@@ -146,8 +149,9 @@ function ClockAlarms(props: ClockAlarmsProps) {
                 styles.alarmItem,
                 props.editingId === reminder.id && styles.alarmItemActive
               )}>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 className={styles.alarmMain}
                 onClick={function () {
                   props.onBeginEdit(reminder)
@@ -162,7 +166,7 @@ function ClockAlarms(props: ClockAlarmsProps) {
                       : ''}
                   </span>
                 </span>
-              </button>
+              </Button>
               <div className={styles.alarmActions}>
                 <Button
                   variant="ghost"

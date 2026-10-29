@@ -22,7 +22,7 @@ import { ComposerActions } from '@/views/agent/chat/components/composer-actions'
 import { ComposerEnd } from '@/views/agent/chat/components/composer-end'
 import { ComposerFooter } from '@/views/agent/chat/components/composer-footer'
 import { ComposerTriggers } from '@/views/agent/chat/components/composer-triggers'
-import { DelegatePanel } from '@/views/agent/chat/components/delegate-panel'
+import { DelegateSurface } from '@/views/agent/chat/components/delegate-surface'
 import { AgentHead } from '@/views/agent/chat/components/head'
 import { AgentSidebar } from '@/views/agent/chat/components/sidebar'
 import {
@@ -53,7 +53,7 @@ import { AgentTitlebar } from '@/views/agent/components/titlebar'
 import { syncCogitoGatewayCatalog } from '@/features/agent/acp/cogito-provider'
 import {
   findActiveScenario,
-  setActiveScenario,
+  rememberActiveScenario,
   watchActiveScenario
 } from '@/features/agent/model/active-scenario'
 import type { ScenarioKey } from '@/features/agent/model/scenarios'
@@ -125,7 +125,7 @@ function AgentChatLayout() {
   }, [])
 
   function onScenarioChange(next: ScenarioKey) {
-    setActiveScenario(next)
+    rememberActiveScenario(next)
     updateScenario(next)
   }
 
@@ -229,7 +229,7 @@ function AgentChatLayout() {
     <div className={clsx(styles.chat)}>
       <AgentTitlebar
         className={styles.titlebar}
-        actions={<DelegatePanel />}
+        actions={<DelegateSurface />}
       />
       <div className={styles.body}>
         <ResizablePanelGroup

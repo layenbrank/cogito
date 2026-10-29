@@ -24,7 +24,7 @@ import { useFloatingElement } from '@/hooks/use-floating-element.ts'
 
 // --- Lib ---
 import {
-  getSelectionBoundingRect,
+  findSelectionBoundingRect,
   isSelectionValid
 } from '@/lib/tiptap-collab-utils'
 
@@ -62,7 +62,7 @@ export interface FloatingElementProps extends HTMLAttributes<HTMLDivElement> {
   /**
    * Custom function to determine the position of the floating element.
    * Only used if referenceElement is not provided.
-   * @default getSelectionBoundingRect
+   * @default findSelectionBoundingRect
    */
   getBoundingClientRect?: (editor: Editor) => DOMRect | null
   /**
@@ -85,7 +85,7 @@ export const FloatingElement = forwardRef<HTMLDivElement, FloatingElementProps>(
       zIndex = 50,
       onOpenChange,
       referenceElement,
-      getBoundingClientRect = getSelectionBoundingRect,
+      getBoundingClientRect = findSelectionBoundingRect,
       closeOnEscape = true,
       children,
       style: propStyle,

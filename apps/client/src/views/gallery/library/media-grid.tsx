@@ -1,3 +1,4 @@
+import { Button } from '@cogito/design/components/button'
 import { cn } from 'cn'
 import { useMemo, type ReactNode } from 'react'
 
@@ -118,9 +119,10 @@ function YearSection(props: {
         {props.bucket.months.map(function (month) {
           const cover = month.medias[0]
           return (
-            <button
+            <Button
               key={month.key}
               type="button"
+              variant="ghost"
               className="group relative aspect-square overflow-hidden rounded-xl bg-muted/40 transition-transform duration-200 ease-out active:scale-[0.98]"
               onClick={function () {
                 if (cover) props.onOpen(cover)
@@ -146,7 +148,7 @@ function YearSection(props: {
                 <div className="text-sm font-medium text-white">{month.label}</div>
                 <div className="text-xs text-white/80">{month.medias.length} 项</div>
               </div>
-            </button>
+            </Button>
           )
         })}
       </div>

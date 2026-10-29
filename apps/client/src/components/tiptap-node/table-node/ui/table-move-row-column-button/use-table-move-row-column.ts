@@ -22,11 +22,11 @@ import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 import { isExtensionAvailable } from '@/lib/tiptap-utils.ts'
 import type { Orientation } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 import {
-  getTable,
-  getTableSelectionType,
+  findTable,
+  findTableSelectionType,
   selectCellsByCoords,
   cellsOverlapRectangle,
-  getIndexCoordinates
+  findIndexCoordinates
 } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 
 // --- Icons ---
@@ -156,10 +156,10 @@ function canMoveRowColumn({
   }
 
   try {
-    const table = getTable(editor, tablePos)
+    const table = findTable(editor, tablePos)
     if (!table) return false
 
-    const selectionType = getTableSelectionType(editor, index, orientation)
+    const selectionType = findTableSelectionType(editor, index, orientation)
     if (!selectionType) return false
 
     const { orientation: finalOrientation, index: finalIndex } = selectionType
@@ -202,13 +202,13 @@ function canMoveRowColumn({
       return false
     }
 
-    const sourceCoords = getIndexCoordinates({
+    const sourceCoords = findIndexCoordinates({
       editor,
       index: finalIndex,
       orientation: finalOrientation,
       tablePos
     })
-    const targetCoords = getIndexCoordinates({
+    const targetCoords = findIndexCoordinates({
       editor,
       index: targetIndex,
       orientation: finalOrientation,
@@ -277,10 +277,10 @@ function tableMoveRowColumn({
   }
 
   try {
-    const table = getTable(editor, tablePos)
+    const table = findTable(editor, tablePos)
     if (!table) return false
 
-    const selectionType = getTableSelectionType(editor, index, orientation)
+    const selectionType = findTableSelectionType(editor, index, orientation)
     if (!selectionType) return false
 
     const { orientation: finalOrientation, index: from } = selectionType
@@ -311,7 +311,7 @@ function tableMoveRowColumn({
         dispatch
       )
     } else {
-      const sourceCoords = getIndexCoordinates({
+      const sourceCoords = findIndexCoordinates({
         editor,
         index: from,
         orientation: finalOrientation,
@@ -361,7 +361,7 @@ function shouldShowButton({
   if (!editor || !editor.isEditable) return false
   if (!isExtensionAvailable(editor, REQUIRED_EXTENSIONS)) return false
 
-  const selectionType = getTableSelectionType(editor, index, orientation)
+  const selectionType = findTableSelectionType(editor, index, orientation)
   if (!selectionType) return false
 
   if (!isValidDirectionForOrientation(selectionType.orientation, direction)) {
@@ -429,7 +429,7 @@ export function useTableMoveRowColumn(config: UseTableMoveRowColumnConfig) {
 
   const { editor } = useTiptapEditor(providedEditor)
 
-  const selectionType = getTableSelectionType(editor, index, orientation)
+  const selectionType = findTableSelectionType(editor, index, orientation)
 
   const isVisible = shouldShowButton({
     editor,

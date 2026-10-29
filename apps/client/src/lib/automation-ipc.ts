@@ -38,7 +38,7 @@ async function listAutomations(): Promise<Automation[]> {
   }
 }
 
-async function setAutomationEnabled(id: string, enabled: boolean): Promise<Automation> {
+async function writeAutomationEnabled(id: string, enabled: boolean): Promise<Automation> {
   try {
     return AutomationSchema.parse(
       await invoke(CHANNELS.AUTOMATION.SET_ENABLED, { id, enabled })
@@ -91,6 +91,6 @@ export {
   removeAutomation,
   runAutomationNow,
   saveAutomation,
-  setAutomationEnabled
+  writeAutomationEnabled
 }
 export type { Automation, AutomationRun, AutomationSave, FinishRun }

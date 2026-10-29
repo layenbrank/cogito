@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildExtension,
-  createExtensionDraft,
+  makeExtensionDraft,
   describeExtension,
   findExtensionKey,
   findExtensionName,
@@ -18,7 +18,7 @@ import {
  */
 
 function draft(patch: Partial<ExtensionDraft>): ExtensionDraft {
-  return { ...createExtensionDraft(), ...patch }
+  return { ...makeExtensionDraft(), ...patch }
 }
 
 describe('parseLines', function () {

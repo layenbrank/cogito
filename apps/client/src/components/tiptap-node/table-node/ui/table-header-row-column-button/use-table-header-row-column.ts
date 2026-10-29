@@ -13,9 +13,9 @@ import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 import { isExtensionAvailable, isValidPosition } from '@/lib/tiptap-utils.ts'
 import type { Orientation } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 import {
-  getIndexCoordinates,
-  getRowOrColumnCells,
-  getTableSelectionType,
+  findIndexCoordinates,
+  findRowOrColumnCells,
+  findTableSelectionType,
   selectCellsByCoords
 } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 
@@ -91,7 +91,7 @@ function canToggleHeader({
     return false
   }
 
-  const selectionType = getTableSelectionType(
+  const selectionType = findTableSelectionType(
     editor,
     index,
     orientation,
@@ -121,7 +121,7 @@ function toggleTableHeader({
   if (!canToggleHeader({ editor, index, orientation, tablePos })) return false
 
   try {
-    const selectionType = getTableSelectionType(
+    const selectionType = findTableSelectionType(
       editor,
       index,
       orientation,
@@ -139,7 +139,7 @@ function toggleTableHeader({
 
     if (!isValidPosition(tablePos)) return false
 
-    const cellCoords = getIndexCoordinates({
+    const cellCoords = findIndexCoordinates({
       editor,
       index: selectionType.index,
       orientation: selectionType.orientation,
@@ -185,7 +185,7 @@ function shouldShowButton({
     return canToggleHeader({ editor, index, orientation, tablePos })
   }
 
-  const selectionType = getTableSelectionType(editor, index, orientation)
+  const selectionType = findTableSelectionType(editor, index, orientation)
   return Boolean(selectionType)
 }
 
@@ -206,7 +206,7 @@ export function useTableHeaderRowColumn(config: UseTableHeaderRowColumnConfig) {
 
   const { editor } = useTiptapEditor(providedEditor)
 
-  const selectionType = getTableSelectionType(editor, index, orientation)
+  const selectionType = findTableSelectionType(editor, index, orientation)
 
   const isVisible = shouldShowButton({
     editor,
@@ -227,7 +227,7 @@ export function useTableHeaderRowColumn(config: UseTableHeaderRowColumnConfig) {
   if (editor?.state.selection instanceof CellSelection) {
     isActive = editor?.isActive('tableHeader') || false
   } else {
-    const rowsOrCols = getRowOrColumnCells(
+    const rowsOrCols = findRowOrColumnCells(
       editor,
       index,
       selectionType?.orientation,

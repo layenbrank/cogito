@@ -55,7 +55,7 @@ function Caption() {
   )
 
   return (
-    <div className={clsx(styles.chrome)}>
+    <div className={clsx(styles.shell)}>
       <div className={styles.brand}>
         <span
           className={styles.logo}

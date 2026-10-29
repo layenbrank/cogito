@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { Input } from '@cogito/design/components/input'
 import {
   Select,
@@ -234,8 +235,9 @@ function Caption() {
               }}
             />
             {searchDraft ? (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 aria-label="清除搜索"
                 className="absolute inset-y-0 right-1 inline-flex items-center text-muted-foreground hover:text-foreground"
                 onClick={function () {
@@ -245,7 +247,7 @@ function Caption() {
                   icon="lucide:x"
                   className="size-3"
                 />
-              </button>
+              </Button>
             ) : null}
           </div>
         ) : null}

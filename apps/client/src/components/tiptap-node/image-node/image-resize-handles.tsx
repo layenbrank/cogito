@@ -1,5 +1,6 @@
 // @ts-nocheck
 import type { RefObject } from 'react'
+import { Button } from '@cogito/design/components/button'
 
 interface ImageResizeHandlesProps {
   leftRef: RefObject<HTMLButtonElement | null>
@@ -10,8 +11,10 @@ interface ImageResizeHandlesProps {
 function ImageResizeHandles(props: ImageResizeHandlesProps) {
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         ref={props.leftRef}
         aria-label="Resize image from left"
         className="tiptap-image-handle tiptap-image-handle-left"
@@ -26,8 +29,10 @@ function ImageResizeHandles(props: ImageResizeHandlesProps) {
           if (touch) props.onStartResize('left', touch.clientX)
         }}
       />
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         ref={props.rightRef}
         aria-label="Resize image from right"
         className="tiptap-image-handle tiptap-image-handle-right"

@@ -163,7 +163,7 @@ function useTableActionItems() {
     [sortAscAction, sortDescAction]
   )
 
-  const getSortItems = useCallback(() => {
+  const findSortItems = useCallback(() => {
     const items: TableActionItemProps[] = []
 
     if (sortActions.sortAsc.isVisible) {
@@ -187,7 +187,7 @@ function useTableActionItems() {
     return items
   }, [sortActions])
 
-  const getActionItems = useCallback(() => {
+  const findActionItems = useCallback(() => {
     const items: TableActionItemProps[] = []
 
     if (orientation === 'row') {
@@ -229,7 +229,7 @@ function useTableActionItems() {
     return items
   }, [orientation, addActions])
 
-  const getMoveItems = useCallback(() => {
+  const findMoveItems = useCallback(() => {
     const items: TableActionItemProps[] = []
 
     if (orientation === 'row') {
@@ -276,9 +276,9 @@ function useTableActionItems() {
     duplicateAction,
     clearContentAction,
     headerAction,
-    addItems: getActionItems(),
-    moveItems: getMoveItems(),
-    sortItems: getSortItems()
+    addItems: findActionItems(),
+    moveItems: findMoveItems(),
+    sortItems: findSortItems()
   }
 }
 

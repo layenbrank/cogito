@@ -13,7 +13,7 @@ import {
   removeAutomation,
   runAutomationNow,
   saveAutomation,
-  setAutomationEnabled,
+  writeAutomationEnabled,
   type Automation,
   type AutomationRun,
   type AutomationSave
@@ -149,7 +149,7 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
         return
       }
       try {
-        const updated = await setAutomationEnabled(id, enabled)
+        const updated = await writeAutomationEnabled(id, enabled)
         set({
           items: get().items.map(function (item) {
             return item.id === updated.id ? updated : item

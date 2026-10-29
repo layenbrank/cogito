@@ -130,15 +130,15 @@ const CHUNK_SIZE = 50
 
 /**
  * 分帧追加子节点。首批同步写入，其余用 rAF。
- * 返回 cancel()，在 loadGen 变化或 unmount 时调用。
+ * 返回 cancel()，在 fetchGen 变化或 unmount 时调用。
  */
 function scheduleChunkedChildren(
-  applyChunk: (chunk: FileTreeNode[], isFirst: boolean, isDone: boolean) => void,
+  writeChunk: (chunk: FileTreeNode[], isFirst: boolean, isDone: boolean) => void,
   nodes: FileTreeNode[],
   chunkSize: number = CHUNK_SIZE
 ): () => void {
   if (nodes.length === 0) {
-    applyChunk([], true, true)
+    writeChunk([], true, true)
     return function () {}
   }
 
@@ -152,7 +152,7 @@ function scheduleChunkedChildren(
     const next = nodes.slice(offset, offset + chunkSize)
     offset += next.length
     const isDone = offset >= nodes.length
-    applyChunk(next, isFirst, isDone)
+    writeChunk(next, isFirst, isDone)
     if (!isDone) {
       rafId = requestAnimationFrame(pump)
     }

@@ -9,7 +9,7 @@ import {
   listDrafts,
   removeDraft,
   saveDraft,
-  setDraftStatus,
+  writeDraftStatus,
   type DirectiveDraft,
   type DraftSave
 } from '@/lib/directive-draft-ipc'
@@ -21,7 +21,7 @@ const DRAFT = DICT_VALUE.DIRECTIVE_DRAFT_STATUS
 interface DirectiveDraftState {
   drafts: DirectiveDraft[]
   isLoading: boolean
-  loadError: string | null
+  fetchError: string | null
   refresh: () => Promise<void>
   save: (input: DraftSave) => Promise<DirectiveDraft | null>
   markSaved: (id: string) => Promise<void>
@@ -38,15 +38,15 @@ const useDirectiveDraftStore = create<DirectiveDraftState>()(function (setter, g
   return {
     drafts: [],
     isLoading: false,
-    loadError: null,
+    fetchError: null,
 
     async refresh() {
-      setter({ isLoading: true, loadError: null })
+      setter({ isLoading: true, fetchError: null })
       try {
         const drafts = await listDrafts(DRAFT.PENDING)
         setter({ drafts, isLoading: false })
       } catch (error) {
-        setter({ isLoading: false, loadError: toMessage(error) })
+        setter({ isLoading: false, fetchError: toMessage(error) })
         reportCaught('directiveDraft.refresh', error, 'warning')
       }
     },
@@ -61,7 +61,7 @@ const useDirectiveDraftStore = create<DirectiveDraftState>()(function (setter, g
         })
         return draft
       } catch (error) {
-        setter({ loadError: toMessage(error) })
+        setter({ fetchError: toMessage(error) })
         reportCaught('directiveDraft.save', error, 'warning')
         return null
       }
@@ -69,14 +69,14 @@ const useDirectiveDraftStore = create<DirectiveDraftState>()(function (setter, g
 
     async markSaved(id) {
       try {
-        await setDraftStatus({ id, status: DRAFT.SAVED })
+        await writeDraftStatus({ id, status: DRAFT.SAVED })
         setter({
           drafts: getter().drafts.filter(function (item) {
             return item.id !== id
           })
         })
       } catch (error) {
-        setter({ loadError: toMessage(error) })
+        setter({ fetchError: toMessage(error) })
         reportCaught('directiveDraft.markSaved', error, 'warning')
       }
     },
@@ -90,7 +90,7 @@ const useDirectiveDraftStore = create<DirectiveDraftState>()(function (setter, g
           })
         })
       } catch (error) {
-        setter({ loadError: toMessage(error) })
+        setter({ fetchError: toMessage(error) })
         reportCaught('directiveDraft.discard', error, 'warning')
       }
     }

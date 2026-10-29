@@ -106,7 +106,7 @@ export function isTextAlignActive(editor: Editor | null, align: TextAlign): bool
 /**
  * Sets text alignment in the editor
  */
-export function setTextAlign(editor: Editor | null, align: TextAlign): boolean {
+export function writeTextAlign(editor: Editor | null, align: TextAlign): boolean {
   if (!editor || !editor.isEditable) return false
   if (!canSetTextAlign(editor, align)) return false
 
@@ -202,7 +202,7 @@ export function useTextAlign(config: UseTextAlignConfig) {
   const handleTextAlign = useCallback(() => {
     if (!editor) return false
 
-    const success = setTextAlign(editor, align)
+    const success = writeTextAlign(editor, align)
     if (success) {
       onAligned?.()
     }

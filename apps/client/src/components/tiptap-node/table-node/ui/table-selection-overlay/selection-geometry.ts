@@ -11,7 +11,7 @@ type ResizeHandle = 'tl' | 'tr' | 'bl' | 'br' | null
 // it is treated as aligned.
 const CORNER_DETECTION_TOLERANCE = 5
 
-const getCellAtCoordinates = (
+const findCellAtCoordinates = (
   state: EditorState,
   view: EditorView,
   x: number,
@@ -24,7 +24,7 @@ const getCellAtCoordinates = (
   return cellAround($pos)
 }
 
-const getSelectionBoundingRect = (
+const findSelectionBoundingRect = (
   view: EditorView,
   selection: Selection
 ): DOMRect | null => {
@@ -61,7 +61,7 @@ const getSelectionBoundingRect = (
   )
 }
 
-const getSingleCellBoundingRect = (
+const findSingleCellBoundingRect = (
   view: EditorView,
   cellPos: number
 ): DOMRect | null => {
@@ -72,7 +72,7 @@ const getSingleCellBoundingRect = (
   return new DOMRect(rect.left, rect.top, rect.width, rect.height)
 }
 
-const createVirtualReference = (rect: DOMRect) => ({
+const makeVirtualReference = (rect: DOMRect) => ({
   getBoundingClientRect: () => rect
 })
 
@@ -146,7 +146,7 @@ const findCornerCells = (
   return corners
 }
 
-const getAnchorCellForHandle = (
+const findAnchorCellForHandle = (
   view: EditorView,
   selection: CellSelection,
   selectionRect: DOMRect,
@@ -167,7 +167,7 @@ const getAnchorCellForHandle = (
   return anchorPos ? { pos: anchorPos } : null
 }
 
-const createHandleStyles = (): React.CSSProperties => ({
+const makeHandleStyles = (): React.CSSProperties => ({
   position: 'absolute',
   width: 15,
   height: 15,
@@ -180,12 +180,12 @@ const createHandleStyles = (): React.CSSProperties => ({
   zIndex: 10
 })
 
-const createCornerHandleStyles = (
+const makeCornerHandleStyles = (
   position: 'tl' | 'tr' | 'bl' | 'br',
   isActiveHandle: boolean,
   isDisabled: boolean = false
 ): React.CSSProperties => {
-  const baseStyles = createHandleStyles()
+  const baseStyles = makeHandleStyles()
 
   const positionStyles: Record<typeof position, React.CSSProperties> = {
     tl: {
@@ -220,10 +220,10 @@ const createCornerHandleStyles = (
 
 export type { ResizeHandle }
 export {
-  getCellAtCoordinates,
-  getSelectionBoundingRect,
-  getSingleCellBoundingRect,
-  createVirtualReference,
-  getAnchorCellForHandle,
-  createCornerHandleStyles
+  findCellAtCoordinates,
+  findSelectionBoundingRect,
+  findSingleCellBoundingRect,
+  makeVirtualReference,
+  findAnchorCellForHandle,
+  makeCornerHandleStyles
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import type { Editor, Range } from '@tiptap/react'
 
 // --- Lib ---
-import { getElementOverflowPosition } from '@/lib/tiptap-collab-utils.ts'
+import { findElementOverflowPosition } from '@/lib/tiptap-collab-utils.ts'
 
 // --- Tiptap UI ---
 import type {
@@ -113,7 +113,7 @@ export const MentionDropdownMenu = (props: MentionDropdownMenuProps) => {
       .run()
   }
 
-  const getSuggestionItems = async (props: { query: string }) => {
+  const findSuggestionItems = async (props: { query: string }) => {
     const users = await fetchUsers(props.query)
 
     return users.map((user) => ({
@@ -130,7 +130,7 @@ export const MentionDropdownMenu = (props: MentionDropdownMenuProps) => {
       pluginKey="mentionDropdownMenu"
       decorationClass="tiptap-mention-decoration"
       selector="tiptap-mention-dropdown-menu"
-      items={getSuggestionItems}
+      items={findSuggestionItems}
       {...props}>
       {(props) => <MentionList {...props} />}
     </SuggestionMenu>
@@ -146,7 +146,7 @@ const MentionItem = ({ item, isSelected, onSelect }: MentionItemProps) => {
     ) as HTMLElement
     if (!itemRef.current || !isSelected || !menuElement) return
 
-    const overflow = getElementOverflowPosition(itemRef.current, menuElement)
+    const overflow = findElementOverflowPosition(itemRef.current, menuElement)
     if (overflow === 'top') {
       itemRef.current.scrollIntoView(true)
     } else if (overflow === 'bottom') {

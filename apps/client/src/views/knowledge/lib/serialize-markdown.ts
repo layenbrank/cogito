@@ -2,7 +2,7 @@ import TurndownService from 'turndown'
 
 import { joinFrontMatter } from '@/views/knowledge/lib/front-matter.ts'
 
-function createTurndown(): TurndownService {
+function makeTurndown(): TurndownService {
   const service = new TurndownService({
     headingStyle: 'atx',
     codeBlockStyle: 'fenced',
@@ -122,7 +122,7 @@ function createTurndown(): TurndownService {
   return service
 }
 
-const turndown = createTurndown()
+const turndown = makeTurndown()
 
 function serializeHtmlToMarkdown(html: string, frontMatter: string | null = null): string {
   const body = turndown.turndown(html)

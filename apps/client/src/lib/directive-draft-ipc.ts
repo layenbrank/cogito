@@ -37,7 +37,7 @@ async function listDrafts(status?: string, limit?: number): Promise<DirectiveDra
   }
 }
 
-async function setDraftStatus(input: DraftStatus): Promise<DirectiveDraft> {
+async function writeDraftStatus(input: DraftStatus): Promise<DirectiveDraft> {
   try {
     const raw = await invoke(CHANNELS.DIRECTIVE_DRAFT.SET_STATUS, { input })
     return DirectiveDraftSchema.parse(raw)
@@ -54,5 +54,5 @@ async function removeDraft(id: string): Promise<number> {
   }
 }
 
-export { listDrafts, removeDraft, saveDraft, setDraftStatus }
+export { listDrafts, removeDraft, saveDraft, writeDraftStatus }
 export type { DirectiveDraft, DraftSave, DraftStatus }

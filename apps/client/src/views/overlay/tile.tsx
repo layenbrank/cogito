@@ -1,3 +1,4 @@
+import { Button } from '@cogito/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import clsx from 'clsx'
 import gsap from 'gsap'
@@ -43,9 +44,10 @@ function SizePicker(props: {
       {SIZES.map(function (value) {
         const isSelected = value === props.current
         return (
-          <button
+          <Button
             key={value}
             type="button"
+            variant="ghost"
             aria-label={`大小 ${value}`}
             aria-pressed={isSelected}
             style={{
@@ -64,7 +66,7 @@ function SizePicker(props: {
               props.onChange(value)
             }}>
             {value}
-          </button>
+          </Button>
         )
       })}
     </div>

@@ -1,7 +1,7 @@
 import type { NodeWithPos } from '@tiptap/core'
 import { Extension } from '@tiptap/core'
 import type { EditorState, Transaction } from '@tiptap/pm/state'
-import { getSelectedNodesOfType } from '@/lib/tiptap-utils.ts'
+import { findSelectedNodesOfType } from '@/lib/tiptap-utils.ts'
 import { updateNodesAttr } from '@/lib/tiptap-utils.ts'
 
 declare module '@tiptap/core' {
@@ -45,7 +45,7 @@ export interface NodeAlignmentOptions {
   verticalAlignValues: string[]
 }
 
-function getToggleValue(
+function findToggleValue(
   targets: NodeWithPos[],
   attributeName: string,
   inputValue: string
@@ -164,7 +164,7 @@ export const NodeAlignment = Extension.create<NodeAlignmentOptions>({
     ) => {
       return (inputValue?: string) =>
         ({ state, tr }: { state: EditorState; tr: Transaction }) => {
-          const targets = getSelectedNodesOfType(
+          const targets = findSelectedNodesOfType(
             state.selection,
             this.options.types
           )
@@ -190,7 +190,7 @@ export const NodeAlignment = Extension.create<NodeAlignmentOptions>({
         (targets, inputValue) => {
           if (!inputValue || !this.options.textAlignValues.includes(inputValue))
             return null
-          return getToggleValue(targets, 'nodeTextAlign', inputValue)
+          return findToggleValue(targets, 'nodeTextAlign', inputValue)
         }
       ),
 
@@ -215,7 +215,7 @@ export const NodeAlignment = Extension.create<NodeAlignmentOptions>({
             !this.options.verticalAlignValues.includes(inputValue)
           )
             return null
-          return getToggleValue(targets, 'nodeVerticalAlign', inputValue)
+          return findToggleValue(targets, 'nodeVerticalAlign', inputValue)
         }
       ),
 
@@ -223,7 +223,7 @@ export const NodeAlignment = Extension.create<NodeAlignmentOptions>({
       setNodeAlignment:
         (textAlign?: string, verticalAlign?: string) =>
         ({ state, tr }: { state: EditorState; tr: Transaction }) => {
-          const targets = getSelectedNodesOfType(
+          const targets = findSelectedNodesOfType(
             state.selection,
             this.options.types
           )
@@ -262,7 +262,7 @@ export const NodeAlignment = Extension.create<NodeAlignmentOptions>({
       unsetNodeAlignment:
         () =>
         ({ state, tr }: { state: EditorState; tr: Transaction }) => {
-          const targets = getSelectedNodesOfType(
+          const targets = findSelectedNodesOfType(
             state.selection,
             this.options.types
           )

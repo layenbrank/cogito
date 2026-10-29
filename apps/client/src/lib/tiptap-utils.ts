@@ -565,7 +565,7 @@ export function selectCurrentBlockContent(editor: Editor) {
  * @param allowedNodeTypes An array of node type names to look for (e.g., ["image", "table"])
  * @returns An array of objects containing the node and its position
  */
-export function getSelectedNodesOfType(
+export function findSelectedNodesOfType(
   selection: Selection,
   allowedNodeTypes: string[]
 ): NodeWithPos[] {

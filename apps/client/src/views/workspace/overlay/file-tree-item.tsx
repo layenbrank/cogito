@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import {
   Collapsible,
   CollapsibleContent,
@@ -27,7 +28,7 @@ interface FileTreeItemProps {
   activeKey?: string | null
   expandedKeys?: Set<string>
   emptyHint?: string
-  onLoad: (node: FileTreeNode, options?: { force?: boolean; append?: boolean }) => Promise<void>
+  onFetch: (node: FileTreeNode, options?: { force?: boolean; append?: boolean }) => Promise<void>
   onSelect: (node: FileTreeNode) => void
   onExpandChange?: (key: string, open: boolean) => void
 }
@@ -45,13 +46,14 @@ function rowPadLeft(depth: number): number {
 function LoadMoreRow(props: { title: string; depth: number; onSelect: () => void }) {
   return (
     <li>
-      <button
+      <Button
+        variant="ghost"
         type="button"
         onClick={props.onSelect}
         style={{ paddingLeft: rowPadLeft(props.depth) }}
-        className="text-muted-foreground hover:bg-muted/60 w-full truncate py-0.75 pr-2 text-left text-sm">
+        className="text-muted-foreground hover:bg-muted/60 h-auto w-full truncate py-0.75 pr-2 text-left text-sm">
         {props.title}
-      </button>
+      </Button>
     </li>
   )
 }
@@ -67,7 +69,8 @@ function FileRow(props: {
   const isActive = props.isActive
   return (
     <li>
-      <button
+      <Button
+        variant="ghost"
         type="button"
         data-tree-key={props.treeKey}
         data-tree-kind="file"
@@ -75,7 +78,7 @@ function FileRow(props: {
         onClick={props.onSelect}
         style={{ paddingLeft: rowPadLeft(props.depth) }}
         className={cn(
-          'flex w-full items-center gap-1.5 truncate border-l-2 border-transparent py-0.75 pr-2 text-left text-sm transition-colors hover:bg-muted/60',
+          'flex h-auto w-full items-center gap-1.5 truncate border-l-2 border-transparent py-0.75 pr-2 text-left text-sm transition-colors hover:bg-muted/60',
           isActive && 'border-l-primary bg-primary/15 font-medium text-foreground'
         )}>
         <Icon
@@ -86,7 +89,7 @@ function FileRow(props: {
           )}
         />
         <span className="truncate">{props.title}</span>
-      </button>
+      </Button>
     </li>
   )
 }
@@ -101,10 +104,10 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
   const isOpen = isControlled ? props.expandedKeys!.has(node.key) : uncontrolledOpen
   /** 已发起过的加载：外部直接改 expandedKeys 时不会重复拉同一目录 */
   const requestedRef = useRef<Set<string>>(new Set())
-  const loadRef = useRef(props.onLoad)
+  const fetchRef = useRef(props.onFetch)
 
   useEffect(function () {
-    loadRef.current = props.onLoad
+    fetchRef.current = props.onFetch
   })
 
   // 受控展开（面包屑跳转、刷新恢复）不会走 onOpenChange，这里补一次按需加载
@@ -113,7 +116,7 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
       if (!isDirectory || !isOpen || node.isLoaded || node.isLoading) return
       if (requestedRef.current.has(node.key)) return
       requestedRef.current.add(node.key)
-      void loadRef.current(node)
+      void fetchRef.current(node)
     },
     [isDirectory, isOpen, node]
   )
@@ -157,7 +160,7 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
           if (!open) return
           // 假加载（isLoading 但未 isLoaded）时 force 重试，避免永久骨架
           const shouldForce = Boolean(node.isLoading && !node.isLoaded)
-          void props.onLoad(node, shouldForce ? { force: true } : undefined)
+          void props.onFetch(node, shouldForce ? { force: true } : undefined)
         }}>
         <CollapsibleTrigger
           data-tree-key={node.key}
@@ -185,9 +188,9 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
           <span className="truncate">{node.title}</span>
         </CollapsibleTrigger>
         {/*
-          子节点在 open=true 之后异步灌入。空 Panel 会先把
+          子节点在 open=true 之后异步灌入。空 Surface 会先把
           --collapsible-panel-height 量成 0，之后 overflow 把子树裁掉。
-          有内容再挂载 Panel，避免空高锁定。
+          有内容再挂载 Surface，避免空高锁定。
           加载中用普通 ul 骨架（不走 CollapsibleContent），防止空高锁死。
         */}
         {isOpen && node.isLoading && !hasChildren ? (
@@ -230,7 +233,7 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
                     activeKey={props.activeKey}
                     expandedKeys={props.expandedKeys}
                     emptyHint={props.emptyHint}
-                    onLoad={props.onLoad}
+                    onFetch={props.onFetch}
                     onSelect={props.onSelect}
                     onExpandChange={props.onExpandChange}
                   />
@@ -249,7 +252,7 @@ function isFileTreeItemEqual(prev: FileTreeItemProps, next: FileTreeItemProps): 
   if (prev.depth !== next.depth) return false
   if (prev.expandedKeys !== next.expandedKeys) return false
   if (prev.emptyHint !== next.emptyHint) return false
-  if (prev.onLoad !== next.onLoad) return false
+  if (prev.onFetch !== next.onFetch) return false
   if (prev.onSelect !== next.onSelect) return false
   if (prev.onExpandChange !== next.onExpandChange) return false
   const wasActive = isSameTreeKey(prev.activeKey, prev.node.key)

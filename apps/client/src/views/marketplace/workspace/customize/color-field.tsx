@@ -45,9 +45,10 @@ function ColorField(props: ColorFieldProps) {
                 {props.shades.map(function (color) {
                   const isSelected = current === normalizeHex(color)
                   return (
-                    <button
+                    <Button
                       key={color}
                       type="button"
+                      variant="ghost"
                       role="radio"
                       aria-checked={isSelected}
                       aria-label={color}
@@ -87,9 +88,10 @@ function ColorField(props: ColorFieldProps) {
                   <div className="grid grid-cols-6 gap-2">
                     {props.hues.map(function (color) {
                       return (
-                        <button
+                        <Button
                           key={color}
                           type="button"
+                          variant="ghost"
                           aria-label={color}
                           title={color}
                           className={cn(PRESET_SWATCH_CLASS, 'cursor-pointer rounded-sm border border-border')}

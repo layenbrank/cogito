@@ -116,8 +116,9 @@ function TagFilter(props: TagFilterProps) {
                   const isOn = props.selectedIDs.includes(tag.id)
                   return (
                     <li key={tag.id}>
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         className={
                           isOn ? styles.tagFilterItemOn : styles.tagFilterItem
                         }
@@ -141,7 +142,7 @@ function TagFilter(props: TagFilterProps) {
                             className="size-3.5 shrink-0"
                           />
                         ) : null}
-                      </button>
+                      </Button>
                     </li>
                   )
                 })}

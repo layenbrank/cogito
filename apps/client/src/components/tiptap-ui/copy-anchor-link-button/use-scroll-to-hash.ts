@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useEffectEvent, useRef } from 'react'
 import { type Editor } from '@tiptap/react'
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
-import { getEditorExtension } from '@/lib/tiptap-advanced-utils.ts'
+import { findEditorExtension } from '@/lib/tiptap-advanced-utils.ts'
 import { selectNodeAndHideFloating } from '@/hooks/use-floating-toolbar-visibility.ts'
 
 export interface UseScrollToHashConfig {
@@ -52,7 +52,7 @@ export function useScrollToHash(config: UseScrollToHashConfig = {}) {
       if (!editor) return false
 
       const attributeName =
-        getEditorExtension(editor, 'uniqueID')?.options?.attributeName ??
+        findEditorExtension(editor, 'uniqueID')?.options?.attributeName ??
         'data-id'
       let position: number | null = null
 

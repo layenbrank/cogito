@@ -52,7 +52,7 @@ function ExportDialog(props: ExportDialogProps) {
   const [videoBitrate, setVideoBitrate] = useState(current.videoBitrate)
   const [audioBitrate, setAudioBitrate] = useState(current.audioBitrate)
 
-  function applyPreset(preset: ExportPreset) {
+  function selectPreset(preset: ExportPreset) {
     const fitted = fitExportPreset(preset, aspect)
     setPresetId(preset.id)
     setFps(fitted.fps)
@@ -91,7 +91,7 @@ function ExportDialog(props: ExportDialogProps) {
                   variant={isOn ? 'default' : 'outline'}
                   className="h-7 px-2.5 text-xs shadow-none"
                   onClick={function () {
-                    applyPreset(preset)
+                    selectPreset(preset)
                   }}>
                   {preset.label}
                 </Button>

@@ -139,7 +139,7 @@ function scaleToFit(el: HTMLElement, maxWidth: number): void {
 /**
  * Copy table-level styles that affect layout.
  */
-function applyTableBoxStyles(
+function syncTableBoxStyles(
   srcTable: HTMLTableElement,
   dstTable: HTMLTableElement
 ) {
@@ -178,7 +178,7 @@ function buildRowPreview(
   const tbodyClone = document.createElement("tbody")
   const rowClone = cloneWithStyles(row) as HTMLTableRowElement
 
-  applyTableBoxStyles(tableEl, tableClone)
+  syncTableBoxStyles(tableEl, tableClone)
 
   // Lock each cell width
   for (let i = 0; i < row.cells.length; i++) {
@@ -204,7 +204,7 @@ function buildColumnPreview(
 
   const tableClone = document.createElement("table")
   const tbodyClone = document.createElement("tbody")
-  applyTableBoxStyles(tableEl, tableClone)
+  syncTableBoxStyles(tableEl, tableClone)
 
   let firstCellWidth = 0
 
@@ -241,7 +241,7 @@ function buildColumnPreview(
  * - Scales down if it exceeds editor width
  * - Preserves computed styles to look 1:1 with the table
  */
-export function createTableDragImage(
+export function makeTableDragImage(
   editor: Editor,
   orientation: "row" | "col",
   index: number,

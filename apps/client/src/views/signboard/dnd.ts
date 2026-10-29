@@ -111,7 +111,7 @@ function moveEntryDraft<T extends { id: string; columnID: string; index: number 
  * 卡拖：优先撞卡片（sortable 靠 over 卡片实时变化驱动 transform 过渡）；
  * 仅在空白列区才落到 column-drop。不粘滞 lastOver，避免同列过渡卡住。
  */
-function createKanbanCollision(dragKind: DragKind | null): CollisionDetection {
+function buildKanbanCollision(dragKind: DragKind | null): CollisionDetection {
   return function (detection) {
     const activeType = (detection.active.data.current as DroppableData | undefined)?.type
     const kind = dragKind ?? (activeType === 'column-sort' ? 'column-sort' : 'card')
@@ -253,7 +253,7 @@ function resolveCardDrop(args: {
 
 export {
   columnDropID,
-  createKanbanCollision,
+  buildKanbanCollision,
   moveByIndex,
   moveEntryDraft,
   parseColumnDropID,

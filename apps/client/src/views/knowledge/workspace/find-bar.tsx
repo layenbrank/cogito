@@ -38,7 +38,9 @@ function OptionToggle(props: {
     <Tooltip>
       <TooltipTrigger
         render={
-          <button
+          <Button
+            variant="ghost"
+            size="icon-xs"
             type="button"
             aria-label={props.label}
             aria-pressed={props.pressed}

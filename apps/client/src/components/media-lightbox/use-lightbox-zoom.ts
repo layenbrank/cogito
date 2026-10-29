@@ -94,7 +94,7 @@ function useLightboxZoom(options: UseLightboxZoomOptions) {
     }
   }
 
-  function applyLayout() {
+  function syncLayout() {
     const target = options.targetRef.current
     if (!target) return
     lastTargetRef.current = target
@@ -126,7 +126,7 @@ function useLightboxZoom(options: UseLightboxZoomOptions) {
     if (previous && previous !== current) clearTargetStyles(previous)
     clearTargetStyles(current)
     lastTargetRef.current = current
-    applyLayout()
+    syncLayout()
   }
 
   useLayoutEffect(
@@ -148,7 +148,7 @@ function useLightboxZoom(options: UseLightboxZoomOptions) {
       if (previous && previous !== current) clearTargetStyles(previous)
       clearTargetStyles(current)
       lastTargetRef.current = current
-      applyLayout()
+      syncLayout()
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [options.resetKey, options.enabled]
@@ -163,7 +163,7 @@ function useLightboxZoom(options: UseLightboxZoomOptions) {
         live.current.x = origin.x
         live.current.y = origin.y
       }
-      applyLayout()
+      syncLayout()
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 只随 fit 尺寸重算；内部函数每次 render 都是新引用，列进依赖会成环
     [options.fitWidth, options.fitHeight]
@@ -213,7 +213,7 @@ function useLightboxZoom(options: UseLightboxZoomOptions) {
           }
 
           onScale({ resetKey: options.resetKey, scale: live.current.scale })
-          applyLayout()
+          syncLayout()
         }
 
         function onPointerDown(event: PointerEvent) {
@@ -243,7 +243,7 @@ function useLightboxZoom(options: UseLightboxZoomOptions) {
           const pan = clampPan(nextX, nextY, live.current.scale)
           live.current.x = pan.x
           live.current.y = pan.y
-          applyLayout()
+          syncLayout()
         }
 
         function endDrag(event: PointerEvent) {

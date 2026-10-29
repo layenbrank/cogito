@@ -55,14 +55,14 @@ export const UiState = Extension.create<UiState>({
 
   addCommands() {
     /* storage 在 tiptap 侧是 any；在闭包里惰性取（onCreate 会整体替换 storage），并收敛成 UiState */
-    const createBooleanSetter =
+    const makeBooleanSetter =
       (key: keyof UiState) => (value: boolean) => () => {
         const uiState = this.storage as UiState
         uiState[key] = value
         return true
       }
 
-    const createToggle = (key: keyof UiState, value: boolean) => () => () => {
+    const makeToggle = (key: keyof UiState, value: boolean) => () => () => {
       const uiState = this.storage as UiState
       uiState[key] = value
       return true
@@ -70,21 +70,21 @@ export const UiState = Extension.create<UiState>({
 
     return {
       // AI Generation commands
-      aiGenerationSetIsSelection: createBooleanSetter(
+      aiGenerationSetIsSelection: makeBooleanSetter(
         "aiGenerationIsSelection"
       ),
-      aiGenerationSetIsLoading: createBooleanSetter("aiGenerationIsLoading"),
-      aiGenerationHasMessage: createBooleanSetter("aiGenerationHasMessage"),
-      aiGenerationShow: createToggle("aiGenerationActive", true),
-      aiGenerationHide: createToggle("aiGenerationActive", false),
+      aiGenerationSetIsLoading: makeBooleanSetter("aiGenerationIsLoading"),
+      aiGenerationHasMessage: makeBooleanSetter("aiGenerationHasMessage"),
+      aiGenerationShow: makeToggle("aiGenerationActive", true),
+      aiGenerationHide: makeToggle("aiGenerationActive", false),
 
       // Comment input commands
-      commentInputShow: createToggle("commentInputVisible", true),
-      commentInputHide: createToggle("commentInputVisible", false),
+      commentInputShow: makeToggle("commentInputVisible", true),
+      commentInputHide: makeToggle("commentInputVisible", false),
 
       // Drag handle commands
-      setLockDragHandle: createBooleanSetter("lockDragHandle"),
-      setIsDragging: createBooleanSetter("isDragging"),
+      setLockDragHandle: makeBooleanSetter("lockDragHandle"),
+      setIsDragging: makeBooleanSetter("isDragging"),
 
       // Reset command
       resetUiState: () => () => {

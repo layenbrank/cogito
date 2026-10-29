@@ -40,7 +40,7 @@ export interface UseHeadingDropdownMenuConfig {
 /**
  * Gets the currently active heading level from the available levels
  */
-export function getActiveHeadingLevel(
+export function findActiveHeadingLevel(
   editor: Editor | null,
   levels: Level[] = [1, 2, 3, 4, 5, 6]
 ): Level | undefined {
@@ -87,19 +87,19 @@ export function getActiveHeadingLevel(
  * }
  * ```
  */
-const DEFAULT_LEVELS: Level[] = [1, 2, 3, 4, 5, 6]
+const HEADING_LEVELS: Level[] = [1, 2, 3, 4, 5, 6]
 
 export function useHeadingDropdownMenu(config?: UseHeadingDropdownMenuConfig) {
   const {
     editor: providedEditor,
-    levels = DEFAULT_LEVELS,
+    levels = HEADING_LEVELS,
     hideWhenUnavailable = false
   } = config || {}
 
   const { editor } = useTiptapEditor(providedEditor)
   const [isVisible, setIsVisible] = useState(true)
 
-  const activeLevel = getActiveHeadingLevel(editor, levels)
+  const activeLevel = findActiveHeadingLevel(editor, levels)
   const isActive = isHeadingActive(editor)
   const canToggleState = canToggle(editor)
 

@@ -11,8 +11,8 @@ import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 
 // --- Utils ---
 import {
-  getAnchorNodeAndPos,
-  getEditorExtension
+  findAnchorNodeAndPos,
+  findEditorExtension
 } from '@/lib/tiptap-advanced-utils.ts'
 
 // --- Icons ---
@@ -62,25 +62,25 @@ function isEditorReady(editor: Editor | null): boolean {
 /**
  * Gets the attribute name for unique IDs from the editor extension
  */
-function getAttributeName(editor: Editor): string {
-  const ext = getEditorExtension(editor, 'uniqueID')
+function findAttributeName(editor: Editor): string {
+  const ext = findEditorExtension(editor, 'uniqueID')
   return ext?.options?.attributeName || 'data-id'
 }
 
 /**
  * Comprehensive node info retrieval with validation
  */
-function getNodeWithId(editor: Editor | null): {
+function findNodeWithId(editor: Editor | null): {
   node: Node
   nodeId: string | null
   hasNodeId: boolean
 } | null {
   if (!isEditorReady(editor)) return null
 
-  const nodeInfo = getAnchorNodeAndPos(editor!)
+  const nodeInfo = findAnchorNodeAndPos(editor!)
   if (!nodeInfo) return null
 
-  const attributeName = getAttributeName(editor!)
+  const attributeName = findAttributeName(editor!)
   const nodeId = extractNodeId(nodeInfo.node, attributeName)
 
   return {
@@ -110,7 +110,7 @@ export function extractNodeId(
  * Checks if a node has a data-id that can be copied
  */
 export function canCopyAnchorLink(editor: Editor | null): boolean {
-  const nodeWithId = getNodeWithId(editor)
+  const nodeWithId = findNodeWithId(editor)
   return nodeWithId?.hasNodeId ?? false
 }
 
@@ -122,7 +122,7 @@ export async function copyNodeId(
   onExtractedNodeId?: (nodeId: string | null) => void,
   onNodeIdNotFound?: (found: boolean) => void
 ): Promise<boolean> {
-  const nodeWithId = getNodeWithId(editor)
+  const nodeWithId = findNodeWithId(editor)
 
   if (!nodeWithId) return false
 
@@ -158,7 +158,7 @@ export function shouldShowButton(props: {
 
   if (!isEditorReady(editor)) return false
 
-  const hasNode = !!getAnchorNodeAndPos(editor!)
+  const hasNode = !!findAnchorNodeAndPos(editor!)
 
   if (!hideWhenUnavailable) return hasNode
 

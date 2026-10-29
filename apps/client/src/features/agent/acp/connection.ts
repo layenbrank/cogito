@@ -17,7 +17,7 @@ import {
 import { createWebSocketStream } from '@agentclientprotocol/sdk/experimental/ws-client'
 
 import { ensureAutoCompactThreshold } from '@/features/agent/acp/goose-providers'
-import { createPinnedWebSocketCtor } from '@/features/agent/acp/wss-stream'
+import { makePinnedWebSocketCtor } from '@/features/agent/acp/wss-stream'
 import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
 import { reportCaught } from '@/utils/exception-report'
 
@@ -96,7 +96,7 @@ async function openAcpHandle(): Promise<AcpHandle> {
   const info = await findGooseConnection()
   const stream = createWebSocketStream(info.url, {
     protocols: [],
-    WebSocket: createPinnedWebSocketCtor(info.certFingerprint)
+    WebSocket: makePinnedWebSocketCtor(info.certFingerprint)
   })
 
   const app = client({ name: CLIENT_NAME })

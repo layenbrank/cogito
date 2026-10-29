@@ -23,7 +23,7 @@ import { addConfigExtension } from '@/features/agent/acp/goose-extensions'
 import { waitGooseReady } from '@/features/agent/acp/session'
 import {
   buildExtension,
-  createExtensionDraft,
+  makeExtensionDraft,
   findExtensionName,
   type ExtensionDraft,
   type ExtensionServer
@@ -41,7 +41,7 @@ const TRANSPORTS: Array<{ value: ExtensionServer['type']; label: string }> = [
 ]
 
 function ExtensionForm(props: ExtensionFormProps) {
-  const [draft, updateDraft] = useState<ExtensionDraft>(createExtensionDraft)
+  const [draft, updateDraft] = useState<ExtensionDraft>(makeExtensionDraft)
   const [saving, updateSaving] = useState(false)
 
   function patch(next: Partial<ExtensionDraft>) {

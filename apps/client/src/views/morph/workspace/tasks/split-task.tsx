@@ -159,7 +159,8 @@ function SplitTask() {
             <div className={styles.footerChips}>
               {RANGE_EXAMPLES.map(function (example) {
                 return (
-                  <button
+                  <Button
+                    variant="ghost"
                     key={example}
                     type="button"
                     className={styles.chip}
@@ -167,7 +168,7 @@ function SplitTask() {
                       toPatchSplit({ ranges: example })
                     }}>
                     {example}
-                  </button>
+                  </Button>
                 )
               })}
             </div>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 
 // --- Lib ---
-import { getElementOverflowPosition } from '@/lib/tiptap-collab-utils'
+import { findElementOverflowPosition } from '@/lib/tiptap-collab-utils'
 
 // --- Tiptap UI ---
 import type {
@@ -40,7 +40,7 @@ type SlashDropdownMenuProps = Omit<
 
 export const SlashDropdownMenu = (props: SlashDropdownMenuProps) => {
   const { config, ...restProps } = props
-  const { getSlashMenuItems } = useSlashDropdownMenu(config)
+  const { findSlashMenuItems } = useSlashDropdownMenu(config)
 
   return (
     <SuggestionMenu
@@ -50,7 +50,7 @@ export const SlashDropdownMenu = (props: SlashDropdownMenuProps) => {
       decorationContent={t('EDITOR_SLASH_FILTER')}
       selector="tiptap-slash-dropdown-menu"
       items={({ query, editor }) =>
-        filterSuggestionItems(getSlashMenuItems(editor), query)
+        filterSuggestionItems(findSlashMenuItems(editor), query)
       }
       {...restProps}>
       {(props) => (
@@ -77,7 +77,7 @@ const Item = (props: {
     ) as HTMLElement
     if (!itemRef.current || !isSelected || !selector) return
 
-    const overflow = getElementOverflowPosition(itemRef.current, selector)
+    const overflow = findElementOverflowPosition(itemRef.current, selector)
 
     if (overflow === 'top') {
       itemRef.current.scrollIntoView(true)

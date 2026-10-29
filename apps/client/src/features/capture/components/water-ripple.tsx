@@ -1,3 +1,4 @@
+import { Button } from '@cogito/design/components/button'
 import { useEffect, useRef } from 'react'
 import * as PIXI from 'pixi.js'
 
@@ -271,8 +272,9 @@ export default function WaterRipple(props: WaterRippleProps) {
   )
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       ref={containerRef}
       aria-label="关闭水波纹"
       onClick={onClose}
@@ -282,6 +284,7 @@ export default function WaterRipple(props: WaterRippleProps) {
           onClose?.()
         }
       }}
+      className="h-auto w-auto rounded-none border-none bg-transparent p-0 hover:bg-transparent active:bg-transparent"
       style={{
         position: 'fixed',
         left: 0,

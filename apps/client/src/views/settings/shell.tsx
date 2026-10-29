@@ -15,12 +15,12 @@ import {
   parseSectionKey,
   type SectionKey
 } from '@/views/settings/constant.ts'
-import AccountPanel from '@/views/settings/panels/account.tsx'
-import AppearancePanel from '@/views/settings/panels/appearance.tsx'
-import CapturePanel from '@/views/settings/panels/capture.tsx'
-import DictPanel from '@/views/settings/panels/dict.tsx'
-import GeneralPanel from '@/views/settings/panels/general.tsx'
-import ShortcutsPanel from '@/views/settings/panels/shortcuts.tsx'
+import AccountSurface from '@/views/settings/surfaces/account.tsx'
+import AppearanceSurface from '@/views/settings/surfaces/appearance.tsx'
+import CaptureSurface from '@/views/settings/surfaces/capture.tsx'
+import DictSurface from '@/views/settings/surfaces/dict.tsx'
+import GeneralSurface from '@/views/settings/surfaces/general.tsx'
+import ShortcutsSurface from '@/views/settings/surfaces/shortcuts.tsx'
 import styles from '@/views/settings/shell.module.scss'
 
 function findInitialSection(searchParams: URLSearchParams): SectionKey {
@@ -103,16 +103,17 @@ function Shell() {
           {NAVS.map(function (nav) {
             const isActive = section === nav.key
             return (
-              <button
+              <Button
                 key={nav.key}
                 type="button"
+                variant="ghost"
+                disabled={nav.isDisabled}
+                aria-current={isActive ? 'page' : undefined}
                 className={clsx(
                   styles.navItem,
                   isActive && styles.navItemActive,
                   nav.isDisabled && styles.navItemDisabled
                 )}
-                aria-current={isActive ? 'page' : undefined}
-                disabled={nav.isDisabled}
                 onClick={function () {
                   selectSection(nav.key)
                 }}>
@@ -121,7 +122,7 @@ function Shell() {
                   aria-hidden
                 />
                 <span>{nav.label}</span>
-              </button>
+              </Button>
             )
           })}
         </nav>
@@ -134,17 +135,17 @@ function Shell() {
             initial={false}>
             <m.div
               key={section}
-              className={styles.panelWrap}
+              className={styles.surfaceWrap}
               initial={viewVariants.initial}
               animate={viewVariants.animate}
               exit={viewVariants.exit}
               transition={viewTransition}>
-              {section === SECTION.GENERAL && <GeneralPanel />}
-              {section === SECTION.CAPTURE && <CapturePanel />}
-              {section === SECTION.SHORTCUTS && <ShortcutsPanel />}
-              {section === SECTION.APPEARANCE && <AppearancePanel />}
-              {section === SECTION.ACCOUNT && <AccountPanel />}
-              {section === SECTION.DICT && <DictPanel />}
+              {section === SECTION.GENERAL && <GeneralSurface />}
+              {section === SECTION.CAPTURE && <CaptureSurface />}
+              {section === SECTION.SHORTCUTS && <ShortcutsSurface />}
+              {section === SECTION.APPEARANCE && <AppearanceSurface />}
+              {section === SECTION.ACCOUNT && <AccountSurface />}
+              {section === SECTION.DICT && <DictSurface />}
             </m.div>
           </AnimatePresence>
         </div>

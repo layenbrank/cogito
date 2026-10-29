@@ -6,15 +6,15 @@ import { v4 as UUID } from 'uuid'
 import { ContextMenu, useContextMenu } from '@/components/contextmenu'
 import { copyText } from '@/features/capture/clipboard'
 import { CaptureErrorBoundary } from '@/features/capture/capture-error-boundary'
-import { CaptureErrorPanel, CaptureLoadingMask } from '@/features/capture/capture-status'
+import { CaptureErrorSurface, CaptureLoadingMask } from '@/features/capture/capture-status'
 import { Annotation, type AnnotationHandle } from '@/features/capture/components/annotation'
 import { type GraphicsEnum, type GraphicsProps } from '@/features/capture/components/graphics'
 import Magnifier from '@/features/capture/components/magnifier'
-import { OcrPanel } from '@/features/capture/components/ocr-panel'
+import { OcrSurface } from '@/features/capture/components/ocr-surface'
 import Utility from '@/features/capture/components/utility'
 import {
   clearCaptureSession,
-  createCaptureSessionID
+  makeCaptureSessionID
 } from '@/features/capture/history'
 import { recognizeText } from '@/features/capture/ocr'
 import { runCapturePrune } from '@/features/capture/retention'
@@ -71,7 +71,7 @@ function Capture(props: CaptureProps = {}) {
   const isElementDetect = detect === DETECT_ELEMENT
   const { present: presentContextMenu } = useContextMenu()
   const annotationRef = useRef<AnnotationHandle>(null)
-  const [sessionID, onSessionID] = useState(createCaptureSessionID)
+  const [sessionID, onSessionID] = useState(makeCaptureSessionID)
   const sessionIDRef = useRef(sessionID)
   const { canUndo, canRedo, commitHistory, undo, redo, resetHistory } = useCaptureHistory()
 
@@ -244,7 +244,7 @@ function Capture(props: CaptureProps = {}) {
     return true
   })
 
-  async function loadCapture(forceFresh = false) {
+  async function bootstrapCapture(forceFresh = false) {
     onUpdateCaptureStatus('loading')
     onUpdateCaptureError(null)
     try {
@@ -264,7 +264,7 @@ function Capture(props: CaptureProps = {}) {
     }
   }
 
-  const loadStartedRef = useRef(false)
+  const bootstrapStartedRef = useRef(false)
 
   /** 首帧画上屏后告诉宿主：宿主收到才撤掉 conceal，否则会露出实时桌面 */
   const readyNotifiedRef = useRef(false)
@@ -304,13 +304,13 @@ function Capture(props: CaptureProps = {}) {
   useEffect(
     function () {
       if (!active) {
-        loadStartedRef.current = false
+        bootstrapStartedRef.current = false
         clearCaptureSession(sessionIDRef.current)
         return
       }
-      if (loadStartedRef.current) return
-      loadStartedRef.current = true
-      const nextSession = createCaptureSessionID()
+      if (bootstrapStartedRef.current) return
+      bootstrapStartedRef.current = true
+      const nextSession = makeCaptureSessionID()
       sessionIDRef.current = nextSession
       onSessionID(nextSession)
       let cancelled = false
@@ -352,10 +352,10 @@ function Capture(props: CaptureProps = {}) {
       onClose={onClose ?? function () {}}>
       <div className={clsx(styles.capture)}>
         {captureStatus === 'error' ? (
-          <CaptureErrorPanel
+          <CaptureErrorSurface
             message={captureError}
             onRetry={function () {
-              void loadCapture(true)
+              void bootstrapCapture(true)
             }}
             onExit={onExit}
           />
@@ -433,7 +433,7 @@ function Capture(props: CaptureProps = {}) {
             )}
 
             {ocrText !== null ? (
-              <OcrPanel
+              <OcrSurface
                 text={ocrText}
                 busy={ocrBusy}
                 canInsert={Boolean(selection)}

@@ -1,10 +1,10 @@
 /**
  * 两级（步骤为三级）级联引用选择器：作用域 → 叶 →（可选）子路径。
  */
-import { Button } from '@cogito/design/components/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@cogito/design/components/popover'
 import { ScrollArea } from '@cogito/design/components/scroll-area'
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { cn } from 'cn'
 import { useMemo, useState } from 'react'
 
@@ -173,11 +173,12 @@ function ParamRefPicker(props: ParamRefPickerProps) {
                   if (group.leaves.length === 0) return null
                   const active = scope === group.scope
                   return (
-                    <button
+                    <Button
+                      variant="ghost"
                       key={group.scope}
                       type="button"
                       className={cn(
-                        'flex items-center justify-between rounded-md px-2 py-1.5 text-left text-xs',
+                        'h-auto flex items-center justify-between rounded-md px-2 py-1.5 text-left text-xs',
                         active
                           ? 'bg-muted font-medium text-foreground'
                           : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
@@ -191,7 +192,7 @@ function ParamRefPicker(props: ParamRefPickerProps) {
                         icon="lucide:chevron-right"
                         className="size-3 opacity-50"
                       />
-                    </button>
+                    </Button>
                   )
                 })}
               </div>
@@ -233,11 +234,12 @@ function ParamRefPicker(props: ParamRefPickerProps) {
                   {activeBranch.children.map(function (child) {
                     const checked = canonicalPath === child.path
                     return (
-                      <button
+                      <Button
+                        variant="ghost"
                         key={child.path}
                         type="button"
                         className={cn(
-                          'flex flex-col gap-0.5 rounded-md px-2 py-1.5 text-left',
+                          'h-auto flex flex-col gap-0.5 rounded-md px-2 py-1.5 text-left',
                           checked
                             ? 'bg-primary/10 text-foreground'
                             : 'hover:bg-muted/60 text-foreground'
@@ -249,7 +251,7 @@ function ParamRefPicker(props: ParamRefPickerProps) {
                         {child.hint ? (
                           <span className="text-[11px] text-muted-foreground">{child.hint}</span>
                         ) : null}
-                      </button>
+                      </Button>
                     )
                   })}
                 </div>
@@ -280,10 +282,11 @@ function CascaderLeafButton(props: CascaderLeafButtonProps) {
       }))
 
   return (
-    <button
+    <Button
+      variant="ghost"
       type="button"
       className={cn(
-        'flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left',
+        'h-auto flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left',
         props.expanded || checked
           ? 'bg-muted font-medium text-foreground'
           : 'hover:bg-muted/60 text-foreground'
@@ -308,7 +311,7 @@ function CascaderLeafButton(props: CascaderLeafButtonProps) {
           className="size-3.5 shrink-0 text-primary"
         />
       ) : null}
-    </button>
+    </Button>
   )
 }
 

@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import type { Dayjs } from 'dayjs'
 
 import { METRIC_ICON, STATUS_ICON } from './constants'
-import { CountdownMarkerPanels } from './panels'
+import { CountdownMarkerSurfaces } from './surfaces'
 import styles from './marker.module.scss'
 import type { WorkStatus } from '@/features/magnetic-tiles/countdown/compute'
 
@@ -128,7 +128,7 @@ function CountdownMarkerExpanded(props: CountdownMarkerExpandedProps) {
         </div>
       ) : null}
 
-      <CountdownMarkerPanels
+      <CountdownMarkerSurfaces
         showPayday={props.showPayday}
         showSalaryDetail={props.showSalaryDetail}
         showDate={props.showDate}

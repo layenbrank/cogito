@@ -51,12 +51,12 @@ async function previewFromJsonFile(): Promise<ImportPreview | null> {
   return previewFromChromeJsonText(raw, selected)
 }
 
-function applyFolderSelection(preview: ImportPreview, selectedFolders: string[]) {
+function updateFolderSelection(preview: ImportPreview, selectedFolders: string[]) {
   return findSelectedLeaves(preview.leaves, selectedFolders)
 }
 
 export {
-  applyFolderSelection,
+  updateFolderSelection,
   discoverChromeProfiles,
   findDefaultSelectedFolders,
   previewFromChromeJsonText,

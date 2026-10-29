@@ -1,6 +1,6 @@
 import { BarChart, LineChart } from '@cogito/design/components/charts'
-import { Button } from '@cogito/design/components/button'
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { useMemo, type ReactNode } from 'react'
 
 import type { CorexRun } from '@/stores/corex'
@@ -28,7 +28,7 @@ interface LibraryInsightsProps {
   onFocusRun?: (id: string) => void
 }
 
-function InsightPanel(props: {
+function InsightSurface(props: {
   title: string
   icon: string
   hint?: string
@@ -79,14 +79,15 @@ function RunningRow(props: {
         className={`size-1.5 shrink-0 rounded-full ${style.dot}`}
         aria-hidden
       />
-      <button
+      <Button
+        variant="link"
         type="button"
         className="min-w-0 flex-1 truncate text-left text-xs font-medium hover:underline"
         onClick={function () {
           props.onOpen(props.run.name)
         }}>
         {props.run.name}
-      </button>
+      </Button>
       <span className="shrink-0 tabular-nums text-[10px] text-muted-foreground">
         {formatElapsed(props.run, props.now)}
       </span>
@@ -174,7 +175,7 @@ function MemoryBlock(props: {
       : '采样中…'
 
   return (
-    <InsightPanel
+    <InsightSurface
       title="内存资源"
       icon="lucide:memory-stick"
       hint={hint}>
@@ -223,7 +224,7 @@ function MemoryBlock(props: {
       <p className="mt-1.5 text-[10px] text-muted-foreground">
         system:os · 每 {Math.round(props.pollMs / 1000)}s · {props.trend.length || 0} 次
       </p>
-    </InsightPanel>
+    </InsightSurface>
   )
 }
 
@@ -237,7 +238,7 @@ function CpuBlock(props: {
   const hint = cpu ? `${cpu.cores} 核 · ${cpu.arch}` : props.error ? '不可用' : '采样中…'
 
   return (
-    <InsightPanel
+    <InsightSurface
       title="CPU 资源"
       icon="lucide:cpu"
       hint={hint}>
@@ -269,7 +270,7 @@ function CpuBlock(props: {
       <p className="mt-1.5 text-[10px] text-muted-foreground">
         system:os 规格 · 每 {Math.round(props.pollMs / 1000)}s 刷新
       </p>
-    </InsightPanel>
+    </InsightSurface>
   )
 }
 

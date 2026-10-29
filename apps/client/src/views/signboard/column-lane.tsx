@@ -102,12 +102,12 @@ function ColumnLane(props: ColumnLaneProps) {
     setIsAdding(true)
   }
 
-  async function setRole(role: ColumnRole | null) {
+  async function updateRole(role: ColumnRole | null) {
     const ok = await toUpdateColumn(props.column.id, { role })
     if (!ok) toast.error('列语义更新失败')
   }
 
-  async function setColor(color: string | null) {
+  async function updateColor(color: string | null) {
     // serde Option<Option>：JSON null 表示「不更新」；清空用空串，后端再写成 None
     const ok = await toUpdateColumn(props.column.id, {
       color: color ?? ''
@@ -194,8 +194,9 @@ function ColumnLane(props: ColumnLaneProps) {
             <span className="truncate">{props.column.title}</span>
             <span className={styles.columnCount}>{props.entries.length}</span>
           </h3>
-          <button
+          <Button
             type="button"
+            variant="ghost"
             className={styles.columnHandle}
             aria-label="拖拽调整列顺序"
             {...attributes}
@@ -204,7 +205,7 @@ function ColumnLane(props: ColumnLaneProps) {
               icon="lucide:grip-vertical"
               className="size-3.5"
             />
-          </button>
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger
               className={styles.menuTrigger}
@@ -259,9 +260,10 @@ function ColumnLane(props: ColumnLaneProps) {
                   {COLUMN_COLORS.map(function (swatch) {
                     const isActive = tint === swatch
                     return (
-                      <button
+                      <Button
                         key={swatch}
                         type="button"
+                        variant="ghost"
                         role="option"
                         aria-selected={isActive}
                         aria-label={swatch}
@@ -271,7 +273,7 @@ function ColumnLane(props: ColumnLaneProps) {
                         )}
                         style={{ background: swatch }}
                         onClick={function () {
-                          void setColor(swatch)
+                          void updateColor(swatch)
                         }}>
                         {isActive ? (
                           <Icon
@@ -279,14 +281,14 @@ function ColumnLane(props: ColumnLaneProps) {
                             className="size-3.5"
                           />
                         ) : null}
-                      </button>
+                      </Button>
                     )
                   })}
                 </div>
                 {tint ? (
                   <DropdownMenuItem
                     onClick={function () {
-                      void setColor(null)
+                      void updateColor(null)
                     }}>
                     <Icon
                       icon="lucide:x"
@@ -299,7 +301,7 @@ function ColumnLane(props: ColumnLaneProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={function () {
-                  void setRole('todo')
+                  void updateRole('todo')
                 }}>
                 <Icon
                   icon="lucide:circle"
@@ -309,7 +311,7 @@ function ColumnLane(props: ColumnLaneProps) {
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={function () {
-                  void setRole('doing')
+                  void updateRole('doing')
                 }}>
                 <Icon
                   icon="lucide:circle-dot"
@@ -319,7 +321,7 @@ function ColumnLane(props: ColumnLaneProps) {
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={function () {
-                  void setRole('done')
+                  void updateRole('done')
                 }}>
                 <Icon
                   icon="lucide:check"

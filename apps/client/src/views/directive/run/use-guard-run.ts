@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { fetchJobs, startJob, stopJob } from '@/lib/directive-ipc.ts'
+import { fetchJobs as fetchJobsIpc, startJob, stopJob } from '@/lib/directive-ipc.ts'
 import type { JobKind, JobView } from '@/shared/ipc/specs/sidecar'
 import { useCorexStore } from '@/stores/corex.ts'
 
@@ -47,10 +47,10 @@ function toIpcMessage(error: unknown, fallback: string): string {
   return fallback
 }
 
-async function loadJobs(): Promise<JobView[]> {
+async function findCachedJobs(): Promise<JobView[]> {
   const now = Date.now()
   if (jobsCache && now - jobsCache.at < JOBS_CACHE_MS) return jobsCache.jobs
-  const reply = await fetchJobs({})
+  const reply = await fetchJobsIpc({})
   const jobs = reply.jobs ?? []
   jobsCache = { at: now, jobs }
   return jobs
@@ -69,7 +69,7 @@ function isAlive(jobs: JobView[], kind: JobKind, name: string): boolean {
 async function waitUntilDead(kind: JobKind, name: string): Promise<boolean> {
   for (let i = 0; i < DEAD_POLL_MAX; i += 1) {
     dropJobsCache()
-    const jobs = await loadJobs()
+    const jobs = await findCachedJobs()
     if (!isAlive(jobs, kind, name)) return true
     await sleep(DEAD_POLL_MS)
   }
@@ -150,7 +150,7 @@ function useGuardRun(options: UseGuardRunOptions): GuardRunApi {
     async function () {
       if (!options.name) return
       try {
-        const jobs = await loadJobs()
+        const jobs = await findCachedJobs()
         updateAlive({
           cron: isAlive(jobs, 'cron', options.name),
           watch: isAlive(jobs, 'watch', options.name)
@@ -262,5 +262,5 @@ function useGuardRun(options: UseGuardRunOptions): GuardRunApi {
   }
 }
 
-export { dropJobsCache, isAlive, loadJobs as fetchJobs, useGuardRun, waitUntilDead }
+export { dropJobsCache, isAlive, findCachedJobs as fetchJobs, useGuardRun, waitUntilDead }
 export type { GuardAlive, GuardRunApi }

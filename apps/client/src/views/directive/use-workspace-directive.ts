@@ -31,8 +31,8 @@ function useWorkspaceDirective(options: UseWorkspaceOptions) {
   const seedPendingDraft = useCorexStore(function (state) {
     return state.seedPendingDraft
   })
-  const loadEditor = useCorexStore(function (state) {
-    return state.loadEditor
+  const bootstrapEditor = useCorexStore(function (state) {
+    return state.bootstrapEditor
   })
   const closeEditor = useCorexStore(function (state) {
     return state.closeEditor
@@ -40,8 +40,8 @@ function useWorkspaceDirective(options: UseWorkspaceOptions) {
   const replaceDraft = useCorexStore(function (state) {
     return state.replaceDraft
   })
-  const setSelectedToken = useCorexStore(function (state) {
-    return state.setSelectedToken
+  const writeSelectedToken = useCorexStore(function (state) {
+    return state.writeSelectedToken
   })
   const undoDraft = useCorexStore(function (state) {
     return state.undoDraft
@@ -79,13 +79,13 @@ function useWorkspaceDirective(options: UseWorkspaceOptions) {
           closeEditor()
         }
       }
-      void loadEditor(name)
+      void bootstrapEditor(name)
         .then(function () {
           const current = useCorexStore.getState().draft
           // zod 推出来的 steps 元素与 model 的 Step 不是同一份联合，得先按 Step[] 收
           const steps = (current?.steps ?? []) as Step[]
           const first = steps[0]
-          if (first?.token) setSelectedToken(first.token)
+          if (first?.token) writeSelectedToken(first.token)
         })
         .catch(function (error) {
           toast.error('加载指令失败', {
@@ -96,7 +96,7 @@ function useWorkspaceDirective(options: UseWorkspaceOptions) {
         closeEditor()
       }
     },
-    [name, isPending, openEditor, seedPendingDraft, loadEditor, closeEditor, setSelectedToken]
+    [name, isPending, openEditor, seedPendingDraft, bootstrapEditor, closeEditor, writeSelectedToken]
   )
 
   const handleSave = useCallback(
@@ -212,13 +212,13 @@ function useWorkspaceDirective(options: UseWorkspaceOptions) {
       ...draft,
       steps: [...siblings, step] as typeof draft.steps
     })
-    setSelectedToken(step.token ?? null)
+    writeSelectedToken(step.token ?? null)
   }
 
   return {
     draft,
     replaceDraft,
-    setSelectedToken,
+    writeSelectedToken,
     undoDraft,
     redoDraft,
     handleSave,

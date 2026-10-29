@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { Skeleton } from '@cogito/design/components/skeleton'
 import { clsx } from 'clsx'
 import { useState, type CSSProperties, type DragEvent } from 'react'
@@ -75,7 +76,8 @@ function MergeBoard(props: MergeBoardProps) {
       ref={rootRef}
       className={clsx(styles.board, styles.root, className)}>
       {boardScale !== 1 ? (
-        <button
+        <Button
+          variant="ghost"
           type="button"
           className={styles.scaleChip}
           title="双击复位缩放"
@@ -87,7 +89,7 @@ function MergeBoard(props: MergeBoardProps) {
             height={12}
           />
           {Math.round(boardScale * 100)}%
-        </button>
+        </Button>
       ) : null}
       <div
         className={styles.grid}
@@ -133,7 +135,9 @@ function MergeBoard(props: MergeBoardProps) {
                   />
                 </span>
                 <span className={styles.index}>{index + 1}</span>
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
                   type="button"
                   className={styles.remove}
                   aria-label="移除"
@@ -146,7 +150,7 @@ function MergeBoard(props: MergeBoardProps) {
                     width={12}
                     height={12}
                   />
-                </button>
+                </Button>
               </div>
               <span
                 className={styles.name}
@@ -156,7 +160,8 @@ function MergeBoard(props: MergeBoardProps) {
             </div>
           )
         })}
-        <button
+        <Button
+          variant="ghost"
           type="button"
           className={styles.addTile}
           onClick={onAdd}>
@@ -168,7 +173,7 @@ function MergeBoard(props: MergeBoardProps) {
             />
           </span>
           <span>添加 PDF</span>
-        </button>
+        </Button>
       </div>
       <p className={styles.hint}>拖拽调整顺序 · Ctrl + 滚轮缩放</p>
     </div>

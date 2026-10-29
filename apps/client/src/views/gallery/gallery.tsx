@@ -67,9 +67,10 @@ function GalleryBottomBar(props: {
           const label = item === 'library' ? '图库' : '精选集'
           const icon = item === 'library' ? 'lucide:images' : 'lucide:layers'
           return (
-            <button
+            <Button
               key={item}
               type="button"
+              variant="ghost"
               className={cn(
                 'flex h-full items-center gap-1.5 rounded-full px-3.5 text-sm transition-colors',
                 isActive
@@ -84,7 +85,7 @@ function GalleryBottomBar(props: {
                 className="size-4"
               />
               {label}
-            </button>
+            </Button>
           )
         })}
       </div>
@@ -107,7 +108,7 @@ function GalleryBottomBar(props: {
  * 失焦即收：`relatedTarget` 还在面板内就不收；容器内没有按钮可聚焦时（比如点到面板空白）
  * 靠一次微任务延迟再看 `activeElement`，避免点面板内其它元素时误收。
  */
-function GallerySearchPanel(props: {
+function GallerySearchSurface(props: {
   query: string
   onChangeQuery: (query: string) => void
   onClose: () => void
@@ -401,7 +402,7 @@ function Gallery() {
 
         <AnimatePresence>
           {isSearchOpen ? (
-            <GallerySearchPanel
+            <GallerySearchSurface
               query={query}
               onChangeQuery={onQuery}
               onClose={closeSearch}

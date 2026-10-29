@@ -18,7 +18,7 @@ interface MediaQueryListStub {
   dispatchEvent: () => boolean
 }
 
-function createMediaQueryList(query: string): MediaQueryListStub {
+function makeMediaQueryList(query: string): MediaQueryListStub {
   return {
     matches: false,
     media: query,
@@ -34,5 +34,5 @@ function createMediaQueryList(query: string): MediaQueryListStub {
 }
 
 if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
-  window.matchMedia = createMediaQueryList
+  window.matchMedia = makeMediaQueryList
 }

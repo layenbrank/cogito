@@ -1,3 +1,4 @@
+import { Button } from '@cogito/design/components/button'
 import { clsx } from 'clsx'
 import { useId, useState } from 'react'
 
@@ -170,9 +171,11 @@ function LayoutPicker(props: PickerProps) {
           {SIZES.map(function (value) {
             const caption = `大小 ${value}`
             return (
-              <button
+              <Button
                 key={value}
                 type="button"
+                variant="ghost"
+                size="icon-sm"
                 title={caption}
                 aria-label={caption}
                 aria-pressed={draft.size === value}
@@ -182,7 +185,7 @@ function LayoutPicker(props: PickerProps) {
                 }}>
                 <SizeThumb size={value} />
                 <span className={styles.digit}>{value}</span>
-              </button>
+              </Button>
             )
           })}
         </div>
@@ -206,9 +209,11 @@ function LayoutPicker(props: PickerProps) {
           aria-labelledby={shapeId}>
           {SHAPES.map(function (option) {
             return (
-              <button
+              <Button
                 key={`${option.shape}-${option.direction}`}
                 type="button"
+                variant="ghost"
+                size="icon-sm"
                 aria-label={option.label}
                 aria-pressed={isShapeActive(draft, option)}
                 className={clsx(styles.shape, isShapeActive(draft, option) && styles.selected)}
@@ -219,7 +224,7 @@ function LayoutPicker(props: PickerProps) {
                   shape={option.shape}
                   direction={option.direction}
                 />
-              </button>
+              </Button>
             )
           })}
         </div>

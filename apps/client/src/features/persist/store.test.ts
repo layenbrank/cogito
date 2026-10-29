@@ -66,11 +66,11 @@ describe('persist store (memory)', function () {
       knowledge: { ...findPref('tiles').knowledge, fontSize: 20 }
     })
     await patchPref('tiles', {
-      code: { ...findPref('tiles').code, isPanelOpen: true }
+      code: { ...findPref('tiles').code, isSurfaceOpen: true }
     })
     const tiles = findPref('tiles')
     expect(tiles.knowledge.fontSize).toBe(20)
-    expect(tiles.code.isPanelOpen).toBe(true)
+    expect(tiles.code.isSurfaceOpen).toBe(true)
     expect(tiles.bookmark.viewMode).toBe('list')
   })
 

@@ -8,7 +8,7 @@ const uploadAsset = vi.fn(function () {
 })
 const POST_RAG_INDEX_TASK = vi.fn()
 const GET_RAG_INDEX_TASK = vi.fn()
-const setCloudState = vi.fn(function (params: { status: string }) {
+const writeCloudState = vi.fn(function (params: { status: string }) {
   return Promise.resolve({
     docId: 'd1',
     status: params.status,
@@ -28,7 +28,7 @@ vi.mock('@/apis/rag', function () {
   return { GET_RAG_INDEX_TASK, POST_RAG_INDEX_TASK }
 })
 vi.mock('@/lib/knowledge-ipc', function () {
-  return { setCloudState }
+  return { writeCloudState }
 })
 
 const { DICT_VALUE } = await import('@/shared/ipc/specs/dict')
@@ -74,12 +74,12 @@ describe('syncDocToCloud', function () {
       expect.objectContaining({ name: '一篇.md', mime: 'text/markdown' })
     )
     // 先落「进行中 + assetID」，再收尾写 succeeded
-    expect(setCloudState).toHaveBeenNthCalledWith(1, {
+    expect(writeCloudState).toHaveBeenNthCalledWith(1, {
       docId: 'd1',
       status: CLOUD.RUNNING,
       assetId: 'asset-1'
     })
-    expect(setCloudState).toHaveBeenLastCalledWith({
+    expect(writeCloudState).toHaveBeenLastCalledWith({
       docId: 'd1',
       status: CLOUD.SUCCEEDED,
       assetId: 'asset-1',
@@ -97,7 +97,7 @@ describe('syncDocToCloud', function () {
       status: CLOUD.FAILED,
       error: 'embedding 超时'
     })
-    expect(setCloudState).toHaveBeenLastCalledWith({
+    expect(writeCloudState).toHaveBeenLastCalledWith({
       docId: 'd1',
       status: CLOUD.FAILED,
       assetId: 'asset-1',
@@ -112,8 +112,8 @@ describe('syncDocToCloud', function () {
 
     expect(result.status).toBe(CLOUD.FAILED)
     expect(result.error).toContain('10MB')
-    expect(setCloudState).toHaveBeenCalledTimes(1)
-    expect(setCloudState).toHaveBeenCalledWith(
+    expect(writeCloudState).toHaveBeenCalledTimes(1)
+    expect(writeCloudState).toHaveBeenCalledWith(
       expect.objectContaining({ docId: 'd1', status: CLOUD.FAILED })
     )
   })

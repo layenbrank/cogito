@@ -3,14 +3,14 @@
  */
 import { ensurePersist, findPref, patchPref } from '@/features/persist'
 import type {
-  CodeChrome,
-  KnowledgeChrome,
+  CodeShell,
+  KnowledgeShell,
   TileSessionPref,
   TilesPref
 } from '@/features/persist'
 
-type CodePreferences = CodeChrome
-type KnowledgeTilePreferences = KnowledgeChrome
+type CodePreferences = CodeShell
+type KnowledgeTilePreferences = KnowledgeShell
 
 interface SignboardPreferences {
   activeBoardID: string | null

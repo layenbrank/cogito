@@ -5,6 +5,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cogito/design/components/select'
+import { Button } from '@cogito/design/components/button'
 import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
 import { calendar, timeSphere } from '@cogito/utils'
 import { clsx } from 'clsx'
@@ -213,9 +214,10 @@ function DayGrid(props: DayGridProps) {
               const hasMark = markedDates.has(key)
 
               return (
-                <button
+                <Button
                   key={key}
                   type="button"
+                  variant="ghost"
                   aria-label={key}
                   aria-current={isCurrent ? 'date' : undefined}
                   className={clsx(styles.dateCell, {
@@ -241,7 +243,7 @@ function DayGrid(props: DayGridProps) {
                       ) : null}
                     </span>
                   </span>
-                </button>
+                </Button>
               )
             })}
           </div>
@@ -258,9 +260,10 @@ function DayGrid(props: DayGridProps) {
             const isThisMonth = today.isSame(date, 'month') && today.isSame(date, 'year')
 
             return (
-              <button
+              <Button
                 key={option.value}
                 type="button"
+                variant="ghost"
                 aria-label={`${date.year()}年${option.value + 1}月`}
                 aria-current={isCurrent ? 'date' : undefined}
                 className={clsx(styles.monthCell, {
@@ -277,7 +280,7 @@ function DayGrid(props: DayGridProps) {
                   </span>
                   <span className={styles.monthLunar}>{lunarMonth}</span>
                 </span>
-              </button>
+              </Button>
             )
           })}
         </div>

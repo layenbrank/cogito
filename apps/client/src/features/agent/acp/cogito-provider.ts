@@ -316,7 +316,7 @@ async function ensureCogitoProvider(): Promise<void> {
 }
 
 /** 租户切换：只更新 `X-Tenant-ID` 头（Rust 侧幂等，没变不重启）。 */
-async function setCogitoTenant(tenantID: string): Promise<void> {
+async function writeCogitoTenant(tenantID: string): Promise<void> {
   try {
     // 键名须为 `tenantId`，与 `writeGooseProvider` 同一套 Tauri 解包规则
     await invoke<boolean>(CHANNELS.COGITO.PROVIDER_SET_TENANT, { tenantId: tenantID })
@@ -330,6 +330,6 @@ export {
   COGITO_PROVIDER_NAME,
   ensureCogitoProvider,
   isCogitoSoftFailure,
-  setCogitoTenant,
+  writeCogitoTenant,
   syncCogitoGatewayCatalog
 }

@@ -1,7 +1,7 @@
 import type { NodeWithPos } from '@tiptap/core'
 import { Extension } from '@tiptap/core'
 import type { EditorState, Transaction } from '@tiptap/pm/state'
-import { getSelectedNodesOfType } from '@/lib/tiptap-utils.ts'
+import { findSelectedNodesOfType } from '@/lib/tiptap-utils.ts'
 import { updateNodesAttr } from '@/lib/tiptap-utils.ts'
 
 declare module '@tiptap/core' {
@@ -30,7 +30,7 @@ export interface NodeBackgroundOptions {
 /**
  * Determines the target color for toggle operations
  */
-function getToggleColor(
+function findToggleColor(
   targets: NodeWithPos[],
   inputColor: string
 ): string | null {
@@ -114,7 +114,7 @@ export const NodeBackground = Extension.create<NodeBackgroundOptions>({
     ) => {
       return (inputColor?: string) =>
         ({ state, tr }: { state: EditorState; tr: Transaction }) => {
-          const targets = getSelectedNodesOfType(
+          const targets = findSelectedNodesOfType(
             state.selection,
             this.options.types
           )
@@ -144,7 +144,7 @@ export const NodeBackground = Extension.create<NodeBackgroundOptions>({
        * Toggle background color (set if different/missing, unset if all have it)
        */
       toggleNodeBackgroundColor: executeBackgroundCommand(
-        (targets, inputColor) => getToggleColor(targets, inputColor || '')
+        (targets, inputColor) => findToggleColor(targets, inputColor || '')
       )
     }
   }

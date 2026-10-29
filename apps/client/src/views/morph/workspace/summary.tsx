@@ -63,7 +63,8 @@ function ColorField(props: ColorFieldProps) {
     <Popover>
       <PopoverTrigger
         render={
-          <button
+          <Button
+            variant="outline"
             type="button"
             aria-label="选择颜色"
             className="h-7 w-full rounded-md border border-input"
@@ -77,7 +78,9 @@ function ColorField(props: ColorFieldProps) {
         <div className="grid grid-cols-6 gap-1.5">
           {PRESET_PRIMARY_COLORS.map(function (hex) {
             return (
-              <button
+              <Button
+                variant="outline"
+                size="icon-xs"
                 key={hex}
                 type="button"
                 aria-label={hex}

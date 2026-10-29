@@ -1,6 +1,7 @@
 /**
  * 预览舞台：轮播承载当前媒体、缩放指示与左右切图按钮。
  */
+import { Button } from '@cogito/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { AnimatePresence } from 'motion/react'
@@ -22,8 +23,9 @@ function LightboxNavButton(props: {
 }) {
   const isLeft = props.side === 'left'
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       aria-label={props.label}
       disabled={props.disabled}
       className={cn(
@@ -40,7 +42,7 @@ function LightboxNavButton(props: {
         icon={isLeft ? 'lucide:chevron-left' : 'lucide:chevron-right'}
         className="size-5"
       />
-    </button>
+    </Button>
   )
 }
 

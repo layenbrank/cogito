@@ -25,8 +25,8 @@ import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import {
   clearDirListCache,
-  createMarkdownFile,
-  createMarkdownFolder,
+  insertMarkdownFile,
+  insertMarkdownFolder,
   removeMarkdownPath,
   renameMarkdownPath
 } from '@/views/knowledge/lib/fs.ts'
@@ -38,7 +38,7 @@ import {
   normalizeSeparators
 } from '@/views/knowledge/lib/path.ts'
 import {
-  createUntitled,
+  makeUntitled,
   ensureRootDir,
   openFolderAsWorkspace,
   openPath
@@ -56,7 +56,7 @@ interface NavigationProps {
 
 type CreateKind = 'file' | 'folder'
 
-interface CreateTarget {
+interface NewTarget {
   kind: CreateKind
   /** 相对工作区的父目录；根为 '' */
   relativeDir: string
@@ -72,11 +72,6 @@ interface RenameTarget {
 interface DeleteTarget {
   absolute: string
   isDirectory: boolean
-}
-
-function isSamePath(a: string | null | undefined, b: string | null | undefined): boolean {
-  if (!a || !b) return false
-  return a.replace(/\\/g, '/').toLowerCase() === b.replace(/\\/g, '/').toLowerCase()
 }
 
 function findRelativeDirForCreate(treeKey: string, isDirectory: boolean): string {
@@ -210,13 +205,13 @@ function Navigation(props: NavigationProps) {
 
   const [pendingDelete, setPendingDelete] = useState<DeleteTarget | null>(null)
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
-  const [createTarget, setCreateTarget] = useState<CreateTarget | null>(null)
+  const [newTarget, setNewTarget] = useState<NewTarget | null>(null)
 
   async function onCreateAtRoot() {
     try {
       const root = await ensureRootDir()
       clearDirListCache(root)
-      const absolute = await createMarkdownFile(root, '', `note-${Date.now()}.md`)
+      const absolute = await insertMarkdownFile(root, '', `note-${Date.now()}.md`)
       toBumpTree()
       props.onOpenPath(absolute)
     } catch (error) {
@@ -226,23 +221,23 @@ function Navigation(props: NavigationProps) {
   }
 
   async function onConfirmCreate() {
-    if (!createTarget) return
-    const name = createTarget.name.trim()
+    if (!newTarget) return
+    const name = newTarget.name.trim()
     if (!name) return
     try {
       const root = await ensureRootDir()
-      if (createTarget.kind === 'folder') {
-        await createMarkdownFolder(root, createTarget.relativeDir, name)
+      if (newTarget.kind === 'folder') {
+        await insertMarkdownFolder(root, newTarget.relativeDir, name)
         toBumpTree()
       } else {
-        const absolute = await createMarkdownFile(root, createTarget.relativeDir, name)
+        const absolute = await insertMarkdownFile(root, newTarget.relativeDir, name)
         toBumpTree()
         props.onOpenPath(absolute)
       }
-      setCreateTarget(null)
+      setNewTarget(null)
     } catch (error) {
       console.error(error)
-      toast.error(createTarget.kind === 'folder' ? t('CREATE_FOLDER_FAILED') : t('CREATE_FAILED'))
+      toast.error(newTarget.kind === 'folder' ? t('CREATE_FOLDER_FAILED') : t('CREATE_FAILED'))
     }
   }
 
@@ -258,7 +253,7 @@ function Navigation(props: NavigationProps) {
         (isSamePath(current, pendingDelete.absolute) ||
           isPathInsideRoot(pendingDelete.absolute, current))
       ) {
-        createUntitled()
+        makeUntitled()
       }
       setPendingDelete(null)
       tree.clearAbsolutePathCache()
@@ -343,7 +338,7 @@ function Navigation(props: NavigationProps) {
             />
           ),
           onSelect() {
-            setCreateTarget({
+            setNewTarget({
               kind: 'file',
               relativeDir,
               name: `note-${Date.now()}.md`
@@ -360,7 +355,7 @@ function Navigation(props: NavigationProps) {
             />
           ),
           onSelect() {
-            setCreateTarget({
+            setNewTarget({
               kind: 'folder',
               relativeDir,
               name: `folder-${Date.now()}`
@@ -510,7 +505,7 @@ function Navigation(props: NavigationProps) {
                 activeKey={tree.activeKey}
                 expandedKeys={tree.expandedKeys}
                 emptyHint={t('TREE_EMPTY')}
-                onLoad={tree.loadChildren}
+                onFetch={tree.fetchChildren}
                 onSelect={tree.onSelect}
                 onExpandChange={tree.onExpandChange}
               />
@@ -547,16 +542,16 @@ function Navigation(props: NavigationProps) {
       />
 
       <NameDialog
-        title={createTarget?.kind === 'folder' ? t('NEW_FOLDER') : t('NEW_FILE')}
-        name={createTarget?.name ?? null}
+        title={newTarget?.kind === 'folder' ? t('NEW_FOLDER') : t('NEW_FILE')}
+        name={newTarget?.name ?? null}
         onChange={function (name) {
-          setCreateTarget(function (prev) {
+          setNewTarget(function (prev) {
             if (!prev) return prev
             return { ...prev, name }
           })
         }}
         onCancel={function () {
-          setCreateTarget(null)
+          setNewTarget(null)
         }}
         onConfirm={function () {
           void onConfirmCreate()

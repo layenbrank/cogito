@@ -38,7 +38,7 @@
   }
 }
 
-.chrome {
+.shell {
   display: flex;
   shrink: 0;
   flex-wrap: wrap;
@@ -421,7 +421,7 @@
 }
 
 /* 抽屉自带右上角关闭按钮，工具条右侧留空避免重叠 */
-.sheetChrome {
+.sheetShell {
   padding-right: 2.5rem;
 }
 

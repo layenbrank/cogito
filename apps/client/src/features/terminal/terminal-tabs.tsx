@@ -59,7 +59,7 @@ function TerminalTabs(props: TerminalTabsProps) {
                   active ? 'text-foreground' : 'text-muted-foreground'
                 )}
                 onClick={function () {
-                  useTerminalStore.getState().setActive(tab.id)
+                  useTerminalStore.getState().writeActive(tab.id)
                 }}>
                 <span className="max-w-32 truncate">{tab.title}</span>
                 {tab.exited ? <span className="opacity-60">已退出</span> : null}

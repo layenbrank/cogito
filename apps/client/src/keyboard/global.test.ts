@@ -36,14 +36,14 @@ vi.mock('@tauri-apps/plugin-global-shortcut', function () {
 })
 
 /** 每个用例拿一份全新的模块状态（`applied` 与队列都是模块级的） */
-async function loadGlobal() {
+async function bootstrapGlobal() {
   vi.resetModules()
   mock.calls.length = 0
   mock.occupied.clear()
   const global = await import('@/keyboard/global')
   const state = await import('@/keyboard/state')
   return {
-    applyGlobalShortcuts: global.applyGlobalShortcuts,
+    syncGlobalShortcuts: global.syncGlobalShortcuts,
     findActiveGlobalBinding: global.findActiveGlobalBinding,
     readGlobalShortcuts: state.readGlobalShortcuts
   }
@@ -63,12 +63,12 @@ afterEach(function () {
   vi.restoreAllMocks()
 })
 
-describe('applyGlobalShortcuts', function () {
+describe('syncGlobalShortcuts', function () {
   it('注册成功 → active，且 effective 就是设置里的组合', async function () {
-    const { applyGlobalShortcuts, readGlobalShortcuts, findActiveGlobalBinding } =
-      await loadGlobal()
+    const { syncGlobalShortcuts, readGlobalShortcuts, findActiveGlobalBinding } =
+      await bootstrapGlobal()
 
-    await applyGlobalShortcuts({ [SCREENSHOT]: 'Alt+Q' })
+    await syncGlobalShortcuts({ [SCREENSHOT]: 'Alt+Q' })
 
     expect(findActiveGlobalBinding(SCREENSHOT)).toBe('Alt+Q')
     expect(readGlobalShortcuts()[SCREENSHOT]).toMatchObject({
@@ -79,30 +79,30 @@ describe('applyGlobalShortcuts', function () {
   })
 
   it('同一个值重复应用只注册一次', async function () {
-    const { applyGlobalShortcuts } = await loadGlobal()
+    const { syncGlobalShortcuts } = await bootstrapGlobal()
 
-    await applyGlobalShortcuts({ [SCREENSHOT]: 'Alt+Q' })
-    await applyGlobalShortcuts({ [SCREENSHOT]: 'Alt+Q' })
+    await syncGlobalShortcuts({ [SCREENSHOT]: 'Alt+Q' })
+    await syncGlobalShortcuts({ [SCREENSHOT]: 'Alt+Q' })
 
     expect(mock.calls).toEqual(['register:Alt+Q'])
   })
 
   it('切换时先注销旧键再注册新键', async function () {
-    const { applyGlobalShortcuts, findActiveGlobalBinding } = await loadGlobal()
+    const { syncGlobalShortcuts, findActiveGlobalBinding } = await bootstrapGlobal()
 
-    await applyGlobalShortcuts({ [SCREENSHOT]: 'Alt+Q' })
-    await applyGlobalShortcuts({ [SCREENSHOT]: 'Control+Alt+Q' })
+    await syncGlobalShortcuts({ [SCREENSHOT]: 'Alt+Q' })
+    await syncGlobalShortcuts({ [SCREENSHOT]: 'Control+Alt+Q' })
 
     expect(mock.calls).toEqual(['register:Alt+Q', 'unregister:Alt+Q', 'register:Control+Alt+Q'])
     expect(findActiveGlobalBinding(SCREENSHOT)).toBe('Control+Alt+Q')
   })
 
   it('并发切换严格排队：最后一个动作必须是注册', async function () {
-    const { applyGlobalShortcuts, findActiveGlobalBinding } = await loadGlobal()
+    const { syncGlobalShortcuts, findActiveGlobalBinding } = await bootstrapGlobal()
 
     await Promise.all([
-      applyGlobalShortcuts({ [SCREENSHOT]: 'Control+Alt+1' }),
-      applyGlobalShortcuts({ [SCREENSHOT]: 'Control+Alt+2' })
+      syncGlobalShortcuts({ [SCREENSHOT]: 'Control+Alt+1' }),
+      syncGlobalShortcuts({ [SCREENSHOT]: 'Control+Alt+2' })
     ])
 
     expect(findActiveGlobalBinding(SCREENSHOT)).toBe('Control+Alt+2')
@@ -110,11 +110,11 @@ describe('applyGlobalShortcuts', function () {
   })
 
   it('设置值不合法 → unavailable，不注册任何键', async function () {
-    const { applyGlobalShortcuts, readGlobalShortcuts, findActiveGlobalBinding } =
-      await loadGlobal()
+    const { syncGlobalShortcuts, readGlobalShortcuts, findActiveGlobalBinding } =
+      await bootstrapGlobal()
 
     // `mod` 不能用于全局键（OS 注册没有这个别名）
-    await applyGlobalShortcuts({ [SCREENSHOT]: 'mod+q' })
+    await syncGlobalShortcuts({ [SCREENSHOT]: 'mod+q' })
 
     expect(mock.calls).toEqual([])
     expect(findActiveGlobalBinding(SCREENSHOT)).toBeNull()
@@ -122,13 +122,13 @@ describe('applyGlobalShortcuts', function () {
   })
 
   it('想要的组合被占用但有旧值 → 回滚旧值，改动不生效', async function () {
-    const { applyGlobalShortcuts, readGlobalShortcuts, findActiveGlobalBinding } =
-      await loadGlobal()
+    const { syncGlobalShortcuts, readGlobalShortcuts, findActiveGlobalBinding } =
+      await bootstrapGlobal()
 
-    await applyGlobalShortcuts({ [SCREENSHOT]: 'Alt+Q' })
+    await syncGlobalShortcuts({ [SCREENSHOT]: 'Alt+Q' })
     mock.occupied.add('Control+Alt+Q')
 
-    await applyGlobalShortcuts({ [SCREENSHOT]: 'Control+Alt+Q' })
+    await syncGlobalShortcuts({ [SCREENSHOT]: 'Control+Alt+Q' })
 
     const runtime = readGlobalShortcuts()[SCREENSHOT]
     expect(runtime.state).toBe('fallback')
@@ -139,12 +139,12 @@ describe('applyGlobalShortcuts', function () {
   })
 
   it('没有旧值且默认键被占用 → 走备用链，只改运行时', async function () {
-    const { applyGlobalShortcuts, readGlobalShortcuts, findActiveGlobalBinding } =
-      await loadGlobal()
+    const { syncGlobalShortcuts, readGlobalShortcuts, findActiveGlobalBinding } =
+      await bootstrapGlobal()
 
     mock.occupied.add('Alt+Q')
 
-    await applyGlobalShortcuts({ [SCREENSHOT]: 'Alt+Q' })
+    await syncGlobalShortcuts({ [SCREENSHOT]: 'Alt+Q' })
 
     const runtime = readGlobalShortcuts()[SCREENSHOT]
     expect(runtime.state).toBe('fallback')
@@ -155,17 +155,17 @@ describe('applyGlobalShortcuts', function () {
   })
 
   it('旧值与备用链全失败 → unavailable 且 effective 为 null，不留假标记', async function () {
-    const { applyGlobalShortcuts, readGlobalShortcuts, findActiveGlobalBinding } =
-      await loadGlobal()
+    const { syncGlobalShortcuts, readGlobalShortcuts, findActiveGlobalBinding } =
+      await bootstrapGlobal()
 
-    await applyGlobalShortcuts({ [SCREENSHOT]: 'Alt+Q' })
+    await syncGlobalShortcuts({ [SCREENSHOT]: 'Alt+Q' })
 
     // 旧值（Alt+Q）与备用链全部被占用
     for (const accelerator of ['Alt+Q', 'Control+Alt+Q', 'Alt+Shift+Q', 'Control+Shift+Q']) {
       mock.occupied.add(accelerator)
     }
 
-    await applyGlobalShortcuts({ [SCREENSHOT]: 'Control+Alt+Q' })
+    await syncGlobalShortcuts({ [SCREENSHOT]: 'Control+Alt+Q' })
 
     const runtime = readGlobalShortcuts()[SCREENSHOT]
     expect(runtime.state).toBe('unavailable')

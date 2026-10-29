@@ -33,13 +33,13 @@ interface WorkspacePanesProps {
 }
 
 /** 侧面分栏以按钮开合，不允许拖拽吸成 0 宽 */
-const PANEL_DRAG = { collapsibleOnDrag: false } as const
+const PANE_DRAG = { collapsibleOnDrag: false } as const
 
 /**
  * 库把 `overflow: auto` 写在内层 inline style 上（靠它把内容最小尺寸压成 0，面板才收得干净），
  * class 的 `overflow-hidden` 压不过它 —— 想裁掉折叠途中的内容就得走 style。
  */
-const PANEL_CLIP = { overflow: 'hidden' } as const
+const PANE_CLIP = { overflow: 'hidden' } as const
 
 function WorkspacePanes(props: WorkspacePanesProps) {
   return (
@@ -56,12 +56,12 @@ function WorkspacePanes(props: WorkspacePanesProps) {
         collapsible
         collapsedSize={0}
         groupResizeBehavior="preserve-pixel-size"
-        {...PANEL_DRAG}
+        {...PANE_DRAG}
         onResize={function () {
           const nextOpen = !(props.catalogRef.current?.isCollapsed() ?? false)
           if (nextOpen !== props.isCatalogOpen) props.onCatalogOpenChange(nextOpen)
         }}
-        style={PANEL_CLIP}
+        style={PANE_CLIP}
         className="h-full min-h-0 min-w-0 overflow-hidden">
         <Catalog onInsertAction={props.onInsertAction} />
       </ResizablePanel>
@@ -93,12 +93,12 @@ function WorkspacePanes(props: WorkspacePanesProps) {
         collapsible
         collapsedSize={0}
         groupResizeBehavior="preserve-pixel-size"
-        {...PANEL_DRAG}
+        {...PANE_DRAG}
         onResize={function () {
           const nextOpen = !(props.inspectorRef.current?.isCollapsed() ?? false)
           if (nextOpen !== props.isInspectorOpen) props.onInspectorOpenChange(nextOpen)
         }}
-        style={PANEL_CLIP}
+        style={PANE_CLIP}
         className="h-full min-h-0 min-w-0 overflow-hidden">
         {props.draft ? (
           <InspectorAside

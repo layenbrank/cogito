@@ -1,3 +1,4 @@
+import { Button } from '@cogito/design/components/button'
 import { cn } from 'cn'
 
 import { useKnowledgeStore } from '@/stores/knowledge'
@@ -41,10 +42,11 @@ function Outline(props: OutlineProps) {
           outline.map(function (item) {
             return (
               <li key={item.id}>
-                <button
+                <Button
+                  variant="ghost"
                   type="button"
                   className={cn(
-                    'w-full truncate rounded-sm px-2 py-1 text-left hover:bg-muted',
+                    'h-auto w-full truncate rounded-sm px-2 py-1 text-left hover:bg-muted',
                     item.level === 1 && 'font-medium',
                     item.level > 1 && 'text-muted-foreground'
                   )}
@@ -53,7 +55,7 @@ function Outline(props: OutlineProps) {
                     props.onJump(item.pos)
                   }}>
                   {item.text}
-                </button>
+                </Button>
               </li>
             )
           })

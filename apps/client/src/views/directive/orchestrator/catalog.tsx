@@ -1,4 +1,5 @@
 import { Badge } from '@cogito/design/components/badge'
+import { Button } from '@cogito/design/components/button'
 import { Input } from '@cogito/design/components/input'
 import { ScrollArea } from '@cogito/design/components/scroll-area'
 import { useMemo, useState } from 'react'
@@ -54,9 +55,10 @@ function Catalog(props: CatalogProps) {
           {filtered.map(function (entry) {
             return (
               <li key={entry.id}>
-                <button
+                <Button
+                  variant="ghost"
                   type="button"
-                  className="w-full rounded-md border border-transparent px-2 py-1.5 text-left text-xs transition-colors hover:border-border hover:bg-muted/70"
+                  className="h-auto w-full rounded-md border border-transparent px-2 py-1.5 text-left text-xs transition-colors hover:border-border hover:bg-muted/70"
                   onClick={function () {
                     props.onInsertAction(entry.id)
                   }}>
@@ -71,7 +73,7 @@ function Catalog(props: CatalogProps) {
                   <span className="mt-0.5 block text-muted-foreground line-clamp-1">
                     {entry.description || '无描述'}
                   </span>
-                </button>
+                </Button>
               </li>
             )
           })}

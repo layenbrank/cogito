@@ -63,14 +63,15 @@ function EmptyState(props: EmptyStateProps) {
             {recentPaths.slice(0, 8).map(function (path) {
               return (
                 <li key={path}>
-                  <button
+                  <Button
+                    variant="ghost"
                     type="button"
-                    className="w-full truncate px-3 py-2 text-left text-sm hover:bg-muted"
+                    className="h-auto w-full truncate px-3 py-2 text-left text-sm hover:bg-muted"
                     onClick={function () {
                       props.onOpenRecent(path)
                     }}>
                     {path}
-                  </button>
+                  </Button>
                 </li>
               )
             })}

@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { cn } from 'cn'
 import { toast } from 'sonner'
 
@@ -85,13 +86,14 @@ function Summary() {
         ) : (
           <span className="px-2 opacity-70">{t('UNTITLED')}</span>
         )}
-        <button
+        <Button
+          variant="ghost"
           type="button"
-          className="max-w-56 truncate px-2 py-0.5 hover:bg-foreground/5 hover:text-foreground"
+          className="h-auto max-w-56 truncate px-2 py-0.5 hover:bg-foreground/5 hover:text-foreground"
           title={activePath ?? t('UNTITLED')}
           onClick={onCopyPath}>
           {isBootstrapping && !activePath ? '…' : fileLabel}
-        </button>
+        </Button>
       </div>
       <div className="flex shrink-0 items-center">
         {isBootstrapping ? (

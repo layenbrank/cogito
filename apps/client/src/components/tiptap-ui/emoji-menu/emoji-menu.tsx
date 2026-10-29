@@ -7,7 +7,7 @@ import type { EmojiItem } from '@tiptap/extension-emoji'
 import { useMenuNavigation } from '@/hooks/use-menu-navigation.ts'
 
 // --- Lib ---
-import { getElementOverflowPosition } from '@/lib/tiptap-collab-utils.ts'
+import { findElementOverflowPosition } from '@/lib/tiptap-collab-utils.ts'
 
 // --- UI Primitives ---
 import {
@@ -21,7 +21,7 @@ import {
   CardHeader
 } from '@/components/tiptap-ui-primitive/card/card.tsx'
 
-import { getFilteredEmojis } from '@/components/tiptap-ui/emoji-menu/emoji-menu-utils.ts'
+import { findFilteredEmojis } from '@/components/tiptap-ui/emoji-menu/emoji-menu-utils.ts'
 
 // --- Styles ---
 import '@/components/tiptap-ui/emoji-menu/emoji-menu.scss'
@@ -44,7 +44,7 @@ export const EmojiMenuItem = <T extends EmojiItem>(
     const menuElement = document.querySelector(selector) as HTMLElement
     if (!itemRef.current || !isSelected || !menuElement) return
 
-    const overflow = getElementOverflowPosition(itemRef.current, menuElement)
+    const overflow = findElementOverflowPosition(itemRef.current, menuElement)
     if (overflow === 'top') {
       itemRef.current.scrollIntoView(true)
     } else if (overflow === 'bottom') {
@@ -97,7 +97,7 @@ export const EmojiMenu = <T extends EmojiItem>(props: EmojiMenuProps<T>) => {
   const [searchQuery, setSearchQuery] = useState<string>('')
 
   const filteredEmojis = useMemo(() => {
-    const filtered = getFilteredEmojis({ query: searchQuery, emojis })
+    const filtered = findFilteredEmojis({ query: searchQuery, emojis })
     return filtered
   }, [emojis, searchQuery])
 

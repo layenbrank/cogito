@@ -50,7 +50,7 @@ export interface LinkMainProps {
   /**
    * Function to set the link in the editor.
    */
-  setLink: () => void
+  writeLink: () => void
   /**
    * Function to remove the link from the editor.
    */
@@ -115,7 +115,7 @@ LinkButton.displayName = 'LinkButton'
 const LinkMain: React.FC<LinkMainProps> = ({
   url,
   setUrl,
-  setLink,
+  writeLink,
   removeLink,
   openLink,
   isActive
@@ -125,7 +125,7 @@ const LinkMain: React.FC<LinkMainProps> = ({
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
       event.preventDefault()
-      setLink()
+      writeLink()
     }
   }
 
@@ -156,7 +156,7 @@ const LinkMain: React.FC<LinkMainProps> = ({
           <ButtonGroup orientation="horizontal">
             <Button
               type="button"
-              onClick={setLink}
+              onClick={writeLink}
               title={t('EDITOR_LINK_APPLY')}
               disabled={!url && !isActive}
               data-style="ghost">
@@ -214,7 +214,7 @@ export const LinkPopover = forwardRef<HTMLButtonElement, LinkPopoverProps>(
     {
       editor: providedEditor,
       hideWhenUnavailable = false,
-      onSetLink,
+      onWriteLink,
       onOpenChange,
       autoOpenOnLinkActive = false,
       portal = true,
@@ -233,7 +233,7 @@ export const LinkPopover = forwardRef<HTMLButtonElement, LinkPopoverProps>(
       isActive,
       url,
       setUrl,
-      setLink,
+      writeLink,
       removeLink,
       openLink,
       label,
@@ -241,7 +241,7 @@ export const LinkPopover = forwardRef<HTMLButtonElement, LinkPopoverProps>(
     } = useLinkPopover({
       editor,
       hideWhenUnavailable,
-      onSetLink
+      onWriteLink
     })
 
     const handleOnOpenChange = useCallback(
@@ -252,10 +252,10 @@ export const LinkPopover = forwardRef<HTMLButtonElement, LinkPopoverProps>(
       [onOpenChange]
     )
 
-    const handleSetLink = useCallback(() => {
-      setLink()
+    const handleWriteLink = useCallback(() => {
+      writeLink()
       setIsOpen(false)
-    }, [setLink])
+    }, [writeLink])
 
     const handleClick = useCallback(
       (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -303,7 +303,7 @@ export const LinkPopover = forwardRef<HTMLButtonElement, LinkPopoverProps>(
           <LinkMain
             url={url}
             setUrl={setUrl}
-            setLink={handleSetLink}
+            writeLink={handleWriteLink}
             removeLink={removeLink}
             openLink={openLink}
             isActive={isActive}

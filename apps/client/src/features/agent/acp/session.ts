@@ -108,7 +108,7 @@ interface ThreadSession {
 }
 
 interface ThreadRun {
-  queue: ReturnType<typeof createItemQueue>
+  queue: ReturnType<typeof makeItemQueue>
   /** 审批票据：键是 ACP 的 toolCallId */
   approvals: Map<string, Ticket<RequestPermissionResponse> & { options: readonly ChatApprovalOption[] }>
   /** 追问票据：键是本模块合成的 elicitationId（form 模式 ACP 不给 id） */
@@ -135,7 +135,7 @@ const usageBaseline = new Map<
  * 用队列而不是 `Promise.race`：审批是从**另一个方向**（agent 回调）塞进来的，
  * 两条来源各自的时序在这里被抹平，消费方只需要顺序读。
  */
-function createItemQueue() {
+function makeItemQueue() {
   const items: ThreadRunItem[] = []
   let wake: (() => void) | null = null
 
@@ -158,7 +158,7 @@ function createItemQueue() {
 }
 
 /** 票据：默认值兜底 + 只 settle 一次 */
-function createTicket<T>(timeoutValue: T): Ticket<T> {
+function makeTicket<T>(timeoutValue: T): Ticket<T> {
   let settled = false
   let resolveValue: ((value: T) => void) | null = null
   const timer = setTimeout(function () {
@@ -360,7 +360,7 @@ function wrapInvalidParams(error: unknown, prefix: string): Error {
 /**
  * 先 provider 后 model（切换 provider 会重置 model，与 goose desktop 一致）
  */
-async function applyProviderModel(
+async function syncProviderModel(
   connection: ClientConnection,
   sessionId: string,
   providerId: string,
@@ -621,7 +621,7 @@ async function openThreadSession(
     .start()
 
   const initialOptions = session.newSessionResponse.configOptions ?? null
-  const applied = await applyProviderModel(
+  const applied = await syncProviderModel(
     handle.connection,
     session.sessionId,
     providerID,
@@ -683,7 +683,7 @@ async function ensureThreadSession(
     const sameProvider = providerID === cached.providerID
     const sameModel = !modelID?.trim() || modelID === cached.modelID
     if (!sameProvider || !sameModel) {
-      const applied = await applyProviderModel(
+      const applied = await syncProviderModel(
         handle.connection,
         cached.acpSessionID,
         providerID,
@@ -756,7 +756,7 @@ async function* runThreadPrompt(
     }
   }
 
-  const queue = createItemQueue()
+  const queue = makeItemQueue()
   const run: ThreadRun = {
     queue,
     approvals: new Map(),
@@ -910,7 +910,7 @@ async function requestThreadPermission(params: RequestPermissionRequest): Promis
   const toolCallId = params.toolCall.toolCallId
   const previous = run.approvals.get(toolCallId)
   if (previous) previous.settle({ outcome: { outcome: 'cancelled' } })
-  const ticket = createTicket<RequestPermissionResponse>({ outcome: { outcome: 'cancelled' } })
+  const ticket = makeTicket<RequestPermissionResponse>({ outcome: { outcome: 'cancelled' } })
   run.approvals.set(toolCallId, { ...ticket, options })
   run.queue.push({ kind: 'approval', event, params })
   return ticket.promise
@@ -943,7 +943,7 @@ async function requestThreadElicitation(
   const rawToolCallID: unknown = 'toolCallId' in params ? params.toolCallId : null
   const toolCallID = typeof rawToolCallID === 'string' && rawToolCallID ? rawToolCallID : '-'
   const elicitationID = `${sessionId}\u0000${toolCallID}\u0000${run.elicitations.size}`
-  const ticket = createTicket<CreateElicitationResponse>({ action: 'cancel' })
+  const ticket = makeTicket<CreateElicitationResponse>({ action: 'cancel' })
   run.elicitations.set(elicitationID, ticket)
   run.queue.push({
     kind: 'elicitation',
@@ -1063,7 +1063,7 @@ async function switchGooseProviderModel(providerID: string, modelID: string | un
     // 正在跑的会话不碰：改配置会打断别处那一轮（多会话并发时它可能正在后台生成）。
     // 它下一轮开始时 `ensureThreadSession` 会按当时选中的目标重新应用。
     if (thread.run) continue
-    const applied = await applyProviderModel(
+    const applied = await syncProviderModel(
       handle.connection,
       thread.acpSessionID,
       providerID,

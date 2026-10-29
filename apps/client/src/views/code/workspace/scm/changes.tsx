@@ -2,6 +2,7 @@
  * 源码管理的变更列表：分组 + 行内操作 + 右键菜单。
  */
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { cn } from 'cn'
 import { useCallback } from 'react'
 
@@ -64,7 +65,8 @@ function ChangeRow(props: {
       data-git-path={props.entry.path}
       data-git-kind={props.kind}
       className="group hover:bg-muted/60 flex items-center gap-1.5 rounded-sm py-0.5 pr-1 pl-3">
-      <button
+      <Button
+        variant="ghost"
         type="button"
         className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
         title={`${props.entry.path}（点击查看差异）`}
@@ -78,9 +80,11 @@ function ChangeRow(props: {
         {parent ? (
           <span className="text-muted-foreground truncate text-[11px] opacity-70">{parent}</span>
         ) : null}
-      </button>
+      </Button>
       <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100">
-        <button
+        <Button
+          variant="ghost"
+          size="icon-xs"
           type="button"
           aria-label={isUntracked || props.kind === 'changed' ? '暂存' : '取消暂存'}
           title={isUntracked || props.kind === 'changed' ? '暂存' : '取消暂存'}
@@ -90,8 +94,10 @@ function ChangeRow(props: {
             icon={isUntracked || props.kind === 'changed' ? 'lucide:plus' : 'lucide:minus'}
             className="size-3"
           />
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
           type="button"
           aria-label="撤销更改"
           title="撤销更改"
@@ -103,7 +109,7 @@ function ChangeRow(props: {
             icon="lucide:undo-2"
             className="size-3"
           />
-        </button>
+        </Button>
       </div>
     </li>
   )
@@ -169,7 +175,9 @@ function Changes(props: ChangesProps) {
                 <span className="truncate">{group.title}</span>
                 <span className="opacity-70">{group.entries.length}</span>
                 <div className="ml-auto flex items-center gap-0.5">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
                     type="button"
                     aria-label={group.kind === 'staged' ? '全部取消暂存' : '全部暂存'}
                     title={group.kind === 'staged' ? '全部取消暂存' : '全部暂存'}
@@ -185,7 +193,7 @@ function Changes(props: ChangesProps) {
                       icon={group.kind === 'staged' ? 'lucide:minus' : 'lucide:plus'}
                       className="size-3"
                     />
-                  </button>
+                  </Button>
                 </div>
               </div>
               <ul className="list-none">

@@ -1,7 +1,7 @@
 /**
  * 代码窗的源码管理状态：分支、变更列表、差异内容。
  *
- * 与 `stores/code.ts` 分开 —— 这里的状态全部来自 git 命令，不参与窗口 chrome 持久化。
+ * 与 `stores/code.ts` 分开 —— 这里的状态全部来自 git 命令，不参与窗口 shell 持久化。
  */
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'

@@ -1,5 +1,5 @@
-import { Button } from '@cogito/design/components/button'
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import { clsx } from 'clsx'
 import {
   useEffect,
@@ -117,8 +117,8 @@ function Timeline() {
   const addAssetToTimeline = useClipchampStore(function (s) {
     return s.addAssetToTimeline
   })
-  const applyLive = useClipchampStore(function (s) {
-    return s.applyLive
+  const updateLive = useClipchampStore(function (s) {
+    return s.updateLive
   })
   const captureUndoPoint = useClipchampStore(function (s) {
     return s.captureUndoPoint
@@ -170,7 +170,7 @@ function Timeline() {
       if (isSnapping) nextStart = Math.round(nextStart / 100) * 100
       nextStart = Math.max(0, nextStart)
       lastStart = nextStart
-      applyLive(function (draft) {
+      updateLive(function (draft) {
         return {
           ...draft,
           tracks: draft.tracks.map(function (track) {
@@ -190,7 +190,7 @@ function Timeline() {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
       // finalize position without extra undo (already snapped before drag)
-      applyLive(function (draft) {
+      updateLive(function (draft) {
         return {
           ...draft,
           tracks: draft.tracks.map(function (track) {
@@ -584,7 +584,8 @@ function TrackRow(props: TrackRowProps) {
       className="relative border-b border-border/40 bg-transparent"
       style={{ height: TRACK_HEIGHT }}>
       {/* 点击空白处取消选择：用真按钮保证键盘可达，同时避开「片段不能嵌进按钮里」的非法嵌套 */}
-      <button
+      <Button
+        variant="ghost"
         type="button"
         aria-label="取消选择片段"
         className="absolute inset-0 cursor-default"
@@ -703,7 +704,8 @@ function TimelineClipBlock(props: TimelineClipBlockProps) {
   )
 
   return (
-    <button
+    <Button
+      variant="outline"
       ref={blockRef}
       type="button"
       aria-pressed={isSelected}
@@ -749,7 +751,7 @@ function TimelineClipBlock(props: TimelineClipBlockProps) {
         )}>
         {label}
       </span>
-    </button>
+    </Button>
   )
 }
 

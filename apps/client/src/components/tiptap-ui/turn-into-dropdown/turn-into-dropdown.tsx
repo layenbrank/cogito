@@ -7,7 +7,7 @@ import type { Editor } from '@tiptap/react'
 import type { UseTurnIntoDropdownConfig } from '@/components/tiptap-ui/turn-into-dropdown/use-turn-into-dropdown.ts'
 import {
   useTurnIntoDropdown,
-  getFilteredBlockTypeOptions
+  findFilteredBlockTypeOptions
 } from '@/components/tiptap-ui/turn-into-dropdown/use-turn-into-dropdown.ts'
 import { useText } from '@/components/tiptap-ui/text-button/use-text.ts'
 import {
@@ -54,7 +54,7 @@ interface BlockMenuItemProps {
 }
 
 /**
- * 不用 asChild+Button：Menu.Item 保持默认 div，避免 Base UI nativeButton 与内层 <button> 冲突。
+ * 不用 asChild+Button：Menu.Item 保持默认 div，避免 Base UI nativeButton 与内层 button 元素冲突。
  */
 function ParagraphMenuItem({ editor, label }: BlockMenuItemProps) {
   const { handleToggle, canToggle, isActive, Icon } = useText({ editor })
@@ -143,7 +143,7 @@ function CodeBlockMenuItem({ editor, label }: BlockMenuItemProps) {
 }
 
 function renderBlockTypeButton(
-  option: ReturnType<typeof getFilteredBlockTypeOptions>[0],
+  option: ReturnType<typeof findFilteredBlockTypeOptions>[0],
   key: string,
   editor?: Editor | null
 ) {
@@ -226,7 +226,7 @@ function renderBlockTypeButton(
 export const TurnIntoDropdownContent: React.FC<
   TurnIntoDropdownContentProps
 > = ({ editor, blockTypes, useCardLayout = true }) => {
-  const filteredOptions = getFilteredBlockTypeOptions(blockTypes)
+  const filteredOptions = findFilteredBlockTypeOptions(blockTypes)
 
   const renderButtons = () => (
     <ButtonGroup>

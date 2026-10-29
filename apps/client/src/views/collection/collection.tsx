@@ -7,7 +7,7 @@ import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { Decorations } from '@/components/decorations/index.ts'
-import { CollectionPanel } from '@/views/collection/panel.tsx'
+import { CollectionSurface } from '@/views/collection/surface.tsx'
 
 function findCollectionIDFromLabel(): string {
   try {
@@ -58,7 +58,7 @@ export default function Collection() {
     <Decorations
       summary={title}
       scrollable={false}>
-      <CollectionPanel
+      <CollectionSurface
         key={id}
         id={id}
         isAddOpen={isAddOpen}

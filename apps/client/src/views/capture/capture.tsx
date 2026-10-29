@@ -225,8 +225,9 @@ function CaptureLayout() {
             <nav
               className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-1.5 pb-1"
               aria-label="相簿">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 className={cn(
                   SIDE_ITEM,
                   albumID === null
@@ -237,9 +238,10 @@ function CaptureLayout() {
                   onAlbumID(null)
                 }}>
                 全部
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
                 className={cn(
                   SIDE_ITEM,
                   albumID === 'uncategorized'
@@ -250,14 +252,15 @@ function CaptureLayout() {
                   onAlbumID('uncategorized')
                 }}>
                 未分类
-              </button>
+              </Button>
               {albums.map(function (album) {
                 return (
                   <div
                     key={album.id}
                     className="group flex items-center gap-0.5">
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       className={cn(
                         SIDE_ITEM,
                         'min-w-0 flex-1',
@@ -275,9 +278,10 @@ function CaptureLayout() {
                         }
                       }}>
                       <span className="truncate">{album.name}</span>
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="ghost"
                       className="invisible flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground group-hover:visible hover:text-destructive"
                       aria-label={`删除相簿 ${album.name}`}
                       onClick={function () {
@@ -288,7 +292,7 @@ function CaptureLayout() {
                         icon="lucide:trash-2"
                         className="size-3"
                       />
-                    </button>
+                    </Button>
                   </div>
                 )
               })}

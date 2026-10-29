@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 
 import styles from '@/views/morph/workspace/tasks/tasks.module.scss'
 
@@ -51,7 +52,8 @@ function ConvertFormatPicker(props: ConvertFormatPickerProps) {
         {FORMAT_OPTIONS.map(function (option) {
           const isActive = props.format === option.value
           return (
-            <button
+            <Button
+              variant="ghost"
               key={option.value}
               type="button"
               role="radio"
@@ -75,7 +77,7 @@ function ConvertFormatPicker(props: ConvertFormatPickerProps) {
                 <span className={styles.formatTitle}>{option.label}</span>
                 <span className={styles.formatHint}>{option.hint}</span>
               </span>
-            </button>
+            </Button>
           )
         })}
       </div>
@@ -98,7 +100,8 @@ function ConvertScalePicker(props: ConvertScalePickerProps) {
         {SCALE_OPTIONS.map(function (option) {
           const isActive = props.scale === option.value
           return (
-            <button
+            <Button
+              variant="ghost"
               key={option.value}
               type="button"
               role="radio"
@@ -130,7 +133,7 @@ function ConvertScalePicker(props: ConvertScalePickerProps) {
                 <span className={styles.qualityLabel}>{option.label}</span>
                 <span className={styles.qualityDetail}>{option.detail}</span>
               </span>
-            </button>
+            </Button>
           )
         })}
       </div>

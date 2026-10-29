@@ -8,7 +8,7 @@ import { create } from 'zustand'
 import { toast } from 'sonner'
 
 import {
-  createBase,
+  insertBase,
   discardStaged,
   exportBundle as bundleExport,
   listBases,
@@ -58,10 +58,10 @@ interface KnowledgeBaseState {
   error: string | null
   refresh: () => Promise<void>
   selectBase: (baseID: string | null) => Promise<void>
-  setQuery: (query: string) => void
+  writeQuery: (query: string) => void
   runSearch: () => Promise<void>
   clearSearch: () => void
-  create: (name: string) => Promise<boolean>
+  insert: (name: string) => Promise<boolean>
   /** 改当前库的选项（自动更新 / 自动导出 / 生成带引用） */
   updateBase: (patch: BasePatch) => Promise<boolean>
   rescan: () => Promise<void>
@@ -120,17 +120,17 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
     if (target) toast.success(`已导出 HTML：${findFileName(target)}`)
   }
 
-  async function loadDocs(baseID: string | null): Promise<void> {
+  async function fetchDocs(baseID: string | null): Promise<void> {
     const docs = await listDocs(baseID ?? undefined)
     setter({ docs })
   }
 
-  async function loadStaging(baseID: string | null): Promise<void> {
+  async function fetchStaging(baseID: string | null): Promise<void> {
     const staging = await listStaging(baseID ?? undefined)
     setter({ staging })
   }
 
-  async function loadCloudStates(baseID: string | null): Promise<void> {
+  async function fetchCloudStates(baseID: string | null): Promise<void> {
     const states = await listCloudStates(baseID ?? undefined)
     setter({
       cloudStates: Object.fromEntries(
@@ -184,9 +184,9 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
         syncWorkspaceRoot(activeBaseID)
         await syncFromDisk(activeBaseID)
         await Promise.all([
-          loadDocs(activeBaseID),
-          loadStaging(activeBaseID),
-          loadCloudStates(activeBaseID)
+          fetchDocs(activeBaseID),
+          fetchStaging(activeBaseID),
+          fetchCloudStates(activeBaseID)
         ])
         setter({ isLoading: false })
       } catch (error) {
@@ -201,9 +201,9 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
       try {
         await syncFromDisk(baseID)
         await Promise.all([
-          loadDocs(baseID),
-          loadStaging(baseID),
-          loadCloudStates(baseID)
+          fetchDocs(baseID),
+          fetchStaging(baseID),
+          fetchCloudStates(baseID)
         ])
       } catch (error) {
         reportCaught('knowledgeBase.selectBase', error, 'warning')
@@ -211,7 +211,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
       }
     },
 
-    setQuery(query) {
+    writeQuery(query) {
       setter({ query })
     },
 
@@ -239,14 +239,14 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
       setter({ query: '', hits: [], cloudState: 'off', counts: { local: 0, cloud: 0 } })
     },
 
-    async create(name) {
+    async insert(name) {
       try {
-        const base = await createBase(name)
+        const base = await insertBase(name)
         setter({ bases: [...getter().bases, base], error: null })
         await getter().selectBase(base.id)
         return true
       } catch (error) {
-        reportCaught('knowledgeBase.create', error, 'warning')
+        reportCaught('knowledgeBase.insert', error, 'warning')
         setter({ error: toMessage(error) })
         return false
       }
@@ -258,7 +258,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
       setter({ isLoading: true, error: null })
       try {
         await rescanBase(baseID)
-        await Promise.all([loadDocs(baseID), loadStaging(baseID)])
+        await Promise.all([fetchDocs(baseID), fetchStaging(baseID)])
         setter({ isLoading: false })
       } catch (error) {
         reportCaught('knowledgeBase.rescan', error, 'warning')
@@ -291,7 +291,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
         const published = await publishDoc(file.baseId, file.path, mode)
         await exportIfEnabled(file.baseId, published.relPath, published.title)
         const baseID = getter().activeBaseID
-        await Promise.all([loadDocs(baseID), loadStaging(baseID)])
+        await Promise.all([fetchDocs(baseID), fetchStaging(baseID)])
         setter({ isPublishing: false })
         return true
       } catch (error) {

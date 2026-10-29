@@ -230,7 +230,7 @@ async function openFolderAsWorkspace(dir?: string | null): Promise<boolean> {
   return true
 }
 
-function createUntitled(): void {
+function makeUntitled(): void {
   const store = useKnowledgeStore.getState()
   store.toNewDocument()
   syncDerived('')
@@ -346,7 +346,7 @@ export {
   openPath,
   openWithDialog,
   openFolderAsWorkspace,
-  createUntitled,
+  makeUntitled,
   findCurrentMarkdown,
   saveDocument,
   confirmIfDirty,

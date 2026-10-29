@@ -9,7 +9,7 @@ import { reportCaught } from '@/utils/exception-report'
 
 export type { ClockStyle }
 
-function loadClockStyle(): ClockStyle {
+function findClockStyle(): ClockStyle {
   return findPref('window').clockStyle
 }
 
@@ -58,7 +58,7 @@ export const useClockStore = create<ClockStore>()(
     immer(function (setter, getter) {
       return {
         config: COUNTDOWN_CONFIG,
-        clockStyle: loadClockStyle(),
+        clockStyle: findClockStyle(),
         loaded: false,
 
         async initialize() {
@@ -67,13 +67,13 @@ export const useClockStore = create<ClockStore>()(
             const config = await invoke<CountdownConfig | null>(CHANNELS.COUNTDOWN.READ)
             setter(function (state) {
               state.config = config ?? COUNTDOWN_CONFIG
-              state.clockStyle = loadClockStyle()
+              state.clockStyle = findClockStyle()
               state.loaded = true
             })
           } catch (e) {
             reportCaught('clock-store.initialize', e, 'warning')
             setter(function (state) {
-              state.clockStyle = loadClockStyle()
+              state.clockStyle = findClockStyle()
               state.loaded = true
             })
           }

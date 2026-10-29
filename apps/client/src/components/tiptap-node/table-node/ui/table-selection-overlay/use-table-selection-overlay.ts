@@ -7,15 +7,15 @@ import { useFloating } from '@floating-ui/react'
 import { useResizeOverlay } from '@/components/tiptap-node/table-node/ui/table-selection-overlay/use-resize-overlay.ts'
 import {
   domCellAround,
-  getTable,
+  findTable,
   rectEq
 } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 import {
-  createVirtualReference,
-  getAnchorCellForHandle,
-  getCellAtCoordinates,
-  getSelectionBoundingRect,
-  getSingleCellBoundingRect,
+  makeVirtualReference,
+  findAnchorCellForHandle,
+  findCellAtCoordinates,
+  findSelectionBoundingRect,
+  findSingleCellBoundingRect,
   type ResizeHandle
 } from './selection-geometry.ts'
 
@@ -43,7 +43,7 @@ function useTableSelectionOverlay(options: UseTableSelectionOverlayOptions) {
 
   useEffect(() => {
     if (selectionRect) {
-      const virtualReference = createVirtualReference(selectionRect)
+      const virtualReference = makeVirtualReference(selectionRect)
       refs.setPositionReference(virtualReference)
     }
   }, [selectionRect, refs])
@@ -54,7 +54,7 @@ function useTableSelectionOverlay(options: UseTableSelectionOverlayOptions) {
     const { selection } = editor.state
 
     if (selection instanceof CellSelection) {
-      const rect = getSelectionBoundingRect(editor.view, selection)
+      const rect = findSelectionBoundingRect(editor.view, selection)
 
       if (!rect) {
         setIsVisible(false)
@@ -71,7 +71,7 @@ function useTableSelectionOverlay(options: UseTableSelectionOverlayOptions) {
     const cell = cellAround($anchor)
 
     if (cell) {
-      const rect = getSingleCellBoundingRect(editor.view, cell.pos)
+      const rect = findSingleCellBoundingRect(editor.view, cell.pos)
 
       if (rect) {
         setSelectionRect((prev) => (rectEq(prev, rect) ? prev : rect))
@@ -92,7 +92,7 @@ function useTableSelectionOverlay(options: UseTableSelectionOverlayOptions) {
     }
   }, [update, selectionRect])
 
-  const createResizeHandler = useCallback(
+  const makeResizeHandler = useCallback(
     (handle: ResizeHandle) => (event: React.MouseEvent) => {
       if (!editor || !handle || !selectionRect || isMenuOpen || !showResizeHandles) return
 
@@ -120,7 +120,7 @@ function useTableSelectionOverlay(options: UseTableSelectionOverlayOptions) {
 
       if (!cellSelection) return
 
-      const anchorCell = getAnchorCellForHandle(
+      const anchorCell = findAnchorCellForHandle(
         editor.view,
         cellSelection,
         selectionRect,
@@ -138,7 +138,7 @@ function useTableSelectionOverlay(options: UseTableSelectionOverlayOptions) {
         const target = domCellAround(mouseEvent.target as Element)
         if (!target || target.type !== 'cell') return
 
-        const targetCell = getCellAtCoordinates(
+        const targetCell = findCellAtCoordinates(
           editor.state,
           editor.view,
           mouseEvent.clientX,
@@ -181,7 +181,7 @@ function useTableSelectionOverlay(options: UseTableSelectionOverlayOptions) {
       return
     }
 
-    const table = getTable(editor)
+    const table = findTable(editor)
     if (!table) {
       setTableDom(null)
       return
@@ -234,7 +234,7 @@ function useTableSelectionOverlay(options: UseTableSelectionOverlayOptions) {
     refs,
     floatingStyles,
     containerRef,
-    createResizeHandler,
+    makeResizeHandler,
     handleMenuOpenChange
   }
 }

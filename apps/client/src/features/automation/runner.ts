@@ -17,7 +17,7 @@ import {
 } from '@/features/agent/acp/session'
 import { parseAcpStreamEvent } from '@/features/agent/acp/stream'
 import { prepareTarget } from '@/features/agent/acp/target-guard'
-import { createModelPort } from '@/features/agent/port/model'
+import { buildModelPort } from '@/features/agent/port/model'
 import { finishAutomationRun } from '@/lib/automation-ipc'
 import { EVENTS } from '@/shared/ipc/channels'
 import { AutomationDueSchema, type AutomationDue } from '@/shared/ipc/specs/automation'
@@ -31,7 +31,7 @@ const SYSTEM_PROMPT = `你是被定时任务唤起的一次性执行者，没有
 不要向用户提问；需要审批的工具调用会被直接拒绝。
 把结论用一段话直接写出来，不要客套。`
 
-function createBlockID(): (messageId: string | null | undefined, kind: string) => string {
+function makeBlockID(): (messageId: string | null | undefined, kind: string) => string {
   return function (messageId, kind) {
     return `${kind}:${messageId ?? 'run'}`
   }
@@ -39,12 +39,12 @@ function createBlockID(): (messageId: string | null | undefined, kind: string) =
 
 async function execute(due: AutomationDue): Promise<void> {
   const threadID = `${THREAD_PREFIX}${due.runId}`
-  const blockID = createBlockID()
+  const blockID = makeBlockID()
   let content = ''
   let denied = 0
 
   try {
-    const target = await createModelPort().findTarget()
+    const target = await buildModelPort().findTarget()
     if (!target) throw new Error('还没有可用的模型，请先到设置里选择供应商与模型')
     await prepareTarget(target.providerID, target.model, 'agent.automation')
 

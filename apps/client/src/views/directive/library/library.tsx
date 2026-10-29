@@ -69,7 +69,7 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
       store.newTab(cwd)
       return
     }
-    store.setActivity('terminal')
+    store.writeActivity('terminal')
   }
 
   return (
@@ -201,10 +201,10 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
               </div>
             ) : null}
 
-            {library.loadError ? (
+            {library.fetchError ? (
               <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm">
                 <p className="font-medium text-destructive">无法加载指令库</p>
-                <p className="mt-1 text-muted-foreground">{library.loadError}</p>
+                <p className="mt-1 text-muted-foreground">{library.fetchError}</p>
                 <Button
                   size="sm"
                   className="mt-3"
@@ -217,7 +217,7 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
               </div>
             ) : null}
 
-            {!library.loadError && library.isLoaded && library.filtered.length === 0 ? (
+            {!library.fetchError && library.isLoaded && library.filtered.length === 0 ? (
               <p className="text-muted-foreground p-4 text-sm">暂无指令</p>
             ) : null}
 
@@ -256,7 +256,7 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
             })}
           </ScrollArea>
 
-          {library.isLoaded && !library.loadError ? (
+          {library.isLoaded && !library.fetchError ? (
             <LibraryAside
               metrics={library.insights}
               onOpen={library.openDirective}

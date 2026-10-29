@@ -180,7 +180,7 @@ function AutomationSheet(props: AutomationSheetProps) {
     setEditingID(null)
   }
 
-  function loadRule(rule: SignboardAutomation) {
+  function fillRule(rule: SignboardAutomation) {
     const condition = parseCondition(rule.conditionJson)
     const actions = parseActions(rule.actionJson)
     const first = actions[0]
@@ -274,7 +274,7 @@ function AutomationSheet(props: AutomationSheetProps) {
                         variant="ghost"
                         aria-label="编辑"
                         onClick={function () {
-                          loadRule(rule)
+                          fillRule(rule)
                         }}>
                         <Icon
                           icon="lucide:pencil"

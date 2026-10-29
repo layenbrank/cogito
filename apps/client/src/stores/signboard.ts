@@ -4,7 +4,7 @@ import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
 import {
-  applyRules,
+  matchRules,
   type AutomationAction,
   type AutomationEvent
 } from '@/features/signboard/automation'
@@ -1072,10 +1072,10 @@ async function runAutomations(
   if (AUTOMATION_DEPTH.value >= 3) return
   AUTOMATION_DEPTH.value += 1
   try {
-    const matched = applyRules(event, getter().automations)
+    const matched = matchRules(event, getter().automations)
     for (const row of matched) {
       for (const action of row.actions) {
-        await applyAction(getter, event.entryID, action)
+        await runAutomationAction(getter, event.entryID, action)
       }
     }
   } finally {
@@ -1083,7 +1083,7 @@ async function runAutomations(
   }
 }
 
-async function applyAction(
+async function runAutomationAction(
   getter: () => SignboardStore,
   entryID: string,
   action: AutomationAction

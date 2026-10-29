@@ -44,7 +44,7 @@ const TRACEPARENT = /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/
 const OWN_API = 'https://api.example.com/api/v1'
 
 /** `ENV_URLS` 在模块加载时成型，所以要换环境变量得重新加载模块 */
-async function loadHttp() {
+async function bootstrapHttp() {
   await import('@/utils/http/http.ts')
 }
 
@@ -56,7 +56,7 @@ function send(request: RequestInfo, headers = new Headers()): Headers {
 beforeEach(async function () {
   vi.clearAllMocks()
   deps.findAuthToken.mockReturnValue('jwt-token')
-  await loadHttp()
+  await bootstrapHttp()
 })
 
 afterEach(function () {
@@ -72,7 +72,7 @@ describe('traceparent header', function () {
   it('opens a trace on an absolute url of our own api', async function () {
     vi.stubEnv('VITE_COGITO', OWN_API)
     vi.resetModules()
-    await loadHttp()
+    await bootstrapHttp()
 
     expect(send(`${OWN_API}/magnetic-tile`).get('traceparent')).toMatch(TRACEPARENT)
   })

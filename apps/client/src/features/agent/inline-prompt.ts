@@ -10,7 +10,7 @@
 import { closeThreadSession, runThreadPrompt } from '@/features/agent/acp/session'
 import { parseAcpStreamEvent } from '@/features/agent/acp/stream'
 import { prepareTarget } from '@/features/agent/acp/target-guard'
-import { createModelPort } from '@/features/agent/port/model'
+import { buildModelPort } from '@/features/agent/port/model'
 
 /** 内联会话的 thread 前缀：这些 id 不会出现在会话列表里，仅用于区分日志 */
 const INLINE_THREAD_PREFIX = 'inline-'
@@ -28,7 +28,7 @@ const INLINE_SYSTEM_PROMPT = `你是 Markdown 写作助手，正在协助用户�
 不要调用任何工具，也不要向用户提问。`
 
 /** 一条用于收集文本块的归组器：内联只关心正文，不需要区分段落 */
-function createTextBlockID(): (messageId: string | null | undefined, kind: string) => string {
+function makeTextBlockID(): (messageId: string | null | undefined, kind: string) => string {
   return function (messageId, kind) {
     return `${kind}:${messageId ?? 'run'}`
   }
@@ -47,12 +47,12 @@ async function runInlinePrompt(input: InlinePromptInput): Promise<string> {
   const text = input.text.trim()
   if (!text) return ''
 
-  const target = await createModelPort().findTarget()
+  const target = await buildModelPort().findTarget()
   if (!target) throw new Error('还没有可用的模型，请先到设置里选择供应商与模型')
   await prepareProvider(target.providerID, target.model)
 
   const threadID = `${INLINE_THREAD_PREFIX}${crypto.randomUUID()}`
-  const blockID = createTextBlockID()
+  const blockID = makeTextBlockID()
   let content = ''
   try {
     for await (const item of runThreadPrompt(threadID, {

@@ -43,7 +43,7 @@ export function hasContentAbove(editor: Editor | null): {
  * @param markName - The name of the mark to look for (e.g., "highlight", "link").
  * @returns The attributes of the active mark, or `null` if the mark is not active.
  */
-export function getActiveMarkAttrs(
+export function findActiveMarkAttrs(
   editor: Editor | null,
   markName: string
 ): Attrs | null {
@@ -108,7 +108,7 @@ export function findSelectionPosition(params: {
  * @param editor The Tiptap editor instance
  * @returns The selected DOM element or null if no selection is present
  */
-export function getSelectedDOMElement(editor: Editor): HTMLElement | null {
+export function findSelectedDOMElement(editor: Editor): HTMLElement | null {
   const { state, view } = editor
   const { selection } = state
 
@@ -137,7 +137,7 @@ export function getSelectedDOMElement(editor: Editor): HTMLElement | null {
  * @param options Configuration options for finding the node
  * @returns An object containing the closest matching node, its position, and depth, or null if not found
  */
-export function getClosestNode(
+export function findClosestNode(
   editor: Editor | null,
   options?: {
     nodeName?: string
@@ -176,7 +176,7 @@ export function getClosestNode(
  * @param options Configuration options for finding the node
  * @returns An object containing the closest matching node, its position, and depth, or null if not found
  */
-export function getClosestNodeByPos(
+export function findClosestNodeByPos(
   editor: Editor | null,
   pos: number,
   options?: {
@@ -221,21 +221,21 @@ export function getClosestNodeByPos(
 /**
  * Convenience function to find closest block node (maintains backward compatibility)
  */
-export function getClosestBlockNode(editor: Editor | null) {
-  return getClosestNode(editor, { isBlock: true })
+export function findClosestBlockNode(editor: Editor | null) {
+  return findClosestNode(editor, { isBlock: true })
 }
 
 /**
  * Convenience function to find closest node by name
  */
-export function getClosestNodeByName(editor: Editor | null, nodeName: string) {
-  return getClosestNode(editor, { nodeName })
+export function findClosestNodeByName(editor: Editor | null, nodeName: string) {
+  return findClosestNode(editor, { nodeName })
 }
 
 /**
  * Find multiple matching nodes up the tree
  */
-export function getAllMatchingNodes(
+export function findAllMatchingNodes(
   editor: Editor | null,
   options?: {
     nodeName?: string
@@ -289,7 +289,7 @@ export function getAllMatchingNodes(
  * @param allowEmptySelection If true, still returns the node at the cursor position even if selection is empty
  * @returns An object containing the anchor node and its position, or null if not found
  */
-export function getAnchorNodeAndPos(
+export function findAnchorNodeAndPos(
   editor: Editor | null,
   allowEmptySelection: boolean = true
 ): { node: Node; pos: number } | null {
@@ -341,7 +341,7 @@ export function selectionHasText(editor: Editor | null): boolean {
  * @param extensionName - The name of the extension to retrieve
  * @returns The extension instance if found, otherwise null
  */
-export function getEditorExtension(
+export function findEditorExtension(
   editor: Editor | null,
   extensionName: string
 ) {

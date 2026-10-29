@@ -13,9 +13,9 @@ import { isExtensionAvailable } from '@/lib/tiptap-utils.ts'
 import type { Orientation } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 import {
   type CellInfo,
-  getTable,
-  getTableSelectionType,
-  getRowOrColumnCells,
+  findTable,
+  findTableSelectionType,
+  findRowOrColumnCells,
   isCellEmpty
 } from '@/components/tiptap-node/table-node/lib/tiptap-table-utils.ts'
 
@@ -98,7 +98,7 @@ function isCellHeader(cellNode: Node | null): boolean {
 /**
  * Extract text content from a cell node for sorting comparison
  */
-function getCellSortText(cellNode: Node | null): string {
+function findCellSortText(cellNode: Node | null): string {
   if (!cellNode) return ''
 
   let text = ''
@@ -148,10 +148,10 @@ function canSortRowColumn({
   }
 
   try {
-    const table = getTable(editor, tablePos)
+    const table = findTable(editor, tablePos)
     if (!table) return false
 
-    const cellData = getRowOrColumnCells(editor, index, orientation, tablePos)
+    const cellData = findRowOrColumnCells(editor, index, orientation, tablePos)
 
     // Need at least 2 items to sort
     if (cellData.orientation === 'row') {
@@ -207,7 +207,7 @@ function tableSortRowColumn({
     const { state, view } = editor
     const tr = state.tr
 
-    const cellData = getRowOrColumnCells(editor, index, orientation, tablePos)
+    const cellData = findRowOrColumnCells(editor, index, orientation, tablePos)
 
     if (cellData.mergedCells.length > 0) {
       console.warn(`Cannot sort ${orientation} ${index}: contains merged cells`)
@@ -224,7 +224,7 @@ function tableSortRowColumn({
         const isHeader = isCellHeader(cellInfo.node)
         const isEmpty = cellInfo.node ? isCellEmpty(cellInfo.node) : true
         return {
-          sortText: getCellSortText(cellInfo.node),
+          sortText: findCellSortText(cellInfo.node),
           originalNode: cellInfo.node,
           cellInfo,
           originalIndex,
@@ -335,10 +335,10 @@ function shouldShowButton({
   if (!editor || !editor.isEditable) return false
   if (!isExtensionAvailable(editor, REQUIRED_EXTENSIONS)) return false
 
-  const table = getTable(editor, tablePos)
+  const table = findTable(editor, tablePos)
   if (!table) return false
 
-  const selectionType = getTableSelectionType(
+  const selectionType = findTableSelectionType(
     editor,
     index,
     orientation,
@@ -428,7 +428,7 @@ export function useTableSortRowColumn(
 
   const { editor } = useTiptapEditor(providedEditor)
 
-  const selectionType = getTableSelectionType(editor, index, orientation)
+  const selectionType = findTableSelectionType(editor, index, orientation)
 
   const isVisible = shouldShowButton({
     editor,

@@ -1,7 +1,7 @@
 import { clsx } from 'clsx'
 import type { ReactNode } from 'react'
 
-import { OpChrome } from '@/views/morph/workspace/tasks/stage/op-chrome.tsx'
+import { OpShell } from '@/views/morph/workspace/tasks/stage/op-shell.tsx'
 import { OpFooter } from '@/views/morph/workspace/tasks/stage/op-footer.tsx'
 import styles from '@/views/morph/workspace/tasks/stage/operation-stage.module.scss'
 
@@ -23,7 +23,7 @@ type OperationStageProps = {
 }
 
 /**
- * Full-bleed operation workspace: chrome + board + footer (no side form rail).
+ * Full-bleed operation workspace: shell + board + footer (no side form rail).
  */
 function OperationStage(props: OperationStageProps) {
   const {
@@ -47,7 +47,7 @@ function OperationStage(props: OperationStageProps) {
     <section
       className={clsx(styles.stage, styles.root, className)}
       aria-label={title}>
-      <OpChrome
+      <OpShell
         title={title}
         meta={meta}
         icon={icon}

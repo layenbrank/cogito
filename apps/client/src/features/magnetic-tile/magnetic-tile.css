@@ -3,7 +3,7 @@
  * - 深色壳下 surface 浅色孤岛 token（内容用 --foreground 等）
  * - Sortable 注入的全局类（.dragging / .magnetic-tile-drag）
  *
- * 尺寸几何仍在 magnetic-tile.module.scss；标题 / 删除等 chrome 在组件 Tailwind。
+ * 尺寸几何仍在 magnetic-tile.module.scss；标题 / 删除等外壳控件在组件 Tailwind。
  */
 
 .magnetic-tile-surface {

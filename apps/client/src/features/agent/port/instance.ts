@@ -7,12 +7,12 @@
  */
 import type { ChatTarget } from '@cogito/chat/ports'
 
-import { createHistoryPort } from '@/features/agent/port/history'
-import { createModelPort } from '@/features/agent/port/model'
+import { buildHistoryPort } from '@/features/agent/port/history'
+import { buildModelPort } from '@/features/agent/port/model'
 import { useAgentStore } from '@/stores/agent'
 
-const historyPort = createHistoryPort()
-const chatModelPort = createModelPort()
+const historyPort = buildHistoryPort()
+const chatModelPort = buildModelPort()
 
 /**
  * 每次运行现读的宿主扩展。

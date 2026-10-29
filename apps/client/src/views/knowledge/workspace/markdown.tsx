@@ -19,7 +19,7 @@ import { parseMarkdown } from '@/views/knowledge/lib/parse-markdown.ts'
 import { serializeHtmlToMarkdown } from '@/views/knowledge/lib/serialize-markdown.ts'
 import { findOutlineFromEditor } from '@/views/knowledge/lib/outline.ts'
 import {
-  createUntitled,
+  makeUntitled,
   openFolderAsWorkspace,
   openPath,
   openWithDialog,
@@ -29,7 +29,7 @@ import {
 } from '@/views/knowledge/lib/session.ts'
 import { t } from '@/views/knowledge/locale.ts'
 import { DiscardDialog } from '@/views/knowledge/workspace/discard-dialog.tsx'
-import { setEditorBridge } from '@/views/knowledge/workspace/editor-context.ts'
+import { rememberEditorBridge } from '@/views/knowledge/workspace/editor-context.ts'
 import { EmptyState } from '@/views/knowledge/workspace/empty-state.tsx'
 import { ExternalDialog } from '@/views/knowledge/workspace/external-dialog.tsx'
 import { findMarkdownExtensions } from '@/views/knowledge/workspace/extensions.ts'
@@ -298,7 +298,7 @@ function useKnowledgeFileActions(input: {
     setDiscardOpen(true)
   }
 
-  function applyComposerFromStore(expectedPath?: string | null) {
+  function syncComposerFromStore(expectedPath?: string | null) {
     if (!composer) return
     // 侧栏高亮已同步；编辑器灌入降为低优先级，避免整页卡顿
     startTransition(function () {
@@ -324,7 +324,7 @@ function useKnowledgeFileActions(input: {
     runGuarded(function () {
       void openWithDialog().then(function (ok) {
         if (ok) {
-          applyComposerFromStore(useKnowledgeStore.getState().activePath)
+          syncComposerFromStore(useKnowledgeStore.getState().activePath)
         }
       })
     })
@@ -334,7 +334,7 @@ function useKnowledgeFileActions(input: {
     runGuarded(function () {
       void openFolderAsWorkspace().then(function (ok) {
         if (ok && !useKnowledgeStore.getState().activePath) {
-          applyComposerFromStore()
+          syncComposerFromStore()
         }
       })
     })
@@ -342,7 +342,7 @@ function useKnowledgeFileActions(input: {
 
   function handleNew() {
     runGuarded(function () {
-      createUntitled()
+      makeUntitled()
       if (composer) {
         syncingRef.current = true
         composer.commands.setContent('<p></p>', { emitUpdate: false })
@@ -354,7 +354,7 @@ function useKnowledgeFileActions(input: {
   function handleOpenPath(path: string) {
     runGuarded(function () {
       void openPath(path).then(function (ok) {
-        if (ok) applyComposerFromStore(path)
+        if (ok) syncComposerFromStore(path)
       })
     })
   }
@@ -696,10 +696,10 @@ export default function KnowledgeWorkspace() {
   useEffect(
     function () {
       if (!composer) {
-        setEditorBridge(null)
+        rememberEditorBridge(null)
         return
       }
-      setEditorBridge({
+      rememberEditorBridge({
         findContext: function () {
           const { from, to } = composer.state.selection
           return {
@@ -728,7 +728,7 @@ export default function KnowledgeWorkspace() {
         }
       })
       return function () {
-        setEditorBridge(null)
+        rememberEditorBridge(null)
       }
     },
     [composer]

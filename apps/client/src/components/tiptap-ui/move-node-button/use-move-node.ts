@@ -10,7 +10,7 @@ import { TextSelection } from '@tiptap/pm/state'
 import { useTiptapEditor } from '@/hooks/use-tiptap-editor.ts'
 
 // --- Utils ---
-import { getAnchorNodeAndPos } from '@/lib/tiptap-advanced-utils.ts'
+import { findAnchorNodeAndPos } from '@/lib/tiptap-advanced-utils.ts'
 
 // --- Icons ---
 import { AlignTopIcon } from '@/components/tiptap-icons/align-top-icon.tsx'
@@ -51,7 +51,7 @@ export function canMoveNode(
   direction: 'up' | 'down'
 ): boolean {
   if (!editor || !editor.isEditable) return false
-  const nodeInfo = getAnchorNodeAndPos(editor)
+  const nodeInfo = findAnchorNodeAndPos(editor)
   if (!nodeInfo) return false
 
   try {
@@ -74,7 +74,7 @@ export function moveNode(
   direction: 'up' | 'down'
 ): boolean {
   if (!editor || !editor.isEditable) return false
-  const nodeInfo = getAnchorNodeAndPos(editor)
+  const nodeInfo = findAnchorNodeAndPos(editor)
   if (!nodeInfo) return false
 
   try {
@@ -130,7 +130,7 @@ export function shouldShowButton(props: {
 
   if (!editor || !editor.isEditable) return false
 
-  const hasNode = !!getAnchorNodeAndPos(editor)
+  const hasNode = !!findAnchorNodeAndPos(editor)
   const movable = canMoveNode(editor, direction)
 
   return hideWhenUnavailable ? hasNode && movable : hasNode

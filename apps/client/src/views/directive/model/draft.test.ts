@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import { DirectiveContentSchema } from '@/shared/ipc/specs/sidecar'
 
-import { createDirective, findFreeName } from '@/views/directive/model/draft.ts'
+import { makeDirective, findFreeName } from '@/views/directive/model/draft.ts'
 
-describe('createDirective', function () {
+describe('makeDirective', function () {
   it('produces a skeleton the host-side contract accepts', function () {
-    const actual = createDirective('untitled')
+    const actual = makeDirective('untitled')
 
     expect(actual.name).toBe('untitled')
     expect(actual.steps).toEqual([])

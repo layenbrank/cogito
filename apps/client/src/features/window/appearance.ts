@@ -23,7 +23,7 @@ const APPEARANCE_SYNC = 'appearance://sync'
 const OVERLAY_WINDOW_LABEL = 'overlay'
 
 /** 主窗 / 磁贴窗可套 mica；overlay 必须保持真透明（截屏 conceal 依赖这一点） */
-function canApplyWindowEffects(label: string) {
+function canUseWindowEffects(label: string) {
   return label !== OVERLAY_WINDOW_LABEL
 }
 
@@ -76,7 +76,7 @@ interface Appearance {
   radius: number
 }
 
-const DEFAULT_APPEARANCE: Appearance = {
+const APPEARANCE: Appearance = {
   mode: 'system',
   motion: 'system',
   color: PRIMARY_PRESETS[0].value,
@@ -100,12 +100,12 @@ function subscribeAppearance(listener: () => void) {
   }
 }
 
-function loadAppearance(): Appearance {
+function findStoredAppearance(): Appearance {
   try {
     return parseAppearance(findPref('window').appearance)
   } catch (error) {
     console.warn('[appearance] 读不到外观配置', error)
-    return DEFAULT_APPEARANCE
+    return APPEARANCE
   }
 }
 
@@ -115,19 +115,19 @@ function rememberAppearance(next: Appearance) {
 }
 
 function parseAppearance(value: unknown): Appearance {
-  if (!value || typeof value !== 'object') return DEFAULT_APPEARANCE
+  if (!value || typeof value !== 'object') return APPEARANCE
 
   const input = value as Partial<Appearance>
   const mode = APPEARANCE_MODES.some(function (item) {
     return item.value === input.mode
   })
     ? (input.mode as AppearanceMode)
-    : DEFAULT_APPEARANCE.mode
+    : APPEARANCE.mode
   const motion = MOTION_PRESETS.some(function (item) {
     return item.value === input.motion
   })
     ? (input.motion as MotionPreference)
-    : DEFAULT_APPEARANCE.motion
+    : APPEARANCE.motion
   const preset = PRIMARY_PRESETS.find(function (item) {
     return item.value === input.color
   })
@@ -135,12 +135,12 @@ function parseAppearance(value: unknown): Appearance {
   return {
     mode,
     motion,
-    color: preset ? preset.value : DEFAULT_APPEARANCE.color,
-    foreground: preset ? preset.foreground : DEFAULT_APPEARANCE.foreground,
+    color: preset ? preset.value : APPEARANCE.color,
+    foreground: preset ? preset.foreground : APPEARANCE.foreground,
     radius:
       typeof input.radius === 'number' && Number.isFinite(input.radius)
         ? Math.min(RADIUS_RANGE.max, Math.max(RADIUS_RANGE.min, input.radius))
-        : DEFAULT_APPEARANCE.radius
+        : APPEARANCE.radius
   }
 }
 
@@ -212,7 +212,7 @@ function syncNativeWindow(appearance: Appearance) {
   if (!('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window)) return
 
   const win = getCurrentWindow()
-  if (!canApplyWindowEffects(win.label)) {
+  if (!canUseWindowEffects(win.label)) {
     void win.clearEffects().catch(function (error: unknown) {
       console.warn('[appearance] clearEffects 失败', error)
     })
@@ -244,7 +244,7 @@ function paintDocument() {
   root.style.setProperty('--radius', `${appearance.radius}px`)
 }
 
-function applyAppearance(appearance: Appearance) {
+function syncAppearance(appearance: Appearance) {
   if (typeof document === 'undefined') return
 
   paintDocument()
@@ -254,7 +254,7 @@ function applyAppearance(appearance: Appearance) {
 
 function readAppearance(): Appearance {
   if (cachedAppearance) return cachedAppearance
-  return rememberAppearance(loadAppearance())
+  return rememberAppearance(findStoredAppearance())
 }
 
 /** MotionConfig 用：原始字符串，Object.is 稳定，可直接作 getSnapshot */
@@ -296,11 +296,11 @@ function adoptAppearance(raw: unknown) {
 }
 
 function resetAppearance() {
-  storeAppearance(DEFAULT_APPEARANCE)
-  rememberAppearance(DEFAULT_APPEARANCE)
+  storeAppearance(APPEARANCE)
+  rememberAppearance(APPEARANCE)
   watchAppearance()
-  publishAppearance(DEFAULT_APPEARANCE)
-  return DEFAULT_APPEARANCE
+  publishAppearance(APPEARANCE)
+  return APPEARANCE
 }
 
 let stopWatch: (() => void) | null = null
@@ -312,14 +312,14 @@ function watchAppearance() {
   if (typeof window === 'undefined') return
 
   const appearance = readAppearance()
-  applyAppearance(appearance)
+  syncAppearance(appearance)
 
   const cleanups: Array<() => void> = []
 
   if (appearance.mode === 'system') {
     const colorScheme = window.matchMedia('(prefers-color-scheme: dark)')
     function onColorScheme() {
-      if (readAppearance().mode === 'system') applyAppearance(readAppearance())
+      if (readAppearance().mode === 'system') syncAppearance(readAppearance())
     }
     colorScheme.addEventListener('change', onColorScheme)
     cleanups.push(function () {
@@ -330,7 +330,7 @@ function watchAppearance() {
   if (appearance.motion === 'system') {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
     function onReducedMotion() {
-      if (readAppearance().motion === 'system') applyAppearance(readAppearance())
+      if (readAppearance().motion === 'system') syncAppearance(readAppearance())
     }
     reduced.addEventListener('change', onReducedMotion)
     cleanups.push(function () {
@@ -347,12 +347,12 @@ function watchAppearance() {
 export {
   APPEARANCE_MODES,
   APPEARANCE_SYNC,
-  DEFAULT_APPEARANCE,
+  APPEARANCE,
   MOTION_PRESETS,
   PRIMARY_PRESETS,
   RADIUS_PRESETS,
   adoptAppearance,
-  canApplyWindowEffects,
+  canUseWindowEffects,
   findEffectiveMotion,
   findMotionConfig,
   findReducedMotion,

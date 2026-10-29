@@ -20,7 +20,7 @@ import {
   constrainRatioPoint,
   type Point
 } from '@/features/capture/capture-selection'
-import { createHoverProbe, type HoverProbe } from '@/features/capture/hover-probe'
+import { makeHoverProbe, type HoverProbe } from '@/features/capture/hover-probe'
 import {
   buildRegionIndex,
   findHoverStack,
@@ -35,7 +35,7 @@ import {
 type StageEvent = Konva.KonvaEventObject<MouseEvent>
 type Phase = 'selecting' | 'annotating' | 'editing'
 type Selection = (Point & { w: number; h: number }) | null
-type ApplyHover = (pt: Point, keepIndex: boolean) => void
+type UpdateHover = (pt: Point, keepIndex: boolean) => void
 
 interface UseCaptureStageOptions {
   phase: Phase
@@ -93,7 +93,7 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
   const snapCandidateRef = useRef<CaptureRegion | null>(null)
   const lastAppliedRef = useRef('')
   const optionsRef = useRef(options)
-  const applyHoverRef = useRef<ApplyHover>(function () {})
+  const updateHoverRef = useRef<UpdateHover>(function () {})
   const probeRef = useRef<HoverProbe | null>(null)
   const screenSizeRef = useRef(readScreenSize())
   const indexRef = useRef<RegionIndex>({ groups: [] })
@@ -119,7 +119,7 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
   }
 
   /** 悬停选中：矩形没变就不触发重渲染（mousemove 频率下这很关键） */
-  function applySelection(candidate: CaptureRegion | null) {
+  function writeSelection(candidate: CaptureRegion | null) {
     const key = candidate
       ? `${candidate.x},${candidate.y},${candidate.w},${candidate.h}`
       : ''
@@ -144,7 +144,7 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
   }
 
   /** 应用候选栈当前层；`keepIndex` 为真时保留用户滚轮选定的层 */
-  function applyHover(pt: Point, keepIndex: boolean) {
+  function updateHover(pt: Point, keepIndex: boolean) {
     const stack = resolveStack(pt)
     const first = stack.levels[0]
     const key = first ? `${first.kind ?? ''}:${first.x}:${first.y}:${first.w}:${first.h}` : ''
@@ -158,13 +158,13 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
     hoverIndexRef.current = index
     const candidate = hasRealCandidate(stack) ? (stack.levels[index] ?? null) : null
     setHoverLabel(describe(candidate))
-    applySelection(candidate)
+    writeSelection(candidate)
   }
 
-  // options / applyHover 通过 ref 透传给探测回调，避免每次渲染重建调度器
+  // options / updateHover 通过 ref 透传给探测回调，避免每次渲染重建调度器
   useEffect(function () {
     optionsRef.current = options
-    applyHoverRef.current = applyHover
+    updateHoverRef.current = updateHover
   })
 
   // 视口尺寸缓存：窗口铺满屏幕，只有 resize 才会变
@@ -181,7 +181,7 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
 
   // 探测调度器只创建一次；停住才探测，移动过程中不做光标穿透
   useEffect(function () {
-    const probe = createHoverProbe({
+    const probe = makeHoverProbe({
       probe: function (x, y) {
         const find = optionsRef.current.probeElements
         return find ? find(x, y) : Promise.resolve([])
@@ -190,7 +190,7 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
         elementsRef.current = chain
         const latest = pointerRef.current
         if (latest && optionsRef.current.phase === 'selecting' && !isDraggingRef.current) {
-          applyHoverRef.current(latest, true)
+          updateHoverRef.current(latest, true)
         }
       }
     })
@@ -321,7 +321,7 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
     }
 
     if (options.phase === 'selecting' && (options.isWindowDetect || options.isElementDetect)) {
-      applyHover(pt, true)
+      updateHover(pt, true)
       requestProbe(pt)
       return
     }
@@ -453,7 +453,7 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
     hoverIndexRef.current = next
     const candidate = hasRealCandidate(stack) ? (stack.levels[next] ?? null) : null
     setHoverLabel(describe(candidate))
-    applySelection(candidate)
+    writeSelection(candidate)
     return true
   }
 

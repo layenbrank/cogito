@@ -53,7 +53,7 @@ function matchesCondition(event: AutomationEvent, condition: AutomationCondition
   return true
 }
 
-function applyRules(event: AutomationEvent, rules: AutomationRule[]) {
+function matchRules(event: AutomationEvent, rules: AutomationRule[]) {
   const matched: { ruleID: string; actions: AutomationAction[] }[] = []
   for (const rule of rules) {
     if (!rule.enabled) continue
@@ -68,4 +68,4 @@ function applyRules(event: AutomationEvent, rules: AutomationRule[]) {
 }
 
 export type { AutomationAction, AutomationCondition, AutomationEvent, AutomationRule }
-export { applyRules, parseActions, parseCondition }
+export { matchRules, parseActions, parseCondition }
