@@ -1,6 +1,7 @@
 //! 知识库 IPC：列表/新建、文档摘要、检索、staging 草稿的发布与丢弃。
 //!
 //! 语义都在 `cogito_core::knowledge::Service`；这里只做参数整形与错误透传。
+#![allow(non_snake_case)]
 use cogito_core::CommandResult;
 use cogito_core::knowledge::{
     CloudDoc, CloudPatch, CloudState, DocRef, DocSummary, Hit, PublishMode, Service, StagedDoc,
