@@ -246,6 +246,7 @@ export function useNavigationTree(input: {
       fetchGenRef.current += 1
 
       // 不预置 isLoading：由 fetchChildren 置位。预置 true 会与「isLoading 则 return」互锁，骨架永不结束
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 换根/revision 时重置树，副作用里同时清缓存并 fetch
       setTreeNodes([
         {
           title: rootTitle,
@@ -292,6 +293,7 @@ export function useNavigationTree(input: {
         ancestorKeys.push(acc)
       }
 
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 恢复上次文件时展开祖先并按需灌入
       setExpandedKeys(function (prev) {
         let changed = !prev.has(ROOT_KEY)
         const next = new Set(prev)

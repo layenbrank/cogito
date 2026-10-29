@@ -72,7 +72,7 @@ function toCloudInput(input: {
   enabled?: boolean
   runAsKind?: string
 }) {
-  const runAsKind =
+  const runAsKind: 'user' | 'tenant' =
     input.runAsKind === RUN_AS.TENANT || input.runAsKind === 'tenant' ? 'tenant' : 'user'
   return {
     id: input.id,
@@ -81,7 +81,7 @@ function toCloudInput(input: {
     cron: input.schedule,
     timezone: input.timezone,
     enabled: input.enabled,
-    runAsKind: runAsKind as 'user' | 'tenant'
+    runAsKind
   }
 }
 

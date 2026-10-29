@@ -5,7 +5,7 @@ import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import type { ContentHit } from '@/lib/workspace-files'
 import { cn } from 'cn'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { buildPattern } from '@/views/code/lib/search-query.ts'
 import type { SearchQuery } from '@/views/code/lib/search-query.ts'
@@ -54,14 +54,12 @@ function FileGroupRow(props: {
   onOpen: (hit: ContentHit) => void
 }) {
   const [isOpen, updateOpen] = useState(true)
+  const [seenCollapseToken, setSeenCollapseToken] = useState(props.collapseToken)
+  if (props.collapseToken !== seenCollapseToken) {
+    setSeenCollapseToken(props.collapseToken)
+    if (props.collapseToken > 0) updateOpen(false)
+  }
   const name = props.group.relative.split('/').pop() ?? props.group.relative
-
-  useEffect(
-    function () {
-      if (props.collapseToken > 0) updateOpen(false)
-    },
-    [props.collapseToken]
-  )
 
   return (
     <li className="mb-0.5">

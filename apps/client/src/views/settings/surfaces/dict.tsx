@@ -2,7 +2,7 @@
  * 设置 · 状态文案：改字典 label（禁止改 value）。
  */
 import { Input } from '@cogito/design/components/input'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { DICT_TYPE } from '@/shared/ipc/specs/dict'
@@ -40,27 +40,31 @@ function DictSurface() {
   const updateLabel = useDictStore(function (state) {
     return state.updateLabel
   })
-  const [drafts, setDrafts] = useState<Record<string, string>>({})
-
-  useEffect(
+  const storeLabels = useMemo(
     function () {
-      void bootstrap()
-    },
-    [bootstrap]
-  )
-
-  useEffect(
-    function () {
-      if (!isReady) return
+      if (!isReady) return null
       const next: Record<string, string> = {}
       for (const group of EDITABLE_TYPES) {
         for (const item of byType[group.code] ?? []) {
           next[item.id] = item.label
         }
       }
-      setDrafts(next)
+      return next
     },
     [byType, isReady]
+  )
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [labelsSnap, setLabelsSnap] = useState<Record<string, string> | null>(null)
+  if (storeLabels && storeLabels !== labelsSnap) {
+    setLabelsSnap(storeLabels)
+    setDrafts(storeLabels)
+  }
+
+  useEffect(
+    function () {
+      void bootstrap()
+    },
+    [bootstrap]
   )
 
   async function commitLabel(id: string) {

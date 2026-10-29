@@ -58,18 +58,14 @@ export default function Code() {
   const isDiffOpen = Boolean(diff)
   // DiffEditor 创建/销毁很贵；第一次打开后常驻，关掉时只 hidden
   const [isDiffHostReady, setDiffHostReady] = useState(false)
+  if (isDiffOpen && !isDiffHostReady) {
+    setDiffHostReady(true)
+  }
 
   // 只为订阅覆盖值：用户改了键位，下面的空态提示要跟着变
   useSettingsStore(function (state) {
     return state.settings.shortcuts.bindings
   })
-
-  useEffect(
-    function () {
-      if (isDiffOpen) setDiffHostReady(true)
-    },
-    [isDiffOpen]
-  )
 
   useEffect(function () {
     return function () {

@@ -29,9 +29,9 @@ function preserveCase(matched: string, replacement: string): string {
   if (matched === matched.toUpperCase()) return replacement.toUpperCase()
   if (matched === matched.toLowerCase()) return replacement.toLowerCase()
 
+  const head = matched[0] ?? ''
   const isTitle =
-    matched[0] === matched[0]!.toUpperCase() &&
-    matched.slice(1) === matched.slice(1).toLowerCase()
+    head === head.toUpperCase() && matched.slice(1) === matched.slice(1).toLowerCase()
   if (isTitle) {
     return replacement.charAt(0).toUpperCase() + replacement.slice(1).toLowerCase()
   }
@@ -39,7 +39,7 @@ function preserveCase(matched: string, replacement: string): string {
   let out = ''
   for (let index = 0; index < replacement.length; index += 1) {
     const source = matched[Math.min(index, matched.length - 1)] ?? ''
-    const ch = replacement[index]!
+    const ch = replacement[index] ?? ''
     out +=
       source === source.toUpperCase() && source !== source.toLowerCase()
         ? ch.toUpperCase()

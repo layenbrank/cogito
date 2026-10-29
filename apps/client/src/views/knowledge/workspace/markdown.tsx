@@ -8,7 +8,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { watch } from '@tauri-apps/plugin-fs'
 import { useEditor as useComposer, type Editor } from '@tiptap/react'
 import { clsx } from 'clsx'
-import { startTransition, useEffect, useRef, useState } from 'react'
+import { startTransition, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { isMainWindow, MAIN_WINDOW_TITLE } from '@/features/magnetic-tile/session'
@@ -413,7 +413,6 @@ function WorkspaceSurfaces(props: {
   onSourceChange: (value: string) => void
 }) {
   const liveScrollRef = useRef<HTMLDivElement | null>(null)
-  const scrollRatioRef = useRef(0)
   const [scrollRatio, setScrollRatio] = useState(0)
   const [scrollDocKey, setScrollDocKey] = useState(props.activePath)
   const [wasDocLoading, setWasDocLoading] = useState(props.isDocLoading)
@@ -421,15 +420,11 @@ function WorkspaceSurfaces(props: {
   // 打开另一文件或同源 force 重载结束：同步把比例清零，避免旧 ratio 写回新文档
   if (props.activePath !== scrollDocKey) {
     setScrollDocKey(props.activePath)
-    scrollRatioRef.current = 0
     if (scrollRatio !== 0) setScrollRatio(0)
   }
   if (props.isDocLoading !== wasDocLoading) {
     setWasDocLoading(props.isDocLoading)
-    if (!props.isDocLoading) {
-      scrollRatioRef.current = 0
-      if (scrollRatio !== 0) setScrollRatio(0)
-    }
+    if (!props.isDocLoading && scrollRatio !== 0) setScrollRatio(0)
   }
 
   useEffect(
@@ -450,12 +445,10 @@ function WorkspaceSurfaces(props: {
   )
 
   function onLiveScroll(ratio: number) {
-    scrollRatioRef.current = ratio
     setScrollRatio(ratio)
   }
 
   function onSourceScroll(ratio: number) {
-    scrollRatioRef.current = ratio
     setScrollRatio(ratio)
     const host = liveScrollRef.current
     if (!host) return
@@ -690,7 +683,9 @@ export default function KnowledgeWorkspace() {
   })
 
   const openPathRef = useRef(handleOpenPath)
-  openPathRef.current = handleOpenPath
+  useLayoutEffect(function () {
+    openPathRef.current = handleOpenPath
+  })
 
   // 编辑器 ↔ 对话坞 / 左栏 / 大纲：读选区、写回、打开路径、跳转
   useEffect(

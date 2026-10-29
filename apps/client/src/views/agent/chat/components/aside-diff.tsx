@@ -40,6 +40,7 @@ function AsideHunks(props: {
   onMore: () => void
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const { hasMore, isLoading, onMore } = props
 
   useEffect(
     function () {
@@ -48,8 +49,8 @@ function AsideHunks(props: {
       function onScroll() {
         if (!node) return
         const remain = node.scrollHeight - node.scrollTop - node.clientHeight
-        if (remain < 160 && props.hasMore && !props.isLoading) {
-          props.onMore()
+        if (remain < 160 && hasMore && !isLoading) {
+          onMore()
         }
       }
       node.addEventListener('scroll', onScroll, { passive: true })
@@ -57,7 +58,7 @@ function AsideHunks(props: {
         node.removeEventListener('scroll', onScroll)
       }
     },
-    [props.hasMore, props.isLoading, props.onMore]
+    [hasMore, isLoading, onMore]
   )
 
   return (

@@ -70,15 +70,14 @@ function HunksView() {
   const diff = useCodeGitStore(function (state) {
     return state.diff
   })
+  const relative = diff?.relative
   const [collapsed, updateCollapsed] = useState<Record<string, boolean>>({})
+  const [collapsedRelative, setCollapsedRelative] = useState(relative)
+  if (relative !== collapsedRelative) {
+    setCollapsedRelative(relative)
+    updateCollapsed({})
+  }
   const scrollRef = useRef<HTMLDivElement>(null)
-
-  useEffect(
-    function () {
-      updateCollapsed({})
-    },
-    [diff?.relative]
-  )
 
   useEffect(
     function () {

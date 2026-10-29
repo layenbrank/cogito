@@ -100,7 +100,7 @@ function SourceEditor(props: SourceEditorProps) {
         if (position) editor.setPosition(position)
         const height = editor.getScrollHeight() - editor.getLayoutInfo().height
         const ratio = props.scrollRatio
-        editor.setScrollTop(height <= 0 || ratio == null ? 0 : height * ratio)
+        editor.setScrollTop(height <= 0 || ratio === undefined ? 0 : height * ratio)
       }
       requestAnimationFrame(function () {
         suppressingRef.current = false
