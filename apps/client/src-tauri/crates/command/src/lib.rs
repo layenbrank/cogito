@@ -31,6 +31,7 @@ pub mod agent_usage;
 pub mod agent_workspace;
 #[allow(non_snake_case)]
 pub mod agent_workspace_folder;
+pub mod git;
 #[allow(non_snake_case)]
 pub mod workspaceFiles;
 #[allow(non_snake_case)]

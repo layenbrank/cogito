@@ -11,3 +11,7 @@ serde             = { workspace = true }
 serde_json        = { workspace = true }
 tokio             = { workspace = true }
 regex             = { workspace = true }
+# 只读 Git：blob / diff / probe；写操作仍走系统 git CLI
+gix               = "0.70"
+similar           = "2"
+parking_lot       = "0.12"
