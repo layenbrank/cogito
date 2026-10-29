@@ -234,12 +234,14 @@ function buildColors(palette: CodePalette): Record<string, string> {
     'menu.selectionForeground': palette.primaryForeground,
     'menu.separatorBackground': softBorder,
 
-    'diffEditor.insertedTextBackground': withAlpha(palette.success, 0.16),
-    'diffEditor.removedTextBackground': withAlpha(palette.destructive, 0.16),
-    'diffEditor.insertedLineBackground': withAlpha(palette.success, 0.08),
-    'diffEditor.removedLineBackground': withAlpha(palette.destructive, 0.08),
-    'diffEditor.insertedTextBorder': withAlpha(palette.success, 0.5),
-    'diffEditor.removedTextBorder': withAlpha(palette.destructive, 0.5),
+    // Monaco 会给每个 line-insert / line-delete 画 1px 边框。
+    // 边框不透明时，连续改动的上下边会叠成一排横线，所以边框保持全透明，只留整行底色。
+    'diffEditor.insertedTextBackground': withAlpha(palette.success, 0.28),
+    'diffEditor.removedTextBackground': withAlpha(palette.destructive, 0.28),
+    'diffEditor.insertedLineBackground': withAlpha(palette.success, 0.16),
+    'diffEditor.removedLineBackground': withAlpha(palette.destructive, 0.16),
+    'diffEditor.insertedTextBorder': withAlpha(palette.success, 0),
+    'diffEditor.removedTextBorder': withAlpha(palette.destructive, 0),
     'diffEditor.diagonalFill': withAlpha(foreground, 0.08),
     'diffEditorOverview.insertedForeground': palette.success,
     'diffEditorOverview.removedForeground': palette.destructive,

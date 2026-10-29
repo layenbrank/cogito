@@ -169,11 +169,14 @@ function syncPendingReveal(editor: monaco.editor.IStandaloneCodeEditor, model: m
 
 interface MonacoHostProps {
   className?: string
+  /** 被差异层盖住时为 false：从 hidden 恢复后补一次 layout */
+  isActive?: boolean
 }
 
 function MonacoHost(props: MonacoHostProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
+  const isActive = props.isActive !== false
   const activeTabId = useCodeStore(function (state) {
     return state.activeTabId
   })
@@ -249,6 +252,19 @@ function MonacoHost(props: MonacoHostProps) {
       editorRef.current?.updateOptions(toFontOptions(editorPrefs))
     },
     [editorPrefs]
+  )
+
+  // 差异层关掉后宿主从 display:none 回来，ResizeObserver 不一定立刻补布局
+  useEffect(
+    function () {
+      if (!isActive) return
+      const editor = editorRef.current
+      if (!editor) return
+      requestAnimationFrame(function () {
+        editor.layout()
+      })
+    },
+    [isActive]
   )
 
   // 同一文件内再次点搜索结果时，模型没换过，靠这个副作用重新定位
