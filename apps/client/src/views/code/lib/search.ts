@@ -1,15 +1,15 @@
 /**
- * 工作区搜索的匹配器与批量替换。
+ * 工作区搜索的批量替换。
  *
- * 检索走 Rust（`workspaceFiles:content`，快且能套 git 索引）；替换留在前端，
- * 用与用户所见一致的 JS RegExp 重新扫描每个文件 —— 避免正则方言差异导致
- * 「预览到的命中」和「实际被替换的位置」对不上。
+ * 检索与替换都走 Rust（`workspaceFiles:content` / `workspaceFiles:replace`），
+ * 共用同一套 regex 语义；前端只负责同步 Monaco 模型与 tab 脏标记。
+ *
+ * `preserveCase` 仍导出，作为与 Rust 对齐的契约单测。
  */
+import { WorkspaceFiles } from '@/lib/workspace-files'
 import { useCodeStore } from '@/stores/code'
-import { readCodeFile, writeCodeFile } from '@/views/code/lib/fs.ts'
 import { findModel } from '@/views/code/lib/monaco-models.ts'
-import { buildMatcher } from '@/views/code/lib/search-query.ts'
-import type { SearchQuery } from '@/views/code/lib/search-query.ts'
+import { isValidQuery, type SearchQuery } from '@/views/code/lib/search-query.ts'
 
 interface ReplaceOutcome {
   /** 替换成功的文件（绝对路径）与命中次数 */
@@ -48,57 +48,8 @@ function preserveCase(matched: string, replacement: string): string {
   return out
 }
 
-/** 展开 JS 替换模板：`$$` / `$&` / `$`` / `$'` / `$n` */
-function expandRegexReplacement(replacement: string, match: RegExpExecArray): string {
-  return replacement.replace(/\$\$|\$&|\$`|\$'|\$(\d+)/g, function (token, group) {
-    if (token === '$$') return '$'
-    if (token === '$&') return match[0]
-    if (token === '$`') return match.input.slice(0, match.index)
-    if (token === "$'") return match.input.slice(match.index + match[0].length)
-    const index = Number(group)
-    return match[index] ?? token
-  })
-}
-
-function replaceContent(
-  content: string,
-  matcher: RegExp,
-  query: SearchQuery,
-  replacement: string,
-  isPreserveCase: boolean
-): string {
-  if (!isPreserveCase && query.isRegex) {
-    return content.replace(matcher, replacement)
-  }
-  if (!isPreserveCase) {
-    return content.replace(matcher, function () {
-      return replacement
-    })
-  }
-
-  matcher.lastIndex = 0
-  let out = ''
-  let last = 0
-  let found: RegExpExecArray | null
-  while ((found = matcher.exec(content)) !== null) {
-    out += content.slice(last, found.index)
-    const expanded = query.isRegex
-      ? expandRegexReplacement(replacement, found)
-      : replacement
-    out += preserveCase(found[0], expanded)
-    last = found.index + found[0].length
-    if (found[0].length === 0) {
-      matcher.lastIndex += 1
-    }
-  }
-  out += content.slice(last)
-  return out
-}
-
 /**
- * 逐个文件替换并写盘。
- *
- * 已打开的模型同步为新内容并标记为已保存 —— 磁盘已经改过了，再留着「未保存」会误导。
+ * 调用 Rust 批量替换，再把已打开模型同步为磁盘新内容。
  */
 async function replaceInFiles(params: {
   paths: string[]
@@ -106,42 +57,42 @@ async function replaceInFiles(params: {
   replacement: string
   isPreserveCase?: boolean
 }): Promise<ReplaceOutcome> {
-  const matcher = buildMatcher(params.query)
-  if (!matcher) throw new Error('搜索内容不能为空')
-
-  const isPreserveCase = Boolean(params.isPreserveCase)
-  const changed: ReplaceOutcome['changed'] = []
-  const failed: ReplaceOutcome['failed'] = []
-
-  for (const path of params.paths) {
-    try {
-      const content = await readCodeFile(path)
-      const next = replaceContent(
-        content,
-        matcher,
-        params.query,
-        params.replacement,
-        isPreserveCase
-      )
-      if (next === content) continue
-      const count = content.match(matcher)?.length ?? 0
-      await writeCodeFile(path, next)
-      const model = findModel(path)
-      if (model && !model.isDisposed()) model.setValue(next)
-      const tab = useCodeStore.getState().tabs.find(function (item) {
-        return item.path === path
-      })
-      if (tab) useCodeStore.getState().toMarkSaved(tab.id)
-      changed.push({ path, count })
-    } catch (error) {
-      console.error('[code] replace failed', path, error)
-      failed.push({
-        path,
-        message: error instanceof Error ? error.message : '替换失败'
-      })
-    }
+  if (!isValidQuery(params.query) || !params.query.query.trim()) {
+    throw new Error('搜索内容不能为空')
   }
-  return { changed, failed }
+  const root = useCodeStore.getState().workspaceRoot
+  if (!root) throw new Error('尚未打开工作区')
+
+  const outcome = await WorkspaceFiles.replace({
+    root,
+    paths: params.paths,
+    query: params.query.query,
+    isRegex: params.query.isRegex,
+    isCaseSensitive: params.query.isCaseSensitive,
+    isWholeWord: params.query.isWholeWord,
+    replacement: params.replacement,
+    isPreserveCase: Boolean(params.isPreserveCase)
+  })
+
+  for (const item of outcome.changed) {
+    const model = findModel(item.path)
+    if (model && !model.isDisposed()) model.setValue(item.content)
+    const tab = useCodeStore.getState().tabs.find(function (entry) {
+      return entry.path === item.path
+    })
+    if (tab) useCodeStore.getState().toMarkSaved(tab.id)
+  }
+
+  for (const item of outcome.failed) {
+    console.error('[code] replace failed', item.path, item.message)
+  }
+
+  return {
+    changed: outcome.changed.map(function (item) {
+      return { path: item.path, count: item.count }
+    }),
+    failed: outcome.failed
+  }
 }
 
 export { replaceInFiles, preserveCase }

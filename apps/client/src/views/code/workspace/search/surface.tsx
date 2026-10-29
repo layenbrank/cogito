@@ -61,6 +61,7 @@ function HeaderAction(props: {
   icon: string
   label: string
   isDisabled?: boolean
+  isSpinning?: boolean
   onClick(): void
 }) {
   return (
@@ -80,9 +81,46 @@ function HeaderAction(props: {
       }}>
       <Icon
         icon={props.icon}
-        className="size-3.5"
+        className={cn(
+          'size-3.5',
+          props.isSpinning && 'animate-spin motion-reduce:animate-none [animation-duration:0.7s]'
+        )}
       />
     </Button>
+  )
+}
+
+/** 状态行：搜索中用 spinner + shimmer；完成时淡入结果计数 */
+function SearchStatus(props: {
+  isSearching: boolean
+  fileCount: number
+  matchCount: number
+}) {
+  return (
+    <div
+      className="text-muted-foreground relative flex h-5 items-center gap-1.5 overflow-hidden px-1 text-[11px]"
+      aria-live="polite">
+      {props.isSearching ? (
+        <>
+          <Icon
+            icon="lucide:loader-circle"
+            className="size-3 shrink-0 animate-spin motion-reduce:animate-none [animation-duration:0.65s]"
+          />
+          <span className="shimmer motion-reduce:animate-none">正在搜索工作区…</span>
+        </>
+      ) : (
+        <span className="animate-in fade-in-0 slide-in-from-bottom-1 motion-reduce:animate-none duration-200">
+          {props.fileCount} 个文件，{props.matchCount} 个结果
+        </span>
+      )}
+      {props.isSearching ? (
+        <span
+          aria-hidden
+          className="via-primary/70 absolute inset-x-0 bottom-0 h-px overflow-hidden bg-border/40">
+          <span className="bg-primary absolute inset-y-0 w-1/3 animate-search-progress motion-reduce:animate-none rounded-full" />
+        </span>
+      ) : null}
+    </div>
   )
 }
 
@@ -109,8 +147,6 @@ function SearchSurface() {
   const [isCaseSensitive, setCaseSensitive] = useState(false)
   const [isWholeWord, setWholeWord] = useState(false)
   const [isRegex, setRegex] = useState(false)
-  const [isReplaceOpen, setReplaceOpen] = useState(false)
-  const [isDetailsOpen, setDetailsOpen] = useState(false)
   const [replacement, updateReplacement] = useState('')
   const [isPreserveCase, setPreserveCase] = useState(false)
   const [includes, updateIncludes] = useState('')
@@ -249,6 +285,7 @@ function SearchSurface() {
             icon="lucide:refresh-cw"
             label="刷新"
             isDisabled={!trimmed || !isQueryValid}
+            isSpinning={isSearching}
             onClick={onRefresh}
           />
           <HeaderAction
@@ -266,185 +303,133 @@ function SearchSurface() {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5 p-2 pt-1">
-        <div className="flex items-start gap-0.5">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            type="button"
-            aria-label={isReplaceOpen ? '收起替换' : '展开替换'}
-            aria-pressed={isReplaceOpen}
-            title="切换替换"
-            className="text-muted-foreground hover:text-foreground mt-1 flex size-5 shrink-0 items-center justify-center"
-            onClick={function () {
-              setReplaceOpen(!isReplaceOpen)
-            }}>
-            <Icon
-              icon={isReplaceOpen ? 'lucide:chevron-down' : 'lucide:chevron-right'}
-              className="size-3.5"
+      <div className="flex min-h-0 flex-1 flex-col gap-1 p-2 pt-1">
+        <div className="flex min-w-0 flex-col gap-1">
+          <FieldShell className={!isQueryValid ? 'border-destructive' : undefined}>
+            <input
+              value={query}
+              placeholder="搜索"
+              aria-label="在工作区中查找"
+              className="text-foreground placeholder:text-muted-foreground h-6 min-w-0 flex-1 bg-transparent px-1 text-xs outline-none"
+              onChange={function (event) {
+                updateQuery(event.target.value)
+              }}
+              onKeyDown={function (event) {
+                if (event.key === 'Enter') onRefresh()
+              }}
             />
-          </Button>
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <FieldShell className={!isQueryValid ? 'border-destructive' : undefined}>
-              <input
-                value={query}
-                placeholder="搜索"
-                aria-label="在工作区中查找"
-                className="text-foreground placeholder:text-muted-foreground h-6 min-w-0 flex-1 bg-transparent px-1 text-xs outline-none"
-                onChange={function (event) {
-                  updateQuery(event.target.value)
-                }}
-                onKeyDown={function (event) {
-                  if (event.key === 'Enter') onRefresh()
-                }}
-              />
-              <ToggleButton
-                icon="lucide:case-sensitive"
-                label="区分大小写"
-                isActive={isCaseSensitive}
-                onClick={function () {
-                  setCaseSensitive(!isCaseSensitive)
-                }}
-              />
-              <ToggleButton
-                icon="lucide:whole-word"
-                label="全字匹配"
-                isActive={isWholeWord}
-                onClick={function () {
-                  setWholeWord(!isWholeWord)
-                }}
-              />
-              <ToggleButton
-                icon="lucide:regex"
-                label="使用正则表达式"
-                isActive={isRegex}
-                onClick={function () {
-                  setRegex(!isRegex)
-                }}
-              />
-            </FieldShell>
-
-            {isReplaceOpen ? (
-              <FieldShell>
-                <input
-                  value={replacement}
-                  placeholder="替换"
-                  aria-label="替换为"
-                  className="text-foreground placeholder:text-muted-foreground h-6 min-w-0 flex-1 bg-transparent px-1 text-xs outline-none"
-                  onChange={function (event) {
-                    updateReplacement(event.target.value)
-                  }}
-                />
-                <ToggleButton
-                  icon="lucide:case-upper"
-                  label="保留大小写"
-                  isActive={isPreserveCase}
-                  onClick={function () {
-                    setPreserveCase(!isPreserveCase)
-                  }}
-                />
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  type="button"
-                  aria-label="全部替换"
-                  title="全部替换"
-                  disabled={!canReplace}
-                  className={cn(
-                    'flex size-5 shrink-0 items-center justify-center rounded-sm',
-                    canReplace
-                      ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                      : 'text-muted-foreground/40 pointer-events-none'
-                  )}
-                  onClick={function () {
-                    setConfirmOpen(true)
-                  }}>
-                  <Icon
-                    icon="lucide:replace-all"
-                    className="size-3.5"
-                  />
-                </Button>
-              </FieldShell>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end px-0.5">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            type="button"
-            aria-label={isDetailsOpen ? '收起文件筛选' : '展开文件筛选'}
-            aria-pressed={isDetailsOpen}
-            title="切换搜索详细信息"
-            className={cn(
-              'text-muted-foreground hover:bg-muted hover:text-foreground flex size-5 items-center justify-center rounded-sm',
-              isDetailsOpen && 'bg-muted text-foreground'
-            )}
-            onClick={function () {
-              setDetailsOpen(!isDetailsOpen)
-            }}>
-            <Icon
-              icon="lucide:ellipsis"
-              className="size-3.5"
+            <ToggleButton
+              icon="lucide:case-sensitive"
+              label="区分大小写"
+              isActive={isCaseSensitive}
+              onClick={function () {
+                setCaseSensitive(!isCaseSensitive)
+              }}
             />
-          </Button>
-        </div>
+            <ToggleButton
+              icon="lucide:whole-word"
+              label="全字匹配"
+              isActive={isWholeWord}
+              onClick={function () {
+                setWholeWord(!isWholeWord)
+              }}
+            />
+            <ToggleButton
+              icon="lucide:regex"
+              label="使用正则表达式"
+              isActive={isRegex}
+              onClick={function () {
+                setRegex(!isRegex)
+              }}
+            />
+          </FieldShell>
 
-        {isDetailsOpen ? (
-          <div className="flex flex-col gap-1.5 pl-[22px]">
-            <label className="flex flex-col gap-0.5">
-              <span className="text-muted-foreground text-[11px]">包含的文件</span>
-              <FieldShell>
-                <input
-                  value={includes}
-                  placeholder="例如 *.ts, src"
-                  aria-label="包含的文件"
-                  className="text-foreground placeholder:text-muted-foreground h-6 min-w-0 flex-1 bg-transparent px-1 text-xs outline-none"
-                  onChange={function (event) {
-                    updateIncludes(event.target.value)
-                  }}
-                />
-              </FieldShell>
-            </label>
-            <label className="flex flex-col gap-0.5">
-              <span className="text-muted-foreground text-[11px]">排除的文件</span>
-              <FieldShell>
-                <input
-                  value={excludes}
-                  placeholder="例如 dist, **/*.min.js"
-                  aria-label="排除的文件"
-                  className="text-foreground placeholder:text-muted-foreground h-6 min-w-0 flex-1 bg-transparent px-1 text-xs outline-none"
-                  onChange={function (event) {
-                    updateExcludes(event.target.value)
-                  }}
-                />
-              </FieldShell>
-            </label>
-          </div>
-        ) : null}
+          <FieldShell>
+            <input
+              value={replacement}
+              placeholder="替换"
+              aria-label="替换为"
+              className="text-foreground placeholder:text-muted-foreground h-6 min-w-0 flex-1 bg-transparent px-1 text-xs outline-none"
+              onChange={function (event) {
+                updateReplacement(event.target.value)
+              }}
+            />
+            <ToggleButton
+              icon="lucide:case-upper"
+              label="保留大小写"
+              isActive={isPreserveCase}
+              onClick={function () {
+                setPreserveCase(!isPreserveCase)
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              type="button"
+              aria-label="全部替换"
+              title="全部替换"
+              disabled={!canReplace}
+              className={cn(
+                'flex size-5 shrink-0 items-center justify-center rounded-sm',
+                canReplace
+                  ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  : 'text-muted-foreground/40 pointer-events-none'
+              )}
+              onClick={function () {
+                setConfirmOpen(true)
+              }}>
+              <Icon
+                icon="lucide:replace-all"
+                className="size-3.5"
+              />
+            </Button>
+          </FieldShell>
+
+          <FieldShell>
+            <input
+              value={includes}
+              placeholder="包含的文件，例如 *.ts, src"
+              aria-label="包含的文件"
+              className="text-foreground placeholder:text-muted-foreground h-6 min-w-0 flex-1 bg-transparent px-1 text-xs outline-none"
+              onChange={function (event) {
+                updateIncludes(event.target.value)
+              }}
+            />
+          </FieldShell>
+          <FieldShell>
+            <input
+              value={excludes}
+              placeholder="排除的文件，例如 dist, **/*.min.js"
+              aria-label="排除的文件"
+              className="text-foreground placeholder:text-muted-foreground h-6 min-w-0 flex-1 bg-transparent px-1 text-xs outline-none"
+              onChange={function (event) {
+                updateExcludes(event.target.value)
+              }}
+            />
+          </FieldShell>
+        </div>
 
         {!isQueryValid ? (
           <p className="text-destructive px-1 text-[11px]">表达式无效</p>
-        ) : (
-          <p className="text-muted-foreground px-1 text-[11px]">
-            {isSearching
-              ? '搜索中…'
-              : trimmed && isQueryValid
-                ? `${groups.length} 个文件，${totalMatches} 个结果`
-                : '\u00a0'}
-          </p>
-        )}
+        ) : trimmed && isQueryValid ? (
+          <SearchStatus
+            isSearching={isSearching}
+            fileCount={groups.length}
+            matchCount={totalMatches}
+          />
+        ) : null}
 
         {!workspaceRoot ? (
           <p className="text-muted-foreground px-1 text-xs">尚未打开文件夹</p>
         ) : trimmed && !isSearching && isQueryValid && hits.length === 0 ? (
-          <p className="text-muted-foreground px-1 text-xs">没有匹配内容</p>
+          <p className="text-muted-foreground animate-in fade-in-0 motion-reduce:animate-none px-1 text-xs duration-200">
+            没有匹配内容
+          </p>
         ) : null}
 
         <SearchResults
           hits={isActive ? hits : []}
-          query={searchQuery}
+          isSearching={isSearching}
           isTruncated={isActive && isTruncated}
           collapseToken={collapseToken}
           onOpen={onOpenHit}

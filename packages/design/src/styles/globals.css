@@ -228,6 +228,7 @@
    */
   --animate-collapsible-down: collapsible-down 0.2s ease-out;
   --animate-collapsible-up: collapsible-up 0.2s ease-out;
+  --animate-search-progress: search-progress 1.1s ease-in-out infinite;
 
   @keyframes collapsible-down {
     from {
@@ -243,6 +244,15 @@
     }
     to {
       height: 0;
+    }
+  }
+  /** 搜索面板不确定进度条：光点左右扫过 */
+  @keyframes search-progress {
+    0% {
+      transform: translateX(-120%);
+    }
+    100% {
+      transform: translateX(320%);
     }
   }
   --radius-2xl: calc(var(--radius) * 1.8);
