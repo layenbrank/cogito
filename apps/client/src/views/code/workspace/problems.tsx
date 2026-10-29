@@ -1,10 +1,12 @@
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import * as monaco from 'monaco-editor'
 import { useEffect, useState } from 'react'
 
 import { useCodeStore } from '@/stores/code'
 import { findModel } from '@/views/code/lib/monaco-models.ts'
-import { findModelMarkers, pushProblemCounts } from '@/views/code/lib/monaco-markers.ts'
+import { findModelMarkers } from '@/views/code/lib/monaco-markers.ts'
+import { revealLocation } from '@/views/code/lib/open-file.ts'
 
 interface ProblemRow {
   message: string
@@ -39,7 +41,6 @@ function Problems() {
         const model = activeTab ? findModel(activeTab.path) : null
         if (!model) {
           setRows([])
-          pushProblemCounts(null)
           return
         }
         const markers = findModelMarkers(model)
@@ -54,10 +55,10 @@ function Problems() {
             }
           })
         )
-        pushProblemCounts(model)
       }
 
       refresh()
+      // 状态栏计数由 MonacoHost 统一 pushProblemCounts，这里只刷列表
       const disposable = monaco.editor.onDidChangeMarkers(function () {
         refresh()
       })
@@ -84,14 +85,23 @@ function Problems() {
     <ul className="h-full overflow-y-auto p-1 text-xs">
       {rows.map(function (row) {
         return (
-          <li
-            key={`${row.line}:${row.column}:${row.severity}:${row.message}`}
-            className="hover:bg-muted flex items-start gap-2 rounded-sm px-2 py-1">
-            <span className="text-muted-foreground shrink-0">{severityLabel(row.severity)}</span>
-            <span className="text-foreground min-w-0 flex-1 wrap-break-word">{row.message}</span>
-            <span className="text-muted-foreground shrink-0">
-              Ln {row.line}, Col {row.column}
-            </span>
+          <li key={`${row.line}:${row.column}:${row.severity}:${row.message}`}>
+            <Button
+              variant="ghost"
+              type="button"
+              className="hover:bg-muted flex h-auto w-full items-start justify-start gap-2 rounded-sm px-2 py-1 text-left text-xs"
+              onClick={function () {
+                if (!activeTab) return
+                void revealLocation(activeTab.path, row.line, row.column)
+              }}>
+              <span className="text-muted-foreground shrink-0">{severityLabel(row.severity)}</span>
+              <span className="text-foreground min-w-0 flex-1 wrap-break-word font-normal">
+                {row.message}
+              </span>
+              <span className="text-muted-foreground shrink-0 font-normal">
+                Ln {row.line}, Col {row.column}
+              </span>
+            </Button>
           </li>
         )
       })}
