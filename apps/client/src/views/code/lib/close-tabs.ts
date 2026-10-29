@@ -7,6 +7,7 @@
 import { useCodeGitStore } from '@/stores/code-git'
 import { useCodeStore } from '@/stores/code'
 import { disposeModel } from '@/views/code/lib/monaco-models.ts'
+import { dropViewState } from '@/views/code/lib/monaco-view-state.ts'
 import { isSamePath } from '@/views/code/lib/path.ts'
 
 /** 直接关闭（不询问），并按需销毁对应 model */
@@ -30,6 +31,7 @@ function closeTabs(ids: string[]): void {
     })
     if (!hasFileTab) {
       disposeModel(path)
+      dropViewState(path)
     }
   }
 

@@ -16,10 +16,12 @@ import { useTerminalStore } from '@/stores/terminal'
 import { hint } from '@/views/code/lib/bindings.ts'
 import { CODE_COMMANDS } from '@/views/code/lib/commands.ts'
 import { readCodeFile } from '@/views/code/lib/fs.ts'
+import { requestCloseTabs } from '@/views/code/lib/close-tabs.ts'
 import { disposeAllModels, findModel, findOrCreateModel } from '@/views/code/lib/monaco-models.ts'
+import { resetWorkspaceTypescriptLibs } from '@/views/code/lib/monaco-types.ts'
+import { clearViewStates } from '@/views/code/lib/monaco-view-state.ts'
 import { openAbsolutePath } from '@/views/code/lib/open-file.ts'
 import { findRelativePath } from '@/views/code/lib/path.ts'
-import { requestCloseTabs } from '@/views/code/lib/close-tabs.ts'
 import { ActivityBar } from '@/views/code/workspace/activity-bar.tsx'
 import { Breadcrumbs } from '@/views/code/workspace/breadcrumbs.tsx'
 import { CloseConfirmDialog } from '@/views/code/workspace/close-confirm.tsx'
@@ -72,6 +74,8 @@ export default function Code() {
   useEffect(function () {
     return function () {
       disposeAllModels()
+      clearViewStates()
+      resetWorkspaceTypescriptLibs()
     }
   }, [])
 

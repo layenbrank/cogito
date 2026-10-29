@@ -12,8 +12,16 @@ import { readCodeFile } from '@/views/code/lib/fs.ts'
 import { findModel, findOrCreateModel, findPathForModel } from '@/views/code/lib/monaco-models.ts'
 import { pushProblemCounts } from '@/views/code/lib/monaco-markers.ts'
 import { attachEditor, detachEditor } from '@/views/code/lib/monaco-instance.ts'
+import {
+  resetWorkspaceTypescriptLibs,
+  syncWorkspaceTypescriptLibs
+} from '@/views/code/lib/monaco-types.ts'
 import { isSamePath } from '@/views/code/lib/path.ts'
-import { restoreViewState, saveViewState } from '@/views/code/lib/monaco-view-state.ts'
+import {
+  clearViewStates,
+  restoreViewState,
+  saveViewState
+} from '@/views/code/lib/monaco-view-state.ts'
 // worker 装配只有一份，见 lib/monaco-environment.ts
 import '@/lib/monaco-environment.ts'
 
@@ -192,6 +200,30 @@ function MonacoHost(props: MonacoHostProps) {
   const activeTab = tabs.find(function (tab) {
     return tab.id === activeTabId
   })
+  const workspaceRoot = useCodeStore(function (state) {
+    return state.workspaceRoot
+  })
+  const previousRootRef = useRef<string | null>(null)
+
+  // Monaco TS worker 无磁盘访问权：把工作区 node_modules/@types 注册进语言服务
+  useEffect(
+    function () {
+      const previousRoot = previousRootRef.current
+      previousRootRef.current = workspaceRoot
+      if (!workspaceRoot) {
+        resetWorkspaceTypescriptLibs()
+        clearViewStates()
+        return
+      }
+      if (previousRoot && previousRoot !== workspaceRoot) {
+        clearViewStates()
+      }
+      void syncWorkspaceTypescriptLibs(workspaceRoot).catch(function (error) {
+        console.error('[monaco-types] 同步失败', error)
+      })
+    },
+    [workspaceRoot]
+  )
 
   useEffect(function () {
     const host = hostRef.current
