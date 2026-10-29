@@ -435,10 +435,11 @@ function Navigation(props: NavigationProps) {
           icon="lucide:folder-open"
           className="size-8 text-muted-foreground/70"
         />
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-foreground">{t('TREE_NO_ROOT_TITLE')}</p>
-          <p className="text-xs text-muted-foreground">{t('TREE_NO_ROOT_DESC')}</p>
-        </div>
+        <p
+          className="text-foreground text-sm font-medium"
+          title={t('TREE_NO_ROOT_DESC')}>
+          {t('TREE_NO_ROOT_TITLE')}
+        </p>
         <Button
           type="button"
           size="sm"

@@ -101,12 +101,14 @@ function DockEscalate() {
 }
 function DockWelcome({ scope }: { scope: DockScope }) {
   return (
-    <div className="flex flex-col items-center gap-2 py-8 text-center">
+    <div
+      className="text-muted-foreground flex flex-col items-center gap-1.5 py-6 text-center"
+      title={scope.hint}>
       <Icon
         icon="lucide:sparkles"
-        className="size-6 text-muted-foreground"
+        className="size-5"
       />
-      <p className="text-xs text-muted-foreground">{scope.hint}</p>
+      <p className="text-muted-foreground/80 max-w-[14rem] truncate px-3 text-xs">{scope.title}</p>
     </div>
   )
 }
@@ -185,7 +187,11 @@ function AgentDock(props: { className?: string; /** 嵌在右栏 tabs 内：占�
           icon="lucide:sparkles"
           className="ml-1 size-3.5 text-muted-foreground"
         />
-        <span className="min-w-0 flex-1 truncate text-xs font-medium">{scope.title}</span>
+        <span
+          className="min-w-0 flex-1 truncate text-xs font-medium"
+          title={scope.hint}>
+          {scope.title}
+        </span>
         <Button
           type="button"
           size="sm"

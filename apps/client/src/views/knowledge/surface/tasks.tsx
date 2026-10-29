@@ -266,9 +266,11 @@ function TasksTab() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <div className="flex items-center justify-between px-0.5 text-[11px] text-muted-foreground">
-        <span>
-          共 {all.length} 条 · 本机任务需应用运行时才执行，服务端任务由服务端排期
+      <div className="text-muted-foreground flex items-center justify-between px-0.5 text-xs">
+        <span
+          className="cursor-help underline decoration-dotted decoration-muted-foreground/40 underline-offset-2"
+          title="本机任务需应用运行时才执行；服务端任务由服务端排期">
+          共 {all.length} 条
         </span>
         <Button
           size="sm"

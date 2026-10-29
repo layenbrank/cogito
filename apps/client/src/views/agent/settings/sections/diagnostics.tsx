@@ -177,8 +177,10 @@ function DiagnosticsSection() {
       </div>
 
       {!report ? (
-        <p className="py-2 text-sm text-muted-foreground">
-          选择一种粒度生成报告；报告不会自动上传，复制或导出后请自行检查敏感内容。
+        <p
+          className="text-muted-foreground py-2 text-sm"
+          title="报告不会自动上传；复制或导出后请自行检查敏感内容">
+          选择粒度生成报告
         </p>
       ) : (
         <>

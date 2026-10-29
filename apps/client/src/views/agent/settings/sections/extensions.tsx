@@ -180,8 +180,10 @@ function ExtensionsSection() {
 
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-xs text-muted-foreground">
-            全局配置，对新会话生效；已开会话请在下面单独加入
+          <span
+            className="text-muted-foreground cursor-help text-xs underline decoration-dotted decoration-muted-foreground/40 underline-offset-2"
+            title="全局配置对新会话生效；已开会话请在下面单独加入">
+            全局扩展
           </span>
           <Button
             size="sm"
@@ -212,7 +214,7 @@ function ExtensionsSection() {
             <Spinner className="size-5" />
           </div>
         ) : entries.length === 0 ? (
-          <p className="py-2 text-sm text-muted-foreground">还没有配置任何扩展。</p>
+          <p className="text-muted-foreground py-2 text-sm">暂无扩展</p>
         ) : (
           <ul className="flex flex-col">
             {entries.map(function (entry) {

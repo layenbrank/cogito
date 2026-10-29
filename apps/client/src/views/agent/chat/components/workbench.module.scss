@@ -26,18 +26,19 @@
   width: 100%;
 }
 
+/* 短标题横排卡：完整提示词走 tooltip（PR 紧凑文案），材质沿用 AI Elements 质感 */
 .promptCard {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 14px;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
   box-sizing: border-box;
   width: 100%;
-  min-height: 124px;
+  min-height: 0;
   margin: 0;
-  padding: 16px;
+  padding: 12px 14px;
   border: 1px solid color-mix(in oklab, var(--border) 78%, transparent);
-  border-radius: 18px;
+  border-radius: 14px;
   background:
     linear-gradient(
       165deg,
@@ -122,25 +123,14 @@
 }
 
 .promptLabel {
-  display: -webkit-box;
   overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 14px;
   font-weight: 550;
   letter-spacing: -0.01em;
-  line-height: 1.45;
+  line-height: 1.35;
   color: var(--foreground);
-}
-
-.promptDesc {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--muted-foreground);
 }
 
 @media (max-width: 960px) {
@@ -157,8 +147,7 @@
   }
 
   .promptCard {
-    min-height: 0;
-    padding: 14px;
+    padding: 12px;
   }
 }
 

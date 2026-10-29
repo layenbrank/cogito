@@ -82,7 +82,6 @@ function AgentModelPicker(props: ModelPickerProps) {
           className={styles.panel}>
           <div className={styles.header}>
             <p className={styles.headerTitle}>选择模型</p>
-            <p className={styles.hint}>当前对话将使用所选模型回复</p>
           </div>
           <div className={styles.list}>
             {enabledProviders.length === 0 ? (

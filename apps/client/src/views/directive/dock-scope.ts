@@ -50,7 +50,7 @@ function useDirectiveDockScope(): void {
       const scope: DockScope = {
         key: 'directive',
         title: '指令助手',
-        hint: '说一句要做什么就出草稿；改完点「应用到编辑器」，再保存。',
+        hint: '生成草稿后点「应用到编辑器」，再保存',
         systemText: SYSTEM_TEXT,
         toWrite: function (text) {
           const parsed = parseDirectiveDraft(text)

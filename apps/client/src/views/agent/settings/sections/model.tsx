@@ -104,8 +104,10 @@ function PlatformModelsSection(props: {
           <Spinner className="size-5" />
         </div>
       ) : !props.provider || models.length === 0 ? (
-        <p className={`${styles.empty} text-muted-foreground`}>
-          暂无可用组织模型。请确认已登录，且管理员已在后台启用模型。
+        <p
+          className={`${styles.empty} text-muted-foreground`}
+          title="请确认已登录，且管理员已在后台启用模型">
+          暂无组织模型
         </p>
       ) : (
         <div className={styles.list}>
@@ -184,8 +186,10 @@ function ProviderListSection(props: {
           <Spinner className="size-5" />
         </div>
       ) : props.configured.length === 0 ? (
-        <p className={`${styles.empty} text-muted-foreground`}>
-          还没有个人模型。点右上角「添加模型」选择服务商并填写密钥。
+        <p
+          className={`${styles.empty} text-muted-foreground`}
+          title="点右上角「添加模型」选择服务商并填写密钥">
+          暂无个人模型
         </p>
       ) : (
         <div className={styles.list}>
@@ -567,9 +571,6 @@ function ModelSection() {
               />
             ) : null}
 
-            {editorMode === 'update' ? (
-              <p className={styles.fieldHint}>保存前会校验此密钥；密钥只保存在本机安全存储中。</p>
-            ) : null}
           </div>
 
           <DialogFooter>

@@ -313,7 +313,7 @@ function SourcesSection(props: {
           })}
         </ul>
       ) : (
-        <p className="text-muted-foreground text-xs">暂无来源，点 + 打开文件树</p>
+        <p className="text-muted-foreground text-xs">暂无来源</p>
       )}
     </Section>
   )
@@ -455,7 +455,7 @@ function AsideBusy(props: AsideBusyProps) {
         {plan && plan.entries.length > 0 ? (
           <PlanEntryList entries={plan.entries} />
         ) : (
-          <p className="text-muted-foreground text-xs">代理规划出执行步骤后会显示在这里</p>
+          <p className="text-muted-foreground text-xs">暂无计划</p>
         )}
       </Section>
 
