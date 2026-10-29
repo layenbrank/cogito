@@ -141,11 +141,11 @@ function WorkspaceFilePicker(props: WorkspaceFilePickerProps) {
           updatePending(true)
           const rows =
             needle.length > 0
-              ? (await WorkspaceFiles.search([primaryPath as string], needle, 40)).map(function (
-                  hit
-                ) {
-                  return { name: hit.name, kind: 'file', relative: hit.relative }
-                })
+              ? (await WorkspaceFiles.search([primaryPath as string], needle, 40)).hits.map(
+                  function (hit) {
+                    return { name: hit.name, kind: 'file', relative: hit.relative }
+                  }
+                )
               : (await WorkspaceFiles.listDir(primaryPath as string, relative)).map(
                   function (row: DirEntry) {
                     return { name: row.name, kind: row.kind, relative: row.relative }

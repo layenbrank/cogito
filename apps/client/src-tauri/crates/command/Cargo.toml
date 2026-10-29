@@ -15,3 +15,7 @@ regex             = { workspace = true }
 gix               = "0.70"
 similar           = "2"
 parking_lot       = "0.12"
+rayon             = "1.10"
+ignore            = "0.4"
+memchr            = "2"
+aho-corasick      = "1"

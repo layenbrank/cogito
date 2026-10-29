@@ -8,15 +8,15 @@ import {
 } from '@cogito/design/components/dialog'
 import { Input } from '@cogito/design/components/input'
 import { cn } from 'cn'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { findCommands, runCommand } from '@/keyboard/commands'
 import type { Command } from '@/keyboard/types'
+import { WorkspaceFiles } from '@/lib/workspace-files'
 import { useCodeStore } from '@/stores/code'
 import {
   joinPath,
   listWorkspaceEntries,
-  searchWorkspaceFiles,
   type SearchHit
 } from '@/views/code/lib/fs.ts'
 import { openAbsolutePath } from '@/views/code/lib/open-file.ts'
@@ -74,6 +74,7 @@ function CommandPalette() {
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const [fileHits, setFileHits] = useState<SearchHit[]>([])
+  const searchGeneration = useRef(0)
 
   const isOpen = paletteMode !== null
   const isFileMode = paletteMode === 'file'
@@ -92,20 +93,35 @@ function CommandPalette() {
   useEffect(
     function () {
       if (!isOpen || !isFileMode || !workspaceRoot) return
-      let cancelled = false
+      const generation = ++searchGeneration.current
       const timer = window.setTimeout(function () {
         void (async function () {
-          const hits = query.trim()
-            ? await searchWorkspaceFiles({ root: workspaceRoot, query, limit: 50 })
-            : await listShallowFiles(workspaceRoot)
-          if (cancelled) return
-          setFileHits(hits)
-          setActiveIndex(0)
+          try {
+            const hits = query.trim()
+              ? (
+                  await WorkspaceFiles.search([workspaceRoot], query.trim(), 50)
+                ).hits.map(function (hit) {
+                  return {
+                    name: hit.name,
+                    relative: hit.relative,
+                    absolute: hit.path
+                  }
+                })
+              : await listShallowFiles(workspaceRoot)
+            if (generation !== searchGeneration.current) return
+            setFileHits(hits)
+            setActiveIndex(0)
+          } catch (error) {
+            console.error('[command-palette] 搜索文件失败', error)
+            if (generation !== searchGeneration.current) return
+            setFileHits([])
+          }
         })()
       }, 120)
       return function () {
-        cancelled = true
         window.clearTimeout(timer)
+        // 使进行中的请求结果失效
+        searchGeneration.current += 1
       }
     },
     [isOpen, isFileMode, query, workspaceRoot]

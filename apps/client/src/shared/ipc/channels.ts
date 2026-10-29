@@ -279,7 +279,9 @@ export const CHANNELS = {
     LIST_DIR: 'workspaceFiles:listDir',
     SEARCH: 'workspaceFiles:search',
     CONTENT: 'workspaceFiles:content',
-    READ_FILE: 'workspaceFiles:readFile'
+    REPLACE: 'workspaceFiles:replace',
+    READ_FILE: 'workspaceFiles:readFile',
+    PACK_TYPES: 'workspaceFiles:packTypes'
   },
   SEARCH: {
     SUGGEST: 'search:suggest'

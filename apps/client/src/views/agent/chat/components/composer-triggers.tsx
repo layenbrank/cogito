@@ -157,11 +157,11 @@ function ComposerTriggers() {
                     })
                 )
               : toMentionItems(
-                  (await WorkspaceFiles.search([primaryPath as string], needle, SEARCH_LIMIT)).map(
-                    function (hit) {
-                      return { name: hit.name, relative: hit.relative }
-                    }
-                  )
+                  (
+                    await WorkspaceFiles.search([primaryPath as string], needle, SEARCH_LIMIT)
+                  ).hits.map(function (hit) {
+                    return { name: hit.name, relative: hit.relative }
+                  })
                 )
           if (!cancelled) updateMentionItems(items)
         } catch (error) {

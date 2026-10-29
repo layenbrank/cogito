@@ -1,5 +1,5 @@
 /**
- * 工作区文件 IPC：按层列举 + 封顶搜索 + 内容检索 + 受 roots 约束的读文件
+ * 工作区文件 IPC：按层列举 + 封顶搜索 + 内容检索 / 替换 + 受 roots 约束的读文件
  */
 import { invoke } from '@tauri-apps/api/core'
 
@@ -19,9 +19,24 @@ interface SearchHit {
   path: string
 }
 
+interface SearchResult {
+  hits: SearchHit[]
+  isTruncated: boolean
+}
+
 interface ReadFileResult {
   path: string
   content: string
+}
+
+interface PackTypesFile {
+  path: string
+  content: string
+}
+
+interface PackTypesResult {
+  files: PackTypesFile[]
+  isTruncated: boolean
 }
 
 interface ContentHit {
@@ -31,6 +46,10 @@ interface ContentHit {
   line: number
   column: number
   preview: string
+  /** 命中在 preview 内的 Unicode 标量起点（含） */
+  matchStart: number
+  /** 命中在 preview 内的 Unicode 标量终点（不含） */
+  matchEnd: number
 }
 
 interface ContentResult {
@@ -52,6 +71,33 @@ interface ContentQuery {
   limit?: number
 }
 
+interface ReplaceQuery {
+  root: string
+  paths: string[]
+  query: string
+  isRegex?: boolean
+  isCaseSensitive?: boolean
+  isWholeWord?: boolean
+  replacement: string
+  isPreserveCase?: boolean
+}
+
+interface ReplaceChanged {
+  path: string
+  count: number
+  content: string
+}
+
+interface ReplaceFailed {
+  path: string
+  message: string
+}
+
+interface ReplaceResult {
+  changed: ReplaceChanged[]
+  failed: ReplaceFailed[]
+}
+
 async function listDir(root: string, relative = '') {
   return invoke<DirEntry[]>(CHANNELS.WORKSPACE_FILES.LIST_DIR, {
     params: { root, relative: relative || null }
@@ -59,7 +105,7 @@ async function listDir(root: string, relative = '') {
 }
 
 async function search(roots: string[], query: string, limit = 50) {
-  return invoke<SearchHit[]>(CHANNELS.WORKSPACE_FILES.SEARCH, {
+  return invoke<SearchResult>(CHANNELS.WORKSPACE_FILES.SEARCH, {
     params: { roots, query, limit }
   })
 }
@@ -67,6 +113,12 @@ async function search(roots: string[], query: string, limit = 50) {
 async function readFile(roots: string[], path: string) {
   return invoke<ReadFileResult>(CHANNELS.WORKSPACE_FILES.READ_FILE, {
     params: { roots, path }
+  })
+}
+
+async function packTypes(root: string) {
+  return invoke<PackTypesResult>(CHANNELS.WORKSPACE_FILES.PACK_TYPES, {
+    params: { root }
   })
 }
 
@@ -85,12 +137,43 @@ async function content(query: ContentQuery) {
   })
 }
 
+async function replace(query: ReplaceQuery) {
+  return invoke<ReplaceResult>(CHANNELS.WORKSPACE_FILES.REPLACE, {
+    params: {
+      root: query.root,
+      paths: query.paths,
+      query: query.query,
+      isRegex: query.isRegex ?? false,
+      isCaseSensitive: query.isCaseSensitive ?? false,
+      isWholeWord: query.isWholeWord ?? false,
+      replacement: query.replacement,
+      isPreserveCase: query.isPreserveCase ?? false
+    }
+  })
+}
+
 const WorkspaceFiles = {
   listDir,
   search,
   content,
-  readFile
+  replace,
+  readFile,
+  packTypes
 }
 
 export { WorkspaceFiles }
-export type { DirEntry, ReadFileResult, SearchHit, ContentHit, ContentResult, ContentQuery }
+export type {
+  DirEntry,
+  ReadFileResult,
+  SearchHit,
+  SearchResult,
+  PackTypesFile,
+  PackTypesResult,
+  ContentHit,
+  ContentResult,
+  ContentQuery,
+  ReplaceQuery,
+  ReplaceChanged,
+  ReplaceFailed,
+  ReplaceResult
+}
