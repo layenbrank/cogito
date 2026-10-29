@@ -3,7 +3,7 @@ import { Input } from '@cogito/design/components/input'
 import { Spinner } from '@cogito/design/components/spinner'
 
 import type { GooseProviderEntry } from '@/features/agent/acp/goose-providers'
-import { findFieldLabel, findProviderLabel } from '@/features/agent/model/display'
+import { findFieldLabel } from '@/features/agent/model/display'
 import styles from '@/views/agent/settings/settings.module.scss'
 
 interface ProviderCardFormProps {
@@ -18,24 +18,21 @@ interface ProviderCardFormProps {
 
 function ProviderCardForm(props: ProviderCardFormProps) {
   const { entry } = props
-  const label = findProviderLabel(entry.providerId, entry.providerName)
 
   return (
     <div className={styles.addForm}>
-      {props.hideSubmit ? null : (
-        <p className={styles.fieldHint}>
-          {entry.configured
-            ? `为「${label}」更新密钥。旧密钥不会显示；校验失败时仍保留原配置。`
-            : `填写「${label}」所需信息。密钥只保存在本机，不会上传。`}
+      {props.hideSubmit || entry.configKeys.length > 0 ? null : (
+        <p
+          className={styles.fieldHint}
+          title={
+            entry.isAcp
+              ? '此接入通过本机 CLI 使用，一般无需再填密钥'
+              : '此接入无需额外字段，保存即可启用'
+          }>
+          {entry.isAcp ? '本机 CLI，一般无需密钥' : '无需额外字段'}
         </p>
       )}
-      {entry.configKeys.length === 0 ? (
-        <p className={styles.fieldHint}>
-          {entry.isAcp
-            ? '此接入通过本机 CLI 使用，一般无需再填密钥，保存后即可检测是否就绪。'
-            : '此接入无需额外字段，保存即可启用。'}
-        </p>
-      ) : (
+      {entry.configKeys.length === 0 ? null : (
         entry.configKeys.map(function (key) {
           const fieldLabel = findFieldLabel(key.name)
           return (

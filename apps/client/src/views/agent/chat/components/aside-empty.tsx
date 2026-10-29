@@ -20,7 +20,7 @@ interface AsideCard {
   onClick?: () => void
 }
 
-/** 空对话右栏：Qoder 式快捷卡 */
+/** 空对话右栏：快捷入口；说明走 title，不占第二行 */
 function AsideEmpty(props: AsideEmptyProps) {
   const navigate = useNavigate()
   const { primaryPath } = useActiveWorkspace()
@@ -37,7 +37,7 @@ function AsideEmpty(props: AsideEmptyProps) {
     {
       key: 'files',
       icon: 'lucide:folder-tree',
-      label: '打开工作区文件',
+      label: '工作区文件',
       hint: '浏览文件树并预览',
       enabled: true,
       onClick: props.onOpenFiles
@@ -45,7 +45,7 @@ function AsideEmpty(props: AsideEmptyProps) {
     {
       key: 'review',
       icon: 'lucide:git-compare',
-      label: '打开审阅',
+      label: '审阅',
       hint: '查看未提交变更并对比',
       enabled: true,
       onClick: props.onOpenReview
@@ -53,7 +53,7 @@ function AsideEmpty(props: AsideEmptyProps) {
     {
       key: 'model',
       icon: 'lucide:box',
-      label: '打开模型设置',
+      label: '模型设置',
       hint: '配置接入与模型',
       enabled: true,
       onClick: function () {
@@ -63,7 +63,7 @@ function AsideEmpty(props: AsideEmptyProps) {
     {
       key: 'terminal',
       icon: 'lucide:terminal',
-      label: '打开终端',
+      label: '终端',
       hint: '在当前工作区打开 shell',
       enabled: true,
       onClick: handleOpenTerminal
@@ -71,7 +71,7 @@ function AsideEmpty(props: AsideEmptyProps) {
   ]
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-3">
       {cards.map(function (card) {
         return (
           <Button
@@ -79,7 +79,8 @@ function AsideEmpty(props: AsideEmptyProps) {
             type="button"
             variant="ghost"
             disabled={!card.enabled}
-            className="border-border bg-card hover:bg-muted/60 h-auto w-full justify-start gap-3 rounded-xl border px-3 py-3 text-left font-normal disabled:opacity-50"
+            title={card.hint}
+            className="border-border bg-card hover:bg-muted/60 h-auto w-full justify-start gap-3 rounded-xl border px-3 py-2.5 text-left font-normal disabled:opacity-50"
             onClick={function () {
               if (!card.enabled) {
                 toast.info('即将推出')
@@ -87,18 +88,13 @@ function AsideEmpty(props: AsideEmptyProps) {
               }
               card.onClick?.()
             }}>
-            <span className="bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
+            <span className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
               <Icon
                 icon={card.icon}
                 className="size-4"
               />
             </span>
-            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="text-foreground text-sm font-medium">{card.label}</span>
-              {card.hint ? (
-                <span className="text-muted-foreground truncate text-xs">{card.hint}</span>
-              ) : null}
-            </span>
+            <span className="text-foreground truncate text-sm font-medium">{card.label}</span>
           </Button>
         )
       })}

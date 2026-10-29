@@ -172,11 +172,8 @@ function Canvas(props: CanvasProps) {
       <ScrollArea className="h-0 min-h-0 flex-1">
         <div className="mx-auto flex w-full max-w-xl flex-col gap-4 px-4 py-6">
           {steps.length === 0 ? (
-            <div className="rounded-xl border border-dashed bg-background px-6 py-10 text-center">
-              <p className="text-sm font-medium">从左侧动作目录插入第一步</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                也可使用上方菜单添加条件、循环或并行结构
-              </p>
+            <div className="bg-background rounded-xl border border-dashed px-6 py-8 text-center">
+              <p className="text-sm font-medium">从左侧插入第一步</p>
             </div>
           ) : (
             renderSteps(steps, 0)

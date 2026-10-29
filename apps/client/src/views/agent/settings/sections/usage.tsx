@@ -69,7 +69,7 @@ function UsageSection() {
 
       {rows.length === 0 ? (
         <p className="py-2 text-sm text-muted-foreground">
-          还没有用量记录：跑完一轮对话后这里会逐轮出现。
+          暂无用量
         </p>
       ) : (
         <table className="w-full text-sm">

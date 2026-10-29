@@ -53,8 +53,10 @@ function InputsEditor(props: InputsEditorProps) {
   return (
     <div className="space-y-2">
       {inputs.length === 0 ? (
-        <p className="rounded-md border border-dashed px-2.5 py-2 text-center text-xs text-muted-foreground">
-          尚未声明输入；运行时可填 JSON 参数
+        <p
+          className="text-muted-foreground rounded-md border border-dashed px-2.5 py-2 text-center text-xs"
+          title="运行时可填 JSON 参数">
+          暂无输入
         </p>
       ) : null}
       {inputs.map(function (input, index) {

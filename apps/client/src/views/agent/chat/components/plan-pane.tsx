@@ -70,9 +70,7 @@ function AgentPlanPane(props: PlanPaneProps) {
             })}
           </ol>
         ) : (
-          <div className="text-muted-foreground px-4 py-12 text-center text-sm">
-            代理规划出执行步骤后会显示在这里
-          </div>
+          <div className="text-muted-foreground px-4 py-8 text-center text-sm">暂无计划</div>
         )}
       </div>
     </div>

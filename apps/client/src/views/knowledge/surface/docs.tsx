@@ -214,7 +214,8 @@ function DocsTab() {
         }}>
         <Input
           value={query}
-          placeholder="检索（1–2 字也能命中）"
+          placeholder="检索…"
+          title="1–2 字也能命中"
           className="h-7 text-xs"
           onChange={function (event) {
             setQuery(event.target.value)
@@ -339,9 +340,7 @@ function DocsTab() {
 
         <p className="px-1 pb-1 text-[11px] text-muted-foreground">文档 {docs.length}</p>
         {docs.length === 0 && !isLoading ? (
-          <p className="px-1 py-2 text-[11px] text-muted-foreground">
-            还没有文档。点「生成」让助手写，或在编辑器里新建后保存到库目录。
-          </p>
+          <p className="text-muted-foreground px-1 py-2 text-xs">暂无文档</p>
         ) : null}
         <ul className="flex flex-col gap-0.5">
           {docs.map(function (doc) {

@@ -73,8 +73,10 @@ function StagingTab() {
 
   if (staging.length === 0) {
     return (
-      <p className="px-1 py-3 text-[11px] text-muted-foreground">
-        没有待发布草稿。助手写好的文档会先落在这里，你确认后才进正式目录。
+      <p
+        className="text-muted-foreground px-1 py-3 text-xs"
+        title="助手写好的文档会先落在这里，确认后才进正式目录">
+        暂无待发布
       </p>
     )
   }

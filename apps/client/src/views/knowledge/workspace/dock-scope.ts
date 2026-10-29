@@ -45,7 +45,7 @@ function useKnowledgeDockScope(): void {
       const scope: DockScope = {
         key: 'knowledge',
         title: '知识库助手',
-        hint: '总结、续写、改写都在这；结果留在对话里，点「应用到文档」才落到正文。',
+        hint: '结果先留在对话里，点「应用到文档」才写入正文',
         systemText: SYSTEM_TEXT,
         toWrite: function (text) {
           if (!writeEditor(text)) {

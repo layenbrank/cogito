@@ -307,9 +307,7 @@ function AgentModelSettings(props: ModelSettingsProps) {
       <DialogContent className={styles.modal}>
         <DialogHeader>
           <DialogTitle className={styles.title}>模型设置</DialogTitle>
-          <DialogDescription className={styles.desc}>
-            这些偏好对所有任务生效。运行中的回复保持当前设置，下一轮开始使用新设置。
-          </DialogDescription>
+          <DialogDescription className={styles.desc}>对所有任务生效；运行中的回复保持当前设置。</DialogDescription>
         </DialogHeader>
 
         {rows.length === 0 ? (

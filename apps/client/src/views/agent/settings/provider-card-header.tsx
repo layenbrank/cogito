@@ -39,25 +39,26 @@ function ProviderCardHeader(props: ProviderCardHeaderProps) {
             height={18}
           />
         </span>
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={clsx(
-                styles.statusDot,
-                status === 'ok' && styles.statusOk,
-                status === 'fail' && styles.statusFail,
-                entry.configured && status === 'unknown' && styles.statusOk
-              )}
-            />
-            <span className={styles.cardName}>{label}</span>
-            {entry.configured ? <span className={styles.statusLabelOk}>已配置</span> : null}
-            {entry.isAcp ? (
-              <span className={styles.kindPill}>本机 CLI</span>
-            ) : (
-              <span className={styles.kindPill}>{billing}</span>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span
+            className={clsx(
+              styles.statusDot,
+              status === 'ok' && styles.statusOk,
+              status === 'fail' && styles.statusFail,
+              entry.configured && status === 'unknown' && styles.statusOk
             )}
-          </div>
-          <p className={styles.fieldHint}>{hint}</p>
+          />
+          <span
+            className={styles.cardName}
+            title={hint}>
+            {label}
+          </span>
+          {entry.configured ? <span className={styles.statusLabelOk}>已配置</span> : null}
+          {entry.isAcp ? (
+            <span className={styles.kindPill}>本机 CLI</span>
+          ) : (
+            <span className={styles.kindPill}>{billing}</span>
+          )}
         </div>
       </div>
       <div className={`${styles.cardActions} flex shrink-0 items-center gap-1`}>

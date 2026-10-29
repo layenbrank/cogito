@@ -53,7 +53,7 @@ function DraftInbox() {
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{draft.name}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {draft.error ? `校验未通过：${draft.error}` : '由智能体生成，尚未保存到指令库'}
+                  {draft.error ? `校验未通过：${draft.error}` : '待保存'}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1">

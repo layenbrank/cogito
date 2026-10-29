@@ -218,7 +218,7 @@ function DirectiveLibrary(props: DirectiveLibraryProps) {
             ) : null}
 
             {!library.loadError && library.isLoaded && library.filtered.length === 0 ? (
-              <p className="p-4 text-sm text-muted-foreground">还没有指令，点「新建」开始编排。</p>
+              <p className="text-muted-foreground p-4 text-sm">暂无指令</p>
             ) : null}
 
             {[...library.groups.entries()].map(function ([folder, entries]) {

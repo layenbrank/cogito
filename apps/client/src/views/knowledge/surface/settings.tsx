@@ -7,6 +7,7 @@ import { Input } from '@cogito/design/components/input'
 import { Label } from '@cogito/design/components/label'
 import { ScrollArea } from '@cogito/design/components/scroll-area'
 import { Switch } from '@cogito/design/components/switch'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 
 import type { BasePatch } from '@/lib/knowledge-ipc'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
@@ -14,7 +15,7 @@ import { useKnowledgeStore } from '@/stores/knowledge'
 
 type BaseFlag = 'autoUpdate' | 'autoExport' | 'citation'
 
-/** 库级选项：标签与含义（选项本身存在库里，这里只是展示表） */
+/** 库级选项：说明走 tooltip，避免窄栏堆说明文字 */
 const BASE_FLAGS: readonly { key: BaseFlag; label: string; hint: string }[] = [
   { key: 'autoUpdate', label: '自动更新', hint: '打开面板时把磁盘上的改动更新进来' },
   { key: 'autoExport', label: '自动导出', hint: '发布后另存一份 HTML 到库目录的 exports/' },
@@ -32,6 +33,24 @@ const FLAG_PATCH: Record<BaseFlag, (value: boolean) => BasePatch> = {
   citation: function (value) {
     return { citation: value }
   }
+}
+
+function FlagLabel(props: { label: string; hint: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Label className="text-foreground cursor-help text-xs underline decoration-dotted decoration-muted-foreground/50 underline-offset-2" />
+        }>
+        {props.label}
+      </TooltipTrigger>
+      <TooltipContent
+        side="right"
+        className="max-w-52 text-xs">
+        {props.hint}
+      </TooltipContent>
+    </Tooltip>
+  )
 }
 
 function SettingsTab() {
@@ -75,17 +94,17 @@ function SettingsTab() {
     <ScrollArea className="min-h-0 flex-1">
       <div className="flex flex-col gap-4 pb-4">
         <section className="flex flex-col gap-1.5">
-          <p className="px-0.5 text-[11px] font-medium text-muted-foreground">库选项</p>
+          <p className="text-muted-foreground px-0.5 text-xs font-medium">库选项</p>
           {BASE_FLAGS.map(function (flag) {
             const value = activeBase ? activeBase[flag.key] : false
             return (
               <div
                 key={flag.key}
-                className="flex items-start justify-between gap-2 px-0.5">
-                <div className="min-w-0">
-                  <Label className="text-xs">{flag.label}</Label>
-                  <p className="text-[11px] text-muted-foreground">{flag.hint}</p>
-                </div>
+                className="flex items-center justify-between gap-2 px-0.5">
+                <FlagLabel
+                  label={flag.label}
+                  hint={flag.hint}
+                />
                 <Switch
                   checked={value}
                   disabled={!activeBase}
@@ -99,7 +118,7 @@ function SettingsTab() {
         </section>
 
         <section className="flex flex-col gap-1.5">
-          <p className="px-0.5 text-[11px] font-medium text-muted-foreground">编辑器</p>
+          <p className="text-muted-foreground px-0.5 text-xs font-medium">编辑器</p>
           <div className="flex items-center justify-between gap-2 px-0.5">
             <Label
               htmlFor="panel-font"
@@ -189,17 +208,37 @@ function SettingsTab() {
         </section>
 
         <section className="flex flex-col gap-1.5">
-          <p className="px-0.5 text-[11px] font-medium text-muted-foreground">位置</p>
+          <div className="flex items-center gap-1 px-0.5">
+            <p className="text-muted-foreground text-xs font-medium">位置</p>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-foreground size-4 rounded-sm text-xs leading-none"
+                    aria-label="路径说明"
+                  />
+                }>
+                ?
+              </TooltipTrigger>
+              <TooltipContent
+                side="right"
+                className="max-w-56 text-xs">
+                正文以磁盘文件为准；草稿在库目录旁的 .staging，导出在 exports。
+              </TooltipContent>
+            </Tooltip>
+          </div>
           {activeBase ? (
-            <p className="break-all px-0.5 text-[11px] text-muted-foreground">
-              库目录：{activeBase.rootPath}
+            <p
+              className="text-muted-foreground break-all px-0.5 text-xs"
+              title={activeBase.rootPath}>
+              库：{activeBase.rootPath}
             </p>
           ) : null}
-          <p className="break-all px-0.5 text-[11px] text-muted-foreground">
-            侧栏根：{rootDir ?? '—'}
-          </p>
-          <p className="px-0.5 text-[11px] text-muted-foreground">
-            正文以磁盘文件为准；草稿在库目录旁的 .staging，导出在 exports。
+          <p
+            className="text-muted-foreground break-all px-0.5 text-xs"
+            title={rootDir ?? undefined}>
+            侧栏：{rootDir ?? '—'}
           </p>
         </section>
       </div>
