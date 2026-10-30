@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/componen
 import { clsx } from 'clsx'
 import { AnimatePresence } from 'motion/react'
 import * as m from 'motion/react-m'
+import { useState } from 'react'
 
 import { Glide } from '@/components/glide/glide'
 import { normalizeHex } from '@/features/capture/components/colors'
@@ -62,10 +63,16 @@ function UtilityPropsSurface(props: UtilityPropsSurfaceProps) {
     onUpdateFontSize
   } = props
 
+  const [isTooltipOpen, updateTooltipOpen] = useState(false)
   const visible = active !== null
   const showFilled = active !== null && FILLABLE_GRAPHICS.has(active)
   const showFontSize = active !== null && FONTSIZE_GRAPHICS.has(active)
   const showOpacity = active !== null && !NON_OPACITY_GRAPHICS.has(active)
+
+  function handlePickerOpenChange(next: boolean) {
+    setPickerOpen(next)
+    if (next) updateTooltipOpen(false)
+  }
 
   return (
     <AnimatePresence>
@@ -95,8 +102,12 @@ function UtilityPropsSurface(props: UtilityPropsSurfaceProps) {
           }}>
           <Popover
             open={pickerOpen}
-            onOpenChange={setPickerOpen}>
-            <Tooltip open={pickerOpen ? false : undefined}>
+            onOpenChange={handlePickerOpenChange}>
+            <Tooltip
+              open={pickerOpen ? false : isTooltipOpen}
+              onOpenChange={function (next) {
+                if (!pickerOpen) updateTooltipOpen(next)
+              }}>
               <TooltipTrigger
                 render={
                   <PopoverTrigger
