@@ -7,10 +7,13 @@ import {
   requestPermission,
   sendNotification
 } from '@tauri-apps/plugin-notification'
-import { useRef } from 'react'
+import { useContext, useRef } from 'react'
 import { toast } from 'sonner'
+import { useShallow } from 'zustand/react/shallow'
 import { CHANNELS } from '@/shared/ipc/channels'
 
+import { MarketplaceContext } from '@/views/marketplace/workspace/context.tsx'
+import { TILE_IMPORT_SCHEMA } from '@/views/marketplace/workspace/customize/form'
 import {
   exportTiles,
   parseTileWrite
@@ -38,20 +41,27 @@ async function notify(body: string) {
 /** 定制模式顶栏操作：导入 / 导出磁贴 JSON */
 function CaptionActions() {
   const fileRef = useRef<HTMLInputElement>(null)
-  const mirror = useMirrorStore((state) => state.active.mirror)
-  const magneticTiles = useMirrorStore((state) => state.magneticTiles)
-  const toInsertMagneticTile = useMirrorStore((state) => state.toInsertMagneticTile)
+  const marketplace = useContext(MarketplaceContext)
+  const { targetMirrorID } = marketplace
+  const { magneticTiles, toInsertMagneticTile } = useMirrorStore(
+    useShallow(function (state) {
+      return {
+        magneticTiles: state.magneticTiles,
+        toInsertMagneticTile: state.toInsertMagneticTile
+      }
+    })
+  )
 
   async function handleExport() {
-    const mirrorID = mirror?.id
-    if (!mirrorID) {
+    if (!targetMirrorID) {
       toast.error('请先选择镜像')
+      marketplace.focusMirrorSelect()
       return
     }
 
     try {
       const tiles = await invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
-        params: { mirrorID }
+        params: { mirrorID: targetMirrorID }
       })
       const exported = await exportTiles(tiles)
       if (!exported) return
@@ -67,12 +77,13 @@ function CaptionActions() {
   }
 
   function handleImport(file: File) {
-    const mirrorID = mirror?.id
-    if (!mirrorID) {
+    if (!targetMirrorID) {
       toast.error('请先选择镜像')
+      marketplace.focusMirrorSelect()
       return
     }
 
+    const mirrorID = targetMirrorID
     const reader = new FileReader()
     const baseIndex = magneticTiles.length
 
@@ -81,17 +92,43 @@ function CaptionActions() {
       function () {
         const text = reader.result
         try {
-          const parsed = JSON.parse(text as string) as MagneticTile[]
-          if (!Array.isArray(parsed) || parsed.length === 0) {
-            toast.warning('导入文件为空')
+          const raw = JSON.parse(text as string) as unknown
+          const parsed = TILE_IMPORT_SCHEMA.safeParse(raw)
+          if (!parsed.success) {
+            toast.error(parsed.error.issues[0]?.message ?? 'JSON 格式无效')
             return
           }
-          const writes = parsed.map(function (item, index) {
-            return parseTileWrite(item, mirrorID, baseIndex + index)
-          })
+
+          const writes = []
+          const invalidIndexes: number[] = []
+          for (let index = 0; index < parsed.data.length; index += 1) {
+            const item = parsed.data[index] as unknown as MagneticTile
+            try {
+              writes.push(parseTileWrite(item, mirrorID, baseIndex + writes.length))
+            } catch (error) {
+              console.warn('[Customize] skip invalid tile at', index, error)
+              invalidIndexes.push(index + 1)
+            }
+          }
+
+          if (writes.length === 0) {
+            toast.warning(
+              invalidIndexes.length
+                ? `全部条目无效（第 ${invalidIndexes.join('、')} 条）`
+                : '导入文件为空'
+            )
+            return
+          }
+
           void toInsertMagneticTile(writes).then(
             function () {
-              toast.success(`已导入 ${writes.length} 个磁贴`)
+              if (invalidIndexes.length) {
+                toast.success(
+                  `已导入 ${writes.length} 个磁贴，第 ${invalidIndexes.join('、')} 条无效已跳过`
+                )
+              } else {
+                toast.success(`已导入 ${writes.length} 个磁贴`)
+              }
             },
             function (error) {
               console.error('[Customize] import failed:', error)
@@ -130,6 +167,7 @@ function CaptionActions() {
             <Button
               variant="ghost"
               size="icon-sm"
+              data-region="false"
               aria-label="导入"
               className="rounded-md text-muted-foreground"
               onClick={function () {
@@ -150,6 +188,7 @@ function CaptionActions() {
             <Button
               variant="ghost"
               size="icon-sm"
+              data-region="false"
               aria-label="导出"
               className="rounded-md text-muted-foreground"
               onClick={function () {

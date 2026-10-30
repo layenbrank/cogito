@@ -1,4 +1,11 @@
-import { createContext, useMemo, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject
+} from 'react'
 
 import type { BoothBucket, NavigateBucket } from '@/constants/marketplace/buckets'
 
@@ -15,6 +22,11 @@ interface MarketplaceContextProps {
   onUpdateQuery: (query: string) => void
   targetMirrorID: string | undefined
   onUpdateTargetMirrorID: (mirrorID: string | undefined) => void
+  searchInputRef: RefObject<HTMLInputElement | null>
+  mirrorTriggerRef: RefObject<HTMLInputElement | null>
+  focusSearch(): void
+  focusMirrorSelect(): void
+  clearQuery(): void
 }
 
 const MarketplaceContext = createContext<MarketplaceContextProps>({
@@ -27,26 +39,32 @@ const MarketplaceContext = createContext<MarketplaceContextProps>({
   query: '',
   onUpdateQuery: function () {},
   targetMirrorID: undefined,
-  onUpdateTargetMirrorID: function () {}
+  onUpdateTargetMirrorID: function () {},
+  searchInputRef: { current: null },
+  mirrorTriggerRef: { current: null },
+  focusSearch() {},
+  focusMirrorSelect() {},
+  clearQuery() {}
 })
 
 interface MarketplaceProviderProps {
   children: ReactNode
-  mode: MarketplaceMode
-  onUpdateMode: (mode: MarketplaceMode) => void
 }
 
 function MarketplaceProvider(props: MarketplaceProviderProps) {
+  const [mode, onUpdateMode] = useState<MarketplaceMode>('booth')
   const [boothBucket, onUpdateBoothBucket] = useState<BoothBucket>('all')
   const [navigateBucket, onUpdateNavigateBucket] = useState<NavigateBucket>('all')
   const [query, onUpdateQuery] = useState('')
   const [targetMirrorID, onUpdateTargetMirrorID] = useState<string | undefined>(undefined)
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const mirrorTriggerRef = useRef<HTMLInputElement | null>(null)
 
   const value = useMemo(
     function () {
       return {
-        mode: props.mode,
-        onUpdateMode: props.onUpdateMode,
+        mode,
+        onUpdateMode,
         boothBucket,
         onUpdateBoothBucket,
         navigateBucket,
@@ -54,17 +72,25 @@ function MarketplaceProvider(props: MarketplaceProviderProps) {
         query,
         onUpdateQuery,
         targetMirrorID,
-        onUpdateTargetMirrorID
+        onUpdateTargetMirrorID,
+        searchInputRef,
+        mirrorTriggerRef,
+        focusSearch() {
+          searchInputRef.current?.focus()
+          searchInputRef.current?.select()
+        },
+        focusMirrorSelect() {
+          const node = mirrorTriggerRef.current
+          if (!node) return
+          node.focus()
+          node.select()
+        },
+        clearQuery() {
+          onUpdateQuery('')
+        }
       }
     },
-    [
-      props.mode,
-      props.onUpdateMode,
-      boothBucket,
-      navigateBucket,
-      query,
-      targetMirrorID
-    ]
+    [mode, boothBucket, navigateBucket, query, targetMirrorID]
   )
 
   return <MarketplaceContext value={value}>{props.children}</MarketplaceContext>

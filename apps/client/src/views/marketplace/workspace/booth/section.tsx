@@ -1,109 +1,24 @@
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@cogito/design/components/select'
-import { EmptyHint } from '@/views/marketplace/workspace/empty-hint'
-import { IncrementButton } from '@/views/marketplace/workspace/increment-button'
-import { memo, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { toast } from 'sonner'
-import { A11y, Navigation, Pagination, Virtual } from 'swiper/modules'
-import { Swiper, type SwiperClass, SwiperSlide } from 'swiper/react'
-import { useShallow } from 'zustand/react/shallow'
-
-import 'swiper/css'
-import 'swiper/css/virtual'
-import 'swiper/css/navigation'
-import 'swiper/css/pagination'
+import { useContext, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useReducedMotion } from 'motion/react'
+import * as m from 'motion/react-m'
 
 import type { BoothBucket } from '@/constants/marketplace/buckets'
-import { findTileHint } from '@/constants/marketplace/tile-hints'
-import { Reflection } from '@/features/controller/reflection.tsx'
-import { MagneticTile } from '@/features/magnetic-tile/magnetic-tile.tsx'
+import { BoothCard } from '@/views/marketplace/workspace/booth/card.tsx'
 import { MarketplaceContext } from '@/views/marketplace/workspace/context.tsx'
-import { useEnterMotion } from '@/views/marketplace/workspace/hooks/use-enter-motion.ts'
-import { useVisible } from '@/views/marketplace/workspace/hooks/use-visible.ts'
-import { findLayoutKey, findMotionKey } from '@/views/marketplace/workspace/lib/enter-motion.ts'
-import { insertTile } from '@/views/marketplace/workspace/lib/insert-tile.ts'
-import {
-  findBoothTiles,
-  formatUpdatedAt
-} from '@/views/marketplace/workspace/lib/tiles.ts'
+import { EmptyHint } from '@/views/marketplace/workspace/empty-hint'
+import { MOTION } from '@/views/marketplace/workspace/lib/motion.ts'
+import { findBoothTiles } from '@/views/marketplace/workspace/lib/tiles.ts'
 import { useMirrorStore } from '@/stores/mirror.ts'
 
 type SectionProps = {
   bucket: BoothBucket
 }
 
-type SizeOption = {
-  label: string
-  value: Mirror.Size
-}
-
-type ShapeOption = {
-  label: string
-  value: Mirror.Shape
-}
-
-type DirectionOption = {
-  label: string
-  value: Mirror.Direction
-}
-
-type BoothCardViewProps = {
-  tile: MagneticTile
-  scrollRoot: Element | null
-}
-
-const SIZES: SizeOption[] = [1, 2, 3, 4, 5, 6, 7].map(function (value) {
-  return { label: String(value), value: value as Mirror.Size }
-})
-
-const SHAPES: ShapeOption[] = [
-  { label: '矩形', value: 'rectangle' },
-  { label: '正形', value: 'square' },
-  { label: '圆形', value: 'circle' }
-]
-
-const DIRECTIONS: DirectionOption[] = [
-  { label: '水平', value: 'horizontal' },
-  { label: '垂直', value: 'vertical' }
-]
-
-const BOOT_SIZE: Mirror.Size = 1
-const BOOT_SHAPE: Mirror.Shape = 'rectangle'
-const BOOT_DIRECTION: Mirror.Direction = 'horizontal'
-
-const CARD_CLASS = [
-  'flex w-full flex-row gap-3.5 rounded-xl border border-slate-900/8 bg-card p-3.5',
-  'shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-[border-color,box-shadow] duration-200',
-  'hover:border-primary/35 hover:shadow-[0_6px_16px_rgba(15,23,42,0.06)]'
-].join(' ')
-
-const BADGE_CLASS =
-  'inline-flex h-5 min-w-7 shrink-0 items-center justify-center rounded-full border border-slate-900/6 bg-slate-100 px-2 text-[11px] leading-5 text-slate-600 tabular-nums'
-
-const SWIPER_CLASS = [
-  'group/swiper relative aspect-video min-w-[46%] flex-1 overflow-hidden rounded-[10px] border border-slate-900/6 bg-slate-50',
-  '[--swiper-navigation-size:28px]',
-  '[&_.swiper-button-next]:right-2.5 [&_.swiper-button-next]:left-auto [&_.swiper-button-next]:size-7 [&_.swiper-button-next]:rounded-full [&_.swiper-button-next]:bg-card [&_.swiper-button-next]:text-foreground [&_.swiper-button-next]:shadow-sm',
-  '[&_.swiper-button-prev]:left-2.5 [&_.swiper-button-prev]:size-7 [&_.swiper-button-prev]:rounded-full [&_.swiper-button-prev]:bg-card [&_.swiper-button-prev]:text-foreground [&_.swiper-button-prev]:shadow-sm',
-  '[&_.swiper-pagination-bullet]:bg-slate-400 [&_.swiper-pagination-bullet]:opacity-55',
-  '[&_.swiper-pagination-bullet-active]:bg-primary [&_.swiper-pagination-bullet-active]:opacity-100'
-].join(' ')
-
-function findTitleMark(title: string) {
-  const trimmed = title.trim()
-  if (!trimmed) return '#'
-  return trimmed.slice(0, 1).toUpperCase()
-}
-
 function Section(props: SectionProps) {
   const listRef = useRef<HTMLDivElement>(null)
   const [scrollRoot, onUpdateScrollRoot] = useState<Element | null>(null)
-  const { query } = useContext(MarketplaceContext)
+  const { query, onUpdateQuery, onUpdateBoothBucket } = useContext(MarketplaceContext)
+  const isReducedMotion = !!useReducedMotion()
   const magneticTiles = useMirrorStore(function (state) {
     return state.magneticTiles
   })
@@ -115,17 +30,15 @@ function Section(props: SectionProps) {
     [magneticTiles, props.bucket, query]
   )
 
-  const motionKey = useMemo(
+  const listKey = useMemo(
     function () {
-      return findMotionKey(props.bucket, query, featureTiles)
+      return `${props.bucket}:${query.trim()}:${featureTiles
+        .map(function (tile) {
+          return tile.id
+        })
+        .join(',')}`
     },
     [props.bucket, query, featureTiles]
-  )
-  const layoutKey = useMemo(
-    function () {
-      return findLayoutKey(featureTiles)
-    },
-    [featureTiles]
   )
 
   useLayoutEffect(
@@ -135,281 +48,54 @@ function Section(props: SectionProps) {
     [props.bucket, featureTiles.length]
   )
 
-  useEnterMotion(listRef, motionKey, layoutKey)
+  const hasQuery = query.trim().length > 0
+  const listMotion = MOTION.listContainer(isReducedMotion)
+  const itemMotion = MOTION.listItem(isReducedMotion)
 
-  return (
-    <div className="flex h-full min-w-0 flex-1 flex-col gap-2.5 overflow-hidden px-3 pt-2 pb-3">
-      {featureTiles.length === 0 ? (
-        <EmptyHint description={query.trim() ? '未找到匹配磁贴' : '该分类暂无磁贴'} />
-      ) : (
-        <div
-          ref={listRef}
-          className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto scroll-smooth p-0.5">
-          {featureTiles.map(function (tile) {
-            return (
-              <BoothCard
-                key={tile.id}
-                tile={tile}
-                scrollRoot={scrollRoot}
-              />
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function BoothCardView(props: BoothCardViewProps) {
-  const tile = props.tile
-  const Component = Reflection[tile.component]
-  const rootRef = useRef<HTMLElement>(null)
-  const swiperRef = useRef<SwiperClass | null>(null)
-  const isVisible = useVisible(rootRef, { root: props.scrollRoot })
-  const [size, onUpdateSize] = useState(BOOT_SIZE)
-  const [shape, onUpdateShape] = useState(BOOT_SHAPE)
-  const [direction, onUpdateDirection] = useState(BOOT_DIRECTION)
-  const [isIncrementing, onUpdateIncrementing] = useState(false)
-  const { targetMirrorID } = useContext(MarketplaceContext)
-  const { activeMirrorID, mirrors, toInsertMagneticTile } = useMirrorStore(
-    useShallow(function (state) {
-      return {
-        activeMirrorID: state.active.mirror?.id,
-        mirrors: state.mirrors,
-        toInsertMagneticTile: state.toInsertMagneticTile
-      }
-    })
-  )
-  const accent = tile.background?.color ?? '#DBEAFE'
-  const hint = findTileHint(tile.component, tile.description)
-  const mark = findTitleMark(tile.title)
-
-  function onSlide(swiper: SwiperClass) {
-    onUpdateSize(function (prev) {
-      const value = SIZES.map(function (item) {
-        return item.value
-      })[swiper.realIndex]
-      if (value) return value
-      return prev
-    })
-  }
-
-  function onChangeSize(value: Mirror.Size) {
-    onUpdateSize(value)
-    const index = SIZES.findIndex(function (item) {
-      return item.value === value
-    })
-    if (index === -1) return
-    swiperRef.current?.slideToLoop(index)
-  }
-
-  async function onIncrement() {
-    const mirrorID = targetMirrorID ?? activeMirrorID
-    if (!mirrorID) {
-      toast.warning('请先选择镜像')
-      return
-    }
-
-    const mirror = mirrors.find(function (item) {
-      return item.id === mirrorID
-    })
-    const mirrorTitle = mirror?.title ?? '镜像'
-
-    onUpdateIncrementing(true)
-    try {
-      await insertTile({
-        tile,
-        mirrorID,
-        overrides: { size, shape, direction },
-        toInsertMagneticTile
-      })
-      toast.success(`已添加到 ${mirrorTitle}`)
-    } catch (error) {
-      console.error('[Marketplace] increment booth tile failed:', error)
-      toast.error(error instanceof Error ? error.message : '添加失败')
-    } finally {
-      onUpdateIncrementing(false)
-    }
+  if (featureTiles.length === 0) {
+    return (
+      <EmptyHint
+        description={hasQuery ? '未找到匹配磁贴' : '该分类暂无磁贴'}
+        actionLabel={hasQuery ? '清除搜索' : props.bucket !== 'all' ? '查看全部' : undefined}
+        onAction={
+          hasQuery
+            ? function () {
+                onUpdateQuery('')
+              }
+            : props.bucket !== 'all'
+              ? function () {
+                  onUpdateBoothBucket('all')
+                }
+              : undefined
+        }
+      />
+    )
   }
 
   return (
-    <article
-      ref={rootRef}
-      data-list-card=""
-      className={CARD_CLASS}>
-      <div className="flex min-w-[42%] flex-1 flex-col justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div
-            className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-border/60 text-base font-semibold"
-            style={{
-              backgroundColor: accent,
-              color: tile.textColor ?? '#0F172A'
-            }}
-            aria-hidden>
-            {mark}
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <div className="flex min-w-0 items-center gap-2">
-              <span
-                title={tile.title}
-                className="min-w-0 flex-1 truncate text-sm leading-[22px] font-semibold text-slate-900">
-                {tile.title}
-              </span>
-              <span className={BADGE_CLASS}>{tile.downloadCount}</span>
-            </div>
-            <span
-              title={hint}
-              className="truncate text-xs leading-[18px] text-slate-600">
-              {hint}
-            </span>
-            <span className="text-xs leading-[18px] text-slate-500">
-              {formatUpdatedAt(tile.updatedAt)}
-            </span>
-          </div>
-        </div>
-
-        <div className="grid w-full grid-cols-[repeat(3,minmax(0,1fr))_2.25rem] items-center gap-0">
-          <Select
-            items={SIZES.map(function (option) {
-              return { value: String(option.value), label: option.label }
-            })}
-            value={String(size)}
-            onValueChange={function (value) {
-              if (value === null) return
-              onChangeSize(Number(value) as Mirror.Size)
-            }}>
-            <SelectTrigger
-              size="sm"
-              aria-label="网格跨度">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SIZES.map(function (option) {
-                return (
-                  <SelectItem
-                    key={option.value}
-                    value={String(option.value)}>
-                    {option.label}
-                  </SelectItem>
-                )
-              })}
-            </SelectContent>
-          </Select>
-
-          <Select
-            items={SHAPES.map(function (option) {
-              return { value: option.value, label: option.label }
-            })}
-            value={shape}
-            onValueChange={function (value) {
-              if (value === null) return
-              onUpdateShape(value)
-            }}>
-            <SelectTrigger
-              size="sm"
-              aria-label="形状">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SHAPES.map(function (option) {
-                return (
-                  <SelectItem
-                    key={option.value}
-                    value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                )
-              })}
-            </SelectContent>
-          </Select>
-
-          <Select
-            items={DIRECTIONS.map(function (option) {
-              return { value: option.value, label: option.label }
-            })}
-            value={direction}
-            onValueChange={function (value) {
-              if (value === null) return
-              onUpdateDirection(value)
-            }}>
-            <SelectTrigger
-              size="sm"
-              aria-label="方向">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DIRECTIONS.map(function (option) {
-                return (
-                  <SelectItem
-                    key={option.value}
-                    value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                )
-              })}
-            </SelectContent>
-          </Select>
-
-          <IncrementButton
-            tileTitle={tile.title}
-            isIncrementing={isIncrementing}
-            className="h-8 w-9 rounded-l-none rounded-r-md"
-            onIncrement={function () {
-              void onIncrement()
-            }}
-          />
-        </div>
-      </div>
-
-      {isVisible ? (
-        <Swiper
-          virtual
-          navigation
-          loop={true}
-          spaceBetween={0}
-          slidesPerView={1}
-          onSwiper={function (swiper) {
-            swiperRef.current = swiper
-          }}
-          onSlideChange={onSlide}
-          scrollbar={{ draggable: true }}
-          className={SWIPER_CLASS}
-          pagination={{ clickable: true }}
-          modules={[Navigation, Pagination, A11y, Virtual]}>
-          {SIZES.map(function (sizeOption) {
-            return (
-              <SwiperSlide
-                key={sizeOption.value}
-                className="flex items-center justify-center">
-                {sizeOption.value === size ? (
-                  <MagneticTile.Suspense
-                    size={size}
-                    shape={shape}
-                    direction={direction}>
-                    {Component ? (
-                      <Component
-                        {...tile}
-                        size={size}
-                        shape={shape}
-                        direction={direction}
-                      />
-                    ) : null}
-                  </MagneticTile.Suspense>
-                ) : null}
-              </SwiperSlide>
-            )
-          })}
-        </Swiper>
-      ) : (
-        <div
-          className="aspect-video min-w-[46%] flex-1 animate-pulse rounded-[10px] border border-slate-900/6 bg-[linear-gradient(90deg,#f1f5f9_0%,#e2e8f0_50%,#f1f5f9_100%)] bg-size-[200%_100%]"
-          aria-hidden
-        />
-      )}
-    </article>
+    <m.div
+      key={listKey}
+      ref={listRef}
+      className={[
+        'grid min-h-0 flex-1 auto-rows-min content-start gap-3 overflow-auto scroll-smooth p-0.5',
+        /* 抬高列地板 + auto-fit 收空列，大屏单卡不小于小窗观感 */
+        '[grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))]'
+      ].join(' ')}
+      {...listMotion}>
+      {featureTiles.map(function (tile) {
+        return (
+          <m.div
+            key={tile.id}
+            {...itemMotion}>
+            <BoothCard
+              tile={tile}
+              scrollRoot={scrollRoot}
+            />
+          </m.div>
+        )
+      })}
+    </m.div>
   )
 }
-
-const BoothCard = memo(BoothCardView)
 
 export default Section

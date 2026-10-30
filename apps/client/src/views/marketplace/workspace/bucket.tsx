@@ -1,4 +1,7 @@
 import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
+import { useLayoutEffect, useRef } from 'react'
+
+import { Glide } from '@/components/glide/glide'
 
 type Option<T extends string> = {
   label: string
@@ -11,31 +14,64 @@ type BucketProps<T extends string> = {
   onUpdate: (value: T) => void
 }
 
-/** 左侧分类栏：竖排单选，宽度固定，自身滚动 */
+/**
+ * 全宽胶囊轨 + 内容宽度子项；溢出靠 Glide.X 滚轮横向滑，不均分撑满。
+ * 选中用实心主色（不用外阴影），避免被 overflow 裁切。
+ */
 function Bucket<T extends string>(props: BucketProps<T>) {
+  const activeRef = useRef<HTMLElement | null>(null)
+
+  useLayoutEffect(
+    function () {
+      const node = activeRef.current
+      if (!node) return
+      node.scrollIntoView({
+        behavior: 'smooth',
+        inline: 'center',
+        block: 'nearest'
+      })
+    },
+    [props.value]
+  )
+
   return (
-    <div className="h-full w-32 min-w-32 overflow-y-auto pl-2">
-      <ToggleGroup
-        orientation="vertical"
-        spacing={0}
-        value={[props.value]}
-        onValueChange={function (next) {
-          const value = next[0] as T | undefined
-          if (!value) return
-          props.onUpdate(value)
-        }}
-        className="w-full gap-0.5 rounded-xl border border-slate-900/6 bg-white/40 p-1">
-        {props.options.map(function (option) {
-          return (
-            <ToggleGroupItem
-              key={option.value}
-              value={option.value}
-              className="h-[34px] w-full justify-start rounded-lg px-2.5 text-[13px] hover:bg-white/55 aria-pressed:bg-white aria-pressed:text-slate-900 aria-pressed:shadow-[0_1px_3px_rgba(15,23,42,0.08)] data-[state=on]:bg-white data-[state=on]:text-slate-900 data-[state=on]:shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
-              {option.label}
-            </ToggleGroupItem>
-          )
-        })}
-      </ToggleGroup>
+    <div className="sticky top-0 z-10 w-full bg-background/95 py-2 backdrop-blur-sm">
+      <Glide.X className="h-10 w-full rounded-full bg-muted p-1.5">
+        <ToggleGroup
+          spacing={1}
+          value={[props.value]}
+          onValueChange={function (next) {
+            const value = next[0] as T | undefined
+            if (!value) return
+            props.onUpdate(value)
+          }}
+          className="flex w-max gap-1 rounded-full bg-transparent p-0 shadow-none">
+          {props.options.map(function (option) {
+            const isActive = option.value === props.value
+            return (
+              <ToggleGroupItem
+                key={option.value}
+                value={option.value}
+                ref={
+                  isActive
+                    ? function (node: HTMLElement | null) {
+                        activeRef.current = node
+                      }
+                    : undefined
+                }
+                className={[
+                  'h-7 shrink-0 !rounded-full px-3.5 text-xs shadow-none transition-colors',
+                  'text-foreground/70 hover:bg-card hover:text-foreground',
+                  'data-[state=on]:bg-primary data-[state=on]:font-semibold data-[state=on]:text-primary-foreground',
+                  'data-[state=on]:hover:bg-primary data-[state=on]:hover:text-primary-foreground',
+                  'data-[pressed]:bg-primary data-[pressed]:font-semibold data-[pressed]:text-primary-foreground'
+                ].join(' ')}>
+                {option.label}
+              </ToggleGroupItem>
+            )
+          })}
+        </ToggleGroup>
+      </Glide.X>
     </div>
   )
 }

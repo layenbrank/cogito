@@ -1,6 +1,6 @@
-import { EmptyHint } from '@/views/marketplace/workspace/empty-hint'
-import { IncrementButton } from '@/views/marketplace/workspace/increment-button'
-import { memo, useContext, useMemo, useRef, useState } from 'react'
+import { memo, useContext, useMemo, useState } from 'react'
+import { useReducedMotion } from 'motion/react'
+import * as m from 'motion/react-m'
 import { toast } from 'sonner'
 import { useShallow } from 'zustand/react/shallow'
 
@@ -10,9 +10,11 @@ import {
   type NavigateBucket
 } from '@/constants/marketplace/buckets'
 import { MarketplaceContext } from '@/views/marketplace/workspace/context.tsx'
-import { useEnterMotion } from '@/views/marketplace/workspace/hooks/use-enter-motion.ts'
-import { findLayoutKey, findMotionKey } from '@/views/marketplace/workspace/lib/enter-motion.ts'
+import { EmptyHint } from '@/views/marketplace/workspace/empty-hint'
+import { IncrementButton } from '@/views/marketplace/workspace/increment-button'
 import { insertTile } from '@/views/marketplace/workspace/lib/insert-tile.ts'
+import { MOTION } from '@/views/marketplace/workspace/lib/motion.ts'
+
 import {
   findNavigateTiles,
   formatUpdatedAt
@@ -32,7 +34,6 @@ function parseHostname(url: string | null) {
   try {
     return new URL(url).hostname.replace(/^www\./, '')
   } catch (error) {
-    // URL 不合法就用原文当域名（列表里本来就可能是任意字符串）
     console.debug('[marketplace] URL 不合法，直接回显原文:', error)
     return url
   }
@@ -53,8 +54,8 @@ function findTileDescription(tile: MagneticTile) {
 }
 
 function Section(props: SectionProps) {
-  const gridRef = useRef<HTMLDivElement>(null)
-  const { query } = useContext(MarketplaceContext)
+  const { query, onUpdateQuery, onUpdateNavigateBucket } = useContext(MarketplaceContext)
+  const isReducedMotion = !!useReducedMotion()
   const magneticTiles = useMirrorStore(function (state) {
     return state.magneticTiles
   })
@@ -66,47 +67,64 @@ function Section(props: SectionProps) {
     [magneticTiles, props.bucket, query]
   )
 
-  const motionKey = useMemo(
+  const listKey = useMemo(
     function () {
-      return findMotionKey(props.bucket, query, navigationTiles)
+      return `${props.bucket}:${query.trim()}:${navigationTiles
+        .map(function (tile) {
+          return tile.id
+        })
+        .join(',')}`
     },
     [props.bucket, query, navigationTiles]
   )
-  const layoutKey = useMemo(
-    function () {
-      return findLayoutKey(navigationTiles)
-    },
-    [navigationTiles]
-  )
 
-  useEnterMotion(gridRef, motionKey, layoutKey)
+  const hasQuery = query.trim().length > 0
+  const listMotion = MOTION.listContainer(isReducedMotion)
+  const itemMotion = MOTION.listItem(isReducedMotion)
+
+  if (navigationTiles.length === 0) {
+    return (
+      <EmptyHint
+        description={hasQuery ? '未找到匹配网址' : '该分类暂无网址'}
+        actionLabel={hasQuery ? '清除搜索' : props.bucket !== 'all' ? '查看全部' : undefined}
+        onAction={
+          hasQuery
+            ? function () {
+                onUpdateQuery('')
+              }
+            : props.bucket !== 'all'
+              ? function () {
+                  onUpdateNavigateBucket('all')
+                }
+              : undefined
+        }
+      />
+    )
+  }
 
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col gap-2.5 overflow-hidden px-3 pt-2 pb-3">
-      {navigationTiles.length === 0 ? (
-        <EmptyHint description={query.trim() ? '未找到匹配网址' : '该分类暂无网址'} />
-      ) : (
-        <div
-          ref={gridRef}
-          className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-2.5 overflow-auto scroll-smooth p-0.5 max-[900px]:grid-cols-1">
-          {navigationTiles.map(function (tile) {
-            return (
-              <NavigateCard
-                key={tile.id}
-                tile={tile}
-              />
-            )
-          })}
-        </div>
-      )}
-    </div>
+    <m.div
+      key={listKey}
+      className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 gap-2.5 overflow-auto scroll-smooth p-0.5 min-[640px]:grid-cols-2 min-[1100px]:grid-cols-3"
+      {...listMotion}>
+      {navigationTiles.map(function (tile) {
+        return (
+          <m.div
+            key={tile.id}
+            {...itemMotion}>
+            <NavigateCard tile={tile} />
+          </m.div>
+        )
+      })}
+    </m.div>
   )
 }
 
 function NavigateCardView(props: NavigateCardViewProps) {
   const tile = props.tile
   const [isIncrementing, onUpdateIncrementing] = useState(false)
-  const { targetMirrorID } = useContext(MarketplaceContext)
+  const [showsCheck, onUpdateShowsCheck] = useState(false)
+  const marketplace = useContext(MarketplaceContext)
   const { activeMirrorID, mirrors, toInsertMagneticTile } = useMirrorStore(
     useShallow(function (state) {
       return {
@@ -123,9 +141,10 @@ function NavigateCardView(props: NavigateCardViewProps) {
   const updatedLabel = formatUpdatedAt(tile.updatedAt)
 
   async function onIncrement() {
-    const mirrorID = targetMirrorID ?? activeMirrorID
+    const mirrorID = marketplace.targetMirrorID ?? activeMirrorID
     if (!mirrorID) {
       toast.warning('请先选择镜像')
+      marketplace.focusMirrorSelect()
       return
     }
 
@@ -141,6 +160,10 @@ function NavigateCardView(props: NavigateCardViewProps) {
         mirrorID,
         toInsertMagneticTile
       })
+      onUpdateShowsCheck(true)
+      window.setTimeout(function () {
+        onUpdateShowsCheck(false)
+      }, MOTION.SUCCESS_MS)
       toast.success(`已添加到 ${mirrorTitle}`)
     } catch (error) {
       console.error('[Marketplace] increment navigate tile failed:', error)
@@ -153,12 +176,12 @@ function NavigateCardView(props: NavigateCardViewProps) {
   return (
     <article
       data-list-card=""
-      className="flex min-h-24 items-start gap-3 rounded-xl border border-slate-900/8 bg-card p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-[border-color,box-shadow] duration-200 hover:border-primary/35 hover:shadow-[0_6px_16px_rgba(15,23,42,0.06)]">
+      className="flex min-h-22 items-start gap-3 rounded-2xl bg-card p-3.5 shadow-sm transition-shadow duration-150 hover:shadow-md">
       <div
-        className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-border/60 text-base font-semibold"
+        className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl text-sm font-semibold shadow-sm"
         style={{
           backgroundColor: accent,
-          color: tile.textColor ?? '#0F172A'
+          color: tile.textColor ?? undefined
         }}
         aria-hidden>
         {mark}
@@ -167,12 +190,12 @@ function NavigateCardView(props: NavigateCardViewProps) {
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span
           title={tile.title}
-          className="truncate text-sm leading-[22px] font-medium text-slate-900">
+          className="truncate text-sm leading-[22px] font-semibold text-foreground">
           {tile.title}
         </span>
         <span
           title={description}
-          className="truncate text-xs leading-[18px] text-slate-600">
+          className="truncate text-xs leading-[18px] text-foreground/65">
           {description}
         </span>
         <div className="mt-0.5 flex min-w-0 items-center gap-2">
@@ -181,27 +204,28 @@ function NavigateCardView(props: NavigateCardViewProps) {
               href={tile.url ?? undefined}
               target="_blank"
               rel="noreferrer"
-              className="min-w-0 flex-1 truncate text-xs leading-[18px] text-slate-500 hover:text-primary"
+              className="min-w-0 flex-1 truncate text-xs leading-[18px] text-foreground/55 hover:text-primary"
               onClick={function (event) {
                 event.stopPropagation()
               }}>
               {hostname}
             </a>
           ) : null}
-          <span className="shrink-0 text-[11px] leading-[18px] whitespace-nowrap text-slate-400">
+          <span className="shrink-0 text-[11px] leading-[18px] whitespace-nowrap text-foreground/45">
             {updatedLabel}
           </span>
         </div>
       </div>
 
       <div className="flex min-h-16 shrink-0 flex-col items-end justify-between gap-2 self-stretch">
-        <span className="inline-flex h-5 min-w-7 items-center justify-center rounded-full border border-slate-900/6 bg-slate-100 px-2 text-[11px] leading-5 text-slate-600 tabular-nums">
+        <span className="inline-flex h-5 min-w-7 items-center justify-center rounded-full bg-muted px-2 text-[11px] leading-5 text-foreground/70 tabular-nums">
           {tile.downloadCount}
         </span>
         <IncrementButton
           tileTitle={tile.title}
           isIncrementing={isIncrementing}
-          className="size-7 rounded-lg"
+          showsCheck={showsCheck}
+          className="size-7"
           onIncrement={function () {
             void onIncrement()
           }}

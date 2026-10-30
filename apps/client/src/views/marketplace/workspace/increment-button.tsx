@@ -6,25 +6,34 @@ import { cn } from 'cn'
 interface IncrementButtonProps {
   tileTitle: string
   isIncrementing: boolean
+  showsCheck?: boolean
   onIncrement: () => void
   className?: string
 }
 
 function IncrementButton(props: IncrementButtonProps) {
+  const isBusy = props.isIncrementing
+  const showsCheck = !!props.showsCheck
+
   return (
     <Button
       size="icon-sm"
       title="新增到镜像"
       aria-label={`新增 ${props.tileTitle}`}
-      aria-busy={props.isIncrementing}
-      disabled={props.isIncrementing}
-      className={cn('rounded-md', props.className)}
+      aria-busy={isBusy}
+      disabled={isBusy || showsCheck}
+      className={cn('rounded-lg', props.className)}
       onClick={function (event) {
         event.stopPropagation()
         props.onIncrement()
       }}>
-      {props.isIncrementing ? (
+      {isBusy ? (
         <Spinner />
+      ) : showsCheck ? (
+        <Icon
+          icon="lucide:check"
+          aria-hidden
+        />
       ) : (
         <Icon
           icon="lucide:plus"

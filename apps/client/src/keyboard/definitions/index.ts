@@ -30,6 +30,7 @@ import { EDITOR_SHORTCUTS, NATIVE_EDITOR_SHORTCUTS } from '@/keyboard/definition
 import { GLOBAL_SHORTCUTS } from '@/keyboard/definitions/global'
 import { COMMAND } from '@/keyboard/definitions/ids'
 import { KNOWLEDGE_SHORTCUTS } from '@/keyboard/definitions/knowledge'
+import { MARKETPLACE_SHORTCUTS } from '@/keyboard/definitions/marketplace'
 import { MORPH_SHORTCUTS } from '@/keyboard/definitions/morph'
 import { OVERLAY_SHORTCUTS } from '@/keyboard/definitions/overlay'
 import { OVERVIEW_SHORTCUTS } from '@/keyboard/definitions/overview'
@@ -48,7 +49,8 @@ const LOCAL_SHORTCUTS: readonly LocalShortcutDefinition[] = [
   ...KNOWLEDGE_SHORTCUTS,
   ...CLIPCHAMP_SHORTCUTS,
   ...DIRECTIVE_SHORTCUTS,
-  ...MORPH_SHORTCUTS
+  ...MORPH_SHORTCUTS,
+  ...MARKETPLACE_SHORTCUTS
 ]
 
 const SHORTCUTS: readonly ShortcutDefinition[] = [

@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 import {
   findShade,
@@ -8,16 +10,6 @@ import type { MagneticTileWrite } from '@/stores/mirror.ts'
 interface PicsumImage {
   id: string
   seed?: string
-}
-
-interface FormValues {
-  title: string
-  url: string
-  color: string
-  image: string
-  textColor: string
-  backdropBlur: number
-  backdropOpacity: number
 }
 
 interface TileOption {
@@ -234,11 +226,55 @@ function isUrl(value: string) {
   try {
     return Boolean(new URL(value))
   } catch (error) {
-    // 校验函数：不是合法 URL 是常态（用户正在输入），只记低噪日志
     console.debug('[marketplace] 不是合法 URL（校验为 false）:', error)
     return false
   }
 }
+
+const FORM_BASE = z.object({
+  title: z.string().trim().min(1, '请填写标题'),
+  url: z.string(),
+  color: z.string().min(1, '请选择背景色'),
+  image: z.string(),
+  textColor: z.string().min(1, '请选择文字色'),
+  backdropBlur: z.number().min(0).max(BLUR_MAX),
+  backdropOpacity: z.number().min(0).max(1)
+})
+
+type FormValues = z.infer<typeof FORM_BASE>
+
+function findFormSchema(canEditUrl: boolean) {
+  if (!canEditUrl) return FORM_BASE
+  return FORM_BASE.extend({
+    url: z
+      .string()
+      .trim()
+      .min(1, '请填写链接')
+      .refine(function (value) {
+        return isUrl(value)
+      }, '请输入有效链接')
+  })
+}
+
+const TILE_IMPORT_ITEM = z
+  .object({
+    title: z.string().optional(),
+    url: z.string().nullable().optional(),
+    component: z.string().optional(),
+    description: z.string().optional(),
+    background: z.unknown().optional(),
+    backdrop: z.unknown().optional(),
+    textColor: z.string().nullable().optional(),
+    round: z.string().nullable().optional(),
+    mark: z.string().nullable().optional(),
+    size: z.union([z.number(), z.string()]).optional(),
+    shape: z.string().optional(),
+    direction: z.string().optional(),
+    index: z.number().optional()
+  })
+  .passthrough()
+
+const TILE_IMPORT_SCHEMA = z.array(TILE_IMPORT_ITEM).min(1, '导入文件为空')
 
 function buildCreateValues(
   colorShades: string[],
@@ -264,6 +300,7 @@ export type { FormValues, PicsumImage, TileOption, TileSelectOption }
 export {
   BLUR_MAX,
   CREATE_KEY,
+  FORM_BASE,
   IMAGE_NONE,
   IMAGE_SWATCH_CLASS,
   OPACITY_DEFAULT,
@@ -276,8 +313,10 @@ export {
   PREVIEW_TITLE_PLACEHOLDER,
   PREVIEW_URL_PLACEHOLDER,
   SWATCH_SIZE_CLASS,
+  TILE_IMPORT_SCHEMA,
   buildCreateValues,
   buildPicsumUrl,
+  findFormSchema,
   isUrl,
   parseBackgroundImage,
   parseBackdrop,

@@ -1,11 +1,56 @@
-import type { ComponentProps } from 'react'
+import {
+  createContext,
+  useContext,
+  useLayoutEffect,
+  useState,
+  type ComponentProps
+} from 'react'
 
 import { Select as SelectPrimitive } from '@base-ui/react/select'
 import { cn } from 'cn'
 
 import { FIELD_SHELL } from '../lib/surface'
 
-const Select = SelectPrimitive.Root
+type SelectSize = 'sm' | 'default'
+
+interface SelectSizeContextValue {
+  size: SelectSize
+  /** Trigger 上的 size 回写，让 Content / Item 跟触发器一致（兼容旧调用） */
+  syncSize: (size: SelectSize) => void
+}
+
+const SelectSizeContext = createContext<SelectSizeContextValue>({
+  size: 'default',
+  syncSize() {}
+})
+
+/**
+ * 尺寸由 Root 统一下发：Trigger / Content / Item 字号与高度一致。
+ * 也可只在 Trigger 上传 `size`（会 sync 到 Content），或在 Content 上单独覆盖。
+ */
+function Select<Value, Multiple extends boolean | undefined = false>({
+  size = 'default',
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple> & {
+  size?: SelectSize
+}) {
+  const [resolvedSize, updateResolvedSize] = useState<SelectSize>(size)
+  useLayoutEffect(
+    function () {
+      updateResolvedSize(size)
+    },
+    [size]
+  )
+  return (
+    <SelectSizeContext.Provider
+      value={{
+        size: resolvedSize,
+        syncSize: updateResolvedSize
+      }}>
+      <SelectPrimitive.Root {...props} />
+    </SelectSizeContext.Provider>
+  )
+}
 
 /** 下拉箭头：内联 SVG，不引入图标库（尺寸/颜色/旋转全交给 className），也还原了触发器右侧箭头 */
 function SelectChevron({ className }: { className?: string }) {
@@ -47,19 +92,27 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
 }
 function SelectTrigger({
   className,
-  size = 'default',
+  size: sizeProp,
   children,
   ...props
 }: SelectPrimitive.Trigger.Props & {
-  size?: 'sm' | 'default'
+  size?: SelectSize
 }) {
+  const { size: sizeFromContext, syncSize } = useContext(SelectSizeContext)
+  const size = sizeProp ?? sizeFromContext
+  useLayoutEffect(
+    function () {
+      if (sizeProp) syncSize(sizeProp)
+    },
+    [sizeProp, syncSize]
+  )
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       data-size={size}
       className={cn(
         FIELD_SHELL,
-        'group/select-trigger flex w-fit cursor-pointer items-center justify-between gap-1.5 py-1.5 pr-2.5 pl-3 text-sm whitespace-nowrap select-none',
+        'group/select-trigger flex w-fit cursor-pointer items-center justify-between gap-1.5 py-1.5 pr-2.5 whitespace-nowrap select-none',
         // 交互对齐 antd：悬停边框变主色；展开时只靠主色边框勾勒整个容器
         // （不能再给触发器单独画 ring——它是个闭合圆角矩形，会把“一个容器”切回两个）
         'hover:border-ring disabled:cursor-not-allowed disabled:opacity-50',
@@ -75,7 +128,9 @@ function SelectTrigger({
         // 否则接缝那一侧的圆角会“跳变”，看起来和弹层不是同一个动作。
         // （FIELD_SHELL 只声明了 color/box-shadow，这里整体接管 transition-property）
         'transition-[color,background-color,border-color,border-radius,box-shadow] duration-150 ease-[ease]',
-        'data-[size=default]:h-9 data-[size=sm]:h-8 data-[size=sm]:rounded-[min(var(--radius-md),10px)] data-[size=sm]:pl-2.5',
+        'data-[size=default]:h-9 data-[size=default]:pl-3 data-[size=default]:text-sm',
+        // sm：text-xs；pl-2.5 与 Content size=sm 的 p-1 + item px-1.5 左缘对齐
+        'data-[size=sm]:h-8 data-[size=sm]:rounded-[min(var(--radius-md),10px)] data-[size=sm]:pl-2.5 data-[size=sm]:text-xs',
         'dark:bg-input/30 dark:hover:bg-input/50',
         className
       )}
@@ -85,7 +140,7 @@ function SelectTrigger({
       <SelectPrimitive.Icon
         data-slot="select-icon"
         className="flex shrink-0 text-muted-foreground transition-transform duration-150 ease-[ease] data-popup-open:rotate-180">
-        <SelectChevron />
+        <SelectChevron className={size === 'sm' ? 'size-3.5' : undefined} />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   )
@@ -98,9 +153,14 @@ function SelectContent({
   sideOffset = 0,
   align = 'start',
   alignOffset = 0,
+  size: sizeProp,
   ...props
 }: SelectPrimitive.Popup.Props &
-  Pick<SelectPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset'>) {
+  Pick<SelectPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset'> & {
+    size?: SelectSize
+  }) {
+  const { size: sizeFromContext } = useContext(SelectSizeContext)
+  const size = sizeProp ?? sizeFromContext
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
@@ -114,6 +174,7 @@ function SelectContent({
         {/* 透明外壳：动效挂在它身上（data-open/data-closed 由 base-ui 打在这里），自身不画背景/边框/阴影。 */}
         <SelectPrimitive.Popup
           data-slot="select-popup"
+          data-size={size}
           className={cn(
             'group/popup relative isolate z-70 flex flex-col origin-(--transform-origin)',
             // 缩放原点固定到接缝侧的左边缘：面板与触发器严格等宽，左边缘恒重合，
@@ -131,6 +192,7 @@ function SelectContent({
           {...props}>
           <div
             data-slot="select-content"
+            data-size={size}
             className={cn(
               // 面板不复用 OVERLAY_SHELL：那套 ring/阴影/四角圆角是给“独立浮层”的，
               // 拼进卡片时 ring 会在接缝处描出一条线，四角圆角也会跟触发器打架。
@@ -182,8 +244,10 @@ function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Prop
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        // px-2 + 面板 p-1 = 触发器 px-3，文字与触发器左对齐；同时给同宽容器留出足够的文本宽度
-        'relative flex min-h-8 w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-hidden select-none',
+        // default：px-2 + 面板 p-1 = 触发器 pl-3；sm：px-1.5 + p-1 = 触发器 pl-2.5
+        'relative flex w-full cursor-pointer items-center gap-2 rounded-md outline-hidden select-none',
+        'min-h-8 px-2 py-1.5 text-sm',
+        'group-data-[size=sm]/popup:min-h-7 group-data-[size=sm]/popup:px-1.5 group-data-[size=sm]/popup:py-1 group-data-[size=sm]/popup:text-xs',
         // antd 交互：悬停给中性底色；选中项用浅主色 + 中粗字重（不再画 check 图标）
         'data-highlighted:bg-accent data-highlighted:text-accent-foreground',
         'data-selected:bg-primary/10 data-selected:font-medium',

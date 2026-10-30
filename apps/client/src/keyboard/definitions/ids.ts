@@ -74,6 +74,13 @@ export const COMMAND = {
   MORPH_TOOL_CROP: 'morph.tool.crop',
   MORPH_TOOL_ROTATE: 'morph.tool.rotate',
 
+  // marketplace（磁贴商店）窗
+  MARKETPLACE_FOCUS_SEARCH: 'marketplace.focusSearch',
+  MARKETPLACE_MODE_BOOTH: 'marketplace.mode.booth',
+  MARKETPLACE_MODE_NAVIGATE: 'marketplace.mode.navigate',
+  MARKETPLACE_MODE_CUSTOMIZE: 'marketplace.mode.customize',
+  MARKETPLACE_CLEAR_SEARCH: 'marketplace.clearSearch',
+
   // 编辑器内（tiptap / ProseMirror）。`EDITOR_*` 由我们接管（原 tiptap-ui 的 useHotkeys），
   // `NATIVE_EDITOR_*` 由扩展自身的 keymap 绑定，只登记不接管。
   EDITOR_AI_ASK: 'editor.aiAsk',

@@ -10,13 +10,16 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cogito/design/components/select'
-import { useMemo, useState, useSyncExternalStore } from 'react'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
+import { useShallow } from 'zustand/react/shallow'
 
 import { parsePresetHues } from '@/features/capture/components/colors'
 import { readAppearance } from '@/features/window/appearance'
 import { useMirrorStore, type MagneticTileUpdate } from '@/stores/mirror.ts'
+import { MarketplaceContext } from '@/views/marketplace/workspace/context.tsx'
 import {
   findShade,
   parseFieldShades,
@@ -27,6 +30,7 @@ import {
 import {
   CREATE_KEY,
   buildCreateValues,
+  findFormSchema,
   parseFormChange,
   parseFormWrite,
   parseTileOptions,
@@ -44,13 +48,21 @@ import {
 import { Preview } from '@/views/marketplace/workspace/customize/preview'
 
 function Customize() {
+  const marketplace = useContext(MarketplaceContext)
+  const { targetMirrorID } = marketplace
   const themePrimary = useMemo(function () {
     return readAppearance().color
   }, [])
-  const mirror = useMirrorStore((state) => state.active.mirror)
-  const magneticTiles = useMirrorStore((state) => state.magneticTiles)
-  const toInsertMagneticTile = useMirrorStore((state) => state.toInsertMagneticTile)
-  const toUpdateMagneticTile = useMirrorStore((state) => state.toUpdateMagneticTile)
+  const { mirrors, magneticTiles, toInsertMagneticTile, toUpdateMagneticTile } = useMirrorStore(
+    useShallow(function (state) {
+      return {
+        mirrors: state.mirrors,
+        magneticTiles: state.magneticTiles,
+        toInsertMagneticTile: state.toInsertMagneticTile,
+        toUpdateMagneticTile: state.toUpdateMagneticTile
+      }
+    })
+  )
   const [submitting, updateSubmitting] = useState(false)
   const [selectedKey, updateSelectedKey] = useState(CREATE_KEY)
   const [keptImageUrl, updateKeptImageUrl] = useState<string | null>(null)
@@ -66,19 +78,6 @@ function Customize() {
     readPicsumImages
   ) as PicsumImage[]
   const isImagesLoading = !picsumImagesReady()
-
-  const form = useForm<FormValues>({
-    defaultValues: buildCreateValues(colorShades, textShades, themePrimary)
-  })
-  const watched = useWatch({ control: form.control })
-  const values = watched ?? form.getValues()
-
-  const hues = useMemo(
-    function () {
-      return parsePresetHues(themePrimary)
-    },
-    [themePrimary]
-  )
 
   const tiles = useMemo(
     function () {
@@ -98,11 +97,52 @@ function Customize() {
   const component = selectedTile?.component ?? 'navigation'
   const canEditUrl = isCreateMode || component === 'navigation'
 
+  const canEditUrlRef = useRef(canEditUrl)
+  useEffect(
+    function () {
+      canEditUrlRef.current = canEditUrl
+    },
+    [canEditUrl]
+  )
+
+  const form = useForm<FormValues>({
+    resolver: function (values, context, options) {
+      return zodResolver(findFormSchema(canEditUrlRef.current))(values, context, options)
+    },
+    defaultValues: buildCreateValues(colorShades, textShades, themePrimary)
+  })
+  const watched = useWatch({ control: form.control })
+  const values = watched ?? form.getValues()
+
+  useEffect(
+    function () {
+      form.clearErrors()
+    },
+    [canEditUrl, form]
+  )
+
+  const hues = useMemo(
+    function () {
+      return parsePresetHues(themePrimary)
+    },
+    [themePrimary]
+  )
+
   const tileOptions = useMemo(
     function () {
       return parseTileOptions(tiles)
     },
     [tiles]
+  )
+
+  const targetMirror = useMemo(
+    function () {
+      if (!targetMirrorID) return undefined
+      return mirrors.find(function (mirror) {
+        return mirror.id === targetMirrorID
+      })
+    },
+    [mirrors, targetMirrorID]
   )
 
   function syncPalette(field: ColorFieldName, primary: string) {
@@ -157,9 +197,10 @@ function Customize() {
   }
 
   async function handleFinish(value: FormValues) {
-    const mirrorID = mirror?.id
+    const mirrorID = targetMirrorID
     if (!mirrorID) {
       toast.error('请先选择镜像')
+      marketplace.focusMirrorSelect()
       return
     }
 
@@ -199,10 +240,19 @@ function Customize() {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
-      <div className="flex min-h-0 flex-1 gap-4 p-3 max-md:flex-col">
-        <div className="h-full w-120 shrink-0 overflow-y-auto max-md:w-full">
-          <Card className="min-h-full gap-4 py-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3 min-[900px]:flex-row min-[900px]:p-4">
+        <div className="w-full shrink-0 min-[900px]:max-w-[28rem]">
+          <Card className="gap-4 border-0 bg-card py-4 shadow-sm">
             <div className="flex flex-col gap-4 px-6">
+              {targetMirror ? (
+                <p className="text-xs text-muted-foreground">
+                  写入：
+                  <span className="font-medium text-foreground/80">{targetMirror.title}</span>
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">请先在顶栏选择镜像</p>
+              )}
+
               <div className="grid gap-2">
                 <Label htmlFor="customize-tile">磁贴</Label>
                 <Select
@@ -284,13 +334,15 @@ function Customize() {
           </Card>
         </div>
 
-        <Preview
-          watched={values}
-          images={images}
-          fallbackColor={themePrimary}
-          keptImageUrl={keptImageUrl}
-          component={component}
-        />
+        <div className="min-w-0 flex-1 self-stretch min-[900px]:sticky min-[900px]:top-3 min-[900px]:self-start">
+          <Preview
+            watched={values}
+            images={images}
+            fallbackColor={themePrimary}
+            keptImageUrl={keptImageUrl}
+            component={component}
+          />
+        </div>
       </div>
     </div>
   )

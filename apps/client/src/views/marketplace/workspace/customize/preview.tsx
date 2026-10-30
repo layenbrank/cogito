@@ -35,7 +35,7 @@ function Preview(props: PreviewProps) {
       : findTileHint(props.component, findComponentLabel(props.component))
 
   const surfaceStyle = buildSurfaceStyle({
-    round: '12px',
+    round: '16px',
     textColor,
     background: {
       color,
@@ -50,9 +50,9 @@ function Preview(props: PreviewProps) {
   })
 
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col gap-3 self-stretch">
+    <div className="flex w-full flex-col gap-3">
       <div
-        className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-cover bg-center bg-no-repeat transition-colors"
+        className="relative aspect-video w-full overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat shadow-md transition-colors"
         style={surfaceStyle}>
         <div className="absolute inset-0 flex flex-col justify-end bg-linear-to-t from-black/55 via-transparent to-transparent px-5 py-4">
           <p
