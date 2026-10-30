@@ -69,18 +69,6 @@ export default defineConfig([
         {
           selector: 'TemplateElement[value.raw=/\\btext-\\[\\d+(?:\\.\\d+)?px\\]/]',
           message: '字号必须用配置刻度（text-xs 为 12px 下限），不要写任意 px 值'
-        },
-        {
-          selector:
-            'Literal[value=/\\boverscroll-(?:[xy]-)?contain\\b|overscroll-behavior(?:-[xy])?\\s*:\\s*contain\\b/i]',
-          message:
-            '禁止 overscroll-contain / overscroll-behavior: contain；用默认行为或 overscroll-auto / overscroll-none'
-        },
-        {
-          selector:
-            'TemplateElement[value.raw=/\\boverscroll-(?:[xy]-)?contain\\b|overscroll-behavior(?:-[xy])?\\s*:\\s*contain\\b/i]',
-          message:
-            '禁止 overscroll-contain / overscroll-behavior: contain；用默认行为或 overscroll-auto / overscroll-none'
         }
       ]
     }

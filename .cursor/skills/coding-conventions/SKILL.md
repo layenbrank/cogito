@@ -27,7 +27,7 @@ description: >-
 - [ ] `catch` 必 throw 或输出一次；独立并行用 `Promise.allSettled`
 - [ ] 对象形状用 `interface`；联合/交叉/工具类型映射用 `type`
 - [ ] 组件走 `@cogito/design` + registry；语义 token；按压用色阶
-- [ ] 不用 `overscroll-contain` / `overscroll-behavior: contain`
+- [ ] 嵌套滚动笼需要时用 `overscroll-contain` / `overscroll-y-contain`
 - [ ] 不用 `scrollbar-width: thin` / `scrollbar-thin`
 
 ## 命名
@@ -109,12 +109,11 @@ description: >-
 
 ## UI / 滚动
 
-- **禁止** `overscroll-contain`、`overscroll-x-contain`、`overscroll-y-contain`
-- **禁止** CSS `overscroll-behavior: contain`（及 `-x` / `-y`）
+- 嵌套滚动笼（过程摘要、终端、下拉列表等）：用 `overscroll-contain` / `overscroll-y-contain`，触底不链式拖走父级
+- 整页 / Thread 主滚动：保持默认 overscroll，或按需 `overscroll-auto` / `overscroll-none`
 - **禁止** `scrollbar-width: thin`、`scrollbar-thin`、`[scrollbar-width:thin]`（会盖掉全局 6px）
 - 滚动条：默认交给 app 全局 webkit 6px；隐藏用 `scrollbar-width: none` + `::-webkit-scrollbar { display:none }`
-- overscroll：默认行为，或 `overscroll-auto` / `overscroll-none`
-- ESLint：`ith/no-overscroll-contain`、`ith/no-scrollbar-width-thin`（client / studio）；design 走 `no-restricted-syntax`
+- ESLint：`ith/no-scrollbar-width-thin`（client / studio）；design 走 `no-restricted-syntax`
 
 ## 简化写法
 

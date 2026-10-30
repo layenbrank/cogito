@@ -208,7 +208,6 @@ export default defineConfig([
     plugins: { ith },
     rules: {
       'ith/catch-must-report': 'error',
-      'ith/no-overscroll-contain': 'error',
       'ith/no-scrollbar-width-thin': 'error'
     }
   }
