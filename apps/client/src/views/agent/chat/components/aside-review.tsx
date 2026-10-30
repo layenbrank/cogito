@@ -19,6 +19,10 @@ import { AsideDiff } from '@/views/agent/chat/components/aside-diff'
 
 interface AsideReviewProps {
   initialRelative?: string | null
+  /** 注册「再退一层」；返回 true 表示已处理，父级不必回首页 */
+  bindStepBack?: (handler: (() => boolean) | null) => void
+  /** 通知父级当前焦点文案（文件名） */
+  onFocusLabel?: (label: string | null) => void
 }
 
 interface ReviewRow {
@@ -133,6 +137,33 @@ function AsideReview(props: AsideReviewProps) {
       wasRunning.current = isRunning
     },
     [isRunning]
+  )
+
+  useEffect(
+    function () {
+      const bind = props.bindStepBack
+      if (!bind) return
+      bind(function () {
+        if (selected) {
+          updateSelected(null)
+          return true
+        }
+        return false
+      })
+      return function () {
+        bind(null)
+      }
+    },
+    [props.bindStepBack, selected]
+  )
+
+  useEffect(
+    function () {
+      const notify = props.onFocusLabel
+      if (!notify) return
+      notify(selected ? findBaseName(selected) : null)
+    },
+    [props.onFocusLabel, selected]
   )
 
   const rows = useMemo(

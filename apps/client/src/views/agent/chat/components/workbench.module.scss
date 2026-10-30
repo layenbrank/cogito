@@ -1,14 +1,13 @@
-/* 主对话区：欢迎建议卡与氛围面 */
+/* 主对话区：欢迎建议卡（对齐 AI Elements Suggestion / ConversationEmptyState 平静材质） */
 
 .welcome {
   display: flex;
-  flex: 1;
-  min-height: 0;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   width: 100%;
-  padding: 28px 24px 20px;
-  overflow-y: auto;
+  max-width: 100%;
+  padding: 12px 0 8px;
 }
 
 .welcomeInner {
@@ -22,102 +21,73 @@
 .promptsGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
   width: 100%;
 }
 
-/* 短标题横排卡：完整提示词走 tooltip（PR 紧凑文案），材质沿用 AI Elements 质感 */
-.promptCard {
+/* 短标题横排卡：完整提示词走 tooltip。
+ * 选择器带 button，压过 design Button 的 h-8 / inline-flex / justify-center。 */
+button.promptCard {
   display: flex;
   flex-direction: row;
   align-items: center;
+  justify-content: flex-start;
   gap: 12px;
   box-sizing: border-box;
   width: 100%;
+  height: auto;
   min-height: 0;
   margin: 0;
   padding: 12px 14px;
-  border: 1px solid color-mix(in oklab, var(--border) 78%, transparent);
-  border-radius: 14px;
-  background:
-    linear-gradient(
-      165deg,
-      color-mix(in oklab, var(--card) 92%, white) 0%,
-      var(--card) 48%,
-      color-mix(in oklab, var(--muted) 35%, var(--card)) 100%
-    );
-  box-shadow:
-    0 1px 1px oklch(0 0 0 / 0.03),
-    0 10px 28px -18px oklch(0 0 0 / 0.18);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: none;
   color: inherit;
   text-align: left;
+  white-space: normal;
   cursor: pointer;
   transition:
-    background-color 160ms ease-out,
-    border-color 160ms ease-out,
-    box-shadow 160ms ease-out,
-    transform 160ms ease-out;
+    background-color 150ms ease-out,
+    border-color 150ms ease-out;
 
   &:hover {
-    border-color: color-mix(in oklab, var(--primary) 38%, transparent);
-    background:
-      linear-gradient(
-        165deg,
-        color-mix(in oklab, var(--primary) 8%, var(--card)) 0%,
-        var(--card) 55%,
-        color-mix(in oklab, var(--primary) 5%, var(--card)) 100%
-      );
-    box-shadow:
-      0 1px 1px oklch(0 0 0 / 0.03),
-      0 14px 32px -16px color-mix(in oklab, var(--primary) 28%, transparent);
+    background: var(--accent);
+    border-color: var(--border);
   }
 
   &:active {
-    transform: translateY(0.5px);
+    background: color-mix(in oklab, var(--accent) 85%, var(--muted));
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary);
+    outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
 }
 
-:global(.dark) .promptCard {
-  background:
-    linear-gradient(
-      165deg,
-      color-mix(in oklab, var(--card) 88%, white) 0%,
-      var(--card) 52%,
-      color-mix(in oklab, var(--muted) 40%, var(--card)) 100%
-    );
-  box-shadow:
-    0 1px 1px oklch(0 0 0 / 0.25),
-    0 14px 36px -18px oklch(0 0 0 / 0.55);
+:global(.dark) button.promptCard {
+  background: color-mix(in oklab, var(--card) 88%, transparent);
 }
 
 .promptIcon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
-  color: var(--primary);
-  background:
-    radial-gradient(
-      circle at 30% 25%,
-      color-mix(in oklab, var(--primary) 22%, transparent),
-      color-mix(in oklab, var(--primary) 10%, transparent) 70%
-    );
-  border: 1px solid color-mix(in oklab, var(--primary) 18%, transparent);
-  border-radius: 11px;
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.35);
+  color: var(--muted-foreground);
+  background: var(--muted);
+  border: none;
+  border-radius: 8px;
+  box-shadow: none;
 }
 
 .promptBody {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
   width: 100%;
 }
@@ -127,17 +97,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 14px;
-  font-weight: 550;
+  font-weight: 500;
   letter-spacing: -0.01em;
   line-height: 1.35;
   color: var(--foreground);
 }
 
 @media (max-width: 960px) {
-  .welcome {
-    padding: 22px 16px 14px;
-  }
-
   .welcomeInner {
     max-width: 420px;
   }
@@ -146,41 +112,42 @@
     grid-template-columns: 1fr;
   }
 
-  .promptCard {
+  button.promptCard {
     padding: 12px;
   }
 }
 
 :global(html[data-motion='full']) {
-  .promptCard {
-    animation: agentPromptIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* Tooltip.Root 不占 DOM；Trigger render 成 button，即 grid 直系子项 */
+  button.promptCard {
+    animation: agentPromptIn 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
-  .promptCard:nth-child(1) {
+  button.promptCard:nth-child(1) {
     animation-delay: 0ms;
   }
 
-  .promptCard:nth-child(2) {
-    animation-delay: 45ms;
+  button.promptCard:nth-child(2) {
+    animation-delay: 40ms;
   }
 
-  .promptCard:nth-child(3) {
-    animation-delay: 90ms;
+  button.promptCard:nth-child(3) {
+    animation-delay: 80ms;
   }
 
-  .promptCard:nth-child(4) {
-    animation-delay: 135ms;
+  button.promptCard:nth-child(4) {
+    animation-delay: 120ms;
   }
 
-  .promptCard:nth-child(5) {
-    animation-delay: 180ms;
+  button.promptCard:nth-child(5) {
+    animation-delay: 160ms;
   }
 }
 
 @keyframes agentPromptIn {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(4px);
   }
 
   to {

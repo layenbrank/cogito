@@ -9,7 +9,7 @@ import { useState, type ReactNode } from 'react'
 
 import { collapseOutput, TERMINAL_PREVIEW_LINES } from './tool-output'
 
-/** 终端正文可视高度：过程折叠区内也要能扫到足够多行 */
+/** 终端正文可视高度；与过程摘要 max-h 叠套时靠 overscroll contain 分轨 */
 const TERMINAL_BODY_MAX = 'max-h-[min(50vh,28rem)]'
 
 function OutputLines(props: { lines: readonly string[]; keyPrefix: string }) {
@@ -130,8 +130,9 @@ function TerminalShell(props: TerminalShellProps) {
       </div>
 
       <div
+        data-slot="agent-tool-terminal-body"
         className={[
-          'flex min-h-20 flex-col gap-1 overflow-auto px-3 py-2.5 font-mono text-xs leading-relaxed',
+          'flex min-h-20 flex-col gap-1 overflow-y-auto overscroll-y-contain px-3 py-2.5 font-mono text-xs leading-relaxed',
           'selection:bg-terminal-accent/25 selection:text-terminal-foreground',
           '[scrollbar-color:var(--color-terminal-border)_transparent]',
           TERMINAL_BODY_MAX

@@ -87,19 +87,19 @@ function ApprovalBar(props: Pick<ToolCallMessagePartProps, 'approval' | 'toolCal
   }
 
   return (
-    <div className="border-primary/20 bg-primary/6 flex items-center gap-2 rounded-xl border px-2.5 py-2 shadow-xs">
+    <div className="border-border bg-muted/40 flex items-center gap-2 rounded-md border px-3 py-2">
       <Icon
         icon="lucide:shield-alert"
-        className="text-primary size-3.5 shrink-0"
+        className="text-muted-foreground size-3.5 shrink-0"
       />
-      <span className="min-w-0 flex-1 truncate text-xs">
+      <span className="text-foreground min-w-0 flex-1 truncate text-xs">
         {approval.prompt ?? '需要你确认后才会执行'}
       </span>
       <Button
         type="button"
         variant="outline"
         size="sm"
-        className="h-7 rounded-full"
+        className="h-7 rounded-md"
         onClick={function () {
           handleApprove(false)
         }}>
@@ -109,7 +109,7 @@ function ApprovalBar(props: Pick<ToolCallMessagePartProps, 'approval' | 'toolCal
       <Button
         type="button"
         size="sm"
-        className="h-7 rounded-full"
+        className="h-7 rounded-md"
         onClick={function () {
           handleApprove(true)
         }}>
@@ -134,11 +134,11 @@ function GenericToolCard(props: GenericToolCardProps) {
     <Collapsible
       open={isOpen}
       onOpenChange={updateOpen}
-      className="border-border/50 bg-muted/25 hover:bg-muted/40 my-1 overflow-hidden rounded-xl border transition-colors">
+      className="group/tool not-prose my-1 w-full overflow-hidden rounded-md border">
       <CollapsibleTrigger
-        className="text-foreground/85 hover:text-foreground flex w-full cursor-pointer items-center gap-2 px-2.5 py-2 text-start text-xs"
+        className="text-foreground hover:text-foreground flex w-full cursor-pointer items-center justify-between gap-4 p-3 text-start"
         aria-label={`${label} 详情`}>
-        <span className="bg-background/80 text-muted-foreground ring-border/60 flex size-6 shrink-0 items-center justify-center rounded-md ring-1">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <Icon
             icon={
               isShellTool(props.toolName)
@@ -147,53 +147,53 @@ function GenericToolCard(props: GenericToolCardProps) {
                   ? 'lucide:braces'
                   : 'lucide:wrench'
             }
-            className="size-3.5"
+            className="text-muted-foreground size-4 shrink-0"
           />
-        </span>
-        <span className="shrink-0 font-medium">{label}</span>
-        {summary ? (
-          <span className="text-muted-foreground min-w-0 flex-1 truncate font-mono text-xs">
-            {summary}
-          </span>
-        ) : (
-          <span className="min-w-0 flex-1" />
-        )}
-        {props.isRunning ? (
-          <Icon
-            icon="lucide:loader-circle"
-            className="text-muted-foreground size-3.5 shrink-0 animate-spin"
-          />
-        ) : null}
-        {props.needsApproval ? (
-          <Badge
-            variant="secondary"
-            className="h-4.5 shrink-0 px-1.5 text-xs">
-            待审批
-          </Badge>
-        ) : null}
+          <span className="shrink-0 text-sm font-medium">{label}</span>
+          {summary ? (
+            <span className="text-muted-foreground min-w-0 flex-1 truncate font-mono text-xs">
+              {summary}
+            </span>
+          ) : null}
+          {props.isRunning ? (
+            <Icon
+              icon="lucide:loader-circle"
+              className="text-muted-foreground size-3.5 shrink-0 animate-spin"
+            />
+          ) : null}
+          {props.needsApproval ? (
+            <Badge
+              variant="secondary"
+              className="h-4.5 gap-1.5 rounded-full px-1.5 text-xs">
+              待审批
+            </Badge>
+          ) : null}
+        </div>
         <Icon
           icon="lucide:chevron-down"
           data-open={isOpen ? 'true' : 'false'}
-          className="text-muted-foreground size-3.5 shrink-0 opacity-70 transition-transform data-[open=true]:rotate-0 -rotate-90"
+          className="text-muted-foreground size-4 shrink-0 transition-transform data-[open=true]:rotate-180"
         />
       </CollapsibleTrigger>
 
-      <CollapsibleContent className="border-border/40 flex flex-col gap-2 border-t px-2.5 py-2">
-        <div className="flex flex-col gap-1">
-          <span className="text-muted-foreground text-xs tracking-wide uppercase">参数</span>
-          <pre className="bg-background/70 ring-border/40 m-0 max-h-72 overflow-auto rounded-lg p-2.5 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap ring-1">
+      <CollapsibleContent className="flex flex-col gap-4 space-y-0 p-4 pt-0">
+        <div className="flex flex-col gap-2 overflow-hidden">
+          <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+            参数
+          </h4>
+          <pre className="bg-muted/50 m-0 max-h-72 overflow-auto overscroll-y-contain rounded-md p-2.5 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap">
             {formatDetail(props.args)}
           </pre>
         </div>
         {props.result === undefined ? null : (
-          <div className="flex flex-col gap-1">
-            <span className="text-muted-foreground text-xs tracking-wide uppercase">
+          <div className="flex flex-col gap-2 overflow-hidden">
+            <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
               {props.isError ? '错误' : '结果'}
-            </span>
+            </h4>
             <pre
               className={[
-                'bg-background/70 m-0 max-h-80 overflow-auto rounded-lg p-2.5 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap ring-1',
-                props.isError ? 'ring-destructive/30' : 'ring-border/40'
+                'm-0 max-h-80 overflow-auto overscroll-y-contain rounded-md p-2.5 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap',
+                props.isError ? 'bg-destructive/10 text-destructive' : 'bg-muted/50'
               ].join(' ')}>
               {formatTerminalText(props.result)}
             </pre>

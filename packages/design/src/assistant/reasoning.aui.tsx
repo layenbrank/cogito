@@ -21,14 +21,15 @@ import {
 export type { ReasoningRootProps } from './reasoning'
 
 /** `ReasoningRoot` with the thread viewport scroll locked during disclosure animations. */
-function ReasoningRoot({ ref, onAnimationStart, ...props }: ReasoningRootProps) {
+function ReasoningRoot({ ref, onAnimationStart, instant, ...props }: ReasoningRootProps) {
   const collapsibleRef = useRef<HTMLDivElement | null>(null)
   const lockScroll = useScrollLock(collapsibleRef, ANIMATION_DURATION)
 
   const handleAnimationStart = useCallback(() => {
-    lockScroll()
+    // instant 过程摘要跳过锁滚动：内容巨大时锁 200ms 反而像卡死
+    if (!instant) lockScroll()
     onAnimationStart?.()
-  }, [lockScroll, onAnimationStart])
+  }, [instant, lockScroll, onAnimationStart])
 
   const composedRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -45,6 +46,7 @@ function ReasoningRoot({ ref, onAnimationStart, ...props }: ReasoningRootProps) 
   return (
     <ReasoningRootBase
       ref={composedRef}
+      instant={instant}
       onAnimationStart={handleAnimationStart}
       {...props}
     />

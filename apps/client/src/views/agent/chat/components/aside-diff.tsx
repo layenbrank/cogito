@@ -279,6 +279,7 @@ function AsideDiff(props: AsideDiffProps) {
           variant="ghost"
           size="icon-sm"
           aria-label="返回变更列表"
+          title="返回变更列表"
           className="size-7"
           onClick={props.onBack}>
           <Icon
@@ -291,9 +292,18 @@ function AsideDiff(props: AsideDiffProps) {
           className="text-muted-foreground size-3.5 shrink-0"
         />
         <span
-          className="text-foreground min-w-0 flex-1 truncate text-xs"
+          className="text-foreground min-w-0 flex-1 truncate text-xs font-medium"
           title={props.relative}>
-          {props.relative}
+          {props.relative.includes('/')
+            ? props.relative.slice(props.relative.lastIndexOf('/') + 1)
+            : props.relative}
+        </span>
+        <span
+          className="text-muted-foreground hidden max-w-[42%] truncate text-[10px] sm:inline"
+          title={props.relative}>
+          {props.relative.includes('/')
+            ? props.relative.slice(0, props.relative.lastIndexOf('/'))
+            : '工作区'}
         </span>
         <span className="text-muted-foreground shrink-0 text-[10px]">
           {isHunks ? 'hunks' : 'HEAD ↔ 工作区'}

@@ -48,18 +48,19 @@
   flex-direction: column;
   min-width: 0;
   height: 100%;
+  /* Elements Conversation 是纯底；保留极淡顶洗，避免过重氛围 */
   background:
     radial-gradient(
-      120% 80% at 50% -10%,
-      color-mix(in oklab, var(--primary) 7%, transparent),
-      transparent 55%
+      120% 70% at 50% -12%,
+      color-mix(in oklab, var(--muted) 55%, transparent),
+      transparent 58%
     ),
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--muted) 42%, var(--background)) 0%,
-      var(--background) 42%,
-      var(--background) 100%
-    );
+    var(--background);
+
+  /* Thread 默认 bg-background 会盖住工作台氛围底 */
+  :global(.aui-thread-root) {
+    background: transparent;
+  }
 }
 
 .thread {
@@ -81,16 +82,11 @@
 :global(.dark) .workbench {
   background:
     radial-gradient(
-      120% 80% at 50% -10%,
-      color-mix(in oklab, var(--primary) 12%, transparent),
+      120% 70% at 50% -12%,
+      color-mix(in oklab, var(--card) 55%, transparent),
       transparent 58%
     ),
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--card) 70%, var(--background)) 0%,
-      var(--background) 48%,
-      var(--background) 100%
-    );
+    var(--background);
 }
 
 .planPane {

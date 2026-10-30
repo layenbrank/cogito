@@ -5,6 +5,7 @@ import { useAui } from '@assistant-ui/react'
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
+import { cn } from 'cn'
 import { useEffect } from 'react'
 
 import { rememberActiveScenario } from '@/features/agent/model/active-scenario'
@@ -43,7 +44,11 @@ function ThreadWelcome() {
                     <Button
                       type="button"
                       variant="ghost"
-                      className={styles.promptCard}
+                      className={cn(
+                        styles.promptCard,
+                        // 盖过 Button 默认 h-8 / justify-center / shrink-0，否则卡片缩成左上角碎条
+                        'h-auto w-full justify-start whitespace-normal font-normal hover:bg-transparent'
+                      )}
                       onClick={function () {
                         pick(item)
                       }}

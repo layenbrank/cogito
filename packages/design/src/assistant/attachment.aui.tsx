@@ -13,6 +13,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '../components/avatar'
 import { TooltipIconButton } from './tooltip-icon-button'
 import { useAssistantLabels } from './labels'
 import { useAttachmentSrc } from '../hooks/use-attachment-src'
+import { findBaseName, findFileNameIcon } from './file-name-icon'
 import { cn } from 'cn'
 
 type AttachmentPreviewProps = {
@@ -66,6 +67,10 @@ const AttachmentPreviewDialog: FC<PropsWithChildren> = ({ children }) => {
 const AttachmentThumb: FC = () => {
   const labels = useAssistantLabels()
   const src = useAttachmentSrc()
+  const fileName = useAuiState(function (state) {
+    return state.attachment.name || 'file'
+  })
+  const hint = findFileNameIcon(fileName)
 
   return (
     <Avatar className="aui-attachment-tile-avatar h-full w-full rounded-none">
@@ -74,22 +79,100 @@ const AttachmentThumb: FC = () => {
         alt={labels.attachmentPreview}
         className="aui-attachment-tile-image rounded-none object-cover"
       />
-      <AvatarFallback>
+      <AvatarFallback className="bg-muted/80">
         <Icon
-          icon="lucide:file-text"
-          className="aui-attachment-tile-fallback-icon text-muted-foreground/80 size-6 stroke-[1.5]"
+          icon={hint.icon}
+          className={cn('aui-attachment-tile-fallback-icon size-6 stroke-[1.5]', hint.className)}
         />
       </AvatarFallback>
     </Avatar>
   )
 }
 
-const AttachmentUI: FC = () => {
+/** 非图片附件：路径芯片 + 按扩展名着色的文件图标 */
+const AttachmentFileChip: FC = () => {
   const labels = useAssistantLabels()
   const aui = useAui()
   const isComposer = aui.attachment.source !== 'message'
+  const name = useAuiState(function (state) {
+    return state.attachment.name || 'file'
+  })
+  const typeLabel = useAuiState(function (state) {
+    return labels.attachmentType(state.attachment.type)
+  })
+  const uploadState = useAuiState(function (state) {
+    return state.attachment.status.type === 'running'
+      ? 'uploading'
+      : state.attachment.status.type === 'incomplete' && state.attachment.status.reason === 'error'
+        ? 'error'
+        : undefined
+  })
+  const isUploading = uploadState === 'uploading'
+  const isError = uploadState === 'error'
+  const hint = findFileNameIcon(name)
+  const baseName = findBaseName(name)
 
-  const isImage = useAuiState((s) => s.attachment.type === 'image')
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <AttachmentPrimitive.Root
+          className={cn(
+            'aui-attachment-root aui-attachment-file-chip relative',
+            isComposer && 'animate-in fade-in-0 zoom-in-95 duration-200 motion-reduce:animate-none'
+          )}>
+          <TooltipTrigger
+            render={
+              <div
+                className={cn(
+                  'border-input bg-muted/50 hover:bg-muted flex h-8 max-w-64 items-center gap-1.5 rounded-md border py-0.5 ps-2',
+                  isComposer ? 'pe-1' : 'pe-2.5',
+                  'outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                  isError && 'border-destructive/50'
+                )}
+                role="button"
+                tabIndex={0}
+                aria-label={labels.attachmentLabel(
+                  typeLabel,
+                  isError ? 'error' : isUploading ? 'uploading' : 'idle'
+                )}
+              />
+            }>
+            {isUploading ? (
+              <Icon
+                icon="lucide:loader-circle"
+                className="text-muted-foreground size-3.5 shrink-0 animate-spin"
+              />
+            ) : isError ? (
+              <Icon
+                icon="lucide:circle-alert"
+                className="text-destructive size-3.5 shrink-0"
+              />
+            ) : (
+              <Icon
+                icon={hint.icon}
+                className={cn('size-3.5 shrink-0', hint.className)}
+              />
+            )}
+            <span
+              className="text-foreground min-w-0 flex-1 truncate text-xs"
+              title={name}>
+              {baseName}
+            </span>
+            {isComposer ? <AttachmentChipRemove /> : null}
+          </TooltipTrigger>
+        </AttachmentPrimitive.Root>
+        <TooltipContent side="top">
+          <AttachmentPrimitive.Name />
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+const AttachmentImageTile: FC = () => {
+  const labels = useAssistantLabels()
+  const aui = useAui()
+  const isComposer = aui.attachment.source !== 'message'
   const typeLabel = useAuiState((s) => labels.attachmentType(s.attachment.type))
 
   const uploadState = useAuiState((s) =>
@@ -115,7 +198,7 @@ const AttachmentUI: FC = () => {
           className={cn(
             'aui-attachment-root relative',
             isComposer && 'animate-in fade-in-0 zoom-in-95 duration-200 motion-reduce:animate-none',
-            isImage && !isComposer && 'aui-attachment-root-message only:*:first:size-24'
+            !isComposer && 'aui-attachment-root-message only:*:first:size-24'
           )}>
           <AttachmentPreviewDialog>
             <TooltipTrigger
@@ -156,7 +239,7 @@ const AttachmentUI: FC = () => {
               }
             />
           </AttachmentPreviewDialog>
-          {isComposer && <AttachmentRemove />}
+          {isComposer && <AttachmentTileRemove />}
         </AttachmentPrimitive.Root>
         <TooltipContent side="top">
           <AttachmentPrimitive.Name />
@@ -167,7 +250,13 @@ const AttachmentUI: FC = () => {
   )
 }
 
-const AttachmentRemove: FC = () => {
+const AttachmentUI: FC = () => {
+  const isImage = useAuiState((s) => s.attachment.type === 'image')
+  if (!isImage) return <AttachmentFileChip />
+  return <AttachmentImageTile />
+}
+
+const AttachmentTileRemove: FC = () => {
   const labels = useAssistantLabels()
 
   return (
@@ -179,6 +268,24 @@ const AttachmentRemove: FC = () => {
         <Icon
           icon="lucide:x"
           className="aui-attachment-remove-icon size-3 stroke-[2.5]"
+        />
+      </TooltipIconButton>
+    </AttachmentPrimitive.Remove>
+  )
+}
+
+const AttachmentChipRemove: FC = () => {
+  const labels = useAssistantLabels()
+
+  return (
+    <AttachmentPrimitive.Remove asChild>
+      <TooltipIconButton
+        tooltip={labels.removeAttachment}
+        className="text-muted-foreground hover:text-foreground hover:bg-foreground/10 size-5 shrink-0 rounded-full"
+        side="top">
+        <Icon
+          icon="lucide:x"
+          className="size-3 stroke-[2.5]"
         />
       </TooltipIconButton>
     </AttachmentPrimitive.Remove>
@@ -201,7 +308,7 @@ export const ComposerAttachments: FC = () => {
   if (!hasAttachments) return null
 
   return (
-    <div className="aui-composer-attachments flex w-full flex-row items-center gap-2 overflow-x-auto">
+    <div className="aui-composer-attachments flex w-full flex-row flex-wrap items-center gap-1.5 overflow-x-auto">
       <ComposerPrimitive.Attachments>{() => <AttachmentUI />}</ComposerPrimitive.Attachments>
     </div>
   )

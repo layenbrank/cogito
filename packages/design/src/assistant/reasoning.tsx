@@ -17,6 +17,9 @@ export const ANIMATION_DURATION = 200
 
 const ReasoningPreviewContext = createContext(false)
 
+/** 大块过程摘要用：跳过高度动画，避免一次展开几十步时卡顿 */
+const ReasoningInstantContext = createContext(false)
+
 /** 默认 ghost：对齐 Cursor / Copilot 扁平折叠行，无卡片边框 */
 const reasoningVariants = cva('aui-reasoning-root w-full', {
   variants: {
@@ -49,6 +52,11 @@ export type ReasoningRootProps = Omit<
      * scrolled up.
      */
     streaming?: boolean
+    /**
+     * 跳过折叠高度动画与滚动锁。过程摘要一次挂载大量步骤时用，
+     * 否则 `collapsible-down` 会按内容总高逐帧插值，明显卡顿。
+     */
+    instant?: boolean
     /** Called right before the disclosure animates, on toggle and on streaming transitions. */
     onAnimationStart?: () => void
   }
@@ -60,6 +68,7 @@ function ReasoningRoot({
   onOpenChange: controlledOnOpenChange,
   defaultOpen = false,
   streaming,
+  instant = false,
   onAnimationStart,
   children,
   ...props
@@ -70,6 +79,7 @@ function ReasoningRoot({
   const isControlled = controlledOpen !== undefined
   const isOpen = isControlled ? controlledOpen : (userOpen ?? (streaming || initialOpen))
   const isPreview = streaming === true && isOpen
+  const durationMs = instant ? 0 : ANIMATION_DURATION
 
   const prevStreamingRef = useRef(streaming)
   useLayoutEffect(() => {
@@ -77,38 +87,41 @@ function ReasoningRoot({
     prevStreamingRef.current = streaming
     // A streaming transition only animates the panel when the resting state
     // is collapsed; with `defaultOpen` the disclosure stays open across it.
-    if (!isControlled && userOpen === null && !initialOpen) {
+    if (!instant && !isControlled && userOpen === null && !initialOpen) {
       onAnimationStart?.()
     }
-  }, [streaming, isControlled, userOpen, initialOpen, onAnimationStart])
+  }, [streaming, instant, isControlled, userOpen, initialOpen, onAnimationStart])
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
-      onAnimationStart?.()
+      if (!instant) onAnimationStart?.()
       if (!isControlled) {
         setUserOpen(open)
       }
       controlledOnOpenChange?.(open)
     },
-    [onAnimationStart, isControlled, controlledOnOpenChange]
+    [instant, onAnimationStart, isControlled, controlledOnOpenChange]
   )
 
   return (
     <Collapsible
       data-slot="reasoning-root"
       data-variant={variant}
+      data-instant={instant ? 'true' : undefined}
       open={isOpen}
       onOpenChange={handleOpenChange}
       className={cn('group/reasoning-root', reasoningVariants({ variant, className }))}
       style={
         {
-          '--animation-duration': `${ANIMATION_DURATION}ms`
+          '--animation-duration': `${durationMs}ms`
         } as React.CSSProperties
       }
       {...props}>
-      <ReasoningPreviewContext.Provider value={isPreview}>
-        {children}
-      </ReasoningPreviewContext.Provider>
+      <ReasoningInstantContext.Provider value={instant}>
+        <ReasoningPreviewContext.Provider value={isPreview}>
+          {children}
+        </ReasoningPreviewContext.Provider>
+      </ReasoningInstantContext.Provider>
     </Collapsible>
   )
 }
@@ -139,9 +152,10 @@ function ReasoningFade({
     <div
       data-slot="reasoning-fade"
       className={cn(
-        'aui-reasoning-fade pointer-events-none absolute inset-x-0 bottom-0 z-10 h-8',
-        'bg-[linear-gradient(to_top,var(--color-background),transparent)]',
-        'group-data-[variant=muted]/reasoning-root:bg-[linear-gradient(to_top,color-mix(in_oklab,var(--color-muted)_50%,var(--color-background)),transparent)]',
+        'aui-reasoning-fade pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6',
+        /* 半透明渐隐，避免实色 background 在透明工作台上「盖白」裁字 */
+        'bg-[linear-gradient(to_top,color-mix(in_oklab,var(--color-background)_72%,transparent),transparent)]',
+        'group-data-[variant=muted]/reasoning-root:bg-[linear-gradient(to_top,color-mix(in_oklab,var(--color-muted)_55%,transparent),transparent)]',
         'fade-in-0 animate-in',
         'animation-duration-(--animation-duration)',
         className
@@ -203,6 +217,7 @@ function ReasoningContent({
   ...props
 }: React.ComponentProps<typeof CollapsibleContent>) {
   const isPreview = useContext(ReasoningPreviewContext)
+  const isInstant = useContext(ReasoningInstantContext)
 
   return (
     <CollapsibleContent
@@ -210,23 +225,29 @@ function ReasoningContent({
       className={cn(
         'aui-reasoning-content text-muted-foreground relative overflow-hidden text-sm outline-none',
         'group/collapsible-content ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:animate-none',
-        'data-closed:animate-collapsible-up',
-        'data-open:animate-collapsible-down',
-        'data-closed:fill-mode-forwards',
+        // instant：彻底关掉高度动画（含 CollapsibleContent 默认的 animate-collapsible-*）
+        isInstant
+          ? 'animate-none! data-closed:animate-none! data-open:animate-none! data-ending-style:animate-none!'
+          : [
+              'data-closed:animate-collapsible-up',
+              'data-open:animate-collapsible-down',
+              'data-closed:fill-mode-forwards'
+            ],
         'data-closed:pointer-events-none',
         '[--tw-duration:var(--animation-duration)]',
         className
       )}
       {...props}>
-      <ReasoningFade side="top" />
       {children}
-      {isPreview ? <ReasoningFade /> : null}
+      {/* 仅流式预览时淡化底部；顶部遮罩会盖住首行，且 background 与透明工作台对不齐 */}
+      {isPreview && !isInstant ? <ReasoningFade /> : null}
     </CollapsibleContent>
   )
 }
 
 function ReasoningText({ className, children, ...props }: React.ComponentProps<'div'>) {
   const isPreview = useContext(ReasoningPreviewContext)
+  const isInstant = useContext(ReasoningInstantContext)
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
 
@@ -275,24 +296,27 @@ function ReasoningText({ className, children, ...props }: React.ComponentProps<'
       ref={scrollRef}
       data-slot="reasoning-text"
       className={cn(
-        // 扁平行内正文：轻缩进、小间距；高度抬到视口比例以容纳工具终端
-        'aui-reasoning-text relative z-0 max-h-[min(60vh,32rem)] overflow-y-auto ps-3 pt-0.5 pb-1 text-xs leading-relaxed text-pretty',
-        'transform-gpu transition-[transform,opacity] ease-[cubic-bezier(0.32,0.72,0,1)]',
-        'motion-reduce:animate-none',
-        'group-data-open/collapsible-content:animate-in',
-        'group-data-closed/collapsible-content:animate-out',
-        'group-data-open/collapsible-content:fade-in-0',
-        'group-data-closed/collapsible-content:fade-out-0',
-        'group-data-open/collapsible-content:slide-in-from-top-2',
-        'group-data-closed/collapsible-content:slide-out-to-top-2',
-        'group-data-open/collapsible-content:animation-duration-(--animation-duration)',
-        'group-data-closed/collapsible-content:animation-duration-(--animation-duration)',
+        // Elements：text-sm muted；留足上下内边距，避免折叠 overflow 裁字脚
+        'aui-reasoning-text relative z-0 max-h-[min(60vh,32rem)] overflow-y-auto overscroll-y-contain ps-3 pt-1 pb-2.5 text-sm leading-6 text-pretty',
+        // 思考区 markdown 段落默认 my-3 过大，收紧以免被视作「截断」
+        '[&_.aui-md-p]:my-1.5 [&_.aui-md-p]:leading-6 [&_.aui-md-p]:first:mt-0 [&_.aui-md-p]:last:mb-0',
+        '[&_.aui-md-ul]:my-1.5 [&_.aui-md-ol]:my-1.5',
+        !isInstant && [
+          'transform-gpu transition-[transform,opacity] ease-[cubic-bezier(0.32,0.72,0,1)]',
+          'motion-reduce:animate-none',
+          'group-data-open/collapsible-content:animate-in',
+          'group-data-closed/collapsible-content:animate-out',
+          'group-data-open/collapsible-content:fade-in-0',
+          'group-data-closed/collapsible-content:fade-out-0',
+          'group-data-open/collapsible-content:animation-duration-(--animation-duration)',
+          'group-data-closed/collapsible-content:animation-duration-(--animation-duration)'
+        ],
         className
       )}
       {...props}>
       <div
         ref={contentRef}
-        className="aui-reasoning-text-content space-y-1">
+        className="aui-reasoning-text-content space-y-1.5">
         {children}
       </div>
     </div>

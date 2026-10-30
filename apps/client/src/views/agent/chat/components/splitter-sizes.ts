@@ -15,11 +15,12 @@ const SESSION_SIZE = 260
 const SESSION_MIN = 200
 const SESSION_MAX = 420
 
-const WORKBENCH_MIN = 360
+const WORKBENCH_MIN = 320
 
-const PLAN_SIZE = 320
-const PLAN_MIN = 240
-const PLAN_MAX = 480
+/** 右栏常看文件/diff，默认更宽，上限允许拉到接近半屏 */
+const PLAN_SIZE = 400
+const PLAN_MIN = 280
+const PLAN_MAX = 900
 
 type SplitterLayout = Record<string, number>
 type SplitterOpen = AgentSplitterOpen

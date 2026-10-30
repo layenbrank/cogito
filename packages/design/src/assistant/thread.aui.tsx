@@ -1,6 +1,5 @@
 import { Icon } from '@iconify/react/offline'
 import {
-  ActionBarMorePrimitive,
   ActionBarPrimitive,
   AuiIf,
   BranchPickerPrimitive,
@@ -171,7 +170,8 @@ const ThreadRoot: FC<{ isEmpty: boolean; autoFocus: boolean }> = ({ isEmpty, aut
       style={{
         ['--thread-max-width' as string]: '46rem',
         ['--composer-bg' as string]: 'var(--color-card)',
-        ['--composer-radius' as string]: '1.125rem',
+        /* Elements InputGroup 是 rounded-md；聊天气泡区略大一档仍保持克制 */
+        ['--composer-radius' as string]: '0.875rem',
         ['--composer-padding' as string]: '12px'
       }}>
       {/*
@@ -201,7 +201,7 @@ const ThreadRoot: FC<{ isEmpty: boolean; autoFocus: boolean }> = ({ isEmpty, aut
 
           <div
             data-slot="aui_message-group"
-            className={cn('flex flex-col gap-y-7 empty:hidden', isEmpty ? 'mb-0' : 'mb-8')}>
+            className={cn('flex flex-col gap-y-8 empty:hidden', isEmpty ? 'mb-0' : 'mb-8')}>
             <ThreadPrimitive.Messages>{() => <ThreadMessage />}</ThreadPrimitive.Messages>
           </div>
         </div>
@@ -253,8 +253,12 @@ const ThreadScrollToBottom: FC = () => {
       <TooltipIconButton
         tooltip={labels.scrollToBottom}
         variant="outline"
-        className="aui-thread-scroll-to-bottom border-border/60 bg-card/90 hover:bg-accent absolute -top-12 z-10 self-center rounded-full p-4 shadow-md backdrop-blur-md disabled:invisible dark:border-border dark:bg-card/80">
-        <Icon icon="lucide:arrow-down" />
+        size="icon"
+        className="aui-thread-scroll-to-bottom border-border bg-background hover:bg-muted absolute -top-12 z-10 size-8 self-center rounded-full shadow-xs disabled:invisible">
+        <Icon
+          icon="lucide:arrow-down"
+          className="size-4"
+        />
       </TooltipIconButton>
     </ThreadPrimitive.ScrollToBottom>
   )
@@ -288,7 +292,7 @@ const ThreadSuggestionItem: FC = () => {
         asChild>
         <Button
           variant="ghost"
-          className="aui-thread-welcome-suggestion text-foreground hover:bg-muted/80 border-border/50 bg-card/70 h-auto gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-normal whitespace-nowrap shadow-xs backdrop-blur-sm transition-colors">
+          className="aui-thread-welcome-suggestion text-foreground hover:bg-accent h-auto gap-1.5 rounded-full border px-4 py-1.5 text-sm font-normal whitespace-nowrap shadow-none transition-colors">
           <SuggestionPrimitive.Title className="aui-thread-welcome-suggestion-text-1" />
           <SuggestionPrimitive.Description className="aui-thread-welcome-suggestion-text-2 empty:hidden" />
         </Button>
@@ -311,13 +315,12 @@ const Composer: FC<{ autoFocus: boolean }> = ({ autoFocus }) => {
           <div
             data-slot="aui_composer-shell"
             className={[
-              'border-border/50 dark:border-border/60 flex w-full cursor-text flex-col gap-2.5',
+              /* 聚焦只换边色，不用 ring-[3px]（聊天气泡区会显得过粗） */
+              'border-input flex w-full cursor-text flex-col gap-2.5',
               'rounded-(--composer-radius) border bg-(--composer-bg) p-(--composer-padding)',
-              'shadow-[0_1px_2px_oklch(0_0_0/0.04),0_10px_28px_-12px_oklch(0_0_0/0.12)]',
-              'dark:shadow-[0_1px_2px_oklch(0_0_0/0.35),0_14px_36px_-14px_oklch(0_0_0/0.55)]',
-              'transition-[border-color,box-shadow] duration-200',
-              'focus-within:border-ring/45 focus-within:shadow-[0_1px_2px_oklch(0_0_0/0.04),0_10px_28px_-12px_oklch(0_0_0/0.12),0_0_0_3px_color-mix(in_oklab,var(--color-ring)_16%,transparent)]',
-              'dark:focus-within:shadow-[0_1px_2px_oklch(0_0_0/0.35),0_14px_36px_-14px_oklch(0_0_0/0.55),0_0_0_3px_color-mix(in_oklab,var(--color-ring)_22%,transparent)]',
+              'shadow-xs transition-[border-color,box-shadow] duration-150 outline-none',
+              'focus-within:border-ring/60',
+              'dark:bg-input/30',
               'data-[dragging=true]:border-ring data-[dragging=true]:border-dashed',
               'data-[dragging=true]:bg-[color-mix(in_oklab,var(--color-accent)_45%,var(--color-card))]'
             ].join(' ')}>
@@ -326,7 +329,7 @@ const Composer: FC<{ autoFocus: boolean }> = ({ autoFocus }) => {
               placeholder={
                 hasMessages ? labels.composerPlaceholderContinue : labels.composerPlaceholder
               }
-              className="aui-composer-input caret-primary placeholder:text-muted-foreground/55 w-full resize-none bg-transparent px-2.5 py-0.5 text-sm leading-6 outline-none"
+              className="aui-composer-input caret-primary placeholder:text-muted-foreground w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 outline-none"
               rows={2}
               minRows={2}
               maxRows={6}
@@ -403,7 +406,7 @@ const ComposerAction: FC = () => {
               type="button"
               variant="default"
               size="icon"
-              className="aui-composer-send bg-primary text-primary-foreground hover:bg-primary-hover size-8 rounded-full shadow-sm"
+              className="aui-composer-send bg-primary text-primary-foreground hover:bg-primary-hover size-8 rounded-lg shadow-none"
               aria-label={labels.send}>
               <Icon
                 icon="lucide:arrow-up"
@@ -418,7 +421,7 @@ const ComposerAction: FC = () => {
               type="button"
               variant="default"
               size="icon"
-              className="aui-composer-cancel bg-foreground text-background hover:bg-foreground/90 size-8 rounded-full shadow-sm"
+              className="aui-composer-cancel bg-foreground text-background hover:bg-foreground/90 size-8 rounded-lg shadow-none"
               aria-label={labels.stopGenerating}>
               <Icon
                 icon="lucide:square"
@@ -711,12 +714,12 @@ const AssistantMessage: FC = () => {
           // 流式时 part 频繁切换会与侧栏受控折叠叠成 Maximum update depth。
           <div
             data-slot="aui_assistant-message-indicator"
-            className="text-muted-foreground bg-muted/35 ring-border/40 mt-1 flex max-w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm ring-1"
+            className="text-muted-foreground mt-1 flex max-w-fit items-center gap-2 py-1 text-sm"
             aria-label={labels.working}
             aria-live="polite">
             <Icon
               icon="lucide:sparkles"
-              className="size-3.5 shrink-0"
+              className="size-3.5 shrink-0 opacity-70"
             />
             <span className="shimmer motion-reduce:animate-none leading-none">
               {labels.working}
@@ -766,30 +769,11 @@ const AssistantActionBar: FC = () => {
           <Icon icon="lucide:refresh-cw" />
         </TooltipIconButton>
       </ActionBarPrimitive.Reload>
-      <ActionBarMorePrimitive.Root>
-        <ActionBarMorePrimitive.Trigger asChild>
-          <TooltipIconButton
-            tooltip={labels.more}
-            className="data-[state=open]:bg-accent">
-            <Icon icon="lucide:ellipsis" />
-          </TooltipIconButton>
-        </ActionBarMorePrimitive.Trigger>
-        <ActionBarMorePrimitive.Content
-          side="bottom"
-          align="start"
-          sideOffset={6}
-          className="aui-action-bar-more-content bg-popover text-popover-foreground data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:animate-out data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-32 overflow-hidden rounded-xl border p-1.5">
-          <ActionBarPrimitive.ExportMarkdown asChild>
-            <ActionBarMorePrimitive.Item className="aui-action-bar-more-item hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none">
-              <Icon
-                icon="lucide:download"
-                className="size-4"
-              />
-              {labels.exportMarkdown}
-            </ActionBarMorePrimitive.Item>
-          </ActionBarPrimitive.ExportMarkdown>
-        </ActionBarMorePrimitive.Content>
-      </ActionBarMorePrimitive.Root>
+      <ActionBarPrimitive.ExportMarkdown asChild>
+        <TooltipIconButton tooltip={labels.exportMarkdown}>
+          <Icon icon="lucide:download" />
+        </TooltipIconButton>
+      </ActionBarPrimitive.ExportMarkdown>
     </ActionBarPrimitive.Root>
   )
 }
@@ -821,10 +805,9 @@ const UserMessage: FC = () => {
       <div className="aui-user-message-content-wrapper relative col-start-2 min-w-0 max-w-[min(100%,36rem)]">
         <div
           className={[
+            /* Elements MessageContent.is-user：bg-secondary + rounded-lg，无主色 tint / ring */
             'aui-user-message-content peer text-foreground wrap-break-word empty:hidden',
-            'rounded-2xl rounded-br-md px-4 py-2.5 text-sm leading-6',
-            'bg-primary/8 ring-primary/12 shadow-xs ring-1',
-            'dark:bg-primary/14 dark:ring-primary/18'
+            'rounded-lg bg-secondary px-4 py-3 text-sm leading-6'
           ].join(' ')}>
           <MessagePrimitive.Parts components={{ File: UserFilePart, Image: UserImagePart }} />
         </div>
@@ -867,7 +850,7 @@ const EditComposer: FC = () => {
     <MessagePrimitive.Root
       data-slot="aui_edit-composer-wrapper"
       className="flex flex-col px-2 [contain-intrinsic-size:auto_200px] [content-visibility:auto]">
-      <ComposerPrimitive.Root className="aui-edit-composer-root border-border/50 dark:border-border/60 ms-auto flex w-full max-w-[85%] cursor-text flex-col rounded-2xl border bg-(--composer-bg) shadow-md">
+      <ComposerPrimitive.Root className="aui-edit-composer-root border-input ms-auto flex w-full max-w-[85%] cursor-text flex-col rounded-(--composer-radius) border bg-(--composer-bg) shadow-xs dark:bg-input/30">
         <ComposerPrimitive.Input
           className="aui-edit-composer-input text-foreground min-h-14 w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-sm outline-none"
           autoFocus
@@ -877,14 +860,14 @@ const EditComposer: FC = () => {
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 rounded-full px-3.5">
+              className="h-8 rounded-md px-3.5">
               {labels.cancel}
             </Button>
           </ComposerPrimitive.Cancel>
           <ComposerPrimitive.Send asChild>
             <Button
               size="sm"
-              className="h-8 rounded-full px-3.5 shadow-xs">
+              className="h-8 rounded-md px-3.5 shadow-xs">
               {labels.update}
             </Button>
           </ComposerPrimitive.Send>

@@ -1,11 +1,12 @@
 /**
  * 右栏容器：空对话快捷卡 / 已对话分区骨架；可切到文件树与审阅对比。
+ * 顶栏返回按层级回退（预览→目录→首页；diff→清单→首页），不一步跳回根。
  */
 import { Icon } from '@iconify/react/offline'
 import { useAui, useAuiState } from '@assistant-ui/react'
 import { Button } from '@cogito/design/components/button'
 import { clsx } from 'clsx'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 import { AsideBusy } from './aside-busy'
 import { AsideEmpty } from './aside-empty'
@@ -43,6 +44,12 @@ function AgentAside(props: AsideProps) {
 
   const [mode, updateMode] = useState<AsideMode>('home')
   const [focusRelative, updateFocusRelative] = useState<string | null>(null)
+  const [focusLabel, updateFocusLabel] = useState<string | null>(null)
+  const stepBackRef = useRef<(() => boolean) | null>(null)
+  const bindStepBackRef = useRef(function bindStepBack(handler: (() => boolean) | null) {
+    stepBackRef.current = handler
+  })
+  const bindStepBack = bindStepBackRef.current
 
   const hasUserMessage = useMemo(
     function () {
@@ -55,17 +62,25 @@ function AgentAside(props: AsideProps) {
 
   function openFiles(relative?: string | null) {
     updateFocusRelative(relative ?? null)
+    updateFocusLabel(null)
     updateMode('files')
   }
 
   function openReview(relative?: string | null) {
     updateFocusRelative(relative ?? null)
+    updateFocusLabel(null)
     updateMode('review')
   }
 
   function backHome() {
     updateFocusRelative(null)
+    updateFocusLabel(null)
     updateMode('home')
+  }
+
+  function handleHeaderBack() {
+    if (stepBackRef.current?.()) return
+    backHome()
   }
 
   // 终端面板固定渲染在右栏；打开时整栏被终端面板接管（面板自带标题栏与关闭）。
@@ -81,7 +96,9 @@ function AgentAside(props: AsideProps) {
   }
 
   const homeTitle = hasUserMessage ? '任务详情' : '快捷操作'
-  const title = mode === 'home' ? homeTitle : MODE_TITLE[mode]
+  const modeTitle = MODE_TITLE[mode]
+  const title =
+    mode === 'home' ? homeTitle : focusLabel ? `${modeTitle} · ${focusLabel}` : modeTitle
 
   return (
     <div className={clsx('bg-background flex h-full min-h-0 flex-col', props.className)}>
@@ -93,17 +110,21 @@ function AgentAside(props: AsideProps) {
               variant="ghost"
               size="icon-sm"
               data-region="false"
-              aria-label="返回任务详情"
-              title="返回"
+              aria-label="返回上一层"
+              title="返回上一层"
               className="text-muted-foreground hover:text-foreground size-7"
-              onClick={backHome}>
+              onClick={handleHeaderBack}>
               <Icon
                 icon="lucide:chevron-left"
                 className="size-3.5"
               />
             </Button>
           ) : null}
-          <span className="text-muted-foreground truncate px-1 text-xs font-medium">{title}</span>
+          <span
+            className="text-muted-foreground truncate px-1 text-xs font-medium"
+            title={title}>
+            {title}
+          </span>
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
@@ -171,13 +192,21 @@ function AgentAside(props: AsideProps) {
         <AsideFiles
           aui={aui}
           initialRelative={focusRelative}
+          bindStepBack={bindStepBack}
+          onFocusLabel={updateFocusLabel}
           onOpenReview={function (relative) {
             openReview(relative)
           }}
         />
       ) : null}
 
-      {mode === 'review' ? <AsideReview initialRelative={focusRelative} /> : null}
+      {mode === 'review' ? (
+        <AsideReview
+          initialRelative={focusRelative}
+          bindStepBack={bindStepBack}
+          onFocusLabel={updateFocusLabel}
+        />
+      ) : null}
 
       {mode === 'home' ? (
         hasUserMessage ? (

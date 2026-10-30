@@ -4,6 +4,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import type { FileMessagePartComponent } from '@assistant-ui/react'
 import { cn } from 'cn'
 import { useAssistantLabels } from './labels'
+import { findFileNameIcon } from './file-name-icon'
 
 const fileVariants = cva(
   'aui-file-root inline-flex items-center gap-3 rounded-lg transition-colors',
@@ -126,19 +127,32 @@ function FileRoot({ className, variant, size, children, ...props }: FileRootProp
 
 type FileIconDisplayProps = React.ComponentProps<'span'> & {
   mimeType?: string
+  /** 有文件名时优先按扩展名选图标，比纯 mime 更准（如 .tsx） */
+  fileName?: string
 }
 
-function FileIconDisplay({ mimeType, className, children, ...props }: FileIconDisplayProps) {
-  const icon = mimeType ? getMimeTypeIcon(mimeType) : 'lucide:file'
+function FileIconDisplay({
+  mimeType,
+  fileName,
+  className,
+  children,
+  ...props
+}: FileIconDisplayProps) {
+  const hint = fileName
+    ? findFileNameIcon(fileName)
+    : {
+        icon: mimeType ? getMimeTypeIcon(mimeType) : 'lucide:file',
+        className: 'text-muted-foreground'
+      }
 
   return (
     <span
       data-slot="file-icon"
-      className={cn('text-muted-foreground shrink-0', className)}
+      className={cn('shrink-0', hint.className, className)}
       {...props}>
       {children ?? (
         <Icon
-          icon={icon}
+          icon={hint.icon}
           className="size-5"
         />
       )}
@@ -218,7 +232,10 @@ const FileImpl: FileMessagePartComponent = ({ filename, data, mimeType, sourceTy
 
   return (
     <FileRoot>
-      <FileIconDisplay mimeType={mimeType} />
+      <FileIconDisplay
+        mimeType={mimeType}
+        fileName={filename}
+      />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <FileName>{filename}</FileName>
         {showSize && (

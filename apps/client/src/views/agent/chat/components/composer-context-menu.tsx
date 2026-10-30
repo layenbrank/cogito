@@ -146,11 +146,15 @@ function ComposerContextMenu() {
   const aui = useAui()
   const { primaryPath } = useActiveWorkspace()
   const [isOpen, updateOpen] = useState(false)
+  const [isTooltipOpen, updateTooltipOpen] = useState(false)
   const [category, updateCategory] = useState<AttachCategory>('files')
 
   function handleOpenChange(next: boolean) {
     updateOpen(next)
-    if (next) updateCategory('files')
+    if (next) {
+      updateCategory('files')
+      updateTooltipOpen(false)
+    }
   }
 
   function handlePickRelative(relative: string) {
@@ -168,7 +172,11 @@ function ComposerContextMenu() {
     <Popover
       open={isOpen}
       onOpenChange={handleOpenChange}>
-      <Tooltip open={isOpen ? false : undefined}>
+      <Tooltip
+        open={isOpen ? false : isTooltipOpen}
+        onOpenChange={function (next) {
+          if (!isOpen) updateTooltipOpen(next)
+        }}>
         <TooltipTrigger
           render={
             <PopoverTrigger

@@ -19,6 +19,8 @@ import { attachWorkspaceFile } from '@/features/agent/attachment.ts'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 import { WorkspaceFiles } from '@/lib/workspace-files.ts'
 import { WorkspaceSkills } from '@/lib/workspace-skills.ts'
+import { findFileIcon } from '@/views/workspace/overlay/file-icon.ts'
+import { cn } from 'cn'
 
 const SEARCH_LIMIT = 40
 
@@ -239,6 +241,7 @@ function ComposerTriggers() {
                 hasItems={items.length > 0}
                 empty={primaryPath ? '没有匹配的文件' : '先在左栏添加工作区'}>
                 {items.map(function (item, index) {
+                  const fileIcon = findFileIcon(item.label)
                   return (
                     <ComposerPrimitive.Unstable_TriggerPopoverItem
                       key={item.id}
@@ -246,8 +249,8 @@ function ComposerTriggers() {
                       index={index}
                       className="data-highlighted:bg-muted hover:bg-muted flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-start text-xs outline-none">
                       <Icon
-                        icon="lucide:file"
-                        className="text-muted-foreground size-3.5 shrink-0"
+                        icon={fileIcon.icon}
+                        className={cn('size-3.5 shrink-0', fileIcon.className)}
                       />
                       <span className="min-w-0 flex-1 truncate">{item.label}</span>
                       {item.description ? (
