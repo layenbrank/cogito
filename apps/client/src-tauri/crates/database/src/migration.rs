@@ -1,6 +1,6 @@
-use crate::migrations::migrations_v001;
+use crate::migrations::{dict_seed, migrations_v001};
 use crate::storage::Connection;
-use sea_orm::DbErr;
+use sea_orm::{ConnectionTrait, DatabaseBackend, DbErr, Statement};
 use sea_orm::sea_query::IntoIden;
 use sea_orm_migration::MigratorTrait;
 use tracing::{error, info};
@@ -26,6 +26,17 @@ pub async fn run(db: &Connection) -> Result<(), DbErr> {
             error!("数据库迁移失败: {}", e);
             return Err(e);
         }
+    }
+    // 单文件 v001 已打标记后追加的表不会再跑；dict seed 全是 IF NOT EXISTS / OR IGNORE，启动兜底补齐。
+    ensure_dict(db).await?;
+    Ok(())
+}
+
+/// 补建状态字典表并写入缺省条目（已存在则跳过）。
+async fn ensure_dict(db: &Connection) -> Result<(), DbErr> {
+    for statement in dict_seed::statements() {
+        db.execute(Statement::from_string(DatabaseBackend::Sqlite, statement))
+            .await?;
     }
     Ok(())
 }
