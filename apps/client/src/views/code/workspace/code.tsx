@@ -268,17 +268,18 @@ export default function Code() {
   useEffect(
     function () {
       if (!isDiffOpen || !activeTab) return
+      const tabId = activeTab.id
       function onKeyDown(event: KeyboardEvent) {
         if (event.key !== 'Escape' || event.defaultPrevented) return
         event.preventDefault()
-        requestCloseTabs([activeTab.id])
+        requestCloseTabs([tabId])
       }
       window.addEventListener('keydown', onKeyDown)
       return function () {
         window.removeEventListener('keydown', onKeyDown)
       }
     },
-    [isDiffOpen, activeTab?.id]
+    [isDiffOpen, activeTab]
   )
 
   // 键位与命令的对应关系全在 `keyboard/definitions.ts`；没挂载这里时，

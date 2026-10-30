@@ -217,15 +217,15 @@ function FileRow(props: {
         ) : (
           <span className="min-w-0 flex-1" />
         )}
-        {props.file.added != null || props.file.deleted != null ? (
+        {typeof props.file.added === 'number' || typeof props.file.deleted === 'number' ? (
           <span className="shrink-0 font-mono text-sm font-semibold tabular-nums tracking-tight">
-            {props.file.added != null ? (
+            {typeof props.file.added === 'number' ? (
               <span className="text-emerald-600 dark:text-emerald-400">+{props.file.added}</span>
             ) : null}
-            {props.file.added != null && props.file.deleted != null ? (
+            {typeof props.file.added === 'number' && typeof props.file.deleted === 'number' ? (
               <span className="text-muted-foreground/50 mx-0.5"> </span>
             ) : null}
-            {props.file.deleted != null ? (
+            {typeof props.file.deleted === 'number' ? (
               <span className="text-destructive">-{props.file.deleted}</span>
             ) : null}
           </span>
@@ -245,8 +245,8 @@ function ChangeStats(props: { files: ShowFile[] }) {
       let added = 0
       let deleted = 0
       for (const file of props.files) {
-        if (file.added != null) added += file.added
-        if (file.deleted != null) deleted += file.deleted
+        if (typeof file.added === 'number') added += file.added
+        if (typeof file.deleted === 'number') deleted += file.deleted
       }
       return { added, deleted }
     },
