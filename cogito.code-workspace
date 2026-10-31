@@ -19,6 +19,10 @@
       "path": "apps/compute"
     },
     {
+      "name": "design",
+      "path": "packages/design"
+    },
+    {
       "name": "distribution",
       "path": "apps/distribution"
     },

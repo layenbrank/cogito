@@ -25,7 +25,6 @@ declare namespace MagneticTile {
       id: string
       workspaceID: string
       path: string
-      isPrimary: boolean
       sort: number
       createdAt: number
       updatedAt: number

@@ -28,9 +28,9 @@
     "goose": {
       "platforms": {
         "win32-x64": {
-          "version": "1.54.0",
-          "url": "https://pub-b5a8e7d75d094feab1be1e6f592e93ce.r2.dev/v1.54.0/goose-x86_64-pc-windows-msvc.zip",
-          "sha256": "5c39bc91c3eadc231847e21a8a469e778431084437b233a63a950fee22db6239"
+          "version": "1.57.0",
+          "url": "https://pub-b5a8e7d75d094feab1be1e6f592e93ce.r2.dev/v1.57.0/goose-x86_64-pc-windows-msvc.zip",
+          "sha256": "1ab2117ceec37f95be4d3ad0cdb921d3e97fd8b0fa244046631ecf4b7619d502"
         }
       }
     },

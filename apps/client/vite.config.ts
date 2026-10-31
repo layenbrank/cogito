@@ -8,7 +8,7 @@ import { networkInterfaces } from 'node:os'
 import AutoImport from 'unplugin-auto-import/vite'
 import { defineConfig, loadEnv, type ConfigEnv, type UserConfig } from 'vite'
 import { compression } from 'vite-plugin-compression2'
-import { chunks } from './vite.chunk'
+import { chunks } from './vite.chunk.ts'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -163,13 +163,15 @@ export default defineConfig(function ({ mode }: ConfigEnv): UserConfig {
         generateScopedName(name, filename) {
           // 必须含完整路径：calendar/countdown 等都叫 marker.module.scss，
           // 旧实现只用 css 内容前 6 位 base64，文件都以 @use 开头 → 类名碰撞，样式串扰。
+          // 目录与文件同名时（chat/chat.module.scss）只保留一段，避免 chat-chat-*。
           const fileBaseName = basename(filename).replace(/\.module\.(scss|css|sass|less)$/i, '')
           const scope = basename(dirname(filename))
           const hash = createHash('sha256')
             .update(`${filename}\0${name}`)
             .digest('base64url')
             .slice(0, 6)
-          return `${scope}-${fileBaseName}-${name}-${hash}`
+          const prefix = scope === fileBaseName ? fileBaseName : `${scope}-${fileBaseName}`
+          return `${prefix}-${name}-${hash}`
         },
         localsConvention: 'camelCase',
         scopeBehaviour: 'local',

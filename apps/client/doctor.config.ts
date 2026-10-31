@@ -33,12 +33,17 @@ export default defineConfig({
         // - attachment：附加顺序 = 用户选择顺序，并行会让会话里的文件顺序错乱
         // - stores/gallery：日期补齐是后台清扫，逐条探测 + 逐条落库，避免并发拉起大量探测进程
         // - code/lib/fs：深度遍历要在达到条数上限时立刻停止，改并行会破坏 limit 语义
+        // - background-turn：事件流按序消费是语义本身（`await` 等新事件），不是可并行的独立工作
         files: [
           'src/features/agent/model/agent-loop.ts',
+          'src/features/agent/acp/background-turn.ts',
+          'src/databases/morph.ts',
           'src/stores/morph.ts',
           'src/features/agent/attachment.ts',
           'src/stores/gallery.ts',
-          'src/views/code/lib/fs.ts'
+          'src/views/code/lib/fs.ts',
+          'src/stores/signboard.ts',
+          'src/views/bookmark/import/mount.ts'
         ],
         rules: ['react-doctor/async-await-in-loop']
       },

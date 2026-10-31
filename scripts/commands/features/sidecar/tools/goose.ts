@@ -1,5 +1,4 @@
 import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
-import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 
 import { GOOSE_BINARY, VENDOR_DIR } from '../infra/constants.ts'
@@ -23,26 +22,17 @@ function findGooseBinary(key = findPlatformKey()): string {
   return path.join(findGooseBinDir(key), findBinaryName(GOOSE_BINARY))
 }
 
+/**
+ * 本机二进制：只认显式的 `GOOSE_BINARY`（对齐 corex 的 `COREX_LOCAL_BIN`）。
+ *
+ * 不探测 PATH —— 用户可能装了 goose CLI / 桌面版，把它误判成「本机开发二进制」会让
+ * lock 里的 pin 升级永远不生效（bootstrap 一直 stage 那份 PATH 里的旧 goose）。
+ */
 function findLocalGoosePath(): string | null {
   const fromEnv = process.env.GOOSE_BINARY?.trim()
   if (fromEnv && existsSync(fromEnv)) {
     return path.resolve(fromEnv)
   }
-
-  const which = process.platform === 'win32' ? 'where.exe' : 'which'
-  const probe = spawnSync(which, [GOOSE_BINARY], { encoding: 'utf8' })
-  if (!probe.error && probe.status === 0) {
-    const first = (probe.stdout || '')
-      .split(/\r?\n/)
-      .map(function (line) {
-        return line.trim()
-      })
-      .find(Boolean)
-    if (first && existsSync(first)) {
-      return first
-    }
-  }
-
   return null
 }
 
@@ -118,25 +108,26 @@ async function ensureGooseFromRelease(key: string): Promise<string> {
 }
 
 async function ensureGooseVendor(key = findPlatformKey()): Promise<string> {
-  const lock = readToolsLock()
-  const pin = requireLockPin(lock, 'goose', key)
   const vendorDir = findGooseVendorDir(key)
-  const binary = findGooseBinary(key)
-  // 本机那份（`local`）只要还是它自己就算命中：版本由用户自己负责，pin 变了也不重装
-  if (
-    isVendorReady(vendorDir, pin.version, binary) ||
-    isVendorReady(vendorDir, LOCAL_VENDOR_VERSION, binary)
-  ) {
-    console.log(`[goose] 缓存命中 ${binary}`)
-    return binary
-  }
 
+  // 本机那份（`local`）：只有显式设了 GOOSE_BINARY 才优先用它。不能因为目录里残留过
+  // local 标记就锁死旧版本 —— pin 升级后必须回落到 release（缓存命中按 lock 里的版本）。
   const local = findLocalGoosePath()
   if (local) {
     console.log(`[goose] 使用本机二进制 ${local}`)
     const staged = stageGooseFiles(local, key)
     writeVendorVersion(vendorDir, LOCAL_VENDOR_VERSION)
     return staged
+  }
+
+  const lock = readToolsLock()
+  const pin = requireLockPin(lock, 'goose', key)
+  const binary = findGooseBinary(key)
+
+  // 缓存命中不是「有文件就算」，而是「有 lock 里那个版本」
+  if (isVendorReady(vendorDir, pin.version, binary)) {
+    console.log(`[goose] 缓存命中 ${pin.version} → ${binary}`)
+    return binary
   }
 
   return ensureGooseFromRelease(key)

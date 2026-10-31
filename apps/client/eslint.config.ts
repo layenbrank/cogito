@@ -24,6 +24,8 @@ export default defineConfig(
     '**/node_modules/**',
     '**/src-tauri/**',
     'chunks.log',
+    // 一次性重构脚手架（split 脚本）不进 lint：plain JS，也没有 TS project
+    'scripts/**/*.mjs',
     // 根目录工具配置多为 plain JS，不参与 type-checked 规则
     '*.config.js',
     '*.config.cjs',
@@ -102,9 +104,20 @@ export default defineConfig(
       '@typescript-eslint/no-base-to-string': 'warn',
       '@typescript-eslint/prefer-promise-reject-errors': 'warn',
       'react-refresh/only-export-components': 'off',
-      'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/refs': 'warn',
-      'react-hooks/immutability': 'warn',
+      /*
+       * react-hooks 的 refs / immutability / set-state-in-effect 是 eslint-plugin-react-hooks v7
+       * 的 React Compiler 规则，对项目里这几类常规写法误报 / 过度严格：
+       * 1) 把 ref / 回调透传给子组件（`ref={props.someRef}`、`onMove={props.handler}`）——
+       *    规则只要 props 里有一个 ref，就把它当成「render 中读 ref」逐项报；
+       * 2) 写 ref 的 current（`props.stepBackRef.current = fn`）被当成「修改 props」；
+       * 3) effect 里同步 setState（加载态切 `pending = true`、外部条件驱动本地展开 / 重置）
+       *    是受控 + 非受控混合的必要写法，规则建议的替代方案反而牺牲可读性。
+       * 三者都不影响运行时正确性，故统一关闭；待 React Compiler 正式版稳定后与 purity
+       * 一起重新评估（项目约定「二期再收紧」）。
+       */
+      'react-hooks/refs': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/set-state-in-effect': 'off',
       'react-hooks/purity': 'warn'
     }
   },
@@ -156,6 +169,15 @@ export default defineConfig(
             '禁止业务路径使用 sessionStorage；JWT 走 OS Keyring + 内存 cache（@/features/persist/secrets）。'
         }
       ]
+    }
+  },
+  {
+    // 测试代码里的 async generator / mock 常无真实异步等待（async 只是为了产出
+    // AsyncGenerator）：require-await 只对业务代码有意义，在这里关掉而不是到处 disable。
+    name: 'client/tests',
+    files: ['**/*.{test,spec}.{ts,tsx}', 'src/__test__/**'],
+    rules: {
+      '@typescript-eslint/require-await': 'off'
     }
   }
 )

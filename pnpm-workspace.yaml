@@ -124,6 +124,8 @@ catalog:
   "react-hook-form": ^7.88.0
   "@hookform/resolvers": ^5.9.1
   "remark-gfm": ^4.0.1
+  "shiki": ^3.23.0
+  "ansi-to-react": ^6.2.6
   # —— 嵌入式交互终端（xterm.js 6.x 拆包；addon-fit 版本独立）——
   "@xterm/xterm": ^6.0.0
   "@xterm/addon-fit": ^0.11.0
@@ -149,11 +151,14 @@ catalog:
 
   # —— assistant-ui ——
   # assistant-ui 组件经 shadcn registry（copy-in）落入 packages/design；runtime/传输在各 app
-  "@assistant-ui/react": ^0.15.19
-  "@assistant-ui/react-markdown": ^0.14.15
-  "@assistant-ui/react-devtools": ^1.2.18
+  "@assistant-ui/react": ^0.15.32
+  "@assistant-ui/react-markdown": ^0.14.24
+  "@assistant-ui/react-devtools": ^1.2.26
+  # assistant-ui 可观测性（experimental）与活动热力
+  "@assistant-ui/react-o11y": ^0.0.48
+  "heat-graph": ^0.0.26
   # assistant-ui 的底层流库（本仓直接 import 它的 createAssistantStream）
-  "assistant-stream": ^0.3.42
+  "assistant-stream": ^0.3.55
   "tw-shimmer": ^0.4.13
 
   # —— Forge：CLI + makers ——
