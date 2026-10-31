@@ -8,6 +8,8 @@ type BookmarkViewMode = 'list' | 'grid'
 type BookmarkSortKey = 'name-asc' | 'name-desc' | 'type' | 'links' | 'index'
 type ClockStyle = 'digital' | 'analog' | 'flip' | 'neon' | 'minimal'
 type ApprovalMode = 'ask' | 'auto' | 'readonly'
+/** 会话模式：执行 / 计划 / 问答 / 目标（对齐 Copilot Plan、Qoder 目标模式） */
+type AgentMode = 'agent' | 'plan' | 'ask' | 'goal'
 type ThinkingLevel = 'off' | 'low' | 'medium' | 'high' | 'max'
 type AppearanceMode = 'system' | 'light' | 'dark'
 type MotionPreference = 'system' | 'on' | 'off'
@@ -85,7 +87,14 @@ interface AgentSplitterOpen {
 interface AgentPref {
   splitterLayout: Record<string, number> | null
   splitterOpen: AgentSplitterOpen
+  /** 新会话的默认审批档（老会话用自己的 `approvalByThread`） */
   approvalMode: ApprovalMode
+  /** 新会话的默认模式 */
+  agentMode: AgentMode
+  /** 会话级模式（threadID → 模式）；缺省回落新会话默认值 */
+  modeByThread: Record<string, AgentMode>
+  /** 会话级审批档（threadID → 审批）；缺省回落新会话默认值 */
+  approvalByThread: Record<string, ApprovalMode>
   modelPrefs: Record<string, ModelPref>
   /** `1` 开 / `0` 关；与历史 localStorage 语义对齐 */
   corexMcpTools: '0' | '1'
@@ -198,5 +207,6 @@ export type {
   BookmarkSortKey,
   ClockStyle,
   ApprovalMode,
+  AgentMode,
   ThinkingLevel
 }

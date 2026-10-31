@@ -60,6 +60,9 @@ const PERSIST_DEFAULTS: PersistShape = {
     splitterLayout: null,
     splitterOpen: { isSidebarOpen: true, isAsideOpen: true },
     approvalMode: 'ask',
+    agentMode: 'agent',
+    modeByThread: {},
+    approvalByThread: {},
     modelPrefs: {},
     corexMcpTools: '1'
   },

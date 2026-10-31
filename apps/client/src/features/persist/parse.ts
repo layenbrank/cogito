@@ -7,7 +7,9 @@ import {
 } from '@/features/persist/defaults'
 import type { PersistNamespace } from '@/features/persist/files'
 import type {
+  AgentMode,
   AgentPref,
+  ApprovalMode,
   ClipchampPref,
   GalleryPref,
   PersistShape,
@@ -212,6 +214,28 @@ function parseModelPrefs(raw: unknown): Record<string, ModelPref> {
   return next
 }
 
+function parseModeByThread(raw: unknown): Record<string, AgentMode> {
+  if (!isRecord(raw)) return {}
+  const next: Record<string, AgentMode> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (value === 'agent' || value === 'plan' || value === 'ask' || value === 'goal') {
+      next[key] = value
+    }
+  }
+  return next
+}
+
+function parseApprovalByThread(raw: unknown): Record<string, ApprovalMode> {
+  if (!isRecord(raw)) return {}
+  const next: Record<string, ApprovalMode> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (value === 'ask' || value === 'auto' || value === 'readonly') {
+      next[key] = value
+    }
+  }
+  return next
+}
+
 function parseAgent(raw: unknown): AgentPref {
   const base = PERSIST_DEFAULTS.agent
   if (!isRecord(raw)) return structuredClone(base)
@@ -232,6 +256,15 @@ function parseAgent(raw: unknown): AgentPref {
       raw.approvalMode === 'ask' || raw.approvalMode === 'auto' || raw.approvalMode === 'readonly'
         ? raw.approvalMode
         : base.approvalMode,
+    agentMode:
+      raw.agentMode === 'agent' ||
+      raw.agentMode === 'plan' ||
+      raw.agentMode === 'ask' ||
+      raw.agentMode === 'goal'
+        ? raw.agentMode
+        : base.agentMode,
+    modeByThread: parseModeByThread(raw.modeByThread),
+    approvalByThread: parseApprovalByThread(raw.approvalByThread),
     modelPrefs: parseModelPrefs(raw.modelPrefs),
     corexMcpTools: raw.corexMcpTools === '0' || raw.corexMcpTools === '1' ? raw.corexMcpTools : '1'
   }

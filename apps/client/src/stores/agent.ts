@@ -180,7 +180,6 @@ function toWorkspaceFolderWrite(value: WorkspaceFolder) {
     id: value.id,
     workspaceID: value.workspaceID,
     path: value.path,
-    isPrimary: value.isPrimary,
     sort: value.sort,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt

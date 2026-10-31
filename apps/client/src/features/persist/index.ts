@@ -34,6 +34,7 @@ export type {
   BookmarkSortKey,
   ClockStyle,
   ApprovalMode,
+  AgentMode,
   ModelPref,
   ThinkingLevel,
   AgentSplitterOpen
