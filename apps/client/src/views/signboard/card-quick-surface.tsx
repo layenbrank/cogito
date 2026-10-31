@@ -1,7 +1,5 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
-import { Checkbox } from '@cogito/design/components/checkbox'
-import { Input } from '@cogito/design/components/input'
 import {
   Popover,
   PopoverContent,
@@ -9,14 +7,12 @@ import {
   PopoverTitle,
   PopoverTrigger
 } from '@cogito/design/components/popover'
-import { useState, type MouseEvent, type ReactElement } from 'react'
-import { toast } from 'sonner'
+import type { MouseEvent, ReactElement } from 'react'
 
-import {
-  useSignboardStore,
-  type SignboardCheck,
-  type SignboardEntry
-} from '@/stores/signboard'
+import type { SignboardCheck, SignboardEntry } from '@/stores/signboard'
+import { CardQuickChecksPanel } from '@/views/signboard/card-quick-checks-panel.tsx'
+import { CardQuickTagsPanel } from '@/views/signboard/card-quick-tags-panel.tsx'
+import { useCardQuickSurface } from '@/views/signboard/use-card-quick-surface.ts'
 import styles from '@/views/signboard/signboard.module.scss'
 
 interface CardQuickSurfaceProps {
@@ -35,87 +31,12 @@ function stop(event: MouseEvent) {
 
 function CardQuickSurface(props: CardQuickSurfaceProps) {
   const focus = props.focus ?? 'tags'
-  const activeBoardID = useSignboardStore(function (state) {
-    return state.activeBoardID
-  })
-  const boardTags = useSignboardStore(function (state) {
-    return state.tags
-  })
-  const tagIDsForEntry = useSignboardStore(function (state) {
-    return state.tagIDsForEntry
-  })
-  const toTagEntry = useSignboardStore(function (state) {
-    return state.toTagEntry
-  })
-  const toUntagEntry = useSignboardStore(function (state) {
-    return state.toUntagEntry
-  })
-  const toWriteTag = useSignboardStore(function (state) {
-    return state.toWriteTag
-  })
-  const toWriteCheck = useSignboardStore(function (state) {
-    return state.toWriteCheck
-  })
-  const toUpdateCheck = useSignboardStore(function (state) {
-    return state.toUpdateCheck
-  })
-
-  const [tagDraft, setTagDraft] = useState('')
-  const [checkDraft, setCheckDraft] = useState('')
-  const [tab, setTab] = useState<'tags' | 'checks'>(focus)
-  const attached = tagIDsForEntry(props.card.id)
-  const checkTotal = props.checklist.length
-  const checkDone = props.checklist.filter(function (item) {
-    return item.done
-  }).length
-  const checkPct =
-    checkTotal === 0 ? 0 : Math.round((checkDone / checkTotal) * 100)
-
-  async function toggleTag(tagID: string) {
-    const isOn = attached.includes(tagID)
-    const ok = isOn
-      ? await toUntagEntry(props.card.id, tagID)
-      : await toTagEntry(props.card.id, tagID)
-    if (!ok) toast.error(isOn ? '移除标签失败' : '添加标签失败')
-  }
-
-  async function insertTag() {
-    const title = tagDraft.trim()
-    if (!title || !activeBoardID) return
-    const existing = boardTags.find(function (tag) {
-      return tag.title === title
-    })
-    if (existing) {
-      setTagDraft('')
-      const ok = await toTagEntry(props.card.id, existing.id)
-      if (!ok) toast.error('绑定标签失败')
-      return
-    }
-    const id = await toWriteTag(activeBoardID, title)
-    if (!id) {
-      toast.error('新建标签失败')
-      return
-    }
-    setTagDraft('')
-    const ok = await toTagEntry(props.card.id, id)
-    if (!ok) toast.error('绑定标签失败')
-  }
-
-  async function addCheck() {
-    const title = checkDraft.trim()
-    if (!title) return
-    const id = await toWriteCheck(props.card.id, title)
-    if (!id) {
-      toast.error('添加清单失败')
-      return
-    }
-    setCheckDraft('')
-  }
+  const surface = useCardQuickSurface(props.card, props.checklist, focus)
 
   return (
     <Popover
       onOpenChange={function (open) {
-        if (open) setTab(focus)
+        if (open) surface.setTab(focus)
       }}>
       <PopoverTrigger
         render={
@@ -150,174 +71,52 @@ function CardQuickSurface(props: CardQuickSurfaceProps) {
             <Button
               type="button"
               variant="ghost"
-              className={tab === 'tags' ? styles.quickTabOn : styles.quickTab}
+              className={surface.tab === 'tags' ? styles.quickTabOn : styles.quickTab}
               onClick={function () {
-                setTab('tags')
+                surface.setTab('tags')
               }}>
               标签
             </Button>
             <Button
               type="button"
               variant="ghost"
-              className={tab === 'checks' ? styles.quickTabOn : styles.quickTab}
+              className={surface.tab === 'checks' ? styles.quickTabOn : styles.quickTab}
               onClick={function () {
-                setTab('checks')
+                surface.setTab('checks')
               }}>
               清单
             </Button>
           </div>
         </PopoverHeader>
 
-        {tab === 'tags' ? (
-          <div className={styles.quickSection}>
-            {boardTags.length === 0 ? (
-              <p className={styles.tagManagerEmpty}>还没有标签，输入名称即可新建并挂上</p>
-            ) : (
-              <div className={styles.quickTagList}>
-                {boardTags.map(function (tag) {
-                  const isOn = attached.includes(tag.id)
-                  return (
-                    <Button
-                      key={tag.id}
-                      type="button"
-                      variant="ghost"
-                      className={isOn ? styles.quickTagOn : styles.quickTag}
-                      style={
-                        tag.color
-                          ? {
-                              background: isOn
-                                ? `color-mix(in oklab, ${tag.color} 22%, var(--card))`
-                                : undefined,
-                              color: tag.color ?? undefined,
-                              borderColor: isOn
-                                ? tag.color
-                                : `color-mix(in oklab, ${tag.color} 30%, transparent)`
-                            }
-                          : undefined
-                      }
-                      onClick={function () {
-                        void toggleTag(tag.id)
-                      }}>
-                      <span
-                        className={styles.filterSwatch}
-                        style={{
-                          background: tag.color ?? 'var(--muted-foreground)'
-                        }}
-                        aria-hidden
-                      />
-                      {tag.title}
-                      {isOn ? (
-                        <Icon
-                          icon="lucide:check"
-                          className="size-3 opacity-80"
-                        />
-                      ) : null}
-                    </Button>
-                  )
-                })}
-              </div>
-            )}
-            <div className={styles.quickRow}>
-              <Input
-                value={tagDraft}
-                placeholder="搜索或新建标签"
-                className="h-8 flex-1"
-                onChange={function (event) {
-                  setTagDraft(event.target.value)
-                }}
-                onKeyDown={function (event) {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    void insertTag()
-                  }
-                }}
-              />
-              <Button
-                type="button"
-                size="sm"
-                className="h-8"
-                disabled={!tagDraft.trim()}
-                onClick={function () {
-                  void insertTag()
-                }}>
-                添加
-              </Button>
-            </div>
-          </div>
+        {surface.tab === 'tags' ? (
+          <CardQuickTagsPanel
+            boardTags={surface.boardTags}
+            attachedSet={surface.attachedSet}
+            tagDraft={surface.tagDraft}
+            onTagDraftChange={surface.setTagDraft}
+            onToggleTag={function (tagID) {
+              void surface.toggleTag(tagID)
+            }}
+            onInsertTag={function () {
+              void surface.insertTag()
+            }}
+          />
         ) : (
-          <div className={styles.quickSection}>
-            <div className={styles.quickProgress}>
-              <span>
-                {checkTotal > 0
-                  ? `${checkDone}/${checkTotal} · ${checkPct}%`
-                  : '暂无步骤'}
-              </span>
-              <div
-                className={styles.quickProgressTrack}
-                role="progressbar"
-                aria-valuenow={checkPct}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label="清单进度">
-                <div
-                  className={styles.quickProgressFill}
-                  style={{ width: `${checkPct}%` }}
-                />
-              </div>
-            </div>
-            <ul className={styles.quickCheckList}>
-              {props.checklist.length === 0 ? (
-                <li className={styles.tagManagerEmpty}>暂无清单项</li>
-              ) : (
-                props.checklist.map(function (item) {
-                  return (
-                    <li
-                      key={item.id}
-                      className={styles.quickCheckItem}>
-                      <Checkbox
-                        checked={item.done}
-                        onCheckedChange={function (checked) {
-                          void toUpdateCheck(item.id, { done: Boolean(checked) })
-                        }}
-                      />
-                      <span
-                        className={
-                          item.done ? styles.quickCheckDone : undefined
-                        }>
-                        {item.title}
-                      </span>
-                    </li>
-                  )
-                })
-              )}
-            </ul>
-            <div className={styles.quickRow}>
-              <Input
-                value={checkDraft}
-                placeholder="添加一步"
-                className="h-8 flex-1"
-                onChange={function (event) {
-                  setCheckDraft(event.target.value)
-                }}
-                onKeyDown={function (event) {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    void addCheck()
-                  }
-                }}
-              />
-              <Button
-                type="button"
-                size="sm"
-                className="h-8"
-                disabled={!checkDraft.trim()}
-                onClick={function () {
-                  void addCheck()
-                }}>
-                添加
-              </Button>
-            </div>
-          </div>
+          <CardQuickChecksPanel
+            checklist={props.checklist}
+            checkDraft={surface.checkDraft}
+            checkDone={surface.checkDone}
+            checkTotal={surface.checkTotal}
+            checkPct={surface.checkPct}
+            onCheckDraftChange={surface.setCheckDraft}
+            onAddCheck={function () {
+              void surface.addCheck()
+            }}
+            onUpdateCheck={function (checkID, done) {
+              void surface.toUpdateCheck(checkID, { done })
+            }}
+          />
         )}
       </PopoverContent>
     </Popover>

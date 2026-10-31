@@ -24,6 +24,7 @@ function TagFilter(props: TagFilterProps) {
   const [mode, setMode] = useState<'filter' | 'manage'>('filter')
   const selectedCount = props.selectedIDs.length
   const isActive = selectedCount > 0
+  const selectedSet = new Set(props.selectedIDs)
 
   function toggleTag(tagID: string) {
     if (props.selectedIDs.includes(tagID)) {
@@ -113,7 +114,7 @@ function TagFilter(props: TagFilterProps) {
             ) : (
               <ul className={styles.tagFilterList}>
                 {props.tags.map(function (tag) {
-                  const isOn = props.selectedIDs.includes(tag.id)
+                  const isOn = selectedSet.has(tag.id)
                   return (
                     <li key={tag.id}>
                       <Button

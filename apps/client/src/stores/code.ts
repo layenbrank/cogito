@@ -591,12 +591,19 @@ const useCodeStore = create<CodeState>()(
             set(
               function (state) {
                 // 根节点 key 为 ROOT；不展开则子路径展开无效
-                if (!state.expandedKeys.includes('ROOT')) state.expandedKeys.push('ROOT')
+                const expanded = new Set(state.expandedKeys)
+                if (!expanded.has('ROOT')) {
+                  state.expandedKeys.push('ROOT')
+                  expanded.add('ROOT')
+                }
                 const segments = normalizeSeparators(relativeDir).split('/').filter(Boolean)
                 let current = ''
                 for (const segment of segments) {
                   current = current ? `${current}/${segment}` : segment
-                  if (!state.expandedKeys.includes(current)) state.expandedKeys.push(current)
+                  if (!expanded.has(current)) {
+                    state.expandedKeys.push(current)
+                    expanded.add(current)
+                  }
                 }
               },
               false,

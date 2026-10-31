@@ -59,6 +59,11 @@ function isOwner(value: string): value is Owner {
 
 function TaskForm(props: { draft: Draft; onClose: () => void }) {
   const [draft, setDraft] = useState(props.draft)
+  const [draftSource, setDraftSource] = useState(props.draft)
+  if (draftSource !== props.draft) {
+    setDraftSource(props.draft)
+    setDraft(props.draft)
+  }
   const bases = useKnowledgeBaseStore(function (state) {
     return state.bases
   })
@@ -295,6 +300,7 @@ function TasksTab() {
 
       {draft ? (
         <TaskForm
+          key={draft.id ?? 'new'}
           draft={draft}
           onClose={function () {
             setDraft(null)

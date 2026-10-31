@@ -1073,6 +1073,7 @@ async function runAutomations(
   AUTOMATION_DEPTH.value += 1
   try {
     const matched = matchRules(event, getter().automations)
+    // 规则与 action 按配置顺序执行，避免同卡并发写库/刷新看板
     for (const row of matched) {
       for (const action of row.actions) {
         await runAutomationAction(getter, event.entryID, action)

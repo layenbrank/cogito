@@ -272,7 +272,7 @@ const TILE_IMPORT_ITEM = z
     direction: z.string().optional(),
     index: z.number().optional()
   })
-  .passthrough()
+  .catchall(z.unknown())
 
 const TILE_IMPORT_SCHEMA = z.array(TILE_IMPORT_ITEM).min(1, '导入文件为空')
 

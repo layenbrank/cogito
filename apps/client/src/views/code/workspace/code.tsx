@@ -3,25 +3,14 @@ import {
   ResizablePanel,
   ResizablePanelGroup
 } from '@cogito/design/components/resizable'
-import { exists, watch } from '@tauri-apps/plugin-fs'
 import { clsx } from 'clsx'
-import { useEffect, useState } from 'react'
-import { toast } from 'sonner'
+import { useState } from 'react'
 
 import { useCommands } from '@/keyboard/react'
-import { useCodeGitStore } from '@/stores/code-git'
 import { useCodeStore } from '@/stores/code'
 import { useSettingsStore } from '@/stores/setting'
-import { useTerminalStore } from '@/stores/terminal'
 import { hint } from '@/views/code/lib/bindings.ts'
 import { CODE_COMMANDS } from '@/views/code/lib/commands.ts'
-import { readCodeFile } from '@/views/code/lib/fs.ts'
-import { requestCloseTabs } from '@/views/code/lib/close-tabs.ts'
-import { disposeAllModels, findModel, findOrCreateModel } from '@/views/code/lib/monaco-models.ts'
-import { resetWorkspaceTypescriptLibs } from '@/views/code/lib/monaco-types.ts'
-import { clearViewStates } from '@/views/code/lib/monaco-view-state.ts'
-import { openAbsolutePath } from '@/views/code/lib/open-file.ts'
-import { findRelativePath } from '@/views/code/lib/path.ts'
 import { ActivityBar } from '@/views/code/workspace/activity-bar.tsx'
 import { Breadcrumbs } from '@/views/code/workspace/breadcrumbs.tsx'
 import { CloseConfirmDialog } from '@/views/code/workspace/close-confirm.tsx'
@@ -32,6 +21,7 @@ import { GitSearch } from '@/views/code/workspace/git-search.tsx'
 import { MonacoHost } from '@/views/code/workspace/monaco-host.tsx'
 import { BottomSurface } from '@/views/code/workspace/surface.tsx'
 import { Sidebar } from '@/views/code/workspace/sidebar.tsx'
+import { useCodeWorkspaceEffects } from '@/views/code/workspace/use-code-workspace-effects.ts'
 
 import styles from '@/views/code/workspace/code.module.scss'
 
@@ -60,246 +50,24 @@ export default function Code() {
   const isDiffOpen = activeTab?.kind === 'diff'
   const isCommitsOpen = activeTab?.kind === 'commits'
   const isEditorHidden = isDiffOpen || isCommitsOpen
-  // DiffEditor 创建/销毁很贵；第一次打开后常驻，关掉时只 hidden
   const [isDiffHostReady, setDiffHostReady] = useState(false)
   if (isDiffOpen && !isDiffHostReady) {
     setDiffHostReady(true)
   }
 
-  // 只为订阅覆盖值：用户改了键位，下面的空态提示要跟着变
   useSettingsStore(function (state) {
     return state.settings.shortcuts.bindings
   })
 
-  useEffect(function () {
-    return function () {
-      disposeAllModels()
-      clearViewStates()
-      resetWorkspaceTypescriptLibs()
-    }
-  }, [])
+  useCodeWorkspaceEffects({
+    workspaceRoot,
+    activeTab,
+    isDiffOpen,
+    isSurfaceOpen,
+    toBumpTree
+  })
 
-  // 从 tiles.json 恢复工作区与上次打开的文件
-  useEffect(function () {
-    let cancelled = false
-    void (async function () {
-      const store = useCodeStore.getState()
-      if (store.tabs.length > 0 || store.workspaceRoot) return
-      const prefs = await store.hydrateFromStore()
-      if (cancelled) return
-      const paths = prefs.tabPaths.slice()
-      if (prefs.activePath && !paths.includes(prefs.activePath)) {
-        paths.push(prefs.activePath)
-      }
-      for (const path of paths) {
-        if (cancelled) return
-        try {
-          const ok = await exists(path)
-          if (!ok) continue
-          await openAbsolutePath(path)
-        } catch (error) {
-          console.warn('[code] restore tab skipped', path, error)
-        }
-      }
-      if (cancelled || !prefs.activePath) return
-      const next = useCodeStore.getState()
-      const active = next.tabs.find(function (tab) {
-        return tab.path === prefs.activePath
-      })
-      if (active) next.toActivateTab(active.id)
-    })()
-    return function () {
-      cancelled = true
-    }
-  }, [])
-
-  // 外部文件变更：脏则提示，否则静默重载（内容未变则跳过，避免自身保存触发跳动）
-  useEffect(
-    function () {
-      if (!activeTab?.path || activeTab.kind !== 'file') return
-      let disposed = false
-      let unwatch: (() => void) | undefined
-      const watchedPath = activeTab.path
-      void watch(
-        watchedPath,
-        function () {
-          if (disposed) return
-          const store = useCodeStore.getState()
-          const tab = store.tabs.find(function (item) {
-            return item.kind === 'file' && item.path === watchedPath
-          })
-          if (!tab) return
-          void readCodeFile(tab.path)
-            .then(function (content) {
-              if (disposed) return
-              if (tab.isDirty) {
-                const existing = findModel(tab.path)
-                if (existing && existing.getValue() === content) return
-                toast.message('磁盘上的文件已更改', {
-                  description: tab.title,
-                  action: {
-                    label: '重新加载',
-                    onClick: function () {
-                      void readCodeFile(tab.path).then(function (next) {
-                        findOrCreateModel(tab.path, next)
-                        store.toMarkDirty(tab.id, false)
-                      })
-                    }
-                  }
-                })
-                return
-              }
-              findOrCreateModel(tab.path, content)
-            })
-            .catch(function () {
-              /* 文件可能已被删除；树 watch 会刷新 */
-            })
-        },
-        { delayMs: 400 }
-      )
-        .then(function (fn) {
-          if (disposed) {
-            fn()
-            return
-          }
-          unwatch = fn
-        })
-        .catch(function () {
-          /* Command watch not found — 当前壳未启用 fs watch */
-        })
-      return function () {
-        disposed = true
-        unwatch?.()
-      }
-    },
-    [activeTab?.path]
-  )
-
-  // 工作区目录递归监听：资源管理器随磁盘创建/删除/重命名刷新
-  useEffect(
-    function () {
-      if (!workspaceRoot) return
-      let disposed = false
-      let unwatch: (() => void) | undefined
-      let debounceTimer = 0
-      void watch(
-        workspaceRoot,
-        function () {
-          if (disposed) return
-          window.clearTimeout(debounceTimer)
-          debounceTimer = window.setTimeout(function () {
-            if (disposed) return
-            toBumpTree()
-            // watch 只作失效信号：invalidate → refresh；unchanged 时前端不抖列表
-            void useCodeGitStore.getState().toInvalidateAndRefresh()
-          }, 350)
-        },
-        { recursive: true, delayMs: 500 }
-      )
-        .then(function (fn) {
-          if (disposed) {
-            fn()
-            return
-          }
-          unwatch = fn
-        })
-        .catch(function () {
-          /* Command watch not found — 当前壳未启用 fs watch */
-        })
-      return function () {
-        disposed = true
-        window.clearTimeout(debounceTimer)
-        unwatch?.()
-      }
-    },
-    [workspaceRoot, toBumpTree]
-  )
-
-  // 与资源管理器同一 workspaceRoot：打开/切换工作区即探测 Git（角标不依赖 SCM 面板挂载）
-  useEffect(
-    function () {
-      void useCodeGitStore.getState().toSync(workspaceRoot)
-    },
-    [workspaceRoot]
-  )
-
-  // 差异标签激活时加载内容；切到编辑标签则收起差异（对齐 VS Code 标签切换）
-  useEffect(
-    function () {
-      if (!isDiffOpen || !activeTab || !workspaceRoot) {
-        if (!isDiffOpen) {
-          useCodeGitStore.getState().toCloseDiff()
-        }
-        return
-      }
-      const relative = findRelativePath(workspaceRoot, activeTab.path)
-      const revs =
-        typeof activeTab.headOid === 'string' && activeTab.headOid.length > 0
-          ? {
-              oldOid: activeTab.baseOid ?? '',
-              newOid: activeTab.headOid
-            }
-          : undefined
-      const current = useCodeGitStore.getState().diff
-      const sameRev =
-        current &&
-        current.relative === relative &&
-        current.oldOid === revs?.oldOid &&
-        current.newOid === revs?.newOid
-      if (sameRev && !current.isLoading) return
-      void useCodeGitStore
-        .getState()
-        .toOpenDiff(relative, revs)
-        .then(function (outcome) {
-          if (!outcome.ok) toast.error(outcome.message)
-        })
-    },
-    [
-      isDiffOpen,
-      activeTab?.id,
-      activeTab?.path,
-      activeTab?.baseOid,
-      activeTab?.headOid,
-      workspaceRoot
-    ]
-  )
-
-  // Escape：关闭当前差异标签（回到先前编辑标签）
-  useEffect(
-    function () {
-      if (!isDiffOpen || !activeTab) return
-      const tabId = activeTab.id
-      function onKeyDown(event: KeyboardEvent) {
-        if (event.key !== 'Escape' || event.defaultPrevented) return
-        event.preventDefault()
-        requestCloseTabs([tabId])
-      }
-      window.addEventListener('keydown', onKeyDown)
-      return function () {
-        window.removeEventListener('keydown', onKeyDown)
-      }
-    },
-    [isDiffOpen, activeTab]
-  )
-
-  // 键位与命令的对应关系全在 `keyboard/definitions.ts`；没挂载这里时，
-  // 这些命令不会出现在命令面板里，对应键位也不会被派发器认领。
   useCommands(CODE_COMMANDS)
-
-  // 打开终端面板时若无 tab，自动新建
-  useEffect(
-    function () {
-      if (!isSurfaceOpen) return
-      const store = useCodeStore.getState()
-      if (store.surfaceTab !== 'terminal') return
-      const root = store.workspaceRoot
-      if (!root) return
-      if (useTerminalStore.getState().tabs.length === 0) {
-        useTerminalStore.getState().newTab(root)
-      }
-    },
-    [isSurfaceOpen]
-  )
 
   return (
     <div className={clsx([styles.code, styles.root])}>
@@ -347,10 +115,6 @@ export default function Code() {
                         </p>
                       </div>
                     ) : null}
-                    {/*
-                      差异 / 提交页盖在编辑器上时，必须把底层 Monaco 从布局里拿掉。
-                      否则底层小地图仍可被点到，两边 automaticLayout 互相挤，顶栏边框会闪。
-                    */}
                     <MonacoHost
                       className={isEditorHidden ? 'hidden' : undefined}
                       isActive={!isEditorHidden}

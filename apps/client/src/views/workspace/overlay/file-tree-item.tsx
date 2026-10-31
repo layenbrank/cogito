@@ -1,28 +1,11 @@
-import { Icon } from '@iconify/react/offline'
-import { Button } from '@cogito/design/components/button'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger
-} from '@cogito/design/components/collapsible'
-import { Spinner } from '@cogito/design/components/spinner'
-import { cn } from 'cn'
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useState } from 'react'
 
-import { findFileIcon, findFolderIcon } from '@/views/workspace/overlay/file-icon.ts'
+import { FileRow, LoadMoreRow } from '@/views/workspace/overlay/file-tree-rows.tsx'
+import { FileTreeDirectoryItem } from '@/views/workspace/overlay/file-tree-directory-item.tsx'
+import type { FileTreeNode } from '@/views/workspace/overlay/file-tree-node.ts'
+import { isSameTreeKey } from '@/views/workspace/overlay/file-tree-utils.ts'
 
-export interface FileTreeNode {
-  title: string
-  key: string
-  isLeaf?: boolean
-  isDirectory?: boolean
-  isLoaded?: boolean
-  isLoading?: boolean
-  hasMore?: boolean
-  isLoadMore?: boolean
-  nextOffset?: number
-  children?: FileTreeNode[]
-}
+export type { FileTreeNode }
 
 interface FileTreeItemProps {
   node: FileTreeNode
@@ -35,78 +18,6 @@ interface FileTreeItemProps {
   onExpandChange?: (key: string, open: boolean) => void
 }
 
-function isSameTreeKey(a: string | null | undefined, b: string | null | undefined): boolean {
-  if (!a || !b) return false
-  return a.replace(/\\/g, '/').toLowerCase() === b.replace(/\\/g, '/').toLowerCase()
-}
-
-function rowPadLeft(depth: number): number {
-  return 8 + depth * 12
-}
-
-/** 「加载更多」行：只有一行文字，点一下继续追加 */
-function LoadMoreRow(props: { title: string; depth: number; onSelect: () => void }) {
-  return (
-    <li>
-      <Button
-        variant="ghost"
-        type="button"
-        onClick={props.onSelect}
-        style={{ paddingLeft: rowPadLeft(props.depth) }}
-        className="text-muted-foreground hover:bg-muted/60 h-auto w-full justify-start truncate py-0.75 pr-2 text-left text-sm">
-        {props.title}
-      </Button>
-    </li>
-  )
-}
-
-/** 文件行：没有子节点，点击即打开；激活时滚入可视区（资源管理器定位） */
-function FileRow(props: {
-  title: string
-  depth: number
-  isActive: boolean
-  treeKey: string
-  onSelect: () => void
-}) {
-  const isActive = props.isActive
-  const icon = findFileIcon(props.title)
-  const rowRef = useRef<HTMLLIElement | null>(null)
-  useEffect(
-    function () {
-      if (!isActive) return
-      const frame = window.requestAnimationFrame(function () {
-        rowRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-      })
-      return function () {
-        window.cancelAnimationFrame(frame)
-      }
-    },
-    [isActive, props.treeKey]
-  )
-  return (
-    <li ref={rowRef}>
-      <Button
-        variant="ghost"
-        type="button"
-        data-tree-key={props.treeKey}
-        data-tree-kind="file"
-        aria-current={isActive ? 'page' : undefined}
-        onClick={props.onSelect}
-        style={{ paddingLeft: rowPadLeft(props.depth) }}
-        className={cn(
-          'flex h-auto w-full items-center justify-start gap-1.5 truncate py-0.75 pr-2 text-left text-sm transition-colors hover:bg-muted/60',
-          isActive && 'bg-primary/15 font-medium text-foreground'
-        )}>
-        <Icon
-          icon={icon.icon}
-          className={cn('size-3.5 shrink-0', icon.className)}
-        />
-        <span className="truncate">{props.title}</span>
-      </Button>
-    </li>
-  )
-}
-
 function FileTreeItemComponent(props: FileTreeItemProps) {
   const node = props.node
   const depth = props.depth ?? 0
@@ -115,24 +26,6 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
   const isControlled = props.expandedKeys !== undefined
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
   const isOpen = isControlled ? props.expandedKeys!.has(node.key) : uncontrolledOpen
-  /** 已发起过的加载：外部直接改 expandedKeys 时不会重复拉同一目录 */
-  const requestedRef = useRef<Set<string>>(new Set())
-  const fetchRef = useRef(props.onFetch)
-
-  useEffect(function () {
-    fetchRef.current = props.onFetch
-  })
-
-  // 受控展开（面包屑跳转、刷新恢复）不会走 onOpenChange，这里补一次按需加载
-  useEffect(
-    function () {
-      if (!isDirectory || !isOpen || node.isLoaded || node.isLoading) return
-      if (requestedRef.current.has(node.key)) return
-      requestedRef.current.add(node.key)
-      void fetchRef.current(node)
-    },
-    [isDirectory, isOpen, node]
-  )
 
   if (node.isLoadMore) {
     return (
@@ -160,104 +53,21 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
     )
   }
 
-  const hasChildren = Boolean(node.children && node.children.length > 0)
-  const isEmptyLoaded = Boolean(node.isLoaded && !node.isLoading && !hasChildren)
-  const folderIcon = findFolderIcon(node.title, isOpen)
-
   return (
-    <li>
-      <Collapsible
-        open={isOpen}
-        onOpenChange={function (open) {
-          if (!isControlled) setUncontrolledOpen(open)
-          props.onExpandChange?.(node.key, open)
-          if (!open) return
-          // 假加载（isLoading 但未 isLoaded）时 force 重试，避免永久骨架
-          const shouldForce = Boolean(node.isLoading && !node.isLoaded)
-          void props.onFetch(node, shouldForce ? { force: true } : undefined)
-        }}>
-        <CollapsibleTrigger
-          data-tree-key={node.key}
-          data-tree-kind="directory"
-          className={cn(
-            'flex w-full items-center gap-1 py-0.75 pr-2 text-left text-sm transition-colors hover:bg-muted/60',
-            isActive && 'bg-primary/10 font-medium text-foreground'
-          )}
-          style={{ paddingLeft: rowPadLeft(depth) }}>
-          {node.isLoading ? (
-            <Spinner className="text-muted-foreground size-3.5 shrink-0" />
-          ) : (
-            <Icon
-              icon="lucide:chevron-right"
-              className={cn(
-                'text-muted-foreground size-3.5 shrink-0 opacity-70 transition-transform',
-                isOpen && 'rotate-90'
-              )}
-            />
-          )}
-          <Icon
-            icon={folderIcon.icon}
-            className={cn('size-3.5 shrink-0', folderIcon.className)}
-          />
-          <span className="truncate">{node.title}</span>
-        </CollapsibleTrigger>
-        {/*
-          子节点在 open=true 之后异步灌入。空 Surface 会先把
-          --collapsible-panel-height 量成 0，之后 overflow 把子树裁掉。
-          有内容再挂载 Surface，避免空高锁定。
-          加载中用普通 ul 骨架（不走 CollapsibleContent），防止空高锁死。
-        */}
-        {isOpen && node.isLoading && !hasChildren ? (
-          <ul
-            className="list-none py-0.5"
-            aria-hidden>
-            {[0, 1, 2].map(function (index) {
-              return (
-                <li
-                  key={index}
-                  className="py-1 pr-2"
-                  style={{ paddingLeft: rowPadLeft(depth + 1) }}>
-                  <div
-                    className="h-3 animate-pulse rounded bg-muted"
-                    style={{ width: `${72 - index * 12}%` }}
-                  />
-                </li>
-              )
-            })}
-          </ul>
-        ) : null}
-        {isOpen && isEmptyLoaded ? (
-          <ul className="list-none py-0.5">
-            <li
-              className="text-muted-foreground py-0.75 pr-2 text-xs"
-              style={{ paddingLeft: rowPadLeft(depth + 1) }}>
-              {props.emptyHint ?? 'Empty'}
-            </li>
-          </ul>
-        ) : null}
-        {isOpen && hasChildren ? (
-          <CollapsibleContent>
-            <ul className="list-none">
-              {node.children!.map(function (child) {
-                return (
-                  <FileTreeItem
-                    key={child.key}
-                    node={child}
-                    depth={depth + 1}
-                    activeKey={props.activeKey}
-                    expandedKeys={props.expandedKeys}
-                    emptyHint={props.emptyHint}
-                    onFetch={props.onFetch}
-                    onSelect={props.onSelect}
-                    onExpandChange={props.onExpandChange}
-                  />
-                )
-              })}
-            </ul>
-          </CollapsibleContent>
-        ) : null}
-      </Collapsible>
-    </li>
+    <FileTreeDirectoryItem
+      node={node}
+      depth={depth}
+      isActive={isActive}
+      isOpen={isOpen}
+      isControlled={isControlled}
+      onUncontrolledOpen={setUncontrolledOpen}
+      activeKey={props.activeKey}
+      expandedKeys={props.expandedKeys}
+      emptyHint={props.emptyHint}
+      onFetch={props.onFetch}
+      onSelect={props.onSelect}
+      onExpandChange={props.onExpandChange}
+    />
   )
 }
 
@@ -272,7 +82,6 @@ function isFileTreeItemEqual(prev: FileTreeItemProps, next: FileTreeItemProps): 
   const wasActive = isSameTreeKey(prev.activeKey, prev.node.key)
   const willActive = isSameTreeKey(next.activeKey, next.node.key)
   if (wasActive !== willActive) return false
-  // 目录必须向下传递 activeKey，否则子孙选中态会卡在旧值
   const isDirectory = prev.node.isDirectory ?? !prev.node.isLeaf
   if (isDirectory && !isSameTreeKey(prev.activeKey, next.activeKey)) {
     return false

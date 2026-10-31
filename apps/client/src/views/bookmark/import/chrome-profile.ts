@@ -20,9 +20,19 @@ async function findChromeUserDataRoots() {
     `${local}\\Chromium\\User Data`,
     `${local}\\Microsoft\\Edge\\User Data`
   ]
+  const checks = await Promise.allSettled(
+    candidates.map(async function (root) {
+      if (await exists(root)) return root
+      return null
+    })
+  )
   const found: string[] = []
-  for (const root of candidates) {
-    if (await exists(root)) found.push(root)
+  for (const result of checks) {
+    if (result.status === 'rejected') {
+      console.warn('[bookmark-import] 检测浏览器目录失败', result.reason)
+      continue
+    }
+    if (result.value) found.push(result.value)
   }
   return found
 }
@@ -32,46 +42,71 @@ async function readBookmarksFile(path: string) {
   return readTextFile(path)
 }
 
-async function discoverChromeProfiles(): Promise<ChromeProfileBookmarks[]> {
-  const roots = await findChromeUserDataRoots()
-  const profiles: ChromeProfileBookmarks[] = []
-
-  for (const userData of roots) {
-    let entries
-    try {
-      entries = await readDir(userData)
-    } catch (error) {
-      console.warn('[bookmark-import] 读取 User Data 失败', userData, error)
-      continue
-    }
-
-    const brand = userData.includes('Edge')
-      ? 'Edge'
-      : userData.includes('Chromium')
-        ? 'Chromium'
-        : 'Chrome'
-
-    for (const entry of entries) {
-      const name = entry.name
-      if (!name) continue
-      if (name !== 'Default' && !/^Profile \d+$/i.test(name)) continue
-      const bookmarksPath = `${userData}\\${name}\\Bookmarks`
-      if (!(await exists(bookmarksPath))) continue
-      try {
-        const raw = await readBookmarksFile(bookmarksPath)
-        const tree = parseChromeBookmarksJson(raw)
-        if (!tree.length) continue
-        profiles.push({
-          label: `${brand} · ${name}`,
-          path: bookmarksPath,
-          roots: tree
-        })
-      } catch (error) {
-        console.warn('[bookmark-import] 读取 Profile 失败', bookmarksPath, error)
-      }
-    }
+async function discoverProfilesInRoot(userData: string): Promise<ChromeProfileBookmarks[]> {
+  let entries
+  try {
+    entries = await readDir(userData)
+  } catch (error) {
+    console.warn('[bookmark-import] 读取 User Data 失败', userData, error)
+    return []
   }
 
+  const brand = userData.includes('Edge')
+    ? 'Edge'
+    : userData.includes('Chromium')
+      ? 'Chromium'
+      : 'Chrome'
+
+  const profileNames = entries
+    .map(function (entry) {
+      return entry.name
+    })
+    .filter(function (name): name is string {
+      if (!name) return false
+      return name === 'Default' || /^Profile \d+$/i.test(name)
+    })
+
+  const reads = await Promise.allSettled(
+    profileNames.map(async function (name) {
+      const bookmarksPath = `${userData}\\${name}\\Bookmarks`
+      if (!(await exists(bookmarksPath))) return null
+      const raw = await readBookmarksFile(bookmarksPath)
+      const tree = parseChromeBookmarksJson(raw)
+      if (!tree.length) return null
+      return {
+        label: `${brand} · ${name}`,
+        path: bookmarksPath,
+        roots: tree
+      } satisfies ChromeProfileBookmarks
+    })
+  )
+
+  const profiles: ChromeProfileBookmarks[] = []
+  for (const result of reads) {
+    if (result.status === 'rejected') {
+      console.warn('[bookmark-import] 读取 Profile 失败', result.reason)
+      continue
+    }
+    if (result.value) profiles.push(result.value)
+  }
+  return profiles
+}
+
+async function discoverChromeProfiles(): Promise<ChromeProfileBookmarks[]> {
+  const roots = await findChromeUserDataRoots()
+  const batches = await Promise.allSettled(
+    roots.map(function (userData) {
+      return discoverProfilesInRoot(userData)
+    })
+  )
+  const profiles: ChromeProfileBookmarks[] = []
+  for (const result of batches) {
+    if (result.status === 'rejected') {
+      console.warn('[bookmark-import] 扫描 User Data 失败', result.reason)
+      continue
+    }
+    profiles.push(...result.value)
+  }
   return profiles
 }
 

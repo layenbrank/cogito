@@ -5,6 +5,7 @@ import {
   forwardRef,
   isValidElement,
   useContext,
+  useMemo,
   useState,
   type ComponentPropsWithoutRef,
   type ReactElement,
@@ -63,12 +64,17 @@ function DropdownMenu({
   ...props
 }: ComponentPropsWithoutRef<typeof DesignMenu>) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
-  return (
-    <MenuAnchorContext.Provider
-      value={{
+  const anchorContext = useMemo(
+    function () {
+      return {
         anchor,
         bindAnchor: setAnchor
-      }}>
+      }
+    },
+    [anchor]
+  )
+  return (
+    <MenuAnchorContext.Provider value={anchorContext}>
       <DesignMenu
         {...props}
         modal={modal}

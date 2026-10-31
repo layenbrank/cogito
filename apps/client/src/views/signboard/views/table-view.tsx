@@ -1,3 +1,4 @@
+import { Button } from '@cogito/design/components/button'
 import {
   Select,
   SelectContent,
@@ -105,11 +106,18 @@ function TableView(props: TableViewProps) {
               return (
                 <tr
                   key={card.id}
-                  className={dimmed ? styles.tableRowDimmed : undefined}
-                  onClick={function () {
-                    props.onOpenCard(card.id)
-                  }}>
-                  <td className={styles.tableTitle}>{card.title}</td>
+                  className={dimmed ? styles.tableRowDimmed : undefined}>
+                  <td>
+                    <Button
+                      type="button"
+                      variant="link"
+                      className={styles.tableTitle}
+                      onClick={function () {
+                        props.onOpenCard(card.id)
+                      }}>
+                      {card.title}
+                    </Button>
+                  </td>
                   <td
                     onClick={function (event) {
                       event.stopPropagation()

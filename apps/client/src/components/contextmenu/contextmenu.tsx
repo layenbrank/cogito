@@ -222,7 +222,6 @@ function Root(props: ContextMenuProps) {
   if (child === undefined || child === null) trigger = null
   else if (isValidElement(child)) {
     const element = child as ReactElement<TriggerElementProps>
-    /* eslint-disable react-hooks/refs -- cloneElement 合并子组件 ref，仅在 ref 回调里写 .current */
     const childRef = element.props.ref
     trigger = cloneElement(element, {
       className: clsx(element.props.className, props.className, props.classNames?.root),

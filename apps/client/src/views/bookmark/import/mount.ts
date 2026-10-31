@@ -125,8 +125,17 @@ async function mountBookmarksToTiles(options: {
 
   if (options.as === 'navigation') {
     const writes: MagneticTileWrite[] = []
-    for (const id of options.nodeIds) {
-      const rows = await findBookmarkSubtree(options.mirrorID, id)
+    const subtrees = await Promise.allSettled(
+      options.nodeIds.map(function (id) {
+        return findBookmarkSubtree(options.mirrorID, id)
+      })
+    )
+    for (const result of subtrees) {
+      if (result.status === 'rejected') {
+        console.warn('[bookmark-import] 读取书签子树失败', result.reason)
+        continue
+      }
+      const rows = result.value
       for (const row of rows) {
         if (!row.url) continue
         if (urlSet.has(row.url)) continue
@@ -145,7 +154,7 @@ async function mountBookmarksToTiles(options: {
     return { mounted }
   }
 
-  // collection
+  // collection：nextIndex / idMap 跨节点共享，须按 nodeIds 顺序挂载
   for (const id of options.nodeIds) {
     const rows = await findBookmarkSubtree(options.mirrorID, id)
     const root = rows[0]
@@ -196,6 +205,7 @@ async function mountBookmarksToTiles(options: {
     const rootCollectionId = await ensureCollection(root.id, root.title, null)
     const navWrites: MagneticTileWrite[] = []
 
+    // 子文件夹须等父集合写入 idMap 后再建，保持树序
     for (const row of rows.slice(1)) {
       if (!row.url) {
         const parentBookmark = rows.find(function (item) {

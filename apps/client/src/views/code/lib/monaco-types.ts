@@ -5,15 +5,17 @@
  * 只注入 @types/node + `types: ['node']`，消除 node:fs / node:url 误报；
  * 不再灌整棵 @types（会顶满限额、拖垮 worker）。
  */
-import * as monaco from 'monaco-editor'
+import type * as Monaco from 'monaco-editor'
 
+import { findMonaco, importMonaco } from '@/lib/monaco-loader.ts'
 import { WorkspaceFiles } from '@/lib/workspace-files'
 import { normalizeSeparators } from '@/views/code/lib/path.ts'
 
 const AT_TYPES_MARKER = '/node_modules/@types/'
 
+type MonacoModule = typeof Monaco
 type TsCompilerOptions = Parameters<
-  typeof monaco.typescript.typescriptDefaults.setCompilerOptions
+  MonacoModule['typescript']['typescriptDefaults']['setCompilerOptions']
 >[0]
 
 let isCompilerReady = false
@@ -21,6 +23,7 @@ let syncedRoot: string | null = null
 let syncToken = 0
 
 function typescriptApi() {
+  const monaco = findMonaco()
   const api = monaco.typescript
   if (!api?.typescriptDefaults) {
     throw new Error(
@@ -106,6 +109,7 @@ async function syncWorkspaceTypescriptLibs(workspaceRoot: string): Promise<void>
   if (!root) return
   if (syncedRoot === root) return
 
+  await importMonaco()
   const token = ++syncToken
   ensureDiagnostics()
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { findShowsShellBack } from '@/views/settings/shell'
+import { findShowsShellBack } from '@/views/settings/shell-back'
 
 describe('findShowsShellBack', function () {
   it('主窗有会话条时不显示侧栏返回', function () {

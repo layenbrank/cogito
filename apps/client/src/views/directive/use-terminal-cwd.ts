@@ -9,12 +9,12 @@ import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 const EMPTY_CWD_MESSAGE = '无法确定工作目录'
 
 function useTerminalCwd() {
-  const { primaryPath } = useActiveWorkspace()
+  const { rootPath } = useActiveWorkspace()
   const [homePath, setHomePath] = useState<string | null>(null)
 
   useEffect(
     function () {
-      if (primaryPath) return
+      if (rootPath) return
       let cancelled = false
       void homeDir()
         .then(function (path) {
@@ -28,10 +28,10 @@ function useTerminalCwd() {
         cancelled = true
       }
     },
-    [primaryPath]
+    [rootPath]
   )
 
-  const cwd = primaryPath ?? homePath
+  const cwd = rootPath ?? homePath
 
   return {
     cwd,

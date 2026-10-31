@@ -8,6 +8,8 @@ import { cn } from 'cn'
 
 import { useCorexStore } from '@/stores/corex.ts'
 import { RUN_STATUS_STYLES, formatElapsed } from '@/views/directive/run/run-status.ts'
+import { RunOutputTabList } from '@/views/directive/dock/run-output-tab-list.tsx'
+import { findRunProgress } from '@/views/directive/dock/run-output-status.ts'
 import { useNow } from '@/views/directive/use-now.ts'
 
 import type { RunSelection } from './use-run-selection.ts'
@@ -18,9 +20,6 @@ interface RunOutputTabsProps {
 
 function RunOutputTabs(props: RunOutputTabsProps) {
   const isSelectedRunning = props.selection.selected?.status === 'running'
-  const focusRun = useCorexStore(function (state) {
-    return state.focusRun
-  })
   const cancelRun = useCorexStore(function (state) {
     return state.cancelRun
   })
@@ -33,15 +32,7 @@ function RunOutputTabs(props: RunOutputTabsProps) {
   if (tabs.length === 0) return null
 
   const selectedStyle = selected ? RUN_STATUS_STYLES[selected.status] : null
-  const progress = selected
-    ? stepCount > 0
-      ? Math.min(100, (selected.doneSteps / stepCount) * 100)
-      : selected.status === 'ok'
-        ? 100
-        : selected.status === 'running'
-          ? 8
-          : 0
-    : 0
+  const progress = findRunProgress(selected, stepCount)
   const hasFinished = tabs.some(function (run) {
     return run.status !== 'running'
   })
@@ -52,48 +43,10 @@ function RunOutputTabs(props: RunOutputTabsProps) {
         role="tablist"
         aria-label="运行输出"
         className="flex h-8 shrink-0 items-center gap-1 border-b border-border bg-muted px-1.5">
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-          {tabs.map(function (run) {
-            const style = RUN_STATUS_STYLES[run.status]
-            const active = selected?.id === run.id
-            return (
-              <Button
-                variant="ghost"
-                key={run.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                title={`${run.name} · ${style.label}`}
-                className={cn(
-                  'inline-flex h-6 shrink-0 items-center gap-1.5 rounded px-2 text-xs transition-colors',
-                  'outline-none focus-visible:ring-1 focus-visible:ring-ring',
-                  active
-                    ? 'bg-background font-medium text-foreground shadow-xs'
-                    : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
-                )}
-                onClick={function () {
-                  focusRun(run.id)
-                }}>
-                <span
-                  aria-hidden
-                  className={cn(
-                    'size-1.5 shrink-0 rounded-full',
-                    style.dot,
-                    run.status === 'running' && 'animate-pulse'
-                  )}
-                />
-                {run.kind === 'trial' ? (
-                  <Icon
-                    icon="lucide:flask-conical"
-                    className="size-3 shrink-0 opacity-60"
-                    aria-hidden
-                  />
-                ) : null}
-                <span className="max-w-32 truncate">{run.name}</span>
-              </Button>
-            )
-          })}
-        </div>
+        <RunOutputTabList
+          tabs={tabs}
+          selectedID={selected?.id}
+        />
         {selected && selectedStyle ? (
           <div className="flex shrink-0 items-center gap-1.5 border-l pl-2 text-[11px]">
             <span className={cn('font-medium', selectedStyle.tone)}>{selectedStyle.label}</span>

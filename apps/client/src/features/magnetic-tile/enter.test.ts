@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { hasWallEntered, markWallEntered } from '@/features/magnetic-tile/enter'
+import { hasWallEntered, markWallEntered } from '@/features/magnetic-tile/enter-wall'
 
 describe('wall enter gate', function () {
   it('tracks per mirror id', function () {

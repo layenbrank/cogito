@@ -121,13 +121,13 @@ function AccountSurface() {
   })
 
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const previewUrlRef = useRef<string | null>(null)
 
   const [draft, updateDraft] = useState<ProfileDraft>(function () {
     return findDraft(user)
   })
   const [isSaving, updateSaving] = useState(false)
   const [isUploading, updateUploading] = useState(false)
+  const [previewFile, updatePreviewFile] = useState<File | null>(null)
   const [previewUrl, updatePreviewUrl] = useState<string | null>(null)
   const [draftUser, updateDraftUser] = useState(user)
 
@@ -138,20 +138,19 @@ function AccountSurface() {
   }
 
   useEffect(function () {
-    return function () {
-      if (previewUrlRef.current) {
-        URL.revokeObjectURL(previewUrlRef.current)
-        previewUrlRef.current = null
-      }
+    if (!previewFile) {
+      updatePreviewUrl(null)
+      return
     }
-  }, [])
+    const url = URL.createObjectURL(previewFile)
+    updatePreviewUrl(url)
+    return function () {
+      URL.revokeObjectURL(url)
+    }
+  }, [previewFile])
 
   function clearPreview() {
-    if (previewUrlRef.current) {
-      URL.revokeObjectURL(previewUrlRef.current)
-      previewUrlRef.current = null
-    }
-    updatePreviewUrl(null)
+    updatePreviewFile(null)
   }
 
   function onPickAvatar() {
@@ -169,10 +168,7 @@ function AccountSurface() {
       return
     }
 
-    clearPreview()
-    const localUrl = URL.createObjectURL(file)
-    previewUrlRef.current = localUrl
-    updatePreviewUrl(localUrl)
+    updatePreviewFile(file)
     updateUploading(true)
 
     try {

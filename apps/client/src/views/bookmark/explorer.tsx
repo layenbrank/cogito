@@ -1,19 +1,11 @@
-import { Icon } from '@iconify/react/offline'
-import { Button } from '@cogito/design/components/button'
-import { Checkbox } from '@cogito/design/components/checkbox'
-import { Input } from '@cogito/design/components/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@cogito/design/components/select'
-import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
-import { cn } from 'cn'
 import { useMemo, useState } from 'react'
 
 import styles from '@/views/bookmark/bookmark.module.scss'
+import { ExplorerAside } from '@/views/bookmark/explorer-aside'
+import { ExplorerGrid } from '@/views/bookmark/explorer-grid'
+import { ExplorerHeader } from '@/views/bookmark/explorer-header'
+import { ExplorerTable } from '@/views/bookmark/explorer-table'
+import { compareExplorerRows, type ExplorerRow } from '@/views/bookmark/explorer-types'
 import {
   countFolderLinks,
   findChildrenAtPath,
@@ -21,11 +13,7 @@ import {
   joinPath
 } from '@/views/bookmark/import/tree'
 import type { BookmarkNode } from '@/views/bookmark/import/types'
-import {
-  SORT_OPTIONS,
-  type BookmarkSortKey,
-  type BookmarkViewMode
-} from '@/views/bookmark/view-prefs'
+import type { BookmarkSortKey, BookmarkViewMode } from '@/views/bookmark/view-prefs'
 
 type ExplorerProps = {
   roots: BookmarkNode[]
@@ -39,28 +27,6 @@ type ExplorerProps = {
   sortKey: BookmarkSortKey
   onUpdateViewMode: (mode: BookmarkViewMode) => void
   onUpdateSortKey: (key: BookmarkSortKey) => void
-}
-
-type Row =
-  | { kind: 'folder'; path: string; id: string; title: string; count: number; index: number }
-  | { kind: 'link'; path: string; id: string; title: string; url: string; index: number }
-
-function compareRows(a: Row, b: Row, sortKey: BookmarkSortKey) {
-  if (sortKey === 'type') {
-    if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1
-    return a.title.localeCompare(b.title, 'zh')
-  }
-  if (sortKey === 'name-asc') return a.title.localeCompare(b.title, 'zh')
-  if (sortKey === 'name-desc') return b.title.localeCompare(a.title, 'zh')
-  if (sortKey === 'links') {
-    const ac = a.kind === 'folder' ? a.count : 0
-    const bc = b.kind === 'folder' ? b.count : 0
-    if (ac !== bc) return bc - ac
-    if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1
-    return a.title.localeCompare(b.title, 'zh')
-  }
-  if (a.index !== b.index) return a.index - b.index
-  return a.title.localeCompare(b.title, 'zh')
 }
 
 function BookmarkExplorer(props: ExplorerProps) {
@@ -88,7 +54,7 @@ function BookmarkExplorer(props: ExplorerProps) {
   const rows = useMemo(
     function () {
       const children = findChildrenAtPath(props.roots, cwd)
-      const list: Row[] = []
+      const list: ExplorerRow[] = []
       for (const node of children) {
         if (node.url) {
           list.push({
@@ -112,7 +78,7 @@ function BookmarkExplorer(props: ExplorerProps) {
         }
       }
       list.sort(function (a, b) {
-        return compareRows(a, b, props.sortKey)
+        return compareExplorerRows(a, b, props.sortKey)
       })
       const needle = query.trim().toLowerCase()
       if (!needle) return list
@@ -190,17 +156,17 @@ function BookmarkExplorer(props: ExplorerProps) {
     setQuery('')
   }
 
-  function isRowChecked(row: Row) {
+  function isRowChecked(row: ExplorerRow) {
     if (selectionMode === 'node-id') return selectedIds.has(row.id)
     if (row.kind === 'folder') return isFolderSelected(row.path, selectedPaths)
     return false
   }
 
-  function canCheckRow(row: Row) {
+  function canCheckRow(row: ExplorerRow) {
     return selectionMode === 'node-id' || row.kind === 'folder'
   }
 
-  function onToggleRow(row: Row, on: boolean) {
+  function onToggleRow(row: ExplorerRow, on: boolean) {
     if (selectionMode === 'node-id') {
       toggleNodeId(row.id, on)
     } else {
@@ -208,322 +174,60 @@ function BookmarkExplorer(props: ExplorerProps) {
     }
   }
 
+  function goRoot() {
+    setCwd('')
+    setQuery('')
+  }
+
+  function goUp() {
+    const parts = cwd.split('/').filter(Boolean)
+    parts.pop()
+    setCwd(parts.join('/'))
+  }
+
+  const rowHandlers = {
+    isRowChecked,
+    canCheckRow,
+    onToggleRow,
+    onOpenFolder: openFolder
+  }
+
   return (
     <div className={styles.explorer}>
-      <aside className={styles.aside}>
-        <p className={styles.asideTitle}>位置</p>
-        <nav className={styles.asideNav}>
-          <Button
-            type="button"
-            variant="ghost"
-            className={cn(styles.asideItem, !cwd && styles.asideItemActive)}
-            onClick={function () {
-              setCwd('')
-              setQuery('')
-            }}>
-            <Icon
-              icon="lucide:house"
-              className="size-4 shrink-0"
-            />
-            <span className="truncate">全部</span>
-          </Button>
-          {sidebarRoots.map(function (root) {
-            const path = root.title
-            const active = cwd === path || cwd.startsWith(`${path}/`)
-            return (
-              <Button
-                key={root.id}
-                type="button"
-                variant="ghost"
-                className={cn(styles.asideItem, active && styles.asideItemActive)}
-                onClick={function () {
-                  openFolder(path)
-                }}>
-                <Icon
-                  icon="lucide:folder"
-                  className="size-4 shrink-0 text-amber-500"
-                />
-                <span className="truncate">{root.title}</span>
-              </Button>
-            )
-          })}
-        </nav>
-      </aside>
+      <ExplorerAside
+        cwd={cwd}
+        sidebarRoots={sidebarRoots}
+        onGoRoot={goRoot}
+        onOpenFolder={openFolder}
+      />
 
       <div className={styles.main}>
-        <header className={styles.commandBar}>
-          <div className="flex items-center gap-0.5">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="返回上一级"
-              className="size-7 rounded-md"
-              disabled={!cwd}
-              onClick={function () {
-                const parts = cwd.split('/').filter(Boolean)
-                parts.pop()
-                setCwd(parts.join('/'))
-              }}>
-              <Icon icon="lucide:arrow-left" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="回到根目录"
-              title="回到根目录"
-              className="size-7 rounded-md"
-              onClick={function () {
-                setCwd('')
-                setQuery('')
-              }}>
-              <Icon icon="lucide:refresh-cw" />
-            </Button>
-          </div>
-
-          <div className={styles.crumb}>
-            <Icon
-              icon="lucide:folder"
-              className="size-3.5 shrink-0 text-amber-500"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              className="shrink-0 text-muted-foreground hover:text-foreground"
-              onClick={function () {
-                goCrumb(-1)
-              }}>
-              书签
-            </Button>
-            {crumbs.map(function (segment, index) {
-              return (
-                <span
-                  key={`${segment}-${index}`}
-                  className="flex min-w-0 items-center gap-1">
-                  <Icon
-                    icon="lucide:chevron-right"
-                    className="size-3.5 shrink-0 text-muted-foreground/70"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className={cn(
-                      'truncate',
-                      index === crumbs.length - 1
-                        ? 'font-medium text-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                    onClick={function () {
-                      goCrumb(index)
-                    }}>
-                    {segment}
-                  </Button>
-                </span>
-              )
-            })}
-          </div>
-
-          <div className={styles.viewTools}>
-            <Select
-              items={[...SORT_OPTIONS]}
-              value={props.sortKey}
-              onValueChange={function (value) {
-                if (
-                  value === 'type' ||
-                  value === 'name-asc' ||
-                  value === 'name-desc' ||
-                  value === 'links' ||
-                  value === 'index'
-                ) {
-                  props.onUpdateSortKey(value)
-                }
-              }}>
-              <SelectTrigger
-                className={styles.sortControl}
-                aria-label="排序方式">
-                <SelectValue placeholder="排序" />
-              </SelectTrigger>
-              <SelectContent>
-                {SORT_OPTIONS.map(function (item) {
-                  return (
-                    <SelectItem
-                      key={item.value}
-                      value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  )
-                })}
-              </SelectContent>
-            </Select>
-
-            <ToggleGroup
-              spacing={0}
-              value={[props.viewMode]}
-              onValueChange={function (value) {
-                const next = value[0]
-                if (next === 'list' || next === 'grid') props.onUpdateViewMode(next)
-              }}
-              className={styles.viewToggle}>
-              <ToggleGroupItem
-                value="list"
-                aria-label="列表视图"
-                className={styles.viewToggleItem}>
-                <Icon icon="lucide:list" />
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                value="grid"
-                aria-label="网格视图"
-                className={styles.viewToggleItem}>
-                <Icon icon="lucide:layout-grid" />
-              </ToggleGroupItem>
-            </ToggleGroup>
-
-            <div className={styles.search}>
-              <Icon
-                icon="lucide:search"
-                className={styles.searchIcon}
-              />
-              <Input
-                value={query}
-                placeholder="搜索"
-                aria-label="搜索当前文件夹"
-                className={styles.searchInput}
-                onChange={function (event) {
-                  setQuery(event.target.value)
-                }}
-              />
-            </div>
-          </div>
-        </header>
+        <ExplorerHeader
+          cwd={cwd}
+          crumbs={crumbs}
+          query={query}
+          viewMode={props.viewMode}
+          sortKey={props.sortKey}
+          onGoCrumb={goCrumb}
+          onGoUp={goUp}
+          onGoRoot={goRoot}
+          onUpdateQuery={setQuery}
+          onUpdateViewMode={props.onUpdateViewMode}
+          onUpdateSortKey={props.onUpdateSortKey}
+        />
 
         {props.viewMode === 'grid' ? (
-          <div className={styles.gridWrap}>
-            {rows.length === 0 ? (
-              <p className={styles.gridEmpty}>此文件夹为空</p>
-            ) : (
-              <div className={styles.grid}>
-                {rows.map(function (row) {
-                  const checked = isRowChecked(row)
-                  const canCheck = canCheckRow(row)
-                  return (
-                    <div
-                      key={`${row.kind}:${row.id}`}
-                      className={cn(styles.card, checked && styles.cardSelected)}
-                      onDoubleClick={function () {
-                        if (row.kind === 'folder') openFolder(row.path)
-                      }}>
-                      {selectable && canCheck ? (
-                        <div className={styles.cardCheck}>
-                          <Checkbox
-                            checked={checked}
-                            onCheckedChange={function (value) {
-                              onToggleRow(row, value === true)
-                            }}
-                          />
-                        </div>
-                      ) : null}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className={styles.cardBody}
-                        onClick={function () {
-                          if (row.kind === 'folder') openFolder(row.path)
-                        }}>
-                        <span className={styles.cardIcon}>
-                          <Icon
-                            icon={row.kind === 'folder' ? 'lucide:folder' : 'lucide:globe'}
-                            className={cn(
-                              'size-7',
-                              row.kind === 'folder' ? 'text-amber-500' : 'text-sky-500'
-                            )}
-                          />
-                        </span>
-                        <span className={styles.cardTitle}>{row.title}</span>
-                        <span className={styles.cardMeta}>
-                          {row.kind === 'folder' ? `${row.count} 个链接` : row.url}
-                        </span>
-                      </Button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+          <ExplorerGrid
+            rows={rows}
+            selectable={selectable}
+            {...rowHandlers}
+          />
         ) : (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead className={styles.thead}>
-                <tr>
-                  {selectable ? <th className={cn(styles.th, styles.thCheck)} /> : null}
-                  <th className={cn(styles.th, styles.thName)}>名称</th>
-                  <th className={cn(styles.th, styles.thType)}>类型</th>
-                  <th className={styles.th}>详情</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={selectable ? 4 : 3}
-                      className={cn(styles.td, 'py-16 text-center text-muted-foreground')}>
-                      此文件夹为空
-                    </td>
-                  </tr>
-                ) : (
-                  rows.map(function (row) {
-                    const checked = isRowChecked(row)
-                    const canCheck = canCheckRow(row)
-                    return (
-                      <tr
-                        key={`${row.kind}:${row.id}`}
-                        className={styles.tr}
-                        onDoubleClick={function () {
-                          if (row.kind === 'folder') openFolder(row.path)
-                        }}>
-                        {selectable ? (
-                          <td className={styles.td}>
-                            {canCheck ? (
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={function (value) {
-                                  onToggleRow(row, value === true)
-                                }}
-                              />
-                            ) : (
-                              <span className="block size-4" />
-                            )}
-                          </td>
-                        ) : null}
-                        <td className={styles.td}>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className={styles.nameBtn}
-                            onClick={function () {
-                              if (row.kind === 'folder') openFolder(row.path)
-                            }}>
-                            <Icon
-                              icon={row.kind === 'folder' ? 'lucide:folder' : 'lucide:globe'}
-                              className={cn(
-                                'size-4 shrink-0',
-                                row.kind === 'folder' ? 'text-amber-500' : 'text-sky-500'
-                              )}
-                            />
-                            <span className="truncate font-medium">{row.title}</span>
-                          </Button>
-                        </td>
-                        <td className={cn(styles.td, 'text-muted-foreground')}>
-                          {row.kind === 'folder' ? '文件夹' : '网址'}
-                        </td>
-                        <td className={cn(styles.td, 'truncate text-muted-foreground')}>
-                          {row.kind === 'folder' ? `${row.count} 个链接` : row.url}
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+          <ExplorerTable
+            rows={rows}
+            selectable={selectable}
+            {...rowHandlers}
+          />
         )}
 
         <footer className={styles.footer}>

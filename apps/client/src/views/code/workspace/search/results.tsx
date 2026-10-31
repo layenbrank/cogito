@@ -7,29 +7,9 @@ import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { Skeleton } from '@cogito/design/components/skeleton'
 import type { ContentHit } from '@/lib/workspace-files'
+import { groupHits, type FileGroup } from '@/views/code/workspace/search/group-hits.ts'
 import { cn } from 'cn'
 import { useMemo, useState } from 'react'
-
-interface FileGroup {
-  relative: string
-  path: string
-  hits: ContentHit[]
-}
-
-function groupHits(hits: ContentHit[]): FileGroup[] {
-  const groups: FileGroup[] = []
-  const byRelative = new Map<string, FileGroup>()
-  for (const hit of hits) {
-    let group = byRelative.get(hit.relative)
-    if (!group) {
-      group = { relative: hit.relative, path: hit.path, hits: [] }
-      byRelative.set(hit.relative, group)
-      groups.push(group)
-    }
-    group.hits.push(hit)
-  }
-  return groups
-}
 
 /** 按 Unicode 标量偏移切出 before / hit / after（preview 已由 Rust 裁短） */
 function splitPreview(hit: ContentHit): { before: string; hit: string; after: string } {
@@ -218,5 +198,4 @@ function SearchResults(props: {
   )
 }
 
-export { SearchResults, groupHits }
-export type { FileGroup }
+export { SearchResults }

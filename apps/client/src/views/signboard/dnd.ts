@@ -28,9 +28,10 @@ function filterByType(
   containers: DroppableContainer[],
   types: string[]
 ): DroppableContainer[] {
+  const typeSet = new Set(types)
   return containers.filter(function (container) {
     const type = readData(container)?.type
-    return type !== undefined && types.includes(type)
+    return type !== undefined && typeSet.has(type)
   })
 }
 

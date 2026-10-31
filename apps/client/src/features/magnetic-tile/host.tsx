@@ -1,7 +1,9 @@
 import { listen } from '@tauri-apps/api/event'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 
+import { hasRunningThreads } from '@/features/agent/acp/run-state'
 import {
   bindSessionHome,
   findAppComponent,
@@ -18,6 +20,10 @@ import { useSettingsStore } from '@/stores/setting.ts'
 import { syncCliMatches } from '@/utils/cli'
 import { checkUpdate } from '@/utils/updater'
 
+function isAgentPath(pathname: string): boolean {
+  return pathname === '/agent' || pathname.startsWith('/agent/')
+}
+
 /**
  * 主窗口常驻壳：会话名单、外观同步。
  * 磁贴墙由 WorkspaceShell Activity 保活；应用页仍随路由卸挂。
@@ -26,6 +32,7 @@ import { checkUpdate } from '@/utils/updater'
 function AppHost() {
   const navigate = useNavigate()
   const location = useLocation()
+  const wasAgentPath = useRef<boolean | null>(null)
 
   useEffect(
     function () {
@@ -40,6 +47,16 @@ function AppHost() {
   useEffect(
     function () {
       if (!isMainWindow()) return
+      const onAgent = isAgentPath(location.pathname)
+      // 离开 Agent 且仍有回合在跑：提示后台继续（不 abort）
+      const wasOnAgent = wasAgentPath.current
+      if (wasOnAgent && !onAgent && hasRunningThreads()) {
+        toast.message('Agent 会话仍在后台运行', {
+          description: '回到 Agent 后会自动接上进度'
+        })
+      }
+      wasAgentPath.current = onAgent
+
       const component = findAppComponent(location.pathname)
       if (!component) {
         parkSessions()

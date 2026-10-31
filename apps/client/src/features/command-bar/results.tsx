@@ -4,7 +4,8 @@
 import { Button } from '@cogito/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, useReducedMotion } from 'motion/react'
+import * as m from 'motion/react-m'
 
 import { DOMAIN_LABEL, FILTER_CHIPS } from '@/features/command-bar/constants'
 import { findFlatHits, groupHits } from '@/features/command-bar/rank'
@@ -29,7 +30,7 @@ function ResultsSurface(props: ResultsSurfaceProps) {
 
   return (
     <AnimatePresence>
-      <motion.div
+      <m.div
         key="results"
         initial={isReduced ? false : { opacity: 0, y: -4 }}
         animate={{ opacity: 1, y: 0 }}
@@ -128,7 +129,7 @@ function ResultsSurface(props: ResultsSurfaceProps) {
             })
           )}
         </div>
-      </motion.div>
+      </m.div>
     </AnimatePresence>
   )
 }

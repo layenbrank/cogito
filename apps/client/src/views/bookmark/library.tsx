@@ -51,7 +51,7 @@ function BookmarkLibrary(props: BookmarkLibraryProps) {
     function () {
       if (!activeMirrorID) return
       let cancelled = false
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 换镜像/导入后先进入加载态，避免闪空库
+      // 换镜像/导入后先进入加载态，避免闪空库
       setLoading(true)
       setSelectedNodeIds([])
       void fetchBookmarkTree(activeMirrorID)

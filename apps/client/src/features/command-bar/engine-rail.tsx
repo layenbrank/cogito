@@ -1,32 +1,19 @@
 /**
  * 引擎切换：横向宽度展开；收起/展开圆角与外壳贴合
- *
- * 顺滑要点：
- * - 盒模型恒定（始终 p-0.5），只动画 width，避免 padding/bg 硬切抢布局
- * - 图标与芯片双层叠放 + opacity 交叉淡入，不做 absolute↔flow 切换
- * - 像素宽 + tween（无 spring / 无 overshoot）
  */
 import { Button } from '@cogito/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
-import { motion, useReducedMotion } from 'motion/react'
-import { useLayoutEffect, useRef, useState } from 'react'
+import * as m from 'motion/react-m'
 
 import { ENGINES } from '@/constants/engine'
-import { OMNIBAR_UI } from '@/features/command-bar/constants'
-
-/** 外壳水平 padding 合计（p-0.5 × 2） */
-const PAD_X = 4
-/** 收起：内槽 28 + PAD_X → 与 size-7 对齐 */
-const COLLAPSED_PX = 28 + PAD_X
-
-/** Material 减速曲线，控制点 y ≤ 1，无回弹 */
-const RAIL_EASE: [number, number, number, number] = [0.2, 0, 0, 1]
+import { EngineRailChips } from '@/features/command-bar/engine-rail-chips.tsx'
+import { useEngineRailMotion } from '@/features/command-bar/use-engine-rail-motion.ts'
+import { COLLAPSED_PX } from '@/features/command-bar/use-engine-rail-width.ts'
 
 interface EngineRailProps {
   engineKey: string
   isExpanded: boolean
-  /** 结果表面展开时外壳为上圆下直，左侧圆角需对齐 */
   isShellOpen?: boolean
   onExpand: (open: boolean) => void
   onChoose: (key: string) => void
@@ -34,150 +21,72 @@ interface EngineRailProps {
 
 function EngineRail(props: EngineRailProps) {
   const isShellOpen = props.isShellOpen ?? false
-  const isReduced = useReducedMotion()
-  const duration = isReduced ? 0 : OMNIBAR_UI.RAIL_MS / 1000
-  const chipsRef = useRef<HTMLDivElement>(null)
-  const [expandedWidth, setExpandedWidth] = useState(COLLAPSED_PX)
+  const motion = useEngineRailMotion(isShellOpen, props.isExpanded)
 
   const active =
     ENGINES.find(function (item) {
       return item.key === props.engineKey
     }) ?? ENGINES[0]
 
-  useLayoutEffect(
-    function measureExpanded() {
-      const node = chipsRef.current
-      if (!node) return
-      const chips = node
-
-      function measure() {
-        const next = Math.ceil(chips.scrollWidth) + PAD_X
-        if (next > 0) setExpandedWidth(next)
-      }
-
-      measure()
-      const observer = new ResizeObserver(measure)
-      observer.observe(chips)
-      return function () {
-        observer.disconnect()
-      }
-    },
-    [isShellOpen]
-  )
-
-  const radius = isShellOpen
-    ? props.isExpanded
-      ? 'rounded-tl-[10px] rounded-tr-lg rounded-br-lg rounded-bl-md'
-      : 'rounded-tl-[10px] rounded-tr-md rounded-b-md'
-    : 'rounded-full'
-
-  const widthTransition = { type: 'tween' as const, duration, ease: RAIL_EASE }
-  /** 展开：图标速隐、芯片略滞后显现；收起：芯片速隐、图标同步回显 */
-  const iconFade = {
-    type: 'tween' as const,
-    duration: duration * 0.35,
-    ease: RAIL_EASE
-  }
-  const chipsFade = props.isExpanded
-    ? {
-        type: 'tween' as const,
-        duration: duration * 0.5,
-        ease: RAIL_EASE,
-        delay: isReduced ? 0 : duration * 0.12
-      }
-    : {
-        type: 'tween' as const,
-        duration: duration * 0.3,
-        ease: RAIL_EASE
-      }
-
   return (
-    <motion.div
-      className={cn(
-        'relative h-8 shrink-0 self-center overflow-hidden p-0.5',
-        'transition-colors',
-        props.isExpanded ? 'bg-muted/60' : 'bg-transparent',
-        radius
-      )}
-      style={{ transitionDuration: `${OMNIBAR_UI.RAIL_MS}ms` }}
-      initial={false}
-      animate={{ width: props.isExpanded ? expandedWidth : COLLAPSED_PX }}
-      transition={widthTransition}>
-      <motion.div
-        className="absolute top-0.5 left-0.5 z-[1]"
+    <div
+      className="relative h-8 shrink-0 self-center overflow-hidden"
+      style={{ width: props.isExpanded ? motion.expandedWidth : COLLAPSED_PX }}>
+      <m.div
+        className={cn(
+          'relative h-full p-0.5',
+          'transition-colors',
+          props.isExpanded ? 'bg-muted/60' : 'bg-transparent',
+          motion.radius
+        )}
+        style={{
+          width: motion.expandedWidth,
+          transformOrigin: 'left center',
+          transitionDuration: `${motion.railMs}ms`
+        }}
         initial={false}
-        animate={{ opacity: props.isExpanded ? 0 : 1 }}
-        transition={iconFade}
-        style={{ pointerEvents: props.isExpanded ? 'none' : 'auto' }}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          tabIndex={props.isExpanded ? -1 : 0}
-          aria-hidden={props.isExpanded}
-          aria-label={`搜索引擎：${active.label}`}
-          aria-expanded={props.isExpanded}
-          title={active.label}
-          className={cn(
-            'size-7 text-muted-foreground hover:bg-muted hover:text-foreground',
-            isShellOpen ? 'rounded-md' : 'rounded-full'
-          )}
-          onClick={function () {
-            props.onExpand(true)
-          }}>
-          <Icon
-            icon={active.icon}
-            aria-hidden
-            className="size-4"
-          />
-        </Button>
-      </motion.div>
+        animate={{ scaleX: props.isExpanded ? 1 : motion.collapsedScale }}
+        transition={motion.widthTransition}>
+        <m.div
+          className="absolute top-0.5 left-0.5 z-[1]"
+          initial={false}
+          animate={{ opacity: props.isExpanded ? 0 : 1 }}
+          transition={motion.iconFade}
+          style={{ pointerEvents: props.isExpanded ? 'none' : 'auto' }}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            tabIndex={props.isExpanded ? -1 : 0}
+            aria-hidden={props.isExpanded}
+            aria-label={`搜索引擎：${active.label}`}
+            aria-expanded={props.isExpanded}
+            title={active.label}
+            className={cn(
+              'size-7 text-muted-foreground hover:bg-muted hover:text-foreground',
+              isShellOpen ? 'rounded-md' : 'rounded-full'
+            )}
+            onClick={function () {
+              props.onExpand(true)
+            }}>
+            <Icon
+              icon={active.icon}
+              aria-hidden
+              className="size-4"
+            />
+          </Button>
+        </m.div>
 
-      <motion.div
-        ref={chipsRef}
-        className="absolute top-0.5 left-0.5 flex h-7 min-w-max items-center gap-0"
-        role="listbox"
-        aria-hidden={!props.isExpanded}
-        aria-label="选择搜索引擎"
-        initial={false}
-        animate={{ opacity: props.isExpanded ? 1 : 0 }}
-        transition={chipsFade}
-        style={{ pointerEvents: props.isExpanded ? 'auto' : 'none' }}>
-        {ENGINES.map(function (item) {
-          const isActive = item.key === props.engineKey
-          return (
-            <Button
-              key={item.key}
-              type="button"
-              variant="ghost"
-              size="sm"
-              role="option"
-              tabIndex={props.isExpanded ? 0 : -1}
-              aria-selected={isActive}
-              className={cn(
-                'h-full gap-1 rounded-full px-2 text-xs',
-                isActive
-                  ? 'bg-background text-foreground shadow-sm hover:bg-background'
-                  : 'text-muted-foreground hover:bg-transparent hover:text-foreground'
-              )}
-              onMouseDown={function (event) {
-                event.preventDefault()
-              }}
-              onClick={function () {
-                props.onChoose(item.key)
-                props.onExpand(false)
-              }}>
-              <Icon
-                icon={item.icon}
-                aria-hidden
-                className="size-3.5 shrink-0"
-              />
-              <span className="whitespace-nowrap">{item.label}</span>
-            </Button>
-          )
-        })}
-      </motion.div>
-    </motion.div>
+        <EngineRailChips
+          chipsRef={motion.chipsRef}
+          engineKey={props.engineKey}
+          isExpanded={props.isExpanded}
+          chipsFade={motion.chipsFade}
+          onChoose={props.onChoose}
+          onExpand={props.onExpand}
+        />
+      </m.div>
+    </div>
   )
 }
 

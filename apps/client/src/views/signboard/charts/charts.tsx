@@ -9,9 +9,11 @@ import {
   scaleLinear,
   select,
   sum as d3Sum,
-  type PieArcDatum
+  type PieArcDatum,
+  type Selection
 } from 'd3'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, useReducedMotion } from 'motion/react'
+import * as m from 'motion/react-m'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 
 import { findChartTheme, type NamedCount } from '@/views/signboard/charts/theme'
@@ -69,7 +71,7 @@ function ChartTooltip(props: ChartTooltipState) {
   const followDuration = isReduced ? 0 : 0.16
 
   return (
-    <motion.div
+    <m.div
       className="pointer-events-none absolute top-0 left-0 z-10 max-w-[220px] rounded-md border border-border/80 bg-popover/95 px-2.5 py-1.5 text-xs text-popover-foreground shadow-md backdrop-blur-sm"
       initial={{ opacity: 0, scale: 0.98, x: props.left, y: props.top }}
       animate={{ opacity: 1, scale: 1, x: props.left, y: props.top }}
@@ -83,7 +85,7 @@ function ChartTooltip(props: ChartTooltipState) {
       role="tooltip">
       <div className="font-medium text-foreground">{props.label}</div>
       <div className="mt-0.5 tabular-nums text-muted-foreground">{props.value}</div>
-    </motion.div>
+    </m.div>
   )
 }
 
@@ -180,8 +182,11 @@ function BarChart(props: BarChartProps) {
     function () {
       const svgEl = svgRef.current
       const hostEl = hostRef.current
-      if (!svgEl || !hostEl || props.isEmpty || props.items.length === 0 || width <= 0) return
+      let barLayer: Selection<SVGRectElement, NamedCount, SVGGElement, unknown> | null = null
+      const detachBarListeners: Array<() => void> = []
 
+      if (svgEl && hostEl && !props.isEmpty && props.items.length > 0 && width > 0) {
+      const host = hostEl
       const theme = findChartTheme()
       const innerWidth = Math.max(width - BAR_MARGIN.left - BAR_MARGIN.right, 1)
       const innerHeight = Math.max(height - BAR_MARGIN.top - BAR_MARGIN.bottom, 1)
@@ -238,8 +243,8 @@ function BarChart(props: BarChartProps) {
           axis.selectAll('text').attr('fill', theme.muted).attr('font-size', 10)
         })
 
-      const bars = g
-        .selectAll('rect.bar')
+      barLayer = g
+        .selectAll<SVGRectElement, NamedCount>('rect.bar')
         .data(items)
         .join('rect')
         .attr('class', 'bar')
@@ -259,13 +264,18 @@ function BarChart(props: BarChartProps) {
         .style('cursor', 'pointer')
 
       let activeName: string | null = null
+      const barSelection = barLayer
 
-      bars
-        .on('mousemove', function (event: MouseEvent, item) {
+      barSelection.each(function (this: SVGRectElement, item: NamedCount) {
+        // d3 的 each 用 this 传元素；闭包里要留住它只能起别名
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
+        const el = this
+
+        function onMouseMove(event: MouseEvent) {
           updateTooltip(
             placeTooltip({
               dataKey,
-              host: hostEl,
+              host,
               clientX: event.clientX,
               clientY: event.clientY,
               label: item.name,
@@ -274,19 +284,37 @@ function BarChart(props: BarChartProps) {
           )
           if (activeName === item.name) return
           activeName = item.name
-          bars
+          barSelection
             .transition()
             .duration(hoverMs(isReduced))
             .ease(easeCubicOut)
-            .attr('opacity', function (other) {
+            .attr('opacity', function (other: NamedCount) {
               return other.name === item.name ? 1 : 0.35
             })
-        })
-        .on('mouseleave', function () {
+        }
+
+        function onMouseLeave() {
           activeName = null
-          bars.transition().duration(hoverMs(isReduced)).ease(easeCubicOut).attr('opacity', 0.9)
+          barSelection.transition().duration(hoverMs(isReduced)).ease(easeCubicOut).attr('opacity', 0.9)
           updateTooltip(null)
+        }
+
+        el.addEventListener('mousemove', onMouseMove)
+        el.addEventListener('mouseleave', onMouseLeave)
+        detachBarListeners.push(function () {
+          el.removeEventListener('mousemove', onMouseMove)
+          el.removeEventListener('mouseleave', onMouseLeave)
         })
+      })
+      }
+
+      return function cleanupBarListeners() {
+        detachBarListeners.forEach(function (detach) {
+          detach()
+        })
+        barLayer?.interrupt()
+        updateTooltip(null)
+      }
     },
     [props.items, props.isEmpty, height, width, isReduced, dataKey]
   )
@@ -333,8 +361,12 @@ function PieChart(props: PieChartProps) {
     function () {
       const svgEl = svgRef.current
       const hostEl = hostRef.current
-      if (!svgEl || !hostEl || props.isEmpty || props.items.length === 0 || width <= 0) return
+      let sliceLayer: Selection<SVGPathElement, PieArcDatum<NamedCount>, SVGGElement, unknown> | null =
+        null
+      const detachSliceListeners: Array<() => void> = []
 
+      if (svgEl && hostEl && !props.isEmpty && props.items.length > 0 && width > 0) {
+      const host = hostEl
       const theme = findChartTheme()
       const palette = [theme.accent, theme.chart2, theme.danger, theme.ok, theme.muted, theme.chart3]
       const legendH = 36
@@ -372,8 +404,8 @@ function PieChart(props: PieChartProps) {
 
       const g = root.append('g').attr('transform', `translate(${width / 2},${chartH / 2})`)
 
-      const slices = g
-        .selectAll('path.slice')
+      sliceLayer = g
+        .selectAll<SVGPathElement, PieArcDatum<NamedCount>>('path.slice')
         .data(arcs)
         .join('path')
         .attr('class', 'slice')
@@ -389,14 +421,19 @@ function PieChart(props: PieChartProps) {
         .style('cursor', 'pointer')
 
       let activeIndex = -1
+      const sliceSelection = sliceLayer
 
-      slices
-        .on('mousemove', function (event: MouseEvent, datum) {
+      sliceSelection.each(function (this: SVGPathElement, datum: PieArcDatum<NamedCount>) {
+        // d3 的 each 用 this 传元素；闭包里要留住它只能起别名
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
+        const el = this
+
+        function onMouseMove(event: MouseEvent) {
           const pct = total > 0 ? Math.round((datum.data.value / total) * 100) : 0
           updateTooltip(
             placeTooltip({
               dataKey,
-              host: hostEl,
+              host,
               clientX: event.clientX,
               clientY: event.clientY,
               label: datum.data.name,
@@ -406,29 +443,38 @@ function PieChart(props: PieChartProps) {
           const index = datum.index
           if (activeIndex === index) return
           activeIndex = index
-          slices
+          sliceSelection
             .transition()
             .duration(hoverMs(isReduced))
             .ease(easeCubicOut)
-            .attr('d', function (other) {
+            .attr('d', function (other: PieArcDatum<NamedCount>) {
               return (other === datum ? arcActive(other) : arcGen(other)) ?? ''
             })
-            .attr('opacity', function (other) {
+            .attr('opacity', function (other: PieArcDatum<NamedCount>) {
               return other === datum ? 1 : 0.45
             })
-        })
-        .on('mouseleave', function () {
+        }
+
+        function onMouseLeave() {
           activeIndex = -1
-          slices
+          sliceSelection
             .transition()
             .duration(hoverMs(isReduced))
             .ease(easeCubicOut)
-            .attr('d', function (datum) {
-              return arcGen(datum) ?? ''
+            .attr('d', function (arcDatum: PieArcDatum<NamedCount>) {
+              return arcGen(arcDatum) ?? ''
             })
             .attr('opacity', 1)
           updateTooltip(null)
+        }
+
+        el.addEventListener('mousemove', onMouseMove)
+        el.addEventListener('mouseleave', onMouseLeave)
+        detachSliceListeners.push(function () {
+          el.removeEventListener('mousemove', onMouseMove)
+          el.removeEventListener('mouseleave', onMouseLeave)
         })
+      })
 
       const legend = root.append('g').attr('transform', `translate(${width / 2},${chartH + 8})`)
 
@@ -462,6 +508,15 @@ function PieChart(props: PieChartProps) {
         .text(function (item) {
           return item.name.length > 6 ? `${item.name.slice(0, 5)}…` : item.name
         })
+      }
+
+      return function cleanupPieListeners() {
+        detachSliceListeners.forEach(function (detach) {
+          detach()
+        })
+        sliceLayer?.interrupt()
+        updateTooltip(null)
+      }
     },
     [props.items, props.isEmpty, height, width, isReduced, dataKey]
   )

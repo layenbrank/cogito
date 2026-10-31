@@ -2,7 +2,6 @@
 
 import {
   Children,
-  Fragment,
   forwardRef,
   isValidElement,
   useMemo,
@@ -38,18 +37,18 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 function ShortcutDisplay(props: { shortcuts: string[] }) {
   if (props.shortcuts.length === 0) return null
-  return (
-    <KbdGroup>
-      {props.shortcuts.map(function (key, index) {
-        return (
-          <Fragment key={`${index}-${key}`}>
-            {index > 0 ? <span className="px-0.5 text-xs opacity-50">+</span> : null}
-            <Kbd>{key}</Kbd>
-          </Fragment>
-        )
-      })}
-    </KbdGroup>
-  )
+  const nodes: ReactNode[] = []
+  for (const key of props.shortcuts) {
+    if (nodes.length > 0) {
+      nodes.push(
+        <span className="px-0.5 text-xs opacity-50" key={`sep-${key}`}>
+          +
+        </span>
+      )
+    }
+    nodes.push(<Kbd key={key}>{key}</Kbd>)
+  }
+  return <KbdGroup>{nodes}</KbdGroup>
 }
 
 function resolveVariant(dataStyle: string | undefined) {

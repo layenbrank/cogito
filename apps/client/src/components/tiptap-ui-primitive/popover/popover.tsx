@@ -4,6 +4,7 @@ import {
   createContext,
   isValidElement,
   useContext,
+  useMemo,
   useState,
   type ComponentPropsWithoutRef,
   type ReactElement
@@ -37,12 +38,17 @@ function Popover({
   ...props
 }: ComponentPropsWithoutRef<typeof DesignPopover>) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
-  return (
-    <PopoverAnchorContext.Provider
-      value={{
+  const anchorContext = useMemo(
+    function () {
+      return {
         anchor,
         bindAnchor: setAnchor
-      }}>
+      }
+    },
+    [anchor]
+  )
+  return (
+    <PopoverAnchorContext.Provider value={anchorContext}>
       <DesignPopover
         {...props}
         onOpenChangeComplete={function (open) {

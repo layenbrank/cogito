@@ -119,11 +119,13 @@ async function uploadAsset(params: {
   const missing = prepared.exists
     ? []
     : planMissingChunks(params.bytes.length, prepared.uploaded.map((item) => item.index))
-  for (const index of missing) {
-    const start = index * CHUNK_SIZE
-    const slice = params.bytes.subarray(start, Math.min(start + CHUNK_SIZE, params.bytes.length))
-    await POST_CHUNK({ id: prepared.id, index, hash: await sha256Hex(slice), bytes: slice })
-  }
+  await Promise.all(
+    missing.map(async function (index) {
+      const start = index * CHUNK_SIZE
+      const slice = params.bytes.subarray(start, Math.min(start + CHUNK_SIZE, params.bytes.length))
+      await POST_CHUNK({ id: prepared.id, index, hash: await sha256Hex(slice), bytes: slice })
+    })
+  )
 
   const finalized = await POST_FINALIZE(prepared.id)
   return finalized.id

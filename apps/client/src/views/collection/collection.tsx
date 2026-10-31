@@ -3,11 +3,12 @@
  * `?add=1` 打开「新增网址」Sheet。
  */
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { Decorations } from '@/components/decorations/index.ts'
 import { CollectionSurface } from '@/views/collection/surface.tsx'
+import { useCollectionMembers } from '@/views/collection/use-collection-members.ts'
 
 function findCollectionIDFromLabel(): string {
   try {
@@ -26,7 +27,6 @@ function wantsAddOpen(params: URLSearchParams) {
 
 export default function Collection() {
   const [searchParams, updateSearchParams] = useSearchParams()
-  const [title, onUpdateTitle] = useState('集合')
 
   const id = useMemo(
     function () {
@@ -34,6 +34,18 @@ export default function Collection() {
     },
     [searchParams]
   )
+
+  const [stack, onUpdateStack] = useState<string[]>([id])
+  useEffect(
+    function () {
+      onUpdateStack([id])
+    },
+    [id]
+  )
+
+  const currentId = stack[stack.length - 1] || id
+  const { title, magneticTiles, onUpdateMagneticTiles, reloadMembers } =
+    useCollectionMembers(currentId)
 
   const isAddOpen = wantsAddOpen(searchParams)
 
@@ -49,7 +61,7 @@ export default function Collection() {
       <Decorations
         summary="集合"
         scrollable={false}>
-        <p className="p-6 text-sm text-muted-foreground">缺少集合 id（?id=）</p>
+        <p className="text-muted-foreground p-6 text-sm">缺少集合 id（?id=）</p>
       </Decorations>
     )
   }
@@ -61,9 +73,14 @@ export default function Collection() {
       <CollectionSurface
         key={id}
         id={id}
+        stack={stack}
+        onUpdateStack={onUpdateStack}
+        title={title}
+        magneticTiles={magneticTiles}
+        onUpdateMagneticTiles={onUpdateMagneticTiles}
+        onReloadMembers={reloadMembers}
         isAddOpen={isAddOpen}
         onUpdateAddOpen={onUpdateAddOpen}
-        onTitleChange={onUpdateTitle}
       />
     </Decorations>
   )

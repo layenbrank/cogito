@@ -7,7 +7,7 @@ import type {
   SignboardEntry,
   SignboardTag
 } from '@/stores/signboard'
-import { findChecklistProgress } from '@/views/signboard/progress'
+import { CardDragPreviewBody } from '@/views/signboard/card-drag-preview-body.tsx'
 import styles from '@/views/signboard/signboard.module.scss'
 
 interface OverlaySize {
@@ -24,37 +24,9 @@ interface CardDragPreviewProps {
   size?: OverlaySize | null
 }
 
-function formatDue(dueAt: number) {
-  const date = new Date(dueAt)
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${month}-${day}`
-}
-
-function dueTone(dueAt: number | null) {
-  if (dueAt === null || dueAt === undefined) return null
-  const start = new Date()
-  start.setHours(0, 0, 0, 0)
-  if (dueAt < start.getTime()) return 'overdue'
-  const end = start.getTime() + 24 * 60 * 60 * 1000
-  if (dueAt < end) return 'today'
-  return 'later'
-}
-
 /** Overlay 用：与 CardItem 同款视觉，无拖拽 hooks */
 function CardDragPreview(props: CardDragPreviewProps) {
-  const tone = dueTone(props.card.dueAt)
-  const visibleTags = props.tags.slice(0, 5)
-  const checklist = findChecklistProgress(props.checklist)
   const size = props.size
-  const showNotes = props.card.notes.trim().length > 0
-  const showDue =
-    props.card.dueAt !== null && props.card.dueAt !== undefined
-  const hasMeta =
-    showNotes ||
-    showDue ||
-    checklist.total > 0 ||
-    props.attachmentCount > 0
 
   return (
     <div
@@ -85,75 +57,12 @@ function CardDragPreview(props: CardDragPreviewProps) {
         </span>
 
         <div className={styles.cardBody}>
-          {visibleTags.length > 0 ? (
-            <div className={styles.cardHead}>
-              <div className={styles.cardLabelRow}>
-                {visibleTags.map(function (tag) {
-                  return (
-                    <span
-                      key={tag.id}
-                      className={styles.cardLabel}
-                      style={{
-                        background: tag.color ?? 'var(--muted-foreground)'
-                      }}>
-                      <span className={styles.cardLabelText}>{tag.title}</span>
-                    </span>
-                  )
-                })}
-              </div>
-            </div>
-          ) : null}
-
-          <p className={styles.cardTitle}>{props.card.title}</p>
-
-          {hasMeta ? (
-            <div className={styles.cardMeta}>
-              {showNotes ? (
-                <span className={styles.metaBadge}>
-                  <Icon
-                    icon="lucide:align-left"
-                    className="size-3.5"
-                    aria-hidden
-                  />
-                </span>
-              ) : null}
-              {showDue ? (
-                <span
-                  className={clsx(
-                    styles.due,
-                    tone === 'overdue' && styles.dueOverdue,
-                    tone === 'today' && styles.dueToday
-                  )}>
-                  <Icon
-                    icon="lucide:calendar"
-                    className="size-3"
-                    aria-hidden
-                  />
-                  {formatDue(props.card.dueAt as number)}
-                </span>
-              ) : null}
-              {checklist.total > 0 ? (
-                <span className={styles.metaBadge}>
-                  <Icon
-                    icon="lucide:square-check-big"
-                    className="size-3.5"
-                    aria-hidden
-                  />
-                  {checklist.done}/{checklist.total}
-                </span>
-              ) : null}
-              {props.attachmentCount > 0 ? (
-                <span className={styles.metaBadge}>
-                  <Icon
-                    icon="lucide:paperclip"
-                    className="size-3.5"
-                    aria-hidden
-                  />
-                  {props.attachmentCount}
-                </span>
-              ) : null}
-            </div>
-          ) : null}
+          <CardDragPreviewBody
+            card={props.card}
+            tags={props.tags}
+            checklist={props.checklist}
+            attachmentCount={props.attachmentCount}
+          />
         </div>
       </div>
     </div>

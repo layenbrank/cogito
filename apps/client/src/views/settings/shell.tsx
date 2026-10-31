@@ -21,20 +21,11 @@ import CaptureSurface from '@/views/settings/surfaces/capture.tsx'
 import DictSurface from '@/views/settings/surfaces/dict.tsx'
 import GeneralSurface from '@/views/settings/surfaces/general.tsx'
 import ShortcutsSurface from '@/views/settings/surfaces/shortcuts.tsx'
+import { findShowsShellBack } from '@/views/settings/shell-back.ts'
 import styles from '@/views/settings/shell.module.scss'
 
 function findInitialSection(searchParams: URLSearchParams): SectionKey {
   return parseSectionKey(searchParams.get('section')) ?? SECTION.ACCOUNT
-}
-
-/**
- * 主窗应用页已有 TileSessionBar（回墙）；独立设置磁贴窗关窗即可。
- * 仅「非主窗应用内同窗切入设置」时在侧栏提供返回（history.back）。
- */
-function findShowsShellBack(showsSession: boolean, windowLabel: string) {
-  if (showsSession) return false
-  if (windowLabel.startsWith('settings:')) return false
-  return true
 }
 
 function Shell() {
@@ -155,4 +146,3 @@ function Shell() {
 }
 
 export default Shell
-export { findShowsShellBack }

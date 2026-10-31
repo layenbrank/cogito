@@ -8,7 +8,8 @@ import type { CSSProperties, MouseEventHandler, ReactNode } from 'react'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 
 import { activateTile } from '@/features/magnetic-tile/activate'
-import { Enter, ENTER, useEnter } from '@/features/magnetic-tile/enter'
+import { Enter, useEnter } from '@/features/magnetic-tile/enter'
+import { ENTER } from '@/features/magnetic-tile/enter-motion'
 import styles from '@/features/magnetic-tile/magnetic-tile.module.scss'
 import { buildSurfaceStyle } from '@/features/magnetic-tile/surface-style'
 

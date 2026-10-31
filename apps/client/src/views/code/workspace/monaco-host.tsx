@@ -4,6 +4,7 @@ import * as monaco from 'monaco-editor'
 // 根入口已注册全部 basic-languages 与语言特性，无需逐个 import contribution。
 import { useEffect, useRef } from 'react'
 
+import { adoptMonaco } from '@/lib/monaco-loader.ts'
 import { CODE_THEME, syncCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
 import { useCodeStore, type CodeEditorPrefs } from '@/stores/code'
 import { readEol, readIndentation } from '@/views/code/lib/document-options.ts'
@@ -24,6 +25,8 @@ import {
 } from '@/views/code/lib/monaco-view-state.ts'
 // worker 装配只有一份，见 lib/monaco-environment.ts
 import '@/lib/monaco-environment.ts'
+
+adoptMonaco(monaco)
 
 /** 系统装了哪套等宽字体不可知，按流行度排一个栈，取第一个存在的 */
 const MONACO_FONT_FAMILY =

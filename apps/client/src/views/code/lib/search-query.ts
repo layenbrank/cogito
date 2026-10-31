@@ -23,8 +23,15 @@ function buildPattern(query: SearchQuery): string {
 /** 全局匹配器；表达式非法或内容为空时返回 null */
 function buildMatcher(query: SearchQuery): RegExp | null {
   if (!query.query.trim()) return null
+  const flags = query.isCaseSensitive ? 'g' : 'gi'
   try {
-    return new RegExp(buildPattern(query), query.isCaseSensitive ? 'g' : 'gi')
+    if (query.isRegex) {
+      const pattern = query.isWholeWord ? `\\b(?:${query.query})\\b` : query.query
+      return new RegExp(pattern, flags)
+    }
+    const escaped = escapeRegExp(query.query)
+    const pattern = query.isWholeWord ? `\\b${escaped}\\b` : escaped
+    return new RegExp(pattern, flags)
   } catch (error) {
     // 表达式非法由 `isValidQuery` 在输入框旁提示，这里只留痕
     console.debug('[code] 搜索表达式无效', error)

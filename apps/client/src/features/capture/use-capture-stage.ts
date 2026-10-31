@@ -95,7 +95,8 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
   const optionsRef = useRef(options)
   const updateHoverRef = useRef<UpdateHover>(function () {})
   const probeRef = useRef<HoverProbe | null>(null)
-  const screenSizeRef = useRef(readScreenSize())
+  const [initialScreenSize] = useState(readScreenSize)
+  const screenSizeRef = useRef(initialScreenSize)
   const indexRef = useRef<RegionIndex>({ groups: [] })
   const indexedRef = useRef<CaptureRegion[] | null>(null)
 

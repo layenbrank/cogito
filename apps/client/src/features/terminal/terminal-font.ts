@@ -44,9 +44,11 @@ function parseFontWeight(weight: string | null | undefined): FontWeight {
 /** xterm fontFamily：注入族名优先，再 Mono / Symbols / 系统等宽 */
 function buildFontFamily(faces: string[]): string {
   const unique: string[] = []
+  const seen = new Set<string>()
   for (const face of faces) {
     const trimmed = face.trim()
-    if (!trimmed || unique.includes(trimmed)) continue
+    if (!trimmed || seen.has(trimmed)) continue
+    seen.add(trimmed)
     unique.push(trimmed)
   }
   return [...unique.map((face) => `"${face}"`), FALLBACK_FONT_FAMILY].join(', ')
@@ -81,6 +83,19 @@ function injectTerminalFontFace(
   return task
 }
 
+async function registerTerminalCssFace(
+  faceName: string,
+  objectUrl: string,
+  faceOptions: { weight: string; style: 'normal' }
+): Promise<string> {
+  const face = new FontFace(faceName, `url(${objectUrl})`, faceOptions)
+  const loaded = await face.load()
+  document.fonts.add(loaded)
+  // 显式 load：仅 add + ready 时 WebView2 canvas 偶发仍量不到字形
+  await document.fonts.load(`12px "${faceName}"`)
+  return faceName
+}
+
 async function bootstrapTerminalFontFace(
   systemFont: TerminalFont,
   cssFaces: string[]
@@ -109,15 +124,21 @@ async function bootstrapTerminalFontFace(
   // Regular 文件按 normal 注册；xterm 的 fontWeight 只影响选字，勿把 medium 绑死到 Face
   const faceOptions = { weight: 'normal', style: 'normal' as const }
   try {
+    const faceNames = cssFaces.filter(function (faceName) {
+      return faceName !== 'Symbols Nerd Font Mono'
+    })
+    const settled = await Promise.allSettled(
+      faceNames.map(function (faceName) {
+        return registerTerminalCssFace(faceName, objectUrl, faceOptions)
+      })
+    )
     const registered: string[] = []
-    for (const faceName of cssFaces) {
-      if (faceName === 'Symbols Nerd Font Mono') continue
-      const face = new FontFace(faceName, `url(${objectUrl})`, faceOptions)
-      const loaded = await face.load()
-      document.fonts.add(loaded)
-      // 显式 load：仅 add + ready 时 WebView2 canvas 偶发仍量不到字形
-      await document.fonts.load(`12px "${faceName}"`)
-      registered.push(faceName)
+    for (const result of settled) {
+      if (result.status === 'fulfilled') {
+        registered.push(result.value)
+        continue
+      }
+      console.warn('[terminal] FontFace 注册失败', result.reason)
     }
     await document.fonts.ready
     const checked = registered.filter(function (faceName) {

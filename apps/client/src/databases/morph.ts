@@ -84,6 +84,7 @@ async function updateAnnotation(
   const db = await ensureStore()
   if (!db) return
   const entries = await db.entries()
+  // 顺序扫描 store 键，命中即写并返回（不可并行：同一 id 只在一桶里）
   for (const [key, value] of entries) {
     if (!key.startsWith('annotations:') || !Array.isArray(value)) continue
     const annotations = value.filter(isAnnotation)
@@ -106,6 +107,7 @@ async function removeAnnotation(id: string): Promise<void> {
   const db = await ensureStore()
   if (!db) return
   const entries = await db.entries()
+  // 顺序扫描 store 键，命中即写并返回（不可并行：同一 id 只在一桶里）
   for (const [key, value] of entries) {
     if (!key.startsWith('annotations:') || !Array.isArray(value)) continue
     const annotations = value.filter(isAnnotation)

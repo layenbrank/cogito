@@ -404,7 +404,7 @@ function FindBar(props: FindBarProps) {
       }
       const result = revealMatch(props.editor, options(), 0)
       // 高亮/选区是编辑器（外部系统）的副作用，这里只把当前命中序号镜像给 UI
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- reveal 后需刷新序号显示
+      // reveal 后需刷新序号显示
       setMatchIndex(result.index)
       keepFindFocus()
     },

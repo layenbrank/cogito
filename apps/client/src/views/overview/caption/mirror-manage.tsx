@@ -71,20 +71,24 @@ function MirrorEditor(props: MirrorEditorProps) {
     <article
       className={cn(styles.mirrorManageItem, props.isChosen && styles.mirrorManageItemActive)}
       data-active={props.isActive ? 'true' : undefined}
-      data-chosen={props.isChosen ? 'true' : undefined}
-      onClick={props.onChoose}>
+      data-chosen={props.isChosen ? 'true' : undefined}>
       {/* 两列顶对齐：图标（角标序号）| 字段栈，避免左侧序号列形成灰条 */}
       <div className={styles.mirrorManageRow}>
-        <span
+        <Button
+          type="button"
+          variant="ghost"
+          data-region="false"
           className={styles.mirrorManageMark}
           style={accent ? { backgroundColor: accent } : undefined}
-          aria-hidden>
+          aria-label={`选择「${mirror.title}」`}
+          onClick={props.onChoose}>
           <span className={styles.mirrorManageIndex}>{mirror.index + 1}</span>
           <Icon
             icon={icon}
             className={styles.mirrorManageMarkIcon}
+            aria-hidden
           />
-        </span>
+        </Button>
 
         <div className={styles.mirrorManageMain}>
           <div className={styles.mirrorManageTitleRow}>

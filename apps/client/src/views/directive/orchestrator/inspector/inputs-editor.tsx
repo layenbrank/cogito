@@ -62,7 +62,7 @@ function InputsEditor(props: InputsEditorProps) {
       {inputs.map(function (input, index) {
         return (
           <div
-            key={index}
+            key={input.name}
             className="space-y-2 rounded-md border p-2.5">
             <div className="flex items-center justify-between gap-2">
               <label className="flex items-center gap-2 text-xs">

@@ -1,5 +1,3 @@
-import { Icon } from '@iconify/react/offline'
-import { Button } from '@cogito/design/components/button'
 import { cn } from 'cn'
 import { toast } from 'sonner'
 
@@ -7,6 +5,27 @@ import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { isSamePath } from '@/views/knowledge/lib/path.ts'
 import { t } from '@/views/knowledge/locale.ts'
+import {
+  SummaryStatsRow,
+  SummaryWorkspaceRow
+} from '@/views/knowledge/workspace/overlay/summary-parts.tsx'
+
+function findWorkspaceLabel(input: {
+  rootDir: string | null
+  bases: ReturnType<typeof useKnowledgeBaseStore.getState>['bases']
+  activeBaseID: string | null
+}): string {
+  const activeBase = input.bases.find(function (base) {
+    return base.id === input.activeBaseID
+  })
+  if (input.rootDir && activeBase && isSamePath(input.rootDir, activeBase.rootPath)) {
+    return activeBase.name
+  }
+  if (input.rootDir) {
+    return input.rootDir.split(/[\\/]/).filter(Boolean).pop() ?? t('WORKSPACE')
+  }
+  return t('WORKSPACE')
+}
 
 /** 窗口底栏状态（Decorations.section） */
 function Summary() {
@@ -43,15 +62,7 @@ function Summary() {
 
   if (isFocusMode) return null
 
-  const activeBase = bases.find(function (base) {
-    return base.id === activeBaseID
-  })
-  const workspaceLabel =
-    rootDir && activeBase && isSamePath(rootDir, activeBase.rootPath)
-      ? activeBase.name
-      : rootDir
-        ? rootDir.split(/[\\/]/).filter(Boolean).pop()
-        : t('WORKSPACE')
+  const workspaceLabel = findWorkspaceLabel({ rootDir, bases, activeBaseID })
   const fileLabel = activePath?.split(/[/\\]/).pop() ?? t('UNTITLED')
   const isBootstrapping = !isSessionReady || isDocLoading
 
@@ -67,51 +78,23 @@ function Summary() {
       className={cn(
         'flex h-5.5 w-full min-w-0 items-center justify-between text-xs leading-none text-muted-foreground'
       )}>
-      <div className="flex min-w-0 items-center">
-        <span
-          className="flex max-w-36 items-center gap-1 truncate px-2 py-0.5"
-          title={rootDir ?? undefined}>
-          <Icon
-            icon="lucide:folder"
-            className="size-3 shrink-0 opacity-60"
-          />
-          <span className="truncate">{workspaceLabel}</span>
-        </span>
-        {isBootstrapping ? (
-          <span className="px-2 opacity-70">{t('SESSION_BOOTSTRAP')}</span>
-        ) : isDirty ? (
-          <span className="px-2 text-amber-600 dark:text-amber-400">{t('UNSAVED')}</span>
-        ) : activePath ? (
-          <span className="px-2 opacity-70">{t('SAVED')}</span>
-        ) : (
-          <span className="px-2 opacity-70">{t('UNTITLED')}</span>
-        )}
-        <Button
-          variant="ghost"
-          type="button"
-          className="h-auto max-w-56 truncate px-2 py-0.5 hover:bg-foreground/5 hover:text-foreground"
-          title={activePath ?? t('UNTITLED')}
-          onClick={onCopyPath}>
-          {isBootstrapping && !activePath ? '…' : fileLabel}
-        </Button>
-      </div>
+      <SummaryWorkspaceRow
+        workspaceLabel={workspaceLabel}
+        rootDir={rootDir}
+        isBootstrapping={isBootstrapping}
+        isDirty={isDirty}
+        activePath={activePath}
+        fileLabel={fileLabel}
+        onCopyPath={onCopyPath}
+      />
       <div className="flex shrink-0 items-center">
-        {isBootstrapping ? (
-          <span className="px-2 py-0.5 opacity-70">{t('SESSION_BOOTSTRAP')}</span>
-        ) : (
-          <>
-            <span className="px-2 py-0.5">
-              {stats.words} {t('WORDS')}
-            </span>
-            <span className="px-2 py-0.5">
-              {stats.chars} {t('CHARS')}
-            </span>
-            <span className="px-2 py-0.5">
-              {stats.lines} {t('LINES')}
-            </span>
-            <span className="px-2 py-0.5 uppercase tracking-wide">{viewMode}</span>
-          </>
-        )}
+        <SummaryStatsRow
+          isBootstrapping={isBootstrapping}
+          words={stats.words}
+          chars={stats.chars}
+          lines={stats.lines}
+          viewMode={viewMode}
+        />
       </div>
     </div>
   )

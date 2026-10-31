@@ -4,7 +4,7 @@
  * 所有 tab 的 TerminalView 始终挂载（非 active 仅 invisible），切换不重建会话。
  * 同一 `id` 全局只允许一个视图拥有 PTY，避免多宿主重复 create。
  */
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal as XtermTerminal } from '@xterm/xterm'
@@ -34,7 +34,9 @@ function TerminalView(props: TerminalViewProps) {
   const terminalRef = useRef<XtermTerminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const exitedRef = useRef(false)
-  const ownerTokenRef = useRef(Symbol('terminal-view'))
+  const [ownerToken] = useState(function () {
+    return Symbol('terminal-view')
+  })
   const isOwnerRef = useRef(false)
 
   useEffect(
@@ -42,14 +44,13 @@ function TerminalView(props: TerminalViewProps) {
       const container = containerRef.current
       if (!container) return
 
-      const token = ownerTokenRef.current
       const existingOwner = SESSION_OWNERS.get(props.id)
-      if (existingOwner && existingOwner !== token) {
+      if (existingOwner && existingOwner !== ownerToken) {
         // 另一宿主已拥有该会话：本实例只占位，不 create / 不 kill
         isOwnerRef.current = false
         return
       }
-      SESSION_OWNERS.set(props.id, token)
+      SESSION_OWNERS.set(props.id, ownerToken)
       isOwnerRef.current = true
 
       let disposed = false
@@ -81,6 +82,20 @@ function TerminalView(props: TerminalViewProps) {
         const fit = new FitAddon()
         terminal.loadAddon(fit)
         terminal.open(container)
+        /*
+         * Shift+Enter = 插入换行，而不是提交。
+         *
+         * 直接发 `\n` 没用 —— bash/zsh 同样会执行命令。这里走 readline 的
+         * quoted-insert：`C-v` + `C-j`，把换行当字面字符插进当前行，
+         * 于是能写多行命令/粘贴块后再统一回车执行。
+         */
+        terminal.attachCustomKeyEventHandler(function (event) {
+          if (event.type !== 'keydown') return true
+          if (event.key !== 'Enter' || !event.shiftKey) return true
+          event.preventDefault()
+          terminal.input('\x16\x0a', true)
+          return false
+        })
         // 字体刚注入时再写一次 family，迫使 canvas 重新量字宽
         terminal.options.fontFamily = typeface.fontFamily
         terminal.options.fontSize = typeface.fontSize
@@ -170,7 +185,7 @@ function TerminalView(props: TerminalViewProps) {
         const terminalInstance = terminalRef.current
         terminalRef.current = null
         fitRef.current = null
-        if (SESSION_OWNERS.get(props.id) === token) {
+        if (SESSION_OWNERS.get(props.id) === ownerToken) {
           SESSION_OWNERS.delete(props.id)
         }
         if (isOwnerRef.current && !exitedRef.current) {
@@ -180,7 +195,7 @@ function TerminalView(props: TerminalViewProps) {
         isOwnerRef.current = false
       }
     },
-    [props.id, props.cwd]
+    [props.id, props.cwd, ownerToken]
   )
 
   useEffect(
@@ -207,9 +222,21 @@ function TerminalView(props: TerminalViewProps) {
   return (
     <div
       ref={containerRef}
+      role="group"
+      aria-label="终端"
+      tabIndex={0}
       className="h-full w-full bg-background text-foreground"
       onMouseDown={function () {
         if (props.active) terminalRef.current?.focus()
+      }}
+      onKeyDown={function (event) {
+        if (!props.active) return
+        // 只处理「容器自己拿到焦点」的情况：按键来自 xterm 内部（子元素）时
+        // 必须放行，否则空格 / 回车会被 preventDefault 吞掉，终端里打不出空格和换行
+        if (event.target !== event.currentTarget) return
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        terminalRef.current?.focus()
       }}
     />
   )

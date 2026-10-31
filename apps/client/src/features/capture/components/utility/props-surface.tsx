@@ -84,18 +84,18 @@ function UtilityPropsSurface(props: UtilityPropsSurfaceProps) {
           }}
           initial={{
             opacity: 0,
-            height: 0,
-            overflow: 'hidden'
+            scaleY: 0.6,
+            y: -4
           }}
           animate={{
             opacity: 1,
-            height: 'auto',
-            overflow: 'visible'
+            scaleY: 1,
+            y: 0
           }}
           exit={{
             opacity: 0,
-            height: 0,
-            overflow: 'hidden'
+            scaleY: 0.85,
+            y: -2
           }}
           transition={{
             duration: 0.15

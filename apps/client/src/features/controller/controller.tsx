@@ -12,7 +12,7 @@ import styles from '@/features/controller/controller.module.scss'
 import { Reflection } from '@/features/controller/reflection.tsx'
 import { CLASS_NAMES } from '@/features/magnetic-tile/layout-menu/constants'
 import { buildItems } from '@/features/magnetic-tile/layout-menu/items'
-import { hasWallEntered, markWallEntered } from '@/features/magnetic-tile/enter'
+import { hasWallEntered, markWallEntered } from '@/features/magnetic-tile/enter-wall'
 import { MagneticTile } from '@/features/magnetic-tile/magnetic-tile.tsx'
 import {
   bindMirrorTransition,

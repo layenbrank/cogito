@@ -1,33 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
-
-import { clsx } from 'clsx'
-import { v4 as UUID } from 'uuid'
+import { useRef, useState } from 'react'
 
 import { ContextMenu, useContextMenu } from '@/components/contextmenu'
-import { copyText } from '@/features/capture/clipboard'
 import { CaptureErrorBoundary } from '@/features/capture/capture-error-boundary'
-import { CaptureErrorSurface, CaptureLoadingMask } from '@/features/capture/capture-status'
-import { Annotation, type AnnotationHandle } from '@/features/capture/components/annotation'
+import { CaptureStageView } from '@/features/capture/capture-stage-view'
+import { type AnnotationHandle } from '@/features/capture/components/annotation'
 import { type GraphicsEnum, type GraphicsProps } from '@/features/capture/components/graphics'
-import Magnifier from '@/features/capture/components/magnifier'
-import { OcrSurface } from '@/features/capture/components/ocr-surface'
-import Utility from '@/features/capture/components/utility'
-import {
-  clearCaptureSession,
-  makeCaptureSessionID
-} from '@/features/capture/history'
-import { recognizeText } from '@/features/capture/ocr'
 import { runCapturePrune } from '@/features/capture/retention'
-import { fetchImageFromPath, notifyCaptureReady, probeElements, refreshCapture, takePendingScreenshot, takeScreenshot } from '@/features/capture/tauri'
 import { useCaptureActions } from '@/features/capture/use-capture-actions'
 import { useCaptureHistory } from '@/features/capture/use-capture-history'
+import { useCaptureLifecycle } from '@/features/capture/use-capture-lifecycle'
+import { useCaptureOcr } from '@/features/capture/use-capture-ocr'
 import { useCaptureStage, type Phase } from '@/features/capture/use-capture-stage'
 import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
 import { useCommands, useShortcut } from '@/keyboard/react'
 import { DETECT_ELEMENT, DETECT_WINDOW, useSettingsStore } from '@/stores/setting'
-import { reportCaught } from '@/utils/exception-report'
-
-import styles from '@/features/capture/capture.module.scss'
+import { probeElements } from '@/features/capture/tauri'
 
 export interface CaptureProps {
   /** Rendered inside the shared overlay window. */
@@ -61,8 +48,6 @@ function Capture(props: CaptureProps = {}) {
   const [sourcePath, onUpdateSourcePath] = useState<string | null>(null)
   const [captureStatus, onUpdateCaptureStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [captureError, onUpdateCaptureError] = useState<string | null>(null)
-  const [ocrText, onUpdateOcrText] = useState<string | null>(null)
-  const [ocrBusy, onUpdateOcrBusy] = useState(false)
 
   const detect = useSettingsStore(function (state) {
     return state.settings.capture.detect
@@ -71,8 +56,6 @@ function Capture(props: CaptureProps = {}) {
   const isElementDetect = detect === DETECT_ELEMENT
   const { present: presentContextMenu } = useContextMenu()
   const annotationRef = useRef<AnnotationHandle>(null)
-  const [sessionID, onSessionID] = useState(makeCaptureSessionID)
-  const sessionIDRef = useRef(sessionID)
   const { canUndo, canRedo, commitHistory, undo, redo, resetHistory } = useCaptureHistory()
 
   const { regionsRef, hoverLabel, handlePress, handleMove, handleRelease, handleWheel, resetDragState } =
@@ -96,76 +79,30 @@ function Capture(props: CaptureProps = {}) {
       commitHistory
     })
 
-  /** 重新抓一帧：上层已清空标注（整体重来），这里只换底图 */
-  async function retake() {
-    onUpdateCaptureStatus('loading')
-    onUpdateCaptureError(null)
-    try {
-      const result = await refreshCapture()
-      const image = await fetchImageFromPath(result.path)
-      regionsRef.current = result.regions ?? []
-      onUpdateSourcePath(result.path)
-      onUpdateSourceImage(image)
-      onUpdateCaptureStatus('ready')
-    } catch (err) {
-      reportCaught('capture.pipeline', err)
-      onUpdateCaptureError(String(err))
-      onUpdateCaptureStatus('error')
-    }
-  }
+  const { sessionID, retake, bootstrapCapture } = useCaptureLifecycle({
+    active,
+    captureStatus,
+    sourceImage,
+    regionsRef,
+    onUpdateSourcePath,
+    onUpdateSourceImage,
+    onUpdateCaptureStatus,
+    onUpdateCaptureError
+  })
 
-  /**
-   * 取字：有选区就只识别选区，否则整张图。
-   *
-   * 选区是浮层逻辑像素，原图是物理像素，换算比例用 `naturalWidth / innerWidth`
-   * （浮层窗口正好铺满屏幕）。
-   */
-  async function runOcr() {
-    if (!sourcePath || !sourceImage || ocrBusy) return
-    onUpdateOcrBusy(true)
-    onUpdateOcrText('')
-    try {
-      const scale = sourceImage.naturalWidth / Math.max(window.innerWidth, 1)
-      const crop = selection
-        ? {
-            x: Math.round(selection.x * scale),
-            y: Math.round(selection.y * scale),
-            width: Math.round(selection.w * scale),
-            height: Math.round(selection.h * scale)
-          }
-        : null
-      const text = await recognizeText({ path: sourcePath, crop })
-      onUpdateOcrText(text.trim() || '没有识别到文字')
-    } catch (err) {
-      reportCaught('capture.ocr', err)
-      onUpdateOcrText(`取字失败：${String(err)}`)
-    } finally {
-      onUpdateOcrBusy(false)
-    }
-  }
-
-  /** 把识别结果落成一条文字标注，放在选区左上角 */
-  function insertOcrText() {
-    const text = ocrText?.trim()
-    if (!text || !selection) return
-    const id = UUID()
-    const next = annotations.concat([
-      {
-        id,
-        type: 'text',
-        color,
-        thickness,
-        fontSize,
-        filled,
-        opacity,
-        text,
-        points: [{ x: selection.x + 8, y: selection.y + 8 }]
-      }
-    ])
-    onUpdateAnnotations(next)
-    commitHistory(next)
-    onUpdateOcrText(null)
-  }
+  const { ocrText, ocrBusy, onUpdateOcrText, runOcr, insertOcrText } = useCaptureOcr({
+    sourcePath,
+    sourceImage,
+    selection,
+    color,
+    thickness,
+    fontSize,
+    filled,
+    opacity,
+    annotations,
+    onUpdateAnnotations,
+    commitHistory
+  })
 
   const actions = useCaptureActions({
     annotations,
@@ -201,9 +138,6 @@ function Capture(props: CaptureProps = {}) {
     }
   })
 
-  // 浮层内的键位全部走统一命令表（键与命令的对应关系在 `keyboard/definitions.ts`）：
-  // 撤销 / 重做 / 删除 / 重拍各自注册成命令，命令自己的 `run` 就是实现；
-  // ESC 用「接管」语义 —— 浮层在场就先逐级回退，否则交给 overlay 的兜底命令退出截屏。
   useCommands([
     {
       id: SHORTCUT_COMMAND.CAPTURE_UNDO,
@@ -244,212 +178,51 @@ function Capture(props: CaptureProps = {}) {
     return true
   })
 
-  async function bootstrapCapture(forceFresh = false) {
-    onUpdateCaptureStatus('loading')
-    onUpdateCaptureError(null)
-    try {
-      const result = forceFresh ? await takeScreenshot() : await takePendingScreenshot()
-      if (!result) {
-        throw new Error('未找到预截图，请点重试')
-      }
-      const img = await fetchImageFromPath(result.path)
-      regionsRef.current = result.regions ?? []
-      onUpdateSourcePath(result.path)
-      onUpdateSourceImage(img)
-      onUpdateCaptureStatus('ready')
-    } catch (err) {
-      reportCaught('capture.pipeline', err)
-      onUpdateCaptureError(String(err))
-      onUpdateCaptureStatus('error')
-    }
-  }
-
-  const bootstrapStartedRef = useRef(false)
-
-  /** 首帧画上屏后告诉宿主：宿主收到才撤掉 conceal，否则会露出实时桌面 */
-  const readyNotifiedRef = useRef(false)
-  useEffect(
-    function () {
-      if (captureStatus !== 'ready' || !sourceImage) {
-        readyNotifiedRef.current = false
-        return
-      }
-      if (readyNotifiedRef.current) return
-      readyNotifiedRef.current = true
-      let cancelled = false
-      requestAnimationFrame(function () {
-        requestAnimationFrame(function () {
-          if (!cancelled) void notifyCaptureReady()
-        })
-      })
-      return function () {
-        cancelled = true
-      }
-    },
-    [captureStatus, sourceImage]
-  )
-
-  /** 会话 id 只在 effect 里同步进 ref：渲染期写 ref 会被 react-hooks/refs 拦下 */
-  useEffect(
-    function () {
-      sessionIDRef.current = sessionID
-    },
-    [sessionID]
-  )
-
-  useEffect(function () {
-    void useSettingsStore.getState().toInitialize()
-  }, [])
-
-  useEffect(
-    function () {
-      if (!active) {
-        bootstrapStartedRef.current = false
-        clearCaptureSession(sessionIDRef.current)
-        return
-      }
-      if (bootstrapStartedRef.current) return
-      bootstrapStartedRef.current = true
-      const nextSession = makeCaptureSessionID()
-      sessionIDRef.current = nextSession
-      onSessionID(nextSession)
-      let cancelled = false
-      void (async function () {
-        try {
-          // pending 是宿主在切截屏态之前预抓好的；万一已被消费（例如浮层中途重载）
-          // 就现抓一帧兜底，别因为一次时序问题把用户挡在「未找到预截图」的错误面板上。
-          const pending = await takePendingScreenshot(function () {
-            return cancelled
-          })
-          if (cancelled) return
-          const result = pending ?? (await takeScreenshot())
-          if (cancelled) return
-          const img = await fetchImageFromPath(result.path)
-          if (cancelled) return
-          regionsRef.current = result.regions ?? []
-          onUpdateSourcePath(result.path)
-          onUpdateSourceImage(img)
-          onUpdateCaptureStatus('ready')
-        } catch (err) {
-          if (cancelled) return
-          reportCaught('capture.pipeline', err)
-          onUpdateCaptureError(String(err))
-          onUpdateCaptureStatus('error')
-        }
-      })()
-      return function () {
-        cancelled = true
-      }
-    },
-    [active, regionsRef]
-  )
-
   return (
     <CaptureErrorBoundary
       onError={function () {
         onExit?.()
       }}
       onClose={onClose ?? function () {}}>
-      <div className={clsx(styles.capture)}>
-        {captureStatus === 'error' ? (
-          <CaptureErrorSurface
-            message={captureError}
-            onRetry={function () {
-              void bootstrapCapture(true)
-            }}
-            onExit={onExit}
-          />
-        ) : (
-          <>
-            {captureStatus === 'loading' ? <CaptureLoadingMask /> : null}
-            <div>
-              <Annotation
-                ref={annotationRef}
-                onClose={onClose ?? function () {}}
-                onMove={handleMove}
-                onWheel={function (event) {
-                  // 滚轮换层 / Shift+滚轮换窗口；消费掉事件避免页面滚动
-                  if (handleWheel(event.evt.deltaY, event.evt.shiftKey)) event.evt.preventDefault()
-                }}
-                clipRect={selection}
-                onPress={handlePress}
-                selectedID={selectedID}
-                selectedIDs={selectedIDs}
-                annotations={annotations}
-                sourceImage={sourceImage}
-                onRelease={handleRelease}
-                onSelect={actions.handleSelect}
-                onSelectMany={actions.handleSelectMany}
-                interactive={captureStatus === 'ready'}
-                onChange={actions.handleAnnotationChange}
-                onBatchChange={actions.handleAnnotationsBatchChange}
-                onContextMenuAnnotation={actions.handleContextMenuAnnotation}
-                onEditStart={function () {
-                  actions.handleSelect(null)
-                }}
-                selection={selection}
-                phase={phase}
-                hoverLabel={hoverLabel}
-                onSelectionChange={onUpdateSelection}
-                graphicsActive={graphics !== null}
-              />
-            </div>
-
-            <Magnifier
-              sourceImage={sourceImage}
-              visible={phase === 'selecting' && captureStatus === 'ready'}
-              onClose={onClose ?? function () {}}
-            />
-
-            {captureStatus === 'ready' && (
-              <Utility
-                color={color}
-                filled={filled}
-                canRedo={canRedo}
-                canUndo={canUndo}
-                active={graphics}
-                opacity={opacity}
-                ocrBusy={ocrBusy}
-                onOcr={function () {
-                  void runOcr()
-                }}
-                onCopy={actions.handleCopy}
-                onPin={actions.handlePin}
-                fontSize={fontSize}
-                onRedo={actions.handleRedo}
-                onUndo={actions.handleUndo}
-                thickness={thickness}
-                onClose={actions.handleClose}
-                onRefresh={actions.handleRefresh}
-                onSave={actions.handleSave}
-                onUpdateColor={actions.handleUpdateColor}
-                onUpdateUtility={actions.handleUpdateGraphics}
-                onUpdateFilled={actions.handleUpdateFilled}
-                onUpdateOpacity={actions.handleUpdateOpacity}
-                onUpdateFontSize={actions.handleUpdateFontSize}
-                onUpdateThickness={actions.handleUpdateThickness}
-                selection={phase === 'selecting' ? null : selection}
-              />
-            )}
-
-            {ocrText !== null ? (
-              <OcrSurface
-                text={ocrText}
-                busy={ocrBusy}
-                canInsert={Boolean(selection)}
-                onCopy={function () {
-                  void copyText(ocrText)
-                }}
-                onInsert={insertOcrText}
-                onClose={function () {
-                  onUpdateOcrText(null)
-                }}
-              />
-            ) : null}
-            <ContextMenu.Host />
-          </>
-        )}
-      </div>
+      <CaptureStageView
+        captureStatus={captureStatus}
+        captureError={captureError}
+        onBootstrapCapture={function (forceFresh) {
+          void bootstrapCapture(forceFresh)
+        }}
+        onExit={onExit}
+        onClose={onClose}
+        annotationRef={annotationRef}
+        handleMove={handleMove}
+        handleWheel={handleWheel}
+        handlePress={handlePress}
+        handleRelease={handleRelease}
+        selection={selection}
+        selectedID={selectedID}
+        selectedIDs={selectedIDs}
+        annotations={annotations}
+        sourceImage={sourceImage}
+        actions={actions}
+        onUpdateSelection={onUpdateSelection}
+        phase={phase}
+        hoverLabel={hoverLabel}
+        graphics={graphics}
+        canRedo={canRedo}
+        canUndo={canUndo}
+        color={color}
+        filled={filled}
+        opacity={opacity}
+        fontSize={fontSize}
+        thickness={thickness}
+        ocrBusy={ocrBusy}
+        ocrText={ocrText}
+        onRunOcr={function () {
+          void runOcr()
+        }}
+        onUpdateOcrText={onUpdateOcrText}
+        onInsertOcrText={insertOcrText}
+      />
+      <ContextMenu.Host />
     </CaptureErrorBoundary>
   )
 }

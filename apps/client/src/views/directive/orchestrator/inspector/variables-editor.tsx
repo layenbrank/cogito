@@ -82,11 +82,11 @@ function VariablesEditor(props: VariablesEditorProps) {
           尚未声明变量；步骤参数里可用 {'{{variables.xxx}}'}
         </p>
       ) : null}
-      {entries.map(function (entry, index) {
+      {entries.map(function (entry) {
         const key = entry[0]
         return (
           <div
-            key={index}
+            key={key}
             className="space-y-2 rounded-md border p-2.5">
             <div className="flex justify-end">
               <Button
