@@ -16,6 +16,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { isModifierEvent, matchesEventText } from '@/keyboard/binding'
 import { hasCommand, runCommand } from '@/keyboard/commands'
 import { LOCAL_SHORTCUTS, findBindingTexts } from '@/keyboard/definitions'
+import { isFindShortcut } from '@/keyboard/native-find-block'
 import type { LocalShortcutDefinition, ShortcutWindow } from '@/keyboard/types'
 
 /** 作用域具体度：编辑器 > 视图 > 应用；同键命中多个时具体者优先 */
@@ -109,7 +110,11 @@ async function dispatchKeydown(
   if (isModifierEvent(event)) return false
 
   const candidates = findCandidates(event, label)
-  if (candidates.length === 0) return false
+  if (candidates.length === 0) {
+    // 无人接管时仍拦 WebView 原生查找（Ctrl/Cmd+F、F3、Ctrl/Cmd+G）
+    if (isFindShortcut(event)) event.preventDefault()
+    return false
+  }
 
   // 同步拦默认行为：浏览器/系统的默认动作在监听器返回后就会执行，等 await 完再拦已经晚了
   event.preventDefault()
