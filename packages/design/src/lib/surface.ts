@@ -14,10 +14,13 @@ const FIELD_SHELL = cn(
 
 /**
  * 浮层壳：Select / DropdownMenu / Popover Popup 共用。
- * border + shadow-lg 在浅色同底上拉开层级；动画 150ms（企业级微交互区间）。
+ *
+ * 统一对齐审批 / 模型选择器的风格：**无边框**，靠软阴影拉开层级。
+ * 不用 border / ring —— 两者在浅色同底上都显得生硬，阴影更干净。
+ * 动画 150ms（企业级微交互区间）。
  */
 const OVERLAY_SHELL = cn(
-  'rounded-lg border border-border bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/5 outline-hidden duration-150',
+  'rounded-xl bg-popover text-popover-foreground shadow-xl outline-hidden duration-150',
   'data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95',
   'data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
   'data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2'

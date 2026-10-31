@@ -12,7 +12,7 @@ import tseslint from 'typescript-eslint'
  * 生成物用箭头函数表达 render prop / 事件回调，逐次改写不划算。
  */
 export default defineConfig([
-  globalIgnores(['dist', 'coverage', 'node_modules']),
+  globalIgnores(['dist', 'coverage', 'node_modules', 'eslint.config.ts']),
   eslint.configs.recommended,
   tseslint.configs.recommended,
   reactHooks.configs.flat['recommended-latest'],

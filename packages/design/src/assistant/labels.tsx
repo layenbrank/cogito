@@ -1,5 +1,7 @@
 import { createContext, useContext, useMemo, type FC, type PropsWithChildren } from 'react'
 
+import { findDayLabel } from './thread-day'
+
 /**
  * assistant 组件的界面文案。
  *
@@ -24,6 +26,15 @@ type AssistantLabels = {
   welcome: string
   loadingConversation: string
   scrollToBottom: string
+  /** 左侧用户消息标尺（Cursor 式刻度导航） */
+  userMessageLocator: string
+  userMessageLocatorItem: (ordinal: number, total: number) => string
+  /** 用户句滚出视口后的浓缩 sticky 条（点击回到该句） */
+  userMessageSticky: string
+  /** 消息日期分隔条（今天 / 昨天 / 更早的日期） */
+  dayLabel: (date: Date) => string
+  /** 被用户中断的回合尾注 */
+  stoppedRun: string
   working: string
   copy: string
   reload: string
@@ -43,7 +54,18 @@ type AssistantLabels = {
   composerPlaceholder: string
   /** 已有消息时的占位，空会话仍用 composerPlaceholder */
   composerPlaceholderContinue: string
+  /** Agent 运行中且支持队列时的占位 */
+  composerPlaceholderRunning: string
   messageInput: string
+  /** 待发送队列标题 */
+  queueHeading: string
+  queueRemove: string
+  queueSteerNow: string
+  /** 运行中点击发送（入队） */
+  sendQueued: string
+  /** 输入区上方排队条标题 */
+  queuedMessages: (count: number) => string
+  removeQueuedMessage: string
 
   // 部件
   /** 推理折叠条：`seconds` 只在有耗时时给出 */
@@ -79,6 +101,8 @@ type AssistantLabels = {
   copyImage: string
 }
 
+const DAY_WORDS_EN = { today: 'Today', yesterday: 'Yesterday' }
+
 const ASSISTANT_LABELS_EN: AssistantLabels = {
   newThread: 'New Thread',
   searchThreads: 'Search threads',
@@ -95,6 +119,11 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   welcome: 'How can I help you today?',
   loadingConversation: 'Loading conversation',
   scrollToBottom: 'Scroll to bottom',
+  userMessageLocator: 'Jump to your messages',
+  userMessageLocatorItem: (ordinal, total) => `Your message ${ordinal} / ${total}`,
+  userMessageSticky: 'Jump to your message',
+  dayLabel: (date) => findDayLabel(date, DAY_WORDS_EN),
+  stoppedRun: 'Response stopped',
   working: 'Thinking…',
   copy: 'Copy',
   reload: 'Refresh',
@@ -114,7 +143,14 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   composerPlaceholderContinue: 'Continue this task...',
   messageInput: 'Message input',
 
-  reasoning: (seconds) => `Reasoning${seconds ? ` (${seconds}s)` : ''}`,
+  composerPlaceholderRunning: 'Queue with Enter · Ctrl+Enter to steer now',
+  queueHeading: 'Queued',
+  queueRemove: 'Remove from queue',
+  queueSteerNow: 'Send now',
+  sendQueued: 'Add to queue',
+  queuedMessages: (count) => (count === 1 ? '1 queued' : `${count} queued`),
+  removeQueuedMessage: 'Remove from queue',
+  reasoning: (seconds) => (seconds ? `Reasoning · ${seconds}s` : 'Reasoning'),
   process: (steps, seconds) =>
     `Process · ${steps} ${steps === 1 ? 'step' : 'steps'}${seconds ? ` · ${seconds}s` : ''}`,
   toolCalls: (count, failed) =>

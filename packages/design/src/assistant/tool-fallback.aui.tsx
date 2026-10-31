@@ -14,8 +14,10 @@ import { memo, useCallback, useRef, useState } from 'react'
 import { Button } from '../components/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../components/collapsible'
 import { Textarea } from '../components/textarea'
+import { useCollapseScrollPin } from './collapse-scroll-pin'
+import { CHAT_DURATION_MS, CHAT_EASE_CLASS } from './chat-motion'
 
-const ANIMATION_DURATION = 200
+const ANIMATION_DURATION = CHAT_DURATION_MS
 
 export type ToolFallbackRootProps = Omit<
   React.ComponentProps<typeof Collapsible>,
@@ -37,19 +39,21 @@ function ToolFallbackRoot({
   const collapsibleRef = useRef<HTMLDivElement>(null)
   const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen)
   const lockScroll = useScrollLock(collapsibleRef, ANIMATION_DURATION)
+  const armCollapsePin = useCollapseScrollPin(collapsibleRef)
 
   const isControlled = controlledOpen !== undefined
   const isOpen = isControlled ? controlledOpen : uncontrolledOpen
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
-      lockScroll()
+      if (open) lockScroll()
+      else armCollapsePin(ANIMATION_DURATION)
       if (!isControlled) {
         setUncontrolledOpen(open)
       }
       controlledOnOpenChange?.(open)
     },
-    [lockScroll, isControlled, controlledOnOpenChange]
+    [lockScroll, armCollapsePin, isControlled, controlledOnOpenChange]
   )
 
   return (
@@ -151,7 +155,7 @@ function ToolFallbackTrigger({
         data-slot="tool-fallback-trigger-chevron"
         className={cn(
           'aui-tool-fallback-trigger-chevron size-4 shrink-0',
-          'transition-transform duration-(--animation-duration) ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none',
+          `transition-transform duration-(--animation-duration) ${CHAT_EASE_CLASS} motion-reduce:transition-none`,
           '-rotate-90',
           'group-data-open/trigger:rotate-0',
           'group-data-panel-open/trigger:rotate-0'
@@ -170,24 +174,11 @@ function ToolFallbackContent({
       data-slot="tool-fallback-content"
       className={cn(
         'aui-tool-fallback-content relative overflow-hidden text-sm outline-none',
-        'group/collapsible-content ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:animate-none',
-        'data-closed:animate-collapsible-up',
-        'data-open:animate-collapsible-down',
-        'data-closed:fill-mode-forwards',
-        'data-closed:pointer-events-none',
-        '[--tw-duration:var(--animation-duration)]',
+        'group/collapsible-content data-closed:pointer-events-none',
         className
       )}
       {...props}>
-      <div
-        className={cn(
-          'flex flex-col gap-2 ps-6 pt-1 pb-2 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:animate-none',
-          'group-data-open/collapsible-content:animate-in group-data-open/collapsible-content:fade-in-0 group-data-open/collapsible-content:blur-in-[2px] group-data-open/collapsible-content:slide-in-from-top-1',
-          'group-data-closed/collapsible-content:animate-out group-data-closed/collapsible-content:fade-out-0 group-data-closed/collapsible-content:blur-out-[2px] group-data-closed/collapsible-content:slide-out-to-top-1',
-          'group-data-closed/collapsible-content:animation-duration-(--animation-duration) group-data-open/collapsible-content:animation-duration-(--animation-duration)'
-        )}>
-        {children}
-      </div>
+      <div className="flex flex-col gap-2 ps-6 pt-1 pb-2">{children}</div>
     </CollapsibleContent>
   )
 }

@@ -4,9 +4,12 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from 'cn'
 import { memo, useCallback, useRef, useState, type FC, type PropsWithChildren } from 'react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../components/collapsible'
+import { useCollapseScrollPin } from './collapse-scroll-pin'
 import { useAssistantLabels } from './labels'
 
-const ANIMATION_DURATION = 200
+import { CHAT_DURATION_MS, CHAT_EASE_CLASS } from './chat-motion'
+
+const ANIMATION_DURATION = CHAT_DURATION_MS
 
 /** 默认 ghost：与 Cursor「N tool calls」扁平行一致 */
 const toolGroupVariants = cva('aui-tool-group-root group/tool-group w-full', {
@@ -42,19 +45,23 @@ function ToolGroupRoot({
   const collapsibleRef = useRef<HTMLDivElement>(null)
   const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen)
   const lockScroll = useScrollLock(collapsibleRef, ANIMATION_DURATION)
+  const armCollapsePin = useCollapseScrollPin(collapsibleRef)
 
   const isControlled = controlledOpen !== undefined
   const isOpen = isControlled ? controlledOpen : uncontrolledOpen
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
-      lockScroll()
+      // 展开：锁 scrollTop，避免贴底 followBottom 把内容往上抽
+      // 收起：钉住折叠条（冻 scrollTop 在贴底会更抖）
+      if (open) lockScroll()
+      else armCollapsePin(ANIMATION_DURATION)
       if (!isControlled) {
         setUncontrolledOpen(open)
       }
       controlledOnOpenChange?.(open)
     },
-    [lockScroll, isControlled, controlledOnOpenChange]
+    [lockScroll, armCollapsePin, isControlled, controlledOnOpenChange]
   )
 
   return (
@@ -128,7 +135,7 @@ function ToolGroupTrigger({
         data-slot="tool-group-trigger-chevron"
         className={cn(
           'aui-tool-group-trigger-chevron size-3.5 shrink-0 opacity-70',
-          'transition-transform duration-(--animation-duration) ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none',
+          `transition-transform duration-(--animation-duration) ${CHAT_EASE_CLASS} motion-reduce:transition-none`,
           '-rotate-90',
           'group-data-open/trigger:rotate-0',
           'group-data-panel-open/trigger:rotate-0'
@@ -148,12 +155,7 @@ function ToolGroupContent({
       data-slot="tool-group-content"
       className={cn(
         'aui-tool-group-content relative overflow-hidden text-sm outline-none',
-        'group/collapsible-content ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:animate-none',
-        'data-closed:animate-collapsible-up',
-        'data-open:animate-collapsible-down',
-        'data-closed:fill-mode-forwards',
-        'data-closed:pointer-events-none',
-        '[--tw-duration:var(--animation-duration)]',
+        'group/collapsible-content data-closed:pointer-events-none',
         className
       )}
       {...props}>
@@ -162,13 +164,7 @@ function ToolGroupContent({
           'mt-2 flex flex-col gap-2',
           'group-data-[variant=ghost]/tool-group-root:mt-1 group-data-[variant=ghost]/tool-group-root:gap-1',
           'group-data-[variant=outline]/tool-group-root:mt-3 group-data-[variant=outline]/tool-group-root:border-t group-data-[variant=outline]/tool-group-root:px-4 group-data-[variant=outline]/tool-group-root:pt-3',
-          'group-data-[variant=muted]/tool-group-root:mt-3 group-data-[variant=muted]/tool-group-root:border-t group-data-[variant=muted]/tool-group-root:px-4 group-data-[variant=muted]/tool-group-root:pt-3',
-          '[&>*]:animate-in [&>*]:fade-in-0 [&>*]:blur-in-[2px] [&>*]:slide-in-from-top-1 [&>*]:animation-duration-(--animation-duration) [&>*]:ease-[cubic-bezier(0.32,0.72,0,1)]',
-          '[&>*]:motion-reduce:animate-none',
-          '[&>*:nth-child(2)]:[animation-delay:40ms]',
-          '[&>*:nth-child(3)]:[animation-delay:80ms]',
-          '[&>*:nth-child(4)]:[animation-delay:120ms]',
-          '[&>*:nth-child(n+5)]:[animation-delay:160ms]'
+          'group-data-[variant=muted]/tool-group-root:mt-3 group-data-[variant=muted]/tool-group-root:border-t group-data-[variant=muted]/tool-group-root:px-4 group-data-[variant=muted]/tool-group-root:pt-3'
         )}>
         {children}
       </div>

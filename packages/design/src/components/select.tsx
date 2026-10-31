@@ -35,12 +35,12 @@ function Select<Value, Multiple extends boolean | undefined = false>({
   size?: SelectSize
 }) {
   const [resolvedSize, updateResolvedSize] = useState<SelectSize>(size)
-  useLayoutEffect(
-    function () {
-      updateResolvedSize(size)
-    },
-    [size]
-  )
+  const [sizeProp, updateSizeProp] = useState<SelectSize>(size)
+  // 派生 state：props 变了在 render 阶段同步一次，避免 effect 里 setState 多一轮渲染
+  if (size !== sizeProp) {
+    updateSizeProp(size)
+    updateResolvedSize(size)
+  }
   return (
     <SelectSizeContext.Provider
       value={{

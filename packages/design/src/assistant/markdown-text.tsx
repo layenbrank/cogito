@@ -1,20 +1,31 @@
 import { Icon } from '@iconify/react/offline'
 import '@assistant-ui/react-markdown/styles/dot.css'
 
-import type { TextMessagePartProps } from '@assistant-ui/react'
+import { useAuiState, type TextMessagePartProps } from '@assistant-ui/react'
 import {
   type CodeHeaderProps,
   MarkdownTextPrimitive,
+  type SyntaxHighlighterProps,
   unstable_memoizeMarkdownComponents as memoizeMarkdownComponents,
   useIsMarkdownCodeBlock
 } from '@assistant-ui/react-markdown'
-import { type FC, memo, useMemo, useRef } from 'react'
+import { type FC, lazy, memo, Suspense, useMemo, useRef } from 'react'
+import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 import { cn } from 'cn'
 import { useCopyToClipboard } from '../hooks/use-copy-to-clipboard'
 import { useAssistantLabels } from './labels'
 import { TooltipIconButton } from './tooltip-icon-button'
+
+const LazyCodeBlock = lazy(function () {
+  return import('./code-block').then(function (module) {
+    return { default: module.CodeBlock }
+  })
+})
+
+const PRE_CLASS =
+  'aui-md-pre border-border/60 bg-card max-h-[min(36vh,20rem)] overflow-auto overscroll-y-contain rounded-t-none rounded-b-xl border border-t-0 p-3.5 font-mono text-sm leading-relaxed shadow-xs'
 
 type MarkdownTextProps = Partial<TextMessagePartProps> & {
   components?: Parameters<typeof memoizeMarkdownComponents>[0]
@@ -49,7 +60,6 @@ const MarkdownTextImpl: FC<MarkdownTextProps> = ({ components }) => {
       remarkPlugins={[remarkGfm]}
       className="aui-md"
       components={markdownComponents}
-      defer
     />
   )
 }
@@ -59,15 +69,15 @@ export const MarkdownText = memo(MarkdownTextImpl)
 const CodeHeader: FC<CodeHeaderProps> = ({ language, code }) => {
   const labels = useAssistantLabels()
   const { isCopied, copyToClipboard } = useCopyToClipboard()
-  const onCopy = () => {
+  function onCopy() {
     if (!code || isCopied) return
     copyToClipboard(code)
   }
 
   return (
-    <div className="aui-code-header-root border-border/40 bg-muted/40 mt-4 flex items-center justify-between rounded-t-xl border border-b-0 px-3.5 py-1.5 text-xs backdrop-blur-sm">
-      <span className="aui-code-header-language text-muted-foreground font-medium lowercase">
-        {language}
+    <div className="aui-code-header-root border-border/60 bg-muted/80 mt-4 flex items-center justify-between rounded-t-xl border border-b-0 px-3 py-1.5 text-xs">
+      <span className="bg-primary/10 text-primary rounded-md px-1.5 py-0.5 font-mono text-xs font-medium tracking-wide lowercase">
+        {language || 'text'}
       </span>
       <TooltipIconButton
         tooltip={labels.copy}
@@ -75,13 +85,13 @@ const CodeHeader: FC<CodeHeaderProps> = ({ language, code }) => {
         {!isCopied && (
           <Icon
             icon="lucide:copy"
-            className="animate-in zoom-in-75 fade-in duration-150"
+            className="fade-in animate-in duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]"
           />
         )}
         {isCopied && (
           <Icon
             icon="lucide:check"
-            className="animate-in zoom-in-50 fade-in duration-200 ease-out"
+            className="fade-in animate-in duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
           />
         )}
       </TooltipIconButton>
@@ -239,12 +249,43 @@ const defaultComponents = memoizeMarkdownComponents({
       {...props}
     />
   ),
+  SyntaxHighlighter: function MarkdownSyntaxHighlighter({
+    code,
+    language,
+    components
+  }: SyntaxHighlighterProps) {
+    const Pre = components.Pre
+    const Code = components.Code
+    // 流式中不做 shiki：每 token 高亮会拖垮主线程并推高滚动条抖动
+    const isRunning = useAuiState(function (state) {
+      return state.message.status?.type === 'running'
+    })
+    if (isRunning) {
+      return (
+        <Pre className={PRE_CLASS}>
+          <Code>{code}</Code>
+        </Pre>
+      )
+    }
+    return (
+      <Suspense
+        fallback={
+          <Pre className={PRE_CLASS}>
+            <Code>{code}</Code>
+          </Pre>
+        }>
+        <LazyCodeBlock
+          code={code}
+          language={language || 'text'}
+          showHeader={false}
+          className="aui-md-pre my-0 rounded-t-none rounded-b-xl border-t-0"
+        />
+      </Suspense>
+    )
+  },
   pre: ({ className, ...props }) => (
     <pre
-      className={cn(
-        'aui-md-pre border-border/40 bg-muted/25 overflow-x-auto rounded-t-none rounded-b-xl border border-t-0 p-3.5 text-sm leading-relaxed',
-        className
-      )}
+      className={cn(PRE_CLASS, className)}
       {...props}
     />
   ),
@@ -262,4 +303,23 @@ const defaultComponents = memoizeMarkdownComponents({
     )
   },
   CodeHeader
+})
+
+/**
+ * 静态 markdown 渲染：给「不是消息 part」的场景复用同一套组件样式
+ * （右栏的计划正文、说明文档等）。
+ */
+export const MarkdownContent = memo(function MarkdownContent(props: {
+  markdown: string
+  className?: string
+}) {
+  return (
+    <div className={cn('aui-md', props.className ?? 'text-sm')}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={defaultComponents}>
+        {props.markdown}
+      </ReactMarkdown>
+    </div>
+  )
 })

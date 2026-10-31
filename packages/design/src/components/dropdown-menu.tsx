@@ -119,7 +119,7 @@ function DropdownMenuItem({
 }) {
   // Base UI Menu.Item 默认 nativeButton=false（渲染 div）。
   // 通过 render 合成到 <button>（如 TipTap Button）时必须为 true，否则刷屏警告。
-  const resolvedNativeButton = nativeButton ?? (render != null ? true : false)
+  const resolvedNativeButton = nativeButton ?? (render !== null && render !== undefined ? true : false)
   return (
     <MenuPrimitive.Item
       data-slot="dropdown-menu-item"
@@ -155,7 +155,7 @@ function DropdownMenuSubTrigger({
 }: MenuPrimitive.SubmenuTrigger.Props & {
   inset?: boolean
 }) {
-  const resolvedNativeButton = nativeButton ?? (render != null ? true : false)
+  const resolvedNativeButton = nativeButton ?? (render !== null && render !== undefined ? true : false)
   return (
     <MenuPrimitive.SubmenuTrigger
       data-slot="dropdown-menu-sub-trigger"

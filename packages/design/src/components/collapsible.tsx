@@ -2,10 +2,15 @@
 
 import { Collapsible as CollapsiblePrimitive } from '@base-ui/react/collapsible'
 import { cn } from 'cn'
+import type { Ref } from 'react'
 
-function Collapsible({ ...props }: CollapsiblePrimitive.Root.Props) {
+function Collapsible({
+  ref,
+  ...props
+}: CollapsiblePrimitive.Root.Props & { ref?: Ref<HTMLElement> }) {
   return (
     <CollapsiblePrimitive.Root
+      ref={ref}
       data-slot="collapsible"
       {...props}
     />
@@ -21,15 +26,20 @@ function CollapsibleTrigger({ ...props }: CollapsiblePrimitive.Trigger.Props) {
   )
 }
 
+/**
+ * 用 height CSS transition（Base UI 推荐），不用 keyframe 高度动画。
+ * keyframe 关合时 `--collapsible-panel-height` 与子层淡出/滚动锁叠在一起会严重抖动。
+ */
 function CollapsibleContent({ className, ...props }: CollapsiblePrimitive.Panel.Props) {
   return (
     <CollapsiblePrimitive.Panel
       data-slot="collapsible-content"
       className={cn(
-        // 打开播 collapsible-down（0 → 内容高），关闭切 collapsible-up（内容高 → 0）。
-        // 大块内容（过程摘要）由消费者传 animate-none 覆盖；className 必须在后，方便 twMerge。
-        'overflow-hidden motion-reduce:animate-none',
-        'animate-collapsible-down data-ending-style:animate-collapsible-up',
+        'overflow-hidden',
+        'h-(--collapsible-panel-height)',
+        'transition-[height] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
+        'data-starting-style:h-0 data-ending-style:h-0',
+        'motion-reduce:transition-none',
         className
       )}
       {...props}

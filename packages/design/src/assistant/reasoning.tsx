@@ -11,9 +11,12 @@ import {
   useState
 } from 'react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../components/collapsible'
+import { useCollapseScrollPin } from './collapse-scroll-pin'
 import { useAssistantLabels } from './labels'
 
-export const ANIMATION_DURATION = 200
+import { CHAT_DURATION_MS, CHAT_EASE_CLASS } from './chat-motion'
+
+export const ANIMATION_DURATION = CHAT_DURATION_MS
 
 const ReasoningPreviewContext = createContext(false)
 
@@ -73,6 +76,8 @@ function ReasoningRoot({
   children,
   ...props
 }: ReasoningRootProps) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const armCollapsePin = useCollapseScrollPin(rootRef)
   const [initialOpen] = useState(defaultOpen)
   const [userOpen, setUserOpen] = useState<boolean | null>(null)
 
@@ -94,17 +99,20 @@ function ReasoningRoot({
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
+      // 贴底收起：面板 instant 时仍用 spacer 时长做平滑收高，避免 followBottom 抢滚动
+      if (!open) armCollapsePin(instant ? ANIMATION_DURATION : durationMs)
       if (!instant) onAnimationStart?.()
       if (!isControlled) {
         setUserOpen(open)
       }
       controlledOnOpenChange?.(open)
     },
-    [instant, onAnimationStart, isControlled, controlledOnOpenChange]
+    [armCollapsePin, instant, durationMs, onAnimationStart, isControlled, controlledOnOpenChange]
   )
 
   return (
     <Collapsible
+      ref={rootRef}
       data-slot="reasoning-root"
       data-variant={variant}
       data-instant={instant ? 'true' : undefined}
@@ -201,7 +209,7 @@ function ReasoningTrigger({
         data-slot="reasoning-trigger-chevron"
         className={cn(
           'aui-reasoning-trigger-chevron size-3.5 shrink-0 opacity-70',
-          'transition-transform duration-(--animation-duration) ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none',
+          `transition-transform duration-(--animation-duration) ${CHAT_EASE_CLASS} motion-reduce:transition-none`,
           '-rotate-90',
           'group-data-open/trigger:rotate-0',
           'group-data-panel-open/trigger:rotate-0'
@@ -224,17 +232,9 @@ function ReasoningContent({
       data-slot="reasoning-content"
       className={cn(
         'aui-reasoning-content text-muted-foreground relative overflow-hidden text-sm outline-none',
-        'group/collapsible-content ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:animate-none',
-        // instant：彻底关掉高度动画（含 CollapsibleContent 默认的 animate-collapsible-*）
-        isInstant
-          ? 'animate-none! data-closed:animate-none! data-open:animate-none! data-ending-style:animate-none!'
-          : [
-              'data-closed:animate-collapsible-up',
-              'data-open:animate-collapsible-down',
-              'data-closed:fill-mode-forwards'
-            ],
-        'data-closed:pointer-events-none',
-        '[--tw-duration:var(--animation-duration)]',
+        'group/collapsible-content data-closed:pointer-events-none',
+        // instant：关掉高度 transition，大块过程摘要直接显隐
+        isInstant && 'transition-none!',
         className
       )}
       {...props}>
@@ -247,7 +247,6 @@ function ReasoningContent({
 
 function ReasoningText({ className, children, ...props }: React.ComponentProps<'div'>) {
   const isPreview = useContext(ReasoningPreviewContext)
-  const isInstant = useContext(ReasoningInstantContext)
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
 
@@ -301,16 +300,7 @@ function ReasoningText({ className, children, ...props }: React.ComponentProps<'
         // 思考区 markdown 段落默认 my-3 过大，收紧以免被视作「截断」
         '[&_.aui-md-p]:my-1.5 [&_.aui-md-p]:leading-6 [&_.aui-md-p]:first:mt-0 [&_.aui-md-p]:last:mb-0',
         '[&_.aui-md-ul]:my-1.5 [&_.aui-md-ol]:my-1.5',
-        !isInstant && [
-          'transform-gpu transition-[transform,opacity] ease-[cubic-bezier(0.32,0.72,0,1)]',
-          'motion-reduce:animate-none',
-          'group-data-open/collapsible-content:animate-in',
-          'group-data-closed/collapsible-content:animate-out',
-          'group-data-open/collapsible-content:fade-in-0',
-          'group-data-closed/collapsible-content:fade-out-0',
-          'group-data-open/collapsible-content:animation-duration-(--animation-duration)',
-          'group-data-closed/collapsible-content:animation-duration-(--animation-duration)'
-        ],
+        // 收缩时不要对正文做 fade-out：会和高度 transition 抢布局，视觉抖得很厉害
         className
       )}
       {...props}>

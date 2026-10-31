@@ -1,6 +1,5 @@
-import { memo, useCallback, useRef } from 'react'
+import { memo } from 'react'
 import {
-  useScrollLock,
   useAuiState,
   type ReasoningMessagePartComponent,
   type ReasoningGroupComponent
@@ -8,50 +7,15 @@ import {
 import { useAssistantLabels } from './labels'
 import { MarkdownText } from './markdown-text'
 import {
-  ANIMATION_DURATION,
-  ReasoningRoot as ReasoningRootBase,
+  ReasoningRoot,
   ReasoningTrigger,
   ReasoningContent,
   ReasoningText,
   ReasoningFade,
-  reasoningVariants,
-  type ReasoningRootProps
+  reasoningVariants
 } from './reasoning'
 
 export type { ReasoningRootProps } from './reasoning'
-
-/** `ReasoningRoot` with the thread viewport scroll locked during disclosure animations. */
-function ReasoningRoot({ ref, onAnimationStart, instant, ...props }: ReasoningRootProps) {
-  const collapsibleRef = useRef<HTMLDivElement | null>(null)
-  const lockScroll = useScrollLock(collapsibleRef, ANIMATION_DURATION)
-
-  const handleAnimationStart = useCallback(() => {
-    // instant 过程摘要跳过锁滚动：内容巨大时锁 200ms 反而像卡死
-    if (!instant) lockScroll()
-    onAnimationStart?.()
-  }, [instant, lockScroll, onAnimationStart])
-
-  const composedRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      collapsibleRef.current = node
-      if (typeof ref === 'function') {
-        ref(node)
-      } else if (ref) {
-        ref.current = node
-      }
-    },
-    [ref]
-  )
-
-  return (
-    <ReasoningRootBase
-      ref={composedRef}
-      instant={instant}
-      onAnimationStart={handleAnimationStart}
-      {...props}
-    />
-  )
-}
 
 const ReasoningImpl: ReasoningMessagePartComponent = () => <MarkdownText />
 

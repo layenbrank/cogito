@@ -40,7 +40,7 @@ function BarSparkline(props: BarSparklineProps) {
   const showLabels = props.showLabels ?? false
   if (props.points.length === 0) {
     return (
-      <p className="py-2 text-center text-[11px] text-muted-foreground">
+      <p className="py-2 text-center text-xs text-muted-foreground">
         {props.emptyHint ?? '暂无数据'}
       </p>
     )
@@ -76,7 +76,7 @@ function BarSparkline(props: BarSparklineProps) {
         })}
       </div>
       {showLabels ? (
-        <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground">
+        <div className="mt-0.5 flex justify-between text-xs text-muted-foreground">
           <span>{props.points[0]?.label}</span>
           <span>{props.points[lastIndex]?.label}</span>
         </div>
@@ -93,7 +93,7 @@ function AreaSparkline(props: AreaSparklineProps) {
   const gradientId = props.gradientId ?? `area-spark-${autoId}`
   if (props.points.length === 0) {
     return (
-      <p className="py-2 text-center text-[11px] text-muted-foreground">
+      <p className="py-2 text-center text-xs text-muted-foreground">
         {props.emptyHint ?? '暂无数据'}
       </p>
     )
@@ -157,7 +157,7 @@ function AreaSparkline(props: AreaSparklineProps) {
         />
       </svg>
       {showLabels ? (
-        <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground">
+        <div className="mt-0.5 flex justify-between text-xs text-muted-foreground">
           <span>{props.points[0]?.label}</span>
           <span>{props.points[props.points.length - 1]?.label}</span>
         </div>
