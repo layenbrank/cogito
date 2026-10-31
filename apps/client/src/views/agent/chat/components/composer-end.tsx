@@ -22,7 +22,7 @@ function ComposerEnd() {
     return provider.id === activeProviderID && provider.enabled
   })
   const label = activeProvider?.model?.trim()
-    ? findModelLabel(activeProvider.model)
+    ? findModelLabel(activeProvider.model, activeProvider)
     : activeProvider
       ? '选择模型'
       : '配置模型'

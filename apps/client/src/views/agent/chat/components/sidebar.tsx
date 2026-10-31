@@ -6,6 +6,7 @@
  */
 import { useAui, useAuiState } from '@assistant-ui/react'
 import { Icon } from '@iconify/react/offline'
+import { BackgroundInbox } from '@cogito/design/assistant/background-inbox.aui'
 import { Button } from '@cogito/design/components/button'
 import { clsx } from 'clsx'
 import { useEffect, useState } from 'react'
@@ -18,7 +19,9 @@ import { SidebarProfileBar } from './sidebar-profile-bar.tsx'
 import { SidebarScenarioNav } from './sidebar-scenario-nav.tsx'
 import { SidebarWorkspaceTree } from './sidebar-workspace-tree.tsx'
 import { WorkspaceForm } from './workspace-form'
+import { useBackgroundRuns } from './use-background-runs'
 import { useSidebarBranches, type SidebarSession } from './use-sidebar-branches.ts'
+import { clearFinishedRun } from '@/features/agent/acp/run-state'
 import { rememberNextThreadWorkspace } from '@/features/agent/port/draft-workspace'
 import { historyPort } from '@/features/agent/port/instance'
 import { type ScenarioKey } from '@/features/agent/model/scenarios'
@@ -56,6 +59,7 @@ function AgentSidebar(props: SidebarProps) {
   })
 
   const branchState = useSidebarBranches()
+  const backgroundRuns = useBackgroundRuns()
   const [sectionOpen, updateSectionOpen] = useState(true)
   const [renaming, updateRenaming] = useState<RenameTarget | null>(null)
   const [renameValue, updateRenameValue] = useState('')
@@ -113,6 +117,16 @@ function AgentSidebar(props: SidebarProps) {
     props.onSearchOpenChange?.(false)
   }
 
+  function handleOpenBackgroundRun(id: string) {
+    clearFinishedRun(id)
+    try {
+      aui.threads.switchToThread(id)
+    } catch (error) {
+      console.error('[agent/sidebar] 切换后台会话失败:', id, error)
+      toast.error(error instanceof Error ? error.message : '切换会话失败')
+    }
+  }
+
   function handleRename() {
     if (!renaming) return
     const title = renameValue.trim()
@@ -143,6 +157,14 @@ function AgentSidebar(props: SidebarProps) {
         onScenarioChange={props.onScenarioChange}
         onToggleSearch={handleToggleSearch}
       />
+
+      {backgroundRuns.length > 0 ? (
+        <BackgroundInbox
+          runs={backgroundRuns}
+          onOpen={handleOpenBackgroundRun}
+          className="border-border/50 mb-1 border-b pb-1"
+        />
+      ) : null}
 
       <div className={`${styles.quickActions} flex flex-col gap-0.5`}>
         <Button

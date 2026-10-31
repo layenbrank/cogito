@@ -2,6 +2,9 @@
  * assistant 组件的界面文案（中文）。未覆盖的字段沿用英文兜底。
  */
 import type { AssistantLabelsOverride } from '@cogito/design/assistant/labels'
+import { findDayLabel } from '@cogito/design/assistant/thread-day'
+
+const DAY_WORDS_ZH = { today: '今天', yesterday: '昨天' }
 
 const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   newThread: '新建对话',
@@ -19,6 +22,11 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   welcome: '我能帮你做点什么？',
   loadingConversation: '正在加载对话',
   scrollToBottom: '滚到底部',
+  userMessageLocator: '跳转到你的消息',
+  userMessageLocatorItem: (ordinal, total) => `你的消息 ${ordinal} / ${total}`,
+  userMessageSticky: '回到这条用户消息',
+  dayLabel: (date) => findDayLabel(date, DAY_WORDS_ZH, 'zh-CN'),
+  stoppedRun: '已停止生成',
   working: '思考中…',
   copy: '复制',
   reload: '重新生成',
@@ -36,7 +44,14 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
 
   composerPlaceholder: '发消息…',
   composerPlaceholderContinue: '继续这个任务…',
+  composerPlaceholderRunning: 'Enter 入队 · Ctrl+Enter 立即转向',
   messageInput: '消息输入',
+  queueHeading: '待发送',
+  queueRemove: '移出队列',
+  queueSteerNow: '立即发送',
+  sendQueued: '加入队列',
+  queuedMessages: (count) => (count === 1 ? '1 条排队' : `${count} 条排队`),
+  removeQueuedMessage: '移出队列',
 
   // 进行中由 trigger 的 active / working 文案表达；结束后勿再写「思考中」
   reasoning: (seconds) => (seconds ? `思考（${seconds} 秒）` : '思考'),

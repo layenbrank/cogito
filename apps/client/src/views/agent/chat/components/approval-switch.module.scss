@@ -1,0 +1,77 @@
+/* 审批策略浮层：与模型选择器同档的无边框软阴影壳 */
+
+.surface {
+  width: 22rem !important;
+  max-width: min(22rem, calc(100vw - 24px));
+  padding: 6px !important;
+  overflow: hidden !important;
+  border: none !important;
+  border-radius: 12px !important;
+  background: var(--popover) !important;
+  box-shadow:
+    0 10px 36px -8px color-mix(in oklab, var(--foreground) 18%, transparent),
+    0 4px 14px -4px color-mix(in oklab, var(--foreground) 10%, transparent) !important;
+  outline: none !important;
+}
+
+.row {
+  align-items: flex-start !important;
+  gap: 10px !important;
+  min-height: 0;
+  padding: 10px !important;
+  border-radius: 10px !important;
+  /* 压过 DropdownMenuItem 默认 text-sm */
+  font-size: 14px !important;
+}
+
+.rowReadonly {
+  background: color-mix(in oklab, var(--muted) 45%, transparent);
+
+  &:global([data-highlighted]),
+  &:hover {
+    background: color-mix(in oklab, var(--muted) 60%, transparent) !important;
+  }
+}
+
+.icon {
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--foreground);
+}
+
+.labelMuted {
+  color: var(--muted-foreground);
+}
+
+.hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+}
+
+.check {
+  margin-top: 2px;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--foreground);
+}
+
+.checkSlot {
+  margin-top: 2px;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}

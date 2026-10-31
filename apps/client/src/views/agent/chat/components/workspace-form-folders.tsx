@@ -1,5 +1,4 @@
 import { Icon } from '@iconify/react/offline'
-import { Badge } from '@cogito/design/components/badge'
 import { Button } from '@cogito/design/components/button'
 import { clsx } from 'clsx'
 
@@ -8,14 +7,12 @@ import styles from './workspace-form.module.scss'
 interface FolderDraft {
   id: string
   path: string
-  isPrimary: boolean
 }
 
 interface WorkspaceFormFoldersProps {
   folders: FolderDraft[]
   onAdd: () => void
   onRemove: (id: string) => void
-  onPrimary: (id: string) => void
 }
 
 function basename(path: string) {
@@ -58,7 +55,7 @@ function WorkspaceFormFolders(props: WorkspaceFormFoldersProps) {
             return (
               <li
                 key={folder.id}
-                className={clsx(styles.folderItem, folder.isPrimary && styles.folderPrimary)}>
+                className={styles.folderItem}>
                 <Icon
                   icon="lucide:folder"
                   className={clsx(styles.folderIcon, 'size-4 shrink-0')}
@@ -67,18 +64,6 @@ function WorkspaceFormFolders(props: WorkspaceFormFoldersProps) {
                   <span className={styles.folderName}>{basename(folder.path)}</span>
                   <span className={styles.folderPath}>{folder.path}</span>
                 </div>
-                {folder.isPrimary ? (
-                  <Badge variant="secondary">主要</Badge>
-                ) : (
-                  <Button
-                    variant="link"
-                    size="sm"
-                    onClick={function () {
-                      props.onPrimary(folder.id)
-                    }}>
-                    设为主要
-                  </Button>
-                )}
                 <Button
                   variant="ghost"
                   size="icon-xs"

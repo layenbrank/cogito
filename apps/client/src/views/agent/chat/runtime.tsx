@@ -16,12 +16,49 @@ import {
   type ThreadHistoryAdapter
 } from '@assistant-ui/react'
 import { createChatModelAdapter } from '@cogito/chat/adapters/chat-model'
-import { createThreadHistoryAdapter, type ThreadIdentity } from '@cogito/chat/adapters/thread-history'
+import type { ThreadIdentity } from '@cogito/chat/adapters/thread-history'
 import { createThreadListAdapter } from '@cogito/chat/adapters/thread-list'
+import { installCitationExtractor } from '@cogito/design/assistant/message-citations'
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 
 import { takeNextThreadWorkspace } from '@/features/agent/port/draft-workspace'
+import { setAgentModeThread } from '@/features/agent/mode'
+import { useRunningThreads } from '@/features/agent/acp/run-state'
 import { chatModelPort, findHostOptions, historyPort } from '@/features/agent/port/instance'
+import { buildThreadHistoryAdapter } from '@/features/agent/port/thread-history'
+import { AgentElicitationDataUI } from '@/views/agent/chat/components/elicitation-data-ui'
+import { AgentPlanDataUI } from '@/views/agent/chat/components/plan-data-ui'
+import { parseWebSources } from '@/views/agent/chat/components/parse-tool-result'
+import { createLocalSuggestionAdapter } from '@/views/agent/chat/suggestions'
+
+/**
+ * 内联引用角标的数据源：从本条消息的工具结果里聚合 web 来源，按出现顺序去重。
+ * 正文里的 `[1]` / `[2]` 就按这个序号映射到具体链接。
+ */
+installCitationExtractor(function (parts) {
+  const sources: Array<{ title: string; href: string }> = []
+  for (const part of parts) {
+    const candidate = part as {
+      type?: string
+      toolName?: string
+      args?: unknown
+      result?: unknown
+    }
+    if (candidate.type !== 'tool-call' || !candidate.toolName) continue
+    const found = parseWebSources(candidate.toolName, candidate.args, candidate.result, '')
+    for (const source of found) {
+      if (
+        sources.some(function (item) {
+          return item.href === source.href
+        })
+      ) {
+        continue
+      }
+      sources.push({ title: source.title || source.href, href: source.href })
+    }
+  }
+  return sources
+})
 
 /**
  * 把会话的**归属**发回列表项。
@@ -130,7 +167,8 @@ function useThreadIdentity(): ThreadIdentity {
 function useThreadHistory(identity: ThreadIdentity): ThreadHistoryAdapter {
   return useMemo(
     function () {
-      return createThreadHistoryAdapter(historyPort, identity)
+      // 带 `unstable_resume`：离开 Agent 后 ACP 仍在跑，回来主动续上缓冲 + 实时尾部
+      return buildThreadHistoryAdapter(historyPort, identity)
     },
     [identity]
   )
@@ -138,6 +176,9 @@ function useThreadHistory(identity: ThreadIdentity): ThreadHistoryAdapter {
 
 function useThreadRuntime(): AssistantRuntime {
   const identity = useThreadIdentity()
+  const suggestion = useMemo(function () {
+    return createLocalSuggestionAdapter()
+  }, [])
 
   return useLocalRuntime(
     createChatModelAdapter(chatModelPort, {
@@ -147,11 +188,82 @@ function useThreadRuntime(): AssistantRuntime {
       }
     }),
     {
+      // 运行中发送进 composer.queue，当前轮次结束后再 FIFO 开新 turn（每线程独立 runtime）
+      unstable_enableMessageQueue: true,
+      unstable_queueClearOnCancel: false,
       adapters: {
-        history: useThreadHistory(identity)
+        history: useThreadHistory(identity),
+        suggestion
       }
     }
   )
+}
+
+/**
+ * 刷新后自动回到「正在运行」的会话。
+ *
+ * 列表加载完、且还没有选中任何会话（欢迎页）时，从运行态挑一个正在跑的会话
+ * （运行态存的是落库会话 id = 列表项的 `remoteId`），`switchToThread` 会让该线程的
+ * `history.load` 检测到 orphanRunning → `unstable_resume` → 继续渲染（见 port/thread-history）。
+ *
+ * 只在一次会话生命周期里恢复一次：用户之后手动切走，不再抢回焦点。
+ */
+interface RunningThreadItem {
+  id?: string
+  remoteId?: string
+}
+
+function RestoreRunningThread() {
+  const aui = useAui()
+  const threadItems = useAuiState(function (state) {
+    return state.threads.threadItems
+  })
+  const mainThreadId = useAuiState(function (state) {
+    return state.threads.mainThreadId
+  })
+  const runningIDs = useRunningThreads()
+  const restored = useRef(false)
+
+  useEffect(
+    function () {
+      if (restored.current) return
+      if (mainThreadId) {
+        // 已经选中了会话（例如用户点过）：不抢焦点
+        restored.current = true
+        return
+      }
+      if (!Array.isArray(threadItems) || threadItems.length === 0) return
+
+      restored.current = true
+      const items = threadItems as RunningThreadItem[]
+      const runningItem = items.find(function (item) {
+        return Boolean(item.remoteId && runningIDs.has(item.remoteId))
+      })
+      if (runningItem?.id) {
+        aui.threads.switchToThread(runningItem.id)
+      }
+    },
+    [threadItems, mainThreadId, runningIDs, aui]
+  )
+
+  return null
+}
+
+/**
+ * 模式是**会话级**的：把当前 `mainThreadId` 同步给 `mode.ts`，
+ * 让 composer、详情页与系统提示读到的都是本会话的模式（新会话回落全局默认）。
+ */
+function AgentModeThreadSync() {
+  const threadID = useAuiState(function (state) {
+    return state.threads.mainThreadId
+  })
+  useEffect(
+    function () {
+      setAgentModeThread(threadID ?? null)
+    },
+    [threadID]
+  )
+  return null
 }
 
 function AgentRuntimeProvider(props: { children: ReactNode }) {
@@ -166,7 +278,15 @@ function AgentRuntimeProvider(props: { children: ReactNode }) {
 
   const runtime = useRemoteThreadListRuntime({ adapter: list, runtimeHook: useThreadRuntime })
 
-  return <AssistantRuntimeProvider runtime={runtime}>{props.children}</AssistantRuntimeProvider>
+  return (
+    <AssistantRuntimeProvider runtime={runtime}>
+      <AgentPlanDataUI />
+      <AgentElicitationDataUI />
+      <RestoreRunningThread />
+      <AgentModeThreadSync />
+      {props.children}
+    </AssistantRuntimeProvider>
+  )
 }
 
 export { AgentRuntimeProvider }

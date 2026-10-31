@@ -1,6 +1,6 @@
 /* Agent 聊天子页：标题栏 + 可拖拽分栏，沿用主题主色 */
 
-.chat {
+.surface {
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -89,8 +89,13 @@
     var(--background);
 }
 
+/**
+ * 右栏：只管背景，**不设布局方向**。
+ *
+ * 内部是「纵向图标导航 + 内容区」的横向布局，方向由 `aside.tsx` 的
+ * Tailwind 类控制 —— 这里再写 `flex-direction: column` 会把它覆盖掉
+ * （Module 类与工具类同为单类选择器，谁后加载谁赢，太脆）。
+ */
 .planPane {
-  display: flex;
-  flex-direction: column;
   background: var(--background);
 }

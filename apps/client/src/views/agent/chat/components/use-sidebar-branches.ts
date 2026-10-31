@@ -106,7 +106,6 @@ function useSidebarBranches() {
             return folder.workspaceID === workspace.id
           })
           .toSorted(function (a, b) {
-            if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1
             return a.sort - b.sort
           })
           .map(function (folder) {

@@ -30,21 +30,6 @@ interface WorkspaceFormProps {
 
 const EMPTY_FOLDERS: WorkspaceFolder[] = []
 
-function ensurePrimary(folders: FolderDraft[]) {
-  if (
-    folders.length &&
-    !folders.some(function (item) {
-      return item.isPrimary
-    })
-  ) {
-    return folders.map(function (item, index) {
-      if (index !== 0) return item
-      return { ...item, isPrimary: true }
-    })
-  }
-  return folders
-}
-
 function WorkspaceForm(props: WorkspaceFormProps) {
   return (
     <Dialog
@@ -103,11 +88,7 @@ function WorkspaceFormEditor(props: Pick<WorkspaceFormProps, 'workspaceID' | 'on
   const [draftFolders, updateDraftFolders] = useState<FolderDraft[]>(function () {
     if (!isEdit || !workspace) return []
     return folders.map(function (folder) {
-      return {
-        id: folder.id,
-        path: folder.path,
-        isPrimary: folder.isPrimary
-      }
+      return { id: folder.id, path: folder.path }
     })
   })
   const [saving, updateSaving] = useState(false)
@@ -140,28 +121,17 @@ function WorkspaceFormEditor(props: Pick<WorkspaceFormProps, 'workspaceID' | 'on
         }
         next.push({
           id: UUIDV4(),
-          path,
-          isPrimary: next.length === 0
+          path
         })
       }
-      return ensurePrimary(next)
+      return next
     })
   }
 
   function handleRemoveFolder(id: string) {
     updateDraftFolders(function (prev) {
-      return ensurePrimary(
-        prev.filter(function (item) {
-          return item.id !== id
-        })
-      )
-    })
-  }
-
-  function handlePrimaryFolder(id: string) {
-    updateDraftFolders(function (prev) {
-      return prev.map(function (item) {
-        return { ...item, isPrimary: item.id === id }
+      return prev.filter(function (item) {
+        return item.id !== id
       })
     })
   }
@@ -212,7 +182,6 @@ function WorkspaceFormEditor(props: Pick<WorkspaceFormProps, 'workspaceID' | 'on
             void handleAddFolder()
           }}
           onRemove={handleRemoveFolder}
-          onPrimary={handlePrimaryFolder}
         />
         <WorkspaceFormAppearance
           title={title}

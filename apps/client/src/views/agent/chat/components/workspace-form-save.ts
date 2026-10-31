@@ -71,7 +71,6 @@ async function saveWorkspace(input: SaveWorkspaceInput) {
         id: folder.id,
         workspaceID,
         path: folder.path,
-        isPrimary: folder.isPrimary,
         sort: index,
         createdAt: now,
         updatedAt: now

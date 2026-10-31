@@ -4,17 +4,11 @@
  * - **每段思考**：该段 part 结束即收起（不是整轮会话结束）
  * - **过程摘要**：整轮结束后才出现「过程 · N 步」，默认收起，点开回看
  *
- * 过程摘要效率（关键）：
- * 1. `instant`：不做高度插值动画、不锁滚动（几十步总高上做 collapsible-down 必卡）
- * 2. 首次展开才把步骤树挂进 Panel；同一次事件里批量 setState，避免「空壳先开再灌内容」
- * 3. 展开过后 `keepMounted`：再开关只显隐，禁止每次全量 remount
- *
- * 滚动层级（保留 max-h 笼 + `overscroll-y-contain`）：
- * - Thread 视口：默认 overscroll，管整页对话
- * - 过程摘要 / 思考正文：max-h 自滚，触底不拖走 Thread
- * - 终端 / pre：内层再 contain，不链式带动外层笼
+ * 过程摘要：`instant` 跳过高度动画；内容始终挂载（keepMounted），避免「点开空白」。
+ * 流式中不要再套 Task Collapsible：与 ReasoningRoot 双层折叠会裁掉正文。
  *
  * ReasoningRoot：`streaming` 时展开；结束后回到 `defaultOpen`（默认 false）。
+ * 活动态文案走 ReasoningTrigger 自带 `shimmer` class（Elements Shimmer 可用于别处）。
  */
 import { useAuiState } from '@assistant-ui/react'
 import { useAssistantLabels } from '@cogito/design/assistant/labels'
@@ -25,7 +19,9 @@ import {
   ReasoningTrigger
 } from '@cogito/design/assistant/reasoning.aui'
 import type { ThreadGroupPart } from '@cogito/design/assistant/thread.aui'
-import { useState, type PropsWithChildren } from 'react'
+import type { PropsWithChildren } from 'react'
+
+import { MessageTimingStats, MessageTrace } from './message-trace'
 
 interface ProcessGroupProps {
   group: ThreadGroupPart
@@ -72,35 +68,22 @@ function AgentProcessFold(props: PropsWithChildren<ProcessFoldProps>) {
   const seconds =
     totalStreamTime === undefined ? undefined : Math.max(1, Math.round(totalStreamTime / 1000))
 
-  const [isOpen, updateOpen] = useState(false)
-  /** 是否已把步骤树挂进 Panel；一旦为 true 就保持，配合 keepMounted 避免反复 remount */
-  const [hasMountedBody, updateHasMountedBody] = useState(false)
-
-  function handleOpenChange(next: boolean) {
-    if (next) {
-      // 同事件批量更新：一次 commit 同时 open + 挂载，禁止先开空壳再灌内容
-      if (!hasMountedBody) updateHasMountedBody(true)
-      updateOpen(true)
-      return
-    }
-    updateOpen(false)
-  }
-
   return (
     <ReasoningRoot
       variant="ghost"
       instant
-      open={isOpen}
-      onOpenChange={handleOpenChange}>
+      defaultOpen={false}>
       <ReasoningTrigger
         active={false}
         label={labels.process(props.group.indices.length, seconds)}
       />
-      <ReasoningContent keepMounted={hasMountedBody}>
+      <ReasoningContent keepMounted>
+        <MessageTimingStats />
+        <MessageTrace />
         <ReasoningText
           data-slot="agent-process-fold"
           className="max-h-[min(70vh,40rem)] overflow-y-auto overscroll-y-contain">
-          {hasMountedBody ? props.children : null}
+          {props.children}
         </ReasoningText>
       </ReasoningContent>
     </ReasoningRoot>

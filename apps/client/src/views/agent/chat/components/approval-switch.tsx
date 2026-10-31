@@ -6,29 +6,27 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@cogito/design/components/dropdown-menu'
-import { useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 
+import styles from './approval-switch.module.scss'
 import { findAcpHandle } from '@/features/agent/acp/connection'
-import {
-  fetchSessionTools,
-  writeToolPermissions,
-  type ToolPermissionLevel
-} from '@/features/agent/acp/goose-providers'
+import { syncSessionApprovalMode } from '@/features/agent/acp/sync-approval-mode'
 import { findThreadAcpSessionID, waitGooseReady } from '@/features/agent/acp/session'
 import {
   APPROVAL_POLICIES,
   findApprovalPolicy,
-  isWriteTool,
   readApprovalMode,
+  subscribeApproval,
   writeApprovalMode,
   type ApprovalMode
 } from '@/features/agent/approval.ts'
 import { useAgentStore } from '@/stores/agent'
 
-/** 输入区审批策略（对齐 Qoder「自动审批」） */
+/** 输入区审批策略（Qoder 风格：图标 + 标题 + 说明 + 勾选） */
 function ApprovalSwitch() {
-  const [mode, updateMode] = useState<ApprovalMode>(readApprovalMode)
+  // 会话级状态：切会话后必须跟着刷新，否则显示的会是上一个会话的档位
+  const mode = useSyncExternalStore(subscribeApproval, readApprovalMode, readApprovalMode)
   const activeSessionID = useAgentStore(function (state) {
     return state.activeSessionID
   })
@@ -37,7 +35,6 @@ function ApprovalSwitch() {
 
   async function writeMode(next: ApprovalMode) {
     writeApprovalMode(next)
-    updateMode(next)
 
     const acpSessionID = activeSessionID ? findThreadAcpSessionID(activeSessionID) : null
     if (!acpSessionID) {
@@ -48,21 +45,7 @@ function ApprovalSwitch() {
     try {
       await waitGooseReady()
       const handle = await findAcpHandle()
-      const tools = await fetchSessionTools(handle.connection, acpSessionID)
-      const permissions = tools.map(function (tool) {
-        let permission: ToolPermissionLevel
-        if (next === 'auto') {
-          permission = 'always_allow'
-        } else if (next === 'ask') {
-          permission = isWriteTool(tool.name) ? 'ask_before' : 'always_allow'
-        } else {
-          permission = isWriteTool(tool.name) ? 'never_allow' : 'ask_before'
-        }
-        return { toolName: tool.name, permission }
-      })
-      if (permissions.length > 0) {
-        await writeToolPermissions(handle.connection, permissions)
-      }
+      await syncSessionApprovalMode(handle.connection, acpSessionID, next)
       toast.success(`已设为「${findApprovalPolicy(next)?.label ?? next}」`)
     } catch (error) {
       console.warn('[approval-switch] 写入工具权限失败:', error)
@@ -84,37 +67,51 @@ function ApprovalSwitch() {
           />
         }>
         <Icon
-          icon="lucide:circle-check"
+          icon={current?.icon ?? 'lucide:shield'}
           className="size-3.5"
         />
         {current?.label ?? '询问审批'}
         <Icon
           icon="lucide:chevron-down"
-          className="size-3.5"
+          className="size-3.5 opacity-70"
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        align="end"
-        className="w-64">
+        align="start"
+        side="top"
+        sideOffset={8}
+        className={styles.surface}>
         {APPROVAL_POLICIES.map(function (policy) {
           const isCurrent = policy.value === mode
+          const isReadonly = policy.value === 'readonly'
           return (
             <DropdownMenuItem
               key={policy.value}
-              className="items-start gap-2"
+              className={`${styles.row} ${isReadonly ? styles.rowReadonly : ''}`}
               onClick={function () {
                 void writeMode(policy.value)
               }}>
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span>{policy.label}</span>
-                <span className="text-muted-foreground text-xs leading-snug">{policy.hint}</span>
+              <Icon
+                icon={policy.icon}
+                className={`${styles.icon} ${isReadonly ? 'text-muted-foreground' : 'text-foreground/80'}`}
+              />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className={`${styles.label} ${isReadonly ? styles.labelMuted : ''}`}>
+                  {policy.label}
+                </span>
+                <span className={styles.hint}>{policy.hint}</span>
               </span>
               {isCurrent ? (
                 <Icon
                   icon="lucide:check"
-                  className="mt-0.5 size-3.5"
+                  className={styles.check}
                 />
-              ) : null}
+              ) : (
+                <span
+                  className={styles.checkSlot}
+                  aria-hidden
+                />
+              )}
             </DropdownMenuItem>
           )
         })}

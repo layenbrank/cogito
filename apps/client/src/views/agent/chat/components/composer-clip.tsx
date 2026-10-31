@@ -22,7 +22,7 @@ import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 /** 输入区左下角回形针：图片 / 工作区文件 / 文件夹 */
 function ComposerClip() {
   const aui = useAui()
-  const { primaryPath } = useActiveWorkspace()
+  const { rootPath } = useActiveWorkspace()
 
   function reportPaths(result: Awaited<ReturnType<typeof attachWorkspacePaths>>) {
     if (result.isMissingWorkspace) {
@@ -57,7 +57,7 @@ function ComposerClip() {
     void dialogOpen({ multiple: true })
       .then(function (paths) {
         const list = Array.isArray(paths) ? paths : paths ? [paths] : null
-        return attachWorkspacePaths(aui, list, primaryPath)
+        return attachWorkspacePaths(aui, list, rootPath)
       })
       .then(reportPaths)
       .catch(function (error: unknown) {
@@ -69,7 +69,7 @@ function ComposerClip() {
     void dialogOpen({ directory: true, multiple: true })
       .then(function (paths) {
         const list = Array.isArray(paths) ? paths : paths ? [paths] : null
-        return attachWorkspacePaths(aui, list, primaryPath)
+        return attachWorkspacePaths(aui, list, rootPath)
       })
       .then(reportPaths)
       .catch(function (error: unknown) {

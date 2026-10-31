@@ -81,12 +81,12 @@ function SessionSearchSurface(props: Pick<SessionSearchProps, 'onClose' | 'onSel
     [workspaces]
   )
 
-  const primaryPathByWorkspace = useMemo(
+  const rootPathByWorkspace = useMemo(
     function () {
       const map = new Map<string, string>()
       workspaceFolders.forEach(function (folder) {
-        const current = map.get(folder.workspaceID)
-        if (!current || folder.isPrimary) {
+        // 顺序即主次：每个工作区取排序最靠前的那个文件夹
+        if (!map.has(folder.workspaceID)) {
           map.set(folder.workspaceID, folder.path)
         }
       })
@@ -111,7 +111,7 @@ function SessionSearchSurface(props: Pick<SessionSearchProps, 'onClose' | 'onSel
       return filtered.map(function (session) {
         const workspace = session.workspaceID ? workspaceByID.get(session.workspaceID) : undefined
         const path = session.workspaceID
-          ? primaryPathByWorkspace.get(session.workspaceID)
+          ? rootPathByWorkspace.get(session.workspaceID)
           : undefined
         const workspaceTitle = workspace?.title || '未分组'
         const pathHint = path
@@ -120,7 +120,7 @@ function SessionSearchSurface(props: Pick<SessionSearchProps, 'onClose' | 'onSel
         return { session, workspaceTitle, pathHint }
       })
     },
-    [sessions, keyword, workspaceByID, primaryPathByWorkspace]
+    [sessions, keyword, workspaceByID, rootPathByWorkspace]
   )
 
   useEffect(

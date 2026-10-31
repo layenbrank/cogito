@@ -349,8 +349,8 @@
 .profile {
   flex-shrink: 0;
   margin-top: auto;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
+  padding: 6px 2px 2px;
+  border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
 }
 
 .profileUser {
@@ -361,17 +361,75 @@
 .profileName {
   overflow: hidden;
   font-size: 12px;
-  color: var(--foreground);
+  line-height: 1.35;
+  color: var(--muted-foreground);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* 与审批 / 模型选择器同档：muted 字色、h-7 密度、无重灰底砖 */
 .profileSettings {
   flex-shrink: 0;
-  color: var(--muted-foreground);
+  color: var(--muted-foreground) !important;
+  background: transparent !important;
 
   &:hover {
-    color: var(--foreground);
-    background: color-mix(in oklab, var(--muted) 45%, transparent);
+    color: var(--foreground) !important;
+    background: color-mix(in oklab, var(--muted) 40%, transparent) !important;
   }
+
+  &:global([aria-expanded='true']),
+  &:global([data-pressed]) {
+    color: var(--foreground) !important;
+    background: color-mix(in oklab, var(--muted) 40%, transparent) !important;
+  }
+}
+
+/* 设置菜单：审批 / 模型选择器同档无边框软阴影壳 */
+.profileMenu {
+  width: 11.5rem !important;
+  padding: 6px !important;
+  overflow: hidden !important;
+  border: none !important;
+  border-radius: 12px !important;
+  background: var(--popover) !important;
+  box-shadow:
+    0 10px 36px -8px color-mix(in oklab, var(--foreground) 18%, transparent),
+    0 4px 14px -4px color-mix(in oklab, var(--foreground) 10%, transparent) !important;
+  outline: none !important;
+}
+
+.profileMenuSub {
+  min-width: 9.5rem !important;
+  padding: 6px !important;
+  overflow: hidden !important;
+  border: none !important;
+  border-radius: 12px !important;
+  background: var(--popover) !important;
+  box-shadow:
+    0 10px 36px -8px color-mix(in oklab, var(--foreground) 18%, transparent),
+    0 4px 14px -4px color-mix(in oklab, var(--foreground) 10%, transparent) !important;
+  outline: none !important;
+}
+
+.profileMenuRow {
+  gap: 8px !important;
+  min-height: 0;
+  margin: 0 !important;
+  padding: 7px 10px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  line-height: 1.35 !important;
+}
+
+.profileMenuIcon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+
+.profileMenuSep {
+  margin: 4px 2px !important;
 }

@@ -1,65 +1,119 @@
-/* Qoder 风格：轻阴影浮层 + 左勾选 + 图标行 */
+/* Qoder 风格：软阴影浮层 + 分段头 + 图标行勾选
+ *
+ * 外壳圆角 / 去边框必须写在 CSS Module（!important）：
+ * Popover 的 OVERLAY_SHELL（rounded-lg + border + ring）经 Tailwind 合并后
+ * 仍偶发赢过工具类；模块样式直接钉在同一 DOM 上最稳。
+ */
 
-/* 覆盖浮层外壳：选择器自带分段，不要库的 padding / 间距 */
-.panel {
-  width: 300px !important;
-  max-height: 400px;
+.surface {
+  display: flex !important;
+  width: 320px !important;
+  max-height: 420px;
+  flex-direction: column !important;
   padding: 0 !important;
   gap: 0 !important;
-  overflow: hidden;
+  overflow: hidden !important;
+  border: none !important;
+  border-radius: 12px !important;
+  background: var(--popover) !important;
+  /* 覆盖 OVERLAY_SHELL 的 shadow-lg + ring（ring 也走 box-shadow） */
+  box-shadow:
+    0 10px 36px -8px color-mix(in oklab, var(--foreground) 18%, transparent),
+    0 4px 14px -4px color-mix(in oklab, var(--foreground) 10%, transparent) !important;
+  outline: none !important;
 }
 
-.header {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px 12px;
+.tabs {
+  flex: none;
+  /* 与列表的间距放在 tabs 底，勿用 .list padding-top（会在 sticky 顶出透缝） */
+  padding: 12px 12px 4px;
 }
 
-.headerTitle {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--foreground);
+.tabsRoot {
+  width: 100%;
+  gap: 0 !important;
 }
 
-.hint {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--muted-foreground);
+.tabsList {
+  display: flex !important;
+  width: 100%;
+  height: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+  align-items: stretch !important;
+  box-sizing: border-box !important;
+  padding: 4px !important;
+  border-radius: 10px !important;
+  background: color-mix(in oklab, var(--muted) 85%, transparent);
+
+  /* 激活滑块去掉 1px border，避免比未选项「看起来更高」 */
+  :global([data-slot='tabs-indicator']) {
+    box-sizing: border-box !important;
+    border: none !important;
+    border-radius: 8px !important;
+    box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 8%, transparent);
+  }
+
+  :global([data-slot='tabs-trigger']) {
+    box-sizing: border-box !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+    padding-block: 0 !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-size: 14px !important;
+    font-weight: 500;
+    line-height: 32px !important;
+    letter-spacing: 0.01em;
+  }
 }
 
 .list {
+  /* sticky 标题条高度：padding 8+6 + 12px 字行 ≈ 30px；供 focus / scrollIntoView 留空 */
+  --sticky-title-block: 30px;
+
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 4px 8px 8px;
+  overscroll-behavior-y: contain;
+  /* 顶勿 padding：sticky top:0 才能贴齐滚动口，否则缝里会透出滚过的行 */
+  padding: 0 0 6px;
+  scroll-padding-block: var(--sticky-title-block) 8px;
 }
 
 .group {
-  margin-bottom: 6px;
+  padding-inline: 10px;
+  margin-bottom: 2px;
 
   &:last-child {
     margin-bottom: 0;
+    padding-bottom: 2px;
   }
 }
 
 .groupTitle {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px 4px;
-  font-size: 11px;
+  box-sizing: border-box;
+  min-height: var(--sticky-title-block);
+  /* 左右外延铺满滚动口宽度，盖住 group 内边距下的透缝 */
+  margin-inline: -10px;
+  padding: 8px 20px 6px;
+  background: var(--popover);
+  /* 上缘 1px 封口防亚像素缝；下缘分隔线避免行贴进标题底 */
+  box-shadow:
+    0 -1px 0 0 var(--popover),
+    0 1px 0 color-mix(in oklab, var(--border) 55%, transparent);
+  font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.02em;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
   color: var(--muted-foreground);
-}
-
-.kind {
-  font-weight: 400;
-  opacity: 0.9;
 }
 
 .row {
@@ -68,17 +122,21 @@
   gap: 10px;
   width: 100%;
   margin: 0;
-  padding: 8px 10px;
-  border: none;
-  border-radius: 8px;
+  height: auto !important;
+  min-height: 48px;
+  padding: 8px 10px !important;
+  border: none !important;
+  border-radius: 10px !important;
   background: transparent;
   text-align: left;
   cursor: pointer;
   color: var(--foreground);
+  font-weight: 400 !important;
+  white-space: normal !important;
   transition: background-color 160ms ease-out;
 
   &:hover {
-    background: color-mix(in oklab, var(--muted) 45%, transparent);
+    background: color-mix(in oklab, var(--muted) 55%, transparent);
   }
 
   &:focus-visible {
@@ -92,39 +150,47 @@
 }
 
 .rowActive {
-  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  background: color-mix(in oklab, var(--muted) 72%, transparent);
 
   &:hover {
-    background: color-mix(in oklab, var(--primary) 12%, transparent);
+    background: color-mix(in oklab, var(--muted) 72%, transparent);
   }
 }
 
-.check,
-.checkSlot {
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-}
-
-.check {
-  color: var(--primary);
-}
-
 .modelBadge {
+  position: relative;
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 7px;
-  background: color-mix(in oklab, var(--muted) 70%, transparent);
-  color: var(--primary);
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.checkMark {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--background);
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 
 .rowBody {
+  display: flex;
   flex: 1;
   min-width: 0;
+  flex-direction: column;
 }
 
 .modelName {
@@ -132,8 +198,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.35;
   color: var(--foreground);
 }
@@ -143,21 +209,32 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin-top: 1px;
-  font-size: 11px;
+  margin-top: 2px;
+  font-size: 12px;
   line-height: 1.35;
+  color: var(--muted-foreground);
+}
+
+.billingBadge {
+  flex-shrink: 0;
+  max-width: 4.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.2;
   color: var(--muted-foreground);
 }
 
 .empty {
   display: block;
-  padding: 16px 12px;
+  padding: 20px 12px;
   font-size: 13px;
   text-align: center;
 }
 
 .footer {
-  padding: 4px 8px 8px;
+  padding: 4px 10px 8px;
   border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
 }
 
@@ -168,21 +245,14 @@
   gap: 8px;
   height: 36px;
   padding-inline: 10px;
-  border-radius: 8px;
+  border: none !important;
+  border-radius: 8px !important;
   color: var(--muted-foreground);
   font-size: 13px;
+  font-weight: 500 !important;
 
   &:hover {
     color: var(--foreground);
     background: color-mix(in oklab, var(--muted) 45%, transparent);
   }
-}
-
-.trigger {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--muted-foreground);
-  font-size: 13px;
 }

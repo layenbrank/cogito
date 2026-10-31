@@ -23,14 +23,14 @@ interface AsideCard {
 /** 空对话右栏：快捷入口；说明走 title，不占第二行 */
 function AsideEmpty(props: AsideEmptyProps) {
   const navigate = useNavigate()
-  const { primaryPath } = useActiveWorkspace()
+  const { rootPath } = useActiveWorkspace()
 
   function handleOpenTerminal() {
-    if (!primaryPath) {
+    if (!rootPath) {
       toast.error('先在左栏添加一个工作区')
       return
     }
-    useTerminalStore.getState().newTab(primaryPath)
+    useTerminalStore.getState().newTab(rootPath)
   }
 
   const cards: AsideCard[] = [

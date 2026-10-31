@@ -58,7 +58,7 @@ function SidebarProfileBar(props: SidebarProfileBarProps) {
   }
 
   return (
-    <div className={`${styles.profile} flex items-center justify-between gap-2`}>
+    <div className={`${styles.profile} flex items-center justify-between gap-1.5`}>
       <div className={`${styles.profileUser} flex items-center gap-2`}>
         <Avatar size="sm">
           {props.avatarUrl ? (
@@ -80,43 +80,46 @@ function SidebarProfileBar(props: SidebarProfileBarProps) {
         <DropdownMenuTrigger
           render={
             <Button
+              type="button"
               variant="ghost"
               size="icon-sm"
               aria-label="设置"
-              className={styles.profileSettings}
+              title="设置"
+              className={`${styles.profileSettings} text-muted-foreground hover:text-foreground size-7`}
             />
           }>
           <Icon
             icon="lucide:settings"
-            width={16}
-            height={16}
+            className="size-3.5"
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent
           side="top"
           align="end"
-          className="w-44">
+          sideOffset={8}
+          className={styles.profileMenu}>
           <DropdownMenuItem
+            className={styles.profileMenuRow}
             onClick={function () {
               props.onOpenSettings()
             }}>
             <Icon
               icon="lucide:settings"
-              width={14}
-              height={14}
+              className={styles.profileMenuIcon}
             />
             Agent 设置
           </DropdownMenuItem>
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger className={styles.profileMenuRow}>
               <Icon
                 icon="lucide:palette"
-                width={14}
-                height={14}
+                className={styles.profileMenuIcon}
               />
               外观
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="w-40">
+            <DropdownMenuSubContent
+              sideOffset={6}
+              className={styles.profileMenuSub}>
               <DropdownMenuRadioGroup
                 value={mode}
                 onValueChange={chooseMode}>
@@ -124,11 +127,11 @@ function SidebarProfileBar(props: SidebarProfileBarProps) {
                   return (
                     <DropdownMenuRadioItem
                       key={item.value}
-                      value={item.value}>
+                      value={item.value}
+                      className={styles.profileMenuRow}>
                       <Icon
                         icon={MODE_ICONS[item.value]}
-                        width={14}
-                        height={14}
+                        className={styles.profileMenuIcon}
                       />
                       {item.label}
                     </DropdownMenuRadioItem>
@@ -138,25 +141,25 @@ function SidebarProfileBar(props: SidebarProfileBarProps) {
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuItem
+            className={styles.profileMenuRow}
             onClick={function () {
               void openSettings(SECTION.ACCOUNT)
             }}>
             <Icon
               icon="lucide:user-round"
-              width={14}
-              height={14}
+              className={styles.profileMenuIcon}
             />
             账号
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
+          <DropdownMenuSeparator className={styles.profileMenuSep} />
           <DropdownMenuItem
+            className={styles.profileMenuRow}
             onClick={function () {
               toast.info('cogito Agent')
             }}>
             <Icon
               icon="lucide:info"
-              width={14}
-              height={14}
+              className={styles.profileMenuIcon}
             />
             关于
           </DropdownMenuItem>

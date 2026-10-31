@@ -6,11 +6,13 @@ import { Popover, PopoverContent, PopoverTrigger } from '@cogito/design/componen
 import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { clsx } from 'clsx'
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { attachWorkspaceFile } from '@/features/agent/attachment.ts'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 import { WorkspaceSkills, type WorkspaceSkill } from '@/lib/workspace-skills.ts'
+import { ExtensionsPane } from './composer-extensions-pane.tsx'
 import { WorkspaceFilePicker } from './workspace-file-picker.tsx'
 
 /**
@@ -18,42 +20,43 @@ import { WorkspaceFilePicker } from './workspace-file-picker.tsx'
  * 左栏分类；右栏工作区浏览或技能列表。
  */
 
-type AttachCategory = 'goal' | 'plan' | 'files' | 'plugins' | 'skills'
+type AttachCategory = 'files' | 'plugins' | 'skills'
 
 interface CategoryItem {
   key: AttachCategory
   label: string
   icon: string
   enabled: boolean
+  /** 跳到设置里的对应页面（扩展就是 goose 的 extension） */
+  href?: string
 }
 
+/** 模式（执行/计划/问答/目标）只在 composer 底部的模式选择器里切，这里不重复开口子 */
 const CATEGORIES: readonly CategoryItem[] = [
-  { key: 'goal', label: '目标', icon: 'lucide:target', enabled: false },
-  { key: 'plan', label: '计划', icon: 'lucide:list-todo', enabled: false },
   { key: 'files', label: '工作区', icon: 'lucide:folder-tree', enabled: true },
-  { key: 'plugins', label: '插件', icon: 'lucide:puzzle', enabled: false },
+  { key: 'plugins', label: '扩展', icon: 'lucide:puzzle', enabled: true },
   { key: 'skills', label: '技能', icon: 'lucide:wrench', enabled: true }
 ]
 
 function SkillsPane(props: {
   active: boolean
-  primaryPath: string | null
+  rootPath: string | null
   onPick: (relative: string) => void
 }) {
   const [query, updateQuery] = useState('')
   const [skillsState, updateSkills] = useState<WorkspaceSkill[]>([])
   const [isLoading, updateLoading] = useState(false)
   /** 面板没开 / 没有工作区时按空列表渲染：不在 effect 里同步清 state */
-  const skills = props.active && props.primaryPath ? skillsState : []
+  const skills = props.active && props.rootPath ? skillsState : []
 
   useEffect(
     function () {
-      if (!props.active || !props.primaryPath) return
+      if (!props.active || !props.rootPath) return
       let cancelled = false
       async function load() {
         try {
           updateLoading(true)
-          const rows = await WorkspaceSkills.fetchSkills([props.primaryPath as string])
+          const rows = await WorkspaceSkills.fetchSkills([props.rootPath as string])
           if (!cancelled) updateSkills(rows)
         } catch (error) {
           console.warn('[composer-context-menu] 读取技能失败:', error)
@@ -67,7 +70,7 @@ function SkillsPane(props: {
         cancelled = true
       }
     },
-    [props.active, props.primaryPath]
+    [props.active, props.rootPath]
   )
 
   const needle = query.trim().toLowerCase()
@@ -134,7 +137,7 @@ function SkillsPane(props: {
           : null}
         {!isLoading && filtered.length === 0 ? (
           <p className="text-muted-foreground p-2.5 text-xs">
-            {props.primaryPath ? '当前工作区暂无技能' : '先在左栏添加工作区'}
+            {props.rootPath ? '当前工作区暂无技能' : '先在左栏添加工作区'}
           </p>
         ) : null}
       </div>
@@ -144,7 +147,8 @@ function SkillsPane(props: {
 
 function ComposerContextMenu() {
   const aui = useAui()
-  const { primaryPath } = useActiveWorkspace()
+  const navigate = useNavigate()
+  const { rootPath } = useActiveWorkspace()
   const [isOpen, updateOpen] = useState(false)
   const [isTooltipOpen, updateTooltipOpen] = useState(false)
   const [category, updateCategory] = useState<AttachCategory>('files')
@@ -203,7 +207,7 @@ function ComposerContextMenu() {
 
       <PopoverContent
         align="start"
-        className="w-[min(32rem,calc(100vw-2.5rem))] overflow-hidden p-0 shadow-lg">
+        className="w-[min(32rem,calc(100vw-2.5rem))] overflow-hidden rounded-xl border-0 p-0 shadow-[0_10px_36px_-8px_color-mix(in_oklab,var(--foreground)_18%,transparent),0_4px_14px_-4px_color-mix(in_oklab,var(--foreground)_10%,transparent)]">
         <div className="flex h-80 min-h-0 w-full">
           <div className="border-border/60 bg-muted/30 flex w-33 shrink-0 flex-col gap-0.5 border-r p-1.5">
             {CATEGORIES.map(function (item) {
@@ -230,7 +234,7 @@ function ComposerContextMenu() {
                     className="text-muted-foreground size-3.5 shrink-0"
                   />
                   <span className="flex-1 truncate text-start">{item.label}</span>
-                  {item.key === 'files' || item.key === 'skills' ? (
+                  {item.key === 'files' || item.key === 'skills' || item.key === 'plugins' ? (
                     <Icon
                       icon="lucide:chevron-right"
                       className="text-muted-foreground size-3.5 shrink-0"
@@ -254,8 +258,18 @@ function ComposerContextMenu() {
             {category === 'skills' ? (
               <SkillsPane
                 active={isOpen && category === 'skills'}
-                primaryPath={primaryPath}
+                rootPath={rootPath}
                 onPick={handlePickRelative}
+              />
+            ) : null}
+
+            {category === 'plugins' ? (
+              <ExtensionsPane
+                active={isOpen && category === 'plugins'}
+                onManage={function () {
+                  updateOpen(false)
+                  void navigate('/agent/settings?section=extensions')
+                }}
               />
             ) : null}
           </div>

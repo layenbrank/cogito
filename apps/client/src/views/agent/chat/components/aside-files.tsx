@@ -1,22 +1,24 @@
 /**
  * 右栏文件树：浏览 / 搜索工作区，点选后预览正文。
  * 预览返回落回进入文件时所在目录，不重置到工作区根。
+ * 多根工作区（主目录 + 附加文件夹）在顶部切换根。
  */
-import { Icon } from '@iconify/react/offline'
-import { Button } from '@cogito/design/components/button'
-import { useEffect, useState } from 'react'
-import { toast } from 'sonner'
-
 import type { useAui } from '@assistant-ui/react'
+import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
 
 import { attachWorkspaceFile } from '@/features/agent/attachment.ts'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
-import { WorkspaceFiles } from '@/lib/workspace-files.ts'
+import { useWorkspaceRevision } from '@/features/agent/workspace/revision.ts'
+import { AsideFilesPreview } from '@/views/agent/chat/components/aside-files-preview'
+import { useAsideFilesPreview } from '@/views/agent/chat/components/use-aside-files-preview'
+import { WorkspaceFilePicker } from '@/views/agent/chat/components/workspace-file-picker'
 import {
-  WorkspaceFilePicker,
   findBaseName,
   findParentRelative
-} from '@/views/agent/chat/components/workspace-file-picker'
+} from '@/views/agent/chat/components/workspace-relative-path.ts'
+import { Icon } from '@iconify/react/offline'
+import { clsx } from 'clsx'
 
 type ComposerAui = ReturnType<typeof useAui>
 
@@ -24,27 +26,42 @@ interface AsideFilesProps {
   aui: ComposerAui
   initialRelative?: string | null
   onOpenReview?: (relative: string) => void
-  /** 注册「再退一层」；返回 true 表示已处理，父级不必回首页 */
-  bindStepBack?: (handler: (() => boolean) | null) => void
-  /** 通知父级当前焦点文案（文件名 / 目录名） */
-  onFocusLabel?: (label: string | null) => void
 }
 
-const PREVIEW_CHAR_LIMIT = 120_000
-
 function AsideFiles(props: AsideFilesProps) {
-  const { primaryPath } = useActiveWorkspace()
+  const { rootPath: workspaceRoot, folders } = useActiveWorkspace()
+  const revision = useWorkspaceRevision()
+  const [selectedRoot, updateSelectedRoot] = useState<string | null>(null)
   const [directory, updateDirectory] = useState('')
   const [previewRelative, updatePreviewRelative] = useState<string | null>(
     props.initialRelative ?? null
   )
   const [seenInitial, updateSeenInitial] = useState(props.initialRelative ?? null)
-  const [contentState, updateContent] = useState<string | null>(null)
-  const [isPending, updatePending] = useState(false)
-  const [errorState, updateError] = useState<string | null>(null)
-  const [isTruncated, updateTruncated] = useState(false)
 
-  // 外部指定预览文件时在渲染期同步，不进 effect
+  /** 选中的根失效（文件夹被移除）时回落到工作区第一个文件夹 */
+  const activeRoot = useMemo(
+    function () {
+      if (
+        selectedRoot &&
+        folders.some(function (folder) {
+          return folder.path === selectedRoot
+        })
+      ) {
+        return selectedRoot
+      }
+      return workspaceRoot
+    },
+    [selectedRoot, folders, workspaceRoot]
+  )
+
+  const preview = useAsideFilesPreview(previewRelative, activeRoot, revision)
+
+  function switchRoot(next: string) {
+    updateSelectedRoot(next)
+    updateDirectory('')
+    updatePreviewRelative(null)
+  }
+
   if (props.initialRelative !== seenInitial) {
     const next = props.initialRelative ?? null
     updateSeenInitial(next)
@@ -52,97 +69,13 @@ function AsideFiles(props: AsideFilesProps) {
     if (next) updateDirectory(findParentRelative(next))
   }
 
-  /** 没有选中文件或没有工作区时按空内容渲染 */
-  const content = previewRelative && primaryPath ? contentState : null
-  const error = previewRelative && primaryPath ? errorState : null
-
-  useEffect(
-    function () {
-      if (!previewRelative || !primaryPath) return
-
-      let cancelled = false
-
-      async function load() {
-        try {
-          updatePending(true)
-          updateError(null)
-          const result = await WorkspaceFiles.readFile(
-            [primaryPath as string],
-            previewRelative as string
-          )
-          if (cancelled) return
-          const text = result.content ?? ''
-          if (text.length > PREVIEW_CHAR_LIMIT) {
-            updateContent(text.slice(0, PREVIEW_CHAR_LIMIT))
-            updateTruncated(true)
-          } else {
-            updateContent(text)
-            updateTruncated(false)
-          }
-        } catch (cause) {
-          console.warn('[agent/aside-files] 读取文件失败:', cause)
-          if (!cancelled) {
-            updateContent(null)
-            updateError(cause instanceof Error ? cause.message : '读取失败')
-          }
-        } finally {
-          if (!cancelled) updatePending(false)
-        }
-      }
-
-      void load()
-
-      return function () {
-        cancelled = true
-      }
-    },
-    [previewRelative, primaryPath]
-  )
-
-  useEffect(
-    function () {
-      const bind = props.bindStepBack
-      if (!bind) return
-
-      bind(function () {
-        if (previewRelative) {
-          updatePreviewRelative(null)
-          return true
-        }
-        if (directory) {
-          updateDirectory(findParentRelative(directory))
-          return true
-        }
-        return false
-      })
-
-      return function () {
-        bind(null)
-      }
-    },
-    [props.bindStepBack, previewRelative, directory]
-  )
-
-  useEffect(
-    function () {
-      const notify = props.onFocusLabel
-      if (!notify) return
-      if (previewRelative) {
-        notify(findBaseName(previewRelative))
-        return
-      }
-      if (directory) {
-        notify(findBaseName(directory))
-        return
-      }
-      notify(null)
-    },
-    [props.onFocusLabel, previewRelative, directory]
-  )
-
   function handlePick(relative: string) {
     updateDirectory(findParentRelative(relative))
     updatePreviewRelative(relative)
+  }
+
+  function handleDirectoryChange(next: string) {
+    updateDirectory(next)
   }
 
   function handleAttach() {
@@ -163,114 +96,70 @@ function AsideFiles(props: AsideFilesProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {previewRelative ? (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="border-border flex h-9 shrink-0 items-center gap-1 border-b px-1.5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="返回文件树"
-              title="返回所在目录"
-              className="size-7"
-              onClick={closePreview}>
-              <Icon
-                icon="lucide:chevron-left"
-                className="size-3.5"
-              />
-            </Button>
-            <Icon
-              icon="lucide:file"
-              className="text-muted-foreground size-3.5 shrink-0"
-            />
-            <span
-              className="text-foreground min-w-0 flex-1 truncate text-xs"
-              title={previewRelative}>
-              {findBaseName(previewRelative)}
-            </span>
-            <span
-              className="text-muted-foreground hidden max-w-[40%] truncate text-[10px] sm:inline"
-              title={previewRelative}>
-              {findParentRelative(previewRelative) || '工作区'}
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="引用到输入框"
-              title="引用到输入框"
-              className="size-7"
-              onClick={handleAttach}>
-              <Icon
-                icon="lucide:paperclip"
-                className="size-3.5"
-              />
-            </Button>
-            {props.onOpenReview ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="对比差异"
-                title="对比差异"
-                className="size-7"
-                onClick={function () {
-                  props.onOpenReview?.(previewRelative)
-                }}>
-                <Icon
-                  icon="lucide:git-compare"
-                  className="size-3.5"
-                />
-              </Button>
-            ) : null}
-          </div>
-
-          {isPending ? (
-            <p className="text-muted-foreground flex items-center gap-1.5 p-3 text-xs">
-              <Icon
-                icon="lucide:loader-circle"
-                className="size-3.5 animate-spin"
-              />
-              读取中…
-            </p>
-          ) : null}
-
-          {error ? <p className="text-destructive p-3 text-xs">{error}</p> : null}
-
-          {!isPending && !error && content !== null ? (
-            <div className="min-h-0 flex-1 overflow-auto">
-              <pre className="text-foreground p-3 font-mono text-[11px] leading-relaxed break-all whitespace-pre-wrap">
-                {content || '（空文件）'}
-              </pre>
-              {isTruncated ? (
-                <p className="text-muted-foreground border-border border-t px-3 py-2 text-[11px]">
-                  内容过长，仅预览前 {PREVIEW_CHAR_LIMIT.toLocaleString()} 字符
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
+        <AsideFilesPreview
+          previewRelative={previewRelative}
+          isPending={preview.isPending}
+          error={preview.error}
+          content={preview.content}
+          isTruncated={preview.isTruncated}
+          charLimit={preview.charLimit}
+          onClose={closePreview}
+          onAttach={handleAttach}
+          onOpenReview={props.onOpenReview}
+        />
       ) : null}
 
-      {/* 预览时隐藏但保持挂载，目录状态不丢 */}
       <div
         className={
           previewRelative
             ? 'hidden'
-            : !primaryPath
+            : !workspaceRoot
               ? 'text-muted-foreground flex flex-1 items-center justify-center p-4 text-center text-xs'
               : 'flex min-h-0 flex-1 flex-col'
         }>
-        {!primaryPath ? (
+        {!workspaceRoot ? (
           '先在左栏添加一个工作区'
         ) : (
-          <WorkspaceFilePicker
-            active
-            directory={directory}
-            onDirectoryChange={updateDirectory}
-            className="flex min-h-0 flex-1 flex-col"
-            listClassName="min-h-0"
-            onPick={handlePick}
-          />
+          <>
+            {folders.length > 1 ? (
+              <div className="border-border flex shrink-0 items-center gap-1 overflow-x-auto border-b px-1.5 py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {folders.map(function (folder) {
+                  const isActive = folder.path === activeRoot
+                  return (
+                    <button
+                      key={folder.id}
+                      type="button"
+                      title={folder.path}
+                      onClick={function () {
+                        switchRoot(folder.path)
+                      }}
+                      className={clsx(
+                        'flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors',
+                        isActive
+                          ? 'bg-muted text-foreground font-medium'
+                          : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                      )}>
+                      <Icon
+                        icon="lucide:folder"
+                        className="size-3.5 shrink-0"
+                      />
+                      {findBaseName(folder.path)}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : null}
+            <WorkspaceFilePicker
+              active
+              root={activeRoot}
+              revision={revision}
+              directory={directory}
+              onDirectoryChange={handleDirectoryChange}
+              className="flex min-h-0 flex-1 flex-col"
+              listClassName="min-h-0"
+              onPick={handlePick}
+            />
+          </>
         )}
       </div>
     </div>

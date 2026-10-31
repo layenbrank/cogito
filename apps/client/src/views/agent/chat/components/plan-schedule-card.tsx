@@ -3,9 +3,13 @@
  *
  * 写入是**一次事务**（后端 WriteP::Many）；成功后保留一批 id 支持一次性撤销。
  */
-import { Button } from '@cogito/design/components/button'
-import { Input } from '@cogito/design/components/input'
-import { Icon } from '@iconify/react/offline'
+import {
+  ScheduleCard,
+  ScheduleCardActions,
+  ScheduleCardHeader,
+  ScheduleCardRow,
+  ScheduleCardWritten
+} from '@cogito/design/assistant/schedule-card.aui'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -111,44 +115,25 @@ function PlanScheduleCard() {
 
   if (rows.length === 0) {
     return (
-      <div className="pointer-events-auto mx-4 mb-3 flex items-center justify-between gap-3 rounded-xl border bg-background/95 px-3 py-2 text-sm shadow-lg">
-        <span className="text-muted-foreground">已写入 {lastBatchIDs.length} 条日程</span>
-        <div className="flex items-center gap-1">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={function () {
-              void toRemoveEvents(lastBatchIDs)
-                .then(function () {
-                  return toReadEvents()
-                })
-                .then(function () {
-                  clearBatch()
-                })
-            }}>
-            撤销
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={clearBatch}>
-            关闭
-          </Button>
-        </div>
-      </div>
+      <ScheduleCardWritten
+        count={lastBatchIDs.length}
+        onUndo={function () {
+          void toRemoveEvents(lastBatchIDs)
+            .then(function () {
+              return toReadEvents()
+            })
+            .then(function () {
+              clearBatch()
+            })
+        }}
+        onDismiss={clearBatch}
+      />
     )
   }
 
   return (
-    <div className="pointer-events-auto mx-4 mb-3 max-h-[45vh] overflow-y-auto rounded-xl border bg-background/95 p-3 shadow-lg">
-      <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-        <Icon
-          icon="lucide:calendar-plus"
-          className="size-4"
-        />
-        待写入日程
-        <span className="text-xs text-muted-foreground tabular-nums">{rows.length} 条</span>
-      </div>
+    <ScheduleCard>
+      <ScheduleCardHeader count={rows.length} />
 
       {conflicts.length > 0 ? (
         <p className="mb-2 rounded-md bg-amber-500/10 px-2 py-1 text-xs text-amber-700 dark:text-amber-400">
@@ -160,71 +145,41 @@ function PlanScheduleCard() {
       <ul className="flex flex-col gap-1.5">
         {rows.map(function (row) {
           return (
-            <li
+            <ScheduleCardRow
               key={row.key}
-              className="flex flex-wrap items-center gap-1.5">
-              <Input
-                value={row.title}
-                className="h-8 min-w-40 flex-1"
-                onChange={function (event) {
-                  updateRow(row.key, { title: event.target.value })
-                }}
-              />
-              <Input
-                type="datetime-local"
-                value={toLocalInput(row.startAt)}
-                className="h-8 w-44"
-                onChange={function (event) {
-                  const ms = fromLocalInput(event.target.value)
-                  if (ms === null) return
-                  const span = Math.max(row.endAt - row.startAt, 60_000)
-                  updateRow(row.key, { startAt: ms, endAt: ms + span })
-                }}
-              />
-              <Input
-                type="datetime-local"
-                value={toLocalInput(row.endAt)}
-                className="h-8 w-44"
-                onChange={function (event) {
-                  const ms = fromLocalInput(event.target.value)
-                  if (ms === null || ms <= row.startAt) return
-                  updateRow(row.key, { endAt: ms })
-                }}
-              />
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                aria-label="移除这一行"
-                onClick={function () {
-                  removeRow(row.key)
-                }}>
-                <Icon
-                  icon="lucide:x"
-                  className="size-4"
-                />
-              </Button>
-            </li>
+              title={row.title}
+              startAt={toLocalInput(row.startAt)}
+              endAt={toLocalInput(row.endAt)}
+              onTitleChange={function (next) {
+                updateRow(row.key, { title: next })
+              }}
+              onStartChange={function (next) {
+                const ms = fromLocalInput(next)
+                if (ms === null) return
+                const span = Math.max(row.endAt - row.startAt, 60_000)
+                updateRow(row.key, { startAt: ms, endAt: ms + span })
+              }}
+              onEndChange={function (next) {
+                const ms = fromLocalInput(next)
+                if (ms === null || ms <= row.startAt) return
+                updateRow(row.key, { endAt: ms })
+              }}
+              onRemove={function () {
+                removeRow(row.key)
+              }}
+            />
           )
         })}
       </ul>
 
-      <div className="mt-2 flex items-center justify-end gap-2">
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={clear}>
-          取消
-        </Button>
-        <Button
-          size="sm"
-          disabled={isWriting}
-          onClick={function () {
-            void handleWrite()
-          }}>
-          {isWriting ? '写入中…' : '写入日历'}
-        </Button>
-      </div>
-    </div>
+      <ScheduleCardActions
+        onCancel={clear}
+        onWrite={function () {
+          void handleWrite()
+        }}
+        isWriting={isWriting}
+      />
+    </ScheduleCard>
   )
 }
 
