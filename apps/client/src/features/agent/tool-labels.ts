@@ -77,4 +77,73 @@ function isCodeTool(name: string): boolean {
   return lower === 'execute' || lower.includes('execute') || lower.includes('code_mode')
 }
 
-export { isCodeTool, isShellTool, toAgentToolLabel }
+type ToolCardVariant =
+  | 'command'
+  | 'code'
+  | 'read'
+  | 'write'
+  | 'search'
+  | 'generic'
+  | 'commit'
+  | 'test'
+  | 'stack'
+  | 'package'
+  | 'env'
+  | 'schema'
+  | 'snippet'
+  | 'tree'
+
+function isReadTool(name: string): boolean {
+  const lower = name.toLowerCase()
+  return (
+    lower === 'read' ||
+    lower.includes('read_file') ||
+    lower.includes('read_doc') ||
+    (lower.includes('read') && !lower.includes('thread'))
+  )
+}
+
+function isWriteTool(name: string): boolean {
+  const lower = name.toLowerCase()
+  return (
+    lower === 'write' ||
+    lower.includes('write_file') ||
+    lower.includes('write_doc') ||
+    lower.includes('edit') ||
+    lower.includes('str_replace') ||
+    lower.includes('text_editor')
+  )
+}
+
+function isSearchTool(name: string): boolean {
+  const lower = name.toLowerCase()
+  return (
+    lower.includes('grep') ||
+    lower.includes('glob') ||
+    lower.includes('list_dir') ||
+    lower === 'search' ||
+    lower.includes('knowledge_search')
+  )
+}
+
+function isWebTool(name: string): boolean {
+  const lower = name.toLowerCase()
+  return lower.includes('web_search') || lower.includes('webfetch') || lower.includes('web_fetch')
+}
+
+function isGitTool(name: string): boolean {
+  const lower = name.toLowerCase()
+  return lower.includes('git') || lower.includes('commit')
+}
+
+export {
+  isCodeTool,
+  isGitTool,
+  isReadTool,
+  isSearchTool,
+  isShellTool,
+  isWebTool,
+  isWriteTool,
+  toAgentToolLabel
+}
+export type { ToolCardVariant }

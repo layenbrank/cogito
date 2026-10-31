@@ -6,7 +6,7 @@
  */
 import type { ScenarioKey } from '@/features/agent/model/scenarios'
 
-/** 运行时可用的附加上下文（能力地图 / 当前时间） */
+/** 运行时可用的附加上下文（能力地图 / 当前时间 / 浏览器状态） */
 interface PromptContext {
   /** corex 动作目录的紧凑文本（见 `capabilities.ts`） */
   capabilitySummary?: string
@@ -14,6 +14,8 @@ interface PromptContext {
   now?: string
   /** IANA 时区 */
   timeZone?: string
+  /** 浏览器面板当前状态（有没有打开的标签页、在看哪个地址） */
+  browserSummary?: string
 }
 
 const TOOLS_HINT =
@@ -70,6 +72,23 @@ function buildPlanContext(context?: PromptContext): string {
   return `\n\n当前时间：${context.now}${zone}。所有「今天/明天/下周」都以它为基准；时间一律用带本地偏移的 ISO 字符串。`
 }
 
+/**
+ * 浏览器面板 playbook。
+ *
+ * 重点是让模型**自己想到去用**，而不是等用户把页面内容粘过来：
+ * 用户说「这个页面 / 刚才那个接口」时，先读当前标签页。
+ */
+const BROWSER_PLAYBOOK = `浏览器面板（用户能看到的内嵌浏览器，不是爬虫）：
+- 用户说「这个页面 / 当前网页 / 刚才那个接口 / 报错的那个请求 / 截图」时，**直接读用户正在看的那个标签页**（app_browser_read / app_browser_network），不要让他复制粘贴，也不要猜。
+- 需要看用户提到的网址时，先 app_browser_open 打开它，再用 app_browser_read 取内容；用户会看到这个页面。
+- app_browser_read 的 outline 会返回 selector，直接拿去 app_browser_act 点击/输入；动作有副作用，不确定时先问一句。
+- 涉及**视觉**的问题（配色、布局、间距、字体、图片或图表内容、有没有错位/撑破）必须用 app_browser_screenshot 看一眼 —— DOM 文本里根本没有这些信息，不要根据标签名猜样式。
+- 用户在输入框里用 @ 引用了浏览器标签页（文本形如 :browser[browser-2]）时，方括号里就是要传给 app_browser_* 的 tab 参数 —— 同址开多个标签时也靠它区分，不要自己猜。
+- app_browser_network 只能看到「打开标签页之后」的请求；列表为空时提醒用户可以刷新页面。
+- 只在真正需要时开新标签页，用完不要累积一堆；不要用它做批量抓取（需要爬取时说明限制）。`
+
+const BROWSER_SCENARIOS: ReadonlySet<ScenarioKey> = new Set(['general', 'code'])
+
 const SYSTEM_PROMPT_MAP: Record<ScenarioKey, string> = {
   general: `你是 cogito 桌面端的智能助手。${TOOLS_HINT}
 若用户要编排、实现或验证自动化指令，请使用 corex MCP 工具（corex_actions / corex_action / corex_validate / corex_invoke / corex_run）完成，流程与「指令」场景一致；只产出草稿，不要落库。
@@ -88,12 +107,25 @@ function findSystemPrompt(scenario: ScenarioKey, context?: PromptContext) {
   if (CAPABILITY_SCENARIOS.has(scenario) && context?.capabilitySummary) {
     prompt += `\n\n${context.capabilitySummary}`
   }
+  if (BROWSER_SCENARIOS.has(scenario)) {
+    prompt += `\n\n${BROWSER_PLAYBOOK}`
+    if (context?.browserSummary) {
+      prompt += `\n${context.browserSummary}`
+    }
+  }
   if (scenario === 'plan') {
     prompt += buildPlanContext(context)
   }
   return prompt
 }
 
-export { DIRECTIVE_PLAYBOOK, KNOWLEDGE_PLAYBOOK, findSystemPrompt, SYSTEM_PROMPT_MAP, TOOLS_HINT }
+export {
+  BROWSER_PLAYBOOK,
+  DIRECTIVE_PLAYBOOK,
+  KNOWLEDGE_PLAYBOOK,
+  findSystemPrompt,
+  SYSTEM_PROMPT_MAP,
+  TOOLS_HINT
+}
 export type { PromptContext }
 

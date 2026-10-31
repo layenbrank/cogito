@@ -5,19 +5,17 @@ import { useAgentStore, type Workspace, type WorkspaceFolder } from '@/stores/ag
 interface ActiveWorkspace {
   workspace: Workspace | null
   workspaceID: string | null
-  primaryPath: string | null
+  rootPath: string | null
   folders: WorkspaceFolder[]
 }
 
-function findPrimaryPath(workspaceID: string | null, folders: WorkspaceFolder[]) {
+function findRootPath(workspaceID: string | null, folders: WorkspaceFolder[]) {
   if (!workspaceID) return null
   const owned = folders.filter(function (folder) {
     return folder.workspaceID === workspaceID
   })
-  const primary = owned.find(function (folder) {
-    return folder.isPrimary
-  })
-  return primary?.path ?? owned[0]?.path ?? null
+  // 不再区分主文件夹：列表顺序里的第一个就是工作区根（保存时按顺序写 sort）
+  return owned[0]?.path ?? null
 }
 
 function useActiveWorkspace(): ActiveWorkspace {
@@ -43,7 +41,7 @@ function useActiveWorkspace(): ActiveWorkspace {
       return {
         workspace,
         workspaceID,
-        primaryPath: findPrimaryPath(workspaceID, folders),
+        rootPath: findRootPath(workspaceID, folders),
         folders: owned
       }
     },
@@ -51,5 +49,5 @@ function useActiveWorkspace(): ActiveWorkspace {
   )
 }
 
-export { findPrimaryPath, useActiveWorkspace }
+export { findRootPath, useActiveWorkspace }
 export type { ActiveWorkspace }

@@ -2,7 +2,13 @@
  * 模型 / 接入的面向用户展示名（隐藏 goose 内部 id 与英文说明书）。
  */
 import { findGatewayModelLabel } from '@/features/agent/model/gateway-labels'
-import { GATEWAY_PROVIDER_KIND } from '@/features/quota/gate'
+import { GATEWAY_PROVIDER_KIND, isGatewayTarget } from '@/features/quota/gate'
+
+interface ModelProviderRef {
+  id: string
+  kind?: string
+  name?: string | null
+}
 
 interface ProviderDisplay {
   /** 列表与分组标题 */
@@ -226,11 +232,24 @@ function findProviderBilling(providerId: string, providerName?: string | null) {
   return findProviderDisplay(providerId, providerName).billing
 }
 
+/** 多接入都可能有 `auto`：带上来源短标，避免选择后分不清 */
+function findAutoModelLabel(provider: ModelProviderRef) {
+  const kind = (provider.kind || provider.id).trim()
+  if (isGatewayTarget(kind)) return 'Auto · 组织'
+  const label = findProviderLabel(kind, provider.name)
+  if (/cursor/i.test(kind) || /cursor/i.test(label)) return 'Auto · Cursor'
+  if (/gemini/i.test(kind) || /gemini/i.test(label)) return 'Auto · Gemini'
+  if (label.length <= 10) return `Auto · ${label}`
+  return `Auto · ${label.slice(0, 9)}…`
+}
+
 /** 模型 id → 更易读的展示名（去掉 Bedrock/Azure 修订号与区域前缀） */
-function findModelLabel(model: string) {
+function findModelLabel(model: string, provider?: ModelProviderRef) {
   const value = model.trim()
   if (!value) return '未选模型'
-  if (value === 'auto') return 'Auto（自动）'
+  if (value === 'auto') {
+    return provider ? findAutoModelLabel(provider) : 'Auto（自动）'
+  }
 
   const gatewayLabel = findGatewayModelLabel(value)
   if (gatewayLabel) return gatewayLabel
@@ -281,6 +300,7 @@ export {
   findProviderLabel,
   findProviderHint,
   findProviderBilling,
+  findAutoModelLabel,
   findModelLabel,
   findFieldLabel
 }

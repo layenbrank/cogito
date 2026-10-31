@@ -257,6 +257,28 @@ describe('parseAcpApprovalRequest', function () {
       options: [{ id: 'o9', kind: 'reject-once', label: '将来才有的选项' }]
     })
   })
+
+  it('name 是 kind 原样时换成中文标签', function () {
+    const params = {
+      sessionId: 's1',
+      toolCall: { toolCallId: 't1', name: 'shell' },
+      options: [
+        { optionId: 'o1', name: 'allow_once', kind: 'allow_once' },
+        { optionId: 'o2', name: 'allow_always', kind: 'allow_always' },
+        { optionId: 'o3', name: 'reject_once', kind: 'reject_once' },
+        { optionId: 'o4', name: 'reject_always', kind: 'reject_always' }
+      ]
+    } as unknown as RequestPermissionRequest
+
+    expect(parseAcpApprovalRequest(params)).toMatchObject({
+      options: [
+        { id: 'o1', kind: 'allow-once', label: '允许一次' },
+        { id: 'o2', kind: 'allow-always', label: '始终允许' },
+        { id: 'o3', kind: 'reject-once', label: '拒绝一次' },
+        { id: 'o4', kind: 'reject-always', label: '始终拒绝' }
+      ]
+    })
+  })
 })
 
 describe('parseAcpPermissionOutcome', function () {

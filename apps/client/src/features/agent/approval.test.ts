@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { classifyToolEffect, isWriteTool } from '@/features/agent/approval'
+import {
+  classifyToolEffect,
+  findGooseMode,
+  findToolPermissionLevel,
+  isWriteTool
+} from '@/features/agent/approval'
 
 describe('工具效果分类', function () {
   it('读工具不触发审批', function () {
@@ -13,7 +18,7 @@ describe('工具效果分类', function () {
     expect(classifyToolEffect('list_runs')).toBe('read')
   })
 
-  it('写工具一定触发审批（含 create/append/update/save/index/run）', function () {
+  it('写工具一定触发审批（含 create/append/update/save/index/run/text_editor）', function () {
     expect(isWriteTool('write_file')).toBe(true)
     expect(isWriteTool('app_knowledge_write_doc')).toBe(true)
     expect(isWriteTool('calendar.create')).toBe(true)
@@ -21,9 +26,41 @@ describe('工具效果分类', function () {
     expect(isWriteTool('knowledge_index')).toBe(true)
     expect(isWriteTool('corex_run')).toBe(true)
     expect(isWriteTool('corex_invoke')).toBe(true)
+    expect(isWriteTool('developer__shell')).toBe(true)
+    expect(isWriteTool('developer__text_editor')).toBe(true)
+    expect(isWriteTool('str_replace')).toBe(true)
   })
 
   it('未知 app_ 工具失败关闭（按写）', function () {
     expect(classifyToolEffect('app_something_new')).toBe('write')
+  })
+})
+
+describe('审批策略 → goose 会话 mode', function () {
+  it('询问审批 / 只读 → smart_approve（否则默认 auto 会跳过 permission.yaml）', function () {
+    expect(findGooseMode('ask')).toBe('smart_approve')
+    expect(findGooseMode('readonly')).toBe('smart_approve')
+  })
+
+  it('自动审批 → auto', function () {
+    expect(findGooseMode('auto')).toBe('auto')
+  })
+})
+
+describe('审批策略 → goose 权限档', function () {
+  it('询问审批：写工具 ask_before，读工具 always_allow', function () {
+    expect(findToolPermissionLevel('ask', 'write_file')).toBe('ask_before')
+    expect(findToolPermissionLevel('ask', 'read_file')).toBe('always_allow')
+    expect(findToolPermissionLevel('ask', 'developer__shell')).toBe('ask_before')
+  })
+
+  it('自动审批：全部 always_allow', function () {
+    expect(findToolPermissionLevel('auto', 'write_file')).toBe('always_allow')
+    expect(findToolPermissionLevel('auto', 'shell')).toBe('always_allow')
+  })
+
+  it('只读：写工具 never_allow，读工具 always_allow', function () {
+    expect(findToolPermissionLevel('readonly', 'write_file')).toBe('never_allow')
+    expect(findToolPermissionLevel('readonly', 'read_file')).toBe('always_allow')
   })
 })

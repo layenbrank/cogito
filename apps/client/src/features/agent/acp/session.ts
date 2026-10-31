@@ -31,19 +31,33 @@ import type {
   ChatToolApproval
 } from '@cogito/chat/ports'
 
-import { bindAcpRequestRouter, bindGooseNotReady, findAcpHandle } from '@/features/agent/acp/connection'
+import {
+  bindAcpRequestRouter,
+  bindGooseNotReady,
+  bindSessionUpdateRoute,
+  findAcpHandle
+} from '@/features/agent/acp/connection'
 import { mountCloudMcp } from '@/features/agent/acp/cloud-mcp'
 import { clearGooseUsage, writeGooseUsage } from '@/features/agent/acp/goose-usage'
 import { fetchSessionTools, saveDefaults } from '@/features/agent/acp/goose-providers'
+import {
+  syncSessionApprovalMode,
+  writeSessionGooseMode
+} from '@/features/agent/acp/sync-approval-mode'
+import { findGooseMode, readApprovalMode } from '@/features/agent/approval'
 import { clearRunState, markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
 import { verifyAgentTools } from '@/features/agent/agent-tools'
 import type { AgentToolServer } from '@/features/agent/agent-tools'
+import { notifyTurnDone } from '@/features/agent/notify'
+import { readGoalRun } from '@/features/agent/goal-run'
 import { findPref } from '@/features/persist'
 import {
   parseAcpApprovalRequest,
   parseAcpElicitationRequest,
   parseAcpElicitationResponse,
-  parseAcpPermissionOutcome
+  parseAcpPermissionOutcome,
+  parseAcpStreamEvent,
+  type AcpStreamContext
 } from '@/features/agent/acp/stream'
 import { parseModels, stringifyModels } from '@/features/agent/model/providers'
 import { CHANNELS } from '@/shared/ipc/channels'
@@ -273,7 +287,9 @@ async function findCogitoMcpServers(sessionID: string): Promise<AcpMcpServer[]> 
 }
 
 /**
- * 会话的工作目录：按**这个会话自己的工作区**取主目录，没有就退回用户家目录。
+ * 会话的工作目录：按**这个会话自己的工作区**取第一个文件夹，没有就退回用户家目录。
+ *
+ * 不再区分主文件夹——工作区内部以列表顺序为准（与 `findRootPath` 同口径）。
  *
  * 不能读全局的「当前工作区」指针：库允许多个会话同时跑，用户切到 B 会话后 A 还在后台跑，
  * 指针已经变成了 B 的工作区 —— 拿它算 A 的 cwd 会得到不一致的值，`ensureThreadSession`
@@ -285,12 +301,8 @@ async function findWorkspaceCwd(workspaceID: string | null): Promise<string> {
     const owned = state.workspaceFolders.filter(function (item) {
       return item.workspaceID === workspaceID
     })
-    const primary = owned.find(function (item) {
-      return item.isPrimary
-    })
-    if (primary?.path) return primary.path
-    const anyFolder = owned[0]
-    if (anyFolder?.path) return anyFolder.path
+    const first = owned[0]
+    if (first?.path) return first.path
   }
   return homeDir()
 }
@@ -525,6 +537,7 @@ function forgetThreadSession(thread: ThreadSession) {
   if (sessionByAcpID.get(thread.acpSessionID) === thread) sessionByAcpID.delete(thread.acpSessionID)
   usageBaseline.delete(thread.acpSessionID)
   clearGooseUsage(thread.threadID)
+  forgetSessionMapping(thread.threadID)
 }
 
 /** goose 退出 / 重连：会话与上下文用量都得清（旧 session 已经不可用） */
@@ -597,6 +610,70 @@ bindAcpRequestRouter({
   requestElicitation: requestThreadElicitation
 })
 
+/** 刷新后恢复进行中回合：thread → ACP session 映射落在 localStorage，比内存活得久 */
+const THREAD_SESSION_MAP_KEY = 'cogito:agent:thread-session'
+
+function readSessionMap(): Record<string, string> {
+  try {
+    const raw = window.localStorage.getItem(THREAD_SESSION_MAP_KEY)
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {}
+  } catch (error) {
+    console.warn('[acp/session] 读 thread→session 映射失败，按无映射处理:', error)
+    return {}
+  }
+}
+
+function writeSessionMap(map: Record<string, string>): void {
+  try {
+    window.localStorage.setItem(THREAD_SESSION_MAP_KEY, JSON.stringify(map))
+  } catch (error) {
+    // 写不进去不影响主流程：刷新后顶多恢复不了进行中回合
+    console.warn('[acp/session] 写 thread→session 映射失败:', error)
+  }
+}
+
+interface RememberedSession {
+  sessionID: string
+  cwd: string
+}
+
+function recallSessionMapping(threadID: string): RememberedSession | null {
+  const raw = readSessionMap()[threadID]
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as RememberedSession
+  } catch (error) {
+    console.warn('[acp/session] 解析 thread→session 映射失败，按无映射处理:', error)
+    return null
+  }
+}
+
+function rememberSessionMapping(threadID: string, sessionID: string, cwd: string): void {
+  const map = readSessionMap()
+  map[threadID] = JSON.stringify({ sessionID, cwd })
+  writeSessionMap(map)
+}
+
+function forgetSessionMapping(threadID: string): void {
+  const map = readSessionMap()
+  if (!(threadID in map)) return
+  delete map[threadID]
+  writeSessionMap(map)
+}
+
+/** 刷新后恢复订阅：sessionID → 队列；全局 session/update 通知按 sessionId 喂进来 */
+interface ResumeFeed {
+  push(update: SessionUpdate): void
+  close(): void
+}
+
+const resumeFeeds = new Map<string, ResumeFeed>()
+
+bindSessionUpdateRoute(function (notification) {
+  const feed = resumeFeeds.get(notification.sessionId)
+  if (feed) feed.push(notification.update)
+})
+
 async function openThreadSession(
   threadID: string,
   cwd: string,
@@ -616,7 +693,7 @@ async function openThreadSession(
     .buildSession({
       cwd,
       mcpServers,
-      _meta: { client: 'cogito' }
+      _meta: { client: 'cogito', threadID }
     })
     .start()
 
@@ -652,6 +729,7 @@ async function openThreadSession(
     run: null
   }
   sessionByAcpID.set(thread.acpSessionID, thread)
+  rememberSessionMapping(threadID, thread.acpSessionID, cwd)
   handle.connection.closed.then(
     function () {
       forgetThreadSession(thread)
@@ -660,6 +738,11 @@ async function openThreadSession(
       forgetThreadSession(thread)
     }
   )
+  try {
+    await syncSessionApprovalMode(handle.connection, thread.acpSessionID)
+  } catch (error) {
+    console.warn('[acp/session] 同步审批策略到 goose 失败:', error)
+  }
   return thread
 }
 
@@ -694,6 +777,16 @@ async function ensureThreadSession(
       cached.modelID = applied.modelId
       cached.configOptions = applied.configOptions
       await syncModelsToStore(applied.providerId, applied.configOptions)
+    }
+    // 已开会话也重推 mode：避免仍停在 goose 默认 auto（单改 permission.yaml 不生效）
+    try {
+      await writeSessionGooseMode(
+        handle.connection,
+        cached.acpSessionID,
+        findGooseMode(readApprovalMode())
+      )
+    } catch (error) {
+      console.warn('[acp/session] 重同步审批 mode 失败:', error)
     }
     return cached
   }
@@ -832,6 +925,7 @@ async function* runThreadPrompt(
   } finally {
     thread.run = null
     markRunFinished(threadID)
+    void notifyTurnDone(threadID, run.prompt.cancelled)
     releaseBox.release?.()
     // 这一轮没被回答的票据全部作废：留着的 promise 会让 goose 侧一直等，且用户看到的
     // 「待审批」永远不会消失（票随轮次生死）
@@ -894,6 +988,29 @@ async function recordUsage(
 }
 
 /**
+ * 目标推进期间无人值守：审批自动放行。
+ *
+ * 优先一次性授权（`allow_once`），其次常驻；找不到“允许”类选项才退回取消 ——
+ * 不要因为挑不出选项就把整轮卡到票据超时。
+ */
+function pickAutoAllowOption(
+  options: RequestPermissionRequest['options']
+): RequestPermissionRequest['options'][number] | null {
+  return (
+    options.find(function (option) {
+      return option.kind === 'allow_once'
+    }) ??
+    options.find(function (option) {
+      return option.kind === 'allow_always'
+    }) ??
+    options.find(function (option) {
+      return /allow|approve|yes/i.test(option.name)
+    }) ??
+    null
+  )
+}
+
+/**
  * agent 请求权限（由连接的 `session/request_permission` 回调转进来）。
  *
  * 找不到对应会话时**按取消回复**：宁可让 agent 知道这次没被批准，也不能让它悬着。
@@ -902,6 +1019,21 @@ async function requestThreadPermission(params: RequestPermissionRequest): Promis
   const thread = sessionByAcpID.get(params.sessionId)
   const run = thread?.run
   if (!thread || !run) {
+    return { outcome: { outcome: 'cancelled' } }
+  }
+
+  // 目标模式特有的兜底：这一线程的推进不是“问一次动一下”，不能停下来等人。
+  // 直接回允许，不挂票据、不往队列塞审批事件（否则用户回来只看到一堆已失效的卡片）。
+  if (readGoalRun(thread.threadID)) {
+    const allow = pickAutoAllowOption(params.options)
+    if (allow) {
+      console.info(
+        '[acp/session] 目标模式自动批准:',
+        params.toolCall.title ?? params.toolCall.toolCallId
+      )
+      return { outcome: { outcome: 'selected', optionId: allow.optionId } }
+    }
+    console.warn('[acp/session] 目标模式找不到可批准项，按取消处理:', params.toolCall.toolCallId)
     return { outcome: { outcome: 'cancelled' } }
   }
 
@@ -1082,6 +1214,190 @@ function hasThreadSession(threadID: string): boolean {
   return sessionByThread.has(threadID)
 }
 
+/** 恢复订阅的空闲阈值：连续这么久没收到 update，就认为 goose 这轮已经跑完 */
+const RESUME_IDLE_TIMEOUT_MS = 120_000
+
+/**
+ * load 重放结束后的「首次」空闲阈值：load 已把会话 attach 回当前连接，若后台仍有
+ * 一轮在跑，后续 update 会在很短时间内继续推来；短窗口内一片静默就说明后台已经跑完，
+ * 不必干等长窗口。
+ */
+const RESUME_FIRST_IDLE_TIMEOUT_MS = 10_000
+
+function makeResumeQueue() {
+  const items: Array<SessionUpdate | null> = []
+  let wake: (() => void) | null = null
+
+  return {
+    push(item: SessionUpdate | null) {
+      items.push(item)
+      const resume = wake
+      wake = null
+      resume?.()
+    },
+    async take(): Promise<SessionUpdate | null> {
+      while (items.length === 0) {
+        await new Promise<void>(function (resolve) {
+          wake = resolve
+        })
+      }
+      return items.shift()!
+    },
+    /**
+     * 非阻塞取走当前已入队的全部项：`session/load` 返回时重放历史已经全部入队，
+     * 用它与后续 live update 划清界限（load 重放里最后一个 user 消息之后才是
+     * 「进行中这一轮」的助手内容）。
+     */
+    drain(): Array<SessionUpdate | null> {
+      return items.splice(0, items.length)
+    }
+  }
+}
+
+/**
+ * 刷新后恢复进行中回合：用 session/load 接上 goose 会话。
+ *
+ * goose 声明 `loadSession` 而**不**声明 `session/resume`。`session/load` 会做两件事：
+ * 1) 把会话全量历史重放成 session/update 通知（UserMessageChunk / AgentMessageChunk /
+ *    ToolCall ...）；2) 把会话 attach 回当前连接 —— 后台仍在跑的一轮，其后续 update
+ *    会继续推来。我们只取「进行中这一轮」：重放历史里最后一个 UserMessageChunk 之后的
+ *    助手内容（detach 前已渲染过的历史由 SQLite 负责，这里不重复产）。
+ *
+ * 结束信号：goose 在 load 之外不推「这轮结束」标记（stop 只来自 session/prompt 响应），
+ * 故用空闲超时兜底 —— load 后短窗口内一片静默就说明后台已跑完，yield finish 收尾。
+ */
+async function* resumeThreadRun(
+  threadID: string,
+  signal: AbortSignal | undefined
+): AsyncGenerator<ChatStreamEvent, void, unknown> {
+  const remembered = recallSessionMapping(threadID)
+  if (!remembered) return
+
+  const handle = await findAcpHandle()
+  if (!handle.canLoadSession) {
+    console.warn('[acp/session] goose 未声明 session/load，无法恢复进行中回合:', threadID)
+    return
+  }
+
+  const queue = makeResumeQueue()
+  const feed: ResumeFeed = {
+    push: function (update) {
+      queue.push(update)
+    },
+    close: function () {
+      queue.push(null)
+    }
+  }
+  resumeFeeds.set(remembered.sessionID, feed)
+
+  let finished = false
+  let closeReason: 'idle' | 'abort' | 'closed' = 'idle'
+  const close = function (reason: 'idle' | 'abort' | 'closed') {
+    if (finished) return
+    finished = true
+    closeReason = reason
+    feed.close()
+  }
+
+  let onAbort: (() => void) | null = null
+  if (signal) {
+    onAbort = function () {
+      close('abort')
+    }
+    if (signal.aborted) onAbort()
+    else signal.addEventListener('abort', onAbort, { once: true })
+  }
+  handle.connection.closed.then(
+    function () {
+      close('closed')
+    },
+    function () {
+      close('closed')
+    }
+  )
+
+  const context: AcpStreamContext = {
+    blockID: function (messageId, kind) {
+      return messageId ? `${kind}:${messageId}` : `${kind}:run`
+    },
+    // live 续尾时 usage_update 也会推来：与正常 run 路径（pump 里单独处理）对齐，
+    // 否则「后台还在跑、刷新后恢复」的场景里侧栏上下文占用会停在旧值。
+    onContextUsage: function (usage) {
+      writeGooseUsage(threadID, usage.used, usage.size)
+    }
+  }
+
+  let idleTimer: ReturnType<typeof setTimeout> | null = null
+  const armIdle = function (ms: number) {
+    if (idleTimer) clearTimeout(idleTimer)
+    idleTimer = setTimeout(function () {
+      console.warn('[acp/session] 恢复订阅空闲超时，按完成收尾:', threadID)
+      close('idle')
+    }, ms)
+  }
+
+  const terminal = function (): ChatStreamEvent {
+    // 只有「空闲超时」才是真跑完；abort（用户停止）与 closed（连接断开）都是未完成
+    return closeReason === 'idle'
+      ? { kind: 'finish', finishReason: 'end_turn', usage: {} }
+      : { kind: 'aborted', usage: {} }
+  }
+
+  try {
+    if (finished) {
+      // 中止 / 断连发生在 load 之前：不发请求，直接按原因收尾
+      yield terminal()
+      return
+    }
+
+    try {
+      await handle.connection.agent.request(methods.agent.session.load, {
+        sessionId: remembered.sessionID,
+        cwd: remembered.cwd,
+        // load 是「接上」不是重建：空名单沿用会话已有扩展，不新增 MCP
+        mcpServers: []
+      })
+    } catch (error) {
+      console.warn('[acp/session] 恢复加载会话失败:', threadID, error)
+      yield { kind: 'aborted', usage: {} }
+      return
+    }
+
+    // load 已把全量历史重放进队：定位最后一个用户消息，其后的助手内容才是进行中这一轮
+    const replayed = queue.drain()
+    let startIndex = 0
+    for (let index = 0; index < replayed.length; index += 1) {
+      const update = replayed[index]
+      if (update !== null && update.sessionUpdate === 'user_message_chunk') {
+        startIndex = index + 1
+      }
+    }
+    for (let index = startIndex; index < replayed.length; index += 1) {
+      const update = replayed[index]
+      if (update === null) break
+      const event = parseAcpStreamEvent(update, context)
+      if (event) yield event
+    }
+
+    // 订阅 live update：首窗口短（后台跑完就静默），此后换长窗口兜底长工具
+    armIdle(RESUME_FIRST_IDLE_TIMEOUT_MS)
+    while (true) {
+      const update = await queue.take()
+      if (update === null) break
+      armIdle(RESUME_IDLE_TIMEOUT_MS)
+      const event = parseAcpStreamEvent(update, context)
+      if (event) yield event
+    }
+
+    // mapChatStreamToRunResults 靠 finish/aborted 才能出终态快照，这里补上
+    yield terminal()
+  } finally {
+    if (idleTimer) clearTimeout(idleTimer)
+    resumeFeeds.delete(remembered.sessionID)
+    if (signal && onAbort) signal.removeEventListener('abort', onAbort)
+  }
+}
+
 /** 读某 thread 已建立 goose session 的 ACP session id（未建立则 null）；设置面枚举工具用 */
 function findThreadAcpSessionID(threadID: string): string | null {
   return sessionByThread.get(threadID.trim())?.acpSessionID ?? null
@@ -1098,6 +1414,7 @@ export {
   requestThreadPermission,
   respondToApproval,
   respondToElicitation,
+  resumeThreadRun,
   runThreadPrompt,
   switchGooseProviderModel,
   waitGooseReady

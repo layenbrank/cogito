@@ -1,9 +1,13 @@
 /**
  * 工具审批策略（对齐 Qoder「自动审批 / 询问审批」）。
  *
- * 取值落 agent.json；切换时尽量批量写 goose `tools/permissions`。
+ * 取值落 agent.json；同步到 goose 时必须同时：
+ * 1. 设会话 `mode`（`auto` 档会无条件放行，单改 permission.yaml 无效）
+ * 2. 批量写 `tools/permissions` 作为细粒度覆盖
  */
 
+import type { ToolPermissionLevel } from '@/features/agent/acp/goose-providers'
+import { notifyScope, readScopeThread, subscribeScope } from '@/features/agent/thread-scope'
 import { findPref, patchPref } from '@/features/persist'
 import type { ApprovalMode } from '@/features/persist'
 
@@ -11,30 +15,93 @@ interface ApprovalPolicyMeta {
   value: ApprovalMode
   label: string
   hint: string
+  /** lucide 图标名（composer 触发器 / 菜单行） */
+  icon: string
 }
 
-const APPROVAL_POLICIES: readonly ApprovalPolicyMeta[] = [
-  { value: 'ask', label: '询问审批', hint: '只读工具直接执行，写文件前询问' },
-  { value: 'auto', label: '自动审批', hint: '不再询问，工具直接执行' },
-  { value: 'readonly', label: '只读', hint: '不给写文件与执行命令的工具' }
-]
+/** goose 原生会话权限档（`session/set_config_option` 的 mode） */
+type GooseMode = 'auto' | 'approve' | 'smart_approve' | 'chat'
+
+/**
+ * 审批档总表：**键顺序即菜单顺序**（询问 → 自动 → 只读）。
+ * 新增档位只改这里，`APPROVAL_POLICIES` 与 `findApprovalPolicy` 自动跟上。
+ */
+const APPROVAL_META: Record<ApprovalMode, ApprovalPolicyMeta> = {
+  ask: {
+    value: 'ask',
+    label: '询问审批',
+    hint: '写文件、执行命令等操作前始终询问；只读工具直接放行',
+    icon: 'lucide:shield'
+  },
+  auto: {
+    value: 'auto',
+    label: '自动审批',
+    // 产品真相：goose `auto` 会无条件放行，不是「仅风险时询问」
+    hint: '不再询问，工具直接执行',
+    icon: 'lucide:circle-play'
+  },
+  readonly: {
+    value: 'readonly',
+    label: '只读',
+    hint: '仅允许只读工具，禁止写文件与执行命令',
+    icon: 'lucide:book-lock'
+  }
+}
 
 const APPROVAL_MODE = 'ask'
 
+/** 菜单展示顺序 = `APPROVAL_META` 的键顺序 */
+const APPROVAL_POLICIES: readonly ApprovalPolicyMeta[] = Object.values(APPROVAL_META)
+
+function isApprovalMode(value: string): value is ApprovalMode {
+  return Object.hasOwn(APPROVAL_META, value)
+}
+
 function findApprovalPolicy(value: string) {
-  return (
-    APPROVAL_POLICIES.find(function (item) {
-      return item.value === value
-    }) ?? null
-  )
+  return isApprovalMode(value) ? APPROVAL_META[value] : null
 }
 
 function readApprovalMode(): ApprovalMode {
-  return findPref('agent').approvalMode
+  const pref = findPref('agent')
+  const threadID = readScopeThread()
+  // 会话级：有记录用记录；**新会话没有记录就回落到默认值** —— 不沿用上一个会话的选择
+  if (threadID) return pref.approvalByThread[threadID] ?? pref.approvalMode
+  return pref.approvalMode
+}
+
+/** 按指定会话读（目标推进的后台续跑不在当前 UI 线程上下文里） */
+function readApprovalModeFor(threadID: string): ApprovalMode {
+  const pref = findPref('agent')
+  return pref.approvalByThread[threadID] ?? pref.approvalMode
+}
+
+/** 按指定会话写：多会话并发推进时不能互相污染 */
+function writeApprovalModeFor(threadID: string, mode: ApprovalMode) {
+  const pref = findPref('agent')
+  void patchPref('agent', {
+    approvalByThread: { ...pref.approvalByThread, [threadID]: mode }
+  })
+  notifyScope()
 }
 
 function writeApprovalMode(mode: ApprovalMode) {
-  void patchPref('agent', { approvalMode: mode })
+  const pref = findPref('agent')
+  const threadID = readScopeThread()
+  if (!threadID) {
+    // 还没有会话（首条消息发出前）：只改「下一个新会话」的默认值
+    void patchPref('agent', { approvalMode: mode })
+    notifyScope()
+    return
+  }
+  void patchPref('agent', {
+    approvalByThread: { ...pref.approvalByThread, [threadID]: mode }
+  })
+  notifyScope()
+}
+
+/** 供 `useSyncExternalStore` 订阅：切会话 / 改审批档都会触发 */
+function subscribeApproval(listener: () => void): () => void {
+  return subscribeScope(listener)
 }
 
 /**
@@ -69,10 +136,13 @@ const READ_TOOL_PATTERNS = [
   'directives'
 ]
 
-/** 写动词：新增 create/append/update/save/put/set/index/rebuild/publish/run */
+/** 写动词：含 goose developer 的 text_editor / str_replace 等 */
 const WRITE_TOOL_PATTERNS = [
   'write',
   'edit',
+  'text_editor',
+  'str_replace',
+  'replace',
   'patch',
   'apply',
   'shell',
@@ -95,7 +165,11 @@ const WRITE_TOOL_PATTERNS = [
   'invoke',
   'kill',
   'install',
-  'upload'
+  'upload',
+  'mkdir',
+  'move',
+  'rename',
+  'copy'
 ]
 
 function classifyToolEffect(name: string): ToolEffect {
@@ -122,6 +196,26 @@ function isWriteTool(name: string) {
   return classifyToolEffect(name) === 'write'
 }
 
+/**
+ * composer 策略 → goose 会话 mode。
+ *
+ * goose 默认 `auto`：permission_inspector 对所有工具直接 Allow，
+ * 此时 permission.yaml 的 ask_before **不会**触发审批。
+ * 「询问审批」必须切到 `smart_approve`（只读写分流）才生效。
+ */
+function findGooseMode(mode: ApprovalMode): GooseMode {
+  if (mode === 'auto') return 'auto'
+  // ask / readonly 都靠 smart_approve 启审批通道；细粒度由 findToolPermissionLevel 区分
+  return 'smart_approve'
+}
+
+/** 按 composer 审批策略映射 goose 工具权限档 */
+function findToolPermissionLevel(mode: ApprovalMode, toolName: string): ToolPermissionLevel {
+  if (mode === 'auto') return 'always_allow'
+  if (mode === 'ask') return isWriteTool(toolName) ? 'ask_before' : 'always_allow'
+  return isWriteTool(toolName) ? 'never_allow' : 'always_allow'
+}
+
 export {
   APPROVAL_MODE,
   APPROVAL_POLICIES,
@@ -129,8 +223,13 @@ export {
   WRITE_TOOL_PATTERNS,
   classifyToolEffect,
   findApprovalPolicy,
+  findGooseMode,
+  findToolPermissionLevel,
   isWriteTool,
   readApprovalMode,
-  writeApprovalMode
+  readApprovalModeFor,
+  subscribeApproval,
+  writeApprovalMode,
+  writeApprovalModeFor
 }
-export type { ApprovalMode, ApprovalPolicyMeta, ToolEffect }
+export type { ApprovalMode, ApprovalPolicyMeta, GooseMode, ToolEffect }

@@ -17,6 +17,12 @@
     "app_knowledge_list_docs",
     "app_knowledge_read_doc",
     "app_knowledge_search",
-    "app_knowledge_write_doc"
+    "app_knowledge_write_doc",
+    "app_browser_open",
+    "app_browser_read",
+    "app_browser_act",
+    "app_browser_screenshot",
+    "app_browser_network",
+    "app_browser_intercept"
   ]
 }

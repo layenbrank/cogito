@@ -58,6 +58,14 @@ const APPROVAL_KIND_MAP: Record<string, ChatApprovalOptionKind> = {
   reject_always: 'reject-always'
 }
 
+/** 人话标签：goose 常把 kind 原样塞进 `name`，UI 不能直接展示 */
+const APPROVAL_KIND_LABELS: Record<ChatApprovalOptionKind, string> = {
+  'allow-once': '允许一次',
+  'allow-always': '始终允许',
+  'reject-once': '拒绝一次',
+  'reject-always': '始终拒绝'
+}
+
 /** 给出「允许 / 拒绝」时，按这个顺序挑第一个可用选项 */
 const ALLOW_KIND_ORDER: readonly ChatApprovalOptionKind[] = ['allow-once', 'allow-always']
 const REJECT_KIND_ORDER: readonly ChatApprovalOptionKind[] = ['reject-once', 'reject-always']
@@ -107,10 +115,17 @@ function parsePlanEntries(entries: readonly { content: string; status?: string; 
   })
 }
 
+function findApprovalLabel(kind: ChatApprovalOptionKind, name: string | undefined) {
+  const raw = name?.trim()
+  // 非空且不是 kind 原样（snake / kebab）时保留宿主文案；否则用中文兜底
+  if (raw && !/^(allow|reject)[_-](once|always)$/i.test(raw)) return raw
+  return APPROVAL_KIND_LABELS[kind]
+}
+
 function toApprovalOption(option: PermissionOption): ChatApprovalOption {
   const kind = APPROVAL_KIND_MAP[option.kind]
   return kind
-    ? { id: option.optionId, kind, label: option.name }
+    ? { id: option.optionId, kind, label: findApprovalLabel(kind, option.name) }
     : // 未知类别（协议将来新增）按「拒绝一次」兜底，避免把本应拒绝的选项放大成允许
       { id: option.optionId, kind: 'reject-once', label: option.name }
 }

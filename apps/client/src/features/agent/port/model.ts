@@ -16,6 +16,7 @@ import type {
   ChatUsage
 } from '@cogito/chat/ports'
 
+import { consumeBackgroundTurn } from '@/features/agent/acp/background-turn'
 import {
   ensureCogitoProvider,
   isCogitoSoftFailure
@@ -23,8 +24,12 @@ import {
 import { runThreadPrompt, respondToApproval, respondToElicitation } from '@/features/agent/acp/session'
 import { parseAcpStreamEvent, type AcpStreamContext } from '@/features/agent/acp/stream'
 import { findActiveScenario } from '@/features/agent/model/active-scenario'
+import type { ScenarioKey } from '@/features/agent/model/scenarios'
 import { buildPromptContext } from '@/features/agent/model/prompt-context'
 import { findSystemPrompt } from '@/features/agent/model/prompts'
+import { appendModeGuidance } from '@/features/agent/mode'
+import { rememberGoalTurnContext } from '@/features/agent/goal-continue'
+import { notifyApproval } from '@/features/agent/notify'
 import { captureDirectiveDraft } from '@/features/agent/directive-draft'
 import { parseSchedulePlan } from '@/features/agent/schedule-plan'
 import { useScheduleDraftStore } from '@/stores/schedule-draft'
@@ -162,6 +167,45 @@ function makeBlockIDFinder(): AcpStreamContext['blockID'] {
  */
 const RUN_USAGE: ChatUsage = {}
 
+/**
+ * 轮次正常结束时的场景副作用：**按场景取值 → 映射表**，不再堆 `if (scenario === 'x')`。
+ *
+ * 表里只放真有收尾动作的场景；其余场景落空即无副作用。新增场景直接往这里加一行。
+ */
+const SCENARIO_FINISH: Partial<
+  Record<ScenarioKey, (capturedText: string, host: AgentRunHost) => void>
+> = {
+  /** 指令：把正文里的 JSON 抽成草稿（不落 corex.db） */
+  directive(capturedText, host) {
+    void captureDirectiveDraft(capturedText, {
+      threadID: host.threadID,
+      workspaceID: host.workspaceID
+    }).catch(function (error) {
+      reportCaught('agent.port.captureDirectiveDraft', error, 'warning')
+    })
+  },
+  /** 日程：把 {"events":[...]} 变成预览行（写入要用户点确认） */
+  plan(capturedText) {
+    const rows = parseSchedulePlan(capturedText)
+    if (rows.length > 0) useScheduleDraftStore.getState().writeRows(rows)
+  }
+}
+
+/** DEV 下的事件摘要（只影响控制台噪音，不进生产包） */
+function describeStreamEvent(event: ChatStreamEvent): string {
+  if (event.kind === 'text' || event.kind === 'reasoning') {
+    return `${event.kind}(+${event.text.length})`
+  }
+  if (event.kind === 'tool-call') return `tool-call:${event.toolName}`
+  if (event.kind === 'tool-result') return `tool-result:${event.toolCallId}`
+  return event.kind
+}
+
+/** 判别联合穷尽性检查：ACP 新增 item 类型时这里编译报错，而不是静默丢弃 */
+function assertNeverRunItem(item: never): never {
+  throw new Error(`[agent/port] 未处理的 RunItem 类型: ${JSON.stringify(item)}`)
+}
+
 function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
   return {
     /** 端口契约是 Promise，但解析本身是同步的（provider/model 都在本地 store 里） */
@@ -196,9 +240,11 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
 
       // 场景系统提示：消息里已有 system 优先；否则按当前工作场景注入
       // （含 corex 能力地图；plan 场景还带当前时间/时区）
-      const systemText =
+      const baseSystemText =
         overrides.findSystemText?.(input) ??
         (parsed.systemText?.trim() || findSystemPrompt(findActiveScenario(), buildPromptContext()))
+      // 会话模式（执行/计划/问答/目标）只追加提示约束，不改审批档
+      const systemText = appendModeGuidance(baseSystemText)
 
       // 平台网关发送前查一次配额（BYOK 直接放行）；拦到就当成一次「失败」发给 UI，
       // 用户点下发送就能看到原因，不用等半截运行失败。判定失败一律放行 —— 守门的是服务端。
@@ -235,62 +281,78 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
       const context: AcpStreamContext = { blockID: makeBlockIDFinder() }
       // directive 场景要把助手正文攒起来，收尾时抽 JSON 落成草稿（不落 corex.db）
       const scenario = overrides.onFinish ? null : findActiveScenario()
+      // 目标推进要在后台起后续轮次：把本轮用的 provider / 模型 / 工作区 / 场景记下来。
+      // 场景必须一起记 —— 后台线程不在前台，读全局 `findActiveScenario()` 会拿到别的场景。
+      rememberGoalTurnContext(host.threadID, {
+        workspaceID: host.workspaceID,
+        providerID: provider.kind,
+        modelID: input.model,
+        scenario: scenario ?? findActiveScenario()
+      })
       let capturedText = ''
 
       try {
-        for await (const item of runThreadPrompt(host.threadID, {
-          text,
-          systemText,
-          // cwd 认**本会话**的工作区：后台会话不能跟着全局指针漂
-          workspaceID: host.workspaceID,
-          // goose 的会话配置项认 providerId（行里的 `kind`），不是本地行 id
-          providerID: provider.kind,
-          modelID: input.model,
-          signal
-        })) {
-          switch (item.kind) {
-            case 'update': {
-              const event = parseAcpStreamEvent(item.update, context)
-              if (event) {
-                if (event.kind === 'text') capturedText += event.text
-                yield event
-              }
-              break
-            }
-            case 'approval':
-            case 'elicitation':
-              // 停下来等人：事件交给 UI，回执走 `respondToApproval` / `respondToElicitation`
-              yield item.event
-              break
-            case 'stop':
-              // 每轮**只发一个终态**：取消不是错误（但也不是「说完」），其余按正常收尾
-              if (item.stopReason !== 'cancelled' && capturedText.trim()) {
-                if (overrides.onFinish) {
-                  overrides.onFinish(capturedText, host)
-                } else if (scenario === 'directive') {
-                  void captureDirectiveDraft(capturedText, {
-                    threadID: host.threadID,
-                    workspaceID: host.workspaceID
-                  }).catch(function (error) {
-                    reportCaught('agent.port.captureDirectiveDraft', error, 'warning')
-                  })
+        // 后台回合：UI detach 不取消 goose；只有用户「停止」才走 cancel signal
+        yield* consumeBackgroundTurn(host.threadID, signal, async function* (cancelSignal) {
+          try {
+            for await (const item of runThreadPrompt(host.threadID, {
+              text,
+              systemText,
+              // cwd 认**本会话**的工作区：后台会话不能跟着全局指针漂
+              workspaceID: host.workspaceID,
+              // goose 的会话配置项认 providerId（行里的 `kind`），不是本地行 id
+              providerID: provider.kind,
+              modelID: input.model,
+              signal: cancelSignal
+            })) {
+              switch (item.kind) {
+                case 'update': {
+                  const event = parseAcpStreamEvent(item.update, context)
+                  if (event) {
+                    if (event.kind === 'text') capturedText += event.text
+                    if (import.meta.env.DEV) {
+                      console.debug('[agent/stream]', describeStreamEvent(event))
+                    }
+                    yield event
+                  }
+                  break
                 }
+                case 'approval':
+                case 'elicitation':
+                  // 停下来等人：事件交给 UI，回执走 `respondToApproval` / `respondToElicitation`
+                  void notifyApproval(host.threadID)
+                  yield item.event
+                  break
+                case 'stop':
+                  // 每轮**只发一个终态**：取消不是错误（但也不是「说完」），其余按正常收尾
+                  if (item.stopReason !== 'cancelled' && capturedText.trim()) {
+                    if (overrides.onFinish) {
+                      overrides.onFinish(capturedText, host)
+                    } else if (scenario) {
+                      SCENARIO_FINISH[scenario]?.(capturedText, host)
+                    }
+                  }
+                  yield item.stopReason === 'cancelled'
+                    ? { kind: 'aborted', usage: RUN_USAGE }
+                    : { kind: 'finish', finishReason: item.stopReason, usage: RUN_USAGE }
+                  return
+                default:
+                  assertNeverRunItem(item)
               }
-              // plan 场景：把 {"events":[...]} 变成预览行（写入要用户点确认）
-              if (item.stopReason !== 'cancelled' && scenario === 'plan' && capturedText.trim()) {
-                const rows = parseSchedulePlan(capturedText)
-                if (rows.length > 0) useScheduleDraftStore.getState().writeRows(rows)
-              }
-              yield item.stopReason === 'cancelled'
-                ? { kind: 'aborted', usage: RUN_USAGE }
-                : { kind: 'finish', finishReason: item.stopReason, usage: RUN_USAGE }
-              return
+            }
+          } catch (error) {
+            // 异常也要走事件流（适配器要先交一份快照再抛，否则界面只剩 status 变了）；
+            // 事件流之外再留一条带堆栈的控制台记录 —— 界面只拿得到一句话，排查得靠它
+            reportCaught('agent.port.run', error)
+            yield {
+              kind: 'error',
+              message: error instanceof Error ? error.message : String(error),
+              usage: RUN_USAGE
+            }
           }
-        }
+        })
       } catch (error) {
-        // 异常也要走事件流（适配器要先交一份快照再抛，否则界面只剩 status 变了）；
-        // 事件流之外再留一条带堆栈的控制台记录 —— 界面只拿得到一句话，排查得靠它
-        reportCaught('agent.port.run', error)
+        reportCaught('agent.port.run.background', error)
         yield {
           kind: 'error',
           message: error instanceof Error ? error.message : String(error),

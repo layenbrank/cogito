@@ -49,8 +49,9 @@ function verifyAgentTools(names: readonly string[], server: AgentToolServer): To
       return matchesTool(name, tool)
     })
   })
+  const presentSet = new Set(present)
   const missing = expected.filter(function (tool) {
-    return !present.includes(tool)
+    return !presentSet.has(tool)
   })
   const unexpected = names.filter(function (name) {
     return findServerOf(name) === server && !expected.some(function (tool) {
