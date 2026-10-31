@@ -11,6 +11,7 @@ import type {
   ChatModelPort,
   ChatPlanEntry,
   ChatRunMessage,
+  ChatStreamEvent,
   ChatTarget,
   ChatUsage
 } from '../ports'
@@ -50,6 +51,9 @@ interface ToolAccumulator {
   argsText: string
   result?: unknown
   isError?: boolean
+  /** 工具开始执行（tool-call 事件到达）与结果落地（tool-result）的墙钟时间 */
+  startedAt?: number
+  completedAt?: number
   /** 有待用户决定的审批时存在；`approved === undefined` 表示尚未拍板 */
   approval?: NonNullable<Extract<ThreadAssistantMessagePart, { type: 'tool-call' }>['approval']>
 }
@@ -74,6 +78,14 @@ function toToolPart(tool: ToolAccumulator): ToolPart {
     args: tool.args,
     argsText: tool.argsText,
     status: toToolStatus(tool),
+    ...(tool.startedAt === undefined
+      ? {}
+      : {
+          timing: {
+            startedAt: tool.startedAt,
+            ...(tool.completedAt === undefined ? {} : { completedAt: tool.completedAt })
+          }
+        }),
     ...(tool.result === undefined ? {} : { result: tool.result }),
     ...(tool.isError === undefined ? {} : { isError: tool.isError }),
     ...(tool.approval === undefined ? {} : { approval: tool.approval })
@@ -141,7 +153,13 @@ function collectImages(message: ThreadMessage): { mediaType: string; data: strin
  * 按类型归堆会把工具调用挪到回答下方，用户看到的时序就反了（"先给结论，才跑的工具"）。
  */
 type StreamBlock =
-  | { type: 'text' | 'reasoning'; blockID: string; text: string }
+  | {
+      type: 'text' | 'reasoning'
+      blockID: string
+      text: string
+      startedAt: number
+      completedAt?: number
+    }
   | { type: 'tool'; tool: ToolAccumulator }
   /** 计划：ACP 每次给全量，所以只占一块、原地替换 */
   | { type: 'plan'; entries: readonly ChatPlanEntry[] }
@@ -182,6 +200,18 @@ function createContentAccumulator() {
   /** 追问 id → 下标：同一次追问重复到达就原地更新，不叠卡 */
   const elicitationIndices = new Map<string, number>()
 
+  /** 把最后一段推理/正文的结束时间钉上（新块要插在它前面时用） */
+  function closeLastTextBlock(): void {
+    const last = blocks[blocks.length - 1]
+    if (
+      last &&
+      (last.type === 'text' || last.type === 'reasoning') &&
+      last.completedAt === undefined
+    ) {
+      last.completedAt = Date.now()
+    }
+  }
+
   function appendBlock(kind: 'text' | 'reasoning', blockID: string, text: string): void {
     // 空增量不建块：块的位置就是 part 的位置，建了又不出现在快照里会让后面的下标白挪
     if (!text) return
@@ -191,7 +221,8 @@ function createContentAccumulator() {
       last.text += text
       return
     }
-    blocks.push({ type: kind, blockID, text })
+    closeLastTextBlock()
+    blocks.push({ type: kind, blockID, text, startedAt: Date.now() })
   }
 
   /** 更新工具块；`build` 返回 null 表示保持原样（没建过就什么都不做） */
@@ -206,6 +237,7 @@ function createContentAccumulator() {
 
     if (index === undefined) {
       toolIndices.set(toolCallId, blocks.length)
+      closeLastTextBlock()
       blocks.push({ type: 'tool', tool: next })
       return
     }
@@ -217,6 +249,7 @@ function createContentAccumulator() {
     const block: StreamBlock = { type: 'plan', entries }
     if (planIndex === null) {
       planIndex = blocks.length
+      closeLastTextBlock()
       blocks.push(block)
       return
     }
@@ -229,6 +262,7 @@ function createContentAccumulator() {
     const index = elicitationIndices.get(input.elicitationId)
     if (index === undefined) {
       elicitationIndices.set(input.elicitationId, blocks.length)
+      closeLastTextBlock()
       blocks.push(block)
       return
     }
@@ -265,12 +299,29 @@ function createContentAccumulator() {
       }
       if (!block.text) continue
       const text = block.text
-      result.push(block.type === 'reasoning' ? { type: 'reasoning', text } : { type: 'text', text })
+      if (block.type === 'reasoning') {
+        result.push({
+          type: 'reasoning',
+          text,
+          timing: {
+            startedAt: block.startedAt,
+            ...(block.completedAt === undefined ? {} : { completedAt: block.completedAt })
+          }
+        })
+      } else {
+        result.push({ type: 'text', text })
+      }
     }
     return result
   }
 
-  return { appendBlock, updateTool, setPlan, addElicitation, parts }
+  /** 终态快照：先把最后一段推理/正文的结束时间钉上，再出 parts */
+  function finish(): ThreadAssistantMessagePart[] {
+    closeLastTextBlock()
+    return parts()
+  }
+
+  return { appendBlock, updateTool, setPlan, addElicitation, parts, finish }
 }
 
 function toStatus(finishReason: string): ChatModelRunResult['status'] {
@@ -284,6 +335,28 @@ function toCustom(usage: ChatUsage | undefined): Record<string, unknown> {
   return usage ? { usage } : {}
 }
 
+/** 消息级流式计时：TTFT / 总耗时 / 速度 / 块数 / 工具数（`metadata.timing`，UI 用 `useMessageTiming` 读） */
+function toTiming(
+  streamStartTime: number,
+  firstTokenTime: number | undefined,
+  totalChunks: number,
+  toolCallCount: number,
+  tokenCount: number | undefined
+): NonNullable<NonNullable<ChatModelRunResult['metadata']>['timing']> {
+  const totalStreamTime = Date.now() - streamStartTime
+  return {
+    streamStartTime,
+    ...(firstTokenTime === undefined ? {} : { firstTokenTime }),
+    totalStreamTime,
+    ...(tokenCount === undefined ? {} : { tokenCount }),
+    ...(tokenCount !== undefined && totalStreamTime > 0
+      ? { tokensPerSecond: Math.round((tokenCount / totalStreamTime) * 1000) }
+      : {}),
+    totalChunks,
+    toolCallCount
+  }
+}
+
 /** 适配器可选项：宿主扩展（模型能力 / 审批策略 / 沙箱根）由 app 提供，每次运行现读 */
 interface ChatModelAdapterOptions {
   /**
@@ -294,6 +367,157 @@ interface ChatModelAdapterOptions {
    * 而运行必须带着权威会话 id —— 主进程按它记 `studio 线程 → opencode 会话` 的映射。
    */
   findHost?: (target: ChatTarget) => Record<string, unknown> | Promise<Record<string, unknown>>
+}
+
+/**
+ * 把端口事件流聚合成 assistant-ui 的快照流。
+ *
+ * 后台回合复用同一套累积（`history.resume` 重放缓冲 + 实时尾部），避免两套映射漂移。
+ */
+async function* mapChatStreamToRunResults(
+  events: AsyncIterable<ChatStreamEvent>
+): AsyncGenerator<ChatModelRunResult, void, unknown> {
+  const content = createContentAccumulator()
+  const streamStartTime = Date.now()
+  let firstTokenTime: number | undefined
+  let totalChunks = 0
+  let toolCallCount = 0
+
+  for await (const event of events) {
+    switch (event.kind) {
+      case 'text':
+        totalChunks += 1
+        if (firstTokenTime === undefined) firstTokenTime = Date.now()
+        content.appendBlock('text', event.blockID, event.text)
+        break
+      case 'reasoning':
+        content.appendBlock('reasoning', event.blockID, event.text)
+        break
+      case 'tool-call':
+        toolCallCount += 1
+        content.updateTool(event.toolCallId, function () {
+          return {
+            toolCallId: event.toolCallId,
+            toolName: event.toolName,
+            args: event.input,
+            argsText: JSON.stringify(event.input ?? {}),
+            startedAt: Date.now()
+          }
+        })
+        break
+      case 'tool-approval-request':
+        content.updateTool(event.toolCallId, function (previous) {
+          return {
+            toolCallId: event.toolCallId,
+            toolName: event.toolName,
+            args: event.input,
+            argsText: JSON.stringify(event.input ?? {}),
+            startedAt: previous?.startedAt ?? Date.now(),
+            ...previous,
+            approval: {
+              id: event.toolCallId,
+              ...(event.prompt ? { prompt: event.prompt } : {}),
+              // 选项形状与 assistant-ui 的一致（id / kind / label），直接透传
+              ...(event.options && event.options.length > 0 ? { options: event.options } : {})
+            }
+          }
+        })
+        break
+      case 'plan':
+        content.setPlan(event.entries)
+        break
+      case 'elicitation-request':
+        content.addElicitation({
+          elicitationId: event.elicitationId,
+          schema: event.schema,
+          ...(event.prompt ? { prompt: event.prompt } : {})
+        })
+        break
+      case 'mode-update':
+      case 'commands-update':
+        // 会话级状态（当前模式 / 命令名单）不属于消息内容，由会话控制器消费，
+        // 不必刷新消息快照
+        continue
+      case 'tool-result':
+        content.updateTool(event.toolCallId, function (previous) {
+          return {
+            toolCallId: event.toolCallId,
+            toolName: event.toolName,
+            args: previous?.args ?? null,
+            argsText: previous?.argsText ?? '',
+            ...previous,
+            result: event.output,
+            isError: event.isError === true,
+            completedAt: Date.now(),
+            approval: previous?.approval
+              ? { ...previous.approval, approved: event.isError ? false : true }
+              : undefined
+          }
+        })
+        break
+      case 'tool-approval-failed':
+        content.updateTool(event.toolCallId, function (previous) {
+          // 回执没被受理（发起它的那次运行已经不在等待）：把这一项按失败收敛。
+          // 不收敛的话卡片会永远停在「待审批」，用户以为点了没反应
+          if (!previous) return null
+          return {
+            ...previous,
+            result: event.message,
+            isError: true,
+            completedAt: Date.now(),
+            approval: undefined
+          }
+        })
+        break
+      case 'finish':
+        yield {
+          content: content.finish(),
+          status: toStatus(event.finishReason),
+          metadata: {
+            custom: toCustom(event.usage),
+            timing: toTiming(
+              streamStartTime,
+              firstTokenTime,
+              totalChunks,
+              toolCallCount,
+              event.usage?.totalTokens
+            )
+          }
+        }
+        return
+      case 'aborted':
+        // 取消（或被新一轮取代）不是错误，但这一轮**已经烧掉的 token 是真的**。
+        //
+        // 局限说明（别把它当成可靠来源）：用户手动点停时 runtime 会在取到这一份快照之后
+        // 先判 `abortSignal.aborted` 再把它丢掉（见 @assistant-ui/core 的
+        // local-thread-runtime-core）；被服务端「取代」那种取消则会正常收下。
+        // 真正的账在主进程的用量账本里（`engine.settle` 先记账再发终态）。
+        yield {
+          content: content.finish(),
+          status: { type: 'incomplete', reason: 'cancelled' },
+          metadata: {
+            custom: toCustom(event.usage),
+            timing: toTiming(
+              streamStartTime,
+              firstTokenTime,
+              totalChunks,
+              toolCallCount,
+              event.usage?.totalTokens
+            )
+          }
+        }
+        return
+      case 'error':
+        // 报错前先交一份带用量的快照：runtime 的 catch 只改 status，不动这份 metadata。
+        yield {
+          content: content.finish(),
+          metadata: { custom: toCustom(event.usage) }
+        }
+        throw new Error(event.message)
+    }
+
+    yield { content: content.parts() }
+  }
 }
 
 function createChatModelAdapter(
@@ -312,116 +536,10 @@ function createChatModelAdapter(
       const extras = Object.keys(host).length > 0 ? { host } : {}
       const input = { ...target, messages, ...extras }
 
-      const content = createContentAccumulator()
-
-      for await (const event of port.run(input, runOptions.abortSignal)) {
-        switch (event.kind) {
-          case 'text':
-            content.appendBlock('text', event.blockID, event.text)
-            break
-          case 'reasoning':
-            content.appendBlock('reasoning', event.blockID, event.text)
-            break
-          case 'tool-call':
-            content.updateTool(event.toolCallId, function () {
-              return {
-                toolCallId: event.toolCallId,
-                toolName: event.toolName,
-                args: event.input,
-                argsText: JSON.stringify(event.input ?? {})
-              }
-            })
-            break
-          case 'tool-approval-request':
-            content.updateTool(event.toolCallId, function (previous) {
-              return {
-                toolCallId: event.toolCallId,
-                toolName: event.toolName,
-                args: event.input,
-                argsText: JSON.stringify(event.input ?? {}),
-                ...previous,
-                approval: {
-                  id: event.toolCallId,
-                  ...(event.prompt ? { prompt: event.prompt } : {}),
-                  // 选项形状与 assistant-ui 的一致（id / kind / label），直接透传
-                  ...(event.options && event.options.length > 0 ? { options: event.options } : {})
-                }
-              }
-            })
-            break
-          case 'plan':
-            content.setPlan(event.entries)
-            break
-          case 'elicitation-request':
-            content.addElicitation({
-              elicitationId: event.elicitationId,
-              schema: event.schema,
-              ...(event.prompt ? { prompt: event.prompt } : {})
-            })
-            break
-          case 'mode-update':
-          case 'commands-update':
-            // 会话级状态（当前模式 / 命令名单）不属于消息内容，由会话控制器消费，
-            // 不必刷新消息快照
-            continue
-          case 'tool-result':
-            content.updateTool(event.toolCallId, function (previous) {
-              return {
-                toolCallId: event.toolCallId,
-                toolName: event.toolName,
-                args: previous?.args ?? null,
-                argsText: previous?.argsText ?? '',
-                ...previous,
-                result: event.output,
-                isError: event.isError === true,
-                approval: previous?.approval
-                  ? { ...previous.approval, approved: event.isError ? false : true }
-                  : undefined
-              }
-            })
-            break
-          case 'tool-approval-failed':
-            content.updateTool(event.toolCallId, function (previous) {
-              // 回执没被受理（发起它的那次运行已经不在等待）：把这一项按失败收敛。
-              // 不收敛的话卡片会永远停在「待审批」，用户以为点了没反应
-              if (!previous) return null
-              return { ...previous, result: event.message, isError: true, approval: undefined }
-            })
-            break
-          case 'finish':
-            yield {
-              content: content.parts(),
-              status: toStatus(event.finishReason),
-              metadata: { custom: toCustom(event.usage) }
-            }
-            return
-          case 'aborted':
-            // 取消（或被新一轮取代）不是错误，但这一轮**已经烧掉的 token 是真的**。
-            //
-            // 局限说明（别把它当成可靠来源）：用户手动点停时 runtime 会在取到这一份快照之后
-            // 先判 `abortSignal.aborted` 再把它丢掉（见 @assistant-ui/core 的
-            // local-thread-runtime-core）；被服务端「取代」那种取消则会正常收下。
-            // 真正的账在主进程的用量账本里（`engine.settle` 先记账再发终态）。
-            yield {
-              content: content.parts(),
-              status: { type: 'incomplete', reason: 'cancelled' },
-              metadata: { custom: toCustom(event.usage) }
-            }
-            return
-          case 'error':
-            // 报错前先交一份带用量的快照：runtime 的 catch 只改 status，不动这份 metadata。
-            yield {
-              content: content.parts(),
-              metadata: { custom: toCustom(event.usage) }
-            }
-            throw new Error(event.message)
-        }
-
-        yield { content: content.parts() }
-      }
+      yield* mapChatStreamToRunResults(port.run(input, runOptions.abortSignal))
     }
   }
 }
 
-export { createChatModelAdapter, ELICITATION_PART_NAME, PLAN_PART_NAME }
+export { createChatModelAdapter, ELICITATION_PART_NAME, mapChatStreamToRunResults, PLAN_PART_NAME }
 export type { ChatElicitationPartData, ChatModelAdapterOptions, ChatPlanPartData }

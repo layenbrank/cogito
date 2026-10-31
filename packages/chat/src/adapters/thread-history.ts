@@ -1,5 +1,6 @@
 import {
   fromThreadMessageLike,
+  MessageNotSentError,
   type GenericThreadHistoryAdapter,
   type MessageFormatAdapter,
   type MessageFormatItem,
@@ -174,8 +175,17 @@ function createFormattedAdapter<TMessage, TStorageFormat extends Record<string, 
     async append(item) {
       // 新建线程的第一条消息就落在"会话刚建好"这一刻：此时快照可能还是空的，
       // 必须 `ensure()` 拿到落库后的 id，否则外键失败 → 被 assistant-ui 静默吞掉。
-      const threadID = await requireThreadID(identity)
-      await port.appendMessage({ threadID, ...toStoredMessage(item) })
+      try {
+        const threadID = await requireThreadID(identity)
+        await port.appendMessage({ threadID, ...toStoredMessage(item) })
+      } catch (error) {
+        // 写不进去 = 这条消息没发出去。给 assistant-ui 一个 MessageNotSentError，
+        // composer 据此把 dispatch 时清掉的草稿还原，用户敲的字不丢。
+        // 原始错误已在 requireThreadID / 端口内部留日志，这里只负责换类型。
+        throw new MessageNotSentError(
+          error instanceof Error ? `消息未能写入历史：${error.message}` : '消息未能写入历史'
+        )
+      }
     },
 
     async update(item) {

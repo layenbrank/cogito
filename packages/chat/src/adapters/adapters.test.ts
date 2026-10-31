@@ -1,5 +1,6 @@
 import {
   fromThreadMessageLike,
+  isMessageNotSentError,
   type MessageFormatItem,
   type MessageStorageEntry,
   type RemoteThreadListAdapter,
@@ -391,7 +392,7 @@ describe('createThreadHistoryAdapter', function () {
     expect(ensure).toHaveBeenCalledTimes(1)
   })
 
-  it('身份解析失败要留日志再抛（assistant-ui 会静默吞掉写入失败）', async function () {
+  it('身份解析失败要留日志再抛 MessageNotSentError（composer 据此还原草稿）', async function () {
     const port = new MemoryPort()
     const spied = vi.spyOn(console, 'error').mockImplementation(function () {})
     const adapter = createThreadHistoryAdapter(port, {
@@ -403,8 +404,8 @@ describe('createThreadHistoryAdapter', function () {
       }
     })
 
-    await expect(
-      adapter.append({
+    const failure = await adapter
+      .append({
         parentId: null,
         message: fromThreadMessageLike(
           { role: 'user', content: [{ type: 'text', text: 'hi' }] },
@@ -412,7 +413,18 @@ describe('createThreadHistoryAdapter', function () {
           { type: 'complete', reason: 'unknown' }
         )
       })
-    ).rejects.toThrow('[CHAT] 没有活动会话')
+      .then(
+        function () {
+          return null
+        },
+        function (error) {
+          return error
+        }
+      )
+
+    expect(failure).not.toBeNull()
+    expect(isMessageNotSentError(failure)).toBe(true)
+    expect((failure as Error).message).toContain('[CHAT] 没有活动会话')
     expect(spied).toHaveBeenCalled()
 
     spied.mockRestore()
@@ -475,7 +487,13 @@ describe('createChatModelAdapter', function () {
         status?: { type: string }
       }>
     )(options)) {
-      if (result.content) snapshots.push(result.content)
+      // timing 是墙钟时间、不可精确断言，这里只取 type/text 比较
+      if (result.content)
+        snapshots.push(
+          result.content.map(function (part) {
+            return { type: part.type, text: part.text }
+          })
+        )
     }
 
     expect(snapshots[0]).toEqual([{ type: 'reasoning', text: '想想' }])
@@ -777,6 +795,6 @@ describe('createThreadListAdapter', function () {
 
     await expect(adapter.fetch('missing')).rejects.toThrow('[CHAT] 会话不存在')
     await expect(adapter.archive('missing')).rejects.toThrow('[CHAT] 暂不支持归档')
-    await expect(adapter.unarchive('missing')).rejects.toThrow('[CHAT] 暂不支持归档')
+    await expect(adapter.unarchive?.('missing')).rejects.toThrow('[CHAT] 暂不支持归档')
   })
 })
