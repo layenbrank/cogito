@@ -173,6 +173,8 @@ windows = { version = "0.62", features = [
   "Win32_System_Diagnostics_ToolHelp",
   "Win32_System_Registry",
 ] } # 与 tauri 2.12 的 windows 0.62 对齐，避免 HWND 跨 crate 分裂
+# WebView2：关掉 AreBrowserAcceleratorKeysEnabled（原生 Ctrl+F find bar）
+webview2-com = "0.39.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # --- macOS FFI ---

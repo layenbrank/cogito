@@ -222,6 +222,7 @@
     "notification:allow-request-permission",
     "notification:allow-show",
     "clipboard-manager:default",
+    "notification:default",
     "log:allow-log",
     "global-shortcut:allow-is-registered",
     "global-shortcut:allow-register",

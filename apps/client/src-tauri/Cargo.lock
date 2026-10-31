@@ -1071,6 +1071,7 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
+ "webview2-com",
  "windows",
 ]
 

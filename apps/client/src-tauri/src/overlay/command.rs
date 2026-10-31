@@ -172,6 +172,10 @@ fn build_overlay_window(app: &AppHandle) -> Result<(), String> {
         .build()
         .map_err(|e| format!("无法创建 overlay 窗口: {e}"))?;
 
+    if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
+        crate::ui::native_find::disable_on_window(&window);
+    }
+
     // Re-apply physical bounds in case DPI/monitor mapping differed at build time.
     apply_bounds(app)?;
     Ok(())

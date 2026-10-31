@@ -2,6 +2,7 @@ pub mod app;
 pub mod autostart;
 pub mod automation;
 pub mod bridge;
+pub mod browser;
 pub mod reminder;
 pub mod search;
 pub mod system;
@@ -35,6 +36,7 @@ pub mod media;
 
 pub mod ui {
     pub mod contextmenu;
+    pub mod native_find;
     pub mod tray;
 }
 

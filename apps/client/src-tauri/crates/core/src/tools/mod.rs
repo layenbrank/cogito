@@ -5,6 +5,7 @@
 //!
 //! 边界：这里**只读**；写工具（Phase 5 的 knowledge staging）同样在此注册，
 //! 并且必须由 app 侧执行，保持「app 是数据库唯一写者」。
+pub mod browser;
 pub mod calendar;
 pub mod knowledge;
 pub mod workspace;
@@ -47,6 +48,7 @@ pub fn catalog() -> Vec<ToolSpec> {
     let mut tools = vec![calendar::spec()];
     tools.extend(workspace::specs());
     tools.extend(knowledge::specs());
+    tools.extend(browser::specs());
     tools
 }
 
@@ -60,6 +62,11 @@ pub async fn call(db: &DatabaseConnection, name: &str, arguments: &Value) -> Res
     }
     if knowledge::owns(name) {
         return knowledge::call(db, name, arguments).await;
+    }
+    if browser::owns(name) {
+        // 浏览器工具要访问 webview，只能由 app 侧执行；走到这里说明桥没有拦截（
+        // 例如直接调 `tools::call` 的单测），给一句能看懂的说明而不是“未知工具”。
+        return Err(format!("{name} 需要宿主窗口，只能在 app 内执行"));
     }
     Err(format!("未知工具：{name}"))
 }
@@ -80,13 +87,19 @@ mod tests {
         assert!(names.contains(&knowledge::READ_DOC));
         assert!(names.contains(&knowledge::SEARCH));
         assert!(names.contains(&knowledge::WRITE_DOC));
+        assert!(names.contains(&browser::OPEN));
+        assert!(names.contains(&browser::READ));
+        assert!(names.contains(&browser::ACT));
+        assert!(names.contains(&browser::SCREENSHOT));
+        // 有副作用的工具必须显式列在这里，其余一律只读
+        let write_tools = [knowledge::WRITE_DOC, browser::ACT, browser::INTERCEPT];
         for tool in &tools {
-            // 除了 staging 写入，目录里都应该是只读；写的那个必须自己声明 Write
-            if tool.name == knowledge::WRITE_DOC {
-                assert_eq!(tool.effect, Effect::Write, "{} 应为写", tool.name);
+            let expected = if write_tools.contains(&tool.name.as_str()) {
+                Effect::Write
             } else {
-                assert_eq!(tool.effect, Effect::Read, "{} 应为只读", tool.name);
-            }
+                Effect::Read
+            };
+            assert_eq!(tool.effect, expected, "{} 的效果标错了", tool.name);
             assert_eq!(
                 tool.input_schema.get("type").and_then(Value::as_str),
                 Some("object"),

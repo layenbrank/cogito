@@ -15,7 +15,10 @@ use axum::{
 use cogito_database::Storage;
 use serde::Deserialize;
 use serde_json::{Value, json};
+use tauri::AppHandle;
 use tokio::net::TcpListener;
+
+use super::app_tools;
 
 /// 侧车带过来的凭据头（与 `crates/mcp` 的 `BRIDGE_TOKEN_HEADER` 对齐）。
 pub const TOKEN_HEADER: &str = "x-bridge-token";
@@ -44,18 +47,20 @@ impl BridgeState {
 struct AppState {
     storage: Storage,
     token: Arc<str>,
+    /// 浏览器工具需要宿主窗口；单测里没有 app，于是为 `None`
+    app: Option<AppHandle>,
 }
 
 /// 绑定随机端口并后台运行；返回可直接注入给侧车的 `{url, token}`。
-pub async fn start(storage: Storage) -> anyhow::Result<BridgeState> {
+pub async fn start(storage: Storage, app: AppHandle) -> anyhow::Result<BridgeState> {
     let token = uuid::Uuid::new_v4().to_string();
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await?;
     let address = listener.local_addr()?;
-    let app = router(storage, token.clone());
+    let app = router_with(storage, token.clone(), Some(app));
 
     tauri::async_runtime::spawn(async move {
         if let Err(error) = axum::serve(listener, app).await {
-            tracing::error!("cogito 桥退出: {error}");
+            log::error!("cogito 桥退出: {error}");
         }
     });
 
@@ -67,14 +72,20 @@ pub async fn start(storage: Storage) -> anyhow::Result<BridgeState> {
     })
 }
 
-/// 路由装配（单独暴露，便于测试直接 drive）。
+/// 路由装配（仅测试用：生产的 `start` 会带上 AppHandle 走 `router_with`）。
+#[cfg(test)]
 pub fn router(storage: Storage, token: String) -> Router {
+    router_with(storage, token, None)
+}
+
+fn router_with(storage: Storage, token: String, app: Option<AppHandle>) -> Router {
     Router::new()
         .route("/internal/tools/list", get(list_tools))
         .route("/internal/tools/call", post(call_tool))
         .with_state(AppState {
             storage,
             token: Arc::from(token),
+            app,
         })
 }
 
@@ -126,6 +137,18 @@ async fn call_tool(
 ) -> Response {
     if let Err(response) = authorize(&state, &headers) {
         return response;
+    }
+    // 浏览器工具只能由 app 执行（要拿 webview），先在这里拦下来
+    if app_tools::owns(&body.name) {
+        let Some(app) = &state.app else {
+            return Json(json!({ "ok": false, "error": "浏览器工具需要宿主窗口" })).into_response();
+        };
+        return match app_tools::call(app, &body.name, &body.arguments).await {
+            Some(Ok(value)) => Json(json!({ "ok": true, "value": value })).into_response(),
+            Some(Err(error)) => Json(json!({ "ok": false, "error": error })).into_response(),
+            None => Json(json!({ "ok": false, "error": format!("未实现的工具：{}", body.name) }))
+                .into_response(),
+        };
     }
     // 工具级失败走 200 + `ok:false`：让模型看到原因，而不是协议错误。
     match cogito_core::tools::call(state.storage.connection(), &body.name, &body.arguments).await {

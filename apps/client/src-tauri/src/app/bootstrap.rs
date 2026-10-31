@@ -6,6 +6,7 @@ use tauri::{Manager, RunEvent, generate_context};
 use crate::{
     app::{handlers, plugins},
     autostart, automation,
+    browser::state::BrowserState,
     capture::{CaptureHandshake, CapturePending},
     overlay::{OverlayHealth, OverlayPending},
     reminder,
@@ -52,7 +53,8 @@ impl Bootstrap {
                     .await
                     .map_err(|error| anyhow::anyhow!("初始化知识库失败: {error}"))?;
                     // 本地工具桥：`cogito-mcp` 只经它读写，app 始终是唯一写者。
-                    let bridge = crate::bridge::start(storage.clone()).await?;
+                    // 传 AppHandle 是因为 `app_browser_*` 要访问宿主 webview。
+                    let bridge = crate::bridge::start(storage.clone(), handle_for_db.clone()).await?;
                     Ok::<_, anyhow::Error>((storage, bridge))
                 })
                 .expect("failed to initialize database");
@@ -62,6 +64,7 @@ impl Bootstrap {
                 app.manage(GooseServeState::new());
                 app.manage(GooseAcpHub::new());
                 app.manage(TerminalHub::new());
+                app.manage(BrowserState::default());
                 goose_tls::install_crypto_provider();
                 app.manage(ThroughState::new("overlay"));
                 app.manage(OverlayPending::default());
@@ -96,6 +99,8 @@ impl Bootstrap {
                 reminder::spawn_worker(app.handle().clone());
                 automation::spawn_worker(app.handle().clone());
                 tray::setup(app)?;
+                // 禁 WebView 原生 Ctrl/Cmd+F 查找条（Windows 走 WebView2 设置；其它平台靠前端拦）
+                crate::ui::native_find::disable_on_app(app.handle());
                 log_retention::prune_stale_logs(app.handle());
                 autostart::reconcile(app.handle());
 

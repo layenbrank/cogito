@@ -29,6 +29,9 @@ const TOKEN_HEADER: &str = "x-bridge-token";
 const BRIDGE_URL_ENV: &str = "COGITO_BRIDGE_URL";
 const BRIDGE_TOKEN_ENV: &str = "COGITO_BRIDGE_TOKEN";
 
+/// 返回图片的工具：它的结果必须作为 image content 交给模型
+const SCREENSHOT_TOOL: &str = "app_browser_screenshot";
+
 /// loopback 桥的客户端；只走 http，故不启用 TLS。
 #[derive(Clone)]
 struct Bridge {
@@ -139,6 +142,27 @@ fn ping_tool() -> Tool {
     )
 }
 
+/// 把截图工具的返回拆成「一句话 + 一张图」。
+///
+/// 截图的结果是 base64，**不能**当普通文本塞进上下文：模型既看不懂（它不是文本），
+/// 又会白烧几十万 token。MCP 本身支持 image content，走它就够了。
+fn image_blocks(name: &str, payload: &str) -> Option<Vec<ContentBlock>> {
+    if name != SCREENSHOT_TOOL {
+        return None;
+    }
+    let value: Value = serde_json::from_str(payload).ok()?;
+    let mime = value.get("mimeType")?.as_str()?.to_string();
+    let base64 = value.get("base64")?.as_str()?.to_string();
+    // base64 长度约是原字节数的 4/3，给模型一个体量参考
+    let approx_bytes = base64.len() * 3 / 4;
+    Some(vec![
+        ContentBlock::text(format!(
+            "已截取当前页面（{mime}，约 {approx_bytes} 字节）"
+        )),
+        ContentBlock::image(base64, mime),
+    ])
+}
+
 #[derive(Clone)]
 struct App {
     bridge: Option<Bridge>,
@@ -193,7 +217,11 @@ impl ServerHandler for App {
 
         let arguments = request.arguments.map(Value::Object).unwrap_or(Value::Null);
         match bridge.call_tool(name, arguments).await {
-            Ok(text) => Ok(CallToolResult::success(vec![ContentBlock::text(text)]).into()),
+            Ok(payload) => {
+                let blocks = image_blocks(name, &payload)
+                    .unwrap_or_else(|| vec![ContentBlock::text(payload)]);
+                Ok(CallToolResult::success(blocks).into())
+            }
             // 工具级失败：让模型看到原因，而不是抛协议错误
             Err(error) => Ok(CallToolResult::error(vec![ContentBlock::text(error)]).into()),
         }

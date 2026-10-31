@@ -8,6 +8,7 @@
 //! 不挂 CORS（浏览器同源策略下外部页面无法读取响应）。
 mod http;
 
+pub mod app_tools;
 pub mod command;
 
 pub use http::{BridgeInfo, BridgeState, start};

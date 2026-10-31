@@ -1,0 +1,320 @@
+//! 子 webview 的生命周期：创建、切换、布局、显隐。
+//!
+//! 层级是这一层的核心约束：原生子 webview 永远盖在主 webview（HTML）之上，
+//! 没有任何办法让 HTML 画到它上面。所以策略只有「让位」—— 需要显示浮层时
+//! `hide()`，浮层关掉再 `show()`。VS Code 的 `BrowserView` 也是这么做的。
+
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use tauri::webview::WebviewBuilder;
+use tauri::{
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Position, Rect, Size, WebviewUrl,
+};
+
+use super::state::{BrowserState, BrowserTab, LayoutSnapshot, NavEvent};
+
+/// 主窗口 label（见 `tauri.conf.json`）
+const MAIN_WINDOW: &str = "main";
+
+/// 上一次「是否真有 webview 处于可见态」，只用来在切换时打一条日志
+static LAST_VISIBLE: AtomicBool = AtomicBool::new(false);
+
+fn to_rect(snapshot: &LayoutSnapshot) -> Rect {
+    Rect {
+        position: Position::Logical(LogicalPosition::new(snapshot.layout.x, snapshot.layout.y)),
+        size: Size::Logical(LogicalSize::new(
+            snapshot.layout.width.max(1.0),
+            snapshot.layout.height.max(1.0),
+        )),
+    }
+}
+
+/// 按快照把每个 tab 的 bounds / 可见性刷一遍。
+///
+/// 只有「活动 tab + 前端希望可见 + 已经拿到过真实 rect」才 show，其余一律 hide。
+fn sync(app: &AppHandle, snapshot: &LayoutSnapshot) {
+    let rect = to_rect(snapshot);
+    let mut any_visible = false;
+    for tab in &snapshot.tabs {
+        let Some(webview) = app.get_webview(&tab.label) else {
+            log::warn!("browser: 找不到 webview（{}），跳过同步", tab.label);
+            continue;
+        };
+        let is_active = snapshot.active.as_deref() == Some(tab.label.as_str());
+        let visible = is_active && snapshot.layout.wants_visible && snapshot.layout.has_been_laid_out;
+        any_visible |= visible;
+
+        if visible {
+            if let Err(error) = webview.set_bounds(rect) {
+                log::warn!("browser: set_bounds 失败（{}）: {error}", tab.label);
+            }
+            if let Err(error) = webview.show() {
+                log::warn!("browser: show 失败（{}）: {error}", tab.label);
+            }
+        } else if let Err(error) = webview.hide() {
+            log::warn!("browser: hide 失败（{}）: {error}", tab.label);
+        }
+    }
+
+    // 只在状态翻转时打一条：拖动 splitter 会高频 sync，全打会洗掉前面的日志
+    if LAST_VISIBLE.swap(any_visible, Ordering::Relaxed) != any_visible {
+        log::info!(
+            "browser: 可见性 → {any_visible}（rect {},{} {}x{} / active={:?} / laid_out={}）",
+            snapshot.layout.x,
+            snapshot.layout.y,
+            snapshot.layout.width,
+            snapshot.layout.height,
+            snapshot.active,
+            snapshot.layout.has_been_laid_out
+        );
+    }
+}
+
+/// 新建 tab 并导航过去。
+pub fn open(app: &AppHandle, state: &BrowserState, url: &str) -> Result<BrowserTab, String> {
+    log::info!("browser: 请求打开 {url}");
+    open_inner(app, state, url).inspect_err(|error| log::warn!("browser: 打开失败: {error}"))
+}
+
+fn open_inner(app: &AppHandle, state: &BrowserState, url: &str) -> Result<BrowserTab, String> {
+    let parsed = url
+        .parse::<tauri::Url>()
+        .map_err(|error| format!("URL 不合法：{error}"))?;
+    let window = app
+        .get_window(MAIN_WINDOW)
+        .ok_or_else(|| format!("找不到主窗口 {MAIN_WINDOW}"))?;
+
+    let snapshot = state.snapshot();
+    let label = state.next_label();
+    let width = snapshot.layout.width.max(1.0);
+    let height = snapshot.layout.height.max(1.0);
+
+    // 尺寸完全由前端上报的 rect 决定，不跟随父窗口自动缩放
+    //
+    // ⚠️ 不要调 `data_directory` / `additional_browser_args`：
+    // Tauri 按 data_directory 缓存 WebView2 environment，保持默认才能让所有 tab
+    // 共用同一个 profile（cookie / localStorage 按 origin 共享，和浏览器一致）。
+    let handle = app.clone();
+    let load_label = label.clone();
+    let builder = WebviewBuilder::new(&label, WebviewUrl::External(parsed.clone()))
+        // WebView2 的默认右键菜单不含「检查」，而主窗口那边 `native_find` 把
+        // `AreBrowserAcceleratorKeysEnabled` 关了（连 F12 一起），所以子 webview
+        // 必须显式开 devtools，否则这个 tab 上没有任何入口能打开控制台。
+        .devtools(true)
+        .on_page_load(
+        move |_webview, payload| {
+            let url = payload.url().to_string();
+            // 页面自己跳转（点链接 / 重定向）时这里才会触发，地址栏靠它跟上真实地址
+            if let Some(browser) = handle.try_state::<BrowserState>() {
+                browser.set_url(&load_label, url.clone());
+            }
+            if let Err(error) = handle.emit_to(
+                MAIN_WINDOW,
+                "browser://nav",
+                NavEvent {
+                    label: load_label.clone(),
+                    url,
+                },
+            ) {
+                log::warn!("browser: 导航事件发送失败: {error}");
+            }
+        },
+    );
+
+    let webview = window
+        .add_child(
+            builder,
+            LogicalPosition::new(snapshot.layout.x, snapshot.layout.y),
+            LogicalSize::new(width, height),
+        )
+        .map_err(|error| format!("创建浏览器视图失败：{error}"))?;
+
+    // 先藏起来，等 activate + layout 一起放出来（避免在错位置闪一下）
+    if let Err(error) = webview.hide() {
+        log::warn!("browser: 新 tab 初始 hide 失败（{label}）: {error}");
+    }
+
+    let tab = BrowserTab {
+        label: label.clone(),
+        url: parsed.to_string(),
+    };
+    log::info!(
+        "browser: 新建 {label} → {url}（rect {}x{} @ {},{} / laid_out={}）",
+        snapshot.layout.width,
+        snapshot.layout.height,
+        snapshot.layout.x,
+        snapshot.layout.y,
+        snapshot.layout.has_been_laid_out
+    );
+    state.insert(tab.clone());
+    state.activate(&label);
+    sync(app, &state.snapshot());
+    super::network::install(app, &label);
+    Ok(tab)
+}
+
+/// 关闭 tab（webview 会被销毁）。
+pub fn close(app: &AppHandle, state: &BrowserState, label: &str) -> Result<(), String> {
+    let Some(tab) = state.remove(label) else {
+        return Err(format!("没有这个 tab：{label}"));
+    };
+    if let Some(webview) = app.get_webview(&tab.label) {
+        if let Err(error) = webview.close() {
+            log::warn!("browser: 关闭 webview 失败（{}）: {error}", tab.label);
+        }
+    }
+    // label 可能被复用，网络记录与拦截规则不能跨 tab 串数据
+    super::network::forget(&tab.label);
+    super::intercept::forget(&tab.label);
+    sync(app, &state.snapshot());
+    Ok(())
+}
+
+/// 切活动 tab：其余全部隐藏，目标 tab 按当前布局显示。
+pub fn activate(app: &AppHandle, state: &BrowserState, label: &str) -> Result<(), String> {
+    if !state.activate(label) {
+        return Err(format!("没有这个 tab：{label}"));
+    }
+    sync(app, &state.snapshot());
+    Ok(())
+}
+
+/// 上报内容区 rect（逻辑像素，相对窗口客户区）。
+pub fn layout(
+    app: &AppHandle,
+    state: &BrowserState,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Result<(), String> {
+    let first_layout = !state.snapshot().layout.has_been_laid_out;
+    state.set_layout(x, y, width, height);
+    if first_layout {
+        log::info!("browser: 首次上报 rect {x},{y} {width}x{height}");
+    }
+    sync(app, &state.snapshot());
+    Ok(())
+}
+
+/// 前端要弹浮层 / 切走页签时让位；`true` 表示可以显示浏览器。
+pub fn set_visible(app: &AppHandle, state: &BrowserState, visible: bool) -> Result<(), String> {
+    log::info!("browser: wants_visible={visible}");
+    state.set_visible(visible);
+    sync(app, &state.snapshot());
+    Ok(())
+}
+
+/// 导航到新地址（同一个 tab）。
+pub fn navigate(
+    app: &AppHandle,
+    state: &BrowserState,
+    label: &str,
+    url: &str,
+) -> Result<(), String> {
+    let parsed = url
+        .parse::<tauri::Url>()
+        .map_err(|error| format!("URL 不合法：{error}"))?;
+    let webview = app
+        .get_webview(label)
+        .ok_or_else(|| format!("没有这个 tab：{label}"))?;
+    log::info!("browser: 导航 {label} → {parsed}");
+    webview
+        .navigate(parsed.clone())
+        .map_err(|error| format!("导航失败：{error}"))?;
+    state.set_url(label, parsed.to_string());
+    Ok(())
+}
+
+/// 截图前临时把 webview 显示出来。
+///
+/// 前端可能正停在聊天视图，或者正在浮层让位 —— 这种情况下 WebView2 的
+/// `captureScreenshot` 会返回**空对象**而不是报错。返回 `true` 表示真的做了显示，
+/// 调用方用完必须调 `hide_after_capture` 收回。
+///
+/// 刻意不经过 `BrowserState`：`wants_visible` 表达的是前端意图，不能因为我们
+/// 要截一张图就把它改掉。
+pub fn reveal_for_capture(app: &AppHandle, label: &str) -> bool {
+    let Some(webview) = app.get_webview(label) else {
+        return false;
+    };
+    let state = app.state::<BrowserState>();
+    let snapshot = state.snapshot();
+    // 只有活动标签页、且当前本该隐藏时才需要临时显示
+    if snapshot.active.as_deref() != Some(label) {
+        return false;
+    }
+    if !snapshot.layout.has_been_laid_out {
+        return false;
+    }
+    if snapshot.layout.wants_visible {
+        return false;
+    }
+
+    if let Err(error) = webview.set_bounds(to_rect(&snapshot)) {
+        log::warn!("browser: 截图前 set_bounds 失败（{label}）: {error}");
+        return false;
+    }
+    if let Err(error) = webview.show() {
+        log::warn!("browser: 截图前 show 失败（{label}）: {error}");
+        return false;
+    }
+    true
+}
+
+/// 配合 `reveal_for_capture`：拍完立刻收回，不留给用户一个突然出现的页面
+pub fn hide_after_capture(app: &AppHandle, label: &str) {
+    if let Some(webview) = app.get_webview(label) {
+        if let Err(error) = webview.hide() {
+            log::warn!("browser: 截图后收回失败（{label}）: {error}");
+        }
+    }
+}
+
+/// 前端 / agent 需要知道"当前在哪个页面"。
+pub fn current_url(app: &AppHandle, label: &str) -> Result<String, String> {
+    let webview = app
+        .get_webview(label)
+        .ok_or_else(|| format!("没有这个 tab：{label}"))?;
+    webview
+        .url()
+        .map(|url| url.to_string())
+        .map_err(|error| format!("读取当前地址失败：{error}"))
+}
+
+/// 打开这个 tab 的 DevTools（独立窗口，所以不受原生 subview 层级影响）。
+pub fn open_devtools(app: &AppHandle, label: &str) -> Result<(), String> {
+    let webview = app
+        .get_webview(label)
+        .ok_or_else(|| format!("没有这个 tab：{label}"))?;
+    webview.open_devtools();
+    Ok(())
+}
+
+/// 刷新当前页面。
+pub fn reload(app: &AppHandle, label: &str) -> Result<(), String> {
+    let webview = app
+        .get_webview(label)
+        .ok_or_else(|| format!("没有这个 tab：{label}"))?;
+    webview
+        .reload()
+        .map_err(|error| format!("刷新失败：{error}"))
+}
+
+/// 前进 / 后退。
+///
+/// Tauri 没暴露历史导航 API，只能在**页面自己**跑 `history.back/forward()`。
+/// 脚本是常量，不接受任何外部输入 —— 和后面给 agent 用的 `eval` 逃生口不是一回事。
+pub fn step_history(app: &AppHandle, label: &str, backward: bool) -> Result<(), String> {
+    let webview = app
+        .get_webview(label)
+        .ok_or_else(|| format!("没有这个 tab：{label}"))?;
+    let script = if backward {
+        "history.back()"
+    } else {
+        "history.forward()"
+    };
+    webview
+        .eval(script)
+        .map_err(|error| format!("历史导航失败：{error}"))
+}

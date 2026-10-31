@@ -2,7 +2,7 @@
 
 use tauri::generate_handler;
 
-use crate::{autostart, capture, overlay, search, system, through};
+use crate::{autostart, browser, capture, overlay, search, system, through};
 
 /// 返回应用全部 `#[tauri::command]` 的 invoke handler。
 pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static {
@@ -34,6 +34,24 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         system::sidecar_command::sidecar_start_job,
         system::sidecar_command::sidecar_stop_job,
         crate::bridge::command::bridge_info,
+        browser::command::browser_open,
+        browser::command::browser_close,
+        browser::command::browser_activate,
+        browser::command::browser_layout,
+        browser::command::browser_visible,
+        browser::command::browser_navigate,
+        browser::command::browser_current_url,
+        browser::command::browser_reload,
+        browser::command::browser_devtools,
+        browser::command::browser_history,
+        browser::command::browser_snapshot,
+        browser::command::browser_network_list,
+        browser::command::browser_intercept_set,
+        browser::command::browser_intercept_list,
+        browser::command::browser_probe,
+        browser::command::browser_agent_read,
+        browser::command::browser_agent_screenshot,
+        browser::command::browser_agent_act,
         system::command::goose_ready,
         system::command::goose_connection,
         system::command::goose_shutdown,
