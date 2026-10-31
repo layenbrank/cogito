@@ -136,7 +136,6 @@ impl Service {
             id: Set(id.clone()),
             workspaceID: Set(p.workspaceID),
             path: Set(p.path),
-            isPrimary: Set(p.isPrimary),
             sort: Set(p.sort),
             createdAt: Set(created_at),
             updatedAt: Set(updated_at),
@@ -160,9 +159,6 @@ impl Service {
         let now = Utc::now().timestamp_millis();
         if let Some(v) = payload.change.path {
             active.path = Set(v);
-        }
-        if let Some(v) = payload.change.isPrimary {
-            active.isPrimary = Set(v);
         }
         if let Some(v) = payload.change.sort {
             active.sort = Set(v);

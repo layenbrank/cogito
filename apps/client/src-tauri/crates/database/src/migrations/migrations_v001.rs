@@ -621,12 +621,6 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(AgentWorkspaceFolder::IsPrimary)
-                            .boolean()
-                            .not_null()
-                            .default(false),
-                    )
-                    .col(
                         ColumnDef::new(AgentWorkspaceFolder::Sort)
                             .integer()
                             .not_null()
@@ -1750,8 +1744,6 @@ enum AgentWorkspaceFolder {
     #[iden = "workspaceID"]
     WorkspaceID,
     Path,
-    #[iden = "isPrimary"]
-    IsPrimary,
     Sort,
     #[iden = "createdAt"]
     CreatedAt,

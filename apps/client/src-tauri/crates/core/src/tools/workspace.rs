@@ -182,8 +182,8 @@ mod tests {
                 .to_string(),
             format!(
                 "INSERT INTO agent_workspace_folder \
-                 (id,\"workspaceID\",path,\"isPrimary\",sort,\"createdAt\",\"updatedAt\") \
-                 VALUES ('f1','w1','{}',1,0,1,1)",
+                 (id,\"workspaceID\",path,sort,\"createdAt\",\"updatedAt\") \
+                 VALUES ('f1','w1','{}',0,1,1)",
                 root.to_string_lossy().replace('\'', "''")
             ),
         ] {

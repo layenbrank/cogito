@@ -12,8 +12,6 @@ pub struct Model {
     #[sea_orm(column_name = "workspaceID")]
     pub workspaceID: String,
     pub path: String,
-    #[sea_orm(column_name = "isPrimary")]
-    pub isPrimary: bool,
     pub sort: i32,
     #[sea_orm(column_name = "createdAt")]
     pub createdAt: i64,
@@ -47,8 +45,6 @@ pub struct Write {
     pub workspaceID: String,
     pub path: String,
     #[serde(default)]
-    pub isPrimary: bool,
-    #[serde(default)]
     pub sort: i32,
     pub createdAt: Option<i64>,
     pub updatedAt: Option<i64>,
@@ -65,7 +61,6 @@ pub enum WriteP {
 #[serde(rename_all = "camelCase")]
 pub struct Change {
     pub path: Option<String>,
-    pub isPrimary: Option<bool>,
     pub sort: Option<i32>,
     pub workspaceID: Option<String>,
 }
