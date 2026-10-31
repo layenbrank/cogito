@@ -4,7 +4,8 @@
  * 主对话走 assistant-ui `Thread`；右栏空/忙两种骨架（Qoder）；
  * Head 双侧 panel 图标控制开合并持久化。
  */
-import { useAuiState } from '@assistant-ui/react'
+import { useAui, useAuiState } from '@assistant-ui/react'
+import { AssistantActionsProvider } from '@cogito/design/assistant/actions'
 import { AssistantLabelsProvider } from '@cogito/design/assistant/labels'
 import { Thread } from '@cogito/design/assistant/thread.aui'
 import {
@@ -14,14 +15,20 @@ import {
   usePanelRef
 } from '@cogito/design/components/resizable'
 import { clsx } from 'clsx'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 
+import { attachPastedFiles } from '@/features/agent/attachment'
+import { useActiveWorkspace } from '@/features/agent/workspace/active'
+
+import { COMMAND } from '@/keyboard/definitions/ids'
+import { useCommands } from '@/keyboard/react'
 import { AgentAside } from '@/views/agent/chat/components/aside'
 import { ComposerActions } from '@/views/agent/chat/components/composer-actions'
 import { ComposerEnd } from '@/views/agent/chat/components/composer-end'
 import { ComposerFooter } from '@/views/agent/chat/components/composer-footer'
-import { ComposerTriggers } from '@/views/agent/chat/components/composer-triggers'
+import { ComposerTriggerList, useComposerTriggers } from '@/views/agent/chat/components/composer-triggers'
 import { DelegateSurface } from '@/views/agent/chat/components/delegate-surface'
 import { AgentHead } from '@/views/agent/chat/components/head'
 import { AgentSidebar } from '@/views/agent/chat/components/sidebar'
@@ -43,11 +50,14 @@ import {
   type SplitterLayout
 } from '@/views/agent/chat/components/splitter-sizes'
 import { AgentProcessFold, AgentProcessGroup } from '@/views/agent/chat/components/process-group'
+import { GoalAutoAdvance } from '@/views/agent/chat/components/goal-auto-advance'
 import { PlanScheduleCard } from '@/views/agent/chat/components/plan-schedule-card'
 import { AgentToolCard } from '@/views/agent/chat/components/tool-card'
 import { AgentToolGroup } from '@/views/agent/chat/components/tool-group'
 import { ThreadWelcome } from '@/views/agent/chat/components/thread-welcome'
 import { ASSISTANT_LABELS_ZH } from '@/views/agent/chat/labels'
+import { ASSISTANT_ACTIONS_TAURI } from '@/views/agent/chat/message-actions'
+import { subscribeAsideReview } from '@/views/agent/chat/components/open-aside-review'
 import { AgentRuntimeProvider } from '@/views/agent/chat/runtime'
 import { AgentTitlebar } from '@/views/agent/components/titlebar'
 import { syncCogitoGatewayCatalog } from '@/features/agent/acp/cogito-provider'
@@ -95,13 +105,18 @@ function AgentChat() {
   return (
     <AgentRuntimeProvider>
       <AssistantLabelsProvider labels={ASSISTANT_LABELS_ZH}>
-        <AgentChatLayout />
+        <AssistantActionsProvider actions={ASSISTANT_ACTIONS_TAURI}>
+          <AgentChatLayout />
+        </AssistantActionsProvider>
       </AssistantLabelsProvider>
     </AgentRuntimeProvider>
   )
 }
 
 function AgentChatLayout() {
+  const aui = useAui()
+  const { rootPath } = useActiveWorkspace()
+  const composerTriggers = useComposerTriggers()
   const navigate = useNavigate()
   const [defaultLayout] = useState(findSplitterLayout)
   const [openState] = useState(findSplitterOpen)
@@ -112,6 +127,38 @@ function AgentChatLayout() {
   const sidebarRef = usePanelRef()
   const asideRef = usePanelRef()
   const openRef = useRef({ isSidebarOpen, isAsideOpen })
+
+  /** 输入框粘贴：截图 → dataURL 附件，带路径的文件 → 工作区引用 */
+  const handleComposerPaste = useCallback(
+    async function (files: readonly File[]) {
+      const result = await attachPastedFiles(aui, files, rootPath)
+      if (result.failed.length > 0) {
+        toast.warning(`无法直接引用：${result.failed.join('、')}，请用 + 从工作区选择`)
+      }
+    },
+    [aui, rootPath]
+  )
+
+  useCommands([
+    {
+      id: COMMAND.AGENT_FIND,
+      title: 'Agent：搜索会话',
+      keywords: 'find search threads',
+      group: 'Agent',
+      run() {
+        updateSearchOpen(true)
+      }
+    },
+    {
+      id: COMMAND.AGENT_TOGGLE_SIDEBAR,
+      title: 'Agent：切换左侧栏',
+      keywords: 'sidebar collapse expand',
+      group: 'Agent',
+      run() {
+        toggleSidebar()
+      }
+    }
+  ])
 
   useEffect(
     function () {
@@ -138,6 +185,12 @@ function AgentChatLayout() {
   }
 
   const plan = usePlanAutoOpen(isAsideOpen, openAside)
+
+  useEffect(function () {
+    return subscribeAsideReview(function () {
+      openAside()
+    })
+  }, [])
 
   useEffect(function () {
     void useAgentStore.getState().toReadWorkspaces()
@@ -205,6 +258,13 @@ function AgentChatLayout() {
     writeSplitterLayout(layout)
   }
 
+  /** 左侧栏开合只走这一处：按钮与 `mod+b` 命令共用，避免两条状态路径。 */
+  function toggleSidebar() {
+    const next = !openRef.current.isSidebarOpen
+    updateSidebarOpen(next)
+    persistOpen({ isSidebarOpen: next, isAsideOpen: openRef.current.isAsideOpen })
+  }
+
   function handleSidebarResize() {
     const collapsed = sidebarRef.current?.isCollapsed() ?? false
     const nextOpen = !collapsed
@@ -226,7 +286,7 @@ function AgentChatLayout() {
   }
 
   return (
-    <div className={clsx(styles.chat)}>
+    <div className={clsx(styles.surface)}>
       <AgentTitlebar
         className={styles.titlebar}
         actions={<DelegateSurface />}
@@ -268,14 +328,7 @@ function AgentChatLayout() {
               <AgentHead
                 isSidebarOpen={isSidebarOpen}
                 isAsideOpen={isAsideOpen}
-                onToggleSidebar={function () {
-                  const next = !openRef.current.isSidebarOpen
-                  updateSidebarOpen(next)
-                  persistOpen({
-                    isSidebarOpen: next,
-                    isAsideOpen: openRef.current.isAsideOpen
-                  })
-                }}
+                onToggleSidebar={toggleSidebar}
                 onToggleAside={function () {
                   const next = !openRef.current.isAsideOpen
                   updateAsideOpen(next)
@@ -297,9 +350,12 @@ function AgentChatLayout() {
                     ComposerAttach: null,
                     ComposerEnd: ComposerEnd,
                     ComposerFooter: ComposerFooter,
-                    ComposerTriggers: ComposerTriggers
+                    ComposerTriggers: composerTriggers,
+                    ComposerTriggerList: ComposerTriggerList,
+                    ComposerPaste: handleComposerPaste
                   }}
                 />
+                <GoalAutoAdvance />
                 <PlanScheduleCard />
               </main>
             </div>
@@ -321,13 +377,6 @@ function AgentChatLayout() {
             <AgentAside
               className={styles.planPane}
               plan={plan}
-              onClose={function () {
-                updateAsideOpen(false)
-                persistOpen({
-                  isSidebarOpen: openRef.current.isSidebarOpen,
-                  isAsideOpen: false
-                })
-              }}
             />
           </ResizablePanel>
         </ResizablePanelGroup>

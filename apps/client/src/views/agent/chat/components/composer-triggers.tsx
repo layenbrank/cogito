@@ -1,22 +1,26 @@
 /**
- * 输入框内 `@`（工作区文件）/ `/`（技能）触发层。
+ * composer 的 `@` / `/` 触发器配置 + 候选列表。
+ *
+ * 触发器能力全部由 `@cogito/design` 的 `ComposerTrigger` 定义，这里只做三件事：
+ * 1. `resolve`：把「浏览器标签页 + 工作区文件」「工作区技能」翻译成候选项；
+ * 2. `onSelect`：选中后插 chip / 挂附件 / 删 token —— 行为完全自定义；
+ * 3. `ComposerTriggerList`：候选项的视觉。
+ *
+ * 浏览器标签页的 `label` 与 `id` 都取 webview label，于是序列化成
+ * `:browser[browser-2]` —— agent 侧 playbook 写的就是「方括号里是 app_browser_* 的 tab 参数」。
  */
 import {
-  ComposerPrimitive,
-  unstable_defaultDirectiveFormatter,
-  unstable_useMentionAdapter,
-  unstable_useSlashCommandAdapter,
-  useAui,
-  type Unstable_Mention,
-  type Unstable_SlashCommand,
-  type Unstable_TriggerItem
-} from '@assistant-ui/react'
+  useComposerTrigger,
+  type ComposerTrigger,
+  type ComposerTriggerItem,
+  type ComposerTriggerListProps
+} from '@cogito/design/assistant/composer-trigger'
 import { Icon } from '@iconify/react/offline'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { toast } from 'sonner'
+import { useMemo } from 'react'
 
-import { attachWorkspaceFile } from '@/features/agent/attachment.ts'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
+import { formatTabTitle } from '@/features/browser/address'
+import { useBrowserStore } from '@/features/browser/store'
 import { WorkspaceFiles } from '@/lib/workspace-files.ts'
 import { WorkspaceSkills } from '@/lib/workspace-skills.ts'
 import { findFileIcon } from '@/views/workspace/overlay/file-icon.ts'
@@ -24,44 +28,177 @@ import { cn } from 'cn'
 
 const SEARCH_LIMIT = 40
 
-function findHasValidTriggerBoundary(text: string, atIndex: number) {
-  if (atIndex <= 0) return true
-  const prev = text[atIndex - 1]
-  if (!prev) return true
-  if (/[\s\u00a0]/.test(prev)) return true
-  if (/[A-Za-z0-9._~-]/.test(prev)) return false
-  return true
+type MentionData =
+  | { readonly kind: 'browser'; readonly label: string; readonly url: string }
+  | { readonly kind: 'file'; readonly relative: string }
+
+interface SkillData {
+  readonly id: string
+  readonly name: string
+  readonly description: string
+  readonly relative: string
 }
 
-function matchTriggerToken(
-  text: string,
-  triggerChar: string,
-  cursorPosition: number
-): { query: string; offset: number; endOffset: number } | null {
-  if (cursorPosition <= 0) return null
-  const before = text.slice(0, cursorPosition)
-  const escaped = triggerChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const matched = before.match(new RegExp(`${escaped}([^\\s]*)$`))
-  if (!matched || matched.index === undefined) return null
-  if (!findHasValidTriggerBoundary(before, matched.index)) return null
+function findMentionData(item: ComposerTriggerItem): MentionData | null {
+  const data = item.data
+  if (typeof data !== 'object' || data === null) return null
+  const candidate = data as MentionData
+  if (candidate.kind === 'browser' || candidate.kind === 'file') return candidate
+  return null
+}
 
-  const query = matched[1] ?? ''
-  return {
-    query,
-    offset: matched.index,
-    endOffset: matched.index + triggerChar.length + query.length
+function findSkillData(item: ComposerTriggerItem): SkillData | null {
+  const data = item.data
+  if (typeof data !== 'object' || data === null) return null
+  const candidate = data as SkillData
+  return typeof candidate.relative === 'string' ? candidate : null
+}
+
+function findBrowserHost(url: string) {
+  try {
+    return new URL(url).host
+  } catch (error) {
+    console.warn('[composer-triggers] 无法解析标签页地址:', error)
+    return url
   }
 }
 
-function TriggerListShell(props: {
-  isLoading?: boolean
-  empty: string
-  children: ReactNode
-  hasItems: boolean
-}) {
+/**
+ * 触发器配置。
+ *
+ * 两个触发器的选中动作都只改文本（插 chip），不碰附件行 —— 附件行只放
+ * `Ctrl+V` 粘贴的文件和图片。
+ */
+function useComposerTriggers(): readonly ComposerTrigger[] {
+  const { rootPath } = useActiveWorkspace()
+
+  return useMemo(
+    function () {
+      const mention: ComposerTrigger = {
+        id: 'mention',
+        token: '@',
+        resolve: async function ({ query, signal }) {
+          const needle = query.trim().toLowerCase()
+          const browserItems: ComposerTriggerItem[] = useBrowserStore
+            .getState()
+            .tabs.filter(function (tab) {
+              if (needle.length === 0) return true
+              return (
+                tab.label.toLowerCase().includes(needle) ||
+                formatTabTitle(tab.url).toLowerCase().includes(needle)
+              )
+            })
+            .map(function (tab) {
+              return {
+                id: `browser:${tab.label}`,
+                label: tab.label,
+                description: `${findBrowserHost(tab.url)} · 浏览器标签页`,
+                data: { kind: 'browser', label: tab.label, url: tab.url } satisfies MentionData
+              }
+            })
+
+          const fileItems: ComposerTriggerItem[] = []
+          if (rootPath) {
+            try {
+              const rows =
+                needle.length === 0
+                  ? (await WorkspaceFiles.listDir(rootPath))
+                      .filter(function (entry) {
+                        return entry.kind === 'file'
+                      })
+                      .slice(0, SEARCH_LIMIT)
+                  : (await WorkspaceFiles.search([rootPath], query, SEARCH_LIMIT)).hits
+              if (signal.aborted) return []
+              rows.forEach(function (row) {
+                fileItems.push({
+                  id: `file:${row.relative}`,
+                  label: row.name,
+                  description: row.relative,
+                  data: { kind: 'file', relative: row.relative } satisfies MentionData
+                })
+              })
+            } catch (error) {
+              console.warn('[composer-triggers] 搜索文件失败:', error)
+              return browserItems
+            }
+          }
+          if (signal.aborted) return []
+          return [...browserItems, ...fileItems]
+        },
+        onSelect: function (item, api) {
+          const mentionData = findMentionData(item)
+          if (mentionData === null) return
+          if (mentionData.kind === 'browser') {
+            // 标签页只给 directive 文本（方括号里就是 app_browser_* 的 tab 参数）
+            api.insertChip({ type: 'browser', label: mentionData.label, id: mentionData.label })
+            return
+          }
+          // 文件只进文本流（chip）：附件行留给 Ctrl+V 粘贴的文件 / 图片，
+          // 否则同一个文件会在输入区里出现两次。
+          api.insertChip({ type: 'file', label: mentionData.relative, id: mentionData.relative })
+        }
+      }
+
+      const skill: ComposerTrigger = {
+        id: 'skill',
+        token: '/',
+        resolve: async function ({ query, signal }) {
+          if (!rootPath) return []
+          try {
+            const rows = await WorkspaceSkills.fetchSkills([rootPath])
+            if (signal.aborted) return []
+            const needle = query.trim().toLowerCase()
+            return rows
+              .filter(function (row) {
+                if (needle.length === 0) return true
+                return (
+                  row.name.toLowerCase().includes(needle) ||
+                  row.id.toLowerCase().includes(needle) ||
+                  row.relative.toLowerCase().includes(needle)
+                )
+              })
+              .map(function (row) {
+                return {
+                  id: row.id,
+                  label: row.name,
+                  description: row.description || undefined,
+                  data: row satisfies SkillData
+                }
+              })
+          } catch (error) {
+            console.warn('[composer-triggers] 读取技能失败:', error)
+            return []
+          }
+        },
+        onSelect: function (item, api) {
+          const skillData = findSkillData(item)
+          if (skillData === null) return
+          // 技能也只进文本流：`:skill[名称]{name=相对路径}`，不再往附件行里塞一份
+          api.insertChip({ type: 'skill', label: skillData.name, id: skillData.relative })
+        }
+      }
+
+      return [mention, skill]
+    },
+    [rootPath]
+  )
+}
+
+function ComposerTriggerList(props: ComposerTriggerListProps) {
+  const trigger = useComposerTrigger()
+  if (!trigger || trigger.match === null) return null
+
+  const { items, activeIndex, isLoading, match } = trigger
+  const isMention = match.trigger.id === 'mention'
+  const emptyText = isMention ? '没有匹配的文件或标签页' : '当前工作区暂无技能'
+
   return (
-    <div className="border-border/60 bg-popover absolute bottom-full left-0 z-20 mb-2 w-72 overflow-hidden rounded-lg border shadow-md">
-      {props.isLoading ? (
+    <div
+      className={cn(
+        'border-border/60 bg-popover absolute bottom-full left-0 z-20 mb-2 w-72 overflow-hidden rounded-lg border shadow-md',
+        props.className
+      )}>
+      {isLoading ? (
         <p className="text-muted-foreground flex items-center gap-1.5 px-3 py-2.5 text-xs">
           <Icon
             icon="lucide:loader-circle"
@@ -70,237 +207,50 @@ function TriggerListShell(props: {
           读取中…
         </p>
       ) : null}
-      {!props.isLoading && !props.hasItems ? (
-        <p className="text-muted-foreground px-3 py-2.5 text-xs">{props.empty}</p>
+      {!isLoading && items.length === 0 ? (
+        <p className="text-muted-foreground px-3 py-2.5 text-xs">{emptyText}</p>
       ) : null}
-      {!props.isLoading && props.hasItems ? (
-        <div className="max-h-64 overflow-y-auto p-1">{props.children}</div>
+      {!isLoading && items.length > 0 ? (
+        <div className="max-h-64 overflow-y-auto p-1">
+          {items.map(function (item, index) {
+            const mentionData = findMentionData(item)
+            const isBrowser = mentionData?.kind === 'browser'
+            const icon = isBrowser
+              ? 'lucide:globe'
+              : isMention
+                ? findFileIcon(item.label).icon
+                : 'lucide:wrench'
+            return (
+              <button
+                type="button"
+                key={item.id}
+                data-highlighted={index === activeIndex ? 'true' : undefined}
+                className="data-highlighted:bg-muted hover:bg-muted flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-start text-xs outline-none"
+                onMouseEnter={function () {
+                  trigger.hover(index)
+                }}
+                onMouseDown={function (event) {
+                  // 别让点击抢走编辑器焦点
+                  event.preventDefault()
+                  trigger.pick(index)
+                }}>
+                <Icon
+                  icon={icon}
+                  className={cn('size-3.5 shrink-0', isBrowser && 'text-muted-foreground')}
+                />
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {item.description ? (
+                  <span className="text-muted-foreground max-w-[45%] truncate text-xs">
+                    {item.description}
+                  </span>
+                ) : null}
+              </button>
+            )
+          })}
+        </div>
       ) : null}
     </div>
   )
 }
 
-function TriggerQuerySync(props: { onQuery: (query: string) => void }) {
-  const scope = ComposerPrimitive.unstable_useTriggerPopoverScopeContext()
-  const { onQuery } = props
-
-  useEffect(
-    function () {
-      onQuery(scope.query.trim())
-    },
-    [scope.query, onQuery]
-  )
-
-  return null
-}
-
-function toMentionItems(rows: Array<{ name: string; relative: string }>): Unstable_Mention[] {
-  return rows.map(function (row) {
-    return {
-      id: row.relative,
-      type: 'file',
-      label: row.name,
-      description: row.relative,
-      metadata: { relative: row.relative }
-    }
-  })
-}
-
-function ComposerTriggers() {
-  const aui = useAui()
-  const { primaryPath } = useActiveWorkspace()
-  const [needle, updateNeedle] = useState('')
-  const [mentionItemsState, updateMentionItems] = useState<Unstable_Mention[]>([])
-  const [isMentionLoading, updateMentionLoading] = useState(false)
-  const [skillsState, updateSkills] = useState<
-    Array<{ id: string; name: string; description: string; relative: string }>
-  >([])
-  /** 没有工作区时按空列表渲染：不在 effect 里同步清 state */
-  const skills = primaryPath ? skillsState : []
-  const mentionItems = primaryPath ? mentionItemsState : []
-
-  useEffect(
-    function () {
-      if (!primaryPath) return
-      let cancelled = false
-      void WorkspaceSkills.fetchSkills([primaryPath])
-        .then(function (rows) {
-          if (!cancelled) updateSkills(rows)
-        })
-        .catch(function (error) {
-          console.warn('[composer-triggers] 读取技能失败:', error)
-          if (!cancelled) updateSkills([])
-        })
-      return function () {
-        cancelled = true
-      }
-    },
-    [primaryPath]
-  )
-
-  useEffect(
-    function () {
-      if (!primaryPath) return
-      let cancelled = false
-
-      async function load() {
-        try {
-          updateMentionLoading(true)
-          const items =
-            needle.length === 0
-              ? toMentionItems(
-                  (await WorkspaceFiles.listDir(primaryPath as string))
-                    .filter(function (entry) {
-                      return entry.kind === 'file'
-                    })
-                    .slice(0, SEARCH_LIMIT)
-                    .map(function (entry) {
-                      return { name: entry.name, relative: entry.relative }
-                    })
-                )
-              : toMentionItems(
-                  (
-                    await WorkspaceFiles.search([primaryPath as string], needle, SEARCH_LIMIT)
-                  ).hits.map(function (hit) {
-                    return { name: hit.name, relative: hit.relative }
-                  })
-                )
-          if (!cancelled) updateMentionItems(items)
-        } catch (error) {
-          console.warn('[composer-triggers] 搜索文件失败:', error)
-          if (!cancelled) updateMentionItems([])
-        } finally {
-          if (!cancelled) updateMentionLoading(false)
-        }
-      }
-
-      void load()
-
-      return function () {
-        cancelled = true
-      }
-    },
-    [primaryPath, needle]
-  )
-
-  function attachRelative(relative: string) {
-    void attachWorkspaceFile(aui, relative).catch(function (error: unknown) {
-      toast.error(error instanceof Error ? error.message : '引用失败')
-    })
-  }
-
-  const mention = unstable_useMentionAdapter({
-    items: mentionItems,
-    includeModelContextTools: false,
-    formatter: unstable_defaultDirectiveFormatter,
-    onInserted: function (item: Unstable_TriggerItem) {
-      const relative =
-        typeof item.metadata?.relative === 'string' ? item.metadata.relative : item.id
-      if (relative) attachRelative(relative)
-    }
-  })
-
-  const slashCommands = useMemo(
-    function (): Unstable_SlashCommand[] {
-      return skills.map(function (skill) {
-        return {
-          id: skill.id,
-          label: skill.name,
-          description: skill.description || undefined,
-          execute: function () {
-            attachRelative(skill.relative)
-          }
-        }
-      })
-    },
-    // attachRelative 闭包读最新 aui；技能列表变化时重建即可
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [skills]
-  )
-
-  const slash = unstable_useSlashCommandAdapter({
-    commands: slashCommands,
-    removeOnExecute: true
-  })
-
-  return (
-    <>
-      <ComposerPrimitive.Unstable_TriggerPopover
-        char="@"
-        matcher={matchTriggerToken}
-        adapter={mention.adapter}
-        isLoading={isMentionLoading}
-        className="contents">
-        <ComposerPrimitive.Unstable_TriggerPopover.Directive {...mention.directive} />
-        <TriggerQuerySync onQuery={updateNeedle} />
-        <ComposerPrimitive.Unstable_TriggerPopoverItems>
-          {function (items) {
-            return (
-              <TriggerListShell
-                isLoading={isMentionLoading}
-                hasItems={items.length > 0}
-                empty={primaryPath ? '没有匹配的文件' : '先在左栏添加工作区'}>
-                {items.map(function (item, index) {
-                  const fileIcon = findFileIcon(item.label)
-                  return (
-                    <ComposerPrimitive.Unstable_TriggerPopoverItem
-                      key={item.id}
-                      item={item}
-                      index={index}
-                      className="data-highlighted:bg-muted hover:bg-muted flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-start text-xs outline-none">
-                      <Icon
-                        icon={fileIcon.icon}
-                        className={cn('size-3.5 shrink-0', fileIcon.className)}
-                      />
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                      {item.description ? (
-                        <span className="text-muted-foreground max-w-[40%] truncate text-xs">
-                          {item.description}
-                        </span>
-                      ) : null}
-                    </ComposerPrimitive.Unstable_TriggerPopoverItem>
-                  )
-                })}
-              </TriggerListShell>
-            )
-          }}
-        </ComposerPrimitive.Unstable_TriggerPopoverItems>
-      </ComposerPrimitive.Unstable_TriggerPopover>
-
-      <ComposerPrimitive.Unstable_TriggerPopover
-        char="/"
-        matcher={matchTriggerToken}
-        adapter={slash.adapter}
-        className="contents">
-        <ComposerPrimitive.Unstable_TriggerPopover.Action {...slash.action} />
-        <ComposerPrimitive.Unstable_TriggerPopoverItems>
-          {function (items) {
-            return (
-              <TriggerListShell
-                hasItems={items.length > 0}
-                empty={primaryPath ? '当前工作区暂无技能' : '先在左栏添加工作区'}>
-                {items.map(function (item, index) {
-                  return (
-                    <ComposerPrimitive.Unstable_TriggerPopoverItem
-                      key={item.id}
-                      item={item}
-                      index={index}
-                      className="data-highlighted:bg-muted hover:bg-muted flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-start text-xs outline-none">
-                      <Icon
-                        icon="lucide:wrench"
-                        className="text-muted-foreground size-3.5 shrink-0"
-                      />
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    </ComposerPrimitive.Unstable_TriggerPopoverItem>
-                  )
-                })}
-              </TriggerListShell>
-            )
-          }}
-        </ComposerPrimitive.Unstable_TriggerPopoverItems>
-      </ComposerPrimitive.Unstable_TriggerPopover>
-    </>
-  )
-}
-
-export { ComposerTriggers }
+export { ComposerTriggerList, useComposerTriggers }

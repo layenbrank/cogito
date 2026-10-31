@@ -27,7 +27,7 @@ import AgentAside from '@/views/agent/chat/components/aside.tsx'
 import { ComposerActions } from '@/views/agent/chat/components/composer-actions.tsx'
 import { ComposerEnd } from '@/views/agent/chat/components/composer-end.tsx'
 import { ComposerFooter } from '@/views/agent/chat/components/composer-footer.tsx'
-import { ComposerTriggers } from '@/views/agent/chat/components/composer-triggers.tsx'
+import { ComposerTriggerList, useComposerTriggers } from '@/views/agent/chat/components/composer-triggers.tsx'
 import AgentHead from '@/views/agent/chat/components/head.tsx'
 import {
   AgentProcessFold,
@@ -119,6 +119,7 @@ function PlanAsideOpener() {
 export default function Agent() {
   const navigate = useNavigate()
   const aui = useAui()
+  const composerTriggers = useComposerTriggers()
   const sidebarRef = usePanelRef()
   const asideRef = usePanelRef()
   const [initial] = useState(findSplitterState)
@@ -320,7 +321,8 @@ export default function Agent() {
                         ComposerAttach: null,
                         ComposerEnd: ComposerEnd,
                         ComposerFooter: ComposerFooter,
-                        ComposerTriggers: ComposerTriggers,
+                        ComposerTriggers: composerTriggers,
+                        ComposerTriggerList: ComposerTriggerList,
                         Welcome: ThreadWelcome
                       }}
                     />

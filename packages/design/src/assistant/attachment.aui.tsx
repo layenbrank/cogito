@@ -73,13 +73,14 @@ const AttachmentThumb: FC = () => {
   const hint = findFileNameIcon(fileName)
 
   return (
-    <Avatar className="aui-attachment-tile-avatar h-full w-full rounded-none">
+    // `after:hidden`：Avatar 自带的圆环遮罩是给头像用的，缩略图上会和瓦片自己的 ring 叠成双框
+    <Avatar className="aui-attachment-tile-avatar h-full w-full rounded-none after:hidden">
       <AvatarImage
         src={src}
         alt={labels.attachmentPreview}
         className="aui-attachment-tile-image rounded-none object-cover"
       />
-      <AvatarFallback className="bg-muted/80">
+      <AvatarFallback className="bg-muted/80 rounded-none">
         <Icon
           icon={hint.icon}
           className={cn('aui-attachment-tile-fallback-icon size-6 stroke-[1.5]', hint.className)}
@@ -124,7 +125,7 @@ const AttachmentFileChip: FC = () => {
             render={
               <div
                 className={cn(
-                  'border-input bg-muted/50 hover:bg-muted flex h-8 max-w-64 items-center gap-1.5 rounded-md border py-0.5 ps-2',
+                  'border-input bg-muted/50 hover:bg-muted flex h-8 min-w-0 max-w-full items-center gap-1.5 rounded-md border py-0.5 ps-2',
                   isComposer ? 'pe-1' : 'pe-2.5',
                   'outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
                   isError && 'border-destructive/50'
@@ -205,7 +206,7 @@ const AttachmentImageTile: FC = () => {
               render={
                 <div
                   className={cn(
-                    'aui-attachment-tile bg-muted hover:after:bg-foreground/10 active:after:bg-foreground/20 focus-visible:ring-ring/50 relative size-14 cursor-pointer overflow-hidden rounded-[calc(var(--composer-radius,1.5rem)-var(--composer-padding,8px))] outline-none after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-1 after:ring-black/10 after:transition-colors after:ring-inset focus-visible:ring-1 motion-reduce:transition-none dark:after:ring-white/10',
+                    'aui-attachment-tile bg-muted hover:after:bg-foreground/10 active:after:bg-foreground/20 focus-visible:ring-ring/50 relative size-14 shrink-0 cursor-pointer overflow-hidden rounded-[calc(var(--composer-radius,1.5rem)-var(--composer-padding,8px))] outline-none after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-1 after:ring-black/10 after:transition-colors after:ring-inset focus-visible:ring-1 motion-reduce:transition-none dark:after:ring-white/10',
                     isError && 'after:ring-destructive/60 dark:after:ring-destructive/60'
                   )}
                   role="button"
@@ -308,7 +309,7 @@ export const ComposerAttachments: FC = () => {
   if (!hasAttachments) return null
 
   return (
-    <div className="aui-composer-attachments flex w-full flex-row flex-wrap items-center gap-1.5 overflow-x-auto">
+    <div className="aui-composer-attachments flex w-full min-w-0 flex-row flex-wrap items-center gap-1.5 overflow-hidden">
       <ComposerPrimitive.Attachments>{() => <AttachmentUI />}</ComposerPrimitive.Attachments>
     </div>
   )

@@ -53,14 +53,27 @@
    * 终端面板（命令输出 / Code Mode / diff）恒深色 —— 一块「暗色孤岛」，
    * 与主题无关，所以 light/dark 用同一组值；面板内的状态色也必须自带，
    * 否则浅色主题下 `--success` 是深绿，压在深底上等于看不见。
+   * 色阶对齐常见定制终端（GitHub Dark / #0d1117 炭黑 + 饱和 ANSI）。
    */
-  --terminal: oklch(0.141 0.005 285.823);
-  --terminal-surface: oklch(0.21 0.006 285.885);
-  --terminal-border: oklch(0.274 0.006 286.033);
-  --terminal-foreground: oklch(0.967 0.001 286.375);
-  --terminal-muted: oklch(0.705 0.015 286.067);
-  --terminal-accent: oklch(0.765 0.177 163.223);
-  --terminal-danger: oklch(0.712 0.194 13.428);
+  --terminal: oklch(0.132 0.014 255);
+  --terminal-surface: oklch(0.175 0.012 255);
+  --terminal-border: oklch(0.3 0.014 255);
+  --terminal-foreground: oklch(0.94 0.008 250);
+  --terminal-muted: oklch(0.58 0.02 250);
+  /* 成功 / 强调（✓ Running / Started） */
+  --terminal-accent: oklch(0.74 0.18 155);
+  --terminal-danger: oklch(0.74 0.18 25);
+  /* 步骤箭头 / 路径（冷蓝） */
+  --terminal-info: oklch(0.72 0.15 250);
+  /* Exited / warn（琥珀黄，独立于主题 --warning） */
+  --terminal-warning: oklch(0.8 0.15 85);
+  /* 选区要比「半透明灰」更像真实终端高亮 */
+  --terminal-selection: oklch(0.52 0.16 250 / 0.5);
+  /* 优先 Nerd Font 变体（本机有则消解私用区图标）；无则回退普通等宽，不依赖安装 */
+  --terminal-mono:
+    'Cascadia Code NF', 'CascadiaMono NF', 'JetBrainsMono Nerd Font', 'JetBrainsMono NF',
+    'MesloLGS NF', 'FiraCode Nerd Font', 'Cascadia Code', 'JetBrains Mono', 'Fira Code',
+    ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
   /*
    * 登录弹窗左侧品牌栏 —— 恒深色「孤岛」，与右侧表单的 --card 对仗。
    * 文案色用实色 oklch，不用低不透明度白（0.32/0.5 对深底对比不足 4.5:1）。
@@ -179,6 +192,10 @@
   --color-terminal-muted: var(--terminal-muted);
   --color-terminal-accent: var(--terminal-accent);
   --color-terminal-danger: var(--terminal-danger);
+  --color-terminal-info: var(--terminal-info);
+  --color-terminal-warning: var(--terminal-warning);
+  --color-terminal-selection: var(--terminal-selection);
+  --font-terminal-mono: var(--terminal-mono);
   --color-signin-brand: var(--signin-brand);
   --color-signin-brand-foreground: var(--signin-brand-foreground);
   --color-signin-brand-muted: var(--signin-brand-muted);
@@ -223,12 +240,25 @@
    */
 
   /*
-   * Collapsible / Accordion 折叠动效（shadcn 约定）：`animate-collapsible-down/up` 工具类，
-   * 高度经 `--collapsible-panel-height`（Base UI 在过渡期写入）从 0 到内容高平滑过渡。
+   * 对话 Collapsible 已改用 height CSS transition（见 components/collapsible.tsx）。
+   * 下列 keyframe 仅留给仍引用 animate-collapsible-* 的旧调用点（如 Accordion）。
    */
-  --animate-collapsible-down: collapsible-down 0.2s ease-out;
-  --animate-collapsible-up: collapsible-up 0.2s ease-out;
+  --animate-collapsible-down: collapsible-down 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-collapsible-up: collapsible-up 0.22s cubic-bezier(0.22, 1, 0.36, 1);
   --animate-search-progress: search-progress 1.1s ease-in-out infinite;
+  /* 经典终端竖条光标闪烁（约 1Hz），非块状 */
+  --animate-terminal-cursor: terminal-cursor-blink 1s step-end infinite;
+
+  @keyframes terminal-cursor-blink {
+    0%,
+    49% {
+      opacity: 1;
+    }
+    50%,
+    100% {
+      opacity: 0;
+    }
+  }
 
   @keyframes collapsible-down {
     from {
@@ -288,6 +318,235 @@
 }
 
 @layer components {
+  /*
+   * composer 输入区（`assistant/composer-input.aui.tsx` 的 contentEditable）。
+   *
+   * 结构约定：
+   * - 文本 = Text 节点、换行 = `<br>`、chip = `span[data-chip-*][contenteditable=false]`
+   * - 占位层不用额外 DOM，靠 `data-empty` + `::before`（空编辑器里有个占位 `<br>`，
+   *   `:empty` 不成立，只能靠属性）
+   */
+  .aui-composer-input {
+    outline: none;
+    caret-color: var(--color-primary);
+    /* 保证空白区点击也能聚焦（两行文本的高度） */
+    min-height: 3rem;
+  }
+
+  .aui-composer-input[data-empty='true']::before {
+    content: attr(data-placeholder);
+    color: var(--color-muted-foreground);
+    pointer-events: none;
+  }
+
+  /* inline chip：视觉上一个整体，逻辑上占 `:type[label]{name=id}` 的长度 */
+  .aui-composer-chip {
+    display: inline-flex;
+    /* 窄区域里跟随可用宽度收缩，不把 composer 撑破 */
+    max-width: 100%;
+    min-width: 0;
+    align-items: center;
+    gap: 0.125rem;
+    margin: 0 0.125rem;
+    padding: 0 0.375rem;
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklab, var(--color-primary) 12%, transparent);
+    color: color-mix(in oklab, var(--color-primary) 70%, var(--color-foreground));
+    font-size: inherit;
+    line-height: inherit;
+    vertical-align: baseline;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    user-select: none;
+    cursor: default;
+  }
+
+  .aui-composer-chip::before {
+    flex: none;
+    opacity: 0.7;
+  }
+
+  .aui-composer-chip[data-chip-type='browser']::before {
+    content: '◍';
+  }
+
+  .aui-composer-chip[data-chip-type='file']::before {
+    content: '▤';
+  }
+
+  .aui-composer-chip[data-chip-type='skill']::before {
+    content: '✦';
+  }
+
+  /*
+   * 会话语义 Terminal 孤岛：等宽字栈、ANSI class 色、深底滚动条。
+   * ansi-to-react `useClasses` 输出 ansi-*-fg / ansi-*-bg，映射到 --terminal*。
+   * client 全局 `user-select: none`，正文必须显式可复制。
+   */
+  [data-slot='terminal'] {
+    font-family: var(--terminal-mono);
+    font-variant-ligatures: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  [data-slot='terminal'] ::selection {
+    background: var(--terminal-selection);
+    color: var(--terminal-foreground);
+  }
+
+  [data-slot='terminal-content'],
+  [data-slot='terminal-content'] * {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  /* ansi-to-react 包一层 <code>，清掉 markdown/code 默认底色与字号 */
+  [data-slot='terminal'] code {
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    color: inherit;
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+  }
+
+  [data-slot='terminal-header'] {
+    border-bottom-color: color-mix(in oklab, var(--terminal-border) 85%, transparent);
+    box-shadow:
+      inset 0 -1px 0 color-mix(in oklab, black 55%, transparent),
+      0 1px 0 color-mix(in oklab, white 3.5%, transparent);
+  }
+
+  [data-slot='terminal-content'] {
+    box-shadow: inset 0 1px 0 color-mix(in oklab, white 5%, transparent);
+  }
+
+  [data-slot='terminal-content']::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklab, var(--terminal-muted) 60%, transparent);
+  }
+
+  [data-slot='terminal-content']::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklab, var(--terminal-muted) 85%, transparent);
+  }
+
+  /*
+   * 线状光标：约 1.5px 竖条、≈1em 高，对齐真实终端 bar caret（非块状）。
+   * 颜色用前景白，比 accent 绿更接近本机截图。
+   */
+  [data-slot='terminal-cursor'] {
+    display: inline-block;
+    width: 1.5px;
+    height: 1.05em;
+    margin-left: 1px;
+    flex-shrink: 0;
+    vertical-align: text-bottom;
+    background-color: var(--terminal-foreground);
+    animation: var(--animate-terminal-cursor);
+  }
+
+  html[data-motion='reduce'] [data-slot='terminal-cursor'] {
+    animation: none;
+    opacity: 1;
+  }
+
+  [data-slot='terminal'] .ansi-black-fg {
+    color: oklch(0.4 0.02 255);
+  }
+  [data-slot='terminal'] .ansi-red-fg {
+    color: var(--terminal-danger);
+  }
+  [data-slot='terminal'] .ansi-green-fg {
+    color: var(--terminal-accent);
+  }
+  [data-slot='terminal'] .ansi-yellow-fg {
+    color: var(--terminal-warning);
+  }
+  [data-slot='terminal'] .ansi-blue-fg {
+    color: var(--terminal-info);
+  }
+  [data-slot='terminal'] .ansi-magenta-fg {
+    color: oklch(0.72 0.16 310);
+  }
+  [data-slot='terminal'] .ansi-cyan-fg {
+    color: oklch(0.75 0.1 200);
+  }
+  [data-slot='terminal'] .ansi-white-fg {
+    color: var(--terminal-foreground);
+  }
+  [data-slot='terminal'] .ansi-bright-black-fg {
+    color: var(--terminal-muted);
+  }
+  [data-slot='terminal'] .ansi-bright-red-fg {
+    color: oklch(0.78 0.14 25);
+  }
+  [data-slot='terminal'] .ansi-bright-green-fg {
+    color: oklch(0.78 0.17 155);
+  }
+  [data-slot='terminal'] .ansi-bright-yellow-fg {
+    color: oklch(0.84 0.14 90);
+  }
+  [data-slot='terminal'] .ansi-bright-blue-fg {
+    color: oklch(0.76 0.12 250);
+  }
+  [data-slot='terminal'] .ansi-bright-magenta-fg {
+    color: oklch(0.8 0.14 310);
+  }
+  [data-slot='terminal'] .ansi-bright-cyan-fg {
+    color: oklch(0.82 0.1 200);
+  }
+  [data-slot='terminal'] .ansi-bright-white-fg {
+    color: oklch(0.97 0.005 250);
+  }
+
+  [data-slot='terminal'] .ansi-black-bg {
+    background-color: oklch(0.22 0.01 255);
+  }
+  [data-slot='terminal'] .ansi-red-bg {
+    background-color: color-mix(in oklab, var(--terminal-danger) 35%, transparent);
+  }
+  [data-slot='terminal'] .ansi-green-bg {
+    background-color: color-mix(in oklab, var(--terminal-accent) 30%, transparent);
+  }
+  [data-slot='terminal'] .ansi-yellow-bg {
+    background-color: color-mix(in oklab, var(--terminal-warning) 30%, transparent);
+  }
+  [data-slot='terminal'] .ansi-blue-bg {
+    background-color: color-mix(in oklab, var(--terminal-info) 30%, transparent);
+  }
+  [data-slot='terminal'] .ansi-magenta-bg {
+    background-color: color-mix(in oklab, oklch(0.72 0.16 310) 30%, transparent);
+  }
+  [data-slot='terminal'] .ansi-cyan-bg {
+    background-color: color-mix(in oklab, oklch(0.75 0.1 200) 30%, transparent);
+  }
+  [data-slot='terminal'] .ansi-white-bg {
+    background-color: color-mix(in oklab, var(--terminal-foreground) 18%, transparent);
+  }
+
+  /* 盖过 client 全局 `* { font-weight: normal }` */
+  [data-slot='terminal'] .ansi-bold {
+    font-weight: 700;
+  }
+  [data-slot='terminal'] .ansi-dim {
+    opacity: 0.55;
+  }
+  [data-slot='terminal'] .ansi-italic {
+    font-style: italic;
+  }
+  [data-slot='terminal'] .ansi-underline {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  [data-slot='terminal'] .ansi-strikethrough {
+    text-decoration: line-through;
+  }
+  [data-slot='terminal'] .ansi-hidden {
+    visibility: hidden;
+  }
+
   /*
    * ResizablePanel 折叠/展开的宽度过渡：程序化 collapse/expand 时 flex 三属性平滑过渡
    * （只过渡 flex-basis 不够——尺寸由 flex-grow 决定，折叠时它是 1 → 0）；

@@ -17,15 +17,19 @@
   "dependencies": {
     "@assistant-ui/react": "catalog:",
     "@assistant-ui/react-markdown": "catalog:",
+    "@assistant-ui/react-o11y": "catalog:",
     "@base-ui/react": "catalog:",
     "@iconify/react": "catalog:",
     "@types/d3": "^7.4.3",
+    "@xyflow/react": "^12.12.0",
+    "ansi-to-react": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "cmdk": "^1.1.1",
     "cn": "catalog:",
     "d3": "^7.9.0",
     "dayjs": "catalog:",
+    "heat-graph": "catalog:",
     "lodash-es": "^4.17.21",
     "motion": "catalog:",
     "react": "catalog:",
@@ -33,9 +37,11 @@
     "react-hook-form": "catalog:",
     "react-resizable-panels": "^4.12.4",
     "remark-gfm": "catalog:",
+    "shiki": "catalog:",
     "sonner": "catalog:",
     "tailwind-merge": "catalog:",
     "tw-shimmer": "catalog:",
+    "use-stick-to-bottom": "^1.1.6",
     "zustand": "catalog:"
   },
   "devDependencies": {
@@ -64,6 +70,8 @@
     "./components/charts/*": "./src/components/charts/*",
     "./components/*": "./src/components/*.tsx",
     "./assistant/*": "./src/assistant/*.tsx",
+    "./assistant/tool-call-state": "./src/assistant/tool-call-state.ts",
+    "./assistant/thread-day": "./src/assistant/thread-day.ts",
     "./hooks/*": "./src/hooks/*.ts",
     "./lib/*": "./src/lib/*.ts"
   }

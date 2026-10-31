@@ -8,6 +8,7 @@ import {
   MessagePrimitive,
   SuggestionPrimitive,
   ThreadPrimitive,
+  useAui,
   useAuiState,
   type AssistantState,
   type FileMessagePartComponent,
@@ -21,13 +22,16 @@ import {
   createContext,
   Fragment,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   type ComponentType,
   type FC,
   type PropsWithChildren
 } from 'react'
 import { Button } from '../components/button'
 import { Skeleton } from '../components/skeleton'
+import { COPIED_DURATION_MS, useAssistantActions } from './actions'
 import {
   ComposerAddAttachment,
   ComposerAttachments,
@@ -37,7 +41,8 @@ import { File } from './file'
 import { ThreadFollowupSuggestions } from './follow-up-suggestions.aui'
 import { Image } from './image'
 import { useAssistantLabels } from './labels'
-import { MarkdownText } from './markdown-text'
+import { findMessageMarkdown } from './message-markdown'
+import { CitedMarkdownText } from './message-citations'
 import {
   Reasoning,
   ReasoningContent,
@@ -47,6 +52,17 @@ import {
 } from './reasoning.aui'
 import { ToolFallback } from './tool-fallback.aui'
 import { ToolGroupContent, ToolGroupRoot, ToolGroupTrigger } from './tool-group.aui'
+import { ChatEnter, CHAT_EASE_CLASS } from './chat-motion'
+import {
+  ComposerQueuedStrip,
+  ComposerSendButton,
+  findComposerPlaceholder
+} from './composer-queue.aui'
+import { ComposerInput } from './composer-input.aui'
+import { ComposerTriggerProvider, type ComposerTrigger, type ComposerTriggerListProps } from './composer-trigger'
+import { ThreadUserMessageRuler } from './thread-user-ruler.aui'
+import { ThreadUserMessageSticky } from './thread-user-sticky.aui'
+import { startsNewDay } from './thread-day'
 import { TooltipIconButton } from './tooltip-icon-button'
 
 export type ThreadGroupPart = MessagePrimitive.GroupedParts.GroupPart
@@ -76,6 +92,10 @@ export type ThreadComponents = {
   ProcessGroup?:
     ComponentType<PropsWithChildren<{ group: ThreadGroupPart; running: boolean }>> | undefined
   /**
+   * 输入框内、附件列表之上的队列/草稿预览（AI Elements Queue）。
+   */
+  ComposerQueue?: ComponentType | undefined
+  /**
    * 输入区左下角的自定义动作，渲染在附件按钮之前。
    * app 用它挂自己的工作区引用 / 文件选择 —— 库不关心引用从哪来。
    */
@@ -97,10 +117,21 @@ export type ThreadComponents = {
    */
   ComposerFooter?: ComponentType | undefined
   /**
-   * `@` / `/` 等 TriggerPopover，挂在 `Unstable_TriggerPopoverRoot` 内、与 Input 同级。
-   * app 用它接工作区文件 mention、技能 slash —— 库只留槽位。
+   * 输入框内 `@` / `/` 等触发器的**配置**（token、候选源、选中行为）。
+   * 库只负责「文本+光标 → 命中窗口 → 候选列表 → 选中」，具体行为完全由 app 决定：
+   * 插 chip、挂附件、执行命令、插 prompt 模板都行。
    */
-  ComposerTriggers?: ComponentType | undefined
+  ComposerTriggers?: readonly ComposerTrigger[] | undefined
+  /**
+   * 渲染触发器候选列表。不传就不显示面板。
+   * 组件内用 `useComposerTrigger()` 拿到 `items` / `activeIndex` / `isLoading`。
+   */
+  ComposerTriggerList?: ComponentType<ComposerTriggerListProps> | undefined
+  /**
+   * 输入框内 Ctrl/Cmd+V 带文件时接管粘贴（截图、从资源管理器复制的文件）。
+   * 纯文本粘贴不受影响（没有 files 就不拦）；不传就退回浏览器默认行为。
+   */
+  ComposerPaste?: ((files: readonly File[]) => void | Promise<void>) | undefined
 }
 
 export type ThreadProps = {
@@ -163,6 +194,13 @@ export const Thread: FC<ThreadProps> = ({ components = EMPTY_COMPONENTS, autoFoc
 
 const ThreadRoot: FC<{ isEmpty: boolean; autoFocus: boolean }> = ({ isEmpty, autoFocus }) => {
   const { Welcome = ThreadWelcome, ComposerFooter } = useContext(ThreadComponentsContext)
+  const showUserRuler = useAuiState(function (state) {
+    if (isNewChatView(state)) return false
+    if (isHistoryLoadingView(state)) return false
+    return state.thread.messages.some(function (message) {
+      return message.role === 'user'
+    })
+  })
 
   return (
     <ThreadPrimitive.Root
@@ -182,30 +220,42 @@ const ThreadRoot: FC<{ isEmpty: boolean; autoFocus: boolean }> = ({ isEmpty, aut
        * turnAnchor=bottom：流式时跟底滚动（Cursor / 经典 chat）。
        * top 会默认关掉 autoScroll，长过程输出时视口不跟着走。
        */}
-      <ThreadPrimitive.Viewport
-        turnAnchor="bottom"
-        autoScroll
-        data-slot="aui_thread-viewport"
-        className="relative min-h-0 flex-1 overflow-x-auto overflow-y-auto scroll-smooth">
-        <div
-          data-slot="aui_thread-viewport-inner"
-          className="mx-auto flex min-h-full w-full max-w-(--thread-max-width) flex-col px-5 pt-6 sm:px-6">
-          <AuiIf condition={isNewChatView}>
-            <div className="flex flex-1 flex-col items-center justify-center py-6">
-              <Welcome />
-            </div>
-          </AuiIf>
-          <AuiIf condition={isHistoryLoadingView}>
-            <ThreadHistorySkeleton />
-          </AuiIf>
-
+      <div
+        data-slot="aui_thread-viewport-shell"
+        className="relative min-h-0 flex-1">
+        {showUserRuler ? <ThreadUserMessageRuler /> : null}
+        {showUserRuler ? <ThreadUserMessageSticky /> : null}
+        <ThreadPrimitive.Viewport
+          turnAnchor="bottom"
+          autoScroll
+          data-slot="aui_thread-viewport"
+          // 流式跟底不要 scroll-smooth：每帧插值会让滚动条疯狂跳动
+          className="h-full min-h-0 overflow-x-clip overflow-y-auto">
           <div
-            data-slot="aui_message-group"
-            className={cn('flex flex-col gap-y-8 empty:hidden', isEmpty ? 'mb-0' : 'mb-8')}>
-            <ThreadPrimitive.Messages>{() => <ThreadMessage />}</ThreadPrimitive.Messages>
+            data-slot="aui_thread-viewport-inner"
+            className="relative mx-auto flex min-h-full w-full max-w-(--thread-max-width) flex-col px-5 pt-6 sm:px-6">
+            <AuiIf condition={isNewChatView}>
+              <div className="flex flex-1 flex-col items-center justify-center py-6">
+                <Welcome />
+              </div>
+            </AuiIf>
+            <AuiIf condition={isHistoryLoadingView}>
+              <ThreadHistorySkeleton />
+            </AuiIf>
+
+            <div
+              data-slot="aui_message-group"
+              className={cn('flex flex-col gap-y-8 empty:hidden', isEmpty ? 'mb-0' : 'mb-8')}>
+              <ThreadPrimitive.Messages>{() => <ThreadMessage />}</ThreadPrimitive.Messages>
+              <div
+                aria-hidden
+                data-slot="aui_thread-scroll-anchor"
+                className="pointer-events-none h-px w-full shrink-0 overflow-anchor-auto"
+              />
+            </div>
           </div>
-        </div>
-      </ThreadPrimitive.Viewport>
+        </ThreadPrimitive.Viewport>
+      </div>
 
       {/*
        * dock 不用 gap：可选子项（suggestions / followups）存在与否会吃掉 gap，
@@ -226,7 +276,12 @@ const ThreadRoot: FC<{ isEmpty: boolean; autoFocus: boolean }> = ({ isEmpty, aut
             <ComposerFooter />
           </div>
         ) : null}
-        <AuiIf condition={(s) => s.thread.suggestions.length > 0}>
+        {/*
+         * 只有欢迎态用「欢迎页式」建议；一旦有消息，就交给 composer 上方的
+         * ThreadFollowupSuggestions。两者读的是同一份 thread.suggestions，
+         * 这里不补 isEmpty 会同时渲染出双份候选。
+         */}
+        <AuiIf condition={(s) => s.thread.isEmpty && s.thread.suggestions.length > 0}>
           <ThreadSuggestions />
         </AuiIf>
       </div>
@@ -241,20 +296,66 @@ const ThreadMessage: FC = () => {
   const isEditing = useAuiState((s) => s.message.composer.isEditing)
 
   if (isEditing) return <EditComposer />
-  if (role === 'user') return <UserMessage />
-  return <AssistantMessageComponent />
+  return (
+    <>
+      <ThreadDayMarker />
+      {role === 'user' ? <UserMessage /> : <AssistantMessageComponent />}
+    </>
+  )
+}
+
+/**
+ * 跨天时的分隔条：会话首条也起一条（历史会话通常跨天，第一条没有上下文可参照）。
+ * 放在消息流里当兄弟节点，所以用负 margin 抵掉一部分 `gap-y`，别把天与天拉太开。
+ */
+const ThreadDayMarker: FC = () => {
+  const labels = useAssistantLabels()
+  const createdAt = useAuiState(function (state) {
+    return state.message.createdAt
+  })
+  const previousCreatedAt = useAuiState(function (state) {
+    if (state.message.index <= 0) return undefined
+    return state.thread.messages[state.message.index - 1]?.createdAt
+  })
+
+  if (!startsNewDay(createdAt, previousCreatedAt)) return null
+
+  return (
+    <div
+      data-slot="aui_thread-day-marker"
+      role="separator"
+      aria-label={labels.dayLabel(createdAt)}
+      className="-mb-4 flex items-center gap-2.5 px-1">
+      <span className="bg-border h-px flex-1" />
+      <span className="text-muted-foreground text-xs">{labels.dayLabel(createdAt)}</span>
+      <span className="bg-border h-px flex-1" />
+    </div>
+  )
 }
 
 const ThreadScrollToBottom: FC = () => {
   const labels = useAssistantLabels()
 
+  // 仅按钮点击用 smooth；Viewport 不加 scroll-smooth，避免流式跟底每帧插值乱跳
+  // 显隐用 opacity + 微位移，避免 disabled:invisible 瞬时切断过渡
   return (
-    <ThreadPrimitive.ScrollToBottom asChild>
+    <ThreadPrimitive.ScrollToBottom
+      asChild
+      behavior="smooth">
       <TooltipIconButton
         tooltip={labels.scrollToBottom}
         variant="outline"
         size="icon"
-        className="aui-thread-scroll-to-bottom border-border bg-background hover:bg-muted absolute -top-12 z-10 size-8 self-center rounded-full shadow-xs disabled:invisible">
+        className={cn(
+          'aui-thread-scroll-to-bottom border-border/50 bg-background/90 absolute -top-12 z-10 size-8 self-center rounded-full shadow-xs',
+          'backdrop-blur-md supports-backdrop-filter:bg-background/75',
+          'transition-[opacity,transform,background-color,box-shadow,border-color] duration-200',
+          CHAT_EASE_CLASS,
+          'motion-reduce:transition-none',
+          'hover:border-border hover:bg-muted hover:shadow-sm',
+          'active:bg-accent-active',
+          'disabled:pointer-events-none disabled:opacity-0 disabled:translate-y-1 disabled:shadow-none'
+        )}>
         <Icon
           icon="lucide:arrow-down"
           className="size-4"
@@ -269,7 +370,7 @@ const ThreadWelcome: FC = () => {
 
   return (
     <div className="aui-thread-welcome-root mb-6 flex flex-col items-center px-4 text-center">
-      <h1 className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in fill-mode-both text-2xl font-medium tracking-tight duration-200">
+      <h1 className="aui-thread-welcome-message-inner fade-in animate-in fill-mode-both text-2xl font-medium tracking-tight duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)]">
         {labels.welcome}
       </h1>
     </div>
@@ -286,7 +387,7 @@ const ThreadSuggestions: FC = () => {
 
 const ThreadSuggestionItem: FC = () => {
   return (
-    <div className="aui-thread-welcome-suggestion-display fade-in slide-in-from-bottom-2 animate-in fill-mode-both duration-200">
+    <div className="aui-thread-welcome-suggestion-display fade-in animate-in fill-mode-both duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)]">
       <SuggestionPrimitive.Trigger
         send
         asChild>
@@ -303,17 +404,32 @@ const ThreadSuggestionItem: FC = () => {
 
 const Composer: FC<{ autoFocus: boolean }> = ({ autoFocus }) => {
   const labels = useAssistantLabels()
-  const { ComposerTriggers } = useContext(ThreadComponentsContext)
-  const hasMessages = useAuiState(function (state) {
-    return state.thread.messages.length > 0
+  const { ComposerTriggers, ComposerTriggerList, ComposerQueue, ComposerPaste } = useContext(
+    ThreadComponentsContext
+  )
+  const placeholder = useAuiState(function (state) {
+    return findComposerPlaceholder(
+      labels,
+      state.thread.messages.length > 0,
+      state.thread.isRunning,
+      state.thread.capabilities.queue
+    )
   })
 
   return (
-    <ComposerPrimitive.Unstable_TriggerPopoverRoot>
+    <ComposerTriggerProvider triggers={ComposerTriggers}>
       <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col">
         <ComposerPrimitive.AttachmentDropzone asChild>
           <div
             data-slot="aui_composer-shell"
+            onPaste={function (event) {
+              if (!ComposerPaste) return
+              const files = Array.from(event.clipboardData?.files ?? [])
+              if (files.length === 0) return
+              // 有文件时不要往输入框里落一串文件名
+              event.preventDefault()
+              void ComposerPaste(files)
+            }}
             className={[
               /* 聚焦只换边色，不用 ring-[3px]（聊天气泡区会显得过粗） */
               'border-input flex w-full cursor-text flex-col gap-2.5',
@@ -324,32 +440,26 @@ const Composer: FC<{ autoFocus: boolean }> = ({ autoFocus }) => {
               'data-[dragging=true]:border-ring data-[dragging=true]:border-dashed',
               'data-[dragging=true]:bg-[color-mix(in_oklab,var(--color-accent)_45%,var(--color-card))]'
             ].join(' ')}>
+            <ComposerQueuedStrip />
+            {ComposerQueue ? <ComposerQueue /> : null}
             <ComposerAttachments />
-            <ComposerPrimitive.Input
-              placeholder={
-                hasMessages ? labels.composerPlaceholderContinue : labels.composerPlaceholder
-              }
-              className="aui-composer-input caret-primary placeholder:text-muted-foreground w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 outline-none"
-              rows={2}
-              minRows={2}
-              maxRows={6}
+            <ComposerInput
+              placeholder={placeholder}
               autoFocus={autoFocus}
-              enterKeyHint="send"
               aria-label={labels.messageInput}
             />
             <ComposerAction />
           </div>
         </ComposerPrimitive.AttachmentDropzone>
-        {ComposerTriggers ? <ComposerTriggers /> : null}
+        {ComposerTriggerList ? <ComposerTriggerList /> : null}
       </ComposerPrimitive.Root>
-    </ComposerPrimitive.Unstable_TriggerPopoverRoot>
+    </ComposerTriggerProvider>
   )
 }
 
 const ComposerAction: FC = () => {
   const { ComposerStart, ComposerAttach, ComposerEnd } = useContext(ThreadComponentsContext)
   const labels = useAssistantLabels()
-
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
       <div className="flex items-center gap-1.5">
@@ -398,22 +508,8 @@ const ComposerAction: FC = () => {
             </ComposerPrimitive.StopDictation>
           </AuiIf>
         </AuiIf>
-        <AuiIf condition={(s) => !s.thread.isRunning}>
-          <ComposerPrimitive.Send asChild>
-            <TooltipIconButton
-              tooltip={labels.send}
-              side="bottom"
-              type="button"
-              variant="default"
-              size="icon"
-              className="aui-composer-send bg-primary text-primary-foreground hover:bg-primary-hover size-8 rounded-lg shadow-none"
-              aria-label={labels.send}>
-              <Icon
-                icon="lucide:arrow-up"
-                className="aui-composer-send-icon size-4"
-              />
-            </TooltipIconButton>
-          </ComposerPrimitive.Send>
+        <AuiIf condition={(s) => !s.thread.isRunning || s.thread.capabilities.queue}>
+          <ComposerSendButton />
         </AuiIf>
         <AuiIf condition={(s) => s.thread.isRunning}>
           <ComposerPrimitive.Cancel asChild>
@@ -508,6 +604,34 @@ function toRunStatus(
   return parts[last].status
 }
 
+/** 段内各状态计数（`ThreadGroupPart.counts` 所需），计数之和 = indices.length */
+function toGroupCounts(
+  parts: readonly PartLike[],
+  indices: readonly number[]
+): ThreadGroupPart['counts'] {
+  let running = 0
+  let complete = 0
+  let incomplete = 0
+  let requiresAction = 0
+  for (const index of indices) {
+    switch (parts[index].status.type) {
+      case 'running':
+        running += 1
+        break
+      case 'complete':
+        complete += 1
+        break
+      case 'requires-action':
+        requiresAction += 1
+        break
+      default:
+        incomplete += 1
+        break
+    }
+  }
+  return { running, complete, incomplete, requiresAction }
+}
+
 /** 内置过程摘要壳：回合结束后默认收起，点开回看（流式中不挂这层） */
 function DefaultProcessGroup(
   props: PropsWithChildren<{ group: ThreadGroupPart; running: boolean }>
@@ -569,6 +693,9 @@ const AssistantMessage: FC = () => {
   const isRunning = useAuiState(function (state) {
     return state.message.status?.type === 'running'
   })
+  const status = useAuiState(function (state) {
+    return state.message.status
+  })
 
   const responseStart = findResponseStart(parts)
   const processRuns = useMemo(
@@ -588,7 +715,7 @@ const AssistantMessage: FC = () => {
   const partComponents = useMemo(
     function () {
       return {
-        Text: MarkdownText,
+        Text: CitedMarkdownText,
         Reasoning,
         File: AssistantFile,
         Image: AssistantImage,
@@ -615,26 +742,34 @@ const AssistantMessage: FC = () => {
     let content = <Fragment>{children}</Fragment>
 
     if (run.kind === 'tool') {
-      const group: ThreadGroupPart = {
-        type: 'group-tool',
-        status: toRunStatus(parts, run.indices),
-        indices: run.indices
+      // 流式中平铺工具卡：外层 Collapsible 在受控开合 + 高度动画下容易把内容裁成 0，
+      // 看起来像「没有工具记录」。回合结束后再由 ProcessShell / ToolGroup 收纳。
+      if (isRunning) {
+        content = <Fragment>{children}</Fragment>
+      } else {
+        const group: ThreadGroupPart = {
+          type: 'group-tool',
+          status: toRunStatus(parts, run.indices),
+          counts: toGroupCounts(parts, run.indices),
+          indices: run.indices
+        }
+        content = ToolGroup ? (
+          <ToolGroup group={group}>{children}</ToolGroup>
+        ) : (
+          <ToolGroupRoot variant="ghost">
+            <ToolGroupTrigger
+              count={run.indices.length}
+              active={group.status.type === 'running'}
+            />
+            <ToolGroupContent>{children}</ToolGroupContent>
+          </ToolGroupRoot>
+        )
       }
-      content = ToolGroup ? (
-        <ToolGroup group={group}>{children}</ToolGroup>
-      ) : (
-        <ToolGroupRoot variant="ghost">
-          <ToolGroupTrigger
-            count={run.indices.length}
-            active={group.status.type === 'running'}
-          />
-          <ToolGroupContent>{children}</ToolGroupContent>
-        </ToolGroupRoot>
-      )
     } else if (run.kind === 'reasoning') {
       const group: ThreadGroupPart = {
         type: 'group-reasoning',
         status: toRunStatus(parts, run.indices),
+        counts: toGroupCounts(parts, run.indices),
         indices: run.indices
       }
       const running = group.status.type === 'running'
@@ -681,7 +816,11 @@ const AssistantMessage: FC = () => {
     <MessagePrimitive.Root
       data-slot="aui_assistant-message-root"
       data-role="assistant"
-      className="fade-in slide-in-from-bottom-1 animate-in relative -mb-7.5 pb-7.5 duration-150 [contain-intrinsic-size:auto_200px] [content-visibility:auto]">
+      className="relative -mb-7.5 pb-7.5">
+      <ChatEnter
+        data-slot="aui_assistant-message-enter"
+        className="min-w-0"
+        offset={5}>
       <div
         data-slot="aui_assistant-message-content"
         className="text-foreground px-1 text-sm leading-7 wrap-break-word">
@@ -695,6 +834,7 @@ const AssistantMessage: FC = () => {
               group={{
                 type: 'group-process',
                 status: toRunStatus(parts, processIndices),
+                counts: toGroupCounts(parts, processIndices),
                 indices: processIndices
               }}
               running={false}>
@@ -728,6 +868,22 @@ const AssistantMessage: FC = () => {
         ) : null}
 
         <MessageError />
+
+        {/*
+         * 用户按了停止：正文留下、末尾标一句，别让人误以为是失败。
+         * `error` 交给 MessageError，这里只接「中断 / 截断」两种。
+         */}
+        {status?.type === 'incomplete' && status.reason !== 'error' ? (
+          <div
+            data-slot="aui_assistant-message-stopped"
+            className="text-muted-foreground mt-1.5 flex items-center gap-1.5 text-xs">
+            <Icon
+              icon="lucide:square"
+              className="size-2.5 shrink-0 fill-current opacity-70"
+            />
+            <span>{labels.stoppedRun}</span>
+          </div>
+        ) : null}
       </div>
 
       <div
@@ -736,44 +892,111 @@ const AssistantMessage: FC = () => {
         <BranchPicker />
         <AssistantActionBar />
       </div>
+      </ChatEnter>
     </MessagePrimitive.Root>
   )
 }
 
 const AssistantActionBar: FC = () => {
   const labels = useAssistantLabels()
+  const actions = useAssistantActions()
+  const aui = useAui()
+  const isCopied = useAuiState(function (state) {
+    return state.message.isCopied
+  })
+  const canAct = useAuiState(function (state) {
+    return (
+      (state.message.role !== 'assistant' || state.message.status?.type !== 'running') &&
+      state.message.parts.some(function (part) {
+        return part.type === 'text' && part.text.length > 0
+      })
+    )
+  })
+  const parts = useAuiState(function (state) {
+    return state.message.parts
+  })
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  useEffect(
+    function () {
+      return function () {
+        if (copiedTimerRef.current === undefined) return
+        clearTimeout(copiedTimerRef.current)
+        copiedTimerRef.current = undefined
+        aui.message.setIsCopied(false)
+      }
+    },
+    [aui]
+  )
+
+  function findMarkdown(): string {
+    // 优先读 UI 同源的 parts；getCopyText() 只扫 content，在部分 runtime 下可能缺段
+    return findMessageMarkdown(parts) || aui.message.getCopyText()
+  }
+
+  function markCopied() {
+    if (copiedTimerRef.current !== undefined) clearTimeout(copiedTimerRef.current)
+    aui.message.setIsCopied(true)
+    copiedTimerRef.current = setTimeout(function () {
+      copiedTimerRef.current = undefined
+      aui.message.setIsCopied(false)
+    }, COPIED_DURATION_MS)
+  }
+
+  function onCopy() {
+    const text = findMarkdown()
+    if (!text) return
+    void Promise.resolve(actions.copyText(text)).then(
+      function () {
+        markCopied()
+      },
+      function (error: unknown) {
+        console.error('[assistant] copy failed:', error)
+      }
+    )
+  }
+
+  function onExport() {
+    const text = findMarkdown()
+    if (!text) return
+    const filename = `message-${Date.now()}.md`
+    void Promise.resolve(actions.exportMarkdown(text, filename)).catch(function (error: unknown) {
+      console.error('[assistant] markdown export failed:', error)
+    })
+  }
 
   return (
     <ActionBarPrimitive.Root
       hideWhenRunning
       autohide="not-last"
-      className="aui-assistant-action-bar-root text-muted-foreground animate-in fade-in col-start-3 row-start-2 -ms-1 flex gap-1 duration-200">
-      <ActionBarPrimitive.Copy asChild>
-        <TooltipIconButton tooltip={labels.copy}>
-          <AuiIf condition={(s) => s.message.isCopied}>
-            <Icon
-              icon="lucide:check"
-              className="animate-in zoom-in-50 fade-in duration-200 ease-out"
-            />
-          </AuiIf>
-          <AuiIf condition={(s) => !s.message.isCopied}>
-            <Icon
-              icon="lucide:copy"
-              className="animate-in zoom-in-75 fade-in duration-150"
-            />
-          </AuiIf>
-        </TooltipIconButton>
-      </ActionBarPrimitive.Copy>
+      className="aui-assistant-action-bar-root text-muted-foreground col-start-3 row-start-2 -ms-1 flex gap-1">
+      <TooltipIconButton
+        tooltip={labels.copy}
+        disabled={!canAct}
+        onClick={onCopy}>
+        {isCopied ? (
+          <Icon
+            icon="lucide:check"
+            className="fade-in animate-in duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          />
+        ) : (
+          <Icon
+            icon="lucide:copy"
+            className="fade-in animate-in duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          />
+        )}
+      </TooltipIconButton>
+      <TooltipIconButton
+        tooltip={labels.exportMarkdown}
+        disabled={!canAct}
+        onClick={onExport}>
+        <Icon icon="lucide:download" />
+      </TooltipIconButton>
       <ActionBarPrimitive.Reload asChild>
         <TooltipIconButton tooltip={labels.reload}>
           <Icon icon="lucide:refresh-cw" />
         </TooltipIconButton>
       </ActionBarPrimitive.Reload>
-      <ActionBarPrimitive.ExportMarkdown asChild>
-        <TooltipIconButton tooltip={labels.exportMarkdown}>
-          <Icon icon="lucide:download" />
-        </TooltipIconButton>
-      </ActionBarPrimitive.ExportMarkdown>
     </ActionBarPrimitive.Root>
   )
 }
@@ -795,32 +1018,40 @@ const UserImagePart: ImageMessagePartComponent = (part) => (
 )
 
 const UserMessage: FC = () => {
+  const messageId = useAuiState(function (state) {
+    return state.message.id
+  })
+
   return (
-    <MessagePrimitive.Root
-      data-slot="aui_user-message-root"
-      className="fade-in slide-in-from-bottom-1 animate-in grid auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] content-start gap-y-2 px-2 duration-150 [contain-intrinsic-size:auto_200px] [content-visibility:auto] [&:where(>*)]:col-start-2"
-      data-role="user">
-      <UserMessageAttachments />
+    <ChatEnter
+      data-slot="aui_user-message-enter"
+      offset={4}>
+      <MessagePrimitive.Root
+        data-slot="aui_user-message-root"
+        data-role="user"
+        data-user-message-id={messageId}
+        className="grid auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] content-start gap-y-2 px-2 [&:where(>*)]:col-start-2">
+        <UserMessageAttachments />
 
-      <div className="aui-user-message-content-wrapper relative col-start-2 min-w-0 max-w-[min(100%,36rem)]">
-        <div
-          className={[
-            /* Elements MessageContent.is-user：bg-secondary + rounded-lg，无主色 tint / ring */
-            'aui-user-message-content peer text-foreground wrap-break-word empty:hidden',
-            'rounded-lg bg-secondary px-4 py-3 text-sm leading-6'
-          ].join(' ')}>
-          <MessagePrimitive.Parts components={{ File: UserFilePart, Image: UserImagePart }} />
+        <div className="aui-user-message-content-wrapper relative col-start-2 min-w-0 max-w-[min(100%,36rem)] justify-self-end">
+          <div
+            className={[
+              'aui-user-message-content peer text-foreground wrap-break-word empty:hidden',
+              'rounded-lg bg-secondary px-4 py-3 text-sm leading-6 shadow-xs'
+            ].join(' ')}>
+            <MessagePrimitive.Parts components={{ File: UserFilePart, Image: UserImagePart }} />
+          </div>
+          <div className="aui-user-action-bar-wrapper absolute inset-s-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2 peer-empty:hidden rtl:translate-x-full">
+            <UserActionBar />
+          </div>
         </div>
-        <div className="aui-user-action-bar-wrapper absolute inset-s-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2 peer-empty:hidden rtl:translate-x-full">
-          <UserActionBar />
-        </div>
-      </div>
 
-      <BranchPicker
-        data-slot="aui_user-branch-picker"
-        className="col-span-full col-start-1 row-start-3 -me-1 justify-end"
-      />
-    </MessagePrimitive.Root>
+        <BranchPicker
+          data-slot="aui_user-branch-picker"
+          className="col-span-full col-start-1 row-start-3 -me-1 justify-end"
+        />
+      </MessagePrimitive.Root>
+    </ChatEnter>
   )
 }
 
@@ -849,14 +1080,13 @@ const EditComposer: FC = () => {
   return (
     <MessagePrimitive.Root
       data-slot="aui_edit-composer-wrapper"
-      className="flex flex-col px-2 [contain-intrinsic-size:auto_200px] [content-visibility:auto]">
+      className="flex flex-col px-2">
       <ComposerPrimitive.Root className="aui-edit-composer-root border-input ms-auto flex w-full max-w-[85%] cursor-text flex-col rounded-(--composer-radius) border bg-(--composer-bg) shadow-xs dark:bg-input/30">
-        <ComposerPrimitive.Input
-          className="aui-edit-composer-input text-foreground min-h-14 w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-sm outline-none"
+        <ComposerInput
+          className="aui-edit-composer-input text-foreground min-h-14 bg-transparent px-4 pt-3.5 pb-1 text-sm outline-none"
           autoFocus
         />
-        <div className="aui-edit-composer-footer mx-2.5 mb-2.5 flex items-center gap-1.5 self-end">
-          <ComposerPrimitive.Cancel asChild>
+        <div className="aui-edit-composer-footer mx-2.5 mb-2.5 flex items-center gap-1.5 self-end">          <ComposerPrimitive.Cancel asChild>
             <Button
               variant="ghost"
               size="sm"

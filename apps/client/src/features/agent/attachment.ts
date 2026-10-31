@@ -69,6 +69,31 @@ async function attachImage(aui: ComposerAui, file: File) {
   })
 }
 
+/**
+ * 附加一张已经是 data URL 的图片。
+ *
+ * 浏览器面板的截图由 CDP 直接返回 base64，没有 `File` 对象；走这条避免
+ * 先转 Blob 再读一遍。
+ */
+async function attachImageData(aui: ComposerAui, dataUrl: string, name: string) {
+  if (!dataUrl.startsWith('data:')) throw new Error('截图数据不合法')
+  const separator = dataUrl.indexOf(';')
+  const mediaType = separator > 5 ? dataUrl.slice(5, separator) : 'image/png'
+
+  await aui.composer.addAttachment({
+    type: 'image',
+    name,
+    contentType: mediaType,
+    content: [
+      {
+        type: 'image',
+        image: dataUrl,
+        filename: name
+      }
+    ]
+  })
+}
+
 async function attachWorkspacePaths(
   aui: ComposerAui,
   paths: readonly string[] | null,
@@ -93,5 +118,50 @@ async function attachWorkspacePaths(
   }
 }
 
-export { IMAGE_ACCEPT, attachImage, attachWorkspaceFile, attachWorkspacePaths, isImageFile }
-export type { WorkspaceAttachResult }
+interface PasteAttachResult {
+  attached: number
+  /** 没接上的文件名（拿不到路径、也不是图片） */
+  failed: string[]
+}
+
+/**
+ * 处理输入框里的粘贴（Ctrl/Cmd+V）：
+ *
+ * - 图片（截图）→ 读成 dataURL 附件，走模型的多模态通道；
+ * - 带绝对路径的文件（资源管理器复制的）→ 按工作区文件引用；
+ * - 其余（WebView 拿不到路径的普通文件）→ 收进 `failed`，由调用方提示改用 `+`。
+ */
+async function attachPastedFiles(
+  aui: ComposerAui,
+  files: readonly File[],
+  rootPath: string | null
+): Promise<PasteAttachResult> {
+  let attached = 0
+  const failed: string[] = []
+
+  for (const file of files) {
+    try {
+      const absolutePath = (file as File & { path?: string }).path
+      if (absolutePath) {
+        const result = await attachWorkspacePaths(aui, [absolutePath], rootPath)
+        attached += result.attached
+        if (result.attached === 0) failed.push(file.name)
+        continue
+      }
+      if (!isImageFile(file)) {
+        failed.push(file.name)
+        continue
+      }
+      await attachImage(aui, file)
+      attached += 1
+    } catch (error) {
+      console.warn('[agent/attachment] 粘贴附件失败:', error)
+      failed.push(file.name)
+    }
+  }
+
+  return { attached, failed }
+}
+
+export { IMAGE_ACCEPT, attachImage, attachImageData, attachPastedFiles, attachWorkspaceFile, attachWorkspacePaths, isImageFile }
+export type { PasteAttachResult, WorkspaceAttachResult }
