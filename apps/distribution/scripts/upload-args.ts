@@ -2,14 +2,14 @@
  * 两个上传脚本共用的参数解析：
  * - `--x 值` / `--x=值`，布尔旗标只有 `--help`；pnpm 原样递过来的 `--` 跳过；
  * - 「源文件 + 对象键」按 `--release|--version` + `--name`（默认 cogito_<版本>_x64-setup.exe）拼，
- *   并用读侧白名单先卡一道 —— 读侧下不了的键，传上去也是白传；
+ *   并用 isPublicKey 先卡一道 —— 读侧下不了的键，传上去也是白传；
  * - 脚本入口统一收尾（出错打一行、退出码 1）。
  */
 
 import { existsSync } from 'node:fs'
 import { basename } from 'node:path'
 
-import { isSetupKey } from '../src/setup-key.ts'
+import { isPublicKey } from '../src/setup-key.ts'
 
 type UploadTarget = {
   source: string
@@ -31,8 +31,11 @@ function parseArgs(argv: string[]): Map<string, string> {
       throw new Error(`无法识别的参数: ${token}`)
     }
     // 布尔旗标不能按「--x 值」解析
-    if (inlineValue === undefined && name === 'help') {
-      parsed.set('help', 'true')
+    if (
+      inlineValue === undefined &&
+      (name === 'help' || name === 'skip-exe' || name === 'skip-msi')
+    ) {
+      parsed.set(name, 'true')
       continue
     }
     if (inlineValue === undefined) {
@@ -67,9 +70,9 @@ function findUploadTarget(args: Map<string, string>, usage: string): UploadTarge
   if (!key) {
     throw new Error(`--release 或 --key 必须给一个\n\n${usage}`)
   }
-  if (!isSetupKey(key)) {
+  if (!isPublicKey(key)) {
     throw new Error(
-      `对象键 ${key} 不在读侧白名单内（形如 1.3.0/cogito_1.3.0_x64-setup.exe）——` +
+      `对象键 ${key} 不在读侧白名单内（setup.exe / nsis.zip / updater-*/latest.json）——` +
         '传上去也下载不了，先对齐名字。'
     )
   }

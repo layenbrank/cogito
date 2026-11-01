@@ -54,6 +54,25 @@ describe('findUploadTarget（源文件 + 对象键）', function () {
     }).toThrow(/白名单/)
   })
 
+  it('放行 nsis.zip 与渠道 latest.json 键', function () {
+    const zip = parseArgs([
+      '--source',
+      SELF,
+      '--key',
+      '1.5.0/cogito_1.5.0_x64-setup.nsis.zip'
+    ])
+    expect(findUploadTarget(zip, USAGE).key).toBe('1.5.0/cogito_1.5.0_x64-setup.nsis.zip')
+
+    const manifest = parseArgs(['--source', SELF, '--key', 'updater-stable/latest.json'])
+    expect(findUploadTarget(manifest, USAGE).key).toBe('updater-stable/latest.json')
+  })
+
+  it('--skip-exe 是布尔旗标', function () {
+    const args = parseArgs(['--skip-exe', '--release', '1.5.0'])
+    expect(args.get('skip-exe')).toBe('true')
+    expect(args.get('release')).toBe('1.5.0')
+  })
+
   it('缺 --source / 缺版本 / 源文件不存在', function () {
     expect(function () {
       findUploadTarget(parseArgs([]), USAGE)

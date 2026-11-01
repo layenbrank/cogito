@@ -16,7 +16,8 @@
     "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
     "test:unit": "vitest",
     "upload": "node scripts/upload-via-worker.ts",
-    "upload:rclone": "node scripts/upload-via-rclone.ts"
+    "upload:rclone": "node scripts/upload-via-rclone.ts",
+    "publish:client": "node scripts/publish-client.ts"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260829.1",

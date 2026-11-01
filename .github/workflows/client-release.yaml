@@ -3,14 +3,13 @@ name: Client Release
 # 企业级 Tauri Windows 发版
 # - SemVer tag 与 tauri.conf / Cargo / package.json 强制对齐
 # - 渠道：stable | alpha | beta | rc（由 tag 后缀决定）
-# - 浮动清单：updater-{channel}/latest.json（应用内 updater 端点）
-# - 版本化 Release 仍上传安装包 + .sig + latest.json
+# - 应用内 updater 端点：Worker R2（cogito-distribution…/updater-{channel}/latest.json）
+# - GitHub Release 仍上传安装包 + .sig + latest.json（备份）；R2 需本地 publish:client
 #
 # 发布示例：
-#   pnpm bump:client 1.2.0          && git tag v1.2.0          && git push --tags
-#   pnpm bump:client 1.2.0-alpha.1  && git tag v1.2.0-alpha.1  && git push --tags
-#   pnpm bump:client 1.2.0-beta.1   && git tag v1.2.0-beta.1   && git push --tags
-#   pnpm bump:client 1.2.0-rc.1     && git tag v1.2.0-rc.1     && git push --tags
+#   pnpm bump:client 1.2.0 && git tag v1.2.0 && git push --tags
+#   # CI 打完包后：
+#   pnpm command distribution publish:client --release 1.2.0 --channel stable
 
 on:
   push:
@@ -94,7 +93,7 @@ jobs:
           "draft=$($draft.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           "skip_channel_update=$($skipChannel.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           "channel_tag=updater-$channel" >> $env:GITHUB_OUTPUT
-          "updater_endpoint=https://github.com/${{ github.repository }}/releases/download/updater-$channel/latest.json" >> $env:GITHUB_OUTPUT
+          "updater_endpoint=https://cogito-distribution.layenbrank.workers.dev/updater-$channel/latest.json" >> $env:GITHUB_OUTPUT
 
           Write-Host "tag=$tag version=$version channel=$channel prerelease=$isPrerelease draft=$draft"
 
@@ -422,9 +421,9 @@ jobs:
             - Cargo: ${{ steps.build_info.outputs.cargo_version }}
 
             ### Updater
-            - Versioned manifest: this release `latest.json`
-            - Channel floating manifest: `updater-${{ steps.meta.outputs.channel }}` → `latest.json`
-            - Clients built from this tag check: `${{ steps.meta.outputs.updater_endpoint }}`
+            - **Primary (R2 / Worker):** `${{ steps.meta.outputs.updater_endpoint }}`
+            - After CI: run `pnpm command distribution publish:client --release ${{ steps.meta.outputs.version }} --channel ${{ steps.meta.outputs.channel }}` to push zip + floating `latest.json` to R2
+            - GitHub Release assets below are backup only; in-app updates do **not** use GitHub endpoints
 
       - name: Publish floating channel manifest
         if: ${{ steps.meta.outputs.skip_channel_update != 'true' && steps.meta.outputs.draft != 'true' }}
@@ -437,8 +436,9 @@ jobs:
           make_latest: false
           files: release-artifacts/latest.json
           body: |
-            Floating **${{ steps.meta.outputs.channel }}** updater manifest.
+            Floating **${{ steps.meta.outputs.channel }}** updater manifest (**GitHub backup**).
 
             - Updated by: `${{ steps.meta.outputs.tag }}`
-            - Endpoint: `https://github.com/${{ github.repository }}/releases/download/${{ steps.meta.outputs.channel_tag }}/latest.json`
+            - **Primary endpoint (baked into Client):** `https://cogito-distribution.layenbrank.workers.dev/updater-${{ steps.meta.outputs.channel }}/latest.json`
+            - This GitHub asset is backup only; publish to R2 with `pnpm command distribution publish:client`
             - Do **not** delete this release; subsequent channel publishes overwrite `latest.json`.

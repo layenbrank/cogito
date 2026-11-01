@@ -12,6 +12,7 @@ pnpm command sidecar bootstrap client
 pnpm command sidecar corex
 pnpm command distribution deploy
 pnpm command distribution check
+pnpm command distribution publish:client --release 1.5.0 --channel stable
 ```
 
 快捷脚本（同义）：

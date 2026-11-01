@@ -12,5 +12,5 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["eslint.config.ts", "scripts/**/*.ts", "src/setup-key.ts"]
+  "include": ["eslint.config.ts", "scripts/**/*.ts", "src/setup-key.ts", "src/public-base.ts"]
 }

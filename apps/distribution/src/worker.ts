@@ -1,6 +1,6 @@
 /**
  * R2 distribution Worker: versioned artifacts for users and dev environments.
- * GET/HEAD: public stream of versioned setup.exe（条件头：304 / 412；带 Range：206）
+ * GET/HEAD: public stream of versioned artifacts（setup.exe / nsis.zip / updater latest.json；条件头：304 / 412；带 Range：206）
  * PUT/DELETE/multipart: require X-Custom-Auth-Key === AUTH_KEY_SECRET
  * Multipart actions: mpu-create / mpu-uploadpart / mpu-complete / mpu-abort.
  * Large uploads use multipart (not a single PUT): 5 MiB minimum part size, last part excepted.
@@ -8,7 +8,7 @@
  */
 
 import { findServedRange, isNotModified, isRangeStillValid } from './conditional.ts'
-import { isSetupKey } from './setup-key.ts'
+import { isManifestKey, isPublicKey } from './setup-key.ts'
 
 type MultipartCompleteBody = {
   parts: R2UploadedPart[]
@@ -61,14 +61,23 @@ function reportError(scope: string, error: unknown): string {
   return message
 }
 
-/** 下载与元数据共用的头部：R2 的 httpMetadata + etag + 强制 octet-stream + 一年缓存 */
+/**
+ * 下载与元数据共用的头部。
+ * 渠道 latest.json：JSON + 短缓存（浮动清单不可 immutable）。
+ * 安装包 / updater zip：octet-stream + 一年 immutable。
+ */
 function findDownloadHeaders(object: R2Object, key: string): Headers {
   const headers = new Headers()
   object.writeHttpMetadata(headers)
   headers.set('etag', object.httpEtag)
-  headers.set('Content-Type', 'application/octet-stream')
-  headers.set('Content-Disposition', `attachment; filename="${key.split('/').pop()}"`)
-  headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+  if (isManifestKey(key)) {
+    headers.set('Content-Type', 'application/json; charset=utf-8')
+    headers.set('Cache-Control', 'public, max-age=60, must-revalidate')
+  } else {
+    headers.set('Content-Type', 'application/octet-stream')
+    headers.set('Content-Disposition', `attachment; filename="${key.split('/').pop()}"`)
+    headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+  }
   return headers
 }
 
@@ -260,7 +269,7 @@ async function handleFetch(request: Request, env: Env): Promise<Response> {
     })
   }
 
-  const allowed = route.auth === 'secret' ? hasValidHeader(request, env) : isSetupKey(key)
+  const allowed = route.auth === 'secret' ? hasValidHeader(request, env) : isPublicKey(key)
   if (!allowed) {
     return new Response('Forbidden', { status: 403 })
   }
