@@ -7,6 +7,7 @@ import { WindowControls } from '@/features/browser-bar/controls'
 import { BROWSER_BAR } from '@/features/browser-bar/metrics'
 import { findAppComponent, isMainWindow } from '@/features/magnetic-tile/session'
 import { TileSessionBar } from '@/features/magnetic-tile/session-bar'
+import { hasTauriRuntime, isEmbeddedShell } from '@/features/window/shell-mode'
 
 /**
  * 通用标题栏（窗口装饰）。
@@ -175,40 +176,46 @@ async function findCaptionState(win: AppWindow): Promise<CaptionState> {
 /** 订阅窗口装饰相关状态（图标、可用性、失焦对比度） */
 function useCaptionState() {
   const [state, updateState] = useState<CaptionState>(CAPTION_STATE)
+  const canUseWindowApi = hasTauriRuntime() && !isEmbeddedShell()
 
-  useEffect(function () {
-    const win = getCurrentWindow()
-    let isActive = true
-    const unlistens: Array<() => void> = []
+  useEffect(
+    function () {
+      if (!canUseWindowApi) return
+      const win = getCurrentWindow()
+      let isActive = true
+      const unlistens: Array<() => void> = []
 
-    function sync() {
-      void findCaptionState(win)
-        .then(function (next) {
-          if (isActive) updateState(next)
-        })
-        .catch(function (error: unknown) {
-          console.warn('[caption] 读不到窗口装饰状态', error)
-        })
-    }
+      function sync() {
+        void findCaptionState(win)
+          .then(function (next) {
+            if (isActive) updateState(next)
+          })
+          .catch(function (error: unknown) {
+            console.warn('[caption] 读不到窗口装饰状态', error)
+          })
+      }
 
-    sync()
+      sync()
 
-    void win.onResized(sync).then(function (fn) {
-      if (isActive) unlistens.push(fn)
-      else fn()
-    })
-    void win.onFocusChanged(sync).then(function (fn) {
-      if (isActive) unlistens.push(fn)
-      else fn()
-    })
+      void win.onResized(sync).then(function (fn) {
+        if (isActive) unlistens.push(fn)
+        else fn()
+      })
+      void win.onFocusChanged(sync).then(function (fn) {
+        if (isActive) unlistens.push(fn)
+        else fn()
+      })
 
-    return function () {
-      isActive = false
-      for (const unlisten of unlistens) unlisten()
-    }
-  }, [])
+      return function () {
+        isActive = false
+        for (const unlisten of unlistens) unlisten()
+      }
+    },
+    [canUseWindowApi]
+  )
 
   function refresh() {
+    if (!canUseWindowApi) return
     void findCaptionState(getCurrentWindow())
       .then(updateState)
       .catch(function (error: unknown) {
@@ -216,7 +223,7 @@ function useCaptionState() {
       })
   }
 
-  return { state, refresh }
+  return { state, refresh, canUseWindowApi }
 }
 
 interface CaptionProps {
@@ -246,12 +253,16 @@ function findVisibleControls(
 }
 
 function Caption(props: CaptionProps) {
-  const { state, refresh } = useCaptionState()
+  const { state, refresh, canUseWindowApi } = useCaptionState()
   const location = useLocation()
-  const controls = findVisibleControls(props.controls)
+  // 嵌套壳没有窗口键；外层也可显式 controls={false}
+  const controls = findVisibleControls(
+    canUseWindowApi ? props.controls : false
+  )
   const showsSessions = isMainWindow() && findAppComponent(location.pathname) !== null
 
   function onCaptionDoubleClick(event: MouseEvent<HTMLDivElement>) {
+    if (!canUseWindowApi) return
     const target = event.target
     if (!(target instanceof Element)) return
     if (target.closest('[data-region="false"]')) return
