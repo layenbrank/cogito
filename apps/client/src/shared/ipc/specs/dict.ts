@@ -70,7 +70,7 @@ type RemoteCatalog = z.infer<typeof RemoteCatalogSchema>
 const DICT_TYPE = DICT_TYPE_CONTRACT
 
 /** 按 type 认领校验后解析全局 value（未认领该 key 则 undefined） */
-function findDictValueForType(typeCode: string, key: DictKey | string): string | undefined {
+function findDictValueForType(typeCode: string, key: string): string | undefined {
   const value = findDictValue(key)
   if (!value) return undefined
   const claims = DICT_CLAIMS[typeCode]

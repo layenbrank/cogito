@@ -28,9 +28,9 @@ import { findAuthToken } from '@/utils/auth'
 import { findActiveTenantID } from '@/utils/tenant.ts'
 
 const OWNER = {
-  CLIENT: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_CLIENT]!,
-  GOOSE: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_GOOSE]!,
-  CLOUD: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_CLOUD]!
+  CLIENT: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_CLIENT],
+  GOOSE: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_GOOSE],
+  CLOUD: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_CLOUD]
 }
 
 interface AutomationState {
