@@ -31,6 +31,7 @@
     "@assistant-ui/react": "catalog:",
     "@cogito/chat": "workspace:*",
     "@cogito/design": "workspace:*",
+    "@cogito/dict": "workspace:*",
     "@cogito/types": "workspace:*",
     "@cogito/utils": "workspace:*",
     "@cogito/wasm": "workspace:*",
