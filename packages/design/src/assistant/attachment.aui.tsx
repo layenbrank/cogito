@@ -1,68 +1,25 @@
 import { Icon } from '@iconify/react/offline'
-import { type PropsWithChildren, useState, type FC, isValidElement } from 'react'
+import { type FC, type ReactNode } from 'react'
 import {
   AttachmentPrimitive,
   ComposerPrimitive,
   MessagePrimitive,
   useAuiState,
-  useAui
+  useAui,
+  type Attachment
 } from '@assistant-ui/react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/tooltip'
-import { Dialog, DialogTitle, DialogContent, DialogTrigger } from '../components/dialog'
 import { Avatar, AvatarImage, AvatarFallback } from '../components/avatar'
+import { useAttachmentSrc } from '../hooks/use-attachment-src'
+import { useAttachmentLightboxMedias } from '../hooks/use-attachment-lightbox-medias'
 import { TooltipIconButton } from './tooltip-icon-button'
 import { useAssistantLabels } from './labels'
-import { useAttachmentSrc } from '../hooks/use-attachment-src'
 import { findBaseName, findFileNameIcon } from './file-name-icon'
+import {
+  AttachmentLightboxProvider,
+  useAttachmentLightbox
+} from './attachment-lightbox'
 import { cn } from 'cn'
-
-type AttachmentPreviewProps = {
-  src: string
-}
-
-const AttachmentPreview: FC<AttachmentPreviewProps> = ({ src }) => {
-  const labels = useAssistantLabels()
-  const [isLoaded, setIsLoaded] = useState(false)
-  return (
-    <img
-      src={src}
-      alt={labels.attachmentPreview}
-      className={cn(
-        'block h-auto max-h-[80vh] w-auto max-w-full rounded-sm object-contain transition-opacity duration-300 motion-reduce:transition-none',
-        isLoaded
-          ? 'aui-attachment-preview-image-loaded opacity-100'
-          : 'aui-attachment-preview-image-loading opacity-0'
-      )}
-      onLoad={() => setIsLoaded(true)}
-    />
-  )
-}
-
-const AttachmentPreviewDialog: FC<PropsWithChildren> = ({ children }) => {
-  const labels = useAssistantLabels()
-  const src = useAttachmentSrc()
-
-  if (!src) return children
-
-  return (
-    <Dialog>
-      <DialogTrigger
-        className="aui-attachment-preview-trigger cursor-zoom-in"
-        // render 目标最终落在 <div> 上（TooltipTrigger 的 render 目标），不是真 button。
-        // 不声明的话 Base UI 按 native button 处理：dev 会打 console.error，键盘也走不到它的
-        // 非原生分支（Enter/Space → click 由它负责）。fallback 分支自己渲染 <button>，所以取反。
-        nativeButton={!isValidElement(children)}
-        render={isValidElement(children) ? children : <button type="button">{children}</button>}
-      />
-      <DialogContent className="aui-attachment-preview-dialog-content [&>button]:bg-foreground/60 [&>button]:hover:bg-foreground/80 [&_svg]:text-background p-2 sm:max-w-3xl [&>button]:rounded-full [&>button]:p-1 [&>button]:opacity-100 [&>button]:ring-0!">
-        <DialogTitle className="aui-sr-only sr-only">{labels.attachmentPreviewTitle}</DialogTitle>
-        <div className="aui-attachment-preview bg-background relative mx-auto flex max-h-[80dvh] w-full items-center justify-center overflow-hidden rounded-sm">
-          <AttachmentPreview src={src} />
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
 
 const AttachmentThumb: FC = () => {
   const labels = useAssistantLabels()
@@ -173,24 +130,34 @@ const AttachmentFileChip: FC = () => {
 const AttachmentImageTile: FC = () => {
   const labels = useAssistantLabels()
   const aui = useAui()
+  const lightbox = useAttachmentLightbox()
   const isComposer = aui.attachment.source !== 'message'
-  const typeLabel = useAuiState((s) => labels.attachmentType(s.attachment.type))
+  const attachmentId = useAuiState(function (state) {
+    return state.attachment.id
+  })
+  const typeLabel = useAuiState(function (state) {
+    return labels.attachmentType(state.attachment.type)
+  })
 
-  const uploadState = useAuiState((s) =>
-    s.attachment.status.type === 'running'
+  const uploadState = useAuiState(function (state) {
+    return state.attachment.status.type === 'running'
       ? 'uploading'
-      : s.attachment.status.type === 'incomplete' && s.attachment.status.reason === 'error'
+      : state.attachment.status.type === 'incomplete' && state.attachment.status.reason === 'error'
         ? 'error'
         : undefined
-  )
+  })
   const isUploading = uploadState === 'uploading'
   const isError = uploadState === 'error'
 
-  const errorMessage = useAuiState((s) =>
-    s.attachment.status.type === 'incomplete' && s.attachment.status.reason === 'error'
-      ? (s.attachment.status.message ?? labels.uploadFailed)
+  const errorMessage = useAuiState(function (state) {
+    return state.attachment.status.type === 'incomplete' &&
+      state.attachment.status.reason === 'error'
+      ? (state.attachment.status.message ?? labels.uploadFailed)
       : undefined
-  )
+  })
+
+  const src = useAttachmentSrc()
+  const canPreview = Boolean(src) && !isUploading && !isError
 
   return (
     <TooltipProvider>
@@ -201,50 +168,60 @@ const AttachmentImageTile: FC = () => {
             isComposer && 'animate-in fade-in-0 zoom-in-95 duration-200 motion-reduce:animate-none',
             !isComposer && 'aui-attachment-root-message only:*:first:size-24'
           )}>
-          <AttachmentPreviewDialog>
-            <TooltipTrigger
-              render={
-                <div
-                  className={cn(
-                    'aui-attachment-tile bg-muted hover:after:bg-foreground/10 active:after:bg-foreground/20 focus-visible:ring-ring/50 relative size-14 shrink-0 cursor-pointer overflow-hidden rounded-[calc(var(--composer-radius,1.5rem)-var(--composer-padding,8px))] outline-none after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-1 after:ring-black/10 after:transition-colors after:ring-inset focus-visible:ring-1 motion-reduce:transition-none dark:after:ring-white/10',
-                    isError && 'after:ring-destructive/60 dark:after:ring-destructive/60'
-                  )}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={labels.attachmentLabel(
-                    typeLabel,
-                    isError ? 'error' : isUploading ? 'uploading' : 'idle'
-                  )}>
-                  <AttachmentThumb />
-                  {isUploading && (
-                    <div
-                      aria-hidden="true"
-                      className="aui-attachment-tile-uploading bg-background/60 animate-in fade-in-0 absolute inset-0 flex items-center justify-center backdrop-blur-[2px] motion-reduce:animate-none">
-                      <Icon
-                        icon="lucide:loader-circle"
-                        className="text-muted-foreground size-4 animate-spin"
-                      />
-                    </div>
-                  )}
-                  {isError && (
-                    <div
-                      aria-hidden="true"
-                      className="aui-attachment-tile-error bg-background/70 animate-in fade-in-0 absolute inset-0 flex items-center justify-center backdrop-blur-[2px] motion-reduce:animate-none">
-                      <Icon
-                        icon="lucide:circle-alert"
-                        className="text-destructive size-4"
-                      />
-                    </div>
-                  )}
-                </div>
-              }
-            />
-          </AttachmentPreviewDialog>
-          {isComposer && <AttachmentTileRemove />}
+          <TooltipTrigger
+            render={
+              <div
+                className={cn(
+                  'aui-attachment-tile bg-muted hover:after:bg-foreground/10 active:after:bg-foreground/20 focus-visible:ring-ring/50 relative size-14 shrink-0 overflow-hidden rounded-[calc(var(--composer-radius,1.5rem)-var(--composer-padding,8px))] outline-none after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-1 after:ring-black/10 after:transition-colors after:ring-inset focus-visible:ring-1 motion-reduce:transition-none dark:after:ring-white/10',
+                  canPreview ? 'cursor-zoom-in' : 'cursor-default',
+                  isError && 'after:ring-destructive/60 dark:after:ring-destructive/60'
+                )}
+                role="button"
+                tabIndex={0}
+                aria-label={labels.attachmentLabel(
+                  typeLabel,
+                  isError ? 'error' : isUploading ? 'uploading' : 'idle'
+                )}
+                onClick={function () {
+                  if (!canPreview || !lightbox) return
+                  lightbox.open(attachmentId)
+                }}
+                onKeyDown={function (event) {
+                  if (!canPreview || !lightbox) return
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    lightbox.open(attachmentId)
+                  }
+                }}
+              />
+            }>
+            <AttachmentThumb />
+            {isUploading ? (
+              <div
+                aria-hidden="true"
+                className="aui-attachment-tile-uploading bg-background/60 animate-in fade-in-0 absolute inset-0 flex items-center justify-center backdrop-blur-[2px] motion-reduce:animate-none">
+                <Icon
+                  icon="lucide:loader-circle"
+                  className="text-muted-foreground size-4 animate-spin"
+                />
+              </div>
+            ) : null}
+            {isError ? (
+              <div
+                aria-hidden="true"
+                className="aui-attachment-tile-error bg-background/70 animate-in fade-in-0 absolute inset-0 flex items-center justify-center backdrop-blur-[2px] motion-reduce:animate-none">
+                <Icon
+                  icon="lucide:circle-alert"
+                  className="text-destructive size-4"
+                />
+              </div>
+            ) : null}
+          </TooltipTrigger>
+          {isComposer ? <AttachmentTileRemove /> : null}
         </AttachmentPrimitive.Root>
         <TooltipContent side="top">
           <AttachmentPrimitive.Name />
-          {errorMessage && <p className="aui-attachment-error-message">{errorMessage}</p>}
+          {errorMessage ? <p className="aui-attachment-error-message">{errorMessage}</p> : null}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -252,7 +229,9 @@ const AttachmentImageTile: FC = () => {
 }
 
 const AttachmentUI: FC = () => {
-  const isImage = useAuiState((s) => s.attachment.type === 'image')
+  const isImage = useAuiState(function (state) {
+    return state.attachment.type === 'image'
+  })
   if (!isImage) return <AttachmentFileChip />
   return <AttachmentImageTile />
 }
@@ -293,25 +272,52 @@ const AttachmentChipRemove: FC = () => {
   )
 }
 
-export const UserMessageAttachments: FC = () => {
+function AttachmentStrip(props: {
+  attachments: readonly Attachment[]
+  className: string
+  children: ReactNode
+}) {
+  const medias = useAttachmentLightboxMedias(props.attachments)
   return (
-    <div className="aui-user-message-attachments-end col-span-full col-start-1 row-start-1 flex w-full flex-row justify-end gap-2">
-      <MessagePrimitive.Attachments>{() => <AttachmentUI />}</MessagePrimitive.Attachments>
-    </div>
+    <AttachmentLightboxProvider medias={medias}>
+      <div className={props.className}>{props.children}</div>
+    </AttachmentLightboxProvider>
+  )
+}
+
+export const UserMessageAttachments: FC = () => {
+  const attachments = useAuiState(function (state) {
+    return state.message.attachments ?? []
+  })
+
+  if (attachments.length === 0) return null
+
+  return (
+    <AttachmentStrip
+      attachments={attachments}
+      className="aui-user-message-attachments-end col-span-full col-start-1 row-start-1 flex w-full flex-row justify-end gap-2">
+      <MessagePrimitive.Attachments>{function () {
+        return <AttachmentUI />
+      }}</MessagePrimitive.Attachments>
+    </AttachmentStrip>
   )
 }
 
 export const ComposerAttachments: FC = () => {
-  const hasAttachments = useAuiState(function (state) {
-    return state.composer.attachments.length > 0
+  const attachments = useAuiState(function (state) {
+    return state.composer.attachments
   })
 
-  if (!hasAttachments) return null
+  if (attachments.length === 0) return null
 
   return (
-    <div className="aui-composer-attachments flex w-full min-w-0 flex-row flex-wrap items-center gap-1.5 overflow-hidden">
-      <ComposerPrimitive.Attachments>{() => <AttachmentUI />}</ComposerPrimitive.Attachments>
-    </div>
+    <AttachmentStrip
+      attachments={attachments}
+      className="aui-composer-attachments flex w-full min-w-0 flex-row flex-wrap items-center gap-1.5 overflow-hidden">
+      <ComposerPrimitive.Attachments>{function () {
+        return <AttachmentUI />
+      }}</ComposerPrimitive.Attachments>
+    </AttachmentStrip>
   )
 }
 

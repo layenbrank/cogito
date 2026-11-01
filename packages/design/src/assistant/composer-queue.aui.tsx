@@ -25,8 +25,6 @@ const ComposerSendButton: FC = () => {
     [aui]
   )
 
-  if (disabled) return null
-
   return (
     <TooltipIconButton
       tooltip={tooltip}
@@ -34,7 +32,8 @@ const ComposerSendButton: FC = () => {
       type="button"
       variant="default"
       size="icon"
-      className="aui-composer-send bg-primary text-primary-foreground hover:bg-primary-hover size-8 rounded-lg shadow-none"
+      disabled={disabled}
+      className="aui-composer-send bg-primary text-primary-foreground hover:bg-primary-hover size-8 shrink-0 rounded-lg shadow-none disabled:opacity-40"
       aria-label={tooltip}
       onClick={onSend}>
       <Icon

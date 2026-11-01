@@ -38,6 +38,83 @@ const CHIP_CLASS = 'aui-composer-chip'
 /** 组合输入期间按下的键码（Chrome 在 IME 组合时会给 keyCode 229）。 */
 const IME_KEY_CODE = 229
 
+/** 与 globals.css `::highlight(aui-composer-trigger-*)` 对齐。 */
+const TRIGGER_HIGHLIGHT = {
+  mention: 'aui-composer-trigger-mention',
+  skill: 'aui-composer-trigger-skill'
+} as const
+
+const TRIGGER_HIGHLIGHT_NAMES = Object.values(TRIGGER_HIGHLIGHT)
+
+function clearTriggerHighlights() {
+  const highlights = typeof CSS !== 'undefined' ? CSS.highlights : undefined
+  if (!highlights) return
+  for (const name of TRIGGER_HIGHLIGHT_NAMES) highlights.delete(name)
+}
+
+/** 逻辑 offset → DOM 点；触发区间只落在文本节点上。 */
+function pointAtOffset(
+  root: HTMLElement,
+  atoms: readonly ComposerAtom[],
+  offset: number
+): { node: Node; offset: number } | null {
+  const { atomIndex, charOffset } = locateOffset(atoms, offset)
+  const children = root.childNodes
+  if (atomIndex >= children.length) {
+    if (children.length === 0) return { node: root, offset: 0 }
+    return { node: root, offset: children.length }
+  }
+  const node = children[atomIndex]
+  if (!node) return null
+  if (node.nodeType === Node.TEXT_NODE) {
+    return { node, offset: Math.min(charOffset, node.nodeValue?.length ?? 0) }
+  }
+  // chip / br：offset 落在节点边界
+  if (charOffset <= 0) return { node: root, offset: atomIndex }
+  return { node: root, offset: atomIndex + 1 }
+}
+
+function findDomRange(
+  root: HTMLElement,
+  atoms: readonly ComposerAtom[],
+  start: number,
+  end: number
+): Range | null {
+  if (end <= start) return null
+  const from = pointAtOffset(root, atoms, start)
+  const to = pointAtOffset(root, atoms, end)
+  if (!from || !to) return null
+  try {
+    const range = document.createRange()
+    range.setStart(from.node, from.offset)
+    range.setEnd(to.node, to.offset)
+    return range
+  } catch (error) {
+    console.warn('[composer-input] 无法定位触发高亮区间:', error)
+    return null
+  }
+}
+
+function paintTriggerHighlight(
+  root: HTMLElement,
+  atoms: readonly ComposerAtom[],
+  match: { readonly trigger: { readonly id: string }; readonly start: number; readonly end: number } | null
+) {
+  clearTriggerHighlights()
+  const highlights = typeof CSS !== 'undefined' ? CSS.highlights : undefined
+  if (!highlights || match === null) return
+  const name =
+    match.trigger.id === 'mention'
+      ? TRIGGER_HIGHLIGHT.mention
+      : match.trigger.id === 'skill'
+        ? TRIGGER_HIGHLIGHT.skill
+        : null
+  if (name === null) return
+  const range = findDomRange(root, atoms, match.start, match.end)
+  if (!range) return
+  highlights.set(name, new Highlight(range))
+}
+
 function renderChip(atom: ComposerChipAtom) {
   const span = document.createElement('span')
   span.dataset.chipType = atom.type
@@ -46,6 +123,8 @@ function renderChip(atom: ComposerChipAtom) {
   span.contentEditable = 'false'
   span.className = CHIP_CLASS
   span.textContent = atom.label
+  // 展示可能是短名；悬停给出完整 id（文件 / 技能的相对路径）
+  if (atom.id.length > 0) span.title = atom.id
   return span
 }
 
@@ -256,9 +335,11 @@ function ComposerInput(props: ComposerInputProps) {
       function handleSelectionChange() {
         const root = editorRef.current
         if (!root || document.activeElement !== root) return
-        const cursor = readSelectionOffset(root, atomsRef.current)
+        const atoms = atomsRef.current
+        const cursor = readSelectionOffset(root, atoms)
         if (cursor === null) return
-        trigger?.sync(serializeDocument(atomsRef.current), cursor)
+        const matched = trigger?.sync(serializeDocument(atoms), cursor) ?? null
+        paintTriggerHighlight(root, atoms, matched)
       }
       document.addEventListener('selectionchange', handleSelectionChange)
       return function () {
@@ -266,6 +347,17 @@ function ComposerInput(props: ComposerInputProps) {
       }
     },
     [trigger]
+  )
+
+  // 触发命中时给 `@…` / `/…` 上色；关闭或卸载时清掉
+  useEffect(
+    function () {
+      const root = editorRef.current
+      if (!root) return
+      paintTriggerHighlight(root, atomsRef.current, trigger?.match ?? null)
+      return clearTriggerHighlights
+    },
+    [trigger?.match]
   )
 
   const handleInput = useCallback(
@@ -281,10 +373,15 @@ function ComposerInput(props: ComposerInputProps) {
         lastPushedRef.current = next
         aui.composer.setText(next, { origin: 'user' })
       }
-      if (composing || !trigger) return
+      if (composing || !trigger) {
+        if (!composing) paintTriggerHighlight(root, atoms, null)
+        return
+      }
       const cursor = readSelectionOffset(root, atoms)
       if (cursor === null) return
-      trigger.sync(next, cursor)
+      // sync 同步返回命中，立刻上色，不等 React 状态回写
+      const matched = trigger.sync(next, cursor)
+      paintTriggerHighlight(root, atoms, matched)
     },
     [aui, trigger]
   )
@@ -387,9 +484,36 @@ function ComposerInput(props: ComposerInputProps) {
       composingRef.current = false
       const root = editorRef.current
       if (!root || !trigger) return
-      const cursor = readSelectionOffset(root, atomsRef.current)
+      const atoms = atomsRef.current
+      const cursor = readSelectionOffset(root, atoms)
       if (cursor === null) return
-      trigger.sync(serializeDocument(atomsRef.current), cursor)
+      const matched = trigger.sync(serializeDocument(atoms), cursor)
+      paintTriggerHighlight(root, atoms, matched)
+    },
+    [trigger]
+  )
+
+  /** 失焦关掉候选；点候选面板时 mousedown 已 preventDefault，不会误关。 */
+  const handleBlur = useCallback(
+    function () {
+      window.setTimeout(function () {
+        if (editorRef.current === document.activeElement) return
+        trigger?.close()
+        clearTriggerHighlights()
+      }, 0)
+    },
+    [trigger]
+  )
+
+  /** 重新聚焦时若仍停在 `@…` / `/…` 上，再打开候选并上色。 */
+  const handleFocus = useCallback(
+    function () {
+      const root = editorRef.current
+      if (!root || !trigger) return
+      const atoms = atomsRef.current
+      const cursor = readSelectionOffset(root, atoms) ?? documentLength(atoms)
+      const matched = trigger.sync(serializeDocument(atoms), cursor)
+      paintTriggerHighlight(root, atoms, matched)
     },
     [trigger]
   )
@@ -418,6 +542,8 @@ function ComposerInput(props: ComposerInputProps) {
       onKeyDown={handleKeyDown}
       onPaste={handlePaste}
       onCopy={handleCopy}
+      onBlur={handleBlur}
+      onFocus={handleFocus}
       onCompositionStart={handleCompositionStart}
       onCompositionEnd={handleCompositionEnd}
     />

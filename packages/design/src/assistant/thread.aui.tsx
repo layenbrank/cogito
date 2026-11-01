@@ -14,8 +14,10 @@ import {
   type FileMessagePartComponent,
   type ImageMessagePartComponent,
   type MessagePartStatus,
+  type TextMessagePartComponent,
   type ToolCallMessagePartComponent,
-  type ToolCallMessagePartStatus
+  type ToolCallMessagePartStatus,
+  useMessagePartText
 } from '@assistant-ui/react'
 import { cn } from 'cn'
 import {
@@ -58,6 +60,7 @@ import {
   ComposerSendButton,
   findComposerPlaceholder
 } from './composer-queue.aui'
+import { ComposerChipText } from './composer-chip-text'
 import { ComposerInput } from './composer-input.aui'
 import { ComposerTriggerProvider, type ComposerTrigger, type ComposerTriggerListProps } from './composer-trigger'
 import { ThreadUserMessageRuler } from './thread-user-ruler.aui'
@@ -461,8 +464,8 @@ const ComposerAction: FC = () => {
   const { ComposerStart, ComposerAttach, ComposerEnd } = useContext(ThreadComponentsContext)
   const labels = useAssistantLabels()
   return (
-    <div className="aui-composer-action-wrapper relative flex items-center justify-between">
-      <div className="flex items-center gap-1.5">
+    <div className="aui-composer-action-wrapper relative flex min-w-0 items-center justify-between gap-2">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
         {ComposerStart ? <ComposerStart /> : null}
         {ComposerAttach === null ? null : ComposerAttach ? (
           <ComposerAttach />
@@ -470,62 +473,68 @@ const ComposerAction: FC = () => {
           <ComposerAddAttachment />
         )}
       </div>
-      <div className="flex items-center gap-1.5">
-        {ComposerEnd ? <ComposerEnd /> : null}
-        <AuiIf condition={(s) => s.thread.capabilities.dictation}>
-          <AuiIf condition={(s) => s.composer.dictation == null}>
-            <ComposerPrimitive.Dictate asChild>
-              <TooltipIconButton
-                tooltip={labels.startDictation}
-                side="bottom"
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="aui-composer-dictate text-muted-foreground hover:text-foreground size-7 rounded-full"
-                aria-label={labels.startDictation}>
-                <Icon
-                  icon="lucide:mic"
-                  className="aui-composer-dictate-icon size-4"
-                />
-              </TooltipIconButton>
-            </ComposerPrimitive.Dictate>
+      <div className="flex min-w-0 items-center gap-1.5">
+        {ComposerEnd ? (
+          <div className="min-w-0">
+            <ComposerEnd />
+          </div>
+        ) : null}
+        <div className="flex shrink-0 items-center gap-1.5">
+          <AuiIf condition={(s) => s.thread.capabilities.dictation}>
+            <AuiIf condition={(s) => s.composer.dictation == null}>
+              <ComposerPrimitive.Dictate asChild>
+                <TooltipIconButton
+                  tooltip={labels.startDictation}
+                  side="bottom"
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="aui-composer-dictate text-muted-foreground hover:text-foreground size-7 rounded-full"
+                  aria-label={labels.startDictation}>
+                  <Icon
+                    icon="lucide:mic"
+                    className="aui-composer-dictate-icon size-4"
+                  />
+                </TooltipIconButton>
+              </ComposerPrimitive.Dictate>
+            </AuiIf>
+            <AuiIf condition={(s) => s.composer.dictation != null}>
+              <ComposerPrimitive.StopDictation asChild>
+                <TooltipIconButton
+                  tooltip={labels.stopDictation}
+                  side="bottom"
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="aui-composer-stop-dictation text-destructive size-7 rounded-full"
+                  aria-label={labels.stopDictation}>
+                  <Icon
+                    icon="lucide:square"
+                    className="aui-composer-stop-dictation-icon size-3.5 animate-pulse fill-current"
+                  />
+                </TooltipIconButton>
+              </ComposerPrimitive.StopDictation>
+            </AuiIf>
           </AuiIf>
-          <AuiIf condition={(s) => s.composer.dictation != null}>
-            <ComposerPrimitive.StopDictation asChild>
-              <TooltipIconButton
-                tooltip={labels.stopDictation}
-                side="bottom"
+          <AuiIf condition={(s) => !s.thread.isRunning || s.thread.capabilities.queue}>
+            <ComposerSendButton />
+          </AuiIf>
+          <AuiIf condition={(s) => s.thread.isRunning}>
+            <ComposerPrimitive.Cancel asChild>
+              <Button
                 type="button"
-                variant="ghost"
+                variant="default"
                 size="icon"
-                className="aui-composer-stop-dictation text-destructive size-7 rounded-full"
-                aria-label={labels.stopDictation}>
+                className="aui-composer-cancel bg-foreground text-background hover:bg-foreground/90 size-8 rounded-lg shadow-none"
+                aria-label={labels.stopGenerating}>
                 <Icon
                   icon="lucide:square"
-                  className="aui-composer-stop-dictation-icon size-3.5 animate-pulse fill-current"
+                  className="aui-composer-cancel-icon size-3 fill-current"
                 />
-              </TooltipIconButton>
-            </ComposerPrimitive.StopDictation>
+              </Button>
+            </ComposerPrimitive.Cancel>
           </AuiIf>
-        </AuiIf>
-        <AuiIf condition={(s) => !s.thread.isRunning || s.thread.capabilities.queue}>
-          <ComposerSendButton />
-        </AuiIf>
-        <AuiIf condition={(s) => s.thread.isRunning}>
-          <ComposerPrimitive.Cancel asChild>
-            <Button
-              type="button"
-              variant="default"
-              size="icon"
-              className="aui-composer-cancel bg-foreground text-background hover:bg-foreground/90 size-8 rounded-lg shadow-none"
-              aria-label={labels.stopGenerating}>
-              <Icon
-                icon="lucide:square"
-                className="aui-composer-cancel-icon size-3 fill-current"
-              />
-            </Button>
-          </ComposerPrimitive.Cancel>
-        </AuiIf>
+        </div>
       </div>
     </div>
   )
@@ -1017,6 +1026,12 @@ const UserImagePart: ImageMessagePartComponent = (part) => (
   </div>
 )
 
+/** 已发送气泡：directive 与 composer 同款 chip，不露 `:file[...]{...}` 原文 */
+const UserTextPart: TextMessagePartComponent = function UserTextPart() {
+  const { text } = useMessagePartText()
+  return <ComposerChipText text={text} />
+}
+
 const UserMessage: FC = () => {
   const messageId = useAuiState(function (state) {
     return state.message.id
@@ -1039,7 +1054,9 @@ const UserMessage: FC = () => {
               'aui-user-message-content peer text-foreground wrap-break-word empty:hidden',
               'rounded-lg bg-secondary px-4 py-3 text-sm leading-6 shadow-xs'
             ].join(' ')}>
-            <MessagePrimitive.Parts components={{ File: UserFilePart, Image: UserImagePart }} />
+            <MessagePrimitive.Parts
+              components={{ Text: UserTextPart, File: UserFilePart, Image: UserImagePart }}
+            />
           </div>
           <div className="aui-user-action-bar-wrapper absolute inset-s-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2 peer-empty:hidden rtl:translate-x-full">
             <UserActionBar />
