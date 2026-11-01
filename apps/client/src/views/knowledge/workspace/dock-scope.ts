@@ -2,6 +2,7 @@
  * 知识库磁贴的 dock 绑定：把「当前文档 + 选区」变成一键动作。
  *
  * 全部动作都读**实时**上下文（编辑器桥 + store），所以 scope 只需注册一次。
+ * 优化类动作走对话模型（ACP），不依赖 embedding / 向量检索。
  */
 import { useEffect } from 'react'
 import { toast } from 'sonner'
@@ -14,7 +15,7 @@ import { findEditorContext, writeEditor } from '@/views/knowledge/workspace/edit
 const SYSTEM_TEXT = `你是 cogito 知识库里写作助手，与「知识库」磁贴共用同一个库目录。
 
 约定：
-- 需要读正文时用 app_knowledge_read_doc / app_knowledge_search，不要臆造内容；
+- 需要读正文时用 app_knowledge_read_doc / app_knowledge_search（本地全文检索），不要臆造内容；
 - 要落文件时用 app_knowledge_write_doc：它只写待发布草稿（staging），不要声称已经发布；
 - 用户确认后由界面发布，你只负责把内容写对、写清楚；
 - 回答保持简洁；跨文档的问题先检索再答，并指出引用了哪些文档。`
@@ -66,6 +67,26 @@ function useKnowledgeDockScope(): void {
             }
           },
           {
+            id: 'structure',
+            label: '结构优化',
+            icon: 'lucide:list-ordered',
+            buildPrompt: function () {
+              const context = findEditorContext()
+              if (!context.path || !context.content) return null
+              return `审阅下面这篇文档的标题层级与章节结构：指出混乱或缺失之处，并给出改后的标题大纲（Markdown 标题列表即可）。不要重写全文。\n\n文档：${context.path}\n\n${slice(context.content, 6_000)}`
+            }
+          },
+          {
+            id: 'polish',
+            label: '润色全文',
+            icon: 'lucide:sparkles',
+            buildPrompt: function () {
+              const context = findEditorContext()
+              if (!context.path || !context.content) return null
+              return `把下面这篇文档润色得更清楚、更简洁：统一术语、去掉空话，保留原意与专有名词。只输出改写后的 Markdown 正文，不要解释。\n\n文档：${context.path}\n\n${slice(context.content, 6_000)}`
+            }
+          },
+          {
             id: 'continue',
             label: '接着写',
             icon: 'lucide:pen-line',
@@ -102,7 +123,7 @@ function useKnowledgeDockScope(): void {
             label: '新建文档',
             icon: 'lucide:file-plus',
             buildPrompt: function () {
-              return `在知识库「${findBaseName()}」里写一篇新文档。先用一句话问我主题与目标读者，我回答后再写。`
+              return `在知识库「${findBaseName()}」里写一篇新文档。先用一句话问我主题与目标读者，我回答后再写。落盘请用 app_knowledge_write_doc（只进待发布）。`
             }
           }
         ]

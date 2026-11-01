@@ -8,8 +8,6 @@ import { invoke } from '@tauri-apps/api/core'
 
 import { CHANNELS } from '@/shared/ipc/channels'
 import {
-  CloudDocSchema,
-  CloudStateSchema,
   KnowledgeBaseSchema,
   KnowledgeDocRefSchema,
   KnowledgeDocSummarySchema,
@@ -18,8 +16,6 @@ import {
   StagedDocSchema,
   StagedFileSchema,
   WriteDocOutcomeSchema,
-  type CloudDoc,
-  type CloudState,
   type KnowledgeBase,
   type KnowledgeDocRef,
   type KnowledgeDocSummary,
@@ -76,42 +72,6 @@ async function listDocs(baseId?: string): Promise<KnowledgeDocSummary[]> {
     return KnowledgeDocSummarySchema.array().parse(raw ?? [])
   } catch (error) {
     throw asError(error, '读取文档列表失败')
-  }
-}
-
-/** 已建好云端索引的文档（docID ↔ assetID）；没有就返回空数组，调用方据此跳过云那一路 */
-async function listCloudDocs(baseId?: string): Promise<CloudDoc[]> {
-  try {
-    const raw = await invoke(CHANNELS.KNOWLEDGE.CLOUD_DOCS, { baseId })
-    return CloudDocSchema.array().parse(raw ?? [])
-  } catch (error) {
-    throw asError(error, '读取云端索引状态失败')
-  }
-}
-
-/** 云端索引状态列表（只有写过状态的文档才有行） */
-async function listCloudStates(baseId?: string): Promise<CloudState[]> {
-  try {
-    const raw = await invoke(CHANNELS.KNOWLEDGE.CLOUD_STATES, { baseId })
-    return CloudStateSchema.array().parse(raw ?? [])
-  } catch (error) {
-    throw asError(error, '读取云端索引状态失败')
-  }
-}
-
-/** 回写一篇文档的云端索引状态；`indexedAt` / `error` 不传即清空 */
-async function writeCloudState(params: {
-  docId: string
-  status: string
-  assetId?: string | null
-  indexedAt?: number | null
-  error?: string | null
-}): Promise<CloudState> {
-  try {
-    const raw = await invoke(CHANNELS.KNOWLEDGE.SET_CLOUD_STATE, params)
-    return CloudStateSchema.parse(raw)
-  } catch (error) {
-    throw asError(error, '保存云端索引状态失败')
   }
 }
 
@@ -225,8 +185,6 @@ export {
   discardStaged,
   exportBundle,
   listBases,
-  listCloudDocs,
-  listCloudStates,
   listDocs,
   listStaging,
   mergeStaging,
@@ -235,8 +193,7 @@ export {
   rescanBase,
   resolveDoc,
   searchDocs,
-  writeCloudState,
   updateBase,
   writeDoc
 }
-export type { BasePatch, CloudState, KnowledgeBase, KnowledgeDocSummary, KnowledgeHit, StagedFile }
+export type { BasePatch, KnowledgeBase, KnowledgeDocSummary, KnowledgeHit, StagedFile }

@@ -2,7 +2,6 @@ import { useState } from 'react'
 
 import { useDockStore } from '@/features/agent/dock'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
-import { useDictStore } from '@/stores/dict'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { isPathInsideRoot, isSamePath } from '@/views/knowledge/lib/path.ts'
 import { openPath } from '@/views/knowledge/lib/session.ts'
@@ -28,20 +27,11 @@ function useDocsTab() {
   const counts = useKnowledgeBaseStore(function (state) {
     return state.counts
   })
-  const cloudState = useKnowledgeBaseStore(function (state) {
-    return state.cloudState
-  })
-  const cloudStates = useKnowledgeBaseStore(function (state) {
-    return state.cloudStates
-  })
   const query = useKnowledgeBaseStore(function (state) {
     return state.query
   })
   const isLoading = useKnowledgeBaseStore(function (state) {
     return state.isLoading
-  })
-  const isSyncingCloud = useKnowledgeBaseStore(function (state) {
-    return state.isSyncingCloud
   })
   const error = useKnowledgeBaseStore(function (state) {
     return state.error
@@ -64,14 +54,8 @@ function useDocsTab() {
   const rescan = useKnowledgeBaseStore(function (state) {
     return state.rescan
   })
-  const syncCloud = useKnowledgeBaseStore(function (state) {
-    return state.syncCloud
-  })
   const exportBundle = useKnowledgeBaseStore(function (state) {
     return state.exportBundle
-  })
-  const findLabel = useDictStore(function (state) {
-    return state.findLabel
   })
 
   const [newName, setNewName] = useState('')
@@ -104,11 +88,8 @@ function useDocsTab() {
     docs,
     hits,
     counts,
-    cloudState,
-    cloudStates,
     query,
     isLoading,
-    isSyncingCloud,
     error,
     selectBase,
     writeQuery,
@@ -116,9 +97,7 @@ function useDocsTab() {
     clearSearch,
     insert,
     rescan,
-    syncCloud,
     exportBundle,
-    findLabel,
     newName,
     setNewName,
     isCreating,
