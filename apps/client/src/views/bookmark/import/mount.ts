@@ -3,6 +3,8 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 
+import { findFaviconFallback } from '@/features/magnetic-tile/mark.ts'
+import { fetchSiteFavicon } from '@/lib/site-favicon.ts'
 import { CHANNELS } from '@/shared/ipc/channels'
 import type { MagneticTileWrite } from '@/stores/mirror'
 import { findNextIndex } from '@/views/marketplace/workspace/lib/insert-tile'
@@ -14,14 +16,15 @@ function buildNavigationWrite(
   url: string,
   mirrorID: string,
   index: number,
-  collectionID: string | null
+  collectionID: string | null,
+  mark: string | null
 ): MagneticTileWrite {
   return {
     index,
     title,
     url,
     round: '12px',
-    mark: null,
+    mark,
     component: 'navigation',
     description: title,
     background: { color: '#F8FAFC' },
@@ -33,6 +36,16 @@ function buildNavigationWrite(
     shape: 'square',
     direction: 'vertical'
   }
+}
+
+async function resolveNavigationMark(url: string) {
+  try {
+    const favicon = await fetchSiteFavicon(url)
+    if (favicon) return favicon
+  } catch (error) {
+    console.warn('[bookmark-import] favicon 解析失败，回退 DDG:', error)
+  }
+  return findFaviconFallback(url)
 }
 
 function buildCollectionWrite(
@@ -49,7 +62,7 @@ function buildCollectionWrite(
     mark: null,
     component: 'collection',
     description: title,
-    background: { color: '#EEF2FF' },
+    background: { color: '#FFFFFF' },
     backdrop: null,
     mirrorID,
     textColor: '0F172A',
@@ -124,7 +137,7 @@ async function mountBookmarksToTiles(options: {
   )
 
   if (options.as === 'navigation') {
-    const writes: MagneticTileWrite[] = []
+    const pending: { title: string; url: string; index: number }[] = []
     const subtrees = await Promise.allSettled(
       options.nodeIds.map(function (id) {
         return findBookmarkSubtree(options.mirrorID, id)
@@ -139,14 +152,35 @@ async function mountBookmarksToTiles(options: {
       for (const row of rows) {
         if (!row.url) continue
         if (urlSet.has(row.url)) continue
-        writes.push(
-          buildNavigationWrite(row.title, row.url, options.mirrorID, nextIndex, null)
-        )
+        pending.push({ title: row.title, url: row.url, index: nextIndex })
         nextIndex += 1
         urlSet.add(row.url)
         mounted += 1
       }
     }
+    const marks = await Promise.allSettled(
+      pending.map(function (item) {
+        return resolveNavigationMark(item.url)
+      })
+    )
+    const writes: MagneticTileWrite[] = pending.map(function (item, i) {
+      const markResult = marks[i]
+      const mark =
+        markResult.status === 'fulfilled'
+          ? markResult.value
+          : findFaviconFallback(item.url)
+      if (markResult.status === 'rejected') {
+        console.warn('[bookmark-import] favicon 失败:', markResult.reason)
+      }
+      return buildNavigationWrite(
+        item.title,
+        item.url,
+        options.mirrorID,
+        item.index,
+        null,
+        mark
+      )
+    })
     if (writes.length) {
       const params = writes.length === 1 ? writes[0] : writes
       await invoke(CHANNELS.MAGNETIC_TILE.WRITE, { params })
@@ -193,8 +227,16 @@ async function mountBookmarksToTiles(options: {
 
     if (root.url) {
       if (!urlSet.has(root.url)) {
+        const mark = await resolveNavigationMark(root.url)
         await invoke(CHANNELS.MAGNETIC_TILE.WRITE, {
-          params: buildNavigationWrite(root.title, root.url, options.mirrorID, nextIndex, null)
+          params: buildNavigationWrite(
+            root.title,
+            root.url,
+            options.mirrorID,
+            nextIndex,
+            null,
+            mark
+          )
         })
         nextIndex += 1
         mounted += 1
@@ -203,7 +245,12 @@ async function mountBookmarksToTiles(options: {
     }
 
     const rootCollectionId = await ensureCollection(root.id, root.title, null)
-    const navWrites: MagneticTileWrite[] = []
+    const pendingNav: {
+      title: string
+      url: string
+      index: number
+      collectionID: string
+    }[] = []
 
     // 子文件夹须等父集合写入 idMap 后再建，保持树序
     for (const row of rows.slice(1)) {
@@ -221,13 +268,40 @@ async function mountBookmarksToTiles(options: {
       const parentCollectionID = row.parentID
         ? (idMap.get(row.parentID) ?? rootCollectionId)
         : rootCollectionId
-      navWrites.push(
-        buildNavigationWrite(row.title, row.url, options.mirrorID, nextIndex, parentCollectionID)
-      )
+      pendingNav.push({
+        title: row.title,
+        url: row.url,
+        index: nextIndex,
+        collectionID: parentCollectionID
+      })
       nextIndex += 1
       urlSet.add(row.url)
       mounted += 1
     }
+
+    const marks = await Promise.allSettled(
+      pendingNav.map(function (item) {
+        return resolveNavigationMark(item.url)
+      })
+    )
+    const navWrites: MagneticTileWrite[] = pendingNav.map(function (item, i) {
+      const markResult = marks[i]
+      const mark =
+        markResult.status === 'fulfilled'
+          ? markResult.value
+          : findFaviconFallback(item.url)
+      if (markResult.status === 'rejected') {
+        console.warn('[bookmark-import] favicon 失败:', markResult.reason)
+      }
+      return buildNavigationWrite(
+        item.title,
+        item.url,
+        options.mirrorID,
+        item.index,
+        item.collectionID,
+        mark
+      )
+    })
 
     if (navWrites.length) {
       const params = navWrites.length === 1 ? navWrites[0] : navWrites

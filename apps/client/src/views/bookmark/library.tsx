@@ -115,8 +115,8 @@ function BookmarkLibrary(props: BookmarkLibraryProps) {
   if (!activeMirrorID) {
     return (
       <div className={styles.body}>
-        <section className={styles.shell}>
-          <p className="text-[11px] text-muted-foreground">书签库</p>
+        <section className={styles.toolbar}>
+          <p className={styles.toolbarHint}>书签库</p>
         </section>
         <div className={styles.empty}>
           <div className={styles.emptyIcon}>
@@ -134,11 +134,9 @@ function BookmarkLibrary(props: BookmarkLibraryProps) {
 
   return (
     <div className={styles.body}>
-      <section className={styles.shell}>
-        <div className={styles.toolbarGrow}>
-          <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
-            书签库 · 勾选后可挂到磁贴墙
-          </p>
+      <section className={styles.toolbar}>
+        <p className={styles.toolbarHint}>书签库 · 勾选后可挂到磁贴墙</p>
+        <div className={styles.toolbarActions}>
           <Button
             size="sm"
             variant="outline"
