@@ -103,7 +103,8 @@ async fn act(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
         }
     });
 
-    if action != "scroll" && selector.is_empty() {
+    // scroll 与 reload 不看选择器：它们作用于整页
+    if action != "scroll" && action != "reload" && selector.is_empty() {
         return Err(format!("{action} 需要 selector（先 app_browser_read 拿一份）"));
     }
     agent::act(app, &label, action, selector, value).await

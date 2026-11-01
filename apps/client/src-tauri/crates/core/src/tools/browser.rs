@@ -76,7 +76,7 @@ pub fn specs() -> Vec<ToolSpec> {
         ),
         spec(
             ACT,
-            "操作内嵌浏览器：点击 / 输入 / 按键 / 滚动。selector 用 app_browser_read 返回的那个。",
+            "操作内嵌浏览器：点击 / 输入 / 按键 / 滚动 / 悬停 / 刷新页面。selector 用 app_browser_read 返回的那个。",
             Effect::Write,
             json!({
                 "type": "object",
@@ -84,11 +84,11 @@ pub fn specs() -> Vec<ToolSpec> {
                     "tab": tab_property(),
                     "action": {
                         "type": "string",
-                        "enum": ["click", "type", "press", "scroll", "hover"],
-                        "description": "scroll 作用于整个页面（value 为像素），其余作用于 selector"
+                        "enum": ["click", "type", "press", "scroll", "hover", "reload"],
+                        "description": "scroll 作用于整个页面（value 为像素），reload 重载当前页（不需要 selector），其余作用于 selector"
                     },
-                    "selector": { "type": "string", "description": "CSS 选择器；scroll 时可省略" },
-                    "value": { "type": "string", "description": "type 的输入内容 / press 的按键名（默认 Enter）/ scroll 的像素（默认 600）" }
+                    "selector": { "type": "string", "description": "CSS 选择器；scroll 与 reload 时可省略" },
+                    "value": { "type": "string", "description": "type 的输入内容 / press 的按键名（默认 Enter）/ scroll 的像素（默认 600）/ reload 传 hard 表示忽略缓存" }
                 },
                 "required": ["action"]
             }),

@@ -5,6 +5,7 @@ pub mod bridge;
 pub mod browser;
 pub mod reminder;
 pub mod search;
+pub mod site;
 pub mod system;
 
 pub mod through {
