@@ -94,6 +94,8 @@ pub struct SearchHitR {
     pub name: String,
     pub relative: String,
     pub path: String,
+    /// `file` | `dir`
+    pub kind: String,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -325,64 +327,143 @@ fn walk_files(root: &Path, max_visited: usize) -> (Vec<String>, bool) {
     (files, is_truncated)
 }
 
-fn score_hit(relative: &str, query: &str) -> i32 {
-    if query.is_empty() {
+/// 用户常写 `@/apps/...` 或 `@./apps/...`；相对路径没有前导斜杠，先归一再打分。
+fn normalize_search_query(query: &str) -> String {
+    let mut q = query.trim().replace('\\', "/");
+    while let Some(stripped) = q.strip_prefix("./") {
+        q = stripped.to_string();
+    }
+    q = q.trim_start_matches('/').trim_end_matches('/').to_string();
+    q
+}
+
+/// `lower_q` 须已是 `normalize_search_query(...).to_ascii_lowercase()`，避免热路径重复归一。
+fn score_hit(relative: &str, lower_q: &str) -> i32 {
+    if lower_q.is_empty() {
         return 0;
     }
-    let lower_rel = relative.to_ascii_lowercase();
-    let lower_q = query.to_ascii_lowercase();
-    let name = Path::new(relative)
+    // 缓存里的相对路径已是 `/`；偶发 `\` 时再替换
+    let lower_rel = if relative.as_bytes().contains(&b'\\') {
+        relative.replace('\\', "/").to_ascii_lowercase()
+    } else {
+        relative.to_ascii_lowercase()
+    };
+    // 路径查询（含 `/`）：整段相等 / 目录前缀 / 包含
+    if lower_q.contains('/') {
+        if lower_rel == lower_q {
+            return 320;
+        }
+        if lower_rel.starts_with(lower_q)
+            && (lower_rel.len() == lower_q.len()
+                || lower_rel.as_bytes().get(lower_q.len()) == Some(&b'/'))
+        {
+            return 280;
+        }
+        if lower_rel.contains(lower_q) {
+            return 140;
+        }
+        return -1;
+    }
+    let name = Path::new(&lower_rel)
         .file_name()
         .and_then(|item| item.to_str())
-        .unwrap_or("")
-        .to_ascii_lowercase();
+        .unwrap_or("");
     if name == lower_q {
         return 300;
     }
-    if name.starts_with(&lower_q) {
+    if name.starts_with(lower_q) {
         return 200;
     }
-    if name.contains(&lower_q) {
+    if name.contains(lower_q) {
         return 120;
     }
-    if lower_rel.contains(&lower_q) {
+    if lower_rel.contains(lower_q) {
         return 60;
     }
     -1
 }
 
-fn filter_hits(root: &Path, relatives: Vec<String>, query: &str, limit: usize) -> Vec<SearchHitR> {
-    let mut scored: Vec<(i32, SearchHitR)> = relatives
-        .into_iter()
-        .filter_map(|relative| {
-            let Ok(safe_relative) = normalize_relative(&relative) else {
-                return None;
-            };
-            let relative = safe_relative.to_string_lossy().replace('\\', "/");
-            let score = score_hit(&relative, query);
-            if score < 0 {
-                return None;
+/// 从文件相对路径抽出全部祖先目录（一次遍历，供搜索一并打分）。
+fn derive_dirs(files: &[String]) -> Vec<String> {
+    let mut dirs = HashSet::with_capacity(files.len().saturating_div(2).max(8));
+    for relative in files {
+        let bytes = relative.as_bytes();
+        for (index, &byte) in bytes.iter().enumerate() {
+            if byte == b'/' && index > 0 {
+                dirs.insert(relative[..index].to_string());
             }
-            let Ok(absolute) = resolve_under_root(root, &safe_relative) else {
-                return None;
-            };
-            let name = Path::new(&relative)
-                .file_name()
-                .and_then(|item| item.to_str())
-                .unwrap_or(relative.as_str())
-                .to_string();
-            Some((
-                score,
-                SearchHitR {
-                    name,
-                    relative,
-                    path: to_frontend_path(&absolute),
-                },
-            ))
-        })
-        .collect();
-    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.relative.cmp(&b.1.relative)));
-    scored.into_iter().take(limit).map(|item| item.1).collect()
+        }
+    }
+    let mut out: Vec<String> = dirs.into_iter().collect();
+    out.sort_unstable();
+    out
+}
+
+fn push_scored_hit(
+    scored: &mut Vec<(i32, bool, SearchHitR)>,
+    root: &Path,
+    relative: &str,
+    kind: &str,
+    lower_q: &str,
+) {
+    // 先打分再做路径校验 / 绝对路径解析，未命中的条目零 IO
+    let score = score_hit(relative, lower_q);
+    if score < 0 {
+        return;
+    }
+    let Ok(safe_relative) = normalize_relative(relative) else {
+        return;
+    };
+    let relative = safe_relative.to_string_lossy().replace('\\', "/");
+    let Ok(absolute) = resolve_under_root(root, &safe_relative) else {
+        return;
+    };
+    let name = Path::new(&relative)
+        .file_name()
+        .and_then(|item| item.to_str())
+        .unwrap_or(relative.as_str())
+        .to_string();
+    let is_dir = kind == "dir";
+    // 目录在同分时靠前，方便 `@apps/client` 先选文件夹
+    let rank_score = if is_dir { score + 1 } else { score };
+    scored.push((
+        rank_score,
+        is_dir,
+        SearchHitR {
+            name,
+            relative,
+            path: to_frontend_path(&absolute),
+            kind: kind.to_string(),
+        },
+    ));
+}
+
+fn filter_hits(
+    root: &Path,
+    files: &[String],
+    dirs: &[String],
+    lower_q: &str,
+    limit: usize,
+) -> Vec<SearchHitR> {
+    if limit == 0 {
+        return Vec::new();
+    }
+    let mut scored: Vec<(i32, bool, SearchHitR)> =
+        Vec::with_capacity(limit.saturating_mul(2).min(256));
+    for relative in dirs {
+        push_scored_hit(&mut scored, root, relative, "dir", lower_q);
+    }
+    for relative in files {
+        push_scored_hit(&mut scored, root, relative, "file", lower_q);
+    }
+    scored.sort_unstable_by(|left, right| {
+        right
+            .0
+            .cmp(&left.0)
+            .then_with(|| right.1.cmp(&left.1))
+            .then_with(|| left.2.relative.cmp(&right.2.relative))
+    });
+    scored.into_iter().take(limit).map(|item| item.2).collect()
 }
 
 #[tauri::command(rename = "workspaceFiles:listDir")]
@@ -445,8 +526,8 @@ pub async fn workspaceFilesListDir(params: ListDirP) -> CommandResult<Vec<DirEnt
 #[tauri::command(rename = "workspaceFiles:search")]
 pub async fn workspaceFilesSearch(params: SearchP) -> CommandResult<SearchResultR> {
     let limit = params.limit.unwrap_or(SEARCH_LIMIT).clamp(1, SEARCH_LIMIT);
-    let query = params.query.unwrap_or_default();
-    let query = query.trim().to_string();
+    let query = normalize_search_query(&params.query.unwrap_or_default());
+    let lower_q = query.to_ascii_lowercase();
     let mut roots = Vec::new();
     for root in &params.roots {
         if let Ok(path) = validate_root(root) {
@@ -463,30 +544,30 @@ pub async fn workspaceFilesSearch(params: SearchP) -> CommandResult<SearchResult
     let mut merged = Vec::new();
     let mut seen = HashSet::new();
     let mut is_truncated = false;
-    for root in roots {
-        let (relatives, walk_truncated) = if is_git_repo(&root).await {
-            match git_ls_files(&root).await {
-                Ok(files) => (files, false),
-                Err(_) => walk_files(&root, MAX_VISITED),
-            }
-        } else {
-            let root_clone = root.clone();
-            tokio::task::spawn_blocking(move || walk_files(&root_clone, MAX_VISITED))
-                .await
-                .unwrap_or_else(|_| (Vec::new(), false))
-        };
-        is_truncated |= walk_truncated;
-        for hit in filter_hits(&root, relatives, &query, limit) {
+    let multi_root = roots.len() > 1;
+    for root in &roots {
+        // 走 per-root 短 TTL 缓存：连续敲 `@` 不再每次 fork git / walk
+        let listed = list_workspace_files(root).await;
+        is_truncated |= listed.is_truncated;
+        for hit in filter_hits(root, &listed.files, &listed.dirs, &lower_q, limit) {
             if seen.insert(hit.path.clone()) {
                 merged.push(hit);
             }
         }
     }
-    merged.sort_by(|a, b| {
-        score_hit(&b.relative, &query)
-            .cmp(&score_hit(&a.relative, &query))
-            .then_with(|| a.relative.cmp(&b.relative))
-    });
+    // 各 root 内已按分排序截断；多 root 合并时只对 ≤ roots×limit 条再排一次
+    if multi_root {
+        merged.sort_unstable_by(|left, right| {
+            let left_dir = left.kind == "dir";
+            let right_dir = right.kind == "dir";
+            let left_score = score_hit(&left.relative, &lower_q) + i32::from(left_dir);
+            let right_score = score_hit(&right.relative, &lower_q) + i32::from(right_dir);
+            right_score
+                .cmp(&left_score)
+                .then_with(|| right_dir.cmp(&left_dir))
+                .then_with(|| left.relative.cmp(&right.relative))
+        });
+    }
     if merged.len() > limit {
         is_truncated = true;
     }
@@ -690,11 +771,12 @@ const CONTENT_PREVIEW_CHARS: usize = 240;
 const BINARY_SNIFF_BYTES: usize = 8 * 1024;
 /// 替换文件数达到此阈值才并行（过少时线程池开销 > 收益）
 const PARALLEL_REPLACE_MIN: usize = 8;
-/// 工作区文件列表缓存 TTL（覆盖输入防抖重复查询）
-const FILE_LIST_TTL: Duration = Duration::from_secs(3);
+/// 工作区文件列表缓存 TTL（覆盖输入防抖与 `@` 连续敲键）
+const FILE_LIST_TTL: Duration = Duration::from_secs(8);
 
 struct FileListCache {
     files: Arc<Vec<String>>,
+    dirs: Arc<Vec<String>>,
     via_git: bool,
     git_index_mtime: Option<SystemTime>,
     cached_at: Instant,
@@ -713,6 +795,7 @@ fn git_index_mtime(root: &Path) -> Option<SystemTime> {
 
 struct ListedFiles {
     files: Arc<Vec<String>>,
+    dirs: Arc<Vec<String>>,
     is_truncated: bool,
 }
 
@@ -734,6 +817,7 @@ async fn list_workspace_files(root: &Path) -> ListedFiles {
         {
             return ListedFiles {
                 files: Arc::clone(&entry.files),
+                dirs: Arc::clone(&entry.dirs),
                 is_truncated: entry.is_truncated,
             };
         }
@@ -750,18 +834,24 @@ async fn list_workspace_files(root: &Path) -> ListedFiles {
             .await
             .unwrap_or_else(|_| (Vec::new(), false))
     };
+    let dirs = Arc::new(derive_dirs(&files));
     let files = Arc::new(files);
     FILE_LIST_CACHE.lock().insert(
         root.to_path_buf(),
         FileListCache {
             files: Arc::clone(&files),
+            dirs: Arc::clone(&dirs),
             via_git,
             git_index_mtime: index_mtime,
             cached_at: Instant::now(),
             is_truncated,
         },
     );
-    ListedFiles { files, is_truncated }
+    ListedFiles {
+        files,
+        dirs,
+        is_truncated,
+    }
 }
 
 /// 行级匹配引擎：字面量走 memchr/aho-corasick；正则与复杂 Unicode 回退 regex。

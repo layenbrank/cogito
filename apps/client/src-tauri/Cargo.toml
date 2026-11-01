@@ -144,6 +144,7 @@ tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 rustls-pki-types = "1"
 url = "2"
+regex = { workspace = true }
 dirs = "6"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
