@@ -4,6 +4,7 @@ import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { cn } from 'cn'
 
 import { Button } from '@cogito/design/components/button'
+import { useOverlayPortalContainer } from '@cogito/design/components/overlay-portal'
 import { Icon } from '@iconify/react/offline'
 import {
   findOverlaySideClass,
@@ -30,10 +31,15 @@ function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
   )
 }
 
-function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
+function DialogPortal({
+  container,
+  ...props
+}: DialogPrimitive.Portal.Props) {
+  const shellContainer = useOverlayPortalContainer()
   return (
     <DialogPrimitive.Portal
       data-slot="dialog-portal"
+      container={container ?? shellContainer ?? undefined}
       {...props}
     />
   )
@@ -49,12 +55,14 @@ function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
 }
 
 function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
+  const shellContainer = useOverlayPortalContainer()
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        // Base UI 用 data-starting/ending-style 驱动进出场，才能等关闭过渡播完再卸载
-        'fixed inset-0 isolate z-50 bg-black/10 supports-backdrop-filter:backdrop-blur-xs',
+        // 有壳容器时 absolute，避免盖住窗口操作栏；否则 fixed 全窗
+        shellContainer ? 'absolute inset-0' : 'fixed inset-0',
+        'isolate z-50 bg-black/10 supports-backdrop-filter:backdrop-blur-xs',
         OVERLAY_BACKDROP_MOTION,
         className
       )}
@@ -63,12 +71,12 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
   )
 }
 
-interface DialogChromeContextValue {
+interface DialogSlotsContextValue {
   headerTarget: HTMLElement | null
   footerTarget: HTMLElement | null
 }
 
-const DialogChromeContext = React.createContext<DialogChromeContextValue | null>(null)
+const DialogSlotsContext = React.createContext<DialogSlotsContextValue | null>(null)
 
 function DialogContent({
   className,
@@ -89,8 +97,9 @@ function DialogContent({
 }) {
   const [headerTarget, updateHeaderTarget] = React.useState<HTMLElement | null>(null)
   const [footerTarget, updateFooterTarget] = React.useState<HTMLElement | null>(null)
+  const shellContainer = useOverlayPortalContainer()
 
-  const chrome = React.useMemo<DialogChromeContextValue>(
+  const slots = React.useMemo<DialogSlotsContextValue>(
     function () {
       return { headerTarget, footerTarget }
     },
@@ -106,13 +115,14 @@ function DialogContent({
         {...webviewCoverProps()}
         className={cn(
           // 圆角裁切在外壳；Header/Footer 挂到滚动区外，避免滚动条压到关闭按钮、Footer -mx-4 撑出横向滚动
-          'fixed z-50 flex flex-col gap-0 overflow-hidden bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 outline-none',
+          shellContainer ? 'absolute' : 'fixed',
+          'z-50 flex flex-col gap-0 overflow-hidden bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 outline-none',
           side === 'center' && 'rounded-xl',
           findOverlaySideClass(side),
           className
         )}
         {...props}>
-        <DialogChromeContext.Provider value={chrome}>
+        <DialogSlotsContext.Provider value={slots}>
           <div
             data-slot="dialog-header-slot"
             className="shrink-0"
@@ -130,7 +140,7 @@ function DialogContent({
             className="shrink-0"
             ref={updateFooterTarget}
           />
-        </DialogChromeContext.Provider>
+        </DialogSlotsContext.Provider>
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
@@ -151,7 +161,7 @@ function DialogContent({
 }
 
 function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
-  const chrome = React.useContext(DialogChromeContext)
+  const slots = React.useContext(DialogSlotsContext)
 
   const header = (
     <div
@@ -161,9 +171,9 @@ function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
     />
   )
 
-  if (chrome) {
-    if (!chrome.headerTarget) return null
-    return createPortal(header, chrome.headerTarget)
+  if (slots) {
+    if (!slots.headerTarget) return null
+    return createPortal(header, slots.headerTarget)
   }
 
   return header
@@ -177,7 +187,7 @@ function DialogFooter({
 }: React.ComponentProps<'div'> & {
   showCloseButton?: boolean
 }) {
-  const chrome = React.useContext(DialogChromeContext)
+  const slots = React.useContext(DialogSlotsContext)
 
   const footer = (
     <div
@@ -194,10 +204,10 @@ function DialogFooter({
     </div>
   )
 
-  // 有 chrome 时挂到滚动区外的 slot；slot 尚未挂载时先不渲染，避免进滚动容器触发横向溢出
-  if (chrome) {
-    if (!chrome.footerTarget) return null
-    return createPortal(footer, chrome.footerTarget)
+  // 有 slots 时挂到滚动区外的 slot；slot 尚未挂载时先不渲染，避免进滚动容器触发横向溢出
+  if (slots) {
+    if (!slots.footerTarget) return null
+    return createPortal(footer, slots.footerTarget)
   }
 
   return footer
