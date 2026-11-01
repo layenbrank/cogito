@@ -17,6 +17,8 @@ interface SearchHit {
   name: string
   relative: string
   path: string
+  /** `file` | `dir`；缺省按文件处理（兼容旧后端） */
+  kind?: string
 }
 
 interface SearchResult {
