@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Decorations } from '@/components/decorations/index.ts'
 import { useMirrorStore } from '@/stores/mirror'
 import styles from '@/views/bookmark/bookmark.module.scss'
-import { BookmarkImportSheet } from '@/views/bookmark/import-sheet'
+import { BookmarkImportDialog } from '@/views/bookmark/import-dialog'
 import { BookmarkLibrary } from '@/views/bookmark/library'
 
 function wantsImportOpen(params: URLSearchParams) {
@@ -35,7 +35,7 @@ export default function Bookmark() {
       summary="书签库"
       scrollable={false}>
       <div className={styles.shell}>
-        <div className={styles.panel}>
+        <div className={styles.surface}>
           <BookmarkLibrary
             refreshToken={refreshToken}
             onOpenImport={function () {
@@ -43,7 +43,7 @@ export default function Bookmark() {
             }}
           />
         </div>
-        <BookmarkImportSheet
+        <BookmarkImportDialog
           open={isImportOpen}
           onUpdateOpen={onUpdateImportOpen}
           onImported={function (mirrorID) {

@@ -1,20 +1,30 @@
+/**
+ * 书签导入向导（Dialog 内）：
+ * 选镜像 / 重复策略 → 选来源 → 勾文件夹 → 写入。
+ */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
-import { Progress } from '@cogito/design/components/progress'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@cogito/design/components/select'
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@cogito/design/components/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@cogito/design/components/dropdown-menu'
+import { Progress } from '@cogito/design/components/progress'
+import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useShallow } from 'zustand/react/shallow'
 
 import { useMirrorStore } from '@/stores/mirror'
 import styles from '@/views/bookmark/bookmark.module.scss'
-import { BookmarkExplorer } from '@/views/bookmark/explorer'
+import { ImportFolderTree } from '@/views/bookmark/import-folder-tree'
 import type { ChromeProfileBookmarks } from '@/views/bookmark/import/chrome-profile'
 import {
   commitBookmarkImport,
@@ -27,16 +37,8 @@ import {
 } from '@/views/bookmark/import/preview'
 import { findDefaultSelectedFolders, findSelectedLeaves } from '@/views/bookmark/import/tree'
 import type { DuplicateStrategy, ImportPreview } from '@/views/bookmark/import/types'
-import {
-  readSortKey,
-  readViewMode,
-  writeSortKey,
-  writeViewMode,
-  type BookmarkSortKey,
-  type BookmarkViewMode
-} from '@/views/bookmark/view-prefs'
 
-type WizardProps = {
+interface WizardProps {
   onImported?: (mirrorID: string) => void
 }
 
@@ -44,6 +46,12 @@ const STRATEGY_ITEMS = [
   { value: 'skip', label: '跳过' },
   { value: 'overwrite', label: '覆盖' }
 ] as const
+
+function findSourceName(label: string) {
+  const normalized = label.replace(/\\/g, '/')
+  const slash = normalized.lastIndexOf('/')
+  return slash < 0 ? label : normalized.slice(slash + 1)
+}
 
 function BookmarkImportWizard(props: WizardProps) {
   const { mirrors, activeMirrorID } = useMirrorStore(
@@ -55,15 +63,6 @@ function BookmarkImportWizard(props: WizardProps) {
     })
   )
 
-  const mirrorItems = useMemo(
-    function () {
-      return mirrors.map(function (mirror) {
-        return { value: mirror.id, label: mirror.title }
-      })
-    },
-    [mirrors]
-  )
-
   const [mirrorID, setMirrorID] = useState('')
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [selectedFolders, setSelectedFolders] = useState<string[]>([])
@@ -71,8 +70,6 @@ function BookmarkImportWizard(props: WizardProps) {
   const [profiles, setProfiles] = useState<ChromeProfileBookmarks[]>([])
   const [isBusy, setBusy] = useState(false)
   const [progress, setProgress] = useState<CommitProgress | null>(null)
-  const [viewMode, setViewMode] = useState<BookmarkViewMode>(readViewMode)
-  const [sortKey, setSortKey] = useState<BookmarkSortKey>(readSortKey)
 
   const resolvedMirrorID = useMemo(
     function () {
@@ -87,6 +84,16 @@ function BookmarkImportWizard(props: WizardProps) {
       return activeMirrorID ?? ''
     },
     [mirrorID, mirrors, activeMirrorID]
+  )
+
+  const activeMirrorTitle = useMemo(
+    function () {
+      const hit = mirrors.find(function (mirror) {
+        return mirror.id === resolvedMirrorID
+      })
+      return hit?.title ?? '选择镜像'
+    },
+    [mirrors, resolvedMirrorID]
   )
 
   useEffect(function () {
@@ -173,140 +180,194 @@ function BookmarkImportWizard(props: WizardProps) {
   }
 
   return (
-    <div className={styles.body}>
-      <section className={`${styles.shell} ${styles.sheetShell}`}>
-        <p className={styles.sheetTitle}>导入书签</p>
-        <div className={styles.toolbarGrow}>
-          <div className={styles.fieldInline}>
-            <span className={styles.fieldLabel}>镜像</span>
-            <Select
-              items={mirrorItems}
-              value={resolvedMirrorID || null}
-              onValueChange={function (value) {
-                if (value === null) return
-                setMirrorID(value)
-              }}>
-              <SelectTrigger className={styles.fieldControl}>
-                <SelectValue placeholder="选择镜像" />
-              </SelectTrigger>
-              <SelectContent>
-                {mirrorItems.map(function (item) {
-                  return (
-                    <SelectItem
-                      key={item.value}
-                      value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  )
-                })}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className={styles.fieldInline}>
-            <span className={styles.fieldLabel}>重复</span>
-            <Select
-              items={[...STRATEGY_ITEMS]}
-              value={strategy}
-              onValueChange={function (value) {
-                if (value === 'skip' || value === 'overwrite') setStrategy(value)
-              }}>
-              <SelectTrigger className={styles.fieldControl}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STRATEGY_ITEMS.map(function (item) {
-                  return (
-                    <SelectItem
-                      key={item.value}
-                      value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  )
-                })}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button
+    <div className={styles.importBody}>
+      <DialogHeader className={styles.importHeader}>
+        <DialogTitle>导入书签</DialogTitle>
+        <DialogDescription>写入书签库后，可在主库勾选并挂到磁贴墙。</DialogDescription>
+      </DialogHeader>
+
+      <div className={styles.importSettings}>
+        <label className={styles.importField}>
+          <span className={styles.importFieldLabel}>目标镜像</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={styles.importMirrorTrigger}
+                />
+              }>
+              <span className="min-w-0 flex-1 truncate text-left">{activeMirrorTitle}</span>
+              <Icon
+                icon="lucide:chevron-down"
+                className="text-muted-foreground size-3.5 shrink-0 opacity-70"
+                aria-hidden
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              sideOffset={6}
+              className={styles.importMirrorMenu}>
+              {mirrors.map(function (mirror) {
+                const isActive = mirror.id === resolvedMirrorID
+                return (
+                  <DropdownMenuItem
+                    key={mirror.id}
+                    className={isActive ? styles.importMirrorItemActive : undefined}
+                    onClick={function () {
+                      setMirrorID(mirror.id)
+                    }}>
+                    {mirror.title}
+                  </DropdownMenuItem>
+                )
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </label>
+
+        <div className={styles.importField}>
+          <span className={styles.importFieldLabel}>重复链接</span>
+          <ToggleGroup
+            spacing={0}
             size="sm"
-            className={styles.primaryBtn}
+            value={[strategy]}
+            onValueChange={function (value) {
+              const next = value[0]
+              if (next === 'skip' || next === 'overwrite') setStrategy(next)
+            }}
+            className={styles.importStrategy}>
+            {STRATEGY_ITEMS.map(function (item) {
+              return (
+                <ToggleGroupItem
+                  key={item.value}
+                  value={item.value}
+                  className={styles.importStrategyItem}>
+                  {item.label}
+                </ToggleGroupItem>
+              )
+            })}
+          </ToggleGroup>
+        </div>
+      </div>
+
+      {preview ? (
+        <div className={styles.importPreview}>
+          <div className={styles.importSourceBar}>
+            <div
+              className={styles.importSourceMeta}
+              title={preview.sourceLabel}>
+              <Icon
+                icon="lucide:file-text"
+                className="text-muted-foreground size-3.5 shrink-0"
+                aria-hidden
+              />
+              <span className={styles.importSourcePath}>
+                {findSourceName(preview.sourceLabel)}
+              </span>
+              <span className={styles.importSourceCount}>
+                {selectedLeaves.length}/{preview.leaves.length}
+              </span>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className={styles.importSourceReset}
+              disabled={isBusy}
+              onClick={function () {
+                setPreview(null)
+                setSelectedFolders([])
+              }}>
+              重选
+            </Button>
+          </div>
+
+          <ImportFolderTree
+            roots={preview.roots}
+            selectedFolders={selectedFolders}
+            onUpdateSelectedFolders={setSelectedFolders}
+          />
+
+          {progress ? (
+            <div className={styles.progressBar}>
+              <Progress value={progress.percent} />
+              <p className="text-muted-foreground text-xs">{progress.label}</p>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div className={styles.importSources}>
+          <button
+            type="button"
+            className={styles.importSourceCard}
             disabled={isBusy}
             onClick={function () {
               void onPickHtml()
             }}>
-            选择 HTML
-          </Button>
-          {preview ? (
-            <Button
-              size="sm"
-              className={styles.primaryBtn}
-              disabled={isBusy || !selectedLeaves.length}
-              onClick={function () {
-                void onCommit()
-              }}>
-              写入书签库
-            </Button>
-          ) : null}
-          {profiles.map(function (profile) {
-            return (
-              <Button
-                key={profile.path}
-                type="button"
-                variant="ghost"
-                className={styles.profileChip}
-                disabled={isBusy}
-                title={profile.path}
-                onClick={function () {
-                  onPickProfile(profile)
-                }}>
-                {profile.label}
-              </Button>
-            )
-          })}
-        </div>
-      </section>
-
-      {preview ? (
-        <>
-          <p className={styles.metaLine}>
-            {preview.sourceLabel} · 书签表 · 已选 {selectedLeaves.length}/{preview.leaves.length}
-          </p>
-          <BookmarkExplorer
-            key={preview.sourceLabel}
-            roots={preview.roots}
-            selectedFolders={selectedFolders}
-            onUpdateSelectedFolders={setSelectedFolders}
-            viewMode={viewMode}
-            sortKey={sortKey}
-            onUpdateViewMode={function (mode) {
-              setViewMode(mode)
-              writeViewMode(mode)
-            }}
-            onUpdateSortKey={function (key) {
-              setSortKey(key)
-              writeSortKey(key)
-            }}
-          />
-          {progress ? (
-            <div className={styles.progressBar}>
-              <Progress value={progress.percent} />
-              <p className="text-[11px] text-muted-foreground">{progress.label}</p>
-            </div>
-          ) : null}
-        </>
-      ) : (
-        <div className={styles.empty}>
-          <div className={styles.emptyIcon}>
+            <span className={styles.importSourceIcon}>
+              <Icon
+                icon="lucide:file-code-2"
+                className="size-4.5"
+                aria-hidden
+              />
+            </span>
+            <span className={styles.importSourceCopy}>
+              <span className={styles.importSourceTitle}>从 HTML 导入</span>
+              <span className={styles.importSourceDesc}>Chrome / Edge 导出的书签文件</span>
+            </span>
             <Icon
-              icon="lucide:bookmark-plus"
-              className="size-5"
+              icon="lucide:chevron-right"
+              className="text-muted-foreground size-4 shrink-0 opacity-50"
+              aria-hidden
             />
-          </div>
-          <p className={styles.emptyTitle}>导入 Chrome 书签</p>
-          <p className={styles.emptyDesc}>
-            选择 HTML 导出文件或本机 Profile，按文件夹写入书签库；导入完成后可在书签库中挂到磁贴。
-          </p>
+          </button>
+
+          {profiles.length ? (
+            <div className={styles.importProfileBlock}>
+              <p className={styles.importFieldLabel}>本机 Profile</p>
+              <div className={styles.importProfileChips}>
+                {profiles.map(function (profile) {
+                  return (
+                    <Button
+                      key={profile.path}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className={styles.profileChip}
+                      disabled={isBusy}
+                      title={profile.path}
+                      onClick={function () {
+                        onPickProfile(profile)
+                      }}>
+                      {profile.label}
+                    </Button>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            <p className={styles.importSourceHint}>未检测到本机 Profile 时，请使用 HTML 文件。</p>
+          )}
         </div>
       )}
+
+      <DialogFooter className={`${styles.importFooter} sm:justify-between`}>
+        <p className={styles.importFooterHint}>
+          {preview ? `将写入 ${selectedLeaves.length} 条链接` : '选择来源后开始导入'}
+        </p>
+        {preview ? (
+          <Button
+            size="sm"
+            disabled={isBusy || !selectedLeaves.length || !resolvedMirrorID}
+            onClick={function () {
+              void onCommit()
+            }}>
+            {isBusy ? '写入中…' : '写入书签库'}
+          </Button>
+        ) : null}
+      </DialogFooter>
     </div>
   )
 }
