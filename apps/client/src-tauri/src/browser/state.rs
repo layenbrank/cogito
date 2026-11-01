@@ -7,11 +7,12 @@
 use std::sync::Mutex;
 
 use serde::Serialize;
+use uuid::Uuid;
 
 /// 一个浏览器 tab（= 一个 Tauri 子 webview）。
 #[derive(Debug, Clone, Serialize)]
 pub struct BrowserTab {
-    /// Tauri webview label，形如 `browser-1`
+    /// Tauri webview label，形如 `browser-<uuid>`（全局唯一，避免 close 残留撞名）
     pub label: String,
     pub url: String,
 }
@@ -59,7 +60,6 @@ struct Inner {
     tabs: Vec<BrowserTab>,
     active: Option<String>,
     layout: Layout,
-    seq: u32,
 }
 
 impl BrowserState {
@@ -70,10 +70,9 @@ impl BrowserState {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
+    /// 新 tab 的 webview label：UUID，不复用序号，杜绝 close 失败残留导致 add_child 撞名
     pub fn next_label(&self) -> String {
-        let mut inner = self.lock();
-        inner.seq += 1;
-        format!("browser-{}", inner.seq)
+        format!("browser-{}", Uuid::new_v4())
     }
 
     pub fn insert(&self, tab: BrowserTab) {
@@ -83,15 +82,32 @@ impl BrowserState {
     /// 移除并返回；被移除的是活动 tab 时，活动位顺延到剩下最后一个
     pub fn remove(&self, label: &str) -> Option<BrowserTab> {
         let mut inner = self.lock();
-        let index = inner
-            .tabs
-            .iter()
-            .position(|tab| tab.label == label)?;
+        let index = inner.tabs.iter().position(|tab| tab.label == label)?;
         let removed = inner.tabs.remove(index);
         if inner.active.as_deref() == Some(label) {
             inner.active = inner.tabs.last().map(|tab| tab.label.clone());
         }
         Some(removed)
+    }
+
+    /// 按谓词批量摘掉孤儿 tab，返回被摘掉的 label
+    pub fn retain_tabs(&self, mut keep: impl FnMut(&BrowserTab) -> bool) -> Vec<String> {
+        let mut inner = self.lock();
+        let mut removed = Vec::new();
+        inner.tabs.retain(|tab| {
+            if keep(tab) {
+                true
+            } else {
+                removed.push(tab.label.clone());
+                false
+            }
+        });
+        if let Some(active) = inner.active.clone() {
+            if removed.iter().any(|label| label == &active) {
+                inner.active = inner.tabs.last().map(|tab| tab.label.clone());
+            }
+        }
+        removed
     }
 
     pub fn activate(&self, label: &str) -> bool {

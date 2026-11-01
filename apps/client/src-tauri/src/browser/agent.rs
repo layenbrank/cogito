@@ -230,8 +230,48 @@ pub async fn act(
     selector: &str,
     value: Option<&str>,
 ) -> Result<Value, String> {
-    if !matches!(action, "click" | "type" | "press" | "scroll" | "hover") {
+    // 重载后留给页面的落定时间：CDP 的 `Page.reload` 是异步的，
+    // 立刻回去读 `readyState` 只会拿到旧文档。
+    const RELOAD_SETTLE_MS: u64 = 600;
+
+    if !matches!(
+        action,
+        "click" | "type" | "press" | "scroll" | "hover" | "reload"
+    ) {
         return Err(format!("不支持的动作：{action}"));
+    }
+
+    // 重载走 CDP：JS 里 `location.reload()` 可能被页面自己的 CSP/路由拦，
+    // 而在页面内合成 F5 / Ctrl+R 根本不会触发浏览器级刷新。
+    if action == "reload" {
+        let ignore_cache = matches!(value, Some("hard") | Some("true"));
+        cdp::call(
+            app,
+            label,
+            "Page.reload",
+            json!({ "ignoreCache": ignore_cache }),
+        )
+        .await?;
+        tokio::time::sleep(std::time::Duration::from_millis(RELOAD_SETTLE_MS)).await;
+        let state = cdp::call(
+            app,
+            label,
+            "Runtime.evaluate",
+            json!({
+                "expression": "({ readyState: document.readyState, url: location.href, title: document.title })",
+                "returnByValue": true
+            }),
+        )
+        .await?;
+        return Ok(json!({
+            "action": "reload",
+            "ignoreCache": ignore_cache,
+            "page": state
+                .get("result")
+                .and_then(|result| result.get("value"))
+                .cloned()
+                .unwrap_or(Value::Null)
+        }));
     }
 
     // 选择器直接内联进脚本 → 用 JSON 序列化兜住引号与反斜杠

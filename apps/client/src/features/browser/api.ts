@@ -95,9 +95,13 @@ async function readBrowserPage(
 
 /** 截图：返回原始 base64 + mime（data URL 自己拼，少传一份 base64） */
 async function screenshotBrowser(
-  label: string
+  label: string,
+  format?: 'png' | 'jpeg'
 ): Promise<{ mimeType: string; base64: string }> {
-  return invoke<{ mimeType: string; base64: string }>('browser_agent_screenshot', { label })
+  return invoke<{ mimeType: string; base64: string }>('browser_agent_screenshot', {
+    label,
+    format: format ?? null
+  })
 }
 
 /** 浏览器快照：刷新页面后用来把仍然活着的 webview 重新挂回 UI */
@@ -188,6 +192,44 @@ async function writeBrowserVisible(visible: boolean): Promise<void> {
   await invoke('browser_visible', { visible })
 }
 
+/** CDP Overlay 元素拾取（VS Code 同款） */
+async function startBrowserPicker(label: string): Promise<void> {
+  await invoke('browser_picker_start', { label })
+}
+
+async function stopBrowserPicker(label: string): Promise<void> {
+  await invoke('browser_picker_stop', { label })
+}
+
+interface PickedBrowserRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+interface PickedBrowserShot {
+  mimeType: string
+  base64: string
+}
+
+/** `browser://element-picked` 载荷 */
+interface PickedBrowserElement {
+  label: string
+  url: string
+  tag: string
+  selector: string
+  text: string
+  outerHtml: string
+  rect: PickedBrowserRect
+  screenshot?: PickedBrowserShot
+}
+
+interface BrowserPickerActiveEvent {
+  label: string
+  active: boolean
+}
+
 export {
   activateBrowserTab,
   closeBrowserTab,
@@ -203,16 +245,23 @@ export {
   reloadBrowser,
   screenshotBrowser,
   setBrowserInterceptRules,
+  startBrowserPicker,
   stepBrowserHistory,
+  stopBrowserPicker,
   writeBrowserRect,
   writeBrowserVisible
 }
 export type {
   BrowserOutlineItem,
+  BrowserPickerActiveEvent,
   BrowserProbe,
   BrowserReadResult,
+  BrowserSnapshot,
   BrowserTab,
   InterceptRule,
   NetworkEntry,
+  PickedBrowserElement,
+  PickedBrowserRect,
+  PickedBrowserShot,
   ProbeItem
 }

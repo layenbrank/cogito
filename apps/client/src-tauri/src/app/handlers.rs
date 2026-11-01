@@ -2,7 +2,7 @@
 
 use tauri::generate_handler;
 
-use crate::{autostart, browser, capture, overlay, search, system, through};
+use crate::{autostart, browser, capture, overlay, search, site, system, through};
 
 /// 返回应用全部 `#[tauri::command]` 的 invoke handler。
 pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static {
@@ -52,6 +52,8 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         browser::command::browser_agent_read,
         browser::command::browser_agent_screenshot,
         browser::command::browser_agent_act,
+        browser::command::browser_picker_start,
+        browser::command::browser_picker_stop,
         system::command::goose_ready,
         system::command::goose_connection,
         system::command::goose_shutdown,
@@ -170,6 +172,8 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         cogito_command::dict::dict_list,
         cogito_command::dict::dict_list_by_types,
         cogito_command::dict::dict_update_item,
+        cogito_command::dict::dict_find_value,
+        cogito_command::dict::dict_merge_remote,
         cogito_command::directive_draft::directive_draft_save,
         cogito_command::directive_draft::directive_draft_list,
         cogito_command::directive_draft::directive_draft_set_status,
@@ -248,6 +252,7 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         cogito_command::workspaceFiles::workspaceFilesReplace,
         cogito_command::workspaceSkills::workspaceSkillsList,
         search::command::search_suggest,
+        site::command::site_fetch_favicon,
         through::command::set_rects,
     ]
 }

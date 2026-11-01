@@ -10,6 +10,7 @@ use super::agent;
 use super::intercept::{self, Rule};
 use super::lifecycle;
 use super::network::{self, NetEntry};
+use super::picker;
 use super::state::{BrowserState, BrowserTab};
 
 /// 新建标签页。
@@ -150,9 +151,10 @@ pub async fn browser_agent_read(
 pub async fn browser_agent_screenshot(
     app: AppHandle,
     label: String,
+    format: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    // 面板这边是给用户看的，用无损 PNG
-    agent::screenshot(&app, &label, None).await
+    // 默认 PNG（用户截图进输入框）；浮层暂停占位传 jpeg 控制体积
+    agent::screenshot(&app, &label, format.as_deref()).await
 }
 
 #[tauri::command]
@@ -164,4 +166,16 @@ pub async fn browser_agent_act(
     value: Option<String>,
 ) -> Result<serde_json::Value, String> {
     agent::act(&app, &label, &action, &selector, value.as_deref()).await
+}
+
+/// 开始 CDP Overlay 元素拾取（VS Code 同款）
+#[tauri::command]
+pub async fn browser_picker_start(app: AppHandle, label: String) -> Result<(), String> {
+    picker::start(&app, &label).await
+}
+
+/// 取消元素拾取
+#[tauri::command]
+pub async fn browser_picker_stop(app: AppHandle, label: String) -> Result<(), String> {
+    picker::stop(&app, &label).await
 }
