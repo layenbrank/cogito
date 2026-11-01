@@ -154,7 +154,7 @@ POST /api/v1/agent/tasks
 
 ## 出参
 
-`status` 是台账状态：`RUNNING` / `SUCCEEDED` / `FAILED`。
+`status` 是台账状态（dict 001）：`015` / `016` / `017`。
 
 - `steps`：还在跑时取编排自报的进度（不写库），终态时取台账值。
 - `progress`：编排自报的进度串，只有还在跑且问得到时才有。

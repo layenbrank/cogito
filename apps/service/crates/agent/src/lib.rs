@@ -28,9 +28,9 @@ impl TaskState {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Running => "RUNNING",
-            Self::Succeeded => "SUCCEEDED",
-            Self::Failed => "FAILED",
+            Self::Running => "015",
+            Self::Succeeded => "016",
+            Self::Failed => "017",
         }
     }
 
@@ -43,9 +43,9 @@ impl TaskState {
     /// 字面量不在三态之内时返回 [`Error::UnknownState`]。
     pub fn parse(literal: &str) -> Result<Self, Error> {
         match literal {
-            "RUNNING" => Ok(Self::Running),
-            "SUCCEEDED" => Ok(Self::Succeeded),
-            "FAILED" => Ok(Self::Failed),
+            "015" => Ok(Self::Running),
+            "016" => Ok(Self::Succeeded),
+            "017" => Ok(Self::Failed),
             other => Err(Error::UnknownState {
                 column: "agent_task.status",
                 literal: other.to_owned(),
@@ -254,9 +254,9 @@ mod tests {
         for state in [TaskState::Running, TaskState::Succeeded, TaskState::Failed] {
             assert_eq!(TaskState::parse(state.as_str()).unwrap(), state);
         }
-        assert_eq!(TaskState::Running.as_str(), "RUNNING");
-        assert_eq!(TaskState::Succeeded.as_str(), "SUCCEEDED");
-        assert_eq!(TaskState::Failed.as_str(), "FAILED");
+        assert_eq!(TaskState::Running.as_str(), "015");
+        assert_eq!(TaskState::Succeeded.as_str(), "016");
+        assert_eq!(TaskState::Failed.as_str(), "017");
     }
 
     #[test]

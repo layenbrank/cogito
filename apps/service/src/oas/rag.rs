@@ -16,7 +16,7 @@ fn tenant_header() -> String {
     operation_id = "rag.createIndexTask",
     summary = "给一份资产建索引",
     description = "把一份已上传完成的资产切块、算嵌入、写入向量索引，供后续检索使用。\n\n\
-        **立刻返回**：响应里的任务通常还是 `RUNNING`，进度与结果用查询接口取。一份文档的索引要跑\n\
+        **立刻返回**：响应里的任务通常还是 `009`（索引中），进度与结果用查询接口取。一份文档的索引要跑\n\
         抽取、分批嵌入、落索引，同步等待会把一个 HTTP 请求拖成分钟级。\n\n\
         **同一资产同时只允许一个在跑的任务**：重复调用会拿到 `500604` 并附带已有任务 ID，\n\
         直接去查那个任务即可，不要重试起新的。\n\n\
@@ -35,7 +35,7 @@ fn tenant_header() -> String {
     params(("X-Tenant-ID" = String, Header, description = tenant_header())),
     request_body(content = IndexTaskP, description = "要索引的资产"),
     responses(
-        (status = 200, description = "成功（任务已受理，通常仍在 RUNNING）", body = IndexTaskEnvelope),
+        (status = 200, description = "成功（任务已受理，通常仍在 009 / 索引中）", body = IndexTaskEnvelope),
         (status = "default", description = "业务异常（资产不可索引 / 已有任务在跑 / 非租户成员 / 编排不可用）：HTTP 状态码按错误码归属返回，响应体为统一错误信封", body = Exception),
     )
 )]
@@ -53,7 +53,7 @@ pub fn create_index_task_doc() {}
         问不到不影响返回；编排运行时没接通时也照样返回台账原样。\n\n\
         成功结束时 `result` 是索引结果（区块集 ID、块数、批次数、维度、集合名），\n\
         可以拿 `chunkSetID` 去 compute 的检索面查这份资产的内容。\n\n\
-        有一处刻意的延迟：台账显示 `RUNNING` 但编排里查不到该实例时，5 分钟内仍按 `RUNNING` 返回，\n\
+        有一处刻意的延迟：台账显示 `009` 但编排里查不到该实例时，5 分钟内仍按 `009` 返回，\n\
         超过才判定失败。原因是「刚起、还没被运行时领走」与「实例真丢了」在编排侧长得一样，只有行龄能区分。\n\n\
         需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员，并具备该资产的读权限。\n\n\
         `body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效；\n\

@@ -15,7 +15,7 @@ pub struct Model {
     /// 被索引的资产
     #[sea_orm(column_name = "assetID", indexed)]
     pub asset_id: Uuid,
-    /// RUNNING / SUCCEEDED / FAILED（词汇定义在 crates/rag）
+    /// 009 / 010 / 011（词汇定义在 crates/rag，dict 001）
     #[sea_orm(column_type = "Text")]
     pub status: String,
     /// 编排实例标识（`rag-index-{id}`）

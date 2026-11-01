@@ -1425,6 +1425,33 @@
         ],
         "type": "object"
       },
+      "ClaimP": {
+        "description": "为类型认领池 value",
+        "properties": {
+          "isDefault": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sort": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "isDefault",
+          "sort"
+        ],
+        "type": "object"
+      },
       "Component": {
         "enum": [
           "Bookmark",
@@ -1432,14 +1459,20 @@
           "Knowledge",
           "Settings",
           "Clipchamp",
-          "Intelligence",
+          "Agent",
           "Navigation",
           "Marketplace",
           "Developer",
           "Collection",
           "Signboard",
           "Clock",
-          "Gallery"
+          "Gallery",
+          "Code",
+          "Countdown",
+          "Morph",
+          "Capture",
+          "Directive",
+          "Example"
         ],
         "type": "string"
       },
@@ -1470,6 +1503,261 @@
           "name",
           "critical",
           "status"
+        ],
+        "type": "object"
+      },
+      "DictCatalogEnvelope": {
+        "properties": {
+          "code": {
+            "description": "业务状态码（200000=成功）",
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CatalogR"
+              }
+            ]
+          },
+          "msg": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "traceID": {
+            "description": "链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "success",
+          "msg",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "DictItemEnvelope": {
+        "properties": {
+          "code": {
+            "description": "业务状态码（200000=成功）",
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ItemR"
+              }
+            ]
+          },
+          "msg": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "traceID": {
+            "description": "链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "success",
+          "msg",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "DictItemListEnvelope": {
+        "properties": {
+          "code": {
+            "description": "业务状态码（200000=成功）",
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ItemR"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "msg": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "traceID": {
+            "description": "链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "success",
+          "msg",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "DictTypeEnvelope": {
+        "properties": {
+          "code": {
+            "description": "业务状态码（200000=成功）",
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TypeR"
+              }
+            ]
+          },
+          "msg": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "traceID": {
+            "description": "链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "success",
+          "msg",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "DictTypeItemListEnvelope": {
+        "properties": {
+          "code": {
+            "description": "业务状态码（200000=成功）",
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TypeItemR"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "msg": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "traceID": {
+            "description": "链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "success",
+          "msg",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "DictTypeListEnvelope": {
+        "properties": {
+          "code": {
+            "description": "业务状态码（200000=成功）",
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TypeR"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "msg": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "traceID": {
+            "description": "链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "success",
+          "msg",
+          "timestamp"
         ],
         "type": "object"
       },
@@ -2674,7 +2962,7 @@
             ]
           },
           "status": {
-            "description": "`RUNNING` / `SUCCEEDED` / `FAILED`",
+            "description": "`009` / `010` / `011`（dict 001：CLOUD_RUNNING / CLOUD_SUCCEEDED / CLOUD_FAILED）",
             "type": "string"
           },
           "tenantID": {
@@ -2701,6 +2989,106 @@
           "createdAt",
           "updatedAt"
         ],
+        "type": "object"
+      },
+      "ItemAllocateP": {
+        "description": "分配下一全局 value",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "meta": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sort": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "type": "object"
+      },
+      "ItemR": {
+        "description": "全局池条目（管理面 / 合并视图）",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "meta": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sort": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "key",
+          "label",
+          "sort",
+          "enabled",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "ItemUpdateP": {
+        "description": "更新全局池条目（不改 value / key）",
+        "properties": {
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sort": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
         "type": "object"
       },
       "JobEnvelope": {
@@ -2920,6 +3308,7 @@
             ]
           },
           "lastStatus": {
+            "description": "`014` / `015` / `016` / `017`（dict 001：RUN_PENDING … RUN_FAILED）",
             "type": [
               "string",
               "null"
@@ -6849,7 +7238,7 @@
             ]
           },
           "status": {
-            "description": "`RUNNING` / `SUCCEEDED` / `FAILED`",
+            "description": "`015` / `016` / `017`（dict 001：RUN_RUNNING / RUN_SUCCEEDED / RUN_FAILED）",
             "type": "string"
           },
           "steps": {
@@ -6884,6 +7273,49 @@
           "result",
           "createdAt",
           "updatedAt"
+        ],
+        "type": "object"
+      },
+      "TenantDictEnvelope": {
+        "properties": {
+          "code": {
+            "description": "业务状态码（200000=成功）",
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TenantViewR"
+              }
+            ]
+          },
+          "msg": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "traceID": {
+            "description": "链路追踪 ID（W3C `traceparent` 的 trace-id），用于串联入口日志与下游调用",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "success",
+          "msg",
+          "timestamp"
         ],
         "type": "object"
       },
@@ -6927,6 +7359,34 @@
           "success",
           "msg",
           "timestamp"
+        ],
+        "type": "object"
+      },
+      "TenantItemP": {
+        "description": "租户级覆盖写入项",
+        "properties": {
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "typeCode": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "typeCode",
+          "value"
         ],
         "type": "object"
       },
@@ -7043,6 +7503,30 @@
         },
         "type": "object"
       },
+      "TenantViewR": {
+        "description": "租户合并视图（管理面）",
+        "properties": {
+          "revision": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "tenantID": {
+            "type": "string"
+          },
+          "types": {
+            "items": {
+              "$ref": "#/components/schemas/TypeR"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "tenantID",
+          "revision",
+          "types"
+        ],
+        "type": "object"
+      },
       "TenantWriteP": {
         "properties": {
           "name": {
@@ -7063,6 +7547,119 @@
         "required": [
           "name",
           "slug"
+        ],
+        "type": "object"
+      },
+      "TypeItemR": {
+        "description": "类型下已认领条目（合并后的展示字段）",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "meta": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sort": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "key",
+          "label",
+          "sort",
+          "enabled",
+          "isDefault",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "TypeP": {
+        "description": "新建字典类型",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "type": "object"
+      },
+      "TypeR": {
+        "description": "字典类型（含认领条目）",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TypeItemR"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "items"
+        ],
+        "type": "object"
+      },
+      "TypeUpdateP": {
+        "description": "更新字典类型元数据",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
         ],
         "type": "object"
       },
@@ -7808,7 +8405,7 @@
     },
     "/api/v1/agent/tasks": {
       "post": {
-        "description": "给一个目标，服务端自己跑完多轮「模型思考 → 调工具 → 再思考」，最终把答案与过程落进台账。\n\n**立刻返回**：响应里的任务通常还是 `RUNNING`，进度与结果用查询接口取。任务可能跑好几分钟，\n同步等待会把一个 HTTP 请求拖成几分钟，也会让客户端超时重发变成起两个任务。\n\n模型由部署配置决定（`agent.chat_model`），调用方**不能指定**；`maxSteps` 与 `tools` 只能比部署配置更小。\n工具名用下划线（如 `knowledge_search`），不是能力名的点号写法。`tools: []` 是合法输入，\n含义是「不给工具，只要一条结论」。\n\nagent 的每一轮模型调用都走 cogito 网关（`scope=chat`），所以**配额、用量与审计自动生效**。\n\n需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员。\n\n`body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效；\n`500502` 目标为空或超长；`500504` 轮次上限越界；`500505` 工具不在白名单；\n`500503` 编排运行时未接通或实例启动失败（台账那一行会被落成失败，可直接重试）。",
+        "description": "给一个目标，服务端自己跑完多轮「模型思考 → 调工具 → 再思考」，最终把答案与过程落进台账。\n\n**立刻返回**：响应里的任务通常还是 `015`（执行中），进度与结果用查询接口取。任务可能跑好几分钟，\n同步等待会把一个 HTTP 请求拖成几分钟，也会让客户端超时重发变成起两个任务。\n\n模型由部署配置决定（`agent.chat_model`），调用方**不能指定**；`maxSteps` 与 `tools` 只能比部署配置更小。\n工具名用下划线（如 `knowledge_search`），不是能力名的点号写法。`tools: []` 是合法输入，\n含义是「不给工具，只要一条结论」。\n\nagent 的每一轮模型调用都走 cogito 网关（`scope=chat`），所以**配额、用量与审计自动生效**。\n\n需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员。\n\n`body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效；\n`500502` 目标为空或超长；`500504` 轮次上限越界；`500505` 工具不在白名单；\n`500503` 编排运行时未接通或实例启动失败（台账那一行会被落成失败，可直接重试）。",
         "operationId": "agent.createTask",
         "parameters": [
           {
@@ -7854,7 +8451,7 @@
                 }
               }
             },
-            "description": "成功（任务已受理，通常仍在 RUNNING）",
+            "description": "成功（任务已受理，通常仍在 015 / 执行中）",
             "headers": {
               "traceparent": {
                 "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
@@ -7902,7 +8499,7 @@
     },
     "/api/v1/agent/tasks/{id}": {
       "get": {
-        "description": "返回任务台账：状态、步数、模型自报的进度、结果与失败原因。\n\n**台账是权威记录**：任务已经结束时不再去问编排，实例存不存在都不影响「这个任务结束了」。\n还在跑时会顺带问一次编排的当前进度（`progress`），问不到不影响返回；\n编排运行时没接通时也照样返回台账原样。\n\n有一处刻意的延迟：台账显示 `RUNNING` 但编排里查不到该实例时，5 分钟内仍按 `RUNNING` 返回，\n超过才判定失败。原因是「刚起、还没被运行时领走」与「实例真丢了」在编排侧长得一样，只有行龄能区分。\n\n需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员。\n\n`body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效；\n`500501` 任务不存在、不属于该租户，或 id 不是 UUID（三种情况合并，\n避免用 id 探测别的租户）。",
+        "description": "返回任务台账：状态、步数、模型自报的进度、结果与失败原因。\n\n**台账是权威记录**：任务已经结束时不再去问编排，实例存不存在都不影响「这个任务结束了」。\n还在跑时会顺带问一次编排的当前进度（`progress`），问不到不影响返回；\n编排运行时没接通时也照样返回台账原样。\n\n有一处刻意的延迟：台账显示 `015` 但编排里查不到该实例时，5 分钟内仍按 `015` 返回，\n超过才判定失败。原因是「刚起、还没被运行时领走」与「实例真丢了」在编排侧长得一样，只有行龄能区分。\n\n需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员。\n\n`body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效；\n`500501` 任务不存在、不属于该租户，或 id 不是 UUID（三种情况合并，\n避免用 id 探测别的租户）。",
         "operationId": "agent.readTask",
         "parameters": [
           {
@@ -9165,7 +9762,7 @@
     },
     "/api/v1/automations": {
       "get": {
-        "description": "按创建时间升序返回任务定义与最近一次执行状态。\n\n`lastStatus` 记的是**「把任务起起来了」**：`running` = worker 已认领并在起 agent 任务；\n`succeeded` = 起成功（真正的执行结果在 `lastTaskID` 指向的 agent 任务里）；\n`failed` 时看 `lastError`。\n\n`nextRunAt` 是下次触发时间（epoch ms），停用时为空。\n\n需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员。\n\n`body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效。",
+        "description": "按创建时间升序返回任务定义与最近一次执行状态。\n\n`lastStatus` 记的是**「把任务起起来了」**（dict 001）：`015` = worker 已认领并在起 agent 任务；\n`016` = 起成功（真正的执行结果在 `lastTaskID` 指向的 agent 任务里）；\n`017` 时看 `lastError`；`014` = 等待执行。\n\n`nextRunAt` 是下次触发时间（epoch ms），停用时为空。\n\n需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员。\n\n`body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效。",
         "operationId": "schedule.list",
         "parameters": [
           {
@@ -10492,6 +11089,875 @@
         "summary": "写入控制台偏好",
         "tags": [
           "Console"
+        ]
+      }
+    },
+    "/api/v1/dict": {
+      "get": {
+        "description": "需 JWT 与 X-Tenant-ID。返回已认领且 enabled 的合并条目，以及参与项的最大 revision。",
+        "operationId": "dict.findCatalog",
+        "parameters": [
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DictCatalogEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "当前租户字典目录",
+        "tags": [
+          "Dict"
+        ]
+      }
+    },
+    "/api/v1/dict/items": {
+      "get": {
+        "operationId": "dict.findItems",
+        "parameters": [
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DictItemListEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "全局字典池",
+        "tags": [
+          "Dict"
+        ]
+      }
+    },
+    "/api/v1/dict/items/allocate": {
+      "post": {
+        "operationId": "dict.allocateItem",
+        "parameters": [
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemAllocateP"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DictItemEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "分配下一字典 value",
+        "tags": [
+          "Dict"
+        ]
+      }
+    },
+    "/api/v1/dict/items/{value}": {
+      "put": {
+        "operationId": "dict.updateItem",
+        "parameters": [
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemUpdateP"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DictItemEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "更新字典池条目",
+        "tags": [
+          "Dict"
+        ]
+      }
+    },
+    "/api/v1/dict/tenants/{tenantId}": {
+      "get": {
+        "operationId": "dict.findTenantView",
+        "parameters": [
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantDictEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "租户合并字典视图",
+        "tags": [
+          "Dict"
+        ]
+      }
+    },
+    "/api/v1/dict/tenants/{tenantId}/items": {
+      "put": {
+        "operationId": "dict.upsertTenantItems",
+        "parameters": [
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/TenantItemP"
+                },
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "租户字典覆盖",
+        "tags": [
+          "Dict"
+        ]
+      }
+    },
+    "/api/v1/dict/types": {
+      "get": {
+        "description": "仅平台 ADMIN。含各类型已认领条目（合并 label）。",
+        "operationId": "dict.findTypes",
+        "parameters": [
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DictTypeListEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "字典类型列表",
+        "tags": [
+          "Dict"
+        ]
+      },
+      "post": {
+        "operationId": "dict.createType",
+        "parameters": [
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TypeP"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DictTypeEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "新建字典类型",
+        "tags": [
+          "Dict"
+        ]
+      }
+    },
+    "/api/v1/dict/types/{code}": {
+      "put": {
+        "operationId": "dict.updateType",
+        "parameters": [
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TypeUpdateP"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DictTypeEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "更新字典类型",
+        "tags": [
+          "Dict"
+        ]
+      }
+    },
+    "/api/v1/dict/types/{code}/claims": {
+      "post": {
+        "operationId": "dict.claimItems",
+        "parameters": [
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/ClaimP"
+                },
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DictTypeItemListEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "为类型认领字典 value",
+        "tags": [
+          "Dict"
+        ]
+      }
+    },
+    "/api/v1/dict/types/{code}/claims/{value}": {
+      "delete": {
+        "operationId": "dict.removeClaim",
+        "parameters": [
+          {
+            "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+            "in": "header",
+            "name": "traceparent",
+            "required": false,
+            "schema": {
+              "examples": [
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+              ],
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyEnvelope"
+                }
+              }
+            },
+            "description": "成功（code=200000）",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "业务异常",
+            "headers": {
+              "traceparent": {
+                "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
+                "schema": {
+                  "examples": [
+                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "取消认领",
+        "tags": [
+          "Dict"
         ]
       }
     },
@@ -12988,7 +14454,7 @@
     },
     "/api/v1/rag/index-tasks": {
       "post": {
-        "description": "把一份已上传完成的资产切块、算嵌入、写入向量索引，供后续检索使用。\n\n**立刻返回**：响应里的任务通常还是 `RUNNING`，进度与结果用查询接口取。一份文档的索引要跑\n抽取、分批嵌入、落索引，同步等待会把一个 HTTP 请求拖成分钟级。\n\n**同一资产同时只允许一个在跑的任务**：重复调用会拿到 `500604` 并附带已有任务 ID，\n直接去查那个任务即可，不要重试起新的。\n\n资产必须是 `COMPLETED` 且未归档：在途、失败或已删除的资产在下游取不到内容，\n这里会提前拒绝（`500602` / `500603`），不会留下一条注定失败的任务记录。\n\n嵌入用的模型与批大小由部署配置决定（`compute.embed_model` / `compute.embed_batch_size`），\n向量维度取自嵌入服务的实际返回，调用方都**不能指定**。\n\n切片与嵌入都由 compute 完成，模型调用走 cogito 网关，所以**配额、用量与审计自动生效**。\n\n索引是派生数据：重跑同一资产是安全操作（旧索引被覆盖），不需要先删除。\n\n需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员，并具备该资产的写权限。\n\n`body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效；\n`500602` 资产不存在、不属于该租户或已归档；`500603` 资产尚未完成上传；\n`500604` 该资产已有正在运行的索引任务；`500605` 编排运行时未接通或实例启动失败\n（台账那一行会被落成失败，可直接重试）。",
+        "description": "把一份已上传完成的资产切块、算嵌入、写入向量索引，供后续检索使用。\n\n**立刻返回**：响应里的任务通常还是 `009`（索引中），进度与结果用查询接口取。一份文档的索引要跑\n抽取、分批嵌入、落索引，同步等待会把一个 HTTP 请求拖成分钟级。\n\n**同一资产同时只允许一个在跑的任务**：重复调用会拿到 `500604` 并附带已有任务 ID，\n直接去查那个任务即可，不要重试起新的。\n\n资产必须是 `COMPLETED` 且未归档：在途、失败或已删除的资产在下游取不到内容，\n这里会提前拒绝（`500602` / `500603`），不会留下一条注定失败的任务记录。\n\n嵌入用的模型与批大小由部署配置决定（`compute.embed_model` / `compute.embed_batch_size`），\n向量维度取自嵌入服务的实际返回，调用方都**不能指定**。\n\n切片与嵌入都由 compute 完成，模型调用走 cogito 网关，所以**配额、用量与审计自动生效**。\n\n索引是派生数据：重跑同一资产是安全操作（旧索引被覆盖），不需要先删除。\n\n需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员，并具备该资产的写权限。\n\n`body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效；\n`500602` 资产不存在、不属于该租户或已归档；`500603` 资产尚未完成上传；\n`500604` 该资产已有正在运行的索引任务；`500605` 编排运行时未接通或实例启动失败\n（台账那一行会被落成失败，可直接重试）。",
         "operationId": "rag.createIndexTask",
         "parameters": [
           {
@@ -13034,7 +14500,7 @@
                 }
               }
             },
-            "description": "成功（任务已受理，通常仍在 RUNNING）",
+            "description": "成功（任务已受理，通常仍在 009 / 索引中）",
             "headers": {
               "traceparent": {
                 "description": "W3C Trace Context 链路头（可选）。缺省由服务端生成；响应始终回显该头，响应体信封的 `traceID` 即其 trace-id，可用于串联日志、下游调用与用户反馈。",
@@ -13082,7 +14548,7 @@
     },
     "/api/v1/rag/index-tasks/{id}": {
       "get": {
-        "description": "返回索引任务台账：状态、编排自报的当前进度、结果与失败原因。\n\n**台账是权威记录**：任务已经结束时不再去问编排，实例存不存在都不影响「这个任务结束了」。\n还在跑时会顺带问一次编排的当前进度（`progress`，形如 `chunked:48` / `embedded:32` / `indexed`），\n问不到不影响返回；编排运行时没接通时也照样返回台账原样。\n\n成功结束时 `result` 是索引结果（区块集 ID、块数、批次数、维度、集合名），\n可以拿 `chunkSetID` 去 compute 的检索面查这份资产的内容。\n\n有一处刻意的延迟：台账显示 `RUNNING` 但编排里查不到该实例时，5 分钟内仍按 `RUNNING` 返回，\n超过才判定失败。原因是「刚起、还没被运行时领走」与「实例真丢了」在编排侧长得一样，只有行龄能区分。\n\n需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员，并具备该资产的读权限。\n\n`body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效；\n`500601` 索引任务不存在、不属于该租户，或 id 不是 UUID（三种情况合并，避免用 id 探测别的租户）。",
+        "description": "返回索引任务台账：状态、编排自报的当前进度、结果与失败原因。\n\n**台账是权威记录**：任务已经结束时不再去问编排，实例存不存在都不影响「这个任务结束了」。\n还在跑时会顺带问一次编排的当前进度（`progress`，形如 `chunked:48` / `embedded:32` / `indexed`），\n问不到不影响返回；编排运行时没接通时也照样返回台账原样。\n\n成功结束时 `result` 是索引结果（区块集 ID、块数、批次数、维度、集合名），\n可以拿 `chunkSetID` 去 compute 的检索面查这份资产的内容。\n\n有一处刻意的延迟：台账显示 `009` 但编排里查不到该实例时，5 分钟内仍按 `009` 返回，\n超过才判定失败。原因是「刚起、还没被运行时领走」与「实例真丢了」在编排侧长得一样，只有行龄能区分。\n\n需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员，并具备该资产的读权限。\n\n`body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效；\n`500601` 索引任务不存在、不属于该租户，或 id 不是 UUID（三种情况合并，避免用 id 探测别的租户）。",
         "operationId": "rag.readIndexTask",
         "parameters": [
           {

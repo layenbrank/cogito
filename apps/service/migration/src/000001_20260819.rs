@@ -37,6 +37,10 @@ impl MigrationTrait for Migration {
                     .table(ChatMessage::Table)
                     .table(ChatSession::Table)
                     .table(SsoConnection::Table)
+                    .table(DictTenantItem::Table)
+                    .table(DictTypeItem::Table)
+                    .table(DictType::Table)
+                    .table(DictItem::Table)
                     .table(ConsolePreference::Table)
                     .table(Exception::Table)
                     .table(PaymentOrder::Table)
@@ -883,6 +887,158 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        // ---------- dict（产品状态字典：全局池 + 类型认领 + 租户覆盖） ----------
+        manager
+            .create_table(
+                Table::create()
+                    .table(DictItem::Table)
+                    .if_not_exists()
+                    .col(text(DictItem::Value).primary_key())
+                    .col(text_uniq(DictItem::Key))
+                    .col(text(DictItem::Label))
+                    .col(integer(DictItem::Sort))
+                    .col(boolean(DictItem::Enabled).default(true))
+                    .col(text_null(DictItem::Meta))
+                    .col(integer(DictItem::Revision).default(1))
+                    .col(timestamp_with_time_zone(DictItem::CreatedAt))
+                    .col(uuid_null(DictItem::Creator))
+                    .col(timestamp_with_time_zone(DictItem::UpdatedAt))
+                    .col(uuid_null(DictItem::Updater))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_dict_item_creator")
+                            .from(DictItem::Table, DictItem::Creator)
+                            .to(Auth::Table, Auth::Id)
+                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_dict_item_updater")
+                            .from(DictItem::Table, DictItem::Updater)
+                            .to(Auth::Table, Auth::Id)
+                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(DictType::Table)
+                    .if_not_exists()
+                    .col(text(DictType::Code).primary_key())
+                    .col(text(DictType::Name))
+                    .col(text_null(DictType::Description))
+                    .col(timestamp_with_time_zone(DictType::CreatedAt))
+                    .col(uuid_null(DictType::Creator))
+                    .col(timestamp_with_time_zone(DictType::UpdatedAt))
+                    .col(uuid_null(DictType::Updater))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_dict_type_creator")
+                            .from(DictType::Table, DictType::Creator)
+                            .to(Auth::Table, Auth::Id)
+                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_dict_type_updater")
+                            .from(DictType::Table, DictType::Updater)
+                            .to(Auth::Table, Auth::Id)
+                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(DictTypeItem::Table)
+                    .if_not_exists()
+                    .col(text(DictTypeItem::TypeCode))
+                    .col(text(DictTypeItem::Value))
+                    .col(text_null(DictTypeItem::Label))
+                    .col(boolean(DictTypeItem::IsDefault))
+                    .col(integer(DictTypeItem::Sort))
+                    .primary_key(
+                        Index::create()
+                            .name("pk_dict_type_item")
+                            .col(DictTypeItem::TypeCode)
+                            .col(DictTypeItem::Value),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_dict_type_item_type")
+                            .from(DictTypeItem::Table, DictTypeItem::TypeCode)
+                            .to(DictType::Table, DictType::Code)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_dict_type_item_value")
+                            .from(DictTypeItem::Table, DictTypeItem::Value)
+                            .to(DictItem::Table, DictItem::Value)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(DictTenantItem::Table)
+                    .if_not_exists()
+                    .col(uuid(DictTenantItem::TenantId))
+                    .col(text(DictTenantItem::TypeCode))
+                    .col(text(DictTenantItem::Value))
+                    .col(text_null(DictTenantItem::Label))
+                    .col(boolean_null(DictTenantItem::Enabled))
+                    .primary_key(
+                        Index::create()
+                            .name("pk_dict_tenant_item")
+                            .col(DictTenantItem::TenantId)
+                            .col(DictTenantItem::TypeCode)
+                            .col(DictTenantItem::Value),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_dict_tenant_item_tenant")
+                            .from(DictTenantItem::Table, DictTenantItem::TenantId)
+                            .to(Tenant::Table, Tenant::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_dict_tenant_item_type")
+                            .from(DictTenantItem::Table, DictTenantItem::TypeCode)
+                            .to(DictType::Table, DictType::Code)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_dict_tenant_item_value")
+                            .from(DictTenantItem::Table, DictTenantItem::Value)
+                            .to(DictItem::Table, DictItem::Value)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        seed_dict_contract(manager).await?;
+
         // ---------- exception（客户端异常上报） ----------
         // 平台运维面专用：无租户面，RLS 恒假，读写走 PlatformScope。
         // 事件不可变（无 updatedAt）；可选 creator 记录已登录上报者。
@@ -1041,8 +1197,8 @@ impl MigrationTrait for Migration {
                     .col(uuid(AgentTask::TenantId))
                     // 发起人；服务身份（无会话）触发时为空
                     .col(uuid_null(AgentTask::UserId))
-                    // RUNNING / SUCCEEDED / FAILED（词汇见 crates/agent）
-                    .col(text(AgentTask::Status).default("RUNNING"))
+                    // 015 / 016 / 017（词汇见 crates/agent，dict 001）
+                    .col(text(AgentTask::Status).default("015"))
                     .col(text(AgentTask::Objective))
                     .col(text(AgentTask::Model))
                     .col(integer(AgentTask::MaxSteps))
@@ -1174,8 +1330,8 @@ impl MigrationTrait for Migration {
                     .col(uuid_null(RagIndexTask::UserId))
                     // 被索引的资产。资产是本表的输入而非所有者，子资源形态（同一资产可多次重建索引）
                     .col(uuid(RagIndexTask::AssetId))
-                    // RUNNING / SUCCEEDED / FAILED（词汇见 crates/rag）
-                    .col(text(RagIndexTask::Status).default("RUNNING"))
+                    // 009 / 010 / 011（词汇见 crates/rag，dict 001）
+                    .col(text(RagIndexTask::Status).default("009"))
                     // 编排实例标识（`rag-index-{id}`）
                     .col(text(RagIndexTask::InstanceId))
                     // 终态输出快照（IndexAssetOutput）
@@ -1230,7 +1386,7 @@ impl MigrationTrait for Migration {
             .get_connection()
             .execute_unprepared(
                 r#"CREATE UNIQUE INDEX IF NOT EXISTS uidx_rag_index_task_running
-                   ON rag_index_task ("tenantID", "assetID") WHERE status = 'RUNNING'"#,
+                   ON rag_index_task ("tenantID", "assetID") WHERE status = '009'"#,
             )
             .await?;
 
@@ -1686,6 +1842,18 @@ impl MigrationTrait for Migration {
         // Backend Console 偏好：同样无租户面，只允许平台特权读写。
         enable_rls(manager, "console_preference", "false", "false").await?;
 
+        // 产品字典全局面：池 / 类型 / 认领仅平台特权读写；租户覆盖走严格租户隔离。
+        enable_rls(manager, "dict_item", "false", "false").await?;
+        enable_rls(manager, "dict_type", "false", "false").await?;
+        enable_rls(manager, "dict_type_item", "false", "false").await?;
+        enable_rls(
+            manager,
+            "dict_tenant_item",
+            r#""tenantID" = app_current_tenant_id()"#,
+            r#""tenantID" = app_current_tenant_id()"#,
+        )
+        .await?;
+
         // 异常事件：平台运维观测台；租户面 fail-closed，读写一律走 PlatformScope。
         enable_rls(manager, "exception", "false", "false").await?;
 
@@ -1725,6 +1893,10 @@ impl MigrationTrait for Migration {
                     .table(ChatMessage::Table)
                     .table(ChatSession::Table)
                     .table(SsoConnection::Table)
+                    .table(DictTenantItem::Table)
+                    .table(DictTypeItem::Table)
+                    .table(DictType::Table)
+                    .table(DictItem::Table)
                     .table(ConsolePreference::Table)
                     .table(PaymentOrder::Table)
                     .table(BillingPrice::Table)
@@ -1744,6 +1916,109 @@ impl MigrationTrait for Migration {
             .await?;
         Ok(())
     }
+}
+
+/// 写入 `docs/contracts/dict.yaml` 对齐的初始池 / 类型 / 认领。
+async fn seed_dict_contract(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    let conn = manager.get_connection();
+    let ts = "2026-01-01T00:00:00+00";
+
+    conn.execute_unprepared(&format!(
+        r#"
+INSERT INTO dict_item (value, key, label, sort, enabled, meta, revision, "createdAt", "updatedAt") VALUES
+('001', 'DRAFT', '草稿', 10, true, NULL, 1, '{ts}', '{ts}'),
+('002', 'PUBLISHED', '已发布', 20, true, NULL, 1, '{ts}', '{ts}'),
+('003', 'MANUAL', '手动', 10, true, NULL, 1, '{ts}', '{ts}'),
+('004', 'AGENT', '智能体', 20, true, NULL, 1, '{ts}', '{ts}'),
+('005', 'IMPORT', '导入', 30, true, NULL, 1, '{ts}', '{ts}'),
+('006', 'AUTHORED', '编辑撰写', 40, true, NULL, 1, '{ts}', '{ts}'),
+('007', 'CLOUD_IDLE', '空闲', 10, true, NULL, 1, '{ts}', '{ts}'),
+('008', 'CLOUD_PENDING', '待同步', 20, true, NULL, 1, '{ts}', '{ts}'),
+('009', 'CLOUD_RUNNING', '索引中', 30, true, '{{"tone":"amber"}}', 1, '{ts}', '{ts}'),
+('010', 'CLOUD_SUCCEEDED', '已上云', 40, true, '{{"tone":"emerald"}}', 1, '{ts}', '{ts}'),
+('011', 'CLOUD_FAILED', '同步失败', 50, true, '{{"tone":"destructive"}}', 1, '{ts}', '{ts}'),
+('012', 'SCOPE_USER', '个人', 10, true, NULL, 1, '{ts}', '{ts}'),
+('013', 'SCOPE_TENANT', '租户', 20, true, NULL, 1, '{ts}', '{ts}'),
+('014', 'RUN_PENDING', '等待', 10, true, NULL, 1, '{ts}', '{ts}'),
+('015', 'RUN_RUNNING', '执行中', 20, true, NULL, 1, '{ts}', '{ts}'),
+('016', 'RUN_SUCCEEDED', '成功', 30, true, NULL, 1, '{ts}', '{ts}'),
+('017', 'RUN_FAILED', '失败', 40, true, NULL, 1, '{ts}', '{ts}'),
+('018', 'TRIGGER_SCHEDULE', '按时', 10, true, NULL, 1, '{ts}', '{ts}'),
+('019', 'TRIGGER_MANUAL', '手动', 20, true, NULL, 1, '{ts}', '{ts}'),
+('020', 'TRIGGER_CATCHUP', '补跑', 30, true, NULL, 1, '{ts}', '{ts}'),
+('021', 'OWNER_CLIENT', '本机', 10, true, NULL, 1, '{ts}', '{ts}'),
+('022', 'OWNER_GOOSE', 'Goose', 20, true, NULL, 1, '{ts}', '{ts}'),
+('023', 'OWNER_CLOUD', '云端', 30, true, NULL, 1, '{ts}', '{ts}'),
+('024', 'RUN_AS_USER', '用户', 10, true, NULL, 1, '{ts}', '{ts}'),
+('025', 'RUN_AS_TENANT', '租户', 20, true, NULL, 1, '{ts}', '{ts}'),
+('026', 'DRAFT_PENDING', '待确认', 10, true, NULL, 1, '{ts}', '{ts}'),
+('027', 'DRAFT_SAVED', '已保存', 20, true, NULL, 1, '{ts}', '{ts}'),
+('028', 'DRAFT_DISCARDED', '已丢弃', 30, true, NULL, 1, '{ts}', '{ts}'),
+('029', 'ACTIVE', '正常', 10, true, NULL, 1, '{ts}', '{ts}'),
+('030', 'ARCHIVED', '已归档', 90, true, NULL, 1, '{ts}', '{ts}');
+"#
+    ))
+    .await?;
+
+    conn.execute_unprepared(&format!(
+        r#"
+INSERT INTO dict_type (code, name, description, "createdAt", "updatedAt") VALUES
+('knowledge_doc_status', '文档状态', '知识库文档发布状态', '{ts}', '{ts}'),
+('knowledge_doc_source', '文档来源', '知识库文档写入来源', '{ts}', '{ts}'),
+('knowledge_cloud_status', '云端索引状态', '本地云端索引同步状态', '{ts}', '{ts}'),
+('knowledge_base_scope', '知识库范围', '个人或租户共享', '{ts}', '{ts}'),
+('automation_run_status', '自动化运行状态', '定时任务单次运行状态', '{ts}', '{ts}'),
+('automation_trigger_kind', '自动化触发方式', '准点 / 手动 / 补跑', '{ts}', '{ts}'),
+('automation_owner', '自动化执行方', '本机 / goose / 云端', '{ts}', '{ts}'),
+('automation_run_as', '自动化运行身份', '用户或租户身份', '{ts}', '{ts}'),
+('directive_draft_status', '指令草稿状态', '待确认 / 已保存 / 已丢弃', '{ts}', '{ts}'),
+('asset_status', '资源状态', '本地资源状态', '{ts}', '{ts}'),
+('album_status', '相簿状态', '捕获库相簿状态', '{ts}', '{ts}');
+"#
+    ))
+    .await?;
+
+    conn.execute_unprepared(
+        r#"
+INSERT INTO dict_type_item ("typeCode", value, label, "isDefault", sort) VALUES
+('knowledge_doc_status', '001', NULL, true, 10),
+('knowledge_doc_status', '002', NULL, false, 20),
+('knowledge_doc_status', '030', NULL, false, 90),
+('knowledge_doc_source', '003', NULL, true, 10),
+('knowledge_doc_source', '004', NULL, false, 20),
+('knowledge_doc_source', '005', NULL, false, 30),
+('knowledge_doc_source', '006', NULL, false, 40),
+('knowledge_cloud_status', '007', NULL, true, 10),
+('knowledge_cloud_status', '008', NULL, false, 20),
+('knowledge_cloud_status', '009', NULL, false, 30),
+('knowledge_cloud_status', '010', NULL, false, 40),
+('knowledge_cloud_status', '011', NULL, false, 50),
+('knowledge_base_scope', '012', NULL, true, 10),
+('knowledge_base_scope', '013', NULL, false, 20),
+('automation_run_status', '014', NULL, true, 10),
+('automation_run_status', '015', NULL, false, 20),
+('automation_run_status', '016', NULL, false, 30),
+('automation_run_status', '017', NULL, false, 40),
+('automation_trigger_kind', '018', NULL, true, 10),
+('automation_trigger_kind', '019', NULL, false, 20),
+('automation_trigger_kind', '020', NULL, false, 30),
+('automation_owner', '021', NULL, true, 10),
+('automation_owner', '022', NULL, false, 20),
+('automation_owner', '023', NULL, false, 30),
+('automation_run_as', '024', NULL, true, 10),
+('automation_run_as', '025', NULL, false, 20),
+('directive_draft_status', '026', NULL, true, 10),
+('directive_draft_status', '027', NULL, false, 20),
+('directive_draft_status', '028', NULL, false, 30),
+('asset_status', '029', NULL, true, 10),
+('asset_status', '030', NULL, false, 90),
+('album_status', '029', NULL, true, 10),
+('album_status', '030', NULL, false, 90);
+"#,
+    )
+    .await?;
+
+    Ok(())
 }
 
 /// 会话级作用域变量名。
@@ -2164,6 +2439,66 @@ enum ConsolePreference {
     #[sea_orm(iden = "updatedAt")]
     UpdatedAt,
     Updater,
+}
+
+/// 全局字典池条目。
+#[derive(DeriveIden)]
+enum DictItem {
+    Table,
+    Value,
+    Key,
+    Label,
+    Sort,
+    Enabled,
+    Meta,
+    Revision,
+    #[sea_orm(iden = "createdAt")]
+    CreatedAt,
+    Creator,
+    #[sea_orm(iden = "updatedAt")]
+    UpdatedAt,
+    Updater,
+}
+
+/// 字典类型（业务域）。
+#[derive(DeriveIden)]
+enum DictType {
+    Table,
+    Code,
+    Name,
+    Description,
+    #[sea_orm(iden = "createdAt")]
+    CreatedAt,
+    Creator,
+    #[sea_orm(iden = "updatedAt")]
+    UpdatedAt,
+    Updater,
+}
+
+/// 类型对全局池 value 的认领。
+#[derive(DeriveIden)]
+enum DictTypeItem {
+    Table,
+    #[sea_orm(iden = "typeCode")]
+    TypeCode,
+    Value,
+    Label,
+    #[sea_orm(iden = "isDefault")]
+    IsDefault,
+    Sort,
+}
+
+/// 租户级字典覆盖。
+#[derive(DeriveIden)]
+enum DictTenantItem {
+    Table,
+    #[sea_orm(iden = "tenantID")]
+    TenantId,
+    #[sea_orm(iden = "typeCode")]
+    TypeCode,
+    Value,
+    Label,
+    Enabled,
 }
 
 /// 客户端异常上报事件。

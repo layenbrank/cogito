@@ -33,7 +33,17 @@ export const CAPABILITIES: readonly Capability[] = [
   {
     name: 'identity',
     title: '身份与租户',
-    owns: ['auth', 'tenant', 'tenant_member', 'sso_connection', 'console_preference'],
+    owns: [
+      'auth',
+      'tenant',
+      'tenant_member',
+      'sso_connection',
+      'console_preference',
+      'dict_item',
+      'dict_type',
+      'dict_type_item',
+      'dict_tenant_item'
+    ],
     dependsOn: [],
     publicModules: ['account', 'persistence', 'tenant'],
     absorbs: ['src/services/auth', 'src/services/user', 'src/services/tenant', 'src/services/sso'],

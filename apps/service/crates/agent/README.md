@@ -17,7 +17,7 @@
 - `persistence::{record_approval, find_approval, mark_applied}`：记一次人的决定、读一条决定、
   标记「决定已经送进编排邮箱」。同一审批不能改判（`Error::DecisionConflict`），
   「超时」不能由记进来冒充（`Error::NotHumanDecision`）。
-- `TaskState`（`RUNNING` / `SUCCEEDED` / `FAILED`）与 `TaskState::parse`：状态词汇的唯一落点。
+- `TaskState`（`015` / `016` / `017`）与 `TaskState::parse`：状态词汇的唯一落点（dict 001）。
 - `ApprovalState`（`APPROVED` / `REJECTED` / `EXPIRED`）与 `ApprovalState::parse`：决定词汇的唯一落点
   （编排侧复用同一份，见 `src/orchestrations/agent.rs` 的 `pub use`）。
 - `NewTask` / `TaskOutcome` / `NewApproval`：写入与收尾的入参形状。

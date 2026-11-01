@@ -131,7 +131,7 @@ macro_rules! wait_for_terminal {
                 );
 
                 let data = body["data"].clone();
-                if data["status"].as_str() != Some("RUNNING") {
+                if data["status"].as_str() != Some("015") {
                     break data;
                 }
                 assert!(Instant::now() < deadline, "等任务落到终态超时：{data}");
@@ -162,7 +162,7 @@ macro_rules! wait_for_pending {
                     break data;
                 }
                 assert!(
-                    data["status"].as_str() == Some("RUNNING"),
+                    data["status"].as_str() == Some("015"),
                     "任务没在等审批就已经收了尾：{data}"
                 );
                 assert!(Instant::now() < deadline, "等任务挂出待审批超时：{data}");
@@ -628,7 +628,7 @@ async fn approving_runs_the_call_and_rejecting_does_not() {
     stub.wait_for("/agents/steps", 1, Duration::from_secs(30))
         .await;
     let data = wait_for_pending!(app, token, tenant, task).await;
-    assert_eq!(data["status"], "RUNNING");
+    assert_eq!(data["status"], "015");
     assert_eq!(data["steps"], json!(1));
     assert_eq!(data["pendingApproval"]["approvalID"], first);
     assert_eq!(data["pendingApproval"]["step"], json!(1));
@@ -803,7 +803,7 @@ async fn approving_runs_the_call_and_rejecting_does_not() {
 
     // ---- 7. 终态：驳回不是失败，它只是「这一次没执行」
     let data = wait_for_terminal!(app, token, tenant, task).await;
-    assert_eq!(data["status"], "SUCCEEDED");
+    assert_eq!(data["status"], "016");
     assert_eq!(data["steps"], json!(MAX_STEPS));
     assert_eq!(data["error"], json!(null));
     assert_eq!(data["progress"], json!(null), "跑完的任务不该还留着进度串");
@@ -959,7 +959,7 @@ async fn an_unanswered_approval_expires_and_nothing_is_executed() {
 
     let data = wait_for_terminal!(app, token, tenant, task).await;
     assert_eq!(
-        data["status"], "SUCCEEDED",
+        data["status"], "016",
         "超时不是任务失败：模型拿到「没执行」的结果接着跑"
     );
     assert_eq!(data["steps"], json!(2));
@@ -1099,7 +1099,7 @@ async fn decisions_are_guarded_by_pending_state_tenancy_and_vocabulary() {
             r#"INSERT INTO agent_task (id, "tenantID", "userID", status, objective, model,
                                        "maxSteps", "allowedTools", "instanceID",
                                        "createdAt", "updatedAt")
-               VALUES ('{foreign}', '{}', '{}', 'RUNNING', '{OBJECTIVE}', '{CHAT_MODEL}',
+               VALUES ('{foreign}', '{}', '{}', '015', '{OBJECTIVE}', '{CHAT_MODEL}',
                        2, '[]'::jsonb, 'agent-{foreign}', now(), now())"#,
             fixture.stranger, fixture.user
         ),
@@ -1171,7 +1171,7 @@ async fn decisions_are_guarded_by_pending_state_tenancy_and_vocabulary() {
     assert_eq!(data["applied"], json!(true));
 
     let data = wait_for_terminal!(app, token, tenant, task).await;
-    assert_eq!(data["status"], "SUCCEEDED");
+    assert_eq!(data["status"], "016");
     assert_eq!(data["steps"], json!(2));
     assert_eq!(stub.count("/agents/tool-executions"), 1);
     assert_eq!(
@@ -1247,7 +1247,7 @@ async fn foreign_decisions_are_ignored_and_forged_expiry_fails_the_task() {
 
     let (status, body) = call!(app, get_task(token, tenant, &task_a)).await;
     let data = assert_success(&body, status);
-    assert_eq!(data["status"], "RUNNING", "不相干的决定不该让任务动起来");
+    assert_eq!(data["status"], "015", "不相干的决定不该让任务动起来");
     assert_eq!(
         data["pendingApproval"]["approvalID"], approval_a,
         "待审批项不该被别人的决定顶掉"
@@ -1274,7 +1274,7 @@ async fn foreign_decisions_are_ignored_and_forged_expiry_fails_the_task() {
     assert_success(&body, status);
 
     let data = wait_for_terminal!(app, token, tenant, task_a).await;
-    assert_eq!(data["status"], "SUCCEEDED");
+    assert_eq!(data["status"], "016");
     assert_eq!(data["result"]["approvals"][0]["decision"], "APPROVED");
     assert_eq!(stub.count("/agents/tool-executions"), 1);
 
@@ -1309,7 +1309,7 @@ async fn foreign_decisions_are_ignored_and_forged_expiry_fails_the_task() {
 
     let data = wait_for_terminal!(app, token, tenant, task_b).await;
     assert_eq!(
-        data["status"], "FAILED",
+        data["status"], "017",
         "伪造的结局必须让任务失败，「等出来的结局」不能从外面塞进来"
     );
     let error = data["error"].as_str().expect("失败任务必须有原因");

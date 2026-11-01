@@ -5,7 +5,8 @@ use crate::services::{
     agent::module::AgentModule, application::controller::ApplicationController,
     auth::module::AuthModule, chat::module::ChatModule, console::module::ConsoleModule,
     engine::module::EngineModule, exception::module::ExceptionModule,
-    gateway::module::GatewayModule, mcp::module::McpModule, payment::module::PaymentModule,
+    dict::module::DictModule, gateway::module::GatewayModule, mcp::module::McpModule,
+    payment::module::PaymentModule,
     rag::module::RagModule, schedule::module::ScheduleModule, sso::module::SsoModule,
     tenant::module::TenantModule, upload::module::UploadModule, user::module::UserModule,
 };
@@ -19,6 +20,7 @@ impl ApplicationModule {
                 .configure(|c| AuthModule::configure(c, &auth_governor))
                 .configure(UserModule::configure)
                 .configure(ConsoleModule::configure)
+                .configure(DictModule::configure)
                 // 异常上报（POST 可匿名）与运维查询（ADMIN）
                 .configure(ExceptionModule::configure)
                 .configure(UploadModule::configure)

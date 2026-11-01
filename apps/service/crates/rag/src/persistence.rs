@@ -13,13 +13,13 @@ use uuid::Uuid;
 
 use crate::{Error, IndexOutcome, IndexState, NewIndexTask};
 
-/// 建行：`status = RUNNING`、无结果。
+/// 建行：`status = 009`、无结果。
 ///
 /// 先落台账再起编排实例：反过来的话，进程在「实例已起、台账未写」之间崩溃，会留下**看不见的工作**。
 /// 现在的顺序最坏留下「有台账、无实例」，读时按行龄判定即可修成失败。
 ///
 /// # Errors
-/// 同一租户的同一资产已有 `RUNNING` 行时返回 [`Error::AlreadyRunning`]（部分唯一索引兜并发，
+/// 同一租户的同一资产已有 `009` 行时返回 [`Error::AlreadyRunning`]（部分唯一索引兜并发，
 /// 调用方的先查一次只是为了让 409 能带上已有任务的 id）。
 pub async fn create<C: ConnectionTrait>(
     conn: &C,
@@ -156,7 +156,7 @@ mod tests {
             require_terminal(IndexState::Running)
                 .unwrap_err()
                 .to_string(),
-            "终态写回要求终态状态，收到：RUNNING"
+            "终态写回要求终态状态，收到：009"
         );
         assert!(require_terminal(IndexState::Succeeded).is_ok());
         assert!(require_terminal(IndexState::Failed).is_ok());

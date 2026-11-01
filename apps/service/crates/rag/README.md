@@ -14,7 +14,7 @@
 
 - `persistence::{create, find, running_for, finish}`：建行、读行、查在跑的行、终态写回。
   `finish` 是**唯一的终态入口**，靠「读行加锁 + 条件判断」保证终态只写一次。
-- `IndexState`（`RUNNING` / `SUCCEEDED` / `FAILED`）与 `IndexState::parse`：状态词汇的唯一落点。
+- `IndexState`（`009` / `010` / `011`）与 `IndexState::parse`：状态词汇的唯一落点（dict 001）。
 - `NewIndexTask` / `IndexOutcome`：写入与收尾的入参形状。
 
 ## 边界约束
@@ -24,7 +24,7 @@
 - 不做权限判断：谁能索引由作用域层（`TenantCtx`）与网关决定。
 - **不认编排句柄**：`finish` 只接收 `IndexOutcome`，所以「至少执行一次」的重复收尾天然无害。
 - **同一资产同时只有一个在跑的任务**：由部分唯一索引
-  `uidx_rag_index_task_running`（`("tenantID", "assetID") WHERE status = 'RUNNING'`）保证，
+  `uidx_rag_index_task_running`（`("tenantID", "assetID") WHERE status = '009'`）保证，
   不靠调用方的先查一次——先查只是为了 409 能带上已有任务的 id。
 - 台账刻意**不含轮次**：索引的阶段数随资产大小变化，写进台账只会是一个永远对不上的数字；
   实时进度从 durable 的 custom status 拿。

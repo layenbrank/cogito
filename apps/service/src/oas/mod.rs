@@ -6,6 +6,7 @@ pub mod billing;
 pub mod chat;
 pub mod common;
 pub mod console;
+pub mod dict;
 pub mod engine;
 pub mod exception;
 pub mod gateway;
@@ -32,7 +33,9 @@ use crate::oas::common::{
     HealthEnvelope, IndexTaskEnvelope, JobEnvelope, JobListEnvelope, JobRemovedEnvelope, Liveness,
     LivenessEnvelope, MemberEnvelope,
     MemberListEnvelope, ModelEnvelope, ModelListEnvelope, OrderEnvelope, OrderListEnvelope,
-    PlansEnvelope, PreferenceEnvelope, PriceEnvelope, PriceListEnvelope, ProfileEnvelope,
+    DictCatalogEnvelope, DictItemEnvelope, DictItemListEnvelope, DictTypeEnvelope,
+    DictTypeItemListEnvelope, DictTypeListEnvelope, PlansEnvelope, PreferenceEnvelope,
+    PriceEnvelope, PriceListEnvelope, ProfileEnvelope, TenantDictEnvelope,
     ProviderEnvelope, ProviderListEnvelope, QuotaEnvelope, Readiness, ReadinessEnvelope,
     ReconcileEnvelope, SelfQuotaEnvelope, SigninEnvelope, SigninErrorExample, SigninSuccessExample,
     SignupEnvelope, SsoConnectionEnvelope, SsoConnectionListEnvelope, SsoLoginEnvelope,
@@ -52,6 +55,10 @@ use crate::services::chat::schema::{
     ChatSessionR, ChatSyncP, ChatSyncR, ChatUsageP, ChatUsageR,
 };
 use crate::services::console::schema::{PreferenceP, PreferenceR};
+use crate::services::dict::schema::{
+    CatalogR as DictCatalogR, ClaimP, ItemAllocateP, ItemR, ItemUpdateP, TenantItemP, TenantViewR,
+    TypeItemR, TypeP, TypeR, TypeUpdateP,
+};
 use crate::services::engine::schema::{EmptySchema, ISchema, QueryP, SuggestionR, TSchema};
 use crate::services::exception::schema::{
     ExceptionR, GroupPageR, GroupR, PageR, QueryP as ExceptionQueryP, SummaryR,
@@ -127,6 +134,17 @@ use crate::services::user::schema::{Avatar as UserAvatar, UpdateP, UserR, WriteP
         user::toRemove_doc,
         console::toRead_doc,
         console::toUpdate_doc,
+        dict::find_catalog_doc,
+        dict::find_types_doc,
+        dict::create_type_doc,
+        dict::update_type_doc,
+        dict::find_items_doc,
+        dict::allocate_item_doc,
+        dict::update_item_doc,
+        dict::claim_items_doc,
+        dict::remove_claim_doc,
+        dict::upsert_tenant_items_doc,
+        dict::find_tenant_view_doc,
         exception::toWrite_doc,
         exception::toList_doc,
         exception::groups_doc,
@@ -259,6 +277,24 @@ use crate::services::user::schema::{Avatar as UserAvatar, UpdateP, UserR, WriteP
             PreferenceP,
             PreferenceR,
             PreferenceEnvelope,
+            TypeP,
+            TypeUpdateP,
+            TypeR,
+            TypeItemR,
+            DictTypeEnvelope,
+            DictTypeListEnvelope,
+            ItemAllocateP,
+            ItemUpdateP,
+            ItemR,
+            DictItemEnvelope,
+            DictItemListEnvelope,
+            ClaimP,
+            DictTypeItemListEnvelope,
+            TenantItemP,
+            DictCatalogR,
+            DictCatalogEnvelope,
+            TenantViewR,
+            TenantDictEnvelope,
             ExceptionWriteP,
             ExceptionQueryP,
             ExceptionR,

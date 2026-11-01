@@ -213,6 +213,14 @@ pub mod services {
         pub mod service;
     }
 
+    /// 产品状态字典：全局池、类型认领与租户覆盖。
+    pub mod dict {
+        pub mod controller;
+        pub mod module;
+        pub mod schema;
+        pub mod service;
+    }
+
     /// 客户端异常上报与平台运维查询（对标 Node Exception）。
     pub mod exception {
         pub mod controller;

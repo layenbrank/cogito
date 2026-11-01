@@ -12,7 +12,7 @@ pub struct Model {
     /// 发起人；服务身份（无会话）触发时为 NULL
     #[sea_orm(column_name = "userID", nullable)]
     pub user_id: Option<Uuid>,
-    /// RUNNING / SUCCEEDED / FAILED（词汇定义在 crates/agent）
+    /// 015 / 016 / 017（词汇定义在 crates/agent，dict 001）
     #[sea_orm(column_type = "Text")]
     pub status: String,
     /// 任务目标

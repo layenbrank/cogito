@@ -124,7 +124,7 @@ macro_rules! wait_for_terminal {
             loop {
                 let (status, body) = call!($app, get_index_task($token, $tenant, &$id)).await;
                 let data = assert_success(&body, status).clone();
-                if data["status"].as_str() != Some("RUNNING") {
+                if data["status"].as_str() != Some("009") {
                     break data;
                 }
                 assert!(Instant::now() < deadline, "等索引任务落到终态超时：{data}");
@@ -633,7 +633,7 @@ async fn an_offline_orchestrator_is_recorded_as_a_failure() {
         ledger_field(&fixture.admin, &task, "status")
             .await
             .as_deref(),
-        Some("FAILED")
+        Some("011")
     );
     assert_eq!(
         ledger_field(&fixture.admin, &task, "error")
@@ -658,7 +658,7 @@ async fn an_offline_orchestrator_is_recorded_as_a_failure() {
     let (status, body) = call!(app, get_index_task(token, tenant, &task)).await;
     let data = assert_success(&body, status);
     assert_eq!(body["msg"], "获取索引任务成功");
-    assert_eq!(data["status"], "FAILED");
+    assert_eq!(data["status"], "011");
     assert_eq!(data["progress"], json!(null));
     assert_eq!(data["error"], LEDGER_OFFLINE);
     assert_eq!(data["result"], json!(null));
@@ -712,7 +712,7 @@ async fn hides_other_tenants_tasks_and_settles_orphans() {
         fixture.stranger,
         fixture.foreign,
         fixture.user,
-        "RUNNING",
+        "009",
         "10 minutes",
     )
     .await;
@@ -727,7 +727,7 @@ async fn hides_other_tenants_tasks_and_settles_orphans() {
         ledger_field(&fixture.admin, &foreign_task.to_string(), "status")
             .await
             .as_deref(),
-        Some("RUNNING"),
+        Some("009"),
         "别人的行一个字节都不该被我们改"
     );
 
@@ -739,14 +739,14 @@ async fn hides_other_tenants_tasks_and_settles_orphans() {
         fixture.tenant,
         fixture.ready,
         fixture.user,
-        "RUNNING",
+        "009",
         "0 seconds",
     )
     .await;
 
     let (status, body) = call!(app, get_index_task(token, tenant, &fresh.to_string())).await;
     let data = assert_success(&body, status);
-    assert_eq!(data["status"], "RUNNING", "宽限期内不该判死：{body}");
+    assert_eq!(data["status"], "009", "宽限期内不该判死：{body}");
     assert_eq!(data["progress"], json!(null));
 
     // 本租户、早就没了：行龄超宽限期，读路径必须把它收敛成失败。
@@ -757,20 +757,20 @@ async fn hides_other_tenants_tasks_and_settles_orphans() {
         fixture.tenant,
         fixture.archived,
         fixture.user,
-        "RUNNING",
+        "009",
         "10 minutes",
     )
     .await;
 
     let (status, body) = call!(app, get_index_task(token, tenant, &stale.to_string())).await;
     let data = assert_success(&body, status);
-    assert_eq!(data["status"], "FAILED", "过了宽限期必须判死：{body}");
+    assert_eq!(data["status"], "011", "过了宽限期必须判死：{body}");
     assert_eq!(data["error"], INSTANCE_GONE);
     assert_eq!(
         ledger_field(&fixture.admin, &stale.to_string(), "status")
             .await
             .as_deref(),
-        Some("FAILED"),
+        Some("011"),
         "读时修复要落库，不能只改响应"
     );
 
@@ -840,7 +840,7 @@ async fn runs_an_index_task_to_a_conclusion_and_reports_live_progress() {
     .await;
     let data = assert_success(&body, status);
     assert_eq!(body["msg"], "创建成功");
-    assert_eq!(data["status"], "RUNNING");
+    assert_eq!(data["status"], "009");
     assert_eq!(data["progress"], json!(null));
     assert_eq!(data["result"], json!(null));
     assert_eq!(data["error"], json!(null));
@@ -871,7 +871,7 @@ async fn runs_an_index_task_to_a_conclusion_and_reports_live_progress() {
     // 3. 进度必须能**实时**读出来，而不必等任务结束
     let (status, body) = call!(app, get_index_task(token, tenant, &task_a)).await;
     let data = assert_success(&body, status);
-    assert_eq!(data["status"], "RUNNING");
+    assert_eq!(data["status"], "009");
     assert_eq!(data["progress"], "chunked:48");
     assert_eq!(data["result"], json!(null));
     assert_eq!(data["error"], json!(null));
@@ -898,7 +898,7 @@ async fn runs_an_index_task_to_a_conclusion_and_reports_live_progress() {
     stub.release("/embeddings", 1);
 
     let data = wait_for_terminal!(app, token, tenant, task_a).await;
-    assert_eq!(data["status"], "SUCCEEDED", "任务应当跑完：{data}");
+    assert_eq!(data["status"], "010", "任务应当跑完：{data}");
     assert_eq!(data["error"], json!(null));
     assert_eq!(data["progress"], json!(null), "终态不再报过程进度");
     let result = &data["result"];
@@ -1015,7 +1015,7 @@ async fn runs_an_index_task_to_a_conclusion_and_reports_live_progress() {
     )
     .await;
     let data = assert_success(&body, status);
-    assert_eq!(data["status"], "RUNNING");
+    assert_eq!(data["status"], "009");
     let task_b = data["id"].as_str().expect("任务 id").to_owned();
     assert_ne!(task_b, task_a, "重跑必须是一条新任务，不能复用台账行");
     assert_eq!(ledger_count(&fixture.admin, fixture.tenant).await, "2");
@@ -1047,7 +1047,7 @@ async fn blocks_a_second_task_only_while_one_is_running() {
         fixture.tenant,
         fixture.ready,
         fixture.user,
-        "RUNNING",
+        "009",
         "0 seconds",
     )
     .await;
@@ -1078,14 +1078,14 @@ async fn blocks_a_second_task_only_while_one_is_running() {
         fixture.tenant,
         fixture.ready,
         fixture.user,
-        "FAILED",
+        "011",
         "1 minutes",
     )
     .await;
     // 但 ready 上那条 RUNNING 还在，闸门仍然生效——先把它的资产换掉，单独验「FAILED 不挡」。
     exec(
         &fixture.admin,
-        &format!(r#"UPDATE rag_index_task SET status = 'SUCCEEDED' WHERE id = '{running}'"#),
+        &format!(r#"UPDATE rag_index_task SET status = '010' WHERE id = '{running}'"#),
     )
     .await;
 

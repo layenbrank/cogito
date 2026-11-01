@@ -23,6 +23,11 @@ use crate::databases::database::Storage;
 use crate::filters::exception::Exception;
 use crate::guards::tenant::TenantCtx;
 use crate::services::schedule::schema::{JobPatchP, JobP, JobR};
+
+/// `scheduled_job.lastStatus`（dict 001 / automation_run_status）
+const LAST_STATUS_RUNNING: &str = "015";
+const LAST_STATUS_SUCCEEDED: &str = "016";
+const LAST_STATUS_FAILED: &str = "017";
 use crate::utils::code::business::schedule as code;
 
 /// 缺省时区：任务落库时就写死，不依赖进程环境。
@@ -221,7 +226,7 @@ impl Service {
     /// 认领到期任务（worker 用，跨租户）。
     ///
     /// 用 CAS 推进排期：`rows_affected == 0` 说明别的副本先拿走了这一格，直接跳过。
-    /// 认领即把 `lastStatus` 落成 `running`，前端刷新时能看到「正在跑」。
+    /// 认领即把 `lastStatus` 落成 `015`（RUN_RUNNING），前端刷新时能看到「正在跑」。
     ///
     /// # Errors
     /// 库连接或读写失败。
@@ -257,7 +262,7 @@ impl Service {
                 )
                 .col_expr(
                     scheduled_job::Column::LastStatus,
-                    sea_orm::sea_query::Expr::value(Some("running".to_owned())),
+                    sea_orm::sea_query::Expr::value(Some(LAST_STATUS_RUNNING.to_owned())),
                 )
                 .col_expr(
                     scheduled_job::Column::UpdatedAt,
@@ -289,7 +294,12 @@ impl Service {
         let active = scheduled_job::ActiveModel {
             id: Set(id),
             last_status: Set(Some(
-                if error.is_some() { "failed" } else { "succeeded" }.to_owned(),
+                if error.is_some() {
+                    LAST_STATUS_FAILED
+                } else {
+                    LAST_STATUS_SUCCEEDED
+                }
+                .to_owned(),
             )),
             last_error: Set(error.map(str::to_owned)),
             last_task_id: Set(task_id),

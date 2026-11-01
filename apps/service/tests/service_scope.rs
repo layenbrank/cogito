@@ -309,7 +309,7 @@ async fn seed_approval(
             r#"INSERT INTO agent_task
          (id, "tenantID", "userID", status, objective, model, "maxSteps", "allowedTools",
           "instanceID", "createdAt", "updatedAt")
-       VALUES ('{task}', '{tenant}', '{requester}', 'RUNNING', '把这份文件标成只给这几个人看',
+       VALUES ('{task}', '{tenant}', '{requester}', '015', '把这份文件标成只给这几个人看',
                'stub-model', 4, '["asset_visibility_write"]'::jsonb, 'agent-{task}',
                now(), now())"#
         ),

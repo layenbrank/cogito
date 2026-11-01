@@ -32,9 +32,9 @@ impl IndexState {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Running => "RUNNING",
-            Self::Succeeded => "SUCCEEDED",
-            Self::Failed => "FAILED",
+            Self::Running => "009",
+            Self::Succeeded => "010",
+            Self::Failed => "011",
         }
     }
 
@@ -47,9 +47,9 @@ impl IndexState {
     /// 字面量不在三态之内时返回 [`Error::UnknownState`]。
     pub fn parse(literal: &str) -> Result<Self, Error> {
         match literal {
-            "RUNNING" => Ok(Self::Running),
-            "SUCCEEDED" => Ok(Self::Succeeded),
-            "FAILED" => Ok(Self::Failed),
+            "009" => Ok(Self::Running),
+            "010" => Ok(Self::Succeeded),
+            "011" => Ok(Self::Failed),
             other => Err(Error::UnknownState {
                 column: "rag_index_task.status",
                 literal: other.to_owned(),
@@ -140,9 +140,9 @@ mod tests {
         ] {
             assert_eq!(IndexState::parse(state.as_str()).unwrap(), state);
         }
-        assert_eq!(IndexState::Running.as_str(), "RUNNING");
-        assert_eq!(IndexState::Succeeded.as_str(), "SUCCEEDED");
-        assert_eq!(IndexState::Failed.as_str(), "FAILED");
+        assert_eq!(IndexState::Running.as_str(), "009");
+        assert_eq!(IndexState::Succeeded.as_str(), "010");
+        assert_eq!(IndexState::Failed.as_str(), "011");
     }
 
     #[test]
