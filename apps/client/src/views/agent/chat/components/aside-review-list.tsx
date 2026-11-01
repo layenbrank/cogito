@@ -1,10 +1,26 @@
+import { useAui } from '@assistant-ui/react'
 import { Icon } from '@iconify/react/offline'
 import { Badge } from '@cogito/design/components/badge'
 import { Button } from '@cogito/design/components/button'
 import { clsx } from 'clsx'
+import { useCallback } from 'react'
+import { toast } from 'sonner'
 
+import { ContextMenu } from '@/components/contextmenu'
+import { attachWorkspaceFile } from '@/features/agent/attachment.ts'
+import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
+import {
+  ASIDE_PATH_TRIGGER,
+  buildAsidePathMenuItems,
+  findAsidePathAttrs,
+  toastAttached
+} from '@/views/agent/chat/components/aside-path-menu'
 import type { ReviewRow } from '@/views/agent/chat/components/aside-review-rows'
-import { findReviewBaseName, findReviewParentLabel } from '@/views/agent/chat/components/aside-review-rows'
+import {
+  findReviewBaseName,
+  findReviewParentLabel
+} from '@/views/agent/chat/components/aside-review-rows'
+import { CODE_MENU_CLASS_NAMES } from '@/views/code/lib/context-menu.ts'
 
 const BADGE_STYLE: Record<string, string> = {
   M: 'text-amber-600 dark:text-amber-400',
@@ -25,8 +41,35 @@ function AsideReviewList(props: {
   onRefresh: () => void
   onSelect: (path: string) => void
 }) {
+  const aui = useAui()
+  const { rootPath } = useActiveWorkspace()
+
+  function attachRelative(relative: string) {
+    void attachWorkspaceFile(aui, relative)
+      .then(function () {
+        toastAttached(relative)
+      })
+      .catch(function (cause: unknown) {
+        toast.error(cause instanceof Error ? cause.message : '引用失败')
+      })
+  }
+
+  const findPathMenuItems = useCallback(
+    function (trigger: Element) {
+      if (!rootPath) return []
+      const attrs = findAsidePathAttrs(trigger)
+      if (!attrs) return []
+      return buildAsidePathMenuItems({
+        rootPath,
+        relative: attrs.relative,
+        onAddToComposer: attachRelative
+      })
+    },
+    [rootPath, aui]
+  )
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain">
       <div className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">
         <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
           <Icon
@@ -37,7 +80,7 @@ function AsideReviewList(props: {
           {props.rows.length > 0 ? (
             <Badge
               variant="secondary"
-              className="h-5 px-1.5 text-[10px]">
+              className="h-5 px-1.5 text-xs">
               {props.rows.length}
             </Badge>
           ) : null}
@@ -81,39 +124,52 @@ function AsideReviewList(props: {
       ) : null}
 
       {props.rows.length > 0 ? (
-        <ul className="flex flex-col gap-0.5 p-1.5">
-          {props.rows.map(function (row) {
-            const parent = findReviewParentLabel(row.path)
-            return (
-              <li key={row.path}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-auto w-full justify-start gap-1.5 px-2 py-1.5 text-xs font-normal"
-                  onClick={function () {
-                    props.onSelect(row.path)
-                  }}>
-                  <span
-                    className={clsx(
-                      'w-3 shrink-0 text-center font-mono text-[11px]',
-                      row.badge ? BADGE_STYLE[row.badge] : 'text-muted-foreground'
-                    )}>
-                    {row.badge ?? '·'}
-                  </span>
-                  <span className="text-foreground min-w-0 truncate">{findReviewBaseName(row.path)}</span>
-                  {parent ? (
-                    <span className="text-muted-foreground min-w-0 truncate text-[11px] opacity-70">
-                      {parent}
+        <ContextMenu
+          trigger={ASIDE_PATH_TRIGGER}
+          classNames={CODE_MENU_CLASS_NAMES}
+          findItems={findPathMenuItems}>
+          <ul className="flex flex-col gap-0.5 p-1.5">
+            {props.rows.map(function (row) {
+              const parent = findReviewParentLabel(row.path)
+              return (
+                <li key={row.path}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    data-aside-path={row.path}
+                    data-aside-kind="file"
+                    className="h-auto w-full justify-start gap-2 px-2 py-2 text-[13px] font-normal"
+                    onClick={function () {
+                      props.onSelect(row.path)
+                    }}>
+                    <span
+                      className={clsx(
+                        'w-3.5 shrink-0 text-center font-mono text-xs font-semibold',
+                        row.badge ? BADGE_STYLE[row.badge] : 'text-muted-foreground'
+                      )}>
+                      {row.badge ?? '·'}
                     </span>
-                  ) : null}
-                  {row.source === 'tool' ? (
-                    <span className="text-muted-foreground ml-auto shrink-0 text-[10px]">会话</span>
-                  ) : null}
-                </Button>
-              </li>
-            )
-          })}
-        </ul>
+                    <span className="min-w-0 flex-1 text-start">
+                      <span className="text-foreground block truncate leading-snug">
+                        {findReviewBaseName(row.path)}
+                      </span>
+                      {parent ? (
+                        <span className="text-muted-foreground block truncate text-xs opacity-70">
+                          {parent}
+                        </span>
+                      ) : null}
+                    </span>
+                    {row.source === 'tool' ? (
+                      <span className="text-muted-foreground ml-auto shrink-0 text-xs">
+                        会话
+                      </span>
+                    ) : null}
+                  </Button>
+                </li>
+              )
+            })}
+          </ul>
+        </ContextMenu>
       ) : null}
     </div>
   )

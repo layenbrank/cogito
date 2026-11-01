@@ -19,7 +19,13 @@ function useWorkspaceFilePickerEntries(
     function () {
       if (!active || !rootPath) return
       let cancelled = false
-      const needle = query.trim()
+      // 与 @ 触发器一致：去掉前导 `/` `./`，避免相对路径对不上
+      const needle = query
+        .trim()
+        .replace(/\\/g, '/')
+        .replace(/^\.\//, '')
+        .replace(/^\/+/, '')
+        .replace(/\/+$/, '')
       const root = rootPath
 
       updatePending(true)
@@ -28,7 +34,11 @@ function useWorkspaceFilePickerEntries(
         needle.length > 0
           ? WorkspaceFiles.search([root], needle, 40).then(function (result) {
               return result.hits.map(function (hit) {
-                return { name: hit.name, kind: 'file' as const, relative: hit.relative }
+                return {
+                  name: hit.name,
+                  kind: hit.kind === 'dir' ? ('dir' as const) : ('file' as const),
+                  relative: hit.relative
+                }
               })
             })
           : WorkspaceFiles.listDir(root, relative).then(function (rows: DirEntry[]) {

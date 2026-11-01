@@ -30,6 +30,21 @@ describe('findArgPath / normalizeToolPath', function () {
     expect(normalizeToolPath('src/a.ts', '/repo')).toBe('src/a.ts')
     expect(normalizeToolPath('/other/a.ts', '/repo')).toBe(null)
   })
+
+  it('Windows 绝对路径压成相对', function () {
+    expect(
+      normalizeToolPath(
+        'D:\\Documents\\workspace-cogito\\apps\\client\\doctor.config.ts',
+        'D:\\Documents\\workspace-cogito\\apps\\client'
+      )
+    ).toBe('doctor.config.ts')
+    expect(
+      normalizeToolPath(
+        'D:\\Documents\\workspace-cogito\\apps\\client\\src\\a.ts',
+        'D:\\Documents\\workspace-cogito'
+      )
+    ).toBe('apps/client/src/a.ts')
+  })
 })
 
 describe('collectToolPaths', function () {

@@ -2,11 +2,11 @@ import { useAui, useAuiState } from '@assistant-ui/react'
 import { AssistantLabelsProvider } from '@cogito/design/assistant/labels'
 import { Thread } from '@cogito/design/assistant/thread.aui'
 import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-  usePanelRef
-} from '@cogito/design/components/resizable'
+  Splitter,
+  SplitterHandle,
+  SplitterPane,
+  usePaneRef
+} from '@cogito/design/components/splitter'
 import { clsx } from 'clsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -120,8 +120,8 @@ export default function Agent() {
   const navigate = useNavigate()
   const aui = useAui()
   const composerTriggers = useComposerTriggers()
-  const sidebarRef = usePanelRef()
-  const asideRef = usePanelRef()
+  const sidebarRef = usePaneRef()
+  const asideRef = usePaneRef()
   const [initial] = useState(findSplitterState)
   const [isSidebarOpen, updateSidebarOpen] = useState(initial.isSidebarOpen)
   const [isAsideOpen, updateAsideOpen] = useState(initial.isAsideOpen)
@@ -186,7 +186,7 @@ export default function Agent() {
         if (panel.isCollapsed()) {
           panel.expand()
           // 从未展开过时 expand 可能停在 0，强制拉到默认宽
-          if (panel.getSize().inPixels < PANEL_MIN) panel.resize(PANEL_SIZE)
+          if (panel.findSize().inPixels < PANEL_MIN) panel.resize(PANEL_SIZE)
         }
       } else {
         panel.collapse()
@@ -268,21 +268,21 @@ export default function Agent() {
           <PlanAsideOpener />
           <div className={clsx(styles.agent)}>
             <AgentUtility />
-            <ResizablePanelGroup
+            <Splitter
               id="agent-workbench"
               orientation="horizontal"
               className={clsx(styles.body)}
               defaultLayout={defaultLayout}
               onLayoutChanged={handleLayoutChanged}>
-              <ResizablePanel
+              <SplitterPane
                 id={SIDEBAR_ID}
-                panelRef={sidebarRef}
+                paneRef={sidebarRef}
                 defaultSize={SIDEBAR_SIZE}
-                minSize={SIDEBAR_MIN}
-                maxSize={SIDEBAR_MAX}
+                min={SIDEBAR_MIN}
+                max={SIDEBAR_MAX}
                 collapsible
                 collapsedSize={0}
-                groupResizeBehavior="preserve-pixel-size"
+                preservePixel
                 onResize={handleSidebarResize}
                 className={styles.sidePanel}>
                 <AgentSidebar
@@ -291,13 +291,13 @@ export default function Agent() {
                     void navigate('/agent/settings')
                   }}
                 />
-              </ResizablePanel>
+              </SplitterPane>
 
-              <ResizableHandle withHandle />
+              <SplitterHandle withHandle />
 
-              <ResizablePanel
+              <SplitterPane
                 id={MAIN_ID}
-                minSize={MAIN_MIN}>
+                min={MAIN_MIN}>
                 <main className={clsx(styles.main)}>
                   <AgentHead
                     isSidebarOpen={isSidebarOpen}
@@ -328,19 +328,19 @@ export default function Agent() {
                     />
                   </div>
                 </main>
-              </ResizablePanel>
+              </SplitterPane>
 
-              <ResizableHandle withHandle />
+              <SplitterHandle withHandle />
 
-              <ResizablePanel
+              <SplitterPane
                 id={PANEL_ID}
-                panelRef={asideRef}
+                paneRef={asideRef}
                 defaultSize={PANEL_SIZE}
-                minSize={PANEL_MIN}
-                maxSize={PANEL_MAX}
+                min={PANEL_MIN}
+                max={PANEL_MAX}
                 collapsible
                 collapsedSize={0}
-                groupResizeBehavior="preserve-pixel-size"
+                preservePixel
                 onResize={handleAsideResize}
                 className={styles.sidePanel}>
                 <AgentAside
@@ -348,8 +348,8 @@ export default function Agent() {
                     updateAsideOpen(false)
                   }}
                 />
-              </ResizablePanel>
-            </ResizablePanelGroup>
+              </SplitterPane>
+            </Splitter>
           </div>
         </AsidePanelProvider>
       </AssistantLabelsProvider>

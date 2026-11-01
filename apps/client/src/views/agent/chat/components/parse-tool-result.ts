@@ -125,6 +125,41 @@ interface WriteDiffStat {
   removed: number
 }
 
+type WriteDiffKind = 'context' | 'added' | 'removed'
+
+interface WriteDiffLine {
+  kind: WriteDiffKind
+  text: string
+}
+
+interface WriteCodeDiff {
+  filename: string
+  additions: number
+  deletions: number
+  lines: readonly WriteDiffLine[]
+}
+
+const WRITE_OLD_KEYS = [
+  'old_string',
+  'oldString',
+  'oldText',
+  'before',
+  'old_content'
+] as const
+
+const WRITE_NEW_KEYS = [
+  'new_string',
+  'newString',
+  'newText',
+  'after',
+  'contents',
+  'content',
+  'new_content'
+] as const
+
+/** 超过此乘积不做 LCS，退回整段删+增，避免大文件卡主线程 */
+const LINE_DIFF_LCS_CAP = 200_000
+
 /** 各工具族允许的 P1 解析器（按优先级）；未列入的族不跑无效启发式 */
 const SPECIAL_KINDS: Readonly<Record<ToolFamily, readonly SpecialKind[]>> = {
   shell: ['stack', 'commit', 'test'],
@@ -529,39 +564,144 @@ function findWritePath(args: unknown): string | null {
   return firstString(record, ['filePath', 'path', 'file_path', 'target'])
 }
 
-function countTextLines(text: string): number {
-  if (!text) return 0
-  let lines = 1
-  for (let i = 0; i < text.length; i += 1) {
-    if (text.charCodeAt(i) === 10) lines += 1
-  }
-  return lines
+function splitDiffLines(text: string): string[] {
+  if (!text) return []
+  return text.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n')
 }
 
-/** Cursor 式改动标注：用 old/new 文本行数估算（不做 LCS） */
-function parseWriteDiffStat(args: unknown): WriteDiffStat | null {
+function findWriteTextPair(args: unknown): { oldText: string | null; newText: string | null } {
   const record = toRecord(args)
-  if (!record) return null
-  const oldText = firstString(record, [
-    'old_string',
-    'oldString',
-    'oldText',
-    'before',
-    'old_content'
-  ])
-  const newText = firstString(record, [
-    'new_string',
-    'newString',
-    'newText',
-    'after',
-    'contents',
-    'content',
-    'new_content'
-  ])
-  if (oldText && newText) {
-    return { added: countTextLines(newText), removed: countTextLines(oldText) }
+  if (!record) return { oldText: null, newText: null }
+  return {
+    oldText: firstString(record, [...WRITE_OLD_KEYS]),
+    newText: firstString(record, [...WRITE_NEW_KEYS])
   }
-  if (newText) return { added: countTextLines(newText), removed: 0 }
+}
+
+/** 行级 LCS → unified DiffLine；过大时退回整段删+增 */
+function buildLineDiff(
+  oldText: string,
+  newText: string
+): { lines: WriteDiffLine[]; additions: number; deletions: number } {
+  if (oldText === newText) {
+    const lines = splitDiffLines(oldText).map(function (text) {
+      return { kind: 'context' as const, text }
+    })
+    return { lines, additions: 0, deletions: 0 }
+  }
+
+  const oldLines = splitDiffLines(oldText)
+  const newLines = splitDiffLines(newText)
+
+  if (oldLines.length === 0) {
+    return {
+      lines: newLines.map(function (text) {
+        return { kind: 'added' as const, text }
+      }),
+      additions: newLines.length,
+      deletions: 0
+    }
+  }
+  if (newLines.length === 0) {
+    return {
+      lines: oldLines.map(function (text) {
+        return { kind: 'removed' as const, text }
+      }),
+      additions: 0,
+      deletions: oldLines.length
+    }
+  }
+
+  if (oldLines.length * newLines.length > LINE_DIFF_LCS_CAP) {
+    return {
+      lines: [
+        ...oldLines.map(function (text) {
+          return { kind: 'removed' as const, text }
+        }),
+        ...newLines.map(function (text) {
+          return { kind: 'added' as const, text }
+        })
+      ],
+      additions: newLines.length,
+      deletions: oldLines.length
+    }
+  }
+
+  const rows = oldLines.length
+  const cols = newLines.length
+  const dp: Uint32Array[] = new Array(rows + 1)
+  for (let i = 0; i <= rows; i += 1) {
+    dp[i] = new Uint32Array(cols + 1)
+  }
+  for (let i = 1; i <= rows; i += 1) {
+    const row = dp[i]
+    const prev = dp[i - 1]
+    const oldLine = oldLines[i - 1]
+    for (let j = 1; j <= cols; j += 1) {
+      row[j] =
+        oldLine === newLines[j - 1]
+          ? prev[j - 1] + 1
+          : Math.max(prev[j], row[j - 1])
+    }
+  }
+
+  const reversed: WriteDiffLine[] = []
+  let i = rows
+  let j = cols
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+      reversed.push({ kind: 'context', text: oldLines[i - 1] })
+      i -= 1
+      j -= 1
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      reversed.push({ kind: 'added', text: newLines[j - 1] })
+      j -= 1
+    } else {
+      reversed.push({ kind: 'removed', text: oldLines[i - 1] })
+      i -= 1
+    }
+  }
+  reversed.reverse()
+
+  let additions = 0
+  let deletions = 0
+  for (let index = 0; index < reversed.length; index += 1) {
+    const kind = reversed[index].kind
+    if (kind === 'added') additions += 1
+    else if (kind === 'removed') deletions += 1
+  }
+  return { lines: reversed, additions, deletions }
+}
+
+/** 写工具 → CodeDiff 数据；缺 before/after 时返回 null */
+function parseWriteCodeDiff(args: unknown): WriteCodeDiff | null {
+  const path = findWritePath(args)
+  const { oldText, newText } = findWriteTextPair(args)
+  if (!newText && !oldText) return null
+
+  const filename = path ? findBaseName(path) : 'file'
+  if (oldText && newText) {
+    const diff = buildLineDiff(oldText, newText)
+    return { filename, ...diff }
+  }
+  if (newText) {
+    const lines = splitDiffLines(newText).map(function (text) {
+      return { kind: 'added' as const, text }
+    })
+    return { filename, additions: lines.length, deletions: 0, lines }
+  }
+  const lines = splitDiffLines(oldText!).map(function (text) {
+    return { kind: 'removed' as const, text }
+  })
+  return { filename, additions: 0, deletions: lines.length, lines }
+}
+
+/** 折叠标题旁 +/-；有可 diff 文本时跟 CodeDiff 计数一致 */
+function parseWriteDiffStat(args: unknown): WriteDiffStat | null {
+  const codeDiff = parseWriteCodeDiff(args)
+  if (codeDiff) {
+    return { added: codeDiff.additions, removed: codeDiff.deletions }
+  }
   return null
 }
 
@@ -632,6 +772,7 @@ export {
   parseToolOutputText,
   parseToolSpecial,
   parseWebSources,
+  parseWriteCodeDiff,
   parseWriteDiffStat
 }
 export type {
@@ -646,5 +787,8 @@ export type {
   ParsedToolCard,
   ParsedToolSpecial,
   WebSource,
+  WriteCodeDiff,
+  WriteDiffKind,
+  WriteDiffLine,
   WriteDiffStat
 }

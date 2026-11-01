@@ -1,19 +1,19 @@
 /**
- * Agent 消息操作条的桌面实现：剪贴板与另存为走 Tauri 插件。
- *
- * WebView 里 `navigator.clipboard` / `<a download>` 对长文与落盘不可靠
- * （复制截断、导出无感），与诊断页同一套 `clipboard-manager` + `dialog.save`。
+ * Agent 消息操作条：主窗走 Tauri 插件；嵌套 / 无 Tauri 降级到 Web API，
+ * 避免右栏自载时 invoke 报错把预览打断。
  */
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import type { AssistantActions } from '@cogito/design/assistant/actions'
 
-async function copyText(text: string): Promise<void> {
+import { hasTauriRuntime, isEmbeddedShell } from '@/features/window/shell-mode'
+
+async function copyTextTauri(text: string): Promise<void> {
   await writeText(text)
 }
 
-async function exportMarkdown(text: string, filename: string): Promise<void> {
+async function exportMarkdownTauri(text: string, filename: string): Promise<void> {
   const target = await save({
     defaultPath: filename,
     filters: [{ name: 'Markdown', extensions: ['md'] }]
@@ -22,9 +22,43 @@ async function exportMarkdown(text: string, filename: string): Promise<void> {
   await writeTextFile(target, text)
 }
 
-const ASSISTANT_ACTIONS_TAURI: AssistantActions = {
-  copyText,
-  exportMarkdown
+async function copyTextWeb(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+  throw new Error('当前环境无法复制到剪贴板')
 }
 
-export { ASSISTANT_ACTIONS_TAURI }
+async function exportMarkdownWeb(text: string, filename: string): Promise<void> {
+  const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' })
+  const href = URL.createObjectURL(blob)
+  try {
+    const anchor = document.createElement('a')
+    anchor.href = href
+    anchor.download = filename
+    anchor.rel = 'noopener'
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+  } finally {
+    URL.revokeObjectURL(href)
+  }
+}
+
+const ASSISTANT_ACTIONS_TAURI: AssistantActions = {
+  copyText: copyTextTauri,
+  exportMarkdown: exportMarkdownTauri
+}
+
+const ASSISTANT_ACTIONS_WEB: AssistantActions = {
+  copyText: copyTextWeb,
+  exportMarkdown: exportMarkdownWeb
+}
+
+function findAssistantActions(): AssistantActions {
+  if (isEmbeddedShell() || !hasTauriRuntime()) return ASSISTANT_ACTIONS_WEB
+  return ASSISTANT_ACTIONS_TAURI
+}
+
+export { ASSISTANT_ACTIONS_TAURI, ASSISTANT_ACTIONS_WEB, findAssistantActions }

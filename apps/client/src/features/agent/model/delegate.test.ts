@@ -5,7 +5,8 @@ import {
   derivePhase,
   isApprovalPrompting,
   isSettled,
-  parseToolArguments
+  parseToolArguments,
+  RUN
 } from '@/features/agent/model/delegate.ts'
 
 function task(overrides: Partial<AgentTask> = {}): AgentTask {
@@ -13,7 +14,7 @@ function task(overrides: Partial<AgentTask> = {}): AgentTask {
     id: 'task-1',
     tenantID: 'tenant-1',
     userID: null,
-    status: 'RUNNING',
+    status: RUN.RUNNING,
     objective: '把产品手册总结成一段话',
     model: 'model-1',
     maxSteps: 3,
@@ -56,16 +57,16 @@ describe('derivePhase', function () {
   })
 
   it('SUCCEEDED 与 FAILED 都是 settled', function () {
-    expect(derivePhase(task({ status: 'SUCCEEDED' }))).toBe('settled')
-    expect(derivePhase(task({ status: 'FAILED' }))).toBe('settled')
+    expect(derivePhase(task({ status: RUN.SUCCEEDED }))).toBe('settled')
+    expect(derivePhase(task({ status: RUN.FAILED }))).toBe('settled')
   })
 })
 
 describe('isSettled', function () {
   it('只看 status', function () {
-    expect(isSettled(task({ status: 'SUCCEEDED' }))).toBe(true)
-    expect(isSettled(task({ status: 'FAILED' }))).toBe(true)
-    expect(isSettled(task({ status: 'RUNNING' }))).toBe(false)
+    expect(isSettled(task({ status: RUN.SUCCEEDED }))).toBe(true)
+    expect(isSettled(task({ status: RUN.FAILED }))).toBe(true)
+    expect(isSettled(task({ status: RUN.RUNNING }))).toBe(false)
   })
 })
 

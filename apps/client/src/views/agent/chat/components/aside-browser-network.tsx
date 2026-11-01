@@ -211,26 +211,26 @@ function AsideBrowserNetwork(props: AsideBrowserNetworkProps) {
                       'group border-b border-border/40 last:border-0 hover:bg-muted/40',
                       blocked && 'opacity-50'
                     )}>
-                    <td className="w-12 shrink-0 px-2 py-1 font-mono text-[0.65rem] uppercase">
+                    <td className="w-12 shrink-0 px-2 py-1 font-mono text-xs uppercase">
                       {entry.method}
                     </td>
                     <td
                       className={clsx(
-                        'w-10 shrink-0 px-1 py-1 text-center font-mono text-[0.65rem]',
+                        'w-10 shrink-0 px-1 py-1 text-center font-mono text-xs',
                         statusClass(entry.status)
                       )}>
                       {entry.status ?? '—'}
                     </td>
                     <td className="min-w-0 px-1 py-1">
                       <div className="truncate">{shortenUrl(entry.url)}</div>
-                      <div className="text-muted-foreground/70 truncate text-[0.65rem]">
+                      <div className="text-muted-foreground/70 truncate text-xs">
                         {hostOf(entry.url)}
                       </div>
                     </td>
-                    <td className="text-muted-foreground w-14 shrink-0 px-1 py-1 text-end font-mono text-[0.65rem]">
+                    <td className="text-muted-foreground w-14 shrink-0 px-1 py-1 text-end font-mono text-xs">
                       {formatSize(entry.size)}
                     </td>
-                    <td className="text-muted-foreground w-14 shrink-0 px-1 py-1 text-end font-mono text-[0.65rem]">
+                    <td className="text-muted-foreground w-14 shrink-0 px-1 py-1 text-end font-mono text-xs">
                       {formatDuration(entry.durationMs)}
                     </td>
                     <td className="w-7 shrink-0 px-1 py-1">

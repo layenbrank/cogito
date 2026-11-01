@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react'
 
-import { WorkspaceGit, type DiffHunk, type DiffMeta, type DiffResult } from '@/lib/workspace-git'
+import {
+  WorkspaceGit,
+  type DiffHunk,
+  type DiffMeta,
+  type DiffResult,
+  type DiffRevs
+} from '@/lib/workspace-git'
 
 const HUNK_PAGE = 40
 
-function useAsideDiffData(rootPath: string, relative: string) {
+function useAsideDiffData(rootPath: string, relative: string, revs?: DiffRevs | null) {
   const [meta, updateMeta] = useState<DiffMeta | null>(null)
   const [side, updateSide] = useState<DiffResult | null>(null)
   const [hunks, updateHunks] = useState<DiffHunk[]>([])
@@ -13,9 +19,16 @@ function useAsideDiffData(rootPath: string, relative: string) {
   const [error, updateError] = useState<string | null>(null)
   const [isPending, updatePending] = useState(true)
 
+  const oldOid = revs?.oldOid ?? null
+  const newOid = revs?.newOid ?? null
+
   useEffect(
     function () {
       let cancelled = false
+      const range: DiffRevs | undefined =
+        oldOid !== null || newOid !== null
+          ? { oldOid: oldOid ?? undefined, newOid: newOid ?? undefined }
+          : undefined
 
       updatePending(true)
       updateError(null)
@@ -24,14 +37,14 @@ function useAsideDiffData(rootPath: string, relative: string) {
       updateHunks([])
       updateHunkTotal(0)
 
-      WorkspaceGit.diffMeta(rootPath, relative)
+      WorkspaceGit.diffMeta(rootPath, relative, range)
         .then(function (nextMeta) {
           if (cancelled) return
           updateMeta(nextMeta)
           if (nextMeta.isBinary || nextMeta.isIdentical) return
           if (nextMeta.mode === 'hunks') {
             updateHunksLoading(true)
-            return WorkspaceGit.diffHunks(rootPath, relative, 0, HUNK_PAGE)
+            return WorkspaceGit.diffHunks(rootPath, relative, 0, HUNK_PAGE, range)
               .then(function (page) {
                 if (cancelled) return
                 updateHunks(page.hunks)
@@ -41,7 +54,7 @@ function useAsideDiffData(rootPath: string, relative: string) {
                 updateHunksLoading(false)
               })
           }
-          return WorkspaceGit.diff(rootPath, relative).then(function (result) {
+          return WorkspaceGit.diff(rootPath, relative, range).then(function (result) {
             if (!cancelled) updateSide(result)
           })
         })
@@ -59,14 +72,24 @@ function useAsideDiffData(rootPath: string, relative: string) {
         cancelled = true
       }
     },
-    [rootPath, relative]
+    [rootPath, relative, oldOid, newOid]
   )
 
   async function onMoreHunks() {
     if (isHunksLoading || hunks.length >= hunkTotal) return
+    const range: DiffRevs | undefined =
+      oldOid !== null || newOid !== null
+        ? { oldOid: oldOid ?? undefined, newOid: newOid ?? undefined }
+        : undefined
     updateHunksLoading(true)
     try {
-      const page = await WorkspaceGit.diffHunks(rootPath, relative, hunks.length, HUNK_PAGE)
+      const page = await WorkspaceGit.diffHunks(
+        rootPath,
+        relative,
+        hunks.length,
+        HUNK_PAGE,
+        range
+      )
       updateHunks(function (prev) {
         return prev.concat(page.hunks)
       })

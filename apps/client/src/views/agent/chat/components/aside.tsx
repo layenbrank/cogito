@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 
 import { subscribeAsideReview } from '@/views/agent/chat/components/open-aside-review'
+import { normalizeToolPath } from '@/features/agent/tool-paths'
 
 import { AsideBusy } from './aside-busy'
 import { AsideBrowser } from './aside-browser'
@@ -26,6 +27,7 @@ import { DEFAULT_BUDGET, startGoalRun, stopGoalRun } from '@/features/agent/goal
 import { findPlanDraft } from '@/features/agent/plan-draft'
 import { useActiveWorkspace } from '@/features/agent/workspace/active'
 import { readAgentMode, subscribeAgentMode, writeAgentMode } from '@/features/agent/mode'
+import { isEmbeddedShell } from '@/features/window/shell-mode'
 import { useTerminalStore } from '@/stores/terminal'
 
 type AsideMode = 'home' | 'plan' | 'files' | 'review' | 'history' | 'browser' | 'terminal'
@@ -34,6 +36,9 @@ interface AsideProps {
   className?: string
   plan: PlanSnapshot | null
 }
+
+/** 嵌套壳里没有 IPC：藏掉依赖桌面能力的页签，避免递归开 browser */
+const EMBEDDED_HIDDEN_TABS: ReadonlySet<AsideMode> = new Set(['browser', 'terminal'])
 
 /**
  * 页签定义即入口清单：图标 + 文案一起给出来，
@@ -59,6 +64,7 @@ function AgentAside(props: AsideProps) {
   const messages = useAuiState(function (state) {
     return state.thread.messages
   })
+  const isEmbedded = isEmbeddedShell()
 
   const terminalOpen = useTerminalStore(function (state) {
     return state.open
@@ -66,6 +72,15 @@ function AgentAside(props: AsideProps) {
   const { rootPath } = useActiveWorkspace()
 
   const [mode, updateMode] = useState<AsideMode>('home')
+  const visibleTabs = useMemo(
+    function () {
+      if (!isEmbedded) return ASIDE_TABS
+      return ASIDE_TABS.filter(function (tab) {
+        return !EMBEDDED_HIDDEN_TABS.has(tab.id)
+      })
+    },
+    [isEmbedded]
+  )
   /** 仅用于「从产出点进某个文件」时直接落到该文件；点页签会清空，回到列表根 */
   const [focusRelative, updateFocusRelative] = useState<string | null>(null)
   const threadID = useAuiState(function (state) {
@@ -139,8 +154,14 @@ function AgentAside(props: AsideProps) {
     updateMode('files')
   }
 
-  function openReview(relative?: string | null) {
-    updateFocusRelative(relative ?? null)
+  /** 工具卡常给绝对路径；审阅 IPC 只认工作区相对路径 */
+  function openReview(rawPath?: string | null) {
+    const relative = rawPath ? normalizeToolPath(rawPath, rootPath) : null
+    if (rawPath && !relative) {
+      toast.error('该路径不在当前工作区内')
+      return
+    }
+    updateFocusRelative(relative)
     updateMode('review')
   }
 
@@ -184,7 +205,7 @@ function AgentAside(props: AsideProps) {
         openReview(detail.relative)
       })
     },
-    []
+    [rootPath]
   )
 
   // 切会话时清掉上一个会话的定向焦点，避免新会话直接落到别人的文件
@@ -195,6 +216,16 @@ function AgentAside(props: AsideProps) {
     [threadID]
   )
 
+  // 嵌套壳误进 browser/terminal 时退回详情
+  useEffect(
+    function () {
+      if (!isEmbedded) return
+      if (!EMBEDDED_HIDDEN_TABS.has(mode)) return
+      updateMode('home')
+    },
+    [isEmbedded, mode]
+  )
+
   return (
     <div className={clsx('bg-background flex h-full min-h-0', props.className)}>
       {/*
@@ -203,10 +234,10 @@ function AgentAside(props: AsideProps) {
        */}
       <nav
         role="tablist"
-        aria-label="右栏页签"
+        aria-label="工作区"
         aria-orientation="vertical"
         className="border-border flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto overflow-x-hidden border-e py-1.5">
-        {ASIDE_TABS.map(function (tab) {
+        {visibleTabs.map(function (tab) {
           const active = mode === tab.id
           return (
             <button
@@ -225,13 +256,6 @@ function AgentAside(props: AsideProps) {
                   ? 'bg-primary/10 text-primary'
                   : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
               )}>
-              <span
-                aria-hidden
-                className={clsx(
-                  'bg-primary absolute start-0 h-4 w-0.5 rounded-full transition-opacity',
-                  active ? 'opacity-100' : 'opacity-0'
-                )}
-              />
               <Icon
                 icon={tab.icon}
                 className="size-4 shrink-0"

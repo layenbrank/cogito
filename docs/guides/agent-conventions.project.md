@@ -46,3 +46,9 @@
 - 缓存由个人 `~/.cargo/config.toml` 或环境变量决定；想用 sccache 自己装、自己配。
 - 守卫：`pnpm check:cargo`（`dev:client` 会先跑），发现机器特定键即失败并给出替代写法。
 - 排查顺序：`sccache --show-stats`（服务在不在）→ 端口能否 `TcpListener` 绑定 → 最后才查环境变量。
+
+## 候选列表滚到底时最后一项紧贴容器底边。请按模型选择器 / composer-footer 的做法：
+
+- 顶底 inset 放在滚动口外的壳层（padding-block）
+- 列表内再配 scroll-padding-block
+- 不要只加 scroll-py-* / 只改列表内 padding。

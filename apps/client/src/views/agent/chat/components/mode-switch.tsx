@@ -50,17 +50,17 @@ function AgentModeSwitch() {
             size="sm"
             aria-label="会话模式"
             title={current.hint}
-            className="text-muted-foreground hover:text-foreground h-7 gap-1 px-2 text-xs font-normal"
+            className="text-muted-foreground hover:text-foreground h-7 max-w-full min-w-0 shrink gap-1 px-2 text-xs font-normal"
           />
         }>
         <Icon
           icon={current.icon}
-          className="size-3.5"
+          className="size-3.5 shrink-0"
         />
-        {current.label}
+        <span className="min-w-0 max-w-[3.5rem] truncate sm:max-w-[5rem] md:max-w-none">{current.label}</span>
         <Icon
           icon="lucide:chevron-down"
-          className="size-3.5 opacity-70"
+          className="size-3.5 shrink-0 opacity-70"
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent

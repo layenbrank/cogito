@@ -1,24 +1,28 @@
 /**
- * 右栏文件树：浏览 / 搜索工作区，点选后预览正文。
- * 预览返回落回进入文件时所在目录，不重置到工作区根。
+ * 右栏文件树：浏览 / 搜索工作区，点选后用 Monaco 完整打开并可编辑。
+ * 返回落回进入文件时所在目录，不重置到工作区根。
  * 多根工作区（主目录 + 附加文件夹）在顶部切换根。
  */
 import type { useAui } from '@assistant-ui/react'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { ContextMenu } from '@/components/contextmenu'
 import { attachWorkspaceFile } from '@/features/agent/attachment.ts'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 import { useWorkspaceRevision } from '@/features/agent/workspace/revision.ts'
 import { AsideFilesPreview } from '@/views/agent/chat/components/aside-files-preview'
+import { AsideFilesRoots } from '@/views/agent/chat/components/aside-files-roots'
+import {
+  ASIDE_PATH_TRIGGER,
+  buildAsidePathMenuItems,
+  findAsidePathAttrs,
+  toastAttached
+} from '@/views/agent/chat/components/aside-path-menu'
 import { useAsideFilesPreview } from '@/views/agent/chat/components/use-aside-files-preview'
 import { WorkspaceFilePicker } from '@/views/agent/chat/components/workspace-file-picker'
-import {
-  findBaseName,
-  findParentRelative
-} from '@/views/agent/chat/components/workspace-relative-path.ts'
-import { Icon } from '@iconify/react/offline'
-import { clsx } from 'clsx'
+import { findParentRelative } from '@/views/agent/chat/components/workspace-relative-path.ts'
+import { CODE_MENU_CLASS_NAMES } from '@/views/code/lib/context-menu.ts'
 
 type ComposerAui = ReturnType<typeof useAui>
 
@@ -82,12 +86,36 @@ function AsideFiles(props: AsideFilesProps) {
     if (!previewRelative) return
     void attachWorkspaceFile(props.aui, previewRelative)
       .then(function () {
-        toast.success(`已引用 ${findBaseName(previewRelative)}`)
+        toastAttached(previewRelative)
       })
       .catch(function (cause: unknown) {
         toast.error(cause instanceof Error ? cause.message : '引用失败')
       })
   }
+
+  function attachRelative(relative: string) {
+    void attachWorkspaceFile(props.aui, relative)
+      .then(function () {
+        toastAttached(relative)
+      })
+      .catch(function (cause: unknown) {
+        toast.error(cause instanceof Error ? cause.message : '引用失败')
+      })
+  }
+
+  const findPathMenuItems = useCallback(
+    function (trigger: Element) {
+      if (!activeRoot) return []
+      const attrs = findAsidePathAttrs(trigger)
+      if (!attrs) return []
+      return buildAsidePathMenuItems({
+        rootPath: activeRoot,
+        relative: attrs.relative,
+        onAddToComposer: attachRelative
+      })
+    },
+    [activeRoot, props.aui]
+  )
 
   function closePreview() {
     updatePreviewRelative(null)
@@ -97,12 +125,13 @@ function AsideFiles(props: AsideFilesProps) {
     <div className="flex min-h-0 flex-1 flex-col">
       {previewRelative ? (
         <AsideFilesPreview
+          rootPath={activeRoot}
           previewRelative={previewRelative}
+          absolutePath={preview.absolutePath}
           isPending={preview.isPending}
           error={preview.error}
           content={preview.content}
-          isTruncated={preview.isTruncated}
-          charLimit={preview.charLimit}
+          isReadonly={preview.isReadonly}
           onClose={closePreview}
           onAttach={handleAttach}
           onOpenReview={props.onOpenReview}
@@ -121,44 +150,29 @@ function AsideFiles(props: AsideFilesProps) {
           '先在左栏添加一个工作区'
         ) : (
           <>
-            {folders.length > 1 ? (
-              <div className="border-border flex shrink-0 items-center gap-1 overflow-x-auto border-b px-1.5 py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {folders.map(function (folder) {
-                  const isActive = folder.path === activeRoot
-                  return (
-                    <button
-                      key={folder.id}
-                      type="button"
-                      title={folder.path}
-                      onClick={function () {
-                        switchRoot(folder.path)
-                      }}
-                      className={clsx(
-                        'flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors',
-                        isActive
-                          ? 'bg-muted text-foreground font-medium'
-                          : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                      )}>
-                      <Icon
-                        icon="lucide:folder"
-                        className="size-3.5 shrink-0"
-                      />
-                      {findBaseName(folder.path)}
-                    </button>
-                  )
-                })}
-              </div>
-            ) : null}
-            <WorkspaceFilePicker
-              active
-              root={activeRoot}
-              revision={revision}
-              directory={directory}
-              onDirectoryChange={handleDirectoryChange}
-              className="flex min-h-0 flex-1 flex-col"
-              listClassName="min-h-0"
-              onPick={handlePick}
+            <AsideFilesRoots
+              folders={folders}
+              activePath={activeRoot}
+              onSelect={switchRoot}
             />
+            <ContextMenu
+              trigger={ASIDE_PATH_TRIGGER}
+              classNames={CODE_MENU_CLASS_NAMES}
+              findItems={findPathMenuItems}>
+              {/* ContextMenu 只把 onContextMenu/ref 烙到直接子节点；函数组件接不住，必须包一层 DOM */}
+              <div className="flex min-h-0 flex-1 flex-col">
+                <WorkspaceFilePicker
+                  active
+                  root={activeRoot}
+                  revision={revision}
+                  directory={directory}
+                  onDirectoryChange={handleDirectoryChange}
+                  className="flex min-h-0 flex-1 flex-col"
+                  listClassName="min-h-0"
+                  onPick={handlePick}
+                />
+              </div>
+            </ContextMenu>
           </>
         )}
       </div>

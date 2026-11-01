@@ -96,7 +96,7 @@ function WorkspaceFilePicker(props: WorkspaceFilePickerProps) {
         <Button
           type="button"
           variant="ghost"
-          className="text-muted-foreground h-auto w-full justify-start gap-1.5 rounded-none border-b px-2.5 py-1.5 text-xs font-normal"
+          className="text-muted-foreground h-auto w-full justify-start gap-1.5 rounded-none border-b px-2.5 py-2 text-[13px] leading-snug font-normal"
           onClick={props.onBack}>
           <Icon
             icon="lucide:chevron-left"

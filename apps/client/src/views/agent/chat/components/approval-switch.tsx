@@ -63,17 +63,19 @@ function ApprovalSwitch() {
             size="sm"
             aria-label="工具审批策略"
             title={current?.hint}
-            className="text-muted-foreground hover:text-foreground h-7 gap-1 px-2 text-xs font-normal"
+            className="text-muted-foreground hover:text-foreground h-7 max-w-full min-w-0 shrink gap-1 px-2 text-xs font-normal"
           />
         }>
         <Icon
           icon={current?.icon ?? 'lucide:shield'}
-          className="size-3.5"
+          className="size-3.5 shrink-0"
         />
-        {current?.label ?? '询问审批'}
+        <span className="min-w-0 max-w-[4.5rem] truncate sm:max-w-[6rem] md:max-w-none">
+          {current?.label ?? '询问审批'}
+        </span>
         <Icon
           icon="lucide:chevron-down"
-          className="size-3.5 opacity-70"
+          className="size-3.5 shrink-0 opacity-70"
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent

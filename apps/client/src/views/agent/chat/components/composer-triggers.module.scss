@@ -1,0 +1,19 @@
+/* @ / 候选列表
+ *
+ * 顶底 inset 放在壳层（滚动口之外）：滚到尽头也不会贴边。
+ * 仅把 padding 写在 overflow 列表上时，卷到极限仍会看起来贴容器。
+ * scroll-padding-block 供键盘导航对准高亮行时留边。
+ */
+
+.surface {
+  padding-block: 6px;
+}
+
+.list {
+  max-height: 16rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding-inline: 6px;
+  scroll-padding-block: 6px;
+}

@@ -31,7 +31,7 @@ function DirectoryTrail(props: {
             ) : null}
             {isLast ? (
               <span
-                className="text-foreground max-w-36 truncate px-1 text-[11px] font-medium"
+                className="text-foreground max-w-36 truncate px-1 text-xs font-medium"
                 title={crumb.path || '工作区'}>
                 {crumb.label}
               </span>
@@ -39,7 +39,7 @@ function DirectoryTrail(props: {
               <Button
                 type="button"
                 variant="ghost"
-                className="text-muted-foreground hover:text-foreground h-auto max-w-28 truncate rounded px-1 py-0.5 text-[11px] font-normal"
+                className="text-muted-foreground hover:text-foreground h-auto max-w-28 truncate rounded px-1 py-0.5 text-xs font-normal"
                 title={crumb.path || '工作区'}
                 onClick={function () {
                   props.onJump(crumb.path)

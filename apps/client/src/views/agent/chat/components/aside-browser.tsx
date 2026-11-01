@@ -3,7 +3,7 @@
  *
  * 页面本身不是 HTML —— 是窗口级原生子 webview，由 Rust `set_bounds` 精确盖在
  * 下面这个占位 div 上。所以：
- * - 占位 div 只负责**量尺寸**，里面不渲染任何东西（渲染了也被盖住）；
+ * - 占位 div 只负责**量尺寸**；浮层让位时再叠一层变暗截图（VS Code Simple Browser）；
  * - 顶部 tab 行与地址栏都在占位区之外，因此可以正常点击；
  * - 切走页签 / 卸载本组件时必须 `visible(false)`，否则 webview 会一直悬在其他
  *   面板上面。
@@ -13,7 +13,7 @@ import { useAui } from '@assistant-ui/react'
 import { Button } from '@cogito/design/components/button'
 import { listen } from '@tauri-apps/api/event'
 import { clsx } from 'clsx'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { attachImageData } from '@/features/agent/attachment'
@@ -23,12 +23,18 @@ import {
   readBrowserPage,
   reloadBrowser,
   screenshotBrowser,
+  startBrowserPicker,
   stepBrowserHistory,
-  writeBrowserVisible
+  stopBrowserPicker,
+  writeBrowserVisible,
+  type BrowserPickerActiveEvent,
+  type PickedBrowserElement
 } from '@/features/browser/api'
+import { attachPickedElement } from '@/features/browser/attach-picked-element'
 import { formatAddress, formatTabTitle } from '@/features/browser/address'
 import { useBrowserRect } from '@/features/browser/rect'
 import { useBrowserStore } from '@/features/browser/store'
+import { findSelfDebugUrl } from '@/features/window/shell-mode'
 
 import { AsideBrowserNetwork } from './aside-browser-network'
 
@@ -57,16 +63,31 @@ function AsideBrowser() {
   })
   const [draft, updateDraft] = useState('')
   const [view, updateView] = useState<BrowserView>('page')
+  const [isPicking, updatePicking] = useState(false)
+  const pickingLabelRef = useRef<string | null>(null)
 
   const activeTab = tabs.find(function (tab) {
     return tab.label === activeLabel
   })
   // 只有 page 视图才量尺寸：其他视图时占位 div 不存在，webview 也应该是隐藏的
-  const surfaceRef = useBrowserRect(activeTab !== undefined && view === 'page')
+  const { ref: surfaceRef, isPaused, pauseSrc } = useBrowserRect(
+    activeTab !== undefined && view === 'page',
+    activeLabel
+  )
 
-  // 卸载（切页签 / 收起右栏）时让位
+  function haltPicker(label: string | null | undefined) {
+    if (!label) return
+    pickingLabelRef.current = null
+    updatePicking(false)
+    void stopBrowserPicker(label).catch(function (error: unknown) {
+      console.warn('browser: 结束元素拾取失败', error)
+    })
+  }
+
+  // 卸载（切页签 / 收起右栏）时让位 + 结束拾取
   useEffect(function () {
     return function () {
+      haltPicker(pickingLabelRef.current)
       void writeBrowserVisible(false).catch(reportError)
     }
   }, [])
@@ -77,10 +98,22 @@ function AsideBrowser() {
   useEffect(
     function () {
       if (view !== 'page') {
+        haltPicker(pickingLabelRef.current ?? activeLabel)
         void writeBrowserVisible(false).catch(reportError)
       }
     },
-    [view]
+    [view, activeLabel]
+  )
+
+  // 切 tab：停掉上一个 tab 的拾取
+  useEffect(
+    function () {
+      const previous = pickingLabelRef.current
+      if (previous && previous !== activeLabel) {
+        haltPicker(previous)
+      }
+    },
+    [activeLabel]
   )
 
   // 切 tab 或页面跳转后，地址栏跟上真实地址（用户正在输入时除外，见 onFocus）
@@ -98,6 +131,11 @@ function AsideBrowser() {
     let unlisten: (() => void) | null = null
     void listen<{ label: string; url: string }>('browser://nav', function (event) {
       useBrowserStore.getState().writeTabUrl(event.payload.label, event.payload.url)
+      // SPA/硬导航会卸页面，拾取必须停
+      if (pickingLabelRef.current === event.payload.label) {
+        haltPicker(event.payload.label)
+        toast.message('页面已跳转，元素拾取已取消')
+      }
     })
       .then(function (fn) {
         if (disposed) {
@@ -113,10 +151,88 @@ function AsideBrowser() {
     }
   }, [])
 
+  // 拾取结果 → composer；active 状态与 Rust 对齐
+  useEffect(function () {
+    let disposed = false
+    const stops: Array<() => void> = []
+
+    void listen<PickedBrowserElement>('browser://element-picked', function (event) {
+      const picked = event.payload
+      pickingLabelRef.current = null
+      updatePicking(false)
+      void attachPickedElement(aui, picked)
+        .then(function () {
+          toast.success(`已加入输入框：<${picked.tag}>`)
+        })
+        .catch(reportError)
+    })
+      .then(function (fn) {
+        if (disposed) fn()
+        else stops.push(fn)
+      })
+      .catch(reportError)
+
+    void listen<BrowserPickerActiveEvent>('browser://element-picker-active', function (event) {
+      if (event.payload.label !== (pickingLabelRef.current ?? activeLabel)) return
+      updatePicking(event.payload.active)
+      if (!event.payload.active) pickingLabelRef.current = null
+    })
+      .then(function (fn) {
+        if (disposed) fn()
+        else stops.push(fn)
+      })
+      .catch(reportError)
+
+    return function () {
+      disposed = true
+      for (const stop of stops) stop()
+    }
+  }, [aui, activeLabel])
+
+  // Esc 取消拾取
+  useEffect(
+    function () {
+      if (!isPicking) return
+      function onKeyDown(event: KeyboardEvent) {
+        if (event.key !== 'Escape') return
+        event.preventDefault()
+        haltPicker(pickingLabelRef.current ?? activeLabel)
+      }
+      window.addEventListener('keydown', onKeyDown)
+      return function () {
+        window.removeEventListener('keydown', onKeyDown)
+      }
+    },
+    [isPicking, activeLabel]
+  )
+
+  function toggleElementPicker() {
+    if (!activeLabel) return
+    if (view !== 'page') {
+      updateView('page')
+    }
+    if (isPicking || pickingLabelRef.current === activeLabel) {
+      haltPicker(activeLabel)
+      return
+    }
+    pickingLabelRef.current = activeLabel
+    updatePicking(true)
+    void startBrowserPicker(activeLabel)
+      .then(function () {
+        toast.message('在页面上点击要选的元素，Esc 取消')
+      })
+      .catch(function (error: unknown) {
+        pickingLabelRef.current = null
+        updatePicking(false)
+        reportError(error)
+      })
+  }
+
   function submitAddress(event?: React.FormEvent) {
     event?.preventDefault()
     const store = useBrowserStore.getState()
     if (!store.activeLabel) {
+      if (view !== 'page') updateView('page')
       void store.openTab(draft).catch(reportError)
       return
     }
@@ -124,7 +240,25 @@ function AsideBrowser() {
   }
 
   function openBlankTab() {
-    void useBrowserStore.getState().openTab().catch(reportError)
+    // 新 tab 必须在 page 视图，否则占位未挂、rect/visible 不上报，webview 建了也看不见
+    if (view !== 'page') updateView('page')
+    void useBrowserStore
+      .getState()
+      .openTab()
+      .catch(reportError)
+  }
+
+  /** 自载本应用（embedded 降级壳），供 agent 在右栏调试前端 */
+  function openSelfApp() {
+    if (view !== 'page') updateView('page')
+    const url = findSelfDebugUrl('/agent/chat')
+    void useBrowserStore
+      .getState()
+      .openTab(url)
+      .then(function () {
+        toast.success('已打开本应用（嵌入调试）')
+      })
+      .catch(reportError)
   }
 
   function closeTab(label: string) {
@@ -271,6 +405,19 @@ function AsideBrowser() {
           type="button"
           variant="ghost"
           size="icon-sm"
+          aria-label="打开本应用"
+          title="在此面板打开本应用（嵌入调试，无 Tauri IPC）"
+          className="text-muted-foreground hover:text-foreground size-6 shrink-0"
+          onClick={openSelfApp}>
+          <Icon
+            icon="lucide:app-window"
+            className="size-3.5"
+          />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
           aria-label="切换网络列表"
           title="网络请求列表（可屏蔽某条请求）"
           disabled={activeTab === undefined}
@@ -285,6 +432,29 @@ function AsideBrowser() {
           }}>
           <Icon
             icon="lucide:activity"
+            className="size-3.5"
+          />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={isPicking ? '取消选择元素' : '选择元素加入输入框'}
+          title={
+            isPicking
+              ? '取消选择元素（Esc）'
+              : '选择页面元素加入输入框（hover 高亮，点击确认）'
+          }
+          disabled={activeTab === undefined}
+          className={clsx(
+            'size-6 shrink-0',
+            isPicking
+              ? 'bg-primary/10 text-primary'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+          onClick={toggleElementPicker}>
+          <Icon
+            icon="lucide:mouse-pointer-2"
             className="size-3.5"
           />
         </Button>
@@ -423,7 +593,7 @@ function AsideBrowser() {
         </Button>
       </form>
 
-      {/***** 页面视图：原生 webview 的占位区，只有尺寸有意义 *****/}
+      {/***** 页面视图：原生 webview 的占位区；浮层让位时用变暗截图占位（VS Code 同款） *****/}
       {view === 'page' ? (
         <div className="relative min-h-0 flex-1">
           <div
@@ -431,6 +601,22 @@ function AsideBrowser() {
             className="absolute inset-0"
             data-browser-surface=""
           />
+          {isPaused ? (
+            <div
+              data-browser-pause=""
+              aria-hidden
+              className="bg-muted pointer-events-none absolute inset-0 overflow-hidden">
+              {pauseSrc ? (
+                <img
+                  src={pauseSrc}
+                  alt=""
+                  className="size-full object-cover"
+                  draggable={false}
+                />
+              ) : null}
+              <div className="bg-background/55 absolute inset-0" />
+            </div>
+          ) : null}
           {activeTab === undefined ? (
             <div className="text-muted-foreground pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 text-xs">
               <Icon

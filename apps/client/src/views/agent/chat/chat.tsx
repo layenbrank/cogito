@@ -9,13 +9,14 @@ import { AssistantActionsProvider } from '@cogito/design/assistant/actions'
 import { AssistantLabelsProvider } from '@cogito/design/assistant/labels'
 import { Thread } from '@cogito/design/assistant/thread.aui'
 import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-  usePanelRef
-} from '@cogito/design/components/resizable'
+  Splitter,
+  SplitterHandle,
+  SplitterPane,
+  useGroupRef,
+  usePaneRef
+} from '@cogito/design/components/splitter'
 import { clsx } from 'clsx'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -32,22 +33,30 @@ import { ComposerTriggerList, useComposerTriggers } from '@/views/agent/chat/com
 import { DelegateSurface } from '@/views/agent/chat/components/delegate-surface'
 import { AgentHead } from '@/views/agent/chat/components/head'
 import { AgentSidebar } from '@/views/agent/chat/components/sidebar'
+import { useWindowMinimized } from '@/features/window/use-window-minimized'
 import {
+  findPreferredLayout,
   findSplitterLayout,
   findSplitterOpen,
+  isSameSplitterLayout,
+  LAYOUT_WIDTH_GUARD,
   MAIN_ID,
+  mergePreferredLayout,
   PLAN_ID,
   PLAN_MAX,
   PLAN_MIN,
   PLAN_SIZE,
+  resolveSplitterLayout,
   SESSION_ID,
   SESSION_MAX,
   SESSION_MIN,
   SESSION_SIZE,
   WORKBENCH_MIN,
+  WORKBENCH_SIZE,
   writeSplitterLayout,
   writeSplitterOpen,
-  type SplitterLayout
+  type SplitterLayout,
+  type SplitterOpen
 } from '@/views/agent/chat/components/splitter-sizes'
 import { AgentProcessFold, AgentProcessGroup } from '@/views/agent/chat/components/process-group'
 import { GoalAutoAdvance } from '@/views/agent/chat/components/goal-auto-advance'
@@ -56,7 +65,7 @@ import { AgentToolCard } from '@/views/agent/chat/components/tool-card'
 import { AgentToolGroup } from '@/views/agent/chat/components/tool-group'
 import { ThreadWelcome } from '@/views/agent/chat/components/thread-welcome'
 import { ASSISTANT_LABELS_ZH } from '@/views/agent/chat/labels'
-import { ASSISTANT_ACTIONS_TAURI } from '@/views/agent/chat/message-actions'
+import { findAssistantActions } from '@/views/agent/chat/message-actions'
 import { subscribeAsideReview } from '@/views/agent/chat/components/open-aside-review'
 import { AgentRuntimeProvider } from '@/views/agent/chat/runtime'
 import { AgentTitlebar } from '@/views/agent/components/titlebar'
@@ -105,7 +114,7 @@ function AgentChat() {
   return (
     <AgentRuntimeProvider>
       <AssistantLabelsProvider labels={ASSISTANT_LABELS_ZH}>
-        <AssistantActionsProvider actions={ASSISTANT_ACTIONS_TAURI}>
+        <AssistantActionsProvider actions={findAssistantActions()}>
           <AgentChatLayout />
         </AssistantActionsProvider>
       </AssistantLabelsProvider>
@@ -118,15 +127,61 @@ function AgentChatLayout() {
   const { rootPath } = useActiveWorkspace()
   const composerTriggers = useComposerTriggers()
   const navigate = useNavigate()
-  const [defaultLayout] = useState(findSplitterLayout)
-  const [openState] = useState(findSplitterOpen)
-  const [isSidebarOpen, updateSidebarOpen] = useState(openState.isSidebarOpen)
-  const [isAsideOpen, updateAsideOpen] = useState(openState.isAsideOpen)
+  const [layoutSeed] = useState(function () {
+    const open = findSplitterOpen()
+    const preferred = findPreferredLayout(findSplitterLayout())
+    return {
+      open,
+      preferred,
+      applied: resolveSplitterLayout(open, preferred)
+    }
+  })
+  const [isSidebarOpen, updateSidebarOpen] = useState(layoutSeed.open.isSidebarOpen)
+  const [isAsideOpen, updateAsideOpen] = useState(layoutSeed.open.isAsideOpen)
+  const [isAsideMaximized, updateAsideMaximized] = useState(
+    Boolean(layoutSeed.open.isAsideMaximized)
+  )
   const [isSearchOpen, updateSearchOpen] = useState(false)
   const [scenario, updateScenario] = useState<ScenarioKey>(findActiveScenario)
-  const sidebarRef = usePanelRef()
-  const asideRef = usePanelRef()
-  const openRef = useRef({ isSidebarOpen, isAsideOpen })
+  const [isShellNarrow, updateShellNarrow] = useState(false)
+  /** 首屏对齐完成前关掉过渡 */
+  const [isBootstrapping, updateBootstrapping] = useState(true)
+  const isWindowMinimized = useWindowMinimized()
+  const bodyRef = useRef<HTMLDivElement | null>(null)
+  const groupRef = useGroupRef()
+  const sidebarRef = usePaneRef()
+  const mainRef = usePaneRef()
+  const asideRef = usePaneRef()
+  const openRef = useRef<SplitterOpen>({
+    isSidebarOpen,
+    isAsideOpen,
+    isAsideMaximized
+  })
+  /** 拖拽记住的展开比例；折叠不改它 */
+  const preferredLayoutRef = useRef<SplitterLayout>(layoutSeed.preferred)
+  /** 当前应呈现的 applied 布局 = resolve(open, preferred) */
+  const appliedLayoutRef = useRef<SplitterLayout>(layoutSeed.applied)
+  const defaultLayout = layoutSeed.applied
+  const isLayoutFrozenRef = useRef(true)
+  const hasSeenHealthyWidthRef = useRef(false)
+  const isBootstrappedRef = useRef(false)
+
+  const showSidebar = isSidebarOpen && !isAsideMaximized
+  const showAside = isAsideMaximized || isAsideOpen
+  const isLayoutFrozen = isBootstrapping || isWindowMinimized || isShellNarrow
+
+  /** 唯一写回 Splitter 的入口：永远是 applied，不是「偏好展开比例」 */
+  function commitAppliedLayout(open: SplitterOpen) {
+    const applied = resolveSplitterLayout(open, preferredLayoutRef.current)
+    appliedLayoutRef.current = applied
+    try {
+      // Splitter.setLayout 内部同值会短路
+      groupRef.current?.setLayout(applied)
+    } catch (error) {
+      console.warn('[agent/chat] 写入分栏布局失败', error)
+    }
+    return applied
+  }
 
   /** 输入框粘贴：截图 → dataURL 附件，带路径的文件 → 工作区引用 */
   const handleComposerPaste = useCallback(
@@ -141,6 +196,15 @@ function AgentChatLayout() {
 
   useCommands([
     {
+      id: COMMAND.AGENT_NEW_TASK,
+      title: 'Agent：新建任务',
+      keywords: 'new task thread',
+      group: 'Agent',
+      run() {
+        aui.threads.switchToNewThread()
+      }
+    },
+    {
       id: COMMAND.AGENT_FIND,
       title: 'Agent：搜索会话',
       keywords: 'find search threads',
@@ -151,20 +215,77 @@ function AgentChatLayout() {
     },
     {
       id: COMMAND.AGENT_TOGGLE_SIDEBAR,
-      title: 'Agent：切换左侧栏',
-      keywords: 'sidebar collapse expand',
+      title: '显示或隐藏会话列表',
+      keywords: 'sidebar session list',
       group: 'Agent',
       run() {
         toggleSidebar()
       }
+    },
+    {
+      id: COMMAND.AGENT_TOGGLE_ASIDE,
+      title: '显示或隐藏工作区',
+      keywords: 'aside files terminal browser',
+      group: 'Agent',
+      run() {
+        toggleAside()
+      }
+    },
+    {
+      id: COMMAND.AGENT_MAXIMIZE_ASIDE,
+      title: '专注工作区',
+      keywords: 'focus maximize code browser terminal',
+      group: 'Agent',
+      run() {
+        toggleAsideMaximize()
+      }
     }
   ])
 
+  useLayoutEffect(
+    function () {
+      openRef.current = { isSidebarOpen, isAsideOpen, isAsideMaximized }
+    },
+    [isSidebarOpen, isAsideOpen, isAsideMaximized]
+  )
+
   useEffect(
     function () {
-      openRef.current = { isSidebarOpen, isAsideOpen }
+      isLayoutFrozenRef.current = isLayoutFrozen
     },
-    [isSidebarOpen, isAsideOpen]
+    [isLayoutFrozen]
+  )
+
+  /**
+   * 客户区宽度：必须先见过一次健康宽度，才认假窄。
+   * 否则首屏 flex 未撑开时的短暂窄宽会被当成最小化，触发回放/展开乱闪。
+   */
+  useEffect(
+    function () {
+      const node = bodyRef.current
+      if (!node || typeof ResizeObserver === 'undefined') return
+
+      function syncWidth() {
+        const el = bodyRef.current
+        if (!el) return
+        const width = el.getBoundingClientRect().width
+        if (width >= LAYOUT_WIDTH_GUARD) {
+          hasSeenHealthyWidthRef.current = true
+          updateShellNarrow(false)
+          return
+        }
+        if (!hasSeenHealthyWidthRef.current) return
+        if (width > 0) updateShellNarrow(true)
+      }
+
+      syncWidth()
+      const observer = new ResizeObserver(syncWidth)
+      observer.observe(node)
+      return function () {
+        observer.disconnect()
+      }
+    },
+    []
   )
 
   useEffect(function () {
@@ -176,11 +297,20 @@ function AgentChatLayout() {
     updateScenario(next)
   }
 
+  function persistOpen(next: {
+    isSidebarOpen: boolean
+    isAsideOpen: boolean
+    isAsideMaximized: boolean
+  }) {
+    writeSplitterOpen(next)
+  }
+
   function openAside() {
     updateAsideOpen(true)
-    writeSplitterOpen({
+    persistOpen({
       isSidebarOpen: openRef.current.isSidebarOpen,
-      isAsideOpen: true
+      isAsideOpen: true,
+      isAsideMaximized: openRef.current.isAsideMaximized
     })
   }
 
@@ -207,78 +337,148 @@ function AgentChatLayout() {
       })
   }, [])
 
-  useEffect(
+  /** 首屏：把 applied 钉进 Splitter 后松 freeze（defaultLayout 已是 applied） */
+  useLayoutEffect(
     function () {
-      const sidebar = sidebarRef.current
-      const aside = asideRef.current
-      if (!sidebar || !aside) return
-      if (openRef.current.isSidebarOpen) sidebar.expand()
-      else sidebar.collapse()
-      if (openRef.current.isAsideOpen) {
-        aside.expand()
-        if (aside.getSize().inPixels < PLAN_MIN) aside.resize(PLAN_SIZE)
-      } else {
-        aside.collapse()
+      if (isBootstrappedRef.current) return
+      if (!groupRef.current) return
+      isBootstrappedRef.current = true
+      commitAppliedLayout(openRef.current)
+      updateBootstrapping(false)
+    },
+    [groupRef]
+  )
+
+  /**
+   * 开合变化 → 只 commit applied。
+   * 不再 collapse()/expand() 二次对齐：那会在「快照仍是展开比例」时先画开再收起。
+   */
+  useLayoutEffect(
+    function () {
+      if (!isBootstrappedRef.current) return
+      if (isLayoutFrozen) return
+      commitAppliedLayout({
+        isSidebarOpen,
+        isAsideOpen,
+        isAsideMaximized
+      })
+    },
+    [isSidebarOpen, isAsideOpen, isAsideMaximized, isLayoutFrozen, groupRef]
+  )
+
+  /**
+   * 假窄进入/离开：回放 applied（已含开合）。
+   * 与「开合变化」effect 合并职责上不重复写分支；此处专盯窗口几何变化。
+   */
+  useLayoutEffect(
+    function () {
+      if (!isBootstrappedRef.current) return
+      commitAppliedLayout(openRef.current)
+    },
+    [isWindowMinimized, isShellNarrow, groupRef]
+  )
+
+  function handleLayoutChanged(
+    layout: SplitterLayout,
+    meta?: { isUserInteraction?: boolean }
+  ) {
+    // 假窄 / 首屏冻结：钉回 applied，绝不写入偏好
+    if (isLayoutFrozenRef.current) {
+      if (!isSameSplitterLayout(layout, appliedLayoutRef.current)) {
+        queueMicrotask(function () {
+          if (!isLayoutFrozenRef.current) return
+          commitAppliedLayout(openRef.current)
+        })
       }
-    },
-    [sidebarRef, asideRef]
-  )
+      return
+    }
 
-  useEffect(
-    function () {
-      const panel = sidebarRef.current
-      if (!panel) return
-      if (isSidebarOpen) panel.expand()
-      else panel.collapse()
-    },
-    [isSidebarOpen, sidebarRef]
-  )
-
-  useEffect(
-    function () {
-      const panel = asideRef.current
-      if (!panel) return
-      if (isAsideOpen) {
-        if (panel.isCollapsed()) {
-          panel.expand()
-          if (panel.getSize().inPixels < PLAN_MIN) panel.resize(PLAN_SIZE)
-        }
-        return
-      }
-      panel.collapse()
-    },
-    [isAsideOpen, asideRef]
-  )
-
-  function persistOpen(next: { isSidebarOpen: boolean; isAsideOpen: boolean }) {
-    writeSplitterOpen(next)
+    // 只在用户拖拽时更新偏好并持久化；折叠不落盘 0
+    if (!meta?.isUserInteraction) return
+    const preferred = mergePreferredLayout(
+      preferredLayoutRef.current,
+      layout,
+      openRef.current
+    )
+    preferredLayoutRef.current = preferred
+    appliedLayoutRef.current = resolveSplitterLayout(openRef.current, preferred)
+    writeSplitterLayout(preferred)
   }
 
-  function handleLayoutChanged(layout: SplitterLayout) {
-    writeSplitterLayout(layout)
+  /** 把手折叠钮 → 与标题栏/快捷键同一套开合状态（layout 由上面的 open effect 提交） */
+  function handleCollapse(collapsedById: Record<string, boolean>) {
+    if (isLayoutFrozenRef.current) return
+    if (openRef.current.isAsideMaximized) return
+
+    const nextSidebar = !(collapsedById[SESSION_ID] ?? false)
+    const nextAside = !(collapsedById[PLAN_ID] ?? false)
+    if (
+      nextSidebar === openRef.current.isSidebarOpen &&
+      nextAside === openRef.current.isAsideOpen
+    ) {
+      return
+    }
+    updateSidebarOpen(nextSidebar)
+    updateAsideOpen(nextAside)
+    persistOpen({
+      isSidebarOpen: nextSidebar,
+      isAsideOpen: nextAside,
+      isAsideMaximized: false
+    })
   }
 
-  /** 左侧栏开合只走这一处：按钮与 `mod+b` 命令共用，避免两条状态路径。 */
+  /** 左侧栏开合只走按钮 / 快捷键；折叠后禁用拖拽把手，避免拖开。 */
   function toggleSidebar() {
+    if (openRef.current.isAsideMaximized) return
     const next = !openRef.current.isSidebarOpen
     updateSidebarOpen(next)
-    persistOpen({ isSidebarOpen: next, isAsideOpen: openRef.current.isAsideOpen })
+    persistOpen({
+      isSidebarOpen: next,
+      isAsideOpen: openRef.current.isAsideOpen,
+      isAsideMaximized: false
+    })
   }
 
-  function handleSidebarResize() {
-    const collapsed = sidebarRef.current?.isCollapsed() ?? false
-    const nextOpen = !collapsed
-    if (nextOpen === openRef.current.isSidebarOpen) return
-    updateSidebarOpen(nextOpen)
-    persistOpen({ isSidebarOpen: nextOpen, isAsideOpen: openRef.current.isAsideOpen })
+  function toggleAside() {
+    if (openRef.current.isAsideMaximized) {
+      // 专注态再关工作区：一并退出专注并恢复中栏
+      updateAsideMaximized(false)
+      updateAsideOpen(false)
+      persistOpen({
+        isSidebarOpen: openRef.current.isSidebarOpen,
+        isAsideOpen: false,
+        isAsideMaximized: false
+      })
+      return
+    }
+    const next = !openRef.current.isAsideOpen
+    updateAsideOpen(next)
+    persistOpen({
+      isSidebarOpen: openRef.current.isSidebarOpen,
+      isAsideOpen: next,
+      isAsideMaximized: false
+    })
   }
 
-  function handleAsideResize() {
-    const collapsed = asideRef.current?.isCollapsed() ?? false
-    const nextOpen = !collapsed
-    if (nextOpen === openRef.current.isAsideOpen) return
-    updateAsideOpen(nextOpen)
-    persistOpen({ isSidebarOpen: openRef.current.isSidebarOpen, isAsideOpen: nextOpen })
+  function toggleAsideMaximize() {
+    if (openRef.current.isAsideMaximized) {
+      updateAsideMaximized(false)
+      updateAsideOpen(true)
+      persistOpen({
+        isSidebarOpen: openRef.current.isSidebarOpen,
+        isAsideOpen: true,
+        isAsideMaximized: false
+      })
+      return
+    }
+    updateAsideMaximized(true)
+    updateAsideOpen(true)
+    updateSidebarOpen(false)
+    persistOpen({
+      isSidebarOpen: false,
+      isAsideOpen: true,
+      isAsideMaximized: true
+    })
   }
 
   function openSettings(section?: string) {
@@ -289,26 +489,32 @@ function AgentChatLayout() {
     <div className={clsx(styles.surface)}>
       <AgentTitlebar
         className={styles.titlebar}
+        layout={{
+          isSidebarOpen: showSidebar,
+          isAsideOpen: showAside,
+          isAsideMaximized: isAsideMaximized
+        }}
         actions={<DelegateSurface />}
       />
-      <div className={styles.body}>
-        <ResizablePanelGroup
+      <div ref={bodyRef} className={styles.body}>
+        <Splitter
           id="agent-workbench"
+          groupRef={groupRef}
           orientation="horizontal"
           className={styles.splitter}
           defaultLayout={defaultLayout}
-          onLayoutChanged={handleLayoutChanged}>
-          <ResizablePanel
+          disabled={isLayoutFrozen}
+          freezeTransition={isLayoutFrozen}
+          onLayoutChanged={handleLayoutChanged}
+          onCollapse={handleCollapse}>
+          <SplitterPane
             id={SESSION_ID}
-            panelRef={sidebarRef}
+            paneRef={sidebarRef}
             defaultSize={SESSION_SIZE}
-            minSize={SESSION_MIN}
-            maxSize={SESSION_MAX}
-            collapsible
-            collapsedSize={0}
-            collapsibleOnDrag={false}
-            groupResizeBehavior="preserve-pixel-size"
-            onResize={handleSidebarResize}>
+            min={SESSION_MIN}
+            max={SESSION_MAX}
+            collapsible={{ end: true }}
+            collapsedSize={0}>
             <AgentSidebar
               className={styles.sidebar}
               scenario={scenario}
@@ -317,27 +523,18 @@ function AgentChatLayout() {
               onSearchOpenChange={updateSearchOpen}
               onOpenSettings={openSettings}
             />
-          </ResizablePanel>
+          </SplitterPane>
 
-          <ResizableHandle withHandle />
+          <SplitterHandle withHandle disableDoubleClick disabled={isLayoutFrozen} />
 
-          <ResizablePanel
+          <SplitterPane
             id={MAIN_ID}
-            minSize={WORKBENCH_MIN}>
+            paneRef={mainRef}
+            defaultSize={WORKBENCH_SIZE}
+            min={WORKBENCH_MIN}
+            collapsedSize={0}>
             <div className={clsx(styles.workbench, styles.thread)}>
-              <AgentHead
-                isSidebarOpen={isSidebarOpen}
-                isAsideOpen={isAsideOpen}
-                onToggleSidebar={toggleSidebar}
-                onToggleAside={function () {
-                  const next = !openRef.current.isAsideOpen
-                  updateAsideOpen(next)
-                  persistOpen({
-                    isSidebarOpen: openRef.current.isSidebarOpen,
-                    isAsideOpen: next
-                  })
-                }}
-              />
+              <AgentHead />
               <main className={styles.threadMain}>
                 <Thread
                   components={{
@@ -359,27 +556,28 @@ function AgentChatLayout() {
                 <PlanScheduleCard />
               </main>
             </div>
-          </ResizablePanel>
+          </SplitterPane>
 
-          <ResizableHandle withHandle />
+          <SplitterHandle
+            withHandle
+            disableDoubleClick
+            disabled={isAsideMaximized || isLayoutFrozen}
+          />
 
-          <ResizablePanel
+          <SplitterPane
             id={PLAN_ID}
-            panelRef={asideRef}
+            paneRef={asideRef}
             defaultSize={PLAN_SIZE}
-            minSize={PLAN_MIN}
-            maxSize={PLAN_MAX}
-            collapsible
-            collapsedSize={0}
-            collapsibleOnDrag={false}
-            groupResizeBehavior="preserve-pixel-size"
-            onResize={handleAsideResize}>
+            min={PLAN_MIN}
+            max={PLAN_MAX}
+            collapsible={{ start: true }}
+            collapsedSize={0}>
             <AgentAside
               className={styles.planPane}
               plan={plan}
             />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+          </SplitterPane>
+        </Splitter>
       </div>
     </div>
   )
