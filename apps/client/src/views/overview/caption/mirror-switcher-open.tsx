@@ -97,7 +97,7 @@ function MirrorSwitcherOpen(props: MirrorSwitcherOpenProps) {
         align="start"
         side={props.menuSide ?? 'bottom'}
         sideOffset={6}
-        className={cn(styles.mirrorList, 'gap-0 overflow-hidden p-0')}
+        className={cn(styles.mirrorList, 'gap-0 overflow-hidden border-0 p-0')}
         onKeyDown={props.onKeyDown}>
         <MirrorSwitcherList
           sorted={props.sorted}

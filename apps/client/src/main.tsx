@@ -7,6 +7,8 @@ import { ensurePersist, ensureSecrets, findPref } from '@/features/persist'
 import { watchActiveTenant } from '@/features/quota/tenant.ts'
 import { watchAgentTerminal } from '@/features/terminal/agent-tabs.ts'
 import { adoptAppearance, watchAppearance } from '@/features/window/appearance'
+import { adoptShellMode } from '@/features/window/shell-mode'
+import { useDictStore } from '@/stores/dict'
 import {
   installExceptionReporting,
   reportUnknown
@@ -26,6 +28,8 @@ addCollection(AntIconify)
 addCollection(LucideIconify)
 
 installExceptionReporting()
+// 右栏自载 / ?embedded=1：尽早打标，避免后续 bootstrap 误当主窗
+adoptShellMode()
 
 const rootElement = document.getElementById('root') as HTMLElement
 const appRoot = createRoot(rootElement, {
@@ -53,6 +57,11 @@ async function bootstrap() {
   watchAgentTerminal()
   // 租户身份：登录 / 切账号后重新解析，好让请求带上 `X-Tenant-ID`（网关按它算配额归属）
   watchActiveTenant()
+  // 状态字典：本地 seed 冷启动；有登录态再主动拉远端（无设置页，用户不可见/不可配）
+  const dict = useDictStore.getState()
+  void dict.bootstrap().then(function () {
+    return dict.syncRemote()
+  })
   appRoot.render(<App />)
 }
 

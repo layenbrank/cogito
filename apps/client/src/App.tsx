@@ -16,6 +16,7 @@ import { useAutomationRunner } from '@/features/automation/use-automation-runner
 import { useBrowserStore } from '@/features/browser/store'
 import { useCaptureCommands } from '@/features/capture/commands'
 import { readMotionConfig, subscribeAppearance } from '@/features/window/appearance'
+import { isMainShell } from '@/features/window/shell-mode'
 import { useKeyboard } from '@/keyboard/react'
 import { router } from '@/routers/index'
 
@@ -36,8 +37,9 @@ function App() {
 
   // 前端刷新（HMR / 重新加载）会把 zustand 里的 tabs 清空，但 webview 还活在
   // Rust 那边 —— 挂载时回灌一次，`@` 面板和面板子 tab 才能继续列出已有页面。
-  // 失败不打扰用户：没有浏览器能力时本来就没标签页可回灌。
+  // 嵌套壳无 browser IPC：跳过，避免无意义的 invoke 报错。
   useEffect(function () {
+    if (!isMainShell()) return
     void useBrowserStore.getState().hydrate().catch(function (error: unknown) {
       console.warn('[app] 回灌浏览器标签页失败:', error)
     })

@@ -77,7 +77,7 @@ function MirrorSwitcherList(props: MirrorSwitcherListProps) {
           variant="ghost"
           size="sm"
           data-region="false"
-          className={styles.mirrorCreate}
+          className={cn(styles.mirrorCreate, 'justify-start')}
           onClick={props.onCreate}>
           <Icon
             icon="lucide:plus"
@@ -91,7 +91,7 @@ function MirrorSwitcherList(props: MirrorSwitcherListProps) {
           variant="ghost"
           size="sm"
           data-region="false"
-          className={styles.mirrorManageEntry}
+          className={cn(styles.mirrorManageEntry, 'justify-start')}
           onClick={props.onOpenManage}>
           <Icon
             icon="lucide:settings-2"
