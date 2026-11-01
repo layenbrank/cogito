@@ -26,7 +26,7 @@ const CAPABILITIES = [
   {
     key: 'agent',
     title: 'Agent',
-    detail: 'AI Hub 对话与工具调用，留在同一处'
+    detail: '对话、工具与长任务，对标 Cursor / Copilot'
   },
   {
     key: 'mirror',
