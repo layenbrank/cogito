@@ -10,10 +10,8 @@
 }
 
 /*
- * 三栏分组本身（react-resizable-panels 的 Group）。
- *
- * 栏宽的夹取 / 吸附 / 收起交给库：`minSize` / `maxSize` / `collapsible` 就是干这个的。
- * 因此这里**不再写窄窗断点** —— 左栏可收起，窗口不够宽时库会自己把右栏、再是左栏收掉。
+ * 三栏分组本身（@cogito/design Splitter）。
+ * 栏宽夹取与折叠交给组件；这里不再写窄窗断点。
  */
 .body {
   flex: 1 1 0;

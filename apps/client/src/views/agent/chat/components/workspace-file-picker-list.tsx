@@ -69,7 +69,9 @@ function PickerList(props: {
             key={entry.relative}
             type="button"
             variant="ghost"
-            className="hover:bg-muted/70 h-auto w-full justify-start gap-2 rounded-md px-2 py-1.5 text-xs font-normal"
+            data-aside-path={entry.relative}
+            data-aside-kind={isDir ? 'dir' : 'file'}
+            className="hover:bg-muted/70 h-auto w-full justify-start gap-2 rounded-md px-2 py-2 text-[13px] leading-snug font-normal"
             onClick={function () {
               if (isDir) {
                 props.onEnterDirectory(entry.relative)

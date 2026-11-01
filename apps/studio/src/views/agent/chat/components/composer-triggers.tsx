@@ -80,8 +80,10 @@ function useComposerTriggers(): readonly ComposerTrigger[] {
         onSelect: function (item, api) {
           const fileData = findFileData(item)
           if (fileData === null) return
-          // 文件只进文本流（chip）：附件行留给粘贴的文件 / 图片
-          api.insertChip({ type: 'file', label: fileData.relative, id: fileData.relative })
+          // 展示只用末段名；id 保留相对路径给 agent
+          const slash = Math.max(fileData.relative.lastIndexOf('/'), fileData.relative.lastIndexOf('\\'))
+          const baseName = slash < 0 ? fileData.relative : fileData.relative.slice(slash + 1)
+          api.insertChip({ type: 'file', label: baseName, id: fileData.relative })
         }
       }
 

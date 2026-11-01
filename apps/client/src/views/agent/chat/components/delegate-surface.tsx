@@ -23,8 +23,14 @@ import { Textarea } from '@cogito/design/components/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { useState } from 'react'
 
-import { isApprovalPrompting, parseToolArguments, type DelegationPhase } from '@/features/agent/model/delegate'
+import {
+  isApprovalPrompting,
+  parseToolArguments,
+  RUN,
+  type DelegationPhase
+} from '@/features/agent/model/delegate'
 import { useDelegation } from '@/features/agent/model/use-delegation'
+import { BROWSER_CONTROL } from '@/features/browser-bar/metrics'
 
 const PHASE_LABELS: Record<DelegationPhase, string> = {
   idle: '未提交',
@@ -156,8 +162,8 @@ function DelegateSurface() {
       const answer = result?.answer
       return (
         <div className="grid gap-3">
-          <Badge variant={task.status === 'SUCCEEDED' ? 'success' : 'destructive'} className="w-fit">
-            {task.status === 'SUCCEEDED' ? '成功' : '失败'}
+          <Badge variant={task.status === RUN.SUCCEEDED ? 'success' : 'destructive'} className="w-fit">
+            {task.status === RUN.SUCCEEDED ? '成功' : '失败'}
           </Badge>
           {answer ? (
             <div className="max-h-64 overflow-auto whitespace-pre-wrap text-sm">{answer}</div>
@@ -253,7 +259,12 @@ function DelegateSurface() {
               size="icon-sm"
               data-region="false"
               aria-label="委派到服务端"
-              className="text-muted-foreground relative size-7"
+              className="text-muted-foreground hover:bg-foreground/8 hover:text-foreground relative shrink-0 rounded-lg border-0"
+              style={{
+                width: BROWSER_CONTROL,
+                height: BROWSER_CONTROL,
+                minWidth: BROWSER_CONTROL
+              }}
               onClick={function () {
                 updateOpen(true)
               }}
@@ -261,7 +272,7 @@ function DelegateSurface() {
           }>
           <Icon
             icon="lucide:server"
-            className="size-3.5"
+            className="size-4"
           />
           {hasActiveTask ? (
             <span

@@ -35,13 +35,15 @@ function ComposerEnd() {
       <Button
         variant="ghost"
         size="sm"
-        className="text-muted-foreground gap-1.5">
+        title={label}
+        className="text-muted-foreground h-7 max-w-[7.5rem] min-w-0 gap-1.5 px-2 sm:max-w-[10rem] md:max-w-[14rem]">
         <Icon
           icon="lucide:box"
           width={14}
           height={14}
+          className="size-3.5 shrink-0"
         />
-        {label}
+        <span className="min-w-0 truncate">{label}</span>
       </Button>
     </AgentModelPicker>
   )

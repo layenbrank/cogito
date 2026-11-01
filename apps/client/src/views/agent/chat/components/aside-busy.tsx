@@ -289,20 +289,20 @@ function OutputSection(props: {
                 <Button
                   type="button"
                   variant="ghost"
-                  className="text-foreground h-auto w-full justify-start gap-1.5 px-1.5 py-1 text-xs font-normal"
+                  className="text-foreground h-auto w-full justify-start gap-2 px-1.5 py-1.5 text-[13px] leading-snug font-normal"
                   title={row.path}
                   onClick={function () {
                     props.onOpenFile(row.path)
                   }}>
                   <span
                     className={clsx(
-                      'w-3 shrink-0 font-mono text-[10px] font-semibold',
+                      'w-3.5 shrink-0 text-center font-mono text-xs font-semibold',
                       row.badge ? 'text-primary' : 'text-muted-foreground'
                     )}>
                     {row.badge ?? '·'}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-start">{findBaseName(row.path)}</span>
-                  <span className="text-muted-foreground max-w-[40%] truncate text-[10px]">
+                  <span className="text-muted-foreground max-w-[40%] truncate text-xs">
                     {row.path.includes('/') ? row.path.slice(0, row.path.lastIndexOf('/')) : ''}
                   </span>
                 </Button>
@@ -363,7 +363,7 @@ function SourcesSection(props: {
                   key={name}
                   href={`#${encodeURIComponent(name)}`}
                   title={name}
-                  className="text-foreground hover:bg-muted/60 flex w-full items-center justify-start gap-2 rounded-md px-1.5 py-1 no-underline"
+                  className="text-foreground hover:bg-muted/60 flex w-full items-center justify-start gap-2 rounded-md px-1.5 py-1.5 text-[13px] leading-snug no-underline"
                   onClick={function (event) {
                     event.preventDefault()
                     props.onOpenFile(name)

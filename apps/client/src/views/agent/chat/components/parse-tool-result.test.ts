@@ -5,6 +5,7 @@ import {
   parseToolCard,
   parseToolOutputText,
   parseToolSpecial,
+  parseWriteCodeDiff,
   parseWriteDiffStat
 } from './parse-tool-result'
 
@@ -68,18 +69,53 @@ describe('parseToolCard', function () {
 })
 
 describe('parseWriteDiffStat', function () {
-  it('counts old/new string lines for str_replace', function () {
+  it('counts LCS additions for str_replace', function () {
     const stat = parseWriteDiffStat({
       path: 'a.ts',
       old_string: 'a\nb',
       new_string: 'a\nb\nc\nd'
     })
-    expect(stat).toEqual({ added: 4, removed: 2 })
+    expect(stat).toEqual({ added: 2, removed: 0 })
   })
 
   it('treats write contents as pure additions', function () {
     const stat = parseWriteDiffStat({ path: 'a.ts', contents: 'one\ntwo\nthree' })
     expect(stat).toEqual({ added: 3, removed: 0 })
+  })
+})
+
+describe('parseWriteCodeDiff', function () {
+  it('builds unified lines for before/after', function () {
+    const diff = parseWriteCodeDiff({
+      path: 'doctor.config.ts',
+      before: "ignore: ['src/a.ts']",
+      after: "ignore: ['src/a.ts', 'src/b.ts']"
+    })
+    expect(diff).toEqual({
+      filename: 'doctor.config.ts',
+      additions: 1,
+      deletions: 1,
+      lines: [
+        { kind: 'removed', text: "ignore: ['src/a.ts']" },
+        { kind: 'added', text: "ignore: ['src/a.ts', 'src/b.ts']" }
+      ]
+    })
+  })
+
+  it('keeps shared lines as context', function () {
+    const diff = parseWriteCodeDiff({
+      path: 'a.ts',
+      old_string: 'keep\nold\nkeep',
+      new_string: 'keep\nnew\nkeep'
+    })
+    expect(diff?.lines).toEqual([
+      { kind: 'context', text: 'keep' },
+      { kind: 'removed', text: 'old' },
+      { kind: 'added', text: 'new' },
+      { kind: 'context', text: 'keep' }
+    ])
+    expect(diff?.additions).toBe(1)
+    expect(diff?.deletions).toBe(1)
   })
 })
 

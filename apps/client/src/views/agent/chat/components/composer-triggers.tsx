@@ -15,22 +15,60 @@ import {
   type ComposerTriggerItem,
   type ComposerTriggerListProps
 } from '@cogito/design/assistant/composer-trigger'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { Icon } from '@iconify/react/offline'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 import { formatTabTitle } from '@/features/browser/address'
 import { useBrowserStore } from '@/features/browser/store'
 import { WorkspaceFiles } from '@/lib/workspace-files.ts'
 import { WorkspaceSkills } from '@/lib/workspace-skills.ts'
-import { findFileIcon } from '@/views/workspace/overlay/file-icon.ts'
+import { findBaseName } from '@/views/agent/chat/components/workspace-relative-path.ts'
+import { findFileIcon, findFolderIcon } from '@/views/workspace/overlay/file-icon.ts'
 import { cn } from 'cn'
+
+import styles from './composer-triggers.module.scss'
 
 const SEARCH_LIMIT = 40
 
+/** 对齐 Rust `normalize_search_query`：`@/apps/...` → `apps/...` */
+function normalizeSearchQuery(query: string) {
+  let next = query.trim().replace(/\\/g, '/')
+  while (next.startsWith('./')) next = next.slice(2)
+  next = next.replace(/^\/+/, '').replace(/\/+$/, '')
+  return next
+}
+
 type MentionData =
   | { readonly kind: 'browser'; readonly label: string; readonly url: string }
-  | { readonly kind: 'file'; readonly relative: string }
+  | { readonly kind: 'file'; readonly relative: string; readonly isDirectory: boolean }
+
+/**
+ * 仅滚动列表口，避免 scrollIntoView 带动外层；按 scroll-padding 留边距。
+ * 对齐模型选择器 `scrollActiveRowIntoView`。
+ */
+function scrollActiveRowIntoView(list: HTMLElement | null) {
+  if (!list) return
+  const row = list.querySelector('[data-highlighted="true"]')
+  if (!(row instanceof HTMLElement)) return
+
+  const style = getComputedStyle(list)
+  const padTop = Number.parseFloat(style.scrollPaddingTop) || 0
+  const padBottom = Number.parseFloat(style.scrollPaddingBottom) || 0
+  const listRect = list.getBoundingClientRect()
+  const rowRect = row.getBoundingClientRect()
+
+  if (rowRect.top < listRect.top + padTop) {
+    const nextTop = list.scrollTop + (rowRect.top - listRect.top) - padTop
+    list.scrollTo({ top: Math.max(0, nextTop), behavior: 'auto' })
+    return
+  }
+  if (rowRect.bottom > listRect.bottom - padBottom) {
+    const nextTop = list.scrollTop + (rowRect.bottom - listRect.bottom) + padBottom
+    list.scrollTo({ top: Math.max(0, nextTop), behavior: 'auto' })
+  }
+}
 
 interface SkillData {
   readonly id: string
@@ -43,7 +81,14 @@ function findMentionData(item: ComposerTriggerItem): MentionData | null {
   const data = item.data
   if (typeof data !== 'object' || data === null) return null
   const candidate = data as MentionData
-  if (candidate.kind === 'browser' || candidate.kind === 'file') return candidate
+  if (candidate.kind === 'browser') return candidate
+  if (candidate.kind === 'file' && typeof candidate.relative === 'string') {
+    return {
+      kind: 'file',
+      relative: candidate.relative,
+      isDirectory: candidate.isDirectory === true
+    }
+  }
   return null
 }
 
@@ -78,7 +123,8 @@ function useComposerTriggers(): readonly ComposerTrigger[] {
         id: 'mention',
         token: '@',
         resolve: async function ({ query, signal }) {
-          const needle = query.trim().toLowerCase()
+          const pathQuery = normalizeSearchQuery(query)
+          const needle = pathQuery.toLowerCase()
           const browserItems: ComposerTriggerItem[] = useBrowserStore
             .getState()
             .tabs.filter(function (tab) {
@@ -97,33 +143,50 @@ function useComposerTriggers(): readonly ComposerTrigger[] {
               }
             })
 
-          const fileItems: ComposerTriggerItem[] = []
+          const pathItems: ComposerTriggerItem[] = []
           if (rootPath) {
             try {
-              const rows =
-                needle.length === 0
-                  ? (await WorkspaceFiles.listDir(rootPath))
-                      .filter(function (entry) {
-                        return entry.kind === 'file'
-                      })
-                      .slice(0, SEARCH_LIMIT)
-                  : (await WorkspaceFiles.search([rootPath], query, SEARCH_LIMIT)).hits
-              if (signal.aborted) return []
-              rows.forEach(function (row) {
-                fileItems.push({
-                  id: `file:${row.relative}`,
-                  label: row.name,
-                  description: row.relative,
-                  data: { kind: 'file', relative: row.relative } satisfies MentionData
+              if (needle.length === 0) {
+                const rows = (await WorkspaceFiles.listDir(rootPath)).slice(0, SEARCH_LIMIT)
+                if (signal.aborted) return []
+                rows.forEach(function (row) {
+                  const isDirectory = row.kind === 'dir'
+                  pathItems.push({
+                    id: `${isDirectory ? 'folder' : 'file'}:${row.relative}`,
+                    label: row.name,
+                    description: row.relative,
+                    data: {
+                      kind: 'file',
+                      relative: row.relative,
+                      isDirectory
+                    } satisfies MentionData
+                  })
                 })
-              })
+              } else {
+                // Rust 侧已缓存文件列表并产出 dir 命中；这里只做映射
+                const hits = (await WorkspaceFiles.search([rootPath], pathQuery, SEARCH_LIMIT)).hits
+                if (signal.aborted) return []
+                hits.forEach(function (row) {
+                  const isDirectory = row.kind === 'dir'
+                  pathItems.push({
+                    id: `${isDirectory ? 'folder' : 'file'}:${row.relative}`,
+                    label: row.name,
+                    description: row.relative,
+                    data: {
+                      kind: 'file',
+                      relative: row.relative,
+                      isDirectory
+                    } satisfies MentionData
+                  })
+                })
+              }
             } catch (error) {
               console.warn('[composer-triggers] 搜索文件失败:', error)
               return browserItems
             }
           }
           if (signal.aborted) return []
-          return [...browserItems, ...fileItems]
+          return [...browserItems, ...pathItems]
         },
         onSelect: function (item, api) {
           const mentionData = findMentionData(item)
@@ -133,9 +196,12 @@ function useComposerTriggers(): readonly ComposerTrigger[] {
             api.insertChip({ type: 'browser', label: mentionData.label, id: mentionData.label })
             return
           }
-          // 文件只进文本流（chip）：附件行留给 Ctrl+V 粘贴的文件 / 图片，
-          // 否则同一个文件会在输入区里出现两次。
-          api.insertChip({ type: 'file', label: mentionData.relative, id: mentionData.relative })
+          // 展示只用末段名；id 保留相对路径，序列化成 `:file[name]{name=相对路径}` 给 agent
+          api.insertChip({
+            type: 'file',
+            label: findBaseName(mentionData.relative),
+            id: mentionData.relative
+          })
         }
       }
 
@@ -186,18 +252,38 @@ function useComposerTriggers(): readonly ComposerTrigger[] {
 
 function ComposerTriggerList(props: ComposerTriggerListProps) {
   const trigger = useComposerTrigger()
-  if (!trigger || trigger.match === null) return null
+  const listRef = useRef<HTMLDivElement>(null)
+  const activeIndex = trigger?.activeIndex ?? 0
+  const itemCount = trigger?.items.length ?? 0
+  const match = trigger?.match ?? null
 
-  const { items, activeIndex, isLoading, match } = trigger
+  useEffect(
+    function () {
+      if (match === null || itemCount === 0) return
+      scrollActiveRowIntoView(listRef.current)
+    },
+    [activeIndex, itemCount, match]
+  )
+
+  if (!trigger || match === null) return null
+
+  const { items, isLoading } = trigger
   const isMention = match.trigger.id === 'mention'
-  const emptyText = isMention ? '没有匹配的文件或标签页' : '当前工作区暂无技能'
+  const emptyText = isMention ? '没有匹配的文件、文件夹或标签页' : '当前工作区暂无技能'
 
   return (
     <div
+      data-trigger={match.trigger.id}
+      data-webview="false"
       className={cn(
+        styles.surface,
         'border-border/60 bg-popover absolute bottom-full left-0 z-20 mb-2 w-72 overflow-hidden rounded-lg border shadow-md',
         props.className
-      )}>
+      )}
+      onMouseDown={function (event) {
+        // 整块面板都别抢走编辑器焦点（含滚动条），否则会触发 blur 关掉自己
+        event.preventDefault()
+      }}>
       {isLoading ? (
         <p className="text-muted-foreground flex items-center gap-1.5 px-3 py-2.5 text-xs">
           <Icon
@@ -211,43 +297,77 @@ function ComposerTriggerList(props: ComposerTriggerListProps) {
         <p className="text-muted-foreground px-3 py-2.5 text-xs">{emptyText}</p>
       ) : null}
       {!isLoading && items.length > 0 ? (
-        <div className="max-h-64 overflow-y-auto p-1">
-          {items.map(function (item, index) {
-            const mentionData = findMentionData(item)
-            const isBrowser = mentionData?.kind === 'browser'
-            const icon = isBrowser
-              ? 'lucide:globe'
-              : isMention
-                ? findFileIcon(item.label).icon
-                : 'lucide:wrench'
-            return (
-              <button
-                type="button"
-                key={item.id}
-                data-highlighted={index === activeIndex ? 'true' : undefined}
-                className="data-highlighted:bg-muted hover:bg-muted flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-start text-xs outline-none"
-                onMouseEnter={function () {
-                  trigger.hover(index)
-                }}
-                onMouseDown={function (event) {
-                  // 别让点击抢走编辑器焦点
-                  event.preventDefault()
-                  trigger.pick(index)
-                }}>
-                <Icon
-                  icon={icon}
-                  className={cn('size-3.5 shrink-0', isBrowser && 'text-muted-foreground')}
-                />
-                <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                {item.description ? (
-                  <span className="text-muted-foreground max-w-[45%] truncate text-xs">
-                    {item.description}
-                  </span>
-                ) : null}
-              </button>
-            )
-          })}
-        </div>
+        <TooltipProvider delay={360}>
+          <div
+            ref={listRef}
+            className={styles.list}>
+            {items.map(function (item, index) {
+              const mentionData = findMentionData(item)
+              const isBrowser = mentionData?.kind === 'browser'
+              const isDirectory = mentionData?.kind === 'file' && mentionData.isDirectory
+              const pathIcon = !isMention
+                ? null
+                : isBrowser
+                  ? null
+                  : isDirectory
+                    ? findFolderIcon(item.label, false)
+                    : findFileIcon(item.label)
+              const icon = isBrowser
+                ? 'lucide:globe'
+                : pathIcon
+                  ? pathIcon.icon
+                  : 'lucide:sparkles'
+              const iconClass = isBrowser
+                ? 'text-teal-600 dark:text-teal-400'
+                : pathIcon
+                  ? pathIcon.className
+                  : 'text-amber-600 dark:text-amber-400'
+              const tipPath =
+                mentionData?.kind === 'file'
+                  ? mentionData.relative
+                  : (item.description ?? item.label)
+              return (
+                <Tooltip key={item.id}>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        data-highlighted={index === activeIndex ? 'true' : undefined}
+                        className="data-highlighted:bg-muted hover:bg-muted flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-start text-xs outline-none"
+                        onMouseEnter={function () {
+                          trigger.hover(index)
+                        }}
+                        onMouseDown={function (event) {
+                          event.preventDefault()
+                          trigger.pick(index)
+                        }}
+                      />
+                    }>
+                    <Icon
+                      icon={icon}
+                      className={cn('size-3.5 shrink-0', iconClass)}
+                    />
+                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    {item.description ? (
+                      <span className="text-muted-foreground max-w-[45%] truncate text-xs">
+                        {item.description}
+                      </span>
+                    ) : null}
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="top"
+                    sideOffset={6}
+                    className="max-w-72 flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-[12px] leading-snug">
+                    <p className="text-[13px] font-medium break-all">{item.label}</p>
+                    {tipPath && tipPath !== item.label ? (
+                      <p className="text-background/75 break-all">{tipPath}</p>
+                    ) : null}
+                  </TooltipContent>
+                </Tooltip>
+              )
+            })}
+          </div>
+        </TooltipProvider>
       ) : null}
     </div>
   )

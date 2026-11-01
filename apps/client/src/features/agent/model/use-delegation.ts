@@ -4,7 +4,7 @@
  * 状态机（`derivePhase`）与「要不要弹审批卡」（`isApprovalPrompting`）在 `./delegate` 纯函数，
  * 这里只做三件事：发请求、按终态停轮询、把决定过的审批号记进本地集合避免重复弹窗。
  * 轮询由 `useEffect` 驱动：任务非终态时排一次延时快照，快照更新 `task` → effect 重跑再排
- * 下一次（不会积压并发请求）；终态（`SUCCEEDED` / `FAILED`）只看 `status`，进度有
+ * 下一次（不会积压并发请求）；终态（字典 `016` / `017`）只看 `status`，进度有
  * 「落后一步」的特性，不拿它当停轮询的信号。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'

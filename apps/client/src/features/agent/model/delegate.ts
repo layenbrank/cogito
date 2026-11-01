@@ -6,6 +6,13 @@
  * 审批卡、把模型给的参数 JSON 字符串解回对象。副作用（轮询、发请求）在 `./use-delegation`。
  */
 import type { AgentTask } from '@/apis/agent-task.ts'
+import { DICT_KEY, DICT_VALUE_BY_KEY } from '@/shared/ipc/specs/dict'
+
+const RUN = {
+  RUNNING: DICT_VALUE_BY_KEY[DICT_KEY.RUN_RUNNING]!,
+  SUCCEEDED: DICT_VALUE_BY_KEY[DICT_KEY.RUN_SUCCEEDED]!,
+  FAILED: DICT_VALUE_BY_KEY[DICT_KEY.RUN_FAILED]!
+}
 
 /**
  * 委派任务的 UI 阶段。`submitted` 是「提交请求在途」，之后落在 `running` /
@@ -17,14 +24,14 @@ type DelegationPhase = 'idle' | 'submitted' | 'running' | 'awaiting_approval' | 
 /** 从台账行派生 UI 阶段：终态只看 `status`，待审批只看 `pendingApproval`。 */
 function derivePhase(task: AgentTask | null): DelegationPhase {
   if (!task) return 'idle'
-  if (task.status === 'SUCCEEDED' || task.status === 'FAILED') return 'settled'
+  if (task.status === RUN.SUCCEEDED || task.status === RUN.FAILED) return 'settled'
   if (task.pendingApproval) return 'awaiting_approval'
   return 'running'
 }
 
 /** 任务是否已到终态（成功或失败）。 */
 function isSettled(task: AgentTask): boolean {
-  return task.status === 'SUCCEEDED' || task.status === 'FAILED'
+  return task.status === RUN.SUCCEEDED || task.status === RUN.FAILED
 }
 
 /**
@@ -61,5 +68,5 @@ function parseToolArguments(raw: string): Record<string, unknown> {
   }
 }
 
-export { derivePhase, isApprovalPrompting, isSettled, parseToolArguments }
+export { derivePhase, isApprovalPrompting, isSettled, parseToolArguments, RUN }
 export type { DelegationPhase }
