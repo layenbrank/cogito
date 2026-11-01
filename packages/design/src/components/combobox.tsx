@@ -4,6 +4,7 @@ import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 
 import { FIELD_SHELL } from '../lib/surface'
+import { webviewCoverProps } from '../lib/webview-cover'
 
 const Combobox = ComboboxPrimitive.Root
 
@@ -204,6 +205,7 @@ function ComboboxContent({
         <ComboboxPrimitive.Popup
           data-slot="combobox-popup"
           data-size={size}
+          {...webviewCoverProps()}
           className={cn(
             'group/combobox-content relative isolate z-70 flex w-(--anchor-width) flex-col origin-(--transform-origin)',
             'data-[side=bottom]:origin-top-left data-[side=top]:origin-bottom-left',

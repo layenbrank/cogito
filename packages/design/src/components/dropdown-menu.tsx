@@ -4,6 +4,7 @@ import { cn } from 'cn'
 import { Icon } from '@iconify/react/offline'
 
 import { OVERLAY_SHELL } from '../lib/surface'
+import { webviewCoverProps } from '../lib/webview-cover'
 
 function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
   return (
@@ -53,9 +54,12 @@ function DropdownMenuContent({
       align={align}
       alignOffset={alignOffset}
       side={side}
-      sideOffset={sideOffset}>
+      sideOffset={sideOffset}
+      // Dialog 居中 transform 下，嵌套 Portal 的 absolute 会错位
+      positionMethod="fixed">
       <MenuPrimitive.Popup
         data-slot="dropdown-menu-content"
+        {...webviewCoverProps()}
         className={cn(
           OVERLAY_SHELL,
           'z-50 max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto p-1 outline-none data-closed:overflow-hidden',
