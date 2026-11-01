@@ -34,9 +34,14 @@ describe('parseArgs（两个上传脚本共用的参数解析）', function () {
 })
 
 describe('findUploadTarget（源文件 + 对象键）', function () {
-  it('--release 推出规范的默认对象名', function () {
-    const target = findUploadTarget(parseArgs(['--source', SELF, '--release', '1.3.0']), USAGE)
-    expect(target).toEqual({ source: SELF, key: '1.3.0/cogito_1.3.0_x64-setup.exe' })
+  it('--release 默认对象名跟源文件 basename（不再写死 setup.exe）', function () {
+    // SELF 不在白名单；用 --name 模拟「源文件叫 msi」时的键
+    const msiName = 'cogito_1.5.0_x64_zh-CN.msi'
+    const target = findUploadTarget(
+      parseArgs(['--source', SELF, '--release', '1.5.0', '--name', msiName]),
+      USAGE
+    )
+    expect(target).toEqual({ source: SELF, key: `1.5.0/${msiName}` })
   })
 
   it('--name 覆盖对象名，--key 直接给整个键', function () {
@@ -67,9 +72,10 @@ describe('findUploadTarget（源文件 + 对象键）', function () {
     expect(findUploadTarget(manifest, USAGE).key).toBe('updater-stable/latest.json')
   })
 
-  it('--skip-exe 是布尔旗标', function () {
-    const args = parseArgs(['--skip-exe', '--release', '1.5.0'])
+  it('--skip-exe / --dry-run 是布尔旗标', function () {
+    const args = parseArgs(['--skip-exe', '--dry-run', '--release', '1.5.0'])
     expect(args.get('skip-exe')).toBe('true')
+    expect(args.get('dry-run')).toBe('true')
     expect(args.get('release')).toBe('1.5.0')
   })
 

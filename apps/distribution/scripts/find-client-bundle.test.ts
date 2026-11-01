@@ -10,9 +10,11 @@ import {
   findBundleDir,
   findCargoTargetBundleCandidates,
   findClientBundleArtifacts,
+  findClientBundleInventory,
   findMsiPaths,
   findMsiPrefix,
-  findTauriIdentity
+  findTauriIdentity,
+  formatInventoryLines
 } from './find-client-bundle.ts'
 
 const ORIGINAL_CARGO_TARGET_DIR = process.env.CARGO_TARGET_DIR
@@ -131,6 +133,34 @@ describe('findBundleDir + findClientBundleArtifacts', function () {
     const root = mkdtempSync(join(tmpdir(), 'cogito-empty-'))
     process.env.CARGO_TARGET_DIR = root
     await expect(findBundleDir(undefined)).rejects.toThrow(/未找到 release\/bundle/)
+  })
+
+  it('inventory 缺 zip 仍列出 msi；artifacts 报错里带清单', async function () {
+    const root = mkdtempSync(join(tmpdir(), 'cogito-msi-only-'))
+    const msiDir = join(root, 'msi')
+    mkdirSync(msiDir, { recursive: true })
+    const confPath = join(root, 'tauri.conf.json')
+    writeFileSync(
+      confPath,
+      JSON.stringify({ productName: 'cogito', version: '8.8.8' }, null, 2),
+      'utf8'
+    )
+    const arch = findArchLabel()
+    writeFileSync(join(msiDir, `cogito_8.8.8_${arch}_zh-CN.msi`), 'msi')
+
+    const inventory = await findClientBundleInventory({
+      explicitDir: root,
+      confPath
+    })
+    expect(inventory.zipPath).toBeUndefined()
+    expect(inventory.msiPaths.map(basenameSafe)).toEqual([`cogito_8.8.8_${arch}_zh-CN.msi`])
+    expect(formatInventoryLines(inventory).some(function (line) {
+      return line.includes('zh-CN.msi')
+    })).toBe(true)
+
+    await expect(
+      findClientBundleArtifacts({ explicitDir: root, confPath })
+    ).rejects.toThrow(/zh-CN\.msi/)
   })
 })
 

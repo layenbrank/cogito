@@ -33,7 +33,10 @@ function parseArgs(argv: string[]): Map<string, string> {
     // 布尔旗标不能按「--x 值」解析
     if (
       inlineValue === undefined &&
-      (name === 'help' || name === 'skip-exe' || name === 'skip-msi')
+      (name === 'help' ||
+        name === 'skip-exe' ||
+        name === 'skip-msi' ||
+        name === 'dry-run')
     ) {
       parsed.set(name, 'true')
       continue
@@ -63,16 +66,16 @@ function findUploadTarget(args: Map<string, string>, usage: string): UploadTarge
   }
 
   // --release 是主名；--version 留作别名（根 CLI 有同名旗标，直接写 --version 会被它截走）
+  // 默认对象名跟源文件名走（msi / exe / nsis.zip 都能直接 upload），不要写死 setup.exe
   const version = args.get('release') ?? args.get('version')
-  const name =
-    args.get('name') ?? (version ? `cogito_${version}_x64-setup.exe` : basename(source))
+  const name = (args.get('name') ?? basename(source)).replace(/ /g, '.')
   const key = args.get('key') ?? (version ? `${version}/${name}` : undefined)
   if (!key) {
     throw new Error(`--release 或 --key 必须给一个\n\n${usage}`)
   }
   if (!isPublicKey(key)) {
     throw new Error(
-      `对象键 ${key} 不在读侧白名单内（setup.exe / nsis.zip / updater-*/latest.json）——` +
+      `对象键 ${key} 不在读侧白名单内（setup.exe / *.msi / nsis.zip / updater-*/latest.json）——` +
         '传上去也下载不了，先对齐名字。'
     )
   }

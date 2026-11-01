@@ -13,7 +13,11 @@ import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 
 import { findPublicUrl, findUpdaterEndpoint, PUBLIC_BASE } from '../src/public-base.ts'
-import { findClientBundleArtifacts } from './find-client-bundle.ts'
+import {
+  findArtifactBaseName,
+  findClientBundleInventory,
+  formatInventoryLines
+} from './find-client-bundle.ts'
 import { parseArgs, runMain } from './upload-args.ts'
 import { findAuthKey, putBytesViaWorker, uploadFileViaWorker } from './worker-upload.ts'
 
@@ -41,6 +45,7 @@ bundle 目录优先级：
   --notes <文案>           latest.json notes（默认 Client <version> (<channel>)）
   --skip-exe               不上传 *-setup.exe
   --skip-msi               不上传 *.msi
+  --dry-run                只扫描并打印产物清单（不鉴权、不上传）
   --help                   显示本帮助`
 
 async function main(): Promise<void> {
@@ -60,29 +65,55 @@ async function main(): Promise<void> {
     throw new Error(`--channel 只能是 ${[...CHANNELS].join(' | ')}: ${channel}`)
   }
 
-  const worker = (args.get('worker') ?? PUBLIC_BASE).replace(/\/+$/, '')
-  if (!worker.startsWith('http')) {
-    throw new Error(`--worker 要是 http(s) 地址: ${worker}`)
-  }
   const skipExe = args.get('skip-exe') === 'true'
   const skipMsi = args.get('skip-msi') === 'true'
-  const authKey = findAuthKey(args.get('auth-key-file'))
+  const isDryRun = args.get('dry-run') === 'true'
 
-  const artifacts = await findClientBundleArtifacts({
+  const inventory = await findClientBundleInventory({
     explicitDir: args.get('dir'),
     release,
     skipExe,
     skipMsi
   })
 
+  console.log('产物清单:')
+  for (const line of formatInventoryLines(inventory)) {
+    console.log(`  ${line}`)
+  }
+
+  if (isDryRun) {
+    console.log('')
+    console.log('dry-run：未上传')
+    return
+  }
+
+  if (!inventory.zipPath || !inventory.sigPath) {
+    const base = findArtifactBaseName(inventory.productName, inventory.version, inventory.arch)
+    throw new Error(
+      `updater 产物不齐（需要 ${base}.nsis.zip + .sig）。请先 tauri build 或手动 zip+signer。`
+    )
+  }
+
+  const worker = (args.get('worker') ?? PUBLIC_BASE).replace(/\/+$/, '')
+  if (!worker.startsWith('http')) {
+    throw new Error(`--worker 要是 http(s) 地址: ${worker}`)
+  }
+  const authKey = findAuthKey(args.get('auth-key-file'))
+
+  const artifacts = {
+    bundleDir: inventory.bundleDir,
+    source: inventory.source,
+    zipPath: inventory.zipPath,
+    sigPath: inventory.sigPath,
+    exePath: inventory.exePath,
+    msiPaths: inventory.msiPaths,
+    productName: inventory.productName,
+    version: inventory.version,
+    arch: inventory.arch
+  }
+
   const version = artifacts.version
   const notes = args.get('notes') ?? `Client ${version} (${channel})`
-
-  console.log(
-    `扫描 bundle: ${artifacts.bundleDir}（来源: ${artifacts.source}; ` +
-      `${artifacts.productName}_${version}_${artifacts.arch}; ` +
-      `msi×${artifacts.msiPaths.length}）`
-  )
 
   const zipName = basename(artifacts.zipPath).replace(/ /g, '.')
   const zipKey = `${version}/${zipName}`

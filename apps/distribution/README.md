@@ -99,8 +99,16 @@ pnpm command distribution upload:rclone --source .\pkg.zip --release 1.3.0 --buc
 `…_en-US.msi` 等。
 
 ```powershell
+# 只扫描产物（zip / exe / 多语言 msi），不鉴权、不上传
+pnpm command distribution publish:client --dry-run
+
 # 若已设 CARGO_TARGET_DIR（如 D:\Documents\cache），且 conf version=1.5.0，可直接：
 pnpm command distribution publish:client --channel stable
+
+# 单独上传某个 MSI（对象名默认跟源文件名，勿再写死 setup.exe）
+pnpm command distribution upload `
+  --source D:\Documents\cache\release\bundle\msi\cogito_1.5.0_x64_zh-CN.msi `
+  --release 1.5.0
 
 # 显式版本 / 目录 / 跳过 exe·msi / 预发渠道
 pnpm command distribution publish:client `
