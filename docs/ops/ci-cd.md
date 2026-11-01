@@ -64,10 +64,18 @@ Authenticode 则是 CA 签发的 Windows 代码签名证书，导出为 `.pfx` �
 
 一次成功的 Client Release 大致产出：
 
-- 版本化 GitHub Release（如 `v1.2.0-alpha.4`）：安装包、`.sig`、`latest.json`、`SHA256SUMS.txt`
-- 浮动渠道 Release（如 `updater-alpha`）：只挂该渠道最新的 `latest.json`，供应用内 updater 拉取
+- 版本化 GitHub Release（如 `v1.2.0-alpha.4`）：安装包、`.sig`、`latest.json`、`SHA256SUMS.txt`（**备份**）
+- 浮动渠道 GitHub Release（如 `updater-alpha`）：备份用 `latest.json`（**应用内不再以此为更新源**）
+- **应用内更新（主路径）**：`apps/distribution` → R2 桶 `cogito`，经 Worker
+  `https://cogito-distribution.layenbrank.workers.dev/updater-{channel}/latest.json`
 
 渠道由 **tag 的 SemVer 后缀** 决定：`stable` / `alpha` / `beta` / `rc`。
+
+CI 打完包后，在本机（或有 `AUTH_KEY_SECRET` 的环境）推 R2：
+
+```powershell
+pnpm command distribution publish:client --release <version> --channel <channel>
+```
 
 ---
 
@@ -131,7 +139,7 @@ base64 -i ./codesign.pfx | pbcopy   # 或重定向到文件再粘贴进 Secret
 | 工作流文件                    | 名称                   | 触发                                      | 作用                                                 |
 | ----------------------------- | ---------------------- | ----------------------------------------- | ---------------------------------------------------- |
 | `continuous-integration.yaml` | Continuous Integration | PR → `master`/`develop`；push → `develop` | lint / 类型检查 / 测试 / 构建（Client 仅 Vite）      |
-| `client-release.yaml`         | Client Release         | tag `v*`；或手动 `workflow_dispatch`      | Tauri Windows 安装包 + GitHub Release + updater 清单 |
+| `client-release.yaml`         | Client Release         | tag `v*`；或手动 `workflow_dispatch`      | Tauri Windows 安装包 + GitHub 备份；updater 主路径为 R2/Worker |
 | `studio-desktop.yaml`         | Studio Desktop         | 手动；或 push 变更 `apps/studio/**`       | Electron 多平台安装包 artifact                       |
 
 `v*` tag 会触发 Client Release。
@@ -167,21 +175,23 @@ Runner：`windows-latest`
 
 - **版本门禁**：tag 去掉 `v` 后必须等于 `tauri.conf.json`、`Cargo.toml`、`apps/client/package.json` 的 version
 - **渠道**：由 SemVer 后缀映射到 `stable` | `alpha` | `beta` | `rc`
-- **Updater 端点**：构建前写入对应 `updater-{channel}` 的 `latest.json` URL
+- **Updater 端点**：构建前写入 Worker 上对应 `updater-{channel}/latest.json` URL（**不是** GitHub）
 - **Sidecar 验锁**：校验仓库内 `binaries/SHA256SUMS`（CI **只验不生成**）
 - **`workflow_dispatch`**：按输入的 tag checkout，不构建默认分支 HEAD
-- 浮动渠道 `updater-{channel}`：每次发版覆盖同 Release 上的 `latest.json`（仓库需关闭 **Immutable releases**，否则无法覆盖资产）
+- **R2 推送**：CI 默认不推 R2；发版后跑 `pnpm command distribution publish:client`（见 `apps/distribution/README.md`）
+- GitHub 浮动渠道 `updater-{channel}`：仍覆盖备份用 `latest.json`（仓库需关闭 **Immutable releases**）
 
 #### 渠道对照
 
-| Tag 示例         | 渠道   | GitHub Release          | 客户端检查的清单                          |
-| ---------------- | ------ | ----------------------- | ----------------------------------------- |
-| `v1.2.0`         | stable | 正式版（`make_latest`） | `.../download/updater-stable/latest.json` |
-| `v1.2.0-alpha.1` | alpha  | prerelease              | `.../download/updater-alpha/latest.json`  |
-| `v1.2.0-beta.1`  | beta   | prerelease              | `.../download/updater-beta/latest.json`   |
-| `v1.2.0-rc.1`    | rc     | prerelease              | `.../download/updater-rc/latest.json`     |
+| Tag 示例         | 渠道   | GitHub Release          | 客户端检查的清单（Worker） |
+| ---------------- | ------ | ----------------------- | -------------------------- |
+| `v1.2.0`         | stable | 正式版（`make_latest`） | `…/updater-stable/latest.json` |
+| `v1.2.0-alpha.1` | alpha  | prerelease              | `…/updater-alpha/latest.json`  |
+| `v1.2.0-beta.1`  | beta   | prerelease              | `…/updater-beta/latest.json`   |
+| `v1.2.0-rc.1`    | rc     | prerelease              | `…/updater-rc/latest.json`     |
 
-仓库内 `tauri.conf.json` 默认多为 `updater-stable`；CI 会按本次渠道改写。
+完整 URL 基址：`https://cogito-distribution.layenbrank.workers.dev`。仓库内 `tauri.conf.json` 默认
+`updater-stable`；CI 会按本次渠道改写。
 
 #### 手动触发（推荐在 tag 受保护、不能重打时使用）
 

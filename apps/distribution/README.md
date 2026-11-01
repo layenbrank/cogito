@@ -1,8 +1,12 @@
 # distribution：cogito 资源分发端点
 
 Cloudflare Worker（TypeScript）：**发布流水线**把版本化产物推到 R2 桶 `cogito`，**用户与开发环境**
-按版本路径取稳定直链。今天分发的是 Store 安装包；目标是同一入口也供给 `ffmpeg` / `corex` / `pandoc` /
+按版本路径取稳定直链。当前覆盖：Store / 直链安装包、**Client Tauri 自动更新**（`nsis.zip` +
+`updater-{channel}/latest.json`）。目标是同一入口也供给 `ffmpeg` / `corex` / `pandoc` /
 `goose` / `pdfium` 这些工具的版本化产物（见下文「现状与目标态」）。
+
+公开基址常量：[`src/public-base.ts`](./src/public-base.ts) 的 `PUBLIC_BASE`（挂自定义域只改这一处）。
+**不要**把 R2 S3 API（`*.r2.cloudflarestorage.com`）写进 Tauri `endpoints` —— 那是鉴权写接口，不是 CDN。
 
 | 项       | 值                                                                                                                |
 | -------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -27,6 +31,7 @@ pnpm --filter @cogito/distribution run dev
 pnpm --filter @cogito/distribution run secret
 pnpm --filter @cogito/distribution run type-check
 pnpm --filter @cogito/distribution run upload -- --source … --release 1.3.0
+pnpm --filter @cogito/distribution run publish:client -- --release 1.5.0 --channel stable
 ```
 
 仓库里的统一入口（根 CLI；等价且更短，`pnpm distribution deploy` 也可）：
@@ -38,10 +43,12 @@ pnpm command distribution secret
 pnpm command distribution check          # 类型检查（= 本包的 type-check，CI 也跑这步）
 pnpm command distribution upload         # 上传安装包（→ 本 worker 的 multipart 端点）
 pnpm command distribution upload:rclone  # 上传（→ rclone 直连 R2，走 S3 API）
+pnpm command distribution publish:client # Client 一键发版：zip + exe + updater latest.json
 ```
 
 上传脚本是 Node + TypeScript（[`scripts/upload-via-worker.ts`](./scripts/upload-via-worker.ts) /
-[`scripts/upload-via-rclone.ts`](./scripts/upload-via-rclone.ts)），跨平台，没有 `.ps1` 了。
+[`scripts/upload-via-rclone.ts`](./scripts/upload-via-rclone.ts) /
+[`scripts/publish-client.ts`](./scripts/publish-client.ts)），跨平台，没有 `.ps1` 了。
 
 ## 上传
 
@@ -67,15 +74,58 @@ pnpm command distribution upload:rclone --source .\pkg.zip --release 1.3.0 --buc
 `.dev.vars`）。路径类参数（`--source` / `--auth-key-file` / `--rclone`）经根 CLI 转发时会补成绝对路径，
 按你当前所在的目录解析；`pnpm --filter @cogito/distribution run upload` 直调时则相对 `apps/distribution`。
 
-两个脚本上传前都会用 [`src/setup-key.ts`](./src/setup-key.ts) 校验对象键：**读侧下不了的键直接拒收**
-（今天只有 `*-setup.exe`，工具产物放行时改这一处，worker 与两个脚本一起生效）。`--help` 有全部参数。
+上传前都会用 [`src/setup-key.ts`](./src/setup-key.ts) 的 `isPublicKey` 校验对象键：**读侧下不了的键直接拒收**
+（worker 与上传脚本一起生效）。`--help` 有全部参数。
 注意根 CLI 有 `--version` 版本旗标会截走这个参数，所以版本参数的主名是 `--release`（直接调用脚本时 `--version` 也可）。
+
+## Client Tauri 自动更新（一键发版）
+
+对象布局：
+
+| 键 | 用途 | 缓存 |
+| -- | ---- | ---- |
+| `{semver}/cogito_{semver}_x64-setup.exe` | NSIS 直链安装包 | 一年 immutable |
+| `{semver}/cogito_{semver}_x64_{locale}.msi` | WiX MSI（如 `zh-CN` / `en-US`） | 一年 immutable |
+| `{semver}/cogito_{semver}_x64-setup.nsis.zip` | Tauri updater 包 | 一年 immutable |
+| `updater-{channel}/latest.json` | 渠道浮动清单（覆盖写） | `max-age=60, must-revalidate` |
+
+`channel`：`stable` \| `alpha` \| `beta` \| `rc`。Client 烘焙的 endpoint 见
+`apps/client/src-tauri/tauri.conf.json` → `plugins.updater.endpoints`。
+
+产物目录优先级：`--dir` → 环境变量 **`CARGO_TARGET_DIR`**（`…/release/bundle`）→
+`apps/client/src-tauri/target/release/bundle`。文件名按 `tauri.conf.json` 的
+`productName` + `version`（可用 `--release` 覆盖）+ 本机 arch（`x64` / `arm64`）精确匹配，例如
+`cogito_1.5.0_x64-setup.nsis.zip`、同名 `.exe`，以及 `cogito_1.5.0_x64_zh-CN.msi` /
+`…_en-US.msi` 等。
+
+```powershell
+# 若已设 CARGO_TARGET_DIR（如 D:\Documents\cache），且 conf version=1.5.0，可直接：
+pnpm command distribution publish:client --channel stable
+
+# 显式版本 / 目录 / 跳过 exe·msi / 预发渠道
+pnpm command distribution publish:client `
+  --dir D:\path\to\bundle `
+  --release 1.5.0-alpha.1 `
+  --channel alpha `
+  --skip-exe `
+  --skip-msi
+```
+
+发版后检查：
+
+```text
+GET https://cogito-distribution.layenbrank.workers.dev/updater-stable/latest.json
+GET https://cogito-distribution.layenbrank.workers.dev/1.5.0/cogito_1.5.0_x64-setup.nsis.zip
+```
+
+`client-release` GitHub Actions 仍打 GitHub Release 作备份，但**烘焙进二进制的更新源是本 Worker**；
+打完 CI 后仍须跑 `publish:client` 把 zip + 浮动清单推上 R2（详见 [`docs/ops/ci-cd.md`](../../docs/ops/ci-cd.md)）。
 
 ## 现状与目标态
 
 |            | 现状                                                                                                        | 目标态                                                                                                                                                                               |
 | ---------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 读侧放行   | 只有 `/^\d+\.\d+\.\d+\/[\w.-]+-setup\.exe$/`（[`SETUP_KEY`](./src/worker.ts)）                              | 也要放行工具的版本化产物（`ffmpeg` / `corex` / `pandoc` …）                                                                                                                          |
+| 读侧放行   | `*-setup.exe` / `*.msi` / `*-setup.nsis.zip` / `updater-*/latest.json`（[`setup-key.ts`](./src/setup-key.ts)） | 也要放行工具的版本化产物（`ffmpeg` / `corex` / `pandoc` …）                                                                                                                          |
 | 工具从哪下 | 6 个 R2 公共开发域名直连（`pub-*.r2.dev`，一工具一 bucket，见 `tools.lock.json` / `sidecar/manifest.json`） | 收敛到本端点 —— 官方把 `r2.dev` 明确标为 **non-production**（要 WAF / 缓存 / 访问控制必须挂自定义域），见 [公开桶文档](https://developers.cloudflare.com/r2/buckets/public-buckets/) |
 | 写侧       | 已可收任意版本路径（`parseObjectKey` 不限）                                                                 | —                                                                                                                                                                                    |
 
@@ -83,7 +133,7 @@ pnpm command distribution upload:rclone --source .\pkg.zip --release 1.3.0 --buc
 
 | 动作                                                                                                                   | 鉴权                          | 说明                                                                                                                                    |
 | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET` / `HEAD` / `GET ?meta=1`                                                                                         | 公开（按 `SETUP_KEY` 白名单） | 下载 / 元数据（HEAD 给 Store 校验体积用）；带条件头时 `If-None-Match` / `If-Modified-Since` 命中回 **304**，`If-Match` 不匹配回 **412** |
+| `GET` / `HEAD` / `GET ?meta=1`                                                                                         | 公开（按 `isPublicKey` 白名单） | 下载 / 元数据（HEAD 给 Store 校验体积用）；`latest.json` 为 JSON 短缓存；带条件头时 `If-None-Match` / `If-Modified-Since` 命中回 **304**，`If-Match` 不匹配回 **412** |
 | `PUT` / `DELETE`                                                                                                       | `X-Custom-Auth-Key`           | 单次写 / 删；`PUT` 带 `If-Match` / `If-None-Match` 时按条件写，未满足回 **412**                                                         |
 | `POST ?action=mpu-create`<br>`PUT ?action=mpu-uploadpart`<br>`POST ?action=mpu-complete`<br>`DELETE ?action=mpu-abort` | 同上                          | 分片上传（≥ 5 MiB/片，末片除外）；`abort` 清掉失败的残缺分片，[`upload-via-worker.ts`](./scripts/upload-via-worker.ts) 失败时会自动调它 |
 

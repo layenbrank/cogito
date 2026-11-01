@@ -42,7 +42,7 @@ function runPackageScript(action: string, script: string, args: string[] = []): 
  * 上传脚本是相对 `apps/distribution` 跑的（`pnpm --filter` 的 cwd），所以路径类参数先补成绝对路径，
  * 免得用户在仓库根写 `--source dist\x-setup.exe` 却被解析到包目录下。
  */
-const PATH_FLAGS = ['--source', '--auth-key-file', '--rclone']
+const PATH_FLAGS = ['--source', '--auth-key-file', '--rclone', '--dir']
 
 function resolveArgPaths(args: string[]): string[] {
   const resolved: string[] = []
@@ -122,6 +122,17 @@ function registerDistribution(program: Command): void {
     .allowExcessArguments(true)
     .action(function (_opts, cmd) {
       runUpload('upload:rclone', 'upload:rclone', cmd)
+    })
+
+  distribution
+    .command('publish:client')
+    .description(
+      'Client 一键发版：上传 nsis.zip(+exe) 并覆盖 updater-{channel}/latest.json（→ R2）'
+    )
+    .allowUnknownOption(true)
+    .allowExcessArguments(true)
+    .action(function (_opts, cmd) {
+      runUpload('publish:client', 'publish:client', cmd)
     })
 }
 
