@@ -14,9 +14,29 @@ import {
   type TenantRecord
 } from '@/apis/tenant.ts'
 
+function createIdToken(length: number): string {
+  const cryptoApi = globalThis.crypto
+  if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
+    return cryptoApi.randomUUID().replace(/-/g, '').slice(0, length)
+  }
+  const bytes = new Uint8Array(Math.ceil(length / 2))
+  if (cryptoApi && typeof cryptoApi.getRandomValues === 'function') {
+    cryptoApi.getRandomValues(bytes)
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256)
+    }
+  }
+  return Array.from(bytes, function (byte) {
+    return byte.toString(16).padStart(2, '0')
+  })
+    .join('')
+    .slice(0, length)
+}
+
 function buildPersonalSlug(userID: string): string {
   const stem = userID.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16)
-  const fallback = crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+  const fallback = createIdToken(12)
   return `personal-${stem || fallback}`
 }
 
@@ -71,7 +91,7 @@ async function provisionPersonalTenant(
     tenant = await create(buildPersonalSlug(input.userID))
   } catch (firstError) {
     try {
-      tenant = await create(`personal-${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`)
+      tenant = await create(`personal-${createIdToken(16)}`)
     } catch (secondError) {
       throw firstError instanceof Error ? firstError : secondError
     }
