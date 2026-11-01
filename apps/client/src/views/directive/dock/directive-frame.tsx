@@ -1,5 +1,5 @@
 /**
- * Decorations 内容区内的主区 + 底栏：高度吃满 Caption 以下剩余空间，
+ * ShellFrame 内容区内的主区 + 底栏：高度吃满 Caption 以下剩余空间，
  * 底栏展开不会把窗口操作栏顶出视口。
  * 整层铺 `bg-background` 实底：窗壳透明 + mica 时，工作区不透壁纸。
  *

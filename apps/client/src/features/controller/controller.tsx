@@ -12,6 +12,7 @@ import styles from '@/features/controller/controller.module.scss'
 import { Reflection } from '@/features/controller/reflection.tsx'
 import { CLASS_NAMES } from '@/features/magnetic-tile/layout-menu/constants'
 import { buildItems } from '@/features/magnetic-tile/layout-menu/items'
+import { DURATION_MS } from '@/features/magnetic-tile/enter-motion'
 import { hasWallEntered, markWallEntered } from '@/features/magnetic-tile/enter-wall'
 import { MagneticTile } from '@/features/magnetic-tile/magnetic-tile.tsx'
 import {
@@ -131,8 +132,8 @@ const Controller = {
     const control = useKeyModifier('Control')
     const controlRef = useRef(control)
     const tilesRef = useRef(magneticTiles)
-    /** 本挂载周期是否播入场：按镜面只冷启动一次，Activity 回墙不重播 */
-    const [shouldEnter] = useState(function () {
+    /** 冷启动入场波次；播完关掉，避免整墙永久挂 Motion */
+    const [shouldEnter, updateShouldEnter] = useState(function () {
       return !hasWallEntered(mirrorId)
     })
 
@@ -142,8 +143,15 @@ const Controller = {
     useEffect(
       function () {
         markWallEntered(mirrorId)
+        if (!shouldEnter) return
+        const timer = window.setTimeout(function () {
+          updateShouldEnter(false)
+        }, DURATION_MS + 200)
+        return function () {
+          window.clearTimeout(timer)
+        }
       },
-      [mirrorId]
+      [mirrorId, shouldEnter]
     )
 
     const scrollFx = useScrollFx(gridRef)
@@ -164,15 +172,17 @@ const Controller = {
           })
 
           const prev = current
+          const prevById = new Map(
+            prev.map(function (tile) {
+              return [tile.id, tile]
+            })
+          )
           const store = useMirrorStore.getState()
           store.toUpdateMagneticTiles(moved)
 
           const updates = moved
             .filter(function (tile) {
-              const before = prev.find(function (item) {
-                return item.id === tile.id
-              })
-              return before?.index !== tile.index
+              return prevById.get(tile.id)?.index !== tile.index
             })
             .map(function (tile) {
               return {

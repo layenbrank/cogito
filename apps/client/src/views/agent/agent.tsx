@@ -4,7 +4,7 @@
  * 与 studio 的 `/agent` 同形 —— URL 只有 `/agent/chat`（默认）与 `/agent/settings`，
  * `/agent` 自己重定向到 `chat`（见 `routers/index.tsx`）；目录与路由同形，
  * 两个子页分别是 `views/agent/chat/`（三栏工作台）与 `views/agent/settings/`（模型接入）。
- * 窗口标题栏由子页各自渲染（`AgentTitlebar`），本文件只做全局设置初始化。
+ * 操作栏由各子页经 useShellSurface 申报；ShellFrame 常驻不随子路由拆装。
  */
 import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'

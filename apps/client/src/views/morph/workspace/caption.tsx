@@ -7,7 +7,7 @@ import styles from '@/views/morph/workspace/caption.module.scss'
 import { useMorphStore } from '@/stores/morph.ts'
 
 /** Morph 窗口顶栏左侧：品牌 · 搜索 */
-function Caption() {
+function MorphBegin() {
   const [visible, onUpdateVisible] = useState(false)
   const toMatchText = useMorphStore(function (s) {
     return s.toMatchText
@@ -86,4 +86,4 @@ function Caption() {
   )
 }
 
-export { Caption }
+export { MorphBegin }

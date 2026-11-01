@@ -6,7 +6,7 @@ type KnowledgeViewMode = 'live' | 'source' | 'split'
 type SignboardViewMode = 'board' | 'table' | 'gantt' | 'calendar' | 'stats' | 'workload'
 type BookmarkViewMode = 'list' | 'grid'
 type BookmarkSortKey = 'name-asc' | 'name-desc' | 'type' | 'links' | 'index'
-type ClockStyle = 'digital' | 'analog' | 'flip' | 'neon' | 'minimal'
+type ClockStyle = 'digital' | 'analog' | 'flip'
 type ApprovalMode = 'ask' | 'auto' | 'readonly'
 /** 会话模式：执行 / 计划 / 问答 / 目标（对齐 Copilot Plan、Qoder 目标模式） */
 type AgentMode = 'agent' | 'plan' | 'ask' | 'goal'

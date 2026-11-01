@@ -2,13 +2,13 @@ import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { Input } from '@cogito/design/components/input'
 import { cn } from 'cn'
-import { AnimatePresence, useReducedMotion } from 'motion/react'
+import { useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { Decorations } from '@/components/decorations/index.ts'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
+import { useShellSurface } from '@/features/window-shell/slots'
 import { useGalleryStore } from '@/stores/gallery'
 import { Collections } from '@/views/gallery/collections/collections'
 import { GALLERY_TABS, MOTION_MS, type GalleryTab } from '@/views/gallery/constraints'
@@ -52,12 +52,144 @@ function findEmptyHint(tab: GalleryTab, leaf: CollectionLeaf): string | undefine
   return EMPTY_HINTS[leaf]
 }
 
-/** 底部页签 + 搜索按钮 */
+const SEARCH_CLOSED_W = '2.5rem'
+const SEARCH_OPEN_W = 'min(20rem, calc(100vw - 6rem))'
+const SEARCH_EASE = [0.22, 1, 0.36, 1] as const
+
+/**
+ * 底栏搜索：收起为圆钮，展开时同层横向拉宽（overflow 裁切），不另起浮条。
+ * 失焦即收：`relatedTarget` 仍在 surface 内则不收；点到空白后再看 `activeElement`。
+ */
+function GallerySearchControl(props: {
+  canSearch: boolean
+  isOpen: boolean
+  query: string
+  onOpen: () => void
+  onChangeQuery: (query: string) => void
+  onClose: () => void
+  isReducedMotion: boolean | null
+  motionSec: number
+}) {
+  const surfaceRef = useRef<HTMLDivElement>(null)
+  /** 收起时先缩宽再卸字段，避免内容瞬间消失 */
+  const [showsField, onShowsField] = useState(props.isOpen)
+
+  useEffect(
+    function () {
+      if (props.isOpen) {
+        onShowsField(true)
+        return
+      }
+      if (props.isReducedMotion) {
+        onShowsField(false)
+        return
+      }
+      const timer = window.setTimeout(
+        function () {
+          onShowsField(false)
+        },
+        Math.round(props.motionSec * 1000)
+      )
+      return function () {
+        window.clearTimeout(timer)
+      }
+    },
+    [props.isOpen, props.isReducedMotion, props.motionSec]
+  )
+
+  return (
+    <m.div
+      ref={surfaceRef}
+      className={cn(
+        'pointer-events-auto flex h-10 items-center overflow-hidden rounded-full shadow-lg transition-colors',
+        showsField
+          ? 'border border-border/50 bg-card/90 text-foreground backdrop-blur-md'
+          : 'bg-primary text-primary-foreground'
+      )}
+      initial={false}
+      animate={{ width: props.isOpen ? SEARCH_OPEN_W : SEARCH_CLOSED_W }}
+      transition={{
+        duration: props.isReducedMotion ? 0 : props.motionSec,
+        ease: SEARCH_EASE
+      }}
+      onBlur={function (event) {
+        if (!props.isOpen) return
+        const next = event.relatedTarget as Node | null
+        if (surfaceRef.current?.contains(next)) return
+        window.setTimeout(function () {
+          if (!surfaceRef.current?.contains(document.activeElement)) props.onClose()
+        }, 0)
+      }}>
+      {showsField ? (
+        <div
+          className={cn(
+            'flex h-full shrink-0 items-center transition-opacity ease-out',
+            props.isOpen ? 'opacity-100' : 'opacity-0'
+          )}
+          style={{
+            width: SEARCH_OPEN_W,
+            transitionDuration: props.isReducedMotion
+              ? '0ms'
+              : `${Math.round(props.motionSec * 600)}ms`
+          }}>
+          <Icon
+            icon="lucide:search"
+            className="ml-3 size-4 shrink-0 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            autoFocus
+            value={props.query}
+            placeholder="搜索文件名"
+            aria-label="搜索文件名"
+            className="h-full min-w-0 flex-1 border-0 bg-transparent px-2 shadow-none focus-visible:ring-0"
+            onChange={function (event) {
+              props.onChangeQuery(event.target.value)
+            }}
+            onKeyDown={function (event) {
+              if (event.key === 'Escape') props.onClose()
+            }}
+          />
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            className="mr-1 shrink-0"
+            aria-label="关闭搜索"
+            onMouseDown={function (event) {
+              event.preventDefault()
+            }}
+            onClick={props.onClose}>
+            <Icon icon="lucide:x" />
+          </Button>
+        </div>
+      ) : (
+        <Button
+          type="button"
+          size="icon"
+          className="size-10 rounded-full bg-transparent text-primary-foreground shadow-none hover:bg-primary/90"
+          aria-label="搜索"
+          disabled={!props.canSearch}
+          onClick={props.onOpen}>
+          <Icon icon="lucide:search" />
+        </Button>
+      )}
+    </m.div>
+  )
+}
+
+/** 底部页签 + 可横向展开的搜索 */
 function GalleryBottomBar(props: {
   tab: GalleryTab
   canSearch: boolean
+  isSearchOpen: boolean
+  query: string
   onSwitchTab: (tab: GalleryTab) => void
-  onToggleSearch: () => void
+  onOpenSearch: () => void
+  onChangeQuery: (query: string) => void
+  onCloseSearch: () => void
+  isReducedMotion: boolean | null
+  motionSec: number
 }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex items-end justify-center gap-2 px-4">
@@ -89,77 +221,17 @@ function GalleryBottomBar(props: {
           )
         })}
       </div>
-      <Button
-        type="button"
-        size="icon"
-        className="pointer-events-auto size-10 rounded-full shadow-lg"
-        aria-label="搜索"
-        disabled={!props.canSearch}
-        onClick={props.onToggleSearch}>
-        <Icon icon="lucide:search" />
-      </Button>
+      <GallerySearchControl
+        canSearch={props.canSearch}
+        isOpen={props.isSearchOpen}
+        query={props.query}
+        onOpen={props.onOpenSearch}
+        onChangeQuery={props.onChangeQuery}
+        onClose={props.onCloseSearch}
+        isReducedMotion={props.isReducedMotion}
+        motionSec={props.motionSec}
+      />
     </div>
-  )
-}
-
-/**
- * 搜索浮条。
- *
- * 失焦即收：`relatedTarget` 还在面板内就不收；容器内没有按钮可聚焦时（比如点到面板空白）
- * 靠一次微任务延迟再看 `activeElement`，避免点面板内其它元素时误收。
- */
-function GallerySearchSurface(props: {
-  query: string
-  onChangeQuery: (query: string) => void
-  onClose: () => void
-  isReducedMotion: boolean | null
-  motionSec: number
-}) {
-  const panelRef = useRef<HTMLDivElement>(null)
-
-  return (
-    <m.div
-      ref={panelRef}
-      className="absolute inset-x-4 bottom-20 z-30 flex items-center gap-2 rounded-2xl border border-border/60 bg-card/95 p-2 shadow-lg backdrop-blur-md"
-      initial={props.isReducedMotion ? false : { opacity: 0, y: 12, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={props.isReducedMotion ? undefined : { opacity: 0, y: 8, scale: 0.98 }}
-      transition={{ duration: props.motionSec, ease: [0.22, 1, 0.36, 1] }}
-      onBlur={function (event) {
-        const next = event.relatedTarget as Node | null
-        if (panelRef.current?.contains(next)) return
-        window.setTimeout(function () {
-          if (!panelRef.current?.contains(document.activeElement)) props.onClose()
-        }, 0)
-      }}>
-      <Icon
-        icon="lucide:search"
-        className="ml-2 size-4 text-muted-foreground"
-      />
-      <Input
-        autoFocus
-        value={props.query}
-        placeholder="搜索文件名"
-        className="border-0 bg-transparent shadow-none focus-visible:ring-0"
-        onChange={function (event) {
-          props.onChangeQuery(event.target.value)
-        }}
-        onKeyDown={function (event) {
-          if (event.key === 'Escape') props.onClose()
-        }}
-      />
-      <Button
-        type="button"
-        size="icon-sm"
-        variant="ghost"
-        aria-label="关闭搜索"
-        onMouseDown={function (event) {
-          event.preventDefault()
-        }}
-        onClick={props.onClose}>
-        <Icon icon="lucide:x" />
-      </Button>
-    </m.div>
   )
 }
 
@@ -328,10 +400,13 @@ function Gallery() {
     onPendingHidden(false)
   }
 
+  useShellSurface({
+    summary: findComponentLabel('gallery'),
+    scrollable: false
+  })
+
   return (
-    <Decorations
-      summary={findComponentLabel('gallery')}
-      scrollable={false}>
+    <>
       <div className="relative flex min-h-0 flex-1 flex-col">
         {!loaded ? (
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
@@ -400,27 +475,19 @@ function Gallery() {
           </Button>
         ) : null}
 
-        <AnimatePresence>
-          {isSearchOpen ? (
-            <GallerySearchSurface
-              query={query}
-              onChangeQuery={onQuery}
-              onClose={closeSearch}
-              isReducedMotion={isReducedMotion}
-              motionSec={motionSec}
-            />
-          ) : null}
-        </AnimatePresence>
-
         <GalleryBottomBar
           tab={tab}
           canSearch={showLibrary}
+          isSearchOpen={isSearchOpen}
+          query={query}
           onSwitchTab={switchTab}
-          onToggleSearch={function () {
-            onSearchOpen(function (value) {
-              return !value
-            })
+          onOpenSearch={function () {
+            onSearchOpen(true)
           }}
+          onChangeQuery={onQuery}
+          onCloseSearch={closeSearch}
+          isReducedMotion={isReducedMotion}
+          motionSec={motionSec}
         />
 
         <VaultReveal
@@ -444,7 +511,7 @@ function Gallery() {
         }}
         onSubmit={handleUnlock}
       />
-    </Decorations>
+    </>
   )
 }
 

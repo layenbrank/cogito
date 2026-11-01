@@ -65,17 +65,6 @@ function Section(props: SectionProps) {
     [magneticTiles, props.bucket, query]
   )
 
-  const listKey = useMemo(
-    function () {
-      return `${props.bucket}:${query.trim()}:${navigationTiles
-        .map(function (tile) {
-          return tile.id
-        })
-        .join(',')}`
-    },
-    [props.bucket, query, navigationTiles]
-  )
-
   const hasQuery = query.trim().length > 0
   const listMotion = MOTION.listContainer(isReducedMotion)
   const itemMotion = MOTION.listItem(isReducedMotion)
@@ -102,7 +91,6 @@ function Section(props: SectionProps) {
 
   return (
     <m.div
-      key={listKey}
       className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 gap-2.5 overflow-auto scroll-smooth p-0.5 min-[640px]:grid-cols-2 min-[1100px]:grid-cols-3"
       {...listMotion}>
       {navigationTiles.map(function (tile) {

@@ -5,7 +5,6 @@ import type { Dayjs } from 'dayjs'
 import type { NextFire } from '@/features/magnetic-tiles/clock/alarm-time'
 import { AnalogClock } from '@/features/magnetic-tiles/clock/faces/analog/analog-clock.tsx'
 import { DigitalClock } from '@/features/magnetic-tiles/clock/faces/digital/digital-clock.tsx'
-import { MinimalClock } from '@/features/magnetic-tiles/clock/faces/minimal/minimal-clock.tsx'
 import { FlipClock } from '@/features/magnetic-tiles/clock/flip-digit.tsx'
 import type { ClockStyle } from '@/stores/clock'
 import styles from '@/views/clock/clock.module.scss'
@@ -35,7 +34,6 @@ function StageAnalog(props: { now: Dayjs }) {
 }
 
 function StageDigits(props: { now: Dayjs; clockStyle: ClockStyle }) {
-  const showSeconds = props.clockStyle !== 'minimal'
   const h = props.now.format('HH')
   const m = props.now.format('mm')
   const s = props.now.format('ss')
@@ -47,24 +45,10 @@ function StageDigits(props: { now: Dayjs; clockStyle: ClockStyle }) {
         hours={h}
         minutes={m}
         seconds={s}
-        showSeconds={showSeconds}
+        showSeconds
         useDots
         className={styles.stageFlip}
       />
-    )
-  }
-
-  if (props.clockStyle === 'minimal') {
-    return (
-      <div className={styles.stageDigits}>
-        <MinimalClock
-          h={h}
-          m={m}
-          s={s}
-          showSeconds={showSeconds}
-          isNeon={false}
-        />
-      </div>
     )
   }
 
@@ -74,9 +58,8 @@ function StageDigits(props: { now: Dayjs; clockStyle: ClockStyle }) {
         h={h}
         m={m}
         s={s}
-        showSeconds={showSeconds}
+        showSeconds
         tick={tick}
-        isNeon={props.clockStyle === 'neon'}
       />
     </div>
   )

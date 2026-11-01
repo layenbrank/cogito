@@ -39,6 +39,8 @@ function MediaCellComponent(props: MediaCellProps) {
         // 否则会继承 h-8 / shrink-0，aspect-square 拿 2rem 高度反算宽度 → 格子挤成细条。
         'group relative block aspect-square w-full min-w-0 overflow-hidden rounded-md bg-muted/40 p-0 outline-none',
         '[content-visibility:auto] [contain-intrinsic-size:auto_120px]',
+        // 多层 color-mix shadow：白底截图在浅/深主题都能分清边缘（无 border）
+        'shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_12%,transparent),0_4px_10px_color-mix(in_oklab,var(--foreground)_6%,transparent),0_0_0_1px_color-mix(in_oklab,var(--border)_55%,transparent)]',
         'transition-[box-shadow,transform] duration-200 ease-out',
         'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
         'active:scale-[0.98]',

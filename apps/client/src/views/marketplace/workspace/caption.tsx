@@ -56,7 +56,7 @@ const MIRROR_COMBO_CLASS =
   'w-[7.5rem] max-w-[32vw] shrink-0 min-[900px]:w-[8.75rem]'
 
 /** 市场窗口顶栏：镜像 · 模式 Tabs · 搜索壳 · 弱元信息 */
-function Caption() {
+function MarketplaceBegin() {
   const {
     mode,
     onUpdateMode,
@@ -310,4 +310,4 @@ function Caption() {
   )
 }
 
-export { Caption }
+export { MarketplaceBegin }

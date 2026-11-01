@@ -202,10 +202,8 @@ function useAsideFilesEditor(options: {
         if (cancelled) return
         monacoRef.current = monaco
         syncCodeTheme()
-        editor = monaco.editor.create(host, {
-          ...EDITOR_OPTIONS,
-          ...toFontOptions(editorPrefs)
-        })
+        // 字体由下方 editorPrefs effect 写入，避免 mount 闭包依赖
+        editor = monaco.editor.create(host, EDITOR_OPTIONS)
         editorRef.current = editor
         disposables.push(
           editor.addAction({

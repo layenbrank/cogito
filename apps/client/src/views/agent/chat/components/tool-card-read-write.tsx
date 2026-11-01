@@ -104,7 +104,7 @@ function WriteCodeDiffBody(props: {
             {props.relativePath ?? props.writePath}
           </p>
         ) : null}
-        <ToolInput input={props.args as unknown} />
+        <ToolInput input={props.args} />
         {props.relativePath && !props.isError ? (
           <div className="flex justify-end">
             <WorkspaceDiffAction relative={props.relativePath} />
@@ -167,12 +167,13 @@ function ReadWriteToolCard(
     [writePath, rootPath]
   )
   // 标题 +/- 与展开 CodeDiff 共用一次 LCS，避免同卡双算
+  const toolArgs = props.args as unknown
   const codeDiff = useMemo(
-    function () {
+    function (): WriteCodeDiff | null {
       if (props.variant !== 'write') return null
-      return parseWriteCodeDiff(props.args)
+      return parseWriteCodeDiff(toolArgs)
     },
-    [props.variant, props.args]
+    [props.variant, toolArgs]
   )
   const diffStat: WriteDiffStat | null = codeDiff
     ? { added: codeDiff.additions, removed: codeDiff.deletions }
@@ -204,7 +205,7 @@ function ReadWriteToolCard(
       <ToolContent>
         {props.variant === 'write' ? (
           <WriteCodeDiffBody
-            args={props.args}
+            args={toolArgs}
             codeDiff={codeDiff}
             writePath={writePath}
             relativePath={relativePath}
@@ -214,7 +215,7 @@ function ReadWriteToolCard(
           />
         ) : (
           <>
-            <ToolInput input={props.args as unknown} />
+            <ToolInput input={toolArgs} />
             <ReadWriteOutput
               result={props.result}
               outputText={props.outputText}

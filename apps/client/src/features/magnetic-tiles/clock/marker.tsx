@@ -45,7 +45,6 @@ function Marker(props: Props) {
             nextReminders={state.nextReminders}
             todayEnabled={state.todayEnabled}
             enabledTotal={state.enabledTotal}
-            isNeon={state.isNeon}
             wide={state.wide}
           />
         ) : null}

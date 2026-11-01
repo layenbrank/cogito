@@ -36,8 +36,9 @@ function TimelineAxis(props: TimelineAxisProps) {
               key={day.key}
               data-gallery-section={day.key}
               className="scroll-mt-4 bg-background">
-              <div className="relative mb-4 flex justify-center">
-                <span className="z-10 rounded-full border border-border/60 bg-background px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
+              {/* sticky 相对 Library 的 overflow-y-auto；随当日 section 边界进出 */}
+              <div className="sticky top-0 z-20 mb-4 flex justify-center">
+                <span className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
                   {day.label}
                 </span>
               </div>

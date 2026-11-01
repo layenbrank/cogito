@@ -5,11 +5,11 @@
 ## 架构要点
 
 - 样式栈 **Tailwind v4 + `@cogito/design`**：入口 `src/styles/tailwind.css`（`@import '@cogito/design/globals.css'` + `@source '../'`）；无 antd / `--ith-*` / 旧 v3 `@tailwind`。
-- 窗口一律 `decorations: false`，桌面壳自绘：`Decorations`（`src/components/decorations/`）是窗口容器（标题栏 + 撑满内容 + 纵向 flex，根透明让 mica / 透明材质透出），`Caption`（`src/components/caption/`）是标题栏（拖拽区带 `data-region`，槽位内交互元素带 `data-region="false"`）。
+- 窗口一律 `decorations: false`，桌面壳自绘：`features/window-shell`（`ShellFrame` 常驻操作栏 + `ShellOverlayHost`；页用 `useShellSurface` 申报槽）。根透明让 mica 透出；Dialog/Sheet 不盖操作栏。
 - **无内置浏览器**：网址与 Web 搜索结果一律 `openUrl`；主窗 Command Omnibar（`features/command-bar`）本地优先检索磁贴 / 日程 / Agent 等，引擎切换为横向展开。
-- 磁贴不用 Dialog，双击开独立窗口（`navigation` 磁贴则外跳）；分两层：`views/<tile>/` 是窗口页，`features/magnetic-tiles/<tile>/` 是板上磁贴。
+- 磁贴激活为主窗内路由会话（`navigation` 磁贴则外跳）；分两层：`views/<tile>/` 是应用页，`features/magnetic-tiles/<tile>/` 是板上磁贴。
 - agent 是布局路由：`views/agent/agent.tsx` 只做出口，两个子页 `views/agent/{chat,settings}/` 对应 `/agent/chat`（默认）与 `/agent/settings`（对齐 studio）。
-- 主窗口标题栏：中间 Omnibar（`mod+k`）+ 右侧镜像 / 状态 / 账号（`src/views/overview/caption/`）。
+- 主窗 Overview 操作栏：中间 Omnibar（`mod+k`）+ 右侧镜像 / 状态 / 账号（`views/overview/caption/`，由 `WorkspaceShell` 注入）。
 
 ## 开发
 

@@ -14,13 +14,12 @@ interface AsideSurfaceProps {
   todayEnabled: number
   enabledTotal: number
   className?: string
-  isNeon?: boolean
   wide?: boolean
 }
 
 export function AsideSurface(props: AsideSurfaceProps) {
   return (
-    <aside className={clsx(styles.aside, props.isNeon && styles.neon, props.wide && styles.wide, props.className)}>
+    <aside className={clsx(styles.aside, props.wide && styles.wide, props.className)}>
       <div className={styles.metaBlock}>
         {props.showPeriod ? <span className={styles.period}>{props.period}</span> : null}
         <div className={styles.metaRow}>

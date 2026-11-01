@@ -91,13 +91,10 @@ const Capture = lazy(function () {
   return import('@/views/capture/capture.tsx')
 })
 
-const CaptureScreenshot = lazy(function () {
-  return import('@/views/capture/screenshot/screenshot.tsx')
-})
-
-const CaptureRecording = lazy(function () {
-  return import('@/views/capture/recording/recording.tsx')
-})
+/** 捕获子路由占位：URL 可深链，内容由 Capture 布局按 kind 渲染 */
+function CaptureLeaf() {
+  return null
+}
 
 const Knowledge = lazy(function () {
   return import('@/views/knowledge/knowledge.tsx')
@@ -180,8 +177,9 @@ const routes: RouteObject[] = [
                 path: '/capture',
                 element: <Capture />,
                 children: [
-                  { index: true, element: <CaptureScreenshot /> },
-                  { path: 'recording', element: <CaptureRecording /> }
+                  // 叶仅占位保 URL；网格由 Capture 布局按 kind 渲染，避免 Outlet 卸壳
+                  { index: true, element: <CaptureLeaf /> },
+                  { path: 'recording', element: <CaptureLeaf /> }
                 ]
               },
               { path: '/knowledge', element: <Knowledge /> },

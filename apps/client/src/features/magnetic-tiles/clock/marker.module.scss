@@ -17,8 +17,6 @@
 .digital,
 .analog,
 .flip,
-.neon,
-.minimal,
 .wide,
 .hasAside {
   min-width: 0;
@@ -62,12 +60,6 @@
   min-height: 0;
   overflow: hidden;
   container-type: inline-size;
-}
-
-/* ── Neon 整体覆盖（背景 + 边框，由 marker 承载） ── */
-.neon {
-  border: 1px solid color-mix(in oklab, var(--primary) 35%, transparent);
-  background: color-mix(in oklab, var(--primary) 12%, transparent);
 }
 
 /* 指针样式：stage 允许指针溢出显示 */

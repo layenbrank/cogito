@@ -9,7 +9,9 @@ import { clsx } from 'clsx'
 import { useMemo, useState, type ComponentType } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
-import { AgentTitlebar } from '@/views/agent/components/titlebar'
+import { useShellSurface } from '@/features/window-shell/slots'
+import { AgentBrandBegin } from '@/views/agent/components/brand-begin'
+import { TitlebarActions } from '@/views/agent/components/titlebar-actions'
 import { DiagnosticsSection } from './sections/diagnostics'
 import { ExtensionsSection } from './sections/extensions'
 import { ModelSection } from './sections/model'
@@ -107,10 +109,14 @@ function AgentSettings() {
     updateSearchParams({ section: id }, { replace: true })
   }
 
+  useShellSurface({
+    begin: <AgentBrandBegin />,
+    final: <TitlebarActions />,
+    scrollable: false
+  })
+
   return (
     <div className={styles.page}>
-      <AgentTitlebar />
-
       <div className={styles.shell}>
         <nav className={styles.nav}>
           <div className={styles.navTop}>

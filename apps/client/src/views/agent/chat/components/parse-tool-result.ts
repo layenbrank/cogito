@@ -629,10 +629,9 @@ function buildLineDiff(
 
   const rows = oldLines.length
   const cols = newLines.length
-  const dp: Uint32Array[] = new Array(rows + 1)
-  for (let i = 0; i <= rows; i += 1) {
-    dp[i] = new Uint32Array(cols + 1)
-  }
+  const dp: Uint32Array[] = Array.from({ length: rows + 1 }, function () {
+    return new Uint32Array(cols + 1)
+  })
   for (let i = 1; i <= rows; i += 1) {
     const row = dp[i]
     const prev = dp[i - 1]

@@ -1,5 +1,5 @@
 /**
- * 代码窗 Caption 右侧（Decorations.final）：窗口级布局开关 + 菜单动作。
+ * 代码窗 Caption 右侧（shell final）：窗口级布局开关 + 菜单动作。
  * 对齐 VS Code 标题栏 Layout Control —— 侧栏/底栏展开收缩放这里，不进内容区。
  */
 import { Icon } from '@iconify/react/offline'

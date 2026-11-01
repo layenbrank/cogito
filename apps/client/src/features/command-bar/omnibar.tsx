@@ -243,7 +243,7 @@ function CommandOmnibar() {
     <div
       ref={rootRef}
       className={cn(
-        // 宽度交给 BrowserBar 中间列（max 36rem）；自身只吃满父级，禁止再撑破右栏
+        // 宽度交给 Caption center 列（max 36rem）；自身只吃满父级，禁止再撑破右栏
         'relative flex w-full min-w-0 flex-col',
         isShellOpen && 'z-30'
       )}>

@@ -15,7 +15,6 @@ interface DigitalClockProps {
   showSeconds: boolean
   tick: number
   className?: string
-  isNeon?: boolean
 }
 
 function AnimatedDigit(props: {
@@ -63,7 +62,7 @@ export function DigitalClock(props: DigitalClockProps) {
   const isReduced = !!useReducedMotion()
 
   return (
-    <div className={clsx(styles.digital, props.isNeon && styles.neon, props.className)}>
+    <div className={clsx(styles.digital, props.className)}>
       <span className={styles.digitGroup}>
         <AnimatedDigit
           value={props.h[0]}

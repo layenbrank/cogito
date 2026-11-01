@@ -33,7 +33,12 @@ function UsageMeter(props: UsageMeterProps) {
   })
 
   return (
-    <div className={cn('min-w-0 space-y-1', props.className)}>
+    <div
+      className={cn(
+        'min-w-0 space-y-1 rounded-lg bg-muted/45 px-2.5 py-2',
+        'shadow-[0_1px_2px_color-mix(in_oklab,var(--foreground)_8%,transparent),0_0_0_1px_color-mix(in_oklab,var(--border)_35%,transparent)]',
+        props.className
+      )}>
       <div className="flex items-baseline justify-between gap-2 text-xs leading-none">
         <span className="truncate font-medium text-foreground">{props.label}</span>
         <span className="shrink-0 tabular-nums text-muted-foreground">
@@ -43,15 +48,13 @@ function UsageMeter(props: UsageMeterProps) {
       </div>
       <AreaSparkline
         points={hasTrend ? points : []}
-        height={28}
+        height={24}
         color={isHot ? 'var(--warning)' : undefined}
         emptyHint="暂无占用"
       />
       <div className="flex items-center justify-between text-[10px] text-muted-foreground">
         <span title="容量占用">{Math.round(sizeRatio * 100)}% 容量</span>
-        <span title="数量占用">
-          {Math.round(countRatio * 100)}% 数量
-        </span>
+        <span title="数量占用">{Math.round(countRatio * 100)}% 数量</span>
       </div>
     </div>
   )

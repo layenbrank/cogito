@@ -9,6 +9,7 @@ type Tile = Pick<
   | 'background'
   | 'title'
   | 'mark'
+  | 'url'
 >
 
 export type { Tile }

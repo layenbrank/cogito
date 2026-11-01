@@ -1,5 +1,6 @@
 import {
   createContext,
+  startTransition,
   useMemo,
   useRef,
   useState,
@@ -53,8 +54,8 @@ interface MarketplaceProviderProps {
 
 function MarketplaceProvider(props: MarketplaceProviderProps) {
   const [mode, onUpdateMode] = useState<MarketplaceMode>('booth')
-  const [boothBucket, onUpdateBoothBucket] = useState<BoothBucket>('all')
-  const [navigateBucket, onUpdateNavigateBucket] = useState<NavigateBucket>('all')
+  const [boothBucket, onUpdateBoothBucketRaw] = useState<BoothBucket>('all')
+  const [navigateBucket, onUpdateNavigateBucketRaw] = useState<NavigateBucket>('all')
   const [query, onUpdateQuery] = useState('')
   const [targetMirrorID, onUpdateTargetMirrorID] = useState<string | undefined>(undefined)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
@@ -66,9 +67,18 @@ function MarketplaceProvider(props: MarketplaceProviderProps) {
         mode,
         onUpdateMode,
         boothBucket,
-        onUpdateBoothBucket,
+        onUpdateBoothBucket(bucket: BoothBucket) {
+          // 分类切换可能触发大网格 reconcile；降为 transition 保分类条跟手
+          startTransition(function () {
+            onUpdateBoothBucketRaw(bucket)
+          })
+        },
         navigateBucket,
-        onUpdateNavigateBucket,
+        onUpdateNavigateBucket(bucket: NavigateBucket) {
+          startTransition(function () {
+            onUpdateNavigateBucketRaw(bucket)
+          })
+        },
         query,
         onUpdateQuery,
         targetMirrorID,

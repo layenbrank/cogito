@@ -30,7 +30,7 @@ async function copyTextWeb(text: string): Promise<void> {
   throw new Error('当前环境无法复制到剪贴板')
 }
 
-async function exportMarkdownWeb(text: string, filename: string): Promise<void> {
+function exportMarkdownWeb(text: string, filename: string): Promise<void> {
   const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' })
   const href = URL.createObjectURL(blob)
   try {
@@ -44,6 +44,7 @@ async function exportMarkdownWeb(text: string, filename: string): Promise<void> 
   } finally {
     URL.revokeObjectURL(href)
   }
+  return Promise.resolve()
 }
 
 const ASSISTANT_ACTIONS_TAURI: AssistantActions = {

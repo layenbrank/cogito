@@ -3,9 +3,9 @@ import dayjs from 'dayjs'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
-import { Decorations } from '@/components/decorations/index.ts'
 import { leaveTileSession } from '@/features/magnetic-tile/session'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
+import { useShellSurface } from '@/features/window-shell/slots'
 import {
   computeCountdown,
   parseWorkDays,
@@ -118,22 +118,24 @@ function Countdown() {
     })
   }
 
+  useShellSurface({
+    summary: findComponentLabel('countdown'),
+    scrollable: false,
+    section: (
+      <>
+        <Button onClick={closeWindow}>取消</Button>
+        <Button
+          disabled={saving}
+          onClick={function () {
+            void handleSave()
+          }}>
+          保存
+        </Button>
+      </>
+    )
+  })
+
   return (
-    <Decorations
-      summary={findComponentLabel('countdown')}
-      scrollable={false}
-      section={
-        <>
-          <Button onClick={closeWindow}>取消</Button>
-          <Button
-            disabled={saving}
-            onClick={function () {
-              void handleSave()
-            }}>
-            保存
-          </Button>
-        </>
-      }>
       <div className="mt-stage-split">
         <CountdownPreview
           live={live}
@@ -154,7 +156,6 @@ function Countdown() {
           onToggleWorkDay={toggleWorkDay}
         />
       </div>
-    </Decorations>
   )
 }
 

@@ -1,5 +1,5 @@
 /**
- * 知识库窗 Caption 右侧（Decorations.final）：左栏 / 大纲 / AI。
+ * 知识库窗 Caption 右侧（shell final）：左栏 / 大纲 / AI。
  * 右栏大纲与 AI 共用一列（tabs），不再各占一列。
  */
 import { Icon } from '@iconify/react/offline'

@@ -23,9 +23,9 @@ interface MediaGridProps {
 
 function SectionHeader(props: { label: string; count: number }) {
   return (
-    <header className="sticky top-0 z-10 flex items-baseline gap-2 bg-background/95 px-1 py-2 backdrop-blur-sm">
-      <h3 className="text-sm font-semibold text-foreground">{props.label}</h3>
-      <span className="text-xs text-muted-foreground">{props.count}</span>
+    <header className="sticky top-0 z-10 -mx-1 mb-2 flex items-baseline gap-2 border-b border-border/40 bg-background/90 px-1 py-2 backdrop-blur-sm">
+      <h3 className="text-sm font-semibold tracking-tight text-foreground">{props.label}</h3>
+      <span className="text-xs tabular-nums text-muted-foreground">{props.count}</span>
     </header>
   )
 }
@@ -44,7 +44,7 @@ function DaySection(props: {
     <section data-gallery-section={props.bucket.key} className="scroll-mt-2 bg-background">
       <SectionHeader label={props.bucket.label} count={props.bucket.medias.length} />
       <div
-        className="grid gap-0.5 bg-background"
+        className="grid gap-2.5 bg-background"
         style={
           {
             gridTemplateColumns: `repeat(${props.columns}, minmax(0, 1fr))`

@@ -69,20 +69,6 @@
   text-align: center;
 }
 
-.previewStage.neon {
-  background: color-mix(in oklab, var(--primary) 12%, transparent);
-  border: 1px solid color-mix(in oklab, var(--primary) 32%, transparent);
-
-  .stageDigits {
-    color: var(--primary);
-  }
-}
-
-.previewStage.minimal .stageDigits {
-  font-weight: 500;
-  letter-spacing: 0.08em;
-}
-
 .stageFlip {
   display: inline-flex;
   align-items: center;
@@ -113,20 +99,6 @@
   --clock-analog-width: 100%;
 }
 
-.neon {
-  .previewTime,
-  .previewDate,
-  .mt-fact-value,
-  .mt-preview-status {
-    color: var(--primary);
-  }
-}
-
-.minimal .previewTime {
-  font-weight: 500;
-  letter-spacing: 0.06em;
-}
-
 .flip .previewTime {
   letter-spacing: 0.04em;
 }
@@ -143,7 +115,7 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 12px 14px 10px;
+  padding: 14px 14px 12px;
   overflow: hidden;
   min-width: 0;
   min-height: 0;
@@ -152,8 +124,12 @@
 
 .sectionAppearance {
   flex-shrink: 0;
-  padding-bottom: 10px;
+  padding-bottom: 8px;
   border-bottom: 1px solid color-mix(in oklab, var(--border) 45%, transparent);
+
+  :global(.mt-section-title) {
+    margin-bottom: 10px;
+  }
 }
 
 .sectionAlarms {
@@ -162,7 +138,7 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding-top: 10px;
+  padding-top: 8px;
   overflow: hidden;
 }
 
@@ -174,10 +150,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   background: color-mix(in oklab, var(--muted) 22%, var(--card));
 
-  .mt-section-title {
+  :global(.mt-section-title) {
     margin: 0;
   }
 }
@@ -185,7 +161,7 @@
 .styleList {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .styleRow {
@@ -193,18 +169,23 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 6px 8px;
+  height: auto;
+  min-height: 0;
+  padding: 8px 10px;
   border-radius: var(--radius);
   border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
   text-align: left;
+  white-space: normal;
+  justify-content: flex-start;
   transition:
     border-color 180ms ease,
-    background-color 180ms ease;
+    background-color 180ms ease,
+    box-shadow 180ms ease;
 
   &:hover {
-    background: color-mix(in oklab, var(--primary) 10%, transparent);
+    background: color-mix(in oklab, var(--muted) 55%, transparent);
   }
 
   &:focus-visible {
@@ -214,11 +195,12 @@
 }
 
 .styleRowActive {
-  border-color: color-mix(in oklab, var(--primary) 45%, transparent);
-  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  border-color: color-mix(in oklab, var(--primary) 40%, transparent);
+  background: color-mix(in oklab, var(--primary) 10%, var(--card));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 16%, transparent);
 
   &:hover {
-    background: color-mix(in oklab, var(--primary) 14%, transparent);
+    background: color-mix(in oklab, var(--primary) 12%, var(--card));
   }
 }
 
@@ -226,7 +208,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
 }
 
@@ -263,25 +245,11 @@
   color: var(--foreground);
 }
 
-.mini.neon {
-  background: color-mix(in oklab, var(--primary) 12%, transparent);
-  border-color: color-mix(in oklab, var(--primary) 35%, transparent);
-
-  .miniTime {
-    color: var(--primary);
-  }
-}
-
 .mini.flip .miniTime {
   padding: 2px 4px;
   border-radius: 4px;
   border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   background: color-mix(in oklab, var(--muted) 45%, var(--card));
-}
-
-.mini.minimal .miniTime {
-  font-weight: 500;
-  letter-spacing: 0.06em;
 }
 
 .miniFace {
@@ -350,9 +318,18 @@
 
 .accent {
   flex-shrink: 0;
-  width: 8px;
-  height: 8px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
+  border: 1.5px solid color-mix(in oklab, var(--border) 75%, transparent);
+  background: transparent;
+  box-sizing: border-box;
+}
+
+.accentActive {
+  border-color: var(--primary);
+  background: var(--primary);
+  box-shadow: inset 0 0 0 2.5px var(--card);
 }
 
 .editor {
@@ -383,6 +360,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
+  overscroll-behavior-y: contain;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -394,16 +372,16 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
-  flex: 0 0 auto;
-  min-height: 88px;
-  max-height: 120px;
-  padding: 16px 14px;
-  margin-top: 2px;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 96px;
+  padding: 20px 16px;
+  margin: 0;
   border-radius: var(--radius-md);
-  border: 1px dashed color-mix(in oklab, var(--border) 70%, transparent);
-  background: color-mix(in oklab, var(--card) 55%, transparent);
+  border: 1px dashed color-mix(in oklab, var(--border) 65%, transparent);
+  background: color-mix(in oklab, var(--card) 60%, transparent);
   color: var(--muted-foreground);
   cursor: pointer;
   transition:
@@ -414,9 +392,9 @@
 
   &:hover {
     color: var(--primary);
-    background: color-mix(in oklab, var(--primary) 10%, transparent);
-    border-color: color-mix(in oklab, var(--primary) 35%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 22%, transparent);
+    background: color-mix(in oklab, var(--primary) 8%, var(--card));
+    border-color: color-mix(in oklab, var(--primary) 40%, transparent);
+    box-shadow: none;
   }
 
   &:focus-visible {

@@ -1,5 +1,5 @@
 /**
- * Markdown 窗 Caption 左侧（Decorations.begin）：
+ * Markdown 窗 Caption 左侧（shell begin）：
  * 应用菜单（打开/新建/保存/导出）靠左；当前文件名居中。
  * 搜文件在侧栏；打开等勿再堆到内容区工具条。
  */

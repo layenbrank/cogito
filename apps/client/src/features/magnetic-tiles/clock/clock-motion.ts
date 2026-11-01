@@ -3,19 +3,18 @@ import type { Transition, Variants } from 'motion/react'
 const FLIP_HALF_S = 0.28
 const FLIP_TOTAL_MS = FLIP_HALF_S * 2 * 1000 + 48
 
-/** 数字滚轮：位移 + 透视翻转，非渐隐；槽位 overflow 裁切 */
+/** 数字滚轮：短位移切入，无回弹；槽位 overflow 裁切 */
 const DIGIT = {
   variants: {
-    initial: { y: '-0.82em' },
+    initial: { y: '-0.72em' },
     animate: { y: 0 },
-    exit: { y: '0.82em' }
+    exit: { y: '0.72em' }
   } satisfies Variants,
   transition(isReduced: boolean): Transition {
     if (isReduced) return { duration: 0 }
     return {
-      type: 'spring',
-      visualDuration: 0.35,
-      bounce: 0.15
+      duration: 0.26,
+      ease: 'easeOut'
     }
   }
 }

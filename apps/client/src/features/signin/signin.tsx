@@ -94,11 +94,14 @@ function SignIn(props: SignInProps) {
       open={visible}
       onOpenChange={onVisibleChange}>
       <DialogContent
-        overlayClassName="bg-black/45 supports-backdrop-filter:backdrop-blur-sm"
+        overlayClassName="bg-black/50 supports-backdrop-filter:backdrop-blur-none"
         className="w-[min(94vw,1000px)] max-h-[min(92vh,720px)] max-w-none gap-0 overflow-hidden rounded-2xl border-border/60 bg-card p-0 shadow-2xl ring-1 ring-black/5 sm:max-w-none dark:ring-white/10 **:data-[slot=dialog-body]:gap-0 **:data-[slot=dialog-body]:overflow-hidden **:data-[slot=dialog-body]:p-0">
         <DialogTitle className="sr-only">登录 cogito</DialogTitle>
         <div className={styles.body}>
-          <Brand introMs={introMs} />
+          <Brand
+            introMs={introMs}
+            isLive={visible}
+          />
           <section className={styles.panel}>
             <m.div
               className={styles.seam}

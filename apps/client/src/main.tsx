@@ -9,10 +9,7 @@ import { watchAgentTerminal } from '@/features/terminal/agent-tabs.ts'
 import { adoptAppearance, watchAppearance } from '@/features/window/appearance'
 import { adoptShellMode } from '@/features/window/shell-mode'
 import { useDictStore } from '@/stores/dict'
-import {
-  installExceptionReporting,
-  reportUnknown
-} from '@/utils/exception-report.ts'
+import { installExceptionReporting, reportUnknown } from '@/utils/exception-report.ts'
 import '@/styles/tailwind.css'
 import '@/styles/index.scss'
 
@@ -21,7 +18,7 @@ import LucideIconify from '@iconify/json/json/lucide.json'
 import MDIconify from '@iconify/json/json/mdi.json'
 
 /** React 生成 DOM id 的前缀，避免与页面既有 id 冲突 */
-const IDENTIFIER_PREFIX = 'ith'
+const IDENTIFIER_PREFIX = 'cogito'
 
 addCollection(MDIconify)
 addCollection(AntIconify)
@@ -66,3 +63,4 @@ async function bootstrap() {
 }
 
 void bootstrap()
+

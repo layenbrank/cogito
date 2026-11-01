@@ -5,7 +5,7 @@
 ## 布局
 
 ```
-Decorations（窗口壳：菜单 / 布局开关 / 状态，勿塞编辑器控件）
+ShellFrame（窗口壳常驻）+ useShellSurface（本页申报槽）
 ├─ Caption.begin：标题 + 命令中心（Ctrl+P）
 ├─ Caption.final：布局控制（侧栏 Ctrl+B、底栏 Ctrl+`）+ 命令面板
 ├─ children（内容区 = workbench）
@@ -14,7 +14,7 @@ Decorations（窗口壳：菜单 / 布局开关 / 状态，勿塞编辑器控件
 ```
 
 职责：
-- **Decorations**：窗口级（标题、布局展开/收起、命令入口、状态）
+- **ShellFrame / 槽**：窗口级（标题、布局展开/收起、命令入口、状态）
 - **内容区**：编辑工作台（活动栏切视图、文件树、编辑器、终端面板本体）
 
 

@@ -5,7 +5,7 @@ import Outline from '@/views/knowledge/workspace/overlay/outline.tsx'
 
 /**
  * 内容区工作区部件。
- * Decorations 只放窗口标题 / 应用菜单 / 状态栏，勿把这里的工具塞进 Caption。
+ * 窗口壳只放标题 / 应用菜单 / 状态栏，勿把这里的工具塞进 Caption。
  */
 const Overlay = {
   Utility,

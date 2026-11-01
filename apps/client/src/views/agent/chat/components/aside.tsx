@@ -8,7 +8,7 @@
 import { Icon } from '@iconify/react/offline'
 import { useAui, useAuiState } from '@assistant-ui/react'
 import { clsx } from 'clsx'
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 
 import { subscribeAsideReview } from '@/views/agent/chat/components/open-aside-review'
@@ -151,15 +151,18 @@ function AgentAside(props: AsideProps) {
   }
 
   /** 工具卡常给绝对路径；审阅 IPC 只认工作区相对路径 */
-  function openReview(rawPath?: string | null) {
-    const relative = rawPath ? normalizeToolPath(rawPath, rootPath) : null
-    if (rawPath && !relative) {
-      toast.error('该路径不在当前工作区内')
-      return
-    }
-    updateFocusRelative(relative)
-    updateMode('review')
-  }
+  const openReview = useCallback(
+    function (rawPath?: string | null) {
+      const relative = rawPath ? normalizeToolPath(rawPath, rootPath) : null
+      if (rawPath && !relative) {
+        toast.error('该路径不在当前工作区内')
+        return
+      }
+      updateFocusRelative(relative)
+      updateMode('review')
+    },
+    [rootPath]
+  )
 
   /**
    * 页签切换：终端不是「另一个面板」，而是这里的一个普通页签；没开就先开一个。
@@ -224,7 +227,7 @@ function AgentAside(props: AsideProps) {
         openReview(detail.relative)
       })
     },
-    [rootPath]
+    [openReview]
   )
 
   // 切会话时清掉上一个会话的定向焦点，避免新会话直接落到别人的文件
