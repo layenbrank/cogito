@@ -149,7 +149,7 @@ export const chunks: CodeSplitting[] = [
         /[\\/]node_modules[\\/]@base-ui[\\/]/,
         /[\\/]node_modules[\\/]@assistant-ui[\\/]/,
         /[\\/]node_modules[\\/]assistant-stream[\\/]/,
-        /[\\/]node_modules[\\/](class-variance-authority|tailwind-merge|tw-shimmer|sonner|react-hook-form|react-resizable-panels)[\\/]/,
+        /[\\/]node_modules[\\/](class-variance-authority|tailwind-merge|tw-shimmer|sonner|react-hook-form)[\\/]/,
         /[\\/]node_modules[\\/](remark-gfm|mdast-|micromark|unified|unist-|hast-|vfile|decode-named-character-reference)[\\/]/,
         /[\\/]node_modules[\\/]react-remove-scroll[\\/]/,
         /[\\/]node_modules[\\/]@floating-ui[\\/]/,

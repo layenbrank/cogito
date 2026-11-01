@@ -105,7 +105,6 @@ const COMPONENT = z.enum([
   'agent',
   'navigation',
   'marketplace',
-  'developer',
   'signboard',
   'gallery',
   'capture',
