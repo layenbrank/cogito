@@ -20,8 +20,23 @@ interface TauriIdentity {
   confPath: string
 }
 
+/** 扫到的产物清单（zip 可缺，供 --dry-run / 报错列举） */
+interface BundleInventory {
+  bundleDir: string
+  source: 'dir' | 'CARGO_TARGET_DIR' | 'fallback'
+  productName: string
+  version: string
+  arch: string
+  zipPath: string | undefined
+  sigPath: string | undefined
+  exePath: string | undefined
+  /** WiX 多语言 MSI，如 cogito_1.5.0_x64_zh-CN.msi */
+  msiPaths: string[]
+}
+
 interface BundleArtifacts {
   bundleDir: string
+  source: 'dir' | 'CARGO_TARGET_DIR' | 'fallback'
   zipPath: string
   sigPath: string
   exePath: string | undefined
@@ -174,17 +189,35 @@ function findSigPath(files: string[], zipPath: string): string {
   return byName
 }
 
+function formatInventoryLines(inventory: BundleInventory): string[] {
+  const base = findArtifactBaseName(inventory.productName, inventory.version, inventory.arch)
+  return [
+    `bundle: ${inventory.bundleDir}（${inventory.source}）`,
+    `match:  ${inventory.productName}_${inventory.version}_${inventory.arch}`,
+    `zip:    ${inventory.zipPath ? basename(inventory.zipPath) : `缺 ${base}.nsis.zip`}`,
+    `sig:    ${inventory.sigPath ? basename(inventory.sigPath) : `缺 ${base}.nsis.zip.sig`}`,
+    `exe:    ${inventory.exePath ? basename(inventory.exePath) : `缺 ${base}.exe`}`,
+    `msi:    ${
+      inventory.msiPaths.length > 0
+        ? inventory.msiPaths.map(function (path) {
+            return basename(path)
+          }).join(', ')
+        : `缺 ${base.replace(/-setup$/, '')}_*.msi`
+    }`
+  ]
+}
+
 /**
- * 按 productName_version_arch 精确匹配产物；version 默认来自 tauri.conf，可被 --release 覆盖。
+ * 只扫不校验：列出 zip / exe / msi，缺件也返回（供 --dry-run 与报错列举）。
  */
-async function findClientBundleArtifacts(options: {
+async function findClientBundleInventory(options: {
   explicitDir?: string
   /** 覆盖 tauri.conf 的 version（用于发预发 / 指定对象键） */
   release?: string
   skipExe?: boolean
   skipMsi?: boolean
   confPath?: string
-}): Promise<BundleArtifacts & { source: 'dir' | 'CARGO_TARGET_DIR' | 'fallback' }> {
+}): Promise<BundleInventory> {
   const identity = await findTauriIdentity(options.confPath)
   const version = options.release ?? identity.version
   if (!/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$/.test(version)) {
@@ -204,29 +237,68 @@ async function findClientBundleArtifacts(options: {
 
   const files = await walkFiles(bundleDir)
   const zipPath = findNamedFile(files, zipName)
-  if (!zipPath) {
-    throw new Error(
-      `在 ${bundleDir}（来源: ${source}）未找到 ${zipName}` +
-        `（productName=${identity.productName}, version=${version}, arch=${arch}）。` +
-        '请先 tauri build（需 createUpdaterArtifacts）。'
-    )
-  }
-
   const exePath = options.skipExe ? undefined : findNamedFile(files, exeName)
   const msiPaths = options.skipMsi
     ? []
     : findMsiPaths(files, identity.productName, version, arch)
+  let sigPath: string | undefined
+  if (zipPath) {
+    try {
+      sigPath = findSigPath(files, zipPath)
+    } catch {
+      sigPath = undefined
+    }
+  }
 
   return {
     bundleDir,
     source,
-    zipPath,
-    sigPath: findSigPath(files, zipPath),
-    exePath,
-    msiPaths,
     productName: identity.productName,
     version,
-    arch
+    arch,
+    zipPath,
+    sigPath,
+    exePath,
+    msiPaths
+  }
+}
+
+/**
+ * 按 productName_version_arch 精确匹配产物；version 默认来自 tauri.conf，可被 --release 覆盖。
+ * 发版上传要求 zip+.sig 齐；缺件时错误里会带上已扫到的 msi/exe。
+ */
+async function findClientBundleArtifacts(options: {
+  explicitDir?: string
+  /** 覆盖 tauri.conf 的 version（用于发预发 / 指定对象键） */
+  release?: string
+  skipExe?: boolean
+  skipMsi?: boolean
+  confPath?: string
+}): Promise<BundleArtifacts> {
+  const inventory = await findClientBundleInventory(options)
+  if (!inventory.zipPath || !inventory.sigPath) {
+    const base = findArtifactBaseName(inventory.productName, inventory.version, inventory.arch)
+    throw new Error(
+      `updater 产物不齐（需要 ${base}.nsis.zip + .sig）。已扫到：\n` +
+        formatInventoryLines(inventory)
+          .map(function (line) {
+            return `  ${line}`
+          })
+          .join('\n') +
+        '\n请先 tauri build（createUpdaterArtifacts），或手动 zip+signer 后再发。'
+    )
+  }
+
+  return {
+    bundleDir: inventory.bundleDir,
+    source: inventory.source,
+    zipPath: inventory.zipPath,
+    sigPath: inventory.sigPath,
+    exePath: inventory.exePath,
+    msiPaths: inventory.msiPaths,
+    productName: inventory.productName,
+    version: inventory.version,
+    arch: inventory.arch
   }
 }
 
@@ -241,6 +313,8 @@ export {
   findCargoTargetBundleCandidates,
   findTauriIdentity,
   findBundleDir,
-  findClientBundleArtifacts
+  findClientBundleInventory,
+  findClientBundleArtifacts,
+  formatInventoryLines
 }
-export type { TauriIdentity, BundleArtifacts }
+export type { TauriIdentity, BundleInventory, BundleArtifacts }

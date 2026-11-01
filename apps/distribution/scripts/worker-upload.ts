@@ -168,7 +168,7 @@ async function requestOk(input: RequestInput): Promise<string> {
 function assertPublicKey(key: string): void {
   if (!isPublicKey(key)) {
     throw new Error(
-      `对象键 ${key} 不在读侧白名单内（setup.exe / nsis.zip / updater-*/latest.json）——` +
+      `对象键 ${key} 不在读侧白名单内（setup.exe / *.msi / nsis.zip / updater-*/latest.json）——` +
         '传上去也下载不了，先对齐名字。'
     )
   }
