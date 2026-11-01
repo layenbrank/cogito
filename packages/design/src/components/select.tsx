@@ -10,6 +10,7 @@ import { Select as SelectPrimitive } from '@base-ui/react/select'
 import { cn } from 'cn'
 
 import { FIELD_SHELL } from '../lib/surface'
+import { webviewCoverProps } from '../lib/webview-cover'
 
 type SelectSize = 'sm' | 'default'
 
@@ -168,6 +169,8 @@ function SelectContent({
         sideOffset={sideOffset}
         align={align}
         alignOffset={alignOffset}
+        // Dialog 居中用了 transform；嵌套 Portal 时 absolute 会吃到该 containing block 而错位
+        positionMethod="fixed"
         // 卡片式展开依赖列表从触发器下沿开始；base-ui 的 Select 默认是 true（列表盖在触发器上），必须显式关掉
         alignItemWithTrigger={false}
         className="isolate z-70">
@@ -175,6 +178,7 @@ function SelectContent({
         <SelectPrimitive.Popup
           data-slot="select-popup"
           data-size={size}
+          {...webviewCoverProps()}
           className={cn(
             'group/popup relative isolate z-70 flex flex-col origin-(--transform-origin)',
             // 缩放原点固定到接缝侧的左边缘：面板与触发器严格等宽，左边缘恒重合，

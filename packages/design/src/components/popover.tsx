@@ -3,6 +3,7 @@ import { Popover as PopoverPrimitive } from '@base-ui/react/popover'
 import { cn } from 'cn'
 
 import { OVERLAY_SHELL } from '../lib/surface'
+import { webviewCoverProps } from '../lib/webview-cover'
 
 function Popover({ ...props }: PopoverPrimitive.Root.Props) {
   return (
@@ -46,6 +47,7 @@ function PopoverContent({
       className="isolate z-50">
       <PopoverPrimitive.Popup
         data-slot="popover-content"
+        {...webviewCoverProps()}
         className={cn(
           OVERLAY_SHELL,
           'z-50 flex w-72 origin-(--transform-origin) flex-col gap-2.5 p-2.5 text-sm',

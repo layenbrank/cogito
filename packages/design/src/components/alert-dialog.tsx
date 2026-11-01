@@ -4,6 +4,7 @@ import { cn } from 'cn'
 
 import { Button } from '@cogito/design/components/button'
 import { OVERLAY_BACKDROP_MOTION, OVERLAY_CENTER_MOTION } from '../lib/overlay-motion'
+import { webviewCoverProps } from '../lib/webview-cover'
 
 function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
   return (
@@ -59,6 +60,7 @@ function AlertDialogContent({
       <AlertDialogPrimitive.Popup
         data-slot="alert-dialog-content"
         data-size={size}
+        {...webviewCoverProps()}
         className={cn(
           'group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-popover-foreground ring-1 ring-foreground/10 outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm',
           OVERLAY_CENTER_MOTION,
