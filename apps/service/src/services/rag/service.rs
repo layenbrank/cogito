@@ -430,7 +430,7 @@ mod tests {
 
         assert_eq!(rendered.id, "1a1a1a1a-2b2b-4c3c-8d4d-5e5e5e5e5e5e");
         assert_eq!(rendered.asset_id, "3a3a3a3a-4b4b-4c4c-8d8d-7e7e7e7e7e7e");
-        assert_eq!(rendered.status, "RUNNING");
+        assert_eq!(rendered.status, "009");
         assert_eq!(rendered.progress.as_deref(), Some("embedded:32"));
         assert!(rendered.result.is_none(), "还没结束就不该有结果");
         assert_eq!(rendered.created_at, rendered.updated_at);

@@ -31,7 +31,7 @@ pub struct TaskR {
     /// 发起人；服务身份触发时为 null
     #[serde(rename = "userID")]
     pub user_id: Option<String>,
-    /// `RUNNING` / `SUCCEEDED` / `FAILED`
+    /// `015` / `016` / `017`（dict 001：RUN_RUNNING / RUN_SUCCEEDED / RUN_FAILED）
     pub status: String,
     pub objective: String,
     pub model: String,

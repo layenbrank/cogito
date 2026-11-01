@@ -52,6 +52,7 @@ pub struct JobR {
     /// 下次触发（epoch ms）；停用或非本机排期的任务为空
     pub next_run_at: Option<i64>,
     pub last_run_at: Option<i64>,
+    /// `014` / `015` / `016` / `017`（dict 001：RUN_PENDING … RUN_FAILED）
     pub last_status: Option<String>,
     pub last_error: Option<String>,
     /// 最近一次起出来的 agent 任务 id

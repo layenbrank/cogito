@@ -34,7 +34,7 @@ pub struct Model {
     pub next_run_at: Option<i64>,
     #[sea_orm(column_name = "lastRunAt", nullable)]
     pub last_run_at: Option<i64>,
-    /// running | succeeded | failed
+    /// 014 / 015 / 016 / 017（dict 001 / automation_run_status）
     #[sea_orm(column_name = "lastStatus", column_type = "Text", nullable)]
     pub last_status: Option<String>,
     #[sea_orm(column_name = "lastError", column_type = "Text", nullable)]

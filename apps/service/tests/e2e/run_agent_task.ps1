@@ -51,13 +51,13 @@ for ($i = 0; $i -lt 60; $i++) {
 
     # 台账状态只有 RUNNING / SUCCEEDED / FAILED 三个（词汇定义在 crates/agent），
     # 所以「不是 RUNNING」就是终态，不用再等满整轮。
-    if ($task.status -ne 'RUNNING') { break }
+    if ($task.status -ne '015') { break }
 }
 
 Save-E2EJson -Path (Join-Path $script:E2EOut 'task_final.json') -Value $task
 
 Write-Host "最终：status=$($task.status) steps=$($task.steps) toolCalls=$($task.result.toolCalls) memoryID=$($task.result.memoryID)"
-if ($task.status -ne 'SUCCEEDED') {
+if ($task.status -ne '016') {
     Write-Host ($task | ConvertTo-Json -Depth 10)
     throw "任务没有跑成功（status=$($task.status)）：完整快照见 $script:E2EOut\task_final.json"
 }

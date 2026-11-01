@@ -7,6 +7,7 @@ use crate::services::{
     auth::schema::{AuthR, Avatar, CaptchaR, ProfileR, SigninR, SignupR},
     chat::schema::{ChatChangesR, ChatSyncR},
     console::schema::PreferenceR,
+    dict::schema::{CatalogR as DictCatalogR, ItemR, TenantViewR, TypeItemR, TypeR},
     engine::schema::SuggestionR,
     exception::schema::{ExceptionR, GroupPageR, PageR, SummaryR},
     gateway::schema::{ModelR, PlansR, ProviderR, SelfQuotaR},
@@ -50,6 +51,13 @@ envelope!(ProfileEnvelope, ProfileR);
 envelope!(UserEnvelope, UserR);
 envelope!(UserListEnvelope, Vec<UserR>);
 envelope!(PreferenceEnvelope, PreferenceR);
+envelope!(DictTypeEnvelope, TypeR);
+envelope!(DictTypeListEnvelope, Vec<TypeR>);
+envelope!(DictItemEnvelope, ItemR);
+envelope!(DictItemListEnvelope, Vec<ItemR>);
+envelope!(DictTypeItemListEnvelope, Vec<TypeItemR>);
+envelope!(DictCatalogEnvelope, DictCatalogR);
+envelope!(TenantDictEnvelope, TenantViewR);
 envelope!(ExceptionEnvelope, ExceptionR);
 envelope!(ExceptionPageEnvelope, PageR);
 envelope!(ExceptionGroupPageEnvelope, GroupPageR);

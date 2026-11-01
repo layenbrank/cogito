@@ -16,9 +16,9 @@ fn tenant_header() -> String {
     operation_id = "schedule.list",
     summary = "列出本租户的定时任务",
     description = "按创建时间升序返回任务定义与最近一次执行状态。\n\n\
-        `lastStatus` 记的是**「把任务起起来了」**：`running` = worker 已认领并在起 agent 任务；\n\
-        `succeeded` = 起成功（真正的执行结果在 `lastTaskID` 指向的 agent 任务里）；\n\
-        `failed` 时看 `lastError`。\n\n\
+        `lastStatus` 记的是**「把任务起起来了」**（dict 001）：`015` = worker 已认领并在起 agent 任务；\n\
+        `016` = 起成功（真正的执行结果在 `lastTaskID` 指向的 agent 任务里）；\n\
+        `017` 时看 `lastError`；`014` = 等待执行。\n\n\
         `nextRunAt` 是下次触发时间（epoch ms），停用时为空。\n\n\
         需 JWT 且 `X-Tenant-ID` 指向的租户内有效成员。\n\n\
         `body.code`：200000 成功；`200001` 缺少 `X-Tenant-ID`；`200007` `X-Tenant-ID` 格式无效。",

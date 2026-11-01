@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::{ApprovalState, Error, NewApproval, NewTask, TaskOutcome, TaskState};
 
-/// 建行：`status = RUNNING`、轮次 0、无结果。
+/// 建行：`status = 015`、轮次 0、无结果。
 ///
 /// 先落台账再起编排实例：反过来的话，进程在「实例已起、台账未写」之间崩溃，会留下**看不见的工作**。
 /// 现在的顺序最坏留下「有台账、无实例」，读时按行龄判定即可修成失败。
@@ -232,7 +232,7 @@ mod tests {
             require_terminal(TaskState::Running)
                 .unwrap_err()
                 .to_string(),
-            "终态写回要求终态状态，收到：RUNNING"
+            "终态写回要求终态状态，收到：015"
         );
         assert!(require_terminal(TaskState::Succeeded).is_ok());
         assert!(require_terminal(TaskState::Failed).is_ok());

@@ -32,6 +32,18 @@ pub const USERS_BY_ID: &str = "/api/v1/users/{id}";
 // --- Console（Backend Console 偏好，仅平台 ADMIN） ---
 pub const CONSOLE_PREFERENCE: &str = "/api/v1/console/preference";
 
+// --- Dict（产品状态字典） ---
+pub const DICT_CATALOG: &str = "/api/v1/dict";
+pub const DICT_TYPES: &str = "/api/v1/dict/types";
+pub const DICT_TYPE_BY_CODE: &str = "/api/v1/dict/types/{code}";
+pub const DICT_ITEMS: &str = "/api/v1/dict/items";
+pub const DICT_ITEMS_ALLOCATE: &str = "/api/v1/dict/items/allocate";
+pub const DICT_ITEM_BY_VALUE: &str = "/api/v1/dict/items/{value}";
+pub const DICT_TYPE_CLAIMS: &str = "/api/v1/dict/types/{code}/claims";
+pub const DICT_TYPE_CLAIM_BY_VALUE: &str = "/api/v1/dict/types/{code}/claims/{value}";
+pub const DICT_TENANT_ITEMS: &str = "/api/v1/dict/tenants/{tenantId}/items";
+pub const DICT_TENANT_VIEW: &str = "/api/v1/dict/tenants/{tenantId}";
+
 // --- Exception（客户端上报 + 平台运维查询） ---
 pub const EXCEPTION: &str = "/api/v1/exception";
 pub const EXCEPTION_GROUPS: &str = "/api/v1/exception/groups";
@@ -216,6 +228,50 @@ pub const ALL_ROUTES: &[RouteDef] = &[
     RouteDef {
         method: "PUT",
         path: CONSOLE_PREFERENCE,
+    },
+    RouteDef {
+        method: "GET",
+        path: DICT_CATALOG,
+    },
+    RouteDef {
+        method: "GET",
+        path: DICT_TYPES,
+    },
+    RouteDef {
+        method: "POST",
+        path: DICT_TYPES,
+    },
+    RouteDef {
+        method: "PUT",
+        path: DICT_TYPE_BY_CODE,
+    },
+    RouteDef {
+        method: "GET",
+        path: DICT_ITEMS,
+    },
+    RouteDef {
+        method: "POST",
+        path: DICT_ITEMS_ALLOCATE,
+    },
+    RouteDef {
+        method: "PUT",
+        path: DICT_ITEM_BY_VALUE,
+    },
+    RouteDef {
+        method: "POST",
+        path: DICT_TYPE_CLAIMS,
+    },
+    RouteDef {
+        method: "DELETE",
+        path: DICT_TYPE_CLAIM_BY_VALUE,
+    },
+    RouteDef {
+        method: "PUT",
+        path: DICT_TENANT_ITEMS,
+    },
+    RouteDef {
+        method: "GET",
+        path: DICT_TENANT_VIEW,
     },
     RouteDef {
         method: "POST",

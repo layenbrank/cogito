@@ -67,7 +67,7 @@ POST /api/v1/rag/index-tasks
 
 1. **先查**（`running_for`）：命中就直接 409，并把已有任务的 ID 放进 `details.taskID`，
    调用方拿它去查即可，不用重试。
-2. **部分唯一索引**（`uidx_rag_index_task_running ... WHERE status = 'RUNNING'`）：两个请求同时
+2. **部分唯一索引**（`uidx_rag_index_task_running ... WHERE status = '009'`）：两个请求同时
    通过第 1 步时，第二个会在写库时撞唯一键，退化成不带 `details` 的 409。
 
 为什么不能只做第 2 步：撞唯一键会让整个事务进入 aborted 状态，**同一个事务里回查不到那条冲突行**，
@@ -132,7 +132,7 @@ POST /api/v1/rag/index-tasks
 503、查任务只返回台账原样。
 
 ## 出参
-`status` 是台账状态：`RUNNING` / `SUCCEEDED` / `FAILED`。
+`status` 是台账状态（dict 001）：`009` / `010` / `011`。
 
 - `progress`：编排自报的进度串（`chunked:48` / `embedded:32` / `indexed`），**原样透传不解析**，
   只有还在跑且问得到时才有。

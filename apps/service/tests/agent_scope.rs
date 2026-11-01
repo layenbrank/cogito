@@ -122,7 +122,7 @@ macro_rules! wait_for_terminal {
                 );
 
                 let data = body["data"].clone();
-                if data["status"].as_str() != Some("RUNNING") {
+                if data["status"].as_str() != Some("015") {
                     break data;
                 }
                 assert!(Instant::now() < deadline, "等任务落到终态超时：{data}");
@@ -591,14 +591,14 @@ async fn reports_orchestration_offline_and_settles_the_ledger() {
     )
     .await
     .expect("POST 失败也必须留下台账行，才能如实记录「没跑」");
-    assert_eq!(row, "FAILED|编排运行时未接通（durable 未配置或连接失败）");
+    assert_eq!(row, "017|编排运行时未接通（durable 未配置或连接失败）");
 
     let id = scalar(&fixture.admin, "SELECT id::text FROM agent_task")
         .await
         .expect("台账行 id");
     let (status, body) = call!(app, get_task(token, tenant, &id)).await;
     let data = assert_success(&body, status);
-    assert_eq!(data["status"], "FAILED");
+    assert_eq!(data["status"], "017");
     assert_eq!(data["steps"], 0);
     assert!(
         data["error"]
@@ -642,7 +642,7 @@ async fn hides_other_tenants_tasks_behind_the_same_not_found() {
             r#"INSERT INTO agent_task (id, "tenantID", "userID", status, objective, model,
                                        "maxSteps", "allowedTools", "instanceID",
                                        "createdAt", "updatedAt")
-               VALUES ('{foreign}', '{}', '{}', 'RUNNING', '{OBJECTIVE}', '{CHAT_MODEL}',
+               VALUES ('{foreign}', '{}', '{}', '015', '{OBJECTIVE}', '{CHAT_MODEL}',
                        2, '[]'::jsonb, 'agent-{foreign}', now(), now())"#,
             fixture.stranger, fixture.user
         ),
@@ -665,7 +665,7 @@ async fn hides_other_tenants_tasks_behind_the_same_not_found() {
                 r#"INSERT INTO agent_task (id, "tenantID", "userID", status, objective, model,
                                            "maxSteps", "allowedTools", "instanceID",
                                            "createdAt", "updatedAt")
-                   VALUES ('{id}', '{tenant}', '{}', 'RUNNING', '{OBJECTIVE}', '{CHAT_MODEL}',
+                   VALUES ('{id}', '{tenant}', '{}', '015', '{OBJECTIVE}', '{CHAT_MODEL}',
                            2, '[]'::jsonb, 'agent-{id}', {created}, now())"#,
                 fixture.user
             ),
@@ -675,12 +675,12 @@ async fn hides_other_tenants_tasks_behind_the_same_not_found() {
 
     let (status, body) = call!(app, get_task(token, tenant, &fresh.to_string())).await;
     let data = assert_success(&body, status);
-    assert_eq!(data["status"], "RUNNING", "宽限期内不该判死：{body}");
+    assert_eq!(data["status"], "015", "宽限期内不该判死：{body}");
     assert_eq!(data["progress"], json!(null));
 
     let (status, body) = call!(app, get_task(token, tenant, &stale.to_string())).await;
     let data = assert_success(&body, status);
-    assert_eq!(data["status"], "FAILED", "过了宽限期必须判死：{body}");
+    assert_eq!(data["status"], "017", "过了宽限期必须判死：{body}");
     assert_eq!(data["error"], "编排实例已不存在（任务记录仍在，未跑完）");
 }
 
@@ -743,7 +743,7 @@ async fn runs_a_task_to_a_conclusion_and_reports_live_progress() {
     .await;
     let data = assert_success(&body, status);
     assert_eq!(body["msg"], "创建成功");
-    assert_eq!(data["status"], "RUNNING");
+    assert_eq!(data["status"], "015");
     assert_eq!(data["steps"], 0);
     assert_eq!(data["progress"], json!(null));
     assert_eq!(data["finished"], json!(null));
@@ -781,7 +781,7 @@ async fn runs_a_task_to_a_conclusion_and_reports_live_progress() {
     // 3. 进度必须能**实时**读出来，且覆盖台账列（台账里 steps 还是 0）
     let (status, body) = call!(app, get_task(token, tenant, &task_a)).await;
     let data = assert_success(&body, status);
-    assert_eq!(data["status"], "RUNNING");
+    assert_eq!(data["status"], "015");
     assert_eq!(data["progress"], "step:2/3 tools:2");
     assert_eq!(data["steps"], json!(2), "实时进度应当覆盖台账里的旧值");
     assert_eq!(
@@ -873,7 +873,7 @@ async fn runs_a_task_to_a_conclusion_and_reports_live_progress() {
 
     // 6. 预算耗尽：任务结束但不是「答完了」，这一点必须能在台账上区分出来
     let data = wait_for_terminal!(app, token, tenant, task_a).await;
-    assert_eq!(data["status"], "SUCCEEDED");
+    assert_eq!(data["status"], "016");
     assert_eq!(data["steps"], json!(MAX_STEPS));
     assert_eq!(data["progress"], json!(null));
     assert_eq!(data["error"], json!(null));
@@ -910,7 +910,7 @@ async fn runs_a_task_to_a_conclusion_and_reports_live_progress() {
         .expect("任务 id")
         .to_owned();
     let data = wait_for_terminal!(app, token, tenant, task_b).await;
-    assert_eq!(data["status"], "SUCCEEDED");
+    assert_eq!(data["status"], "016");
     assert_eq!(data["steps"], json!(1));
     assert_eq!(data["allowedTools"], json!([TOOL_ASSET]));
     assert_eq!(data["result"]["finished"], json!(true));
@@ -1054,7 +1054,7 @@ async fn a_failed_memory_write_does_not_change_the_conclusion() {
         .to_owned();
 
     let data = wait_for_terminal!(app, token, tenant, task).await;
-    assert_eq!(data["status"], "SUCCEEDED", "记忆写失败不该改变任务结论");
+    assert_eq!(data["status"], "016", "记忆写失败不该改变任务结论");
     assert_eq!(data["steps"], json!(1));
     assert_eq!(data["error"], json!(null));
     assert_eq!(data["result"]["finished"], json!(true));

@@ -498,9 +498,22 @@ sequenceDiagram
 
 端到端契约见 [`tests/orchestration.rs`](../tests/orchestration.rs)（完成、重启续跑、已完成活动不重跑）。
 
+## 产品状态字典（dict_*）
+
+平台参考数据，与身份/计费/上传流水线的英文 status **不是同一词汇表**。
+
+| 表 | 作用 | RLS |
+| ---- | ---- | ---- |
+| `dict_item` | 全局池：`value` PK（三位递增）、`key` 唯一、label/meta/revision | 平台特权 |
+| `dict_type` | 类型（如 `knowledge_cloud_status`） | 平台特权 |
+| `dict_type_item` | type 认领 value；可覆盖 type 级 label | 平台特权 |
+| `dict_tenant_item` | 租户覆盖 label/enabled | 按 `tenantID` 隔离 |
+
+桥接台账存全局 value：`rag_index_task.status`=`009`/`010`/`011`；`agent_task.status`=`015`/`016`/`017`；`scheduled_job.lastStatus`=`014`–`017`。契约见仓库根 [`docs/contracts/dict.yaml`](../../../docs/contracts/dict.yaml)；HTTP 见 [`services/dict/README.md`](../src/services/dict/README.md)。
+
 ## 迁移
 
-全部表由**单一代际**迁移 [`migration/src/000001_20260819.rs`](../migration/src/000001_20260819.rs) 建出（含 `auth` 的 `phone` / `gender` / `birthday` / `avatar`、`outbox` / `consumed_event`，以及 RLS 函数与全部策略）；
+全部表由**单一代际**迁移 [`migration/src/000001_20260819.rs`](../migration/src/000001_20260819.rs) 建出（含 `auth` 的 `phone` / `gender` / `birthday` / `avatar`、`outbox` / `consumed_event`、`dict_*`，以及 RLS 函数与全部策略）；
 改 schema 直接改这个文件，**不追加新版本**。重建：
 
 ```bash

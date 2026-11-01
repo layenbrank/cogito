@@ -11,9 +11,9 @@
 | 能力   | 说明                                                                   |
 | ------ | ---------------------------------------------------------------------- |
 | 建/改删 | 纯 CRUD；cron 与时区在**保存时**校验，`nextRunAt` 由服务端算            |
-| 认领   | worker 每轮取到期任务，CAS 推进 `nextRunAt`，认领即落 `lastStatus=running` |
+| 认领   | worker 每轮取到期任务，CAS 推进 `nextRunAt`，认领即落 `lastStatus=015` |
 | 起任务 | 以任务声明的身份进租户 → 建 agent 台账 → 提交 → 起编排实例              |
-| 回写   | 起成功写 `succeeded`+`lastTaskID`，起失败写 `failed`+`lastError`        |
+| 回写   | 起成功写 `016`+`lastTaskID`，起失败写 `017`+`lastError`        |
 
 **与客户端 `automation` 域的关系**：客户端那份是「本机 / goose 调度器」的本地排期（SQLite 表
 `automation`），关掉客户端就不跑；这里是「服务端排期」（`scheduled_job`），与客户端无关。
@@ -79,7 +79,7 @@ api 进程没事是因为 `#[actix_web::main]` 本身就是单线程 runtime + `
 | `user`   | `runAsUserId`，缺省用 `creator`；进租户时校验仍是成员 | 个人任务（缺省）        |
 | `tenant` | 服务主体（`SERVICE_ACTOR_ID`）                   | 团队共享任务                 |
 
-不是成员就落 `failed` 并把原因写进 `lastError`，**不静默跳过**——跳过会让人以为任务还在跑。
+不是成员就落 `017` 并把原因写进 `lastError`，**不静默跳过**——跳过会让人以为任务还在跑。
 
 ## 路由一览
 
@@ -114,9 +114,10 @@ api 进程没事是因为 `#[actix_web::main]` 本身就是单线程 runtime + `
 
 `lastStatus` 记的是**「把任务起起来了」**，不是「执行成功了」：
 
-- `running`：已认领、正在起；
-- `succeeded`：agent 任务已建好并起编排，真正的结果在 `lastTaskID` 指向的 agent 台账里；
-- `failed`：没起来，原因在 `lastError`（编排未接通、身份不可用、准备任务失败等）。
+- `014`（RUN_PENDING）：等待执行（新建任务尚未认领时 `lastStatus` 可为空）；
+- `015`（RUN_RUNNING）：已认领、正在起；
+- `016`（RUN_SUCCEEDED）：agent 任务已建好并起编排，真正的结果在 `lastTaskID` 指向的 agent 台账里；
+- `017`（RUN_FAILED）：没起来，原因在 `lastError`（编排未接通、身份不可用、准备任务失败等）。
 
 内部原因（连接串、运行时错误）只进日志与 `lastError`，**响应体里只给面向调用方的说法**。
 
@@ -126,15 +127,15 @@ api 进程没事是因为 `#[actix_web::main]` 本身就是单线程 runtime + `
 # 列表里看三件事：nextRunAt 是否在往前走、lastStatus、lastTaskID
 curl -s "$API/api/v1/automations" -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT"
 # → nextRunAt 一直是过去时间：worker 没在跑（看 worker 日志里的「定时任务认领失败」）
-# → lastStatus=failed 且 lastError 含「编排」：duroxide 没接通，任务本身没问题
-# → lastStatus=succeeded：任务起成功了，去查 lastTaskID 那条 agent 台账
+# → lastStatus=017 且 lastError 含「编排」：duroxide 没接通，任务本身没问题
+# → lastStatus=016：任务起成功了，去查 lastTaskID 那条 agent 台账
 ```
 
 | 现象                                     | 常见原因                                                   |
 | ---------------------------------------- | ---------------------------------------------------------- |
 | 保存回 `500802`                          | cron 段数不是 5，或时区不是 IANA 名（如写成 `UTC+8`）      |
 | 到点没跑，`nextRunAt` 仍停在过去         | worker 进程没起 / 编排库未接通（启动时会有 warn 日志）     |
-| `lastStatus=failed`，`lastError` 提到成员 | `runAsUserId` 已不在该租户，改用 `tenant` 身份或换人       |
+| `lastStatus=017`，`lastError` 提到成员 | `runAsUserId` 已不在该租户，改用 `tenant` 身份或换人       |
 | 任务跑得很频繁                           | 5 段 crontab 的「周」与「日」是或关系，确认表达式本身      |
 
 ## 文档

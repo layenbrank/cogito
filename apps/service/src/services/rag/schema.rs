@@ -31,7 +31,7 @@ pub struct IndexTaskR {
     pub user_id: Option<String>,
     #[serde(rename = "assetID")]
     pub asset_id: String,
-    /// `RUNNING` / `SUCCEEDED` / `FAILED`
+    /// `009` / `010` / `011`（dict 001：CLOUD_RUNNING / CLOUD_SUCCEEDED / CLOUD_FAILED）
     pub status: String,
     /// 编排自报的进度原文（`chunked:n` / `embedded:to` / `indexed`）；还在跑且问得到时才有
     pub progress: Option<String>,
