@@ -82,6 +82,8 @@ interface ModelPref {
 interface AgentSplitterOpen {
   isSidebarOpen: boolean
   isAsideOpen: boolean
+  /** 右栏占满主区分栏（中栏收起）；仅按钮 / 快捷键切换 */
+  isAsideMaximized?: boolean
 }
 
 interface AgentPref {

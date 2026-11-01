@@ -262,7 +262,11 @@ function parseAgent(raw: unknown): AgentPref {
       isSidebarOpen:
         typeof open.isSidebarOpen === 'boolean' ? open.isSidebarOpen : base.splitterOpen.isSidebarOpen,
       isAsideOpen:
-        typeof open.isAsideOpen === 'boolean' ? open.isAsideOpen : base.splitterOpen.isAsideOpen
+        typeof open.isAsideOpen === 'boolean' ? open.isAsideOpen : base.splitterOpen.isAsideOpen,
+      isAsideMaximized:
+        typeof open.isAsideMaximized === 'boolean'
+          ? open.isAsideMaximized
+          : Boolean(base.splitterOpen.isAsideMaximized)
     },
     approvalMode:
       raw.approvalMode === 'ask' || raw.approvalMode === 'auto' || raw.approvalMode === 'readonly'

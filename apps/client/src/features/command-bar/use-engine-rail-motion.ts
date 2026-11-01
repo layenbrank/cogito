@@ -1,6 +1,6 @@
 import { useReducedMotion } from 'motion/react'
 
-import { COLLAPSED_PX, useEngineRailWidth } from '@/features/command-bar/use-engine-rail-width.ts'
+import { useEngineRailWidth } from '@/features/command-bar/use-engine-rail-width.ts'
 
 /** Material 减速曲线，控制点 y ≤ 1，无回弹 */
 const RAIL_EASE: [number, number, number, number] = [0.2, 0, 0, 1]
@@ -35,8 +35,6 @@ function useEngineRailMotion(isShellOpen: boolean, isExpanded: boolean) {
         ease: RAIL_EASE
       }
 
-  const collapsedScale = Math.min(1, COLLAPSED_PX / expandedWidth)
-
   return {
     chipsRef,
     expandedWidth,
@@ -44,8 +42,7 @@ function useEngineRailMotion(isShellOpen: boolean, isExpanded: boolean) {
     radius,
     widthTransition,
     iconFade,
-    chipsFade,
-    collapsedScale
+    chipsFade
   }
 }
 

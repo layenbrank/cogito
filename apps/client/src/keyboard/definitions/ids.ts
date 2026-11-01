@@ -60,8 +60,14 @@ export const COMMAND = {
   AGENT_DOCK_TOGGLE: 'agent.dockToggle',
   /** Agent 聊：打开会话搜索（SessionSearch） */
   AGENT_FIND: 'agent.find',
+  /** Agent 聊：新建任务 / 会话 */
+  AGENT_NEW_TASK: 'agent.newTask',
   /** Agent 聊：折叠 / 展开左侧栏 */
   AGENT_TOGGLE_SIDEBAR: 'agent.toggleSidebar',
+  /** Agent 聊：折叠 / 展开右侧栏 */
+  AGENT_TOGGLE_ASIDE: 'agent.toggleAside',
+  /** Agent 聊：专注工作区（全宽文件 / 终端 / 浏览器） */
+  AGENT_MAXIMIZE_ASIDE: 'agent.maximizeAside',
 
   // directive（编排工作区）
   DIRECTIVE_SAVE: 'directive.save',
