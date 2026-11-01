@@ -23,11 +23,15 @@ import { runDue } from '@/features/automation/runner'
 import { DELETE_JOB, GET_JOBS, PATCH_JOB, SAVE_JOB } from '@/apis/schedule'
 import { toCloudAutomation, toCloudInput } from '@/features/automation/cloud'
 import { syncActiveTenant } from '@/features/quota/tenant'
-import { DICT_VALUE } from '@/shared/ipc/specs/dict'
+import { DICT_KEY, DICT_VALUE_BY_KEY } from '@/shared/ipc/specs/dict'
 import { findAuthToken } from '@/utils/auth'
 import { findActiveTenantID } from '@/utils/tenant.ts'
 
-const OWNER = DICT_VALUE.AUTOMATION_OWNER
+const OWNER = {
+  CLIENT: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_CLIENT]!,
+  GOOSE: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_GOOSE]!,
+  CLOUD: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_CLOUD]!
+}
 
 interface AutomationState {
   items: Automation[]

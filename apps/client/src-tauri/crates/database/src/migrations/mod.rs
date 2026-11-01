@@ -1,4 +1,5 @@
-//! 迁移文件只有 v001：未发版阶段所有 DDL 都并在这一个文件里，
-//! 改完需要 `pnpm --filter @cogito/client migrate:fresh` 重建本地库。
+//! 数据库迁移：仅 `0001` 基线（开发期合并，改完需 `migrate:fresh`）。
+pub mod builtin_seed;
 pub mod dict_seed;
-pub mod migrations_v001;
+pub mod migrations_0001;
+pub mod navigation_seed;

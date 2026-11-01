@@ -30,7 +30,7 @@ interface AgentTask {
   tenantID: string
   /** 发起人；服务身份触发时为空 */
   userID: string | null
-  /** `RUNNING` / `SUCCEEDED` / `FAILED` */
+  /** 全局字典 value：`015` 执行中 / `016` 成功 / `017` 失败 */
   status: string
   objective: string
   model: string

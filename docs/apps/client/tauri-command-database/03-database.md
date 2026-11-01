@@ -4,7 +4,7 @@ Crate：`cogito-database`（`apps/client/src-tauri/crates/database`）。
 
 ## 迁移
 
-- 已注册 [`migrations_v001`](../../../../apps/client/src-tauri/crates/database/src/migrations/migrations_v001.rs)（全量基线，含 `album` / `dict_type` / `dict_item` 与字典 seed）
+- 已注册 [`migrations_0001`](../../../../apps/client/src-tauri/crates/database/src/migrations/migrations_0001.rs)（开发期唯一基线，版本名 `0001`；含 schema + 自研/导航/字典种子）
 - 迁移记录表名：`migrations`（非默认 `seaql_migrations`）
 - API：`migration::run` / `rollback` / `check`；App 启动时 [`bootstrap.rs`](../../../../apps/client/src-tauri/src/app/bootstrap.rs) 调 `run`，失败即 `expect` panic
 - CLI 入口：[`src/bin/migrate.rs`](../../../../apps/client/src-tauri/crates/database/src/bin/migrate.rs)（`sea-orm-migration::cli::run_cli(AppMigrator)`）
@@ -34,7 +34,7 @@ pnpm --filter @cogito/client migrate:fresh # 清空全部表后重跑全部迁�
 - 脚本实际执行 `cargo run --manifest-path src-tauri/Cargo.toml -p cogito-database --bin cogito-database -- -u <url> <子命令>`，首次会先编译 `cogito-database`
 - 手敲 bin 时的等价变量：`-u` ↔ `DATABASE_URL`，`-s` ↔ `DATABASE_SCHEMA`（SQLite 忽略）
 - 只验证迁移本身：`cargo test -p cogito-database`
-- 报 `Migration file of version '…' is missing` 说明库里留存了**已从代码删除**的迁移记录（典型是旧世代的 v002 / v003）：`up`、`status` 与 App 启动都会失败。重置用 `migrate:fresh`（会先自动备份），只想保数据可手工删掉 `migrations` 表里那一行。
+- 报 `Migration file of version '…' is missing` 说明库里留存了**已从代码删除**的迁移记录（典型是旧的 `migrations_v00x`）：`up`、`status` 与 App 启动都会失败。重置用 `migrate:fresh`（会先自动备份），只想保数据可手工删掉 `migrations` 表里那一行。
 
 ### 为什么不用 `sea-orm-cli`
 
@@ -57,14 +57,14 @@ migration/                              # -d 默认 ./migration
 
 `generate` 的落点规则：迁移根取 `-d` 目录下的 `src/`（存在时），注册文件取该根下的 `lib.rs`（优先存在），否则 `mod.rs`；它靠正则插入 `mod m…;`、并替换该文件里**第一个** `vec![…]` 字面量，文件名固定为 `m<YYYYMMDD>_<HHMMSS>_<名字>`（名字不许含 `-`）。
 
-**本仓库不满足该布局**：注册表在 [`src/migration.rs`](../../../../apps/client/src-tauri/crates/database/src/migration.rs)（`AppMigrator`）、迁移在 `src/migrations/`、[`src/lib.rs`](../../../../apps/client/src-tauri/crates/database/src/lib.rs) 是库根，且模块名 `migrations_v001` 不匹配 `m\d{8}_\d{6}_\w+` —— 跑 `generate` 会把文件写到错误位置、并漏改或改坏注册文件。**新增迁移请照 v001 手写**，再在 `AppMigrator::migrations()` 注册。
+**本仓库不满足该布局**：注册表在 [`src/migration.rs`](../../../../apps/client/src-tauri/crates/database/src/migration.rs)（`AppMigrator`）、迁移在 `src/migrations/`、[`src/lib.rs`](../../../../apps/client/src-tauri/crates/database/src/lib.rs) 是库根，且模块名 `migrations_0001` 不匹配 `m\d{8}_\d{6}_\w+` —— 跑 `generate` 会把文件写到错误位置、并漏改或改坏注册文件。**开发期只维护 `0001`**；改 schema/种子后 `migrate:fresh`。
 
 ### 库文件位置
 
 - Windows：`%LOCALAPPDATA%\com.cogito.client\cogito-client.db`（Tauri `app_local_data_dir()/cogito-client.db`，见 [`storage.rs`](../../../../apps/client/src-tauri/crates/database/src/storage.rs)）
 - **client 与 studio 共用同一文件**（studio 侧见 [`database.ts`](../../../../apps/studio/src/host/capabilities/database.ts)）：`fresh` 会连 studio 的 `auth` / `chat*` / `workspace*` / `__drizzle_migrations` 一起删；studio 下次启动会重跑自己的迁移（全部 `IF NOT EXISTS` / 条件 `UPDATE`，可安全重跑）。`migrate:fresh` 会先自动备份，但恢复仍需手工做。
 
-### v001 表清单
+### 0001 表清单
 
 | 表             | Entity 模块               | 备注                                    |
 | -------------- | ------------------------- | --------------------------------------- |
@@ -78,12 +78,16 @@ migration/                              # -d 默认 ./migration
 | `reminder`     | `entity/reminder.rs`      | 须先于 calendar（FK）                   |
 | `calendar`     | `entity/calendar.rs`      | FK → `reminder(id)`，ON DELETE SET NULL |
 | `album`        | `entity/album.rs`         | 捕获库相簿；成员在 `asset.metadata.albums` |
-| `dict_type`    | `entity/dict_type.rs`     | 状态字典类型（code PK）                    |
-| `dict_item`    | `entity/dict_item.rs`     | 字典项；`UNIQUE(typeCode, value)`；业务只认 value |
+| `dict_type`         | `entity/dict_type.rs`         | 状态字典类型（code PK） |
+| `dict_item`         | `entity/dict_item.rs`         | 全局状态池；`value`/`key` 唯一；业务只认 value |
+| `dict_type_item`    | `entity/dict_type_item.rs`    | type → value 认领；可覆盖 type 级 label |
+| `dict_tenant_item`  | `entity/dict_tenant_item.rs`  | 租户覆盖 label/enabled（本地缓存） |
+
+契约见 [`docs/contracts/dict.md`](../../../contracts/dict.md) / [`dict.yaml`](../../../contracts/dict.yaml)。字典最终形态已并入 `0001`（全局池 + `dict_type_item`）。
 
 时间戳统一为 **毫秒**（`timestamp_millis`）。
 
-新增迁移一律照 v001 **手写**，再在 `AppMigrator::migrations()` 注册。未发版阶段改 v001 后需 `migrate:fresh`。
+开发期只维护 `migrations_0001.rs`（版本名 `0001`）。改完需 `migrate:fresh`。
 
 ## Entity 约定
 

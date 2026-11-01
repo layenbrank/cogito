@@ -1,42 +1,26 @@
 /**
  * 服务端任务行 → 界面用的 `Automation` 形状。
  *
- * 为什么做这层映射：列表里要一视同仁地显示本机 / goose / 服务端三种任务，
- * 但它们的来源与可执行动作完全不同（服务端不能「立即执行」，也不能改成本机）。
- * 云端枚举仍是英文语义串，在此映射到本地字典 value。
+ * 列表里要一视同仁地显示本机 / goose / 服务端三种任务；
+ * wire 与本地均用全局字典三位 value，不再做英文映射。
  */
 import type { CloudJob } from '@/apis/schedule'
-import { DICT_VALUE } from '@/shared/ipc/specs/dict'
+import { DICT_KEY, DICT_VALUE_BY_KEY } from '@/shared/ipc/specs/dict'
 import type { Automation } from '@/shared/ipc/specs/automation'
 
-const OWNER = DICT_VALUE.AUTOMATION_OWNER
-const RUN_AS = DICT_VALUE.AUTOMATION_RUN_AS
-const RUN_STATUS = DICT_VALUE.AUTOMATION_RUN_STATUS
+const OWNER = {
+  CLIENT: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_CLIENT]!,
+  GOOSE: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_GOOSE]!,
+  CLOUD: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_CLOUD]!
+}
+const RUN_AS = {
+  USER: DICT_VALUE_BY_KEY[DICT_KEY.RUN_AS_USER]!,
+  TENANT: DICT_VALUE_BY_KEY[DICT_KEY.RUN_AS_TENANT]!
+}
 
 function parseRunAs(value: string | null | undefined): string {
   if (value === 'tenant' || value === RUN_AS.TENANT) return RUN_AS.TENANT
   return RUN_AS.USER
-}
-
-function parseRunStatus(value: string | null | undefined): string | null {
-  if (!value) return null
-  switch (value) {
-    case 'pending':
-    case RUN_STATUS.PENDING:
-      return RUN_STATUS.PENDING
-    case 'running':
-    case RUN_STATUS.RUNNING:
-      return RUN_STATUS.RUNNING
-    case 'succeeded':
-    case 'ok':
-    case RUN_STATUS.SUCCEEDED:
-      return RUN_STATUS.SUCCEEDED
-    case 'failed':
-    case RUN_STATUS.FAILED:
-      return RUN_STATUS.FAILED
-    default:
-      return value
-  }
 }
 
 function toCloudAutomation(job: CloudJob): Automation {
@@ -55,7 +39,7 @@ function toCloudAutomation(job: CloudJob): Automation {
     remoteId: job.id,
     nextRunAt: job.nextRunAt,
     lastRunAt: job.lastRunAt,
-    lastStatus: parseRunStatus(job.lastStatus),
+    lastStatus: job.lastStatus,
     lastError: job.lastError,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt

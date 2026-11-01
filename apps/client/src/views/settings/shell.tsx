@@ -18,7 +18,6 @@ import {
 import AccountSurface from '@/views/settings/surfaces/account.tsx'
 import AppearanceSurface from '@/views/settings/surfaces/appearance.tsx'
 import CaptureSurface from '@/views/settings/surfaces/capture.tsx'
-import DictSurface from '@/views/settings/surfaces/dict.tsx'
 import GeneralSurface from '@/views/settings/surfaces/general.tsx'
 import ShortcutsSurface from '@/views/settings/surfaces/shortcuts.tsx'
 import { findShowsShellBack } from '@/views/settings/shell-back.ts'
@@ -94,10 +93,9 @@ function Shell() {
           {NAVS.map(function (nav) {
             const isActive = section === nav.key
             return (
-              <Button
+              <button
                 key={nav.key}
                 type="button"
-                variant="ghost"
                 disabled={nav.isDisabled}
                 aria-current={isActive ? 'page' : undefined}
                 className={clsx(
@@ -113,7 +111,7 @@ function Shell() {
                   aria-hidden
                 />
                 <span>{nav.label}</span>
-              </Button>
+              </button>
             )
           })}
         </nav>
@@ -136,7 +134,6 @@ function Shell() {
               {section === SECTION.SHORTCUTS && <ShortcutsSurface />}
               {section === SECTION.APPEARANCE && <AppearanceSurface />}
               {section === SECTION.ACCOUNT && <AccountSurface />}
-              {section === SECTION.DICT && <DictSurface />}
             </m.div>
           </AnimatePresence>
         </div>

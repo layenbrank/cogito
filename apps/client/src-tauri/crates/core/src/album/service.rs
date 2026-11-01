@@ -6,6 +6,7 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
+use crate::dict::album_status;
 use crate::exception::Exception;
 
 pub struct Service;
@@ -140,7 +141,10 @@ impl Service {
             name: Set(p.name),
             index: Set(p.index),
             cover_asset_id: Set(p.cover_asset_id),
-            status: Set(p.status.unwrap_or_else(|| "001".to_string())),
+            status: Set(
+                p.status
+                    .unwrap_or_else(|| album_status::ACTIVE.to_string()),
+            ),
             archived_at: Set(None),
             created_at: Set(now),
             updated_at: Set(now),

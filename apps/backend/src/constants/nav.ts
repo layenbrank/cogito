@@ -138,6 +138,14 @@ const NAV_ITEMS: readonly NavItem[] = [
     icon: 'lucide:sliders-horizontal',
     group: '控制台',
     hint: '导航序、钉选、看板小部件与书签'
+  },
+  {
+    id: 'dict',
+    label: '状态字典',
+    path: '/dict',
+    icon: 'lucide:book-type',
+    group: '控制台',
+    hint: '全局池、类型认领与租户覆盖'
   }
 ] as const
 

@@ -61,6 +61,9 @@ const RagView = lazy(function () {
 const PreferencesView = lazy(function () {
   return import('@/views/preferences/preferences.tsx')
 })
+const DictView = lazy(function () {
+  return import('@/views/dict/dict.tsx')
+})
 
 function requireAdmin({ request }: LoaderFunctionArgs) {
   if (!findAuthToken()) {
@@ -102,6 +105,7 @@ const router = createBrowserRouter([
           { path: 'sso', element: <SsoView /> },
           { path: 'agent', element: <AgentView /> },
           { path: 'rag', element: <RagView /> },
+          { path: 'dict', element: <DictView /> },
           { path: 'preferences', element: <PreferencesView /> }
         ]
       }

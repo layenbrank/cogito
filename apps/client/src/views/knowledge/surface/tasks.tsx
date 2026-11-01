@@ -19,14 +19,21 @@ import { Textarea } from '@cogito/design/components/textarea'
 import { useEffect, useState } from 'react'
 
 import { SCHEDULE_PRESETS, describeSchedule } from '@/features/automation/describe-schedule'
-import { DICT_TYPE, DICT_VALUE } from '@/shared/ipc/specs/dict'
+import { DICT_KEY, DICT_TYPE, DICT_VALUE_BY_KEY } from '@/shared/ipc/specs/dict'
 import { useAutomationStore } from '@/stores/automation'
 import { useDictStore } from '@/stores/dict'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { formatTime } from '@/views/knowledge/lib/format.ts'
 
-const OWNER = DICT_VALUE.AUTOMATION_OWNER
-const RUN_AS = DICT_VALUE.AUTOMATION_RUN_AS
+const OWNER = {
+  CLIENT: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_CLIENT]!,
+  GOOSE: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_GOOSE]!,
+  CLOUD: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_CLOUD]!
+}
+const RUN_AS = {
+  USER: DICT_VALUE_BY_KEY[DICT_KEY.RUN_AS_USER]!,
+  TENANT: DICT_VALUE_BY_KEY[DICT_KEY.RUN_AS_TENANT]!
+}
 
 type Owner =
   | typeof OWNER.CLIENT

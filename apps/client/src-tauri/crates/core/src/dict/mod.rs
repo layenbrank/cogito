@@ -3,4 +3,7 @@ mod codes;
 mod service;
 
 pub use codes::*;
-pub use service::{DictItemView, DictTypeView, Service, UpdateItemInput};
+pub use service::{
+    DictItemView, DictTypeView, RemoteCatalog, RemoteClaimItem, RemotePoolItem,
+    RemoteTenantItem, Service, UpdateItemInput,
+};

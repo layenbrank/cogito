@@ -11,6 +11,7 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
+use crate::dict::asset_status;
 use crate::exception::Exception;
 
 pub struct Service;
@@ -275,7 +276,11 @@ impl Service {
             file_name: Set(payload.file_name),
             file_path: Set(payload.file_path),
             metadata: Set(payload.metadata),
-            status: Set(payload.status.unwrap_or_else(|| "001".to_string())),
+            status: Set(
+                payload
+                    .status
+                    .unwrap_or_else(|| asset_status::ACTIVE.to_string()),
+            ),
             device_id: Set(payload.device_id),
             archived_at: Set(payload.archived_at),
             created_at: Set(now),
@@ -302,7 +307,11 @@ impl Service {
         active.file_name = Set(updates.file_name);
         active.file_path = Set(updates.file_path);
         active.metadata = Set(updates.metadata);
-        active.status = Set(updates.status.unwrap_or_else(|| "001".to_string()));
+        active.status = Set(
+            updates
+                .status
+                .unwrap_or_else(|| asset_status::ACTIVE.to_string()),
+        );
         active.device_id = Set(updates.device_id);
         active.archived_at = Set(updates.archived_at);
         active.updated_at = Set(now);
