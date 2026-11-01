@@ -27,6 +27,7 @@ export default function Navigation(props: NavigationProps) {
         shape={props.shape}
         mark={props.mark}
         title={props.title}
+        url={props.url}
       />
     </MagneticTile.Section>
   )

@@ -45,6 +45,7 @@ interface MountTilePayload {
   background?: MagneticTile.Background | null
   title?: string | null
   mark?: string | null
+  url?: string | null
 }
 
 /**
@@ -264,7 +265,8 @@ function OverlayShell() {
           round: payload.round ?? null,
           background: payload.background ?? null,
           title: payload.title ?? '',
-          mark: payload.mark ?? null
+          mark: payload.mark ?? null,
+          url: payload.url ?? null
         })
       }
 

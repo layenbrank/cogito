@@ -1,4 +1,4 @@
-import { memo, useContext, useMemo, useState } from 'react'
+import { memo, useContext, useEffect, useMemo, useState } from 'react'
 import { useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
 import { toast } from 'sonner'
@@ -9,6 +9,10 @@ import {
   findNavigateBucketLabel,
   type NavigateBucket
 } from '@/constants/marketplace/buckets'
+import {
+  findNavigationIconSrc,
+  findNavigationLabel
+} from '@/features/magnetic-tile/mark.ts'
 import { MarketplaceContext } from '@/views/marketplace/workspace/context.tsx'
 import { EmptyHint } from '@/views/marketplace/workspace/empty-hint'
 import { IncrementButton } from '@/views/marketplace/workspace/increment-button'
@@ -37,12 +41,6 @@ function parseHostname(url: string | null) {
     console.debug('[marketplace] URL 不合法，直接回显原文:', error)
     return url
   }
-}
-
-function findTitleMark(title: string) {
-  const trimmed = title.trim()
-  if (!trimmed) return '#'
-  return trimmed.slice(0, 1).toUpperCase()
 }
 
 function findTileDescription(tile: MagneticTile) {
@@ -134,11 +132,21 @@ function NavigateCardView(props: NavigateCardViewProps) {
       }
     })
   )
-  const accent = tile.background?.color ?? '#DBEAFE'
+  const accent = tile.background?.color ?? '#FFFFFF'
   const hostname = parseHostname(tile.url)
-  const mark = findTitleMark(tile.title)
+  const iconSrc = findNavigationIconSrc(tile.mark, tile.url)
+  const label = findNavigationLabel(tile.mark, tile.title)
+  const [isBrokenIcon, onUpdateBrokenIcon] = useState(false)
   const description = findTileDescription(tile)
   const updatedLabel = formatUpdatedAt(tile.updatedAt)
+  const showsIcon = Boolean(iconSrc) && !isBrokenIcon
+
+  useEffect(
+    function () {
+      onUpdateBrokenIcon(false)
+    },
+    [iconSrc]
+  )
 
   async function onIncrement() {
     const mirrorID = marketplace.targetMirrorID ?? activeMirrorID
@@ -178,13 +186,24 @@ function NavigateCardView(props: NavigateCardViewProps) {
       data-list-card=""
       className="flex min-h-22 items-start gap-3 rounded-2xl bg-card p-3.5 shadow-sm transition-shadow duration-150 hover:shadow-md">
       <div
-        className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl text-sm font-semibold shadow-sm"
+        className="inline-flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl text-sm font-semibold shadow-sm"
         style={{
           backgroundColor: accent,
           color: tile.textColor ?? undefined
         }}
         aria-hidden>
-        {mark}
+        {showsIcon ? (
+          <img
+            src={iconSrc!}
+            alt=""
+            className="size-full object-contain p-1.5"
+            onError={function () {
+              onUpdateBrokenIcon(true)
+            }}
+          />
+        ) : (
+          label
+        )}
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">

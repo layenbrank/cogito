@@ -67,29 +67,30 @@
 }
 
 .iconWellPrimary {
-  color: var(--primary);
-  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  /* 跟随磁贴 ink（实色底上为白），半透明井 */
+  color: inherit;
+  background: color-mix(in oklab, currentColor 14%, transparent);
 }
 
 .iconWellSuccess {
-  color: var(--success);
-  background: color-mix(in oklab, var(--success) 12%, transparent);
+  color: inherit;
+  background: color-mix(in oklab, currentColor 14%, transparent);
 }
 
 .iconWellStatus {
-  color: var(--success);
-  background: color-mix(in oklab, var(--success) 12%, transparent);
+  color: inherit;
+  background: color-mix(in oklab, currentColor 14%, transparent);
 }
 
 .after .iconWellStatus,
 .rest .iconWellStatus {
-  color: var(--muted-foreground);
-  background: var(--muted);
+  color: inherit;
+  background: color-mix(in oklab, currentColor 10%, transparent);
 }
 
 .before .iconWellStatus {
-  color: var(--primary);
-  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  color: inherit;
+  background: color-mix(in oklab, currentColor 14%, transparent);
 }
 
 .metricHead {

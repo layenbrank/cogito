@@ -36,7 +36,6 @@ const COMPONENT_BUCKET: Partial<Record<MagneticTile.Component, Exclude<BoothBuck
   capture: 'media',
   morph: 'media',
   code: 'dev',
-  developer: 'dev',
   example: 'dev',
   directive: 'dev',
   collection: 'apps',
