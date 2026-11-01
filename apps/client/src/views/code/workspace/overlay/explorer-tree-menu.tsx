@@ -69,7 +69,7 @@ function buildExplorerTreeMenuItems(input: ExplorerTreeMenuInput): MenuItem[] {
       icon: (
         <Icon
           icon="lucide:folder-symlink"
-          className="size-3.5"
+          className="size-4"
         />
       ),
       onSelect: revealInSystemExplorer
@@ -80,7 +80,7 @@ function buildExplorerTreeMenuItems(input: ExplorerTreeMenuInput): MenuItem[] {
       icon: (
         <Icon
           icon="lucide:terminal"
-          className="size-3.5"
+          className="size-4"
         />
       ),
       onSelect: openInTerminal
@@ -93,7 +93,7 @@ function buildExplorerTreeMenuItems(input: ExplorerTreeMenuInput): MenuItem[] {
       icon: (
         <Icon
           icon="lucide:clipboard-copy"
-          className="size-3.5"
+          className="size-4"
         />
       ),
       onSelect() {
@@ -106,7 +106,7 @@ function buildExplorerTreeMenuItems(input: ExplorerTreeMenuInput): MenuItem[] {
       icon: (
         <Icon
           icon="lucide:clipboard-list"
-          className="size-3.5"
+          className="size-4"
         />
       ),
       disabled: isRoot || !relativePath,
@@ -121,7 +121,7 @@ function buildExplorerTreeMenuItems(input: ExplorerTreeMenuInput): MenuItem[] {
       icon: (
         <Icon
           icon="lucide:file-plus-2"
-          className="size-3.5"
+          className="size-4"
         />
       ),
       onSelect() {
@@ -138,7 +138,7 @@ function buildExplorerTreeMenuItems(input: ExplorerTreeMenuInput): MenuItem[] {
       icon: (
         <Icon
           icon="lucide:folder-plus"
-          className="size-3.5"
+          className="size-4"
         />
       ),
       onSelect() {
@@ -162,7 +162,7 @@ function buildExplorerTreeMenuItems(input: ExplorerTreeMenuInput): MenuItem[] {
       icon: (
         <Icon
           icon="lucide:pencil"
-          className="size-3.5"
+          className="size-4"
         />
       ),
       onSelect() {
@@ -181,7 +181,7 @@ function buildExplorerTreeMenuItems(input: ExplorerTreeMenuInput): MenuItem[] {
       icon: (
         <Icon
           icon="lucide:trash-2"
-          className="size-3.5"
+          className="size-4"
         />
       ),
       onSelect() {

@@ -32,7 +32,7 @@ function syncTerminalLayout(
   }
 }
 
-/** 尺寸未就绪时连拍几帧再 fit，覆盖 ResizablePanel / hidden→visible 首帧 */
+/** 尺寸未就绪时连拍几帧再 fit，覆盖 SplitterPane / hidden→visible 首帧 */
 function scheduleTerminalLayout(
   terminal: XtermTerminal | null,
   fit: FitAddon | null,

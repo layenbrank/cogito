@@ -109,7 +109,7 @@ describe('Drizzle 迁移（真实引擎 better-sqlite3）', function () {
     expect(seedRowCounts(db)).toEqual(SEED_ROWS)
   })
 
-  it('种子里的 AI Hub 直接写 agent（无遗留旧组件名）', function () {
+  it('种子里的 Agent 磁贴直接写 agent（无遗留旧组件名）', function () {
     const db = openDb()
 
     bootstrap(db)

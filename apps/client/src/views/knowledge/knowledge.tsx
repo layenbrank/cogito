@@ -1,9 +1,9 @@
 import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-  usePanelRef
-} from '@cogito/design/components/resizable'
+  Splitter,
+  SplitterHandle,
+  SplitterPane,
+  usePaneRef
+} from '@cogito/design/components/splitter'
 import { Suspense, lazy, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 
@@ -66,8 +66,8 @@ export default function Knowledge() {
   const isAsideOpen = useKnowledgeStore(function (state) {
     return state.isOutlineOpen
   })
-  const leftRef = usePanelRef()
-  const rightRef = usePanelRef()
+  const leftRef = usePaneRef()
+  const rightRef = usePaneRef()
   const openRef = useRef({ isSidebarOpen, isAsideOpen, isFocusMode })
 
   useKnowledgeDockScope()
@@ -101,7 +101,7 @@ export default function Knowledge() {
 
       if (!open.isFocusMode && open.isAsideOpen) {
         right.expand()
-        if (right.getSize().inPixels < RIGHT_MIN) right.resize(RIGHT_SIZE)
+        if (right.findSize().inPixels < RIGHT_MIN) right.resize(RIGHT_SIZE)
       } else {
         right.collapse()
       }
@@ -126,7 +126,7 @@ export default function Knowledge() {
       if (!isFocusMode && isAsideOpen) {
         if (panel.isCollapsed()) {
           panel.expand()
-          if (panel.getSize().inPixels < RIGHT_MIN) panel.resize(RIGHT_SIZE)
+          if (panel.findSize().inPixels < RIGHT_MIN) panel.resize(RIGHT_SIZE)
         }
         return
       }
@@ -160,30 +160,29 @@ export default function Knowledge() {
       sectionClassName="justify-stretch gap-0 border-border/50 bg-background/70 p-0 backdrop-blur-md"
       scrollable={false}>
       <div className={styles.workspace}>
-        <ResizablePanelGroup
+        <Splitter
           id="knowledge-shell"
           orientation="horizontal"
           className="h-full min-h-0 w-full flex-1">
-          <ResizablePanel
+          <SplitterPane
             id={LEFT_ID}
-            panelRef={leftRef}
+            paneRef={leftRef}
             defaultSize={LEFT_SIZE}
-            minSize={LEFT_MIN}
-            maxSize={LEFT_MAX}
+            min={LEFT_MIN}
+            max={LEFT_MAX}
             collapsible
             collapsedSize={0}
-            collapsibleOnDrag={false}
-            groupResizeBehavior="preserve-pixel-size"
+            preservePixel
             onResize={handleLeftResize}
             className="min-h-0 min-w-0 overflow-hidden border-r border-border">
             <KnowledgeSurface />
-          </ResizablePanel>
+          </SplitterPane>
 
-          <ResizableHandle withHandle />
+          <SplitterHandle withHandle />
 
-          <ResizablePanel
+          <SplitterPane
             id={MAIN_ID}
-            minSize={280}
+            min={280}
             className="min-h-0 min-w-0 overflow-hidden">
             <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
               <Fallback.ErrorBoundary
@@ -194,25 +193,24 @@ export default function Knowledge() {
                 </Suspense>
               </Fallback.ErrorBoundary>
             </div>
-          </ResizablePanel>
+          </SplitterPane>
 
-          <ResizableHandle withHandle />
+          <SplitterHandle withHandle />
 
-          <ResizablePanel
+          <SplitterPane
             id={RIGHT_ID}
-            panelRef={rightRef}
+            paneRef={rightRef}
             defaultSize={RIGHT_SIZE}
-            minSize={RIGHT_MIN}
-            maxSize={RIGHT_MAX}
+            min={RIGHT_MIN}
+            max={RIGHT_MAX}
             collapsible
             collapsedSize={0}
-            collapsibleOnDrag={false}
-            groupResizeBehavior="preserve-pixel-size"
+            preservePixel
             onResize={handleRightResize}
             className="min-h-0 min-w-0 overflow-hidden border-l border-border">
             <KnowledgeAside />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+          </SplitterPane>
+        </Splitter>
       </div>
     </Decorations>
   )
