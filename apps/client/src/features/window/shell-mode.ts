@@ -6,11 +6,13 @@
  */
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
-const SHELL_STORAGE_KEY = 'cogito:shell'
 const EMBEDDED_QUERY = 'embedded'
 const EMBEDDED_VALUE = '1'
 const MAIN_WINDOW_LABEL = 'main'
 const BROWSER_LABEL_PREFIX = 'browser-'
+
+/** SPA 路由丢掉 `?embedded=1` 后仍记住嵌套壳（禁 sessionStorage，只用内存） */
+let isEmbeddedAdopted = false
 
 function hasTauriRuntime(): boolean {
   if (typeof window === 'undefined') return false
@@ -24,25 +26,6 @@ function readEmbeddedQuery(): boolean {
   } catch (error) {
     console.warn('[shell-mode] 解析 embedded 查询失败', error)
     return false
-  }
-}
-
-function readEmbeddedStorage(): boolean {
-  if (typeof sessionStorage === 'undefined') return false
-  try {
-    return sessionStorage.getItem(SHELL_STORAGE_KEY) === 'embedded'
-  } catch (error) {
-    console.warn('[shell-mode] 读 shell 标记失败', error)
-    return false
-  }
-}
-
-function writeEmbeddedStorage() {
-  if (typeof sessionStorage === 'undefined') return
-  try {
-    sessionStorage.setItem(SHELL_STORAGE_KEY, 'embedded')
-  } catch (error) {
-    console.warn('[shell-mode] 写 shell 标记失败', error)
   }
 }
 
@@ -61,7 +44,7 @@ function isEmbeddedShell(): boolean {
   if (typeof document !== 'undefined' && document.documentElement.dataset.shell === 'embedded') {
     return true
   }
-  if (readEmbeddedQuery() || readEmbeddedStorage()) return true
+  if (readEmbeddedQuery() || isEmbeddedAdopted) return true
   const label = findWindowLabelSafe()
   return label.startsWith(BROWSER_LABEL_PREFIX)
 }
@@ -93,13 +76,13 @@ function softenEmbeddedTauriNoise() {
 }
 
 /**
- * 启动最早调用：把 `?embedded=1` 落到 `data-shell` + sessionStorage，
+ * 启动最早调用：把 `?embedded=1` 落到 `data-shell` + 内存标记，
  * 避免客户端路由丢掉 query 后误跑主窗逻辑。
  */
 function adoptShellMode() {
   if (typeof document === 'undefined') return
   let embedded = false
-  if (readEmbeddedQuery() || readEmbeddedStorage()) {
+  if (readEmbeddedQuery() || isEmbeddedAdopted) {
     embedded = true
   } else {
     const label = findWindowLabelSafe()
@@ -107,7 +90,7 @@ function adoptShellMode() {
   }
   if (!embedded) return
   document.documentElement.dataset.shell = 'embedded'
-  writeEmbeddedStorage()
+  isEmbeddedAdopted = true
   softenEmbeddedTauriNoise()
 }
 
