@@ -19,7 +19,11 @@ type BaseFlag = 'autoUpdate' | 'autoExport' | 'citation'
 const BASE_FLAGS: readonly { key: BaseFlag; label: string; hint: string }[] = [
   { key: 'autoUpdate', label: '自动更新', hint: '打开面板时把磁盘上的改动更新进来' },
   { key: 'autoExport', label: '自动导出', hint: '发布后另存一份 HTML 到库目录的 exports/' },
-  { key: 'citation', label: '生成带引用', hint: '生成文档时标注引用了哪几篇' }
+  {
+    key: 'citation',
+    label: '生成带引用',
+    hint: '生成文档时基于本地检索标注引用了哪几篇（见《标题》）'
+  }
 ]
 
 /** 单个开关 → 只带这一项的 patch（后端按「未给的保持不变」处理） */

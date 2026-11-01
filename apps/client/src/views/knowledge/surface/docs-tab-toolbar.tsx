@@ -105,8 +105,8 @@ function DocsTabToolbar(props: DocsTabState) {
         }}>
         <Input
           value={props.query}
-          placeholder="检索…"
-          title="1–2 字也能命中"
+          placeholder="本地检索…"
+          title="本地全文检索；1–2 字中文也能命中"
           className="h-7 text-xs"
           onChange={function (event) {
             props.writeQuery(event.target.value)
@@ -160,17 +160,6 @@ function DocsTabToolbar(props: DocsTabState) {
           <DropdownMenuContent
             align="start"
             className="min-w-32">
-            <DropdownMenuItem
-              disabled={props.isSyncingCloud || !props.activeBase || props.docs.length === 0}
-              onClick={function () {
-                void props.syncCloud()
-              }}>
-              <Icon
-                icon="lucide:cloud-upload"
-                className="size-3.5"
-              />
-              上云
-            </DropdownMenuItem>
             <DropdownMenuItem
               disabled={props.isLoading || !props.activeBaseID}
               onClick={function () {
