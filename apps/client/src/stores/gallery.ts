@@ -4,6 +4,7 @@ import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
 import { invalidateGalleryMarkerThumbs } from '@/features/magnetic-tiles/gallery/preview-cache'
+import { isEmbeddedShell, isMainShell } from '@/features/window/shell-mode'
 import { CHANNELS } from '@/shared/ipc/channels'
 import { reportCaught } from '@/utils/exception-report'
 import {
@@ -124,7 +125,10 @@ const useGalleryStore = create<GalleryStore>()(
               'toReadMedias'
             )
 
-            if (!options?.skipHydrate) {
+            // 嵌入壳不写回日期：半残 IPC 容易留下「找不到 callback」噪音
+            const canHydrate =
+              !options?.skipHydrate && isMainShell() && !isEmbeddedShell()
+            if (canHydrate) {
               void hydrateCapturedDates(medias, async function (media, patch) {
                 await invoke(CHANNELS.ASSET.UPDATE, {
                   params: {

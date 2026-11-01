@@ -1,4 +1,3 @@
-import { Button } from '@cogito/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 
@@ -58,12 +57,11 @@ function TypeTile(props: TypeTileProps) {
   const hasCover = (props.covers?.length ?? 0) > 0
 
   return (
-    <Button
+    <button
       type="button"
-      variant="ghost"
       onClick={props.onClick}
       className={cn(
-        'group flex flex-col overflow-hidden rounded-2xl bg-muted/40 text-left transition-colors',
+        'group flex w-full flex-col overflow-hidden rounded-2xl bg-muted/40 p-0 text-left transition-colors',
         'hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
         props.className
       )}>
@@ -86,7 +84,7 @@ function TypeTile(props: TypeTileProps) {
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{props.label}</span>
         <span className="text-xs text-muted-foreground tabular-nums">{props.count}</span>
       </div>
-    </Button>
+    </button>
   )
 }
 

@@ -25,6 +25,7 @@ interface ScreenshotResult {
 interface MountOverlayOptions extends Partial<MarkerLayout>, SurfaceStyleInput {
   title?: string
   mark?: string | null
+  url?: string | null
 }
 
 /** 主显示器即时截图（不弹窗，返回截图文件路径） */
@@ -122,7 +123,8 @@ async function mountOverlayTile(
       round: options?.round ?? null,
       background: options?.background ?? null,
       title: options?.title ?? '',
-      mark: options?.mark ?? null
+      mark: options?.mark ?? null,
+      url: options?.url ?? null
     }
   })
 }
