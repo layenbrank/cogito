@@ -1,11 +1,17 @@
 import {
-  Children,
+  Fragment,
   isValidElement,
   type ReactElement,
   type ReactNode
 } from 'react'
 
-import type { HandleItem, PaneCollapsibleConfig, PaneItem, SplitterHandleProps, SplitterPaneProps } from './types'
+import type {
+  HandleItem,
+  PaneCollapsibleConfig,
+  PaneItem,
+  SplitterHandleProps,
+  SplitterPaneProps
+} from './types'
 
 const PANE_TYPE = Symbol.for('cogito.splitter.pane')
 const HANDLE_TYPE = Symbol.for('cogito.splitter.handle')
@@ -22,6 +28,29 @@ function normalizeCollapsible(
   }
 }
 
+/**
+ * 展开数组与 Fragment。
+ * React 19 的 Children.toArray 不再展开 Fragment（会留下 Symbol(react.fragment)），
+ * 条件渲染 `<>…pane…</>` 会被丢掉，侧栏/底栏开关看起来像 noop。
+ */
+function flattenElements(children: ReactNode, out: ReactElement[] = []): ReactElement[] {
+  if (children == null || typeof children === 'boolean') return out
+  if (Array.isArray(children)) {
+    for (const child of children) flattenElements(child, out)
+    return out
+  }
+  if (!isValidElement(children)) return out
+  if (children.type === Fragment) {
+    flattenElements(
+      (children.props as { children?: ReactNode }).children,
+      out
+    )
+    return out
+  }
+  out.push(children)
+  return out
+}
+
 function parseChildren(children: ReactNode): {
   panes: PaneItem[]
   handles: (HandleItem | undefined)[]
@@ -29,10 +58,10 @@ function parseChildren(children: ReactNode): {
   const panes: PaneItem[] = []
   const handles: (HandleItem | undefined)[] = []
 
-  const nodes = Children.toArray(children)
+  const nodes = flattenElements(children)
   for (let i = 0; i < nodes.length; i += 1) {
     const node = nodes[i]
-    if (!isValidElement(node)) continue
+    if (!node) continue
 
     const type = (node.type as { $$typeofMarker?: symbol }).$$typeofMarker
     if (type === PANE_TYPE) {
@@ -56,7 +85,7 @@ function parseChildren(children: ReactNode): {
       // 若下一节点不是显式 Handle，先占位；后面补默认 handle
       const next = nodes[i + 1]
       if (
-        isValidElement(next) &&
+        next &&
         (next.type as { $$typeofMarker?: symbol }).$$typeofMarker === HANDLE_TYPE
       ) {
         const handleProps = next.props as SplitterHandleProps
@@ -95,4 +124,4 @@ function markHandleType<T>(component: T): T {
   return component
 }
 
-export { markHandleType, markPaneType, parseChildren }
+export { flattenElements, markHandleType, markPaneType, parseChildren }

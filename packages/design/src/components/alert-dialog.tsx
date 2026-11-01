@@ -3,6 +3,7 @@ import { AlertDialog as AlertDialogPrimitive } from '@base-ui/react/alert-dialog
 import { cn } from 'cn'
 
 import { Button } from '@cogito/design/components/button'
+import { useOverlayPortalContainer } from '@cogito/design/components/overlay-portal'
 import { OVERLAY_BACKDROP_MOTION, OVERLAY_CENTER_MOTION } from '../lib/overlay-motion'
 import { webviewCoverProps } from '../lib/webview-cover'
 
@@ -24,21 +25,28 @@ function AlertDialogTrigger({ ...props }: AlertDialogPrimitive.Trigger.Props) {
   )
 }
 
-function AlertDialogPortal({ ...props }: AlertDialogPrimitive.Portal.Props) {
+function AlertDialogPortal({
+  container,
+  ...props
+}: AlertDialogPrimitive.Portal.Props) {
+  const shellContainer = useOverlayPortalContainer()
   return (
     <AlertDialogPrimitive.Portal
       data-slot="alert-dialog-portal"
+      container={container ?? shellContainer ?? undefined}
       {...props}
     />
   )
 }
 
 function AlertDialogOverlay({ className, ...props }: AlertDialogPrimitive.Backdrop.Props) {
+  const shellContainer = useOverlayPortalContainer()
   return (
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        'fixed inset-0 isolate z-50 bg-black/10 supports-backdrop-filter:backdrop-blur-xs',
+        shellContainer ? 'absolute inset-0' : 'fixed inset-0',
+        'isolate z-50 bg-black/10 supports-backdrop-filter:backdrop-blur-xs',
         OVERLAY_BACKDROP_MOTION,
         className
       )}
@@ -54,6 +62,7 @@ function AlertDialogContent({
 }: AlertDialogPrimitive.Popup.Props & {
   size?: 'default' | 'sm'
 }) {
+  const shellContainer = useOverlayPortalContainer()
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />
@@ -62,7 +71,8 @@ function AlertDialogContent({
         data-size={size}
         {...webviewCoverProps()}
         className={cn(
-          'group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-popover-foreground ring-1 ring-foreground/10 outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm',
+          'group/alert-dialog-content z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-popover-foreground ring-1 ring-foreground/10 outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm',
+          shellContainer ? 'absolute top-1/2 left-1/2' : 'fixed top-1/2 left-1/2',
           OVERLAY_CENTER_MOTION,
           className
         )}
