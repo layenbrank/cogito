@@ -18,9 +18,6 @@ const Collection = React.lazy(function () {
 const Code = React.lazy(function () {
   return import('@/features/magnetic-tiles/code/code.tsx')
 })
-const Developer = React.lazy(function () {
-  return import('@/features/magnetic-tiles/developer/developer.tsx')
-})
 const Example = React.lazy(function () {
   return import('@/features/magnetic-tiles/example/example.tsx')
 })
@@ -72,7 +69,6 @@ const Reflection: Readonly<MagneticTile.Reflection> = {
   knowledge: Knowledge,
   morph: Morph,
   marketplace: Marketplace,
-  developer: Developer,
   example: Example,
   collection: Collection,
   gallery: Gallery,
@@ -90,7 +86,6 @@ export {
   Code,
   Collection,
   Countdown,
-  Developer,
   Directive,
   Example,
   Gallery,

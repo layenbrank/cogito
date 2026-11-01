@@ -63,10 +63,6 @@ const Countdown = lazy(function () {
   return import('@/views/countdown/countdown.tsx')
 })
 
-const Developer = lazy(function () {
-  return import('@/views/developer/developer.tsx')
-})
-
 const Directive = lazy(function () {
   return import('@/views/directive/directive.tsx')
 })
@@ -170,7 +166,6 @@ const routes: RouteObject[] = [
               { path: '/code', element: <Code /> },
               { path: '/collection', element: <Collection /> },
               { path: '/countdown', element: <Countdown /> },
-              { path: '/developer', element: <Developer /> },
               {
                 path: '/directive',
                 element: <Directive />,
