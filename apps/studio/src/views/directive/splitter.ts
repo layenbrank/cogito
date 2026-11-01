@@ -2,11 +2,11 @@
  * 指令页的栏宽与布局持久化。
  *
  * 编排台（`workspace.tsx`）是两层嵌套的可拖分栏：外层「列表 | 工作区」，工作区内「编辑器 / 运行台」
- * 上下叠；卡片墙（`directive.tsx`）只用其中的运行台一项，铺成「墙 / 运行台」。夹取、吸附、收起交给
- * `react-resizable-panels`；这里只管库不管的事 —— 默认尺寸、记住上次拖到哪、两侧栏的开合。
+ * 上下叠；卡片墙（`directive.tsx`）只用其中的运行台一项，铺成「墙 / 运行台」。
+ * 夹取与折叠交给 `@cogito/design/components/splitter`；这里只管默认尺寸、存档与开合。
  *
- * Panel 尺寸：数字 = 像素，无单位字符串 / `"N%"` = 百分比。
- * Group `defaultLayout` 里的数字是库给出的占比（0..100）。面板 id 参与存档键，须与页面一致。
+ * Pane 尺寸：数字 = 像素，`"N%"` = 百分比。
+ * `defaultLayout` 为占比（0..100）。pane id 参与存档键，须与页面一致。
  */
 
 const STORAGE_KEY = 'studio.directive.splitter'

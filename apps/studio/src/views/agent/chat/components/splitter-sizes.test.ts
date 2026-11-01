@@ -3,9 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { parseSplitterLayout, parseSplitterState } from './splitter-sizes'
 
 /**
- * 这里测的是**存储容错**：栏宽的夹取已交给 react-resizable-panels，
- * 剩下的风险就是 localStorage 里躺着半截或脏数据 —— 那会让三栏撑成坏布局，
- * 所以宁可回落到库的默认分配。
+ * 这里测的是**存储容错**：栏宽夹取交给 Splitter，
+ * 剩下的风险是 localStorage 脏数据 —— 宁可回落到默认分配。
  */
 
 describe('parseSplitterLayout', function () {

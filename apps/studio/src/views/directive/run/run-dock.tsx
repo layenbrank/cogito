@@ -1,4 +1,4 @@
-import { ResizablePanel } from '@cogito/design/components/resizable'
+import { SplitterPane } from '@cogito/design/components/splitter'
 
 import ActionLibraryDialog from '@/views/directive/action-library'
 
@@ -24,12 +24,12 @@ function RunDockPanel(props: Props) {
   const { dock } = props
 
   return (
-    <ResizablePanel
+    <SplitterPane
       id={RUN_ID}
-      panelRef={dock.runRef}
+      paneRef={dock.runRef}
       defaultSize={dock.isRunOpen ? RUN_MAX : RUN_COLLAPSED}
-      minSize={RUN_MIN}
-      maxSize={RUN_MAX}
+      min={RUN_MIN}
+      max={RUN_MAX}
       collapsible
       collapsedSize={RUN_COLLAPSED}
       onResize={dock.onRunResize}
@@ -43,7 +43,7 @@ function RunDockPanel(props: Props) {
         open={dock.isLibraryOpen}
         onOpenChange={dock.updateLibraryOpen}
       />
-    </ResizablePanel>
+    </SplitterPane>
   )
 }
 

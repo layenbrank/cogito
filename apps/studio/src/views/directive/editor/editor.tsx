@@ -22,10 +22,10 @@ import {
 import { Input } from '@cogito/design/components/input'
 import { Label } from '@cogito/design/components/label'
 import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup
-} from '@cogito/design/components/resizable'
+  Splitter,
+  SplitterHandle,
+  SplitterPane
+} from '@cogito/design/components/splitter'
 import {
   Select,
   SelectContent,
@@ -1203,7 +1203,7 @@ function Editor({ name, isListOpen, onOpen, onToggleList, onRun }: Props) {
     <div className="flex h-full min-h-0 flex-1 flex-col bg-muted/35 text-foreground">
       {header}
 
-      <ResizablePanelGroup
+      <Splitter
         id={PANEL_GROUP_ID}
         orientation="horizontal"
         className="min-h-0 w-full min-w-0"
@@ -1212,12 +1212,12 @@ function Editor({ name, isListOpen, onOpen, onToggleList, onRun }: Props) {
         onLayoutChanged={function (layout) {
           writeSplitterLayout(PANEL_GROUP_ID, layout)
         }}>
-        <ResizablePanel
+        <SplitterPane
           id={META_ID}
           defaultSize={META_SIZE}
-          minSize={META_MIN}
-          maxSize={META_MAX}
-          groupResizeBehavior="preserve-pixel-size"
+          min={META_MIN}
+          max={META_MAX}
+          preservePixel
           className="h-full min-h-0 min-w-0">
           <Glide.Y>
             <aside className="@container/meta flex flex-col gap-2.5 p-3">
@@ -1388,13 +1388,13 @@ function Editor({ name, isListOpen, onOpen, onToggleList, onRun }: Props) {
               </Section>
             </aside>
           </Glide.Y>
-        </ResizablePanel>
+        </SplitterPane>
 
-        <ResizableHandle withHandle />
+        <SplitterHandle withHandle />
 
-        <ResizablePanel
+        <SplitterPane
           id={STEPS_ID}
-          minSize={STEPS_MIN}
+          min={STEPS_MIN}
           className="h-full min-h-0 min-w-0">
           <Glide.Y>
             <main className="flex flex-col gap-3 p-3.5">
@@ -1488,8 +1488,8 @@ function Editor({ name, isListOpen, onOpen, onToggleList, onRun }: Props) {
               </div>
             </main>
           </Glide.Y>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        </SplitterPane>
+      </Splitter>
 
       {/*
         YAML 只读：这一份是 corex 从模型序列化出来的，用来和「编辑器里看到的」对账；

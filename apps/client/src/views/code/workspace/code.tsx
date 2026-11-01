@@ -1,8 +1,8 @@
 import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup
-} from '@cogito/design/components/resizable'
+  Splitter,
+  SplitterHandle,
+  SplitterPane
+} from '@cogito/design/components/splitter'
 import { clsx } from 'clsx'
 import { useState } from 'react'
 
@@ -74,31 +74,37 @@ export default function Code() {
       <CommandPalette />
       <CloseConfirmDialog />
 
-      <ResizablePanelGroup
+      <Splitter
+        id="code-workspace"
         orientation="vertical"
         className="min-h-0 flex-1">
-        <ResizablePanel
+        <SplitterPane
+          id="code-workspace-main"
           defaultSize={isSurfaceOpen ? '72%' : '100%'}
-          minSize="30%"
+          min="30%"
           className="min-h-0 overflow-hidden">
           <div className="flex h-full min-h-0">
             <ActivityBar />
-            <ResizablePanelGroup
+            <Splitter
+              id="code-editor-row"
               orientation="horizontal"
               className="min-h-0 min-w-0 flex-1">
               {isSidebarOpen ? (
                 <>
-                  <ResizablePanel
+                  <SplitterPane
+                    id="code-sidebar"
                     defaultSize="18%"
-                    minSize="12%"
-                    maxSize="40%"
+                    min="12%"
+                    max="40%"
                     className="min-h-0 min-w-0 overflow-hidden">
                     <Sidebar />
-                  </ResizablePanel>
-                  <ResizableHandle withHandle />
+                  </SplitterPane>
+                  <SplitterHandle withHandle />
                 </>
               ) : null}
-              <ResizablePanel className="min-h-0 min-w-0 overflow-hidden bg-background/92">
+              <SplitterPane
+                id="code-editor"
+                className="min-h-0 min-w-0 overflow-hidden bg-background/92">
                 <div className="flex h-full min-h-0 flex-col">
                   <EditorTabs />
                   <Breadcrumbs />
@@ -129,24 +135,25 @@ export default function Code() {
                     ) : null}
                   </div>
                 </div>
-              </ResizablePanel>
-            </ResizablePanelGroup>
+              </SplitterPane>
+            </Splitter>
           </div>
-        </ResizablePanel>
+        </SplitterPane>
 
         {isSurfaceOpen ? (
           <>
-            <ResizableHandle withHandle />
-            <ResizablePanel
+            <SplitterHandle withHandle />
+            <SplitterPane
+              id="code-bottom-surface"
               defaultSize="28%"
-              minSize="15%"
-              maxSize="60%"
+              min="15%"
+              max="60%"
               className="min-h-0 overflow-hidden">
               <BottomSurface />
-            </ResizablePanel>
+            </SplitterPane>
           </>
         ) : null}
-      </ResizablePanelGroup>
+      </Splitter>
     </div>
   )
 }

@@ -1,11 +1,10 @@
 /**
  * Agent 三栏的栏宽与布局持久化。
  *
- * 夹取 / 吸附 / 收起全交给 `react-resizable-panels`（design 包 `components/resizable`）：
- * 库的 `minSize` / `maxSize` / `collapsible` / `collapsedSize` 就是干这个的。
- * 这里只管库不管的事：**默认值**、**记住上次拖到哪**、**左右栏开合**。
+ * 夹取与折叠交给 `@cogito/design/components/splitter`（`min` / `max` / `collapsible`）。
+ * 这里只管：**默认值**、**记住上次拖到哪**、**左右栏开合**。
  *
- * 面板 id 参与持久化的键，必须与 `views/agent/chat/chat.tsx` 里的一致。
+ * pane id 参与持久化的键，必须与 `views/agent/chat/chat.tsx` 里的一致。
  */
 
 const STORAGE_KEY = 'studio.agent.splitter'

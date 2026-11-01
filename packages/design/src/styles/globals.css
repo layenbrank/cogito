@@ -367,6 +367,27 @@
     opacity: 0.7;
   }
 
+  /* @ 提及文件：主色；/ 技能：琥珀；浏览器标签：青绿 —— 三者一眼可辨 */
+  .aui-composer-chip[data-chip-type='file'] {
+    background: color-mix(in oklab, var(--color-primary) 14%, transparent);
+    color: color-mix(in oklab, var(--color-primary) 72%, var(--color-foreground));
+  }
+
+  .aui-composer-chip[data-chip-type='skill'] {
+    background: color-mix(in oklab, var(--color-warning) 22%, transparent);
+    color: color-mix(in oklab, var(--color-warning) 48%, var(--color-foreground));
+  }
+
+  .aui-composer-chip[data-chip-type='browser'] {
+    background: color-mix(in oklab, oklch(0.62 0.12 195) 16%, transparent);
+    color: color-mix(in oklab, oklch(0.48 0.1 195) 55%, var(--color-foreground));
+  }
+
+  .dark .aui-composer-chip[data-chip-type='browser'] {
+    background: color-mix(in oklab, oklch(0.7 0.12 195) 18%, transparent);
+    color: color-mix(in oklab, oklch(0.78 0.1 195) 60%, var(--color-foreground));
+  }
+
   .aui-composer-chip[data-chip-type='browser']::before {
     content: '◍';
   }
@@ -377,6 +398,20 @@
 
   .aui-composer-chip[data-chip-type='skill']::before {
     content: '✦';
+  }
+
+  /*
+   * 触发中的 `@…` / `/…` 文本高亮（CSS Custom Highlight，不改 DOM）。
+   * 与 chip 色系对齐：mention=主色，skill=琥珀。
+   */
+  ::highlight(aui-composer-trigger-mention) {
+    color: color-mix(in oklab, var(--color-primary) 78%, var(--color-foreground));
+    background-color: color-mix(in oklab, var(--color-primary) 14%, transparent);
+  }
+
+  ::highlight(aui-composer-trigger-skill) {
+    color: color-mix(in oklab, var(--color-warning) 55%, var(--color-foreground));
+    background-color: color-mix(in oklab, var(--color-warning) 18%, transparent);
   }
 
   /*
@@ -548,21 +583,17 @@
   }
 
   /*
-   * ResizablePanel 折叠/展开的宽度过渡：程序化 collapse/expand 时 flex 三属性平滑过渡
-   * （只过渡 flex-basis 不够——尺寸由 flex-grow 决定，折叠时它是 1 → 0）；
-   * 拖动分栏时 Group 打 `data-dragging`，临时关掉 transition 保证跟手（见 resizable.tsx）。
+   * Splitter 折叠/展开的宽度过渡：仅程序化 collapse/expand 时过渡 flex-basis；
+   * 拖动分栏时根节点打 `data-splitter-dragging`，临时关掉 transition 保证跟手。
    */
-  [data-panel] {
-    transition:
-      flex-basis 0.2s cubic-bezier(0.22, 1, 0.36, 1),
-      flex-grow 0.2s cubic-bezier(0.22, 1, 0.36, 1),
-      flex-shrink 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  [data-splitter-pane][data-splitter-animating] {
+    transition: flex-basis 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   }
-  [data-dragging] [data-panel] {
+  [data-splitter-dragging] [data-splitter-pane] {
     transition: none;
   }
   /* 应用边界 data-motion（appearance）；不直接读 OS prefers-reduced-motion */
-  html[data-motion='reduce'] [data-panel] {
+  html[data-motion='reduce'] [data-splitter-pane] {
     transition: none;
   }
 
