@@ -1,8 +1,8 @@
 import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup
-} from '@cogito/design/components/resizable'
+  Splitter,
+  SplitterHandle,
+  SplitterPane
+} from '@cogito/design/components/splitter'
 import type { Editor } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
 
@@ -118,10 +118,12 @@ function WorkspaceSurfaces(props: WorkspaceSurfacesProps) {
       ) : null}
 
       {props.viewMode === 'split' ? (
-        <ResizablePanelGroup
+        <Splitter
+          id="knowledge-editor-split"
           orientation="horizontal"
           className="h-full min-h-0">
-          <ResizablePanel
+          <SplitterPane
+            id="knowledge-editor-source"
             defaultSize="50%"
             className="min-h-0 min-w-0 overflow-hidden">
             <SourceEditor
@@ -133,17 +135,19 @@ function WorkspaceSurfaces(props: WorkspaceSurfacesProps) {
               scrollRatio={scrollRatio}
               documentKey={props.activePath}
             />
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel className="min-h-0 min-w-0 overflow-hidden">
+          </SplitterPane>
+          <SplitterHandle withHandle />
+          <SplitterPane
+            id="knowledge-editor-preview"
+            className="min-h-0 min-w-0 overflow-hidden">
             <Overlay.Section
               composer={props.composer}
               isToolbarHidden
               scrollHostRef={liveScrollRef}
               onScrollRatio={onLiveScroll}
             />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+          </SplitterPane>
+        </Splitter>
       ) : null}
     </div>
   )
