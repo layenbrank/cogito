@@ -25,7 +25,7 @@ function Collections(props: CollectionsProps) {
 
       <section className="mb-6 space-y-2">
         <h2 className="px-0.5 text-base font-semibold">我的相簿</h2>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
           <TypeTile
             icon="lucide:images"
             label="最近项目"
@@ -59,7 +59,7 @@ function Collections(props: CollectionsProps) {
 
       <section className="space-y-2">
         <h2 className="px-0.5 text-base font-semibold">更多项目</h2>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
           <TypeTile
             icon="lucide:eye-off"
             label="已隐藏"

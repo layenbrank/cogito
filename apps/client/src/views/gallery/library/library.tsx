@@ -7,6 +7,7 @@ import {
   DropdownMenuTrigger
 } from '@cogito/design/components/dropdown-menu'
 import { Tabs, TabsList, TabsTrigger } from '@cogito/design/components/tabs'
+import { cn } from 'cn'
 import { AnimatePresence, useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
 import { startTransition, useEffect, useRef, useState } from 'react'
@@ -351,6 +352,7 @@ function Library(props: LibraryProps) {
   )
 
   const hasSelection = props.selectedIds.size > 0
+  const showScrubber = layout === 'grid' && scope === 'all'
 
   function switchScope(next: TimeScope) {
     startTransition(function () {
@@ -394,7 +396,10 @@ function Library(props: LibraryProps) {
 
       <div
         ref={scrollRef}
-        className="relative min-h-0 flex-1 overflow-y-auto bg-background px-4">
+        className={cn(
+          'relative min-h-0 flex-1 overflow-y-auto bg-background px-4',
+          showScrubber && 'pr-10'
+        )}>
         <LibraryContent
           medias={props.medias}
           layout={layout}
@@ -412,7 +417,7 @@ function Library(props: LibraryProps) {
         />
       </div>
 
-      {layout === 'grid' && scope === 'all' ? (
+      {showScrubber ? (
         <DateScrubber
           marks={marks}
           scrollRoot={scrollRoot}

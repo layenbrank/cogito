@@ -1,4 +1,3 @@
-import { Button } from '@cogito/design/components/button'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { memo, type ReactNode } from 'react'
@@ -32,12 +31,13 @@ function MediaCellComponent(props: MediaCellProps) {
   }
 
   return (
-    <Button
+    <button
       ref={ref}
       type="button"
-      variant="ghost"
       className={cn(
-        'group relative aspect-square overflow-hidden rounded-md bg-muted/40 outline-none',
+        // 缩略图是「铺满格子」的媒体块，不是动作按钮：不能用 design Button，
+        // 否则会继承 h-8 / shrink-0，aspect-square 拿 2rem 高度反算宽度 → 格子挤成细条。
+        'group relative block aspect-square w-full min-w-0 overflow-hidden rounded-md bg-muted/40 p-0 outline-none',
         '[content-visibility:auto] [contain-intrinsic-size:auto_120px]',
         'transition-[box-shadow,transform] duration-200 ease-out',
         'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
@@ -93,7 +93,7 @@ function MediaCellComponent(props: MediaCellProps) {
           {props.selected ? <Icon icon="lucide:check" className="size-3" /> : null}
         </span>
       ) : null}
-    </Button>
+    </button>
   )
 }
 

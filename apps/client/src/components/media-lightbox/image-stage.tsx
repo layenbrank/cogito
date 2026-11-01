@@ -82,8 +82,12 @@ function MediaImageStage(props: MediaImageStageProps) {
     function () {
       let cancelled = false
       userZoomedRef.current = false
+      /**
+       * 不设 crossOrigin：本组件只 Konva drawImage，不 getImageData。
+       * `http://asset.localhost` 在嵌套壳 / ACAO 与当前 origin 不一致时，
+       * anonymous 会 CORS 失败；无 CORS 仍可预览。
+       */
       const next = new Image()
-      next.crossOrigin = 'anonymous'
       next.decoding = 'async'
       next.onload = function () {
         if (!cancelled) setImage(next)

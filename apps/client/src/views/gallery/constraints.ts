@@ -18,6 +18,11 @@ const TIME_SCOPES = ['years', 'months', 'all'] as const
 
 type TimeScope = (typeof TIME_SCOPES)[number]
 
+/**
+ * 栅格尺寸约束：缩略图 / 封面磁贴用原生 `<button>`，不要用 design `Button`。
+ * 后者带 `h-8` 固定高度，`aspect-square` 会拿 2rem 反算宽度 → 格子填不满栅格列（挤成细条）；
+ * 需要等比缩放的自适应块一律 `w-full` + 内容撑高（见 media-cell.tsx / type-tile.tsx）。
+ */
 /** 主库与搜索默认排除 hidden（Google Locked Folder 语义） */
 const IS_HIDDEN_EXCLUDED = true
 
