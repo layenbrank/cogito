@@ -1,24 +1,13 @@
-import clsx from 'clsx'
-
-import {
-  MagneticTile,
-  type MarkerProps
-} from '@/features/magnetic-tile/magnetic-tile.tsx'
-import styles from '@/features/magnetic-tiles/signboard/marker.module.scss'
+import type { MarkerProps } from '@/features/magnetic-tile/magnetic-tile.tsx'
+import { IconMarker } from '@/features/magnetic-tiles/shared/icon-marker'
 
 type Props = Omit<MarkerProps, 'children'>
 
 export default function Marker(props: Props) {
   return (
-    <MagneticTile.Marker
+    <IconMarker
       {...props}
-      className={clsx([
-        styles.marker,
-        props.size,
-        props.direction,
-        props.shape
-      ])}>
-      signboard
-    </MagneticTile.Marker>
+      icon="lucide:columns-3"
+    />
   )
 }

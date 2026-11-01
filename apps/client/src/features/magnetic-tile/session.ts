@@ -6,6 +6,7 @@ import {
   persistTileSessions,
   type TileSessionPref
 } from '@/features/magnetic-tile/tile-prefs'
+import { isMainShell } from '@/features/window/shell-mode'
 import { useKnowledgeStore } from '@/stores/knowledge'
 
 /**
@@ -30,7 +31,6 @@ interface SessionInput {
   path: string
 }
 
-const MAIN_WINDOW_LABEL = 'main'
 const MAIN_WINDOW_TITLE = 'cogito'
 const BACKGROUND_CAP = 3
 
@@ -38,16 +38,9 @@ let sessions: readonly TileSession[] = []
 const listeners = new Set<() => void>()
 let goHome: (() => void) | null = null
 
+/** 仅真主窗跑磁贴会话；嵌套 / 无 Tauri 一律 false（旧逻辑无 Tauri 当 main 会炸 bootstrap） */
 function isMainWindow() {
-  if (typeof window === 'undefined') return false
-  const isTauri = '__TAURI_INTERNALS__' in window || '__TAURI__' in window
-  if (!isTauri) return true
-  try {
-    return getCurrentWindow().label === MAIN_WINDOW_LABEL
-  } catch (error) {
-    console.warn('[tile-session] 读不到当前窗口', error)
-    return true
-  }
+  return isMainShell()
 }
 
 function findAppComponent(pathname: string): MagneticTile.Component | null {

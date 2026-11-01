@@ -17,7 +17,6 @@ const MAGNETIC_TILE_COMPONENTS = [
   'agent',
   'navigation',
   'marketplace',
-  'developer',
   'signboard',
   'gallery',
   'capture',

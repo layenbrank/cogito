@@ -146,7 +146,7 @@ function parseFormWrite(
     ...surface,
     url: value.url.trim(),
     round: '12px',
-    mark: null,
+    mark: value.mark.trim() || null,
     component: 'navigation',
     mirrorID,
     collectionID: null,
@@ -163,11 +163,18 @@ function parseFormChange(
   canEditUrl: boolean
 ): MagneticTile.Change {
   const surface = parseSurface(value, images, keptImageUrl)
-  if (!canEditUrl) return surface
+  const mark = value.mark.trim() || null
+  if (!canEditUrl) {
+    return {
+      ...surface,
+      mark
+    }
+  }
 
   return {
     ...surface,
-    url: value.url.trim() || null
+    url: value.url.trim() || null,
+    mark
   }
 }
 
@@ -213,6 +220,7 @@ function parseTileToForm(
     values: {
       title: tile.title,
       url: tile.url ?? '',
+      mark: tile.mark ?? '',
       color: tile.background?.color ?? fallbackColor,
       image: picsumId ?? imageUrl ?? IMAGE_NONE,
       textColor: tile.textColor ?? TEXT_COLOR,
@@ -234,6 +242,7 @@ function isUrl(value: string) {
 const FORM_BASE = z.object({
   title: z.string().trim().min(1, '请填写标题'),
   url: z.string(),
+  mark: z.string(),
   color: z.string().min(1, '请选择背景色'),
   image: z.string(),
   textColor: z.string().min(1, '请选择文字色'),
@@ -284,6 +293,7 @@ function buildCreateValues(
   return {
     title: '',
     url: '',
+    mark: '',
     color: findShade(colorShades, themePrimary),
     image: IMAGE_NONE,
     textColor: findShade(textShades, TEXT_COLOR),

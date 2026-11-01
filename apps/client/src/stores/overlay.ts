@@ -48,6 +48,8 @@ interface OverlayTile {
   background: MagneticTile.Background | null
   title: string
   mark: string | null
+  /** 仅内存：供 navigation Marker DDG 兜底；不落 overlay 表 */
+  url: string | null
 }
 
 type OverlayItem = OverlayTexture | OverlayTile
@@ -116,6 +118,7 @@ interface OverlayStore {
       SurfaceStyleInput & {
         title?: string
         mark?: string | null
+        url?: string | null
       }
   ) => void
   toWrite: (input: {
@@ -197,6 +200,7 @@ const useOverlayStore = create<OverlayStore>()(
             const background = layout?.background ?? null
             const title = layout?.title ?? ''
             const mark = layout?.mark ?? null
+            const url = layout?.url ?? null
             const existing = state.items.find(function (w) {
               return w.kind !== 'texture' && w.id === magneticTileID
             })
@@ -210,6 +214,7 @@ const useOverlayStore = create<OverlayStore>()(
               existing.background = background
               existing.title = title
               existing.mark = mark
+              existing.url = url
               existing.w = box.w
               existing.h = box.h
               payload = {
@@ -255,7 +260,8 @@ const useOverlayStore = create<OverlayStore>()(
               round,
               background,
               title,
-              mark
+              mark,
+              url
             })
             payload = {
               kind: 'tile',
@@ -509,7 +515,8 @@ const useOverlayStore = create<OverlayStore>()(
                     ? (JSON.parse(base.background) as MagneticTile.Background)
                     : null,
                   title: base.title ?? '',
-                  mark: base.mark ?? null
+                  mark: base.mark ?? null,
+                  url: null
                 })
               }
             }

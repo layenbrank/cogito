@@ -7,11 +7,17 @@
 @use 'ultra.scss' as *;
 
 .marker {
+  // 图标约占磁贴 56%，四周留白，避免贴边「撑满」
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .avatar {
-  width: 100%;
-  height: 100%;
+  width: 56%;
+  height: 56%;
+  max-width: 56%;
+  max-height: 56%;
   font-size: 1em;
   background: transparent;
   color: inherit;

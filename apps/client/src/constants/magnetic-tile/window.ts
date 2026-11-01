@@ -71,7 +71,6 @@ const WINDOW: WindowConfigure = {
   },
   code: DEFAULT,
   collection: DEFAULT,
-  developer: DEFAULT,
   example: DEFAULT,
   gallery: DEFAULT,
   agent: DEFAULT,

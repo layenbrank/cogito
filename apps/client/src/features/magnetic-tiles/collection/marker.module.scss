@@ -36,9 +36,15 @@
   justify-content: center;
   overflow: hidden;
   border-radius: 4px;
-  background: color-mix(in oklab, currentColor 12%, transparent);
+  background: color-mix(in oklab, currentColor 8%, transparent);
   font-size: 0.55em;
   font-weight: 600;
   line-height: 1;
   color: inherit;
+}
+
+.previewIcon {
+  width: 72%;
+  height: 72%;
+  object-fit: contain;
 }

@@ -64,7 +64,8 @@ function buildFloat(tile: Tile): MenuItem {
             round: tile.round,
             background: tile.background,
             title: tile.title,
-            mark: tile.mark
+            mark: tile.mark,
+            url: tile.url
           })
         }
       },

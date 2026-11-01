@@ -77,8 +77,12 @@ function AppHost() {
       await useMirrorStore.getState().toInitialize()
       await useSettingsStore.getState().toInitialize()
     }
-    void bootstrap()
-    void syncCliMatches()
+    void bootstrap().catch(function (error: unknown) {
+      console.warn('[tile-host] 主窗 bootstrap 失败', error)
+    })
+    void syncCliMatches().catch(function (error: unknown) {
+      console.warn('[tile-host] 同步 CLI 失败', error)
+    })
   }, [])
 
   useEffect(function () {

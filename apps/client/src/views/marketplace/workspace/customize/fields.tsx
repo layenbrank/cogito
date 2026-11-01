@@ -41,6 +41,7 @@ interface FieldsProps {
   isImagesLoading: boolean
   submitting: boolean
   isCreateMode: boolean
+  isFaviconLoading: boolean
   onPickColor: (field: ColorFieldName) => (value: string) => void
   onClearKeptImage: () => void
 }
@@ -201,6 +202,7 @@ function Fields(props: FieldsProps) {
     isImagesLoading,
     submitting,
     isCreateMode,
+    isFaviconLoading,
     onPickColor,
     onClearKeptImage
   } = props
@@ -241,7 +243,27 @@ function Fields(props: FieldsProps) {
                 />
               </FormControl>
               <FormMessage />
+              {canEditUrl && isFaviconLoading ? (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Spinner className="size-3" />
+                  正在获取站点图标…
+                </p>
+              ) : null}
             </FormItem>
+          )
+        }}
+      />
+
+      {/* mark 由 URL 解析写入，不单独展示编辑框 */}
+      <FormField
+        control={control}
+        name="mark"
+        render={function ({ field }) {
+          return (
+            <input
+              type="hidden"
+              {...field}
+            />
           )
         }}
       />

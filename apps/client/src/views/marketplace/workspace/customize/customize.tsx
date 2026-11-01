@@ -18,6 +18,7 @@ import { useShallow } from 'zustand/react/shallow'
 
 import { parsePresetHues } from '@/features/capture/components/colors'
 import { readAppearance } from '@/features/window/appearance'
+import { fetchSiteFavicon } from '@/lib/site-favicon.ts'
 import { useMirrorStore, type MagneticTileUpdate } from '@/stores/mirror.ts'
 import { MarketplaceContext } from '@/views/marketplace/workspace/context.tsx'
 import {
@@ -27,10 +28,12 @@ import {
   TEXT_SEED,
   type ColorFieldName
 } from '@/views/marketplace/workspace/customize/colors.ts'
+import { Fields } from '@/views/marketplace/workspace/customize/fields'
 import {
   CREATE_KEY,
   buildCreateValues,
   findFormSchema,
+  isUrl,
   parseFormChange,
   parseFormWrite,
   parseTileOptions,
@@ -39,13 +42,14 @@ import {
   type FormValues,
   type PicsumImage
 } from '@/views/marketplace/workspace/customize/form'
-import { Fields } from '@/views/marketplace/workspace/customize/fields'
 import {
   picsumImagesReady,
   readPicsumImages,
   subscribePicsumImages
 } from '@/views/marketplace/workspace/customize/picsum'
 import { Preview } from '@/views/marketplace/workspace/customize/preview'
+
+const FAVICON_DEBOUNCE_MS = 450
 
 function Customize() {
   const marketplace = useContext(MarketplaceContext)
@@ -64,8 +68,10 @@ function Customize() {
     })
   )
   const [submitting, updateSubmitting] = useState(false)
+  const [isFaviconLoading, updateFaviconLoading] = useState(false)
   const [selectedKey, updateSelectedKey] = useState(CREATE_KEY)
   const [keptImageUrl, updateKeptImageUrl] = useState<string | null>(null)
+  const faviconRequestRef = useRef(0)
   const [colorShades, updateColorShades] = useState(function () {
     return parseFieldShades('color', themePrimary)
   })
@@ -119,6 +125,40 @@ function Customize() {
       form.clearErrors()
     },
     [canEditUrl, form]
+  )
+
+  const watchedUrl = values.url ?? ''
+
+  useEffect(
+    function () {
+      if (!canEditUrl) return
+      const trimmed = watchedUrl.trim()
+      if (!trimmed || !isUrl(trimmed)) return
+
+      const requestId = faviconRequestRef.current + 1
+      faviconRequestRef.current = requestId
+      const timer = window.setTimeout(function () {
+        updateFaviconLoading(true)
+        void fetchSiteFavicon(trimmed)
+          .then(function (favicon) {
+            if (faviconRequestRef.current !== requestId) return
+            if (favicon) form.setValue('mark', favicon, { shouldDirty: true })
+          })
+          .catch(function (error) {
+            console.warn('[Customize] favicon 解析失败:', error)
+          })
+          .finally(function () {
+            if (faviconRequestRef.current === requestId) {
+              updateFaviconLoading(false)
+            }
+          })
+      }, FAVICON_DEBOUNCE_MS)
+
+      return function () {
+        window.clearTimeout(timer)
+      }
+    },
+    [canEditUrl, watchedUrl, form]
   )
 
   const hues = useMemo(
@@ -323,6 +363,7 @@ function Customize() {
                     isImagesLoading={isImagesLoading}
                     submitting={submitting}
                     isCreateMode={isCreateMode}
+                    isFaviconLoading={isFaviconLoading}
                     onPickColor={onPickColor}
                     onClearKeptImage={function () {
                       updateKeptImageUrl(null)

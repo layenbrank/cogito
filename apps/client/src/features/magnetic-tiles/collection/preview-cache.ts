@@ -1,17 +1,27 @@
 import { invoke } from '@tauri-apps/api/core'
 
+import {
+  findNavigationIconSrc,
+  findNavigationLabel
+} from '@/features/magnetic-tile/mark.ts'
 import { CHANNELS } from '@/shared/ipc/channels'
 
 const PREVIEW_COUNT = 4
 
-const cache = new Map<string, string[]>()
-const inflight = new Map<string, Promise<string[]>>()
+interface CollectionPreview {
+  /** 成员 mark / 兜底 favicon；无图时用 label */
+  src: string | null
+  label: string
+  /** 成员磁贴背景色，预览格要带上，否则白标会糊在白底上 */
+  surface: string | null
+  /** 字形兜底时的油墨色 */
+  ink: string | null
+}
+
+const cache = new Map<string, CollectionPreview[]>()
+const inflight = new Map<string, Promise<CollectionPreview[]>>()
 /** 每个集合当前生效的 revision；写入前校验，淘汰同 id 旧 key */
 const revisions = new Map<string, number>()
-
-function findInitial(title: string) {
-  return [...title].at(0) ?? '?'
-}
 
 function findCacheKey(collectionId: string, revision: number) {
   return `${collectionId}:${revision}`
@@ -35,7 +45,31 @@ function readCollectionMarkerPreviews(collectionId: string, revision: number) {
   return cache.get(findCacheKey(collectionId, revision))
 }
 
-async function fetchCollectionPreviews(collectionId: string): Promise<string[]> {
+function parseInk(textColor: string | null | undefined) {
+  if (!textColor) return null
+  const trimmed = textColor.trim()
+  if (!trimmed) return null
+  if (trimmed.startsWith('#') || trimmed.startsWith('rgb') || trimmed.startsWith('hsl')) {
+    return trimmed
+  }
+  if (/^[0-9a-fA-F]{3}$|^[0-9a-fA-F]{6}$/.test(trimmed)) {
+    return `#${trimmed}`
+  }
+  return trimmed
+}
+
+function parseMemberPreview(tile: MagneticTile): CollectionPreview {
+  return {
+    src: findNavigationIconSrc(tile.mark, tile.url),
+    label: findNavigationLabel(tile.mark, tile.title),
+    surface: tile.background?.color ?? null,
+    ink: parseInk(tile.textColor)
+  }
+}
+
+async function fetchCollectionPreviews(
+  collectionId: string
+): Promise<CollectionPreview[]> {
   const members = await invoke<MagneticTile[]>(CHANNELS.MAGNETIC_TILE.READ, {
     params: { collectionID: collectionId }
   })
@@ -44,19 +78,16 @@ async function fetchCollectionPreviews(collectionId: string): Promise<string[]> 
       return a.index - b.index
     })
     .slice(0, PREVIEW_COUNT)
-    .map(function (tile) {
-      return tile.mark || findInitial(tile.title)
-    })
+    .map(parseMemberPreview)
 }
 
 /**
- * 集合 marker 预览字；按 id+revision 缓存。
- * Activity 再 visible 且 revision 未变时命中缓存，不重复 IPC。
+ * 集合 marker 预览（成员真实图标）；按 id+revision 缓存。
  */
 function fetchCollectionMarkerPreviews(
   collectionId: string,
   revision: number
-): Promise<string[]> {
+): Promise<CollectionPreview[]> {
   revisions.set(collectionId, revision)
   evictStaleCollectionKeys(collectionId, revision)
 
@@ -72,7 +103,8 @@ function fetchCollectionMarkerPreviews(
       cache.set(key, previews)
       return previews
     })
-    .catch(function () {
+    .catch(function (error) {
+      console.error('[collection] 预览加载失败:', error)
       if (revisions.get(collectionId) !== revision) return []
       cache.set(key, [])
       return []
@@ -106,3 +138,4 @@ export {
   invalidateCollectionMarkerPreviews,
   readCollectionMarkerPreviews
 }
+export type { CollectionPreview }

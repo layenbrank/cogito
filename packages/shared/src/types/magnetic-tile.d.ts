@@ -59,7 +59,6 @@ declare namespace MagneticTile {
     | 'settings'
     | 'navigation'
     | 'marketplace'
-    | 'developer'
     | 'signboard'
     | 'gallery' // 图库
     | 'capture' // 截屏

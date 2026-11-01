@@ -1,3 +1,4 @@
+import { Icon } from '@iconify/react/offline'
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 
@@ -38,7 +39,15 @@ function Marker(props: Props) {
         props.shape
       ])}>
       {thumbs.length === 0 ? (
-        <span className="text-xs text-muted-foreground">图库</span>
+        <span
+          className="flex size-full items-center justify-center text-inherit opacity-95"
+          aria-hidden>
+          <Icon
+            icon="lucide:images"
+            width="1.85em"
+            height="1.85em"
+          />
+        </span>
       ) : (
         <div
           className={clsx(

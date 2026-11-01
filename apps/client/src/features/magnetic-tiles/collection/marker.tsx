@@ -9,6 +9,7 @@ import {
 import styles from '@/features/magnetic-tiles/collection/marker.module.scss'
 import {
   fetchCollectionMarkerPreviews,
+  type CollectionPreview,
   readCollectionMarkerPreviews
 } from '@/features/magnetic-tiles/collection/preview-cache'
 import { useCollectionStore } from '@/stores/collection'
@@ -18,12 +19,48 @@ type Props = Omit<MarkerProps, 'children'> & {
   id?: string
 }
 
+function PreviewCell(props: { item: CollectionPreview }) {
+  const [isBroken, onUpdateBroken] = useState(false)
+  const showsImage = Boolean(props.item.src) && !isBroken
+
+  useEffect(
+    function () {
+      onUpdateBroken(false)
+    },
+    [props.item.src]
+  )
+
+  const cellStyle = {
+    ...(props.item.surface ? { backgroundColor: props.item.surface } : null),
+    ...(props.item.ink ? { color: props.item.ink } : null)
+  }
+
+  return (
+    <span
+      className={styles.previewCell}
+      style={cellStyle}>
+      {showsImage ? (
+        <img
+          src={props.item.src!}
+          alt=""
+          className={styles.previewIcon}
+          onError={function () {
+            onUpdateBroken(true)
+          }}
+        />
+      ) : (
+        props.item.label
+      )}
+    </span>
+  )
+}
+
 export default function Marker(props: Props) {
   const revision = useCollectionStore(function (state) {
     return state.revision
   })
   const [previews, onUpdatePreviews] = useState(function () {
-    if (!props.id) return []
+    if (!props.id) return [] as CollectionPreview[]
     return readCollectionMarkerPreviews(props.id, revision) ?? []
   })
 
@@ -62,13 +99,12 @@ export default function Marker(props: Props) {
         />
       ) : (
         <div className={styles.previewGrid}>
-          {previews.map(function (label, index) {
+          {previews.map(function (item, index) {
             return (
-              <span
-                key={`${label}-${index}`}
-                className={styles.previewCell}>
-                {label}
-              </span>
+              <PreviewCell
+                key={`${item.label}-${item.src ?? 'glyph'}-${index}`}
+                item={item}
+              />
             )
           })}
         </div>

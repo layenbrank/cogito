@@ -6,6 +6,7 @@ import type { MarkerLayout } from '@/features/magnetic-tile/size'
 interface MarkerRenderProps extends MarkerLayout {
   title: string
   mark: string | null
+  url?: string | null
 }
 
 type MarkerModule = { default: ComponentType<MarkerRenderProps> }
@@ -53,9 +54,6 @@ const NavigationMarker = lazyMarker(function () {
 const MarketplaceMarker = lazyMarker(function () {
   return import('@/features/magnetic-tiles/marketplace/marker')
 })
-const DeveloperMarker = lazyMarker(function () {
-  return import('@/features/magnetic-tiles/developer/marker')
-})
 const SignboardMarker = lazyMarker(function () {
   return import('@/features/magnetic-tiles/signboard/marker')
 })
@@ -83,6 +81,7 @@ function bindMarker(
         direction={props.direction}
         title={props.title}
         mark={props.mark}
+        url={props.url}
       />
     )
   }
@@ -103,7 +102,6 @@ const MARKERS: Partial<Record<MagneticTile.Component, (props: MarkerRenderProps)
   agent: bindMarker(AgentMarker),
   navigation: bindMarker(NavigationMarker),
   marketplace: bindMarker(MarketplaceMarker),
-  developer: bindMarker(DeveloperMarker),
   signboard: bindMarker(SignboardMarker),
   gallery: bindMarker(GalleryMarker),
   capture: bindMarker(CaptureMarker),

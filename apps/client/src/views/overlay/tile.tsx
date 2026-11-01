@@ -259,7 +259,8 @@ function Tile(props: TileProps) {
               shape: layout.shape,
               direction: layout.direction,
               title: item.title,
-              mark: item.mark
+              mark: item.mark,
+              url: item.url
             })}
           </div>
         </Suspense>
