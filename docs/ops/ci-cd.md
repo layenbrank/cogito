@@ -77,6 +77,9 @@ CI 打完包后，在本机（或有 `AUTH_KEY_SECRET` 的环境）推 R2：
 pnpm command distribution publish:client --release <version> --channel <channel>
 ```
 
+密钥怎么生成、Windows 代理、`fetch failed` 等踩坑与完整校验步骤见
+[distribution-publish.md](./distribution-publish.md)。
+
 ---
 
 ## 2. 仓库 Secrets 清单

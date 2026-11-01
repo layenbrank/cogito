@@ -8,6 +8,9 @@ Cloudflare Worker（TypeScript）：**发布流水线**把版本化产物推到 
 公开基址常量：[`src/public-base.ts`](./src/public-base.ts) 的 `PUBLIC_BASE`（挂自定义域只改这一处）。
 **不要**把 R2 S3 API（`*.r2.cloudflarestorage.com`）写进 Tauri `endpoints` —— 那是鉴权写接口，不是 CDN。
 
+**本机发版 / 密钥 / 踩坑总结**（生成 `AUTH_KEY_SECRET`、代理、`publish:client`、校验）：
+[`docs/ops/distribution-publish.md`](../../docs/ops/distribution-publish.md)。
+
 | 项       | 值                                                                                                                |
 | -------- | ----------------------------------------------------------------------------------------------------------------- |
 | 位置     | `apps/distribution`（workspace 包 `@cogito/distribution`；与 `apps/service`、`apps/compute` 同为可部署服务） |
