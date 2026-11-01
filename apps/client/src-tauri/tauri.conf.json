@@ -112,11 +112,11 @@
         "dragDropEnabled": true,
         "focus": false,
         "fullscreen": false,
-        "height": 700,
+        "height": 720,
         "label": "main",
         "maximizable": true,
-        "minHeight": 700,
-        "minWidth": 1000,
+        "minHeight": 600,
+        "minWidth": 900,
         "resizable": true,
         "shadow": true,
         "skipTaskbar": false,
@@ -124,7 +124,7 @@
         "titleBarStyle": "Overlay",
         "transparent": true,
         "visible": true,
-        "width": 1000,
+        "width": 1120,
         "windowEffects": {
           "effects": ["micaLight", "mica", "micaDark", "acrylic"]
         }
