@@ -9,6 +9,10 @@ import { join } from 'node:path'
 
 import { PUBLIC_BASE } from '../src/public-base.ts'
 import { isPublicKey } from '../src/setup-key.ts'
+import { installHttpProxy } from './install-http-proxy.ts'
+
+// 必须在首次 fetch 前装上；国内直连 *.workers.dev 常超时
+installHttpProxy()
 
 const PART_MB = 8
 const RETRIES = 5
