@@ -151,7 +151,7 @@ async function captureDirectiveDraft(
   if (!validation.ok) {
     await writeDraftStatus({
       id: draft.id,
-      status: DICT_VALUE_BY_KEY[DICT_KEY.DRAFT_PENDING]!,
+      status: DICT_VALUE_BY_KEY[DICT_KEY.DRAFT_PENDING],
       error: validation.error
     })
     toast.warning('已生成指令草稿，但校验未通过', { description: validation.error })

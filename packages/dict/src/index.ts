@@ -59,13 +59,13 @@ type DictKey = (typeof DICT_KEY)[keyof typeof DICT_KEY]
 
 interface DictPoolItem {
   value: string
-  key: DictKey | string
+  key: DictKey
   label: string
   sort: number
   meta: string | null
 }
 
-const DICT_POOL: readonly DictPoolItem[] = [
+const DICT_POOL = [
   { value: '001', key: DICT_KEY.DRAFT, label: '草稿', sort: 10, meta: null },
   { value: '002', key: DICT_KEY.PUBLISHED, label: '已发布', sort: 20, meta: null },
   { value: '003', key: DICT_KEY.MANUAL, label: '手动', sort: 10, meta: null },
@@ -114,17 +114,21 @@ const DICT_POOL: readonly DictPoolItem[] = [
   { value: '028', key: DICT_KEY.DRAFT_DISCARDED, label: '已丢弃', sort: 30, meta: null },
   { value: '029', key: DICT_KEY.ACTIVE, label: '正常', sort: 10, meta: null },
   { value: '030', key: DICT_KEY.ARCHIVED, label: '已归档', sort: 90, meta: null }
-] as const
+] as const satisfies ReadonlyArray<DictPoolItem>
 
-/** key → value 快查 */
-const DICT_VALUE_BY_KEY: Record<string, string> = Object.fromEntries(
+/** key → 全局 value（字面量，索引已知 key 不必 `!`） */
+type DictValueByKey = {
+  [E in (typeof DICT_POOL)[number] as E['key']]: E['value']
+}
+
+const DICT_VALUE_BY_KEY = Object.fromEntries(
   DICT_POOL.map(function (item) {
     return [item.key, item.value]
   })
-)
+) as DictValueByKey
 
 function findDictValue(key: string): string | undefined {
-  return DICT_VALUE_BY_KEY[key]
+  return (DICT_VALUE_BY_KEY as Record<string, string>)[key]
 }
 
 /** 旧 (typeCode, oldValue) → 新 value */
