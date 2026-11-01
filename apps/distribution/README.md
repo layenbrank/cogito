@@ -74,6 +74,15 @@ pnpm command distribution upload:rclone --source .\pkg.zip --release 1.3.0 --buc
 `.dev.vars`）。路径类参数（`--source` / `--auth-key-file` / `--rclone`）经根 CLI 转发时会补成绝对路径，
 按你当前所在的目录解析；`pnpm --filter @cogito/distribution run upload` 直调时则相对 `apps/distribution`。
 
+**代理**：Node 默认不读 Windows 系统代理。上传脚本会自动捡 HKCU IE 代理（如 Clash
+`127.0.0.1:7890`），或你显式设的 `HTTPS_PROXY` / `HTTP_PROXY`。若仍 `fetch failed` /
+`ConnectTimeout`，先确认本地代理已开，或手动：
+
+```powershell
+$env:HTTPS_PROXY = 'http://127.0.0.1:7890'
+$env:HTTP_PROXY = 'http://127.0.0.1:7890'
+```
+
 上传前都会用 [`src/setup-key.ts`](./src/setup-key.ts) 的 `isPublicKey` 校验对象键：**读侧下不了的键直接拒收**
 （worker 与上传脚本一起生效）。`--help` 有全部参数。
 注意根 CLI 有 `--version` 版本旗标会截走这个参数，所以版本参数的主名是 `--release`（直接调用脚本时 `--version` 也可）。

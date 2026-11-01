@@ -23,7 +23,7 @@ const USAGE = `用法: upload-via-worker --source <文件> (--release <x.y.z> | 
 
 选项:
   --source <文件>          要上传的文件（必填）
-  --release <x.y.z>        版本目录；默认对象名 cogito_<版本>_x64-setup.exe（--version 亦可用）
+  --release <x.y.z>        版本目录；默认对象名跟源文件 basename（--version 亦可用）
   --name <文件名>          覆盖对象文件名
   --key <对象键>           直接指定整个对象键（与 --release 二选一）
   --worker <base url>      端点地址（默认 ${PUBLIC_BASE}）
