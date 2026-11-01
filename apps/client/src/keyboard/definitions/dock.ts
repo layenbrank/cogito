@@ -1,8 +1,11 @@
 /**
  * Agent 相关键位：
  * - `mod+j`：对话坞（各磁贴共用，由 `use-agent-dock-command` 挂动作）
+ * - `mod+n`：新建任务（仅 chat 挂载时注册）
  * - `mod+f`：Agent 聊页会话搜索（仅 chat 挂载时 `useCommands` 注册）
  * - `mod+b`：Agent 聊页折叠 / 展开左侧栏（与 code 窗的侧栏键同键，但两者不同时在场）
+ * - `mod+alt+b`：折叠 / 展开右侧栏
+ * - `mod+alt+shift+b`：专注工作区 / 退出专注
  */
 import { viewShortcut } from '@/keyboard/definitions/factory'
 import { COMMAND } from '@/keyboard/definitions/ids'
@@ -14,12 +17,24 @@ export const AGENT_SHORTCUTS: readonly LocalShortcutDefinition[] = [
     allowInEditable: true,
     allowInFormTags: true
   }),
-  viewShortcut(COMMAND.AGENT_FIND, 'Agent：搜索会话', 'mod+f', {
+  viewShortcut(COMMAND.AGENT_NEW_TASK, '新建任务', 'mod+n', {
     allowInEditable: true,
     allowInFormTags: true
   }),
-  viewShortcut(COMMAND.AGENT_TOGGLE_SIDEBAR, 'Agent：切换左侧栏', 'mod+b', {
+  viewShortcut(COMMAND.AGENT_FIND, '搜索会话', 'mod+f', {
+    allowInEditable: true,
+    allowInFormTags: true
+  }),
+  viewShortcut(COMMAND.AGENT_TOGGLE_SIDEBAR, '显示或隐藏会话列表', 'mod+b', {
     // 在输入框里也要能按（派发器会 preventDefault，不会落到「加粗」上）
+    allowInEditable: true,
+    allowInFormTags: true
+  }),
+  viewShortcut(COMMAND.AGENT_TOGGLE_ASIDE, '显示或隐藏工作区', 'mod+alt+b', {
+    allowInEditable: true,
+    allowInFormTags: true
+  }),
+  viewShortcut(COMMAND.AGENT_MAXIMIZE_ASIDE, '专注工作区', 'mod+alt+shift+b', {
     allowInEditable: true,
     allowInFormTags: true
   })

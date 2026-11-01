@@ -58,7 +58,7 @@ const PERSIST_DEFAULTS: PersistShape = {
   },
   agent: {
     splitterLayout: null,
-    splitterOpen: { isSidebarOpen: true, isAsideOpen: true },
+    splitterOpen: { isSidebarOpen: true, isAsideOpen: true, isAsideMaximized: false },
     approvalMode: 'ask',
     agentMode: 'agent',
     modeByThread: {},
