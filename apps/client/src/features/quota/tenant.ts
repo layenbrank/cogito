@@ -1,4 +1,5 @@
 import { GET_MY_TENANTS, PERSONAL_TENANT, type Tenant } from '@/apis/tenant.ts'
+import { useDictStore } from '@/stores/dict'
 import { findAuthToken, subscribeAuthToken } from '@/utils/auth.ts'
 import {
   cacheActiveTenant,
@@ -91,7 +92,10 @@ async function syncActiveTenant(options: { force?: boolean } = {}): Promise<stri
       if (token !== findAuthToken()) return null
 
       cacheActiveTenant(personal ? personal.id : null, token)
-      return findActiveTenantID()
+      const tenantId = findActiveTenantID()
+      // 租户就绪后拉取合并字典（失败只留痕，不挡主路径）
+      void useDictStore.getState().syncRemote()
+      return tenantId
     } catch (error) {
       clearActiveTenant()
       console.warn('[quota] 租户解析失败，这次不带租户身份', error)

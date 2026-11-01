@@ -27,8 +27,32 @@ interface ReportInput {
 }
 
 let isInstalled = false
+/** 上报进行中：防止 randomUUID/POST 失败再进 unhandledrejection → 死循环 */
+let isReporting = false
 /** 已上报过的 Error 实例，避免同一根因被多层 catch/边界连报 */
 const reportedErrors = new WeakSet<object>()
+
+/** 非安全上下文可能没有 `crypto.randomUUID`（HTTP / 部分嵌入 WebView） */
+function createEventId(): string {
+  const cryptoApi = globalThis.crypto
+  if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
+    return cryptoApi.randomUUID()
+  }
+  const bytes = new Uint8Array(16)
+  if (cryptoApi && typeof cryptoApi.getRandomValues === 'function') {
+    cryptoApi.getRandomValues(bytes)
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256)
+    }
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes, function (byte) {
+    return byte.toString(16).padStart(2, '0')
+  }).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
 
 function findRelease(): string | undefined {
   const value = String(import.meta.env.VITE_APP_VERSION ?? '').trim()
@@ -81,31 +105,34 @@ function hasReported(error: unknown): boolean {
 }
 
 async function reportException(input: ReportInput): Promise<void> {
+  if (isReporting) return
   const message = input.message.trim()
   if (!message) return
 
-  const body: ExceptionWrite = {
-    eventID: crypto.randomUUID(),
-    message: message.slice(0, 2000),
-    timestamp: Date.now(),
-    url: (input.url ?? findPageURL()).slice(0, 2000),
-    source: SOURCE,
-    level: input.level ?? 'error',
-    environment: import.meta.env.MODE,
-    release: findRelease(),
-    stack: input.stack ?? undefined,
-    status: input.status ?? undefined,
-    method: input.method ?? undefined,
-    reqID: input.reqID ?? undefined,
-    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 500) : undefined,
-    context: input.context,
-    fingerprint: input.fingerprint
-  }
-
+  isReporting = true
   try {
+    const body: ExceptionWrite = {
+      eventID: createEventId(),
+      message: message.slice(0, 2000),
+      timestamp: Date.now(),
+      url: (input.url ?? findPageURL()).slice(0, 2000),
+      source: SOURCE,
+      level: input.level ?? 'error',
+      environment: import.meta.env.MODE,
+      release: findRelease(),
+      stack: input.stack ?? undefined,
+      status: input.status ?? undefined,
+      method: input.method ?? undefined,
+      reqID: input.reqID ?? undefined,
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 500) : undefined,
+      context: input.context,
+      fingerprint: input.fingerprint
+    }
     await POST_EXCEPTION(body)
   } catch (error) {
     console.warn('[exception-report] 上报失败', error)
+  } finally {
+    isReporting = false
   }
 }
 
@@ -114,6 +141,7 @@ function reportUnknown(
   context?: Record<string, unknown>,
   level: ExceptionLevel = 'error'
 ) {
+  if (isReporting) return
   if (shouldSkip(error)) return
   if (hasReported(error)) return
   const http = error instanceof HttpException ? error : null
