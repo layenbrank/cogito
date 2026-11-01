@@ -38,7 +38,7 @@ const ComposerSendButton: FC = () => {
       type="button"
       variant="default"
       size="icon"
-      className="aui-composer-send bg-primary text-primary-foreground hover:bg-primary-hover relative size-8 rounded-lg shadow-none"
+      className="aui-composer-send bg-primary text-primary-foreground hover:bg-primary-hover relative size-8 shrink-0 rounded-lg shadow-none"
       aria-label={tooltip}
       onClick={onSend}>
       <Icon

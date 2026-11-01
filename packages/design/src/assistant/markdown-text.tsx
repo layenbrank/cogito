@@ -1,5 +1,4 @@
 import { Icon } from '@iconify/react/offline'
-import '@assistant-ui/react-markdown/styles/dot.css'
 
 import { useAuiState, type TextMessagePartProps } from '@assistant-ui/react'
 import {
@@ -59,6 +58,8 @@ const MarkdownTextImpl: FC<MarkdownTextProps> = ({ components }) => {
     <MarkdownTextPrimitive
       remarkPlugins={[remarkGfm]}
       className="aui-md"
+      // 关闭逐字 reveal：chunk 到即渲染，避免打字机感
+      smooth={false}
       components={markdownComponents}
     />
   )

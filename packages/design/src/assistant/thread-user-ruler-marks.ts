@@ -1,3 +1,5 @@
+import { parseDocument } from './composer-document'
+
 const PREVIEW_MAX_CHARS = 280
 
 interface UserMessageMark {
@@ -18,6 +20,17 @@ function truncatePreview(text: string): string {
   return `${normalized.slice(0, PREVIEW_MAX_CHARS)}…`
 }
 
+/** sticky / 标尺预览：chip 只露 label，不露 directive 原文 */
+function findChipAwarePreview(text: string): string {
+  return parseDocument(text)
+    .map(function (atom) {
+      if (atom.kind === 'text') return atom.text
+      if (atom.kind === 'break') return ' '
+      return atom.label
+    })
+    .join('')
+}
+
 function findUserMessagePreview(message: ThreadMessageLike): string {
   const parts = message.content
     .map(function (part) {
@@ -26,7 +39,7 @@ function findUserMessagePreview(message: ThreadMessageLike): string {
     .join('')
     .trim()
 
-  if (parts) return truncatePreview(parts)
+  if (parts) return truncatePreview(findChipAwarePreview(parts))
   const hasAttachment = message.content.some(function (part) {
     return part.type === 'file' || part.type === 'image'
   })

@@ -14,6 +14,8 @@ import {
 
 const VIEWPORT_ANCHOR_RATIO = 0.22
 const GUTTER_WIDTH_PX = 32
+/** 刻度间距：紧凑簇，勿按会话全高均分铺开 */
+const MARK_GAP_PX = 10
 const VIEWPORT_SHELL_SLOT = '[data-slot="aui_thread-viewport-shell"]'
 const VIEWPORT_SLOT = '[data-slot="aui_thread-viewport"]'
 
@@ -34,14 +36,6 @@ function isHistoryLoadingView(s: {
     !s.thread.isDisabled &&
     !s.threads.isLoading
   )
-}
-
-function findPercentTop(index: number, total: number): string {
-  if (total <= 1) return '12%'
-  const ratio = (index + 0.5) / total
-  const edge = 0.06
-  const clamped = edge + ratio * (1 - edge * 2)
-  return `${clamped * 100}%`
 }
 
 function findActiveMarkIndex(viewport: HTMLElement, markIds: readonly string[]): number {
@@ -221,15 +215,17 @@ const ThreadUserMessageRuler: FC = () => {
         data-slot="aui_thread-user-ruler"
         aria-label={labels.userMessageLocator}
         style={{ width: GUTTER_WIDTH_PX }}
-        className="pointer-events-none absolute inset-y-0 start-0 z-30 overflow-visible">
+        className="pointer-events-none absolute inset-y-0 start-0 z-30 flex items-center justify-center overflow-visible">
+        {/* 刻度簇垂直居中、固定间距，避免按全高均分显得过散；过多时簇内滚动 */}
         <div
-          aria-hidden
-          className="bg-border/50 absolute inset-y-8 start-[11px] w-px"
-        />
-        <div className="relative h-full min-h-[8rem] w-full">
+          className="relative flex max-h-[min(70vh,22rem)] w-full flex-col items-stretch overflow-y-auto overscroll-y-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          style={{ gap: MARK_GAP_PX }}>
+          <div
+            aria-hidden
+            className="bg-border/50 absolute inset-y-1 start-[11px] w-px"
+          />
           {marks.map(function (mark, index) {
             const isActive = index === activeMarkIndex
-            const topStyle = { top: findPercentTop(index, total) }
 
             return (
               <Tooltip key={mark.id}>
@@ -242,10 +238,9 @@ const ThreadUserMessageRuler: FC = () => {
                       aria-current={isActive ? 'true' : undefined}
                       aria-label={labels.userMessageLocatorItem(mark.ordinal, total)}
                       className={cn(
-                        'group pointer-events-auto absolute start-0 flex h-6 w-full -translate-y-1/2 items-center justify-start',
+                        'group pointer-events-auto relative flex h-3.5 w-full shrink-0 items-center justify-start',
                         'rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
                       )}
-                      style={topStyle}
                       onClick={function () {
                         onMarkClick(mark.id)
                       }}>
@@ -282,11 +277,12 @@ const ThreadUserMessageRuler: FC = () => {
                   sideOffset={8}
                   showArrow={false}
                   className={cn(
-                    'border-border/45 bg-popover/95 text-popover-foreground',
-                    'flex max-w-[16rem] flex-col items-start gap-1 rounded-2xl border px-3 py-1.5',
-                    'text-left shadow-none backdrop-blur-sm'
+                    // 短预览时 rounded-2xl 会显胶囊；用中等圆角 + 最小宽度更利落
+                    'border-border/50 bg-popover text-popover-foreground',
+                    'flex min-w-[11rem] max-w-[16rem] flex-col items-start gap-1 rounded-md border px-3 py-2',
+                    'text-left shadow-sm ring-1 ring-foreground/4'
                   )}>
-                  <span className="text-muted-foreground text-xs leading-none font-medium tracking-wide tabular-nums">
+                  <span className="text-muted-foreground text-[11px] leading-none font-medium tracking-wide tabular-nums">
                     {labels.userMessageLocatorItem(mark.ordinal, total)}
                   </span>
                   <span className="text-foreground/90 line-clamp-3 text-xs leading-snug tracking-tight">

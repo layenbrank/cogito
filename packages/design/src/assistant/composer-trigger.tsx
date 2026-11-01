@@ -78,8 +78,8 @@ interface ComposerTriggerListProps {
 }
 
 interface ComposerTriggerHandle extends ComposerTriggerState {
-  /** 输入 / 光标变化时调用。 */
-  sync: (text: string, cursor: number) => void
+  /** 输入 / 光标变化时调用；同步返回当前命中，便于输入区即时上色。 */
+  sync: (text: string, cursor: number) => ComposerTriggerMatch | null
   move: (delta: number) => void
   pick: (index?: number) => void
   hover: (index: number) => void
@@ -199,6 +199,7 @@ function ComposerTriggerProvider(props: ComposerTriggerProviderProps) {
         }
         return { match: next, items: previous.items, activeIndex: previous.activeIndex, isLoading: true }
       })
+      return next
     },
     [ordered]
   )
@@ -214,23 +215,34 @@ function ComposerTriggerProvider(props: ComposerTriggerProviderProps) {
       }
 
       const controller = new AbortController()
-      void match.trigger
-        .resolve({ query: match.query, signal: controller.signal })
-        .then(function (rows) {
-          if (controller.signal.aborted) return
-          itemsRef.current = rows
-          activeIndexRef.current = 0
-          setState({ match, items: rows, activeIndex: 0, isLoading: false })
-        })
-        .catch(function (error: unknown) {
-          if (controller.signal.aborted) return
-          console.warn('[composer-trigger] 解析候选项失败:', error)
-          itemsRef.current = []
-          activeIndexRef.current = 0
-          setState({ match, items: [], activeIndex: 0, isLoading: false })
-        })
+      // 空 query（含只有 `/` `./` 这种归一后为空的）立刻拉；其余短防抖
+      const trimmedQuery = match.query.trim().replace(/\\/g, '/')
+      const isEmptyQuery =
+        trimmedQuery.length === 0 ||
+        trimmedQuery === '/' ||
+        trimmedQuery === './' ||
+        /^(\.\/)+$/.test(trimmedQuery)
+      const delayMs = isEmptyQuery ? 0 : 100
+      const timer = window.setTimeout(function () {
+        void match.trigger
+          .resolve({ query: match.query, signal: controller.signal })
+          .then(function (rows) {
+            if (controller.signal.aborted) return
+            itemsRef.current = rows
+            activeIndexRef.current = 0
+            setState({ match, items: rows, activeIndex: 0, isLoading: false })
+          })
+          .catch(function (error: unknown) {
+            if (controller.signal.aborted) return
+            console.warn('[composer-trigger] 解析候选项失败:', error)
+            itemsRef.current = []
+            activeIndexRef.current = 0
+            setState({ match, items: [], activeIndex: 0, isLoading: false })
+          })
+      }, delayMs)
 
       return function () {
+        window.clearTimeout(timer)
         controller.abort()
       }
     },
