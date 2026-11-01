@@ -7,10 +7,10 @@
  */
 import { useEffect, type ReactNode } from 'react'
 import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup
-} from '@cogito/design/components/resizable'
+  Splitter,
+  SplitterHandle,
+  SplitterPane
+} from '@cogito/design/components/splitter'
 
 import { useDockCommand } from '@/features/agent/dock/use-dock-command'
 import { useTerminalStore } from '@/stores/terminal'
@@ -44,33 +44,36 @@ function DirectiveFrame(props: DirectiveFrameProps) {
   )
 
   return (
-    <ResizablePanelGroup
+    <Splitter
+      id="directive-frame"
       orientation="vertical"
       className="h-full min-h-0 w-full flex-1 overflow-hidden bg-background">
-      <ResizablePanel
+      <SplitterPane
+        id="directive-frame-main"
         defaultSize={terminalOpen ? '68%' : '100%'}
-        minSize={180}
+        min={180}
         className="min-h-0 overflow-hidden bg-background">
         <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
           {props.children}
         </div>
-      </ResizablePanel>
+      </SplitterPane>
       {terminalOpen ? (
         <>
-          <ResizableHandle withHandle />
-          <ResizablePanel
+          <SplitterHandle withHandle />
+          <SplitterPane
+            id="directive-frame-terminal"
             defaultSize="32%"
-            minSize={140}
-            maxSize="55%"
+            min={140}
+            max="55%"
             className="min-h-0 overflow-hidden border-t border-border bg-background">
             <DirectiveDock
               cwd={cwd}
               emptyCwdMessage={emptyCwdMessage}
             />
-          </ResizablePanel>
+          </SplitterPane>
         </>
       ) : null}
-    </ResizablePanelGroup>
+    </Splitter>
   )
 }
 

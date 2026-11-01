@@ -1,8 +1,8 @@
 import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup
-} from '@cogito/design/components/resizable'
+  Splitter,
+  SplitterHandle,
+  SplitterPane
+} from '@cogito/design/components/splitter'
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -46,32 +46,32 @@ export default function Directive() {
         }}
       />
 
-      <ResizablePanelGroup
+      <Splitter
         id={WALL_GROUP_ID}
         orientation="vertical"
         className="min-h-0 flex-1"
         defaultLayout={alignRunLayout(initial.layouts[WALL_GROUP_ID], dock.isRunOpen)}
         onLayoutChanged={function (layout, meta) {
           // 程序化 expand/collapse 也会改 layout；只在用户拖拽时落盘，避免开合同步打 localStorage
-          if (!meta.isUserInteraction) return
+          if (!meta?.isUserInteraction) return
           dock.releaseRunSizePin()
           writeSplitterLayout(WALL_GROUP_ID, layout)
         }}>
-        <ResizablePanel
+        <SplitterPane
           id={WALL_ID}
-          minSize={WALL_MIN}
+          min={WALL_MIN}
           className="min-h-0 overflow-hidden [contain:layout]">
           <DirectiveWall
             stepCounts={dock.stepCounts}
             onOpen={handleOpen}
             onRun={dock.quickRun}
           />
-        </ResizablePanel>
+        </SplitterPane>
 
-        <ResizableHandle withHandle />
+        <SplitterHandle withHandle />
 
         <RunDockPanel dock={dock} />
-      </ResizablePanelGroup>
+      </Splitter>
     </div>
   )
 }

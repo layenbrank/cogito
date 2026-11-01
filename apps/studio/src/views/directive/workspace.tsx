@@ -1,9 +1,9 @@
 import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-  usePanelRef
-} from '@cogito/design/components/resizable'
+  Splitter,
+  SplitterHandle,
+  SplitterPane,
+  usePaneRef
+} from '@cogito/design/components/splitter'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
@@ -49,7 +49,7 @@ export default function DirectiveWorkspace() {
   const params = useParams()
   const name = params.name ?? ''
 
-  const listRef = usePanelRef()
+  const listRef = usePaneRef()
   const [initial] = useState(findSplitterState)
   const [isListOpen, updateListOpen] = useState(initial.isListOpen)
 
@@ -105,24 +105,24 @@ export default function DirectiveWorkspace() {
         }}
       />
 
-      <ResizablePanelGroup
+      <Splitter
         id={PAGE_GROUP_ID}
         orientation="horizontal"
         className="min-h-0 flex-1"
         defaultLayout={initial.layouts[PAGE_GROUP_ID]}
         onLayoutChanged={function (layout, meta) {
-          if (!meta.isUserInteraction) return
+          if (!meta?.isUserInteraction) return
           writeSplitterLayout(PAGE_GROUP_ID, layout)
         }}>
-        <ResizablePanel
+        <SplitterPane
           id={LIST_ID}
-          panelRef={listRef}
+          paneRef={listRef}
           defaultSize={LIST_SIZE}
-          minSize={LIST_MIN}
-          maxSize={LIST_MAX}
+          min={LIST_MIN}
+          max={LIST_MAX}
           collapsible
           collapsedSize={0}
-          groupResizeBehavior="preserve-pixel-size"
+          preservePixel
           onResize={handleListResize}
           className="min-h-0 min-w-0">
           <DirectiveList
@@ -132,27 +132,27 @@ export default function DirectiveWorkspace() {
             onOpen={handleOpen}
             onRun={dock.quickRun}
           />
-        </ResizablePanel>
+        </SplitterPane>
 
-        <ResizableHandle withHandle />
+        <SplitterHandle withHandle />
 
-        <ResizablePanel
+        <SplitterPane
           id={WORKSPACE_ID}
-          minSize={WORKSPACE_MIN}
+          min={WORKSPACE_MIN}
           className="flex h-full min-h-0 min-w-0 flex-col">
-          <ResizablePanelGroup
+          <Splitter
             id={STACK_GROUP_ID}
             orientation="vertical"
             className="min-h-0 h-full flex-1"
             defaultLayout={alignRunLayout(initial.layouts[STACK_GROUP_ID], dock.isRunOpen)}
             onLayoutChanged={function (layout, meta) {
-              if (!meta.isUserInteraction) return
+              if (!meta?.isUserInteraction) return
               dock.releaseRunSizePin()
               writeSplitterLayout(STACK_GROUP_ID, layout)
             }}>
-            <ResizablePanel
+            <SplitterPane
               id={EDITOR_ID}
-              minSize={EDITOR_MIN}
+              min={EDITOR_MIN}
               className="min-h-0">
               <Editor
                 name={name}
@@ -161,14 +161,14 @@ export default function DirectiveWorkspace() {
                 onToggleList={handleToggleList}
                 onRun={dock.startRun}
               />
-            </ResizablePanel>
+            </SplitterPane>
 
-            <ResizableHandle withHandle />
+            <SplitterHandle withHandle />
 
             <RunDockPanel dock={dock} />
-          </ResizablePanelGroup>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+          </Splitter>
+        </SplitterPane>
+      </Splitter>
     </div>
   )
 }

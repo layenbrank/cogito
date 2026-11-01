@@ -1,8 +1,8 @@
 import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup
-} from '@cogito/design/components/resizable'
+  Splitter,
+  SplitterHandle,
+  SplitterPane
+} from '@cogito/design/components/splitter'
 import { clsx } from 'clsx'
 import { useEffect } from 'react'
 
@@ -80,48 +80,56 @@ function Workspace() {
 
   return (
     <div className={clsx('flex min-h-0 flex-1 flex-col overflow-hidden bg-background')}>
-      <ResizablePanelGroup
+      <Splitter
+        id="clipchamp-workspace"
         orientation="vertical"
         className="min-h-0 flex-1">
-        <ResizablePanel
+        <SplitterPane
+          id="clipchamp-upper"
           defaultSize="62%"
-          minSize="35%"
+          min="35%"
           className="min-h-0 overflow-hidden">
-          <ResizablePanelGroup
+          <Splitter
+            id="clipchamp-upper-row"
             orientation="horizontal"
             className="h-full min-h-0">
-            <ResizablePanel
+            <SplitterPane
+              id="clipchamp-media"
               defaultSize="22%"
-              minSize={240}
-              maxSize="34%"
+              min={240}
+              max="34%"
               className="min-h-0 overflow-hidden">
               <div className="flex h-full min-h-0 border-r border-border/60">
                 <MediaRail />
                 <MediaSurface />
               </div>
-            </ResizablePanel>
-            <ResizableHandle className="w-1 bg-transparent transition-colors hover:bg-primary/20" />
-            <ResizablePanel className="flex min-h-0 flex-col overflow-hidden">
+            </SplitterPane>
+            <SplitterHandle className="w-1 bg-transparent transition-colors hover:bg-primary/20" />
+            <SplitterPane
+              id="clipchamp-preview"
+              className="flex min-h-0 flex-col overflow-hidden">
               <Preview />
-            </ResizablePanel>
-            <ResizableHandle className="w-1 bg-transparent transition-colors hover:bg-primary/20" />
-            <ResizablePanel
+            </SplitterPane>
+            <SplitterHandle className="w-1 bg-transparent transition-colors hover:bg-primary/20" />
+            <SplitterPane
+              id="clipchamp-inspector"
               defaultSize="22%"
-              minSize={220}
-              maxSize="34%"
+              min={220}
+              max="34%"
               className="min-h-0 overflow-hidden">
               <Inspector />
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </ResizablePanel>
-        <ResizableHandle className="h-1 bg-transparent transition-colors hover:bg-primary/20" />
-        <ResizablePanel
+            </SplitterPane>
+          </Splitter>
+        </SplitterPane>
+        <SplitterHandle className="h-1 bg-transparent transition-colors hover:bg-primary/20" />
+        <SplitterPane
+          id="clipchamp-timeline"
           defaultSize="38%"
-          minSize={180}
+          min={180}
           className="min-h-0 overflow-hidden">
           <Timeline />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        </SplitterPane>
+      </Splitter>
     </div>
   )
 }

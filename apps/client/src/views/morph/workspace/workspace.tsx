@@ -1,8 +1,8 @@
 import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup
-} from '@cogito/design/components/resizable'
+  Splitter,
+  SplitterHandle,
+  SplitterPane
+} from '@cogito/design/components/splitter'
 import { clsx } from 'clsx'
 
 import Navigation from '@/views/morph/workspace/navigation.tsx'
@@ -21,21 +21,25 @@ export default function Workspace() {
   return (
     <div className={clsx(styles.root)}>
       <div className={styles.panes}>
-        <ResizablePanelGroup
+        <Splitter
+          id="morph-workspace"
           orientation="horizontal"
           className={styles.splitter}>
-          <ResizablePanel
+          <SplitterPane
+            id="morph-nav"
             defaultSize="20%"
-            minSize={200}
-            maxSize="30%"
+            min={200}
+            max="30%"
             className="overflow-hidden">
             <Navigation />
-          </ResizablePanel>
-          <ResizableHandle />
-          <ResizablePanel className="overflow-hidden">
+          </SplitterPane>
+          <SplitterHandle />
+          <SplitterPane
+            id="morph-section"
+            className="overflow-hidden">
             <Section />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+          </SplitterPane>
+        </Splitter>
 
         {summaryVisible ? <Summary /> : null}
       </div>

@@ -1,4 +1,4 @@
-import { usePanelRef } from '@cogito/design/components/resizable'
+import { usePaneRef } from '@cogito/design/components/splitter'
 import { useEffect, useState } from 'react'
 
 /**
@@ -6,8 +6,8 @@ import { useEffect, useState } from 'react'
  * 底部运行台改由终端 store 的 `open` 控制，见 DirectiveDock。
  */
 function useWorkspaceSurfaces() {
-  const catalogRef = usePanelRef()
-  const inspectorRef = usePanelRef()
+  const catalogRef = usePaneRef()
+  const inspectorRef = usePaneRef()
   const [isCatalogOpen, setCatalogOpen] = useState(true)
   const [isInspectorOpen, setInspectorOpen] = useState(true)
 

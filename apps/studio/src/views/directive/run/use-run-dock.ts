@@ -1,4 +1,4 @@
-import { usePanelRef } from '@cogito/design/components/resizable'
+import { usePaneRef } from '@cogito/design/components/splitter'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { useCorexStore } from '@/stores/corex'
@@ -57,7 +57,7 @@ export function useRunDock() {
     [initialize]
   )
 
-  const runRef = usePanelRef()
+  const runRef = usePaneRef()
   /** 程序化开合期间忽略 onResize，避免套娃 setState */
   const muteResizeRef = useRef(false)
   /**
