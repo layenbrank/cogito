@@ -4,11 +4,12 @@
 
 ## 应用形态：Tauri 窗口（仅 apps/client）
 
-- 一律 `decorations: false`，自绘：`Caption` = 拖拽区 + 窗口键；`Decorations` = 窗口容器（标题栏 + flex 列）。不用裸 `Caption` + 自建布局。
+- 一律 `decorations: false`，自绘窗口壳：`features/window-shell`（`ShellFrame` + `Caption`）。页用 `useShellSurface` 申报 `begin`/`final`/`section`，禁止页内再包一层壳。
 - 拖拽：槽位容器 `data-region="true"`（CSS `-webkit-app-region: drag`）；槽位内交互元素必须 `data-region="false"`，否则被吃掉点击。不要写 `data-tauri-drag-region`。
 - **无内置浏览器**：不要再加浏览窗 / 子 WebView / `navigation-popup`。网址与搜索一律 `openUrl` 进系统浏览器；搜索只挂 overview 操作栏。
-- 每窗口都要自绘标题栏，`/overlay` 例外；`Decorations` 根节点透明，材质由窗口承担。
-- 磁贴不用 Dialog：双击开独立窗口（`activateTile` → `views/<component>`），label `component:id`；`navigation` 磁贴改为外跳系统浏览器。
+- Dialog / Sheet 等模态挂 `ShellOverlayHost`（Caption 下方），禁止遮罩盖住操作栏与窗控。命名禁用 `chrome`（与浏览器 Chrome 歧义）。
+- `/overlay` 无操作栏；其余主窗路由由 `WorkspaceShell` 常驻 `ShellFrame`。
+- 磁贴激活：`activateTile` → 主窗内 `navigate`（非再建独立 WebviewWindow）；`navigation` 磁贴外跳系统浏览器。
 - 磁贴两层：`views/<tile>/` = 窗口页；`features/magnetic-tiles/<tile>/` = 磁贴表面；别把窗口逻辑塞回 features。
 - 窗口 UI 归 `views/`：agent 部件 `views/agent/chat/components/**`；`features/agent/` 只留 `acp/`、`model/`、`port/`、领域类型。
 - 分屏用布局路由 + 子页，不用 Dialog / 页内开关：出口 `views/agent/agent.tsx`，子页 `views/agent/{chat,settings}/`，URL 只有 `/agent/chat` 与 `/agent/settings`。

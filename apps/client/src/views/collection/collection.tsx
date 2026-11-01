@@ -6,7 +6,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
-import { Decorations } from '@/components/decorations/index.ts'
+import { useShellSurface } from '@/features/window-shell/slots'
 import { CollectionSurface } from '@/views/collection/surface.tsx'
 import { useCollectionMembers } from '@/views/collection/use-collection-members.ts'
 
@@ -49,6 +49,11 @@ export default function Collection() {
 
   const isAddOpen = wantsAddOpen(searchParams)
 
+  useShellSurface({
+    summary: id ? title : '集合',
+    scrollable: false
+  })
+
   function onUpdateAddOpen(open: boolean) {
     const next = new URLSearchParams(searchParams)
     if (open) next.set('add', '1')
@@ -57,31 +62,21 @@ export default function Collection() {
   }
 
   if (!id) {
-    return (
-      <Decorations
-        summary="集合"
-        scrollable={false}>
-        <p className="text-muted-foreground p-6 text-sm">缺少集合 id（?id=）</p>
-      </Decorations>
-    )
+    return <p className="text-muted-foreground p-6 text-sm">缺少集合 id（?id=）</p>
   }
 
   return (
-    <Decorations
-      summary={title}
-      scrollable={false}>
-      <CollectionSurface
-        key={id}
-        id={id}
-        stack={stack}
-        onUpdateStack={onUpdateStack}
-        title={title}
-        magneticTiles={magneticTiles}
-        onUpdateMagneticTiles={onUpdateMagneticTiles}
-        onReloadMembers={reloadMembers}
-        isAddOpen={isAddOpen}
-        onUpdateAddOpen={onUpdateAddOpen}
-      />
-    </Decorations>
+    <CollectionSurface
+      key={id}
+      id={id}
+      stack={stack}
+      onUpdateStack={onUpdateStack}
+      title={title}
+      magneticTiles={magneticTiles}
+      onUpdateMagneticTiles={onUpdateMagneticTiles}
+      onReloadMembers={reloadMembers}
+      isAddOpen={isAddOpen}
+      onUpdateAddOpen={onUpdateAddOpen}
+    />
   )
 }

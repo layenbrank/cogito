@@ -296,11 +296,7 @@ function parseWindow(raw: unknown): WindowPref {
         .slice(0, RECENT_HIT_CAP)
     : []
   const clockStyle =
-    raw.clockStyle === 'digital' ||
-    raw.clockStyle === 'analog' ||
-    raw.clockStyle === 'flip' ||
-    raw.clockStyle === 'neon' ||
-    raw.clockStyle === 'minimal'
+    raw.clockStyle === 'digital' || raw.clockStyle === 'analog' || raw.clockStyle === 'flip'
       ? raw.clockStyle
       : base.clockStyle
   return {

@@ -1,11 +1,11 @@
 import { Icon } from '@iconify/react/offline'
-import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 
 import {
   MagneticTile,
   type MarkerProps
 } from '@/features/magnetic-tile/magnetic-tile.tsx'
+import { markerClass } from '@/features/magnetic-tile/marker'
 import styles from '@/features/magnetic-tiles/collection/marker.module.scss'
 import {
   fetchCollectionMarkerPreviews,
@@ -85,12 +85,7 @@ export default function Marker(props: Props) {
   return (
     <MagneticTile.Marker
       {...props}
-      className={clsx([
-        styles.marker,
-        props.size,
-        props.direction,
-        props.shape
-      ])}>
+      className={markerClass(styles, props.size, props.shape, props.direction)}>
       {isEmpty ? (
         <Icon
           icon="lucide:folder"

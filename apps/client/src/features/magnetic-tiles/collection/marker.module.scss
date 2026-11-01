@@ -1,10 +1,20 @@
-@use 'mini.scss' as *;
-@use 'small.scss' as *;
-@use 'medium.scss' as *;
-@use 'large.scss' as *;
-@use 'huge.scss' as *;
-@use 'massive.scss' as *;
-@use 'ultra.scss' as *;
+@use 'lv1.scss' as *;
+
+/* CSS modules 导出钩子：供 markerClass(styles, size, shape, direction) 取用 */
+.lv1,
+.lv2,
+.lv3,
+.lv4,
+.lv5,
+.lv6,
+.lv7,
+.square,
+.circle,
+.rectangle,
+.horizontal,
+.vertical {
+  min-width: 0;
+}
 
 .marker {
   display: flex;
@@ -34,7 +44,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
   border-radius: 4px;
   background: color-mix(in oklab, currentColor 8%, transparent);
   font-size: 0.55em;
@@ -47,4 +56,8 @@
   width: 72%;
   height: 72%;
   object-fit: contain;
+  border-radius: 3px;
+  box-shadow:
+    0 1px 2px color-mix(in oklab, var(--foreground) 14%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--border) 50%, transparent);
 }

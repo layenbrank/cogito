@@ -134,15 +134,18 @@ function AsideHistory() {
     if (expandedRef.current === oid) updateFiles(nextFiles)
   }
 
-  function attachRelative(relative: string) {
-    void attachWorkspaceFile(aui, relative)
-      .then(function () {
-        toastAttached(relative)
-      })
-      .catch(function (cause: unknown) {
-        toast.error(cause instanceof Error ? cause.message : '引用失败')
-      })
-  }
+  const attachRelative = useCallback(
+    function (relative: string) {
+      void attachWorkspaceFile(aui, relative)
+        .then(function () {
+          toastAttached(relative)
+        })
+        .catch(function (cause: unknown) {
+          toast.error(cause instanceof Error ? cause.message : '引用失败')
+        })
+    },
+    [aui]
+  )
 
   const findPathMenuItems = useCallback(
     function (trigger: Element) {
@@ -155,7 +158,7 @@ function AsideHistory() {
         onAddToComposer: attachRelative
       })
     },
-    [rootPath, aui]
+    [rootPath, attachRelative]
   )
 
   function openFileDiff(commit: CommitHit, relative: string) {

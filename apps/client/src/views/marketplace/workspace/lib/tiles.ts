@@ -2,8 +2,9 @@ import Fuse from 'fuse.js'
 import { timeSphere } from '@cogito/utils'
 
 import {
+  findBoothBucket,
+  findNavigateBucket,
   matchBoothBucket,
-  matchNavigateBucket,
   type BoothBucket,
   type NavigateBucket
 } from '@/constants/marketplace/buckets'
@@ -18,6 +19,19 @@ const FUSE_THRESHOLD = 0.35
 
 const fuseByTiles = new WeakMap<MagneticTile[], Fuse<MagneticTile>>()
 
+type BoothBucketKey = Exclude<BoothBucket, 'all'>
+type NavigateBucketKey = Exclude<NavigateBucket, 'all'>
+
+type BoothGroups = {
+  all: MagneticTile[]
+  byBucket: Record<BoothBucketKey, MagneticTile[]>
+}
+
+type NavigateGroups = {
+  all: MagneticTile[]
+  byBucket: Record<NavigateBucketKey, MagneticTile[]>
+}
+
 type VisibleCache = {
   magneticTiles: MagneticTile[]
   kind: 'booth' | 'navigate'
@@ -26,7 +40,38 @@ type VisibleCache = {
   tiles: MagneticTile[]
 }
 
+const boothGroupsByTiles = new WeakMap<MagneticTile[], BoothGroups>()
+const navigateGroupsByTiles = new WeakMap<MagneticTile[], NavigateGroups>()
+
 let visibleCache: VisibleCache | null = null
+
+function emptyBoothByBucket(): Record<BoothBucketKey, MagneticTile[]> {
+  return {
+    schedule: [],
+    notes: [],
+    media: [],
+    dev: [],
+    apps: [],
+    system: []
+  }
+}
+
+function emptyNavigateByBucket(): Record<NavigateBucketKey, MagneticTile[]> {
+  return {
+    search: [],
+    shopping: [],
+    social: [],
+    video: [],
+    music: [],
+    news: [],
+    life: [],
+    dev: [],
+    office: [],
+    ai: [],
+    learn: [],
+    design: []
+  }
+}
 
 function findFuse(tiles: MagneticTile[]) {
   let fuse = fuseByTiles.get(tiles)
@@ -72,6 +117,59 @@ function findCachedTiles(
   return cached.tiles
 }
 
+/** 按 component 分桶一次；同一 magneticTiles 引用复用 */
+function findBoothGroups(magneticTiles: MagneticTile[]) {
+  const cached = boothGroupsByTiles.get(magneticTiles)
+  if (cached) return cached
+
+  const all: MagneticTile[] = []
+  const byBucket = emptyBoothByBucket()
+
+  for (const tile of magneticTiles) {
+    if (!matchBoothBucket(tile, 'all')) continue
+    all.push(tile)
+    byBucket[findBoothBucket(tile.component)].push(tile)
+  }
+
+  const groups: BoothGroups = { all, byBucket }
+  boothGroupsByTiles.set(magneticTiles, groups)
+  return groups
+}
+
+/** 按导航标题分桶一次；同一 magneticTiles 引用复用 */
+function findNavigateGroups(magneticTiles: MagneticTile[]) {
+  const cached = navigateGroupsByTiles.get(magneticTiles)
+  if (cached) return cached
+
+  const all: MagneticTile[] = []
+  const byBucket = emptyNavigateByBucket()
+
+  for (const tile of magneticTiles) {
+    if (tile.component !== 'navigation' || !tile.url) continue
+    all.push(tile)
+    byBucket[findNavigateBucket(tile)].push(tile)
+  }
+
+  const groups: NavigateGroups = { all, byBucket }
+  navigateGroupsByTiles.set(magneticTiles, groups)
+  return groups
+}
+
+function findBoothBucketTiles(magneticTiles: MagneticTile[], bucket: BoothBucket) {
+  const groups = findBoothGroups(magneticTiles)
+  if (bucket === 'all') return groups.all
+  return groups.byBucket[bucket]
+}
+
+function findNavigateBucketTiles(
+  magneticTiles: MagneticTile[],
+  bucket: NavigateBucket
+) {
+  const groups = findNavigateGroups(magneticTiles)
+  if (bucket === 'all') return groups.all
+  return groups.byBucket[bucket]
+}
+
 /** 磁贴列表：分类 + 搜索；同入参复用上次结果（Caption / Section 共享） */
 function findBoothTiles(
   magneticTiles: MagneticTile[],
@@ -82,9 +180,7 @@ function findBoothTiles(
   const cached = findCachedTiles(magneticTiles, 'booth', bucket, trimmed)
   if (cached) return cached
 
-  const bucketed = magneticTiles.filter(function (tile) {
-    return matchBoothBucket(tile, bucket)
-  })
+  const bucketed = findBoothBucketTiles(magneticTiles, bucket)
   const tiles = searchTiles(bucketed, trimmed)
   visibleCache = {
     magneticTiles,
@@ -106,13 +202,7 @@ function findNavigateTiles(
   const cached = findCachedTiles(magneticTiles, 'navigate', bucket, trimmed)
   if (cached) return cached
 
-  const bucketed = magneticTiles.filter(function (tile) {
-    return (
-      tile.component === 'navigation' &&
-      Boolean(tile.url) &&
-      matchNavigateBucket(tile, bucket)
-    )
-  })
+  const bucketed = findNavigateBucketTiles(magneticTiles, bucket)
   const tiles = searchTiles(bucketed, trimmed)
   visibleCache = {
     magneticTiles,

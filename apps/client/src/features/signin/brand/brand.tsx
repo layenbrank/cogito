@@ -4,8 +4,11 @@ import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 
 import styles from '../signin.module.scss'
 
-/** 与 Dialog 入场 (~200ms) 对齐，避免 WebGPU 初始化抢开场帧 */
-const SHADER_DEFER_MS = 200
+/**
+ * Dialog 开场 CSS ~200ms；再等一拍 idle 才挂 WebGPU，
+ * 保证表单首帧可点，不被 shader 初始化抢主线程。
+ */
+const SHADER_OPEN_MS = 280
 
 const BrandShader = lazy(function () {
   return import('./shader').then(function (mod) {
@@ -40,8 +43,27 @@ const CAPABILITIES = [
   }
 ] as const
 
-function warmShaderChunk() {
+/** 空闲时预热 shader chunk（桌面本地包，无网络；只省解析/编译尖刺） */
+function warmBrandShader() {
   void import('./shader')
+}
+
+function scheduleIdle(task: () => void): () => void {
+  if (typeof requestIdleCallback === 'function') {
+    const id = requestIdleCallback(
+      function () {
+        task()
+      },
+      { timeout: 900 }
+    )
+    return function () {
+      cancelIdleCallback(id)
+    }
+  }
+  const timer = window.setTimeout(task, 120)
+  return function () {
+    window.clearTimeout(timer)
+  }
 }
 
 function formatIndex(index: number) {
@@ -51,11 +73,17 @@ function formatIndex(index: number) {
 interface BrandProps {
   /** 本次打开的入场时长（ms），首次与后续不同，见 ./intro */
   introMs: number
+  /**
+   * false 时立刻卸掉 WebGPU（关窗退出动画期间也卸），
+   * 避免 teardown 与 dialog 退场叠卡。
+   */
+  isLive?: boolean
 }
 
 /** 登录弹窗左侧：品牌英雄 + 缎面 shader + 索引能力列表 */
 function Brand(props: BrandProps) {
   const isReducedMotion = useReducedMotion()
+  const isLive = props.isLive !== false
   const [isShaderReady, setIsShaderReady] = useState(false)
   const [isShaderUnavailable, setIsShaderUnavailable] = useState(false)
 
@@ -65,37 +93,39 @@ function Brand(props: BrandProps) {
 
   useEffect(
     function () {
-      warmShaderChunk()
+      if (!isLive) {
+        setIsShaderReady(false)
+        return
+      }
+
+      warmBrandShader()
 
       let isCancelled = false
-      let timer = 0
-      let innerFrame = 0
-      const outerFrame = requestAnimationFrame(function () {
-        innerFrame = requestAnimationFrame(function () {
-          timer = window.setTimeout(
-            function () {
-              if (!isCancelled) setIsShaderReady(true)
-            },
-            isReducedMotion ? 0 : SHADER_DEFER_MS
-          )
-        })
-      })
+      let cancelIdle = function () {}
+      const openTimer = window.setTimeout(
+        function () {
+          cancelIdle = scheduleIdle(function () {
+            if (!isCancelled) setIsShaderReady(true)
+          })
+        },
+        isReducedMotion ? 0 : SHADER_OPEN_MS
+      )
 
       return function () {
         isCancelled = true
-        cancelAnimationFrame(outerFrame)
-        cancelAnimationFrame(innerFrame)
-        window.clearTimeout(timer)
+        window.clearTimeout(openTimer)
+        cancelIdle()
       }
     },
-    [isReducedMotion]
+    [isLive, isReducedMotion]
   )
 
   const introSeconds = isReducedMotion ? 0 : props.introMs / 1000
+  const showsShader = isLive && isShaderReady && !isShaderUnavailable
 
   return (
     <aside className={styles.brand}>
-      {isShaderReady && !isShaderUnavailable && (
+      {showsShader && (
         <Suspense fallback={null}>
           <m.div
             className={styles.brandShaderHost}
@@ -155,5 +185,5 @@ function Brand(props: BrandProps) {
   )
 }
 
-export { Brand }
+export { Brand, warmBrandShader }
 export type { BrandProps }

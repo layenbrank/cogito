@@ -93,15 +93,18 @@ function AsideFiles(props: AsideFilesProps) {
       })
   }
 
-  function attachRelative(relative: string) {
-    void attachWorkspaceFile(props.aui, relative)
-      .then(function () {
-        toastAttached(relative)
-      })
-      .catch(function (cause: unknown) {
-        toast.error(cause instanceof Error ? cause.message : '引用失败')
-      })
-  }
+  const attachRelative = useCallback(
+    function (relative: string) {
+      void attachWorkspaceFile(props.aui, relative)
+        .then(function () {
+          toastAttached(relative)
+        })
+        .catch(function (cause: unknown) {
+          toast.error(cause instanceof Error ? cause.message : '引用失败')
+        })
+    },
+    [props.aui]
+  )
 
   const findPathMenuItems = useCallback(
     function (trigger: Element) {
@@ -114,7 +117,7 @@ function AsideFiles(props: AsideFilesProps) {
         onAddToComposer: attachRelative
       })
     },
-    [activeRoot, props.aui]
+    [activeRoot, attachRelative]
   )
 
   function closePreview() {

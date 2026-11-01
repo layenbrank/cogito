@@ -45,7 +45,8 @@ const PLAN_MAX = 4800
 const LAYOUT_WIDTH_GUARD = 400
 
 type SplitterLayout = Record<string, number>
-type SplitterOpen = AgentSplitterOpen
+/** 运行时开关态：三项齐全；persist 的可选字段读入时会 Boolean 归一 */
+type SplitterOpen = Required<AgentSplitterOpen>
 
 const PANE_IDS = [SESSION_ID, MAIN_ID, PLAN_ID]
 

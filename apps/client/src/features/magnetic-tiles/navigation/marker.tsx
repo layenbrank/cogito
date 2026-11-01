@@ -12,8 +12,11 @@ import {
 } from '@/features/magnetic-tile/magnetic-tile.tsx'
 import styles from '@/features/magnetic-tiles/navigation/marker.module.scss'
 
-type Props = Pick<MagneticTile, 'mark' | 'title' | 'url'> &
-  Omit<MarkerProps, 'children'>
+type Props = Pick<MagneticTile, 'mark' | 'title'> &
+  Omit<MarkerProps, 'children'> & {
+    /** overlay 可能未带 url；与 mark 解析 favicon 同源 */
+    url?: string | null
+  }
 
 /** 形状圆角：design Avatar 无 shape prop，改为圆角类（矩形取圆角矩形） */
 const SHAPE_RADIUS: Record<MarkerProps['shape'], string> = {

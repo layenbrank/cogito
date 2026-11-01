@@ -30,29 +30,24 @@ function Section(props: SectionProps) {
     [magneticTiles, props.bucket, query]
   )
 
-  const listKey = useMemo(
-    function () {
-      return `${props.bucket}:${query.trim()}:${featureTiles
-        .map(function (tile) {
-          return tile.id
-        })
-        .join(',')}`
-    },
-    [props.bucket, query, featureTiles]
-  )
+  const isEmpty = featureTiles.length === 0
 
   useLayoutEffect(
     function () {
+      if (isEmpty) {
+        onUpdateScrollRoot(null)
+        return
+      }
       onUpdateScrollRoot(listRef.current)
     },
-    [props.bucket, featureTiles.length]
+    [isEmpty]
   )
 
   const hasQuery = query.trim().length > 0
   const listMotion = MOTION.listContainer(isReducedMotion)
   const itemMotion = MOTION.listItem(isReducedMotion)
 
-  if (featureTiles.length === 0) {
+  if (isEmpty) {
     return (
       <EmptyHint
         description={hasQuery ? '未找到匹配磁贴' : '该分类暂无磁贴'}
@@ -74,7 +69,6 @@ function Section(props: SectionProps) {
 
   return (
     <m.div
-      key={listKey}
       ref={listRef}
       className={[
         'grid min-h-0 flex-1 auto-rows-min content-start gap-3 overflow-auto scroll-smooth p-0.5',

@@ -42,19 +42,3 @@
   align-self: center;
   display: inline-block;
 }
-
-/** Neon 变体：使用主色覆盖数字和冒号颜色 */
-.neon {
-  .digit,
-  .colon {
-    color: var(--primary);
-  }
-}
-
-/** 仅主色数字，供 overlay 预览等场景使用 */
-.tonePrimary {
-  .digit,
-  .colon {
-    color: var(--primary);
-  }
-}

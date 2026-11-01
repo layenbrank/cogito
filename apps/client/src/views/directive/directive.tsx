@@ -1,20 +1,16 @@
-import { Decorations } from '@/components/decorations/index.ts'
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
-import { findComponentLabel } from '@/constants/marketplace/tile-hints'
-import { useShowsTileSession } from '@/features/magnetic-tile/session-bar'
-import { safeDecodeURIComponent } from '@/utils/safe-decode.ts'
-import { Suspense, lazy } from 'react'
 import { Outlet, useParams } from 'react-router-dom'
-import { Spinner } from '@cogito/design/components/spinner'
-import { useCorexStore } from '@/stores/corex.ts'
+
+import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 import { useDockStore } from '@/features/agent/dock'
+import { useShowsTileSession } from '@/features/magnetic-tile/session-bar'
+import { useShellSurface } from '@/features/window-shell/slots'
+import { useCorexStore } from '@/stores/corex.ts'
+import { safeDecodeURIComponent } from '@/utils/safe-decode.ts'
 import { DirectiveFrame } from '@/views/directive/dock/directive-frame.tsx'
 import { DirectiveLibrary } from '@/views/directive/library/library.tsx'
-
-const DirectiveWorkspace = lazy(function () {
-  return import('@/views/directive/workspace.tsx')
-})
+import DirectiveWorkspace from '@/views/directive/workspace.tsx'
 
 function DirectiveCaptionBegin(props: { name?: string }) {
   const editorName = useCorexStore(function (state) {
@@ -71,14 +67,15 @@ function DirectiveCaptionBegin(props: { name?: string }) {
 }
 
 function DirectiveLibraryPage() {
+  useShellSurface({
+    summary: findComponentLabel('directive'),
+    scrollable: false
+  })
+
   return (
-    <Decorations
-      summary={findComponentLabel('directive')}
-      scrollable={false}>
-      <DirectiveFrame>
-        <DirectiveLibrary />
-      </DirectiveFrame>
-    </Decorations>
+    <DirectiveFrame>
+      <DirectiveLibrary />
+    </DirectiveFrame>
   )
 }
 
@@ -86,25 +83,19 @@ function DirectiveWorkspacePage() {
   const params = useParams()
   const name = params.name ? safeDecodeURIComponent(params.name) : undefined
 
+  useShellSurface({
+    begin: <DirectiveCaptionBegin name={name} />,
+    scrollable: false
+  })
+
   return (
-    <Decorations
-      begin={<DirectiveCaptionBegin name={name} />}
-      scrollable={false}>
-      <Suspense
-        fallback={
-          <div className="flex h-full min-h-0 flex-1 items-center justify-center">
-            <Spinner className="size-10 text-muted-foreground" />
-          </div>
-        }>
-        <DirectiveFrame>
-          <DirectiveWorkspace />
-        </DirectiveFrame>
-      </Suspense>
-    </Decorations>
+    <DirectiveFrame>
+      <DirectiveWorkspace />
+    </DirectiveFrame>
   )
 }
 
-/** 路由壳：仅透传子页；底栏在各页 Decorations 内容区内拆分高度 */
+/** 路由壳：仅透传子页；各子页经 useShellSurface 申报操作栏 */
 function DirectiveShell() {
   return <Outlet />
 }

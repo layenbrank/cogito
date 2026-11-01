@@ -27,7 +27,7 @@ function findWorkspaceLabel(input: {
   return t('WORKSPACE')
 }
 
-/** 窗口底栏状态（Decorations.section） */
+/** 窗口底栏状态（ShellFrame section 槽） */
 function Summary() {
   const activePath = useKnowledgeStore(function (state) {
     return state.activePath

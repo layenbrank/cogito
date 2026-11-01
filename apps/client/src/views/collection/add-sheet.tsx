@@ -17,7 +17,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { CHANNELS } from '@/shared/ipc/channels'
 
-import { BELOW_CAPTION } from '@/features/browser-bar/metrics'
 import { useMirrorStore } from '@/stores/mirror'
 import { Controller } from '@/views/collection/controller.tsx'
 
@@ -131,9 +130,8 @@ function AddSheet(props: AddSheetProps) {
       <SheetContent
         side="right"
         showCloseButton={false}
-        overlayClassName={`${BELOW_CAPTION} bg-black/25 supports-backdrop-filter:backdrop-blur-xs`}
+        overlayClassName="bg-black/25 supports-backdrop-filter:backdrop-blur-xs"
         className={[
-          BELOW_CAPTION,
           'w-[min(420px,94vw)] max-w-none gap-0 overflow-visible p-4 sm:max-w-none',
           // 外壳不裁切；仅下方列表自己滚动，避免 Input focus ring 被 overflow 切边
           '**:data-[slot=dialog-body]:flex **:data-[slot=dialog-body]:min-h-0 **:data-[slot=dialog-body]:flex-1',

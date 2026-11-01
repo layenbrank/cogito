@@ -61,12 +61,10 @@ function useClockMarker(props: MarkerLayout) {
   const capacity = findCapacity(props.size, props.shape, props.direction)
   const wide = isWide(props.shape, props.direction)
   const isFlip = clockStyle === 'flip'
-  const isMinimal = clockStyle === 'minimal'
   const isCircle = props.shape === 'circle'
-  const isNeon = clockStyle === 'neon'
 
   const showSeconds =
-    !isMinimal && !isCircle && capacity >= (isFlip ? 3 : 2) && props.size >= (isFlip ? 2 : 1)
+    !isCircle && capacity >= (isFlip ? 3 : 2) && props.size >= (isFlip ? 2 : 1)
   const showAside = capacity >= 2 && !isCircle && !(wide && props.size === 1)
   const showPeriod = capacity >= 3
   const showFullDate = capacity >= 4
@@ -130,7 +128,6 @@ function useClockMarker(props: MarkerLayout) {
     minutes,
     seconds,
     wide,
-    isNeon,
     showSeconds,
     showAside,
     showPeriod,

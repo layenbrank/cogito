@@ -497,14 +497,14 @@ export const Fallback = { Route, ErrorBoundary }
 
 ## caption-cn
 
-Source: `apps/client/src/components/caption/`
+Source: `apps/client/src/features/window-shell/`
 
 ---
 
 category: Components
-title: Caption
-subtitle: 窗口标题栏（窗口装饰）
-description: decorations: false 的自绘桌面壳：拖拽区 + 窗口键。
+title: Window Shell
+subtitle: 主窗自绘操作栏与内容壳
+description: decorations: false；ShellFrame 常驻 Caption + OverlayHost；页用 useShellSurface 申报槽。
 group:
 title: 窗口
 order: 1
@@ -512,148 +512,65 @@ order: 1
 
 ## 何时使用 {#when-to-use}
 
-- 任何 `decorations: false` 的 Tauri 窗口
-- 磁贴窗口直接用 `Decorations` 即可（它内部就是 `Caption`）
-- 需要在顶栏放自定义内容（标题 / 筛选 / 视图切换）或扩展操作按钮时
+- 主窗由 `WorkspaceShell` 挂 `ShellFrame`（勿在页内再包一层壳）
+- 应用页：`useShellSurface({ begin, final, section, summary, scrollable })`
+- Overview：操作栏由壳按路由模式组合（`center` Omnibar + trailing）；页不写 slots
+- Dialog / Sheet / AlertDialog 默认 Portal 进 `ShellOverlayHost`，**遮罩不得盖住操作栏与窗控**
+- 命名禁用 `chrome`（与浏览器 Chrome 歧义）
 
 ## 代码演示 {#examples}
 
-### 基本
-
-```tsx
-import { Caption } from '@/components/caption'
-
-export default function Panel() {
-  return (
-    <div className="flex h-screen flex-col">
-      <Caption
-        begin={<span className="truncate px-1 text-sm font-medium">面板</span>}
-        className="border-b border-border/60 px-2"
-      />
-      <div className="min-h-0 flex-1 overflow-auto" />
-    </div>
-  )
-}
-```
-
-## API
-
-### Caption
-
-| 属性      | 说明                                                           | 类型                                                                                | 默认值 |
-| --------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------ |
-| className | 根 class                                                       | `ClassValue`                                                                        | —      |
-| begin     | 顶栏左侧主区域                                                 | `ReactNode`                                                                         | —      |
-| final     | 顶栏右侧扩展区域（渲染在窗口键左侧）；与 `begin` 对立          | `ReactNode`                                                                         | —      |
-| controls  | 窗口键开关；`true` 默认键全开；对象可关单项或开可选键（`pin`） | `boolean \| Partial<Record<'minimize' \| 'maximize' \| 'close' \| 'pin', boolean>>` | `true` |
-
-**结构 / 状态**
-
-- 一律自绘：根节点挂 `data-region="true"`（拖拽区），交互子节点挂 `data-region="false"`
-- 订阅：`focused` / `maximized` / `fullscreen` / `alwaysOnTop` + `minimizable` / `maximizable` / `closable`（根上有对应 `data-*`）
-- 默认键：最小化 · 最大化⇄还原（全屏时变「退出全屏」）· 关闭；可选 `controls={{ pin: true }}` 置顶
-- 无能力时禁用对应键；失焦整条降对比；双击拖拽区切换最大化（全屏则退出）
-- maximize 键带 `data-window-control="maximize"`，供后续接 Win11 Snap Layout 原生 overlay
-- 窗口键贴顶贴右（高 32px × 宽 46px），一律直角（`rounded-none`）
-
----
-
-## decorations-cn
-
-Source: `apps/client/src/components/decorations/`
-
----
-
-category: Components
-title: Decorations
-subtitle: 窗口容器（自绘装饰壳）
-description: 对应 decorations: false；透明根节点 + 顶栏装饰 + 内容区 + 可选底栏。
-group:
-title: 窗口
-order: 2
----
-
-## 何时使用 {#when-to-use}
-
-- **任何 `decorations: false` 窗口的根容器**（磁贴窗口 `views/<component>`、agent 窗口、主窗口）——
-  它负责标题栏、撑满窗口、纵向 flex 列与可选底栏；窗口内容不再各自管 `height: 100vh`
-- 需要「标题栏 + 内容区 + 底栏操作」这种标准窗口骨架时
-
-## 代码演示 {#examples}
-
-### 磁贴窗
+### 应用页申报槽
 
 ```tsx
 import { Button } from '@cogito/design/components/button'
-import { Decorations } from '@/components/decorations'
+import { useShellSurface } from '@/features/window-shell/slots'
 
 export default function Bookmark() {
-  return (
-    <Decorations
-      summary="书签导入"
-      section={<Button>导入</Button>}>
-      Chrome 书签 → 书签库文件夹；可选挂到 navigation / collection
-    </Decorations>
-  )
-}
-```
-
-### 主窗口
-
-```tsx
-import { Decorations } from '@/components/decorations'
-
-export default function Overview() {
-  return (
-    <Decorations
-      scrollable={false}
-      begin={<span>cogito</span>}>
-      <header>搜索</header>
-      <main className="flex-1">镜像</main>
-    </Decorations>
-  )
+  useShellSurface({
+    summary: '书签库',
+    scrollable: false,
+    section: <Button>导入</Button>
+  })
+  return <div>…</div>
 }
 ```
 
 ## API
 
-### Decorations
+### Caption（`features/window-shell/caption`）
 
-| 属性       | 说明                                           | 类型                       | 默认值 |
-| ---------- | ---------------------------------------------- | -------------------------- | ------ |
-| children   | 内容区                                         | `ReactNode`                | —      |
-| className  | 根容器 class                                   | `ClassValue`               | —      |
-| summary    | 顶栏标题（`begin` 缺省时使用）                 | `string`                   | —      |
-| begin      | 顶栏左侧主区域，优先于 `summary`               | `ReactNode`                | —      |
-| final      | 顶栏右侧扩展区域；与 `begin` 对立              | `ReactNode`                | —      |
-| controls   | 窗口键开关（透传 `Caption`）                   | `CaptionProps['controls']` | `true` |
-| section    | 底栏区域；不传则不渲染                         | `ReactNode`                | —      |
-| scrollable | 内容区由外壳统一滚动；内部已有滚动区传 `false` | `boolean`                  | `true` |
+| 属性      | 说明                                                           | 类型                                                                                | 默认值 |
+| --------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------ |
+| begin     | 顶栏左侧主区域                                                 | `ReactNode`                                                                         | —      |
+| center    | 中间列（Overview Omnibar）；有值时用三列 grid，不插会话条      | `ReactNode`                                                                         | —      |
+| final     | 顶栏右侧扩展区域（渲染在窗口键左侧）                           | `ReactNode`                                                                         | —      |
+| controls  | 窗口键开关；`true` 默认键全开；对象可关单项或开可选键（`pin`） | `boolean \| Partial<Record<'minimize' \| 'maximize' \| 'close' \| 'pin', boolean>>` | `true` |
+
+### useShellSurface
+
+| 字段 | 说明 |
+| ---- | ---- |
+| begin / final / section | 操作栏与底栏槽 |
+| summary | 无 begin 时的纯文本标题（有会话条时抑制） |
+| scrollable | 内容区是否由壳滚动；复杂页 `false` |
+| controls / className | 窗控与内容列 class |
 
 **结构**
 
-- 根节点透明（`bg-transparent`），让原生 mica / 亚克力 / 透明窗材质透出来
-- 容器职责：`flex-col` + 内容区 `min-h-0 flex-1`，子元素直接 `flex: 1` 就能撑满
-- 磁贴窗口映射：`activateTile` 按磁贴记录建窗（label `${component}:${id}`），路由 `/<component>`，见 `apps/client/src/features/magnetic-tile/activate.ts`
+- 根透明；内容区 `bg-background`；`ShellOverlayHost` 为弹层 Portal 容器
+- 拖拽：`data-region="true"|"false"`（不用 `data-tauri-drag-region`）
+- 磁贴激活：`activateTile` → 主窗 `router.navigate`（会话列表切换，非整窗重建）
 
-#### 拖拽区（`data-region`）
+#### 窗口划分
 
-`Caption` 的槽位容器只挂 `data-region`：
+应用**不再内置浏览器**。网址一律走系统默认浏览器（`openUrl`）。
 
-- `data-region="true"` → CSS `-webkit-app-region: drag`
-- `data-region="false"` → CSS `-webkit-app-region: no-drag`
-
-不使用 `data-tauri-drag-region`。槽位里的交互元素（按钮、链接、`[tabindex]`）必须带 **`data-region="false"`**，否则会被拖拽区吃掉点击。窗口键、镜像切换器、状态芯片、账号按钮都按此处理。
-
-#### 窗口划分：工作台 / 磁贴窗
-
-应用**不再内置浏览器**。网址一律走系统默认浏览器（`@tauri-apps/plugin-opener` 的 `openUrl`）。
-
-| 窗口     | label                | 内容                                                                                                                   |
-| -------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| 工作台   | `main`               | 磁贴墙、集合展开、登录弹窗；顶栏 `BrowserBar` 中间挂 Command Omnibar（`features/command-bar`），右侧镜像 / 状态 / 账号 |
-| 磁贴窗   | `${component}:${id}` | 各业务独立窗（笔记、代码、日历等）                                                                                     |
-| 截屏浮层 | `overlay`            | 截图标注                                                                                                               |
+| 路由 | 内容 |
+| ---- | ---- |
+| `/overview` | 磁贴墙；操作栏 center=Omnibar，final=镜像/状态/账号 |
+| `/code` 等应用页 | `useShellSurface` + 业务内容；主窗会话条自动出现 |
+| `/overlay` | 无操作栏浮层 |
 
 打开网址：
 
@@ -671,38 +588,37 @@ Chrome 书签导入（主路径）：
 
 ---
 
-## 磁贴窗口化（Dialog → 独立窗口）
+## 磁贴激活（主窗路由会话）
 
-原来的 `MagneticTile.Overlay`（antd `Modal` 门面）已删除：**磁贴双击一律开独立窗口**。
+原来的 `MagneticTile.Overlay`（antd `Modal` 门面）已删除：**磁贴双击在主窗内 navigate**（`activateTile` → `admitSession` + `router.navigate`）。
 
-| 环节     | 位置                                                            |
-| -------- | --------------------------------------------------------------- |
-| 激活     | `src/features/magnetic-tile/activate.ts`（`activateTile`）      |
-| 窗口配置 | `src/constants/magnetic-tile/window.ts`（`WINDOW` / `DEFAULT`） |
-| 窗口键   | `src/components/caption/`                                       |
-| 内容     | `src/views/<component>/<component>.tsx`                         |
-| 路由     | `src/routers/index.tsx`                                         |
+| 环节   | 位置                                                       |
+| ------ | ---------------------------------------------------------- |
+| 激活   | `src/features/magnetic-tile/activate.ts`（`activateTile`） |
+| 窗口壳 | `src/features/window-shell/`（`ShellFrame` / `Caption`）   |
+| 内容   | `src/views/<component>/<component>.tsx`                    |
+| 路由   | `src/routers/index.tsx`                                    |
 
-- 窗口 label 为 `${component}:${磁贴 id}` —— 一个组件有多条记录时一窗对一记录（等价于原来「每个磁贴一个 Dialog」）
-- 记录上的 `url` 只能在建窗时经查询串传入（`?url=`），窗口内用 `URLSearchParams` 读
-- 全部窗口 `decorations: false`；`Decorations` 根节点透明，材质由窗口自身（mica / 透明）承担
+- 主窗 `decorations: false`；`ShellFrame` 根透明，材质由窗口自身（mica / 透明）承担
+- 应用页经 `useShellSurface` 申报操作栏；切应用时 Caption / 窗控常驻
 
-### 主窗口
+### 主窗口 Overview 操作栏
 
-`tauri.conf.json` 的 `main` 窗口也是 `decorations: false`，同样走 `Decorations` 当**容器**（根透明让 mica 透出来），标题栏内容全部由 `views/overview/caption/` 提供：
+由 `WorkspaceShell` 注入 `ShellFrame`（`views/overview/caption/trail.tsx`）：
 
-| 位置          | 内容                                                                  |
-| ------------- | --------------------------------------------------------------------- |
-| `begin`（左） | 品牌 `cogito` · 分隔线 · **镜像入口**（`caption/mirror.tsx`）     |
-| `final`（右） | **状态区**（`caption/status.tsx`）+ **账号**（`caption/account.tsx`） |
-| 窗口键        | `Caption` 自绘（最小化 / 最大化 / 关闭）                              |
+| 位置           | 内容                                                                  |
+| -------------- | --------------------------------------------------------------------- |
+| `center`       | Command Omnibar（`features/command-bar`）                             |
+| `final`（右）  | **镜像**（`caption/mirror.tsx`）+ **状态** + **账号**                 |
+| 窗口键         | `Caption` 自绘（最小化 / 最大化 / 关闭）                              |
 
 - **镜像入口**（切换 + 管理）：触发按钮＝「序号 + 当前镜像标题」+ chevron，**始终可点** —— 多个时点开是切换，单个时点开是管理面，一个都没有时直接给「新建镜像」。列表支持 ↑↓、Home/End、Enter，Esc 关闭；每行带「重命名」（行内输入，Enter 保存 / Esc 取消 / 失焦保存）与「删除」（`AlertDialog` 二次确认，删的若是当前镜像会自动切到剩下的第一个）；底部「新建镜像」（按 `镜像-0N` 顺延命名）。注意这几个操作原先**全仓没有任何 UI**，`stores/mirror.ts` 的 `toInsertMirror` / `toUpdateMirror` / `toRemoveMirror` 因此一直没有调用者
 - **状态区**：把原来两颗一次性 toast 变成常驻芯片 —— `corex 未就绪`（点击重新检测）、`可更新 vX.Y.Z`（点击安装，✕ 忽略）。更新来自启动时的静默检查（`autoCheckUpdate`），状态由 `utils/updater.ts` 的 `subscribeUpdateStatus` 暴露
 - **账号**：未登录＝登录按钮（开 `ReSignIn`）；已登录＝头像 + 菜单（需要 `DropdownMenuGroup` 包住 `DropdownMenuLabel`，base-ui 的 `GroupLabel` 脱离 Group 会抛错）
 - 曾经的 `OverviewCapsule`（贴边纵向胶囊：gsap 拖拽 + 贴左右边 + 位置持久化）**已删除**：镜像切换与账号收进标题栏，那套自定义拖拽状态机不再需要
-- 别退回「裸 `<Caption>` + 自己的 div」：antd `Layout` 换掉后曾丢掉纵向 flex，`.core` 的 `flex: 1` 失效（内容区塌成一行高）
-- `overlay` 窗口（`/overlay`）是刻意的无装饰浮层（alwaysOnTop、skipTaskbar、`maximized`、不可 resize），不需要标题栏
+- 别退回页内自挂操作栏：flex 高度由 `ShellFrame` 统一提供（`h-full flex-col` + 内容 `min-h-0 flex-1`）
+- `/overlay` 是刻意的无操作栏浮层（alwaysOnTop、skipTaskbar、`maximized`、不可 resize）
+- 弹层（Dialog / Sheet）Portal 进 `ShellOverlayHost`，不得盖住操作栏
 
 ### 目录职责：磁贴表面 vs 磁贴窗口
 

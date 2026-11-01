@@ -4,11 +4,11 @@ import {
   SplitterPane,
   usePaneRef
 } from '@cogito/design/components/splitter'
-import { Suspense, lazy, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 
-import { Decorations } from '@/components/decorations/index.ts'
 import { Fallback } from '@/components/fallback/index.ts'
+import { useShellSurface } from '@/features/window-shell/slots'
 import { useDockStore } from '@/features/agent/dock'
 import { useDockCommand } from '@/features/agent/dock/use-dock-command'
 import { useKnowledgeStore } from '@/stores/knowledge'
@@ -18,12 +18,9 @@ import { bootstrapKnowledgeSession } from '@/views/knowledge/lib/session.ts'
 import { KnowledgeAside } from '@/views/knowledge/surface/aside.tsx'
 import { KnowledgeSurface } from '@/views/knowledge/surface/index.tsx'
 import { useKnowledgeDockScope } from '@/views/knowledge/workspace/dock-scope.ts'
+import KnowledgeWorkspace from '@/views/knowledge/workspace/markdown.tsx'
 import Summary from '@/views/knowledge/workspace/overlay/summary.tsx'
 import styles from '@/views/knowledge/markdown.module.scss'
-
-const KnowledgeWorkspace = lazy(function () {
-  return import('@/views/knowledge/workspace/markdown.tsx')
-})
 
 const LEFT_ID = 'knowledge-left'
 const MAIN_ID = 'knowledge-main'
@@ -36,18 +33,6 @@ const LEFT_MAX = '36%'
 const RIGHT_SIZE = '22%'
 const RIGHT_MIN = 240
 const RIGHT_MAX = '40%'
-
-function KnowledgeSkeleton() {
-  return (
-    <div className="flex h-full min-h-0 animate-pulse flex-col gap-2 p-3">
-      <div className="flex min-h-0 flex-1 gap-2">
-        <div className="w-40 rounded-md bg-muted" />
-        <div className="flex-1 rounded-md bg-muted" />
-        <div className="w-32 rounded-md bg-muted" />
-      </div>
-    </div>
-  )
-}
 
 /**
  * Markdown 磁贴窗壳（最多三列，均可拖宽）：
@@ -73,7 +58,7 @@ export default function Knowledge() {
   useKnowledgeDockScope()
   useDockCommand()
 
-  // 壳一挂载就引导：不等 lazy 编辑器 chunk，尽早定根目录并恢复上次文件
+  // 壳一挂载就引导：尽早定根目录并恢复上次文件
   useEffect(
     function () {
       void bootstrapKnowledgeSession(location.search)
@@ -152,13 +137,16 @@ export default function Knowledge() {
     if (!nextOpen) useDockStore.getState().toClose()
   }
 
+  useShellSurface({
+    begin: <KnowledgeCaptionBegin />,
+    final: <KnowledgeCaptionFinal />,
+    section: isFocusMode ? undefined : <Summary />,
+    sectionClassName:
+      'justify-stretch gap-0 border-border/50 bg-background/70 p-0 backdrop-blur-md',
+    scrollable: false
+  })
+
   return (
-    <Decorations
-      begin={<KnowledgeCaptionBegin />}
-      final={<KnowledgeCaptionFinal />}
-      section={isFocusMode ? undefined : <Summary />}
-      sectionClassName="justify-stretch gap-0 border-border/50 bg-background/70 p-0 backdrop-blur-md"
-      scrollable={false}>
       <div className={styles.workspace}>
         <Splitter
           id="knowledge-shell"
@@ -188,9 +176,7 @@ export default function Knowledge() {
               <Fallback.ErrorBoundary
                 title="Markdown 编辑器出现问题"
                 subTitle="编辑器遇到意外错误。可重试恢复，或刷新页面。">
-                <Suspense fallback={<KnowledgeSkeleton />}>
-                  <KnowledgeWorkspace />
-                </Suspense>
+                <KnowledgeWorkspace />
               </Fallback.ErrorBoundary>
             </div>
           </SplitterPane>
@@ -212,6 +198,5 @@ export default function Knowledge() {
           </SplitterPane>
         </Splitter>
       </div>
-    </Decorations>
   )
 }

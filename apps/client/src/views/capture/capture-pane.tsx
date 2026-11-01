@@ -20,6 +20,8 @@ interface CapturePaneProps {
   albumID: string | null
   emptyHint: string
   emptyAction?: ReactNode
+  /** 工具栏右侧额外控件（如录屏「导入」）；空列表时仍走 emptyAction */
+  toolbarEnd?: ReactNode
 }
 
 function CapturePane(props: CapturePaneProps) {
@@ -44,6 +46,16 @@ function CapturePane(props: CapturePaneProps) {
   })
   const [lightboxId, onLightboxId] = useState<string | null>(null)
   const [isLightboxOpen, onLightboxOpen] = useState(false)
+
+  useEffect(
+    function () {
+      onSelecting(false)
+      onSelectedIds(new Set())
+      onLightboxOpen(false)
+      onLightboxId(null)
+    },
+    [props.kind]
+  )
 
   const scoped = useMemo(
     function () {
@@ -128,11 +140,11 @@ function CapturePane(props: CapturePaneProps) {
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-3 py-1.5">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 bg-muted/20 px-3 py-2.5">
         <Button
-          variant={selecting ? 'default' : 'outline'}
-          size="sm"
-          className="h-6 rounded-sm px-2 text-xs"
+          variant={selecting ? 'default' : 'secondary'}
+          size="default"
+          className="px-3 text-xs"
           onClick={function () {
             onSelecting(function (value) {
               return !value
@@ -144,36 +156,36 @@ function CapturePane(props: CapturePaneProps) {
         {selecting && selectedIds.size > 0 ? (
           <>
             <Button
-              variant="outline"
-              size="sm"
-              className="h-6 rounded-sm px-2 text-xs"
+              variant="secondary"
+              size="default"
+              className="px-3 text-xs"
               onClick={function () {
                 void patchKeep(Array.from(selectedIds), true)
               }}>
               标记保存
             </Button>
             <Button
-              variant="outline"
-              size="sm"
-              className="h-6 rounded-sm px-2 text-xs"
+              variant="secondary"
+              size="default"
+              className="px-3 text-xs"
               onClick={function () {
                 void patchKeep(Array.from(selectedIds), false)
               }}>
               取消保存
             </Button>
             <Button
-              variant="outline"
-              size="sm"
-              className="h-6 rounded-sm px-2 text-xs"
+              variant="secondary"
+              size="default"
+              className="px-3 text-xs"
               onClick={function () {
                 void copySelected()
               }}>
               复制
             </Button>
             <Button
-              variant="outline"
-              size="sm"
-              className="h-6 rounded-sm px-2 text-xs"
+              variant="secondary"
+              size="default"
+              className="px-3 text-xs"
               onClick={function () {
                 void saveSelected()
               }}>
@@ -181,7 +193,7 @@ function CapturePane(props: CapturePaneProps) {
             </Button>
             {albums.length > 0 ? (
               <select
-                className="h-6 rounded-sm border border-input bg-background px-1.5 text-xs"
+                className="h-8 rounded-lg border-0 bg-secondary px-2.5 text-xs text-secondary-foreground shadow-[0_0_0_1px_color-mix(in_oklab,var(--border)_40%,transparent)]"
                 aria-label="加入相簿"
                 defaultValue=""
                 onChange={function (event) {
@@ -204,9 +216,9 @@ function CapturePane(props: CapturePaneProps) {
             ) : null}
             {props.albumID && props.albumID !== 'uncategorized' ? (
               <Button
-                variant="outline"
-                size="sm"
-                className="h-6 rounded-sm px-2 text-xs"
+                variant="secondary"
+                size="default"
+                className="px-3 text-xs"
                 onClick={function () {
                   if (props.albumID) void detachFromAlbum(props.albumID)
                 }}>
@@ -215,17 +227,21 @@ function CapturePane(props: CapturePaneProps) {
             ) : null}
             <Button
               variant="destructive"
-              size="sm"
-              className="h-6 rounded-sm px-2 text-xs"
+              size="default"
+              className="px-3 text-xs"
               onClick={function () {
                 void removeSelected()
               }}>
               删除
             </Button>
-            <span className="text-xs text-muted-foreground">已选 {selectedIds.size}</span>
+            <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+              已选 {selectedIds.size}
+            </span>
           </>
         ) : null}
-        {props.kind === 'recording' ? (
+        {selecting && selectedIds.size > 0 ? null : props.toolbarEnd ? (
+          <div className="ml-auto flex items-center gap-2">{props.toolbarEnd}</div>
+        ) : props.kind === 'recording' ? (
           <span className="ml-auto text-xs text-muted-foreground">
             清理只移除记录，不会删除你原位置的文件
           </span>
@@ -234,7 +250,7 @@ function CapturePane(props: CapturePaneProps) {
 
       <div
         ref={scrollerRef}
-        className="relative min-h-0 flex-1 overflow-y-auto px-2">
+        className="relative min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-2">
         <MediaGrid
           medias={scoped}
           scope="all"

@@ -23,6 +23,7 @@ hushTypegpuNoise()
  * 品牌 shader ——「思 · 台」。
  *
  * 形状装饰 + 光标水波；无大半径柔边实心圆。
+ * 粒子数控住 WebGPU 首帧编译尖刺；挂载时机由 Brand 延后，不在此二次改树。
  */
 
 const DESK_STOPS = [
@@ -33,6 +34,9 @@ const DESK_STOPS = [
 
 const SHAPE = '#9aa6f0'
 const SHAPE_SOFT = '#6b78d4'
+
+/** 相对旧版 280 收一档，降低首帧编译/绘制尖刺 */
+const PARTICLE_COUNT = 110
 
 interface BrandShaderProps {
   onUnavailable?: () => void
@@ -157,7 +161,7 @@ function BrandShader(props: BrandShaderProps) {
       <FloatingParticles
         particleColor="#c4cdf5"
         shape="dot"
-        count={280}
+        count={PARTICLE_COUNT}
         particleSize={0.5}
         softness={0.35}
         speed={0.08 * speed}

@@ -131,7 +131,7 @@ function ClockAlarms(props: ClockAlarmsProps) {
           <Button
             type="button"
             variant="ghost"
-            className={styles.empty}
+            className={cn(styles.empty, 'h-auto whitespace-normal')}
             onClick={props.onBeginCreate}>
             <Icon
               icon="mdi:alarm-plus"

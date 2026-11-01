@@ -101,23 +101,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Neon 变体：aside 整体使用主色 */
-.aside.neon {
-  border-top-color: color-mix(in oklab, var(--primary) 35%, transparent);
-
-  .date,
-  .weekday,
-  .week,
-  .period,
-  .alarmTime,
-  .alarmTitle,
-  .alarmLabel,
-  .alarmSummary,
-  .alarmEmpty {
-    color: var(--primary);
-  }
-}
-
 /* 宽形布局覆盖 */
 .aside.wide {
   flex: unset;

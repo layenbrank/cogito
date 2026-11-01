@@ -1,9 +1,9 @@
 import { useContext, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-import { Decorations } from '@/components/decorations/index.ts'
+import { useShellSurface } from '@/features/window-shell/slots'
 import { useMirrorStore } from '@/stores/mirror.ts'
-import { Caption } from '@/views/marketplace/workspace/caption.tsx'
+import { MarketplaceBegin } from '@/views/marketplace/workspace/caption.tsx'
 import {
   MarketplaceContext,
   MarketplaceProvider
@@ -13,8 +13,25 @@ import { PageSkeleton } from '@/views/marketplace/workspace/skeleton.tsx'
 import Workspace from '@/views/marketplace/workspace/workspace.tsx'
 
 function MarketplaceShell() {
-  const { mode } = useContext(MarketplaceContext)
+  const marketplace = useContext(MarketplaceContext)
   const [isReady, onUpdateReady] = useState(false)
+
+  // Caption 在 ShellFrame 渲染槽，不在本页 Provider 子树内；须把同一 value 挂到槽节点上，
+  // 否则 Tabs / 搜索落到 createContext 默认 noop（点了无反应）。
+  useShellSurface({
+    begin: (
+      <MarketplaceContext value={marketplace}>
+        <MarketplaceBegin />
+      </MarketplaceContext>
+    ),
+    final:
+      marketplace.mode === 'customize' ? (
+        <MarketplaceContext value={marketplace}>
+          <CaptionActions />
+        </MarketplaceContext>
+      ) : null,
+    scrollable: false
+  })
 
   useEffect(function () {
     let cancelled = false
@@ -36,17 +53,10 @@ function MarketplaceShell() {
     }
   }, [])
 
-  return (
-    <Decorations
-      begin={<Caption />}
-      final={mode === 'customize' ? <CaptionActions /> : null}
-      scrollable={false}>
-      {isReady ? <Workspace /> : <PageSkeleton />}
-    </Decorations>
-  )
+  return isReady ? <Workspace /> : <PageSkeleton />
 }
 
-/** 市场窗口：顶栏工具簇；右侧仅定制模式挂导入导出 */
+/** 市场：顶栏工具簇；右侧仅定制模式挂导入导出 */
 export default function Marketplace() {
   return (
     <MarketplaceProvider>

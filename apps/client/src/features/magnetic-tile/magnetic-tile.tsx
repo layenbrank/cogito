@@ -52,6 +52,7 @@ interface MagneticTileSuspenseProps extends SkeletonProps {
   skeletonStyle?: CSSProperties
 }
 
+// 标题在壳外 absolute（top: 100%+6px）；content-visibility:auto 含 paint containment，会裁掉壳外文字
 const TILE_SHELL =
   'magnetic-tile group/tile relative cursor-pointer overflow-visible bg-transparent outline-none'
 
@@ -116,49 +117,59 @@ const MagneticTile = {
     const enter = useEnter()
     const isReducedMotion = useReducedMotion()
     const isEnter = enter.isActive
-    // 有入场时先不挂内容，等观察器确认在缓冲区内再挂，避免整表磁贴同时挂载
+    // 仅冷启动入场波次用 near 门控；入场结束后常挂 children，
+    // 避免 Activity 隐藏时 IO 把 isNear 打成 false、回墙整批 remount。
     const [isNear, setIsNear] = useState(!isEnter)
-    const [hasEntered, setHasEntered] = useState(false)
+    const [hasEntered, setHasEntered] = useState(!isEnter)
 
-    useEffect(function () {
-      const el = nodeRef.current
-      if (!el) return
-
-      const root = el.closest('[data-mirror-scroller]')
-      const scroller = root instanceof Element ? root : null
-      const nearObserver = new IntersectionObserver(
-        function (entries) {
-          const entry = entries[entries.length - 1]
-          if (!entry) return
-          setIsNear(entry.isIntersecting)
-        },
-        {
-          root: scroller,
-          rootMargin: '100% 0px',
-          threshold: 0
-        }
-      )
-      const viewObserver = new IntersectionObserver(
-        function (entries) {
-          const isVisible = entries.some(function (entry) {
-            return entry.isIntersecting
-          })
-          if (!isVisible) return
+    useEffect(
+      function () {
+        if (!isEnter) {
+          setIsNear(true)
           setHasEntered(true)
-          viewObserver.disconnect()
-        },
-        {
-          root: scroller,
-          threshold: 0
+          return
         }
-      )
-      nearObserver.observe(el)
-      viewObserver.observe(el)
-      return function () {
-        nearObserver.disconnect()
-        viewObserver.disconnect()
-      }
-    }, [])
+        const el = nodeRef.current
+        if (!el) return
+
+        const root = el.closest('[data-mirror-scroller]')
+        const scroller = root instanceof Element ? root : null
+        const nearObserver = new IntersectionObserver(
+          function (entries) {
+            const entry = entries[entries.length - 1]
+            if (!entry) return
+            setIsNear(entry.isIntersecting)
+          },
+          {
+            root: scroller,
+            // 入场缓冲略收窄，减轻首屏同时挂载尖刺
+            rootMargin: '40% 0px',
+            threshold: 0
+          }
+        )
+        const viewObserver = new IntersectionObserver(
+          function (entries) {
+            const isVisible = entries.some(function (entry) {
+              return entry.isIntersecting
+            })
+            if (!isVisible) return
+            setHasEntered(true)
+            viewObserver.disconnect()
+          },
+          {
+            root: scroller,
+            threshold: 0
+          }
+        )
+        nearObserver.observe(el)
+        viewObserver.observe(el)
+        return function () {
+          nearObserver.disconnect()
+          viewObserver.disconnect()
+        }
+      },
+      [isEnter]
+    )
 
     const surfaceStyle = useMemo(
       function () {
@@ -172,7 +183,7 @@ const MagneticTile = {
       [props.round, props.background, props.backdrop, props.textColor]
     )
 
-    const surfaceBody = isNear ? props.children : null
+    const surfaceBody = !isEnter || isNear ? props.children : null
     const enterTransition = ENTER.transition(!!isReducedMotion)
     const isWaiting = isEnter && !isReducedMotion && !hasEntered
 
@@ -227,9 +238,9 @@ const MagneticTile = {
           onClick={props.onTrash}
           className={cn(
             'absolute -top-1.25 -right-1.25 z-10 flex size-4 cursor-pointer items-center justify-center rounded-full border-0 bg-red-500/50 text-white',
-            'invisible pointer-events-none',
+            'pointer-events-none scale-90 opacity-0 transition-[opacity,transform] duration-150 ease-out motion-reduce:transition-none',
             props.onTrash &&
-              'group-hover/tile:visible group-hover/tile:pointer-events-auto group-focus-within/tile:visible group-focus-within/tile:pointer-events-auto'
+              'group-hover/tile:pointer-events-auto group-hover/tile:scale-100 group-hover/tile:opacity-100 group-focus-within/tile:pointer-events-auto group-focus-within/tile:scale-100 group-focus-within/tile:opacity-100'
           )}>
           <Icon
             icon="ant-design:delete-outlined"

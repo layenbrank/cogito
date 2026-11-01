@@ -28,7 +28,11 @@ function ClockStylePicker(props: ClockStylePickerProps) {
               variant="ghost"
               role="radio"
               aria-checked={isActive}
-              className={clsx(styles.styleRow, isActive && styles.styleRowActive)}
+              className={clsx(
+                styles.styleRow,
+                'h-auto min-h-0 justify-start whitespace-normal',
+                isActive && styles.styleRowActive
+              )}
               onClick={function () {
                 props.onChange(item.value)
               }}>
@@ -43,7 +47,10 @@ function ClockStylePicker(props: ClockStylePickerProps) {
                   <span className={styles.miniTime}>12:00</span>
                 )}
               </span>
-              <span className={clsx(styles.accent, isActive ? 'bg-primary' : 'bg-primary/35')} />
+              <span
+                className={clsx(styles.accent, isActive && styles.accentActive)}
+                aria-hidden
+              />
             </Button>
           )
         })}

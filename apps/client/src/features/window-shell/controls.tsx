@@ -4,8 +4,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/componen
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { cn } from 'cn'
 
-import { WINDOW_CONTROLS, type CaptionState, type WindowControl } from '@/components/caption/caption'
-import { BROWSER_CONTROL } from '@/features/browser-bar/metrics'
+import { SHELL_CONTROL } from '@/features/window-shell/metrics'
+import {
+  WINDOW_CONTROLS,
+  type CaptionState,
+  type WindowControl
+} from '@/features/window-shell/state'
 
 interface ControlButtonProps {
   control: WindowControl
@@ -38,7 +42,11 @@ function ControlButton(props: ControlButtonProps) {
                 'hover:bg-destructive hover:text-white active:bg-destructive/90',
               !isEnabled && 'pointer-events-none opacity-40'
             )}
-            style={{ width: BROWSER_CONTROL, height: BROWSER_CONTROL, minWidth: BROWSER_CONTROL }}
+            style={{
+              width: SHELL_CONTROL,
+              height: SHELL_CONTROL,
+              minWidth: SHELL_CONTROL
+            }}
             onClick={function () {
               if (!isEnabled) return
               void props.control.run(getCurrentWindow(), props.state).then(function () {
@@ -80,7 +88,7 @@ function WindowControls(props: WindowControlsProps) {
   return (
     <div
       className="flex h-9 shrink-0 items-center gap-0.5"
-      style={{ height: BROWSER_CONTROL }}>
+      style={{ height: SHELL_CONTROL }}>
       {controls.map(function (control) {
         return (
           <ControlButton

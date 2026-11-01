@@ -44,15 +44,18 @@ function AsideReviewList(props: {
   const aui = useAui()
   const { rootPath } = useActiveWorkspace()
 
-  function attachRelative(relative: string) {
-    void attachWorkspaceFile(aui, relative)
-      .then(function () {
-        toastAttached(relative)
-      })
-      .catch(function (cause: unknown) {
-        toast.error(cause instanceof Error ? cause.message : '引用失败')
-      })
-  }
+  const attachRelative = useCallback(
+    function (relative: string) {
+      void attachWorkspaceFile(aui, relative)
+        .then(function () {
+          toastAttached(relative)
+        })
+        .catch(function (cause: unknown) {
+          toast.error(cause instanceof Error ? cause.message : '引用失败')
+        })
+    },
+    [aui]
+  )
 
   const findPathMenuItems = useCallback(
     function (trigger: Element) {
@@ -65,7 +68,7 @@ function AsideReviewList(props: {
         onAddToComposer: attachRelative
       })
     },
-    [rootPath, aui]
+    [rootPath, attachRelative]
   )
 
   return (

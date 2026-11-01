@@ -1,5 +1,5 @@
 /**
- * Clipchamp 窗 Caption 右侧（Decorations.final）：保存 / 恢复 / 导出预设与导出。
+ * Clipchamp 窗 Caption 右侧（shell final）：保存 / 恢复 / 导出预设与导出。
  * final 槽本身已在共享 Caption 内 data-region=false，无需再包一层。
  */
 import { Button } from '@cogito/design/components/button'

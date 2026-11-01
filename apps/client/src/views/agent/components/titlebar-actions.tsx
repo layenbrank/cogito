@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/componen
 import { clsx } from 'clsx'
 import type { ReactNode } from 'react'
 
-import { BROWSER_CONTROL } from '@/features/browser-bar/metrics'
+import { SHELL_CONTROL } from '@/features/window-shell/metrics'
 import { bindingLabels, parseBinding } from '@/keyboard/binding'
 import { runCommand } from '@/keyboard/commands'
 import { resolveBinding } from '@/keyboard/definitions'
@@ -72,9 +72,9 @@ function TitlebarIconButton(props: {
                 : 'text-muted-foreground hover:bg-foreground/8 hover:text-foreground'
             )}
             style={{
-              width: BROWSER_CONTROL,
-              height: BROWSER_CONTROL,
-              minWidth: BROWSER_CONTROL
+              width: SHELL_CONTROL,
+              height: SHELL_CONTROL,
+              minWidth: SHELL_CONTROL
             }}
             onClick={props.onClick}
           />
@@ -115,7 +115,7 @@ function TitlebarActions(props: TitlebarActionsProps) {
     <div
       data-region="false"
       className="flex shrink-0 items-center gap-0.5"
-      style={{ height: BROWSER_CONTROL }}>
+      style={{ height: SHELL_CONTROL }}>
       <TitlebarIconButton
         label="新建任务"
         commandId={COMMAND.AGENT_NEW_TASK}

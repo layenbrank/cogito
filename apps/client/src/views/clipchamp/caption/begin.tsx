@@ -1,5 +1,5 @@
 /**
- * Clipchamp 窗 Caption 左侧（Decorations.begin）：
+ * Clipchamp 窗 Caption 左侧（shell begin）：
  * 项目名可拖拽；撤销/重做/比例/预览全屏仅控件标 data-region=false。
  */
 import { Button } from '@cogito/design/components/button'

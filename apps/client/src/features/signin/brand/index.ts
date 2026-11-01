@@ -1,1 +1,1 @@
-export { Brand } from './brand'
+export { Brand, warmBrandShader } from './brand'

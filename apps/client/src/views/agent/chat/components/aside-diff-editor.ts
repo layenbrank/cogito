@@ -44,6 +44,7 @@ function useAsideDiffEditor(relative: string, side: DiffResult | null) {
         if (cancelled) return
         monacoRef.current = monaco
         syncCodeTheme()
+        // 字号/行高由下方 editorPrefs effect 写入，避免 mount 闭包依赖
         editor = monaco.editor.createDiffEditor(host, {
           theme: CODE_THEME,
           readOnly: true,
@@ -61,10 +62,6 @@ function useAsideDiffEditor(relative: string, side: DiffResult | null) {
           scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10, useShadows: false },
           padding: { top: 8, bottom: 8 },
           diffWordWrap: 'off',
-          fontSize: editorPrefs.fontSize,
-          lineHeight: findLineHeight(editorPrefs.fontSize, editorPrefs.lineHeightRatio),
-          fontFamily: editorPrefs.fontFamily.trim() || undefined,
-          fontLigatures: editorPrefs.isLigaturesEnabled,
           lineNumbers: 'on',
           folding: false,
           renderIndicators: true,

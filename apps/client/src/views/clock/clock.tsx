@@ -3,10 +3,10 @@ import { cn } from 'cn'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
-import { Decorations } from '@/components/decorations/index.ts'
 import { leaveTileSession } from '@/features/magnetic-tile/session'
 import { EVENTS } from '@/shared/ipc/channels'
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
+import { useShellSurface } from '@/features/window-shell/slots'
 import {
   findClockReminders,
   findEnabledCount,
@@ -91,7 +91,7 @@ function Clock() {
     [toReadReminders]
   )
 
-  const heroTime = clockStyle === 'minimal' ? now.format('HH:mm') : now.format('HH:mm:ss')
+  const heroTime = now.format('HH:mm:ss')
   const styleLabel = findStyleLabel(clockStyle)
   const nextFire = useMemo(
     function () {
@@ -223,11 +223,13 @@ function Clock() {
 
   const isEditing = isCreating || editingId !== null
 
+  useShellSurface({
+    summary: findComponentLabel('clock'),
+    scrollable: false,
+    section: <Button onClick={closeWindow}>完成</Button>
+  })
+
   return (
-    <Decorations
-      summary={findComponentLabel('clock')}
-      scrollable={false}
-      section={<Button onClick={closeWindow}>完成</Button>}>
       <div className="mt-stage-split">
         <ClockPreview
           now={now}
@@ -270,7 +272,6 @@ function Clock() {
           />
         </div>
       </div>
-    </Decorations>
   )
 }
 

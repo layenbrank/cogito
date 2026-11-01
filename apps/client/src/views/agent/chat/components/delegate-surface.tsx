@@ -30,7 +30,7 @@ import {
   type DelegationPhase
 } from '@/features/agent/model/delegate'
 import { useDelegation } from '@/features/agent/model/use-delegation'
-import { BROWSER_CONTROL } from '@/features/browser-bar/metrics'
+import { SHELL_CONTROL } from '@/features/window-shell/metrics'
 
 const PHASE_LABELS: Record<DelegationPhase, string> = {
   idle: '未提交',
@@ -261,9 +261,9 @@ function DelegateSurface() {
               aria-label="委派到服务端"
               className="text-muted-foreground hover:bg-foreground/8 hover:text-foreground relative shrink-0 rounded-lg border-0"
               style={{
-                width: BROWSER_CONTROL,
-                height: BROWSER_CONTROL,
-                minWidth: BROWSER_CONTROL
+                width: SHELL_CONTROL,
+                height: SHELL_CONTROL,
+                minWidth: SHELL_CONTROL
               }}
               onClick={function () {
                 updateOpen(true)

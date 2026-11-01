@@ -68,7 +68,9 @@ import { ASSISTANT_LABELS_ZH } from '@/views/agent/chat/labels'
 import { findAssistantActions } from '@/views/agent/chat/message-actions'
 import { subscribeAsideReview } from '@/views/agent/chat/components/open-aside-review'
 import { AgentRuntimeProvider } from '@/views/agent/chat/runtime'
-import { AgentTitlebar } from '@/views/agent/components/titlebar'
+import { AgentBrandBegin } from '@/views/agent/components/brand-begin'
+import { TitlebarActions } from '@/views/agent/components/titlebar-actions'
+import { useShellSurface } from '@/features/window-shell/slots'
 import { syncCogitoGatewayCatalog } from '@/features/agent/acp/cogito-provider'
 import {
   findActiveScenario,
@@ -171,17 +173,20 @@ function AgentChatLayout() {
   const isLayoutFrozen = isBootstrapping || isWindowMinimized || isShellNarrow
 
   /** 唯一写回 Splitter 的入口：永远是 applied，不是「偏好展开比例」 */
-  function commitAppliedLayout(open: SplitterOpen) {
-    const applied = resolveSplitterLayout(open, preferredLayoutRef.current)
-    appliedLayoutRef.current = applied
-    try {
-      // Splitter.setLayout 内部同值会短路
-      groupRef.current?.setLayout(applied)
-    } catch (error) {
-      console.warn('[agent/chat] 写入分栏布局失败', error)
-    }
-    return applied
-  }
+  const commitAppliedLayout = useCallback(
+    function (open: SplitterOpen) {
+      const applied = resolveSplitterLayout(open, preferredLayoutRef.current)
+      appliedLayoutRef.current = applied
+      try {
+        // Splitter.setLayout 内部同值会短路
+        groupRef.current?.setLayout(applied)
+      } catch (error) {
+        console.warn('[agent/chat] 写入分栏布局失败', error)
+      }
+      return applied
+    },
+    [groupRef]
+  )
 
   /** 输入框粘贴：截图 → dataURL 附件，带路径的文件 → 工作区引用 */
   const handleComposerPaste = useCallback(
@@ -305,22 +310,25 @@ function AgentChatLayout() {
     writeSplitterOpen(next)
   }
 
-  function openAside() {
+  const openAside = useCallback(function () {
     updateAsideOpen(true)
     persistOpen({
       isSidebarOpen: openRef.current.isSidebarOpen,
       isAsideOpen: true,
-      isAsideMaximized: openRef.current.isAsideMaximized
+      isAsideMaximized: openRef.current.isAsideMaximized ?? false
     })
-  }
+  }, [])
 
   const plan = usePlanAutoOpen(isAsideOpen, openAside)
 
-  useEffect(function () {
-    return subscribeAsideReview(function () {
-      openAside()
-    })
-  }, [])
+  useEffect(
+    function () {
+      return subscribeAsideReview(function () {
+        openAside()
+      })
+    },
+    [openAside]
+  )
 
   useEffect(function () {
     void useAgentStore.getState().toReadWorkspaces()
@@ -346,7 +354,7 @@ function AgentChatLayout() {
       commitAppliedLayout(openRef.current)
       updateBootstrapping(false)
     },
-    [groupRef]
+    [groupRef, commitAppliedLayout]
   )
 
   /**
@@ -363,7 +371,14 @@ function AgentChatLayout() {
         isAsideMaximized
       })
     },
-    [isSidebarOpen, isAsideOpen, isAsideMaximized, isLayoutFrozen, groupRef]
+    [
+      isSidebarOpen,
+      isAsideOpen,
+      isAsideMaximized,
+      isLayoutFrozen,
+      groupRef,
+      commitAppliedLayout
+    ]
   )
 
   /**
@@ -375,7 +390,7 @@ function AgentChatLayout() {
       if (!isBootstrappedRef.current) return
       commitAppliedLayout(openRef.current)
     },
-    [isWindowMinimized, isShellNarrow, groupRef]
+    [isWindowMinimized, isShellNarrow, groupRef, commitAppliedLayout]
   )
 
   function handleLayoutChanged(
@@ -485,17 +500,23 @@ function AgentChatLayout() {
     void navigate(section ? `/agent/settings?section=${section}` : '/agent/settings')
   }
 
-  return (
-    <div className={clsx(styles.surface)}>
-      <AgentTitlebar
-        className={styles.titlebar}
+  useShellSurface({
+    begin: <AgentBrandBegin />,
+    final: (
+      <TitlebarActions
         layout={{
           isSidebarOpen: showSidebar,
           isAsideOpen: showAside,
           isAsideMaximized: isAsideMaximized
         }}
-        actions={<DelegateSurface />}
+        extra={<DelegateSurface />}
       />
+    ),
+    scrollable: false
+  })
+
+  return (
+    <div className={clsx(styles.surface)}>
       <div ref={bodyRef} className={styles.body}>
         <Splitter
           id="agent-workbench"
