@@ -1,15 +1,22 @@
 /**
  * 定时任务（`automation` / `automation_run` 表）IPC 契约。
  *
- * `owner` 为字典 value（automation_owner）：001 本机 / 002 goose / 003 云端。
- * 本机 worker 只 claim owner=001；云端任务只镜像远端状态，本机不参与排期。
+ * `owner` 为字典 value（automation_owner）：021 本机 / 022 goose / 023 云端。
+ * 本机 worker 只 claim owner=021；云端任务只镜像远端状态，本机不参与排期。
  */
 import { z } from 'zod'
 
-import { DICT_VALUE } from '@/shared/ipc/specs/dict'
+import { DICT_KEY, DICT_VALUE_BY_KEY } from '@/shared/ipc/specs/dict'
 
-const OWNER = DICT_VALUE.AUTOMATION_OWNER
-const RUN_AS = DICT_VALUE.AUTOMATION_RUN_AS
+const OWNER = {
+  CLIENT: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_CLIENT]!,
+  GOOSE: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_GOOSE]!,
+  CLOUD: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_CLOUD]!
+}
+const RUN_AS = {
+  USER: DICT_VALUE_BY_KEY[DICT_KEY.RUN_AS_USER]!,
+  TENANT: DICT_VALUE_BY_KEY[DICT_KEY.RUN_AS_TENANT]!
+}
 
 const AutomationOwnerSchema = z.enum([OWNER.CLIENT, OWNER.GOOSE, OWNER.CLOUD])
 const AutomationRunAsSchema = z.enum([RUN_AS.USER, RUN_AS.TENANT])

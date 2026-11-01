@@ -1,4 +1,4 @@
-//! 状态字典初始 seed（与 cogito_core::dict::codes 对齐）。
+//! 状态字典初始 seed（与 docs/contracts/dict.yaml 对齐：全局池 + type 认领）。
 
 const TS: i64 = 1_700_000_000_000;
 
@@ -14,20 +14,39 @@ pub fn statements() -> Vec<String> {
             .to_string(),
         "CREATE TABLE IF NOT EXISTS dict_item (\
              id TEXT PRIMARY KEY NOT NULL, \
-             \"typeCode\" TEXT NOT NULL, \
-             value TEXT NOT NULL, \
-             label TEXT NOT NULL, \
+             value TEXT NOT NULL UNIQUE, \
+             key TEXT NOT NULL UNIQUE, \
+             label TEXT, \
              sort INTEGER NOT NULL DEFAULT 0, \
              enabled INTEGER NOT NULL DEFAULT 1, \
-             \"isDefault\" INTEGER NOT NULL DEFAULT 0, \
              meta TEXT NULL, \
+             revision INTEGER NOT NULL DEFAULT 1, \
              \"createdAt\" INTEGER NOT NULL, \
-             \"updatedAt\" INTEGER NOT NULL, \
-             UNIQUE (\"typeCode\", value), \
-             CONSTRAINT fk_dict_item_type FOREIGN KEY (\"typeCode\") \
-                 REFERENCES dict_type (code) ON DELETE CASCADE ON UPDATE CASCADE)"
+             \"updatedAt\" INTEGER NOT NULL)"
             .to_string(),
-        "CREATE INDEX IF NOT EXISTS idx_dict_item_type ON dict_item (\"typeCode\", enabled, sort)"
+        "CREATE TABLE IF NOT EXISTS dict_type_item (\
+             \"typeCode\" TEXT NOT NULL, \
+             value TEXT NOT NULL, \
+             label TEXT NULL, \
+             \"isDefault\" INTEGER NOT NULL DEFAULT 0, \
+             sort INTEGER NOT NULL DEFAULT 0, \
+             PRIMARY KEY (\"typeCode\", value), \
+             CONSTRAINT fk_dict_type_item_type FOREIGN KEY (\"typeCode\") \
+                 REFERENCES dict_type (code) ON DELETE CASCADE ON UPDATE CASCADE, \
+             CONSTRAINT fk_dict_type_item_value FOREIGN KEY (value) \
+                 REFERENCES dict_item (value) ON DELETE CASCADE ON UPDATE CASCADE)"
+            .to_string(),
+        "CREATE TABLE IF NOT EXISTS dict_tenant_item (\
+             \"tenantId\" TEXT NOT NULL, \
+             \"typeCode\" TEXT NOT NULL, \
+             value TEXT NOT NULL, \
+             label TEXT NULL, \
+             enabled INTEGER NULL, \
+             PRIMARY KEY (\"tenantId\", \"typeCode\", value))"
+            .to_string(),
+        "CREATE INDEX IF NOT EXISTS idx_dict_type_item_type ON dict_type_item (\"typeCode\", sort)"
+            .to_string(),
+        "CREATE INDEX IF NOT EXISTS idx_dict_item_key ON dict_item (key)"
             .to_string(),
     ];
 
@@ -42,16 +61,28 @@ pub fn statements() -> Vec<String> {
         ));
     }
 
-    for (id, type_code, value, label, sort, is_default, meta) in ITEMS {
+    for (id, value, key, label, sort, meta) in POOL {
         let meta_sql = match meta {
             Some(raw) => format!("'{raw}'"),
             None => "NULL".to_string(),
         };
-        let is_default_i = if *is_default { 1 } else { 0 };
         out.push(format!(
             "INSERT OR IGNORE INTO dict_item \
-             (id, \"typeCode\", value, label, sort, enabled, \"isDefault\", meta, \"createdAt\", \"updatedAt\") \
-             VALUES ('{id}', '{type_code}', '{value}', '{label}', {sort}, 1, {is_default_i}, {meta_sql}, {TS}, {TS})"
+             (id, value, key, label, sort, enabled, meta, revision, \"createdAt\", \"updatedAt\") \
+             VALUES ('{id}', '{value}', '{key}', '{label}', {sort}, 1, {meta_sql}, 1, {TS}, {TS})"
+        ));
+    }
+
+    for (type_code, value, sort, is_default, label) in CLAIMS {
+        let label_sql = match label {
+            Some(text) => format!("'{text}'"),
+            None => "NULL".to_string(),
+        };
+        let is_default_i = if *is_default { 1 } else { 0 };
+        out.push(format!(
+            "INSERT OR IGNORE INTO dict_type_item \
+             (\"typeCode\", value, label, \"isDefault\", sort) \
+             VALUES ('{type_code}', '{value}', {label_sql}, {is_default_i}, {sort})"
         ));
     }
 
@@ -72,60 +103,94 @@ const TYPES: &[(&str, &str, Option<&str>)] = &[
     ("album_status", "相簿状态", Some("捕获库相簿状态")),
 ];
 
-/// (id, typeCode, value, label, sort, isDefault, meta)
-const ITEMS: &[(&str, &str, &str, &str, i32, bool, Option<&str>)] = &[
-    ("dict-kds-001", "knowledge_doc_status", "001", "草稿", 10, true, None),
-    ("dict-kds-002", "knowledge_doc_status", "002", "已发布", 20, false, None),
-    ("dict-kdo-001", "knowledge_doc_source", "001", "手动", 10, true, None),
-    ("dict-kdo-002", "knowledge_doc_source", "002", "智能体", 20, false, None),
-    ("dict-kdo-003", "knowledge_doc_source", "003", "导入", 30, false, None),
-    ("dict-kdo-004", "knowledge_doc_source", "004", "编辑撰写", 40, false, None),
-    ("dict-kcs-001", "knowledge_cloud_status", "001", "空闲", 10, true, None),
-    ("dict-kcs-002", "knowledge_cloud_status", "002", "待同步", 20, false, None),
+/// (id, value, key, label, sort, meta)
+const POOL: &[(&str, &str, &str, &str, i32, Option<&str>)] = &[
+    ("dict-pool-001", "001", "DRAFT", "草稿", 10, None),
+    ("dict-pool-002", "002", "PUBLISHED", "已发布", 20, None),
+    ("dict-pool-003", "003", "MANUAL", "手动", 10, None),
+    ("dict-pool-004", "004", "AGENT", "智能体", 20, None),
+    ("dict-pool-005", "005", "IMPORT", "导入", 30, None),
+    ("dict-pool-006", "006", "AUTHORED", "编辑撰写", 40, None),
+    ("dict-pool-007", "007", "CLOUD_IDLE", "空闲", 10, None),
+    ("dict-pool-008", "008", "CLOUD_PENDING", "待同步", 20, None),
     (
-        "dict-kcs-003",
-        "knowledge_cloud_status",
-        "003",
+        "dict-pool-009",
+        "009",
+        "CLOUD_RUNNING",
         "索引中",
         30,
-        false,
         Some(r#"{"tone":"amber"}"#),
     ),
     (
-        "dict-kcs-004",
-        "knowledge_cloud_status",
-        "004",
+        "dict-pool-010",
+        "010",
+        "CLOUD_SUCCEEDED",
         "已上云",
         40,
-        false,
         Some(r#"{"tone":"emerald"}"#),
     ),
     (
-        "dict-kcs-005",
-        "knowledge_cloud_status",
-        "005",
+        "dict-pool-011",
+        "011",
+        "CLOUD_FAILED",
         "同步失败",
         50,
-        false,
         Some(r#"{"tone":"destructive"}"#),
     ),
-    ("dict-kbs-001", "knowledge_base_scope", "001", "个人", 10, true, None),
-    ("dict-kbs-002", "knowledge_base_scope", "002", "租户", 20, false, None),
-    ("dict-ars-001", "automation_run_status", "001", "等待", 10, true, None),
-    ("dict-ars-002", "automation_run_status", "002", "执行中", 20, false, None),
-    ("dict-ars-003", "automation_run_status", "003", "成功", 30, false, None),
-    ("dict-ars-004", "automation_run_status", "004", "失败", 40, false, None),
-    ("dict-atk-001", "automation_trigger_kind", "001", "按时", 10, true, None),
-    ("dict-atk-002", "automation_trigger_kind", "002", "手动", 20, false, None),
-    ("dict-atk-003", "automation_trigger_kind", "003", "补跑", 30, false, None),
-    ("dict-ao-001", "automation_owner", "001", "本机", 10, true, None),
-    ("dict-ao-002", "automation_owner", "002", "Goose", 20, false, None),
-    ("dict-ao-003", "automation_owner", "003", "云端", 30, false, None),
-    ("dict-ara-001", "automation_run_as", "001", "用户", 10, true, None),
-    ("dict-ara-002", "automation_run_as", "002", "租户", 20, false, None),
-    ("dict-dds-001", "directive_draft_status", "001", "待确认", 10, true, None),
-    ("dict-dds-002", "directive_draft_status", "002", "已保存", 20, false, None),
-    ("dict-dds-003", "directive_draft_status", "003", "已丢弃", 30, false, None),
-    ("dict-as-001", "asset_status", "001", "正常", 10, true, None),
-    ("dict-al-001", "album_status", "001", "正常", 10, true, None),
+    ("dict-pool-012", "012", "SCOPE_USER", "个人", 10, None),
+    ("dict-pool-013", "013", "SCOPE_TENANT", "租户", 20, None),
+    ("dict-pool-014", "014", "RUN_PENDING", "等待", 10, None),
+    ("dict-pool-015", "015", "RUN_RUNNING", "执行中", 20, None),
+    ("dict-pool-016", "016", "RUN_SUCCEEDED", "成功", 30, None),
+    ("dict-pool-017", "017", "RUN_FAILED", "失败", 40, None),
+    ("dict-pool-018", "018", "TRIGGER_SCHEDULE", "按时", 10, None),
+    ("dict-pool-019", "019", "TRIGGER_MANUAL", "手动", 20, None),
+    ("dict-pool-020", "020", "TRIGGER_CATCHUP", "补跑", 30, None),
+    ("dict-pool-021", "021", "OWNER_CLIENT", "本机", 10, None),
+    ("dict-pool-022", "022", "OWNER_GOOSE", "Goose", 20, None),
+    ("dict-pool-023", "023", "OWNER_CLOUD", "云端", 30, None),
+    ("dict-pool-024", "024", "RUN_AS_USER", "用户", 10, None),
+    ("dict-pool-025", "025", "RUN_AS_TENANT", "租户", 20, None),
+    ("dict-pool-026", "026", "DRAFT_PENDING", "待确认", 10, None),
+    ("dict-pool-027", "027", "DRAFT_SAVED", "已保存", 20, None),
+    ("dict-pool-028", "028", "DRAFT_DISCARDED", "已丢弃", 30, None),
+    ("dict-pool-029", "029", "ACTIVE", "正常", 10, None),
+    ("dict-pool-030", "030", "ARCHIVED", "已归档", 90, None),
+];
+
+/// (typeCode, value, sort, isDefault, label override)
+const CLAIMS: &[(&str, &str, i32, bool, Option<&str>)] = &[
+    ("knowledge_doc_status", "001", 10, true, None),
+    ("knowledge_doc_status", "002", 20, false, None),
+    ("knowledge_doc_status", "030", 90, false, None),
+    ("knowledge_doc_source", "003", 10, true, None),
+    ("knowledge_doc_source", "004", 20, false, None),
+    ("knowledge_doc_source", "005", 30, false, None),
+    ("knowledge_doc_source", "006", 40, false, None),
+    ("knowledge_cloud_status", "007", 10, true, None),
+    ("knowledge_cloud_status", "008", 20, false, None),
+    ("knowledge_cloud_status", "009", 30, false, None),
+    ("knowledge_cloud_status", "010", 40, false, None),
+    ("knowledge_cloud_status", "011", 50, false, None),
+    ("knowledge_base_scope", "012", 10, true, None),
+    ("knowledge_base_scope", "013", 20, false, None),
+    ("automation_run_status", "014", 10, true, None),
+    ("automation_run_status", "015", 20, false, None),
+    ("automation_run_status", "016", 30, false, None),
+    ("automation_run_status", "017", 40, false, None),
+    ("automation_trigger_kind", "018", 10, true, None),
+    ("automation_trigger_kind", "019", 20, false, None),
+    ("automation_trigger_kind", "020", 30, false, None),
+    ("automation_owner", "021", 10, true, None),
+    ("automation_owner", "022", 20, false, None),
+    ("automation_owner", "023", 30, false, None),
+    ("automation_run_as", "024", 10, true, None),
+    ("automation_run_as", "025", 20, false, None),
+    ("directive_draft_status", "026", 10, true, None),
+    ("directive_draft_status", "027", 20, false, None),
+    ("directive_draft_status", "028", 30, false, None),
+    ("asset_status", "029", 10, true, None),
+    ("asset_status", "030", 90, false, None),
+    ("album_status", "029", 10, true, None),
+    ("album_status", "030", 90, false, None),
 ];

@@ -13,10 +13,14 @@ import {
   type DirectiveDraft,
   type DraftSave
 } from '@/lib/directive-draft-ipc'
-import { DICT_VALUE } from '@/shared/ipc/specs/dict'
+import { DICT_KEY, DICT_VALUE_BY_KEY } from '@/shared/ipc/specs/dict'
 import { reportCaught } from '@/utils/exception-report'
 
-const DRAFT = DICT_VALUE.DIRECTIVE_DRAFT_STATUS
+const DRAFT = {
+  PENDING: DICT_VALUE_BY_KEY[DICT_KEY.DRAFT_PENDING]!,
+  SAVED: DICT_VALUE_BY_KEY[DICT_KEY.DRAFT_SAVED]!,
+  DISCARDED: DICT_VALUE_BY_KEY[DICT_KEY.DRAFT_DISCARDED]!
+}
 
 interface DirectiveDraftState {
   drafts: DirectiveDraft[]

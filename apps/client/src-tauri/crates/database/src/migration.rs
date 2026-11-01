@@ -1,4 +1,4 @@
-use crate::migrations::{dict_seed, migrations_v001};
+use crate::migrations::{dict_seed, migrations_0001};
 use crate::storage::Connection;
 use sea_orm::{ConnectionTrait, DatabaseBackend, DbErr, Statement};
 use sea_orm::sea_query::IntoIden;
@@ -13,8 +13,7 @@ impl MigratorTrait for AppMigrator {
     }
 
     fn migrations() -> Vec<Box<dyn sea_orm_migration::MigrationTrait>> {
-        // 未发版阶段只有一个迁移文件：所有 DDL 都并入 v001，改完必须 fresh。
-        vec![Box::new(migrations_v001::Migration)]
+        vec![Box::new(migrations_0001::Migration)]
     }
 }
 
@@ -27,7 +26,7 @@ pub async fn run(db: &Connection) -> Result<(), DbErr> {
             return Err(e);
         }
     }
-    // 单文件 v001 已打标记后追加的表不会再跑；dict seed 全是 IF NOT EXISTS / OR IGNORE，启动兜底补齐。
+    // 单文件 0001 已打标记后追加的表不会再跑；dict seed 全是 IF NOT EXISTS / OR IGNORE，启动兜底补齐。
     ensure_dict(db).await?;
     Ok(())
 }
@@ -58,7 +57,8 @@ mod tests {
         AgentMessageEntity, AgentProviderEntity, AgentSessionEntity, AgentUsageEntity,
         AgentWorkspaceEntity, AgentWorkspaceFolderEntity, AlbumEntity, AssetEntity, AutomationEntity,
         AutomationRunEntity, BookmarkEntity,
-        CalendarEntity, CountdownEntity, DictItemEntity, DictTypeEntity, DirectiveDraftEntity,
+        CalendarEntity, CountdownEntity, DictItemEntity, DictTenantItemEntity, DictTypeEntity,
+        DictTypeItemEntity, DirectiveDraftEntity,
         KnowledgeBaseEntity, KnowledgeDocEntity, KnowledgeIndexStateEntity, MagneticTileEntity,
         MirrorEntity,
         OverlayEntity, ReminderEntity, SignboardAutomationEntity, SignboardCheckEntity,
@@ -110,8 +110,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn only_single_v001_migration() {
+    async fn migrations_include_only_0001() {
         assert_eq!(AppMigrator::migrations().len(), 1);
+        assert_eq!(
+            AppMigrator::migrations()[0].name(),
+            "0001"
+        );
     }
 
     #[tokio::test]
@@ -129,6 +133,162 @@ mod tests {
         )
         .await;
         assert_eq!(title, "知识库");
+        let background = scalar_string(
+            &db,
+            "SELECT background AS v FROM magneticTile WHERE id = '63e46df5-44a7-494f-a9ca-b4303186a511'",
+        )
+        .await;
+        assert_eq!(background, r##"{"color":"#047857"}"##);
+
+        let agent_title = scalar_string(
+            &db,
+            "SELECT title AS v FROM magneticTile WHERE id = 'f3ed970a-b07c-44bc-b54d-4bdfb454f207'",
+        )
+        .await;
+        assert_eq!(agent_title, "Agent");
+        let calendar_bg = scalar_string(
+            &db,
+            "SELECT background AS v FROM magneticTile WHERE id = 'a9908a07-e685-49d9-a517-0caf7ce27e75'",
+        )
+        .await;
+        assert_eq!(calendar_bg, r##"{"color":"#FFFFFF"}"##);
+        let countdown_bg = scalar_string(
+            &db,
+            "SELECT background AS v FROM magneticTile WHERE id = '0dac7ddf-c4ee-46cd-88cf-802d0f32ee08'",
+        )
+        .await;
+        assert_eq!(countdown_bg, r##"{"color":"#FFFFFF"}"##);
+        let capture_bg = scalar_string(
+            &db,
+            "SELECT background AS v FROM magneticTile WHERE id = 'f4e10078-03d0-45b8-86f9-4f7cab94abf9'",
+        )
+        .await;
+        assert_eq!(capture_bg, r##"{"color":"#44403C"}"##);
+        let developer_count = scalar_i64(
+            &db,
+            "SELECT COUNT(*) AS v FROM magneticTile WHERE component = 'developer'",
+        )
+        .await;
+        assert_eq!(developer_count, 0);
+    }
+
+    #[tokio::test]
+    async fn navigation_seed_has_brand_mark() {
+        let db = fresh().await;
+        let background = scalar_string(
+            &db,
+            "SELECT background AS v FROM magneticTile WHERE id = '6f7714eb-bfa1-4b15-b56f-d095ff9100a3'",
+        )
+        .await;
+        assert_eq!(background, r##"{"color":"#2932E1"}"##);
+        let mark = scalar_string(
+            &db,
+            "SELECT mark AS v FROM magneticTile WHERE id = '6f7714eb-bfa1-4b15-b56f-d095ff9100a3'",
+        )
+        .await;
+        assert_eq!(mark, "https://cdn.simpleicons.org/baidu/ffffff");
+        let text = scalar_string(
+            &db,
+            "SELECT textColor AS v FROM magneticTile WHERE id = '6f7714eb-bfa1-4b15-b56f-d095ff9100a3'",
+        )
+        .await;
+        assert_eq!(text, "FFFFFF");
+
+        let sogou_bg = scalar_string(
+            &db,
+            "SELECT background AS v FROM magneticTile WHERE id = '03e9bb30-3691-4a07-8c74-80efd5c853b8'",
+        )
+        .await;
+        assert_eq!(sogou_bg, r##"{"color":"#FF6200"}"##);
+
+        // 知乎：品牌蓝底 + 白标，避免蓝标糊蓝底
+        let zhihu_bg = scalar_string(
+            &db,
+            "SELECT background AS v FROM magneticTile WHERE id = '24c0121d-bd8a-487c-89c5-361a9b09bf00'",
+        )
+        .await;
+        assert_eq!(zhihu_bg, r##"{"color":"#0084FF"}"##);
+        let zhihu_mark = scalar_string(
+            &db,
+            "SELECT mark AS v FROM magneticTile WHERE id = '24c0121d-bd8a-487c-89c5-361a9b09bf00'",
+        )
+        .await;
+        assert_eq!(
+            zhihu_mark,
+            "https://cdn.simpleicons.org/zhihu/ffffff"
+        );
+
+        // 淘宝：品牌橙底 + 白矢量标
+        let taobao_bg = scalar_string(
+            &db,
+            "SELECT background AS v FROM magneticTile WHERE id = '17431d5f-1c90-45e5-bf5e-e9ffa4adea1d'",
+        )
+        .await;
+        assert_eq!(taobao_bg, r##"{"color":"#FF5000"}"##);
+        let taobao_mark = scalar_string(
+            &db,
+            "SELECT mark AS v FROM magneticTile WHERE id = '17431d5f-1c90-45e5-bf5e-e9ffa4adea1d'",
+        )
+        .await;
+        assert_eq!(
+            taobao_mark,
+            "https://cdn.simpleicons.org/taobao/ffffff"
+        );
+
+        // 天猫：白底 + Google s2（Clearbit 已下线），归入购物集合
+        let tmall_bg = scalar_string(
+            &db,
+            "SELECT background AS v FROM magneticTile WHERE id = '23b6ab4b-a8fd-4ce1-86b7-27026b72b255'",
+        )
+        .await;
+        assert_eq!(tmall_bg, r##"{"color":"#FFFFFF"}"##);
+        let tmall_mark = scalar_string(
+            &db,
+            "SELECT mark AS v FROM magneticTile WHERE id = '23b6ab4b-a8fd-4ce1-86b7-27026b72b255'",
+        )
+        .await;
+        assert_eq!(
+            tmall_mark,
+            "https://www.google.com/s2/favicons?domain=tmall.com&sz=256"
+        );
+        let tmall_collection = scalar_string(
+            &db,
+            "SELECT collectionID AS v FROM magneticTile WHERE id = '23b6ab4b-a8fd-4ce1-86b7-27026b72b255'",
+        )
+        .await;
+        assert_eq!(tmall_collection, "e2ae5afe-d42e-4539-b942-3ab2a0771c82");
+
+        // 思否 / 什么值得买：Google s2；分类集合白底
+        let segmentfault_mark = scalar_string(
+            &db,
+            "SELECT mark AS v FROM magneticTile WHERE id = '66e368ae-5e33-49fb-a36a-431b543c2e42'",
+        )
+        .await;
+        assert_eq!(
+            segmentfault_mark,
+            "https://www.google.com/s2/favicons?domain=segmentfault.com&sz=256"
+        );
+        let smzdm_mark = scalar_string(
+            &db,
+            "SELECT mark AS v FROM magneticTile WHERE id = '3aa9d82c-8d67-4f13-a902-d75ef3633794'",
+        )
+        .await;
+        assert_eq!(
+            smzdm_mark,
+            "https://www.google.com/s2/favicons?domain=smzdm.com&sz=256"
+        );
+        let shopping_bg = scalar_string(
+            &db,
+            "SELECT background AS v FROM magneticTile WHERE id = 'e2ae5afe-d42e-4539-b942-3ab2a0771c82'",
+        )
+        .await;
+        assert_eq!(shopping_bg, r##"{"color":"#FFFFFF"}"##);
+        let search_title = scalar_string(
+            &db,
+            "SELECT title AS v FROM magneticTile WHERE id = '9ba4c4a7-ccd7-4965-b447-5d74a9f96b56'",
+        )
+        .await;
+        assert_eq!(search_title, "搜索");
     }
 
     #[tokio::test]
@@ -279,6 +439,8 @@ mod tests {
             ("countdown", entity_columns::<CountdownEntity>()),
             ("dict_item", entity_columns::<DictItemEntity>()),
             ("dict_type", entity_columns::<DictTypeEntity>()),
+            ("dict_type_item", entity_columns::<DictTypeItemEntity>()),
+            ("dict_tenant_item", entity_columns::<DictTenantItemEntity>()),
             ("directive_draft", entity_columns::<DirectiveDraftEntity>()),
             ("knowledge_base", entity_columns::<KnowledgeBaseEntity>()),
             ("knowledge_doc", entity_columns::<KnowledgeDocEntity>()),

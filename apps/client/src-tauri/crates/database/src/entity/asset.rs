@@ -27,7 +27,7 @@ pub struct Model {
     pub file_path: String,
 
     pub metadata: Option<String>,
-    /// 字典 asset_status：001 正常
+    /// 字典 asset_status：029 正常（ACTIVE）
     pub status: String,
 
     #[serde(rename = "deviceID")]

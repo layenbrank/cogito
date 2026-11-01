@@ -6,9 +6,13 @@
  */
 import { z } from 'zod'
 
-import { DICT_VALUE } from '@/shared/ipc/specs/dict'
+import { DICT_KEY, DICT_VALUE_BY_KEY } from '@/shared/ipc/specs/dict'
 
-const DRAFT_STATUS = DICT_VALUE.DIRECTIVE_DRAFT_STATUS
+const DRAFT_STATUS = {
+  PENDING: DICT_VALUE_BY_KEY[DICT_KEY.DRAFT_PENDING]!,
+  SAVED: DICT_VALUE_BY_KEY[DICT_KEY.DRAFT_SAVED]!,
+  DISCARDED: DICT_VALUE_BY_KEY[DICT_KEY.DRAFT_DISCARDED]!
+}
 
 const DirectiveDraftSchema = z.object({
   id: z.string(),

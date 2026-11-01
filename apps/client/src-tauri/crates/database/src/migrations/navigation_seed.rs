@@ -1,0 +1,169 @@
+//! 导航磁贴种子：品牌 background / textColor / mark + 分类 collection。
+//! - si / glyph / google 均写在种子里；运行时不做域名特化拉取。
+//! 改预设：改 gen-navigation-seed.mjs 后重新生成。
+
+const MIRROR_ID: &str = "b7bc5d50-3b4a-46d7-b834-2938df56de24";
+const TS: i64 = 1785423438774;
+
+/// 墙面分类集合 (id, wall_index, title, background_hex, text_hex)
+pub const COLLECTIONS: &[(&str, i32, &str, &str, &str)] = &[
+    ("9ba4c4a7-ccd7-4965-b447-5d74a9f96b56", 15, "搜索", "#FFFFFF", "0F172A"),
+    ("e2ae5afe-d42e-4539-b942-3ab2a0771c82", 16, "购物", "#FFFFFF", "0F172A"),
+    ("7f3c23ec-492c-4c15-9183-b3629bc9fd04", 17, "社交", "#FFFFFF", "0F172A"),
+    ("99c15c6a-4e9a-4157-bc58-34a0a846697c", 18, "影音", "#FFFFFF", "0F172A"),
+    ("e75bb91d-d4d3-40a0-990d-816c0aff8825", 19, "资讯", "#FFFFFF", "0F172A"),
+    ("b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5", 20, "生活", "#FFFFFF", "0F172A"),
+    ("d2c015c9-aaef-4150-b910-2fffe0dce674", 21, "开发", "#FFFFFF", "0F172A"),
+    ("2c7e8425-7d72-4552-aea5-e2997569211a", 22, "效率", "#FFFFFF", "0F172A"),
+    ("32e1267a-e8e9-4431-a6fa-d0371b45d77c", 23, "社区", "#FFFFFF", "0F172A"),
+    ("7900cb78-3818-4d2b-905b-1ec7bbf6f69d", 24, "AI", "#FFFFFF", "0F172A"),
+    ("4ccdb143-2ed5-4aff-83bf-5e1738e7f45d", 25, "学习", "#FFFFFF", "0F172A"),
+    ("da411c92-80d0-4617-aca0-8dd498d0cce8", 26, "求职", "#FFFFFF", "0F172A"),
+    ("bf97ab1a-abaa-4a04-b8d3-3072e5fa7287", 27, "设计", "#FFFFFF", "0F172A"),
+];
+
+/// (id, index_in_collection, title, url, host, background_hex, text_hex, mark, collection_id)
+pub const NAVIGATION: &[(&str, i32, &str, &str, &str, &str, &str, &str, &str)] = &[
+    ("6f7714eb-bfa1-4b15-b56f-d095ff9100a3", 0, "百度", "https://www.baidu.com", "www.baidu.com", "#2932E1", "FFFFFF", "https://cdn.simpleicons.org/baidu/ffffff", "9ba4c4a7-ccd7-4965-b447-5d74a9f96b56"),
+    ("4bd86ab9-4212-4558-a4c2-38db37f591e3", 1, "谷歌", "https://www.google.com", "www.google.com", "#F8FAFC", "0F172A", "https://www.google.com/s2/favicons?domain=www.google.com&sz=256", "9ba4c4a7-ccd7-4965-b447-5d74a9f96b56"),
+    ("f2e2547d-9745-4197-b349-8638d278cc36", 2, "必应", "https://cn.bing.com", "cn.bing.com", "#DBEAFE", "1E40AF", "https://www.google.com/s2/favicons?domain=cn.bing.com&sz=256", "9ba4c4a7-ccd7-4965-b447-5d74a9f96b56"),
+    ("03e9bb30-3691-4a07-8c74-80efd5c853b8", 3, "搜狗", "https://www.sogou.com", "www.sogou.com", "#FF6200", "FFFFFF", "https://cdn.simpleicons.org/sogou/ffffff", "9ba4c4a7-ccd7-4965-b447-5d74a9f96b56"),
+    ("17431d5f-1c90-45e5-bf5e-e9ffa4adea1d", 0, "淘宝", "https://www.taobao.com", "www.taobao.com", "#FF5000", "FFFFFF", "https://cdn.simpleicons.org/taobao/ffffff", "e2ae5afe-d42e-4539-b942-3ab2a0771c82"),
+    ("23b6ab4b-a8fd-4ce1-86b7-27026b72b255", 1, "天猫", "https://www.tmall.com", "www.tmall.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=tmall.com&sz=256", "e2ae5afe-d42e-4539-b942-3ab2a0771c82"),
+    ("efe7323e-ca08-4271-a722-2520a04cf9cb", 2, "京东", "https://www.jd.com", "www.jd.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=jd.com&sz=256", "e2ae5afe-d42e-4539-b942-3ab2a0771c82"),
+    ("351a16cb-fc35-470e-bfd1-99bc596269ad", 3, "拼多多", "https://www.pinduoduo.com", "www.pinduoduo.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=pinduoduo.com&sz=256", "e2ae5afe-d42e-4539-b942-3ab2a0771c82"),
+    ("af6c2295-6a68-41bf-a5c9-d57e690c5b75", 4, "唯品会", "https://www.vip.com", "www.vip.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=vip.com&sz=256", "e2ae5afe-d42e-4539-b942-3ab2a0771c82"),
+    ("aa1a8732-390b-4855-b82c-c9d10720cfd6", 5, "苏宁", "https://www.suning.com", "www.suning.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=suning.com&sz=256", "e2ae5afe-d42e-4539-b942-3ab2a0771c82"),
+    ("bc096178-12f6-4693-9b1b-70d58b92b67c", 6, "亚马逊", "https://www.amazon.cn", "www.amazon.cn", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=amazon.com&sz=256", "e2ae5afe-d42e-4539-b942-3ab2a0771c82"),
+    ("95ac781e-cefa-4cdd-bf13-395b241e3f0a", 0, "微博", "https://www.weibo.com", "www.weibo.com", "#E11D48", "FFFFFF", "https://cdn.simpleicons.org/sinaweibo/ffffff", "7f3c23ec-492c-4c15-9183-b3629bc9fd04"),
+    ("24c0121d-bd8a-487c-89c5-361a9b09bf00", 1, "知乎", "https://www.zhihu.com", "www.zhihu.com", "#0084FF", "FFFFFF", "https://cdn.simpleicons.org/zhihu/ffffff", "7f3c23ec-492c-4c15-9183-b3629bc9fd04"),
+    ("e9905858-0692-49d3-bcdf-4c232c9f79b1", 2, "豆瓣", "https://www.douban.com", "www.douban.com", "#00B51D", "FFFFFF", "https://cdn.simpleicons.org/douban/ffffff", "7f3c23ec-492c-4c15-9183-b3629bc9fd04"),
+    ("1577b2b3-4dc3-4ad4-a23d-a5761523824a", 3, "小红书", "https://www.xiaohongshu.com", "www.xiaohongshu.com", "#FF2442", "FFFFFF", "https://cdn.simpleicons.org/xiaohongshu/ffffff", "7f3c23ec-492c-4c15-9183-b3629bc9fd04"),
+    ("d42bfd7a-9995-4a5e-84c4-023069d14e16", 4, "抖音", "https://www.douyin.com", "www.douyin.com", "#111827", "F8FAFC", "https://cdn.simpleicons.org/tiktok/ffffff", "7f3c23ec-492c-4c15-9183-b3629bc9fd04"),
+    ("c414e0b5-fabf-4608-b09d-fcca0f75e687", 5, "快手", "https://www.kuaishou.com", "www.kuaishou.com", "#FF4906", "FFFFFF", "https://cdn.simpleicons.org/kuaishou/ffffff", "7f3c23ec-492c-4c15-9183-b3629bc9fd04"),
+    ("eea094dc-8069-4f53-9786-a095c0359dee", 0, "哔哩哔哩", "https://www.bilibili.com", "www.bilibili.com", "#FB7299", "FFFFFF", "https://cdn.simpleicons.org/bilibili/ffffff", "99c15c6a-4e9a-4157-bc58-34a0a846697c"),
+    ("19773bd4-226b-4c9c-b2ee-8b86388218a7", 1, "爱奇艺", "https://www.iqiyi.com", "www.iqiyi.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=iqiyi.com&sz=256", "99c15c6a-4e9a-4157-bc58-34a0a846697c"),
+    ("31445583-32e0-4cdc-95eb-0037d5a9430f", 2, "优酷", "https://www.youku.com", "www.youku.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=youku.com&sz=256", "99c15c6a-4e9a-4157-bc58-34a0a846697c"),
+    ("a80858a7-e4db-44f5-8915-51912c54718d", 3, "腾讯视频", "https://v.qq.com", "v.qq.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=v.qq.com&sz=256", "99c15c6a-4e9a-4157-bc58-34a0a846697c"),
+    ("3419baa2-01dc-42b5-8f6e-ffe6dea0f07d", 4, "芒果TV", "https://www.mgtv.com", "www.mgtv.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=mgtv.com&sz=256", "99c15c6a-4e9a-4157-bc58-34a0a846697c"),
+    ("7a9354a9-9994-49be-8b02-18c4e3a265a5", 5, "网易云音乐", "https://music.163.com", "music.163.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=music.163.com&sz=256", "99c15c6a-4e9a-4157-bc58-34a0a846697c"),
+    ("8e3f9f3e-0021-4844-8d2d-4d2b34d64a6a", 6, "QQ音乐", "https://y.qq.com", "y.qq.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=y.qq.com&sz=256", "99c15c6a-4e9a-4157-bc58-34a0a846697c"),
+    ("7a5b8084-26f7-40d7-a23d-650219517e67", 7, "喜马拉雅", "https://www.ximalaya.com", "www.ximalaya.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=ximalaya.com&sz=256", "99c15c6a-4e9a-4157-bc58-34a0a846697c"),
+    ("9d4925e5-4900-4141-8c5d-f3cb459b1de2", 0, "今日头条", "https://www.toutiao.com", "www.toutiao.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=toutiao.com&sz=256", "e75bb91d-d4d3-40a0-990d-816c0aff8825"),
+    ("79697495-caa5-411c-ac92-b0d04696a140", 1, "澎湃新闻", "https://www.thepaper.cn", "www.thepaper.cn", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=thepaper.cn&sz=256", "e75bb91d-d4d3-40a0-990d-816c0aff8825"),
+    ("86261827-496d-4547-aacc-01421ca564bc", 2, "新浪", "https://www.sina.com.cn", "www.sina.com.cn", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=sina.com.cn&sz=256", "e75bb91d-d4d3-40a0-990d-816c0aff8825"),
+    ("6a53ed91-1feb-4dc8-914d-95ee39f7c093", 3, "网易", "https://www.163.com", "www.163.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=163.com&sz=256", "e75bb91d-d4d3-40a0-990d-816c0aff8825"),
+    ("6f32556e-2bc8-4705-bc5e-cfaa399bf3fe", 4, "搜狐", "https://www.sohu.com", "www.sohu.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=sohu.com&sz=256", "e75bb91d-d4d3-40a0-990d-816c0aff8825"),
+    ("65ac9a9a-3c2f-4ab8-a69d-3a0526ce03c2", 5, "凤凰网", "https://www.ifeng.com", "www.ifeng.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=ifeng.com&sz=256", "e75bb91d-d4d3-40a0-990d-816c0aff8825"),
+    ("1af5dae8-7e3d-47ac-a5fd-e6d34194b2ca", 6, "央视网", "https://www.cctv.com", "www.cctv.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=cctv.com&sz=256", "e75bb91d-d4d3-40a0-990d-816c0aff8825"),
+    ("6b26ffde-9706-43b3-9cab-99c0ddf35a3f", 7, "人民网", "https://www.people.com.cn", "www.people.com.cn", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=people.com.cn&sz=256", "e75bb91d-d4d3-40a0-990d-816c0aff8825"),
+    ("13be255a-ef23-4db2-bee7-41f223680518", 8, "新华网", "https://www.xinhuanet.com", "www.xinhuanet.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=xinhuanet.com&sz=256", "e75bb91d-d4d3-40a0-990d-816c0aff8825"),
+    ("41b66840-d6a6-4f98-8aba-f669b9140e1f", 6, "QQ", "https://www.qq.com", "www.qq.com", "#12B7F5", "FFFFFF", "https://cdn.simpleicons.org/qq/ffffff", "7f3c23ec-492c-4c15-9183-b3629bc9fd04"),
+    ("1531bce3-d3d1-4adb-8dd5-263622278aa7", 7, "微信", "https://weixin.qq.com", "weixin.qq.com", "#07C160", "FFFFFF", "https://cdn.simpleicons.org/wechat/ffffff", "7f3c23ec-492c-4c15-9183-b3629bc9fd04"),
+    ("068d74e8-e37f-4e29-9d6d-c41a6c3a1b53", 0, "美团", "https://www.meituan.com", "www.meituan.com", "#FFD100", "1C1917", "https://cdn.simpleicons.org/meituan/1c1917", "b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5"),
+    ("579cc41b-bd2a-40a4-b616-eb583136bb2f", 1, "大众点评", "https://www.dianping.com", "www.dianping.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=dianping.com&sz=256", "b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5"),
+    ("c970652c-d2b7-4d11-93e8-1520cd6444a0", 2, "饿了么", "https://www.ele.me", "www.ele.me", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=ele.me&sz=256", "b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5"),
+    ("fdaadd19-0457-4a5d-8a46-b0c07d7486f3", 3, "携程", "https://www.ctrip.com", "www.ctrip.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=ctrip.com&sz=256", "b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5"),
+    ("0088a65f-3778-44b1-81c5-7e9d89942476", 4, "去哪儿", "https://www.qunar.com", "www.qunar.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=qunar.com&sz=256", "b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5"),
+    ("eefce361-dcae-4bee-bdfb-b9f674b58a37", 5, "飞猪", "https://www.fliggy.com", "www.fliggy.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=fliggy.com&sz=256", "b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5"),
+    ("7204a70e-c65e-4fee-8b93-2aa939c397ee", 6, "12306", "https://www.12306.cn", "www.12306.cn", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=12306.cn&sz=256", "b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5"),
+    ("c422c1de-1ed0-49c8-afd2-3ed1f583b403", 7, "高德地图", "https://www.amap.com", "www.amap.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=amap.com&sz=256", "b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5"),
+    ("3fe7ac92-5a3e-43a1-8c11-57fe951b23d2", 8, "百度地图", "https://map.baidu.com", "map.baidu.com", "#2932E1", "FFFFFF", "https://cdn.simpleicons.org/baidu/ffffff", "b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5"),
+    ("1612badf-f7fa-4754-96fa-330f584a1143", 9, "滴滴", "https://www.didiglobal.com", "www.didiglobal.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=didiglobal.com&sz=256", "b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5"),
+    ("782a6f99-65db-48e4-8e0b-bef5366ba6dd", 0, "GitHub", "https://github.com", "github.com", "#24292F", "F8FAFC", "https://cdn.simpleicons.org/github/ffffff", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("1c09b1b2-f445-492a-9a3b-165e3c340e0a", 1, "Gitee", "https://gitee.com", "gitee.com", "#C71D23", "FFFFFF", "https://cdn.simpleicons.org/gitee/ffffff", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("5c8532e2-ec5d-4e9b-acdd-36d6312e8ce4", 2, "GitLab", "https://gitlab.com", "gitlab.com", "#FC6D26", "FFFFFF", "https://cdn.simpleicons.org/gitlab/ffffff", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("e05d0af1-afcd-468a-8c41-a7b18a6b29a5", 3, "Stack Overflow", "https://stackoverflow.com", "stackoverflow.com", "#F48024", "FFFFFF", "https://cdn.simpleicons.org/stackoverflow/ffffff", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("42da558d-e8e6-4dd4-99a7-b8e9ecdafc88", 4, "MDN", "https://developer.mozilla.org", "developer.mozilla.org", "#000000", "F8FAFC", "https://cdn.simpleicons.org/mdnwebdocs/ffffff", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("af4721f2-a8bf-4ac8-af07-ab882e87a0f3", 5, "npm", "https://www.npmjs.com", "www.npmjs.com", "#CB3837", "FFFFFF", "https://cdn.simpleicons.org/npm/ffffff", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("b8eabeb4-26f6-4a2b-b820-eab21a0ef3dc", 6, "Rust", "https://www.rust-lang.org", "www.rust-lang.org", "#DEA584", "1C1917", "https://cdn.simpleicons.org/rust/000000", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("7960facb-f64c-4f8c-a613-53cfd9d094df", 7, "Vue", "https://vuejs.org", "vuejs.org", "#42B883", "FFFFFF", "https://cdn.simpleicons.org/vuedotjs/ffffff", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("497fdc3a-5a3a-41ba-9432-d3c97cc8565c", 8, "React", "https://react.dev", "react.dev", "#087EA4", "FFFFFF", "https://cdn.simpleicons.org/react/ffffff", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("57ddf3b0-d1a5-4e03-9f08-d20320f7f49b", 9, "TypeScript", "https://www.typescriptlang.org", "www.typescriptlang.org", "#3178C6", "FFFFFF", "https://cdn.simpleicons.org/typescript/ffffff", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("08941c90-b9bb-4a10-ad18-d23c20467c16", 10, "Vite", "https://vitejs.dev", "vitejs.dev", "#646CFF", "FFFFFF", "https://cdn.simpleicons.org/vite/ffffff", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("73d3133a-1640-4af0-99a5-49170390c17d", 11, "Tailwind", "https://tailwindcss.com", "tailwindcss.com", "#38BDF8", "0F172A", "https://cdn.simpleicons.org/tailwindcss/0f172a", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("efa65bcb-c9be-453e-b208-bec00b010d26", 12, "Ant Design", "https://ant.design", "ant.design", "#1677FF", "FFFFFF", "https://cdn.simpleicons.org/antdesign/ffffff", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("7d2462fb-3e50-4535-9c67-d108f38af375", 13, "Element Plus", "https://element-plus.org", "element-plus.org", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=element-plus.org&sz=256", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("50696631-41c9-49db-b43f-71edcd25ad1d", 14, "Iconify", "https://icon-sets.iconify.design", "icon-sets.iconify.design", "#1769AA", "FFFFFF", "https://cdn.simpleicons.org/iconify/ffffff", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("4b2a5c18-47bc-46ac-b30f-831a1b8f137a", 15, "Can I Use", "https://caniuse.com", "caniuse.com", "#FEF3C7", "92400E", "https://www.google.com/s2/favicons?domain=caniuse.com&sz=256", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("3690f123-7b55-4914-9d18-15e14a74d6dc", 16, "正则101", "https://regex101.com", "regex101.com", "#E0E7FF", "3730A3", "https://www.google.com/s2/favicons?domain=regex101.com&sz=256", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("718b6155-26ff-4170-9457-c81f15e803f8", 17, "JSON", "https://json.cn", "json.cn", "#F1F5F9", "0F172A", "https://www.google.com/s2/favicons?domain=www.json.org&sz=256", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("5db1b934-a452-49e0-b1c3-000f5990d4f5", 0, "Excalidraw", "https://excalidraw.com", "excalidraw.com", "#6965DB", "FFFFFF", "https://cdn.simpleicons.org/excalidraw/ffffff", "2c7e8425-7d72-4552-aea5-e2997569211a"),
+    ("c2285e63-91ac-453a-8783-08ef2304875c", 1, "Figma", "https://www.figma.com", "www.figma.com", "#F24E1E", "FFFFFF", "https://cdn.simpleicons.org/figma/ffffff", "2c7e8425-7d72-4552-aea5-e2997569211a"),
+    ("376c0894-8fcd-468d-b96e-14e4bfe2c519", 2, "Notion", "https://www.notion.so", "www.notion.so", "#000000", "F8FAFC", "https://cdn.simpleicons.org/notion/ffffff", "2c7e8425-7d72-4552-aea5-e2997569211a"),
+    ("b0cefb37-33db-4992-a453-2607296d46ac", 3, "语雀", "https://www.yuque.com", "www.yuque.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=yuque.com&sz=256", "2c7e8425-7d72-4552-aea5-e2997569211a"),
+    ("baaef2e9-1a81-4c6b-962d-b33284272f73", 4, "飞书", "https://www.feishu.cn", "www.feishu.cn", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=feishu.cn&sz=256", "2c7e8425-7d72-4552-aea5-e2997569211a"),
+    ("c3b1e910-7ac7-4526-ba3d-cf3d0a903006", 5, "钉钉", "https://www.dingtalk.com", "www.dingtalk.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=dingtalk.com&sz=256", "2c7e8425-7d72-4552-aea5-e2997569211a"),
+    ("5d29ccb2-933d-43f7-94f6-1d6334b1c5f9", 6, "腾讯文档", "https://docs.qq.com", "docs.qq.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=docs.qq.com&sz=256", "2c7e8425-7d72-4552-aea5-e2997569211a"),
+    ("2a876e1a-1996-466d-af46-a99a21774aa8", 7, "石墨文档", "https://shimo.im", "shimo.im", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=shimo.im&sz=256", "2c7e8425-7d72-4552-aea5-e2997569211a"),
+    ("f57e37ee-4335-42f7-91fb-8417e31e61c6", 0, "CSDN", "https://www.csdn.net", "www.csdn.net", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=csdn.net&sz=256", "32e1267a-e8e9-4431-a6fa-d0371b45d77c"),
+    ("c8e69a5a-42c1-4fcb-9976-2d595b5c39bf", 1, "掘金", "https://juejin.cn", "juejin.cn", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=juejin.cn&sz=256", "32e1267a-e8e9-4431-a6fa-d0371b45d77c"),
+    ("66e368ae-5e33-49fb-a36a-431b543c2e42", 2, "思否", "https://segmentfault.com", "segmentfault.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=segmentfault.com&sz=256", "32e1267a-e8e9-4431-a6fa-d0371b45d77c"),
+    ("cf964a4c-6485-4bae-b145-6781ffe9ec68", 3, "开源中国", "https://www.oschina.net", "www.oschina.net", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=oschina.net&sz=256", "32e1267a-e8e9-4431-a6fa-d0371b45d77c"),
+    ("a07875e7-1345-4e50-b675-59ef91eb8ddd", 4, "V2EX", "https://www.v2ex.com", "www.v2ex.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=v2ex.com&sz=256", "32e1267a-e8e9-4431-a6fa-d0371b45d77c"),
+    ("3fb55802-a145-4c75-9371-997acc3ddae5", 5, "少数派", "https://sspai.com", "sspai.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=sspai.com&sz=256", "32e1267a-e8e9-4431-a6fa-d0371b45d77c"),
+    ("8018c361-dc2b-45d2-8b6b-e451b55db7fb", 6, "即刻", "https://web.okjike.com", "web.okjike.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=okjike.com&sz=256", "32e1267a-e8e9-4431-a6fa-d0371b45d77c"),
+    ("fdc45c93-cf66-46e2-b830-70141de8cf47", 8, "YouTube", "https://www.youtube.com", "www.youtube.com", "#FF0000", "FFFFFF", "https://cdn.simpleicons.org/youtube/ffffff", "99c15c6a-4e9a-4157-bc58-34a0a846697c"),
+    ("2b5259a5-d66b-41f1-81c8-8dc3e57ceb14", 7, "Twitter", "https://x.com", "x.com", "#000000", "F8FAFC", "https://cdn.simpleicons.org/x/ffffff", "32e1267a-e8e9-4431-a6fa-d0371b45d77c"),
+    ("c5198173-723f-4bc0-8042-91130566c8d2", 8, "Reddit", "https://www.reddit.com", "www.reddit.com", "#FF4500", "FFFFFF", "https://cdn.simpleicons.org/reddit/ffffff", "32e1267a-e8e9-4431-a6fa-d0371b45d77c"),
+    ("a43096ef-c9df-4e08-a57a-ba4020937de7", 9, "Wikipedia", "https://www.wikipedia.org", "www.wikipedia.org", "#000000", "F8FAFC", "https://cdn.simpleicons.org/wikipedia/ffffff", "32e1267a-e8e9-4431-a6fa-d0371b45d77c"),
+    ("48b51c2e-7f61-43c6-9cf8-e10fb45ef799", 0, "ChatGPT", "https://chatgpt.com", "chatgpt.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=chatgpt.com&sz=256", "7900cb78-3818-4d2b-905b-1ec7bbf6f69d"),
+    ("1afca13c-c686-41ed-9d91-8837126bd8c4", 1, "Claude", "https://claude.ai", "claude.ai", "#D97706", "FFFFFF", "https://cdn.simpleicons.org/anthropic/ffffff", "7900cb78-3818-4d2b-905b-1ec7bbf6f69d"),
+    ("a4dbc3e2-15e7-4423-be57-ce708a05de0b", 2, "Gemini", "https://gemini.google.com", "gemini.google.com", "#4285F4", "FFFFFF", "https://cdn.simpleicons.org/googlegemini/ffffff", "7900cb78-3818-4d2b-905b-1ec7bbf6f69d"),
+    ("0d7669f0-1ada-4064-9251-cc71289fe714", 3, "DeepSeek", "https://chat.deepseek.com", "chat.deepseek.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=deepseek.com&sz=256", "7900cb78-3818-4d2b-905b-1ec7bbf6f69d"),
+    ("d0fe983b-2db5-4137-9169-16f8cd457b32", 4, "通义千问", "https://tongyi.aliyun.com", "tongyi.aliyun.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=tongyi.aliyun.com&sz=256", "7900cb78-3818-4d2b-905b-1ec7bbf6f69d"),
+    ("732bddb5-1fbf-4f4a-9ae5-08d1d82a34d2", 5, "Kimi", "https://kimi.moonshot.cn", "kimi.moonshot.cn", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=kimi.moonshot.cn&sz=256", "7900cb78-3818-4d2b-905b-1ec7bbf6f69d"),
+    ("c55e845f-7d06-4578-9e7e-ff1c43649a38", 6, "文心一言", "https://yiyan.baidu.com", "yiyan.baidu.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=yiyan.baidu.com&sz=256", "7900cb78-3818-4d2b-905b-1ec7bbf6f69d"),
+    ("4a53f95d-7ec8-4454-b371-cc7f64eb37a9", 7, "智谱清言", "https://chatglm.cn", "chatglm.cn", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=chatglm.cn&sz=256", "7900cb78-3818-4d2b-905b-1ec7bbf6f69d"),
+    ("07c5ecd9-27be-48da-943e-209d8f5b5b47", 0, "LeetCode", "https://leetcode.cn", "leetcode.cn", "#FFA116", "0F172A", "https://cdn.simpleicons.org/leetcode/0f172a", "4ccdb143-2ed5-4aff-83bf-5e1738e7f45d"),
+    ("6081db3b-97c2-4f55-be8b-88f751c50bb2", 1, "牛客", "https://www.nowcoder.com", "www.nowcoder.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=nowcoder.com&sz=256", "4ccdb143-2ed5-4aff-83bf-5e1738e7f45d"),
+    ("82b7457d-93ca-4052-9ed3-39f1577b85b4", 2, "Coursera", "https://www.coursera.org", "www.coursera.org", "#0056D2", "FFFFFF", "https://cdn.simpleicons.org/coursera/ffffff", "4ccdb143-2ed5-4aff-83bf-5e1738e7f45d"),
+    ("3c6fdafd-c293-4548-a97d-8c3579d6d60a", 3, "B站课堂", "https://www.bilibili.com/cheese", "www.bilibili.com", "#FB7299", "FFFFFF", "https://cdn.simpleicons.org/bilibili/ffffff", "4ccdb143-2ed5-4aff-83bf-5e1738e7f45d"),
+    ("5aa8b078-f8b4-4ce2-b2b6-1f90314c36fc", 4, "中国大学MOOC", "https://www.icourse163.org", "www.icourse163.org", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=icourse163.org&sz=256", "4ccdb143-2ed5-4aff-83bf-5e1738e7f45d"),
+    ("1cdc2c31-cad1-4eea-b492-ffbc47dcc348", 10, "支付宝", "https://www.alipay.com", "www.alipay.com", "#1677FF", "FFFFFF", "https://cdn.simpleicons.org/alipay/ffffff", "b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5"),
+    ("af30a364-b8e7-4afe-a315-af4212b141a4", 11, "招商银行", "https://www.cmbchina.com", "www.cmbchina.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=cmbchina.com&sz=256", "b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5"),
+    ("634b63c3-ca81-476a-99b0-ce0c07276c3c", 12, "东方财富", "https://www.eastmoney.com", "www.eastmoney.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=eastmoney.com&sz=256", "b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5"),
+    ("b1b9d20b-9e23-4ae1-8698-d2911b7326df", 13, "雪球", "https://xueqiu.com", "xueqiu.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=xueqiu.com&sz=256", "b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5"),
+    ("d758f23a-cd1d-4a42-abd8-b15392229546", 7, "闲鱼", "https://www.goofish.com", "www.goofish.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=goofish.com&sz=256", "e2ae5afe-d42e-4539-b942-3ab2a0771c82"),
+    ("3aa9d82c-8d67-4f13-a902-d75ef3633794", 8, "什么值得买", "https://www.smzdm.com", "www.smzdm.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=smzdm.com&sz=256", "e2ae5afe-d42e-4539-b942-3ab2a0771c82"),
+    ("d6023a0a-adeb-4776-b8be-edee221a8f6f", 14, "汽车之家", "https://www.autohome.com.cn", "www.autohome.com.cn", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=autohome.com.cn&sz=256", "b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5"),
+    ("907a747c-8636-4499-afd5-4146eace73c7", 15, "安居客", "https://www.anjuke.com", "www.anjuke.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=anjuke.com&sz=256", "b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5"),
+    ("b57cf7f4-a8e3-4501-87b7-8a9e333e8768", 16, "链家", "https://www.lianjia.com", "www.lianjia.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=lianjia.com&sz=256", "b2b289d1-8b9e-4242-abf5-2f61c9e2f5d5"),
+    ("36cbdf06-95dc-479c-a6c6-6c705de8f4a5", 0, "Boss直聘", "https://www.zhipin.com", "www.zhipin.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=zhipin.com&sz=256", "da411c92-80d0-4617-aca0-8dd498d0cce8"),
+    ("f0f4b870-d4ca-461d-bbda-f2de3aa67c0b", 1, "智联招聘", "https://www.zhaopin.com", "www.zhaopin.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=zhaopin.com&sz=256", "da411c92-80d0-4617-aca0-8dd498d0cce8"),
+    ("be436f78-a7c2-438b-8250-327a6b0eadf3", 2, "拉勾", "https://www.lagou.com", "www.lagou.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=lagou.com&sz=256", "da411c92-80d0-4617-aca0-8dd498d0cce8"),
+    ("10bcf04e-a64b-47f3-92f8-83d72f0eb93a", 5, "译学馆", "https://www.yxgapp.com", "www.yxgapp.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=yxgapp.com&sz=256", "4ccdb143-2ed5-4aff-83bf-5e1738e7f45d"),
+    ("83d74d02-594b-451c-8847-9531eae3fd93", 0, "IconFont", "https://www.iconfont.cn", "www.iconfont.cn", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=iconfont.cn&sz=256", "bf97ab1a-abaa-4a04-b8d3-3072e5fa7287"),
+    ("aaac07f3-2964-4884-8381-64590cd75748", 1, "Unsplash", "https://unsplash.com", "unsplash.com", "#000000", "F8FAFC", "https://cdn.simpleicons.org/unsplash/ffffff", "bf97ab1a-abaa-4a04-b8d3-3072e5fa7287"),
+    ("b3c4fddc-458d-414f-9a31-eb1c311591e6", 2, "Pexels", "https://www.pexels.com", "www.pexels.com", "#05A081", "FFFFFF", "https://cdn.simpleicons.org/pexels/ffffff", "bf97ab1a-abaa-4a04-b8d3-3072e5fa7287"),
+    ("73c5f14c-025d-4e68-8f05-669c81e4afae", 3, "Dribbble", "https://dribbble.com", "dribbble.com", "#EA4C89", "FFFFFF", "https://cdn.simpleicons.org/dribbble/ffffff", "bf97ab1a-abaa-4a04-b8d3-3072e5fa7287"),
+    ("18fe5caa-c810-433c-9321-65f30293e5ea", 4, "Product Hunt", "https://www.producthunt.com", "www.producthunt.com", "#DA552F", "FFFFFF", "https://cdn.simpleicons.org/producthunt/ffffff", "bf97ab1a-abaa-4a04-b8d3-3072e5fa7287"),
+    ("d52d0323-da74-4261-9157-ba46a89ab7a7", 18, "Hacker News", "https://news.ycombinator.com", "news.ycombinator.com", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=news.ycombinator.com&sz=256", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("47a04baa-646e-4e5d-9434-2731d32f9819", 19, "Arch Wiki", "https://wiki.archlinux.org", "wiki.archlinux.org", "#FFFFFF", "0F172A", "https://www.google.com/s2/favicons?domain=wiki.archlinux.org&sz=256", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("621382a2-0911-448b-8ef2-a3980e09ddce", 20, "Docker Hub", "https://hub.docker.com", "hub.docker.com", "#2496ED", "FFFFFF", "https://cdn.simpleicons.org/docker/ffffff", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("29bb5423-6f90-4520-957a-503d9e541d2b", 21, "Cloudflare", "https://www.cloudflare.com", "www.cloudflare.com", "#F38020", "FFFFFF", "https://cdn.simpleicons.org/cloudflare/ffffff", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("ea161ec5-391a-49ce-9d78-fe91f96519bd", 22, "Vercel", "https://vercel.com", "vercel.com", "#000000", "F8FAFC", "https://cdn.simpleicons.org/vercel/ffffff", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+    ("3175fa5c-195f-4311-9d18-ecbc7c29f6d5", 23, "Netlify", "https://www.netlify.com", "www.netlify.com", "#00C7B7", "0F172A", "https://cdn.simpleicons.org/netlify/0f172a", "d2c015c9-aaef-4150-b910-2fffe0dce674"),
+];
+
+/// 仅冷启动插入；开发期不维护刷库 / 兼容 UPDATE。
+pub fn insert_statements() -> Vec<String> {
+    let mut out: Vec<String> = COLLECTIONS
+        .iter()
+        .map(|(id, index, title, bg, text)| {
+            let background = format!(r#"{{"color":"{bg}"}}"#);
+            format!(
+                "INSERT OR IGNORE INTO magneticTile (id,[index],title,url,round,mark,component,description,background,backdrop,mirrorID,textColor,collectionID,size,shape,direction,downloadCount,archivedAt,createdAt,updatedAt) VALUES ('{id}',{index},'{title}',NULL,'12px',NULL,'collection','{title}','{background}',NULL,'{MIRROR_ID}','{text}',NULL,1,'square','vertical',0,NULL,{TS},{TS})"
+            )
+        })
+        .collect();
+    out.extend(NAVIGATION.iter().map(
+        |(id, index, title, url, _host, bg, text, mark, collection_id)| {
+            let background = format!(r#"{{"color":"{bg}"}}"#);
+            format!(
+                "INSERT OR IGNORE INTO magneticTile (id,[index],title,url,round,mark,component,description,background,backdrop,mirrorID,textColor,collectionID,size,shape,direction,downloadCount,archivedAt,createdAt,updatedAt) VALUES ('{id}',{index},'{title}','{url}','12px','{mark}','navigation','{title}','{background}',NULL,'{MIRROR_ID}','{text}','{collection_id}',1,'square','vertical',0,NULL,{TS},{TS})"
+            )
+        },
+    ));
+    out
+}

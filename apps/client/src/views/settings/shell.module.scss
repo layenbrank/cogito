@@ -77,23 +77,30 @@ $sidebar-width: 200px;
 .navItem {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   column-gap: 8px;
   width: 100%;
+  min-height: 36px;
   padding: 7px 10px;
   border: none;
   border-radius: 8px;
   background: transparent;
+  font: inherit;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.25;
+  font-weight: 400;
   color: var(--foreground);
   text-align: left;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     background-color 200ms ease,
     color 200ms ease;
   position: relative;
 
+  :global(.iconify),
   :global(svg) {
+    display: block;
     flex-shrink: 0;
     width: 16px;
     height: 16px;
@@ -101,10 +108,15 @@ $sidebar-width: 200px;
     transition: color 200ms ease;
   }
 
+  > span {
+    line-height: 1.25;
+  }
+
   &:hover {
     background: color-mix(in oklab, var(--primary) 6%, transparent);
     color: var(--foreground);
 
+    :global(.iconify),
     :global(svg) {
       color: var(--primary);
     }
@@ -132,6 +144,7 @@ $sidebar-width: 200px;
     background: var(--primary);
   }
 
+  :global(.iconify),
   :global(svg) {
     color: var(--primary);
   }

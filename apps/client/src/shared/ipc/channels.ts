@@ -40,7 +40,9 @@ export const CHANNELS = {
   DICT: {
     LIST: 'dict:list',
     LIST_BY_TYPES: 'dict:listByTypes',
-    UPDATE_ITEM: 'dict:updateItem'
+    UPDATE_ITEM: 'dict:updateItem',
+    FIND_VALUE: 'dict:findValue',
+    MERGE_REMOTE: 'dict:mergeRemote'
   },
   KNOWLEDGE: {
     LIST_BASES: 'knowledge:listBases',
@@ -287,6 +289,9 @@ export const CHANNELS = {
   },
   SEARCH: {
     SUGGEST: 'search:suggest'
+  },
+  SITE: {
+    FETCH_FAVICON: 'site:fetch-favicon'
   },
   WORKSPACE_SKILLS: {
     LIST: 'workspaceSkills:list'

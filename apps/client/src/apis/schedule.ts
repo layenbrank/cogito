@@ -23,7 +23,7 @@ interface CloudJob {
   /** 下次触发（epoch ms）；停用时为空 */
   nextRunAt: number | null
   lastRunAt: number | null
-  /** `running` / `succeeded` / `failed` */
+  /** 全局字典 value：`014`–`017`（等待/执行中/成功/失败） */
   lastStatus: string | null
   lastError: string | null
   /** 最近一次起出来的 agent 任务 id */

@@ -11,7 +11,9 @@ pub mod entity {
     pub mod calendar;
     pub mod countdown;
     pub mod dict_item;
+    pub mod dict_tenant_item;
     pub mod dict_type;
+    pub mod dict_type_item;
     pub mod directive_draft;
     pub mod knowledge_base;
     pub mod knowledge_doc;
@@ -56,7 +58,9 @@ pub mod entity {
     pub use calendar::Entity as CalendarEntity;
     pub use countdown::Entity as CountdownEntity;
     pub use dict_item::Entity as DictItemEntity;
+    pub use dict_tenant_item::Entity as DictTenantItemEntity;
     pub use dict_type::Entity as DictTypeEntity;
+    pub use dict_type_item::Entity as DictTypeItemEntity;
     pub use directive_draft::Entity as DirectiveDraftEntity;
     pub use knowledge_base::Entity as KnowledgeBaseEntity;
     pub use knowledge_doc::Entity as KnowledgeDocEntity;
