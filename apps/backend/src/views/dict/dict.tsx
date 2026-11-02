@@ -511,7 +511,8 @@ export default function DictView() {
               <Label>字典类型</Label>
               <Select
                 value={selectedTypeCode || null}
-                onValueChange={function (value) {
+                onValueChange={function (value: string | null) {
+                  if (value === null) return
                   updateSelectedTypeCode(value)
                 }}>
                 <SelectTrigger className="h-10 w-full">
@@ -1018,7 +1019,8 @@ export default function DictView() {
           <Label>池 Value</Label>
           <Select
             value={claimDraft.value || null}
-            onValueChange={function (value) {
+            onValueChange={function (value: string | null) {
+              if (value === null) return
               updateClaimDraft({ ...claimDraft, value })
             }}>
             <SelectTrigger className="h-10 w-full">
