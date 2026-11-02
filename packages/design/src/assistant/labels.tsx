@@ -35,6 +35,12 @@ type AssistantLabels = {
   dayLabel: (date: Date) => string
   /** 被用户中断的回合尾注 */
   stoppedRun: string
+  /** 正常跑完的回合尾注（只标在最后一条消息上） */
+  completedRun: string
+  /** 撞长度上限、正文被截断的回合尾注 */
+  truncatedRun: string
+  /** 内容过滤 / 未知原因中断的回合尾注 */
+  interruptedRun: string
   working: string
   copy: string
   reload: string
@@ -125,6 +131,9 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   userMessageSticky: 'Jump to your message',
   dayLabel: (date) => findDayLabel(date, DAY_WORDS_EN),
   stoppedRun: 'Response stopped',
+  completedRun: 'Completed',
+  truncatedRun: 'Response truncated (length limit)',
+  interruptedRun: 'Response interrupted',
   working: 'Thinking…',
   copy: 'Copy',
   reload: 'Refresh',

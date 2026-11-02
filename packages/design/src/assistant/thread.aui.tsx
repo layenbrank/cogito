@@ -43,6 +43,7 @@ import { File } from './file'
 import { ThreadFollowupSuggestions } from './follow-up-suggestions.aui'
 import { Image } from './image'
 import { useAssistantLabels } from './labels'
+import { findRunNote } from './run-status'
 import { findMessageMarkdown } from './message-markdown'
 import { CitedMarkdownText } from './message-citations'
 import {
@@ -679,6 +680,36 @@ const AssistantImage: ImageMessagePartComponent = (props) => (
 )
 
 /**
+ * 回合尾注：这一轮怎么结束的（完成 / 停止 / 截断 / 中断）。
+ * 口径与文案在 `run-status.ts`，这里只负责渲染。
+ */
+const AssistantRunStatus: FC = () => {
+  const labels = useAssistantLabels()
+  const status = useAuiState(function (state) {
+    return state.message.status
+  })
+  const isLast = useAuiState(function (state) {
+    return state.message.isLast
+  })
+  const note = findRunNote(status, isLast, labels)
+  if (!note) return null
+
+  return (
+    <div
+      data-slot="aui_assistant-message-run-status"
+      data-tone={note.tone}
+      className="text-muted-foreground mt-1.5 flex items-center gap-1.5 text-xs"
+      aria-live="polite">
+      <Icon
+        icon={note.icon}
+        className={cn('shrink-0 opacity-70', note.iconClassName)}
+      />
+      <span>{note.text}</span>
+    </div>
+  )
+}
+
+/**
  * 助手消息 = [过程折叠区][最终回答]。
  *
  * 过程区装「最终回答之前的一切」并保持**原时序**（`toProcessRuns` 只把同类相邻的合并），
@@ -701,9 +732,6 @@ const AssistantMessage: FC = () => {
   })
   const isRunning = useAuiState(function (state) {
     return state.message.status?.type === 'running'
-  })
-  const status = useAuiState(function (state) {
-    return state.message.status
   })
 
   const responseStart = findResponseStart(parts)
@@ -879,20 +907,10 @@ const AssistantMessage: FC = () => {
         <MessageError />
 
         {/*
-         * 用户按了停止：正文留下、末尾标一句，别让人误以为是失败。
-         * `error` 交给 MessageError，这里只接「中断 / 截断」两种。
+         * 回合尾注：跑完 / 停止 / 截断 / 中断各给一句话。
+         * 正文末尾没有字的时候，用户分不清「模型说完了」和「界面悄悄断了」。
          */}
-        {status?.type === 'incomplete' && status.reason !== 'error' ? (
-          <div
-            data-slot="aui_assistant-message-stopped"
-            className="text-muted-foreground mt-1.5 flex items-center gap-1.5 text-xs">
-            <Icon
-              icon="lucide:square"
-              className="size-2.5 shrink-0 fill-current opacity-70"
-            />
-            <span>{labels.stoppedRun}</span>
-          </div>
-        ) : null}
+        <AssistantRunStatus />
       </div>
 
       <div
