@@ -126,6 +126,7 @@ type ToolCardVariant =
   | 'tree'
 
 function isReadTool(name: string): boolean {
+  if (isBrowserTool(name)) return false
   const lower = name.toLowerCase()
   return (
     lower === 'read' ||
@@ -136,6 +137,7 @@ function isReadTool(name: string): boolean {
 }
 
 function isWriteTool(name: string): boolean {
+  if (isBrowserTool(name)) return false
   const lower = name.toLowerCase()
   return (
     lower === 'write' ||
