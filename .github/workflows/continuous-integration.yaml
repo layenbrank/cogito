@@ -63,11 +63,12 @@ jobs:
 
       # client = Tauri 桌面包；studio = Electron Forge 打包（需 sidecar bootstrap）。
       # service = Rust 核心，走独立 Cogito CI（会中和 Windows 向 .cargo/config）。
+      # mobile = EAS 云构建，需要 eas-cli / 凭据，不在本 job 跑。
       # 此处只编库与 web 应用。
       - name: Build (exclude desktop packages)
         env:
           NODE_ENV: production
-        run: pnpm turbo run build --filter=!@cogito/client --filter=!@cogito/studio --filter=!@cogito/service
+        run: pnpm turbo run build --filter=!@cogito/client --filter=!@cogito/studio --filter=!@cogito/service --filter=!@cogito/mobile
 
       - name: Build client web (Vite)
         env:
