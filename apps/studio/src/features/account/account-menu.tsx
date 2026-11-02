@@ -4,6 +4,7 @@ import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -71,13 +72,15 @@ export function AccountMenuContent(props: AccountMenuContentProps) {
       className="w-60">
       {session.token ? (
         <>
-          <DropdownMenuLabel className="flex items-center gap-2 font-normal">
-            <AccountAvatar initials={identity ? identity.initials : null} />
-            <span className="flex min-w-0 flex-col">
-              <span className="truncate text-xs font-medium">{identity?.name ?? '已登录'}</span>
-              <span className="text-muted-foreground truncate text-xs">{detail}</span>
-            </span>
-          </DropdownMenuLabel>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="flex items-center gap-2 font-normal">
+              <AccountAvatar initials={identity ? identity.initials : null} />
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate text-xs font-medium">{identity?.name ?? '已登录'}</span>
+                <span className="text-muted-foreground truncate text-xs">{detail}</span>
+              </span>
+            </DropdownMenuLabel>
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
           {props.onOpenSettings ? (
             <DropdownMenuItem onClick={props.onOpenSettings}>
