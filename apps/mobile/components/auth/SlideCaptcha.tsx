@@ -64,16 +64,24 @@ function SlideCaptchaModal({ open, onFinish }: SlideCaptchaModalProps) {
     [onFinish]
   )
 
+  function refreshChallenge() {
+    settled.current = false
+    offsetRef.current = 0
+    setChallenge(null)
+    setError(null)
+    setOffsetX(0)
+    setEpoch(function (value) {
+      return value + 1
+    })
+  }
+
+  // 只负责拉题：重置放在 refresh / 初始 state，避免 effect 同步 setState
   useEffect(
     function () {
       if (!open) {
         return
       }
       settled.current = false
-      setChallenge(null)
-      setError(null)
-      setOffsetX(0)
-      offsetRef.current = 0
       let active = true
 
       fetchCaptchaChallenge()
@@ -106,11 +114,17 @@ function SlideCaptchaModal({ open, onFinish }: SlideCaptchaModalProps) {
     [challenge, imageWidth, trackWidth]
   )
 
+  // PanResponder 官方用法：create 时闭包 ref，回调只在手势事件里读写。
   const panResponder = useMemo(
     function () {
+      // eslint-disable-next-line react-hooks/refs -- 闭包 ref 仅在手势回调读写，非 render 路径
       return PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
+        onStartShouldSetPanResponder: function () {
+          return true
+        },
+        onMoveShouldSetPanResponder: function () {
+          return true
+        },
         onPanResponderMove(_event, gesture) {
           const next = Math.max(0, Math.min(maxOffset, gesture.dx))
           offsetRef.current = next
@@ -227,9 +241,7 @@ function SlideCaptchaModal({ open, onFinish }: SlideCaptchaModalProps) {
             <Pressable
               accessibilityRole="button"
               className="min-h-[44px] justify-center px-3"
-              onPress={() => {
-                setEpoch((value) => value + 1)
-              }}>
+              onPress={refreshChallenge}>
               <Text style={{ color: colors.tint }}>{t('captchaRefresh')}</Text>
             </Pressable>
           </View>

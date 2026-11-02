@@ -29,6 +29,8 @@ pub mod capture {
     pub mod region;
     pub mod schema;
     pub mod state;
+    /// UI Automation 元素链：仅 Windows（依赖 `windows` crate）
+    #[cfg(windows)]
     pub mod uia;
     pub use state::{CaptureHandshake, CapturePending};
 }

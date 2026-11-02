@@ -1,12 +1,17 @@
 import React from 'react'
 
-// `useEffect` is not invoked during server rendering, meaning
-// we can use this to determine if we're on the server or not.
+// Web：客户端与服务端快照分流。`useSyncExternalStore` 的 getServerSnapshot
+// 在 SSR 返回 server，hydrate 后走 getSnapshot 返回 client —— 不必在 effect 里 setState。
 export function useClientOnlyValue<S, C>(server: S, client: C): S | C {
-  const [value, setValue] = React.useState<S | C>(server)
-  React.useEffect(() => {
-    setValue(client)
-  }, [client])
-
-  return value
+  return React.useSyncExternalStore(
+    function subscribe() {
+      return function unsubscribe() {}
+    },
+    function getSnapshot() {
+      return client
+    },
+    function getServerSnapshot() {
+      return server
+    }
+  )
 }
