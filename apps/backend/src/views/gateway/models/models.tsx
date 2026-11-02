@@ -64,8 +64,10 @@ function parseCapabilityFlag(
   key: string,
   fallback: boolean
 ): boolean {
-  if (!capabilities || typeof capabilities[key] !== 'boolean') return fallback
-  return capabilities[key] as boolean
+  if (!capabilities) return fallback
+  const flag = capabilities[key]
+  if (typeof flag !== 'boolean') return fallback
+  return flag
 }
 
 function draftFromModel(model: GatewayModel): ModelDraft {
