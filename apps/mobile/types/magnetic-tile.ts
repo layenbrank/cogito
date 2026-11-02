@@ -3,14 +3,7 @@ type MagneticTileShape = 'square' | 'circle' | 'rectangle'
 type MagneticTileSize = 1 | 2 | 3 | 4
 
 type MagneticTileComponent =
-  | 'bookmark'
-  | 'clock'
-  | 'calendar'
-  | 'knowledge'
-  | 'agent'
-  | 'navigation'
-  | 'settings'
-  | 'example'
+  'bookmark' | 'clock' | 'calendar' | 'knowledge' | 'agent' | 'navigation' | 'settings' | 'example'
 
 interface MagneticTileBackground {
   color?: string

@@ -8,6 +8,8 @@ export default {
     './stores/**/*.{js,ts,tsx}'
   ],
   darkMode: 'media', // or 'class'
+  // nativewind preset 仍是 CJS
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- CJS preset
   presets: [require('nativewind/preset')],
   theme: {
     accentColor: ({ theme }) => ({
