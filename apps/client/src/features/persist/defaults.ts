@@ -64,6 +64,7 @@ const PERSIST_DEFAULTS: PersistShape = {
     modeByThread: {},
     approvalByThread: {},
     modelPrefs: {},
+    activeRootByWorkspace: {},
     corexMcpTools: '1'
   },
   window: {

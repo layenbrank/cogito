@@ -236,6 +236,18 @@ function parseApprovalByThread(raw: unknown): Record<string, ApprovalMode> {
   return next
 }
 
+/** 当前文件夹映射：只收非空字符串，key 为空的一律丢弃 */
+function parseActiveRootByWorkspace(raw: unknown): Record<string, string> {
+  if (!isRecord(raw)) return {}
+  const next: Record<string, string> = {}
+  for (const [workspaceID, path] of Object.entries(raw)) {
+    if (workspaceID && typeof path === 'string' && path.trim()) {
+      next[workspaceID] = path
+    }
+  }
+  return next
+}
+
 function parseAgent(raw: unknown): AgentPref {
   const base = PERSIST_DEFAULTS.agent
   if (!isRecord(raw)) return structuredClone(base)
@@ -266,6 +278,7 @@ function parseAgent(raw: unknown): AgentPref {
     modeByThread: parseModeByThread(raw.modeByThread),
     approvalByThread: parseApprovalByThread(raw.approvalByThread),
     modelPrefs: parseModelPrefs(raw.modelPrefs),
+    activeRootByWorkspace: parseActiveRootByWorkspace(raw.activeRootByWorkspace),
     corexMcpTools: raw.corexMcpTools === '0' || raw.corexMcpTools === '1' ? raw.corexMcpTools : '1'
   }
 }

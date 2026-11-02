@@ -96,6 +96,8 @@ interface AgentPref {
   /** 会话级审批档（threadID → 审批）；缺省回落新会话默认值 */
   approvalByThread: Record<string, ApprovalMode>
   modelPrefs: Record<string, ModelPref>
+  /** 当前文件夹（workspaceID → 文件夹路径）；审阅 / 文件 / 提交历史共用 */
+  activeRootByWorkspace: Record<string, string>
   /** `1` 开 / `0` 关；与历史 localStorage 语义对齐 */
   corexMcpTools: '0' | '1'
 }
