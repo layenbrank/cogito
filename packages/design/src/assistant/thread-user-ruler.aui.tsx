@@ -282,7 +282,7 @@ const ThreadUserMessageRuler: FC = () => {
                     'flex min-w-[11rem] max-w-[16rem] flex-col items-start gap-1 rounded-md border px-3 py-2',
                     'text-left shadow-sm ring-1 ring-foreground/4'
                   )}>
-                  <span className="text-muted-foreground text-[11px] leading-none font-medium tracking-wide tabular-nums">
+                  <span className="text-muted-foreground text-xs leading-none font-medium tracking-wide tabular-nums">
                     {labels.userMessageLocatorItem(mark.ordinal, total)}
                   </span>
                   <span className="text-foreground/90 line-clamp-3 text-xs leading-snug tracking-tight">

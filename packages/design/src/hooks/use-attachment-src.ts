@@ -11,7 +11,7 @@ import { createObjectUrlCache } from './object-url-cache'
  * 新 URL —— `<img>` 于是走一遍「撤掉 → 重新解码」，流式输出时每个 token 都可能重来
  * 一次，看起来就是缩略图一直在闪。缓存的生命周期见 `object-url-cache.ts`。
  */
-const attachmentUrlCache = createObjectUrlCache()
+export const attachmentUrlCache = createObjectUrlCache()
 
 const useFileSrc = (file: File | undefined) => {
   return file ? attachmentUrlCache.src(file) : undefined

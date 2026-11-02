@@ -1,9 +1,4 @@
-import {
-  Fragment,
-  isValidElement,
-  type ReactElement,
-  type ReactNode
-} from 'react'
+import { Fragment, isValidElement, type ReactElement, type ReactNode } from 'react'
 
 import type {
   HandleItem,
@@ -16,9 +11,7 @@ import type {
 const PANE_TYPE = Symbol.for('cogito.splitter.pane')
 const HANDLE_TYPE = Symbol.for('cogito.splitter.handle')
 
-function normalizeCollapsible(
-  value: SplitterPaneProps['collapsible']
-): PaneCollapsibleConfig {
+function normalizeCollapsible(value: SplitterPaneProps['collapsible']): PaneCollapsibleConfig {
   if (value === true) return { start: true, end: true, showIcon: 'auto' }
   if (!value) return {}
   return {
@@ -34,17 +27,16 @@ function normalizeCollapsible(
  * 条件渲染 `<>…pane…</>` 会被丢掉，侧栏/底栏开关看起来像 noop。
  */
 function flattenElements(children: ReactNode, out: ReactElement[] = []): ReactElement[] {
-  if (children == null || typeof children === 'boolean') return out
+  if (children === null || children === undefined || typeof children === 'boolean') {
+    return out
+  }
   if (Array.isArray(children)) {
     for (const child of children) flattenElements(child, out)
     return out
   }
   if (!isValidElement(children)) return out
   if (children.type === Fragment) {
-    flattenElements(
-      (children.props as { children?: ReactNode }).children,
-      out
-    )
+    flattenElements((children.props as { children?: ReactNode }).children, out)
     return out
   }
   out.push(children)
@@ -84,10 +76,7 @@ function parseChildren(children: ReactNode): {
       })
       // 若下一节点不是显式 Handle，先占位；后面补默认 handle
       const next = nodes[i + 1]
-      if (
-        next &&
-        (next.type as { $$typeofMarker?: symbol }).$$typeofMarker === HANDLE_TYPE
-      ) {
+      if (next && (next.type as { $$typeofMarker?: symbol }).$$typeofMarker === HANDLE_TYPE) {
         const handleProps = next.props as SplitterHandleProps
         handles.push({
           withHandle: Boolean(handleProps.withHandle),

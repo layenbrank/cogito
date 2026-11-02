@@ -159,15 +159,12 @@ function AttachmentLightboxDialog(props: {
       return media.id === props.initialId
     })
   )
+  /**
+   * 打开时从哪张开始，由外层按 `initialId` 换 key 重挂来定（见 `AttachmentLightboxProvider`）。
+   * 不在 effect 里 `updateActiveIndex(initialIndex)`：那会多一次渲染，而且「打开」与
+   * 「切到某一张」本来就是同一个动作，事后纠正没有意义。
+   */
   const [activeIndex, updateActiveIndex] = useState(initialIndex)
-
-  useEffect(
-    function () {
-      if (!props.open) return
-      updateActiveIndex(initialIndex)
-    },
-    [props.open, initialIndex, props.initialId]
-  )
 
   const active = props.medias[activeIndex]
   const canPrev = activeIndex > 0
@@ -289,17 +286,14 @@ function AttachmentLightboxProvider(props: {
   const [isOpen, updateOpen] = useState(false)
   const [initialId, updateInitialId] = useState<string | null>(null)
 
-  const api = useMemo<AttachmentLightboxApi>(
-    function () {
-      return {
-        open(id) {
-          updateInitialId(id)
-          updateOpen(true)
-        }
+  const api = useMemo<AttachmentLightboxApi>(function () {
+    return {
+      open(id) {
+        updateInitialId(id)
+        updateOpen(true)
       }
-    },
-    []
-  )
+    }
+  }, [])
 
   const onOpenChange = useCallback(function (open: boolean) {
     updateOpen(open)
@@ -309,7 +303,9 @@ function AttachmentLightboxProvider(props: {
   return (
     <AttachmentLightboxContext.Provider value={api}>
       {props.children}
+      {/* 每次打开都按 initialId 重挂：从哪张开始由 key 定，组件里不必再同步 */}
       <AttachmentLightboxDialog
+        key={isOpen ? `open:${initialId ?? ''}` : 'closed'}
         open={isOpen}
         medias={props.medias}
         initialId={initialId}

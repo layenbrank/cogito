@@ -14,12 +14,7 @@ import {
 import { parseChildren } from './parse-children'
 import { SplitterHandleView } from './splitter-handle'
 import { SplitterPaneView } from './splitter-pane'
-import {
-  autoPtgSizes,
-  limitPtgSizes,
-  ptgToLayoutPct,
-  sizeToPtg
-} from './size-util'
+import { autoPtgSizes, limitPtgSizes, ptgToLayoutPct, sizeToPtg } from './size-util'
 import type {
   GroupHandle,
   HandleItem,
@@ -32,10 +27,7 @@ import type {
 
 const COLLAPSED_EPS_PX = 0.5
 
-function assignPaneRef(
-  paneRef: PaneItem['paneRef'],
-  handle: PaneHandle | null
-) {
+function assignPaneRef(paneRef: PaneItem['paneRef'], handle: PaneHandle | null) {
   if (!paneRef) return
   if (typeof paneRef === 'function') {
     paneRef(handle)
@@ -80,9 +72,7 @@ function Splitter(props: SplitterProps) {
 
   const dragCacheRef = useRef<number[] | null>(null)
   const dragStartPosRef = useRef<number>(0)
-  const movingIndexRef = useRef<{ index: number; confirmed: boolean } | null>(
-    null
-  )
+  const movingIndexRef = useRef<{ index: number; confirmed: boolean } | null>(null)
   const collapsedCacheRef = useRef<Record<string, number>>({})
   const pxSnapshotRef = useRef<Record<string, number>>({})
   const panesRef = useRef(panes)
@@ -389,7 +379,7 @@ function Splitter(props: SplitterProps) {
       restorePtg = Math.max(minPtg, 0.15)
     }
 
-    let need = restorePtg - current[index]!
+    const need = restorePtg - current[index]!
     if (need <= 0) return
 
     // 从所有其它「未折叠且高于 min」的栏按可让出量比例借用，避免单邻栏触 min 导致展开失败
@@ -762,11 +752,7 @@ function Splitter(props: SplitterProps) {
       data-slot="splitter"
       data-splitter-dragging={isDragging || freezeTransition || undefined}
       data-orientation={orientation}
-      className={cn(
-        'flex h-full w-full',
-        isVertical ? 'flex-col' : 'flex-row',
-        className
-      )}
+      className={cn('flex h-full w-full', isVertical ? 'flex-col' : 'flex-row', className)}
       style={style}>
       {renderSplitterChildren()}
 
