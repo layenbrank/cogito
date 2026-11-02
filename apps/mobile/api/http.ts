@@ -1,4 +1,4 @@
-import { API_PATHS, API_SUCCESS_CODE } from '@/constants/api'
+import { API_SUCCESS_CODE } from '@/constants/api'
 import { findApiBaseUrl } from '@/constants/config'
 import type { RSF } from '@/types/response'
 

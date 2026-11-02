@@ -8,9 +8,7 @@
     "scheme": "ithinking",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",

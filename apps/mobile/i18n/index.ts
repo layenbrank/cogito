@@ -102,6 +102,8 @@ const resources = {
   }
 }
 
+// i18next 的 `use` 既是实例方法也是同名 named export；这里要的是实例方法
+// eslint-disable-next-line import/no-named-as-default-member -- 链式插件注册
 i18n.use(initReactI18next).init({
   resources,
   fallbackLng: 'zh',
