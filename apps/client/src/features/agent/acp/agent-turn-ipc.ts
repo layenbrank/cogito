@@ -29,14 +29,18 @@ async function ensureAgentTurn(threadId: string): Promise<FollowR | null> {
   }
 }
 
-async function appendAgentTurn(threadId: string, events: readonly ChatStreamEvent[]): Promise<void> {
-  if (!hasTauriRuntime() || events.length === 0) return
+async function appendAgentTurn(
+  threadId: string,
+  events: readonly ChatStreamEvent[]
+): Promise<number | null> {
+  if (!hasTauriRuntime() || events.length === 0) return null
   try {
-    await invoke(CHANNELS.AGENT_TURN.APPEND, {
+    return await invoke<number>(CHANNELS.AGENT_TURN.APPEND, {
       params: { threadId, events }
     })
   } catch (error) {
     console.warn('[agent-turn] append 失败:', error)
+    return null
   }
 }
 

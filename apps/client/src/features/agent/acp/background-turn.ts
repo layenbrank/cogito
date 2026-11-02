@@ -207,6 +207,9 @@ function notifyTurn(turn: BackgroundTurn, event: ChatStreamEvent | null) {
 function forgetTurnLater(turn: BackgroundTurn) {
   window.setTimeout(function () {
     if (turns.get(turn.threadID) === turn && turn.status === 'done') {
+      // retention 到期再丢本地镜像，避免与仍在 yield 的订阅者竞态
+      turn.events = []
+      turn.pendingAppend = []
       turns.delete(turn.threadID)
     }
   }, TURN_RETENTION_MS)
