@@ -140,8 +140,21 @@ pub async fn read_status(cwd: &Path, backend: StatusBackend) -> CommandResult<St
     }
 }
 
-/// 本地分支列表（gix）；失败时回退 CLI。
-pub async fn list_branches(cwd: &Path) -> CommandResult<(String, Vec<String>)> {
+/// 分支清单：本地 + 远端（远端用于「切到远端分支」的入口）。
+#[derive(Debug, Clone)]
+pub struct BranchList {
+    pub current: String,
+    pub branches: Vec<String>,
+    pub remotes: Vec<String>,
+}
+
+/// `origin/HEAD` 之类的符号引用对外没有意义
+fn is_reportable_remote_branch(name: &str) -> bool {
+    !name.trim().is_empty() && !name.ends_with("/HEAD")
+}
+
+/// 本地 + 远端分支列表（gix）；失败时回退 CLI。
+pub async fn list_branches(cwd: &Path) -> CommandResult<BranchList> {
     let cwd_owned = cwd.to_path_buf();
     match tokio::task::spawn_blocking(move || list_branches_gix(&cwd_owned)).await {
         Ok(Ok(result)) => Ok(result),
@@ -156,7 +169,7 @@ pub async fn list_branches(cwd: &Path) -> CommandResult<(String, Vec<String>)> {
     }
 }
 
-fn list_branches_gix(cwd: &Path) -> CommandResult<(String, Vec<String>)> {
+fn list_branches_gix(cwd: &Path) -> CommandResult<BranchList> {
     let repo = open_repo(cwd)?;
     let current = repo
         .head_name()
@@ -168,17 +181,14 @@ fn list_branches_gix(cwd: &Path) -> CommandResult<(String, Vec<String>)> {
     let platform = repo
         .references()
         .map_err(|err| Exception::Internal(format!("无法枚举引用：{err}")))?;
-    let iter = platform
-        .local_branches()
-        .map_err(|err| Exception::Internal(format!("无法列出分支：{err}")))?;
 
     let mut branches = Vec::new();
-    for item in iter {
+    let local_iter = platform
+        .local_branches()
+        .map_err(|err| Exception::Internal(format!("无法列出分支：{err}")))?;
+    for item in local_iter {
         let reference = item.map_err(|err| Exception::Internal(format!("读取分支失败：{err}")))?;
-        let name = reference
-            .name()
-            .shorten()
-            .to_string();
+        let name = reference.name().shorten().to_string();
         if !name.is_empty() {
             branches.push(name);
         }
@@ -189,14 +199,38 @@ fn list_branches_gix(cwd: &Path) -> CommandResult<(String, Vec<String>)> {
         branches.push(current.clone());
         branches.sort();
     }
-    Ok((current, branches))
+
+    // 远端分支：gix 自带；没有 remote 的仓库本来就是空列表，失败不致命
+    let mut remotes = Vec::new();
+    match platform.remote_branches() {
+        Ok(remote_iter) => {
+            for item in remote_iter {
+                let Ok(reference) = item else { continue };
+                let name = reference.name().shorten().to_string();
+                if is_reportable_remote_branch(&name) {
+                    remotes.push(name);
+                }
+            }
+        }
+        Err(err) => eprintln!("[git] 列出远端分支失败：{err}"),
+    }
+    remotes.sort();
+    remotes.dedup();
+
+    Ok(BranchList {
+        current,
+        branches,
+        remotes,
+    })
 }
 
-async fn list_branches_cli(cwd: &Path) -> CommandResult<(String, Vec<String>)> {
+async fn list_branches_cli(cwd: &Path) -> CommandResult<BranchList> {
     use super::cli::run_git;
     let current_fut = run_git(cwd, &["rev-parse", "--abbrev-ref", "HEAD"]);
     let list_fut = run_git(cwd, &["branch", "--format=%(refname:short)"]);
-    let (current_result, list_result) = tokio::join!(current_fut, list_fut);
+    let remote_fut = run_git(cwd, &["branch", "-r", "--format=%(refname:short)"]);
+    let (current_result, list_result, remote_result) =
+        tokio::join!(current_fut, list_fut, remote_fut);
     let (cur_ok, current, cur_err) = current_result?;
     if !cur_ok {
         return Err(Exception::Internal(if cur_err.is_empty() {
@@ -213,6 +247,11 @@ async fn list_branches_cli(cwd: &Path) -> CommandResult<(String, Vec<String>)> {
             list_err
         }));
     }
+    let (remote_ok, remotes_raw, remote_err) = remote_result?;
+    if !remote_ok {
+        eprintln!("[git] 列出远端分支失败：{remote_err}");
+    }
+
     let mut branches: Vec<String> = listed
         .lines()
         .map(|line| line.trim().to_string())
@@ -220,7 +259,20 @@ async fn list_branches_cli(cwd: &Path) -> CommandResult<(String, Vec<String>)> {
         .collect();
     branches.sort();
     branches.dedup();
-    Ok((current, branches))
+
+    let mut remotes: Vec<String> = remotes_raw
+        .lines()
+        .map(|line| line.trim().to_string())
+        .filter(|line| is_reportable_remote_branch(line))
+        .collect();
+    remotes.sort();
+    remotes.dedup();
+
+    Ok(BranchList {
+        current,
+        branches,
+        remotes,
+    })
 }
 
 #[cfg(test)]

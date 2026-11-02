@@ -20,7 +20,7 @@ type GroupKind = 'staged' | 'changed' | 'untracked'
 
 interface ChangesProps {
   groups: { kind: GroupKind; title: string; entries: StatusEntry[] }[]
-  onOpenDiff: (relative: string) => void
+  onOpenDiff: (relative: string, kind: GroupKind) => void
   onOpenFile: (relative: string) => void
   onStage: (paths: string[]) => void
   onUnstage: (paths: string[]) => void
@@ -76,7 +76,7 @@ function RowAction(props: {
 function ChangeRow(props: {
   entry: StatusEntry
   kind: GroupKind
-  onOpenDiff: (relative: string) => void
+  onOpenDiff: (relative: string, kind: GroupKind) => void
   onOpenFile: (relative: string) => void
   onStage: (paths: string[]) => void
   onUnstage: (paths: string[]) => void
@@ -108,7 +108,7 @@ function ChangeRow(props: {
         className="h-auto min-w-0 flex-1 shrink justify-start gap-1.5 rounded-sm px-0 text-left text-sm font-normal"
         title={`${props.entry.path}（点击查看差异）`}
         onClick={function () {
-          props.onOpenDiff(props.entry.path)
+          props.onOpenDiff(props.entry.path, props.kind)
         }}>
         <span className="text-foreground min-w-0 truncate text-sm">{findName(props.entry.path)}</span>
         {parent ? (
@@ -154,7 +154,7 @@ function ChangeGroup(props: {
   kind: GroupKind
   title: string
   entries: StatusEntry[]
-  onOpenDiff: (relative: string) => void
+  onOpenDiff: (relative: string, kind: GroupKind) => void
   onOpenFile: (relative: string) => void
   onStage: (paths: string[]) => void
   onUnstage: (paths: string[]) => void
@@ -269,7 +269,7 @@ function Changes(props: ChangesProps) {
         key: 'open',
         label: '查看差异',
         onSelect() {
-          props.onOpenDiff(path)
+          props.onOpenDiff(path, kind)
         }
       })
       items.push({

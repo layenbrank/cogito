@@ -85,6 +85,33 @@ pub fn read_worktree_bytes(cwd: &Path, relative: &str) -> Vec<u8> {
     std::fs::read(absolute).unwrap_or_default()
 }
 
+/// 从暂存区（index）读取文件内容；文件不在 index（未跟踪 / 已删除）时返回空。
+///
+/// 供 staged / unstaged 两种差异口径使用：暂存行左读 HEAD、右读 index；
+/// 未暂存行左读 index、右读工作区。
+pub fn read_index_bytes(repo: &gix::Repository, relative: &str) -> CommandResult<Vec<u8>> {
+    let relative = relative.replace('\\', "/");
+    if relative.is_empty() {
+        return Ok(Vec::new());
+    }
+    let Ok(index) = repo.open_index() else {
+        // 新仓库 / 没有 index 文件：当作空
+        return Ok(Vec::new());
+    };
+    let backing = index.path_backing();
+    let entry = index
+        .entries()
+        .iter()
+        .find(|entry| &entry.path_in(backing)[..] == relative.as_bytes());
+    let Some(entry) = entry else {
+        return Ok(Vec::new());
+    };
+    match repo.find_object(entry.id) {
+        Ok(object) => Ok(object.data.clone()),
+        Err(_) => Ok(Vec::new()),
+    }
+}
+
 /// 工作区文件指纹：size + mtime nanos（用于短路，不必读全文）。
 pub fn worktree_fingerprint(cwd: &Path, relative: &str) -> Option<(u64, u64)> {
     let absolute = cwd.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));

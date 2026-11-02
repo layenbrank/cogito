@@ -1,28 +1,58 @@
 use std::path::{Path, PathBuf};
 
 use cogito_core::{CommandResult, Exception};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use similar::{Algorithm, ChangeTag, TextDiff};
 
 use super::blob::{
-    looks_binary, prepare_side, read_head_bytes, read_tree_bytes, read_worktree_bytes,
+    looks_binary, prepare_side, read_head_bytes, read_index_bytes, read_tree_bytes,
+    read_worktree_bytes,
     worktree_fingerprint,
 };
 use super::cli::run_git_args;
 use super::session::open_repo;
 
-/// 差异两侧：缺省 = HEAD ↔ 工作区；两侧 oid = 提交间对比。
+/// 差异作用域：无 oid 时的三种「本地对比」口径。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DiffScope {
+    /// HEAD ↔ 工作区（默认，兼容旧调用）
+    #[default]
+    Worktree,
+    /// HEAD ↔ 暂存区（`git diff --cached`）
+    Staged,
+    /// 暂存区 ↔ 工作区（`git diff`）
+    Unstaged,
+}
+
+/// 差异两侧：缺省 = HEAD ↔ 工作区；两侧 oid = 提交间对比；`scope` 只在无 oid 时生效。
 #[derive(Debug, Clone, Default)]
 pub struct DiffRevs {
     pub old_oid: Option<String>,
     pub new_oid: Option<String>,
+    pub scope: DiffScope,
 }
 
 impl DiffRevs {
+    fn has_revs(&self) -> bool {
+        self.old_oid.is_some() || self.new_oid.is_some()
+    }
+
     pub fn is_worktree(&self) -> bool {
-        self.old_oid.is_none() && self.new_oid.is_none()
+        !self.has_revs() && self.scope == DiffScope::Worktree
+    }
+
+    /// HEAD ↔ 暂存区
+    pub fn is_staged(&self) -> bool {
+        !self.has_revs() && self.scope == DiffScope::Staged
+    }
+
+    /// 暂存区 ↔ 工作区
+    pub fn is_unstaged(&self) -> bool {
+        !self.has_revs() && self.scope == DiffScope::Unstaged
     }
 }
+
 
 /// 两侧合计超过此字节数 → hunks，避免 Monaco LCS。
 pub const LARGE_DIFF_BYTES: usize = 80_000;
@@ -93,7 +123,12 @@ fn parse_numstat_line(line: &str) -> Option<(u32, u32, bool)> {
 
 async fn numstat_changes(cwd: &Path, relative: &str, revs: &DiffRevs) -> (u32, u32, bool) {
     let mut args = vec!["diff".into(), "--numstat".into()];
-    if revs.is_worktree() {
+    if revs.is_staged() {
+        // HEAD ↔ 暂存区
+        args.push("--cached".into());
+    } else if revs.is_unstaged() {
+        // 暂存区 ↔ 工作区：无参 diff 就是 index 对 worktree
+    } else if revs.is_worktree() {
         args.push("HEAD".into());
     } else {
         let old = revs.old_oid.as_deref().unwrap_or_default();
@@ -184,6 +219,20 @@ fn read_sides(
     relative: &str,
     revs: &DiffRevs,
 ) -> CommandResult<(Vec<u8>, Vec<u8>)> {
+    if revs.is_staged() {
+        // HEAD ↔ 暂存区
+        return Ok((
+            read_head_bytes(repo, relative)?,
+            read_index_bytes(repo, relative)?,
+        ));
+    }
+    if revs.is_unstaged() {
+        // 暂存区 ↔ 工作区（未跟踪文件 index 里没有条目，左侧自然是空）
+        return Ok((
+            read_index_bytes(repo, relative)?,
+            read_worktree_bytes(cwd, relative),
+        ));
+    }
     if revs.is_worktree() {
         let head_bytes = read_head_bytes(repo, relative)?;
         let work_bytes = read_worktree_bytes(cwd, relative);

@@ -2,6 +2,7 @@ import { exists, watch } from '@tauri-apps/plugin-fs'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 
+import { subscribeWorkspaceRevision } from '@/features/agent/workspace/revision.ts'
 import { useCodeGitStore } from '@/stores/code-git'
 import { useCodeStore } from '@/stores/code'
 import { useTerminalStore } from '@/stores/terminal'
@@ -176,6 +177,18 @@ function useCodeWorkspaceEffects(input: {
   useEffect(
     function () {
       void useCodeGitStore.getState().toSync(workspaceRoot)
+    },
+    [workspaceRoot]
+  )
+
+  // Agent 面板里切分支 / 拉取 / 提交后也广播 revision：代码窗跟着重读，
+  // 否则左右两边会各看各的分支快照。
+  useEffect(
+    function () {
+      if (!workspaceRoot) return
+      return subscribeWorkspaceRevision(function () {
+        void useCodeGitStore.getState().toInvalidateAndRefresh()
+      })
     },
     [workspaceRoot]
   )

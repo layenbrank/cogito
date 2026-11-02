@@ -299,7 +299,7 @@ pub async fn show_commit(cwd: &Path, oid: &str) -> CommandResult<ShowR> {
     })
 }
 
-fn parse_name_status_z(raw: &str) -> Vec<ShowFile> {
+pub(crate) fn parse_name_status_z(raw: &str) -> Vec<ShowFile> {
     // -z：status\0path\0 或 R100\0old\0new\0
     let parts: Vec<&str> = raw.split('\0').filter(|part| !part.is_empty()).collect();
     let mut files = Vec::new();

@@ -15,6 +15,8 @@ interface ProbeResult {
 interface BranchesResult {
   current: string
   branches: string[]
+  /** `origin/feat` 这类远端分支（不含 `origin/HEAD`） */
+  remotes: string[]
 }
 
 interface CheckoutResult {
@@ -91,6 +93,25 @@ interface ActionResult {
   summary: string
 }
 
+interface UpstreamResult {
+  hasUpstream: boolean
+  /** 上游全名，如 `origin/main` */
+  upstream: string | null
+  /** 本地 HEAD 与上游 commit 的 oid：远端差异直接当 `oldOid/newOid` 用 */
+  headOid: string | null
+  upstreamOid: string | null
+  /** 本地独有提交数（待推送） */
+  ahead: number
+  /** 上游独有提交数（待拉取） */
+  behind: number
+  /** `HEAD -> @{u}`：拉下来会变的文件 */
+  behindFiles: ShowFile[]
+  /** `@{u} -> HEAD`：推送会发出去的文件 */
+  aheadFiles: ShowFile[]
+  behindTruncated: boolean
+  aheadTruncated: boolean
+}
+
 async function probe(path: string) {
   return invoke<ProbeResult>(CHANNELS.WORKSPACE_GIT.PROBE, { params: { path } })
 }
@@ -99,8 +120,10 @@ async function fetchBranches(path: string) {
   return invoke<BranchesResult>(CHANNELS.WORKSPACE_GIT.BRANCHES, { params: { path } })
 }
 
-async function checkout(path: string, branch: string) {
-  return invoke<CheckoutResult>(CHANNELS.WORKSPACE_GIT.CHECKOUT, { params: { path, branch } })
+async function checkout(path: string, branch: string, fromRemote?: string | null) {
+  return invoke<CheckoutResult>(CHANNELS.WORKSPACE_GIT.CHECKOUT, {
+    params: { path, branch, fromRemote: fromRemote ?? null }
+  })
 }
 
 async function status(path: string) {
@@ -111,11 +134,21 @@ async function invalidate(path: string) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.INVALIDATE, { params: { path } })
 }
 
+/**
+ * 无 oid 时的三种「本地对比」口径：
+ * - worktree（缺省）：HEAD ↔ 工作区
+ * - staged：HEAD ↔ 暂存区
+ * - unstaged：暂存区 ↔ 工作区
+ */
+type DiffSide = 'worktree' | 'staged' | 'unstaged'
+
 interface DiffRevs {
   /** 父提交 / 左侧；空串 = 空树；与 newOid 皆缺省 = 工作区 diff */
   oldOid?: string | null
   /** 目标提交 / 右侧 */
   newOid?: string | null
+  /** 本地对比口径；两侧 oid 都缺省时生效 */
+  side?: DiffSide
 }
 
 interface CommitHit {
@@ -157,6 +190,9 @@ function withRevs(params: Record<string, unknown>, revs?: DiffRevs) {
   }
   if (revs.newOid !== undefined && revs.newOid !== null) {
     params.newOid = revs.newOid
+  }
+  if (revs.side && revs.side !== 'worktree') {
+    params.side = revs.side
   }
   return params
 }
@@ -223,8 +259,18 @@ async function commit(path: string, message: string, isStageAll: boolean) {
   })
 }
 
+async function upstream(path: string) {
+  return invoke<UpstreamResult>(CHANNELS.WORKSPACE_GIT.UPSTREAM, { params: { path } })
+}
+
 async function fetchAll(path: string) {
   return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.FETCH, { params: { path } })
+}
+
+async function push(path: string, branch: string, isSetUpstream = false) {
+  return invoke<ActionResult>(CHANNELS.WORKSPACE_GIT.PUSH, {
+    params: { path, branch, isSetUpstream }
+  })
 }
 
 async function pull(path: string) {
@@ -247,7 +293,9 @@ const WorkspaceGit = {
   discard,
   commit,
   fetchAll,
-  pull
+  pull,
+  push,
+  upstream
 }
 
 export { WorkspaceGit }
@@ -263,10 +311,12 @@ export type {
   DiffHunksResult,
   DiffResult,
   DiffRevs,
+  DiffSide,
   CommitHit,
   SearchField,
   SearchResult,
   ShowFile,
   ShowResult,
-  ActionResult
+  ActionResult,
+  UpstreamResult
 }

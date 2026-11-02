@@ -1,10 +1,10 @@
 /**
  * 右栏文件树：浏览 / 搜索工作区，点选后预览正文。
  * 预览返回落回进入文件时所在目录，不重置到工作区根。
- * 多根工作区（主目录 + 附加文件夹）在顶部切换根。
+ * 多根工作区在顶部切换「当前文件夹」（与审阅面板共用同一个选择）。
  */
 import type { useAui } from '@assistant-ui/react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { attachWorkspaceFile } from '@/features/agent/attachment.ts'
@@ -13,12 +13,11 @@ import { useWorkspaceRevision } from '@/features/agent/workspace/revision.ts'
 import { AsideFilesPreview } from '@/views/agent/chat/components/aside-files-preview'
 import { useAsideFilesPreview } from '@/views/agent/chat/components/use-aside-files-preview'
 import { WorkspaceFilePicker } from '@/views/agent/chat/components/workspace-file-picker'
+import { WorkspaceFolderChips } from '@/views/agent/chat/components/workspace-folder-chips'
 import {
   findBaseName,
   findParentRelative
 } from '@/views/agent/chat/components/workspace-relative-path.ts'
-import { Icon } from '@iconify/react/offline'
-import { clsx } from 'clsx'
 
 type ComposerAui = ReturnType<typeof useAui>
 
@@ -29,35 +28,17 @@ interface AsideFilesProps {
 }
 
 function AsideFiles(props: AsideFilesProps) {
-  const { rootPath: workspaceRoot, folders } = useActiveWorkspace()
+  const { rootPath: activeRoot, folders } = useActiveWorkspace()
   const revision = useWorkspaceRevision()
-  const [selectedRoot, updateSelectedRoot] = useState<string | null>(null)
   const [directory, updateDirectory] = useState('')
   const [previewRelative, updatePreviewRelative] = useState<string | null>(
     props.initialRelative ?? null
   )
   const [seenInitial, updateSeenInitial] = useState(props.initialRelative ?? null)
 
-  /** 选中的根失效（文件夹被移除）时回落到工作区第一个文件夹 */
-  const activeRoot = useMemo(
-    function () {
-      if (
-        selectedRoot &&
-        folders.some(function (folder) {
-          return folder.path === selectedRoot
-        })
-      ) {
-        return selectedRoot
-      }
-      return workspaceRoot
-    },
-    [selectedRoot, folders, workspaceRoot]
-  )
-
   const preview = useAsideFilesPreview(previewRelative, activeRoot, revision)
 
-  function switchRoot(next: string) {
-    updateSelectedRoot(next)
+  function switchRoot() {
     updateDirectory('')
     updatePreviewRelative(null)
   }
@@ -113,41 +94,19 @@ function AsideFiles(props: AsideFilesProps) {
         className={
           previewRelative
             ? 'hidden'
-            : !workspaceRoot
+            : !activeRoot
               ? 'text-muted-foreground flex flex-1 items-center justify-center p-4 text-center text-xs'
               : 'flex min-h-0 flex-1 flex-col'
         }>
-        {!workspaceRoot ? (
+        {!activeRoot ? (
           '先在左栏添加一个工作区'
         ) : (
           <>
             {folders.length > 1 ? (
-              <div className="border-border flex shrink-0 items-center gap-1 overflow-x-auto border-b px-1.5 py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {folders.map(function (folder) {
-                  const isActive = folder.path === activeRoot
-                  return (
-                    <button
-                      key={folder.id}
-                      type="button"
-                      title={folder.path}
-                      onClick={function () {
-                        switchRoot(folder.path)
-                      }}
-                      className={clsx(
-                        'flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors',
-                        isActive
-                          ? 'bg-muted text-foreground font-medium'
-                          : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                      )}>
-                      <Icon
-                        icon="lucide:folder"
-                        className="size-3.5 shrink-0"
-                      />
-                      {findBaseName(folder.path)}
-                    </button>
-                  )
-                })}
-              </div>
+              <WorkspaceFolderChips
+                className="border-b"
+                onSwitch={switchRoot}
+              />
             ) : null}
             <WorkspaceFilePicker
               active

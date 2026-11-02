@@ -273,7 +273,9 @@ export const CHANNELS = {
     DISCARD: 'workspaceGit:discard',
     COMMIT: 'workspaceGit:commit',
     FETCH: 'workspaceGit:fetch',
-    PULL: 'workspaceGit:pull'
+    PULL: 'workspaceGit:pull',
+    UPSTREAM: 'workspaceGit:upstream',
+    PUSH: 'workspaceGit:push'
   },
   WORKSPACE_FILES: {
     LIST_DIR: 'workspaceFiles:listDir',
@@ -291,6 +293,10 @@ export const CHANNELS = {
   },
   TERMINAL: {
     CREATE: 'terminal:create',
+    /** 接上一个已存在的会话（agent 先建、面板后挂）：回放缓冲 + 实时流 */
+    ATTACH: 'terminal:attach',
+    RUN: 'terminal:run',
+    READ: 'terminal:read',
     WRITE: 'terminal:write',
     RESIZE: 'terminal:resize',
     KILL: 'terminal:kill',
@@ -319,7 +325,9 @@ export const EVENTS = {
   OVERLAY_HIDE: 'overlay://hide',
   OVERLAY_CONCEAL: 'overlay://conceal',
   OVERLAY_REVEAL: 'overlay://reveal',
-  TERMINAL_EXIT: 'terminal://exit'
+  TERMINAL_EXIT: 'terminal://exit',
+  /** agent 在嵌入式终端里开始跑一条命令：前端据此开/选 tab 让用户看得见 */
+  TERMINAL_AGENT_RUN: 'terminal://agent-run'
 } as const
 
 /** corex-daemon 经 ipc:invoke 的模块名 */

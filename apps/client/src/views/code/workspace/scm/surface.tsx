@@ -2,23 +2,7 @@
  * 源码管理面板：分支条 + 提交框 + 变更分组。
  */
 import { Icon } from '@iconify/react/offline'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@cogito/design/components/alert-dialog'
 import { Button } from '@cogito/design/components/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@cogito/design/components/dropdown-menu'
 import { Textarea } from '@cogito/design/components/textarea'
 import { cn } from 'cn'
 import { useEffect, useMemo, useState } from 'react'
@@ -30,69 +14,17 @@ import { groupEntries } from '@/views/code/lib/git-status.ts'
 import { joinPath } from '@/views/code/lib/path.ts'
 import { BranchSwitcher } from '@/views/code/workspace/scm/branch-switcher.tsx'
 import { Changes, type GroupKind } from '@/views/code/workspace/scm/changes.tsx'
+import { CommitBar } from '@/views/code/workspace/scm/commit-bar.tsx'
+import {
+  DiscardDialog,
+  toDiscardTarget,
+  type DiscardTarget
+} from '@/views/code/workspace/scm/discard-dialog.tsx'
 import { ScmHistory } from '@/views/code/workspace/scm/history.tsx'
-
-interface DiscardTarget {
-  paths: string[]
-  isUntracked: boolean
-  label: string
-}
 
 function report(outcome: GitOutcome) {
   if (outcome.ok) toast.success(outcome.message)
   else toast.error(outcome.message)
-}
-
-function CommitBar(props: {
-  canCommitStaged: boolean
-  canCommitAll: boolean
-  onCommitStaged: () => void
-  onCommitAll: () => void
-}) {
-  const hasChoice = props.canCommitStaged || props.canCommitAll
-  return (
-    <div className="flex w-full">
-      <Button
-        type="button"
-        className="h-9 min-w-0 flex-1 rounded-none rounded-l-md text-sm"
-        disabled={!props.canCommitStaged}
-        title={props.canCommitStaged ? '提交暂存的更改' : '请先暂存要提交的更改'}
-        onClick={props.onCommitStaged}>
-        <Icon
-          icon="lucide:check"
-          className="size-4"
-        />
-        提交
-      </Button>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          aria-label="提交选项"
-          disabled={!hasChoice}
-          className="bg-primary text-primary-foreground hover:bg-primary-hover flex h-9 w-9 shrink-0 items-center justify-center rounded-r-md border-l border-primary-foreground/25 outline-none disabled:pointer-events-none disabled:opacity-50">
-          <Icon
-            icon="lucide:chevron-down"
-            className="size-4"
-          />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="end"
-          className="w-44">
-          <DropdownMenuItem
-            className="text-sm"
-            disabled={!props.canCommitStaged}
-            onClick={props.onCommitStaged}>
-            提交暂存的更改
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="text-sm"
-            disabled={!props.canCommitAll}
-            onClick={props.onCommitAll}>
-            提交所有更改
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  )
 }
 
 function ActionButton(props: {
@@ -195,11 +127,7 @@ function ScmSurface() {
   }
 
   function onDiscard(paths: string[], isUntracked: boolean) {
-    setDiscardTarget({
-      paths,
-      isUntracked,
-      label: paths.length === 1 ? paths[0] : `${paths.length} 个文件`
-    })
+    setDiscardTarget(toDiscardTarget(paths, isUntracked))
   }
 
   async function onConfirmDiscard() {
@@ -339,34 +267,15 @@ function ScmSurface() {
         <ScmHistory />
       </div>
 
-      <AlertDialog
-        open={discardTarget !== null}
+      <DiscardDialog
+        target={discardTarget}
         onOpenChange={function (open) {
           if (!open) setDiscardTarget(null)
-        }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {discardTarget?.isUntracked ? '删除未跟踪文件？' : '撤销这些更改？'}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {discardTarget?.label}
-              {discardTarget?.isUntracked
-                ? ' 删除后无法恢复。'
-                : ' 未保存到暂存区的修改会丢失，且无法恢复。'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={function () {
-                void onConfirmDiscard()
-              }}>
-              继续
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        }}
+        onConfirm={function () {
+          void onConfirmDiscard()
+        }}
+      />
     </div>
   )
 }

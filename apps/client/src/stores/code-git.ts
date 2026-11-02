@@ -6,6 +6,8 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 
+import { bumpWorkspaceRevision } from '@/features/agent/workspace/revision.ts'
+
 import {
   WorkspaceGit,
   type CommitHit,
@@ -73,6 +75,8 @@ interface CodeGitState {
   isRecentLoading: boolean
   /** 本地分支列表（切换器用） */
   branches: string[]
+  /** 远端分支（`origin/feat`，不含 `origin/HEAD`） */
+  remoteBranches: string[]
   isBranchesLoading: boolean
   isCheckoutBusy: boolean
 
@@ -101,8 +105,8 @@ interface CodeGitState {
   toFocusCommit: (oid: string) => Promise<void>
   /** 拉取本地分支列表 */
   toLoadBranches: () => Promise<void>
-  /** 切换分支：成功后刷新 status / 最近提交 / 搜索 */
-  toCheckoutBranch: (branch: string) => Promise<GitOutcome>
+  /** 切换分支：成功后刷新 status / 最近提交 / 搜索；`fromRemote` 用于从远端分支建跟踪分支 */
+  toCheckoutBranch: (branch: string, fromRemote?: string | null) => Promise<GitOutcome>
 }
 
 const RECENT_LIMIT = 25
@@ -175,6 +179,7 @@ const useCodeGitStore = create<CodeGitState>()(
       recentHits: [],
       isRecentLoading: false,
       branches: [],
+      remoteBranches: [],
       isBranchesLoading: false,
       isCheckoutBusy: false,
 
@@ -196,6 +201,7 @@ const useCodeGitStore = create<CodeGitState>()(
             state.showError = null
             state.recentHits = []
             state.branches = []
+            state.remoteBranches = []
           })
           return
         }
@@ -216,6 +222,7 @@ const useCodeGitStore = create<CodeGitState>()(
               state.commitFiles = []
               state.recentHits = []
               state.branches = []
+              state.remoteBranches = []
             }
           })
           if (!probeResult.isRepo) return
@@ -237,6 +244,7 @@ const useCodeGitStore = create<CodeGitState>()(
             state.commitFiles = []
             state.recentHits = []
             state.branches = []
+            state.remoteBranches = []
             state.error = toMessage(error, '无法读取仓库信息')
           })
         }
@@ -292,6 +300,7 @@ const useCodeGitStore = create<CodeGitState>()(
         try {
           const result = await WorkspaceGit.stage(root, paths)
           await get().toRefresh()
+          bumpWorkspaceRevision()
           return success(result.summary)
         } catch (error) {
           return reportFailure(error, '暂存失败')
@@ -304,6 +313,7 @@ const useCodeGitStore = create<CodeGitState>()(
         try {
           const result = await WorkspaceGit.unstage(root, paths)
           await get().toRefresh()
+          bumpWorkspaceRevision()
           return success(result.summary)
         } catch (error) {
           return reportFailure(error, '取消暂存失败')
@@ -316,6 +326,7 @@ const useCodeGitStore = create<CodeGitState>()(
         try {
           const result = await WorkspaceGit.discard(root, paths, isUntracked)
           await get().toRefresh()
+          bumpWorkspaceRevision()
           return success(result.summary)
         } catch (error) {
           return reportFailure(error, '撤销更改失败')
@@ -329,6 +340,7 @@ const useCodeGitStore = create<CodeGitState>()(
           const result = await WorkspaceGit.commit(root, message, isStageAll)
           await get().toRefresh()
           void get().toLoadRecentCommits()
+          bumpWorkspaceRevision()
           return success(result.summary)
         } catch (error) {
           return reportFailure(error, '提交失败')
@@ -341,6 +353,7 @@ const useCodeGitStore = create<CodeGitState>()(
         try {
           const result = await WorkspaceGit.fetchAll(root)
           await get().toRefresh()
+          bumpWorkspaceRevision()
           return success(result.summary)
         } catch (error) {
           return reportFailure(error, '获取远程更新失败')
@@ -354,6 +367,7 @@ const useCodeGitStore = create<CodeGitState>()(
           const result = await WorkspaceGit.pull(root)
           await get().toRefresh()
           void get().toLoadRecentCommits()
+          bumpWorkspaceRevision()
           return success(result.summary)
         } catch (error) {
           return reportFailure(error, '拉取失败')
@@ -723,6 +737,8 @@ const useCodeGitStore = create<CodeGitState>()(
         if (!root) {
           set(function (state) {
             state.branches = []
+            state.remoteBranches = []
+            state.remoteBranches = []
           })
           return
         }
@@ -733,6 +749,7 @@ const useCodeGitStore = create<CodeGitState>()(
           const result = await WorkspaceGit.fetchBranches(root)
           set(function (state) {
             state.branches = result.branches
+            state.remoteBranches = result.remotes
             if (result.current) state.branch = result.current
             state.isBranchesLoading = false
           })
@@ -744,16 +761,18 @@ const useCodeGitStore = create<CodeGitState>()(
         }
       },
 
-      async toCheckoutBranch(branchName) {
+      async toCheckoutBranch(branchName, fromRemote) {
         const root = get().repoRoot
         if (!root) return { ok: false, message: '当前工作区不是 Git 仓库' }
         if (!branchName.trim()) return { ok: false, message: '分支名无效' }
-        if (branchName === get().branch) return success(`已在分支 ${branchName}`)
+        if (!fromRemote && branchName === get().branch) {
+          return success(`已在分支 ${branchName}`)
+        }
         set(function (state) {
           state.isCheckoutBusy = true
         })
         try {
-          const result = await WorkspaceGit.checkout(root, branchName)
+          const result = await WorkspaceGit.checkout(root, branchName, fromRemote)
           set(function (state) {
             state.branch = result.branch
             state.isCheckoutBusy = false
@@ -762,6 +781,7 @@ const useCodeGitStore = create<CodeGitState>()(
           void get().toLoadRecentCommits()
           void get().toLoadBranches()
           void get().toSearchCommits()
+          bumpWorkspaceRevision()
           return success(`已切换到 ${result.branch}`)
         } catch (error) {
           set(function (state) {

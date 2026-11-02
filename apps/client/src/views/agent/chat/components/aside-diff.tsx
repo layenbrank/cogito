@@ -1,10 +1,12 @@
 /**
- * 右栏内联 Diff：HEAD ↔ 工作区。
+ * 右栏内联 Diff：按 revs 决定对比口径（HEAD↔工作区 / HEAD↔暂存区 /
+ * 暂存区↔工作区 / 两个提交 / HEAD↔上游）。
  * 小文件 Monaco inline；大重写走 hunks 列表，禁止 DiffEditor LCS。
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 
+import type { DiffRevs } from '@/lib/workspace-git'
 import '@/lib/monaco-environment.ts'
 import { useAsideDiffData } from '@/views/agent/chat/components/aside-diff-data'
 import { useAsideDiffEditor } from '@/views/agent/chat/components/aside-diff-editor'
@@ -13,10 +15,39 @@ import { AsideDiffViewport } from '@/views/agent/chat/components/aside-diff-view
 interface AsideDiffProps {
   rootPath: string
   relative: string
+  /** 对比口径；缺省 = HEAD ↔ 工作区 */
+  revs?: DiffRevs
+  /** 覆盖状态栏文案（例如「HEAD ↔ origin/main」） */
+  label?: string
   onBack: () => void
 }
 
-function AsideDiffHeader(props: { relative: string; isHunks: boolean; onBack: () => void }) {
+function shortOid(oid: string | null | undefined): string {
+  if (!oid) return '空树'
+  return oid.slice(0, 7)
+}
+
+/** 无外部 label 时按 revs 推导对比口径文案。 */
+function resolveLabel(revs?: DiffRevs, label?: string): string {
+  if (label) return label
+  if (!revs) return 'HEAD ↔ 工作区'
+  const { oldOid, newOid, side } = revs
+  const hasOids =
+    (oldOid !== null && oldOid !== undefined) || (newOid !== null && newOid !== undefined)
+  if (hasOids) {
+    return `${shortOid(oldOid)} ↔ ${shortOid(newOid)}`
+  }
+  if (side === 'staged') return 'HEAD ↔ 暂存区'
+  if (side === 'unstaged') return '暂存区 ↔ 工作区'
+  return 'HEAD ↔ 工作区'
+}
+
+function AsideDiffHeader(props: {
+  relative: string
+  isHunks: boolean
+  label: string
+  onBack: () => void
+}) {
   const fileName = props.relative.includes('/')
     ? props.relative.slice(props.relative.lastIndexOf('/') + 1)
     : props.relative
@@ -49,27 +80,36 @@ function AsideDiffHeader(props: { relative: string; isHunks: boolean; onBack: ()
         {fileName}
       </span>
       <span
-        className="text-muted-foreground hidden max-w-[42%] truncate text-[10px] sm:inline"
+        className="text-muted-foreground hidden max-w-[30%] truncate text-[10px] sm:inline"
         title={props.relative}>
         {parent}
       </span>
-      <span className="text-muted-foreground shrink-0 text-[10px]">
-        {props.isHunks ? 'hunks' : 'HEAD ↔ 工作区'}
+      <span
+        className="text-muted-foreground shrink-0 text-[10px]"
+        title={props.label}>
+        {props.label}
       </span>
+      {props.isHunks ? (
+        <span className="text-muted-foreground bg-muted shrink-0 rounded px-1 text-[10px]">
+          hunks
+        </span>
+      ) : null}
     </div>
   )
 }
 
 function AsideDiff(props: AsideDiffProps) {
-  const data = useAsideDiffData(props.rootPath, props.relative)
+  const data = useAsideDiffData(props.rootPath, props.relative, props.revs)
   const { hostRef, showSide } = useAsideDiffEditor(props.relative, data.side)
   const isHunks = data.meta?.mode === 'hunks'
+  const label = resolveLabel(props.revs, props.label)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <AsideDiffHeader
         relative={props.relative}
         isHunks={isHunks}
+        label={label}
         onBack={props.onBack}
       />
       <AsideDiffViewport

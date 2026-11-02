@@ -9,6 +9,9 @@ function useBranchSwitcherData() {
   const branches = useCodeGitStore(function (state) {
     return state.branches
   })
+  const remoteBranches = useCodeGitStore(function (state) {
+    return state.remoteBranches
+  })
   const ahead = useCodeGitStore(function (state) {
     return state.ahead
   })
@@ -37,7 +40,16 @@ function useBranchSwitcherData() {
   const list = branches.length > 0 ? branches : branch ? [branch] : []
   const isBusy = isBranchesLoading || isCheckoutBusy
 
-  return { branch, list, ahead, behind, isRepo, isCheckoutBusy, isBusy }
+  return {
+    branch,
+    list,
+    remotes: remoteBranches,
+    ahead,
+    behind,
+    isRepo,
+    isCheckoutBusy,
+    isBusy
+  }
 }
 
 export { useBranchSwitcherData }

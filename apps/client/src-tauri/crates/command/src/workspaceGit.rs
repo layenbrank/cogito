@@ -9,9 +9,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::git::{
     self, bump_status, invalidate_status, list_branches, mark_unchanged, open_repo, plan_diff,
-    plan_diff_hunks, probe_repo, read_status, run_git, search_commits, show_commit, status_backend,
+    plan_diff_hunks, probe_repo, read_status, read_upstream, run_git, search_commits, show_commit, status_backend,
     status_cached, store_status, validate_branch, validate_path, validate_relative_paths,
-    DiffHunksR, DiffMetaR, DiffMode, DiffRevs, SearchField, SearchR, ShowR, StatusLookup, StatusR,
+    DiffHunksR, DiffMetaR, DiffMode, DiffRevs, DiffScope, SearchField, SearchR, ShowR, StatusLookup, StatusR, UpstreamR,
 };
 
 // ─── 请求 / 响应（对前端稳定） ───
@@ -27,6 +27,8 @@ pub struct PathP {
 pub struct CheckoutP {
     pub path: String,
     pub branch: String,
+    /// 从远端分支切出：此刻 `branch` 是本地分支名，这里给 `origin/feat` 全名
+    pub from_remote: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -41,6 +43,8 @@ pub struct ProbeR {
 pub struct BranchesR {
     pub current: String,
     pub branches: Vec<String>,
+    /// `origin/feat` 这类远端分支（不含 `origin/HEAD`）
+    pub remotes: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -73,6 +77,8 @@ pub struct DiffP {
     pub old_oid: Option<String>,
     /// 目标提交 / 右侧 oid
     pub new_oid: Option<String>,
+    /// 差异作用域：缺省 = HEAD↔工作区
+    pub side: Option<DiffScope>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -83,7 +89,10 @@ pub struct DiffHunksP {
     pub offset: Option<u32>,
     pub limit: Option<u32>,
     pub old_oid: Option<String>,
+    /// 目标提交 / 右侧 oid
     pub new_oid: Option<String>,
+    /// 差异作用域：缺省 = HEAD↔工作区
+    pub side: Option<DiffScope>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -103,7 +112,11 @@ pub struct ShowP {
     pub oid: String,
 }
 
-fn parse_diff_revs(old_oid: Option<String>, new_oid: Option<String>) -> DiffRevs {
+fn parse_diff_revs(
+    old_oid: Option<String>,
+    new_oid: Option<String>,
+    side: Option<DiffScope>,
+) -> DiffRevs {
     let clean = |value: Option<String>| -> Option<String> {
         value.and_then(|item| {
             let trimmed = item.trim().to_string();
@@ -121,12 +134,25 @@ fn parse_diff_revs(old_oid: Option<String>, new_oid: Option<String>) -> DiffRevs
     let new = clean(new_oid);
     // 仅当两侧都未传时走工作区模式；任一侧显式传入（含空串）即提交对比
     match (&old, &new) {
-        (None, None) => DiffRevs::default(),
+        (None, None) => DiffRevs {
+            scope: side.unwrap_or_default(),
+            ..DiffRevs::default()
+        },
         _ => DiffRevs {
             old_oid: old,
             new_oid: new,
+            scope: side.unwrap_or_default(),
         },
     }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushP {
+    pub path: String,
+    pub branch: String,
+    /// 当前分支还没有上游时，用 `git push --set-upstream origin <branch>` 发布
+    pub is_set_upstream: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -200,8 +226,12 @@ pub async fn workspaceGitProbe(params: PathP) -> CommandResult<ProbeR> {
 #[tauri::command(rename = "workspaceGit:branches")]
 pub async fn workspaceGitBranches(params: PathP) -> CommandResult<BranchesR> {
     let cwd = validate_path(&params.path)?;
-    let (current, branches) = list_branches(&cwd).await?;
-    Ok(BranchesR { current, branches })
+    let listed = list_branches(&cwd).await?;
+    Ok(BranchesR {
+        current: listed.current,
+        branches: listed.branches,
+        remotes: listed.remotes,
+    })
 }
 
 #[tauri::command(rename = "workspaceGit:status")]
@@ -245,7 +275,7 @@ pub async fn workspaceGitDiff(params: DiffP) -> CommandResult<DiffR> {
     let cwd = validate_path(&params.path)?;
     let mut cleaned = validate_relative_paths(&[params.file_path])?;
     let file_path = cleaned.remove(0);
-    let revs = parse_diff_revs(params.old_oid, params.new_oid);
+    let revs = parse_diff_revs(params.old_oid, params.new_oid, params.side);
     let plan = plan_diff(&cwd, &file_path, revs).await?;
     Ok(DiffR {
         mode: plan.meta.mode,
@@ -268,7 +298,7 @@ pub async fn workspaceGitDiffMeta(params: DiffP) -> CommandResult<DiffMetaR> {
     let cwd = validate_path(&params.path)?;
     let mut cleaned = validate_relative_paths(&[params.file_path])?;
     let file_path = cleaned.remove(0);
-    let revs = parse_diff_revs(params.old_oid, params.new_oid);
+    let revs = parse_diff_revs(params.old_oid, params.new_oid, params.side);
     let plan = plan_diff(&cwd, &file_path, revs).await?;
     Ok(plan.meta)
 }
@@ -280,7 +310,7 @@ pub async fn workspaceGitDiffHunks(params: DiffHunksP) -> CommandResult<DiffHunk
     let file_path = cleaned.remove(0);
     let offset = params.offset.unwrap_or(0);
     let limit = params.limit.unwrap_or(40);
-    let revs = parse_diff_revs(params.old_oid, params.new_oid);
+    let revs = parse_diff_revs(params.old_oid, params.new_oid, params.side);
     tokio::task::spawn_blocking(move || plan_diff_hunks(&cwd, &file_path, offset, limit, &revs))
         .await
         .map_err(|err| Exception::Internal(format!("diffHunks 任务失败：{err}")))?
@@ -311,17 +341,60 @@ pub async fn workspaceGitShow(params: ShowP) -> CommandResult<ShowR> {
 
 // ─── 写路径（CLI） ───
 
+#[tauri::command(rename = "workspaceGit:upstream")]
+pub async fn workspaceGitUpstream(params: PathP) -> CommandResult<UpstreamR> {
+    let cwd = validate_path(&params.path)?;
+    read_upstream(&cwd).await
+}
+
 #[tauri::command(rename = "workspaceGit:checkout")]
 pub async fn workspaceGitCheckout(params: CheckoutP) -> CommandResult<CheckoutR> {
     let cwd = validate_path(&params.path)?;
     let branch = validate_branch(&params.branch)?.to_string();
-    let (ok, _, err) = run_git(&cwd, &["checkout", &branch]).await?;
+    let remote = match params.from_remote.as_deref() {
+        Some(raw) if !raw.trim().is_empty() => Some(validate_branch(raw)?.to_string()),
+        _ => None,
+    };
+    // 本地已有同名分支（或调用方没给远端）时直接切换：失败原因原样上报，
+    // 不要被下面「建跟踪分支」的兜底错误盖掉（脏工作区、未完成的合并等）。
+    let local_exists = matches!(
+        run_git(
+            &cwd,
+            &[
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                &format!("refs/heads/{branch}")
+            ]
+        )
+        .await,
+        Ok((true, _, _))
+    );
+    let (ok, _, err) = if local_exists || remote.is_none() {
+        run_git(&cwd, &["checkout", &branch]).await?
+    } else {
+        (false, String::new(), String::new())
+    };
     if !ok {
-        return Err(Exception::Internal(if err.is_empty() {
-            format!("切换到分支 {branch} 失败")
-        } else {
-            err
-        }));
+        let Some(remote_ref) = remote.filter(|_| !local_exists) else {
+            return Err(Exception::Internal(if err.is_empty() {
+                format!("切换到分支 {branch} 失败")
+            } else {
+                err
+            }));
+        };
+        // 本地没有同名分支：建一个跟踪远端的分支
+        // （唯一远端同名时上面那句 git 已经自动建好，这里只在失败时兜底）
+        let (tracked_ok, _, tracked_err) =
+            run_git(&cwd, &["checkout", "-b", &branch, "--track", &remote_ref]).await?;
+        if !tracked_ok {
+            let detail = if tracked_err.is_empty() { err } else { tracked_err };
+            return Err(Exception::Internal(if detail.is_empty() {
+                format!("切换到分支 {branch} 失败")
+            } else {
+                detail
+            }));
+        }
     }
     bump_status(&cwd);
     Ok(CheckoutR { branch })
@@ -474,6 +547,41 @@ pub async fn workspaceGitPull(params: PathP) -> CommandResult<ActionR> {
             "已拉取".into()
         } else {
             stdout
+        },
+    })
+}
+
+#[tauri::command(rename = "workspaceGit:push")]
+pub async fn workspaceGitPush(params: PushP) -> CommandResult<ActionR> {
+    let cwd = validate_path(&params.path)?;
+    let branch = validate_branch(&params.branch)?.to_string();
+    let args: Vec<&str> = if params.is_set_upstream.unwrap_or(false) {
+        vec!["push", "--set-upstream", "origin", branch.as_str()]
+    } else {
+        vec!["push"]
+    };
+    let (ok, stdout, err) = run_git(&cwd, &args).await?;
+    if !ok {
+        let detail = if err.is_empty() { stdout } else { err };
+        return Err(Exception::Internal(if detail.is_empty() {
+            "推送失败".into()
+        } else {
+            detail
+        }));
+    }
+    bump_status(&cwd);
+    // git push 把进度写在 stderr，摘要两边都要
+    let summary = [stdout.as_str(), err.as_str()]
+        .iter()
+        .map(|item| item.trim())
+        .filter(|item| !item.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    Ok(ActionR {
+        summary: if summary.is_empty() {
+            "已推送".into()
+        } else {
+            summary
         },
     })
 }
