@@ -3,104 +3,72 @@ import { describe, expect, it } from 'vitest'
 
 import { findPlanDraft } from '@/features/agent/plan-draft'
 
-/** 只用到 role + text part，其余字段对抽取逻辑无意义 */
+/** 只需要 role + text part，其余字段与判定无关 */
 function assistant(text: string): ThreadMessage {
-  return {
-    role: 'assistant',
-    content: [{ type: 'text', text }]
-  } as unknown as ThreadMessage
+  return { role: 'assistant', content: [{ type: 'text', text }] } as unknown as ThreadMessage
 }
 
-/** Cursor `.cursor/plans/*.plan.md` 的正文骨架（frontmatter 已被客户端剥掉的情况） */
-const CURSOR_STYLE = `# Clipchamp Canvas 预览 + 通用 Konva 抽取
+function user(text: string): ThreadMessage {
+  return { role: 'user', content: [{ type: 'text', text }] } as unknown as ThreadMessage
+}
 
-## 问题
+describe('计划草稿抽取', function () {
+  it('编号列表进 steps，正文原样保留', function () {
+    const body = [
+      '# 终端块折叠',
+      '',
+      '## 概述',
+      '工具卡的终端改成默认折叠。',
+      '',
+      '## 实施步骤',
+      '1. `tool-card-terminal-body` 加折叠',
+      '2. 详情页列出正在运行的命令',
+      '',
+      '## 验证',
+      '| 命令 | 断言 |',
+      '| --- | --- |',
+      '| tsc | 通过 |'
+    ].join('\n')
 
-当前 \`preview.tsx\` 用绝对定位 \`<video>\` 叠层，无法可靠做变换手柄。
-
-## 选定方案
-
-单一客户端画布内核，四个命名 Layer 自下而上挂载。
-
-## 实施步骤
-
-1. 新建 lib/canvas：metrics + 四层 Stage
-2. Preview 四层：背景底板、媒体视频、内容文字、交互 Transformer
-3. Capture 四层：暗底、截图媒体、标注内容、选区交互
-
-## 验证
-
-1x/2x DPR 与 PiP 竖屏清晰度验收。
-`
-
-describe('计划抽取', function () {
-  it('Cursor 骨架：标题、概述、清单、全量正文各就各位', function () {
-    const draft = findPlanDraft([assistant(CURSOR_STYLE)])
-    expect(draft).not.toBeNull()
-    expect(draft?.title).toBe('Clipchamp Canvas 预览 + 通用 Konva 抽取')
-    // 没有 `## 概述`，退到全文第一个正文段
-    expect(draft?.overview).toContain('无法可靠做变换手柄')
+    const draft = findPlanDraft([user('改一下终端'), assistant(body)])
+    expect(draft?.title).toBe('终端块折叠')
+    expect(draft?.overview).toBe('工具卡的终端改成默认折叠。')
     expect(draft?.steps).toEqual([
-      '新建 lib/canvas：metrics + 四层 Stage',
-      'Preview 四层：背景底板、媒体视频、内容文字、交互 Transformer',
-      'Capture 四层：暗底、截图媒体、标注内容、选区交互'
+      'tool-card-terminal-body 加折叠',
+      '详情页列出正在运行的命令'
     ])
-    // 全量：不剔除步骤、不截断，验证段必须还在
-    expect(draft?.body).toBe(CURSOR_STYLE.trim())
-    expect(draft?.body).toContain('## 验证')
-    expect(draft?.body).toContain('## 实施步骤')
+    // 正文必须是全量：验证表格不能被裁掉
+    expect(draft?.body).toContain('| tsc | 通过 |')
   })
 
-  it('有 `## 概述` 时用它当总结，正文仍保留完整章节', function () {
-    const text = `# 计划标题
+  it('计划类标题下的普通项目符号也算步骤（清单不再落盘后模型常这么写）', function () {
+    const body = [
+      '# 审阅工作台',
+      '',
+      '## 实施步骤',
+      '- 先补 upstream 读取',
+      '- 再补 push 与远端分支',
+      '- 最后收敛状态栏'
+    ].join('\n')
 
-## 概述
-
-把 A 换成 B，影响面只有 utils。
-
-## 现状与问题
-
-老实现走 X。
-
-## 实施步骤
-
-1. 改 utils/a.ts
-2. 跑单测
-
-## 验证
-
-pnpm unit。`
-    const draft = findPlanDraft([assistant(text)])
-    expect(draft?.overview).toBe('把 A 换成 B，影响面只有 utils。')
-    expect(draft?.steps).toEqual(['改 utils/a.ts', '跑单测'])
-    expect(draft?.body).toContain('## 验证')
+    const draft = findPlanDraft([assistant(body)])
+    expect(draft?.steps).toHaveLength(3)
   })
 
-  it('只有清单没有标题时也能抽出，title 为空串', function () {
-    const text = `先说结论：直接改。
-
-1. 改 a.ts
-2. 改 b.ts`
-    const draft = findPlanDraft([assistant(text)])
-    expect(draft?.title).toBe('')
-    expect(draft?.overview).toBe('先说结论：直接改。')
-    expect(draft?.steps).toEqual(['改 a.ts', '改 b.ts'])
+  it('没有计划类标题时，普通项目符号不当作计划（避免任何列表都被认成计划）', function () {
+    const body = ['## 说明', '', '- 这是解释', '- 不是步骤'].join('\n')
+    expect(findPlanDraft([assistant(body)])).toBeNull()
   })
 
-  it('结构化 JSON 优先于正文里的列表', function () {
-    const text = `## 实施步骤
-
-1. 正文里的第一条
-2. 正文里的第二条
-
-\`\`\`json
-{"steps":[{"title":"JSON 第一条"},{"title":"JSON 第二条"}]}
-\`\`\``
-    const draft = findPlanDraft([assistant(text)])
-    expect(draft?.steps).toEqual(['JSON 第一条', 'JSON 第二条'])
+  it('没有列表时不产出草稿，正文段不会被当成步骤', function () {
+    const body = ['# 汇报', '', '一切都好，没有后续步骤。'].join('\n')
+    expect(findPlanDraft([assistant(body)])).toBeNull()
   })
 
-  it('没有列表也没有结构化输出时返回 null', function () {
-    expect(findPlanDraft([assistant('就一段话，没有任何清单。')])).toBeNull()
+  it('取最后一条有正文的 assistant 消息', function () {
+    const first = '# 旧计划\n\n## 实施步骤\n1. 旧步骤一\n2. 旧步骤二'
+    const second = '# 新计划\n\n## 实施步骤\n1. 新步骤一\n2. 新步骤二'
+    const draft = findPlanDraft([assistant(first), assistant(second)])
+    expect(draft?.title).toBe('新计划')
   })
 })

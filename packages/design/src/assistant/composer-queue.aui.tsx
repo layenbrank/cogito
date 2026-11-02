@@ -15,6 +15,10 @@ const ComposerSendButton: FC = () => {
     if (state.thread.isRunning && state.thread.capabilities.queue) return labels.sendQueued
     return labels.send
   })
+  // 运行中队列非空：按钮上直接显示还有几条在等，避免「发了但没反应」
+  const queuedCount = useAuiState(function (state) {
+    return state.thread.isRunning ? state.composer.queue.length : 0
+  })
 
   const onSend = useCallback(
     function onSend() {
@@ -34,24 +38,31 @@ const ComposerSendButton: FC = () => {
       type="button"
       variant="default"
       size="icon"
-      className="aui-composer-send bg-primary text-primary-foreground hover:bg-primary-hover size-8 rounded-lg shadow-none"
+      className="aui-composer-send bg-primary text-primary-foreground hover:bg-primary-hover relative size-8 rounded-lg shadow-none"
       aria-label={tooltip}
       onClick={onSend}>
       <Icon
         icon="lucide:arrow-up"
         className="aui-composer-send-icon size-4"
       />
+      {queuedCount > 0 ? (
+        <span
+          title={labels.queuedMessages(queuedCount)}
+          className="bg-primary-foreground/20 absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full text-xs font-semibold tabular-nums">
+          {queuedCount}
+        </span>
+      ) : null}
     </TooltipIconButton>
   )
 }
 
 const ComposerQueueList: FC = () => {
   const labels = useAssistantLabels()
-  const hasQueue = useAuiState(function (state) {
-    return state.composer.queue.length > 0
+  const queuedCount = useAuiState(function (state) {
+    return state.composer.queue.length
   })
 
-  if (!hasQueue) return null
+  if (queuedCount === 0) return null
 
   return (
     <div
@@ -63,6 +74,9 @@ const ComposerQueueList: FC = () => {
           className="size-3 shrink-0 opacity-70"
         />
         {labels.queueHeading}
+        <span className="text-muted-foreground/70 ml-auto normal-case">
+          {labels.queueStopHint}
+        </span>
       </div>
       <ComposerPrimitive.Queue>
         {function () {

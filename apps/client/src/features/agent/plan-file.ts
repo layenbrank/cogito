@@ -1,9 +1,10 @@
 /**
  * 计划落盘：手动保存到工作区 `.cogito/plans/`。
  *
- * 格式对齐 Cursor 的 `.cursor/plans/*.plan.md`：frontmatter 里放**总结**
- * （`name` / `overview` / `todos`），正文放**完整计划**。这样文件既是给人读的
- * 文档，也能被工具解析出任务清单。
+ * 格式对齐 Cursor 的 `.cursor/plans/*.plan.md`：frontmatter 只放**总结**
+ * （`name` / `overview`），其余全部是**完整计划正文**。
+ * 不写 `todos:` 清单：清单是正文的摘要，一旦落盘就会被当成「任务全集」读取，
+ * 导致执行时漏掉正文里的文件级细节与验证步骤（见 plan-mode.md）。
  *
  * 计划默认**不**落盘，由用户点「保存」才写文件 —— 之后它可以当持久记忆、
  * PR 描述或团队共享的实现依据。
@@ -18,7 +19,7 @@ interface PlanFileInput {
   title: string
   /** 一句话总结（`overview:` 字段） */
   overview: string
-  /** 任务清单（`todos:` 字段），只作摘要 */
+  /** 标题清单：仅在没有正文时用来拼成编号步骤（不再写进 frontmatter） */
   steps: readonly string[]
   /** 完整计划正文；为空时退化成编号步骤 */
   body: string
@@ -52,14 +53,6 @@ function buildPlanMarkdown(input: PlanFileInput): string {
 
   const front: string[] = ['---', `name: ${yamlScalar(title)}`]
   if (overview) front.push(`overview: ${yamlScalar(overview)}`)
-  if (input.steps.length > 0) {
-    front.push('todos:')
-    input.steps.forEach(function (step, index) {
-      front.push(`  - id: step-${index + 1}`)
-      front.push(`    content: ${yamlScalar(step)}`)
-      front.push('    status: pending')
-    })
-  }
   front.push('isProject: false', '---', '')
 
   // 正文全量：已有 H1 就原样用，否则补一行标题；没有正文时退化成编号步骤

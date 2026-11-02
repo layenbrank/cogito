@@ -190,6 +190,7 @@ function useThreadRuntime(): AssistantRuntime {
     {
       // 运行中发送进 composer.queue，当前轮次结束后再 FIFO 开新 turn（每线程独立 runtime）
       unstable_enableMessageQueue: true,
+      // 停止只中断当前这一轮：队列里的消息稍后照发（产品口径，2026-11）
       unstable_queueClearOnCancel: false,
       adapters: {
         history: useThreadHistory(identity),

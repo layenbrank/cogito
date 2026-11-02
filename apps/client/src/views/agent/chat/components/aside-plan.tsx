@@ -1,16 +1,19 @@
 /**
- * 右栏「计划」页签：完整计划文档。
+ * 右栏「计划」页签：完整计划正文。
  *
- * 与「详情」的分工（对齐 Cursor / Copilot）：「详情」只给任务清单做进度速览；
+ * 与「详情」的分工（对齐 Cursor / Copilot）：「详情」只给标题 + 概述 + 前几步做速览；
  * 这里是**全量计划正文**（概述、问题、方案、步骤、验证全在里面），不剔除步骤、
  * 不截断 —— 它同时也是「保存」写入文件的内容。
+ *
+ * 清单（todos）已不再落盘、也不再是执行依据，所以这里以正文为唯一内容源；
+ * `draft.steps` 只用来算「共几步」的进度摘要。
  *
  * 调整计划请回对话里说 —— 右栏不提供输入框，避免两处改计划打架。
  */
 import { Icon } from '@iconify/react/offline'
 import { useAuiState } from '@assistant-ui/react'
-import { TodoList } from '@cogito/design/assistant/todo-list'
 import { MarkdownContent } from '@cogito/design/assistant/markdown-text'
+import { TodoList } from '@cogito/design/assistant/todo-list'
 import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
@@ -87,22 +90,56 @@ function AsidePlan(props: AsidePlanProps) {
     }
   }
 
-  if (items.length === 0 && !draft?.body) {
+  async function handleCopy() {
+    const text = draft?.body ?? ''
+    if (!text) return
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success('已复制计划全文')
+    } catch (error) {
+      console.warn('[agent/aside-plan] 复制计划失败:', error)
+      toast.error('复制失败，请在正文里手动选择')
+    }
+  }
+
+  if (!draft) {
     return (
       <div className="text-muted-foreground flex flex-1 items-center justify-center p-6 text-center text-xs leading-relaxed">
-        {props.isPlanMode ? '发出需求后，完整计划会显示在这里' : '用「计划」模式发起一轮对话，计划会显示在这里'}
+        {props.isPlanMode
+          ? '发出需求后，完整计划会显示在这里'
+          : '用「计划」模式发起一轮对话，计划会显示在这里'}
       </div>
     )
   }
 
+  const stepCount = props.plan?.total ?? draft.steps.length
+  const doneCount = props.plan?.done ?? 0
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {/* 抬头信息条：标题 / 概述 / 进度；正文本身不重复这些 */}
+      <div className="border-border/60 shrink-0 border-b px-3 py-2">
+        <div className="text-foreground truncate text-sm font-medium">
+          {draft.title || '计划草稿'}
+        </div>
+        {draft.overview ? (
+          <p className="text-muted-foreground mt-0.5 line-clamp-2 text-xs leading-relaxed">
+            {draft.overview}
+          </p>
+        ) : null}
+        <div className="text-muted-foreground mt-1 flex items-center gap-1.5 text-xs">
+          <Icon
+            icon="lucide:list-checks"
+            className="size-3 shrink-0"
+          />
+          <span>{stepCount > 0 ? `共 ${stepCount} 步` : '未分步'}</span>
+          {doneCount > 0 ? <span>· 已完成 {doneCount}</span> : null}
+          {draft.body ? <span className="ms-auto opacity-70">正文全文</span> : null}
+        </div>
+      </div>
+
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-        {draft?.body ? (
-          <MarkdownContent markdown={draft.body} />
-        ) : (
-          <TodoList items={items} />
-        )}
+        {draft.body ? <MarkdownContent markdown={draft.body} /> : <TodoList items={items} />}
       </div>
 
       {goal ? (
@@ -133,6 +170,23 @@ function AsidePlan(props: AsidePlanProps) {
             className="size-3.5"
           />
           保存
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          title="复制计划全文"
+          aria-label="复制计划全文"
+          disabled={!draft.body}
+          className="h-7 gap-1.5 text-xs"
+          onClick={function () {
+            void handleCopy()
+          }}>
+          <Icon
+            icon="lucide:copy"
+            className="size-3.5"
+          />
+          复制
         </Button>
         {props.isPlanMode ? (
           <>

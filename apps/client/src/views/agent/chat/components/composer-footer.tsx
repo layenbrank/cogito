@@ -1,3 +1,9 @@
+/**
+ * 输入框下方：工作区 / 文件夹 · 本机运行 · 分支（对齐 Qoder footer）。
+ *
+ * 工作区与「当前文件夹」都在这里可切；分支切换走 agent 共享的 Git 动作层，
+ * 因此审阅 / 文件 / 历史面板会一起更新（不再各拉各的）。
+ */
 import { Icon } from '@iconify/react/offline'
 import { useAuiState } from '@assistant-ui/react'
 import { Button } from '@cogito/design/components/button'
@@ -5,6 +11,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@cogito/design/components/dropdown-menu'
 import {
@@ -13,11 +21,9 @@ import {
   ContextContentHeader,
   ContextTrigger
 } from '@cogito/design/assistant/context'
-import { invoke } from '@tauri-apps/api/core'
-import { useEffect, useState, useSyncExternalStore } from 'react'
-import { toast } from 'sonner'
+import { cn } from 'cn'
+import { useSyncExternalStore } from 'react'
 
-import styles from './composer-footer.module.scss'
 import {
   findGooseUsage,
   formatGooseUsage,
@@ -25,18 +31,10 @@ import {
   type GooseUsage
 } from '@/features/agent/acp/goose-usage'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
-import { bumpWorkspaceRevision } from '@/features/agent/workspace/revision.ts'
-import { CHANNELS } from '@/shared/ipc/channels'
-
-interface ProbeR {
-  isRepo: boolean
-  branch: string | null
-}
-
-interface BranchesR {
-  current: string
-  branches: string[]
-}
+import { checkoutNow, useWorkspaceGitSnapshot } from '@/features/agent/workspace/git.ts'
+import { useAgentStore } from '@/stores/agent.ts'
+import { BranchSwitcherView } from '@/views/code/workspace/scm/branch-switcher-view.tsx'
+import { findBaseName } from '@/views/agent/chat/components/workspace-relative-path.ts'
 
 /**
  * 当前会话的上下文窗口用量（ACP usage_update → goose-usage）。
@@ -85,88 +83,127 @@ function UsageDisplay() {
 }
 
 /**
- * 输入框下方：工作区 · 本机运行 · 分支（对齐 Qoder footer）。
+ * 工作区 + 当前文件夹：一个下拉同时管两件事 ——
+ * 换工作区（含它自己的文件夹列表），或在当前工作区里换文件夹。
  */
-function ComposerFooter() {
-  const { workspace, rootPath } = useActiveWorkspace()
-  const [probeState, updateProbe] = useState<ProbeR | null>(null)
-  const [branchesState, updateBranches] = useState<string[]>([])
-  /** 没有工作区时一律按「无仓库」渲染：不在 effect 里同步清 state */
-  const probe = rootPath ? probeState : null
-  const branches = rootPath ? branchesState : []
+function WorkspaceMenu() {
+  const { workspace, workspaceID, rootPath, folders, selectRoot } = useActiveWorkspace()
+  const workspaces = useAgentStore(function (state) {
+    return state.workspaces
+  })
+  const currentFolderName =
+    rootPath && folders.length > 1 ? findBaseName(rootPath) : null
 
-  useEffect(
-    function () {
-      if (!rootPath) return
-      let cancelled = false
-      void invoke<ProbeR>(CHANNELS.WORKSPACE_GIT.PROBE, { params: { path: rootPath } })
-        .then(function (result) {
-          if (cancelled) return
-          updateProbe(result)
-          if (!result.isRepo) {
-            updateBranches([])
-            return
-          }
-          return invoke<BranchesR>(CHANNELS.WORKSPACE_GIT.BRANCHES, {
-            params: { path: rootPath }
-          }).then(function (listed) {
-            if (!cancelled) updateBranches(listed.branches)
-          })
-        })
-        .catch(function (error) {
-          console.warn('[composer-footer] 探测 Git 失败:', error)
-          if (!cancelled) {
-            updateProbe(null)
-            updateBranches([])
-          }
-        })
-      return function () {
-        cancelled = true
-      }
-    },
-    [rootPath]
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label="切换工作区或文件夹"
+            title={rootPath ?? '还没有选择工作区'}
+            className="text-muted-foreground hover:text-foreground h-7 max-w-50 min-w-0 gap-1.5 rounded-md px-2.5 text-xs"
+          />
+        }>
+        <Icon
+          icon="lucide:folder"
+          className="size-3 shrink-0"
+        />
+        <span className="min-w-0 truncate">{workspace?.title ?? '未选择工作区'}</span>
+        {currentFolderName ? (
+          <span className="text-muted-foreground/80 min-w-0 truncate">/ {currentFolderName}</span>
+        ) : null}
+        <Icon
+          icon="lucide:chevrons-up-down"
+          className="size-3 shrink-0 opacity-55"
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        side="top"
+        sideOffset={8}
+        className="max-h-80 w-auto min-w-56 max-w-80 overflow-y-auto p-1">
+        <DropdownMenuLabel className="text-muted-foreground px-2 py-1.5 text-xs font-semibold tracking-wide uppercase">
+          工作区
+        </DropdownMenuLabel>
+        {workspaces.length === 0 ? (
+          <p className="text-muted-foreground px-2 py-1.5 text-xs">还没有工作区</p>
+        ) : null}
+        {workspaces.map(function (item) {
+          const isActive = item.id === workspaceID
+          return (
+            <DropdownMenuItem
+              key={item.id}
+              title={item.title}
+              className={cn('gap-2 rounded-sm px-2 py-2 text-sm', isActive && 'bg-accent/60')}
+              onClick={function () {
+                if (isActive) return
+                useAgentStore.getState().toActivateWorkspace(item.id)
+              }}>
+              <Icon
+                icon="lucide:check"
+                className={cn(
+                  'size-4 shrink-0',
+                  isActive ? 'text-primary opacity-100' : 'opacity-0'
+                )}
+              />
+              <span className="min-w-0 flex-1 truncate">{item.title}</span>
+            </DropdownMenuItem>
+          )
+        })}
+
+        {folders.length > 1 ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-muted-foreground px-2 py-1.5 text-xs font-semibold tracking-wide uppercase">
+              文件夹
+            </DropdownMenuLabel>
+            {folders.map(function (folder) {
+              const isActive = folder.path === rootPath
+              return (
+                <DropdownMenuItem
+                  key={folder.id}
+                  title={folder.path}
+                  className={cn('gap-2 rounded-sm px-2 py-2 text-sm', isActive && 'bg-accent/60')}
+                  onClick={function () {
+                    if (isActive) return
+                    selectRoot(folder.path)
+                  }}>
+                  <Icon
+                    icon="lucide:check"
+                    className={cn(
+                      'size-4 shrink-0',
+                      isActive ? 'text-primary opacity-100' : 'opacity-0'
+                    )}
+                  />
+                  <Icon
+                    icon="lucide:folder"
+                    className="text-muted-foreground size-4 shrink-0 opacity-70"
+                  />
+                  <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                    {findBaseName(folder.path)}
+                  </span>
+                </DropdownMenuItem>
+              )
+            })}
+          </>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
+}
 
-  async function handleCheckout(branch: string) {
-    if (!rootPath || branch === probe?.branch) return
-    try {
-      await invoke(CHANNELS.WORKSPACE_GIT.CHECKOUT, {
-        params: { path: rootPath, branch }
-      })
-      updateProbe({ isRepo: true, branch })
-      // 分支一换，磁盘内容就变了：让文件树 / 审阅 / 历史重拉
-      bumpWorkspaceRevision()
-      toast.success(`已切换到 ${branch}`)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '切换分支失败')
-    }
-  }
-
-  function handleInsertBranch() {
-    // WORKSPACE_GIT 尚无 create-branch IPC；代码 SCM 分支切换器同样只有 checkout
-    toast.message('暂不支持在此新建分支', {
-      description: '请在终端执行 git checkout -b <名称>'
-    })
-  }
-
-  const showGit = Boolean(probe?.isRepo && probe.branch)
-  const listedBranches =
-    branches.length > 0 ? branches : probe?.branch ? [probe.branch] : []
+function ComposerFooter() {
+  const { rootPath } = useActiveWorkspace()
+  const snapshot = useWorkspaceGitSnapshot(rootPath)
+  const showGit = snapshot.isRepo && Boolean(snapshot.branch)
 
   return (
     <div className="text-muted-foreground flex min-h-7 w-full items-center gap-0 px-1 text-xs">
       <div className="flex min-w-0 flex-1 items-center justify-start gap-0">
-        <span className="flex max-w-50 min-w-0 items-center gap-1.5 px-2.5 opacity-90">
-          <Icon
-            icon="lucide:folder"
-            className="size-3 shrink-0"
-          />
-          <span
-            className="truncate"
-            title={rootPath ?? '还没有选择工作区'}>
-            {workspace?.title ?? '未选择工作区'}
-          </span>
-        </span>
+        <WorkspaceMenu />
 
         <span
           aria-hidden
@@ -189,67 +226,20 @@ function ComposerFooter() {
               aria-hidden
               className="bg-border mx-0.5 h-3.5 w-px shrink-0"
             />
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    title="切换分支"
-                    className="text-muted-foreground hover:text-foreground h-7 gap-1 rounded-md px-2.5 text-xs"
-                  />
-                }>
-                <Icon
-                  icon="lucide:git-branch"
-                  className="size-3"
-                />
-                <span className="max-w-28 truncate">{probe?.branch}</span>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                side="top"
-                sideOffset={8}
-                className={styles.surface}>
-                <div className={styles.list}>
-                  {listedBranches.map(function (branch) {
-                    const isActive = branch === probe?.branch
-                    return (
-                      <DropdownMenuItem
-                        key={branch}
-                        title={branch}
-                        className={`${styles.row} ${isActive ? styles.rowActive : ''}`}
-                        onClick={function () {
-                          void handleCheckout(branch)
-                        }}>
-                        <Icon
-                          icon="lucide:git-branch"
-                          className={styles.branchIcon}
-                        />
-                        <span className={styles.name}>{branch}</span>
-                        {isActive ? (
-                          <Icon
-                            icon="lucide:check"
-                            className={styles.check}
-                          />
-                        ) : null}
-                      </DropdownMenuItem>
-                    )
-                  })}
-                </div>
-                <div className={styles.footer}>
-                  <DropdownMenuItem
-                    className={styles.footerRow}
-                    onClick={handleInsertBranch}>
-                    <Icon
-                      icon="lucide:plus"
-                      className={styles.footerIcon}
-                    />
-                    新建分支
-                  </DropdownMenuItem>
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <BranchSwitcherView
+              branch={snapshot.branch}
+              locals={snapshot.branches?.branches ?? []}
+              remotes={snapshot.branches?.remotes ?? []}
+              ahead={snapshot.ahead}
+              behind={snapshot.behind}
+              isBusy={snapshot.isPending}
+              size="sm"
+              tone="header"
+              className="max-w-56"
+              onCheckout={function (name, fromRemote) {
+                void checkoutNow(rootPath, name, fromRemote)
+              }}
+            />
           </>
         ) : null}
       </div>

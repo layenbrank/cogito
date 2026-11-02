@@ -25,6 +25,13 @@ interface PlanDraft {
 
 /** 编号（`1.` / `1、` / `1)`）与 markdown 勾选框两种写法 */
 const STEP_LINE = /^\s*(?:\d+[.、)]|[-*]\s*\[[ xX]\])\s+(.+)$/
+/**
+ * 普通项目符号（`- 步骤` / `* 步骤`）。
+ *
+ * 计划清单已不再落盘，模型改为写正文散文式步骤时未必编号；只在**计划类标题**下
+ * 才把普通项目符号当步骤（见 `findStepList`），否则任何带列表的回复都会被当成计划。
+ */
+const BULLET_LINE = /^\s*[-*+]\s+(?!\[[ xX]\])(.+)$/
 
 /** 去掉行内 markdown 标记，保留 `__main__.py` 这类真实下划线 */
 function cleanInline(text: string): string {
@@ -69,7 +76,7 @@ function findOverview(lines: readonly string[]): string {
       if (inOverview) break
       continue
     }
-    if (STEP_LINE.test(line)) {
+    if (STEP_LINE.test(line) || BULLET_LINE.test(line)) {
       if (inOverview) break
       continue
     }
@@ -135,6 +142,8 @@ function findStructuredSteps(text: string): string[] | null {
 interface ListBlock {
   heading: string
   steps: string[]
+  /** 其中有多少条是普通项目符号（非编号 / 非勾选框） */
+  bullets: number
 }
 
 function isHeading(line: string): boolean {
@@ -151,13 +160,15 @@ function findListBlocks(lines: readonly string[]): ListBlock[] {
   const blocks: ListBlock[] = []
   let heading = ''
   let current: string[] | null = null
+  let bullets = 0
   let strayLines = 0
 
   function flush() {
     if (current && current.length >= 2) {
-      blocks.push({ heading, steps: current })
+      blocks.push({ heading, steps: current, bullets })
     }
     current = null
+    bullets = 0
     strayLines = 0
   }
 
@@ -173,10 +184,13 @@ function findListBlocks(lines: readonly string[]): ListBlock[] {
       continue
     }
     const matched = line.match(STEP_LINE)
-    if (matched) {
+    const bullet = matched ? null : line.match(BULLET_LINE)
+    const item = matched?.[1] ?? bullet?.[1]
+    if (item) {
       current ??= []
       strayLines = 0
-      current.push(cleanInline(matched[1]))
+      if (bullet) bullets += 1
+      current.push(cleanInline(item))
       continue
     }
     if (!current) continue
@@ -191,6 +205,9 @@ function findListBlocks(lines: readonly string[]): ListBlock[] {
  * 从正文里挑出最像「实施步骤」的那段列表：
  * 标题命中「计划/步骤/方案」的优先，并列时取最长 —— 隐患、待确认问题
  * 这类列表通常比计划短，长的才是主线。
+ *
+ * 没有计划类标题时只认编号 / 勾选框列表：普通项目符号太通用，光凭它无法
+ * 认定「这是一份计划」，否则任何带 bullet 的回复都会被当成计划草稿。
  */
 function findStepList(lines: readonly string[]): string[] | null {
   const blocks = findListBlocks(lines)
@@ -198,7 +215,11 @@ function findStepList(lines: readonly string[]): string[] | null {
   const candidates = blocks.filter(function (block) {
     return PLAN_HEADING.test(block.heading)
   })
-  const pool = candidates.length > 0 ? candidates : blocks
+  const numbered = blocks.filter(function (block) {
+    return block.bullets === 0
+  })
+  const pool = candidates.length > 0 ? candidates : numbered
+  if (pool.length === 0) return null
   const longest = pool.reduce(function (best, block) {
     return block.steps.length > best.steps.length ? block : best
   })

@@ -65,7 +65,8 @@ type AssistantLabels = {
   sendQueued: string
   /** 输入区上方排队条标题 */
   queuedMessages: (count: number) => string
-  removeQueuedMessage: string
+  /** 队列非空时的口径说明：停止只中断当前轮，队列里的消息稍后照发 */
+  queueStopHint: string
 
   // 部件
   /** 推理折叠条：`seconds` 只在有耗时时给出 */
@@ -149,7 +150,7 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   queueSteerNow: 'Send now',
   sendQueued: 'Add to queue',
   queuedMessages: (count) => (count === 1 ? '1 queued' : `${count} queued`),
-  removeQueuedMessage: 'Remove from queue',
+  queueStopHint: 'Stopping ends this run only — queued messages still send',
   reasoning: (seconds) => (seconds ? `Reasoning · ${seconds}s` : 'Reasoning'),
   process: (steps, seconds) =>
     `Process · ${steps} ${steps === 1 ? 'step' : 'steps'}${seconds ? ` · ${seconds}s` : ''}`,
