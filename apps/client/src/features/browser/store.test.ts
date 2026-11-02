@@ -65,7 +65,7 @@ describe('adoptSnapshot', function () {
 })
 
 describe('setDevice', function () {
-  it('只改本地的设备表，不动 tabs', function () {
+  it('同步 deviceByLabel 与 tabs[].device', function () {
     useBrowserStore.getState().adoptSnapshot({
       tabs: [{ label: 'browser-a', url: 'https://a.test', title: '', device: null }],
       active: 'browser-a'
@@ -74,10 +74,11 @@ describe('setDevice', function () {
 
     const state = useBrowserStore.getState()
     expect(state.deviceByLabel['browser-a']).toEqual(IPHONE)
-    expect(state.tabs[0].device).toBeNull()
+    expect(state.tabs[0].device).toEqual(IPHONE)
 
     useBrowserStore.getState().setDevice('browser-a', null)
     expect(useBrowserStore.getState().deviceByLabel['browser-a']).toBeNull()
+    expect(useBrowserStore.getState().tabs[0].device).toBeNull()
   })
 })
 
