@@ -43,6 +43,9 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   app_knowledge_read_doc: '读取文档',
   app_knowledge_search: '检索知识',
   app_knowledge_write_doc: '写入知识草稿',
+  app_terminal_run: '终端执行',
+  app_terminal_read: '读取终端输出',
+  app_terminal_list: '列出终端会话',
   app_workspace_list: '列出工作区',
   app_workspace_read: '读取工作区文件'
 }

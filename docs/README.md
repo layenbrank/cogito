@@ -54,6 +54,11 @@
 | [tauri-command-database/](./apps/client/tauri-command-database/README.md)     | Tauri command / database 分层；Schema Reminder 统一改动 |
 | [updater-sidecar-file-lock.md](./apps/client/updater-sidecar-file-lock.md)    | Windows 更新时 corex-serve 文件锁：根因与双保险方案     |
 | [capture-sharpness-and-selection.md](./apps/client/capture-sharpness-and-selection.md) | 截图清晰度与选区                                    |
+| [agent-dock.md](./apps/client/agent-dock.md)                                  | Agent 底栏 / 输出与运行记录                             |
+| [agent-terminal.md](./apps/client/agent-terminal.md)                          | 会话终端折叠、正在执行列表、agent 用右栏终端跑命令      |
+| [agent-review.md](./apps/client/agent-review.md)                              | 右栏审阅：Git 工作台                                    |
+| [plan-mode.md](./apps/client/plan-mode.md)                                    | 计划模式：正文是唯一执行依据                            |
+| [assistant-ui-elements.md](./apps/client/assistant-ui-elements.md)            | assistant-ui 元素接入对照                               |
 
 ### Extension（浏览器扩展）
 

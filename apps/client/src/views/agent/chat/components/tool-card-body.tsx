@@ -69,7 +69,6 @@ function ToolCardShellBody(props: ToolCallMessagePartProps & { parsed: ParsedToo
       <ToolCardTerminalBody
         {...props}
         outputText={outputText}
-        label={label}
       />
     )
   }

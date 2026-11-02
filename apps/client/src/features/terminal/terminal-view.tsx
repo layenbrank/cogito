@@ -13,6 +13,7 @@ import '@xterm/xterm/css/xterm.css'
 import { Terminal } from '@/lib/terminal'
 import { EVENTS } from '@/shared/ipc/channels'
 import { useTerminalStore } from '@/stores/terminal'
+import type { TerminalTabOrigin } from '@/stores/terminal'
 import { reportCaught } from '@/utils/exception-report'
 import { resolveTerminalTypeface } from './terminal-font'
 import { scheduleTerminalLayout, syncTerminalLayout } from './terminal-layout'
@@ -27,6 +28,8 @@ interface TerminalViewProps {
   id: string
   cwd: string
   active: boolean
+  /** `agent` 的会话已在 Rust 侧建好，视图只需 attach（回放 + 实时流） */
+  origin: TerminalTabOrigin
 }
 
 function TerminalView(props: TerminalViewProps) {
@@ -116,13 +119,20 @@ function TerminalView(props: TerminalViewProps) {
           unlistenExit = unlisten
         })
 
+        // catch 里也要用它决定提示文案，所以声明在 try 之外
+        const isAttach = props.origin === 'agent'
+
         try {
-          const created = await Terminal.create(props.cwd, props.id, function (data) {
+          const onOutput = function (data: ArrayBuffer) {
             if (disposed) return
             terminal.write(new Uint8Array(data))
-          })
+          }
+          const created = isAttach
+            ? await Terminal.attach(props.id, onOutput)
+            : await Terminal.create(props.cwd, props.id, onOutput)
           if (disposed) {
-            void Terminal.kill(props.id)
+            // attach 的场景会话归 agent 所有，别把别人的 shell 一起杀掉
+            if (!isAttach) void Terminal.kill(props.id)
             return
           }
           if (created.pid !== null && created.pid !== undefined) {
@@ -141,9 +151,10 @@ function TerminalView(props: TerminalViewProps) {
             return disposed
           })
         } catch (error) {
-          reportCaught('terminal.create', error)
+          reportCaught(isAttach ? 'terminal.attach' : 'terminal.create', error)
+          const reason = error instanceof Error ? error.message : String(error)
           terminal.write(
-            `\r\n\x1b[91m[终端创建失败：${error instanceof Error ? error.message : String(error)}]\x1b[0m\r\n`
+            `\r\n\x1b[91m[${isAttach ? '终端连接失败（会话可能已退出）' : '终端创建失败'}：${reason}]\x1b[0m\r\n`
           )
           useTerminalStore.getState().markExited(props.id, null)
         }
@@ -188,14 +199,15 @@ function TerminalView(props: TerminalViewProps) {
         if (SESSION_OWNERS.get(props.id) === ownerToken) {
           SESSION_OWNERS.delete(props.id)
         }
-        if (isOwnerRef.current && !exitedRef.current) {
+        // agent 的会话不随视图卸载而回收：它可能正被命令占用，关掉面板不该把 shell 一起杀掉
+        if (isOwnerRef.current && !exitedRef.current && props.origin !== 'agent') {
           void Terminal.kill(props.id)
         }
         terminalInstance?.dispose()
         isOwnerRef.current = false
       }
     },
-    [props.id, props.cwd, ownerToken]
+    [props.id, props.cwd, props.origin, ownerToken]
   )
 
   useEffect(

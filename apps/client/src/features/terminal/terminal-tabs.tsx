@@ -118,6 +118,7 @@ function TerminalTabs(props: TerminalTabsProps) {
                 id={tab.id}
                 cwd={tab.cwd}
                 active={active}
+                origin={tab.origin}
               />
             </div>
           )

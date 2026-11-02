@@ -10,17 +10,30 @@ import { subscribeWithSelector } from 'zustand/middleware'
 
 type TerminalTabKind = 'pty'
 
+/** 谁开的 tab：`agent` 的会话由 Rust 先建好、面板后挂（`terminal:attach`） */
+type TerminalTabOrigin = 'user' | 'agent'
+
 /** 底部面板活动页（VS Code 风格）；`input` 承载运行 / 试跑的参数表单 */
 type DockActivity = 'run' | 'input' | 'history' | 'terminal'
 
 interface TerminalTab {
   id: string
   kind: TerminalTabKind
+  origin: TerminalTabOrigin
   title: string
   cwd: string
   pid: number | null
   exited: boolean
   exitCode: number | null
+  /** 该 tab 里最近一次由 agent 执行的命令；「详情 · 正在执行」靠它定位 tab */
+  command?: string
+}
+
+/** agent 开始跑命令时的入参（来自 `terminal://agent-run`） */
+interface AgentTabInput {
+  id: string
+  cwd: string
+  command: string
 }
 
 interface NewTabOptions {
@@ -44,6 +57,8 @@ interface TerminalState {
   revealDock: (options?: RevealDockOptions) => void
 
   newTab: (cwd: string, options?: NewTabOptions) => void
+  /** agent 开跑：已经有这个会话就复用并切过去，否则新开一个 `agent · 目录` tab */
+  revealAgentTab: (input: AgentTabInput) => void
   removeTab: (id: string) => void
   writeActive: (id: string) => void
   markExited: (id: string, exitCode: number | null) => void
@@ -99,6 +114,7 @@ const useTerminalStore = create<TerminalState>()(
             state.tabs.push({
               id,
               kind: 'pty',
+              origin: 'user',
               title: makePtyTitle(cwd),
               cwd,
               pid: null,
@@ -108,6 +124,33 @@ const useTerminalStore = create<TerminalState>()(
             state.activeId = id
             state.activity = 'terminal'
             if (options?.reveal !== false) state.open = true
+          })
+        },
+
+        revealAgentTab: function (input) {
+          set(function (state) {
+            const existing = state.tabs.find(function (tab) {
+              return tab.id === input.id
+            })
+            if (existing) {
+              existing.command = input.command
+              existing.exited = false
+            } else {
+              state.tabs.push({
+                id: input.id,
+                kind: 'pty',
+                origin: 'agent',
+                title: `agent · ${makePtyTitle(input.cwd)}`,
+                cwd: input.cwd,
+                pid: null,
+                exited: false,
+                exitCode: null,
+                command: input.command
+              })
+            }
+            state.activeId = input.id
+            state.activity = 'terminal'
+            state.open = true
           })
         },
 
@@ -158,4 +201,12 @@ const useTerminalStore = create<TerminalState>()(
 )
 
 export { useTerminalStore }
-export type { TerminalTab, TerminalTabKind, NewTabOptions, DockActivity, RevealDockOptions }
+export type {
+  AgentTabInput,
+  DockActivity,
+  NewTabOptions,
+  RevealDockOptions,
+  TerminalTab,
+  TerminalTabKind,
+  TerminalTabOrigin
+}

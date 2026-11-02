@@ -1,17 +1,20 @@
-//! 浏览器工具（`app_browser_*`）在 app 侧的执行。
+//! 宿主侧工具在 app 里的执行：浏览器（`app_browser_*`）与终端（`app_terminal_*`）。
 //!
-//! 目录在 `cogito_core::tools::browser`（core 不依赖 tauri，只能放描述），
-//! 这里负责拿到 `AppHandle` 后真正干活：全部走 `browser::agent` 的 CDP 通道 +
-//! `browser::lifecycle` 的 webview 生命周期。
+//! 目录在 `cogito_core::tools::{browser,terminal}`（core 不依赖 tauri，只能放描述），
+//! 这里负责拿到 `AppHandle` 后真正干活：浏览器走 `browser::agent` 的 CDP 通道 +
+//! `browser::lifecycle` 的 webview 生命周期；终端走 `utils::terminal` 的 PTY 会话。
 //!
-//! `tab` 省略时落到**当前活动标签页** —— agent 和用户看到的是同一个页面。
+//! 两边都是「用户看得见的那个面板」：`tab` 省略时落到当前活动标签页，终端命令打进右栏
+//! 那个 tab —— agent 和用户看到、能接管的是同一份东西。
 
 use serde_json::{Value, json};
 use tauri::{AppHandle, Manager};
 
 use crate::browser::state::BrowserState;
 use crate::browser::{agent, intercept, lifecycle, network};
-use cogito_core::tools::browser as catalog;
+use crate::utils::terminal::{TerminalHub, resolve_agent_session};
+use cogito_core::tools::browser as browser_catalog;
+use cogito_core::tools::terminal as terminal_catalog;
 
 /// 读页面默认返回多少项
 const DEFAULT_LIMIT: u64 = 60;
@@ -25,18 +28,21 @@ const DEFAULT_SCROLL_PX: &str = "600";
 
 /// 名字是否归这里管（桥靠它决定「先试 app 工具，再落到数据库工具」）
 pub fn owns(name: &str) -> bool {
-    catalog::owns(name)
+    browser_catalog::owns(name) || terminal_catalog::owns(name)
 }
 
 /// 执行；`None` 表示不认识这个名字
 pub async fn call(app: &AppHandle, name: &str, arguments: &Value) -> Option<Result<Value, String>> {
     let outcome = match name {
-        catalog::OPEN => open(app, arguments).await,
-        catalog::READ => read(app, arguments).await,
-        catalog::ACT => act(app, arguments).await,
-        catalog::SCREENSHOT => screenshot(app, arguments).await,
-        catalog::NETWORK => network_list(app, arguments),
-        catalog::INTERCEPT => intercept_rules(app, arguments).await,
+        browser_catalog::OPEN => open(app, arguments).await,
+        browser_catalog::READ => read(app, arguments).await,
+        browser_catalog::ACT => act(app, arguments).await,
+        browser_catalog::SCREENSHOT => screenshot(app, arguments).await,
+        browser_catalog::NETWORK => network_list(app, arguments),
+        browser_catalog::INTERCEPT => intercept_rules(app, arguments).await,
+        terminal_catalog::RUN => terminal_run(app, arguments).await,
+        terminal_catalog::READ => terminal_read(app, arguments),
+        terminal_catalog::LIST => terminal_list(app),
         _ => return None,
     };
     Some(outcome)
@@ -126,6 +132,52 @@ fn network_list(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
         .clamp(1, MAX_NETWORK_LIMIT);
     let requests = network::list(&label, filter, limit);
     Ok(json!({ "tab": label, "count": requests.len(), "requests": requests }))
+}
+
+async fn terminal_run(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
+    let command = text_arg(arguments, "command")
+        .ok_or_else(|| "缺少 command".to_string())?
+        .to_string();
+    let cwd = text_arg(arguments, "cwd").map(str::to_string);
+    let quiet_ms = arguments.get("quietMs").and_then(Value::as_u64);
+    let timeout_ms = arguments.get("timeoutMs").and_then(Value::as_u64);
+
+    let state = app.state::<TerminalHub>();
+    let run = crate::utils::terminal::terminal_run(
+        app.clone(),
+        state,
+        command,
+        cwd,
+        None,
+        quiet_ms,
+        timeout_ms,
+    )
+    .await?;
+    serde_json::to_value(run).map_err(|error| format!("终端结果不可序列化：{error}"))
+}
+
+fn terminal_read(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
+    let id = match text_arg(arguments, "id") {
+        Some(id) => id.to_string(),
+        None => {
+            let cwd = text_arg(arguments, "cwd").ok_or_else(|| "缺少 id 或 cwd".to_string())?;
+            resolve_agent_session(cwd)?
+        }
+    };
+    let max_chars = arguments
+        .get("maxChars")
+        .and_then(Value::as_u64)
+        .map(|value| value as usize);
+
+    let state = app.state::<TerminalHub>();
+    let read = crate::utils::terminal::terminal_read(state, id, max_chars)?;
+    serde_json::to_value(read).map_err(|error| format!("终端输出不可序列化：{error}"))
+}
+
+fn terminal_list(app: &AppHandle) -> Result<Value, String> {
+    let state = app.state::<TerminalHub>();
+    let sessions = crate::utils::terminal::terminal_list(state)?;
+    serde_json::to_value(sessions).map_err(|error| format!("终端会话不可序列化：{error}"))
 }
 
 async fn intercept_rules(app: &AppHandle, arguments: &Value) -> Result<Value, String> {

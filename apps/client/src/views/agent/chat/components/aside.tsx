@@ -24,6 +24,7 @@ import { TerminalSurface } from '@/features/terminal'
 import type { PlanSnapshot } from '@/features/agent/plan'
 import { DEFAULT_BUDGET, startGoalRun, stopGoalRun } from '@/features/agent/goal-run'
 import { findPlanDraft } from '@/features/agent/plan-draft'
+import { buildPlanExecutePrompt } from '@/features/agent/plan-execute'
 import { useActiveWorkspace } from '@/features/agent/workspace/active'
 import { readAgentMode, subscribeAgentMode, writeAgentMode } from '@/features/agent/mode'
 import { useTerminalStore } from '@/stores/terminal'
@@ -48,7 +49,7 @@ const ASIDE_TABS: ReadonlyArray<{
   { id: 'home', icon: 'lucide:layout-dashboard', label: '详情', hint: '会话、工作区与任务清单' },
   { id: 'plan', icon: 'lucide:list-checks', label: '计划', hint: '本轮完整计划与确认执行' },
   { id: 'files', icon: 'lucide:folder-tree', label: '文件', hint: '浏览工作区文件树并预览' },
-  { id: 'review', icon: 'lucide:git-compare', label: '审阅', hint: '整体改动与逐文件对比' },
+  { id: 'review', icon: 'lucide:git-compare', label: '审阅', hint: '本地/远端改动、暂存与提交' },
   { id: 'history', icon: 'lucide:history', label: '历史', hint: '查看提交历史与每次改动' },
   { id: 'browser', icon: 'lucide:globe', label: '浏览器', hint: '内嵌浏览器，agent 可读取并操作' },
   { id: 'terminal', icon: 'lucide:terminal', label: '终端', hint: '在当前工作区打开 shell' }
@@ -74,14 +75,14 @@ function AgentAside(props: AsideProps) {
   const agentMode = useSyncExternalStore(subscribeAgentMode, readAgentMode, readAgentMode)
 
   /**
-   * 计划确认执行：**先切到对应模式**再发消息。
+   * 计划确认执行：先切到对应模式再发消息。
    *
-   * - `agent`：普通执行，逐条推进即可；
-   * - `goal`：目标推进 —— 记下预算后由 `GoalAutoAdvance` 在每轮结束时自动续跑，
-   *   中途不打断用户（Qoder 的 Goal 驱动）。
+   * - `agent`：普通执行，按阶段顺序推进；
+   * - `goal`：目标推进——记下预算后由 `GoalAutoAdvance` 在每轮结束时自动续跑。
    *
-   * 指令里显式重复任务清单：计划全文虽在同一会话里，但逐条列出来能避免
-   * 模型在长上下文里漏步 —— 清单是执行依据，计划正文只是说明书。
+   * 发的是**计划正文全文**。早期版本只把 `findPlanDraft().steps` 拼成清单发出去，
+   * 而清单是从正文抽出来的摘要（一条只剩一行），模型据此只做了象征性实现，
+   * 文件级细节与验证步骤全被丢掉 —— 这是「计划执行不完整」的根因。
    */
   function startImplement(target: 'agent' | 'goal', budget?: number) {
     const draft = findPlanDraft(messages)
@@ -108,20 +109,15 @@ function AgentAside(props: AsideProps) {
       stopGoalRun(threadID)
     }
 
-    const lines = ['按上面的计划开始执行。']
-    if (target === 'goal') {
-      lines.push(
-        `以目标模式推进，最多 ${budget ?? DEFAULT_BUDGET} 轮，中途不要停下来问用户。`,
-        '约束以我前面消息里说的为准（不要/保持/只能/不能 这类），开工前先复述一遍。'
-      )
-    }
-    if (steps.length > 0) {
-      lines.push('严格按下列任务清单逐条推进，每完成一条用一句话汇报结果：')
-      steps.forEach(function (step, index) {
-        lines.push(`${index + 1}. ${step}`)
+    // 发**计划正文全文**（清单只是摘要，见 plan-execute.ts 的说明）
+    aui.composer.setText(
+      buildPlanExecutePrompt({
+        body: draft?.body ?? '',
+        target,
+        budget,
+        overview: draft?.overview
       })
-    }
-    aui.composer.setText(lines.join('\n'))
+    )
     void aui.composer.send()
   }
 
@@ -161,6 +157,29 @@ function AgentAside(props: AsideProps) {
       }
       useTerminalStore.getState().newTab(rootPath)
     }
+    updateMode('terminal')
+  }
+
+  /**
+   * 跳到终端页签（入口：详情页「正在执行」列表）。
+   *
+   * 命令若来自嵌入式终端（agent 用 `app_terminal_run` 执行），tab 上会记着同一条命令，
+   * 直接选中那个 tab；否则是 goose 自带 shell 跑的命令，只能停在当前文件夹的终端。
+   */
+  function openTerminal(command: string) {
+    if (!terminalOpen) {
+      if (!rootPath) {
+        toast.error('先在左栏添加一个工作区')
+        return
+      }
+      useTerminalStore.getState().newTab(rootPath, { reveal: false })
+    }
+    const target = useTerminalStore
+      .getState()
+      .tabs.find(function (tab) {
+        return tab.command === command
+      })
+    if (target) useTerminalStore.getState().writeActive(target.id)
     updateMode('terminal')
   }
 
@@ -258,6 +277,7 @@ function AgentAside(props: AsideProps) {
           <AsideReview
             key={threadID ?? 'none'}
             initialRelative={focusRelative}
+            onOpenFile={openFiles}
           />
         ) : null}
 
@@ -281,6 +301,10 @@ function AgentAside(props: AsideProps) {
               plan={props.plan}
               onOpenFiles={openFiles}
               onOpenReview={openReview}
+              onOpenPlan={function () {
+                selectTab('plan')
+              }}
+              onOpenTerminal={openTerminal}
               isPlanMode={agentMode === 'plan'}
             />
           ) : (

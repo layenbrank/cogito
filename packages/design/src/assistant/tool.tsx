@@ -316,4 +316,4 @@ export function ToolOutput({ className, output, errorText, ...props }: ToolOutpu
   )
 }
 
-export { findStatusBadge, ToolHeader }
+export { findStatusBadge, formatElapsedMs as formatToolElapsed, ToolElapsed, ToolHeader }

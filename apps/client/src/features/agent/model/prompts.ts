@@ -87,6 +87,18 @@ const BROWSER_PLAYBOOK = `浏览器面板（用户能看到的内嵌浏览器，
 - app_browser_network 只能看到「打开标签页之后」的请求；列表为空时提醒用户可以刷新页面。
 - 只在真正需要时开新标签页，用完不要累积一堆；不要用它做批量抓取（需要爬取时说明限制）。`
 
+/**
+ * 终端 playbook（与浏览器那套同构）。
+ *
+ * 目的是让模型**默认用用户看得见的那个终端**跑命令，而不是在后台开黑盒 shell：
+ * 用户能围观、能接管，出问题时也能自己接着敲。
+ */
+const TERMINAL_PLAYBOOK = `右栏终端（用户看得见的嵌入式 shell）：
+- 要执行命令优先用 app_terminal_run（cwd 传绝对路径）：命令会打在接受用户右栏那个终端里，输出由它读回来，用户全程看得见、可接管。
+- 结果里 isRunning=true 表示还在跑（dev server / watch），用 app_terminal_read 续读；不要重复执行同一条命令来「再等一次」。
+- 同目录只有一个 agent 会话：命令串行执行，不要并发调用 app_terminal_run；需要多条时用 && / ; 串成一行。
+- 用户说「刚才那个命令 / 终端里的报错」时，用 app_terminal_read 读当前输出，不要让他复制粘贴。`
+
 const BROWSER_SCENARIOS: ReadonlySet<ScenarioKey> = new Set(['general', 'code'])
 
 const SYSTEM_PROMPT_MAP: Record<ScenarioKey, string> = {
@@ -109,6 +121,7 @@ function findSystemPrompt(scenario: ScenarioKey, context?: PromptContext) {
   }
   if (BROWSER_SCENARIOS.has(scenario)) {
     prompt += `\n\n${BROWSER_PLAYBOOK}`
+    prompt += `\n\n${TERMINAL_PLAYBOOK}`
     if (context?.browserSummary) {
       prompt += `\n${context.browserSummary}`
     }
@@ -123,6 +136,7 @@ export {
   BROWSER_PLAYBOOK,
   DIRECTIVE_PLAYBOOK,
   KNOWLEDGE_PLAYBOOK,
+  TERMINAL_PLAYBOOK,
   findSystemPrompt,
   SYSTEM_PROMPT_MAP,
   TOOLS_HINT

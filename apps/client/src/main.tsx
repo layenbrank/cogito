@@ -5,6 +5,7 @@ import 'reflect-metadata'
 import App from '@/App.tsx'
 import { ensurePersist, ensureSecrets, findPref } from '@/features/persist'
 import { watchActiveTenant } from '@/features/quota/tenant.ts'
+import { watchAgentTerminal } from '@/features/terminal/agent-tabs.ts'
 import { adoptAppearance, watchAppearance } from '@/features/window/appearance'
 import {
   installExceptionReporting,
@@ -48,6 +49,8 @@ async function bootstrap() {
   await ensureSecrets()
   adoptAppearance(findPref('window').appearance)
   watchAppearance()
+  // agent 在右栏终端跑命令时，把 tab 和面板打开（用户总能看到它在做什么）
+  watchAgentTerminal()
   // 租户身份：登录 / 切账号后重新解析，好让请求带上 `X-Tenant-ID`（网关按它算配额归属）
   watchActiveTenant()
   appRoot.render(<App />)

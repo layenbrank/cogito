@@ -41,11 +41,30 @@ describe('指令场景系统提示', function () {
   })
 })
 
+describe('终端 playbook', function () {
+  it('general / code 场景提示优先用右栏终端跑命令', function () {
+    for (const scenario of ['general', 'code'] as const) {
+      const prompt = findSystemPrompt(scenario)
+      expect(prompt).toContain('app_terminal_run')
+      expect(prompt).toContain('app_terminal_read')
+    }
+  })
+
+  it('不涉及终端面板的场景不注入', function () {
+    expect(findSystemPrompt('compare')).not.toContain('app_terminal_run')
+  })
+})
+
 describe('corex 工具中文标签', function () {
   it('命中 MCP 实际名与带 server 前缀的名字', function () {
     expect(toAgentToolLabel('corex_actions')).toBe('列出动作')
     expect(toAgentToolLabel('mcp_corex-mcp_corex_actions')).toBe('列出动作')
     expect(toAgentToolLabel('corex__corex_run')).toBe('运行指令')
     expect(toAgentToolLabel('corex_validate')).toBe('校验指令')
+  })
+
+  it('终端工具命中中文标签', function () {
+    expect(toAgentToolLabel('app_terminal_run')).toBe('终端执行')
+    expect(toAgentToolLabel('app_terminal_read')).toBe('读取终端输出')
   })
 })

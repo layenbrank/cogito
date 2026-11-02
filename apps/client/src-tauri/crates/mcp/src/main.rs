@@ -171,7 +171,7 @@ struct App {
 impl ServerHandler for App {
     fn get_info(&self) -> ServerConfig {
         let instructions = if self.bridge.is_some() {
-            "cogito 本地工具面：经 app 内桥读取本机数据（只读）"
+            "cogito 本地工具面：经 app 内桥读写本机数据。要执行命令请优先用 app_terminal_run —— 它跑在用户右栏看得见的终端里，用户可以围观并随时接管；长跑命令返回 isRunning=true 后用 app_terminal_read 续读。"
         } else {
             "cogito 本地工具面未连接（缺少 COGITO_BRIDGE_URL / COGITO_BRIDGE_TOKEN），仅 app_ping 可用"
         };

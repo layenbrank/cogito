@@ -1,6 +1,7 @@
 import { Icon } from '@iconify/react/offline'
 import { useAuiState } from '@assistant-ui/react'
 import { Source, Sources, SourcesContent, SourcesTrigger } from '@cogito/design/assistant/sources'
+import { formatToolElapsed } from '@cogito/design/assistant/tool'
 import { TodoList } from '@cogito/design/assistant/todo-list'
 import { Button } from '@cogito/design/components/button'
 import { invoke } from '@tauri-apps/api/core'
@@ -14,8 +15,11 @@ import { findAgentMode, readAgentMode, subscribeAgentMode } from '@/features/age
 import { savePlanToWorkspace } from '@/features/agent/plan-file'
 import type { PlanSnapshot } from '@/features/agent/plan'
 import { findPlanDraft } from '@/features/agent/plan-draft'
+import type { PlanDraft } from '@/features/agent/plan-draft'
+import { useRunningCommands } from '@/features/agent/running-commands'
+import type { RunningCommandState } from '@/features/agent/running-commands'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
-import { useWorkspaceRevision } from '@/features/agent/workspace/revision.ts'
+import { refreshNow, useWorkspaceGitSnapshot } from '@/features/agent/workspace/git.ts'
 import {
   findGooseUsage,
   formatGooseUsage,
@@ -24,7 +28,6 @@ import {
 import { CHANNELS } from '@/shared/ipc/channels'
 import { useProviderStore } from '@/stores/provider'
 import { findStatusBadge, groupEntries } from '@/views/code/lib/git-status.ts'
-import { useAsideReviewStatus } from '@/views/agent/chat/components/use-aside-review-status'
 
 interface AsideOutputRow {
   path: string
@@ -36,6 +39,10 @@ interface AsideBusyProps {
   plan: PlanSnapshot | null
   onOpenFiles: (relative?: string | null) => void
   onOpenReview: (relative?: string | null) => void
+  /** 跳到右栏「计划」页签看正文全文 */
+  onOpenPlan: () => void
+  /** 跳到右栏终端页签；给了命令则优先选中正在跑这条命令的 tab */
+  onOpenTerminal: (command: string) => void
   /** 当前会话是否处于「计划」模式：空态文案据此区分 */
   isPlanMode: boolean
 }
@@ -378,18 +385,105 @@ function SourcesSection(props: {
   )
 }
 
-/** 计划草稿：只给清单速览，调整请回对话、「开始执行」在「计划」页签 */
-function PlanDraftBlock(props: { steps: readonly string[] }) {
+/**
+ * 计划草稿：标题 + 概述 + 前 3 步做速览，完整正文与「开始执行」都在「计划」页签。
+ * 不再整段铺清单 —— 清单只是正文的摘要，铺开会把右栏撑满又说不清细节。
+ */
+function PlanDraftBlock(props: { draft: PlanDraft; onOpenPlan?: () => void }) {
+  const preview = props.draft.steps.slice(0, 3)
+  const rest = props.draft.steps.length - preview.length
+
   return (
-    <TodoList
-      items={props.steps.map(function (step) {
-        return { content: step, status: 'pending' as const }
-      })}
-    />
+    <div className="flex flex-col gap-1.5">
+      {props.draft.title ? (
+        <p className="text-foreground truncate text-xs font-medium">{props.draft.title}</p>
+      ) : null}
+      {props.draft.overview ? (
+        <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">
+          {props.draft.overview}
+        </p>
+      ) : null}
+      {preview.length > 0 ? (
+        <ol className="text-muted-foreground flex flex-col gap-1 text-xs">
+          {preview.map(function (step, index) {
+            return (
+              <li
+                key={step}
+                className="flex min-w-0 gap-1.5">
+                <span className="shrink-0 tabular-nums opacity-60">{index + 1}.</span>
+                <span className="truncate">{step}</span>
+              </li>
+            )
+          })}
+        </ol>
+      ) : null}
+      <div className="flex items-center gap-1.5">
+        {rest > 0 ? (
+          <span className="text-muted-foreground text-xs opacity-70">还有 {rest} 步</span>
+        ) : null}
+        {props.onOpenPlan ? (
+          <Button
+            type="button"
+            variant="link"
+            size="xs"
+            className="ms-auto h-5 gap-1 px-0 text-xs"
+            onClick={props.onOpenPlan}>
+            查看完整计划
+            <Icon
+              icon="lucide:arrow-right"
+              className="size-3"
+            />
+          </Button>
+        ) : null}
+      </div>
+    </div>
   )
 }
 
 /** 已对话右栏：上下文分区 */
+/** 正在执行的命令：一行一条，点一行跳到右栏终端（对齐 VS Code 的任务入口） */
+function RunningSection(props: {
+  commands: readonly RunningCommandState[]
+  onOpenTerminal: (command: string) => void
+}) {
+  return (
+    <Section
+      icon="lucide:square-terminal"
+      iconClass="text-terminal-accent"
+      title={`正在执行（${props.commands.length}）`}>
+      <ul className="flex flex-col gap-0.5">
+        {props.commands.map(function (command) {
+          return (
+            <li key={command.toolCallId}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                title={command.command}
+                className="h-6 w-full min-w-0 justify-start gap-1.5 px-1 font-normal"
+                onClick={function () {
+                  props.onOpenTerminal(command.command)
+                }}>
+                <Icon
+                  icon="lucide:loader-circle"
+                  className="text-terminal-accent size-3 shrink-0 animate-spin"
+                />
+                <span className="min-w-0 truncate font-mono text-xs">{command.command}</span>
+                {command.background ? (
+                  <span className="text-muted-foreground shrink-0 text-xs">后台</span>
+                ) : null}
+                <span className="text-muted-foreground ms-auto shrink-0 text-xs tabular-nums">
+                  {formatToolElapsed(command.elapsedMs)}
+                </span>
+              </Button>
+            </li>
+          )
+        })}
+      </ul>
+    </Section>
+  )
+}
+
 function AsideBusy(props: AsideBusyProps) {
   const { workspace, rootPath, folders } = useActiveWorkspace()
   const [probeState, updateProbe] = useState<ProbeR | null>(null)
@@ -471,7 +565,8 @@ function AsideBusy(props: AsideBusyProps) {
   const isRunning = useAuiState(function (state) {
     return state.thread.isRunning
   })
-  const revision = useWorkspaceRevision()
+  const runningCommands = useRunningCommands()
+  const gitSnapshot = useWorkspaceGitSnapshot(rootPath)
   const mainThreadID = useAuiState(function (state) {
     return state.threads.mainThreadId
   })
@@ -497,20 +592,15 @@ function AsideBusy(props: AsideBusyProps) {
     [messages]
   )
   // git status 只在「跑完一轮」后重查：运行中频繁查没意义，列表也会闪
-  const [statusKey, updateStatusKey] = useState(0)
   const wasRunning = useRef(isRunning)
   useEffect(
     function () {
-      if (wasRunning.current && !isRunning) {
-        updateStatusKey(function (value) {
-          return value + 1
-        })
-      }
+      if (wasRunning.current && !isRunning) void refreshNow(rootPath)
       wasRunning.current = isRunning
     },
-    [isRunning]
+    [isRunning, rootPath]
   )
-  const status = useAsideReviewStatus(rootPath, statusKey, revision)
+  const status = gitSnapshot
 
   const badgeByPath = useMemo(
     function () {
@@ -613,6 +703,13 @@ function AsideBusy(props: AsideBusyProps) {
         isRunning={isRunning}
       />
 
+      {runningCommands.length > 0 ? (
+        <RunningSection
+          commands={runningCommands}
+          onOpenTerminal={props.onOpenTerminal}
+        />
+      ) : null}
+
       <WorkspaceSection
         title={workspace?.title ?? '未选择工作区'}
         rootPath={rootPath}
@@ -655,7 +752,10 @@ function AsideBusy(props: AsideBusyProps) {
         {plan && plan.entries.length > 0 ? (
           <PlanEntryList entries={plan.entries} />
         ) : planDraft ? (
-          <PlanDraftBlock steps={planDraft.steps} />
+          <PlanDraftBlock
+            draft={planDraft}
+            onOpenPlan={props.onOpenPlan}
+          />
         ) : (
           <p className="text-muted-foreground text-xs">
             {props.isPlanMode ? '发出需求后，模型产出的计划会显示在这里' : '暂无计划'}

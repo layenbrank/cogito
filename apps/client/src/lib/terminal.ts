@@ -50,6 +50,21 @@ async function create(
   return { id: created.id, pid: created.pid, channel }
 }
 
+/**
+ * 接上一个已存在的会话（agent 先建、面板后挂）。
+ *
+ * Rust 侧先回放缓冲里的历史输出、再接实时流，所以视图晚挂也不会丢开头；
+ * 与 `create` 的区别只在于**不会重建会话**。
+ */
+async function attach(
+  id: string,
+  onmessage: (data: ArrayBuffer) => void
+): Promise<TerminalCreatedWithChannel> {
+  const channel = new Channel<ArrayBuffer>(onmessage)
+  const attached = await invoke<TerminalCreated>(CHANNELS.TERMINAL.ATTACH, { id, channel })
+  return { id: attached.id, pid: attached.pid, channel }
+}
+
 /** 写入用户输入（UTF-8 字节）。 */
 function write(id: string, data: Uint8Array): Promise<void> {
   return invoke(CHANNELS.TERMINAL.WRITE, { id, data: Array.from(data) })
@@ -89,6 +104,7 @@ function font(): Promise<TerminalFont> {
 
 const Terminal = {
   create,
+  attach,
   write,
   resize,
   kill,

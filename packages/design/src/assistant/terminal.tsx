@@ -353,12 +353,15 @@ export type TerminalCopyButtonProps = ComponentProps<typeof Button> & {
   onCopy?: () => void
   onError?: (error: Error) => void
   timeout?: number
+  /** 折叠态没有 Terminal 上下文时直接给出要复制的正文；省略则取上下文里的 output */
+  text?: string
 }
 
 export function TerminalCopyButton({
   onCopy,
   onError,
   timeout = 2000,
+  text,
   children,
   className,
   ...props
@@ -366,6 +369,7 @@ export function TerminalCopyButton({
   const [isCopied, updateCopied] = useState(false)
   const timeoutRef = useRef(0)
   const { output } = useContext(TerminalContext)
+  const payload = text ?? output
 
   const copyToClipboard = useCallback(
     async function () {
@@ -374,7 +378,7 @@ export function TerminalCopyButton({
         return
       }
       try {
-        await navigator.clipboard.writeText(output)
+        await navigator.clipboard.writeText(payload)
         updateCopied(true)
         onCopy?.()
         timeoutRef.current = window.setTimeout(function () {
@@ -384,7 +388,7 @@ export function TerminalCopyButton({
         onError?.(error as Error)
       }
     },
-    [output, onCopy, onError, timeout]
+    [payload, onCopy, onError, timeout]
   )
 
   useEffect(
@@ -488,6 +492,8 @@ export type TerminalProps = HTMLAttributes<HTMLDivElement> & {
   /** 提示符旁可选 cwd 后缀（短路径），不重复塞进标题 */
   cwd?: string | null
   onClear?: () => void
+  /** 外层已自带标题条（如折叠摘要行）时关掉内置 header，避免两行标题 */
+  showHeader?: boolean
 }
 
 export function Terminal({
@@ -496,6 +502,7 @@ export function Terminal({
   autoScroll = true,
   cwd,
   onClear,
+  showHeader = true,
   className,
   children,
   ...props
@@ -521,16 +528,18 @@ export function Terminal({
         {...props}>
         {children ?? (
           <>
-            <TerminalHeader>
-              <TerminalTitle />
-              <div className="flex items-center gap-1">
-                <TerminalStatus />
-                <TerminalActions>
-                  <TerminalCopyButton />
-                  {onClear ? <TerminalClearButton /> : null}
-                </TerminalActions>
-              </div>
-            </TerminalHeader>
+            {showHeader ? (
+              <TerminalHeader>
+                <TerminalTitle />
+                <div className="flex items-center gap-1">
+                  <TerminalStatus />
+                  <TerminalActions>
+                    <TerminalCopyButton />
+                    {onClear ? <TerminalClearButton /> : null}
+                  </TerminalActions>
+                </div>
+              </TerminalHeader>
+            ) : null}
             <TerminalContent />
           </>
         )}

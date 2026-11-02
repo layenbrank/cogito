@@ -8,6 +8,7 @@
 pub mod browser;
 pub mod calendar;
 pub mod knowledge;
+pub mod terminal;
 pub mod workspace;
 
 use sea_orm::DatabaseConnection;
@@ -49,6 +50,7 @@ pub fn catalog() -> Vec<ToolSpec> {
     tools.extend(workspace::specs());
     tools.extend(knowledge::specs());
     tools.extend(browser::specs());
+    tools.extend(terminal::specs());
     tools
 }
 
@@ -63,9 +65,10 @@ pub async fn call(db: &DatabaseConnection, name: &str, arguments: &Value) -> Res
     if knowledge::owns(name) {
         return knowledge::call(db, name, arguments).await;
     }
-    if browser::owns(name) {
-        // 浏览器工具要访问 webview，只能由 app 侧执行；走到这里说明桥没有拦截（
-        // 例如直接调 `tools::call` 的单测），给一句能看懂的说明而不是“未知工具”。
+    if browser::owns(name) || terminal::owns(name) {
+        // 浏览器工具要访问 webview、终端工具要访问 PTY 会话，都只能由 app 侧执行；
+        // 走到这里说明桥没有拦截（例如直接调 `tools::call` 的单测），
+        // 给一句能看懂的说明而不是“未知工具”。
         return Err(format!("{name} 需要宿主窗口，只能在 app 内执行"));
     }
     Err(format!("未知工具：{name}"))
@@ -91,8 +94,16 @@ mod tests {
         assert!(names.contains(&browser::READ));
         assert!(names.contains(&browser::ACT));
         assert!(names.contains(&browser::SCREENSHOT));
+        assert!(names.contains(&terminal::RUN));
+        assert!(names.contains(&terminal::READ));
+        assert!(names.contains(&terminal::LIST));
         // 有副作用的工具必须显式列在这里，其余一律只读
-        let write_tools = [knowledge::WRITE_DOC, browser::ACT, browser::INTERCEPT];
+        let write_tools = [
+            knowledge::WRITE_DOC,
+            browser::ACT,
+            browser::INTERCEPT,
+            terminal::RUN,
+        ];
         for tool in &tools {
             let expected = if write_tools.contains(&tool.name.as_str()) {
                 Effect::Write

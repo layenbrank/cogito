@@ -2,11 +2,16 @@
 //!
 //! 前端 `@xterm/xterm` 渲染，Rust 侧只承担 PTY 主机（对齐 VS Code 的 PtyHost 角色），
 //! 输出字节经 `tauri::ipc::Channel<Vec<u8>>` 推流，禁止反复 `invoke` 轮询读。
+//!
+//! 会话与视图**解耦**：会话自己留一段回滚缓冲，视图随时 `terminal:attach` 接上；
+//! agent 侧 `terminal:run` 复用同一个会话跑命令并读回输出 —— 这样「点一条命令跳到终端」
+//! 看到的确实是它自己的输出，而不是另开一个黑盒 shell。
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 use serde::Serialize;
@@ -14,14 +19,54 @@ use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 
+use cogito_command::terminalText::{strip_ansi, tail_chars};
+
 /// 单次读缓冲：终端输出按块推流，8 KiB 在交互吞吐与 IPC 次数间平衡。
 const READ_BUF_SIZE: usize = 8192;
+/// 回滚缓冲上限：够 agent 读完一次命令的输出，同时不让长跑会话吃满内存。
+const SCROLLBACK_MAX_BYTES: usize = 256 * 1024;
+/// agent 拿到手的正文上限（字符）：再多也读不动，只会白烧 token。
+const RUN_OUTPUT_MAX_CHARS: usize = 12_000;
+/// 「跑完了」判据：连续这么久没有新输出即视为结束（shell 无关，不依赖提示符格式）。
+const DEFAULT_QUIET_MS: u64 = 700;
+/// 单次等待上限：超过就先返回已有输出 + `isRunning: true`，让 agent 自己续读。
+const DEFAULT_TIMEOUT_MS: u64 = 120_000;
+/// 静默检测的轮询间隔
+const POLL_INTERVAL_MS: u64 = 60;
+/// agent 跑命令时广播给前端的事件：让右栏把 tab 打开 / 切过去
+const AGENT_RUN_EVENT: &str = "terminal://agent-run";
+
+/// 会话共享区：回滚缓冲 + 订阅者（可能一个视图都没有）。
+struct Scrollback {
+    buffer: Vec<u8>,
+    /// 因超出上限被丢弃的字节数；绝对游标 = dropped + buffer.len()
+    dropped: u64,
+    last_output: Instant,
+    subscribers: Vec<Channel<InvokeResponseBody>>,
+}
+
+impl Scrollback {
+    fn new() -> Self {
+        Self {
+            buffer: Vec::new(),
+            dropped: 0,
+            last_output: Instant::now(),
+            subscribers: Vec::new(),
+        }
+    }
+
+    /// 绝对游标：跨「缓冲被裁剪」也单调递增，agent 靠它取某次命令之后的输出。
+    fn cursor(&self) -> u64 {
+        self.dropped + self.buffer.len() as u64
+    }
+}
 
 struct TerminalSession {
     cwd: String,
     child: Box<dyn portable_pty::Child + Send + Sync>,
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
+    shared: Arc<Mutex<Scrollback>>,
 }
 
 /// 终端会话表（managed state）。命令与读线程共享；读线程在 EOF 后自清理。
@@ -57,6 +102,32 @@ pub struct TerminalInfo {
     pub id: String,
     pub cwd: String,
     pub pid: Option<u32>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalRun {
+    pub id: String,
+    pub command: String,
+    pub output: String,
+    /// `true` 表示等到超时还没静下来（如 `npm run dev`），输出只是到目前为止的部分内容
+    pub is_running: bool,
+    pub elapsed_ms: u64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalRead {
+    pub id: String,
+    pub output: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalAgentRunEvent {
+    pub id: String,
+    pub cwd: String,
+    pub command: String,
 }
 
 #[derive(Serialize, Debug)]
@@ -111,6 +182,18 @@ fn validate_cwd(cwd: &str) -> Result<PathBuf, String> {
     Ok(strip_windows_verbatim_prefix(canonical))
 }
 
+/// agent 会话 id 按 cwd 派生：同一目录反复跑命令复用同一个 tab，用户切过去就能接管。
+fn agent_session_id(cwd: &str) -> String {
+    format!("agent:{cwd}")
+}
+
+/// 由 cwd 解析出 agent 会话 id（`app_terminal_read` 省略 id 时用）。
+/// 先 canonicalize 再派生，保证与 `terminal:run` 建的会话是同一个键。
+pub fn resolve_agent_session(cwd: &str) -> Result<String, String> {
+    let path = validate_cwd(cwd)?;
+    Ok(agent_session_id(&path.display().to_string()))
+}
+
 /// 默认 shell 由 Rust 侧决定，不接收前端传入的 shell 路径（杜绝命令注入）。
 ///
 /// Windows 优先 `pwsh`（用户默认 shell，`$PROFILE` 个性化定制随 pwsh 自动加载），
@@ -142,36 +225,8 @@ fn find_in_path(executable: &str) -> Option<std::path::PathBuf> {
     None
 }
 
-#[tauri::command(rename = "terminal:create")]
-pub fn terminal_create(
-    app: AppHandle,
-    state: State<'_, TerminalHub>,
-    cwd: String,
-    channel: Channel<InvokeResponseBody>,
-    id: Option<String>,
-) -> Result<TerminalCreated, String> {
-    let cwd_path = validate_cwd(&cwd)?;
-    let shell = default_shell();
-
-    let id = id
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| Uuid::new_v4().to_string());
-
-    // 同 id 重入（视图热重挂）：先拆掉旧会话，避免写端孤儿 / 双读线程
-    if let Some(mut old) = {
-        let mut sessions = state
-            .sessions
-            .lock()
-            .map_err(|_| "终端会话表加锁失败".to_string())?;
-        sessions.remove(&id)
-    } {
-        #[cfg(windows)]
-        if let Some(pid) = old.child.process_id() {
-            terminate_process_tree(pid);
-        }
-        let _ = old.child.kill();
-    }
-
+/// 打开一个 PTY 会话：返回会话本体 + 读端（读端交给读线程独占）。
+fn spawn_session(cwd_path: &Path) -> Result<(TerminalSession, Box<dyn Read + Send>), String> {
     let pty_system = native_pty_system();
     let pair = pty_system
         .openpty(PtySize {
@@ -182,14 +237,13 @@ pub fn terminal_create(
         })
         .map_err(|err| format!("打开 PTY 失败：{err}"))?;
 
-    let mut cmd = CommandBuilder::new(&shell);
-    cmd.cwd(&cwd_path);
+    let mut cmd = CommandBuilder::new(default_shell());
+    cmd.cwd(cwd_path);
     let child = pair
         .slave
         .spawn_command(cmd)
         .map_err(|err| format!("启动 shell 失败：{err}"))?;
 
-    let pid = child.process_id();
     let reader = pair
         .master
         .try_clone_reader()
@@ -204,27 +258,170 @@ pub fn terminal_create(
         child,
         master: pair.master,
         writer,
+        shared: Arc::new(Mutex::new(Scrollback::new())),
     };
+    Ok((session, reader))
+}
 
-    {
-        let mut sessions = state
+/// 会话不存在就建一个；已存在直接复用（视图与 agent 共用同一个 shell）。
+fn ensure_session(
+    hub: &TerminalHub,
+    app: &AppHandle,
+    id: &str,
+    cwd_path: &Path,
+) -> Result<Option<u32>, String> {
+    let mut sessions = hub
+        .sessions
+        .lock()
+        .map_err(|_| "终端会话表加锁失败".to_string())?;
+    if let Some(session) = sessions.get(id) {
+        return Ok(session.child.process_id());
+    }
+
+    let (session, reader) = spawn_session(cwd_path)?;
+    let pid = session.child.process_id();
+    let shared = session.shared.clone();
+    sessions.insert(id.to_string(), session);
+    drop(sessions);
+
+    spawn_reader(hub.sessions.clone(), app.clone(), id.to_string(), shared, reader);
+    Ok(pid)
+}
+
+/// 把一段原始输出写进回滚缓冲并扇出给所有订阅者；发不出去的订阅者直接摘除。
+fn push_output(shared: &Arc<Mutex<Scrollback>>, chunk: &[u8]) {
+    let Ok(mut guard) = shared.lock() else {
+        return;
+    };
+    guard.buffer.extend_from_slice(chunk);
+    if guard.buffer.len() > SCROLLBACK_MAX_BYTES {
+        let overflow = guard.buffer.len() - SCROLLBACK_MAX_BYTES;
+        guard.buffer.drain(..overflow);
+        guard.dropped += overflow as u64;
+    }
+    guard.last_output = Instant::now();
+    guard
+        .subscribers
+        .retain(|channel| channel.send(InvokeResponseBody::Raw(chunk.to_vec())).is_ok());
+}
+
+/// 取会话共享区（不长期持有会话表锁）。
+fn find_shared(hub: &TerminalHub, id: &str) -> Result<Arc<Mutex<Scrollback>>, String> {
+    let sessions = hub
+        .sessions
+        .lock()
+        .map_err(|_| "终端会话表加锁失败".to_string())?;
+    sessions
+        .get(id)
+        .map(|session| session.shared.clone())
+        .ok_or_else(|| format!("终端会话不存在：{id}"))
+}
+
+/// 视图接管一个已有会话：先回放缓冲里的内容，再接实时流。
+///
+/// 回放和订阅在同一把锁里完成 —— 否则「回放旧字节」与「推送新字节」会交错，
+/// xterm 收到的顺序就乱了。
+fn attach_channel(
+    hub: &TerminalHub,
+    id: &str,
+    channel: Channel<InvokeResponseBody>,
+) -> Result<Option<u32>, String> {
+    let (shared, pid) = {
+        let sessions = hub
             .sessions
             .lock()
             .map_err(|_| "终端会话表加锁失败".to_string())?;
-        sessions.insert(id.clone(), session);
+        let session = sessions
+            .get(id)
+            .ok_or_else(|| format!("终端会话不存在：{id}"))?;
+        (session.shared.clone(), session.child.process_id())
+    };
+
+    let mut guard = shared
+        .lock()
+        .map_err(|_| "终端输出缓冲加锁失败".to_string())?;
+    let replay = guard.buffer.clone();
+    if !replay.is_empty() {
+        let _ = channel.send(InvokeResponseBody::Raw(replay));
     }
+    guard.subscribers.push(channel);
+    Ok(pid)
+}
 
-    spawn_reader(state.sessions.clone(), app, id.clone(), channel, reader);
+/// 写一行命令给 shell（PTY 的换行是 `\r`）。
+fn write_command(hub: &TerminalHub, id: &str, command: &str) -> Result<(), String> {
+    let mut sessions = hub
+        .sessions
+        .lock()
+        .map_err(|_| "终端会话表加锁失败".to_string())?;
+    let session = sessions
+        .get_mut(id)
+        .ok_or_else(|| format!("终端会话不存在：{id}"))?;
+    session
+        .writer
+        .write_all(format!("{command}\r").as_bytes())
+        .map_err(|err| format!("写入终端失败：{err}"))?;
+    session
+        .writer
+        .flush()
+        .map_err(|err| format!("刷新终端失败：{err}"))
+}
 
+/// 终止并移除一个会话（幂等）。
+fn kill_session(hub: &TerminalHub, id: &str) {
+    let removed = hub
+        .sessions
+        .lock()
+        .ok()
+        .and_then(|mut sessions| sessions.remove(id));
+    let Some(mut session) = removed else {
+        return;
+    };
+    #[cfg(windows)]
+    if let Some(pid) = session.child.process_id() {
+        terminate_process_tree(pid);
+    }
+    let _ = session.child.kill();
+}
+
+#[tauri::command(rename = "terminal:create")]
+pub fn terminal_create(
+    app: AppHandle,
+    state: State<'_, TerminalHub>,
+    cwd: String,
+    channel: Channel<InvokeResponseBody>,
+    id: Option<String>,
+) -> Result<TerminalCreated, String> {
+    let cwd_path = validate_cwd(&cwd)?;
+    let id = id
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+
+    // 同 id 重入（视图热重挂）：先拆掉旧会话，避免写端孤儿 / 双读线程
+    kill_session(state.inner(), &id);
+
+    let pid = ensure_session(state.inner(), &app, &id, &cwd_path)?;
+    attach_channel(state.inner(), &id, channel)?;
     Ok(TerminalCreated { id, pid })
 }
 
-/// 读线程：阻塞读 master → Channel 推原始字节；EOF 后回收会话并广播退出事件。
+/// 视图接上一个已存在的会话（agent 先建、面板后挂）。
+#[tauri::command(rename = "terminal:attach")]
+pub fn terminal_attach(
+    state: State<'_, TerminalHub>,
+    id: String,
+    channel: Channel<InvokeResponseBody>,
+) -> Result<TerminalCreated, String> {
+    let pid = attach_channel(state.inner(), &id, channel)?;
+    Ok(TerminalCreated { id, pid })
+}
+
+/// 读线程：阻塞读 master → 写回滚缓冲 + 扇出订阅者；EOF 后回收会话并广播退出事件。
 fn spawn_reader(
     sessions: Arc<Mutex<HashMap<String, TerminalSession>>>,
     app: AppHandle,
     id: String,
-    channel: Channel<InvokeResponseBody>,
+    shared: Arc<Mutex<Scrollback>>,
     mut reader: Box<dyn Read + Send>,
 ) {
     std::thread::spawn(move || {
@@ -232,14 +429,7 @@ fn spawn_reader(
         loop {
             match reader.read(&mut buf) {
                 Ok(0) => break,
-                Ok(n) => {
-                    if channel
-                        .send(InvokeResponseBody::Raw(buf[..n].to_vec()))
-                        .is_err()
-                    {
-                        break;
-                    }
-                }
+                Ok(n) => push_output(&shared, &buf[..n]),
                 Err(_) => break,
             }
         }
@@ -324,6 +514,136 @@ pub fn terminal_resize(
         .map_err(|err| format!("调整终端尺寸失败：{err}"))
 }
 
+/// agent 在嵌入式终端里执行一条命令，并把这段时间的输出读回来。
+///
+/// 结束判定用「安静期」而不是注入标记：不依赖具体 shell（pwsh / bash / 带 Oh My Posh
+/// 的提示符各不相同），代价是持续输出的命令（`npm run dev`）会等到超时，此时返回
+/// `isRunning: true` + 部分输出，agent 可继续用 `app_terminal_read` 续读。
+#[tauri::command(rename = "terminal:run")]
+pub async fn terminal_run(
+    app: AppHandle,
+    state: State<'_, TerminalHub>,
+    command: String,
+    cwd: Option<String>,
+    id: Option<String>,
+    quiet_ms: Option<u64>,
+    timeout_ms: Option<u64>,
+) -> Result<TerminalRun, String> {
+    let trimmed = command.trim().to_string();
+    if trimmed.is_empty() {
+        return Err("命令不能为空".into());
+    }
+    // 一次写入一行：内嵌换行会被 shell 当成多条命令，结束判定也就失准了
+    if trimmed.contains('\n') || trimmed.contains('\r') {
+        return Err("命令只能是单行；多条请用 && / ; 串联".into());
+    }
+
+    let (session_id, cwd_text) = {
+        let sessions = state
+            .sessions
+            .lock()
+            .map_err(|_| "终端会话表加锁失败".to_string())?;
+        match (id.filter(|value| !value.trim().is_empty()), cwd) {
+            (Some(id), _) => {
+                let session = sessions
+                    .get(&id)
+                    .ok_or_else(|| format!("终端会话不存在：{id}"))?;
+                (id, session.cwd.clone())
+            }
+            (None, Some(cwd)) => {
+                let path = validate_cwd(&cwd)?;
+                let text = path.display().to_string();
+                (agent_session_id(&text), text)
+            }
+            (None, None) => return Err("缺少 cwd（或传 id 指向一个已有终端会话）".into()),
+        }
+    };
+
+    ensure_session(state.inner(), &app, &session_id, Path::new(&cwd_text))?;
+    // 先让前端把 tab 打开/切过去：用户看得到 agent 正在跑什么
+    let _ = app.emit(
+        AGENT_RUN_EVENT,
+        TerminalAgentRunEvent {
+            id: session_id.clone(),
+            cwd: cwd_text,
+            command: trimmed.clone(),
+        },
+    );
+
+    let started = Instant::now();
+    let (start_cursor, _) = progress(state.inner(), &session_id)?;
+    write_command(state.inner(), &session_id, &trimmed)?;
+
+    let quiet = Duration::from_millis(quiet_ms.unwrap_or(DEFAULT_QUIET_MS).clamp(50, 10_000));
+    let timeout = Duration::from_millis(timeout_ms.unwrap_or(DEFAULT_TIMEOUT_MS).clamp(500, 600_000));
+    let mut is_running = true;
+    loop {
+        tokio::time::sleep(Duration::from_millis(POLL_INTERVAL_MS)).await;
+        // 会话已退出（命令把 shell 结束了）也当结束处理，把已有输出交回去
+        let Ok((cursor, last_output)) = progress(state.inner(), &session_id) else {
+            is_running = false;
+            break;
+        };
+        if cursor > start_cursor && last_output.elapsed() >= quiet {
+            is_running = false;
+            break;
+        }
+        if started.elapsed() >= timeout {
+            break;
+        }
+    }
+
+    let output = read_since(state.inner(), &session_id, start_cursor)?;
+    Ok(TerminalRun {
+        id: session_id,
+        command: trimmed,
+        output,
+        is_running,
+        elapsed_ms: started.elapsed().as_millis() as u64,
+    })
+}
+
+/// 读会话最近的输出（`terminal:run` 超时后的续读入口）。
+#[tauri::command(rename = "terminal:read")]
+pub fn terminal_read(
+    state: State<'_, TerminalHub>,
+    id: String,
+    max_chars: Option<usize>,
+) -> Result<TerminalRead, String> {
+    let limit = max_chars.unwrap_or(RUN_OUTPUT_MAX_CHARS).clamp(200, SCROLLBACK_MAX_BYTES);
+    let shared = find_shared(state.inner(), &id)?;
+    let guard = shared
+        .lock()
+        .map_err(|_| "终端输出缓冲加锁失败".to_string())?;
+    Ok(TerminalRead {
+        id,
+        output: tail_chars(&strip_ansi(&guard.buffer), limit),
+    })
+}
+
+/// 游标 + 最近一次写入时间
+fn progress(hub: &TerminalHub, id: &str) -> Result<(u64, Instant), String> {
+    let shared = find_shared(hub, id)?;
+    let guard = shared
+        .lock()
+        .map_err(|_| "终端输出缓冲加锁失败".to_string())?;
+    Ok((guard.cursor(), guard.last_output))
+}
+
+/// 取 `cursor` 之后的输出（环形缓冲已丢弃的部分无法找回，只能从现有最早处开始）
+fn read_since(hub: &TerminalHub, id: &str, cursor: u64) -> Result<String, String> {
+    let shared = find_shared(hub, id)?;
+    let guard = shared
+        .lock()
+        .map_err(|_| "终端输出缓冲加锁失败".to_string())?;
+    let offset = usize::try_from(cursor.saturating_sub(guard.dropped)).unwrap_or(0);
+    let start = offset.min(guard.buffer.len());
+    Ok(tail_chars(
+        &strip_ansi(&guard.buffer[start..]),
+        RUN_OUTPUT_MAX_CHARS,
+    ))
+}
+
 /// Windows：终止 `root_pid` 及其所有后代进程。
 ///
 /// ConPTY 下 `TerminateProcess` 只杀 shell 本身，继承 ConPTY 句柄的后代（如 `npm run dev`）
@@ -384,32 +704,9 @@ fn terminate_process_tree(root_pid: u32) {
 
 #[tauri::command(rename = "terminal:kill")]
 pub fn terminal_kill(id: String, state: State<'_, TerminalHub>) -> Result<(), String> {
-    let mut sessions = state
-        .sessions
-        .lock()
-        .map_err(|_| "终端会话表加锁失败".to_string())?;
-    let Some(mut session) = sessions.remove(&id) else {
-        // 幂等：视图卸载与读线程 EOF 可能先后 kill
-        return Ok(());
-    };
-
-    #[cfg(windows)]
-    {
-        if let Some(pid) = session.child.process_id() {
-            terminate_process_tree(pid);
-        }
-        // 进程树终止已含 shell；忽略二次 kill 的失败。
-        let _ = session.child.kill();
-        Ok(())
-    }
-
-    #[cfg(not(windows))]
-    {
-        session
-            .child
-            .kill()
-            .map_err(|err| format!("终止终端失败：{err}"))
-    }
+    // 幂等：视图卸载与读线程 EOF 可能先后 kill
+    kill_session(state.inner(), &id);
+    Ok(())
 }
 
 #[tauri::command(rename = "terminal:list")]
