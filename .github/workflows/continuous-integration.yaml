@@ -62,11 +62,12 @@ jobs:
           pnpm turbo run unit --continue --filter=!@cogito/client || true
 
       # client = Tauri 桌面包；studio = Electron Forge 打包（需 sidecar bootstrap）。
-      # 二者各有独立 release/desktop workflow；此处只编库与 web 应用。
+      # service = Rust 核心，走独立 Cogito CI（会中和 Windows 向 .cargo/config）。
+      # 此处只编库与 web 应用。
       - name: Build (exclude desktop packages)
         env:
           NODE_ENV: production
-        run: pnpm turbo run build --filter=!@cogito/client --filter=!@cogito/studio
+        run: pnpm turbo run build --filter=!@cogito/client --filter=!@cogito/studio --filter=!@cogito/service
 
       - name: Build client web (Vite)
         env:
