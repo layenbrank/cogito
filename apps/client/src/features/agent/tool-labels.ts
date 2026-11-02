@@ -47,8 +47,36 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   app_terminal_read: '读取终端输出',
   app_terminal_write: '写入终端',
   app_terminal_list: '列出终端会话',
+  app_browser_open: '打开网页',
+  app_browser_read: '读取网页',
+  app_browser_act: '操作网页',
+  app_browser_screenshot: '网页截图',
+  app_browser_network: '网页请求',
+  app_browser_intercept: '拦截请求',
+  app_browser_device: '设备模拟',
   app_workspace_list: '列出工作区',
   app_workspace_read: '读取工作区文件'
+}
+
+function isBrowserTool(name: string): boolean {
+  const lower = name.toLowerCase()
+  return lower.includes('app_browser_') || lower.includes('browser_')
+}
+
+/** 从工具参数 / 结果里抽出目标 tab label（`browser-<uuid>`） */
+function findBrowserToolLabel(args: unknown, result: unknown): string | null {
+  const fromArgs = readLabelField(args, 'tab') ?? readLabelField(args, 'label')
+  if (fromArgs) return fromArgs
+  return readLabelField(result, 'label') ?? readLabelField(result, 'tab')
+}
+
+function readLabelField(value: unknown, key: string): string | null {
+  if (!value || typeof value !== 'object') return null
+  const raw = (value as Record<string, unknown>)[key]
+  if (typeof raw !== 'string') return null
+  const trimmed = raw.trim()
+  if (!trimmed || trimmed === 'active') return null
+  return trimmed
 }
 
 function toAgentToolLabel(name: string): string {
@@ -141,6 +169,8 @@ function isGitTool(name: string): boolean {
 }
 
 export {
+  findBrowserToolLabel,
+  isBrowserTool,
   isCodeTool,
   isGitTool,
   isReadTool,

@@ -28,6 +28,7 @@ import {
   bindBackgroundTurnPersister,
   clearPersistedRunning,
   findBackgroundTurn,
+  findTurnEvents,
   followBackgroundTurn,
   hasPersistedRunningTurn,
   hasRunningBackgroundTurn,
@@ -149,13 +150,14 @@ async function* iterateEvents(
 async function persistOrphanTurn(port: ChatHistoryPort, turn: BackgroundTurn): Promise<void> {
   // 先占坑，避免 finally 补写与 remount load 并发各 append 一条
   if (turn.deliveredTerminal) return
-  if (!turn.events.some(isTerminalEvent)) return
+  const events = await findTurnEvents(turn)
+  if (!events.some(isTerminalEvent)) return
   turn.deliveredTerminal = true
 
   try {
     let parentID: string | null = null
     let snapshot: ChatModelRunResult | null = null
-    for await (const result of mapChatStreamToRunResults(iterateEvents(turn.events))) {
+    for await (const result of mapChatStreamToRunResults(iterateEvents(events))) {
       snapshot = result
     }
     if (!snapshot) return
