@@ -6,13 +6,19 @@ import { defaultDirectiveFormatter, type useAui } from '@assistant-ui/react'
 
 import { attachImageData } from '@/features/agent/attachment'
 import type { PickedBrowserElement } from '@/features/browser/api'
+import { formatTabTitle } from '@/features/browser/address'
+import { useBrowserStore } from '@/features/browser/store'
 
 type ComposerAui = ReturnType<typeof useAui>
 
 function buildPickedBlock(picked: PickedBrowserElement): string {
+  const tab = useBrowserStore.getState().tabs.find(function (item) {
+    return item.label === picked.label
+  })
+  const displayTitle = formatTabTitle(picked.url || tab?.url || '', tab?.title)
   const chip = defaultDirectiveFormatter.serialize({
     type: 'browser',
-    label: picked.label,
+    label: displayTitle,
     id: picked.label
   })
   const lines = [

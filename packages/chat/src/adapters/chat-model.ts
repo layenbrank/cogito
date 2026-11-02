@@ -369,10 +369,14 @@ interface ChatModelAdapterOptions {
   findHost?: (target: ChatTarget) => Record<string, unknown> | Promise<Record<string, unknown>>
 }
 
+/** text/reasoning 合并窗口：压低每 token 全量 snapshot 的主线程压力 */
+const STREAM_COALESCE_MS = 32
+
 /**
  * 把端口事件流聚合成 assistant-ui 的快照流。
  *
  * 后台回合复用同一套累积（`history.resume` 重放缓冲 + 实时尾部），避免两套映射漂移。
+ * text/reasoning 按墙钟窗口合并 yield；tool/plan/elicitation/终态立即 flush。
  */
 async function* mapChatStreamToRunResults(
   events: AsyncIterable<ChatStreamEvent>
@@ -382,18 +386,41 @@ async function* mapChatStreamToRunResults(
   let firstTokenTime: number | undefined
   let totalChunks = 0
   let toolCallCount = 0
+  let lastSoftYieldAt = 0
+  let softDirty = false
+
+  function flushSoftIfNeeded(): ChatModelRunResult | null {
+    if (!softDirty) return null
+    softDirty = false
+    lastSoftYieldAt = Date.now()
+    return { content: content.parts() }
+  }
 
   for await (const event of events) {
     switch (event.kind) {
-      case 'text':
+      case 'text': {
         totalChunks += 1
         if (firstTokenTime === undefined) firstTokenTime = Date.now()
         content.appendBlock('text', event.blockID, event.text)
+        softDirty = true
+        if (Date.now() - lastSoftYieldAt >= STREAM_COALESCE_MS) {
+          const soft = flushSoftIfNeeded()
+          if (soft) yield soft
+        }
         break
-      case 'reasoning':
+      }
+      case 'reasoning': {
         content.appendBlock('reasoning', event.blockID, event.text)
+        softDirty = true
+        if (Date.now() - lastSoftYieldAt >= STREAM_COALESCE_MS) {
+          const soft = flushSoftIfNeeded()
+          if (soft) yield soft
+        }
         break
-      case 'tool-call':
+      }
+      case 'tool-call': {
+        const soft = flushSoftIfNeeded()
+        if (soft) yield soft
         toolCallCount += 1
         content.updateTool(event.toolCallId, function () {
           return {
@@ -404,8 +431,12 @@ async function* mapChatStreamToRunResults(
             startedAt: Date.now()
           }
         })
+        yield { content: content.parts() }
         break
-      case 'tool-approval-request':
+      }
+      case 'tool-approval-request': {
+        const soft = flushSoftIfNeeded()
+        if (soft) yield soft
         content.updateTool(event.toolCallId, function (previous) {
           return {
             toolCallId: event.toolCallId,
@@ -417,28 +448,37 @@ async function* mapChatStreamToRunResults(
             approval: {
               id: event.toolCallId,
               ...(event.prompt ? { prompt: event.prompt } : {}),
-              // 选项形状与 assistant-ui 的一致（id / kind / label），直接透传
               ...(event.options && event.options.length > 0 ? { options: event.options } : {})
             }
           }
         })
+        yield { content: content.parts() }
         break
-      case 'plan':
+      }
+      case 'plan': {
+        const soft = flushSoftIfNeeded()
+        if (soft) yield soft
         content.setPlan(event.entries)
+        yield { content: content.parts() }
         break
-      case 'elicitation-request':
+      }
+      case 'elicitation-request': {
+        const soft = flushSoftIfNeeded()
+        if (soft) yield soft
         content.addElicitation({
           elicitationId: event.elicitationId,
           schema: event.schema,
           ...(event.prompt ? { prompt: event.prompt } : {})
         })
+        yield { content: content.parts() }
         break
+      }
       case 'mode-update':
       case 'commands-update':
-        // 会话级状态（当前模式 / 命令名单）不属于消息内容，由会话控制器消费，
-        // 不必刷新消息快照
         continue
-      case 'tool-result':
+      case 'tool-result': {
+        const soft = flushSoftIfNeeded()
+        if (soft) yield soft
         content.updateTool(event.toolCallId, function (previous) {
           return {
             toolCallId: event.toolCallId,
@@ -454,11 +494,13 @@ async function* mapChatStreamToRunResults(
               : undefined
           }
         })
+        yield { content: content.parts() }
         break
-      case 'tool-approval-failed':
+      }
+      case 'tool-approval-failed': {
+        const soft = flushSoftIfNeeded()
+        if (soft) yield soft
         content.updateTool(event.toolCallId, function (previous) {
-          // 回执没被受理（发起它的那次运行已经不在等待）：把这一项按失败收敛。
-          // 不收敛的话卡片会永远停在「待审批」，用户以为点了没反应
           if (!previous) return null
           return {
             ...previous,
@@ -468,8 +510,12 @@ async function* mapChatStreamToRunResults(
             approval: undefined
           }
         })
+        yield { content: content.parts() }
         break
-      case 'finish':
+      }
+      case 'finish': {
+        const soft = flushSoftIfNeeded()
+        if (soft) yield soft
         yield {
           content: content.finish(),
           status: toStatus(event.finishReason),
@@ -485,13 +531,10 @@ async function* mapChatStreamToRunResults(
           }
         }
         return
-      case 'aborted':
-        // 取消（或被新一轮取代）不是错误，但这一轮**已经烧掉的 token 是真的**。
-        //
-        // 局限说明（别把它当成可靠来源）：用户手动点停时 runtime 会在取到这一份快照之后
-        // 先判 `abortSignal.aborted` 再把它丢掉（见 @assistant-ui/core 的
-        // local-thread-runtime-core）；被服务端「取代」那种取消则会正常收下。
-        // 真正的账在主进程的用量账本里（`engine.settle` 先记账再发终态）。
+      }
+      case 'aborted': {
+        const soft = flushSoftIfNeeded()
+        if (soft) yield soft
         yield {
           content: content.finish(),
           status: { type: 'incomplete', reason: 'cancelled' },
@@ -507,17 +550,21 @@ async function* mapChatStreamToRunResults(
           }
         }
         return
-      case 'error':
-        // 报错前先交一份带用量的快照：runtime 的 catch 只改 status，不动这份 metadata。
+      }
+      case 'error': {
+        const soft = flushSoftIfNeeded()
+        if (soft) yield soft
         yield {
           content: content.finish(),
           metadata: { custom: toCustom(event.usage) }
         }
         throw new Error(event.message)
+      }
     }
-
-    yield { content: content.parts() }
   }
+
+  const soft = flushSoftIfNeeded()
+  if (soft) yield soft
 }
 
 function createChatModelAdapter(

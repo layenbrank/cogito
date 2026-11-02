@@ -7,14 +7,30 @@
  *
  * 这里按 thread 登记一轮独立泵：UI 只是订阅者。`detach` 不取消 goose；用户点「停止」
  * （`AbortError.detach !== true`）才 abort。卸载后再打开走 `history.resume` 重放缓冲 + 续尾。
+ *
+ * 事件权威缓冲在 Rust `agentTurn:*`（有界 ring）；TS 只保留薄镜像供同步监听与单测，
+ * 并 dual-write，便于 orphan 落库 / 进程内 remount 从 Rust follow。
  */
 import type { ChatStreamEvent } from '@cogito/chat/ports'
+
+import {
+  appendTurnEvents,
+  clearRunning as clearRustRunning,
+  ensureTurn,
+  finishTurn,
+  followTurn,
+  listRunning,
+  markRunning as markRustRunning
+} from '@/features/agent/acp/agent-turn-rust'
 
 type TurnListener = (event: ChatStreamEvent | null) => void
 
 interface BackgroundTurn {
   threadID: string
+  /** 薄镜像：有上限；权威副本在 Rust */
   events: ChatStreamEvent[]
+  /** Rust follow 游标（下次增量起点） */
+  cursor: number
   status: 'running' | 'done'
   cancel: AbortController
   listeners: Set<TurnListener>
@@ -31,11 +47,18 @@ const turns = new Map<string, BackgroundTurn>()
 /** 回合结束后短暂保留，方便 remount 的 `resume` 接到缓冲 */
 const TURN_RETENTION_MS = 60_000
 
-/** 刷新后恢复：把「正在跑的 thread」落在 localStorage（内存态刷新即丢） */
+/**
+ * 本地镜像条数上限（Rust ring 同步止血）。
+ * 超出丢掉最旧非终态，保留最近窗口供同步订阅。
+ */
+const TURN_EVENT_CAP = 4_000
+
+/** 刷新后恢复兜底：Rust 不可用时仍可读 localStorage */
 const RUNNING_TURNS_KEY = 'cogito:agent:running-turns'
 
-/** 列出 localStorage 里记着的「正在跑」thread 集合（刷新恢复判定 / 会话列表标注 / 自动选中用） */
+/** 列出「正在跑」thread 集合（优先 Rust，失败回落 localStorage） */
 function readRunningTurns(): string[] {
+  // 同步 API：调用方多为渲染路径；Rust 结果靠 mark/clear 时回写 localStorage 镜像
   try {
     const raw = window.localStorage.getItem(RUNNING_TURNS_KEY)
     return raw ? (JSON.parse(raw) as string[]) : []
@@ -55,9 +78,13 @@ function writeRunningTurns(ids: string[]): void {
 
 function markPersistedRunning(threadID: string): void {
   const ids = readRunningTurns()
-  if (ids.includes(threadID)) return
-  ids.push(threadID)
-  writeRunningTurns(ids)
+  if (!ids.includes(threadID)) {
+    ids.push(threadID)
+    writeRunningTurns(ids)
+  }
+  void markRustRunning(threadID).then(function (next) {
+    if (next) writeRunningTurns(next)
+  })
 }
 
 function clearPersistedRunning(threadID: string): void {
@@ -65,14 +92,24 @@ function clearPersistedRunning(threadID: string): void {
   const next = ids.filter(function (id) {
     return id !== threadID
   })
-  if (next.length === ids.length) return
-  writeRunningTurns(next)
+  if (next.length !== ids.length) writeRunningTurns(next)
+  void clearRustRunning(threadID).then(function (remote) {
+    if (remote) writeRunningTurns(remote)
+  })
 }
 
-/** 刷新后「这轮还在跑」的判定：内存态丢了就查 localStorage */
+/** 刷新后「这轮还在跑」的判定：内存态丢了就查持久化标记 */
 function hasPersistedRunningTurn(threadID: string): boolean {
   return readRunningTurns().includes(threadID.trim())
 }
+
+/** 启动时尽量用 Rust running 集合覆盖 localStorage 镜像 */
+function bootstrapRunningFromRust(): void {
+  void listRunning().then(function (ids) {
+    if (ids) writeRunningTurns(ids)
+  })
+}
+bootstrapRunningFromRust()
 
 type TurnPersister = (turn: BackgroundTurn) => void | Promise<void>
 let persister: TurnPersister | null = null
@@ -164,6 +201,14 @@ function forgetTurnLater(turn: BackgroundTurn) {
   }, TURN_RETENTION_MS)
 }
 
+function pushLocalEvent(turn: BackgroundTurn, event: ChatStreamEvent) {
+  turn.events.push(event)
+  if (turn.events.length > TURN_EVENT_CAP) {
+    const overflow = turn.events.length - TURN_EVENT_CAP
+    turn.events.splice(0, overflow)
+  }
+}
+
 function ensureBackgroundTurn(
   threadID: string,
   start: (signal: AbortSignal) => AsyncIterable<ChatStreamEvent>
@@ -182,6 +227,7 @@ function ensureBackgroundTurn(
   const turn: BackgroundTurn = {
     threadID,
     events: [],
+    cursor: 0,
     status: 'running',
     cancel,
     listeners: new Set(),
@@ -191,11 +237,15 @@ function ensureBackgroundTurn(
   }
   turns.set(threadID, turn)
   markPersistedRunning(threadID)
+  void ensureTurn(threadID)
 
   void (async function () {
     try {
       for await (const event of start(cancel.signal)) {
-        turn.events.push(event)
+        pushLocalEvent(turn, event)
+        const nextCursor = await appendTurnEvents(threadID, [event])
+        if (typeof nextCursor === 'number') turn.cursor = nextCursor
+        else turn.cursor += 1
         notifyTurn(turn, event)
         if (isTerminalEvent(event)) break
       }
@@ -205,12 +255,16 @@ function ensureBackgroundTurn(
       if (!turn.events.some(isTerminalEvent)) {
         const message = error instanceof Error ? error.message : String(error)
         const failed: ChatStreamEvent = { kind: 'error', message }
-        turn.events.push(failed)
+        pushLocalEvent(turn, failed)
+        const nextCursor = await appendTurnEvents(threadID, [failed])
+        if (typeof nextCursor === 'number') turn.cursor = nextCursor
+        else turn.cursor += 1
         notifyTurn(turn, failed)
       }
     } finally {
       turn.status = 'done'
       clearPersistedRunning(turn.threadID)
+      void finishTurn(turn.threadID)
       notifyTurn(turn, null)
       if (!turn.deliveredTerminal && turn.persister) {
         try {
@@ -265,25 +319,46 @@ async function* followBackgroundTurn(
   uiSignal: AbortSignal | undefined
 ): AsyncGenerator<ChatStreamEvent, void, unknown> {
   const turn = turns.get(threadID)
-  if (!turn) return
-
-  const unbind = bindUiCancel(uiSignal, turn.cancel)
-  try {
-    let index = 0
-    while (true) {
-      while (index < turn.events.length) {
-        const event = turn.events[index]
-        index += 1
-        if (isTerminalEvent(event)) turn.deliveredTerminal = true
-        yield event
-        if (isTerminalEvent(event)) return
+  if (turn) {
+    const unbind = bindUiCancel(uiSignal, turn.cancel)
+    try {
+      let index = 0
+      while (true) {
+        while (index < turn.events.length) {
+          const event = turn.events[index]
+          index += 1
+          if (isTerminalEvent(event)) turn.deliveredTerminal = true
+          yield event
+          if (isTerminalEvent(event)) return
+        }
+        if (turn.status === 'done') return
+        await waitForTurnEvent(turn)
       }
-      if (turn.status === 'done') return
-      await waitForTurnEvent(turn)
+    } finally {
+      unbind()
     }
-  } finally {
-    unbind()
+    return
   }
+
+  // 内存回合已丢，但 Rust ring 可能还在（同进程 remount）
+  const remote = await followTurn(threadID, 0)
+  if (!remote || remote.status === 'missing' || remote.events.length === 0) return
+  for (const event of remote.events) {
+    if (isTerminalEvent(event)) {
+      yield event
+      return
+    }
+    yield event
+  }
+}
+
+/**
+ * orphan 落库用：优先 Rust 全量，失败再回落本地镜像。
+ */
+async function findTurnEvents(turn: BackgroundTurn): Promise<ChatStreamEvent[]> {
+  const remote = await followTurn(turn.threadID, 0)
+  if (remote && remote.events.length > 0) return remote.events
+  return turn.events
 }
 
 function hasRunningBackgroundTurn(threadID: string): boolean {
@@ -307,6 +382,7 @@ export {
   consumeBackgroundTurn,
   ensureBackgroundTurn,
   findBackgroundTurn,
+  findTurnEvents,
   followBackgroundTurn,
   hasPersistedRunningTurn,
   hasRunningBackgroundTurn,

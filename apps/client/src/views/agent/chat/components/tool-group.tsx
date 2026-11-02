@@ -30,9 +30,8 @@ function AgentToolGroup(props: PropsWithChildren<ToolGroupProps>) {
   })
   // 本段工具正在跑：指示转圈
   const isActive = isMessageRunning && group.status.type === 'running'
-  // 整轮生成期间保持展开：若「段结束就收起」，工具卡会在回答还没出完时消失，
-  // 只剩「N tool calls」折叠条，看起来像「没有工具记录」。回合结束后交给外层过程摘要收。
-  const isOpen = userOpen ?? (isMessageRunning || isActive)
+  // 本段完成后即可收起（不必等整轮结束），降低流式中段 Diff/Terminal DOM；用户展开则 pin。
+  const isOpen = userOpen ?? isActive
 
   return (
     <ToolGroupRoot

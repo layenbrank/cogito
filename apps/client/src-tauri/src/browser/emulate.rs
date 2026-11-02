@@ -201,14 +201,42 @@ fn with_fits<T>(action: impl FnOnce(&mut HashMap<String, f64>) -> T) -> T {
     action(&mut guard)
 }
 
+fn panels() -> &'static Mutex<HashMap<String, (f64, f64)>> {
+    static PANELS: OnceLock<Mutex<HashMap<String, (f64, f64)>>> = OnceLock::new();
+    PANELS.get_or_init(Mutex::default)
+}
+
+fn with_panels<T>(action: impl FnOnce(&mut HashMap<String, (f64, f64)>) -> T) -> T {
+    let mut guard = panels()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    action(&mut guard)
+}
+
+/// 记下「设备盒子」可用尺寸（≈ 面板可用区），供 agent `estimate_fit` 使用。
+pub fn remember_panel(label: &str, width: f64, height: f64) {
+    if width <= 0.0 || height <= 0.0 {
+        return;
+    }
+    with_panels(|map| {
+        map.insert(label.to_string(), (width, height));
+    });
+}
+
 /// tab 关闭 / 被判定为孤儿时清账
 pub fn forget(label: &str) {
     with_fits(|map| map.remove(label));
+    with_panels(|map| map.remove(label));
 }
 
 #[must_use]
 pub fn fit_of(label: &str) -> Option<f64> {
     with_fits(|map| map.get(label).copied())
+}
+
+#[must_use]
+pub fn panel_of(label: &str) -> Option<(f64, f64)> {
+    with_panels(|map| map.get(label).copied())
 }
 
 // ---------------------------------------------------------------------------
@@ -432,10 +460,54 @@ pub async fn readback(app: &AppHandle, label: &str) -> Result<Value, String> {
 // 应用 / 恢复
 // ---------------------------------------------------------------------------
 
+/// 仅 fit 变了：跳过 UA / 触摸 / media，只改缩放（面板拖拽热路径）。
+async fn apply_fit_only(
+    app: &AppHandle,
+    label: &str,
+    device: &DeviceProfile,
+    fit: f64,
+) -> Result<(), String> {
+    let fit = clamp_fit(fit);
+    with_fits(|map| map.insert(label.to_string(), fit));
+    remember_panel(
+        label,
+        f64::from(device.width) * fit,
+        f64::from(device.height) * fit,
+    );
+    let channel = channel();
+    match channel {
+        ScaleChannel::Cdp => {
+            cdp::call(
+                app,
+                label,
+                "Emulation.setDeviceMetricsOverride",
+                metrics_params(device, fit, channel),
+            )
+            .await?;
+            if let Err(error) = set_zoom(app, label, MAX_FIT) {
+                log::warn!("browser: fit-only 复位缩放失败（{label}）: {error}");
+            }
+        }
+        ScaleChannel::Zoom => {
+            if let Err(error) = set_zoom(app, label, fit) {
+                log::warn!("browser: fit-only 设置缩放失败（{label}，zoom={fit}）: {error}");
+            }
+        }
+        ScaleChannel::None => {}
+    }
+    log::debug!(
+        "browser: fit-only {label} → fit={fit:.2} channel={}",
+        channel.as_str()
+    );
+    Ok(())
+}
+
 /// 应用（或退出）设备模拟。
 ///
 /// `device = None` 走清除路径；`Some` 依次下发 metrics → 触摸 → media → 鼠标合成 →
 /// UA → 缩放。`fit` 由前端算（盒子 / 设备），这里只做夹取与记账。
+///
+/// 若档案未变、仅 fit 变了，走 `apply_fit_only`，避免拖面板时反复重灌 UA/触摸。
 pub async fn apply(
     app: &AppHandle,
     label: &str,
@@ -450,7 +522,21 @@ pub async fn apply(
     device.validate()?;
 
     let fit = clamp_fit(fit);
+    let previous = device_of(app, label);
+    let previous_fit = fit_of(label);
+    if previous.as_ref() == Some(device) {
+        if previous_fit.is_some_and(|old| (old - fit).abs() < 1e-9) {
+            return Ok(());
+        }
+        return apply_fit_only(app, label, device, fit).await;
+    }
+
     with_fits(|map| map.insert(label.to_string(), fit));
+    remember_panel(
+        label,
+        f64::from(device.width) * fit,
+        f64::from(device.height) * fit,
+    );
 
     // `scale` 在部分 WebView2 版本会被拒：失败就退到 zoom 通道自愈，
     // 不用等用户去点一次自检。

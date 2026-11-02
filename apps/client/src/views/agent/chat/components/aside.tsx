@@ -27,7 +27,6 @@ import { AsideHistory } from './aside-history'
 import { AsidePlan } from './aside-plan'
 import { AsideReview } from './aside-review'
 import { TerminalSurface } from '@/features/terminal'
-import type { PlanSnapshot } from '@/features/agent/plan'
 import { DEFAULT_BUDGET, startGoalRun, stopGoalRun } from '@/features/agent/goal-run'
 import { findPlanDraft } from '@/features/agent/plan-draft'
 import { buildPlanExecutePrompt } from '@/features/agent/plan-execute'
@@ -40,7 +39,6 @@ type AsideMode = 'home' | 'plan' | 'files' | 'review' | 'history' | 'browser' | 
 
 interface AsideProps {
   className?: string
-  plan: PlanSnapshot | null
 }
 
 /** 嵌套壳里没有 IPC：藏掉依赖桌面能力的页签，避免递归开 browser */
@@ -67,8 +65,11 @@ const ASIDE_TABS: ReadonlyArray<{
 
 function AgentAside(props: AsideProps) {
   const aui = useAui()
-  const messages = useAuiState(function (state) {
-    return state.thread.messages
+  /** 布尔标量：避免整份 messages 引用变化拖着重渲染 */
+  const hasUserMessage = useAuiState(function (state) {
+    return state.thread.messages.some(function (message) {
+      return message.role === 'user'
+    })
   })
   const isEmbedded = isEmbeddedShell()
 
@@ -118,7 +119,8 @@ function AgentAside(props: AsideProps) {
    * 文件级细节与验证步骤全被丢掉 —— 这是「计划执行不完整」的根因。
    */
   function startImplement(target: 'agent' | 'goal', budget?: number) {
-    const draft = findPlanDraft(messages)
+    // 点击时再读：不把整份 messages 常驻在本组件订阅链上
+    const draft = findPlanDraft(aui.thread.getState().messages)
     const steps = draft?.steps ?? []
 
     if (target === 'goal') {
@@ -153,15 +155,6 @@ function AgentAside(props: AsideProps) {
     )
     void aui.composer.send()
   }
-
-  const hasUserMessage = useMemo(
-    function () {
-      return messages.some(function (message) {
-        return message.role === 'user'
-      })
-    },
-    [messages]
-  )
 
   /**
    * 工具卡给的是绝对路径，可能落在工作区里任意一个文件夹：
@@ -357,7 +350,6 @@ function AgentAside(props: AsideProps) {
         {mode === 'plan' ? (
           <AsidePlan
             key={panelKey}
-            plan={props.plan}
             isPlanMode={agentMode === 'plan'}
             onStartImplement={startImplement}
           />
@@ -367,7 +359,6 @@ function AgentAside(props: AsideProps) {
           hasUserMessage ? (
             <AsideBusy
               key={panelKey}
-              plan={props.plan}
               onOpenFiles={openFiles}
               onOpenReview={openReview}
               onOpenPlan={function () {

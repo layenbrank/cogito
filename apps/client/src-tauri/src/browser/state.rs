@@ -17,6 +17,9 @@ pub struct BrowserTab {
     /// Tauri webview label，形如 `browser-<uuid>`（全局唯一，避免 close 残留撞名）
     pub label: String,
     pub url: String,
+    /// `document.title`；空串表示尚未读到（UI 回退 host）
+    #[serde(default)]
+    pub title: String,
     /// 这个 tab 的设备模拟档案；`None` = 桌面态（= `app_browser_device` 的 off）。
     ///
     /// 放在 tab 上是刻意的：`browser_snapshot` 会原样带回前端，页面刷新 / HMR 后
@@ -29,6 +32,8 @@ pub struct BrowserTab {
 pub struct NavEvent {
     pub label: String,
     pub url: String,
+    #[serde(default)]
+    pub title: String,
 }
 
 /// 布局意图。
@@ -130,7 +135,28 @@ impl BrowserState {
         let mut inner = self.lock();
         if let Some(tab) = inner.tabs.iter_mut().find(|tab| tab.label == label) {
             tab.url = url;
+            // 导航会换文档，旧标题作废
+            tab.title.clear();
         }
+    }
+
+    pub fn set_title(&self, label: &str, title: String) {
+        let mut inner = self.lock();
+        if let Some(tab) = inner.tabs.iter_mut().find(|tab| tab.label == label) {
+            tab.title = title;
+        }
+    }
+
+    /// 同 host+port 的已有 tab（`app_browser_open` 默认复用）
+    pub fn find_by_host_port(&self, host: &str, port: u16) -> Option<BrowserTab> {
+        self.lock()
+            .tabs
+            .iter()
+            .find(|tab| match host_port_of(&tab.url) {
+                Some((tab_host, tab_port)) => tab_host == host && tab_port == port,
+                None => false,
+            })
+            .cloned()
     }
 
     /// 单个 tab 的快照（设备模拟要读它，导航重放也靠它）
@@ -182,4 +208,17 @@ impl BrowserState {
             layout: inner.layout,
         }
     }
+}
+
+/// `(host, port)`；无 host / 未知默认端口时返回 `None`（不可复用比对）
+fn host_port_of(url: &str) -> Option<(String, u16)> {
+    let parsed = url.parse::<url::Url>().ok()?;
+    let host = parsed.host_str()?.to_string();
+    let port = parsed.port_or_known_default()?;
+    Some((host, port))
+}
+
+/// 解析 URL 的 host+port，供 `app_browser_open` 复用比对
+pub fn parse_host_port(url: &str) -> Option<(String, u16)> {
+    host_port_of(url)
 }

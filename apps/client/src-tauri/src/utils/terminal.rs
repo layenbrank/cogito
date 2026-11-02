@@ -464,27 +464,32 @@ fn spawn_reader(
     });
 }
 
+/// 向已有 PTY 会话写入原始字节（桥 `app_terminal_write` 与 IPC `terminal:write` 共用）
+pub fn write_session(hub: &TerminalHub, id: &str, data: &[u8]) -> Result<(), String> {
+    let mut sessions = hub
+        .sessions
+        .lock()
+        .map_err(|_| "终端会话表加锁失败".to_string())?;
+    let session = sessions
+        .get_mut(id)
+        .ok_or_else(|| "终端会话不存在".to_string())?;
+    session
+        .writer
+        .write_all(data)
+        .map_err(|err| format!("写入终端失败：{err}"))?;
+    session
+        .writer
+        .flush()
+        .map_err(|err| format!("刷新终端失败：{err}"))
+}
+
 #[tauri::command(rename = "terminal:write")]
 pub fn terminal_write(
     id: String,
     data: Vec<u8>,
     state: State<'_, TerminalHub>,
 ) -> Result<(), String> {
-    let mut sessions = state
-        .sessions
-        .lock()
-        .map_err(|_| "终端会话表加锁失败".to_string())?;
-    let session = sessions
-        .get_mut(&id)
-        .ok_or_else(|| "终端会话不存在".to_string())?;
-    session
-        .writer
-        .write_all(&data)
-        .map_err(|err| format!("写入终端失败：{err}"))?;
-    session
-        .writer
-        .flush()
-        .map_err(|err| format!("刷新终端失败：{err}"))
+    write_session(state.inner(), &id, &data)
 }
 
 #[tauri::command(rename = "terminal:resize")]

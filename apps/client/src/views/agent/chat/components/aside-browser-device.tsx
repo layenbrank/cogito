@@ -130,12 +130,14 @@ function AsideBrowserDevice(props: AsideBrowserDeviceProps) {
         <DropdownMenuGroup>
           <DropdownMenuLabel>设备模拟</DropdownMenuLabel>
           {DEVICE_PRESETS.map(function (preset) {
-            const active = current?.id === preset.id
+            // 桌面预设 = 退出模拟：device=null 时高亮「桌面」，避免与「退出」分叉两套态
+            const active =
+              preset.id === 'desktop' ? props.device === null : current?.id === preset.id
             return (
               <DropdownMenuItem
                 key={preset.id}
                 onClick={function () {
-                  props.onSelect(preset)
+                  props.onSelect(preset.id === 'desktop' ? null : preset)
                   updateOpen(false)
                 }}>
                 <Icon
@@ -148,7 +150,9 @@ function AsideBrowserDevice(props: AsideBrowserDeviceProps) {
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate">{preset.name}</span>
                   <span className="text-muted-foreground text-[11px]">
-                    {preset.width}×{preset.height} · {describeDpr(preset)}
+                    {preset.id === 'desktop'
+                      ? '恢复系统视口'
+                      : `${preset.width}×${preset.height} · ${describeDpr(preset)}`}
                   </span>
                 </span>
               </DropdownMenuItem>
@@ -252,6 +256,7 @@ function AsideBrowserDevice(props: AsideBrowserDeviceProps) {
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={function () {
+                // 与上方「桌面」预设同义：都是 device=null，不另开 1440×900 模拟态
                 props.onSelect(null)
                 updateOpen(false)
               }}>
@@ -259,7 +264,7 @@ function AsideBrowserDevice(props: AsideBrowserDeviceProps) {
                 icon="lucide:monitor"
                 className="size-3.5"
               />
-              退出模拟（回到桌面）
+              退出模拟（同「桌面」）
             </DropdownMenuItem>
           </>
         ) : null}

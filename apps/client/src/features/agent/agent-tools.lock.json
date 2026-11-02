@@ -24,6 +24,10 @@
     "app_browser_screenshot",
     "app_browser_network",
     "app_browser_intercept",
-    "app_browser_device"
+    "app_browser_device",
+    "app_terminal_run",
+    "app_terminal_read",
+    "app_terminal_write",
+    "app_terminal_list"
   ]
 }

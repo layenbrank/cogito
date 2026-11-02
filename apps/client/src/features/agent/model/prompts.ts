@@ -6,7 +6,7 @@
  */
 import type { ScenarioKey } from '@/features/agent/model/scenarios'
 
-/** 运行时可用的附加上下文（能力地图 / 当前时间 / 浏览器状态） */
+/** 运行时可用的附加上下文（能力地图 / 当前时间 / 浏览器 / 终端状态） */
 interface PromptContext {
   /** corex 动作目录的紧凑文本（见 `capabilities.ts`） */
   capabilitySummary?: string
@@ -14,8 +14,10 @@ interface PromptContext {
   now?: string
   /** IANA 时区 */
   timeZone?: string
-  /** 浏览器面板当前状态（有没有打开的标签页、在看哪个地址） */
+  /** 浏览器面板：活跃项 + 全部 tab 的 label/title/url */
   browserSummary?: string
+  /** 终端会话清单：id / cwd / agent|user */
+  terminalSummary?: string
 }
 
 const TOOLS_HINT =
@@ -84,7 +86,8 @@ const BROWSER_PLAYBOOK = `浏览器面板（用户能看到的内嵌浏览器，
 - app_browser_read 的 outline 会返回 selector，直接拿去 app_browser_act 点击/输入/悬停/滚动（scroll 不需要 selector）；动作有副作用，不确定时先问一句。app_browser_act 发的都是页面内合成事件，**按 F5 / Ctrl+R 不会刷新页面**。
 - 需要重新加载时用 app_browser_act 的 reload（value 传 hard 表示忽略缓存）—— 改完配置要生效、想重看一遍请求、或者页面状态乱了都可以自己刷，不必让用户动手。刷新是异步的，先看返回的 readyState（loading 就再等一会儿），再 app_browser_read 取新页面。
 - 涉及**视觉**的问题（配色、布局、间距、字体、图片或图表内容、有没有错位/撑破）必须用 app_browser_screenshot 看一眼 —— DOM 文本里根本没有这些信息，不要根据标签名猜样式。
-- 用户在输入框里用 @ 引用了浏览器标签页（文本形如 :browser[browser-2]）时，方括号里就是要传给 app_browser_* 的 tab 参数 —— 同址开多个标签时也靠它区分，不要自己猜。
+- 用户在输入框里用 @ 引用了浏览器标签页（文本形如 :browser[页面标题]{name=browser-<uuid>}）时，**name/id 才是**要传给 app_browser_* 的 tab 参数；方括号是给人看的标题。未选中的标签页也可读可操作，只要带对 tab。
+- 同 host 已有标签时优先复用（app_browser_open 默认不重复开）；确需新开再传 forceNew。
 - app_browser_network 只记录「打开标签页之后」发生的请求。列表为空或信息不全时，**先 reload 再查**，不要张口就让用户手动刷新。
 - 要验证「接口挂了会怎样」「返回别的数据时界面怎么变」时用 app_browser_intercept：block 直接断掉、mock 给固定响应、edit 改地址/请求头/请求体（改参重发）。规则在该标签页内一直生效，**验证完传空数组清掉**。
 - 验 H5 移动端效果时先用 app_browser_device 切设备（preset 如 iphone-15-pro，或 width+height+dpr+mobile+userAgent），再用 app_browser_read / app_browser_screenshot 看效果；返回里的 readback（innerWidth / innerHeight / dpr / pointerCoarse）是页面自报值，以它为准，别凭参数猜。看完传 off=true 复原 —— 只作用于当前标签页。
@@ -98,9 +101,9 @@ const BROWSER_PLAYBOOK = `浏览器面板（用户能看到的内嵌浏览器，
  */
 const TERMINAL_PLAYBOOK = `右栏终端（用户看得见的嵌入式 shell）：
 - 要执行命令优先用 app_terminal_run（cwd 传绝对路径）：命令会打在接受用户右栏那个终端里，输出由它读回来，用户全程看得见、可接管。
-- 结果里 isRunning=true 表示还在跑（dev server / watch），用 app_terminal_read 续读；不要重复执行同一条命令来「再等一次」。
+- 结果里 isRunning=true 表示还在跑（dev server / watch），用 app_terminal_read 续读；需要往该会话继续输入（密码提示、交互式 CLI）时用 app_terminal_write，不要重新 run。
 - 同目录只有一个 agent 会话：命令串行执行，不要并发调用 app_terminal_run；需要多条时用 && / ; 串成一行。
-- 用户说「刚才那个命令 / 终端里的报错」时，用 app_terminal_read 读当前输出，不要让他复制粘贴。`
+- 用户说「刚才那个命令 / 终端里的报错」时，用 app_terminal_list 找 id，再 app_terminal_read（未选中的 tab 也可读），不要让他复制粘贴。`
 
 const BROWSER_SCENARIOS: ReadonlySet<ScenarioKey> = new Set(['general', 'code'])
 
@@ -127,6 +130,9 @@ function findSystemPrompt(scenario: ScenarioKey, context?: PromptContext) {
     prompt += `\n\n${TERMINAL_PLAYBOOK}`
     if (context?.browserSummary) {
       prompt += `\n${context.browserSummary}`
+    }
+    if (context?.terminalSummary) {
+      prompt += `\n${context.terminalSummary}`
     }
   }
   if (scenario === 'plan') {

@@ -26,7 +26,7 @@ const NAMES: [&str; 7] = [OPEN, READ, ACT, SCREENSHOT, NETWORK, INTERCEPT, DEVIC
 fn tab_property() -> Value {
     json!({
         "type": "string",
-        "description": "标签页 label（形如 browser-1）；省略表示当前活动的那个"
+        "description": "标签页 label（形如 browser-<uuid>）；省略表示当前活动的那个；未选中的 tab 也可传"
     })
 }
 
@@ -44,12 +44,16 @@ pub fn specs() -> Vec<ToolSpec> {
     vec![
         spec(
             OPEN,
-            "在内嵌浏览器里打开一个地址，返回新标签页的 label。用户能看到这个页面。",
+            "在内嵌浏览器里打开一个地址，返回标签页的 label。默认复用同 host+port 的已有标签并激活；需要并列开多页时传 forceNew=true。用户能看到这个页面。",
             Effect::Read,
             json!({
                 "type": "object",
                 "properties": {
-                    "url": { "type": "string", "description": "要打开的地址，可以省略协议（example.com 会补 https://）" }
+                    "url": { "type": "string", "description": "要打开的地址，可以省略协议（example.com 会补 https://）" },
+                    "forceNew": {
+                        "type": "boolean",
+                        "description": "true 时强制新建标签页；默认 false，同 host+port 已有标签则复用并激活"
+                    }
                 },
                 "required": ["url"]
             }),

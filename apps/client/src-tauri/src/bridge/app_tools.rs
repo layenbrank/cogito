@@ -43,6 +43,7 @@ pub async fn call(app: &AppHandle, name: &str, arguments: &Value) -> Option<Resu
         browser_catalog::DEVICE => device(app, arguments).await,
         terminal_catalog::RUN => terminal_run(app, arguments).await,
         terminal_catalog::READ => terminal_read(app, arguments),
+        terminal_catalog::WRITE => terminal_write(app, arguments),
         terminal_catalog::LIST => terminal_list(app),
         _ => return None,
     };
@@ -75,16 +76,36 @@ async fn open(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
     let url = text_arg(arguments, "url")
         .ok_or_else(|| "缺少 url".to_string())?
         .to_string();
+    let force_new = arguments
+        .get("forceNew")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+
+    let before = app
+        .state::<BrowserState>()
+        .snapshot()
+        .tabs
+        .iter()
+        .map(|tab| tab.label.clone())
+        .collect::<std::collections::HashSet<_>>();
+
     let handle = app.clone();
-    // `add_child` 内部阻塞等主线程，必须离开当前 async worker
+    // `add_child` 内部阻塞等主线程，必须离开当前 async worker；
+    // 同 host+port 复用由 lifecycle::open(force_new=false) 统一处理
     let tab = tauri::async_runtime::spawn_blocking(move || {
         let state = handle.state::<BrowserState>();
-        lifecycle::open(&handle, state.inner(), &url)
+        lifecycle::open(&handle, state.inner(), &url, force_new)
     })
     .await
     .map_err(|error| format!("打开浏览器视图失败：{error}"))??;
 
-    Ok(json!({ "label": tab.label, "url": tab.url }))
+    let reused = before.contains(&tab.label);
+    Ok(json!({
+        "label": tab.label,
+        "url": tab.url,
+        "title": tab.title,
+        "reused": reused
+    }))
 }
 
 async fn read(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
@@ -176,6 +197,24 @@ fn terminal_read(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
     serde_json::to_value(read).map_err(|error| format!("终端输出不可序列化：{error}"))
 }
 
+fn terminal_write(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
+    // 允许纯空白（例如只发换行）；缺字段才报错
+    let data = arguments
+        .get("data")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "缺少 data".to_string())?;
+    let id = match text_arg(arguments, "id") {
+        Some(id) => id.to_string(),
+        None => {
+            let cwd = text_arg(arguments, "cwd").ok_or_else(|| "缺少 id 或 cwd".to_string())?;
+            resolve_agent_session(cwd)?
+        }
+    };
+    let state = app.state::<TerminalHub>();
+    crate::utils::terminal::write_session(state.inner(), &id, data.as_bytes())?;
+    Ok(json!({ "id": id, "bytes": data.len() }))
+}
+
 /// 设备模拟：`preset` 或 `width + height (+ dpr/mobile/userAgent)`，`off=true` 复原。
 ///
 /// 返回页面自报的视口（innerWidth / dpr / pointerCoarse），agent 才能确认真的生效
@@ -249,22 +288,27 @@ async fn device(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
 
 /// 估算 fit：面板宽高 / 设备宽高，取小者，上限 1。
 ///
-/// 模拟态下 `layout` 上报的是**设备盒子**（设备尺寸 × 上一次的 fit），
-/// 直接拿它算会让每次切设备都再缩一圈 —— 先按上一次 fit 折回面板尺寸。
+/// 优先用上次 `apply` 记下的可用盒子（真面板区）；没有时再从 layout
+/// 按上一次 fit 折回（模拟态 layout 是设备盒子，直接除会二次缩小）。
 fn estimate_fit(
     label: &str,
     layout: &crate::browser::state::Layout,
     device: &emulate::DeviceProfile,
 ) -> f64 {
-    let mut width = layout.width.max(1.0);
-    let mut height = layout.height.max(1.0);
-    if let Some(previous) = emulate::fit_of(label) {
-        width /= previous;
-        height /= previous;
-    }
+    let (width, height) = if let Some(panel) = emulate::panel_of(label) {
+        panel
+    } else {
+        let mut width = layout.width.max(1.0);
+        let mut height = layout.height.max(1.0);
+        if let Some(previous) = emulate::fit_of(label) {
+            width /= previous;
+            height /= previous;
+        }
+        (width, height)
+    };
     emulate::clamp_fit(
-        (width / f64::from(device.width))
-            .min(height / f64::from(device.height))
+        (width.max(1.0) / f64::from(device.width))
+            .min(height.max(1.0) / f64::from(device.height))
             .min(1.0),
     )
 }

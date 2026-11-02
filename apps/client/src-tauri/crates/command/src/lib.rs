@@ -20,6 +20,10 @@ pub mod signboard_tag;
 pub mod signboard_tagged;
 
 #[allow(non_snake_case)]
+pub mod agentTurn;
+#[allow(non_snake_case)]
+pub mod agentTool;
+#[allow(non_snake_case)]
 pub mod agent_message;
 #[allow(non_snake_case)]
 pub mod agent_provider;

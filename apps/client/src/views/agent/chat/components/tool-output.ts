@@ -1,7 +1,12 @@
 /**
  * 工具卡取数与折叠（纯函数）。
  * 终端正文必须先抽成真实文本，禁止整段 JSON.stringify（会把换行变成字面 `\n`）。
+ *
+ * Tauri 下优先走 Rust `agentTool:normalizeOutput`；失败 / 非桌面回退本文件同步实现。
  */
+import { invoke } from '@tauri-apps/api/core'
+
+import { CHANNELS } from '@/shared/ipc/channels'
 
 const TERMINAL_PREVIEW_LINES = 48
 const CODE_KEYS = ['code', 'script', 'source', 'javascript'] as const
@@ -15,6 +20,13 @@ const OUTPUT_KEYS = [
   'message',
   'data'
 ] as const
+
+function isTauriRuntime(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+  )
+}
 
 interface ShellCommand {
   command: string
@@ -196,10 +208,37 @@ function collapseOutput(
   return { lines: lines.slice(0, maxLines), hidden: lines.length - maxLines }
 }
 
+/**
+ * 规范化工具输出：Tauri 走 Rust（去 ANSI / 解嵌套 JSON / 可选截尾），否则同步回退。
+ */
+async function normalizeToolOutput(
+  value: unknown,
+  maxChars?: number
+): Promise<string> {
+  if (isTauriRuntime()) {
+    try {
+      const result = await invoke<{ text: string }>(CHANNELS.AGENT_TOOL.NORMALIZE_OUTPUT, {
+        params: {
+          value,
+          ...(maxChars === undefined ? {} : { maxChars })
+        }
+      })
+      return result.text
+    } catch (error) {
+      console.warn('[agent] agentTool:normalizeOutput 失败，回退 TS:', error)
+    }
+  }
+  const text = formatTerminalText(value)
+  if (maxChars === undefined || maxChars <= 0 || text.length <= maxChars) return text
+  const omitted = text.length - maxChars
+  return `…（前面省略 ${omitted} 个字符）\n${text.slice(-maxChars)}`
+}
+
 export {
   CODE_KEYS,
   collapseOutput,
   formatTerminalText,
+  normalizeToolOutput,
   TERMINAL_PREVIEW_LINES,
   toCodeSource,
   toShellCommand

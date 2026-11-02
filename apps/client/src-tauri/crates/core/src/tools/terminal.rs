@@ -13,9 +13,10 @@ use super::{Effect, ToolSpec};
 
 pub const RUN: &str = "app_terminal_run";
 pub const READ: &str = "app_terminal_read";
+pub const WRITE: &str = "app_terminal_write";
 pub const LIST: &str = "app_terminal_list";
 
-const NAMES: [&str; 3] = [RUN, READ, LIST];
+const NAMES: [&str; 4] = [RUN, READ, WRITE, LIST];
 
 fn spec(name: &str, description: &str, effect: Effect, input_schema: Value) -> ToolSpec {
     ToolSpec {
@@ -48,7 +49,7 @@ pub fn specs() -> Vec<ToolSpec> {
         ),
         spec(
             READ,
-            "读嵌入式终端最近的输出（去 ANSI 后的纯文本）。用于 app_terminal_run 返回 isRunning=true 之后续读，或用户自己在终端里跑过东西时看一眼结果。",
+            "读嵌入式终端最近的输出（去 ANSI 后的纯文本）。用于 app_terminal_run 返回 isRunning=true 之后续读，或用户自己在终端里跑过东西时看一眼结果。未选中的 tab 也可读。",
             Effect::Read,
             json!({
                 "type": "object",
@@ -60,8 +61,22 @@ pub fn specs() -> Vec<ToolSpec> {
             }),
         ),
         spec(
+            WRITE,
+            "向嵌入式终端会话写入文本（不自动加回车时可自行在 data 末尾加 \\r）。用于 isRunning 后台会话的交互输入（密码提示、确认），不要用来开新命令——开命令用 app_terminal_run。",
+            Effect::Write,
+            json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "终端会话 id；省略表示 cwd 派生的 agent 会话" },
+                    "cwd": { "type": "string", "description": "配合 id 省略时使用" },
+                    "data": { "type": "string", "description": "要写入 PTY 的原始文本" }
+                },
+                "required": ["data"]
+            }),
+        ),
+        spec(
             LIST,
-            "列出当前打开的嵌入式终端会话（id / cwd / pid）。id 可以喂给 app_terminal_read。",
+            "列出当前打开的嵌入式终端会话（id / cwd / pid）。id 可以喂给 app_terminal_read / app_terminal_write。",
             Effect::Read,
             json!({ "type": "object", "properties": {} }),
         ),
@@ -87,9 +102,9 @@ mod tests {
     }
 
     #[test]
-    fn only_run_writes() {
+    fn only_run_and_write_write() {
         for spec in specs() {
-            let expected = if spec.name == RUN {
+            let expected = if spec.name == RUN || spec.name == WRITE {
                 Effect::Write
             } else {
                 Effect::Read

@@ -4,11 +4,10 @@
  * - **每段思考**：该段 part 结束即收起（不是整轮会话结束）
  * - **过程摘要**：整轮结束后才出现「过程 · N 步」，默认收起，点开回看
  *
- * 过程摘要：`instant` 跳过高度动画；内容始终挂载（keepMounted），避免「点开空白」。
- * 流式中不要再套 Task Collapsible：与 ReasoningRoot 双层折叠会裁掉正文。
+ * 过程摘要：`instant` 跳过高度动画；**懒挂载**（对齐终端卡折叠不渲染正文），
+ * 收起时不保留整棵工具/思考 DOM，多会话长回合省内存。
  *
  * ReasoningRoot：`streaming` 时展开；结束后回到 `defaultOpen`（默认 false）。
- * 活动态文案走 ReasoningTrigger 自带 `shimmer` class（Elements Shimmer 可用于别处）。
  */
 import { useAuiState } from '@assistant-ui/react'
 import { useAssistantLabels } from '@cogito/design/assistant/labels'
@@ -19,7 +18,7 @@ import {
   ReasoningTrigger
 } from '@cogito/design/assistant/reasoning.aui'
 import type { ThreadGroupPart } from '@cogito/design/assistant/thread.aui'
-import type { PropsWithChildren } from 'react'
+import { useState, type PropsWithChildren } from 'react'
 
 import { MessageTimingStats, MessageTrace } from './message-trace'
 
@@ -58,7 +57,7 @@ interface ProcessFoldProps {
 
 /**
  * 整轮过程摘要（覆盖 `ThreadComponents.ProcessGroup`）：
- * 仅在回合结束后由 thread 包一层；默认收起，不跟整轮 streaming 强行展开。
+ * 仅在回合结束后由 thread 包一层；默认收起，首次展开再挂载子树。
  */
 function AgentProcessFold(props: PropsWithChildren<ProcessFoldProps>) {
   const labels = useAssistantLabels()
@@ -67,24 +66,34 @@ function AgentProcessFold(props: PropsWithChildren<ProcessFoldProps>) {
   })
   const seconds =
     totalStreamTime === undefined ? undefined : Math.max(1, Math.round(totalStreamTime / 1000))
+  const [isOpen, updateOpen] = useState(false)
+  const [hasOpened, updateHasOpened] = useState(false)
 
   return (
     <ReasoningRoot
       variant="ghost"
       instant
-      defaultOpen={false}>
+      open={isOpen}
+      onOpenChange={function (next) {
+        updateOpen(next)
+        if (next) updateHasOpened(true)
+      }}>
       <ReasoningTrigger
         active={false}
         label={labels.process(props.group.indices.length, seconds)}
       />
-      <ReasoningContent keepMounted>
-        <MessageTimingStats />
-        <MessageTrace />
-        <ReasoningText
-          data-slot="agent-process-fold"
-          className="max-h-[min(70vh,40rem)] overflow-y-auto overscroll-y-contain">
-          {props.children}
-        </ReasoningText>
+      <ReasoningContent>
+        {hasOpened ? (
+          <>
+            <MessageTimingStats />
+            <MessageTrace />
+            <ReasoningText
+              data-slot="agent-process-fold"
+              className="max-h-[min(70vh,40rem)] overflow-y-auto overscroll-y-contain">
+              {props.children}
+            </ReasoningText>
+          </>
+        ) : null}
       </ReasoningContent>
     </ReasoningRoot>
   )

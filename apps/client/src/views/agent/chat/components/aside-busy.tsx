@@ -13,7 +13,7 @@ import { collectToolPaths } from '@/features/agent/tool-paths.ts'
 import { readApprovalMode, findApprovalPolicy } from '@/features/agent/approval.ts'
 import { findAgentMode, readAgentMode, subscribeAgentMode } from '@/features/agent/mode.ts'
 import { savePlanToWorkspace } from '@/features/agent/plan-file'
-import type { PlanSnapshot } from '@/features/agent/plan'
+import { findLatestPlan } from '@/features/agent/plan'
 import { findPlanDraft } from '@/features/agent/plan-draft'
 import type { PlanDraft } from '@/features/agent/plan-draft'
 import { useRunningCommands } from '@/features/agent/running-commands'
@@ -36,7 +36,6 @@ interface AsideOutputRow {
 }
 
 interface AsideBusyProps {
-  plan: PlanSnapshot | null
   onOpenFiles: (relative?: string | null) => void
   onOpenReview: (relative?: string | null) => void
   /** 跳到右栏「计划」页签看正文全文 */
@@ -88,7 +87,9 @@ function Section(props: {
 }
 
 /** 计划条目：状态图标 + 完成态删除线（与 goose 的 plan 事件同形） */
-function PlanEntryList(props: { entries: NonNullable<AsideBusyProps['plan']>['entries'] }) {
+function PlanEntryList(props: {
+  entries: NonNullable<ReturnType<typeof findLatestPlan>>['entries']
+}) {
   const items = useMemo(
     function () {
       return props.entries.map(function (entry) {
@@ -626,13 +627,20 @@ function AsideBusy(props: AsideBusyProps) {
     [messages, rootPath, badgeByPath]
   )
 
+  const plan = useMemo(
+    function () {
+      return findLatestPlan(messages)
+    },
+    [messages]
+  )
+
   /** goose 没发 `plan` 事件时，从正文编号列表抽一份草稿，避免右侧空白 */
   const planDraft = useMemo(
     function () {
-      if (props.plan && props.plan.entries.length > 0) return null
+      if (plan && plan.entries.length > 0) return null
       return findPlanDraft(messages)
     },
-    [messages, props.plan]
+    [messages, plan]
   )
 
   useEffect(
@@ -653,7 +661,6 @@ function AsideBusy(props: AsideBusyProps) {
     [rootPath]
   )
 
-  const plan = props.plan
   const extraFolders = folders.slice(1)
 
   /** 两份来源归一：保存与展示用同一串步骤 */

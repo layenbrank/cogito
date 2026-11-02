@@ -97,7 +97,11 @@ const useBrowserStore = create<BrowserState>()(
       setDevice: function (label, device) {
         set(function (state) {
           return {
-            deviceByLabel: { ...state.deviceByLabel, [label]: device }
+            deviceByLabel: { ...state.deviceByLabel, [label]: device },
+            // 与 tabs[].device 同步，避免只改 map 后快照字段仍是旧档案
+            tabs: state.tabs.map(function (tab) {
+              return tab.label === label ? { ...tab, device } : tab
+            })
           }
         })
       },
@@ -106,7 +110,8 @@ const useBrowserStore = create<BrowserState>()(
         return enqueueOpen(async function () {
           const target = parseAddress(url ?? BLANK) || BLANK
           try {
-            const tab = await openBrowserTab(target)
+            // 用户点 + / 地址栏开页：总是新建，同 host 复用只给 agent 工具面
+            const tab = await openBrowserTab(target, true)
             set(function (state) {
               // Rust 已 insert；若 tabs-changed 抢先 adopt 过，避免重复追加
               const device = tab.device ?? null
@@ -174,7 +179,8 @@ const useBrowserStore = create<BrowserState>()(
         set(function (state) {
           return {
             tabs: state.tabs.map(function (tab) {
-              return tab.label === label ? { ...tab, url } : tab
+              // 导航换文档，旧标题作废，等 tabs-changed / 下次快照带回
+              return tab.label === label ? { ...tab, url, title: '' } : tab
             })
           }
         })

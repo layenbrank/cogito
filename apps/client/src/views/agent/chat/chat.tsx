@@ -88,34 +88,32 @@ import styles from '@/views/agent/chat/chat.module.scss'
 
 /**
  * plan 到达时自动展开右栏（不覆盖用户手动收起：同线程同总量只顶一次）。
+ *
+ * 独立子树订阅：只暴露 `total` 标量，避免整份 `messages` 抬升 `AgentChatLayout`
+ * 在每个 token 上重渲染分栏外壳。
  */
-function usePlanAutoOpen(isAsideOpen: boolean, openAside: () => void) {
-  const messages = useAuiState(function (state) {
-    return state.thread.messages
+function PlanAutoOpen(props: { isAsideOpen: boolean; openAside: () => void }) {
+  const planTotal = useAuiState(function (state) {
+    const plan = findLatestPlan(state.thread.messages)
+    return plan?.total ?? 0
   })
   const threadID = useAuiState(function (state) {
     return state.threads.mainThreadId
   })
-  const plan = useMemo(
-    function () {
-      return findLatestPlan(messages)
-    },
-    [messages]
-  )
   const openedFor = useRef<{ threadID: string; total: number } | null>(null)
 
   useEffect(
     function () {
-      if (!plan || plan.total === 0) return
+      if (planTotal === 0) return
       const opened = openedFor.current
-      if (opened?.threadID === threadID && opened.total === plan.total) return
-      openedFor.current = { threadID, total: plan.total }
-      if (!isAsideOpen) openAside()
+      if (opened?.threadID === threadID && opened.total === planTotal) return
+      openedFor.current = { threadID, total: planTotal }
+      if (!props.isAsideOpen) props.openAside()
     },
-    [plan, threadID, isAsideOpen, openAside]
+    [planTotal, threadID, props.isAsideOpen, props.openAside]
   )
 
-  return plan
+  return null
 }
 
 function AgentChat() {
@@ -207,10 +205,6 @@ function AgentChatLayout() {
 
   /**
    * `<Thread>` 元素本身 memo 住。
-   *
-   * 外层订阅了整份 `messages`（`usePlanAutoOpen`），流式输出时每个 token 都会重渲染；
-   * 元素不 memo 的话整条消息列表 + composer 也跟着每 token 重画一遍 —— 缩略图、
-   * 输入框、工具卡片全部白算，观感上就是「流式输出时预览图一直在闪」。
    * 依赖只放真正会变的两项：触发器快照与粘贴回调。
    */
   const threadElement = useMemo(
@@ -353,8 +347,6 @@ function AgentChatLayout() {
       isAsideMaximized: openRef.current.isAsideMaximized ?? false
     })
   }, [])
-
-  const plan = usePlanAutoOpen(isAsideOpen, openAside)
 
   useEffect(
     function () {
@@ -587,6 +579,10 @@ function AgentChatLayout() {
                 {threadElement}
                 <GoalAutoAdvance />
                 <PlanScheduleCard />
+                <PlanAutoOpen
+                  isAsideOpen={isAsideOpen}
+                  openAside={openAside}
+                />
               </main>
             </div>
           </SplitterPane>
@@ -605,10 +601,7 @@ function AgentChatLayout() {
             max={PLAN_MAX}
             collapsible={{ start: true }}
             collapsedSize={0}>
-            <AgentAside
-              className={styles.planPane}
-              plan={plan}
-            />
+            <AgentAside className={styles.planPane} />
           </SplitterPane>
         </Splitter>
       </div>

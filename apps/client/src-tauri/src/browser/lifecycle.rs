@@ -13,10 +13,39 @@ use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Position, Rect, Size, WebviewUrl,
 };
 
+use serde_json::json;
+
 use super::state::{BrowserState, BrowserTab, LayoutSnapshot, NavEvent};
 
 /// 主窗口 label（见 `tauri.conf.json`）
 const MAIN_WINDOW: &str = "main";
+
+/// 读 `document.title` 写入状态并广播 tabs-changed（失败静默，UI 回退 host）
+async fn refresh_tab_title(app: &AppHandle, label: &str) {
+    let evaluated = super::cdp::call(
+        app,
+        label,
+        "Runtime.evaluate",
+        json!({ "expression": "document.title || ''", "returnByValue": true }),
+    )
+    .await;
+    let title = match evaluated {
+        Ok(value) => value
+            .pointer("/result/value")
+            .and_then(|item| item.as_str())
+            .unwrap_or("")
+            .to_string(),
+        Err(error) => {
+            log::debug!("browser: 读 title 失败（{label}）: {error}");
+            return;
+        }
+    };
+    let Some(state) = app.try_state::<BrowserState>() else {
+        return;
+    };
+    state.set_title(label, title);
+    emit_tabs_changed(app, &state);
+}
 
 /// 上一次「是否真有 webview 处于可见态」，只用来在切换时打一条日志
 static LAST_VISIBLE: AtomicBool = AtomicBool::new(false);
@@ -118,13 +147,37 @@ fn sync(app: &AppHandle, state: &BrowserState) {
     }
 }
 
-/// 新建 tab 并导航过去。
-pub fn open(app: &AppHandle, state: &BrowserState, url: &str) -> Result<BrowserTab, String> {
-    log::info!("browser: 请求打开 {url}");
-    open_inner(app, state, url).inspect_err(|error| log::warn!("browser: 打开失败: {error}"))
+/// 新建 tab 并导航过去。`force_new=false` 时同 host+port 复用已有 tab。
+pub fn open(
+    app: &AppHandle,
+    state: &BrowserState,
+    url: &str,
+    force_new: bool,
+) -> Result<BrowserTab, String> {
+    log::info!("browser: 请求打开 {url}（force_new={force_new}）");
+    open_inner(app, state, url, force_new)
+        .inspect_err(|error| log::warn!("browser: 打开失败: {error}"))
 }
 
-fn open_inner(app: &AppHandle, state: &BrowserState, url: &str) -> Result<BrowserTab, String> {
+fn same_host_port(left: &str, right: &str) -> bool {
+    let parse = |value: &str| {
+        value
+            .parse::<tauri::Url>()
+            .ok()
+            .map(|parsed| (parsed.host_str().unwrap_or("").to_string(), parsed.port_or_known_default()))
+    };
+    match (parse(left), parse(right)) {
+        (Some(a), Some(b)) => a == b,
+        _ => false,
+    }
+}
+
+fn open_inner(
+    app: &AppHandle,
+    state: &BrowserState,
+    url: &str,
+    force_new: bool,
+) -> Result<BrowserTab, String> {
     let parsed = url
         .parse::<tauri::Url>()
         .map_err(|error| format!("URL 不合法：{error}"))?;
@@ -138,6 +191,21 @@ fn open_inner(app: &AppHandle, state: &BrowserState, url: &str) -> Result<Browse
         .unwrap_or_else(|poisoned| poisoned.into_inner());
 
     let snapshot = state.snapshot();
+    if !force_new {
+        if let Some(existing) = snapshot
+            .tabs
+            .iter()
+            .find(|tab| same_host_port(&tab.url, &parsed.to_string()))
+        {
+            let label = existing.label.clone();
+            log::info!("browser: 复用同 host tab {label} → {url}");
+            navigate(app, state, &label, url)?;
+            activate(app, state, &label)?;
+            return state
+                .tab(&label)
+                .ok_or_else(|| format!("复用 tab 后丢失：{label}"));
+        }
+    }
     let width = snapshot.layout.width.max(1.0);
     let height = snapshot.layout.height.max(1.0);
 
@@ -168,7 +236,8 @@ fn open_inner(app: &AppHandle, state: &BrowserState, url: &str) -> Result<Browse
                     "browser://nav",
                     NavEvent {
                         label: load_label.clone(),
-                        url,
+                        url: url.clone(),
+                        title: String::new(),
                     },
                 ) {
                     log::warn!("browser: 导航事件发送失败: {error}");
@@ -180,6 +249,13 @@ fn open_inner(app: &AppHandle, state: &BrowserState, url: &str) -> Result<Browse
                 let replay_label = load_label.clone();
                 tauri::async_runtime::spawn(async move {
                     super::emulate::replay(&replay_handle, &replay_label).await;
+                });
+
+                // 读 document.title 写入状态，供 composer / aside / prompt 展示
+                let title_handle = handle.clone();
+                let title_label = load_label.clone();
+                tauri::async_runtime::spawn(async move {
+                    refresh_tab_title(&title_handle, &title_label).await;
                 });
             });
 
@@ -217,6 +293,7 @@ fn open_inner(app: &AppHandle, state: &BrowserState, url: &str) -> Result<Browse
         let tab = BrowserTab {
             label: label.clone(),
             url: parsed.to_string(),
+            title: String::new(),
             device: None,
         };
         log::info!(
@@ -322,22 +399,22 @@ pub fn navigate(
 /// `captureScreenshot` 会返回**空对象**而不是报错。返回 `true` 表示真的做了显示，
 /// 调用方用完必须调 `hide_after_capture` 收回。
 ///
-/// 刻意不经过 `BrowserState`：`wants_visible` 表达的是前端意图，不能因为我们
-/// 要截一张图就把它改掉。
+/// 刻意不经过 `BrowserState`：`wants_visible` / `active` 表达的是前端意图，不能因为我们
+/// 要截一张图就把它改掉。非活跃 tab 同样允许临时 show（agent 按 label 截图）。
 pub fn reveal_for_capture(app: &AppHandle, label: &str) -> bool {
     let Some(webview) = app.get_webview(label) else {
         return false;
     };
     let state = app.state::<BrowserState>();
     let snapshot = state.snapshot();
-    // 只有活动标签页、且当前本该隐藏时才需要临时显示
-    if snapshot.active.as_deref() != Some(label) {
+    if !snapshot.tabs.iter().any(|tab| tab.label == label) {
         return false;
     }
     if !snapshot.layout.has_been_laid_out {
         return false;
     }
-    if snapshot.layout.wants_visible {
+    // 活动 tab 且前端本就可见：无需再 reveal
+    if snapshot.active.as_deref() == Some(label) && snapshot.layout.wants_visible {
         return false;
     }
 

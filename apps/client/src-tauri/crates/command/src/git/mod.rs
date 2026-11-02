@@ -24,7 +24,7 @@ pub use cache::{
 pub use cli::{run_git, run_git_args, run_git_bytes};
 pub use diff::{
     plan_diff, plan_diff_hunks, DiffHunk, DiffHunksR, DiffMetaR, DiffMode, DiffPlan, DiffRevs,
-    DiffScope,
+    DiffScope, LARGE_CHANGE_LINES, LARGE_DIFF_BYTES,
 };
 pub use history::{search_commits, show_commit, CommitHit, SearchField, SearchR, ShowFile, ShowR};
 pub use path::{has_git_marker, validate_branch, validate_path, validate_relative_paths};
