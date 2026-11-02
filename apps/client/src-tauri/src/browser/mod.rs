@@ -21,6 +21,7 @@ pub mod agent;
 pub mod cdp;
 pub mod cdp_events;
 pub mod command;
+pub mod emulate;
 pub mod intercept;
 pub mod lifecycle;
 pub mod network;

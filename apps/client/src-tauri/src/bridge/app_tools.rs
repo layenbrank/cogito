@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 use tauri::{AppHandle, Manager};
 
 use crate::browser::state::BrowserState;
-use crate::browser::{agent, intercept, lifecycle, network};
+use crate::browser::{agent, emulate, intercept, lifecycle, network};
 use crate::utils::terminal::{TerminalHub, resolve_agent_session};
 use cogito_core::tools::browser as browser_catalog;
 use cogito_core::tools::terminal as terminal_catalog;
@@ -40,6 +40,7 @@ pub async fn call(app: &AppHandle, name: &str, arguments: &Value) -> Option<Resu
         browser_catalog::SCREENSHOT => screenshot(app, arguments).await,
         browser_catalog::NETWORK => network_list(app, arguments),
         browser_catalog::INTERCEPT => intercept_rules(app, arguments).await,
+        browser_catalog::DEVICE => device(app, arguments).await,
         terminal_catalog::RUN => terminal_run(app, arguments).await,
         terminal_catalog::READ => terminal_read(app, arguments),
         terminal_catalog::LIST => terminal_list(app),
@@ -173,6 +174,99 @@ fn terminal_read(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
     let state = app.state::<TerminalHub>();
     let read = crate::utils::terminal::terminal_read(state, id, max_chars)?;
     serde_json::to_value(read).map_err(|error| format!("终端输出不可序列化：{error}"))
+}
+
+/// 设备模拟：`preset` 或 `width + height (+ dpr/mobile/userAgent)`，`off=true` 复原。
+///
+/// 返回页面自报的视口（innerWidth / dpr / pointerCoarse），agent 才能确认真的生效
+/// 而不是「命令发了但被 WebView2 吞了」。
+async fn device(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
+    let label = resolve_label(app, arguments)?;
+    let state = app.state::<BrowserState>();
+    if state.tab(&label).is_none() {
+        return Err(format!("没有这个 tab：{label}"));
+    }
+
+    if arguments
+        .get("off")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        emulate::apply(app, &label, None, 1.0).await?;
+        state.set_device(&label, None);
+        lifecycle::broadcast(app, state.inner());
+        let readback = emulate::readback(app, &label).await.unwrap_or_default();
+        return Ok(json!({ "tab": label, "device": Value::Null, "readback": readback }));
+    }
+
+    let device = match text_arg(arguments, "preset") {
+        Some(preset) => emulate::preset(preset).ok_or_else(|| {
+            format!(
+                "没有这个预设：{preset}（可用：{}）",
+                emulate::preset_ids().join(" / ")
+            )
+        })?,
+        None => {
+            let width = arguments
+                .get("width")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| "需要 preset，或者同时给 width + height".to_string())?
+                as u32;
+            let height = arguments
+                .get("height")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| "自定义设备需要 height".to_string())?
+                as u32;
+            emulate::DeviceProfile {
+                width,
+                height,
+                dpr: arguments.get("dpr").and_then(Value::as_f64),
+                mobile: arguments
+                    .get("mobile")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true),
+                user_agent: text_arg(arguments, "userAgent").map(str::to_string),
+            }
+        }
+    };
+    device.validate()?;
+
+    let fit = estimate_fit(&label, &state.snapshot().layout, &device);
+    emulate::apply(app, &label, Some(&device), fit).await?;
+    state.set_device(&label, Some(device.clone()));
+    // 前端要按自己的面板尺寸重算 fit，先让它知道设备变了
+    lifecycle::broadcast(app, state.inner());
+
+    let readback = emulate::readback(app, &label).await.unwrap_or_default();
+    Ok(json!({
+        "tab": label,
+        "device": device,
+        "fit": fit,
+        "scaleChannel": emulate::channel().as_str(),
+        "readback": readback
+    }))
+}
+
+/// 估算 fit：面板宽高 / 设备宽高，取小者，上限 1。
+///
+/// 模拟态下 `layout` 上报的是**设备盒子**（设备尺寸 × 上一次的 fit），
+/// 直接拿它算会让每次切设备都再缩一圈 —— 先按上一次 fit 折回面板尺寸。
+fn estimate_fit(
+    label: &str,
+    layout: &crate::browser::state::Layout,
+    device: &emulate::DeviceProfile,
+) -> f64 {
+    let mut width = layout.width.max(1.0);
+    let mut height = layout.height.max(1.0);
+    if let Some(previous) = emulate::fit_of(label) {
+        width /= previous;
+        height /= previous;
+    }
+    emulate::clamp_fit(
+        (width / f64::from(device.width))
+            .min(height / f64::from(device.height))
+            .min(1.0),
+    )
 }
 
 fn terminal_list(app: &AppHandle) -> Result<Value, String> {

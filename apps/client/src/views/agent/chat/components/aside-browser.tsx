@@ -23,6 +23,7 @@ import {
   readBrowserPage,
   reloadBrowser,
   screenshotBrowser,
+  setBrowserDevice,
   startBrowserPicker,
   stepBrowserHistory,
   stopBrowserPicker,
@@ -32,10 +33,13 @@ import {
 } from '@/features/browser/api'
 import { attachPickedElement } from '@/features/browser/attach-picked-element'
 import { formatAddress, formatTabTitle } from '@/features/browser/address'
+import { describeDevice, fitFor, isUsableDevice } from '@/features/browser/device'
+import type { BoxSize, DeviceProfile } from '@/features/browser/device'
 import { useBrowserRect } from '@/features/browser/rect'
 import { useBrowserStore } from '@/features/browser/store'
 import { findSelfDebugUrl } from '@/features/window/shell-mode'
 
+import { AsideBrowserDevice } from './aside-browser-device'
 import { AsideBrowserNetwork } from './aside-browser-network'
 
 function reportError(error: unknown) {
@@ -69,10 +73,82 @@ function AsideBrowser() {
   const activeTab = tabs.find(function (tab) {
     return tab.label === activeLabel
   })
+
+  /** 每个 tab 各自的设备（Rust 快照回灌，agent 改了也会跟着变） */
+  const deviceByLabel = useBrowserStore(function (state) {
+    return state.deviceByLabel
+  })
+  const activeDevice = activeLabel ? (deviceByLabel[activeLabel] ?? null) : null
+  /** 面板（去掉内边距）的可用尺寸：fit 与盒子尺寸都由它算 */
+  const [panelBox, updatePanelBox] = useState<BoxSize>({ width: 0, height: 0 })
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  /** 上一次真正下发过的「设备 + fit」，避免每帧 ResizeObserver 都打一次 IPC */
+  const appliedRef = useRef('')
   // 只有 page 视图才量尺寸：其他视图时占位 div 不存在，webview 也应该是隐藏的
   const { ref: surfaceRef, isPaused, pauseSrc } = useBrowserRect(
     activeTab !== undefined && view === 'page',
     activeLabel
+  )
+
+  /** 盒子四周留白：不留位置会被面板边缘裁掉 */
+  const DEVICE_GUTTER = 12
+
+  // 面板尺寸：设备盒子按它算 fit。拉宽 / 拉窄右栏时只有 fit 和角标变，视口不变。
+  useEffect(
+    function () {
+      const node = panelRef.current
+      if (view !== 'page' || !node) return
+      function measure() {
+        if (!node) return
+        const rect = node.getBoundingClientRect()
+        updatePanelBox({ width: rect.width, height: rect.height })
+      }
+      measure()
+      const observer = new ResizeObserver(measure)
+      observer.observe(node)
+      return function () {
+        observer.disconnect()
+      }
+    },
+    [view]
+  )
+
+  const usableBox: BoxSize = {
+    width: Math.max(0, panelBox.width - DEVICE_GUTTER * 2),
+    height: Math.max(0, panelBox.height - DEVICE_GUTTER * 2)
+  }
+  const fit = isUsableDevice(activeDevice) ? fitFor(activeDevice, usableBox) : 1
+  const deviceBox = isUsableDevice(activeDevice)
+    ? {
+        width: Math.max(1, Math.round(activeDevice.width * fit)),
+        height: Math.max(1, Math.round(activeDevice.height * fit))
+      }
+    : null
+
+  // 面板尺寸变化 / 切到有设备的 tab → 重算 fit 并下发。
+  // 用 120ms 防抖：拖动 splitter 会连续触发，逐帧打 IPC 会把 CDP 队列堵住。
+  useEffect(
+    function () {
+      if (!activeLabel || !isUsableDevice(activeDevice)) return
+      const key = `${activeLabel}|${activeDevice.width}x${activeDevice.height}|${activeDevice.dpr}|${activeDevice.mobile}|${fit.toFixed(3)}`
+      if (appliedRef.current === key) return
+      const timer = window.setTimeout(function () {
+        appliedRef.current = key
+        void setBrowserDevice(activeLabel, activeDevice, fit)
+          .then(function (result) {
+            // 以 Rust 回传的档案为准（它会夹 fit、并记录缩放通道）
+            useBrowserStore.getState().setDevice(activeLabel, result.device ?? activeDevice)
+          })
+          .catch(function (error: unknown) {
+            appliedRef.current = ''
+            console.warn('browser: 应用设备模拟失败', error)
+          })
+      }, 120)
+      return function () {
+        window.clearTimeout(timer)
+      }
+    },
+    [activeLabel, activeDevice, fit]
   )
 
   function haltPicker(label: string | null | undefined) {
@@ -206,6 +282,41 @@ function AsideBrowser() {
     [isPicking, activeLabel]
   )
 
+  /**
+   * 切换 / 退出设备模拟。
+   *
+   * 前端只出尺寸与 fit，覆盖由 Rust 下发；返回值里带页面**自报**的视口，
+   * 拿它做 toast 才有验证意义（否则只是把参数念一遍）。
+   */
+  function changeDevice(next: DeviceProfile | null) {
+    const label = activeLabel
+    if (!label) return
+    const nextFit = isUsableDevice(next) ? fitFor(next, usableBox) : 1
+    appliedRef.current = isUsableDevice(next)
+      ? `${label}|${next.width}x${next.height}|${next.dpr}|${next.mobile}|${nextFit.toFixed(3)}`
+      : ''
+    void setBrowserDevice(label, next, nextFit)
+      .then(function (result) {
+        useBrowserStore.getState().setDevice(label, result.device ?? next)
+        if (!next) {
+          toast.success('已退出设备模拟')
+          return
+        }
+        const readback = result.readback
+        toast.success(`已切到 ${describeDevice(result.device ?? next, result.fit ?? nextFit)}`, {
+          description: readback
+            ? `页面实际视口 ${readback.innerWidth}×${readback.innerHeight} · DPR ${readback.dpr}${
+                readback.pointerCoarse ? ' · pointer: coarse' : ''
+              }`
+            : undefined
+        })
+      })
+      .catch(function (error: unknown) {
+        appliedRef.current = ''
+        reportError(error)
+      })
+  }
+
   function toggleElementPicker() {
     if (!activeLabel) return
     if (view !== 'page') {
@@ -318,17 +429,31 @@ function AsideBrowser() {
         const shotKb = probe.screenshot.base64Length
           ? ` ${Math.round(probe.screenshot.base64Length / 1024)}KB`
           : ''
+        // 设备模拟单独一项：能不能覆盖 / 走哪条缩放通道，只有实测才知道
+        const emulation = probe.emulation.ok
+        const channel = probe.emulation.scaleChannel
+        const emuText =
+          channel && channel !== 'none' ? `模拟 ${emulation ? '✓' : '✗'}(${channel})` : `模拟 ${emulation ? '✓' : '✗'}`
         const summary = [
           `读 ${canRead ? '✓' : '✗'}`,
           `网络 ${network ? '✓' : '✗'}`,
           `拦截 ${intercept ? '✓' : '✗'}`,
-          `截图 ${shot ? '✓' : '✗'}${shotKb}`
+          `截图 ${shot ? '✓' : '✗'}${shotKb}`,
+          emuText
         ].join(' · ')
 
-        if (canRead && network && intercept && shot) {
+        if (canRead && network && intercept && shot && emulation) {
           toast.success(`agent 通道就绪：${summary}`, {
             description: `当前页「${read.title || '无标题'}」识别到 ${read.items?.length ?? 0} 个可交互元素`
           })
+          return
+        }
+        if (canRead && network && intercept && shot && !emulation) {
+          toast.warning(`agent 通道受限：${summary}`, {
+            description:
+              '设备模拟不可用（Emulation 域被拒）：H5 移动端预览会退化成只能改窗口宽度'
+          })
+          console.warn('browser: 设备模拟探测明细', probe.emulation)
           return
         }
         toast.warning(`agent 通道受限：${summary}`, {
@@ -435,6 +560,11 @@ function AsideBrowser() {
             className="size-3.5"
           />
         </Button>
+        <AsideBrowserDevice
+          device={activeDevice}
+          disabled={activeTab === undefined}
+          onSelect={changeDevice}
+        />
         <Button
           type="button"
           variant="ghost"
@@ -595,28 +725,46 @@ function AsideBrowser() {
 
       {/***** 页面视图：原生 webview 的占位区；浮层让位时用变暗截图占位（VS Code 同款） *****/}
       {view === 'page' ? (
-        <div className="relative min-h-0 flex-1">
+        <div
+          ref={panelRef}
+          className="relative min-h-0 flex-1">
+          {/*
+            设备模式：同一个占位节点改成「居中 + 显式尺寸」的盒子。
+            必须复用 DOM 节点 —— `useBrowserRect` 的 ResizeObserver 只 observe 一次，
+            换节点之后尺寸变化就再也收不到了。
+            `inset-3 + m-auto`：留 12px 边距（和 `usableBox` 的 DEVICE_GUTTER 对齐），
+            绝对定位 + auto margin 让盒子在面板里居中。
+          */}
           <div
             ref={surfaceRef}
-            className="absolute inset-0"
-            data-browser-surface=""
-          />
-          {isPaused ? (
-            <div
-              data-browser-pause=""
-              aria-hidden
-              className="bg-muted pointer-events-none absolute inset-0 overflow-hidden">
-              {pauseSrc ? (
-                <img
-                  src={pauseSrc}
-                  alt=""
-                  className="size-full object-cover"
-                  draggable={false}
-                />
-              ) : null}
-              <div className="bg-background/55 absolute inset-0" />
-            </div>
-          ) : null}
+            className={clsx(
+              'absolute',
+              deviceBox ? 'inset-3 m-auto rounded-sm ring-1 ring-border/70' : 'inset-0'
+            )}
+            style={deviceBox ?? undefined}
+            data-browser-surface="">
+            {deviceBox ? (
+              <span className="border-border/70 bg-background/90 text-muted-foreground pointer-events-none absolute -top-5 left-0 rounded border px-1.5 py-0.5 text-[10px] leading-none tabular-nums">
+                {describeDevice(activeDevice, fit)}
+              </span>
+            ) : null}
+            {isPaused ? (
+              <div
+                data-browser-pause=""
+                aria-hidden
+                className="bg-muted pointer-events-none absolute inset-0 overflow-hidden">
+                {pauseSrc ? (
+                  <img
+                    src={pauseSrc}
+                    alt=""
+                    className="size-full object-cover"
+                    draggable={false}
+                  />
+                ) : null}
+                <div className="bg-background/55 absolute inset-0" />
+              </div>
+            ) : null}
+          </div>
           {activeTab === undefined ? (
             <div className="text-muted-foreground pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 text-xs">
               <Icon

@@ -9,12 +9,19 @@ use std::sync::Mutex;
 use serde::Serialize;
 use uuid::Uuid;
 
+use super::emulate::DeviceProfile;
+
 /// 一个浏览器 tab（= 一个 Tauri 子 webview）。
 #[derive(Debug, Clone, Serialize)]
 pub struct BrowserTab {
     /// Tauri webview label，形如 `browser-<uuid>`（全局唯一，避免 close 残留撞名）
     pub label: String,
     pub url: String,
+    /// 这个 tab 的设备模拟档案；`None` = 桌面态（= `app_browser_device` 的 off）。
+    ///
+    /// 放在 tab 上是刻意的：`browser_snapshot` 会原样带回前端，页面刷新 / HMR 后
+    /// UI 的「当前设备」不会丢，也不需要前端另开一条拉取通道。
+    pub device: Option<DeviceProfile>,
 }
 
 /// 页面自己跳转（点链接 / 重定向）时回传主 webview，地址栏才能跟上。
@@ -123,6 +130,30 @@ impl BrowserState {
         let mut inner = self.lock();
         if let Some(tab) = inner.tabs.iter_mut().find(|tab| tab.label == label) {
             tab.url = url;
+        }
+    }
+
+    /// 单个 tab 的快照（设备模拟要读它，导航重放也靠它）
+    pub fn tab(&self, label: &str) -> Option<BrowserTab> {
+        self.lock()
+            .tabs
+            .iter()
+            .find(|tab| tab.label == label)
+            .cloned()
+    }
+
+    /// 记录设备档案；`None` = 退出模拟。返回 tab 是否存在。
+    ///
+    /// 只改状态，不下发 CDP —— 应用覆盖由 `emulate::apply` 负责，
+    /// 这样「切设备」与「导航后重放」共用同一条路径。
+    pub fn set_device(&self, label: &str, device: Option<DeviceProfile>) -> bool {
+        let mut inner = self.lock();
+        match inner.tabs.iter_mut().find(|tab| tab.label == label) {
+            Some(tab) => {
+                tab.device = device;
+                true
+            }
+            None => false,
         }
     }
 

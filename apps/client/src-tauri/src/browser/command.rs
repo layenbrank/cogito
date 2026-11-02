@@ -7,6 +7,7 @@
 use tauri::{AppHandle, Manager, State};
 
 use super::agent;
+use super::emulate::{self, DeviceProfile};
 use super::intercept::{self, Rule};
 use super::lifecycle;
 use super::network::{self, NetEntry};
@@ -178,4 +179,56 @@ pub async fn browser_picker_start(app: AppHandle, label: String) -> Result<(), S
 #[tauri::command]
 pub async fn browser_picker_stop(app: AppHandle, label: String) -> Result<(), String> {
     picker::stop(&app, &label).await
+}
+
+/// 当前 tab 的设备档案（`null` = 桌面态）。UI 切 tab 时用来对齐。
+#[tauri::command]
+pub fn browser_device_get(state: State<'_, BrowserState>, label: String) -> Option<DeviceProfile> {
+    state.tab(&label).and_then(|tab| tab.device)
+}
+
+/// 设置 / 退出设备模拟。
+///
+/// `device = null` 退出（清掉 metrics / touch / media / UA 覆盖并复位缩放）；
+/// `fit` 是「设备盒子相对面板」的缩放比，由前端按面板尺寸算好传进来。
+///
+/// 覆盖先下发、成功了才落状态：CDP 失败时前端仍显示旧设备，重试语义干净。
+/// 但 `apply` 内部可能已经改了一部分 —— 所以失败时按状态里的那份重放一次，
+/// 让页面回到记录中的设备，而不是半新半旧。
+#[tauri::command]
+pub async fn browser_device_set(
+    app: AppHandle,
+    state: State<'_, BrowserState>,
+    label: String,
+    device: Option<DeviceProfile>,
+    fit: Option<f64>,
+) -> Result<serde_json::Value, String> {
+    let Some(tab) = state.tab(&label) else {
+        return Err(format!("没有这个 tab：{label}"));
+    };
+    let fit = fit.unwrap_or(1.0);
+    let previous = tab.device;
+    let previous_fit = emulate::fit_of(&label).unwrap_or(1.0);
+
+    match emulate::apply(&app, &label, device.as_ref(), fit).await {
+        Ok(()) => {
+            state.set_device(&label, device.clone());
+            let readback = emulate::readback(&app, &label).await.unwrap_or_default();
+            Ok(serde_json::json!({
+                "tab": label,
+                "device": device,
+                "fit": emulate::clamp_fit(fit),
+                "scaleChannel": emulate::channel().as_str(),
+                "readback": readback
+            }))
+        }
+        Err(error) => {
+            if let Err(replay_error) =
+                emulate::apply(&app, &label, previous.as_ref(), previous_fit).await
+            {
+                log::warn!("browser: 设备模拟失败后回滚也失败（{label}）: {replay_error}");
+            }
+            Err(error)
+        }
+    }
 }

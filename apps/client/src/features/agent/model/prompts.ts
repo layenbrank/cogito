@@ -87,6 +87,7 @@ const BROWSER_PLAYBOOK = `浏览器面板（用户能看到的内嵌浏览器，
 - 用户在输入框里用 @ 引用了浏览器标签页（文本形如 :browser[browser-2]）时，方括号里就是要传给 app_browser_* 的 tab 参数 —— 同址开多个标签时也靠它区分，不要自己猜。
 - app_browser_network 只记录「打开标签页之后」发生的请求。列表为空或信息不全时，**先 reload 再查**，不要张口就让用户手动刷新。
 - 要验证「接口挂了会怎样」「返回别的数据时界面怎么变」时用 app_browser_intercept：block 直接断掉、mock 给固定响应、edit 改地址/请求头/请求体（改参重发）。规则在该标签页内一直生效，**验证完传空数组清掉**。
+- 验 H5 移动端效果时先用 app_browser_device 切设备（preset 如 iphone-15-pro，或 width+height+dpr+mobile+userAgent），再用 app_browser_read / app_browser_screenshot 看效果；返回里的 readback（innerWidth / innerHeight / dpr / pointerCoarse）是页面自报值，以它为准，别凭参数猜。看完传 off=true 复原 —— 只作用于当前标签页。
 - 只在真正需要时开新标签页，用完不要累积一堆；不要用它做批量抓取（需要爬取时说明限制）。`
 
 /**

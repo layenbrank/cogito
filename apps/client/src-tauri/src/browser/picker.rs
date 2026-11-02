@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter};
 
 use super::cdp;
 use super::cdp_events::{self, EventSink};
+use super::emulate;
 
 const MAIN_WINDOW: &str = "main";
 const OUTER_HTML_CAP: usize = 6_000;
@@ -367,6 +368,13 @@ async fn capture_clip(
 pub async fn start(app: &AppHandle, label: &str) -> Result<(), String> {
     ensure_subscribed(app, label)?;
 
+    // 设备模拟会把鼠标事件合成为 touch（`setEmitTouchEventsForMouse`），
+    // 而 Overlay 的高亮靠真实 hover 驱动 —— 先关掉合成，拾取才跟手。
+    // 结束（`stop`）时由 `emulate::resume_mouse` 按设备重放回去。
+    if let Err(error) = emulate::suspend_mouse(app, label).await {
+        log::warn!("browser: 拾取前关闭触摸合成失败（{label}）: {error}");
+    }
+
     cdp::call(app, label, "DOM.enable", json!({})).await?;
     cdp::call(app, label, "Overlay.enable", json!({})).await?;
     cdp::call(
@@ -409,6 +417,8 @@ pub async fn stop(app: &AppHandle, label: &str) -> Result<(), String> {
     let _ = cdp::call(app, label, "Overlay.hideHighlight", json!({})).await;
 
     if was_active {
+        // 拾取期间关掉的触摸合成在这里恢复（没有设备时是空操作）
+        emulate::resume_mouse(app, label).await;
         emit_active(app, label, false);
         log::info!("browser: 元素拾取结束（{label}）");
     }

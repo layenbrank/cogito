@@ -18,8 +18,9 @@ pub const ACT: &str = "app_browser_act";
 pub const SCREENSHOT: &str = "app_browser_screenshot";
 pub const NETWORK: &str = "app_browser_network";
 pub const INTERCEPT: &str = "app_browser_intercept";
+pub const DEVICE: &str = "app_browser_device";
 
-const NAMES: [&str; 6] = [OPEN, READ, ACT, SCREENSHOT, NETWORK, INTERCEPT];
+const NAMES: [&str; 7] = [OPEN, READ, ACT, SCREENSHOT, NETWORK, INTERCEPT, DEVICE];
 
 /// `tab` 的公共属性：省略即当前活动标签页
 fn tab_property() -> Value {
@@ -155,6 +156,28 @@ pub fn specs() -> Vec<ToolSpec> {
                 "required": ["rules"]
             }),
         ),
+        spec(
+            DEVICE,
+            "把内嵌浏览器切换成某个设备（移动端 H5 调试）：设定 CSS 视口尺寸、DPR、移动端 UA、触摸与 `pointer: coarse`，并把预览缩放适配面板。验 H5 移动端效果前先用它切设备，再用 app_browser_read / app_browser_screenshot 看效果；用完传 off=true 复原。",
+            Effect::Write,
+            json!({
+                "type": "object",
+                "properties": {
+                    "tab": tab_property(),
+                    "preset": {
+                        "type": "string",
+                        "enum": ["iphone-15-pro", "iphone-se", "pixel-8", "ipad-mini", "android", "desktop"],
+                        "description": "预设设备（iPhone 15 Pro / iPhone SE / Pixel 8 / iPad Mini / Android / 桌面）；与 width+height 二选一"
+                    },
+                    "width": { "type": "integer", "minimum": 1, "description": "自定义 CSS 视口宽度" },
+                    "height": { "type": "integer", "minimum": 1, "description": "自定义 CSS 视口高度" },
+                    "dpr": { "type": "number", "description": "devicePixelRatio；省略 = 跟随系统" },
+                    "mobile": { "type": "boolean", "description": "是否按移动端处理（默认 true：触摸合成 + pointer: coarse）" },
+                    "userAgent": { "type": "string", "description": "覆盖 UA；省略 = 用预设的，桌面预设则保持桌面 UA" },
+                    "off": { "type": "boolean", "description": "传 true 退出模拟，恢复桌面视口与 UA" }
+                }
+            }),
+        ),
     ]
 }
 
@@ -189,14 +212,35 @@ mod tests {
     }
 
     #[test]
-    fn act_is_the_only_write_tool() {
+    fn write_tools_are_exactly_act_intercept_and_device() {
         for spec in specs() {
-            let expected = if spec.name == ACT || spec.name == INTERCEPT {
+            let expected = if matches!(spec.name.as_str(), ACT | INTERCEPT | DEVICE) {
                 Effect::Write
             } else {
                 Effect::Read
             };
             assert_eq!(spec.effect, expected, "{} 的效果标错了", spec.name);
         }
+    }
+
+    #[test]
+    fn device_spec_covers_profiles_and_off() {
+        let device = specs()
+            .into_iter()
+            .find(|spec| spec.name == DEVICE)
+            .expect("设备工具必须在目录里");
+        let properties = &device.input_schema["properties"];
+        assert!(properties.get("tab").is_some(), "要能指定标签页");
+        assert!(properties.get("preset").is_some());
+        assert!(properties.get("width").is_some());
+        assert!(properties.get("height").is_some());
+        assert!(properties.get("dpr").is_some());
+        assert!(properties.get("mobile").is_some());
+        assert!(properties.get("userAgent").is_some());
+        assert!(properties.get("off").is_some(), "退出模拟只能靠 off");
+        assert!(
+            device.input_schema.get("required").is_none(),
+            "全部可选：preset 与 width+height 二选一，由实现校验"
+        );
     }
 }

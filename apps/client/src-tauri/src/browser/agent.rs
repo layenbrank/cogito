@@ -28,6 +28,8 @@ pub async fn probe(app: &AppHandle, label: &str) -> Result<Value, String> {
     probe.insert("evaluate".into(), summarize(evaluate));
     probe.insert("network".into(), summarize(network));
     probe.insert("intercept".into(), probe_intercept(app, label).await);
+    // 设备模拟（Emulation 域 + 缩放通道）：会短暂改页面状态，探针自己负责复原
+    probe.insert("emulation".into(), super::emulate::probe(app, label).await);
 
     // 截图单独处理：base64 动辄几 MB，绝不能原样塞进探针结果
     let screenshot = cdp::call(
@@ -396,7 +398,56 @@ pub async fn screenshot(
         .ok_or_else(|| {
             log::warn!("browser: 截图响应里没有 data（{label}）: {response}");
             "截图响应里没有 data".to_string()
-        })?;
+        })?
+        .to_string();
+
+    let data = shrink_oversized(app, label, cdp_format, data).await;
 
     Ok(json!({ "mimeType": mime_type, "base64": data }))
+}
+
+/// 设备模拟（dpr 到 3）会让同一屏的 jpeg 大三四倍。超过阈值时按 CSS px 再拍一张，
+/// **只有真的更小才采用**：`clip.scale` 的含义在不同 WebView2 版本上不完全一致，
+/// 用“体积对不对”当判据，比猜协议语义安全（最坏情况就是留着原来那张）。
+async fn shrink_oversized(app: &AppHandle, label: &str, format: &str, data: String) -> String {
+    /// 触发二次截图的体积阈值（base64 字符数，约 300KB 原图）
+    const TRIGGER: usize = 400_000;
+
+    if format != "jpeg" || data.len() < TRIGGER {
+        return data;
+    }
+    let Ok(metrics) = super::emulate::readback(app, label).await else {
+        return data;
+    };
+    let (Some(width), Some(height), Some(dpr)) = (
+        metrics.get("innerWidth").and_then(Value::as_f64),
+        metrics.get("innerHeight").and_then(Value::as_f64),
+        metrics.get("dpr").and_then(Value::as_f64),
+    ) else {
+        return data;
+    };
+    if width < 1.0 || height < 1.0 || dpr <= 1.5 {
+        return data;
+    }
+
+    let params = json!({
+        "format": "jpeg",
+        "quality": 75,
+        "fromSurface": true,
+        "clip": { "x": 0.0, "y": 0.0, "width": width, "height": height, "scale": 1.0 / dpr }
+    });
+    let Ok(smaller) = cdp::call(app, label, "Page.captureScreenshot", params).await else {
+        return data;
+    };
+    match smaller.get("data").and_then(Value::as_str) {
+        Some(shrunk) if !shrunk.is_empty() && shrunk.len() < data.len() => {
+            log::info!(
+                "browser: 截图按 CSS px 收缩（{label}，{} → {} 字符）",
+                data.len(),
+                shrunk.len()
+            );
+            shrunk.to_string()
+        }
+        _ => data,
+    }
 }

@@ -94,6 +94,7 @@ mod tests {
         assert!(names.contains(&browser::READ));
         assert!(names.contains(&browser::ACT));
         assert!(names.contains(&browser::SCREENSHOT));
+        assert!(names.contains(&browser::DEVICE));
         assert!(names.contains(&terminal::RUN));
         assert!(names.contains(&terminal::READ));
         assert!(names.contains(&terminal::LIST));
@@ -102,6 +103,7 @@ mod tests {
             knowledge::WRITE_DOC,
             browser::ACT,
             browser::INTERCEPT,
+            browser::DEVICE,
             terminal::RUN,
         ];
         for tool in &tools {

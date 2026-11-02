@@ -54,6 +54,8 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         browser::command::browser_agent_act,
         browser::command::browser_picker_start,
         browser::command::browser_picker_stop,
+        browser::command::browser_device_set,
+        browser::command::browser_device_get,
         system::command::goose_ready,
         system::command::goose_connection,
         system::command::goose_shutdown,

@@ -34,6 +34,14 @@ fn emit_tabs_changed(app: &AppHandle, state: &BrowserState) {
     }
 }
 
+/// 让前端重新对齐 tab 状态。
+///
+/// agent 改了「由 Rust 主导」的字段（当前是设备模拟）后必须广播一次：
+/// 前端靠 `tab.device` 才能把工具栏和滚动缩放对齐，否则 UI 会停在旧设备上。
+pub fn broadcast(app: &AppHandle, state: &BrowserState) {
+    emit_tabs_changed(app, state);
+}
+
 /// 状态里有、Tauri 里已经没了的孤儿 tab —— 摘掉并通知前端
 fn prune_missing_webviews(app: &AppHandle, state: &BrowserState) -> bool {
     let removed = state.retain_tabs(|tab| app.get_webview(&tab.label).is_some());
@@ -45,6 +53,7 @@ fn prune_missing_webviews(app: &AppHandle, state: &BrowserState) -> bool {
         super::picker::dispose_label(app, label);
         super::network::forget(label);
         super::intercept::forget(label);
+        super::emulate::forget(label);
     }
     true
 }
@@ -164,6 +173,14 @@ fn open_inner(app: &AppHandle, state: &BrowserState, url: &str) -> Result<Browse
                 ) {
                     log::warn!("browser: 导航事件发送失败: {error}");
                 }
+
+                // 硬导航会重置 CDP 的 per-target override。设备档案存在 Rust 里，
+                // 所以每次 load 完都重放一次（桌面态是个空操作，代价只有一次查表）。
+                let replay_handle = handle.clone();
+                let replay_label = load_label.clone();
+                tauri::async_runtime::spawn(async move {
+                    super::emulate::replay(&replay_handle, &replay_label).await;
+                });
             });
 
         let created = window.add_child(
@@ -200,6 +217,7 @@ fn open_inner(app: &AppHandle, state: &BrowserState, url: &str) -> Result<Browse
         let tab = BrowserTab {
             label: label.clone(),
             url: parsed.to_string(),
+            device: None,
         };
         log::info!(
             "browser: 新建 {label} → {url}（rect {}x{} @ {},{} / laid_out={}）",
@@ -231,9 +249,10 @@ pub fn close(app: &AppHandle, state: &BrowserState, label: &str) -> Result<(), S
             log::warn!("browser: 关闭 webview 失败（{}）: {error}", tab.label);
         }
     }
-    // UUID label 虽不复用，仍清网络/拦截，避免内存涨
+    // UUID label 虽不复用，仍清网络/拦截/设备，避免内存涨
     super::network::forget(&tab.label);
     super::intercept::forget(&tab.label);
+    super::emulate::forget(&tab.label);
     sync(app, state);
     emit_tabs_changed(app, state);
     Ok(())

@@ -7,9 +7,13 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 
+import type { DeviceProfile } from './device'
+
 interface BrowserTab {
   label: string
   url: string
+  /** 设备模拟档案；`null` = 桌面态。Rust 是真相源，快照会原样带回。 */
+  device: DeviceProfile | null
 }
 
 async function openBrowserTab(url: string): Promise<BrowserTab> {
@@ -51,6 +55,18 @@ interface ProbeItem {
   error?: string
 }
 
+/** `Runtime.evaluate` 读回的视口事实 —— 「模拟到底生效没有」的唯一判据 */
+interface DeviceReadback {
+  innerWidth: number
+  innerHeight: number
+  dpr: number
+  pointerCoarse: boolean
+  hoverNone?: boolean
+  /** `navigator.userAgentData.mobile`；浏览器不支持 UA-CH 时为 null */
+  mobileUaData?: boolean | null
+  userAgent?: string
+}
+
 interface BrowserProbe {
   evaluate: ProbeItem
   network: ProbeItem
@@ -58,6 +74,22 @@ interface BrowserProbe {
   intercept: ProbeItem & { echo?: string }
   /** 截图成功时带 base64 长度（完整图太大，不进探针结果） */
   screenshot: ProbeItem & { base64Length?: number }
+  /** 设备模拟：Emulation 域可用性 + 实读视口 + 最终采用的缩放通道 */
+  emulation: ProbeItem & {
+    canEmulate?: boolean
+    scaleAccepted?: boolean
+    scaleChannel?: 'cdp' | 'zoom' | 'none'
+    readback?: DeviceReadback
+  }
+}
+
+/** `browser_device_set` 的返回：应用后的实际读数（不是我们发的参数） */
+interface BrowserDeviceResult {
+  tab: string
+  device: DeviceProfile | null
+  fit?: number
+  scaleChannel?: 'cdp' | 'zoom' | 'none'
+  readback?: DeviceReadback
 }
 
 /** 诊断：确认 CDP 通道（读取 / 网络 / 拦截 / 截图）在本机可用 */
@@ -201,6 +233,25 @@ async function stopBrowserPicker(label: string): Promise<void> {
   await invoke('browser_picker_stop', { label })
 }
 
+/**
+ * 设置 / 退出设备模拟。
+ *
+ * `device = null` 退出；`fit` 是设备盒子相对面板的缩放比（前端算，Rust 只夹取）。
+ * 返回的是页面**读回**的视口，不是我们下发的参数 —— 界面角标用真的那份。
+ */
+async function setBrowserDevice(
+  label: string,
+  device: DeviceProfile | null,
+  fit: number
+): Promise<BrowserDeviceResult> {
+  return invoke<BrowserDeviceResult>('browser_device_set', { label, device, fit })
+}
+
+/** 当前 tab 的设备档案（agent 也可能改过，UI 靠它对齐） */
+async function getBrowserDevice(label: string): Promise<DeviceProfile | null> {
+  return invoke<DeviceProfile | null>('browser_device_get', { label })
+}
+
 interface PickedBrowserRect {
   x: number
   y: number
@@ -234,6 +285,7 @@ export {
   activateBrowserTab,
   closeBrowserTab,
   fetchBrowserUrl,
+  getBrowserDevice,
   hydrateBrowserTabs,
   listBrowserInterceptRules,
   listBrowserNetwork,
@@ -244,6 +296,7 @@ export {
   readBrowserPage,
   reloadBrowser,
   screenshotBrowser,
+  setBrowserDevice,
   setBrowserInterceptRules,
   startBrowserPicker,
   stepBrowserHistory,
@@ -252,12 +305,14 @@ export {
   writeBrowserVisible
 }
 export type {
+  BrowserDeviceResult,
   BrowserOutlineItem,
   BrowserPickerActiveEvent,
   BrowserProbe,
   BrowserReadResult,
   BrowserSnapshot,
   BrowserTab,
+  DeviceReadback,
   InterceptRule,
   NetworkEntry,
   PickedBrowserElement,
