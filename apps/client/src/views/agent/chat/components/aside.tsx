@@ -11,7 +11,9 @@ import { clsx } from 'clsx'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 
+import { subscribeAsideBrowser } from '@/views/agent/chat/components/open-aside-browser'
 import { subscribeAsideReview } from '@/views/agent/chat/components/open-aside-review'
+import { useBrowserStore } from '@/features/browser/store'
 import { normalizeToolPath } from '@/features/agent/tool-paths'
 import {
   findOwningRoot,
@@ -263,6 +265,24 @@ function AgentAside(props: AsideProps) {
       })
     },
     [openReview]
+  )
+
+  useEffect(
+    function () {
+      return subscribeAsideBrowser(function (detail) {
+        const label = detail.label?.trim()
+        if (label) {
+          void useBrowserStore
+            .getState()
+            .activateTab(label)
+            .catch(function (error: unknown) {
+              console.warn('[agent/aside] 激活浏览器 tab 失败:', error)
+            })
+        }
+        updateMode('browser')
+      })
+    },
+    []
   )
 
   // 切会话时清掉上一个会话的定向焦点，避免新会话直接落到别人的文件

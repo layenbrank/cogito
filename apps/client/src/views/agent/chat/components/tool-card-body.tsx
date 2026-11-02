@@ -1,12 +1,19 @@
 import type { ToolCallMessagePartProps } from '@assistant-ui/react'
+import { Icon } from '@iconify/react/offline'
 import { useState } from 'react'
 import { CodeBlock } from '@cogito/design/assistant/code-block'
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from '@cogito/design/assistant/tool'
+import { Button } from '@cogito/design/components/button'
 
-import { toAgentToolLabel } from '@/features/agent/tool-labels'
+import {
+  findBrowserToolLabel,
+  isBrowserTool,
+  toAgentToolLabel
+} from '@/features/agent/tool-labels'
 import { mapToolCallState } from '@/views/agent/chat/components/parse-tool-result'
 import type { ParsedToolCard } from '@/views/agent/chat/components/parse-tool-result'
 import { formatDetail } from '@/views/agent/chat/components/tool-card-format'
+import { openAsideBrowser } from '@/views/agent/chat/components/open-aside-browser'
 import { ReadWriteToolCard } from '@/views/agent/chat/components/tool-card-read-write'
 import { ToolCardSandboxBody } from '@/views/agent/chat/components/tool-card-sandbox-body'
 import { SpecialToolBody } from '@/views/agent/chat/components/tool-card-special-body'
@@ -21,6 +28,9 @@ function ToolCardFallbackBody(props: ToolCallMessagePartProps & { outputText: st
   // 不用 effect 同步：effect 会先渲染一帧旧值，且属于「渲染中派生即可」的场景。
   const [isPinnedOpen, setPinnedOpen] = useState(false)
   const open = shouldExpand || isPinnedOpen
+  const browserLabel = isBrowserTool(props.toolName)
+    ? findBrowserToolLabel(props.args, props.result)
+    : null
   return (
     <Tool
       open={open}
@@ -51,6 +61,25 @@ function ToolCardFallbackBody(props: ToolCallMessagePartProps & { outputText: st
             }
             errorText={props.isError ? props.outputText || '执行出错' : undefined}
           />
+        ) : null}
+        {browserLabel ? (
+          <div className="px-3 pb-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              className="text-muted-foreground hover:text-foreground h-6 gap-1 px-1.5 font-normal"
+              title="在右栏打开该标签页"
+              onClick={function () {
+                openAsideBrowser(browserLabel)
+              }}>
+              <Icon
+                icon="lucide:globe"
+                className="size-3"
+              />
+              打开该标签页
+            </Button>
+          </div>
         ) : null}
       </ToolContent>
     </Tool>

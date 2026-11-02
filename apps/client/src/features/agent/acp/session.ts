@@ -1269,12 +1269,27 @@ const RESUME_IDLE_TIMEOUT_MS = 120_000
  */
 const RESUME_FIRST_IDLE_TIMEOUT_MS = 10_000
 
+/**
+ * resume 专用队列：load 重放阶段在入队时就截到「最后 user 之后」尾巴，
+ * 避免整段 session/load 历史在 JS 里堆一份再二次过滤。
+ */
 function makeResumeQueue() {
   const items: Array<SessionUpdate | null> = []
   let wake: (() => void) | null = null
+  /** load 返回前为 true：遇到 user chunk 清空已积压助手更新 */
+  let isReplaying = true
 
   return {
     push(item: SessionUpdate | null) {
+      if (
+        isReplaying &&
+        item !== null &&
+        item.sessionUpdate === 'user_message_chunk'
+      ) {
+        // 历史用户消息本身不进 resume 流；只作截尾锚点
+        items.length = 0
+        return
+      }
       items.push(item)
       const resume = wake
       wake = null
@@ -1289,11 +1304,11 @@ function makeResumeQueue() {
       return items.shift()!
     },
     /**
-     * 非阻塞取走当前已入队的全部项：`session/load` 返回时重放历史已经全部入队，
-     * 用它与后续 live update 划清界限（load 重放里最后一个 user 消息之后才是
-     * 「进行中这一轮」的助手内容）。
+     * 非阻塞取走当前已入队的全部项：`session/load` 返回时调用，
+     * 此时队列里只剩「最后 user 之后」的助手更新（入队时已截尾）。
      */
     drain(): Array<SessionUpdate | null> {
+      isReplaying = false
       return items.splice(0, items.length)
     }
   }
@@ -1408,17 +1423,9 @@ async function* resumeThreadRun(
       return
     }
 
-    // load 已把全量历史重放进队：定位最后一个用户消息，其后的助手内容才是进行中这一轮
+    // load 重放已在入队时截尾：drain 出来的就是进行中这一轮
     const replayed = queue.drain()
-    let startIndex = 0
-    for (let index = 0; index < replayed.length; index += 1) {
-      const update = replayed[index]
-      if (update !== null && update.sessionUpdate === 'user_message_chunk') {
-        startIndex = index + 1
-      }
-    }
-    for (let index = startIndex; index < replayed.length; index += 1) {
-      const update = replayed[index]
+    for (const update of replayed) {
       if (update === null) break
       const event = parseAcpStreamEvent(update, context)
       if (event) yield event
