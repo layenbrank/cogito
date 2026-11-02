@@ -1,29 +1,20 @@
-import { useEffect, useState } from 'react'
 import { useAuiState } from '@assistant-ui/react'
 import { useShallow } from 'zustand/react/shallow'
 
+import { createObjectUrlCache } from './object-url-cache'
+
+/**
+ * 附件缩略图共用的 URL 缓存（进程级）。
+ *
+ * 走**缓存**而不是「每次 effect 新建 + 回收」：同一张图必须始终是同一串 URL。
+ * 旧的写法只要 `file` 身份或组件挂载状态抖一下，就会先返回一帧 `undefined`、再赋值
+ * 新 URL —— `<img>` 于是走一遍「撤掉 → 重新解码」，流式输出时每个 token 都可能重来
+ * 一次，看起来就是缩略图一直在闪。缓存的生命周期见 `object-url-cache.ts`。
+ */
+const attachmentUrlCache = createObjectUrlCache()
+
 const useFileSrc = (file: File | undefined) => {
-  const [entry, setEntry] = useState<{ file: File; url: string } | undefined>(undefined)
-
-  useEffect(() => {
-    // The object URL is a browser resource whose lifetime has to straddle
-    // commit, so allocation, revocation, and clearing the entry that names a
-    // revoked URL all belong to the effect.
-    if (!file) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setEntry(undefined)
-      return
-    }
-
-    const objectUrl = URL.createObjectURL(file)
-    setEntry({ file, url: objectUrl })
-
-    return () => {
-      URL.revokeObjectURL(objectUrl)
-    }
-  }, [file])
-
-  return entry !== undefined && entry.file === file ? entry.url : undefined
+  return file ? attachmentUrlCache.src(file) : undefined
 }
 
 export const useAttachmentSrc = () => {

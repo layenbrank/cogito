@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react/offline'
-import { type FC, type ReactNode } from 'react'
+import { type FC, type ReactNode, useState } from 'react'
 import {
   AttachmentPrimitive,
   ComposerPrimitive,
@@ -9,18 +9,22 @@ import {
   type Attachment
 } from '@assistant-ui/react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/tooltip'
-import { Avatar, AvatarImage, AvatarFallback } from '../components/avatar'
 import { useAttachmentSrc } from '../hooks/use-attachment-src'
 import { useAttachmentLightboxMedias } from '../hooks/use-attachment-lightbox-medias'
 import { TooltipIconButton } from './tooltip-icon-button'
 import { useAssistantLabels } from './labels'
 import { findBaseName, findFileNameIcon } from './file-name-icon'
-import {
-  AttachmentLightboxProvider,
-  useAttachmentLightbox
-} from './attachment-lightbox'
+import { AttachmentLightboxProvider, useAttachmentLightbox } from './attachment-lightbox'
 import { cn } from 'cn'
 
+/**
+ * 缩略图。
+ *
+ * 这里不用 `Avatar`（base-ui）：它在加载状态抖一下（`src` 短暂为空、或换了 src 重新解码）
+ * 时会把 `<img>` 卸掉、退回 fallback 图标，流式输出时每个 token 都可能重来一次 —— 就是
+ * 肉眼看到的「图片一直在闪」。自己拿 `<img>`：只有**真的加载失败**才退到文件图标，
+ * 而且记的是「哪一串 src 失败」，换图自动复位（不需要在 effect 里 setState）。
+ */
 const AttachmentThumb: FC = () => {
   const labels = useAssistantLabels()
   const src = useAttachmentSrc()
@@ -28,22 +32,30 @@ const AttachmentThumb: FC = () => {
     return state.attachment.name || 'file'
   })
   const hint = findFileNameIcon(fileName)
+  const [brokenSrc, updateBrokenSrc] = useState<string | null>(null)
+  const isBroken = src !== undefined && src === brokenSrc
 
   return (
-    // `after:hidden`：Avatar 自带的圆环遮罩是给头像用的，缩略图上会和瓦片自己的 ring 叠成双框
-    <Avatar className="aui-attachment-tile-avatar h-full w-full rounded-none after:hidden">
-      <AvatarImage
-        src={src}
-        alt={labels.attachmentPreview}
-        className="aui-attachment-tile-image rounded-none object-cover"
-      />
-      <AvatarFallback className="bg-muted/80 rounded-none">
-        <Icon
-          icon={hint.icon}
-          className={cn('aui-attachment-tile-fallback-icon size-6 stroke-[1.5]', hint.className)}
+    <div className="aui-attachment-tile-avatar relative size-full overflow-hidden">
+      {src && !isBroken ? (
+        <img
+          src={src}
+          alt={labels.attachmentPreview}
+          className="aui-attachment-tile-image size-full object-cover"
+          draggable={false}
+          onError={function () {
+            updateBrokenSrc(src)
+          }}
         />
-      </AvatarFallback>
-    </Avatar>
+      ) : (
+        <span className="aui-attachment-tile-fallback bg-muted/80 flex size-full items-center justify-center">
+          <Icon
+            icon={hint.icon}
+            className={cn('aui-attachment-tile-fallback-icon size-6 stroke-[1.5]', hint.className)}
+          />
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -74,10 +86,7 @@ const AttachmentFileChip: FC = () => {
     <TooltipProvider>
       <Tooltip>
         <AttachmentPrimitive.Root
-          className={cn(
-            'aui-attachment-root aui-attachment-file-chip relative',
-            isComposer && 'animate-in fade-in-0 zoom-in-95 duration-200 motion-reduce:animate-none'
-          )}>
+          className={cn('aui-attachment-root aui-attachment-file-chip relative')}>
           <TooltipTrigger
             render={
               <div
@@ -165,7 +174,6 @@ const AttachmentImageTile: FC = () => {
         <AttachmentPrimitive.Root
           className={cn(
             'aui-attachment-root relative',
-            isComposer && 'animate-in fade-in-0 zoom-in-95 duration-200 motion-reduce:animate-none',
             !isComposer && 'aui-attachment-root-message only:*:first:size-24'
           )}>
           <TooltipTrigger
@@ -296,9 +304,11 @@ export const UserMessageAttachments: FC = () => {
     <AttachmentStrip
       attachments={attachments}
       className="aui-user-message-attachments-end col-span-full col-start-1 row-start-1 flex w-full flex-row justify-end gap-2">
-      <MessagePrimitive.Attachments>{function () {
-        return <AttachmentUI />
-      }}</MessagePrimitive.Attachments>
+      <MessagePrimitive.Attachments>
+        {function () {
+          return <AttachmentUI />
+        }}
+      </MessagePrimitive.Attachments>
     </AttachmentStrip>
   )
 }
@@ -314,9 +324,11 @@ export const ComposerAttachments: FC = () => {
     <AttachmentStrip
       attachments={attachments}
       className="aui-composer-attachments flex w-full min-w-0 flex-row flex-wrap items-center gap-1.5 overflow-hidden">
-      <ComposerPrimitive.Attachments>{function () {
-        return <AttachmentUI />
-      }}</ComposerPrimitive.Attachments>
+      <ComposerPrimitive.Attachments>
+        {function () {
+          return <AttachmentUI />
+        }}
+      </ComposerPrimitive.Attachments>
     </AttachmentStrip>
   )
 }
