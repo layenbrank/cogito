@@ -38,6 +38,7 @@ import {
   findAcpHandle
 } from '@/features/agent/acp/connection'
 import { mountCloudMcp } from '@/features/agent/acp/cloud-mcp'
+import { humanizeRunError, isRunCancelled } from '@/features/agent/acp/run-error'
 import { clearGooseUsage, writeGooseUsage } from '@/features/agent/acp/goose-usage'
 import { fetchSessionTools, saveDefaults } from '@/features/agent/acp/goose-providers'
 import {
@@ -124,10 +125,20 @@ interface ThreadSession {
 interface ThreadRun {
   queue: ReturnType<typeof makeItemQueue>
   /** 审批票据：键是 ACP 的 toolCallId */
-  approvals: Map<string, Ticket<RequestPermissionResponse> & { options: readonly ChatApprovalOption[] }>
+  approvals: Map<
+    string,
+    Ticket<RequestPermissionResponse> & { options: readonly ChatApprovalOption[] }
+  >
   /** 追问票据：键是本模块合成的 elicitationId（form 模式 ACP 不给 id） */
   elicitations: Map<string, Ticket<CreateElicitationResponse>>
   prompt: { cancelled: boolean }
+  /**
+   * 这一轮是被「会话/连接被重置」打断的（goose 侧车退出、连接对象换掉、会话 cwd 变了）。
+   *
+   * 它既不是用户按停止，也不是模型/网关报错：**没人做错，只是这一轮没地方跑了**。
+   * 收尾按「中断、可重发」处理，不要把这句内部英文消息渲染成红色错误块。
+   */
+  reset: boolean
 }
 
 /** 会话登记表：按 thread 查（UI 侧），也按 ACP sessionId 查（agent 回调侧） */
@@ -505,7 +516,7 @@ function parseAuthRequired(error: unknown): Error {
   }
   // 默认透传，但把 JSON-RPC code / data 一并拼出，避免只看到一个笼统的 "Internal error"。
   const data = error && typeof error === 'object' ? (error as { data?: unknown }).data : undefined
-  if (!Number.isNaN(code) || data !== null && data !== undefined) {
+  if (!Number.isNaN(code) || (data !== null && data !== undefined)) {
     const parts = [message]
     if (!Number.isNaN(code)) parts.unshift(`[code ${code}]`)
     if (data !== null && data !== undefined) {
@@ -543,6 +554,10 @@ function forgetThreadSession(thread: ThreadSession) {
 /** goose 退出 / 重连：会话与上下文用量都得清（旧 session 已经不可用） */
 function clearThreadSessions() {
   for (const thread of sessionByThread.values()) {
+    // 正在跑的那一轮握着 `nextUpdate()`：`dispose()` 会直接把它打回（SDK 抛
+    // `Active session disposed`）。先打标记，让它按「连接被重置」收尾，
+    // 否则一句内部英文消息会被当成模型失败弹到对话里。
+    if (thread.run) thread.run.reset = true
     disposeThreadSession(thread)
     usageBaseline.delete(thread.acpSessionID)
   }
@@ -792,6 +807,8 @@ async function ensureThreadSession(
   }
 
   if (cached) {
+    // 同 `clearThreadSessions`：正在跑的那一轮得知道自己是被重置掉的，不是报错
+    if (cached.run) cached.run.reset = true
     disposeThreadSession(cached)
     forgetThreadSession(cached)
   }
@@ -854,7 +871,8 @@ async function* runThreadPrompt(
     queue,
     approvals: new Map(),
     elicitations: new Map(),
-    prompt: { cancelled: false }
+    prompt: { cancelled: false },
+    reset: false
   }
   thread.run = run
 
@@ -875,6 +893,10 @@ async function* runThreadPrompt(
 
   // ACP 推送的 update 与 agent 发起的审批/追问是同一条队列的两个生产者：这里只负责把
   // update 泵进去，直到 goose 明确说这轮结束，或本轮被 release
+
+  // 失败要在这里也写得到：泵自己断了同样得终结这一轮（见下面 pump 的 catch）
+  const failureBox: { error: Error | null } = { error: null }
+
   const pump = (async function () {
     while (true) {
       const raced = await Promise.race([
@@ -897,16 +919,29 @@ async function* runThreadPrompt(
       }
       queue.push({ kind: 'update', update: message.notification.update })
     }
-  })()
+  })().catch(function (error: unknown) {
+    // 连接断了 / goose 崩了：这一轮不会再有 stop 事件，`queue.take()` 会一直等——
+    // 界面永远停在「思考中」，用户只会觉得对话突然没声了，也看不出是出错。
+    // 这里补一条终态，交给模型层收尾。
+    //
+    // 但「取消」也会把这次读打回（`session/prompt` 带 cancellationSignal 被拒，
+    // SDK 连带 reject 排队中的 `nextUpdate()`）：那是用户自己停的，判成失败就会
+    // 在按停止时弹一个错误块。
+    const cancelled = isRunCancelled(run, input.signal)
+    failureBox.error = cancelled ? null : humanizeRunError(error, run.reset)
+    queue.push({ kind: 'stop', stopReason: cancelled ? 'cancelled' : 'error' })
+    releaseBox.release?.()
+  })
 
-  // 用 box 装失败：TS 的收窄看不到「回调里赋的值」，直接写 `let failure` 会在 throw 处被当成 null
-  const failureBox: { error: Error | null } = { error: null }
   const promptDone = thread.session
-    .prompt([{ type: 'text' as const, text: promptText }], input.signal ? { cancellationSignal: input.signal } : undefined)
+    .prompt(
+      [{ type: 'text' as const, text: promptText }],
+      input.signal ? { cancellationSignal: input.signal } : undefined
+    )
     .catch(function (error: unknown) {
-      failureBox.error = parseAuthRequired(error)
-      const stopReason = run.prompt.cancelled || input.signal?.aborted ? 'cancelled' : 'error'
-      queue.push({ kind: 'stop', stopReason })
+      const cancelled = isRunCancelled(run, input.signal)
+      failureBox.error = cancelled ? null : humanizeRunError(parseAuthRequired(error), run.reset)
+      queue.push({ kind: 'stop', stopReason: cancelled ? 'cancelled' : 'error' })
       releaseBox.release?.()
     })
 
@@ -929,7 +964,8 @@ async function* runThreadPrompt(
     releaseBox.release?.()
     // 这一轮没被回答的票据全部作废：留着的 promise 会让 goose 侧一直等，且用户看到的
     // 「待审批」永远不会消失（票随轮次生死）
-    for (const ticket of run.approvals.values()) ticket.settle({ outcome: { outcome: 'cancelled' } })
+    for (const ticket of run.approvals.values())
+      ticket.settle({ outcome: { outcome: 'cancelled' } })
     for (const ticket of run.elicitations.values()) ticket.settle({ action: 'cancel' })
     run.approvals.clear()
     run.elicitations.clear()
@@ -1015,7 +1051,9 @@ function pickAutoAllowOption(
  *
  * 找不到对应会话时**按取消回复**：宁可让 agent 知道这次没被批准，也不能让它悬着。
  */
-async function requestThreadPermission(params: RequestPermissionRequest): Promise<RequestPermissionResponse> {
+async function requestThreadPermission(
+  params: RequestPermissionRequest
+): Promise<RequestPermissionResponse> {
   const thread = sessionByAcpID.get(params.sessionId)
   const run = thread?.run
   if (!thread || !run) {
@@ -1099,7 +1137,8 @@ async function requestThreadElicitation(
  */
 function respondToApproval(approval: ChatToolApproval): boolean {
   for (const thread of sessionByThread.values()) {
-    if (thread.run?.approvals.has(approval.toolCallId)) return settleApproval(thread.threadID, approval)
+    if (thread.run?.approvals.has(approval.toolCallId))
+      return settleApproval(thread.threadID, approval)
   }
   return false
 }
@@ -1117,7 +1156,8 @@ function settleApproval(threadID: string, approval: ChatToolApproval): boolean {
 /** 回答一次追问；定位与语义都同审批 */
 function respondToElicitation(response: ChatElicitationResponse): boolean {
   for (const thread of sessionByThread.values()) {
-    if (thread.run?.elicitations.has(response.elicitationId)) return settleElicitation(thread.threadID, response)
+    if (thread.run?.elicitations.has(response.elicitationId))
+      return settleElicitation(thread.threadID, response)
   }
   return false
 }
@@ -1149,7 +1189,9 @@ async function compactThreadSession(threadID: string): Promise<void> {
   if (thread.run) throw new Error('这一轮还在进行中，等它结束再压缩')
 
   const failureBox: { error: Error | null } = { error: null }
-  const promptDone = thread.session.prompt([{ type: 'text', text: '/compact' }]).catch(function (error: unknown) {
+  const promptDone = thread.session.prompt([{ type: 'text', text: '/compact' }]).catch(function (
+    error: unknown
+  ) {
     failureBox.error = error instanceof Error ? error : new Error(String(error))
     return { stopReason: 'error' }
   })
@@ -1181,7 +1223,10 @@ async function compactThreadSession(threadID: string): Promise<void> {
 }
 
 /** 切换 provider / model：写 goose defaults，并对已打开的 session 就地改配置 */
-async function switchGooseProviderModel(providerID: string, modelID: string | undefined): Promise<void> {
+async function switchGooseProviderModel(
+  providerID: string,
+  modelID: string | undefined
+): Promise<void> {
   await waitGooseReady()
   const handle = await findAcpHandle()
   try {
@@ -1410,6 +1455,7 @@ export {
   ensureThreadSession,
   findThreadAcpSessionID,
   hasThreadSession,
+  humanizeRunError,
   requestThreadElicitation,
   requestThreadPermission,
   respondToApproval,
