@@ -182,7 +182,7 @@ export default function UsersView() {
           action: {
             label: '查看租户',
             onClick() {
-              navigate(`/tenants?focus=${tenantID}`)
+              void navigate(`/tenants?focus=${tenantID}`)
             }
           }
         }

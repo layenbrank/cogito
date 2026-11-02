@@ -352,7 +352,7 @@ export default function DictView() {
       toolbar={
         <Tabs
           value={tab}
-          onValueChange={function (value) {
+          onValueChange={function (value: string) {
             updateTab(value)
           }}>
           <TabsList variant="line" className="h-10">
