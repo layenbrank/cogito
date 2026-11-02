@@ -52,7 +52,16 @@ impl OverlayFrame {
             origin: *monitor.position(),
             size: *monitor.size(),
             scale,
-            hwnd: window.hwnd().ok().map(|hwnd| hwnd.0 as isize),
+            hwnd: {
+                #[cfg(windows)]
+                {
+                    window.hwnd().ok().map(|hwnd| hwnd.0 as isize)
+                }
+                #[cfg(not(windows))]
+                {
+                    None
+                }
+            },
         })
     }
 
