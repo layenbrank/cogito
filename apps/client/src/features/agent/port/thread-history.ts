@@ -3,12 +3,16 @@
  *
  * assistant-ui 在 `load()` 后若看到 `unstable_resume`，会调 `resume()` 续跑。
  * detach 留下的「已取消」助手占位要从 load 结果里剥掉，否则 resume 会再挂一条子消息。
+ *
+ * 有 Tauri 时优先 `agentMessage:loadThread`（JSON 在 Rust 侧解析），失败再回退 TS 解码。
  */
-import type {
-  ChatModelRunOptions,
-  ChatModelRunResult,
-  ThreadHistoryAdapter,
-  ThreadMessage
+import {
+  fromThreadMessageLike,
+  type ChatModelRunOptions,
+  type ChatModelRunResult,
+  type ThreadHistoryAdapter,
+  type ThreadMessage,
+  type ThreadMessageLike
 } from '@assistant-ui/react'
 import { mapChatStreamToRunResults } from '@cogito/chat/adapters/chat-model'
 import {
@@ -17,6 +21,7 @@ import {
   type ThreadIdentity
 } from '@cogito/chat/adapters/thread-history'
 import type { ChatHistoryPort, ChatStreamEvent } from '@cogito/chat/ports'
+import { invoke } from '@tauri-apps/api/core'
 import { v4 as UUIDV4 } from 'uuid'
 
 import {
@@ -33,6 +38,7 @@ import { markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
 import { resumeThreadRun } from '@/features/agent/acp/session'
 import { bindGoalHistoryPort } from '@/features/agent/goal-continue'
 import { notifyTurnDone } from '@/features/agent/notify'
+import { CHANNELS } from '@/shared/ipc/channels'
 import { reportCaught } from '@/utils/exception-report'
 
 interface StoredLocalPayload {
@@ -41,6 +47,55 @@ interface StoredLocalPayload {
   createdAt: string
   status?: ThreadMessage['status']
   metadata?: { custom?: Record<string, unknown> }
+}
+
+interface LoadThreadItem {
+  parentId: string | null
+  message: ThreadMessageLike & { id: string; createdAt?: string | Date }
+}
+
+interface LoadThreadR {
+  headId: string | null
+  messages: LoadThreadItem[]
+}
+
+/** Rust 已解码的消息 → assistant-ui ThreadMessage；形状与 `LOCAL_CODEC.decode` 对齐 */
+function toThreadMessage(item: LoadThreadItem): { message: ThreadMessage; parentId: string | null } {
+  const payload = item.message
+  const createdAt =
+    payload.createdAt instanceof Date
+      ? payload.createdAt
+      : typeof payload.createdAt === 'string'
+        ? new Date(payload.createdAt)
+        : new Date()
+  return {
+    parentId: item.parentId,
+    message: fromThreadMessageLike(
+      {
+        role: payload.role,
+        content: payload.content,
+        createdAt,
+        ...(payload.status ? { status: payload.status } : {}),
+        ...(payload.metadata ? { metadata: payload.metadata } : {})
+      },
+      payload.id,
+      { type: 'complete', reason: 'unknown' }
+    )
+  }
+}
+
+async function fetchThreadViaRust(
+  sessionId: string,
+  scrubDetach: boolean
+): Promise<LoadThreadR | null> {
+  try {
+    return await invoke<LoadThreadR>(CHANNELS.AGENT_MESSAGE.LOAD_THREAD, {
+      params: { sessionId, scrubDetach }
+    })
+  } catch (error) {
+    console.warn('[agent/thread-history] loadThread 不可用，回退 TS 解码:', error)
+    return null
+  }
 }
 
 function isCancelledAssistant(message: ThreadMessage): boolean {
@@ -155,9 +210,9 @@ function buildThreadHistoryAdapter(
 
   return {
     async load() {
-      const [repo, threadID] = await Promise.all([base.load(), identity.resolve()])
+      const threadID = await identity.resolve()
       const inMemory = threadID ? hasRunningBackgroundTurn(threadID) : false
-      // 刷新场景：内存态丢了，但 localStorage 记着这轮还在跑（detach 留下的占位是
+      // 刷新场景：内存态丢了，但 localStorage / Rust running 记着这轮还在跑（detach 留下的占位是
       // `incomplete/cancelled` 不是 `running`，不能靠消息状态判断）
       const orphanRunning = Boolean(!inMemory && threadID && hasPersistedRunningTurn(threadID))
       const resuming = inMemory || orphanRunning
@@ -166,15 +221,25 @@ function buildThreadHistoryAdapter(
         const turn = findBackgroundTurn(threadID)
         if (turn && turn.status === 'done' && !turn.deliveredTerminal) {
           await persistOrphanTurn(port, turn)
-          const refreshed = await base.load()
-          const scrubbed = scrubDetachStubs(refreshed.messages)
+        }
+      }
+
+      // 优先 Rust loadThread（JSON parse / scrub / head 都在主进程）
+      if (threadID) {
+        const rust = await fetchThreadViaRust(threadID, resuming)
+        if (rust) {
+          let messages = rust.messages.map(toThreadMessage)
+          if (resuming) messages = scrubDetachStubs(messages)
+          if (orphanRunning) markRunStarted(threadID)
           return {
-            headId: findHeadID(scrubbed),
-            messages: scrubbed,
-            unstable_resume: false
+            headId: findHeadID(messages) ?? rust.headId,
+            messages,
+            unstable_resume: resuming
           }
         }
       }
+
+      const repo = await base.load()
 
       // 刷新的回合不在内存里，但历史说它还在跑 → 先把侧栏运行态点亮
       if (orphanRunning && threadID) {

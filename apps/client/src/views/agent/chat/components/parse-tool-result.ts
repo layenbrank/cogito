@@ -1,8 +1,12 @@
 /**
  * 工具结果启发式解析：一次抽正文，再按工具族只跑允许的 P1 解析器。
+ *
+ * 写工具行级 diff：同步 `buildLineDiff` 留给测试 / 首屏；Tauri 下 UI 走
+ * `fetchWriteCodeDiff` → `agentTool:lineDiff`。
  */
 import type { ToolCallState } from '@cogito/design/assistant/tool-call-state'
 import type { ToolCallMessagePartProps } from '@assistant-ui/react'
+import { invoke } from '@tauri-apps/api/core'
 
 import {
   isCodeTool,
@@ -13,7 +17,15 @@ import {
   isWriteTool,
   type ToolCardVariant
 } from '@/features/agent/tool-labels'
-import { formatTerminalText, toShellCommand } from './tool-output'
+import { CHANNELS } from '@/shared/ipc/channels'
+import { formatTerminalText, normalizeToolOutput, toShellCommand } from './tool-output'
+
+function isTauriRuntime(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+  )
+}
 
 const STACK_LINE =
   /^\s*at\s+(.+?)\s+\((.+):(\d+):(\d+)\)\s*$|^\s*at\s+(.+):(\d+):(\d+)\s*$/
@@ -578,7 +590,11 @@ function findWriteTextPair(args: unknown): { oldText: string | null; newText: st
   }
 }
 
-/** 行级 LCS → unified DiffLine；过大时退回整段删+增 */
+/**
+ * 行级 LCS → unified DiffLine；过大时退回整段删+增。
+ * 生产路径优先走 Rust `agentTool:lineDiff`（见 `tool-line-diff.ts`）；
+ * 本函数保留给单测与非 Tauri 回落。
+ */
 function buildLineDiff(
   oldText: string,
   newText: string
@@ -672,7 +688,7 @@ function buildLineDiff(
   return { lines: reversed, additions, deletions }
 }
 
-/** 写工具 → CodeDiff 数据；缺 before/after 时返回 null */
+/** 写工具 → CodeDiff 数据；缺 before/after 时返回 null（同步，测试 / 首屏用） */
 function parseWriteCodeDiff(args: unknown): WriteCodeDiff | null {
   const path = findWritePath(args)
   const { oldText, newText } = findWriteTextPair(args)
@@ -693,6 +709,52 @@ function parseWriteCodeDiff(args: unknown): WriteCodeDiff | null {
     return { kind: 'removed' as const, text }
   })
   return { filename, additions: 0, deletions: lines.length, lines }
+}
+
+/** Tauri 下把行级 diff 卸到 Rust；失败回退同步 LCS */
+async function fetchWriteCodeDiff(args: unknown): Promise<WriteCodeDiff | null> {
+  const path = findWritePath(args)
+  const { oldText, newText } = findWriteTextPair(args)
+  if (!newText && !oldText) return null
+
+  const filename = path ? findBaseName(path) : 'file'
+  if (oldText && newText && isTauriRuntime()) {
+    try {
+      const diff = await invoke<{
+        lines: WriteDiffLine[]
+        additions: number
+        deletions: number
+      }>(CHANNELS.AGENT_TOOL.LINE_DIFF, {
+        params: { oldText, newText }
+      })
+      return { filename, ...diff }
+    } catch (error) {
+      console.warn('[agent] agentTool:lineDiff 失败，回退 TS LCS:', error)
+    }
+  }
+  return parseWriteCodeDiff(args)
+}
+
+/** 异步版 parseToolCard：正文优先 Rust normalize */
+async function parseToolCardAsync(
+  toolName: string,
+  args: unknown,
+  result: unknown
+): Promise<ParsedToolCard> {
+  const text = await normalizeToolOutput(result)
+  const base = findBaseVariant(toolName)
+  if (!text && result === undefined) {
+    return { text: '', special: null, variant: base }
+  }
+
+  const family = findToolFamily(toolName)
+  const kinds = SPECIAL_KINDS[family]
+  const context: SpecialParseContext = { text, toolName, args, result }
+  for (let i = 0; i < kinds.length; i += 1) {
+    const special = parseSpecialKind(kinds[i], context)
+    if (special) return { text, special, variant: special.kind }
+  }
+  return { text, special: null, variant: base }
 }
 
 /** 折叠标题旁 +/-；有可 diff 文本时跟 CodeDiff 计数一致 */
@@ -762,12 +824,15 @@ function mapToolCallState(props: ToolCallMessagePartProps): ToolCallState {
 }
 
 export {
+  buildLineDiff,
+  fetchWriteCodeDiff,
   findBaseName,
   findCodeLanguage,
   findToolCardVariant,
   findWritePath,
   mapToolCallState,
   parseToolCard,
+  parseToolCardAsync,
   parseToolOutputText,
   parseToolSpecial,
   parseWebSources,

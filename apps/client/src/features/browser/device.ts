@@ -130,15 +130,30 @@ function rotateDevice(device: DeviceProfile): DeviceProfile {
   return { ...device, width: device.height, height: device.width }
 }
 
-/** 按尺寸找预设（旋转过的设备也能认出来），找不到返回 null = 自定义 */
+/** 宽高 + dpr + mobile 对齐才算同一预设（旋转只互换宽高） */
+function matchesPresetAxes(
+  preset: DevicePreset,
+  width: number,
+  height: number,
+  device: DeviceProfile
+): boolean {
+  return (
+    preset.width === width &&
+    preset.height === height &&
+    preset.dpr === device.dpr &&
+    preset.mobile === device.mobile
+  )
+}
+
+/** 按尺寸 / dpr / mobile 找预设（旋转过的设备也能认出来），找不到返回 null = 自定义 */
 function findPreset(device: DeviceProfile | null): DevicePreset | null {
   if (!device) return null
   const portrait = DEVICE_PRESETS.find(function (preset) {
-    return preset.width === device.width && preset.height === device.height
+    return matchesPresetAxes(preset, device.width, device.height, device)
   })
   if (portrait) return portrait
   const landscape = DEVICE_PRESETS.find(function (preset) {
-    return preset.width === device.height && preset.height === device.width
+    return matchesPresetAxes(preset, device.height, device.width, device)
   })
   return landscape ?? null
 }

@@ -105,15 +105,18 @@ describe('rotateDevice', function () {
 })
 
 describe('findPreset', function () {
-  it('按尺寸认预设（含旋转）', function () {
-    expect(findPreset({ width: 393, height: 852, dpr: null, mobile: true, userAgent: null })?.id).toBe(
+  it('按尺寸 + dpr + mobile 认预设（含旋转）', function () {
+    expect(findPreset({ width: 393, height: 852, dpr: 3, mobile: true, userAgent: null })?.id).toBe(
       'iphone-15-pro'
     )
     // 横屏也认得出是同一台机器
-    expect(findPreset({ width: 852, height: 393, dpr: null, mobile: true, userAgent: null })?.id).toBe(
+    expect(findPreset({ width: 852, height: 393, dpr: 3, mobile: true, userAgent: null })?.id).toBe(
       'iphone-15-pro'
     )
-    expect(findPreset({ width: 320, height: 480, dpr: null, mobile: true, userAgent: null })).toBeNull()
+    // dpr / mobile 对不上不算同一预设
+    expect(findPreset({ width: 393, height: 852, dpr: null, mobile: true, userAgent: null })).toBeNull()
+    expect(findPreset({ width: 393, height: 852, dpr: 3, mobile: false, userAgent: null })).toBeNull()
+    expect(findPreset({ width: 320, height: 480, dpr: 2, mobile: true, userAgent: null })).toBeNull()
     expect(findPreset(null)).toBeNull()
   })
 })

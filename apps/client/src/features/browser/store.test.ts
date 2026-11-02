@@ -29,14 +29,15 @@ describe('adoptSnapshot', function () {
   it('设备状态跟着快照回灌', function () {
     useBrowserStore.getState().adoptSnapshot({
       tabs: [
-        { label: 'browser-a', url: 'https://a.test', device: IPHONE },
-        { label: 'browser-b', url: 'https://b.test', device: null }
+        { label: 'browser-a', url: 'https://a.test', title: 'A', device: IPHONE },
+        { label: 'browser-b', url: 'https://b.test', title: '', device: null }
       ],
       active: 'browser-a'
     })
 
     const state = useBrowserStore.getState()
     expect(state.activeLabel).toBe('browser-a')
+    expect(state.tabs[0].title).toBe('A')
     expect(state.deviceByLabel['browser-a']).toEqual(IPHONE)
     // null 也要有键：否则 UI 分不清「桌面」与「还没回过灌」
     expect(state.deviceByLabel['browser-b']).toBeNull()
@@ -44,7 +45,7 @@ describe('adoptSnapshot', function () {
 
   it('第二次快照会清掉已关闭 tab 的设备记录', function () {
     useBrowserStore.getState().adoptSnapshot({
-      tabs: [{ label: 'browser-a', url: 'https://a.test', device: IPHONE }],
+      tabs: [{ label: 'browser-a', url: 'https://a.test', title: 'A', device: IPHONE }],
       active: 'browser-a'
     })
     expect(useBrowserStore.getState().deviceByLabel['browser-a']).toEqual(IPHONE)
@@ -66,7 +67,7 @@ describe('adoptSnapshot', function () {
 describe('setDevice', function () {
   it('只改本地的设备表，不动 tabs', function () {
     useBrowserStore.getState().adoptSnapshot({
-      tabs: [{ label: 'browser-a', url: 'https://a.test', device: null }],
+      tabs: [{ label: 'browser-a', url: 'https://a.test', title: '', device: null }],
       active: 'browser-a'
     })
     useBrowserStore.getState().setDevice('browser-a', IPHONE)
@@ -84,8 +85,8 @@ describe('closeTab', function () {
   it('关掉的 tab 不再留在设备表里', async function () {
     useBrowserStore.getState().adoptSnapshot({
       tabs: [
-        { label: 'browser-a', url: 'https://a.test', device: IPHONE },
-        { label: 'browser-b', url: 'https://b.test', device: null }
+        { label: 'browser-a', url: 'https://a.test', title: 'A', device: IPHONE },
+        { label: 'browser-b', url: 'https://b.test', title: 'B', device: null }
       ],
       active: 'browser-a'
     })

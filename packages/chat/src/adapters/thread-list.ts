@@ -15,6 +15,9 @@ const NEW_THREAD_TITLE = '新会话'
 /** 启发式标题长度上限 */
 const MAX_TITLE_CHARS = 24
 
+/** `:type[label]{name=id}` —— 标题只要短 label，不要 directive 原文 */
+const CHIP_DIRECTIVE = /:([a-z][\w-]*)\[([^\]]*)\](?:\{[^}]*\})?/gi
+
 interface ThreadListAdapterOptions {
   /**
    * 新建线程要归属的工作区（按**触发点**决定：左侧工作区「+」就是那个工作区）。
@@ -36,23 +39,66 @@ function toMetadata(thread: ChatThread): ThreadMetadata {
   }
 }
 
-/** 用首条用户文本做本地标题（不调用模型）；没有可用文本时退回默认名 */
+function findBaseName(path: string): string {
+  const normalized = path.replace(/\\/g, '/')
+  const slash = normalized.lastIndexOf('/')
+  return slash < 0 ? normalized : normalized.slice(slash + 1)
+}
+
+/** chip 只留方括号里的短名；其余原文保留 */
+function flattenChipAwareText(text: string): string {
+  return text
+    .replace(CHIP_DIRECTIVE, function (_match, _type: string, label: string) {
+      return label
+    })
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function truncateTitle(text: string): string {
+  if (text.length <= MAX_TITLE_CHARS) return text
+  return `${text.slice(0, MAX_TITLE_CHARS)}…`
+}
+
+function findAttachmentTitle(message: ThreadMessage): string | null {
+  const names: string[] = []
+  for (const part of message.content) {
+    if (part.type === 'file' && 'filename' in part && part.filename) {
+      names.push(findBaseName(String(part.filename)))
+      continue
+    }
+    if (part.type === 'image' && 'filename' in part && part.filename) {
+      names.push(findBaseName(String(part.filename)))
+    }
+  }
+  if (names.length === 0) return null
+  if (names.length === 1) return names[0]
+  return `${names[0]} 等 ${names.length} 个文件`
+}
+
+/**
+ * 用首条用户内容做本地标题（不调用模型）。
+ * 文本经 chip 扁平化；无文本时回退附件 basename。
+ */
 function buildTitle(messages: readonly ThreadMessage[]): string {
   for (const message of messages) {
     if (message.role !== 'user') continue
 
-    const text = message.content
-      .filter(function (part) {
-        return part.type === 'text'
-      })
-      .map(function (part) {
-        return part.text
-      })
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim()
+    const text = flattenChipAwareText(
+      message.content
+        .filter(function (part) {
+          return part.type === 'text'
+        })
+        .map(function (part) {
+          return part.text
+        })
+        .join(' ')
+    )
 
-    if (text) return text.length > MAX_TITLE_CHARS ? `${text.slice(0, MAX_TITLE_CHARS)}…` : text
+    if (text) return truncateTitle(text)
+
+    const attachmentTitle = findAttachmentTitle(message)
+    if (attachmentTitle) return truncateTitle(attachmentTitle)
   }
   return NEW_THREAD_TITLE
 }
@@ -131,5 +177,5 @@ function createThreadListAdapter(
   }
 }
 
-export { createThreadListAdapter, NEW_THREAD_TITLE }
+export { buildTitle, createThreadListAdapter, NEW_THREAD_TITLE }
 export type { ThreadListAdapterOptions }

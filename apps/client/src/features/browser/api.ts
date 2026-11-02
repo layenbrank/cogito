@@ -12,12 +12,15 @@ import type { DeviceProfile } from './device'
 interface BrowserTab {
   label: string
   url: string
+  /** `document.title`；空串表示尚未读到，UI 回退 host */
+  title?: string
   /** 设备模拟档案；`null` = 桌面态。Rust 是真相源，快照会原样带回。 */
   device: DeviceProfile | null
 }
 
-async function openBrowserTab(url: string): Promise<BrowserTab> {
-  return invoke<BrowserTab>('browser_open', { url })
+/** `forceNew` 默认 true：UI 开页总新建；agent 工具面自己走 bridge 复用逻辑 */
+async function openBrowserTab(url: string, forceNew = true): Promise<BrowserTab> {
+  return invoke<BrowserTab>('browser_open', { url, forceNew })
 }
 
 async function closeBrowserTab(label: string): Promise<void> {

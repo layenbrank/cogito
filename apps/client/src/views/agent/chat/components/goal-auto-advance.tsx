@@ -22,6 +22,19 @@ import {
   useGoalRun
 } from '@/features/agent/goal-run'
 
+/**
+ * 只订阅「最后一条助手消息」的收尾指纹，避免整份 messages 每 token 抬升本组件。
+ * 指纹在 running 时为空（等回合结束再处理）。
+ */
+function findGoalTailDigest(messages: Parameters<typeof findLastAssistant>[0], isRunning: boolean) {
+  if (isRunning) return ''
+  const last = findLastAssistant(messages)
+  if (!last) return ''
+  const text = readAssistantText(last)
+  const aborted = isAbortedRun(last) ? '1' : '0'
+  return `${last.id}\0${aborted}\0${text}`
+}
+
 function GoalAutoAdvance() {
   const aui = useAui()
   const threadID = useAuiState(function (state) {
@@ -31,31 +44,29 @@ function GoalAutoAdvance() {
   const isRunning = useAuiState(function (state) {
     return state.thread.isRunning
   })
-  const messages = useAuiState(function (state) {
-    return state.thread.messages
+  const tailDigest = useAuiState(function (state) {
+    return findGoalTailDigest(state.thread.messages, state.thread.isRunning)
   })
-  /** 已处理过的收尾文本：messages 每次变化都会让 effect 重跑，靠它去重 */
+  /** 已处理过的收尾指纹：digest 变化才推进 */
   const handled = useRef<string | null>(null)
 
   useEffect(
     function () {
       if (!goal || !threadID) return
-      if (isRunning) return
+      if (!tailDigest || handled.current === tailDigest) return
+      handled.current = tailDigest
 
-      const last = findLastAssistant(messages)
+      const last = findLastAssistant(aui.thread.getState().messages)
       if (!last) return
 
-      // 用户点了停止 / 出错：不是模型自己跑完的，交回手动控制
       if (isAbortedRun(last)) {
         stopGoalRun(threadID)
         return
       }
 
       const text = readAssistantText(last)
-      if (!text || handled.current === text) return
-      handled.current = text
+      if (!text) return
 
-      // 先把本轮自报的「达成 n/m」记下来，右栏进度条立刻跟上
       setGoalProgress(threadID, parseGoalProgress(text))
 
       const signal = findGoalSignal(text)
@@ -64,14 +75,11 @@ function GoalAutoAdvance() {
         stopGoalRun(threadID)
         return
       }
-      // 首轮宽松：模型常常先干一半再说，没打标记也继续推进；
-      // 后续轮次没标记就视为已收敛，避免空转烧预算。
       if (!signal && goal.used > 0) {
         stopGoalRun(threadID)
         return
       }
 
-      // 用户回到电脑前正在打字：不抢输入框，交回手动控制
       if (aui.composer.getState().text.trim()) {
         toast.info('检测到你在输入，已暂停目标自动推进')
         stopGoalRun(threadID)
@@ -79,7 +87,9 @@ function GoalAutoAdvance() {
       }
 
       if (!advanceGoalRun(threadID)) {
-        toast.warning(`已达目标推进上限（${goal.budget} 轮），请检查结果；需要继续可再次点「目标推进」`)
+        toast.warning(
+          `已达目标推进上限（${goal.budget} 轮），请检查结果；需要继续可再次点「目标推进」`
+        )
         stopGoalRun(threadID)
         return
       }
@@ -88,7 +98,7 @@ function GoalAutoAdvance() {
       aui.composer.setText(buildContinuePrompt(next))
       void aui.composer.send()
     },
-    [aui, goal, threadID, isRunning, messages]
+    [aui, goal, threadID, tailDigest]
   )
 
   return null

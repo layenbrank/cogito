@@ -1094,6 +1094,7 @@ dependencies = [
  "similar",
  "tauri",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

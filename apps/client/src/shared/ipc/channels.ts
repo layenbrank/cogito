@@ -215,7 +215,21 @@ export const CHANNELS = {
     TO_READ: 'agentMessage:toRead',
     TO_WRITE: 'agentMessage:toWrite',
     TO_UPDATE: 'agentMessage:toUpdate',
-    TO_REMOVE: 'agentMessage:toRemove'
+    TO_REMOVE: 'agentMessage:toRemove',
+    LOAD_THREAD: 'agentMessage:loadThread'
+  },
+  AGENT_TURN: {
+    ENSURE: 'agentTurn:ensure',
+    APPEND: 'agentTurn:append',
+    FOLLOW: 'agentTurn:follow',
+    FINISH: 'agentTurn:finish',
+    MARK_RUNNING: 'agentTurn:markRunning',
+    CLEAR_RUNNING: 'agentTurn:clearRunning',
+    LIST_RUNNING: 'agentTurn:listRunning'
+  },
+  AGENT_TOOL: {
+    LINE_DIFF: 'agentTool:lineDiff',
+    NORMALIZE_OUTPUT: 'agentTool:normalizeOutput'
   },
   AGENT_WORKSPACE: {
     TO_READ: 'agentWorkspace:toRead',

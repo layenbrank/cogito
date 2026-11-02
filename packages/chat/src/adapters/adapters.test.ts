@@ -17,7 +17,7 @@ import {
   type ChatPlanPartData
 } from './chat-model'
 import { createThreadHistoryAdapter, LOCAL_FORMAT, type ThreadIdentity } from './thread-history'
-import { createThreadListAdapter } from './thread-list'
+import { buildTitle, createThreadListAdapter } from './thread-list'
 
 /** 内存版历史端口：按写入顺序返回消息，语义与主进程实现一致 */
 class MemoryPort implements ChatHistoryPort {
@@ -496,16 +496,14 @@ describe('createChatModelAdapter', function () {
         )
     }
 
+    // text/reasoning 有 coalesce 窗口：同窗内的 token 合并成一次 soft yield，
+    // finish 前再 flush 一次；不再保证每个 token 各出一帧。
     expect(snapshots[0]).toEqual([{ type: 'reasoning', text: '想想' }])
-    expect(snapshots[1]).toEqual([
-      { type: 'reasoning', text: '想想' },
-      { type: 'text', text: '你' }
-    ])
-    expect(snapshots[2]).toEqual([
+    expect(snapshots.at(-2)).toEqual([
       { type: 'reasoning', text: '想想' },
       { type: 'text', text: '你好' }
     ])
-    expect(snapshots[3]).toEqual([
+    expect(snapshots.at(-1)).toEqual([
       { type: 'reasoning', text: '想想' },
       { type: 'text', text: '你好' }
     ])
@@ -796,5 +794,73 @@ describe('createThreadListAdapter', function () {
     await expect(adapter.fetch('missing')).rejects.toThrow('[CHAT] 会话不存在')
     await expect(adapter.archive('missing')).rejects.toThrow('[CHAT] 暂不支持归档')
     await expect(adapter.unarchive?.('missing')).rejects.toThrow('[CHAT] 暂不支持归档')
+  })
+})
+
+describe('buildTitle', function () {
+  function userMessage(content: ThreadMessage['content']): ThreadMessage {
+    return {
+      id: 'u1',
+      createdAt: new Date(),
+      role: 'user',
+      content,
+      attachments: [],
+      metadata: { custom: {} }
+    } as ThreadMessage
+  }
+
+  it('纯文本截断', function () {
+    const long = '这是一段很长很长很长很长很长很长很长的用户请求内容请帮忙'
+    expect(long.length).toBeGreaterThan(24)
+    expect(buildTitle([userMessage([{ type: 'text', text: long }])]).endsWith('…')).toBe(true)
+  })
+
+  it('file chip 只留短名', function () {
+    const title = buildTitle([
+      userMessage([
+        {
+          type: 'text',
+          text: ':file[report.pdf]{name=docs/report.pdf} 帮我总结'
+        }
+      ])
+    ])
+    expect(title).toContain('report.pdf')
+    expect(title).not.toContain(':file[')
+    expect(title).not.toContain('{name=')
+  })
+
+  it('仅附件时用 basename', function () {
+    const title = buildTitle([
+      userMessage([
+        {
+          type: 'file',
+          filename: 'src/a.ts',
+          mimeType: 'text/plain',
+          data: ''
+        } as ThreadMessage['content'][number]
+      ])
+    ])
+    expect(title).toBe('a.ts')
+  })
+
+  it('多附件短文案', function () {
+    const title = buildTitle([
+      userMessage([
+        {
+          type: 'file',
+          filename: 'a.ts',
+          mimeType: 'text/plain',
+          data: ''
+        } as ThreadMessage['content'][number],
+        {
+          type: 'file',
+          filename: 'b.ts',
+          mimeType: 'text/plain',
+          data: ''
+        } as ThreadMessage['content'][number]
+      ])
+    ])
+    expect(title).toContain('a.ts')
+    expect(title).toContain('2 个文件')
   })
 })

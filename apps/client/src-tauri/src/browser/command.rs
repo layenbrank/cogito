@@ -19,11 +19,17 @@ use super::state::{BrowserState, BrowserTab};
 /// **必须是 async + spawn_blocking**：`Window::add_child` 内部是
 /// 「投递到主线程 → `rx.recv()` 阻塞等结果」，而同步 command 本身就占着主线程，
 /// 于是自己等自己，命令永不返回（表现为：地址栏回车没反应、没有报错、没有 tab）。
+/// `force_new` 默认 true（用户点 + 总是新建）；agent 工具面默认 false 走复用。
 #[tauri::command]
-pub async fn browser_open(app: AppHandle, url: String) -> Result<BrowserTab, String> {
+pub async fn browser_open(
+    app: AppHandle,
+    url: String,
+    force_new: Option<bool>,
+) -> Result<BrowserTab, String> {
+    let force_new = force_new.unwrap_or(true);
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<BrowserState>();
-        lifecycle::open(&app, &state, &url)
+        lifecycle::open(&app, &state, &url, force_new)
     })
     .await
     .map_err(|error| format!("打开浏览器视图失败：{error}"))?
@@ -213,6 +219,8 @@ pub async fn browser_device_set(
     match emulate::apply(&app, &label, device.as_ref(), fit).await {
         Ok(()) => {
             state.set_device(&label, device.clone());
+            // UI 路径也广播：让其它订阅方（及 tabs[].device）跟上，不只靠本地 setDevice
+            lifecycle::broadcast(&app, state.inner());
             let readback = emulate::readback(&app, &label).await.unwrap_or_default();
             Ok(serde_json::json!({
                 "tab": label,

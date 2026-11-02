@@ -11,7 +11,7 @@
  * 调整计划请回对话里说 —— 右栏不提供输入框，避免两处改计划打架。
  */
 import { Icon } from '@iconify/react/offline'
-import { useAuiState } from '@assistant-ui/react'
+import { useAui, useAuiState } from '@assistant-ui/react'
 import { MarkdownContent } from '@cogito/design/assistant/markdown-text'
 import { TodoList } from '@cogito/design/assistant/todo-list'
 import { Button } from '@cogito/design/components/button'
@@ -29,36 +29,60 @@ import { toast } from 'sonner'
 import { savePlanToWorkspace } from '@/features/agent/plan-file'
 import { DEFAULT_BUDGET, GOAL_BUDGET_OPTIONS, useGoalRun } from '@/features/agent/goal-run'
 import { findPlanDraft } from '@/features/agent/plan-draft'
-import type { PlanSnapshot } from '@/features/agent/plan'
+import { findLatestPlan } from '@/features/agent/plan'
 import { useActiveWorkspace } from '@/features/agent/workspace/active'
 
 interface AsidePlanProps {
-  plan: PlanSnapshot | null
   isPlanMode: boolean
   /** `agent` = 普通执行；`goal` = 目标推进（自动续跑，中途不打断，轮次由 budget 指定） */
   onStartImplement: (target: 'agent' | 'goal', budget?: number) => void
 }
 
+/** 计划内容指纹：内容不变时不因 messages 引用变化而重算下游 */
+function findPlanDigest(messages: Parameters<typeof findLatestPlan>[0]): string {
+  const plan = findLatestPlan(messages)
+  if (!plan) return ''
+  let digest = `${plan.done}/${plan.total}`
+  for (const entry of plan.entries) {
+    digest += `|${entry.status}:${entry.content}`
+  }
+  return digest
+}
+
 function AsidePlan(props: AsidePlanProps) {
-  const messages = useAuiState(function (state) {
-    return state.thread.messages
+  const aui = useAui()
+  const planDigest = useAuiState(function (state) {
+    return findPlanDigest(state.thread.messages)
+  })
+  const draftDigest = useAuiState(function (state) {
+    const next = findPlanDraft(state.thread.messages)
+    if (!next) return ''
+    return `${next.title}\0${next.overview}\0${next.body}\0${next.steps.join('\n')}`
   })
   const threadID = useAuiState(function (state) {
     return state.threads.mainThreadId
   })
   const goal = useGoalRun(threadID)
   const { workspace, rootPath } = useActiveWorkspace()
+  const plan = useMemo(
+    function () {
+      if (!planDigest) return null
+      return findLatestPlan(aui.thread.getState().messages)
+    },
+    [aui, planDigest]
+  )
   const draft = useMemo(
     function () {
-      return findPlanDraft(messages)
+      if (!draftDigest) return null
+      return findPlanDraft(aui.thread.getState().messages)
     },
-    [messages]
+    [aui, draftDigest]
   )
 
   const items = useMemo(
     function () {
-      if (props.plan && props.plan.entries.length > 0) {
-        return props.plan.entries.map(function (entry) {
+      if (plan && plan.entries.length > 0) {
+        return plan.entries.map(function (entry) {
           return { content: entry.content, status: entry.status }
         })
       }
@@ -66,7 +90,7 @@ function AsidePlan(props: AsidePlanProps) {
         return { content: step, status: 'pending' as const }
       })
     },
-    [props.plan, draft]
+    [plan, draft]
   )
 
   async function handleSave() {
@@ -112,8 +136,8 @@ function AsidePlan(props: AsidePlanProps) {
     )
   }
 
-  const stepCount = props.plan?.total ?? draft.steps.length
-  const doneCount = props.plan?.done ?? 0
+  const stepCount = plan?.total ?? draft.steps.length
+  const doneCount = plan?.done ?? 0
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

@@ -1,5 +1,5 @@
 import type { ToolCallMessagePartProps } from '@assistant-ui/react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '@iconify/react/offline'
 import { CodeBlock } from '@cogito/design/assistant/code-block'
 import { CodeDiff } from '@cogito/design/assistant/code-diff'
@@ -11,6 +11,7 @@ import { toAgentToolLabel } from '@/features/agent/tool-labels'
 import { useActiveWorkspace } from '@/features/agent/workspace/active'
 import { openAsideReview } from '@/views/agent/chat/components/open-aside-review'
 import {
+  fetchWriteCodeDiff,
   findBaseName,
   findCodeLanguage,
   findWritePath,
@@ -166,12 +167,30 @@ function ReadWriteToolCard(
     },
     [writePath, rootPath]
   )
-  // 标题 +/- 与展开 CodeDiff 共用一次 LCS，避免同卡双算
+  // 标题 +/- 与展开 CodeDiff 共用一次 diff：同步首屏，Tauri 异步升级到 Rust lineDiff
   const toolArgs = props.args as unknown
-  const codeDiff = useMemo(
-    function (): WriteCodeDiff | null {
-      if (props.variant !== 'write') return null
-      return parseWriteCodeDiff(toolArgs)
+  const [codeDiff, updateCodeDiff] = useState<WriteCodeDiff | null>(function () {
+    if (props.variant !== 'write') return null
+    return parseWriteCodeDiff(toolArgs)
+  })
+  useEffect(
+    function () {
+      if (props.variant !== 'write') {
+        updateCodeDiff(null)
+        return
+      }
+      updateCodeDiff(parseWriteCodeDiff(toolArgs))
+      let cancelled = false
+      void fetchWriteCodeDiff(toolArgs)
+        .then(function (next) {
+          if (!cancelled) updateCodeDiff(next)
+        })
+        .catch(function (error: unknown) {
+          console.warn('[agent] fetchWriteCodeDiff 失败，保留同步 diff:', error)
+        })
+      return function () {
+        cancelled = true
+      }
     },
     [props.variant, toolArgs]
   )

@@ -25,17 +25,23 @@ function formatAddress(url: string): string {
   return url === 'about:blank' ? '' : url
 }
 
-/** tab 标签：和浏览器一样显示 host，解析不了就原样铺开 */
-function formatTabTitle(url: string): string {
+/** 从 URL 取 host；解析不了就原样铺开 */
+function findBrowserHost(url: string): string {
   if (!url || url === 'about:blank') return '新标签页'
   try {
     const parsed = new URL(url)
     return parsed.host || parsed.href
   } catch (error) {
-    // `about:` / `data:` 之类不是标准层次 URL，原样显示即可
     console.debug('browser: 无法解析地址，按原文显示', url, error)
     return url
   }
 }
 
-export { formatAddress, formatTabTitle, parseAddress }
+/** tab 标签：优先页面标题，否则 host */
+function formatTabTitle(url: string, title?: string | null): string {
+  const trimmed = title?.trim()
+  if (trimmed) return trimmed
+  return findBrowserHost(url)
+}
+
+export { findBrowserHost, formatAddress, formatTabTitle, parseAddress }

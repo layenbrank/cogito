@@ -42,6 +42,25 @@ describe('AsideBrowserDevice', function () {
     expect(picked.userAgent).toContain('iPhone')
   })
 
+  it('桌面预设与退出模拟同义：回传 null', async function () {
+    const onSelect = vi.fn()
+    render(
+      <AsideBrowserDevice
+        device={IPHONE}
+        onSelect={onSelect}
+      />
+    )
+    openMenu()
+    fireEvent.click(
+      await screen.findByRole('menuitem', {
+        name: function (accessibleName) {
+          return accessibleName.startsWith('桌面')
+        }
+      })
+    )
+    expect(onSelect).toHaveBeenCalledWith(null)
+  })
+
   it('模拟态：能旋转、能退出', async function () {
     const onSelect = vi.fn()
     render(

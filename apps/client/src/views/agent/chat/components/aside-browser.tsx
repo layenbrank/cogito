@@ -84,11 +84,28 @@ function AsideBrowser() {
   const panelRef = useRef<HTMLDivElement | null>(null)
   /** 上一次真正下发过的「设备 + fit」，避免每帧 ResizeObserver 都打一次 IPC */
   const appliedRef = useRef('')
+  /** 统一 apply 的代数：过期应答不得回写 store / 清掉 key */
+  const applyGenerationRef = useRef(0)
   // 只有 page 视图才量尺寸：其他视图时占位 div 不存在，webview 也应该是隐藏的
   const { ref: surfaceRef, isPaused, pauseSrc } = useBrowserRect(
     activeTab !== undefined && view === 'page',
     activeLabel
   )
+
+  function deviceApplyKey(
+    label: string,
+    device: DeviceProfile,
+    nextFit: number
+  ): string {
+    return [
+      label,
+      `${device.width}x${device.height}`,
+      String(device.dpr),
+      String(device.mobile),
+      device.userAgent ?? '',
+      nextFit.toFixed(3)
+    ].join('|')
+  }
 
   /** 盒子四周留白：不留位置会被面板边缘裁掉 */
   const DEVICE_GUTTER = 12
@@ -130,16 +147,19 @@ function AsideBrowser() {
   useEffect(
     function () {
       if (!activeLabel || !isUsableDevice(activeDevice)) return
-      const key = `${activeLabel}|${activeDevice.width}x${activeDevice.height}|${activeDevice.dpr}|${activeDevice.mobile}|${fit.toFixed(3)}`
+      const key = deviceApplyKey(activeLabel, activeDevice, fit)
       if (appliedRef.current === key) return
       const timer = window.setTimeout(function () {
+        const generation = (applyGenerationRef.current += 1)
         appliedRef.current = key
         void setBrowserDevice(activeLabel, activeDevice, fit)
           .then(function (result) {
+            if (generation !== applyGenerationRef.current) return
             // 以 Rust 回传的档案为准（它会夹 fit、并记录缩放通道）
             useBrowserStore.getState().setDevice(activeLabel, result.device ?? activeDevice)
           })
           .catch(function (error: unknown) {
+            if (generation !== applyGenerationRef.current) return
             appliedRef.current = ''
             console.warn('browser: 应用设备模拟失败', error)
           })
@@ -292,11 +312,11 @@ function AsideBrowser() {
     const label = activeLabel
     if (!label) return
     const nextFit = isUsableDevice(next) ? fitFor(next, usableBox) : 1
-    appliedRef.current = isUsableDevice(next)
-      ? `${label}|${next.width}x${next.height}|${next.dpr}|${next.mobile}|${nextFit.toFixed(3)}`
-      : ''
+    const generation = (applyGenerationRef.current += 1)
+    appliedRef.current = isUsableDevice(next) ? deviceApplyKey(label, next, nextFit) : ''
     void setBrowserDevice(label, next, nextFit)
       .then(function (result) {
+        if (generation !== applyGenerationRef.current) return
         useBrowserStore.getState().setDevice(label, result.device ?? next)
         if (!next) {
           toast.success('已退出设备模拟')
@@ -312,6 +332,7 @@ function AsideBrowser() {
         })
       })
       .catch(function (error: unknown) {
+        if (generation !== applyGenerationRef.current) return
         appliedRef.current = ''
         reportError(error)
       })
@@ -391,7 +412,7 @@ function AsideBrowser() {
    */
   function captureIntoComposer() {
     if (!activeLabel) return
-    const name = `浏览器截图-${formatTabTitle(activeTab?.url ?? '')}.png`
+    const name = `浏览器截图-${formatTabTitle(activeTab?.url ?? '', activeTab?.title)}.png`
 
     function shoot() {
       void screenshotBrowser(activeLabel as string)
@@ -492,7 +513,9 @@ function AsideBrowser() {
                 onClick={function () {
                   activateTab(tab.label)
                 }}>
-                <span className="max-w-32 truncate">{formatTabTitle(tab.url)}</span>
+                <span className="max-w-32 truncate">
+                  {formatTabTitle(tab.url, tab.title)}
+                </span>
               </Button>
               <Button
                 type="button"

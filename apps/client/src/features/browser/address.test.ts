@@ -36,7 +36,12 @@ describe('formatAddress', function () {
 })
 
 describe('formatTabTitle', function () {
-  it('优先显示 host', function () {
+  it('有标题时优先用标题', function () {
+    expect(formatTabTitle('https://example.com/a', 'Example Domain')).toBe('Example Domain')
+    expect(formatTabTitle('https://example.com/a', '  ')).toBe('example.com')
+  })
+
+  it('无标题时回退 host', function () {
     expect(formatTabTitle('https://example.com/a/b?c=1')).toBe('example.com')
     expect(formatTabTitle('http://localhost:3000')).toBe('localhost:3000')
   })

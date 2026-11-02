@@ -14,8 +14,8 @@
  * 引用路径（chip 的 id、附件名）走 `toAgentPath`：会话 cwd 只等于主文件夹，
  * 所以主文件夹内给相对路径，其他文件夹给绝对路径。
  *
- * 浏览器标签页的 `label` 与 `id` 都取 webview label，于是序列化成
- * `:browser[browser-2]` —— agent 侧 playbook 写的就是「方括号里是 app_browser_* 的 tab 参数」。
+ * 浏览器 chip：展示页标题（`:browser[标题]{name=browser-<uuid>}`），
+ * `name/id` 才是 app_browser_* 的 tab 参数。
  */
 import {
   useComposerTrigger,
@@ -39,7 +39,7 @@ import {
   toAgentPath,
   toBaseName
 } from '@/features/agent/workspace/paths.ts'
-import { formatTabTitle } from '@/features/browser/address'
+import { findBrowserHost, formatTabTitle } from '@/features/browser/address'
 import { useBrowserStore } from '@/features/browser/store'
 import {
   buildFolderLabels,
@@ -64,7 +64,14 @@ function normalizeSearchQuery(query: string) {
 }
 
 type MentionData =
-  | { readonly kind: 'browser'; readonly label: string; readonly url: string }
+  | {
+      readonly kind: 'browser'
+      /** webview label（`browser-<uuid>`），作为 chip name / 工具 tab 参数 */
+      readonly label: string
+      readonly url: string
+      /** 展示用标题（可消歧） */
+      readonly title: string
+    }
   | {
       readonly kind: 'file'
       readonly label: string
@@ -129,13 +136,19 @@ function findSkillData(item: ComposerTriggerItem): SkillData | null {
   return typeof candidate.relative === 'string' ? candidate : null
 }
 
-function findBrowserHost(url: string) {
-  try {
-    return new URL(url).host
-  } catch (error) {
-    console.warn('[composer-triggers] 无法解析标签页地址:', error)
-    return url
+/** 同名标题消歧：`标题` / `标题 (2)` */
+function disambiguateTitles(titles: readonly string[]): string[] {
+  const counts = new Map<string, number>()
+  const seen = new Map<string, number>()
+  for (const title of titles) {
+    counts.set(title, (counts.get(title) ?? 0) + 1)
   }
+  return titles.map(function (title) {
+    if ((counts.get(title) ?? 0) <= 1) return title
+    const index = (seen.get(title) ?? 0) + 1
+    seen.set(title, index)
+    return index === 1 ? title : `${title} (${index})`
+  })
 }
 
 /**
@@ -213,21 +226,39 @@ function useComposerTriggers(): readonly ComposerTrigger[] {
         resolve: async function ({ query, signal }) {
           const raw = normalizeSearchQuery(query)
           const needle = raw.toLowerCase()
-          const browserItems: ComposerTriggerItem[] = useBrowserStore
-            .getState()
-            .tabs.filter(function (tab) {
+          const browserTabs = useBrowserStore.getState().tabs
+          const browserTitles = disambiguateTitles(
+            browserTabs.map(function (tab) {
+              return formatTabTitle(tab.url, tab.title)
+            })
+          )
+          const browserItems: ComposerTriggerItem[] = browserTabs
+            .map(function (tab, index) {
+              return {
+                tab,
+                displayTitle: browserTitles[index] ?? formatTabTitle(tab.url, tab.title)
+              }
+            })
+            .filter(function (entry) {
               if (needle.length === 0) return true
+              const host = findBrowserHost(entry.tab.url).toLowerCase()
               return (
-                tab.label.toLowerCase().includes(needle) ||
-                formatTabTitle(tab.url).toLowerCase().includes(needle)
+                entry.tab.label.toLowerCase().includes(needle) ||
+                host.includes(needle) ||
+                entry.displayTitle.toLowerCase().includes(needle)
               )
             })
-            .map(function (tab) {
+            .map(function (entry) {
               return {
-                id: `browser:${tab.label}`,
-                label: tab.label,
-                description: `${findBrowserHost(tab.url)} · 浏览器标签页`,
-                data: { kind: 'browser', label: tab.label, url: tab.url } satisfies MentionData
+                id: `browser:${entry.tab.label}`,
+                label: entry.displayTitle,
+                description: `${findBrowserHost(entry.tab.url)} · 浏览器标签页`,
+                data: {
+                  kind: 'browser',
+                  label: entry.tab.label,
+                  url: entry.tab.url,
+                  title: entry.displayTitle
+                } satisfies MentionData
               }
             })
 
@@ -308,8 +339,12 @@ function useComposerTriggers(): readonly ComposerTrigger[] {
           const mentionData = findMentionData(item)
           if (mentionData === null) return
           if (mentionData.kind === 'browser') {
-            // 标签页只给 directive 文本（方括号里就是 app_browser_* 的 tab 参数）
-            api.insertChip({ type: 'browser', label: mentionData.label, id: mentionData.label })
+            // 展示用页面标题；name/id 仍是 webview label（工具 tab 参数）
+            api.insertChip({
+              type: 'browser',
+              label: mentionData.title,
+              id: mentionData.label
+            })
             return
           }
           // 展示只用末段名；id 是引用路径（主文件夹相对 / 其他文件夹绝对）
