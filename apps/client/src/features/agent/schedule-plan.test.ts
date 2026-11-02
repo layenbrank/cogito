@@ -27,14 +27,15 @@ describe('日程计划解析', function () {
     expect(rows[0].color).toBe('#3B82F6')
   })
 
-  it('全天事件结束时间落到次日 00:00 之前 1ms', function () {
-    const rows = parseSchedulePlan(
-      plan([{ title: '休息', startISO: '2026-10-27T00:00:00+08:00', entireDay: true }])
-    )
+  it('全天事件结束时间落到次日本地 00:00 之前 1ms', function () {
+    const startISO = '2026-10-27T00:00:00+08:00'
+    const rows = parseSchedulePlan(plan([{ title: '休息', startISO, entireDay: true }]))
     expect(rows).toHaveLength(1)
-    const start = new Date(rows[0].startAt)
-    expect(start.getHours()).toBe(0)
-    expect(rows[0].endAt).toBe(rows[0].startAt + 24 * 60 * 60 * 1000 - 1)
+    expect(rows[0].startAt).toBe(Date.parse(startISO))
+    // nextDayStart 用本地 setHours(24)，断言跟实现同口径，避免 CI（UTC）与本地 (+08) 差 8 小时
+    const nextMidnightLocal = new Date(rows[0].startAt)
+    nextMidnightLocal.setHours(24, 0, 0, 0)
+    expect(rows[0].endAt).toBe(nextMidnightLocal.getTime() - 1)
   })
 
   it('日期非法或结束早于开始的行被丢掉', function () {
