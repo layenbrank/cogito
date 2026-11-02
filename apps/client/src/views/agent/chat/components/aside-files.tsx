@@ -1,15 +1,18 @@
 /**
  * 右栏文件树：浏览 / 搜索工作区，点选后用 Monaco 完整打开并可编辑。
  * 返回落回进入文件时所在目录，不重置到工作区根。
- * 多根工作区（主目录 + 附加文件夹）在顶部切换根。
+ *
+ * 根目录用的是**全局「当前文件夹」**（`useActiveWorkspace`）：这里再存一份
+ * `selectedRoot` 会让文件树和审阅 / 历史 / composer 各看一个目录。
  */
 import type { useAui } from '@assistant-ui/react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ContextMenu } from '@/components/contextmenu'
 import { attachWorkspaceFile } from '@/features/agent/attachment.ts'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
+import { toAgentReference } from '@/features/agent/workspace/paths.ts'
 import { useWorkspaceRevision } from '@/features/agent/workspace/revision.ts'
 import { AsideFilesPreview } from '@/views/agent/chat/components/aside-files-preview'
 import { AsideFilesRoots } from '@/views/agent/chat/components/aside-files-roots'
@@ -33,37 +36,19 @@ interface AsideFilesProps {
 }
 
 function AsideFiles(props: AsideFilesProps) {
-  const { rootPath: workspaceRoot, folders } = useActiveWorkspace()
+  const { rootPath: activeRoot, folders, selectRoot, primaryRootPath } = useActiveWorkspace()
   const revision = useWorkspaceRevision()
-  const [selectedRoot, updateSelectedRoot] = useState<string | null>(null)
   const [directory, updateDirectory] = useState('')
   const [previewRelative, updatePreviewRelative] = useState<string | null>(
     props.initialRelative ?? null
   )
   const [seenInitial, updateSeenInitial] = useState(props.initialRelative ?? null)
-
-  /** 选中的根失效（文件夹被移除）时回落到工作区第一个文件夹 */
-  const activeRoot = useMemo(
-    function () {
-      if (
-        selectedRoot &&
-        folders.some(function (folder) {
-          return folder.path === selectedRoot
-        })
-      ) {
-        return selectedRoot
-      }
-      return workspaceRoot
-    },
-    [selectedRoot, folders, workspaceRoot]
-  )
+  // 切文件夹会换 AgentAside 的 key，整个面板重挂：目录 / 预览自然回到入口，不用在这里清
 
   const preview = useAsideFilesPreview(previewRelative, activeRoot, revision)
 
   function switchRoot(next: string) {
-    updateSelectedRoot(next)
-    updateDirectory('')
-    updatePreviewRelative(null)
+    selectRoot(next)
   }
 
   if (props.initialRelative !== seenInitial) {
@@ -73,9 +58,9 @@ function AsideFiles(props: AsideFilesProps) {
     if (next) updateDirectory(findParentRelative(next))
   }
 
-  function handlePick(relative: string) {
-    updateDirectory(findParentRelative(relative))
-    updatePreviewRelative(relative)
+  function handlePick(pick: { relative: string }) {
+    updateDirectory(findParentRelative(pick.relative))
+    updatePreviewRelative(pick.relative)
   }
 
   function handleDirectoryChange(next: string) {
@@ -83,21 +68,24 @@ function AsideFiles(props: AsideFilesProps) {
   }
 
   function handleAttach() {
-    if (!previewRelative) return
-    void attachWorkspaceFile(props.aui, previewRelative)
+    if (!previewRelative || !activeRoot) return
+    // 非主文件夹里的相对路径 agent 解析不了：统一折算成引用路径
+    const reference = toAgentReference(activeRoot, previewRelative, primaryRootPath)
+    void attachWorkspaceFile(props.aui, reference)
       .then(function () {
-        toastAttached(previewRelative)
+        toastAttached(reference)
       })
       .catch(function (cause: unknown) {
         toast.error(cause instanceof Error ? cause.message : '引用失败')
       })
   }
 
-  const attachRelative = useCallback(
-    function (relative: string) {
-      void attachWorkspaceFile(props.aui, relative)
+  /** 右键菜单给的是引用路径（主文件夹相对 / 其他文件夹绝对），直接挂 */
+  const attachReference = useCallback(
+    function (reference: string) {
+      void attachWorkspaceFile(props.aui, reference)
         .then(function () {
-          toastAttached(relative)
+          toastAttached(reference)
         })
         .catch(function (cause: unknown) {
           toast.error(cause instanceof Error ? cause.message : '引用失败')
@@ -113,11 +101,12 @@ function AsideFiles(props: AsideFilesProps) {
       if (!attrs) return []
       return buildAsidePathMenuItems({
         rootPath: activeRoot,
+        agentRoot: primaryRootPath,
         relative: attrs.relative,
-        onAddToComposer: attachRelative
+        onAddToComposer: attachReference
       })
     },
-    [activeRoot, attachRelative]
+    [activeRoot, primaryRootPath, attachReference]
   )
 
   function closePreview() {
@@ -126,6 +115,15 @@ function AsideFiles(props: AsideFilesProps) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {/* 根目录条常驻：预览里也能看出/切换当前是哪个文件夹 */}
+      {activeRoot ? (
+        <AsideFilesRoots
+          folders={folders}
+          activePath={activeRoot}
+          onSelect={switchRoot}
+        />
+      ) : null}
+
       {previewRelative ? (
         <AsideFilesPreview
           rootPath={activeRoot}
@@ -145,19 +143,14 @@ function AsideFiles(props: AsideFilesProps) {
         className={
           previewRelative
             ? 'hidden'
-            : !workspaceRoot
+            : !activeRoot
               ? 'text-muted-foreground flex flex-1 items-center justify-center p-4 text-center text-xs'
               : 'flex min-h-0 flex-1 flex-col'
         }>
-        {!workspaceRoot ? (
+        {!activeRoot ? (
           '先在左栏添加一个工作区'
         ) : (
           <>
-            <AsideFilesRoots
-              folders={folders}
-              activePath={activeRoot}
-              onSelect={switchRoot}
-            />
             <ContextMenu
               trigger={ASIDE_PATH_TRIGGER}
               classNames={CODE_MENU_CLASS_NAMES}

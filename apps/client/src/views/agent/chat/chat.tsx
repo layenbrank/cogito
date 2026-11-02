@@ -29,7 +29,10 @@ import { AgentAside } from '@/views/agent/chat/components/aside'
 import { ComposerActions } from '@/views/agent/chat/components/composer-actions'
 import { ComposerEnd } from '@/views/agent/chat/components/composer-end'
 import { ComposerFooter } from '@/views/agent/chat/components/composer-footer'
-import { ComposerTriggerList, useComposerTriggers } from '@/views/agent/chat/components/composer-triggers'
+import {
+  ComposerTriggerList,
+  useComposerTriggers
+} from '@/views/agent/chat/components/composer-triggers'
 import { DelegateSurface } from '@/views/agent/chat/components/delegate-surface'
 import { AgentHead } from '@/views/agent/chat/components/head'
 import { AgentSidebar } from '@/views/agent/chat/components/sidebar'
@@ -93,9 +96,12 @@ function usePlanAutoOpen(isAsideOpen: boolean, openAside: () => void) {
   const threadID = useAuiState(function (state) {
     return state.threads.mainThreadId
   })
-  const plan = useMemo(function () {
-    return findLatestPlan(messages)
-  }, [messages])
+  const plan = useMemo(
+    function () {
+      return findLatestPlan(messages)
+    },
+    [messages]
+  )
   const openedFor = useRef<{ threadID: string; total: number } | null>(null)
 
   useEffect(
@@ -126,7 +132,7 @@ function AgentChat() {
 
 function AgentChatLayout() {
   const aui = useAui()
-  const { rootPath } = useActiveWorkspace()
+  const { primaryRootPath, folderPaths } = useActiveWorkspace()
   const composerTriggers = useComposerTriggers()
   const navigate = useNavigate()
   const [layoutSeed] = useState(function () {
@@ -191,12 +197,44 @@ function AgentChatLayout() {
   /** 输入框粘贴：截图 → dataURL 附件，带路径的文件 → 工作区引用 */
   const handleComposerPaste = useCallback(
     async function (files: readonly File[]) {
-      const result = await attachPastedFiles(aui, files, rootPath)
+      const result = await attachPastedFiles(aui, files, folderPaths, primaryRootPath)
       if (result.failed.length > 0) {
         toast.warning(`无法直接引用：${result.failed.join('、')}，请用 + 从工作区选择`)
       }
     },
-    [aui, rootPath]
+    [aui, folderPaths, primaryRootPath]
+  )
+
+  /**
+   * `<Thread>` 元素本身 memo 住。
+   *
+   * 外层订阅了整份 `messages`（`usePlanAutoOpen`），流式输出时每个 token 都会重渲染；
+   * 元素不 memo 的话整条消息列表 + composer 也跟着每 token 重画一遍 —— 缩略图、
+   * 输入框、工具卡片全部白算，观感上就是「流式输出时预览图一直在闪」。
+   * 依赖只放真正会变的两项：触发器快照与粘贴回调。
+   */
+  const threadElement = useMemo(
+    function () {
+      return (
+        <Thread
+          components={{
+            Welcome: ThreadWelcome,
+            ToolFallback: AgentToolCard,
+            ToolGroup: AgentToolGroup,
+            ReasoningGroup: AgentProcessGroup,
+            ProcessGroup: AgentProcessFold,
+            ComposerStart: ComposerActions,
+            ComposerAttach: null,
+            ComposerEnd: ComposerEnd,
+            ComposerFooter: ComposerFooter,
+            ComposerTriggers: composerTriggers,
+            ComposerTriggerList: ComposerTriggerList,
+            ComposerPaste: handleComposerPaste
+          }}
+        />
+      )
+    },
+    [composerTriggers, handleComposerPaste]
   )
 
   useCommands([
@@ -265,33 +303,30 @@ function AgentChatLayout() {
    * 客户区宽度：必须先见过一次健康宽度，才认假窄。
    * 否则首屏 flex 未撑开时的短暂窄宽会被当成最小化，触发回放/展开乱闪。
    */
-  useEffect(
-    function () {
-      const node = bodyRef.current
-      if (!node || typeof ResizeObserver === 'undefined') return
+  useEffect(function () {
+    const node = bodyRef.current
+    if (!node || typeof ResizeObserver === 'undefined') return
 
-      function syncWidth() {
-        const el = bodyRef.current
-        if (!el) return
-        const width = el.getBoundingClientRect().width
-        if (width >= LAYOUT_WIDTH_GUARD) {
-          hasSeenHealthyWidthRef.current = true
-          updateShellNarrow(false)
-          return
-        }
-        if (!hasSeenHealthyWidthRef.current) return
-        if (width > 0) updateShellNarrow(true)
+    function syncWidth() {
+      const el = bodyRef.current
+      if (!el) return
+      const width = el.getBoundingClientRect().width
+      if (width >= LAYOUT_WIDTH_GUARD) {
+        hasSeenHealthyWidthRef.current = true
+        updateShellNarrow(false)
+        return
       }
+      if (!hasSeenHealthyWidthRef.current) return
+      if (width > 0) updateShellNarrow(true)
+    }
 
-      syncWidth()
-      const observer = new ResizeObserver(syncWidth)
-      observer.observe(node)
-      return function () {
-        observer.disconnect()
-      }
-    },
-    []
-  )
+    syncWidth()
+    const observer = new ResizeObserver(syncWidth)
+    observer.observe(node)
+    return function () {
+      observer.disconnect()
+    }
+  }, [])
 
   useEffect(function () {
     return watchActiveScenario(updateScenario)
@@ -371,14 +406,7 @@ function AgentChatLayout() {
         isAsideMaximized
       })
     },
-    [
-      isSidebarOpen,
-      isAsideOpen,
-      isAsideMaximized,
-      isLayoutFrozen,
-      groupRef,
-      commitAppliedLayout
-    ]
+    [isSidebarOpen, isAsideOpen, isAsideMaximized, isLayoutFrozen, groupRef, commitAppliedLayout]
   )
 
   /**
@@ -393,10 +421,7 @@ function AgentChatLayout() {
     [isWindowMinimized, isShellNarrow, groupRef, commitAppliedLayout]
   )
 
-  function handleLayoutChanged(
-    layout: SplitterLayout,
-    meta?: { isUserInteraction?: boolean }
-  ) {
+  function handleLayoutChanged(layout: SplitterLayout, meta?: { isUserInteraction?: boolean }) {
     // 假窄 / 首屏冻结：钉回 applied，绝不写入偏好
     if (isLayoutFrozenRef.current) {
       if (!isSameSplitterLayout(layout, appliedLayoutRef.current)) {
@@ -410,11 +435,7 @@ function AgentChatLayout() {
 
     // 只在用户拖拽时更新偏好并持久化；折叠不落盘 0
     if (!meta?.isUserInteraction) return
-    const preferred = mergePreferredLayout(
-      preferredLayoutRef.current,
-      layout,
-      openRef.current
-    )
+    const preferred = mergePreferredLayout(preferredLayoutRef.current, layout, openRef.current)
     preferredLayoutRef.current = preferred
     appliedLayoutRef.current = resolveSplitterLayout(openRef.current, preferred)
     writeSplitterLayout(preferred)
@@ -517,7 +538,9 @@ function AgentChatLayout() {
 
   return (
     <div className={clsx(styles.surface)}>
-      <div ref={bodyRef} className={styles.body}>
+      <div
+        ref={bodyRef}
+        className={styles.body}>
         <Splitter
           id="agent-workbench"
           groupRef={groupRef}
@@ -546,7 +569,11 @@ function AgentChatLayout() {
             />
           </SplitterPane>
 
-          <SplitterHandle withHandle disableDoubleClick disabled={isLayoutFrozen} />
+          <SplitterHandle
+            withHandle
+            disableDoubleClick
+            disabled={isLayoutFrozen}
+          />
 
           <SplitterPane
             id={MAIN_ID}
@@ -557,22 +584,7 @@ function AgentChatLayout() {
             <div className={clsx(styles.workbench, styles.thread)}>
               <AgentHead />
               <main className={styles.threadMain}>
-                <Thread
-                  components={{
-                    Welcome: ThreadWelcome,
-                    ToolFallback: AgentToolCard,
-                    ToolGroup: AgentToolGroup,
-                    ReasoningGroup: AgentProcessGroup,
-                    ProcessGroup: AgentProcessFold,
-                    ComposerStart: ComposerActions,
-                    ComposerAttach: null,
-                    ComposerEnd: ComposerEnd,
-                    ComposerFooter: ComposerFooter,
-                    ComposerTriggers: composerTriggers,
-                    ComposerTriggerList: ComposerTriggerList,
-                    ComposerPaste: handleComposerPaste
-                  }}
-                />
+                {threadElement}
                 <GoalAutoAdvance />
                 <PlanScheduleCard />
               </main>

@@ -27,7 +27,11 @@ import {
 } from '@/views/agent/chat/components/aside-review-list'
 import { AsideReviewStatusBar } from '@/views/agent/chat/components/aside-review-status-bar'
 import { useAsideReviewRows } from '@/views/agent/chat/components/aside-review-rows'
-import { DiscardDialog, toDiscardTarget, type DiscardTarget } from '@/views/code/workspace/scm/discard-dialog'
+import {
+  DiscardDialog,
+  toDiscardTarget,
+  type DiscardTarget
+} from '@/views/code/workspace/scm/discard-dialog'
 
 interface AsideReviewProps {
   initialRelative?: string | null
@@ -51,6 +55,7 @@ function AsideReview(props: AsideReviewProps) {
   )
   const [seenInitial, updateSeenInitial] = useState(props.initialRelative ?? null)
   const [discardTarget, setDiscardTarget] = useState<DiscardTarget | null>(null)
+  // 切文件夹由 AgentAside 的 key 触发重挂：选中项 / 展开态自然清空，不必在这里再判一次
 
   if (props.initialRelative !== seenInitial) {
     updateSeenInitial(props.initialRelative ?? null)

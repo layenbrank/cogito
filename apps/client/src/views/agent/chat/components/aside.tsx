@@ -13,6 +13,11 @@ import { toast } from 'sonner'
 
 import { subscribeAsideReview } from '@/views/agent/chat/components/open-aside-review'
 import { normalizeToolPath } from '@/features/agent/tool-paths'
+import {
+  findOwningRoot,
+  findWorkspaceRelative,
+  isAbsolutePath
+} from '@/features/agent/workspace/paths'
 
 import { AsideBusy } from './aside-busy'
 import { AsideBrowser } from './aside-browser'
@@ -70,7 +75,7 @@ function AgentAside(props: AsideProps) {
   const terminalOpen = useTerminalStore(function (state) {
     return state.open
   })
-  const { rootPath } = useActiveWorkspace()
+  const { rootPath, folderPaths, selectRoot } = useActiveWorkspace()
 
   const [mode, updateMode] = useState<AsideMode>('home')
   const visibleTabs = useMemo(
@@ -82,12 +87,25 @@ function AgentAside(props: AsideProps) {
     },
     [isEmbedded]
   )
-  /** 仅用于「从产出点进某个文件」时直接落到该文件；点页签会清空，回到列表根 */
-  const [focusRelative, updateFocusRelative] = useState<string | null>(null)
+  /**
+   * 「从产出点进某个文件」的定向焦点。焦点**带根**：它只在当时的文件夹里成立，
+   * 用户在别处切了文件夹就自动失效 —— 不用 effect 去清，也就不会和
+   * 「先 selectRoot 再设焦点」的批量更新抢顺序。
+   */
+  const [focus, updateFocus] = useState<{
+    root: string | null
+    relative: string | null
+  } | null>(null)
+  const focusRelative = focus && focus.root === rootPath ? focus.relative : null
   const threadID = useAuiState(function (state) {
     return state.threads.mainThreadId
   })
   const agentMode = useSyncExternalStore(subscribeAgentMode, readAgentMode, readAgentMode)
+  /**
+   * 换会话或换文件夹都重挂面板：展开态 / diff / 浏览位置只对一个目录成立。
+   * 文件夹是全局「当前文件夹」，审阅、历史、文件、composer 看到的是同一个根。
+   */
+  const panelKey = `${threadID ?? 'none'}:${rootPath ?? ''}`
 
   /**
    * 计划确认执行：先切到对应模式再发消息。
@@ -145,23 +163,49 @@ function AgentAside(props: AsideProps) {
     [messages]
   )
 
-  function openFiles(relative?: string | null) {
-    updateFocusRelative(relative ?? null)
+  /**
+   * 工具卡给的是绝对路径，可能落在工作区里任意一个文件夹：
+   * 先找出归属文件夹，必要时把「当前文件夹」切过去，再给面板一个**该根内**的相对路径。
+   * 以前只认当前根，别的项目里的产出会被判成「不在工作区内」。
+   */
+  const locateTarget = useCallback(
+    function (rawPath?: string | null) {
+      if (!rawPath) return { root: rootPath, relative: null }
+      const normalized = rawPath.replace(/\\/g, '/')
+      const isAbsolute = isAbsolutePath(normalized)
+      if (!isAbsolute) return { root: rootPath, relative: normalizeToolPath(normalized, rootPath) }
+      const owner = findOwningRoot(normalized, folderPaths)
+      if (!owner) return { root: rootPath, relative: null }
+      const relative = findWorkspaceRelative(normalized, owner)
+      return { root: owner, relative: relative === '.' ? null : relative }
+    },
+    [rootPath, folderPaths]
+  )
+
+  function openFiles(rawPath?: string | null) {
+    const target = locateTarget(rawPath)
+    if (rawPath && !target.relative) {
+      toast.error('这个文件不在工作区里')
+      return
+    }
+    if (target.root && target.root !== rootPath) selectRoot(target.root)
+    updateFocus({ root: target.root ?? rootPath, relative: target.relative })
     updateMode('files')
   }
 
-  /** 工具卡常给绝对路径；审阅 IPC 只认工作区相对路径 */
+  /** 工具卡常给绝对路径；审阅 IPC 只认某一根内的相对路径 */
   const openReview = useCallback(
     function (rawPath?: string | null) {
-      const relative = rawPath ? normalizeToolPath(rawPath, rootPath) : null
-      if (rawPath && !relative) {
-        toast.error('该路径不在当前工作区内')
+      const target = locateTarget(rawPath)
+      if (rawPath && !target.relative) {
+        toast.error('这个文件不在工作区里')
         return
       }
-      updateFocusRelative(relative)
+      if (target.root && target.root !== rootPath) selectRoot(target.root)
+      updateFocus({ root: target.root ?? rootPath, relative: target.relative })
       updateMode('review')
     },
-    [rootPath]
+    [locateTarget, rootPath, selectRoot]
   )
 
   /**
@@ -170,7 +214,7 @@ function AgentAside(props: AsideProps) {
    */
   function selectTab(next: AsideMode) {
     if (next !== 'terminal') {
-      updateFocusRelative(null)
+      updateFocus(null)
       updateMode(next)
       return
     }
@@ -198,11 +242,9 @@ function AgentAside(props: AsideProps) {
       }
       useTerminalStore.getState().newTab(rootPath, { reveal: false })
     }
-    const target = useTerminalStore
-      .getState()
-      .tabs.find(function (tab) {
-        return tab.command === command
-      })
+    const target = useTerminalStore.getState().tabs.find(function (tab) {
+      return tab.command === command
+    })
     if (target) useTerminalStore.getState().writeActive(target.id)
     updateMode('terminal')
   }
@@ -233,7 +275,7 @@ function AgentAside(props: AsideProps) {
   // 切会话时清掉上一个会话的定向焦点，避免新会话直接落到别人的文件
   useEffect(
     function () {
-      updateFocusRelative(null)
+      updateFocus(null)
     },
     [threadID]
   )
@@ -291,7 +333,7 @@ function AgentAside(props: AsideProps) {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {mode === 'files' ? (
           <AsideFiles
-            key={threadID ?? 'none'}
+            key={panelKey}
             aui={aui}
             initialRelative={focusRelative}
             onOpenReview={function (relative) {
@@ -302,19 +344,19 @@ function AgentAside(props: AsideProps) {
 
         {mode === 'review' ? (
           <AsideReview
-            key={threadID ?? 'none'}
+            key={panelKey}
             initialRelative={focusRelative}
             onOpenFile={openFiles}
           />
         ) : null}
 
-        {mode === 'history' ? <AsideHistory key={threadID ?? 'none'} /> : null}
+        {mode === 'history' ? <AsideHistory key={panelKey} /> : null}
 
         {mode === 'browser' ? <AsideBrowser /> : null}
 
         {mode === 'plan' ? (
           <AsidePlan
-            key={threadID ?? 'none'}
+            key={panelKey}
             plan={props.plan}
             isPlanMode={agentMode === 'plan'}
             onStartImplement={startImplement}
@@ -324,7 +366,7 @@ function AgentAside(props: AsideProps) {
         {mode === 'home' ? (
           hasUserMessage ? (
             <AsideBusy
-              key={threadID ?? 'none'}
+              key={panelKey}
               plan={props.plan}
               onOpenFiles={openFiles}
               onOpenReview={openReview}
@@ -347,11 +389,7 @@ function AgentAside(props: AsideProps) {
          * 只有真正打开过（terminalOpen）才挂载，避免一进右栏就白开一个 shell。
          */}
         {terminalOpen ? (
-          <div
-            className={clsx(
-              'flex min-h-0 flex-1 flex-col',
-              mode !== 'terminal' && 'hidden'
-            )}>
+          <div className={clsx('flex min-h-0 flex-1 flex-col', mode !== 'terminal' && 'hidden')}>
             <TerminalSurface
               cwd={rootPath}
               emptyCwdMessage="先在左栏添加一个工作区"

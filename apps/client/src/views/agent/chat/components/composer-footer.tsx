@@ -10,6 +10,7 @@ import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -125,69 +126,73 @@ function WorkspaceMenu() {
         side="top"
         sideOffset={8}
         className="max-h-80 w-auto min-w-56 max-w-80 overflow-y-auto p-1">
-        <DropdownMenuLabel className="text-muted-foreground px-2 py-1.5 text-xs font-semibold tracking-wide uppercase">
-          工作区
-        </DropdownMenuLabel>
-        {workspaces.length === 0 ? (
-          <p className="text-muted-foreground px-2 py-1.5 text-xs">还没有工作区</p>
-        ) : null}
-        {workspaces.map(function (item) {
-          const isActive = item.id === workspaceID
-          return (
-            <DropdownMenuItem
-              key={item.id}
-              title={item.title}
-              className={cn('gap-2 rounded-sm px-2 py-2 text-sm', isActive && 'bg-accent/60')}
-              onClick={function () {
-                if (isActive) return
-                useAgentStore.getState().toActivateWorkspace(item.id)
-              }}>
-              <Icon
-                icon="lucide:check"
-                className={cn(
-                  'size-4 shrink-0',
-                  isActive ? 'text-primary opacity-100' : 'opacity-0'
-                )}
-              />
-              <span className="min-w-0 flex-1 truncate">{item.title}</span>
-            </DropdownMenuItem>
-          )
-        })}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="text-muted-foreground px-2 py-1.5 text-xs font-semibold tracking-wide uppercase">
+            工作区
+          </DropdownMenuLabel>
+          {workspaces.length === 0 ? (
+            <p className="text-muted-foreground px-2 py-1.5 text-xs">还没有工作区</p>
+          ) : null}
+          {workspaces.map(function (item) {
+            const isActive = item.id === workspaceID
+            return (
+              <DropdownMenuItem
+                key={item.id}
+                title={item.title}
+                className={cn('gap-2 rounded-sm px-2 py-2 text-sm', isActive && 'bg-accent/60')}
+                onClick={function () {
+                  if (isActive) return
+                  useAgentStore.getState().toActivateWorkspace(item.id)
+                }}>
+                <Icon
+                  icon="lucide:check"
+                  className={cn(
+                    'size-4 shrink-0',
+                    isActive ? 'text-primary opacity-100' : 'opacity-0'
+                  )}
+                />
+                <span className="min-w-0 flex-1 truncate">{item.title}</span>
+              </DropdownMenuItem>
+            )
+          })}
+        </DropdownMenuGroup>
 
         {folders.length > 1 ? (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-muted-foreground px-2 py-1.5 text-xs font-semibold tracking-wide uppercase">
-              文件夹
-            </DropdownMenuLabel>
-            {folders.map(function (folder) {
-              const isActive = folder.path === rootPath
-              return (
-                <DropdownMenuItem
-                  key={folder.id}
-                  title={folder.path}
-                  className={cn('gap-2 rounded-sm px-2 py-2 text-sm', isActive && 'bg-accent/60')}
-                  onClick={function () {
-                    if (isActive) return
-                    selectRoot(folder.path)
-                  }}>
-                  <Icon
-                    icon="lucide:check"
-                    className={cn(
-                      'size-4 shrink-0',
-                      isActive ? 'text-primary opacity-100' : 'opacity-0'
-                    )}
-                  />
-                  <Icon
-                    icon="lucide:folder"
-                    className="text-muted-foreground size-4 shrink-0 opacity-70"
-                  />
-                  <span className="min-w-0 flex-1 truncate font-mono text-xs">
-                    {findBaseName(folder.path)}
-                  </span>
-                </DropdownMenuItem>
-              )
-            })}
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="text-muted-foreground px-2 py-1.5 text-xs font-semibold tracking-wide uppercase">
+                文件夹
+              </DropdownMenuLabel>
+              {folders.map(function (folder) {
+                const isActive = folder.path === rootPath
+                return (
+                  <DropdownMenuItem
+                    key={folder.id}
+                    title={folder.path}
+                    className={cn('gap-2 rounded-sm px-2 py-2 text-sm', isActive && 'bg-accent/60')}
+                    onClick={function () {
+                      if (isActive) return
+                      selectRoot(folder.path)
+                    }}>
+                    <Icon
+                      icon="lucide:check"
+                      className={cn(
+                        'size-4 shrink-0',
+                        isActive ? 'text-primary opacity-100' : 'opacity-0'
+                      )}
+                    />
+                    <Icon
+                      icon="lucide:folder"
+                      className="text-muted-foreground size-4 shrink-0 opacity-70"
+                    />
+                    <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                      {findBaseName(folder.path)}
+                    </span>
+                  </DropdownMenuItem>
+                )
+              })}
+            </DropdownMenuGroup>
           </>
         ) : null}
       </DropdownMenuContent>

@@ -1,9 +1,3 @@
-/**
- * 右栏提交历史：最近提交列表 + 展开看本次改动的文件。
- *
- * 数据与 code 视图同一套 IPC（`WorkspaceGit.search` / `show`），
- * 但根目录取 agent 的当前工作区，不读 code 视图的 repoRoot。
- */
 import { useAui } from '@assistant-ui/react'
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
@@ -14,6 +8,7 @@ import { toast } from 'sonner'
 import { ContextMenu } from '@/components/contextmenu'
 import { attachWorkspaceFile } from '@/features/agent/attachment.ts'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
+import { refreshNow, useWorkspaceGitSnapshot } from '@/features/agent/workspace/git.ts'
 import { useWorkspaceRevision } from '@/features/agent/workspace/revision.ts'
 import { WorkspaceGit, type CommitHit, type ShowFile } from '@/lib/workspace-git'
 import { AsideDiff } from '@/views/agent/chat/components/aside-diff'
@@ -27,6 +22,11 @@ import {
   findReviewBaseName,
   findReviewParentLabel
 } from '@/views/agent/chat/components/aside-review-rows'
+import { WorkspaceFolderChips } from '@/views/agent/chat/components/workspace-folder-chips'
+import {
+  buildFolderLabels,
+  findFolderLabel
+} from '@/views/agent/chat/components/workspace-relative-path.ts'
 import { CODE_MENU_CLASS_NAMES } from '@/views/code/lib/context-menu.ts'
 
 interface HistoryDiffTarget {
@@ -67,27 +67,45 @@ function findStatusLetter(status: string) {
 
 function AsideHistory() {
   const aui = useAui()
-  const { rootPath } = useActiveWorkspace()
+  const { rootPath, primaryRootPath, folders } = useActiveWorkspace()
+  /** 与审阅共用同一份快照：分支名要一致，也顺便知道这个文件夹到底是不是仓库 */
+  const snapshot = useWorkspaceGitSnapshot(rootPath)
   const revision = useWorkspaceRevision()
   const [commits, updateCommits] = useState<CommitHit[]>([])
   const [isPending, updatePending] = useState(false)
   const [error, updateError] = useState<string | null>(null)
-  const [refreshKey, updateRefreshKey] = useState(0)
   const [expandedOid, updateExpandedOid] = useState<string | null>(null)
   const [files, updateFiles] = useState<ShowFile[]>([])
+  /** 展开的提交正在读文件：别拿「文件数为 0」当加载态，否则空提交会一直转圈 */
+  const [isFilesPending, updateFilesPending] = useState(false)
   const [diffTarget, updateDiffTarget] = useState<HistoryDiffTarget | null>(null)
   /** 展开中的 oid；异步回来时用它判断用户是不是已经切走了 */
   const expandedRef = useRef<string | null>(null)
 
   useEffect(
     function () {
-      if (!rootPath) return
+      if (!rootPath) {
+        updateCommits([])
+        updatePending(false)
+        updateError(null)
+        return
+      }
       let cancelled = false
       updatePending(true)
       updateError(null)
       WorkspaceGit.search(rootPath, { query: '', field: 'all', limit: RECENT_LIMIT })
         .then(function (result) {
-          if (!cancelled) updateCommits(result.commits)
+          if (cancelled) return
+          updateCommits(result.commits)
+          // 换分支 / reset 之后，展开的那个提交可能已经不在了：别留着它的文件列表
+          if (
+            expandedRef.current &&
+            !result.commits.some(function (item) {
+              return item.oid === expandedRef.current
+            })
+          ) {
+            setExpanded(null, [])
+          }
         })
         .catch(function (cause: unknown) {
           console.warn('[agent/aside-history] 读取提交历史失败:', cause)
@@ -103,7 +121,7 @@ function AsideHistory() {
         cancelled = true
       }
     },
-    [rootPath, refreshKey, revision]
+    [rootPath, revision]
   )
 
   function toggleCommit(oid: string) {
@@ -113,6 +131,7 @@ function AsideHistory() {
     }
     setExpanded(oid, [])
     if (!rootPath) return
+    updateFilesPending(true)
     void WorkspaceGit.show(rootPath, oid)
       .then(function (result) {
         setFilesFor(oid, result.files)
@@ -121,12 +140,16 @@ function AsideHistory() {
         console.warn('[agent/aside-history] 读取提交内容失败:', cause)
         setFilesFor(oid, [])
       })
+      .finally(function () {
+        if (expandedRef.current === oid) updateFilesPending(false)
+      })
   }
 
   function setExpanded(oid: string | null, nextFiles: ShowFile[]) {
     expandedRef.current = oid
     updateExpandedOid(oid)
     updateFiles(nextFiles)
+    updateFilesPending(false)
   }
 
   /** 只在展开的还是同一个提交时写入，避免慢请求覆盖用户后续的点击 */
@@ -134,11 +157,12 @@ function AsideHistory() {
     if (expandedRef.current === oid) updateFiles(nextFiles)
   }
 
-  const attachRelative = useCallback(
-    function (relative: string) {
-      void attachWorkspaceFile(aui, relative)
+  /** 右键菜单给的是引用路径（主文件夹相对 / 其他文件夹绝对），直接挂 */
+  const attachReference = useCallback(
+    function (reference: string) {
+      void attachWorkspaceFile(aui, reference)
         .then(function () {
-          toastAttached(relative)
+          toastAttached(reference)
         })
         .catch(function (cause: unknown) {
           toast.error(cause instanceof Error ? cause.message : '引用失败')
@@ -154,11 +178,12 @@ function AsideHistory() {
       if (!attrs) return []
       return buildAsidePathMenuItems({
         rootPath,
+        agentRoot: primaryRootPath,
         relative: attrs.relative,
-        onAddToComposer: attachRelative
+        onAddToComposer: attachReference
       })
     },
-    [rootPath, attachRelative]
+    [rootPath, primaryRootPath, attachReference]
   )
 
   function openFileDiff(commit: CommitHit, relative: string) {
@@ -178,186 +203,217 @@ function AsideHistory() {
     )
   }
 
-  if (diffTarget) {
-    const parentShort = diffTarget.parentOid ? diffTarget.parentOid.slice(0, 7) : '∅'
-    return (
-      <AsideDiff
-        rootPath={rootPath}
-        relative={diffTarget.relative}
-        revs={{
-          oldOid: diffTarget.parentOid ?? '',
-          newOid: diffTarget.oid
-        }}
-        compareLabel={`${parentShort} ↔ ${diffTarget.short}`}
-        onBack={function () {
-          updateDiffTarget(null)
-        }}
-      />
-    )
-  }
+  /** 多文件夹可能同名（两个 api）：靠上一级目录区分，和顶部 chips 一致 */
+  const folderName = findFolderLabel(
+    buildFolderLabels(
+      folders.map(function (folder) {
+        return folder.path
+      })
+    ),
+    rootPath
+  )
+  /** 快照还在读时先别下「不是仓库」的结论，否则会闪一下错误结论 */
+  const isEmpty = !isPending && !error && !snapshot.isPending && commits.length === 0
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-border flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
-        <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
-          <Icon
-            icon="lucide:git-commit-horizontal"
-            className="size-3.5 shrink-0"
-          />
-          <span className="truncate">提交历史</span>
-          {commits.length > 0 ? (
-            <span className="bg-muted rounded-full px-1.5 py-0.5 text-xs tabular-nums">
-              {commits.length}
+      {/* 多根工作区：切文件夹与审阅共用同一个「当前文件夹」 */}
+      <div className="border-border flex shrink-0 flex-col border-b">
+        <WorkspaceFolderChips />
+        <div className="flex items-center justify-between gap-2 px-3 py-2">
+          <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+            <Icon
+              icon="lucide:history"
+              className="size-3.5 shrink-0"
+            />
+            <span className="text-foreground shrink-0 font-medium">提交历史</span>
+            <span
+              className="truncate opacity-70"
+              title={rootPath}>
+              · {folderName}
             </span>
-          ) : null}
+            {snapshot.branch ? (
+              <span
+                className="bg-muted text-foreground/80 flex min-w-0 items-center gap-1 rounded-full px-1.5 py-0.5"
+                title={`当前分支 ${snapshot.branch}（与审阅同一份快照）`}>
+                <Icon
+                  icon="lucide:git-branch"
+                  className="size-3 shrink-0"
+                />
+                <span className="max-w-24 truncate font-mono">{snapshot.branch}</span>
+              </span>
+            ) : null}
+            {commits.length > 0 ? (
+              <span className="bg-muted shrink-0 rounded-full px-1.5 py-0.5 tabular-nums">
+                {commits.length}
+              </span>
+            ) : null}
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="刷新提交历史"
+            title="刷新：清掉 Git 指纹缓存后重读当前文件夹（与审阅同一个刷新）"
+            className="text-muted-foreground hover:text-foreground size-6 shrink-0"
+            disabled={isPending}
+            onClick={function () {
+              void refreshNow(rootPath)
+            }}>
+            <Icon
+              icon="lucide:refresh-cw"
+              className={clsx('size-3.5', isPending && 'animate-spin')}
+            />
+          </Button>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label="刷新提交历史"
-          title="刷新"
-          className="text-muted-foreground hover:text-foreground size-6 shrink-0"
-          disabled={isPending}
-          onClick={function () {
-            updateRefreshKey(function (value) {
-              return value + 1
-            })
-          }}>
-          <Icon
-            icon="lucide:refresh-cw"
-            className={clsx('size-3.5', isPending && 'animate-spin')}
-          />
-        </Button>
       </div>
 
-      <ContextMenu
-        trigger={ASIDE_PATH_TRIGGER}
-        classNames={CODE_MENU_CLASS_NAMES}
-        findItems={findPathMenuItems}>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
-          {isPending && commits.length === 0 ? (
-            <p className="text-muted-foreground flex items-center gap-1.5 p-3 text-xs">
-              <Icon
-                icon="lucide:loader-circle"
-                className="size-3.5 animate-spin"
-              />
-              读取中…
-            </p>
-          ) : null}
+      {diffTarget ? (
+        <AsideDiff
+          rootPath={rootPath}
+          relative={diffTarget.relative}
+          revs={{
+            oldOid: diffTarget.parentOid ?? '',
+            newOid: diffTarget.oid
+          }}
+          label={`${diffTarget.parentOid ? diffTarget.parentOid.slice(0, 7) : '∅'} ↔ ${diffTarget.short}`}
+          onBack={function () {
+            updateDiffTarget(null)
+          }}
+        />
+      ) : (
+        <ContextMenu
+          trigger={ASIDE_PATH_TRIGGER}
+          classNames={CODE_MENU_CLASS_NAMES}
+          findItems={findPathMenuItems}>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+            {isPending && commits.length === 0 ? (
+              <p className="text-muted-foreground flex items-center gap-1.5 p-3 text-xs">
+                <Icon
+                  icon="lucide:loader-circle"
+                  className="size-3.5 animate-spin"
+                />
+                读取中…
+              </p>
+            ) : null}
 
-          {error ? <p className="text-destructive p-3 text-xs">{error}</p> : null}
+            {error ? <p className="text-destructive p-3 text-xs">{error}</p> : null}
 
-          {!isPending && !error && commits.length === 0 ? (
-            <p className="text-muted-foreground p-3 text-xs">
-              还没有提交，或当前工作区不是 Git 仓库
-            </p>
-          ) : null}
+            {isEmpty ? (
+              <p className="text-muted-foreground p-3 text-xs">
+                {snapshot.isRepo
+                  ? `${folderName} 还没有提交`
+                  : `${folderName} 不是 Git 仓库，没有提交历史`}
+              </p>
+            ) : null}
 
-          {commits.length > 0 ? (
-            <ul className="flex flex-col">
-              {commits.map(function (commit) {
-                const isExpanded = commit.oid === expandedOid
-                return (
-                  <li
-                    key={commit.oid}
-                    className={clsx(isExpanded && 'bg-muted/25')}>
-                    <button
-                      type="button"
-                      title={commit.subject || '(无说明)'}
-                      aria-expanded={isExpanded}
-                      onClick={function () {
-                        toggleCommit(commit.oid)
-                      }}
-                      className={clsx(
-                        'hover:bg-muted/60 flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition-colors',
-                        isExpanded &&
-                          'bg-background/95 sticky top-0 z-10 border-b border-border/80 shadow-sm backdrop-blur-sm'
-                      )}>
-                      <Icon
-                        icon={commit.isHead ? 'lucide:home' : 'lucide:git-commit-vertical'}
+            {commits.length > 0 ? (
+              <ul className="flex flex-col">
+                {commits.map(function (commit) {
+                  const isExpanded = commit.oid === expandedOid
+                  return (
+                    <li
+                      key={commit.oid}
+                      className={clsx(isExpanded && 'bg-muted/25')}>
+                      <button
+                        type="button"
+                        title={commit.subject || '(无说明)'}
+                        aria-expanded={isExpanded}
+                        onClick={function () {
+                          toggleCommit(commit.oid)
+                        }}
                         className={clsx(
-                          'mt-0.5 size-3.5 shrink-0',
-                          commit.isHead ? 'text-primary' : 'text-muted-foreground'
-                        )}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="text-foreground line-clamp-2 text-[13px] leading-snug font-medium">
-                          {commit.subject || '(无说明)'}
-                        </span>
-                        <span className="text-muted-foreground mt-1 flex items-center gap-1.5 text-xs">
-                          <span className="truncate">{commit.authorName}</span>
-                          <span className="opacity-40">·</span>
-                          <span className="shrink-0">
-                            {formatRelativeTime(commit.committedAt)}
+                          'hover:bg-muted/60 flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition-colors',
+                          isExpanded &&
+                            'bg-background/95 sticky top-0 z-10 border-b border-border/80 shadow-sm backdrop-blur-sm'
+                        )}>
+                        <Icon
+                          icon={commit.isHead ? 'lucide:home' : 'lucide:git-commit-vertical'}
+                          className={clsx(
+                            'mt-0.5 size-3.5 shrink-0',
+                            commit.isHead ? 'text-primary' : 'text-muted-foreground'
+                          )}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="text-foreground line-clamp-2 text-[13px] leading-snug font-medium">
+                            {commit.subject || '(无说明)'}
                           </span>
-                          <span className="text-foreground/65 ml-auto shrink-0 font-mono text-xs tabular-nums">
-                            {commit.short}
+                          <span className="text-muted-foreground mt-1 flex items-center gap-1.5 text-xs">
+                            <span className="truncate">{commit.authorName}</span>
+                            <span className="opacity-40">·</span>
+                            <span className="shrink-0">
+                              {formatRelativeTime(commit.committedAt)}
+                            </span>
+                            <span className="text-foreground/65 ml-auto shrink-0 font-mono text-xs tabular-nums">
+                              {commit.short}
+                            </span>
                           </span>
                         </span>
-                      </span>
-                    </button>
+                      </button>
 
-                    {isExpanded ? (
-                      <ul className="flex flex-col gap-0.5 px-2 pt-1.5 pb-2.5">
-                        {files.length === 0 ? (
-                          <li className="text-muted-foreground px-2 py-1.5 text-xs">读取中…</li>
-                        ) : (
-                          files.map(function (file) {
-                            const letter = findStatusLetter(file.status)
-                            const parent = findReviewParentLabel(file.path)
-                            return (
-                              <li key={file.path}>
-                                <button
-                                  type="button"
-                                  data-aside-path={file.path}
-                                  data-aside-kind="file"
-                                  title={`查看 ${file.path} 的变更`}
-                                  onClick={function () {
-                                    openFileDiff(commit, file.path)
-                                  }}
-                                  className="hover:bg-muted/70 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors">
-                                  <span
-                                    className={clsx(
-                                      'w-3.5 shrink-0 text-center font-mono text-xs font-semibold',
-                                      STATUS_STYLE[letter] ?? 'text-muted-foreground'
-                                    )}>
-                                    {letter}
-                                  </span>
-                                  <span className="min-w-0 flex-1">
-                                    <span className="text-foreground block truncate text-[13px] leading-snug">
-                                      {findReviewBaseName(file.path)}
+                      {isExpanded ? (
+                        <ul className="flex flex-col gap-0.5 px-2 pt-1.5 pb-2.5">
+                          {files.length === 0 ? (
+                            <li className="text-muted-foreground px-2 py-1.5 text-xs">
+                              {isFilesPending ? '读取中…' : '这个提交没有改动文件'}
+                            </li>
+                          ) : (
+                            files.map(function (file) {
+                              const letter = findStatusLetter(file.status)
+                              const parent = findReviewParentLabel(file.path)
+                              return (
+                                <li key={file.path}>
+                                  <button
+                                    type="button"
+                                    data-aside-path={file.path}
+                                    data-aside-kind="file"
+                                    title={`查看 ${file.path} 的变更`}
+                                    onClick={function () {
+                                      openFileDiff(commit, file.path)
+                                    }}
+                                    className="hover:bg-muted/70 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors">
+                                    <span
+                                      className={clsx(
+                                        'w-3.5 shrink-0 text-center font-mono text-xs font-semibold',
+                                        STATUS_STYLE[letter] ?? 'text-muted-foreground'
+                                      )}>
+                                      {letter}
                                     </span>
-                                    {parent ? (
-                                      <span className="text-muted-foreground block truncate text-xs opacity-70">
-                                        {parent}
+                                    <span className="min-w-0 flex-1">
+                                      <span className="text-foreground block truncate text-[13px] leading-snug">
+                                        {findReviewBaseName(file.path)}
                                       </span>
-                                    ) : null}
-                                  </span>
-                                  <span className="flex shrink-0 items-center gap-1.5 font-mono text-xs tabular-nums">
-                                    {file.added !== null && file.added > 0 ? (
-                                      <span className="text-emerald-600 dark:text-emerald-400">
-                                        +{file.added}
-                                      </span>
-                                    ) : null}
-                                    {file.deleted !== null && file.deleted > 0 ? (
-                                      <span className="text-destructive">-{file.deleted}</span>
-                                    ) : null}
-                                  </span>
-                                </button>
-                              </li>
-                            )
-                          })
-                        )}
-                      </ul>
-                    ) : null}
-                  </li>
-                )
-              })}
-            </ul>
-          ) : null}
-        </div>
-      </ContextMenu>
+                                      {parent ? (
+                                        <span className="text-muted-foreground block truncate text-xs opacity-70">
+                                          {parent}
+                                        </span>
+                                      ) : null}
+                                    </span>
+                                    <span className="flex shrink-0 items-center gap-1.5 font-mono text-xs tabular-nums">
+                                      {file.added !== null && file.added > 0 ? (
+                                        <span className="text-emerald-600 dark:text-emerald-400">
+                                          +{file.added}
+                                        </span>
+                                      ) : null}
+                                      {file.deleted !== null && file.deleted > 0 ? (
+                                        <span className="text-destructive">-{file.deleted}</span>
+                                      ) : null}
+                                    </span>
+                                  </button>
+                                </li>
+                              )
+                            })
+                          )}
+                        </ul>
+                      ) : null}
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : null}
+          </div>
+        </ContextMenu>
+      )}
     </div>
   )
 }

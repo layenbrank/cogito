@@ -22,7 +22,7 @@ import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 /** 输入区左下角回形针：图片 / 工作区文件 / 文件夹 */
 function ComposerClip() {
   const aui = useAui()
-  const { rootPath } = useActiveWorkspace()
+  const { primaryRootPath, folderPaths } = useActiveWorkspace()
 
   function reportPaths(result: Awaited<ReturnType<typeof attachWorkspacePaths>>) {
     if (result.isMissingWorkspace) {
@@ -31,7 +31,7 @@ function ComposerClip() {
     }
     if (result.attached > 0) toast.success(`已引用 ${result.attached} 项`)
     if (result.skipped.length > 0) {
-      toast.warning(`${result.skipped.join('、')} 不在当前工作区内，已跳过`)
+      toast.warning(`${result.skipped.join('、')} 不在工作区内，已跳过`)
     }
   }
 
@@ -57,7 +57,7 @@ function ComposerClip() {
     void dialogOpen({ multiple: true })
       .then(function (paths) {
         const list = Array.isArray(paths) ? paths : paths ? [paths] : null
-        return attachWorkspacePaths(aui, list, rootPath)
+        return attachWorkspacePaths(aui, list, folderPaths, primaryRootPath)
       })
       .then(reportPaths)
       .catch(function (error: unknown) {
@@ -69,7 +69,7 @@ function ComposerClip() {
     void dialogOpen({ directory: true, multiple: true })
       .then(function (paths) {
         const list = Array.isArray(paths) ? paths : paths ? [paths] : null
-        return attachWorkspacePaths(aui, list, rootPath)
+        return attachWorkspacePaths(aui, list, folderPaths, primaryRootPath)
       })
       .then(reportPaths)
       .catch(function (error: unknown) {

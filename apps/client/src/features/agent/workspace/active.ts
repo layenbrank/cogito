@@ -14,6 +14,8 @@ interface ActiveWorkspace {
   rootPath: string | null
   /** 工作区主文件夹（列表第一个），不随「当前文件夹」切换改动 */
   primaryRootPath: string | null
+  /** 工作区全部文件夹（按列表顺序）；多根搜索 / 引用归属判定用 */
+  folderPaths: string[]
   folders: WorkspaceFolder[]
   /** 切换当前文件夹；传 null 恢复主文件夹 */
   selectRoot: (path: string | null) => void
@@ -69,6 +71,9 @@ function useActiveWorkspace(): ActiveWorkspace {
         workspaceID,
         rootPath: resolveRootPath(workspaceID, folders),
         primaryRootPath: owned[0]?.path ?? null,
+        folderPaths: owned.map(function (folder) {
+          return folder.path
+        }),
         folders: owned,
         selectRoot: function (path: string | null) {
           if (workspaceID) selectActiveRootPath(workspaceID, path)

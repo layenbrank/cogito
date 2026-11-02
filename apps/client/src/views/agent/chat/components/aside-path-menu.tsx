@@ -7,6 +7,7 @@ import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { toast } from 'sonner'
 
 import type { MenuItem } from '@/components/contextmenu'
+import { toAgentPath } from '@/features/agent/workspace/paths.ts'
 import { findBaseName } from '@/views/agent/chat/components/workspace-relative-path.ts'
 import { joinPath } from '@/views/code/lib/path.ts'
 
@@ -19,8 +20,14 @@ interface AsidePathAttrs {
 
 interface AsidePathMenuInput {
   rootPath: string
+  /**
+   * 会话 cwd（工作区的**主文件夹**）：引用路径按它折算 —— 主文件夹内给相对路径，
+   * 其他文件夹给绝对路径。省略时退回 rootPath（单根工作区两者相同）。
+   */
+  agentRoot?: string | null
   relative: string
-  onAddToComposer?: (relative: string) => void
+  /** 参数是**引用路径**（可直接交给 agent），不是根内相对路径 */
+  onAddToComposer?: (reference: string) => void
 }
 
 function findAsidePathAttrs(trigger: Element): AsidePathAttrs | null {
@@ -54,6 +61,8 @@ function revealInSystemExplorer(absolute: string) {
 
 function buildAsidePathMenuItems(input: AsidePathMenuInput): MenuItem[] {
   const absolute = joinPath(input.rootPath, input.relative)
+  /** 相对路径只对这个文件夹成立；交给 agent 的必须是主文件夹口径的引用路径 */
+  const reference = toAgentPath(absolute, input.agentRoot ?? input.rootPath)
   const items: MenuItem[] = []
 
   if (input.onAddToComposer) {
@@ -67,7 +76,7 @@ function buildAsidePathMenuItems(input: AsidePathMenuInput): MenuItem[] {
         />
       ),
       onSelect() {
-        input.onAddToComposer?.(input.relative)
+        input.onAddToComposer?.(reference)
       }
     })
     items.push({ key: 'divider-composer', type: 'divider' })

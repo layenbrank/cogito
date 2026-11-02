@@ -15,15 +15,15 @@ interface WorkspaceAttachResult {
   isMissingWorkspace: boolean
 }
 
-async function attachWorkspaceFile(aui: ComposerAui, relative: string) {
+async function attachWorkspaceFile(aui: ComposerAui, reference: string) {
   await aui.composer.addAttachment({
     type: 'file',
-    name: relative,
+    name: reference,
     contentType: 'text/plain',
     content: [
       {
         type: 'file',
-        filename: relative,
+        filename: reference,
         mimeType: 'text/plain',
         data: ''
       }
@@ -94,25 +94,32 @@ async function attachImageData(aui: ComposerAui, dataUrl: string, name: string) 
   })
 }
 
+/**
+ * 把系统对话框 / 粘贴拿到的绝对路径挂成引用。
+ *
+ * `roots` 是整个工作区的文件夹（不只是当前那个），`agentRoot` 是会话 cwd：
+ * 引用路径按「主文件夹相对、其他文件夹绝对」折算，见 `toAgentPath`。
+ */
 async function attachWorkspacePaths(
   aui: ComposerAui,
   paths: readonly string[] | null,
-  rootPath: string | null
+  roots: readonly string[],
+  agentRoot: string | null
 ): Promise<WorkspaceAttachResult> {
   if (!paths || paths.length === 0) {
     return { attached: 0, skipped: [], isMissingWorkspace: false }
   }
-  if (!rootPath) {
+  if (roots.length === 0) {
     return { attached: 0, skipped: [], isMissingWorkspace: true }
   }
 
-  const picks = resolveWorkspacePicks(paths, rootPath)
-  for (const relative of picks.relatives) {
-    await attachWorkspaceFile(aui, relative)
+  const picks = resolveWorkspacePicks(paths, roots, agentRoot)
+  for (const reference of picks.references) {
+    await attachWorkspaceFile(aui, reference)
   }
 
   return {
-    attached: picks.relatives.length,
+    attached: picks.references.length,
     skipped: picks.skipped,
     isMissingWorkspace: false
   }
@@ -134,7 +141,8 @@ interface PasteAttachResult {
 async function attachPastedFiles(
   aui: ComposerAui,
   files: readonly File[],
-  rootPath: string | null
+  roots: readonly string[],
+  agentRoot: string | null
 ): Promise<PasteAttachResult> {
   let attached = 0
   const failed: string[] = []
@@ -143,7 +151,7 @@ async function attachPastedFiles(
     try {
       const absolutePath = (file as File & { path?: string }).path
       if (absolutePath) {
-        const result = await attachWorkspacePaths(aui, [absolutePath], rootPath)
+        const result = await attachWorkspacePaths(aui, [absolutePath], roots, agentRoot)
         attached += result.attached
         if (result.attached === 0) failed.push(file.name)
         continue
@@ -163,5 +171,13 @@ async function attachPastedFiles(
   return { attached, failed }
 }
 
-export { IMAGE_ACCEPT, attachImage, attachImageData, attachPastedFiles, attachWorkspaceFile, attachWorkspacePaths, isImageFile }
+export {
+  IMAGE_ACCEPT,
+  attachImage,
+  attachImageData,
+  attachPastedFiles,
+  attachWorkspaceFile,
+  attachWorkspacePaths,
+  isImageFile
+}
 export type { PasteAttachResult, WorkspaceAttachResult }

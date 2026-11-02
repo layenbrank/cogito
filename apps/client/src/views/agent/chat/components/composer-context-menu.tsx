@@ -11,9 +11,10 @@ import { toast } from 'sonner'
 
 import { attachWorkspaceFile } from '@/features/agent/attachment.ts'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
+import { joinWorkspacePath, toAgentPath } from '@/features/agent/workspace/paths.ts'
 import { WorkspaceSkills, type WorkspaceSkill } from '@/lib/workspace-skills.ts'
 import { ExtensionsPane } from './composer-extensions-pane.tsx'
-import { WorkspaceFilePicker } from './workspace-file-picker.tsx'
+import { WorkspaceFilePicker, type WorkspacePick } from './workspace-file-picker.tsx'
 
 /**
  * 输入区 `+`：双栏 AttachMenu（对齐 Qoder / studio）。
@@ -41,7 +42,10 @@ const CATEGORIES: readonly CategoryItem[] = [
 function SkillsPane(props: {
   active: boolean
   rootPath: string | null
-  onPick: (relative: string) => void
+  folderPaths: readonly string[]
+  /** 会话 cwd（主文件夹）：技能文件的引用路径按它折算 */
+  agentRoot: string | null
+  onPick: (reference: string) => void
 }) {
   const [query, updateQuery] = useState('')
   const [skillsState, updateSkills] = useState<WorkspaceSkill[]>([])
@@ -56,7 +60,8 @@ function SkillsPane(props: {
       async function load() {
         try {
           updateLoading(true)
-          const rows = await WorkspaceSkills.fetchSkills([props.rootPath as string])
+          // 技能也按整个工作区找：别的项目里的技能一样能引用
+          const rows = await WorkspaceSkills.fetchSkills([...props.folderPaths])
           if (!cancelled) updateSkills(rows)
         } catch (error) {
           console.warn('[composer-context-menu] 读取技能失败:', error)
@@ -70,7 +75,7 @@ function SkillsPane(props: {
         cancelled = true
       }
     },
-    [props.active, props.rootPath]
+    [props.active, props.rootPath, props.folderPaths]
   )
 
   const needle = query.trim().toLowerCase()
@@ -117,7 +122,8 @@ function SkillsPane(props: {
                   variant="ghost"
                   className="h-auto w-full justify-start gap-2 px-2 py-1.5 text-xs font-normal"
                   onClick={function () {
-                    props.onPick(skill.relative)
+                    // skill.relative 只对它所在的文件夹成立：交给 agent 前按主文件夹折算
+                    props.onPick(toAgentPath(skill.path, props.agentRoot))
                   }}>
                   <Icon
                     icon="lucide:wrench"
@@ -148,7 +154,7 @@ function SkillsPane(props: {
 function ComposerContextMenu() {
   const aui = useAui()
   const navigate = useNavigate()
-  const { rootPath } = useActiveWorkspace()
+  const { rootPath, primaryRootPath, folderPaths } = useActiveWorkspace()
   const [isOpen, updateOpen] = useState(false)
   const [isTooltipOpen, updateTooltipOpen] = useState(false)
   const [category, updateCategory] = useState<AttachCategory>('files')
@@ -161,8 +167,8 @@ function ComposerContextMenu() {
     }
   }
 
-  function handlePickRelative(relative: string) {
-    void attachWorkspaceFile(aui, relative)
+  function handleAttach(reference: string) {
+    void attachWorkspaceFile(aui, reference)
       .then(function () {
         updateOpen(false)
         toast.success('已引用')
@@ -170,6 +176,11 @@ function ComposerContextMenu() {
       .catch(function (error: unknown) {
         toast.error(error instanceof Error ? error.message : '引用失败')
       })
+  }
+
+  /** 选择器给的是「根 + 根内相对路径」，这里折算成 agent 能解析的引用路径 */
+  function handlePick(pick: WorkspacePick) {
+    handleAttach(toAgentPath(joinWorkspacePath(pick.root, pick.relative), primaryRootPath))
   }
 
   return (
@@ -249,9 +260,10 @@ function ComposerContextMenu() {
             {category === 'files' ? (
               <WorkspaceFilePicker
                 active={isOpen && category === 'files'}
+                showRoots
                 className="flex h-full min-h-0 flex-col"
                 listClassName="min-h-0"
-                onPick={handlePickRelative}
+                onPick={handlePick}
               />
             ) : null}
 
@@ -259,7 +271,9 @@ function ComposerContextMenu() {
               <SkillsPane
                 active={isOpen && category === 'skills'}
                 rootPath={rootPath}
-                onPick={handlePickRelative}
+                folderPaths={folderPaths}
+                agentRoot={primaryRootPath}
+                onPick={handleAttach}
               />
             ) : null}
 

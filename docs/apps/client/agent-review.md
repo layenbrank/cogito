@@ -121,3 +121,34 @@ unstage / discard 成功后同样 bump，所以「代码窗切分支 → 审阅�
 - 多远端同名分支（如 `origin/main` 与 `upstream/main`）视为独立条目，切换时按传入全名处理。
 - 提交钩子 / GPG 失败原样透出错误信息，不在此层改写。
 - 撤销 / 删除仍走确认框，但 agent 面板与代码窗共用同一个对话框语义（未跟踪 = 删除文件）。
+
+## 多根工作区：面板之间怎么同步
+
+一个工作区挂多个目录时，三件事必须一致，否则用户会看到「审阅是 A、历史是 B」：
+
+1. **当前文件夹只有一个**（`active-root.ts`）。文件树不再自存 `selectedRoot`：
+   `AsideFilesRoots`、审阅与历史的 chips、composer footer 都走 `selectRoot`。
+2. **面板按 `threadID + rootPath` 重挂**（`AgentAside` 的 `panelKey`）：换文件夹等于换数据源，
+   展开的提交、正在看的 diff、文件树的浏览位置都只对一个目录成立，重挂比逐个手动清 state 更可靠。
+3. **刷新是同一个动作**：审阅与历史都调 `refreshNow(rootPath)`（invalidate + bump revision）。
+   历史还跟随 `useWorkspaceRevision` 自动重拉，并在「展开的提交已不在列表里」（reset / 切分支）时自动收起。
+
+历史面板顶部因此固定给出「当前文件夹名 + 分支名」，分支取自与审阅同一份
+`useWorkspaceGitSnapshot` 快照 —— 两个面板不可能显示不同的分支。
+
+## 引用路径：相对路径只对一根成立
+
+`workspaceFiles:search` 支持多根（`roots: string[]`），但命中项的 `relative` 是**相对它所在的那根**；
+而会话 cwd 只等于工作区主文件夹，所以交给 agent 的路径必须折算
+（`features/agent/workspace/paths.ts` 的 `toAgentPath`）：
+
+| 场景 | 引用路径 |
+| --- | --- |
+| 主文件夹内的文件 | 相对路径 `src/app.tsx` |
+| 其他文件夹内的文件 | 绝对路径 `/repo/backend/src/main.rs` |
+| 文件夹自身（整体引用一个项目） | 绝对路径 |
+| 不在任何文件夹内 | 跳过，并 toast 提示 |
+
+`@` 触发器据此搜**整个工作区**：结果行尾标出所属文件夹，`@api` / `@api/src` 命中工作区文件夹时
+收窄到那个文件夹，文件夹本身也是候选项。`+` 面板的工作区选择器顶部有文件夹 chips，
+但它是**局部切换**（只影响这个选择器），不改变全局「当前文件夹」。
