@@ -104,6 +104,15 @@ pub fn browser_history(app: AppHandle, label: String, backward: bool) -> Result<
     lifecycle::step_history(&app, &label, backward)
 }
 
+/// 前进 / 后退按钮灰态（WebView2 CanGoBack / CanGoForward）
+#[tauri::command]
+pub fn browser_history_state(
+    app: AppHandle,
+    label: String,
+) -> Result<super::toolbar_sync::HistoryState, String> {
+    super::toolbar_sync::fetch_history_state(&app, &label)
+}
+
 /// 当前浏览器快照（tabs + 活动 label + 布局）。
 ///
 /// 前端页面刷新后内存态丢失，靠它把仍然活着的 webview 重新挂回 UI。

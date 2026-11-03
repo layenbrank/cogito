@@ -18,6 +18,8 @@ import { toast } from 'sonner'
 
 import { attachImageData } from '@/features/agent/attachment'
 import {
+  fetchBrowserHistoryState,
+  navigateBrowser,
   openBrowserDevtools,
   probeBrowser,
   readBrowserPage,
@@ -35,9 +37,16 @@ import { attachPickedElement } from '@/features/browser/attach-picked-element'
 import { formatAddress, formatTabTitle } from '@/features/browser/address'
 import { describeDevice, fitFor, isUsableDevice } from '@/features/browser/device'
 import type { BoxSize, DeviceProfile } from '@/features/browser/device'
+import {
+  findInstantOmniboxSuggestions,
+  findRemoteOmniboxSuggestions,
+  resolveOmnibox,
+  type OmniboxSuggestion
+} from '@/features/browser/omnibox'
 import { useBrowserRect } from '@/features/browser/rect'
 import { useBrowserStore } from '@/features/browser/store'
 import { findSelfDebugUrl } from '@/features/window/shell-mode'
+import { OMNIBAR_UI } from '@/features/command-bar/constants'
 
 import { AsideBrowserDevice } from './aside-browser-device'
 import { AsideBrowserNetwork } from './aside-browser-network'
@@ -71,6 +80,13 @@ function AsideBrowser() {
   const pickingLabelRef = useRef<string | null>(null)
   /** 对齐 Chrome：聚焦编辑地址栏时不被页面导航覆盖 */
   const isEditingAddressRef = useRef(false)
+  const [canGoBack, updateCanGoBack] = useState(false)
+  const [canGoForward, updateCanGoForward] = useState(false)
+  const [omniboxRows, updateOmniboxRows] = useState<OmniboxSuggestion[]>([])
+  const [omniboxOpen, updateOmniboxOpen] = useState(false)
+  const [omniboxIndex, updateOmniboxIndex] = useState(0)
+  const omniboxAbortRef = useRef<AbortController | null>(null)
+  const omitBlurCloseRef = useRef(false)
 
   const activeTab = tabs.find(function (tab) {
     return tab.label === activeLabel
@@ -256,6 +272,99 @@ function AsideBrowser() {
     }
   }, [])
 
+  // WebView2 HistoryChanged → 前进/后退灰态
+  useEffect(function () {
+    let disposed = false
+    let unlisten: (() => void) | null = null
+    void listen<{ label: string; canGoBack: boolean; canGoForward: boolean }>(
+      'browser://history',
+      function (event) {
+        // 非活动 tab 丢弃；切过去时会主动拉
+        if (event.payload.label !== activeLabel) return
+        updateCanGoBack(event.payload.canGoBack)
+        updateCanGoForward(event.payload.canGoForward)
+      }
+    )
+      .then(function (fn) {
+        if (disposed) {
+          fn()
+          return
+        }
+        unlisten = fn
+      })
+      .catch(reportError)
+    return function () {
+      disposed = true
+      unlisten?.()
+    }
+  }, [activeLabel])
+
+  // 切 tab：主动读一次 CanGoBack/Forward
+  useEffect(
+    function () {
+      if (!activeLabel) {
+        updateCanGoBack(false)
+        updateCanGoForward(false)
+        return
+      }
+      let cancelled = false
+      void fetchBrowserHistoryState(activeLabel)
+        .then(function (state) {
+          if (cancelled) return
+          updateCanGoBack(state.canGoBack)
+          updateCanGoForward(state.canGoForward)
+        })
+        .catch(function (error: unknown) {
+          console.warn('[aside-browser] 读历史状态失败:', error)
+          if (!cancelled) {
+            updateCanGoBack(false)
+            updateCanGoForward(false)
+          }
+        })
+      return function () {
+        cancelled = true
+      }
+    },
+    [activeLabel]
+  )
+
+  // omnibox：即时行 + 防抖远程建议
+  useEffect(
+    function () {
+      if (!omniboxOpen) return
+      const instant = findInstantOmniboxSuggestions(draft)
+      updateOmniboxRows(instant)
+      updateOmniboxIndex(0)
+
+      omniboxAbortRef.current?.abort()
+      const controller = new AbortController()
+      omniboxAbortRef.current = controller
+      const timer = window.setTimeout(function () {
+        void findRemoteOmniboxSuggestions(draft, controller.signal).then(function (remote) {
+          if (controller.signal.aborted) return
+          const merged = [...instant]
+          for (const row of remote) {
+            if (
+              merged.some(function (item) {
+                return item.title === row.title
+              })
+            ) {
+              continue
+            }
+            merged.push(row)
+          }
+          updateOmniboxRows(merged)
+        })
+      }, OMNIBAR_UI.DEBOUNCE_MS)
+
+      return function () {
+        window.clearTimeout(timer)
+        controller.abort()
+      }
+    },
+    [draft, omniboxOpen]
+  )
+
   // 拾取结果 → composer；active 状态与 Rust 对齐
   useEffect(function () {
     let disposed = false
@@ -369,15 +478,40 @@ function AsideBrowser() {
       })
   }
 
-  function submitAddress(event?: React.FormEvent) {
-    event?.preventDefault()
+  function closeOmnibox() {
+    updateOmniboxOpen(false)
+    updateOmniboxRows([])
+    updateOmniboxIndex(0)
+  }
+
+  function navigateOmnibox(targetUrl: string) {
+    closeOmnibox()
+    isEditingAddressRef.current = false
+    updateDraft(formatAddress(targetUrl))
     const store = useBrowserStore.getState()
-    if (!store.activeLabel) {
-      if (view !== 'page') updateView('page')
-      void store.openTab(draft).catch(reportError)
+    if (view !== 'page') updateView('page')
+    const label = store.activeLabel
+    if (!label) {
+      void store.openTab(targetUrl).catch(reportError)
       return
     }
-    void store.navigateActive(draft).catch(reportError)
+    void navigateBrowser(label, targetUrl)
+      .then(function () {
+        store.writeTabUrl(label, targetUrl)
+      })
+      .catch(reportError)
+  }
+
+  function submitAddress(event?: React.FormEvent) {
+    event?.preventDefault()
+    const highlighted = omniboxOpen ? omniboxRows[omniboxIndex] : undefined
+    const resolved = highlighted?.target ?? resolveOmnibox(draft)
+    if (!resolved) return
+    navigateOmnibox(resolved.url)
+  }
+
+  function pickOmniboxRow(row: OmniboxSuggestion) {
+    navigateOmnibox(row.target.url)
   }
 
   function openBlankTab() {
@@ -676,17 +810,17 @@ function AsideBrowser() {
        */}
       <form
         onSubmit={submitAddress}
-        className="flex shrink-0 items-center gap-0.5 border-b px-1.5 py-1.5">
+        className="relative flex shrink-0 items-center gap-0.5 border-b px-1.5 py-1.5">
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
           aria-label="后退"
           title="后退"
-          disabled={activeTab === undefined}
+          disabled={!canGoBack}
           className="text-muted-foreground hover:text-foreground size-6 shrink-0"
           onClick={function () {
-            if (!activeLabel) return
+            if (!activeLabel || !canGoBack) return
             void stepBrowserHistory(activeLabel, true).catch(reportError)
           }}>
           <Icon
@@ -700,10 +834,10 @@ function AsideBrowser() {
           size="icon-sm"
           aria-label="前进"
           title="前进"
-          disabled={activeTab === undefined}
+          disabled={!canGoForward}
           className="text-muted-foreground hover:text-foreground size-6 shrink-0"
           onClick={function () {
-            if (!activeLabel) return
+            if (!activeLabel || !canGoForward) return
             void stepBrowserHistory(activeLabel, false).catch(reportError)
           }}>
           <Icon
@@ -730,18 +864,50 @@ function AsideBrowser() {
         </Button>
         <input
           value={draft}
+          role="combobox"
+          aria-expanded={omniboxOpen}
+          aria-autocomplete="list"
+          aria-controls="aside-browser-omnibox"
           onChange={function (event) {
             updateDraft(event.target.value)
+            updateOmniboxOpen(true)
           }}
           onFocus={function () {
             isEditingAddressRef.current = true
+            updateOmniboxOpen(true)
           }}
           onBlur={function () {
+            if (omitBlurCloseRef.current) {
+              omitBlurCloseRef.current = false
+              return
+            }
             isEditingAddressRef.current = false
+            closeOmnibox()
             // 失焦未提交：回落到真实 URL（Chrome 也会放弃未确认编辑）
             updateDraft(formatAddress(activeUrl))
           }}
-          placeholder="输入地址后回车，例如 example.com"
+          onKeyDown={function (event) {
+            if (!omniboxOpen || omniboxRows.length === 0) return
+            if (event.key === 'ArrowDown') {
+              event.preventDefault()
+              updateOmniboxIndex(function (index) {
+                return (index + 1) % omniboxRows.length
+              })
+              return
+            }
+            if (event.key === 'ArrowUp') {
+              event.preventDefault()
+              updateOmniboxIndex(function (index) {
+                return (index - 1 + omniboxRows.length) % omniboxRows.length
+              })
+              return
+            }
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              closeOmnibox()
+            }
+          }}
+          placeholder="搜索或输入网址"
           aria-label="地址栏"
           spellCheck={false}
           className="placeholder:text-muted-foreground/70 bg-muted/40 focus:bg-muted/60 min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-hidden transition-colors"
@@ -761,6 +927,41 @@ function AsideBrowser() {
             className="size-3.5"
           />
         </Button>
+        {omniboxOpen && omniboxRows.length > 0 ? (
+          <ul
+            id="aside-browser-omnibox"
+            role="listbox"
+            className="bg-popover text-popover-foreground absolute top-full right-1.5 left-1.5 z-20 mt-1 max-h-56 overflow-auto rounded-md border py-1 shadow-md">
+            {omniboxRows.map(function (row, index) {
+              const isActive = index === omniboxIndex
+              return (
+                <li
+                  key={row.id}
+                  role="option"
+                  aria-selected={isActive}
+                  className={clsx(
+                    'flex cursor-pointer items-center gap-2 px-2 py-1.5 text-xs',
+                    isActive ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/60'
+                  )}
+                  onMouseDown={function (event) {
+                    // 先于 blur，避免点选前 draft 被回落
+                    event.preventDefault()
+                    omitBlurCloseRef.current = true
+                  }}
+                  onClick={function () {
+                    pickOmniboxRow(row)
+                  }}>
+                  <Icon
+                    icon={row.icon}
+                    className="text-muted-foreground size-3.5 shrink-0"
+                  />
+                  <span className="min-w-0 flex-1 truncate font-medium">{row.title}</span>
+                  <span className="text-muted-foreground shrink-0 text-[10px]">{row.subtitle}</span>
+                </li>
+              )
+            })}
+          </ul>
+        ) : null}
       </form>
 
       {/***** 页面视图：原生 webview 的占位区；浮层让位时用变暗截图占位（VS Code 同款） *****/}

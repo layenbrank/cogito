@@ -47,6 +47,15 @@ async function stepBrowserHistory(label: string, backward: boolean): Promise<voi
   await invoke('browser_history', { label, backward })
 }
 
+interface BrowserHistoryState {
+  canGoBack: boolean
+  canGoForward: boolean
+}
+
+async function fetchBrowserHistoryState(label: string): Promise<BrowserHistoryState> {
+  return invoke<BrowserHistoryState>('browser_history_state', { label })
+}
+
 /** 打开这个 tab 的 DevTools（独立窗口） */
 async function openBrowserDevtools(label: string): Promise<void> {
   await invoke('browser_devtools', { label })
@@ -287,6 +296,7 @@ interface BrowserPickerActiveEvent {
 export {
   activateBrowserTab,
   closeBrowserTab,
+  fetchBrowserHistoryState,
   fetchBrowserUrl,
   getBrowserDevice,
   hydrateBrowserTabs,
@@ -309,6 +319,7 @@ export {
 }
 export type {
   BrowserDeviceResult,
+  BrowserHistoryState,
   BrowserOutlineItem,
   BrowserPickerActiveEvent,
   BrowserProbe,

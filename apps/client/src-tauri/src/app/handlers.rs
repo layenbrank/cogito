@@ -44,6 +44,7 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         browser::command::browser_reload,
         browser::command::browser_devtools,
         browser::command::browser_history,
+        browser::command::browser_history_state,
         browser::command::browser_snapshot,
         browser::command::browser_network_list,
         browser::command::browser_intercept_set,
