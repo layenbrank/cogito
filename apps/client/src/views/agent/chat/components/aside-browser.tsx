@@ -69,6 +69,8 @@ function AsideBrowser() {
   const [view, updateView] = useState<BrowserView>('page')
   const [isPicking, updatePicking] = useState(false)
   const pickingLabelRef = useRef<string | null>(null)
+  /** 对齐 Chrome：聚焦编辑地址栏时不被页面导航覆盖 */
+  const isEditingAddressRef = useRef(false)
 
   const activeTab = tabs.find(function (tab) {
     return tab.label === activeLabel
@@ -212,10 +214,11 @@ function AsideBrowser() {
     [activeLabel]
   )
 
-  // 切 tab 或页面跳转后，地址栏跟上真实地址（用户正在输入时除外，见 onFocus）
+  // 切 tab 或页面跳转后，地址栏跟上真实地址（聚焦编辑时除外，对齐 Chrome）
   const activeUrl = activeTab?.url ?? ''
   useEffect(
     function () {
+      if (isEditingAddressRef.current) return
       updateDraft(formatAddress(activeUrl))
     },
     [activeUrl]
@@ -729,6 +732,14 @@ function AsideBrowser() {
           value={draft}
           onChange={function (event) {
             updateDraft(event.target.value)
+          }}
+          onFocus={function () {
+            isEditingAddressRef.current = true
+          }}
+          onBlur={function () {
+            isEditingAddressRef.current = false
+            // 失焦未提交：回落到真实 URL（Chrome 也会放弃未确认编辑）
+            updateDraft(formatAddress(activeUrl))
           }}
           placeholder="输入地址后回车，例如 example.com"
           aria-label="地址栏"
