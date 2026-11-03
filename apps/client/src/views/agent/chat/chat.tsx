@@ -94,6 +94,7 @@ import styles from '@/views/agent/chat/chat.module.scss'
  * 在每个 token 上重渲染分栏外壳。
  */
 function PlanAutoOpen(props: { isAsideOpen: boolean; openAside: () => void }) {
+  const { isAsideOpen, openAside } = props
   const planTotal = useAuiState(function (state) {
     const plan = findLatestPlan(state.thread.messages)
     return plan?.total ?? 0
@@ -109,9 +110,9 @@ function PlanAutoOpen(props: { isAsideOpen: boolean; openAside: () => void }) {
       const opened = openedFor.current
       if (opened?.threadID === threadID && opened.total === planTotal) return
       openedFor.current = { threadID, total: planTotal }
-      if (!props.isAsideOpen) props.openAside()
+      if (!isAsideOpen) openAside()
     },
-    [planTotal, threadID, props.isAsideOpen, props.openAside]
+    [planTotal, threadID, isAsideOpen, openAside]
   )
 
   return null

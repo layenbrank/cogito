@@ -41,9 +41,6 @@ function GoalAutoAdvance() {
     return state.threads.mainThreadId
   })
   const goal = useGoalRun(threadID)
-  const isRunning = useAuiState(function (state) {
-    return state.thread.isRunning
-  })
   const tailDigest = useAuiState(function (state) {
     return findGoalTailDigest(state.thread.messages, state.thread.isRunning)
   })
