@@ -28,3 +28,4 @@ pub mod lifecycle;
 pub mod network;
 pub mod picker;
 pub mod state;
+pub mod toolbar_sync;
