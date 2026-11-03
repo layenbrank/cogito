@@ -27,13 +27,18 @@ pub struct BrowserTab {
     pub device: Option<DeviceProfile>,
 }
 
-/// 页面自己跳转（点链接 / 重定向）时回传主 webview，地址栏才能跟上。
+/// 页面自己跳转时回传主 webview，地址栏才能跟上。
+///
+/// `same_document`：SPA `pushState` / hash 等同文档变更；硬导航为 false。
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NavEvent {
     pub label: String,
     pub url: String,
     #[serde(default)]
     pub title: String,
+    #[serde(default)]
+    pub same_document: bool,
 }
 
 /// 布局意图。
@@ -135,8 +140,16 @@ impl BrowserState {
         let mut inner = self.lock();
         if let Some(tab) = inner.tabs.iter_mut().find(|tab| tab.label == label) {
             tab.url = url;
-            // 导航会换文档，旧标题作废
+            // 硬导航会换文档，旧标题作废
             tab.title.clear();
+        }
+    }
+
+    /// 同文档 URL 变更（SPA）：保留 title，避免地址栏同步时闪成 host。
+    pub fn set_url_same_document(&self, label: &str, url: String) {
+        let mut inner = self.lock();
+        if let Some(tab) = inner.tabs.iter_mut().find(|tab| tab.label == label) {
+            tab.url = url;
         }
     }
 

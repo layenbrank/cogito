@@ -22,6 +22,7 @@ pub mod cdp;
 pub mod cdp_events;
 pub mod command;
 pub mod emulate;
+pub mod history_sync;
 pub mod intercept;
 pub mod lifecycle;
 pub mod network;

@@ -38,7 +38,8 @@ interface BrowserState {
   closeTab: (label: string) => Promise<void>
   activateTab: (label: string) => Promise<void>
   navigateActive: (input: string) => Promise<void>
-  writeTabUrl: (label: string, url: string) => void
+  /** `sameDocument`：SPA 同文档导航，保留 title */
+  writeTabUrl: (label: string, url: string, sameDocument?: boolean) => void
   /** 记录某个 tab 的设备（本地先改，下一次快照会以 Rust 为准覆盖） */
   setDevice: (label: string, device: DeviceProfile | null) => void
   /** 用 Rust 快照覆盖本地（hydrate / tabs-changed） */
@@ -175,12 +176,14 @@ const useBrowserStore = create<BrowserState>()(
         get().writeTabUrl(label, url)
       },
 
-      writeTabUrl: function (label, url) {
+      writeTabUrl: function (label, url, sameDocument) {
         set(function (state) {
           return {
             tabs: state.tabs.map(function (tab) {
-              // 导航换文档，旧标题作废，等 tabs-changed / 下次快照带回
-              return tab.label === label ? { ...tab, url, title: '' } : tab
+              if (tab.label !== label) return tab
+              // 硬导航换文档：旧标题作废；SPA 同文档保留 title，避免闪成 host
+              if (sameDocument) return { ...tab, url }
+              return { ...tab, url, title: '' }
             })
           }
         })

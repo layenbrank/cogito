@@ -82,6 +82,27 @@ describe('setDevice', function () {
   })
 })
 
+describe('writeTabUrl', function () {
+  it('硬导航清空 title，同文档 SPA 导航保留 title', function () {
+    useBrowserStore.getState().adoptSnapshot({
+      tabs: [{ label: 'browser-a', url: 'https://a.test/home', title: 'Home', device: null }],
+      active: 'browser-a'
+    })
+
+    useBrowserStore.getState().writeTabUrl('browser-a', 'https://a.test/settings', true)
+    expect(useBrowserStore.getState().tabs[0]).toMatchObject({
+      url: 'https://a.test/settings',
+      title: 'Home'
+    })
+
+    useBrowserStore.getState().writeTabUrl('browser-a', 'https://b.test/')
+    expect(useBrowserStore.getState().tabs[0]).toMatchObject({
+      url: 'https://b.test/',
+      title: ''
+    })
+  })
+})
+
 describe('closeTab', function () {
   it('关掉的 tab 不再留在设备表里', async function () {
     useBrowserStore.getState().adoptSnapshot({
