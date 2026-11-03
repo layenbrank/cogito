@@ -126,7 +126,7 @@ function findNavigationTileSuggestions(query: string): OmniboxSuggestion[] {
   })
   const rows: OmniboxSuggestion[] = []
   for (const tile of tiles) {
-    const url = tile.url.trim()
+    const url = (tile.url ?? '').trim()
     if (!url) continue
     if (!matchesQuery(query, tile.title, url)) continue
     rows.push(
@@ -171,10 +171,10 @@ function findLocalOmniboxSuggestions(input: string): OmniboxSuggestion[] {
 }
 
 /** 当前 tab 会话历史（CDP）；失败静默 */
-async function findSessionOmniboxSuggestions(
+function findSessionOmniboxSuggestions(
   input: string,
   entries: readonly BrowserNavigationEntry[] | null | undefined
-): Promise<OmniboxSuggestion[]> {
+): OmniboxSuggestion[] {
   if (!entries || entries.length === 0) return []
   const query = input.trim()
   const rows: OmniboxSuggestion[] = []

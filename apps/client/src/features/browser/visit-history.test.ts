@@ -1,14 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const patchPref = vi.fn(async function () {})
-let visits: Array<{ url: string; title: string; visitedAt: number }> = []
+type VisitRow = { url: string; title: string; visitedAt: number }
+const patchPref = vi.fn(async function (_ns: string, _patch: { browserVisits?: VisitRow[] }) {})
+let visits: VisitRow[] = []
 
 vi.mock('@/features/persist', function () {
   return {
     findPref: function () {
       return { browserVisits: visits }
     },
-    patchPref: function (_ns: string, patch: { browserVisits?: typeof visits }) {
+    patchPref: function (_ns: string, patch: { browserVisits?: VisitRow[] }) {
       if (patch.browserVisits) visits = patch.browserVisits
       return patchPref(_ns, patch)
     }
