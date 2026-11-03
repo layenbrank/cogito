@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import AutoImport from 'unplugin-auto-import/vite'
 import { defineConfig, loadEnv, type ConfigEnv, type UserConfig } from 'vite'
+import { readFileSync } from 'node:fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const PORT = 8300
@@ -41,7 +42,15 @@ export default defineConfig(function ({ mode }: ConfigEnv): UserConfig {
     server: {
       port: PORT,
       strictPort: true,
-      host: '0.0.0.0'
+      host: '0.0.0.0',
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp'
+      },
+      https: {
+        key: readFileSync('key.pem'),
+        cert: readFileSync('cert.pem')
+      }
     },
     preview: {
       port: PORT,
