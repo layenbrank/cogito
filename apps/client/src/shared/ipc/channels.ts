@@ -223,6 +223,7 @@ export const CHANNELS = {
     APPEND: 'agentTurn:append',
     FOLLOW: 'agentTurn:follow',
     FINISH: 'agentTurn:finish',
+    FORGET: 'agentTurn:forget',
     MARK_RUNNING: 'agentTurn:markRunning',
     CLEAR_RUNNING: 'agentTurn:clearRunning',
     LIST_RUNNING: 'agentTurn:listRunning'

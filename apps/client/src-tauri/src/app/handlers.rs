@@ -225,6 +225,7 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         cogito_command::agentTurn::agentTurnAppend,
         cogito_command::agentTurn::agentTurnFollow,
         cogito_command::agentTurn::agentTurnFinish,
+        cogito_command::agentTurn::agentTurnForget,
         cogito_command::agentTurn::agentTurnMarkRunning,
         cogito_command::agentTurn::agentTurnClearRunning,
         cogito_command::agentTurn::agentTurnListRunning,
