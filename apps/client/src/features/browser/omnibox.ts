@@ -1,7 +1,7 @@
 /**
- * 浏览器地址栏 omnibox：URL / 搜索分流 + Bing AS 建议。
+ * 浏览器地址栏 omnibox：URL / 搜索分流 + 本地历史 + Bing AS。
  *
- * 对齐 Chrome：像网址就导航；否则走当前引擎搜索。建议复用主窗 `search:suggest`。
+ * 建议优先级：即时打开/搜索 → 本地（访问记录 / 会话历史 / 导航磁贴）→ 远程 AS。
  */
 import { findEngine } from '@/constants/engine'
 import { OMNIBAR_UI } from '@/features/command-bar/constants'
@@ -14,7 +14,10 @@ import {
   parseSuggestionLabel
 } from '@/features/command-bar/url'
 import { parseAddress } from '@/features/browser/address'
+import type { BrowserNavigationEntry } from '@/features/browser/api'
+import { matchBrowserVisits } from '@/features/browser/visit-history'
 import { EngineIpc } from '@/lib/engine-ipc'
+import { useMirrorStore } from '@/stores/mirror'
 
 type OmniboxKind = 'url' | 'search'
 
@@ -32,6 +35,8 @@ interface OmniboxSuggestion {
   icon: string
   target: OmniboxTarget
 }
+
+const LOCAL_LIMIT = 6
 
 /** 输入 → 打开网址或引擎搜索（Chrome omnibox 分流） */
 function resolveOmnibox(input: string): OmniboxTarget | null {
@@ -92,6 +97,107 @@ function findInstantOmniboxSuggestions(input: string): OmniboxSuggestion[] {
   return rows
 }
 
+function toHistorySuggestion(
+  id: string,
+  url: string,
+  title: string,
+  subtitle: string,
+  icon: string
+): OmniboxSuggestion {
+  return {
+    id,
+    title: title || url,
+    subtitle,
+    icon,
+    target: { kind: 'url', url, label: title || url }
+  }
+}
+
+function matchesQuery(query: string, title: string, url: string): boolean {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return true
+  return title.toLowerCase().includes(needle) || url.toLowerCase().includes(needle)
+}
+
+/** 导航磁贴（mirror 同步态） */
+function findNavigationTileSuggestions(query: string): OmniboxSuggestion[] {
+  const tiles = useMirrorStore.getState().magneticTiles.filter(function (tile) {
+    return tile.component === 'navigation' && Boolean(tile.url)
+  })
+  const rows: OmniboxSuggestion[] = []
+  for (const tile of tiles) {
+    const url = tile.url.trim()
+    if (!url) continue
+    if (!matchesQuery(query, tile.title, url)) continue
+    rows.push(
+      toHistorySuggestion(`tile:${tile.id}`, url, tile.title || url, '导航磁贴', 'lucide:globe')
+    )
+    if (rows.length >= LOCAL_LIMIT) break
+  }
+  return rows
+}
+
+/** 跨会话访问记录 + 导航磁贴（同步） */
+function findLocalOmniboxSuggestions(input: string): OmniboxSuggestion[] {
+  const query = input.trim()
+  const rows: OmniboxSuggestion[] = []
+  const seen = new Set<string>()
+
+  function push(row: OmniboxSuggestion) {
+    const key = row.target.url
+    if (seen.has(key)) return
+    seen.add(key)
+    rows.push(row)
+  }
+
+  for (const visit of matchBrowserVisits(query, LOCAL_LIMIT)) {
+    push(
+      toHistorySuggestion(
+        `visit:${visit.url}`,
+        visit.url,
+        visit.title,
+        '历史记录',
+        'lucide:history'
+      )
+    )
+  }
+
+  for (const row of findNavigationTileSuggestions(query)) {
+    push(row)
+    if (rows.length >= LOCAL_LIMIT) break
+  }
+
+  return rows.slice(0, LOCAL_LIMIT)
+}
+
+/** 当前 tab 会话历史（CDP）；失败静默 */
+async function findSessionOmniboxSuggestions(
+  input: string,
+  entries: readonly BrowserNavigationEntry[] | null | undefined
+): Promise<OmniboxSuggestion[]> {
+  if (!entries || entries.length === 0) return []
+  const query = input.trim()
+  const rows: OmniboxSuggestion[] = []
+  const seen = new Set<string>()
+  for (const entry of entries) {
+    if (!entry.url || entry.url === 'about:blank') continue
+    if (!matchesQuery(query, entry.title, entry.url)) continue
+    if (seen.has(entry.url)) continue
+    seen.add(entry.url)
+    rows.push(
+      toHistorySuggestion(
+        `session:${entry.url}`,
+        entry.url,
+        entry.title || entry.url,
+        '本页历史',
+        'lucide:book-open'
+      )
+    )
+    if (rows.length >= LOCAL_LIMIT) break
+  }
+  return rows
+}
+
 async function findRemoteOmniboxSuggestions(
   input: string,
   signal: AbortSignal
@@ -126,5 +232,44 @@ async function findRemoteOmniboxSuggestions(
   }
 }
 
+function normalizeOmniboxUrlKey(url: string): string {
+  return url.trim().replace(/\/+$/, '').toLowerCase()
+}
+
+/** 合并建议：即时 → 本地历史 → 会话 → 远程；按 URL/标题去重 */
+function mergeOmniboxSuggestions(
+  instant: OmniboxSuggestion[],
+  local: OmniboxSuggestion[],
+  session: OmniboxSuggestion[],
+  remote: OmniboxSuggestion[]
+): OmniboxSuggestion[] {
+  const out: OmniboxSuggestion[] = []
+  const seenUrl = new Set<string>()
+  const seenTitle = new Set<string>()
+
+  function push(row: OmniboxSuggestion) {
+    const urlKey = normalizeOmniboxUrlKey(row.target.url)
+    const titleKey = row.title.trim().toLowerCase()
+    if (urlKey && seenUrl.has(urlKey)) return
+    if (titleKey && seenTitle.has(titleKey) && row.target.kind === 'search') return
+    if (urlKey) seenUrl.add(urlKey)
+    if (titleKey) seenTitle.add(titleKey)
+    out.push(row)
+  }
+
+  for (const row of instant) push(row)
+  for (const row of local) push(row)
+  for (const row of session) push(row)
+  for (const row of remote) push(row)
+  return out
+}
+
 export type { OmniboxKind, OmniboxSuggestion, OmniboxTarget }
-export { findInstantOmniboxSuggestions, findRemoteOmniboxSuggestions, resolveOmnibox }
+export {
+  findInstantOmniboxSuggestions,
+  findLocalOmniboxSuggestions,
+  findRemoteOmniboxSuggestions,
+  findSessionOmniboxSuggestions,
+  mergeOmniboxSuggestions,
+  resolveOmnibox
+}

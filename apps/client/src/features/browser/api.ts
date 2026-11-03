@@ -56,6 +56,16 @@ async function fetchBrowserHistoryState(label: string): Promise<BrowserHistorySt
   return invoke<BrowserHistoryState>('browser_history_state', { label })
 }
 
+interface BrowserNavigationEntry {
+  url: string
+  title: string
+}
+
+/** 当前 tab 会话历史（关 tab 即消失） */
+async function fetchBrowserNavigationHistory(label: string): Promise<BrowserNavigationEntry[]> {
+  return invoke<BrowserNavigationEntry[]>('browser_navigation_history', { label })
+}
+
 /** 打开这个 tab 的 DevTools（独立窗口） */
 async function openBrowserDevtools(label: string): Promise<void> {
   await invoke('browser_devtools', { label })
@@ -297,6 +307,7 @@ export {
   activateBrowserTab,
   closeBrowserTab,
   fetchBrowserHistoryState,
+  fetchBrowserNavigationHistory,
   fetchBrowserUrl,
   getBrowserDevice,
   hydrateBrowserTabs,
@@ -320,6 +331,7 @@ export {
 export type {
   BrowserDeviceResult,
   BrowserHistoryState,
+  BrowserNavigationEntry,
   BrowserOutlineItem,
   BrowserPickerActiveEvent,
   BrowserProbe,
