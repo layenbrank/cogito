@@ -81,6 +81,7 @@ fn prune_missing_webviews(app: &AppHandle, state: &BrowserState) -> bool {
         log::warn!("browser: 清理孤儿 tab（webview 已不在）：{label}");
         super::picker::dispose_label(app, label);
         super::network::forget(label);
+        super::history_sync::forget(label);
         super::intercept::forget(label);
         super::emulate::forget(label);
     }
@@ -238,6 +239,7 @@ fn open_inner(
                         label: load_label.clone(),
                         url: url.clone(),
                         title: String::new(),
+                        same_document: false,
                     },
                 ) {
                     log::warn!("browser: 导航事件发送失败: {error}");
@@ -308,6 +310,8 @@ fn open_inner(
         state.activate(&label);
         sync(app, state);
         super::network::install(app, &label);
+        // SPA pushState / hash 不会触发 on_page_load，靠 CDP 同文档事件补地址栏
+        super::history_sync::install(app, &label);
         emit_tabs_changed(app, state);
         return Ok(tab);
     }
@@ -326,8 +330,9 @@ pub fn close(app: &AppHandle, state: &BrowserState, label: &str) -> Result<(), S
             log::warn!("browser: 关闭 webview 失败（{}）: {error}", tab.label);
         }
     }
-    // UUID label 虽不复用，仍清网络/拦截/设备，避免内存涨
+    // UUID label 虽不复用，仍清网络/拦截/设备/同文档订阅，避免内存涨
     super::network::forget(&tab.label);
+    super::history_sync::forget(&tab.label);
     super::intercept::forget(&tab.label);
     super::emulate::forget(&tab.label);
     sync(app, state);
