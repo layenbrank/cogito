@@ -13,10 +13,15 @@ function pathToUri(path: string): monaco.Uri {
   return monaco.Uri.file(normalized)
 }
 
-function findOrCreateModel(path: string, value: string): monaco.editor.ITextModel {
+function findOrCreateModel(
+  path: string,
+  value: string,
+  options: { force?: boolean } = {}
+): monaco.editor.ITextModel {
   const existing = modelsByPath.get(path)
   if (existing && !existing.isDisposed()) {
-    if (existing.getValue() !== value) {
+    // 默认不覆盖缓冲区：点开已打开且有未保存改动的文件时，磁盘内容不能顶掉内存
+    if (options.force && existing.getValue() !== value) {
       existing.setValue(value)
     }
     return existing
@@ -26,7 +31,9 @@ function findOrCreateModel(path: string, value: string): monaco.editor.ITextMode
   const uri = pathToUri(path)
   const prior = monaco.editor.getModel(uri)
   if (prior && !prior.isDisposed()) {
-    prior.setValue(value)
+    if (options.force && prior.getValue() !== value) {
+      prior.setValue(value)
+    }
     monaco.editor.setModelLanguage(prior, language)
     modelsByPath.set(path, prior)
     pathByModel.set(prior, path)
@@ -65,7 +72,7 @@ function relocateModel(fromPath: string, toPath: string): monaco.editor.ITextMod
   if (!existing) return null
   const value = existing.getValue()
   disposeModel(fromPath)
-  return findOrCreateModel(toPath, value)
+  return findOrCreateModel(toPath, value, { force: true })
 }
 
 function disposeAllModels(): void {

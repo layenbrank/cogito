@@ -11,8 +11,8 @@ import { groupHits } from '@/views/code/workspace/search/group-hits.ts'
 const SEARCH_DELAY_MS = 300
 
 function useSearchSurface() {
-  const workspaceRoot = useCodeStore(function (state) {
-    return state.workspaceRoot
+  const roots = useCodeStore(function (state) {
+    return state.roots
   })
   const [query, updateQuery] = useState('')
   const [isCaseSensitive, setCaseSensitive] = useState(false)
@@ -45,25 +45,39 @@ function useSearchSurface() {
     [hits, isActive]
   )
 
+  const rootsKey = roots.join('|')
+
   useEffect(
     function () {
-      if (!workspaceRoot || !trimmed || !isQueryValid) return
+      if (roots.length === 0 || !trimmed || !isQueryValid) return
       let cancelled = false
       const timer = window.setTimeout(function () {
         setSearching(true)
-        void WorkspaceFiles.content({
-          root: workspaceRoot,
-          query: trimmed,
-          isRegex,
-          isCaseSensitive,
-          isWholeWord,
-          includes,
-          excludes
-        })
-          .then(function (result) {
+        void Promise.all(
+          roots.map(function (root) {
+            return WorkspaceFiles.content({
+              root,
+              query: trimmed,
+              isRegex,
+              isCaseSensitive,
+              isWholeWord,
+              includes,
+              excludes
+            })
+          })
+        )
+          .then(function (results) {
             if (cancelled) return
-            updateHits(result.hits)
-            setTruncated(result.isTruncated)
+            updateHits(
+              results.flatMap(function (result) {
+                return result.hits
+              })
+            )
+            setTruncated(
+              results.some(function (result) {
+                return result.isTruncated
+              })
+            )
           })
           .catch(function (error: unknown) {
             if (cancelled) return
@@ -81,7 +95,8 @@ function useSearchSurface() {
       }
     },
     [
-      workspaceRoot,
+      roots,
+      rootsKey,
       trimmed,
       isRegex,
       isCaseSensitive,
@@ -148,7 +163,7 @@ function useSearchSurface() {
   const canReplace = totalMatches > 0
 
   return {
-    workspaceRoot,
+    roots,
     query,
     updateQuery,
     isCaseSensitive,

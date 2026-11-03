@@ -1,15 +1,16 @@
 /**
- * 把工作区 @types/node 喂给 Monaco TS worker。
+ * 把工作区 @types/node 与 tsconfig.json 喂给 Monaco TS worker。
  *
  * Monaco 0.57+：用顶层 `monaco.typescript`（勿用 languages.typescript）。
- * 只注入 @types/node + `types: ['node']`，消除 node:fs / node:url 误报；
- * 不再灌整棵 @types（会顶满限额、拖垮 worker）。
+ * - 注入 @types/node 消除 node:fs / node:url 误报（不再灌整棵 @types）
+ * - 读主根 tsconfig.json（含 extends 链），下发 paths / baseUrl / target 等白名单字段
  */
 import type * as Monaco from 'monaco-editor'
 
 import { findMonaco, importMonaco } from '@/lib/monaco-loader.ts'
 import { WorkspaceFiles } from '@/lib/workspace-files'
 import { normalizeSeparators } from '@/views/code/lib/path.ts'
+import { readTsconfigChain, toCompilerOptions } from '@/views/code/lib/tsconfig.ts'
 
 const AT_TYPES_MARKER = '/node_modules/@types/'
 
@@ -18,8 +19,14 @@ type TsCompilerOptions = Parameters<
   MonacoModule['typescript']['typescriptDefaults']['setCompilerOptions']
 >[0]
 
+interface SyncOutcome {
+  isApplied: boolean
+  pathsCount: number
+  target: string | null
+}
+
 let isCompilerReady = false
-let syncedRoot: string | null = null
+let syncedKey: string | null = null
 let syncToken = 0
 
 function typescriptApi() {
@@ -92,22 +99,39 @@ function clearLibs(): void {
   ts.javascriptDefaults.setExtraLibs([])
 }
 
-function pushCompilerOptions(typeRoots: string[]): void {
+function pushCompilerOptions(
+  typeRoots: string[],
+  fromTsconfig: Partial<TsCompilerOptions>
+): void {
   const ts = typescriptApi()
   const options: TsCompilerOptions = {
     ...baseCompilerOptions(),
     typeRoots: [...typeRoots, 'node_modules/@types'],
-    types: ['node']
+    types: ['node'],
+    ...fromTsconfig
   }
   ts.typescriptDefaults.setCompilerOptions(options)
   ts.javascriptDefaults.setCompilerOptions(options)
 }
 
-/** 打开 / 切换工作区时同步一次；同 root 重复调用会跳过 */
-async function syncWorkspaceTypescriptLibs(workspaceRoot: string): Promise<void> {
-  const root = normalizeSeparators(workspaceRoot).replace(/\/+$/, '')
-  if (!root) return
-  if (syncedRoot === root) return
+/**
+ * 打开 / 切换工作区时同步一次。
+ * `isForced` 为真时忽略缓存（用户改了 tsconfig.json / 树刷新）。
+ */
+async function syncWorkspaceTypescriptLibs(
+  workspaceRoots: string[],
+  isForced = false
+): Promise<SyncOutcome> {
+  const roots = workspaceRoots
+    .map(function (root) {
+      return normalizeSeparators(root).replace(/\/+$/, '')
+    })
+    .filter(Boolean)
+  const outcome: SyncOutcome = { isApplied: false, pathsCount: 0, target: null }
+  if (roots.length === 0) return outcome
+
+  const key = roots.join('|')
+  if (!isForced && syncedKey === key) return outcome
 
   await importMonaco()
   const token = ++syncToken
@@ -115,19 +139,34 @@ async function syncWorkspaceTypescriptLibs(workspaceRoot: string): Promise<void>
 
   let packed
   try {
-    packed = await WorkspaceFiles.packTypes(root)
+    packed = await WorkspaceFiles.packTypes(roots[0])
   } catch (error) {
     console.error('[monaco-types] packTypes 失败', error)
-    return
+    return outcome
   }
-  if (token !== syncToken) return
+  if (token !== syncToken) return outcome
+
+  const chain = await readTsconfigChain(roots)
+  if (token !== syncToken) return outcome
+
+  const ts = typescriptApi()
+  const fromTsconfig = toCompilerOptions(chain, {
+    rootPath: roots[0],
+    base: baseCompilerOptions(),
+    enums: {
+      target: ts.ScriptTarget as unknown as Record<string, number>,
+      module: ts.ModuleKind as unknown as Record<string, number>,
+      moduleResolution: ts.ModuleResolutionKind as unknown as Record<string, number>,
+      jsx: ts.JsxEmit as unknown as Record<string, number>
+    }
+  })
 
   const typeRoots = findAtTypesRoots(
     packed.files.map(function (file) {
       return file.path
     })
   )
-  pushCompilerOptions(typeRoots)
+  pushCompilerOptions(typeRoots, fromTsconfig)
 
   const libs: { content: string; filePath: string }[] = []
   const seen = new Set<string>()
@@ -138,31 +177,40 @@ async function syncWorkspaceTypescriptLibs(workspaceRoot: string): Promise<void>
     libs.push({ content: file.content, filePath: virtualUri })
   }
 
-  const ts = typescriptApi()
   ts.typescriptDefaults.setExtraLibs(libs)
   ts.javascriptDefaults.setExtraLibs(libs)
-  syncedRoot = root
+  syncedKey = key
+
+  outcome.isApplied = true
+  outcome.pathsCount =
+    fromTsconfig.paths && typeof fromTsconfig.paths === 'object'
+      ? Object.keys(fromTsconfig.paths).length
+      : 0
+  const rawTarget = chain?.compilerOptions?.target
+  outcome.target = typeof rawTarget === 'string' ? rawTarget : null
 
   if (libs.length === 0) {
     console.warn(
       '[monaco-types] 未注入 @types/node。请确认工作区或其上级存在 node_modules/@types/node',
-      root
+      roots[0]
     )
-    return
+  } else {
+    console.info('[monaco-types] 已注入 @types/node', libs.length, '个文件', typeRoots)
   }
-  console.info('[monaco-types] 已注入 @types/node', libs.length, '个文件', typeRoots)
   if (packed.isTruncated) {
     console.warn('[monaco-types] @types/node 仍被截断（异常偏大）', packed.files.length)
   }
+  return outcome
 }
 
 function resetWorkspaceTypescriptLibs(): void {
   syncToken += 1
-  syncedRoot = null
+  syncedKey = null
   if (isCompilerReady) {
     clearLibs()
-    pushCompilerOptions([])
+    pushCompilerOptions([], {})
   }
 }
 
 export { syncWorkspaceTypescriptLibs, resetWorkspaceTypescriptLibs }
+export type { SyncOutcome }

@@ -129,7 +129,7 @@ function SearchSurfaceInputs(props: SearchSurfaceState) {
         />
       ) : null}
 
-      {!props.workspaceRoot ? (
+      {props.roots.length === 0 ? (
         <p className="text-muted-foreground px-1 text-xs">尚未打开文件夹</p>
       ) : props.trimmed && !props.isSearching && props.isQueryValid && props.hits.length === 0 ? (
         <p className="text-muted-foreground animate-in fade-in-0 motion-reduce:animate-none px-1 text-xs duration-200">

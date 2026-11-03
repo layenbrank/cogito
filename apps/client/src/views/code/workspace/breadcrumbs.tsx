@@ -4,7 +4,7 @@ import { cn } from 'cn'
 
 import { useCodeGitStore } from '@/stores/code-git'
 import { useCodeStore } from '@/stores/code'
-import { findFileName, findPathSegments, findRelativePath } from '@/views/code/lib/path.ts'
+import { findFileName, findPathSegments, findRelativePath, isPathInsideRoot } from '@/views/code/lib/path.ts'
 
 function Breadcrumbs() {
   const tabs = useCodeStore(function (state) {
@@ -15,6 +15,9 @@ function Breadcrumbs() {
   })
   const workspaceRoot = useCodeStore(function (state) {
     return state.workspaceRoot
+  })
+  const roots = useCodeStore(function (state) {
+    return state.roots
   })
   const branch = useCodeGitStore(function (state) {
     return state.branch
@@ -65,8 +68,12 @@ function Breadcrumbs() {
     )
   }
 
-  const relative = workspaceRoot
-    ? findRelativePath(workspaceRoot, activeTab.path)
+  const focusedRootIndex = roots.findIndex(function (root) {
+    return isPathInsideRoot(root, activeTab.path)
+  })
+  const focusedRoot = focusedRootIndex >= 0 ? roots[focusedRootIndex] : workspaceRoot
+  const relative = focusedRoot
+    ? findRelativePath(focusedRoot, activeTab.path)
     : activeTab.title
   const segments = findPathSegments(relative)
 
@@ -119,7 +126,7 @@ function Breadcrumbs() {
                   const store = useCodeStore.getState()
                   store.toSetSidebarView('explorer')
                   if (!store.isSidebarOpen) store.toToggleSidebar()
-                  store.toRevealPath(segmentKey)
+                  store.toRevealPath(segmentKey, Math.max(focusedRootIndex, 0))
                 }}>
                 {segment}
               </Button>

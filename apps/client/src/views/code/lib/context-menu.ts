@@ -2,6 +2,7 @@
  * Code 视图共用右键菜单 classNames（样式见 styles/context-menu.css）。
  */
 import '@/views/code/styles/context-menu.css'
+import '@/views/code/styles/monaco-widgets.css'
 
 import type { MenuClassNames } from '@/components/contextmenu'
 

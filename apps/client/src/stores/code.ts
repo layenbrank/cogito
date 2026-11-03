@@ -58,6 +58,22 @@ interface CodeEditorPrefs {
   lineHeightRatio: number
   fontFamily: string
   isLigaturesEnabled: boolean
+  wordWrap: 'off' | 'on' | 'bounded'
+  wordWrapColumn: number
+  isMinimapEnabled: boolean
+  isStickyScrollEnabled: boolean
+  renderWhitespace: 'none' | 'selection' | 'all'
+  isBracketGuidesEnabled: boolean
+  isSemanticHighlightingEnabled: boolean
+  tabSize: number
+  insertSpaces: boolean
+}
+
+/** 切换工作区时被挂起的请求：有脏标签时先确认 */
+interface PendingRootsChange {
+  roots: string[]
+  workspaceID: string | null
+  dirtyTabIDs: string[]
 }
 
 interface CodeIndentation {
@@ -81,7 +97,18 @@ interface RevealRequest {
 const CODE_DEFAULTS = PERSIST_DEFAULTS.tiles.code
 
 interface CodeState {
+  /** 工作区文件夹，顺序即 Explorer 顺序，[0] 为主根 */
+  roots: string[]
+  /** 主根派生值（roots[0]） */
   workspaceRoot: string | null
+  /** 来源 Cogito 工作区 */
+  workspaceID: string | null
+  /** 最近打开的文件夹：去重、上限 10 */
+  recentRoots: string[]
+  /** Ctrl+P 的最近文件：绝对路径、上限 20 */
+  recentPaths: string[]
+  /** 待确认的切根（有脏标签未保存时） */
+  pendingRootsChange: PendingRootsChange | null
   tabs: CodeTab[]
   activeTabId: string | null
   sidebarView: SidebarView
@@ -91,6 +118,8 @@ interface CodeState {
   cursor: CursorPosition
   languageId: string
   paletteMode: PaletteMode
+  /** Explorer header 工作区切换器是否打开（命令 / 快捷键可驱动） */
+  isWorkspaceSwitcherOpen: boolean
   treeRevision: number
   problemCounts: ProblemCounts
   /** 资源管理器已展开的目录（相对路径，根目录用 `ROOT`） */
@@ -107,7 +136,12 @@ interface CodeState {
   /** 正在从 store 恢复，跳过写回 */
   isHydrating: boolean
 
+  /** @deprecated 请走 `@/views/code/lib/workspace-switch.ts` 的 switchWorkspace（会清理越界标签）；这里只保留单根写法兼容旧调用 */
   toSetWorkspaceRoot: (root: string) => void
+  toSetWorkspaceRoots: (roots: string[], workspaceID?: string | null) => void
+  toSetPendingRootsChange: (change: PendingRootsChange | null) => void
+  toPushRecentRoot: (root: string) => void
+  toPushRecentPath: (path: string) => void
   toOpenTab(params: { path: string; language?: string }): void
   /** 打开/激活差异标签；与编辑标签可并存。带 oid 时为提交间对比。 */
   toOpenDiffTab(params: {
@@ -136,10 +170,11 @@ interface CodeState {
   toSetCursor: (cursor: CursorPosition) => void
   toSetLanguageId: (languageId: string) => void
   toSetPaletteMode: (mode: PaletteMode) => void
+  toSetWorkspaceSwitcherOpen: (isOpen: boolean) => void
   toBumpTree: () => void
   toToggleExpanded: (key: string, isOpen: boolean) => void
   /** 展开侧栏文件树中指定目录及其祖先（面包屑定位用） */
-  toRevealPath: (relativeDir: string) => void
+  toRevealPath: (relativeDir: string, rootIndex?: number) => void
   toCollapseAll: () => void
   toRequestReveal: (request: RevealRequest | null) => void
   toSetPendingClose: (ids: string[]) => void
@@ -163,6 +198,24 @@ function isFileTab(tab: CodeTab): boolean {
   return tab.kind === 'file'
 }
 
+/** 工作区根归一化：去空、去重（忽略分隔符 / 尾斜杠 / 大小写） */
+function normalizeRoots(roots: string[]): string[] {
+  const seen = new Set<string>()
+  const list: string[] = []
+  for (const root of roots) {
+    if (typeof root !== 'string') continue
+    const value = root.trim()
+    const normalized = normalizeSeparators(value)
+    const stored = /^[a-zA-Z]:\/$/.test(normalized) ? normalized : normalized.replace(/\/+$/, '')
+    if (!value) continue
+    const key = normalizeSeparators(value).replace(/\/+$/, '').toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    list.push(stored)
+  }
+  return list
+}
+
 function writeCodePrefs(state: CodeState): void {
   if (state.isHydrating) return
   const fileTabs = state.tabs.filter(isFileTab)
@@ -174,7 +227,11 @@ function writeCodePrefs(state: CodeState): void {
           return tab.id === state.activeTabId
         })
   persistCodePreferences({
+    workspaceRoots: state.roots,
     workspaceRoot: state.workspaceRoot,
+    workspaceID: state.workspaceID,
+    recentRoots: state.recentRoots,
+    recentPaths: state.recentPaths,
     // 差异标签是会话态，不落盘（对齐 VS Code 不持久化 Working Tree 标签）
     tabPaths: fileTabs.map(function (tab) {
       return tab.path
@@ -188,6 +245,15 @@ function writeCodePrefs(state: CodeState): void {
     editorLineHeightRatio: state.editorPrefs.lineHeightRatio,
     editorFontFamily: state.editorPrefs.fontFamily,
     isEditorLigaturesEnabled: state.editorPrefs.isLigaturesEnabled,
+    editorWordWrap: state.editorPrefs.wordWrap,
+    editorWordWrapColumn: state.editorPrefs.wordWrapColumn,
+    isEditorMinimapEnabled: state.editorPrefs.isMinimapEnabled,
+    isEditorStickyScrollEnabled: state.editorPrefs.isStickyScrollEnabled,
+    editorRenderWhitespace: state.editorPrefs.renderWhitespace,
+    isEditorBracketGuidesEnabled: state.editorPrefs.isBracketGuidesEnabled,
+    isEditorSemanticHighlightingEnabled: state.editorPrefs.isSemanticHighlightingEnabled,
+    editorTabSize: state.editorPrefs.tabSize,
+    isEditorInsertSpaces: state.editorPrefs.insertSpaces,
     isHiddenVisible: state.isHiddenVisible
   })
 }
@@ -197,7 +263,12 @@ const useCodeStore = create<CodeState>()(
     subscribeWithSelector(
       immer(function (set) {
         return {
+          roots: [],
           workspaceRoot: null,
+          workspaceID: null,
+          recentRoots: [],
+          recentPaths: [],
+          pendingRootsChange: null,
           tabs: [],
           activeTabId: null,
           sidebarView: 'explorer',
@@ -207,6 +278,7 @@ const useCodeStore = create<CodeState>()(
           cursor: { line: 1, column: 1 },
           languageId: 'plaintext',
           paletteMode: null,
+          isWorkspaceSwitcherOpen: false,
           treeRevision: 0,
           problemCounts: { errors: 0, warnings: 0 },
           expandedKeys: [],
@@ -216,7 +288,16 @@ const useCodeStore = create<CodeState>()(
             fontSize: CODE_DEFAULTS.editorFontSize,
             lineHeightRatio: CODE_DEFAULTS.editorLineHeightRatio,
             fontFamily: CODE_DEFAULTS.editorFontFamily,
-            isLigaturesEnabled: CODE_DEFAULTS.isEditorLigaturesEnabled
+            isLigaturesEnabled: CODE_DEFAULTS.isEditorLigaturesEnabled,
+            wordWrap: CODE_DEFAULTS.editorWordWrap,
+            wordWrapColumn: CODE_DEFAULTS.editorWordWrapColumn,
+            isMinimapEnabled: CODE_DEFAULTS.isEditorMinimapEnabled,
+            isStickyScrollEnabled: CODE_DEFAULTS.isEditorStickyScrollEnabled,
+            renderWhitespace: CODE_DEFAULTS.editorRenderWhitespace,
+            isBracketGuidesEnabled: CODE_DEFAULTS.isEditorBracketGuidesEnabled,
+            isSemanticHighlightingEnabled: CODE_DEFAULTS.isEditorSemanticHighlightingEnabled,
+            tabSize: CODE_DEFAULTS.editorTabSize,
+            insertSpaces: CODE_DEFAULTS.isEditorInsertSpaces
           },
           indentation: { tabSize: 2, insertSpaces: true },
           eol: 'LF',
@@ -228,6 +309,7 @@ const useCodeStore = create<CodeState>()(
             set(
               function (state) {
                 state.workspaceRoot = root
+                state.roots = [root]
                 const commitsTab = state.tabs.find(function (tab) {
                   return tab.kind === 'commits'
                 })
@@ -237,6 +319,60 @@ const useCodeStore = create<CodeState>()(
               },
               false,
               'toSetWorkspaceRoot'
+            )
+          },
+
+          toSetWorkspaceRoots(roots, workspaceID = null) {
+            set(
+              function (state) {
+                const next = normalizeRoots(roots)
+                state.roots = next
+                state.workspaceRoot = next[0] ?? null
+                state.workspaceID = workspaceID
+                const commitsTab = state.tabs.find(function (tab) {
+                  return tab.kind === 'commits'
+                })
+                if (commitsTab) {
+                  commitsTab.title = `提交: ${next[0] ? findFileName(next[0]) : '仓库'}`
+                }
+              },
+              false,
+              'toSetWorkspaceRoots'
+            )
+          },
+
+          toSetPendingRootsChange(change) {
+            set(
+              function (state) {
+                state.pendingRootsChange = change
+              },
+              false,
+              'toSetPendingRootsChange'
+            )
+          },
+
+          toPushRecentRoot(root) {
+            set(
+              function (state) {
+                const next = normalizeRoots([root, ...state.recentRoots]).slice(0, 10)
+                state.recentRoots = next
+              },
+              false,
+              'toPushRecentRoot'
+            )
+          },
+
+          toPushRecentPath(path) {
+            set(
+              function (state) {
+                const key = normalizeSeparators(path).toLowerCase()
+                const rest = state.recentPaths.filter(function (item) {
+                  return normalizeSeparators(item).toLowerCase() !== key
+                })
+                state.recentPaths = [path, ...rest].slice(0, 20)
+              },
+              false,
+              'toPushRecentPath'
             )
           },
 
@@ -565,6 +701,20 @@ const useCodeStore = create<CodeState>()(
             )
           },
 
+          toSetWorkspaceSwitcherOpen(isOpen) {
+            set(
+              function (state) {
+                state.isWorkspaceSwitcherOpen = isOpen
+                if (isOpen) {
+                  state.isSidebarOpen = true
+                  state.sidebarView = 'explorer'
+                }
+              },
+              false,
+              'toSetWorkspaceSwitcherOpen'
+            )
+          },
+
           toBumpTree() {
             set(
               function (state) {
@@ -587,22 +737,24 @@ const useCodeStore = create<CodeState>()(
             )
           },
 
-          toRevealPath(relativeDir) {
+          toRevealPath(relativeDir, rootIndex = 0) {
             set(
               function (state) {
-                // 根节点 key 为 ROOT；不展开则子路径展开无效
+                // 根节点 key 为 <rootIndex>::；不展开则子路径展开无效
+                const rootKey = `${rootIndex}::`
                 const expanded = new Set(state.expandedKeys)
-                if (!expanded.has('ROOT')) {
-                  state.expandedKeys.push('ROOT')
-                  expanded.add('ROOT')
+                if (!expanded.has(rootKey)) {
+                  state.expandedKeys.push(rootKey)
+                  expanded.add(rootKey)
                 }
                 const segments = normalizeSeparators(relativeDir).split('/').filter(Boolean)
                 let current = ''
                 for (const segment of segments) {
                   current = current ? `${current}/${segment}` : segment
-                  if (!expanded.has(current)) {
-                    state.expandedKeys.push(current)
-                    expanded.add(current)
+                  const key = `${rootIndex}::${current}`
+                  if (!expanded.has(key)) {
+                    state.expandedKeys.push(key)
+                    expanded.add(key)
                   }
                 }
               },
@@ -708,6 +860,10 @@ const useCodeStore = create<CodeState>()(
               function (state) {
                 state.isHydrating = true
                 state.workspaceRoot = prefs.workspaceRoot
+                state.roots = prefs.workspaceRoots
+                state.workspaceID = prefs.workspaceID
+                state.recentRoots = prefs.recentRoots
+                state.recentPaths = prefs.recentPaths
                 state.isSidebarOpen = prefs.isSidebarOpen
                 state.sidebarView = prefs.sidebarView
                 state.isSurfaceOpen = prefs.isSurfaceOpen
@@ -716,7 +872,16 @@ const useCodeStore = create<CodeState>()(
                   fontSize: prefs.editorFontSize,
                   lineHeightRatio: prefs.editorLineHeightRatio,
                   fontFamily: prefs.editorFontFamily,
-                  isLigaturesEnabled: prefs.isEditorLigaturesEnabled
+                  isLigaturesEnabled: prefs.isEditorLigaturesEnabled,
+                  wordWrap: prefs.editorWordWrap,
+                  wordWrapColumn: prefs.editorWordWrapColumn,
+                  isMinimapEnabled: prefs.isEditorMinimapEnabled,
+                  isStickyScrollEnabled: prefs.isEditorStickyScrollEnabled,
+                  renderWhitespace: prefs.editorRenderWhitespace,
+                  isBracketGuidesEnabled: prefs.isEditorBracketGuidesEnabled,
+                  isSemanticHighlightingEnabled: prefs.isEditorSemanticHighlightingEnabled,
+                  tabSize: prefs.editorTabSize,
+                  insertSpaces: prefs.isEditorInsertSpaces
                 }
                 state.isHiddenVisible = prefs.isHiddenVisible
                 if (prefs.workspaceRoot) state.treeRevision += 1
@@ -746,6 +911,7 @@ const useCodeStore = create<CodeState>()(
 useCodeStore.subscribe(function (state, previous) {
   if (state.isHydrating || previous.isHydrating) return
   if (
+    state.roots === previous.roots &&
     state.workspaceRoot === previous.workspaceRoot &&
     state.tabs === previous.tabs &&
     state.activeTabId === previous.activeTabId &&
@@ -761,7 +927,7 @@ useCodeStore.subscribe(function (state, previous) {
   writeCodePrefs(state)
 })
 
-export { useCodeStore, COMMITS_TAB_PATH }
+export { useCodeStore, COMMITS_TAB_PATH, normalizeRoots }
 export type {
   CodeTab,
   CodeTabKind,
@@ -771,6 +937,7 @@ export type {
   PaletteMode,
   Eol,
   CodeEditorPrefs,
+  PendingRootsChange,
   CodeIndentation,
   ProblemCounts,
   RevealRequest

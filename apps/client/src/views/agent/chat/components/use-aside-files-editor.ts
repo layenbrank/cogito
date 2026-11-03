@@ -181,7 +181,7 @@ function useAsideFilesEditor(options: {
         resetWorkspaceTypescriptLibs()
         return
       }
-      void syncWorkspaceTypescriptLibs(options.rootPath).catch(function (error: unknown) {
+      void syncWorkspaceTypescriptLibs([options.rootPath]).catch(function (error: unknown) {
         console.error('[agent/aside-files] 同步 TS libs 失败', error)
       })
     },

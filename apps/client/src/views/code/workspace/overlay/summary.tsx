@@ -115,6 +115,9 @@ function Summary() {
   const workspaceRoot = useCodeStore(function (state) {
     return state.workspaceRoot
   })
+  const roots = useCodeStore(function (state) {
+    return state.roots
+  })
   const indentation = useCodeStore(function (state) {
     return state.indentation
   })
@@ -165,7 +168,7 @@ function Summary() {
     : `制表符: ${indentation.tabSize}`
 
   const workspaceLabel = workspaceRoot
-    ? workspaceRoot.split(/[\\/]/).filter(Boolean).pop()
+    ? `${workspaceRoot.split(/[\\/]/).filter(Boolean).pop()}${roots.length > 1 ? ` +${roots.length - 1}` : ''}`
     : '未打开工作区'
 
   return (
@@ -178,7 +181,7 @@ function Summary() {
           variant="ghost"
           type="button"
           className="h-auto hover:bg-foreground/5 hover:text-foreground flex max-w-40 items-center gap-1 truncate px-2 py-0.5"
-          title={workspaceRoot ?? '未打开工作区'}
+          title={roots.length > 0 ? roots.join('\n') : '未打开工作区'}
           onClick={function () {
             useCodeStore.getState().toSetSidebarView('explorer')
           }}>

@@ -6,18 +6,18 @@ import type { MenuItem } from '@/components/contextmenu'
 import { useCodeStore } from '@/stores/code'
 import { useTerminalStore } from '@/stores/terminal'
 import { findFileName, findParentDir } from '@/views/code/lib/fs.ts'
-import { findRelativePath } from '@/views/code/lib/path.ts'
+import { removeWorkspaceRoot } from '@/views/code/lib/workspace-switch.ts'
 import {
-  EXPLORER_ROOT_KEY,
   findAbsoluteFromKey,
   findRelativeDirForCreate,
+  parseTreeKey,
   type ExplorerDeleteTarget,
   type ExplorerNewTarget,
   type ExplorerRenameTarget
 } from '@/views/code/workspace/overlay/explorer-tree-lib.ts'
 
 interface ExplorerTreeMenuInput {
-  workspaceRoot: string
+  roots: string[]
   trigger: Element
   setNewTarget: (value: ExplorerNewTarget | null) => void
   setRenameTarget: (value: ExplorerRenameTarget | null) => void
@@ -25,17 +25,17 @@ interface ExplorerTreeMenuInput {
 }
 
 function buildExplorerTreeMenuItems(input: ExplorerTreeMenuInput): MenuItem[] {
-  const { workspaceRoot, trigger, setNewTarget, setRenameTarget, setPendingDelete } = input
+  const { roots, trigger, setNewTarget, setRenameTarget, setPendingDelete } = input
   const treeKey = trigger.getAttribute('data-tree-key')
   if (!treeKey) return []
   const kind = trigger.getAttribute('data-tree-kind')
-  const isDirectory = kind === 'directory' || treeKey === EXPLORER_ROOT_KEY
-  const isRoot = treeKey === EXPLORER_ROOT_KEY
-  const relativeDir = findRelativeDirForCreate(treeKey, isDirectory)
-  const absolute = findAbsoluteFromKey(workspaceRoot, treeKey)
+  const { rootIndex, relativePath } = parseTreeKey(treeKey)
+  const isRoot = relativePath === ''
+  const isDirectory = kind === 'directory' || isRoot
+  const absolute = findAbsoluteFromKey(roots, treeKey)
+  if (!absolute) return []
   const terminalCwd = isDirectory ? absolute : findParentDir(absolute)
-  const relativePath =
-    treeKey === EXPLORER_ROOT_KEY ? '' : findRelativePath(workspaceRoot, absolute)
+  const newRootIndex = roots[rootIndex] ? rootIndex : 0
 
   function copyText(text: string, success: string) {
     void navigator.clipboard.writeText(text).then(
@@ -127,7 +127,8 @@ function buildExplorerTreeMenuItems(input: ExplorerTreeMenuInput): MenuItem[] {
       onSelect() {
         setNewTarget({
           kind: 'file',
-          relativeDir,
+          rootIndex: newRootIndex,
+          relativeDir: findRelativeDirForCreate(treeKey, isDirectory),
           name: 'untitled.txt'
         })
       }
@@ -144,14 +145,36 @@ function buildExplorerTreeMenuItems(input: ExplorerTreeMenuInput): MenuItem[] {
       onSelect() {
         setNewTarget({
           kind: 'folder',
-          relativeDir,
+          rootIndex: newRootIndex,
+          relativeDir: findRelativeDirForCreate(treeKey, isDirectory),
           name: 'new-folder'
         })
       }
     }
   ]
 
-  if (isRoot) return items
+  if (isRoot) {
+    if (roots.length > 1) {
+      items.push(
+        { key: 'divider-root', type: 'divider' },
+        {
+          key: 'remove-root',
+          label: '从工作区移除',
+          danger: true,
+          icon: (
+            <Icon
+              icon="lucide:folder-minus"
+              className="size-4"
+            />
+          ),
+          onSelect() {
+            removeWorkspaceRoot(absolute)
+          }
+        }
+      )
+    }
+    return items
+  }
 
   items.push(
     { key: 'divider-edit', type: 'divider' },

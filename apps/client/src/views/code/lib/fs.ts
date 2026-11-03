@@ -52,6 +52,17 @@ async function pickRootDirectory(): Promise<string | null> {
   return selected
 }
 
+async function pickRootDirectories(): Promise<string[]> {
+  const selected = await open({
+    directory: true,
+    multiple: true,
+    // 必须递归授权：否则只能列根目录，子目录操作会 forbidden
+    recursive: true
+  })
+  if (!selected) return []
+  return Array.isArray(selected) ? selected : [selected]
+}
+
 async function pickOpenFile(): Promise<string | null> {
   const selected = await open({
     multiple: false
@@ -199,6 +210,7 @@ export {
   readCodeFile,
   writeCodeFile,
   pickRootDirectory,
+  pickRootDirectories,
   pickOpenFile,
   listWorkspaceEntries,
   searchWorkspaceFiles,

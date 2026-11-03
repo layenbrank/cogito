@@ -2,6 +2,8 @@ import type { PersistNamespace } from '@/features/persist/files'
 
 type CodeSidebarView = 'explorer' | 'search' | 'scm'
 type CodeSurfaceTab = 'terminal' | 'problems'
+type CodeWordWrap = 'off' | 'on' | 'bounded'
+type CodeRenderWhitespace = 'none' | 'selection' | 'all'
 type KnowledgeViewMode = 'live' | 'source' | 'split'
 type SignboardViewMode = 'board' | 'table' | 'gantt' | 'calendar' | 'stats' | 'workload'
 type BookmarkViewMode = 'list' | 'grid'
@@ -37,6 +39,14 @@ interface KnowledgeShell {
 }
 
 interface CodeShell {
+  /** 多根工作区：顺序即 Explorer 顺序，[0] 为主根 */
+  workspaceRoots: string[]
+  /** 来源 Cogito 工作区；手选文件夹时为 null */
+  workspaceID: string | null
+  /** 最近打开的文件夹：去重、上限 10 */
+  recentRoots: string[]
+  /** Ctrl+P 的最近文件：绝对路径、上限 20 */
+  recentPaths: string[]
   workspaceRoot: string | null
   tabPaths: string[]
   activePath: string | null
@@ -51,6 +61,16 @@ interface CodeShell {
   /** 等宽字体族；空串表示用内置的等宽栈 */
   editorFontFamily: string
   isEditorLigaturesEnabled: boolean
+  editorWordWrap: CodeWordWrap
+  editorWordWrapColumn: number
+  isEditorMinimapEnabled: boolean
+  isEditorStickyScrollEnabled: boolean
+  editorRenderWhitespace: CodeRenderWhitespace
+  isEditorBracketGuidesEnabled: boolean
+  isEditorSemanticHighlightingEnabled: boolean
+  /** 新文档默认缩进 */
+  editorTabSize: number
+  isEditorInsertSpaces: boolean
   /** 资源管理器是否显示 `.` 开头的隐藏条目 */
   isHiddenVisible: boolean
 }
@@ -215,6 +235,8 @@ export type {
   SettingsPref,
   CodeSidebarView,
   CodeSurfaceTab,
+  CodeWordWrap,
+  CodeRenderWhitespace,
   KnowledgeViewMode,
   SignboardViewMode,
   BookmarkViewMode,

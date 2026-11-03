@@ -35,6 +35,9 @@ export default function Code() {
   const workspaceRoot = useCodeStore(function (state) {
     return state.workspaceRoot
   })
+  const roots = useCodeStore(function (state) {
+    return state.roots
+  })
   const toBumpTree = useCodeStore(function (state) {
     return state.toBumpTree
   })
@@ -61,6 +64,7 @@ export default function Code() {
 
   useCodeWorkspaceEffects({
     workspaceRoot,
+    roots,
     activeTab,
     isDiffOpen,
     isSurfaceOpen,

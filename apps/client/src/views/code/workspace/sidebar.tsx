@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 
 import { useCodeStore } from '@/stores/code'
 import Navigation from '@/views/code/workspace/overlay/navigation.tsx'
+import { WorkspaceSwitcher } from '@/views/code/workspace/overlay/workspace-switcher.tsx'
 import { ScmSurface } from '@/views/code/workspace/scm/surface.tsx'
 import { SearchSurface } from '@/views/code/workspace/search/surface.tsx'
 
@@ -77,6 +78,7 @@ function Sidebar() {
         'flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden border-r border-border/50 bg-background/65 backdrop-blur-md'
       )}>
       <SidebarHeader title={title}>
+        {sidebarView === 'explorer' ? <WorkspaceSwitcher /> : null}
         {sidebarView === 'explorer' ? (
           <>
             <HeaderAction

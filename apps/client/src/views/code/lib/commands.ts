@@ -15,6 +15,7 @@ import { useCodeStore } from '@/stores/code'
 import { bootstrapTerminalSessions } from '@/features/terminal/agent-tabs'
 import { useTerminalStore } from '@/stores/terminal'
 import { pickOpenFile, pickRootDirectory, writeCodeFile } from '@/views/code/lib/fs.ts'
+import { addWorkspaceRoot, switchWorkspace } from '@/views/code/lib/workspace-switch.ts'
 import { requestCloseTabs } from '@/views/code/lib/close-tabs.ts'
 import { findModel } from '@/views/code/lib/monaco-models.ts'
 import { runEditorAction } from '@/views/code/lib/monaco-instance.ts'
@@ -52,10 +53,22 @@ async function openFileDialog(): Promise<void> {
 async function openFolderDialog(): Promise<void> {
   const root = await pickRootDirectory()
   if (!root) return
-  useCodeStore.getState().toSetWorkspaceRoot(root)
+  switchWorkspace([root])
   useCodeStore.getState().toBumpTree()
   useCodeStore.getState().toSetSidebarView('explorer')
   toast.success('已打开文件夹')
+}
+
+async function addFolderDialog(): Promise<void> {
+  const root = await pickRootDirectory()
+  if (!root) return
+  addWorkspaceRoot(root)
+  toast.success('已添加文件夹')
+}
+
+/** 打开 Explorer 工作区切换器（最近 / Cogito 工作区 / 打开与追加） */
+function openWorkspaceSwitcher(): void {
+  useCodeStore.getState().toSetWorkspaceSwitcherOpen(true)
 }
 
 function closeActiveTab(): void {
@@ -103,7 +116,25 @@ function openFindWidget(isReplace: boolean): void {
   toast.message('先打开一个文件')
 }
 
+const WORKSPACE_COMMANDS: Command[] = [
+  {
+    id: SHORTCUT_COMMAND.CODE_ADD_FOLDER,
+    title: '文件: 将文件夹添加到工作区…',
+    keywords: 'add folder workspace multiroot',
+    group: '文件',
+    run: addFolderDialog
+  },
+  {
+    id: SHORTCUT_COMMAND.CODE_SWITCH_WORKSPACE,
+    title: '显示: 工作区切换器',
+    keywords: 'switch workspace multiroot cogito recent',
+    group: '查看',
+    run: openWorkspaceSwitcher
+  }
+]
+
 const CODE_COMMANDS: Command[] = [
+  ...WORKSPACE_COMMANDS,
   {
     id: SHORTCUT_COMMAND.CODE_OPEN_FILE,
     title: '文件: 打开文件…',

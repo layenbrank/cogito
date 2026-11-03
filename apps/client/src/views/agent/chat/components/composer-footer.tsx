@@ -310,37 +310,44 @@ function GoalTurnControl() {
           side="top"
           sideOffset={8}
           className="w-60">
-          <DropdownMenuLabel>目标推进轮次</DropdownMenuLabel>
-          <p className="text-muted-foreground px-2 pb-1 text-[11px] leading-snug">
-            每次发送单独设置：这条任务最多自动推进几轮，跑满即停并给出收尾总结。
-          </p>
-          {GOAL_BUDGET_OPTIONS.map(function (option) {
-            const active = option === budget
-            return (
-              <DropdownMenuItem
-                key={option}
-                className="gap-2"
-                onClick={function () {
-                  writeNextGoalBudget(option)
-                }}>
-                <Icon
-                  icon={active ? 'lucide:check' : 'lucide:circle'}
-                  className={cn(
-                    'size-3.5 shrink-0',
-                    active ? 'text-primary' : 'text-muted-foreground/40'
-                  )}
-                />
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="text-[13px]">
-                    {option} 轮{option === 6 ? '（默认）' : ''}
+          {/* Label 是 base-ui GroupLabel：脱离 Group / RadioGroup 会抛 MenuGroupContext is missing (#31) */}
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>目标推进轮次</DropdownMenuLabel>
+            <p className="text-muted-foreground px-2 pb-1 text-[11px] leading-snug">
+              每次发送单独设置：这条任务最多自动推进几轮，跑满即停并给出收尾总结。
+            </p>
+            {GOAL_BUDGET_OPTIONS.map(function (option) {
+              const active = option === budget
+              return (
+                <DropdownMenuItem
+                  key={option}
+                  className="gap-2"
+                  onClick={function () {
+                    writeNextGoalBudget(option)
+                  }}>
+                  <Icon
+                    icon={active ? 'lucide:check' : 'lucide:circle'}
+                    className={cn(
+                      'size-3.5 shrink-0',
+                      active ? 'text-primary' : 'text-muted-foreground/40'
+                    )}
+                  />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="text-[13px]">
+                      {option} 轮{option === 6 ? '（默认）' : ''}
+                    </span>
+                    <span className="text-muted-foreground text-[11px]">
+                      {option === 3
+                        ? '小改动 / 单点验证'
+                        : option === 6
+                          ? '常规任务'
+                          : '大改造 / 长链路'}
+                    </span>
                   </span>
-                  <span className="text-muted-foreground text-[11px]">
-                    {option === 3 ? '小改动 / 单点验证' : option === 6 ? '常规任务' : '大改造 / 长链路'}
-                  </span>
-                </span>
-              </DropdownMenuItem>
-            )
-          })}
+                </DropdownMenuItem>
+              )
+            })}
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
     )

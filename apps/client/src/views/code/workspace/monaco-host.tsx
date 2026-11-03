@@ -3,11 +3,14 @@ import * as monaco from 'monaco-editor'
 // 0.56+ 起导出映射为 ./esm/vs/*.js，子路径不再带 esm/vs 前缀；
 // 根入口已注册全部 basic-languages 与语言特性，无需逐个 import contribution。
 import { useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 
 import { adoptMonaco } from '@/lib/monaco-loader.ts'
 import { CODE_THEME, syncCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
+import { WorkspaceFiles } from '@/lib/workspace-files'
 import { useCodeStore, type CodeEditorPrefs } from '@/stores/code'
 import { readEol, readIndentation } from '@/views/code/lib/document-options.ts'
+import { toEditorOptions as toBehaviorOptions } from '@/views/code/lib/editor-options.ts'
 import { isLargeDocument } from '@/views/code/lib/file-limits.ts'
 import { readCodeFile } from '@/views/code/lib/fs.ts'
 import { findModel, findOrCreateModel, findPathForModel } from '@/views/code/lib/monaco-models.ts'
@@ -161,7 +164,8 @@ function toFontOptions(prefs: CodeEditorPrefs): monaco.editor.IEditorOptions {
     fontSize: prefs.fontSize,
     lineHeight: findLineHeight(prefs),
     fontFamily: prefs.fontFamily.trim() || MONACO_FONT_FAMILY,
-    fontLigatures: prefs.isLigaturesEnabled
+    fontLigatures: prefs.isLigaturesEnabled,
+    ...toBehaviorOptions(prefs)
   }
 }
 
@@ -203,29 +207,52 @@ function MonacoHost(props: MonacoHostProps) {
   const activeTab = tabs.find(function (tab) {
     return tab.id === activeTabId
   })
-  const workspaceRoot = useCodeStore(function (state) {
-    return state.workspaceRoot
+  const roots = useCodeStore(function (state) {
+    return state.roots
   })
-  const previousRootRef = useRef<string | null>(null)
+  const treeRevision = useCodeStore(function (state) {
+    return state.treeRevision
+  })
+  const previousRootsKeyRef = useRef<string | null>(null)
+  const previousTreeRevisionRef = useRef<number | null>(null)
+  const lastTsconfigRef = useRef<string | null>(null)
 
   // Monaco TS worker 无磁盘访问权：把工作区 node_modules/@types 注册进语言服务
   useEffect(
     function () {
-      const previousRoot = previousRootRef.current
-      previousRootRef.current = workspaceRoot
-      if (!workspaceRoot) {
+      const rootsKey = roots.join('|')
+      const previousRootsKey = previousRootsKeyRef.current
+      const previousTreeRevision = previousTreeRevisionRef.current
+      const isForced =
+        previousTreeRevision !== null && previousTreeRevision !== treeRevision
+      previousRootsKeyRef.current = rootsKey
+      previousTreeRevisionRef.current = treeRevision
+
+      if (roots.length === 0) {
         resetWorkspaceTypescriptLibs()
         clearViewStates()
         return
       }
-      if (previousRoot && previousRoot !== workspaceRoot) {
+      if (previousRootsKey !== null && previousRootsKey !== rootsKey) {
         clearViewStates()
       }
-      void syncWorkspaceTypescriptLibs(workspaceRoot).catch(function (error) {
+      void syncWorkspaceTypescriptLibs(roots, isForced)
+        .then(function (outcome) {
+          if (!outcome.isApplied) return
+          const detail = [
+            outcome.target ? `target ${outcome.target}` : null,
+            outcome.pathsCount > 0 ? `paths ${outcome.pathsCount} 条` : null
+          ].filter(function (item): item is string {
+            return Boolean(item)
+          })
+          if (detail.length === 0) return
+          toast.message('已应用 tsconfig.json', { description: detail.join(' · ') })
+        })
+        .catch(function (error) {
         console.error('[monaco-types] 同步失败', error)
       })
     },
-    [workspaceRoot]
+    [roots, treeRevision]
   )
 
   useEffect(function () {
@@ -281,10 +308,46 @@ function MonacoHost(props: MonacoHostProps) {
     }
   }, [])
 
+  // 文件树刷新后，只有 tsconfig.json 内容真的变了才重跑 TS 同步（避免每次保存都 packTypes）
+  useEffect(function () {
+    let timer = 0
+    const unsubscribe = useCodeStore.subscribe(function (state, previous) {
+      if (state.treeRevision === previous.treeRevision) return
+      window.clearTimeout(timer)
+      timer = window.setTimeout(function () {
+        void (async function () {
+          const nextRoots = useCodeStore.getState().roots
+          if (nextRoots.length === 0) return
+          const path = `${nextRoots[0].replace(/\\/g, '/').replace(/\/+$/, '')}/tsconfig.json`
+          try {
+            const next = (await WorkspaceFiles.readFile(nextRoots, path)).content
+            if (next === lastTsconfigRef.current) return
+            lastTsconfigRef.current = next
+            await syncWorkspaceTypescriptLibs(nextRoots, true)
+          } catch (error) {
+            // 没有 tsconfig.json（或读不到）：保持现状
+            console.debug('[code/monaco-host] 读取 tsconfig.json 失败', error)
+          }
+        })()
+      }, 1200)
+    })
+    return function () {
+      window.clearTimeout(timer)
+      unsubscribe()
+    }
+  }, [])
+
   // 外观偏好变化（字号/行高/字体/连字）即时生效
   useEffect(
     function () {
-      editorRef.current?.updateOptions(toFontOptions(editorPrefs))
+      const editor = editorRef.current
+      if (!editor) return
+      editor.updateOptions(toFontOptions(editorPrefs))
+      // tabSize / insertSpaces 是模型级选项：只写 editor 不生效，要落到 model 上
+      editor.getModel()?.updateOptions({
+        tabSize: editorPrefs.tabSize,
+        insertSpaces: editorPrefs.insertSpaces
+      })
     },
     [editorPrefs]
   )
@@ -354,7 +417,10 @@ function MonacoHost(props: MonacoHostProps) {
 
         // 大文件只读 + 关掉随规模放大的装饰；切回普通文件逐项还原
         const isLarge = isLargeDocument(model)
-        activeEditor.updateOptions(isLarge ? LARGE_DOCUMENT_OPTIONS : INTERACTIVE_DOCUMENT_OPTIONS)
+        activeEditor.updateOptions({
+          ...(isLarge ? LARGE_DOCUMENT_OPTIONS : INTERACTIVE_DOCUMENT_OPTIONS),
+          ...toBehaviorOptions(useCodeStore.getState().editorPrefs)
+        })
         useCodeStore.getState().toSetLargeFile(isLarge)
 
         if (activeEditor.getModel() !== model) {

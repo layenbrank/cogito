@@ -16,6 +16,8 @@ export const COMMAND = {
   // 免得命令 id 又散回各视图里去。
   CODE_OPEN_FILE: 'file.open',
   CODE_OPEN_FOLDER: 'file.openFolder',
+  CODE_ADD_FOLDER: 'file.addFolder',
+  CODE_SWITCH_WORKSPACE: 'workspace.switch',
   CODE_SAVE: 'file.save',
   CODE_CLOSE_TAB: 'file.closeTab',
   CODE_FIND: 'editor.find',

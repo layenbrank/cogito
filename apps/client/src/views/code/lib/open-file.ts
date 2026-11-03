@@ -4,18 +4,38 @@ import { useCodeStore } from '@/stores/code'
 import { readCodeFile } from '@/views/code/lib/fs.ts'
 import { findLanguageId } from '@/views/code/lib/language.ts'
 import { findModel, findOrCreateModel } from '@/views/code/lib/monaco-models.ts'
+import { isSamePath } from '@/views/code/lib/path.ts'
 
+/**
+ * 打开文件：模型已在内存时直接激活，不再读盘。
+ * 之前「先读盘 → findOrCreateModel」会用磁盘内容覆盖未保存缓冲区（真 bug）。
+ */
 async function openAbsolutePath(absolutePath: string): Promise<void> {
   try {
-    const content = await readCodeFile(absolutePath)
-    findOrCreateModel(absolutePath, content)
-    useCodeStore.getState().toOpenTab({
+    if (!findModel(absolutePath)) {
+      const content = await readCodeFile(absolutePath)
+      findOrCreateModel(absolutePath, content)
+    }
+    const store = useCodeStore.getState()
+    store.toOpenTab({
       path: absolutePath,
       language: findLanguageId(absolutePath)
     })
+    store.toPushRecentPath(absolutePath)
   } catch (error) {
     toast.error(error instanceof Error ? error.message : '打开文件失败')
   }
+}
+
+/** 磁盘已更改 → 用户点「重新加载」：显式覆盖缓冲区 */
+async function reloadFromDisk(absolutePath: string): Promise<void> {
+  const content = await readCodeFile(absolutePath)
+  findOrCreateModel(absolutePath, content, { force: true })
+  const store = useCodeStore.getState()
+  const tab = store.tabs.find(function (item) {
+    return item.kind === 'file' && isSamePath(item.path, absolutePath)
+  })
+  if (tab) store.toMarkDirty(tab.id, false)
 }
 
 /**
@@ -35,4 +55,4 @@ async function revealLocation(
   useCodeStore.getState().toRequestReveal({ path: absolutePath, line: safeLine, column: safeColumn })
 }
 
-export { openAbsolutePath, revealLocation }
+export { openAbsolutePath, reloadFromDisk, revealLocation }

@@ -1,14 +1,10 @@
 /**
- * 代码窗 Caption 左侧（shell begin）：窗口标题 + 命令中心入口。
+ * 代码窗 Caption 左侧（shell begin）：窗口标题 + 搜索胶囊。
  * 快速打开属于窗口级菜单能力，放标题栏；编辑器工作台留在内容区。
  */
-import { Button } from '@cogito/design/components/button'
-import { cn } from 'cn'
-
 import { findComponentLabel } from '@/constants/marketplace/tile-hints'
 import { useShowsTileSession } from '@/features/magnetic-tile/session-bar'
-import { useCodeStore } from '@/stores/code'
-import { findBindingText } from '@/views/code/lib/bindings.ts'
+import { SearchPill } from '@/views/code/caption/search-pill.tsx'
 
 function CodeCaptionBegin() {
   const showsSession = useShowsTileSession()
@@ -20,19 +16,7 @@ function CodeCaptionBegin() {
           {findComponentLabel('code')}
         </span>
       )}
-      <Button
-        variant="outline"
-        type="button"
-        data-region="false"
-        className={cn(
-          'border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground',
-          'mx-auto h-6 w-full max-w-sm min-w-0 truncate rounded-md border px-3 text-center text-xs'
-        )}
-        onClick={function () {
-          useCodeStore.getState().toSetPaletteMode('file')
-        }}>
-        搜索文件…（{findBindingText('CODE_PALETTE_FILES')}）
-      </Button>
+      <SearchPill />
     </div>
   )
 }

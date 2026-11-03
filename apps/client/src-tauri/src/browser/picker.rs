@@ -264,22 +264,17 @@ async fn extract_and_emit(
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string();
-    let mut text = data
-        .get("text")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string();
-    if text.len() > TEXT_CAP {
-        text.truncate(TEXT_CAP);
-    }
-    let mut outer_html = data
-        .get("outerHtml")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string();
-    if outer_html.len() > OUTER_HTML_CAP {
-        outer_html.truncate(OUTER_HTML_CAP);
-    }
+    let text = truncate_utf8(
+        data.get("text").and_then(Value::as_str).unwrap_or(""),
+        TEXT_CAP,
+    );
+    let outer_html = truncate_utf8(
+        data
+            .get("outerHtml")
+            .and_then(Value::as_str)
+            .unwrap_or(""),
+        OUTER_HTML_CAP,
+    );
     let url = data
         .get("url")
         .and_then(Value::as_str)
@@ -450,4 +445,45 @@ pub fn dispose_label(app: &AppHandle, label: &str) {
 /// 当前是否在拾取
 pub fn is_active(label: &str) -> bool {
     with_book(|book| *book.active.get(label).unwrap_or(&false))
+}
+
+/// 按 UTF-8 字节上限截断，落在字符边界上。
+///
+/// JS 侧 `slice` 按 UTF-16 code unit 裁，中文页回传后 Rust 字节长度常大于 cap；
+/// 直接 `String::truncate(cap)` 会在半个码点处 panic，release 的 `panic=abort`
+/// 会直接把整个进程打死。
+fn truncate_utf8(value: &str, cap: usize) -> String {
+    if value.len() <= cap {
+        return value.to_string();
+    }
+    value[..value.floor_char_boundary(cap)].to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::truncate_utf8;
+
+    #[test]
+    fn truncate_utf8_keeps_ascii_within_cap() {
+        assert_eq!(truncate_utf8("hello", 5), "hello");
+        assert_eq!(truncate_utf8("hello-world", 5), "hello");
+    }
+
+    #[test]
+    fn truncate_utf8_does_not_split_chinese() {
+        // 81 个汉字 = 243 字节；按 240 字节裁必须落到字符边界，不能 panic
+        let text = "护".repeat(81);
+        assert!(text.len() > 240);
+        let cut = truncate_utf8(&text, 240);
+        assert!(cut.len() <= 240);
+        assert!(cut.is_char_boundary(cut.len()));
+        assert_eq!(cut, "护".repeat(80));
+    }
+
+    #[test]
+    fn truncate_utf8_empty_and_exact() {
+        assert_eq!(truncate_utf8("", 10), "");
+        assert_eq!(truncate_utf8("abc", 3), "abc");
+        assert_eq!(truncate_utf8("护士站", 9), "护士站");
+    }
 }

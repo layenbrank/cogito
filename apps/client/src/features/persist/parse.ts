@@ -4,7 +4,9 @@ import {
   RECENT_HIT_CAP,
   BROWSER_VISIT_CAP,
   SESSION_CAP,
-  TIPTAP_COLOR_CAP
+  TIPTAP_COLOR_CAP,
+  CODE_ROOT_CAP,
+  CODE_RECENT_PATH_CAP
 } from '@/features/persist/defaults'
 import type { PersistNamespace } from '@/features/persist/files'
 import type {
@@ -37,6 +39,24 @@ function parseNumber(raw: unknown, fallback: number, min: number, max: number): 
 
 function parseBoolean(raw: unknown, fallback: boolean): boolean {
   return typeof raw === 'boolean' ? raw : fallback
+}
+
+/** 路径列表归一化：去空、去重（忽略分隔符/尾斜杠/大小写）、截断 */
+function parsePathList(raw: unknown, cap: number): string[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const list: string[] = []
+  for (const item of raw) {
+    if (typeof item !== 'string') continue
+    const value = item.trim()
+    if (!value) continue
+    const key = value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    list.push(value)
+    if (list.length >= cap) break
+  }
+  return list
 }
 
 function parseSessions(raw: unknown): TileSessionPref[] {
@@ -132,6 +152,14 @@ function parseTiles(raw: unknown): TilesPref {
     bookmark.sortKey === 'index'
       ? bookmark.sortKey
       : base.bookmark.sortKey
+  const workspaceRoots = parsePathList(code.workspaceRoots, CODE_ROOT_CAP)
+  if (
+    workspaceRoots.length === 0 &&
+    typeof code.workspaceRoot === 'string' &&
+    code.workspaceRoot.trim()
+  ) {
+    workspaceRoots.push(code.workspaceRoot.trim())
+  }
 
   return {
     sessions: parseSessions(raw.sessions),
@@ -162,7 +190,12 @@ function parseTiles(raw: unknown): TilesPref {
             })
             .slice(0, CODE_TAB_CAP)
         : [],
-      workspaceRoot: typeof code.workspaceRoot === 'string' ? code.workspaceRoot : null,
+      workspaceRoots,
+      workspaceRoot: workspaceRoots[0] ?? null,
+      workspaceID:
+        typeof code.workspaceID === 'string' && code.workspaceID.trim() ? code.workspaceID : null,
+      recentRoots: parsePathList(code.recentRoots, CODE_ROOT_CAP),
+      recentPaths: parsePathList(code.recentPaths, CODE_RECENT_PATH_CAP),
       activePath: typeof code.activePath === 'string' ? code.activePath : null,
       editorFontSize: parseNumber(code.editorFontSize, base.code.editorFontSize, 10, 24),
       editorLineHeightRatio: parseNumber(
@@ -178,6 +211,41 @@ function parseTiles(raw: unknown): TilesPref {
       isEditorLigaturesEnabled: parseBoolean(
         code.isEditorLigaturesEnabled,
         base.code.isEditorLigaturesEnabled
+      ),
+      editorWordWrap:
+        code.editorWordWrap === 'on' || code.editorWordWrap === 'bounded'
+          ? code.editorWordWrap
+          : base.code.editorWordWrap,
+      editorWordWrapColumn: parseNumber(
+        code.editorWordWrapColumn,
+        base.code.editorWordWrapColumn,
+        40,
+        200
+      ),
+      isEditorMinimapEnabled: parseBoolean(
+        code.isEditorMinimapEnabled,
+        base.code.isEditorMinimapEnabled
+      ),
+      isEditorStickyScrollEnabled: parseBoolean(
+        code.isEditorStickyScrollEnabled,
+        base.code.isEditorStickyScrollEnabled
+      ),
+      editorRenderWhitespace:
+        code.editorRenderWhitespace === 'none' || code.editorRenderWhitespace === 'all'
+          ? code.editorRenderWhitespace
+          : base.code.editorRenderWhitespace,
+      isEditorBracketGuidesEnabled: parseBoolean(
+        code.isEditorBracketGuidesEnabled,
+        base.code.isEditorBracketGuidesEnabled
+      ),
+      isEditorSemanticHighlightingEnabled: parseBoolean(
+        code.isEditorSemanticHighlightingEnabled,
+        base.code.isEditorSemanticHighlightingEnabled
+      ),
+      editorTabSize: parseNumber(code.editorTabSize, base.code.editorTabSize, 2, 8),
+      isEditorInsertSpaces: parseBoolean(
+        code.isEditorInsertSpaces,
+        base.code.isEditorInsertSpaces
       ),
       isHiddenVisible: parseBoolean(code.isHiddenVisible, base.code.isHiddenVisible)
     },

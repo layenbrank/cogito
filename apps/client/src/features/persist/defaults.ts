@@ -5,6 +5,8 @@ const CODE_TAB_CAP = 16
 const RECENT_HIT_CAP = 20
 const BROWSER_VISIT_CAP = 50
 const TIPTAP_COLOR_CAP = 12
+const CODE_ROOT_CAP = 10
+const CODE_RECENT_PATH_CAP = 20
 
 const PERSIST_DEFAULTS: PersistShape = {
   settings: {
@@ -35,7 +37,11 @@ const PERSIST_DEFAULTS: PersistShape = {
       workspaceRoot: null
     },
     code: {
+      workspaceRoots: [],
       workspaceRoot: null,
+      workspaceID: null,
+      recentRoots: [],
+      recentPaths: [],
       tabPaths: [],
       activePath: null,
       isSidebarOpen: true,
@@ -46,6 +52,15 @@ const PERSIST_DEFAULTS: PersistShape = {
       editorLineHeightRatio: 1.55,
       editorFontFamily: '',
       isEditorLigaturesEnabled: true,
+      editorWordWrap: 'off',
+      editorWordWrapColumn: 100,
+      isEditorMinimapEnabled: true,
+      isEditorStickyScrollEnabled: true,
+      editorRenderWhitespace: 'selection',
+      isEditorBracketGuidesEnabled: true,
+      isEditorSemanticHighlightingEnabled: true,
+      editorTabSize: 2,
+      isEditorInsertSpaces: true,
       isHiddenVisible: false
     },
     signboard: {
@@ -94,5 +109,7 @@ export {
   CODE_TAB_CAP,
   RECENT_HIT_CAP,
   BROWSER_VISIT_CAP,
-  TIPTAP_COLOR_CAP
+  TIPTAP_COLOR_CAP,
+  CODE_ROOT_CAP,
+  CODE_RECENT_PATH_CAP
 }

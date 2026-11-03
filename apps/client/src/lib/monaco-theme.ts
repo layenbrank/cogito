@@ -120,6 +120,33 @@ function readPalette(): CodePalette {
   }
 }
 
+/**
+ * 专有 token：CSS / JSON / HTML / Markdown。Monaco 内置 tokenizer 产出的
+ * `attribute.value.unit.css` 等默认落到 vs / vs-dark 的继承色，观感偏淡。
+ */
+function buildSpecificTokens(isDark: boolean): monaco.editor.ITokenThemeRule[] {
+  const key = isDark ? '#7aa2f7' : '#1d4ed8'
+  const string = isDark ? '#5ccf92' : '#0f7b4f'
+  const number = isDark ? '#e8b26a' : '#b45309'
+  const tag = isDark ? '#ffa657' : '#c2410c'
+  const attr = isDark ? '#a78bfa' : '#7c3aed'
+  const meta = isDark ? '#56d4dd' : '#0e7490'
+  return [
+    { token: 'string.key.json', foreground: key },
+    { token: 'string.value.json', foreground: string },
+    { token: 'keyword.json', foreground: attr },
+    { token: 'number.hex', foreground: number },
+    { token: 'attribute.value.unit.css', foreground: number },
+    { token: 'attribute.value.number.css', foreground: number },
+    { token: 'attribute.value.hex.css', foreground: string },
+    { token: 'tag.css', foreground: tag },
+    { token: 'metatag.html', foreground: meta },
+    { token: 'metatag.content.html', foreground: meta },
+    { token: 'string.link', foreground: key, fontStyle: 'underline' },
+    { token: 'variable.parameter', foreground: attr }
+  ]
+}
+
 function buildColors(palette: CodePalette): Record<string, string> {
   const { background, foreground, muted, border, primary, surface } = palette
   const softBorder = withAlpha(foreground, palette.isDark ? 0.12 : 0.1)
@@ -273,7 +300,10 @@ function syncCodeTheme(): void {
     monaco.editor.defineTheme(CODE_THEME, {
       base: palette.isDark ? 'vs-dark' : 'vs',
       inherit: true,
-      rules: palette.isDark ? SYNTAX_DARK : SYNTAX_LIGHT,
+      rules: [
+        ...(palette.isDark ? SYNTAX_DARK : SYNTAX_LIGHT),
+        ...buildSpecificTokens(palette.isDark)
+      ],
       colors: buildColors(palette)
     })
     monaco.editor.setTheme(CODE_THEME)

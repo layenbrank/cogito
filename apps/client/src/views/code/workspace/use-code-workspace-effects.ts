@@ -9,14 +9,18 @@ import { bootstrapTerminalSessions } from '@/features/terminal/agent-tabs'
 import { useTerminalStore } from '@/stores/terminal'
 import { readCodeFile } from '@/views/code/lib/fs.ts'
 import { requestCloseTabs } from '@/views/code/lib/close-tabs.ts'
-import { disposeAllModels, findModel, findOrCreateModel } from '@/views/code/lib/monaco-models.ts'
+import { disposeAllModels, findModel } from '@/views/code/lib/monaco-models.ts'
 import { resetWorkspaceTypescriptLibs } from '@/views/code/lib/monaco-types.ts'
 import { clearViewStates } from '@/views/code/lib/monaco-view-state.ts'
-import { openAbsolutePath } from '@/views/code/lib/open-file.ts'
-import { findRelativePath } from '@/views/code/lib/path.ts'
+import { openAbsolutePath, reloadFromDisk } from '@/views/code/lib/open-file.ts'
+import { findRelativePath, isPathInsideRoot } from '@/views/code/lib/path.ts'
+
+/** 依赖安装 / git 操作会制造海量事件，递归 watch 必须先过滤掉这些目录 */
+const IGNORED_WATCH_SEGMENT = /[\\/](node_modules|\.git|dist|build|\.turbo)[\\/]/
 
 function useCodeWorkspaceEffects(input: {
   workspaceRoot: string | null
+  roots: string[]
   activeTab:
     | {
         id: string
@@ -30,7 +34,8 @@ function useCodeWorkspaceEffects(input: {
   isSurfaceOpen: boolean
   toBumpTree: () => void
 }) {
-  const { workspaceRoot, activeTab, isDiffOpen, isSurfaceOpen, toBumpTree } = input
+  const { workspaceRoot, roots, activeTab, isDiffOpen, isSurfaceOpen, toBumpTree } = input
+  const rootsKey = roots.join('|')
 
   useEffect(function () {
     return function () {
@@ -47,8 +52,18 @@ function useCodeWorkspaceEffects(input: {
       if (store.tabs.length > 0 || store.workspaceRoot) return
       const prefs = await store.hydrateFromStore()
       if (cancelled) return
-      const paths = prefs.tabPaths.slice()
-      if (prefs.activePath && !paths.includes(prefs.activePath)) {
+      // 只恢复仍落在某个工作区根下的标签：切过项目后不要把旧项目的文件拉回来
+      const rootList = prefs.workspaceRoots
+      function keep(path: string): boolean {
+        return (
+          rootList.length === 0 ||
+          rootList.some(function (root) {
+            return isPathInsideRoot(root, path)
+          })
+        )
+      }
+      const paths = prefs.tabPaths.filter(keep)
+      if (prefs.activePath && keep(prefs.activePath) && !paths.includes(prefs.activePath)) {
         paths.push(prefs.activePath)
       }
       await Promise.allSettled(
@@ -102,16 +117,17 @@ function useCodeWorkspaceEffects(input: {
                   action: {
                     label: '重新加载',
                     onClick: function () {
-                      void readCodeFile(tab.path).then(function (next) {
-                        findOrCreateModel(tab.path, next)
-                        store.toMarkDirty(tab.id, false)
+                      void reloadFromDisk(tab.path).catch(function (error: unknown) {
+                        console.error('[code] reload failed', error)
                       })
                     }
                   }
                 })
                 return
               }
-              findOrCreateModel(tab.path, content)
+              void reloadFromDisk(tab.path).catch(function () {
+                /* 文件可能已被删除；树 watch 会刷新 */
+              })
             })
             .catch(function () {
               /* 文件可能已被删除；树 watch 会刷新 */
@@ -137,42 +153,55 @@ function useCodeWorkspaceEffects(input: {
     [activeTab?.kind, activeTab?.path]
   )
 
+  // 多根 watch：每个根一个递归监听，事件合并去抖；忽略 node_modules / .git / dist
   useEffect(
     function () {
-      if (!workspaceRoot) return
+      if (roots.length === 0) return
       let disposed = false
-      let unwatch: (() => void) | undefined
       let debounceTimer = 0
-      void watch(
-        workspaceRoot,
-        function () {
+      const unwatchers: (() => void)[] = []
+
+      function onFsEvent(event: { paths?: string[] }) {
+        if (disposed) return
+        const paths = event.paths ?? []
+        if (
+          paths.length > 0 &&
+          paths.every(function (path) {
+            return IGNORED_WATCH_SEGMENT.test(path)
+          })
+        ) {
+          return
+        }
+        window.clearTimeout(debounceTimer)
+        debounceTimer = window.setTimeout(function () {
           if (disposed) return
-          window.clearTimeout(debounceTimer)
-          debounceTimer = window.setTimeout(function () {
-            if (disposed) return
-            toBumpTree()
-            void useCodeGitStore.getState().toInvalidateAndRefresh()
-          }, 350)
-        },
-        { recursive: true, delayMs: 500 }
-      )
-        .then(function (fn) {
-          if (disposed) {
-            fn()
-            return
-          }
-          unwatch = fn
-        })
-        .catch(function () {
-          /* Command watch not found — 当前壳未启用 fs watch */
-        })
+          toBumpTree()
+          void useCodeGitStore.getState().toInvalidateAndRefresh()
+        }, 350)
+      }
+
+      for (const root of roots) {
+        void watch(root, onFsEvent, { recursive: true, delayMs: 500 })
+          .then(function (fn) {
+            if (disposed) {
+              fn()
+              return
+            }
+            unwatchers.push(fn)
+          })
+          .catch(function () {
+            /* Command watch not found — 当前壳未启用 fs watch */
+          })
+      }
+
       return function () {
         disposed = true
         window.clearTimeout(debounceTimer)
-        unwatch?.()
+        for (const unwatch of unwatchers) unwatch()
       }
     },
-    [workspaceRoot, toBumpTree]
+    // rootsKey 做稳定依赖；roots 一并列出，避免闭包读到旧的根集合
+    [roots, rootsKey, toBumpTree]
   )
 
   useEffect(
