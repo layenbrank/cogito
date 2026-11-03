@@ -27,8 +27,9 @@ import { findActiveScenario } from '@/features/agent/model/active-scenario'
 import type { ScenarioKey } from '@/features/agent/model/scenarios'
 import { buildPromptContext } from '@/features/agent/model/prompt-context'
 import { findSystemPrompt } from '@/features/agent/model/prompts'
-import { appendModeGuidance } from '@/features/agent/mode'
+import { appendModeGuidance, readAgentMode } from '@/features/agent/mode'
 import { rememberGoalTurnContext } from '@/features/agent/goal-continue'
+import { readGoalRun, readNextGoalBudget, startGoalRun } from '@/features/agent/goal-run'
 import { notifyApproval } from '@/features/agent/notify'
 import { captureDirectiveDraft } from '@/features/agent/directive-draft'
 import { parseSchedulePlan } from '@/features/agent/schedule-plan'
@@ -239,10 +240,14 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
       }
 
       // 场景系统提示：消息里已有 system 优先；否则按当前工作场景注入
-      // （含 corex 能力地图；plan 场景还带当前时间/时区）
+      // Agent「计划」模式与 Scenario「日程 plan」互斥：前者要 Markdown 方案，后者要日历 JSON ——
+      // 同时叠加会导致右栏计划常空，故计划模式下把日历场景降级为 general 基座。
+      const activeScenario = findActiveScenario()
+      const promptScenario: ScenarioKey =
+        readAgentMode() === 'plan' && activeScenario === 'plan' ? 'general' : activeScenario
       const baseSystemText =
         overrides.findSystemText?.(input) ??
-        (parsed.systemText?.trim() || findSystemPrompt(findActiveScenario(), buildPromptContext()))
+        (parsed.systemText?.trim() || findSystemPrompt(promptScenario, buildPromptContext()))
       // 会话模式（执行/计划/问答/目标）只追加提示约束，不改审批档
       const systemText = appendModeGuidance(baseSystemText)
 
@@ -280,16 +285,27 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
 
       const context: AcpStreamContext = { blockID: makeBlockIDFinder() }
       // directive 场景要把助手正文攒起来，收尾时抽 JSON 落成草稿（不落 corex.db）
-      const scenario = overrides.onFinish ? null : findActiveScenario()
+      // Agent 计划模式跳过 Scenario plan 的日历 JSON 收尾
+      const scenario: ScenarioKey | null = overrides.onFinish
+        ? null
+        : readAgentMode() === 'plan' && activeScenario === 'plan'
+          ? null
+          : activeScenario
       // 目标推进要在后台起后续轮次：把本轮用的 provider / 模型 / 工作区 / 场景记下来。
       // 场景必须一起记 —— 后台线程不在前台，读全局 `findActiveScenario()` 会拿到别的场景。
       rememberGoalTurnContext(host.threadID, {
         workspaceID: host.workspaceID,
         providerID: provider.kind,
         modelID: input.model,
-        scenario: scenario ?? findActiveScenario()
+        scenario: activeScenario
       })
       let capturedText = ''
+      const isPlanModeRun = readAgentMode() === 'plan'
+      // 目标模式发送即建 GoalRun（侧栏「目标推进」可带自定义 budget 覆盖）
+      if (readAgentMode() === 'goal' && !readGoalRun(host.threadID)) {
+        // 轮次是**每次发送**的输入项：取 composer 里当前选的那一档（默认 6）
+        startGoalRun(host.threadID, text.slice(0, 500), readNextGoalBudget())
+      }
 
       try {
         // 后台回合：UI detach 不取消 goose；只有用户「停止」才走 cancel signal
@@ -321,6 +337,13 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
                 case 'elicitation':
                   // 停下来等人：事件交给 UI，回执走 `respondToApproval` / `respondToElicitation`
                   void notifyApproval(host.threadID)
+                  if (isPlanModeRun) {
+                    yield {
+                      kind: 'text',
+                      blockID: 'plan-mode-hint',
+                      text: '\n\n（计划模式禁止写操作：请在审批中拒绝写工具，或切到「执行」模式后再改。）\n'
+                    }
+                  }
                   yield item.event
                   break
                 case 'stop':

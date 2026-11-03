@@ -1,7 +1,8 @@
 //! 嵌入式交互终端：portable-pty 会话管理 + `terminal:*` IPC。
 //!
 //! 前端 `@xterm/xterm` 渲染，Rust 侧只承担 PTY 主机（对齐 VS Code 的 PtyHost 角色），
-//! 输出字节经 `tauri::ipc::Channel<Vec<u8>>` 推流，禁止反复 `invoke` 轮询读。
+//! 实时输出经 `Channel<InvokeResponseBody::Raw>` 推流；attach 历史经返回值 `replay`，
+//! 禁止反复 `invoke` 轮询读。
 //!
 //! 会话与视图**解耦**：会话自己留一段回滚缓冲，视图随时 `terminal:attach` 接上；
 //! agent 侧 `terminal:run` 复用同一个会话跑命令并读回输出 —— 这样「点一条命令跳到终端」
@@ -87,6 +88,10 @@ impl TerminalHub {
 pub struct TerminalCreated {
     pub id: String,
     pub pid: Option<u32>,
+    /// 附着时回放的滚动缓冲。走 invoke 返回值，不经 Channel Raw：
+    /// 同步 `channel.send(Raw)` 在 WebView2 上常静默失败，表现就是「只有光标、无 profile」。
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub replay: Vec<u8>,
 }
 
 #[derive(Clone, Serialize)]
@@ -194,6 +199,12 @@ pub fn resolve_agent_session(cwd: &str) -> Result<String, String> {
     Ok(agent_session_id(&path.display().to_string()))
 }
 
+/// 前端跳转用：把任意 workdir 规范成与 Hub 一致的 `agent:<canonical>` id。
+#[tauri::command(rename = "terminal:resolve_agent_id")]
+pub fn terminal_resolve_agent_id(cwd: String) -> Result<String, String> {
+    resolve_agent_session(&cwd)
+}
+
 /// 默认 shell 由 Rust 侧决定，不接收前端传入的 shell 路径（杜绝命令注入）。
 ///
 /// Windows 优先 `pwsh`（用户默认 shell，`$PROFILE` 个性化定制随 pwsh 自动加载），
@@ -289,20 +300,36 @@ fn ensure_session(
 }
 
 /// 把一段原始输出写进回滚缓冲并扇出给所有订阅者；发不出去的订阅者直接摘除。
+///
+/// 扇出在释放锁之后做：持锁 `channel.send` 会卡住读线程，拖死整条输出管道。
 fn push_output(shared: &Arc<Mutex<Scrollback>>, chunk: &[u8]) {
+    let mut subscribers = {
+        let Ok(mut guard) = shared.lock() else {
+            return;
+        };
+        guard.buffer.extend_from_slice(chunk);
+        if guard.buffer.len() > SCROLLBACK_MAX_BYTES {
+            let overflow = guard.buffer.len() - SCROLLBACK_MAX_BYTES;
+            guard.buffer.drain(..overflow);
+            guard.dropped += overflow as u64;
+        }
+        guard.last_output = Instant::now();
+        std::mem::take(&mut guard.subscribers)
+    };
+    if subscribers.is_empty() {
+        return;
+    }
+    let payload = chunk.to_vec();
+    subscribers.retain(|channel| {
+        channel
+            .send(InvokeResponseBody::Raw(payload.clone()))
+            .is_ok()
+    });
     let Ok(mut guard) = shared.lock() else {
         return;
     };
-    guard.buffer.extend_from_slice(chunk);
-    if guard.buffer.len() > SCROLLBACK_MAX_BYTES {
-        let overflow = guard.buffer.len() - SCROLLBACK_MAX_BYTES;
-        guard.buffer.drain(..overflow);
-        guard.dropped += overflow as u64;
-    }
-    guard.last_output = Instant::now();
-    guard
-        .subscribers
-        .retain(|channel| channel.send(InvokeResponseBody::Raw(chunk.to_vec())).is_ok());
+    // 扇出期间 attach 进来的新订阅者已在 guard 里；把仍存活的旧订阅接回去
+    guard.subscribers.append(&mut subscribers);
 }
 
 /// 取会话共享区（不长期持有会话表锁）。
@@ -317,15 +344,16 @@ fn find_shared(hub: &TerminalHub, id: &str) -> Result<Arc<Mutex<Scrollback>>, St
         .ok_or_else(|| format!("终端会话不存在：{id}"))
 }
 
-/// 视图接管一个已有会话：先回放缓冲里的内容，再接实时流。
+/// 视图接管一个已有会话：登记实时订阅，并把当前回滚缓冲交给调用方经 IPC 回放。
 ///
-/// 回放和订阅在同一把锁里完成 —— 否则「回放旧字节」与「推送新字节」会交错，
-/// xterm 收到的顺序就乱了。
+/// 克隆缓冲与 `push(subscriber)` 在同一把锁里完成 —— 否则旧字节回放与新字节推送会交错。
+/// 回放**不**走 `Channel::send(Raw)`：在 invoke 尚未返回时同步推大块 Raw，WebView2 上经常
+/// `Ok` 但前端收不到，只剩光标；改为随 `TerminalCreated.replay` 返回，由前端 `write`。
 fn attach_channel(
     hub: &TerminalHub,
     id: &str,
     channel: Channel<InvokeResponseBody>,
-) -> Result<Option<u32>, String> {
+) -> Result<(Option<u32>, Vec<u8>), String> {
     let (shared, pid) = {
         let sessions = hub
             .sessions
@@ -341,11 +369,8 @@ fn attach_channel(
         .lock()
         .map_err(|_| "终端输出缓冲加锁失败".to_string())?;
     let replay = guard.buffer.clone();
-    if !replay.is_empty() {
-        let _ = channel.send(InvokeResponseBody::Raw(replay));
-    }
     guard.subscribers.push(channel);
-    Ok(pid)
+    Ok((pid, replay))
 }
 
 /// 写一行命令给 shell（PTY 的换行是 `\r`）。
@@ -397,12 +422,22 @@ pub fn terminal_create(
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-    // 同 id 重入（视图热重挂）：先拆掉旧会话，避免写端孤儿 / 双读线程
-    kill_session(state.inner(), &id);
+    // 同 id 已存在：只 attach，禁止 silent kill（否则 HMR / 误 create 会杀掉 agent 长跑）
+    {
+        let sessions = state
+            .sessions
+            .lock()
+            .map_err(|_| "终端会话表加锁失败".to_string())?;
+        if sessions.contains_key(&id) {
+            drop(sessions);
+            let (pid, replay) = attach_channel(state.inner(), &id, channel)?;
+            return Ok(TerminalCreated { id, pid, replay });
+        }
+    }
 
     let pid = ensure_session(state.inner(), &app, &id, &cwd_path)?;
-    attach_channel(state.inner(), &id, channel)?;
-    Ok(TerminalCreated { id, pid })
+    let (_attached_pid, replay) = attach_channel(state.inner(), &id, channel)?;
+    Ok(TerminalCreated { id, pid, replay })
 }
 
 /// 视图接上一个已存在的会话（agent 先建、面板后挂）。
@@ -412,8 +447,8 @@ pub fn terminal_attach(
     id: String,
     channel: Channel<InvokeResponseBody>,
 ) -> Result<TerminalCreated, String> {
-    let pid = attach_channel(state.inner(), &id, channel)?;
-    Ok(TerminalCreated { id, pid })
+    let (pid, replay) = attach_channel(state.inner(), &id, channel)?;
+    Ok(TerminalCreated { id, pid, replay })
 }
 
 /// 读线程：阻塞读 master → 写回滚缓冲 + 扇出订阅者；EOF 后回收会话并广播退出事件。

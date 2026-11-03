@@ -1,5 +1,6 @@
 'use client'
 
+import { OVERLAY_ELEVATION } from '@cogito/design/lib/surface'
 import { forwardRef } from 'react'
 import { cn } from '@/lib/tiptap-utils.ts'
 
@@ -20,7 +21,10 @@ const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
       ref={ref}
       className={cn(
         surface &&
-          'rounded-lg border border-border bg-popover text-popover-foreground shadow-md',
+          cn(
+            'rounded-lg bg-popover text-popover-foreground',
+            OVERLAY_ELEVATION
+          ),
         className
       )}
       {...props}

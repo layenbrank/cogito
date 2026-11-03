@@ -29,6 +29,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@cogito/design/components/tooltip'
+import { OVERLAY_ELEVATION } from '@cogito/design/lib/surface'
 import { Icon } from '@iconify/react/offline'
 import { useEffect, useMemo, useRef } from 'react'
 
@@ -430,7 +431,8 @@ function ComposerTriggerList(props: ComposerTriggerListProps) {
       data-webview="false"
       className={cn(
         styles.surface,
-        'border-border/60 bg-popover absolute bottom-full left-0 z-20 mb-2 w-72 overflow-hidden rounded-lg border shadow-md',
+        'bg-popover absolute bottom-full left-0 z-20 mb-2 w-72 overflow-hidden rounded-lg',
+        OVERLAY_ELEVATION,
         props.className
       )}
       onMouseDown={function (event) {

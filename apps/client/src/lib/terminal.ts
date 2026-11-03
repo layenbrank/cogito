@@ -1,8 +1,8 @@
 /**
  * 嵌入式交互终端 IPC：terminal:* 命令 + Channel 字节流。
  *
- * 输出走 Tauri 2 的 `Channel` 原始字节（Rust 侧 `InvokeResponseBody::Raw`），
- * 前端收到 `ArrayBuffer` → `Uint8Array` 喂给 xterm；禁止反复 `invoke` 轮询读。
+ * 实时输出走 Tauri 2 的 `Channel` 原始字节（Rust 侧 `InvokeResponseBody::Raw`）；
+ * attach / create 的历史回放走 invoke 返回值 `replay`（Channel 同步推大块 Raw 在 WebView2 上不可靠）。
  */
 import { Channel, invoke } from '@tauri-apps/api/core'
 
@@ -11,6 +11,8 @@ import { CHANNELS } from '@/shared/ipc/channels'
 interface TerminalCreated {
   id: string
   pid: number | null
+  /** serde `Vec<u8>` → number[]；空缓冲时字段可缺省 */
+  replay?: number[]
 }
 
 interface TerminalInfo {
@@ -35,34 +37,56 @@ interface TerminalCreatedWithChannel extends TerminalCreated {
   channel: Channel<ArrayBuffer>
 }
 
+/** Channel / IPC 字节统一成可喂给 xterm 的 `Uint8Array`（独立拷贝，避免 SharedBuffer 偏移）。 */
+function parseTerminalBytes(data: unknown): Uint8Array {
+  if (data instanceof Uint8Array) return data.slice()
+  if (data instanceof ArrayBuffer) return new Uint8Array(data).slice()
+  if (ArrayBuffer.isView(data)) {
+    return new Uint8Array(data.buffer, data.byteOffset, data.byteLength).slice()
+  }
+  if (Array.isArray(data)) return Uint8Array.from(data)
+  return new Uint8Array()
+}
+
+function writeReplay(replay: number[] | undefined, onmessage: (data: Uint8Array) => void) {
+  if (!replay || replay.length === 0) return
+  onmessage(Uint8Array.from(replay))
+}
+
 /** 创建 PTY 会话；`id` 由前端生成，Rust 以其作为会话键。
  *
  * `onmessage` 在 `Channel` 构造时即绑定：Rust 侧同步 spawn 读线程，
- * 首批输出（如 shell banner）可能在 `invoke` 返回前到达，晚绑会丢首包。
+ * 首批实时输出可能在 `invoke` 返回前到达，晚绑会丢首包。
+ * 历史缓冲则随返回值 `replay` 写入，不依赖 Channel Raw。
  */
 async function create(
   cwd: string,
   id: string,
-  onmessage: (data: ArrayBuffer) => void
+  onmessage: (data: Uint8Array) => void
 ): Promise<TerminalCreatedWithChannel> {
-  const channel = new Channel<ArrayBuffer>(onmessage)
+  const channel = new Channel<ArrayBuffer>(function (data) {
+    onmessage(parseTerminalBytes(data))
+  })
   const created = await invoke<TerminalCreated>(CHANNELS.TERMINAL.CREATE, { cwd, id, channel })
-  return { id: created.id, pid: created.pid, channel }
+  writeReplay(created.replay, onmessage)
+  return { id: created.id, pid: created.pid, replay: created.replay, channel }
 }
 
 /**
  * 接上一个已存在的会话（agent 先建、面板后挂）。
  *
- * Rust 侧先回放缓冲里的历史输出、再接实时流，所以视图晚挂也不会丢开头；
- * 与 `create` 的区别只在于**不会重建会话**。
+ * 历史输出经 `replay` 回放，实时流走 Channel；与 `create` 的区别是**不会重建会话**。
  */
 async function attach(
   id: string,
-  onmessage: (data: ArrayBuffer) => void
+  onmessage: (data: Uint8Array) => void
 ): Promise<TerminalCreatedWithChannel> {
-  const channel = new Channel<ArrayBuffer>(onmessage)
+  const channel = new Channel<ArrayBuffer>(function (data) {
+    onmessage(parseTerminalBytes(data))
+  })
   const attached = await invoke<TerminalCreated>(CHANNELS.TERMINAL.ATTACH, { id, channel })
-  return { id: attached.id, pid: attached.pid, channel }
+  writeReplay(attached.replay, onmessage)
+  return { id: attached.id, pid: attached.pid, replay: attached.replay, channel }
 }
 
 /** 写入用户输入（UTF-8 字节）。 */
@@ -97,6 +121,11 @@ function list(): Promise<TerminalInfo[]> {
   return invoke<TerminalInfo[]>(CHANNELS.TERMINAL.LIST)
 }
 
+/** 把 cwd 规范成与 Hub 一致的 `agent:<canonical>`（跳转 / 匹配用）。 */
+function resolveAgentId(cwd: string): Promise<string> {
+  return invoke<string>(CHANNELS.TERMINAL.RESOLVE_AGENT_ID, { cwd })
+}
+
 /** 读取系统默认终端字体（Windows Terminal 默认 profile / conhost 注册表）。 */
 function font(): Promise<TerminalFont> {
   return invoke<TerminalFont>(CHANNELS.TERMINAL.FONT)
@@ -109,8 +138,9 @@ const Terminal = {
   resize,
   kill,
   list,
+  resolveAgentId,
   font
 }
 
-export { Terminal }
+export { Terminal, parseTerminalBytes }
 export type { TerminalCreated, TerminalFont, TerminalInfo, TerminalCreatedWithChannel }

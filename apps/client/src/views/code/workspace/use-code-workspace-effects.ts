@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { subscribeWorkspaceRevision } from '@/features/agent/workspace/revision.ts'
 import { useCodeGitStore } from '@/stores/code-git'
 import { useCodeStore } from '@/stores/code'
+import { bootstrapTerminalSessions } from '@/features/terminal/agent-tabs'
 import { useTerminalStore } from '@/stores/terminal'
 import { readCodeFile } from '@/views/code/lib/fs.ts'
 import { requestCloseTabs } from '@/views/code/lib/close-tabs.ts'
@@ -251,9 +252,15 @@ function useCodeWorkspaceEffects(input: {
       if (store.surfaceTab !== 'terminal') return
       const root = store.workspaceRoot
       if (!root) return
-      if (useTerminalStore.getState().tabs.length === 0) {
-        useTerminalStore.getState().newTab(root)
-      }
+      void (async function () {
+        await bootstrapTerminalSessions()
+        const terminal = useTerminalStore.getState()
+        if (terminal.tabs.length > 0) {
+          if (!terminal.activeId) terminal.writeActive(terminal.tabs[0].id)
+          return
+        }
+        terminal.newTab(root)
+      })()
     },
     [isSurfaceOpen]
   )

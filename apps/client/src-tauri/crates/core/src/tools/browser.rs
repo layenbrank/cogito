@@ -15,12 +15,13 @@ use super::{Effect, ToolSpec};
 pub const OPEN: &str = "app_browser_open";
 pub const READ: &str = "app_browser_read";
 pub const ACT: &str = "app_browser_act";
+pub const WAIT: &str = "app_browser_wait";
 pub const SCREENSHOT: &str = "app_browser_screenshot";
 pub const NETWORK: &str = "app_browser_network";
 pub const INTERCEPT: &str = "app_browser_intercept";
 pub const DEVICE: &str = "app_browser_device";
 
-const NAMES: [&str; 7] = [OPEN, READ, ACT, SCREENSHOT, NETWORK, INTERCEPT, DEVICE];
+const NAMES: [&str; 8] = [OPEN, READ, ACT, WAIT, SCREENSHOT, NETWORK, INTERCEPT, DEVICE];
 
 /// `tab` 的公共属性：省略即当前活动标签页
 fn tab_property() -> Value {
@@ -60,7 +61,7 @@ pub fn specs() -> Vec<ToolSpec> {
         ),
         spec(
             READ,
-            "读取内嵌浏览器的页面：`outline` 返回可交互元素清单（带 selector，可直接喂给 app_browser_act），`text` 返回正文。",
+            "读取内嵌浏览器的页面：`outline` 返回可交互元素清单（带 selector，可直接喂给 app_browser_act），`text` 返回正文；`assertText` / `assertVisible` 做断言（失败返回 ok:false 与 reason，供重试）。",
             Effect::Read,
             json!({
                 "type": "object",
@@ -68,20 +69,22 @@ pub fn specs() -> Vec<ToolSpec> {
                     "tab": tab_property(),
                     "mode": {
                         "type": "string",
-                        "enum": ["outline", "text"],
-                        "description": "默认 outline；要抓正文用 text"
+                        "enum": ["outline", "text", "assertText", "assertVisible"],
+                        "description": "默认 outline；assertText 需 value=期望子串；assertVisible 需 selector"
                     },
                     "limit": {
                         "type": "integer",
                         "minimum": 1,
                         "description": "最多返回多少项，默认 60，上限 200"
-                    }
+                    },
+                    "selector": { "type": "string", "description": "assertVisible / 可选断言范围" },
+                    "value": { "type": "string", "description": "assertText 的期望子串" }
                 }
             }),
         ),
         spec(
             ACT,
-            "操作内嵌浏览器：点击 / 输入 / 按键 / 滚动 / 悬停 / 刷新页面。selector 用 app_browser_read 返回的那个。",
+            "操作内嵌浏览器：点击 / 输入 / 按键 / 滚动 / 悬停 / 刷新 / 选择 native select。selector 用 app_browser_read 返回的那个。",
             Effect::Write,
             json!({
                 "type": "object",
@@ -89,13 +92,35 @@ pub fn specs() -> Vec<ToolSpec> {
                     "tab": tab_property(),
                     "action": {
                         "type": "string",
-                        "enum": ["click", "type", "press", "scroll", "hover", "reload"],
-                        "description": "scroll 作用于整个页面（value 为像素），reload 重载当前页（不需要 selector），其余作用于 selector"
+                        "enum": ["click", "type", "press", "scroll", "hover", "reload", "select"],
+                        "description": "scroll 作用于整个页面（value 为像素），reload 重载当前页（不需要 selector），select 的 value 为 option value 或可见文案，其余作用于 selector"
                     },
                     "selector": { "type": "string", "description": "CSS 选择器；scroll 与 reload 时可省略" },
-                    "value": { "type": "string", "description": "type 的输入内容 / press 的按键名（默认 Enter）/ scroll 的像素（默认 600）/ reload 传 hard 表示忽略缓存" }
+                    "value": { "type": "string", "description": "type 的输入 / press 的按键 / scroll 像素 / reload=hard / select 的选项" }
                 },
                 "required": ["action"]
+            }),
+        ),
+        spec(
+            WAIT,
+            "等待页面条件：selector 出现/可点，或 networkIdle。替代固定 sleep，走通 H5/PC 交互链时优先用它。",
+            Effect::Read,
+            json!({
+                "type": "object",
+                "properties": {
+                    "tab": tab_property(),
+                    "condition": {
+                        "type": "string",
+                        "enum": ["selector", "visible", "clickable", "networkIdle"],
+                        "description": "默认 selector（元素出现在 DOM）；visible=可见；clickable=可见且未 disabled；networkIdle=短窗口无新请求"
+                    },
+                    "selector": { "type": "string", "description": "CSS 选择器；networkIdle 时可省略" },
+                    "timeoutMs": {
+                        "type": "integer",
+                        "minimum": 100,
+                        "description": "超时毫秒，默认 8000，上限 60000"
+                    }
+                }
             }),
         ),
         spec(
@@ -225,6 +250,16 @@ mod tests {
             };
             assert_eq!(spec.effect, expected, "{} 的效果标错了", spec.name);
         }
+    }
+
+    #[test]
+    fn wait_spec_is_read_and_listed() {
+        assert!(NAMES.contains(&WAIT));
+        let wait = specs()
+            .into_iter()
+            .find(|spec| spec.name == WAIT)
+            .expect("wait 工具必须在目录里");
+        assert_eq!(wait.effect, Effect::Read);
     }
 
     #[test]

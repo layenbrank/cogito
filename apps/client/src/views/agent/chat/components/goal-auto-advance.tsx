@@ -73,6 +73,7 @@ function GoalAutoAdvance() {
         return
       }
       if (!signal && goal.used > 0) {
+        toast.info('目标推进已停：本轮未输出 GOAL_CONTINUE / GOAL_DONE')
         stopGoalRun(threadID)
         return
       }

@@ -5,6 +5,7 @@ import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { Input } from '@cogito/design/components/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
+import { OVERLAY_ELEVATION } from '@cogito/design/lib/surface'
 import type { Editor } from '@tiptap/react'
 import { cn } from 'cn'
 import { useEffect, useRef, useState, type RefObject } from 'react'
@@ -445,7 +446,8 @@ function FindBar(props: FindBarProps) {
       className={cn(
         'absolute right-3 z-30 flex min-w-[min(100%_-_1.5rem,22rem)] flex-col gap-1',
         props.clearToolbar ? 'top-11' : 'top-2',
-        'rounded-md border border-border bg-popover p-1.5 shadow-lg backdrop-blur-none'
+        'rounded-md bg-popover p-1.5 backdrop-blur-none',
+        OVERLAY_ELEVATION
       )}
       aria-label={t('FIND')}>
       <FindRow

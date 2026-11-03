@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
 import type { Command } from '@/keyboard/types'
 import { useCodeStore } from '@/stores/code'
+import { bootstrapTerminalSessions } from '@/features/terminal/agent-tabs'
 import { useTerminalStore } from '@/stores/terminal'
 import { pickOpenFile, pickRootDirectory, writeCodeFile } from '@/views/code/lib/fs.ts'
 import { requestCloseTabs } from '@/views/code/lib/close-tabs.ts'
@@ -67,12 +68,18 @@ function toggleTerminal(): void {
   const store = useCodeStore.getState()
   const willOpen = !(store.isSurfaceOpen && store.surfaceTab === 'terminal')
   store.toToggleSurface('terminal')
-  if (willOpen) {
-    const root = store.workspaceRoot
-    if (root && useTerminalStore.getState().tabs.length === 0) {
-      useTerminalStore.getState().newTab(root)
+  if (!willOpen) return
+  const root = store.workspaceRoot
+  if (!root) return
+  void (async function () {
+    await bootstrapTerminalSessions()
+    const terminal = useTerminalStore.getState()
+    if (terminal.tabs.length > 0) {
+      if (!terminal.activeId) terminal.writeActive(terminal.tabs[0].id)
+      return
     }
-  }
+    terminal.newTab(root)
+  })()
 }
 
 /** 命令面板：命令模式与文件模式各一个命令，快捷键在键位表里关联 */

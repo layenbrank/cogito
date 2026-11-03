@@ -8,7 +8,8 @@ import {
   followBackgroundTurn,
   hasRunningBackgroundTurn,
   isDetachAbort,
-  isTerminalEvent
+  isTerminalEvent,
+  isUserStopAbort
 } from '@/features/agent/acp/background-turn'
 import type { ChatStreamEvent } from '@cogito/chat/ports'
 
@@ -23,17 +24,26 @@ afterEach(function () {
   bindBackgroundTurnPersister(null)
 })
 
-describe('isDetachAbort', function () {
+describe('isDetachAbort / isUserStopAbort', function () {
   it('recognizes assistant-ui detach AbortError shape', function () {
     const controller = new AbortController()
     controller.abort({ name: 'AbortError', detach: true })
     expect(isDetachAbort(controller.signal)).toBe(true)
+    expect(isUserStopAbort(controller.signal)).toBe(false)
   })
 
-  it('treats user cancel as non-detach', function () {
+  it('treats user cancel as non-detach stop', function () {
     const controller = new AbortController()
     controller.abort({ name: 'AbortError', detach: false })
     expect(isDetachAbort(controller.signal)).toBe(false)
+    expect(isUserStopAbort(controller.signal)).toBe(true)
+  })
+
+  it('treats bare abort as neither detach nor user stop', function () {
+    const controller = new AbortController()
+    controller.abort()
+    expect(isDetachAbort(controller.signal)).toBe(false)
+    expect(isUserStopAbort(controller.signal)).toBe(false)
   })
 })
 
@@ -109,6 +119,43 @@ describe('consumeBackgroundTurn', function () {
     expect(sawAbort).toBe(true)
     expect(events.some(isTerminalEvent)).toBe(true)
   })
+
+  it('does not cancel the pump on bare abort (roundtrip reopen)', async function () {
+    const threadID = 'thread-bg-bare'
+    const pump: { signal: AbortSignal | null } = { signal: null }
+
+    async function* start(signal: AbortSignal): AsyncGenerator<ChatStreamEvent> {
+      pump.signal = signal
+      yield { kind: 'text', blockID: 't', text: 'partial' }
+      await delay(60)
+      yield signal.aborted
+        ? { kind: 'aborted', usage: {} }
+        : { kind: 'finish', finishReason: 'end_turn', usage: {} }
+    }
+
+    const ui = new AbortController()
+    const first: ChatStreamEvent[] = []
+    for await (const event of consumeBackgroundTurn(threadID, ui.signal, start)) {
+      first.push(event)
+      if (event.kind === 'text') {
+        // performRoundtrip 开新轮：abort() 无 reason —— 不得杀泵
+        ui.abort()
+        break
+      }
+    }
+
+    expect(first.map(function (event) {
+      return event.kind
+    })).toEqual(['text'])
+    expect(pump.signal?.aborted).toBe(false)
+    expect(hasRunningBackgroundTurn(threadID)).toBe(true)
+
+    const resumed: string[] = []
+    for await (const event of followBackgroundTurn(threadID, undefined)) {
+      resumed.push(event.kind)
+    }
+    expect(resumed).toEqual(['text', 'finish'])
+  })
 })
 
 describe('consumeBackgroundTurn robustness', function () {
@@ -128,6 +175,29 @@ describe('consumeBackgroundTurn robustness', function () {
     expect(events.map(function (event) {
       return event.kind
     })).toEqual(['text', 'error'])
+    expect(hasRunningBackgroundTurn(threadID)).toBe(false)
+  })
+
+  it('synthesizes an error terminal when start returns without finish', async function () {
+    const threadID = 'thread-bg-no-terminal'
+
+    async function* start(): AsyncGenerator<ChatStreamEvent> {
+      yield { kind: 'text', blockID: 't', text: 'cut off' }
+      // 故意不发 finish / aborted / error
+    }
+
+    const events: ChatStreamEvent[] = []
+    for await (const event of consumeBackgroundTurn(threadID, undefined, start)) {
+      events.push(event)
+    }
+
+    expect(events.map(function (event) {
+      return event.kind
+    })).toEqual(['text', 'error'])
+    expect(events[1]).toMatchObject({
+      kind: 'error',
+      message: expect.stringContaining('未收到终态')
+    })
     expect(hasRunningBackgroundTurn(threadID)).toBe(false)
   })
 
@@ -156,13 +226,17 @@ describe('consumeBackgroundTurn robustness', function () {
     expect(persisted.events.some(isTerminalEvent)).toBe(true)
   })
 
-  it('rejects a second consumer with a different start while running', async function () {
+  it('aborts the old pump and starts a new one when start differs', async function () {
     const threadID = 'thread-bg-5'
+    let startAAborted = false
 
-    async function* startA(): AsyncGenerator<ChatStreamEvent> {
+    async function* startA(signal: AbortSignal): AsyncGenerator<ChatStreamEvent> {
       yield { kind: 'text', blockID: 't', text: 'a' }
-      await delay(100)
-      yield { kind: 'finish', finishReason: 'end_turn', usage: {} }
+      await delay(200)
+      startAAborted = signal.aborted
+      yield signal.aborted
+        ? { kind: 'aborted', usage: {} }
+        : { kind: 'finish', finishReason: 'end_turn', usage: {} }
     }
     async function* startB(): AsyncGenerator<ChatStreamEvent> {
       yield { kind: 'text', blockID: 't', text: 'b' }
@@ -178,11 +252,14 @@ describe('consumeBackgroundTurn robustness', function () {
     }
     expect(hasRunningBackgroundTurn(threadID)).toBe(true)
 
-    await expect(async function () {
-      for await (const _event of consumeBackgroundTurn(threadID, undefined, startB)) {
-        void _event
-      }
-    }()).rejects.toThrow()
+    const secondEvents: string[] = []
+    for await (const event of consumeBackgroundTurn(threadID, undefined, startB)) {
+      secondEvents.push(event.kind === 'text' ? `text:${'text' in event ? event.text : ''}` : event.kind)
+    }
+
+    expect(startAAborted).toBe(true)
+    expect(secondEvents).toEqual(['text:b', 'finish'])
+    expect(hasRunningBackgroundTurn(threadID)).toBe(false)
   })
 
   it('lets a second consumer with the same start replay the running turn', async function () {

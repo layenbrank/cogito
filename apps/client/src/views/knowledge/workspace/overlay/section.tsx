@@ -2,6 +2,7 @@ import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { Separator } from '@cogito/design/components/separator'
 import { TooltipProvider } from '@cogito/design/components/tooltip'
+import { OVERLAY_ELEVATION } from '@cogito/design/lib/surface'
 import {
   EditorContext as ComposerContext,
   EditorContent as ComposerMarkdown,
@@ -299,7 +300,10 @@ function Section(props: SectionProps) {
               <BubbleMenu
                 editor={composer}
                 data-slot="tiptap-bubble-menu"
-                className="flex items-center gap-0.5 rounded-md border border-border bg-popover p-1 shadow-md">
+                className={cn(
+                  'flex items-center gap-0.5 rounded-md bg-popover p-1',
+                  OVERLAY_ELEVATION
+                )}>
                 <MarkButton
                   editor={composer}
                   type="bold"

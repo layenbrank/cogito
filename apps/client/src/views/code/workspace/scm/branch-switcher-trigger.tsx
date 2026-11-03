@@ -16,6 +16,8 @@ interface BranchSwitcherTriggerProps {
 
 function BranchSwitcherTrigger(props: BranchSwitcherTriggerProps) {
   const isCompact = props.size === 'sm'
+  /** footer / 窄栏：少一个 chevron，避免与 git-branch 挤成一坨图标 */
+  const showChevrons = props.tone !== 'header' || !isCompact
 
   return (
     <>
@@ -27,7 +29,12 @@ function BranchSwitcherTrigger(props: BranchSwitcherTriggerProps) {
           props.isBusy && 'animate-spin'
         )}
       />
-      <span className="min-w-0 flex-1 truncate text-left font-medium">
+      <span
+        className={cn(
+          'min-w-0 truncate text-left font-medium',
+          // 仅在按钮被调用方拉宽时让分支名吃剩余空间，默认随内容
+          props.tone === 'header' && !isCompact && 'flex-1'
+        )}>
         {props.branch || '未知分支'}
       </span>
       {props.showRemoteDelta && (props.ahead > 0 || props.behind > 0) ? (
@@ -37,10 +44,12 @@ function BranchSwitcherTrigger(props: BranchSwitcherTriggerProps) {
           {props.behind > 0 ? `↓${props.behind}` : ''}
         </span>
       ) : null}
-      <Icon
-        icon="lucide:chevrons-up-down"
-        className="text-muted-foreground size-3.5 shrink-0 opacity-55"
-      />
+      {showChevrons ? (
+        <Icon
+          icon="lucide:chevrons-up-down"
+          className="text-muted-foreground size-3.5 shrink-0 opacity-55"
+        />
+      ) : null}
     </>
   )
 }

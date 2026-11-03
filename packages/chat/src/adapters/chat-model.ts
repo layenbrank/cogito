@@ -379,7 +379,8 @@ const STREAM_COALESCE_MS = 32
  * text/reasoning 按墙钟窗口合并 yield；tool/plan/elicitation/终态立即 flush。
  */
 async function* mapChatStreamToRunResults(
-  events: AsyncIterable<ChatStreamEvent>
+  events: AsyncIterable<ChatStreamEvent>,
+  abortSignal?: AbortSignal
 ): AsyncGenerator<ChatModelRunResult, void, unknown> {
   const content = createContentAccumulator()
   const streamStartTime = Date.now()
@@ -563,8 +564,44 @@ async function* mapChatStreamToRunResults(
     }
   }
 
+  // 流自然结束却无 finish/aborted/error：禁止只 soft flush——
+  // assistant-ui 会把仍 running 的消息标成 complete/unknown，表现为「输出写到一半突然停住」。
   const soft = flushSoftIfNeeded()
   if (soft) yield soft
+  // detach / 用户停止 / bare abort：UI 订阅被掐断，不是协议丢终态——标 cancelled，避免假「流异常」
+  if (abortSignal?.aborted) {
+    yield {
+      content: content.finish(),
+      status: { type: 'incomplete', reason: 'cancelled' },
+      metadata: {
+        timing: toTiming(
+          streamStartTime,
+          firstTokenTime,
+          totalChunks,
+          toolCallCount,
+          undefined
+        )
+      }
+    }
+    return
+  }
+  yield {
+    content: content.finish(),
+    status: {
+      type: 'incomplete',
+      reason: 'error',
+      error: '流异常结束：未收到终态（输出可能不完整）'
+    },
+    metadata: {
+      timing: toTiming(
+        streamStartTime,
+        firstTokenTime,
+        totalChunks,
+        toolCallCount,
+        undefined
+      )
+    }
+  }
 }
 
 function createChatModelAdapter(
@@ -583,7 +620,10 @@ function createChatModelAdapter(
       const extras = Object.keys(host).length > 0 ? { host } : {}
       const input = { ...target, messages, ...extras }
 
-      yield* mapChatStreamToRunResults(port.run(input, runOptions.abortSignal))
+      yield* mapChatStreamToRunResults(
+        port.run(input, runOptions.abortSignal),
+        runOptions.abortSignal
+      )
     }
   }
 }

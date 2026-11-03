@@ -16,6 +16,9 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 
+import { cn } from 'cn'
+
+import { OVERLAY_ELEVATION } from '../../lib/surface'
 import { findChartTheme, type ChartPoint, type NamedCount } from './theme'
 
 const CHART_HEIGHT = 240
@@ -73,7 +76,10 @@ function ChartTooltip(props: ChartTooltipState) {
 
   return (
     <motion.div
-      className="pointer-events-none absolute top-0 left-0 z-10 max-w-[220px] rounded-md border border-border/80 bg-popover/95 px-2.5 py-1.5 text-xs text-popover-foreground shadow-md backdrop-blur-sm"
+      className={cn(
+        'pointer-events-none absolute top-0 left-0 z-10 max-w-[220px] rounded-md bg-popover/95 px-2.5 py-1.5 text-xs text-popover-foreground backdrop-blur-sm',
+        OVERLAY_ELEVATION
+      )}
       initial={{ opacity: 0, scale: 0.98, x: props.left, y: props.top }}
       animate={{ opacity: 1, scale: 1, x: props.left, y: props.top }}
       exit={{ opacity: 0, scale: 0.98 }}

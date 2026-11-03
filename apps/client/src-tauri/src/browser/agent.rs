@@ -10,6 +10,98 @@ use super::cdp;
 use super::intercept;
 use super::lifecycle;
 
+/// CDP `Input.dispatchKeyEvent` 用的按键描述（含组合键修饰）。
+struct KeyCombo {
+    key: String,
+    code: String,
+    vk: u32,
+    /// Alt=1 Ctrl=2 Meta=4 Shift=8
+    modifiers: u32,
+    text: String,
+}
+
+fn key_combo(
+    key: impl Into<String>,
+    code: impl Into<String>,
+    vk: u32,
+    modifiers: u32,
+    text: impl Into<String>,
+) -> KeyCombo {
+    let text = text.into();
+    // Ctrl/Alt/Meta 按下时不要带 text/char，否则页面会当成普通输入
+    let text = if modifiers & (1 | 2 | 4) != 0 {
+        String::new()
+    } else {
+        text
+    };
+    KeyCombo {
+        key: key.into(),
+        code: code.into(),
+        vk,
+        modifiers,
+        text,
+    }
+}
+
+/// 解析 `Enter` / `Escape` / `Ctrl+A` / `Shift+Tab` 这类按键写法。
+fn parse_key_combo(raw: &str) -> KeyCombo {
+    let trimmed = raw.trim();
+    let mut modifiers: u32 = 0;
+    let mut key_token = trimmed;
+    for part in trimmed.split('+') {
+        let token = part.trim();
+        match token.to_ascii_lowercase().as_str() {
+            "ctrl" | "control" | "controlleft" | "controlright" => modifiers |= 2,
+            "alt" | "altleft" | "altright" | "option" => modifiers |= 1,
+            "meta" | "cmd" | "command" | "metaleft" | "metaright" | "win" | "windows" => {
+                modifiers |= 4
+            }
+            "shift" | "shiftleft" | "shiftright" => modifiers |= 8,
+            _ => key_token = token,
+        }
+    }
+
+    match key_token.to_ascii_lowercase().as_str() {
+        "enter" | "return" => key_combo("Enter", "Enter", 13, modifiers, "\r"),
+        "escape" | "esc" => key_combo("Escape", "Escape", 27, modifiers, ""),
+        "tab" => key_combo("Tab", "Tab", 9, modifiers, "\t"),
+        "backspace" => key_combo("Backspace", "Backspace", 8, modifiers, ""),
+        "delete" | "del" => key_combo("Delete", "Delete", 46, modifiers, ""),
+        "space" | " " => key_combo(" ", "Space", 32, modifiers, " "),
+        "arrowup" | "up" => key_combo("ArrowUp", "ArrowUp", 38, modifiers, ""),
+        "arrowdown" | "down" => key_combo("ArrowDown", "ArrowDown", 40, modifiers, ""),
+        "arrowleft" | "left" => key_combo("ArrowLeft", "ArrowLeft", 37, modifiers, ""),
+        "arrowright" | "right" => key_combo("ArrowRight", "ArrowRight", 39, modifiers, ""),
+        "home" => key_combo("Home", "Home", 36, modifiers, ""),
+        "end" => key_combo("End", "End", 35, modifiers, ""),
+        "pageup" => key_combo("PageUp", "PageUp", 33, modifiers, ""),
+        "pagedown" => key_combo("PageDown", "PageDown", 34, modifiers, ""),
+        _ if key_token.chars().count() == 1 => {
+            let ch = key_token.chars().next().unwrap_or('a');
+            let upper = ch.to_ascii_uppercase();
+            if upper.is_ascii_alphabetic() {
+                let key = if modifiers & 8 != 0 {
+                    upper.to_string()
+                } else {
+                    ch.to_ascii_lowercase().to_string()
+                };
+                key_combo(key.clone(), format!("Key{upper}"), upper as u32, modifiers, key)
+            } else if ch.is_ascii_digit() {
+                key_combo(
+                    ch.to_string(),
+                    format!("Digit{ch}"),
+                    ch as u32,
+                    modifiers,
+                    ch.to_string(),
+                )
+            } else {
+                key_combo(ch.to_string(), "", ch as u32, modifiers, ch.to_string())
+            }
+        }
+        _ => key_combo(key_token, key_token, 0, modifiers, ""),
+    }
+}
+
 /// 探针：确认 CDP 通道在这台机器上确实可用。
 ///
 /// 四项分别对应 agent 的「读 / 看网络 / 拦截改参 / 看画面」：
@@ -123,12 +215,50 @@ fn summarize(result: Result<Value, String>) -> Value {
     }
 }
 
-/// 读页面：`text` 取正文，`outline` 取可交互元素的清单（agent 用来决定点哪里）。
+/// 读页面：`text` 取正文，`outline` 取可交互元素的清单（agent 用来决定点哪里）；
+/// `assertText` / `assertVisible` 做结构化断言（失败 `ok:false`）。
 ///
-/// 两种模式都带上 `url` / `title`：agent 必须能确认“我现在在哪一页”，
+/// 模式都带上 `url` / `title`：agent 必须能确认“我现在在哪一页”，
 /// SPA 路由变化不会触发新导航，光靠地址栏是看不出来的。
-pub async fn read(app: &AppHandle, label: &str, mode: &str, limit: usize) -> Result<Value, String> {
+pub async fn read(
+    app: &AppHandle,
+    label: &str,
+    mode: &str,
+    limit: usize,
+    selector: Option<&str>,
+    value: Option<&str>,
+) -> Result<Value, String> {
     let expression = match mode {
+        "assertText" => {
+            let needle = Value::String(value.unwrap_or("").to_string()).to_string();
+            let scope = Value::String(selector.unwrap_or("").to_string()).to_string();
+            format!(
+                r#"(() => {{
+                    const needle = {needle};
+                    const scope = {scope};
+                    const root = scope ? document.querySelector(scope) : document.body;
+                    if (!root) return {{ ok: false, reason: '断言范围无匹配元素', url: location.href }};
+                    const text = (root.innerText || '').trim();
+                    const ok = needle.length > 0 && text.includes(needle);
+                    return {{ ok, reason: ok ? null : '未找到期望文本', needle, url: location.href, title: document.title }};
+                }})()"#
+            )
+        }
+        "assertVisible" => {
+            let sel = Value::String(selector.unwrap_or("").to_string()).to_string();
+            format!(
+                r#"(() => {{
+                    const sel = {sel};
+                    if (!sel) return {{ ok: false, reason: '缺少 selector' }};
+                    const el = document.querySelector(sel);
+                    if (!el) return {{ ok: false, reason: '没有匹配的元素', url: location.href }};
+                    const visible = typeof el.checkVisibility === 'function'
+                        ? el.checkVisibility({{ checkOpacity: true, checkVisibilityCSS: true }})
+                        : (el.offsetParent !== null || el.getClientRects().length > 0);
+                    return {{ ok: !!visible, reason: visible ? null : '元素不可见', selector: sel, url: location.href, title: document.title }};
+                }})()"#
+            )
+        }
         "text" => format!(
             r#"(() => {{
                 const body = document.body;
@@ -238,7 +368,7 @@ pub async fn act(
 
     if !matches!(
         action,
-        "click" | "type" | "press" | "scroll" | "hover" | "reload"
+        "click" | "type" | "press" | "scroll" | "hover" | "reload" | "select"
     ) {
         return Err(format!("不支持的动作：{action}"));
     }
@@ -277,6 +407,161 @@ pub async fn act(
     }
 
     // 选择器直接内联进脚本 → 用 JSON 序列化兜住引号与反斜杠
+    // click / hover 优先走 **CDP 真实输入事件**：
+    // `el.click()` 只会派发一个 click，没有 pointerdown / pointerup，也没有命中测试 ——
+    // base-ui / Radix / 拖拽把手 / canvas 这类只认 pointer 事件的组件（本 app 自己的
+    // 下拉、菜单就是）在合成 click 下不响应，agent 走交互链路时会表现为「点不动」。
+    // 拿不到几何信息（隐藏元素 / 未布局）时才回退到页面内合成事件。
+    if action == "click" || action == "hover" {
+        let rect_expr = format!(
+            r#"(() => {{
+                const el = document.querySelector({selector_json});
+                if (!el) return null;
+                el.scrollIntoView({{ block: 'center', inline: 'center' }});
+                const rect = el.getBoundingClientRect();
+                if (rect.width <= 0 || rect.height <= 0) return null;
+                return {{ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }};
+            }})()"#,
+            selector_json = Value::String(selector.to_string()).to_string(),
+        );
+        let measured = cdp::call(
+            app,
+            label,
+            "Runtime.evaluate",
+            json!({ "expression": rect_expr, "returnByValue": true }),
+        )
+        .await?;
+        let point = measured
+            .get("result")
+            .and_then(|result| result.get("value"))
+            .cloned()
+            .unwrap_or(Value::Null);
+        let x = point.get("x").and_then(Value::as_f64);
+        let y = point.get("y").and_then(Value::as_f64);
+
+        if let (Some(x), Some(y)) = (x, y) {
+            if action == "hover" {
+                cdp::call(
+                    app,
+                    label,
+                    "Input.dispatchMouseEvent",
+                    json!({ "type": "mouseMoved", "x": x, "y": y, "buttons": 0 }),
+                )
+                .await?;
+            } else {
+                // 先移过去再按下 / 抬起：有的组件靠 mouseenter 挂监听
+                cdp::call(
+                    app,
+                    label,
+                    "Input.dispatchMouseEvent",
+                    json!({ "type": "mouseMoved", "x": x, "y": y, "buttons": 0 }),
+                )
+                .await?;
+                cdp::call(
+                    app,
+                    label,
+                    "Input.dispatchMouseEvent",
+                    json!({
+                        "type": "mousePressed", "x": x, "y": y,
+                        "button": "left", "buttons": 1, "clickCount": 1
+                    }),
+                )
+                .await?;
+                cdp::call(
+                    app,
+                    label,
+                    "Input.dispatchMouseEvent",
+                    json!({
+                        "type": "mouseReleased", "x": x, "y": y,
+                        "button": "left", "buttons": 0, "clickCount": 1
+                    }),
+                )
+                .await?;
+            }
+            // 等一帧多一点：点击常常触发路由 / 异步渲染，立刻回来读到的是旧文档
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            let after = cdp::call(
+                app,
+                label,
+                "Runtime.evaluate",
+                json!({
+                    "expression": "({ ok: true, mode: 'pointer', url: location.href, title: document.title })",
+                    "returnByValue": true
+                }),
+            )
+            .await?;
+            return Ok(after
+                .get("result")
+                .and_then(|result| result.get("value"))
+                .cloned()
+                .unwrap_or(Value::Null));
+        }
+    }
+
+
+    // 按键走 CDP 的**真实键盘事件**：页面内合成的 KeyboardEvent 不会触发浏览器默认行为，
+    // 于是「Enter 提交表单 / Escape 关弹层 / Tab 换焦点 / 方向键走 combobox」全都点不动。
+    // value 支持组合键写法：`Enter`、`Escape`、`Tab`、`Ctrl+A`、`Shift+Tab`。
+    if action == "press" {
+        if !selector.trim().is_empty() {
+            let focus_expr = format!(
+                "(() => {{ const el = document.querySelector({}); if (el) el.focus(); return !!el; }})()",
+                Value::String(selector.to_string())
+            );
+            cdp::call(
+                app,
+                label,
+                "Runtime.evaluate",
+                json!({ "expression": focus_expr, "returnByValue": true }),
+            )
+            .await?;
+        }
+        let combo = parse_key_combo(value.unwrap_or("Enter"));
+        let mut down = json!({
+            "type": "keyDown",
+            "key": &combo.key,
+            "code": &combo.code,
+            "windowsVirtualKeyCode": combo.vk,
+            "nativeVirtualKeyCode": combo.vk,
+            "modifiers": combo.modifiers
+        });
+        if !combo.text.is_empty() {
+            down["text"] = json!(&combo.text);
+            down["unmodifiedText"] = json!(&combo.text);
+        }
+        cdp::call(app, label, "Input.dispatchKeyEvent", down).await?;
+        cdp::call(
+            app,
+            label,
+            "Input.dispatchKeyEvent",
+            json!({
+                "type": "keyUp",
+                "key": &combo.key,
+                "code": &combo.code,
+                "windowsVirtualKeyCode": combo.vk,
+                "nativeVirtualKeyCode": combo.vk,
+                "modifiers": combo.modifiers
+            }),
+        )
+        .await?;
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        let after = cdp::call(
+            app,
+            label,
+            "Runtime.evaluate",
+            json!({
+                "expression": "({ ok: true, mode: 'keyboard', url: location.href, title: document.title, active: document.activeElement ? document.activeElement.tagName + (document.activeElement.id ? '#' + document.activeElement.id : '') : null })",
+                "returnByValue": true
+            }),
+        )
+        .await?;
+        return Ok(after
+            .get("result")
+            .and_then(|result| result.get("value"))
+            .cloned()
+            .unwrap_or(Value::Null));
+    }
+
     let selector_json = Value::String(selector.to_string()).to_string();
     let value_json = match value {
         Some(text) => Value::String(text.to_string()).to_string(),
@@ -287,9 +572,32 @@ pub async fn act(
         r#"(() => {{
             const value = {value_json};
 
-            // scroll 不看元素：agent 的意思是“把页面往下翻”，指定 selector 反而不方便
+            // scroll：不传 selector 时滚整页；传了就滚目标所在的**最近可滚动祖先** ——
+            // H5 页面常用 inner scroll container，只滚 window 的话看上去「滚不动」。
             if ({action_json} === 'scroll') {{
-                window.scrollBy(0, Number(value) || 600);
+                const delta = Number(value) || 600;
+                const sel = {selector_json};
+                const target = sel ? document.querySelector(sel) : null;
+                if (target) {{
+                    target.scrollIntoView({{ block: 'center', inline: 'nearest' }});
+                    let node = target;
+                    let scrolled = false;
+                    while (node && node !== document.body) {{
+                        const style = getComputedStyle(node);
+                        const scrollable =
+                            /(auto|scroll|overlay)/.test(style.overflowY) &&
+                            node.scrollHeight > node.clientHeight + 1;
+                        if (scrollable) {{
+                            node.scrollTop += delta;
+                            scrolled = true;
+                            break;
+                        }}
+                        node = node.parentElement;
+                    }}
+                    if (!scrolled) window.scrollBy(0, delta);
+                }} else {{
+                    window.scrollBy(0, delta);
+                }}
             }} else {{
                 const el = document.querySelector({selector_json});
                 if (!el) return {{ ok: false, reason: '没有匹配的元素' }};
@@ -298,6 +606,8 @@ pub async fn act(
                         el.click();
                         break;
                     case 'hover':
+                        el.dispatchEvent(new PointerEvent('pointerover', {{ bubbles: true }}));
+                        el.dispatchEvent(new PointerEvent('pointerenter', {{ bubbles: false }}));
                         el.dispatchEvent(new MouseEvent('mouseover', {{ bubbles: true }}));
                         el.dispatchEvent(new MouseEvent('mousemove', {{ bubbles: true }}));
                         break;
@@ -320,6 +630,22 @@ pub async fn act(
                         else if ('value' in el) el.value = next;
                         else el.textContent = next;
                         el.dispatchEvent(new InputEvent('input', {{ bubbles: true, data: next }}));
+                        el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                        break;
+                    }}
+                    case 'select': {{
+                        if (el.tagName !== 'SELECT') return {{ ok: false, reason: '不是 select 元素' }};
+                        const next = value == null ? '' : String(value);
+                        let matched = false;
+                        for (const opt of Array.from(el.options)) {{
+                            if (opt.value === next || opt.textContent.trim() === next) {{
+                                el.value = opt.value;
+                                matched = true;
+                                break;
+                            }}
+                        }}
+                        if (!matched) return {{ ok: false, reason: '没有匹配的 option' }};
+                        el.dispatchEvent(new Event('input', {{ bubbles: true }}));
                         el.dispatchEvent(new Event('change', {{ bubbles: true }}));
                         break;
                     }}
@@ -349,6 +675,116 @@ pub async fn act(
         .and_then(|result| result.get("value"))
         .cloned()
         .unwrap_or(Value::Null))
+}
+
+/// 等待条件：selector 出现/可见/可点，或短窗口 networkIdle。
+pub async fn wait(
+    app: &AppHandle,
+    label: &str,
+    condition: &str,
+    selector: Option<&str>,
+    timeout_ms: u64,
+) -> Result<Value, String> {
+    let timeout = timeout_ms.clamp(100, 60_000);
+    let poll_ms: u64 = 200;
+    let started = std::time::Instant::now();
+
+    if condition == "networkIdle" {
+        // 简化：连续两轮 poll 内无新文档请求即视为 idle（CDP Network 完整计数成本高）
+        let mut quiet_rounds = 0u32;
+        while started.elapsed().as_millis() < u128::from(timeout) {
+            let busy = cdp::call(
+                app,
+                label,
+                "Runtime.evaluate",
+                json!({
+                    "expression": "document.readyState !== 'complete'",
+                    "returnByValue": true
+                }),
+            )
+            .await?;
+            let is_busy = busy
+                .get("result")
+                .and_then(|result| result.get("value"))
+                .and_then(Value::as_bool)
+                .unwrap_or(true);
+            if is_busy {
+                quiet_rounds = 0;
+            } else {
+                quiet_rounds += 1;
+                if quiet_rounds >= 2 {
+                    return Ok(json!({
+                        "ok": true,
+                        "condition": "networkIdle",
+                        "elapsedMs": started.elapsed().as_millis() as u64
+                    }));
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(poll_ms)).await;
+        }
+        return Ok(json!({
+            "ok": false,
+            "reason": "等待 networkIdle 超时",
+            "condition": "networkIdle",
+            "elapsedMs": started.elapsed().as_millis() as u64
+        }));
+    }
+
+    let sel = selector.unwrap_or("").trim();
+    if sel.is_empty() {
+        return Err("等待 selector/visible/clickable 时需要 selector".to_string());
+    }
+    let sel_json = Value::String(sel.to_string()).to_string();
+    let cond_json = Value::String(condition.to_string()).to_string();
+
+    while started.elapsed().as_millis() < u128::from(timeout) {
+        let expression = format!(
+            r#"(() => {{
+                const el = document.querySelector({sel_json});
+                if (!el) return {{ ok: false }};
+                const visible = typeof el.checkVisibility === 'function'
+                    ? el.checkVisibility({{ checkOpacity: true, checkVisibilityCSS: true }})
+                    : (el.offsetParent !== null || el.getClientRects().length > 0);
+                if ({cond_json} === 'selector') return {{ ok: true }};
+                if ({cond_json} === 'visible') return {{ ok: !!visible }};
+                if ({cond_json} === 'clickable') {{
+                    const disabled = el.disabled === true || el.getAttribute('aria-disabled') === 'true';
+                    return {{ ok: !!visible && !disabled }};
+                }}
+                return {{ ok: !!visible }};
+            }})()"#
+        );
+        let response = cdp::call(
+            app,
+            label,
+            "Runtime.evaluate",
+            json!({ "expression": expression, "returnByValue": true }),
+        )
+        .await?;
+        let ok = response
+            .get("result")
+            .and_then(|result| result.get("value"))
+            .and_then(|value| value.get("ok"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        if ok {
+            return Ok(json!({
+                "ok": true,
+                "condition": condition,
+                "selector": sel,
+                "elapsedMs": started.elapsed().as_millis() as u64
+            }));
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(poll_ms)).await;
+    }
+
+    Ok(json!({
+        "ok": false,
+        "reason": format!("等待 {condition} 超时"),
+        "condition": condition,
+        "selector": sel,
+        "elapsedMs": started.elapsed().as_millis() as u64
+    }))
 }
 
 /// 截屏：`Page.captureScreenshot` 拿 base64，返回原始 base64 + mime。

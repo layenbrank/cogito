@@ -10,7 +10,7 @@ const SCENARIOS: { key: ScenarioKey; label: string; icon: string }[] = [
   { key: 'directive', label: '指令', icon: 'lucide:workflow' },
   { key: 'knowledge', label: '知识库', icon: 'lucide:library-big' },
   { key: 'compare', label: '对比', icon: 'lucide:shopping-cart' },
-  { key: 'plan', label: '规划', icon: 'lucide:calendar' },
+  { key: 'plan', label: '日程规划', icon: 'lucide:calendar' },
   { key: 'code', label: '代码', icon: 'lucide:code' }
 ]
 

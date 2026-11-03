@@ -11,6 +11,7 @@ import {
   OVERLAY_BACKDROP_MOTION,
   type OverlaySide
 } from '../lib/overlay-motion'
+import { OVERLAY_ELEVATION } from '../lib/surface'
 import { webviewCoverProps } from '../lib/webview-cover'
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
@@ -116,7 +117,8 @@ function DialogContent({
         className={cn(
           // 圆角裁切在外壳；Header/Footer 挂到滚动区外，避免滚动条压到关闭按钮、Footer -mx-4 撑出横向滚动
           shellContainer ? 'absolute' : 'fixed',
-          'z-50 flex flex-col gap-0 overflow-hidden bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 outline-none',
+          'z-50 flex flex-col gap-0 overflow-hidden bg-popover p-4 text-sm text-popover-foreground outline-none',
+          OVERLAY_ELEVATION,
           side === 'center' && 'rounded-xl',
           findOverlaySideClass(side),
           className

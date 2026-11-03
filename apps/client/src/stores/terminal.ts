@@ -8,6 +8,8 @@ import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { subscribeWithSelector } from 'zustand/middleware'
 
+import { Terminal } from '@/lib/terminal'
+
 type TerminalTabKind = 'pty'
 
 /** 谁开的 tab：`agent` 的会话由 Rust 先建好、面板后挂（`terminal:attach`） */
@@ -27,6 +29,11 @@ interface TerminalTab {
   exitCode: number | null
   /** 该 tab 里最近一次由 agent 执行的命令；「详情 · 正在执行」靠它定位 tab */
   command?: string
+  /**
+   * 从 Rust `terminal:list` 灌回来的会话（WebView 刷新 / 重开面板）：
+   * 视图要先 attach 复用那个 shell，而不是 create 把正在跑的命令杀掉。
+   */
+  restored?: boolean
 }
 
 /** agent 开始跑命令时的入参（来自 `terminal://agent-run`） */
@@ -51,7 +58,13 @@ interface TerminalState {
   open: boolean
   activity: DockActivity
   openPanel: () => void
+  /**
+   * 收起面板**不杀会话**：agent 可能正在里面跑命令，用户也可能只是切去看别的页签。
+   * 真要把会话一起回收，用 `closeAllSessions`（页头的「结束全部会话」）。
+   */
   closePanel: () => void
+  /** 结束全部终端会话（kill PTY + 清空 tabs），用于「我不想留后台进程」 */
+  closeAllSessions: () => void
   writeActivity: (activity: DockActivity) => void
   /** 打开底部栏并切到指定活动页（默认「运行」） */
   revealDock: (options?: RevealDockOptions) => void
@@ -59,6 +72,19 @@ interface TerminalState {
   newTab: (cwd: string, options?: NewTabOptions) => void
   /** agent 开跑：已经有这个会话就复用并切过去，否则新开一个 `agent · 目录` tab */
   revealAgentTab: (input: AgentTabInput) => void
+  /**
+   * 刷新后从 Rust list 灌回 tab：不掀开面板、不抢 active（已有则补 pid）。
+   */
+  hydrateSession: (input: {
+    id: string
+    cwd: string
+    pid: number | null
+    origin?: TerminalTabOrigin
+  }) => void
+  /**
+   * WebView 重载后：有存活 agent 会话则掀开面板并保证 active（VS Code reconnect）。
+   */
+  restoreAgentPanel: () => void
   removeTab: (id: string) => void
   writeActive: (id: string) => void
   markExited: (id: string, exitCode: number | null) => void
@@ -72,7 +98,7 @@ function makePtyTitle(cwd: string): string {
 
 const useTerminalStore = create<TerminalState>()(
   subscribeWithSelector(
-    immer(function (set) {
+    immer(function (set, get) {
       return {
         tabs: [],
         activeId: null,
@@ -86,6 +112,22 @@ const useTerminalStore = create<TerminalState>()(
         },
 
         closePanel: function () {
+          // 只收起：把 kill 放在这里会让「点 X 关面板」顺手杀掉 agent 正在跑的 shell，
+          // 用户再打开就是空白/断掉的会话 —— 正是「终端时不时不能用」的来源之一。
+          set(function (state) {
+            state.open = false
+          })
+        },
+
+        closeAllSessions: function () {
+          const ids = get().tabs.map(function (tab) {
+            return tab.id
+          })
+          for (const id of ids) {
+            void Terminal.kill(id).catch(function (error) {
+              console.warn('[terminal] closeAllSessions kill 失败:', id, error)
+            })
+          }
           set(function (state) {
             state.open = false
             state.tabs = []
@@ -151,6 +193,61 @@ const useTerminalStore = create<TerminalState>()(
             state.activeId = input.id
             state.activity = 'terminal'
             state.open = true
+          })
+        },
+
+        hydrateSession: function (input) {
+          set(function (state) {
+            const existing = state.tabs.find(function (tab) {
+              return tab.id === input.id
+            })
+            if (existing) {
+              if (input.pid !== null && input.pid !== undefined) existing.pid = input.pid
+              existing.restored = true
+              existing.exited = false
+              return
+            }
+            const origin = input.origin ?? (input.id.startsWith('agent:') ? 'agent' : 'user')
+            state.tabs.push({
+              id: input.id,
+              kind: 'pty',
+              origin,
+              title:
+                origin === 'agent'
+                  ? `agent · ${makePtyTitle(input.cwd)}`
+                  : makePtyTitle(input.cwd),
+              cwd: input.cwd,
+              pid: input.pid,
+              restored: true,
+              exited: false,
+              exitCode: null
+            })
+            // activeId 可能指向已经关掉的 tab：失效也要接管，否则一个视图都不 active → 面板空白
+            const activeAlive = state.tabs.some(function (tab) {
+              return tab.id === state.activeId
+            })
+            if (!activeAlive) state.activeId = input.id
+          })
+        },
+
+        restoreAgentPanel: function () {
+          set(function (state) {
+            const agentTab =
+              state.tabs.find(function (tab) {
+                return tab.origin === 'agent' && !tab.exited
+              }) ??
+              state.tabs.find(function (tab) {
+                return tab.id.startsWith('agent:')
+              })
+            if (!agentTab) return
+            state.open = true
+            state.activity = 'terminal'
+            const activeAlive = state.tabs.some(function (tab) {
+              return tab.id === state.activeId
+            })
+            if (!activeAlive || !state.activeId) {
+              state.activeId = agentTab.id
+            }
           })
         },
 

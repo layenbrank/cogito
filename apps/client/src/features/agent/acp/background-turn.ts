@@ -29,6 +29,11 @@ interface BackgroundTurn {
   threadID: string
   /** 薄镜像：有上限；权威副本在 Rust */
   events: ChatStreamEvent[]
+  /**
+   * `events` 因 CAP 从队首丢掉的条数。订阅方的 `index` 必须减去增量，
+   * 否则会卡在 `index === length` 永远扫不到新事件（长回合冻流）。
+   */
+  dropped: number
   status: 'running' | 'done'
   cancel: AbortController
   listeners: Set<TurnListener>
@@ -49,6 +54,16 @@ const turns = new Map<string, BackgroundTurn>()
 
 /** 回合结束后短暂保留，方便 remount 的 `resume` 接到缓冲 */
 const TURN_RETENTION_MS = 60_000
+
+/**
+ * 抢占旧回合的等待上限：超过就强行让位。
+ *
+ * 取消是协作式的 —— 正在跑的工具（dev server、大构建、卡住的网络请求）可能几分钟
+ * 都不回应 `session/cancel`。以前这里 `while (running) await ...` 没有上限，
+ * 于是「编辑后点更新」会永远挂在 `ensureBackgroundTurn` 里：界面不再刷新、
+ * 也不报错，只有整页重载才恢复。给一个上限，宁可让旧回合在后台自行收尾。
+ */
+const SUPERSEDE_WAIT_MS = 6_000
 
 /**
  * 本地镜像条数上限（与 Rust `MAX_EVENTS` 对齐）。
@@ -162,8 +177,35 @@ function isDetachAbort(signal: AbortSignal): boolean {
   )
 }
 
+/**
+ * 用户点「停止」：assistant-ui `cancelRun` → `AbortError(detach: false)`。
+ *
+ * 注意：`performRoundtrip` 开新轮时会 `abort()` **无 reason**——那不能当作用户停止，
+ * 否则会把仍在跑的 goose 泵掐成半截输出。仅显式 `detach === false` 才杀泵。
+ */
+function isUserStopAbort(signal: AbortSignal): boolean {
+  const reason: unknown = signal.reason
+  return Boolean(
+    reason !== null &&
+      typeof reason === 'object' &&
+      'detach' in reason &&
+      (reason as { detach?: unknown }).detach === false
+  )
+}
+
 function isTerminalEvent(event: ChatStreamEvent): boolean {
   return event.kind === 'finish' || event.kind === 'aborted' || event.kind === 'error'
+}
+
+function synthesizeMissingTerminal(cancel: AbortSignal): ChatStreamEvent {
+  if (cancel.aborted) {
+    return { kind: 'aborted', usage: {} }
+  }
+  return {
+    kind: 'error',
+    message: '回合异常结束：未收到终态（输出可能不完整）',
+    usage: {}
+  }
 }
 
 function bindUiCancel(uiSignal: AbortSignal | undefined, cancel: AbortController): () => void {
@@ -172,7 +214,8 @@ function bindUiCancel(uiSignal: AbortSignal | undefined, cancel: AbortController
   // 窄化到非空后另存一份：嵌套的 onAbort 拿不到外层 if 的窄化结果
   const signal = uiSignal
   function onAbort() {
-    if (isDetachAbort(signal)) return
+    // 仅用户停止才转发到 goose；detach / bare abort 只结束 UI 订阅
+    if (!isUserStopAbort(signal)) return
     if (!cancel.signal.aborted) cancel.abort(signal.reason)
   }
 
@@ -187,14 +230,39 @@ function bindUiCancel(uiSignal: AbortSignal | undefined, cancel: AbortController
   }
 }
 
-function waitForTurnEvent(turn: BackgroundTurn): Promise<void> {
+function waitForTurnEvent(turn: BackgroundTurn, timeoutMs?: number): Promise<void> {
   return new Promise(function (resolve) {
     const listener: TurnListener = function () {
       turn.listeners.delete(listener)
       resolve()
     }
     turn.listeners.add(listener)
+    // 有上限：抢占旧回合时不能被一个不响应的工具无限拖住
+    if (timeoutMs === undefined) return
+    window.setTimeout(function () {
+      turn.listeners.delete(listener)
+      resolve()
+    }, Math.max(0, timeoutMs))
   })
+}
+
+/** UI abort（detach / stop）要能打断无限 wait，否则订阅挂死、适配器落成「流异常」 */
+function waitForUiAbort(signal: AbortSignal | undefined): Promise<void> {
+  if (!signal) return new Promise(function () {})
+  if (signal.aborted) return Promise.resolve()
+  return new Promise(function (resolve) {
+    signal.addEventListener('abort', function () {
+      resolve()
+    }, { once: true })
+  })
+}
+
+async function waitForTurnOrUiAbort(
+  turn: BackgroundTurn,
+  uiSignal: AbortSignal | undefined,
+  timeoutMs?: number
+): Promise<void> {
+  await Promise.race([waitForTurnEvent(turn, timeoutMs), waitForUiAbort(uiSignal)])
 }
 
 function waitMs(ms: number): Promise<void> {
@@ -224,6 +292,21 @@ function pushLocalEvent(turn: BackgroundTurn, event: ChatStreamEvent) {
   if (turn.events.length > TURN_EVENT_CAP) {
     const overflow = turn.events.length - TURN_EVENT_CAP
     turn.events.splice(0, overflow)
+    turn.dropped += overflow
+  }
+}
+
+/** 订阅游标对齐 CAP 裁剪；返回修正后的 index 与已对齐的 dropped 水位 */
+function alignSubscribeIndex(
+  index: number,
+  seenDropped: number,
+  turn: BackgroundTurn
+): { index: number; seenDropped: number } {
+  if (turn.dropped <= seenDropped) return { index, seenDropped }
+  const delta = turn.dropped - seenDropped
+  return {
+    index: Math.max(0, index - delta),
+    seenDropped: turn.dropped
   }
 }
 
@@ -268,24 +351,53 @@ function dualWriteEvent(turn: BackgroundTurn, event: ChatStreamEvent) {
   })
 }
 
-function ensureBackgroundTurn(
+/**
+ * 中止某 thread 正在跑的后台泵，并等到 `status === 'done'`（含 drain）。
+ * 无 running 回合时立即返回。编辑 / 重发 / steer / 目标续跑开新轮前调用。
+ */
+async function abortBackgroundTurn(threadID: string): Promise<void> {
+  const key = threadID.trim()
+  const existing = turns.get(key)
+  if (!existing || existing.status !== 'running') return
+
+  if (!existing.cancel.signal.aborted) {
+    existing.cancel.abort({ name: 'AbortError', reason: 'superseded' })
+  }
+
+  // 等到 finally 把 status 标成 done（notify 会唤醒 waitForTurnEvent）
+  const deadline = Date.now() + SUPERSEDE_WAIT_MS
+  while (existing.status === 'running') {
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) {
+      // 旧回合不肯收尾：把它从登记表里摘掉，让新一轮先跑起来。
+      // 旧泵仍在后台，事件继续写自己的缓冲，但不再阻塞 UI 的发送链路。
+      console.warn('[acp/background-turn] 旧回合未在时限内收尾，强行让位:', key)
+      if (!existing.events.some(isTerminalEvent)) {
+        const missing: ChatStreamEvent = { kind: 'aborted', usage: {} }
+        pushLocalEvent(existing, missing)
+        notifyTurn(existing, missing)
+      }
+      existing.status = 'done'
+      if (turns.get(key) === existing) turns.delete(key)
+      clearPersistedRunning(key)
+      void finishAgentTurn(key).catch(function (error: unknown) {
+        console.warn('[acp/background-turn] 强行让位时收尾失败:', error)
+      })
+      return
+    }
+    await waitForTurnEvent(existing, remaining)
+  }
+}
+
+function spawnBackgroundPump(
   threadID: string,
   start: (signal: AbortSignal) => AsyncIterable<ChatStreamEvent>
 ): BackgroundTurn {
-  const existing = turns.get(threadID)
-  if (existing && existing.status === 'running') {
-    // 同一 thread 只允许一轮在跑；start 不同说明有人拿旧 id 另起一轮，静默复用会把
-    // 新输入接到旧泵上 —— 直接报错暴露，不吞
-    if (existing.start !== start) {
-      throw new Error('[acp/background-turn] 同一 thread 已有不同 start 的回合在跑')
-    }
-    return existing
-  }
-
   const cancel = new AbortController()
   const turn: BackgroundTurn = {
     threadID,
     events: [],
+    dropped: 0,
     status: 'running',
     cancel,
     listeners: new Set(),
@@ -307,6 +419,13 @@ function ensureBackgroundTurn(
         notifyTurn(turn, event)
         if (isTerminalEvent(event)) break
       }
+      // start 正常 return 却无终态：合成一条，禁止订阅方软收尾成「假完成」
+      if (!turn.events.some(isTerminalEvent)) {
+        console.warn('[acp/background-turn] 泵无终态结束，合成终端事件:', threadID)
+        const missing = synthesizeMissingTerminal(cancel.signal)
+        dualWriteEvent(turn, missing)
+        notifyTurn(turn, missing)
+      }
     } catch (error) {
       // 泵异常也要变成可重放的终态，否则 resume 会永远等 running
       console.warn('[acp/background-turn] 回合泵异常:', error)
@@ -317,8 +436,7 @@ function ensureBackgroundTurn(
         notifyTurn(turn, failed)
       }
     } finally {
-      // TS 侧立刻标 done（订阅者 / hasRunning 不再等 IPC）；
-      // 但 Rust finish 必须等 append 排空，否则尾批会被 Done 丢弃
+      // 终态已在 events 里：立刻标 done（hasRunning / 测试依赖）；Rust finish 仍等 append 排空
       turn.status = 'done'
       clearPersistedRunning(turn.threadID)
       await drainPendingAppend(turn)
@@ -341,21 +459,43 @@ function ensureBackgroundTurn(
 }
 
 /**
+ * 同一 thread 只允许一轮在跑。`start` 相同 → 复用旧泵（resume 订阅）；
+ * `start` 不同 → 先 abort 旧泵再开新泵（编辑 / 重发 / 续跑），禁止静默把新输入接到旧泵。
+ */
+async function ensureBackgroundTurn(
+  threadID: string,
+  start: (signal: AbortSignal) => AsyncIterable<ChatStreamEvent>
+): Promise<BackgroundTurn> {
+  const existing = turns.get(threadID)
+  if (existing && existing.status === 'running') {
+    if (existing.start === start) return existing
+    await abortBackgroundTurn(threadID)
+  }
+
+  return spawnBackgroundPump(threadID, start)
+}
+
+/**
  * 订阅（或新建）某 thread 的后台回合：先重放缓冲，再跟实时尾部。
  *
- * UI `detach` 只会结束本生成器，**不会**停泵；显式停止才会 `cancel.abort()`。
+ * UI `detach` / bare abort 只会结束本生成器，**不会**停泵；显式停止（detach===false）
+ * 才会 `cancel.abort()`。消费端因用户停止退出时，finally 仍保证泵被 abort。
  */
 async function* consumeBackgroundTurn(
   threadID: string,
   uiSignal: AbortSignal | undefined,
   start: (signal: AbortSignal) => AsyncIterable<ChatStreamEvent>
 ): AsyncGenerator<ChatStreamEvent, void, unknown> {
-  const turn = ensureBackgroundTurn(threadID, start)
+  const turn = await ensureBackgroundTurn(threadID, start)
   const unbind = bindUiCancel(uiSignal, turn.cancel)
 
   try {
     let index = 0
+    let seenDropped = 0
     while (true) {
+      const aligned = alignSubscribeIndex(index, seenDropped, turn)
+      index = aligned.index
+      seenDropped = aligned.seenDropped
       while (index < turn.events.length) {
         const event = turn.events[index]
         index += 1
@@ -363,15 +503,51 @@ async function* consumeBackgroundTurn(
         yield event
         if (isTerminalEvent(event)) return
       }
-      if (turn.status === 'done') return
-      await waitForTurnEvent(turn)
+      if (turn.status === 'done') {
+        // 防御：泵标 done 但缓冲仍无终态（竞态 / 旧数据）——再合成一条给 UI
+        if (!turn.events.some(isTerminalEvent)) {
+          const missing = synthesizeMissingTerminal(turn.cancel.signal)
+          turn.deliveredTerminal = true
+          yield missing
+        }
+        return
+      }
+      // detach / bare abort：立刻给 UI aborted，泵继续跑（resume 续播）。
+      // 用户停止：不要抢先 return，等泵把 aborted/finish 推进缓冲。
+      if (uiSignal?.aborted && !isUserStopAbort(uiSignal)) {
+        yield { kind: 'aborted', usage: {} }
+        return
+      }
+      if (uiSignal?.aborted && isUserStopAbort(uiSignal)) {
+        // ui 已 abort：不能再 race waitForUiAbort（会立刻 resolve 忙等）；只等泵事件
+        await waitForTurnEvent(turn, 30_000)
+        continue
+      }
+      // notify 可能在挂 listener 前已发：再扫一次，禁止空 wait 冻死「生成中」
+      if (index < turn.events.length) continue
+      await waitForTurnOrUiAbort(turn, uiSignal)
     }
   } finally {
+    const wasUserCancel = Boolean(uiSignal?.aborted && isUserStopAbort(uiSignal))
     unbind()
+    // 用户停止：即使 listener 已卸，也要保证泵停掉（编辑/steer 的 abort 可能落在 unbind 后）
+    if (
+      wasUserCancel &&
+      turn.status === 'running' &&
+      !turn.cancel.signal.aborted
+    ) {
+      turn.cancel.abort(uiSignal?.reason)
+    }
   }
 }
 
-/** 优先 Rust `agentTurn:follow`（cursor）；环缓冲缺失时回退本地 `events[]`。 */
+/**
+ * Remount / resume 续订。
+ *
+ * **有本地泵时只扫 `turn.events`**（与 consume 同构）：Nov 3 批写 append 后
+ * Rust follow 常落后本地，空批 + waitForTurnEvent 会丢掉已发的 notify → 「生成中」冻死。
+ * 仅内存泵已不在时才走 Rust cursor。
+ */
 async function* followBackgroundTurn(
   threadID: string,
   uiSignal: AbortSignal | undefined
@@ -381,46 +557,65 @@ async function* followBackgroundTurn(
   const unbind = bindUiCancel(uiSignal, cancel)
 
   try {
+    if (local) {
+      let index = 0
+      let seenDropped = 0
+      while (true) {
+        const aligned = alignSubscribeIndex(index, seenDropped, local)
+        index = aligned.index
+        seenDropped = aligned.seenDropped
+        while (index < local.events.length) {
+          const event = local.events[index]
+          index += 1
+          if (isTerminalEvent(event)) local.deliveredTerminal = true
+          yield event
+          if (isTerminalEvent(event)) return
+        }
+        if (local.status === 'done') {
+          if (!local.events.some(isTerminalEvent)) {
+            const missing = synthesizeMissingTerminal(local.cancel.signal)
+            local.deliveredTerminal = true
+            yield missing
+          }
+          return
+        }
+        if (uiSignal?.aborted && !isUserStopAbort(uiSignal)) {
+          yield { kind: 'aborted', usage: {} }
+          return
+        }
+        if (uiSignal?.aborted && isUserStopAbort(uiSignal)) {
+          await waitForTurnEvent(local, 30_000)
+          continue
+        }
+        if (index < local.events.length) continue
+        await waitForTurnOrUiAbort(local, uiSignal)
+      }
+    }
+
+    // 冷路径：WebView 刷新后内存泵没了，跟 Rust ring
     let cursor = 0
-    let sawRust = false
-
+    let sawTerminal = false
     while (true) {
+      if (uiSignal?.aborted && !isUserStopAbort(uiSignal)) {
+        yield { kind: 'aborted', usage: {} }
+        return
+      }
       const followed = await followAgentTurn(threadID, cursor)
-      if (!followed || followed.status === 'missing') break
-
-      sawRust = true
+      if (!followed || followed.status === 'missing') {
+        if (!sawTerminal) yield synthesizeMissingTerminal(cancel.signal)
+        return
+      }
       for (const event of followed.events) {
-        if (local && isTerminalEvent(event)) local.deliveredTerminal = true
+        if (isTerminalEvent(event)) sawTerminal = true
         yield event
         if (isTerminalEvent(event)) return
       }
       cursor = followed.nextCursor
-      if (followed.status === 'done') return
-
-      if (local && local.status === 'running') {
-        await waitForTurnEvent(local)
-      } else {
-        await waitMs(RUST_FOLLOW_POLL_MS)
+      if (followed.status === 'done') {
+        if (!sawTerminal) yield synthesizeMissingTerminal(cancel.signal)
+        return
       }
-    }
-
-    if (sawRust) return
-
-    // 薄回退：仅内存态
-    const turn = turns.get(threadID)
-    if (!turn) return
-
-    let index = 0
-    while (true) {
-      while (index < turn.events.length) {
-        const event = turn.events[index]
-        index += 1
-        if (isTerminalEvent(event)) turn.deliveredTerminal = true
-        yield event
-        if (isTerminalEvent(event)) return
-      }
-      if (turn.status === 'done') return
-      await waitForTurnEvent(turn)
+      await Promise.race([waitMs(RUST_FOLLOW_POLL_MS), waitForUiAbort(uiSignal)])
     }
   } finally {
     unbind()
@@ -457,7 +652,19 @@ function clearBackgroundTurns() {
   turns.clear()
 }
 
+/** goose 重置等：中止所有内存态后台泵（并行等待 done） */
+async function abortAllBackgroundTurns(): Promise<void> {
+  const ids = [...turns.keys()]
+  await Promise.all(
+    ids.map(function (id) {
+      return abortBackgroundTurn(id)
+    })
+  )
+}
+
 export {
+  abortAllBackgroundTurns,
+  abortBackgroundTurn,
   bindBackgroundTurnPersister,
   clearBackgroundTurns,
   clearPersistedRunning,
@@ -470,6 +677,7 @@ export {
   hasRunningBackgroundTurn,
   isDetachAbort,
   isTerminalEvent,
+  isUserStopAbort,
   onBackgroundTurnFinished,
   readRunningTurns,
   syncRunningTurnsFromRust

@@ -83,14 +83,17 @@ function buildPlanContext(context?: PromptContext): string {
 const BROWSER_PLAYBOOK = `浏览器面板（用户能看到的内嵌浏览器，不是爬虫）：
 - 用户说「这个页面 / 当前网页 / 刚才那个接口 / 报错的那个请求 / 截图」时，**直接读用户正在看的那个标签页**（app_browser_read / app_browser_network），不要让他复制粘贴，也不要猜。
 - 需要看用户提到的网址时，先 app_browser_open 打开它，再用 app_browser_read 取内容；用户会看到这个页面。
-- app_browser_read 的 outline 会返回 selector，直接拿去 app_browser_act 点击/输入/悬停/滚动（scroll 不需要 selector）；动作有副作用，不确定时先问一句。app_browser_act 发的都是页面内合成事件，**按 F5 / Ctrl+R 不会刷新页面**。
-- 需要重新加载时用 app_browser_act 的 reload（value 传 hard 表示忽略缓存）—— 改完配置要生效、想重看一遍请求、或者页面状态乱了都可以自己刷，不必让用户动手。刷新是异步的，先看返回的 readyState（loading 就再等一会儿），再 app_browser_read 取新页面。
+- **走通交互链路**优先：open →（H5 则 device）→ app_browser_wait → read(outline) → act → read(assertText/assertVisible) → screenshot / network。
+- app_browser_wait：等 selector 出现/可见/可点，或 networkIdle；**不要用瞎 sleep**。
+- app_browser_read 的 outline 会返回 selector，直接拿去 app_browser_act 点击/输入/悬停/滚动/select（scroll 不需要 selector）；动作有副作用，不确定时先问一句。app_browser_act 发的都是页面内合成事件，**按 F5 / Ctrl+R 不会刷新页面**。
+- 断言：app_browser_read mode=assertText（value=期望子串）或 assertVisible（selector）；失败看 ok/reason 再重试 wait+act。
+- 需要重新加载时用 app_browser_act 的 reload（value 传 hard 表示忽略缓存）—— 改完配置要生效、想重看一遍请求、或者页面状态乱了都可以自己刷，不必让用户动手。刷新是异步的，先 wait(networkIdle) 或看 readyState，再 app_browser_read 取新页面。
 - 涉及**视觉**的问题（配色、布局、间距、字体、图片或图表内容、有没有错位/撑破）必须用 app_browser_screenshot 看一眼 —— DOM 文本里根本没有这些信息，不要根据标签名猜样式。
 - 用户在输入框里用 @ 引用了浏览器标签页（文本形如 :browser[页面标题]{name=browser-<uuid>}）时，**name/id 才是**要传给 app_browser_* 的 tab 参数；方括号是给人看的标题。未选中的标签页也可读可操作，只要带对 tab。
 - 同 host 已有标签时优先复用（app_browser_open 默认不重复开）；确需新开再传 forceNew。
 - app_browser_network 只记录「打开标签页之后」发生的请求。列表为空或信息不全时，**先 reload 再查**，不要张口就让用户手动刷新。
 - 要验证「接口挂了会怎样」「返回别的数据时界面怎么变」时用 app_browser_intercept：block 直接断掉、mock 给固定响应、edit 改地址/请求头/请求体（改参重发）。规则在该标签页内一直生效，**验证完传空数组清掉**。
-- 验 H5 移动端效果时先用 app_browser_device 切设备（preset 如 iphone-15-pro，或 width+height+dpr+mobile+userAgent），再用 app_browser_read / app_browser_screenshot 看效果；返回里的 readback（innerWidth / innerHeight / dpr / pointerCoarse）是页面自报值，以它为准，别凭参数猜。看完传 off=true 复原 —— 只作用于当前标签页。
+- 验 H5 移动端效果时先用 app_browser_device 切设备（preset 如 iphone-15-pro，或 width+height+dpr+mobile+userAgent），再用 wait → read / screenshot 看效果；返回里的 readback（innerWidth / innerHeight / dpr / pointerCoarse）是页面自报值，以它为准，别凭参数猜。看完传 off=true 复原 —— 只作用于当前标签页。
 - 只在真正需要时开新标签页，用完不要累积一堆；不要用它做批量抓取（需要爬取时说明限制）。`
 
 /**
@@ -100,7 +103,7 @@ const BROWSER_PLAYBOOK = `浏览器面板（用户能看到的内嵌浏览器，
  * 用户能围观、能接管，出问题时也能自己接着敲。
  */
 const TERMINAL_PLAYBOOK = `右栏终端（用户看得见的嵌入式 shell）：
-- 要执行命令优先用 app_terminal_run（cwd 传绝对路径）：命令会打在接受用户右栏那个终端里，输出由它读回来，用户全程看得见、可接管。
+- **禁止**使用 shell / bash / developer__shell / exec 等黑盒终端工具（已被禁用）。执行命令必须且只能用 app_terminal_run（cwd 传绝对路径）：命令打在右栏嵌入式终端里，用户全程看得见、可接管。
 - 结果里 isRunning=true 表示还在跑（dev server / watch），用 app_terminal_read 续读；需要往该会话继续输入（密码提示、交互式 CLI）时用 app_terminal_write，不要重新 run。
 - 同目录只有一个 agent 会话：命令串行执行，不要并发调用 app_terminal_run；需要多条时用 && / ; 串成一行。
 - 用户说「刚才那个命令 / 终端里的报错」时，用 app_terminal_list 找 id，再 app_terminal_read（未选中的 tab 也可读），不要让他复制粘贴。`

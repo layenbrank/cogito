@@ -39,6 +39,11 @@ import {
 } from '@/features/agent/acp/connection'
 import { mountCloudMcp } from '@/features/agent/acp/cloud-mcp'
 import { humanizeRunError, isRunCancelled } from '@/features/agent/acp/run-error'
+import {
+  abortAllBackgroundTurns,
+  clearPersistedRunning,
+  hasPersistedRunningTurn
+} from '@/features/agent/acp/background-turn'
 import { clearGooseUsage, writeGooseUsage } from '@/features/agent/acp/goose-usage'
 import { fetchSessionTools, saveDefaults } from '@/features/agent/acp/goose-providers'
 import {
@@ -132,6 +137,16 @@ interface ThreadRun {
   /** 追问票据：键是本模块合成的 elicitationId（form 模式 ACP 不给 id） */
   elicitations: Map<string, Ticket<CreateElicitationResponse>>
   prompt: { cancelled: boolean }
+  /** 是否已发过 `session/cancel`（同一个回合只发一次，避免轮询里刷屏） */
+  cancelSent: boolean
+  /**
+   * 真正掐断这一轮。
+   *
+   * `prompt.cancelled` 只是个**标记**（用来把报错归类成「用户取消」），并不会让
+   * `session/prompt` 提前返回。编辑重发 / 抢占时旧一轮还在跑，光打标记就只能干等
+   * （超时后报错，而 goose 那边仍在跑）—— 所以这里保存一个能 abort 底层请求的开关。
+   */
+  cancel: () => void
   /**
    * 这一轮是被「会话/连接被重置」打断的（goose 侧车退出、连接对象换掉、会话 cwd 变了）。
    *
@@ -566,6 +581,10 @@ function clearThreadSessions() {
   verifiedToolSessions.clear()
   clearGooseUsage()
   clearRunState()
+  // 同步中止 background-turn 内存泵，避免 run-state 已清、泵还在跑的分裂态
+  void abortAllBackgroundTurns().catch(function (error) {
+    console.warn('[acp/session] 中止后台回合失败:', error)
+  })
 }
 
 /**
@@ -610,6 +629,17 @@ async function verifyToolSurface(thread: ThreadSession): Promise<void> {
           result.missing,
           '实际:',
           names
+        )
+      }
+      // 侧车已挂却没有可见终端入口 → 模型只能走黑盒 shell，必须显式告警
+      if (
+        server === 'local' &&
+        result.missing.some(function (name) {
+          return name === 'app_terminal_run'
+        })
+      ) {
+        console.error(
+          '[acp/session] 缺少 app_terminal_run：Agent 无法走右栏可见终端，请检查 cogito-mcp 侧车'
         )
       }
     }
@@ -825,6 +855,25 @@ async function ensureThreadSession(
  * 产出的终态**只有一个** `stop`：ACP 的 `session/prompt` 返回值、取消、异常三条路
  * 都归到这里，调用方据此发一个终态事件（不能发两个，assistant-ui 会认为这轮还没完）。
  */
+/**
+ * 发一次协议级取消（`session/cancel`）。
+ *
+ * ACP 规定 `session/prompt` 的 `cancellationSignal` 只负责取消**那次请求**
+ * （SDK 发的是 `$/cancel_request`），而「让 agent 立刻停下手上的工具」是
+ * `session/cancel` 的语义 —— goose 只实现了后者。两件事都做，停止才真的停。
+ */
+function notifySessionCancel(thread: ThreadSession): void {
+  try {
+    void thread.connection.agent
+      .notify('session/cancel', { sessionId: thread.acpSessionID })
+      .catch(function (error: unknown) {
+        console.warn('[acp/session] 发送 session/cancel 失败:', error)
+      })
+  } catch (error) {
+    console.warn('[acp/session] 发送 session/cancel 抛错:', error)
+  }
+}
+
 async function* runThreadPrompt(
   threadID: string,
   input: {
@@ -843,14 +892,36 @@ async function* runThreadPrompt(
     return
   }
 
-  const thread = await ensureThreadSession(
+  let thread = await ensureThreadSession(
     threadID,
     input.workspaceID ?? null,
     input.providerID,
     input.modelID
   )
   if (thread.run) {
-    throw new Error('这个会话已经有一轮在进行中，请先等它结束或中止')
+    // 编辑重发 / 目标续跑 / 抢占：上一轮的 **UI 订阅**已经 abort，但 ACP 侧收尾是异步的
+    // （prompt 的 cancellationSignal 被打回 → 生成器的 finally 才清 `thread.run`）。
+    // 这里直接 throw 就是「刚发消息想改内容 → 编辑点更新报错、后台其实还在跑」的根因：
+    // 新一轮进来时旧一轮还没走完，界面收到错误就停住，只有整页重载才恢复渲染。
+    //
+    // 现在的处理：先发 session/cancel 并等一个有限窗口；窗口内没停下就**作废这把被占住的
+    // 会话**、重建 ACP session 再继续 —— 宁可丢一次 goose 侧内存上下文，也不让整个对话框
+    // 永久卡在「发送中」。UI 的历史仍在自己手里，下一条消息照常发出。
+    const cleared = await waitForRunIdle(thread)
+    if (!cleared) {
+      // 旧一轮握着 ACP session 不放：把被占住的会话作废重建，让这一轮能真的发出去。
+      // 只作废、不抛错 —— 抛错会让界面停在「已报错但后台还在跑」，正是这条缺陷的旧形态。
+      console.warn('[acp/session] 上一轮未在时限内停下，重建会话后继续:', threadID)
+      if (thread.run) thread.run.reset = true
+      disposeThreadSession(thread)
+      forgetThreadSession(thread)
+      thread = await ensureThreadSession(
+        threadID,
+        input.workspaceID ?? null,
+        input.providerID,
+        input.modelID
+      )
+    }
   }
 
   if (input.systemText?.trim()) {
@@ -867,11 +938,29 @@ async function* runThreadPrompt(
   }
 
   const queue = makeItemQueue()
+  /**
+   * 本轮自有的取消开关：UI / 抢占方只要 abort 它，ACP 的 `session/prompt` 立刻收到取消。
+   * 与 `input.signal` 是**串联**关系：外部信号一 abort 就转发进来，反过来不会。
+   */
+  const runCancel = new AbortController()
   const run: ThreadRun = {
     queue,
     approvals: new Map(),
     elicitations: new Map(),
+    cancelSent: false,
     prompt: { cancelled: false },
+    cancel: function () {
+      run.prompt.cancelled = true
+      // 协议级取消：SDK 的 cancellationSignal 只发 `$/cancel_request`，
+      // 而 ACP 要求 agent 必须支持 `session/cancel` —— goose 认的是后者。
+      // 少了这一下，长工具（dev server、大构建）根本不会停，
+      // 编辑重发就只能干等超时，界面上表现为「报错但后台还在跑」。
+      if (!run.cancelSent) {
+        run.cancelSent = true
+        notifySessionCancel(thread)
+      }
+      if (!runCancel.signal.aborted) runCancel.abort()
+    },
     reset: false
   }
   thread.run = run
@@ -885,7 +974,7 @@ async function* runThreadPrompt(
 
   if (input.signal) {
     const onAbort = function () {
-      run.prompt.cancelled = true
+      run.cancel()
     }
     if (input.signal.aborted) onAbort()
     else input.signal.addEventListener('abort', onAbort, { once: true })
@@ -934,10 +1023,9 @@ async function* runThreadPrompt(
   })
 
   const promptDone = thread.session
-    .prompt(
-      [{ type: 'text' as const, text: promptText }],
-      input.signal ? { cancellationSignal: input.signal } : undefined
-    )
+    .prompt([{ type: 'text' as const, text: promptText }], {
+      cancellationSignal: runCancel.signal
+    })
     .catch(function (error: unknown) {
       const cancelled = isRunCancelled(run, input.signal)
       failureBox.error = cancelled ? null : humanizeRunError(parseAuthRequired(error), run.reset)
@@ -958,7 +1046,9 @@ async function* runThreadPrompt(
       yield item
     }
   } finally {
-    thread.run = null
+    // 只清「自己那一轮」：会话被作废重建后 thread 可能已被新一轮接管，
+    // 无条件清空会把别人的运行状态抹掉（下一轮会以为没人跑，并发起两条 prompt）。
+    if (thread.run === run) thread.run = null
     markRunFinished(threadID)
     void notifyTurnDone(threadID, run.prompt.cancelled)
     releaseBox.release?.()
@@ -985,6 +1075,31 @@ async function* runThreadPrompt(
  * session 重建（重启 / 换线程）自然拿到零基线；compaction 重置导致负增量时直接跳过，
  * 不落一条 0 账。
  */
+/** 上一轮收尾的等待上限：正常取消几十毫秒内完成，留足余量给慢工具 */
+const RUN_HANDOFF_TIMEOUT_MS = 8_000
+const RUN_HANDOFF_POLL_MS = 50
+
+/**
+ * 等上一轮真正收尾（`thread.run` 在生成器 finally 里被清掉）。
+ *
+ * 同时打上取消标记：即使调用方的 abort 信号没接上，也不会让新一轮干等满额超时 ——
+ * 用户看到的是「编辑后要点两三次才发出去」，而不是一个无从理解的报错。
+ */
+async function waitForRunIdle(thread: ThreadSession): Promise<boolean> {
+  const deadline = Date.now() + RUN_HANDOFF_TIMEOUT_MS
+  while (thread.run) {
+    // 打标记只是让报错归类成「取消」；真正让它停下来的是 cancel()。
+    // 少了这一步，编辑重发只能干等旧一轮自然跑完 —— 用户看到的就是
+    // 「点了更新报错，但 agent 还在后台跑，页面也不再刷新」。
+    thread.run.cancel()
+    if (Date.now() >= deadline) return false
+    await new Promise(function (resolve) {
+      window.setTimeout(resolve, RUN_HANDOFF_POLL_MS)
+    })
+  }
+  return true
+}
+
 async function recordUsage(
   thread: ThreadSession,
   modelID: string | undefined,
@@ -1259,15 +1374,13 @@ function hasThreadSession(threadID: string): boolean {
   return sessionByThread.has(threadID)
 }
 
-/** 恢复订阅的空闲阈值：连续这么久没收到 update，就认为 goose 这轮已经跑完 */
-const RESUME_IDLE_TIMEOUT_MS = 120_000
-
 /**
- * load 重放结束后的「首次」空闲阈值：load 已把会话 attach 回当前连接，若后台仍有
- * 一轮在跑，后续 update 会在很短时间内继续推来；短窗口内一片静默就说明后台已经跑完，
- * 不必干等长窗口。
+ * 恢复订阅空闲：load 之后 goose **不会**再推 prompt 级 stop，只能靠静默推断结束。
+ * - 窗口要覆盖长工具无输出（数分钟级），但总要有上限，否则 orphan 会永远挂起
+ *   （刷新后 running 标记会粘住，不能靠「仍 running 就不收尾」）。
+ * - 到期必须 `finish`，禁止 `error`——后者会被 adapter throw，观感像崩溃。
  */
-const RESUME_FIRST_IDLE_TIMEOUT_MS = 10_000
+const RESUME_IDLE_TIMEOUT_MS = 600_000
 
 /**
  * resume 专用队列：load 重放阶段在入队时就截到「最后 user 之后」尾巴，
@@ -1331,11 +1444,16 @@ async function* resumeThreadRun(
   signal: AbortSignal | undefined
 ): AsyncGenerator<ChatStreamEvent, void, unknown> {
   const remembered = recallSessionMapping(threadID)
-  if (!remembered) return
+  if (!remembered) {
+    // 空流会落到适配器「流异常」；明确 aborted，让 UI 标「已停止」而非假错误
+    yield { kind: 'aborted', usage: {} }
+    return
+  }
 
   const handle = await findAcpHandle()
   if (!handle.canLoadSession) {
     console.warn('[acp/session] goose 未声明 session/load，无法恢复进行中回合:', threadID)
+    yield { kind: 'aborted', usage: {} }
     return
   }
 
@@ -1388,19 +1506,26 @@ async function* resumeThreadRun(
   }
 
   let idleTimer: ReturnType<typeof setTimeout> | null = null
-  const armIdle = function (ms: number) {
+
+  const armIdle = function () {
     if (idleTimer) clearTimeout(idleTimer)
     idleTimer = setTimeout(function () {
-      console.warn('[acp/session] 恢复订阅空闲超时，按完成收尾:', threadID)
+      console.warn(
+        '[acp/session] 恢复订阅空闲，按完成收尾（非 error）:',
+        threadID,
+        hasPersistedRunningTurn(threadID) ? '(仍有 running 标记)' : ''
+      )
       close('idle')
-    }, ms)
+    }, RESUME_IDLE_TIMEOUT_MS)
   }
 
   const terminal = function (): ChatStreamEvent {
-    // 只有「空闲超时」才是真跑完；abort（用户停止）与 closed（连接断开）都是未完成
-    return closeReason === 'idle'
-      ? { kind: 'finish', finishReason: 'end_turn', usage: {} }
-      : { kind: 'aborted', usage: {} }
+    if (closeReason === 'idle') {
+      // 静默收尾用 finish：禁止 error，否则 mapChatStreamToRunResults 会 throw
+      return { kind: 'finish', finishReason: 'end_turn', usage: {} }
+    }
+    // abort（用户停止）与 closed（连接断开）都是未完成
+    return { kind: 'aborted', usage: {} }
   }
 
   try {
@@ -1431,12 +1556,11 @@ async function* resumeThreadRun(
       if (event) yield event
     }
 
-    // 订阅 live update：首窗口短（后台跑完就静默），此后换长窗口兜底长工具
-    armIdle(RESUME_FIRST_IDLE_TIMEOUT_MS)
+    armIdle()
     while (true) {
       const update = await queue.take()
       if (update === null) break
-      armIdle(RESUME_IDLE_TIMEOUT_MS)
+      armIdle()
       const event = parseAcpStreamEvent(update, context)
       if (event) yield event
     }
@@ -1445,6 +1569,8 @@ async function* resumeThreadRun(
     yield terminal()
   } finally {
     if (idleTimer) clearTimeout(idleTimer)
+    // orphan resume 结束：无论 finish / aborted，清掉粘住的 running 标记
+    clearPersistedRunning(threadID)
     resumeFeeds.delete(remembered.sessionID)
     if (signal && onAbort) signal.removeEventListener('abort', onAbort)
   }

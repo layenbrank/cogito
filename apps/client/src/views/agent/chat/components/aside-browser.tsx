@@ -11,8 +11,10 @@
 import { Icon } from '@iconify/react/offline'
 import { useAui } from '@assistant-ui/react'
 import { Button } from '@cogito/design/components/button'
+import { OVERLAY_ELEVATION } from '@cogito/design/lib/surface'
 import { listen } from '@tauri-apps/api/event'
 import { clsx } from 'clsx'
+import { cn } from 'cn'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -374,7 +376,7 @@ function AsideBrowser() {
       omniboxAbortRef.current = controller
       const timer = window.setTimeout(function () {
         void (async function () {
-          const session = await findSessionOmniboxSuggestions(draft, sessionHistoryRef.current)
+          const session = findSessionOmniboxSuggestions(draft, sessionHistoryRef.current)
           if (controller.signal.aborted) return
           const remote = draft.trim()
             ? await findRemoteOmniboxSuggestions(draft, controller.signal)
@@ -959,7 +961,10 @@ function AsideBrowser() {
           <ul
             id="aside-browser-omnibox"
             role="listbox"
-            className="bg-popover text-popover-foreground absolute top-full right-1.5 left-1.5 z-20 mt-1 max-h-56 overflow-auto rounded-md border py-1 shadow-md">
+            className={cn(
+              'bg-popover text-popover-foreground absolute top-full right-1.5 left-1.5 z-20 mt-1 max-h-56 overflow-auto rounded-md py-1',
+              OVERLAY_ELEVATION
+            )}>
             {omniboxRows.map(function (row, index) {
               const isActive = index === omniboxIndex
               return (

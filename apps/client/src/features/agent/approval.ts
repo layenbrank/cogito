@@ -209,8 +209,28 @@ function findGooseMode(mode: ApprovalMode): GooseMode {
   return 'smart_approve'
 }
 
+/**
+ * Goose 内置黑盒 shell（绕开右栏 TerminalHub）。
+ * `app_terminal_*` 除外 —— 那是唯一允许的可见终端入口。
+ */
+function isOpaqueShellTool(toolName: string): boolean {
+  const lower = toolName.toLowerCase()
+  if (lower.includes('app_terminal')) return false
+  return (
+    lower === 'shell' ||
+    lower === 'bash' ||
+    lower === 'terminal' ||
+    lower.includes('shell') ||
+    lower.includes('bash') ||
+    lower.includes('terminal') ||
+    lower.includes('exec')
+  )
+}
+
 /** 按 composer 审批策略映射 goose 工具权限档 */
 function findToolPermissionLevel(mode: ApprovalMode, toolName: string): ToolPermissionLevel {
+  // 无论 ask/auto/readonly：黑盒 shell 一律禁用，强制走 app_terminal_*
+  if (isOpaqueShellTool(toolName)) return 'never_allow'
   if (mode === 'auto') return 'always_allow'
   if (mode === 'ask') return isWriteTool(toolName) ? 'ask_before' : 'always_allow'
   return isWriteTool(toolName) ? 'never_allow' : 'always_allow'
@@ -225,6 +245,7 @@ export {
   findApprovalPolicy,
   findGooseMode,
   findToolPermissionLevel,
+  isOpaqueShellTool,
   isWriteTool,
   readApprovalMode,
   readApprovalModeFor,

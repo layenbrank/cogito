@@ -176,6 +176,12 @@ async function fetchBrowserSnapshot(): Promise<BrowserSnapshot> {
   return invoke<BrowserSnapshot>('browser_snapshot')
 }
 
+/**
+ * hydrate / 重建会把 Rust webview 先藏掉；前端 `useBrowserRect` 必须同步清掉
+ * `lastVisible`，否则会以为「已可见」而跳过 leavePause → 右栏永久白屏。
+ */
+const BROWSER_VISIBILITY_RESET = 'cogito:browser-visibility-reset'
+
 /** 页面刷新后重新拉回已有的标签页（webview 由 Rust 持有，不会跟着前端消失） */
 async function hydrateBrowserTabs(): Promise<BrowserSnapshot> {
   const snapshot = await fetchBrowserSnapshot()
@@ -185,6 +191,9 @@ async function hydrateBrowserTabs(): Promise<BrowserSnapshot> {
     await writeBrowserVisible(false).catch(function (error: unknown) {
       console.warn('browser: 回灌时收回可见性失败', error)
     })
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(BROWSER_VISIBILITY_RESET))
+    }
   }
   return snapshot
 }
@@ -305,6 +314,7 @@ interface BrowserPickerActiveEvent {
 
 export {
   activateBrowserTab,
+  BROWSER_VISIBILITY_RESET,
   closeBrowserTab,
   fetchBrowserHistoryState,
   fetchBrowserNavigationHistory,

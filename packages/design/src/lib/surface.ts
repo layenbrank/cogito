@@ -13,17 +13,26 @@ const FIELD_SHELL = cn(
 )
 
 /**
- * 浮层壳：Select / DropdownMenu / Popover Popup 共用。
+ * 浮层抬升阴影：**无 border、无描边感**。
+ * 只靠扩散阴影拉开层级，避免 `0 0 0 1px` 那种「假边框」。
+ */
+const OVERLAY_ELEVATION = cn(
+  'border-0',
+  'shadow-[0_2px_8px_-2px_rgba(15,23,42,0.10),0_12px_32px_-8px_rgba(15,23,42,0.14)]',
+  'dark:shadow-[0_4px_12px_-2px_rgba(0,0,0,0.40),0_16px_40px_-10px_rgba(0,0,0,0.55)]'
+)
+
+/**
+ * 浮层壳：Popover / DropdownMenu / Select / Combobox 等共用。
  *
- * 统一对齐审批 / 模型选择器的风格：**无边框**，靠软阴影拉开层级。
- * 不用 border / ring —— 两者在浅色同底上都显得生硬，阴影更干净。
- * 动画 150ms（企业级微交互区间）。
+ * 无边框，靠 OVERLAY_ELEVATION 软阴影拉开层级；动画 150ms。
  */
 const OVERLAY_SHELL = cn(
-  'rounded-xl bg-popover text-popover-foreground shadow-xl outline-hidden duration-150',
+  'rounded-xl bg-popover text-popover-foreground outline-hidden duration-150',
+  OVERLAY_ELEVATION,
   'data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95',
   'data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
   'data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2'
 )
 
-export { FIELD_SHELL, OVERLAY_SHELL }
+export { FIELD_SHELL, OVERLAY_ELEVATION, OVERLAY_SHELL }

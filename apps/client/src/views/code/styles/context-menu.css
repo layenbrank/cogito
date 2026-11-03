@@ -7,15 +7,21 @@
   max-width: min(420px, calc(100vw - 16px));
   padding: 6px;
   border-radius: 10px;
-  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  border: 0;
   background: var(--popover);
   color: var(--popover-foreground);
   font-size: 13.5px;
   line-height: 1.45;
+  /* 与 design OVERLAY_ELEVATION 对齐：无描边 */
   box-shadow:
-    0 1px 1px rgb(0 0 0 / 0.04),
-    0 6px 16px rgb(0 0 0 / 0.07),
-    0 18px 36px rgb(0 0 0 / 0.09);
+    0 2px 8px -2px rgb(15 23 42 / 0.1),
+    0 12px 32px -8px rgb(15 23 42 / 0.14);
+}
+
+.dark .code-ctx-menu.contextmenu-surface {
+  box-shadow:
+    0 4px 12px -2px rgb(0 0 0 / 0.4),
+    0 16px 40px -10px rgb(0 0 0 / 0.55);
 }
 
 .code-ctx-menu .contextmenu-item {

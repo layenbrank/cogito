@@ -86,26 +86,30 @@ function AsideReviewStatusBar(props: AsideReviewStatusBarProps) {
     <div className="border-border flex shrink-0 flex-col border-b">
       <WorkspaceFolderChips />
 
-      <div className="flex items-center gap-1 px-1.5 py-1">
-        <BranchSwitcherView
-          branch={props.branch}
-          locals={props.branches?.branches ?? []}
-          remotes={props.branches?.remotes ?? []}
-          ahead={props.ahead}
-          behind={props.behind}
-          isBusy={props.isPending}
-          isCheckoutBusy={busy === 'checkout'}
-          size="sm"
-          tone="header"
-          className="min-w-0 flex-1"
-          onCheckout={function (name, fromRemote) {
-            void run('checkout', function () {
-              return props.onCheckout(name, fromRemote)
-            })
-          }}
-        />
+      <div className="flex items-center gap-1.5 px-2 py-1.5">
+        {/* 左侧贴边：分支；不 flex-1，避免中间被撑开、图标看起来挤成一团 */}
+        <div className="flex min-w-0 flex-1 items-center justify-start overflow-hidden">
+          <BranchSwitcherView
+            branch={props.branch}
+            locals={props.branches?.branches ?? []}
+            remotes={props.branches?.remotes ?? []}
+            ahead={props.ahead}
+            behind={props.behind}
+            isBusy={props.isPending}
+            isCheckoutBusy={busy === 'checkout'}
+            size="sm"
+            tone="header"
+            className="max-w-full"
+            onCheckout={function (name, fromRemote) {
+              void run('checkout', function () {
+                return props.onCheckout(name, fromRemote)
+              })
+            }}
+          />
+        </div>
 
-        <div className="ml-auto flex shrink-0 items-center gap-0.5">
+        {/* 右侧贴边：Git 动作 */}
+        <div className="ml-auto flex shrink-0 items-center justify-end gap-0.5">
           <ActionButton
             icon="lucide:cloud-download"
             label="抓取"
@@ -165,7 +169,7 @@ function AsideReviewStatusBar(props: AsideReviewStatusBarProps) {
         </div>
       </div>
 
-      <div className="text-muted-foreground flex items-center gap-2 px-2.5 pb-1 text-[11px]">
+      <div className="text-muted-foreground flex items-center gap-2 px-2.5 pb-1.5 text-[11px]">
         <Icon
           icon={hasUpstream ? 'lucide:cloud' : 'lucide:cloud-off'}
           className="size-3 shrink-0 opacity-70"

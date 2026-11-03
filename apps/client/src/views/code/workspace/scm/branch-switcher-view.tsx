@@ -28,6 +28,8 @@ interface BranchSwitcherViewProps {
   /** toolbar：轮廓按钮；header：扁平贴合顶栏 */
   tone?: 'toolbar' | 'header'
   className?: string
+  /** 菜单对齐：贴右的控件用 end，避免菜单飞到中间 */
+  menuAlign?: 'start' | 'end'
   /** 展开时通知调用方补数据（store 版会重新拉分支） */
   onOpen?: () => void
   /** `fromRemote` 非空表示「从远端分支切」 */
@@ -69,7 +71,7 @@ function BranchSwitcherView(props: BranchSwitcherViewProps) {
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        align="start"
+        align={props.menuAlign ?? 'start'}
         sideOffset={4}
         className="max-h-72 w-auto min-w-52 max-w-72 overflow-y-auto p-1">
         <BranchSwitcherMenu

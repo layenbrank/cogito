@@ -37,6 +37,7 @@ pub async fn call(app: &AppHandle, name: &str, arguments: &Value) -> Option<Resu
         browser_catalog::OPEN => open(app, arguments).await,
         browser_catalog::READ => read(app, arguments).await,
         browser_catalog::ACT => act(app, arguments).await,
+        browser_catalog::WAIT => wait(app, arguments).await,
         browser_catalog::SCREENSHOT => screenshot(app, arguments).await,
         browser_catalog::NETWORK => network_list(app, arguments),
         browser_catalog::INTERCEPT => intercept_rules(app, arguments).await,
@@ -116,7 +117,20 @@ async fn read(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
         .and_then(Value::as_u64)
         .unwrap_or(DEFAULT_LIMIT)
         .clamp(1, MAX_LIMIT) as usize;
-    agent::read(app, &label, mode, limit).await
+    let selector = text_arg(arguments, "selector");
+    let value = text_arg(arguments, "value");
+    agent::read(app, &label, mode, limit, selector, value).await
+}
+
+async fn wait(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
+    let label = resolve_label(app, arguments)?;
+    let condition = text_arg(arguments, "condition").unwrap_or("selector");
+    let selector = text_arg(arguments, "selector");
+    let timeout_ms = arguments
+        .get("timeoutMs")
+        .and_then(Value::as_u64)
+        .unwrap_or(8_000);
+    agent::wait(app, &label, condition, selector, timeout_ms).await
 }
 
 async fn act(app: &AppHandle, arguments: &Value) -> Result<Value, String> {

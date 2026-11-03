@@ -1,8 +1,15 @@
 /**
- * 单个嵌入终端的 xterm 视图：创建 PTY 会话、接字节流、转发输入与 resize。
+ * 单个嵌入终端的 xterm 视图：创建 / 接上 PTY 会话、接字节流、转发输入与 resize。
  *
- * 所有 tab 的 TerminalView 始终挂载（非 active 仅 invisible），切换不重建会话。
- * 同一 `id` 全局只允许一个视图拥有 PTY，避免多宿主重复 create。
+ * 由 TerminalTabs 只挂载当前可见 tab：切 tab / 显示面板时 remount + attach 回放。
+ *
+ * **同一 `id` 允许多个宿主同时显示**（右栏终端 + 底部 Dock / 代码页面板）：
+ * Rust 侧 `terminal:attach` 经返回值 `replay` 回放缓冲，并扇出实时 Channel，所以后挂的
+ * 视图**必须 attach**，而不是像早期那样「只占位不渲染」—— 那会在另一处已经打开同一个
+ * tab 时渲染出**一片空白**。只有第一个视图负责 `create`（同 id 已存在时 Rust 只 attach，
+ * 不会 silent kill）。
+ *
+ * 会话归属用引用计数：最后一个视图卸载时才回收 PTY（agent 会话永不随视图回收）。
  */
 import { useEffect, useRef, useState } from 'react'
 import { listen } from '@tauri-apps/api/event'
@@ -21,8 +28,55 @@ import { resolveTerminalTheme } from './terminal-theme'
 
 const textEncoder = new TextEncoder()
 
-/** id → 当前拥有 PTY 的视图 token；后挂载者成为附属，不二次 create */
+/** id → 当前负责 `create` 的视图 token；其余视图一律 attach */
 const SESSION_OWNERS = new Map<string, symbol>()
+/** id → 正在显示的视图数；归零才回收会话 */
+const VIEW_COUNTS = new Map<string, number>()
+
+function retainView(id: string): number {
+  const next = (VIEW_COUNTS.get(id) ?? 0) + 1
+  VIEW_COUNTS.set(id, next)
+  return next
+}
+
+function releaseView(id: string): number {
+  const next = Math.max(0, (VIEW_COUNTS.get(id) ?? 1) - 1)
+  if (next === 0) VIEW_COUNTS.delete(id)
+  else VIEW_COUNTS.set(id, next)
+  return next
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(function (resolve) {
+    window.setTimeout(resolve, ms)
+  })
+}
+
+/**
+ * 等主视图把会话建出来再 attach。
+ *
+ * 两个宿主同时挂载时没有顺序保证：后挂的那个可能比 `create` 早几十毫秒，
+ * attach 会拿到「会话不存在」。这里重试到会话出现为止（约 2.4s），
+ * 而不是直接判定失败 —— 那正是「终端有时一片空白」的来源。
+ */
+async function attachWhenReady(
+  id: string,
+  onOutput: (data: Uint8Array) => void,
+  isCancelled: () => boolean
+): Promise<Awaited<ReturnType<typeof Terminal.attach>>> {
+  let lastError: unknown = null
+  for (let attempt = 0; attempt < 24; attempt += 1) {
+    if (isCancelled()) throw new Error('视图已卸载')
+    try {
+      return await Terminal.attach(id, onOutput)
+    } catch (error) {
+      lastError = error
+      console.debug('[terminal] attach 未就绪，重试:', id, error)
+      await delay(100)
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('接上终端会话失败')
+}
 
 interface TerminalViewProps {
   id: string
@@ -30,6 +84,11 @@ interface TerminalViewProps {
   active: boolean
   /** `agent` 的会话已在 Rust 侧建好，视图只需 attach（回放 + 实时流） */
   origin: TerminalTabOrigin
+  /**
+   * 从 Rust `terminal:list` 灌回来的会话：已经在跑，先 attach；
+   * attach 失败（会话早退了）才回退 create，避免每次刷新都把 shell 重启一遍。
+   */
+  restored?: boolean
 }
 
 function TerminalView(props: TerminalViewProps) {
@@ -41,20 +100,27 @@ function TerminalView(props: TerminalViewProps) {
     return Symbol('terminal-view')
   })
   const isOwnerRef = useRef(false)
+  /**
+   * `restored` 只决定「首次挂载要不要先 attach」，**不能进 effect 依赖**：
+   * 后台同步（`bootstrapTerminalSessions`）会把已经在跑的 tab 标成 `restored`，
+   * 依赖一变整个 effect 重跑 —— 旧视图卸载、引用计数归零、`Terminal.kill` 把
+   * 用户正在用的 shell 杀掉，新视图再 `create` 一个新 shell。
+   * 表现出来就是「终端时不时空白/重启」。用 ref 读，不触发重挂。
+   */
+  const restoredRef = useRef(props.restored === true)
+  restoredRef.current = restoredRef.current || props.restored === true
 
   useEffect(
     function () {
       const container = containerRef.current
       if (!container) return
 
-      const existingOwner = SESSION_OWNERS.get(props.id)
-      if (existingOwner && existingOwner !== ownerToken) {
-        // 另一宿主已拥有该会话：本实例只占位，不 create / 不 kill
-        isOwnerRef.current = false
-        return
-      }
-      SESSION_OWNERS.set(props.id, ownerToken)
-      isOwnerRef.current = true
+      // 第一个挂载的视图负责 create；其余只 attach（Rust 端支持多订阅者扇出）
+      const isOwner = !SESSION_OWNERS.has(props.id)
+      if (isOwner) SESSION_OWNERS.set(props.id, ownerToken)
+      isOwnerRef.current = isOwner
+      retainView(props.id)
+      exitedRef.current = false
 
       let disposed = false
       let unlistenExit: (() => void) | null = null
@@ -119,42 +185,84 @@ function TerminalView(props: TerminalViewProps) {
           unlistenExit = unlisten
         })
 
-        // catch 里也要用它决定提示文案，所以声明在 try 之外
-        const isAttach = props.origin === 'agent'
+        const onOutput = function (data: Uint8Array) {
+          if (disposed) return
+          terminal.write(data)
+        }
+        // agent 会话与「刷新后灌回」的会话都已经存在：先 attach，别重建
+        const preferAttach = props.origin === 'agent' || restoredRef.current
 
         try {
-          const onOutput = function (data: ArrayBuffer) {
-            if (disposed) return
-            terminal.write(new Uint8Array(data))
+          let created
+          if (!isOwner) {
+            created = await attachWhenReady(props.id, onOutput, function () {
+              return disposed
+            })
+          } else if (preferAttach) {
+            try {
+              created = await Terminal.attach(props.id, onOutput)
+            } catch (attachError) {
+              // 先确认 Hub 里是否还在：IPC 抖动时误 create 会杀长跑（即使 Rust 已禁 silent kill）
+              console.warn('[terminal] attach 失败，核对 list 后再决定:', props.id, attachError)
+              let stillAlive = false
+              try {
+                const listed = await Terminal.list()
+                stillAlive = listed.some(function (session) {
+                  return session.id === props.id
+                })
+              } catch (listError) {
+                console.warn('[terminal] list 核对失败:', listError)
+              }
+              if (stillAlive) {
+                created = await attachWhenReady(props.id, onOutput, function () {
+                  return disposed
+                })
+              } else {
+                created = await Terminal.create(props.cwd, props.id, onOutput)
+              }
+            }
+          } else {
+            created = await Terminal.create(props.cwd, props.id, onOutput)
           }
-          const created = isAttach
-            ? await Terminal.attach(props.id, onOutput)
-            : await Terminal.create(props.cwd, props.id, onOutput)
           if (disposed) {
-            // attach 的场景会话归 agent 所有，别把别人的 shell 一起杀掉
-            if (!isAttach) void Terminal.kill(props.id)
+            // attach 的场景会话归 agent / 其他宿主所有，别把别人的 shell 一起杀掉
+            if (!preferAttach && isOwner) void Terminal.kill(props.id)
             return
           }
           if (created.pid !== null && created.pid !== undefined) {
             useTerminalStore.getState().markPid(props.id, created.pid)
           }
+          // 回放写完后滚到底，避免只看见顶部空白区的光标
+          if (created.replay && created.replay.length > 0) {
+            terminal.scrollToBottom()
+          }
           terminal.onData(function (data) {
             if (exitedRef.current) return
-            void Terminal.write(props.id, textEncoder.encode(data))
+            void Terminal.write(props.id, textEncoder.encode(data)).catch(function (error) {
+              console.warn('[terminal] write 失败:', props.id, error)
+            })
           })
           terminal.onResize(function (size) {
             if (exitedRef.current) return
-            void Terminal.resize(props.id, size.rows, size.cols)
+            void Terminal.resize(props.id, size.rows, size.cols).catch(function (error) {
+              console.warn('[terminal] resize 失败:', props.id, error)
+            })
           })
-          const shouldFocus = useTerminalStore.getState().activeId === props.id
-          scheduleTerminalLayout(terminal, fit, container, shouldFocus, function () {
+          // 始终抢焦点：active tab 才挂载，容器 tabIndex 曾抢走按键导致「有光标不能打字」
+          scheduleTerminalLayout(terminal, fit, container, true, function () {
             return disposed
           })
         } catch (error) {
-          reportCaught(isAttach ? 'terminal.attach' : 'terminal.create', error)
+          reportCaught(isOwner ? 'terminal.create' : 'terminal.attach', error)
           const reason = error instanceof Error ? error.message : String(error)
           terminal.write(
-            `\r\n\x1b[91m[${isAttach ? '终端连接失败（会话可能已退出）' : '终端创建失败'}：${reason}]\x1b[0m\r\n`
+            `\r\n\x1b[91m[/${
+              isOwner
+                ? preferAttach
+                  ? '终端连接失败（会话可能已退出）'
+                  : '终端创建失败'
+                : '终端已在别处关闭，点上方「+」重开一个'
+            }：${reason}]\x1b[0m\r\n`
           )
           useTerminalStore.getState().markExited(props.id, null)
         }
@@ -196,13 +304,13 @@ function TerminalView(props: TerminalViewProps) {
         const terminalInstance = terminalRef.current
         terminalRef.current = null
         fitRef.current = null
-        if (SESSION_OWNERS.get(props.id) === ownerToken) {
-          SESSION_OWNERS.delete(props.id)
-        }
-        // agent 的会话不随视图卸载而回收：它可能正被命令占用，关掉面板不该把 shell 一起杀掉
-        if (isOwnerRef.current && !exitedRef.current && props.origin !== 'agent') {
-          void Terminal.kill(props.id)
-        }
+
+        const remaining = releaseView(props.id)
+        // owner 卸载就让出槽位，避免僵尸 owner 占坑导致其它视图永远只 attach
+        if (isOwner || remaining === 0) SESSION_OWNERS.delete(props.id)
+        // 会话的生命周期**只跟随显式关闭**（tab 上的 × / 结束全部会话），
+        // 不跟随视图卸载：面板收起、页签切换、窗口重排都会卸载视图，
+        // 那里顺手 kill 会把用户正在用的 shell 一起带走。
         terminalInstance?.dispose()
         isOwnerRef.current = false
       }
@@ -236,19 +344,9 @@ function TerminalView(props: TerminalViewProps) {
       ref={containerRef}
       role="group"
       aria-label="终端"
-      tabIndex={0}
       className="h-full w-full bg-background text-foreground"
       onMouseDown={function () {
         if (props.active) terminalRef.current?.focus()
-      }}
-      onKeyDown={function (event) {
-        if (!props.active) return
-        // 只处理「容器自己拿到焦点」的情况：按键来自 xterm 内部（子元素）时
-        // 必须放行，否则空格 / 回车会被 preventDefault 吞掉，终端里打不出空格和换行
-        if (event.target !== event.currentTarget) return
-        if (event.key !== 'Enter' && event.key !== ' ') return
-        event.preventDefault()
-        terminalRef.current?.focus()
       }}
     />
   )

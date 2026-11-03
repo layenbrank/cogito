@@ -11,6 +11,7 @@
  * 提交走同一个 `CommitBar`。
  */
 import { Icon } from '@iconify/react/offline'
+import { Button } from '@cogito/design/components/button'
 import {
   Collapsible,
   CollapsibleContent,
@@ -78,12 +79,18 @@ function RemoteSection(props: {
   const [isOpen, updateOpen] = useState(true)
   if (props.files.length === 0) return null
 
+  const isPull = props.title.includes('拉取')
   return (
     <Collapsible
       open={isOpen}
       onOpenChange={updateOpen}
-      className="border-border/60 border-b">
-      <div className="text-muted-foreground hover:bg-muted/50 flex h-7 items-center gap-0.5 px-1 text-xs font-medium">
+      className={cn(
+        'border-b',
+        isPull
+          ? 'border-sky-500/30 bg-sky-500/5'
+          : 'border-amber-500/30 bg-amber-500/5'
+      )}>
+      <div className="hover:bg-muted/40 flex h-8 items-center gap-0.5 px-1 text-[13px] font-medium">
         <CollapsibleTrigger className="hover:text-foreground flex min-w-0 flex-1 items-center gap-1 rounded-sm px-2 py-0.5 text-left outline-none">
           <Icon
             icon="lucide:chevron-right"
@@ -94,10 +101,25 @@ function RemoteSection(props: {
           />
           <Icon
             icon={props.icon}
-            className="size-3.5 shrink-0 opacity-70"
+            className={cn(
+              'size-3.5 shrink-0',
+              isPull ? 'text-sky-600 dark:text-sky-400' : 'text-amber-600 dark:text-amber-400'
+            )}
           />
-          <span className="truncate">{props.title}</span>
-          <span className="bg-muted text-muted-foreground ml-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-medium tabular-nums">
+          <span
+            className={cn(
+              'truncate',
+              isPull ? 'text-sky-800 dark:text-sky-200' : 'text-amber-800 dark:text-amber-200'
+            )}>
+            {props.title}
+          </span>
+          <span
+            className={cn(
+              'ml-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-medium tabular-nums',
+              isPull
+                ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300'
+                : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+            )}>
             {props.files.length}
           </span>
         </CollapsibleTrigger>
@@ -115,8 +137,8 @@ function RemoteSection(props: {
                   onClick={function () {
                     props.onOpen(file)
                   }}
-                  className="hover:bg-muted/60 flex w-full items-center gap-1.5 rounded-sm py-1.5 pr-2 pl-3 text-left">
-                  <span className="text-foreground min-w-0 truncate text-sm">
+                  className="hover:bg-muted/60 flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors">
+                  <span className="text-foreground min-w-0 flex-1 truncate text-[13px] leading-snug">
                     {findReviewBaseName(file.path)}
                   </span>
                   {parent ? (
@@ -126,7 +148,7 @@ function RemoteSection(props: {
                   ) : null}
                   <span
                     className={cn(
-                      'ml-auto w-5 shrink-0 text-center font-mono text-sm font-semibold',
+                      'ml-auto w-4 shrink-0 text-center font-mono text-xs font-semibold',
                       BADGE_STYLE[letter] ?? 'text-muted-foreground'
                     )}>
                     {letter}
@@ -153,7 +175,7 @@ function ToolPaths(props: { paths: string[]; onOpen: (relative: string) => void 
       open={isOpen}
       onOpenChange={updateOpen}
       className="border-border/60 border-b">
-      <div className="text-muted-foreground hover:bg-muted/50 flex h-7 items-center gap-0.5 px-1 text-xs font-medium">
+      <div className="text-muted-foreground hover:bg-muted/50 flex h-8 items-center gap-0.5 px-1 text-[13px] font-medium">
         <CollapsibleTrigger className="hover:text-foreground flex min-w-0 flex-1 items-center gap-1 rounded-sm px-2 py-0.5 text-left outline-none">
           <Icon
             icon="lucide:chevron-right"
@@ -184,8 +206,8 @@ function ToolPaths(props: { paths: string[]; onOpen: (relative: string) => void 
                   onClick={function () {
                     props.onOpen(path)
                   }}
-                  className="hover:bg-muted/60 flex w-full items-center gap-1.5 rounded-sm py-1.5 pr-2 pl-3 text-left">
-                  <span className="text-foreground min-w-0 truncate text-sm">
+                  className="hover:bg-muted/60 flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors">
+                  <span className="text-foreground min-w-0 flex-1 truncate text-[13px] leading-snug">
                     {findReviewBaseName(path)}
                   </span>
                   {parent ? (
@@ -279,6 +301,59 @@ function AsideReviewList(props: AsideReviewListProps) {
               }}
             />
           </>
+        ) : null}
+
+        {props.isRepo && (props.rows.changed.length > 0 || props.rows.untracked.length > 0 || stagedCount > 0) ? (
+          <div className="border-border/60 flex items-center gap-1.5 border-b px-2 py-1.5">
+            <span className="text-muted-foreground text-xs">改动</span>
+            <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-[11px] tabular-nums">
+              {props.rows.total}
+            </span>
+            <div className="ml-auto flex items-center gap-1">
+              {props.rows.changed.length + props.rows.untracked.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  className="text-muted-foreground hover:text-foreground h-6 gap-1 px-1.5 text-xs"
+                  title="把全部未暂存改动加入暂存区"
+                  onClick={function () {
+                    props.onStage(
+                      [...props.rows.changed, ...props.rows.untracked].map(function (entry) {
+                        return entry.path
+                      })
+                    )
+                  }}>
+                  <Icon
+                    icon="lucide:plus"
+                    className="size-3"
+                  />
+                  全部暂存
+                </Button>
+              ) : null}
+              {stagedCount > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  className="text-muted-foreground hover:text-foreground h-6 gap-1 px-1.5 text-xs"
+                  title="把暂存区全部退回未暂存"
+                  onClick={function () {
+                    props.onUnstage(
+                      props.rows.staged.map(function (entry) {
+                        return entry.path
+                      })
+                    )
+                  }}>
+                  <Icon
+                    icon="lucide:minus"
+                    className="size-3"
+                  />
+                  全部取消暂存
+                </Button>
+              ) : null}
+            </div>
+          </div>
         ) : null}
 
         <Changes

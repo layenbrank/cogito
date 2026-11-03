@@ -10,6 +10,7 @@ import {
   type ComposerTriggerItem,
   type ComposerTriggerListProps
 } from '@cogito/design/assistant/composer-trigger'
+import { OVERLAY_ELEVATION } from '@cogito/design/lib/surface'
 import { Icon } from '@iconify/react/offline'
 import { useMemo } from 'react'
 
@@ -142,7 +143,8 @@ function ComposerTriggerList(props: ComposerTriggerListProps) {
   return (
     <div
       className={cn(
-        'border-border/60 bg-popover absolute bottom-full left-0 z-20 mb-2 w-72 overflow-hidden rounded-lg border shadow-md',
+        'bg-popover absolute bottom-full left-0 z-20 mb-2 w-72 overflow-hidden rounded-lg',
+        OVERLAY_ELEVATION,
         props.className
       )}>
       {isLoading ? (

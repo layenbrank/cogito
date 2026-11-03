@@ -21,8 +21,14 @@ function syncTerminalLayout(
   if (!terminal || !fit) return false
   if (!hasTerminalLayoutSize(container)) return false
   try {
+    const beforeCols = terminal.cols
+    const beforeRows = terminal.rows
     fit.fit()
     if (terminal.cols < 2 || terminal.rows < 1) return false
+    // ConPTY：尺寸没变也强制再 resize 一次，否则晚 attach 常只剩光标、无回放内容
+    if (terminal.cols === beforeCols && terminal.rows === beforeRows) {
+      terminal.resize(Math.max(2, beforeCols), Math.max(1, beforeRows))
+    }
     terminal.refresh(0, terminal.rows - 1)
     if (shouldFocus) terminal.focus()
     return true
@@ -32,7 +38,9 @@ function syncTerminalLayout(
   }
 }
 
-/** 尺寸未就绪时连拍几帧再 fit，覆盖 SplitterPane / hidden→visible 首帧 */
+/** 尺寸未就绪时连拍再 fit；invisible→visible / Splitter 首帧常需远多于 12 帧 */
+const LAYOUT_ATTEMPTS = 60
+
 function scheduleTerminalLayout(
   terminal: XtermTerminal | null,
   fit: FitAddon | null,
@@ -45,7 +53,7 @@ function scheduleTerminalLayout(
     if (isCancelled()) return
     if (syncTerminalLayout(terminal, fit, container, shouldFocus)) return
     attempts += 1
-    if (attempts < 12) requestAnimationFrame(tick)
+    if (attempts < LAYOUT_ATTEMPTS) requestAnimationFrame(tick)
   }
   requestAnimationFrame(function () {
     requestAnimationFrame(tick)

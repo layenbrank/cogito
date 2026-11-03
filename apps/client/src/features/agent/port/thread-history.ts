@@ -32,7 +32,9 @@ import {
   followBackgroundTurn,
   hasPersistedRunningTurn,
   hasRunningBackgroundTurn,
+  isDetachAbort,
   isTerminalEvent,
+  isUserStopAbort,
   type BackgroundTurn
 } from '@/features/agent/acp/background-turn'
 import { markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
@@ -178,12 +180,17 @@ async function persistOrphanTurn(port: ChatHistoryPort, turn: BackgroundTurn): P
     }
 
     const status = snapshot.status ?? { type: 'complete' as const, reason: 'unknown' as const }
+    const custom = {
+      ...(snapshot.metadata?.custom ?? {}),
+      // 页面未订阅时补写：过程区可据此提示「后台回合结束」
+      orphanSource: 'background-turn' as const
+    }
     const payload: StoredLocalPayload = {
       role: 'assistant',
       content: snapshot.content ?? [],
       createdAt: new Date().toISOString(),
       status,
-      ...(snapshot.metadata?.custom ? { metadata: { custom: snapshot.metadata.custom } } : {})
+      metadata: { custom }
     }
 
     await port.appendMessage({
@@ -264,16 +271,28 @@ function buildThreadHistoryAdapter(
 
       try {
         if (hasRunningBackgroundTurn(threadID)) {
-          yield* mapChatStreamToRunResults(followBackgroundTurn(threadID, options.abortSignal))
+          yield* mapChatStreamToRunResults(
+            followBackgroundTurn(threadID, options.abortSignal),
+            options.abortSignal
+          )
           return
         }
         // 刷新场景：内存缓冲丢了，重新订阅 goose session（session/load 重放历史 + 续尾）
-        yield* mapChatStreamToRunResults(resumeThreadRun(threadID, options.abortSignal))
+        yield* mapChatStreamToRunResults(
+          resumeThreadRun(threadID, options.abortSignal),
+          options.abortSignal
+        )
       } finally {
-        // 恢复结束（跑完 / 中止）：清掉运行态标记，侧栏停止显示「生成中」
-        markRunFinished(threadID)
-        clearPersistedRunning(threadID)
-        void notifyTurnDone(threadID, options.abortSignal?.aborted === true)
+        const signal = options.abortSignal
+        const detached = Boolean(signal?.aborted && isDetachAbort(signal))
+        const userStopped = Boolean(signal?.aborted && isUserStopAbort(signal))
+        // 内存泵还在 / 仅 UI detach：保留；orphan resume 的 clear 已在 resumeThreadRun.finally
+        const keepRunning = !userStopped && (detached || hasRunningBackgroundTurn(threadID))
+        if (!keepRunning) {
+          markRunFinished(threadID)
+          clearPersistedRunning(threadID)
+          void notifyTurnDone(threadID, userStopped)
+        }
       }
     },
 

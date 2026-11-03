@@ -4,6 +4,7 @@ import type { ComponentProps } from 'react'
 
 import { Button } from '../components/button'
 import { Input } from '../components/input'
+import { OVERLAY_ELEVATION } from '../lib/surface'
 
 /**
  * 日程预览卡：plan 场景生成后浮在会话底部，逐行改标题/时间，确认后批量写入日历。
@@ -19,7 +20,8 @@ function ScheduleCard({ className, ...props }: ScheduleCardProps) {
     <div
       data-slot="schedule-card"
       className={cn(
-        'pointer-events-auto mx-4 mb-3 max-h-[45vh] overflow-y-auto rounded-xl border bg-background/95 p-3 shadow-lg',
+        'pointer-events-auto mx-4 mb-3 max-h-[45vh] overflow-y-auto rounded-xl bg-background/95 p-3',
+        OVERLAY_ELEVATION,
         className
       )}
       {...props}
@@ -135,7 +137,10 @@ function ScheduleCardWritten(props: ScheduleCardWrittenProps) {
   return (
     <div
       data-slot="schedule-card-written"
-      className="pointer-events-auto mx-4 mb-3 flex items-center justify-between gap-3 rounded-xl border bg-background/95 px-3 py-2 text-sm shadow-lg">
+      className={cn(
+        'pointer-events-auto mx-4 mb-3 flex items-center justify-between gap-3 rounded-xl bg-background/95 px-3 py-2 text-sm',
+        OVERLAY_ELEVATION
+      )}>
       <span className="text-muted-foreground">已写入 {props.count} 条日程</span>
       <div className="flex items-center gap-1">
         <Button

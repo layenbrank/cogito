@@ -136,8 +136,8 @@ describe('findLocalOmniboxSuggestions', function () {
 })
 
 describe('findSessionOmniboxSuggestions', function () {
-  it('映射会话历史条目', async function () {
-    const rows = await findSessionOmniboxSuggestions('a', [
+  it('映射会话历史条目', function () {
+    const rows = findSessionOmniboxSuggestions('a', [
       { url: 'https://a.test/', title: 'A' },
       { url: 'https://b.test/', title: 'B' }
     ])

@@ -80,6 +80,7 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         crate::utils::terminal::terminal_resize,
         crate::utils::terminal::terminal_kill,
         crate::utils::terminal::terminal_list,
+        crate::utils::terminal::terminal_resolve_agent_id,
         crate::utils::terminal::terminal_font,
         cogito_command::magnetic_tile::magnetic_tile_write,
         cogito_command::magnetic_tile::magnetic_tile_read,

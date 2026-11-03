@@ -43,19 +43,19 @@ function BranchItem(props: {
       disabled={props.disabled}
       onClick={props.onClick}>
       <Icon
-        icon="lucide:check"
-        className={cn(
-          'size-4 shrink-0',
-          props.isActive ? 'text-primary opacity-100' : 'opacity-0'
-        )}
-      />
-      <Icon
         icon={props.icon}
         className="text-muted-foreground size-4 shrink-0 opacity-70"
       />
       <span className="min-w-0 flex-1 truncate font-mono text-sm leading-5">
         {props.label ?? props.name}
       </span>
+      <Icon
+        icon="lucide:check"
+        className={cn(
+          'ml-auto size-4 shrink-0',
+          props.isActive ? 'text-primary opacity-100' : 'opacity-0'
+        )}
+      />
     </DropdownMenuItem>
   )
 }

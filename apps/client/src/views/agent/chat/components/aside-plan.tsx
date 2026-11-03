@@ -15,19 +15,15 @@ import { useAui, useAuiState } from '@assistant-ui/react'
 import { MarkdownContent } from '@cogito/design/assistant/markdown-text'
 import { TodoList } from '@cogito/design/assistant/todo-list'
 import { Button } from '@cogito/design/components/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger
-} from '@cogito/design/components/dropdown-menu'
-import { useMemo } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 
 import { savePlanToWorkspace } from '@/features/agent/plan-file'
-import { DEFAULT_BUDGET, GOAL_BUDGET_OPTIONS, useGoalRun } from '@/features/agent/goal-run'
+import {
+  readNextGoalBudget,
+  subscribeGoalBudget,
+  useGoalRun
+} from '@/features/agent/goal-run'
 import { findPlanDraft } from '@/features/agent/plan-draft'
 import { findLatestPlan } from '@/features/agent/plan'
 import { useActiveWorkspace } from '@/features/agent/workspace/active'
@@ -63,6 +59,8 @@ function AsidePlan(props: AsidePlanProps) {
     return state.threads.mainThreadId
   })
   const goal = useGoalRun(threadID)
+  /** 轮次是「每次发送」的输入项：这里只读，修改入口在 composer 下方的目标轮次 */
+  const budget = useSyncExternalStore(subscribeGoalBudget, readNextGoalBudget, readNextGoalBudget)
   const { workspace, rootPath } = useActiveWorkspace()
   const plan = useMemo(
     function () {
@@ -130,7 +128,7 @@ function AsidePlan(props: AsidePlanProps) {
     return (
       <div className="text-muted-foreground flex flex-1 items-center justify-center p-6 text-center text-xs leading-relaxed">
         {props.isPlanMode
-          ? '发出需求后，完整计划会显示在这里'
+          ? '等待模型按骨架产出完整 Markdown 计划；结束后若仍为空，说明本轮未按概述/实施步骤等章节输出'
           : '用「计划」模式发起一轮对话，计划会显示在这里'}
       </div>
     )
@@ -227,56 +225,21 @@ function AsidePlan(props: AsidePlanProps) {
               />
               开始执行
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    title="目标推进：自动续跑，中途不停下来问"
-                    className="h-7 gap-1.5 text-xs"
-                  />
-                }>
-                <Icon
-                  icon="lucide:target"
-                  className="size-3.5"
-                />
-                目标推进
-                <Icon
-                  icon="lucide:chevron-down"
-                  className="size-3 shrink-0 opacity-60"
-                />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="min-w-36">
-                {/* Base UI 的 GroupLabel 必须在 Menu.Group 内，否则运行时抛 MenuGroupContext missing */}
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel className="text-muted-foreground text-xs">
-                    推进轮次上限
-                  </DropdownMenuLabel>
-                  {GOAL_BUDGET_OPTIONS.map(function (budget) {
-                    return (
-                      <DropdownMenuItem
-                        key={budget}
-                        onClick={function () {
-                          props.onStartImplement('goal', budget)
-                        }}>
-                        <Icon
-                          icon={budget === DEFAULT_BUDGET ? 'lucide:check' : 'lucide:circle'}
-                          className="size-3.5 opacity-70"
-                        />
-                        最多 {budget} 轮
-                        {budget === DEFAULT_BUDGET ? (
-                          <span className="text-muted-foreground ml-auto text-xs">默认</span>
-                        ) : null}
-                      </DropdownMenuItem>
-                    )
-                  })}
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              title={`目标推进：自动续跑，本轮最多 ${budget} 轮（轮次在输入框下方向切换，每次发送都可以不同）`}
+              className="h-7 gap-1.5 text-xs"
+              onClick={function () {
+                props.onStartImplement('goal', budget)
+              }}>
+              <Icon
+                icon="lucide:target"
+                className="size-3.5"
+              />
+              目标推进 · {budget} 轮
+            </Button>
           </>
         ) : (
           <span className="text-muted-foreground flex-1 text-xs">切到「计划」模式可确认后执行</span>

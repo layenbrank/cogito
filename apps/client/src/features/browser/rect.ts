@@ -12,7 +12,12 @@
 import { WEBVIEW_COVER_SELECTOR } from '@cogito/design/lib/webview-cover'
 import { useEffect, useRef, useState } from 'react'
 
-import { screenshotBrowser, writeBrowserRect, writeBrowserVisible } from './api'
+import {
+  BROWSER_VISIBILITY_RESET,
+  screenshotBrowser,
+  writeBrowserRect,
+  writeBrowserVisible
+} from './api'
 
 /** 截图超时：宁可用缓存帧立刻让位，也不把菜单堵在 webview 下面 */
 const PAUSE_SHOT_MS = 120
@@ -106,12 +111,24 @@ function useBrowserRect(active: boolean, activeLabel: string | null) {
 
       async function reportVisible(visible: boolean) {
         if (visible === lastVisibleRef.current) return
-        lastVisibleRef.current = visible
         try {
           await writeBrowserVisible(visible)
+          // 仅 IPC 成功后才锁住本地态，失败保持可重试（否则会永久白屏）
+          lastVisibleRef.current = visible
         } catch (error) {
+          lastVisibleRef.current = null
           console.warn('browser: 上报可见性失败', error)
         }
+      }
+
+      /** hydrate / 重建会把 Rust webview 藏掉，但本地 lastVisible 可能仍是 true → 卡死白屏 */
+      function onVisibilityReset() {
+        lastVisibleRef.current = false
+        pausingRef.current = false
+        leavingRef.current = false
+        updatePaused(false)
+        updatePauseSrc(null)
+        schedule()
       }
 
       async function enterPause() {
@@ -173,6 +190,10 @@ function useBrowserRect(active: boolean, activeLabel: string | null) {
         if (lastVisibleRef.current === true && !pausingRef.current) {
           updatePaused(false)
           updatePauseSrc(null)
+          // 兜底：本地以为可见时仍补一次 show，避免与 Rust 脱节后永久白屏
+          void writeBrowserVisible(true).catch(function (error) {
+            console.warn('browser: 补发可见性失败', error)
+          })
           return
         }
 
@@ -250,6 +271,7 @@ function useBrowserRect(active: boolean, activeLabel: string | null) {
 
       window.addEventListener('resize', schedule)
       window.addEventListener('scroll', schedule, true)
+      window.addEventListener(BROWSER_VISIBILITY_RESET, onVisibilityReset)
       schedule()
 
       return function () {
@@ -257,6 +279,7 @@ function useBrowserRect(active: boolean, activeLabel: string | null) {
         layerObserver.disconnect()
         window.removeEventListener('resize', schedule)
         window.removeEventListener('scroll', schedule, true)
+        window.removeEventListener(BROWSER_VISIBILITY_RESET, onVisibilityReset)
         if (frame !== 0) cancelAnimationFrame(frame)
         generationRef.current += 1
         pausingRef.current = false

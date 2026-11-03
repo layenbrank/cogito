@@ -4,6 +4,7 @@ import { useReducedMotion } from 'motion/react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FC } from 'react'
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/tooltip'
+import { OVERLAY_ELEVATION } from '../lib/surface'
 import { findScrollableAncestor } from './collapse-scroll-pin'
 import { useAssistantLabels } from './labels'
 import {
@@ -278,9 +279,10 @@ const ThreadUserMessageRuler: FC = () => {
                   showArrow={false}
                   className={cn(
                     // 短预览时 rounded-2xl 会显胶囊；用中等圆角 + 最小宽度更利落
-                    'border-border/50 bg-popover text-popover-foreground',
-                    'flex min-w-[11rem] max-w-[16rem] flex-col items-start gap-1 rounded-md border px-3 py-2',
-                    'text-left shadow-sm ring-1 ring-foreground/4'
+                    'bg-popover text-popover-foreground',
+                    'flex min-w-[11rem] max-w-[16rem] flex-col items-start gap-1 rounded-md px-3 py-2',
+                    'text-left',
+                    OVERLAY_ELEVATION
                   )}>
                   <span className="text-muted-foreground text-xs leading-none font-medium tracking-wide tabular-nums">
                     {labels.userMessageLocatorItem(mark.ordinal, total)}

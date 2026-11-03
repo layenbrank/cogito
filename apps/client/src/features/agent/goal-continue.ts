@@ -14,7 +14,9 @@ import { LOCAL_FORMAT } from '@cogito/chat/adapters/thread-history'
 import { v4 as UUIDV4 } from 'uuid'
 
 import {
+  abortBackgroundTurn,
   ensureBackgroundTurn,
+  hasRunningBackgroundTurn,
   onBackgroundTurnFinished,
   type BackgroundTurn
 } from '@/features/agent/acp/background-turn'
@@ -123,53 +125,61 @@ async function appendUserMessage(threadID: string, text: string): Promise<void> 
 
 /** 在后台起一轮目标推进（不经过 composer，不需要 UI 订阅） */
 function startGoalTurn(threadID: string, prompt: string, context: GoalTurnContext): void {
-  ensureBackgroundTurn(threadID, async function* (signal) {
-    // 不能用 `appendModeGuidance()`：它读的是**当前 UI 线程**的模式，
-    // 后台线程可能不在前台，读到的是别的模式 —— 续跑必须固定用目标模式的约束。
-    // 场景同理：用登记下来的那个，不读全局。
-    const systemText = [
-      findSystemPrompt(context.scenario, buildPromptContext()),
-      findAgentMode('goal').guidance
-    ]
-      .filter(function (part) {
-        return part.trim().length > 0
-      })
-      .join('\n\n')
-    const streamContext: AcpStreamContext = {
-      blockID: function (messageId, kind) {
-        return messageId ? `${kind}:${messageId}` : `${kind}:goal`
-      }
+  void (async function () {
+    // 与前台 port.run 同槽：若仍有旧泵（极少见竞态），先停再开，避免 start 冲突
+    if (hasRunningBackgroundTurn(threadID)) {
+      await abortBackgroundTurn(threadID)
     }
-    try {
-      for await (const item of runThreadPrompt(threadID, {
-        text: prompt,
-        systemText,
-        workspaceID: context.workspaceID,
-        providerID: context.providerID,
-        modelID: context.modelID,
-        signal
-      })) {
-        if (item.kind === 'update') {
-          const event = parseAcpStreamEvent(item.update, streamContext)
-          if (event) yield event
-          continue
+    await ensureBackgroundTurn(threadID, async function* (signal) {
+      // 不能用 `appendModeGuidance()`：它读的是**当前 UI 线程**的模式，
+      // 后台线程可能不在前台，读到的是别的模式 —— 续跑必须固定用目标模式的约束。
+      // 场景同理：用登记下来的那个，不读全局。
+      const systemText = [
+        findSystemPrompt(context.scenario, buildPromptContext()),
+        findAgentMode('goal').guidance
+      ]
+        .filter(function (part) {
+          return part.trim().length > 0
+        })
+        .join('\n\n')
+      const streamContext: AcpStreamContext = {
+        blockID: function (messageId, kind) {
+          return messageId ? `${kind}:${messageId}` : `${kind}:goal`
         }
-        if (item.kind === 'stop') {
-          yield item.stopReason === 'cancelled'
-            ? { kind: 'aborted', usage: {} }
-            : { kind: 'finish', finishReason: item.stopReason, usage: {} }
-          return
+      }
+      try {
+        for await (const item of runThreadPrompt(threadID, {
+          text: prompt,
+          systemText,
+          workspaceID: context.workspaceID,
+          providerID: context.providerID,
+          modelID: context.modelID,
+          signal
+        })) {
+          if (item.kind === 'update') {
+            const event = parseAcpStreamEvent(item.update, streamContext)
+            if (event) yield event
+            continue
+          }
+          if (item.kind === 'stop') {
+            yield item.stopReason === 'cancelled'
+              ? { kind: 'aborted', usage: {} }
+              : { kind: 'finish', finishReason: item.stopReason, usage: {} }
+            return
+          }
+          // approval / elicitation：后台没人应答，交给票据超时兜底（启动目标推进时已提示审批档）
         }
-        // approval / elicitation：后台没人应答，交给票据超时兜底（启动目标推进时已提示审批档）
+      } catch (error) {
+        console.warn('[agent/goal-continue] 后台轮次异常:', threadID, error)
+        yield {
+          kind: 'error',
+          message: error instanceof Error ? error.message : String(error),
+          usage: {}
+        }
       }
-    } catch (error) {
-      console.warn('[agent/goal-continue] 后台轮次异常:', threadID, error)
-      yield {
-        kind: 'error',
-        message: error instanceof Error ? error.message : String(error),
-        usage: {}
-      }
-    }
+    })
+  })().catch(function (error) {
+    console.warn('[agent/goal-continue] 启动后台轮次失败:', threadID, error)
   })
 }
 
@@ -184,6 +194,16 @@ async function handleTurnFinished(turn: BackgroundTurn): Promise<void> {
   if (!goal) return
   // 当前会话的续跑交给 UI（composer 才有流式显示），这里只管切走的那些
   if (readAgentModeThread() === turn.threadID) return
+
+  // 被用户停止 / 新一轮 supersede：不自动续跑（避免与前台 port.run 抢槽）
+  const terminal = turn.events.findLast
+    ? turn.events.findLast(function (event) {
+        return event.kind === 'finish' || event.kind === 'aborted' || event.kind === 'error'
+      })
+    : [...turn.events].reverse().find(function (event) {
+        return event.kind === 'finish' || event.kind === 'aborted' || event.kind === 'error'
+      })
+  if (terminal?.kind === 'aborted' || terminal?.kind === 'error') return
 
   const text = await readTurnText(turn.events)
   if (!text) return

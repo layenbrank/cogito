@@ -1,8 +1,5 @@
 /**
- * 输入框下方：工作区 / 文件夹 · 本机运行 · 分支（对齐 Qoder footer）。
- *
- * 工作区与「当前文件夹」都在这里可切；分支切换走 agent 共享的 Git 动作层，
- * 因此审阅 / 文件 / 历史面板会一起更新（不再各拉各的）。
+ * 输入框下方：左工作区 · 右本机运行 / 分支 / 上下文用量。
  */
 import { Icon } from '@iconify/react/offline'
 import { useAuiState } from '@assistant-ui/react'
@@ -19,28 +16,50 @@ import {
 import {
   Context,
   ContextContent,
+  ContextContentBody,
   ContextContentHeader,
+  ContextCacheUsage,
+  ContextInputUsage,
+  ContextOutputUsage,
+  ContextReasoningUsage,
+  ContextSourceUsage,
   ContextTrigger
 } from '@cogito/design/assistant/context'
 import { cn } from 'cn'
-import { useSyncExternalStore } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 
 import {
   findGooseUsage,
   formatGooseUsage,
+  formatTokenCount,
   subscribeGooseUsage,
   type GooseUsage
 } from '@/features/agent/acp/goose-usage'
+import { estimateContextBreakdown } from '@/features/agent/context-estimate'
+import { findSystemPrompt } from '@/features/agent/model/prompts'
+import { buildPromptContext } from '@/features/agent/model/prompt-context'
+import { findActiveScenario } from '@/features/agent/model/active-scenario'
+import {
+  appendModeGuidance,
+  readAgentMode,
+  subscribeAgentMode
+} from '@/features/agent/mode'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 import { checkoutNow, useWorkspaceGitSnapshot } from '@/features/agent/workspace/git.ts'
 import { useAgentStore } from '@/stores/agent.ts'
 import { BranchSwitcherView } from '@/views/code/workspace/scm/branch-switcher-view.tsx'
 import { findBaseName } from '@/views/agent/chat/components/workspace-relative-path.ts'
+import {
+  GOAL_BUDGET_OPTIONS,
+  readNextGoalBudget,
+  stopGoalRun,
+  subscribeGoalBudget,
+  useGoalRun,
+  writeNextGoalBudget
+} from '@/features/agent/goal-run'
 
-/**
- * 当前会话的上下文窗口用量（ACP usage_update → goose-usage）。
- * assistant-ui 的 `mainThreadId` 与 ACP 的 threadID 同源，直接用它取当前会话用量。
- */
+const FALLBACK_MAX_TOKENS = 128_000
+
 function useContextUsage(): GooseUsage | null {
   const activeThreadID = useAuiState(function (state) {
     return state.threads.mainThreadId
@@ -53,24 +72,65 @@ function useContextUsage(): GooseUsage | null {
   )
 }
 
-/** footer 右侧的用量展示：`12k / 128k`，点开看占比 */
+/** footer 右侧用量：无 ACP 数据时仍显示入口；展开含来源分段 + I/O */
 function UsageDisplay() {
   const usage = useContextUsage()
-  if (!usage || usage.size <= 0) return null
+  const messages = useAuiState(function (state) {
+    return state.thread.messages
+  })
+
+  const breakdown = useMemo(
+    function () {
+      const scenario = findActiveScenario()
+      const promptScenario =
+        readAgentMode() === 'plan' && scenario === 'plan' ? 'general' : scenario
+      const systemText = appendModeGuidance(
+        findSystemPrompt(promptScenario, buildPromptContext())
+      )
+      return estimateContextBreakdown({ systemText, messages })
+    },
+    [messages]
+  )
+
+  const used = usage?.used ?? 0
+  const max = usage && usage.size > 0 ? usage.size : FALLBACK_MAX_TOKENS
+  const label =
+    usage && usage.size > 0
+      ? formatGooseUsage(usage)
+      : `${formatTokenCount(used)} / ${formatTokenCount(max)}`
+  const nearFull = max > 0 && used / max >= 0.85
+
   return (
-    <Context usedTokens={usage.used} maxTokens={usage.size}>
+    <Context
+      usedTokens={used}
+      maxTokens={max}
+      usage={{
+        ...breakdown,
+        inputTokens: used > 0 ? used : undefined
+      }}>
       <ContextTrigger>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className="text-muted-foreground hover:text-foreground h-7 gap-1 rounded-md px-2.5 text-xs"
-          title={`上下文窗口 ${formatGooseUsage(usage)}`}>
+          className={cn(
+            'h-7 shrink-0 gap-1 rounded-md px-2.5 text-xs',
+            nearFull
+              ? 'text-destructive hover:text-destructive'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+          title={
+            usage && usage.size > 0
+              ? `上下文窗口 ${label}`
+              : '上下文用量（尚未收到会话统计，以下为估算）'
+          }>
           <Icon
             icon="lucide:database"
             className="size-3 shrink-0"
           />
-          <span className="font-mono tabular-nums">{formatGooseUsage(usage)}</span>
+          {/* 显式写出「上下文」：只放一个数据库图标 + 数字，用户认不出这是什么 */}
+          <span className="whitespace-nowrap">上下文</span>
+          <span className="font-mono tabular-nums">{label ?? '—'}</span>
         </Button>
       </ContextTrigger>
       <ContextContent
@@ -78,15 +138,20 @@ function UsageDisplay() {
         side="top"
         sideOffset={8}>
         <ContextContentHeader />
+        <ContextContentBody className="space-y-2">
+          <p className="text-muted-foreground text-[11px]">来源（估算）</p>
+          <ContextSourceUsage />
+          <p className="text-muted-foreground pt-1 text-[11px]">用量</p>
+          <ContextInputUsage />
+          <ContextOutputUsage />
+          <ContextReasoningUsage />
+          <ContextCacheUsage />
+        </ContextContentBody>
       </ContextContent>
     </Context>
   )
 }
 
-/**
- * 工作区 + 当前文件夹：一个下拉同时管两件事 ——
- * 换工作区（含它自己的文件夹列表），或在当前工作区里换文件夹。
- */
 function WorkspaceMenu() {
   const { workspace, workspaceID, rootPath, folders, selectRoot } = useActiveWorkspace()
   const workspaces = useAgentStore(function (state) {
@@ -144,14 +209,14 @@ function WorkspaceMenu() {
                   if (isActive) return
                   useAgentStore.getState().toActivateWorkspace(item.id)
                 }}>
+                <span className="min-w-0 flex-1 truncate">{item.title}</span>
                 <Icon
                   icon="lucide:check"
                   className={cn(
-                    'size-4 shrink-0',
+                    'ml-auto size-4 shrink-0',
                     isActive ? 'text-primary opacity-100' : 'opacity-0'
                   )}
                 />
-                <span className="min-w-0 flex-1 truncate">{item.title}</span>
               </DropdownMenuItem>
             )
           })}
@@ -176,19 +241,19 @@ function WorkspaceMenu() {
                       selectRoot(folder.path)
                     }}>
                     <Icon
-                      icon="lucide:check"
-                      className={cn(
-                        'size-4 shrink-0',
-                        isActive ? 'text-primary opacity-100' : 'opacity-0'
-                      )}
-                    />
-                    <Icon
                       icon="lucide:folder"
                       className="text-muted-foreground size-4 shrink-0 opacity-70"
                     />
                     <span className="min-w-0 flex-1 truncate font-mono text-xs">
                       {findBaseName(folder.path)}
                     </span>
+                    <Icon
+                      icon="lucide:check"
+                      className={cn(
+                        'ml-auto size-4 shrink-0',
+                        isActive ? 'text-primary opacity-100' : 'opacity-0'
+                      )}
+                    />
                   </DropdownMenuItem>
                 )
               })}
@@ -200,56 +265,166 @@ function WorkspaceMenu() {
   )
 }
 
+/**
+ * 目标模式专用：轮次预算 / 当前进度 / 立即停止。
+ *
+ * 「轮次」是**每次发送**的输入项（这条任务最多自动推进几轮），所以它只在目标模式下出现，
+ * 且在发送前可调 —— 以前它藏在计划页，「直接发目标」根本没有入口。
+ */
+function GoalTurnControl() {
+  const mode = useSyncExternalStore(subscribeAgentMode, readAgentMode, readAgentMode)
+  const budget = useSyncExternalStore(subscribeGoalBudget, readNextGoalBudget, readNextGoalBudget)
+  const threadID = useAuiState(function (state) {
+    return state.threads.mainThreadId
+  })
+  const run = useGoalRun(threadID)
+
+  if (mode !== 'goal') return null
+
+  if (!run) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label="目标推进轮次"
+              title={`目标推进：这次发送最多自动跑 ${budget} 轮`}
+              className="text-violet-700 hover:text-violet-800 dark:text-violet-300 h-7 shrink-0 gap-1 rounded-md px-2 text-xs"
+            />
+          }>
+          <Icon
+            icon="lucide:target"
+            className="size-3 shrink-0"
+          />
+          <span className="tabular-nums">{budget} 轮</span>
+          <Icon
+            icon="lucide:chevrons-up-down"
+            className="size-3 shrink-0 opacity-60"
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          side="top"
+          sideOffset={8}
+          className="w-60">
+          <DropdownMenuLabel>目标推进轮次</DropdownMenuLabel>
+          <p className="text-muted-foreground px-2 pb-1 text-[11px] leading-snug">
+            每次发送单独设置：这条任务最多自动推进几轮，跑满即停并给出收尾总结。
+          </p>
+          {GOAL_BUDGET_OPTIONS.map(function (option) {
+            const active = option === budget
+            return (
+              <DropdownMenuItem
+                key={option}
+                className="gap-2"
+                onClick={function () {
+                  writeNextGoalBudget(option)
+                }}>
+                <Icon
+                  icon={active ? 'lucide:check' : 'lucide:circle'}
+                  className={cn(
+                    'size-3.5 shrink-0',
+                    active ? 'text-primary' : 'text-muted-foreground/40'
+                  )}
+                />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="text-[13px]">
+                    {option} 轮{option === 6 ? '（默认）' : ''}
+                  </span>
+                  <span className="text-muted-foreground text-[11px]">
+                    {option === 3 ? '小改动 / 单点验证' : option === 6 ? '常规任务' : '大改造 / 长链路'}
+                  </span>
+                </span>
+              </DropdownMenuItem>
+            )
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
+
+  const label = `第 ${Math.min(run.used + 1, run.budget)}/${run.budget} 轮`
+  const progress = run.progress ? `达成 ${run.progress.done}/${run.progress.total}` : null
+
+  return (
+    <div className="border-violet-500/25 bg-violet-500/8 flex h-7 shrink-0 items-center gap-1 rounded-md border px-1.5">
+      <Icon
+        icon="lucide:target"
+        className="size-3 shrink-0 text-violet-600 dark:text-violet-300"
+      />
+      <span className="text-violet-700 dark:text-violet-200 text-xs font-medium tabular-nums">
+        {label}
+      </span>
+      {progress ? (
+        <span className="text-muted-foreground text-[11px] tabular-nums">{progress}</span>
+      ) : null}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label="停止目标推进"
+        title="停止目标自动推进（当前这一轮不受影响）"
+        className="text-muted-foreground hover:text-foreground size-5"
+        onClick={function () {
+          stopGoalRun(run.threadID)
+        }}>
+        <Icon
+          icon="lucide:square"
+          className="size-2.5 fill-current"
+        />
+      </Button>
+    </div>
+  )
+}
+
 function ComposerFooter() {
   const { rootPath } = useActiveWorkspace()
   const snapshot = useWorkspaceGitSnapshot(rootPath)
   const showGit = snapshot.isRepo && Boolean(snapshot.branch)
 
   return (
-    <div className="text-muted-foreground flex min-h-7 w-full items-center gap-0 px-1 text-xs">
-      <div className="flex min-w-0 flex-1 items-center justify-start gap-0">
+    <div className="text-muted-foreground flex min-h-7 w-full items-center gap-2 px-1 text-xs">
+      {/*
+       * 左：工作区 / 文件夹 + 目标推进轮次（仅目标模式，是「这次发送」的输入）。
+       * 左栏 `flex-1 min-w-0` 先让位给右侧；右侧不再设 `max-w-[62%]`：
+       * 那个上限 + `shrink-0` 会把最后一个「上下文」挤出可视区，
+       * 用户看到的就是「composer 里的上下文不见了」。
+       */}
+      <div className="flex min-w-0 flex-1 items-center justify-start gap-0.5 overflow-hidden">
         <WorkspaceMenu />
-
-        <span
-          aria-hidden
-          className="bg-border mx-0.5 h-3.5 w-px shrink-0"
-        />
-
-        <span
-          className="flex shrink-0 items-center gap-1.5 px-2.5 opacity-90"
-          title="Agent 在本机运行，工作区文件不出本机；模型请求按所选 provider 发出">
-          <Icon
-            icon="lucide:hard-drive"
-            className="size-3 shrink-0"
-          />
-          本机运行
-        </span>
-
-        {showGit ? (
-          <>
-            <span
-              aria-hidden
-              className="bg-border mx-0.5 h-3.5 w-px shrink-0"
-            />
-            <BranchSwitcherView
-              branch={snapshot.branch}
-              locals={snapshot.branches?.branches ?? []}
-              remotes={snapshot.branches?.remotes ?? []}
-              ahead={snapshot.ahead}
-              behind={snapshot.behind}
-              isBusy={snapshot.isPending}
-              size="sm"
-              tone="header"
-              className="max-w-56"
-              onCheckout={function (name, fromRemote) {
-                void checkoutNow(rootPath, name, fromRemote)
-              }}
-            />
-          </>
-        ) : null}
+        <GoalTurnControl />
       </div>
 
-      <UsageDisplay />
+      {/* 右：分支 │ 上下文用量（Git 信息与上下文分开，不糊成一排图标） */}
+      <div className="flex shrink-0 items-center justify-end gap-0.5">
+        {showGit ? (
+          <BranchSwitcherView
+            branch={snapshot.branch}
+            locals={snapshot.branches?.branches ?? []}
+            remotes={snapshot.branches?.remotes ?? []}
+            ahead={snapshot.ahead}
+            behind={snapshot.behind}
+            isBusy={snapshot.isPending}
+            size="sm"
+            tone="header"
+            menuAlign="end"
+            className="max-w-32"
+            onCheckout={function (name, fromRemote) {
+              void checkoutNow(rootPath, name, fromRemote)
+            }}
+          />
+        ) : null}
+        {showGit ? (
+          <span
+            aria-hidden
+            className="bg-border mx-0.5 h-3.5 w-px shrink-0"
+          />
+        ) : null}
+        <UsageDisplay />
+      </div>
     </div>
   )
 }

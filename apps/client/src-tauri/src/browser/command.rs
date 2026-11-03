@@ -169,7 +169,15 @@ pub async fn browser_agent_read(
     mode: Option<String>,
     limit: Option<usize>,
 ) -> Result<serde_json::Value, String> {
-    agent::read(&app, &label, mode.as_deref().unwrap_or("outline"), limit.unwrap_or(60)).await
+    agent::read(
+        &app,
+        &label,
+        mode.as_deref().unwrap_or("outline"),
+        limit.unwrap_or(60),
+        None,
+        None,
+    )
+    .await
 }
 
 #[tauri::command]

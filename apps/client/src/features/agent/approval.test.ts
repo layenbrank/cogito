@@ -4,6 +4,7 @@ import {
   classifyToolEffect,
   findGooseMode,
   findToolPermissionLevel,
+  isOpaqueShellTool,
   isWriteTool
 } from '@/features/agent/approval'
 
@@ -51,16 +52,25 @@ describe('审批策略 → goose 权限档', function () {
   it('询问审批：写工具 ask_before，读工具 always_allow', function () {
     expect(findToolPermissionLevel('ask', 'write_file')).toBe('ask_before')
     expect(findToolPermissionLevel('ask', 'read_file')).toBe('always_allow')
-    expect(findToolPermissionLevel('ask', 'developer__shell')).toBe('ask_before')
   })
 
-  it('自动审批：全部 always_allow', function () {
+  it('自动审批：非 shell 写工具 always_allow', function () {
     expect(findToolPermissionLevel('auto', 'write_file')).toBe('always_allow')
-    expect(findToolPermissionLevel('auto', 'shell')).toBe('always_allow')
   })
 
   it('只读：写工具 never_allow，读工具 always_allow', function () {
     expect(findToolPermissionLevel('readonly', 'write_file')).toBe('never_allow')
     expect(findToolPermissionLevel('readonly', 'read_file')).toBe('always_allow')
+  })
+
+  it('Goose 黑盒 shell 在任意策略下均为 never_allow；app_terminal_* 不受影响', function () {
+    expect(isOpaqueShellTool('shell')).toBe(true)
+    expect(isOpaqueShellTool('developer__shell')).toBe(true)
+    expect(isOpaqueShellTool('app_terminal_run')).toBe(false)
+    expect(findToolPermissionLevel('auto', 'shell')).toBe('never_allow')
+    expect(findToolPermissionLevel('ask', 'developer__shell')).toBe('never_allow')
+    expect(findToolPermissionLevel('readonly', 'bash')).toBe('never_allow')
+    expect(findToolPermissionLevel('auto', 'app_terminal_run')).toBe('always_allow')
+    expect(findToolPermissionLevel('ask', 'app_terminal_run')).toBe('ask_before')
   })
 })

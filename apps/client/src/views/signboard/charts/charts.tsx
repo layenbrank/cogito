@@ -12,6 +12,8 @@ import {
   type PieArcDatum,
   type Selection
 } from 'd3'
+import { OVERLAY_ELEVATION } from '@cogito/design/lib/surface'
+import { cn } from 'cn'
 import { AnimatePresence, useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
 import { useEffect, useRef, useState, type RefObject } from 'react'
@@ -72,7 +74,10 @@ function ChartTooltip(props: ChartTooltipState) {
 
   return (
     <m.div
-      className="pointer-events-none absolute top-0 left-0 z-10 max-w-[220px] rounded-md border border-border/80 bg-popover/95 px-2.5 py-1.5 text-xs text-popover-foreground shadow-md backdrop-blur-sm"
+      className={cn(
+        'pointer-events-none absolute top-0 left-0 z-10 max-w-[220px] rounded-md bg-popover/95 px-2.5 py-1.5 text-xs text-popover-foreground backdrop-blur-sm',
+        OVERLAY_ELEVATION
+      )}
       initial={{ opacity: 0, scale: 0.98, x: props.left, y: props.top }}
       animate={{ opacity: 1, scale: 1, x: props.left, y: props.top }}
       exit={{ opacity: 0, scale: 0.98 }}

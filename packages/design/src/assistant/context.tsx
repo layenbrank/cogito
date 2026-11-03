@@ -21,6 +21,14 @@ interface ModelUsageBreakdown {
   outputTokens?: number
   reasoningTokens?: number
   cachedInputTokens?: number
+  /** 请求前估算：系统提示 */
+  systemTokens?: number
+  /** 请求前估算：历史消息 */
+  historyTokens?: number
+  /** 请求前估算：工具结果 */
+  toolTokens?: number
+  /** 请求前估算：附件 */
+  attachmentTokens?: number
 }
 
 interface ModelContextSchema {
@@ -142,9 +150,10 @@ function ContextTrigger({ children, ...props }: ContextTriggerProps) {
 type ContextContentProps = ComponentProps<typeof PopoverContent>
 
 function ContextContent({ className, ...props }: ContextContentProps) {
+  // 抬升阴影走全局 OVERLAY_SHELL（PopoverContent），此处只补内容分区
   return (
     <PopoverContent
-      className={cn('min-w-60 divide-y overflow-hidden p-0', className)}
+      className={cn('min-w-60 divide-y divide-border/60 overflow-hidden p-0', className)}
       data-slot="model-context-content"
       {...props}
     />
@@ -300,6 +309,36 @@ function ContextCacheUsage({ className, children, ...props }: ContextCacheUsageP
   )
 }
 
+type ContextSourceUsageProps = ComponentProps<'div'>
+
+/** 来源分段（系统 / 历史 / 工具 / 附件）—— 多为请求前估算 */
+function ContextSourceUsage({ className, children, ...props }: ContextSourceUsageProps) {
+  const { usage } = useModelContext()
+  if (children) return children
+  return (
+    <div
+      className={cn('space-y-1', className)}
+      {...props}>
+      <TokensRow
+        label="系统提示"
+        tokens={usage?.systemTokens}
+      />
+      <TokensRow
+        label="历史消息"
+        tokens={usage?.historyTokens}
+      />
+      <TokensRow
+        label="工具结果"
+        tokens={usage?.toolTokens}
+      />
+      <TokensRow
+        label="附件"
+        tokens={usage?.attachmentTokens}
+      />
+    </div>
+  )
+}
+
 export {
   Context,
   ContextCacheUsage,
@@ -310,6 +349,7 @@ export {
   ContextInputUsage,
   ContextOutputUsage,
   ContextReasoningUsage,
+  ContextSourceUsage,
   ContextTrigger
 }
 export type { ContextProps, ModelUsageBreakdown }

@@ -25,6 +25,45 @@ const DEFAULT_BUDGET = 6
 /** 供 UI 选择的轮次档位：短任务 3 轮、常规 6 轮、大改造 12 轮 */
 const GOAL_BUDGET_OPTIONS = [3, 6, 12] as const
 
+/**
+ * 「下一次发消息」用的轮次预算。
+ *
+ * 轮次是**每次发消息各自的**决定（这一条任务要跑几轮），不是会话级设置：
+ * 上一条小任务 3 轮，下一条大重构可能 12 轮。所以它单独存、发送时读取，
+ * 与 `GoalRun`（正在跑的那一轮的预算快照）分开，改默认值不会打断进行中的推进。
+ */
+const BUDGET_KEY = 'cogito:agent:goal-budget'
+const budgetListeners = new Set<() => void>()
+
+function readNextGoalBudget(): number {
+  try {
+    const raw = window.localStorage.getItem(BUDGET_KEY)
+    const value = raw ? Number(raw) : Number.NaN
+    if (GOAL_BUDGET_OPTIONS.includes(value as (typeof GOAL_BUDGET_OPTIONS)[number])) {
+      return value
+    }
+  } catch (error) {
+    console.warn('[agent/goal] 读轮次预算失败，按默认值处理:', error)
+  }
+  return DEFAULT_BUDGET
+}
+
+function writeNextGoalBudget(budget: number): void {
+  try {
+    window.localStorage.setItem(BUDGET_KEY, String(budget))
+  } catch (error) {
+    console.warn('[agent/goal] 写轮次预算失败:', error)
+  }
+  for (const listener of [...budgetListeners]) listener()
+}
+
+function subscribeGoalBudget(listener: () => void): () => void {
+  budgetListeners.add(listener)
+  return function () {
+    budgetListeners.delete(listener)
+  }
+}
+
 interface GoalProgress {
   done: number
   total: number
@@ -229,6 +268,9 @@ export {
   parseGoalProgress,
   readAssistantText,
   readGoalRun,
+  readNextGoalBudget,
+  subscribeGoalBudget,
+  writeNextGoalBudget,
   setGoalProgress,
   startGoalRun,
   stopGoalRun,

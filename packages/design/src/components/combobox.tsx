@@ -3,7 +3,7 @@ import { Combobox as ComboboxPrimitive } from '@base-ui/react/combobox'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 
-import { FIELD_SHELL } from '../lib/surface'
+import { FIELD_SHELL, OVERLAY_ELEVATION } from '../lib/surface'
 import { webviewCoverProps } from '../lib/webview-cover'
 
 const Combobox = ComboboxPrimitive.Root
@@ -28,14 +28,13 @@ function ComboboxChevron({ className }: { className?: string }) {
 }
 
 /**
- * 展开时触发器 / 输入壳与列表面板拼成同一张卡片：
- * 接缝侧去掉圆角与描边，并关掉 ring/阴影（它们是独立闭合框，会把「一个容器」切回两个）。
- * 方向必须叠在 popup-open 上：base-ui 关闭后仍保留 data-popup-side。
+ * 展开时触发器与面板贴合：接缝侧去圆角，关 ring/阴影；不做整卡描边。
+ * 方向叠在 popup-open 上：base-ui 关闭后仍保留 data-popup-side。
  */
 const JOIN_TRIGGER = cn(
-  'data-popup-open:border-ring data-popup-open:ring-0 data-popup-open:shadow-none',
-  'data-popup-open:data-[popup-side=bottom]:rounded-b-none! data-popup-open:data-[popup-side=bottom]:border-b-transparent',
-  'data-popup-open:data-[popup-side=top]:rounded-t-none! data-popup-open:data-[popup-side=top]:border-t-transparent',
+  'data-popup-open:ring-0 data-popup-open:shadow-none',
+  'data-popup-open:data-[popup-side=bottom]:rounded-b-none!',
+  'data-popup-open:data-[popup-side=top]:rounded-t-none!',
   'transition-[color,background-color,border-color,border-radius,box-shadow] duration-150 ease-[ease]'
 )
 
@@ -133,7 +132,7 @@ function ComboboxInput({
         isSm ? 'h-8 rounded-[min(var(--radius-md),10px)]' : 'h-9',
         'has-disabled:pointer-events-none has-disabled:opacity-50',
         'dark:bg-input/30',
-        // 聚焦时不另画 ring：展开态已用 border-ring 勾勒整张卡
+        // 聚焦只换边框色，不另画 ring（避免与面板阴影叠成描边感）
         'focus-within:border-ring focus-within:ring-0'
       )}>
       <ComboboxPrimitive.Input
@@ -223,13 +222,16 @@ function ComboboxContent({
               // 必须与锚点（InputGroup / Trigger）严格等宽：
               // 多出 spacing 后靠右会触发碰撞避让，整块被推到左侧，接缝左右错开像「断裂」。
               'relative isolate w-(--anchor-width) max-w-(--available-width) overflow-hidden',
-              'rounded-md border border-ring bg-popover text-popover-foreground outline-hidden',
-              'group-data-[side=bottom]/combobox-content:rounded-t-none',
-              'group-data-[side=top]/combobox-content:rounded-b-none',
+              'rounded-md bg-popover text-popover-foreground outline-hidden',
+              OVERLAY_ELEVATION,
               sideOffset === 0 &&
-                'group-data-[side=bottom]/combobox-content:-mt-px group-data-[side=top]/combobox-content:-mb-px',
-              // 面板内嵌搜索框（可搜索 Select）：顶部分隔，不另起一张卡
-              '*:data-[slot=combobox-content-input]:border-b *:data-[slot=combobox-content-input]:border-border',
+                cn(
+                  'group-data-[side=bottom]/combobox-content:rounded-t-none',
+                  'group-data-[side=top]/combobox-content:rounded-b-none',
+                  'group-data-[side=bottom]/combobox-content:-mt-px group-data-[side=top]/combobox-content:-mb-px'
+                ),
+              // 面板内嵌搜索框：轻分隔，不用整卡描边
+              '*:data-[slot=combobox-content-input]:border-b *:data-[slot=combobox-content-input]:border-border/40',
               className
             )}>
             {children}

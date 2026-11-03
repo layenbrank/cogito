@@ -8,7 +8,14 @@
 import { Icon } from '@iconify/react/offline'
 import { useAui, useAuiState } from '@assistant-ui/react'
 import { clsx } from 'clsx'
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore
+} from 'react'
 import { toast } from 'sonner'
 
 import { subscribeAsideBrowser } from '@/views/agent/chat/components/open-aside-browser'
@@ -29,13 +36,18 @@ import { AsideHistory } from './aside-history'
 import { AsidePlan } from './aside-plan'
 import { AsideReview } from './aside-review'
 import { TerminalSurface } from '@/features/terminal'
+import {
+  bootstrapTerminalSessions,
+  ensureTerminalTab
+} from '@/features/terminal/agent-tabs'
+import { Terminal } from '@/lib/terminal'
 import { DEFAULT_BUDGET, startGoalRun, stopGoalRun } from '@/features/agent/goal-run'
 import { findPlanDraft } from '@/features/agent/plan-draft'
 import { buildPlanExecutePrompt } from '@/features/agent/plan-execute'
 import { useActiveWorkspace } from '@/features/agent/workspace/active'
 import { readAgentMode, subscribeAgentMode, writeAgentMode } from '@/features/agent/mode'
 import { isEmbeddedShell } from '@/features/window/shell-mode'
-import { useTerminalStore } from '@/stores/terminal'
+import { useTerminalStore, type TerminalTab } from '@/stores/terminal'
 
 type AsideMode = 'home' | 'plan' | 'files' | 'review' | 'history' | 'browser' | 'terminal'
 
@@ -77,6 +89,15 @@ function AgentAside(props: AsideProps) {
 
   const terminalOpen = useTerminalStore(function (state) {
     return state.open
+  })
+  /**
+   * 存活终端会话数：刷新 / 重启后 zustand 是空的，必须先问 Rust（见下面的 bootstrap 副作用），
+   * 否则用户既看不到后台还在跑的东西，也无从关闭。
+   */
+  const liveTerminalCount = useTerminalStore(function (state) {
+    return state.tabs.filter(function (tab) {
+      return !tab.exited
+    }).length
   })
   const { rootPath, folderPaths, selectRoot } = useActiveWorkspace()
 
@@ -213,39 +234,93 @@ function AgentAside(props: AsideProps) {
       updateMode(next)
       return
     }
-    if (!terminalOpen) {
-      if (!rootPath) {
-        toast.error('先在左栏添加一个工作区')
-        return
-      }
-      useTerminalStore.getState().newTab(rootPath)
+    if (!rootPath && useTerminalStore.getState().tabs.length === 0) {
+      toast.error('先在左栏添加一个工作区')
+      return
     }
     updateMode('terminal')
+    // 先把后台存活会话灌回来，真的没有才新开 —— 否则每次进来都多一个空 shell
+    void ensureTerminalTab(rootPath)
   }
 
   /**
    * 跳到终端页签（入口：详情页「正在执行」列表）。
    *
-   * 命令若来自嵌入式终端（agent 用 `app_terminal_run` 执行），tab 上会记着同一条命令，
-   * 直接选中那个 tab；否则是 goose 自带 shell 跑的命令，只能停在当前文件夹的终端。
+   * 必须 `openPanel()`：`reveal:false` 会导致 `TerminalSurface` 未挂载 → 空白页。
+   * 优先按 command 命中 agent tab；否则按 workdir / `agent:` 会话回退。
    */
-  function openTerminal(command: string) {
-    if (!terminalOpen) {
-      if (!rootPath) {
-        toast.error('先在左栏添加一个工作区')
-        return
-      }
-      useTerminalStore.getState().newTab(rootPath, { reveal: false })
+  async function openTerminal(
+    command: string,
+    workdir?: string | null,
+    source: 'panel' | 'external' = 'panel'
+  ) {
+    function normalizePath(path: string): string {
+      return path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
     }
-    const target = useTerminalStore.getState().tabs.find(function (tab) {
-      return tab.command === command
-    })
-    if (target) useTerminalStore.getState().writeActive(target.id)
+
+    async function findTab(): Promise<TerminalTab | undefined> {
+      const store = useTerminalStore.getState()
+      // 黑盒 shell：没有对应嵌入式 tab，只打开工作区终端
+      if (source === 'external') return undefined
+      if (command) {
+        const byCommand = store.tabs.find(function (tab) {
+          return tab.command === command
+        })
+        if (byCommand) return byCommand
+      }
+      if (!workdir) return undefined
+      let agentId: string | null = null
+      try {
+        agentId = await Terminal.resolveAgentId(workdir)
+      } catch (error) {
+        console.warn('[agent/aside] resolveAgentId 失败:', error)
+      }
+      if (agentId) {
+        const byId = store.tabs.find(function (tab) {
+          return tab.id === agentId
+        })
+        if (byId) return byId
+      }
+      const needle = normalizePath(workdir)
+      return store.tabs.find(function (tab) {
+        return tab.origin === 'agent' && normalizePath(tab.cwd) === needle
+      })
+    }
+
+    useTerminalStore.getState().openPanel()
     updateMode('terminal')
+
+    // 刷新后 tabs 可能空：先灌回再匹配，避免空白面板
+    await bootstrapTerminalSessions()
+    const target = await findTab()
+    if (target) {
+      useTerminalStore.getState().writeActive(target.id)
+      return
+    }
+    if (!rootPath) {
+      toast.info(
+        source === 'external'
+          ? '这条命令不在嵌入式终端里；先添加工作区才能打开终端'
+          : '这条命令的终端会话已经结束；先添加工作区才能新开终端'
+      )
+      return
+    }
+    await ensureTerminalTab(rootPath)
+    const store = useTerminalStore.getState()
+    if (!store.activeId && store.tabs.length > 0) {
+      store.writeActive(store.tabs[0].id)
+    }
   }
 
-  // 终端在别处被打开（快捷卡 / 命令面板）时自动翻到这页；被关掉时退回详情
-  useEffect(
+  // WebView 刷新后 tabs 空、Rust PTY 可能仍在：灌回 list 以便管理/关闭
+  useEffect(function () {
+    void bootstrapTerminalSessions()
+  }, [])
+
+  // 终端在别处被打开（快捷卡 / 命令面板 / agent-run）时同步切页签。
+  // 用 layout effect：避免先挂 TerminalSurface 却仍 mode=home → overlay invisible 一帧，
+  // xterm 在 0 尺寸上 fit 失败留下白屏。
+  useLayoutEffect(
     function () {
       if (terminalOpen) {
         updateMode('terminal')
@@ -337,13 +412,20 @@ function AgentAside(props: AsideProps) {
                 icon={tab.icon}
                 className="size-4 shrink-0"
               />
+              {tab.id === 'terminal' && liveTerminalCount > 0 ? (
+                <span
+                  aria-hidden
+                  className="bg-primary text-primary-foreground absolute -top-0.5 -end-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[9px] leading-none font-semibold tabular-nums">
+                  {liveTerminalCount > 9 ? '9+' : liveTerminalCount}
+                </span>
+              ) : null}
             </button>
           )
         })}
       </nav>
 
       {/***** 内容区：面板自己的顶部条（如终端多 tab）就是子 tab，没有就不渲染 *****/}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         {mode === 'files' ? (
           <AsideFiles
             key={panelKey}
@@ -384,7 +466,9 @@ function AgentAside(props: AsideProps) {
               onOpenPlan={function () {
                 selectTab('plan')
               }}
-              onOpenTerminal={openTerminal}
+              onOpenTerminal={function (command, workdir, source) {
+                void openTerminal(command, workdir, source)
+              }}
               isPlanMode={agentMode === 'plan'}
             />
           ) : (
@@ -399,11 +483,23 @@ function AgentAside(props: AsideProps) {
          * 终端始终挂载、用 hidden 切换：切到别的页签再回来不会重建 xterm 丢失滚动缓冲。
          * 只有真正打开过（terminalOpen）才挂载，避免一进右栏就白开一个 shell。
          */}
+        {/*
+         * 终端用**绝对定位覆盖层**，不用 `hidden` / `invisible`：
+         * - display:none → 量到 0×0
+         * - visibility:hidden → FitAddon 仍常 fit 出 0 列，切回 terminal 时尺寸不变不 refit → 白屏
+         * opacity-0 保留可布局尺寸，HOME 下也能 fit；切到 terminal 只去透明。
+         */}
         {terminalOpen ? (
-          <div className={clsx('flex min-h-0 flex-1 flex-col', mode !== 'terminal' && 'hidden')}>
+          <div
+            className={clsx(
+              'bg-background absolute inset-0 flex min-h-0 flex-col',
+              mode !== 'terminal' && 'pointer-events-none opacity-0'
+            )}
+            aria-hidden={mode !== 'terminal'}>
             <TerminalSurface
               cwd={rootPath}
               emptyCwdMessage="先在左栏添加一个工作区"
+              paneVisible={mode === 'terminal'}
             />
           </div>
         ) : null}

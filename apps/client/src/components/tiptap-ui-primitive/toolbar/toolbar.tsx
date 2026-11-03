@@ -2,6 +2,7 @@
 
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
 import { TooltipProvider } from '@cogito/design/components/tooltip'
+import { OVERLAY_ELEVATION } from '@cogito/design/lib/surface'
 import { Separator } from '@/components/tiptap-ui-primitive/separator/separator.tsx'
 import { cn } from '@/lib/tiptap-utils.ts'
 import { useMenuNavigation } from '@/hooks/use-menu-navigation.ts'
@@ -105,7 +106,10 @@ export const Toolbar = forwardRef<HTMLDivElement, ToolbarProps>(function Toolbar
         className={cn(
           'flex items-center gap-0.5',
           variant === 'floating' &&
-            'rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md',
+            cn(
+              'rounded-md bg-popover p-1 text-popover-foreground',
+              OVERLAY_ELEVATION
+            ),
           className
         )}
         {...props}>

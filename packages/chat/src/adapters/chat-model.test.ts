@@ -44,4 +44,32 @@ describe('mapChatStreamToRunResults timing', function () {
     expect(last?.metadata?.timing?.totalChunks).toBe(1)
     expect(last?.metadata?.timing?.tokenCount).toBeUndefined()
   })
+
+  it('marks incomplete when the stream ends without a terminal event', async function () {
+    const stream = events([{ kind: 'text', blockID: 'a', text: 'cut' }])
+
+    let last: ChatModelRunResult | undefined
+    for await (const result of mapChatStreamToRunResults(stream)) {
+      last = result
+    }
+
+    expect(last?.status).toEqual({
+      type: 'incomplete',
+      reason: 'error',
+      error: '流异常结束：未收到终态（输出可能不完整）'
+    })
+  })
+
+  it('marks cancelled when stream ends without terminal but abortSignal already aborted', async function () {
+    const stream = events([{ kind: 'text', blockID: 'a', text: 'cut' }])
+    const cancel = new AbortController()
+    cancel.abort({ name: 'AbortError', detach: true })
+
+    let last: ChatModelRunResult | undefined
+    for await (const result of mapChatStreamToRunResults(stream, cancel.signal)) {
+      last = result
+    }
+
+    expect(last?.status).toEqual({ type: 'incomplete', reason: 'cancelled' })
+  })
 })

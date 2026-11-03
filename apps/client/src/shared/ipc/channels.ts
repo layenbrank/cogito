@@ -321,6 +321,8 @@ export const CHANNELS = {
     RESIZE: 'terminal:resize',
     KILL: 'terminal:kill',
     LIST: 'terminal:list',
+    /** 把 cwd 规范成与 Hub 一致的 `agent:<canonical>` */
+    RESOLVE_AGENT_ID: 'terminal:resolve_agent_id',
     FONT: 'terminal:font'
   }
 } as const
