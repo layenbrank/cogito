@@ -24,9 +24,56 @@ vi.mock('@/lib/engine-ipc', function () {
   }
 })
 
+vi.mock('@/features/browser/visit-history', function () {
+  return {
+    matchBrowserVisits: function (query: string) {
+      const all = [
+        { url: 'https://docs.rs/', title: 'docs.rs', visitedAt: 3 },
+        { url: 'https://rust-lang.org/', title: 'Rust', visitedAt: 2 },
+        { url: 'https://example.com/other', title: 'Other', visitedAt: 1 }
+      ]
+      const needle = query.trim().toLowerCase()
+      if (!needle) return all
+      return all.filter(function (item) {
+        return item.title.toLowerCase().includes(needle) || item.url.toLowerCase().includes(needle)
+      })
+    }
+  }
+})
+
+vi.mock('@/stores/mirror', function () {
+  return {
+    useMirrorStore: {
+      getState: function () {
+        return {
+          magneticTiles: [
+            {
+              id: 'tile-1',
+              component: 'navigation',
+              title: 'GitHub',
+              url: 'https://github.com/',
+              description: ''
+            },
+            {
+              id: 'tile-2',
+              component: 'collection',
+              title: 'Not nav',
+              url: 'https://nope.test/',
+              description: ''
+            }
+          ]
+        }
+      }
+    }
+  }
+})
+
 import {
   findInstantOmniboxSuggestions,
+  findLocalOmniboxSuggestions,
   findRemoteOmniboxSuggestions,
+  findSessionOmniboxSuggestions,
+  mergeOmniboxSuggestions,
   resolveOmnibox
 } from './omnibox'
 
@@ -66,6 +113,49 @@ describe('findInstantOmniboxSuggestions', function () {
     const rows = findInstantOmniboxSuggestions('hello world')
     expect(rows).toHaveLength(1)
     expect(rows[0].target.kind).toBe('search')
+  })
+})
+
+describe('findLocalOmniboxSuggestions', function () {
+  it('空查询返回最近历史与导航磁贴', function () {
+    const rows = findLocalOmniboxSuggestions('')
+    expect(rows.some(function (row) {
+      return row.subtitle === '历史记录'
+    })).toBe(true)
+    expect(rows.some(function (row) {
+      return row.target.url === 'https://github.com/'
+    })).toBe(true)
+  })
+
+  it('按关键词过滤历史', function () {
+    const rows = findLocalOmniboxSuggestions('rust')
+    expect(rows.every(function (row) {
+      return row.title.toLowerCase().includes('rust') || row.target.url.includes('rust')
+    })).toBe(true)
+  })
+})
+
+describe('findSessionOmniboxSuggestions', function () {
+  it('映射会话历史条目', async function () {
+    const rows = await findSessionOmniboxSuggestions('a', [
+      { url: 'https://a.test/', title: 'A' },
+      { url: 'https://b.test/', title: 'B' }
+    ])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].subtitle).toBe('本页历史')
+  })
+})
+
+describe('mergeOmniboxSuggestions', function () {
+  it('按 URL 去重且保留即时优先', function () {
+    const instant = findInstantOmniboxSuggestions('docs.rs')
+    const local = findLocalOmniboxSuggestions('docs')
+    const merged = mergeOmniboxSuggestions(instant, local, [], [])
+    const docsNav = merged.filter(function (row) {
+      return row.target.kind === 'url' && row.target.url.includes('docs.rs')
+    })
+    expect(docsNav).toHaveLength(1)
+    expect(docsNav[0].subtitle).toBe('打开网址')
   })
 })
 

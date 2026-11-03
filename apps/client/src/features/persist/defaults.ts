@@ -3,6 +3,7 @@ import type { PersistShape } from '@/features/persist/types'
 const SESSION_CAP = 8
 const CODE_TAB_CAP = 16
 const RECENT_HIT_CAP = 20
+const BROWSER_VISIT_CAP = 50
 const TIPTAP_COLOR_CAP = 12
 
 const PERSIST_DEFAULTS: PersistShape = {
@@ -78,6 +79,7 @@ const PERSIST_DEFAULTS: PersistShape = {
     clockStyle: 'digital',
     engineKey: 'bing',
     recentHits: [],
+    browserVisits: [],
     tiptapRecentColors: [],
     rememberedUsername: null
   },
@@ -86,4 +88,11 @@ const PERSIST_DEFAULTS: PersistShape = {
   vault: { pinHash: null }
 }
 
-export { PERSIST_DEFAULTS, SESSION_CAP, CODE_TAB_CAP, RECENT_HIT_CAP, TIPTAP_COLOR_CAP }
+export {
+  PERSIST_DEFAULTS,
+  SESSION_CAP,
+  CODE_TAB_CAP,
+  RECENT_HIT_CAP,
+  BROWSER_VISIT_CAP,
+  TIPTAP_COLOR_CAP
+}

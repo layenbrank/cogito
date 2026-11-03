@@ -10,8 +10,10 @@ use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 use serde::Serialize;
+use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, Manager};
 
+use super::cdp;
 use super::state::BrowserState;
 
 const MAIN_WINDOW: &str = "main";
@@ -23,6 +25,14 @@ const INSTALL_TIMEOUT: Duration = Duration::from_secs(5);
 pub struct HistoryState {
     pub can_go_back: bool,
     pub can_go_forward: bool,
+}
+
+/// 当前 tab 会话历史条目（CDP `Page.getNavigationHistory`）
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NavigationEntry {
+    pub url: String,
+    pub title: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -81,6 +91,54 @@ pub fn forget(label: &str) {
     with_hub(|hub| {
         hub.subscribed.remove(label);
     });
+}
+
+/// 当前 tab 的会话历史条目（供 omnibox 本地源；关 tab 即消失）。
+pub async fn fetch_navigation_entries(
+    app: &AppHandle,
+    label: &str,
+) -> Result<Vec<NavigationEntry>, String> {
+    let value = cdp::call(app, label, "Page.getNavigationHistory", json!({})).await?;
+    Ok(parse_navigation_entries(&value))
+}
+
+fn parse_navigation_entries(value: &Value) -> Vec<NavigationEntry> {
+    let Some(entries) = value.get("entries").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for entry in entries.iter().rev() {
+        let url = entry
+            .get("url")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        if url.is_empty() || url == "about:blank" {
+            continue;
+        }
+        if !seen.insert(url.clone()) {
+            continue;
+        }
+        let title = entry
+            .get("title")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        out.push(NavigationEntry {
+            title: if title.is_empty() {
+                url.clone()
+            } else {
+                title
+            },
+            url,
+        });
+        if out.len() >= 20 {
+            break;
+        }
+    }
+    out
 }
 
 /// 主动读一次前进/后退能力（切 tab / 装完后兜底）。
@@ -250,4 +308,26 @@ fn install_windows(
 
     log::info!("browser: 已订阅 HistoryChanged + DocumentTitleChanged（{label}）");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_navigation_history_newest_first_deduped() {
+        let value = json!({
+            "currentIndex": 2,
+            "entries": [
+                { "id": 1, "url": "https://a.test/", "title": "A" },
+                { "id": 2, "url": "https://b.test/", "title": "B" },
+                { "id": 3, "url": "https://b.test/", "title": "B again" },
+                { "id": 4, "url": "about:blank", "title": "" }
+            ]
+        });
+        let entries = parse_navigation_entries(&value);
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].url, "https://b.test/");
+        assert_eq!(entries[1].url, "https://a.test/");
+    }
 }

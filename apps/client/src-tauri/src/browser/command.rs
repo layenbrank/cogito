@@ -113,6 +113,15 @@ pub fn browser_history_state(
     super::toolbar_sync::fetch_history_state(&app, &label)
 }
 
+/// 当前 tab 会话历史（CDP Page.getNavigationHistory），供 omnibox 本地建议
+#[tauri::command]
+pub async fn browser_navigation_history(
+    app: AppHandle,
+    label: String,
+) -> Result<Vec<super::toolbar_sync::NavigationEntry>, String> {
+    super::toolbar_sync::fetch_navigation_entries(&app, &label).await
+}
+
 /// 当前浏览器快照（tabs + 活动 label + 布局）。
 ///
 /// 前端页面刷新后内存态丢失，靠它把仍然活着的 webview 重新挂回 UI。

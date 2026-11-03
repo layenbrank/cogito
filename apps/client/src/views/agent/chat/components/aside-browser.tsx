@@ -19,6 +19,7 @@ import { toast } from 'sonner'
 import { attachImageData } from '@/features/agent/attachment'
 import {
   fetchBrowserHistoryState,
+  fetchBrowserNavigationHistory,
   navigateBrowser,
   openBrowserDevtools,
   probeBrowser,
@@ -30,6 +31,7 @@ import {
   stepBrowserHistory,
   stopBrowserPicker,
   writeBrowserVisible,
+  type BrowserNavigationEntry,
   type BrowserPickerActiveEvent,
   type PickedBrowserElement
 } from '@/features/browser/api'
@@ -39,12 +41,16 @@ import { describeDevice, fitFor, isUsableDevice } from '@/features/browser/devic
 import type { BoxSize, DeviceProfile } from '@/features/browser/device'
 import {
   findInstantOmniboxSuggestions,
+  findLocalOmniboxSuggestions,
   findRemoteOmniboxSuggestions,
+  findSessionOmniboxSuggestions,
+  mergeOmniboxSuggestions,
   resolveOmnibox,
   type OmniboxSuggestion
 } from '@/features/browser/omnibox'
 import { useBrowserRect } from '@/features/browser/rect'
 import { useBrowserStore } from '@/features/browser/store'
+import { recordBrowserVisit } from '@/features/browser/visit-history'
 import { findSelfDebugUrl } from '@/features/window/shell-mode'
 import { OMNIBAR_UI } from '@/features/command-bar/constants'
 
@@ -87,6 +93,7 @@ function AsideBrowser() {
   const [omniboxIndex, updateOmniboxIndex] = useState(0)
   const omniboxAbortRef = useRef<AbortController | null>(null)
   const omitBlurCloseRef = useRef(false)
+  const sessionHistoryRef = useRef<BrowserNavigationEntry[]>([])
 
   const activeTab = tabs.find(function (tab) {
     return tab.label === activeLabel
@@ -248,9 +255,13 @@ function AsideBrowser() {
       'browser://nav',
       function (event) {
         const sameDocument = event.payload.sameDocument === true
+        const tab = useBrowserStore.getState().tabs.find(function (item) {
+          return item.label === event.payload.label
+        })
         useBrowserStore
           .getState()
           .writeTabUrl(event.payload.label, event.payload.url, sameDocument)
+        void recordBrowserVisit(event.payload.url, tab?.title)
         // 硬导航会卸页面，拾取必须停；同文档 SPA 路由通常保留 DOM，不断拾取
         if (!sameDocument && pickingLabelRef.current === event.payload.label) {
           haltPicker(event.payload.label)
@@ -328,33 +339,49 @@ function AsideBrowser() {
     [activeLabel]
   )
 
-  // omnibox：即时行 + 防抖远程建议
+  // 切 tab / 打开 omnibox：刷新会话历史缓存
+  useEffect(
+    function () {
+      if (!activeLabel || !omniboxOpen) return
+      let cancelled = false
+      void fetchBrowserNavigationHistory(activeLabel)
+        .then(function (entries) {
+          if (cancelled) return
+          sessionHistoryRef.current = entries
+        })
+        .catch(function (error: unknown) {
+          console.warn('[aside-browser] 读会话历史失败:', error)
+          if (!cancelled) sessionHistoryRef.current = []
+        })
+      return function () {
+        cancelled = true
+      }
+    },
+    [activeLabel, omniboxOpen]
+  )
+
+  // omnibox：即时 → 本地历史 → 会话 → 远程 AS
   useEffect(
     function () {
       if (!omniboxOpen) return
       const instant = findInstantOmniboxSuggestions(draft)
-      updateOmniboxRows(instant)
+      const local = findLocalOmniboxSuggestions(draft)
+      updateOmniboxRows(mergeOmniboxSuggestions(instant, local, [], []))
       updateOmniboxIndex(0)
 
       omniboxAbortRef.current?.abort()
       const controller = new AbortController()
       omniboxAbortRef.current = controller
       const timer = window.setTimeout(function () {
-        void findRemoteOmniboxSuggestions(draft, controller.signal).then(function (remote) {
+        void (async function () {
+          const session = await findSessionOmniboxSuggestions(draft, sessionHistoryRef.current)
           if (controller.signal.aborted) return
-          const merged = [...instant]
-          for (const row of remote) {
-            if (
-              merged.some(function (item) {
-                return item.title === row.title
-              })
-            ) {
-              continue
-            }
-            merged.push(row)
-          }
-          updateOmniboxRows(merged)
-        })
+          const remote = draft.trim()
+            ? await findRemoteOmniboxSuggestions(draft, controller.signal)
+            : []
+          if (controller.signal.aborted) return
+          updateOmniboxRows(mergeOmniboxSuggestions(instant, local, session, remote))
+        })()
       }, OMNIBAR_UI.DEBOUNCE_MS)
 
       return function () {
@@ -490,6 +517,7 @@ function AsideBrowser() {
     updateDraft(formatAddress(targetUrl))
     const store = useBrowserStore.getState()
     if (view !== 'page') updateView('page')
+    void recordBrowserVisit(targetUrl, null)
     const label = store.activeLabel
     if (!label) {
       void store.openTab(targetUrl).catch(reportError)

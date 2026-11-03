@@ -2,6 +2,7 @@ import {
   CODE_TAB_CAP,
   PERSIST_DEFAULTS,
   RECENT_HIT_CAP,
+  BROWSER_VISIT_CAP,
   SESSION_CAP,
   TIPTAP_COLOR_CAP
 } from '@/features/persist/defaults'
@@ -17,6 +18,7 @@ import type {
   SettingsPref,
   TilesPref,
   VaultPref,
+  BrowserVisit,
   WindowPref,
   TileSessionPref,
   SignboardViewMode,
@@ -308,6 +310,21 @@ function parseWindow(raw: unknown): WindowPref {
         })
         .slice(0, RECENT_HIT_CAP)
     : []
+  const browserVisits: BrowserVisit[] = Array.isArray(raw.browserVisits)
+    ? raw.browserVisits
+        .filter(isRecord)
+        .map(function (item) {
+          return {
+            url: typeof item.url === 'string' ? item.url : '',
+            title: typeof item.title === 'string' ? item.title : '',
+            visitedAt: typeof item.visitedAt === 'number' ? item.visitedAt : 0
+          }
+        })
+        .filter(function (item) {
+          return item.url && item.visitedAt > 0
+        })
+        .slice(0, BROWSER_VISIT_CAP)
+    : []
   const clockStyle =
     raw.clockStyle === 'digital' || raw.clockStyle === 'analog' || raw.clockStyle === 'flip'
       ? raw.clockStyle
@@ -332,6 +349,7 @@ function parseWindow(raw: unknown): WindowPref {
     clockStyle,
     engineKey: typeof raw.engineKey === 'string' ? raw.engineKey : base.engineKey,
     recentHits,
+    browserVisits,
     tiptapRecentColors: Array.isArray(raw.tiptapRecentColors)
       ? raw.tiptapRecentColors
           .filter(function (item) {

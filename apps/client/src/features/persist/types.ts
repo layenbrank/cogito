@@ -120,11 +120,20 @@ interface CommandBarRecentHit {
   icon?: string
 }
 
+/** Agent 浏览器 omnibox 本地访问记录（跨会话） */
+interface BrowserVisit {
+  url: string
+  title: string
+  visitedAt: number
+}
+
 interface WindowPref {
   appearance: WindowAppearance
   clockStyle: ClockStyle
   engineKey: string
   recentHits: CommandBarRecentHit[]
+  /** Agent 右侧浏览器最近访问，供 omnibox 历史建议 */
+  browserVisits: BrowserVisit[]
   tiptapRecentColors: string[]
   rememberedUsername: string | null
 }
@@ -198,6 +207,7 @@ export type {
   ModelPref,
   WindowPref,
   WindowAppearance,
+  BrowserVisit,
   CommandBarRecentHit,
   GalleryPref,
   VaultPref,
