@@ -9,7 +9,8 @@ function ModelHeader(props: { onAdd: () => void }) {
       <div className="min-w-0">
         <h2 className={styles.title}>模型</h2>
         <p className={styles.desc}>
-          组织模型由管理员在后台配置；个人模型用自己的 API Key 添加，密钥只保存在本机。
+          组织模型：登录 Cogito 后走平台网关。个人模型：在本机保存 API Key。Cursor
+          Agent：须本机 CLI 执行 agent login（与 Cogito 登录无关）。
         </p>
       </div>
       <Button

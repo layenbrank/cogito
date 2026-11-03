@@ -195,10 +195,18 @@ interface SettingsShortcuts {
   bindings: Record<string, string>
 }
 
+interface SettingsProxy {
+  enabled: boolean
+  url: string
+  bypassLocal: boolean
+  acceptInvalidCerts: boolean
+}
+
 interface SettingsPref {
   general: SettingsGeneral
   capture: SettingsCapture
   shortcuts: SettingsShortcuts
+  proxy: SettingsProxy
 }
 
 interface PersistShape {
@@ -233,6 +241,7 @@ export type {
   VaultPref,
   ClipchampPref,
   SettingsPref,
+  SettingsProxy,
   CodeSidebarView,
   CodeSurfaceTab,
   CodeWordWrap,

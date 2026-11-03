@@ -12,10 +12,7 @@ function DocsTabScroll(props: DocsTabState) {
       {props.hits.length > 0 ? (
         <ul className="mb-2 flex flex-col gap-0.5">
           <li className="px-1 text-[11px] text-muted-foreground">
-            本地命中 {props.hits.length}
-            {props.counts.local > props.hits.length
-              ? `（共 ${props.counts.local}，已截断）`
-              : ''}
+            命中 {props.hits.length}
           </li>
           {props.hits.map(function (hit) {
             return (
@@ -43,7 +40,7 @@ function DocsTabScroll(props: DocsTabState) {
         <div className="text-muted-foreground space-y-1 px-1 py-2 text-xs">
           <p>暂无文档</p>
           <p className="text-[11px] leading-relaxed">
-            可在左侧「浏览」新建 Markdown，或点上方「生成」让助手起草（结果进待发布）。
+            可在「来源」放入资料后 ingest，或点上方「生成」让助手直接写 wiki 页。
           </p>
         </div>
       ) : null}

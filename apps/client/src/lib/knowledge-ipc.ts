@@ -180,10 +180,42 @@ async function exportBundle(baseId: string): Promise<string> {
   }
 }
 
+interface PdfExtractResult {
+  path: string
+  pageCount: number
+  markdown: string
+  imagePaths: string[]
+}
+
+async function extractPdf(
+  path: string,
+  mediaDir?: string
+): Promise<PdfExtractResult> {
+  try {
+    return await invoke<PdfExtractResult>(CHANNELS.KNOWLEDGE.EXTRACT_PDF, {
+      path,
+      mediaDir: mediaDir ?? null
+    })
+  } catch (error) {
+    throw asError(error, 'PDF 抽取失败')
+  }
+}
+
+async function findPdfium(): Promise<string | null> {
+  try {
+    return (await invoke<string | null>(CHANNELS.KNOWLEDGE.FIND_PDFIUM)) ?? null
+  } catch (error) {
+    console.warn('[knowledge] findPdfium failed', error)
+    return null
+  }
+}
+
 export {
   insertBase,
   discardStaged,
   exportBundle,
+  extractPdf,
+  findPdfium,
   listBases,
   listDocs,
   listStaging,
@@ -196,4 +228,5 @@ export {
   updateBase,
   writeDoc
 }
+export type { PdfExtractResult }
 export type { BasePatch, KnowledgeBase, KnowledgeDocSummary, KnowledgeHit, StagedFile }

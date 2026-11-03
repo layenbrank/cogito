@@ -38,6 +38,7 @@ import {
   findAcpHandle
 } from '@/features/agent/acp/connection'
 import { mountCloudMcp } from '@/features/agent/acp/cloud-mcp'
+import { readWikiApiConfig } from '@/views/knowledge/lib/wiki-api-config.ts'
 import { humanizeRunError, isRunCancelled } from '@/features/agent/acp/run-error'
 import {
   abortAllBackgroundTurns,
@@ -288,6 +289,10 @@ async function findCorexMcpServers(sessionID: string): Promise<AcpMcpServer[]> {
  */
 async function findCogitoMcpServers(sessionID: string): Promise<AcpMcpServer[]> {
   try {
+    if (!readWikiApiConfig().mcpEnabled) {
+      console.info('[acp/session] 未注入 cogito-mcp：设置中已关闭 MCP 侧车')
+      return []
+    }
     const info = BridgeInfoSchema.parse(await invoke(CHANNELS.BRIDGE.INFO))
     const command = info.mcpPath.trim()
     if (!command || !info.url.trim() || !info.token.trim()) {
@@ -509,7 +514,18 @@ function parseAuthRequired(error: unknown): Error {
       `${message}（Ollama/Qwen 工具环常见问题：已尽量内联 @ 文件内容；请新开对话重试，或升级 Ollama）`
     )
   }
-  // 网关 401 / 用户未登录：组织模型走 JWT helper，不是 goose configure
+  // Cursor Agent CLI：与 Cogito 登录 / 组织网关无关，须本机 agent login 或 CURSOR_API_KEY
+  if (
+    /not logged in to cursor[-_]?agent|cursor[-_]?agent login|run ['"]?agent login|please run ['"]?cursor[-_]?agent login/i.test(
+      message
+    )
+  ) {
+    return new Error(
+      'Cursor Agent 未登录。请在本机终端执行 agent login，或设置环境变量 CURSOR_API_KEY 后完整重启客户端（与 Cogito 账号登录无关）',
+      { cause: error instanceof Error ? error : undefined }
+    )
+  }
+  // 网关 401 / 用户未登录：组织模型走 JWT helper，不是个人供应商配置
   if (/用户未登录|401\s*unauthorized|authentication failed for .*gateway/i.test(message)) {
     return new Error(
       '组织模型鉴权失败（网关未收到有效登录令牌）。请重新登录后重试；若仍失败，完整重启客户端以重载 goose',
@@ -517,7 +533,9 @@ function parseAuthRequired(error: unknown): Error {
     )
   }
   if (code === -32000 || /auth|sign.?in|api.?key|configure|provider/i.test(message)) {
-    return new Error(`${message}（请在设置中保存供应商配置，或执行 goose configure）`)
+    return new Error(
+      `${message}（请在「设置 → 模型」保存个人供应商 API Key；组织模型请先登录 Cogito；Cursor Agent 请本机执行 agent login）`
+    )
   }
   if (/invalid\s*params/i.test(message)) {
     return wrapInvalidParams(error, '请求参数无效')

@@ -62,12 +62,12 @@ const PROVIDER_DISPLAY: Record<string, ProviderDisplay> = {
   },
   'cursor-agent': {
     label: 'Cursor Agent',
-    hint: '通过本机 Cursor Agent 调用已登录账号下的模型',
+    hint: '须本机已安装 Cursor CLI，并执行 agent login（或设置 CURSOR_API_KEY）；与 Cogito 登录无关',
     billing: '本机 CLI'
   },
   cursor_agent: {
     label: 'Cursor Agent',
-    hint: '通过本机 Cursor Agent 调用已登录账号下的模型',
+    hint: '须本机已安装 Cursor CLI，并执行 agent login（或设置 CURSOR_API_KEY）；与 Cogito 登录无关',
     billing: '本机 CLI'
   },
   alibaba: {
@@ -152,7 +152,7 @@ const PROVIDER_DISPLAY: Record<string, ProviderDisplay> = {
   },
   [GATEWAY_PROVIDER_KIND]: {
     label: '组织模型',
-    hint: '由管理员在后台配置的平台模型，登录后即可选用',
+    hint: '由管理员在后台配置；须登录 Cogito，令牌经本机 JWT helper 交给网关',
     billing: '组织额度'
   }
 }

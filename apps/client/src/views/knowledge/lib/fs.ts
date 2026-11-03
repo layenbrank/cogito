@@ -56,7 +56,14 @@ async function writeMarkdownFile(path: string, content: string): Promise<void> {
 async function pickOpenMarkdown(): Promise<string | null> {
   const selected = await open({
     multiple: false,
-    filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'mdx'] }]
+    filters: [
+      {
+        name: '文档 / 资料',
+        extensions: ['md', 'markdown', 'mdx', 'txt', 'pdf', 'png', 'jpg', 'jpeg', 'webp', 'gif']
+      },
+      { name: 'Markdown', extensions: ['md', 'markdown', 'mdx'] },
+      { name: '全部', extensions: ['*'] }
+    ]
   })
   if (!selected || Array.isArray(selected)) return null
   return selected
@@ -100,6 +107,7 @@ interface ListMarkdownEntriesResult {
 }
 
 function mapDirEntry(entry: DirEntry, relative: string): TreeEntry | null {
+  // 对齐 llm_wiki entry_is_visible：默认隐藏点文件；raw/sources 可含 pdf/图/剪藏等
   if (!entry.name || entry.name.startsWith('.')) return null
 
   if (entry.isDirectory) {
@@ -110,17 +118,13 @@ function mapDirEntry(entry: DirEntry, relative: string): TreeEntry | null {
     }
   }
 
-  // 仅收录明确文件或带 markdown 扩展名的条目，跳过歧义 symlink 等
-  if (entry.isFile || (!entry.isDirectory && isMarkdownName(entry.name))) {
-    if (!isMarkdownName(entry.name)) return null
-    return {
-      name: entry.name,
-      path: relative ? `${relative}/${entry.name}` : entry.name,
-      isDirectory: false
-    }
+  // 目录内全部普通文件都展示（不再只留 md）
+  if (!entry.isFile) return null
+  return {
+    name: entry.name,
+    path: relative ? `${relative}/${entry.name}` : entry.name,
+    isDirectory: false
   }
-
-  return null
 }
 
 function findCacheKey(absolute: string): string {

@@ -92,7 +92,7 @@ axum = { workspace = true }
 
 # --- Tauri 插件（已在 bootstrap 注册）---
 tauri-plugin-opener = "2.7.2" # 用系统默认应用打开 URL/路径
-tauri-plugin-fs = "2.7.1" # 文件系统读写
+tauri-plugin-fs = { version = "2.7.1", features = ["watch"] } # 文件系统读写 + 目录监听
 tauri-plugin-websocket = "2.5.0" # WebSocket（前端能力预留）
 tauri-plugin-dialog = "2.8.3" # 原生对话框
 tauri-plugin-shell = "2.5.0" # sidecar / 外部命令（corex-daemon）
@@ -146,6 +146,12 @@ rustls-pki-types = "1"
 url = "2"
 regex = { workspace = true }
 dirs = "6"
+
+# --- LanceDB 向量持久（知识库 embedding）---
+lancedb = "0.27.2"
+arrow-array = "57"
+arrow-schema = "57"
+futures = "0.3"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 # --- 桌面专用插件 ---

@@ -13,6 +13,8 @@ describe('工具效果分类', function () {
     expect(classifyToolEffect('read_file')).toBe('read')
     expect(classifyToolEffect('app_calendar_read')).toBe('read')
     expect(classifyToolEffect('app_knowledge_search')).toBe('read')
+    expect(classifyToolEffect('app_knowledge_lint')).toBe('read')
+    expect(classifyToolEffect('app_knowledge_read_wiki')).toBe('read')
     expect(classifyToolEffect('app_workspace_list')).toBe('read')
     expect(classifyToolEffect('corex_actions')).toBe('read')
     expect(classifyToolEffect('corex_validate')).toBe('read')
@@ -22,6 +24,7 @@ describe('工具效果分类', function () {
   it('写工具一定触发审批（含 create/append/update/save/index/run/text_editor）', function () {
     expect(isWriteTool('write_file')).toBe(true)
     expect(isWriteTool('app_knowledge_write_doc')).toBe(true)
+    expect(isWriteTool('app_knowledge_ingest')).toBe(true)
     expect(isWriteTool('calendar.create')).toBe(true)
     expect(isWriteTool('memo.append')).toBe(true)
     expect(isWriteTool('knowledge_index')).toBe(true)

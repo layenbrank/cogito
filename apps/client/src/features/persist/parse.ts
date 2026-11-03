@@ -496,7 +496,24 @@ function parseSettings(raw: unknown): SettingsPref {
     shortcuts: {
       version: typeof shortcuts.version === 'number' ? shortcuts.version : 1,
       bindings
-    }
+    },
+    proxy: parseProxy(raw.proxy, base.proxy)
+  }
+}
+
+function parseProxy(
+  raw: unknown,
+  fallback: PersistShape['settings']['proxy']
+): PersistShape['settings']['proxy'] {
+  if (!isRecord(raw)) return { ...fallback }
+  return {
+    enabled: typeof raw.enabled === 'boolean' ? raw.enabled : fallback.enabled,
+    url: typeof raw.url === 'string' ? raw.url : fallback.url,
+    bypassLocal: typeof raw.bypassLocal === 'boolean' ? raw.bypassLocal : fallback.bypassLocal,
+    acceptInvalidCerts:
+      typeof raw.acceptInvalidCerts === 'boolean'
+        ? raw.acceptInvalidCerts
+        : fallback.acceptInvalidCerts
   }
 }
 

@@ -4,7 +4,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { useKnowledgeStore } from '@/stores/knowledge'
-import { uploadMarkdownImage } from '@/views/knowledge/lib/image-upload.ts'
+import {
+  findClipboardImages,
+  findNativeClipboardImage,
+  uploadMarkdownImage
+} from '@/views/knowledge/lib/image-upload.ts'
 import { serializeHtmlToMarkdown } from '@/views/knowledge/lib/serialize-markdown.ts'
 import { findOutlineFromEditor } from '@/views/knowledge/lib/outline.ts'
 import { openPath, saveDocument, syncDerived } from '@/views/knowledge/lib/session.ts'
@@ -94,19 +98,34 @@ function useKnowledgeWorkspace() {
     useKnowledgeStore.getState().toSetFindOpen(!useKnowledgeStore.getState().isFindOpen)
   }
 
-  function handleImageFiles(files: FileList | null): boolean {
-    if (!files || !activePath) return false
-    let handled = false
-    for (const file of Array.from(files)) {
-      if (!file.type.startsWith('image/')) continue
-      handled = true
-      void (async function () {
-        const relative = await uploadMarkdownImage(file)
-        composerRef.current?.chain().focus().setImage({ src: relative }).run()
-        toast.success(t('IMAGE_SAVED'))
-      })()
+  /** 写入当前笔记；路径一律读 store，避免 useEditor 闭包里的 activePath 过期 */
+  async function insertPastedImage(file: File) {
+    if (!useKnowledgeStore.getState().activePath) {
+      toast.error(t('IMAGE_UPLOAD_NEED_FILE'))
+      return
     }
-    return handled
+    try {
+      const relative = await uploadMarkdownImage(file)
+      composerRef.current?.chain().focus().setImage({ src: relative }).run()
+      toast.success(t('IMAGE_SAVED'))
+    } catch (error) {
+      console.error('[knowledge] paste image failed', error)
+      toast.error(t('IMAGE_UPLOAD_FAILED'), {
+        description: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
+  function insertPastedImages(files: File[]): boolean {
+    if (files.length === 0) return false
+    if (!useKnowledgeStore.getState().activePath) {
+      toast.error(t('IMAGE_UPLOAD_NEED_FILE'))
+      return true
+    }
+    for (const file of files) {
+      void insertPastedImage(file)
+    }
+    return true
   }
 
   const composer = useComposer(
@@ -122,19 +141,33 @@ function useKnowledgeWorkspace() {
           )
         },
         handlePaste(_view, event) {
-          return handleImageFiles(event.clipboardData?.files ?? null)
+          const images = findClipboardImages(event.clipboardData)
+          if (images.length > 0) return insertPastedImages(images)
+
+          const plain = event.clipboardData?.getData('text/plain')?.trim() ?? ''
+          const htmlClip = event.clipboardData?.getData('text/html')?.trim() ?? ''
+          // 有文本时交给 TipTap；无文本时再试原生剪贴板（WebView 偶发不暴露 items）
+          if (plain || htmlClip) return false
+
+          void (async function () {
+            const file = await findNativeClipboardImage()
+            if (file) await insertPastedImage(file)
+          })()
+          return false
         },
         handleDrop(_view, event) {
-          if (!event.dataTransfer?.files?.length) return false
-          event.preventDefault()
-          return handleImageFiles(event.dataTransfer.files)
+          if (!event.dataTransfer) return false
+          const handled = insertPastedImages(findClipboardImages(event.dataTransfer))
+          if (handled) event.preventDefault()
+          return handled
         }
       },
       onUpdate(props) {
         if (syncingRef.current) return
         const nextHtml = props.editor.getHTML()
         useKnowledgeStore.getState().toUpdateHtml(nextHtml)
-        const md = serializeHtmlToMarkdown(nextHtml, frontMatter)
+        const matter = useKnowledgeStore.getState().frontMatter
+        const md = serializeHtmlToMarkdown(nextHtml, matter)
         useKnowledgeStore.getState().toUpdateMarkdown(md)
         syncDerived(md)
         useKnowledgeStore.getState().toUpdateOutline(findOutlineFromEditor(props.editor))

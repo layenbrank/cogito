@@ -11,6 +11,7 @@ import { Spinner } from '@cogito/design/components/spinner'
 import { useState } from 'react'
 
 import type { GooseProviderEntry } from '@/features/agent/acp/goose-providers'
+import { isCursorAgentProviderId } from '@/features/agent/cursor-agent'
 import {
   findModelLabel,
   findProviderBilling,
@@ -194,10 +195,16 @@ function ProviderListSection(props: {
                       props.onOpenUpdate(entry)
                     }}>
                     <Icon
-                      icon="lucide:pencil"
+                      icon={
+                        isCursorAgentProviderId(entry.providerId)
+                          ? 'lucide:terminal'
+                          : 'lucide:pencil'
+                      }
                       className="size-3.5"
                     />
-                    更新 API Key
+                    {isCursorAgentProviderId(entry.providerId)
+                      ? 'CLI 说明'
+                      : '更新 API Key'}
                   </Button>
                 </div>
               </div>

@@ -3,13 +3,8 @@ import { useState } from 'react'
 import { useDockStore } from '@/features/agent/dock'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useKnowledgeStore } from '@/stores/knowledge'
-import { isPathInsideRoot, isSamePath } from '@/views/knowledge/lib/path.ts'
+import { isPathInsideRoot, isSamePath, joinPath } from '@/views/knowledge/lib/path.ts'
 import { openPath } from '@/views/knowledge/lib/session.ts'
-
-function joinPath(root: string, relative: string): string {
-  const base = root.replace(/[\\/]+$/, '')
-  return `${base}/${relative.replace(/^[\\/]+/, '')}`
-}
 
 function useDocsTab() {
   const bases = useKnowledgeBaseStore(function (state) {
@@ -23,9 +18,6 @@ function useDocsTab() {
   })
   const hits = useKnowledgeBaseStore(function (state) {
     return state.hits
-  })
-  const counts = useKnowledgeBaseStore(function (state) {
-    return state.counts
   })
   const query = useKnowledgeBaseStore(function (state) {
     return state.query
@@ -87,7 +79,6 @@ function useDocsTab() {
     activeBaseID,
     docs,
     hits,
-    counts,
     query,
     isLoading,
     error,

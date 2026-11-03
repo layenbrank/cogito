@@ -20,6 +20,7 @@ import { runCommand } from '@/keyboard/commands'
 import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { t } from '@/views/knowledge/locale.ts'
+import { useSurfaceStore } from '@/views/knowledge/surface/store.ts'
 
 function KnowledgeCaptionBegin() {
   const isDirty = useKnowledgeStore(function (state) {
@@ -31,12 +32,28 @@ function KnowledgeCaptionBegin() {
   const hasOpened = useKnowledgeStore(function (state) {
     return state.hasOpened
   })
+  const railTab = useSurfaceStore(function (state) {
+    return state.tab
+  })
+  const isSettingsView = railTab === 'settings'
+  const toolTitles: Partial<Record<typeof railTab, string>> = {
+    settings: 'Wiki 设置',
+    sources: '来源',
+    search: '检索',
+    graph: '图谱',
+    lint: 'Lint',
+    review: '审阅',
+    research: '深度研究',
+    activity: '活动'
+  }
+  const toolTitle = toolTitles[railTab]
 
   const showsSession = useShowsTileSession()
-  const title = !hasOpened
+  const fileTitle = !hasOpened
     ? findComponentLabel('knowledge')
     : (activePath?.split(/[/\\]/).pop() ?? t('UNTITLED'))
-  const showsTitle = hasOpened || !showsSession
+  const title = toolTitle ?? fileTitle
+  const showsTitle = Boolean(toolTitle) || hasOpened || !showsSession
 
   return (
     <>
@@ -141,10 +158,10 @@ function KnowledgeCaptionBegin() {
           <span
             className={cn(
               'max-w-full truncate text-center text-sm font-medium',
-              isDirty && 'text-amber-700 dark:text-amber-400'
+              !toolTitle && isDirty && 'text-amber-700 dark:text-amber-400'
             )}
-            title={activePath ?? title}>
-            {isDirty ? `• ${title}` : title}
+            title={toolTitle ? title : (activePath ?? title)}>
+            {!toolTitle && isDirty ? `• ${title}` : title}
           </span>
         </span>
       ) : null}

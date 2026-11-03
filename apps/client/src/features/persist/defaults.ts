@@ -19,7 +19,13 @@ const PERSIST_DEFAULTS: PersistShape = {
         recording: { days: 30, count: 50, maxBytes: 5 * 1024 * 1024 * 1024 }
       }
     },
-    shortcuts: { version: 1, bindings: {} }
+    shortcuts: { version: 1, bindings: {} },
+    proxy: {
+      enabled: false,
+      url: '',
+      bypassLocal: true,
+      acceptInvalidCerts: false
+    }
   },
   tiles: {
     sessions: [],

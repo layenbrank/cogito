@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Cogito Clipper</title>
+    <style>
+      body {
+        font: 13px/1.4 system-ui, sans-serif;
+        margin: 12px;
+        min-width: 220px;
+      }
+      button {
+        width: 100%;
+        padding: 8px 10px;
+        cursor: pointer;
+      }
+      #status {
+        margin-top: 8px;
+        color: #666;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <button id="clip" type="button">剪藏当前页</button>
+    <div id="status"></div>
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>

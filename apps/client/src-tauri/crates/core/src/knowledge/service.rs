@@ -38,6 +38,45 @@ const STAGING_DIR: &str = ".staging";
 /// 认作文档的扩展名。
 const DOC_EXTENSIONS: [&str; 2] = ["md", "markdown"];
 
+/// 确保 LLM Wiki 三层目录与种子文件（幂等；已有文件不覆盖）。
+fn ensure_wiki_layout(root: &Path) -> Result<(), Exception> {
+    // 分段 join：避免 Windows 上 `"raw/sources"` 整段带斜杠进 `\\?\` 路径
+    fs::create_dir_all(root.join("raw").join("sources"))?;
+    fs::create_dir_all(root.join("wiki").join("media"))?;
+    write_seed_if_missing(
+        &root.join("schema.md"),
+        "# Schema\n\n约定 Wiki 结构、frontmatter 与 ingest 规则。由人类与助手共同演进。\n",
+    )?;
+    write_seed_if_missing(
+        &root.join("purpose.md"),
+        "# Purpose\n\n这个知识库为什么存在？关键问题与研究范围写在这里。\n",
+    )?;
+    write_seed_if_missing(
+        &root.join("wiki").join("index.md"),
+        "---\ntitle: Index\ntype: index\n---\n\n# Index\n\n内容目录。ingest 后由助手维护。\n",
+    )?;
+    write_seed_if_missing(
+        &root.join("wiki").join("log.md"),
+        "---\ntitle: Log\ntype: log\n---\n\n# Log\n\n## 操作记录\n\n",
+    )?;
+    write_seed_if_missing(
+        &root.join("wiki").join("overview.md"),
+        "---\ntitle: Overview\ntype: overview\n---\n\n# Overview\n\n全局概要，随 ingest 更新。\n",
+    )?;
+    Ok(())
+}
+
+fn write_seed_if_missing(path: &Path, content: &str) -> Result<(), Exception> {
+    if path.exists() {
+        return Ok(());
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, content)?;
+    Ok(())
+}
+
 /// 发布冲突策略。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -165,6 +204,7 @@ impl Service {
         if let Some(existing) = existing {
             let wanted = root_path.join(DEFAULT_SLUG);
             fs::create_dir_all(&wanted)?;
+            let _ = ensure_wiki_layout(&wanted);
             if existing.rootPath != wanted.to_string_lossy() {
                 // 应用数据目录搬过：以当前路径为准（旧文件不自动搬，回灌时再扫）
                 let mut active: base_schema::ActiveModel = existing.clone().into();
@@ -177,6 +217,7 @@ impl Service {
 
         let dir = root_path.join(DEFAULT_SLUG);
         fs::create_dir_all(&dir)?;
+        ensure_wiki_layout(&dir)?;
         let model = base_schema::Model {
             id: Uuid::new_v4().to_string(),
             name: DEFAULT_NAME.to_string(),
@@ -239,6 +280,7 @@ impl Service {
 
         let dir = root_path.join(&slug);
         fs::create_dir_all(&dir)?;
+        ensure_wiki_layout(&dir)?;
         let now = Utc::now().timestamp_millis();
         let model = base_schema::Model {
             id: Uuid::new_v4().to_string(),

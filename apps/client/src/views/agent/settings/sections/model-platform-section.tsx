@@ -42,8 +42,8 @@ function PlatformModelsSection(props: {
       ) : !props.provider || models.length === 0 ? (
         <p
           className={`${styles.empty} text-muted-foreground`}
-          title="请确认已登录，且管理员已在后台启用模型">
-          暂无组织模型
+          title="请登录 Cogito，并确认管理员已在后台启用模型（与 Cursor CLI / 个人 API Key 无关）">
+          暂无组织模型（需登录 Cogito）
         </p>
       ) : (
         <div className={styles.list}>

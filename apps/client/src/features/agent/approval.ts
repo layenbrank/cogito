@@ -132,6 +132,7 @@ const READ_TOOL_PATTERNS = [
   'info',
   'glob',
   'grep',
+  'lint',
   'action',
   'directives'
 ]

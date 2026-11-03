@@ -2,23 +2,24 @@
  * 知识库磁贴的 dock 绑定：把「当前文档 + 选区」变成一键动作。
  *
  * 全部动作都读**实时**上下文（编辑器桥 + store），所以 scope 只需注册一次。
- * 优化类动作走对话模型（ACP），不依赖 embedding / 向量检索。
+ * 优化类动作走对话模型（ACP）。
  */
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 
 import { useDockStore, type DockScope } from '@/features/agent/dock'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { saveMarkdownToWiki } from '@/views/knowledge/lib/save-to-wiki.ts'
 import { findEditorContext, writeEditor } from '@/views/knowledge/workspace/editor-context.ts'
 
 /** 知识库域的会话提示：只做内容，不碰别的域 */
 const SYSTEM_TEXT = `你是 cogito 知识库里写作助手，与「知识库」磁贴共用同一个库目录。
 
 约定：
-- 需要读正文时用 app_knowledge_read_doc / app_knowledge_search（本地全文检索），不要臆造内容；
-- 要落文件时用 app_knowledge_write_doc：它只写待发布草稿（staging），不要声称已经发布；
-- 用户确认后由界面发布，你只负责把内容写对、写清楚；
-- 回答保持简洁；跨文档的问题先检索再答，并指出引用了哪些文档。`
+- 需要读正文时用 app_knowledge_read_doc / app_knowledge_read_wiki / app_knowledge_search，不要臆造内容；
+- 要落 wiki 页用 app_knowledge_write_doc 或 app_knowledge_ingest：直接写入 wiki（无待发布门禁）；
+- Wiki 在 wiki/，原文在 raw/sources/；交叉引用用 [[wikilink]]；
+- 好答案也可整理后让用户点「存回 wiki」；跨文档先检索再答并标明引用。`
 
 function findBaseName(): string {
   const state = useKnowledgeBaseStore.getState()
@@ -49,6 +50,30 @@ function useKnowledgeDockScope(): void {
         hint: '结果先留在对话里，点「应用到文档」才写入正文',
         systemText: SYSTEM_TEXT,
         toWrite: function (text) {
+          const state = useKnowledgeBaseStore.getState()
+          const base = state.bases.find(function (item) {
+            return item.id === state.activeBaseID
+          })
+          const looksLikeWikiPage =
+            text.trimStart().startsWith('---') && /(?:^|\n)type:\s*\w+/m.test(text)
+          if (looksLikeWikiPage && base?.rootPath) {
+            const titleMatch = text.match(/(?:^|\n)title:\s*["']?([^"'\n]+)/)
+            const title = titleMatch?.[1]?.trim() || 'untitled'
+            void saveMarkdownToWiki({
+              rootPath: base.rootPath,
+              title,
+              markdown: text,
+              enqueueIngest: false
+            })
+              .then(function (path) {
+                toast.success(`已存回 wiki：${path}`)
+              })
+              .catch(function (error) {
+                console.error('[knowledge/dock] save wiki failed', error)
+                toast.error('存回 wiki 失败')
+              })
+            return
+          }
           if (!writeEditor(text)) {
             toast.error('先把要改的文档打开，再应用结果')
             return
@@ -123,7 +148,19 @@ function useKnowledgeDockScope(): void {
             label: '新建文档',
             icon: 'lucide:file-plus',
             buildPrompt: function () {
-              return `在知识库「${findBaseName()}」里写一篇新文档。先用一句话问我主题与目标读者，我回答后再写。落盘请用 app_knowledge_write_doc（只进待发布）。`
+              return `在知识库「${findBaseName()}」里写一篇新 wiki 页。先用一句话问我主题与目标读者，我回答后再写。落盘用 app_knowledge_write_doc（直接进 wiki/）。`
+            }
+          },
+          {
+            id: 'save-wiki',
+            label: '存回 wiki',
+            icon: 'lucide:book-up',
+            buildPrompt: function () {
+              const context = findEditorContext()
+              const selection = context.selection.trim()
+              const body = selection || context.content
+              if (!body?.trim()) return null
+              return `把下面这段整理成一篇可独立阅读的 wiki 页（含 YAML frontmatter：title/type，正文用 [[wikilink]] 交叉引用相关概念）。只输出 Markdown。\n\n${slice(body, 6_000)}`
             }
           }
         ]

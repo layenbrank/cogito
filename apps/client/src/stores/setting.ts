@@ -1,7 +1,9 @@
+import { invoke } from '@tauri-apps/api/core'
 import { create } from 'zustand'
 
 import { ensurePersist, findPref, patchPref, replacePref } from '@/features/persist'
 import { syncAutostart } from '@/features/magnetic-tiles/settings/autostart'
+import { CHANNELS } from '@/shared/ipc/channels'
 
 declare namespace Setting {
   export interface General {
@@ -43,10 +45,18 @@ declare namespace Setting {
     bindings: Record<string, string>
   }
 
+  export interface Proxy {
+    enabled: boolean
+    url: string
+    bypassLocal: boolean
+    acceptInvalidCerts: boolean
+  }
+
   export interface Composite {
     general: General
     capture: Capture
     shortcuts: Shortcuts
+    proxy: Proxy
   }
 }
 
@@ -82,12 +92,20 @@ const GENERAL: Setting.General = {
   language: 'zh-CN'
 }
 
+const PROXY: Setting.Proxy = {
+  enabled: false,
+  url: '',
+  bypassLocal: true,
+  acceptInvalidCerts: false
+}
+
 /** 每次给一份新对象：避免 `toReset` / `toInitialize` 共享同一份默认值被就地改到 */
 function makeSettings(): Setting.Composite {
   return {
     general: { ...GENERAL },
     capture: mergeCapture(),
-    shortcuts: { version: SHORTCUTS_VERSION, bindings: {} }
+    shortcuts: { version: SHORTCUTS_VERSION, bindings: {} },
+    proxy: { ...PROXY }
   }
 }
 
@@ -174,7 +192,8 @@ export const useSettingsStore = create<SettingsStore>(function (setter, getter) 
       const settings: Setting.Composite = {
         general: { ...GENERAL, ...stored.general },
         capture: mergeCapture(stored.capture),
-        shortcuts: mergeShortcuts(stored.shortcuts)
+        shortcuts: mergeShortcuts(stored.shortcuts),
+        proxy: { ...PROXY, ...stored.proxy }
       }
 
       try {
@@ -182,6 +201,12 @@ export const useSettingsStore = create<SettingsStore>(function (setter, getter) 
         settings.general = { ...settings.general, autostart: enabled }
       } catch (error) {
         console.warn('[settings] syncAutostart on init failed', error)
+      }
+
+      try {
+        await syncProxyEnv(settings.proxy)
+      } catch (error) {
+        console.warn('[settings] syncProxy on init failed', error)
       }
 
       await replacePref('settings', settings)
@@ -212,6 +237,14 @@ export const useSettingsStore = create<SettingsStore>(function (setter, getter) 
       const next = { ...current, [section]: merged }
       setter({ settings: next })
       await patchPref('settings', { [section]: merged })
+
+      if (section === 'proxy') {
+        try {
+          await syncProxyEnv(merged as Setting.Proxy)
+        } catch (error) {
+          console.warn('[settings] syncProxy on update failed', error)
+        }
+      }
     },
 
     async toSetBinding(id, binding) {
@@ -238,6 +271,10 @@ export const useSettingsStore = create<SettingsStore>(function (setter, getter) 
   }
 })
 
+async function syncProxyEnv(proxy: Setting.Proxy): Promise<void> {
+  await invoke(CHANNELS.SYSTEM.PROXY_APPLY, { config: proxy })
+}
+
 export {
   DETECT_OFF,
   DETECT_WINDOW,
@@ -247,6 +284,7 @@ export {
   SHORTCUTS_VERSION,
   mergeCapture,
   mergeCaptureUpdate,
-  mergeShortcuts
+  mergeShortcuts,
+  syncProxyEnv
 }
 export type { Setting }

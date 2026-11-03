@@ -6,9 +6,13 @@
 //!
 //! 边界：只绑 `127.0.0.1`、每次启动轮换 token、校验 `Host` 必须是本机（挡 DNS rebinding）、
 //! 不挂 CORS（浏览器同源策略下外部页面无法读取响应）。
+pub mod clip;
 mod http;
 
 pub mod app_tools;
 pub mod command;
 
+pub use clip::{
+    ClipPayload, CLIP_PORT, is_running as clip_is_running, start as start_clip_server,
+};
 pub use http::{BridgeInfo, BridgeState, start};

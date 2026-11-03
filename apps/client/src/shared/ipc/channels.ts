@@ -7,7 +7,9 @@ export const CHANNELS = {
     READY: 'ipc:ready'
   },
   SYSTEM: {
-    OS: 'system:os'
+    OS: 'system:os',
+    PROXY_APPLY: 'system:proxy-apply',
+    PROXY_STATUS: 'system:proxy-status'
   },
   BRIDGE: {
     INFO: 'bridge:info'
@@ -45,6 +47,8 @@ export const CHANNELS = {
     MERGE_REMOTE: 'dict:mergeRemote'
   },
   KNOWLEDGE: {
+    EXTRACT_PDF: 'knowledge:extract-pdf',
+    FIND_PDFIUM: 'knowledge:find-pdfium',
     LIST_BASES: 'knowledge:listBases',
     CREATE_BASE: 'knowledge:createBase',
     UPDATE_BASE: 'knowledge:updateBase',
@@ -268,6 +272,9 @@ export const CHANNELS = {
     TOKEN_CLEAR: 'cogito:token:clear',
     PROVIDER_ENSURE: 'cogito:provider:ensure',
     PROVIDER_SET_TENANT: 'cogito:provider:set-tenant'
+  },
+  CURSOR_AGENT: {
+    STATUS: 'cursor-agent:status'
   },
   SECRET: {
     GET: 'secret:get',

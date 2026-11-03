@@ -60,10 +60,19 @@ async function findAbsoluteFromKey(root: string, treeKey: string): Promise<strin
   return resolve(root, ...segments)
 }
 
-function useNavigationMutations(onOpenPath: (path: string) => void) {
-  const rootDir = useKnowledgeStore(function (state) {
+interface NavigationMutationOptions {
+  rootOverride?: string | null
+  onDeleteAbsolute?: (absolute: string, isDirectory: boolean) => Promise<void>
+}
+
+function useNavigationMutations(
+  onOpenPath: (path: string) => void,
+  options: NavigationMutationOptions = {}
+) {
+  const storeRoot = useKnowledgeStore(function (state) {
     return state.rootDir
   })
+  const rootDir = options.rootOverride ?? storeRoot
   const toBumpTree = useKnowledgeStore(function (state) {
     return state.toBumpTree
   })
@@ -109,9 +118,13 @@ function useNavigationMutations(onOpenPath: (path: string) => void) {
   async function onConfirmDelete(clearAbsolutePathCache: () => void) {
     if (!pendingDelete || !rootDir) return
     try {
-      await removeMarkdownPath(pendingDelete.absolute, rootDir, {
-        recursive: pendingDelete.isDirectory
-      })
+      if (options.onDeleteAbsolute) {
+        await options.onDeleteAbsolute(pendingDelete.absolute, pendingDelete.isDirectory)
+      } else {
+        await removeMarkdownPath(pendingDelete.absolute, rootDir, {
+          recursive: pendingDelete.isDirectory
+        })
+      }
       const current = useKnowledgeStore.getState().activePath
       if (
         current &&

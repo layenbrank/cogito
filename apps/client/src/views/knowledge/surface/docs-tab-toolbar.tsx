@@ -105,8 +105,8 @@ function DocsTabToolbar(props: DocsTabState) {
         }}>
         <Input
           value={props.query}
-          placeholder="本地检索…"
-          title="本地全文检索；1–2 字中文也能命中"
+          placeholder="检索…"
+          title="全文检索；1–2 字中文也能命中"
           className="h-7 text-xs"
           onChange={function (event) {
             props.writeQuery(event.target.value)

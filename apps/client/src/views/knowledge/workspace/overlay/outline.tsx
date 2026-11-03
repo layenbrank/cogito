@@ -2,6 +2,7 @@ import { Button } from '@cogito/design/components/button'
 import { cn } from 'cn'
 
 import { useKnowledgeStore } from '@/stores/knowledge'
+import { FrontMatterSummary } from '@/views/knowledge/surface/front-matter-summary.tsx'
 import { t } from '@/views/knowledge/locale.ts'
 
 interface OutlineProps {
@@ -20,10 +21,14 @@ function Outline(props: OutlineProps) {
     return state.isLoading
   })
   const isBootstrapping = !isSessionReady || isDocLoading
+  const frontMatter = useKnowledgeStore(function (state) {
+    return state.frontMatter
+  })
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background/65 backdrop-blur-md">
-      <ul className="min-h-0 flex-1 list-none overflow-y-auto p-1 text-sm">
+      {!isBootstrapping ? <FrontMatterSummary source={frontMatter} /> : null}
+      <ul className="min-h-0 flex-1 list-none overflow-y-auto overscroll-y-contain p-1 text-sm">
         {isBootstrapping ? (
           <li className="space-y-2 px-2 py-3" aria-hidden>
             {[0, 1, 2, 3].map(function (index) {
@@ -46,7 +51,7 @@ function Outline(props: OutlineProps) {
                   variant="ghost"
                   type="button"
                   className={cn(
-                    'h-auto w-full truncate rounded-sm px-2 py-1 text-left hover:bg-muted',
+                    'h-auto w-full justify-start rounded-sm px-2 py-1 text-left font-normal hover:bg-muted',
                     item.level === 1 && 'font-medium',
                     item.level > 1 && 'text-muted-foreground'
                   )}
@@ -54,7 +59,7 @@ function Outline(props: OutlineProps) {
                   onClick={function () {
                     props.onJump(item.pos)
                   }}>
-                  {item.text}
+                  <span className="block min-w-0 w-full truncate text-left">{item.text}</span>
                 </Button>
               </li>
             )

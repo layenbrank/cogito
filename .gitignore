@@ -112,6 +112,8 @@ apps/studio/sidecar/**/*.dylib
 apps/client/src-tauri/binaries/**
 !apps/client/src-tauri/binaries/.gitkeep
 !apps/client/src-tauri/binaries/**/.gitkeep
+# LanceDB 编译用 protoc（本机解压到 tools/protoc）
+apps/client/src-tauri/tools/protoc/
 apps/studio/out
 .wrangler
 # browser：Vite outDir 已由上方全局 `dist` 覆盖；stage/pack 产物在 build/

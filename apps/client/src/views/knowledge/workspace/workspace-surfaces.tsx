@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { useKnowledgeStore } from '@/stores/knowledge'
 import { FindBar } from '@/views/knowledge/workspace/find-bar.tsx'
 import { Overlay } from '@/views/knowledge/workspace/overlay/index.ts'
+import { SelectionEditBar } from '@/views/knowledge/workspace/selection-edit-bar.tsx'
 import { SourceEditor } from '@/views/knowledge/workspace/source-editor.tsx'
 
 type WorkspaceState = ReturnType<typeof useKnowledgeStore.getState>
@@ -85,6 +86,7 @@ function WorkspaceSurfaces(props: WorkspaceSurfacesProps) {
 
   return (
     <div className="relative min-h-0 flex-1 overflow-hidden bg-background/92">
+      {!props.isFocusMode ? <SelectionEditBar editor={props.composer} /> : null}
       {props.isFindOpen ? (
         <FindBar
           editor={props.composer}

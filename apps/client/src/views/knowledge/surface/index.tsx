@@ -1,35 +1,43 @@
 /**
- * 知识库左侧栏：浏览（文件树）| 文档 | 待发布；任务 / 设置收成右侧小图标。
- *
- * 分类原则：日常只有「看文件、看文档、发草稿」三件事，占主 tab；
- * 任务（定时）与设置低频，退成图标，不占主视觉。
+ * 知识库左栏：对齐 llm_wiki IconSidebar + SidebarPanel。
+ * 主轨：Wiki / Sources / Search / Graph / Lint / Review / Research；
+ * 底轨：Settings（Activity 在左栏底条，不再占独立内容页为主）。
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
-import { clsx } from 'clsx'
-import { useEffect } from 'react'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger
+} from '@cogito/design/components/tooltip'
+import { cn } from 'cn'
+import { useEffect, useState } from 'react'
 
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useKnowledgeStore } from '@/stores/knowledge'
-import { openEditorPath } from '@/views/knowledge/workspace/editor-context.ts'
-import { Overlay } from '@/views/knowledge/workspace/overlay/index.ts'
-import { DocsTab } from '@/views/knowledge/surface/docs.tsx'
-import { SettingsTab } from '@/views/knowledge/surface/settings.tsx'
-import { StagingTab } from '@/views/knowledge/surface/staging.tsx'
-import { useSurfaceStore, type RailTab } from '@/views/knowledge/surface/store.ts'
-import { TasksTab } from '@/views/knowledge/surface/tasks.tsx'
+import { useIngestQueueStore } from '@/views/knowledge/lib/ingest-queue.ts'
+import { takePendingForBase } from '@/views/knowledge/lib/pending-ingest.ts'
+import { readReviewItems } from '@/views/knowledge/lib/review-store.ts'
+import { readWatchAllBases } from '@/views/knowledge/lib/source-watch-config.ts'
+import { watchKnowledgeBases } from '@/views/knowledge/lib/sources-watch.ts'
+import { findLayoutVisibility } from '@/views/knowledge/surface/layout-visibility.ts'
+import { SidebarPanel } from '@/views/knowledge/surface/sidebar-panel.tsx'
+import { useSurfaceStore, type RailTabCanonical } from '@/views/knowledge/surface/store.ts'
 
-/** 主工作流：高频，带文字标签 */
-const TABS: readonly { key: RailTab; label: string; icon: string }[] = [
-  { key: 'browse', label: '浏览', icon: 'lucide:folder-tree' },
-  { key: 'docs', label: '库', icon: 'lucide:library-big' },
-  { key: 'staging', label: '待发布', icon: 'lucide:sparkles' }
+/** 与 llm_wiki NAV_ITEMS 顺序一致（chat 由右栏 ACP dock 承担） */
+const MAIN_RAIL: readonly { key: RailTabCanonical; label: string; icon: string }[] = [
+  { key: 'wiki', label: 'Wiki', icon: 'lucide:file-text' },
+  { key: 'sources', label: '来源', icon: 'lucide:folder-open' },
+  { key: 'search', label: '检索', icon: 'lucide:search' },
+  { key: 'graph', label: '图谱', icon: 'lucide:network' },
+  { key: 'lint', label: 'Lint', icon: 'lucide:clipboard-check' },
+  { key: 'review', label: '审阅', icon: 'lucide:clipboard-list' },
+  { key: 'research', label: '深度研究', icon: 'lucide:globe' }
 ]
 
-/** 管理与低频：只留图标（悬停有标题） */
-const TOOLS: readonly { key: RailTab; label: string; icon: string }[] = [
-  { key: 'tasks', label: '任务', icon: 'lucide:timer' },
-  { key: 'settings', label: '设置', icon: 'lucide:settings-2' }
+const BOTTOM_RAIL: readonly { key: RailTabCanonical; label: string; icon: string }[] = [
+  { key: 'activity', label: '活动', icon: 'lucide:list-checks' },
+  { key: 'settings', label: '设置', icon: 'lucide:settings' }
 ]
 
 function KnowledgeSurface() {
@@ -45,106 +53,185 @@ function KnowledgeSurface() {
   const refresh = useKnowledgeBaseStore(function (state) {
     return state.refresh
   })
-  const staging = useKnowledgeBaseStore(function (state) {
-    return state.staging
+  const bases = useKnowledgeBaseStore(function (state) {
+    return state.bases
+  })
+  const activeBaseID = useKnowledgeBaseStore(function (state) {
+    return state.activeBaseID
   })
 
-  // 打开时对一次库：磁盘上外部改动的文档在 autoUpdate 打开时会被 upsert 进来
+  const ingestPending = useIngestQueueStore(function (state) {
+    return state.items.filter(function (item) {
+      return item.status === 'pending' || item.status === 'running'
+    }).length
+  })
+
+  const [reviewPending, setReviewPending] = useState(0)
+  const visibility = findLayoutVisibility(tab)
+
   useEffect(
     function () {
       if (!isOpen) return
       void refresh()
+      setReviewPending(
+        readReviewItems().filter(function (item) {
+          return item.status === 'pending'
+        }).length
+      )
     },
-    [isOpen, refresh]
+    [isOpen, refresh, tab]
+  )
+
+  const [watchEpoch, setWatchEpoch] = useState(0)
+
+  useEffect(
+    function () {
+      function onWatchChanged() {
+        setWatchEpoch(function (value) {
+          return value + 1
+        })
+      }
+      window.addEventListener('knowledge:source-watch-changed', onWatchChanged)
+      return function () {
+        window.removeEventListener('knowledge:source-watch-changed', onWatchChanged)
+      }
+    },
+    []
+  )
+
+  useEffect(
+    function () {
+      if (!isOpen || !activeBaseID) return
+      let cancelled = false
+      let stop: (() => void) | null = null
+      void watchKnowledgeBases({
+        bases: bases.map(function (base) {
+          return { id: base.id, rootPath: base.rootPath }
+        }),
+        activeBaseId: activeBaseID,
+        watchAllBases: readWatchAllBases()
+      }).then(function (unwatch) {
+        if (cancelled) {
+          unwatch()
+          return
+        }
+        stop = unwatch
+      })
+      return function () {
+        cancelled = true
+        stop?.()
+      }
+    },
+    [isOpen, activeBaseID, bases, watchEpoch]
+  )
+
+  useEffect(
+    function () {
+      if (!activeBaseID) return
+      const pending = takePendingForBase(activeBaseID)
+      if (!pending || pending.paths.length === 0) return
+      const enqueue = useIngestQueueStore.getState().enqueue
+      for (const path of pending.paths) {
+        enqueue(path)
+      }
+    },
+    [activeBaseID, watchEpoch]
   )
 
   if (!isOpen) return null
 
-  return (
-    <aside className="flex h-full min-h-0 w-full flex-col bg-background">
-      <div className="flex items-center gap-0.5 border-b border-border px-1 py-1">
-        {TABS.map(function (item) {
-          const isActive = item.key === tab
-          return (
+  function renderRailButton(item: {
+    key: RailTabCanonical
+    label: string
+    icon: string
+    badge?: string | null
+  }) {
+    const isActive = item.key === tab
+    return (
+      <Tooltip key={item.key}>
+        <TooltipTrigger
+          render={
             <Button
-              key={item.key}
               type="button"
-              size="sm"
               variant="ghost"
-              className={clsx(
-                'h-7 gap-1 px-1.5 text-[11px] font-normal',
-                isActive && 'bg-muted'
+              size="icon"
+              aria-label={item.label}
+              aria-pressed={isActive}
+              className={cn(
+                'relative size-10 rounded-md border-0 shadow-none ring-0 focus-visible:ring-1 focus-visible:ring-ring/30',
+                isActive
+                  ? 'bg-accent text-accent-foreground hover:bg-accent'
+                  : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'
               )}
-              title={item.label}
               onClick={function () {
                 toSetTab(item.key)
-              }}>
-              <Icon
-                icon={item.icon}
-                className="size-3.5"
-              />
-              <span className="hidden min-[220px]:inline">{item.label}</span>
-              {item.key === 'staging' && staging.length > 0 ? (
-                <span className="text-amber-600 dark:text-amber-400">{staging.length}</span>
-              ) : null}
-            </Button>
-          )
-        })}
+              }}
+            />
+          }>
+          <Icon
+            icon={item.icon}
+            className="size-5"
+          />
+          {item.badge ? (
+            <span className="bg-primary text-primary-foreground absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold">
+              {item.badge}
+            </span>
+          ) : null}
+        </TooltipTrigger>
+        <TooltipContent
+          side="right"
+          sideOffset={6}>
+          {item.label}
+          {item.badge ? ` (${item.badge})` : ''}
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
 
-        <div className="ml-auto flex items-center gap-0.5">
-          {TOOLS.map(function (item) {
-            const isActive = item.key === tab
-            return (
-              <Button
-                key={item.key}
-                type="button"
-                size="sm"
-                variant="ghost"
-                className={clsx(
-                  'h-7 w-7 px-0',
-                  isActive && 'bg-muted'
-                )}
-                title={item.label}
-                onClick={function () {
-                  toSetTab(item.key)
-                }}>
-                <Icon
-                  icon={item.icon}
-                  className="size-3.5"
-                />
-              </Button>
-            )
+  return (
+    <aside className="flex h-full min-h-0 w-full bg-background">
+      <nav
+        aria-label="知识库导航"
+        className={cn(
+          'bg-muted/50 flex w-12 shrink-0 flex-col items-center py-2',
+          visibility.showLeftContent && 'border-r border-border'
+        )}>
+        <div className="flex flex-1 flex-col items-center gap-1">
+          {MAIN_RAIL.map(function (item) {
+            if (item.key === 'review') {
+              return renderRailButton({
+                ...item,
+                badge:
+                  reviewPending > 0
+                    ? reviewPending > 99
+                      ? '99+'
+                      : String(reviewPending)
+                    : null
+              })
+            }
+            return renderRailButton(item)
           })}
         </div>
-      </div>
 
-      <div className="flex min-h-0 flex-1 flex-col">
-        {tab === 'browse' ? (
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <Overlay.Navigation onOpenPath={openEditorPath} />
-          </div>
-        ) : null}
-        {tab === 'docs' ? (
-          <div className="flex min-h-0 flex-1 flex-col p-2">
-            <DocsTab />
-          </div>
-        ) : null}
-        {tab === 'staging' ? (
-          <div className="flex min-h-0 flex-1 flex-col p-2">
-            <StagingTab />
-          </div>
-        ) : null}
-        {tab === 'tasks' ? (
-          <div className="flex min-h-0 flex-1 flex-col p-2">
-            <TasksTab />
-          </div>
-        ) : null}
-        {tab === 'settings' ? (
-          <div className="flex min-h-0 flex-1 flex-col p-2">
-            <SettingsTab />
-          </div>
-        ) : null}
-      </div>
+        <div className="flex flex-col items-center gap-1 pb-1">
+          {BOTTOM_RAIL.map(function (item) {
+            if (item.key === 'activity') {
+              return renderRailButton({
+                ...item,
+                badge:
+                  ingestPending > 0
+                    ? ingestPending > 99
+                      ? '99+'
+                      : String(ingestPending)
+                    : null
+              })
+            }
+            return renderRailButton(item)
+          })}
+        </div>
+      </nav>
+
+      {visibility.showLeftContent ? <SidebarPanel /> : null}
     </aside>
   )
 }

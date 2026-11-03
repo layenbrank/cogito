@@ -21,21 +21,22 @@ import {
   type BasePatch,
   type KnowledgeBase,
   type KnowledgeDocSummary,
+  type KnowledgeHit,
   type StagedFile
 } from '@/lib/knowledge-ipc'
 import type { PublishMode } from '@/shared/ipc/specs/knowledge'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { reportCaught } from '@/utils/exception-report'
+import { searchKnowledge } from '@/views/knowledge/lib/doc-search.ts'
 import { exportDocHtml } from '@/views/knowledge/lib/export.ts'
-import { searchHybrid, type HybridHit } from '@/views/knowledge/lib/hybrid-search.ts'
 import { findFileName, isSamePath } from '@/views/knowledge/lib/path.ts'
+import { ensureWikiScaffold } from '@/views/knowledge/lib/wiki-scaffold.ts'
 
 interface KnowledgeBaseState {
   bases: KnowledgeBase[]
   activeBaseID: string | null
   docs: KnowledgeDocSummary[]
-  hits: HybridHit[]
-  counts: { local: number; cloud: number }
+  hits: KnowledgeHit[]
   staging: StagedFile[]
   query: string
   isLoading: boolean
@@ -134,7 +135,6 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
     activeBaseID: null,
     docs: [],
     hits: [],
-    counts: { local: 0, cloud: 0 },
     staging: [],
     query: '',
     isLoading: false,
@@ -151,6 +151,16 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
             : (bases[0]?.id ?? null)
         setter({ bases, activeBaseID })
         syncWorkspaceRoot(activeBaseID)
+        const active = bases.find(function (base) {
+          return base.id === activeBaseID
+        })
+        if (active?.rootPath) {
+          try {
+            await ensureWikiScaffold(active.rootPath)
+          } catch (error) {
+            reportCaught('knowledgeBase.wikiScaffold', error, 'warning')
+          }
+        }
         await syncFromDisk(activeBaseID)
         await Promise.all([fetchDocs(activeBaseID), fetchStaging(activeBaseID)])
         setter({ isLoading: false })
@@ -179,16 +189,14 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
     async runSearch() {
       const query = getter().query.trim()
       if (!query) {
-        setter({ hits: [], counts: { local: 0, cloud: 0 } })
+        setter({ hits: [] })
         return
       }
       try {
-        const result = await searchHybrid(query, { baseId: getter().activeBaseID ?? undefined })
-        setter({
-          hits: result.hits,
-          counts: result.counts,
-          error: null
+        const hits = await searchKnowledge(query, {
+          baseId: getter().activeBaseID ?? undefined
         })
+        setter({ hits, error: null })
       } catch (error) {
         reportCaught('knowledgeBase.runSearch', error, 'warning')
         setter({ error: toMessage(error) })
@@ -196,12 +204,17 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
     },
 
     clearSearch() {
-      setter({ query: '', hits: [], counts: { local: 0, cloud: 0 } })
+      setter({ query: '', hits: [] })
     },
 
     async insert(name) {
       try {
         const base = await insertBase(name)
+        try {
+          await ensureWikiScaffold(base.rootPath)
+        } catch (error) {
+          reportCaught('knowledgeBase.wikiScaffold', error, 'warning')
+        }
         setter({ bases: [...getter().bases, base], error: null })
         await getter().selectBase(base.id)
         return true

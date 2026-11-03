@@ -1,6 +1,7 @@
 /**
  * 设置 · 模型：对齐 Qoder — 扁平行列表 +「更新 API Key」对话框。
  */
+import { CursorCliStatusSection } from '@/views/agent/settings/sections/cursor-cli-status'
 import { ModelEditorDialog } from '@/views/agent/settings/sections/model-editor-dialog'
 import { ModelHeader } from '@/views/agent/settings/sections/model-header'
 import { PlatformModelsSection } from '@/views/agent/settings/sections/model-platform-section'
@@ -28,6 +29,8 @@ function ModelSection() {
         onModelChange={inventory.handleModelChange}
         onOpenUpdate={inventory.handleOpenUpdate}
       />
+
+      <CursorCliStatusSection />
 
       <ModelEditorDialog
         open={inventory.isDialogOpen}

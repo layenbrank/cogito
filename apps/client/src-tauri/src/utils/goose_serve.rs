@@ -240,23 +240,35 @@ fn build_goose_command(
             let trimmed = path.trim();
             if !trimmed.is_empty() {
                 info!("使用 GOOSE_BINARY={trimmed}");
-                return Ok(app
+                let command = app
                     .shell()
                     .command(trimmed)
                     .args(args.iter().copied())
                     .env("GOOSE_SERVER__SECRET_KEY", token)
-                    .env("GOOSE_PATH_ROOT", &path_root));
+                    .env("GOOSE_PATH_ROOT", &path_root);
+                return Ok(with_cursor_cli_envs(command));
             }
         }
     }
 
-    Ok(app
+    let command = app
         .shell()
         .sidecar("goose")
         .map_err(|e| format!("创建 goose sidecar 失败: {e}"))?
         .args(args.iter().copied())
         .env("GOOSE_SERVER__SECRET_KEY", token)
-        .env("GOOSE_PATH_ROOT", &path_root))
+        .env("GOOSE_PATH_ROOT", &path_root);
+    Ok(with_cursor_cli_envs(command))
+}
+
+/// 注入 Cursor CLI 所需 PATH / CURSOR_API_KEY，使 goose 的 cursor-agent 供应商能找到本机登录态。
+fn with_cursor_cli_envs(
+    mut command: tauri_plugin_shell::process::Command,
+) -> tauri_plugin_shell::process::Command {
+    for (key, value) in crate::utils::cursor_agent::goose_cli_envs() {
+        command = command.env(key, value);
+    }
+    command
 }
 
 /// 跑一次 goose 子命令并收集输出（`schedule` 这类一次性命令用）。

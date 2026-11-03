@@ -30,6 +30,7 @@ import { IMAGE_MAX_SIZE, uploadMarkdownImage } from '@/views/knowledge/lib/image
 import { MathBlock, MathInline } from '@/views/knowledge/workspace/math-extension.ts'
 import { MermaidBlock } from '@/views/knowledge/workspace/mermaid-extension.ts'
 import { SearchHighlight } from '@/views/knowledge/workspace/search-highlight-extension.ts'
+import { Wikilink } from '@/views/knowledge/workspace/wikilink-extension.ts'
 import { t } from '@/views/knowledge/locale.ts'
 
 const lowlight = createLowlight(all)
@@ -58,6 +59,7 @@ function findMarkdownExtensions(options: {
       autolink: true,
       defaultProtocol: 'https'
     }),
+    Wikilink,
     Placeholder.configure({
       placeholder: t('PLACEHOLDER')
     }),

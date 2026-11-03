@@ -88,7 +88,10 @@ mod tests {
         assert!(names.contains(&knowledge::LIST_BASES));
         assert!(names.contains(&knowledge::LIST_DOCS));
         assert!(names.contains(&knowledge::READ_DOC));
+        assert!(names.contains(&knowledge::READ_WIKI));
         assert!(names.contains(&knowledge::SEARCH));
+        assert!(names.contains(&knowledge::LINT));
+        assert!(names.contains(&knowledge::INGEST));
         assert!(names.contains(&knowledge::WRITE_DOC));
         assert!(names.contains(&browser::OPEN));
         assert!(names.contains(&browser::READ));
@@ -101,10 +104,12 @@ mod tests {
         // 有副作用的工具必须显式列在这里，其余一律只读
         let write_tools = [
             knowledge::WRITE_DOC,
+            knowledge::INGEST,
             browser::ACT,
             browser::INTERCEPT,
             browser::DEVICE,
             terminal::RUN,
+            terminal::WRITE,
         ];
         for tool in &tools {
             let expected = if write_tools.contains(&tool.name.as_str()) {

@@ -1,3 +1,4 @@
+import { openPath as openExternal } from '@tauri-apps/plugin-opener'
 import { exists } from '@tauri-apps/plugin-fs'
 import { toast } from 'sonner'
 
@@ -16,7 +17,7 @@ import {
 } from '@/views/knowledge/lib/fs.ts'
 import { parseMarkdown } from '@/views/knowledge/lib/parse-markdown.ts'
 import { findOutlineFromMarkdown } from '@/views/knowledge/lib/outline.ts'
-import { isSamePath } from '@/views/knowledge/lib/path.ts'
+import { findFileName, isEditableNoteName, isSamePath } from '@/views/knowledge/lib/path.ts'
 import { serializeHtmlToMarkdown } from '@/views/knowledge/lib/serialize-markdown.ts'
 import { findDocStats, isLargeMarkdown } from '@/views/knowledge/lib/stats.ts'
 import { t } from '@/views/knowledge/locale.ts'
@@ -136,6 +137,23 @@ async function openPath(path: string, options: { force?: boolean } = {}): Promis
   // 自身保存触发的 watch：直接跳过，避免把未落盘编辑冲掉
   if (same && options.force && shouldIgnoreFileWatch()) {
     return true
+  }
+
+  // PDF / 图片等：用系统默认应用打开（对齐 llm_wiki 源目录多类型）
+  if (!isEditableNoteName(findFileName(path))) {
+    try {
+      const isPresent = await exists(path)
+      if (!isPresent) {
+        console.warn('[knowledge] open external skipped, missing path:', path)
+        return false
+      }
+      await openExternal(path)
+      return true
+    } catch (error) {
+      console.error('[knowledge] open external failed', error)
+      toast.error(t('OPEN_FAILED'))
+      return false
+    }
   }
 
   // 缺失路径不要 toBeginOpen：否则 hasOpened=true 却灌不进内容，主栏整片空白

@@ -1,4 +1,5 @@
 import { Button } from '@cogito/design/components/button'
+import { Input } from '@cogito/design/components/input'
 import {
   Select,
   SelectContent,
@@ -25,6 +26,9 @@ const LANGUAGE_OPTIONS = [{ label: '简体中文', value: 'zh-CN' }]
 function GeneralSurface() {
   const general = useSettingsStore(function (state) {
     return state.settings.general
+  })
+  const proxy = useSettingsStore(function (state) {
+    return state.settings.proxy
   })
   const toUpdate = useSettingsStore(function (state) {
     return state.toUpdate
@@ -99,6 +103,51 @@ function GeneralSurface() {
               })}
             </SelectContent>
           </Select>
+        </SettingsRow>
+      </SettingsSection>
+
+      <SettingsSection title="出站代理">
+        <SettingsRow
+          label="启用代理"
+          hint="写入 HTTP_PROXY / HTTPS_PROXY，供 reqwest 与插件请求使用">
+          <Switch
+            checked={proxy.enabled}
+            onCheckedChange={function (checked) {
+              void toUpdate('proxy', { enabled: checked })
+            }}
+          />
+        </SettingsRow>
+        <SettingsRow
+          label="代理 URL"
+          hint="仅支持 http:// 或 https://">
+          <Input
+            className="w-56"
+            value={proxy.url}
+            placeholder="http://127.0.0.1:7890"
+            onChange={function (event) {
+              void toUpdate('proxy', { url: event.target.value })
+            }}
+          />
+        </SettingsRow>
+        <SettingsRow
+          label="绕过局域网"
+          hint="设置 NO_PROXY 排除 localhost / 私网段">
+          <Switch
+            checked={proxy.bypassLocal}
+            onCheckedChange={function (checked) {
+              void toUpdate('proxy', { bypassLocal: checked })
+            }}
+          />
+        </SettingsRow>
+        <SettingsRow
+          label="接受无效证书"
+          hint="仅在代理启用时生效，用于企业 MITM 场景">
+          <Switch
+            checked={proxy.acceptInvalidCerts}
+            onCheckedChange={function (checked) {
+              void toUpdate('proxy', { acceptInvalidCerts: checked })
+            }}
+          />
         </SettingsRow>
       </SettingsSection>
 

@@ -55,6 +55,7 @@ impl Bootstrap {
                     // 本地工具桥：`cogito-mcp` 只经它读写，app 始终是唯一写者。
                     // 传 AppHandle 是因为 `app_browser_*` 要访问宿主 webview。
                     let bridge = crate::bridge::start(storage.clone(), handle_for_db.clone()).await?;
+                    crate::bridge::start_clip_server(handle_for_db.clone(), storage.clone()).await;
                     Ok::<_, anyhow::Error>((storage, bridge))
                 })
                 .expect("failed to initialize database");
@@ -99,6 +100,9 @@ impl Bootstrap {
                 reminder::spawn_worker(app.handle().clone());
                 automation::spawn_worker(app.handle().clone());
                 tray::setup(app)?;
+                // 出站代理：读 settings.json 的 proxy 段写入进程 env（reqwest / plugin-http）
+                crate::system::proxy::bootstrap_from_store(app.handle());
+                // 剪藏本机接收：bridge::start_clip_server（127.0.0.1:19828 → knowledge://clip）
                 // 禁 WebView 原生 Ctrl/Cmd+F 查找条（Windows 走 WebView2 设置；其它平台靠前端拦）
                 crate::ui::native_find::disable_on_app(app.handle());
                 log_retention::prune_stale_logs(app.handle());

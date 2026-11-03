@@ -3,6 +3,7 @@ pub mod autostart;
 pub mod automation;
 pub mod bridge;
 pub mod browser;
+pub mod knowledge;
 pub mod reminder;
 pub mod search;
 pub mod site;

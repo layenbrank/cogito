@@ -76,6 +76,10 @@ function KnowledgeCaptionFinal() {
   const isDockOpen = useDockStore(function (state) {
     return state.isOpen
   })
+  const railTab = useSurfaceStore(function (state) {
+    return state.tab
+  })
+  const showEditorChrome = railTab === 'wiki'
 
   if (isFocusMode) return null
 
@@ -90,22 +94,27 @@ function KnowledgeCaptionFinal() {
         isPressed={isSidebarOpen}
         onClick={toToggleSidebar}
       />
-      <LayoutButton
-        label={t('OUTLINE')}
-        icon="lucide:list-tree"
-        isPressed={isOutlinePressed}
-        onClick={function () {
-          toToggleAside('outline')
-        }}
-      />
-      <LayoutButton
-        label="AI 助手（Ctrl+J）"
-        icon="lucide:sparkles"
-        isPressed={isAssistantPressed}
-        onClick={function () {
-          toToggleAside('assistant')
-        }}
-      />
+      {/* 仅 Wiki 编辑态展示大纲 / AI；工具主视图与设置隐藏 */}
+      {showEditorChrome ? (
+        <>
+          <LayoutButton
+            label={t('OUTLINE')}
+            icon="lucide:list-tree"
+            isPressed={isOutlinePressed}
+            onClick={function () {
+              toToggleAside('outline')
+            }}
+          />
+          <LayoutButton
+            label="AI 助手（Ctrl+J）"
+            icon="lucide:sparkles"
+            isPressed={isAssistantPressed}
+            onClick={function () {
+              toToggleAside('assistant')
+            }}
+          />
+        </>
+      ) : null}
     </div>
   )
 }

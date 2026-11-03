@@ -15,6 +15,7 @@ import { t } from '@/views/knowledge/locale.ts'
 import { useSurfaceStore, type AsideTab } from '@/views/knowledge/surface/store.ts'
 import { jumpEditorPos } from '@/views/knowledge/workspace/editor-context.ts'
 import Outline from '@/views/knowledge/workspace/overlay/outline.tsx'
+import { PageLinks } from '@/views/knowledge/workspace/overlay/page-links.tsx'
 
 const ASIDE_TABS: readonly { key: AsideTab; label: string; icon: string }[] = [
   { key: 'outline', label: t('OUTLINE'), icon: 'lucide:list-tree' },
@@ -118,7 +119,15 @@ function KnowledgeAside() {
             asideTab === 'outline' ? 'z-10' : 'pointer-events-none z-0 opacity-0'
           )}
           aria-hidden={asideTab !== 'outline'}>
-          <Outline onJump={jumpEditorPos} />
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-[1.2]">
+              <Outline onJump={jumpEditorPos} />
+            </div>
+            <div className="min-h-0 flex-1 border-t border-border">
+              <p className="text-muted-foreground px-2 py-1 text-[11px] font-medium">Page Links</p>
+              <PageLinks />
+            </div>
+          </div>
         </div>
         <div
           className={clsx(

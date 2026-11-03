@@ -1,0 +1,10 @@
+{
+  "bundle": {
+    "macOS": {
+      "frameworks": []
+    },
+    "resources": {
+      "icons/": "icons/"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Cogito Clipper",
+  "version": "0.0.1",
+  "description": "将网页剪藏到 cogito 知识库 raw/sources",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "剪藏到 Cogito"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://127.0.0.1:19828/*", "http://localhost:19828/*"]
+}

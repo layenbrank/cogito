@@ -9,14 +9,28 @@ import { create } from 'zustand'
 import { useDockStore } from '@/features/agent/dock'
 import { useKnowledgeStore } from '@/stores/knowledge'
 
-type RailTab = 'browse' | 'docs' | 'staging' | 'tasks' | 'settings'
+type RailTabCanonical =
+  | 'wiki'
+  | 'sources'
+  | 'search'
+  | 'graph'
+  | 'lint'
+  | 'review'
+  | 'research'
+  | 'activity'
+  | 'settings'
+
+/** 旧页签名：读入时映射到 canonical（browse→sources，docs→wiki，staging→review） */
+type RailTabLegacy = 'browse' | 'docs' | 'tasks' | 'staging'
+
+type RailTab = RailTabCanonical | RailTabLegacy
 type AsideTab = 'outline' | 'assistant'
 
-/** 兼容旧名：库管理四页 + 浏览 */
+/** 兼容旧名 */
 type SurfaceTab = RailTab
 
 interface SurfaceState {
-  tab: RailTab
+  tab: RailTabCanonical
   asideTab: AsideTab
   toSetTab: (tab: RailTab) => void
   toSetAsideTab: (tab: AsideTab) => void
@@ -29,6 +43,21 @@ interface SurfaceState {
   toToggleAside: (tab: AsideTab) => void
   toOpenAside: (tab: AsideTab) => void
   toCloseAside: () => void
+}
+
+function normalizeRailTab(tab: RailTab): RailTabCanonical {
+  switch (tab) {
+    case 'browse':
+      return 'sources'
+    case 'docs':
+      return 'wiki'
+    case 'tasks':
+      return 'research'
+    case 'staging':
+      return 'review'
+    default:
+      return tab
+  }
 }
 
 function openSidebar() {
@@ -49,11 +78,11 @@ function writeAsideOpen(isOpen: boolean) {
 
 const useSurfaceStore = create<SurfaceState>(function (set, get) {
   return {
-    tab: 'browse',
+    tab: 'wiki',
     asideTab: 'outline',
 
     toSetTab: function (tab) {
-      set({ tab })
+      set({ tab: normalizeRailTab(tab) })
     },
 
     toSetAsideTab: function (tab) {
@@ -62,7 +91,7 @@ const useSurfaceStore = create<SurfaceState>(function (set, get) {
 
     toOpen: function (tab) {
       openSidebar()
-      if (tab) set({ tab })
+      if (tab) set({ tab: normalizeRailTab(tab) })
     },
 
     toClose: function () {
@@ -71,12 +100,13 @@ const useSurfaceStore = create<SurfaceState>(function (set, get) {
 
     toToggle: function (tab) {
       const isOpen = useKnowledgeStore.getState().isSidebarOpen
-      if (isOpen && (!tab || tab === get().tab)) {
+      const next = tab ? normalizeRailTab(tab) : undefined
+      if (isOpen && (!next || next === get().tab)) {
         closeSidebar()
         return
       }
       openSidebar()
-      if (tab) set({ tab })
+      if (next) set({ tab: next })
     },
 
     toOpenAside: function (tab) {
@@ -103,5 +133,5 @@ const useSurfaceStore = create<SurfaceState>(function (set, get) {
   }
 })
 
-export { useSurfaceStore }
-export type { AsideTab, RailTab, SurfaceState, SurfaceTab }
+export { normalizeRailTab, useSurfaceStore }
+export type { AsideTab, RailTab, RailTabCanonical, RailTabLegacy, SurfaceState, SurfaceTab }

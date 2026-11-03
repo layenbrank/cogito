@@ -193,3 +193,27 @@ pub async fn cogito_provider_set_tenant(
 ) -> Result<bool, String> {
     crate::utils::cogito_provider::set_tenant(&app, &tenant_id).await
 }
+
+/// 探测本机 Cursor Agent CLI（`agent status`）：安装路径、是否已登录、是否有 CURSOR_API_KEY。
+#[tauri::command(rename = "cursor-agent:status")]
+pub async fn cursor_agent_status() -> Result<crate::utils::cursor_agent::CursorAgentStatus, String> {
+    tokio::task::spawn_blocking(crate::utils::cursor_agent::find_status)
+        .await
+        .map_err(|error| format!("cursor-agent status 线程异常: {error}"))
+}
+
+/// 应用出站代理环境变量（HTTP_PROXY / HTTPS_PROXY / NO_PROXY）。
+#[tauri::command(rename = "system:proxy-apply")]
+pub fn proxy_apply(config: crate::system::proxy::ProxyConfig) -> String {
+    crate::system::proxy::apply_proxy_env(&config)
+}
+
+/// 读取当前进程代理相关 env（调试用）。
+#[tauri::command(rename = "system:proxy-status")]
+pub fn proxy_status() -> serde_json::Value {
+    serde_json::json!({
+        "httpProxy": std::env::var("HTTP_PROXY").ok(),
+        "httpsProxy": std::env::var("HTTPS_PROXY").ok(),
+        "noProxy": std::env::var("NO_PROXY").ok(),
+    })
+}

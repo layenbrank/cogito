@@ -13,12 +13,17 @@ import { useNavigationTree } from '@/views/knowledge/workspace/overlay/use-navig
 
 interface NavigationProps {
   onOpenPath: (path: string) => void
+  /** 覆盖工作区根（来源主视图固定到 raw/sources，不改全局 rootDir） */
+  rootOverride?: string | null
+  /** 自定义删除（来源级联清理）；不传则走普通删文件 */
+  onDeleteAbsolute?: (absolute: string, isDirectory: boolean) => Promise<void>
 }
 
 function Navigation(props: NavigationProps) {
-  const rootDir = useKnowledgeStore(function (state) {
+  const storeRoot = useKnowledgeStore(function (state) {
     return state.rootDir
   })
+  const rootDir = props.rootOverride ?? storeRoot
   const activePath = useKnowledgeStore(function (state) {
     return state.activePath
   })
@@ -53,7 +58,10 @@ function Navigation(props: NavigationProps) {
     fileQuery,
     onOpenPath: props.onOpenPath
   })
-  const mutations = useNavigationMutations(props.onOpenPath)
+  const mutations = useNavigationMutations(props.onOpenPath, {
+    rootOverride: props.rootOverride,
+    onDeleteAbsolute: props.onDeleteAbsolute
+  })
 
   if (!rootDir) {
     return <NavigationEmpty />

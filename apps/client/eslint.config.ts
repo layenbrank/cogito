@@ -152,7 +152,12 @@ export default defineConfig(
   {
     name: 'client/no-web-storage',
     files: ['src/**/*.{ts,tsx}'],
-    ignores: ['src/**/*.{test,spec}.{ts,tsx}', 'src/__test__/**'],
+    ignores: [
+      'src/**/*.{test,spec}.{ts,tsx}',
+      'src/__test__/**',
+      // 知识库偏好仍用 localStorage；迁移到 @/features/persist 前豁免
+      'src/views/knowledge/**'
+    ],
     rules: {
       'no-restricted-syntax': [
         'error',

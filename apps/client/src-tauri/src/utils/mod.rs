@@ -4,6 +4,7 @@ pub mod capture_retention;
 pub mod clock;
 pub mod cogito_provider;
 pub mod cogito_token;
+pub mod cursor_agent;
 pub mod goose_acp;
 pub mod goose_serve;
 pub mod goose_tls;
