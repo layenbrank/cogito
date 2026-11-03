@@ -7,6 +7,7 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use cogito_core::{CommandResult, Exception};
 use serde::{Deserialize, Serialize};
@@ -18,6 +19,8 @@ const MAX_EVENTS: usize = 4_000;
 const MAX_BYTES: usize = 8 * 1024 * 1024;
 /// tool-result / tool-call input 单字段截断长度
 const TOOL_PAYLOAD_CAP: usize = 8_192;
+/// Done 回合保留窗口（与 TS `TURN_RETENTION_MS` 对齐）；过期后从 hub 淘汰
+const DONE_RETENTION: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -46,6 +49,7 @@ struct TurnBuffer {
     next_cursor: u64,
     status: TurnStatus,
     approx_bytes: usize,
+    finished_at: Option<Instant>,
 }
 
 impl TurnBuffer {
@@ -55,6 +59,7 @@ impl TurnBuffer {
             next_cursor: 0,
             status: TurnStatus::Running,
             approx_bytes: 0,
+            finished_at: None,
         }
     }
 
@@ -113,6 +118,30 @@ impl Hub {
         Self {
             turns: HashMap::new(),
             running: HashSet::new(),
+        }
+    }
+
+    /// 丢掉过期的 Done 缓冲，避免长会话按 thread 无限堆积。
+    fn prune_expired(&mut self) {
+        let now = Instant::now();
+        let expired: Vec<String> = self
+            .turns
+            .iter()
+            .filter_map(|(id, turn)| {
+                if turn.status != TurnStatus::Done {
+                    return None;
+                }
+                let finished_at = turn.finished_at?;
+                if now.duration_since(finished_at) < DONE_RETENTION {
+                    None
+                } else {
+                    Some(id.clone())
+                }
+            })
+            .collect();
+        for id in expired {
+            self.turns.remove(&id);
+            self.running.remove(&id);
         }
     }
 }
@@ -213,11 +242,13 @@ pub fn agentTurnEnsure(threadId: String) -> CommandResult<FollowR> {
         return Err(Exception::Validation("threadId 不能为空".into()));
     }
     with_hub(|hub| {
+        hub.prune_expired();
         let turn = hub.turns.entry(id.clone()).or_insert_with(TurnBuffer::fresh);
         if turn.status == TurnStatus::Done {
             *turn = TurnBuffer::fresh();
         } else {
             turn.status = TurnStatus::Running;
+            turn.finished_at = None;
         }
         hub.running.insert(id);
         Ok(turn.follow_from(0))
@@ -238,6 +269,7 @@ pub fn agentTurnAppend(params: AppendP) -> CommandResult<u64> {
         return Err(Exception::Validation("threadId 不能为空".into()));
     }
     with_hub(|hub| {
+        hub.prune_expired();
         let turn = hub.turns.entry(id.clone()).or_insert_with(TurnBuffer::fresh);
         if turn.status == TurnStatus::Done {
             // 已结束的回合不再写；调用方应先 ensure
@@ -265,6 +297,7 @@ pub fn agentTurnFollow(params: FollowP) -> CommandResult<FollowR> {
         return Err(Exception::Validation("threadId 不能为空".into()));
     }
     with_hub(|hub| {
+        hub.prune_expired();
         let Some(turn) = hub.turns.get(&id) else {
             return Ok(FollowR {
                 events: Vec::new(),
@@ -283,6 +316,7 @@ pub fn agentTurnFinish(threadId: String) -> CommandResult<FollowR> {
         return Err(Exception::Validation("threadId 不能为空".into()));
     }
     with_hub(|hub| {
+        hub.prune_expired();
         hub.running.remove(&id);
         let Some(turn) = hub.turns.get_mut(&id) else {
             return Ok(FollowR {
@@ -292,7 +326,21 @@ pub fn agentTurnFinish(threadId: String) -> CommandResult<FollowR> {
             });
         };
         turn.status = TurnStatus::Done;
+        turn.finished_at = Some(Instant::now());
         Ok(turn.follow_from(0))
+    })
+}
+
+#[tauri::command(rename = "agentTurn:forget")]
+pub fn agentTurnForget(threadId: String) -> CommandResult<()> {
+    let id = threadId.trim().to_string();
+    if id.is_empty() {
+        return Err(Exception::Validation("threadId 不能为空".into()));
+    }
+    with_hub(|hub| {
+        hub.running.remove(&id);
+        hub.turns.remove(&id);
+        Ok(())
     })
 }
 
@@ -372,5 +420,44 @@ mod tests {
         }));
         let output = scrubbed["output"].as_str().unwrap();
         assert!(output.chars().count() <= TOOL_PAYLOAD_CAP + 8);
+    }
+
+    #[test]
+    fn forget_removes_done_turn() {
+        with_hub(|hub| {
+            hub.turns.clear();
+            hub.running.clear();
+        });
+        agentTurnEnsure("t-forget".into()).unwrap();
+        agentTurnAppend(AppendP {
+            thread_id: "t-forget".into(),
+            events: vec![json!({ "kind": "finish", "finishReason": "end_turn" })],
+        })
+        .unwrap();
+        agentTurnFinish("t-forget".into()).unwrap();
+        agentTurnForget("t-forget".into()).unwrap();
+        let followed = agentTurnFollow(FollowP {
+            thread_id: "t-forget".into(),
+            cursor: 0,
+        })
+        .unwrap();
+        assert_eq!(followed.status, TurnStatus::Missing);
+    }
+
+    #[test]
+    fn prune_drops_expired_done_turns() {
+        with_hub(|hub| {
+            hub.turns.clear();
+            hub.running.clear();
+        });
+        agentTurnEnsure("t-old".into()).unwrap();
+        agentTurnFinish("t-old".into()).unwrap();
+        with_hub(|hub| {
+            if let Some(turn) = hub.turns.get_mut("t-old") {
+                turn.finished_at = Some(Instant::now() - DONE_RETENTION - Duration::from_secs(1));
+            }
+            hub.prune_expired();
+            assert!(!hub.turns.contains_key("t-old"));
+        });
     }
 }

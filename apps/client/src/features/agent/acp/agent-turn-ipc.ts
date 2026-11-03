@@ -65,6 +65,15 @@ async function finishAgentTurn(threadId: string): Promise<void> {
   }
 }
 
+async function forgetAgentTurn(threadId: string): Promise<void> {
+  if (!hasTauriRuntime()) return
+  try {
+    await invoke(CHANNELS.AGENT_TURN.FORGET, { threadId })
+  } catch (error) {
+    console.warn('[agent-turn] forget 失败:', error)
+  }
+}
+
 async function markAgentTurnRunning(threadId: string): Promise<string[] | null> {
   if (!hasTauriRuntime()) return null
   try {
@@ -101,6 +110,7 @@ export {
   ensureAgentTurn,
   finishAgentTurn,
   followAgentTurn,
+  forgetAgentTurn,
   listAgentTurnRunning,
   markAgentTurnRunning
 }

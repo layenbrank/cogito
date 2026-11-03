@@ -18,6 +18,7 @@ import {
   ensureAgentTurn,
   finishAgentTurn,
   followAgentTurn,
+  forgetAgentTurn,
   listAgentTurnRunning,
   markAgentTurnRunning
 } from '@/features/agent/acp/agent-turn-ipc'
@@ -40,6 +41,8 @@ interface BackgroundTurn {
   /** 待刷到 Rust 的事件批（微任务合并） */
   pendingAppend: ChatStreamEvent[]
   appendScheduled: boolean
+  /** 串行化 append IPC，finish 前必须排空 */
+  appendFlight: Promise<void>
 }
 
 const turns = new Map<string, BackgroundTurn>()
@@ -211,6 +214,7 @@ function forgetTurnLater(turn: BackgroundTurn) {
       turn.events = []
       turn.pendingAppend = []
       turns.delete(turn.threadID)
+      void forgetAgentTurn(turn.threadID)
     }
   }, TURN_RETENTION_MS)
 }
@@ -223,11 +227,35 @@ function pushLocalEvent(turn: BackgroundTurn, event: ChatStreamEvent) {
   }
 }
 
-function flushPendingAppend(turn: BackgroundTurn) {
+/**
+ * 把 pending 批接到 appendFlight 链上；空批也返回当前 in-flight，
+ * 供 finally 在 finish 前排空。
+ */
+function flushPendingAppend(turn: BackgroundTurn): Promise<void> {
   turn.appendScheduled = false
-  if (turn.pendingAppend.length === 0) return
+  if (turn.pendingAppend.length === 0) return turn.appendFlight
+
   const batch = turn.pendingAppend.splice(0, turn.pendingAppend.length)
-  void appendAgentTurn(turn.threadID, batch)
+  turn.appendFlight = turn.appendFlight
+    .catch(function () {
+      // 前一次失败不阻断后续批写
+    })
+    .then(function () {
+      return appendAgentTurn(turn.threadID, batch)
+    })
+    .then(function () {})
+    .catch(function (error) {
+      console.warn('[acp/background-turn] append 失败:', error)
+    })
+  return turn.appendFlight
+}
+
+/** 泵结束后：冲掉残余 pending + 等所有 in-flight IPC 完成，再允许 finish */
+async function drainPendingAppend(turn: BackgroundTurn): Promise<void> {
+  turn.appendScheduled = false
+  await flushPendingAppend(turn)
+  // 微任务里可能又排队了一次 flush（与 finally 竞态）：再冲一轮
+  await flushPendingAppend(turn)
 }
 
 function dualWriteEvent(turn: BackgroundTurn, event: ChatStreamEvent) {
@@ -236,7 +264,7 @@ function dualWriteEvent(turn: BackgroundTurn, event: ChatStreamEvent) {
   if (turn.appendScheduled) return
   turn.appendScheduled = true
   queueMicrotask(function () {
-    flushPendingAppend(turn)
+    void flushPendingAppend(turn)
   })
 }
 
@@ -265,7 +293,8 @@ function ensureBackgroundTurn(
     start,
     persister,
     pendingAppend: [],
-    appendScheduled: false
+    appendScheduled: false,
+    appendFlight: Promise.resolve()
   }
   turns.set(threadID, turn)
   markPersistedRunning(threadID)
@@ -288,9 +317,11 @@ function ensureBackgroundTurn(
         notifyTurn(turn, failed)
       }
     } finally {
-      flushPendingAppend(turn)
+      // TS 侧立刻标 done（订阅者 / hasRunning 不再等 IPC）；
+      // 但 Rust finish 必须等 append 排空，否则尾批会被 Done 丢弃
       turn.status = 'done'
       clearPersistedRunning(turn.threadID)
+      await drainPendingAppend(turn)
       await finishAgentTurn(turn.threadID)
       notifyTurn(turn, null)
       if (!turn.deliveredTerminal && turn.persister) {
@@ -397,12 +428,19 @@ async function* followBackgroundTurn(
 }
 
 /**
- * orphan 落库用：优先 Rust 全量，失败再回落本地镜像。
+ * orphan 落库用：含终态的一侧优先；Rust 缺终态时回落本地镜像，避免丢 finish。
  */
 async function findTurnEvents(turn: BackgroundTurn): Promise<ChatStreamEvent[]> {
   const remote = await followAgentTurn(turn.threadID, 0)
-  if (remote && remote.events.length > 0) return remote.events
-  return turn.events
+  const remoteEvents = remote?.events ?? []
+  const localEvents = turn.events
+  const remoteHasTerminal = remoteEvents.some(isTerminalEvent)
+  const localHasTerminal = localEvents.some(isTerminalEvent)
+
+  if (remoteHasTerminal) return remoteEvents
+  if (localHasTerminal) return localEvents
+  if (remoteEvents.length > 0) return remoteEvents
+  return localEvents
 }
 
 function hasRunningBackgroundTurn(threadID: string): boolean {
