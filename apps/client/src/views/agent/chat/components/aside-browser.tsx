@@ -221,18 +221,24 @@ function AsideBrowser() {
     [activeUrl]
   )
 
-  // 页面自己跳转（点链接 / 重定向）时由 Rust 侧 `on_page_load` 回传，地址栏靠它跟上
+  // 硬导航：`on_page_load`；SPA pushState/hash：`Page.navigatedWithinDocument`
   useEffect(function () {
     let disposed = false
     let unlisten: (() => void) | null = null
-    void listen<{ label: string; url: string }>('browser://nav', function (event) {
-      useBrowserStore.getState().writeTabUrl(event.payload.label, event.payload.url)
-      // SPA/硬导航会卸页面，拾取必须停
-      if (pickingLabelRef.current === event.payload.label) {
-        haltPicker(event.payload.label)
-        toast.message('页面已跳转，元素拾取已取消')
+    void listen<{ label: string; url: string; sameDocument?: boolean }>(
+      'browser://nav',
+      function (event) {
+        const sameDocument = event.payload.sameDocument === true
+        useBrowserStore
+          .getState()
+          .writeTabUrl(event.payload.label, event.payload.url, sameDocument)
+        // 硬导航会卸页面，拾取必须停；同文档 SPA 路由通常保留 DOM，不断拾取
+        if (!sameDocument && pickingLabelRef.current === event.payload.label) {
+          haltPicker(event.payload.label)
+          toast.message('页面已跳转，元素拾取已取消')
+        }
       }
-    })
+    )
       .then(function (fn) {
         if (disposed) {
           fn()
