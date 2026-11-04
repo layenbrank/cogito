@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 /**
- * Client 一键发版到 R2：上传 nsis.zip（+ setup.exe / 多语言 .msi），覆盖渠道 latest.json。
+ * Client 一键发版到 R2：上传 updater 载荷（+ 多语言 .msi），覆盖渠道 latest.json。
+ *
+ * updater 载荷两种形态都支持，按 mtime 取新的一份（详见 find-client-bundle.ts）：
+ * - `{productName}_{version}_{arch}-setup.exe` + `.exe.sig`：Tauri CLI 2.12+ 的默认产物
+ *   （按 bundle 类型直接签安装器，不再产出 nsis.zip；tauri-plugin-updater 认得裸 exe）
+ * - `{productName}_{version}_{arch}-setup.nsis.zip` + `.zip.sig`：老格式，仍兼容
  *
  * 产物目录：`--dir` > 环境变量 `CARGO_TARGET_DIR` > `apps/client/src-tauri/target/release/bundle`
  * 文件名：按 tauri.conf.json 的 productName + version（或 --release）+ 本机 arch 精确匹配。
@@ -27,9 +32,10 @@ const CHANNELS = new Set(['stable', 'alpha', 'beta', 'rc'])
 const USAGE = `用法: publish-client [--release <x.y.z>] [--channel stable] [--dir <bundle>] [选项]
 
 按 tauri.conf.json 的 productName / version 与本机平台，在 bundle 目录内精确匹配：
-  - {productName}_{version}_{arch}-setup.nsis.zip + .sig（updater，必填）
-  - 同名 .exe（可选）
+  - {productName}_{version}_{arch}-setup.exe + .exe.sig（updater 载荷，Tauri CLI 2.12+）
+  - {productName}_{version}_{arch}-setup.nsis.zip + .zip.sig（老格式，仍兼容）
   - {productName}_{version}_{arch}_{locale}.msi（可选，如 zh-CN / en-US）
+两种 updater 载荷都在时取 mtime 更新的那一份，避免把上一版安装包当成新版推出去。
 上传到 R2，并覆盖 updater-{channel}/latest.json。
 
 bundle 目录优先级：
@@ -44,7 +50,7 @@ bundle 目录优先级：
   --worker <base url>      端点地址（默认 ${PUBLIC_BASE}）
   --auth-key-file <文件>   AUTH_KEY_SECRET；不给则读环境变量
   --notes <文案>           latest.json notes（默认 Client <version> (<channel>)）
-  --skip-exe               不上传 *-setup.exe
+  --skip-exe               updater 载荷是 zip 时，不再额外上传 *-setup.exe
   --skip-msi               不上传 *.msi
   --variant <slim|full>    产物档位（默认 slim；full 会校验 pandoc/ffmpeg/ffprobe 齐全）
   --allow-full             精简版产物里混进可选件时仍允许上传（默认拒绝）
@@ -153,10 +159,11 @@ async function main(): Promise<void> {
     return
   }
 
-  if (!inventory.zipPath || !inventory.sigPath) {
+  if (!inventory.updatePath || !inventory.updateSigPath || !inventory.updateKind) {
     const base = findArtifactBaseName(inventory.productName, inventory.version, inventory.arch)
     throw new Error(
-      `updater 产物不齐（需要 ${base}.nsis.zip + .sig）。请先 tauri build 或手动 zip+signer。`
+      `updater 产物不齐（需要 ${base}.exe + .exe.sig 或 ${base}.nsis.zip + .zip.sig）。` +
+        '请先 tauri build（createUpdaterArtifacts 会签安装器），或手动 zip+signer。'
     )
   }
 
@@ -169,8 +176,10 @@ async function main(): Promise<void> {
   const artifacts = {
     bundleDir: inventory.bundleDir,
     source: inventory.source,
+    updateKind: inventory.updateKind,
+    updatePath: inventory.updatePath,
+    updateSigPath: inventory.updateSigPath,
     zipPath: inventory.zipPath,
-    sigPath: inventory.sigPath,
     exePath: inventory.exePath,
     msiPaths: inventory.msiPaths,
     productName: inventory.productName,
@@ -181,26 +190,32 @@ async function main(): Promise<void> {
   const version = artifacts.version
   const notes = args.get('notes') ?? `Client ${version} (${channel})`
 
-  const zipName = basename(artifacts.zipPath).replace(/ /g, '.')
-  const zipKey = `${version}/${zipName}`
-  const exeName = artifacts.exePath ? basename(artifacts.exePath).replace(/ /g, '.') : undefined
-  const exeKey = exeName ? `${version}/${exeName}` : undefined
+  const manifestName = basename(artifacts.updatePath).replace(/ /g, '.')
+  const manifestKeyForPayload = `${version}/${manifestName}`
 
   await uploadFileViaWorker({
     worker,
-    key: zipKey,
-    source: artifacts.zipPath,
+    key: manifestKeyForPayload,
+    source: artifacts.updatePath,
     authKey
   })
 
-  if (artifacts.exePath && exeKey) {
+  // 新格式下 updater 载荷本身就是 setup.exe，不再重复上传；老格式（zip）才补一份 exe。
+  const extraExe =
+    artifacts.updateKind === 'installer' || skipExe ? undefined : artifacts.exePath
+  const exeKey = extraExe
+    ? `${version}/${basename(extraExe).replace(/ /g, '.')}`
+    : artifacts.updateKind === 'installer'
+      ? manifestKeyForPayload
+      : undefined
+  if (extraExe && exeKey) {
     await uploadFileViaWorker({
       worker,
       key: exeKey,
-      source: artifacts.exePath,
+      source: extraExe,
       authKey
     })
-  } else if (!skipExe) {
+  } else if (!skipExe && !artifacts.exePath) {
     console.warn(
       `未找到 ${artifacts.productName}_${version}_${artifacts.arch}-setup.exe，跳过 NSIS 安装包`
     )
@@ -224,8 +239,10 @@ async function main(): Promise<void> {
     )
   }
 
-  const signature = (await readFile(artifacts.sigPath, 'utf8')).trim()
+  const signature = (await readFile(artifacts.updateSigPath, 'utf8')).trim()
   const pubDate = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+  // 平台键只用 `windows-x86_64`：tauri-plugin-updater 查找顺序是
+  // `{os}-{arch}-{installer}` → `{os}-{arch}`，发基础键对两种形态、新旧客户端都命中。
   const manifest = {
     version,
     notes,
@@ -233,16 +250,16 @@ async function main(): Promise<void> {
     platforms: {
       'windows-x86_64': {
         signature,
-        url: findPublicUrl(zipKey)
+        url: findPublicUrl(manifestKeyForPayload)
       }
     }
   }
 
-  const manifestKey = `updater-${channel}/latest.json`
+  const latestKey = `updater-${channel}/latest.json`
   const manifestBody = `${JSON.stringify(manifest, null, 2)}\n`
   await putBytesViaWorker({
     worker,
-    key: manifestKey,
+    key: latestKey,
     body: manifestBody,
     contentType: 'application/json; charset=utf-8',
     authKey
@@ -251,14 +268,14 @@ async function main(): Promise<void> {
   const endpoint = findUpdaterEndpoint(channel)
   console.log('')
   console.log('发版完成')
-  console.log(`  updater zip:  ${findPublicUrl(zipKey)}`)
-  if (exeKey) {
+  console.log(`  updater ${artifacts.updateKind}: ${findPublicUrl(manifestKeyForPayload)}`)
+  if (exeKey && exeKey !== manifestKeyForPayload) {
     console.log(`  setup exe:    ${findPublicUrl(exeKey)}`)
   }
   for (const msiKey of msiKeys) {
     console.log(`  setup msi:    ${findPublicUrl(msiKey)}`)
   }
-  console.log(`  latest.json:  ${findPublicUrl(manifestKey)}`)
+  console.log(`  latest.json:  ${findPublicUrl(latestKey)}`)
   console.log(`  endpoints:    ${endpoint}`)
 }
 

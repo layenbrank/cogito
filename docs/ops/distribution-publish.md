@@ -17,14 +17,14 @@
 | `secret put` 提示「没有叫 cogito-distribution 的 Worker」并新建空壳 | 线上当时没有已部署的同名 Worker，wrangler 先建空 Worker 再塞 secret | 随后必须 `pnpm command distribution deploy`，把 `worker.ts` + R2 绑定推上去 |
 | 单独 `upload --release` 却把 MSI 键写成 `*-setup.exe` | 旧逻辑在有 `--release` 时默认对象名写死 setup.exe | 已改为默认跟**源文件 basename**；MSI 可直接 upload |
 | 缺 `*.nsis.zip` 时直接抛错，看不到已有 MSI | `findClientBundleArtifacts` 硬性要求 zip | 增加 inventory + `--dry-run` 先列 zip/exe/msi；缺 zip 时错误里带上已扫到的 MSI |
-| Tauri `createUpdaterArtifacts: true` 有时只出 `.exe.sig` 不出 `.nsis.zip` | 本机构建未产出 updater zip | 需 zip（内含 setup.exe）再用 `tauri signer sign`；或修好后再 `publish:client` |
+| Tauri `createUpdaterArtifacts: true` 只出 `-setup.exe.sig`、不出 `.nsis.zip` | Tauri CLI 2.12+ 改为**按 bundle 类型直接签安装器**，不再二次打包 zip；`tauri-plugin-updater` 2.x 能直接装裸 exe（`infer::app::is_exe` → 落盘 `.exe` → `/UPDATE`） | `publish:client` 已同时支持两种载荷并按 mtime 取较新的一份，**不要再手工补 zip** |
 
 **已验证可用的 1.5.0 stable 直链（示例）：**
 
 - `…/1.5.0/cogito_1.5.0_x64_zh-CN.msi`
 - `…/1.5.0/cogito_1.5.0_x64_en-US.msi`
 - `…/1.5.0/cogito_1.5.0_x64-setup.exe`
-- `…/1.5.0/cogito_1.5.0_x64-setup.nsis.zip`
+- `…/1.5.0/cogito_1.5.0_x64-setup.exe` + `.exe.sig`（CLI 2.12+ 的 updater 载荷；老格式 `.nsis.zip` 仍兼容）
 - `…/updater-stable/latest.json`
 
 ---
@@ -73,7 +73,7 @@ pnpm command distribution deploy
 1. 已 `pnpm build:client`（或等价 Tauri release），产物在
    `$env:CARGO_TARGET_DIR\release\bundle`（如 `D:\Documents\cache\release\bundle`）或
    `apps/client/src-tauri/target/release/bundle`
-2. 需要 updater：`*.nsis.zip` + `*.nsis.zip.sig`（与 productName/version/arch 对齐）
+2. 需要 updater 载荷：`*-setup.exe` + `*.exe.sig`（Tauri CLI 2.12+）或 `*.nsis.zip` + `*.zip.sig`（老格式），与 productName/version/arch 对齐；两种都在时取 mtime 更新的一份，避免把上一版安装包推成“新版”
 3. 本机有 `AUTH_KEY_SECRET`；代理软件开着（国内访问 workers.dev）
 
 ```powershell
@@ -111,7 +111,7 @@ Invoke-WebRequest -Method HEAD -UseBasicParsing `
 ```
 
 期望：`meta` 有 `size` / `etag`；`latest.json` 的 `version` 与
-`platforms.windows-x86_64.url` 指向本次 `nsis.zip`。
+`platforms.windows-x86_64.url` 指向本次 updater 载荷（`-setup.exe` 或老格式 `.nsis.zip`）。
 
 ---
 
@@ -122,7 +122,7 @@ Invoke-WebRequest -Method HEAD -UseBasicParsing `
 | `没找到 AUTH_KEY_SECRET` | `.dev.vars` / 环境变量 / `%TEMP%\cogito-auth-key.txt` / `--auth-key-file` |
 | `fetch failed` / ConnectTimeout | 代理是否开着；日志是否有 `[distribution] 使用系统代理 …`；可手动设 `HTTPS_PROXY` |
 | `HTTP 403 Forbidden` | 本机密钥与线上 `AUTH_KEY_SECRET` 不一致 → 重新 `secret put` 并同步本机 |
-| `updater 产物不齐` | `--dry-run` 看缺 zip 还是缺 sig；补 zip + `tauri signer sign` |
+| `updater 产物不齐` | `--dry-run` 看 `updater:` 行选中的是哪种载荷；缺 `.sig` 就补签名（重跑 `tauri build`，或手工 `tauri signer sign`） |
 | 读得到 404 | 是否传错版本目录 / 文件名；白名单见 `setup-key.ts`（exe / msi / nsis.zip / updater-*/latest.json） |
 
 更多命令与 API 表：[`apps/distribution/README.md`](../../apps/distribution/README.md)。  

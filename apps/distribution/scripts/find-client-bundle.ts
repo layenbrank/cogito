@@ -8,6 +8,16 @@
  *
  * 文件名按 tauri.conf.json 的 productName + version + 本机 arch（x64 / arm64）匹配，
  * 避免同目录里旧 productName 产物（如「i thinking_…」）被误选。
+ *
+ * updater 载荷有两种形态，都要支持：
+ * - 老格式 `{base}.nsis.zip` + `.zip.sig`（tauri-bundler 把安装器再打一层 zip）
+ * - 新格式 `{base}.exe` + `.exe.sig`（Tauri CLI 2.12+ 按 bundle 类型直接签安装器，
+ *   不再产出 nsis.zip；tauri-plugin-updater 2.x 能直接吃裸 exe：
+ *   `infer::app::is_exe` → 落盘带 `.exe` 后缀的临时文件 → `/UPDATE` 静默执行）
+ *
+ * 关键约束：**不许把过期载荷发出去**。同一 bundle 目录里往往混着上一次构建的
+ * 旧 zip，只按“文件名命中就用”会把上一版的安装包当成这一版的更新推给用户。
+ * 因此两种载荷都在时比 mtime，取更新的那一份。
  */
 import { existsSync } from 'node:fs'
 import { readFile, readdir, stat } from 'node:fs/promises'
@@ -20,15 +30,30 @@ interface TauriIdentity {
   confPath: string
 }
 
-/** 扫到的产物清单（zip 可缺，供 --dry-run / 报错列举） */
+/** updater 载荷形态：老格式 zip / 新格式裸安装器 */
+type UpdaterKind = 'nsis.zip' | 'installer'
+
+/** 选中的 updater 载荷（zip 或 installer 二选一） */
+interface UpdaterPayload {
+  kind: UpdaterKind
+  path: string
+  sigPath: string
+  /** 载荷自身的 mtime（毫秒），用于在同目录新旧两版之间取“更新的一份” */
+  mtimeMs: number
+}
+
+/** 扫到的产物清单（updater 载荷可缺，供 --dry-run / 报错列举） */
 interface BundleInventory {
   bundleDir: string
   source: 'dir' | 'CARGO_TARGET_DIR' | 'fallback'
   productName: string
   version: string
   arch: string
+  updateKind: UpdaterKind | undefined
+  updatePath: string | undefined
+  updateSigPath: string | undefined
+  /** 老格式 updater 载荷原始路径（无论是否被选中都列出来，便于排查“为什么没用 zip”） */
   zipPath: string | undefined
-  sigPath: string | undefined
   exePath: string | undefined
   /** WiX 多语言 MSI，如 cogito_1.5.0_x64_zh-CN.msi */
   msiPaths: string[]
@@ -37,8 +62,10 @@ interface BundleInventory {
 interface BundleArtifacts {
   bundleDir: string
   source: 'dir' | 'CARGO_TARGET_DIR' | 'fallback'
-  zipPath: string
-  sigPath: string
+  updateKind: UpdaterKind
+  updatePath: string
+  updateSigPath: string
+  zipPath: string | undefined
   exePath: string | undefined
   /** WiX 多语言 MSI，如 cogito_1.5.0_x64_zh-CN.msi */
   msiPaths: string[]
@@ -47,9 +74,7 @@ interface BundleArtifacts {
   arch: string
 }
 
-const CLIENT_TAURI_ROOT = join(
-  fileURLToPath(new URL('../../client/src-tauri', import.meta.url))
-)
+const CLIENT_TAURI_ROOT = join(fileURLToPath(new URL('../../client/src-tauri', import.meta.url)))
 const TAURI_CONF_PATH = join(CLIENT_TAURI_ROOT, 'tauri.conf.json')
 const FALLBACK_BUNDLE = join(CLIENT_TAURI_ROOT, 'target', 'release', 'bundle')
 
@@ -116,6 +141,14 @@ async function isDirectory(path: string): Promise<boolean> {
   }
 }
 
+async function fileMtimeMs(path: string): Promise<number> {
+  try {
+    return (await stat(path)).mtimeMs
+  } catch {
+    return 0
+  }
+}
+
 /**
  * 解析要扫描的 bundle 根目录。
  * `explicitDir` 优先；否则读 `CARGO_TARGET_DIR`；再回退仓库内 target。
@@ -177,38 +210,82 @@ function findNamedFile(files: string[], fileName: string): string | undefined {
   })
 }
 
-function findSigPath(files: string[], zipPath: string): string {
-  const expected = `${zipPath}.sig`
+function findSigPath(files: string[], payloadPath: string): string {
+  const expected = `${payloadPath}.sig`
   if (existsSync(expected)) {
     return expected
   }
-  const byName = findNamedFile(files, `${basename(zipPath)}.sig`)
+  const byName = findNamedFile(files, `${basename(payloadPath)}.sig`)
   if (!byName) {
     throw new Error(`缺少签名文件: ${expected}`)
   }
   return byName
 }
 
+/** 载荷 + 它的 `.sig` 都在才算可用；缺签名直接当没有，避免把未签名包发出去 */
+async function loadPayload(
+  kind: UpdaterKind,
+  payloadPath: string | undefined,
+  files: string[]
+): Promise<UpdaterPayload | undefined> {
+  if (!payloadPath) {
+    return undefined
+  }
+  try {
+    const sigPath = findSigPath(files, payloadPath)
+    return { kind, path: payloadPath, sigPath, mtimeMs: await fileMtimeMs(payloadPath) }
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * 在 zip / 安装器两种载荷里挑真正要发的那一份。
+ *
+ * 两种都在时比 mtime：**更新的一份胜出**。典型现场是 bundle 目录里躺着上一版的
+ * `*.nsis.zip`（Tauri CLI 2.12 之前留下），而本次构建只新写了 `-setup.exe`；
+ * 按名字取 zip 会把旧安装包当成新版更新推出去。
+ */
+async function pickUpdaterPayload(
+  files: string[],
+  zipPath: string | undefined,
+  exePath: string | undefined
+): Promise<UpdaterPayload | undefined> {
+  const zip = await loadPayload('nsis.zip', zipPath, files)
+  const installer = await loadPayload('installer', exePath, files)
+  if (zip && installer) {
+    return installer.mtimeMs > zip.mtimeMs ? installer : zip
+  }
+  return zip ?? installer
+}
+
 function formatInventoryLines(inventory: BundleInventory): string[] {
   const base = findArtifactBaseName(inventory.productName, inventory.version, inventory.arch)
   return [
-    `bundle: ${inventory.bundleDir}（${inventory.source}）`,
-    `match:  ${inventory.productName}_${inventory.version}_${inventory.arch}`,
-    `zip:    ${inventory.zipPath ? basename(inventory.zipPath) : `缺 ${base}.nsis.zip`}`,
-    `sig:    ${inventory.sigPath ? basename(inventory.sigPath) : `缺 ${base}.nsis.zip.sig`}`,
-    `exe:    ${inventory.exePath ? basename(inventory.exePath) : `缺 ${base}.exe`}`,
-    `msi:    ${
+    `bundle:  ${inventory.bundleDir}（${inventory.source}）`,
+    `match:   ${inventory.productName}_${inventory.version}_${inventory.arch}`,
+    `updater: ${
+      inventory.updatePath
+        ? `${basename(inventory.updatePath)}（${inventory.updateKind}）`
+        : `缺 ${base}.exe 或 ${base}.nsis.zip（都需要同名 .sig）`
+    }`,
+    `sig:     ${inventory.updateSigPath ? basename(inventory.updateSigPath) : '缺'}`,
+    `zip:     ${inventory.zipPath ? basename(inventory.zipPath) : `无 ${base}.nsis.zip`}`,
+    `exe:     ${inventory.exePath ? basename(inventory.exePath) : `缺 ${base}.exe`}`,
+    `msi:     ${
       inventory.msiPaths.length > 0
-        ? inventory.msiPaths.map(function (path) {
-            return basename(path)
-          }).join(', ')
+        ? inventory.msiPaths
+            .map(function (path) {
+              return basename(path)
+            })
+            .join(', ')
         : `缺 ${base.replace(/-setup$/, '')}_*.msi`
     }`
   ]
 }
 
 /**
- * 只扫不校验：列出 zip / exe / msi，缺件也返回（供 --dry-run 与报错列举）。
+ * 只扫不校验：列出 updater 载荷 / exe / msi，缺件也返回（供 --dry-run 与报错列举）。
  */
 async function findClientBundleInventory(options: {
   explicitDir?: string
@@ -237,18 +314,13 @@ async function findClientBundleInventory(options: {
 
   const files = await walkFiles(bundleDir)
   const zipPath = findNamedFile(files, zipName)
-  const exePath = options.skipExe ? undefined : findNamedFile(files, exeName)
+  // exe 既是可选上传件，也可能是唯一可用的 updater 载荷，所以总是解析；
+  // --skip-exe 只在 publish 阶段决定“要不要额外再传一份”。
+  const exePath = findNamedFile(files, exeName)
   const msiPaths = options.skipMsi
     ? []
     : findMsiPaths(files, identity.productName, version, arch)
-  let sigPath: string | undefined
-  if (zipPath) {
-    try {
-      sigPath = findSigPath(files, zipPath)
-    } catch {
-      sigPath = undefined
-    }
-  }
+  const payload = await pickUpdaterPayload(files, zipPath, exePath)
 
   return {
     bundleDir,
@@ -256,8 +328,10 @@ async function findClientBundleInventory(options: {
     productName: identity.productName,
     version,
     arch,
+    updateKind: payload?.kind,
+    updatePath: payload?.path,
+    updateSigPath: payload?.sigPath,
     zipPath,
-    sigPath,
     exePath,
     msiPaths
   }
@@ -265,7 +339,7 @@ async function findClientBundleInventory(options: {
 
 /**
  * 按 productName_version_arch 精确匹配产物；version 默认来自 tauri.conf，可被 --release 覆盖。
- * 发版上传要求 zip+.sig 齐；缺件时错误里会带上已扫到的 msi/exe。
+ * 发版上传要求 updater 载荷 + 其 .sig 齐；缺件时错误里会带上已扫到的 msi/exe。
  */
 async function findClientBundleArtifacts(options: {
   explicitDir?: string
@@ -276,24 +350,26 @@ async function findClientBundleArtifacts(options: {
   confPath?: string
 }): Promise<BundleArtifacts> {
   const inventory = await findClientBundleInventory(options)
-  if (!inventory.zipPath || !inventory.sigPath) {
+  if (!inventory.updatePath || !inventory.updateSigPath || !inventory.updateKind) {
     const base = findArtifactBaseName(inventory.productName, inventory.version, inventory.arch)
     throw new Error(
-      `updater 产物不齐（需要 ${base}.nsis.zip + .sig）。已扫到：\n` +
+      `updater 产物不齐（需要 ${base}.exe + .exe.sig，或 ${base}.nsis.zip + .zip.sig）。已扫到：\n` +
         formatInventoryLines(inventory)
           .map(function (line) {
             return `  ${line}`
           })
           .join('\n') +
-        '\n请先 tauri build（createUpdaterArtifacts），或手动 zip+signer 后再发。'
+        '\n请先 tauri build（createUpdaterArtifacts 会签安装器），或手动 zip+signer 后再发。'
     )
   }
 
   return {
     bundleDir: inventory.bundleDir,
     source: inventory.source,
+    updateKind: inventory.updateKind,
+    updatePath: inventory.updatePath,
+    updateSigPath: inventory.updateSigPath,
     zipPath: inventory.zipPath,
-    sigPath: inventory.sigPath,
     exePath: inventory.exePath,
     msiPaths: inventory.msiPaths,
     productName: inventory.productName,
@@ -317,4 +393,4 @@ export {
   findClientBundleArtifacts,
   formatInventoryLines
 }
-export type { TauriIdentity, BundleInventory, BundleArtifacts }
+export type { TauriIdentity, BundleInventory, BundleArtifacts, UpdaterKind, UpdaterPayload }

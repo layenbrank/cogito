@@ -1,7 +1,7 @@
 # distribution：cogito 资源分发端点
 
 Cloudflare Worker（TypeScript）：**发布流水线**把版本化产物推到 R2 桶 `cogito`，**用户与开发环境**
-按版本路径取稳定直链。当前覆盖：Store / 直链安装包、**Client Tauri 自动更新**（`nsis.zip` +
+按版本路径取稳定直链。当前覆盖：Store / 直链安装包、**Client Tauri 自动更新**（`-setup.exe` 或老格式 `nsis.zip` +
 `updater-{channel}/latest.json`）。目标是同一入口也供给 `ffmpeg` / `corex` / `pandoc` /
 `goose` / `pdfium` 这些工具的版本化产物（见下文「现状与目标态」）。
 
@@ -46,7 +46,7 @@ pnpm command distribution secret
 pnpm command distribution check          # 类型检查（= 本包的 type-check，CI 也跑这步）
 pnpm command distribution upload         # 上传安装包（→ 本 worker 的 multipart 端点）
 pnpm command distribution upload:rclone  # 上传（→ rclone 直连 R2，走 S3 API）
-pnpm command distribution publish:client # Client 一键发版：zip + exe + updater latest.json
+pnpm command distribution publish:client # Client 一键发版：updater 载荷 + 多语言 msi + latest.json
 ```
 
 上传脚本是 Node + TypeScript（[`scripts/upload-via-worker.ts`](./scripts/upload-via-worker.ts) /
@@ -98,7 +98,7 @@ $env:HTTP_PROXY = 'http://127.0.0.1:7890'
 | -- | ---- | ---- |
 | `{semver}/cogito_{semver}_x64-setup.exe` | NSIS 直链安装包 | 一年 immutable |
 | `{semver}/cogito_{semver}_x64_{locale}.msi` | WiX MSI（如 `zh-CN` / `en-US`） | 一年 immutable |
-| `{semver}/cogito_{semver}_x64-setup.nsis.zip` | Tauri updater 包 | 一年 immutable |
+| `{semver}/cogito_{semver}_x64-setup.nsis.zip` | Tauri updater 包（老格式；CLI 2.12+ 直接发 `-setup.exe` + `.sig`） | 一年 immutable |
 | `updater-{channel}/latest.json` | 渠道浮动清单（覆盖写） | `max-age=60, must-revalidate` |
 
 `channel`：`stable` \| `alpha` \| `beta` \| `rc`。Client 烘焙的 endpoint 见
@@ -107,11 +107,11 @@ $env:HTTP_PROXY = 'http://127.0.0.1:7890'
 产物目录优先级：`--dir` → 环境变量 **`CARGO_TARGET_DIR`**（`…/release/bundle`）→
 `apps/client/src-tauri/target/release/bundle`。文件名按 `tauri.conf.json` 的
 `productName` + `version`（可用 `--release` 覆盖）+ 本机 arch（`x64` / `arm64`）精确匹配，例如
-`cogito_1.5.0_x64-setup.nsis.zip`、同名 `.exe`，以及 `cogito_1.5.0_x64_zh-CN.msi` /
+`cogito_1.5.0_x64-setup.exe` + `.exe.sig`（或老格式 `.nsis.zip` + `.zip.sig`），以及 `cogito_1.5.0_x64_zh-CN.msi` /
 `…_en-US.msi` 等。
 
 ```powershell
-# 只扫描产物（zip / exe / 多语言 msi），不鉴权、不上传
+# 只扫描产物（updater 载荷 / 多语言 msi），不鉴权、不上传
 pnpm command distribution publish:client --dry-run
 
 # 若已设 CARGO_TARGET_DIR（如 D:\Documents\cache），且 conf version=1.5.0，可直接：
@@ -135,11 +135,11 @@ pnpm command distribution publish:client `
 
 ```text
 GET https://cogito-distribution.layenbrank.workers.dev/updater-stable/latest.json
-GET https://cogito-distribution.layenbrank.workers.dev/1.5.0/cogito_1.5.0_x64-setup.nsis.zip
+GET https://cogito-distribution.layenbrank.workers.dev/1.5.0/cogito_1.5.0_x64-setup.exe
 ```
 
 `client-release` GitHub Actions 仍打 GitHub Release 作备份，但**烘焙进二进制的更新源是本 Worker**；
-打完 CI 后仍须跑 `publish:client` 把 zip + 浮动清单推上 R2（详见 [`docs/ops/ci-cd.md`](../../docs/ops/ci-cd.md)）。
+打完 CI 后仍须跑 `publish:client` 把 updater 载荷 + 浮动清单推上 R2（详见 [`docs/ops/ci-cd.md`](../../docs/ops/ci-cd.md)）。
 
 ## 现状与目标态
 
