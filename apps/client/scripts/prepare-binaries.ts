@@ -208,14 +208,13 @@ function prepareBinaries(): SidecarVariant {
     )
   }
   if (verify.missing.length > 0) {
-    const message =
+    // 缺件一律失败，不分档位：slim 缺的是 externalBin（corex-daemon / goose …），
+    // 装出来是个打不开对话的空壳，静默发出去的代价远高于一次构建失败。
+    // 可选件（pandoc / ffmpeg）只在 full 档位才纳入校验，见 verifyStaged。
+    throw new Error(
       `${LOG_PREFIX} 缺少侧车产物（${variant}）：\n  ${verify.missing.join('\n  ')}\n` +
-      '请先执行 `pnpm command sidecar bootstrap client`'
-    if (variant === 'full') {
-      // full 缺件必须响亮失败：否则发布出去的「完整版」其实是残的
-      throw new Error(message)
-    }
-    console.warn(`${message}\n  （slim 档位继续，但这些能力在包里会缺失）`)
+        '请先执行 `pnpm command sidecar bootstrap client`'
+    )
   }
 
   const conf = buildGeneratedConf(variant)

@@ -19,6 +19,10 @@ interface PlanExecuteInput {
   budget?: number
   /** 一句话总结，正文缺失时作为退化输入 */
   overview?: string
+  /** 计划来自工作区文件时带上相对路径（执行时能回溯到同一份文档） */
+  filePath?: string | null
+  /** 档案修订号：正文被改过会自增 */
+  revision?: number
 }
 
 const BODY_START = '===== 计划全文 ====='
@@ -41,6 +45,11 @@ function buildPlanExecutePrompt(input: PlanExecuteInput): string {
   }
 
   lines.push(...EXECUTE_RULES)
+
+  if (input.filePath) {
+    const revision = input.revision ? ` · revision ${input.revision}` : ''
+    lines.push('', `计划文件：${input.filePath}${revision}`)
+  }
 
   const body = input.body.trim() || input.overview?.trim() || ''
   if (body) {

@@ -44,12 +44,19 @@ pub mod entity {
     #[allow(non_snake_case)]
     pub mod agent_workspace_folder;
 
+    #[allow(non_snake_case)]
+    pub mod agent_plan;
+    #[allow(non_snake_case)]
+    pub mod agent_goal;
+
     pub use agent_message::Entity as AgentMessageEntity;
     pub use agent_provider::Entity as AgentProviderEntity;
     pub use agent_session::Entity as AgentSessionEntity;
     pub use agent_usage::Entity as AgentUsageEntity;
     pub use agent_workspace::Entity as AgentWorkspaceEntity;
     pub use agent_workspace_folder::Entity as AgentWorkspaceFolderEntity;
+    pub use agent_goal::Entity as AgentGoalEntity;
+    pub use agent_plan::Entity as AgentPlanEntity;
     pub use album::Entity as AlbumEntity;
     pub use asset::Entity as AssetEntity;
     pub use automation::Entity as AutomationEntity;

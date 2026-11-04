@@ -7,8 +7,8 @@
  *
  * - 一轮结束 → 若模型报告 `GOAL_CONTINUE` 且预算未尽 → 自动发下一轮；
  * - `GOAL_DONE` / 预算用尽 / 用户中止 → 停；
- * - 状态按**线程**存（`Map<threadID, GoalRun>`）：多个会话/工作区可以同时各自推进，
- *   切走线程不影响那条线程的后台轮次。
+ * - 状态按**线程**存，且**落库到 `agent_goal`**（见 `plan-store`）：刷新/重启后
+ *   轮次、进度、审批恢复档都还在，不再是模块级 Map 里的易失状态。
  *
  * 审批档：目标推进无人值守，工具一弹审批就卡住，所以启动时强制切到「自动审批」，
  * 全部目标都结束后再恢复启动前的档位（用户中途手动改过就以他的为准）。
@@ -17,6 +17,13 @@ import type { ThreadMessage } from '@assistant-ui/react'
 import { useCallback, useSyncExternalStore } from 'react'
 
 import { readApprovalModeFor, writeApprovalModeFor } from '@/features/agent/approval'
+import type { GoalRecord, GoalStatus } from '@/features/agent/plan-store'
+import {
+  listGoals,
+  readGoal,
+  saveGoal,
+  subscribePlanStore
+} from '@/features/agent/plan-store'
 import type { ApprovalMode } from '@/features/persist'
 
 /** 最大轮数（含首轮）：够长任务收敛，又不至于无限烧 token */
@@ -71,7 +78,7 @@ interface GoalProgress {
 
 interface GoalRun {
   threadID: string
-  /** 用户给的终态（写进续跑指令，避免长上下文里漂移） */
+  /** 用户给的终态（写进续跑指令，避免长上下文里漂移）；完整 prompt，不再截断 */
   objective: string
   /** 最大轮数（含首轮） */
   budget: number
@@ -79,27 +86,50 @@ interface GoalRun {
   used: number
   /** 模型最近一次自报的「达成 n/m」；供右栏进度展示 */
   progress: GoalProgress | null
+  /** running / exhausted 仍算「有进行中的目标」；paused / done 不再推进 */
+  status: GoalStatus
 }
 
-const runs = new Map<string, GoalRun>()
-const listeners = new Set<() => void>()
+/** 目标摘要上限：横幅只放一句话，完整 prompt 存在 detail 里 */
+const SUMMARY_LIMIT = 120
 
-function notify() {
-  for (const listener of [...listeners]) listener()
+interface GoalObjective {
+  summary: string
+  detail: string
 }
 
+/** 供 UI 订阅：预算进度 / 是否在推进改一处全屏刷新 */
 function subscribeGoalRun(listener: () => void): () => void {
-  listeners.add(listener)
-  return function () {
-    listeners.delete(listener)
+  return subscribePlanStore(listener)
+}
+
+function toGoalRun(threadID: string): GoalRun | null {
+  const record = readGoal(threadID)
+  if (!record) return null
+  return {
+    threadID: record.sessionID,
+    objective: record.detail || record.summary,
+    budget: record.budget,
+    used: record.used,
+    progress:
+      record.progressTotal !== null && record.progressTotal > 0
+        ? { done: record.progressDone ?? 0, total: record.progressTotal }
+        : null,
+    status: record.status
   }
 }
 
+/**
+ * 同步读（`goal-auto-advance` 在流式回调里用，不能改成 async）。
+ * `paused` / `done` 视为没有进行中的目标；`exhausted` 仍返回 —— UI 要显示
+ * 「已用尽」以及实际跑了几轮。
+ */
 function readGoalRun(threadID: string): GoalRun | null {
-  return runs.get(threadID.trim()) ?? null
+  const run = toGoalRun(threadID.trim())
+  if (!run) return null
+  return run.status === 'paused' || run.status === 'done' ? null : run
 }
 
-/** 供 `useSyncExternalStore` 订阅：预算进度 / 是否在推进改一处全屏刷新 */
 function useGoalRun(threadID: string | null): GoalRun | null {
   const read = useCallback(
     function () {
@@ -110,59 +140,111 @@ function useGoalRun(threadID: string | null): GoalRun | null {
   return useSyncExternalStore(subscribeGoalRun, read, read)
 }
 
-/** 每个会话启动前被我们改掉的审批档；多会话并行推进时必须分开记 */
-const approvalToRestore = new Map<string, ApprovalMode>()
+/**
+ * 本轮归属：自动续跑发出/用户首发的 prompt 存在模块里（不落库 —— 它只对
+ * 「当前这一轮」有效，重启后本来就不该再用旧 prompt 判插话）。
+ */
+const expectedPrompt = new Map<string, string>()
+
+function rememberGoalPrompt(threadID: string, prompt: string): void {
+  expectedPrompt.set(threadID.trim(), prompt.trim())
+}
+
+function forgetGoalPrompt(threadID: string): void {
+  expectedPrompt.delete(threadID.trim())
+}
+
+function readGoalPrompt(threadID: string): string | null {
+  return expectedPrompt.get(threadID.trim()) ?? null
+}
 
 /**
  * 目标推进要无人值守，工具一弹审批整轮就停在那儿等。
  * 返回是否真的改过档位（UI 据此提示用户）。
  */
-function ensureGoalApproval(threadID: string): boolean {
+function ensureGoalApproval(threadID: string): ApprovalMode | null {
   const current = readApprovalModeFor(threadID)
-  if (current === 'auto') return false
-  approvalToRestore.set(threadID, current)
+  if (current === 'auto') return null
   writeApprovalModeFor(threadID, 'auto')
-  return true
+  return current
 }
 
 /** 只恢复这个会话；用户中途自己改过就不动 —— “他说了算”更重要 */
-function restoreGoalApproval(threadID: string): void {
-  const original = approvalToRestore.get(threadID)
-  if (!original) return
-  approvalToRestore.delete(threadID)
-  if (readApprovalModeFor(threadID) === 'auto') {
-    writeApprovalModeFor(threadID, original)
+function restoreGoalApproval(threadID: string, before: string | null): void {
+  if (!before) return
+  if (readApprovalModeFor(threadID) !== 'auto') return
+  writeApprovalModeFor(threadID, before as ApprovalMode)
+}
+
+function normalizeObjective(objective: string | GoalObjective): GoalObjective {
+  if (typeof objective === 'string') {
+    const text = objective.trim()
+    return { summary: text.slice(0, SUMMARY_LIMIT), detail: text }
   }
+  const detail = objective.detail.trim()
+  const summary = (objective.summary.trim() || detail).slice(0, SUMMARY_LIMIT)
+  return { summary, detail: detail || summary }
 }
 
 /** 启动目标推进；返回是否把审批档改成了自动 */
-function startGoalRun(threadID: string, objective: string, budget = DEFAULT_BUDGET): boolean {
+function startGoalRun(
+  threadID: string,
+  objective: string | GoalObjective,
+  budget = DEFAULT_BUDGET,
+  prompt?: string
+): boolean {
   const id = threadID.trim()
-  const switched = ensureGoalApproval(id)
-  runs.set(id, { threadID: id, objective, budget: Math.max(1, budget), used: 0, progress: null })
-  notify()
-  return switched
+  const before = ensureGoalApproval(id)
+  const normalized = normalizeObjective(objective)
+  saveGoal({
+    sessionID: id,
+    summary: normalized.summary,
+    detail: normalized.detail,
+    budget: Math.max(1, budget),
+    used: 0,
+    progressDone: null,
+    progressTotal: null,
+    status: 'running',
+    approvalBefore: before
+  })
+  if (prompt) rememberGoalPrompt(id, prompt)
+  return before !== null
 }
 
 /**
  * 停一个线程的目标推进；**不传** threadID 才是全停。
  *
- * 空串当 no-op 处理 —— 调用方（可能还没选出线程）传空值时不能误伤其它线程的目标。
+ * `null` / 空串一律当 no-op —— 调用方（可能还没选出线程）传空值时必须
+ * 不能崩（以前 `threadID.trim()` 直接 TypeError），也不能误伤其它线程的目标。
  */
-function stopGoalRun(threadID?: string): void {
+function stopGoalRun(threadID?: string | null): void {
+  // `null` 当 no-op：调用方（aside 的 `threadID ?? undefined` 之前）可能传空值
+  if (threadID === null) return
   if (threadID === undefined) {
-    if (runs.size === 0) return
-    for (const id of runs.keys()) restoreGoalApproval(id)
-    runs.clear()
-    notify()
+    const active = [...expectedPrompt.keys()]
+    for (const id of active) forgetGoalPrompt(id)
+    // 全停：把所有进行中的目标标记暂停（exhausted 也一并收尾）
+    for (const record of collectActiveGoals()) {
+      saveGoal({ sessionID: record.sessionID, status: 'paused' })
+      restoreGoalApproval(record.sessionID, record.approvalBefore)
+      forgetGoalPrompt(record.sessionID)
+    }
     return
   }
   const id = threadID.trim()
   if (!id) return
-  if (!runs.delete(id)) return
-  // 只恢复这个会话的审批：其它会话可能还在推进，不能一起还原
-  restoreGoalApproval(id)
-  notify()
+  const record = readGoal(id)
+  if (!record || record.status === 'paused' || record.status === 'done') return
+  saveGoal({ sessionID: id, status: 'paused' })
+  restoreGoalApproval(id, record.approvalBefore)
+  forgetGoalPrompt(id)
+}
+
+/** 缓存里所有还在推进（running / exhausted）的目标 */
+function collectActiveGoals(): GoalRecord[] {
+  return listGoals().filter(function (record) {
+    return record.status === 'running' || record.status === 'exhausted'
+  })
 }
 
 /**
@@ -172,17 +254,21 @@ function stopGoalRun(threadID?: string): void {
  */
 function advanceGoalRun(threadID: string): boolean {
   const id = threadID.trim()
-  const run = runs.get(id)
-  if (!run) return false
-  const next = { ...run, used: run.used + 1 }
-  runs.set(id, next)
-  notify()
-  return next.used < next.budget
+  const record = readGoal(id)
+  if (!record || record.status !== 'running') return false
+  const used = record.used + 1
+  const exhausted = used >= record.budget
+  saveGoal({ sessionID: id, used, status: exhausted ? 'exhausted' : 'running' })
+  if (exhausted) {
+    restoreGoalApproval(id, record.approvalBefore)
+    forgetGoalPrompt(id)
+  }
+  return !exhausted
 }
 
 /** 模型收尾标记：全部达成 / 仍需继续 */
-const GOAL_DONE = /(^|\n)\s*GOAL_DONE\b/
-const GOAL_CONTINUE = /(^|\n)\s*GOAL_CONTINUE\b/
+const GOAL_DONE = /(^|\n)[ \t]*(?:#{1,6}[ \t]*|[-*+][ \t]*)?_*GOAL_DONE_*\b/
+const GOAL_CONTINUE = /(^|\n)[ \t]*(?:#{1,6}[ \t]*|[-*+][ \t]*)?_*GOAL_CONTINUE_*\b/
 
 /**
  * 「达成 n/m」：只认带「达成/完成」前缀或「n/m 项」后缀的写法，
@@ -210,16 +296,24 @@ function parseGoalProgress(text: string): GoalProgress | null {
 function setGoalProgress(threadID: string, progress: GoalProgress | null): void {
   if (!progress) return
   const id = threadID.trim()
-  const run = runs.get(id)
-  if (!run) return
-  if (run.progress?.done === progress.done && run.progress.total === progress.total) return
-  runs.set(id, { ...run, progress })
-  notify()
+  const record = readGoal(id)
+  if (!record) return
+  if (record.progressDone === progress.done && record.progressTotal === progress.total) return
+  saveGoal({
+    sessionID: id,
+    progressDone: progress.done,
+    progressTotal: progress.total
+  })
 }
 
+/**
+ * 归一化后再匹配：模型常把收尾标记写成 `**GOAL_DONE**`、`` `GOAL_DONE` ``、
+ * 「GOAL_DONE。」或小写 —— 旧实现只认行首裸写，会把「已完成」误报成「已停」。
+ */
 function findGoalSignal(text: string): 'done' | 'continue' | null {
-  if (GOAL_DONE.test(text)) return 'done'
-  if (GOAL_CONTINUE.test(text)) return 'continue'
+  const normalized = text.replace(/[`*~"']/g, '').toUpperCase()
+  if (GOAL_DONE.test(normalized)) return 'done'
+  if (GOAL_CONTINUE.test(normalized)) return 'continue'
   return null
 }
 
@@ -230,7 +324,7 @@ function findLastAssistant(messages: readonly ThreadMessage[]): ThreadMessage | 
   return null
 }
 
-function readAssistantText(message: ThreadMessage): string {
+function readMessageText(message: ThreadMessage): string {
   return message.content
     .filter(function (part) {
       return part.type === 'text'
@@ -240,6 +334,27 @@ function readAssistantText(message: ThreadMessage): string {
     })
     .join('\n')
     .trim()
+}
+
+function readAssistantText(message: ThreadMessage): string {
+  return readMessageText(message)
+}
+
+/** 最后一条用户消息正文：用来判断「这一轮是不是目标轮」 */
+function findLastUserText(messages: readonly ThreadMessage[]): string | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.role !== 'user') continue
+    const text = readMessageText(message)
+    if (text) return text
+  }
+  return null
+}
+
+/** 最后一条消息是不是用户插话（排队消息发出后也会落成 user 消息） */
+function isUserInterjection(messages: readonly ThreadMessage[]): boolean {
+  const last = messages[messages.length - 1]
+  return last?.role === 'user'
 }
 
 /** 用户中止 / 出错：这一轮不是模型自己跑完的，不能当成「未达成」继续 */
@@ -263,12 +378,17 @@ export {
   DEFAULT_BUDGET,
   findGoalSignal,
   findLastAssistant,
+  findLastUserText,
+  forgetGoalPrompt,
   GOAL_BUDGET_OPTIONS,
   isAbortedRun,
+  isUserInterjection,
   parseGoalProgress,
   readAssistantText,
+  readGoalPrompt,
   readGoalRun,
   readNextGoalBudget,
+  rememberGoalPrompt,
   subscribeGoalBudget,
   writeNextGoalBudget,
   setGoalProgress,
@@ -277,4 +397,4 @@ export {
   subscribeGoalRun,
   useGoalRun
 }
-export type { GoalProgress, GoalRun }
+export type { GoalObjective, GoalProgress, GoalRun }

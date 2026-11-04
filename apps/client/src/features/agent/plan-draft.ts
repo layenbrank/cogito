@@ -86,6 +86,7 @@ function findOverview(lines: readonly string[]): string {
   return fallback
 }
 
+/** 最后一条有正文的 assistant 消息正文（没有则 null） */
 function findLastAssistantText(messages: readonly ThreadMessage[]): string | null {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
@@ -106,6 +107,9 @@ function findLastAssistantText(messages: readonly ThreadMessage[]): string | nul
 
 /** 计划章节标题：命中这些词的段落里的列表优先当计划 */
 const PLAN_HEADING = /(计划|步骤|实施|方案|行动|roadmap)/i
+
+/** 计划文档的硬标识：H1 标题，或明确说了「实施步骤 / 方案 / 计划」 */
+const PLAN_DOCUMENT_HEADING = /^#{1,6}\s*(?:.*(?:实施步骤|方案|计划).*)$/im
 
 /** 模型按约定给出结构化计划时直接用它（比任何启发式都准） */
 const JSON_BLOCK = /```(?:json)?\s*\n([\s\S]*?)```/g
@@ -227,6 +231,33 @@ function findStepList(lines: readonly string[]): string[] | null {
 }
 
 /**
+ * 把一段正文解析成计划草稿（纯函数，供 planner / recorder 复用）。
+ * 解析不出至少一条步骤就返回 null。
+ */
+function parsePlanText(body: string): PlanDraft | null {
+  const text = body.trim()
+  if (!text) return null
+
+  const lines = text.split('\n')
+  const steps = findStructuredSteps(text) ?? findStepList(lines)
+  if (!steps || steps.length === 0) return null
+
+  return { title: findTitle(lines), overview: findOverview(lines), steps, body: text }
+}
+
+/**
+ * 这段正文「看起来是不是一份计划文档」。
+ *
+ * 比 `parsePlanText` 更严：至少 2 步，且必须带 H1 或明确的计划类标题 ——
+ * 否则任何带两个 bullet 的普通回答都会被录成计划档案，右栏就会永远挂着一份假计划。
+ */
+function isPlanDocument(text: string): boolean {
+  const draft = parsePlanText(text)
+  if (!draft || draft.steps.length < 2) return false
+  return /^#\s+/m.test(text) || PLAN_DOCUMENT_HEADING.test(text)
+}
+
+/**
  * 读取计划：
  * 1. steps 优先用结构化 JSON（模型仍可能这样输出），否则从「实施步骤」段派生；
  * 2. body 是**原文全量**，「计划」页签全量渲染它，保存也用它 —— 不再剔除步骤、不再截断。
@@ -234,13 +265,8 @@ function findStepList(lines: readonly string[]): string[] | null {
 function findPlanDraft(messages: readonly ThreadMessage[]): PlanDraft | null {
   const body = findLastAssistantText(messages)
   if (!body) return null
-
-  const lines = body.split('\n')
-  const steps = findStructuredSteps(body) ?? findStepList(lines)
-  if (!steps || steps.length === 0) return null
-
-  return { title: findTitle(lines), overview: findOverview(lines), steps, body }
+  return parsePlanText(body)
 }
 
-export { findPlanDraft }
+export { findLastAssistantText, findPlanDraft, isPlanDocument, parsePlanText }
 export type { PlanDraft }

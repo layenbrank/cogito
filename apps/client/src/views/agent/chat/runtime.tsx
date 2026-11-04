@@ -25,6 +25,7 @@ import { takeNextThreadWorkspace } from '@/features/agent/port/draft-workspace'
 import { setAgentModeThread } from '@/features/agent/mode'
 import { useRunningThreads } from '@/features/agent/acp/run-state'
 import { chatModelPort, findHostOptions, historyPort } from '@/features/agent/port/instance'
+import { hydrate } from '@/features/agent/plan-store'
 import { buildThreadHistoryAdapter } from '@/features/agent/port/thread-history'
 import { AgentElicitationDataUI } from '@/views/agent/chat/components/elicitation-data-ui'
 import { AgentPlanDataUI } from '@/views/agent/chat/components/plan-data-ui'
@@ -267,6 +268,29 @@ function AgentModeThreadSync() {
   return null
 }
 
+/**
+ * 档案 hydrate：cache 没灌入时 `readPlan` 返回 null，右栏会闪一下空态。
+ * 启动读全量（一行一个会话，量级 < 千行）；切会话再补读该会话。
+ */
+function PlanStoreSync() {
+  const threadID = useAuiState(function (state) {
+    return state.threads.mainThreadId
+  })
+
+  useEffect(function () {
+    void hydrate()
+  }, [])
+
+  useEffect(
+    function () {
+      if (threadID) void hydrate([threadID])
+    },
+    [threadID]
+  )
+
+  return null
+}
+
 function AgentRuntimeProvider(props: { children: ReactNode }) {
   const list = useMemo(function () {
     // 新建会话的归属取「用户点下的那个 +」；草稿只在落库那一刻用得上
@@ -285,6 +309,7 @@ function AgentRuntimeProvider(props: { children: ReactNode }) {
       <AgentElicitationDataUI />
       <RestoreRunningThread />
       <AgentModeThreadSync />
+      <PlanStoreSync />
       {props.children}
     </AssistantRuntimeProvider>
   )

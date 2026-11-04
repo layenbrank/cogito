@@ -304,7 +304,13 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
       // 目标模式发送即建 GoalRun（侧栏「目标推进」可带自定义 budget 覆盖）
       if (readAgentMode() === 'goal' && !readGoalRun(host.threadID)) {
         // 轮次是**每次发送**的输入项：取 composer 里当前选的那一档（默认 6）
-        startGoalRun(host.threadID, text.slice(0, 500), readNextGoalBudget())
+        // objective 拆 summary（≤120 字，横幅）+ detail（原 prompt，续跑用），不再截断
+        startGoalRun(
+          host.threadID,
+          { summary: text.slice(0, 120), detail: text },
+          readNextGoalBudget(),
+          text
+        )
       }
 
       try {

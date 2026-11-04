@@ -118,7 +118,6 @@ impl Bootstrap {
                 crate::ui::native_find::disable_on_app(app.handle());
                 log_retention::prune_stale_logs(app.handle());
                 // 会话标记 + 上次异常退出：崩溃/被杀的现场要能被下次启动认出来
-                // 会话标记 + 上次异常退出：崩溃/被杀的现场要能被下次启动认出来。
                 // `begin_session()` 内部保证「先读旧标记再写 running」的顺序。
                 let previous_session = crate::utils::diagnostics::begin_session();
                 match previous_session {

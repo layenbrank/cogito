@@ -10,7 +10,7 @@
  *   pnpm command distribution publish:client --dir <bundle> --channel alpha
  */
 import { readFile, readdir } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
 import { findPublicUrl, findUpdaterEndpoint, PUBLIC_BASE } from '../src/public-base.ts'
 import {
@@ -51,12 +51,23 @@ bundle 目录优先级：
   --dry-run                只扫描并打印产物清单（不鉴权、不上传）
   --help                   显示本帮助`
 
-/** 递归清点 bundle 里「只有完整版才有」的件（深度上限 4，别扫进巨大的依赖树） */
-async function findOptionalToolFiles(root: string): Promise<string[]> {
-  const found: string[] = []
+/**
+ * 清点产物树里的文件名。
+ *
+ * 为什么要扫**多个根**：Windows 上 externalBin / resources 直接落在
+ * `target/release/`（bundle 的父目录），`bundle/` 下面只有安装包本身。只扫 bundle
+ * 会永远看不到侧车与可选件 —— 档位判断和必需件断言都会变成空断言。
+ *
+ * 父目录只读顶层（depth 0）：`target/release/` 下面还有 deps/ 与 build/，
+ * 递归进去要扫几十万项，而 sidecar 就在顶层。
+ */
+async function findArtifactFiles(
+  roots: readonly { dir: string; depth: number }[]
+): Promise<string[]> {
+  const found = new Set<string>()
 
-  async function walk(dir: string, depth: number): Promise<void> {
-    if (depth > 4) return
+  async function walk(dir: string, depth: number, maxDepth: number): Promise<void> {
+    if (depth > maxDepth) return
     const entries = await readdir(dir, { withFileTypes: true }).catch(function (error) {
       console.warn(`[publish-client] 跳过无法读取的目录 ${dir}: ${String(error)}`)
       return null
@@ -64,15 +75,17 @@ async function findOptionalToolFiles(root: string): Promise<string[]> {
     if (!entries) return
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        await walk(join(dir, entry.name), depth + 1)
-      } else if ((OPTIONAL_TOOL_FILES as readonly string[]).includes(entry.name)) {
-        found.push(entry.name)
+        await walk(join(dir, entry.name), depth + 1, maxDepth)
+      } else {
+        found.add(entry.name)
       }
     }
   }
 
-  await walk(root, 0)
-  return found
+  for (const root of roots) {
+    await walk(root.dir, 0, root.depth)
+  }
+  return [...found].sort()
 }
 
 async function main(): Promise<void> {
@@ -110,10 +123,25 @@ async function main(): Promise<void> {
     console.log(`  ${line}`)
   }
 
-  // 发布守卫：默认只放行精简版（完整版必须显式 --allow-full / --variant full）
-  const optionalFiles = await findOptionalToolFiles(inventory.bundleDir)
-  const guard = checkVariantGuard({ variant, files: optionalFiles, allowFull })
+  // 发布守卫：默认只放行精简版（完整版必须显式 --allow-full / --variant full），
+  // 同时确认必需件（corex-daemon / goose / pdfium …）真的在产物树里。
+  const files = await findArtifactFiles([
+    // bundle 里是安装包，往下 4 层足够（nsis/ msi/ 之类）
+    { dir: inventory.bundleDir, depth: 4 },
+    // 构建树父目录只读顶层：sidecar / 资源就在这一层
+    { dir: dirname(inventory.bundleDir), depth: 0 }
+  ])
+  const guard = checkVariantGuard({
+    variant,
+    files,
+    allowFull,
+    // --dir 指向搬过来的产物时没有构建树可比对，断言必会误拦，交给调用方关掉
+    expectCoreFiles: inventory.source !== 'dir'
+  })
   if (!guard.ok) throw new Error(guard.reason)
+  const optionalFiles = files.filter(function (name) {
+    return (OPTIONAL_TOOL_FILES as readonly string[]).includes(name)
+  })
   console.log(
     `打包档位: ${variant}` +
       (optionalFiles.length > 0 ? ` · 含 ${optionalFiles.join(' / ')}` : ' · 无完整版大件')

@@ -42,11 +42,17 @@ function AgentModeSwitch() {
   const current = findAgentMode(mode)
 
   function write(next: AgentMode) {
-    writeAgentMode(next)
-    updateTick(function (value) {
-      return value + 1
-    })
-    toast.success(`已切换到「${findAgentMode(next).label}」模式（下一轮发送生效）`)
+    void writeAgentMode(next)
+      .then(function () {
+        updateTick(function (value) {
+          return value + 1
+        })
+        toast.success(`已切换到「${findAgentMode(next).label}」模式（下一轮发送生效）`)
+      })
+      .catch(function (error: unknown) {
+        console.warn('[agent/mode-switch] 切换模式失败:', error)
+        toast.error('切换模式失败，请重试')
+      })
   }
 
   return (

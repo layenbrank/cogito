@@ -15,6 +15,8 @@
 //! 3. **先校验维度**（不改库 schema，直接返回结构化错误，绝不进 arrow）；
 //! 4. **每个 await 都有超时**（10s）＋ **`catch_unwind` 兜底**（第三方 panic 转 `Err`），
 //!    配合 `[profile.release] panic = "unwind"`，任何一次异常都只是「这次写入失败」。
+//!    被兜住的 panic 经 `caught_scope` 标记后落盘为 `caught: true`，补报按 `error`
+//!    而不是 `fatal`，不会混进「应用崩溃」的统计里。
 
 use std::any::Any;
 use std::collections::HashMap;
@@ -30,6 +32,8 @@ use futures_util::TryStreamExt;
 use lancedb::connect;
 use lancedb::query::{ExecutableQuery, QueryBase};
 use serde::{Deserialize, Serialize};
+
+use crate::utils::diagnostics::caught_scope;
 
 const TABLE_V1: &str = "wiki_vectors";
 const MAX_PAGE_ID_CHARS: usize = 256;
@@ -49,24 +53,13 @@ pub struct VectorSearchResult {
     pub score: f32,
 }
 
-/// 库目录路径（分隔符统一成 `/`，**不带 `file://` 协议**）。
+/// 库目录路径（分隔符统一成 `/`）。
 ///
-/// `lancedb::connect` 对本地目录要的是普通路径。曾经这里返回 `file:///C:/…`，
-/// 实测在 Windows 上 `connect` 直接把整串当目录名去建，报
-/// `os error 123（文件名、目录名或卷标语法不正确）` —— 也就意味着**所有写入都失败**。
-/// 所以这里只做归一化：反斜杠换 `/`、去尾斜杠、剥掉历史 `file://` 前缀。
+/// `lancedb::connect` 对本地目录要的是普通路径；传协议前缀时 Windows 会把它
+/// 整个当目录名去建，报 `os error 123`，于是所有写入都失败。这里只做归一化：
+/// 反斜杠换 `/`、去尾斜杠、空路径回落相对目录。
 fn db_uri(project_path: &str) -> String {
-    let trimmed = project_path.trim();
-    // 兼容旧数据/外部调用传进来的 `file:///C:/…`
-    let without_scheme = trimmed.strip_prefix("file://").unwrap_or(trimmed);
-    let mut normalized = without_scheme.replace('\\', "/");
-    // `file:///C:/x` 去协议后剩 `/C:/x`，Windows 盘符路径要再掐掉前导斜杠
-    let looks_like_drive = normalized.as_bytes().len() >= 3
-        && normalized.as_bytes()[0] == b'/'
-        && normalized.as_bytes()[2] == b':';
-    if looks_like_drive {
-        normalized.remove(0);
-    }
+    let normalized = project_path.trim().replace('\\', "/");
     let normalized = normalized.trim_end_matches('/');
     if normalized.is_empty() {
         return ".cogito/lancedb".to_string();
@@ -184,7 +177,11 @@ where
     F: std::future::Future<Output = Result<(), String>>,
 {
     let started = Instant::now();
-    let outcome = std::panic::AssertUnwindSafe(future).catch_unwind().await;
+    // `caught_scope` 让 panic hook 知道这次 panic 有人兜：落盘标 caught=true，
+    // 下次启动补报时按 `error` 而不是 `fatal` 上报，避免把「一次写入失败」算成应用崩溃。
+    let outcome = std::panic::AssertUnwindSafe(caught_scope(future))
+        .catch_unwind()
+        .await;
     let elapsed_ms = started.elapsed().as_millis();
     match outcome {
         Ok(Ok(())) => {
@@ -286,11 +283,11 @@ pub async fn vector_search(
     top_k: usize,
 ) -> Result<Vec<VectorSearchResult>, String> {
     let started = Instant::now();
-    let outcome = std::panic::AssertUnwindSafe(search_inner(
+    let outcome = std::panic::AssertUnwindSafe(caught_scope(search_inner(
         project_path,
         query_embedding,
         top_k,
-    ))
+    )))
     .catch_unwind()
     .await;
     let elapsed_ms = started.elapsed().as_millis();
@@ -476,15 +473,6 @@ mod tests {
             "C:/Users/me/wiki/.cogito/lancedb"
         );
         assert_eq!(db_uri("/home/me/wiki"), "/home/me/wiki/.cogito/lancedb");
-        // 历史的 `file:///` 写法要能被剥成普通路径（Windows 上带协议 connect 会失败）
-        assert_eq!(
-            db_uri("file:///C:/Users/me/wiki"),
-            "C:/Users/me/wiki/.cogito/lancedb"
-        );
-        assert_eq!(
-            db_uri("file:///home/me/wiki"),
-            "/home/me/wiki/.cogito/lancedb"
-        );
     }
 
     #[test]

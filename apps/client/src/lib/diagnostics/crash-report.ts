@@ -38,6 +38,8 @@ interface PendingCrash {
   backtrace: string
   appVersion: string
   os: string
+  /** 这次 panic 是否发生在 `catch_unwind` 保护范围内（Rust 侧判定） */
+  caught: boolean
 }
 
 interface SessionRecord {
@@ -67,7 +69,10 @@ function isTauri(): boolean {
 
 function fingerprintOf(crash: PendingCrash): string {
   const location = crash.location ?? 'unknown'
-  return `panic|${location}`.slice(0, 64)
+  // 被兜住的 panic 与真正的应用崩溃分开归组，否则「一次写入失败」会把
+  // 真实崩溃的同位置指纹顶掉，崩溃率也跟着失真
+  const kind = crash.caught ? 'caught' : 'fatal'
+  return `panic|${kind}|${location}`.slice(0, 64)
 }
 
 async function ack(id: string): Promise<void> {
@@ -123,17 +128,21 @@ async function reportPendingCrashes(): Promise<CrashReportResult> {
       continue
     }
 
+    // `caught` = 上游 `catch_unwind` 兜住了：应用并没有崩，只是这次操作失败。
+    // 按 `fatal` 上报会污染崩溃率，也容易让人以为是启动崩溃。
+    const caught = crash.caught === true
     const delivered = await reportException({
       eventID: crash.eventId,
       source: 'client-desktop',
-      level: 'fatal',
-      message: `panic: ${crash.message}`,
+      level: caught ? 'error' : 'fatal',
+      message: `${caught ? 'isolated panic' : 'panic'}: ${crash.message}`,
       stack: crash.backtrace,
       url: 'client://panic',
       fingerprint: fingerprintOf(crash),
       context: {
         kind: 'rust-panic',
         crashId: crash.id,
+        caught: crash.caught,
         thread: crash.thread,
         location: crash.location ?? undefined,
         appVersion: crash.appVersion,
@@ -163,17 +172,5 @@ async function reportPendingCrashes(): Promise<CrashReportResult> {
   return result
 }
 
-/** 磁盘上待上报的现场数量（设置 → 诊断用）。 */
-async function pendingCrashCount(): Promise<number> {
-  if (!isTauri()) return 0
-  try {
-    const pending = await invoke<PendingDiagnostics>('diagnostics:pending')
-    return pending.crashes?.length ?? 0
-  } catch (error) {
-    console.warn('[crash-report] 读取数量失败', error)
-    return 0
-  }
-}
-
-export { MAX_REPORT_ATTEMPTS, pendingCrashCount, reportPendingCrashes }
+export { MAX_REPORT_ATTEMPTS, reportPendingCrashes }
 export type { CrashReportResult, PendingCrash, PendingDiagnostics }

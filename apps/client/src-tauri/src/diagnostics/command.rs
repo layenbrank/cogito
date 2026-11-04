@@ -83,10 +83,12 @@ fn normalize_variant(raw: Option<&str>) -> String {
     }
 }
 
+/// 打包档位：**只认编译期** `CLIENT_SIDECAR_VARIANT`（由构建脚本注入）。
+///
+/// 档位是产物属性：运行时环境变量若能改写它，slim 包就能自称 full，
+/// 诊断页与「缺件提示」会跟着说错话。
 pub fn sidecar_variant() -> String {
-    let runtime = std::env::var("CLIENT_SIDECAR_VARIANT").ok();
-    let build_time = option_env!("CLIENT_SIDECAR_VARIANT");
-    normalize_variant(runtime.as_deref().or(build_time))
+    normalize_variant(option_env!("CLIENT_SIDECAR_VARIANT"))
 }
 
 /// `<appLocalData>/logs`（与 `tauri-plugin-log` 的 `Target::LogDir` 同目录）。

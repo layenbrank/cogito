@@ -46,6 +46,7 @@ import {
 } from '@/features/agent/mode'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 import { checkoutNow, useWorkspaceGitSnapshot } from '@/features/agent/workspace/git.ts'
+import { useGoalRecord } from '@/features/agent/plan-store'
 import { useAgentStore } from '@/stores/agent.ts'
 import { BranchSwitcherView } from '@/views/code/workspace/scm/branch-switcher-view.tsx'
 import { findBaseName } from '@/views/agent/chat/components/workspace-relative-path.ts'
@@ -278,10 +279,41 @@ function GoalTurnControl() {
     return state.threads.mainThreadId
   })
   const run = useGoalRun(threadID)
+  /** 结束后的三态（已完成 / 已暂停 / 已用尽）来自档案，不能再靠内存里的 run */
+  const record = useGoalRecord(threadID)
 
   if (mode !== 'goal') return null
 
   if (!run) {
+    if (record && record.status !== 'running') {
+      const meta =
+        record.status === 'done'
+          ? {
+              icon: 'lucide:check',
+              label: `已完成 · ${record.used}/${record.budget} 轮`,
+              tone: 'text-emerald-700 dark:text-emerald-300'
+            }
+          : record.status === 'paused'
+            ? {
+                icon: 'lucide:pause',
+                label: `已暂停 · ${record.used}/${record.budget} 轮`,
+                tone: 'text-amber-700 dark:text-amber-300'
+              }
+            : {
+                icon: 'lucide:circle-slash',
+                label: `已用尽 · ${record.used}/${record.budget} 轮`,
+                tone: 'text-muted-foreground'
+              }
+      return (
+        <div className="border-border/60 bg-muted/40 flex h-7 shrink-0 items-center gap-1 rounded-md border px-1.5">
+          <Icon
+            icon={meta.icon}
+            className="size-3 shrink-0"
+          />
+          <span className={`text-xs font-medium tabular-nums ${meta.tone}`}>{meta.label}</span>
+        </div>
+      )
+    }
     return (
       <DropdownMenu>
         <DropdownMenuTrigger
@@ -353,7 +385,10 @@ function GoalTurnControl() {
     )
   }
 
-  const label = `第 ${Math.min(run.used + 1, run.budget)}/${run.budget} 轮`
+  const label =
+    run.status === 'exhausted'
+      ? `已用尽 · ${run.used}/${run.budget} 轮`
+      : `第 ${Math.min(run.used + 1, run.budget)}/${run.budget} 轮`
   const progress = run.progress ? `达成 ${run.progress.done}/${run.progress.total}` : null
 
   return (

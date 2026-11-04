@@ -195,16 +195,16 @@ function readAgentModeThread(): string | null {
   return readScopeThread()
 }
 
-function writeAgentMode(mode: AgentMode) {
+async function writeAgentMode(mode: AgentMode): Promise<void> {
   const pref = findPref('agent')
   const threadID = readScopeThread()
   if (!threadID) {
     // 还没有会话（首条消息发出前）：只改「下一个新会话」的默认值
-    void patchPref('agent', { agentMode: mode })
+    await patchPref('agent', { agentMode: mode })
     notifyScope()
     return
   }
-  void patchPref('agent', {
+  await patchPref('agent', {
     modeByThread: { ...pref.modeByThread, [threadID]: mode }
   })
   notifyScope()

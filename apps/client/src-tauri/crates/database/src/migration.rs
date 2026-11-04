@@ -28,6 +28,19 @@ pub async fn run(db: &Connection) -> Result<(), DbErr> {
     }
     // 单文件 0001 已打标记后追加的表不会再跑；dict seed 全是 IF NOT EXISTS / OR IGNORE，启动兜底补齐。
     ensure_dict(db).await?;
+    // `agent_plan` / `agent_goal` 同样是 0001 之后追加的表：老库已打过 0001 标记，
+    // 不加这层兜底就永远查不到这两张表（`no such table`）。
+    ensure_agent_plan(db).await?;
+    Ok(())
+}
+
+
+/// 补建计划 / 目标档案表（已存在则跳过；语句全部幂等）。
+async fn ensure_agent_plan(db: &Connection) -> Result<(), DbErr> {
+    for statement in crate::migrations::agent_plan_schema::statements() {
+        db.execute(Statement::from_string(DatabaseBackend::Sqlite, statement))
+            .await?;
+    }
     Ok(())
 }
 
@@ -55,6 +68,7 @@ mod tests {
     use super::*;
     use crate::entity::{
         AgentMessageEntity, AgentProviderEntity, AgentSessionEntity, AgentUsageEntity,
+        AgentGoalEntity, AgentPlanEntity,
         AgentWorkspaceEntity, AgentWorkspaceFolderEntity, AlbumEntity, AssetEntity, AutomationEntity,
         AutomationRunEntity, BookmarkEntity,
         CalendarEntity, CountdownEntity, DictItemEntity, DictTenantItemEntity, DictTypeEntity,
@@ -109,13 +123,36 @@ mod tests {
             .expect("migration status should be readable");
     }
 
-    #[tokio::test]
+        /// 仍是单基线：新增表追加进 0001，并由 `ensure_agent_plan()` 给老库兜底。
+#[tokio::test]
     async fn migrations_include_only_0001() {
         assert_eq!(AppMigrator::migrations().len(), 1);
         assert_eq!(
             AppMigrator::migrations()[0].name(),
             "0001"
         );
+    }
+
+        /// 计划 / 目标档案表：新库由基线建，老库由 `ensure_agent_plan()` 兜底。
+#[tokio::test]
+    async fn agent_plan_and_goal_tables_exist() {
+        let db = fresh().await;
+        for table in ["agent_plan", "agent_goal"] {
+            let count = scalar_i64(
+                &db,
+                &format!(
+                    "SELECT count(*) AS v FROM sqlite_master WHERE type='table' AND name='{table}'"
+                ),
+            )
+            .await;
+            assert_eq!(count, 1, "{table} 应该存在");
+        }
+        let unique = scalar_i64(
+            &db,
+            "SELECT count(*) AS v FROM sqlite_master WHERE type='index' AND name IN ('idx_agent_plan_sessionID', 'idx_agent_goal_sessionID')",
+        )
+        .await;
+        assert_eq!(unique, 2, "一个会话只允许一份计划 / 一个目标");
     }
 
     #[tokio::test]
@@ -473,6 +510,8 @@ mod tests {
                 entity_columns::<SignboardTaggedEntity>(),
             ),
             ("agent_message", entity_columns::<AgentMessageEntity>()),
+            ("agent_goal", entity_columns::<AgentGoalEntity>()),
+            ("agent_plan", entity_columns::<AgentPlanEntity>()),
             ("agent_provider", entity_columns::<AgentProviderEntity>()),
             ("agent_session", entity_columns::<AgentSessionEntity>()),
             ("agent_usage", entity_columns::<AgentUsageEntity>()),

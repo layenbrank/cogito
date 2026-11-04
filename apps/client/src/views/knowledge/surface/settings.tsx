@@ -507,7 +507,7 @@ function SettingsTab() {
                   <SelectTrigger
                     size="sm"
                     className="h-8 w-40 text-xs"
-                    disabled={!embedding.enabled}>
+                    disabled={probingEmbedding}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -555,7 +555,7 @@ function SettingsTab() {
               <Row label="ingest 后自动 embed">
                 <Switch
                   checked={embedding.embedOnIngest}
-                  disabled={!embedding.enabled}
+                  disabled={probingEmbedding}
                   onCheckedChange={function (checked) {
                     setEmbedding(patchEmbeddingConfig({ embedOnIngest: checked }))
                   }}
@@ -564,7 +564,7 @@ function SettingsTab() {
               <Row label="端点">
                 <Input
                   value={embedding.endpoint}
-                  disabled={!embedding.enabled}
+                  disabled={probingEmbedding}
                   className="h-8 w-56 text-xs"
                   placeholder="https://…/v1"
                   onChange={function (event) {
@@ -576,7 +576,7 @@ function SettingsTab() {
                 <Input
                   type="password"
                   value={embedding.apiKey}
-                  disabled={!embedding.enabled}
+                  disabled={probingEmbedding}
                   className="h-8 w-56 text-xs"
                   onChange={function (event) {
                     setEmbedding(patchEmbeddingConfig({ apiKey: event.target.value }))
@@ -586,7 +586,7 @@ function SettingsTab() {
               <Row label="模型">
                 <Input
                   value={embedding.model}
-                  disabled={!embedding.enabled}
+                  disabled={probingEmbedding}
                   className="h-8 w-56 text-xs"
                   onChange={function (event) {
                     setEmbedding(patchEmbeddingConfig({ model: event.target.value }))
@@ -598,7 +598,7 @@ function SettingsTab() {
                   type="number"
                   min={200}
                   value={embedding.maxChunkChars}
-                  disabled={!embedding.enabled}
+                  disabled={probingEmbedding}
                   className="h-8 w-24 text-xs"
                   onChange={function (event) {
                     setEmbedding(
@@ -614,7 +614,7 @@ function SettingsTab() {
                   type="number"
                   min={0}
                   value={embedding.overlapChunkChars}
-                  disabled={!embedding.enabled}
+                  disabled={probingEmbedding}
                   className="h-8 w-24 text-xs"
                   onChange={function (event) {
                     setEmbedding(

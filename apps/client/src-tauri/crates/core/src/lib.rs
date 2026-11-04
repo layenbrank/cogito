@@ -22,6 +22,16 @@ pub mod signboard_tag;
 pub mod signboard_tagged;
 pub mod tools;
 
+pub mod agent_plan {
+    mod service;
+    pub use service::Service;
+}
+
+pub mod agent_goal {
+    mod service;
+    pub use service::Service;
+}
+
 #[allow(non_snake_case)]
 pub mod agent_workspace {
     mod service;

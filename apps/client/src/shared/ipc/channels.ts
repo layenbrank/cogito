@@ -215,6 +215,20 @@ export const CHANNELS = {
     TO_UPDATE: 'agentSession:toUpdate',
     TO_REMOVE: 'agentSession:toRemove'
   },
+  /** 会话级计划档案（一行一个会话，`sessionID` 唯一） */
+  AGENT_PLAN: {
+    TO_READ: 'agentPlan:toRead',
+    TO_WRITE: 'agentPlan:toWrite',
+    TO_UPDATE: 'agentPlan:toUpdate',
+    TO_REMOVE: 'agentPlan:toRemove'
+  },
+  /** 会话级目标推进档案（一行一个会话，`sessionID` 唯一） */
+  AGENT_GOAL: {
+    TO_READ: 'agentGoal:toRead',
+    TO_WRITE: 'agentGoal:toWrite',
+    TO_UPDATE: 'agentGoal:toUpdate',
+    TO_REMOVE: 'agentGoal:toRemove'
+  },
   AGENT_MESSAGE: {
     TO_READ: 'agentMessage:toRead',
     TO_WRITE: 'agentMessage:toWrite',

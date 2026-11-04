@@ -59,8 +59,11 @@ impl OverlayHealth {
     }
 }
 
-/// 心跳是否过期（纯函数，便于单测）。`last == 0` = 从未心跳，视为健康，
-/// 避免冷启动/首次展示就被当成「挂了」而多一次重载。
+/// 心跳是否过期（纯函数，便于单测）。
+///
+/// `last == 0` = 从未心跳，视为健康：避免冷启动/首次展示就被当成「挂了」多一次重载。
+/// 但进入截屏态时宿主会先写一次基线（`overlay:update-mode`），所以
+/// 「进了态但页面根本没起来」不再被这条豁免掩盖 —— 30s 后照样判死。
 pub fn is_stale(now: i64, last: i64, timeout: i64) -> bool {
     last != 0 && now.saturating_sub(last) > timeout
 }

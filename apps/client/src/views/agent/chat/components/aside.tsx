@@ -43,6 +43,7 @@ import {
 import { Terminal } from '@/lib/terminal'
 import { DEFAULT_BUDGET, startGoalRun, stopGoalRun } from '@/features/agent/goal-run'
 import { findPlanDraft } from '@/features/agent/plan-draft'
+import { readPlan, setPlanStatus } from '@/features/agent/plan-store'
 import { buildPlanExecutePrompt } from '@/features/agent/plan-execute'
 import { useActiveWorkspace } from '@/features/agent/workspace/active'
 import { readAgentMode, subscribeAgentMode, writeAgentMode } from '@/features/agent/mode'
@@ -141,41 +142,56 @@ function AgentAside(props: AsideProps) {
    * 而清单是从正文抽出来的摘要（一条只剩一行），模型据此只做了象征性实现，
    * 文件级细节与验证步骤全被丢掉 —— 这是「计划执行不完整」的根因。
    */
-  function startImplement(target: 'agent' | 'goal', budget?: number) {
+  async function startImplement(target: 'agent' | 'goal', budget?: number) {
+    // 新会话还没有落库 id：连「这一轮聊了什么」都没有，不能执行
+    if (!threadID) {
+      toast.error('先完成一轮对话再执行计划')
+      return
+    }
     // 点击时再读：不把整份 messages 常驻在本组件订阅链上
     const draft = findPlanDraft(aui.thread.getState().messages)
-    const steps = draft?.steps ?? []
+    // 有档案就以档案为准（计划可能来自文件、也可能已经被改过），否则退回当轮草稿
+    const record = readPlan(threadID)
+    const body = record?.body ?? draft?.body ?? ''
+    const overview = record?.overview ?? draft?.overview ?? ''
+    const steps = record?.steps ?? draft?.steps ?? []
+    if (!body.trim() && steps.length === 0) {
+      toast.error('还没有可执行的计划：先在计划模式产出一份，或从文件载入')
+      return
+    }
+
+    const prompt = buildPlanExecutePrompt({
+      body,
+      target,
+      budget,
+      overview,
+      filePath: record?.filePath ?? null,
+      revision: record?.revision
+    })
+
+    // 先落模式再开跑：以前 `void writeAgentMode()` 与 send 并发，模式还没落盘就跑起来了
+    await writeAgentMode(target)
+    setPlanStatus(threadID, 'running')
 
     if (target === 'goal') {
-      if (!threadID) {
-        toast.error('先完成一轮对话再启动目标推进')
-        return
-      }
       const rounds = budget ?? DEFAULT_BUDGET
-      writeAgentMode('goal')
       const switched = startGoalRun(
         threadID,
-        draft?.overview || steps.join('；') || '按计划推进',
-        rounds
+        { summary: overview || steps.join('；') || '按计划推进', detail: body || overview },
+        rounds,
+        prompt
       )
       // 无人值守的前提：审批不能挡路。全部目标结束后会自动恢复原档位
       if (switched) {
         toast.info('已把审批切到「自动审批」—— 目标推进中途不停；全部结束后恢复原档位')
       }
     } else {
-      writeAgentMode('agent')
+      // `null` / 空串在 stopGoalRun 里是 no-op（以前这里直接 TypeError）
       stopGoalRun(threadID)
     }
 
     // 发**计划正文全文**（清单只是摘要，见 plan-execute.ts 的说明）
-    aui.composer.setText(
-      buildPlanExecutePrompt({
-        body: draft?.body ?? '',
-        target,
-        budget,
-        overview: draft?.overview
-      })
-    )
+    aui.composer.setText(prompt)
     void aui.composer.send()
   }
 

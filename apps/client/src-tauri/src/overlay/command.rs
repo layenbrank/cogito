@@ -302,7 +302,14 @@ pub async fn overlay_update_mode(app: AppHandle, mode: String) -> Result<(), Str
     }
 
     if matches!(parsed, OverlayMode::Screenshot) {
+        // 先让 ensure 按旧心跳判断要不要重载：页面已经挂了就别直接摆出来
         overlay_ensure(app.clone()).await?;
+        // 再写一次基线：页面还没来得及 ping 时 `last == 0`，而 `is_stale` 把
+        // 「从未心跳」判为健康 —— 那样「进了态但前端根本没起来」就永远不会被
+        // 点击穿透 / 看门狗兜住。基线之后 30s 没 ping 即判死。
+        if let Some(health) = app.try_state::<OverlayHealth>() {
+            health.mark_ping(now_ms());
+        }
         if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
             let _ = window.set_focus();
             let _ = window.set_ignore_cursor_events(false);

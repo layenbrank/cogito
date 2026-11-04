@@ -14,7 +14,10 @@
 
 use std::time::Duration;
 
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Manager};
+// `Runtime` 只被 debug 演练入口用到；release 里不引入，免得 unused_imports
+#[cfg(debug_assertions)]
+use tauri::Runtime;
 
 use super::state::{OverlayHealth, PARK_TIMEOUT_MS, PING_TIMEOUT_MS, is_stale};
 use crate::utils::diagnostics::now_ms;
@@ -25,10 +28,10 @@ const TICK: Duration = Duration::from_secs(5);
 const OVERLAY_LABEL: &str = "overlay";
 
 /// 启动看门狗（`setup` 里调一次）。
-pub fn spawn<R: Runtime>(app: AppHandle<R>) {
+pub fn spawn(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
-        // 每次「发作」只处理一次，等窗口重新可见后复位
-        let mut handled = false;
+        // 上次干预的时间：按 PING_TIMEOUT 节流，避免每 5s 刷一遍 hide/reload
+        let mut rescued_at: Option<i64> = None;
         loop {
             tokio::time::sleep(TICK).await;
 
@@ -36,25 +39,28 @@ pub fn spawn<R: Runtime>(app: AppHandle<R>) {
                 continue;
             };
             let Some(window) = app.get_webview_window(OVERLAY_LABEL) else {
-                handled = false;
+                rescued_at = None;
                 continue;
             };
             // 不可见 = 没在吃点击，无需干预（顺手复位）
             if !window.is_visible().unwrap_or(false) {
-                handled = false;
+                rescued_at = None;
                 continue;
             }
 
             let last = health.last_ping();
             let now = now_ms();
             if last == 0 || !is_stale(now, last, PING_TIMEOUT_MS) {
-                handled = false;
+                rescued_at = None;
                 continue;
             }
-            if handled {
-                continue;
+            // 同一轮「发作」最多干预一次；仍在挂只记日志，不再 hide/reload
+            if let Some(at) = rescued_at {
+                if now.saturating_sub(at) < PING_TIMEOUT_MS {
+                    continue;
+                }
             }
-            handled = true;
+            rescued_at = Some(now);
 
             let silent_ms = now.saturating_sub(last);
             tracing::error!(
@@ -67,6 +73,12 @@ pub fn spawn<R: Runtime>(app: AppHandle<R>) {
             }
             if let Err(error) = window.hide() {
                 tracing::warn!(target: "overlay", "watchdog: hide 失败: {error}");
+            }
+
+            // 宿主状态回 idle：否则 through worker 仍以为在截屏态、前端 store 也一直
+            // 停在 screenshot，下一次 overlay:ensure 重建后会带着脏状态回来
+            if let Err(error) = super::command::overlay_hide(app.clone()).await {
+                tracing::warn!(target: "overlay", "watchdog: 复位 idle 失败: {error}");
             }
 
             if is_stale(now, last, PARK_TIMEOUT_MS) {

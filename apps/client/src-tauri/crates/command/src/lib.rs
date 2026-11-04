@@ -24,6 +24,10 @@ pub mod agentTurn;
 #[allow(non_snake_case)]
 pub mod agentTool;
 #[allow(non_snake_case)]
+pub mod agent_plan;
+#[allow(non_snake_case)]
+pub mod agent_goal;
+#[allow(non_snake_case)]
 pub mod agent_message;
 #[allow(non_snake_case)]
 pub mod agent_provider;

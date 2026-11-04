@@ -16,7 +16,7 @@ import {
   usePaneRef
 } from '@cogito/design/components/splitter'
 import { clsx } from 'clsx'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -63,6 +63,8 @@ import {
 } from '@/views/agent/chat/components/splitter-sizes'
 import { AgentProcessFold, AgentProcessGroup } from '@/views/agent/chat/components/process-group'
 import { GoalAutoAdvance } from '@/views/agent/chat/components/goal-auto-advance'
+import { PlanRecorder } from '@/views/agent/chat/components/plan-recorder'
+import { PlanFileSync } from '@/views/agent/chat/components/plan-file-sync'
 import { PlanScheduleCard } from '@/views/agent/chat/components/plan-schedule-card'
 import { AgentToolCard } from '@/views/agent/chat/components/tool-card'
 import { AgentToolGroup } from '@/views/agent/chat/components/tool-group'
@@ -83,6 +85,7 @@ import {
 } from '@/features/agent/model/active-scenario'
 import type { ScenarioKey } from '@/features/agent/model/scenarios'
 import { findLatestPlan } from '@/features/agent/plan'
+import { readPlan, subscribePlanStore } from '@/features/agent/plan-store'
 import { useAgentStore } from '@/stores/agent.ts'
 import { useProviderStore } from '@/stores/provider'
 import styles from '@/views/agent/chat/chat.module.scss'
@@ -95,12 +98,22 @@ import styles from '@/views/agent/chat/chat.module.scss'
  */
 function PlanAutoOpen(props: { isAsideOpen: boolean; openAside: () => void }) {
   const { isAsideOpen, openAside } = props
-  const planTotal = useAuiState(function (state) {
-    const plan = findLatestPlan(state.thread.messages)
-    return plan?.total ?? 0
-  })
   const threadID = useAuiState(function (state) {
     return state.threads.mainThreadId
+  })
+  /** 计划模式的 Markdown 计划不产生 goose 的 `plan` part：档案里的步数也要算 */
+  const storedTotal = useSyncExternalStore(
+    subscribePlanStore,
+    function () {
+      return readPlan(threadID)?.steps.length ?? 0
+    },
+    function () {
+      return 0
+    }
+  )
+  const planTotal = useAuiState(function (state) {
+    const plan = findLatestPlan(state.thread.messages)
+    return Math.max(plan?.total ?? 0, storedTotal)
   })
   const openedFor = useRef<{ threadID: string; total: number } | null>(null)
 
@@ -589,6 +602,8 @@ function AgentChatLayout() {
               <main className={styles.threadMain}>
                 {threadElement}
                 <GoalAutoAdvance />
+                <PlanRecorder />
+        <PlanFileSync />
                 <PlanScheduleCard />
                 <PlanAutoOpen
                   isAsideOpen={isAsideOpen}

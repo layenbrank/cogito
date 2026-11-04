@@ -38,6 +38,12 @@ const MAX_MESSAGE_CHARS: usize = 2000;
 const MAX_BACKTRACE_CHARS: usize = 16_000;
 
 /// 一次 panic 的现场。字段与前端 `PendingCrash` 一一对应（camelCase）。
+///
+/// `caught` 区分两种 panic：
+/// - `false`：没人兜住 —— 进程正在 unwind（`panic = "abort"` 时直接消失），
+///   属于**应用崩溃**，补报时按 `fatal` 上报；
+/// - `true`：发生在 `catch_unwind` 保护范围内（向量库对第三方 panic 的兜底），
+///   只是「这一次操作失败」，补报时降级为 `error`，也不该污染崩溃率统计。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CrashRecord {
@@ -59,6 +65,8 @@ pub struct CrashRecord {
     pub app_version: String,
     /// `os/arch` 摘要。
     pub os: String,
+    /// panic 是否发生在 `catch_unwind` 保护范围内（见 [`panic_is_caught`]）。
+    pub caught: bool,
 }
 
 /// 会话标记：正常退出写 `clean`，否则下次启动看到 `running` 即「上次异常退出」。
@@ -110,6 +118,69 @@ fn truncate_chars(input: &str, max: usize) -> String {
     let mut out: String = input.chars().take(max).collect();
     out.push('…');
     out
+}
+
+thread_local! {
+    /// 本线程正在执行的「panic 会被 `catch_unwind` 兜住」的嵌套层数。
+    static CAUGHT_PANIC_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// 标记一段代码里的 panic 会被上游 `catch_unwind` 兜住。
+///
+/// panic hook 在展开**开始之前**读这个标记：> 0 说明这次 panic 只是「内部故障」，
+/// 落盘时写 `caught: true`，补报时降级为 `error`，不计入应用崩溃。
+///
+/// 跨 `.await` 的异步代码别直接用它 —— 任务可能在等待期间被搬到别的线程，
+/// 标记跟着线程走了、代码没走。异步场景用 [`caught_scope`]。
+pub struct CaughtPanicGuard(());
+
+impl CaughtPanicGuard {
+    pub fn new() -> Self {
+        CAUGHT_PANIC_DEPTH.with(|depth| depth.set(depth.get().saturating_add(1)));
+        Self(())
+    }
+}
+
+impl Default for CaughtPanicGuard {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for CaughtPanicGuard {
+    fn drop(&mut self) {
+        CAUGHT_PANIC_DEPTH.with(|depth| depth.set(depth.get().saturating_sub(1)));
+    }
+}
+
+/// 当前线程此刻是否处于 `catch_unwind` 保护范围内。
+pub fn panic_is_caught() -> bool {
+    CAUGHT_PANIC_DEPTH.with(|depth| depth.get() > 0)
+}
+
+/// 把一个 future 包成「**poll 期间**算作被兜住」。
+///
+/// 标记收在 `poll` 里而不是构造处：tokio 可以在 `.await` 之间把任务搬到别的
+/// worker 线程上，只有「正在 poll 的那个线程」才是 panic 真正发生的地方。
+pub struct CaughtPanicScope<F>(F);
+
+/// 见 [`CaughtPanicScope`]。
+pub fn caught_scope<F>(future: F) -> CaughtPanicScope<F> {
+    CaughtPanicScope(future)
+}
+
+impl<F: std::future::Future> std::future::Future for CaughtPanicScope<F> {
+    type Output = F::Output;
+
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        let _guard = CaughtPanicGuard::new();
+        // SAFETY: 只把内部 future 原样 poll，不移动它，也不碰别的字段。
+        let inner = unsafe { self.map_unchecked_mut(|scope| &mut scope.0) };
+        inner.poll(cx)
+    }
 }
 
 /// 装 panic hook：先落盘（不依赖日志插件），再尽力写一条 `log::error!`。
@@ -177,6 +248,7 @@ fn build_record_from_parts(
     thread: &str,
     backtrace: &str,
     timestamp: i64,
+    caught: bool,
 ) -> CrashRecord {
     let event_id = uuid::Uuid::new_v4().to_string();
     let id = format!("{timestamp}-{}", &event_id[..8]);
@@ -190,6 +262,7 @@ fn build_record_from_parts(
         backtrace: truncate_chars(backtrace, MAX_BACKTRACE_CHARS),
         app_version: env!("CARGO_PKG_VERSION").to_string(),
         os: format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH),
+        caught,
     }
 }
 
@@ -210,7 +283,15 @@ fn build_record(info: &std::panic::PanicHookInfo<'_>) -> CrashRecord {
         .unwrap_or("<unnamed>")
         .to_string();
     let backtrace = std::backtrace::Backtrace::force_capture().to_string();
-    build_record_from_parts(&message, location, &thread, &backtrace, now_ms())
+    // hook 跑在展开开始之前：此刻线程局标记还在，读到的就是「这次 panic 有没有人兜」。
+    build_record_from_parts(
+        &message,
+        location,
+        &thread,
+        &backtrace,
+        now_ms(),
+        panic_is_caught(),
+    )
 }
 
 /// 把现场写到 `dir/<id>.json`，并同步追加一份纯文本日志。
@@ -277,7 +358,7 @@ fn prune_crash_dir(dir: &Path, keep: usize) {
 
 /// 开新会话：**先**读出上一次的标记，**再**覆盖成本次 `running`，返回上一次的标记。
 ///
-/// 顺序不能反：先 `mark_running()` 再读，会把上一次的 `running` 当成自己的 pid，
+/// 顺序不能反：先写 `running` 再读，会把上一次的 `running` 当成自己的 pid，
 /// `previous_session_crashed` 永远 false —— 崩溃就再也认不出来（曾经就栽在这）。
 pub fn begin_session() -> Option<SessionRecord> {
     let dir = diagnostics_dir()?;
@@ -295,20 +376,6 @@ fn begin_session_in(dir: &Path) -> (Option<SessionRecord>, SessionRecord) {
     };
     write_session(dir, &record);
     (previous, record)
-}
-
-/// 启动时先写 `running`：进程若异常消失，这里会一直是 `running`。
-pub fn mark_running() {
-    let Some(dir) = diagnostics_dir() else {
-        return;
-    };
-    let record = SessionRecord {
-        state: "running".to_string(),
-        pid: std::process::id(),
-        started_at: now_ms(),
-        ended_at: None,
-    };
-    write_session(&dir, &record);
 }
 
 /// 正常退出（`RunEvent::Exit`）时改写为 `clean`。
@@ -444,6 +511,7 @@ mod tests {
             "main",
             "backtrace-line",
             1_700_000_000_000,
+            false,
         );
 
         let path = persist_record_to(&dir, &record).expect("落盘");
@@ -462,6 +530,47 @@ mod tests {
         assert!(ack_crash_in(&dir, &record.id), "ack 应删掉现场");
         assert!(read_crashes_from(&dir).is_empty());
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn caught_guard_nests_and_restores() {
+        assert!(!panic_is_caught(), "默认不在保护范围内");
+        {
+            let _guard = CaughtPanicGuard::new();
+            assert!(panic_is_caught());
+            {
+                let _nested = CaughtPanicGuard::new();
+                assert!(panic_is_caught(), "嵌套也算被兜住");
+            }
+            assert!(panic_is_caught(), "内层离开不该抹掉外层标记");
+        }
+        assert!(!panic_is_caught(), "guard 全部离开后必须回到未保护状态");
+    }
+
+    #[test]
+    fn caught_scope_marks_panic_raised_while_polling() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let observed = std::sync::Arc::new(AtomicBool::new(false));
+        let flag = observed.clone();
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            futures::executor::block_on(caught_scope(async move {
+                // 这条就是 panic hook 在真实场景里会读到的值
+                flag.store(panic_is_caught(), Ordering::SeqCst);
+                panic!("boom: vectorstore");
+            }))
+        }));
+        assert!(outcome.is_err(), "panic 必须被 catch_unwind 兜住");
+        assert!(observed.load(Ordering::SeqCst), "poll 期间必须处于保护范围");
+        assert!(!panic_is_caught(), "展开结束后标记要清掉");
+    }
+
+    #[test]
+    fn caught_flag_reaches_the_record() {
+        let caught = build_record_from_parts("boom", None, "t", "", 1, true);
+        let fatal = build_record_from_parts("boom", None, "t", "", 1, false);
+        assert!(caught.caught, "被兜住的 panic 要能传到现场里");
+        assert!(!fatal.caught);
     }
 
     #[test]
@@ -511,7 +620,6 @@ mod tests {
     }
 
     #[test]
-    #[test]
     fn begin_session_detects_previous_crash_before_overwriting() {
         let dir = temp_dir("begin-session");
         let foreign = SessionRecord {
@@ -537,6 +645,7 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
+    #[test]
     fn prune_keeps_newest_files() {
         let dir = temp_dir("prune");
         for index in 0..5 {
@@ -546,6 +655,7 @@ mod tests {
                 "t",
                 "",
                 1_700_000_000_000 + index,
+                false,
             );
             persist_record_to(&dir, &record).expect("落盘");
         }

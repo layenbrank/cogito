@@ -1297,6 +1297,10 @@ impl MigrationTrait for Migration {
             db.execute_unprepared(statement).await?;
         }
 
+        for statement in super::agent_plan_schema::statements() {
+            db.execute_unprepared(statement).await?;
+        }
+
         for statement in super::dict_seed::statements() {
             db.execute_unprepared(&statement).await?;
         }
@@ -1309,6 +1313,8 @@ impl MigrationTrait for Migration {
         // 本文件新增的表：先删依赖方，再走原有的删表顺序（索引/触发器随表一起消失）
         for table in [
             "knowledge_doc_fts",
+            "agent_goal",
+            "agent_plan",
             "directive_draft",
             "automation_run",
             "automation",

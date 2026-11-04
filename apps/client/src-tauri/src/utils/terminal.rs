@@ -22,6 +22,47 @@ use uuid::Uuid;
 
 use cogito_command::terminalText::{strip_ansi, tail_chars};
 
+#[cfg(test)]
+mod input_tests {
+    use super::{echo_confirmed, squeeze};
+
+    #[test]
+    fn squeeze_drops_wrapping_whitespace() {
+        assert_eq!(squeeze("cargo  test\r\n  -p x"), "cargotest-px");
+    }
+
+    #[test]
+    fn echo_confirmed_accepts_wrapped_echo() {
+        let command = "powershell -NoProfile -Command \"Get-Content a.rs\"";
+        let echo = "PS D:\\w> powershell -NoProfile -Command \"Get-Content\r\n a.rs\"";
+        assert!(echo_confirmed(echo, command));
+    }
+
+    #[test]
+    fn echo_confirmed_rejects_swallowed_first_char() {
+        // 现场复现：`Remove-Item` 被吞成 `emove-Item`
+        let echo = "PS D:\\w> emove-Item .\\x.tmp";
+        assert!(!echo_confirmed(echo, "Remove-Item .\\x.tmp"));
+    }
+
+    #[test]
+    fn echo_confirmed_rejects_swallowed_tail() {
+        let command = "node .tmp/verify-assertions.mjs";
+        let echo = "PS D:\\w> node .tmp/verify-assertions.mj";
+        assert!(!echo_confirmed(echo, command));
+    }
+
+    #[test]
+    fn echo_confirmed_checks_long_command_head_and_tail() {
+        let tail_pad = "x".repeat(80);
+        let command = format!("Write-Output {tail_pad} TAILMARKER");
+        let wrapped = format!("PS D:\\w> Write-Output\r\n{tail_pad} TAILMARKER");
+        assert!(echo_confirmed(&wrapped, &command));
+        let broken = format!("PS D:\\w> rite-Output\r\n{tail_pad} TAILMARKER");
+        assert!(!echo_confirmed(&broken, &command));
+    }
+}
+
 /// 单次读缓冲：终端输出按块推流，8 KiB 在交互吞吐与 IPC 次数间平衡。
 const READ_BUF_SIZE: usize = 8192;
 /// 回滚缓冲上限：够 agent 读完一次命令的输出，同时不让长跑会话吃满内存。
@@ -34,6 +75,34 @@ const DEFAULT_QUIET_MS: u64 = 700;
 const DEFAULT_TIMEOUT_MS: u64 = 120_000;
 /// 静默检测的轮询间隔
 const POLL_INTERVAL_MS: u64 = 60;
+/// 写入前的就绪预算：新会话要等 shell 画出第一帧提示符，老会话也要等它安静下来
+/// （上一条命令的提示符可能还在重绘，这期间塞进去的字符会被吞掉）。
+const READY_TIMEOUT_MS: u64 = 3_000;
+/// 「安静」阈值：这么久没有新输出，才认为 shell 回到可接收输入的状态。
+const READY_IDLE_MS: u64 = 120;
+/// 就绪轮询间隔
+const READY_POLL_MS: u64 = 20;
+/// 牺牲字符：ConPTY 偶尔会吞掉一次 burst 的开头几个字节，让这段替命令挨刀
+/// （空格在 pwsh / bash 的行首都是 no-op，也不会写进历史）。
+const INPUT_GUARD: &[u8] = b" ";
+/// 牺牲字符与命令正文之间的间隔
+const INPUT_GUARD_GAP_MS: u64 = 30;
+/// 写完命令到核对回显的等待：给 shell 留出渲染这一行的时间。
+const ECHO_SETTLE_MS: u64 = 90;
+/// 回显核对失败时的最多尝试次数（含首次）。
+const ECHO_ATTEMPTS: usize = 3;
+/// 回车后的观察窗：这么久还没有任何新输出，就认为 `\r` 本身被吞了，补发一次。
+const ENTER_SETTLE_MS: u64 = 150;
+/// 逐字符写入的间隔：既压住 ConPTY 的 burst 吞字节，又不至于把长命令拖太慢。
+const TYPE_GAP_MS: u64 = 2;
+/// Ctrl+C 之后等 shell 把当前行丢弃的时间。
+const CANCEL_SETTLE_MS: u64 = 150;
+/// 回显轮询间隔
+const ECHO_POLL_MS: u64 = 30;
+/// 回显「安静」阈值：这么久没有新输出，才判定这次写入被吞了。
+const ECHO_QUIET_MS: u64 = 250;
+/// 等回显的上限：shell 正忙时输入会被缓冲，给足时间再判死。
+const ECHO_MAX_MS: u64 = 3_000;
 /// agent 跑命令时广播给前端的事件：让右栏把 tab 打开 / 切过去
 const AGENT_RUN_EVENT: &str = "terminal://agent-run";
 
@@ -373,8 +442,8 @@ fn attach_channel(
     Ok((pid, replay))
 }
 
-/// 写一行命令给 shell（PTY 的换行是 `\r`）。
-fn write_command(hub: &TerminalHub, id: &str, command: &str) -> Result<(), String> {
+/// 向 PTY 写原始字节（不追加、不改写任何东西）。
+fn write_raw(hub: &TerminalHub, id: &str, data: &[u8]) -> Result<(), String> {
     let mut sessions = hub
         .sessions
         .lock()
@@ -384,12 +453,139 @@ fn write_command(hub: &TerminalHub, id: &str, command: &str) -> Result<(), Strin
         .ok_or_else(|| format!("终端会话不存在：{id}"))?;
     session
         .writer
-        .write_all(format!("{command}\r").as_bytes())
+        .write_all(data)
         .map_err(|err| format!("写入终端失败：{err}"))?;
     session
         .writer
         .flush()
         .map_err(|err| format!("刷新终端失败：{err}"))
+}
+
+/// 去掉空白后比对：shell 的回显可能被折行/提示符重绘插进换行，逐字节比不可靠。
+fn squeeze(text: &str) -> String {
+    text.chars().filter(|ch| !ch.is_whitespace()).collect()
+}
+
+/// 回显里是否完整出现了命令的首尾特征串；任一缺失即说明这次写入被吞了字符。
+fn echo_confirmed(echo: &str, command: &str) -> bool {
+    let echoed = squeeze(echo);
+    let wanted = squeeze(command);
+    if wanted.is_empty() {
+        return true;
+    }
+    let total = wanted.chars().count();
+    let probe_len = 24.min(total);
+    let head: String = wanted.chars().take(probe_len).collect();
+    if !echoed.contains(&head) {
+        return false;
+    }
+    let tail: String = wanted.chars().skip(total - probe_len).collect();
+    echoed.contains(&tail)
+}
+
+/// 写入前的就绪等待：新会话等第一帧提示符，老会话等它安静下来（最多
+/// `READY_TIMEOUT_MS`；等不到也不报错，交给回显核对兜底）。
+async fn wait_until_ready(hub: &TerminalHub, id: &str) -> Result<(), String> {
+    let started = Instant::now();
+    let budget = Duration::from_millis(READY_TIMEOUT_MS);
+    loop {
+        let (cursor, last_output) = progress(hub, id)?;
+        let idle = last_output.elapsed() >= Duration::from_millis(READY_IDLE_MS);
+        if cursor > 0 && idle {
+            return Ok(());
+        }
+        if started.elapsed() >= budget {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(READY_POLL_MS)).await;
+    }
+}
+
+/// 把一条命令送进 shell：等它就绪 → 写正文 → 核对回显 → 单独回车。
+///
+/// 直接 `write_all("{command}\r")` 会踩到 ConPTY 的输入时序：shell 还没画出提示符、
+/// 或提示符正在重绘时写进去，一次 burst 的开头几个字符会被吃掉（现象：
+/// `Remove-Item` 变成 `emove-Item`、`node` 变成 `ode`）。整条链路四层兜底：
+/// 先等 shell 就绪 → 用一个牺牲空格替命令挨刀 → 逐字符敲进去 → 回显核对
+/// （对不上就 Ctrl+C 丢掉整行重打）→ 回车单独发并确认真的落地了。
+async fn write_command(hub: &TerminalHub, id: &str, command: &str) -> Result<(), String> {
+    // 超长命令的头部会被回滚窗口截掉，核对不了就直写，免得误判后反复重打
+    if command.chars().count() > 2_000 {
+        write_raw(hub, id, command.as_bytes())?;
+        return submit_enter(hub, id).await;
+    }
+
+    for attempt in 1..=ECHO_ATTEMPTS {
+        if attempt > 1 {
+            // 上一轮没核对上：用 Ctrl+C 丢弃整行（半行、还没被读取的缓冲输入都清得掉）
+            write_raw(hub, id, b"\x03")?;
+            tokio::time::sleep(Duration::from_millis(CANCEL_SETTLE_MS)).await;
+        }
+        let (cursor, _) = progress(hub, id)?;
+        type_command(hub, id, command).await?;
+        if await_echo(hub, id, cursor, command).await? {
+            return submit_enter(hub, id).await;
+        }
+    }
+
+    // 始终核对不过：仍然回车，把真实回显暴露出来，而不是静默丢命令
+    submit_enter(hub, id).await
+}
+
+/// 逐字符敲进去：ConPTY 对「一次性大 burst」的开头容易吞字节，拉开间隔最稳；
+/// 开头先送一个空格替命令挨刀。
+async fn type_command(hub: &TerminalHub, id: &str, command: &str) -> Result<(), String> {
+    write_raw(hub, id, INPUT_GUARD)?;
+    tokio::time::sleep(Duration::from_millis(INPUT_GUARD_GAP_MS)).await;
+    let mut buf = [0u8; 4];
+    for ch in command.chars() {
+        write_raw(hub, id, ch.encode_utf8(&mut buf).as_bytes())?;
+        tokio::time::sleep(Duration::from_millis(TYPE_GAP_MS)).await;
+    }
+    Ok(())
+}
+
+/// 等回显落定：shell 忙着跑上一条命令时，敲进去的字符会被缓冲、回显得很晚，
+/// 所以「有回显立刻返回，没回显也别急着判死」—— 只要它还在持续输出就继续等。
+async fn await_echo(
+    hub: &TerminalHub,
+    id: &str,
+    cursor: u64,
+    command: &str,
+) -> Result<bool, String> {
+    let started = Instant::now();
+    let mut last_cursor = cursor;
+    let mut last_change = Instant::now();
+    loop {
+        let echo = read_since(hub, id, cursor)?;
+        if echo_confirmed(&echo, command) {
+            return Ok(true);
+        }
+        let (now_cursor, _) = progress(hub, id)?;
+        if now_cursor != last_cursor {
+            last_cursor = now_cursor;
+            last_change = Instant::now();
+        }
+        let quiet = last_change.elapsed() >= Duration::from_millis(ECHO_QUIET_MS);
+        let settled = started.elapsed() >= Duration::from_millis(ECHO_SETTLE_MS);
+        if started.elapsed() >= Duration::from_millis(ECHO_MAX_MS) || (quiet && settled) {
+            return Ok(false);
+        }
+        tokio::time::sleep(Duration::from_millis(ECHO_POLL_MS)).await;
+    }
+}
+
+/// 回车也要确认落地：丢字节是概率性的，单字节的 `\r` 一旦被吞，整行就悬在输入区，
+/// 后面写入的命令会拼到这句残行上（现场：`& $env:C test ...` 粘在下一条命令前面）。
+async fn submit_enter(hub: &TerminalHub, id: &str) -> Result<(), String> {
+    let (before, _) = progress(hub, id)?;
+    write_raw(hub, id, b"\r")?;
+    tokio::time::sleep(Duration::from_millis(ENTER_SETTLE_MS)).await;
+    let (after, _) = progress(hub, id)?;
+    if after > before {
+        return Ok(());
+    }
+    write_raw(hub, id, b"\r")
 }
 
 /// 终止并移除一个会话（幂等）。
@@ -600,6 +796,8 @@ pub async fn terminal_run(
     };
 
     ensure_session(state.inner(), &app, &session_id, Path::new(&cwd_text))?;
+    // 等 shell 就绪（第一帧提示符 / 上一条命令安静下来），否则命令头几个字符会被吞
+    wait_until_ready(state.inner(), &session_id).await?;
     // 先让前端把 tab 打开/切过去：用户看得到 agent 正在跑什么
     let _ = app.emit(
         AGENT_RUN_EVENT,
@@ -612,7 +810,7 @@ pub async fn terminal_run(
 
     let started = Instant::now();
     let (start_cursor, _) = progress(state.inner(), &session_id)?;
-    write_command(state.inner(), &session_id, &trimmed)?;
+    write_command(state.inner(), &session_id, &trimmed).await?;
 
     let quiet = Duration::from_millis(quiet_ms.unwrap_or(DEFAULT_QUIET_MS).clamp(50, 10_000));
     let timeout = Duration::from_millis(timeout_ms.unwrap_or(DEFAULT_TIMEOUT_MS).clamp(500, 600_000));

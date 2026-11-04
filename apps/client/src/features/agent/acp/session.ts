@@ -51,7 +51,7 @@ import {
   syncSessionApprovalMode,
   writeSessionGooseMode
 } from '@/features/agent/acp/sync-approval-mode'
-import { findGooseMode, readApprovalMode } from '@/features/agent/approval'
+import { findGooseMode, readApprovalModeFor } from '@/features/agent/approval'
 import { clearRunState, markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
 import { verifyAgentTools } from '@/features/agent/agent-tools'
 import type { AgentToolServer } from '@/features/agent/agent-tools'
@@ -846,7 +846,8 @@ async function ensureThreadSession(
       await writeSessionGooseMode(
         handle.connection,
         cached.acpSessionID,
-        findGooseMode(readApprovalMode())
+        // 后台轮次不在当前 UI 线程上下文里：必须按本会话读档，别读全局指针
+        findGooseMode(readApprovalModeFor(threadID))
       )
     } catch (error) {
       console.warn('[acp/session] 重同步审批 mode 失败:', error)

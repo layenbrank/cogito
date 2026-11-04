@@ -9,6 +9,7 @@ import type { ChatHistoryPort, ChatStoredMessage, ChatThread } from '@cogito/cha
 import dayjs from 'dayjs'
 import { v4 as UUIDV4 } from 'uuid'
 
+import { removeGoal, removePlan } from '@/features/agent/plan-store'
 import { useAgentStore, type Message, type Session } from '@/stores/agent'
 
 function toThread(session: Session): ChatThread {
@@ -103,6 +104,9 @@ function buildHistoryPort(): ChatHistoryPort {
 
     async deleteThread(id) {
       await useAgentStore.getState().toRemoveSession([id])
+      // 表上没有外键：计划 / 目标档案要在删会话时显式清掉，不留孤儿行
+      removePlan(id)
+      removeGoal(id)
     },
 
     async findMessages(input) {

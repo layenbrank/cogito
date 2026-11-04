@@ -8,6 +8,17 @@
 
 /** 只有完整版才会带的工具（与 apps/client/scripts/prepare-binaries.ts 的 FULL_ONLY_RESOURCES 对齐） */
 const OPTIONAL_TOOL_FILES = ['pandoc.exe', 'ffmpeg.exe', 'ffprobe.exe'] as const
+/**
+ * 两个档位都必须带的件：externalBin 进 bundle 后去掉 triple 后缀，pdfium 是资源。
+ * （发布目标是 Windows x64，后缀写死 .exe。）
+ */
+const REQUIRED_BUNDLE_FILES = [
+  'corex-daemon.exe',
+  'corex-mcp.exe',
+  'cogito-mcp.exe',
+  'goose.exe',
+  'pdfium.dll'
+] as const
 
 type ClientVariant = 'slim' | 'full'
 
@@ -22,11 +33,31 @@ interface VariantGuardInput {
   files: readonly string[]
   /** 显式允许上传完整版 */
   allowFull: boolean
+  /**
+   * 是否断言必需件齐全。只有清点的是**真实构建树**（bundle 的父目录）时才为真；
+   * `--dir` 指向搬过来的产物时无从判断，由调用方传 false。
+   */
+  expectCoreFiles?: boolean
 }
 
 type VariantGuardResult = { ok: true } | { ok: false; reason: string }
 
 function checkVariantGuard(input: VariantGuardInput): VariantGuardResult {
+  if (input.expectCoreFiles) {
+    const missing = REQUIRED_BUNDLE_FILES.filter(function (name) {
+      return !input.files.includes(name)
+    })
+    if (missing.length > 0) {
+      return {
+        ok: false,
+        reason:
+          `产物缺少必需件：${missing.join('、')}。\n` +
+          '这样的包能装能开，但对话 / 工具面起不来，比构建失败更贵。\n' +
+          '请重新 pnpm build:client，并确认 binaries/ 里 4 个 externalBin 与 pdfium.dll 都在。'
+      }
+    }
+  }
+
   const present = OPTIONAL_TOOL_FILES.filter(function (name) {
     return input.files.includes(name)
   })
@@ -56,5 +87,5 @@ function checkVariantGuard(input: VariantGuardInput): VariantGuardResult {
   return { ok: true }
 }
 
-export { OPTIONAL_TOOL_FILES, checkVariantGuard, parseVariant }
+export { OPTIONAL_TOOL_FILES, REQUIRED_BUNDLE_FILES, checkVariantGuard, parseVariant }
 export type { ClientVariant, VariantGuardInput, VariantGuardResult }

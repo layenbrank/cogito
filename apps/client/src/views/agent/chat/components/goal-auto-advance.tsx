@@ -1,8 +1,13 @@
 /**
  * 目标自动续跑：一轮结束且模型报告 `GOAL_CONTINUE` 时，自动发下一轮，
- * 直到 `GOAL_DONE`、预算用尽、用户中止，或用户正在输入。
+ * 直到 `GOAL_DONE`、预算用尽、用户中止，或用户插话 / 正在输入。
  *
  * 挂载点放在聊天布局里（而不是右栏），切到别的页签也照常推进。
+ *
+ * 「本轮归属」是这里最容易出错的地方：以前只要 `goal` 存在就当成目标轮，
+ * 用户中途问一句话也会被当成「本轮未达成」直接把目标停掉。现在必须满足
+ * ①这一轮的 user 消息就是我们发的那条续跑指令（或首轮）；②最后一条不是用户插话；
+ * ③composer 为空（用户没正在打字）。任一不满足就 `paused`，不自动续跑。
  */
 import { useAui, useAuiState } from '@assistant-ui/react'
 import { useEffect, useRef } from 'react'
@@ -13,10 +18,14 @@ import {
   buildContinuePrompt,
   findGoalSignal,
   findLastAssistant,
+  findLastUserText,
   isAbortedRun,
+  isUserInterjection,
   parseGoalProgress,
   readAssistantText,
+  readGoalPrompt,
   readGoalRun,
+  rememberGoalPrompt,
   setGoalProgress,
   stopGoalRun,
   useGoalRun
@@ -33,6 +42,10 @@ function findGoalTailDigest(messages: Parameters<typeof findLastAssistant>[0], i
   const text = readAssistantText(last)
   const aborted = isAbortedRun(last) ? '1' : '0'
   return `${last.id}\0${aborted}\0${text}`
+}
+
+function normalizePrompt(text: string | null): string {
+  return (text ?? '').replace(/\s+/g, ' ').trim()
 }
 
 function GoalAutoAdvance() {
@@ -53,10 +66,12 @@ function GoalAutoAdvance() {
       if (!tailDigest || handled.current === tailDigest) return
       handled.current = tailDigest
 
-      const last = findLastAssistant(aui.thread.getState().messages)
+      const messages = aui.thread.getState().messages
+      const last = findLastAssistant(messages)
       if (!last) return
 
       if (isAbortedRun(last)) {
+        // 用户「停止」/ 出错：这一轮不是模型自己跑完的，不能当成「未达成」继续
         stopGoalRun(threadID)
         return
       }
@@ -78,6 +93,23 @@ function GoalAutoAdvance() {
         return
       }
 
+      /**
+       * 本轮归属：首轮由用户发出（不做归属校验），后续轮必须是自动续跑那一条。
+       * 用户插话后 user 消息就不再是我们发的 prompt —— 命中即停，而不是当成「未达成」。
+       */
+      const expected = normalizePrompt(readGoalPrompt(threadID))
+      const lastUser = normalizePrompt(findLastUserText(messages))
+      if (goal.used > 0 && expected && lastUser !== expected) {
+        toast.info('检测到你插话了，目标推进已暂停')
+        stopGoalRun(threadID)
+        return
+      }
+      if (isUserInterjection(messages)) {
+        toast.info('检测到你发了新消息，目标推进已暂停')
+        stopGoalRun(threadID)
+        return
+      }
+
       if (aui.composer.getState().text.trim()) {
         toast.info('检测到你在输入，已暂停目标自动推进')
         stopGoalRun(threadID)
@@ -93,7 +125,10 @@ function GoalAutoAdvance() {
       }
       const next = readGoalRun(threadID)
       if (!next) return
-      aui.composer.setText(buildContinuePrompt(next))
+      const prompt = buildContinuePrompt(next)
+      // 记下这一轮发的是哪条 prompt：下一轮用它判断「这一轮还是不是目标轮」
+      rememberGoalPrompt(threadID, prompt)
+      aui.composer.setText(prompt)
       void aui.composer.send()
     },
     [aui, goal, threadID, tailDigest]

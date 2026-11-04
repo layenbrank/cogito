@@ -222,7 +222,7 @@ interface PersistShape {
   window: WindowPref
   clipchamp: ClipchampPref
   gallery: GalleryPref
-  vault: VaultPref,
+  vault: VaultPref
   diagnostics: DiagnosticsPref
 }
 

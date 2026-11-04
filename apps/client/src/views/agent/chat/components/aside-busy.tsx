@@ -27,6 +27,7 @@ import { findAgentMode, readAgentMode, subscribeAgentMode } from '@/features/age
 import { savePlanToWorkspace } from '@/features/agent/plan-file'
 import { findLatestPlan } from '@/features/agent/plan'
 import { findPlanDraft } from '@/features/agent/plan-draft'
+import { usePlanRecord } from '@/features/agent/plan-store'
 import type { PlanDraft } from '@/features/agent/plan-draft'
 import { useSessionCommands } from '@/features/agent/running-commands'
 import type { SessionCommandState } from '@/features/agent/running-commands'
@@ -1064,13 +1065,22 @@ function AsideBusy(props: AsideBusyProps) {
     [messages]
   )
 
-  /** goose 没发 `plan` 事件时，从正文编号列表抽一份草稿，避免右侧空白 */
+  /** 档案优先：计划不会因为后续问答消失；没有档案才退回「从正文抽草稿」 */
+  const storedPlan = usePlanRecord(mainThreadID)
   const planDraft = useMemo(
     function () {
       if (plan && plan.entries.length > 0) return null
+      if (storedPlan) {
+        return {
+          title: storedPlan.title,
+          overview: storedPlan.overview,
+          steps: storedPlan.steps,
+          body: storedPlan.body
+        }
+      }
       return findPlanDraft(messages)
     },
-    [messages, plan]
+    [messages, plan, storedPlan]
   )
 
   useEffect(
