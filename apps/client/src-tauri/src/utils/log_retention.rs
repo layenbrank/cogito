@@ -9,7 +9,7 @@ use tauri::{AppHandle, Manager};
 pub const LOG_RETENTION_DAYS: u64 = 30;
 
 /// 单文件上限（字节），超出后轮转为带日期后缀的归档。
-pub const LOG_MAX_FILE_SIZE: u128 = 1_000_000;
+pub const LOG_MAX_FILE_SIZE: u128 = 5_000_000; // 5MB：一次崩溃前后的上下文能完整落在一两个文件里
 
 /// 删除 `app_log_dir` 中修改时间早于保留期的 `.log` / `.log.bak`。
 pub fn prune_stale_logs(app: &AppHandle) {

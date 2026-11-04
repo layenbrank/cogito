@@ -140,6 +140,9 @@ fn spawn(app: &AppHandle) -> Result<(), String> {
         .spawn()
         .map_err(|e| format!("启动 corex-daemon 失败: {e}"))?;
 
+    // 强杀/abort 时没有 RunEvent::Exit，靠 Job 让内核回收 daemon
+    crate::utils::child_job::adopt(child.pid(), "corex-daemon");
+
     {
         let state = app.state::<SidecarState>();
         let mut guard = state

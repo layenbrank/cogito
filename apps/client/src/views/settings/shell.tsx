@@ -18,6 +18,7 @@ import {
 import AccountSurface from '@/views/settings/surfaces/account.tsx'
 import AppearanceSurface from '@/views/settings/surfaces/appearance.tsx'
 import CaptureSurface from '@/views/settings/surfaces/capture.tsx'
+import DiagnosticSurface from '@/views/settings/surfaces/diagnostics.tsx'
 import GeneralSurface from '@/views/settings/surfaces/general.tsx'
 import ShortcutsSurface from '@/views/settings/surfaces/shortcuts.tsx'
 import { findShowsShellBack } from '@/views/settings/shell-back.ts'
@@ -134,6 +135,7 @@ function Shell() {
               {section === SECTION.SHORTCUTS && <ShortcutsSurface />}
               {section === SECTION.APPEARANCE && <AppearanceSurface />}
               {section === SECTION.ACCOUNT && <AccountSurface />}
+              {section === SECTION.DIAGNOSTICS && <DiagnosticSurface />}
             </m.div>
           </AnimatePresence>
         </div>

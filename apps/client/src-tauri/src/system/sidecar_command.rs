@@ -409,7 +409,7 @@ pub async fn sidecar_edit_directive(
 fn spawn_corex_edit(app: &AppHandle, name: &str) -> Result<(), String> {
     let cli = find_corex_cli()?;
     let data_dir = corex_data_dir(app)?;
-    Command::new(&cli)
+    let child = Command::new(&cli)
         .args(["edit", name])
         .env(
             sidecar::COREX_DATA_DIR_ENV,
@@ -420,6 +420,8 @@ fn spawn_corex_edit(app: &AppHandle, name: &str) -> Result<(), String> {
         .stderr(Stdio::null())
         .spawn()
         .map_err(|e| format!("启动 corex edit 失败: {e}"))?;
+
+    crate::utils::child_job::adopt(child.id(), "corex edit");
     Ok(())
 }
 

@@ -163,6 +163,12 @@ interface GalleryPref {
   placeholder: true
 }
 
+/** 诊断偏好：只放「要不要上报」这类开关，不留任何内容副本 */
+interface DiagnosticsPref {
+  /** 崩溃现场是否自动补报到 `POST /api/v1/exception`；关掉后现场只留在本地 */
+  reportCrashes: boolean
+}
+
 interface VaultPref {
   pinHash: string | null
 }
@@ -216,7 +222,8 @@ interface PersistShape {
   window: WindowPref
   clipchamp: ClipchampPref
   gallery: GalleryPref
-  vault: VaultPref
+  vault: VaultPref,
+  diagnostics: DiagnosticsPref
 }
 
 type PersistValue<N extends PersistNamespace> = PersistShape[N]
@@ -239,6 +246,7 @@ export type {
   CommandBarRecentHit,
   GalleryPref,
   VaultPref,
+  DiagnosticsPref,
   ClipchampPref,
   SettingsPref,
   SettingsProxy,

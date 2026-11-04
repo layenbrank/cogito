@@ -8,7 +8,9 @@ const STORE_FILE = {
   window: 'window.json',
   clipchamp: 'clipchamp.json',
   gallery: 'gallery.json',
-  vault: 'vault.json'
+  vault: 'vault.json',
+  /** 诊断偏好：崩溃补报开关等（不涉密） */
+  diagnostics: 'diagnostics.json'
 } as const
 
 type PersistNamespace = keyof typeof STORE_FILE

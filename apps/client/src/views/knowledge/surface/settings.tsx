@@ -25,7 +25,10 @@ import styles from '@/views/knowledge/surface/settings.module.scss'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useSettingsStore } from '@/stores/setting'
 import {
+  embeddingProbeFailurePatch,
+  embeddingProbeSuccessPatch,
   patchEmbeddingConfig,
+  planEmbeddingToggle,
   readEmbeddingConfig,
   type EmbeddingConfig
 } from '@/views/knowledge/lib/embedding-config.ts'
@@ -74,7 +77,11 @@ import {
   type AnyTxtConfig
 } from '@/views/knowledge/lib/anytxt-config.ts'
 import { fetchClipDaemonStatus, type ClipDaemonStatus } from '@/views/knowledge/lib/clip-daemon.ts'
-import { countVectors } from '@/views/knowledge/lib/vector-store.ts'
+import {
+  clearVectorIndex,
+  countVectors,
+  probeEmbeddingEndpoint
+} from '@/views/knowledge/lib/vector-store.ts'
 import {
   patchWebSearchConfig,
   readWebSearchConfig,
@@ -247,7 +254,8 @@ function SettingsTab() {
           if (!cancelled) setClipStatus(status)
         })
       }
-      if (section === 'embedding') {
+      if (section === 'embedding' && readEmbeddingConfig().enabled) {
+        // 只在已启用时统计：开关关着不该为了显示一个数字去碰 lancedb
         void countVectors().then(function (count) {
           if (!cancelled) setVectorCount(count)
         })
@@ -274,6 +282,83 @@ function SettingsTab() {
   const docs = useKnowledgeBaseStore(function (state) {
     return state.docs
   })
+  const [probingEmbedding, setProbingEmbedding] = useState(false)
+
+  const probeHint = embedding.lastProbe
+    ? embedding.lastProbe.ok
+      ? `上次探测通过（${embedding.lastProbe.dim ?? '?'} 维）`
+      : `上次探测失败：${embedding.lastProbe.error ?? '未知错误'}`
+    : '启用前会先探测一次端点，避免填错地址就整库 embedding'
+
+  /**
+   * 启用前先探测端点：失败就不落 `enabled=true`。
+   * 旧版开关是「写 localStorage 就完事」，端点填错时下一次 ingest 会立刻
+   * 全量 embedding 并卡死 —— 用户看到的就是「一点就炸」。
+   */
+  async function handleToggleEmbedding(checked: boolean): Promise<void> {
+    const current = readEmbeddingConfig()
+    const plan = planEmbeddingToggle({
+      checked,
+      endpoint: current.endpoint,
+      probeBeforeEnable: current.probeBeforeEnable
+    })
+    if (plan.kind === 'disable') {
+      setEmbedding(patchEmbeddingConfig({ enabled: false }))
+      return
+    }
+    if (plan.kind === 'reject') {
+      toast.error(plan.message)
+      return
+    }
+    if (plan.kind === 'enable') {
+      setEmbedding(patchEmbeddingConfig({ enabled: true }))
+      return
+    }
+    setProbingEmbedding(true)
+    try {
+      const probe = await probeEmbeddingEndpoint(current)
+      setEmbedding(patchEmbeddingConfig(embeddingProbeSuccessPatch(probe.dim, Date.now())))
+      toast.success(`端点可用（${probe.dim} 维）`)
+    } catch (error) {
+      // 探测失败一律不落 enabled=true：端点不可达时开关不生效，只留一条失败记录
+      patchEmbeddingConfig(embeddingProbeFailurePatch(error, Date.now()))
+      setEmbedding(readEmbeddingConfig())
+      const message = error instanceof Error ? error.message : String(error)
+      toast.error(`端点探测失败，未启用：${message}`)
+    } finally {
+      setProbingEmbedding(false)
+    }
+  }
+
+  /** 显式刷新已索引向量数（不再在进入分区时隐式触发）。 */
+  async function handleRefreshVectorCount(): Promise<void> {
+    setVectorCount(null)
+    setVectorCount(await countVectors())
+  }
+
+  /** 清空索引：换过模型必须走这里，否则 schema 维度对不上。 */
+  async function handleClearVectorIndex(): Promise<void> {
+    try {
+      await clearVectorIndex()
+      setVectorCount(0)
+      toast.success('已清空向量索引')
+    } catch (error) {
+      toast.error(`清空失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  /** 重建索引：清空 + 重新扫描库目录，后续 ingest 会按新模型重新写入。 */
+  async function handleRebuildVectorIndex(): Promise<void> {
+    try {
+      await clearVectorIndex()
+      setVectorCount(0)
+      await rescan()
+      toast.success('已清空并重新扫描，ingest 完成后会重新建索引')
+    } catch (error) {
+      toast.error(`重建失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
   const activeBase = bases.find(function (base) {
     return base.id === activeBaseID
   })
@@ -404,8 +489,9 @@ function SettingsTab() {
               <Row label="启用">
                 <Switch
                   checked={embedding.enabled}
+                  disabled={probingEmbedding}
                   onCheckedChange={function (checked) {
-                    setEmbedding(patchEmbeddingConfig({ enabled: checked }))
+                    void handleToggleEmbedding(checked)
                   }}
                 />
               </Row>
@@ -430,10 +516,41 @@ function SettingsTab() {
                   </SelectContent>
                 </Select>
               </Row>
-              <Row label="已索引向量">
-                <span className="text-muted-foreground text-xs">
-                  {vectorCount === null ? '…' : vectorCount}
-                </span>
+              <Row
+                label="已索引向量"
+                hint={probeHint}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-muted-foreground text-xs">
+                    {!embedding.enabled ? '—' : vectorCount === null ? '…' : vectorCount}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!embedding.enabled}
+                    onClick={function () {
+                      void handleRefreshVectorCount()
+                    }}>
+                    刷新
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!embedding.enabled}
+                    onClick={function () {
+                      void handleRebuildVectorIndex()
+                    }}>
+                    重建索引
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!embedding.enabled}
+                    onClick={function () {
+                      void handleClearVectorIndex()
+                    }}>
+                    清空索引
+                  </Button>
+                </div>
               </Row>
               <Row label="ingest 后自动 embed">
                 <Switch

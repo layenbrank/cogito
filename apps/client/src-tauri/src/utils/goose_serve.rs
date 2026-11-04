@@ -130,6 +130,9 @@ async fn spawn_inner(app: &AppHandle) -> Result<(), String> {
         .spawn()
         .map_err(|e| format!("启动 goose serve 失败: {e}"))?;
 
+    // 同上：宿主被强杀时 goose 也不能留成孤儿
+    crate::utils::child_job::adopt(child.pid(), "goose serve");
+
     {
         let state = app.state::<GooseServeState>();
         let mut guard = state
@@ -282,6 +285,8 @@ pub async fn run_goose(app: &AppHandle, args: &[&str]) -> Result<String, String>
     let (mut rx, _child) = command
         .spawn()
         .map_err(|e| format!("启动 goose 失败: {e}"))?;
+
+    crate::utils::child_job::adopt(_child.pid(), "goose");
 
     let mut stdout = String::new();
     let mut stderr = String::new();

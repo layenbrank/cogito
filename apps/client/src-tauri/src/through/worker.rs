@@ -75,8 +75,13 @@ pub fn spawn_worker<R: Runtime>(app: AppHandle<R>) {
                 && cursor_y < win_bottom;
 
             let should_ignore = if state.is_screenshot_mode() {
-                // Screenshot / annotate mode must receive all pointer events.
-                false
+                // 截屏 / 标注态要收全部指针事件；但如果 overlay 前端已经挂死
+                // （心跳过期），继续钉 false 会让这个「全屏 + 透明 + 置顶」的窗口
+                // 把整个桌面的点击都吃掉 —— 用户「点哪都没反应」的根因。
+                // 过期即放行：宁可截屏失效，也不能让用户失去对桌面的控制。
+                app.try_state::<crate::overlay::state::OverlayHealth>()
+                    .map(|health| health.is_stale(crate::utils::diagnostics::now_ms()))
+                    .unwrap_or(false)
             } else if !inside_window {
                 // Outside window — value irrelevant, but pick a safe default.
                 true

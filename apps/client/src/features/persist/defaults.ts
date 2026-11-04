@@ -106,7 +106,8 @@ const PERSIST_DEFAULTS: PersistShape = {
   },
   clipchamp: {},
   gallery: { placeholder: true },
-  vault: { pinHash: null }
+  vault: { pinHash: null },
+  diagnostics: { reportCrashes: true }
 }
 
 export {

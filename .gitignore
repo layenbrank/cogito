@@ -153,3 +153,5 @@ apps/mobile/android/
 *.mobileprovision
 *.pem
 .metro-health-check*
+# prepare-binaries.ts 生成的档位增量 conf（tauri build --config 合并，属构建产物）
+apps/client/src-tauri/tauri.generated.conf.json

@@ -101,3 +101,15 @@ describe('code 工作区解析', function () {
     expect(parsed.code.isEditorSemanticHighlightingEnabled).toBe(false)
   })
 })
+
+describe('诊断偏好解析', function () {
+  it('默认开启崩溃上报', function () {
+    expect(parseNamespace('diagnostics', null).reportCrashes).toBe(true)
+    expect(parseNamespace('diagnostics', {}).reportCrashes).toBe(true)
+  })
+
+  it('关掉后保持关闭，脏值回落默认', function () {
+    expect(parseNamespace('diagnostics', { reportCrashes: false }).reportCrashes).toBe(false)
+    expect(parseNamespace('diagnostics', { reportCrashes: 'no' }).reportCrashes).toBe(true)
+  })
+})

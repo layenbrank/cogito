@@ -20,6 +20,7 @@ import type {
   SettingsPref,
   TilesPref,
   VaultPref,
+  DiagnosticsPref,
   BrowserVisit,
   WindowPref,
   TileSessionPref,
@@ -434,6 +435,12 @@ function parseGallery(raw: unknown): GalleryPref {
   return { placeholder: true, ...(isRecord(raw) ? {} : {}) }
 }
 
+function parseDiagnostics(raw: unknown): DiagnosticsPref {
+  const base = PERSIST_DEFAULTS.diagnostics
+  if (!isRecord(raw)) return structuredClone(base)
+  return { reportCrashes: parseBoolean(raw.reportCrashes, base.reportCrashes) }
+}
+
 function parseVault(raw: unknown): VaultPref {
   if (!isRecord(raw)) return { pinHash: null }
   return { pinHash: typeof raw.pinHash === 'string' ? raw.pinHash : null }
@@ -526,7 +533,8 @@ const PARSE: {
   window: parseWindow,
   clipchamp: parseClipchamp,
   gallery: parseGallery,
-  vault: parseVault
+  vault: parseVault,
+  diagnostics: parseDiagnostics
 }
 
 function parseNamespace<N extends PersistNamespace>(ns: N, raw: unknown): PersistValue<N> {

@@ -2,8 +2,9 @@ import { lazy } from 'react'
 import { Navigate, createBrowserRouter, useLocation, type RouteObject } from 'react-router-dom'
 import { AppHost } from '@/features/magnetic-tile/host'
 import { WorkspaceShell } from '@/features/magnetic-tile/workspace-shell'
-import Overlay from '@/views/overlay/overlay'
+import { OverlayGuard } from '@/views/overlay/overlay-guard'
 import { RouteTransition } from '@/routers/transition.tsx'
+import { RouteErrorElement } from '@/routers/error-element.tsx'
 
 /** agent 窗口的布局路由（出口）；聊天与设置是它的两个子页，互斥渲染 */
 const Agent = lazy(function () {
@@ -123,12 +124,15 @@ const Signboard = lazy(function () {
 const routes: RouteObject[] = [
   {
     element: <AppHost />,
+    errorElement: <RouteErrorElement />,
     children: [
       {
         element: <WorkspaceShell />,
+        errorElement: <RouteErrorElement />,
         children: [
           {
             element: <RouteTransition />,
+            errorElement: <RouteErrorElement />,
             children: [
               {
                 path: '/',
@@ -145,7 +149,7 @@ const routes: RouteObject[] = [
               },
               {
                 path: '/overlay',
-                element: <Overlay />
+                element: <OverlayGuard />
               },
               {
                 path: '/agent',

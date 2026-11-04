@@ -13,6 +13,9 @@ fn main() {
     if run_token_helper() {
         return;
     }
+    // 必须早于 Tauri 与日志插件：release 下 `windows_subsystem = "windows"` 没有 stderr，
+    // 只有先装 hook，panic 现场才会落到 `<appLocalData>/diagnostics/crash/`。
+    cogito::utils::diagnostics::install_panic_hook();
     cogito::app::bootstrap::Bootstrap::run();
 }
 

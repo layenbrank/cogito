@@ -1,6 +1,7 @@
 pub mod app;
 pub mod autostart;
 pub mod automation;
+pub mod diagnostics;
 pub mod bridge;
 pub mod browser;
 pub mod knowledge;
@@ -22,6 +23,7 @@ pub mod through {
 pub mod overlay {
     pub mod command;
     pub mod state;
+    pub mod watchdog;
     pub use state::{OverlayHealth, OverlayPending};
 }
 

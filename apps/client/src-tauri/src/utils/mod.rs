@@ -1,10 +1,12 @@
 //! 工具与基础设施客户端（无 Tauri command）。
 
 pub mod capture_retention;
+pub mod child_job;
 pub mod clock;
 pub mod cogito_provider;
 pub mod cogito_token;
 pub mod cursor_agent;
+pub mod diagnostics;
 pub mod goose_acp;
 pub mod goose_serve;
 pub mod goose_tls;

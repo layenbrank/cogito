@@ -68,7 +68,10 @@ opt-level = 1
 codegen-units = 1
 lto = true
 opt-level = "s"
-panic = "abort"
+# 必须 unwind：catch_unwind 才拦得住第三方 panic（lancedb/arrow），
+# abort 会让任何一次 panic 直接杀掉整个进程并绕过 RunEvent::Exit（sidecar 变孤儿）。
+# 体积/性能代价由 opt-level="s" + lto 抵消，见 Step 3 的实测记录。
+panic = "unwind"
 strip = true
 
 [build-dependencies]
@@ -126,7 +129,7 @@ chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
-tracing = { workspace = true }
+tracing = { workspace = true, features = ["log"] } # 把 tracing 事件桥到 log facade（tauri-plugin-log 才收得到）
 log = "0.4"
 uuid = { workspace = true }
 # --- 媒体 / 编解码 ---
@@ -176,6 +179,7 @@ windows = { version = "0.62", features = [
   "Win32_Security",
   "Win32_System_Com",
   "Win32_System_Pipes",
+  "Win32_System_JobObjects",
   "Win32_System_Threading",
   "Win32_System_Diagnostics_ToolHelp",
   "Win32_System_Registry",

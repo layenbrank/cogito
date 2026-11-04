@@ -252,16 +252,25 @@ ${markdown.slice(0, 12_000)}
 
   const embedding = readEmbeddingConfig()
   if (embedding.enabled && embedding.embedOnIngest) {
-    void upsertPageEmbeddings(
-      written.map(function (page) {
-        return {
-          docId: page.wikiRelative,
-          text: `${page.title}\n${analyzed.summary}\n${markdown.slice(0, embedding.maxChunkChars)}`
+    const items = written.map(function (page) {
+      return {
+        docId: page.wikiRelative,
+        text: `${page.title}\n${analyzed.summary}\n${markdown.slice(0, embedding.maxChunkChars)}`
+      }
+    })
+    // embedding 是**可选增强**：写索引失败只记一条可上报的 warning，
+    // 绝不阻断 ingest 主流程（旧版把异常抛在 await 链上，会让整次 ingest 失败）。
+    void upsertPageEmbeddings(items)
+      .then(function (ok) {
+        if (ok < items.length) {
+          console.warn(
+            `[ingest] embedding 未全部完成：${ok}/${items.length}（搜索会降级到全文检索）`
+          )
         }
       })
-    ).catch(function (error) {
-      console.error('[ingest] embed failed', error)
-    })
+      .catch(function (error) {
+        console.warn('[ingest] embed failed, 已忽略', error)
+      })
   }
 
   if (analyzed.needsReview || (analyzed.parseWarnings?.length ?? 0) > 0) {

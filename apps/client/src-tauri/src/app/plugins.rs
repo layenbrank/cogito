@@ -7,10 +7,31 @@ use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 use crate::autostart;
 use crate::utils::log_retention::LOG_MAX_FILE_SIZE;
 
-/// 依赖库默认只打 Warn+，避免 hyper/reqwest TRACE 刷屏；本 crate 在 debug 下仍可 Debug。
+/// `--verbose` / `-v` / `--debug`：把本应用（含 lancedb）降到 Debug。
+///
+/// 直接读 `std::env::args()` 而不是走 CLI 插件：日志级别要在 `register_plugins`
+/// 里就确定，那时 `AppHandle` 还不存在，插件的 JS 侧解析也还没跑。
+fn verbose_enabled() -> bool {
+    std::env::args().any(|arg| is_verbose_arg(&arg))
+}
+
+/// 单个参数是否表示 verbose。
+///
+/// 抽成纯函数是为了让单测验证**代码本身**：旧测试对着
+/// `matches!("--verbose", &[...])` 断言，等于把常量表抄了一遍，永远是绿的。
+fn is_verbose_arg(arg: &str) -> bool {
+    matches!(arg, "--verbose" | "-v" | "-V" | "--debug" | "--log-debug")
+}
+
+/// 依赖库默认只打 Warn+，避免 hyper/reqwest TRACE 刷屏；本 crate 走 Info（verbose 时 Debug）。
 fn configure_log_levels(builder: tauri_plugin_log::Builder) -> tauri_plugin_log::Builder {
+    let verbose = verbose_enabled();
     let builder = builder
-        .level(LevelFilter::Info)
+        .level(if verbose {
+            LevelFilter::Debug
+        } else {
+            LevelFilter::Info
+        })
         .level_for("hyper", LevelFilter::Warn)
         .level_for("hyper_util", LevelFilter::Warn)
         .level_for("reqwest", LevelFilter::Warn)
@@ -21,12 +42,42 @@ fn configure_log_levels(builder: tauri_plugin_log::Builder) -> tauri_plugin_log:
         .level_for("want", LevelFilter::Warn)
         .level_for("mio", LevelFilter::Warn)
         .level_for("tracing", LevelFilter::Warn)
-        .level_for("tracing_subscriber", LevelFilter::Warn);
+        .level_for("tracing_subscriber", LevelFilter::Warn)
+        // arrow / lance 在 Debug 下极吵；只有 verbose 才放开到 Info
+        .level_for(
+            "lance",
+            if verbose {
+                LevelFilter::Info
+            } else {
+                LevelFilter::Warn
+            },
+        )
+        .level_for(
+            "lancedb",
+            if verbose {
+                LevelFilter::Info
+            } else {
+                LevelFilter::Warn
+            },
+        )
+        .level_for(
+            "object_store",
+            if verbose {
+                LevelFilter::Info
+            } else {
+                LevelFilter::Warn
+            },
+        );
 
-    #[cfg(debug_assertions)]
-    let builder = builder.level_for("cogito", LevelFilter::Debug);
-
-    builder
+    // 本 crate：verbose → Debug；release 也保持 Info（崩溃前的最后几条要有）
+    builder.level_for(
+        "cogito",
+        if verbose {
+            LevelFilter::Debug
+        } else {
+            LevelFilter::Info
+        },
+    )
 }
 
 /// 为 Builder 挂载桌面端通用插件。
@@ -70,4 +121,23 @@ fn focus_main_window(app: &AppHandle) {
         .get_webview_window("main")
         .expect("no main window")
         .set_focus();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verbose_args_are_recognised() {
+        for arg in ["--verbose", "-v", "-V", "--debug", "--log-debug"] {
+            assert!(is_verbose_arg(arg), "{arg} 应视为 verbose");
+        }
+    }
+
+    #[test]
+    fn non_verbose_args_are_ignored() {
+        for arg in ["--minimized", "-h", "", "verbose", "--verbose=false"] {
+            assert!(!is_verbose_arg(arg), "{arg} 不应视为 verbose");
+        }
+    }
 }

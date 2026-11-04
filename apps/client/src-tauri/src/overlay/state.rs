@@ -34,7 +34,10 @@ pub struct OverlayPending {
 }
 
 /// 心跳超时：超过即判定 overlay 渲染进程已挂（白屏），宿主需要重载页面。
-pub const PING_TIMEOUT_MS: i64 = 3 * 60 * 1000;
+pub const PING_TIMEOUT_MS: i64 = 30 * 1000;
+/// 兜底阈值：过期这么久仍未恢复，看门狗认为「重载也救不回来」，交由下次
+/// `overlay:ensure` 重建（见 `overlay/watchdog.rs`）。
+pub const PARK_TIMEOUT_MS: i64 = 60 * 1000;
 
 /// overlay 页面健康度：页面定时 `overlay:ping`，宿主在展示前据此判断是否要重载。
 #[derive(Default)]

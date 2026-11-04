@@ -51,7 +51,9 @@ function App() {
         <LazyMotion features={domMax}>
           <MotionConfig reducedMotion={reducedMotion}>
             <QueryProvider>
-              <Fallback.ErrorBoundary>
+              <Fallback.ErrorBoundary
+                boundaryId="app.shell"
+                resetKeys={[reducedMotion]}>
                 <Suspense fallback={<Fallback.Route />}>
                   <RouterProvider router={router} />
                 </Suspense>

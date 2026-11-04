@@ -97,6 +97,17 @@ impl Bootstrap {
                     });
                 }
                 through::spawn_worker(app.handle().clone());
+                crate::overlay::watchdog::spawn(app.handle().clone());
+                #[cfg(debug_assertions)]
+                crate::overlay::watchdog::spawn_dev_stall(app.handle().clone());
+
+                // 截屏态演练（仅 debug）：COGITO_DEV_SCREENSHOT_MS=<毫秒>
+                #[cfg(debug_assertions)]
+                crate::overlay::command::spawn_dev_screenshot(app.handle().clone());
+
+                // 缺可选工具文案演练（仅 debug）：COGITO_DEV_TOOL_PROBE=1
+                #[cfg(debug_assertions)]
+                crate::media::command::spawn_dev_tool_probe(app.handle().clone());
                 reminder::spawn_worker(app.handle().clone());
                 automation::spawn_worker(app.handle().clone());
                 tray::setup(app)?;
@@ -106,14 +117,54 @@ impl Bootstrap {
                 // 禁 WebView 原生 Ctrl/Cmd+F 查找条（Windows 走 WebView2 设置；其它平台靠前端拦）
                 crate::ui::native_find::disable_on_app(app.handle());
                 log_retention::prune_stale_logs(app.handle());
+                // 会话标记 + 上次异常退出：崩溃/被杀的现场要能被下次启动认出来
+                // 会话标记 + 上次异常退出：崩溃/被杀的现场要能被下次启动认出来。
+                // `begin_session()` 内部保证「先读旧标记再写 running」的顺序。
+                let previous_session = crate::utils::diagnostics::begin_session();
+                match previous_session {
+                    Some(session) if crate::utils::diagnostics::previous_session_crashed(Some(&session)) => {
+                        tracing::warn!(
+                            "上次会话未正常退出（pid={}, startedAt={}），待上报崩溃现场 {} 份",
+                            session.pid,
+                            session.started_at,
+                            crate::utils::diagnostics::read_pending_crashes().len()
+                        );
+                    }
+                    _ => tracing::info!("会话开始（pid={}）", std::process::id()),
+                }
                 autostart::reconcile(app.handle());
 
                 #[cfg(desktop)]
                 {
                     // 不阻塞 setup：后台等待就绪，仅在真正失败时发 corex://not-ready / goose://not-ready
-                    #[cfg(windows)]
-                    sidecar::spawn_and_watch(app.handle(), Duration::from_secs(20));
-                    goose_serve::spawn_and_watch(app.handle(), Duration::from_secs(30));
+                    // 演练/隔离运行：COGITO_DEV_NO_SIDECAR=1 时不拉起 sidecar（仅 debug 构建有这个开关），
+                    // 避免与正在运行的正式实例抢端口。
+                    let skip_sidecar = cfg!(debug_assertions)
+                        && std::env::var_os("COGITO_DEV_NO_SIDECAR").is_some();
+                    if !skip_sidecar {
+                        #[cfg(windows)]
+                        sidecar::spawn_and_watch(app.handle(), Duration::from_secs(20));
+                        goose_serve::spawn_and_watch(app.handle(), Duration::from_secs(30));
+                    }
+                }
+
+                // 崩溃演练入口（仅 debug 构建有）：COGITO_DEV_PANIC=boom|abort
+                #[cfg(debug_assertions)]
+                crate::utils::diagnostics::spawn_dev_panic_probe();
+
+                // 正常退出演练（仅 debug）：COGITO_DEV_EXIT_MS=8000 → 到点走 app.exit(0)，
+                // 用来验证 RunEvent::Exit 上的 mark_clean_exit + sidecar 回收。
+                #[cfg(debug_assertions)]
+                if let Some(ms) = std::env::var("COGITO_DEV_EXIT_MS")
+                    .ok()
+                    .and_then(|raw| raw.trim().parse::<u64>().ok())
+                {
+                    let handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(Duration::from_millis(ms)).await;
+                        tracing::info!("演练：app.exit(0)（走 RunEvent::Exit）");
+                        handle.exit(0);
+                    });
                 }
 
                 Ok(())
@@ -149,6 +200,9 @@ impl Bootstrap {
             .expect("error while building application")
             .run(|app, event| {
                 if matches!(event, RunEvent::Exit) {
+                    // 先落盘再拆子进程：即便后面某步 panic，也留下了「正常退出」的结论
+                    crate::utils::diagnostics::mark_clean_exit();
+                    tracing::info!("应用退出，开始回收 sidecar");
                     goose_serve::shutdown(app);
                     sidecar::shutdown(app);
                     crate::utils::terminal::shutdown(app);

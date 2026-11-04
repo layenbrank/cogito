@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react'
 import { NavigationType, useLocation, useMatches, useNavigationType, useOutlet } from 'react-router-dom'
 
 import { Fallback } from '@/components/fallback/index.ts'
+import { ErrorBoundary } from '@/components/fallback/ErrorBoundary.tsx'
 import { isOverviewPath } from '@/features/magnetic-tile/overview-path'
 
 import { findTransitionKey } from './transition-key.ts'
@@ -72,7 +73,16 @@ function RouteTransition() {
         initial={{ opacity: initialOpacity, x: distance }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration, ease: EASE_OUT }}>
-        <Suspense fallback={<Fallback.Route />}>{outlet}</Suspense>
+        <Suspense fallback={<Fallback.Route />}>
+          {/* 磁贴/页面级兜底：单视图崩溃只坏这一块，墙与导航不受影响 */}
+          <ErrorBoundary
+            compact
+            boundaryId={`route:${location.pathname}`}
+            resetKeys={[location.pathname]}
+            title="这个页面崩溃了">
+            {outlet}
+          </ErrorBoundary>
+        </Suspense>
       </m.div>
     </AnimatePresence>
   )

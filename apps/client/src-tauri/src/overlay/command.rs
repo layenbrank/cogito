@@ -4,6 +4,8 @@ use tauri::{
     WebviewWindowBuilder,
 };
 
+use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
 use crate::overlay::state::{
     OverlayHealth, OverlayMountPayload, OverlayPending, OverlayUnmountPayload, is_stale,
 };
@@ -48,6 +50,69 @@ pub(crate) fn apply_bounds(app: &AppHandle) -> Result<(), String> {
     }
     let _ = window.set_always_on_top(true);
     Ok(())
+}
+
+/// 截屏态的兜底 Esc：渲染进程挂了也要能退出浮层。
+///
+/// 只在「进入截图态」时注册、离开就注销 —— 常驻注册会把其它应用的 Esc 抢走。
+/// 这里不判按下/抬起：`overlay_park` 本身幂等，重复触发无副作用。
+const ESC_SHORTCUT: &str = "Escape";
+
+/// 全局 Esc 的绑定策略：**只有**截屏态占用系统 Esc。
+///
+/// 抽成纯函数是为了让「非截屏态绝不注册 Esc」这条不变式有单测锁住 ——
+/// 常驻注册会把其它应用的 Esc 抢走，比卡死更隐蔽。
+pub(crate) fn escape_should_bind(mode: OverlayMode) -> bool {
+    matches!(mode, OverlayMode::Screenshot)
+}
+
+fn bind_escape(app: &AppHandle) {
+    let handle = app.clone();
+    let result = app.global_shortcut().on_shortcut(
+        ESC_SHORTCUT,
+        move |_app, _shortcut, _event| {
+            tracing::info!("overlay: 全局 Esc 触发，收起浮层");
+            let handle = handle.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(error) = overlay_park(handle).await {
+                    tracing::warn!("overlay: 全局 Esc 收起失败: {error}");
+                }
+            });
+        },
+    );
+    if let Err(error) = result {
+        tracing::warn!("overlay: 注册全局 Esc 失败（{error}）");
+    }
+}
+
+fn unbind_escape(app: &AppHandle) {
+    if let Err(error) = app.global_shortcut().unregister(ESC_SHORTCUT) {
+        // 没注册过也算正常路径（idle 重复调用）
+        tracing::debug!("overlay: 注销全局 Esc 跳过: {error}");
+    }
+}
+
+/// 演练：进截屏态（等价于用户触发截屏），用于真机验证「全局 Esc 收起浮层」。
+///
+/// 只在 debug 构建里存在；`COGITO_DEV_SCREENSHOT_MS=<毫秒>` 到点执行。
+#[cfg(debug_assertions)]
+pub fn spawn_dev_screenshot(app: AppHandle) {
+    let Some(raw) = std::env::var_os("COGITO_DEV_SCREENSHOT_MS") else {
+        return;
+    };
+    let Ok(ms) = raw.to_string_lossy().trim().parse::<u64>() else {
+        return;
+    };
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+        match overlay_update_mode(app.clone(), "screenshot".to_string()).await {
+            Ok(()) => tracing::warn!(
+                target: "overlay",
+                "演练：已进入截屏态（全局 Esc 已注册），等待 Esc 或看门狗"
+            ),
+            Err(error) => tracing::error!(target: "overlay", "演练：进入截屏态失败: {error}"),
+        }
+    });
 }
 
 fn emit_mode(app: &AppHandle, mode: OverlayMode) {
@@ -193,6 +258,12 @@ pub async fn overlay_hide(app: AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
         let _ = window.set_ignore_cursor_events(true);
         let _ = window.set_always_on_top(true);
+        unbind_escape(&app);
+        tracing::info!(
+            target: "overlay",
+            "overlay: 回到 idle —— 点击穿透已恢复，窗口保留（visible={:?}）",
+            window.is_visible().unwrap_or(false)
+        );
     }
     emit_mode(&app, OverlayMode::Idle);
     Ok(())
@@ -206,6 +277,12 @@ pub async fn overlay_park(app: AppHandle) -> Result<(), String> {
     }
     if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
         let _ = window.hide();
+        unbind_escape(&app);
+        tracing::info!(
+            target: "overlay",
+            "overlay: 浮层已隐藏（visible={:?}），不再吃点击",
+            window.is_visible().unwrap_or(false)
+        );
     }
     emit_mode(&app, OverlayMode::Idle);
     Ok(())
@@ -233,6 +310,12 @@ pub async fn overlay_update_mode(app: AppHandle, mode: String) -> Result<(), Str
     } else if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
         // idle：窗口常驻但不吃指针，立刻切回穿透（不靠 50ms 的轮询窗口）
         let _ = window.set_ignore_cursor_events(true);
+    }
+
+    if escape_should_bind(parsed) {
+        bind_escape(&app);
+    } else {
+        unbind_escape(&app);
     }
 
     emit_mode(&app, parsed);
@@ -326,4 +409,29 @@ pub async fn overlay_take_pending_unmount(
 ) -> Result<Option<OverlayUnmountPayload>, String> {
     let mut guard = pending.unmount.lock().await;
     Ok(guard.take())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn escape_binds_only_in_screenshot_mode() {
+        assert!(escape_should_bind(OverlayMode::Screenshot));
+        assert!(!escape_should_bind(OverlayMode::Idle));
+    }
+
+    /// 结构防线：每条退出截屏态的路径都必须注销 Esc。
+    /// 新增退出路径却忘了 unbind，别的应用的 Esc 会被长期占着（用户点哪都没反应）。
+    #[test]
+    fn every_exit_path_unbinds_escape() {
+        let source = include_str!("command.rs");
+        // 用 concat 拼出模式串，避免把本测试自身的字面量也数进去
+        let pattern = concat!("unbind_escape", "(&app);");
+        let calls = source.matches(pattern).count();
+        assert!(
+            calls >= 3,
+            "overlay_hide / overlay_park / update_mode 的非截屏分支都要注销 Esc，实际 {calls} 处"
+        );
+    }
 }

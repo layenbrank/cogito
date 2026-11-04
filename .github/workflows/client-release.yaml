@@ -31,6 +31,12 @@ on:
         required: false
         type: boolean
         default: false
+      variant:
+        description: "Bundle variant: slim (default, no pandoc/ffmpeg/ffprobe) | full"
+        required: false
+        type: choice
+        options: [slim, full]
+        default: slim
 
 permissions:
   contents: write
@@ -43,9 +49,7 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: '0'
   SIDECAR_DIR: apps/client/src-tauri/binaries
-  SIDECAR_EXE: apps/client/src-tauri/binaries/corex-serve-x86_64-pc-windows-msvc.exe
   SIDECAR_PDFIUM: apps/client/src-tauri/binaries/pdfium.dll
-  SIDECAR_SUMS: apps/client/src-tauri/binaries/SHA256SUMS
   BUNDLE_DIR: apps/client/src-tauri/target/release/bundle
   TAURI_CONF: apps/client/src-tauri/tauri.conf.json
   # Authenticode 时间戳服务（仅 signtool 协议，浏览器无法打开属正常）
@@ -169,40 +173,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify sidecar binaries + checksums
+      - name: Stage sidecar binaries
         shell: pwsh
+        env:
+          CLIENT_SIDECAR_VARIANT: ${{ inputs.variant || 'slim' }}
         run: |
-          foreach ($path in @($env:SIDECAR_EXE, $env:SIDECAR_PDFIUM, $env:SIDECAR_SUMS)) {
-            if (-not (Test-Path $path)) {
-              Write-Error "Missing: $path"
-              exit 1
-            }
-          }
-
-          $failed = $false
-          Get-Content $env:SIDECAR_SUMS | Where-Object { $_.Trim() -and ($_ -notmatch '^\s*#') } | ForEach-Object {
-            if ($_ -notmatch '^(?<hash>[a-fA-F0-9]{64})\s{2}(?<name>.+)$') {
-              Write-Error "Malformed SHA256SUMS line: $_"
-              $failed = $true
-              return
-            }
-            $file = Join-Path $env:SIDECAR_DIR $Matches['name']
-            if (-not (Test-Path $file)) {
-              Write-Error "Checksum entry missing file: $file"
-              $failed = $true
-              return
-            }
-            $actual = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
-            $expected = $Matches['hash'].ToLowerInvariant()
-            if ($actual -ne $expected) {
-              Write-Error "Checksum mismatch for $($Matches['name']): expected $expected got $actual"
-              $failed = $true
-              return
-            }
-            Write-Host "OK $($Matches['name'])"
-          }
-
-          if ($failed) { exit 1 }
+          # 档位唯一来源是 CLIENT_SIDECAR_VARIANT：slim（默认）只落必需件，
+          # full 才追加 pandoc / ffmpeg / ffprobe。checksums.json（schemaVersion 2）
+          # 由 bootstrap 生成，verify 逐文件核 sha256 —— 不再依赖手写的 SHA256SUMS。
+          pnpm command sidecar bootstrap client
+          pnpm command sidecar verify client
+          Write-Host "client variant => $env:CLIENT_SIDECAR_VARIANT"
 
       - name: Bind updater channel endpoint
         shell: pwsh
@@ -270,6 +251,7 @@ jobs:
           RUSTC_WRAPPER: ''
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+          CLIENT_SIDECAR_VARIANT: ${{ inputs.variant || 'slim' }}
         run: pnpm build:client
 
       - name: Collect release artifacts

@@ -27,7 +27,18 @@ class CaptureErrorBoundary extends Component<CaptureErrorBoundaryProps, CaptureE
       { kind: 'CaptureErrorBoundary', componentStack: info.componentStack ?? undefined },
       'error'
     )
-    this.props.onError()
+    // onError → toScreenshotExit；它自己也可能是错的（store / IPC 一起坏了），
+    // 所以必须再兜一层：退到 onClose，至少把窗口收掉，别让透明浮层继续吃点击。
+    try {
+      this.props.onError()
+    } catch (nested) {
+      console.error('[CaptureErrorBoundary] onError 自身失败，退回 onClose', nested)
+      try {
+        this.props.onClose()
+      } catch (closeError) {
+        console.error('[CaptureErrorBoundary] onClose 也失败，只能靠 Rust 看门狗', closeError)
+      }
+    }
   }
 
   override render() {

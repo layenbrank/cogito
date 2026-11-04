@@ -9,8 +9,8 @@
  *   pnpm command distribution publish:client --release 1.5.0 --channel stable
  *   pnpm command distribution publish:client --dir <bundle> --channel alpha
  */
-import { readFile } from 'node:fs/promises'
-import { basename } from 'node:path'
+import { readFile, readdir } from 'node:fs/promises'
+import { basename, join } from 'node:path'
 
 import { findPublicUrl, findUpdaterEndpoint, PUBLIC_BASE } from '../src/public-base.ts'
 import {
@@ -19,6 +19,7 @@ import {
   formatInventoryLines
 } from './find-client-bundle.ts'
 import { parseArgs, runMain } from './upload-args.ts'
+import { OPTIONAL_TOOL_FILES, checkVariantGuard, parseVariant } from './variant-guard.ts'
 import { findAuthKey, putBytesViaWorker, uploadFileViaWorker } from './worker-upload.ts'
 
 const CHANNELS = new Set(['stable', 'alpha', 'beta', 'rc'])
@@ -45,8 +46,34 @@ bundle 目录优先级：
   --notes <文案>           latest.json notes（默认 Client <version> (<channel>)）
   --skip-exe               不上传 *-setup.exe
   --skip-msi               不上传 *.msi
+  --variant <slim|full>    产物档位（默认 slim；full 会校验 pandoc/ffmpeg/ffprobe 齐全）
+  --allow-full             精简版产物里混进可选件时仍允许上传（默认拒绝）
   --dry-run                只扫描并打印产物清单（不鉴权、不上传）
   --help                   显示本帮助`
+
+/** 递归清点 bundle 里「只有完整版才有」的件（深度上限 4，别扫进巨大的依赖树） */
+async function findOptionalToolFiles(root: string): Promise<string[]> {
+  const found: string[] = []
+
+  async function walk(dir: string, depth: number): Promise<void> {
+    if (depth > 4) return
+    const entries = await readdir(dir, { withFileTypes: true }).catch(function (error) {
+      console.warn(`[publish-client] 跳过无法读取的目录 ${dir}: ${String(error)}`)
+      return null
+    })
+    if (!entries) return
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        await walk(join(dir, entry.name), depth + 1)
+      } else if ((OPTIONAL_TOOL_FILES as readonly string[]).includes(entry.name)) {
+        found.push(entry.name)
+      }
+    }
+  }
+
+  await walk(root, 0)
+  return found
+}
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2))
@@ -68,6 +95,8 @@ async function main(): Promise<void> {
   const skipExe = args.get('skip-exe') === 'true'
   const skipMsi = args.get('skip-msi') === 'true'
   const isDryRun = args.get('dry-run') === 'true'
+  const variant = parseVariant(args.get('variant'))
+  const allowFull = args.get('allow-full') === 'true'
 
   const inventory = await findClientBundleInventory({
     explicitDir: args.get('dir'),
@@ -80,6 +109,15 @@ async function main(): Promise<void> {
   for (const line of formatInventoryLines(inventory)) {
     console.log(`  ${line}`)
   }
+
+  // 发布守卫：默认只放行精简版（完整版必须显式 --allow-full / --variant full）
+  const optionalFiles = await findOptionalToolFiles(inventory.bundleDir)
+  const guard = checkVariantGuard({ variant, files: optionalFiles, allowFull })
+  if (!guard.ok) throw new Error(guard.reason)
+  console.log(
+    `打包档位: ${variant}` +
+      (optionalFiles.length > 0 ? ` · 含 ${optionalFiles.join(' / ')}` : ' · 无完整版大件')
+  )
 
   if (isDryRun) {
     console.log('')

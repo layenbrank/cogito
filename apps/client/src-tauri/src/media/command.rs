@@ -105,9 +105,36 @@ fn find_tool_path(app: &AppHandle, name: &str) -> Result<PathBuf, String> {
         }
     }
 
-    Err(format!(
-        "找不到可用的 {exe_name}，请确认 sidecar 已 bootstrap（FFmpeg 9.0.2）"
-    ))
+    Err(missing_tool_hint(&exe_name))
+}
+
+/// 缺可选工具时的用户可见文案：说清「为什么没有」和「去哪儿解决」。
+///
+/// slim 包刻意不带 ffmpeg / pandoc 这类上百 MB 的大件，用户点导出时
+/// 必须看到人话，而不是 `No such file or directory (os error 2)`。
+fn missing_tool_hint(exe_name: &str) -> String {
+    format!("精简版未内置 {exe_name}（媒体转码需要完整版）；可在 设置 → 诊断 查看完整版能力")
+}
+
+/// 演练：把「找不到可选工具」的真实文案打进日志，用于核对 slim 包的提示。
+///
+/// 只在 debug 构建里存在；`COGITO_DEV_TOOL_PROBE=1` 触发。
+#[cfg(debug_assertions)]
+pub fn spawn_dev_tool_probe(app: AppHandle) {
+    if std::env::var_os("COGITO_DEV_TOOL_PROBE").is_none() {
+        return;
+    }
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(1_200));
+        for tool in ["ffmpeg", "ffprobe", "pandoc"] {
+            match find_tool_path(&app, tool) {
+                Ok(path) => tracing::info!(target: "media", "演练：{tool} 可用 → {}", path.display()),
+                Err(error) => {
+                    tracing::warn!(target: "media", "演练：{tool} 缺失，用户可见提示 = {error}")
+                }
+            }
+        }
+    });
 }
 
 fn run_capture(bin: &Path, args: &[&str]) -> Result<String, String> {
@@ -683,4 +710,32 @@ pub async fn media_waveform(app: AppHandle, args: WaveformArgs) -> Result<Wavefo
     })
     .await
     .map_err(|e| format!("media:waveform 线程异常: {e}"))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::missing_tool_hint;
+
+    #[test]
+    fn missing_tool_hint_is_user_readable() {
+        let hint = missing_tool_hint("ffmpeg");
+        assert!(hint.contains("ffmpeg"), "要点名缺的是哪个二进制: {hint}");
+        assert!(hint.contains("完整版"), "要指路到完整版: {hint}");
+        assert!(hint.contains("诊断"), "要指路到设置里的诊断页: {hint}");
+        assert!(
+            !hint.contains("os error") && !hint.contains("No such file"),
+            "不能把系统错误直接甩给用户: {hint}"
+        );
+        assert!(hint.chars().count() <= 120, "提示过长: {hint}");
+    }
+
+    #[test]
+    fn missing_tool_hint_covers_optional_tools() {
+        for tool in ["ffmpeg", "ffprobe", "pandoc"] {
+            assert!(
+                missing_tool_hint(tool).contains(tool),
+                "{tool} 的提示要带工具名"
+            );
+        }
+    }
 }

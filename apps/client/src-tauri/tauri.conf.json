@@ -211,10 +211,7 @@
     "publisher": "layen",
     "resources": {
       "icons/": "icons/",
-      "binaries/pdfium.dll": "pdfium.dll",
-      "binaries/pandoc.exe": "binaries/pandoc.exe",
-      "binaries/ffmpeg.exe": "binaries/ffmpeg.exe",
-      "binaries/ffprobe.exe": "binaries/ffprobe.exe"
+      "binaries/pdfium.dll": "pdfium.dll"
     },
     "targets": "all",
     "windows": {
