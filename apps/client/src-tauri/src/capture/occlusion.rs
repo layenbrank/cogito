@@ -43,6 +43,16 @@ impl Box2 {
     }
 }
 
+/// 是否值得进候选（可见比例达到阈值）。
+///
+/// 顶层窗口与子控件共用同一把尺子，但**调用顺序不同**：
+/// - 顶层窗口：先用**更高 z 序**的覆盖表判自己，再把自己的矩形 `cover()` 进去；
+/// - 子控件：必须在父窗 `cover()` **之前**判定 —— 子控件必然落在父窗矩形内，
+///   先盖父窗就会把它的每个子控件都判成 0 可见（滚轮再也细化不到控件）。
+pub fn is_visible_enough(grid: &CoverageGrid, area: &Box2) -> bool {
+    grid.visible_ratio(area) >= MIN_VISIBLE_RATIO
+}
+
 /// 覆盖网格：记录「已经被更高 z 序窗口盖住」的单元格
 pub struct CoverageGrid {
     left: i32,
@@ -182,6 +192,29 @@ mod tests {
         grid.cover(&rect);
         // 完全同矩形的下一层：一个可见单元都不剩
         assert_eq!(grid.visible_ratio(&rect), 0.0);
+    }
+
+    #[test]
+    fn child_is_judged_before_its_parent_covers_the_grid() {
+        let mut grid = grid();
+        // 上层窗口只盖住左半屏
+        grid.cover(&window(0, 0, 960, 1080));
+
+        let parent = window(0, 0, 1920, 1080);
+        // 子控件在父窗内、但在上层窗口之外 → 此刻应当可见
+        let child = window(1200, 400, 1600, 800);
+        assert!(
+            is_visible_enough(&grid, &child),
+            "父窗尚未 cover 时子控件必须可见"
+        );
+
+        // 父窗自己盖上之后，子控件（必在其矩形内）就一个可见单元都不剩 ——
+        // 这正是 `region.rs` 必须「先枚举子控件、后 cover 父窗」的原因
+        grid.cover(&parent);
+        assert!(
+            !is_visible_enough(&grid, &child),
+            "父窗 cover 之后子控件会被误判，调用顺序不能反"
+        );
     }
 
     #[test]

@@ -4,7 +4,7 @@
 
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize};
 
-use crate::capture::occlusion::{Box2, CoverageGrid, MIN_VISIBLE_RATIO};
+use crate::capture::occlusion::{Box2, CoverageGrid, is_visible_enough};
 use crate::capture::schema::{CaptureRegion, RegionKind};
 use crate::overlay::command::OVERLAY_LABEL;
 
@@ -202,8 +202,8 @@ fn find_windows_regions(
             return TRUE;
         };
         let screen_box = to_screen_box(child_box);
-        // 子控件也可能被上层窗口盖住：与顶层窗口同一把尺子
-        if state.grid.visible_ratio(&to_area(screen_box)) < MIN_VISIBLE_RATIO {
+        // 子控件也可能被上层窗口盖住：与顶层窗口同一把尺子（此刻网格里**没有**父窗自己）
+        if !is_visible_enough(state.grid, &to_area(screen_box)) {
             return TRUE;
         }
         let meta = RegionMeta {
@@ -278,7 +278,7 @@ fn find_windows_regions(
         // 前台可见性：被更高 z 序窗口盖掉大半（< MIN_VISIBLE_RATIO）就不进候选，
         // 否则滚轮能选到屏幕上根本看不见的窗口。
         let area = to_area(to_screen_box(window_box));
-        if state.grid.visible_ratio(&area) < MIN_VISIBLE_RATIO {
+        if !is_visible_enough(&state.grid, &area) {
             return TRUE;
         }
         let hwnd_text = hwnd_id(hwnd);
@@ -315,9 +315,6 @@ fn find_windows_regions(
             state.regions.push(region);
         }
 
-        // 这扇窗占住的区域要记进网格：z 序从顶到底推进，后到的窗只看得见没被盖的部分
-        state.grid.cover(&area);
-
         if state.child_budget > 0 {
             let quota = state.child_budget.min(MAX_CHILD_PER_WINDOW);
             let used = {
@@ -341,6 +338,10 @@ fn find_windows_regions(
             };
             state.child_budget -= used;
         }
+        // 这扇窗占住的区域要记进网格：z 序从顶到底推进，后到的窗只看得见没被盖的部分。
+        // 必须放在枚举子控件**之后**：子控件都落在父窗矩形内，先盖父窗会把它们全判成不可见。
+        state.grid.cover(&area);
+
         TRUE
     }
 

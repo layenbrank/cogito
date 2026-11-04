@@ -162,6 +162,10 @@ bufferH = stageHeight × pixelRatio ≈ naturalHeight
 - 子控件额外校验**祖先链可见**（`IsWindowVisible` 只看自身标志位，隐藏父窗下的子窗仍返回 TRUE），
   并且**按窗配额**（`MAX_CHILD_PER_WINDOW = 120`，全局兜底 `MAX_CHILD_REGIONS = 400`）：
   一个巨型控件树不该把后面所有窗口的名额吃光。
+- **判定顺序**：顶层窗口先用**更高 z 序**的覆盖表判自己，再把自己的矩形 `cover()` 进去；
+  子控件必须在父窗 `cover()` **之前**判定 —— 子控件必然落在父窗矩形内，先盖父窗会把它们全判成
+  0 可见（滚轮再也细化不到控件）。`occlusion::is_visible_enough` 是两侧共用的唯一阈值入口，
+  `child_is_judged_before_its_parent_covers_the_grid` 单测锁住这条顺序。
 - 遮挡判定是**近似**：极端贴边的叠层会略偏；阈值是常量，便于调；不做逐像素多边形裁剪（收益低）。
 
 ## 8. 标注默认样式的记忆
@@ -247,3 +251,4 @@ apps/client/src/features/capture/
 | 2026-08-17 | 首次记录：亚像素再采样导致发糊；HTML backdrop 导致 Windows 透明窗无法框选；定案为 Konva 底图 + `natural/dpr` + 关闭平滑。 |
 | 2026-10-26 | 补「发布 pending 早于切模式」硬约束：修复快捷键触发时偶发「未找到预截图」（前端挂载时 pending 还没写）。 |
 | 2026-11-05 | 截屏链路加固：单飞闸门改 RAII（`PendingGuard`）+ 截屏态短路；热键下沉 Rust 原生注册；加载期用冻结帧铺底、首帧上限 400→800ms；新增 `capture:cursor` 在 ready 后种一次悬停；候选窗口加覆盖网格（48px / 15%）、`IsHungAppWindow` 过滤、子控件按窗配额；悬停文案去重 / 拖拽 rAF 合并 / 滚轮兜底 / 阶段切换 cancel 探针；标注默认样式持久化到 `Setting.Capture.style`（新增 §7–§9）。 |
+| 2026-11-05 | 修 §7 的判定顺序回归：`region.rs` 原先在枚举子控件**之前**就 `cover()` 父窗，导致子控件（必在父窗内）可见比例恒为 0、滚轮细化不到控件；改为「先子控件、后父窗」，并抽出 `occlusion::is_visible_enough` 统一阈值 + 单测锁顺序。 |
