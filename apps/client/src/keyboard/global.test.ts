@@ -35,6 +35,31 @@ vi.mock('@tauri-apps/plugin-global-shortcut', function () {
   }
 })
 
+/**
+ * 截屏热键已下沉到宿主（`capture:hotkey`），这里按与插件一致的语义记录调用，
+ * 让「注册/注销顺序」这类断言对两条通道保持同一份期望值。
+ */
+vi.mock('@tauri-apps/api/core', function () {
+  return {
+    invoke: function (
+      command: string,
+      args?: { params?: { accelerator?: string | null; release?: string | null } }
+    ) {
+      if (command !== 'capture:hotkey') return Promise.resolve(null)
+      const params = args?.params ?? {}
+      const release = params.release ?? null
+      if (release) {
+        mock.calls.push(`unregister:${release}`)
+        return Promise.resolve(null)
+      }
+      const accelerator = params.accelerator ?? ''
+      mock.calls.push(`register:${accelerator}`)
+      if (mock.occupied.has(accelerator)) return Promise.reject(new Error('occupied'))
+      return Promise.resolve(accelerator)
+    }
+  }
+})
+
 /** 每个用例拿一份全新的模块状态（`applied` 与队列都是模块级的） */
 async function bootstrapGlobal() {
   vi.resetModules()

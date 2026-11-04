@@ -15,9 +15,25 @@
   inset: 0;
   z-index: 150;
   /* 不透明：冻结帧还没画出来之前，绝不能露出实时桌面 */
-  background: #0a0a0a;
+  background-color: #0a0a0a;
+  /* 冻结帧一拿到 path 就铺在这里：加载期看到的是截图本身，不是黑屏 */
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
   pointer-events: auto;
   cursor: wait;
+}
+
+.loadingBadge {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(10, 10, 10, 0.72);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 12px;
+  letter-spacing: 0.02em;
 }
 
 /* 错误态：居中错误卡片（截图链路失败可见化） */

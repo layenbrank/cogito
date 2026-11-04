@@ -15,6 +15,7 @@
  * 无论哪种情况，`effective` 都只改运行时，**不覆写用户在设置里写的值**。
  */
 
+import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { isRegistered, register, unregister } from '@tauri-apps/plugin-global-shortcut'
 import { useEffect } from 'react'
@@ -22,7 +23,8 @@ import { toast } from 'sonner'
 
 import { toAcceleratorText, validateBinding } from '@/keyboard/binding'
 import { runCommand } from '@/keyboard/commands'
-import { GLOBAL_SHORTCUTS, resolveBinding } from '@/keyboard/definitions'
+import { GLOBAL_SHORTCUTS, resolveBinding, SHORTCUT_COMMAND } from '@/keyboard/definitions'
+import { CHANNELS } from '@/shared/ipc/channels'
 import { reportCaught } from '@/utils/exception-report'
 import { publishGlobalShortcuts, readGlobalShortcuts } from '@/keyboard/state'
 import type { GlobalShortcutDefinition, GlobalShortcutRuntime } from '@/keyboard/types'
@@ -30,6 +32,27 @@ import { useSettingsStore } from '@/stores/setting'
 
 /** 全局热键只在主窗注册 */
 const MAIN_WINDOW_LABEL = 'main'
+
+/**
+ * 由**宿主**注册的全局键：`plugin-global-shortcut` 的 JS 通道走 webview 的 Channel 回调，
+ * 主窗隐藏到托盘后渲染进程被挂起/节流，回调会延迟甚至丢失（「按了没反应」）。
+ * 截屏键的下沉实现见 `src-tauri/src/capture/hotkey.rs`；其余全局键仍走插件原路。
+ */
+const NATIVE_GLOBAL_IDS = new Set<string>([SHORTCUT_COMMAND.CAPTURE_SCREENSHOT])
+
+function isNativeGlobal(id: string): boolean {
+  return NATIVE_GLOBAL_IDS.has(id)
+}
+
+/** 宿主注册；被占用 / 非法组合会抛错，由 fallback 链决定下一步 */
+async function registerNative(accelerator: string): Promise<void> {
+  await invoke(CHANNELS.CAPTURE.HOTKEY, { params: { accelerator, release: null } })
+}
+
+/** 宿主注销；`release` 显式给出要撤的组合（命令行不猜） */
+async function unregisterNative(accelerator: string): Promise<void> {
+  await invoke(CHANNELS.CAPTURE.HOTKEY, { params: { accelerator: null, release: accelerator } })
+}
 
 /** id → 当前真正注册在 OS 上的 accelerator（null = 没注册） */
 const activeBindings = new Map<string, string | null>()
@@ -77,6 +100,17 @@ async function tryRegister(
   accelerator: string,
   definition: GlobalShortcutDefinition
 ): Promise<RegisterResult> {
+  // 截屏键：宿主注册，失败即回（不再探测 isRegistered —— 那个探测是为了清理
+  // 「上次会话残留」，而宿主注册随进程退出一起消失，盲目注销只会抢别的应用的键）
+  if (isNativeGlobal(id)) {
+    try {
+      await registerNative(accelerator)
+      return { ok: true }
+    } catch (error) {
+      console.debug('[keyboard] 宿主注册全局键未成功', { accelerator, error })
+      return { ok: false, error }
+    }
+  }
   try {
     await register(accelerator, onGlobalPressed(id, definition))
     return { ok: true }
@@ -103,6 +137,12 @@ async function release(id: string): Promise<void> {
   const current = activeBindings.get(id)
   if (!current) return
   activeBindings.set(id, null)
+  if (isNativeGlobal(id)) {
+    await unregisterNative(current).catch(function (error: unknown) {
+      console.warn('[keyboard] 注销宿主全局键失败', { id, current, error })
+    })
+    return
+  }
   await unregister(current).catch(function (error: unknown) {
     console.warn('[keyboard] 注销全局键失败', { id, current, error })
   })

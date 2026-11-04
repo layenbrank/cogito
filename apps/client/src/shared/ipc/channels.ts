@@ -92,7 +92,9 @@ export const CHANNELS = {
     READY: 'capture:ready',
     ELEMENTS: 'capture:elements',
     OCR: 'capture:ocr',
-    PRUNE: 'capture:prune'
+    PRUNE: 'capture:prune',
+    HOTKEY: 'capture:hotkey',
+    CURSOR: 'capture:cursor'
   },
   OVERLAY: {
     ENSURE: 'overlay:ensure',

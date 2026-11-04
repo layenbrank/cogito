@@ -94,6 +94,8 @@ function useCaptureLifecycle(input: {
       if (!result) {
         throw new Error('未找到预截图，请点重试')
       }
+      // 先交 path：加载期铺冻结帧，避免重拍时又看到一段黑幕
+      input.onUpdateSourcePath(result.path)
       const img = await fetchImageFromPath(result.path)
       input.regionsRef.current = result.regions ?? []
       input.onUpdateSourcePath(result.path)

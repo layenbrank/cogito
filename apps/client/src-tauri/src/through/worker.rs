@@ -17,6 +17,8 @@ pub fn spawn_worker<R: Runtime>(app: AppHandle<R>) {
         }
 
         let mut last_ignore: Option<bool> = None;
+        // 代次：`ThroughState::reapply()` 之后必须丢弃缓存重算（见 state.rs 的注释）
+        let mut last_generation = 0u64;
 
         loop {
             tokio::time::sleep(Duration::from_millis(POLL_INTERVAL_MS)).await;
@@ -25,6 +27,13 @@ pub fn spawn_worker<R: Runtime>(app: AppHandle<R>) {
                 Some(s) => s,
                 None => continue,
             };
+
+            // 期望态被外部改写（进出截屏态、探针 guard 复原）→ 作废缓存，本轮无条件重下
+            let generation = state.generation();
+            if generation != last_generation {
+                last_generation = generation;
+                last_ignore = None;
+            }
 
             let window = match app.get_webview_window(&state.window_label) {
                 Some(w) => w,

@@ -12,7 +12,7 @@ use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::oneshot;
 
-use crate::capture::region::find_overlay_regions;
+use crate::capture::region::{OverlayFrame, find_overlay_regions};
 use crate::capture::schema::{CaptureRegion, ScreenshotResult};
 use crate::capture::state::{CaptureHandshake, CapturePending};
 use crate::overlay::command::{OVERLAY_LABEL, overlay_ensure, overlay_update_mode};
@@ -26,8 +26,10 @@ use crate::utils::ipc;
 
 /// 等前端把 DOM 藏好的上限；超时继续（低配机上 2×rAF + IPC 可能更慢）
 const CONCEAL_TIMEOUT_MS: u64 = 120;
-/// 等前端把冻结帧画上屏的上限；超时也 reveal（不能因为一次握手失败卡死截屏）
-const READY_TIMEOUT_MS: u64 = 400;
+/// 等前端把冻结帧画上屏的上限；超时也 reveal（不能因为一次握手失败卡死截屏）。
+/// 800ms 而不是 400ms：加载期已经用冻结帧铺底（`CaptureLoadingMask`），超时不会露出实时桌面，
+/// 放宽只是让低配机上的真首帧有机会被等到。
+const READY_TIMEOUT_MS: u64 = 800;
 
 /// 抓屏文件名序号：同一毫秒内的两次抓屏不会互相覆盖
 static SCREENSHOT_SEQ: AtomicU64 = AtomicU64::new(0);
@@ -260,20 +262,34 @@ pub async fn capture_screenshot(app: AppHandle) -> Result<ScreenshotResult, Stri
     })
 }
 
-/// 先截图再进入 screenshot 模式，避免空层等待。overlay 窗口保持显示。
-#[tauri::command(rename = "capture:open")]
-pub async fn capture_open(
-    app: AppHandle,
-    pending: State<'_, CapturePending>,
-) -> Result<(), String> {
-    // 单飞：连按快捷键只抓一次（否则 pending 被覆盖、还可能把遮罩自己拍进去）
-    if !pending.try_begin() {
+/// `capture:open` 的实体：Tauri 命令与全局热键（`capture::hotkey`）共用。
+///
+/// 热键路径不经过任何 webview，所以这里必须自己从 `AppHandle` 取 state。
+pub(crate) async fn open_capture(app: &AppHandle) -> Result<(), String> {
+    let pending = app.state::<CapturePending>();
+    // 截屏态里再按热键：已挂载的截屏 UI 不会重新取 pending（否则会丢掉正在做的标注），
+    // 直接短路 —— 不重抓、不 conceal/reveal、不空等首帧握手（旧实现会白等 400ms 并闪一下）。
+    let already_in_capture = app
+        .try_state::<ThroughState>()
+        .map(|through| through.is_screenshot_mode())
+        .unwrap_or(false);
+    if already_in_capture {
+        tracing::debug!(target: "capture", "capture:open 命中截屏态，忽略本次触发");
         return Ok(());
     }
+    // 单飞：连按快捷键只抓一次（否则 pending 被覆盖、还可能把遮罩自己拍进去）。
+    // guard 在函数退出（含 future 被丢弃）时复位闸门，不会再出现「按一次再也起不来」。
+    let Some(_guard) = pending.begin() else {
+        return Ok(());
+    };
     // 帧在 capture_once 内、切模式之前就写进 pending：前端拿到模式事件立刻能取到
-    let result = capture_once(&app, true, Some(&pending)).await;
-    pending.end();
-    result.map(|_| ())
+    capture_once(app, true, Some(&pending)).await.map(|_| ())
+}
+
+/// 先截图再进入 screenshot 模式，避免空层等待。overlay 窗口保持显示。
+#[tauri::command(rename = "capture:open")]
+pub async fn capture_open(app: AppHandle) -> Result<(), String> {
+    open_capture(&app).await
 }
 
 /// 重新截图：整体重来一遍，新帧直接返回（前端重置标注后重新载入）。
@@ -282,13 +298,12 @@ pub async fn capture_refresh(
     app: AppHandle,
     pending: State<'_, CapturePending>,
 ) -> Result<ScreenshotResult, String> {
-    if !pending.try_begin() {
+    // guard 在函数退出（含 future 被丢弃）时复位闸门
+    let Some(_guard) = pending.begin() else {
         return Err("[capture:refresh] 上一次截屏还没结束".to_string());
-    }
+    };
     // 重拍由调用方直接拿返回值，不再经过 pending
-    let result = capture_once(&app, false, None).await;
-    pending.end();
-    result
+    capture_once(&app, false, None).await
 }
 
 /// 消费 capture:open 预截结果（一次性 take）
@@ -342,6 +357,29 @@ pub async fn capture_ready(app: AppHandle) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// 光标在 overlay 局部逻辑像素里的位置
+#[derive(Debug, Serialize)]
+pub struct CursorPoint {
+    pub x: f64,
+    pub y: f64,
+}
+
+/// 读光标位置（overlay 局部逻辑像素）。
+///
+/// 用途：进入截屏态后前端按这个点种一次悬停 —— 选区吸附框只由 mousemove 驱动，
+/// 用户按完热键不动鼠标就一直是空遮罩，看起来像「点一下才出来」。
+#[tauri::command(rename = "capture:cursor")]
+pub async fn capture_cursor(app: AppHandle) -> Result<Option<CursorPoint>, String> {
+    let Some(frame) = OverlayFrame::find(&app) else {
+        return Ok(None);
+    };
+    let Some((px, py)) = crate::through::cursor::get_cursor_position() else {
+        return Ok(None);
+    };
+    let (x, y) = frame.to_logical(px, py);
+    Ok(Some(CursorPoint { x, y }))
 }
 
 /// 选择器元素级探测的入参（overlay 局部逻辑像素）

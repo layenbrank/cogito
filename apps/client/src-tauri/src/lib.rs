@@ -29,6 +29,9 @@ pub mod overlay {
 
 pub mod capture {
     pub mod command;
+    pub mod hotkey;
+    /// 候选窗口可见性判定（覆盖网格，纯函数，便于单测）
+    pub mod occlusion;
     pub mod region;
     pub mod schema;
     pub mod state;

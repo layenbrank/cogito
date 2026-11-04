@@ -31,6 +31,8 @@ interface CaptureStageViewProps {
   selectedIDs: string[]
   annotations: GraphicsProps[]
   sourceImage: HTMLImageElement | null
+  /** 冻结帧磁盘路径：加载期用它铺底（`CaptureLoadingMask`） */
+  sourcePath: string | null
   actions: CaptureActions
   onUpdateSelection: (selection: { x: number; y: number; w: number; h: number } | null) => void
   phase: Phase
@@ -65,7 +67,9 @@ function CaptureStageView(props: CaptureStageViewProps) {
         />
       ) : (
         <>
-          {props.captureStatus === 'loading' ? <CaptureLoadingMask /> : null}
+          {props.captureStatus === 'loading' ? (
+            <CaptureLoadingMask sourcePath={props.sourcePath} />
+          ) : null}
           <div>
             <Annotation
               ref={props.annotationRef}

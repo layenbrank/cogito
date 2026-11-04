@@ -11,13 +11,32 @@ pub struct CapturePending {
 }
 
 impl CapturePending {
-    /// 抢到执行权返回 true；已在执行中返回 false（调用方应当静默忽略本次）
-    pub fn try_begin(&self) -> bool {
-        !self.running.swap(true, Ordering::AcqRel)
+    /// 抢到执行权返回 guard；已在执行中返回 `None`（调用方应当静默忽略本次）。
+    ///
+    /// 用 guard 而不是裸的 `try_begin` / `end`：`capture:open` 里的 `end()` 写在
+    /// `capture_once(...).await` **之后**，命令 future 一旦被丢弃（overlay 重载、窗口关闭、
+    /// Tauri 取消），`end()` 就不会执行，闸门永久停在 `true` —— 之后每次按热键都静默
+    /// `Ok(())`，只能重启应用。复位交给 `Drop`，它一定跑。
+    pub fn begin(&self) -> Option<PendingGuard<'_>> {
+        if self.running.swap(true, Ordering::AcqRel) {
+            return None;
+        }
+        Some(PendingGuard { owner: self })
     }
 
-    pub fn end(&self) {
+    fn release(&self) {
         self.running.store(false, Ordering::Release);
+    }
+}
+
+/// 单飞闸门的持有者：`Drop` 时复位（panic / future 被丢弃都覆盖）。
+pub struct PendingGuard<'a> {
+    owner: &'a CapturePending,
+}
+
+impl Drop for PendingGuard<'_> {
+    fn drop(&mut self) {
+        self.owner.release();
     }
 }
 
@@ -56,5 +75,33 @@ impl CaptureHandshake {
 
     pub async fn take_ready(&self) -> Option<oneshot::Sender<()>> {
         self.ready_tx.lock().await.take()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn guard_holds_the_slot_until_dropped() {
+        let pending = CapturePending::default();
+        {
+            let guard = pending.begin();
+            assert!(guard.is_some(), "首次应抢到闸门");
+            assert!(pending.begin().is_none(), "执行中不能再抢");
+        }
+        assert!(
+            pending.begin().is_some(),
+            "guard drop 之后必须能再次抢到（否则热键永久失效）"
+        );
+    }
+
+    #[test]
+    fn guard_releases_slot_even_when_dropped_mid_flight() {
+        let pending = CapturePending::default();
+        let guard = pending.begin().expect("首次应抢到");
+        // 模拟命令 future 被丢弃（窗口重载 / Tauri 取消）：没有显式 end()
+        drop(guard);
+        assert!(pending.begin().is_some(), "取消路径也必须复位闸门");
     }
 }

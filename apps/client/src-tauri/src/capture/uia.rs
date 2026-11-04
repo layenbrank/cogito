@@ -21,6 +21,7 @@ use windows::core::Interface;
 
 use super::region::OverlayFrame;
 use crate::overlay::command::OVERLAY_LABEL;
+use crate::through::ThroughState;
 
 /// 上溯层数上限（元素 → … → 顶层窗口）
 const MAX_DEPTH: usize = 12;
@@ -48,20 +49,33 @@ fn probe_lock() -> &'static tokio::sync::Mutex<()> {
 
 /// 查询期间让浮层临时穿透；`Drop` 一定复原 —— 即使调用方 future 被丢弃
 /// （命令取消 / 页面卸载），窗口也不会永久停在穿透态。
+///
+/// 复原值是**期望态**而不是写死的 `false`：写死 false 会在「退出截屏态的瞬间」把全屏
+/// 透明窗变成吃点击的窗口，而 through worker 的 `last_ignore` 缓存还认为状态已正确，
+/// 于是整台桌面「点哪都没反应」。复原后 `reapply()` 强制 worker 下一轮重算。
 struct ClickThrough {
     window: tauri::WebviewWindow,
+    app: AppHandle,
+    screenshot: bool,
 }
 
 impl ClickThrough {
-    fn new(window: tauri::WebviewWindow) -> Self {
+    fn new(window: tauri::WebviewWindow, app: AppHandle, screenshot: bool) -> Self {
         let _ = window.set_ignore_cursor_events(true);
-        Self { window }
+        Self {
+            window,
+            app,
+            screenshot,
+        }
     }
 }
 
 impl Drop for ClickThrough {
     fn drop(&mut self) {
-        let _ = self.window.set_ignore_cursor_events(false);
+        let _ = self.window.set_ignore_cursor_events(!self.screenshot);
+        if let Some(state) = self.app.try_state::<ThroughState>() {
+            state.reapply();
+        }
     }
 }
 
@@ -73,12 +87,23 @@ pub async fn find_chain_through_overlay(app: &AppHandle, x: f64, y: f64) -> Vec<
     let Some(frame) = OverlayFrame::find(app) else {
         return Vec::new();
     };
+    // 非截屏态不探测：此时浮层本来就该穿透，没有「临时穿透」的必要，
+    // 更不能因为 guard 的复原把窗口切成吃点击的形态。
+    let in_screenshot = app
+        .try_state::<ThroughState>()
+        .map(|state| state.is_screenshot_mode())
+        .unwrap_or(false);
+    if !in_screenshot {
+        return Vec::new();
+    }
+
     let (px, py) = frame.to_physical(x, y);
+    let handle = app.clone();
 
     let _guard = probe_lock().lock().await;
-    // 穿透态只在查询期间存在，且由 guard 负责复原
+    // 穿透态只在查询期间存在，且由 guard 负责按期望态复原
     tokio::task::spawn_blocking(move || {
-        let _click_through = ClickThrough::new(window);
+        let _click_through = ClickThrough::new(window, handle, in_screenshot);
         find_element_chain(px, py)
     })
     .await

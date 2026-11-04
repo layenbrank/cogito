@@ -66,6 +66,11 @@ async function notifyCaptureReady(): Promise<void> {
   await invoke(CHANNELS.CAPTURE.READY)
 }
 
+/** 光标位置（overlay 局部逻辑像素）；进入截屏态后种首次悬停用 */
+async function readCursorPoint(): Promise<{ x: number; y: number } | null> {
+  return invoke<{ x: number; y: number } | null>(CHANNELS.CAPTURE.CURSOR)
+}
+
 /** 光标下的元素级候选（overlay 逻辑像素入参） */
 async function probeElements(x: number, y: number): Promise<CaptureRegion[]> {
   return invoke<CaptureRegion[]>(CHANNELS.CAPTURE.ELEMENTS, { params: { x, y } })
@@ -144,6 +149,7 @@ export {
   notifyCaptureReady,
   parkOverlay,
   probeElements,
+  readCursorPoint,
   refreshCapture,
   removeOverlayTile,
   takePendingScreenshot,
