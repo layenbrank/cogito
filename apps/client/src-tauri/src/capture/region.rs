@@ -4,6 +4,7 @@
 
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize};
 
+use crate::capture::occlusion::{Box2, CoverageGrid, MIN_VISIBLE_RATIO};
 use crate::capture::schema::{CaptureRegion, RegionKind};
 use crate::overlay::command::OVERLAY_LABEL;
 
@@ -14,6 +15,10 @@ const IGNORE_CLASSES: &[&str] = &["CEF-OSC-WIDGET", "Progman", "WorkerW", "Butto
 
 /// 子控件候选总量上限：浏览器 / IDE 的控件树很大，撑爆候选列表反而没法用
 const MAX_CHILD_REGIONS: usize = 400;
+
+/// 单个窗口的子控件配额：一个巨型控件树（浏览器 / IDE）不该吃掉所有名额，
+/// 否则后枚举到的窗口只剩一个整窗框，滚轮细化不到控件。
+const MAX_CHILD_PER_WINDOW: usize = 120;
 
 /// 物理屏幕像素矩形（虚拟桌面坐标系）
 #[derive(Debug, Clone, Copy)]
@@ -148,9 +153,9 @@ fn find_windows_regions(
     };
     use windows::Win32::Graphics::Gdi::ClientToScreen;
     use windows::Win32::UI::WindowsAndMessaging::{
-        EnumChildWindows, EnumWindows, GWL_EXSTYLE, GetClassNameW, GetClientRect, GetWindowLongW,
-        GetWindowRect, GetWindowTextLengthW, GetWindowTextW, IsIconic, IsWindowVisible,
-        WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+        EnumChildWindows, EnumWindows, GWL_EXSTYLE, GetClassNameW, GetClientRect, GetParent,
+        GetWindowLongW, GetWindowRect, GetWindowTextLengthW, GetWindowTextW, IsHungAppWindow,
+        IsIconic, IsWindowVisible, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     };
     use windows::core::BOOL;
 
@@ -160,6 +165,8 @@ fn find_windows_regions(
         /// 顶层窗口枚举序号即 z 序（0 = 最上层）
         z: u32,
         child_budget: usize,
+        /// 已被更高 z 序窗口盖住的区域：用来判定「前台是否真的可见」
+        grid: CoverageGrid,
         regions: Vec<CaptureRegion>,
     }
 
@@ -168,17 +175,20 @@ fn find_windows_regions(
         hwnd: String,
         title: String,
         z: u32,
-        remaining: &'a mut usize,
+        /// 本窗口内的子控件剩余配额
+        remaining: usize,
+        /// 遮挡状态只读：子控件同样可能被更高层窗口盖住
+        grid: &'a CoverageGrid,
         regions: &'a mut Vec<CaptureRegion>,
     }
 
     /// 子控件：给选择器提供「比窗口更细」的候选（对照 ShareX 的 DetectControls）
     unsafe extern "system" fn enum_child_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
         let state = unsafe { &mut *(lparam.0 as *mut ChildState) };
-        if *state.remaining == 0 {
+        if state.remaining == 0 {
             return FALSE;
         }
-        if !unsafe { IsWindowVisible(hwnd) }.as_bool() {
+        if !unsafe { IsWindowVisible(hwnd) }.as_bool() || !ancestors_visible(hwnd) {
             return TRUE;
         }
         let class_name = window_class(hwnd);
@@ -191,6 +201,11 @@ fn find_windows_regions(
         let Some(child_box) = window_frame(hwnd) else {
             return TRUE;
         };
+        let screen_box = to_screen_box(child_box);
+        // 子控件也可能被上层窗口盖住：与顶层窗口同一把尺子
+        if state.grid.visible_ratio(&to_area(screen_box)) < MIN_VISIBLE_RATIO {
+            return TRUE;
+        }
         let meta = RegionMeta {
             kind: RegionKind::Child,
             hwnd: state.hwnd.clone(),
@@ -198,11 +213,29 @@ fn find_windows_regions(
             z: state.z,
             control_type: class_name,
         };
-        if let Some(region) = state.frame.to_region(to_screen_box(child_box), &meta) {
-            *state.remaining -= 1;
+        if let Some(region) = state.frame.to_region(screen_box, &meta) {
+            state.remaining -= 1;
             state.regions.push(region);
         }
         TRUE
+    }
+
+    /// 祖先链是否全部可见：`IsWindowVisible` 只看自身标志位，
+    /// 隐藏父窗下的子窗照样返回 TRUE。
+    fn ancestors_visible(hwnd: HWND) -> bool {
+        let mut cursor = hwnd;
+        loop {
+            let Ok(parent) = (unsafe { GetParent(cursor) }) else {
+                return true;
+            };
+            if parent.0.is_null() {
+                return true;
+            }
+            if !unsafe { IsWindowVisible(parent) }.as_bool() {
+                return false;
+            }
+            cursor = parent;
+        }
     }
 
     unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
@@ -217,6 +250,10 @@ fn find_windows_regions(
             return TRUE;
         }
         if is_cloaked(hwnd) {
+            return TRUE;
+        }
+        // 卡死的应用不值得占探测预算，它的候选也点不中
+        if unsafe { IsHungAppWindow(hwnd) }.as_bool() {
             return TRUE;
         }
 
@@ -238,6 +275,12 @@ fn find_windows_regions(
         let Some(window_box) = window_frame(hwnd) else {
             return TRUE;
         };
+        // 前台可见性：被更高 z 序窗口盖掉大半（< MIN_VISIBLE_RATIO）就不进候选，
+        // 否则滚轮能选到屏幕上根本看不见的窗口。
+        let area = to_area(to_screen_box(window_box));
+        if state.grid.visible_ratio(&area) < MIN_VISIBLE_RATIO {
+            return TRUE;
+        }
         let hwnd_text = hwnd_id(hwnd);
         let title = window_title(hwnd);
         let z = state.z;
@@ -272,22 +315,31 @@ fn find_windows_regions(
             state.regions.push(region);
         }
 
+        // 这扇窗占住的区域要记进网格：z 序从顶到底推进，后到的窗只看得见没被盖的部分
+        state.grid.cover(&area);
+
         if state.child_budget > 0 {
-            let mut child_state = ChildState {
-                frame: state.frame,
-                hwnd: hwnd_text,
-                title,
-                z,
-                remaining: &mut state.child_budget,
-                regions: &mut state.regions,
+            let quota = state.child_budget.min(MAX_CHILD_PER_WINDOW);
+            let used = {
+                let mut child_state = ChildState {
+                    frame: state.frame,
+                    hwnd: hwnd_text,
+                    title,
+                    z,
+                    remaining: quota,
+                    grid: &state.grid,
+                    regions: &mut state.regions,
+                };
+                let _ = unsafe {
+                    EnumChildWindows(
+                        Some(hwnd),
+                        Some(enum_child_proc),
+                        LPARAM(&mut child_state as *mut ChildState as isize),
+                    )
+                };
+                quota - child_state.remaining
             };
-            let _ = unsafe {
-                EnumChildWindows(
-                    Some(hwnd),
-                    Some(enum_child_proc),
-                    LPARAM(&mut child_state as *mut ChildState as isize),
-                )
-            };
+            state.child_budget -= used;
         }
         TRUE
     }
@@ -362,6 +414,16 @@ fn find_windows_regions(
         }
     }
 
+    /// 遮挡网格的坐标系与 `ScreenBox` 一致，转一份给它
+    fn to_area(rect: ScreenBox) -> Box2 {
+        Box2 {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+        }
+    }
+
     fn hwnd_id(hwnd: HWND) -> String {
         format!("{:x}", hwnd.0 as usize)
     }
@@ -379,11 +441,19 @@ fn find_windows_regions(
         String::from_utf16_lossy(&buf[..written as usize])
     }
 
+    // 网格铺满 overlay 覆盖的物理矩形（主显示器全屏），单元 48px
+    let grid = CoverageGrid::new(
+        frame.origin.x,
+        frame.origin.y,
+        frame.size.width as i32,
+        frame.size.height as i32,
+    );
     let mut state = EnumState {
         ignore,
         frame,
         z: 0,
         child_budget: MAX_CHILD_REGIONS,
+        grid,
         regions: Vec::new(),
     };
     let _ = unsafe {

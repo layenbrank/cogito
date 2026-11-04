@@ -63,6 +63,8 @@ interface CaptureStageApi {
   regionsRef: RefObject<CaptureRegion[]>
   /** 当前悬停候选的描述（控件类型 / 窗口标题），给尺寸角标用 */
   hoverLabel: string
+  /** 按给定坐标种一次悬停（进入截屏态时用光标位置调用，免去「先动一下鼠标」） */
+  seedHover(this: void, x: number, y: number): void
   handlePress(this: void, event: StageEvent): void
   handleMove(this: void, event: StageEvent): void
   handleRelease(this: void, event: StageEvent): void
@@ -78,6 +80,11 @@ function readScreenSize() {
 
 function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
   const [hoverLabel, setHoverLabel] = useState('')
+  /** 角标文案的去重镜像：mousemove 频率下避免无意义 setState（整棵 Konva 树跟着重渲染） */
+  const hoverLabelRef = useRef('')
+  /** 拖拽期的选区更新用 rAF 合并，一帧最多提交一次 */
+  const dragFrameRef = useRef<number | null>(null)
+  const pendingSelectionRef = useRef<Selection>(null)
   const draftIDRef = useRef<string | null>(null)
   const isDraggingRef = useRef(false)
   const isPressedRef = useRef(false)
@@ -129,6 +136,38 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
     options.onUpdateSelection(candidate)
   }
 
+  /** 角标文案去重：同一段文字不重复 setState */
+  function writeHoverLabel(text: string) {
+    if (text === hoverLabelRef.current) return
+    hoverLabelRef.current = text
+    setHoverLabel(text)
+  }
+
+  /** 拖拽期选区合并到下一帧，一帧只提交一次 */
+  function scheduleSelection(next: Selection) {
+    pendingSelectionRef.current = next
+    if (dragFrameRef.current !== null) return
+    dragFrameRef.current = window.requestAnimationFrame(function () {
+      dragFrameRef.current = null
+      optionsRef.current.onUpdateSelection(pendingSelectionRef.current)
+    })
+  }
+
+  /** 作废排队中的中间帧（松手 / 复位时用，避免旧值盖住最终值） */
+  function cancelScheduledSelection() {
+    if (dragFrameRef.current !== null) {
+      window.cancelAnimationFrame(dragFrameRef.current)
+      dragFrameRef.current = null
+    }
+    pendingSelectionRef.current = null
+  }
+
+  /** 滚轮换层时指针可能还没进过窗口：用当前选区中心兜底 */
+  function selectionCenter(selection: Selection): Point | null {
+    if (!selection) return null
+    return { x: selection.x + selection.w / 2, y: selection.y + selection.h / 2 }
+  }
+
   /** 候选的描述文案：元素看控件类型 + 名称，窗口看标题 */
   function describe(region: CaptureRegion | null): string {
     if (!region) return ''
@@ -158,7 +197,7 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
     const index = Math.min(hoverIndexRef.current, Math.max(stack.levels.length - 1, 0))
     hoverIndexRef.current = index
     const candidate = hasRealCandidate(stack) ? (stack.levels[index] ?? null) : null
-    setHoverLabel(describe(candidate))
+    writeHoverLabel(describe(candidate))
     writeSelection(candidate)
   }
 
@@ -199,8 +238,20 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
     return function () {
       probe.dispose()
       probeRef.current = null
+      if (dragFrameRef.current !== null) {
+        window.cancelAnimationFrame(dragFrameRef.current)
+        dragFrameRef.current = null
+      }
     }
   }, [])
+
+  // 阶段切换（选择 → 标注 → 编辑）时停掉在途探测：结果回来会按旧阶段改选区
+  useEffect(
+    function () {
+      probeRef.current?.cancel()
+    },
+    [options.phase]
+  )
 
   // 关掉元素检测时清掉残留的元素链
   useEffect(
@@ -223,6 +274,14 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
   function handlePress(event: StageEvent) {
     const pt = readPointer(event)
     if (!pt) return
+
+    // 上一次拖拽若因窗口失焦没收到 mouseup，标志会残留：按下时先复位，
+    // 否则接下来的 mousemove 会被当成「正在拖拽」而跳过悬停。
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false
+      hasMovedRef.current = false
+      cancelledRef.current = false
+    }
 
     if (options.phase === 'editing') return
 
@@ -304,6 +363,7 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
         isDraggingRef.current = false
         isPressedRef.current = false
         cancelledRef.current = true
+        cancelScheduledSelection()
         return
       }
       if (
@@ -312,7 +372,7 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
       ) {
         hasMovedRef.current = true
       }
-      options.onUpdateSelection({
+      scheduleSelection({
         x: Math.min(beginRef.current.x, pt.x),
         y: Math.min(beginRef.current.y, pt.y),
         w: Math.abs(pt.x - beginRef.current.x),
@@ -358,6 +418,9 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
   function handleRelease(event: StageEvent) {
     const pt = readPointer(event)
     if (!pt) return
+
+    // 排队中的中间帧作废：下面写的是最终选区
+    cancelScheduledSelection()
 
     const pressed = isPressedRef.current
     const moved = hasMovedRef.current
@@ -440,8 +503,11 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
   function handleWheel(deltaY: number, shiftKey: boolean): boolean {
     if (options.phase !== 'selecting') return false
     if (!options.isWindowDetect && !options.isElementDetect) return false
-    const pt = pointerRef.current
+    // 指针还没进过窗口（刚进截屏态就滚轮）时用当前选区中心兜底
+    const pt = pointerRef.current ?? selectionCenter(optionsRef.current.selection)
     if (!pt) return false
+    // 换层前先停掉元素探测：结果回来会按 keepIndex 把刚选好的层顶掉
+    probeRef.current?.cancel()
 
     const stack = resolveStack(pt)
     if (stack.levels.length <= 1) return false
@@ -453,9 +519,21 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
     const next = shiftKey ? stepGroup(stack, current, delta) : stepLevel(stack, current, delta)
     hoverIndexRef.current = next
     const candidate = hasRealCandidate(stack) ? (stack.levels[next] ?? null) : null
-    setHoverLabel(describe(candidate))
+    writeHoverLabel(describe(candidate))
     writeSelection(candidate)
     return true
+  }
+
+  /**
+   * 种一次悬停：进入截屏态后由上层按光标位置调用。
+   * 与 mousemove 走同一条 `updateHover` 路径，所以候选栈 / 层级 / 角标文案完全一致。
+   */
+  function seedHover(x: number, y: number) {
+    if (!options.isWindowDetect && !options.isElementDetect) return
+    const point = { x, y }
+    pointerRef.current = point
+    updateHover(point, false)
+    requestProbe(point)
   }
 
   function resetDragState() {
@@ -465,12 +543,15 @@ function useCaptureStage(options: UseCaptureStageOptions): CaptureStageApi {
     hasMovedRef.current = false
     snapCandidateRef.current = null
     lastAppliedRef.current = ''
-    setHoverLabel('')
+    cancelScheduledSelection()
+    probeRef.current?.cancel()
+    writeHoverLabel('')
   }
 
   return {
     regionsRef,
     hoverLabel,
+    seedHover,
     handlePress,
     handleMove,
     handleRelease,
