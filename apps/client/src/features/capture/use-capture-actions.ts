@@ -20,6 +20,15 @@ import { buildCaptureExport } from '@/features/capture/capture-export'
 import type { CaptureHistorySnapshot } from '@/features/capture/use-capture-history'
 import type { Phase } from '@/features/capture/use-capture-stage'
 
+/** 工具栏可改的默认样式字段（与 `Setting.CaptureStyle` 同形） */
+type CaptureStylePatch = Partial<{
+  color: string
+  thickness: number
+  filled: boolean
+  opacity: number
+  fontSize: number
+}>
+
 interface CaptureActionsInput {
   annotations: GraphicsProps[]
   selectedIDs: string[]
@@ -40,6 +49,8 @@ interface CaptureActionsInput {
   onUpdateFilled: (filled: boolean) => void
   onUpdateOpacity: (opacity: number) => void
   onUpdateFontSize: (fontSize: number) => void
+  /** 工具栏直改样式时持久化默认值（debounce 由上层做）；选中标注不改默认值 */
+  onCommitStyle?: (patch: CaptureStylePatch) => void
   onUpdateGraphics: (shape: GraphicsEnum | null) => void
   onUpdatePhase: (phase: Phase) => void
   onUpdateSelection: (selection: { x: number; y: number; w: number; h: number } | null) => void
@@ -263,22 +274,27 @@ function useCaptureActions(input: CaptureActionsInput) {
 
   function handleUpdateColor(next: string) {
     input.onUpdateColor(next)
+    input.onCommitStyle?.({ color: next })
     updateSelectedProperty({ color: next })
   }
   function handleUpdateThickness(next: number) {
     input.onUpdateThickness(next)
+    input.onCommitStyle?.({ thickness: next })
     updateSelectedProperty({ thickness: next })
   }
   function handleUpdateFilled(next: boolean) {
     input.onUpdateFilled(next)
+    input.onCommitStyle?.({ filled: next })
     updateSelectedProperty({ filled: next })
   }
   function handleUpdateOpacity(next: number) {
     input.onUpdateOpacity(next)
+    input.onCommitStyle?.({ opacity: next })
     updateSelectedProperty({ opacity: next })
   }
   function handleUpdateFontSize(next: number) {
     input.onUpdateFontSize(next)
+    input.onCommitStyle?.({ fontSize: next })
     updateSelectedProperty({ fontSize: next })
   }
 

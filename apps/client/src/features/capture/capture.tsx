@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { ContextMenu, useContextMenu } from '@/components/contextmenu'
 import { CaptureErrorBoundary } from '@/features/capture/capture-error-boundary'
@@ -13,8 +13,8 @@ import { useCaptureOcr } from '@/features/capture/use-capture-ocr'
 import { useCaptureStage, type Phase } from '@/features/capture/use-capture-stage'
 import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
 import { useCommands, useShortcut } from '@/keyboard/react'
-import { DETECT_ELEMENT, DETECT_WINDOW, useSettingsStore } from '@/stores/setting'
-import { probeElements } from '@/features/capture/tauri'
+import { DETECT_ELEMENT, DETECT_WINDOW, useSettingsStore, type Setting } from '@/stores/setting'
+import { probeElements, readCursorPoint } from '@/features/capture/tauri'
 
 export interface CaptureProps {
   /** Rendered inside the shared overlay window. */
@@ -37,11 +37,59 @@ function Capture(props: CaptureProps = {}) {
     w: number
     h: number
   } | null>(null)
-  const [color, onUpdateColor] = useState('#4080ff')
-  const [thickness, onUpdateThickness] = useState(2)
-  const [filled, onUpdateFilled] = useState(false)
-  const [opacity, onUpdateOpacity] = useState(1)
-  const [fontSize, onUpdateFontSize] = useState(18)
+  /**
+   * 标注默认样式从设置层取初值。组件随截屏态挂载/卸载，硬编码默认值就会变成
+   * 「每次截屏都要重新调颜色」——所以初值必须是持久层里那份。
+   */
+  const storedStyle = useSettingsStore(function (state) {
+    return state.settings.capture.style
+  })
+  const [color, onUpdateColor] = useState(storedStyle.color)
+  const [thickness, onUpdateThickness] = useState(storedStyle.thickness)
+  const [filled, onUpdateFilled] = useState(storedStyle.filled)
+  const [opacity, onUpdateOpacity] = useState(storedStyle.opacity)
+  const [fontSize, onUpdateFontSize] = useState(storedStyle.fontSize)
+
+  // 设置异步加载完成（或默认样式在别处被改）时跟随一次
+  const styleRef = useRef(storedStyle)
+  useEffect(
+    function () {
+      if (styleRef.current === storedStyle) return
+      styleRef.current = storedStyle
+      onUpdateColor(storedStyle.color)
+      onUpdateThickness(storedStyle.thickness)
+      onUpdateFilled(storedStyle.filled)
+      onUpdateOpacity(storedStyle.opacity)
+      onUpdateFontSize(storedStyle.fontSize)
+    },
+    [storedStyle]
+  )
+
+  /**
+   * 工具栏直改样式：本地 state 立刻生效，落盘合并到 200ms 后。
+   * 只有「用户主动改默认样式」走这里；`syncToolbarFromAnnotation`（选中已有标注）
+   * 只改显示，不能把标注的样式写回默认值。
+   */
+  const styleTimerRef = useRef<number | null>(null)
+  const pendingStyleRef = useRef<Partial<Setting.CaptureStyle>>({})
+  function flushStyle() {
+    if (styleTimerRef.current !== null) window.clearTimeout(styleTimerRef.current)
+    styleTimerRef.current = null
+    const pending = pendingStyleRef.current
+    pendingStyleRef.current = {}
+    if (Object.keys(pending).length === 0) return
+    const store = useSettingsStore.getState()
+    void store.toUpdate('capture', { style: { ...store.settings.capture.style, ...pending } })
+  }
+  function commitStyle(patch: Partial<Setting.CaptureStyle>) {
+    pendingStyleRef.current = { ...pendingStyleRef.current, ...patch }
+    if (styleTimerRef.current !== null) window.clearTimeout(styleTimerRef.current)
+    styleTimerRef.current = window.setTimeout(flushStyle, 200)
+  }
+  // 卸载（按 ESC 退出截屏）时把还没落盘的样式补写一次
+  useEffect(function () {
+    return flushStyle
+  }, [])
   const [selectedID, onUpdateSelectedID] = useState<string | null>(null)
   const [selectedIDs, onUpdateSelectedIDs] = useState<string[]>([])
   const [sourceImage, onUpdateSourceImage] = useState<HTMLImageElement | null>(null)
@@ -58,8 +106,16 @@ function Capture(props: CaptureProps = {}) {
   const annotationRef = useRef<AnnotationHandle>(null)
   const { canUndo, canRedo, commitHistory, undo, redo, resetHistory } = useCaptureHistory()
 
-  const { regionsRef, hoverLabel, handlePress, handleMove, handleRelease, handleWheel, resetDragState } =
-    useCaptureStage({
+  const {
+    regionsRef,
+    hoverLabel,
+    seedHover,
+    handlePress,
+    handleMove,
+    handleRelease,
+    handleWheel,
+    resetDragState
+  } = useCaptureStage({
       phase,
       graphics,
       annotations,
@@ -78,6 +134,29 @@ function Capture(props: CaptureProps = {}) {
       onUpdatePhase,
       commitHistory
     })
+
+  /**
+   * 首帧就绪后按光标位置种一次悬停：选区/吸附框只由 mousemove 驱动，用户按完热键
+   * 不动鼠标就一直是空遮罩（看起来像「点一下才出框选」）。这里主动补第一次。
+   */
+  const seedHoverRef = useRef(seedHover)
+  useEffect(function () {
+    seedHoverRef.current = seedHover
+  })
+  useEffect(
+    function () {
+      if (captureStatus !== 'ready' || !sourceImage) return
+      let cancelled = false
+      void readCursorPoint().then(function (point) {
+        if (cancelled || !point) return
+        seedHoverRef.current(point.x, point.y)
+      })
+      return function () {
+        cancelled = true
+      }
+    },
+    [captureStatus, sourceImage]
+  )
 
   const { sessionID, retake, bootstrapCapture } = useCaptureLifecycle({
     active,
@@ -127,6 +206,7 @@ function Capture(props: CaptureProps = {}) {
     onUpdateFilled,
     onUpdateOpacity,
     onUpdateFontSize,
+    onCommitStyle: commitStyle,
     onUpdateGraphics,
     onUpdatePhase,
     onUpdateSelection,
@@ -202,6 +282,7 @@ function Capture(props: CaptureProps = {}) {
         selectedIDs={selectedIDs}
         annotations={annotations}
         sourceImage={sourceImage}
+        sourcePath={sourcePath}
         actions={actions}
         onUpdateSelection={onUpdateSelection}
         phase={phase}

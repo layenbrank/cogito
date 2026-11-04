@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   generateDerivedShades,
@@ -20,6 +20,17 @@ interface UtilityColorState {
 function useUtilityColor(color: string): UtilityColorState {
   const [pinnedMainColor, setPinnedMainColor] = useState(color)
   const [pickerOpen, setPickerOpen] = useState(false)
+
+  // 持久层把颜色恢复成上次的选择时，钉住的主色要跟着走，否则调色板停在旧值
+  const lastColorRef = useRef(color)
+  useEffect(
+    function () {
+      if (lastColorRef.current === color) return
+      lastColorRef.current = color
+      setPinnedMainColor(color)
+    },
+    [color]
+  )
 
   const presetHues = useMemo(function () {
     return parsePresetHues(THEME_PRIMARY)

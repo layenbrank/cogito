@@ -187,6 +187,14 @@ interface SettingsCaptureRetention {
   maxBytes: number
 }
 
+interface SettingsCaptureStyle {
+  color: string
+  thickness: number
+  filled: boolean
+  opacity: number
+  fontSize: number
+}
+
 interface SettingsCapture {
   detect: 'off' | 'window' | 'element'
   isRetentionEnabled: boolean
@@ -194,6 +202,7 @@ interface SettingsCapture {
     screenshot: SettingsCaptureRetention
     recording: SettingsCaptureRetention
   }
+  style: SettingsCaptureStyle
 }
 
 interface SettingsShortcuts {
@@ -250,6 +259,7 @@ export type {
   ClipchampPref,
   SettingsPref,
   SettingsProxy,
+  SettingsCaptureStyle,
   CodeSidebarView,
   CodeSurfaceTab,
   CodeWordWrap,

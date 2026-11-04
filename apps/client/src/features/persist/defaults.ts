@@ -17,7 +17,8 @@ const PERSIST_DEFAULTS: PersistShape = {
       retention: {
         screenshot: { days: 7, count: 100, maxBytes: 500 * 1024 * 1024 },
         recording: { days: 30, count: 50, maxBytes: 5 * 1024 * 1024 * 1024 }
-      }
+      },
+      style: { color: '#4080ff', thickness: 2, filled: false, opacity: 1, fontSize: 18 }
     },
     shortcuts: { version: 1, bindings: {} },
     proxy: {

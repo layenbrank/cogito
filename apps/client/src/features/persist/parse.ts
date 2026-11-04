@@ -459,6 +459,7 @@ function parseSettings(raw: unknown): SettingsPref {
   const retention = isRecord(capture.retention) ? capture.retention : {}
   const screenshot = isRecord(retention.screenshot) ? retention.screenshot : {}
   const recording = isRecord(retention.recording) ? retention.recording : {}
+  const style = isRecord(capture.style) ? capture.style : {}
   const bindings: Record<string, string> = {}
   if (isRecord(shortcuts.bindings)) {
     for (const [id, binding] of Object.entries(shortcuts.bindings)) {
@@ -498,6 +499,15 @@ function parseSettings(raw: unknown): SettingsPref {
               ? recording.maxBytes
               : base.capture.retention.recording.maxBytes
         }
+      },
+      // 结构层只做类型兜底；clamp（线宽/透明度/字号范围、颜色格式）在 mergeCaptureStyle
+      style: {
+        color: typeof style.color === 'string' ? style.color : base.capture.style.color,
+        thickness:
+          typeof style.thickness === 'number' ? style.thickness : base.capture.style.thickness,
+        filled: typeof style.filled === 'boolean' ? style.filled : base.capture.style.filled,
+        opacity: typeof style.opacity === 'number' ? style.opacity : base.capture.style.opacity,
+        fontSize: typeof style.fontSize === 'number' ? style.fontSize : base.capture.style.fontSize
       }
     },
     shortcuts: {

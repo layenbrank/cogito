@@ -131,6 +131,8 @@ bufferH = stageHeight × pixelRatio ≈ naturalHeight
 | 截屏态下再按快捷键**不刷新 UI** | `capture:open` 会重抓一帧写进 pending，但已挂载的截屏 UI 不会重新取（否则误触会丢掉标注） | 按了像没反应 —— 重拍请用「重新截图」（`capture:refresh`）或错误面板上的「重试」 |
 | `capture:open` 单飞 | 连按会覆盖 pending、并把遮罩拍进新图 | 出了怪图 / 按几次才有反应 |
 | 窗口区域在 `overlay_ensure` 之后枚举 | 需要浮层自己的 hwnd 与 scale factor | 首次/重建后没有窗口吸附 |
+| **加载期**（`captureStatus === 'loading'`）可以用 DOM `<img>` 铺冻结帧（`convertFileSrc(path)`），`ready` 立即切回 Konva 底图 | 4K PNG 解码 200–800ms，这段若用不透明黑幕就是「黑屏」；冻结帧与 Konva 用的是同一张图，加载期还不接受拖拽，不影响 §3.3 的命中约束 | 遮罩纯黑，看起来像卡住 |
+| 首帧 ack 最多等 `800ms`（`READY_TIMEOUT_MS`），超时也 reveal —— 但加载期底图已铺好 | 慢机上 400ms 不够；提前 reveal 又会露实时桌面 | 闪桌面 / 白等 800ms |
 
 ## 6. 选择器候选栈
 
@@ -145,10 +147,50 @@ bufferH = stageHeight × pixelRatio ≈ naturalHeight
 - 滚轮：逐层移动（上滚更粗）；Shift+滚轮：跳到相邻窗口组的最细一层
 - UIA 查询前必须让浮层**临时穿透**，否则 `ElementFromPoint` 命中的是我们自己；穿透由 RAII guard 负责复原
 - UIA 引擎常驻专用线程（`uia-probe`），不要每次查询重建 `IUIAutomation`
+- 候选只来自**前台可见**的窗口：完全被上层盖住、或可见比例 < 15% 的窗口不会进候选（见 §7）
 - UIA 超时/失败一律退化为窗口级候选，不能阻塞悬停
 ---
 
-## 5. 代码地图
+## 7. 候选窗口的可见性与活跃性
+
+`capture/region.rs` 在 `EnumWindows` 的顶→底遍历里维护一张**覆盖网格**（`capture/occlusion.rs`，
+`CELL_PX = 48` 物理像素），逐个窗口判定「前台到底看不看得见」：
+
+- 每接受一层窗口就把它的框 `cover()` 进网格；z 序更低的窗口只统计没被盖住的单元。
+- 可见比例 `< MIN_VISIBLE_RATIO`（15%）直接丢弃：滚轮再也选不到屏幕上被完全盖住的窗口。
+- `IsHungAppWindow` 的窗口直接丢弃：卡死的应用会吃掉 250ms 元素探测预算，候选也点不中。
+- 子控件额外校验**祖先链可见**（`IsWindowVisible` 只看自身标志位，隐藏父窗下的子窗仍返回 TRUE），
+  并且**按窗配额**（`MAX_CHILD_PER_WINDOW = 120`，全局兜底 `MAX_CHILD_REGIONS = 400`）：
+  一个巨型控件树不该把后面所有窗口的名额吃光。
+- 遮挡判定是**近似**：极端贴边的叠层会略偏；阈值是常量，便于调；不做逐像素多边形裁剪（收益低）。
+
+## 8. 标注默认样式的记忆
+
+默认样式（颜色 / 线宽 / 填充 / 透明度 / 字号）存在 `Setting.Capture.style`，随 `features/persist`
+落盘，**不要**用 localStorage（与持久层分层约定冲突）。
+
+- 读：`capture.tsx` 的 `useState` 初值直接取 `settings.capture.style`；设置异步加载完成后由
+  `useEffect` 跟随一次 —— 组件随截屏态挂载/卸载，硬编码默认值就等于「每次都要重新选」。
+- 写：只有**工具栏直改**会调 `onCommitStyle`，200ms debounce 后 `toUpdate('capture', { style })`；
+  组件卸载（ESC 退出）时补写一次还没落盘的改动。
+- **选中已有标注只改显示**：`syncToolbarFromAnnotation` 走 `onUpdateColor` 这类纯显示 setter，
+  不触发持久化 —— 否则选中一次标注就把默认样式带跑。
+- 读存盘统一走 `mergeCaptureStyle`：逐字段兜底 + clamp（线宽 1–32、透明度 0–1、字号 8–96、
+  颜色必须 `#rrggbb`），坏数据不该把工具栏渲染搞崩。
+
+## 9. 全局热键由 Rust 注册
+
+截屏热键**不走** `plugin-global-shortcut` 的 JS Channel 回调（主窗收起进托盘后 WebView 被挂起/节流，
+回调会延迟甚至丢失），而是：
+
+- 前端只负责算键位与 fallback 链（`keyboard/global.ts`），且只对 `capture.screenshot` 这一个 id 特化；
+- 通过 `capture:hotkey { accelerator | release }` 让宿主注册/注销真正的全局键
+  （`capture/hotkey.rs` → `global_shortcut().on_shortcut`）；
+- 回调直接 `spawn(capture_open(...))`，不经过任何 webview；
+- `capture:open` 自带 RAII 单飞闸门（`PendingGuard`，Drop 里复位），并在截屏态下短路：
+  连按不会重抓帧、不会 conceal/reveal，也不会白等 ready。
+
+## 10. 代码地图
 
 ```text
 apps/client/src/features/capture/
@@ -171,7 +213,7 @@ apps/client/src/features/capture/
 
 ---
 
-## 6. 回归检查清单
+## 11. 回归检查清单
 
 改动截屏画布后，在 **DPR ≠ 1** 的显示器上至少验证：
 
@@ -190,7 +232,7 @@ apps/client/src/features/capture/
 
 ---
 
-## 7. 设计约束（产品 / 架构）
+## 12. 设计约束（产品 / 架构）
 
 - 高质量 PNG，不为速度牺牲画质。
 - 不叠补丁、不双轨（例如 DOM 框选 + Konva 标注并存）。
@@ -198,9 +240,10 @@ apps/client/src/features/capture/
 
 ---
 
-## 8. 修订记录
+## 13. 修订记录
 
 | 日期 | 说明 |
 |------|------|
 | 2026-08-17 | 首次记录：亚像素再采样导致发糊；HTML backdrop 导致 Windows 透明窗无法框选；定案为 Konva 底图 + `natural/dpr` + 关闭平滑。 |
 | 2026-10-26 | 补「发布 pending 早于切模式」硬约束：修复快捷键触发时偶发「未找到预截图」（前端挂载时 pending 还没写）。 |
+| 2026-11-05 | 截屏链路加固：单飞闸门改 RAII（`PendingGuard`）+ 截屏态短路；热键下沉 Rust 原生注册；加载期用冻结帧铺底、首帧上限 400→800ms；新增 `capture:cursor` 在 ready 后种一次悬停；候选窗口加覆盖网格（48px / 15%）、`IsHungAppWindow` 过滤、子控件按窗配额；悬停文案去重 / 拖拽 rAF 合并 / 滚轮兜底 / 阶段切换 cancel 探针；标注默认样式持久化到 `Setting.Capture.style`（新增 §7–§9）。 |

@@ -27,10 +27,20 @@ declare namespace Setting {
     recording: RetentionPolicy
   }
 
+  /** 标注默认样式：工具栏上改的就是这一份，随设置持久化 */
+  export interface CaptureStyle {
+    color: string
+    thickness: number
+    filled: boolean
+    opacity: number
+    fontSize: number
+  }
+
   export interface Capture {
     detect: CaptureDetect
     isRetentionEnabled: boolean
     retention: CaptureRetention
+    style: CaptureStyle
   }
 
   /**
@@ -78,13 +88,22 @@ const RECORDING_RETENTION: Setting.RetentionPolicy = {
 
 const SHORTCUTS_VERSION = 1
 
+const CAPTURE_STYLE: Setting.CaptureStyle = {
+  color: '#4080ff',
+  thickness: 2,
+  filled: false,
+  opacity: 1,
+  fontSize: 18
+}
+
 const CAPTURE: Setting.Capture = {
   detect: DETECT_ELEMENT,
   isRetentionEnabled: true,
   retention: {
     screenshot: { ...SCREENSHOT_RETENTION },
     recording: { ...RECORDING_RETENTION }
-  }
+  },
+  style: { ...CAPTURE_STYLE }
 }
 
 const GENERAL: Setting.General = {
@@ -130,6 +149,34 @@ function mergeRetentionPolicy(
   return { ...base, ...patch }
 }
 
+const STYLE_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  return Math.min(max, Math.max(min, value))
+}
+
+/**
+ * 样式归一化：逐字段兜底 + clamp。
+ *
+ * 存盘里可能是旧版本写的、被手工改坏的、或越界的值（线宽 9999 之类），
+ * 统一在这里收口，别让坏数据把工具栏渲染搞崩。
+ */
+function mergeCaptureStyle(stored?: Partial<Setting.CaptureStyle>): Setting.CaptureStyle {
+  if (!stored) return { ...CAPTURE_STYLE }
+  const color =
+    typeof stored.color === 'string' && STYLE_COLOR_PATTERN.test(stored.color)
+      ? stored.color
+      : CAPTURE_STYLE.color
+  return {
+    color,
+    thickness: Math.round(clampNumber(stored.thickness, 1, 32, CAPTURE_STYLE.thickness)),
+    filled: typeof stored.filled === 'boolean' ? stored.filled : CAPTURE_STYLE.filled,
+    opacity: clampNumber(stored.opacity, 0, 1, CAPTURE_STYLE.opacity),
+    fontSize: Math.round(clampNumber(stored.fontSize, 8, 96, CAPTURE_STYLE.fontSize))
+  }
+}
+
 function mergeCapture(stored?: Partial<Setting.Capture>): Setting.Capture {
   if (!stored) {
     return {
@@ -138,7 +185,8 @@ function mergeCapture(stored?: Partial<Setting.Capture>): Setting.Capture {
       retention: {
         screenshot: { ...SCREENSHOT_RETENTION },
         recording: { ...RECORDING_RETENTION }
-      }
+      },
+      style: { ...CAPTURE_STYLE }
     }
   }
   // 逐字段取而不是展开：好让 v0 的 `shortcut` 这类已迁走的字段自然而然落不下来
@@ -148,7 +196,8 @@ function mergeCapture(stored?: Partial<Setting.Capture>): Setting.Capture {
     retention: {
       screenshot: mergeRetentionPolicy(SCREENSHOT_RETENTION, stored.retention?.screenshot),
       recording: mergeRetentionPolicy(RECORDING_RETENTION, stored.retention?.recording)
-    }
+    },
+    style: mergeCaptureStyle(stored.style)
   }
 }
 
@@ -168,6 +217,9 @@ function mergeCaptureUpdate(
   return {
     ...current,
     ...patch,
+    style: patch.style
+      ? mergeCaptureStyle({ ...current.style, ...patch.style })
+      : current.style,
     retention: patch.retention
       ? {
           screenshot: mergeRetentionPolicy(
@@ -279,10 +331,12 @@ export {
   DETECT_OFF,
   DETECT_WINDOW,
   DETECT_ELEMENT,
+  CAPTURE_STYLE,
   RECORDING_RETENTION,
   SCREENSHOT_RETENTION,
   SHORTCUTS_VERSION,
   mergeCapture,
+  mergeCaptureStyle,
   mergeCaptureUpdate,
   mergeShortcuts,
   syncProxyEnv
