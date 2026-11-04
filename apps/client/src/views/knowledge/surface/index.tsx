@@ -1,7 +1,8 @@
 /**
  * 知识库左栏：对齐 llm_wiki IconSidebar + SidebarPanel。
- * 主轨：Wiki / Sources / Search / Graph / Lint / Review / Research；
- * 底轨：Settings（Activity 在左栏底条，不再占独立内容页为主）。
+ * 主轨：Wiki / Sources / Search / Graph / Lint / Review。
+ * 深度研究只在标题栏 + 右栏 tabs，不进左轨。
+ * 底轨：Settings。Activity 仅左栏底条。
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
@@ -24,20 +25,13 @@ import { findLayoutVisibility } from '@/views/knowledge/surface/layout-visibilit
 import { SidebarPanel } from '@/views/knowledge/surface/sidebar-panel.tsx'
 import { useSurfaceStore, type RailTabCanonical } from '@/views/knowledge/surface/store.ts'
 
-/** 与 llm_wiki NAV_ITEMS 顺序一致（chat 由右栏 ACP dock 承担） */
 const MAIN_RAIL: readonly { key: RailTabCanonical; label: string; icon: string }[] = [
-  { key: 'wiki', label: 'Wiki', icon: 'lucide:file-text' },
-  { key: 'sources', label: '来源', icon: 'lucide:folder-open' },
+  { key: 'wiki', label: 'Wiki', icon: 'lucide:book-open' },
+  { key: 'sources', label: '来源', icon: 'lucide:folder-input' },
   { key: 'search', label: '检索', icon: 'lucide:search' },
-  { key: 'graph', label: '图谱', icon: 'lucide:network' },
-  { key: 'lint', label: 'Lint', icon: 'lucide:clipboard-check' },
-  { key: 'review', label: '审阅', icon: 'lucide:clipboard-list' },
-  { key: 'research', label: '深度研究', icon: 'lucide:globe' }
-]
-
-const BOTTOM_RAIL: readonly { key: RailTabCanonical; label: string; icon: string }[] = [
-  { key: 'activity', label: '活动', icon: 'lucide:list-checks' },
-  { key: 'settings', label: '设置', icon: 'lucide:settings' }
+  { key: 'graph', label: '图谱', icon: 'lucide:git-fork' },
+  { key: 'lint', label: 'Lint', icon: 'lucide:scan-text' },
+  { key: 'review', label: '审阅', icon: 'lucide:list-todo' }
 ]
 
 function KnowledgeSurface() {
@@ -58,12 +52,6 @@ function KnowledgeSurface() {
   })
   const activeBaseID = useKnowledgeBaseStore(function (state) {
     return state.activeBaseID
-  })
-
-  const ingestPending = useIngestQueueStore(function (state) {
-    return state.items.filter(function (item) {
-      return item.status === 'pending' || item.status === 'running'
-    }).length
   })
 
   const [reviewPending, setReviewPending] = useState(0)
@@ -141,12 +129,13 @@ function KnowledgeSurface() {
   if (!isOpen) return null
 
   function renderRailButton(item: {
-    key: RailTabCanonical
+    key: string
     label: string
     icon: string
+    isActive: boolean
     badge?: string | null
+    onClick: () => void
   }) {
-    const isActive = item.key === tab
     return (
       <Tooltip key={item.key}>
         <TooltipTrigger
@@ -156,24 +145,23 @@ function KnowledgeSurface() {
               variant="ghost"
               size="icon"
               aria-label={item.label}
-              aria-pressed={isActive}
+              aria-pressed={item.isActive}
               className={cn(
-                'relative size-10 rounded-md border-0 shadow-none ring-0 focus-visible:ring-1 focus-visible:ring-ring/30',
-                isActive
-                  ? 'bg-accent text-accent-foreground hover:bg-accent'
-                  : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'
+                'relative flex size-9 items-center justify-center rounded-md border-0 shadow-none outline-none transition-colors',
+                'focus-visible:ring-1 focus-visible:ring-ring/35',
+                item.isActive
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
               )}
-              onClick={function () {
-                toSetTab(item.key)
-              }}
+              onClick={item.onClick}
             />
           }>
           <Icon
             icon={item.icon}
-            className="size-5"
+            className="size-4 shrink-0"
           />
           {item.badge ? (
-            <span className="bg-primary text-primary-foreground absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold">
+            <span className="bg-primary text-primary-foreground absolute -top-0.5 -end-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[9px] leading-none font-semibold tabular-nums">
               {item.badge}
             </span>
           ) : null}
@@ -193,40 +181,38 @@ function KnowledgeSurface() {
       <nav
         aria-label="知识库导航"
         className={cn(
-          'bg-muted/50 flex w-12 shrink-0 flex-col items-center py-2',
-          visibility.showLeftContent && 'border-r border-border'
+          'border-border flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto overflow-x-hidden bg-background py-1.5',
+          visibility.showLeftContent && 'border-e'
         )}>
         <div className="flex flex-1 flex-col items-center gap-1">
           {MAIN_RAIL.map(function (item) {
-            if (item.key === 'review') {
-              return renderRailButton({
-                ...item,
-                badge:
-                  reviewPending > 0
-                    ? reviewPending > 99
-                      ? '99+'
-                      : String(reviewPending)
-                    : null
-              })
-            }
-            return renderRailButton(item)
+            return renderRailButton({
+              key: item.key,
+              label: item.label,
+              icon: item.icon,
+              isActive: item.key === tab,
+              badge:
+                item.key === 'review' && reviewPending > 0
+                  ? reviewPending > 99
+                    ? '99+'
+                    : String(reviewPending)
+                  : null,
+              onClick: function () {
+                toSetTab(item.key)
+              }
+            })
           })}
         </div>
 
-        <div className="flex flex-col items-center gap-1 pb-1">
-          {BOTTOM_RAIL.map(function (item) {
-            if (item.key === 'activity') {
-              return renderRailButton({
-                ...item,
-                badge:
-                  ingestPending > 0
-                    ? ingestPending > 99
-                      ? '99+'
-                      : String(ingestPending)
-                    : null
-              })
+        <div className="mt-1 flex flex-col items-center gap-1 border-t border-border pt-2">
+          {renderRailButton({
+            key: 'settings',
+            label: '设置',
+            icon: 'lucide:settings',
+            isActive: tab === 'settings',
+            onClick: function () {
+              toSetTab('settings')
             }
-            return renderRailButton(item)
           })}
         </div>
       </nav>

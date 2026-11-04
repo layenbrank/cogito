@@ -14,8 +14,8 @@ import {
   readWikiPagesFromDocs,
   type PageLinkBuckets
 } from '@/views/knowledge/lib/page-links.ts'
-import { openPath } from '@/views/knowledge/lib/session.ts'
 import { joinPath } from '@/views/knowledge/lib/path.ts'
+import { openEditorPath } from '@/views/knowledge/workspace/editor-context.ts'
 
 function PageLinks() {
   const docs = useKnowledgeBaseStore(function (state) {
@@ -80,7 +80,7 @@ function PageLinks() {
         draftWithAcp: withAcp
       })
       void rescan()
-      await openPath(joinPath(base.rootPath, relative))
+      openEditorPath(joinPath(base.rootPath, relative))
       toast.success(withAcp ? '已 ACP 起草并打开' : '已创建 stub')
       await refresh()
     } catch (error) {

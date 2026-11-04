@@ -103,6 +103,7 @@ function NumberStepButton(props: NumberStepButtonProps) {
 /**
  * 数字输入：左右步进，中间可直接键入。
  * `type="number"` 的 `<Input />` 会自动落到这里，业务侧不必再包一层。
+ * disabled / readOnly 不画步进键（只读展示），避免窄宽（如 w-24）被两侧按钮挤掉数字。
  */
 function InputNumber({
   className,
@@ -130,7 +131,7 @@ function InputNumber({
   const stepSize = parseStep(step)
   const minBound = parseBound(min)
   const maxBound = parseBound(max)
-  const isStepDisabled = Boolean(disabled || readOnly)
+  const showsSteppers = !disabled && !readOnly
 
   function commit(raw: string) {
     if (!isControlled) setDraft(raw)
@@ -138,28 +139,55 @@ function InputNumber({
   }
 
   function stepBy(direction: 1 | -1) {
-    if (isStepDisabled) return
+    if (!showsSteppers) return
     const current = display === '' || Number.isNaN(Number(display)) ? 0 : Number(display)
     const next = clampNumber(current + direction * stepSize, minBound, maxBound)
     const pretty = Number.isInteger(stepSize) ? String(Math.round(next)) : String(next)
     commit(pretty)
   }
 
+  if (!showsSteppers) {
+    return (
+      <input
+        {...props}
+        type="number"
+        data-slot="input"
+        inputMode="decimal"
+        disabled={disabled}
+        readOnly={readOnly}
+        min={min}
+        max={max}
+        step={step}
+        value={display}
+        onChange={function (event) {
+          if (!isControlled) setDraft(event.target.value)
+          onChange?.(event)
+        }}
+        onBlur={onBlur}
+        className={cn(
+          INPUT_SHELL,
+          'tabular-nums',
+          '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
+          className
+        )}
+      />
+    )
+  }
+
   return (
     <div
       data-slot="input-number"
       className={cn(
-        'relative flex h-9 w-full min-w-0 items-stretch overflow-hidden rounded-md border border-input bg-background text-base shadow-xs transition-[border-color,box-shadow] md:text-sm dark:bg-input/30',
+        // min-w-32：两侧 w-8 步进 + 中间至少约 4 位数字；覆盖业务侧遗留的 w-24
+        'relative flex h-9 w-full min-w-32 items-stretch overflow-hidden rounded-md border border-input bg-background text-base shadow-xs transition-[border-color,box-shadow] md:text-sm dark:bg-input/30',
         FOCUS_WITHIN,
         FOCUS_WITHIN_INVALID,
-        disabled && 'pointer-events-none cursor-not-allowed opacity-50',
         className
       )}>
       <NumberStepButton
         label="减少"
         icon="lucide:minus"
         edge="start"
-        disabled={isStepDisabled}
         onStep={function () {
           stepBy(-1)
         }}
@@ -169,8 +197,6 @@ function InputNumber({
         type="number"
         data-slot="input"
         inputMode="decimal"
-        disabled={disabled}
-        readOnly={readOnly}
         min={min}
         max={max}
         step={step}
@@ -189,7 +215,6 @@ function InputNumber({
         label="增加"
         icon="lucide:plus"
         edge="end"
-        disabled={isStepDisabled}
         onStep={function () {
           stepBy(1)
         }}

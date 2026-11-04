@@ -1,12 +1,14 @@
 /**
- * 对齐 llm_wiki `app-layout-visibility`：
- * - 设置：全宽主区，左内容栏收起（只留 icon rail）
- * - Wiki：左栏 Knowledge|Files + 活动条，主区编辑器
- * - 来源 / 检索 / 图谱 / Lint / 审阅 / 研究 / 活动：主区工具视图，左栏仍可浏览
+ * 对齐 llm_wiki 可见性 + cogito 右栏（大纲 | AI | 深度研究 同一 Splitter 列）：
+ * - 设置：全宽主区，左内容栏收起
+ * - 深度研究页签：非设置/专注下可与工具主区并存
+ * - 大纲 / AI：仅 Wiki 主区时展开右栏
  */
-import type { RailTabCanonical } from '@/views/knowledge/surface/store.ts'
+import type { AsideTab, RailTabCanonical } from '@/views/knowledge/surface/store.ts'
 
-/** 主区独占、收起左内容栏（与 llm_wiki settings/chat/skills 同级） */
+type RightPaneMode = 'hidden' | 'aside'
+
+/** 主区独占、收起左内容栏（与 llm_wiki settings 同级） */
 function isRailOnlyView(tab: RailTabCanonical): boolean {
   return tab === 'settings'
 }
@@ -18,9 +20,7 @@ function isToolMainView(tab: RailTabCanonical): boolean {
     tab === 'search' ||
     tab === 'graph' ||
     tab === 'lint' ||
-    tab === 'review' ||
-    tab === 'research' ||
-    tab === 'activity'
+    tab === 'review'
   )
 }
 
@@ -40,4 +40,26 @@ function findLayoutVisibility(tab: RailTabCanonical): {
   }
 }
 
-export { findLayoutVisibility, isRailOnlyView, isToolMainView }
+/**
+ * 右栏是否展开：研究可与工具主区并存；大纲/AI 仅 Wiki。
+ */
+function findRightPaneMode(input: {
+  tab: RailTabCanonical
+  asideTab: AsideTab
+  isAsideOpen: boolean
+  isFocusMode: boolean
+}): RightPaneMode {
+  if (input.isFocusMode || input.tab === 'settings') return 'hidden'
+  if (!input.isAsideOpen) return 'hidden'
+  if (input.asideTab === 'research') return 'aside'
+  if (input.tab === 'wiki') return 'aside'
+  return 'hidden'
+}
+
+export {
+  findLayoutVisibility,
+  findRightPaneMode,
+  isRailOnlyView,
+  isToolMainView
+}
+export type { RightPaneMode }

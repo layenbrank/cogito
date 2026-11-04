@@ -1,9 +1,12 @@
 /**
- * Deep Research：主题 → 真搜索（web-search-config）→ 写入 raw/sources 并入队。
+ * Deep Research 右栏侧板：主题 → 真搜索 → 写入 raw/sources 并入队。
+ * 对齐 llm_wiki ResearchPanel（非主区全宽）。
  */
+import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { Input } from '@cogito/design/components/input'
 import { ScrollArea } from '@cogito/design/components/scroll-area'
+import { Textarea } from '@cogito/design/components/textarea'
 import { exists, mkdir, writeTextFile } from '@tauri-apps/plugin-fs'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -58,11 +61,7 @@ function slugify(value: string): string {
 }
 
 function enqueueResearchTopic(topic: string): void {
-  const queries = [
-    topic,
-    `${topic} overview`,
-    `${topic} key concepts`
-  ]
+  const queries = [topic, `${topic} overview`, `${topic} key concepts`]
   const draft: ResearchDraft = {
     id: `research-${Date.now()}`,
     topic: topic.trim(),
@@ -70,10 +69,14 @@ function enqueueResearchTopic(topic: string): void {
     createdAt: Date.now()
   }
   writeDrafts([draft, ...readDrafts()].slice(0, 20))
-  useSurfaceStore.getState().toOpen('research')
+  useSurfaceStore.getState().toSetResearchOpen(true)
 }
 
-function ResearchTab() {
+function ResearchPanel(props: { embedded?: boolean } = {}) {
+  const embedded = Boolean(props.embedded)
+  const toSetResearchOpen = useSurfaceStore(function (state) {
+    return state.toSetResearchOpen
+  })
   const enqueue = useIngestQueueStore(function (state) {
     return state.enqueue
   })
@@ -199,54 +202,124 @@ ${hitsBlock}
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <Input
-        className="h-7 text-xs"
-        placeholder="研究主题"
-        value={topic}
-        onChange={function (event) {
-          setTopic(event.target.value)
-        }}
-      />
-      <textarea
-        className="border-input bg-background min-h-24 rounded-md border px-2 py-1 text-xs"
-        placeholder="搜索查询（每行一条）"
-        value={queryText}
-        onChange={function (event) {
-          setQueryText(event.target.value)
-        }}
-      />
-      <Button
-        size="sm"
-        onClick={saveDraft}>
-        保存主题
-      </Button>
+    <div className="flex h-full min-h-0 w-full flex-col bg-background">
+      {embedded ? (
+        <div className="text-muted-foreground border-border flex shrink-0 items-center justify-between gap-2 border-b px-2.5 py-1.5 text-[11px]">
+          <span>主题 → 查询 → Web / AnyTXT</span>
+          <span className="border-border bg-background/60 shrink-0 rounded-full border px-1.5 py-px text-[10px] tabular-nums">
+            {drafts.length} 草稿
+          </span>
+        </div>
+      ) : (
+        <div className="flex shrink-0 items-center gap-2 border-b border-border px-2.5 py-1.5">
+          <Icon
+            icon="lucide:microscope"
+            className="text-muted-foreground size-4 shrink-0"
+          />
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold">深度研究</span>
+          <span className="text-muted-foreground text-[10px] tabular-nums">{drafts.length}</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 px-1.5"
+            title="关闭"
+            onClick={function () {
+              toSetResearchOpen(false)
+            }}>
+            <Icon
+              icon="lucide:x"
+              className="size-3.5"
+            />
+          </Button>
+        </div>
+      )}
+
+      <div className="border-border flex shrink-0 flex-col gap-2 border-b px-2.5 py-2.5">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-muted-foreground text-xs font-medium">研究主题</label>
+          <Input
+            className="h-8 text-xs"
+            placeholder="例如：LanceDB 向量检索"
+            value={topic}
+            onChange={function (event) {
+              setTopic(event.target.value)
+            }}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-muted-foreground text-xs font-medium">搜索查询（每行一条）</label>
+          <Textarea
+            className="min-h-16 text-xs"
+            placeholder={'LanceDB overview\nLanceDB vs sqlite-vec'}
+            value={queryText}
+            onChange={function (event) {
+              setQueryText(event.target.value)
+            }}
+          />
+        </div>
+        <Button
+          size="sm"
+          className="h-8 w-full text-xs font-medium"
+          disabled={!topic.trim() || !queryText.trim()}
+          onClick={saveDraft}>
+          保存主题
+        </Button>
+      </div>
+
       <ScrollArea className="min-h-0 flex-1">
-        <ul className="flex flex-col gap-1">
-          {drafts.map(function (draft) {
-            return (
-              <li
-                key={draft.id}
-                className="rounded-md border border-border px-2 py-1.5 text-xs">
-                <p className="font-medium">{draft.topic}</p>
-                <p className="text-muted-foreground">{draft.queries.length} 条查询</p>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="mt-1 h-6 px-1.5 text-[11px]"
-                  disabled={busyId === draft.id}
-                  onClick={function () {
-                    void enqueueDraft(draft)
-                  }}>
-                  {busyId === draft.id ? '搜索写入中…' : '搜索写入 raw 并 ingest'}
-                </Button>
-              </li>
-            )
-          })}
-        </ul>
+        <div className="flex flex-col gap-1.5 p-2 pb-4">
+          {drafts.length === 0 ? (
+            <p className="text-muted-foreground px-1 py-6 text-center text-[11px] leading-relaxed">
+              填写主题与查询后保存；也可从图谱 Insights 一键转入。
+            </p>
+          ) : (
+            drafts.map(function (draft) {
+              return (
+                <div
+                  key={draft.id}
+                  className="border-border/70 bg-card rounded-lg border px-2.5 py-2">
+                  <div className="flex items-start justify-between gap-1.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium">{draft.topic}</p>
+                      <p className="text-muted-foreground mt-0.5 text-[10px]">
+                        {draft.queries.length} 条 ·{' '}
+                        {new Date(draft.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-6 shrink-0 px-2 text-[10px]"
+                      disabled={busyId === draft.id}
+                      onClick={function () {
+                        void enqueueDraft(draft)
+                      }}>
+                      {busyId === draft.id ? '…' : '检索'}
+                    </Button>
+                  </div>
+                  <ul className="text-muted-foreground mt-1 space-y-0.5 text-[10px]">
+                    {draft.queries.slice(0, 3).map(function (query) {
+                      return (
+                        <li
+                          key={query}
+                          className="truncate">
+                          · {query}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              )
+            })
+          )}
+        </div>
       </ScrollArea>
     </div>
   )
 }
 
-export { ResearchTab, enqueueResearchTopic }
+/** @deprecated 用 ResearchPanel；保留别名避免旧 import 断裂 */
+const ResearchTab = ResearchPanel
+
+export { ResearchPanel, ResearchTab, enqueueResearchTopic }

@@ -189,7 +189,16 @@ async function watchKnowledgeBases(input: {
 
   return function stopAll() {
     for (const stop of stops) {
-      stop?.()
+      try {
+        const result = stop?.() as void | Promise<void>
+        if (result && typeof result.then === 'function') {
+          void result.catch(function (error) {
+            console.warn('[sources-watch] unwatch failed', error)
+          })
+        }
+      } catch (error) {
+        console.warn('[sources-watch] unwatch failed', error)
+      }
     }
   }
 }

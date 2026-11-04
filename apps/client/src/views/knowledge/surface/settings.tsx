@@ -1,7 +1,8 @@
 /**
  * Wiki 设置：分类与 llm_wiki `settings-view` 对齐（左类目 + 右内容）。
- * LLM / Interface / About 用全局能力；此处不复刻旧 RAG 库开关与待发布。
+ * 视觉对齐 agent/settings：muted 壳 + 双白卡 + 扁平行。
  */
+import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { Checkbox } from '@cogito/design/components/checkbox'
 import { Input } from '@cogito/design/components/input'
@@ -16,8 +17,10 @@ import {
 } from '@cogito/design/components/select'
 import { Switch } from '@cogito/design/components/switch'
 import { Textarea } from '@cogito/design/components/textarea'
-import { cn } from 'cn'
+import { clsx } from 'clsx'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+
+import styles from '@/views/knowledge/surface/settings.module.scss'
 
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useSettingsStore } from '@/stores/setting'
@@ -88,7 +91,6 @@ import {
   readWikiOutputConfig,
   type WikiOutputConfig
 } from '@/views/knowledge/lib/wiki-output-config.ts'
-import { useSurfaceStore } from '@/views/knowledge/surface/store.ts'
 import { openEditorPath } from '@/views/knowledge/workspace/editor-context.ts'
 
 type SettingsSectionId =
@@ -107,37 +109,37 @@ type SettingsSectionId =
 
 const SECTION_GROUPS: readonly {
   label: string
-  items: readonly { id: SettingsSectionId; label: string }[]
+  items: readonly { id: SettingsSectionId; label: string; icon: string }[]
 }[] = [
   {
     label: '模型',
     items: [
-      { id: 'llm', label: 'LLM' },
-      { id: 'embedding', label: 'Embedding' },
-      { id: 'multimodal', label: '多模态' }
+      { id: 'llm', label: 'LLM', icon: 'lucide:box' },
+      { id: 'embedding', label: 'Embedding', icon: 'lucide:database' },
+      { id: 'multimodal', label: '多模态', icon: 'lucide:images' }
     ]
   },
   {
     label: '连接',
     items: [
-      { id: 'web-search', label: '网页搜索' },
-      { id: 'anytxt', label: 'AnyTXT' },
-      { id: 'network', label: '网络' },
-      { id: 'api-server', label: 'API / Clip' }
+      { id: 'web-search', label: '网页搜索', icon: 'lucide:globe' },
+      { id: 'anytxt', label: 'AnyTXT', icon: 'lucide:file-search' },
+      { id: 'network', label: '网络', icon: 'lucide:cable' },
+      { id: 'api-server', label: 'API / Clip', icon: 'lucide:server' }
     ]
   },
   {
     label: '流水线',
     items: [
-      { id: 'source-watch', label: '源监听' },
-      { id: 'scheduled-import', label: '定时导入' },
-      { id: 'mineru', label: 'MinerU / PDF' },
-      { id: 'output', label: '输出' }
+      { id: 'source-watch', label: '源监听', icon: 'lucide:radar' },
+      { id: 'scheduled-import', label: '定时导入', icon: 'lucide:calendar-clock' },
+      { id: 'mineru', label: 'MinerU / PDF', icon: 'lucide:file-digit' },
+      { id: 'output', label: '输出', icon: 'lucide:languages' }
     ]
   },
   {
     label: '库',
-    items: [{ id: 'maintenance', label: '维护' }]
+    items: [{ id: 'maintenance', label: '维护', icon: 'lucide:wrench' }]
   }
 ]
 
@@ -160,15 +162,11 @@ function readStoredSection(): SettingsSectionId {
 
 function Row(props: { label: string; hint?: string; children: ReactNode }) {
   return (
-    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-start gap-x-3 py-1.5">
-      <div className="min-w-0 pt-1.5">
-        <Label className="text-sm leading-none text-muted-foreground">{props.label}</Label>
-        {props.hint ? (
-          <p className="text-muted-foreground mt-1 text-xs leading-snug">{props.hint}</p>
-        ) : null}
-      </div>
-      <div className="flex min-h-7 min-w-0 flex-wrap items-center justify-end gap-2">
-        {props.children}
+    <div className={styles.row}>
+      <span className={styles.rowLabel}>{props.label}</span>
+      <div className={styles.rowBody}>
+        <div className={styles.rowControls}>{props.children}</div>
+        {props.hint ? <p className={styles.rowHint}>{props.hint}</p> : null}
       </div>
     </div>
   )
@@ -176,19 +174,15 @@ function Row(props: { label: string; hint?: string; children: ReactNode }) {
 
 function SectionTitle(props: { title: string; description: string }) {
   return (
-    <div className="mb-3 border-b border-border/60 pb-2.5">
-      <h2 className="text-base font-semibold tracking-tight">{props.title}</h2>
-      <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{props.description}</p>
-    </div>
+    <header className={styles.header}>
+      <h2 className={styles.title}>{props.title}</h2>
+      <p className={styles.desc}>{props.description}</p>
+    </header>
   )
 }
 
 function SettingsPanel(props: { children: ReactNode }) {
-  return (
-    <section className="rounded-xl border border-border bg-card px-4 py-3.5">
-      {props.children}
-    </section>
-  )
+  return <section className={styles.panel}>{props.children}</section>
 }
 
 function SettingsTab() {
@@ -309,8 +303,6 @@ function SettingsTab() {
 
   function openSchemaFile(relative: string) {
     if (!activeBase?.rootPath) return
-    // 退回 Wiki 列表 + 编辑器，避免仍停在设置全页
-    useSurfaceStore.getState().toSetTab('wiki')
     openEditorPath(joinPath(activeBase.rootPath, relative))
   }
 
@@ -324,43 +316,51 @@ function SettingsTab() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 gap-5">
+    <div className={styles.shell}>
       <nav
         aria-label="Wiki 设置分类"
-        className="flex w-44 shrink-0 flex-col gap-3 overflow-y-auto overscroll-y-contain border-r border-border/60 pr-3">
-        {SECTION_GROUPS.map(function (group) {
-          return (
-            <div
-              key={group.label}
-              className="flex flex-col gap-0.5">
-              <p className="text-muted-foreground px-2 pb-1 text-[11px] font-medium tracking-wide uppercase">
-                {group.label}
-              </p>
-              {group.items.map(function (item) {
-                const isActive = item.id === section
-                return (
-                  <Button
-                    key={item.id}
-                    size="sm"
-                    variant="ghost"
-                    className={cn(
-                      'h-8 justify-start px-2 text-xs',
-                      isActive && 'bg-muted font-medium text-foreground'
-                    )}
-                    onClick={function () {
-                      selectSection(item.id)
-                    }}>
-                    {item.label}
-                  </Button>
-                )
-              })}
-            </div>
-          )
-        })}
+        className={styles.nav}>
+        <div className={styles.navTop}>
+          <p className={styles.navTitle}>Wiki 设置</p>
+          <p className={styles.navSubtitle}>按分类调整流水线</p>
+        </div>
+        <div className={styles.navBody}>
+          {SECTION_GROUPS.map(function (group) {
+            return (
+              <div
+                key={group.label}
+                className={styles.navGroup}>
+                <p className={styles.navGroupLabel}>{group.label}</p>
+                {group.items.map(function (item) {
+                  const isActive = item.id === section
+                  return (
+                    <Button
+                      key={item.id}
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      data-active={isActive ? 'true' : 'false'}
+                      className={clsx(styles.navItem, isActive && styles.navItemActive)}
+                      onClick={function () {
+                        selectSection(item.id)
+                      }}>
+                      <Icon
+                        icon={item.icon}
+                        className={styles.navItemIcon}
+                      />
+                      {item.label}
+                    </Button>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </div>
       </nav>
 
-      <ScrollArea className="min-h-0 min-w-0 flex-1">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 pr-2 pb-8">
+      <div className={styles.main}>
+        <ScrollArea className={styles.mainScroll}>
+          <div className={styles.mainInner}>
           {section === 'llm' ? (
             <SettingsPanel>
               <SectionTitle
@@ -833,23 +833,31 @@ function SettingsTab() {
                   title="允许的文件类型"
                   description="常见文档类型默认开启。媒体、二进制、源码和配置类格式默认关闭，需要时再手动选择。"
                 />
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {SOURCE_WATCH_FILE_TYPE_GROUPS.map(function (group) {
                     return (
-                      <div key={group.id} className="space-y-2">
-                        <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                      <div
+                        key={group.id}
+                        className="space-y-1.5">
+                        <div className="text-muted-foreground text-xs font-medium">
                           {group.label}
                         </div>
-                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                        <div className="flex flex-wrap gap-1.5">
                           {group.extensions.map(function (ext) {
                             const checked = selectedExtensions.has(ext)
                             return (
                               <label
                                 key={ext}
-                                className="border-border/60 bg-background flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs">
+                                className={clsx(
+                                  'border-border/60 bg-background inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border px-2 text-xs transition-colors',
+                                  'hover:bg-muted/40',
+                                  checked && 'border-primary/40 bg-primary/5',
+                                  !watchConfig.enabled && 'cursor-not-allowed opacity-50'
+                                )}>
                                 <Checkbox
                                   checked={checked}
                                   disabled={!watchConfig.enabled}
+                                  className="size-3.5"
                                   onCheckedChange={function (value) {
                                     const next = new Set(watchConfig.includeExtensions)
                                     if (value) next.add(ext)
@@ -861,7 +869,7 @@ function SettingsTab() {
                                     )
                                   }}
                                 />
-                                <span>.{ext}</span>
+                                <span className="font-mono leading-none">.{ext}</span>
                               </label>
                             )
                           })}
@@ -1087,22 +1095,26 @@ function SettingsTab() {
                   </SelectContent>
                 </Select>
               </Row>
-              <Row label="MinerU 端点">
+              <Row
+                label="MinerU 端点"
+                hint="可预先填写；后端选 MinerU 时才会请求。">
                 <Input
                   value={pdfConfig.mineruEndpoint}
-                  disabled={pdfConfig.backend !== 'mineru'}
                   className="h-8 w-56 text-xs"
+                  placeholder="https://…/mineru"
                   onChange={function (event) {
                     setPdfConfig(patchPdfPipelineConfig({ mineruEndpoint: event.target.value }))
                   }}
                 />
               </Row>
-              <Row label="Token">
+              <Row
+                label="Token"
+                hint="可选 Bearer；与端点一并保存，不依赖当前后端。">
                 <Input
                   type="password"
                   value={pdfConfig.mineruToken}
-                  disabled={pdfConfig.backend !== 'mineru'}
                   className="h-8 w-56 text-xs"
+                  placeholder="可选"
                   onChange={function (event) {
                     setPdfConfig(patchPdfPipelineConfig({ mineruToken: event.target.value }))
                   }}
@@ -1125,21 +1137,38 @@ function SettingsTab() {
                 title="API / Clip 守护"
                 description="默认 127.0.0.1:19828；允许局域网时重绑 0.0.0.0。Clip /api/v1；MCP 侧车开关控制 ACP 是否注入 cogito-mcp。"
               />
-              <div className="mb-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
-                <p className="font-medium">Clip 守护</p>
-                <p className="text-muted-foreground mt-1">
-                  {clipStatus
-                    ? clipStatus.running
-                      ? `运行中 · 端口 ${clipStatus.port} · 剪藏 ${clipStatus.clipCount} · API ${
-                          clipStatus.apiOk ? '可用' : '不可用'
-                        }`
-                      : `未运行${clipStatus.detail ? ` · ${clipStatus.detail}` : ''}`
-                    : '检测中…'}
-                </p>
+              <div
+                className={clsx(
+                  styles.statusCard,
+                  clipStatus?.running && styles.statusCardOk
+                )}>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span
+                      aria-hidden
+                      className={clsx(
+                        styles.statusDot,
+                        clipStatus?.running && styles.statusDotOk
+                      )}
+                    />
+                    <p className="text-sm font-medium text-foreground">
+                      Clip 守护 {clipStatus?.running ? '运行中' : '未运行'}
+                    </p>
+                  </div>
+                  <p className="text-muted-foreground mt-1.5 text-xs leading-relaxed">
+                    {clipStatus
+                      ? clipStatus.running
+                        ? `端口 ${clipStatus.port} · 剪藏 ${clipStatus.clipCount} · API ${
+                            clipStatus.apiOk ? '可用' : '不可用'
+                          }`
+                        : clipStatus.detail || '守护进程未启动'
+                      : '检测中…'}
+                  </p>
+                </div>
                 <Button
                   size="sm"
-                  variant="ghost"
-                  className="mt-1 h-7 text-[11px]"
+                  variant="outline"
+                  className="h-8 shrink-0 text-xs"
                   onClick={function () {
                     void fetchClipDaemonStatus().then(setClipStatus)
                   }}>
@@ -1182,12 +1211,15 @@ function SettingsTab() {
                   }}
                 />
               </Row>
-              <Row label="端口">
+              <Row
+                label="端口"
+                hint="固定 19828，随守护进程绑定">
                 <Input
                   type="number"
                   value={apiConfig.port}
                   disabled
-                  className="h-8 w-24 text-xs"
+                  readOnly
+                  className="h-8 w-28 text-xs"
                 />
               </Row>
               <Row label="Token">
@@ -1201,9 +1233,9 @@ function SettingsTab() {
                   }}
                 />
               </Row>
-              <div className="mt-3">
-                <p className="text-muted-foreground mb-1 text-[11px] font-medium">端点</p>
-                <ul className="text-muted-foreground space-y-0.5 text-[11px]">
+              <div className={styles.metaBox}>
+                <p className={styles.metaTitle}>端点</p>
+                <ul className={styles.metaList}>
                   <li>GET /health — Clip 守护</li>
                   <li>POST /clip — 剪藏</li>
                   <li>GET /api/v1/health</li>
@@ -1255,16 +1287,16 @@ function SettingsTab() {
               />
               {activeBase ? (
                 <p
-                  className="text-muted-foreground mb-2 break-all text-[11px]"
+                  className={styles.pathChip}
                   title={activeBase.rootPath}>
                   {activeBase.rootPath}
                 </p>
               ) : null}
-              <div className="flex flex-wrap gap-1">
+              <div className={styles.actions}>
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="h-7 text-xs"
+                  className="h-8 text-xs"
                   disabled={!activeBase}
                   onClick={function () {
                     void rescan()
@@ -1274,7 +1306,7 @@ function SettingsTab() {
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="h-7 text-xs"
+                  className="h-8 text-xs"
                   disabled={!activeBase}
                   onClick={function () {
                     if (!activeBase) return
@@ -1293,7 +1325,7 @@ function SettingsTab() {
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="h-7 text-xs"
+                  className="h-8 text-xs"
                   disabled={!activeBase}
                   onClick={function () {
                     void exportBundle()
@@ -1302,15 +1334,15 @@ function SettingsTab() {
                 </Button>
                 <Button
                   size="sm"
-                  variant="ghost"
-                  className="h-7 text-xs"
+                  variant="outline"
+                  className="h-8 text-xs"
                   onClick={clearIngestQueue}>
                   清空 ingest ({ingestItems.length})
                 </Button>
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="h-7 text-xs"
+                  className="h-8 text-xs"
                   disabled={!activeBase}
                   onClick={function () {
                     const groups = findDuplicateTitleGroups(
@@ -1330,7 +1362,7 @@ function SettingsTab() {
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="h-7 text-xs"
+                  className="h-8 text-xs"
                   disabled={!activeBase}
                   onClick={function () {
                     if (!activeBase) return
@@ -1354,11 +1386,11 @@ function SettingsTab() {
                   Enrich wikilinks
                 </Button>
               </div>
-              <div className="mt-3">
-                <p className="text-muted-foreground mb-1 text-[11px]">
+              <div className={styles.metaBox}>
+                <p className={styles.metaTitle}>
                   文件历史（最近 {readFileHistory().length}）
                 </p>
-                <ul className="text-muted-foreground max-h-24 overflow-y-auto overscroll-y-contain text-[11px]">
+                <ul className={clsx(styles.metaList, 'max-h-28 overflow-y-auto overscroll-y-contain')}>
                   {readFileHistory()
                     .slice(0, 8)
                     .map(function (entry) {
@@ -1373,8 +1405,9 @@ function SettingsTab() {
               </div>
             </SettingsPanel>
           ) : null}
-        </div>
-      </ScrollArea>
+          </div>
+        </ScrollArea>
+      </div>
     </div>
   )
 }

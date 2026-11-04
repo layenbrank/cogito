@@ -1,11 +1,9 @@
 /**
- * 编辑器 ↔ 对话坞 / 左栏的桥：坞要读「当前文档/选区」，也要能把结果写回去；
- * 左栏文件树在工作区外渲染时，打开路径也走这里（带脏检查）。
- *
- * 为什么用模块级单值：编辑器实例在 TipTap 里，坞与左栏在另一棵树上；
- * 这条桥只需要「读一次、写一次」，不需要订阅。
+ * 编辑器 ↔ 对话坞 / 左栏的桥。
+ * 打开路径：由 bridge.openPath（含脏检查）在确认后再切 Wiki + 记 previewReturnTab。
  */
 import { openPath } from '@/views/knowledge/lib/session.ts'
+import { useSurfaceStore } from '@/views/knowledge/surface/store.ts'
 
 interface EditorContext {
   /** 当前文档相对路径；没打开文档时为 null */
@@ -45,12 +43,23 @@ function writeEditor(text: string): boolean {
   return true
 }
 
-/** 左栏点开文件：优先走工作区守卫（脏检查）；桥未挂上时直接打开 */
+/** 打开成功路径上调用：记 return 并切到 wiki（勿在脏确认前调用） */
+function commitWikiReveal(): void {
+  const surface = useSurfaceStore.getState()
+  if (surface.tab === 'wiki') return
+  surface.toCommitPreviewOpen(surface.tab)
+}
+
+/**
+ * 左栏 / 检索 / 图谱等点开文件。
+ * 有 bridge 时由 handleOpenPath 在确认后再切 wiki；无 bridge 时直接提交。
+ */
 function openEditorPath(path: string): void {
   if (bridge?.openPath) {
     bridge.openPath(path)
     return
   }
+  commitWikiReveal()
   void openPath(path)
 }
 
@@ -58,5 +67,12 @@ function jumpEditorPos(pos: number): void {
   bridge?.jumpToPos?.(pos)
 }
 
-export { findEditorContext, jumpEditorPos, openEditorPath, rememberEditorBridge, writeEditor }
+export {
+  commitWikiReveal,
+  findEditorContext,
+  jumpEditorPos,
+  openEditorPath,
+  rememberEditorBridge,
+  writeEditor
+}
 export type { EditorBridge, EditorContext }

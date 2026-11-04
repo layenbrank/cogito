@@ -1,21 +1,20 @@
 /**
  * 主区内容：对齐 llm_wiki ContentArea。
- * Wiki → TipTap；工具视图 → 全宽面板；设置单独全页。
+ * 显隐勿同时写 flex + hidden（Tailwind 同属性后写覆盖，编辑器会盖住设置）。
  */
 import { cn } from 'cn'
 import type { ReactNode } from 'react'
 
 import { Fallback } from '@/components/fallback/index.ts'
-import { ActivityTab } from '@/views/knowledge/surface/activity.tsx'
 import { GraphTab } from '@/views/knowledge/surface/graph.tsx'
 import { LintTab } from '@/views/knowledge/surface/lint.tsx'
-import { ResearchTab } from '@/views/knowledge/surface/research.tsx'
 import { ReviewTab } from '@/views/knowledge/surface/review.tsx'
 import { SearchTab } from '@/views/knowledge/surface/search.tsx'
 import { SettingsTab } from '@/views/knowledge/surface/settings.tsx'
 import { SourcesMain } from '@/views/knowledge/surface/sources-main.tsx'
 import { findLayoutVisibility } from '@/views/knowledge/surface/layout-visibility.ts'
 import type { RailTabCanonical } from '@/views/knowledge/surface/store.ts'
+import { TOOL_SHELL } from '@/views/knowledge/surface/tool-surface.tsx'
 import KnowledgeWorkspace from '@/views/knowledge/workspace/markdown.tsx'
 
 interface KnowledgeMainContentProps {
@@ -23,7 +22,21 @@ interface KnowledgeMainContentProps {
 }
 
 function ToolShell(props: { children: ReactNode }) {
-  return <div className="flex min-h-0 flex-1 flex-col p-4">{props.children}</div>
+  return <div className={TOOL_SHELL}>{props.children}</div>
+}
+
+function MainPane(props: { isActive: boolean; children: ReactNode; className?: string }) {
+  return (
+    <div
+      className={cn(
+        'min-h-0 min-w-0',
+        props.isActive ? 'flex flex-1 flex-col' : 'hidden',
+        props.className
+      )}
+      aria-hidden={!props.isActive}>
+      {props.children}
+    </div>
+  )
 }
 
 function KnowledgeMainContent(props: KnowledgeMainContentProps) {
@@ -31,94 +44,46 @@ function KnowledgeMainContent(props: KnowledgeMainContentProps) {
 
   return (
     <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
-      <div
-        className={cn(
-          'flex min-h-0 flex-1 flex-col',
-          props.tab === 'settings' ? 'p-4' : 'hidden'
-        )}
-        aria-hidden={props.tab !== 'settings'}>
+      <MainPane
+        isActive={props.tab === 'settings'}
+        className="bg-background">
         <SettingsTab />
-      </div>
+      </MainPane>
 
-      <div
-        className={cn(
-          'flex min-h-0 flex-1 flex-col',
-          props.tab === 'sources' ? '' : 'hidden'
-        )}
-        aria-hidden={props.tab !== 'sources'}>
+      <MainPane isActive={props.tab === 'sources'}>
         <SourcesMain />
-      </div>
+      </MainPane>
 
-      <div
-        className={cn(
-          'flex min-h-0 flex-1 flex-col',
-          props.tab === 'search' ? '' : 'hidden'
-        )}
-        aria-hidden={props.tab !== 'search'}>
+      <MainPane isActive={props.tab === 'search'}>
         <ToolShell>
           <SearchTab />
         </ToolShell>
-      </div>
+      </MainPane>
 
-      <div
-        className={cn(
-          'flex min-h-0 flex-1 flex-col',
-          props.tab === 'graph' ? '' : 'hidden'
-        )}
-        aria-hidden={props.tab !== 'graph'}>
+      <MainPane isActive={props.tab === 'graph'}>
         <ToolShell>
           <GraphTab />
         </ToolShell>
-      </div>
+      </MainPane>
 
-      <div
-        className={cn(
-          'flex min-h-0 flex-1 flex-col',
-          props.tab === 'lint' ? '' : 'hidden'
-        )}
-        aria-hidden={props.tab !== 'lint'}>
+      <MainPane isActive={props.tab === 'lint'}>
         <ToolShell>
           <LintTab />
         </ToolShell>
-      </div>
+      </MainPane>
 
-      <div
-        className={cn(
-          'flex min-h-0 flex-1 flex-col',
-          props.tab === 'review' ? '' : 'hidden'
-        )}
-        aria-hidden={props.tab !== 'review'}>
+      <MainPane isActive={props.tab === 'review'}>
         <ToolShell>
           <ReviewTab />
         </ToolShell>
-      </div>
+      </MainPane>
 
       <div
         className={cn(
-          'flex min-h-0 flex-1 flex-col',
-          props.tab === 'research' ? '' : 'hidden'
-        )}
-        aria-hidden={props.tab !== 'research'}>
-        <ToolShell>
-          <ResearchTab />
-        </ToolShell>
-      </div>
-
-      <div
-        className={cn(
-          'flex min-h-0 flex-1 flex-col',
-          props.tab === 'activity' ? '' : 'hidden'
-        )}
-        aria-hidden={props.tab !== 'activity'}>
-        <ToolShell>
-          <ActivityTab />
-        </ToolShell>
-      </div>
-
-      <div
-        className={cn(
-          'flex h-full min-h-0 min-w-0 flex-1 flex-col',
-          visibility.showEditor ? '' : 'pointer-events-none absolute inset-0 hidden'
+          'min-h-0 min-w-0',
+          visibility.showEditor
+            ? 'flex h-full flex-1 flex-col'
+            : 'pointer-events-none absolute inset-0 hidden'
         )}
         aria-hidden={!visibility.showEditor}>
         <Fallback.ErrorBoundary

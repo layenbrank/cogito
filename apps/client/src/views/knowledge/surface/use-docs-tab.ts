@@ -4,7 +4,7 @@ import { useDockStore } from '@/features/agent/dock'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { isPathInsideRoot, isSamePath, joinPath } from '@/views/knowledge/lib/path.ts'
-import { openPath } from '@/views/knowledge/lib/session.ts'
+import { openEditorPath } from '@/views/knowledge/workspace/editor-context.ts'
 
 function useDocsTab() {
   const bases = useKnowledgeBaseStore(function (state) {
@@ -57,7 +57,7 @@ function useDocsTab() {
     return base.id === activeBaseID
   })
 
-  async function openDoc(relative: string) {
+  function openDoc(relative: string) {
     if (!activeBase) return
     const absolute = joinPath(activeBase.rootPath, relative)
     const workspace = useKnowledgeStore.getState()
@@ -67,7 +67,7 @@ function useDocsTab() {
       workspace.toSetRootDir(activeBase.rootPath, { persist: true })
       workspace.toBumpTree()
     }
-    await openPath(absolute)
+    openEditorPath(absolute)
   }
 
   function openNewDocDock() {

@@ -17,7 +17,14 @@ import {
   type ReviewItem,
   type ReviewItemKind
 } from '@/views/knowledge/lib/review-store.ts'
-import { openPath } from '@/views/knowledge/lib/session.ts'
+import { openEditorPath } from '@/views/knowledge/workspace/editor-context.ts'
+import {
+  ToolEmpty,
+  ToolListCard,
+  ToolPageHeader,
+  ToolStatPill,
+  ToolTag
+} from '@/views/knowledge/surface/tool-surface.tsx'
 
 const KIND_LABEL: Record<ReviewItemKind, string> = {
   confirm: '确认',
@@ -25,6 +32,13 @@ const KIND_LABEL: Record<ReviewItemKind, string> = {
   contradiction: '矛盾',
   duplicate: '重复',
   'missing-page': '缺页'
+}
+
+const STATUS_LABEL: Record<ReviewItem['status'], string> = {
+  pending: '待处理',
+  approved: '已通过',
+  dismissed: '已忽略',
+  rejected: '已拒绝'
 }
 
 function ReviewTab() {
@@ -68,14 +82,15 @@ function ReviewTab() {
     if (item.wikiPath) {
       const absolute = joinPath(base.rootPath, item.wikiPath)
       if (await exists(absolute)) {
-        await openPath(absolute)
+        openEditorPath(absolute)
         return
       }
     }
-    const slug = item.title
-      .toLowerCase()
-      .replace(/[^a-z0-9\u4e00-\u9fff]+/gi, '-')
-      .slice(0, 40) || `review-${Date.now()}`
+    const slug =
+      item.title
+        .toLowerCase()
+        .replace(/[^a-z0-9\u4e00-\u9fff]+/gi, '-')
+        .slice(0, 40) || `review-${Date.now()}`
     const relative = `wiki/${slug}.md`
     const absolute = joinPath(base.rootPath, relative)
     const parent = joinPath(base.rootPath, 'wiki')
@@ -84,7 +99,7 @@ function ReviewTab() {
     await writeTextFile(absolute, body)
     patchReviewItem(item.id, { wikiPath: relative, status: 'approved' })
     refresh()
-    await openPath(absolute)
+    openEditorPath(absolute)
     toast.success('已建页并打开')
   }
 
@@ -125,97 +140,123 @@ function ReviewTab() {
   })
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={insertDemo}>
-          加入示例
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={refresh}>
-          刷新
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          className="h-7 text-xs"
-          disabled={openItems.length === 0}
-          onClick={function () {
-            void autoFixPending()
-          }}>
-          自动修复缺页
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={clearResolved}>
-          清理已处理
-        </Button>
-        <span className="text-muted-foreground text-[11px]">待处理 {openItems.length}</span>
-      </div>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <ToolPageHeader
+        title="审阅"
+        description="Ingest 与维护产生的待确认项：缺页、矛盾、重复等。"
+        meta={
+          <>
+            <ToolStatPill
+              label="待处理"
+              value={openItems.length}
+              tone={openItems.length > 0 ? 'warn' : 'ok'}
+            />
+            <ToolStatPill
+              label="全部"
+              value={items.length}
+            />
+          </>
+        }
+        actions={
+          <>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8"
+              onClick={insertDemo}>
+              示例
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8"
+              onClick={refresh}>
+              刷新
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8"
+              onClick={clearResolved}>
+              清理已处理
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-8"
+              disabled={openItems.length === 0}
+              onClick={function () {
+                void autoFixPending()
+              }}>
+              自动修复缺页
+            </Button>
+          </>
+        }
+      />
       <ScrollArea className="min-h-0 flex-1">
         {items.length === 0 ? (
-          <p className="text-muted-foreground px-1 py-2 text-xs">暂无审核项</p>
+          <ToolEmpty
+            icon="lucide:list-todo"
+            title="暂无审阅项"
+            description="Ingest 确认、去重维护或手动加入示例后会出现在此。"
+          />
         ) : (
-          <ul className="flex flex-col gap-1">
+          <ul className="flex flex-col gap-1.5">
             {items.map(function (item) {
               return (
-                <li
-                  key={item.id}
-                  className="rounded-md border border-border px-2 py-1.5 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="bg-muted rounded px-1 py-0.5 text-[10px]">
-                      {KIND_LABEL[item.kind] ?? item.kind}
-                    </span>
-                    <p className="font-medium">{item.title}</p>
-                  </div>
-                  <p className="text-muted-foreground mt-0.5">{item.prompt}</p>
-                  <p className="text-muted-foreground mt-1">
-                    状态：{item.status}
-                    {item.wikiPath ? ` · ${item.wikiPath}` : ''}
-                  </p>
-                  {item.status === 'pending' ? (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      <Button
-                        size="sm"
-                        className="h-6 px-1.5 text-[11px]"
-                        onClick={function () {
-                          void openOrCreatePage(item)
-                        }}>
-                        打开/建页
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="h-6 px-1.5 text-[11px]"
-                        onClick={function () {
-                          patchStatus(item.id, 'approved')
-                        }}>
-                        通过
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 px-1.5 text-[11px]"
-                        onClick={function () {
-                          patchStatus(item.id, 'dismissed')
-                        }}>
-                        忽略
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 px-1.5 text-[11px]"
-                        onClick={function () {
-                          patchStatus(item.id, 'rejected')
-                        }}>
-                        拒绝
-                      </Button>
+                <li key={item.id}>
+                  <ToolListCard>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <ToolTag>{KIND_LABEL[item.kind] ?? item.kind}</ToolTag>
+                      <span className="text-muted-foreground text-xs">
+                        {STATUS_LABEL[item.status] ?? item.status}
+                      </span>
+                      <p className="min-w-0 flex-1 truncate text-sm font-medium">{item.title}</p>
                     </div>
-                  ) : null}
+                    <p className="text-muted-foreground mt-1.5 text-sm leading-6">{item.prompt}</p>
+                    {item.wikiPath ? (
+                      <p className="text-muted-foreground mt-1 truncate text-xs">{item.wikiPath}</p>
+                    ) : null}
+                    {item.status === 'pending' ? (
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
+                        <Button
+                          size="sm"
+                          className="h-7 px-2.5 text-xs"
+                          onClick={function () {
+                            void openOrCreatePage(item)
+                          }}>
+                          打开/建页
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="h-7 px-2.5 text-xs"
+                          onClick={function () {
+                            patchStatus(item.id, 'approved')
+                          }}>
+                          通过
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2.5 text-xs"
+                          onClick={function () {
+                            patchStatus(item.id, 'dismissed')
+                          }}>
+                          忽略
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2.5 text-xs"
+                          onClick={function () {
+                            patchStatus(item.id, 'rejected')
+                          }}>
+                          拒绝
+                        </Button>
+                      </div>
+                    ) : null}
+                  </ToolListCard>
                 </li>
               )
             })}

@@ -20,7 +20,6 @@ import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { useIngestQueueStore } from '@/views/knowledge/lib/ingest-queue.ts'
 import { findFileName, joinPath } from '@/views/knowledge/lib/path.ts'
-import { pushReviewItem } from '@/views/knowledge/lib/review-store.ts'
 import {
   deleteSourceCascade,
   importFolderToSources,
@@ -28,6 +27,11 @@ import {
 } from '@/views/knowledge/lib/source-lifecycle.ts'
 import { importUrlsToSources } from '@/views/knowledge/lib/url-source-import.ts'
 import { WIKI_DIR_RAW_SOURCES } from '@/views/knowledge/lib/wiki-scaffold.ts'
+import {
+  ToolEmpty,
+  ToolPageHeader,
+  ToolStatPill
+} from '@/views/knowledge/surface/tool-surface.tsx'
 import { openEditorPath } from '@/views/knowledge/workspace/editor-context.ts'
 import { Overlay } from '@/views/knowledge/workspace/overlay/index.ts'
 
@@ -179,19 +183,12 @@ function SourcesMain() {
       const results = await importUrlsToSources({ rootPath, urlsText: urlText })
       let ok = 0
       const failed: string[] = []
-      for (const item of results) {
-        if (item.path) {
-          enqueue(item.path)
+      for (const result of results) {
+        if (result.path) {
+          enqueue(result.path)
           ok += 1
         } else {
-          failed.push(`${item.url}: ${item.error || '失败'}`)
-          pushReviewItem({
-            title: 'URL 导入失败',
-            prompt: `${item.url}\n${item.error || ''}`,
-            status: 'pending',
-            kind: 'confirm',
-            sourcePath: item.url
-          })
+          failed.push(`${result.url}（${result.error ?? '失败'}）`)
         }
       }
       setSkipReport(failed)
@@ -224,82 +221,126 @@ function SourcesMain() {
 
   if (!rootPath || !sourcesRoot) {
     return (
-      <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-sm">
-        请先选择或创建知识库
+      <div className="px-5 py-4">
+        <ToolEmpty
+          icon="lucide:folder-input"
+          title="尚未选择知识库"
+          description="先在顶栏选择或创建一个知识库，再管理 raw/sources。"
+        />
       </div>
     )
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-4 py-2">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-sm font-semibold">来源</h1>
-          <p className="text-muted-foreground truncate text-xs">
-            raw/sources · 队列 {statusHint.queued}/{statusHint.running} 跑 · 失败{' '}
-            {statusHint.failed} · 阻塞 {statusHint.blocked} · 完成 {statusHint.done}
-          </p>
-        </div>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={isImporting}
-          className="h-8 gap-1 text-xs"
-          onClick={function () {
-            void importFiles()
-          }}>
-          <Icon
-            icon="lucide:plus"
-            className="size-3.5"
-          />
-          导入文件
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={isImporting}
-          className="h-8 gap-1 text-xs"
-          onClick={function () {
-            void importFolder()
-          }}>
-          <Icon
-            icon="lucide:folder-plus"
-            className="size-3.5"
-          />
-          导入文件夹
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={isImporting}
-          className="h-8 gap-1 text-xs"
-          onClick={function () {
-            setUrlOpen(true)
-          }}>
-          <Icon
-            icon="lucide:link"
-            className="size-3.5"
-          />
-          导入 URL
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-8 gap-1 text-xs"
-          onClick={function () {
-            toBumpTree()
-            void rescan()
-          }}>
-          <Icon
-            icon="lucide:refresh-cw"
-            className="size-3.5"
-          />
-          刷新
-        </Button>
-      </div>
+    <div className="flex h-full min-h-0 flex-col bg-background px-5 pt-4">
+      <ToolPageHeader
+        title="来源"
+        description="不可变原文目录 raw/sources；导入后可自动入队 ingest。"
+        meta={
+          <>
+            <ToolStatPill
+              label="排队"
+              value={statusHint.queued}
+              tone={statusHint.queued > 0 ? 'accent' : 'default'}
+            />
+            <ToolStatPill
+              label="处理中"
+              value={statusHint.running}
+              tone={statusHint.running > 0 ? 'accent' : 'default'}
+            />
+            <ToolStatPill
+              label="失败"
+              value={statusHint.failed}
+              tone={statusHint.failed > 0 ? 'danger' : 'default'}
+            />
+            <ToolStatPill
+              label="阻塞"
+              value={statusHint.blocked}
+              tone={statusHint.blocked > 0 ? 'danger' : 'default'}
+            />
+            <ToolStatPill
+              label="完成"
+              value={statusHint.done}
+              tone="ok"
+            />
+          </>
+        }
+        actions={
+          <>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={isImporting}
+              className="h-8 gap-1.5 text-xs"
+              onClick={function () {
+                void importFiles()
+              }}>
+              <Icon
+                icon="lucide:plus"
+                className="size-3.5"
+              />
+              导入文件
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={isImporting}
+              className="h-8 gap-1.5 text-xs"
+              onClick={function () {
+                void importFolder()
+              }}>
+              <Icon
+                icon="lucide:folder-plus"
+                className="size-3.5"
+              />
+              文件夹
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={isImporting}
+              className="h-8 gap-1.5 text-xs"
+              onClick={function () {
+                setUrlOpen(true)
+              }}>
+              <Icon
+                icon="lucide:link"
+                className="size-3.5"
+              />
+              URL
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 gap-1.5 text-xs"
+              onClick={function () {
+                toBumpTree()
+                void rescan()
+              }}>
+              <Icon
+                icon="lucide:refresh-cw"
+                className="size-3.5"
+              />
+              刷新
+            </Button>
+          </>
+        }
+      />
+
       {skipReport.length > 0 ? (
-        <div className="border-b border-border bg-muted/40 px-4 py-2 text-xs">
-          <p className="font-medium">跳过 / 失败报告</p>
+        <div className="mb-3 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-xs">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-medium text-amber-800 dark:text-amber-300">跳过 / 失败报告</p>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-xs"
+              onClick={function () {
+                setSkipReport([])
+              }}>
+              关闭
+            </Button>
+          </div>
           <ul className="text-muted-foreground mt-1 max-h-20 overflow-y-auto overscroll-y-contain">
             {skipReport.map(function (line) {
               return <li key={line}>{line}</li>
@@ -307,7 +348,8 @@ function SourcesMain() {
           </ul>
         </div>
       ) : null}
-      <div className="min-h-0 flex-1 overflow-hidden">
+
+      <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border/80 bg-card/40">
         <Overlay.Navigation
           onOpenPath={openEditorPath}
           rootOverride={sourcesRoot}

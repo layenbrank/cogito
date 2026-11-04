@@ -1,6 +1,6 @@
 /**
- * 知识库窗 Caption 右侧（shell final）：左栏 / 大纲 / AI。
- * 右栏大纲与 AI 共用一列（tabs），不再各占一列。
+ * 知识库窗 Caption 右侧：左栏 / 大纲 / AI / 研究（打开右栏对应 tab）。
+ * 左轨不再放「研究」，避免与标题栏双入口。
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
@@ -36,10 +36,10 @@ function LayoutButton(props: LayoutButtonProps) {
             aria-label={props.label}
             aria-pressed={props.isPressed}
             className={cn(
-              'relative z-10 size-7 rounded-md border-0 shadow-none',
+              'relative z-10 size-7 rounded-md border-0 shadow-none transition-colors',
               props.isPressed
-                ? 'bg-muted text-foreground hover:bg-muted hover:text-foreground'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-primary/10 text-primary hover:bg-primary/12 hover:text-primary'
+                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
             )}
             onClick={props.onClick}
           />
@@ -73,13 +73,17 @@ function KnowledgeCaptionFinal() {
   const toToggleAside = useSurfaceStore(function (state) {
     return state.toToggleAside
   })
+  const toToggleResearch = useSurfaceStore(function (state) {
+    return state.toToggleResearch
+  })
   const isDockOpen = useDockStore(function (state) {
     return state.isOpen
   })
   const railTab = useSurfaceStore(function (state) {
     return state.tab
   })
-  const showEditorChrome = railTab === 'wiki'
+  const showWikiChrome = railTab === 'wiki'
+  const isResearchPressed = isAsideOpen && asideTab === 'research'
 
   if (isFocusMode) return null
 
@@ -94,8 +98,7 @@ function KnowledgeCaptionFinal() {
         isPressed={isSidebarOpen}
         onClick={toToggleSidebar}
       />
-      {/* 仅 Wiki 编辑态展示大纲 / AI；工具主视图与设置隐藏 */}
-      {showEditorChrome ? (
+      {showWikiChrome ? (
         <>
           <LayoutButton
             label={t('OUTLINE')}
@@ -115,6 +118,12 @@ function KnowledgeCaptionFinal() {
           />
         </>
       ) : null}
+      <LayoutButton
+        label="深度研究"
+        icon="lucide:microscope"
+        isPressed={isResearchPressed}
+        onClick={toToggleResearch}
+      />
     </div>
   )
 }

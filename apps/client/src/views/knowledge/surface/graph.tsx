@@ -1,5 +1,5 @@
 /**
- * 图谱页：wikilink 图 + 最小交互画布（点选打开页、滚轮缩放、拖动画布）。
+ * 图谱页：wikilink 图 + 交互画布（点选、缩放、平移）。
  */
 import { Button } from '@cogito/design/components/button'
 import { ScrollArea } from '@cogito/design/components/scroll-area'
@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { joinPath } from '@/views/knowledge/lib/path.ts'
-import { openPath } from '@/views/knowledge/lib/session.ts'
+import { openEditorPath } from '@/views/knowledge/workspace/editor-context.ts'
 import {
   buildWikiGraph,
   clusterLouvain,
@@ -17,6 +17,12 @@ import {
 } from '@/views/knowledge/lib/wiki-graph.ts'
 import type { WikiPage } from '@/views/knowledge/lib/wiki-lint.ts'
 import { enqueueResearchTopic } from '@/views/knowledge/surface/research.tsx'
+import {
+  ToolEmpty,
+  ToolListCard,
+  ToolPageHeader,
+  ToolStatPill
+} from '@/views/knowledge/surface/tool-surface.tsx'
 
 interface LayoutNode {
   id: string
@@ -28,6 +34,14 @@ interface LayoutNode {
   community: number
 }
 
+const COMMUNITY_COLORS = [
+  'var(--chart-1, oklch(0.65 0.15 250))',
+  'var(--chart-2, oklch(0.65 0.12 160))',
+  'var(--chart-3, oklch(0.68 0.14 40))',
+  'var(--chart-4, oklch(0.62 0.14 300))',
+  'var(--chart-5, oklch(0.7 0.1 90))'
+]
+
 function layoutNodes(
   graph: WikiGraph,
   communities: Map<string, number>,
@@ -36,17 +50,17 @@ function layoutNodes(
 ): LayoutNode[] {
   const cx = width / 2
   const cy = height / 2
-  const radius = Math.min(width, height) * 0.38
+  const radius = Math.min(width, height) * 0.36
   const n = Math.max(graph.nodes.length, 1)
   return graph.nodes.map(function (node, index) {
     const angle = (Math.PI * 2 * index) / n - Math.PI / 2
-    const jitter = (node.degree % 5) * 4
+    const ring = 0.85 + (node.degree % 4) * 0.05
     return {
       id: node.id,
       title: node.title,
       relative: node.relative,
-      x: cx + Math.cos(angle) * (radius + jitter),
-      y: cy + Math.sin(angle) * (radius + jitter),
+      x: cx + Math.cos(angle) * radius * ring,
+      y: cy + Math.sin(angle) * radius * ring,
       degree: node.degree,
       community: communities.get(node.id) ?? 0
     }
@@ -59,11 +73,13 @@ function GraphCanvas(props: {
   onOpen: (relative: string) => void
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const [size, setSize] = useState({ width: 640, height: 360 })
+  const [size, setSize] = useState({ width: 640, height: 420 })
   const [scale, setScale] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [hoverId, setHoverId] = useState<string | null>(null)
   const dragRef = useRef<{
     mode: 'pan' | null
+    moved: boolean
     startX: number
     startY: number
     originX: number
@@ -78,7 +94,7 @@ function GraphCanvas(props: {
         if (!element) return
         setSize({
           width: Math.max(320, element.clientWidth),
-          height: Math.max(240, element.clientHeight)
+          height: Math.max(280, element.clientHeight)
         })
       }
       measure()
@@ -110,7 +126,7 @@ function GraphCanvas(props: {
   return (
     <div
       ref={containerRef}
-      className="bg-muted/20 relative h-64 min-h-[240px] w-full overflow-hidden rounded-md border border-border"
+      className="bg-muted/20 relative min-h-[280px] w-full flex-1 overflow-hidden rounded-xl border border-border/70"
       onWheel={function (event) {
         event.preventDefault()
         const next = Math.min(2.5, Math.max(0.4, scale + (event.deltaY > 0 ? -0.08 : 0.08)))
@@ -120,6 +136,7 @@ function GraphCanvas(props: {
         if (event.button !== 0) return
         dragRef.current = {
           mode: 'pan',
+          moved: false,
           startX: event.clientX,
           startY: event.clientY,
           originX: pan.x,
@@ -130,9 +147,12 @@ function GraphCanvas(props: {
       onPointerMove={function (event) {
         const drag = dragRef.current
         if (!drag || drag.mode !== 'pan') return
+        const dx = event.clientX - drag.startX
+        const dy = event.clientY - drag.startY
+        if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true
         setPan({
-          x: drag.originX + (event.clientX - drag.startX),
-          y: drag.originY + (event.clientY - drag.startY)
+          x: drag.originX + dx,
+          y: drag.originY + dy
         })
       }}
       onPointerUp={function () {
@@ -156,42 +176,53 @@ function GraphCanvas(props: {
                 y2={to.y}
                 stroke="currentColor"
                 className="text-border"
-                strokeWidth={1}
+                strokeWidth={1.25}
+                opacity={0.7}
               />
             )
           })}
           {nodes.map(function (node) {
-            const hue = (node.community * 47) % 360
+            const fill = COMMUNITY_COLORS[node.community % COMMUNITY_COLORS.length]!
+            const isHover = hoverId === node.id
             return (
               <g
                 key={node.id}
                 transform={`translate(${node.x} ${node.y})`}
                 className="cursor-pointer"
+                onPointerEnter={function () {
+                  setHoverId(node.id)
+                }}
+                onPointerLeave={function () {
+                  setHoverId(null)
+                }}
                 onClick={function (event) {
                   event.stopPropagation()
+                  if (dragRef.current?.moved) return
                   if (!node.relative) return
                   props.onOpen(node.relative)
                 }}>
                 <circle
-                  r={6 + Math.min(8, node.degree)}
-                  fill={`hsl(${hue} 45% 52%)`}
+                  r={(isHover ? 8 : 6) + Math.min(8, node.degree)}
+                  fill={fill}
                   stroke="var(--background)"
                   strokeWidth={2}
+                  opacity={isHover ? 1 : 0.92}
                 />
                 <title>{node.title}</title>
                 <text
                   y={18 + Math.min(8, node.degree)}
                   textAnchor="middle"
-                  className="fill-foreground text-[10px]">
-                  {node.title.slice(0, 16)}
+                  className="fill-foreground text-[10px] font-medium"
+                  opacity={isHover ? 1 : 0.85}>
+                  {node.title.slice(0, 14)}
                 </text>
               </g>
             )
           })}
         </g>
       </svg>
-      <div className="text-muted-foreground pointer-events-none absolute right-2 bottom-2 text-[10px]">
-        滚轮缩放 · 拖拽平移 · 点击打开
+      <div className="text-muted-foreground pointer-events-none absolute right-2.5 bottom-2.5 rounded-md bg-background/80 px-2.5 py-1 text-xs backdrop-blur-sm">
+        滚轮缩放 · 拖拽平移 · 点击预览
       </div>
     </div>
   )
@@ -210,6 +241,11 @@ function GraphTab() {
   const [graph, setGraph] = useState<WikiGraph | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [preview, setPreview] = useState<{
+    relative: string
+    title: string
+    snippet: string
+  } | null>(null)
 
   const communities = useMemo(
     function () {
@@ -262,86 +298,147 @@ function GraphTab() {
     }
   }
 
-  async function openNode(relative: string) {
+  function selectNode(relative: string) {
+    const node = graph?.nodes.find(function (item) {
+      return item.relative === relative
+    })
+    const doc = docs.find(function (item) {
+      return item.relPath === relative
+    })
+    setPreview({
+      relative,
+      title: node?.title ?? doc?.title ?? relative,
+      snippet: doc ? `${doc.relPath} · ${doc.wordCount} 字` : relative
+    })
+  }
+
+  function openPreviewInWiki() {
+    if (!preview) return
     const base = bases.find(function (item) {
       return item.id === activeBaseID
     })
     if (!base?.rootPath) return
-    try {
-      await openPath(joinPath(base.rootPath, relative))
-    } catch (error) {
-      console.error('[graph] open failed', relative, error)
-    }
+    openEditorPath(joinPath(base.rootPath, preview.relative))
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          disabled={busy}
-          onClick={function () {
-            void rebuild()
-          }}>
-          {busy ? '重建中…' : '重建图谱'}
-        </Button>
-        <span className="text-muted-foreground text-[11px]">
-          wikilink + 标题/路径信号 · Louvain · 交互画布
-        </span>
-      </div>
-      {error ? <p className="text-destructive px-1 text-xs">{error}</p> : null}
-      {graph && communities ? (
-        <GraphCanvas
-          graph={graph}
-          communities={communities}
-          onOpen={function (relative) {
-            void openNode(relative)
-          }}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <ToolPageHeader
+        title="图谱"
+        description="基于 wikilink 与标题信号构建关系图，支持社区着色。"
+        meta={
+          graph ? (
+            <>
+              <ToolStatPill
+                label="节点"
+                value={graph.nodes.length}
+                tone="accent"
+              />
+              <ToolStatPill
+                label="边"
+                value={graph.edges.length}
+              />
+              <ToolStatPill
+                label="洞察"
+                value={insights.length}
+              />
+            </>
+          ) : undefined
+        }
+        actions={
+          <Button
+            size="sm"
+            className="h-8"
+            disabled={busy}
+            onClick={function () {
+              void rebuild()
+            }}>
+            {busy ? '重建中…' : graph ? '重新扫描' : '重建图谱'}
+          </Button>
+        }
+      />
+      {error ? <p className="text-destructive mb-2 text-xs">{error}</p> : null}
+
+      {!graph || !communities ? (
+        <ToolEmpty
+          icon="lucide:git-fork"
+          title="尚未构建图谱"
+          description="扫描 wiki 正文中的 [[wikilink]]，生成可交互关系图。"
+          action={
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={function () {
+                void rebuild()
+              }}>
+              {busy ? '重建中…' : '开始重建'}
+            </Button>
+          }
         />
-      ) : null}
-      <ScrollArea className="min-h-0 flex-1">
-        {!graph ? (
-          <p className="text-muted-foreground px-1 py-2 text-xs">点「重建图谱」扫描 wiki 正文</p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {insights.length > 0 ? (
-              <section>
-                <p className="text-muted-foreground mb-1 px-1 text-[11px] font-medium">
-                  Insights {insights.length}
-                </p>
-                <ul className="flex flex-col gap-1">
-                  {insights.map(function (insight, index) {
-                    return (
-                      <li
-                        key={`${insight.kind}-${index}`}
-                        className="rounded-md border border-border px-2 py-1 text-xs">
-                        <p>
-                          <span className="text-muted-foreground">[{insight.kind}] </span>
-                          {insight.detail}
-                        </p>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="mt-1 h-6 px-1.5 text-[11px]"
-                          onClick={function () {
-                            enqueueResearchTopic(insight.detail.slice(0, 80))
-                          }}>
-                          一键 Research
-                        </Button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </section>
-            ) : null}
-            <section>
-              <p className="text-muted-foreground mb-1 px-1 text-[11px] font-medium">
-                节点 {graph.nodes.length} · 边 {graph.edges.length}
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row">
+          <GraphCanvas
+            graph={graph}
+            communities={communities}
+            onOpen={selectNode}
+          />
+          <ScrollArea className="lg:w-72 lg:shrink-0">
+            <div className="flex flex-col gap-2 lg:pr-1">
+              {preview ? (
+                <div className="rounded-md border border-border/80 bg-card/60 px-3 py-2.5">
+                  <div className="flex items-start justify-between gap-1">
+                    <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                      预览
+                    </p>
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-foreground text-xs outline-none"
+                      onClick={function () {
+                        setPreview(null)
+                      }}>
+                      关闭
+                    </button>
+                  </div>
+                  <p className="mt-1 truncate text-sm font-medium">{preview.title}</p>
+                  <p className="text-muted-foreground mt-1 truncate text-xs">{preview.snippet}</p>
+                  <Button
+                    size="sm"
+                    className="mt-2 h-7 w-full text-xs"
+                    onClick={openPreviewInWiki}>
+                    在 Wiki 打开
+                  </Button>
+                </div>
+              ) : null}
+              <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                Insights
               </p>
-            </section>
-          </div>
-        )}
-      </ScrollArea>
+              {insights.length === 0 ? (
+                <p className="text-muted-foreground text-xs">暂无洞察</p>
+              ) : (
+                insights.map(function (insight, index) {
+                  return (
+                    <ToolListCard key={`${insight.kind}-${index}`}>
+                      <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                        {insight.kind}
+                      </p>
+                      <p className="mt-1 text-sm leading-6">{insight.detail}</p>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="mt-2 h-7 px-2.5 text-xs"
+                        onClick={function () {
+                          enqueueResearchTopic(insight.detail.slice(0, 80))
+                        }}>
+                        一键 Research
+                      </Button>
+                    </ToolListCard>
+                  )
+                })
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
     </div>
   )
 }

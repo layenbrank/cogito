@@ -20,12 +20,12 @@ function DocsTabScroll(props: DocsTabState) {
                 <Button
                   variant="ghost"
                   type="button"
-                  className="h-auto w-full rounded-md px-1.5 py-1 text-left hover:bg-muted"
+                  className="hover:bg-muted/70 h-auto w-full flex-col items-stretch justify-start rounded-lg px-2 py-1.5 text-left whitespace-normal transition-colors"
                   onClick={function () {
                     void props.openDoc(hit.relPath)
                   }}>
-                  <span className="block truncate text-xs">{hit.title}</span>
-                  <span className="block truncate text-[11px] text-muted-foreground">
+                  <span className="min-w-0 truncate text-xs font-medium">{hit.title}</span>
+                  <span className="text-muted-foreground mt-0.5 min-w-0 truncate text-[11px]">
                     {hit.snippet}
                   </span>
                 </Button>
@@ -35,11 +35,13 @@ function DocsTabScroll(props: DocsTabState) {
         </ul>
       ) : null}
 
-      <p className="px-1 pb-1 text-[11px] text-muted-foreground">文档 {props.docs.length}</p>
+      <p className="text-muted-foreground px-1.5 pb-1 text-xs font-medium">
+        文档 {props.docs.length}
+      </p>
       {props.docs.length === 0 && !props.isLoading ? (
-        <div className="text-muted-foreground space-y-1 px-1 py-2 text-xs">
-          <p>暂无文档</p>
-          <p className="text-[11px] leading-relaxed">
+        <div className="text-muted-foreground space-y-1 px-1.5 py-3 text-xs">
+          <p className="text-foreground font-medium">暂无文档</p>
+          <p className="text-[12px] leading-relaxed">
             可在「来源」放入资料后 ingest，或点上方「生成」让助手直接写 wiki 页。
           </p>
         </div>
@@ -51,12 +53,12 @@ function DocsTabScroll(props: DocsTabState) {
               <Button
                 variant="ghost"
                 type="button"
-                className="h-auto w-full rounded-md px-1.5 py-1 text-left hover:bg-muted"
+                className="hover:bg-muted/70 h-auto w-full flex-col items-stretch justify-start rounded-lg px-2 py-1.5 text-left whitespace-normal transition-colors"
                 onClick={function () {
                   void props.openDoc(doc.relPath)
                 }}>
-                <span className="block truncate text-xs">{doc.title}</span>
-                <span className="block truncate text-[11px] text-muted-foreground">
+                <span className="min-w-0 truncate text-xs font-medium">{doc.title}</span>
+                <span className="text-muted-foreground mt-0.5 min-w-0 truncate text-[11px]">
                   {doc.relPath} · {doc.wordCount} 字 · {formatTime(doc.updatedAt)}
                 </span>
               </Button>

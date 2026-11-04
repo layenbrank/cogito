@@ -17,6 +17,8 @@ interface NavigationProps {
   rootOverride?: string | null
   /** 自定义删除（来源级联清理）；不传则走普通删文件 */
   onDeleteAbsolute?: (absolute: string, isDirectory: boolean) => Promise<void>
+  /** 嵌在左栏时去掉外框，避免双边框与高度塌陷 */
+  embedded?: boolean
 }
 
 function Navigation(props: NavigationProps) {
@@ -72,6 +74,7 @@ function Navigation(props: NavigationProps) {
       <NavigationPanel
         tree={tree}
         mutations={mutations}
+        embedded={props.embedded}
       />
 
       <DeleteConfirmDialog

@@ -138,7 +138,16 @@ function useKnowledgeDocumentEffects(input: KnowledgeDocumentEffectsInput) {
         })
       return function () {
         disposed = true
-        unwatch?.()
+        try {
+          const result = unwatch?.() as void | Promise<void>
+          if (result && typeof result.then === 'function') {
+            void result.catch(function (error) {
+              console.warn('[knowledge] file unwatch failed', error)
+            })
+          }
+        } catch (error) {
+          console.warn('[knowledge] file unwatch failed', error)
+        }
       }
     },
     [activePath, toSetExternalChanged]
@@ -176,7 +185,16 @@ function useKnowledgeDocumentEffects(input: KnowledgeDocumentEffectsInput) {
       return function () {
         disposed = true
         window.clearTimeout(debounceTimer)
-        unwatch?.()
+        try {
+          const result = unwatch?.() as void | Promise<void>
+          if (result && typeof result.then === 'function') {
+            void result.catch(function (error) {
+              console.warn('[knowledge] tree unwatch failed', error)
+            })
+          }
+        } catch (error) {
+          console.warn('[knowledge] tree unwatch failed', error)
+        }
       }
     },
     [rootDir, toBumpTree]

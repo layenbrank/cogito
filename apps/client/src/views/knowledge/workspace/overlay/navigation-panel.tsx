@@ -18,10 +18,12 @@ type NavigationMutations = ReturnType<typeof useNavigationMutations>
 interface NavigationPanelProps {
   tree: NavigationTree
   mutations: NavigationMutations
+  embedded?: boolean
 }
 
 function NavigationPanel(props: NavigationPanelProps) {
   const tree = props.tree
+  const embedded = Boolean(props.embedded)
   const fileQuery = useKnowledgeStore(function (state) {
     return state.fileQuery
   })
@@ -30,51 +32,108 @@ function NavigationPanel(props: NavigationPanelProps) {
   })
 
   return (
-    <div className="flex h-full min-h-0 flex-col border-r border-border/50 bg-background/65 backdrop-blur-md">
-      <div className="flex items-center gap-1 border-b border-border/50 px-1.5 py-1">
-        <div className="relative min-w-0 flex-1">
-          <Icon
-            icon="lucide:search"
-            className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            value={fileQuery}
-            placeholder={t('SEARCH')}
-            className="h-7 rounded-md border-border/70 bg-muted/30 pl-7 text-xs"
-            onChange={function (event) {
-              toSetFileQuery(event.target.value)
-            }}
-          />
-        </div>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="size-7 shrink-0 rounded-md"
-                aria-label={t('NEW_FILE')}
-                onClick={function () {
-                  void props.mutations.onCreateAtRoot()
-                }}
-              />
-            }>
+    <div
+      className={cn(
+        'flex h-full min-h-0 flex-col overflow-hidden',
+        embedded
+          ? 'bg-transparent'
+          : 'border-r border-border/50 bg-background/65 backdrop-blur-md'
+      )}>
+      {embedded ? (
+        <div className="flex shrink-0 items-center gap-1 border-b border-border/40 px-2 py-1.5">
+          <div className="relative min-w-0 flex-1">
             <Icon
-              icon="lucide:file-plus-2"
-              className="size-3.5"
+              icon="lucide:search"
+              className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2"
             />
-          </TooltipTrigger>
-          <TooltipContent side="bottom">{t('NEW_FILE')}</TooltipContent>
-        </Tooltip>
-      </div>
+            <Input
+              value={fileQuery}
+              placeholder={t('SEARCH')}
+              className="border-border/70 bg-muted/40 h-7 rounded-md pl-7 text-xs"
+              onChange={function (event) {
+                toSetFileQuery(event.target.value)
+              }}
+            />
+          </div>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="size-7 shrink-0 rounded-md"
+                  aria-label={t('NEW_FILE')}
+                  onClick={function () {
+                    void props.mutations.onCreateAtRoot()
+                  }}
+                />
+              }>
+              <Icon
+                icon="lucide:file-plus-2"
+                className="size-3.5"
+              />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{t('NEW_FILE')}</TooltipContent>
+          </Tooltip>
+        </div>
+      ) : (
+        <form
+          className="flex shrink-0 items-center gap-2 border-b border-border/50 px-3 py-2.5"
+          onSubmit={function (event) {
+            event.preventDefault()
+          }}>
+          <div className="relative min-w-0 flex-1">
+            <Icon
+              icon="lucide:search"
+              className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2"
+            />
+            <Input
+              value={fileQuery}
+              placeholder={t('SEARCH')}
+              className="h-9 pl-8 text-sm"
+              onChange={function (event) {
+                toSetFileQuery(event.target.value)
+              }}
+            />
+          </div>
+          <Button
+            type="submit"
+            size="sm"
+            className="h-9 px-3"
+            disabled={!fileQuery.trim()}>
+            搜索
+          </Button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="size-9 shrink-0"
+                  aria-label={t('NEW_FILE')}
+                  onClick={function () {
+                    void props.mutations.onCreateAtRoot()
+                  }}
+                />
+              }>
+              <Icon
+                icon="lucide:file-plus-2"
+                className="size-3.5"
+              />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{t('NEW_FILE')}</TooltipContent>
+          </Tooltip>
+        </form>
+      )}
       <ContextMenu
         trigger="[data-tree-key]"
         findItems={props.mutations.findTreeMenuItems}>
         <ul
           data-tree-key={ROOT_KEY}
           data-tree-kind="directory"
-          className={cn('min-h-0 flex-1 list-none overflow-x-hidden overflow-y-auto p-1 text-sm')}>
+          className="min-h-0 flex-1 list-none overflow-x-hidden overflow-y-auto overscroll-y-contain p-1 text-sm">
           {tree.nodes.map(function (node) {
             return (
               <FileTreeItem

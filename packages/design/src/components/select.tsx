@@ -28,6 +28,11 @@ const SelectSizeContext = createContext<SelectSizeContextValue>({
 /**
  * 尺寸由 Root 统一下发：Trigger / Content / Item 字号与高度一致。
  * 也可只在 Trigger 上传 `size`（会 sync 到 Content），或在 Content 上单独覆盖。
+ *
+ * **显示文案**：Base UI 的 `Select.Value` 默认渲染原始 `value`。
+ * 选项 value 为 id/枚举键时，必须二选一，否则触发器会露出 UUID 等裸值：
+ * - 给 Root 传 `items={[{ value, label }, ...]}` 或 `items={{ [value]: label }}`
+ * - 或 `<SelectValue>{(value) => labelOf(value)}</SelectValue>`
  */
 function Select<Value, Multiple extends boolean | undefined = false>({
   size = 'default',
@@ -113,7 +118,8 @@ function SelectTrigger({
       data-size={size}
       className={cn(
         FIELD_SHELL,
-        'group/select-trigger flex w-fit cursor-pointer items-center justify-between gap-1.5 py-1.5 pr-2.5 whitespace-nowrap select-none',
+        // 默认 w-full：表单行/侧栏 flex 里与锚点同宽；需要收缩时调用方传 w-fit / w-auto
+        'group/select-trigger flex w-full min-w-0 cursor-pointer items-center justify-between gap-1.5 py-1.5 pr-2.5 whitespace-nowrap select-none',
         // 悬停稍加重边框；展开时不做「整卡描边」——面板靠阴影抬升，避免 border 质感
         'hover:border-ring disabled:cursor-not-allowed disabled:opacity-50',
         // 贴合展开：接缝侧去圆角；关 ring/阴影以免和面板叠成双框。
@@ -167,6 +173,8 @@ function SelectContent({
         positionMethod="fixed"
         // 卡片式展开依赖列表从触发器下沿开始；base-ui 的 Select 默认是 true（列表盖在触发器上），必须显式关掉
         alignItemWithTrigger={false}
+        // 窄侧栏里若 align 被 shift，面板会相对触发器左右错缝
+        collisionAvoidance={{ side: 'flip', align: 'none', fallbackAxisSide: 'none' }}
         className="isolate z-70">
         {/* 透明外壳：动效挂在它身上（data-open/data-closed 由 base-ui 打在这里），自身不画背景/边框/阴影。 */}
         <SelectPrimitive.Popup
@@ -174,7 +182,9 @@ function SelectContent({
           data-size={size}
           {...webviewCoverProps()}
           className={cn(
-            'group/popup relative isolate z-70 flex flex-col origin-(--transform-origin)',
+            // 宽度必须挂在 Popup 上（官方 demo 用 min-width: var(--anchor-width)）。
+            // 只写在内层时，Popup 会按内容收缩，侧栏里就会出现「条比触发器窄、左右错位」。
+            'group/popup relative isolate z-70 flex w-(--anchor-width) min-w-(--anchor-width) max-w-(--available-width) flex-col origin-(--transform-origin)',
             // 缩放原点固定到接缝侧的左边缘：面板与触发器严格等宽，左边缘恒重合，
             // 所以横向绝不产生位移（默认的 --transform-origin 在 align=center 时会停在中心，
             // 缩放过程中左边缘会往左跑几 px）
@@ -193,7 +203,7 @@ function SelectContent({
             data-size={size}
             className={cn(
               // 一律无描边：靠 OVERLAY_ELEVATION；贴合时只去接缝圆角并吃掉触发器底边 1px。
-              'relative isolate w-(--anchor-width) overflow-hidden p-1',
+              'relative isolate w-full overflow-hidden p-1',
               'rounded-md bg-popover text-popover-foreground outline-hidden',
               OVERLAY_ELEVATION,
               sideOffset === 0 &&

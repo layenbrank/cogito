@@ -8,15 +8,9 @@ import {
   DropdownMenuTrigger
 } from '@cogito/design/components/dropdown-menu'
 import { Input } from '@cogito/design/components/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@cogito/design/components/select'
 import { Spinner } from '@cogito/design/components/spinner'
 
+import { BaseCombobox } from '@/views/knowledge/surface/base-combobox.tsx'
 import type { useDocsTab } from '@/views/knowledge/surface/use-docs-tab.ts'
 
 type DocsTabState = ReturnType<typeof useDocsTab>
@@ -25,28 +19,13 @@ function DocsTabToolbar(props: DocsTabState) {
   return (
     <>
       <div className="flex items-center gap-1">
-        <Select
-          value={props.activeBaseID ?? undefined}
-          onValueChange={function (value) {
-            if (typeof value === 'string') void props.selectBase(value)
-          }}>
-          <SelectTrigger
-            size="sm"
-            className="min-w-0 flex-1">
-            <SelectValue placeholder="选择知识库" />
-          </SelectTrigger>
-          <SelectContent>
-            {props.bases.map(function (base) {
-              return (
-                <SelectItem
-                  key={base.id}
-                  value={base.id}>
-                  {base.name}
-                </SelectItem>
-              )
-            })}
-          </SelectContent>
-        </Select>
+        <BaseCombobox
+          bases={props.bases}
+          value={props.activeBaseID ?? null}
+          onValueChange={function (baseID) {
+            void props.selectBase(baseID)
+          }}
+        />
         <Button
           size="sm"
           variant="ghost"

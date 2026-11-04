@@ -51,10 +51,10 @@ function SelectionEditBar(props: SelectionEditBarProps) {
   }
 
   return (
-    <div className="border-border bg-background/90 flex flex-col gap-1 border-b px-2 py-1">
-      <div className="flex items-center gap-1">
+    <div className="border-border bg-background/90 flex flex-col gap-1.5 border-b px-2.5 py-1.5">
+      <div className="flex items-center gap-1.5">
         <Input
-          className="h-7 flex-1 text-xs"
+          className="h-8 flex-1 text-xs"
           placeholder="划词指令（Ask / Edit）"
           value={instruction}
           onChange={function (event) {
@@ -64,7 +64,7 @@ function SelectionEditBar(props: SelectionEditBarProps) {
         <Button
           size="sm"
           variant="ghost"
-          className="h-7 text-[11px]"
+          className="h-8 text-xs font-medium"
           disabled={busy}
           onClick={function () {
             void run('ask')
@@ -74,7 +74,7 @@ function SelectionEditBar(props: SelectionEditBarProps) {
         <Button
           size="sm"
           variant="secondary"
-          className="h-7 text-[11px]"
+          className="h-8 text-xs font-medium"
           disabled={busy}
           onClick={function () {
             void run('edit')
@@ -83,7 +83,7 @@ function SelectionEditBar(props: SelectionEditBarProps) {
         </Button>
       </div>
       {answer ? (
-        <p className="text-muted-foreground max-h-20 overflow-y-auto overscroll-y-contain text-[11px]">
+        <p className="border-border/70 bg-muted/30 text-muted-foreground max-h-20 overflow-y-auto overscroll-y-contain rounded-md border px-2 py-1.5 text-xs leading-relaxed">
           {answer}
         </p>
       ) : null}

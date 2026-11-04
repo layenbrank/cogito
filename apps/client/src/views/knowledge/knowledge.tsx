@@ -4,7 +4,7 @@ import {
   SplitterPane,
   usePaneRef
 } from '@cogito/design/components/splitter'
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 
 import { useShellSurface } from '@/features/window-shell/slots'
@@ -23,7 +23,10 @@ import { bootstrapKnowledgeSession } from '@/views/knowledge/lib/session.ts'
 import { KnowledgeAside } from '@/views/knowledge/surface/aside.tsx'
 import { KnowledgeSurface } from '@/views/knowledge/surface/index.tsx'
 import { KnowledgeMainContent } from '@/views/knowledge/surface/main-content.tsx'
-import { findLayoutVisibility } from '@/views/knowledge/surface/layout-visibility.ts'
+import {
+  findLayoutVisibility,
+  findRightPaneMode
+} from '@/views/knowledge/surface/layout-visibility.ts'
 import { useSurfaceStore } from '@/views/knowledge/surface/store.ts'
 import { useKnowledgeDockScope } from '@/views/knowledge/workspace/dock-scope.ts'
 import Summary from '@/views/knowledge/workspace/overlay/summary.tsx'
@@ -36,18 +39,15 @@ const RIGHT_ID = 'knowledge-right'
 const LEFT_SIZE = '22%'
 const LEFT_MIN = 200
 const LEFT_MAX = '38%'
-/** 设置全页时左栏只留 icon rail */
 const LEFT_RAIL_ONLY = 48
 
-const RIGHT_SIZE = '22%'
-const RIGHT_MIN = 240
-const RIGHT_MAX = '40%'
+/** 右栏（大纲 | AI | 研究）可拖宽 */
+const RIGHT_SIZE = '28%'
+const RIGHT_MIN = 250
+const RIGHT_MAX = '50%'
 
 /**
- * 对齐 llm_wiki 三列壳（主题 / 组件用本仓库）：
- * - 左：Icon rail +（Knowledge|Files + Activity）
- * - 中：Wiki 编辑器 / 工具主视图 / 设置
- * - 右：大纲 | AI（ACP）
+ * 三列：左 rail+栏 | 主区 | 右栏（大纲 / AI / 深度研究 同一容器 tabs）。
  */
 export default function Knowledge() {
   const location = useLocation()
@@ -63,11 +63,28 @@ export default function Knowledge() {
   const railTab = useSurfaceStore(function (state) {
     return state.tab
   })
+  const asideTab = useSurfaceStore(function (state) {
+    return state.asideTab
+  })
   const visibility = findLayoutVisibility(railTab)
+  const rightMode = findRightPaneMode({
+    tab: railTab,
+    asideTab,
+    isAsideOpen,
+    isFocusMode
+  })
+  const showRightPane = rightMode !== 'hidden'
   const isSettingsView = visibility.isRailOnly
   const leftRef = usePaneRef()
   const rightRef = usePaneRef()
-  const openRef = useRef({ isSidebarOpen, isAsideOpen, isFocusMode })
+  const openRef = useRef({
+    isSidebarOpen,
+    isAsideOpen,
+    isFocusMode,
+    asideTab,
+    showRightPane
+  })
+  const ignoreRightResizeRef = useRef(false)
 
   useKnowledgeDockScope()
   useDockCommand()
@@ -95,29 +112,15 @@ export default function Knowledge() {
 
   useEffect(
     function () {
-      openRef.current = { isSidebarOpen, isAsideOpen, isFocusMode }
-    },
-    [isSidebarOpen, isAsideOpen, isFocusMode]
-  )
-
-  useEffect(
-    function () {
-      const left = leftRef.current
-      const right = rightRef.current
-      if (!left || !right) return
-
-      const open = openRef.current
-      if (!open.isFocusMode && open.isSidebarOpen) left.expand()
-      else left.collapse()
-
-      if (!open.isFocusMode && open.isAsideOpen && !isSettingsView) {
-        right.expand()
-        if (right.findSize().inPixels < RIGHT_MIN) right.resize(RIGHT_SIZE)
-      } else {
-        right.collapse()
+      openRef.current = {
+        isSidebarOpen,
+        isAsideOpen,
+        isFocusMode,
+        asideTab,
+        showRightPane
       }
     },
-    [leftRef, rightRef, isSettingsView]
+    [isSidebarOpen, isAsideOpen, isFocusMode, asideTab, showRightPane]
   )
 
   useEffect(
@@ -130,20 +133,36 @@ export default function Knowledge() {
     [isSidebarOpen, isFocusMode, leftRef]
   )
 
-  useEffect(
+  useLayoutEffect(
     function () {
       const panel = rightRef.current
       if (!panel) return
-      if (isSettingsView || isFocusMode || !isAsideOpen || !visibility.showEditor) {
-        panel.collapse()
-        return
-      }
-      if (panel.isCollapsed()) {
+      ignoreRightResizeRef.current = true
+      if (showRightPane) {
         panel.expand()
-        if (panel.findSize().inPixels < RIGHT_MIN) panel.resize(RIGHT_SIZE)
+        panel.resize(RIGHT_SIZE)
+      } else {
+        panel.collapse()
+      }
+      const timer = window.setTimeout(function () {
+        ignoreRightResizeRef.current = false
+      }, 50)
+      return function () {
+        window.clearTimeout(timer)
+        ignoreRightResizeRef.current = false
       }
     },
-    [isAsideOpen, isFocusMode, isSettingsView, visibility.showEditor, rightRef]
+    // 仅随显隐变化 expand/collapse；aside tab 切换不要重 resize，避免误触发 onResize → 关栏
+    [showRightPane, rightRef]
+  )
+
+  useEffect(
+    function () {
+      if (isFocusMode && isAsideOpen) {
+        useSurfaceStore.getState().toCloseAside()
+      }
+    },
+    [isFocusMode, isAsideOpen]
   )
 
   useEffect(
@@ -176,12 +195,15 @@ export default function Knowledge() {
   }
 
   function handleRightResize() {
+    if (ignoreRightResizeRef.current) return
     if (openRef.current.isFocusMode) return
     const collapsed = rightRef.current?.isCollapsed() ?? false
     const nextOpen = !collapsed
-    if (nextOpen === openRef.current.isAsideOpen) return
-    useKnowledgeStore.getState().toPatchPreferences({ isOutlineOpen: nextOpen })
-    if (!nextOpen) useDockStore.getState().toClose()
+    if (!nextOpen) {
+      useSurfaceStore.getState().toCloseAside()
+      return
+    }
+    useKnowledgeStore.getState().toPatchPreferences({ isOutlineOpen: true })
   }
 
   useShellSurface({
@@ -222,7 +244,7 @@ export default function Knowledge() {
           <KnowledgeMainContent tab={railTab} />
         </SplitterPane>
 
-        <SplitterHandle withHandle={visibility.showEditor && !isSettingsView} />
+        <SplitterHandle withHandle={showRightPane && !isSettingsView} />
 
         <SplitterPane
           id={RIGHT_ID}
@@ -235,7 +257,14 @@ export default function Knowledge() {
           preservePixel
           onResize={handleRightResize}
           className="min-h-0 min-w-0 overflow-hidden border-l border-border">
-          <KnowledgeAside />
+          {showRightPane ? (
+            <KnowledgeAside />
+          ) : (
+            <div
+              className="bg-muted/20 h-full w-full"
+              aria-hidden
+            />
+          )}
         </SplitterPane>
       </Splitter>
     </div>

@@ -12,6 +12,7 @@ import {
   saveDocument,
   syncDerived
 } from '@/views/knowledge/lib/session.ts'
+import { commitWikiReveal } from '@/views/knowledge/workspace/editor-context.ts'
 
 import type { PendingAction } from '@/views/knowledge/workspace/use-knowledge-document-effects.ts'
 
@@ -105,7 +106,9 @@ function useKnowledgeFileActions(input: KnowledgeFileActionsInput) {
   }
 
   function handleOpenPath(path: string) {
+    // 脏确认通过后再切 Wiki + 记 previewReturn；取消则不动 tab
     runGuarded(function () {
+      commitWikiReveal()
       void openPath(path).then(function (ok) {
         if (ok) syncComposerFromStore(path)
       })

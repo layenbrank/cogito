@@ -1,8 +1,6 @@
 /**
- * 知识库壳状态：左栏页签 + 右栏页签。
- *
- * 开合走 knowledge 偏好（`isSidebarOpen` / `isOutlineOpen`），这里只记「当前哪一页」——
- * 保证全屏最多三列：左栏 | 编辑器 | 右栏，不再叠 Surface + 文件树 + 大纲 + AI。
+ * 知识库壳状态：主区页签 + 右栏（大纲 | AI | 深度研究）。
+ * Research 是右栏 aside tab，不再单独占一列容器。
  */
 import { create } from 'zustand'
 
@@ -16,30 +14,44 @@ type RailTabCanonical =
   | 'graph'
   | 'lint'
   | 'review'
-  | 'research'
-  | 'activity'
   | 'settings'
 
-/** 旧页签名：读入时映射到 canonical（browse→sources，docs→wiki，staging→review） */
-type RailTabLegacy = 'browse' | 'docs' | 'tasks' | 'staging'
+/** 旧页签名：读入时映射到 canonical */
+type RailTabLegacy =
+  | 'browse'
+  | 'docs'
+  | 'tasks'
+  | 'staging'
+  | 'research'
+  | 'activity'
 
 type RailTab = RailTabCanonical | RailTabLegacy
-type AsideTab = 'outline' | 'assistant'
+type AsideTab = 'outline' | 'assistant' | 'research'
 
 /** 兼容旧名 */
 type SurfaceTab = RailTab
 
+type PreviewReturnTab = Exclude<RailTabCanonical, 'wiki' | 'settings'> | null
+
 interface SurfaceState {
   tab: RailTabCanonical
   asideTab: AsideTab
+  /** 从工具主区打开文档后可回跳的 tab */
+  previewReturnTab: PreviewReturnTab
   toSetTab: (tab: RailTab) => void
   toSetAsideTab: (tab: AsideTab) => void
+  /** 打开右栏并切到深度研究（settings 下先回 wiki） */
+  toSetResearchOpen: (open: boolean) => void
+  toToggleResearch: () => void
+  /** 打开成功后提交：记 return + 切 wiki */
+  toCommitPreviewOpen: (fromTab: RailTabCanonical) => void
+  toClearPreviewReturn: () => void
+  toReturnFromPreview: () => void
   /** 打开左栏并切到指定页；不传 tab 只确保打开 */
   toOpen: (tab?: RailTab) => void
   toClose: () => void
   /** 同页再点则关；否则打开并切页 */
   toToggle: (tab?: RailTab) => void
-  /** 右栏：同页再点则关；切页并打开 */
   toToggleAside: (tab: AsideTab) => void
   toOpenAside: (tab: AsideTab) => void
   toCloseAside: () => void
@@ -51,10 +63,12 @@ function normalizeRailTab(tab: RailTab): RailTabCanonical {
       return 'sources'
     case 'docs':
       return 'wiki'
-    case 'tasks':
-      return 'research'
     case 'staging':
       return 'review'
+    case 'tasks':
+    case 'research':
+    case 'activity':
+      return 'wiki'
     default:
       return tab
   }
@@ -76,22 +90,99 @@ function writeAsideOpen(isOpen: boolean) {
   useKnowledgeStore.getState().toPatchPreferences({ isOutlineOpen: isOpen })
 }
 
+function isResearchAsideActive(): boolean {
+  const surface = useSurfaceStore.getState()
+  return (
+    useKnowledgeStore.getState().isOutlineOpen && surface.asideTab === 'research'
+  )
+}
+
 const useSurfaceStore = create<SurfaceState>(function (set, get) {
   return {
     tab: 'wiki',
     asideTab: 'outline',
+    previewReturnTab: null,
 
     toSetTab: function (tab) {
-      set({ tab: normalizeRailTab(tab) })
+      const next = normalizeRailTab(tab)
+      set({ tab: next, previewReturnTab: null })
     },
 
     toSetAsideTab: function (tab) {
       set({ asideTab: tab })
+      writeAsideOpen(true)
+      if (tab === 'assistant') {
+        useDockStore.getState().toOpen()
+      } else if (useDockStore.getState().isOpen) {
+        useDockStore.getState().toClose()
+      }
+    },
+
+    toSetResearchOpen: function (open) {
+      if (open) {
+        if (get().tab === 'settings') {
+          set({ tab: 'wiki', previewReturnTab: null, asideTab: 'research' })
+        } else {
+          set({ asideTab: 'research' })
+        }
+        useDockStore.getState().toClose()
+        writeAsideOpen(true)
+        return
+      }
+      if (get().asideTab === 'research') {
+        writeAsideOpen(false)
+      }
+    },
+
+    toToggleResearch: function () {
+      const state = get()
+      const asideOpen = useKnowledgeStore.getState().isOutlineOpen
+      if (state.tab === 'settings') {
+        set({
+          tab: 'wiki',
+          asideTab: 'research',
+          previewReturnTab: null
+        })
+        useDockStore.getState().toClose()
+        writeAsideOpen(true)
+        return
+      }
+      if (asideOpen && state.asideTab === 'research') {
+        writeAsideOpen(false)
+        return
+      }
+      set({ asideTab: 'research' })
+      useDockStore.getState().toClose()
+      writeAsideOpen(true)
+    },
+
+    toCommitPreviewOpen: function (fromTab) {
+      const returnTab =
+        fromTab === 'wiki' || fromTab === 'settings'
+          ? get().previewReturnTab
+          : (fromTab as Exclude<RailTabCanonical, 'wiki' | 'settings'>)
+      set({
+        tab: 'wiki',
+        previewReturnTab: returnTab
+      })
+    },
+
+    toClearPreviewReturn: function () {
+      set({ previewReturnTab: null })
+    },
+
+    toReturnFromPreview: function () {
+      const ret = get().previewReturnTab
+      if (!ret) return
+      set({ tab: ret, previewReturnTab: null })
     },
 
     toOpen: function (tab) {
       openSidebar()
-      if (tab) set({ tab: normalizeRailTab(tab) })
+      if (tab) {
+        const next = normalizeRailTab(tab)
+        set({ tab: next, previewReturnTab: null })
+      }
     },
 
     toClose: function () {
@@ -106,7 +197,7 @@ const useSurfaceStore = create<SurfaceState>(function (set, get) {
         return
       }
       openSidebar()
-      if (next) set({ tab: next })
+      if (next) set({ tab: next, previewReturnTab: null })
     },
 
     toOpenAside: function (tab) {
@@ -114,6 +205,8 @@ const useSurfaceStore = create<SurfaceState>(function (set, get) {
       writeAsideOpen(true)
       if (tab === 'assistant') {
         useDockStore.getState().toOpen()
+      } else {
+        useDockStore.getState().toClose()
       }
     },
 
@@ -133,5 +226,13 @@ const useSurfaceStore = create<SurfaceState>(function (set, get) {
   }
 })
 
-export { normalizeRailTab, useSurfaceStore }
-export type { AsideTab, RailTab, RailTabCanonical, RailTabLegacy, SurfaceState, SurfaceTab }
+export { isResearchAsideActive, normalizeRailTab, useSurfaceStore }
+export type {
+  AsideTab,
+  PreviewReturnTab,
+  RailTab,
+  RailTabCanonical,
+  RailTabLegacy,
+  SurfaceState,
+  SurfaceTab
+}

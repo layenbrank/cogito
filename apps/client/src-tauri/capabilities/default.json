@@ -69,6 +69,8 @@
     "core:webview:allow-clear-all-browsing-data",
     "core:webview:allow-webview-size",
     "core:path:default",
+    "core:resources:default",
+    "core:resources:allow-close",
     "core:menu:default",
     "fs:allow-write",
     "fs:allow-watch",

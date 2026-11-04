@@ -21,15 +21,16 @@
 
 ## 界面（对齐 llm_wiki 布局）
 
-三列：Icon rail +（Knowledge \| Files + Activity 底条）| 主区 | 右栏大纲 / AI。
+三列：Icon rail +（Knowledge \| Files + Activity 底条）| 主区 | 右栏（Research **或** 大纲 / AI，互斥）。
 
 | 区 | 行为 |
 | --- | --- |
-| Icon 主轨 | Wiki · 来源 · 检索 · 图谱 · Lint · 审阅 · 深度研究 |
-| Icon 底轨 | 活动（可进主区）· 设置（全宽，收起左内容栏） |
-| 左内容 | Knowledge 文档列表 \| Files 磁盘树；底条 Activity |
-| 主区 | Wiki → TipTap；来源/检索/图谱/Lint/审阅/研究 → 工具全宽；设置 → 全页 |
-| 右 | 大纲 \| AI（ACP）；工具主视图时收起；**无**「待发布」轨 |
+| Icon 主轨 | Wiki · 来源 · 检索 · 图谱 · Lint · 审阅 · **深度研究（右栏 toggle）** |
+| Icon 底轨 | 设置（全宽，收起左内容栏） |
+| 左内容 | 文档 \| 文件；底条 Activity（唯一活动入口，含完整队列与批量重试） |
+| 主区 | Wiki → TipTap；来源/检索/图谱/Lint/审阅 → 工具全宽；设置 → 全页 |
+| 右 | **Splitter 第三栏**（可拖宽）：同一容器 tabs = 大纲 \| AI \| 深度研究；研究可与工具主区并存。设置 / 专注模式关闭右栏 |
+| 打开文档 | 工具主区点开 → Wiki + Caption「返回 {工具}」；脏文件取消不切 tab |
 
 Chat 不在左轨：由右栏 AI dock 承担。主题与组件用 `@cogito/design`。
 
@@ -115,6 +116,7 @@ Deep Research provider：`tavily` · `serpapi` · `searxng` · `brave` · `firec
 
 | 项 | llm_wiki | cogito |
 | --- | --- | --- |
+| 右栏 | 仅 Deep Research | 同一 Splitter 列：大纲 \| AI \| 深度研究（tabs；研究可与工具主区并存） |
 | 编辑器 | Milkdown 等 | TipTap |
 | Chat runtime | 内嵌 Rust agent | ACP / goose + `app_knowledge_*` |
 | LLM Ingest | 直连 HTTP `streamChat` | **ACP `runInlinePrompt`** |

@@ -1,7 +1,6 @@
 /**
  * Markdown 窗 Caption 左侧（shell begin）：
- * 应用菜单（打开/新建/保存/导出）靠左；当前文件名居中。
- * 搜文件在侧栏；打开等勿再堆到内容区工具条。
+ * 应用菜单靠左；工具名或文件名居中；有 previewReturn 时显示「返回」。
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
@@ -20,7 +19,15 @@ import { runCommand } from '@/keyboard/commands'
 import { SHORTCUT_COMMAND } from '@/keyboard/definitions'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { t } from '@/views/knowledge/locale.ts'
-import { useSurfaceStore } from '@/views/knowledge/surface/store.ts'
+import { useSurfaceStore, type PreviewReturnTab } from '@/views/knowledge/surface/store.ts'
+
+const RETURN_LABEL: Record<NonNullable<PreviewReturnTab>, string> = {
+  sources: '来源',
+  search: '检索',
+  graph: '图谱',
+  lint: 'Lint',
+  review: '审阅'
+}
 
 function KnowledgeCaptionBegin() {
   const isDirty = useKnowledgeStore(function (state) {
@@ -35,16 +42,19 @@ function KnowledgeCaptionBegin() {
   const railTab = useSurfaceStore(function (state) {
     return state.tab
   })
-  const isSettingsView = railTab === 'settings'
+  const previewReturnTab = useSurfaceStore(function (state) {
+    return state.previewReturnTab
+  })
+  const toReturnFromPreview = useSurfaceStore(function (state) {
+    return state.toReturnFromPreview
+  })
   const toolTitles: Partial<Record<typeof railTab, string>> = {
     settings: 'Wiki 设置',
     sources: '来源',
     search: '检索',
     graph: '图谱',
     lint: 'Lint',
-    review: '审阅',
-    research: '深度研究',
-    activity: '活动'
+    review: '审阅'
   }
   const toolTitle = toolTitles[railTab]
 
@@ -54,6 +64,8 @@ function KnowledgeCaptionBegin() {
     : (activePath?.split(/[/\\]/).pop() ?? t('UNTITLED'))
   const title = toolTitle ?? fileTitle
   const showsTitle = Boolean(toolTitle) || hasOpened || !showsSession
+  const returnLabel =
+    railTab === 'wiki' && previewReturnTab ? RETURN_LABEL[previewReturnTab] : null
 
   return (
     <>
@@ -151,10 +163,24 @@ function KnowledgeCaptionBegin() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* 相对 Caption（relative）整栏居中，不挡拖拽 */}
+      {returnLabel ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          data-region="false"
+          className="relative z-10 h-7 shrink-0 gap-1 px-1.5 text-[11px] text-muted-foreground"
+          onClick={toReturnFromPreview}>
+          <Icon
+            icon="lucide:arrow-left"
+            className="size-3.5"
+          />
+          返回{returnLabel}
+        </Button>
+      ) : null}
+
       {showsTitle ? (
-        <span
-          className="pointer-events-none absolute inset-x-0 top-0 bottom-0 z-0 flex items-center justify-center px-28">
+        <span className="pointer-events-none absolute inset-x-0 top-0 bottom-0 z-0 flex items-center justify-center px-28">
           <span
             className={cn(
               'max-w-full truncate text-center text-sm font-medium',
