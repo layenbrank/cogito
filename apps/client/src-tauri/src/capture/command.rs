@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use cogito_core::asset::Service as AssetService;
 use cogito_database::Storage;
@@ -183,9 +183,24 @@ async fn arm_ready(app: &AppHandle) -> Option<oneshot::Receiver<()>> {
 }
 
 /// 等前端首帧；超时也继续，绝不能因为握手失败把截屏卡死。
+///
+/// 两种结果都留痕：握手成功说明「reveal 晚于冻结帧」，超时说明这条慢机上
+/// 靠的是加载期冻结帧兜底 —— 排查「截屏瞬间闪桌面」时先看这一行。
 async fn wait_ready(ready: Option<oneshot::Receiver<()>>) {
-    if let Some(rx) = ready {
-        let _ = tokio::time::timeout(Duration::from_millis(READY_TIMEOUT_MS), rx).await;
+    let Some(rx) = ready else {
+        return;
+    };
+    let started = Instant::now();
+    match tokio::time::timeout(Duration::from_millis(READY_TIMEOUT_MS), rx).await {
+        Ok(Ok(())) => tracing::info!(
+            target: "capture",
+            "首帧 ack {}ms（reveal 在首帧之后）",
+            started.elapsed().as_millis()
+        ),
+        _ => tracing::warn!(
+            target: "capture",
+            "首帧 ack 超时（上限 {READY_TIMEOUT_MS}ms），按加载期冻结帧 reveal"
+        ),
     }
 }
 
@@ -290,6 +305,64 @@ pub(crate) async fn open_capture(app: &AppHandle) -> Result<(), String> {
 #[tauri::command(rename = "capture:open")]
 pub async fn capture_open(app: AppHandle) -> Result<(), String> {
     open_capture(&app).await
+}
+
+/// 演练：等价于「按一次截屏热键」—— 走 `open_capture` 全链路（单飞闸门 / conceal /
+/// 抓帧 / 枚举候选 / 等首帧 / reveal）。只在 debug 构建里存在。
+///
+/// - `COGITO_DEV_CAPTURE_MS=<毫秒>`：到点触发；
+/// - `COGITO_DEV_CAPTURE_REPEAT=<n>`：同时再并发 n 次（模拟连按，验证闸门只出一张图），
+///   并在 400ms 后再按一次（模拟「截屏态里再按」的短路）。
+#[cfg(debug_assertions)]
+pub fn spawn_dev_capture(app: AppHandle) {
+    let Some(ms) = std::env::var("COGITO_DEV_CAPTURE_MS")
+        .ok()
+        .and_then(|raw| raw.trim().parse::<u64>().ok())
+    else {
+        return;
+    };
+    let repeat = std::env::var("COGITO_DEV_CAPTURE_REPEAT")
+        .ok()
+        .and_then(|raw| raw.trim().parse::<usize>().ok())
+        .unwrap_or(0);
+
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(ms)).await;
+        tracing::warn!(target: "capture", "演练：开始截屏（等价于按一次热键）");
+        let started = Instant::now();
+
+        let mut handles = Vec::with_capacity(repeat + 1);
+        for index in 0..=repeat {
+            let handle = app.clone();
+            handles.push(tauri::async_runtime::spawn(async move {
+                (index, open_capture(&handle).await)
+            }));
+        }
+        for handle in handles {
+            match handle.await {
+                Ok((index, Ok(()))) => {
+                    tracing::info!(target: "capture", "演练：第 {index} 次 open_capture 返回 Ok")
+                }
+                Ok((index, Err(error))) => {
+                    tracing::error!(target: "capture", "演练：第 {index} 次 open_capture 失败: {error}")
+                }
+                Err(error) => tracing::error!(target: "capture", "演练：触发任务异常: {error}"),
+            }
+        }
+        tracing::info!(
+            target: "capture",
+            "演练：{} 次触发合计耗时 {}ms",
+            repeat + 1,
+            started.elapsed().as_millis()
+        );
+
+        // 截屏态里再按一次：应当短路（不重抓帧、不闪桌面、不白等首帧）
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        match open_capture(&app).await {
+            Ok(()) => tracing::info!(target: "capture", "演练：截屏态内再按一次，已短路"),
+            Err(error) => tracing::error!(target: "capture", "演练：截屏态内再按失败: {error}"),
+        }
+    });
 }
 
 /// 重新截图：整体重来一遍，新帧直接返回（前端重置标注后重新载入）。

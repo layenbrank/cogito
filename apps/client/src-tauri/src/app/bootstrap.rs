@@ -105,6 +105,10 @@ impl Bootstrap {
                 #[cfg(debug_assertions)]
                 crate::overlay::command::spawn_dev_screenshot(app.handle().clone());
 
+                // 截屏全链路演练（仅 debug）：COGITO_DEV_CAPTURE_MS / COGITO_DEV_CAPTURE_REPEAT
+                #[cfg(debug_assertions)]
+                crate::capture::command::spawn_dev_capture(app.handle().clone());
+
                 // 缺可选工具文案演练（仅 debug）：COGITO_DEV_TOOL_PROBE=1
                 #[cfg(debug_assertions)]
                 crate::media::command::spawn_dev_tool_probe(app.handle().clone());

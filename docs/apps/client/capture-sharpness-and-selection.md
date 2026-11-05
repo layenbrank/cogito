@@ -194,6 +194,45 @@ bufferH = stageHeight × pixelRatio ≈ naturalHeight
 - `capture:open` 自带 RAII 单飞闸门（`PendingGuard`，Drop 里复位），并在截屏态下短路：
   连按不会重抓帧、不会 conceal/reveal，也不会白等 ready。
 
+## 9.1 真机演练（仅 debug 构建）
+
+截屏链路里「按了没反应 / 闪桌面 / 选不到控件」都只在真机上才复现，所以留了一组
+**debug-only** 演练开关（release 构建里根本不存在这些代码分支，不构成攻击面）：
+
+| 开关 | 作用 |
+|------|------|
+| `COGITO_DEV_CAPTURE_MS=<毫秒>` | 到点走一遍 `open_capture` 全链路（等价于按一次热键） |
+| `COGITO_DEV_CAPTURE_REPEAT=<n>` | 同时再并发 n 次（模拟连按，验证单飞闸门只出一张图），400ms 后再按一次（验证截屏态短路） |
+| `COGITO_DEV_SCREENSHOT_MS=<毫秒>` | 只切截屏态（验证全局 Esc / 看门狗） |
+| `COGITO_DEV_EXIT_MS=<毫秒>` | 到点 `app.exit(0)`，走 `RunEvent::Exit` |
+| `COGITO_DEV_NO_SIDECAR=1` | 不拉起 sidecar（与正式实例并存时不抢端口） |
+
+演练用**独立 identifier** 的构建，避免 `tauri-plugin-single-instance` 把正式实例挡掉：
+
+```powershell
+cd apps/client
+pnpm exec vite build
+pnpm exec tauri build --debug --no-bundle --config src-tauri/tauri.devtest.conf.json
+# 产物：%CARGO_TARGET_DIR%/debug/cogito.exe（本机为 D:\Documents\cache\debug）
+```
+
+**实测（2026-11-05，devtest 构建 + 正式实例同时在跑）**
+
+```text
+[INFO][capture] 截屏热键已由宿主注册: Control+Alt+Q      ← Alt+Q 被正式实例占着，fallback 链生效
+[WARN][capture] 演练：开始截屏（等价于按一次热键）
+[INFO][capture] 演练：第 0 次 open_capture 返回 Ok       ← 连按：被闸门挡掉，静默返回
+[INFO][capture] 演练：第 1 次 open_capture 返回 Ok
+[INFO][capture] 候选 7 个（child=5 client=0 frame=2），枚举耗时 1ms   ← child>0 = 「先子后父」生效
+[INFO][capture] 首帧 ack 491ms（reveal 在首帧之后）      ← 未触及 800ms 上限
+[INFO][capture] 演练：第 2 次 open_capture 返回 Ok
+[INFO][capture] 演练：3 次触发合计耗时 637ms             ← 3 次只抓 1 帧、只枚举 1 次
+[INFO][capture] 演练：截屏态内再按一次，已短路
+```
+
+结论：并发 3 次触发只产生 1 次抓帧 / 1 次候选枚举 / 1 次首帧 ack；子控件候选恢复（修复前恒为 0）；
+截屏态内再按走短路，不重抓帧、不闪桌面。
+
 ## 10. 代码地图
 
 ```text
@@ -252,3 +291,4 @@ apps/client/src/features/capture/
 | 2026-10-26 | 补「发布 pending 早于切模式」硬约束：修复快捷键触发时偶发「未找到预截图」（前端挂载时 pending 还没写）。 |
 | 2026-11-05 | 截屏链路加固：单飞闸门改 RAII（`PendingGuard`）+ 截屏态短路；热键下沉 Rust 原生注册；加载期用冻结帧铺底、首帧上限 400→800ms；新增 `capture:cursor` 在 ready 后种一次悬停；候选窗口加覆盖网格（48px / 15%）、`IsHungAppWindow` 过滤、子控件按窗配额；悬停文案去重 / 拖拽 rAF 合并 / 滚轮兜底 / 阶段切换 cancel 探针；标注默认样式持久化到 `Setting.Capture.style`（新增 §7–§9）。 |
 | 2026-11-05 | 修 §7 的判定顺序回归：`region.rs` 原先在枚举子控件**之前**就 `cover()` 父窗，导致子控件（必在父窗内）可见比例恒为 0、滚轮细化不到控件；改为「先子控件、后父窗」，并抽出 `occlusion::is_visible_enough` 统一阈值 + 单测锁顺序。 |
+| 2026-11-05 | 加 `capture` 的两行线上观测（候选构成 / 首帧 ack 用时）+ debug-only 演练入口 `COGITO_DEV_CAPTURE_MS`，并补 §9.1 真机演练开关与实测记录。 |

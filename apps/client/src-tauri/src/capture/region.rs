@@ -133,13 +133,31 @@ pub fn find_overlay_regions(app: &AppHandle) -> Vec<CaptureRegion> {
             .hwnd
             .filter(|hwnd| *hwnd != 0)
             .map(|hwnd| windows::Win32::Foundation::HWND(hwnd as *mut core::ffi::c_void));
-        find_windows_regions(ignore, &frame)
+        let started = std::time::Instant::now();
+        let regions = find_windows_regions(ignore, &frame);
+        // 候选构成是「可见性收敛」唯一的线上观测点：
+        // child 恒为 0 多半是父窗把自己盖住了（见 occlusion::is_visible_enough 的注释）。
+        tracing::info!(
+            target: "capture",
+            "候选 {} 个（child={} client={} frame={}），枚举耗时 {}ms",
+            regions.len(),
+            count_kind(&regions, RegionKind::Child),
+            count_kind(&regions, RegionKind::Client),
+            count_kind(&regions, RegionKind::Frame),
+            started.elapsed().as_millis()
+        );
+        regions
     }
     #[cfg(not(windows))]
     {
         let _ = frame;
         Vec::new()
     }
+}
+
+/// 按粒度统计候选数（只用于日志：子控件数为 0 往往意味着遮挡判定顺序又写反了）
+fn count_kind(regions: &[CaptureRegion], kind: RegionKind) -> usize {
+    regions.iter().filter(|region| region.kind == kind).count()
 }
 
 #[cfg(windows)]
