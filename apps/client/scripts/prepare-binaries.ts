@@ -109,7 +109,7 @@ function readChecksums(): Checksums | null {
     return {
       schemaVersion: SIDECAR_SCHEMA_VERSION,
       platform: String(parsed.platform ?? ''),
-      files: parsed.files as Record<string, StagedFileInfo>
+      files: parsed.files
     }
   } catch (error) {
     console.warn(`${LOG_PREFIX} 解析 checksums.json 失败（跳过校验）`, error)
