@@ -51,13 +51,44 @@ const COMPOSER_CLIPBOARD_MIME = 'application/x-cogito-composer'
 /** 组合输入期间按下的键码（Chrome 在 IME 组合时会给 keyCode 229）。 */
 const IME_KEY_CODE = 229
 
-/** 与 globals.css `::highlight(aui-composer-trigger-*)` 对齐。 */
+/** 触发起始文本的 highlight 名（与下面注入的样式表一一对应）。 */
 const TRIGGER_HIGHLIGHT = {
   mention: 'aui-composer-trigger-mention',
   skill: 'aui-composer-trigger-skill'
 } as const
 
 const TRIGGER_HIGHLIGHT_NAMES = Object.values(TRIGGER_HIGHLIGHT)
+
+/**
+ * `::highlight(name)` 的配色。
+ *
+ * 这里不写进 globals.css，是因为它是 CSS Custom Highlight API 的伪元素，而 Tailwind v4
+ * 的 CSS 优化器（lightningcss）还没收录它，构建时会报
+ * 「'highlight' is not recognized as a valid pseudo-element」并可能把规则丢掉。
+ * 改成运行时注入一次：效果完全一致，构建也不再告警。
+ */
+const TRIGGER_HIGHLIGHT_STYLES = `
+::highlight(${TRIGGER_HIGHLIGHT.mention}) {
+  color: color-mix(in oklab, var(--color-primary) 78%, var(--color-foreground));
+  background-color: color-mix(in oklab, var(--color-primary) 14%, transparent);
+}
+
+::highlight(${TRIGGER_HIGHLIGHT.skill}) {
+  color: color-mix(in oklab, var(--color-warning) 55%, var(--color-foreground));
+  background-color: color-mix(in oklab, var(--color-warning) 18%, transparent);
+}
+`
+
+let triggerHighlightStylesInjected = false
+
+function ensureTriggerHighlightStyles() {
+  if (triggerHighlightStylesInjected || typeof document === 'undefined') return
+  triggerHighlightStylesInjected = true
+  const style = document.createElement('style')
+  style.dataset.slot = 'composer-trigger-highlight'
+  style.textContent = TRIGGER_HIGHLIGHT_STYLES
+  document.head.appendChild(style)
+}
 
 function clearTriggerHighlights() {
   const highlights = typeof CSS !== 'undefined' ? CSS.highlights : undefined
@@ -116,6 +147,7 @@ function paintTriggerHighlight(
   clearTriggerHighlights()
   const highlights = typeof CSS !== 'undefined' ? CSS.highlights : undefined
   if (!highlights || match === null) return
+  ensureTriggerHighlightStyles()
   const name =
     match.trigger.id === 'mention'
       ? TRIGGER_HIGHLIGHT.mention

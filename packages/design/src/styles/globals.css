@@ -401,18 +401,10 @@
   }
 
   /*
-   * 触发中的 `@…` / `/…` 文本高亮（CSS Custom Highlight，不改 DOM）。
-   * 与 chip 色系对齐：mention=主色，skill=琥珀。
+   * 触发中的 `@…` / `/…` 文本高亮（CSS Custom Highlight）的配色不在这里：
+   * `::highlight(...)` 不被 Tailwind 的 CSS 优化器（lightningcss）识别，留在产物里会告警，
+   * 所以由 `assistant/composer-input.aui.tsx` 在首次使用时注入一份等价样式。
    */
-  ::highlight(aui-composer-trigger-mention) {
-    color: color-mix(in oklab, var(--color-primary) 78%, var(--color-foreground));
-    background-color: color-mix(in oklab, var(--color-primary) 14%, transparent);
-  }
-
-  ::highlight(aui-composer-trigger-skill) {
-    color: color-mix(in oklab, var(--color-warning) 55%, var(--color-foreground));
-    background-color: color-mix(in oklab, var(--color-warning) 18%, transparent);
-  }
 
   /*
    * 会话语义 Terminal 孤岛：等宽字栈、ANSI class 色、深底滚动条。
