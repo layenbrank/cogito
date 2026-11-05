@@ -53,12 +53,9 @@ function readQueueFromStorage(): IngestQueueItem[] {
     const parsed = JSON.parse(raw) as unknown
     if (!Array.isArray(parsed)) return []
     return parsed.filter(function (item): item is IngestQueueItem {
-      return (
-        item &&
-        typeof item === 'object' &&
-        typeof (item as IngestQueueItem).id === 'string' &&
-        typeof (item as IngestQueueItem).path === 'string'
-      )
+      if (!item || typeof item !== 'object') return false
+      const row = item as Record<string, unknown>
+      return typeof row.id === 'string' && typeof row.path === 'string'
     })
   } catch (error) {
     console.warn('[knowledge/ingest] 读取队列失败', error)

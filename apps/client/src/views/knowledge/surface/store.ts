@@ -160,7 +160,7 @@ const useSurfaceStore = create<SurfaceState>(function (set, get) {
       const returnTab =
         fromTab === 'wiki' || fromTab === 'settings'
           ? get().previewReturnTab
-          : (fromTab as Exclude<RailTabCanonical, 'wiki' | 'settings'>)
+          : (fromTab)
       set({
         tab: 'wiki',
         previewReturnTab: returnTab

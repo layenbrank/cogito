@@ -194,10 +194,10 @@ describe('consumeBackgroundTurn robustness', function () {
     expect(events.map(function (event) {
       return event.kind
     })).toEqual(['text', 'error'])
-    expect(events[1]).toMatchObject({
-      kind: 'error',
-      message: expect.stringContaining('未收到终态')
-    })
+    expect(events[1]?.kind).toBe('error')
+    if (events[1]?.kind === 'error') {
+      expect(events[1].message).toContain('未收到终态')
+    }
     expect(hasRunningBackgroundTurn(threadID)).toBe(false)
   })
 

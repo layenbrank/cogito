@@ -21,7 +21,8 @@ function readResearchItems(): ResearchItem[] {
     const parsed = JSON.parse(raw) as unknown
     if (!Array.isArray(parsed)) return []
     return parsed.filter(function (item): item is ResearchItem {
-      return item && typeof item === 'object' && typeof (item as ResearchItem).id === 'string'
+      if (!item || typeof item !== 'object') return false
+      return typeof (item as Record<string, unknown>).id === 'string'
     })
   } catch (error) {
     console.warn('[knowledge/research] 读取失败', error)

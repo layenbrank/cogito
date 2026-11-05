@@ -55,8 +55,8 @@ function isPrivateNetworkHost(hostname: string): boolean {
   })) {
     return false
   }
-  const a = parts[0]!
-  const b = parts[1]!
+  const a = parts[0]
+  const b = parts[1]
   return (
     a === 0 ||
     a === 10 ||
@@ -94,7 +94,7 @@ async function fetchImportUrl(
     const response = await fetchImpl(current.toString(), {
       redirect: 'manual',
       signal
-    } as RequestInit)
+    })
     if (![301, 302, 303, 307, 308].includes(response.status)) return response
     if (redirects === MAX_REDIRECTS) throw new Error(`重定向过多（>${MAX_REDIRECTS}）`)
     const location = response.headers.get('location')

@@ -16,7 +16,7 @@ let activeParsers = 0
 const waitingParsers: WaitingParser[] = []
 
 function drainWaitingParsers(): void {
-  while (waitingParsers.length > 0 && activeParsers < waitingParsers[0]!.limit) {
+  while (waitingParsers.length > 0 && activeParsers < waitingParsers[0].limit) {
     const waiter = waitingParsers.shift()
     if (!waiter) return
     activeParsers += 1

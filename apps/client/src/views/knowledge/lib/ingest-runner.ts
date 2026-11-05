@@ -72,7 +72,7 @@ function parseTitleFromBody(body: string, fallback: string): string {
   return (heading?.[1] ?? fallback).trim()
 }
 
-async function resolveAbsolute(root: string, path: string): Promise<string> {
+function resolveAbsolute(root: string, path: string): string {
   if (/^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('/')) return path
   return joinPath(root, path)
 }
@@ -160,10 +160,10 @@ async function writeWikiBlock(
 }
 
 async function runIngest(input: IngestRunInput): Promise<IngestRunResult> {
-  const absolute = await resolveAbsolute(input.rootPath, input.path)
+  const absolute = resolveAbsolute(input.rootPath, input.path)
   const relative = toRelative(input.rootPath, absolute)
   const bytes = await readFile(absolute)
-  const sha256 = await digestSha256(bytes.buffer.slice(0) as ArrayBuffer)
+  const sha256 = await digestSha256(bytes.buffer.slice(0))
   const cached = findCacheBySha(sha256)
   if (cached) {
     return {
@@ -240,7 +240,7 @@ ${markdown.slice(0, 12_000)}
     written.push({ ...page, sourceRelative: relative })
   }
 
-  const primary = written[0]!
+  const primary = written[0]
   rememberIngest({
     sha256,
     relative,

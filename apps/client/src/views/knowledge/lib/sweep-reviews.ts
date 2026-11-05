@@ -28,7 +28,7 @@ function sweepReviewsByRules(): { resolved: number; remaining: ReviewItem[] } {
   return { resolved, remaining }
 }
 
-async function sweepReviewsOnDrain(): Promise<number> {
+function sweepReviewsOnDrain(): number {
   try {
     const result = sweepReviewsByRules()
     if (result.resolved > 0) {

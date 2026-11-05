@@ -31,6 +31,10 @@ function fileUrlForPath(path: string): string {
   return `file:///${normalized}`
 }
 
+function asText(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
 function extractItems(value: unknown): { title: string; path: string; snippet: string }[] {
   if (!value || typeof value !== 'object') return []
   const root = value as Record<string, unknown>
@@ -45,10 +49,10 @@ function extractItems(value: unknown): { title: string; path: string; snippet: s
     .map(function (item) {
       if (!item || typeof item !== 'object') return null
       const row = item as Record<string, unknown>
-      const path = String(row.path || row.filePath || row.fullPath || '')
+      const path = asText(row.path) || asText(row.filePath) || asText(row.fullPath)
       if (!path) return null
-      const title = String(row.title || row.name || path.split(/[/\\]/).pop() || path)
-      const snippet = String(row.snippet || row.fragment || row.preview || '')
+      const title = asText(row.title) || asText(row.name) || path.split(/[/\\]/).pop() || path
+      const snippet = asText(row.snippet) || asText(row.fragment) || asText(row.preview)
       return { title, path, snippet }
     })
     .filter(function (item): item is { title: string; path: string; snippet: string } {

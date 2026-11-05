@@ -8,7 +8,6 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 
 import { useShellSurface } from '@/features/window-shell/slots'
-import { useDockStore } from '@/features/agent/dock'
 import { useDockCommand } from '@/features/agent/dock/use-dock-command'
 import { bootstrapClipInbox } from '@/features/knowledge-clip/clip-inbox.ts'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'

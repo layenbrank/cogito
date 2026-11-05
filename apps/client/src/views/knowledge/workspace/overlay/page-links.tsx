@@ -17,6 +17,21 @@ import {
 import { joinPath } from '@/views/knowledge/lib/path.ts'
 import { openEditorPath } from '@/views/knowledge/workspace/editor-context.ts'
 
+interface PageLinksQuery {
+  rootPath: string | null | undefined
+  relPath: string | null
+  docs: { relPath: string; title: string }[]
+}
+
+async function fetchPageLinkBuckets(query: PageLinksQuery): Promise<PageLinkBuckets | null> {
+  if (!query.rootPath || !query.relPath) return null
+  const pages = await readWikiPagesFromDocs({
+    rootPath: query.rootPath,
+    docs: query.docs
+  })
+  return findPageLinks(pages, query.relPath)
+}
+
 function PageLinks() {
   const docs = useKnowledgeBaseStore(function (state) {
     return state.docs
@@ -39,29 +54,45 @@ function PageLinks() {
   const [links, setLinks] = useState<PageLinkBuckets | null>(null)
   const [busy, setBusy] = useState(false)
 
+  const base = bases.find(function (item) {
+    return item.id === activeBaseID
+  })
+  const relPath =
+    activeDoc?.relPath ||
+    (activePath && base?.rootPath
+      ? activePath.replace(/\\/g, '/').replace(base.rootPath.replace(/\\/g, '/') + '/', '')
+      : null)
+
   useEffect(
     function () {
-      void refresh()
+      let alive = true
+      void fetchPageLinkBuckets({
+        rootPath: base?.rootPath,
+        relPath,
+        docs
+      })
+        .then(function (next) {
+          if (alive) setLinks(next)
+        })
+        .catch(function (error: unknown) {
+          console.error('[page-links] refresh failed', error)
+        })
+      return function () {
+        alive = false
+      }
     },
-    [activePath, activeDoc?.relPath, docs.length, activeBaseID, bases]
+    [base?.rootPath, relPath, docs]
   )
 
   async function refresh() {
-    const base = bases.find(function (item) {
-      return item.id === activeBaseID
-    })
-    const rel =
-      activeDoc?.relPath ||
-      (activePath && base?.rootPath
-        ? activePath.replace(/\\/g, '/').replace(base.rootPath.replace(/\\/g, '/') + '/', '')
-        : null)
-    if (!base?.rootPath || !rel) {
-      setLinks(null)
-      return
-    }
     try {
-      const pages = await readWikiPagesFromDocs({ rootPath: base.rootPath, docs })
-      setLinks(findPageLinks(pages, rel))
+      setLinks(
+        await fetchPageLinkBuckets({
+          rootPath: base?.rootPath,
+          relPath,
+          docs
+        })
+      )
     } catch (error) {
       console.error('[page-links] refresh failed', error)
     }

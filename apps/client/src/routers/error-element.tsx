@@ -27,7 +27,16 @@ function RouteErrorElement() {
     [error, location.pathname]
   )
 
-  const message = error instanceof Error ? error.message : String(error ?? '')
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : error === null || error === undefined
+          ? ''
+          : typeof error === 'number' || typeof error === 'boolean' || typeof error === 'bigint'
+            ? String(error)
+            : JSON.stringify(error)
 
   return (
     <div

@@ -152,7 +152,12 @@ function SourcesMain() {
     setImporting(true)
     try {
       const picked = await open({ directory: true, multiple: false })
-      const folder = Array.isArray(picked) ? picked[0] : picked
+      const folder =
+        typeof picked === 'string'
+          ? picked
+          : Array.isArray(picked) && typeof picked[0] === 'string'
+            ? picked[0]
+            : null
       if (!folder) return
       const result = await importFolderToSources({ rootPath, folderPath: folder })
       for (const relative of result.imported) {

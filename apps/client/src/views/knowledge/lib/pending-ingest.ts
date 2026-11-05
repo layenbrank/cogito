@@ -18,12 +18,12 @@ function readAll(): PendingIngestEntry[] {
     const parsed = JSON.parse(raw) as unknown
     if (!Array.isArray(parsed)) return []
     return parsed.filter(function (item): item is PendingIngestEntry {
+      if (!item || typeof item !== 'object') return false
+      const row = item as Record<string, unknown>
       return (
-        item &&
-        typeof item === 'object' &&
-        typeof (item as PendingIngestEntry).baseId === 'string' &&
-        typeof (item as PendingIngestEntry).rootPath === 'string' &&
-        Array.isArray((item as PendingIngestEntry).paths)
+        typeof row.baseId === 'string' &&
+        typeof row.rootPath === 'string' &&
+        Array.isArray(row.paths)
       )
     })
   } catch (error) {

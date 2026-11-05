@@ -142,7 +142,7 @@ function GraphCanvas(props: {
           originX: pan.x,
           originY: pan.y
         }
-        ;(event.currentTarget as HTMLDivElement).setPointerCapture(event.pointerId)
+        ;(event.currentTarget).setPointerCapture(event.pointerId)
       }}
       onPointerMove={function (event) {
         const drag = dragRef.current
@@ -182,7 +182,7 @@ function GraphCanvas(props: {
             )
           })}
           {nodes.map(function (node) {
-            const fill = COMMUNITY_COLORS[node.community % COMMUNITY_COLORS.length]!
+            const fill = COMMUNITY_COLORS[node.community % COMMUNITY_COLORS.length]
             const isHover = hoverId === node.id
             return (
               <g

@@ -86,9 +86,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
         clearTimeout(timer)
         resolve(value)
       },
-      function (error) {
+      function (error: unknown) {
         clearTimeout(timer)
-        reject(error)
+        reject(error instanceof Error ? error : new Error('unknown rejection', { cause: error }))
       }
     )
   })
@@ -129,9 +129,9 @@ function cosine(a: number[], b: number[]): number {
   let left = 0
   let right = 0
   for (let i = 0; i < len; i += 1) {
-    dot += a[i]! * b[i]!
-    left += a[i]! * a[i]!
-    right += b[i]! * b[i]!
+    dot += a[i] * b[i]
+    left += a[i] * a[i]
+    right += b[i] * b[i]
   }
   const denom = Math.sqrt(left) * Math.sqrt(right)
   return denom === 0 ? 0 : dot / denom

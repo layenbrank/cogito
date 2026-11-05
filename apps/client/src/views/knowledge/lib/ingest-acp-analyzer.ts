@@ -154,7 +154,7 @@ const analyzeWithAcp: IngestAnalyzer = async function (input) {
     )
   }
 
-  const primary = parsed.blocks[0]!
+  const primary = parsed.blocks[0]
   const title = parseTitleFromBody(primary.content, input.relative)
   const summary = analysisText
     .replace(/^#\s+.+$/m, '')

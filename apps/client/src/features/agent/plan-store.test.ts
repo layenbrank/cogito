@@ -6,8 +6,8 @@ const { invokeMock } = vi.hoisted(function () {
 
 vi.mock('@tauri-apps/api/core', function () {
   return {
-    invoke: function (...args: unknown[]) {
-      return invokeMock(...args)
+    invoke: function (...args: unknown[]): unknown {
+      return invokeMock(...args) as unknown
     }
   }
 })

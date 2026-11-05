@@ -689,7 +689,7 @@ function SettingsTab() {
                     if (typeof value !== 'string') return
                     setSearchConfig(
                       patchWebSearchConfig({
-                        provider: value as WebSearchConfig['provider']
+                        provider: value
                       })
                     )
                   }}>
@@ -1196,7 +1196,7 @@ function SettingsTab() {
                     if (typeof value !== 'string') return
                     setPdfConfig(
                       patchPdfPipelineConfig({
-                        backend: value as PdfPipelineConfig['backend']
+                        backend: value
                       })
                     )
                   }}>
@@ -1376,7 +1376,7 @@ function SettingsTab() {
                     if (typeof value !== 'string') return
                     setOutputConfig(
                       patchWikiOutputConfig({
-                        language: value as WikiOutputConfig['language']
+                        language: value
                       })
                     )
                   }}>
