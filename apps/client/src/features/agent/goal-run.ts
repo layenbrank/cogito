@@ -103,10 +103,23 @@ function subscribeGoalRun(listener: () => void): () => void {
   return subscribePlanStore(listener)
 }
 
+/**
+ * `GoalRun` 派生对象按**档案记录**缓存。
+ *
+ * `useGoalRun` 把它喂给 `useSyncExternalStore`，而快照必须是同一个引用：
+ * 每次现造 `{...}` 会让 React 认为「快照一直在变」→ 无限重渲染，
+ * 最终抛 `Maximum update depth exceeded`（React #185）把整页打进 ErrorBoundary。
+ * 目标档案在 `plan-store` 里是不可变替换（`saveGoal` 建新对象再 `goals.set`），
+ * 所以以记录为缓存键既稳定又自带失效。
+ */
+const runCache = new WeakMap<GoalRecord, GoalRun>()
+
 function toGoalRun(threadID: string): GoalRun | null {
   const record = readGoal(threadID)
   if (!record) return null
-  return {
+  const cached = runCache.get(record)
+  if (cached) return cached
+  const run: GoalRun = {
     threadID: record.sessionID,
     objective: record.detail || record.summary,
     budget: record.budget,
@@ -117,6 +130,8 @@ function toGoalRun(threadID: string): GoalRun | null {
         : null,
     status: record.status
   }
+  runCache.set(record, run)
+  return run
 }
 
 /**
@@ -141,31 +156,62 @@ function useGoalRun(threadID: string | null): GoalRun | null {
 }
 
 /**
- * 本轮归属：自动续跑发出/用户首发的 prompt 存在模块里（不落库 —— 它只对
- * 「当前这一轮」有效，重启后本来就不该再用旧 prompt 判插话）。
+ * 本轮归属 prompt：热路径用内存，同时落库到 `expectedPrompt`，刷新后仍可判插话 / Resume。
  */
-const expectedPrompt = new Map<string, string>()
+const expectedPromptCache = new Map<string, string>()
 
 function rememberGoalPrompt(threadID: string, prompt: string): void {
-  expectedPrompt.set(threadID.trim(), prompt.trim())
+  const id = threadID.trim()
+  const text = prompt.trim()
+  expectedPromptCache.set(id, text)
+  saveGoal({ sessionID: id, expectedPrompt: text })
 }
 
 function forgetGoalPrompt(threadID: string): void {
-  expectedPrompt.delete(threadID.trim())
+  const id = threadID.trim()
+  expectedPromptCache.delete(id)
+  const record = readGoal(id)
+  if (record?.expectedPrompt) {
+    saveGoal({ sessionID: id, expectedPrompt: null })
+  }
 }
 
 function readGoalPrompt(threadID: string): string | null {
-  return expectedPrompt.get(threadID.trim()) ?? null
+  const id = threadID.trim()
+  const cached = expectedPromptCache.get(id)
+  if (cached) return cached
+  const fromStore = readGoal(id)?.expectedPrompt?.trim()
+  if (fromStore) {
+    expectedPromptCache.set(id, fromStore)
+    return fromStore
+  }
+  return null
 }
 
 /**
  * 目标推进要无人值守，工具一弹审批整轮就停在那儿等。
  * 返回是否真的改过档位（UI 据此提示用户）。
  */
+/** 偏好落盘后推 goose；无 session 时静默（下次 ensure 会跟上） */
+function pushThreadApproval(threadID: string, mode: ApprovalMode): void {
+  void import('@/features/agent/acp/sync-thread-approval')
+    .then(function (mod) {
+      return mod.syncApprovalForThread(threadID, mode)
+    })
+    .catch(function (error: unknown) {
+      console.warn('[agent/goal] 同步审批到 goose 失败:', error)
+    })
+}
+
 function ensureGoalApproval(threadID: string): ApprovalMode | null {
   const current = readApprovalModeFor(threadID)
-  if (current === 'auto') return null
+  if (current === 'auto') {
+    // 已是 auto 也重推一次：避免 goose 仍停在 smart_approve
+    pushThreadApproval(threadID, 'auto')
+    return null
+  }
   writeApprovalModeFor(threadID, 'auto')
+  pushThreadApproval(threadID, 'auto')
   return current
 }
 
@@ -174,6 +220,7 @@ function restoreGoalApproval(threadID: string, before: string | null): void {
   if (!before) return
   if (readApprovalModeFor(threadID) !== 'auto') return
   writeApprovalModeFor(threadID, before as ApprovalMode)
+  pushThreadApproval(threadID, before as ApprovalMode)
 }
 
 function normalizeObjective(objective: string | GoalObjective): GoalObjective {
@@ -205,52 +252,91 @@ function startGoalRun(
     progressDone: null,
     progressTotal: null,
     status: 'running',
-    approvalBefore: before
+    approvalBefore: before,
+    expectedPrompt: prompt?.trim() || null
   })
-  if (prompt) rememberGoalPrompt(id, prompt)
+  if (prompt) {
+    expectedPromptCache.set(id, prompt.trim())
+  } else {
+    expectedPromptCache.delete(id)
+  }
   return before !== null
 }
 
 /**
- * 停一个线程的目标推进；**不传** threadID 才是全停。
+ * 从 paused / exhausted 继续推进：保留 objective 与 budget，重置 used，status→running。
+ * 返回续跑用的 GoalRun；不可恢复时返回 null。
+ */
+function resumeGoalRun(threadID: string): GoalRun | null {
+  const id = threadID.trim()
+  const record = readGoal(id)
+  if (!record) return null
+  if (record.status !== 'paused' && record.status !== 'exhausted') return null
+  const before = ensureGoalApproval(id)
+  saveGoal({
+    sessionID: id,
+    used: 0,
+    status: 'running',
+    approvalBefore: before ?? record.approvalBefore,
+    progressDone: null,
+    progressTotal: null
+  })
+  return readGoalRun(id)
+}
+
+/** 目标收尾态：完成 / 预算用尽 / 用户或插话暂停 —— 三者互不覆盖 */
+type GoalFinishStatus = 'done' | 'exhausted' | 'paused'
+
+/**
+ * 写入明确终态并恢复审批。
  *
- * `null` / 空串一律当 no-op —— 调用方（可能还没选出线程）传空值时必须
- * 不能崩（以前 `threadID.trim()` 直接 TypeError），也不能误伤其它线程的目标。
+ * - `done` / `exhausted` 是成功语义的终点，不能再被 `paused` 抹掉；
+ * - 已是 `done` 时拒绝降级；已是 `exhausted` 时只允许保持 `exhausted`（幂等）。
+ */
+function finishGoalRun(threadID: string, status: GoalFinishStatus): void {
+  const id = threadID.trim()
+  if (!id) return
+  const record = readGoal(id)
+  if (!record) return
+  if (record.status === 'done') return
+  if (record.status === 'exhausted' && status === 'paused') return
+  if (record.status === status) {
+    // 幂等：用尽路径里 advance 已写 exhausted 并恢复审批，这里只清 prompt
+    forgetGoalPrompt(id)
+    return
+  }
+  saveGoal({ sessionID: id, status })
+  restoreGoalApproval(id, record.approvalBefore)
+  forgetGoalPrompt(id)
+}
+
+/**
+ * 用户/插话暂停；**不传** threadID 才是全停。
+ *
+ * 只动 `running` —— 不会把 `done` / `exhausted` 降成 `paused`。
+ * `null` / 空串一律 no-op。
  */
 function stopGoalRun(threadID?: string | null): void {
-  // `null` 当 no-op：调用方（aside 的 `threadID ?? undefined` 之前）可能传空值
   if (threadID === null) return
   if (threadID === undefined) {
-    const active = [...expectedPrompt.keys()]
-    for (const id of active) forgetGoalPrompt(id)
-    // 全停：把所有进行中的目标标记暂停（exhausted 也一并收尾）
-    for (const record of collectActiveGoals()) {
-      saveGoal({ sessionID: record.sessionID, status: 'paused' })
-      restoreGoalApproval(record.sessionID, record.approvalBefore)
-      forgetGoalPrompt(record.sessionID)
+    for (const record of listGoals()) {
+      if (record.status !== 'running') continue
+      finishGoalRun(record.sessionID, 'paused')
     }
     return
   }
   const id = threadID.trim()
   if (!id) return
   const record = readGoal(id)
-  if (!record || record.status === 'paused' || record.status === 'done') return
-  saveGoal({ sessionID: id, status: 'paused' })
-  restoreGoalApproval(id, record.approvalBefore)
-  forgetGoalPrompt(id)
-}
-
-/** 缓存里所有还在推进（running / exhausted）的目标 */
-function collectActiveGoals(): GoalRecord[] {
-  return listGoals().filter(function (record) {
-    return record.status === 'running' || record.status === 'exhausted'
-  })
+  if (!record || record.status !== 'running') return
+  finishGoalRun(id, 'paused')
 }
 
 /**
  * 记一轮完成，返回是否还有预算继续。
  *
  * 首轮由「开始执行」直接发出，不经过这里 —— 所以本轮结束时先自增再判断。
+ * 用尽时直接写 `exhausted` 并恢复审批；调用方不得再 `stopGoalRun` 覆盖。
  */
 function advanceGoalRun(threadID: string): boolean {
   const id = threadID.trim()
@@ -258,12 +344,14 @@ function advanceGoalRun(threadID: string): boolean {
   if (!record || record.status !== 'running') return false
   const used = record.used + 1
   const exhausted = used >= record.budget
-  saveGoal({ sessionID: id, used, status: exhausted ? 'exhausted' : 'running' })
   if (exhausted) {
+    saveGoal({ sessionID: id, used, status: 'exhausted' })
     restoreGoalApproval(id, record.approvalBefore)
     forgetGoalPrompt(id)
+    return false
   }
-  return !exhausted
+  saveGoal({ sessionID: id, used, status: 'running' })
+  return true
 }
 
 /** 模型收尾标记：全部达成 / 仍需继续 */
@@ -379,6 +467,7 @@ export {
   findGoalSignal,
   findLastAssistant,
   findLastUserText,
+  finishGoalRun,
   forgetGoalPrompt,
   GOAL_BUDGET_OPTIONS,
   isAbortedRun,
@@ -392,9 +481,10 @@ export {
   subscribeGoalBudget,
   writeNextGoalBudget,
   setGoalProgress,
+  resumeGoalRun,
   startGoalRun,
   stopGoalRun,
   subscribeGoalRun,
   useGoalRun
 }
-export type { GoalObjective, GoalProgress, GoalRun }
+export type { GoalFinishStatus, GoalObjective, GoalProgress, GoalRun }

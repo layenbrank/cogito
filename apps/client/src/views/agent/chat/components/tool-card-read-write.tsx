@@ -1,9 +1,19 @@
+/**
+ * 写文件工具卡：只保留 `CodeDiff` 这一种形态。
+ *
+ * 头就是 CodeDiff 自己的标题栏 —— 文件名 + `+N −M` + 右侧「工作区」动作，一行说完；
+ * 不再套 `Tool` / `ToolHeader` 那层「wrench 图标 + 中文状态徽章」的外壳，
+ * 状态由工具行本身表达（运行中展开、结束后收起）。
+ *
+ * 拿不到 before/after（只有路径或纯覆盖写）时退回通用的 `ToolFallback` 明细，
+ * 仍然是一行摘要 + 展开参数 / 结果。
+ */
 import type { ToolCallMessagePartProps } from '@assistant-ui/react'
 import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '@iconify/react/offline'
 import { CodeBlock } from '@cogito/design/assistant/code-block'
 import { CodeDiff } from '@cogito/design/assistant/code-diff'
-import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from '@cogito/design/assistant/tool'
+import { ToolFallback } from '@cogito/design/assistant/tool-fallback.aui'
 import { Button } from '@cogito/design/components/button'
 
 import { normalizeToolPath } from '@/features/agent/tool-paths'
@@ -12,26 +22,10 @@ import { useActiveWorkspace } from '@/features/agent/workspace/active'
 import { openAsideReview } from '@/views/agent/chat/components/open-aside-review'
 import {
   fetchWriteCodeDiff,
-  findBaseName,
-  findCodeLanguage,
   findWritePath,
-  mapToolCallState,
   parseWriteCodeDiff,
-  type WriteCodeDiff,
-  type WriteDiffStat
+  type WriteCodeDiff
 } from '@/views/agent/chat/components/parse-tool-result'
-import { formatDetail, summarize } from '@/views/agent/chat/components/tool-card-format'
-
-function FileChangeStat(props: WriteDiffStat) {
-  if (props.added <= 0 && props.removed <= 0) return null
-  return (
-    <span className="font-mono text-xs tabular-nums tracking-tight">
-      {props.added > 0 ? <span className="text-success">+{props.added}</span> : null}
-      {props.added > 0 && props.removed > 0 ? <span className="text-muted-foreground"> </span> : null}
-      {props.removed > 0 ? <span className="text-destructive">-{props.removed}</span> : null}
-    </span>
-  )
-}
 
 function WorkspaceDiffAction(props: { relative: string }) {
   return (
@@ -54,112 +48,10 @@ function WorkspaceDiffAction(props: { relative: string }) {
   )
 }
 
-function ReadWriteOutput(props: {
-  result: unknown
-  outputText: string
-  language: string
-  isError: boolean
-}) {
-  if (props.result === undefined) return null
-  return (
-    <ToolOutput
-      output={
-        props.isError
-          ? props.outputText
-            ? undefined
-            : formatDetail(props.result)
-          : props.outputText
-            ? (
-                <CodeBlock
-                  code={props.outputText}
-                  language={props.language}
-                  showHeader={false}
-                  contentClassName="max-h-[min(36vh,20rem)]"
-                />
-              )
-            : formatDetail(props.result)
-      }
-      errorText={props.isError ? props.outputText || '执行出错' : undefined}
-    />
-  )
-}
-
-function WriteCodeDiffBody(props: {
-  args: unknown
-  codeDiff: WriteCodeDiff | null
-  writePath: string | null
-  relativePath: string | null
-  result: unknown
-  outputText: string
-  isError: boolean
-}) {
-  const { codeDiff } = props
-
-  if (!codeDiff) {
-    return (
-      <>
-        {props.writePath ? (
-          <p
-            className="text-muted-foreground truncate px-0.5 font-mono text-xs"
-            title={props.writePath}>
-            {props.relativePath ?? props.writePath}
-          </p>
-        ) : null}
-        <ToolInput input={props.args} />
-        {props.relativePath && !props.isError ? (
-          <div className="flex justify-end">
-            <WorkspaceDiffAction relative={props.relativePath} />
-          </div>
-        ) : null}
-        <ReadWriteOutput
-          result={props.result}
-          outputText={props.outputText}
-          language="markdown"
-          isError={props.isError}
-        />
-      </>
-    )
-  }
-
-  return (
-    <>
-      <CodeDiff
-        filename={codeDiff.filename}
-        subtitle={props.relativePath ?? undefined}
-        additions={codeDiff.additions}
-        deletions={codeDiff.deletions}
-        lines={codeDiff.lines}
-        cycle={0}
-        className="rounded-lg"
-        action={
-          props.relativePath && !props.isError ? (
-            <WorkspaceDiffAction relative={props.relativePath} />
-          ) : undefined
-        }
-      />
-      {props.isError ? (
-        <ReadWriteOutput
-          result={props.result}
-          outputText={props.outputText}
-          language="markdown"
-          isError
-        />
-      ) : null}
-    </>
-  )
-}
-
-function ReadWriteToolCard(
-  props: ToolCallMessagePartProps & {
-    variant: 'read' | 'write' | 'search'
-    outputText: string
-  }
-) {
+function WriteToolCard(props: ToolCallMessagePartProps & { outputText: string }) {
   const { rootPath } = useActiveWorkspace()
-  const state = mapToolCallState(props)
   const label = toAgentToolLabel(props.toolName)
-  const summary = summarize(props.args)
-  const writePath = props.variant === 'write' ? findWritePath(props.args) : null
+  const writePath = findWritePath(props.args)
   const relativePath = useMemo(
     function () {
       if (!writePath) return null
@@ -167,18 +59,13 @@ function ReadWriteToolCard(
     },
     [writePath, rootPath]
   )
-  // 标题 +/- 与展开 CodeDiff 共用一次 diff：同步首屏，Tauri 异步升级到 Rust lineDiff
+  // 同步首屏用本地 LCS，Tauri 下异步升级到 Rust lineDiff
   const toolArgs = props.args as unknown
   const [codeDiff, updateCodeDiff] = useState<WriteCodeDiff | null>(function () {
-    if (props.variant !== 'write') return null
     return parseWriteCodeDiff(toolArgs)
   })
   useEffect(
     function () {
-      if (props.variant !== 'write') {
-        updateCodeDiff(null)
-        return
-      }
       updateCodeDiff(parseWriteCodeDiff(toolArgs))
       let cancelled = false
       void fetchWriteCodeDiff(toolArgs)
@@ -192,60 +79,66 @@ function ReadWriteToolCard(
         cancelled = true
       }
     },
-    [props.variant, toolArgs]
+    [toolArgs]
   )
-  const diffStat: WriteDiffStat | null = codeDiff
-    ? { added: codeDiff.additions, removed: codeDiff.deletions }
-    : null
-  const isRunning = props.status?.type === 'running'
-  const shouldExpand = isRunning || state === 'approval-requested'
-  // 运行中/待审批时强制展开；手动展开的选择用 pinned 记住，不在 effect 里追 prop。
-  const [isPinnedOpen, setPinnedOpen] = useState(false)
-  const open = shouldExpand || isPinnedOpen
-  const language = findCodeLanguage(props.toolName, props.args)
-  const title =
-    props.variant === 'write' && writePath
-      ? findBaseName(writePath)
-      : summary
-        ? `${label} · ${summary}`
-        : label
+
+  if (!codeDiff) {
+    return (
+      <ToolFallback.Root className="my-1 mb-0">
+        <ToolFallback.Trigger
+          toolName={label}
+          status={props.status}
+          title={props.toolName}
+        />
+        <ToolFallback.Content>
+          <ToolFallback.Error status={props.status} />
+          <ToolFallback.Args argsText={props.argsText ?? JSON.stringify(props.args, null, 2)} />
+          {props.outputText ? (
+            <CodeBlock
+              code={props.outputText}
+              language="markdown"
+              showHeader={false}
+              contentClassName="max-h-[min(36vh,20rem)]"
+            />
+          ) : (
+            <ToolFallback.Result result={props.result} />
+          )}
+          {relativePath && !props.isError ? (
+            <div className="flex justify-end">
+              <WorkspaceDiffAction relative={relativePath} />
+            </div>
+          ) : null}
+        </ToolFallback.Content>
+      </ToolFallback.Root>
+    )
+  }
 
   return (
-    <Tool
-      open={open}
-      onOpenChange={setPinnedOpen}
-      className="my-1 mb-0">
-      <ToolHeader
-        title={title}
-        state={state}
-        toolName={props.toolName}
-        annotation={diffStat ? <FileChangeStat {...diffStat} /> : null}
+    <div
+      data-slot="agent-write-card"
+      className="my-1 flex flex-col gap-1.5">
+      <CodeDiff
+        filename={codeDiff.filename}
+        subtitle={relativePath ?? undefined}
+        additions={codeDiff.additions}
+        deletions={codeDiff.deletions}
+        lines={codeDiff.lines}
+        cycle={0}
+        action={
+          relativePath && !props.isError ? (
+            <WorkspaceDiffAction relative={relativePath} />
+          ) : undefined
+        }
       />
-      <ToolContent>
-        {props.variant === 'write' ? (
-          <WriteCodeDiffBody
-            args={toolArgs}
-            codeDiff={codeDiff}
-            writePath={writePath}
-            relativePath={relativePath}
-            result={props.result}
-            outputText={props.outputText}
-            isError={props.isError === true}
-          />
-        ) : (
-          <>
-            <ToolInput input={toolArgs} />
-            <ReadWriteOutput
-              result={props.result}
-              outputText={props.outputText}
-              language={language}
-              isError={props.isError === true}
-            />
-          </>
-        )}
-      </ToolContent>
-    </Tool>
+      {props.isError ? (
+        <div
+          role="alert"
+          className="text-destructive border-border/50 bg-muted/40 rounded-md border px-3 py-2 text-xs whitespace-pre-wrap">
+          {props.outputText || '执行出错'}
+        </div>
+      ) : null}
+    </div>
   )
 }
 
-export { ReadWriteToolCard }
+export { WriteToolCard }

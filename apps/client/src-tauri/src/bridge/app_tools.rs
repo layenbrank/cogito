@@ -20,6 +20,10 @@ use cogito_core::tools::terminal as terminal_catalog;
 const DEFAULT_LIMIT: u64 = 60;
 /// 上限：太多会把模型上下文塞满，且帮助不大
 const MAX_LIMIT: u64 = 200;
+/// `mode=text` 默认返回多少字符（与条目数分开：正文以前被 60 个字符卡住）
+const DEFAULT_MAX_CHARS: u64 = 8000;
+/// 正文字符上限：再长就该分页读，塞进上下文也读不完
+const MAX_MAX_CHARS: u64 = 200_000;
 /// 网络列表默认 / 上限：比 read 宽，因为单条很短
 const DEFAULT_NETWORK_LIMIT: usize = 200;
 const MAX_NETWORK_LIMIT: usize = 500;
@@ -119,7 +123,14 @@ async fn read(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
         .clamp(1, MAX_LIMIT) as usize;
     let selector = text_arg(arguments, "selector");
     let value = text_arg(arguments, "value");
-    agent::read(app, &label, mode, limit, selector, value).await
+    // 两个上限各管一件事：`limit` 是 outline 的条目数，`maxChars` 是 text 的字符数。
+    // 以前 `limit` 被透传给正文切分，`mode=text` 只回来 60 个字符。
+    let max_chars = arguments
+        .get("maxChars")
+        .and_then(Value::as_u64)
+        .unwrap_or(DEFAULT_MAX_CHARS)
+        .clamp(200, MAX_MAX_CHARS) as usize;
+    agent::read(app, &label, mode, limit, max_chars, selector, value).await
 }
 
 async fn wait(app: &AppHandle, arguments: &Value) -> Result<Value, String> {

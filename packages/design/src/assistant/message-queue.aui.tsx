@@ -10,7 +10,11 @@
  *   已经在对话流里，再在输入框上方重复一遍会被读成「消息重复了」。
  * - 默认折叠成「N queued + 第一条的一行预览」：官方示例永远展开，
  *   一次排队就把聊天区顶掉半个屏幕。
- * - 展开体 `max-h-44` + 滚动，每条 `truncate` 只占一行。
+ * - 展开体封顶 + 滚动，每条只占一行。单行不是靠父级 `truncate` 硬裁出来的：
+ *   `@chip` 的渲染根节点带 `whitespace-pre-wrap` 与 `<br>`，会覆盖 `nowrap` 并让
+ *   `text-overflow` 失效（多行文本既截不断也没有省略号）—— 所以 `singleLine` 传给正文
+ *   渲染器，由它先把文档摊平（换行变空格、不渲染 `<br>`）。
+ * - 多行条目在行尾给一个 `⏎ N 行` 标记：单行预览背后还有内容，全文仍在 `title` 里。
  * - 正文与追加动作可注入：app 用它把 `@chip` 渲染成简短标签、
  *   并挂上「取回编辑 / 上移 / 下移」这些库没有对应 primitive 的操作。
  */
@@ -19,12 +23,16 @@ import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { useState, type FC, type ReactNode } from 'react'
 
+import { countComposerLines } from './composer-chip-text'
 import { field, ghostButton, mono, rowEnter } from './elements/surfaces'
 import { useAssistantLabels } from './labels'
 import { TooltipIconButton } from './tooltip-icon-button'
 
 /** 队列条目里的一行正文上限：`max-h-44` 约 4 行，再多就该滚了 */
-const LIST_MAX_HEIGHT_CLASS = 'max-h-44'
+const LIST_MAX_HEIGHT_CLASS = 'max-h-[min(11rem,32vh)]'
+
+/** 一行条目的固定行高：chip 与纯文本混排时不至于一条高一条矮 */
+const ROW_LINE_CLASS = 'py-2 leading-5'
 
 /**
  * 队列条目的纯文本，口径与 `QueueItemPrimitive.Text` 一致（多段正文用空行拼接）。
@@ -133,10 +141,13 @@ const MessageQueue: FC<MessageQueueProps> = function MessageQueue({
             {labels.queueSendsWhenFinishes}
           </span>
         ) : (
-          <span className="text-foreground/60 min-w-0 flex-1 truncate text-sm">
+          <span
+            className="text-foreground/60 min-w-0 flex-1 truncate text-sm"
+            title={previewText || undefined}>
             {previewText ? renderBody(previewText) : labels.queueEmptyPreview}
           </span>
         )}
+        {expanded ? null : <QueueLineBadge text={previewText} />}
         <Icon
           icon={expanded ? 'lucide:chevron-up' : 'lucide:chevron-down'}
           className="text-foreground/25 group-hover:text-foreground/60 size-3 shrink-0 transition-colors"
@@ -165,12 +176,14 @@ const MessageQueue: FC<MessageQueueProps> = function MessageQueue({
                     className={cn(
                       field,
                       rowEnter,
-                      'group/row flex items-center gap-2.5 rounded-2xl py-2 pr-2 pl-3'
+                      ROW_LINE_CLASS,
+                      'group/row flex items-center gap-2.5 rounded-2xl pr-2 pl-3'
                     )}>
                     <span className={cn(mono, 'w-3 shrink-0 tabular-nums')}>{index + 1}</span>
                     <span className="text-foreground/60 min-w-0 flex-1 truncate text-sm">
                       {renderBody(text)}
                     </span>
+                    <QueueLineBadge text={text} />
                     {renderItemActions ? (
                       <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
                         {renderItemActions({ id: queueItem.id, index, text })}
@@ -219,6 +232,26 @@ const MessageQueue: FC<MessageQueueProps> = function MessageQueue({
 }
 
 /**
+ * 多行标记：单行预览背后还有内容（`⏎ N 行`）。全文仍在 `title` 里。
+ *
+ * 折叠头与队列条目共用，`pending` 行也复用它 —— 计数口径来自
+ * `composer-chip-text` 的 `countComposerLines`，与实际显示行数一致。
+ */
+const QueueLineBadge: FC<{ text: string; className?: string }> = ({ text, className }) => {
+  const labels = useAssistantLabels()
+  const lines = countComposerLines(text)
+  if (lines < 2) return null
+
+  return (
+    <span
+      data-slot="message-queue-item-lines"
+      className={cn(mono, 'shrink-0 tabular-nums', className)}>
+      {labels.queueLines(lines)}
+    </span>
+  )
+}
+
+/**
  * 官方那条「正在运行」行：蓝点（外圈 `animate-ping`）+ 正文 + 右侧 `running` 标签。
  *
  * 只在使用方显式给 `runningText` 时出现 —— 线程里当前轮的用户消息已经在对话流里，
@@ -248,5 +281,5 @@ function defaultRenderText(text: string): ReactNode {
   return text
 }
 
-export { MessageQueue, MessageQueueRunningRow, LIST_MAX_HEIGHT_CLASS, textOfParts }
+export { MessageQueue, MessageQueueRunningRow, QueueLineBadge, LIST_MAX_HEIGHT_CLASS, textOfParts }
 export type { MessageQueueItemInfo, MessageQueueProps }

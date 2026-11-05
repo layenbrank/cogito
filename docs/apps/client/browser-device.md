@@ -99,6 +99,16 @@ touch 事件 / DPR，预览区等比缩放到面板里；退出即恢复桌面�
 - **UA 覆盖会改变服务端下发**：登录 / A/B 在移动 UA 下行为可能不同；UI 已写明「只作用于当前标签页，退出即恢复」。
 - **agent 侧 fit 是估算**：`estimate_fit` 按上一次 fit 把盒子折回面板尺寸，随后前端按真实面板尺寸修正一次。
 - 设备不跨重启记忆（`features/persist` 里没有 `browser` namespace，属后续项）。
+- **模拟态下 agent 的点击走 touch 派发**：`mobile` 档案里 `setEmitTouchEventsForMouse` 会让鼠标事件被合成成 touch，
+  `Input.dispatchMouseEvent(mousePressed)` 在 WebView2 上等不到完成回调（hover 只发 `mouseMoved` 所以正常）。
+  所以 `browser/agent.rs::act` 的 click 分三级降级：`dispatchTouchEvent(touchStart/touchEnd)` →
+  临时 `setEmitTouchEventsForMouse(false)` + 鼠标派发 → 页面内合成 `pointerdown/pointerup/click`；
+  输入类 CDP 调用用 2.5s 短超时（不是全局 10s），失败不再直接抛错而是继续往下降。
+  返回值的 `mode`（`touch` / `pointer` / `synthetic`）说明实际走的通道 —— 断言只看 `ok` 不够，
+  要再用 `app_browser_read mode=assertText` 确认页面状态真的变了。
+- **`app_browser_read` 的 `limit` 与 `maxChars` 是两件事**：`limit` 只管 `outline` 条目数（默认 60，上限 200），
+  `mode=text` 的正文上限走 `maxChars`（默认 8000，上限 200000，超出时 `truncated=true`）。
+  以前两者共用 `limit`，导致正文只能读回几十个字符。
 
 ## 测试可执行文件的 manifest（构建侧）
 

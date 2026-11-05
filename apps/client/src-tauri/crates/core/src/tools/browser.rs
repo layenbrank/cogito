@@ -75,8 +75,9 @@ pub fn specs() -> Vec<ToolSpec> {
                     "limit": {
                         "type": "integer",
                         "minimum": 1,
-                        "description": "最多返回多少项，默认 60，上限 200"
+                        "description": "「outline」最多返回多少个可交互元素，默认 60，上限 200（不影响正文）"
                     },
+                    "maxChars": { "type": "integer", "minimum": 200, "description": "「text」返回的正文上限（字符），默认 8000，上限 200000；超出时 truncated=true" },
                     "selector": { "type": "string", "description": "assertVisible / 可选断言范围" },
                     "value": { "type": "string", "description": "assertText 的期望子串" }
                 }
@@ -84,7 +85,7 @@ pub fn specs() -> Vec<ToolSpec> {
         ),
         spec(
             ACT,
-            "操作内嵌浏览器：点击 / 输入 / 按键 / 滚动 / 悬停 / 刷新 / 选择 native select。selector 用 app_browser_read 返回的那个。",
+            "操作内嵌浏览器：点击 / 输入 / 按键 / 滚动 / 悬停 / 刷新 / 选择 native select。selector 用 app_browser_read 返回的那个。设备模拟（app_browser_device）下 click 会走触摸派发，返回值里的 mode 说明实际通道：touch / pointer / synthetic。",
             Effect::Write,
             json!({
                 "type": "object",
@@ -238,6 +239,36 @@ mod tests {
                 spec.name
             );
         }
+    }
+
+    #[test]
+    fn read_spec_separates_entry_limit_from_text_length() {
+        let read = specs()
+            .into_iter()
+            .find(|spec| spec.name == READ)
+            .expect("read 工具必须在目录里");
+        let properties = &read.input_schema["properties"];
+        assert!(properties.get("limit").is_some(), "outline 仍要能限条目数");
+        assert!(
+            properties.get("maxChars").is_some(),
+            "正文长度必须单列：limit 曾经把 text 卡在 60 个字符"
+        );
+        assert!(
+            read.description.contains("maxChars") || read.description.contains("正文"),
+            "描述里要说清 text 有独立的长度上限"
+        );
+    }
+
+    #[test]
+    fn act_spec_documents_the_dispatch_mode() {
+        let act = specs()
+            .into_iter()
+            .find(|spec| spec.name == ACT)
+            .expect("act 工具必须在目录里");
+        assert!(
+            act.description.contains("mode"),
+            "模拟态点击走哪条通道必须能从工具描述看出来"
+        );
     }
 
     #[test]

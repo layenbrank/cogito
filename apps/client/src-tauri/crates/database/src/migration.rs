@@ -38,11 +38,28 @@ pub async fn run(db: &Connection) -> Result<(), DbErr> {
 }
 
 
-/// 补建计划 / 目标档案表（已存在则跳过；语句全部幂等）。
+/// 补建计划 / 目标档案表（已存在则跳过；语句全部幂等），并补齐老库缺列。
 async fn ensure_agent_plan(db: &Connection) -> Result<(), DbErr> {
     for statement in crate::migrations::agent_plan_schema::statements() {
         db.execute(Statement::from_string(DatabaseBackend::Sqlite, statement))
             .await?;
+    }
+    for (column, alter) in crate::migrations::agent_plan_schema::goal_column_patches() {
+        let found = db
+            .query_one(Statement::from_string(
+                DatabaseBackend::Sqlite,
+                format!(
+                    "SELECT count(*) AS v FROM pragma_table_info('agent_goal') WHERE name = '{column}'"
+                ),
+            ))
+            .await?;
+        let count = found
+            .and_then(|row| row.try_get::<i64>("", "v").ok())
+            .unwrap_or(0);
+        if count == 0 {
+            db.execute(Statement::from_string(DatabaseBackend::Sqlite, alter.to_string()))
+                .await?;
+        }
     }
     Ok(())
 }

@@ -47,16 +47,15 @@ import {
 } from '@/features/agent/acp/background-turn'
 import { clearGooseUsage, writeGooseUsage } from '@/features/agent/acp/goose-usage'
 import { fetchSessionTools, saveDefaults } from '@/features/agent/acp/goose-providers'
-import {
-  syncSessionApprovalMode,
-  writeSessionGooseMode
-} from '@/features/agent/acp/sync-approval-mode'
-import { findGooseMode, readApprovalModeFor } from '@/features/agent/approval'
+import { syncSessionApprovalMode } from '@/features/agent/acp/sync-approval-mode'
+import { isWriteTool } from '@/features/agent/approval'
+import { findEffectiveApprovalMode } from '@/features/agent/effective-approval'
 import { clearRunState, markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
 import { verifyAgentTools } from '@/features/agent/agent-tools'
 import type { AgentToolServer } from '@/features/agent/agent-tools'
 import { notifyTurnDone } from '@/features/agent/notify'
 import { readGoalRun } from '@/features/agent/goal-run'
+import { readAgentModeFor } from '@/features/agent/mode'
 import { findPref } from '@/features/persist'
 import {
   parseAcpApprovalRequest,
@@ -802,7 +801,11 @@ async function openThreadSession(
     }
   )
   try {
-    await syncSessionApprovalMode(handle.connection, thread.acpSessionID)
+    await syncSessionApprovalMode(
+      handle.connection,
+      thread.acpSessionID,
+      findEffectiveApprovalMode(threadID)
+    )
   } catch (error) {
     console.warn('[acp/session] 同步审批策略到 goose 失败:', error)
   }
@@ -841,13 +844,12 @@ async function ensureThreadSession(
       cached.configOptions = applied.configOptions
       await syncModelsToStore(applied.providerId, applied.configOptions)
     }
-    // 已开会话也重推 mode：避免仍停在 goose 默认 auto（单改 permission.yaml 不生效）
+    // 已开会话也重推有效审批档：计划模式只读 / 用户偏好；避免仍停在 goose 默认 auto
     try {
-      await writeSessionGooseMode(
+      await syncSessionApprovalMode(
         handle.connection,
         cached.acpSessionID,
-        // 后台轮次不在当前 UI 线程上下文里：必须按本会话读档，别读全局指针
-        findGooseMode(readApprovalModeFor(threadID))
+        findEffectiveApprovalMode(threadID)
       )
     } catch (error) {
       console.warn('[acp/session] 重同步审批 mode 失败:', error)
@@ -1191,6 +1193,16 @@ async function requestThreadPermission(
   const thread = sessionByAcpID.get(params.sessionId)
   const run = thread?.run
   if (!thread || !run) {
+    return { outcome: { outcome: 'cancelled' } }
+  }
+
+  // 计划模式硬只读：写工具直接拒绝（不改用户审批偏好，对齐「模式 = 能力面」）。
+  const toolName =
+    params.toolCall.name?.trim() ||
+    params.toolCall.title?.trim() ||
+    params.toolCall.toolCallId
+  if (readAgentModeFor(thread.threadID) === 'plan' && isWriteTool(toolName)) {
+    console.info('[acp/session] 计划模式拒绝写工具:', toolName)
     return { outcome: { outcome: 'cancelled' } }
   }
 

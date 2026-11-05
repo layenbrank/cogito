@@ -14,6 +14,14 @@
  *
  * 剪贴板：`text/plain` 就是线格式（`@<id>`），另有私有 MIME 携带 chip 的
  * type / label / id —— 同框内复制粘贴语义不丢，粘到记事本再粘回则降级成 `@<id>` 并被重新识别。
+ *
+ * **撤销栈**：`renderDocument` 每次都 `replaceChildren()` 重建 DOM，浏览器原生撤销记录的是
+ * 被摘掉的旧节点，所以在 chip 插入 / 删除 / 粘贴之后 `Ctrl+Z` 会让文本与 DOM 失配。
+ * 这里自己维护 `ComposerAtom[]` 快照栈（连续输入 500ms 合并，离散操作各算一步）。
+ *
+ * 边界（**别当成多余代码删掉**）：撤销栈只记录**用户操作**。外部 `setText`
+ * （发送后清空、切会话、编辑态回填）必须 `clearHistory()`，否则撤销会「复活」
+ * 一条已经发出去的消息。判断依据是 `lastPushedRef`：不是自己 push 出去的变化就是外部变化。
  */
 import { useAui, useAuiState } from '@assistant-ui/react'
 import { cn } from 'cn'
@@ -39,6 +47,14 @@ import {
   type ComposerChipAtom
 } from './composer-document'
 import { useComposerTrigger, type ComposerEditRequest } from './composer-trigger'
+import { useAssistantLabels } from './labels'
+import { sendFromComposer } from './composer-queue.aui'
+import {
+  createComposerHistory,
+  type ComposerHistory,
+  type ComposerHistoryEntry,
+  type ComposerHistoryKind
+} from './composer-history'
 
 const CHIP_CLASS = 'aui-composer-chip'
 /** 目录段可截断、末段保完整：窄窗口里得到「…/chat.tsx」而不是「apps/clien…」 */
@@ -50,6 +66,31 @@ const COMPOSER_CLIPBOARD_MIME = 'application/x-cogito-composer'
 
 /** 组合输入期间按下的键码（Chrome 在 IME 组合时会给 keyCode 229）。 */
 const IME_KEY_CODE = 229
+
+/** 输入框的类名也是「外部找得到它」的契约（队列的取回编辑要用） */
+const COMPOSER_INPUT_SELECTOR = '.aui-composer-input'
+
+/**
+ * 把焦点交回输入框并把光标落到末尾。
+ *
+ * 队列「取回编辑」这类外部入口用：按钮卸载后焦点会掉到 `body`，
+ * 用户还得再点一次输入框才能继续打字（`placeCaret` 只在 `activeElement === root` 时才落点）。
+ * 不引入全局状态：按类名找当前挂载的那个编辑器。
+ */
+function focusComposerInput(): boolean {
+  if (typeof document === 'undefined') return false
+  const root = document.querySelector<HTMLElement>(COMPOSER_INPUT_SELECTOR)
+  if (!root) return false
+  root.focus()
+  const selection = window.getSelection()
+  if (!selection) return true
+  const range = document.createRange()
+  range.selectNodeContents(root)
+  range.collapse(false)
+  selection.removeAllRanges()
+  selection.addRange(range)
+  return true
+}
 
 /** 触发起始文本的 highlight 名（与下面注入的样式表一一对应）。 */
 const TRIGGER_HIGHLIGHT = {
@@ -329,6 +370,7 @@ function ComposerInput(props: ComposerInputProps) {
   const { placeholder, className, autoFocus = false, submitMode = 'enter', 'aria-label': ariaLabel } = props
   const aui = useAui()
   const trigger = useComposerTrigger()
+  const labels = useAssistantLabels()
   const text = useAuiState(function (state) {
     return state.composer.text
   })
@@ -346,9 +388,77 @@ function ComposerInput(props: ComposerInputProps) {
   const lastPushedRef = useRef<string | null>(null)
   const composingRef = useRef(false)
 
+  /**
+   * 撤销 / 重做栈。`renderDocument` 会重建整个 DOM，原生撤销栈记的是旧节点，
+   * 所以 chip 相关操作之后必须自己接管（逻辑在 `composer-history.ts`，见文件头注）。
+   */
+  const historyRef = useRef<ComposerHistory | null>(null)
+  if (historyRef.current === null) historyRef.current = createComposerHistory()
+
+  /** 当前逻辑光标（不在编辑器里时按「末尾」算，撤销后落点仍在末尾） */
+  const readCursor = useCallback(function (atoms: ComposerAtom[]) {
+    const root = editorRef.current
+    const cursor = root ? readSelectionOffset(root, atoms) : null
+    return cursor ?? documentLength(atoms)
+  }, [])
+
+  const snapshot = useCallback(
+    function () {
+      return { atoms: atomsRef.current, cursor: readCursor(atomsRef.current) }
+    },
+    [readCursor]
+  )
+
+  /** 入栈：连续输入 500ms 内合并，离散操作各算一步（规则见 composer-history.ts） */
+  const rememberHistory = useCallback(
+    function (kind: ComposerHistoryKind) {
+      historyRef.current?.remember(kind, snapshot())
+    },
+    [snapshot]
+  )
+
+  /** 外部变化（发送清空 / 切会话 / 回填）清栈：撤销不能复活已经发出去的内容 */
+  const clearHistory = useCallback(function () {
+    historyRef.current?.clear()
+  }, [])
+
+  /** 把快照写回 DOM + runtime（撤销 / 重做共用，不参与「用户操作」入栈） */
+  const applySnapshot = useCallback(
+    function (entry: ComposerHistoryEntry) {
+      atomsRef.current = entry.atoms
+      const root = editorRef.current
+      if (root) {
+        renderDocument(root, entry.atoms)
+        if (document.activeElement === root) placeCaret(root, entry.atoms, entry.cursor)
+      }
+      const next = serializeDocument(entry.atoms)
+      lastPushedRef.current = next
+      aui.composer.setText(next, { origin: 'user' })
+    },
+    [aui]
+  )
+
+  const undo = useCallback(
+    function () {
+      const entry = historyRef.current?.undo(snapshot())
+      if (entry) applySnapshot(entry)
+    },
+    [applySnapshot, snapshot]
+  )
+
+  const redo = useCallback(
+    function () {
+      const entry = historyRef.current?.redo(snapshot())
+      if (entry) applySnapshot(entry)
+    },
+    [applySnapshot, snapshot]
+  )
+
   /** 把 atoms 写回 DOM + runtime，并把光标放到指定 offset。 */
   const commit = useCallback(
     function (atoms: ComposerAtom[], cursor: number) {
+      // 走到这里的一定是离散的用户操作（chip 删除 / 粘贴 / 触发器选中）
+      rememberHistory('discrete')
       atomsRef.current = atoms
       const root = editorRef.current
       if (root) {
@@ -359,7 +469,7 @@ function ComposerInput(props: ComposerInputProps) {
       lastPushedRef.current = next
       aui.composer.setText(next, { origin: 'user' })
     },
-    [aui]
+    [aui, rememberHistory]
   )
 
   /** 触发器选中后回写文本。 */
@@ -391,6 +501,8 @@ function ComposerInput(props: ComposerInputProps) {
   useEffect(
     function () {
       if (text === lastPushedRef.current) return
+      // 不是自己 push 出去的变化：撤销栈必须清掉，否则撤销会「复活」已发送的内容
+      clearHistory()
       lastPushedRef.current = text
       const atoms = parseDocument(text)
       atomsRef.current = atoms
@@ -399,7 +511,7 @@ function ComposerInput(props: ComposerInputProps) {
       renderDocument(root, atoms)
       if (document.activeElement === root) placeCaret(root, atoms, documentLength(atoms))
     },
-    [text]
+    [clearHistory, text]
   )
 
   // 首次挂载 + 消息切换时按 runtime 现状渲染
@@ -424,10 +536,12 @@ function ComposerInput(props: ComposerInputProps) {
   useEffect(
     function () {
       return aui.on('thread.runStart', function () {
+        // 新回合意味着上一段草稿已成历史，撤销不该跨回合复活它
+        clearHistory()
         editorRef.current?.focus()
       })
     },
-    [aui]
+    [aui, clearHistory]
   )
 
   // 纯光标移动（点选/方向键）也要刷新触发器命中
@@ -467,9 +581,11 @@ function ComposerInput(props: ComposerInputProps) {
       const root = editorRef.current
       if (!root) return
       const atoms = readDom(root)
+      const composing = (event.nativeEvent as InputEvent).isComposing === true || composingRef.current
+      // 组合输入期间的中间态不进撤销栈（候选词确认后那一次输入已经记过）
+      if (!composing) rememberHistory('typing')
       atomsRef.current = atoms
       const next = serializeDocument(atoms)
-      const composing = (event.nativeEvent as InputEvent).isComposing === true || composingRef.current
 
       if (next !== lastPushedRef.current) {
         lastPushedRef.current = next
@@ -485,13 +601,40 @@ function ComposerInput(props: ComposerInputProps) {
       const matched = trigger.sync(next, cursor)
       paintTriggerHighlight(root, atoms, matched)
     },
-    [aui, trigger]
+    [aui, rememberHistory, trigger]
   )
 
   const handleKeyDown = useCallback(
     function (event: KeyboardEvent<HTMLDivElement>) {
       // 组合输入期间一律放行：Enter 是「确认候选词」，方向键是选词
       if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === IME_KEY_CODE) return
+
+      // 撤销 / 重做自己接管：DOM 每次都是重建的，浏览器原生栈与文档真值已经对不上
+      const withModifier = event.ctrlKey || event.metaKey
+      if (withModifier && !event.altKey) {
+        const key = event.key.toLowerCase()
+        if (key === 'z') {
+          event.preventDefault()
+          if (event.shiftKey) redo()
+          else undo()
+          return
+        }
+        if (key === 'y') {
+          event.preventDefault()
+          redo()
+          return
+        }
+      }
+
+      // Escape：先关候选；没有候选时退出输入（不清空草稿 —— 误按不该毁掉一屏文本）
+      if (event.key === 'Escape' && !trigger?.match) {
+        const root = editorRef.current
+        if (root && document.activeElement === root) {
+          event.preventDefault()
+          root.blur()
+          return
+        }
+      }
 
       const active = trigger?.match ?? null
       if (active) {
@@ -555,9 +698,10 @@ function ComposerInput(props: ComposerInputProps) {
       if (thread.isRunning && !thread.capabilities.queue) return
 
       event.preventDefault()
-      aui.composer.send(thread.isRunning && thread.capabilities.queue ? { steer: event.ctrlKey || event.metaKey } : undefined)
+      // 与发送按钮共用同一出口：运行中 Enter = 入队，Ctrl/Cmd+Enter = 插队
+      sendFromComposer(aui, { steer: event.ctrlKey || event.metaKey })
     },
-    [aui, commit, submitMode, trigger]
+    [aui, commit, redo, submitMode, trigger, undo]
   )
 
   const handlePaste = useCallback(
@@ -642,7 +786,8 @@ function ComposerInput(props: ComposerInputProps) {
     [trigger]
   )
 
-  const isEmpty = text.length === 0
+  // 去空白后为空才算空：几个空格不该让占位符消失、也不该让发送亮起来
+  const isEmpty = text.trim().length === 0
 
   return (
     <div
@@ -651,10 +796,12 @@ function ComposerInput(props: ComposerInputProps) {
       aria-multiline="true"
       aria-label={ariaLabel ?? placeholder}
       aria-disabled={isDisabled}
+      title={isDisabled ? labels.composerDisabledHint : undefined}
       aria-placeholder={placeholder}
       data-placeholder={placeholder}
       data-empty={isEmpty ? 'true' : undefined}
       contentEditable={!isDisabled}
+      spellCheck={false}
       suppressContentEditableWarning
       className={cn(
         'aui-composer-input caret-primary min-h-12 w-full overflow-y-auto px-1 py-1 text-sm leading-6 outline-none',
@@ -674,5 +821,5 @@ function ComposerInput(props: ComposerInputProps) {
   )
 }
 
-export { CHIP_CLASS, COMPOSER_CLIPBOARD_MIME, ComposerInput }
+export { CHIP_CLASS, COMPOSER_CLIPBOARD_MIME, COMPOSER_INPUT_SELECTOR, ComposerInput, focusComposerInput }
 export type { ComposerInputProps }

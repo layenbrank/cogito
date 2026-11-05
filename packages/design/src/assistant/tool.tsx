@@ -1,3 +1,15 @@
+/**
+ * ai-elements 风格的「工具重卡片」（`Tool` / `ToolHeader` / 状态徽章）。
+ *
+ * **已退出对话流**：对话里的工具卡统一走 `ToolFallback`（assistant-ui 版，一行
+ * `Used tool: <label>` + 耗时 + 展开明细），见
+ * `apps/client/src/views/agent/chat/components/tool-card-body.tsx`；本轮删减范围与取舍见
+ * `docs/apps/client/assistant-ui-elements.md`。带边框 + 状态徽章 + JSON 参数铺开的卡片
+ * 只会在一次回答里堆出 6–8 张，是对话区最大的视觉噪音。
+ *
+ * 本文件保留给**非对话场景**复用（右栏面板、任务面板等），其中 `ToolElapsed` 仍被
+ * 命令卡使用。不要在新的对话 UI 里引入 `Tool` / `ToolHeader`。
+ */
 import { Icon } from '@iconify/react/offline'
 import { useToolCallElapsed } from '@assistant-ui/react'
 import { cn } from 'cn'
@@ -16,6 +28,7 @@ import type { ToolCallState } from './tool-call-state'
 
 export type ToolProps = ComponentProps<typeof Collapsible>
 
+/** @deprecated 对话流已改用 assistant-ui `ToolFallback`；仅非对话场景复用。 */
 export function Tool({ className, ...props }: ToolProps) {
   return (
     <Collapsible

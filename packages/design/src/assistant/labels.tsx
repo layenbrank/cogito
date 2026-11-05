@@ -64,6 +64,8 @@ type AssistantLabels = {
   composerPlaceholderContinue: string
   /** Agent 运行中且支持队列时的占位 */
   composerPlaceholderRunning: string
+  /** 输入框禁用时（线程运行中不允许队列 / 只读）的 title 说明 */
+  composerDisabledHint: string
   messageInput: string
   /** 待发送队列标题 */
   queueHeading: string
@@ -77,6 +79,8 @@ type AssistantLabels = {
   queueSteerNow: string
   /** 运行中点击发送（入队） */
   sendQueued: string
+  /** 运行中发送按钮的完整口径：默认入队，按住修饰键插队 */
+  sendQueuedHint: string
   /** 输入区上方排队条标题 */
   queuedMessages: (count: number) => string
   /** 队列非空时的口径说明：停止只中断当前轮，队列里的消息稍后照发 */
@@ -87,6 +91,18 @@ type AssistantLabels = {
   queueCollapse: string
   /** 队列条目没有正文时折叠态的占位（只有附件那种） */
   queueEmptyPreview: string
+  /** 队列单行预览背后的行数标记（`⏎ 4 行`），只在正文多于一行时出现 */
+  queueLines: (count: number) => string
+  /** 取回编辑：把这一条搬回输入框 */
+  queueTakeBack: string
+  queueMoveUp: string
+  queueMoveDown: string
+  /** 上次没发出去的（会话已结束时回灌的历史队列）标题 */
+  queuePendingHeading: (count: number) => string
+  /** 历史队列条目：立刻发送这一条 */
+  queuePendingSend: string
+  /** 历史队列条目：丢弃这一条 */
+  queuePendingDrop: string
   /** 失败那一轮的重试按钮 */
   errorRetry: string
 
@@ -172,6 +188,7 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   messageInput: 'Message input',
 
   composerPlaceholderRunning: 'Queue with Enter · Ctrl+Enter to steer now',
+  composerDisabledHint: 'Input is disabled while this run is in progress',
   queueHeading: 'Queued',
   queueRemove: 'Remove from queue',
   queueRemoveItem: (text) => `Remove "${text}" from the queue`,
@@ -179,11 +196,20 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   queueRunning: 'running',
   queueSteerNow: 'Send now',
   sendQueued: 'Add to queue',
+  sendQueuedHint: 'Add to queue · hold Alt to steer now',
   queuedMessages: (count) => (count === 1 ? '1 queued' : `${count} queued`),
   queueStopHint: 'Stopping ends this run only — queued messages still send',
   queueExpand: 'Expand queue',
   queueCollapse: 'Collapse queue',
   queueEmptyPreview: '(no text)',
+  queueLines: (count) => `⏎ ${count} lines`,
+  queueTakeBack: 'Edit in composer',
+  queueMoveUp: 'Move up',
+  queueMoveDown: 'Move down',
+  queuePendingHeading: (count) =>
+    count === 1 ? '1 unsent message' : `${count} unsent messages`,
+  queuePendingSend: 'Send this one',
+  queuePendingDrop: 'Discard',
   errorRetry: 'Retry',
   reasoning: (seconds) => (seconds ? `Reasoning · ${seconds}s` : 'Reasoning'),
   process: (steps, seconds) =>

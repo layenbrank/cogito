@@ -10,8 +10,10 @@
  */
 import { useAui, useAuiState, type AssistantClient } from '@assistant-ui/react'
 import { ComposerChipText, resolveComposerChipLabel } from '@cogito/design/assistant/composer-chip-text'
+import { focusComposerInput } from '@cogito/design/assistant/composer-input.aui'
 import { field, ghostButton, mono } from '@cogito/design/assistant/elements/surfaces'
-import { MessageQueue, type MessageQueueItemInfo } from '@cogito/design/assistant/message-queue.aui'
+import { useAssistantLabels, type AssistantLabels } from '@cogito/design/assistant/labels'
+import { MessageQueue, QueueLineBadge, type MessageQueueItemInfo } from '@cogito/design/assistant/message-queue.aui'
 import { TooltipIconButton } from '@cogito/design/assistant/tooltip-icon-button'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
@@ -30,6 +32,7 @@ function renderQueueText(text: string): ReactNode {
   return (
     <ComposerChipText
       text={text}
+      singleLine
       resolveLabel={resolveComposerChipLabel}
     />
   )
@@ -58,28 +61,31 @@ function moveQueueItem(
   )
 }
 
-/** 取回编辑：先移出队列，再把文本并回输入框（追加在已有草稿后面） */
+/** 取回编辑：先移出队列，把文本并回输入框，再把焦点交回编辑器 */
 function takeBackToComposer(aui: AssistantClient, id: string, text: string): void {
   aui.composer.queueItem({ id }).remove()
   const draft = aui.composer.getState().text
   aui.composer.setText(draft.length > 0 ? `${draft} ${text}` : text)
+  // 按钮会随队列行一起卸载，焦点会掉到 body：这里显式交回编辑器并把光标落到末尾
+  focusComposerInput()
 }
 
 function renderItemActions(
   aui: AssistantClient,
-  ids: readonly string[]
+  ids: readonly string[],
+  labels: AssistantLabels
 ): (item: MessageQueueItemInfo) => ReactNode {
   return function itemActions(item: MessageQueueItemInfo) {
     return (
       <>
         <TooltipIconButton
-          tooltip="取回编辑"
+          tooltip={labels.queueTakeBack}
           side="top"
           type="button"
           variant="ghost"
           size="icon"
           className={cn(ghostButton, 'size-6 shrink-0')}
-          aria-label="取回编辑"
+          aria-label={labels.queueTakeBack}
           onClick={function () {
             takeBackToComposer(aui, item.id, item.text)
           }}>
@@ -89,13 +95,13 @@ function renderItemActions(
           />
         </TooltipIconButton>
         <TooltipIconButton
-          tooltip="上移"
+          tooltip={labels.queueMoveUp}
           side="top"
           type="button"
           variant="ghost"
           size="icon"
           className={cn(ghostButton, 'size-6 shrink-0 disabled:opacity-30')}
-          aria-label="上移"
+          aria-label={labels.queueMoveUp}
           disabled={item.index === 0}
           onClick={function () {
             moveQueueItem(aui, ids, item.index, -1)
@@ -106,13 +112,13 @@ function renderItemActions(
           />
         </TooltipIconButton>
         <TooltipIconButton
-          tooltip="下移"
+          tooltip={labels.queueMoveDown}
           side="top"
           type="button"
           variant="ghost"
           size="icon"
           className={cn(ghostButton, 'size-6 shrink-0 disabled:opacity-30')}
-          aria-label="下移"
+          aria-label={labels.queueMoveDown}
           disabled={item.index === ids.length - 1}
           onClick={function () {
             moveQueueItem(aui, ids, item.index, 1)
@@ -139,6 +145,7 @@ const ComposerQueue: FC = function ComposerQueue() {
   const queue = useAuiState(function (state) {
     return state.composer.queue
   })
+  const labels = useAssistantLabels()
 
   // 回灌只在会话就绪那一刻做一次：`isRunning` 故意不进依赖，
   // 否则每轮结束都会再读一次库、把刚发出去的消息重灌一遍。
@@ -174,12 +181,12 @@ const ComposerQueue: FC = function ComposerQueue() {
       extraCount={pending.length}
       extraPreview={pending[0]?.text ?? ''}
       renderText={renderQueueText}
-      renderItemActions={renderItemActions(aui, findQueueIds(queue))}>
+      renderItemActions={renderItemActions(aui, findQueueIds(queue), labels)}>
       {pending.length > 0 ? (
         <div
           data-slot="message-queue-pending"
           className="flex flex-col gap-1.5">
-          <div className={cn(mono, 'px-1')}>上次没发出去的（{pending.length}）</div>
+          <div className={cn(mono, 'px-1')}>{labels.queuePendingHeading(pending.length)}</div>
           {pending.map(function (item) {
             return (
               <div
@@ -195,18 +202,20 @@ const ComposerQueue: FC = function ComposerQueue() {
                 <div className="text-foreground/60 min-w-0 flex-1 truncate text-sm">
                   <ComposerChipText
                     text={item.text}
+                    singleLine
                     resolveLabel={resolveComposerChipLabel}
                   />
                 </div>
+                <QueueLineBadge text={item.text} />
                 <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                   <TooltipIconButton
-                    tooltip="发送这条"
+                    tooltip={labels.queuePendingSend}
                     side="top"
                     type="button"
                     variant="ghost"
                     size="icon"
                     className={cn(ghostButton, 'size-6 shrink-0')}
-                    aria-label="发送这条"
+                    aria-label={labels.queuePendingSend}
                     onClick={function () {
                       if (!sessionID) return
                       sendPendingItem(aui, sessionID, item.id)
@@ -217,13 +226,13 @@ const ComposerQueue: FC = function ComposerQueue() {
                     />
                   </TooltipIconButton>
                   <TooltipIconButton
-                    tooltip="丢弃"
+                    tooltip={labels.queuePendingDrop}
                     side="top"
                     type="button"
                     variant="ghost"
                     size="icon"
                     className={cn(ghostButton, 'size-6 shrink-0')}
-                    aria-label="丢弃"
+                    aria-label={labels.queuePendingDrop}
                     onClick={function () {
                       if (!sessionID) return
                       dropPendingItem(sessionID, item.id)

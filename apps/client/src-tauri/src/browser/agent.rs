@@ -3,12 +3,183 @@
 //! 这里刻意**不给** `eval`：agent 只能调下面这些固定动作。开放任意脚本等于把
 //! 整个页面（含 cookie / 登录态）交出去，而且无法做输入校验。
 
+use std::time::Duration;
+
 use serde_json::{Value, json};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 use super::cdp;
 use super::intercept;
 use super::lifecycle;
+use super::state::BrowserState;
+
+/// 输入类 CDP 调用（点击 / 按键）的短超时。
+///
+/// 设备模拟把鼠标事件合成成 touch 之后，`mousePressed` 可能等不到 WebView2 的完成回调；
+/// 用全局 10s 的话每次点击都要卡满十秒才报错。点击是「这条路不通就换一条」的操作，
+/// 2.5s 足够判定，也不至于让真的慢的页面被误判。
+const INPUT_TIMEOUT: Duration = Duration::from_millis(2500);
+
+/// 点击 / 悬停之后留给页面响应的时间（路由跳转、异步渲染）
+const CLICK_SETTLE_MS: u64 = 250;
+
+/// 这个 tab 是否处于**移动端**设备模拟（决定点击派发 touch 还是鼠标）。
+fn is_mobile_emulation(app: &AppHandle, label: &str) -> bool {
+    app.try_state::<BrowserState>()
+        .and_then(|state| state.tab(label))
+        .and_then(|tab| tab.device)
+        .is_some_and(|device| device.mobile)
+}
+
+/// 点击的降级顺序：日志与单测靠它说清「这次可能走哪几条路」。
+///
+/// 模拟态首选 touch（那才是真实点按），桌面态只有鼠标；两条路都失败才交给页面内合成。
+fn click_fallback_order(mobile: bool) -> &'static [&'static str] {
+    if mobile {
+        &["touch", "pointer", "synthetic"]
+    } else {
+        &["pointer", "synthetic"]
+    }
+}
+
+/// `Input.dispatchTouchEvent` 的参数：单点触摸，坐标是 CSS px（与 emulated viewport 同坐标系）。
+fn tap_event(kind: &str, point: Option<(f64, f64)>) -> Value {
+    let points = match point {
+        Some((x, y)) => json!([{
+            "x": x,
+            "y": y,
+            "radiusX": 1.0,
+            "radiusY": 1.0,
+            "force": 1.0
+        }]),
+        None => json!([]),
+    };
+    json!({ "type": kind, "touchPoints": points })
+}
+
+/// 鼠标三连（move → press → release），每次调用都带短超时。
+async fn dispatch_pointer(app: &AppHandle, label: &str, x: f64, y: f64) -> Result<(), String> {
+    cdp::call_with_timeout(
+        app,
+        label,
+        "Input.dispatchMouseEvent",
+        json!({ "type": "mouseMoved", "x": x, "y": y, "buttons": 0 }),
+        INPUT_TIMEOUT,
+    )
+    .await?;
+    cdp::call_with_timeout(
+        app,
+        label,
+        "Input.dispatchMouseEvent",
+        json!({
+            "type": "mousePressed", "x": x, "y": y,
+            "button": "left", "buttons": 1, "clickCount": 1
+        }),
+        INPUT_TIMEOUT,
+    )
+    .await?;
+    cdp::call_with_timeout(
+        app,
+        label,
+        "Input.dispatchMouseEvent",
+        json!({
+            "type": "mouseReleased", "x": x, "y": y,
+            "button": "left", "buttons": 0, "clickCount": 1
+        }),
+        INPUT_TIMEOUT,
+    )
+    .await
+    .map(|_| ())
+}
+
+/// 真实点按，带三级降级；成功返回实际走通的通道名（`touch` / `pointer`）。
+///
+/// 1. 模拟态先发 `Input.dispatchTouchEvent`（真实点按）；
+/// 2. 不行就**临时关掉**鼠标→touch 合成再派发鼠标事件，点完恢复（`picker` 的 `suspend_mouse` 同款）；
+/// 3. 仍失败返回 `Err`，调用方落到页面内合成并回报 `mode: 'synthetic'`。
+async fn dispatch_click(
+    app: &AppHandle,
+    label: &str,
+    x: f64,
+    y: f64,
+    mobile: bool,
+) -> Result<&'static str, String> {
+    let mut failures: Vec<String> = Vec::new();
+
+    if mobile {
+        let touch = match cdp::call_with_timeout(
+            app,
+            label,
+            "Input.dispatchTouchEvent",
+            tap_event("touchStart", Some((x, y))),
+            INPUT_TIMEOUT,
+        )
+        .await
+        {
+            Ok(_) => cdp::call_with_timeout(
+                app,
+                label,
+                "Input.dispatchTouchEvent",
+                tap_event("touchEnd", None),
+                INPUT_TIMEOUT,
+            )
+            .await
+            .map(|_| ()),
+            Err(error) => Err(error),
+        };
+        match touch {
+            Ok(()) => return Ok("touch"),
+            Err(error) => {
+                log::warn!("browser: 模拟态 touch 派发失败（{label}），改走「关合成 + 鼠标」: {error}");
+                failures.push(format!("touch: {error}"));
+            }
+        }
+
+        let _ = super::emulate::set_emit_touch(app, label, false).await;
+        let pointer = dispatch_pointer(app, label, x, y).await;
+        // 无论成败都要恢复：不恢复的话后续 hover 在模拟态下会一直按鼠标语义响应
+        let _ = super::emulate::set_emit_touch(app, label, true).await;
+        match pointer {
+            Ok(()) => return Ok("pointer"),
+            Err(error) => {
+                log::warn!("browser: 关合成后鼠标派发仍失败（{label}），退到页面内合成: {error}");
+                failures.push(format!("pointer: {error}"));
+            }
+        }
+        return Err(failures.join("; "));
+    }
+
+    match dispatch_pointer(app, label, x, y).await {
+        Ok(()) => Ok("pointer"),
+        Err(error) => {
+            log::warn!("browser: 鼠标派发失败（{label}），退到页面内合成: {error}");
+            Err(format!("pointer: {error}"))
+        }
+    }
+}
+
+/// 动作完成后的页面状态 + `mode`（调用方靠它区分 touch / pointer / synthetic）。
+async fn page_after(app: &AppHandle, label: &str, mode: &str) -> Result<Value, String> {
+    let after = cdp::call(
+        app,
+        label,
+        "Runtime.evaluate",
+        json!({
+            "expression": "({ ok: true, url: location.href, title: document.title })",
+            "returnByValue": true
+        }),
+    )
+    .await?;
+    let mut value = after
+        .get("result")
+        .and_then(|result| result.get("value"))
+        .cloned()
+        .unwrap_or(Value::Null);
+    if let Some(object) = value.as_object_mut() {
+        object.insert("mode".into(), json!(mode));
+    }
+    Ok(value)
+}
 
 /// CDP `Input.dispatchKeyEvent` 用的按键描述（含组合键修饰）。
 struct KeyCombo {
@@ -220,11 +391,14 @@ fn summarize(result: Result<Value, String>) -> Value {
 ///
 /// 模式都带上 `url` / `title`：agent 必须能确认“我现在在哪一页”，
 /// SPA 路由变化不会触发新导航，光靠地址栏是看不出来的。
+/// `limit` 只管 `outline` 的**条目数**，`max_chars` 只管 `text` 的**正文字符数**。
+/// 两者曾经共用一个参数，结果 `mode=text` 只读回 60 个字符（`limit` 默认 60）。
 pub async fn read(
     app: &AppHandle,
     label: &str,
     mode: &str,
     limit: usize,
+    max_chars: usize,
     selector: Option<&str>,
     value: Option<&str>,
 ) -> Result<Value, String> {
@@ -267,8 +441,9 @@ pub async fn read(
                 return {{
                     url: location.href,
                     title: document.title,
-                    text: text.slice(0, {limit}),
-                    truncated: text.length > {limit}
+                    text: text.slice(0, {max_chars}),
+                    chars: text.length,
+                    truncated: text.length > {max_chars}
                 }};
             }})()"#
         ),
@@ -411,7 +586,11 @@ pub async fn act(
     // `el.click()` 只会派发一个 click，没有 pointerdown / pointerup，也没有命中测试 ——
     // base-ui / Radix / 拖拽把手 / canvas 这类只认 pointer 事件的组件（本 app 自己的
     // 下拉、菜单就是）在合成 click 下不响应，agent 走交互链路时会表现为「点不动」。
-    // 拿不到几何信息（隐藏元素 / 未布局）时才回退到页面内合成事件。
+    //
+    // 设备模拟下鼠标事件会被合成为 touch，`mousePressed` 可能等不到回调（CDP 10s 超时）：
+    // 所以 click 走 `dispatch_click` 的三级降级（模拟态 touch → 关合成 + 鼠标 → 页面内合成），
+    // 每一步都带 2.5s 短超时，返回值用 `mode` 说明实际走通的通道。
+    // 拿不到几何信息（隐藏元素 / 未布局）时同样落到页面内合成。
     if action == "click" || action == "hover" {
         let rect_expr = format!(
             r#"(() => {{
@@ -440,61 +619,39 @@ pub async fn act(
         let y = point.get("y").and_then(Value::as_f64);
 
         if let (Some(x), Some(y)) = (x, y) {
+            let mobile = is_mobile_emulation(app, label);
             if action == "hover" {
-                cdp::call(
+                let hover = cdp::call_with_timeout(
                     app,
                     label,
                     "Input.dispatchMouseEvent",
                     json!({ "type": "mouseMoved", "x": x, "y": y, "buttons": 0 }),
+                    INPUT_TIMEOUT,
                 )
-                .await?;
+                .await;
+                match hover {
+                    Ok(_) => {
+                        tokio::time::sleep(std::time::Duration::from_millis(CLICK_SETTLE_MS))
+                            .await;
+                        return page_after(app, label, "pointer").await;
+                    }
+                    Err(error) => log::warn!(
+                        "browser: hover 的鼠标派发失败（{label}，mobile={mobile}），退到页面内合成: {error}"
+                    ),
+                }
             } else {
-                // 先移过去再按下 / 抬起：有的组件靠 mouseenter 挂监听
-                cdp::call(
-                    app,
-                    label,
-                    "Input.dispatchMouseEvent",
-                    json!({ "type": "mouseMoved", "x": x, "y": y, "buttons": 0 }),
-                )
-                .await?;
-                cdp::call(
-                    app,
-                    label,
-                    "Input.dispatchMouseEvent",
-                    json!({
-                        "type": "mousePressed", "x": x, "y": y,
-                        "button": "left", "buttons": 1, "clickCount": 1
-                    }),
-                )
-                .await?;
-                cdp::call(
-                    app,
-                    label,
-                    "Input.dispatchMouseEvent",
-                    json!({
-                        "type": "mouseReleased", "x": x, "y": y,
-                        "button": "left", "buttons": 0, "clickCount": 1
-                    }),
-                )
-                .await?;
+                match dispatch_click(app, label, x, y, mobile).await {
+                    Ok(mode) => {
+                        tokio::time::sleep(std::time::Duration::from_millis(CLICK_SETTLE_MS))
+                            .await;
+                        return page_after(app, label, mode).await;
+                    }
+                    Err(error) => log::warn!(
+                        "browser: 真实点按全部失败（{label}，mobile={mobile}：{}），退到页面内合成: {error}",
+                        click_fallback_order(mobile).join(" → ")
+                    ),
+                }
             }
-            // 等一帧多一点：点击常常触发路由 / 异步渲染，立刻回来读到的是旧文档
-            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-            let after = cdp::call(
-                app,
-                label,
-                "Runtime.evaluate",
-                json!({
-                    "expression": "({ ok: true, mode: 'pointer', url: location.href, title: document.title })",
-                    "returnByValue": true
-                }),
-            )
-            .await?;
-            return Ok(after
-                .get("result")
-                .and_then(|result| result.get("value"))
-                .cloned()
-                .unwrap_or(Value::Null));
         }
     }
 
@@ -529,37 +686,56 @@ pub async fn act(
             down["text"] = json!(&combo.text);
             down["unmodifiedText"] = json!(&combo.text);
         }
-        cdp::call(app, label, "Input.dispatchKeyEvent", down).await?;
-        cdp::call(
+        let key_up = json!({
+            "type": "keyUp",
+            "key": &combo.key,
+            "code": &combo.code,
+            "windowsVirtualKeyCode": combo.vk,
+            "nativeVirtualKeyCode": combo.vk,
+            "modifiers": combo.modifiers
+        });
+        let delivered = match cdp::call_with_timeout(
             app,
             label,
             "Input.dispatchKeyEvent",
-            json!({
-                "type": "keyUp",
-                "key": &combo.key,
-                "code": &combo.code,
-                "windowsVirtualKeyCode": combo.vk,
-                "nativeVirtualKeyCode": combo.vk,
-                "modifiers": combo.modifiers
-            }),
+            down,
+            INPUT_TIMEOUT,
         )
-        .await?;
-        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
-        let after = cdp::call(
-            app,
-            label,
-            "Runtime.evaluate",
-            json!({
-                "expression": "({ ok: true, mode: 'keyboard', url: location.href, title: document.title, active: document.activeElement ? document.activeElement.tagName + (document.activeElement.id ? '#' + document.activeElement.id : '') : null })",
-                "returnByValue": true
-            }),
-        )
-        .await?;
-        return Ok(after
-            .get("result")
-            .and_then(|result| result.get("value"))
-            .cloned()
-            .unwrap_or(Value::Null));
+        .await
+        {
+            Ok(_) => cdp::call_with_timeout(
+                app,
+                label,
+                "Input.dispatchKeyEvent",
+                key_up,
+                INPUT_TIMEOUT,
+            )
+            .await
+            .map(|_| ()),
+            Err(error) => Err(error),
+        };
+        if let Err(error) = delivered {
+            // 键盘派发失败（模拟态偶发）不再直接抛错：落到页面内合成 KeyboardEvent，
+            // 至少能触发 React onKeyDown 这类监听（浏览器默认行为拿不到，日志里能看出来）。
+            log::warn!("browser: 真实键盘派发失败（{label}），退到页面内合成: {error}");
+        } else {
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+            let after = cdp::call(
+                app,
+                label,
+                "Runtime.evaluate",
+                json!({
+                    "expression": "({ ok: true, mode: 'keyboard', url: location.href, title: document.title, active: document.activeElement ? document.activeElement.tagName + (document.activeElement.id ? '#' + document.activeElement.id : '') : null })",
+                    "returnByValue": true
+                }),
+            )
+            .await?;
+            return Ok(after
+                .get("result")
+                .and_then(|result| result.get("value"))
+                .cloned()
+                .unwrap_or(Value::Null));
+        }
     }
 
     let selector_json = Value::String(selector.to_string()).to_string();
@@ -654,7 +830,7 @@ pub async fn act(
 
             // 点完 / 输完页面往往异步刷新，给一帧多一点再回来；不让 agent 自己去竞速
             return new Promise((resolve) => {{
-                setTimeout(() => resolve({{ ok: true, url: location.href, title: document.title }}), 250);
+                setTimeout(() => resolve({{ ok: true, mode: 'synthetic', url: location.href, title: document.title }}), 250);
             }});
         }})()"#,
         action_json = Value::String(action.to_string()).to_string(),
@@ -885,5 +1061,47 @@ async fn shrink_oversized(app: &AppHandle, label: &str, format: &str, data: Stri
             shrunk.to_string()
         }
         _ => data,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mobile_clicks_try_touch_first() {
+        // 模拟态：touch → 关合成 + 鼠标 → 页面内合成
+        assert_eq!(
+            click_fallback_order(true),
+            &["touch", "pointer", "synthetic"]
+        );
+        // 桌面态没有 touch 这条路，别做无谓的 2.5s 等待
+        assert_eq!(click_fallback_order(false), &["pointer", "synthetic"]);
+    }
+
+    #[test]
+    fn tap_event_carries_a_single_point_only_on_start() {
+        let start = tap_event("touchStart", Some((12.5, 40.0)));
+        assert_eq!(start["type"], "touchStart");
+        assert_eq!(start["touchPoints"][0]["x"], 12.5);
+        assert_eq!(start["touchPoints"][0]["y"], 40.0);
+
+        // touchEnd 必须不带点位：带点位等于「手指还按着」，页面不会触发点击
+        let end = tap_event("touchEnd", None);
+        assert_eq!(end["type"], "touchEnd");
+        assert_eq!(end["touchPoints"].as_array().map(Vec::len), Some(0));
+    }
+
+    #[test]
+    fn key_combo_marks_modifiers() {
+        let combo = parse_key_combo("Ctrl+Enter");
+        assert_eq!(combo.key, "Enter");
+        assert_eq!(combo.vk, 13);
+        assert_eq!(combo.modifiers, 2);
+        // 带修饰键时不能带 text，否则页面会当成普通字符输入
+        assert!(combo.text.is_empty());
+
+        let plain = parse_key_combo("Enter");
+        assert_eq!(plain.text, "\r");
     }
 }

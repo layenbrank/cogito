@@ -39,6 +39,9 @@ pub struct Model {
     /// 启动前被改掉的审批档：ask | auto | readonly
     #[sea_orm(column_name = "approvalBefore")]
     pub approvalBefore: Option<String>,
+    /// 最近一轮自动续跑发出的 user prompt（刷新后仍可判插话 / Resume）
+    #[sea_orm(column_name = "expectedPrompt")]
+    pub expectedPrompt: Option<String>,
     #[sea_orm(column_name = "createdAt")]
     pub createdAt: i64,
     #[sea_orm(column_name = "updatedAt")]
@@ -86,6 +89,8 @@ pub struct Write {
     pub status: String,
     #[serde(default)]
     pub approvalBefore: Option<String>,
+    #[serde(default)]
+    pub expectedPrompt: Option<String>,
     pub createdAt: Option<i64>,
     pub updatedAt: Option<i64>,
 }
@@ -108,6 +113,7 @@ pub struct Change {
     pub progressTotal: Option<Option<i64>>,
     pub status: Option<String>,
     pub approvalBefore: Option<Option<String>>,
+    pub expectedPrompt: Option<Option<String>>,
     pub updatedAt: Option<i64>,
 }
 

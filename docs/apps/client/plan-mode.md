@@ -24,6 +24,18 @@
 | 右栏「计划」页签以**正文**为主：抬头只给标题 / 概述 / 步数，正文全量 Markdown；「详情」只给标题 + 概述 + 前 3 步 + 「查看完整计划」 | `aside-plan.tsx`、`aside-busy.tsx` 的 `PlanDraftBlock` |
 | 没有编号列表时，**计划类标题下的普通项目符号**也算步骤；没有计划类标题则只认编号 / 勾选框，避免任何带列表的回复都被当成计划 | `plan-draft.ts` 的 `BULLET_LINE` + `findStepList`（单测 `plan-draft.test.ts`） |
 | 执行消息固定四条硬约束：阶段顺序、文件级落地、跑验证、待确认项按默认执行 | `plan-execute.ts` 的 `EXECUTE_RULES` |
+| **计划模式硬只读**：写工具在权限回调直接拒绝；goose 有效档为 readonly（不改用户审批偏好） | `acp/session.ts` `requestThreadPermission`；`effective-approval.ts`；切模式时 `syncApprovalForThread` |
+| **执行收尾写 status**：普通执行一轮结束 → `done` / 中止 → `interrupted`；经 Goal 推进则跟 Goal 终态 | `views/agent/chat/components/plan-run-finish.tsx` |
+
+## Goal 终态（对照）
+
+| 状态 | 含义 | 写入点 |
+| --- | --- | --- |
+| `done` | 模型输出 `GOAL_DONE` | `finishGoalRun(..., 'done')` |
+| `exhausted` | 预算用尽 | `advanceGoalRun`（禁止再被 `stopGoalRun` 抹成 paused） |
+| `paused` | 用户停止 / 插话 / 未打标记收敛 | `stopGoalRun` / `finishGoalRun(..., 'paused')` |
+
+`expectedPrompt` 落库；paused / exhausted 可在输入区点「继续」重置轮次再推。
 
 ## 为什么要「阶段顺序」这一条
 
@@ -34,6 +46,8 @@
 
 ## 回归检查
 
-- `pnpm --filter @cogito/client exec vitest run src/features/agent/plan-execute.test.ts src/features/agent/plan-file.test.ts`
+- `pnpm --filter @cogito/client exec vitest run src/features/agent/plan-execute.test.ts src/features/agent/plan-file.test.ts src/features/agent/goal-run.test.ts src/features/agent/effective-approval.test.ts`
 - 手工：plan 模式产出一份计划 → 点「开始执行」→ 输入框里应是**整份正文**（含表格与代码块），
   且没有额外拼出来的编号清单。
+- 手工：计划模式下模型若申请写文件，应被拒绝；执行跑完后右栏 status 不再卡在「执行中」。
+- 手工：Goal 打出 `GOAL_DONE` 显示「已完成」；用尽显示「已用尽」；暂停后可点「继续」。

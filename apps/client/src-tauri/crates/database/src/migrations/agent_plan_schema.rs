@@ -40,11 +40,21 @@ pub fn statements() -> Vec<&'static str> {
              "progressTotal" INTEGER NULL,
              status TEXT NOT NULL DEFAULT 'running',
              "approvalBefore" TEXT NULL,
+             "expectedPrompt" TEXT NULL,
              "createdAt" INTEGER NOT NULL,
              "updatedAt" INTEGER NOT NULL)"#,
         r#"CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_goal_sessionID ON agent_goal (sessionID)"#,
         r#"CREATE INDEX IF NOT EXISTS idx_agent_goal_updatedAt ON agent_goal ("updatedAt")"#,
     ]
+}
+
+/// 老库表已存在时补列（`CREATE IF NOT EXISTS` 不会改既有表结构）。
+/// 调用方需先按 pragma 判断缺列再执行，避免重复 ADD 报错。
+pub fn goal_column_patches() -> Vec<(&'static str, &'static str)> {
+    vec![(
+        "expectedPrompt",
+        r#"ALTER TABLE agent_goal ADD COLUMN "expectedPrompt" TEXT NULL"#,
+    )]
 }
 
 #[cfg(test)]

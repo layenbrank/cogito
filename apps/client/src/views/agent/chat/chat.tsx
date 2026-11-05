@@ -64,6 +64,7 @@ import {
 } from '@/views/agent/chat/components/splitter-sizes'
 import { AgentProcessFold, AgentProcessGroup } from '@/views/agent/chat/components/process-group'
 import { GoalAutoAdvance } from '@/views/agent/chat/components/goal-auto-advance'
+import { PlanRunFinish } from '@/views/agent/chat/components/plan-run-finish'
 import { PlanRecorder } from '@/views/agent/chat/components/plan-recorder'
 import { PlanFileSync } from '@/views/agent/chat/components/plan-file-sync'
 import { PlanScheduleCard } from '@/views/agent/chat/components/plan-schedule-card'
@@ -208,8 +209,8 @@ function AgentChatLayout() {
     [groupRef]
   )
 
-  /** 输入框粘贴：截图 → dataURL 附件，带路径的文件 → 工作区引用 */
-  const handleComposerPaste = useCallback(
+  /** 输入框粘贴 / 拖拽：截图 → dataURL 附件，带路径的文件 → 工作区引用（两条入口共用一套语义） */
+  const handleComposerFiles = useCallback(
     async function (files: readonly File[]) {
       const result = await attachPastedFiles(aui, files, folderPaths, primaryRootPath)
       if (result.failed.length > 0) {
@@ -240,12 +241,13 @@ function AgentChatLayout() {
             ComposerQueue: ComposerQueue,
             ComposerTriggers: composerTriggers,
             ComposerTriggerList: ComposerTriggerList,
-            ComposerPaste: handleComposerPaste
+            ComposerPaste: handleComposerFiles,
+            ComposerDrop: handleComposerFiles
           }}
         />
       )
     },
-    [composerTriggers, handleComposerPaste]
+    [composerTriggers, handleComposerFiles]
   )
 
   useCommands([
@@ -604,6 +606,7 @@ function AgentChatLayout() {
               <main className={styles.threadMain}>
                 {threadElement}
                 <GoalAutoAdvance />
+                <PlanRunFinish />
                 <PlanRecorder />
         <PlanFileSync />
                 <PlanScheduleCard />

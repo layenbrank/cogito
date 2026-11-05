@@ -44,9 +44,9 @@
 | --- | --- |
 | 「正在运行」行 | `runningText` 传了才渲染（导出 `MessageQueueRunningRow`）：蓝点 `animate-ping` + 正文 `text-sm` + 右端 `running` 标签。**默认不传**——线程里当前轮的用户消息已在对话流里，重复一遍会被读成消息重复 |
 | 标题 | 左 `N queued`（`mono` 即 `text-xs`、`tabular-nums`）；展开态右端是「本轮结束后自动发送」（`queueSendsWhenFinishes`），折叠态换成第一条正文预览 |
-| 条目 | `field` 表面 + `rounded-2xl py-2 pr-2 pl-3`、`rowEnter` 入场；序号 `mono w-3 tabular-nums`；正文 `text-foreground/60 text-sm truncate` |
+| 条目 | `field` 表面 + `rounded-2xl py-2 pr-2 pl-3`、`rowEnter` 入场；序号 `mono w-3 tabular-nums`；正文走 `ComposerChipText singleLine`（多行摊平成一行再 `truncate`，chip 限宽 `9rem`），行高固定 `py-2 leading-5`；正文多于一行时右端出现 `⏎ N 行`（`labels.queueLines`），`title` 保留全文 |
 | 行内动作 | 上箭头（`lucide:arrow-up`，`text-foreground/25 size-3`）= 插队；`lucide:x` `size-3.5` = 移除，按钮 `ghostButton size-6`，无障碍文案带正文（`labels.queueRemoveItem(text)`） |
-| 展开体 | `max-h-44` + 滚动（官方示例永远展开，会顶掉半个屏幕，这里默认折叠） |
+| 展开体 | `max-h-[min(11rem,32vh)]` + 滚动（官方示例永远展开，会顶掉半个屏幕，这里默认折叠）；折叠头同样走单行预览 + 行数标记 |
 
 `extraCount` / `extraPreview` / `renderText` / `renderItemActions` 四个注入点留给 app：`@chip` 标签、
 「取回编辑 / 上移 / 下移」这些库没给 primitive 的操作。
@@ -83,6 +83,41 @@
 | 丢弃提示 | 同上（`findDiscardedReplies`） | 数「当前分支上这条消息之后的助手回复」，`> 0` 才显示 |
 | 取消 / 发送 | 同上 | Cancel 丢草稿回气泡；Send 把改写作为同父新分支发出去（不删历史，分支切换可回看） |
 | standalone | 同上（`EditMessage`） | 受控版：`editing` / `value` / `discardedReplies` 由 app 持有 |
+
+## 工具卡（2026-11 收敛为「一个外壳 + 三处专项」）
+
+旧做法是 ai-elements 的**重卡片**（`Tool`：`border` + `bg-card` + `shadow-xs`，`ToolHeader`：`lucide:wrench`
++ 中文状态徽章，参数与结果各一块整段 JSON），再叠一层「按输出文本**猜**卡型」的启发式：
+`parseCommitOutput` / `parseVitestOutput` / `parseStackOutput` / `parseEnvOutput` /
+`parsePackageOutput` / `parseSchemaOutput` / `parseSnippetOutput` 七种。一次回答里出现 6–8 张
+带徽章的卡片，是对话区最主要的视觉噪音；而真正有信息量的三处渲染（写文件的 diff、命令的终端输出、
+目录列举的文件树）被同一套重卡片稀释了。
+
+现在：
+
+| 形态 | 实现 | 口径 |
+| --- | --- | --- |
+| 默认 | `ToolFallback`（`tool-fallback.aui.tsx`） | 一行 `Used tool: <label>` + 耗时 + 展开三角；展开才是参数（`Args`）与结果（`CodeBlock` / `Result`）。`tool-card-body.tsx::ToolCardFallbackBody` |
+| `write` | `WriteToolCard` + `CodeDiff` | 头部就是「文件名 + `+N −M` + 右侧动作」一行，无 wrench、无状态徽章；缺 `before/after` 时退回 `ToolFallback` 明细 |
+| `command` | `ToolCardTerminalBody` | `$ 命令` 一行折叠 + 展开终端正文（保留），状态用行内图标而不是徽章 |
+| 目录列举 | `file-tree.tsx` | 只出现在 `ToolFallback` 的明细里，不再单独成卡 |
+| 追问 / elicitation | `QuestionPrompt` / `Actions` | 当作对话流里的「提问卡」，不套工具外壳 |
+
+**删减范围**（本轮真正下线的代码）：`tool-card-special-body.tsx` 整个文件删除；
+`parse-tool-result.ts` 的七个 `parse*Output` 与 `ParsedCommit` / `ParsedTestSummary` /
+`ParsedEnvEntry` / `ParsedPackageInfo` / `ParsedSchemaDisplay` 等类型一并删除，
+`ParsedToolSpecial` 收窄成 `{ kind: 'tree' }`；`tool-labels.ts::ToolCardVariant` 同步去掉
+`commit|test|stack|package|env|schema|snippet`；`tool.tsx` 的 `Tool` 标 `@deprecated`（对话流不再引入，
+只留给非对话场景；`ToolElapsed` 仍被命令卡使用）。
+
+**这是取舍，不是遗漏**：删掉七种卡之后，测试通过数、commit 摘要、API 参数表这类「一眼可读」
+确实没了，改为「通用行 + 展开原文」。判断依据是：正则猜错时（把普通日志当 vitest 摘要、
+把缩进列表当 stack）比通用文本更难读，而猜对的场景只要展开一层也能读到。
+
+**后续方向：按 tool 名注册渲染器。** assistant-ui 的正解是 `makeAssistantToolUI({ toolName }, render)`
+逐个工具注册，本仓 `packages/design` 已有 `*.aui.tsx` 适配层惯例（见文末「约定」）。本轮没做，
+原因是几十个工具要逐个写渲染器，收益是渐进的；先把「一个外壳」落到所有工具上，再按实际使用频率
+把 `read` / `search` / `browser_*` 等迁过去。
 
 ## 建议顺序（按「改动量 ÷ 收益」排）
 

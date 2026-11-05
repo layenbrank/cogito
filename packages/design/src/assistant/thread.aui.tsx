@@ -137,6 +137,14 @@ export type ThreadComponents = {
    * 纯文本粘贴不受影响（没有 files 就不拦）；不传就退回浏览器默认行为。
    */
   ComposerPaste?: ((files: readonly File[]) => void | Promise<void>) | undefined
+  /**
+   * 把文件**拖进**输入框时接管（与 `ComposerPaste` 对称）。
+   *
+   * 粘贴走 `clipboardData.files`、拖拽走 `DataTransfer.files`，两条入口语义必须一致，
+   * 否则同一张截图「粘进来是 @引用、拖进来是附件」。不传就退回
+   * `AttachmentDropzone` 的默认行为（只挂附件，不接工作区引用）。
+   */
+  ComposerDrop?: ((files: readonly File[]) => void | Promise<void>) | undefined
 }
 
 export type ThreadProps = {
@@ -409,9 +417,8 @@ const ThreadSuggestionItem: FC = () => {
 
 const Composer: FC<{ autoFocus: boolean }> = ({ autoFocus }) => {
   const labels = useAssistantLabels()
-  const { ComposerTriggers, ComposerTriggerList, ComposerQueue, ComposerPaste } = useContext(
-    ThreadComponentsContext
-  )
+  const { ComposerTriggers, ComposerTriggerList, ComposerQueue, ComposerPaste, ComposerDrop } =
+    useContext(ThreadComponentsContext)
   const placeholder = useAuiState(function (state) {
     return findComposerPlaceholder(
       labels,
@@ -434,6 +441,22 @@ const Composer: FC<{ autoFocus: boolean }> = ({ autoFocus }) => {
               // 有文件时不要往输入框里落一串文件名
               event.preventDefault()
               void ComposerPaste(files)
+            }}
+            onDragOver={function (event) {
+              if (!ComposerDrop) return
+              if (!event.dataTransfer?.types.includes('Files')) return
+              // 不 preventDefault 的话浏览器会把文件当导航目标（整页跳走）
+              event.preventDefault()
+              event.dataTransfer.dropEffect = 'copy'
+            }}
+            onDrop={function (event) {
+              if (!ComposerDrop) return
+              const files = Array.from(event.dataTransfer?.files ?? [])
+              if (files.length === 0) return
+              // 同时挡住 AttachmentDropzone 的附件通道：否则同一张图会走两条语义
+              event.preventDefault()
+              event.stopPropagation()
+              void ComposerDrop(files)
             }}
             className={[
               /* 聚焦只换边色，不用 ring-[3px]（聊天气泡区会显得过粗） */
@@ -471,7 +494,7 @@ const ComposerAction: FC = () => {
   const labels = useAssistantLabels()
   return (
     <div className="aui-composer-action-wrapper relative flex min-w-0 items-center justify-between gap-2">
-      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
         {ComposerStart ? <ComposerStart /> : null}
         {ComposerAttach === null ? null : ComposerAttach ? (
           <ComposerAttach />

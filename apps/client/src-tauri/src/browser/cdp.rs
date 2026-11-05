@@ -12,16 +12,17 @@
 //! 另外，DevTools 协议是能力也是风险：这里**只暴露固定方法名**给上层，
 //! 不接受前端传任意 `method` 字符串。
 
+#[cfg(windows)]
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 
 use serde_json::Value;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 /// 单次 CDP 调用上限：页面卡死时不能让工具调用一直挂着。
 const CALL_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// 调一个 CDP 方法，返回**方法返回值本身**。
+/// 调一个 CDP 方法，返回**方法返回值本身**（默认超时）。
 ///
 /// 注意这里没有 `{"result": ...}` 外层包装：`CallDevToolsProtocolMethod` 的 JSON
 /// 回调给的就是该方法自己的返回对象。所以取字段要按方法约定来 ——
@@ -34,6 +35,23 @@ pub async fn call(
     method: &str,
     params: Value,
 ) -> Result<Value, String> {
+    call_with_timeout(app, label, method, params, CALL_TIMEOUT).await
+}
+
+/// 同 `call`，但可以指定超时。
+///
+/// 输入类调用（`Input.dispatchMouseEvent` / `Input.dispatchTouchEvent`）单独用短超时：
+/// 设备模拟下鼠标事件会被合成成 touch，`mousePressed` 可能等不到 WebView2 的完成回调，
+/// 默认 10s 会让每次点击都卡十秒。
+#[cfg(windows)]
+pub async fn call_with_timeout(
+    app: &AppHandle,
+    label: &str,
+    method: &str,
+    params: Value,
+    timeout: Duration,
+) -> Result<Value, String> {
+    use tauri::Manager;
     use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
     use windows::core::HSTRING;
 
@@ -87,14 +105,14 @@ pub async fn call(
         })
         .map_err(|error| format!("投递到主线程失败：{error}"))?;
 
-    match tokio::time::timeout(CALL_TIMEOUT, receiver).await {
+    match tokio::time::timeout(timeout, receiver).await {
         Ok(Ok(Ok(raw))) => serde_json::from_str(&raw).map_err(|error| {
             log::warn!("browser: CDP 响应不是合法 JSON（{method}）: {error}");
             format!("CDP 响应解析失败：{error}")
         }),
         Ok(Ok(Err(message))) => Err(message),
         Ok(Err(_)) => Err("CDP 调用被丢弃".into()),
-        Err(_) => Err(format!("CDP {method} 超时（{CALL_TIMEOUT:?}）")),
+        Err(_) => Err(format!("CDP {method} 超时（{timeout:?}）")),
     }
 }
 
@@ -104,6 +122,17 @@ pub async fn call(
     _label: &str,
     _method: &str,
     _params: Value,
+) -> Result<Value, String> {
+    Err("浏览器内嵌能力目前只实现 Windows（WebView2）".into())
+}
+
+#[cfg(not(windows))]
+pub async fn call_with_timeout(
+    _app: &AppHandle,
+    _label: &str,
+    _method: &str,
+    _params: Value,
+    _timeout: Duration,
 ) -> Result<Value, String> {
     Err("浏览器内嵌能力目前只实现 Windows（WebView2）".into())
 }

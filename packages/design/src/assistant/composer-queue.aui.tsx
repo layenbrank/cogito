@@ -1,10 +1,30 @@
-import { useAui, useAuiState } from '@assistant-ui/react'
+import { useAui, useAuiState, type AssistantClient } from '@assistant-ui/react'
 import { Icon } from '@iconify/react/offline'
-import { useCallback, type FC } from 'react'
+import { useCallback, type FC, type MouseEvent } from 'react'
 
 import { useAssistantLabels } from './labels'
 import { MessageQueue } from './message-queue.aui'
 import { TooltipIconButton } from './tooltip-icon-button'
+
+/**
+ * 发送语义的唯一出口：键盘（Enter / Ctrl+Enter）与发送按钮都走这里。
+ *
+ * 运行中且线程支持队列时：默认**入队**，`steer` 为真才**插队**（打断当前轮立刻处理）。
+ * 运行中但队列不可用 / 草稿空 / 线程禁用：返回 `false`，调用方保持「没发出去」的原样。
+ */
+function sendFromComposer(aui: AssistantClient, options?: { steer?: boolean }): boolean {
+  const thread = aui.thread.getState()
+  const composer = aui.composer.getState()
+  if (!composer.canSend) return false
+  const queued = thread.isRunning && thread.capabilities.queue
+  if (thread.isRunning && !queued) return false
+  if (queued) {
+    aui.composer.send({ steer: options?.steer === true })
+    return true
+  }
+  aui.composer.send()
+  return true
+}
 
 const ComposerSendButton: FC = () => {
   const aui = useAui()
@@ -13,7 +33,7 @@ const ComposerSendButton: FC = () => {
     return !state.composer.canSend || (state.thread.isRunning && !state.thread.capabilities.queue)
   })
   const tooltip = useAuiState(function (state) {
-    if (state.thread.isRunning && state.thread.capabilities.queue) return labels.sendQueued
+    if (state.thread.isRunning && state.thread.capabilities.queue) return labels.sendQueuedHint
     return labels.send
   })
   // 运行中队列非空：按钮上直接显示还有几条在等，避免「发了但没反应」
@@ -22,10 +42,9 @@ const ComposerSendButton: FC = () => {
   })
 
   const onSend = useCallback(
-    function onSend() {
-      const threadState = aui.thread.getState()
-      const steer = !(threadState.isRunning && threadState.capabilities.queue)
-      aui.composer.send(steer ? undefined : { steer: false })
+    function onSend(event: MouseEvent<HTMLButtonElement>) {
+      // 运行中：点击 = 入队，按住 Alt/Ctrl/Cmd = 插队（与键盘 Ctrl+Enter 同一语义）
+      sendFromComposer(aui, { steer: event.altKey || event.ctrlKey || event.metaKey })
     },
     [aui]
   )
@@ -81,4 +100,4 @@ function findComposerPlaceholder(
 
 const ComposerQueuedStrip = ComposerQueueList
 
-export { ComposerQueueList, ComposerQueuedStrip, ComposerSendButton, findComposerPlaceholder }
+export { ComposerQueueList, ComposerQueuedStrip, ComposerSendButton, findComposerPlaceholder, sendFromComposer }

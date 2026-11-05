@@ -59,6 +59,8 @@ export interface GoalRecord {
   status: GoalStatus
   /** 启动前被改掉的审批档，结束后据此还原 */
   approvalBefore: string | null
+  /** 最近一轮自动续跑的 user prompt；刷新后仍可判插话 */
+  expectedPrompt: string | null
   createdAt: number
   updatedAt: number
 }
@@ -96,6 +98,7 @@ interface GoalRow {
   progressTotal: number | null
   status: string
   approvalBefore: string | null
+  expectedPrompt: string | null
   createdAt: number
   updatedAt: number
 }
@@ -204,6 +207,7 @@ function toGoalRecord(row: GoalRow): GoalRecord {
     progressTotal: row.progressTotal,
     status: toGoalStatus(row.status),
     approvalBefore: row.approvalBefore,
+    expectedPrompt: row.expectedPrompt ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   }
@@ -466,6 +470,7 @@ interface SaveGoalInput {
   progressTotal?: number | null
   status?: GoalStatus
   approvalBefore?: string | null
+  expectedPrompt?: string | null
 }
 
 function saveGoal(input: SaveGoalInput): GoalRecord {
@@ -487,6 +492,10 @@ function saveGoal(input: SaveGoalInput): GoalRecord {
       input.approvalBefore === undefined
         ? (previous?.approvalBefore ?? null)
         : input.approvalBefore,
+    expectedPrompt:
+      input.expectedPrompt === undefined
+        ? (previous?.expectedPrompt ?? null)
+        : input.expectedPrompt,
     createdAt: previous?.createdAt ?? now,
     updatedAt: now
   }

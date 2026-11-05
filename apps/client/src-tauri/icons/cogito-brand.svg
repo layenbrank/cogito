@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" shape-rendering="geometricPrecision">
+  <rect width="1024" height="1024" fill="none"/>
+  <rect x="39.936" y="39.936" width="944.128" height="944.128" rx="235.52" ry="235.52" fill="#1447E6"/>
+  <path fill="#FFFFFF" transform="translate(512 512)" d="
+    M 260.636 234.677
+    A 350.720 350.720 0 1 1 260.636 -234.677
+    L 173.153 -155.907
+    A 233.000 233.000 0 1 0 173.153 155.907
+    Z"/>
+  <g transform="translate(512 512) rotate(45)">
+    <rect x="-39.936" y="-39.936" width="79.872" height="79.872" rx="8.192" fill="#FFFFFF"/>
+  </g>
+</svg>

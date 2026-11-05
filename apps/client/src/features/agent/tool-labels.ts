@@ -112,21 +112,12 @@ function isCodeTool(name: string): boolean {
   return lower === 'execute' || lower.includes('execute') || lower.includes('code_mode')
 }
 
-type ToolCardVariant =
-  | 'command'
-  | 'code'
-  | 'read'
-  | 'write'
-  | 'search'
-  | 'generic'
-  | 'commit'
-  | 'test'
-  | 'stack'
-  | 'package'
-  | 'env'
-  | 'schema'
-  | 'snippet'
-  | 'tree'
+/**
+ * 工具卡形态：只剩基础形态 + 目录列举。
+ * commit / test / stack / package / env / schema / snippet 七种「从输出文本猜出来」的
+ * 专项卡已下线（`parse-tool-result.ts` 头注），不再作为可渲染形态存在。
+ */
+type ToolCardVariant = 'command' | 'code' | 'read' | 'write' | 'search' | 'generic' | 'tree'
 
 function isReadTool(name: string): boolean {
   if (isBrowserTool(name)) return false

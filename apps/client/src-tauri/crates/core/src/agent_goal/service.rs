@@ -135,6 +135,7 @@ impl Service {
             progressTotal: Set(p.progressTotal),
             status: Set(p.status),
             approvalBefore: Set(p.approvalBefore),
+            expectedPrompt: Set(p.expectedPrompt),
             createdAt: Set(p.createdAt.unwrap_or(now)),
             updatedAt: Set(p.updatedAt.unwrap_or(now)),
         };
@@ -148,6 +149,7 @@ impl Service {
                 schema::Column::ProgressTotal,
                 schema::Column::Status,
                 schema::Column::ApprovalBefore,
+                schema::Column::ExpectedPrompt,
                 schema::Column::UpdatedAt,
             ])
             .to_owned();
@@ -203,6 +205,9 @@ impl Service {
         if let Some(v) = change.approvalBefore {
             active.approvalBefore = Set(v);
         }
+        if let Some(v) = change.expectedPrompt {
+            active.expectedPrompt = Set(v);
+        }
         active.updatedAt = Set(change.updatedAt.unwrap_or_else(|| Utc::now().timestamp_millis()));
         let updated = active.update(db).await?;
         Ok(updated.id)
@@ -252,6 +257,7 @@ mod tests {
             progressTotal: None,
             status: status.to_string(),
             approvalBefore: Some("ask".to_string()),
+            expectedPrompt: None,
             createdAt: None,
             updatedAt: None,
         }
@@ -293,6 +299,7 @@ mod tests {
                     progressTotal: Some(Some(5)),
                     status: Some("paused".to_string()),
                     approvalBefore: None,
+                    expectedPrompt: None,
                     updatedAt: None,
                 },
             }),

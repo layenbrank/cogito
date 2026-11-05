@@ -168,12 +168,16 @@ pub async fn browser_agent_read(
     label: String,
     mode: Option<String>,
     limit: Option<usize>,
+    max_chars: Option<usize>,
 ) -> Result<serde_json::Value, String> {
+    // `limit` 只约束 outline 的条目数，`max_chars` 只约束 text 的正文字符数。
+    // 两者分开：以前共用一个 `limit`，`mode=text` 只能读回 60 个字符。
     agent::read(
         &app,
         &label,
         mode.as_deref().unwrap_or("outline"),
-        limit.unwrap_or(60),
+        limit.unwrap_or(60).clamp(1, 200),
+        max_chars.unwrap_or(8000).clamp(200, 200_000),
         None,
         None,
     )

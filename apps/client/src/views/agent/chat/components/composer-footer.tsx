@@ -2,8 +2,9 @@
  * 输入框下方：左工作区 · 右本机运行 / 分支 / 上下文用量。
  */
 import { Icon } from '@iconify/react/offline'
-import { useAuiState } from '@assistant-ui/react'
+import { useAui, useAuiState } from '@assistant-ui/react'
 import { Button } from '@cogito/design/components/button'
+import { toast } from 'sonner'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,8 +52,11 @@ import { useAgentStore } from '@/stores/agent.ts'
 import { BranchSwitcherView } from '@/views/code/workspace/scm/branch-switcher-view.tsx'
 import { findBaseName } from '@/views/agent/chat/components/workspace-relative-path.ts'
 import {
+  buildContinuePrompt,
   GOAL_BUDGET_OPTIONS,
   readNextGoalBudget,
+  rememberGoalPrompt,
+  resumeGoalRun,
   stopGoalRun,
   subscribeGoalBudget,
   useGoalRun,
@@ -273,6 +277,7 @@ function WorkspaceMenu() {
  * 且在发送前可调 —— 以前它藏在计划页，「直接发目标」根本没有入口。
  */
 function GoalTurnControl() {
+  const aui = useAui()
   const mode = useSyncExternalStore(subscribeAgentMode, readAgentMode, readAgentMode)
   const budget = useSyncExternalStore(subscribeGoalBudget, readNextGoalBudget, readNextGoalBudget)
   const threadID = useAuiState(function (state) {
@@ -304,6 +309,7 @@ function GoalTurnControl() {
                 label: `已用尽 · ${record.used}/${record.budget} 轮`,
                 tone: 'text-muted-foreground'
               }
+      const canResume = record.status === 'paused' || record.status === 'exhausted'
       return (
         <div className="border-border/60 bg-muted/40 flex h-7 shrink-0 items-center gap-1 rounded-md border px-1.5">
           <Icon
@@ -311,6 +317,33 @@ function GoalTurnControl() {
             className="size-3 shrink-0"
           />
           <span className={`text-xs font-medium tabular-nums ${meta.tone}`}>{meta.label}</span>
+          {canResume && threadID ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label="继续推进目标"
+              title="重置轮次并继续自动推进"
+              className="text-violet-700 hover:text-violet-800 dark:text-violet-300 h-5 shrink-0 gap-0.5 px-1 text-[11px]"
+              onClick={function () {
+                const next = resumeGoalRun(threadID)
+                if (!next) {
+                  toast.error('无法继续推进')
+                  return
+                }
+                const prompt = buildContinuePrompt(next)
+                rememberGoalPrompt(threadID, prompt)
+                aui.composer.setText(prompt)
+                void aui.composer.send()
+                toast.success('已继续目标推进')
+              }}>
+              <Icon
+                icon="lucide:play"
+                className="size-3 shrink-0"
+              />
+              继续
+            </Button>
+          ) : null}
         </div>
       )
     }

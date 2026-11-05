@@ -95,6 +95,9 @@ vi.mock('@cogito/design/assistant/labels', function () {
       return {
         queueHeading: 'Queued',
         queueRemove: 'Remove from queue',
+        queueRemoveItem: function () {
+          return 'Remove from queue'
+        },
         queueSteerNow: 'Send now',
         queueStopHint: 'Stopping ends this run only',
         queuedMessages: function (count: number) {
@@ -102,7 +105,18 @@ vi.mock('@cogito/design/assistant/labels', function () {
         },
         queueExpand: '展开队列',
         queueCollapse: '收起队列',
-        queueEmptyPreview: '（无文本）'
+        queueEmptyPreview: '（无文本）',
+        queueTakeBack: '取回编辑',
+        queueMoveUp: '上移',
+        queueMoveDown: '下移',
+        queuePendingHeading: function (count: number) {
+          return `上次没发出去的（${count}）`
+        },
+        queuePendingSend: '发送这条',
+        queuePendingDrop: '丢弃',
+        queueLines: function (count: number) {
+          return `⏎ ${count} 行`
+        }
       }
     }
   }
@@ -113,11 +127,15 @@ vi.mock('@cogito/design/assistant/tooltip-icon-button', function () {
     TooltipIconButton: function StubIconButton(props: {
       tooltip: string
       children?: ReactNode
+      onClick?: () => void
+      disabled?: boolean
     }) {
       return (
         <button
           type="button"
-          aria-label={props.tooltip}>
+          aria-label={props.tooltip}
+          disabled={props.disabled}
+          onClick={props.onClick}>
           {props.children}
         </button>
       )
@@ -127,11 +145,19 @@ vi.mock('@cogito/design/assistant/tooltip-icon-button', function () {
 
 vi.mock('@cogito/design/assistant/composer-chip-text', function () {
   return {
-    ComposerChipText: function StubChipText(props: { text: string }) {
-      return <span>{props.text}</span>
+    // 与真身同一契约：singleLine 时换行折成空格（队列侧三处都必须传 true）
+    ComposerChipText: function StubChipText(props: { text: string; singleLine?: boolean }) {
+      const text = props.singleLine ? props.text.replace(/\r\n|\r|\n/g, ' ') : props.text
+      return (
+        <span data-single-line={props.singleLine ? 'true' : undefined}>{text}</span>
+      )
     },
     resolveComposerChipLabel: function () {
       return ''
+    },
+    // design 内部（message-queue）也会 import 同一模块：按真实口径给上，否则计数调用会拿到 undefined
+    countComposerLines: function (text: string) {
+      return text.length === 0 ? 0 : text.split(/\r\n|\r|\n/).length
     }
   }
 })
@@ -183,24 +209,48 @@ describe('composer 队列面板', function () {
     expect(container.querySelector('[data-slot="message-queue-body"]')).toBeNull()
   })
 
+  it('多行条目：折叠头也是一行，并给出「⏎ N 行」标记与全文 title', function () {
+    const multiline = '第一行\n第二行\n第三行\n第四行'
+    queueState.composer.queue = [queueItem('q1', multiline)]
+    const { container } = render(<ComposerQueue />)
+
+    const header = container.querySelector('[data-slot="message-queue-header"]')
+    expect(header).not.toBeNull()
+    // 真的只有一行：没有 <br>，可见文本里没有换行
+    expect(header?.querySelector('br')).toBeNull()
+    expect(header?.textContent ?? '').not.toContain('\n')
+    expect(header?.querySelector('[data-single-line="true"]')).not.toBeNull()
+    // 单行预览背后还有内容的提示
+    expect(screen.getByText('⏎ 4 行')).toBeInTheDocument()
+    // 全文仍在 title 里
+    expect(header?.querySelector('[title]')?.getAttribute('title')).toBe(multiline)
+  })
+
   it('展开后列表封顶并可滚动，每条只占一行，且带「立即发 / 删除」', function () {
-    queueState.composer.queue = [queueItem('q1', '第一条'), queueItem('q2', '第二条')]
+    const multiline = '第一条\n第二条\n第三条'
+    queueState.composer.queue = [queueItem('q1', multiline), queueItem('q2', '第二条')]
     const { container } = render(<ComposerQueue />)
 
     fireEvent.click(screen.getByRole('button', { name: '展开队列' }))
 
     const body = container.querySelector('[data-slot="message-queue-body"]')
     expect(body).not.toBeNull()
-    expect(body?.className).toContain('max-h-44')
+    expect(body?.className).toContain('max-h-[min(11rem,32vh)]')
     expect(body?.className).toContain('overflow-y-auto')
 
     const rows = container.querySelectorAll('[data-slot="message-queue-item"]')
     expect(rows).toHaveLength(2)
     for (const row of rows) {
-      // 单行：truncate + nowrap，不靠 line-clamp 撑高
+      // 单行：truncate + 固定行高，不靠 line-clamp 撑高
       expect(row.querySelector('.truncate')).not.toBeNull()
+      expect(row.querySelector('br')).toBeNull()
+      expect(row.textContent ?? '').not.toContain('\n')
       expect(row.className).toContain('items-center')
+      expect(row.className).toContain('leading-5')
     }
+    // 多行条目标了行数，单行条目不标
+    expect(rows[0].querySelector('[data-slot="message-queue-item-lines"]')?.textContent).toBe('⏎ 3 行')
+    expect(rows[1].querySelector('[data-slot="message-queue-item-lines"]')).toBeNull()
 
     // assistant-ui 元素自带的行内动作：立即发 / 删除
     expect(screen.getAllByRole('button', { name: 'Send now' })).toHaveLength(2)
@@ -208,18 +258,39 @@ describe('composer 队列面板', function () {
     expect(screen.getByRole('button', { name: '收起队列' })).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('待发送条目并入同一个可折叠区，条数一起算', function () {
-    pendingState.items = [{ id: 'p1', text: '上次没发出去的', attachments: '[]' }]
+  it('待发送条目并入同一个可折叠区，条数一起算，且同样单行', function () {
+    pendingState.items = [{ id: 'p1', text: '上次没发出去的\n第二行', attachments: '[]' }]
     const { container } = render(<ComposerQueue />)
 
     expect(screen.getByText('1 queued')).toBeInTheDocument()
     // 队列为空时折叠态的预览取「上次没发出去的」第一条
-    expect(screen.getByText('上次没发出去的')).toBeInTheDocument()
+    expect(screen.getByText('上次没发出去的 第二行')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '展开队列' }))
 
     const pending = container.querySelector('[data-slot="message-queue-pending"]')
     expect(pending).not.toBeNull()
     expect(pending?.querySelector('.truncate')).not.toBeNull()
+    const row = container.querySelector('[data-slot="message-queue-pending-item"]')
+    expect(row?.querySelector('br')).toBeNull()
+    expect(row?.textContent ?? '').not.toContain('\n')
+    expect(row?.querySelector('[data-single-line="true"]')).not.toBeNull()
+    expect(row?.querySelector('[data-slot="message-queue-item-lines"]')?.textContent).toBe('⏎ 2 行')
+  })
+
+  it('取回编辑：文本并回输入框，并把焦点交回编辑器', function () {
+    queueState.composer.queue = [queueItem('q1', '排队中的消息')]
+    // 真身按类名找当前挂载的编辑器：这里摆一个同类占位，验证焦点真的回去了
+    const input = document.createElement('div')
+    input.className = 'aui-composer-input'
+    input.tabIndex = 0
+    document.body.appendChild(input)
+
+    render(<ComposerQueue />)
+    fireEvent.click(screen.getByRole('button', { name: '展开队列' }))
+    fireEvent.click(screen.getByRole('button', { name: '取回编辑' }))
+
+    expect(document.activeElement).toBe(input)
+    input.remove()
   })
 })

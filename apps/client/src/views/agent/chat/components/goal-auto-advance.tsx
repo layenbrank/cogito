@@ -19,6 +19,7 @@ import {
   findGoalSignal,
   findLastAssistant,
   findLastUserText,
+  finishGoalRun,
   isAbortedRun,
   isUserInterjection,
   parseGoalProgress,
@@ -84,7 +85,7 @@ function GoalAutoAdvance() {
       const signal = findGoalSignal(text)
       if (signal === 'done') {
         toast.success('目标已完成')
-        stopGoalRun(threadID)
+        finishGoalRun(threadID, 'done')
         return
       }
       if (!signal && goal.used > 0) {
@@ -118,9 +119,9 @@ function GoalAutoAdvance() {
 
       if (!advanceGoalRun(threadID)) {
         toast.warning(
-          `已达目标推进上限（${goal.budget} 轮），请检查结果；需要继续可再次点「目标推进」`
+          `已达目标推进上限（${goal.budget} 轮），请检查结果；需要继续可再次点「继续推进」`
         )
-        stopGoalRun(threadID)
+        // advance 已写 exhausted，禁止再 stopGoalRun 抹成 paused
         return
       }
       const next = readGoalRun(threadID)

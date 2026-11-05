@@ -142,9 +142,16 @@ interface BrowserReadResult {
 async function readBrowserPage(
   label: string,
   mode: 'outline' | 'text' = 'outline',
-  limit = 60
+  limit = 60,
+  maxChars = 8000
 ): Promise<BrowserReadResult> {
-  return invoke<BrowserReadResult>('browser_agent_read', { label, mode, limit })
+  // `limit` 只管 outline 条目数，`maxChars` 只管 text 正文字符数（Rust 侧默认 8000）
+  return invoke<BrowserReadResult>('browser_agent_read', {
+    label,
+    mode,
+    limit,
+    maxChars
+  })
 }
 
 /** 截图：返回原始 base64 + mime（data URL 自己拼，少传一份 base64） */

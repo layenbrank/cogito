@@ -7,8 +7,12 @@
  * - **问答**：只读，给结论不动手；
  * - **执行**：默认，直接改代码跑命令。
  *
- * 模式只改变「这一轮该怎么干」——通过系统提示追加约束，**不动审批档**：
- * 审批是用户显式的安全档位，两者正交（计划模式下仍受审批保护）。
+ * 模式与审批偏好正交（UI 上仍可独立选 ask/auto/readonly），但**计划模式的有效
+ * 能力面是只读**：`requestThreadPermission` 硬拒写工具，goose 同步为 readonly
+ *（不改偏好落盘）。目标模式启停会强制/恢复自动审批并完整 sync goose。
+ *
+ * Goal 终态：`done`（GOAL_DONE）/ `exhausted`（预算用尽）/ `paused`（用户或插话）
+ * 三者互不覆盖；见 `finishGoalRun`。
  */
 import {
   notifyScope,
@@ -190,6 +194,14 @@ function readAgentMode(): AgentMode {
   return pref.agentMode
 }
 
+/** 按指定会话读模式（计划硬只读 / goose 有效审批档用） */
+function readAgentModeFor(threadID: string): AgentMode {
+  const pref = findPref('agent')
+  const id = threadID.trim()
+  if (!id) return pref.agentMode
+  return pref.modeByThread[id] ?? pref.agentMode
+}
+
 /** 当前 UI 主线程；目标后台续跑据此判断「这一轮归 UI 还是归后台」 */
 function readAgentModeThread(): string | null {
   return readScopeThread()
@@ -208,6 +220,14 @@ async function writeAgentMode(mode: AgentMode): Promise<void> {
     modeByThread: { ...pref.modeByThread, [threadID]: mode }
   })
   notifyScope()
+  // 计划模式要把 goose 切到有效只读；离开计划再回到用户审批偏好（不改偏好落盘）
+  void import('@/features/agent/acp/sync-thread-approval')
+    .then(function (mod) {
+      return mod.syncApprovalForThread(threadID)
+    })
+    .catch(function (error: unknown) {
+      console.warn('[agent/mode] 同步有效审批档到 goose 失败:', error)
+    })
 }
 
 /** 把当前模式约束拼到系统提示末尾；执行模式原样返回 */
@@ -221,6 +241,7 @@ export {
   appendModeGuidance,
   findAgentMode,
   readAgentMode,
+  readAgentModeFor,
   readAgentModeThread,
   setAgentModeThread,
   subscribeAgentMode,

@@ -5,8 +5,12 @@ import {
   advanceGoalRun,
   buildContinuePrompt,
   findGoalSignal,
+  finishGoalRun,
   parseGoalProgress,
+  readGoalPrompt,
   readGoalRun,
+  rememberGoalPrompt,
+  resumeGoalRun,
   startGoalRun,
   stopGoalRun
 } from '@/features/agent/goal-run'
@@ -26,6 +30,24 @@ describe('目标推进', function () {
     // 预算用尽是一等状态：刷新后仍能显示「已用尽」
     expect(readGoalRun('t1')?.status).toBe('exhausted')
     expect(readGoal('t1')?.status).toBe('exhausted')
+  })
+
+  /**
+   * 回归：`useGoalRun` 把 `readGoalRun` 当 `useSyncExternalStore` 的 getSnapshot。
+   * 每次现造对象 = 快照永远「变了」→ 无限重渲染 → React #185（整页进 ErrorBoundary）。
+   */
+  it('快照引用稳定：同一份档案两次读取返回同一个对象', function () {
+    startGoalRun('t1', 'x', 4)
+    const first = readGoalRun('t1')
+    expect(first).not.toBeNull()
+    expect(readGoalRun('t1')).toBe(first)
+
+    // 档案被替换（推进一步）后才允许换新快照
+    advanceGoalRun('t1')
+    const next = readGoalRun('t1')
+    expect(next).not.toBe(first)
+    expect(next?.used).toBe(1)
+    expect(readGoalRun('t1')).toBe(next)
   })
 
   it('多会话并发：各自的预算与进度互不影响', function () {
@@ -85,6 +107,39 @@ describe('目标推进', function () {
     expect(readGoalRun('t1')).toBeNull()
     expect(advanceGoalRun('t1')).toBe(false)
     expect(readGoal('t1')?.status).toBe('paused')
+  })
+
+  it('GOAL_DONE 写成 done，不会被 stopGoalRun 抹成 paused', function () {
+    startGoalRun('t1', 'x', 4)
+    finishGoalRun('t1', 'done')
+    expect(readGoal('t1')?.status).toBe('done')
+    stopGoalRun('t1')
+    expect(readGoal('t1')?.status).toBe('done')
+  })
+
+  it('预算用尽后 stopGoalRun 不能覆盖 exhausted', function () {
+    startGoalRun('t1', 'x', 1)
+    expect(advanceGoalRun('t1')).toBe(false)
+    expect(readGoal('t1')?.status).toBe('exhausted')
+    stopGoalRun('t1')
+    expect(readGoal('t1')?.status).toBe('exhausted')
+    finishGoalRun('t1', 'exhausted')
+    expect(readGoal('t1')?.status).toBe('exhausted')
+  })
+
+  it('expectedPrompt 落进档案；resume 重置 used 并回到 running', function () {
+    startGoalRun('t1', '覆盖率到 80%', 3, '首轮原文')
+    expect(readGoalPrompt('t1')).toBe('首轮原文')
+    expect(readGoal('t1')?.expectedPrompt).toBe('首轮原文')
+    rememberGoalPrompt('t1', '续跑指令')
+    expect(readGoal('t1')?.expectedPrompt).toBe('续跑指令')
+    stopGoalRun('t1')
+    expect(readGoal('t1')?.status).toBe('paused')
+    const resumed = resumeGoalRun('t1')
+    expect(resumed?.status).toBe('running')
+    expect(resumed?.used).toBe(0)
+    expect(resumed?.budget).toBe(3)
+    expect(resumed?.objective).toBe('覆盖率到 80%')
   })
 
   it('空串 / null 是 no-op，不会崩也不会误停其它线程的目标', function () {

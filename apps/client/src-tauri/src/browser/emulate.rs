@@ -640,6 +640,23 @@ fn device_of(app: &AppHandle, label: &str) -> Option<DeviceProfile> {
 }
 
 /// 拾取开始：临时关掉鼠标→touch 合成，否则 hover 高亮不跟手
+/// 直接设置「鼠标事件是否合成 touch」。
+///
+/// 两个调用方：拾取（开始关、结束由 `resume_mouse` 整条重放）与
+/// `agent::act` 的模拟态点击（touch 派发不可用时临时关掉，点完立刻恢复）。
+/// 注意**不能**用 `replay` 恢复：设备档案与 fit 都没变时 `apply` 会早退，
+/// 合成开关会一直停在关闭状态。
+pub async fn set_emit_touch(app: &AppHandle, label: &str, enabled: bool) -> Result<(), String> {
+    cdp::call(
+        app,
+        label,
+        "Emulation.setEmitTouchEventsForMouse",
+        emit_touch_params(enabled),
+    )
+    .await
+    .map(|_| ())
+}
+
 pub async fn suspend_mouse(app: &AppHandle, label: &str) -> Result<(), String> {
     cdp::call(
         app,

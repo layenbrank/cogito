@@ -31,11 +31,13 @@ import {
   advanceGoalRun,
   buildContinuePrompt,
   findGoalSignal,
+  finishGoalRun,
   parseGoalProgress,
   readGoalRun,
   setGoalProgress,
   stopGoalRun
 } from '@/features/agent/goal-run'
+import type { GoalFinishStatus } from '@/features/agent/goal-run'
 
 /** 跑一轮需要的会话上下文；由 model port 在每次运行时登记 */
 interface GoalTurnContext {
@@ -183,9 +185,17 @@ function startGoalTurn(threadID: string, prompt: string, context: GoalTurnContex
   })
 }
 
-/** 一段目标推进结束：先摘掉状态再通知（`notifyTurnDone` 见有活跃目标会跳过） */
-function finishGoal(threadID: string, body: string): void {
-  stopGoalRun(threadID)
+/** 一段目标推进结束：先写入明确终态再通知（`notifyTurnDone` 见有活跃目标会跳过） */
+function finishGoal(
+  threadID: string,
+  body: string,
+  status: GoalFinishStatus = 'paused'
+): void {
+  if (status === 'paused') {
+    stopGoalRun(threadID)
+  } else {
+    finishGoalRun(threadID, status)
+  }
   void notifyTurnDone(threadID, false, body)
 }
 
@@ -211,24 +221,25 @@ async function handleTurnFinished(turn: BackgroundTurn): Promise<void> {
 
   const signal = findGoalSignal(text)
   if (signal === 'done') {
-    finishGoal(turn.threadID, '目标推进完成')
+    finishGoal(turn.threadID, '目标推进完成', 'done')
     return
   }
   // 首轮宽松（模型常先干一半就收尾），后续轮次没打标记视为已收敛，避免空转
   if (!signal && goal.used > 0) {
-    finishGoal(turn.threadID, '目标推进已停（本轮未报继续）')
+    finishGoal(turn.threadID, '目标推进已停（本轮未报继续）', 'paused')
     return
   }
 
   const context = contexts.get(turn.threadID)
   if (!context) {
     console.warn('[agent/goal-continue] 缺少轮次上下文，停止后台推进:', turn.threadID)
-    finishGoal(turn.threadID, '目标推进已停（上下文缺失）')
+    finishGoal(turn.threadID, '目标推进已停（上下文缺失）', 'paused')
     return
   }
 
   if (!advanceGoalRun(turn.threadID)) {
-    finishGoal(turn.threadID, `已达目标推进上限（${goal.budget} 轮）`)
+    // advance 已写 exhausted，只通知，勿再 pause
+    void notifyTurnDone(turn.threadID, false, `已达目标推进上限（${goal.budget} 轮）`)
     return
   }
   const next = readGoalRun(turn.threadID)
