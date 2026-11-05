@@ -13,7 +13,7 @@ import { switchWorkspace } from '@/views/code/lib/workspace-switch.ts'
 import { ExplorerTree } from '@/views/code/workspace/overlay/explorer-tree.tsx'
 import { makeTreeKey } from '@/views/code/workspace/overlay/explorer-tree-lib.ts'
 
-function Navigation() {
+function Navigation(props: { isVisible?: boolean }) {
   const roots = useCodeStore(function (state) {
     return state.roots
   })
@@ -81,6 +81,7 @@ function Navigation() {
     <ExplorerTree
       roots={roots}
       activeKey={activeKey}
+      isVisible={props.isVisible !== false}
     />
   )
 }

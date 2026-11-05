@@ -107,7 +107,15 @@ function Sidebar() {
         ) : null}
       </SidebarHeader>
       <div className="min-h-0 flex-1 overflow-hidden">
-        {sidebarView === 'explorer' ? <Navigation /> : null}
+        {/*
+         * 文件树常驻、只切显隐：从「源代码管理」切回资源管理器不再重新挂载。
+         * 之前每次切回都要把「根 + 全部已展开目录」重读一遍（readDir × N，
+         * 每个结果还触发一次整树 setState），大工作区上就是「点一下卡几秒」。
+         * 隐藏期间 ExplorerTree 按 isVisible 跳过读盘，切回来再刷一次。
+         */}
+        <div className={sidebarView === 'explorer' ? 'h-full min-h-0' : 'hidden'}>
+          <Navigation isVisible={sidebarView === 'explorer'} />
+        </div>
         {sidebarView === 'scm' ? <ScmSurface /> : null}
       </div>
     </aside>

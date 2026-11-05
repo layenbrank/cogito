@@ -2,7 +2,7 @@
  * Code 工作区 · Explorer 文件树（多根）
  */
 import { cn } from 'cn'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ContextMenu } from '@/components/contextmenu'
@@ -43,7 +43,24 @@ import { findFileTreeNode, updateFileTreeNodes } from '@/views/workspace/overlay
 interface ExplorerTreeProps {
   roots: string[]
   activeKey: string | null
+  /**
+   * 侧栏当前是否显示文件树。
+   *
+   * 侧栏在「资源管理器 / 源代码管理 / 搜索」之间切换时，文件树不再卸载重挂
+   * （见 workspace/sidebar.tsx），隐藏期间就不该继续读盘 —— 切走时只置脏，
+   * 切回来由依赖变化触发一次刷新。
+   */
+  isVisible?: boolean
 }
+
+/**
+ * 一次刷新最多重读多少个目录。
+ *
+ * 已展开目录多起来时，原来的实现是对「根 + 全部已展开目录」逐个串行 `readDir`，
+ * 每个结果都触发一次整棵树 setState —— 几十个目录就是几十次 IPC + 几十次整树重渲染。
+ * 上限之内按深度从浅到深铺，超出的留到下一次 treeRevision。
+ */
+const MAX_REFRESH_KEYS = 24
 
 function findFolderName(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).pop() ?? '工作区'
@@ -98,11 +115,23 @@ function ExplorerTree(props: ExplorerTreeProps) {
   const [renameTarget, setRenameTarget] = useState<ExplorerRenameTarget | null>(null)
   const [newTarget, setNewTarget] = useState<ExplorerNewTarget | null>(null)
 
+  /*
+   * 回调必须保持引用稳定：`FileTreeItem` 的自定义 memo 会比较 onFetch / onSelect /
+   * onExpandChange，只要它们每帧新建，任何一次 setTreeNodes 都会退化成整树重渲染
+   * （刷新时十几个目录 = 十几次整树渲染）。可变数据走 ref 读最新值。
+   */
+  const rootsRef = useRef(props.roots)
+  rootsRef.current = props.roots
+  const treeNodesRef = useRef(treeNodes)
+  treeNodesRef.current = treeNodes
+  const isHiddenVisibleRef = useRef(isHiddenVisible)
+  isHiddenVisibleRef.current = isHiddenVisible
+
   // 根集合变化：重建根节点（展开态已由 switchWorkspace 清空）
   useEffect(
     function () {
       setTreeNodes(
-        props.roots.map(function (root, index) {
+        rootsRef.current.map(function (root, index) {
           return {
             title: `${findFolderName(root)} (工作区)`,
             key: makeTreeKey(index, ''),
@@ -112,71 +141,86 @@ function ExplorerTree(props: ExplorerTreeProps) {
       )
     },
     // roots 数组每次渲染都是新引用：用拼接值做稳定依赖
-    [rootsKey, props.roots]
+    [rootsKey]
   )
 
-  function onSelect(node: FileTreeNode) {
+  const onSelect = useCallback(function (node: FileTreeNode) {
     void (async function () {
       const { relativePath } = parseTreeKey(node.key)
       if (!relativePath) return
       if (node.isDirectory || !node.isLeaf) return
-      const absolute = findAbsoluteFromKey(props.roots, node.key)
+      const absolute = findAbsoluteFromKey(rootsRef.current, node.key)
       if (!absolute) return
       await openAbsolutePath(absolute)
     })()
-  }
+  }, [])
 
-  function onExpandChange(key: string, open: boolean) {
-    toToggleExpanded(key, open)
-    if (!open) return
-    const node = findFileTreeNode(treeNodes, key)
-    if (node) void onFetch(node)
-  }
-
-  async function onFetch(node: FileTreeNode) {
-    if (node.children) return
+  const onFetch = useCallback(function (node: FileTreeNode): Promise<void> {
+    if (node.children) return Promise.resolve()
     const { rootIndex, relativePath } = parseTreeKey(node.key)
-    const root = props.roots[rootIndex]
-    if (!root) return
-    try {
-      const entries = await listWorkspaceEntries(root, relativePath, {
-        isHiddenVisible
+    const root = rootsRef.current[rootIndex]
+    if (!root) return Promise.resolve()
+    return listWorkspaceEntries(root, relativePath, {
+      isHiddenVisible: isHiddenVisibleRef.current
+    })
+      .then(function (entries) {
+        const nextChildren: FileTreeNode[] = entries.map(function (entry) {
+          return toTreeNode(entry, rootIndex)
+        })
+        setTreeNodes(function (origin) {
+          return updateFileTreeNodes(origin, node.key, nextChildren)
+        })
       })
-      const nextChildren: FileTreeNode[] = entries.map(function (entry) {
-        return toTreeNode(entry, rootIndex)
+      .catch(function (error) {
+        toast.error(error instanceof Error ? error.message : '读取目录失败')
       })
-      setTreeNodes(function (origin) {
-        return updateFileTreeNodes(origin, node.key, nextChildren)
-      })
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '读取目录失败')
-    }
-  }
+  }, [])
+
+  const onExpandChange = useCallback(
+    function (key: string, open: boolean) {
+      toToggleExpanded(key, open)
+      if (!open) return
+      const node = findFileTreeNode(treeNodesRef.current, key)
+      if (node) void onFetch(node)
+    },
+    [toToggleExpanded, onFetch]
+  )
 
   // 磁盘变化后重读「各根 + 已展开目录」，不再靠重挂载整棵树（否则展开状态全丢）
   useEffect(
     function () {
+      // 侧栏切到「源代码管理 / 搜索」时不读盘：树保留在内存里，切回来再刷
+      if (props.isVisible === false) return
       let cancelled = false
+      const roots = rootsRef.current
       const currentExpanded = useCodeStore.getState().expandedKeys
       const currentExpandedSet = new Set(currentExpanded)
-      const rootKeys = props.roots.map(function (_root, index) {
+      const rootKeys = roots.map(function (_root, index) {
         return makeTreeKey(index, '')
       })
-      const keys = [...rootKeys, ...currentExpanded].sort(function (a, b) {
-        return countDepth(a) - countDepth(b)
-      })
+      // 去重 + 深度优先：先让根出来，超量部分留给下一次 treeRevision
+      const keys = [...rootKeys, ...currentExpanded]
+        .filter(function (key, index, list) {
+          return list.indexOf(key) === index
+        })
+        .sort(function (a, b) {
+          return countDepth(a) - countDepth(b)
+        })
+        .slice(0, MAX_REFRESH_KEYS)
 
       setTreeNodes(function (origin) {
         return pruneCollapsedNodes(origin, currentExpandedSet)
       })
 
-      function refreshKey(index: number) {
-        if (cancelled || index >= keys.length) return
-        const key = keys[index]
+      let cursor = 0
+      function refreshNext() {
+        if (cancelled || cursor >= keys.length) return
+        const key = keys[cursor]
+        cursor += 1
         const { rootIndex, relativePath } = parseTreeKey(key)
-        const root = props.roots[rootIndex]
+        const root = roots[rootIndex]
         if (!root) {
-          refreshKey(index + 1)
+          refreshNext()
           return
         }
         void listWorkspaceEntries(root, relativePath, { isHiddenVisible })
@@ -188,21 +232,22 @@ function ExplorerTree(props: ExplorerTreeProps) {
             setTreeNodes(function (origin) {
               return updateFileTreeNodes(origin, key, nextChildren)
             })
-            refreshKey(index + 1)
+            refreshNext()
           })
           .catch(function (error) {
             if (cancelled) return
             console.debug('[code] refresh tree node skipped', key, error)
-            refreshKey(index + 1)
+            refreshNext()
           })
       }
 
-      refreshKey(0)
+      refreshNext()
       return function () {
         cancelled = true
       }
     },
-    [treeRevision, rootsKey, isHiddenVisible, props.roots]
+    // props.roots 每次渲染都是新数组：改成读 ref，避免「换引用就整套重读一遍」
+    [treeRevision, rootsKey, isHiddenVisible, props.isVisible]
   )
 
   async function onConfirmCreate() {
