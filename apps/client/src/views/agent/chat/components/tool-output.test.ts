@@ -1,8 +1,21 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { invokeMock } = vi.hoisted(function () {
+  return {
+    invokeMock: vi.fn(function (): Promise<{ text: string }> {
+      return Promise.resolve({ text: 'from-rust' })
+    })
+  }
+})
+
+vi.mock('@tauri-apps/api/core', function () {
+  return { invoke: invokeMock }
+})
 
 import {
   collapseOutput,
   formatTerminalText,
+  normalizeToolOutput,
   TERMINAL_PREVIEW_LINES,
   toCodeSource,
   toShellCommand
@@ -80,5 +93,33 @@ describe('formatTerminalText', function () {
     expect(formatTerminalText('D:\\Documents\\workspace\\front')).toBe(
       'D:\\Documents\\workspace\\front'
     )
+  })
+})
+
+describe('normalizeToolOutput', function () {
+  beforeEach(function () {
+    invokeMock.mockClear()
+  })
+
+  it('结果还没到（undefined）时不打 IPC，也不刷 warn', async function () {
+    Reflect.set(window, '__TAURI_INTERNALS__', {})
+    try {
+      expect(await normalizeToolOutput(undefined)).toBe('')
+      expect(invokeMock).not.toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(window, '__TAURI_INTERNALS__')
+    }
+  })
+
+  it('有结果时走 Rust 命令并取 text', async function () {
+    Reflect.set(window, '__TAURI_INTERNALS__', {})
+    try {
+      expect(await normalizeToolOutput('a\nb')).toBe('from-rust')
+      expect(invokeMock).toHaveBeenCalledWith('agentTool:normalizeOutput', {
+        params: { value: 'a\nb' }
+      })
+    } finally {
+      Reflect.deleteProperty(window, '__TAURI_INTERNALS__')
+    }
   })
 })

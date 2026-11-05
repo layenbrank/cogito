@@ -188,6 +188,10 @@ pub fn agentToolLineDiff(params: LineDiffP) -> CommandResult<LineDiffR> {
 #[serde(rename_all = "camelCase")]
 pub struct NormalizeOutputP {
     /// 原始工具输出（字符串或任意 JSON）
+    ///
+    /// 缺省按 `null` 处理：前端在「结果还没到」时传的是 `{ value: undefined }`，
+    /// JSON 序列化会把这个键整个丢掉；没有 default 就会报 `missing field value`。
+    #[serde(default)]
     pub value: Value,
     /// 截尾字符上限；缺省不截
     #[serde(default)]
@@ -333,6 +337,18 @@ mod tests {
         assert_eq!(diff.deletions, 1);
         assert!(diff.lines.iter().any(|line| line.kind == DiffLineKind::Removed));
         assert!(diff.lines.iter().any(|line| line.kind == DiffLineKind::Added));
+    }
+
+    #[test]
+    fn normalize_params_tolerate_missing_value() {
+        // 前端在「结果还没到」时会把 value 这个键整个丢掉（JSON 里 undefined 不可序列化），
+        // 缺省必须能反序列化成 null，否则每次渲染都会报 `missing field value`。
+        let params: NormalizeOutputP = serde_json::from_str("{}").expect("missing value 应可反序列化");
+        assert_eq!(normalize_output(&params.value, params.max_chars), "");
+
+        let params: NormalizeOutputP =
+            serde_json::from_str("{\"value\":\"x\"}").expect("显式 value 仍可反序列化");
+        assert_eq!(normalize_output(&params.value, params.max_chars), "x");
     }
 
     #[test]

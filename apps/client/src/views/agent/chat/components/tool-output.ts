@@ -210,12 +210,23 @@ function collapseOutput(
 
 /**
  * 规范化工具输出：Tauri 走 Rust（去 ANSI / 解嵌套 JSON / 可选截尾），否则同步回退。
+ *
+ * 同一条 warn 只在第一次真正失败时打：这个函数在工具卡每次渲染都会跑，
+ * 逐次上报会把日志刷满（`value === undefined` 那条更是每帧一次）。
  */
+let hasReportedNormalizeFallback = false
+
 async function normalizeToolOutput(
   value: unknown,
   maxChars?: number
 ): Promise<string> {
-  if (isTauriRuntime()) {
+  /*
+   * 结果还没到（工具 running）时 `value` 是 undefined，`{ value: undefined }`
+   * 经 JSON 序列化会把 value 这个键整个丢掉，Rust 侧 serde 直接报
+   * `missing field value` —— 于是每渲染一次刷一条 warn。这种空值本来就走 TS
+   * 分支，不必打 IPC，也不必进日志。
+   */
+  if (value !== undefined && isTauriRuntime()) {
     try {
       const result = await invoke<{ text: string }>(CHANNELS.AGENT_TOOL.NORMALIZE_OUTPUT, {
         params: {
@@ -225,7 +236,10 @@ async function normalizeToolOutput(
       })
       return result.text
     } catch (error) {
-      console.warn('[agent] agentTool:normalizeOutput 失败，回退 TS:', error)
+      if (!hasReportedNormalizeFallback) {
+        hasReportedNormalizeFallback = true
+        console.warn('[agent] agentTool:normalizeOutput 失败，回退 TS:', error)
+      }
     }
   }
   const text = formatTerminalText(value)
