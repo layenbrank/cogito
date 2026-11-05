@@ -5,7 +5,8 @@
 import { readFileSync } from 'node:fs'
 import { open, readFile, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { PUBLIC_BASE } from '../src/public-base.ts'
 import { isPublicKey } from '../src/setup-key.ts'
@@ -58,12 +59,22 @@ function findAuthKey(explicitPath: string | undefined): string {
   if (fromEnv) {
     return fromEnv
   }
+  // 仓库内约定：`apps/distribution/.dev.vars`（已 gitignore）直接放裸密钥或 `AUTH_KEY_SECRET=…`。
+  // 有它就不用每次给 `publish:client` / `upload` 带 `--auth-key-file` —— 这两条命令的
+  // 最常见失败就是「密钥在 .dev.vars 里、脚本却只认环境变量」。
+  const devVars = join(dirname(fileURLToPath(import.meta.url)), '..', '.dev.vars')
+  try {
+    const fromDevVars = parseAuthKey(readFileSync(devVars, 'utf8'))
+    if (fromDevVars) return fromDevVars
+  } catch {
+    // 没有这个文件就继续走 %TEMP% 兜底
+  }
   const fallback = join(tmpdir(), 'cogito-auth-key.txt')
   try {
     return parseAuthKey(readFileSync(fallback, 'utf8'))
   } catch {
     throw new Error(
-      `没找到 AUTH_KEY_SECRET：用 --auth-key-file 指定文件，或设环境变量，或写进 ${fallback}`
+      `没找到 AUTH_KEY_SECRET：设环境变量、用 --auth-key-file 指定文件，或写到 ${devVars} / ${fallback}`
     )
   }
 }
