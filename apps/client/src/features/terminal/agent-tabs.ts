@@ -142,10 +142,13 @@ async function ensureTerminalTab(cwd: string | null): Promise<void> {
   store.openPanel()
 
   function settleActive(next: ReturnType<typeof useTerminalStore.getState>) {
-    // 已有 tabs 但没有 active（刷新 / 中断后常见）→ 右栏挂了壳却空白
-    if (!next.activeId && next.tabs.length > 0) {
-      next.writeActive(next.tabs[0].id)
-    }
+    // 已有 tabs 但没有 active（刷新 / 中断后常见），或者 active 指向已经关掉的 tab
+    // → 右栏挂了壳却一个视图都不 active，面板空白
+    const activeAlive = next.tabs.some(function (tab) {
+      return tab.id === next.activeId
+    })
+    const first = next.tabs[0]
+    if (!activeAlive && first) next.writeActive(first.id)
   }
 
   if (store.tabs.length > 0) {
