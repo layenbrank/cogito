@@ -14,6 +14,8 @@ import {
 import { adoptAppearance, watchAppearance } from '@/features/window/appearance'
 import { adoptShellMode } from '@/features/window/shell-mode'
 import { installLogBridge } from '@/lib/diagnostics/log-bridge.ts'
+import { installLongTaskMonitor } from '@/lib/perf/longtask.ts'
+import { installBrowserChipLabels } from '@/features/browser/chip-labels'
 import { reportPendingCrashes } from '@/lib/diagnostics/crash-report.ts'
 import { useDictStore } from '@/stores/dict'
 import { installExceptionReporting, reportUnknown } from '@/utils/exception-report.ts'
@@ -34,6 +36,9 @@ addCollection(LucideIconify)
 // 顺序要紧：先把 console/onerror 送进 Rust 日志，再装异常上报 ——
 // 这样上报自身打的 warn 也会落在 logs/cogito.log 里
 installLogBridge()
+installBrowserChipLabels()
+// 长任务观测：dev 打 warn、生产只计数（window.__cogitoPerf），必须在首屏之前装
+installLongTaskMonitor()
 installExceptionReporting()
 // 右栏自载 / ?embedded=1：尽早打标，避免后续 bootstrap 误当主窗
 adoptShellMode()

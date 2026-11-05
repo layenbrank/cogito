@@ -6,11 +6,14 @@
  * - **DOM 是视图**：`renderDocument` 从 atoms 重建，`readDom` 从 DOM 反推 atoms。
  *   用户敲键时走浏览器默认行为（IME / 拼写检查 / 撤销栈都保留），
  *   `onInput` 之后才把 DOM 读回 atoms 并 push 给 runtime。
- * - **光标**用「逻辑 offset」表示，落在 chip 上时按整块长度算，
- *   所以 `:browser[browser-2]` 在视觉上是一个小方块，但在 offset 坐标里占 19 格。
+ * - **光标**用「逻辑 offset」表示，落在 chip 上时按整块长度算：
+ *   `@browser-<uuid>` 视觉上是一个小方块，但在 offset 坐标里占整串长度。
  *
- * 键位、IME、粘贴、触发器联动全部集中在这个文件，壳上的 `onKeyDownCapture`
+ * 键位、IME、粘贴、复制、触发器联动全部集中在这个文件，壳上的 `onKeyDownCapture`
  * （原 `useComposerQueueKeyCapture`）已并入，避免两条 Enter 决策路径。
+ *
+ * 剪贴板：`text/plain` 就是线格式（`@<id>`），另有私有 MIME 携带 chip 的
+ * type / label / id —— 同框内复制粘贴语义不丢，粘到记事本再粘回则降级成 `@<id>` 并被重新识别。
  */
 import { useAui, useAuiState } from '@assistant-ui/react'
 import { cn } from 'cn'
@@ -19,8 +22,10 @@ import { useCallback, useEffect, useRef, type ClipboardEvent, type CompositionEv
 import {
   atomLength,
   buildChip,
+  deriveChipLabel,
   documentLength,
   findAtomEndingAt,
+  findAtomStartingAt,
   locateOffset,
   parseDocument,
   parseInlineText,
@@ -28,12 +33,20 @@ import {
   replaceRange,
   serializeDocument,
   sliceAtoms,
+  splitChipLabel,
+  toChipType,
   type ComposerAtom,
   type ComposerChipAtom
 } from './composer-document'
 import { useComposerTrigger, type ComposerEditRequest } from './composer-trigger'
 
 const CHIP_CLASS = 'aui-composer-chip'
+/** 目录段可截断、末段保完整：窄窗口里得到「…/chat.tsx」而不是「apps/clien…」 */
+const CHIP_DIR_CLASS = 'min-w-0 truncate'
+const CHIP_BASE_CLASS = 'shrink-0'
+
+/** 同框复制粘贴时携带 chip 语义的私有 MIME（text/plain 只有线格式） */
+const COMPOSER_CLIPBOARD_MIME = 'application/x-cogito-composer'
 
 /** 组合输入期间按下的键码（Chrome 在 IME 组合时会给 keyCode 229）。 */
 const IME_KEY_CODE = 229
@@ -122,8 +135,21 @@ function renderChip(atom: ComposerChipAtom) {
   span.dataset.chipId = atom.id
   span.contentEditable = 'false'
   span.className = CHIP_CLASS
-  span.textContent = atom.label
-  // 展示可能是短名；悬停给出完整 id（文件 / 技能的相对路径）
+  // 两段式：目录段可截断、末段完整
+  const { dir, base } = splitChipLabel(atom.type, atom.label, atom.id)
+  if (dir.length > 0) {
+    const dirNode = document.createElement('span')
+    dirNode.dataset.slot = 'chip-dir'
+    dirNode.className = CHIP_DIR_CLASS
+    dirNode.textContent = dir
+    span.appendChild(dirNode)
+  }
+  const baseNode = document.createElement('span')
+  baseNode.dataset.slot = 'chip-base'
+  baseNode.className = CHIP_BASE_CLASS
+  baseNode.textContent = base
+  span.appendChild(baseNode)
+  // 悬停给出完整 id（引用路径 / 浏览器 tab / 技能名）
   if (atom.id.length > 0) span.title = atom.id
   return span
 }
@@ -213,6 +239,50 @@ function readSelectionRange(root: HTMLElement, atoms: readonly ComposerAtom[]) {
 
 function readSelectionOffset(root: HTMLElement, atoms: readonly ComposerAtom[]) {
   return readSelectionRange(root, atoms)?.start ?? null
+}
+
+/** 剪贴板载荷：只带 chip 的语义字段，不带 `serialized`（由 buildChip 重算）。 */
+function toClipboardPayload(atoms: readonly ComposerAtom[]) {
+  return atoms.map(function (atom) {
+    if (atom.kind === 'chip') {
+      return { kind: 'chip', type: atom.type, label: atom.label, id: atom.id }
+    }
+    if (atom.kind === 'break') return { kind: 'break' }
+    return { kind: 'text', text: atom.text }
+  })
+}
+
+/** 私有 MIME → atoms；结构不合法时返回 `null`，调用方退回纯文本解析。 */
+function fromClipboardPayload(raw: string): ComposerAtom[] | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (!Array.isArray(parsed)) return null
+
+  const atoms: ComposerAtom[] = []
+  for (const item of parsed) {
+    if (typeof item !== 'object' || item === null) return null
+    const row = item as { kind?: unknown; type?: unknown; label?: unknown; id?: unknown; text?: unknown }
+    if (row.kind === 'chip' && typeof row.id === 'string' && row.id.length > 0) {
+      const type = typeof row.type === 'string' && row.type.length > 0 ? row.type : toChipType(row.id)
+      const label = typeof row.label === 'string' && row.label.length > 0 ? row.label : deriveChipLabel(type, row.id)
+      atoms.push(buildChip(type, label, row.id))
+      continue
+    }
+    if (row.kind === 'break') {
+      atoms.push(...parseInlineText('\n'))
+      continue
+    }
+    if (row.kind === 'text' && typeof row.text === 'string') {
+      atoms.push(...parseInlineText(row.text))
+      continue
+    }
+    return null
+  }
+  return atoms
 }
 
 interface ComposerInputProps {
@@ -415,19 +485,34 @@ function ComposerInput(props: ComposerInputProps) {
         }
       }
 
-      if (event.key !== 'Enter' || event.shiftKey) return
-
-      const root = editorRef.current
-      const cursor = root ? readSelectionOffset(root, atomsRef.current) : null
-      if (cursor !== null) {
-        const ending = findAtomEndingAt(atomsRef.current, cursor)
-        // 光标紧跟 chip：整块删除（不同浏览器对 contenteditable=false 的行为不一致）
-        if (ending?.atom.kind === 'chip') {
-          event.preventDefault()
-          commit(replaceRange(atomsRef.current, ending.start, cursor, []), ending.start)
-          return
+      // chip 整块删除：contenteditable=false 的默认行为各浏览器不一致，自己算
+      if (event.key === 'Backspace' || event.key === 'Delete') {
+        const root = editorRef.current
+        const atoms = atomsRef.current
+        const cursor = root ? readSelectionRange(root, atoms) : null
+        if (cursor !== null && cursor.start === cursor.end) {
+          if (event.key === 'Backspace') {
+            const ending = findAtomEndingAt(atoms, cursor.start)
+            if (ending?.atom.kind === 'chip') {
+              event.preventDefault()
+              commit(replaceRange(atoms, ending.start, cursor.start, []), ending.start)
+              return
+            }
+          } else {
+            const starting = findAtomStartingAt(atoms, cursor.start)
+            if (starting?.atom.kind === 'chip') {
+              const end = starting.start + atomLength(starting.atom)
+              event.preventDefault()
+              commit(replaceRange(atoms, starting.start, end, []), starting.start)
+              return
+            }
+          }
         }
+        // 普通字符删除交回浏览器（含跨 chip 的选区删除）
+        return
       }
+
+      if (event.key !== 'Enter' || event.shiftKey) return
 
       if (submitMode === 'ctrlEnter' && !event.ctrlKey && !event.metaKey) return
       if (submitMode === 'enter' && (event.ctrlKey || event.metaKey)) return
@@ -447,8 +532,13 @@ function ComposerInput(props: ComposerInputProps) {
     function (event: ClipboardEvent<HTMLDivElement>) {
       // 带文件的粘贴交给壳（ComposerPaste → attachPastedFiles）
       if ((event.clipboardData?.files.length ?? 0) > 0) return
-      const plain = event.clipboardData?.getData('text/plain')
-      if (plain === undefined || plain.length === 0) return
+
+      // 同框复制优先：私有 MIME 保住了 chip 的语义
+      const payload = event.clipboardData?.getData(COMPOSER_CLIPBOARD_MIME) ?? ''
+      const fromPayload = payload.length > 0 ? fromClipboardPayload(payload) : null
+      const plain = event.clipboardData?.getData('text/plain') ?? ''
+      const insert = fromPayload ?? (plain.length > 0 ? parseDocument(plain) : null)
+      if (insert === null || insert.length === 0) return
       event.preventDefault()
 
       const root = editorRef.current
@@ -457,23 +547,25 @@ function ComposerInput(props: ComposerInputProps) {
       const range = readSelectionRange(root, atoms)
       const start = range?.start ?? documentLength(atoms)
       const end = range?.end ?? start
-      commit(replaceRange(atoms, start, end, parseInlineText(plain)), start + plain.length)
+      commit(replaceRange(atoms, start, end, insert), start + documentLength(insert))
     },
     [commit]
   )
 
   /**
-   * 复制时把 chip 写成序列化文本，否则带出去只有 `browser-2` 这串标签，
-   * 粘到别处 / 粘贴回来都会丢掉 directive 语义。
+   * 复制：`text/plain` 写线格式（`@<id>`），另存一份私有 MIME 保住 chip 语义；
+   * 只带 `text/plain` 的话，粘回来只剩一段裸文本。
    */
   const handleCopy = useCallback(function (event: ClipboardEvent<HTMLDivElement>) {
     const root = editorRef.current
     if (!root) return
     const range = readSelectionRange(root, atomsRef.current)
     if (range === null || range.start === range.end) return
-    const text = serializeDocument(sliceAtoms(atomsRef.current, range.start, range.end))
+    const sliced = sliceAtoms(atomsRef.current, range.start, range.end)
+    if (sliced.length === 0) return
     event.preventDefault()
-    event.clipboardData.setData('text/plain', text)
+    event.clipboardData.setData('text/plain', serializeDocument(sliced))
+    event.clipboardData.setData(COMPOSER_CLIPBOARD_MIME, JSON.stringify(toClipboardPayload(sliced)))
   }, [])
 
   const handleCompositionStart = useCallback(function () {
@@ -550,5 +642,5 @@ function ComposerInput(props: ComposerInputProps) {
   )
 }
 
-export { CHIP_CLASS, ComposerInput }
+export { CHIP_CLASS, COMPOSER_CLIPBOARD_MIME, ComposerInput }
 export type { ComposerInputProps }

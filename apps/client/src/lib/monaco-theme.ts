@@ -7,7 +7,7 @@
  *   避免留下两套可能过期的配色
  * - 主色跟随 `--primary`（用户可在外观设置里改），语法高亮用固定色板保证可读性
  */
-import * as monaco from 'monaco-editor'
+import * as monaco from 'monaco-editor/editor/editor.api'
 
 import {
   flattenColor,

@@ -31,6 +31,9 @@ pub async fn run(db: &Connection) -> Result<(), DbErr> {
     // `agent_plan` / `agent_goal` 同样是 0001 之后追加的表：老库已打过 0001 标记，
     // 不加这层兜底就永远查不到这两张表（`no such table`）。
     ensure_agent_plan(db).await?;
+    // composer 队列同样是 0001 之后追加的独立新表（零 ALTER、不改在用表）：
+    // 老库已打过 0001 标记，不加这层兜底就会 `no such table: agent_composer_queue`。
+    ensure_composer_queue(db).await?;
     Ok(())
 }
 
@@ -38,6 +41,15 @@ pub async fn run(db: &Connection) -> Result<(), DbErr> {
 /// 补建计划 / 目标档案表（已存在则跳过；语句全部幂等）。
 async fn ensure_agent_plan(db: &Connection) -> Result<(), DbErr> {
     for statement in crate::migrations::agent_plan_schema::statements() {
+        db.execute(Statement::from_string(DatabaseBackend::Sqlite, statement))
+            .await?;
+    }
+    Ok(())
+}
+
+/// 补建 composer 队列表（已存在则跳过；语句全部幂等）。
+async fn ensure_composer_queue(db: &Connection) -> Result<(), DbErr> {
+    for statement in crate::migrations::composer_queue_schema::statements() {
         db.execute(Statement::from_string(DatabaseBackend::Sqlite, statement))
             .await?;
     }
@@ -67,7 +79,8 @@ pub async fn check(db: &Connection) -> Result<(), DbErr> {
 mod tests {
     use super::*;
     use crate::entity::{
-        AgentMessageEntity, AgentProviderEntity, AgentSessionEntity, AgentUsageEntity,
+        AgentComposerQueueEntity, AgentMessageEntity, AgentProviderEntity,
+        AgentSessionEntity, AgentUsageEntity,
         AgentGoalEntity, AgentPlanEntity,
         AgentWorkspaceEntity, AgentWorkspaceFolderEntity, AlbumEntity, AssetEntity, AutomationEntity,
         AutomationRunEntity, BookmarkEntity,
@@ -153,6 +166,30 @@ mod tests {
         )
         .await;
         assert_eq!(unique, 2, "一个会话只允许一份计划 / 一个目标");
+    }
+
+    /// composer 队列：独立新表（零 ALTER），新库由基线建，老库由 `ensure_composer_queue()` 兜底。
+    #[tokio::test]
+    async fn composer_queue_table_exists() {
+        let db = fresh().await;
+        let tables = scalar_i64(
+            &db,
+            "SELECT count(*) AS v FROM sqlite_master WHERE type='table' AND name='agent_composer_queue'",
+        )
+        .await;
+        assert_eq!(tables, 1, "agent_composer_queue 应该存在");
+        let columns = scalar_i64(
+            &db,
+            "SELECT count(*) AS v FROM pragma_table_info('agent_composer_queue')",
+        )
+        .await;
+        assert_eq!(columns, 8, "队列表必须是 8 列");
+        let index = scalar_i64(
+            &db,
+            "SELECT count(*) AS v FROM sqlite_master WHERE type='index' AND name='idx_agent_composer_queue_sessionID'",
+        )
+        .await;
+        assert_eq!(index, 1, "按会话取队列必须有索引");
     }
 
     #[tokio::test]
@@ -510,6 +547,10 @@ mod tests {
                 entity_columns::<SignboardTaggedEntity>(),
             ),
             ("agent_message", entity_columns::<AgentMessageEntity>()),
+            (
+                "agent_composer_queue",
+                entity_columns::<AgentComposerQueueEntity>(),
+            ),
             ("agent_goal", entity_columns::<AgentGoalEntity>()),
             ("agent_plan", entity_columns::<AgentPlanEntity>()),
             ("agent_provider", entity_columns::<AgentProviderEntity>()),

@@ -12,11 +12,20 @@ import { requestCloseTabs } from '@/views/code/lib/close-tabs.ts'
 import { disposeAllModels, findModel } from '@/views/code/lib/monaco-models.ts'
 import { resetWorkspaceTypescriptLibs } from '@/views/code/lib/monaco-types.ts'
 import { clearViewStates } from '@/views/code/lib/monaco-view-state.ts'
-import { openAbsolutePath, reloadFromDisk } from '@/views/code/lib/open-file.ts'
-import { findRelativePath, isPathInsideRoot } from '@/views/code/lib/path.ts'
+import {
+  openAbsolutePath,
+  registerTabWithoutContent,
+  reloadFromDisk
+} from '@/views/code/lib/open-file.ts'
+import { findRelativePath, isPathInsideRoot, isSamePath } from '@/views/code/lib/path.ts'
 
 /** 依赖安装 / git 操作会制造海量事件，递归 watch 必须先过滤掉这些目录 */
 const IGNORED_WATCH_SEGMENT = /[\\/](node_modules|\.git|dist|build|\.turbo)[\\/]/
+
+/** 文件树刷新节流：树只做轻量重建，250ms 足够 */
+const TREE_BUMP_DELAY_MS = 250
+/** git status 是子进程 + 全仓扫描，比树贵一个量级，单独一条更慢的链 */
+const GIT_REFRESH_DELAY_MS = 1200
 
 function useCodeWorkspaceEffects(input: {
   workspaceRoot: string | null
@@ -63,26 +72,31 @@ function useCodeWorkspaceEffects(input: {
         )
       }
       const paths = prefs.tabPaths.filter(keep)
-      if (prefs.activePath && keep(prefs.activePath) && !paths.includes(prefs.activePath)) {
-        paths.push(prefs.activePath)
+      const activePath = prefs.activePath && keep(prefs.activePath) ? prefs.activePath : null
+      if (activePath && !paths.includes(activePath)) paths.push(activePath)
+
+      // 首屏只读 active tab 的全文：其余只登记标签，正文等激活时惰性读
+      for (const path of paths) {
+        if (cancelled) return
+        if (activePath !== null && isSamePath(path, activePath)) continue
+        try {
+          if (!(await exists(path))) continue
+          registerTabWithoutContent(path)
+        } catch (error) {
+          console.warn('[code] restore tab skipped', path, error)
+        }
       }
-      await Promise.allSettled(
-        paths.map(async function (path) {
-          if (cancelled) return
-          try {
-            const ok = await exists(path)
-            if (!ok) return
-            await openAbsolutePath(path)
-          } catch (error) {
-            console.warn('[code] restore tab skipped', path, error)
-          }
-        })
-      )
       if (cancelled) return
-      if (cancelled || !prefs.activePath) return
+      if (activePath === null) return
+      try {
+        if (await exists(activePath)) await openAbsolutePath(activePath)
+      } catch (error) {
+        console.warn('[code] restore active tab skipped', activePath, error)
+      }
+      if (cancelled) return
       const next = useCodeStore.getState()
       const active = next.tabs.find(function (tab) {
-        return tab.path === prefs.activePath
+        return tab.path === activePath
       })
       if (active) next.toActivateTab(active.id)
     })()
@@ -153,13 +167,54 @@ function useCodeWorkspaceEffects(input: {
     [activeTab?.kind, activeTab?.path]
   )
 
-  // 多根 watch：每个根一个递归监听，事件合并去抖；忽略 node_modules / .git / dist
+  /**
+   * 多根递归 watch。
+   *
+   * 树刷新与 git 刷新是**两条独立节流链**：一次保存只重建一次文件树（250ms），
+   * 而 `git status` 是子进程 + 全仓扫描，慢一档（1200ms）且窗口不可见时只置脏标记，
+   * 回前台补一次 —— 否则「保存一次 → 两枪全量工作」会把主线程钉住。
+   */
   useEffect(
     function () {
       if (roots.length === 0) return
       let disposed = false
-      let debounceTimer = 0
+      let treeTimer = 0
+      let gitTimer = 0
+      let isTreePending = false
+      let isGitPending = false
+      let isGitDirty = false
       const unwatchers: (() => void)[] = []
+
+      function flushGit() {
+        gitTimer = 0
+        isGitPending = false
+        if (disposed) return
+        if (document.hidden) {
+          // 不可见时不做全仓扫描，等 visibilitychange 补
+          isGitDirty = true
+          return
+        }
+        isGitDirty = false
+        void useCodeGitStore.getState().toInvalidateAndRefresh()
+      }
+
+      /** 树 bump 幂等合流：窗口期内的后续事件不再排队，只等这一次落地 */
+      function scheduleTreeBump() {
+        if (isTreePending) return
+        isTreePending = true
+        treeTimer = window.setTimeout(function () {
+          treeTimer = 0
+          isTreePending = false
+          if (disposed) return
+          toBumpTree()
+        }, TREE_BUMP_DELAY_MS)
+      }
+
+      function scheduleGitRefresh() {
+        if (isGitPending) return
+        isGitPending = true
+        gitTimer = window.setTimeout(flushGit, GIT_REFRESH_DELAY_MS)
+      }
 
       function onFsEvent(event: { paths?: string[] }) {
         if (disposed) return
@@ -172,13 +227,17 @@ function useCodeWorkspaceEffects(input: {
         ) {
           return
         }
-        window.clearTimeout(debounceTimer)
-        debounceTimer = window.setTimeout(function () {
-          if (disposed) return
-          toBumpTree()
-          void useCodeGitStore.getState().toInvalidateAndRefresh()
-        }, 350)
+        scheduleTreeBump()
+        scheduleGitRefresh()
       }
+
+      function onVisibilityChange() {
+        if (document.hidden || !isGitDirty) return
+        isGitDirty = false
+        void useCodeGitStore.getState().toInvalidateAndRefresh()
+      }
+
+      document.addEventListener('visibilitychange', onVisibilityChange)
 
       for (const root of roots) {
         void watch(root, onFsEvent, { recursive: true, delayMs: 500 })
@@ -196,7 +255,9 @@ function useCodeWorkspaceEffects(input: {
 
       return function () {
         disposed = true
-        window.clearTimeout(debounceTimer)
+        window.clearTimeout(treeTimer)
+        window.clearTimeout(gitTimer)
+        document.removeEventListener('visibilitychange', onVisibilityChange)
         for (const unwatch of unwatchers) unwatch()
       }
     },

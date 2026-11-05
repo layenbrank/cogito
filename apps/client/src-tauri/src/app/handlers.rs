@@ -244,6 +244,8 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         cogito_command::agent_goal::agentGoalToWrite,
         cogito_command::agent_goal::agentGoalToUpdate,
         cogito_command::agent_goal::agentGoalToRemove,
+        cogito_command::agent_composer_queue::agentComposerQueueToRead,
+        cogito_command::agent_composer_queue::agentComposerQueueToReplace,
         cogito_command::agent_session::agentSessionToWrite,
         cogito_command::agent_session::agentSessionToUpdate,
         cogito_command::agent_session::agentSessionToRemove,

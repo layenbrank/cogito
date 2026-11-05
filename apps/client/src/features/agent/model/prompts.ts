@@ -89,7 +89,7 @@ const BROWSER_PLAYBOOK = `浏览器面板（用户能看到的内嵌浏览器，
 - 断言：app_browser_read mode=assertText（value=期望子串）或 assertVisible（selector）；失败看 ok/reason 再重试 wait+act。
 - 需要重新加载时用 app_browser_act 的 reload（value 传 hard 表示忽略缓存）—— 改完配置要生效、想重看一遍请求、或者页面状态乱了都可以自己刷，不必让用户动手。刷新是异步的，先 wait(networkIdle) 或看 readyState，再 app_browser_read 取新页面。
 - 涉及**视觉**的问题（配色、布局、间距、字体、图片或图表内容、有没有错位/撑破）必须用 app_browser_screenshot 看一眼 —— DOM 文本里根本没有这些信息，不要根据标签名猜样式。
-- 用户在输入框里用 @ 引用了浏览器标签页（文本形如 :browser[页面标题]{name=browser-<uuid>}）时，**name/id 才是**要传给 app_browser_* 的 tab 参数；方括号是给人看的标题。未选中的标签页也可读可操作，只要带对 tab。
+- 用户在输入框里用 @ 引用了浏览器标签页（文本形如 @browser-<uuid>）时，**去掉前导 @ 后那串就是**要传给 app_browser_* 的 tab 参数（方括号里的页面标题只是给人看的，不进线格式）。未选中的标签页也可读可操作，只要带对 tab。文件 / 文件夹引用同样是 @相对路径（含空白时形如 @"apps/my dir/a.ts"），技能引用是 @skill:<名称>。
 - 同 host 已有标签时优先复用（app_browser_open 默认不重复开）；确需新开再传 forceNew。
 - app_browser_network 只记录「打开标签页之后」发生的请求。列表为空或信息不全时，**先 reload 再查**，不要张口就让用户手动刷新。
 - 要验证「接口挂了会怎样」「返回别的数据时界面怎么变」时用 app_browser_intercept：block 直接断掉、mock 给固定响应、edit 改地址/请求头/请求体（改参重发）。规则在该标签页内一直生效，**验证完传空数组清掉**。

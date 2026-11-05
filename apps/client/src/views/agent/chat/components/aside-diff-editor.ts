@@ -2,7 +2,7 @@
  * 右栏 Diff Monaco：选项对齐 Code 的 useDiffMonacoEditor，
  * 窄栏固定 inline；字号/行高跟随 editorPrefs。
  */
-import type * as Monaco from 'monaco-editor'
+import type * as Monaco from 'monaco-editor/editor/editor.api'
 import { useEffect, useRef, useState } from 'react'
 
 import { importMonaco } from '@/lib/monaco-loader.ts'

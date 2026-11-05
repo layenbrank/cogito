@@ -6,6 +6,11 @@
  *
  * WebView 刷新后 zustand tabs 会丢，但 Rust PTY 可能仍在：`bootstrapTerminalSessions`
  * 用 `Terminal.list()` 把存活会话灌回 UI；有 agent 会话时再 restore 面板（reconnect）。
+ *
+ * **单飞 + generation**：这个函数会被 `main.tsx`、右栏挂载、`selectTab`、`openTerminal`、
+ * `ensureTerminalTab`、「同步会话」按钮并发调用。早期没有去重，后一次 `Terminal.list()`
+ * 的结果会覆盖前一次，`hydrateSession` 还会把刚被标成退出的 tab 翻回运行态 ——
+ * 表现为「终端状态自己乱跳」。现在同一时刻只有一轮在跑；被 force 打断的旧轮直接丢弃结果。
  */
 import { listen } from '@tauri-apps/api/event'
 
@@ -27,6 +32,11 @@ interface BootstrapResult {
   recovered: boolean
 }
 
+interface BootstrapOptions {
+  /** 已经有在跑的一轮时，丢掉它、重新 list（「同步会话」按钮用） */
+  force?: boolean
+}
+
 function watchAgentTerminal(): void {
   void listen<AgentRunEvent>(EVENTS.TERMINAL_AGENT_RUN, function (event) {
     useTerminalStore.getState().revealAgentTab(event.payload)
@@ -36,50 +46,13 @@ function watchAgentTerminal(): void {
   })
 }
 
-/**
- * 启动 / 右栏 mount：把 Rust 存活会话灌回 tabs。
- * 有 `agent:` 会话时掀开面板（页面重载后仍可管理正在跑的命令）。
- */
-async function bootstrapTerminalSessions(): Promise<BootstrapResult> {
-  /*
-   * 冷启动时 Rust 侧车可能还没把 `terminal:list` 注册好（首次 IPC 会失败），
-   * 静默失败就等于「后台会话永远看不到」。重试几次，仍失败才降级成 warning。
-   */
+/** 冷启动时 Rust 侧车可能还没注册好命令：重试 4 次，仍失败返回 null */
+async function listTerminalSessions(): Promise<TerminalInfo[] | null> {
   let attempt = 0
   let lastError: unknown = null
   while (attempt < 4) {
     try {
-      const listed = await Terminal.list()
-      const store = useTerminalStore.getState()
-      const listedIds = new Set(
-        listed.map(function (session) {
-          return session.id
-        })
-      )
-
-      // list ↔ tabs：Rust 已不存在的 agent/restored tab 摘掉（不 kill，Hub 里本就没了）
-      for (const tab of [...store.tabs]) {
-        if ((tab.origin === 'agent' || tab.restored) && !listedIds.has(tab.id)) {
-          store.removeTab(tab.id)
-        }
-      }
-
-      for (const session of listed) {
-        store.hydrateSession({
-          id: session.id,
-          cwd: session.cwd,
-          pid: session.pid,
-          origin: session.id.startsWith('agent:') ? 'agent' : 'user'
-        })
-      }
-
-      const hasAgent = listed.some(function (session) {
-        return session.id.startsWith('agent:')
-      })
-      if (hasAgent) {
-        useTerminalStore.getState().restoreAgentPanel()
-      }
-      return { sessions: listed, recovered: hasAgent }
+      return await Terminal.list()
     } catch (error) {
       lastError = error
       console.warn('[terminal] bootstrap 暂失败，重试中:', error)
@@ -91,7 +64,70 @@ async function bootstrapTerminalSessions(): Promise<BootstrapResult> {
     }
   }
   reportCaught('terminal.bootstrapSessions', lastError, 'warning')
-  return { sessions: [], recovered: false }
+  return null
+}
+
+function applyListedSessions(listed: TerminalInfo[]): BootstrapResult {
+  const store = useTerminalStore.getState()
+  const listedIds = new Set(
+    listed.map(function (session) {
+      return session.id
+    })
+  )
+
+  // list ↔ tabs：Rust 已不存在的 agent/restored tab 摘掉（不 kill，Hub 里本就没了）
+  for (const tab of [...store.tabs]) {
+    if ((tab.origin === 'agent' || tab.restored) && !listedIds.has(tab.id)) {
+      store.removeTab(tab.id)
+    }
+  }
+
+  for (const session of listed) {
+    store.hydrateSession({
+      id: session.id,
+      cwd: session.cwd,
+      pid: session.pid,
+      origin: session.id.startsWith('agent:') ? 'agent' : 'user'
+    })
+  }
+
+  const hasAgent = listed.some(function (session) {
+    return session.id.startsWith('agent:')
+  })
+  // 后台同步只补「面板没开 / active 失效」，不抢用户正在看的页签
+  if (hasAgent) {
+    useTerminalStore.getState().restoreAgentPanel({ onlyIfHidden: true })
+  }
+  return { sessions: listed, recovered: hasAgent }
+}
+
+let bootstrapInFlight: Promise<BootstrapResult> | null = null
+/** 每发起一轮 +1；跑完发现不是最新一轮就丢弃结果 */
+let bootstrapGeneration = 0
+
+/**
+ * 启动 / 右栏 mount：把 Rust 存活会话灌回 tabs。
+ * 有 `agent:` 会话时掀开面板（页面重载后仍可管理正在跑的命令）。
+ */
+function bootstrapTerminalSessions(options: BootstrapOptions = {}): Promise<BootstrapResult> {
+  if (bootstrapInFlight && options.force !== true) return bootstrapInFlight
+
+  const generation = ++bootstrapGeneration
+  const task = (async function (): Promise<BootstrapResult> {
+    const listed = await listTerminalSessions()
+    if (listed === null) return { sessions: [], recovered: false }
+    if (generation !== bootstrapGeneration) {
+      // 有更新的一轮已经跑过：这批结果可能已经过时，直接丢弃
+      console.debug('[terminal] bootstrap 结果过期，丢弃', { generation, latest: bootstrapGeneration })
+      return { sessions: listed, recovered: false }
+    }
+    return applyListedSessions(listed)
+  })().finally(function () {
+    if (bootstrapInFlight === task) bootstrapInFlight = null
+  })
+
+  bootstrapInFlight = task
+  return task
 }
 
 /**
@@ -129,4 +165,4 @@ async function ensureTerminalTab(cwd: string | null): Promise<void> {
 }
 
 export { bootstrapTerminalSessions, ensureTerminalTab, watchAgentTerminal }
-export type { AgentRunEvent, BootstrapResult }
+export type { AgentRunEvent, BootstrapOptions, BootstrapResult }

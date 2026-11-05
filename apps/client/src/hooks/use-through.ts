@@ -11,6 +11,22 @@ interface ThroughOptions {
   enabled?: boolean
 }
 
+/**
+ * 合并窗口（ms，对齐 VS Code 的 `IOverlayUpdater` throttle）。
+ *
+ * 为什么不再「每帧每磁贴一次 IPC」：MutationObserver + ResizeObserver 在 hover
+ * 磁贴上能连续触发几十次，一次 invoke 就是一次跨进程序列化；主线程被占住时
+ * 上报还会断档，宿主保留旧穿透区 → skipbar 露出实心条、透明窗丢 DWM 阴影。
+ */
+const FLUSH_DELAY_MS = 200
+
+/** 所有登记中的来源：`null` 表示「已停用，待清空一次」 */
+const sources = new Map<string, HTMLElement | null>()
+/** 上次成功上报的指纹，用于深比较去重 */
+const published = new Map<string, string>()
+
+let flushTimer = 0
+
 function parseRect(el: Element): ThroughRect | null {
   const box = el.getBoundingClientRect()
   if (box.width <= 0 || box.height <= 0) return null
@@ -40,19 +56,95 @@ function findHitRects(root: HTMLElement): ThroughRect[] {
   return rects
 }
 
-function clearSource(source: string) {
-  void invoke(CHANNELS.THROUGH.UPDATE_RECTS, {
-    source,
-    rects: [] as ThroughRect[]
-  }).catch(function (error: unknown) {
-    console.debug('[through] 清空穿透区失败:', error)
+/** 指纹：rects 深比较的唯一依据（字段顺序固定，只由 parseRect 生成） */
+function rectsKey(rects: readonly ThroughRect[]): string {
+  return JSON.stringify(rects)
+}
+
+/**
+ * 挑出「和上次上报不一样」的来源。纯函数，便于单测。
+ */
+function diffThroughPayload(
+  previous: ReadonlyMap<string, string>,
+  next: ReadonlyMap<string, readonly ThroughRect[]>
+): { source: string; rects: readonly ThroughRect[] }[] {
+  const changed: { source: string; rects: readonly ThroughRect[] }[] = []
+  for (const [source, rects] of next) {
+    if (previous.get(source) === rectsKey(rects)) continue
+    changed.push({ source, rects })
+  }
+  return changed
+}
+
+function report(source: string, rects: readonly ThroughRect[]): void {
+  void invoke(CHANNELS.THROUGH.UPDATE_RECTS, { source, rects }).catch(function (error: unknown) {
+    console.debug('[through] 更新穿透区失败:', error)
+    // 失败不写指纹：下一次 flush 会重试
+    published.delete(source)
   })
 }
 
-function publishRects(source: string, rects: ThroughRect[]) {
-  void invoke(CHANNELS.THROUGH.UPDATE_RECTS, { source, rects }).catch(function (error: unknown) {
-    console.debug('[through] 更新穿透区失败:', error)
-  })
+function flush(): void {
+  flushTimer = 0
+  if (sources.size === 0) return
+
+  const payload = new Map<string, ThroughRect[]>()
+  const detached: string[] = []
+  for (const [source, root] of sources) {
+    if (root && root.isConnected) {
+      payload.set(source, findHitRects(root))
+      continue
+    }
+    // 已卸载/未连接：上报一次空数组让宿主收回穿透区，然后彻底忘掉这个来源
+    payload.set(source, [])
+    detached.push(source)
+  }
+
+  const changed = diffThroughPayload(published, payload)
+  for (const item of changed) {
+    published.set(item.source, rectsKey(item.rects))
+    report(item.source, item.rects)
+  }
+  for (const source of detached) {
+    sources.delete(source)
+    if (payload.get(source)?.length === 0) published.delete(source)
+  }
+}
+
+/** 200ms 内的多次触发合并成一次 flush（也合并多个来源） */
+function scheduleFlush(): void {
+  if (flushTimer !== 0) return
+  flushTimer = window.setTimeout(flush, FLUSH_DELAY_MS)
+}
+
+/**
+ * 登记一个穿透来源。返回注销函数（注销后会上报一次空数组）。
+ */
+function attachThroughSource(source: string, root: HTMLElement): () => void {
+  sources.set(source, root)
+  scheduleFlush()
+  return function detach() {
+    if (sources.get(source) !== root) return
+    sources.set(source, null)
+    scheduleFlush()
+  }
+}
+
+/** 停用一个来源（`enabled=false` 时用），下一次 flush 上报空数组 */
+function detachThroughSource(source: string): void {
+  if (!sources.has(source)) return
+  sources.set(source, null)
+  scheduleFlush()
+}
+
+/** 测试/热重载用：清空收集器与指纹（不动 DOM、不发 IPC） */
+function resetThroughCollector(): void {
+  if (flushTimer !== 0) {
+    window.clearTimeout(flushTimer)
+    flushTimer = 0
+  }
+  sources.clear()
+  published.clear()
 }
 
 /**
@@ -73,28 +165,19 @@ function useThrough(source: string, options: ThroughOptions) {
   useEffect(
     function () {
       if (!enabled) {
-        clearSource(source)
+        detachThroughSource(source)
         return
       }
 
       const root = rootRef.current
       if (!root) return
 
-      let frame = 0
+      const detach = attachThroughSource(source, root)
 
-      function sync() {
-        cancelAnimationFrame(frame)
-        frame = requestAnimationFrame(function () {
-          const el = rootRef.current
-          if (!el) return
-          publishRects(sourceRef.current, findHitRects(el))
-        })
-      }
-
-      const ro = new ResizeObserver(sync)
+      const ro = new ResizeObserver(scheduleFlush)
       ro.observe(root)
 
-      const mo = new MutationObserver(sync)
+      const mo = new MutationObserver(scheduleFlush)
       mo.observe(root, {
         attributes: true,
         childList: true,
@@ -102,12 +185,10 @@ function useThrough(source: string, options: ThroughOptions) {
         attributeFilter: ['style', 'class', 'data-region']
       })
 
-      sync()
       return function () {
-        cancelAnimationFrame(frame)
         ro.disconnect()
         mo.disconnect()
-        clearSource(sourceRef.current)
+        detach()
       }
     },
     [enabled, rootRef, source]
@@ -115,4 +196,16 @@ function useThrough(source: string, options: ThroughOptions) {
 }
 
 export type { ThroughOptions, ThroughRect }
-export { useThrough, findHitRects, HIT_SELECTOR }
+export {
+  FLUSH_DELAY_MS,
+  HIT_SELECTOR,
+  attachThroughSource,
+  detachThroughSource,
+  diffThroughPayload,
+  findHitRects,
+  flush,
+  rectsKey,
+  resetThroughCollector,
+  scheduleFlush,
+  useThrough
+}

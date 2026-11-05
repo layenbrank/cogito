@@ -48,7 +48,7 @@ import {
 } from '@/views/agent/chat/components/workspace-relative-path.ts'
 import { WorkspaceFiles } from '@/lib/workspace-files.ts'
 import { WorkspaceSkills } from '@/lib/workspace-skills.ts'
-import { findBaseName } from '@/views/agent/chat/components/workspace-relative-path.ts'
+
 import { findFileIcon, findFolderIcon } from '@/views/workspace/overlay/file-icon.ts'
 import { cn } from 'cn'
 
@@ -348,10 +348,10 @@ function useComposerTriggers(): readonly ComposerTrigger[] {
             })
             return
           }
-          // 展示只用末段名；id 是引用路径（主文件夹相对 / 其他文件夹绝对）
+          // chip 的显示由 splitChipLabel 拆成「目录段 + 末段」，label 直接给引用路径
           api.insertChip({
             type: 'file',
-            label: findBaseName(mentionData.mentionPath),
+            label: mentionData.mentionPath,
             id: mentionData.mentionPath
           })
         }
@@ -393,8 +393,8 @@ function useComposerTriggers(): readonly ComposerTrigger[] {
         onSelect: function (item, api) {
           const skillData = findSkillData(item)
           if (skillData === null) return
-          // 技能也只进文本流：`:skill[名称]{name=相对路径}`，不再往附件行里塞一份
-          api.insertChip({ type: 'skill', label: skillData.name, id: skillData.relative })
+          // 技能也只进文本流：`@skill:<名称>`，不再往附件行里塞一份
+          api.insertChip({ type: 'skill', label: skillData.name, id: `skill:${skillData.name}` })
         }
       }
 
@@ -431,7 +431,7 @@ function ComposerTriggerList(props: ComposerTriggerListProps) {
       data-webview="false"
       className={cn(
         styles.surface,
-        'bg-popover absolute bottom-full left-0 z-20 mb-2 w-72 overflow-hidden rounded-lg',
+        'bg-popover absolute inset-x-0 bottom-full z-20 mb-2 max-h-[min(45vh,22rem)] overflow-hidden rounded-lg',
         OVERLAY_ELEVATION,
         props.className
       )}
@@ -500,7 +500,7 @@ function ComposerTriggerList(props: ComposerTriggerListProps) {
                     />
                     <span className="min-w-0 flex-1 truncate">{item.label}</span>
                     {item.description ? (
-                      <span className="text-muted-foreground max-w-[45%] truncate text-xs">
+                      <span className="text-muted-foreground max-w-[45%] truncate text-xs @max-[560px]:hidden @max-[680px]:max-w-[38%]">
                         {item.description}
                       </span>
                     ) : null}

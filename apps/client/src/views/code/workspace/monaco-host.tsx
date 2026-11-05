@@ -1,13 +1,14 @@
 import { cn } from 'cn'
-import * as monaco from 'monaco-editor'
-// 0.56+ 起导出映射为 ./esm/vs/*.js，子路径不再带 esm/vs 前缀；
-// 根入口已注册全部 basic-languages 与语言特性，无需逐个 import contribution。
-import { useEffect, useRef } from 'react'
+import * as monaco from 'monaco-editor/editor/editor.api'
+// 0.57 的 exports 把 `monaco-editor/*` 映射到 `esm/vs/*.js`，所以入口写 editor/editor.api；
+// 这个入口**不带** basic-languages 与语言特性：语法高亮按扩展名在 lib/monaco-language.ts
+// 里惰性注册，TS / JSON 的语言服务由 lib/monaco-loader.ts 显示加载。
+import { useCallback, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 
 import { adoptMonaco } from '@/lib/monaco-loader.ts'
+import { ensureMonacoLanguage } from '@/lib/monaco-language.ts'
 import { CODE_THEME, syncCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
-import { WorkspaceFiles } from '@/lib/workspace-files'
 import { useCodeStore, type CodeEditorPrefs } from '@/stores/code'
 import { readEol, readIndentation } from '@/views/code/lib/document-options.ts'
 import { toEditorOptions as toBehaviorOptions } from '@/views/code/lib/editor-options.ts'
@@ -207,28 +208,40 @@ function MonacoHost(props: MonacoHostProps) {
   const activeTab = tabs.find(function (tab) {
     return tab.id === activeTabId
   })
-  const roots = useCodeStore(function (state) {
-    return state.roots
+  const rootsKey = useCodeStore(function (state) {
+    return state.roots.join('|')
   })
   const treeRevision = useCodeStore(function (state) {
     return state.treeRevision
   })
   const previousRootsKeyRef = useRef<string | null>(null)
-  const previousTreeRevisionRef = useRef<number | null>(null)
-  const lastTsconfigRef = useRef<string | null>(null)
+  const syncedTreeRevisionRef = useRef<number | null>(null)
 
-  // Monaco TS worker 无磁盘访问权：把工作区 node_modules/@types 注册进语言服务
+  const reportTypescriptApplied = useCallback(function (
+    outcome: Awaited<ReturnType<typeof syncWorkspaceTypescriptLibs>>
+  ) {
+    if (!outcome.isApplied) return
+    const detail = [
+      outcome.target ? `target ${outcome.target}` : null,
+      outcome.pathsCount > 0 ? `paths ${outcome.pathsCount} 条` : null
+    ].filter(function (item): item is string {
+      return Boolean(item)
+    })
+    if (detail.length === 0) return
+    toast.message('已应用 tsconfig.json', { description: detail.join(' · ') })
+  }, [])
+
+  /**
+   * 工作区切换：清视图状态 + 重建类型库。
+   * 依赖只用 `rootsKey`（字符串），根目录数组换引用不会重复触发。
+   */
   useEffect(
     function () {
-      const rootsKey = roots.join('|')
+      const nextRoots = useCodeStore.getState().roots
       const previousRootsKey = previousRootsKeyRef.current
-      const previousTreeRevision = previousTreeRevisionRef.current
-      const isForced =
-        previousTreeRevision !== null && previousTreeRevision !== treeRevision
       previousRootsKeyRef.current = rootsKey
-      previousTreeRevisionRef.current = treeRevision
 
-      if (roots.length === 0) {
+      if (nextRoots.length === 0) {
         resetWorkspaceTypescriptLibs()
         clearViewStates()
         return
@@ -236,23 +249,37 @@ function MonacoHost(props: MonacoHostProps) {
       if (previousRootsKey !== null && previousRootsKey !== rootsKey) {
         clearViewStates()
       }
-      void syncWorkspaceTypescriptLibs(roots, isForced)
-        .then(function (outcome) {
-          if (!outcome.isApplied) return
-          const detail = [
-            outcome.target ? `target ${outcome.target}` : null,
-            outcome.pathsCount > 0 ? `paths ${outcome.pathsCount} 条` : null
-          ].filter(function (item): item is string {
-            return Boolean(item)
-          })
-          if (detail.length === 0) return
-          toast.message('已应用 tsconfig.json', { description: detail.join(' · ') })
-        })
+      void syncWorkspaceTypescriptLibs(nextRoots)
+        .then(reportTypescriptApplied)
         .catch(function (error) {
-        console.error('[monaco-types] 同步失败', error)
-      })
+          console.error('[monaco-types] 同步失败', error)
+        })
     },
-    [roots, treeRevision]
+    [rootsKey, reportTypescriptApplied]
+  )
+
+  /**
+   * 树刷新：只有 tsconfig.json / `@types` 内容变了才需要重灌。
+   * 指纹判定在 `syncWorkspaceTypescriptLibs` 内部完成 —— 保存普通 .ts 走到这里会
+   * 直接 early-return（不读 IPC、不重建 program），所以这里不做任何 `isForced` 判断。
+   */
+  useEffect(
+    function () {
+      if (syncedTreeRevisionRef.current === null) {
+        syncedTreeRevisionRef.current = treeRevision
+        return
+      }
+      if (syncedTreeRevisionRef.current === treeRevision) return
+      syncedTreeRevisionRef.current = treeRevision
+      const nextRoots = useCodeStore.getState().roots
+      if (nextRoots.length === 0) return
+      void syncWorkspaceTypescriptLibs(nextRoots)
+        .then(reportTypescriptApplied)
+        .catch(function (error) {
+          console.error('[monaco-types] 同步失败', error)
+        })
+    },
+    [treeRevision, reportTypescriptApplied]
   )
 
   useEffect(function () {
@@ -305,35 +332,6 @@ function MonacoHost(props: MonacoHostProps) {
       detachEditor(editor)
       editor.dispose()
       editorRef.current = null
-    }
-  }, [])
-
-  // 文件树刷新后，只有 tsconfig.json 内容真的变了才重跑 TS 同步（避免每次保存都 packTypes）
-  useEffect(function () {
-    let timer = 0
-    const unsubscribe = useCodeStore.subscribe(function (state, previous) {
-      if (state.treeRevision === previous.treeRevision) return
-      window.clearTimeout(timer)
-      timer = window.setTimeout(function () {
-        void (async function () {
-          const nextRoots = useCodeStore.getState().roots
-          if (nextRoots.length === 0) return
-          const path = `${nextRoots[0].replace(/\\/g, '/').replace(/\/+$/, '')}/tsconfig.json`
-          try {
-            const next = (await WorkspaceFiles.readFile(nextRoots, path)).content
-            if (next === lastTsconfigRef.current) return
-            lastTsconfigRef.current = next
-            await syncWorkspaceTypescriptLibs(nextRoots, true)
-          } catch (error) {
-            // 没有 tsconfig.json（或读不到）：保持现状
-            console.debug('[code/monaco-host] 读取 tsconfig.json 失败', error)
-          }
-        })()
-      }, 1200)
-    })
-    return function () {
-      window.clearTimeout(timer)
-      unsubscribe()
     }
   }, [])
 
@@ -430,6 +428,8 @@ function MonacoHost(props: MonacoHostProps) {
         syncPendingReveal(activeEditor, model)
 
         const store = useCodeStore.getState()
+        // 语法高亮按语言惰性加载（editor.api 入口不再自带全部 basic-languages）
+        void ensureMonacoLanguage(activeTab.language)
         store.toSetLanguageId(activeTab.language)
         store.toSetIndentation(readIndentation(model))
         store.toSetEol(readEol(model))

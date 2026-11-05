@@ -61,7 +61,7 @@ import {
   ComposerSendButton,
   findComposerPlaceholder
 } from './composer-queue.aui'
-import { ComposerChipText } from './composer-chip-text'
+import { ComposerChipText, resolveComposerChipLabel } from './composer-chip-text'
 import { ComposerInput } from './composer-input.aui'
 import { ComposerTriggerProvider, type ComposerTrigger, type ComposerTriggerListProps } from './composer-trigger'
 import { ThreadUserMessageRuler } from './thread-user-ruler.aui'
@@ -422,7 +422,7 @@ const Composer: FC<{ autoFocus: boolean }> = ({ autoFocus }) => {
 
   return (
     <ComposerTriggerProvider triggers={ComposerTriggers}>
-      <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col">
+      <ComposerPrimitive.Root className="@container aui-composer-root relative flex w-full flex-col">
         <ComposerPrimitive.AttachmentDropzone asChild>
           <div
             data-slot="aui_composer-shell"
@@ -1047,7 +1047,12 @@ const UserImagePart: ImageMessagePartComponent = (part) => (
 /** 已发送气泡：directive 与 composer 同款 chip，不露 `:file[...]{...}` 原文 */
 const UserTextPart: TextMessagePartComponent = function UserTextPart() {
   const { text } = useMessagePartText()
-  return <ComposerChipText text={text} />
+  return (
+    <ComposerChipText
+      text={text}
+      resolveLabel={resolveComposerChipLabel}
+    />
+  )
 }
 
 const UserMessage: FC = () => {

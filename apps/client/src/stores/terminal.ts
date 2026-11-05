@@ -52,6 +52,14 @@ interface RevealDockOptions {
   activity?: DockActivity
 }
 
+interface RestoreAgentPanelOptions {
+  /**
+   * 只在面板没开（或当前 active 已失效）时接管。
+   * 后台定时同步调它时必须传 true：否则每次同步都会把用户手动切走的页签抢回来。
+   */
+  onlyIfHidden?: boolean
+}
+
 interface TerminalState {
   tabs: TerminalTab[]
   activeId: string | null
@@ -74,6 +82,10 @@ interface TerminalState {
   revealAgentTab: (input: AgentTabInput) => void
   /**
    * 刷新后从 Rust list 灌回 tab：不掀开面板、不抢 active（已有则补 pid）。
+   *
+   * **不会把 `exited` 翻回 false**：`terminal:list` 里还留着会话只说明 scrollback
+   * 还能回放，进程该退还是退；翻回运行态会让「已退出」标记消失、`restoreAgentPanel`
+   * 反复接管一个死会话 —— 这是「终端时不时不能用」的来源之一。
    */
   hydrateSession: (input: {
     id: string
@@ -84,7 +96,7 @@ interface TerminalState {
   /**
    * WebView 重载后：有存活 agent 会话则掀开面板并保证 active（VS Code reconnect）。
    */
-  restoreAgentPanel: () => void
+  restoreAgentPanel: (options?: RestoreAgentPanelOptions) => void
   removeTab: (id: string) => void
   writeActive: (id: string) => void
   markExited: (id: string, exitCode: number | null) => void
@@ -204,7 +216,7 @@ const useTerminalStore = create<TerminalState>()(
             if (existing) {
               if (input.pid !== null && input.pid !== undefined) existing.pid = input.pid
               existing.restored = true
-              existing.exited = false
+              // 保留退出态：list 里有它只说明还能 attach 回放，不代表进程活着
               return
             }
             const origin = input.origin ?? (input.id.startsWith('agent:') ? 'agent' : 'user')
@@ -230,7 +242,7 @@ const useTerminalStore = create<TerminalState>()(
           })
         },
 
-        restoreAgentPanel: function () {
+        restoreAgentPanel: function (options) {
           set(function (state) {
             const agentTab =
               state.tabs.find(function (tab) {
@@ -240,11 +252,13 @@ const useTerminalStore = create<TerminalState>()(
                 return tab.id.startsWith('agent:')
               })
             if (!agentTab) return
-            state.open = true
-            state.activity = 'terminal'
             const activeAlive = state.tabs.some(function (tab) {
               return tab.id === state.activeId
             })
+            // 后台同步只负责「面板没开 / active 失效」的情况，不抢用户当前页签
+            if (options?.onlyIfHidden === true && state.open && activeAlive) return
+            state.open = true
+            state.activity = 'terminal'
             if (!activeAlive || !state.activeId) {
               state.activeId = agentTab.id
             }
@@ -302,6 +316,7 @@ export type {
   AgentTabInput,
   DockActivity,
   NewTabOptions,
+  RestoreAgentPanelOptions,
   RevealDockOptions,
   TerminalTab,
   TerminalTabKind,

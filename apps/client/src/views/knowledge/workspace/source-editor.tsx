@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import * as monaco from 'monaco-editor'
+import * as monaco from 'monaco-editor/editor/editor.api'
 
 import { cn } from 'cn'
 

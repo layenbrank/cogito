@@ -29,6 +29,7 @@ import { AgentAside } from '@/views/agent/chat/components/aside'
 import { ComposerActions } from '@/views/agent/chat/components/composer-actions'
 import { ComposerEnd } from '@/views/agent/chat/components/composer-end'
 import { ComposerFooter } from '@/views/agent/chat/components/composer-footer'
+import { ComposerQueue } from '@/views/agent/chat/components/composer-queue'
 import {
   ComposerTriggerList,
   useComposerTriggers
@@ -236,6 +237,7 @@ function AgentChatLayout() {
             ComposerAttach: null,
             ComposerEnd: ComposerEnd,
             ComposerFooter: ComposerFooter,
+            ComposerQueue: ComposerQueue,
             ComposerTriggers: composerTriggers,
             ComposerTriggerList: ComposerTriggerList,
             ComposerPaste: handleComposerPaste

@@ -1,6 +1,11 @@
 /**
  * xterm FitAddon 布局同步：容器尚无尺寸时 fit 会量到 0 列。
  * 交互终端与指令「输出」只读 xterm 共用。
+ *
+ * 早期用「双 rAF 连拍 60 帧后放弃」：首屏假窄冻结（`LAYOUT_WIDTH_GUARD`）正好落在那
+ * 1 秒里，放弃之后只剩 ResizeObserver 的一次机会，于是面板展开/切页签后经常空白。
+ * 现在**不设帧数上限**：尺寸为 0 就保持 pending，挂一个 ResizeObserver 等下一次
+ * 真实尺寸；一旦 fit 成功立即断开。
  */
 import type { FitAddon } from '@xterm/addon-fit'
 import type { Terminal as XtermTerminal } from '@xterm/xterm'
@@ -38,9 +43,13 @@ function syncTerminalLayout(
   }
 }
 
-/** 尺寸未就绪时连拍再 fit；invisible→visible / Splitter 首帧常需远多于 12 帧 */
-const LAYOUT_ATTEMPTS = 60
-
+/**
+ * 尝试 fit；失败就等容器下一次尺寸变化，**不放弃**。
+ *
+ * `isCancelled` 在视图卸载后返回 true：那之后 ResizeObserver 会被断开。
+ * 容器长期是 0×0（面板一直没显示）时这里会留一个 observer，数量与视图数同阶，
+ * 视图卸载时由 `isCancelled` 在下一帧回调里回收。
+ */
 function scheduleTerminalLayout(
   terminal: XtermTerminal | null,
   fit: FitAddon | null,
@@ -48,16 +57,35 @@ function scheduleTerminalLayout(
   shouldFocus: boolean,
   isCancelled: () => boolean
 ) {
-  let attempts = 0
-  function tick() {
-    if (isCancelled()) return
-    if (syncTerminalLayout(terminal, fit, container, shouldFocus)) return
-    attempts += 1
-    if (attempts < LAYOUT_ATTEMPTS) requestAnimationFrame(tick)
+  if (!container) return
+  const target = container
+
+  let isSettled = false
+  let observer: ResizeObserver | null = null
+
+  function stop() {
+    isSettled = true
+    observer?.disconnect()
+    observer = null
   }
+
+  function attempt() {
+    if (isSettled) return
+    if (isCancelled() || !target.isConnected) {
+      stop()
+      return
+    }
+    if (syncTerminalLayout(terminal, fit, target, shouldFocus)) stop()
+  }
+
   requestAnimationFrame(function () {
-    requestAnimationFrame(tick)
+    requestAnimationFrame(attempt)
   })
+
+  observer = new ResizeObserver(function () {
+    attempt()
+  })
+  observer.observe(target)
 }
 
 export { hasTerminalLayoutSize, scheduleTerminalLayout, syncTerminalLayout }

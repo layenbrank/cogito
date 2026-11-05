@@ -1,7 +1,7 @@
 /**
  * Monaco model 注册表：多 tab 共享单 editor，按 path 复用 ITextModel。
  */
-import * as monaco from 'monaco-editor'
+import * as monaco from 'monaco-editor/editor/editor.api'
 
 import { findLanguageId } from '@/views/code/lib/language.ts'
 

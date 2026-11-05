@@ -1,4 +1,4 @@
-import type * as Monaco from 'monaco-editor'
+import type * as Monaco from 'monaco-editor/editor/editor.api'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 
 import { importMonaco } from '@/lib/monaco-loader.ts'

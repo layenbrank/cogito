@@ -2,16 +2,20 @@
  * composer 的文档模型。
  *
  * `ComposerAtom[]` 是输入区的结构化真值，序列化后的字符串同步给
- * `aui.composer.setText()`。为什么不是「纯文本 DOM 即真值」：
- * chip（`:browser[browser-2]`）在 DOM 里只显示 `browser-2`，DOM 文本长度与
- * runtime 文本长度不一致，光标 offset 会整体错位。节点模型让「逻辑 offset」与
- * 「DOM 位置」各持一套坐标，由 `locateOffset` / `readDom` 互转。
+ * `aui.composer.setText()`。为什么不是「纯文本 DOM 即真值」：chip（`@apps/src/a.ts`）
+ * 在 DOM 里只显示短名，DOM 文本长度与 runtime 文本长度不一致，光标 offset 会整体错位。
+ * 节点模型让「逻辑 offset」与「DOM 位置」各持一套坐标，由 `locateOffset` / `readDom` 互转。
  *
- * 序列化复用 `defaultDirectiveFormatter`（语法 `:type[label]{name=id}`），
- * 所以 `apps/client/src/features/agent/model/prompts.ts` 里
- * 「文本形如 :browser[browser-2]」的约定、以及 MCP 的 tab 参数解析都不用改。
+ * **线格式（方案 B，Cursor 风格）**：`@` + id，id 就是引用路径本身。
+ * - 文件 / 文件夹：`@apps/client/src/a.ts`；含空白时 `@"apps/my dir/a.ts"`
+ * - 浏览器标签页：`@browser-<uuid>`
+ * - 技能：`@skill:<name>`
+ *
+ * 不再复用 assistant-ui 的 `defaultDirectiveFormatter`（`:type[label]{name=id}`），
+ * 也**不保留旧 directive 的解析分支**：旧文本从此按普通文本显示，见计划「不做兼容性代码」。
+ * 好处是「光标 offset = 序列化长度」这条不变式只有一个来源，往返恒等：
+ * `serialize(buildChip(...)) === '@' + id`。
  */
-import { defaultDirectiveFormatter } from '@assistant-ui/react'
 
 const LINE_BREAK = '\n'
 
@@ -54,7 +58,7 @@ interface ComposerChipAtom {
   readonly type: string
   readonly label: string
   readonly id: string
-  /** 序列化后的文本（`:type[label]{name=id}`），parse 时算好，热路径直接用。 */
+  /** 序列化后的文本（`@id`），parse 时算好，热路径直接用。 */
   readonly serialized: string
 }
 
@@ -62,8 +66,63 @@ type ComposerAtom = ComposerTextAtom | ComposerBreakAtom | ComposerChipAtom
 
 const BREAK: ComposerBreakAtom = { kind: 'break' }
 
+/** 技能 id 前缀：与文件路径区分开（`@skill:dingtalk-aitable`） */
+const SKILL_PREFIX = 'skill:'
+
+/** 浏览器标签页 id 形如 `browser-<uuid>`；用完整 UUID 正则避免把 `browser-2/a.ts` 误判 */
+const BROWSER_TAB_ID =
+  /^browser-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function needsQuote(id: string): boolean {
+  return /[\s"]/.test(id)
+}
+
+function escapeId(id: string): string {
+  return id.replace(/"/g, '\\"')
+}
+
+/** `@` 之后的那一串（含按需加的引号） */
+function toSerializedPayload(id: string): string {
+  return needsQuote(id) ? `"${escapeId(id)}"` : id
+}
+
 function buildChip(type: string, label: string, id: string): ComposerChipAtom {
-  return { kind: 'chip', type, label, id, serialized: defaultDirectiveFormatter.serialize({ type, label, id }) }
+  return { kind: 'chip', type, label, id, serialized: `@${toSerializedPayload(id)}` }
+}
+
+/** 线格式不带 type 字段：从 id 的形态反推。 */
+function toChipType(id: string): string {
+  if (id.startsWith(SKILL_PREFIX)) return 'skill'
+  if (BROWSER_TAB_ID.test(id)) return 'browser'
+  return 'file'
+}
+
+/**
+ * label 不进线格式，解析时派生：
+ * - file / browser：id 原样（文件路径本身就是最好的显示文本，视图层再截断）
+ * - skill：去掉 `skill:` 前缀
+ */
+function deriveChipLabel(type: string, id: string): string {
+  if (type === 'skill') {
+    const name = id.slice(SKILL_PREFIX.length)
+    return name.length > 0 ? name : id
+  }
+  return id
+}
+
+/**
+ * chip 的两段式显示：「…/src/chat.tsx」。
+ *
+ * 目录段可以被截断（`min-w-0 truncate`），末段保持完整（`shrink-0`），
+ * 这样窄窗口里看到的是「…/chat.tsx」而不是被截成「apps/clien…」。
+ * skill chip 的 label 已经去掉 `skill:` 前缀，没有目录段。
+ */
+function splitChipLabel(type: string, label: string, id: string): { dir: string; base: string } {
+  if (type === 'skill') return { dir: '', base: label }
+  if (type === 'browser') return { dir: '', base: label }
+  const slash = id.lastIndexOf('/')
+  if (slash <= 0 || slash === id.length - 1) return { dir: '', base: label }
+  return { dir: id.slice(0, slash + 1), base: id.slice(slash + 1) }
 }
 
 function atomLength(atom: ComposerAtom) {
@@ -103,18 +162,104 @@ function normalizeDocument(atoms: readonly ComposerAtom[]): ComposerAtom[] {
   return out
 }
 
-/** 文本 → 节点。directive 段折成 chip，其余按换行折成 `break`。 */
+/**
+ * `@` 左边允许的字符：行首、空白，或常见的中文/西文标点。
+ *
+ * 这挡住 `user@example.com`（`@` 左边是字母）与代码里的 `foo@bar`；
+ * 而「看下@apps/a.ts」这种不打空格的写法也认。
+ */
+const BOUNDARY_BEFORE = /[\s\u00a0（(【[「『"'‘“，,、；;：:！!？?\u4e00-\u9fff]/
+
+function isTokenBoundary(previous: string | undefined): boolean {
+  if (previous === undefined) return true
+  return BOUNDARY_BEFORE.test(previous)
+}
+
+/**
+ * 只有这些形态才当 chip：含 `/`、`browser-<uuid>`、`skill:` 前缀。
+ * `@media` / `@Component` / `@types` 因此仍是普通文本。
+ */
+function looksLikeMentionId(id: string): boolean {
+  if (id.length === 0) return false
+  if (id.startsWith(SKILL_PREFIX)) return id.length > SKILL_PREFIX.length
+  if (BROWSER_TAB_ID.test(id)) return true
+  return id.includes('/')
+}
+
+/**
+ * 未加引号的 id 在这些字符处结束：空白 + 常见中英文标点。
+ * 必须排除：`/` `.` `-` `_` `@` 是路径的一部分，ASCII `:` 是 `skill:` 前缀的分隔符。
+ * 这挡住「@apps/a.ts，然后」把逗号并进 id、以及「@apps/a.ts）」
+ */
+const MENTION_TERMINATOR = /[\s\u00a0"'`,;()\[\]{}<>，。；、：！？（）【】「」“”‘’]/
+
+/** 从 `@` 起读一个 mention；引号未闭合时返回 null（按普通文本处理） */
+function readMention(text: string, at: number): { id: string; end: number } | null {
+  let index = at + 1
+  if (text[index] === '"') {
+    let id = ''
+    index += 1
+    while (index < text.length) {
+      const char = text[index]
+      if (char === '\\' && text[index + 1] === '"') {
+        id += '"'
+        index += 2
+        continue
+      }
+      if (char === '"') return { id, end: index + 1 }
+      id += char
+      index += 1
+    }
+    return null
+  }
+
+  const begin = index
+  while (index < text.length) {
+    const char = text[index]
+    if (MENTION_TERMINATOR.test(char)) break
+    index += 1
+  }
+  return { id: text.slice(begin, index), end: index }
+}
+
+/** 文本 → 节点。`@mention` 折成 chip，其余按换行折成 `break`。 */
 function parseDocument(text: string): ComposerAtom[] {
   if (text.length === 0) return []
+
   const atoms: ComposerAtom[] = []
-  const segments = defaultDirectiveFormatter.parse(text)
-  for (const segment of segments) {
-    if (segment.kind === 'text') {
-      atoms.push(...splitText(segment.text))
+  let buffer = ''
+  let index = 0
+
+  function flush() {
+    if (buffer.length === 0) return
+    atoms.push(...splitText(buffer))
+    buffer = ''
+  }
+
+  while (index < text.length) {
+    const char = text[index]
+    const isMentionStart =
+      char === '@' && isTokenBoundary(text[index - 1])
+    if (!isMentionStart) {
+      buffer += char
+      index += 1
       continue
     }
-    atoms.push(buildChip(segment.type, segment.label, segment.id))
+
+    const mention = readMention(text, index)
+    if (mention === null || !looksLikeMentionId(mention.id)) {
+      buffer += char
+      index += 1
+      continue
+    }
+
+    flush()
+    const type = toChipType(mention.id)
+    atoms.push(buildChip(type, deriveChipLabel(type, mention.id), mention.id))
+    index = mention.end
   }
+
+  flush()
   return normalizeDocument(atoms)
 }
 
@@ -219,6 +364,19 @@ function findAtomEndingAt(atoms: readonly ComposerAtom[], offset: number) {
   return null
 }
 
+/**
+ * 光标（offset）是否正好在某个原子之前 —— Delete 用来决定「删一个字」还是「删整块 chip」。
+ * 与 `findAtomEndingAt` 对称。
+ */
+function findAtomStartingAt(atoms: readonly ComposerAtom[], offset: number) {
+  let position = 0
+  for (const atom of atoms) {
+    if (position === offset) return { atom, start: position }
+    position += atomLength(atom)
+  }
+  return null
+}
+
 function pushText(atoms: ComposerAtom[], text: string) {
   if (text.length === 0) return
   atoms.push(...splitText(text))
@@ -266,15 +424,21 @@ function readDom(root: HTMLElement): ComposerAtom[] {
 }
 
 export {
+  BROWSER_TAB_ID,
   LINE_BREAK,
+  SKILL_PREFIX,
   atomLength,
   buildChip,
+  deriveChipLabel,
   documentLength,
   findAtomEndingAt,
+  findAtomStartingAt,
   insertChipAt,
   insertTextAt,
   isEmptyDocument,
   locateOffset,
+  looksLikeMentionId,
+  needsQuote,
   normalizeDocument,
   offsetOf,
   parseDocument,
@@ -282,6 +446,9 @@ export {
   replaceRange,
   serializeDocument,
   sliceAtoms,
-  splitText as parseInlineText
+  splitChipLabel,
+  splitText as parseInlineText,
+  toChipType,
+  toSerializedPayload
 }
 export type { ComposerAtom, ComposerBreakAtom, ComposerChipAtom, ComposerTextAtom }

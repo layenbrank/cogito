@@ -1,7 +1,7 @@
 /**
  * 右栏文件 Monaco：编写体验对齐 Code（补全、格式化、括号、查找、大文件降级、TS libs）。
  */
-import type * as Monaco from 'monaco-editor'
+import type * as Monaco from 'monaco-editor/editor/editor.api'
 import { useEffect, useRef, useState } from 'react'
 
 import { importMonaco } from '@/lib/monaco-loader.ts'

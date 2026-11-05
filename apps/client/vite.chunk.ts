@@ -406,11 +406,35 @@ export const chunks: CodeSplitting[] = [
       return patterns.some((pattern) => pattern.test(id))
     }
   },
+  // monaco 独占一组：体积最大、只有代码页要，既不能被 unknown-deps 吞，
+  // 也不该和 highlight 混在一起（两者的加载时机完全无关）
   {
-    name: 'utils-code',
-    priority: 50,
+    name: 'vendor-monaco',
+    priority: 60,
     test(id) {
-      const patterns = [/[\\/]node_modules[\\/](monaco-editor|highlight\.js|lowlight)[\\/]/]
+      // 语言定义（languages/definitions）必须留给各自的动态 import，
+      // 否则「打开 .py 才加载 python」会退化成一包全拉
+      if (/[\\/]languages[\\/]definitions[\\/]/.test(id)) return false
+      return /[\\/]node_modules[\\/]monaco-editor[\\/]/.test(id)
+    }
+  },
+  // 语言定义：一个语言一个动态 import，合成一组但仍按需加载（不进入口）
+  {
+    name: 'monaco-langs',
+    priority: 40,
+    test(id) {
+      // 实际模块 id 形如 node_modules/monaco-editor/esm/vs/languages/definitions/<lang>/register.js，
+      // 中间有 esm/vs，正则不能写死连续前缀
+      return /[\\/]node_modules[\\/]monaco-editor[\\/].*[\\/]languages[\\/]definitions[\\/]/.test(id)
+    }
+  },
+  {
+    name: 'vendor-highlight',
+    // 高于 tile-* 组（80）：highlight.js / lowlight 只被知识库页引用，但必须独立成块，
+    // 否则会被就地内联进 tile-knowledge（2MB+），改一行文档都要重新下载整包
+    priority: 95,
+    test(id) {
+      const patterns = [/[\\/]node_modules[\\/](highlight\.js|lowlight)[\\/]/]
       return patterns.some((pattern) => pattern.test(id))
     }
   },

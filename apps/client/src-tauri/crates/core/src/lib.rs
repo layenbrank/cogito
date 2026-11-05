@@ -33,6 +33,12 @@ pub mod agent_goal {
 }
 
 #[allow(non_snake_case)]
+pub mod agent_composer_queue {
+    mod service;
+    pub use service::Service;
+}
+
+#[allow(non_snake_case)]
 pub mod agent_workspace {
     mod service;
     pub use service::Service;

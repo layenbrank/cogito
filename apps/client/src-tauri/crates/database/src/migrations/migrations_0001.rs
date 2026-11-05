@@ -1301,6 +1301,10 @@ impl MigrationTrait for Migration {
             db.execute_unprepared(statement).await?;
         }
 
+        for statement in super::composer_queue_schema::statements() {
+            db.execute_unprepared(statement).await?;
+        }
+
         for statement in super::dict_seed::statements() {
             db.execute_unprepared(&statement).await?;
         }

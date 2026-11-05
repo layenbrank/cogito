@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
-import * as monaco from 'monaco-editor'
+import * as monaco from 'monaco-editor/editor/editor.api'
 import { useEffect, useState } from 'react'
 
 import { useCodeStore } from '@/stores/code'

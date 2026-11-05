@@ -143,6 +143,8 @@ interface CodeState {
   toPushRecentRoot: (root: string) => void
   toPushRecentPath: (path: string) => void
   toOpenTab(params: { path: string; language?: string }): void
+  /** 只登记标签、不激活、不读内容：首屏恢复用，内容等激活时由惰性读路径补上 */
+  toRegisterTab(params: { path: string; language?: string }): void
   /** 打开/激活差异标签；与编辑标签可并存。带 oid 时为提交间对比。 */
   toOpenDiffTab(params: {
     path: string
@@ -491,6 +493,28 @@ const useCodeStore = create<CodeState>()(
               'toActivateTab'
             )
           },
+
+          toRegisterTab(params) {
+            set(
+              function (state) {
+                const existing = state.tabs.find(function (tab) {
+                  return isFileTab(tab) && isSamePath(tab.path, params.path)
+                })
+                if (existing) return
+                state.tabs.push({
+                  id: crypto.randomUUID(),
+                  path: params.path,
+                  title: findFileName(params.path),
+                  language: params.language ?? findLanguageId(params.path),
+                  isDirty: false,
+                  kind: 'file'
+                })
+              },
+              false,
+              'toRegisterTab'
+            )
+          },
+
 
           toCloseTab(id) {
             set(

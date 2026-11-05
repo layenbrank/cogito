@@ -27,6 +27,20 @@ async function openAbsolutePath(absolutePath: string): Promise<void> {
   }
 }
 
+/**
+ * 只登记标签：不读正文、不建 model、不抢激活态。
+ *
+ * 首屏恢复用（对齐 VS Code 的 `ModelService` 按需创建）：8 个 tab 的工作区
+ * 只读当前那一个的全文，其余等用户点开时由 `MonacoHost` 的惰性读路径补上。
+ * 不抢激活态是关键：`toOpenTab` 会激活，依次恢复 N 个就等于读 N 次全文。
+ */
+function registerTabWithoutContent(absolutePath: string): void {
+  useCodeStore.getState().toRegisterTab({
+    path: absolutePath,
+    language: findLanguageId(absolutePath)
+  })
+}
+
 /** 磁盘已更改 → 用户点「重新加载」：显式覆盖缓冲区 */
 async function reloadFromDisk(absolutePath: string): Promise<void> {
   const content = await readCodeFile(absolutePath)
@@ -55,4 +69,4 @@ async function revealLocation(
   useCodeStore.getState().toRequestReveal({ path: absolutePath, line: safeLine, column: safeColumn })
 }
 
-export { openAbsolutePath, reloadFromDisk, revealLocation }
+export { openAbsolutePath, registerTabWithoutContent, reloadFromDisk, revealLocation }

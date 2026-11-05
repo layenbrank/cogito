@@ -1,7 +1,8 @@
 /**
  * 单个嵌入终端的 xterm 视图：创建 / 接上 PTY 会话、接字节流、转发输入与 resize。
  *
- * 由 TerminalTabs 只挂载当前可见 tab：切 tab / 显示面板时 remount + attach 回放。
+ * 由 TerminalTabs 常驻挂载（最近 N 个 tab 保活，非 active 只改透明度）：
+ * 会话生命周期不跟随视图卸载，只有显式关闭（× / 结束全部会话）才 kill PTY。
  *
  * **同一 `id` 允许多个宿主同时显示**（右栏终端 + 底部 Dock / 代码页面板）：
  * Rust 侧 `terminal:attach` 经返回值 `replay` 回放缓冲，并扇出实时 Channel，所以后挂的
@@ -9,7 +10,8 @@
  * tab 时渲染出**一片空白**。只有第一个视图负责 `create`（同 id 已存在时 Rust 只 attach，
  * 不会 silent kill）。
  *
- * 会话归属用引用计数：最后一个视图卸载时才回收 PTY（agent 会话永不随视图回收）。
+ * 出壳顺序（见 plan 步骤 1）：**同步**用兜底字型 `new Terminal()` + `open()`，
+ * 字体链在后台跑并在就绪后原地升级 options —— 绝不在 open 之前 await 字体。
  */
 import { useEffect, useRef, useState } from 'react'
 import { listen } from '@tauri-apps/api/event'
@@ -22,7 +24,11 @@ import { EVENTS } from '@/shared/ipc/channels'
 import { useTerminalStore } from '@/stores/terminal'
 import type { TerminalTabOrigin } from '@/stores/terminal'
 import { reportCaught } from '@/utils/exception-report'
-import { resolveTerminalTypeface } from './terminal-font'
+import {
+  resolveTerminalFallbackTypeface,
+  resolveTerminalTypeface,
+  type TerminalTypeface
+} from './terminal-font'
 import { scheduleTerminalLayout, syncTerminalLayout } from './terminal-layout'
 import { resolveTerminalTheme } from './terminal-theme'
 
@@ -135,42 +141,69 @@ function TerminalView(props: TerminalViewProps) {
         attributeFilter: ['class']
       })
 
-      void (async function () {
-        const typeface = await resolveTerminalTypeface()
-        if (disposed) return
+      /*
+       * ── 出壳：同步创建 + open（兜底字型）──
+       * 这里**不允许**出现 await：只要 open 之前有任何一次挂起，
+       * 容器就是白的，而且没有重试机会（用户报的「终端空白」）。
+       */
+      const initialTypeface = resolveTerminalFallbackTypeface()
+      const terminal = new XtermTerminal({
+        cursorBlink: true,
+        cursorStyle: 'bar',
+        cursorInactiveStyle: 'bar',
+        fontSize: initialTypeface.fontSize,
+        fontFamily: initialTypeface.fontFamily,
+        fontWeight: initialTypeface.fontWeight,
+        theme: resolveTerminalTheme()
+      })
+      const fit = new FitAddon()
+      terminal.loadAddon(fit)
+      terminal.open(container)
+      /*
+       * Shift+Enter = 插入换行，而不是提交。
+       *
+       * 直接发 `\n` 没用 —— bash/zsh 同样会执行命令。这里走 readline 的
+       * quoted-insert：`C-v` + `C-j`，把换行当字面字符插进当前行，
+       * 于是能写多行命令/粘贴块后再统一回车执行。
+       */
+      terminal.attachCustomKeyEventHandler(function (event) {
+        if (event.type !== 'keydown') return true
+        if (event.key !== 'Enter' || !event.shiftKey) return true
+        event.preventDefault()
+        terminal.input('\x16\x0a', true)
+        return false
+      })
+      terminalRef.current = terminal
+      fitRef.current = fit
 
-        const terminal = new XtermTerminal({
-          cursorBlink: true,
-          cursorStyle: 'bar',
-          cursorInactiveStyle: 'bar',
-          fontSize: typeface.fontSize,
-          fontFamily: typeface.fontFamily,
-          fontWeight: typeface.fontWeight,
-          theme: resolveTerminalTheme()
-        })
-        const fit = new FitAddon()
-        terminal.loadAddon(fit)
-        terminal.open(container)
-        /*
-         * Shift+Enter = 插入换行，而不是提交。
-         *
-         * 直接发 `\n` 没用 —— bash/zsh 同样会执行命令。这里走 readline 的
-         * quoted-insert：`C-v` + `C-j`，把换行当字面字符插进当前行，
-         * 于是能写多行命令/粘贴块后再统一回车执行。
-         */
-        terminal.attachCustomKeyEventHandler(function (event) {
-          if (event.type !== 'keydown') return true
-          if (event.key !== 'Enter' || !event.shiftKey) return true
-          event.preventDefault()
-          terminal.input('\x16\x0a', true)
-          return false
-        })
-        // 字体刚注入时再写一次 family，迫使 canvas 重新量字宽
-        terminal.options.fontFamily = typeface.fontFamily
-        terminal.options.fontSize = typeface.fontSize
-        terminal.options.fontWeight = typeface.fontWeight
-        terminalRef.current = terminal
-        fitRef.current = fit
+      /** 原地升级字型：options 变了不用重建实例，重新量宽 + 重绘即可 */
+      function applyTypeface(typeface: TerminalTypeface) {
+        if (disposed) return
+        const instance = terminalRef.current
+        if (!instance) return
+        if (
+          instance.options.fontFamily === typeface.fontFamily &&
+          instance.options.fontSize === typeface.fontSize &&
+          instance.options.fontWeight === typeface.fontWeight
+        ) {
+          return
+        }
+        instance.options.fontFamily = typeface.fontFamily
+        instance.options.fontSize = typeface.fontSize
+        instance.options.fontWeight = typeface.fontWeight
+        // 字宽变了：重新 fit 一次，否则光标位置与实际字形错位
+        syncTerminalLayout(instance, fitRef.current, container, false)
+      }
+
+      void resolveTerminalTypeface({ onLate: applyTypeface }).then(function (typeface) {
+        applyTypeface(typeface)
+        if (typeface.isFinal) return
+        // 超时兜底：onLate 会在真实字型就绪时补一次，这里只留个可排查的日志
+        console.info('[terminal] 已用兜底字型出壳，字体就绪后自动升级', props.id)
+      })
+
+      void (async function () {
+        if (disposed) return
 
         void listen<{ id: string; exitCode: number | null }>(EVENTS.TERMINAL_EXIT, function (event) {
           if (event.payload.id !== props.id || disposed) return
