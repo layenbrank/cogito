@@ -13,7 +13,7 @@ const field = 'bg-foreground/[0.04] forced-colors:border dark:bg-foreground/[0.0
 const ghostButton =
   'inline-flex items-center justify-center rounded-full text-muted-foreground outline-hidden transition-[background-color,color,scale] duration-150 hover:bg-foreground/[0.06] hover:text-foreground/90 active:scale-[0.96] focus-visible:ring-1 focus-visible:ring-foreground/20 motion-reduce:transition-none disabled:pointer-events-none disabled:opacity-50 dark:hover:bg-foreground/[0.09]'
 
-/** 小号等宽标签：条数、状态这类元信息 */
+/** 小号等宽标签：条数、状态这类元信息（走本仓字号档位 `text-xs`，不照搬元素页的 px） */
 const mono = 'font-mono text-xs tracking-tight text-muted-foreground'
 
 /** 列表行入场：从下方一格淡入（tw-animate-css 提供） */

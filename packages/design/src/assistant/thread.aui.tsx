@@ -63,6 +63,7 @@ import {
 import { ComposerChipText, resolveComposerChipLabel } from './composer-chip-text'
 import { ComposerInput } from './composer-input.aui'
 import { ComposerTriggerProvider, type ComposerTrigger, type ComposerTriggerListProps } from './composer-trigger'
+import { MessageEditComposer } from './edit-message.aui'
 import { MessageError } from './error-state.aui'
 import { ThreadUserMessageRuler } from './thread-user-ruler.aui'
 import { ThreadUserMessageSticky } from './thread-user-sticky.aui'
@@ -299,7 +300,7 @@ const ThreadMessage: FC = () => {
   const role = useAuiState((s) => s.message.role)
   const isEditing = useAuiState((s) => s.message.composer.isEditing)
 
-  if (isEditing) return <EditComposer />
+  if (isEditing) return <MessageEditComposer />
   return (
     <>
       <ThreadDayMarker />
@@ -1106,39 +1107,6 @@ const UserActionBar: FC = () => {
         </TooltipIconButton>
       </ActionBarPrimitive.Edit>
     </ActionBarPrimitive.Root>
-  )
-}
-
-const EditComposer: FC = () => {
-  const labels = useAssistantLabels()
-
-  return (
-    <MessagePrimitive.Root
-      data-slot="aui_edit-composer-wrapper"
-      className="flex flex-col px-2">
-      <ComposerPrimitive.Root className="aui-edit-composer-root border-input ms-auto flex w-full max-w-[85%] cursor-text flex-col rounded-(--composer-radius) border bg-(--composer-bg) shadow-xs dark:bg-input/30">
-        <ComposerInput
-          className="aui-edit-composer-input text-foreground min-h-14 bg-transparent px-4 pt-3.5 pb-1 text-sm outline-none"
-          autoFocus
-        />
-        <div className="aui-edit-composer-footer mx-2.5 mb-2.5 flex items-center gap-1.5 self-end">          <ComposerPrimitive.Cancel asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 rounded-md px-3.5">
-              {labels.cancel}
-            </Button>
-          </ComposerPrimitive.Cancel>
-          <ComposerPrimitive.Send asChild>
-            <Button
-              size="sm"
-              className="h-8 rounded-md px-3.5 shadow-xs">
-              {labels.update}
-            </Button>
-          </ComposerPrimitive.Send>
-        </div>
-      </ComposerPrimitive.Root>
-    </MessagePrimitive.Root>
   )
 }
 

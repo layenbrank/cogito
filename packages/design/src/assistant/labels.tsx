@@ -47,6 +47,8 @@ type AssistantLabels = {
   more: string
   exportMarkdown: string
   edit: string
+  /** 编辑已发送的消息时，发送后从当前分支掉出去的回复条数（`0` 时不显示提示） */
+  editDiscardsReplies: (count: number) => string
   cancel: string
   update: string
   previous: string
@@ -66,6 +68,12 @@ type AssistantLabels = {
   /** 待发送队列标题 */
   queueHeading: string
   queueRemove: string
+  /** 单条移除的无障碍文案：带上正文，读屏才知道删的是哪一条 */
+  queueRemoveItem: (text: string) => string
+  /** 队列标题右端的口径：这些消息等本轮结束后自动发（对齐官方元素的排版） */
+  queueSendsWhenFinishes: string
+  /** 「正在运行」那行右侧的状态标签 */
+  queueRunning: string
   queueSteerNow: string
   /** 运行中点击发送（入队） */
   sendQueued: string
@@ -148,6 +156,8 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   more: 'More',
   exportMarkdown: 'Export as Markdown',
   edit: 'Edit',
+  editDiscardsReplies: (count) =>
+    `Sending discards ${count} ${count === 1 ? 'reply' : 'replies'}`,
   cancel: 'Cancel',
   update: 'Update',
   previous: 'Previous',
@@ -164,6 +174,9 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   composerPlaceholderRunning: 'Queue with Enter · Ctrl+Enter to steer now',
   queueHeading: 'Queued',
   queueRemove: 'Remove from queue',
+  queueRemoveItem: (text) => `Remove "${text}" from the queue`,
+  queueSendsWhenFinishes: 'sends when this finishes',
+  queueRunning: 'running',
   queueSteerNow: 'Send now',
   sendQueued: 'Add to queue',
   queuedMessages: (count) => (count === 1 ? '1 queued' : `${count} queued`),

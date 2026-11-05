@@ -2,11 +2,12 @@
  * assistant-ui「message queue」元素（https://www.assistant-ui.com/elements/message-queue）的
  * 本仓实现。元素本体是收费产物，官网只给了 via-runtime 示例块：这里照示例的版面重写视觉
  * （`field` / `ghostButton` / `mono` 三条 token + `rounded-2xl py-2 pr-2 pl-3` 的行），
+ * 版面对齐元素渲染出的真实 DOM，字号走本仓档位（`text-xs` / `text-sm`），不照搬它的 px 值；
  * 内在行为（折叠、封顶、行内动作、与 app 的衔接）全部自己实现。
  *
  * 与官方示例的有意差异：
- * - 不渲染官方顶部那条「正在运行」行：当前轮的用户消息已经在对话流里，
- *   再在输入框上方重复一遍会被读成「消息重复了」。
+ * - 官方顶部那条「正在运行」行默认不渲染（传 `runningText` 才出）：线程里当前轮的用户消息
+ *   已经在对话流里，再在输入框上方重复一遍会被读成「消息重复了」。
  * - 默认折叠成「N queued + 第一条的一行预览」：官方示例永远展开，
  *   一次排队就把聊天区顶掉半个屏幕。
  * - 展开体 `max-h-44` + 滚动，每条 `truncate` 只占一行。
@@ -54,6 +55,11 @@ type MessageQueueProps = {
   extraCount?: number
   /** 队列为空时折叠态的预览文本（此时第一条正文来自 `children`，元素自己看不到） */
   extraPreview?: string
+  /**
+   * 正在跑的那条文本。传了才渲染官方那条「running」行（蓝点 + 正文 + running 标签）。
+   * 线程里默认不传：当前轮的用户消息已经在对话流里，再在输入框上方重复一遍会被读成「消息重复了」。
+   */
+  runningText?: string | undefined
   /** 展开态列表底部的附加内容，与排队消息同一个滚动区 */
   children?: ReactNode
   /** 默认折叠 */
@@ -71,6 +77,7 @@ const MessageQueue: FC<MessageQueueProps> = function MessageQueue({
   className,
   extraCount = 0,
   extraPreview = '',
+  runningText,
   children,
   defaultOpen = false,
   open,
@@ -108,21 +115,23 @@ const MessageQueue: FC<MessageQueueProps> = function MessageQueue({
     <div
       data-slot="message-queue"
       className={cn('flex w-full flex-col gap-2', className)}>
+      {runningText ? <MessageQueueRunningRow text={runningText} /> : null}
       <button
         type="button"
         data-slot="message-queue-header"
         aria-expanded={expanded}
         aria-label={expanded ? labels.queueCollapse : labels.queueExpand}
-        title={expanded ? labels.queueCollapse : labels.queueExpand}
+        title={
+          expanded ? (isRunning ? labels.queueStopHint : labels.queueCollapse) : labels.queueExpand
+        }
         onClick={toggle}
         className="group hover:bg-foreground/[0.03] flex w-full items-center gap-2 rounded-xl px-1 py-1 text-left transition-colors">
         <span className={cn(mono, 'shrink-0 tabular-nums')}>{labels.queuedMessages(total)}</span>
         {expanded ? (
-          isRunning ? (
-            <span className={cn(mono, 'min-w-0 flex-1 truncate')}>{labels.queueStopHint}</span>
-          ) : (
-            <span className="flex-1" />
-          )
+          /* 展开态跟官方一致：右端对齐说清「什么时候会发」 */
+          <span className={cn(mono, 'min-w-0 flex-1 truncate text-right')}>
+            {labels.queueSendsWhenFinishes}
+          </span>
         ) : (
           <span className="text-foreground/60 min-w-0 flex-1 truncate text-sm">
             {previewText ? renderBody(previewText) : labels.queueEmptyPreview}
@@ -178,19 +187,19 @@ const MessageQueue: FC<MessageQueueProps> = function MessageQueue({
                         aria-label={labels.queueSteerNow}>
                         <Icon
                           icon="lucide:arrow-up"
-                          className="size-3.5"
+                          className="text-foreground/25 size-3 shrink-0"
                         />
                       </TooltipIconButton>
                     </QueueItemPrimitive.Steer>
                     <QueueItemPrimitive.Remove asChild>
                       <TooltipIconButton
-                        tooltip={labels.queueRemove}
+                        tooltip={labels.queueRemoveItem(text)}
                         side="top"
                         type="button"
                         variant="ghost"
                         size="icon"
                         className={cn(ghostButton, 'size-6 shrink-0')}
-                        aria-label={labels.queueRemove}>
+                        aria-label={labels.queueRemoveItem(text)}>
                         <Icon
                           icon="lucide:x"
                           className="size-3.5"
@@ -209,9 +218,35 @@ const MessageQueue: FC<MessageQueueProps> = function MessageQueue({
   )
 }
 
+/**
+ * 官方那条「正在运行」行：蓝点（外圈 `animate-ping`）+ 正文 + 右侧 `running` 标签。
+ *
+ * 只在使用方显式给 `runningText` 时出现 —— 线程里当前轮的用户消息已经在对话流里，
+ * 输入框上方再摆一条同样的正文会被读成「消息重复了」。
+ */
+const MessageQueueRunningRow: FC<{ text: string; className?: string }> = ({ text, className }) => {
+  const labels = useAssistantLabels()
+
+  return (
+    <div
+      data-slot="message-queue-running"
+      className={cn(
+        'bg-background border-border/60 dark:bg-popover flex items-center gap-2.5 rounded-2xl border p-3',
+        className
+      )}>
+      <span className="relative flex size-2 shrink-0">
+        <span className="absolute inline-flex size-full animate-ping rounded-full bg-blue-500/60 motion-reduce:hidden" />
+        <span className="dark:bg-blue-400 relative inline-flex size-2 rounded-full bg-blue-500" />
+      </span>
+      <span className="text-foreground/90 min-w-0 flex-1 truncate text-sm">{text}</span>
+      <span className={cn(mono, 'shrink-0')}>{labels.queueRunning}</span>
+    </div>
+  )
+}
+
 function defaultRenderText(text: string): ReactNode {
   return text
 }
 
-export { MessageQueue, LIST_MAX_HEIGHT_CLASS, textOfParts }
+export { MessageQueue, MessageQueueRunningRow, LIST_MAX_HEIGHT_CLASS, textOfParts }
 export type { MessageQueueItemInfo, MessageQueueProps }

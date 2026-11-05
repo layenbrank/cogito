@@ -34,6 +34,23 @@
 | 计数 | 发送按钮右上角徽标 | 运行中队列非空时显示条数（`labels.queuedMessages`） |
 | 停止 | `unstable_queueClearOnCancel: false` | **只中断当前这一轮**，队列里的消息稍后照发（产品口径，2026-11 明确） |
 
+### 元素视觉（`message-queue.aui.tsx`，按官网真实渲染的 DOM 校准）
+
+元素本体收费，官网只给示例块；样式按 elements/message-queue 页里**渲染出来的 DOM**取类名，
+行为自己写。字号不照搬元素里的 px 值，统一走本仓档位（元信息 `text-xs`、正文 `text-sm`）；
+共享 token 在 `elements/surfaces.tsx`（`field` / `ghostButton` / `mono` / `rowEnter`）。
+
+| 部位 | 口径 |
+| --- | --- |
+| 「正在运行」行 | `runningText` 传了才渲染（导出 `MessageQueueRunningRow`）：蓝点 `animate-ping` + 正文 `text-sm` + 右端 `running` 标签。**默认不传**——线程里当前轮的用户消息已在对话流里，重复一遍会被读成消息重复 |
+| 标题 | 左 `N queued`（`mono` 即 `text-xs`、`tabular-nums`）；展开态右端是「本轮结束后自动发送」（`queueSendsWhenFinishes`），折叠态换成第一条正文预览 |
+| 条目 | `field` 表面 + `rounded-2xl py-2 pr-2 pl-3`、`rowEnter` 入场；序号 `mono w-3 tabular-nums`；正文 `text-foreground/60 text-sm truncate` |
+| 行内动作 | 上箭头（`lucide:arrow-up`，`text-foreground/25 size-3`）= 插队；`lucide:x` `size-3.5` = 移除，按钮 `ghostButton size-6`，无障碍文案带正文（`labels.queueRemoveItem(text)`） |
+| 展开体 | `max-h-44` + 滚动（官方示例永远展开，会顶掉半个屏幕，这里默认折叠） |
+
+`extraCount` / `extraPreview` / `renderText` / `renderItemActions` 四个注入点留给 app：`@chip` 标签、
+「取回编辑 / 上移 / 下移」这些库没给 primitive 的操作。
+
 **已知限制：队列是内存态。** 刷新页面 / 换会话 / 重启就丢，且丢得无声。
 
 ### 为什么暂不做持久化
@@ -53,6 +70,19 @@
 **如果要做，建议的轻量方案**（不需要内部 API）：卸载/切会话时把队列文本写进该线程的
 草稿存储，下次打开只**预填输入框**并提示「上次有 N 条未发送」，由用户决定是否发——
 语义安全、可增量实现。需要的话单开一条任务。
+
+## 编辑已发送消息（edit-message）
+
+元素本体是收费产物，视觉按官网示例块重写（`field` 表面 + `rounded-2xl p-3.5` 的编辑壳），
+行为自己实现，文案走 `labels.editDiscardsReplies`。
+
+| 环节 | 位置 | 行为 |
+| --- | --- | --- |
+| 进入编辑 | `thread.aui.tsx`（`UserActionBar` 的铅笔） | `ActionBarPrimitive.Edit` → `s.message.composer.isEditing` |
+| 编辑壳 | `edit-message.aui.tsx`（`MessageEditComposer`） | 原地换成 composer，`ComposerPrimitive.*` 自动作用域到这条消息自己的 edit composer |
+| 丢弃提示 | 同上（`findDiscardedReplies`） | 数「当前分支上这条消息之后的助手回复」，`> 0` 才显示 |
+| 取消 / 发送 | 同上 | Cancel 丢草稿回气泡；Send 把改写作为同父新分支发出去（不删历史，分支切换可回看） |
+| standalone | 同上（`EditMessage`） | 受控版：`editing` / `value` / `discardedReplies` 由 app 持有 |
 
 ## 建议顺序（按「改动量 ÷ 收益」排）
 
