@@ -444,8 +444,12 @@ const Composer: FC<{ autoFocus: boolean }> = ({ autoFocus }) => {
               'data-[dragging=true]:border-ring data-[dragging=true]:border-dashed',
               'data-[dragging=true]:bg-[color-mix(in_oklab,var(--color-accent)_45%,var(--color-card))]'
             ].join(' ')}>
-            <ComposerQueuedStrip />
-            {ComposerQueue ? <ComposerQueue /> : null}
+            {/*
+             * 队列面板与默认条**二选一**：外部传了 ComposerQueue 就只渲染它，
+             * 否则退回 design 包里那条只有「立即发 / 删除」的默认条。
+             * 两个都渲染会让同一条排队消息在输入框上方出现两遍。
+             */}
+            {ComposerQueue ? <ComposerQueue /> : <ComposerQueuedStrip />}
             <ComposerAttachments />
             <ComposerInput
               placeholder={placeholder}
