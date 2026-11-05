@@ -52,6 +52,8 @@ const EMPTY_PENDING: readonly RestoredQueueItem[] = []
 const pendingBySession = new Map<string, RestoredQueueItem[]>()
 /** 已经完成 reconcile 的会话：在此之前不允许落库，否则会用空队列把库里的行清掉 */
 const readySessions = new Set<string>()
+/** 已经回灌过的会话：同一个会话只回灌一次，重挂载不再读库（否则会把旧行再灌一遍） */
+const reconciledSessions = new Set<string>()
 const inflightReconcile = new Map<string, Promise<void>>()
 const listeners = new Set<() => void>()
 
@@ -124,19 +126,22 @@ async function persistComposerQueue(
 /**
  * 读回队列并按会话状态决定落到「真实队列」还是「待发送」。
  *
- * 同一个会话只跑一次（`inflightReconcile` 单飞），避免 React 严格模式下的
- * 双挂载把队列灌两遍 —— 队列里出现两条一模一样的内容比丢一条更糟。
+ * 同一个会话只跑一次：`reconciledSessions` 挡住重挂载、`inflightReconcile` 挡住
+ * 并发（React 严格模式下两个 effect 几乎同时触发）。回灌两次的后果是队列里出现
+ * 两条一模一样的内容，比丢一条更难排查。
  */
 function reconcileComposerQueue(
   aui: AssistantClient,
   sessionID: string,
   options: { isRunning: boolean }
 ): Promise<void> {
+  if (reconciledSessions.has(sessionID)) return Promise.resolve()
   const running = inflightReconcile.get(sessionID)
   if (running) return running
 
   const task = (async function () {
     const rows = await readComposerQueue(sessionID)
+    reconciledSessions.add(sessionID)
     if (rows.length === 0) {
       readySessions.add(sessionID)
       return
@@ -222,6 +227,7 @@ function dropPendingItem(sessionID: string, id: string): void {
 function resetComposerQueueState(): void {
   pendingBySession.clear()
   readySessions.clear()
+  reconciledSessions.clear()
   inflightReconcile.clear()
   notify()
 }
