@@ -16,6 +16,8 @@ const queueState = {
 
 const pendingState = { items: [] as { id: string; text: string; attachments: string }[] }
 
+type StubQueueItem = { id: string; parts: { type: string; text: string }[] }
+
 vi.mock('@assistant-ui/react', function () {
   return {
     useAui: function () {
@@ -39,6 +41,37 @@ vi.mock('@assistant-ui/react', function () {
     },
     useAuiState: function (selector: (state: typeof queueState) => unknown) {
       return selector(queueState)
+    },
+    ComposerPrimitive: {
+      // 真身是 render-prop：按队列顺序逐条回调，这里保持同样的契约
+      Queue: function StubQueue(props: {
+        children: (value: { queueItem: StubQueueItem }) => ReactNode
+      }) {
+        return (
+          <>
+            {queueState.composer.queue.map(function (queueItem) {
+              return (
+                <div
+                  key={queueItem.id}
+                  data-stub-queue-item={queueItem.id}>
+                  {props.children({ queueItem })}
+                </div>
+              )
+            })}
+          </>
+        )
+      }
+    },
+    QueueItemPrimitive: {
+      Text: function StubQueueText() {
+        return <span />
+      },
+      Steer: function StubQueueSteer(props: { children?: ReactNode }) {
+        return <>{props.children}</>
+      },
+      Remove: function StubQueueRemove(props: { children?: ReactNode }) {
+        return <>{props.children}</>
+      }
     }
   }
 })
@@ -63,7 +96,13 @@ vi.mock('@cogito/design/assistant/labels', function () {
         queueHeading: 'Queued',
         queueRemove: 'Remove from queue',
         queueSteerNow: 'Send now',
-        queueStopHint: 'Stopping ends this run only'
+        queueStopHint: 'Stopping ends this run only',
+        queuedMessages: function (count: number) {
+          return `${count} queued`
+        },
+        queueExpand: '展开队列',
+        queueCollapse: '收起队列',
+        queueEmptyPreview: '（无文本）'
       }
     }
   }
@@ -110,16 +149,6 @@ vi.mock('@/features/agent/composer-queue', function () {
     subscribePendingQueue: function () {
       return function () {}
     },
-    textOfQueueItem: function (item: { parts?: { type: string; text: string }[] }) {
-      return (item.parts ?? [])
-        .filter(function (part) {
-          return part.type === 'text'
-        })
-        .map(function (part) {
-          return part.text
-        })
-        .join('')
-    },
     useComposerQueuePersist: function () {}
   }
 })
@@ -141,48 +170,56 @@ describe('composer 队列面板', function () {
     expect(container.firstChild).toBeNull()
   })
 
-  it('默认折叠：只给标题、条数和第一条的一行预览', function () {
+  it('默认折叠：只给条数和第一条的一行预览', function () {
     queueState.composer.queue = [queueItem('q1', '第一条很长很长的排队消息'), queueItem('q2', '第二条')]
     const { container } = render(<ComposerQueue />)
 
     const toggle = screen.getByRole('button', { name: '展开队列' })
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByText('2 queued')).toBeInTheDocument()
     expect(screen.getByText('第一条很长很长的排队消息')).toBeInTheDocument()
     // 折叠态不渲染列表体：第二条完全看不到
     expect(screen.queryByText('第二条')).toBeNull()
-    expect(container.querySelector('[data-slot="cogito_composer-queue-body"]')).toBeNull()
+    expect(container.querySelector('[data-slot="message-queue-body"]')).toBeNull()
   })
 
-  it('展开后列表封顶并可滚动，每条只占一行', function () {
+  it('展开后列表封顶并可滚动，每条只占一行，且带「立即发 / 删除」', function () {
     queueState.composer.queue = [queueItem('q1', '第一条'), queueItem('q2', '第二条')]
     const { container } = render(<ComposerQueue />)
 
     fireEvent.click(screen.getByRole('button', { name: '展开队列' }))
 
-    const body = container.querySelector('[data-slot="cogito_composer-queue-body"]')
+    const body = container.querySelector('[data-slot="message-queue-body"]')
     expect(body).not.toBeNull()
     expect(body?.className).toContain('max-h-44')
     expect(body?.className).toContain('overflow-y-auto')
 
-    const rows = container.querySelectorAll('[data-slot="cogito_composer-queue-item"]')
+    const rows = container.querySelectorAll('[data-slot="message-queue-item"]')
     expect(rows).toHaveLength(2)
     for (const row of rows) {
       // 单行：truncate + nowrap，不靠 line-clamp 撑高
       expect(row.querySelector('.truncate')).not.toBeNull()
       expect(row.className).toContain('items-center')
     }
+
+    // assistant-ui 元素自带的行内动作：立即发 / 删除
+    expect(screen.getAllByRole('button', { name: 'Send now' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: 'Remove from queue' })).toHaveLength(2)
     expect(screen.getByRole('button', { name: '收起队列' })).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('待发送条目并入同一个列表，也各占一行', function () {
+  it('待发送条目并入同一个可折叠区，条数一起算', function () {
     pendingState.items = [{ id: 'p1', text: '上次没发出去的', attachments: '[]' }]
     const { container } = render(<ComposerQueue />)
 
+    expect(screen.getByText('1 queued')).toBeInTheDocument()
+    // 队列为空时折叠态的预览取「上次没发出去的」第一条
     expect(screen.getByText('上次没发出去的')).toBeInTheDocument()
+
     fireEvent.click(screen.getByRole('button', { name: '展开队列' }))
 
-    const pendingRow = container.querySelector('[data-slot="cogito_composer-queue-pending"]')
-    expect(pendingRow).not.toBeNull()
-    expect(pendingRow?.querySelector('.truncate')).not.toBeNull()
+    const pending = container.querySelector('[data-slot="message-queue-pending"]')
+    expect(pending).not.toBeNull()
+    expect(pending?.querySelector('.truncate')).not.toBeNull()
   })
 })

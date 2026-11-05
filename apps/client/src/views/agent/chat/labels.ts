@@ -55,6 +55,10 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   sendQueued: '加入队列',
   queuedMessages: (count) => (count === 1 ? '1 条排队' : `${count} 条排队`),
   queueStopHint: '停止只中断本轮，排队消息稍后照发',
+  queueExpand: '展开队列',
+  queueCollapse: '收起队列',
+  queueEmptyPreview: '（无文本）',
+  errorRetry: '重试',
 
   // 进行中由 trigger 的 active / working 文案表达；结束后勿再写「思考中」
   reasoning: (seconds) => (seconds ? `思考（${seconds} 秒）` : '思考'),

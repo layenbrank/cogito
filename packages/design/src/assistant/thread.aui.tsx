@@ -4,7 +4,6 @@ import {
   AuiIf,
   BranchPickerPrimitive,
   ComposerPrimitive,
-  ErrorPrimitive,
   MessagePrimitive,
   SuggestionPrimitive,
   ThreadPrimitive,
@@ -64,6 +63,7 @@ import {
 import { ComposerChipText, resolveComposerChipLabel } from './composer-chip-text'
 import { ComposerInput } from './composer-input.aui'
 import { ComposerTriggerProvider, type ComposerTrigger, type ComposerTriggerListProps } from './composer-trigger'
+import { MessageError } from './error-state.aui'
 import { ThreadUserMessageRuler } from './thread-user-ruler.aui'
 import { ThreadUserMessageSticky } from './thread-user-sticky.aui'
 import { startsNewDay } from './thread-day'
@@ -545,15 +545,6 @@ const ComposerAction: FC = () => {
   )
 }
 
-const MessageError: FC = () => {
-  return (
-    <MessagePrimitive.Error>
-      <ErrorPrimitive.Root className="aui-message-error-root border-destructive bg-destructive/10 text-destructive dark:bg-destructive/5 mt-2 rounded-md border p-3 text-sm dark:text-red-200">
-        <ErrorPrimitive.Message className="aui-message-error-message whitespace-pre-wrap wrap-break-word" />
-      </ErrorPrimitive.Root>
-    </MessagePrimitive.Error>
-  )
-}
 
 /** 过程区的 part 只读这一段就够：切段按 `type`，折叠条的状态按 `status` */
 interface PartLike {

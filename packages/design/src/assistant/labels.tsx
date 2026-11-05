@@ -73,6 +73,14 @@ type AssistantLabels = {
   queuedMessages: (count: number) => string
   /** 队列非空时的口径说明：停止只中断当前轮，队列里的消息稍后照发 */
   queueStopHint: string
+  /** 队列折叠态的开关：展开 */
+  queueExpand: string
+  /** 队列折叠态的开关：收起 */
+  queueCollapse: string
+  /** 队列条目没有正文时折叠态的占位（只有附件那种） */
+  queueEmptyPreview: string
+  /** 失败那一轮的重试按钮 */
+  errorRetry: string
 
   // 部件
   /** 推理折叠条：`seconds` 只在有耗时时给出 */
@@ -160,6 +168,10 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   sendQueued: 'Add to queue',
   queuedMessages: (count) => (count === 1 ? '1 queued' : `${count} queued`),
   queueStopHint: 'Stopping ends this run only — queued messages still send',
+  queueExpand: 'Expand queue',
+  queueCollapse: 'Collapse queue',
+  queueEmptyPreview: '(no text)',
+  errorRetry: 'Retry',
   reasoning: (seconds) => (seconds ? `Reasoning · ${seconds}s` : 'Reasoning'),
   process: (steps, seconds) =>
     `Process · ${steps} ${steps === 1 ? 'step' : 'steps'}${seconds ? ` · ${seconds}s` : ''}`,
