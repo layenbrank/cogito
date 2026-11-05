@@ -188,6 +188,9 @@ fn ensure_overlay_visible(app: &AppHandle) -> Result<(), String> {
     let _ = apply_bounds(app);
     if !window.is_visible().unwrap_or(false) {
         let _ = window.show();
+        // `skip_taskbar` 只在 build 时下发一次；走过 hide()/show() 之后任务栏按钮会回来。
+        // 这里补一次，否则「卡死 → 看门狗 hide → 下次截屏 show」会留下一个任务栏图标。
+        let _ = window.set_skip_taskbar(true);
         // 先按穿透显示，免得透明全屏窗在 50ms 轮询间隙里挡住桌面
         let _ = window.set_ignore_cursor_events(true);
     }
