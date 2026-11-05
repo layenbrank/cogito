@@ -19,6 +19,12 @@
  * 装了新包（node_modules/@types 变化）而 tsconfig 没动时，指纹不会变：
  * 走工具条的强制同步（`isForced`）或改一次 tsconfig 即可，代价换来的是
  * 「保存 10 次 = 0 次 program 重建」。
+ *
+ * **两道额外闸门（治「切侧栏就卡一下」）**：
+ * - 没有 TS/JS 模型（默认停在提交历史 / 差异层）时不同步：2.5MB 类型灌进 worker
+ *   对当前画面毫无用处，而它排在空闲回调里，落地时刻恰好撞上用户点侧栏；
+ * - 同一组 roots 的并发同步合流：树刷新 + 切文件 + 右栏预览会同时喊，之前是
+ *   各自 `packTypes` 一遍。
  */
 import type * as Monaco from 'monaco-editor'
 
@@ -53,6 +59,11 @@ interface LibEntry {
   readonly handles: readonly LibHandle[]
 }
 
+/** 只用到「有哪些 model」这一小块能力，避免把 Monaco 全量类型拖进来做断言 */
+interface MonacoModelHost {
+  editor?: { getModels?: () => { getLanguageId(): string }[] }
+}
+
 let isCompilerReady = false
 /** roots + tsconfig 内容：树刷新是否要重来，只看它 */
 let configFingerprint: string | null = null
@@ -61,6 +72,13 @@ let syncedFingerprint: string | null = null
 let syncedCompilerKey: string | null = null
 let syncToken = 0
 const libHandles = new Map<string, LibEntry>()
+/**
+ * 同一组 roots 的并发调用合流。
+ *
+ * 树刷新、切文件、右栏文件预览会同时喊同步；不合流的话每个调用都会各自
+ * `packTypes` 一次（几 MB 的 IPC）+ 各自跑一遍注入，等于把同一份活重复做几遍。
+ */
+const inflight = new Map<string, Promise<SyncOutcome>>()
 
 /** djb2：只用来判断「内容变没变」，不承担安全语义 */
 function hashContent(text: string): string {
@@ -200,23 +218,84 @@ function diffExtraLibs(nextLibs: Map<string, string>): { added: number; removed:
 }
 
 /**
+ * 工作区里是否有「真正用得上类型库」的模型（TS / JS 文件）。
+ *
+ * 守门的意义：进入代码页默认停在提交历史 / 差异层，一个 TS 模型都没有，
+ * 这时把 2.5MB 的 `@types/node` 塞进 worker 纯粹是浪费 —— 而且它排在空闲回调里，
+ * 落地时机正好撞上用户点侧栏那一下。等真有 TS/JS 文件被打开再同步。
+ *
+ * 拿不到 `editor.getModels` 时（单测 / 非编辑器环境）一律按「有消费者」处理，
+ * 保持「同步一次就该同步成功」的语义。
+ */
+function hasTypescriptConsumer(): boolean {
+  let monaco: MonacoModelHost
+  try {
+    monaco = findMonaco()
+  } catch (error) {
+    // 还没装 Monaco（单测 / 极早期调用）时按「有消费者」处理：宁可多同步一次，也不要漏
+    console.debug('[monaco-types] 读取 Monaco 失败，跳过消费方探测', error)
+    return true
+  }
+  const getModels = monaco.editor?.getModels
+  if (typeof getModels !== 'function') return true
+  let models: { getLanguageId(): string }[]
+  try {
+    models = getModels.call(monaco.editor)
+  } catch (error) {
+    // 拿不到模型列表时同样按「有消费者」处理，保持「同步一次就该成功」的语义
+    console.debug('[monaco-types] 读取模型列表失败，跳过消费方探测', error)
+    return true
+  }
+  return models.some(function (model) {
+    const language = model.getLanguageId()
+    return language === 'typescript' || language === 'javascript'
+  })
+}
+
+function findNormalizedRoots(workspaceRoots: string[]): string[] {
+  return workspaceRoots
+    .map(function (root) {
+      return normalizeSeparators(root).replace(/\/+$/, '')
+    })
+    .filter(Boolean)
+}
+
+/**
  * 同步一次工作区的 TS 库。
  *
  * `isForced` 绕过指纹（手动重载）；否则 configFingerprint 一致就直接返回。
+ * 同一组 roots 已有在跑的同步时直接复用它的 Promise（合流，不重复 packTypes）。
  */
 async function syncWorkspaceTypescriptLibs(
   workspaceRoots: string[],
   options: SyncOptions = {}
 ): Promise<SyncOutcome> {
-  const roots = workspaceRoots
-    .map(function (root) {
-      return normalizeSeparators(root).replace(/\/+$/, '')
-    })
-    .filter(Boolean)
+  const roots = findNormalizedRoots(workspaceRoots)
+  if (roots.length === 0) return { isApplied: false, pathsCount: 0, target: null }
+
+  const rootsKey = roots.join('|')
+  if (options.isForced !== true) {
+    const pending = inflight.get(rootsKey)
+    if (pending) return pending
+  }
+
+  const task = runSync(roots, options)
+  inflight.set(rootsKey, task)
+  try {
+    return await task
+  } finally {
+    if (inflight.get(rootsKey) === task) inflight.delete(rootsKey)
+  }
+}
+
+async function runSync(roots: string[], options: SyncOptions): Promise<SyncOutcome> {
   const outcome: SyncOutcome = { isApplied: false, pathsCount: 0, target: null }
-  if (roots.length === 0) return outcome
 
   await importMonaco()
+
+  // 没有 TS/JS 模型就别读盘也别灌库；不写指纹，等真正打开代码文件时再来
+  if (options.isForced !== true && !hasTypescriptConsumer()) return outcome
+
   const token = ++syncToken
   ensureDiagnostics()
 

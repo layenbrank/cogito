@@ -10,7 +10,6 @@ import { useTerminalStore } from '@/stores/terminal'
 import { readCodeFile } from '@/views/code/lib/fs.ts'
 import { requestCloseTabs } from '@/views/code/lib/close-tabs.ts'
 import { disposeAllModels, findModel } from '@/views/code/lib/monaco-models.ts'
-import { resetWorkspaceTypescriptLibs } from '@/views/code/lib/monaco-types.ts'
 import { clearViewStates } from '@/views/code/lib/monaco-view-state.ts'
 import {
   openAbsolutePath,
@@ -50,7 +49,11 @@ function useCodeWorkspaceEffects(input: {
     return function () {
       disposeAllModels()
       clearViewStates()
-      resetWorkspaceTypescriptLibs()
+      /*
+       * 不再 resetWorkspaceTypescriptLibs()：注入台账是工作区级、跨视图复用的，
+       * 清掉指纹会让「离开代码页再回来」变成又一次 2.5MB 全量重灌。
+       * 真正需要清空的只有「根目录被清空」那条路径（monaco-host 里处理）。
+       */
     }
   }, [])
 

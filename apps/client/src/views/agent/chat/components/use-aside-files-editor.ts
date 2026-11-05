@@ -9,10 +9,7 @@ import { CODE_THEME, syncCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts
 import '@/lib/monaco-environment.ts'
 import { useCodeStore, type CodeEditorPrefs } from '@/stores/code'
 import { findModel, findOrCreateModel, disposeModel } from '@/views/code/lib/monaco-models.ts'
-import {
-  syncWorkspaceTypescriptLibs,
-  resetWorkspaceTypescriptLibs
-} from '@/views/code/lib/monaco-types.ts'
+import { syncWorkspaceTypescriptLibs } from '@/views/code/lib/monaco-types.ts'
 import { isSamePath } from '@/views/code/lib/path.ts'
 
 type MonacoModule = typeof Monaco
@@ -177,10 +174,7 @@ function useAsideFilesEditor(options: {
 
   useEffect(
     function () {
-      if (!options.rootPath) {
-        resetWorkspaceTypescriptLibs()
-        return
-      }
+      if (!options.rootPath) return
       void syncWorkspaceTypescriptLibs([options.rootPath]).catch(function (error: unknown) {
         console.error('[agent/aside-files] 同步 TS libs 失败', error)
       })
@@ -282,6 +276,12 @@ function useAsideFilesEditor(options: {
       pathRef.current = options.absolutePath
       savedValueRef.current = options.content
       editor.setModel(model)
+      // 模型挂上之后再灌类型：工程里没有 TS/JS 模型时同步会直接跳过（见 monaco-types）
+      if (options.rootPath) {
+        void syncWorkspaceTypescriptLibs([options.rootPath]).catch(function (error: unknown) {
+          console.error('[agent/aside-files] 同步 TS libs 失败', error)
+        })
+      }
       editor.updateOptions(
         options.isReadonly ? LARGE_DOCUMENT_OPTIONS : INTERACTIVE_DOCUMENT_OPTIONS
       )
@@ -304,6 +304,8 @@ function useAsideFilesEditor(options: {
       options.absolutePath,
       options.isPending,
       options.isReadonly,
+      // rootPath 换了要重新灌一次类型库（换工作区就是另一份 @types）
+      options.rootPath,
       isEditorReady
     ]
   )

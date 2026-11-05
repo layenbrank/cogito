@@ -427,6 +427,17 @@ function MonacoHost(props: MonacoHostProps) {
         }
         syncPendingReveal(activeEditor, model)
 
+        /*
+         * 类型库等到「真的打开了 TS/JS 文件」才灌：`monaco-types` 在没有 TS/JS 模型时
+         * 直接返回，所以进代码页（默认停在提交历史）不会再提前搬那 2.5MB ——
+         * 之前那份活排在空闲回调里，落地时刻正好是用户点侧栏的那一下。
+         */
+        void syncWorkspaceTypescriptLibs(useCodeStore.getState().roots)
+          .then(reportTypescriptApplied)
+          .catch(function (error) {
+            console.error('[monaco-types] 同步失败', error)
+          })
+
         const store = useCodeStore.getState()
         // 语法高亮按语言惰性加载（editor.api 入口不再自带全部 basic-languages）
         void ensureMonacoLanguage(activeTab.language)
@@ -453,7 +464,7 @@ function MonacoHost(props: MonacoHostProps) {
         subModelOptions?.dispose()
       }
     },
-    [activeTab]
+    [activeTab, reportTypescriptApplied]
   )
 
   return (

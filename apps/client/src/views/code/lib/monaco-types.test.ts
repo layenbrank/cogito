@@ -26,6 +26,8 @@ interface FakeDefaults {
 interface FakeState {
   files: FakePackFile[]
   tsconfig: unknown
+  /** 当前 Monaco 里挂着哪些模型（守门用）：默认有一个 TS 模型，测试按需改成别的 */
+  models: { languageId: string }[]
   // 显式声明返回类型：`vi.fn()` 的默认签名是 void，返回 Promise 会被判成 no-misused-promises
   packTypes: Mock<(...args: unknown[]) => unknown>
   readTsconfigChain: Mock<(...args: unknown[]) => unknown>
@@ -37,6 +39,7 @@ const state = vi.hoisted(function (): FakeState {
   return {
     files: [],
     tsconfig: null,
+    models: [],
     packTypes: vi.fn(),
     readTsconfigChain: vi.fn(),
     toCompilerOptions: vi.fn(),
@@ -63,6 +66,14 @@ const typescriptDefaults = makeDefaults('ts')
 const javascriptDefaults = makeDefaults('js')
 
 const fakeMonaco = {
+  // 守门只看「有没有 TS/JS 模型」：拿不到 getModels 时一律当作有消费者
+  editor: {
+    getModels: function () {
+      return state.models.map(function (model) {
+        return { getLanguageId: () => model.languageId }
+      })
+    }
+  },
   typescript: {
     // 0.57 起 ScriptTarget / ModuleKind 等枚举挂在 `monaco.typescript` 上
     ScriptTarget: { ESNext: 99 },
@@ -130,6 +141,7 @@ describe('monaco-types：指纹与增量注入', function () {
   beforeEach(function () {
     state.files = [libFile('index.d.ts', 'declare const a: 1'), libFile('fs.d.ts', 'declare const b: 2')]
     state.tsconfig = { compilerOptions: { target: 'ES2022' } }
+    state.models = [{ languageId: 'typescript' }]
     state.packTypes.mockReset()
     state.packTypes.mockImplementation(function () {
       return Promise.resolve({ files: state.files, isTruncated: false })
@@ -252,5 +264,49 @@ describe('monaco-types：指纹与增量注入', function () {
     // 配置指纹没变，仍然走零成本返回：要等 tsconfig 变化或强制同步
     expect(next.isApplied).toBe(false)
     expect(state.packTypes).toHaveBeenCalledTimes(1)
+  })
+
+  it('没有 TS/JS 模型（停在提交历史 / 差异层）：不读盘、不注入、不记指纹', async function () {
+    state.models = [{ languageId: 'plaintext' }]
+    const outcome = await syncWorkspaceTypescriptLibs([ROOT])
+
+    expect(outcome.isApplied).toBe(false)
+    expect(state.packTypes).toHaveBeenCalledTimes(0)
+    expect(addExtraLibTotal()).toBe(0)
+    expect(typescriptDefaults.setCompilerOptions).toHaveBeenCalledTimes(0)
+    // 关键：不写指纹，等真正打开代码文件时还能补上
+    expect(readSyncedFingerprint()).toBeNull()
+
+    state.models = [{ languageId: 'typescript' }]
+    const next = await syncWorkspaceTypescriptLibs([ROOT])
+    expect(next.isApplied).toBe(true)
+    expect(state.packTypes).toHaveBeenCalledTimes(1)
+    expect(readSyncedFingerprint()).toContain(ROOT)
+  })
+
+  it('同一组 roots 并发同步合流：只 `packTypes` 一次，两个调用拿到同一结果', async function () {
+    let release: (() => void) | undefined
+    state.packTypes.mockImplementation(function () {
+      return new Promise(function (resolve) {
+        release = function () {
+          resolve({ files: state.files, isTruncated: false })
+        }
+      })
+    })
+
+    const first = syncWorkspaceTypescriptLibs([ROOT])
+    const second = syncWorkspaceTypescriptLibs([ROOT])
+    await new Promise(function (resolve) {
+      setTimeout(resolve, 0)
+    })
+
+    expect(state.packTypes).toHaveBeenCalledTimes(1)
+    if (!release) throw new Error('packTypes 未被调用')
+    release()
+
+    const [left, right] = await Promise.all([first, second])
+    expect(left.isApplied).toBe(true)
+    expect(right.isApplied).toBe(true)
+    expect(addExtraLibTotal()).toBe(4)
   })
 })
