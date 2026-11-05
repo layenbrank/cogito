@@ -10,9 +10,11 @@
  */
 import { useAui, useAuiState, type AssistantClient } from '@assistant-ui/react'
 import { ComposerChipText, resolveComposerChipLabel } from '@cogito/design/assistant/composer-chip-text'
+import { field, ghostButton, mono } from '@cogito/design/assistant/elements/surfaces'
 import { MessageQueue, type MessageQueueItemInfo } from '@cogito/design/assistant/message-queue.aui'
 import { TooltipIconButton } from '@cogito/design/assistant/tooltip-icon-button'
 import { Icon } from '@iconify/react/offline'
+import { cn } from 'cn'
 import { useCallback, useEffect, useSyncExternalStore, type FC, type ReactNode } from 'react'
 
 import {
@@ -76,7 +78,7 @@ function renderItemActions(
           type="button"
           variant="ghost"
           size="icon"
-          className="size-7"
+          className={cn(ghostButton, 'size-6 shrink-0')}
           aria-label="取回编辑"
           onClick={function () {
             takeBackToComposer(aui, item.id, item.text)
@@ -92,7 +94,7 @@ function renderItemActions(
           type="button"
           variant="ghost"
           size="icon"
-          className="size-7 disabled:opacity-30"
+          className={cn(ghostButton, 'size-6 shrink-0 disabled:opacity-30')}
           aria-label="上移"
           disabled={item.index === 0}
           onClick={function () {
@@ -109,7 +111,7 @@ function renderItemActions(
           type="button"
           variant="ghost"
           size="icon"
-          className="size-7 disabled:opacity-30"
+          className={cn(ghostButton, 'size-6 shrink-0 disabled:opacity-30')}
           aria-label="下移"
           disabled={item.index === ids.length - 1}
           onClick={function () {
@@ -176,21 +178,21 @@ const ComposerQueue: FC = function ComposerQueue() {
       {pending.length > 0 ? (
         <div
           data-slot="message-queue-pending"
-          className="border-border/60 mt-0.5 flex flex-col gap-0.5 border-t pt-1">
-          <div className="text-muted-foreground/80 px-1 text-xs">上次没发出去的（{pending.length}）</div>
+          className="flex flex-col gap-1.5">
+          <div className={cn(mono, 'px-1')}>上次没发出去的（{pending.length}）</div>
           {pending.map(function (item) {
             return (
               <div
                 key={item.id}
                 data-slot="message-queue-pending-item"
                 title={item.text}
-                className="group hover:bg-accent/40 flex items-center gap-2 rounded-md px-1 py-1">
+                className={cn(field, 'group flex items-center gap-2.5 rounded-2xl py-2 pr-2 pl-3')}>
                 <Icon
                   icon="lucide:clock"
-                  className="text-muted-foreground/60 size-3.5 shrink-0"
+                  className="text-foreground/25 size-3.5 shrink-0"
                   aria-hidden
                 />
-                <div className="min-w-0 flex-1 truncate text-sm leading-tight whitespace-nowrap">
+                <div className="text-foreground/60 min-w-0 flex-1 truncate text-sm">
                   <ComposerChipText
                     text={item.text}
                     resolveLabel={resolveComposerChipLabel}
@@ -203,7 +205,7 @@ const ComposerQueue: FC = function ComposerQueue() {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-7"
+                    className={cn(ghostButton, 'size-6 shrink-0')}
                     aria-label="发送这条"
                     onClick={function () {
                       if (!sessionID) return
@@ -220,7 +222,7 @@ const ComposerQueue: FC = function ComposerQueue() {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="text-muted-foreground hover:text-destructive size-7"
+                    className={cn(ghostButton, 'size-6 shrink-0')}
                     aria-label="丢弃"
                     onClick={function () {
                       if (!sessionID) return

@@ -1,14 +1,16 @@
 /**
  * assistant-ui「message queue」元素（https://www.assistant-ui.com/elements/message-queue）的
- * 本仓实现：排队消息按顺序堆在输入框内、附件之上，**默认折叠成一行标题**，
- * 展开后每条只占一行、整块有最大高度 —— 否则一次排队就把聊天区顶掉半个屏幕。
+ * 本仓实现。元素本体是收费产物，官网只给了 via-runtime 示例块：这里照示例的版面重写视觉
+ * （`field` / `ghostButton` / `mono` 三条 token + `rounded-2xl py-2 pr-2 pl-3` 的行），
+ * 内在行为（折叠、封顶、行内动作、与 app 的衔接）全部自己实现。
  *
- * 与官方元素的差异（都是有意的）：
- * - 不渲染官方示例顶部那条「正在运行」行：当前轮的用户消息已经在对话流里，
+ * 与官方示例的有意差异：
+ * - 不渲染官方顶部那条「正在运行」行：当前轮的用户消息已经在对话流里，
  *   再在输入框上方重复一遍会被读成「消息重复了」。
- * - 折叠态保留**一条最短预览**（第一条的一行文本）：收起来只剩「3 queued」的话，
- *   用户不知道排的到底是哪几条。
- * - 行内正文与追加动作都可注入：app 用它把 `@chip` 渲染成简短标签、
+ * - 默认折叠成「N queued + 第一条的一行预览」：官方示例永远展开，
+ *   一次排队就把聊天区顶掉半个屏幕。
+ * - 展开体 `max-h-44` + 滚动，每条 `truncate` 只占一行。
+ * - 正文与追加动作可注入：app 用它把 `@chip` 渲染成简短标签、
  *   并挂上「取回编辑 / 上移 / 下移」这些库没有对应 primitive 的操作。
  */
 import { ComposerPrimitive, QueueItemPrimitive, useAuiState } from '@assistant-ui/react'
@@ -16,10 +18,11 @@ import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { useState, type FC, type ReactNode } from 'react'
 
+import { field, ghostButton, mono, rowEnter } from './elements/surfaces'
 import { useAssistantLabels } from './labels'
 import { TooltipIconButton } from './tooltip-icon-button'
 
-/** 队列条目里的一行正文上限：`max-h-44` 大约 4 行，再多就该滚了 */
+/** 队列条目里的一行正文上限：`max-h-44` 约 4 行，再多就该滚了 */
 const LIST_MAX_HEIGHT_CLASS = 'max-h-44'
 
 /**
@@ -104,7 +107,7 @@ const MessageQueue: FC<MessageQueueProps> = function MessageQueue({
   return (
     <div
       data-slot="message-queue"
-      className={cn('border-border/60 bg-muted/30 mb-2 flex flex-col rounded-lg border', className)}>
+      className={cn('flex w-full flex-col gap-2', className)}>
       <button
         type="button"
         data-slot="message-queue-header"
@@ -112,38 +115,35 @@ const MessageQueue: FC<MessageQueueProps> = function MessageQueue({
         aria-label={expanded ? labels.queueCollapse : labels.queueExpand}
         title={expanded ? labels.queueCollapse : labels.queueExpand}
         onClick={toggle}
-        className="hover:bg-accent/40 flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-colors">
-        <span className="text-muted-foreground shrink-0 text-xs font-medium tracking-wide uppercase tabular-nums">
-          {labels.queuedMessages(total)}
-        </span>
-        {expanded ? null : (
-          <span className="text-muted-foreground/80 min-w-0 flex-1 truncate text-xs font-normal">
+        className="group hover:bg-foreground/[0.03] flex w-full items-center gap-2 rounded-xl px-1 py-1 text-left transition-colors">
+        <span className={cn(mono, 'shrink-0 tabular-nums')}>{labels.queuedMessages(total)}</span>
+        {expanded ? (
+          isRunning ? (
+            <span className={cn(mono, 'min-w-0 flex-1 truncate')}>{labels.queueStopHint}</span>
+          ) : (
+            <span className="flex-1" />
+          )
+        ) : (
+          <span className="text-foreground/60 min-w-0 flex-1 truncate text-sm">
             {previewText ? renderBody(previewText) : labels.queueEmptyPreview}
           </span>
         )}
-        <span className="ml-auto flex shrink-0 items-center gap-1.5">
-          {expanded && isRunning ? (
-            <span className="text-muted-foreground/70 max-w-40 truncate text-xs font-normal">
-              {labels.queueStopHint}
-            </span>
-          ) : null}
-          <Icon
-            icon={expanded ? 'lucide:chevron-up' : 'lucide:chevron-down'}
-            className="text-muted-foreground size-3.5 shrink-0 opacity-70"
-          />
-        </span>
+        <Icon
+          icon={expanded ? 'lucide:chevron-up' : 'lucide:chevron-down'}
+          className="text-foreground/25 group-hover:text-foreground/60 size-3 shrink-0 transition-colors"
+        />
       </button>
 
       {expanded ? (
         <div
           data-slot="message-queue-body"
           className={cn(
-            'flex flex-col gap-0.5 overflow-y-auto overscroll-contain px-1.5 pb-1.5',
+            'flex flex-col gap-1.5 overflow-y-auto overscroll-contain px-1',
             LIST_MAX_HEIGHT_CLASS
           )}>
           <ul
             data-slot="message-queue-list"
-            className="flex flex-col gap-0.5">
+            className="flex flex-col gap-1.5">
             <ComposerPrimitive.Queue>
               {function renderQueuedItem({ queueItem }) {
                 const index = ids.indexOf(queueItem.id)
@@ -153,48 +153,50 @@ const MessageQueue: FC<MessageQueueProps> = function MessageQueue({
                     key={queueItem.id}
                     data-slot="message-queue-item"
                     title={text}
-                    className="group hover:bg-accent/40 flex items-center gap-2 rounded-md px-1 py-1">
-                    <span className="text-muted-foreground/60 size-4 shrink-0 text-center text-xs tabular-nums">
-                      {index + 1}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-sm leading-tight whitespace-nowrap">
+                    className={cn(
+                      field,
+                      rowEnter,
+                      'group/row flex items-center gap-2.5 rounded-2xl py-2 pr-2 pl-3'
+                    )}>
+                    <span className={cn(mono, 'w-3 shrink-0 tabular-nums')}>{index + 1}</span>
+                    <span className="text-foreground/60 min-w-0 flex-1 truncate text-sm">
                       {renderBody(text)}
                     </span>
-                    <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                      {renderItemActions
-                        ? renderItemActions({ id: queueItem.id, index, text })
-                        : null}
-                      <QueueItemPrimitive.Steer asChild>
-                        <TooltipIconButton
-                          tooltip={labels.queueSteerNow}
-                          side="top"
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-7"
-                          aria-label={labels.queueSteerNow}>
-                          <Icon
-                            icon="lucide:arrow-up"
-                            className="size-3.5"
-                          />
-                        </TooltipIconButton>
-                      </QueueItemPrimitive.Steer>
-                      <QueueItemPrimitive.Remove asChild>
-                        <TooltipIconButton
-                          tooltip={labels.queueRemove}
-                          side="top"
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-destructive size-7"
-                          aria-label={labels.queueRemove}>
-                          <Icon
-                            icon="lucide:x"
-                            className="size-3.5"
-                          />
-                        </TooltipIconButton>
-                      </QueueItemPrimitive.Remove>
-                    </span>
+                    {renderItemActions ? (
+                      <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
+                        {renderItemActions({ id: queueItem.id, index, text })}
+                      </span>
+                    ) : null}
+                    <QueueItemPrimitive.Steer asChild>
+                      <TooltipIconButton
+                        tooltip={labels.queueSteerNow}
+                        side="top"
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={cn(ghostButton, 'size-6 shrink-0')}
+                        aria-label={labels.queueSteerNow}>
+                        <Icon
+                          icon="lucide:arrow-up"
+                          className="size-3.5"
+                        />
+                      </TooltipIconButton>
+                    </QueueItemPrimitive.Steer>
+                    <QueueItemPrimitive.Remove asChild>
+                      <TooltipIconButton
+                        tooltip={labels.queueRemove}
+                        side="top"
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={cn(ghostButton, 'size-6 shrink-0')}
+                        aria-label={labels.queueRemove}>
+                        <Icon
+                          icon="lucide:x"
+                          className="size-3.5"
+                        />
+                      </TooltipIconButton>
+                    </QueueItemPrimitive.Remove>
                   </li>
                 )
               }}
