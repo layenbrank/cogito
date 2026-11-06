@@ -57,6 +57,9 @@ VS Code 的浏览器是「编辑器 + contribution」，地址栏是独立 widge
 - `isAddressDirty(draft, currentUrl)` —— 右侧按钮据此在「前往 / 刷新」之间切换。
 - 输入框：Enter / Escape 显式分支、聚焦全选、blur 一次性抑制、方向键标记 `omniboxTouchedRef`。
 - Enter 与「前往」走同一个 `submitAddress`；`reload` 分支调 `reloadBrowser`。
+- **建议列表是手写浮层**：必须 `{...webviewCoverProps()}`（`data-webview="false"`）让原生 webview
+  让位，否则整块「历史记录 / 本页历史」被页面盖住（现象：只有没开标签页时才看得到历史）。
+  判定逻辑与 VS Code 对照见 [browser-overlay.md](./browser-overlay.md)。
 
 ### Rust（`browser/command.rs`、`browser/lifecycle.rs`）
 

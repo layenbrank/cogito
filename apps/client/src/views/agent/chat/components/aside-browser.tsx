@@ -12,6 +12,7 @@ import { Icon } from '@iconify/react/offline'
 import { useAui } from '@assistant-ui/react'
 import { Button } from '@cogito/design/components/button'
 import { OVERLAY_ELEVATION } from '@cogito/design/lib/surface'
+import { webviewCoverProps } from '@cogito/design/lib/webview-cover'
 import { listen } from '@tauri-apps/api/event'
 import { clsx } from 'clsx'
 import { cn } from 'cn'
@@ -1010,9 +1011,11 @@ function AsideBrowser() {
             className="size-3.5"
           />
         </Button>
+        {/* 建议列表是手写浮层，必须自带 `data-webview="false"`：原生子 webview 永远画在 HTML 之上，漏标记 = 整块「历史记录 / 本页历史」被页面盖住（现象：只有没开标签页时才看得到历史）。`overlay-cover.ts` 另有 hit-test 兜底，但显式标记是快路径。 */}
         {omniboxOpen && omniboxRows.length > 0 ? (
           <ul
             id="aside-browser-omnibox"
+            {...webviewCoverProps()}
             role="listbox"
             className={cn(
               'bg-popover text-popover-foreground absolute top-full right-1.5 left-1.5 z-20 mt-1 max-h-56 overflow-auto rounded-md py-1',
@@ -1088,7 +1091,9 @@ function AsideBrowser() {
                     draggable={false}
                   />
                 ) : null}
-                <div className="bg-background/55 absolute inset-0" />
+                {/* VS Code 的让位压暗是 15%（`browser.css` 的 `.browser-overlay-paused`），
+                    只有通知类浮层才加到 60% 并带文字说明 —— 这里对齐同一个量级，别把页面压黑 */}
+                <div className="bg-background/15 absolute inset-0" />
               </div>
             ) : null}
           </div>
