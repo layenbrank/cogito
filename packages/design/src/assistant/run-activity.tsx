@@ -22,7 +22,7 @@
 import { Icon } from '@iconify/react/offline'
 import { useScrollLock } from '@assistant-ui/react'
 import { cn } from 'cn'
-import { useCallback, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../components/collapsible'
 import { CHAT_DURATION_MS, CHAT_EASE_CLASS } from './chat-motion'
 import { useCollapseScrollPin } from './collapse-scroll-pin'
@@ -122,7 +122,13 @@ function RunActivity({
    * 这是 Cursor / Copilot 的手感：跑的时候要看，跑完不想看。
    */
   const [userOpen, updateUserOpen] = useState<boolean | null>(null)
-  const autoOpen = status === 'running' || defaultOpen
+  const shouldAutoOpen = status === 'running' || defaultOpen
+  /**
+   * 自动开合**晚一帧**生效：结算时先把滚动钉住，再由下一帧塌下去。
+   * 直接按状态算的话，DOM 在提交里就收起来了 —— 那一刻面板高度已经归零，
+   * `armCollapsePin` 量不到东西，贴底的用户会看到正在读的回答被顶上跳一截。
+   */
+  const [autoOpen, updateAutoOpen] = useState(shouldAutoOpen)
   const isOpen = open !== undefined ? open : (userOpen ?? autoOpen)
   // 懒挂载：收起时不保留整棵工具/思考 DOM（长回合省内存），展开过一次再常驻
   const [hasOpened, updateHasOpened] = useState(isOpen)
@@ -133,6 +139,22 @@ function RunActivity({
   const isControlled = open !== undefined
   const hasEntries = entries.length > 0
   const animationMs = instant ? 0 : CHAT_DURATION_MS
+
+  // 自动开合晚一帧生效（见上）：这一帧 DOM 还开着，才量得到要钉住的高度。
+  // 用 layout effect（而不是 effect）：钉完立刻塌，用户不会先看到一帧完整时间线。
+  useLayoutEffect(
+    function () {
+      if (autoOpen === shouldAutoOpen) return
+      if (!shouldAutoOpen && userOpen === null && !isControlled) {
+        armCollapsePin(animationMs)
+      }
+      // 这里不是在「用 effect 同步状态」，而是把**自动收起**推迟到能测量之后：
+      // 同一个 commit 里收起，面板高度已经归零，滚动钉不住。
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 见上，延迟一帧以先钉住滚动
+      updateAutoOpen(shouldAutoOpen)
+    },
+    [animationMs, armCollapsePin, autoOpen, isControlled, shouldAutoOpen, userOpen]
+  )
 
   const handleOpenChange = useCallback(
     function (next: boolean) {
