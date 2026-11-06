@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import type { ToolCallMessagePartProps } from '@assistant-ui/react'
 import { fireEvent, render, screen } from '@testing-library/react'
+import { TOOL_ROW_HEIGHT_CLASS, TOOL_ROW_HEIGHT_PX } from '@cogito/design/assistant/tool-row'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ToolCardTerminalBody } from '@/views/agent/chat/components/tool-card-terminal-body'
@@ -50,6 +51,18 @@ describe('命令类工具卡', function () {
     fireEvent.click(screen.getByRole('button', { name: /npm test/ }))
     expect(container.querySelector('[data-slot="terminal"]')).not.toBeNull()
     expect(screen.getByText(/Tests 12 passed/)).toBeInTheDocument()
+  })
+
+  it('折叠行高度与 ToolFallback / CodeDiff 同一口径（28px 常数）', function () {
+    const { container } = render(<ToolCardTerminalBody {...makeProps()} />)
+    const trigger = container.querySelector('[data-slot="tool-card-command-trigger"]')
+    expect(trigger).not.toBeNull()
+    expect(TOOL_ROW_HEIGHT_CLASS).toBe('h-7')
+    expect(TOOL_ROW_HEIGHT_PX).toBe(28)
+    expect(trigger?.className).toContain(TOOL_ROW_HEIGHT_CLASS)
+    // 曾用 h-6（24px）凑，和通用行差 4px
+    expect(trigger?.className).not.toMatch(/\bh-6\b/)
+    expect(trigger?.className).not.toMatch(/\bpy-\d/)
   })
 
   it('没有命令参数时不渲染（交给其他卡片形态）', function () {

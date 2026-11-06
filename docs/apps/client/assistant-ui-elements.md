@@ -116,6 +116,20 @@
 `option.label` 优先 —— 有自定义文案时以工具自己的声明为准。中文覆盖在
 `apps/client/src/views/agent/chat/labels.ts`。
 
+**折叠行的高度是常数（28px / `h-7`）。** 一次回答里常有几十次工具调用，行高靠 `py` + 行高
+「凑」出来时，只要某一行多带一点内边距就会参差不齐。常数只有一个源：
+`packages/design/src/assistant/tool-row.ts` 的 `TOOL_ROW_HEIGHT_CLASS`（`h-7`）与
+`TOOL_ROW_HEIGHT_PX`（28），三处折叠行都引用它——
+
+| 折叠行 | 位置 | 口径 |
+| --- | --- | --- |
+| 通用工具行 | `tool-fallback.aui.tsx::toolTriggerClassName()` | `TOOL_TRIGGER_ROW_CLASS` 就是该常量；helper 是唯一出口，宿主追加 `className` 也顶不掉它（tailwind-merge 只覆盖宽度这类同族声明）；`className` 走 base-ui 的函数形式时也照旧套这层 |
+| 命令卡 `$ 命令` 行 | `tool-card-terminal-body.tsx::ToolCardCommandRow` | 曾用 `h-6`（24px），与通用行差 4px；现与通用行同值 |
+| 写文件卡标题栏 | `code-diff.tsx`（`data-slot="code-diff-header"`） | 文件名 / `+N −M` / 次级说明 / 右侧动作挤在**同一行**（次级说明不再另起一行，否则行高立刻 40px+） |
+
+单测锁的是常量与这三处引用（`tool-row.test.ts`、`tool-fallback.test.tsx`、`code-diff.test.tsx`、
+client `tool-card-terminal-body.test.tsx`），不是某个 class 的散落副本。
+
 **删减范围**（本轮真正下线的代码）：`tool-card-special-body.tsx` 整个文件删除；
 `parse-tool-result.ts` 的七个 `parse*Output` 与 `ParsedCommit` / `ParsedTestSummary` /
 `ParsedEnvEntry` / `ParsedPackageInfo` / `ParsedSchemaDisplay` 等类型一并删除，

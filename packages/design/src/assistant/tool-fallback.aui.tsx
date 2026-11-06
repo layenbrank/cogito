@@ -17,6 +17,7 @@ import { Textarea } from '../components/textarea'
 import { useCollapseScrollPin } from './collapse-scroll-pin'
 import { CHAT_DURATION_MS, CHAT_EASE_CLASS } from './chat-motion'
 import { useAssistantLabels, type AssistantLabels } from './labels'
+import { TOOL_ROW_HEIGHT_CLASS } from './tool-row'
 
 const ANIMATION_DURATION = CHAT_DURATION_MS
 
@@ -109,6 +110,46 @@ function ToolFallbackDuration({ className, ...props }: React.ComponentProps<'spa
   )
 }
 
+/**
+ * 折叠行的高度是**常数**，不是「padding + 行高凑出来的」。
+ *
+ * 一次回答里常有几十次工具调用：只要某一行因为图标 / 耗时 / 状态多带一点内边距，
+ * 行高就会参差不齐，读起来像排版坏了。所以高度写死成 `h-7`（28px），
+ * `toolTriggerClassName()` 是唯一出口 —— 测试锁的也是它，而不是某个 class 的散落副本。
+ */
+const TOOL_TRIGGER_ROW_CLASS = TOOL_ROW_HEIGHT_CLASS
+
+const TOOL_TRIGGER_BASE_CLASS =
+  'aui-tool-fallback-trigger group/trigger text-muted-foreground hover:text-foreground active:text-foreground flex w-fit origin-left items-center gap-2 text-sm transition-colors'
+
+/**
+ * Trigger 的 `className` 还允许是 base-ui 的「按状态取类名」函数形式，
+ * 所以 helper 两种形式都得吃得下：字符串进字符串出，函数进函数出。
+ * 折叠行的高度仍然由 `TOOL_ROW_HEIGHT_CLASS` 单点决定。
+ */
+type ToolTriggerClassName = React.ComponentProps<typeof CollapsibleTrigger>['className']
+type ToolTriggerClassNameFn = Extract<ToolTriggerClassName, (...args: never[]) => unknown>
+type ToolTriggerState = ToolTriggerClassNameFn extends (state: infer State) => unknown
+  ? State
+  : never
+
+/** 折叠行的类名：高度固定，其余与状态相关的差异交给内部图标 / 文案 */
+function toolTriggerClassName(): string
+function toolTriggerClassName(className: string | undefined): string
+function toolTriggerClassName(
+  className: ToolTriggerClassName
+): string | ToolTriggerClassNameFn
+function toolTriggerClassName(
+  className?: ToolTriggerClassName
+): string | ToolTriggerClassNameFn {
+  if (typeof className === 'function') {
+    return function (state: ToolTriggerState) {
+      return cn(TOOL_TRIGGER_ROW_CLASS, TOOL_TRIGGER_BASE_CLASS, className(state))
+    }
+  }
+  return cn(TOOL_TRIGGER_ROW_CLASS, TOOL_TRIGGER_BASE_CLASS, className)
+}
+
 function ToolFallbackTrigger({
   toolName,
   status,
@@ -129,10 +170,7 @@ function ToolFallbackTrigger({
   return (
     <CollapsibleTrigger
       data-slot="tool-fallback-trigger"
-      className={cn(
-        'aui-tool-fallback-trigger group/trigger text-muted-foreground hover:text-foreground active:text-foreground flex w-fit origin-left items-center gap-2 py-1.5 text-sm transition-colors',
-        className
-      )}
+      className={toolTriggerClassName(className)}
       {...props}>
       <Icon
         icon={statusIcon}
@@ -644,6 +682,7 @@ ToolFallback.Error = ToolFallbackError
 ToolFallback.Approval = ToolFallbackApproval
 
 export {
+  TOOL_TRIGGER_ROW_CLASS,
   ToolFallback,
   ToolFallbackApproval,
   ToolFallbackArgs,
@@ -651,5 +690,6 @@ export {
   ToolFallbackError,
   ToolFallbackResult,
   ToolFallbackRoot,
-  ToolFallbackTrigger
+  ToolFallbackTrigger,
+  toolTriggerClassName
 }

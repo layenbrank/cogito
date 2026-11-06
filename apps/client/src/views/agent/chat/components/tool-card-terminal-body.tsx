@@ -7,12 +7,17 @@
  *
  * 判定在 `tool-card-job-state.ts`（纯函数，有单测），这里只做分发。
  * 展开态 pin 住 —— 运行中也不自动弹开，否则一次 run 里几条命令会把消息顶走。
+ *
+ * 折叠行高度与 `ToolFallback.Trigger` / `CodeDiff` 标题栏同一口径：
+ * `TOOL_ROW_HEIGHT_CLASS`（28px）。一次回答里命令卡、文件卡、通用卡常常连着出现，
+ * 行高差 4px 就会看起来像排版坏了。
  */
 import type { ToolCallMessagePartProps } from '@assistant-ui/react'
 import { useToolCallElapsed } from '@assistant-ui/react'
 import { Icon } from '@iconify/react/offline'
 import { Terminal, TerminalContent, TerminalCopyButton } from '@cogito/design/assistant/terminal'
 import { ToolElapsed } from '@cogito/design/assistant/tool'
+import { TOOL_ROW_HEIGHT_CLASS } from '@cogito/design/assistant/tool-row'
 import { Button } from '@cogito/design/components/button'
 import {
   Collapsible,
@@ -53,12 +58,16 @@ function ToolCardCommandRow(props: CommandProps & { shell: CommandShell }) {
       className="border-terminal-border/70 bg-terminal my-1 overflow-hidden rounded-md border">
       <div className="flex items-center gap-1 pe-1">
         <CollapsibleTrigger
+          data-slot="tool-card-command-trigger"
           render={
             <Button
               type="button"
               variant="ghost"
               size="xs"
-              className="aria-expanded:bg-transparent hover:bg-transparent h-6 min-w-0 flex-1 justify-start gap-1.5 px-2 font-normal"
+              className={clsx(
+                TOOL_ROW_HEIGHT_CLASS,
+                'aria-expanded:bg-transparent hover:bg-transparent min-w-0 flex-1 justify-start gap-1.5 px-2 font-normal'
+              )}
             />
           }>
           <Icon
@@ -144,4 +153,4 @@ function ToolCardTerminalBody(props: CommandProps) {
   )
 }
 
-export { ToolCardTerminalBody }
+export { ToolCardCommandRow, ToolCardTerminalBody }

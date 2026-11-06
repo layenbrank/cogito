@@ -4,6 +4,7 @@ import type { ComponentProps, ReactNode } from 'react'
 
 import { Button } from '../components/button'
 import { useAssistantLabels } from './labels'
+import { TOOL_ROW_HEIGHT_CLASS } from './tool-row'
 
 type DiffKind = 'context' | 'added' | 'removed'
 
@@ -32,7 +33,7 @@ interface CodeDiffProps extends Omit<
   'children' | 'filename' | 'additions' | 'deletions' | 'lines' | 'cycle'
 > {
   filename: string
-  /** 文件名旁的次级说明（如工作区相对路径） */
+  /** 文件名旁的次级说明（如工作区相对路径），与文件名同一行，不另起一行 */
   subtitle?: string
   additions: number
   deletions: number
@@ -50,6 +51,11 @@ interface CodeDiffProps extends Omit<
   onToggle?: () => void
 }
 
+/**
+ * 标题栏是**一行 28px**（`TOOL_ROW_HEIGHT_CLASS`），与 `ToolFallback.Trigger`、
+ * 命令卡折叠行同一口径：聊天流里连续几张工具卡时，行高必须齐。
+ * 文件名 / `+N −M` / 次级说明 / 右侧动作全在这一行里，次级说明不另起一行。
+ */
 function CodeDiff({
   filename,
   subtitle,
@@ -75,7 +81,9 @@ function CodeDiff({
       data-state={isCollapsible ? (isOpen ? 'open' : 'closed') : undefined}
       className={cn(PAPER, 'w-full overflow-hidden rounded-xl font-mono text-xs', className)}
       {...props}>
-      <div className="border-border/50 flex items-center gap-2 border-b px-3 py-2">
+      <div
+        data-slot="code-diff-header"
+        className={cn('border-border/50 flex items-center gap-2 border-b px-3', TOOL_ROW_HEIGHT_CLASS)}>
         {isCollapsible ? (
           <Button
             type="button"
@@ -95,24 +103,23 @@ function CodeDiff({
             />
           </Button>
         ) : null}
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-baseline gap-2">
-            <span
-              className="text-foreground/90 min-w-0 truncate font-medium"
-              title={subtitle ? `${filename} · ${subtitle}` : filename}>
-              {filename}
-            </span>
-            <span className={cn(MONO, 'shrink-0 tabular-nums')}>
-              <span className="text-success">+{additions}</span>{' '}
-              <span className="text-destructive">−{deletions}</span>
-            </span>
-          </div>
+        <div className="flex min-w-0 flex-1 items-baseline gap-2">
+          <span
+            className="text-foreground/90 min-w-0 truncate font-medium"
+            title={subtitle ? `${filename} · ${subtitle}` : filename}>
+            {filename}
+          </span>
+          <span className={cn(MONO, 'shrink-0 tabular-nums')}>
+            <span className="text-success">+{additions}</span>{' '}
+            <span className="text-destructive">−{deletions}</span>
+          </span>
           {subtitle ? (
-            <p
-              className="text-muted-foreground mt-0.5 truncate text-xs leading-none"
+            <span
+              data-slot="code-diff-subtitle"
+              className="text-muted-foreground min-w-0 truncate text-xs"
               title={subtitle}>
               {subtitle}
-            </p>
+            </span>
           ) : null}
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
