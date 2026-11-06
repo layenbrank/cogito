@@ -74,8 +74,62 @@ import {
   findRemoteOmniboxSuggestions,
   findSessionOmniboxSuggestions,
   mergeOmniboxSuggestions,
+  resolveAddressCommit,
   resolveOmnibox
 } from './omnibox'
+
+describe('resolveAddressCommit', function () {
+  it('同一地址回车 = 刷新（Chrome 行为）', function () {
+    const commit = resolveAddressCommit({
+      text: 'https://example.com/',
+      currentUrl: 'https://example.com'
+    })
+    expect(commit).toEqual({
+      kind: 'reload',
+      url: 'https://example.com/',
+      label: 'https://example.com/'
+    })
+  })
+
+  it('改过的地址回车 = 导航', function () {
+    const commit = resolveAddressCommit({
+      text: 'https://example.com/other',
+      currentUrl: 'https://example.com/'
+    })
+    expect(commit?.kind).toBe('navigate')
+    expect(commit?.url).toBe('https://example.com/other')
+  })
+
+  it('只改 hash 也算导航（同文档跳转不能被吞成刷新）', function () {
+    const commit = resolveAddressCommit({
+      text: 'https://example.com/doc#part-2',
+      currentUrl: 'https://example.com/doc'
+    })
+    expect(commit?.kind).toBe('navigate')
+  })
+
+  it('没动过建议列表时，默认高亮行不劫持回车', function () {
+    const commit = resolveAddressCommit({
+      text: 'example.com',
+      currentUrl: 'https://other.test/'
+    })
+    expect(commit?.kind).toBe('navigate')
+    expect(commit?.url).toBe('https://example.com')
+  })
+
+  it('显式选中的建议行优先（点选 / 方向键）', function () {
+    const commit = resolveAddressCommit({
+      text: 'rust',
+      currentUrl: 'https://other.test/',
+      highlightedUrl: 'https://cn.bing.com/search?q=rust'
+    })
+    expect(commit?.url).toBe('https://cn.bing.com/search?q=rust')
+  })
+
+  it('空输入什么都不做', function () {
+    expect(resolveAddressCommit({ text: '   ', currentUrl: 'https://a.test/' })).toBeNull()
+  })
+})
 
 describe('resolveOmnibox', function () {
   it('网址形态走导航', function () {

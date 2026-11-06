@@ -74,14 +74,20 @@ pub fn browser_visible(
     lifecycle::set_visible(&app, state.inner(), visible)
 }
 
+/// 导航到新地址。
+///
+/// **必须是 async + spawn_blocking**：这个命令是从主 webview 的 IPC 回调里同步进来的，
+/// 同步执行等于「在 WebView2 自己的回调栈上再调它的导航 API」—— 实测表现是
+/// 返回成功、页面不动、日志里只有一行「导航」（没有报错也没有加载）。
+/// 丢到阻塞线程池后消息经事件循环代理派发，才是 Tauri 期望的时序。
 #[tauri::command]
-pub fn browser_navigate(
-    app: AppHandle,
-    state: State<'_, BrowserState>,
-    label: String,
-    url: String,
-) -> Result<(), String> {
-    lifecycle::navigate(&app, state.inner(), &label, &url)
+pub async fn browser_navigate(app: AppHandle, label: String, url: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<BrowserState>();
+        lifecycle::navigate(&app, state.inner(), &label, &url)
+    })
+    .await
+    .map_err(|error| format!("导航失败：{error}"))?
 }
 
 #[tauri::command]
@@ -90,8 +96,10 @@ pub fn browser_current_url(app: AppHandle, label: String) -> Result<String, Stri
 }
 
 #[tauri::command]
-pub fn browser_reload(app: AppHandle, label: String) -> Result<(), String> {
-    lifecycle::reload(&app, &label)
+pub async fn browser_reload(app: AppHandle, label: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || lifecycle::reload(&app, &label))
+        .await
+        .map_err(|error| format!("刷新失败：{error}"))?
 }
 
 #[tauri::command]
@@ -100,11 +108,12 @@ pub fn browser_devtools(app: AppHandle, label: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn browser_history(app: AppHandle, label: String, backward: bool) -> Result<(), String> {
-    lifecycle::step_history(&app, &label, backward)
+pub async fn browser_history(app: AppHandle, label: String, backward: bool) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || lifecycle::step_history(&app, &label, backward))
+        .await
+        .map_err(|error| format!("历史导航失败：{error}"))?
 }
 
-/// 前进 / 后退按钮灰态（WebView2 CanGoBack / CanGoForward）
 #[tauri::command]
 pub fn browser_history_state(
     app: AppHandle,

@@ -25,6 +25,29 @@ function formatAddress(url: string): string {
   return url === 'about:blank' ? '' : url
 }
 
+/**
+ * 判「是不是同一个页面」用的归一化：只抹尾部斜杠。
+ *
+ * `https://a.com` 与 `https://a.com/` 是同一页；但 `#fragment` 必须保留 ——
+ * 地址栏只改 hash 时应该是**导航**（同文档跳转），抹掉就会被判成同一页去刷新，
+ * 哈希定位直接丢失。
+ */
+function normalizeAddressKey(url: string): string {
+  return url.trim().replace(/\/+$/, '')
+}
+
+/**
+ * 地址栏草稿是否「已改动」。
+ *
+ * 只影响右侧按钮长相（前往 / 刷新）：空草稿不算改动，`about:blank` 展开成空串后
+ * 也不算 —— 空地址栏没有「前往」可言。
+ */
+function isAddressDirty(draft: string, currentUrl: string): boolean {
+  const next = draft.trim()
+  if (!next) return false
+  return normalizeAddressKey(next) !== normalizeAddressKey(currentUrl)
+}
+
 /** 从 URL 取 host；解析不了就原样铺开 */
 function findBrowserHost(url: string): string {
   if (!url || url === 'about:blank') return '新标签页'
@@ -44,4 +67,11 @@ function formatTabTitle(url: string, title?: string | null): string {
   return findBrowserHost(url)
 }
 
-export { findBrowserHost, formatAddress, formatTabTitle, parseAddress }
+export {
+  findBrowserHost,
+  formatAddress,
+  formatTabTitle,
+  isAddressDirty,
+  normalizeAddressKey,
+  parseAddress
+}

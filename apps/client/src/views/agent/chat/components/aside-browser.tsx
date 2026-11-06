@@ -38,7 +38,7 @@ import {
   type PickedBrowserElement
 } from '@/features/browser/api'
 import { attachPickedElement } from '@/features/browser/attach-picked-element'
-import { formatAddress, formatTabTitle } from '@/features/browser/address'
+import { formatAddress, formatTabTitle, isAddressDirty } from '@/features/browser/address'
 import { describeDevice, fitFor, isUsableDevice } from '@/features/browser/device'
 import type { BoxSize, DeviceProfile } from '@/features/browser/device'
 import {
@@ -47,7 +47,7 @@ import {
   findRemoteOmniboxSuggestions,
   findSessionOmniboxSuggestions,
   mergeOmniboxSuggestions,
-  resolveOmnibox,
+  resolveAddressCommit,
   type OmniboxSuggestion
 } from '@/features/browser/omnibox'
 import { useBrowserRect } from '@/features/browser/rect'
@@ -95,6 +95,10 @@ function AsideBrowser() {
   const [omniboxIndex, updateOmniboxIndex] = useState(0)
   const omniboxAbortRef = useRef<AbortController | null>(null)
   const omitBlurCloseRef = useRef(false)
+  /** Esc / 刚提交过的那一次失焦不得把输入回落掉（VS Code `_suppressBlurRevert` 同款） */
+  const suppressBlurRevertRef = useRef(false)
+  /** 用户是否真的动过建议列表：没动过就不让「默认高亮行」劫持回车 */
+  const omniboxTouchedRef = useRef(false)
   const sessionHistoryRef = useRef<BrowserNavigationEntry[]>([])
 
   const activeTab = tabs.find(function (tab) {
@@ -508,6 +512,7 @@ function AsideBrowser() {
   }
 
   function closeOmnibox() {
+    omniboxTouchedRef.current = false
     updateOmniboxOpen(false)
     updateOmniboxRows([])
     updateOmniboxIndex(0)
@@ -532,12 +537,36 @@ function AsideBrowser() {
       .catch(reportError)
   }
 
+  /**
+   * 地址栏提交：同一个地址 → 刷新，其余 → 导航（Chrome 行为）。
+   *
+   * 这一条曾经是「改了地址毫无反应」的现场：老实现只靠 form 的隐式提交 +
+   * `omniboxRows[0]`（默认高亮行），两者都不保证「用户敲的地址真的被拿去导航」。
+   */
   function submitAddress(event?: React.FormEvent) {
     event?.preventDefault()
-    const highlighted = omniboxOpen ? omniboxRows[omniboxIndex] : undefined
-    const resolved = highlighted?.target ?? resolveOmnibox(draft)
-    if (!resolved) return
-    navigateOmnibox(resolved.url)
+    // 只有用户真的动过建议列表，才让高亮行接管回车
+    const highlighted =
+      omniboxOpen && omniboxTouchedRef.current ? omniboxRows[omniboxIndex]?.target.url : undefined
+    const commit = resolveAddressCommit({
+      text: draft,
+      currentUrl: activeUrl,
+      highlightedUrl: highlighted
+    })
+    if (!commit) return
+
+    suppressBlurRevertRef.current = true
+    closeOmnibox()
+    isEditingAddressRef.current = false
+
+    if (commit.kind === 'reload') {
+      // 地址没改动 = 刷新当前页；老实现这里会直接 return，用户只看到「什么都没发生」
+      updateDraft(formatAddress(activeUrl))
+      const label = useBrowserStore.getState().activeLabel
+      if (label) void reloadBrowser(label).catch(reportError)
+      return
+    }
+    navigateOmnibox(commit.url)
   }
 
   function pickOmniboxRow(row: OmniboxSuggestion) {
@@ -835,7 +864,7 @@ function AsideBrowser() {
       {/*
        * base-ui 的 Button 会把 `type` 强制改成 `button`（`useRenderElement` 里
        * `getButtonProps` 覆盖 elementProps），所以 `type="submit"` 是无效的 ——
-       * 回车靠 form 的隐式提交（这里只有一个 input 字段，符合规范），
+       * 回车由 input 的 `onKeyDown` 显式提交（隐式提交在 WebView2 里并不保证发生），
        * 点「前往」走显式调用，两条路径汇总到同一个 `submitAddress`。
        */}
       <form
@@ -900,11 +929,15 @@ function AsideBrowser() {
           aria-controls="aside-browser-omnibox"
           onChange={function (event) {
             updateDraft(event.target.value)
+            omniboxTouchedRef.current = false
+            suppressBlurRevertRef.current = false
             updateOmniboxOpen(true)
           }}
-          onFocus={function () {
+          onFocus={function (event) {
             isEditingAddressRef.current = true
             updateOmniboxOpen(true)
+            // 对齐 Chrome：聚焦即全选，敲第一个字就替换整条地址
+            event.currentTarget.select()
           }}
           onBlur={function () {
             if (omitBlurCloseRef.current) {
@@ -913,13 +946,36 @@ function AsideBrowser() {
             }
             isEditingAddressRef.current = false
             closeOmnibox()
+            // 刚提交过的那一次失焦：目标地址可能还没回灌，回落会把用户的选择吞掉
+            // （VS Code `_suppressBlurRevert` 同款）
+            if (suppressBlurRevertRef.current) {
+              suppressBlurRevertRef.current = false
+              return
+            }
             // 失焦未提交：回落到真实 URL（Chrome 也会放弃未确认编辑）
             updateDraft(formatAddress(activeUrl))
           }}
           onKeyDown={function (event) {
+            // Enter 显式提交。**不要**依赖 form 的隐式提交：base-ui 的 Button 会把
+            // `type` 改成 `button`，而隐式提交在 WebView2 里并不保证发生 ——
+            // VS Code 的地址栏（browserUrlBarWidget）同样是自己处理 Enter。
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              submitAddress()
+              return
+            }
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              isEditingAddressRef.current = false
+              suppressBlurRevertRef.current = true
+              closeOmnibox()
+              updateDraft(formatAddress(activeUrl))
+              return
+            }
             if (!omniboxOpen || omniboxRows.length === 0) return
             if (event.key === 'ArrowDown') {
               event.preventDefault()
+              omniboxTouchedRef.current = true
               updateOmniboxIndex(function (index) {
                 return (index + 1) % omniboxRows.length
               })
@@ -927,14 +983,11 @@ function AsideBrowser() {
             }
             if (event.key === 'ArrowUp') {
               event.preventDefault()
+              omniboxTouchedRef.current = true
               updateOmniboxIndex(function (index) {
                 return (index - 1 + omniboxRows.length) % omniboxRows.length
               })
               return
-            }
-            if (event.key === 'Escape') {
-              event.preventDefault()
-              closeOmnibox()
             }
           }}
           placeholder="搜索或输入网址"
@@ -946,14 +999,14 @@ function AsideBrowser() {
           type="button"
           variant="ghost"
           size="icon-sm"
-          aria-label="前往"
-          title="前往"
+          aria-label={isAddressDirty(draft, activeUrl) ? '前往' : '刷新'}
+          title={isAddressDirty(draft, activeUrl) ? '前往（Enter）' : '刷新当前页（Enter）'}
           className="text-muted-foreground hover:text-foreground size-6 shrink-0"
           onClick={function () {
             submitAddress()
           }}>
           <Icon
-            icon="lucide:corner-down-left"
+            icon={isAddressDirty(draft, activeUrl) ? 'lucide:corner-down-left' : 'lucide:rotate-cw'}
             className="size-3.5"
           />
         </Button>

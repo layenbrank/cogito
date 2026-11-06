@@ -236,6 +236,45 @@ function normalizeOmniboxUrlKey(url: string): string {
   return url.trim().replace(/\/+$/, '').toLowerCase()
 }
 
+/** 地址栏提交之后要做的事 */
+interface AddressCommit {
+  /** `reload` = 目标就是当前这一页，回车等于刷新；`navigate` = 真的要换页 */
+  kind: 'navigate' | 'reload'
+  url: string
+  label: string
+}
+
+/**
+ * 地址栏「提交」语义（对齐 Chrome 与 VS Code `browserUrlBarWidget` 的 Enter 分支）。
+ *
+ * 三条规则，缺一条就会出现「改了地址没反应」：
+ * 1. **只有用户真的动过建议列表**（方向键 / 点击）才用高亮行；否则一律按输入本身解析。
+ *    默认高亮行只是「首条建议」，不该劫持回车。
+ * 2. 目标与当前地址是同一页 → **刷新**。Chrome 里把原地址再敲一次回车就是刷新，
+ *    而 WebView2 的 `Navigate` 到当前文档并不保证重载。
+ * 3. 空输入什么都不做（没有「由空字符串推断去哪」的道理）。
+ */
+function resolveAddressCommit(input: {
+  text: string
+  currentUrl?: string | null
+  /** 用户显式选中的建议（方向键 / 点击），没有就传空 */
+  highlightedUrl?: string | null
+}): AddressCommit | null {
+  const trimmed = input.text.trim()
+  if (!trimmed) return null
+
+  const highlighted = (input.highlightedUrl ?? '').trim()
+  const target = highlighted
+    ? { kind: 'url' as const, url: highlighted, label: highlighted }
+    : resolveOmnibox(trimmed)
+  if (!target || !target.url) return null
+
+  const current = (input.currentUrl ?? '').trim()
+  const samePage =
+    current !== '' && normalizeOmniboxUrlKey(target.url) === normalizeOmniboxUrlKey(current)
+  return { kind: samePage ? 'reload' : 'navigate', url: target.url, label: target.label }
+}
+
 /** 合并建议：即时 → 本地历史 → 会话 → 远程；按 URL/标题去重 */
 function mergeOmniboxSuggestions(
   instant: OmniboxSuggestion[],
@@ -264,9 +303,10 @@ function mergeOmniboxSuggestions(
   return out
 }
 
-export type { OmniboxKind, OmniboxSuggestion, OmniboxTarget }
+export type { AddressCommit, OmniboxKind, OmniboxSuggestion, OmniboxTarget }
 export {
   findInstantOmniboxSuggestions,
+  resolveAddressCommit,
   findLocalOmniboxSuggestions,
   findRemoteOmniboxSuggestions,
   findSessionOmniboxSuggestions,

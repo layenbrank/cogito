@@ -4,6 +4,7 @@
 //! 没有任何办法让 HTML 画到它上面。所以策略只有「让位」—— 需要显示浮层时
 //! `hide()`，浮层关掉再 `show()`。VS Code 的 `BrowserView` 也是这么做的。
 
+use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
@@ -45,6 +46,44 @@ async fn refresh_tab_title(app: &AppHandle, label: &str) {
     };
     state.set_title(label, title);
     emit_tabs_changed(app, &state);
+}
+
+/// 每个 tab 的「页面加载代次」：`on_page_load` 每触发一次 +1。
+///
+/// 用来判断一次下发出去的导航**到底有没有被接住** —— 见 `navigate` 里的看门狗。
+fn load_generations() -> &'static Mutex<HashMap<String, u64>> {
+    static MAP: OnceLock<Mutex<HashMap<String, u64>>> = OnceLock::new();
+    MAP.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn bump_load_generation(label: &str) {
+    let mut map = load_generations()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let entry = map.entry(label.to_string()).or_insert(0);
+    *entry += 1;
+}
+
+fn read_load_generation(label: &str) -> u64 {
+    load_generations()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .get(label)
+        .copied()
+        .unwrap_or(0)
+}
+
+fn forget_load_generation(label: &str) {
+    load_generations()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .remove(label);
+}
+
+/// 两个地址是不是同一页（只抹尾部斜杠；`#fragment` 保留 —— 只改 hash 必须算导航）
+fn same_page(left: &str, right: &str) -> bool {
+    let normalize = |value: &str| value.trim().trim_end_matches('/').to_string();
+    !left.trim().is_empty() && normalize(left) == normalize(right)
 }
 
 /// 上一次「是否真有 webview 处于可见态」，只用来在切换时打一条日志
@@ -229,6 +268,8 @@ fn open_inner(
             .devtools(true)
             .on_page_load(move |_webview, payload| {
                 let url = payload.url().to_string();
+                // 记一次「真的开始加载」，供导航看门狗判断下发是否被接住
+                bump_load_generation(&load_label);
                 // 页面自己跳转（点链接 / 重定向）时这里才会触发，地址栏靠它跟上真实地址
                 if let Some(browser) = handle.try_state::<BrowserState>() {
                     browser.set_url(&load_label, url.clone());
@@ -338,6 +379,7 @@ pub fn close(app: &AppHandle, state: &BrowserState, label: &str) -> Result<(), S
     super::history_sync::forget(&tab.label);
     super::toolbar_sync::forget(&tab.label);
     super::intercept::forget(&tab.label);
+    forget_load_generation(&tab.label);
     super::emulate::forget(&tab.label);
     sync(app, state);
     emit_tabs_changed(app, state);
@@ -380,6 +422,14 @@ pub fn set_visible(app: &AppHandle, state: &BrowserState, visible: bool) -> Resu
 }
 
 /// 导航到新地址（同一个 tab）。
+///
+/// 两条浏览器语义：
+/// 1. **同地址 = 刷新**（Chrome 行为）：`Navigate` 到当前文档并不保证重载，而用户敲回车
+///    的意图就是「重新加载这个页面」；
+/// 2. **下发生效校验**：`Webview::navigate` 只是往主线程事件循环投一条消息，WebView2 在
+///    少数情况下会「返回成功但页面不动」。这里配一个 1.5s 看门狗：这期间**一次
+///    `on_page_load` 都没发生**才算失败，用 `location.replace` 强推一次；有加载就不介入，
+///    慢站点不会被二次导航打断。
 pub fn navigate(
     app: &AppHandle,
     state: &BrowserState,
@@ -392,14 +442,59 @@ pub fn navigate(
     let webview = app
         .get_webview(label)
         .ok_or_else(|| format!("没有这个 tab：{label}"))?;
-    log::info!("browser: 导航 {label} → {parsed}");
+    let target = parsed.to_string();
+    let before = webview
+        .url()
+        .map(|current| current.to_string())
+        .unwrap_or_default();
+    let generation = read_load_generation(label);
     // 导航会卸页面，拾取态必须清掉
     super::picker::dispose_label(app, label);
-    webview
-        .navigate(parsed.clone())
-        .map_err(|error| format!("导航失败：{error}"))?;
-    state.set_url(label, parsed.to_string());
+
+    if same_page(&before, &target) {
+        log::info!("browser: 同地址刷新 {label} → {target}");
+        webview
+            .reload()
+            .map_err(|error| format!("刷新失败：{error}"))?;
+    } else {
+        log::info!("browser: 导航 {label} → {target}（原 {before}）");
+        webview
+            .navigate(parsed.clone())
+            .map_err(|error| format!("导航失败：{error}"))?;
+    }
+    state.set_url(label, target.clone());
+    spawn_navigation_watchdog(app, label, generation, target);
     Ok(())
+}
+
+/// 看门狗：下发后一段时间内没有任何页面加载 → 判定「导航被吞了」，用脚本强推一次。
+fn spawn_navigation_watchdog(app: &AppHandle, label: &str, generation: u64, target: String) {
+    let handle = app.clone();
+    let label = label.to_string();
+    tauri::async_runtime::spawn_blocking(move || {
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        if read_load_generation(&label) != generation {
+            return;
+        }
+        let Some(webview) = handle.get_webview(&label) else {
+            return;
+        };
+        let current = webview
+            .url()
+            .map(|url| url.to_string())
+            .unwrap_or_default();
+        if same_page(&current, &target) {
+            return;
+        }
+        let literal = match serde_json::to_string(&target) {
+            Ok(value) => value,
+            Err(_) => return,
+        };
+        log::warn!("browser: 导航未生效（当前 {current}），用 location.replace 兜底 → {target}");
+        if let Err(error) = webview.eval(format!("location.replace({literal})")) {
+            log::warn!("browser: 兜底导航失败: {error}");
+        }
+    });
 }
 
 /// 截图前临时把 webview 显示出来。
