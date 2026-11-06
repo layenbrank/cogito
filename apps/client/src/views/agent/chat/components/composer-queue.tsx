@@ -3,7 +3,8 @@
  *
  * 元素本身负责版面（默认折叠、每条一行、最大高度、立即发 / 删除），这里只补：
  * - **取回编辑**：`remove()` + 文本回输入框（库没有 `edit`，这是唯一只用公开 API 的做法）
- * - **上移 / 下移**：`move({ lane:'queue', insertBefore|insertAfter })`
+ * - **上移 / 下移**：`move({ insertBefore|insertAfter })`，lane 由库按条目自身推断
+ *   （条目在 `steer` / `queue` 哪条 lane 前端看不到，写死必炸，见 `moveQueueItem`）
  * - **上次没发出去的**：会话已结束时回灌出来的历史队列，逐条发或丢
  *
  * 折叠、封顶、去重这些版面约束都在 `MessageQueue` 里，别再在这里重写一遍。
@@ -18,6 +19,7 @@ import { TooltipIconButton } from '@cogito/design/assistant/tooltip-icon-button'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import { useCallback, useEffect, useSyncExternalStore, type FC, type ReactNode } from 'react'
+import { toast } from 'sonner'
 
 import {
   dropPendingItem,
@@ -48,21 +50,57 @@ function findQueueIds(queue: readonly { id: string }[]): string[] {
   })
 }
 
+/** 队列的两条 lane：`steer`（运行中排队的新消息都落这里）与 `queue` */
+type QueueLane = 'queue' | 'steer'
+
+/**
+ * 试探顺序：先不指定 lane（内核按条目**自己所在的 lane** 放），
+ * 被拒再显式点名两条 lane —— 锚点只存在于它自己那条 lane，所以第二轮一定命中。
+ */
+const LANE_ATTEMPTS: readonly (QueueLane | undefined)[] = [undefined, 'steer', 'queue']
+
+/**
+ * 上移 / 下移一条排队消息。
+ *
+ * **坑（"无法插队"的根因）**：库的 `move(id, placement)` 要求**锚点与目的一条 lane**，
+ * 而 `composer.queue` 给的是 `[...steer, ...queue]` 的扁平数组，前端看不出归属。
+ * 以前这里把 lane 写死成 `'queue'`：运行中排队的消息其实都在 `steer` lane
+ * （`append()` 在有 run 在飞时一律进 steer），于是随便点一下上移/下移就抛
+ * `Unknown anchor "…" in lane "queue"`；事件处理器里没人接，用户看到的就是
+ * 「点了没反应、插不了队」。
+ *
+ * 返回是否真的挪动了：两次都被拒时由调用方给一句提示，别再静默失败。
+ */
 function moveQueueItem(
   aui: AssistantClient,
   ids: readonly string[],
   index: number,
   direction: -1 | 1
-): void {
+): boolean {
   const target = ids[index]
   const anchor = ids[index + direction]
-  if (!target || !anchor) return
+  if (!target || !anchor) return false
   const handle = aui.composer.queueItem({ id: target })
-  handle.move(
-    direction === -1
-      ? { lane: 'queue', insertBefore: anchor }
-      : { lane: 'queue', insertAfter: anchor }
-  )
+  const isBefore = direction === -1
+  const lastLane = LANE_ATTEMPTS[LANE_ATTEMPTS.length - 1]
+
+  for (const lane of LANE_ATTEMPTS) {
+    try {
+      if (!lane) {
+        handle.move(isBefore ? { insertBefore: anchor } : { insertAfter: anchor })
+      } else {
+        handle.move(
+          isBefore ? { lane, insertBefore: anchor } : { lane, insertAfter: anchor }
+        )
+      }
+      return true
+    } catch (error) {
+      // 前两次被拒是预期内的（锚点在另一条 lane）；最后一次还失败才值得记一笔
+      if (lane === lastLane) console.warn('[composer-queue] 调整顺序失败', error)
+    }
+  }
+
+  return false
 }
 
 /** 取回编辑：先移出队列，把文本并回输入框，再把焦点交回编辑器 */
@@ -108,7 +146,8 @@ function renderItemActions(
           aria-label={labels.queueMoveUp}
           disabled={item.index === 0}
           onClick={function () {
-            moveQueueItem(aui, ids, item.index, -1)
+            if (moveQueueItem(aui, ids, item.index, -1)) return
+            toast.error('上移失败：队列正忙或条目已变化')
           }}>
           <Icon
             icon="lucide:chevron-up"
@@ -125,7 +164,8 @@ function renderItemActions(
           aria-label={labels.queueMoveDown}
           disabled={item.index === ids.length - 1}
           onClick={function () {
-            moveQueueItem(aui, ids, item.index, 1)
+            if (moveQueueItem(aui, ids, item.index, 1)) return
+            toast.error('下移失败：队列正忙或条目已变化')
           }}>
           <Icon
             icon="lucide:chevron-down"

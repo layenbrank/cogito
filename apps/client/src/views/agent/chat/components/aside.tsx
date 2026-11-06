@@ -35,6 +35,9 @@ import { AsideFiles } from './aside-files'
 import { AsideHistory } from './aside-history'
 import { AsidePlan } from './aside-plan'
 import { AsideReview } from './aside-review'
+import { AsideSkills } from './aside-skills'
+import { AsideKnowledge } from './aside-knowledge'
+import { AsideExtensions } from './aside-extensions'
 import { TerminalSurface } from '@/features/terminal'
 import {
   bootstrapTerminalSessions,
@@ -50,7 +53,17 @@ import { readAgentMode, subscribeAgentMode, writeAgentMode } from '@/features/ag
 import { isEmbeddedShell } from '@/features/window/shell-mode'
 import { useTerminalStore, type TerminalTab } from '@/stores/terminal'
 
-type AsideMode = 'home' | 'plan' | 'files' | 'review' | 'history' | 'browser' | 'terminal'
+type AsideMode =
+  | 'home'
+  | 'plan'
+  | 'files'
+  | 'knowledge'
+  | 'skills'
+  | 'review'
+  | 'history'
+  | 'browser'
+  | 'extensions'
+  | 'terminal'
 
 interface AsideProps {
   className?: string
@@ -72,9 +85,12 @@ const ASIDE_TABS: ReadonlyArray<{
   { id: 'home', icon: 'lucide:layout-dashboard', label: '详情', hint: '会话、工作区与任务清单' },
   { id: 'plan', icon: 'lucide:list-checks', label: '计划', hint: '本轮完整计划与确认执行' },
   { id: 'files', icon: 'lucide:folder-tree', label: '文件', hint: '浏览工作区文件树并预览' },
+  { id: 'knowledge', icon: 'lucide:library', label: '知识库', hint: '浏览知识库文档并引用到对话' },
+  { id: 'skills', icon: 'lucide:wrench', label: '技能', hint: '按工作区所有文件夹识别的技能' },
   { id: 'review', icon: 'lucide:git-compare', label: '审阅', hint: '本地/远端改动、暂存与提交' },
   { id: 'history', icon: 'lucide:history', label: '历史', hint: '查看提交历史与每次改动' },
   { id: 'browser', icon: 'lucide:globe', label: '浏览器', hint: '内嵌浏览器，agent 可读取并操作' },
+  { id: 'extensions', icon: 'lucide:puzzle', label: '扩展', hint: 'MCP 与内置扩展开关' },
   { id: 'terminal', icon: 'lucide:terminal', label: '终端', hint: '在当前工作区打开 shell' }
 ]
 
@@ -473,6 +489,12 @@ function AgentAside(props: AsideProps) {
         ) : null}
 
         {mode === 'history' ? <AsideHistory key={panelKey} /> : null}
+
+        {mode === 'knowledge' ? <AsideKnowledge aui={aui} /> : null}
+
+        {mode === 'skills' ? <AsideSkills aui={aui} /> : null}
+
+        {mode === 'extensions' ? <AsideExtensions /> : null}
 
         {mode === 'browser' ? <AsideBrowser /> : null}
 

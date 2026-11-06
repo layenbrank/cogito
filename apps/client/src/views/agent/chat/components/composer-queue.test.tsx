@@ -16,6 +16,11 @@ const queueState = {
 
 const pendingState = { items: [] as { id: string; text: string; attachments: string }[] }
 
+/** 记录 `aui.composer.queueItem(id).move(placement)`，用于验证「上移/下移」到底怎么挪的 */
+const moveCalls = [] as { id: string; placement: Record<string, unknown> }[]
+/** 返回 true 表示这次 move 被库拒（锚点不在该 lane）；测试用它模拟跨 lane */
+let rejectMove: ((placement: Record<string, unknown>) => boolean) | null = null
+
 type StubQueueItem = { id: string; parts: { type: string; text: string }[] }
 
 vi.mock('@assistant-ui/react', function () {
@@ -33,8 +38,19 @@ vi.mock('@assistant-ui/react', function () {
           },
           setText: vi.fn(),
           send: vi.fn(),
-          queueItem: function () {
-            return { remove: vi.fn(), move: vi.fn() }
+          queueItem: function (input: { id: string }) {
+            return {
+              remove: vi.fn(),
+              move: vi.fn(function (placement: Record<string, unknown>) {
+                moveCalls.push({ id: input.id, placement })
+                if (rejectMove?.(placement)) {
+                  // 与真身同一口径：锚点必须在目标 lane 里，否则抛
+                  const lane = typeof placement.lane === 'string' ? placement.lane : 'item-lane'
+                  const anchor = String(placement.insertBefore ?? placement.insertAfter)
+                  throw new Error(`Unknown anchor "${anchor}" in lane "${lane}".`)
+                }
+              })
+            }
           }
         }
       }
@@ -186,7 +202,14 @@ vi.mock('@/features/agent/composer-queue', function () {
   }
 })
 
+vi.mock('sonner', function () {
+  return {
+    toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() }
+  }
+})
+
 import { ComposerQueue } from './composer-queue'
+import { toast } from 'sonner'
 import {
   markThreadRunning,
   movePendingItem,
@@ -202,6 +225,8 @@ describe('composer 队列面板', function () {
     queueState.composer.queue = []
     pendingState.items = []
     queueState.thread.isRunning = true
+    moveCalls.length = 0
+    rejectMove = null
     vi.clearAllMocks()
   })
 
@@ -313,6 +338,56 @@ describe('composer 队列面板', function () {
     render(<ComposerQueue />)
     // 线程在跑：只登记，不许抢在轮次中间发
     expect(vi.mocked(markThreadRunning)).toHaveBeenCalledWith('session-1')
+  })
+
+  it('上移 / 下移不写死 lane：锚点交给库按条目自己的 lane 解析', function () {
+    queueState.composer.queue = [queueItem('q1', '第一条'), queueItem('q2', '第二条')]
+    const { container } = render(<ComposerQueue />)
+    fireEvent.click(screen.getByRole('button', { name: '展开队列' }))
+    const rows = container.querySelectorAll('[data-slot="message-queue-item"]')
+
+    fireEvent.click(rows[1].querySelector('[aria-label="上移"]') as HTMLElement)
+    // 不带 lane：运行中排队消息都在 steer lane，写死 queue 就会抛 Unknown anchor
+    expect(moveCalls).toEqual([{ id: 'q2', placement: { insertBefore: 'q1' } }])
+
+    moveCalls.length = 0
+    fireEvent.click(rows[0].querySelector('[aria-label="下移"]') as HTMLElement)
+    expect(moveCalls).toEqual([{ id: 'q1', placement: { insertAfter: 'q2' } }])
+  })
+
+  it('lane 不匹配时自动换另一条 lane 重试（跨 steer/queue 交界也能调序）', function () {
+    queueState.composer.queue = [queueItem('q1', '第一条'), queueItem('q2', '第二条')]
+    // 模拟两条都在 steer lane：不指定 lane 与指定 queue 都找不到锚点，只有 steer 命中
+    rejectMove = function (placement) {
+      return placement.lane !== 'steer'
+    }
+    const { container } = render(<ComposerQueue />)
+    fireEvent.click(screen.getByRole('button', { name: '展开队列' }))
+    const rows = container.querySelectorAll('[data-slot="message-queue-item"]')
+
+    fireEvent.click(rows[1].querySelector('[aria-label="上移"]') as HTMLElement)
+
+    expect(moveCalls.map((call) => call.placement)).toEqual([
+      { insertBefore: 'q1' },
+      { lane: 'steer', insertBefore: 'q1' }
+    ])
+    // 第二次成了：不该给用户报错
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled()
+  })
+
+  it('两条 lane 都被拒时给一句提示，不再静默失败', function () {
+    queueState.composer.queue = [queueItem('q1', '第一条'), queueItem('q2', '第二条')]
+    rejectMove = function () {
+      return true
+    }
+    const { container } = render(<ComposerQueue />)
+    fireEvent.click(screen.getByRole('button', { name: '展开队列' }))
+    const rows = container.querySelectorAll('[data-slot="message-queue-item"]')
+
+    fireEvent.click(rows[0].querySelector('[aria-label="下移"]') as HTMLElement)
+
+    expect(moveCalls).toHaveLength(3)
+    expect(vi.mocked(toast.error)).toHaveBeenCalled()
   })
 
   it('待发送条目可上移 / 下移，移动成功后立刻落库', function () {

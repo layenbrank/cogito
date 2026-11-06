@@ -12,7 +12,7 @@
 | agent-plan | `agent-plan.tsx`、`agent-plan-state.ts`（另有可折叠外壳 `plan.tsx`、三态清单 `task.tsx` / `todo-list.tsx`） | ✅ | client 对话区：ACP `plan` 事件画成「标题 + `2 / 5` + 3px 进度条 + 每步状态图标」的速览卡（`plan-data-ui.tsx`）；右栏全量计划仍是 `aside-plan.tsx`。见下节 |
 | background-inbox | `background-inbox.aui.tsx` | ✅ | `use-background-runs.ts` + `aside-busy.tsx`：后台会话/后台任务的收件箱 |
 | schedule-card | `schedule-card.aui.tsx` | ✅ | `plan-schedule-card.tsx`（计划里「定时执行」的那张卡） |
-| composer-context | `composer-trigger.tsx` | ✅ | `composer-context-menu.tsx` / `composer-extensions-pane.tsx` / `workspace-file-picker.tsx`（@ 引用、扩展、工作区文件） |
+| composer-context | `composer-trigger.tsx` | ✅ | `composer-knowledge.tsx`（知识库引用）/ `extensions-pane.tsx`（右栏「扩展」页签）/ `workspace-file-picker.tsx`（@ 引用、工作区文件）。输入区 `+` 面板 2026-11-06 已拆除，见 [agent-composer-aside.md](./agent-composer-aside.md) |
 | terminal-block | `terminal.tsx` | ✅ | `tool-card-terminal-body.tsx` + `features/terminal`（右栏常驻终端） |
 | job-progress | `job-progress.tsx`、`job-progress-state.ts` | ✅ | client 对话区：命令类工具卡在「后台命令 / 前台已跑 ≥ 20s」时换成这张卡（`tool-card-job.tsx`）。见下节 |
 | tool-timeline | `tool-timeline.tsx`、`tool-timeline-state.ts`、`tool-group.aui.tsx`、`trace-waterfall.aui.tsx` | ✅ | 动词 + 芯片 + 文件统计的紧凑流水（按元素页自写，步骤由宿主映射）。client 对话流仍走整轮活动流水，见下节 |
@@ -55,9 +55,45 @@
 `extraCount` / `extraPreview` / `renderText` / `renderItemActions` 四个注入点留给 app：`@chip` 标签、
 「取回编辑 / 上移 / 下移」这些库没给 primitive 的操作。
 
-**已知限制：队列是内存态。** 刷新页面 / 换会话 / 重启就丢，且丢得无声。
+### 持久化（2026-11-06 落地）
 
-### 为什么暂不做持久化
+原来那句「队列是内存态，刷新即丢」已经解决，实现全在
+`apps/client/src/features/agent/composer-queue.ts`：
+
+| 环节 | 口径 |
+| --- | --- |
+| 落库 | 订阅 `composer.queue`，debounce 300ms 后按 `sessionID` **整队替换**（`agentComposerQueue:toReplace`，事务内先删后插）。整队写而不是逐条 diff：顺序才是队列的语义 |
+| 回灌 | `reconcileComposerQueue` 在会话就绪时读一次：会话**仍在跑** → 逐条 `setText` + `send({ steer:false })` 还原成真实队列（`steer:false` 让它们落 `queue` lane，而不是插队）；会话**已结束** → 进 `pending` store，渲染成「待发送」条 |
+| 自走泵 | 每轮结束 `pumpPendingQueue` 发队首一条；线程真跑起来后由 `markThreadRunning` 放行下一条 |
+| 去重 | `reconciledSessions` 挡重挂载、`inflightReconcile` 挡并发（StrictMode 双跑）：一个会话只回灌一次 |
+
+### 「插队 / 调整顺序」为什么曾经完全失效（2026-11-06 修）
+
+内核把队列分成两条 lane：`queue`（按序）与 `steer`（下一条优先）。
+`local-thread-runtime-core::append()` 的判定是
+`message.steer ?? this._queueRunInFlight !== null` —— **有 run 在飞时新消息一律进 `steer` lane**；
+而 `default-thread-composer-runtime-core::queue` 把两条 lane 拼成 `[...steer, ...queue]`
+一个**扁平数组**，前端看不出归属。
+
+`move(queueItemId, placement)` 要求**锚点与目的一条 lane**，不在同一条就抛
+`Unknown anchor "…" in lane "…"`。app 侧的上移 / 下移原来把 lane 写死成 `'queue'`：
+运行中排队的消息全在 `steer` lane，于是点一下就是一次未捕获异常，按钮看起来「点了没反应」——
+这就是「无法插队、无法调序」的根因。
+
+现在的做法（`views/agent/chat/components/composer-queue.tsx::moveQueueItem`）：
+
+1. 先**不指定 lane**，让内核按条目自己的 lane 解析锚点；
+2. 被拒再显式试 `steer` / `queue`：锚点只存在于它自己那条 lane，第二轮一定命中；
+3. 三次都失败才 `toast.error` 报出来，不再静默失败。
+
+顺带记一条内核行为，免得再按「必须打断当前轮」去设计交互：`steerQueueItem` 的实现是
+`move(id, { lane:'steer', insertAfter:null })`，而「打断当前轮立即派发」的分支要求
+`insertAfter` / `insertBefore` **都是 `undefined`** —— 官方这条路只是**把条目挪到 steer 队首**
+（下一轮先发）。真打断还需要 runtime 给队列 driver 提供 `cancel`，而
+`useLocalRuntime` 的 `createMessageQueue({ run })` **没有传 `cancel`**：
+本仓的「立即发送」= 排到最前，不中断当前轮。这是库的限制，不是接线漏了。
+
+### 为什么当初没做持久化（历史记录，已落地）
 
 不是「懒得做」，是三条硬约束叠在一起：
 
