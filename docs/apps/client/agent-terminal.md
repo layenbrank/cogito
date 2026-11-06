@@ -50,6 +50,35 @@
 
 工具的 MCP 描述里写死了「串行调用」：同一目录的 agent 会话只有一个 shell，并发跑会互相干扰。
 
+## 长命令与后台任务：别在 agent 会话里跑前台构建
+
+`write_command`（`utils/terminal.rs:526`）在下发新命令前，会先往 PTY 写一个 `\x03`（Ctrl+C），
+用来清掉「上一条命令没被 shell 吃掉的半行输入」。代价是：**同一会话里上一条还在跑的前台命令会被打断**。
+2026-11-06 实测的两个后果：
+
+| 现象 | 原因 |
+| --- | --- |
+| `cargo test > out.txt` 跑到一半被杀，`out.txt` 末尾留着 `^C`、没有 `EXIT=` 行 | 输出重定向后终端不再有新字节，「安静期」判定提前收工；下一条命令的 `\x03` 把构建打断 |
+| 之后几条命令像没执行一样，光标停在 `Terminate batch job (Y/N)?` | `cmd` 跑 `.bat` 被 Ctrl+C 后会问这一句，后续输入被当成对它的回答 |
+
+正确做法（agent 自己就该这么干）：
+
+```bat
+@echo off
+cd /d D:\path\to\workspace
+cargo build --manifest-path apps/client/src-tauri/Cargo.toml > "%TEMP%\build.txt" 2>&1
+echo BUILD_EXIT=%ERRORLEVEL% >> "%TEMP%\build.txt"
+```
+
+1. 写成 `.bat`（多行 + 带 `%ERRORLEVEL%`），输出重定向到 `%TEMP%`（就是 agent 缓存会话目录）；
+2. 用**分离进程**启动：
+   `powershell -NoProfile -Command "Start-Process -FilePath '...\build.bat' -WindowStyle Hidden"` ——
+   它有自己的控制台，收不到会话里的 `\x03`；
+3. 用 `app_terminal_read` 或读那个输出文件轮询结果，不要在前台等。
+
+`npm run dev` / `vite` 这类常驻进程同理。已经卡在 `Terminate batch job (Y/N)?` 时，
+往会话写 `y` + 回车即可恢复（实测有效）。
+
 ## 会话与视图解耦（Rust 侧）
 
 - 每个会话带 256 KiB 回滚缓冲 + **绝对字节游标**（跨裁剪单调递增），agent 靠游标取「这次命令之后」的输出。
@@ -83,6 +112,8 @@
 
 排查顺序：先 `echo $env:COGITO_AGENT_CACHE`。打不出来说明这个终端会话是**旧二进制 / 旧进程**
 起的 —— 注入只对**新开的**会话生效，重启宿主后新开的 shell 才有。
+打不出来时先判断「跑的是不是新二进制」：设置 → 诊断的「运行中的宿主」，口径见
+[build-fingerprint.md](./build-fingerprint.md)。
 
 ## 已知限制
 
