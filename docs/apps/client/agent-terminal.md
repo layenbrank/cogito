@@ -66,6 +66,24 @@
 3. `TerminalView` preferAttach：先 attach；失败则再 `list` 确认仍存活才重试 attach，确认已死后才 create。
 4. 加载期间命令可继续在后台跑；用户打开面板后看到 scrollback 回放。
 
+## Agent 缓存目录：临时文件的唯一落点
+
+调试脚本、构建日志、验证输出这类**会话级缓存**不要写进工作区 —— 终端的 `TMP` / `TEMP`
+已经被改到缓存目录，`Out-File $env:TEMP\x.log`、`mktemp`、Node 的 `os.tmpdir()`
+自动落在那里。落点是代码而不是约定（`src-tauri/src/utils/agent_cache.rs`）：
+
+| 项           | 值                                                                                                                                     |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 根           | `%LOCALAPPDATA%\cogito\agent-cache`；取不到 `LOCALAPPDATA` 才回退 `~/.cogito/agent-cache`（旧目录只作兼容读，不再写入）                 |
+| 会话子目录   | `<root>\<session>`，session 由会话 id 派生（非 `[A-Za-z0-9._-]` 的字符换成 `-`，截断 80）                                               |
+| 注入的变量   | `COGITO_AGENT_CACHE` / `TMP` / `TEMP` 都指向会话子目录（`terminal.rs::spawn_session`）                                                  |
+| 保留         | 启动时 `prune_stale_caches(7)` 清超期会话目录（`app/bootstrap.rs`）；`terminal_kill` 与退出清当前会话目录                                |
+| 一键清空     | 设置 → 诊断「Agent 缓存 · N MB / 清空」（`agent_cache_info` / `agent_cache_clear`），只清缓存根，不动 `.cogito/plans` 与日志            |
+| 兜底拦截     | `pnpm check:agent-junk`：仓库根出现 `tmp/` / `scratch-*` / `*.log` / `*.bat` / `*.ps1` 即非零退出并点名路径；已接进 `pnpm check`        |
+
+排查顺序：先 `echo $env:COGITO_AGENT_CACHE`。打不出来说明这个终端会话是**旧二进制 / 旧进程**
+起的 —— 注入只对**新开的**会话生效，重启宿主后新开的 shell 才有。
+
 ## 已知限制
 
 - 结束判定是「安静期」而不是注入标记：`npm run dev` / watch 这类持续输出会等到超时，返回 `isRunning: true` + 部分输出。换成 shell integration 更准，但要为 pwsh / bash 各写一套约定，暂不做。

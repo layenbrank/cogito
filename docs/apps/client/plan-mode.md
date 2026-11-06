@@ -27,6 +27,38 @@
 | **计划模式硬只读**：写工具在权限回调直接拒绝；goose 有效档为 readonly（不改用户审批偏好） | `acp/session.ts` `requestThreadPermission`；`effective-approval.ts`；切模式时 `syncApprovalForThread` |
 | **执行收尾写 status**：普通执行一轮结束 → `done` / 中止 → `interrupted`；经 Goal 推进则跟 Goal 终态 | `views/agent/chat/components/plan-run-finish.tsx` |
 
+## 计划版本化：revision / executedRevision
+
+「用户没看清就执行了上一份计划」的根因是档案只记 `revision`，不记**跑的是哪一版**。
+四个字段分工（`features/agent/plan-store.ts`）：
+
+| 字段                      | 含义                                                          | 写入点                                                             |
+| ------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `revision`                | 正文版本号                                                    | `bumpRevision`（`plan-recorder` / `plan-file-sync` 发现 digest 变化） |
+| `executedRevision`        | **上一次开始执行**用的是第几版；`bumpRevision` 不清它          | `setPlanStatus(..., 'running')`                                     |
+| `stale`（派生）           | `revision > executedRevision` = 计划改过、上次跑的是旧版        | `isPlanStale(record)`                                               |
+| `superseded`              | 旧计划被新版取代，只读                                         | `bumpRevision`：`done` / `interrupted` → `superseded` + `supersededBy` |
+
+四条行为约定：
+
+1. `bumpRevision` 时 `running → draft`，`done` / `interrupted → superseded`
+   —— 不再「保持 done、只在徽标上标已过期」，否则右栏按钮还叫「开始执行」，点下去跑的是旧版；
+2. 右栏 stale 时按钮文案变「按新计划执行（rN）」，抬头多一行「上次执行基于 rK」；
+   `superseded` 且没有更新版本可执行时禁用执行（保存 / 复制 / 载入仍可用）；
+3. 对话里的历史计划卡被新版本取代后打「已被 rN 取代」角标（`plan-data-ui.tsx`），
+   避免用户以为对话里最后一张卡就是最新计划；
+4. 目标推进每轮续跑前比对 `revision === executedRevision`，不等就 `stopGoalRun`（`paused`）
+   并提示「不会拿旧版继续跑」—— 这条是「计划重复执行、白烧 token」的直接闸门。
+
+执行消息固定带 `计划版本：revision N`（`buildPlanExecutePrompt`），事后能对上「这一轮跑的是第几版」；
+`aside.tsx::startImplement` 现读 `readPlan(threadID)` 取 `body` 与 `revision`，不用当轮草稿。
+
+判据放宽：`isPlanDocument` 允许「`## 方案` / `## 实施步骤` / `## 验证` 任一 + 正文 ≥ 200 字」也算改版，
+避免「调整计划那一轮没被录进档案，右栏与执行入口继续拿旧版」。
+
+回归：`pnpm --filter @cogito/client exec vitest run src/features/agent/plan-store.test.ts src/features/agent/plan-execute.test.ts`
+（覆盖 `done → superseded` + `supersededBy`、`executedRevision` 不被 `bumpRevision` 清、`isPlanStale` 派生、prompt 带 revision）。
+
 ## Goal 终态（对照）
 
 | 状态 | 含义 | 写入点 |
