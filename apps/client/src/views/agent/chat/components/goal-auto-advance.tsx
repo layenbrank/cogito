@@ -31,6 +31,7 @@ import {
   stopGoalRun,
   useGoalRun
 } from '@/features/agent/goal-run'
+import { isPlanStale, readPlan } from '@/features/agent/plan-store'
 
 /**
  * 只订阅「最后一条助手消息」的收尾指纹，避免整份 messages 每 token 抬升本组件。
@@ -113,6 +114,18 @@ function GoalAutoAdvance() {
 
       if (aui.composer.getState().text.trim()) {
         toast.info('检测到你在输入，已暂停目标自动推进')
+        stopGoalRun(threadID)
+        return
+      }
+
+      /**
+       * 计划改过就先停车：`revision > executedRevision` 说明这一轮跑的是旧版，
+       * 继续自动续跑只会拿旧计划反复烧 token（用户看到的「计划重复执行」）。
+       */
+      if (isPlanStale(readPlan(threadID))) {
+        toast.info(
+          '计划已更新，目标推进已暂停：确认后请按新计划重新开始（不会拿旧版继续跑）'
+        )
         stopGoalRun(threadID)
         return
       }

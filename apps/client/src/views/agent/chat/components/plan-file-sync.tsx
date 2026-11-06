@@ -7,7 +7,8 @@
  *
  * 做法：`source = 'file'` 时按 `stat` 的 `mtime + size` 轮询（1.5s，只读 stat，
  * 不读正文），变了才 `readPlanFile` 取回正文、算 digest，与档案 digest 不同就
- * `bumpRevision`（`running` 回落 `draft`，`done` 保持并显示已过期）。轮询而不是
+ * `bumpRevision`（`running` 回落 `draft`，`done` / `interrupted` 归档成 `superseded`；
+ * `executedRevision` 不动，于是右栏能显示「上次执行基于 rN」）。轮询而不是
  * `watch`：仓库已有 `readDir/stat` 权限，不需要新增 fs 能力。
  *
  * 对话里的回声不会覆盖文件：`plan-recorder` 对 `source = 'file'` 直接跳过。

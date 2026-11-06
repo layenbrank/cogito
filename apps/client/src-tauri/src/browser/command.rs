@@ -140,14 +140,28 @@ pub fn browser_network_list(
     network::list(&label, filter.as_deref(), limit.unwrap_or(200).min(500))
 }
 
-/// 设置拦截规则；空数组 = 关闭。返回生效条数。
+/// 设置拦截规则；空数组 = 关闭。返回生效条数 + paused/matched 计数。
 #[tauri::command]
 pub async fn browser_intercept_set(
     app: AppHandle,
     label: String,
     rules: Vec<Rule>,
-) -> Result<usize, String> {
+) -> Result<intercept::InterceptStatus, String> {
     intercept::set_rules(&app, &label, rules).await
+}
+
+/// 当前拦截计数（规则条数 + paused / matched）。
+///
+/// 面板靠它判断「拦截到底有没有生效」：`paused` 恒为 0 说明 `Fetch.requestPaused`
+/// 根本没到（enable 参数 / 事件订阅问题），`paused > 0` 而 `matched` 为 0 说明规则没命中。
+#[tauri::command]
+pub async fn browser_intercept_status(label: String) -> Result<intercept::InterceptStatus, String> {
+    let snapshot = intercept::counters(&label);
+    Ok(intercept::InterceptStatus {
+        rules: intercept::rules(&label).len(),
+        paused: snapshot.paused,
+        matched: snapshot.matched,
+    })
 }
 
 /// 当前生效的拦截规则（agent 也可能改过，UI 靠它对齐）

@@ -88,6 +88,38 @@ async function openDiagnosticDir(kind: DiagnosticDirKind): Promise<string | null
   }
 }
 
+/** Agent 缓存概况（`agent_cache_info`）：终端里那些临时脚本 / 日志的落点 */
+interface AgentCacheStats {
+  /** 缓存根：`%LOCALAPPDATA%\\cogito\\agent-cache` */
+  path: string
+  bytes: number
+  /** 会话子目录个数 */
+  sessions: number
+  /** 旧目录（`~/.cogito/agent-cache`）仍存在时给出，提示可手动删 */
+  legacyPath?: string | null
+}
+
+async function readAgentCache(): Promise<AgentCacheStats | null> {
+  if (!isTauri()) return null
+  try {
+    return await invoke<AgentCacheStats>('agent_cache_info')
+  } catch (error) {
+    console.warn('[diagnostics] agent_cache_info 失败', error)
+    return null
+  }
+}
+
+/** 清空 Agent 缓存：只清缓存根，不动 `.cogito/plans` 与日志。返回释放的字节数。 */
+async function clearAgentCache(): Promise<number | null> {
+  if (!isTauri()) return null
+  try {
+    return await invoke<number>('agent_cache_clear')
+  } catch (error) {
+    console.warn('[diagnostics] agent_cache_clear 失败', error)
+    return null
+  }
+}
+
 /** 字节数 → 便于阅读的 MB 文案（只用于展示，保留一位小数） */
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '—'
@@ -97,8 +129,16 @@ function formatBytes(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / 1024))} KB`
 }
 
-export { formatBytes, openDiagnosticDir, probeCapabilities, readDiagnosticsCapabilities }
+export {
+  clearAgentCache,
+  formatBytes,
+  openDiagnosticDir,
+  probeCapabilities,
+  readAgentCache,
+  readDiagnosticsCapabilities
+}
 export type {
+  AgentCacheStats,
   Capabilities,
   DiagnosticDirKind,
   DiagnosticsCapabilities,

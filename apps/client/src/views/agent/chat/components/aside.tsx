@@ -43,7 +43,7 @@ import {
 import { Terminal } from '@/lib/terminal'
 import { DEFAULT_BUDGET, startGoalRun, stopGoalRun } from '@/features/agent/goal-run'
 import { findPlanDraft } from '@/features/agent/plan-draft'
-import { readPlan, setPlanStatus } from '@/features/agent/plan-store'
+import { isPlanStale, readPlan, setPlanStatus } from '@/features/agent/plan-store'
 import { buildPlanExecutePrompt } from '@/features/agent/plan-execute'
 import { useActiveWorkspace } from '@/features/agent/workspace/active'
 import { readAgentMode, subscribeAgentMode, writeAgentMode } from '@/features/agent/mode'
@@ -158,6 +158,17 @@ function AgentAside(props: AsideProps) {
     if (!body.trim() && steps.length === 0) {
       toast.error('还没有可执行的计划：先在计划模式产出一份，或从文件载入')
       return
+    }
+    // 已归档且没有更新版本可执行：拒绝跑旧版（只读态，保存 / 复制 / 载入仍可用）
+    if (record && record.status === 'superseded' && !isPlanStale(record)) {
+      toast.error('这份计划已归档：先按新计划执行，或把正文另存为一份新计划')
+      return
+    }
+    // stale 时照跑，但跑的是 record 里**当前**这一版：把版本差说清楚，便于事后核对
+    if (record && isPlanStale(record)) {
+      const previous =
+        record.executedRevision === null ? '旧版' : `r${record.executedRevision}`
+      toast.info(`计划已更新到 r${record.revision}（上次执行基于 ${previous}），本次按新版执行`)
     }
 
     const prompt = buildPlanExecutePrompt({

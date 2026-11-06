@@ -109,12 +109,28 @@ touch 事件 / DPR，预览区等比缩放到面板里；退出即恢复桌面�
 - **`app_browser_read` 的 `limit` 与 `maxChars` 是两件事**：`limit` 只管 `outline` 条目数（默认 60，上限 200），
   `mode=text` 的正文上限走 `maxChars`（默认 8000，上限 200000，超出时 `truncated=true`）。
   以前两者共用 `limit`，导致正文只能读回几十个字符。
-- **截图先截合成面，失败退到视图面**：`fromSurface: true` 取的是一份合成器画面，窗口不可见 /
+- **截图先亮屏再拍，三通道兜底**：`fromSurface: true` 取的是一份合成器画面，窗口不可见 /
   webview 被 `hide()` 时 WebView2 可能压根不回完成回调（表现就是卡满超时才报错）。所以
-  `browser/agent.rs::screenshot` 有两条通道：先是 4s 上限的合成面，超时或报错再换
-  `fromSurface: false` 的视图面，两条都不行才失败，错误里带各自的原因
-  （`fromSurface=true: …；fromSurface=false: …`）。真拿到画面时日志会写「从第几条通道拿到画面」——
-  截图看着是空白时先查这条日志，别当成工具没生效。
+  `browser/agent.rs::screenshot` 的顺序是：
+  ① 拍之前先 `lifecycle::reveal_for_capture`（隐藏态根本不出帧，先亮再拍能省掉一次白等）；
+  ② CDP 双通道：4s 上限的合成面 → 4s 上限的视图面（`fromSurface: false`）；
+  ③ 两条都失败 → `os_capture`：经 corex IPC 截整屏 PNG，再按 `BrowserState.layout` +
+  主窗口 `inner_position` / `scale_factor` 换算客户区像素矩形，用 `image::crop_imm` 裁出来，
+  返回 `mode: "os"`。
+  失败文案是「窗口不可见或被遮挡（已尝试 surface/view/os）」并带各自原因，不再干等超时。
+  返回值里的 `mode`（`surface` / `view` / `os`）说明画面从哪条通道来 —— `os` 是屏幕像素，
+  不保证是合成器画面（可能带遮挡窗口），但至少拿得到图。
+- **截不到图不等于工具没生效**：日志会写「从第几条通道拿到画面」，退到 OS 兜底时还会写裁切矩形；
+  先查这条日志，再怀疑工具。
+- **拦截的观测口径**：`browser/intercept.rs` 给每个 tab 记 `paused`（收到 `Fetch.requestPaused`
+  的次数）与 `matched`（命中规则并真的改写 / 掐断的次数），`app_browser_intercept` 与右栏
+  网络面板都显示「暂停 N / 命中 M」。两个判据要分开看：`paused = 0` 说明拦截通道没通 ——
+  `Fetch.enable` 的 `patterns` 必须是 `[{ urlPattern: "*", requestStage: "Request" }]`，
+  **显式传空数组等于「零个拦截模式」**，`requestPaused` 永远不触发；`paused > 0` 而
+  `matched = 0` 说明事件到了但 pattern 没命中。
+- **同一 tab 不要并发「动作 + 导航」**：`app_browser_act` 与 `open` / `navigate` 都走同一条 CDP
+  连接，导航会换掉 target 的 execution context，交叉下发容易出现「动作发给了正在卸载的文档」
+  —— 表现是点击返回成功但页面没变。要导航就先 `navigate` → `wait networkIdle` → 再动作。
 
 ## 测试可执行文件的 manifest（构建侧）
 

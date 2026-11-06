@@ -306,7 +306,13 @@ fn find_in_path(executable: &str) -> Option<std::path::PathBuf> {
 }
 
 /// 打开一个 PTY 会话：返回会话本体 + 读端（读端交给读线程独占）。
-fn spawn_session(cwd_path: &Path) -> Result<(TerminalSession, Box<dyn Read + Send>), String> {
+/// `cache_dir` 非空时把 `COGITO_AGENT_CACHE` / `TMP` / `TEMP` 都指向它 —— 于是
+/// `mktemp`、`$env:TEMP\x.log`、Node 的 `os.tmpdir()` 全部落到会话缓存目录，
+/// 不再散落在仓库根与系统 TEMP（契约见 `utils::agent_cache`）。
+fn spawn_session(
+    cwd_path: &Path,
+    cache_dir: Option<&Path>,
+) -> Result<(TerminalSession, Box<dyn Read + Send>), String> {
     let pty_system = native_pty_system();
     let pair = pty_system
         .openpty(PtySize {
@@ -319,6 +325,13 @@ fn spawn_session(cwd_path: &Path) -> Result<(TerminalSession, Box<dyn Read + Sen
 
     let mut cmd = CommandBuilder::new(default_shell());
     cmd.cwd(cwd_path);
+    if let Some(dir) = cache_dir {
+        let text = dir.display().to_string();
+        // 三个变量一起指过去：PowerShell 用 $env:TEMP，mktemp 用 TMP，Node 用 os.tmpdir()
+        cmd.env("COGITO_AGENT_CACHE", &text);
+        cmd.env("TMP", &text);
+        cmd.env("TEMP", &text);
+    }
     let child = pair
         .slave
         .spawn_command(cmd)
@@ -358,7 +371,9 @@ fn ensure_session(
         return Ok(session.child.process_id());
     }
 
-    let (session, reader) = spawn_session(cwd_path)?;
+    // 会话缓存目录：建不出目录就不注入，不能因为缓存把终端拖挂
+    let cache_dir = crate::utils::agent_cache::session_dir_or_none(id);
+    let (session, reader) = spawn_session(cwd_path, cache_dir.as_deref())?;
     let pid = session.child.process_id();
     let shared = session.shared.clone();
     sessions.insert(id.to_string(), session);
@@ -603,6 +618,8 @@ fn kill_session(hub: &TerminalHub, id: &str) {
         terminate_process_tree(pid);
     }
     let _ = session.child.kill();
+    // 会话结束即清掉这次会话的缓存目录；进程刚被杀删不掉的，留给启动时的 prune
+    let _ = crate::utils::agent_cache::clear_session(id);
 }
 
 #[tauri::command(rename = "terminal:create")]

@@ -12,10 +12,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import {
+  fetchBrowserInterceptStatus,
   listBrowserInterceptRules,
   listBrowserNetwork,
   setBrowserInterceptRules,
   type InterceptRule,
+  type InterceptStatus,
   type NetworkEntry
 } from '@/features/browser/api'
 
@@ -70,6 +72,8 @@ function AsideBrowserNetwork(props: AsideBrowserNetworkProps) {
   const [filter, updateFilter] = useState('')
   const [busy, updateBusy] = useState(false)
   const [rules, updateRules] = useState<InterceptRule[]>([])
+  /** 拦截实测计数：paused > 0 才说明 requestPaused 真的来了 */
+  const [status, updateStatus] = useState<InterceptStatus | null>(null)
   /** 过滤输入要不要传给后端：交给后端能拿到完整列表再筛，前端只负责展示 */
   const filterRef = useRef('')
   filterRef.current = filter
@@ -77,6 +81,11 @@ function AsideBrowserNetwork(props: AsideBrowserNetworkProps) {
   const refresh = useCallback(
     function () {
       updateBusy(true)
+      void fetchBrowserInterceptStatus(props.label)
+        .then(updateStatus)
+        .catch(function (error) {
+          console.warn('browser: 读取拦截计数失败', error)
+        })
       void listBrowserNetwork(props.label, filterRef.current || undefined, 300)
         .then(updateEntries)
         .catch(function (error) {
@@ -106,8 +115,13 @@ function AsideBrowserNetwork(props: AsideBrowserNetworkProps) {
   function applyRules(next: InterceptRule[]) {
     updateRules(next)
     void setBrowserInterceptRules(props.label, next)
-      .then(function (count) {
-        toast.success(count === 0 ? '已关闭拦截' : `拦截生效：${count} 条规则`)
+      .then(function (result) {
+        updateStatus(result)
+        toast.success(
+          result.rules === 0
+            ? '已关闭拦截'
+            : `拦截生效：${result.rules} 条规则 · 暂停 ${result.paused} / 命中 ${result.matched}`
+        )
       })
       .catch(function (error) {
         toast.error(error instanceof Error ? error.message : String(error))
@@ -184,7 +198,10 @@ function AsideBrowserNetwork(props: AsideBrowserNetworkProps) {
 
       {rules.length > 0 ? (
         <div className="text-muted-foreground shrink-0 border-b px-2 py-1 text-xs">
-          拦截中：{rules.length} 条 · 命中即掐断（在请求列表里再点一次可取消）
+          拦截中：{rules.length} 条 · 暂停 {status?.paused ?? 0} / 命中 {status?.matched ?? 0}
+          {status && status.paused === 0
+            ? ' · 还没收到暂停事件（先点刷新；页面还没发请求也会是 0）'
+            : ' · 命中即掐断（在请求列表里再点一次可取消）'}
         </div>
       ) : null}
 

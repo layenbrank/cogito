@@ -61,6 +61,13 @@ pub struct Model {
     pub executedAt: Option<i64>,
     #[sea_orm(column_name = "finishedAt")]
     pub finishedAt: Option<i64>,
+    /// 上一次**开始执行**时用的是第几版：执行入口写入，改版**不**清它 ——
+    /// `revision > executedRevision` 即「计划改过了，上次执行基于旧版」。
+    #[sea_orm(column_name = "executedRevision")]
+    pub executedRevision: Option<i64>,
+    /// 被哪一版取代（`done` / `interrupted` 的旧版在改版时归档）。
+    #[sea_orm(column_name = "supersededBy")]
+    pub supersededBy: Option<i64>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}
@@ -117,6 +124,12 @@ pub struct Write {
     pub executedAt: Option<i64>,
     #[serde(default)]
     pub finishedAt: Option<i64>,
+    /// 上次执行时用的 revision（`None` = 还没执行过）
+    #[serde(default)]
+    pub executedRevision: Option<i64>,
+    /// 被哪一版取代
+    #[serde(default)]
+    pub supersededBy: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,6 +158,8 @@ pub struct Change {
     pub updatedAt: Option<i64>,
     pub executedAt: Option<Option<i64>>,
     pub finishedAt: Option<Option<i64>>,
+    pub executedRevision: Option<Option<i64>>,
+    pub supersededBy: Option<Option<i64>>,
 }
 
 /// `key` 可以是 `id`，也可以是 `sessionID` —— 前端手里常常只有会话 ID。

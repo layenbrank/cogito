@@ -10,7 +10,10 @@
  * - 失败：回滚 cache 到上一次已落库的快照，并 `reportCaught`。
  *
  * 不变量：`body` 是唯一执行依据；`digest` 变化即「计划被改过」（`revision + 1`，
- * `running` 回落 `draft`）；一个会话只允许一行（表上有 `sessionID` 唯一索引）。
+ * `running` 回落 `draft`；`done` / `interrupted` 归档成 `superseded`）；
+ * `executedRevision` 记「上次执行的是第几版」，改版**不**清它 ——
+ * `revision > executedRevision` 就是「计划已更新、上次跑的是旧版」（见 `isPlanStale`）；
+ * 一个会话只允许一行（表上有 `sessionID` 唯一索引）。
  */
 import { invoke } from '@tauri-apps/api/core'
 import { useCallback, useSyncExternalStore } from 'react'
@@ -37,6 +40,10 @@ export interface PlanRecord {
   source: PlanSource
   filePath: string | null
   revision: number
+  /** 上次开始执行时的 revision；`null` = 还没执行过 */
+  executedRevision: number | null
+  /** 被哪一版取代（旧版执行在改版时归档）；`null` = 没被取代过 */
+  supersededBy: number | null
   digest: string
   truncated: boolean
   createdAt: number
@@ -79,6 +86,8 @@ interface PlanRow {
   source: string
   filePath: string | null
   revision: number
+  executedRevision: number | null
+  supersededBy: number | null
   digest: string
   truncated: boolean
   createdAt: number
@@ -186,6 +195,8 @@ function toPlanRecord(row: PlanRow): PlanRecord {
     source: row.source === 'file' ? 'file' : 'thread',
     filePath: row.filePath,
     revision: row.revision,
+    executedRevision: row.executedRevision ?? null,
+    supersededBy: row.supersededBy ?? null,
     digest: row.digest,
     truncated: row.truncated,
     createdAt: row.createdAt,
@@ -373,6 +384,8 @@ interface SavePlanInput extends Partial<Omit<PlanDraft, 'steps'>> {
   digest?: string
   truncated?: boolean
   revision?: number
+  executedRevision?: number | null
+  supersededBy?: number | null
   executedAt?: number | null
   finishedAt?: number | null
 }
@@ -392,6 +405,12 @@ function savePlan(input: SavePlanInput): PlanRecord {
     source: input.source ?? previous?.source ?? 'thread',
     filePath: input.filePath === undefined ? (previous?.filePath ?? null) : input.filePath,
     revision: input.revision ?? previous?.revision ?? 1,
+    executedRevision:
+      input.executedRevision === undefined
+        ? (previous?.executedRevision ?? null)
+        : input.executedRevision,
+    supersededBy:
+      input.supersededBy === undefined ? (previous?.supersededBy ?? null) : input.supersededBy,
     digest: input.digest ?? previous?.digest ?? digestPlan(body),
     truncated: input.truncated ?? previous?.truncated ?? false,
     createdAt: previous?.createdAt ?? now,
@@ -407,7 +426,11 @@ function savePlan(input: SavePlanInput): PlanRecord {
 
 /**
  * 状态机推进：`draft → running → done / interrupted`。
- * `running` 时记 `executedAt`，`done` 时记 `finishedAt`。
+ *
+ * `running` 时记 `executedAt` **并锁住这一版**（`executedRevision = revision`）——
+ * 这是「这一轮到底跑的是第几版」的唯一记录：改版不会清它，于是
+ * `revision > executedRevision` 就能判出「计划改过了、上次执行基于旧版」。
+ * `done` 时记 `finishedAt`。
  */
 function setPlanStatus(threadID: string, status: PlanStatus): PlanRecord | null {
   const record = readPlan(threadID)
@@ -417,6 +440,9 @@ function setPlanStatus(threadID: string, status: PlanStatus): PlanRecord | null 
     ...record,
     status,
     updatedAt: now,
+    // 重新开始执行 = 认可当前 revision：`superseded` 同时解除，否则会卡在归档态
+    executedRevision: status === 'running' ? record.revision : record.executedRevision,
+    supersededBy: status === 'running' ? null : record.supersededBy,
     executedAt: status === 'running' ? now : record.executedAt,
     finishedAt: status === 'done' ? now : record.finishedAt
   }
@@ -430,8 +456,10 @@ function setPlanStatus(threadID: string, status: PlanStatus): PlanRecord | null 
  * 正文/文件变了：`revision + 1`。
  *
  * - `running` → 回落 `draft`（这份计划已经对不上正在跑的东西了）；
- * - `done` → 保持 `done`，只多加「已过期」提示（对齐 VS Code 的 `isOutdated`，
- *   不静默回滚用户的完成状态）。
+ * - `done` / `interrupted` → 归档成 `superseded`，并记 `supersededBy = 新 revision`。
+ *   以前这里是「保持 done，只多显示一个已过期」，结果上一份跑过的计划既没被标成
+ *   过期、也不拦重复执行 —— 用户一点「开始执行」就又跑一遍旧计划（白烧 token）；
+ * - `executedRevision` 一律**不动**：它记的是「上次执行的是第几版」，不是当前版本。
  */
 function bumpRevision(
   threadID: string,
@@ -442,6 +470,10 @@ function bumpRevision(
   if (!record || record.digest === digest) return false
   const now = Date.now()
   const body = patch?.body ?? record.body
+  const nextRevision = record.revision + 1
+  // 跑过的版本（done / interrupted / 已归档）在改版时归档；草稿与正在跑的只回落 draft
+  const keepRunning = record.status === 'running' || record.status === 'draft'
+  const nextStatus: PlanStatus = keepRunning ? 'draft' : 'superseded'
   const next: PlanRecord = {
     ...record,
     title: patch?.title ?? record.title,
@@ -450,14 +482,29 @@ function bumpRevision(
     body,
     truncated: patch?.truncated ?? record.truncated,
     digest,
-    revision: record.revision + 1,
-    status: record.status === 'running' ? 'draft' : record.status,
+    revision: nextRevision,
+    status: nextStatus,
+    supersededBy: keepRunning ? record.supersededBy : nextRevision,
     updatedAt: now
   }
   plans.set(next.sessionID, next)
   schedulePlan(next.sessionID, 'write')
   notify()
   return true
+}
+
+/**
+ * 「上次执行基于旧版」的派生判据：`revision > executedRevision`。
+ *
+ * - 从没执行过（`executedAt` 与 `executedRevision` 都为空）→ 不算 stale：还没跑过的
+ *   草稿不该显示「按新计划执行」；
+ * - 老库里的行只有 `executedAt`、没有 `executedRevision`（本字段是后加的）→ 按 0 计，
+ *   这样一次改版就会被判成 stale，而不是永远显示「没更新」。
+ */
+function isPlanStale(record: PlanRecord | null | undefined): boolean {
+  if (!record) return false
+  if (record.executedRevision === null && record.executedAt === null) return false
+  return record.revision > (record.executedRevision ?? 0)
 }
 
 interface SaveGoalInput {
@@ -567,6 +614,7 @@ export {
   digestPlan,
   flush,
   hydrate,
+  isPlanStale,
   listGoals,
   readGoal,
   readPlan,

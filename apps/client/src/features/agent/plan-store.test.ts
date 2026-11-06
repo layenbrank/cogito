@@ -16,6 +16,7 @@ import {
   bumpRevision,
   flush,
   hydrate,
+  isPlanStale,
   readGoal,
   readPlan,
   resetPlanStore,
@@ -37,6 +38,8 @@ function planRow(overrides: Record<string, unknown> = {}) {
     source: 'thread',
     filePath: null,
     revision: 1,
+    executedRevision: null,
+    supersededBy: null,
     digest: 'd1',
     truncated: false,
     createdAt: 1,
@@ -122,6 +125,58 @@ describe('计划 / 目标档案仓储', function () {
     expect(record?.revision).toBe(2)
     expect(record?.status).toBe('draft')
     expect(record?.body).toBe('v2')
+  })
+
+  it('执行时锁住 executedRevision，改版后 stale 为真且旧值不清', function () {
+    savePlan({ sessionID: 't1', body: 'v1', steps: ['a'] })
+    expect(isPlanStale(readPlan('t1'))).toBe(false)
+
+    setPlanStatus('t1', 'running')
+    expect(readPlan('t1')?.executedRevision).toBe(1)
+    expect(isPlanStale(readPlan('t1'))).toBe(false)
+
+    expect(bumpRevision('t1', 'd2', { body: 'v2', steps: ['a', 'b'] })).toBe(true)
+    expect(readPlan('t1')?.revision).toBe(2)
+    expect(readPlan('t1')?.executedRevision).toBe(1)
+    expect(isPlanStale(readPlan('t1'))).toBe(true)
+  })
+
+  it('done 的旧版在改版时归档成 superseded，并记 supersededBy', function () {
+    savePlan({ sessionID: 't1', body: 'v1', steps: ['a'] })
+    setPlanStatus('t1', 'running')
+    setPlanStatus('t1', 'done')
+    bumpRevision('t1', 'd2', { body: 'v2', steps: ['a', 'b'] })
+
+    const record = readPlan('t1')
+    expect(record?.status).toBe('superseded')
+    expect(record?.supersededBy).toBe(2)
+    expect(record?.executedRevision).toBe(1)
+    // 重新按新版执行：归档态解除，executedRevision 跟到新版
+    const running = setPlanStatus('t1', 'running')
+    expect(running?.status).toBe('running')
+    expect(running?.supersededBy).toBeNull()
+    expect(running?.executedRevision).toBe(2)
+    expect(isPlanStale(running)).toBe(false)
+  })
+
+  it('interrupted 的旧版同样归档，hydrate 带回两个新字段', async function () {
+    savePlan({ sessionID: 't1', body: 'v1', steps: ['a'] })
+    setPlanStatus('t1', 'running')
+    setPlanStatus('t1', 'interrupted')
+    bumpRevision('t1', 'd3', { body: 'v2' })
+    expect(readPlan('t1')?.status).toBe('superseded')
+
+    resetPlanStore()
+    invokeMock.mockImplementation(function (channel: string) {
+      if (channel === CHANNELS.AGENT_PLAN.TO_READ) {
+        return Promise.resolve([planRow({ revision: 3, executedRevision: 2, supersededBy: 3 })])
+      }
+      return Promise.resolve([])
+    })
+    await hydrate(['t1'])
+    expect(readPlan('t1')?.executedRevision).toBe(2)
+    expect(readPlan('t1')?.supersededBy).toBe(3)
+    expect(isPlanStale(readPlan('t1'))).toBe(true)
   })
 
   it('goal 档案按 sessionID upsert，二次保存不新增行', function () {

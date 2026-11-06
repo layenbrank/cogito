@@ -108,6 +108,14 @@ function findLastAssistantText(messages: readonly ThreadMessage[]): string | nul
 /** 计划章节标题：命中这些词的段落里的列表优先当计划 */
 const PLAN_HEADING = /(计划|步骤|实施|方案|行动|roadmap)/i
 
+/**
+ * 「调整计划」那一轮常常不写 H1、只给结构化章节：命中任一即算结构在（见 `isPlanDocument`）。
+ * 加了这一层，改过的计划才录得进档案 —— 否则右栏与执行入口继续拿旧版跑。
+ */
+const PLAN_SECTION_HEADING = /^#{1,6}\s*(?:方案|实施步骤|验证)(?:[：:].*)?\s*$/im
+/** 结构判定的长度下限：太短的回复即便带标题也不是一份计划 */
+const PLAN_DOCUMENT_MIN_CHARS = 200
+
 /** 计划文档的硬标识：H1 标题，或明确说了「实施步骤 / 方案 / 计划」 */
 const PLAN_DOCUMENT_HEADING = /^#{1,6}\s*(?:.*(?:实施步骤|方案|计划).*)$/im
 
@@ -250,11 +258,16 @@ function parsePlanText(body: string): PlanDraft | null {
  *
  * 比 `parsePlanText` 更严：至少 2 步，且必须带 H1 或明确的计划类标题 ——
  * 否则任何带两个 bullet 的普通回答都会被录成计划档案，右栏就会永远挂着一份假计划。
+ *
+ * 结构化判据优先（「调整计划」那一轮常没有 H1）：`## 方案` / `## 实施步骤` / `## 验证`
+ * 任一 + 正文长度达标即视为计划文档。太短的回复即便带标题也不录，避免把一句
+ * 「## 方案：改个名」当成新计划。
  */
 function isPlanDocument(text: string): boolean {
   const draft = parsePlanText(text)
   if (!draft || draft.steps.length < 2) return false
-  return /^#\s+/m.test(text) || PLAN_DOCUMENT_HEADING.test(text)
+  if (/^#\s+/m.test(text) || PLAN_DOCUMENT_HEADING.test(text)) return true
+  return PLAN_SECTION_HEADING.test(text) && text.length >= PLAN_DOCUMENT_MIN_CHARS
 }
 
 /**

@@ -46,9 +46,12 @@ function buildPlanExecutePrompt(input: PlanExecuteInput): string {
 
   lines.push(...EXECUTE_RULES)
 
+  // 版本号与「是否有计划文件」无关：事后核对「这一轮跑的是第几版」全靠它
+  if (input.revision) {
+    lines.push('', `计划版本：revision ${input.revision}`)
+  }
   if (input.filePath) {
-    const revision = input.revision ? ` · revision ${input.revision}` : ''
-    lines.push('', `计划文件：${input.filePath}${revision}`)
+    lines.push('', `计划文件：${input.filePath}`)
   }
 
   const body = input.body.trim() || input.overview?.trim() || ''

@@ -11,9 +11,14 @@
 
 ## Agent 临时文件
 
-调试脚本、构建日志、验证输出这类**会话级缓存**一律写到 `~/.cogito/agent-cache/`
-（Windows：`%USERPROFILE%\.cogito\agent-cache`），不要在仓库根目录下建 `tmp/` 之类的目录：
+调试脚本、构建日志、验证输出这类**会话级缓存**一律写到 agent 缓存目录，不要在仓库根目录下建
+`tmp/` 之类的目录。落点不是约定而是代码（`apps/client/src-tauri/src/utils/agent_cache.rs`）：
 
-- 仓库根只放产品代码与文档；临时文件落在根目录会脏 `git status`，也容易被误提交
-- 需要按任务区分时，在该目录下再建子目录（如 `~/.cogito/agent-cache/build/`），不要回落到工作区
-- 用完即删；该目录不受版本管理，不需要写进 `.gitignore`
+- 根目录：`%LOCALAPPDATA%\cogito\agent-cache`（早期文档写的 `~/.cogito/agent-cache` 仍可读，取不到 `LOCALAPPDATA` 才回退它）
+- 会话子目录：`<root>\<session>`，session 由终端会话 id 派生（cwd 里非 `[A-Za-z0-9._-]` 的字符换成 `-`）
+- 终端已注入环境变量：`$env:COGITO_AGENT_CACHE` / `$env:TMP` / `$env:TEMP` 都指向当前会话目录，
+  所以 `Out-File $env:TEMP\x.log`、`mktemp`、Node 的 `os.tmpdir()` 自动落在那里 —— 别写到工作区
+- 保留 7 天（启动时清超期会话目录），会话被 kill 时清当前会话目录；设置 → 诊断有
+  「Agent 缓存 · N MB / 清空」，只清缓存根，不动 `.cogito/plans` 与日志
+- 仓库根不许出现草稿：`pnpm check:agent-junk` 拦 `tmp/`、`scratch-*`、`*.log`、`*.bat`、`*.ps1`
+- 需要按任务区分时在会话目录下再建子目录；用完即删，该目录不受版本管理

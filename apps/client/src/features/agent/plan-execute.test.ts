@@ -40,6 +40,12 @@ describe('按计划执行的提示词', function () {
     expect(prompt).toContain('中途不要停下来问用户')
   })
 
+  it('带 revision 时 prompt 里保留版本号（没有计划文件也要带）', function () {
+    const prompt = buildPlanExecutePrompt({ body: BODY, target: 'agent', revision: 3 })
+    expect(prompt).toContain('revision 3')
+    expect(prompt).not.toContain('计划文件：')
+  })
+
   it('正文缺失时退回 overview，两者都空时只有要求部分', function () {
     expect(
       buildPlanExecutePrompt({ body: '  ', target: 'agent', overview: '抽通用 Konva 壳' })

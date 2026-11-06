@@ -22,6 +22,41 @@ const EVENT_PAUSED: &str = "Fetch.requestPaused";
 const DEFAULT_STATUS: i64 = 200;
 const DEFAULT_MIME: &str = "application/json";
 
+/// `Fetch.enable` 的入参。
+///
+/// **必须显式给 patterns**：CDP 里省略 `patterns` 时默认才是
+/// `[{urlPattern:"*", requestStage:"Request"}]`，而显式传**空数组**等于「零个拦截模式」——
+/// 于是 `Fetch.requestPaused` 永远不会触发，block / mock / edit 三条分支全成死代码
+/// （现场表现：dev server 页面的 XHR 照发，拿到真实 401）。这个函数被单测锁住。
+fn enable_params() -> Value {
+    json!({
+        "patterns": [{ "urlPattern": "*", "requestStage": "Request" }]
+    })
+}
+
+/// 一个 tab 上的拦截计数（自 `Fetch.enable` 起累计，`Fetch.disable` 清零）。
+///
+/// 存在意义是**把两种故障分开**：`paused` 恒为 0 说明 `Fetch.requestPaused` 根本没到
+/// （enable 参数或事件订阅有问题）；`paused > 0` 而 `matched` 恒为 0 说明事件到了但规则没命中
+/// （pattern 写错）。没有这两个数只能靠猜。
+#[derive(Debug, Clone, Copy, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InterceptCounters {
+    /// 收到 `Fetch.requestPaused` 的次数
+    pub paused: u64,
+    /// 命中规则（真的改了响应 / 掐断了请求）的次数
+    pub matched: u64,
+}
+
+/// `set_rules` 的返回值：生效条数 + 当前计数（面板与工具面都要看得到「真的拦到了没有」）。
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InterceptStatus {
+    pub rules: usize,
+    pub paused: u64,
+    pub matched: u64,
+}
+
 /// 一条请求头（`Fetch.continueRequest` 的覆盖入参）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Header {
@@ -72,6 +107,8 @@ impl Rule {
 struct Intercepts {
     rules: HashMap<String, Vec<Rule>>,
     subscribed: HashSet<String>,
+    /// 每个 tab 的 paused / matched 计数
+    counters: HashMap<String, InterceptCounters>,
 }
 
 fn state() -> &'static Mutex<Intercepts> {
@@ -90,6 +127,23 @@ fn with_state<T>(action: impl FnOnce(&mut Intercepts) -> T) -> T {
 #[must_use]
 pub fn rules(label: &str) -> Vec<Rule> {
     with_state(|state| state.rules.get(label).cloned().unwrap_or_default())
+}
+
+/// 当前计数器快照（没有记录就是全 0）。
+#[must_use]
+pub fn counters(label: &str) -> InterceptCounters {
+    with_state(|state| state.counters.get(label).copied().unwrap_or_default())
+}
+
+/// 记一次 `Fetch.requestPaused`；`matched` 表示这次命中规则并改写了请求。
+fn note_paused(label: &str, matched: bool) {
+    with_state(|state| {
+        let entry = state.counters.entry(label.to_string()).or_default();
+        entry.paused = entry.paused.saturating_add(1);
+        if matched {
+            entry.matched = entry.matched.saturating_add(1);
+        }
+    });
 }
 
 /// 取出**命中的那一条**。
@@ -112,16 +166,27 @@ fn match_rule(label: &str, url: &str) -> Option<Rule> {
 /// - 订阅必须**先**完成（`subscribe` 会等到装好才返回），否则 enable 之后的第一个
 ///   请求会挂起却没人 `continue`，页面直接卡死；
 /// - 订阅失败就整体失败，不能把规则留在内存里假装生效。
-pub async fn set_rules(app: &AppHandle, label: &str, rules: Vec<Rule>) -> Result<usize, String> {
+pub async fn set_rules(
+    app: &AppHandle,
+    label: &str,
+    rules: Vec<Rule>,
+) -> Result<InterceptStatus, String> {
     let accepted: Vec<Rule> = rules.into_iter().filter(Rule::is_valid).collect();
 
     if accepted.is_empty() {
-        with_state(|state| state.rules.remove(label));
+        with_state(|state| {
+            state.rules.remove(label);
+            state.counters.remove(label);
+        });
         // 关掉之前必须先确保没有残留的 enable 状态，否则所有请求都会挂起
         if let Err(error) = cdp::call(app, label, "Fetch.disable", json!({})).await {
             log::warn!("browser: Fetch.disable 失败（{label}）: {error}");
         }
-        return Ok(0);
+        return Ok(InterceptStatus {
+            rules: 0,
+            paused: 0,
+            matched: 0,
+        });
     }
 
     let needs_subscribe = with_state(|state| !state.subscribed.contains(label));
@@ -133,10 +198,21 @@ pub async fn set_rules(app: &AppHandle, label: &str, rules: Vec<Rule>) -> Result
     let count = accepted.len();
     with_state(|state| state.rules.insert(label.to_string(), accepted));
 
-    cdp::call(app, label, "Fetch.enable", json!({ "patterns": [] }))
+    cdp::call(app, label, "Fetch.enable", enable_params())
         .await
         .map_err(|error| format!("开启拦截失败：{error}"))?;
-    Ok(count)
+    // 计数是「拦截通道真的活着」的唯一证据：空 patterns 时代它恒为 0
+    let snapshot = counters(label);
+    log::info!(
+        "browser: 拦截已开启（{label}，{count} 条规则，paused={} matched={}）",
+        snapshot.paused,
+        snapshot.matched
+    );
+    Ok(InterceptStatus {
+        rules: count,
+        paused: snapshot.paused,
+        matched: snapshot.matched,
+    })
 }
 
 /// 订阅 `Fetch.requestPaused`（每个 tab 一次）
@@ -169,6 +245,8 @@ fn handle_paused(app: &AppHandle, label: &str, payload: &str) {
         .to_string();
 
     let hit = match_rule(label, &url);
+    // 计数在订阅回调里立刻记：这是「requestPaused 到底来没来」的实测证据
+    note_paused(label, hit.is_some());
 
     let handle = app.clone();
     let owner = label.to_string();
@@ -240,11 +318,12 @@ pub fn forget(label: &str) {
     with_state(|state| {
         state.rules.remove(label);
         state.subscribed.remove(label);
+        state.counters.remove(label);
     });
 }
 
 /// 标准 base64：`Fetch.fulfillRequest` 的 body 必须是 base64
-fn base64_encode(input: &[u8]) -> String {
+pub(crate) fn base64_encode(input: &[u8]) -> String {
     const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(input.len().div_ceil(3) * 4);
     for chunk in input.chunks(3) {
@@ -285,6 +364,38 @@ mod tests {
             base64_encode("{\"ok\":true}".as_bytes()),
             "eyJvayI6dHJ1ZX0="
         );
+    }
+
+    #[test]
+    fn enable_params_asks_for_a_real_pattern() {
+        // 空 patterns = 零个拦截模式：requestPaused 永远不会来，mock/block 全是死代码
+        let params = enable_params();
+        let patterns = params
+            .get("patterns")
+            .and_then(Value::as_array)
+            .expect("Fetch.enable 必须显式带 patterns");
+        assert!(!patterns.is_empty(), "patterns 不能是空数组");
+        assert_eq!(
+            patterns[0].get("urlPattern").and_then(Value::as_str),
+            Some("*")
+        );
+        assert_eq!(
+            patterns[0].get("requestStage").and_then(Value::as_str),
+            Some("Request")
+        );
+    }
+
+    #[test]
+    fn counters_accumulate_and_reset_per_tab() {
+        let label = "test-tab-counters";
+        note_paused(label, false);
+        note_paused(label, true);
+        let snapshot = counters(label);
+        assert_eq!(snapshot.paused, 2);
+        assert_eq!(snapshot.matched, 1);
+        assert_eq!(counters("test-tab-absent").paused, 0, "没记录的 tab 应为 0");
+        forget(label);
+        assert_eq!(counters(label).paused, 0, "forget 要连计数一起清掉");
     }
 
     #[test]

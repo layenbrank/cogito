@@ -142,6 +142,8 @@ impl Service {
                 schema::Column::UpdatedAt,
                 schema::Column::ExecutedAt,
                 schema::Column::FinishedAt,
+                schema::Column::ExecutedRevision,
+                schema::Column::SupersededBy,
             ])
             .column_as(Expr::val(""), schema::Column::Body)
             .all(db)
@@ -176,6 +178,8 @@ impl Service {
             updatedAt: Set(p.updatedAt.unwrap_or(now)),
             executedAt: Set(p.executedAt),
             finishedAt: Set(p.finishedAt),
+            executedRevision: Set(p.executedRevision),
+            supersededBy: Set(p.supersededBy),
         };
         // `createdAt` / `id` 不在更新集里：upsert 保留首次落库的身份与时间。
         let on_conflict = OnConflict::column(schema::Column::SessionId)
@@ -193,6 +197,8 @@ impl Service {
                 schema::Column::UpdatedAt,
                 schema::Column::ExecutedAt,
                 schema::Column::FinishedAt,
+                schema::Column::ExecutedRevision,
+                schema::Column::SupersededBy,
             ])
             .to_owned();
         schema::Entity::insert(model)
@@ -250,6 +256,13 @@ impl Service {
         if let Some(v) = change.finishedAt {
             active.finishedAt = Set(v);
         }
+        if let Some(v) = change.executedRevision {
+            active.executedRevision = Set(v);
+        }
+        if let Some(v) = change.supersededBy {
+            active.supersededBy = Set(v);
+        }
+
         active.updatedAt = Set(change.updatedAt.unwrap_or_else(|| Utc::now().timestamp_millis()));
         let updated = active.update(db).await?;
         Ok(updated.id)
@@ -306,6 +319,8 @@ mod tests {
             updatedAt: None,
             executedAt: None,
             finishedAt: None,
+            executedRevision: None,
+            supersededBy: None,
         }
     }
 
@@ -357,6 +372,8 @@ mod tests {
                     updatedAt: None,
                     executedAt: Some(Some(1234)),
                     finishedAt: None,
+                    executedRevision: None,
+                    supersededBy: None,
                 },
             }),
         )

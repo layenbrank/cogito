@@ -1,5 +1,6 @@
 //! 工具与基础设施客户端（无 Tauri command）。
 
+pub mod agent_cache;
 pub mod capture_retention;
 pub mod child_job;
 pub mod clock;

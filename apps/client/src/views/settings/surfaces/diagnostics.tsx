@@ -6,10 +6,13 @@ import { toast } from 'sonner'
 
 import { ensurePersist, findPref, patchPref } from '@/features/persist'
 import {
+  clearAgentCache,
   formatBytes,
   openDiagnosticDir,
   probeCapabilities,
+  readAgentCache,
   readDiagnosticsCapabilities,
+  type AgentCacheStats,
   type Capabilities,
   type DiagnosticsCapabilities,
   type ToolCapability
@@ -38,6 +41,13 @@ function toolStatus(capability: ToolCapability): { text: string; tone: 'success'
   return { text: '缺失', tone: 'destructive' }
 }
 
+/** 缓存大小文案：0 字节要显示「0 B」而不是 `formatBytes` 的「—」（清空后要能看出确实空了） */
+function cacheSizeText(bytes: number | undefined): string {
+  if (bytes === undefined) return '—'
+  if (bytes <= 0) return '0 B'
+  return formatBytes(bytes)
+}
+
 /** 设置 → 诊断：能力自述 / 日志目录 / 崩溃补报开关。 */
 function DiagnosticSurface() {
   const [caps, setCaps] = useState<DiagnosticsCapabilities | null>(null)
@@ -45,16 +55,20 @@ function DiagnosticSurface() {
   const [reportCrashes, setReportCrashes] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
   const [isReporting, setIsReporting] = useState(false)
+  const [cache, setCache] = useState<AgentCacheStats | null>(null)
+  const [isClearingCache, setIsClearingCache] = useState(false)
 
   const reload = useCallback(async function reload(): Promise<void> {
     setIsLoading(true)
     try {
-      const [nextCaps, nextTools] = await Promise.all([
+      const [nextCaps, nextTools, nextCache] = await Promise.all([
         readDiagnosticsCapabilities(),
-        probeCapabilities()
+        probeCapabilities(),
+        readAgentCache()
       ])
       setCaps(nextCaps)
       setTools(nextTools)
+      setCache(nextCache)
     } catch (error) {
       console.warn('[settings.diagnostics] 读取诊断信息失败', error)
     } finally {
@@ -96,6 +110,21 @@ function DiagnosticSurface() {
       return
     }
     toast.error(`打不开${label}`, { description: '路径可能还没生成，稍后再试' })
+  }
+
+  async function onClearCache(): Promise<void> {
+    setIsClearingCache(true)
+    try {
+      const freed = await clearAgentCache()
+      if (freed === null) {
+        toast.error('清空失败：命令异常或不在 Tauri 环境')
+        return
+      }
+      toast.success(`已清空 Agent 缓存（释放 ${formatBytes(freed)}）`)
+      await reload()
+    } finally {
+      setIsClearingCache(false)
+    }
   }
 
   async function onReportNow(): Promise<void> {
@@ -193,6 +222,33 @@ function DiagnosticSurface() {
               : '没有正在记录的会话标记'
           }>
           <span className="text-xs text-muted-foreground">{caps?.sessionState ?? '—'}</span>
+        </SettingsRow>
+      </SettingsSection>
+
+      <SettingsSection title="Agent 缓存">
+        <SettingsRow
+          label="Agent 缓存"
+          hint={
+            cache
+              ? `${cacheSizeText(cache.bytes)} · ${cache.sessions} 个会话 · ${cache.path}${
+                  cache.legacyPath ? ` · 旧目录 ${cache.legacyPath} 可手动删除` : ''
+                }`
+              : '终端里的临时脚本 / 构建日志落这里（默认保留 7 天）'
+          }>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-foreground">
+              {cache ? cacheSizeText(cache.bytes) : '—'}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isClearingCache}
+              onClick={function () {
+                void onClearCache()
+              }}>
+              {isClearingCache ? '清理中…' : '清空'}
+            </Button>
+          </div>
         </SettingsRow>
       </SettingsSection>
 

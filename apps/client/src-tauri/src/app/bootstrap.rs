@@ -15,7 +15,7 @@ use crate::{
     utils::{
         goose_acp::GooseAcpHub,
         goose_serve::{self, GooseServeState},
-        goose_tls, log_retention,
+        agent_cache, goose_tls, log_retention,
         sidecar::{self, SidecarState},
         terminal::TerminalHub,
     },
@@ -121,6 +121,8 @@ impl Bootstrap {
                 // 禁 WebView 原生 Ctrl/Cmd+F 查找条（Windows 走 WebView2 设置；其它平台靠前端拦）
                 crate::ui::native_find::disable_on_app(app.handle());
                 log_retention::prune_stale_logs(app.handle());
+                // Agent 缓存：清掉超过保留期的会话子目录（目录契约见 utils::agent_cache）
+                agent_cache::prune_stale_caches(agent_cache::AGENT_CACHE_RETENTION_DAYS);
                 // 会话标记 + 上次异常退出：崩溃/被杀的现场要能被下次启动认出来
                 // `begin_session()` 内部保证「先读旧标记再写 running」的顺序。
                 let previous_session = crate::utils::diagnostics::begin_session();

@@ -353,6 +353,13 @@ async fn intercept_rules(app: &AppHandle, arguments: &Value) -> Result<Value, St
         .and_then(|value| {
             serde_json::from_value(value).map_err(|error| format!("rules 格式不对：{error}"))
         })?;
-    let count = intercept::set_rules(app, &label, rules).await?;
-    Ok(json!({ "tab": label, "active": count > 0, "count": count }))
+    let status = intercept::set_rules(app, &label, rules).await?;
+    // paused / matched 是「真的拦到了没有」的证据：`patterns: []` 那个 bug 时代它们恒为 0
+    Ok(json!({
+        "tab": label,
+        "active": status.rules > 0,
+        "count": status.rules,
+        "paused": status.paused,
+        "matched": status.matched
+    }))
 }

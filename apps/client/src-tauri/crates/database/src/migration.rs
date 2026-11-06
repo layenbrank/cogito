@@ -44,21 +44,35 @@ async fn ensure_agent_plan(db: &Connection) -> Result<(), DbErr> {
         db.execute(Statement::from_string(DatabaseBackend::Sqlite, statement))
             .await?;
     }
-    for (column, alter) in crate::migrations::agent_plan_schema::goal_column_patches() {
-        let found = db
-            .query_one(Statement::from_string(
-                DatabaseBackend::Sqlite,
-                format!(
-                    "SELECT count(*) AS v FROM pragma_table_info('agent_goal') WHERE name = '{column}'"
-                ),
-            ))
-            .await?;
-        let count = found
-            .and_then(|row| row.try_get::<i64>("", "v").ok())
-            .unwrap_or(0);
-        if count == 0 {
-            db.execute(Statement::from_string(DatabaseBackend::Sqlite, alter.to_string()))
+    // 表名 + 补列清单：`CREATE TABLE IF NOT EXISTS` 不改既有表结构，老库只能靠 ALTER 补。
+    // 两张表共用同一段 pragma 判定逻辑 —— 以后再有新列只加定义，不动循环。
+    let tables = [
+        (
+            "agent_goal",
+            crate::migrations::agent_plan_schema::goal_column_patches(),
+        ),
+        (
+            "agent_plan",
+            crate::migrations::agent_plan_schema::plan_column_patches(),
+        ),
+    ];
+    for (table, patches) in tables {
+        for (column, alter) in patches {
+            let found = db
+                .query_one(Statement::from_string(
+                    DatabaseBackend::Sqlite,
+                    format!(
+                        "SELECT count(*) AS v FROM pragma_table_info('{table}') WHERE name = '{column}'"
+                    ),
+                ))
                 .await?;
+            let count = found
+                .and_then(|row| row.try_get::<i64>("", "v").ok())
+                .unwrap_or(0);
+            if count == 0 {
+                db.execute(Statement::from_string(DatabaseBackend::Sqlite, alter.to_string()))
+                    .await?;
+            }
         }
     }
     Ok(())

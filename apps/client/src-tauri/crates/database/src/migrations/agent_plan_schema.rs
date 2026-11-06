@@ -26,7 +26,9 @@ pub fn statements() -> Vec<&'static str> {
              "createdAt" INTEGER NOT NULL,
              "updatedAt" INTEGER NOT NULL,
              "executedAt" INTEGER NULL,
-             "finishedAt" INTEGER NULL)"#,
+             "finishedAt" INTEGER NULL,
+             "executedRevision" INTEGER NULL,
+             "supersededBy" INTEGER NULL)"#,
         r#"CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_plan_sessionID ON agent_plan (sessionID)"#,
         r#"CREATE INDEX IF NOT EXISTS idx_agent_plan_updatedAt ON agent_plan ("updatedAt")"#,
         r#"CREATE TABLE IF NOT EXISTS agent_goal (
@@ -55,6 +57,21 @@ pub fn goal_column_patches() -> Vec<(&'static str, &'static str)> {
         "expectedPrompt",
         r#"ALTER TABLE agent_goal ADD COLUMN "expectedPrompt" TEXT NULL"#,
     )]
+}
+
+/// `agent_plan` 老库补列：计划版本化（`executedRevision` / `supersededBy`）是 0001 基线
+/// 之后才加的，`CREATE TABLE IF NOT EXISTS` 不会给已有库补列，只能走 ALTER。
+pub fn plan_column_patches() -> Vec<(&'static str, &'static str)> {
+    vec![
+        (
+            "executedRevision",
+            r#"ALTER TABLE agent_plan ADD COLUMN "executedRevision" INTEGER NULL"#,
+        ),
+        (
+            "supersededBy",
+            r#"ALTER TABLE agent_plan ADD COLUMN "supersededBy" INTEGER NULL"#,
+        ),
+    ]
 }
 
 #[cfg(test)]

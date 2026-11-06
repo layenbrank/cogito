@@ -155,11 +155,18 @@ async function readBrowserPage(
 }
 
 /** 截图：返回原始 base64 + mime（data URL 自己拼，少传一份 base64） */
+interface BrowserShot {
+  mimeType: string
+  base64: string
+  /** 实际出图通道：CDP 合成器 / CDP view / OS 兜底（不可见时才知道画面从哪来） */
+  mode?: 'surface' | 'view' | 'os'
+}
+
 async function screenshotBrowser(
   label: string,
   format?: 'png' | 'jpeg'
-): Promise<{ mimeType: string; base64: string }> {
-  return invoke<{ mimeType: string; base64: string }>('browser_agent_screenshot', {
+): Promise<BrowserShot> {
+  return invoke<BrowserShot>('browser_agent_screenshot', {
     label,
     format: format ?? null
   })
@@ -226,20 +233,46 @@ async function listBrowserNetwork(
   return invoke<NetworkEntry[]>('browser_network_list', { label, filter, limit })
 }
 
+/** 一条拦截规则：与 Rust `browser::intercept::Rule` 同形（camelCase） */
 interface InterceptRule {
   pattern: string
-  action: 'block' | 'mock'
+  action: 'block' | 'mock' | 'edit'
   status?: number
   body?: string
   mime?: string
+  /** edit：把请求改发到这个地址 */
+  url?: string
+  /** edit：覆盖 / 追加请求头 */
+  headers?: { name: string; value: string }[]
+  /** edit：替换请求体 */
+  postData?: string
 }
 
-/** 设置拦截规则；传空数组 = 关闭。返回生效条数。 */
+/** `browser_intercept_set` / `browser_intercept_status` 的返回：生效条数 + 实测计数 */
+interface InterceptStatus {
+  rules: number
+  /** 收到 `Fetch.requestPaused` 的次数（0 = 拦截通道没通） */
+  paused: number
+  /** 命中规则并真的改写 / 掐断的次数 */
+  matched: number
+}
+
+/** 设置拦截规则；传空数组 = 关闭。返回生效条数 + paused / matched 计数。 */
 async function setBrowserInterceptRules(
   label: string,
   rules: InterceptRule[]
-): Promise<number> {
-  return invoke<number>('browser_intercept_set', { label, rules })
+): Promise<InterceptStatus> {
+  return invoke<InterceptStatus>('browser_intercept_set', { label, rules })
+}
+
+/**
+ * 当前拦截计数（面板刷新时读）。
+ *
+ * `paused` 是「`Fetch.requestPaused` 真的来了」的证据，`matched` 是「规则真的命中」的证据：
+ * 两个都停在 0 时不要怀疑页面，先看拦截通道本身。
+ */
+async function fetchBrowserInterceptStatus(label: string): Promise<InterceptStatus> {
+  return invoke<InterceptStatus>('browser_intercept_status', { label })
 }
 
 /** 当前生效的规则（agent 也会改，UI 进视图时用它对齐） */
@@ -324,6 +357,7 @@ export {
   BROWSER_VISIBILITY_RESET,
   closeBrowserTab,
   fetchBrowserHistoryState,
+  fetchBrowserInterceptStatus,
   fetchBrowserNavigationHistory,
   fetchBrowserUrl,
   getBrowserDevice,
@@ -357,6 +391,7 @@ export type {
   BrowserTab,
   DeviceReadback,
   InterceptRule,
+  InterceptStatus,
   NetworkEntry,
   PickedBrowserElement,
   PickedBrowserRect,

@@ -46,6 +46,7 @@ import { readNextGoalBudget, subscribeGoalBudget, useGoalRun } from '@/features/
 import { findPlanDraft } from '@/features/agent/plan-draft'
 import { findLatestPlan } from '@/features/agent/plan'
 import {
+  isPlanStale,
   savePlan,
   setPlanStatus,
   usePlanRecord,
@@ -244,11 +245,20 @@ function AsidePlan(props: AsidePlanProps) {
   const stored: PlanRecord | null = record
   const status = stored?.status ?? 'draft'
   const statusMeta = STATUS_META[status]
-  /** `done` 之后正文又被改过（recorder 自增过 revision）→ 提示需要重新执行 */
-  const isOutdated =
-    status === 'done' &&
-    typeof stored?.finishedAt === 'number' &&
-    stored.updatedAt > stored.finishedAt
+  /**
+   * 计划改过、但还没按新版执行过：`revision > executedRevision`（见 `isPlanStale`）。
+   * 早先只看 `done && updatedAt > finishedAt`，于是 `running`（目标推进中）与
+   * `interrupted` 都不提示，按钮还叫「开始执行」—— 点下去跑的就是旧版。
+   */
+  const isStale = isPlanStale(stored)
+  /** 已归档、且没有更新版本可执行：只读（保存 / 复制 / 载入照常可用） */
+  const isArchived = status === 'superseded' && !isStale
+  const canExecute = !isArchived
+  /** 上次执行基于第几版；老库行只有 executedAt，没有 executedRevision → 说「旧版」 */
+  const executedLabel =
+    stored?.executedRevision === null || stored?.executedRevision === undefined
+      ? '旧版'
+      : `r${stored.executedRevision}`
   /** 只有草稿（没有结构化 plan 事件）= 还没开始：全部圆点、进度 0 */
   const isIdle = !plan
 
@@ -265,9 +275,15 @@ function AsidePlan(props: AsidePlanProps) {
               'flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-xs font-medium',
               statusMeta.tone
             )}
-            title={isOutdated ? '计划已更新，需重新执行' : statusMeta.label}>
+            title={
+              isStale
+                ? `计划已更新到 r${stored?.revision ?? 1}，上次执行基于 ${executedLabel}`
+                : isArchived
+                  ? '这份计划已被新版取代，只读'
+                  : statusMeta.label
+            }>
             <Icon icon={statusMeta.icon} className="size-3" />
-            {isOutdated ? '已更新' : statusMeta.label}
+            {isStale ? '已更新' : statusMeta.label}
           </span>
         </div>
         {draft.overview ? (
@@ -283,6 +299,9 @@ function AsidePlan(props: AsidePlanProps) {
             </span>
             {stored && stored.revision > 1 ? (
               <span className="shrink-0 font-mono opacity-70">{`r${stored.revision}`}</span>
+            ) : null}
+            {isStale && stored ? (
+              <span className="shrink-0 opacity-70">{`上次执行基于 ${executedLabel}`}</span>
             ) : null}
           </div>
         ) : null}
@@ -342,17 +361,32 @@ function AsidePlan(props: AsidePlanProps) {
           type="button"
           size="sm"
           className="flex-1 text-xs"
+          disabled={!canExecute}
+          title={
+            canExecute
+              ? isStale
+                ? `按 r${stored?.revision ?? 1} 的正文执行（上次跑的是 ${executedLabel}）`
+                : '按当前计划正文执行'
+              : '这份计划已被新版取代：先按新计划执行，或把正文另存为一份新计划'
+          }
           onClick={function () {
             props.onStartImplement('agent')
           }}>
-          <Icon icon={status === 'done' ? 'lucide:rotate-ccw' : 'lucide:play'} />
-          {status === 'done' || status === 'interrupted' ? '重新执行' : '开始执行'}
+          <Icon icon={isStale || status !== 'done' ? 'lucide:play' : 'lucide:rotate-ccw'} />
+          {isStale
+            ? `按新计划执行（r${stored?.revision ?? 1}）`
+            : isArchived
+              ? '已归档'
+              : status === 'done' || status === 'interrupted'
+                ? '重新执行'
+                : '开始执行'}
         </Button>
         <Button
           type="button"
           variant="outline"
           size="sm"
           className="shrink-0 text-xs"
+          disabled={!canExecute}
           title={`目标推进：自动续跑，本轮最多 ${budget} 轮（轮次在输入框下方向切换，每次发送都可以不同）`}
           onClick={function () {
             props.onStartImplement('goal', budget)
