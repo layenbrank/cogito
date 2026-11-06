@@ -20,7 +20,7 @@ import { CodeDiff } from '@cogito/design/assistant/code-diff'
 import { ReviewableDiff, type HunkDecision } from '@cogito/design/assistant/reviewable-diff'
 import { ToolFallback } from '@cogito/design/assistant/tool-fallback.aui'
 import { Button } from '@cogito/design/components/button'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { normalizeToolPath } from '@/features/agent/tool-paths'
@@ -111,6 +111,10 @@ function WriteToolCard(props: ToolCallMessagePartProps & { outputText: string })
   const [isDiffOpen, setDiffOpen] = useState(false)
   const [decisions, updateDecisions] = useState<Record<string, HunkDecision>>({})
   const [isApplying, updateApplying] = useState(false)
+  // 应用过审阅结果后，卡上这份 diff 就不再等于磁盘内容 —— 关掉审阅入口，避免再点一次拿到误导性的报错
+  const [appliedCount, updateAppliedCount] = useState(0)
+  // 连点保护：isApplying 是异步状态，同一 tick 的两次点击都能穿过 state 判断
+  const applyingRef = useRef(false)
   const absolutePath = useMemo(
     function () {
       if (!rootPath || !relativePath) return null
@@ -119,7 +123,11 @@ function WriteToolCard(props: ToolCallMessagePartProps & { outputText: string })
     [rootPath, relativePath]
   )
   const canReview = Boolean(
-    review && absolutePath && !props.isError && props.status?.type === 'complete'
+    review &&
+    absolutePath &&
+    appliedCount === 0 &&
+    !props.isError &&
+    props.status?.type === 'complete'
   )
 
   async function openReview() {
@@ -143,7 +151,8 @@ function WriteToolCard(props: ToolCallMessagePartProps & { outputText: string })
   }
 
   async function applyReview() {
-    if (!reviewing || !absolutePath || isApplying) return
+    if (!reviewing || !absolutePath || applyingRef.current) return
+    applyingRef.current = true
     updateApplying(true)
     try {
       const current = await readCodeFile(absolutePath)
@@ -164,10 +173,12 @@ function WriteToolCard(props: ToolCallMessagePartProps & { outputText: string })
         return (decisions[hunk.id] ?? 'pending') !== 'discarded'
       }).length
       toast.success(`已保留 ${kept} / ${reviewing.hunks.length} 块改动`)
+      updateAppliedCount(kept)
       updateReviewing(null)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '写入失败')
     } finally {
+      applyingRef.current = false
       updateApplying(false)
     }
   }
@@ -280,8 +291,13 @@ function WriteToolCard(props: ToolCallMessagePartProps & { outputText: string })
           })
         }}
         action={
-          canReview || (relativePath && !props.isError) ? (
+          canReview || appliedCount > 0 || (relativePath && !props.isError) ? (
             <div className="flex items-center gap-1">
+              {appliedCount > 0 ? (
+                <span className="text-muted-foreground shrink-0 px-1 text-xs tabular-nums">
+                  已保留 {appliedCount} 块
+                </span>
+              ) : null}
               {canReview ? (
                 <Button
                   type="button"
