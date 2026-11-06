@@ -8,7 +8,7 @@
 
 | # | 故障 | 修复点 | 已有证据 | 运行期验收 |
 | - | ---- | ------ | -------- | ---------- |
-| 1 | agent 把 `.ps1/.log/.bat` 落在仓库根，会话结束不删，没有集中目录，也没进 AppData | `utils/agent_cache.rs`（根 `/` 会话子目录 `/` 7 天 TTL `/` 一键清空）+ `utils/terminal.rs::spawn_session` 注入 `COGITO_AGENT_CACHE`/`TMP`/`TEMP` + `scripts/check/agent-junk.mjs` + 设置页「Agent 缓存」 | `cargo test --lib agent_cache` 7 passed；`pnpm check:agent-junk` exit 0 | 待宿主重启：`echo $env:TEMP` 落在缓存目录、设置页「清空」后 0 B |
+| 1 | agent 把 `.ps1/.log/.bat` 落在仓库根，会话结束不删，没有集中目录，也没进 AppData | `utils/agent_cache.rs`（根 `/` 会话子目录 `/` 7 天 TTL `/` 一键清空）+ `utils/terminal.rs::spawn_session` 注入 `COGITO_AGENT_CACHE`/`TMP`/`TEMP` + `scripts/check/agent-junk.mjs` + 设置页「Agent 缓存」 | `cargo test --lib agent_cache` 7 passed；`check:agent-junk` 双向实测：造 `tmp/x.log` + `scratch-1.ps1` → `DIRTY_EXIT=1` 并点名两个路径，删掉后 → `CLEAN_EXIT=0` | 待宿主重启：`echo $env:TEMP` 落在缓存目录、设置页「清空」后 0 B |
 | 2 | `app_browser_intercept` 的 mock/block 从不命中，请求照发拿真实 401 | `browser/intercept.rs::enable_params()` 下发 `patterns: [{ urlPattern: "*", requestStage: "Request" }]`；新增 `paused` / `matched` 计数 | `cargo test --lib browser::` 33 passed（含 `enable_params_asks_for_a_real_pattern`）；**独立 CDP 探针**实测：`{"patterns":[]}` → `requestPaused=0`、`/api/x` 根本没发出；换成显式 pattern → `requestPaused=3`、`/api/x` 被拦下 | 待宿主重启：dev server 页面上 mock 401→200、面板「命中 M ≥ 1」 |
 | 3 | `app_browser_screenshot` 连续两次 `Page.captureScreenshot` 10s 超时，拿不到图 | `browser/agent.rs::screenshot`：拍前 `lifecycle::reveal_for_capture`，CDP 双通道各 4s（`fromSurface: true → false`），都失败走 `os_capture` 客户区 BitBlt，返回 `mode: surface/view/os` + 明确失败原因 | 代码静态核对（`screenshot` → `os_capture` / `screenshot_channels` / `screenshot_params` 三条引用齐备） | 待宿主重启：≤4s 出图，或「窗口不可见（已尝试 surface/view/os）」 |
 | 4 | 计划改过之后，「开始执行」跑的还是上一版，`done` 的计划不会被标过期、目标模式继续按旧版烧 token | `plan-store.ts` 的 `executedRevision` / `isPlanStale` / `superseded` + `aside-plan.tsx`「按新计划执行（rN）」+ `goal-auto-advance.tsx` 执行前闸门 + `plan-data-ui.tsx`「已被 rN 取代」 | `plan-store.test.ts` / `plan-draft.test.ts` / `plan-execute.test.ts` 全绿（`pnpm --filter @cogito/client unit` 838 passed） | 待宿主重启：改计划 → revision+1 → 按钮文案变 → prompt 带 `revision N` |
@@ -42,11 +42,30 @@
    点执行后的 prompt 含 `revision N`；上一版计划卡出现「已被 rN 取代」。
 6. **不再重复执行**：`revision > executedRevision` 时目标模式应当 `paused`，消息流不再新增轮次。
 
-## 顺手记下的两个坑
+## 顺手记下的三个坑
 
 - **终端输入会回放历史**：`app_terminal_run` 在旧宿主上出现过「每次按键把整段历史重刷一遍」，
   命令被打散成 `'xt' is not recognized` 之类的碎片，长命令基本不可用。绕法是
-  `.bat` + `Start-Process -WindowStyle Hidden` + 重定向到 `$env:TEMP` 下的文件，再用
-  `app_workspace_read` 读；`.bat` 也别写在仓库里（会撞 `check:agent-junk`），写缓存目录。
+  `.bat` + `Start-Process -WindowStyle Hidden` + 重定向到文件，再用 `app_workspace_read` 读；
+  `.bat` 别写在仓库里（会撞 `check:agent-junk`），写缓存目录。
+- **`pnpm <script>; "EXIT=$LASTEXITCODE"` 会把尾巴当参数塞给脚本**：pnpm 把 `run` 之后的多余
+  参数透传给脚本，于是 `cargo check` 收到 `'*;'`、`'EXIT=$LASTEXITCODE'` 并报
+  `error: unexpected argument '*;' found` —— 看起来像「编译失败」，其实是被参数污染。
+  要拿退出码就包一层：`cmd /c "pnpm … > out.txt 2>&1 & echo EXIT=%ERRORLEVEL% >> out.txt"`；
+  但**同一行里的 `%ERRORLEVEL%` 是解析期展开的**（拿到的是上一条命令的码），
+  所以判定看输出里的 `Finished … in Ns` / `test result: ok` 这类终止行，别只盯那个数字。
 - **`cargo test` 的 manifest 别手动补**：lib 单测靠 `src/lib.rs` 里的
   `#[link(name = "resource", kind = "static")]`，改回 `mt.exe` 注入会撞 `CVT1100`（见 `browser-device.md`）。
+
+## 本轮命令侧结论
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm --filter @cogito/client type-check` | exit 0 |
+| `pnpm --filter @cogito/client lint` | exit 0 |
+| `pnpm --filter @cogito/client unit` | 838 passed |
+| `pnpm --filter @cogito/design exec vitest run` | 247 passed（25 files） |
+| `pnpm --filter @cogito/client check:cargo` | `Finished dev profile … in 21.83s`，0 error，5 条既有 `non_snake_case` warning |
+| `cargo test --lib agent_cache` | 7 passed / 0 failed |
+| `cargo test --lib browser::` | 33 passed / 0 failed |
+| `pnpm check:agent-junk` | 脏 → 1（点名 2 个路径）；干净 → 0 |
