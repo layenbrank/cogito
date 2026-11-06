@@ -128,6 +128,22 @@ touch 事件 / DPR，预览区等比缩放到面板里；退出即恢复桌面�
   `Fetch.enable` 的 `patterns` 必须是 `[{ urlPattern: "*", requestStage: "Request" }]`，
   **显式传空数组等于「零个拦截模式」**，`requestPaused` 永远不触发；`paused > 0` 而
   `matched = 0` 说明事件到了但 pattern 没命中。
+- **2026-11-06 实测：空数组确实「一个都不拦」**（独立 CDP 探针，不碰运行中的宿主）：
+  headless Edge（`--headless=new --remote-debugging-port=9333`）+ `Target.attachToTarget{flatten:true}` +
+  本地 401 服务（`/page` 返回一段会 `fetch('/api/x')` 的 HTML，其余一律 401），同一连接跑两遍：
+
+  | 跑次       | `Fetch.enable` 入参                                            | `requestPaused` | `/api/x` 发出 | 服务端命中 |
+  | ---------- | -------------------------------------------------------------- | --------------- | ------------- | ---------- |
+  | `empty`    | `{"patterns":[]}`                                              | `0`             | `0`           | `3`        |
+  | `wildcard` | `{"patterns":[{"urlPattern":"*","requestStage":"Request"}]}`    | `3`             | `1`           | `3`        |
+
+  `VERDICT: empty_array_intercepts_nothing=true explicit_pattern_intercepts=true`。
+  这同时排除了「事件订阅通道不通」这一备选原因：同一连接、同一 target，只把 `patterns`
+  换成显式值，`paused` 就从 0 变成 3 —— 说明 `cdp_events::subscribe` 收得到 `Fetch.requestPaused`，
+  根因就在 `patterns` 取值。探针脚本放在 agent 缓存目录
+  （`%LOCALAPPDATA%\cogito\agent-cache\cdp-probe\probe.mjs`），不引产品代码依赖；
+  要复现直接 `node probe.mjs`（需要 Edge 与带原生 WebSocket 的 node ≥ 22）。
+
 - **同一 tab 不要并发「动作 + 导航」**：`app_browser_act` 与 `open` / `navigate` 都走同一条 CDP
   连接，导航会换掉 target 的 execution context，交叉下发容易出现「动作发给了正在卸载的文档」
   —— 表现是点击返回成功但页面没变。要导航就先 `navigate` → `wait networkIdle` → 再动作。
