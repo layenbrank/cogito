@@ -103,6 +103,7 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         crate::utils::terminal::terminal_font,
         crate::utils::agent_cache::agent_cache_info,
         crate::utils::agent_cache::agent_cache_clear,
+        crate::utils::build_info::app_build_info,
         cogito_command::magnetic_tile::magnetic_tile_write,
         cogito_command::magnetic_tile::magnetic_tile_read,
         cogito_command::magnetic_tile::magnetic_tile_update,

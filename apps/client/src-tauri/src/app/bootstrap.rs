@@ -120,6 +120,17 @@ impl Bootstrap {
                 // 剪藏本机接收：bridge::start_clip_server（127.0.0.1:19828 → knowledge://clip）
                 // 禁 WebView 原生 Ctrl/Cmd+F 查找条（Windows 走 WebView2 设置；其它平台靠前端拦）
                 crate::ui::native_find::disable_on_app(app.handle());
+                // 构建指纹：先记一条日志，之后「截图超时 / 拦截不命中」这类问题能一眼判断
+                // 是不是旧二进制造成的（链接时间早于最近一次构建 = 该重启了）。
+                let build = crate::utils::build_info::build_info();
+                tracing::info!(
+                    version = %build.version,
+                    profile = %build.profile,
+                    exe = %build.exe,
+                    exe_modified_ms = build.exe_modified_ms,
+                    pid = build.pid,
+                    "宿主构建指纹"
+                );
                 log_retention::prune_stale_logs(app.handle());
                 // Agent 缓存：清掉超过保留期的会话子目录（目录契约见 utils::agent_cache）
                 agent_cache::prune_stale_caches(agent_cache::AGENT_CACHE_RETENTION_DAYS);

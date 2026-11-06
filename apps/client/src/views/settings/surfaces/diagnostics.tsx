@@ -11,8 +11,10 @@ import {
   openDiagnosticDir,
   probeCapabilities,
   readAgentCache,
+  readBuildInfo,
   readDiagnosticsCapabilities,
   type AgentCacheStats,
+  type BuildInfo,
   type Capabilities,
   type DiagnosticsCapabilities,
   type ToolCapability
@@ -48,6 +50,19 @@ function cacheSizeText(bytes: number | undefined): string {
   return formatBytes(bytes)
 }
 
+/** 链接时间文案：本地时区的 `YYYY-MM-DD HH:mm:ss`，便于和构建日志对时间 */
+function linkTimeText(ms: number | undefined): string {
+  if (!ms || !Number.isFinite(ms)) return '读不到'
+  const stamp = new Date(ms)
+  if (Number.isNaN(stamp.getTime())) return '读不到'
+  const pad = function (value: number): string {
+    return String(value).padStart(2, '0')
+  }
+  const date = `${stamp.getFullYear()}-${pad(stamp.getMonth() + 1)}-${pad(stamp.getDate())}`
+  const time = `${pad(stamp.getHours())}:${pad(stamp.getMinutes())}:${pad(stamp.getSeconds())}`
+  return `${date} ${time}`
+}
+
 /** 设置 → 诊断：能力自述 / 日志目录 / 崩溃补报开关。 */
 function DiagnosticSurface() {
   const [caps, setCaps] = useState<DiagnosticsCapabilities | null>(null)
@@ -56,19 +71,22 @@ function DiagnosticSurface() {
   const [isLoading, setIsLoading] = useState(true)
   const [isReporting, setIsReporting] = useState(false)
   const [cache, setCache] = useState<AgentCacheStats | null>(null)
+  const [build, setBuild] = useState<BuildInfo | null>(null)
   const [isClearingCache, setIsClearingCache] = useState(false)
 
   const reload = useCallback(async function reload(): Promise<void> {
     setIsLoading(true)
     try {
-      const [nextCaps, nextTools, nextCache] = await Promise.all([
+      const [nextCaps, nextTools, nextCache, nextBuild] = await Promise.all([
         readDiagnosticsCapabilities(),
         probeCapabilities(),
-        readAgentCache()
+        readAgentCache(),
+        readBuildInfo()
       ])
       setCaps(nextCaps)
       setTools(nextTools)
       setCache(nextCache)
+      setBuild(nextBuild)
     } catch (error) {
       console.warn('[settings.diagnostics] 读取诊断信息失败', error)
     } finally {
@@ -222,6 +240,28 @@ function DiagnosticSurface() {
               : '没有正在记录的会话标记'
           }>
           <span className="text-xs text-muted-foreground">{caps?.sessionState ?? '—'}</span>
+        </SettingsRow>
+      </SettingsSection>
+
+      <SettingsSection title="运行中的宿主">
+        <SettingsRow
+          label="链接时间"
+          hint={
+            build
+              ? `${build.exe} · 进程 ${build.pid}`
+              : '读不到构建指纹（非 Tauri 环境，或宿主还是旧二进制）'
+          }>
+          <span className="text-sm font-medium text-foreground">
+            {linkTimeText(build?.exeModifiedMs)}
+          </span>
+        </SettingsRow>
+
+        <SettingsRow
+          label="构建档位"
+          hint="链接时间早于最近一次构建时间，说明这个进程跑的是旧二进制 —— 重启应用后新代码才生效">
+          <Badge variant={build?.profile === 'release' ? 'default' : 'secondary'}>
+            {build ? `${build.profile} · v${build.version}` : '—'}
+          </Badge>
         </SettingsRow>
       </SettingsSection>
 

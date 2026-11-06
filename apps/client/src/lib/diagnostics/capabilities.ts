@@ -120,6 +120,34 @@ async function clearAgentCache(): Promise<number | null> {
   }
 }
 
+/**
+ * 宿主构建指纹（`app_build_info`）。
+ *
+ * dev 里最常见的假回归是「宿主没重建」：前端热更新了，Rust 侧还是启动时那个进程，
+ * 于是「截图超时 / 拦截不命中 / 终端没有 COGITO_AGENT_CACHE」全被当成新 bug 去查。
+ * 链接时间早于最近一次构建时间，就说明该重启了。
+ */
+interface BuildInfo {
+  version: string
+  /** `debug` / `release` */
+  profile: string
+  /** 当前进程的可执行文件绝对路径 */
+  exe: string
+  /** 可执行文件 mtime（即链接时间，ms since epoch）；0 = 读不到 */
+  exeModifiedMs: number
+  pid: number
+}
+
+async function readBuildInfo(): Promise<BuildInfo | null> {
+  if (!isTauri()) return null
+  try {
+    return await invoke<BuildInfo>('app_build_info')
+  } catch (error) {
+    console.warn('[diagnostics] app_build_info 失败', error)
+    return null
+  }
+}
+
 /** 字节数 → 便于阅读的 MB 文案（只用于展示，保留一位小数） */
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '—'
@@ -135,10 +163,12 @@ export {
   openDiagnosticDir,
   probeCapabilities,
   readAgentCache,
+  readBuildInfo,
   readDiagnosticsCapabilities
 }
 export type {
   AgentCacheStats,
+  BuildInfo,
   Capabilities,
   DiagnosticDirKind,
   DiagnosticsCapabilities,
