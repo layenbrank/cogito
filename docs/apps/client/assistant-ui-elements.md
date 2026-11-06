@@ -354,6 +354,14 @@ ACP 三态 → `activeIndex` 的换算两处共用 `components/plan-steps.ts`，
 | 时长 | 用 `message.metadata.timing.totalStreamTime`（已结算的），running 时不传 —— 每帧跳秒会把整条消息拉进重绘 |
 | 滚动 | 开合前先 `useScrollLock`（展开锁 scrollTop，收起钉折叠条），不做 scrollIntoView / focus |
 | 省内存 | 首次展开后才挂载时间线 DOM（长回合几十步收起时不留整棵树） |
+| 活着 | running 时折叠条前挂一个 6px 心跳点（`animate-pulse`）并给文字加 shimmer：这一行常常是屏幕上**唯一在动的东西**，不动的短标签会被读成「卡住了」 |
+
+**文案不许「只剩一个名词」。** 「最近一条活动」的标签在 running 时会直接变成折叠条的正文，所以
+标签必须自带时态：思考段还在跑给「思考中…」（`labels.working`，由 `buildRunActivity` 按该段
+`status` 现算），跑完才是「已思考」（`labels.reasoning()`，英文 `Thought`）。历史上的写法是两边
+共用一个「思考」，于是模型想完、还没吐第一个字的空档里整轮只剩**「思考」两个字**，用户以为会话
+已经终止。同理，`showIndicator`（末尾的 sparkles + 「思考中…」）只跳过「正在跑的正文」——
+一段**已跑完**的 reasoning 之后也要补上，那个空档正是最容易被误判成卡住的时刻。
 
 边界是**算出来的**：`findResponseStart` 从末尾倒找最后一段非空正文，之前的都算过程。
 只有「动过手」（过程区含 tool-call）的回合才收成一条 —— 一次「思考 → 答」用里层那条思考条就够，

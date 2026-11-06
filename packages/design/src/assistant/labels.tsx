@@ -111,7 +111,7 @@ type AssistantLabels = {
   errorRetry: string
 
   // 部件
-  /** 推理折叠条：`seconds` 只在有耗时时给出 */
+  /** 推理折叠条：**跑完之后**的说法（进行中由 trigger 的 active 态配 `working`）；`seconds` 只在有耗时时给出 */
   reasoning: (seconds?: number) => string
   /**
    * 过程折叠条（整轮：思考 + 工具 + 中间解说）：`steps` 是过程区的 part 数，
@@ -359,7 +359,12 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   queuePendingSend: 'Send this one',
   queuePendingDrop: 'Discard',
   errorRetry: 'Retry',
-  reasoning: (seconds) => (seconds ? `Reasoning · ${seconds}s` : 'Reasoning'),
+  /*
+   * 「思考」是**跑完**的说法：一个光秃秃的名词摆在折叠条上，读者分不清是跑完了
+   * 还是卡住了（现象：整轮只显示「思考」两个字，像会话已经断掉）。所以完成态
+   * 一律带过去时 / 完成标记；进行中由 `working`（「思考中…」）负责，两边不共用词。
+   */
+  reasoning: (seconds) => (seconds ? `Thought for ${seconds}s` : 'Thought'),
   process: (steps, seconds) =>
     `Process · ${steps} ${steps === 1 ? 'step' : 'steps'}${seconds ? ` · ${seconds}s` : ''}`,
   toolCalls: (count, failed) =>

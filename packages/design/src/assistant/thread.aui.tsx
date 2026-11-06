@@ -772,7 +772,11 @@ function buildRunActivity(
     }
 
     if (segment.kind === 'reasoning') {
-      const label = labels.reasoning()
+      // 折叠条 running 时显示的是「最近一条活动」，所以这一段**还在跑**时必须给实时文案
+      // （「思考中…」）；给完成时的 `labels.reasoning()` 会退化成光秃秃的「思考」，
+      // 看起来像会话已经终止（用户反馈的原话：只剩「思考」两个字，像卡住了）。
+      const segmentRunning = toRunStatus(parts, segment.indices).type === 'running'
+      const label = segmentRunning ? labels.working : labels.reasoning()
       entries.push({
         id: `reasoning-${first}`,
         kind: 'reasoning',
@@ -1059,12 +1063,15 @@ const AssistantMessage: FC = () => {
     return renderLeaf(responseStart + offset)
   })
 
-  // 最后一段不是正文（还在跑、或刚起工具）时补一个脉冲点，别让消息区空着
+  // 最后一段不是「正在跑的正文」时补一个脉冲点，别让消息区空着。
+  // 注意 `reasoning` 已跑完（status 不是 running）也要补：模型想完还没吐第一个字的空档里，
+  // 界面上就只剩一行「已思考」，看着像会话断了（用户反馈：只剩「思考」两个字，像卡住）。
   const lastPart = parts[parts.length - 1]
+  const lastPartRunning = lastPart !== undefined && lastPart.status.type === 'running'
   const showIndicator =
     !usesRunActivity &&
     isRunning &&
-    (lastPart === undefined || (lastPart.type !== 'text' && lastPart.type !== 'reasoning'))
+    (lastPart === undefined || (lastPart.type !== 'text' && !lastPartRunning))
 
   const ACTION_BAR_PT = 'pt-1.5'
   // Keep the action bar inside the contained root's paint box, then cancel its reserved space in flow.

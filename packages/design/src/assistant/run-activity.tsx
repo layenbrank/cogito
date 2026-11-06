@@ -70,16 +70,30 @@ interface RunActivityProps {
 }
 
 function RunActivityLabel(props: { status: RunActivityStatus; statusLabel: ReactNode; durationLabel?: ReactNode }) {
+  const isRunning = props.status === 'running'
+
   return (
     <span
       data-slot="run-activity-label"
-      aria-live={props.status === 'running' ? 'polite' : undefined}
-      className={cn(
-        'text-start tabular-nums',
-        props.status === 'running' && 'shimmer motion-reduce:animate-none'
-      )}>
-      {props.statusLabel}
-      {props.durationLabel ? <> {props.durationLabel}</> : null}
+      aria-live={isRunning ? 'polite' : undefined}
+      className="flex min-w-0 items-center gap-1.5">
+      {/*
+       * 心跳点：running 时这条折叠条往往是界面上**唯一还在动的东西** —— 文案可能只是一个
+       * 短标签（「思考」「调用 shell」），不跟着动就会被读成「已经停了」。
+       * 6px 的点不抢视线，但一眼就是活的（与工具行 spinner 同一套语言）。
+       */}
+      {isRunning ? (
+        <span
+          data-slot="run-activity-pulse"
+          aria-hidden
+          className="bg-primary/70 size-1.5 shrink-0 animate-pulse rounded-full motion-reduce:animate-none"
+        />
+      ) : null}
+      <span
+        className={cn('text-start tabular-nums', isRunning && 'shimmer motion-reduce:animate-none')}>
+        {props.statusLabel}
+        {props.durationLabel ? <> {props.durationLabel}</> : null}
+      </span>
     </span>
   )
 }

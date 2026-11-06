@@ -196,6 +196,14 @@ function ReasoningTrigger({
         className
       )}
       {...props}>
+      {active ? (
+        <Icon
+          icon="lucide:loader"
+          data-slot="reasoning-trigger-spinner"
+          aria-hidden
+          className="aui-reasoning-trigger-spinner size-3 shrink-0 animate-spin [animation-duration:0.6s] motion-reduce:animate-none"
+        />
+      ) : null}
       <span
         data-slot="reasoning-trigger-label"
         className={cn(

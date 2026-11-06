@@ -75,8 +75,10 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   queuePendingDrop: '丢弃',
   errorRetry: '重试',
 
-  // 进行中由 trigger 的 active / working 文案表达；结束后勿再写「思考中」
-  reasoning: (seconds) => (seconds ? `思考（${seconds} 秒）` : '思考'),
+  // 进行中由 trigger 的 active / working 文案表达；这里只描述**跑完**的那一段。
+  // 别退回「思考」两个字：光秃秃的名词摆在折叠条上，分不清是跑完了还是卡住了
+  // （现象：整轮只剩「思考」两字，像会话已经终止）。
+  reasoning: (seconds) => (seconds ? `已思考 ${seconds} 秒` : '已思考'),
   process: (steps, seconds) => `过程 · ${steps} 步${seconds ? ` · ${seconds} 秒` : ''}`,
   toolCalls: (count, failed) => `${count} 次工具调用${failed ? `，${failed} 次失败` : ''}`,
   // 整轮活动流水（run-activity）
