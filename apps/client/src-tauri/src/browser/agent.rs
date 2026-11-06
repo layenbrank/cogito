@@ -963,45 +963,105 @@ pub async fn wait(
     }))
 }
 
+/// 截图的两条通道，按顺序尝试：
+/// 1. `fromSurface: true` —— 合成面（滚动之后看到的真实画面）；
+/// 2. `fromSurface: false` —— 视图面。
+///
+/// 为什么需要两条：窗口不可见 / webview 被 `hide()` 时合成器可能不再出帧，
+/// `fromSurface: true` 的调用会**等不到完成回调**（WebView2 不回包，只有超时）。
+/// 视图面在同样的状态下往往还能立刻拿到一张（可能是空白），而空图会再走一次
+/// `reveal_for_capture` 重拍 —— 有图 / 有明确原因，都好过「先等十秒再报错」。
+fn screenshot_channels() -> [bool; 2] {
+    [true, false]
+}
+
+/// `Page.captureScreenshot` 的参数：`fromSurface` 决定截合成面还是视图面。
+fn screenshot_params(format: &str, from_surface: bool) -> Value {
+    let mut params = json!({ "format": format, "fromSurface": from_surface });
+    // quality 只对 jpeg 有意义，png 带上它反而会被协议拒绝
+    if format == "jpeg" {
+        params["quality"] = json!(SCREENSHOT_JPEG_QUALITY);
+    }
+    params
+}
+
+/// 单次截图的上限。比全局 10s 短：两条通道加起来仍是一次工具调用的合理等待时间，
+/// 也不会在窗口不可见时把调用方挂满十秒（那正是上一版的观感问题）。
+const SCREENSHOT_TIMEOUT: Duration = Duration::from_millis(4000);
+
+/// jpeg 质量：给模型看够用，体积比 png 小一个量级。
+const SCREENSHOT_JPEG_QUALITY: u8 = 75;
+
 /// 截屏：`Page.captureScreenshot` 拿 base64，返回原始 base64 + mime。
 ///
-/// 不返回 data URL：同一份 base64 再拼一遍会让 JSON 体积翻倍。需要 data URL 的
-/// 调用方（前端/面板）自己拼一行就行。
+/// 不返回 data URL：同一份 base64 再拼一遍会让 JSON 体积翻倍。需要 data URL 时
+/// 调用方（前端 / 面板）自己拼一行就行。
 ///
 /// `format`：`jpeg` 给模型看（体积小很多，样式判断够用），`png` 给用户看。
-/// 注意 `fromSurface: true` 取的是**合成后**画面：webview 被 `hide()` 时（切走页签 /
-/// 浮层让位）可能拿到空白或直接报错 —— 调用前确保它可见。
+/// 通道顺序见 `screenshot_channels()`：合成面优先，超时 / 报错再退到视图面，
+/// 两条都不行时把各自的失败原因一起带回去（便于区分「没画面」和「没权限」）。
 pub async fn screenshot(
     app: &AppHandle,
     label: &str,
     format: Option<&str>,
 ) -> Result<Value, String> {
-    const JPEG_QUALITY: u8 = 75;
-
     let (cdp_format, mime_type) = match format {
         Some("jpeg") => ("jpeg", "image/jpeg"),
         _ => ("png", "image/png"),
     };
-    let mut params = json!({ "format": cdp_format, "fromSurface": true });
-    if cdp_format == "jpeg" {
-        params["quality"] = json!(JPEG_QUALITY);
-    }
 
-    // 注意：`cdp::call` 返回的已经是**方法返回值本身**。
-    // `Page.captureScreenshot` 的返回值就是 `{"data": "..."}`；
-    // 只有 `Runtime.evaluate` 那种才会多一层 `result`（那是它的 RemoteObject 字段）。
-    let mut response = cdp::call(app, label, "Page.captureScreenshot", params.clone()).await?;
+    let mut errors: Vec<String> = Vec::new();
+    let mut response = Value::Null;
+    for (index, from_surface) in screenshot_channels().into_iter().enumerate() {
+        let params = screenshot_params(cdp_format, from_surface);
+        let mut outcome = cdp::call_with_timeout(
+            app,
+            label,
+            "Page.captureScreenshot",
+            params.clone(),
+            SCREENSHOT_TIMEOUT,
+        )
+        .await;
 
-    if response.get("data").is_none() {
         // 空图不是报错：webview 隐藏（切在聊天视图 / 浮层让位）时 WebView2 会返回空对象。
         // 临时显示一下再拍，拍完收回 —— 否则 agent 在聊天视图下永远截不到图。
-        log::info!("browser: 截图拿到空数据，临时显示后重试（{label}）");
-        if !lifecycle::reveal_for_capture(app, label) {
-            return Err("截图响应里没有 data（页面可能还没显示出来）".to_string());
+        let empty = matches!(&outcome, Ok(value) if value.get("data").is_none());
+        if empty && lifecycle::reveal_for_capture(app, label) {
+            log::info!("browser: 截图拿到空数据，临时显示后重试（{label}）");
+            outcome = cdp::call_with_timeout(
+                app,
+                label,
+                "Page.captureScreenshot",
+                params,
+                SCREENSHOT_TIMEOUT,
+            )
+            .await;
+            lifecycle::hide_after_capture(app, label);
         }
-        let retried = cdp::call(app, label, "Page.captureScreenshot", params).await;
-        lifecycle::hide_after_capture(app, label);
-        response = retried?;
+
+        match outcome {
+            Ok(value) if value.get("data").is_some() => {
+                if index > 0 {
+                    log::info!(
+                        "browser: 截图从第 {} 条通道拿到画面（{label}，fromSurface={from_surface}）",
+                        index + 1
+                    );
+                }
+                response = value;
+                break;
+            }
+            Ok(_) => errors.push(format!("fromSurface={from_surface}: 响应里没有 data")),
+            Err(error) => {
+                log::warn!(
+                    "browser: 截图 fromSurface={from_surface} 失败（{label}），换下一条通道: {error}"
+                );
+                errors.push(format!("fromSurface={from_surface}: {error}"));
+            }
+        }
+    }
+
+    if response.get("data").is_none() {
+        return Err(format!("截不到图（{label}）：{}", errors.join("；")));
     }
 
     let data = response
@@ -1048,7 +1108,15 @@ async fn shrink_oversized(app: &AppHandle, label: &str, format: &str, data: Stri
         "fromSurface": true,
         "clip": { "x": 0.0, "y": 0.0, "width": width, "height": height, "scale": 1.0 / dpr }
     });
-    let Ok(smaller) = cdp::call(app, label, "Page.captureScreenshot", params).await else {
+    let Ok(smaller) = cdp::call_with_timeout(
+        app,
+        label,
+        "Page.captureScreenshot",
+        params,
+        SCREENSHOT_TIMEOUT,
+    )
+    .await
+    else {
         return data;
     };
     match smaller.get("data").and_then(Value::as_str) {
@@ -1103,5 +1171,23 @@ mod tests {
 
         let plain = parse_key_combo("Enter");
         assert_eq!(plain.text, "\r");
+    }
+
+    #[test]
+    fn screenshots_try_the_composited_surface_then_the_view() {
+        // 窗口不可见时合成器可能不出帧，`fromSurface: true` 会一直等不到回调 ——
+        // 所以顺序里必须留一条视图面的退路，而不是只有一条通道。
+        assert_eq!(screenshot_channels(), [true, false]);
+
+        let jpeg = screenshot_params("jpeg", true);
+        assert_eq!(jpeg["format"], "jpeg");
+        assert_eq!(jpeg["fromSurface"], true);
+        assert_eq!(jpeg["quality"], json!(SCREENSHOT_JPEG_QUALITY));
+
+        // png 不带 quality：那是 jpeg 专属字段
+        let png = screenshot_params("png", false);
+        assert_eq!(png["format"], "png");
+        assert_eq!(png["fromSurface"], false);
+        assert!(png.get("quality").is_none());
     }
 }

@@ -109,6 +109,12 @@ touch 事件 / DPR，预览区等比缩放到面板里；退出即恢复桌面�
 - **`app_browser_read` 的 `limit` 与 `maxChars` 是两件事**：`limit` 只管 `outline` 条目数（默认 60，上限 200），
   `mode=text` 的正文上限走 `maxChars`（默认 8000，上限 200000，超出时 `truncated=true`）。
   以前两者共用 `limit`，导致正文只能读回几十个字符。
+- **截图先截合成面，失败退到视图面**：`fromSurface: true` 取的是一份合成器画面，窗口不可见 /
+  webview 被 `hide()` 时 WebView2 可能压根不回完成回调（表现就是卡满超时才报错）。所以
+  `browser/agent.rs::screenshot` 有两条通道：先是 4s 上限的合成面，超时或报错再换
+  `fromSurface: false` 的视图面，两条都不行才失败，错误里带各自的原因
+  （`fromSurface=true: …；fromSurface=false: …`）。真拿到画面时日志会写「从第几条通道拿到画面」——
+  截图看着是空白时先查这条日志，别当成工具没生效。
 
 ## 测试可执行文件的 manifest（构建侧）
 
