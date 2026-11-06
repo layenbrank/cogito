@@ -107,6 +107,8 @@ function WriteToolCard(props: ToolCallMessagePartProps & { outputText: string })
     [toolArgs]
   )
   const [reviewing, updateReviewing] = useState<WriteReview | null>(null)
+  // 改动正文默认折叠：只留一行「文件名 + +N −M + 动作」，大 diff 不进布局；要看再手动展开
+  const [isDiffOpen, setDiffOpen] = useState(false)
   const [decisions, updateDecisions] = useState<Record<string, HunkDecision>>({})
   const [isApplying, updateApplying] = useState(false)
   const absolutePath = useMemo(
@@ -231,7 +233,8 @@ function WriteToolCard(props: ToolCallMessagePartProps & { outputText: string })
 
   if (!codeDiff) {
     return (
-      <ToolFallback.Root className="my-1 mb-0">        <ToolFallback.Trigger
+      <ToolFallback.Root className="my-1 mb-0">
+        <ToolFallback.Trigger
           toolName={label}
           status={props.status}
           title={props.toolName}
@@ -270,6 +273,12 @@ function WriteToolCard(props: ToolCallMessagePartProps & { outputText: string })
         deletions={codeDiff.deletions}
         lines={codeDiff.lines}
         cycle={0}
+        expanded={isDiffOpen}
+        onToggle={function () {
+          setDiffOpen(function (prev) {
+            return !prev
+          })
+        }}
         action={
           canReview || (relativePath && !props.isError) ? (
             <div className="flex items-center gap-1">

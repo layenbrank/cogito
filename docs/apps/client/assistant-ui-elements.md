@@ -99,7 +99,7 @@
 | 形态 | 实现 | 口径 |
 | --- | --- | --- |
 | 默认 | `ToolFallback`（`tool-fallback.aui.tsx`） | 一行 `Used tool: <label>` + 耗时 + 展开三角；展开才是参数（`Args`）与结果（`CodeBlock` / `Result`）。`tool-card-body.tsx::ToolCardFallbackBody` |
-| `write` | `WriteToolCard` + `CodeDiff` | 头部就是「文件名 + `+N −M` + 右侧动作」一行，无 wrench、无状态徽章；缺 `before/after` 时退回 `ToolFallback` 明细 |
+| `write` | `WriteToolCard` + `CodeDiff` | 头部就是「文件名 + `+N −M` + 右侧动作」一行，无 wrench、无状态徽章；**改动正文默认折叠**（折叠时正文不挂载，点标题栏左侧 chevron 展开，与命令卡同款约定）；缺 `before/after` 时退回 `ToolFallback` 明细 |
 | `command` | `ToolCardTerminalBody` | `$ 命令` 一行折叠 + 展开终端正文（保留），状态用行内图标而不是徽章 |
 | 目录列举 | `file-tree.tsx` | 只出现在 `ToolFallback` 的明细里，不再单独成卡 |
 | 追问 / elicitation | `QuestionPrompt` / `Actions` | 当作对话流里的「提问卡」，不套工具外壳 |

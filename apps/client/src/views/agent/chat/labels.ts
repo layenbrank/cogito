@@ -112,6 +112,9 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   downloadImage: '下载图片',
   copyImage: '复制图片',
 
+  diffExpand: '展开改动',
+  diffCollapse: '收起改动',
+
   reviewKeptOfTotal: (kept, total) => `已保留 ${kept} / ${total} 块`,
   reviewKeep: '保留',
   reviewDiscard: '丢弃',

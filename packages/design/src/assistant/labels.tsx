@@ -139,6 +139,12 @@ type AssistantLabels = {
   downloadImage: string
   copyImage: string
 
+  // 代码 diff 卡片（code-diff）
+  /** 折叠态的开关：展开正文 */
+  diffExpand: string
+  /** 展开态的开关：收起正文 */
+  diffCollapse: string
+
   // 审阅式 diff（reviewable-diff）
   /** 头部的口径：已保留块数 / 总块数 */
   reviewKeptOfTotal: (kept: number, total: number) => string
@@ -268,6 +274,9 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   regenerateImage: 'Regenerate image',
   downloadImage: 'Download image',
   copyImage: 'Copy image',
+
+  diffExpand: 'Expand diff',
+  diffCollapse: 'Collapse diff',
 
   reviewKeptOfTotal: (kept, total) => `${kept} of ${total} kept`,
   reviewKeep: 'Keep',

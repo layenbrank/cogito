@@ -1,5 +1,9 @@
-import type { ComponentProps, ReactNode } from 'react'
+import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
+import type { ComponentProps, ReactNode } from 'react'
+
+import { Button } from '../components/button'
+import { useAssistantLabels } from './labels'
 
 type DiffKind = 'context' | 'added' | 'removed'
 
@@ -37,6 +41,13 @@ interface CodeDiffProps extends Omit<
   cycle: number
   /** 标题栏右侧操作（紧挨 +/-，与卡片一体） */
   action?: ReactNode
+  /**
+   * 可折叠：与 `onToggle` 一起传才生效，`false` 时**正文整段不挂载**——
+   * 大 diff 不进布局、不跑 stagger 动画，聊天流里只留一行标题。
+   * 不传则恒定展开（既有的展开态用法不受影响）。
+   */
+  expanded?: boolean
+  onToggle?: () => void
 }
 
 function CodeDiff({
@@ -47,15 +58,43 @@ function CodeDiff({
   lines,
   cycle,
   action,
+  expanded,
+  onToggle,
   className,
   ...props
 }: CodeDiffProps) {
+  const labels = useAssistantLabels()
+  const isCollapsible = expanded !== undefined && onToggle !== undefined
+  /** 只有真的能折叠时才隐藏正文：漏传 onToggle 时宁可按展开渲染，也不要「藏了又打不开」 */
+  const isOpen = !isCollapsible || expanded !== false
+  const toggleLabel = isOpen ? labels.diffCollapse : labels.diffExpand
+
   return (
     <div
       data-slot="code-diff"
+      data-state={isCollapsible ? (isOpen ? 'open' : 'closed') : undefined}
       className={cn(PAPER, 'w-full overflow-hidden rounded-xl font-mono text-xs', className)}
       {...props}>
       <div className="border-border/50 flex items-center gap-2 border-b px-3 py-2">
+        {isCollapsible ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            className="text-muted-foreground hover:text-foreground -ms-1 h-6 w-6 shrink-0 rounded-md p-0"
+            aria-expanded={isOpen}
+            aria-label={toggleLabel}
+            title={toggleLabel}
+            onClick={onToggle}>
+            <Icon
+              icon="lucide:chevron-right"
+              className={cn(
+                'size-3.5 shrink-0 transition-transform duration-200',
+                isOpen && 'rotate-90'
+              )}
+            />
+          </Button>
+        ) : null}
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-baseline gap-2">
             <span
@@ -78,29 +117,31 @@ function CodeDiff({
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
-      <div className={cn(CODE_SCROLL, 'max-h-[min(42vh,24rem)]')}>
-        <div className={CODE_SURFACE}>
-          {lines.map(function (line, index) {
-            const delay = index < STAGGER_CAP ? `${index * STAGGER_MS}ms` : undefined
-            return (
-              <div
-                key={`${cycle}-${index}-${line.kind}-${line.text}`}
-                className={cn(
-                  'flex px-3 py-0.5 leading-relaxed whitespace-pre',
-                  delay && 'fade-in animate-in fill-mode-both duration-300',
-                  line.kind === 'context' && 'text-muted-foreground',
-                  line.kind === 'added' && 'bg-success/10 text-success dark:bg-success/10',
-                  line.kind === 'removed' &&
-                    'bg-destructive/10 text-destructive dark:bg-destructive/10'
-                )}
-                style={delay ? { animationDelay: delay } : undefined}>
-                <span className="w-4 shrink-0 select-none">{GUTTER[line.kind]}</span>
-                <span>{line.text}</span>
-              </div>
-            )
-          })}
+      {isOpen ? (
+        <div className={cn(CODE_SCROLL, 'max-h-[min(42vh,24rem)]')}>
+          <div className={CODE_SURFACE}>
+            {lines.map(function (line, index) {
+              const delay = index < STAGGER_CAP ? `${index * STAGGER_MS}ms` : undefined
+              return (
+                <div
+                  key={`${cycle}-${index}-${line.kind}-${line.text}`}
+                  className={cn(
+                    'flex px-3 py-0.5 leading-relaxed whitespace-pre',
+                    delay && 'fade-in animate-in fill-mode-both duration-300',
+                    line.kind === 'context' && 'text-muted-foreground',
+                    line.kind === 'added' && 'bg-success/10 text-success dark:bg-success/10',
+                    line.kind === 'removed' &&
+                      'bg-destructive/10 text-destructive dark:bg-destructive/10'
+                  )}
+                  style={delay ? { animationDelay: delay } : undefined}>
+                  <span className="w-4 shrink-0 select-none">{GUTTER[line.kind]}</span>
+                  <span>{line.text}</span>
+                </div>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   )
 }
