@@ -247,8 +247,10 @@ function WriteToolCard(props: ToolCallMessagePartProps & { outputText: string })
       <ToolFallback.Root className="my-1 mb-0">
         <ToolFallback.Trigger
           toolName={label}
+          detail={relativePath ?? undefined}
           status={props.status}
           title={props.toolName}
+          className="w-full"
         />
         <ToolFallback.Content>
           <ToolFallback.Error status={props.status} />

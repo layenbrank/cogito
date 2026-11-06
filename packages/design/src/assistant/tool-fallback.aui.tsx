@@ -85,6 +85,23 @@ const statusIconMap: Record<ToolStatus, string> = {
   'requires-action': 'lucide:circle-alert'
 }
 
+/**
+ * 状态色块：单个 16px 图标在成排的灰字里太轻，套一层 18px 的状态色淡染小方块后，
+ * 每次工具调用都有一个「带色的锚点」—— 这是折叠行最要紧的那一个视觉信号。
+ *
+ * 只取 token，不写死色阶（`success` / `warning` / `destructive` / `primary`），
+ * 深浅两套主题各自成立；淡染压到 10–20%，扫读时像标记，不像徽章。
+ */
+const STATUS_CHIP_CLASS: Record<ToolStatus, string> = {
+  running: 'border-primary/25 bg-primary/10 text-primary',
+  complete: 'border-success/25 bg-success/10 text-success',
+  incomplete: 'border-destructive/25 bg-destructive/10 text-destructive',
+  'requires-action': 'border-warning/30 bg-warning/15 text-warning'
+}
+
+/** 用户主动取消不是失败：不给错误红，退回中性灰 */
+const CANCELLED_CHIP_CLASS = 'border-border/70 bg-background/60 text-muted-foreground'
+
 const formatToolDuration = (ms: number) => {
   if (ms < 1000) return '<1s'
   const seconds = ms / 1000
@@ -119,8 +136,20 @@ function ToolFallbackDuration({ className, ...props }: React.ComponentProps<'spa
  */
 const TOOL_TRIGGER_ROW_CLASS = TOOL_ROW_HEIGHT_CLASS
 
+/**
+ * 折叠行要「一眼是工具调用」，但边界必须安静。
+ *
+ * 以前这一行是纯文字（muted 色、无底色、无边框），跟正文同一个视觉层级，
+ * 一次回合几十条时会被当正文读过去 —— 用户的原话是「很容易就忽略」。
+ * 现在给它一层极淡的底 + 一圈细边：静止时是「一条有边界的行」，扫读能分块，
+ * 深读不抢正文；hover / 展开时才把底色提到 70–80%，让「可点」这件事显形。
+ *
+ * 底色的取法有讲究：浅色主题的 `--muted` 是 oklch(0.963)，压在纯白底上再打
+ * 三折等于看不见，所以静止态给到 50%（约 0.981）——「比正文区亮一点点」就够，
+ * 真正的边界感由边框和状态色块提供，不靠加重底色（几十张深灰块就是噪音）。
+ */
 const TOOL_TRIGGER_BASE_CLASS =
-  'aui-tool-fallback-trigger group/trigger text-muted-foreground hover:text-foreground active:text-foreground flex w-fit origin-left items-center gap-2 text-sm transition-colors'
+  'aui-tool-fallback-trigger group/trigger text-muted-foreground hover:text-foreground active:text-foreground data-open:text-foreground flex w-fit max-w-full origin-left items-center gap-2 rounded-md border border-border/70 bg-muted/50 px-1.5 text-sm transition-colors hover:border-border hover:bg-muted/80 aria-expanded:border-border aria-expanded:bg-muted/70 data-open:border-border data-open:bg-muted/70'
 
 /**
  * Trigger 的 `className` 还允许是 base-ui 的「按状态取类名」函数形式，
@@ -152,11 +181,14 @@ function toolTriggerClassName(
 
 function ToolFallbackTrigger({
   toolName,
+  detail,
   status,
   className,
   ...props
 }: React.ComponentProps<typeof CollapsibleTrigger> & {
   toolName: string
+  /** 一行摘要（路径 / 命令 / 查询词）：光有工具名，十几次 `read` 长得一模一样 */
+  detail?: string
   status?: ToolCallMessagePartStatus
 }) {
   const statusType = status?.type ?? 'complete'
@@ -172,29 +204,42 @@ function ToolFallbackTrigger({
       data-slot="tool-fallback-trigger"
       className={toolTriggerClassName(className)}
       {...props}>
-      <Icon
-        icon={statusIcon}
+      <span
         data-slot="tool-fallback-trigger-icon"
         className={cn(
-          'aui-tool-fallback-trigger-icon size-4 shrink-0',
-          isCancelled && 'text-muted-foreground',
-          isRunning && 'animate-spin [animation-duration:0.6s]'
-        )}
-      />
+          'aui-tool-fallback-trigger-icon grid size-[18px] shrink-0 place-items-center rounded-[5px] border',
+          isCancelled ? CANCELLED_CHIP_CLASS : STATUS_CHIP_CLASS[statusType]
+        )}>
+        <Icon
+          icon={statusIcon}
+          aria-hidden
+          className={cn('size-3', isRunning && 'animate-spin [animation-duration:0.6s]')}
+        />
+      </span>
       <span
         data-slot="tool-fallback-trigger-label"
         className={cn(
-          'aui-tool-fallback-trigger-label-wrapper inline-block text-start leading-none',
+          'aui-tool-fallback-trigger-label-wrapper inline-block shrink-0 text-start leading-none whitespace-nowrap',
           isCancelled && 'text-muted-foreground line-through',
           isRunning && 'shimmer motion-reduce:animate-none'
         )}>
-        {label}: <b>{toolName}</b>
+        {label}:{' '}
+        <b className="aui-tool-fallback-trigger-name text-foreground font-medium">
+          {toolName}
+        </b>
       </span>
+      {detail ? (
+        <span
+          data-slot="tool-fallback-trigger-detail"
+          className="aui-tool-fallback-trigger-detail text-muted-foreground min-w-0 truncate text-xs">
+          {detail}
+        </span>
+      ) : null}
       <ToolFallbackDuration />
       <Icon icon="lucide:chevron-down"
         data-slot="tool-fallback-trigger-chevron"
         className={cn(
-          'aui-tool-fallback-trigger-chevron size-4 shrink-0',
+          'aui-tool-fallback-trigger-chevron text-muted-foreground/70 size-4 shrink-0',
           `transition-transform duration-(--animation-duration) ${CHAT_EASE_CLASS} motion-reduce:transition-none`,
           '-rotate-90',
           'group-data-open/trigger:rotate-0',
@@ -218,7 +263,8 @@ function ToolFallbackContent({
         className
       )}
       {...props}>
-      <div className="flex flex-col gap-2 ps-6 pt-1 pb-2">{children}</div>
+      {/* 缩进对齐折叠行的文字起点（边框 1 + px-1.5 6 + 色块 18 + gap 8 ≈ 33px），明细不另起一套边距 */}
+      <div className="flex flex-col gap-2 ps-8 pt-1 pb-2">{children}</div>
     </CollapsibleContent>
   )
 }

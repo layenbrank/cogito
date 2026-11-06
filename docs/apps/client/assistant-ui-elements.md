@@ -137,7 +137,7 @@
 
 | 形态 | 实现 | 口径 |
 | --- | --- | --- |
-| 默认 | `ToolFallback`（`tool-fallback.aui.tsx`） | 一行 `Used tool: <label>` + 耗时 + 展开三角；展开才是参数（`Args`）与结果（`CodeBlock` / `Result`）。`tool-card-body.tsx::ToolCardFallbackBody` |
+| 默认 | `ToolFallback`（`tool-fallback.aui.tsx`） | 一行「状态色块 + `Used tool: <label>` + 参数摘要 + 耗时 + 展开三角」（淡底 + 细边框，见下节）；展开才是参数（`Args`）与结果（`CodeBlock` / `Result`）。`tool-card-body.tsx::ToolCardFallbackBody` |
 | `write` | `WriteToolCard` + `CodeDiff` | 头部就是「文件名 + `+N −M` + 右侧动作」一行，无 wrench、无状态徽章；**改动正文默认折叠**（折叠时正文不挂载，点标题栏左侧 chevron 展开，与命令卡同款约定）；缺 `before/after` 时退回 `ToolFallback` 明细 |
 | `command` | `ToolCardTerminalBody` | 按耗时分两形态：普通前台命令 `$ 命令` 一行折叠 + 展开终端正文（状态用行内图标而不是徽章）；后台命令或已跑 ≥ 20s 升级成 `job-progress` 收据卡（`tool-card-job.tsx`），原始输出折在卡下 |
 | 目录列举 | `file-tree.tsx` | 只出现在 `ToolFallback` 的明细里，不再单独成卡 |
@@ -165,6 +165,25 @@
 
 单测锁的是常量与这三处引用（`tool-row.test.ts`、`tool-fallback.test.tsx`、`code-diff.test.tsx`、
 client `tool-card-terminal-body.test.tsx`），不是某个 class 的散落副本。
+
+**折叠行不再是「一行灰字」。** 最初收敛成 `ToolFallback` 时，折叠态就是 muted 色的
+`Used tool: <label>` + 耗时——和正文同一个视觉层级，一次回合几十条时会被当正文读过去
+（用户原话：「类似了纯文本的样式，很容易就忽略了」）。现在这一行有四个可感知的层次，
+但都不越过「安静」这条线：
+
+| 层次 | 做法 | 理由 |
+| --- | --- | --- |
+| 状态色块 | 图标套 18px 圆角方块，按状态淡染：运行中 `primary`、完成 `success`、出错 `destructive`、待审批 `warning`、**取消退回中性灰**（取消不是失败） | 成排灰字里唯一带色的锚点；颜色只走 token，深浅主题各自成立 |
+| 工具名 | `text-foreground font-medium`，前缀 `Used tool:` 仍为 muted | 名字是这一行真正要读的东西，前缀只是语法 |
+| 参数摘要 | `ToolFallback.Trigger` 的 `detail` 插槽（`text-xs` muted、单行裁剪） | 十几次 `read` 全叫「读取文件」，靠路径/命令/查询词才分得清是哪一步 |
+| 表面 | `border-border/70 bg-muted/50 rounded-md`，hover 到 `/80`、展开态 `bg-muted/70` | 有边界才像「一条记录」；底色只提一档，几十张深灰块就是新噪音（浅色主题 `--muted` 是 0.963，打三折等于看不见） |
+
+行高仍是 `TOOL_ROW_HEIGHT_CLASS`（28px）常数，色块与摘要都在这一行里排布，不新增第二行。
+
+**摘要的取值口径在 app 侧**：`apps/client/src/features/agent/tool-call-summary.ts::toolCallSummary()`
+按 `SUMMARY_KEYS`（`path` / `command` / `query` / `url` / `pattern` …）取第一个命中的字符串，
+压成单行并裁到 72 字符；取不到就返回 `undefined`，折叠行退回「只有工具名」，不留空占位。
+设计包不解析工具实参（那是宿主的语义），只提供 `detail` 插槽。
 
 **删减范围**（本轮真正下线的代码）：`tool-card-special-body.tsx` 整个文件删除；
 `parse-tool-result.ts` 的七个 `parse*Output` 与 `ParsedCommit` / `ParsedTestSummary` /

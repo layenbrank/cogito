@@ -1,5 +1,6 @@
 /**
- * 工具卡的唯一外壳：assistant-ui 的 `ToolFallback`（一行 `Used tool: <label>` + 耗时 + 展开明细）。
+ * 工具卡的唯一外壳：assistant-ui 的 `ToolFallback`（一行「状态色块 + 工具名 + 参数摘要 + 耗时」
+ * + 展开明细）。
  *
  * 为什么不再「按输出文本猜卡型」：一次回答里 6–8 张带徽章的重卡片是对话区最大的噪音，
  * 而真正有信息量的只有三处 —— 写文件的 diff、命令的终端输出、目录列举的文件树。
@@ -24,6 +25,7 @@ import { FileTree, FileTreeFile, FileTreeFolder } from '@cogito/design/assistant
 import { ToolFallback } from '@cogito/design/assistant/tool-fallback.aui'
 import { Button } from '@cogito/design/components/button'
 
+import { toolCallSummary } from '@/features/agent/tool-call-summary'
 import {
   findBrowserToolLabel,
   isBrowserTool,
@@ -96,6 +98,7 @@ function ToolCardFallbackBody(
       className="my-1 mb-0">
       <ToolFallback.Trigger
         toolName={props.label}
+        detail={toolCallSummary(props.args)}
         status={props.status}
         title={props.toolName}
         className="w-full"
