@@ -75,9 +75,10 @@ export const FileTree = ({
     <FileTreeContext.Provider value={contextValue}>
       <div
         className={cn(
-          "rounded-lg border bg-background font-mono text-sm",
+          "font-mono text-sm",
           className
         )}
+        data-slot="file-tree"
         role="tree"
         {...props}
       >
@@ -94,7 +95,7 @@ export const FileTreeIcon = ({
   children,
   ...props
 }: FileTreeIconProps) => (
-  <span className={cn("shrink-0", className)} {...props}>
+  <span data-slot="file-tree-icon" className={cn("shrink-0", className)} {...props}>
     {children}
   </span>
 );
@@ -106,7 +107,7 @@ export const FileTreeName = ({
   children,
   ...props
 }: FileTreeNameProps) => (
-  <span className={cn("truncate", className)} {...props}>
+  <span data-slot="file-tree-name" className={cn("truncate", className)} {...props}>
     {children}
   </span>
 );
@@ -158,6 +159,7 @@ export const FileTreeFolder = ({
       <Collapsible onOpenChange={handleOpenChange} open={isExpanded}>
         <div
           className={cn("", className)}
+          data-slot="file-tree-folder"
           role="treeitem"
           tabIndex={0}
           {...props}
@@ -251,6 +253,7 @@ export const FileTreeFile = ({
           isSelected && "bg-muted",
           className
         )}
+        data-slot="file-tree-file"
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         role="treeitem"
@@ -282,6 +285,7 @@ export const FileTreeActions = ({
   ...props
 }: FileTreeActionsProps) => (
   <div
+    data-slot="file-tree-actions"
     className={cn("ml-auto flex items-center gap-1", className)}
     onClick={stopPropagation}
     onKeyDown={stopPropagation}

@@ -25,6 +25,8 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   userMessageLocator: '跳转到你的消息',
   userMessageLocatorItem: (ordinal, total) => `你的消息 ${ordinal} / ${total}`,
   userMessageSticky: '回到这条用户消息',
+  userMessageExpand: '展开全文',
+  userMessageCollapse: '收起',
   dayLabel: (date) => findDayLabel(date, DAY_WORDS_ZH, 'zh-CN'),
   stoppedRun: '已停止生成',
   completedRun: '已完成',
@@ -77,6 +79,71 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   reasoning: (seconds) => (seconds ? `思考（${seconds} 秒）` : '思考'),
   process: (steps, seconds) => `过程 · ${steps} 步${seconds ? ` · ${seconds} 秒` : ''}`,
   toolCalls: (count, failed) => `${count} 次工具调用${failed ? `，${failed} 次失败` : ''}`,
+  // 整轮活动流水（run-activity）
+  runWorking: '工作中',
+  runWorked: '已工作',
+  runCompleted: '已完成',
+  runNeedsAction: '等待确认',
+  runStopped: '已停止',
+  runFailed: '运行失败',
+  runIncomplete: '未完成',
+  runToolActivity: (toolName) => `调用 ${toolName}`,
+  // 工具时间线（tool-timeline）
+  timelineWorking: '工作中',
+  timelineSteps: (count) => `${count} 步`,
+  // 与 file-tree 表头共用
+  filesChanged: (count) => `${count} 个文件改动`,
+  // 计划卡（agent-plan）：右端计数、进度条名称与读数、每步读屏状态
+  planCount: (completed, total) => `${completed} / ${total}`,
+  planProgress: (title) => (title ? `${title}进度` : '计划进度'),
+  planProgressValue: (completed, total) => `${completed} / ${total} 步`,
+  planStepDone: '已完成',
+  planStepActive: '进行中',
+  planStepAhead: '未开始',
+  // 折叠壳：步数超过阈值时，对话里只留「表头 + 进度条 + 正在做的那一行」
+  planExpand: (total) => `展开全部 ${total} 步`,
+  planCollapse: '收起',
+  // 任务进度卡（job-progress）：什么时候开始、到哪一步、以什么结局收场
+  jobProgress: (title) => `${title} 进度`,
+  jobRunning: '运行中',
+  jobDone: '已完成',
+  jobPartial: '部分完成',
+  jobFailed: '失败',
+  jobCancelled: '已取消',
+  jobCancel: '取消任务',
+  jobStageCommand: '命令',
+  jobCommandOutput: '输出',
+  jobStageAnnounce: (name) => `当前阶段：${name}`,
+  jobOutcomeAnnounce: (word) => `任务${word}`,
+  timelineVerb: (toolName) => {
+    const name = toolName.toLowerCase()
+    if (/(write|edit|patch|apply)/.test(name)) return '修改'
+    if (/(read|view|cat)/.test(name)) return '读取'
+    if (/(run|shell|exec|command|terminal)/.test(name)) return '运行'
+    if (/(search|grep|find|query)/.test(name)) return '搜索'
+    if (/(list|glob|tree)/.test(name)) return '列举'
+    if (/(fetch|web|browse|http)/.test(name)) return '浏览'
+    return toolName
+  },
+  // 工具卡（tool-fallback）：一行「用了什么工具」，展开才是参数与结果
+  toolUsed: '使用了工具',
+  toolCancelled: '已取消工具',
+  toolResult: '结果：',
+  toolError: '错误：',
+  toolCancelledReason: '取消原因：',
+  toolApprovedResult: '用户已允许执行',
+  toolDeniedResult: '用户拒绝执行该工具',
+  toolApprove: '允许',
+  toolAllowAlways: '总是允许',
+  toolDeny: '拒绝',
+  toolDenyAlways: '总是拒绝',
+  toolConfirm: '确认',
+  toolBack: '返回',
+  toolAnswerSend: '发送',
+  toolAnswerLabel: '答复',
+  toolNoteLabel: '说明',
+  toolAnswerPlaceholder: '输入你的答复',
+  toolNotePlaceholder: '给这次决定加一句说明',
   attachmentType: (type) => {
     switch (type) {
       case 'image':

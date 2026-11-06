@@ -62,14 +62,15 @@ import {
   type SplitterLayout,
   type SplitterOpen
 } from '@/views/agent/chat/components/splitter-sizes'
-import { AgentProcessFold, AgentProcessGroup } from '@/views/agent/chat/components/process-group'
+import { AgentProcessGroup } from '@/views/agent/chat/components/process-group'
 import { GoalAutoAdvance } from '@/views/agent/chat/components/goal-auto-advance'
 import { PlanRunFinish } from '@/views/agent/chat/components/plan-run-finish'
 import { PlanRecorder } from '@/views/agent/chat/components/plan-recorder'
 import { PlanFileSync } from '@/views/agent/chat/components/plan-file-sync'
 import { PlanScheduleCard } from '@/views/agent/chat/components/plan-schedule-card'
 import { AgentToolCard } from '@/views/agent/chat/components/tool-card'
-import { AgentToolGroup } from '@/views/agent/chat/components/tool-group'
+import { AgentFileChangeTree } from '@/views/agent/chat/components/file-change-tree'
+import { AgentRunActivity } from '@/views/agent/chat/components/run-activity'
 import { ThreadWelcome } from '@/views/agent/chat/components/thread-welcome'
 import { ASSISTANT_LABELS_ZH } from '@/views/agent/chat/labels'
 import { findAssistantActions } from '@/views/agent/chat/message-actions'
@@ -231,9 +232,9 @@ function AgentChatLayout() {
           components={{
             Welcome: ThreadWelcome,
             ToolFallback: AgentToolCard,
-            ToolGroup: AgentToolGroup,
             ReasoningGroup: AgentProcessGroup,
-            ProcessGroup: AgentProcessFold,
+            RunActivity: AgentRunActivity,
+            RunSummary: AgentFileChangeTree,
             ComposerStart: ComposerActions,
             ComposerAttach: null,
             ComposerEnd: ComposerEnd,

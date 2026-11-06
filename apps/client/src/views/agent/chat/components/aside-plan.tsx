@@ -1,9 +1,15 @@
 /**
- * 右栏「计划」页签：完整计划正文 + 档案状态。
+ * 右栏「计划」页签：进度速览 + **全量计划正文** + 档案状态。
  *
- * 与「详情」的分工（对齐 Cursor / Copilot）：「详情」只给标题 + 概述 + 前几步做速览；
- * 这里是**全量计划正文**（概述、问题、方案、步骤、验证全在里面），不剔除步骤、
- * 不截断 —— 它同时也是「保存」写入文件的内容。
+ * 版式分三段（自上而下）：
+ *
+ * 1. 抬头：标题 / 状态徽标 / 概述（最多两行）/ 绑定的计划文件；
+ * 2. 滚动区：`elements/agent-plan` 的**不折叠**版（进度条 + 全部步骤的状态）
+ *    → 分隔线 → 完整 Markdown 正文（与保存/执行用的是同一份内容，一个字不删）；
+ * 3. 操作区：主操作（开始执行 / 目标推进）+ 一行图标按钮（保存 / 复制 / 载入 / 标记完成）。
+ *
+ * 与对话里的计划卡分工：那边折到「表头 + 进度条 + 正在做的一步」，只做速览；
+ * 这里是**全量**（所有步骤 + 正文），也是「保存」写入文件的内容。
  *
  * 内容源有两层：
  * 1. `agent_plan` 档案（`readPlan`）—— 计划不再随着「最后一条 assistant 正文」
@@ -14,8 +20,8 @@
  */
 import { Icon } from '@iconify/react/offline'
 import { useAui, useAuiState } from '@assistant-ui/react'
+import { AgentPlan } from '@cogito/design/assistant/agent-plan'
 import { MarkdownContent } from '@cogito/design/assistant/markdown-text'
-import { TodoList } from '@cogito/design/assistant/todo-list'
 import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
@@ -25,6 +31,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger
 } from '@cogito/design/components/dropdown-menu'
+import type { ChatPlanEntry } from '@cogito/chat/ports'
+import { cn } from 'cn'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 
@@ -46,31 +54,29 @@ import {
 } from '@/features/agent/plan-store'
 import { useActiveWorkspace } from '@/features/agent/workspace/active'
 
+import { toActiveIndex, toPlanSteps } from './plan-steps'
+
 interface AsidePlanProps {
   isPlanMode: boolean
   /** `agent` = 普通执行；`goal` = 目标推进（自动续跑，中途不打断，轮次由 budget 指定） */
   onStartImplement: (target: 'agent' | 'goal', budget?: number) => void
 }
 
-/** 状态徽标：计划不再只有「有 / 没有」两态 */
+/** 状态徽标：走设计 token（不再手调 violet / emerald / amber） */
 const STATUS_META: Record<PlanStatus, { label: string; tone: string; icon: string }> = {
-  draft: { label: '草稿', tone: 'text-muted-foreground bg-muted/60', icon: 'lucide:pencil-line' },
-  running: {
-    label: '执行中',
-    tone: 'text-violet-700 bg-violet-500/10 dark:text-violet-200',
-    icon: 'lucide:play'
+  draft: {
+    label: '草稿',
+    tone: 'text-muted-foreground bg-foreground/[0.05]',
+    icon: 'lucide:pencil-line'
   },
-  done: {
-    label: '已完成',
-    tone: 'text-emerald-700 bg-emerald-500/10 dark:text-emerald-300',
-    icon: 'lucide:check'
-  },
-  interrupted: {
-    label: '已中断',
-    tone: 'text-amber-700 bg-amber-500/10 dark:text-amber-300',
-    icon: 'lucide:pause'
-  },
-  superseded: { label: '已归档', tone: 'text-muted-foreground bg-muted/60', icon: 'lucide:archive' }
+  running: { label: '执行中', tone: 'text-primary bg-primary/10', icon: 'lucide:play' },
+  done: { label: '已完成', tone: 'text-success bg-success/10', icon: 'lucide:check' },
+  interrupted: { label: '已中断', tone: 'text-foreground bg-warning/20', icon: 'lucide:pause' },
+  superseded: {
+    label: '已归档',
+    tone: 'text-muted-foreground bg-foreground/[0.05]',
+    icon: 'lucide:archive'
+  }
 }
 
 /** 计划内容指纹：内容不变时不因 messages 引用变化而重算下游 */
@@ -127,13 +133,10 @@ function AsidePlan(props: AsidePlanProps) {
     [aui, draftDigest, record]
   )
 
-  const items = useMemo(
+  /** 步骤数据：结构化 plan 优先；只有草稿时按「待办」铺开（元素用 idle 表达） */
+  const entries = useMemo<readonly ChatPlanEntry[]>(
     function () {
-      if (plan && plan.entries.length > 0) {
-        return plan.entries.map(function (entry) {
-          return { content: entry.content, status: entry.status }
-        })
-      }
+      if (plan && plan.entries.length > 0) return plan.entries
       return (draft?.steps ?? []).map(function (step) {
         return { content: step, status: 'pending' as const }
       })
@@ -151,8 +154,8 @@ function AsidePlan(props: AsidePlanProps) {
       const relative = await savePlanToWorkspace(rootPath, {
         title: draft?.title || workspace?.title || '计划',
         overview: draft?.overview ?? '',
-        steps: items.map(function (item) {
-          return item.content
+        steps: entries.map(function (entry) {
+          return entry.content
         }),
         body: draft?.body ?? ''
       })
@@ -238,8 +241,6 @@ function AsidePlan(props: AsidePlanProps) {
     )
   }
 
-  const stepCount = plan?.total ?? draft.steps.length
-  const doneCount = plan?.done ?? 0
   const stored: PlanRecord | null = record
   const status = stored?.status ?? 'draft'
   const statusMeta = STATUS_META[status]
@@ -248,121 +249,150 @@ function AsidePlan(props: AsidePlanProps) {
     status === 'done' &&
     typeof stored?.finishedAt === 'number' &&
     stored.updatedAt > stored.finishedAt
+  /** 只有草稿（没有结构化 plan 事件）= 还没开始：全部圆点、进度 0 */
+  const isIdle = !plan
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* 抬头信息条：标题 / 概述 / 状态 / 进度；正文本身不重复这些 */}
-      <div className="border-border/60 shrink-0 border-b px-3 py-2">
+      {/* 抬头信息条：标题 / 概述 / 状态 / 绑定的计划文件；正文本身不重复这些 */}
+      <div className="border-border/60 shrink-0 border-b px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <div className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
+          <h2 className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
             {draft.title || '计划草稿'}
-          </div>
+          </h2>
           <span
-            className={`flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-medium ${statusMeta.tone}`}
+            className={cn(
+              'flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-xs font-medium',
+              statusMeta.tone
+            )}
             title={isOutdated ? '计划已更新，需重新执行' : statusMeta.label}>
-            <Icon
-              icon={statusMeta.icon}
-              className="size-3"
-            />
+            <Icon icon={statusMeta.icon} className="size-3" />
             {isOutdated ? '已更新' : statusMeta.label}
-            {stored && stored.revision > 1 ? ` · r${stored.revision}` : ''}
           </span>
         </div>
         {draft.overview ? (
-          <p className="text-muted-foreground mt-0.5 line-clamp-2 text-xs leading-relaxed">
+          <p className="text-muted-foreground mt-1 line-clamp-2 text-xs leading-relaxed">
             {draft.overview}
           </p>
         ) : null}
-        <div className="text-muted-foreground mt-1 flex items-center gap-1.5 text-xs">
-          <Icon
-            icon="lucide:list-checks"
-            className="size-3 shrink-0"
-          />
-          <span>{stepCount > 0 ? `共 ${stepCount} 步` : '未分步'}</span>
-          {doneCount > 0 ? <span>· 已完成 {doneCount}</span> : null}
-          {stored?.filePath ? (
-            <span
-              className="ms-auto max-w-40 truncate font-mono text-[11px] opacity-70"
-              title={stored.filePath}>
-              {stored.filePath}
+        {stored?.filePath || (stored && stored.revision > 1) ? (
+          <div className="text-muted-foreground mt-1.5 flex items-center gap-1.5 text-xs">
+            <Icon icon="lucide:file-text" className="size-3 shrink-0" />
+            <span className="min-w-0 truncate font-mono" title={stored?.filePath ?? undefined}>
+              {stored?.filePath ?? '未绑定文件'}
             </span>
-          ) : draft.body ? (
-            <span className="ms-auto opacity-70">正文全文</span>
-          ) : null}
-        </div>
+            {stored && stored.revision > 1 ? (
+              <span className="shrink-0 font-mono opacity-70">{`r${stored.revision}`}</span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-        {draft.body ? <MarkdownContent markdown={draft.body} /> : <TodoList items={items} />}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* 进度卡：不折叠 —— 这里就是「全量计划」的那一份清单 */}
+        {entries.length > 0 ? (
+          <div className="px-3 pt-3">
+            <div className="border-border/60 bg-background dark:bg-popover rounded-xl border p-3">
+              <AgentPlan
+                title="步骤"
+                steps={toPlanSteps(entries)}
+                activeIndex={toActiveIndex(entries)}
+                idle={isIdle}
+                className="max-w-none"
+              />
+            </div>
+          </div>
+        ) : null}
+
+        {/* 全量正文：与「保存 / 开始执行」用的是同一份内容 */}
+        {draft.body ? (
+          <div className="border-border/60 mt-3 border-t px-3 pt-2.5 pb-4">
+            <div className="text-muted-foreground mb-1 flex items-center gap-1.5 text-xs font-medium">
+              <Icon icon="lucide:align-left" className="size-3" />
+              完整计划
+            </div>
+            <MarkdownContent
+              markdown={draft.body}
+              // 右栏窄：正文标题压到与段落接近的字号，免得一个 `##` 就把整屏撑满
+              className="text-sm [&_h1]:mt-3 [&_h1]:text-base [&_h2]:mt-3 [&_h2]:text-sm [&_h3]:mt-2 [&_h3]:text-sm"
+            />
+          </div>
+        ) : null}
       </div>
 
       {goal ? (
         <div className="border-border/60 text-muted-foreground flex shrink-0 items-center gap-1.5 border-t px-3 py-1.5 text-xs">
-          <Icon
-            icon="lucide:target"
-            className="size-3.5 shrink-0 text-violet-500"
-          />
+          <Icon icon="lucide:target" className="text-primary size-3.5 shrink-0" />
           <span className="truncate">
             {goal.status === 'exhausted'
               ? `目标推进已用尽 · ${goal.used}/${goal.budget} 轮`
               : `目标推进中 · 第 ${Math.min(goal.used + 1, goal.budget)}/${goal.budget} 轮`}
             {goal.progress ? ` · 标准 ${goal.progress.done}/${goal.progress.total}` : ''}
           </span>
-          <span className="ml-auto shrink-0">
+          <span className="ms-auto shrink-0">
             {goal.status === 'exhausted' ? '预算用尽' : '中途不打断'}
           </span>
         </div>
       ) : null}
 
+      {/* 主操作：一行两个，执行占满剩余宽度 */}
       <div className="border-border/60 flex shrink-0 items-center gap-2 border-t px-3 py-2">
+        {/* 按钮不再被 `isPlanMode` 包住：切到执行模式后「开始执行」仍然要在 */}
+        <Button
+          type="button"
+          size="sm"
+          className="flex-1 text-xs"
+          onClick={function () {
+            props.onStartImplement('agent')
+          }}>
+          <Icon icon={status === 'done' ? 'lucide:rotate-ccw' : 'lucide:play'} />
+          {status === 'done' || status === 'interrupted' ? '重新执行' : '开始执行'}
+        </Button>
         <Button
           type="button"
           variant="outline"
           size="sm"
-          className="h-7 gap-1.5 text-xs"
+          className="shrink-0 text-xs"
+          title={`目标推进：自动续跑，本轮最多 ${budget} 轮（轮次在输入框下方向切换，每次发送都可以不同）`}
+          onClick={function () {
+            props.onStartImplement('goal', budget)
+          }}>
+          <Icon icon="lucide:target" />
+          目标推进 · {budget} 轮
+        </Button>
+      </div>
+
+      {/* 次要操作：纯图标（都带 title / aria-label），左边三个一组、右侧标记完成 */}
+      <div className="border-border/60 flex shrink-0 items-center gap-1 border-t px-2 py-1">
+        <PlanIconButton
+          icon="lucide:save"
+          label="保存计划"
           onClick={function () {
             void handleSave()
-          }}>
-          <Icon
-            icon="lucide:save"
-            className="size-3.5"
-          />
-          保存
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          title="复制计划全文"
-          aria-label="复制计划全文"
+          }}
+        />
+        <PlanIconButton
+          icon="lucide:copy"
+          label="复制计划全文"
           disabled={!draft.body}
-          className="h-7 gap-1.5 text-xs"
           onClick={function () {
             void handleCopy()
-          }}>
-          <Icon
-            icon="lucide:copy"
-            className="size-3.5"
-          />
-          复制
-        </Button>
+          }}
+        />
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
               <Button
                 type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1.5 text-xs"
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-foreground"
                 title="从工作区 .cogito/plans 载入一份已保存的计划（按修改时间倒序）"
+                aria-label="从文件载入计划"
                 disabled={!rootPath || isListing}
               />
             }>
-            <Icon
-              icon="lucide:folder-open"
-              className="size-3.5"
-            />
-            从文件载入
+            <Icon icon="lucide:folder-open" className="size-3.5" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"
@@ -382,55 +412,38 @@ function AsidePlan(props: AsidePlanProps) {
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
-
-      <div className="border-border/60 flex shrink-0 items-center gap-2 border-t px-3 py-2">
-        {/* 按钮不再被 `isPlanMode` 包住：切到执行模式后「开始执行」仍然要在 */}
-        <Button
-          type="button"
-          size="sm"
-          className="h-7 flex-1 gap-1.5 text-xs"
-          onClick={function () {
-            props.onStartImplement('agent')
-          }}>
-          <Icon
-            icon={status === 'done' ? 'lucide:rotate-ccw' : 'lucide:play'}
-            className="size-3.5"
-          />
-          {status === 'done' || status === 'interrupted' ? '重新执行' : '开始执行'}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          title={`目标推进：自动续跑，本轮最多 ${budget} 轮（轮次在输入框下方向切换，每次发送都可以不同）`}
-          className="h-7 gap-1.5 text-xs"
-          onClick={function () {
-            props.onStartImplement('goal', budget)
-          }}>
-          <Icon
-            icon="lucide:target"
-            className="size-3.5"
-          />
-          目标推进 · {budget} 轮
-        </Button>
+        <span className="flex-1" />
         {status === 'running' || status === 'draft' ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1.5 text-xs"
-            title="手动把这份计划标记为已完成"
-            onClick={handleMarkDone}>
-            <Icon
-              icon="lucide:check-check"
-              className="size-3.5"
-            />
-            标记完成
-          </Button>
+          <PlanIconButton
+            icon="lucide:check-check"
+            label="手动把这份计划标记为已完成"
+            onClick={handleMarkDone}
+          />
         ) : null}
       </div>
     </div>
+  )
+}
+
+/** 右栏底部的次要操作：统一成 28px 的图标按钮，文字只留在 title / aria-label */
+function PlanIconButton(props: {
+  icon: string
+  label: string
+  disabled?: boolean
+  onClick: () => void
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      title={props.label}
+      aria-label={props.label}
+      disabled={props.disabled}
+      className="text-muted-foreground hover:text-foreground"
+      onClick={props.onClick}>
+      <Icon icon={props.icon} className="size-3.5" />
+    </Button>
   )
 }
 
@@ -473,10 +486,7 @@ function LoadFileItems(props: {
             onClick={function () {
               props.onPick(entry.relative)
             }}>
-            <Icon
-              icon="lucide:file-text"
-              className="text-muted-foreground size-3.5 shrink-0"
-            />
+            <Icon icon="lucide:file-text" className="text-muted-foreground size-3.5 shrink-0" />
             <span className="min-w-0 flex-1 truncate text-xs">{entry.name}</span>
             <span className="text-muted-foreground shrink-0 text-[10px] tabular-nums">
               {entry.modifiedAt > 0

@@ -10,7 +10,7 @@
  *    是因为「顺序」才是队列的语义，逐条写几乎必然出现中间态错序。
  * 2. **回灌**：`reconcileComposerQueue` 在 runtime 就绪时读回队列 —— 会话仍在跑就
  *    逐条 `setText` + `send({ steer: false })` 还原成真实队列；会话已结束就放进
- *    `pending` store，由 UI 渲染成「待发送」条，等用户手动触发。
+ *    `pending` store，由 UI 渲染成「待发送」条，**本轮结束后自动补发**（`pumpPendingQueue`）。
  *
  * 编辑采用「取回式」（对齐 VS Code Copilot Chat）：`remove()` 掉这一条 + 把文本
  * 塞回输入框。只用公开 API，不去 patch 库的 store。
@@ -193,13 +193,35 @@ function subscribePendingQueue(listener: () => void): () => void {
   }
 }
 
-/** 把一条「待发送」放回输入框并发送（用户手动触发，或直接丢弃） */
-function sendPendingItem(aui: AssistantClient, sessionID: string, id: string): void {
+/** 同会话的补发锁：一条发出去、线程进入运行之前，别再发第二条 */
+const pumpArmed = new Map<string, boolean>()
+
+/** 线程真的跑起来了：下一件「待发送」现在可以放行 */
+function markThreadRunning(sessionID: string): void {
+  pumpArmed.set(sessionID, true)
+}
+
+/**
+ * 发一段文本，但**不动用户手里的草稿**。
+ *
+ * 补发历史队列时，输入框里往往正写着下一句：`setText` 覆盖它再 `send()` 会
+ * 把草稿一起发出去（或直接把草稿吞掉）。先让位、发完放回去 —— `send()` 本身
+ * 同步清空 composer，所以恢复草稿放在它后面是安全的。
+ */
+function sendTextKeepingDraft(aui: AssistantClient, text: string): void {
+  const draft = aui.composer.getState().text
+  aui.composer.setText(text)
+  aui.composer.send()
+  if (draft.length > 0) aui.composer.setText(draft)
+}
+
+/** 把一条「待发送」发出去（用户手动触发，或由补发泵触发） */
+function sendPendingItem(aui: AssistantClient, sessionID: string, id: string): boolean {
   const items = pendingBySession.get(sessionID)
   const target = items?.find(function (item) {
     return item.id === id
   })
-  if (!items || !target) return
+  if (!items || !target) return false
   pendingBySession.set(
     sessionID,
     items.filter(function (item) {
@@ -207,8 +229,26 @@ function sendPendingItem(aui: AssistantClient, sessionID: string, id: string): v
     })
   )
   notify()
-  aui.composer.setText(target.text)
-  aui.composer.send()
+  sendTextKeepingDraft(aui, target.text)
+  return true
+}
+
+/**
+ * 自走泵：本轮结束时把队首的那条「待发送」发出去。
+ *
+ * 以前 UI 上一直写着「本轮结束后自动发送」，实际没有任何代码去发 ——
+ * 用户看到承诺、等不到消息。现在每轮结束发一条，发完线程重新进入运行；
+ * 下一轮结束时再发下一条，队列就这样自己走完（`markThreadRunning` 负责放行）。
+ */
+function pumpPendingQueue(aui: AssistantClient, sessionID: string): boolean {
+  if (aui.thread.getState().isRunning) return false
+  if (pumpArmed.get(sessionID) === false) return false
+  const head = pendingBySession.get(sessionID)?.[0]
+  if (!head) return false
+  const sent = sendPendingItem(aui, sessionID, head.id)
+  // 发出去之后要等线程真的跑起来（markThreadRunning）才允许下一条
+  pumpArmed.set(sessionID, false)
+  return sent
 }
 
 function dropPendingItem(sessionID: string, id: string): void {
@@ -223,12 +263,30 @@ function dropPendingItem(sessionID: string, id: string): void {
   notify()
 }
 
+/** 上下移动一条「待发送」；顺序会被下一次落库原样写回（数组顺序即 `sort`） */
+function movePendingItem(sessionID: string, id: string, direction: -1 | 1): boolean {
+  const items = pendingBySession.get(sessionID)
+  if (!items || items.length < 2) return false
+  const index = items.findIndex(function (item) {
+    return item.id === id
+  })
+  const target = index + direction
+  if (index < 0 || target < 0 || target >= items.length) return false
+  const next = items.slice()
+  const [moved] = next.splice(index, 1)
+  next.splice(target, 0, moved)
+  pendingBySession.set(sessionID, next)
+  notify()
+  return true
+}
+
 /** 测试/切会话用：忘掉内存态（不动数据库） */
 function resetComposerQueueState(): void {
   pendingBySession.clear()
   readySessions.clear()
   reconciledSessions.clear()
   inflightReconcile.clear()
+  pumpArmed.clear()
   notify()
 }
 
@@ -266,13 +324,17 @@ export type { ComposerQueueRow, RestoredQueueItem }
 export {
   QUEUE_DEBOUNCE_MS,
   dropPendingItem,
+  markThreadRunning,
+  movePendingItem,
   persistComposerQueue,
+  pumpPendingQueue,
   readComposerQueue,
   readPendingQueue,
   reconcileComposerQueue,
   replaceComposerQueue,
   resetComposerQueueState,
   sendPendingItem,
+  sendTextKeepingDraft,
   subscribePendingQueue,
   textOfQueueItem,
   useComposerQueuePersist

@@ -20,20 +20,34 @@ const PAST_TOP_PX = 12
 /** 进退场位移（px）：少许下探，避免弹跳感 */
 const STICKY_OFFSET_Y = 6
 
-function findLatestUserMark(messages: readonly ThreadMessageLike[]): {
-  mark: UserMessageMark
-  total: number
-} | null {
-  const marks = collectUserMessageMarks(messages)
-  if (marks.length === 0) return null
-  const mark = marks[marks.length - 1]
-  if (!mark) return null
-  return { mark, total: marks.length }
+function findMarkElement(viewport: HTMLElement, id: string): HTMLElement | null {
+  return viewport.querySelector<HTMLElement>(`[data-user-message-id="${CSS.escape(id)}"]`)
 }
 
 function isScrolledPastTop(viewport: HTMLElement, target: HTMLElement): boolean {
   const viewportTop = viewport.getBoundingClientRect().top
   return target.getBoundingClientRect().bottom < viewportTop + PAST_TOP_PX
+}
+
+/**
+ * 该贴哪一条：从后往前找**第一条底边已越过视口顶**的用户消息。
+ *
+ * 以前只盯着最后一条 —— 回看历史时，中间那些被滚上去的提问永远贴不上来，
+ * 于是「只有最后一条有 sticky」。现在按「读到这里，是从哪一句开始的」来选：
+ * 越靠后且已折叠掉的，就是当前这段对话的开头。
+ */
+function findPinnedMark(
+  viewport: HTMLElement,
+  marks: readonly UserMessageMark[]
+): UserMessageMark | null {
+  for (let index = marks.length - 1; index >= 0; index -= 1) {
+    const mark = marks[index]
+    if (!mark) continue
+    const target = findMarkElement(viewport, mark.id)
+    if (!target) continue
+    if (isScrolledPastTop(viewport, target)) return mark
+  }
+  return null
 }
 
 /** 隐藏 sticky 前移走焦点，避免 aria-hidden/inert 祖先仍含 focused 后代 */
@@ -46,8 +60,8 @@ function blurFocusInside(host: HTMLElement | null) {
 }
 
 /**
- * Cursor 式用户句浓缩胶囊：仅最新用户气泡滚出视口顶后贴在 Viewport 顶，
- * 避免与仍在视野内的气泡标题叠成双份。
+ * Cursor 式用户句浓缩胶囊：**任意一条**用户气泡滚出视口顶后贴在 Viewport 顶，
+ * 贴的是「当前正在读的这一段的开头」，不只是最后一句。
  */
 const ThreadUserMessageSticky: FC = () => {
   const labels = useAssistantLabels()
@@ -55,7 +69,8 @@ const ThreadUserMessageSticky: FC = () => {
   const shellRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLElement | null>(null)
   const rafRef = useRef(0)
-  const [isPinned, setPinned] = useState(false)
+  const [activeId, setActiveId] = useState('')
+  const isPinned = activeId !== ''
   const isPinnedRef = useRef(isPinned)
   isPinnedRef.current = isPinned
 
@@ -63,40 +78,40 @@ const ThreadUserMessageSticky: FC = () => {
     return state.thread.messages
   })
 
-  const latest = useMemo(
+  const marks = useMemo(
     function () {
-      return findLatestUserMark(messages as readonly ThreadMessageLike[])
+      return collectUserMessageMarks(messages as readonly ThreadMessageLike[])
     },
     [messages]
   )
 
-  const latestId = latest?.mark.id ?? ''
-  const preview = latest?.mark.preview ?? ''
-  const ordinal = latest?.mark.ordinal ?? 0
-  const total = latest?.total ?? 0
+  /** marks 的签名：条数与最后一条 id 变了才需要重绑滚动监听 */
+  const marksKey = marks.length === 0 ? '' : `${marks.length}:${marks[marks.length - 1]?.id ?? ''}`
+  const activeMark =
+    marks.find(function (mark) {
+      return mark.id === activeId
+    }) ?? null
 
-  function commitPinned(next: boolean) {
-    if (isPinnedRef.current === next) return
+  function commitActive(next: string) {
+    if (isPinnedRef.current === (next !== '')) {
+      // 已贴住时只换内容，不必重新走一遍进退场
+      if (activeId !== next) setActiveId(next)
+      return
+    }
     // 先移走焦点，再提交隐藏态，避免 inert/aria-hidden 与 focused 后代冲突
-    if (isPinnedRef.current && !next) blurFocusInside(shellRef.current)
-    isPinnedRef.current = next
-    setPinned(next)
+    if (isPinnedRef.current && next === '') blurFocusInside(shellRef.current)
+    isPinnedRef.current = next !== ''
+    setActiveId(next)
   }
 
   function syncPinned() {
     const viewport = viewportRef.current
-    if (!viewport || !latestId) {
-      commitPinned(false)
+    if (!viewport || marks.length === 0) {
+      commitActive('')
       return
     }
-    const target = viewport.querySelector<HTMLElement>(
-      `[data-user-message-id="${CSS.escape(latestId)}"]`
-    )
-    if (!target) {
-      commitPinned(false)
-      return
-    }
-    commitPinned(isScrolledPastTop(viewport, target))
+    const pinned = findPinnedMark(viewport, marks)
+    commitActive(pinned?.id ?? '')
   }
 
   const syncPinnedRef = useRef(syncPinned)
@@ -110,7 +125,7 @@ const ThreadUserMessageSticky: FC = () => {
       const fromShell = host?.querySelector<HTMLElement>(VIEWPORT_SLOT)
       viewportRef.current = fromShell ?? (host ? findScrollableAncestor(host) : null)
     },
-    [latestId]
+    [marksKey]
   )
 
   useLayoutEffect(
@@ -123,8 +138,8 @@ const ThreadUserMessageSticky: FC = () => {
 
   useEffect(
     function bindScrollAndObserver() {
-      if (!latestId) {
-        commitPinned(false)
+      if (marks.length === 0) {
+        commitActive('')
         return
       }
 
@@ -143,36 +158,43 @@ const ThreadUserMessageSticky: FC = () => {
       viewport.addEventListener('scroll', onScrollOrResize, { passive: true })
       window.addEventListener('resize', onScrollOrResize, { passive: true })
 
-      const target = viewport.querySelector<HTMLElement>(
-        `[data-user-message-id="${CSS.escape(latestId)}"]`
-      )
-      let observer: IntersectionObserver | null = null
-      if (target && typeof IntersectionObserver !== 'undefined') {
-        observer = new IntersectionObserver(
-          function () {
-            onScrollOrResize()
-          },
-          { root: viewport, threshold: [0, 0.01, 1] }
-        )
-        observer.observe(target)
+      // 每一条都要观察：滚到中途时贴的是「这一段的开头」，不是最后一条
+      const observers: IntersectionObserver[] = []
+      if (typeof IntersectionObserver !== 'undefined') {
+        for (const mark of marks) {
+          const target = findMarkElement(viewport, mark.id)
+          if (!target) continue
+          const observer = new IntersectionObserver(
+            function () {
+              onScrollOrResize()
+            },
+            { root: viewport, threshold: [0, 0.01, 1] }
+          )
+          observer.observe(target)
+          observers.push(observer)
+        }
       }
 
       return function () {
         cancelAnimationFrame(rafRef.current)
         viewport.removeEventListener('scroll', onScrollOrResize)
         window.removeEventListener('resize', onScrollOrResize)
-        observer?.disconnect()
+        for (const observer of observers) observer.disconnect()
       }
     },
-    [latestId]
+    // marksKey 足够：条数与最后一条变化时重绑，逐字变动不重绑
+    [marks, marksKey]
   )
 
-  if (!latest || !preview) return null
+  if (!activeMark || !activeMark.preview) return null
+
+  const { id: markId, preview, ordinal } = activeMark
+  const total = marks.length
 
   function onActivate() {
     const viewport = viewportRef.current
     if (!viewport) return
-    scrollToUserMessage(viewport, latestId, prefersReducedMotion)
+    scrollToUserMessage(viewport, markId, prefersReducedMotion)
   }
 
   const pinnedMotion = prefersReducedMotion
@@ -186,6 +208,7 @@ const ThreadUserMessageSticky: FC = () => {
       ref={shellRef}
       data-slot="aui_thread-user-sticky"
       data-pinned={isPinned || undefined}
+      data-user-message-sticky-id={activeId || undefined}
       // 隐藏态用 inert（而非仅 aria-hidden），避免 focused 后代触发浏览器拦截警告
       inert={isPinned ? undefined : true}
       initial={false}

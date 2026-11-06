@@ -1,13 +1,13 @@
 /**
- * 思考 / 过程折叠：对齐 Cursor / Copilot
+ * 思考折叠：对齐 Cursor / Copilot
  *
- * - **每段思考**：该段 part 结束即收起（不是整轮会话结束）
- * - **过程摘要**：整轮结束后才出现「过程 · N 步」，默认收起，点开回看
+ * - **每段思考**：默认折叠成一行「思考中…」，点开才挂正文（展开后不被抢走）
+ * - 展开后不被抢走：受控 open + `streaming` 只负责「跟随最新 token」
  *
- * 过程摘要：`instant` 跳过高度动画；**懒挂载**（对齐终端卡折叠不渲染正文），
- * 收起时不保留整棵工具/思考 DOM，多会话长回合省内存。
- *
- * ReasoningRoot：`streaming` 时展开；结束后回到 `defaultOpen`（默认 false）。
+ * 整轮的过程摘要（「已工作 4.8s」+ 时间线）已经搬到
+ * `@cogito/design/assistant/run-activity`（见 `ThreadComponents.RunActivity`）：
+ * 动过手的回合由它统一收成一条，这里的「一段思考」只在**没有工具调用**的回合
+ * 还会出现（纯思考 → 回答）。
  */
 import { useAuiState } from '@assistant-ui/react'
 import { useAssistantLabels } from '@cogito/design/assistant/labels'
@@ -20,8 +20,6 @@ import {
 import type { ThreadGroupPart } from '@cogito/design/assistant/thread.aui'
 import { useState, type PropsWithChildren } from 'react'
 
-import { MessageTimingStats, MessageTrace } from './message-trace'
-
 interface ProcessGroupProps {
   group: ThreadGroupPart
 }
@@ -29,18 +27,24 @@ interface ProcessGroupProps {
 /** 单段思考折叠（覆盖 `ThreadComponents.ReasoningGroup`） */
 function AgentProcessGroup(props: PropsWithChildren<ProcessGroupProps>) {
   const labels = useAssistantLabels()
-  // 以「本段」为准：消息已结束或本段不再 running → 立刻收起
+  // 以「本段」为准：只有本段还在跑才显示运行态（转圈 + shimmer）
   const isMessageRunning = useAuiState(function (state) {
     return state.message.status?.type === 'running'
   })
   const isActive = isMessageRunning && props.group.status.type === 'running'
+  // 默认折叠：思考正文不进布局，只留一行「思考中… / 已思考」状态。
+  // streaming 仍传下去，但它只负责「展开后跟随最新 token」，不再自动展开。
+  const [isOpen, updateOpen] = useState(false)
 
   return (
     <ReasoningRoot
       variant="ghost"
+      open={isOpen}
+      onOpenChange={updateOpen}
       streaming={isActive}>
       <ReasoningTrigger
         active={isActive}
+        className="w-full max-w-none"
         label={isActive ? labels.working : labels.reasoning()}
       />
       <ReasoningContent aria-busy={isActive}>
@@ -50,53 +54,4 @@ function AgentProcessGroup(props: PropsWithChildren<ProcessGroupProps>) {
   )
 }
 
-interface ProcessFoldProps {
-  group: ThreadGroupPart
-  running: boolean
-}
-
-/**
- * 整轮过程摘要（覆盖 `ThreadComponents.ProcessGroup`）：
- * 仅在回合结束后由 thread 包一层；默认收起，首次展开再挂载子树。
- */
-function AgentProcessFold(props: PropsWithChildren<ProcessFoldProps>) {
-  const labels = useAssistantLabels()
-  const totalStreamTime = useAuiState(function (state) {
-    return state.message.metadata.timing?.totalStreamTime
-  })
-  const seconds =
-    totalStreamTime === undefined ? undefined : Math.max(1, Math.round(totalStreamTime / 1000))
-  const [isOpen, updateOpen] = useState(false)
-  const [hasOpened, updateHasOpened] = useState(false)
-
-  return (
-    <ReasoningRoot
-      variant="ghost"
-      instant
-      open={isOpen}
-      onOpenChange={function (next) {
-        updateOpen(next)
-        if (next) updateHasOpened(true)
-      }}>
-      <ReasoningTrigger
-        active={false}
-        label={labels.process(props.group.indices.length, seconds)}
-      />
-      <ReasoningContent>
-        {hasOpened ? (
-          <>
-            <MessageTimingStats />
-            <MessageTrace />
-            <ReasoningText
-              data-slot="agent-process-fold"
-              className="max-h-[min(70vh,40rem)] overflow-y-auto overscroll-y-contain">
-              {props.children}
-            </ReasoningText>
-          </>
-        ) : null}
-      </ReasoningContent>
-    </ReasoningRoot>
-  )
-}
-
-export { AgentProcessGroup, AgentProcessFold }
+export { AgentProcessGroup }

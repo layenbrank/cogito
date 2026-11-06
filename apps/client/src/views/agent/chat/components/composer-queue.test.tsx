@@ -166,6 +166,13 @@ vi.mock('@/features/agent/composer-queue', function () {
   return {
     dropPendingItem: vi.fn(),
     sendPendingItem: vi.fn(),
+    // 自走泵与顺序调整：面板会在 effect / 按钮里调用它们
+    markThreadRunning: vi.fn(),
+    pumpPendingQueue: vi.fn(),
+    movePendingItem: vi.fn(),
+    persistComposerQueue: vi.fn(function () {
+      return Promise.resolve()
+    }),
     reconcileComposerQueue: function () {
       return Promise.resolve()
     },
@@ -180,6 +187,11 @@ vi.mock('@/features/agent/composer-queue', function () {
 })
 
 import { ComposerQueue } from './composer-queue'
+import {
+  markThreadRunning,
+  movePendingItem,
+  persistComposerQueue
+} from '@/features/agent/composer-queue'
 
 function queueItem(id: string, text: string) {
   return { id, parts: [{ type: 'text', text }] }
@@ -189,6 +201,8 @@ describe('composer 队列面板', function () {
   beforeEach(function () {
     queueState.composer.queue = []
     pendingState.items = []
+    queueState.thread.isRunning = true
+    vi.clearAllMocks()
   })
 
   it('没有排队时什么都不渲染', function () {
@@ -292,5 +306,35 @@ describe('composer 队列面板', function () {
 
     expect(document.activeElement).toBe(input)
     input.remove()
+  })
+
+  it('运行中通知自走泵，轮次结束后由它补发待发送队列', function () {
+    pendingState.items = [{ id: 'p1', text: '之前没发出去的', attachments: '[]' }]
+    render(<ComposerQueue />)
+    // 线程在跑：只登记，不许抢在轮次中间发
+    expect(vi.mocked(markThreadRunning)).toHaveBeenCalledWith('session-1')
+  })
+
+  it('待发送条目可上移 / 下移，移动成功后立刻落库', function () {
+    queueState.thread.isRunning = false
+    pendingState.items = [
+      { id: 'p1', text: '第一条', attachments: '[]' },
+      { id: 'p2', text: '第二条', attachments: '[]' }
+    ]
+    vi.mocked(movePendingItem).mockReturnValue(true)
+
+    const { container } = render(<ComposerQueue />)
+    fireEvent.click(screen.getByRole('button', { name: '展开队列' }))
+
+    const rows = container.querySelectorAll('[data-slot="message-queue-pending-item"]')
+    expect(rows).toHaveLength(2)
+    // 首条不能上移、末条不能下移
+    expect((rows[0].querySelector('[aria-label="上移"]') as HTMLButtonElement).disabled).toBe(true)
+    expect((rows[1].querySelector('[aria-label="下移"]') as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.click(rows[0].querySelector('[aria-label="下移"]') as HTMLElement)
+    expect(vi.mocked(movePendingItem)).toHaveBeenCalledWith('session-1', 'p1', 1)
+    // 顺序就是队列语义：换位后必须立刻写回，不能等「下次队列变化」
+    expect(vi.mocked(persistComposerQueue)).toHaveBeenCalled()
   })
 })

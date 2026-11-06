@@ -21,6 +21,10 @@ import { useCallback, useEffect, useSyncExternalStore, type FC, type ReactNode }
 
 import {
   dropPendingItem,
+  markThreadRunning,
+  movePendingItem,
+  persistComposerQueue,
+  pumpPendingQueue,
   readPendingQueue,
   reconcileComposerQueue,
   sendPendingItem,
@@ -174,6 +178,38 @@ const ComposerQueue: FC = function ComposerQueue() {
     }
   )
 
+  // 会话是否在跑：决定「待发送」能不能补发（跑起来就等它结束）
+  const isRunning = useAuiState(function (state) {
+    return state.thread.isRunning
+  })
+
+  /**
+   * 自走泵：本轮结束 → 发队首一条「待发送」→ 线程重新进入运行 → 结束后再发下一条。
+   * 以前 UI 上写着「本轮结束后自动发送」，却没有任何代码去发，用户只能干等。
+   */
+  useEffect(
+    function () {
+      if (!sessionID) return
+      if (isRunning) {
+        markThreadRunning(sessionID)
+        return
+      }
+      if (pending.length === 0) return
+      pumpPendingQueue(aui, sessionID)
+    },
+    [aui, isRunning, pending, sessionID]
+  )
+
+  /** 调完顺序立刻落库：库里 `sort` 就是数组顺序，等下次队列变化再写会丢序 */
+  function persistPendingOrder() {
+    if (!sessionID) return
+    void persistComposerQueue(sessionID, aui.composer.getState().queue).catch(function (
+      error: unknown
+    ) {
+      console.warn('[composer-queue] 落库失败', error)
+    })
+  }
+
   if (queue.length === 0 && pending.length === 0) return null
 
   return (
@@ -187,7 +223,7 @@ const ComposerQueue: FC = function ComposerQueue() {
           data-slot="message-queue-pending"
           className="flex flex-col gap-1.5">
           <div className={cn(mono, 'px-1')}>{labels.queuePendingHeading(pending.length)}</div>
-          {pending.map(function (item) {
+          {pending.map(function (item, index) {
             return (
               <div
                 key={item.id}
@@ -208,6 +244,42 @@ const ComposerQueue: FC = function ComposerQueue() {
                 </div>
                 <QueueLineBadge text={item.text} />
                 <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                  <TooltipIconButton
+                    tooltip={labels.queueMoveUp}
+                    side="top"
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={cn(ghostButton, 'size-6 shrink-0 disabled:opacity-30')}
+                    aria-label={labels.queueMoveUp}
+                    disabled={index === 0}
+                    onClick={function () {
+                      if (!sessionID) return
+                      if (movePendingItem(sessionID, item.id, -1)) persistPendingOrder()
+                    }}>
+                    <Icon
+                      icon="lucide:chevron-up"
+                      className="size-3.5"
+                    />
+                  </TooltipIconButton>
+                  <TooltipIconButton
+                    tooltip={labels.queueMoveDown}
+                    side="top"
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={cn(ghostButton, 'size-6 shrink-0 disabled:opacity-30')}
+                    aria-label={labels.queueMoveDown}
+                    disabled={index === pending.length - 1}
+                    onClick={function () {
+                      if (!sessionID) return
+                      if (movePendingItem(sessionID, item.id, 1)) persistPendingOrder()
+                    }}>
+                    <Icon
+                      icon="lucide:chevron-down"
+                      className="size-3.5"
+                    />
+                  </TooltipIconButton>
                   <TooltipIconButton
                     tooltip={labels.queuePendingSend}
                     side="top"

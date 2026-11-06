@@ -31,6 +31,10 @@ type AssistantLabels = {
   userMessageLocatorItem: (ordinal: number, total: number) => string
   /** 用户句滚出视口后的浓缩 sticky 条（点击回到该句） */
   userMessageSticky: string
+  /** 用户气泡超过封顶高度时的展开开关 */
+  userMessageExpand: string
+  /** 用户气泡展开后的收起开关 */
+  userMessageCollapse: string
   /** 消息日期分隔条（今天 / 昨天 / 更早的日期） */
   dayLabel: (date: Date) => string
   /** 被用户中断的回合尾注 */
@@ -116,6 +120,110 @@ type AssistantLabels = {
   process: (steps: number, seconds?: number) => string
   /** 工具折叠条：`failed` 只在确实有失败时给出 */
   toolCalls: (count: number, failed?: number) => string
+
+  // 整轮活动流水（run-activity）
+  /** 折叠条前缀：还在跑、且没有可用的「最近一条活动」 */
+  runWorking: string
+  /** 折叠条前缀：跑完（后面拼结算时长，如「已工作 4.8s」） */
+  runWorked: string
+  /** 折叠条前缀：跑完但没有时长可用 */
+  runCompleted: string
+  /** 折叠条前缀：等人处理（审批 / 补充信息），此时不算跑完 */
+  runNeedsAction: string
+  /** 折叠条前缀：用户中断（后面拼时长） */
+  runStopped: string
+  /** 折叠条前缀：失败（后面拼时长） */
+  runFailed: string
+  /** 折叠条前缀：没跑完但也没报错（截断 / 内容过滤） */
+  runIncomplete: string
+  /** 运行中折叠条上的「最近一条活动」：这一步是哪个工具 */
+  runToolActivity: (toolName: string) => string
+  /** 工具时间线的「正在跑」文案（`tool-timeline` 的 activeLabel） */
+  timelineWorking: string
+  /** 工具时间线折叠条：「4 steps」 */
+  timelineSteps: (count: number) => string
+  /** 文件改动条数：「2 files changed」（tool-timeline 折叠条与 file-tree 表头共用一条口径） */
+  filesChanged: (count: number) => string
+  /** 工具时间线每一步的动词（Read / Ran / Edited …）：工具名 → 动词，由这里收口 */
+  timelineVerb: (toolName: string) => string
+
+  // 工具卡（tool-fallback）
+  /** 普通工具行前缀：`Used tool: <name>` */
+  toolUsed: string
+  /** 被中断/取消的工具行前缀 */
+  toolCancelled: string
+  /** 展开后结果块的表头 */
+  toolResult: string
+  /** 失败原因的表头 */
+  toolError: string
+  /** 被取消原因的表头 */
+  toolCancelledReason: string
+  /** 审批通过后写回工具结果的回执 */
+  toolApprovedResult: string
+  /** 拒绝执行后写回工具结果的回执 */
+  toolDeniedResult: string
+  /** 审批：这一次允许 */
+  toolApprove: string
+  /** 审批：总是允许 */
+  toolAllowAlways: string
+  /** 审批：这一次拒绝 */
+  toolDeny: string
+  /** 审批：总是拒绝 */
+  toolDenyAlways: string
+  /** 二次确认：确认执行 */
+  toolConfirm: string
+  /** 二次确认：退回选项 */
+  toolBack: string
+  /** 提问式请求的答复按钮 */
+  toolAnswerSend: string
+  /** 提问式请求的输入框无障碍名（没有 prompt 时兜底） */
+  toolAnswerLabel: string
+  /** 「给这次决定加一句说明」输入框的无障碍名 */
+  toolNoteLabel: string
+  /** 提问式请求的占位 */
+  toolAnswerPlaceholder: string
+  /** 决定说明的占位 */
+  toolNotePlaceholder: string
+
+  // 计划卡（agent-plan）
+  /** 表头右端计数：`5 of 5` */
+  planCount: (completed: number, total: number) => string
+  /** 进度条的无障碍名称：有标题就用标题（`Composer draft progress`），没有退回通用文案 */
+  planProgress: (title?: string) => string
+  /** 进度条的读数：`5 of 5 steps` */
+  planProgressValue: (completed: number, total: number) => string
+  /** 每一步的读屏状态（视觉上是图标：对勾 / 转圈 / 圆点） */
+  planStepDone: string
+  planStepActive: string
+  planStepAhead: string
+  /** 折叠态展开按钮的无障碍名称：`Show all 8 steps` */
+  planExpand: (total: number) => string
+  /** 展开态收起按钮的无障碍名称 */
+  planCollapse: string
+
+  // 任务进度卡（job-progress）
+  /** 进度条的无障碍名称：`Verify the fix on CI progress` */
+  jobProgress: (title: string) => string
+  /** 运行中的状态词（有 ETA 时显示 ETA，它只是兜底） */
+  jobRunning: string
+  /** 收据态的状态词：成功 */
+  jobDone: string
+  /** 收据态的状态词：部分完成 */
+  jobPartial: string
+  /** 收据态的状态词：失败 */
+  jobFailed: string
+  /** 收据态的状态词：用户取消 */
+  jobCancelled: string
+  /** 运行中取消按钮的名称（收据态不显示） */
+  jobCancel: string
+  /** 读屏播报：运行中当前阶段（`Stage build`） */
+  jobStageAnnounce: (name: string) => string
+  /** 读屏播报：最终收据（`Job partly done`） */
+  jobOutcomeAnnounce: (word: string) => string
+  /** 阶段名：命令类工具只有一段，就是这条命令本身在跑 */
+  jobStageCommand: string
+  /** 命令类任务卡下方那条「输出」折叠条 */
+  jobCommandOutput: string
   attachmentType: (type: string) => string
   attachmentLabel: (type: string, state: 'idle' | 'uploading' | 'error') => string
   attachmentPreview: string
@@ -165,6 +273,21 @@ type AssistantLabels = {
 
 const DAY_WORDS_EN = { today: 'Today', yesterday: 'Yesterday' }
 
+/**
+ * 工具名 → 动词。按名字归类（`read_file` / `run_command` / `apply_patch` 这类），
+ * 归不进去就用工具名本身 —— 猜错比不显示更糟。宿主的工具名口径不同就往 labels 里覆盖。
+ */
+function findTimelineVerb(toolName: string): string {
+  const name = toolName.toLowerCase()
+  if (/(write|edit|patch|apply)/.test(name)) return 'Edited'
+  if (/(read|view|cat)/.test(name)) return 'Read'
+  if (/(run|shell|exec|command|terminal)/.test(name)) return 'Ran'
+  if (/(search|grep|find|query)/.test(name)) return 'Searched'
+  if (/(list|glob|tree)/.test(name)) return 'Listed'
+  if (/(fetch|web|browse|http)/.test(name)) return 'Browsed'
+  return toolName
+}
+
 const ASSISTANT_LABELS_EN: AssistantLabels = {
   newThread: 'New Thread',
   searchThreads: 'Search threads',
@@ -184,6 +307,8 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   userMessageLocator: 'Jump to your messages',
   userMessageLocatorItem: (ordinal, total) => `Your message ${ordinal} / ${total}`,
   userMessageSticky: 'Jump to your message',
+  userMessageExpand: 'Show full message',
+  userMessageCollapse: 'Collapse message',
   dayLabel: (date) => findDayLabel(date, DAY_WORDS_EN),
   stoppedRun: 'Response stopped',
   completedRun: 'Completed',
@@ -239,6 +364,56 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
     `Process · ${steps} ${steps === 1 ? 'step' : 'steps'}${seconds ? ` · ${seconds}s` : ''}`,
   toolCalls: (count, failed) =>
     `${count} tool ${count === 1 ? 'call' : 'calls'}${failed ? `, ${failed} failed` : ''}`,
+  runWorking: 'Working',
+  runWorked: 'Worked for',
+  runCompleted: 'Completed',
+  runNeedsAction: 'Needs your input',
+  runStopped: 'Stopped after',
+  runFailed: 'Failed after',
+  runIncomplete: 'Incomplete',
+  runToolActivity: (toolName) => `Running ${toolName}`,
+  timelineWorking: 'Working',
+  timelineSteps: (count) => `${count} step${count === 1 ? '' : 's'}`,
+  filesChanged: (count) => `${count} file${count === 1 ? '' : 's'} changed`,
+  timelineVerb: findTimelineVerb,
+  toolUsed: 'Used tool',
+  toolCancelled: 'Cancelled tool',
+  toolResult: 'Result:',
+  toolError: 'Error:',
+  toolCancelledReason: 'Cancelled reason:',
+  toolApprovedResult: 'Approved by user',
+  toolDeniedResult: 'User denied tool execution',
+  toolApprove: 'Allow',
+  toolAllowAlways: 'Always allow',
+  toolDeny: 'Deny',
+  toolDenyAlways: 'Always deny',
+  toolConfirm: 'Confirm',
+  toolBack: 'Back',
+  toolAnswerSend: 'Send',
+  toolAnswerLabel: 'Answer',
+  toolNoteLabel: 'Note',
+  toolAnswerPlaceholder: 'Type your answer',
+  toolNotePlaceholder: 'Add a note to your decision',
+  planCount: (completed, total) => `${completed} of ${total}`,
+  planProgress: (title) => (title ? `${title} progress` : 'Plan progress'),
+  planProgressValue: (completed, total) =>
+    `${completed} of ${total} ${total === 1 ? 'step' : 'steps'}`,
+  planStepDone: 'done',
+  planStepActive: 'in progress',
+  planStepAhead: 'not started',
+  planExpand: (total) => `Show all ${total} step${total === 1 ? '' : 's'}`,
+  planCollapse: 'Collapse',
+  jobProgress: (title) => `${title} progress`,
+  jobRunning: 'running',
+  jobDone: 'done',
+  jobPartial: 'partly done',
+  jobFailed: 'failed',
+  jobCancelled: 'cancelled',
+  jobCancel: 'Cancel the job',
+  jobStageAnnounce: (name) => `Stage ${name}`,
+  jobOutcomeAnnounce: (word) => `Job ${word}`,
+  jobStageCommand: 'command',
+  jobCommandOutput: 'Output',
   attachmentType: (type) => {
     switch (type) {
       case 'image':

@@ -11,6 +11,9 @@
  *
  * 已下线（见 `parse-tool-result.ts` 头注）：commit / test / stack / package / env /
  * schema / snippet 七种「从输出文本猜出来」的重卡片。
+ * 折叠口径：默认只留一行「工具名 + 状态 + 耗时」，参数与输出正文整棵不进布局；
+ * 例外只有两处 —— 待审批强制展开（按钮得可见），出错自动展开一次（原因得看见）。
+ *
  * 后续方向是按 tool 名注册 `makeAssistantToolUI` 渲染器，本轮不做。
  */
 import type { ToolCallMessagePartProps } from '@assistant-ui/react'
@@ -63,12 +66,19 @@ function ToolCardTree(props: { nodes: readonly ParsedFileTreeNode[] }) {
 function ToolCardFallbackBody(
   props: ToolCallMessagePartProps & { parsed: ParsedToolCard; label: string }
 ) {
-  const isRunning = props.status?.type === 'running'
   const state = mapToolCallState(props)
-  const shouldExpand = isRunning || state === 'approval-requested'
-  // 运行中 / 待审批时强制展开；用户手动展开的选择用 pinned 记住，结束后保持该选择。
-  const [isPinnedOpen, setPinnedOpen] = useState(false)
-  const open = shouldExpand || isPinnedOpen
+  // 默认折叠成一行「工具名 + 状态 + 耗时」：折叠时参数与输出正文整棵不挂载，
+  // 一次回合几十张卡全展开是对话区最大的重绘源。要看明细再点这一行。
+  const requiresAttention = state === 'approval-requested'
+  const [isOpen, setOpen] = useState(false)
+  // 出错自动展开一次（让人看见原因），之后允许自行收起
+  const [wasError, setWasError] = useState(Boolean(props.isError))
+  if (Boolean(props.isError) !== wasError) {
+    setWasError(Boolean(props.isError))
+    if (props.isError) setOpen(true)
+  }
+  // 待审批不能折叠：按钮藏在折叠里等于把流程卡死
+  const open = requiresAttention || isOpen
   const browserLabel = isBrowserTool(props.toolName)
     ? findBrowserToolLabel(props.args, props.result)
     : null
@@ -79,12 +89,16 @@ function ToolCardFallbackBody(
   return (
     <ToolFallback.Root
       open={open}
-      onOpenChange={setPinnedOpen}
+      onOpenChange={function (next) {
+        if (requiresAttention) return
+        setOpen(next)
+      }}
       className="my-1 mb-0">
       <ToolFallback.Trigger
         toolName={props.label}
         status={props.status}
         title={props.toolName}
+        className="w-full"
       />
       <ToolFallback.Content>
         <ToolFallback.Error status={props.status} />
