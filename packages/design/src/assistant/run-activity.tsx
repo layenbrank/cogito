@@ -26,6 +26,8 @@ import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../components/collapsible'
 import { CHAT_DURATION_MS, CHAT_EASE_CLASS } from './chat-motion'
 import { useCollapseScrollPin } from './collapse-scroll-pin'
+import { useAssistantLabels } from './labels'
+import { TOOL_ROW_HEIGHT_CLASS } from './tool-row'
 
 /** 与 runtime 的 message.status 一一对应；`requires-action` 是「等人处理」，不是跑完了 */
 type RunActivityStatus =
@@ -113,14 +115,22 @@ function RunActivity({
   children
 }: RunActivityProps) {
   const rootRef = useRef<HTMLDivElement | null>(null)
-  const [uncontrolledOpen, updateUncontrolledOpen] = useState(defaultOpen)
+  const labels = useAssistantLabels()
+  /**
+   * 展开状态：**用户在中间点过就以用户为准**，否则跟着运行状态走 ——
+   * 运行中默认摊开（能看见在做什么），结算后自动收成一条（不占地方）。
+   * 这是 Cursor / Copilot 的手感：跑的时候要看，跑完不想看。
+   */
+  const [userOpen, updateUserOpen] = useState<boolean | null>(null)
+  const autoOpen = status === 'running' || defaultOpen
+  const isOpen = open !== undefined ? open : (userOpen ?? autoOpen)
   // 懒挂载：收起时不保留整棵工具/思考 DOM（长回合省内存），展开过一次再常驻
-  const [hasOpened, updateHasOpened] = useState(defaultOpen)
+  const [hasOpened, updateHasOpened] = useState(isOpen)
+  if (isOpen && !hasOpened) updateHasOpened(true)
   const lockScroll = useScrollLock(rootRef, instant ? 0 : CHAT_DURATION_MS)
   const armCollapsePin = useCollapseScrollPin(rootRef)
 
   const isControlled = open !== undefined
-  const isOpen = isControlled ? open : uncontrolledOpen
   const hasEntries = entries.length > 0
   const animationMs = instant ? 0 : CHAT_DURATION_MS
 
@@ -131,7 +141,7 @@ function RunActivity({
       if (next) lockScroll()
       else armCollapsePin(animationMs)
       if (next) updateHasOpened(true)
-      if (!isControlled) updateUncontrolledOpen(next)
+      if (!isControlled) updateUserOpen(next)
       onOpenChange?.(next)
     },
     [animationMs, armCollapsePin, isControlled, lockScroll, onOpenChange]
@@ -158,8 +168,12 @@ function RunActivity({
           <CollapsibleTrigger
             data-slot="run-activity-trigger"
             className={cn(
+              // 折叠条是这条流水**唯一的开关**：给足 28px 可点高度 + hover 底色。
+              // 以前是 `py-1`（≈24px）的纯文字行，鼠标得瞄着那一小行才点得中。
+              TOOL_ROW_HEIGHT_CLASS,
+              '-ms-1.5',
               // 扁平行：弱色正文 + 小 chevron，不做卡片头
-              'group/trigger text-muted-foreground hover:text-foreground active:text-foreground focus-visible:ring-ring/50 flex max-w-full origin-left items-center gap-1.5 rounded-md py-1 text-xs outline-none transition-colors focus-visible:ring-[3px]'
+              'group/trigger text-muted-foreground hover:text-foreground active:text-foreground focus-visible:ring-ring/50 flex max-w-full origin-left items-center gap-1.5 rounded-md px-1.5 text-xs outline-none transition-colors hover:bg-muted/50 focus-visible:ring-[3px]'
             )}>
             <Icon
               icon="lucide:chevron-right"
@@ -190,7 +204,7 @@ function RunActivity({
                 {/* 时间线轨道：左侧一条竖线，条目按原时序排（元素页同款 <ol>） */}
                 <ol
                   data-slot="run-activity-entries"
-                  className="border-border ms-1.5 flex max-h-[min(70vh,40rem)] min-w-0 flex-col gap-2 overflow-y-auto overscroll-y-contain border-s ps-3.5 pt-2 text-sm wrap-break-word">
+                  className="border-border ms-1.5 flex min-w-0 flex-col gap-2 border-s ps-3.5 pt-2 text-sm wrap-break-word">
                   {entries.map(function (entry) {
                     return (
                       <li
@@ -211,6 +225,23 @@ function RunActivity({
                   })}
                 </ol>
                 {extra}
+                {/*
+                 * 长流水展开之后总得有个「收回去」的落点：一条时间线几十步，
+                 * 想收起还得滚回最上面点那行字，不符合习惯。
+                 */}
+                <button
+                  type="button"
+                  data-slot="run-activity-collapse"
+                  onClick={function () {
+                    handleOpenChange(false)
+                  }}
+                  className="-ms-1 mt-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground">
+                  <Icon
+                    icon="lucide:chevron-up"
+                    className="size-3.5 shrink-0 opacity-70"
+                  />
+                  {labels.runCollapse}
+                </button>
               </>
             ) : null}
           </CollapsibleContent>

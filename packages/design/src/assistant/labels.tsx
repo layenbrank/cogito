@@ -138,6 +138,8 @@ type AssistantLabels = {
   runIncomplete: string
   /** 运行中折叠条上的「最近一条活动」：这一步是哪个工具 */
   runToolActivity: (toolName: string) => string
+  /** 展开态底部的「收起」按钮：一长串流水不用滚回顶部才收得起来 */
+  runCollapse: string
   /** 工具时间线的「正在跑」文案（`tool-timeline` 的 activeLabel） */
   timelineWorking: string
   /** 工具时间线折叠条：「4 steps」 */
@@ -377,6 +379,7 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   runFailed: 'Failed after',
   runIncomplete: 'Incomplete',
   runToolActivity: (toolName) => `Running ${toolName}`,
+  runCollapse: 'Collapse',
   timelineWorking: 'Working',
   timelineSteps: (count) => `${count} step${count === 1 ? '' : 's'}`,
   filesChanged: (count) => `${count} file${count === 1 ? '' : 's'} changed`,

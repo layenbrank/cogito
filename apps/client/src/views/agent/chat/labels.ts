@@ -90,6 +90,7 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   runFailed: '运行失败',
   runIncomplete: '未完成',
   runToolActivity: (toolName) => `调用 ${toolName}`,
+  runCollapse: '收起',
   // 工具时间线（tool-timeline）
   timelineWorking: '工作中',
   timelineSteps: (count) => `${count} 步`,

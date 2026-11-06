@@ -11,6 +11,14 @@ import { describe, expect, it } from 'vitest'
 
 import { ASSISTANT_LABELS_EN } from './labels'
 import { RunActivity } from './run-activity'
+import { TOOL_ROW_HEIGHT_CLASS } from './tool-row'
+
+const ENTRY = {
+  id: 'tool-1',
+  kind: 'tool' as const,
+  label: '调用 shell',
+  content: <span>调用 shell 的命令</span>
+}
 
 describe('RunActivity 折叠条', function () {
   it('running 时有心跳点：文案再短也不会被读成「已经停了」', function () {
@@ -46,6 +54,56 @@ describe('RunActivity 折叠条', function () {
     )
     expect(html).toContain('data-slot="run-activity-status"')
     expect(html).not.toContain('run-activity-trigger')
+  })
+
+  it('运行中默认展开：跑的时候要知道它在干什么', function () {
+    const html = renderToStaticMarkup(
+      <RunActivity
+        status="running"
+        statusLabel="调用 shell"
+        entries={[ENTRY]}
+      />
+    )
+    expect(html).toContain('data-slot="run-activity-entries"')
+    expect(html).toContain('调用 shell 的命令')
+  })
+
+  it('跑完默认收成一条：结论留在底部，过程不占地方', function () {
+    const html = renderToStaticMarkup(
+      <RunActivity
+        status="complete"
+        statusLabel="已工作"
+        durationLabel="4.8s"
+        entries={[ENTRY]}
+      />
+    )
+    expect(html).not.toContain('data-slot="run-activity-entries"')
+    expect(html).not.toContain('调用 shell 的命令')
+  })
+
+  it('展开态底部有「收起」落点：长流水不用滚回顶部', function () {
+    const html = renderToStaticMarkup(
+      <RunActivity
+        status="running"
+        statusLabel="调用 shell"
+        entries={[ENTRY]}
+      />
+    )
+    expect(html).toContain('data-slot="run-activity-collapse"')
+    expect(html).toContain(ASSISTANT_LABELS_EN.runCollapse)
+  })
+
+  it('折叠条是 28px 的整行可点区，不是一行小字', function () {
+    const html = renderToStaticMarkup(
+      <RunActivity
+        status="complete"
+        statusLabel="已工作"
+        entries={[ENTRY]}
+      />
+    )
+    expect(html).toContain(`data-slot="run-activity-trigger"`)
+    expect(html).toContain(TOOL_ROW_HEIGHT_CLASS)
+    expect(html).not.toMatch(/px-1\.5 py-\d/)
   })
 
   it('完成态用过去时，和进行中的词不共用（否则只剩一个名词，像卡住了）', function () {
