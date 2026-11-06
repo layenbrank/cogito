@@ -14,7 +14,7 @@ import { ComposerChipText, resolveComposerChipLabel } from '@cogito/design/assis
 import { focusComposerInput } from '@cogito/design/assistant/composer-input.aui'
 import { field, ghostButton, mono } from '@cogito/design/assistant/elements/surfaces'
 import { useAssistantLabels, type AssistantLabels } from '@cogito/design/assistant/labels'
-import { MessageQueue, QueueLineBadge, type MessageQueueItemInfo } from '@cogito/design/assistant/message-queue.aui'
+import { MessageQueue, QueueLineBadge, QUEUE_ROW_PAD_CLASS, type MessageQueueItemInfo } from '@cogito/design/assistant/message-queue.aui'
 import { TooltipIconButton } from '@cogito/design/assistant/tooltip-icon-button'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
@@ -262,14 +262,18 @@ const ComposerQueue: FC = function ComposerQueue() {
         <div
           data-slot="message-queue-pending"
           className="flex flex-col gap-1.5">
-          <div className={cn(mono, 'px-1')}>{labels.queuePendingHeading(pending.length)}</div>
+          <div className={cn(mono, QUEUE_ROW_PAD_CLASS)}>{labels.queuePendingHeading(pending.length)}</div>
           {pending.map(function (item, index) {
             return (
               <div
                 key={item.id}
                 data-slot="message-queue-pending-item"
                 title={item.text}
-                className={cn(field, 'group flex items-center gap-2.5 rounded-2xl py-2 pr-2 pl-3')}>
+                className={cn(
+                  field,
+                  'group flex items-center gap-2.5 rounded-2xl py-2',
+                  QUEUE_ROW_PAD_CLASS
+                )}>
                 <Icon
                   icon="lucide:clock"
                   className="text-foreground/25 size-3.5 shrink-0"

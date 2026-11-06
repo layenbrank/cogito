@@ -48,12 +48,25 @@
 | --- | --- |
 | 「正在运行」行 | `runningText` 传了才渲染（导出 `MessageQueueRunningRow`）：蓝点 `animate-ping` + 正文 `text-sm` + 右端 `running` 标签。**默认不传**——线程里当前轮的用户消息已在对话流里，重复一遍会被读成消息重复 |
 | 标题 | 左 `N queued`（`mono` 即 `text-xs`、`tabular-nums`）；展开态右端是「本轮结束后自动发送」（`queueSendsWhenFinishes`），折叠态换成第一条正文预览 |
-| 条目 | `field` 表面 + `rounded-2xl py-2 pr-2 pl-3`、`rowEnter` 入场；序号 `mono w-3 tabular-nums`；正文走 `ComposerChipText singleLine`（多行摊平成一行再 `truncate`，chip 限宽 `9rem`），行高固定 `py-2 leading-5`；正文多于一行时右端出现 `⏎ N 行`（`labels.queueLines`），`title` 保留全文 |
+| 条目 | `field` 表面 + `rounded-2xl py-2` + `QUEUE_ROW_PAD_CLASS`（`pl-3 pr-2`）、`rowEnter` 入场；序号 `mono w-3 tabular-nums`；正文走 `ComposerChipText singleLine`（多行摊平成一行再 `truncate`，chip 限宽 `9rem`），行高固定 `py-2 leading-5`；正文多于一行时右端出现 `⏎ N 行`（`labels.queueLines`），`title` 保留全文 |
 | 行内动作 | 上箭头（`lucide:arrow-up`，`text-foreground/25 size-3`）= 插队；`lucide:x` `size-3.5` = 移除，按钮 `ghostButton size-6`，无障碍文案带正文（`labels.queueRemoveItem(text)`） |
 | 展开体 | `max-h-[min(11rem,32vh)]` + 滚动（官方示例永远展开，会顶掉半个屏幕，这里默认折叠）；折叠头同样走单行预览 + 行数标记 |
 
 `extraCount` / `extraPreview` / `renderText` / `renderItemActions` 四个注入点留给 app：`@chip` 标签、
 「取回编辑 / 上移 / 下移」这些库没给 primitive 的操作。
+
+**行内留白只有一个来源**（`QUEUE_ROOT_PAD_CLASS` / `QUEUE_ROW_PAD_CLASS`）。这一块有三层带底色的东西
+—— 折叠头的 hover 底、每条排队消息的 `field` 底、app 的「待发送」条目 —— 各自加 `px` 的结果是
+头与行的背景左边界不齐、文字左边界差 12px、小标题又单独一个数。现在的口径：
+
+- 容器 `px-2`（8px）：所有背景矩形统一内缩，圆角不贴输入框的边；
+- 头 / 条目 / 待发送标题再各给 `pl-3 pr-2`（左 12 右 8）：于是**底色矩形的左右边界完全一致，
+  文字第一笔都落在 20px**；
+- 右侧那 8px 是给行尾的 `size-6` 图标按钮留的，加宽它之前先看按钮会不会被圆角压到；
+- 不要拿输入框正文（`px-1`，4px）当基准：队列是嵌在输入框里的**面板**，整体比正文内缩一档，
+  它对齐的是「自己这三层的边线」，不是输入框那行字。
+
+改这一块的样式时**先数这三层**，别再往单层补 `px` —— 补一层就是又一条不对齐的边线。
 
 ### 持久化（2026-11-06 落地）
 

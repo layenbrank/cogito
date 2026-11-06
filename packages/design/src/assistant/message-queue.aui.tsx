@@ -35,6 +35,23 @@ const LIST_MAX_HEIGHT_CLASS = 'max-h-[min(11rem,32vh)]'
 const ROW_LINE_CLASS = 'py-2 leading-5'
 
 /**
+ * 队列的**行内留白只有一个来源**。
+ *
+ * 这一块有三层带底色的东西：折叠头（hover 底）、每条排队消息的 `field` 底、待发送区的底。
+ * 之前是各写各的：容器没有内边距、折叠头 `px-1`、条目靠 `body` 的 `px-1` 再叠 `pl-3`，
+ * 于是折叠头的**背景左边界在 4px、条目的在 4px 但文字在 16px**，展开时头和行一眼没对齐；
+ * 待发送区的小标题又落在 8px，三套数。
+ *
+ * 现在：容器给 `px-2`（8px，背景层统一内缩，圆角不贴输入框边），三层内容再各给 12px，
+ * 于是**所有底色的矩形左右边界完全一致，所有文字的第一笔都落在 20px**。
+ * 注意别再拿输入框正文（`px-1`，4px）当基准：队列是嵌在输入框里的**面板**，整体比正文内缩一档，
+ * 对齐的是「这一块里三层自己的边线」，不是输入框那行字。
+ */
+const QUEUE_ROOT_PAD_CLASS = 'px-2'
+/** 行内文字与背景之间的那 12px（左侧；右侧给动作按钮留 8px） */
+const QUEUE_ROW_PAD_CLASS = 'pl-3 pr-2'
+
+/**
  * 队列条目的纯文本，口径与 `QueueItemPrimitive.Text` 一致（多段正文用空行拼接）。
  * 入参用结构化的最小形状：`QueueItemState.parts` 是联合类型，这里只关心 text 段。
  */
@@ -122,7 +139,7 @@ const MessageQueue: FC<MessageQueueProps> = function MessageQueue({
   return (
     <div
       data-slot="message-queue"
-      className={cn('flex w-full flex-col gap-2', className)}>
+      className={cn('flex w-full flex-col gap-2', QUEUE_ROOT_PAD_CLASS, className)}>
       {runningText ? <MessageQueueRunningRow text={runningText} /> : null}
       <button
         type="button"
@@ -133,7 +150,10 @@ const MessageQueue: FC<MessageQueueProps> = function MessageQueue({
           expanded ? (isRunning ? labels.queueStopHint : labels.queueCollapse) : labels.queueExpand
         }
         onClick={toggle}
-        className="group hover:bg-foreground/[0.03] flex w-full items-center gap-2 rounded-xl px-1 py-1 text-left transition-colors">
+        className={cn(
+          'group hover:bg-foreground/[0.03] flex w-full items-center gap-2 rounded-xl py-1 text-left transition-colors',
+          QUEUE_ROW_PAD_CLASS
+        )}>
         <span className={cn(mono, 'shrink-0 tabular-nums')}>{labels.queuedMessages(total)}</span>
         {expanded ? (
           /* 展开态跟官方一致：右端对齐说清「什么时候会发」 */
@@ -158,7 +178,7 @@ const MessageQueue: FC<MessageQueueProps> = function MessageQueue({
         <div
           data-slot="message-queue-body"
           className={cn(
-            'flex flex-col gap-1.5 overflow-y-auto overscroll-contain px-1',
+            'flex flex-col gap-1.5 overflow-y-auto overscroll-contain',
             LIST_MAX_HEIGHT_CLASS
           )}>
           <ul
@@ -177,7 +197,8 @@ const MessageQueue: FC<MessageQueueProps> = function MessageQueue({
                       field,
                       rowEnter,
                       ROW_LINE_CLASS,
-                      'group/row flex items-center gap-2.5 rounded-2xl pr-2 pl-3'
+                      'group/row flex items-center gap-2.5 rounded-2xl',
+                      QUEUE_ROW_PAD_CLASS
                     )}>
                     <span className={cn(mono, 'w-3 shrink-0 tabular-nums')}>{index + 1}</span>
                     <span className="text-foreground/60 min-w-0 flex-1 truncate text-sm">
@@ -281,5 +302,5 @@ function defaultRenderText(text: string): ReactNode {
   return text
 }
 
-export { MessageQueue, MessageQueueRunningRow, QueueLineBadge, LIST_MAX_HEIGHT_CLASS, textOfParts }
+export { MessageQueue, MessageQueueRunningRow, QueueLineBadge, LIST_MAX_HEIGHT_CLASS, QUEUE_ROOT_PAD_CLASS, QUEUE_ROW_PAD_CLASS, textOfParts }
 export type { MessageQueueItemInfo, MessageQueueProps }
