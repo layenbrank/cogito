@@ -15,6 +15,7 @@
 | composer-context | `composer-trigger.tsx` | ✅ | `composer-context-menu.tsx` / `composer-extensions-pane.tsx` / `workspace-file-picker.tsx`（@ 引用、扩展、工作区文件） |
 | terminal-block | `terminal.tsx` | ✅ | `tool-card-terminal-body.tsx` + `features/terminal`（右栏常驻终端） |
 | tool-timeline | `tool-group.aui.tsx`、`trace-waterfall.aui.tsx` | ✅ | `process-group.tsx` / `tool-group.tsx` / `message-trace.tsx`（思考 + 工具的折叠时间线） |
+| reviewable-diff | `reviewable-diff.tsx` | ✅ | 写文件工具卡的「审阅」入口：把这次写入的 diff 切块，逐块保留 / 丢弃后真的写回文件。见下节 |
 | loading-state | `shimmer.tsx` | ✅ | `agent-loading.tsx`（面板级 Shimmer，首处用于审阅面板）+ 思考态走 `ReasoningTrigger` 的 `active` 文案 |
 | message-queue | `composer-queue.aui.tsx`、`queue.tsx` | ✅ | 见下节「消息队列」 |
 | context-breakdown | `context.tsx` | ⚠️ 部分 | 只有一处用量展示，没有「按来源拆解（系统提示 / 工具结果 / 附件）」。需要 `packages/chat` 适配器给出分段用量 |
@@ -119,7 +120,33 @@
 原因是几十个工具要逐个写渲染器，收益是渐进的；先把「一个外壳」落到所有工具上，再按实际使用频率
 把 `read` / `search` / `browser_*` 等迁过去。
 
-## 建议顺序（按「改动量 ÷ 收益」排）
+## reviewable-diff（按块审阅写文件）
+
+元素本体同样是收费产物，按 elements/reviewable-diff 页渲染出的 DOM 自写（`packages/design/src/assistant/reviewable-diff.tsx`）：
+`filename` + 每块 `@@ -a,b +c,d @@` 范围 + Keep / Discard + 尾部「N left to review / All reviewed」+ Apply。
+**计数永远由 `hunks[].decision` 现算**（不另存 kept / pending），三个回调（`onKeep` / `onDiscard` / `onUndo`）
+传了哪个才渲染哪个控件，都不传就是纯静态卡片（只出标签）。
+
+| 环节 | 位置 | 行为 |
+| --- | --- | --- |
+| 切块 | `views/agent/chat/components/write-review.ts::parseWriteReview` | 按 git 风格取上下文 3 行，相邻 / 重叠窗口并块；range 用 `@@` 标记；`id = hunk-<start>-<end>` |
+| 入口 | `tool-card-read-write.tsx`（`CodeDiff` 右侧「审阅」） | 仅 `status === 'complete'` 且非 error 时出现 |
+| 决定 | 同上（`decisions: Record<id, HunkDecision>`） | pending 在合成正文时按 **kept** 处理（宁可多留，不误丢） |
+| 落盘 | `write-review.ts::rebuildReviewedText` | kept/pending 走 after 侧，discarded 退回 before 侧，块外上下文原样；换行风格跟随原文（CRLF 保持 CRLF），结尾换行不 trim |
+
+**三道落盘闸**：
+
+1. 只对「整文件 before / after」开放；片段级改动（`old_string` / `new_string`）拒绝——否则会把整文件写成片段。
+2. 打开审阅前读磁盘，`isSameText(current, review.after)` 不成立就拒（「片段级改动」/「写入后文件又变了」两种文案分开）。
+3. Apply 前再读一次磁盘，变了就要求重新打开审阅。
+
+`parseWriteTexts`（`parse-tool-result.ts`）故意**不 trim**——写回文件要保留首行缩进与结尾换行；
+渲染 diff 用的 `firstString` 仍然 trim。
+
+**已知限制**：审阅态只在内存里（关卡片即丢）；一次只审一次写入，不给「跨多次写入合并审阅」；
+块粒度是「上下文 ±3 行」的窗口，改一行长函数会带出较多上下文行。
+
+
 
 1. **context-breakdown**：适配器在每次请求前算一次分段 token（系统提示 / 工具结果 / 附件 / 历史），
    配合「上下文快满」提示能直接减少截断。

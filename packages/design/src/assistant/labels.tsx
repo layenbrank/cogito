@@ -138,6 +138,23 @@ type AssistantLabels = {
   regenerateImage: string
   downloadImage: string
   copyImage: string
+
+  // 审阅式 diff（reviewable-diff）
+  /** 头部的口径：已保留块数 / 总块数 */
+  reviewKeptOfTotal: (kept: number, total: number) => string
+  reviewKeep: string
+  reviewDiscard: string
+  /** 块上按钮的无障碍文案：带上范围，读屏才知道决定的是哪一块 */
+  reviewKeepHunk: (range: string) => string
+  reviewDiscardHunk: (range: string) => string
+  /** 已决定的块点回去重选 */
+  reviewUndoHunk: (range: string) => string
+  reviewKept: string
+  reviewDiscarded: string
+  reviewLeftToReview: (count: number) => string
+  reviewAllReviewed: string
+  /** 「应用」按钮：带上要保留的块数 */
+  reviewApply: (count: number) => string
 }
 
 const DAY_WORDS_EN = { today: 'Today', yesterday: 'Yesterday' }
@@ -250,7 +267,19 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   closeZoomedImage: 'Close zoomed image',
   regenerateImage: 'Regenerate image',
   downloadImage: 'Download image',
-  copyImage: 'Copy image'
+  copyImage: 'Copy image',
+
+  reviewKeptOfTotal: (kept, total) => `${kept} of ${total} kept`,
+  reviewKeep: 'Keep',
+  reviewDiscard: 'Discard',
+  reviewKeepHunk: (range) => `Keep hunk ${range}`,
+  reviewDiscardHunk: (range) => `Discard hunk ${range}`,
+  reviewUndoHunk: (range) => `Change decision for hunk ${range}`,
+  reviewKept: 'Kept',
+  reviewDiscarded: 'Discarded',
+  reviewLeftToReview: (count) => (count === 1 ? '1 left to review' : `${count} left to review`),
+  reviewAllReviewed: 'All reviewed',
+  reviewApply: (count) => `Apply ${count}`
 }
 
 type AssistantLabelsOverride = Partial<AssistantLabels>

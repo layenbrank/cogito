@@ -142,6 +142,18 @@ function firstString(record: Record<string, unknown>, keys: readonly string[]): 
   return null
 }
 
+/** 不 trim 的取值：写回文件时要保留首行缩进与结尾换行 */
+function firstRawString(
+  record: Record<string, unknown>,
+  keys: readonly string[]
+): string | null {
+  for (const key of keys) {
+    const value = record[key]
+    if (typeof value === 'string' && value.length > 0) return value
+  }
+  return null
+}
+
 function parseToolOutputText(result: unknown): string {
   return formatTerminalText(result)
 }
@@ -277,6 +289,21 @@ function findWriteTextPair(args: unknown): { oldText: string | null; newText: st
   return {
     oldText: firstString(record, [...WRITE_OLD_KEYS]),
     newText: firstString(record, [...WRITE_NEW_KEYS])
+  }
+}
+
+/**
+ * 未 trim 的 before / after 原文（审阅按块保留用）。
+ *
+ * `findWriteTextPair` 会把整段文本 trim 掉，渲染 diff 无所谓；但「按块保留」要把结果写回文件，
+ * 首行缩进与结尾换行必须原样带回去，所以这条路单独取原文。
+ */
+function parseWriteTexts(args: unknown): { before: string | null; after: string | null } {
+  const record = toRecord(args)
+  if (!record) return { before: null, after: null }
+  return {
+    before: firstRawString(record, [...WRITE_OLD_KEYS]),
+    after: firstRawString(record, [...WRITE_NEW_KEYS])
   }
 }
 
@@ -524,7 +551,8 @@ export {
   parseToolOutputText,
   parseWebSources,
   parseWriteCodeDiff,
-  parseWriteDiffStat
+  parseWriteDiffStat,
+  parseWriteTexts
 }
 export type {
   CodeHighlightLanguage,

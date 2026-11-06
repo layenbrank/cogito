@@ -110,7 +110,19 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   closeZoomedImage: '关闭放大图片',
   regenerateImage: '重新生成图片',
   downloadImage: '下载图片',
-  copyImage: '复制图片'
+  copyImage: '复制图片',
+
+  reviewKeptOfTotal: (kept, total) => `已保留 ${kept} / ${total} 块`,
+  reviewKeep: '保留',
+  reviewDiscard: '丢弃',
+  reviewKeepHunk: (range) => `保留 ${range} 这一块`,
+  reviewDiscardHunk: (range) => `丢弃 ${range} 这一块`,
+  reviewUndoHunk: (range) => `撤销 ${range} 的决定`,
+  reviewKept: '已保留',
+  reviewDiscarded: '已丢弃',
+  reviewLeftToReview: (count) => `还有 ${count} 块待决定`,
+  reviewAllReviewed: '都决定过了',
+  reviewApply: (count) => `应用 ${count}`
 }
 
 export { ASSISTANT_LABELS_ZH }
