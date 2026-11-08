@@ -17,6 +17,14 @@
  * - 多行条目在行尾给一个 `⏎ N 行` 标记：单行预览背后还有内容，全文仍在 `title` 里。
  * - 正文与追加动作可注入：app 用它把 `@chip` 渲染成简短标签、
  *   并挂上「取回编辑 / 上移 / 下移」这些库没有对应 primitive 的操作。
+ *
+ * **行内图标的笔画分工**（这一块三个动作曾经全是「箭头/尖角」，12px 下分不清，
+ * 用户的原话是「发送按钮是箭头，和顺序按钮视觉上有歧义」）：
+ * - `arrow-up` = **发送**，全仓只在 composer 主按钮上出现（实心主色块），队列行里不许再用；
+ * - `zap` = **这条现在就发**（插队 / 补发），与发送箭头不同形，一眼能和顺序按钮分开；
+ * - 一对 `chevron-up` / `chevron-down` 中间加 1px 分隔线 = **调整顺序**（`QueueOrderControls`），
+ *   成组才不会读成两个散落的箭头；
+ * - 单个 `chevron` 只留给折叠头右端 = **展开 / 收起**，队列行里不出现单个 chevron。
  */
 import { ComposerPrimitive, QueueItemPrimitive, useAuiState } from '@assistant-ui/react'
 import { Icon } from '@iconify/react/offline'
@@ -96,6 +104,74 @@ type MessageQueueProps = {
   renderText?: (text: string) => ReactNode
   /** 行内追加动作，渲染在「立即发 / 删除」之前 */
   renderItemActions?: (item: MessageQueueItemInfo) => ReactNode
+}
+
+type QueueOrderControlsProps = {
+  upLabel: string
+  downLabel: string
+  canMoveUp: boolean
+  canMoveDown: boolean
+  onMoveUp: () => void
+  onMoveDown: () => void
+}
+
+/**
+ * 调序控件：一对 chevron 中间夹 1px 分隔线，**始终成组出现**。
+ *
+ * 单拎一个 `chevron-up` 出来，用户读到的第一反应是「展开/收起」（折叠头右端就是它），
+ * 再加上「立即发」原来也用箭头，三种语义挤在同一行里 12px 的笔画上，谁也认不出谁。
+ * 成组 + 分隔线把它变成一个「位置步进器」：左边往上、右边往下，边界处置灰。
+ *
+ * 队列行与 app 的「待发送」行共用这一个组件，别再各写一对 chevron。
+ */
+const QueueOrderControls: FC<QueueOrderControlsProps> = function QueueOrderControls({
+  upLabel,
+  downLabel,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown
+}) {
+  return (
+    <span
+      data-slot="message-queue-item-order"
+      className="flex shrink-0 items-center">
+      <TooltipIconButton
+        tooltip={upLabel}
+        side="top"
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={cn(ghostButton, 'size-6 shrink-0 disabled:opacity-30')}
+        aria-label={upLabel}
+        disabled={!canMoveUp}
+        onClick={onMoveUp}>
+        <Icon
+          icon="lucide:chevron-up"
+          className="size-3.5"
+        />
+      </TooltipIconButton>
+      <span
+        aria-hidden
+        className="bg-foreground/15 h-3 w-px shrink-0"
+      />
+      <TooltipIconButton
+        tooltip={downLabel}
+        side="top"
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={cn(ghostButton, 'size-6 shrink-0 disabled:opacity-30')}
+        aria-label={downLabel}
+        disabled={!canMoveDown}
+        onClick={onMoveDown}>
+        <Icon
+          icon="lucide:chevron-down"
+          className="size-3.5"
+        />
+      </TooltipIconButton>
+    </span>
+  )
 }
 
 const MessageQueue: FC<MessageQueueProps> = function MessageQueue({
@@ -219,9 +295,10 @@ const MessageQueue: FC<MessageQueueProps> = function MessageQueue({
                         size="icon"
                         className={cn(ghostButton, 'size-6 shrink-0')}
                         aria-label={labels.queueSteerNow}>
+                        {/* 闪电 = 「这条现在就发」；不要再换成箭头 —— 箭头是 composer 发送键 */}
                         <Icon
-                          icon="lucide:arrow-up"
-                          className="text-foreground/25 size-3 shrink-0"
+                          icon="lucide:zap"
+                          className="text-foreground/40 size-3.5 shrink-0"
                         />
                       </TooltipIconButton>
                     </QueueItemPrimitive.Steer>
@@ -302,5 +379,14 @@ function defaultRenderText(text: string): ReactNode {
   return text
 }
 
-export { MessageQueue, MessageQueueRunningRow, QueueLineBadge, LIST_MAX_HEIGHT_CLASS, QUEUE_ROOT_PAD_CLASS, QUEUE_ROW_PAD_CLASS, textOfParts }
-export type { MessageQueueItemInfo, MessageQueueProps }
+export {
+  MessageQueue,
+  MessageQueueRunningRow,
+  QueueLineBadge,
+  QueueOrderControls,
+  LIST_MAX_HEIGHT_CLASS,
+  QUEUE_ROOT_PAD_CLASS,
+  QUEUE_ROW_PAD_CLASS,
+  textOfParts
+}
+export type { MessageQueueItemInfo, MessageQueueProps, QueueOrderControlsProps }

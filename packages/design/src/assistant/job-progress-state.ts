@@ -13,7 +13,7 @@
  * 「权重怎么算」「百分比取到哪」能直接单测（与 `agent-plan-state.ts` 同一套做法）。
  */
 import type { AssistantLabels } from './labels'
-import { formatRunDuration } from './run-activity-state'
+import { formatRunDuration } from './process-state'
 
 /** 收据状态：成功的四种说法 */
 type JobOutcomeStatus = 'success' | 'partial' | 'failed' | 'cancelled'

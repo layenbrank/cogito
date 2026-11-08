@@ -6,6 +6,7 @@ import {
 } from '@assistant-ui/react'
 import { useAssistantLabels } from './labels'
 import { MarkdownText } from './markdown-text'
+import { toThinkingHint } from './process-state'
 import {
   ReasoningRoot,
   ReasoningTrigger,
@@ -29,6 +30,17 @@ const ReasoningGroupImpl: ReasoningGroupComponent = ({ children, startIndex, end
     return false
   })
 
+  // 「思考中… / 已思考」本身不含信息：附上最新一句在琢磨什么，不展开也知道走到了哪
+  const hint = useAuiState((s) => {
+    for (let index = endIndex; index >= startIndex; index -= 1) {
+      const part = s.message.parts[index]
+      if (part?.type !== 'reasoning') continue
+      const found = toThinkingHint(part.text)
+      if (found) return found
+    }
+    return undefined
+  })
+
   return (
     <ReasoningRoot
       variant="ghost"
@@ -36,6 +48,7 @@ const ReasoningGroupImpl: ReasoningGroupComponent = ({ children, startIndex, end
       <ReasoningTrigger
         active={isReasoningStreaming}
         label={isReasoningStreaming ? labels.working : labels.reasoning()}
+        detail={hint}
       />
       <ReasoningContent aria-busy={isReasoningStreaming}>
         <ReasoningText>{children}</ReasoningText>

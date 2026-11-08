@@ -36,7 +36,7 @@ function ComposerEnd() {
         variant="ghost"
         size="sm"
         title={label}
-        className="text-muted-foreground h-7 max-w-[7.5rem] min-w-0 gap-1.5 px-2 sm:max-w-[10rem] md:max-w-[14rem]">
+        className="text-muted-foreground h-7 max-w-[7.5rem] min-w-0 gap-1.5 px-2 @min-[32rem]:max-w-[10rem] @min-[42rem]:max-w-[14rem]">
         <Icon
           icon="lucide:box"
           width={14}

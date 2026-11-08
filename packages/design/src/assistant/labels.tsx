@@ -31,10 +31,6 @@ type AssistantLabels = {
   userMessageLocatorItem: (ordinal: number, total: number) => string
   /** 用户句滚出视口后的浓缩 sticky 条（点击回到该句） */
   userMessageSticky: string
-  /** 用户气泡超过封顶高度时的展开开关 */
-  userMessageExpand: string
-  /** 用户气泡展开后的收起开关 */
-  userMessageCollapse: string
   /** 消息日期分隔条（今天 / 昨天 / 更早的日期） */
   dayLabel: (date: Date) => string
   /** 被用户中断的回合尾注 */
@@ -114,14 +110,24 @@ type AssistantLabels = {
   /** 推理折叠条：**跑完之后**的说法（进行中由 trigger 的 active 态配 `working`）；`seconds` 只在有耗时时给出 */
   reasoning: (seconds?: number) => string
   /**
-   * 过程折叠条（整轮：思考 + 工具 + 中间解说）：`steps` 是过程区的 part 数，
-   * `seconds` 只在有耗时时给出。
+   * 过程折叠条（整轮：思考 + 工具 + 中间解说）：`steps` 是过程占几行（工具一件一行，其余每块一行），
+   * `seconds` 只在有耗时时给出。结算后行尾已经接构成行（`processDetail`）时 `steps` 传 `undefined`：
+   * 工具 + 思考 + 说明就是步数，两个数字并排写等于同一件事说两遍。
    */
-  process: (steps: number, seconds?: number) => string
+  process: (steps?: number, seconds?: number) => string
+  /**
+   * 总折叠收起后的构成行：`4 次工具 · 1 段思考 · 2 段说明`。
+   * 三项都为 0 时返回空串 —— 外壳不留一个孤零零的分隔点。
+   */
+  processDetail: (tools: number, thoughts: number, notes: number) => string
+  /** 收起态明细清单里「中间解说」那一行的动词 */
+  processNote: string
+  /** 收起态明细列不下时的尾巴（还有几步没列出来） */
+  processMore: (count: number) => string
   /** 工具折叠条：`failed` 只在确实有失败时给出 */
   toolCalls: (count: number, failed?: number) => string
 
-  // 整轮活动流水（run-activity）
+  // 整轮活动流水：run-activity 已下线（过程区改成总折叠 + 子折叠），这几条暂时没有使用者，留着等「整轮一行」的复刻
   /** 折叠条前缀：还在跑、且没有可用的「最近一条活动」 */
   runWorking: string
   /** 折叠条前缀：跑完（后面拼结算时长，如「已工作 4.8s」） */
@@ -232,6 +238,11 @@ type AssistantLabels = {
   attachmentPreviewTitle: string
   removeAttachment: string
   addAttachment: string
+  /** 附件预览里的缩放：按钮与口径提示 */
+  zoomIn: string
+  zoomOut: string
+  zoomReset: string
+  zoomHint: string
   uploadFailed: string
   /** `name` 缺省时用「文件」类兜底名 */
   downloadFile: (name?: string) => string
@@ -309,8 +320,6 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   userMessageLocator: 'Jump to your messages',
   userMessageLocatorItem: (ordinal, total) => `Your message ${ordinal} / ${total}`,
   userMessageSticky: 'Jump to your message',
-  userMessageExpand: 'Show full message',
-  userMessageCollapse: 'Collapse message',
   dayLabel: (date) => findDayLabel(date, DAY_WORDS_EN),
   stoppedRun: 'Response stopped',
   completedRun: 'Completed',
@@ -322,8 +331,7 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   more: 'More',
   exportMarkdown: 'Export as Markdown',
   edit: 'Edit',
-  editDiscardsReplies: (count) =>
-    `Sending discards ${count} ${count === 1 ? 'reply' : 'replies'}`,
+  editDiscardsReplies: (count) => `Sending discards ${count} ${count === 1 ? 'reply' : 'replies'}`,
   cancel: 'Cancel',
   update: 'Update',
   previous: 'Previous',
@@ -356,8 +364,7 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   queueTakeBack: 'Edit in composer',
   queueMoveUp: 'Move up',
   queueMoveDown: 'Move down',
-  queuePendingHeading: (count) =>
-    count === 1 ? '1 unsent message' : `${count} unsent messages`,
+  queuePendingHeading: (count) => (count === 1 ? '1 unsent message' : `${count} unsent messages`),
   queuePendingSend: 'Send this one',
   queuePendingDrop: 'Discard',
   errorRetry: 'Retry',
@@ -368,7 +375,19 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
    */
   reasoning: (seconds) => (seconds ? `Thought for ${seconds}s` : 'Thought'),
   process: (steps, seconds) =>
-    `Process · ${steps} ${steps === 1 ? 'step' : 'steps'}${seconds ? ` · ${seconds}s` : ''}`,
+    steps === undefined
+      ? `Process${seconds ? ` · ${seconds}s` : ''}`
+      : `Process · ${steps} ${steps === 1 ? 'step' : 'steps'}${seconds ? ` · ${seconds}s` : ''}`,
+  processDetail: (tools, thoughts, notes) =>
+    [
+      tools ? `${tools} ${tools === 1 ? 'tool call' : 'tool calls'}` : '',
+      thoughts ? `${thoughts} ${thoughts === 1 ? 'thought' : 'thoughts'}` : '',
+      notes ? `${notes} ${notes === 1 ? 'note' : 'notes'}` : ''
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  processNote: 'Note',
+  processMore: (count) => `${count} more ${count === 1 ? 'step' : 'steps'}`,
   toolCalls: (count, failed) =>
     `${count} tool ${count === 1 ? 'call' : 'calls'}${failed ? `, ${failed} failed` : ''}`,
   runWorking: 'Working',
@@ -443,6 +462,10 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   attachmentPreviewTitle: 'Image Attachment Preview',
   removeAttachment: 'Remove file',
   addAttachment: 'Add Attachment',
+  zoomIn: 'Zoom in',
+  zoomOut: 'Zoom out',
+  zoomReset: 'Reset zoom',
+  zoomHint: 'Scroll to zoom · double-click to reset',
   uploadFailed: 'Upload failed',
   downloadFile: (name) => `Download ${name || 'file'}`,
 

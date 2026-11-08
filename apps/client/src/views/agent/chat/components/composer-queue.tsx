@@ -14,7 +14,7 @@ import { ComposerChipText, resolveComposerChipLabel } from '@cogito/design/assis
 import { focusComposerInput } from '@cogito/design/assistant/composer-input.aui'
 import { field, ghostButton, mono } from '@cogito/design/assistant/elements/surfaces'
 import { useAssistantLabels, type AssistantLabels } from '@cogito/design/assistant/labels'
-import { MessageQueue, QueueLineBadge, QUEUE_ROW_PAD_CLASS, type MessageQueueItemInfo } from '@cogito/design/assistant/message-queue.aui'
+import { MessageQueue, QueueLineBadge, QueueOrderControls, QUEUE_ROW_PAD_CLASS, type MessageQueueItemInfo } from '@cogito/design/assistant/message-queue.aui'
 import { TooltipIconButton } from '@cogito/design/assistant/tooltip-icon-button'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
@@ -136,42 +136,20 @@ function renderItemActions(
             className="size-3.5"
           />
         </TooltipIconButton>
-        <TooltipIconButton
-          tooltip={labels.queueMoveUp}
-          side="top"
-          type="button"
-          variant="ghost"
-          size="icon"
-          className={cn(ghostButton, 'size-6 shrink-0 disabled:opacity-30')}
-          aria-label={labels.queueMoveUp}
-          disabled={item.index === 0}
-          onClick={function () {
+        <QueueOrderControls
+          upLabel={labels.queueMoveUp}
+          downLabel={labels.queueMoveDown}
+          canMoveUp={item.index > 0}
+          canMoveDown={item.index < ids.length - 1}
+          onMoveUp={function () {
             if (moveQueueItem(aui, ids, item.index, -1)) return
             toast.error('上移失败：队列正忙或条目已变化')
-          }}>
-          <Icon
-            icon="lucide:chevron-up"
-            className="size-3.5"
-          />
-        </TooltipIconButton>
-        <TooltipIconButton
-          tooltip={labels.queueMoveDown}
-          side="top"
-          type="button"
-          variant="ghost"
-          size="icon"
-          className={cn(ghostButton, 'size-6 shrink-0 disabled:opacity-30')}
-          aria-label={labels.queueMoveDown}
-          disabled={item.index === ids.length - 1}
-          onClick={function () {
+          }}
+          onMoveDown={function () {
             if (moveQueueItem(aui, ids, item.index, 1)) return
             toast.error('下移失败：队列正忙或条目已变化')
-          }}>
-          <Icon
-            icon="lucide:chevron-down"
-            className="size-3.5"
-          />
-        </TooltipIconButton>
+          }}
+        />
       </>
     )
   }
@@ -288,42 +266,20 @@ const ComposerQueue: FC = function ComposerQueue() {
                 </div>
                 <QueueLineBadge text={item.text} />
                 <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                  <TooltipIconButton
-                    tooltip={labels.queueMoveUp}
-                    side="top"
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className={cn(ghostButton, 'size-6 shrink-0 disabled:opacity-30')}
-                    aria-label={labels.queueMoveUp}
-                    disabled={index === 0}
-                    onClick={function () {
+                  <QueueOrderControls
+                    upLabel={labels.queueMoveUp}
+                    downLabel={labels.queueMoveDown}
+                    canMoveUp={index > 0}
+                    canMoveDown={index < pending.length - 1}
+                    onMoveUp={function () {
                       if (!sessionID) return
                       if (movePendingItem(sessionID, item.id, -1)) persistPendingOrder()
-                    }}>
-                    <Icon
-                      icon="lucide:chevron-up"
-                      className="size-3.5"
-                    />
-                  </TooltipIconButton>
-                  <TooltipIconButton
-                    tooltip={labels.queueMoveDown}
-                    side="top"
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className={cn(ghostButton, 'size-6 shrink-0 disabled:opacity-30')}
-                    aria-label={labels.queueMoveDown}
-                    disabled={index === pending.length - 1}
-                    onClick={function () {
+                    }}
+                    onMoveDown={function () {
                       if (!sessionID) return
                       if (movePendingItem(sessionID, item.id, 1)) persistPendingOrder()
-                    }}>
-                    <Icon
-                      icon="lucide:chevron-down"
-                      className="size-3.5"
-                    />
-                  </TooltipIconButton>
+                    }}
+                  />
                   <TooltipIconButton
                     tooltip={labels.queuePendingSend}
                     side="top"
@@ -336,9 +292,10 @@ const ComposerQueue: FC = function ComposerQueue() {
                       if (!sessionID) return
                       sendPendingItem(aui, sessionID, item.id)
                     }}>
+                    {/* 与队列行同一个语义、同一个图标：这条现在就发（⚡），不是「发送键」 */}
                     <Icon
-                      icon="lucide:send"
-                      className="size-3.5"
+                      icon="lucide:zap"
+                      className="text-foreground/40 size-3.5 shrink-0"
                     />
                   </TooltipIconButton>
                   <TooltipIconButton

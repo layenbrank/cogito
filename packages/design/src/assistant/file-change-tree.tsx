@@ -9,6 +9,9 @@
  * - 表头只数 `kind: 'file'` 的行，目录不算「文件」；净增删**永远渲染**，哪怕是 `+0 −0`；
  * - 某个文件缺 `additions` / `deletions` 或为 0 时，那一半**不显示**，不是显示 0。
  *
+ * 宽度：`w-full` —— 与输入框（composer）等宽，占满宿主消息列（`--thread-max-width`）。
+ * 不再有 384px 这类写死的上限：长目录表头会撑到列宽再 `truncate`，短列表也照样铺满。
+ *
  * 名称说明：本仓 `file-tree.tsx` 是另一套东西（目录列举的交互树：可折叠、可选中的
  * `FileTree` / `FileTreeFolder` / `FileTreeFile`，用在工具明细里）。这里是「改动文件树」，
  * 数据是扁平的增删列表，没有交互，所以另起一个模块，别混用。
@@ -51,7 +54,9 @@ function Churn(props: { additions?: number; deletions?: number }) {
   const deletions = props.deletions ?? 0
   if (additions <= 0 && deletions <= 0) return null
   return (
-    <span data-slot="file-change-tree-churn" className={cn(mono, 'shrink-0 tabular-nums')}>
+    <span
+      data-slot="file-change-tree-churn"
+      className={cn(mono, 'shrink-0 tabular-nums')}>
       {additions > 0 ? <span className="text-success">+{additions}</span> : null}
       {additions > 0 && deletions > 0 ? ' ' : null}
       {deletions > 0 ? <span className="text-destructive">−{deletions}</span> : null}
@@ -83,13 +88,23 @@ function FileChangeTree({
     <div
       data-slot="file-change-tree"
       className={cn(
-        'border-border/60 bg-background dark:bg-popover flex w-full max-w-sm flex-col gap-2 rounded-2xl border p-3.5',
+        // 与输入框（composer）等宽：占满消息列（`--thread-max-width`，46rem）。
+        // 回合小结是「这一轮的结论」，和输入框同宽才落成同一条竖线；
+        // 曾经写死 `max-w-sm`（384px），`packages/design/src/assistant` 这类目录表头
+        // 在卡里就被裁成 `…packages/desi…`，右侧的 `+N −M` 反而成了唯一的参照系。
+        'border-border/60 bg-background dark:bg-popover flex w-full flex-col gap-2 rounded-2xl border p-3.5',
         className
       )}>
-      <div data-slot="file-change-tree-header" className="flex items-baseline justify-between px-1">
-        <span className="text-sm font-medium">{formatChangedFilesLabel(summary.files, labels)}</span>
+      <div
+        data-slot="file-change-tree-header"
+        className="flex items-baseline justify-between px-1">
+        <span className="text-sm font-medium">
+          {formatChangedFilesLabel(summary.files, labels)}
+        </span>
         {/* 净增删永远渲染：表头是「一共改了多少」，没有改动时写 +0 −0 也比空白诚实 */}
-        <span data-slot="file-change-tree-totals" className={cn(mono, 'tabular-nums')}>
+        <span
+          data-slot="file-change-tree-totals"
+          className={cn(mono, 'tabular-nums')}>
           <span className="text-success">+{added}</span>{' '}
           <span className="text-destructive">−{removed}</span>
         </span>
@@ -131,10 +146,15 @@ function FileChangeTree({
                     aria-hidden
                     className="text-muted-foreground ms-3 size-3.5 shrink-0"
                   />
-                  <span className="text-foreground/85 min-w-0 flex-1 truncate" title={node.path}>
+                  <span
+                    className="text-foreground/85 min-w-0 flex-1 truncate"
+                    title={node.path}>
                     {node.name}
                   </span>
-                  <Churn additions={node.additions} deletions={node.deletions} />
+                  <Churn
+                    additions={node.additions}
+                    deletions={node.deletions}
+                  />
                 </>
               )}
             </div>

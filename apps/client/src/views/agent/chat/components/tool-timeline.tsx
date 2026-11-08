@@ -6,12 +6,11 @@
  * 最有信息量的那个字段（路径 / 命令 / 查询词），文件改动从写工具的 before/after 现算。
  *
  * 挂载位置说明：
- * 对话流一轮已经有 `AgentRunActivity`（Run activity 是超集：解说 + 工具交替、带时长、
- * 结果留在折叠区外），同一条消息里再挂一条紧凑清单 = 两条折叠条。所以本组件默认
- * **不挂在消息里**，留给「需要紧凑工具流水」的位置：
+ * 对话流一轮的过程已经**按块摊开**（思考一段一条、工具一件一行，各自开合），同一条消息里
+ * 再挂一条紧凑清单就是重复。所以本组件默认**不挂在消息里**，留给「需要紧凑工具流水」的位置：
  * - 没有正文的长跑回合（纯工具）；
  * - 子面板 / 收件箱这类拿不到完整对话的窄栏。
- * 真要挂进消息，记得把落在同一轮里的 Run activity 关掉。
+ * 真要挂进消息，记得别和过程区的工具卡重复。
  */
 import { useAssistantLabels } from '@cogito/design/assistant/labels'
 import { ToolTimeline, type ToolTimelineStep } from '@cogito/design/assistant/tool-timeline'

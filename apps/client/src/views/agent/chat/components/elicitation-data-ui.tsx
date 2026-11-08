@@ -76,6 +76,9 @@ function SchemaFieldInput(props: {
           {field.required ? ' *' : ''}
         </Label>
         <Select
+          items={field.enumValues.map(function (option) {
+            return { value: option.value, label: option.label ?? option.value }
+          })}
           value={typeof props.value === 'string' ? props.value : ''}
           onValueChange={function (next) {
             props.onChange(next)

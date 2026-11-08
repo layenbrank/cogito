@@ -9,8 +9,8 @@
  * 只在回合结束（`complete` / `cancelled` / `error` / 截断）时渲染 —— 流式中途挂上去会跟着
  * 每次写入闪变，等审批时也不算结束。没有写文件就返回 null，那一轮什么都不渲染。
  *
- * 与 `AgentRunActivity` 不冲突：那个折的是**过程**（解说 / 思考 / 工具那条时间线），
- * 这张卡摊的是**结果**（一共改了哪些文件），不进折叠区、也不会多出第二条折叠条。
+ * 与过程区不冲突：过程是一块一块各自折叠的（思考一段一条、工具一件一行），
+ * 这张卡摊的是**结果**（一共改了哪些文件），不进任何折叠，也不会多出第二条折叠条。
  */
 import { FileChangeTree } from '@cogito/design/assistant/file-change-tree'
 import { buildChangeNodes } from '@cogito/design/assistant/file-change-tree-state'

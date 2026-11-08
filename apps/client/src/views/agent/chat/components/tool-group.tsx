@@ -1,10 +1,9 @@
 /**
  * 工具折叠条（覆盖 `ThreadComponents.ToolGroup`），对齐 studio / Qoder 口径。
  *
- * 2026-11：client 改成整轮活动流水（`ThreadComponents.RunActivity`）后，一轮里
- * 所有工具都摊进时间线条目，「N 次工具调用」这层分组不再出现在对话里 ——
- * 待审批的工具改由活动流水的 `attention` 槽常驻可见。这里保留实现，
- * 供未接入活动流水的宿主继续按分段方式渲染。
+ * 2026-11：对话流改成**按块折叠**后（思考一段一条、工具一件一行），一轮里所有工具
+ * 都平铺成各自的卡片，「N 次工具调用」这层分组默认不再出现。这里保留实现，
+ * 供显式传入 `ThreadComponents.ToolGroup` 的宿主把连续工具收成一组。
  */
 import { useAuiState } from '@assistant-ui/react'
 import {

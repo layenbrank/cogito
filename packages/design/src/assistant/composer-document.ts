@@ -70,8 +70,7 @@ const BREAK: ComposerBreakAtom = { kind: 'break' }
 const SKILL_PREFIX = 'skill:'
 
 /** 浏览器标签页 id 形如 `browser-<uuid>`；用完整 UUID 正则避免把 `browser-2/a.ts` 误判 */
-const BROWSER_TAB_ID =
-  /^browser-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const BROWSER_TAB_ID = /^browser-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function needsQuote(id: string): boolean {
   return /[\s"]/.test(id)
@@ -191,7 +190,7 @@ function looksLikeMentionId(id: string): boolean {
  * 必须排除：`/` `.` `-` `_` `@` 是路径的一部分，ASCII `:` 是 `skill:` 前缀的分隔符。
  * 这挡住「@apps/a.ts，然后」把逗号并进 id、以及「@apps/a.ts）」
  */
-const MENTION_TERMINATOR = /[\s\u00a0"'`,;()\[\]{}<>，。；、：！？（）【】「」“”‘’]/
+const MENTION_TERMINATOR = /[\s\u00a0"'`,;()[\]{}<>，。；、：！？（）【】「」“”‘’]/
 
 /** 从 `@` 起读一个 mention；引号未闭合时返回 null（按普通文本处理） */
 function readMention(text: string, at: number): { id: string; end: number } | null {
@@ -238,8 +237,7 @@ function parseDocument(text: string): ComposerAtom[] {
 
   while (index < text.length) {
     const char = text[index]
-    const isMentionStart =
-      char === '@' && isTokenBoundary(text[index - 1])
+    const isMentionStart = char === '@' && isTokenBoundary(text[index - 1])
     if (!isMentionStart) {
       buffer += char
       index += 1
@@ -340,14 +338,26 @@ function replaceRange(
   const from = Math.min(Math.max(start, 0), end)
   const to = Math.max(start, end)
   const total = documentLength(atoms)
-  return normalizeDocument([...sliceAtoms(atoms, 0, from), ...insert, ...sliceAtoms(atoms, to, total)])
+  return normalizeDocument([
+    ...sliceAtoms(atoms, 0, from),
+    ...insert,
+    ...sliceAtoms(atoms, to, total)
+  ])
 }
 
-function insertTextAt(atoms: readonly ComposerAtom[], offset: number, text: string): ComposerAtom[] {
+function insertTextAt(
+  atoms: readonly ComposerAtom[],
+  offset: number,
+  text: string
+): ComposerAtom[] {
   return replaceRange(atoms, offset, offset, splitText(text))
 }
 
-function insertChipAt(atoms: readonly ComposerAtom[], offset: number, chip: ComposerChipAtom): ComposerAtom[] {
+function insertChipAt(
+  atoms: readonly ComposerAtom[],
+  offset: number,
+  chip: ComposerChipAtom
+): ComposerAtom[] {
   return replaceRange(atoms, offset, offset, [chip])
 }
 

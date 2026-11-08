@@ -4,6 +4,8 @@
 import type { AssistantLabelsOverride } from '@cogito/design/assistant/labels'
 import { findDayLabel } from '@cogito/design/assistant/thread-day'
 
+import { toAgentToolLabel } from '@/features/agent/tool-labels'
+
 const DAY_WORDS_ZH = { today: '今天', yesterday: '昨天' }
 
 const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
@@ -25,8 +27,6 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   userMessageLocator: '跳转到你的消息',
   userMessageLocatorItem: (ordinal, total) => `你的消息 ${ordinal} / ${total}`,
   userMessageSticky: '回到这条用户消息',
-  userMessageExpand: '展开全文',
-  userMessageCollapse: '收起',
   dayLabel: (date) => findDayLabel(date, DAY_WORDS_ZH, 'zh-CN'),
   stoppedRun: '已停止生成',
   completedRun: '已完成',
@@ -79,9 +79,26 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   // 别退回「思考」两个字：光秃秃的名词摆在折叠条上，分不清是跑完了还是卡住了
   // （现象：整轮只剩「思考」两字，像会话已经终止）。
   reasoning: (seconds) => (seconds ? `已思考 ${seconds} 秒` : '已思考'),
-  process: (steps, seconds) => `过程 · ${steps} 步${seconds ? ` · ${seconds} 秒` : ''}`,
+  // 结算后行尾接的是构成行（`processDetail`）：工具 + 思考 + 说明 = 步数，
+  // 两个数字并排写等于同一件事说两遍，所以那时 `steps` 传 undefined，只留时长。
+  process: (steps, seconds) =>
+    steps === undefined
+      ? `过程${seconds ? ` · ${seconds} 秒` : ''}`
+      : `过程 · ${steps} 步${seconds ? ` · ${seconds} 秒` : ''}`,
+  // 总折叠收起后仍要交代「刚才干了什么」：先给构成（几工具 / 几段思考 / 几段说明），
+  // 再逐步列明细。只有「过程 · 6 步」等于逼用户展开才能知道跑了什么。
+  processDetail: (tools, thoughts, notes) =>
+    [
+      tools ? `${tools} 次工具` : '',
+      thoughts ? `${thoughts} 段思考` : '',
+      notes ? `${notes} 段说明` : ''
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  processNote: '说明',
+  processMore: (count) => `还有 ${count} 步`,
   toolCalls: (count, failed) => `${count} 次工具调用${failed ? `，${failed} 次失败` : ''}`,
-  // 整轮活动流水（run-activity）
+  // 整轮活动流水：run-activity 已下线（过程区改成总折叠 + 子折叠），这几条暂时没有使用者
   runWorking: '工作中',
   runWorked: '已工作',
   runCompleted: '已完成',
@@ -89,7 +106,13 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   runStopped: '已停止',
   runFailed: '运行失败',
   runIncomplete: '未完成',
-  runToolActivity: (toolName) => `调用 ${toolName}`,
+  // 工具名先过一遍中文标题（`tool-labels.ts`），折叠条上才读得出差别：十几次 `read_file`
+  // 都写「读取文件」时，后接的参数摘要（路径 / 命令）才是「这一步动的是哪儿」。未收录的
+  // 工具名（第三方 MCP）原样保留，前面补「调用」，免得只剩一串 snake_case。
+  runToolActivity: (toolName) => {
+    const label = toAgentToolLabel(toolName)
+    return label === toolName ? `调用 ${toolName}` : label
+  },
   runCollapse: '收起',
   // 工具时间线（tool-timeline）
   timelineWorking: '工作中',
@@ -167,6 +190,10 @@ const ASSISTANT_LABELS_ZH: AssistantLabelsOverride = {
   attachmentPreviewTitle: '图片附件预览',
   removeAttachment: '移除附件',
   addAttachment: '添加附件',
+  zoomIn: '放大',
+  zoomOut: '缩小',
+  zoomReset: '复位缩放',
+  zoomHint: '滚轮缩放 · 双击复位',
   uploadFailed: '上传失败',
   downloadFile: (name) => `下载 ${name || '文件'}`,
 

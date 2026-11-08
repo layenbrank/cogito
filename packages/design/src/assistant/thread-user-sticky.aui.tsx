@@ -70,7 +70,9 @@ const ThreadUserMessageSticky: FC = () => {
   const viewportRef = useRef<HTMLElement | null>(null)
   const rafRef = useRef(0)
   const [activeId, setActiveId] = useState('')
-  const isPinned = activeId !== ''
+  /* 「贴住没有」和「贴的是哪一条」分开：松开时保留最后一条，淡出过程中胶囊不会先变空 */
+  const [pinned, setPinned] = useState(false)
+  const isPinned = pinned
   const isPinnedRef = useRef(isPinned)
   isPinnedRef.current = isPinned
 
@@ -93,15 +95,15 @@ const ThreadUserMessageSticky: FC = () => {
     }) ?? null
 
   function commitActive(next: string) {
-    if (isPinnedRef.current === (next !== '')) {
-      // 已贴住时只换内容，不必重新走一遍进退场
-      if (activeId !== next) setActiveId(next)
-      return
+    const nextPinned = next !== ''
+    if (isPinnedRef.current !== nextPinned) {
+      // 先移走焦点，再提交隐藏态，避免 inert/aria-hidden 与 focused 后代冲突
+      if (!nextPinned) blurFocusInside(shellRef.current)
+      isPinnedRef.current = nextPinned
+      setPinned(nextPinned)
     }
-    // 先移走焦点，再提交隐藏态，避免 inert/aria-hidden 与 focused 后代冲突
-    if (isPinnedRef.current && next === '') blurFocusInside(shellRef.current)
-    isPinnedRef.current = next !== ''
-    setActiveId(next)
+    // 已贴住时只换内容；松开时留着最后一条当淡出内容
+    if (nextPinned) setActiveId(next)
   }
 
   function syncPinned() {
@@ -186,14 +188,21 @@ const ThreadUserMessageSticky: FC = () => {
     [marks, marksKey]
   )
 
-  if (!activeMark || !activeMark.preview) return null
+  /*
+   * 外壳必须常驻（只要还有用户消息）：贴不贴住是滚出来的运行时状态，靠 shellRef 反查
+   * Viewport 才绑得上滚动监听。按「已经贴住的那条」提前 return null，ref 永远拿不到、
+   * 监听永远绑不上 —— 胶囊从此再也不会出现。可见性只交给 isPinned 的透明度动画。
+   */
+  if (marks.length === 0) return null
 
-  const { id: markId, preview, ordinal } = activeMark
+  const markId = activeMark?.id ?? ''
+  const preview = activeMark?.preview ?? ''
+  const ordinal = activeMark?.ordinal ?? 0
   const total = marks.length
 
   function onActivate() {
     const viewport = viewportRef.current
-    if (!viewport) return
+    if (!viewport || !markId) return
     scrollToUserMessage(viewport, markId, prefersReducedMotion)
   }
 

@@ -412,4 +412,34 @@ describe('composer 队列面板', function () {
     // 顺序就是队列语义：换位后必须立刻写回，不能等「下次队列变化」
     expect(vi.mocked(persistComposerQueue)).toHaveBeenCalled()
   })
+
+  it('行内图标分工：发送走闪电、调序成组，不再和发送箭头/折叠 chevron 混形', function () {
+    queueState.composer.queue = [queueItem('q1', '第一条'), queueItem('q2', '第二条')]
+    pendingState.items = [{ id: 'p1', text: '上次没发出去的', attachments: '[]' }]
+    const { container } = render(<ComposerQueue />)
+    fireEvent.click(screen.getByRole('button', { name: '展开队列' }))
+
+    for (const row of container.querySelectorAll('[data-slot="message-queue-item"]')) {
+      // 「这条现在就发」= 闪电；箭头是 composer 主发送键，队列行里不许再出现
+      const steer = row.querySelector('[aria-label="Send now"]')
+      expect(steer?.querySelector('[data-icon="lucide:zap"]')).not.toBeNull()
+      expect(steer?.querySelector('[data-icon="lucide:arrow-up"]')).toBeNull()
+    }
+
+    const allRows = [
+      ...Array.from(container.querySelectorAll('[data-slot="message-queue-item"]')),
+      ...Array.from(container.querySelectorAll('[data-slot="message-queue-pending-item"]'))
+    ]
+    expect(allRows).toHaveLength(3)
+
+    for (const row of allRows) {
+      // 上移 / 下移必须成组（一个容器 + 两个 chevron），别退回两只散落的箭头
+      const order = row.querySelector('[data-slot="message-queue-item-order"]')
+      expect(order).not.toBeNull()
+      expect(order?.querySelectorAll('button')).toHaveLength(2)
+      expect(order?.querySelectorAll('[data-icon^="lucide:chevron-"]')).toHaveLength(2)
+      // 「立即发送」在两种行里同一个语义、同一个图标
+      expect(row.querySelector('[data-icon="lucide:zap"]')).not.toBeNull()
+    }
+  })
 })

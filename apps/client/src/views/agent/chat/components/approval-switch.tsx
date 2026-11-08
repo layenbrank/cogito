@@ -70,12 +70,12 @@ function ApprovalSwitch() {
           icon={current?.icon ?? 'lucide:shield'}
           className="size-3.5 shrink-0"
         />
-        <span className="min-w-0 max-w-[4.5rem] truncate sm:max-w-[6rem] md:max-w-none">
+        <span className="hidden min-w-0 max-w-[6rem] truncate @min-[29rem]:inline @min-[42rem]:max-w-none">
           {current?.label ?? '询问审批'}
         </span>
         <Icon
           icon="lucide:chevron-down"
-          className="size-3.5 shrink-0 opacity-70"
+          className="hidden size-3.5 shrink-0 opacity-70 @min-[29rem]:block"
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent

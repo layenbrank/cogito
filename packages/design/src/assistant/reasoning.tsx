@@ -177,6 +177,7 @@ function ReasoningTrigger({
   active,
   duration,
   label,
+  detail,
   className,
   ...props
 }: React.ComponentProps<typeof CollapsibleTrigger> & {
@@ -184,6 +185,11 @@ function ReasoningTrigger({
   duration?: number
   /** 覆盖文案。过程折叠条拿它换成「过程」那套说法，不用再拼一个 trigger */
   label?: string
+  /**
+   * 文案后面的一句具体提示（现在在琢磨什么）。光写「思考中… / 已思考」等于没说 ——
+   * 这一行是用户不展开时唯一读得到的信息。截断在这里做，状态词自己不被挤掉。
+   */
+  detail?: string
 }) {
   const labels = useAssistantLabels()
 
@@ -192,7 +198,7 @@ function ReasoningTrigger({
       data-slot="reasoning-trigger"
       className={cn(
         // 扁平行：弱色正文 + 小 chevron，勿做成卡片头
-        'aui-reasoning-trigger group/trigger text-muted-foreground hover:text-foreground active:text-foreground flex max-w-[85%] origin-left items-center gap-1.5 py-1 text-xs transition-colors',
+        'aui-reasoning-trigger group/trigger text-muted-foreground hover:text-foreground active:text-foreground flex max-w-[85%] min-w-0 origin-left items-center gap-1.5 py-1 text-xs transition-colors',
         className
       )}
       {...props}>
@@ -207,11 +213,26 @@ function ReasoningTrigger({
       <span
         data-slot="reasoning-trigger-label"
         className={cn(
-          'aui-reasoning-trigger-label-wrapper inline-block leading-none tabular-nums',
+          'aui-reasoning-trigger-label-wrapper inline-block shrink-0 leading-none tabular-nums',
           active && 'shimmer motion-reduce:animate-none'
         )}>
         {label ?? labels.reasoning(duration)}
       </span>
+      {detail ? (
+        <>
+          <span
+            aria-hidden
+            className="shrink-0 opacity-40">
+            ·
+          </span>
+          <span
+            data-slot="reasoning-trigger-detail"
+            title={detail}
+            className="min-w-0 truncate opacity-70">
+            {detail}
+          </span>
+        </>
+      ) : null}
       <Icon
         icon="lucide:chevron-down"
         data-slot="reasoning-trigger-chevron"

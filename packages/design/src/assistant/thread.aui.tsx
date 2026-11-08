@@ -12,10 +12,8 @@ import {
   type AssistantState,
   type FileMessagePartComponent,
   type ImageMessagePartComponent,
-  type MessagePartStatus,
   type TextMessagePartComponent,
   type ToolCallMessagePartComponent,
-  type ToolCallMessagePartStatus,
   useMessagePartText
 } from '@assistant-ui/react'
 import { cn } from 'cn'
@@ -30,8 +28,7 @@ import {
   useState,
   type ComponentType,
   type FC,
-  type PropsWithChildren,
-  type ReactNode
+  type PropsWithChildren
 } from 'react'
 import { Button } from '../components/button'
 import { Skeleton } from '../components/skeleton'
@@ -46,16 +43,19 @@ import { ThreadFollowupSuggestions } from './follow-up-suggestions.aui'
 import { Image } from './image'
 import { useAssistantLabels, type AssistantLabels } from './labels'
 import { findRunNote } from './run-status'
-import type { RunActivityEntry, RunActivityStatus } from './run-activity'
 import {
-  findRunStatusLabel,
-  formatRunDuration,
-  partNeedsAttention,
-  toActivityLabel,
-  toActivitySegments,
+  findResponseStart,
+  toProcessDigest,
+  toProcessRows,
+  toProcessRuns,
   toRunActivityStatus,
-  type PartLike
-} from './run-activity-state'
+  toRunCounts,
+  toRunStatus,
+  type ProcessDigest,
+  type ProcessDigestEntry,
+  type ProcessRun,
+  type RunActivityStatus
+} from './process-state'
 import { findMessageMarkdown } from './message-markdown'
 import { findMessageMoment, formatMessageTime, toDateTimeAttr } from './message-time'
 import { CitedMarkdownText } from './message-citations'
@@ -67,8 +67,8 @@ import {
   ReasoningTrigger
 } from './reasoning.aui'
 import { ToolFallback } from './tool-fallback.aui'
-import { ToolGroupContent, ToolGroupRoot, ToolGroupTrigger } from './tool-group.aui'
 import { ChatEnter, CHAT_EASE_CLASS } from './chat-motion'
+import { useCollapseScrollPin } from './collapse-scroll-pin'
 import {
   ComposerQueuedStrip,
   ComposerSendButton,
@@ -76,38 +76,20 @@ import {
 } from './composer-queue.aui'
 import { ComposerChipText, resolveComposerChipLabel } from './composer-chip-text'
 import { ComposerInput } from './composer-input.aui'
-import { ComposerTriggerProvider, type ComposerTrigger, type ComposerTriggerListProps } from './composer-trigger'
+import {
+  ComposerTriggerProvider,
+  type ComposerTrigger,
+  type ComposerTriggerListProps
+} from './composer-trigger'
 import { MessageEditComposer } from './edit-message.aui'
 import { MessageError } from './error-state.aui'
 import { ThreadUserMessageRuler } from './thread-user-ruler.aui'
 import { ThreadUserMessageSticky } from './thread-user-sticky.aui'
 import { startsNewDay } from './thread-day'
 import { TooltipIconButton } from './tooltip-icon-button'
+import { UserMessageBadgeSlot } from './user-message-badge'
 
 export type ThreadGroupPart = MessagePrimitive.GroupedParts.GroupPart
-
-/**
- * 整轮活动流水的渲染契约（对应 `ThreadComponents.RunActivity`）。
- * 过程区已经按原时序切好，app 只负责外壳与文案；
- * `children` 是最终回答 —— 必须排在折叠区之后、常驻可见。
- */
-export type ThreadRunActivityProps = {
-  status: RunActivityStatus
-  /** 折叠条前缀；running 时给的是「最近一条活动」的标签 */
-  statusLabel: ReactNode
-  /** 结算时长（`4.8s`）；running 时不传 */
-  durationLabel?: ReactNode
-  /** 过程区条目：解说 / 思考 / 工具，按原时序 */
-  entries: readonly RunActivityEntry[]
-  /** 需要用户处理的块（审批 / 出错 / 无法归类的 part）：常驻可见，不进折叠 */
-  attention?: ReactNode
-  /** 展开态里的附加内容（app 塞耗时统计 / 轨迹这类面板） */
-  extra?: ReactNode
-  /** 这一轮是否还在跑 */
-  running: boolean
-  /** 最终回答 */
-  children?: ReactNode
-}
 
 /**
  * 回合小结的渲染契约（对应 `ThreadComponents.RunSummary`）。
@@ -130,6 +112,24 @@ export type ThreadRunSummaryProps = {
  * by name (toolkit `render`, `useAssistantDataUI`) take precedence over
  * `ToolFallback`.
  */
+/** 收起态明细的一行：动词（读取 / 运行 / 已思考）已由 labels 翻译，外壳只负责排版 */
+export type ProcessSummaryLine = { verb: string; detail?: string }
+
+/**
+ * 总折叠收起后仍要交代的「详细信息」：
+ * - `detail`：构成行（`4 次工具 · 1 段思考`），跑的时候换成当前那一步；
+ * - `lines`：逐步明细（工具一件一条、思考一段一条），最多 `PROCESS_SUMMARY_LINES` 条；
+ * - `hidden`：超出上限、没列出来的步数。
+ *
+ * 由 `AssistantMessage` 现算后交给外壳 —— 宿主覆盖 `ProcessGroup` 时拿到的是同一份，
+ * 不用自己再扫一遍 parts。
+ */
+export type ProcessSummary = {
+  detail?: string
+  lines: ProcessSummaryLine[]
+  hidden: number
+}
+
 export type ThreadComponents = {
   AssistantMessage?: ComponentType | undefined
   Welcome?: ComponentType | undefined
@@ -137,31 +137,42 @@ export type ThreadComponents = {
   ToolGroup?: ComponentType<PropsWithChildren<{ group: ThreadGroupPart }>> | undefined
   ReasoningGroup?: ComponentType<PropsWithChildren<{ group: ThreadGroupPart }>> | undefined
   /**
-   * 整轮「过程」的折叠壳：**最终回答之前的一切**（思考、工具、中间解说）都装在里面，
-   * 最终回答留在外面常驻可见。这是 VS Code Copilot / Cursor / Claude Code 的共同排版
-   * ——「过程收成一条、结论留在底部」，边界由 `findResponseStart` 算出来。
+   * 整轮「过程」的外壳（**总折叠**）：思考 / 工具 / 解说按原时序排在它里面，
+   * 最终回答留在外面常驻可见。外壳里**仍然是逐块折叠**（思考一段一条、工具一件一行），
+   * 所以收起它只是把整轮过程收成一行，展开后每一块还能各自开合。
    *
-   * `running` 是**整条消息**是否在跑（不是过程区的 part 状态）：回合没结束时它保持展开，
-   * 结束才回到 `defaultOpen`。app 用它接自己的「折叠回复过程」偏好。
-   * 不传就用内置的折叠条（默认折叠，`labels.process` 文案）。
+   * 默认只在过程占不止一行时出现 —— 一次「思考 → 答」只有一行，外面再套一层是噪音。
+   * `running` 是整条消息是否在跑：跑的时候自动展开、跑完自动收起（用户点过就以用户为准）。
+   * `steps` / `seconds` 只喂折叠行文案：秒数在结算后才传（跑的时候数字一跳一跳）。
+   * `summary` 是收起后仍要交代的详细信息（构成 + 逐步明细）：不传就只有一行「过程 · N 步」。
    */
   ProcessGroup?:
-    ComponentType<PropsWithChildren<{ group: ThreadGroupPart; running: boolean }>> | undefined
+    | ComponentType<
+        PropsWithChildren<{
+          group: ThreadGroupPart
+          running: boolean
+          steps: number
+          seconds?: number
+          summary?: ProcessSummary
+          /**
+           * 这一轮在等人处理（审批 / 补充信息）：`running` 为 false 但**不能自动收起** ——
+           * 收起来就把「允许 / 拒绝」按钮藏进折叠里了。用户手动收过仍然以用户为准。
+           */
+          attention?: boolean
+        }>
+      >
+    | undefined
   /**
-   * 整轮「活动流水」折叠条（`elements/run-activity` 口径）：把过程区收成
-   * 一条「已工作 4.8s」+ 时间线（解说 / 思考 / 工具按原时序排），最终回答留在外面。
-   *
-   * 与 `ProcessGroup` 的区别是**谁拥有排版**：`ProcessGroup` 只接管「过程区的外壳」，
-   * 里面还是分段渲染（思考一条、工具一组）；这里直接把过程区摊成条目，
-   * 一轮只有一条折叠条。传了它才走这条路径 —— 没传的 app 沿用分段渲染。
+   * 过程区之后的一行宿主指标（client 塞首字 / 速度 / token）：套外壳时排在外壳内容最末、
+   * 跟着外壳一起收起；过程只有一块（没外壳）时直接跟在那一块后面。
    */
-  RunActivity?: ComponentType<ThreadRunActivityProps> | undefined
+  ProcessFooter?: ComponentType | undefined
   /**
    * 回合小结（排在最终回答之后、只为「跑完的回合」渲染）。
    *
    * client 用它挂 `elements/file-tree` 的改动文件树：一轮改了哪些文件、每个文件
    * 增删多少。**内容由宿主决定** —— 库传 `parts`，没有可小结的东西就返回 `null`。
-   * 与 `RunActivity` 不冲突：那个折的是「过程」，这个摊的是「结果」。
+   * 与过程区不冲突：那个折的是「过程」，这个摊的是「结果」。
    */
   RunSummary?: ComponentType<ThreadRunSummaryProps> | undefined
   /**
@@ -637,191 +648,217 @@ const ComposerAction: FC = () => {
   )
 }
 
+/** 收起态明细最多列几行：再多就该展开了，剩下折成「还有 N 步」 */
+const PROCESS_SUMMARY_LINES = 5
 
-/** 过程区的一段：连续的工具调用 / 推理各自成段（段上挂折叠条），其余 part 各占一段 */
-interface ProcessRun {
-  kind: 'tool' | 'reasoning' | 'single'
-  indices: number[]
+/**
+ * 明细条目 → 一行「动词 + 参数」：动词走 labels（读取 / 运行 / 已思考），参数已截断。
+ * `active` 只对思考块有意义：进行中是「思考中…」，跑完才是「已思考」—— 同一个词
+ * 两处混用就会出现「已思考」却在流式增长的怪状态。
+ */
+function formatDigestEntry(
+  entry: ProcessDigestEntry,
+  labels: AssistantLabels,
+  active = false
+): ProcessSummaryLine {
+  if (entry.kind === 'tool') {
+    return { verb: labels.timelineVerb(entry.toolName), detail: entry.detail }
+  }
+  if (entry.kind === 'thinking') {
+    return { verb: active ? labels.working : labels.reasoning(), detail: entry.hint }
+  }
+  return { verb: labels.processNote, detail: entry.text }
 }
 
 /**
- * 最终回答的起点：从末尾往回找**最后一段非空正文**，紧邻它的正文段一起算进来。
- *
- * 边界是**算出来的**，不要求模型标注「哪段是总结」（VS Code Copilot 的
- * `getFinalResponseStartIndex` 是同一思路）。找不到正文就返回 `parts.length`
- * —— 那一轮还没给出结论，整条都算过程。
+ * 收起态要显示的信息：跑的时候是「当前这一步」，结算后是「这一轮构成了什么」。
+ * 明细与构成行都从 part 现算，不读渲染结果 —— 收起与否都指向同一份事实。
  */
-function findResponseStart(parts: readonly PartLike[]): number {
-  let start = -1
-  for (let index = parts.length - 1; index >= 0; index -= 1) {
-    const part = parts[index]
-    if (part.type !== 'text' || !part.text?.trim()) continue
-    start = index
-    break
-  }
-  if (start < 0) return parts.length
-
-  while (start > 0 && parts[start - 1].type === 'text') start -= 1
-  return start
-}
-
-/** 按 part 类型切段：同类且相邻才合成一段，所以解说不影响工具段的完整性 */
-function toProcessRuns(parts: readonly PartLike[], from: number, to: number): ProcessRun[] {
-  const runs: ProcessRun[] = []
-  for (let index = from; index < to; index += 1) {
-    const type = parts[index].type
-    const kind: ProcessRun['kind'] =
-      type === 'tool-call' ? 'tool' : type === 'reasoning' ? 'reasoning' : 'single'
-    const last = runs[runs.length - 1]
-    if (last && kind !== 'single' && last.kind === kind) {
-      last.indices.push(index)
-      continue
-    }
-    runs.push({ kind, indices: [index] })
-  }
-  return runs
-}
-
-/** 段状态：有 part 在跑就是 running，否则随最后一个（与库的 `getGroupStatus` 同规则） */
-function toRunStatus(
-  parts: readonly PartLike[],
-  indices: readonly number[]
-): MessagePartStatus | ToolCallMessagePartStatus {
-  for (const index of indices) {
-    if (parts[index].status.type === 'running') return parts[index].status
-  }
-  const last = indices[indices.length - 1]
-  return parts[last].status
-}
-
-/** 段内各状态计数（`ThreadGroupPart.counts` 所需），计数之和 = indices.length */
-function toGroupCounts(
-  parts: readonly PartLike[],
-  indices: readonly number[]
-): ThreadGroupPart['counts'] {
-  let running = 0
-  let complete = 0
-  let incomplete = 0
-  let requiresAction = 0
-  for (const index of indices) {
-    switch (parts[index].status.type) {
-      case 'running':
-        running += 1
-        break
-      case 'complete':
-        complete += 1
-        break
-      case 'requires-action':
-        requiresAction += 1
-        break
-      default:
-        incomplete += 1
-        break
-    }
-  }
-  return { running, complete, incomplete, requiresAction }
-}
-
-/* ------------------------------ 整轮活动流水 ------------------------------ */
-
-interface RunActivityModel {
-  entries: RunActivityEntry[]
-  attention: ReactNode[]
-  /** running 时折叠条上显示的「最近一条活动」 */
-  latestLabel: string | undefined
-}
-
-/**
- * 把过程区摊成活动流水：解说 / 思考进条目，工具进条目（审批与失败例外），
- * 未知 part 进 attention。`latestLabel` 取最后一条有标签的条目 —— 流式中
- * 折叠条显示它，用户不用展开也知道现在在干什么。
- */
-function buildRunActivity(
-  parts: readonly PartLike[],
-  to: number,
-  renderLeaf: (index: number) => ReactNode,
-  labels: AssistantLabels
-): RunActivityModel {
-  const entries: RunActivityEntry[] = []
-  const attention: ReactNode[] = []
-  let latestLabel: string | undefined
-
-  for (const segment of toActivitySegments(parts, 0, to)) {
-    const first = segment.indices[0]
-
-    if (segment.kind === 'other') {
-      for (const index of segment.indices) attention.push(renderLeaf(index))
-      continue
-    }
-
-    if (segment.kind === 'tool') {
-      const part = parts[first]
-      if (partNeedsAttention(part)) {
-        attention.push(renderLeaf(first))
-        continue
-      }
-      const label = part.toolName ? labels.runToolActivity(part.toolName) : undefined
-      entries.push({
-        id: `tool-${part.toolCallId ?? first}`,
-        kind: 'tool',
-        label,
-        content: renderLeaf(first)
-      })
-      latestLabel = label ?? latestLabel
-      continue
-    }
-
-    if (segment.kind === 'reasoning') {
-      // 折叠条 running 时显示的是「最近一条活动」，所以这一段**还在跑**时必须给实时文案
-      // （「思考中…」）；给完成时的 `labels.reasoning()` 会退化成光秃秃的「思考」，
-      // 看起来像会话已经终止（用户反馈的原话：只剩「思考」两个字，像卡住了）。
-      const segmentRunning = toRunStatus(parts, segment.indices).type === 'running'
-      const label = segmentRunning ? labels.working : labels.reasoning()
-      entries.push({
-        id: `reasoning-${first}`,
-        kind: 'reasoning',
-        label,
-        content: segment.indices.map(function (index) {
-          return renderLeaf(index)
-        })
-      })
-      latestLabel = label
-      continue
-    }
-
-    const label = toActivityLabel(parts[segment.indices[segment.indices.length - 1]].text)
-    entries.push({
-      id: `commentary-${first}`,
-      kind: 'commentary',
-      label,
-      content: segment.indices.map(function (index) {
-        return renderLeaf(index)
-      })
+function toProcessSummary(
+  digest: ProcessDigest,
+  labels: AssistantLabels,
+  running: boolean
+): ProcessSummary {
+  const total = digest.entries.length
+  const lastIndex = total - 1
+  /**
+   * 跑的时候列**最近**几步（收起来的多半是想看「现在走到哪」）；
+   * 结算后从第一步开始列（回看「这一轮怎么走过来的」）。两头的尾巴都折成「还有 N 步」。
+   */
+  const startIndex = running ? Math.max(0, total - PROCESS_SUMMARY_LINES) : 0
+  const lines = digest.entries
+    .slice(startIndex, startIndex + PROCESS_SUMMARY_LINES)
+    .map(function (entry, offset) {
+      return formatDigestEntry(entry, labels, running && startIndex + offset === lastIndex)
     })
-    latestLabel = label ?? latestLabel
-  }
+  const last = digest.entries[lastIndex]
+  const current = last ? formatDigestEntry(last, labels, running) : undefined
+  const hidden = Math.max(0, total - lines.length)
+  /**
+   * 结算后的构成行只在**清单列不全**时给：5 条以内清单已经把工具 / 思考 / 说明逐条摆出来了，
+   * 头顶再报一遍「4 次工具 · 1 段思考」就是同一件事说两遍；超过 5 条才用它交代被折掉的总量。
+   */
+  const detail = running
+    ? current && [current.verb, current.detail].filter(Boolean).join(' · ')
+    : hidden > 0
+      ? labels.processDetail(digest.tools, digest.thoughts, digest.notes)
+      : ''
 
-  return { entries, attention, latestLabel }
+  return {
+    detail: detail || undefined,
+    lines,
+    hidden
+  }
 }
 
-/** 内置过程摘要壳：回合结束后默认收起，点开回看（流式中不挂这层） */
-function DefaultProcessGroup(
-  props: PropsWithChildren<{ group: ThreadGroupPart; running: boolean }>
-) {
+/**
+ * 收起态的明细清单：把整轮过程摊成几行（工具一件一条、思考一段一条），
+ * 让「收起」不至于变成「什么都不知道」。点一下展开，展开后这里就不排了 ——
+ * 明细由各块自己的折叠条接管，同一信息不重复摆两遍。
+ */
+function ProcessOutline(props: { summary?: ProcessSummary; onOpen: () => void }) {
   const labels = useAssistantLabels()
+  const lines = props.summary?.lines ?? []
+  if (lines.length === 0) return null
 
   return (
-    <ReasoningRoot
-      variant="ghost"
-      defaultOpen={false}>
-      <ReasoningTrigger
-        active={false}
-        label={labels.process(props.group.indices.length)}
-      />
-      <ReasoningContent>
-        <ReasoningText>{props.children}</ReasoningText>
-      </ReasoningContent>
-    </ReasoningRoot>
+    <div className="ps-4">
+      <button
+        type="button"
+        data-slot="aui_assistant-process-outline"
+        aria-expanded={false}
+        className="text-muted-foreground hover:text-foreground flex w-full min-w-0 flex-col gap-0.5 pb-0.5 text-start text-xs transition-colors"
+        onClick={props.onOpen}>
+        {lines.map(function (line, index) {
+          return (
+            <span
+              key={index}
+              className="flex min-w-0 items-baseline gap-1.5">
+              <span className="aui_assistant-process-outline-verb shrink-0 opacity-80">
+                {line.verb}
+              </span>
+              {line.detail ? (
+                <span
+                  title={line.detail}
+                  className="aui_assistant-process-outline-detail min-w-0 truncate opacity-60">
+                  {line.detail}
+                </span>
+              ) : null}
+            </span>
+          )
+        })}
+        {props.summary && props.summary.hidden > 0 ? (
+          <span className="aui_assistant-process-outline-more opacity-50">
+            {labels.processMore(props.summary.hidden)}
+          </span>
+        ) : null}
+      </button>
+    </div>
+  )
+}
+
+/**
+ * 内置的总折叠外壳：过程按块排在里面，外层只负责「整轮收成一行」。
+ *
+ * 开合：跑的时候自动展开（能看见在干什么），结算后自动收起；用户点过之后以用户为准。
+ * 自动收起**晚一帧**并先钉滚动（`useCollapseScrollPin`）—— 同一 commit 收起来，
+ * 面板高度已归零，贴底读回答的人会看到正文被顶上跳一截。
+ * 内容不走 `ReasoningText`（那是给思考正文准备的，带 60vh 内层滚动）——
+ * 这里装的是会自己折叠的块，不需要第二层滚动条。
+ */
+export function DefaultProcessGroup(
+  props: PropsWithChildren<{
+    group: ThreadGroupPart
+    running: boolean
+    steps: number
+    seconds?: number
+    summary?: ProcessSummary
+    attention?: boolean
+  }>
+) {
+  const labels = useAssistantLabels()
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const armCollapsePin = useCollapseScrollPin(rootRef)
+  /**
+   * 用户在中间点过就以用户为准，否则跟着「这一轮是否在跑」走：
+   * 跑的时候要看，跑完不想看（Cursor / Copilot 的手感）。
+   */
+  const [userOpen, setUserOpen] = useState<boolean | null>(null)
+  /**
+   * 「该展开」的时机：在跑，或者卡在等人处理。审批按钮（允许 / 拒绝）是必须点到的，
+   * 自动收起来等于把它藏了 —— 这一条与「跑完就收」不冲突，只是不把 actionable 的状态算成跑完。
+   */
+  const wantsOpen = props.running || props.attention === true
+  /**
+   * 自动开合**晚一帧**生效：结算时先把滚动钉住，再由下一帧塌下去。
+   * 同一 commit 里收起来，面板高度已经归零，`armCollapsePin` 量不到东西 ——
+   * 贴底读回答的人会看到正文被顶上跳一截。
+   */
+  const [autoOpen, setAutoOpen] = useState(wantsOpen)
+  const isOpen = userOpen ?? autoOpen
+
+  // 用 layout effect（而不是 effect）：钉完立刻塌，用户不会先看到一帧完整过程
+  useLayoutEffect(
+    function () {
+      if (autoOpen === wantsOpen) return
+      if (!wantsOpen && userOpen === null) armCollapsePin()
+      // 不是「用 effect 同步状态」，而是把自动收起推迟到能测量之后
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 见上
+      setAutoOpen(wantsOpen)
+    },
+    [armCollapsePin, autoOpen, wantsOpen, userOpen]
+  )
+
+  /**
+   * 「N 步」只在**没有明细清单**时写：收起后清单已经把每一步列出来了，再报一次总数
+   * 就是同一件事说两遍（工具 + 思考 + 说明正好等于步数）。
+   */
+  const showSteps = props.running || (props.summary?.lines.length ?? 0) === 0
+  /**
+   * 折叠行那一格只在「没有别处能读到」时才写：
+   * - 跑着 + 展开：给**当前这一步**；
+   * - 跑着 + 收起：清单最后一行就是当前这一步，不复述；
+   * - 结算 + 收起：清单列得全就没有 detail，只有被截断时才有构成行；
+   * - 结算 + 展开：块就在下面，构成行是同一份内容的复述。
+   */
+  const showDetail = props.running ? isOpen : !isOpen
+  const detail = showDetail ? props.summary?.detail : undefined
+
+  return (
+    <div
+      ref={rootRef}
+      data-slot="aui_assistant-process-shell"
+      className="min-w-0">
+      <ReasoningRoot
+        variant="ghost"
+        open={isOpen}
+        onOpenChange={function (next) {
+          setUserOpen(next)
+        }}
+        streaming={props.running}>
+        <ReasoningTrigger
+          active={props.running}
+          label={labels.process(showSteps ? props.steps : undefined, props.seconds)}
+          detail={detail}
+        />
+        <ReasoningContent aria-busy={props.running}>
+          <div
+            data-slot="aui_assistant-process-blocks"
+            className="flex min-w-0 flex-col gap-1 pt-1">
+            {props.children}
+          </div>
+        </ReasoningContent>
+        {/* 收起时仍要交代「刚才走了哪几步」：展开后由各块的折叠条接管，这里不再重复 */}
+        {isOpen ? null : (
+          <ProcessOutline
+            summary={props.summary}
+            onOpen={function () {
+              setUserOpen(true)
+            }}
+          />
+        )}
+      </ReasoningRoot>
+    </div>
   )
 }
 
@@ -861,7 +898,8 @@ const AssistantRunStatus: FC = () => {
   })
   const note = findRunNote(status, isLast, labels)
   // 时间挂在「这一轮结束那一刻」：还在跑时它没有意义（会在每次写入后跳）
-  const moment = status?.type === 'running' ? undefined : findMessageMoment(createdAt, totalStreamTime)
+  const moment =
+    status?.type === 'running' ? undefined : findMessageMoment(createdAt, totalStreamTime)
   const stamp = formatMessageTime(moment)
   if (!note && !stamp) return null
 
@@ -900,10 +938,11 @@ const AssistantRunStatus: FC = () => {
 }
 
 /**
- * 助手消息 = [过程折叠区][最终回答]。
+ * 助手消息 = 过程区（总折叠 + 子折叠）+ 最终回答。
  *
- * 过程区装「最终回答之前的一切」并保持**原时序**（`toProcessRuns` 只把同类相邻的合并），
- * 最终回答常驻可见 —— 见 `ThreadComponents.ProcessGroup` 的说明。
+ * 两层各管一件事：外层（`ProcessGroup`）收起 = 整轮过程收成一行；里层每块自己开合
+ * （思考一段一条、工具一件一行，中间解说直接摊开）。只留外层就看不见走了哪几步，
+ * 只留里层在几十步的一轮里会摊满一屏 —— 两层都要，才是 Cursor 那种分层读法。
  *
  * 叶子 part 统一走 `MessagePrimitive.PartByIndex`：注册过的工具 / data UI 由库优先接管
  * （`MessagePartComponent` 内部查 `toolUIs` / `dataRenderers`），这里只提供兜底组件。
@@ -914,8 +953,8 @@ const AssistantMessage: FC = () => {
     ToolGroup,
     ReasoningGroup,
     ProcessGroup: ProcessShell = DefaultProcessGroup,
-    RunActivity: RunActivityShell,
-    RunSummary: RunSummaryShell
+    RunSummary: RunSummaryShell,
+    ProcessFooter
   } = useContext(ThreadComponentsContext)
 
   const labels = useAssistantLabels()
@@ -928,11 +967,10 @@ const AssistantMessage: FC = () => {
   const messageStatus = useAuiState(function (state) {
     return state.message.status
   })
-  /** 回合的结算时长（毫秒）：活动流水折叠条拿它写「已工作 4.8s」 */
+  /** 哪一步做完的结算时长（毫秒）：总折叠行上写「· 5 秒」 */
   const totalStreamTime = useAuiState(function (state) {
     return state.message.metadata.timing?.totalStreamTime
   })
-
   const responseStart = findResponseStart(parts)
   const processRuns = useMemo(
     function () {
@@ -975,37 +1013,15 @@ const AssistantMessage: FC = () => {
     const children = run.indices.map(function (index) {
       return renderLeaf(index)
     })
+    // 工具件件平铺：每张工具卡自己就是一条折叠行（`ToolFallback.Root`），
+    // 再套一层「N 次工具调用」只是把这一轮的手脚又收成一条 —— 宿主显式要分组时才给（`ToolGroup`）。
     let content = <Fragment>{children}</Fragment>
 
-    if (run.kind === 'tool') {
-      // 流式中平铺工具卡：外层 Collapsible 在受控开合 + 高度动画下容易把内容裁成 0，
-      // 看起来像「没有工具记录」。回合结束后再由 ProcessShell / ToolGroup 收纳。
-      if (isRunning) {
-        content = <Fragment>{children}</Fragment>
-      } else {
-        const group: ThreadGroupPart = {
-          type: 'group-tool',
-          status: toRunStatus(parts, run.indices),
-          counts: toGroupCounts(parts, run.indices),
-          indices: run.indices
-        }
-        content = ToolGroup ? (
-          <ToolGroup group={group}>{children}</ToolGroup>
-        ) : (
-          <ToolGroupRoot variant="ghost">
-            <ToolGroupTrigger
-              count={run.indices.length}
-              active={group.status.type === 'running'}
-            />
-            <ToolGroupContent>{children}</ToolGroupContent>
-          </ToolGroupRoot>
-        )
-      }
-    } else if (run.kind === 'reasoning') {
+    if (run.kind === 'reasoning') {
       const group: ThreadGroupPart = {
         type: 'group-reasoning',
         status: toRunStatus(parts, run.indices),
-        counts: toGroupCounts(parts, run.indices),
+        counts: toRunCounts(parts, run.indices),
         indices: run.indices
       }
       const running = group.status.type === 'running'
@@ -1024,41 +1040,67 @@ const AssistantMessage: FC = () => {
           </ReasoningContent>
         </ReasoningRoot>
       )
+    } else if (run.kind === 'tool' && ToolGroup && run.indices.length > 1) {
+      // 可选：宿主传了 `ToolGroup` 就把连续工具收成一组（默认不分组）
+      const group: ThreadGroupPart = {
+        type: 'group-tool',
+        status: toRunStatus(parts, run.indices),
+        counts: toRunCounts(parts, run.indices),
+        indices: run.indices
+      }
+      content = <ToolGroup group={group}>{children}</ToolGroup>
     }
 
     return <Fragment key={runIndex}>{content}</Fragment>
   }
 
-  /**
-   * 只有**动过手**的回合才加外层折叠区：一次「思考 → 答」不该出现两条折叠条
-   * （里层那条思考条自己就够用，与改造前一致）。VS Code Copilot 的口径也是如此
-   * —— 步数 < 2 的回合不折。
-   */
-  const hasToolCalls = processIndices.some(function (index) {
-    return parts[index].type === 'tool-call'
-  })
-
-  /**
-   * 整轮活动流水：app 传了 `RunActivity` 才走这条路径。
-   * 只有「动过手」的回合才收成一条 —— 一次「思考 → 答」没有展开的必要，
-   * 里层那条思考条自己就够用（与改造前一致）。
-   */
-  const usesRunActivity = RunActivityShell !== undefined && hasToolCalls
-  const runActivity = usesRunActivity
-    ? buildRunActivity(parts, responseStart, renderLeaf, labels)
-    : null
   const runStatus = toRunActivityStatus(messageStatus)
   const runIsRunning = runStatus === 'running'
-  const runDurationLabel =
-    runIsRunning || totalStreamTime === undefined || totalStreamTime <= 0
-      ? undefined
-      : formatRunDuration(totalStreamTime)
-  // running 时折叠条显示「最近一条活动」：用户不用展开就知道现在在跑什么
-  const runStatusLabel = runIsRunning
-    ? (runActivity?.latestLabel ?? labels.runWorking)
-    : findRunStatusLabel(runStatus, labels, runDurationLabel !== undefined)
+  /**
+   * 过程占几行（思考一段一行、工具**一件一行**、解说各一行）：总折叠上的「N 步」按行算。
+   * 按块算会把「连续 5 次工具调用」写成「1 步」，与展开后看到的五行对不上。
+   */
+  const processSteps = toProcessRows(processRuns)
+  /**
+   * 总折叠只在过程不止一行时套：一次「思考 → 答」只有一行，
+   * 外面再套一层「过程 · 1 步」纯属噪音。
+   */
+  const useProcessShell = processSteps > 1
+  /**
+   * 结算后才写「用了多久」：跑的时候这个数一跳一跳，写进总折叠行只是噪音；
+   * 至少 1 秒（快到不足 1 秒的回合显示「0 秒」比不写还奇怪）。
+   */
+  const processSeconds =
+    !runIsRunning && totalStreamTime !== undefined && totalStreamTime > 0
+      ? Math.max(1, Math.round(totalStreamTime / 1000))
+      : undefined
+  /** 过程块本身：每一块自己折叠，外面套不套壳都一样排 */
+  const processBlocks = processRuns.map(renderRun)
+  /** 收起后要显示的详细信息：构成 + 逐步明细（工具一件一条） */
+  const processDigest = useMemo(
+    function () {
+      return toProcessDigest(parts, processRuns)
+    },
+    [parts, processRuns]
+  )
+  const processSummary = useMemo(
+    function () {
+      return toProcessSummary(processDigest, labels, runIsRunning)
+    },
+    [processDigest, labels, runIsRunning]
+  )
+  /**
+   * 过程区尾注（首字 / 速度 / token）：跟着过程区走，套不套外壳都挂、收起时一起藏。
+   * 过程为空（直接就是一段回答）时不给 —— 那时这些指标只是在回答头顶多一行数字。
+   */
+  const processFooter =
+    ProcessFooter && processSteps > 0 ? (
+      <div className="mt-1">
+        <ProcessFooter />
+      </div>
+    ) : null
 
-  /** 最终回答：两条渲染路径共用，常驻可见 */
+  /** 最终回答：按原时序排在最末，常驻可见 */
   const finalAnswer = parts.slice(responseStart).map(function (_part, offset) {
     return renderLeaf(responseStart + offset)
   })
@@ -1069,9 +1111,12 @@ const AssistantMessage: FC = () => {
   const lastPart = parts[parts.length - 1]
   const lastPartRunning = lastPart !== undefined && lastPart.status.type === 'running'
   const showIndicator =
-    !usesRunActivity &&
-    isRunning &&
-    (lastPart === undefined || (lastPart.type !== 'text' && !lastPartRunning))
+    isRunning && (lastPart === undefined || (lastPart.type !== 'text' && !lastPartRunning))
+
+  // 供「最占上下文 Top 5」跳转定位（与 user 消息的 data-user-message-id 对齐）
+  const messageId = useAuiState(function (state) {
+    return state.message.id
+  })
 
   const ACTION_BAR_PT = 'pt-1.5'
   // Keep the action bar inside the contained root's paint box, then cancel its reserved space in flow.
@@ -1081,113 +1126,94 @@ const AssistantMessage: FC = () => {
     <MessagePrimitive.Root
       data-slot="aui_assistant-message-root"
       data-role="assistant"
+      data-message-id={messageId}
       className="relative -mb-7.5 pb-7.5">
       <ChatEnter
         data-slot="aui_assistant-message-enter"
         className="min-w-0"
         offset={5}>
-      <div
-        data-slot="aui_assistant-message-content"
-        className="text-foreground px-1 text-sm leading-7 wrap-break-word">
-        {/*
-         * 对齐 Cursor / Copilot：流式中每段思考/工具扁平罗列，段结束即各自收起；
-         * 整轮结束后才收成一条「过程 · N 步」摘要（可点开回看），勿用外层壳挂到整轮 running。
-         */}
-        {usesRunActivity && runActivity ? (
-          /*
-           * 活动流水：一轮一条折叠条（「已工作 4.8s」/ 运行中是「最近一条活动」），
-           * 展开是解说 / 思考 / 工具的原始时序；最终回答由元素排在折叠区之后。
-           * 审批与失败的工具进 attention，永远在折叠区外面。
-           */
-          <RunActivityShell
-            status={runStatus}
-            statusLabel={runStatusLabel}
-            durationLabel={runDurationLabel}
-            entries={runActivity.entries}
-            attention={
-              runActivity.attention.length > 0 ? (
-                <div
-                  data-slot="aui_assistant-message-attention"
-                  className="mb-1 flex flex-col gap-1">
-                  {runActivity.attention}
-                </div>
-              ) : undefined
-            }
-            running={isRunning}>
-            {finalAnswer}
-          </RunActivityShell>
-        ) : (
-          <>
-            {processIndices.length > 0 ? (
-              hasToolCalls && !isRunning ? (
-                <ProcessShell
-                  group={{
-                    type: 'group-process',
-                    status: toRunStatus(parts, processIndices),
-                    counts: toGroupCounts(parts, processIndices),
-                    indices: processIndices
-                  }}
-                  running={false}>
-                  {processRuns.map(renderRun)}
-                </ProcessShell>
-              ) : (
-                processRuns.map(renderRun)
-              )
-            ) : null}
+        <div
+          data-slot="aui_assistant-message-content"
+          className="text-foreground px-1 text-sm leading-7 wrap-break-word">
+          {/*
+           * 过程区 = **总折叠 + 子折叠**。
+           * 外层（`ProcessGroup`）只在过程不止一行时出现：收起它 = 一行构成 + 逐步明细；
+           * 展开后每块自己还能收（思考一段一条、工具一件一行）。最终回答在外壳外面，永远可见。
+           */}
+          {useProcessShell ? (
+            <ProcessShell
+              group={{
+                type: 'group-process',
+                status: toRunStatus(parts, processIndices),
+                counts: toRunCounts(parts, processIndices),
+                indices: processIndices
+              }}
+              running={runIsRunning}
+              steps={processSteps}
+              seconds={processSeconds}
+              summary={processSummary}
+              attention={runStatus === 'requires-action'}>
+              {processBlocks}
+              {processFooter}
+            </ProcessShell>
+          ) : (
+            <Fragment>
+              {processBlocks}
+              {processFooter}
+            </Fragment>
+          )}
 
-            {finalAnswer}
-          </>
-        )}
+          {finalAnswer}
 
-        {/*
-         * 回合小结：排在最终回答之后，**只在回合结束时**挂 —— 流式中途挂上去会跟着
-         * 每次写入闪变（还没写完的文件先出现、再跳数字）；等审批时也不算结束。
-         * 宿主组件自己决定有没有内容，没有改过文件就返回 null，这里不会留下空壳。
-         */}
-        {RunSummaryShell && runStatus !== 'running' && runStatus !== 'requires-action' ? (
-          <div
-            data-slot="aui_assistant-message-run-summary"
-            className="mt-3">
-            <RunSummaryShell
-              parts={parts}
-              status={runStatus}
-            />
-          </div>
-        ) : null}
+          {/*
+           * 回合小结：排在最终回答之后，**只在回合结束时**挂 —— 流式中途挂上去会跟着
+           * 每次写入闪变（还没写完的文件先出现、再跳数字）；等审批时也不算结束。
+           * 宿主组件自己决定有没有内容，没有改过文件就返回 null，这里不会留下空壳。
+           */}
+          {RunSummaryShell && runStatus !== 'running' && runStatus !== 'requires-action' ? (
+            <div
+              data-slot="aui_assistant-message-run-summary"
+              className="mt-3 -mx-1">
+              <RunSummaryShell
+                parts={parts}
+                status={runStatus}
+              />
+            </div>
+          ) : null}
 
-        {showIndicator ? (
-          // 轻量指示器即可：勿再套 Collapsible/ReasoningRoot，
-          // 流式时 part 频繁切换会与侧栏受控折叠叠成 Maximum update depth。
-          <div
-            data-slot="aui_assistant-message-indicator"
-            className="text-muted-foreground mt-1 flex max-w-fit items-center gap-2 py-1 text-sm"
-            aria-label={labels.working}
-            aria-live="polite">
-            <Icon
-              icon="lucide:sparkles"
-              className="size-3.5 shrink-0 opacity-70"
-            />
-            <span className="shimmer motion-reduce:animate-none leading-none">
-              {labels.working}
-            </span>
-          </div>
-        ) : null}
+          {showIndicator ? (
+            // 轻量指示器即可：勿再套 Collapsible/ReasoningRoot，
+            // 流式时 part 频繁切换会与侧栏受控折叠叠成 Maximum update depth。
+            <div
+              data-slot="aui_assistant-message-indicator"
+              className="text-muted-foreground mt-1 flex max-w-fit items-center gap-2 py-1 text-sm"
+              aria-label={labels.working}
+              aria-live="polite">
+              <Icon
+                icon="lucide:sparkles"
+                className="size-3.5 shrink-0 opacity-70"
+              />
+              <span className="shimmer motion-reduce:animate-none leading-none">
+                {labels.working}
+              </span>
+            </div>
+          ) : null}
 
-        <MessageError />
+          <MessageError />
 
-        {/*
-         * 回合尾注：跑完 / 停止 / 截断 / 中断各给一句话。
-         * 正文末尾没有字的时候，用户分不清「模型说完了」和「界面悄悄断了」。
-         */}
-        <AssistantRunStatus />
-      </div>
+          {/*
+           * 回合尾注：跑完 / 停止 / 截断 / 中断各给一句话。
+           * 正文末尾没有字的时候，用户分不清「模型说完了」和「界面悄悄断了」。
+           */}
+          <AssistantRunStatus />
+        </div>
 
-      <div
-        data-slot="aui_assistant-message-footer"
-        className={cn('ms-2 flex items-center', ACTION_BAR_HEIGHT)}>
-        <BranchPicker />
-        <AssistantActionBar />
-      </div>
+        <div
+          data-slot="aui_assistant-message-footer"
+          className={cn('ms-2 flex items-center', ACTION_BAR_HEIGHT)}>
+          <BranchPicker />
+          <AssistantActionBar />
+        </div>
       </ChatEnter>
     </MessagePrimitive.Root>
   )
@@ -1324,82 +1350,75 @@ const UserTextPart: TextMessagePartComponent = function UserTextPart() {
   )
 }
 
-/** 气泡默认封顶 11 行左右：历史会话里一屏能多看几条，超了就收起来给「展开全文」 */
+/** 气泡封顶 11 行左右：历史会话里一屏能多看几条；超出的部分在框里滚，不做展开 / 收起 */
 const USER_BUBBLE_MAX_HEIGHT_PX = 264
 
 /**
- * 用户气泡正文：超过封顶高度就裁掉并给一个展开开关。
+ * 用户气泡正文：长消息**一律封顶 264px 并在框里滚动**，不做展开 / 收起。
  *
- * 只在**折叠态**量 `scrollHeight`（展开后两者相等，再量会把按钮收回去）；
- * 量的是外层受 `max-height` 约束的盒子，所以 `scrollHeight` 仍是全文高度。
+ * 高度既然已经限死，多一颗开关只会添乱 —— 它得挂在框的下沿才顺手，而框一长高就把它
+ * 顶下去几百像素（这就是「跳」的来源）；挂上面又反直觉。所以干脆不要开关：滚轮/触摸
+ * 在气泡内部滑到底就能读完，底部渐隐负责提示「还有」。
+ *
+ * 量法：直接跟封顶高度比。max-height 是常量，`scrollHeight` 就是全文高度；别比
+ * `clientHeight` —— 没封顶时两者相等，永远量不出溢出。正文长度进依赖，改过的重量一次。
  */
 const UserMessageBody: FC = () => {
-  const labels = useAssistantLabels()
-  const [expanded, setExpanded] = useState(false)
   const [overflowing, setOverflowing] = useState(false)
+  /** 滚到底就撤掉渐隐，否则最后一行永远被那 40px 盖着 */
+  const [atBottom, setAtBottom] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  /** 正文长度：编辑过的消息要重量一次；数字选择器取值稳定，不逐字重渲染 */
+  const contentLength = useAuiState(function (state) {
+    let total = 0
+    for (const part of state.message.parts) {
+      if (part.type === 'text') total += part.text.length
+    }
+    return total
+  })
 
   useLayoutEffect(
     function measure() {
       const node = ref.current
-      if (!node || expanded) return
-      setOverflowing(node.scrollHeight > node.clientHeight + 1)
+      if (!node) return
+      setOverflowing(node.scrollHeight > USER_BUBBLE_MAX_HEIGHT_PX + 1)
     },
-    [expanded]
+    [contentLength]
   )
 
   return (
     <div
       data-slot="aui_user-message-body-shell"
-      className="relative min-w-0">
-      <div
-        ref={ref}
-        data-slot="aui_user-message-body"
-        data-expanded={expanded || undefined}
-        data-overflowing={overflowing || undefined}
-        style={
-          overflowing && !expanded ? { maxHeight: `${USER_BUBBLE_MAX_HEIGHT_PX}px` } : undefined
-        }
-        className={[
-          'aui-user-message-content text-foreground wrap-break-word empty:hidden',
-          'rounded-lg bg-secondary px-4 py-3 text-sm leading-6 shadow-xs',
-          'overflow-hidden'
-        ].join(' ')}>
-        <MessagePrimitive.Parts
-          components={{ Text: UserTextPart, File: UserFilePart, Image: UserImagePart }}
-        />
-      </div>
-      {/* 裁断处渐隐，避免看起来像「消息就到这儿」 */}
-      {overflowing && !expanded ? (
+      className="min-w-0">
+      {/* 单独包一层 relative：渐隐只盖气泡本身，不外溢 */}
+      <div className="relative">
         <div
-          aria-hidden
-          data-slot="aui_user-message-fade"
-          className="from-secondary pointer-events-none absolute inset-x-0 bottom-0 h-10 rounded-b-lg bg-linear-to-t to-transparent"
-        />
-      ) : null}
-      {overflowing ? (
-        <button
-          type="button"
-          data-slot="aui_user-message-expand"
-          aria-expanded={expanded}
-          onClick={function () {
-            setExpanded(function (value) {
-              return !value
-            })
-          }}
-          className={cn(
-            'text-muted-foreground hover:text-foreground mt-1 ms-1 inline-flex items-center gap-1 rounded text-xs',
-            'transition-colors duration-150 underline-offset-2 hover:underline',
-            CHAT_EASE_CLASS,
-            'motion-reduce:transition-none'
-          )}>
-          <Icon
-            icon={expanded ? 'lucide:chevron-up' : 'lucide:chevron-down'}
-            className="size-3"
+          ref={ref}
+          data-slot="aui_user-message-body"
+          data-overflowing={overflowing || undefined}
+          style={{ maxHeight: USER_BUBBLE_MAX_HEIGHT_PX }}
+          className={[
+            'aui-user-message-content text-foreground wrap-break-word empty:hidden',
+            'rounded-lg bg-secondary px-4 py-3 text-sm leading-6 shadow-xs',
+            'overflow-y-auto'
+          ].join(' ')}
+          onScroll={function trackFade(event) {
+            const node = event.currentTarget
+            setAtBottom(node.scrollTop + node.clientHeight >= node.scrollHeight - 1)
+          }}>
+          <MessagePrimitive.Parts
+            components={{ Text: UserTextPart, File: UserFilePart, Image: UserImagePart }}
           />
-          {expanded ? labels.userMessageCollapse : labels.userMessageExpand}
-        </button>
-      ) : null}
+        </div>
+        {/* 下面还有内容时压一层渐隐，滚到底自动消失 */}
+        {overflowing && !atBottom ? (
+          <div
+            aria-hidden
+            data-slot="aui_user-message-fade"
+            className="from-secondary pointer-events-none absolute inset-x-0 bottom-0 h-10 rounded-b-lg bg-linear-to-t to-transparent"
+          />
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -1439,15 +1458,18 @@ const UserMessage: FC = () => {
             )}>
             <UserActionBar />
           </div>
-          {/* 消息时间：年月日时分秒，端点对齐气泡右边 */}
-          {stamp ? (
-            <time
-              data-slot="aui_user-message-time"
-              dateTime={toDateTimeAttr(createdAt)}
-              className="text-muted-foreground/70 mt-1 block text-end font-mono text-xs tabular-nums">
-              {stamp}
-            </time>
-          ) : null}
+          {/* 元信息行：模式徽标 + 消息时间（年月日时分秒），端点对齐气泡右边 */}
+          <div className="mt-1 flex items-center justify-end gap-2">
+            <UserMessageBadgeSlot />
+            {stamp ? (
+              <time
+                data-slot="aui_user-message-time"
+                dateTime={toDateTimeAttr(createdAt)}
+                className="text-muted-foreground/70 block font-mono text-xs tabular-nums">
+                {stamp}
+              </time>
+            ) : null}
+          </div>
         </div>
 
         <BranchPicker

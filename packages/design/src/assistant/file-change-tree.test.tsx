@@ -11,7 +11,12 @@ const FILES = [
 ]
 
 function markup(props: Record<string, unknown> = {}) {
-  return renderToStaticMarkup(<FileChangeTree nodes={buildChangeNodes(FILES)} {...props} />)
+  return renderToStaticMarkup(
+    <FileChangeTree
+      nodes={buildChangeNodes(FILES)}
+      {...props}
+    />
+  )
 }
 
 function count(html: string, needle: string): number {
@@ -33,7 +38,9 @@ describe('FileChangeTree', function () {
   })
 
   it('净增删就算为 0 也渲染（表头是「一共改了多少」）', function () {
-    const html = renderToStaticMarkup(<FileChangeTree nodes={buildChangeNodes([{ path: 'a.ts' }])} />)
+    const html = renderToStaticMarkup(
+      <FileChangeTree nodes={buildChangeNodes([{ path: 'a.ts' }])} />
+    )
     expect(html).toContain('>+0<')
     expect(html).toContain('>−0<')
   })
@@ -60,6 +67,14 @@ describe('FileChangeTree', function () {
     expect(count(html, 'data-slot="file-change-tree-row"')).toBe(2)
     // 表头仍然按全量统计
     expect(html).toContain('3 files changed')
+  })
+
+  it('宽度与 composer 等宽：占满消息列，没有写死的像素上限', function () {
+    const html = markup()
+    expect(html).toContain('w-full')
+    // 曾经是 `max-w-sm`（384px 硬上限），40+ 字符的目录表头只能截断
+    expect(html).not.toContain('max-w-sm')
+    expect(html).not.toContain('w-fit')
   })
 
   it('instant 时不挂入场动画', function () {

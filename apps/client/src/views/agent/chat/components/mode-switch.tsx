@@ -72,17 +72,17 @@ function AgentModeSwitch() {
           icon={current.icon}
           className="size-3.5 shrink-0"
         />
-        <span className="min-w-0 max-w-[3.5rem] truncate sm:max-w-[5rem] md:max-w-none">
+        <span className="hidden min-w-0 max-w-[5rem] truncate @min-[29rem]:inline @min-[42rem]:max-w-none">
           {current.label}
         </span>
         {mode === 'goal' ? (
-          <span className="text-violet-700 dark:text-violet-300 shrink-0 font-medium tabular-nums">
+          <span className="text-violet-700 dark:text-violet-300 hidden shrink-0 font-medium tabular-nums @min-[29rem]:inline">
             · {budget} 轮
           </span>
         ) : null}
         <Icon
           icon="lucide:chevron-down"
-          className="size-3.5 shrink-0 opacity-70"
+          className="hidden size-3.5 shrink-0 opacity-70 @min-[29rem]:block"
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent

@@ -76,7 +76,7 @@
     "./assistant/tool-call-state": "./src/assistant/tool-call-state.ts",
     "./assistant/thread-day": "./src/assistant/thread-day.ts",
     "./assistant/message-time": "./src/assistant/message-time.ts",
-    "./assistant/run-activity-state": "./src/assistant/run-activity-state.ts",
+    "./assistant/process-state": "./src/assistant/process-state.ts",
     "./assistant/tool-timeline-state": "./src/assistant/tool-timeline-state.ts",
     "./assistant/file-change-tree-state": "./src/assistant/file-change-tree-state.ts",
     "./assistant/agent-plan-state": "./src/assistant/agent-plan-state.ts",

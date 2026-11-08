@@ -20,3 +20,15 @@ describe('思考折叠条文案', function () {
     expect(ASSISTANT_LABELS_ZH.reasoning?.(3)).not.toContain('中')
   })
 })
+
+describe('活动流水的工具折叠条文案', function () {
+  it('已知工具名走中文标题，不再把 snake_case 甩到脸上', function () {
+    expect(ASSISTANT_LABELS_ZH.runToolActivity?.('read_file')).toBe('读取文件')
+    expect(ASSISTANT_LABELS_ZH.runToolActivity?.('execute_javascript')).toBe('执行代码')
+    expect(ASSISTANT_LABELS_ZH.runToolActivity?.('app_browser_read')).toBe('读取网页')
+  })
+
+  it('未收录的第三方工具原样保留，前面补「调用」', function () {
+    expect(ASSISTANT_LABELS_ZH.runToolActivity?.('mcp__foo__bar')).toBe('调用 mcp__foo__bar')
+  })
+})
