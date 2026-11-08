@@ -1,4 +1,3 @@
-import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import type { KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
@@ -65,6 +64,41 @@ function findPositionClass(
   return `${y} left-1/2 -translate-x-1/2`
 }
 
+/**
+ * 折叠钮的默认字形：一片**异形**的波浪剪影（不是线、也不套方框）。
+ *
+ * - 形体本身就是要点的东西：上下两个波峰一左一右，像一片被风掀起来的叶子 / 一段水流；
+ * - 竖向分隔条（`orientation === 'horizontal'`）上是竖剪影；横向分隔条转 90°；
+ * - 波峰朝向**会被收起的那一侧**：`start` 侧收起时上峰朝左、展开时朝右，`end` 侧相反 ——
+ *   方向由镜像给出，不必再画箭头；
+ * - 填充用 `currentColor`，颜色由钮的状态给（default → hover → active）。
+ */
+function CollapseWave(props: {
+  orientation: 'horizontal' | 'vertical'
+  side: 'start' | 'end'
+  isExpandAction: boolean
+}) {
+  // 收起 = 朝向本侧，展开 = 朝向另一侧；`start` 侧不镜像，`end` 侧镜像
+  const mirrored = (props.side === 'start') === props.isExpandAction
+  return (
+    <svg
+      data-slot="splitter-collapse-wave"
+      viewBox="0 0 10 34"
+      aria-hidden
+      className={cn(
+        'h-7 w-2.5',
+        props.orientation === 'vertical' && 'rotate-90',
+        mirrored && '-scale-x-100'
+      )}>
+      {/* 上下两个波峰反向：上峰朝右、下峰朝左，中段收成一点 */}
+      <path
+        d="M5 0C9.4 7 9.4 11 5 17C0.6 23 0.6 27 5 34C9.4 27 9.4 23 5 17C0.6 11 0.6 7 5 0Z"
+        fill="currentColor"
+        fillOpacity="0.55"
+      />
+    </svg>
+  )
+}
 function CollapseButton(props: {
   side: 'start' | 'end'
   orientation: 'horizontal' | 'vertical'
@@ -105,30 +139,13 @@ function CollapseButton(props: {
     )
   }
 
-  let icon = config?.icon ?? globalIcon
-  if (!icon) {
-    if (orientation === 'horizontal') {
-      const name =
-        side === 'start'
-          ? isExpandAction
-            ? 'lucide:chevron-right'
-            : 'lucide:chevron-left'
-          : isExpandAction
-            ? 'lucide:chevron-left'
-            : 'lucide:chevron-right'
-      icon = <Icon icon={name} className="size-3.5" />
-    } else {
-      const name =
-        side === 'start'
-          ? isExpandAction
-            ? 'lucide:chevron-down'
-            : 'lucide:chevron-up'
-          : isExpandAction
-            ? 'lucide:chevron-up'
-            : 'lucide:chevron-down'
-      icon = <Icon icon={name} className="size-3.5" />
-    }
-  }
+  const icon = config?.icon ?? globalIcon ?? (
+    <CollapseWave
+      orientation={orientation}
+      side={side}
+      isExpandAction={isExpandAction}
+    />
+  )
 
   return (
     <button
@@ -136,8 +153,11 @@ function CollapseButton(props: {
       tabIndex={0}
       aria-label={isExpandAction ? '展开面板' : '折叠面板'}
       className={cn(
-        // 黑白中性：跟主题 token，不绑 primary
-        'bg-background text-foreground border-border hover:bg-muted absolute z-20 flex size-5 items-center justify-center rounded-sm border shadow-sm transition-[opacity,background-color,color]',
+        // 不画框也不画底：异形剪影自己就是按钮，只留一块透明热区。
+        // 竖向分隔条上热区是竖的，横向分隔条上是横的（内容转 90°）。
+        'text-muted-foreground hover:text-foreground absolute z-20 flex items-center justify-center rounded-md transition-[opacity,color]',
+        orientation === 'horizontal' ? 'h-10 w-4' : 'h-4 w-10',
+        'hover:bg-foreground/[0.04]',
         'focus-visible:ring-foreground/20 focus-visible:ring-1 focus-visible:outline-hidden',
         findPositionClass(orientation, side, position),
         findVisibilityClass(visible, isExpandAction),
@@ -184,13 +204,7 @@ function SplitterHandleView(props: SplitterHandleViewProps) {
   } = props
 
   const isHorizontal = orientation === 'horizontal'
-  const handleState = disabled
-    ? 'disabled'
-    : isActive
-      ? 'active'
-      : isHovered
-        ? 'hover'
-        : 'inactive'
+  const handleState = disabled ? 'disabled' : isActive ? 'active' : isHovered ? 'hover' : 'inactive'
 
   return (
     <div
@@ -203,7 +217,8 @@ function SplitterHandleView(props: SplitterHandleViewProps) {
       data-slot="splitter-handle"
       data-splitter-handle={handleState}
       className={cn(
-        'group/splitter-handle bg-border relative flex shrink-0 items-center justify-center',
+        'group/splitter-handle relative flex shrink-0 items-center justify-center',
+        'bg-border',
         isHorizontal
           ? cn(
               'w-px',

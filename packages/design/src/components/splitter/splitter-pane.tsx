@@ -9,6 +9,8 @@ interface SplitterPaneViewProps {
   className?: string
   style?: CSSProperties
   flexBasisPct: number
+  /** 分隔条总厚度：各栏百分比按整个容器算，扣掉它才不会顶出右/下边缘 */
+  gutterPx: number
   isCollapsed: boolean
   destroyOnHidden?: boolean
   isAnimating?: boolean
@@ -21,11 +23,18 @@ function SplitterPaneView(props: SplitterPaneViewProps) {
     className,
     style,
     flexBasisPct,
+    gutterPx,
     isCollapsed,
     destroyOnHidden,
     isAnimating,
     children
   } = props
+
+  // 百分比按整个容器算，而分隔条本身也占宽：每栏再扣掉自己那份分隔条厚度
+  const basis =
+    gutterPx > 0
+      ? `calc(${flexBasisPct}% - ${((flexBasisPct / 100) * gutterPx).toFixed(3)}px)`
+      : `${flexBasisPct}%`
 
   if (destroyOnHidden && isCollapsed) {
     return (
@@ -58,7 +67,7 @@ function SplitterPaneView(props: SplitterPaneViewProps) {
         ...style,
         flexGrow: 0,
         flexShrink: 0,
-        flexBasis: `${flexBasisPct}%`,
+        flexBasis: basis,
         overflow: 'hidden',
         maxWidth: undefined,
         maxHeight: undefined

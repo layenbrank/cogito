@@ -14,7 +14,7 @@ import {
 import { parseChildren } from './parse-children'
 import { SplitterHandleView } from './splitter-handle'
 import { SplitterPaneView } from './splitter-pane'
-import { autoPtgSizes, limitPtgSizes, ptgToLayoutPct, sizeToPtg } from './size-util'
+import { autoPtgSizes, fitPtgSizes, limitPtgSizes, ptgToLayoutPct, sizeToPtg } from './size-util'
 import type {
   GroupHandle,
   HandleItem,
@@ -26,6 +26,8 @@ import type {
 } from './types'
 
 const COLLAPSED_EPS_PX = 0.5
+/** 分隔条本体厚度（w-px / h-px）：也占容器宽度，分栏百分比要扣掉 */
+const HANDLE_THICKNESS_PX = 1
 
 function assignPaneRef(paneRef: PaneItem['paneRef'], handle: PaneHandle | null) {
   if (!paneRef) return
@@ -45,6 +47,7 @@ function Splitter(props: SplitterProps) {
     children,
     groupRef,
     defaultLayout,
+    defaultLayoutByWidth,
     onLayoutChanged,
     onCollapse,
     disabled = false,
@@ -87,7 +90,9 @@ function Splitter(props: SplitterProps) {
   onCollapseRef.current = onCollapse
   const animateTimerRef = useRef<number | null>(null)
   const defaultLayoutRef = useRef(defaultLayout)
+  const defaultLayoutByWidthRef = useRef(defaultLayoutByWidth)
   defaultLayoutRef.current = defaultLayout
+  defaultLayoutByWidthRef.current = defaultLayoutByWidth
 
   const handleCount = Math.max(0, panes.length - 1)
   const mergedHandles: HandleItem[] = []
@@ -150,7 +155,7 @@ function Splitter(props: SplitterProps) {
     const currentPanes = panesRef.current
     if (currentPanes.length === 0 || px <= 0) return []
 
-    const layout = defaultLayoutRef.current
+    const layout = defaultLayoutRef.current ?? defaultLayoutByWidthRef.current?.(px)
     const fromLayout: (number | undefined)[] = currentPanes.map(function (pane) {
       const stored = layout?.[pane.id]
       if (typeof stored === 'number' && Number.isFinite(stored)) {
@@ -174,6 +179,9 @@ function Splitter(props: SplitterProps) {
 
     let next = autoPtgSizes(fromLayout, mins, maxes)
     next = limitPtgSizes(next, mins, collapsedFlags)
+    // 夹完 min 后总和可能超过 1（窄窗下三栏 min 就装不下），再按 min/max 拟合回 100%：
+    // pane 是 shrink-0，不拟合的话超出部分会被裁在右/下边缘（右侧栏看起来少一截）。
+    next = fitPtgSizes(next, mins, maxes)
     // 强制折叠档位
     next = next.map(function (size, index) {
       if (!collapsedFlags[index]) return size
@@ -215,6 +223,13 @@ function Splitter(props: SplitterProps) {
         return collapsedFlags[index] ? 0 : findMinMaxPtg(pane, nextPx).max
       })
       next = autoPtgSizes(explicit, mins, maxes)
+      // 保像素的栏在窗口变窄时同样要让位：显式像素 + 其余栏 min 可能超过一屏，
+      // 不拟合就会被裁在右边缘（右侧栏看起来少一截）。
+      next = fitPtgSizes(next, mins, maxes)
+      next = next.map(function (size, index) {
+        if (!collapsedFlags[index]) return size
+        return currentPanes[index]!.collapsedSize / nextPx
+      })
     } else {
       const mins = currentPanes.map(function (pane, index) {
         return collapsedFlags[index] ? 0 : findMinMaxPtg(pane, nextPx).min
@@ -243,7 +258,12 @@ function Splitter(props: SplitterProps) {
 
     currentPanes.forEach(function (pane, index) {
       if (pane.preservePixel && !collapsedFlags[index]) {
-        pxSnapshotRef.current[pane.id] = next[index]! * nextPx
+        const fittedPx = next[index]! * nextPx
+        const snapshot = pxSnapshotRef.current[pane.id]
+        // 窄窗被迫压小时不覆盖快照：窗口再放大才回得到原来的像素宽
+        if (typeof snapshot !== 'number' || fittedPx >= snapshot - 0.5) {
+          pxSnapshotRef.current[pane.id] = fittedPx
+        }
       }
     })
 
@@ -780,6 +800,7 @@ function Splitter(props: SplitterProps) {
           className={pane.className}
           style={pane.style}
           flexBasisPct={ptg * 100}
+          gutterPx={mergedHandles.length * HANDLE_THICKNESS_PX}
           isCollapsed={collapsedFlags[index] ?? false}
           destroyOnHidden={pane.destroyOnHidden}
           isAnimating={isAnimating && !isDragging && !freezeTransition}>
@@ -815,6 +836,9 @@ function Splitter(props: SplitterProps) {
           collapseIcon={collapseIcon}
           onPointerDown={handlePointerDown}
           onPointerEnter={function () {
+            // 不可拖拽（pane `resizable={false}` / 冻结）时不要点亮分隔条：
+            // 悬停变亮就是「这里能拖」的信号，拖不动就别给这个暗示
+            if (!handleFlags.canResize) return
             updateHoveredHandle(index)
           }}
           onPointerLeave={function () {

@@ -53,11 +53,13 @@ interface SplitterProps {
   groupRef?: Ref<GroupHandle | null>
   /** id → 0..100 百分比；优先于各 pane 的 defaultSize 合成 */
   defaultLayout?: Record<string, number>
+  /**
+   * 无显式 `defaultLayout` 时的兜底：用容器实际宽度算首屏比例。
+   * 想在宽窗口保住两侧栏的像素宽、又提前量不到容器时用（bootstrap 里同步调用）。
+   */
+  defaultLayoutByWidth?: (containerPx: number) => Record<string, number>
   onLayoutChanged?: (layout: Record<string, number>, meta?: LayoutChangeMeta) => void
-  onCollapse?: (
-    collapsedById: Record<string, boolean>,
-    layout: Record<string, number>
-  ) => void
+  onCollapse?: (collapsedById: Record<string, boolean>, layout: Record<string, number>) => void
   disabled?: boolean
   /** 程序化改布局时关掉 pane 过渡 */
   freezeTransition?: boolean
