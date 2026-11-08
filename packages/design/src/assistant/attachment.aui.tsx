@@ -11,6 +11,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/tooltip'
 import { useAttachmentSrc } from '../hooks/use-attachment-src'
 import { useAttachmentLightboxMedias } from '../hooks/use-attachment-lightbox-medias'
+import { findAttachmentTileSize, type Size } from './attachment-layout'
 import { TooltipIconButton } from './tooltip-icon-button'
 import { useAssistantLabels } from './labels'
 import { findBaseName, findFileNameIcon } from './file-name-icon'
@@ -25,7 +26,7 @@ import { cn } from 'cn'
  * 肉眼看到的「图片一直在闪」。自己拿 `<img>`：只有**真的加载失败**才退到文件图标，
  * 而且记的是「哪一串 src 失败」，换图自动复位（不需要在 effect 里 setState）。
  */
-const AttachmentThumb: FC = () => {
+const AttachmentThumb: FC<{ onNaturalSize?: (size: Size) => void }> = (props) => {
   const labels = useAssistantLabels()
   const src = useAttachmentSrc()
   const fileName = useAuiState(function (state) {
@@ -41,8 +42,14 @@ const AttachmentThumb: FC = () => {
         <img
           src={src}
           alt={labels.attachmentPreview}
-          className="aui-attachment-tile-image size-full object-cover"
+          className="aui-attachment-tile-image size-full object-contain"
           draggable={false}
+          onLoad={function (event) {
+            const image = event.currentTarget
+            if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+              props.onNaturalSize?.({ width: image.naturalWidth, height: image.naturalHeight })
+            }
+          }}
           onError={function () {
             updateBrokenSrc(src)
           }}
@@ -167,6 +174,16 @@ const AttachmentImageTile: FC = () => {
 
   const src = useAttachmentSrc()
   const canPreview = Boolean(src) && !isUploading && !isError
+  /**
+   * 缩略图外框跟着图片天然比例走：高度定死、宽度钳在区间里，
+   * 与图库预览同一口径 —— 只 contain，不裁切。
+   */
+  const [measured, updateMeasured] = useState<{ src: string; size: Size } | null>(null)
+  const natural = measured && measured.src === src ? measured.size : null
+  const tile = findAttachmentTileSize(natural, {
+    height: isComposer ? 56 : 96,
+    maxWidth: isComposer ? 168 : 288
+  })
 
   return (
     <TooltipProvider>
@@ -174,16 +191,17 @@ const AttachmentImageTile: FC = () => {
         <AttachmentPrimitive.Root
           className={cn(
             'aui-attachment-root relative',
-            !isComposer && 'aui-attachment-root-message only:*:first:size-24'
+            !isComposer && 'aui-attachment-root-message'
           )}>
           <TooltipTrigger
             render={
               <div
                 className={cn(
-                  'aui-attachment-tile bg-muted hover:after:bg-foreground/10 active:after:bg-foreground/20 focus-visible:ring-ring/50 relative size-14 shrink-0 overflow-hidden rounded-[calc(var(--composer-radius,1.5rem)-var(--composer-padding,8px))] outline-none after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-1 after:ring-black/10 after:transition-colors after:ring-inset focus-visible:ring-1 motion-reduce:transition-none dark:after:ring-white/10',
+                  'aui-attachment-tile bg-muted hover:after:bg-foreground/10 active:after:bg-foreground/20 focus-visible:ring-ring/50 relative shrink-0 overflow-hidden transition-[width,height] duration-200 rounded-[calc(var(--composer-radius,1.5rem)-var(--composer-padding,8px))] outline-none after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-1 after:ring-black/10 after:transition-colors after:ring-inset focus-visible:ring-1 motion-reduce:transition-none dark:after:ring-white/10',
                   canPreview ? 'cursor-zoom-in' : 'cursor-default',
                   isError && 'after:ring-destructive/60 dark:after:ring-destructive/60'
                 )}
+                style={{ width: tile.width, height: tile.height }}
                 role="button"
                 tabIndex={0}
                 aria-label={labels.attachmentLabel(
@@ -203,7 +221,11 @@ const AttachmentImageTile: FC = () => {
                 }}
               />
             }>
-            <AttachmentThumb />
+            <AttachmentThumb
+              onNaturalSize={function (size) {
+                if (src) updateMeasured({ src, size })
+              }}
+            />
             {isUploading ? (
               <div
                 aria-hidden="true"
@@ -303,7 +325,7 @@ export const UserMessageAttachments: FC = () => {
   return (
     <AttachmentStrip
       attachments={attachments}
-      className="aui-user-message-attachments-end col-span-full col-start-1 row-start-1 flex w-full flex-row justify-end gap-2">
+      className="aui-user-message-attachments-end col-span-full col-start-1 row-start-1 flex w-full flex-row flex-wrap justify-end gap-2">
       <MessagePrimitive.Attachments>
         {function () {
           return <AttachmentUI />
