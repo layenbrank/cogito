@@ -28,7 +28,14 @@ describe('parseDocument / serializeDocument', () => {
 
   it('把换行折成 break 并原样还原', function () {
     const atoms = parseDocument('a\nb\n\nc')
-    expect(atoms.map((atom) => atom.kind)).toEqual(['text', 'break', 'text', 'break', 'break', 'text'])
+    expect(atoms.map((atom) => atom.kind)).toEqual([
+      'text',
+      'break',
+      'text',
+      'break',
+      'break',
+      'text'
+    ])
     expect(serializeDocument(atoms)).toBe('a\nb\n\nc')
   })
 
@@ -55,7 +62,12 @@ describe('parseDocument / serializeDocument', () => {
   it('含空白的路径用引号包裹并往返恒等', function () {
     const atoms = parseDocument('@"apps/my dir/a.ts"')
     expect(atoms).toHaveLength(1)
-    expect(atoms[0]).toMatchObject({ kind: 'chip', type: 'file', label: 'apps/my dir/a.ts', id: 'apps/my dir/a.ts' })
+    expect(atoms[0]).toMatchObject({
+      kind: 'chip',
+      type: 'file',
+      label: 'apps/my dir/a.ts',
+      id: 'apps/my dir/a.ts'
+    })
     expect(serializeDocument(atoms)).toBe('@"apps/my dir/a.ts"')
   })
 
@@ -104,7 +116,12 @@ describe('parseDocument / serializeDocument', () => {
   })
 
   it('不误伤代码里的 @：@Component / @media 是普通文本', function () {
-    for (const text of ['@Component({ selector })', '@media (min-width: 600px)', '@types', '@browser-2']) {
+    for (const text of [
+      '@Component({ selector })',
+      '@media (min-width: 600px)',
+      '@types',
+      '@browser-2'
+    ]) {
       const atoms = parseDocument(text)
       expect(atoms.some((atom) => atom.kind === 'chip')).toBe(false)
       expect(serializeDocument(atoms)).toBe(text)
@@ -137,7 +154,9 @@ describe('parseDocument / serializeDocument', () => {
 
   it('buildChip 的序列化与 parse 互逆', function () {
     expect(buildChip('file', 'apps/a.ts', 'apps/a.ts').serialized).toBe('@apps/a.ts')
-    expect(buildChip('file', 'apps/my dir/a.ts', 'apps/my dir/a.ts').serialized).toBe('@"apps/my dir/a.ts"')
+    expect(buildChip('file', 'apps/my dir/a.ts', 'apps/my dir/a.ts').serialized).toBe(
+      '@"apps/my dir/a.ts"'
+    )
     expect(buildChip('skill', 'x', 'skill:x').serialized).toBe('@skill:x')
     for (const id of ['apps/a.ts', 'apps/my dir/a.ts', 'skill:x', TAB]) {
       const chip = buildChip('file', id, id)
@@ -268,7 +287,9 @@ describe('readDom', () => {
   })
 
   it('丢弃浏览器塞进来的行内装饰标签', function () {
-    expect(serializeDocument(readDom(mount('a<span style="font-weight:700">b</span>c')))).toBe('abc')
+    expect(serializeDocument(readDom(mount('a<span style="font-weight:700">b</span>c')))).toBe(
+      'abc'
+    )
   })
 
   it('文本节点里的换行也折成 break', function () {

@@ -167,4 +167,10 @@ export {
   ScheduleCardRow,
   ScheduleCardWritten
 }
-export type { ScheduleCardActionsProps, ScheduleCardHeaderProps, ScheduleCardProps, ScheduleCardRowProps, ScheduleCardWrittenProps }
+export type {
+  ScheduleCardActionsProps,
+  ScheduleCardHeaderProps,
+  ScheduleCardProps,
+  ScheduleCardRowProps,
+  ScheduleCardWrittenProps
+}

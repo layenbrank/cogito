@@ -64,7 +64,13 @@ const BackgroundInbox: FC<BackgroundInboxProps> = function BackgroundInbox(props
             type="button"
             variant="ghost"
             disabled={!props.onOpen}
-            onClick={props.onOpen ? function () { props.onOpen?.(run.id) } : undefined}
+            onClick={
+              props.onOpen
+                ? function () {
+                    props.onOpen?.(run.id)
+                  }
+                : undefined
+            }
             className="hover:bg-muted/60 justify-start gap-2 rounded-md px-2 py-1.5 font-normal">
             <Icon
               icon={STATE_ICON[run.state]}

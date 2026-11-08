@@ -221,7 +221,12 @@ function FileDownload({
       )}
       aria-label={!children ? labels.downloadFile(filename) : undefined}
       {...props}>
-      {children || <Icon icon="lucide:download" className="size-4" />}
+      {children || (
+        <Icon
+          icon="lucide:download"
+          className="size-4"
+        />
+      )}
     </a>
   )
 }

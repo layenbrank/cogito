@@ -2,12 +2,7 @@ import type { ConnectionLineComponent } from '@xyflow/react'
 
 const HALF = 0.5
 
-const Connection: ConnectionLineComponent = function Connection({
-  fromX,
-  fromY,
-  toX,
-  toY
-}) {
+const Connection: ConnectionLineComponent = function Connection({ fromX, fromY, toX, toY }) {
   return (
     <g>
       <path

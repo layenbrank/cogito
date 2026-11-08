@@ -139,7 +139,10 @@ function Attachment({ data, onRemove, className, children, ...props }: Attachmen
             'text-sm font-medium transition-all select-none',
             'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50'
           ],
-          variant === 'list' && ['flex w-full items-center gap-3 rounded-lg border p-3', 'hover:bg-accent/50'],
+          variant === 'list' && [
+            'flex w-full items-center gap-3 rounded-lg border p-3',
+            'hover:bg-accent/50'
+          ],
           className
         )}
         {...props}>
@@ -336,7 +339,10 @@ type AttachmentEmptyProps = HTMLAttributes<HTMLDivElement>
 function AttachmentEmpty({ className, children, ...props }: AttachmentEmptyProps) {
   return (
     <div
-      className={cn('text-muted-foreground flex items-center justify-center p-4 text-sm', className)}
+      className={cn(
+        'text-muted-foreground flex items-center justify-center p-4 text-sm',
+        className
+      )}
       {...props}>
       {children ?? 'No attachments'}
     </div>

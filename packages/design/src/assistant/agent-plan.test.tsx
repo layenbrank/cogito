@@ -113,7 +113,8 @@ describe('AgentPlan', function () {
     expect(html).not.toContain('data-status="active"')
   })
 
-  it('折叠态下全部完成：没有 active 行，只剩表头与进度条', function () {    const html = markup({ activeIndex: 3, collapseAfter: 2 })
+  it('折叠态下全部完成：没有 active 行，只剩表头与进度条', function () {
+    const html = markup({ activeIndex: 3, collapseAfter: 2 })
     expect(html).toContain('data-folded=""')
     expect(count(html, 'data-slot="agent-plan-step"')).toBe(0)
     expect(html).toContain('3 of 3')

@@ -27,9 +27,11 @@ describe('parseChildren', function () {
       </>
     )
 
-    expect(panes.map(function (pane) {
-      return pane.id
-    })).toEqual(['main', 'bottom'])
+    expect(
+      panes.map(function (pane) {
+        return pane.id
+      })
+    ).toEqual(['main', 'bottom'])
     expect(handles).toHaveLength(1)
     expect(handles[0]?.withHandle).toBe(true)
   })
@@ -56,9 +58,11 @@ describe('parseChildren', function () {
       </>
     )
 
-    expect(panes.map(function (pane) {
-      return pane.id
-    })).toEqual(['sidebar', 'editor'])
+    expect(
+      panes.map(function (pane) {
+        return pane.id
+      })
+    ).toEqual(['sidebar', 'editor'])
   })
 
   it('flattenElements 自己展开嵌套 Fragment', function () {

@@ -50,10 +50,8 @@ function SurfaceHeader(props: SurfaceHeaderProps) {
   const decadeEnd = decadeStart + 9
   const dir = props.slideDir
 
-  const prevLabel =
-    props.mode === 'year' ? '上十年' : props.mode === 'month' ? '上一年' : '上个月'
-  const nextLabel =
-    props.mode === 'year' ? '下十年' : props.mode === 'month' ? '下一年' : '下个月'
+  const prevLabel = props.mode === 'year' ? '上十年' : props.mode === 'month' ? '上一年' : '上个月'
+  const nextLabel = props.mode === 'year' ? '下十年' : props.mode === 'month' ? '下一年' : '下个月'
 
   return (
     <div className="flex items-center justify-between gap-1 border-b border-border/70 px-2.5 py-2">

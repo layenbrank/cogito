@@ -83,7 +83,11 @@ function clampCursor(cursor: Dayjs, bounds: DateBounds) {
 }
 
 function mergeDateAndTime(date: Dayjs, hour: number, minute: number) {
-  return date.hour(clamp(hour, 0, 23)).minute(clamp(minute, 0, 59)).second(0).millisecond(0)
+  return date
+    .hour(clamp(hour, 0, 23))
+    .minute(clamp(minute, 0, 59))
+    .second(0)
+    .millisecond(0)
 }
 
 function isInRange(

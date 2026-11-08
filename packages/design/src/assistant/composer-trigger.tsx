@@ -10,7 +10,16 @@
  * Provider 只做「文本 + 光标 → 命中范围 → 候选项 → 选中」这一条链路，
  * 不碰 DOM：真正的文本替换通过 `onApply` 交给输入组件执行。
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react'
 
 /** 插入到文本流里的原子片段（序列化为 `:type[label]{name=id}`）。 */
 interface ComposerChipInput {
@@ -63,7 +72,12 @@ interface ComposerTriggerMatch {
 
 type ComposerEditRequest =
   | { readonly kind: 'text'; readonly start: number; readonly end: number; readonly text: string }
-  | { readonly kind: 'chip'; readonly start: number; readonly end: number; readonly chip: ComposerChipInput }
+  | {
+      readonly kind: 'chip'
+      readonly start: number
+      readonly end: number
+      readonly chip: ComposerChipInput
+    }
   | { readonly kind: 'remove'; readonly start: number; readonly end: number }
 
 interface ComposerTriggerState {
@@ -88,7 +102,12 @@ interface ComposerTriggerHandle extends ComposerTriggerState {
   attachApply: (apply: (edit: ComposerEditRequest) => void) => () => void
 }
 
-const IDLE_STATE: ComposerTriggerState = { match: null, items: [], activeIndex: 0, isLoading: false }
+const IDLE_STATE: ComposerTriggerState = {
+  match: null,
+  items: [],
+  activeIndex: 0,
+  isLoading: false
+}
 
 /** 与历史实现一致：行首、空白、或任何非 `[A-Za-z0-9._~-]` 字符之后都能起头。 */
 const WORD_CHAR = /[A-Za-z0-9._~-]/
@@ -197,7 +216,12 @@ function ComposerTriggerProvider(props: ComposerTriggerProviderProps) {
         ) {
           return previous
         }
-        return { match: next, items: previous.items, activeIndex: previous.activeIndex, isLoading: true }
+        return {
+          match: next,
+          items: previous.items,
+          activeIndex: previous.activeIndex,
+          isLoading: true
+        }
       })
       return next
     },
@@ -288,7 +312,9 @@ function ComposerTriggerProvider(props: ComposerTriggerProviderProps) {
     [state, sync, move, pick, hover, close, attachApply]
   )
 
-  return <ComposerTriggerContext.Provider value={handle}>{children}</ComposerTriggerContext.Provider>
+  return (
+    <ComposerTriggerContext.Provider value={handle}>{children}</ComposerTriggerContext.Provider>
+  )
 }
 
 /** 读触发器状态与动作；不在 `ComposerTriggerProvider` 内时返回 `null`。 */

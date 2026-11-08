@@ -15,7 +15,12 @@
  * 所以它把提示写成「会从视图里掉出去几条」。本仓沿用同一口径 —— `findDiscardedReplies`
  * 数的是**当前显示分支上这条消息之后的助手回复**，不是真的删库。
  */
-import { ComposerPrimitive, MessagePrimitive, useAuiState, type AssistantState } from '@assistant-ui/react'
+import {
+  ComposerPrimitive,
+  MessagePrimitive,
+  useAuiState,
+  type AssistantState
+} from '@assistant-ui/react'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import type { ComponentProps, FC, KeyboardEvent, ReactNode } from 'react'
@@ -34,7 +39,10 @@ const INPUT_CLASS =
  * 「发送会丢弃 N 条回复」提示。`count <= 0` 不渲染（官方也是 >0 才出现）：
  * 改最后一条消息时没有后续回复可丢，再多一行提示就是噪音。
  */
-const EditMessageDiscardNote: FC<{ count: number; className?: string }> = ({ count, className }) => {
+const EditMessageDiscardNote: FC<{ count: number; className?: string }> = ({
+  count,
+  className
+}) => {
   const labels = useAssistantLabels()
 
   if (count <= 0) return null
@@ -184,11 +192,9 @@ const EditMessage: FC<EditMessageProps> = function EditMessage({
 function findDiscardedReplies(state: AssistantState): number {
   const index = state.message.index
   if (typeof index !== 'number' || index < 0) return 0
-  return state.thread.messages
-    .slice(index + 1)
-    .filter(function isAssistant(message) {
-      return message.role === 'assistant'
-    }).length
+  return state.thread.messages.slice(index + 1).filter(function isAssistant(message) {
+    return message.role === 'assistant'
+  }).length
 }
 
 type MessageEditComposerProps = {

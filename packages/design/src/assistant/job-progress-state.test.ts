@@ -123,12 +123,7 @@ describe('findJobProgress', function () {
     })
     expect(progress).toMatchObject({ state: 'partial', settled: true, percent: 88 })
     expect(progress.current?.name).toBe('test')
-    expect(progress.stages.map((stage) => stage.status)).toEqual([
-      'done',
-      'done',
-      'done',
-      'active'
-    ])
+    expect(progress.stages.map((stage) => stage.status)).toEqual(['done', 'done', 'done', 'active'])
   })
 
   it('success 收据：无视数字进度，条直接拉满', function () {

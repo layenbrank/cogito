@@ -60,7 +60,13 @@ interface AgentPlanProps {
 /** 一步的状态图标：做完是对勾，进行中是转圈，还没到是一个圆点 */
 function StepStatusIcon(props: { status: PlanStepStatus }) {
   if (props.status === 'done') {
-    return <Icon icon="lucide:check" aria-hidden className="text-muted-foreground size-3.5" />
+    return (
+      <Icon
+        icon="lucide:check"
+        aria-hidden
+        className="text-muted-foreground size-3.5"
+      />
+    )
   }
   if (props.status === 'active') {
     return (
@@ -71,7 +77,12 @@ function StepStatusIcon(props: { status: PlanStepStatus }) {
       />
     )
   }
-  return <span aria-hidden className="bg-foreground/20 size-1.5 rounded-full" />
+  return (
+    <span
+      aria-hidden
+      className="bg-foreground/20 size-1.5 rounded-full"
+    />
+  )
 }
 
 function AgentPlan({
@@ -116,7 +127,9 @@ function AgentPlan({
       data-status={idle ? 'idle' : progress.allDone ? 'complete' : 'running'}
       data-folded={folded ? '' : undefined}
       className={cn('flex w-full max-w-sm flex-col gap-3', className)}>
-      <div data-slot="agent-plan-header" className="flex items-center justify-between gap-3">
+      <div
+        data-slot="agent-plan-header"
+        className="flex items-center justify-between gap-3">
         {title ? <span className="text-sm font-medium">{title}</span> : null}
         <span
           data-slot="agent-plan-count"
@@ -165,7 +178,10 @@ function AgentPlan({
         />
       </div>
 
-      <ul id={listId} data-slot="agent-plan-steps" className="flex flex-col gap-2.5">
+      <ul
+        id={listId}
+        data-slot="agent-plan-steps"
+        className="flex flex-col gap-2.5">
         {visibleRows.map(function (row) {
           const step = row.step
           const status = row.status
@@ -179,8 +195,7 @@ function AgentPlan({
                 <StepStatusIcon status={status} />
               </span>
               <span className="min-w-0">
-                <span
-                  className={status === 'active' ? 'text-foreground' : 'text-muted-foreground'}>
+                <span className={status === 'active' ? 'text-foreground' : 'text-muted-foreground'}>
                   {step.label}
                 </span>
                 {status === 'active' && step.description ? (

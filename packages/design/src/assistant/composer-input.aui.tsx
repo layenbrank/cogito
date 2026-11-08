@@ -25,7 +25,14 @@
  */
 import { useAui, useAuiState } from '@assistant-ui/react'
 import { cn } from 'cn'
-import { useCallback, useEffect, useRef, type ClipboardEvent, type CompositionEvent, type KeyboardEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  type ClipboardEvent,
+  type CompositionEvent,
+  type KeyboardEvent
+} from 'react'
 
 import {
   atomLength,
@@ -183,7 +190,11 @@ function findDomRange(
 function paintTriggerHighlight(
   root: HTMLElement,
   atoms: readonly ComposerAtom[],
-  match: { readonly trigger: { readonly id: string }; readonly start: number; readonly end: number } | null
+  match: {
+    readonly trigger: { readonly id: string }
+    readonly start: number
+    readonly end: number
+  } | null
 ) {
   clearTriggerHighlights()
   const highlights = typeof CSS !== 'undefined' ? CSS.highlights : undefined
@@ -338,10 +349,20 @@ function fromClipboardPayload(raw: string): ComposerAtom[] | null {
   const atoms: ComposerAtom[] = []
   for (const item of parsed) {
     if (typeof item !== 'object' || item === null) return null
-    const row = item as { kind?: unknown; type?: unknown; label?: unknown; id?: unknown; text?: unknown }
+    const row = item as {
+      kind?: unknown
+      type?: unknown
+      label?: unknown
+      id?: unknown
+      text?: unknown
+    }
     if (row.kind === 'chip' && typeof row.id === 'string' && row.id.length > 0) {
-      const type = typeof row.type === 'string' && row.type.length > 0 ? row.type : toChipType(row.id)
-      const label = typeof row.label === 'string' && row.label.length > 0 ? row.label : deriveChipLabel(type, row.id)
+      const type =
+        typeof row.type === 'string' && row.type.length > 0 ? row.type : toChipType(row.id)
+      const label =
+        typeof row.label === 'string' && row.label.length > 0
+          ? row.label
+          : deriveChipLabel(type, row.id)
       atoms.push(buildChip(type, label, row.id))
       continue
     }
@@ -367,7 +388,13 @@ interface ComposerInputProps {
 }
 
 function ComposerInput(props: ComposerInputProps) {
-  const { placeholder, className, autoFocus = false, submitMode = 'enter', 'aria-label': ariaLabel } = props
+  const {
+    placeholder,
+    className,
+    autoFocus = false,
+    submitMode = 'enter',
+    'aria-label': ariaLabel
+  } = props
   const aui = useAui()
   const trigger = useComposerTrigger()
   const labels = useAssistantLabels()
@@ -478,11 +505,17 @@ function ComposerInput(props: ComposerInputProps) {
       const atoms = atomsRef.current
       if (edit.kind === 'chip') {
         const chip = buildChip(edit.chip.type, edit.chip.label, edit.chip.id)
-        commit(replaceRange(atoms, edit.start, edit.end, [chip]), edit.start + chip.serialized.length)
+        commit(
+          replaceRange(atoms, edit.start, edit.end, [chip]),
+          edit.start + chip.serialized.length
+        )
         return
       }
       if (edit.kind === 'text') {
-        commit(replaceRange(atoms, edit.start, edit.end, parseInlineText(edit.text)), edit.start + edit.text.length)
+        commit(
+          replaceRange(atoms, edit.start, edit.end, parseInlineText(edit.text)),
+          edit.start + edit.text.length
+        )
         return
       }
       commit(replaceRange(atoms, edit.start, edit.end, []), edit.start)
@@ -581,7 +614,8 @@ function ComposerInput(props: ComposerInputProps) {
       const root = editorRef.current
       if (!root) return
       const atoms = readDom(root)
-      const composing = (event.nativeEvent as InputEvent).isComposing === true || composingRef.current
+      const composing =
+        (event.nativeEvent as InputEvent).isComposing === true || composingRef.current
       // 组合输入期间的中间态不进撤销栈（候选词确认后那一次输入已经记过）
       if (!composing) rememberHistory('typing')
       atomsRef.current = atoms
@@ -821,5 +855,11 @@ function ComposerInput(props: ComposerInputProps) {
   )
 }
 
-export { CHIP_CLASS, COMPOSER_CLIPBOARD_MIME, COMPOSER_INPUT_SELECTOR, ComposerInput, focusComposerInput }
+export {
+  CHIP_CLASS,
+  COMPOSER_CLIPBOARD_MIME,
+  COMPOSER_INPUT_SELECTOR,
+  ComposerInput,
+  focusComposerInput
+}
 export type { ComposerInputProps }

@@ -165,12 +165,8 @@ type ToolTriggerState = ToolTriggerClassNameFn extends (state: infer State) => u
 /** 折叠行的类名：高度固定，其余与状态相关的差异交给内部图标 / 文案 */
 function toolTriggerClassName(): string
 function toolTriggerClassName(className: string | undefined): string
-function toolTriggerClassName(
-  className: ToolTriggerClassName
-): string | ToolTriggerClassNameFn
-function toolTriggerClassName(
-  className?: ToolTriggerClassName
-): string | ToolTriggerClassNameFn {
+function toolTriggerClassName(className: ToolTriggerClassName): string | ToolTriggerClassNameFn
+function toolTriggerClassName(className?: ToolTriggerClassName): string | ToolTriggerClassNameFn {
   if (typeof className === 'function') {
     return function (state: ToolTriggerState) {
       return cn(TOOL_TRIGGER_ROW_CLASS, TOOL_TRIGGER_BASE_CLASS, className(state))
@@ -224,9 +220,7 @@ function ToolFallbackTrigger({
           isRunning && 'shimmer motion-reduce:animate-none'
         )}>
         {label}:{' '}
-        <b className="aui-tool-fallback-trigger-name text-foreground font-medium">
-          {toolName}
-        </b>
+        <b className="aui-tool-fallback-trigger-name text-foreground font-medium">{toolName}</b>
       </span>
       {detail ? (
         <span
@@ -236,7 +230,8 @@ function ToolFallbackTrigger({
         </span>
       ) : null}
       <ToolFallbackDuration />
-      <Icon icon="lucide:chevron-down"
+      <Icon
+        icon="lucide:chevron-down"
         data-slot="tool-fallback-trigger-chevron"
         className={cn(
           'aui-tool-fallback-trigger-chevron text-muted-foreground/70 size-4 shrink-0',
@@ -244,7 +239,8 @@ function ToolFallbackTrigger({
           '-rotate-90',
           'group-data-open/trigger:rotate-0',
           'group-data-panel-open/trigger:rotate-0'
-        )} />
+        )}
+      />
     </CollapsibleTrigger>
   )
 }
@@ -457,9 +453,7 @@ function ToolFallbackApproval({
     } else if (status?.type === 'requires-action' && status.reason === 'interrupt') {
       return
     } else {
-      submit(() =>
-        addResult?.(approved ? labels.toolApprovedResult : labels.toolDeniedResult)
-      )
+      submit(() => addResult?.(approved ? labels.toolApprovedResult : labels.toolDeniedResult))
     }
   }
 

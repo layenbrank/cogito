@@ -34,7 +34,7 @@ function findChipAwarePreview(text: string): string {
 function findUserMessagePreview(message: ThreadMessageLike): string {
   const parts = message.content
     .map(function (part) {
-      return part.type === 'text' ? part.text ?? '' : ''
+      return part.type === 'text' ? (part.text ?? '') : ''
     })
     .join('')
     .trim()
@@ -121,10 +121,7 @@ function scrollToUserMessage(
   if (!target) return
 
   const layoutTop = findLayoutOffsetTop(target, viewport)
-  const nextTop = Math.max(
-    0,
-    layoutTop ?? findScrollTopNeutralizingSticky(viewport, target)
-  )
+  const nextTop = Math.max(0, layoutTop ?? findScrollTopNeutralizingSticky(viewport, target))
 
   viewport.scrollTo({
     top: nextTop,
@@ -132,10 +129,5 @@ function scrollToUserMessage(
   })
 }
 
-export {
-  buildUserMarksDigest,
-  collectUserMessageMarks,
-  scrollToUserMessage,
-  truncatePreview
-}
+export { buildUserMarksDigest, collectUserMessageMarks, scrollToUserMessage, truncatePreview }
 export type { ThreadMessageLike, UserMessageMark }

@@ -3,13 +3,7 @@ import { SplitterPane } from './splitter-pane'
 import { Splitter } from './splitter'
 import { useGroupRef, usePaneRef } from './hooks'
 
-export {
-  Splitter,
-  SplitterHandle,
-  SplitterPane,
-  useGroupRef,
-  usePaneRef
-}
+export { Splitter, SplitterHandle, SplitterPane, useGroupRef, usePaneRef }
 export type {
   CollapseRenderContext,
   CollapseSideConfig,

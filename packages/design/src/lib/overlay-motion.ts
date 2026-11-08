@@ -81,7 +81,8 @@ const OVERLAY_BOTTOM_MOTION = cn(
 
 /** 贴边抽屉的布局壳（不含动效） */
 const OVERLAY_SIDE_LAYOUT: Record<Exclude<OverlaySide, 'center'>, string> = {
-  right: 'inset-y-0 top-0 right-0 bottom-0 left-auto h-full max-h-none w-full max-w-sm rounded-none rounded-l-xl',
+  right:
+    'inset-y-0 top-0 right-0 bottom-0 left-auto h-full max-h-none w-full max-w-sm rounded-none rounded-l-xl',
   left: 'inset-y-0 top-0 bottom-0 left-0 right-auto h-full max-h-none w-full max-w-sm rounded-none rounded-r-xl',
   top: 'inset-x-0 top-0 right-0 left-0 bottom-auto h-auto max-h-[85vh] w-full max-w-none rounded-none rounded-b-xl',
   bottom:

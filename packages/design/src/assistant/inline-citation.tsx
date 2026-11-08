@@ -53,7 +53,11 @@ function hostnameOf(url: string): string {
   }
 }
 
-function InlineCitationCardTrigger({ sources, className, ...props }: InlineCitationCardTriggerProps) {
+function InlineCitationCardTrigger({
+  sources,
+  className,
+  ...props
+}: InlineCitationCardTriggerProps) {
   return (
     <PopoverTrigger
       render={
@@ -92,9 +96,7 @@ interface InlineCitationCarouselContextValue {
   setIndex: (index: number) => void
 }
 
-const InlineCitationCarouselContext = createContext<InlineCitationCarouselContextValue | null>(
-  null
-)
+const InlineCitationCarouselContext = createContext<InlineCitationCarouselContextValue | null>(null)
 
 function useInlineCitationCarousel() {
   const context = useContext(InlineCitationCarouselContext)

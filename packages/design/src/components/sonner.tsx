@@ -15,11 +15,36 @@ function Toaster({ className, ...props }: ToasterProps) {
     <Sonner
       className={cn('toaster group', className)}
       icons={{
-        success: <Icon icon="lucide:circle-check" className="size-4" />,
-        info: <Icon icon="lucide:info" className="size-4" />,
-        warning: <Icon icon="lucide:triangle-alert" className="size-4" />,
-        error: <Icon icon="lucide:octagon-x" className="size-4" />,
-        loading: <Icon icon="lucide:loader-circle" className="size-4 animate-spin" />
+        success: (
+          <Icon
+            icon="lucide:circle-check"
+            className="size-4"
+          />
+        ),
+        info: (
+          <Icon
+            icon="lucide:info"
+            className="size-4"
+          />
+        ),
+        warning: (
+          <Icon
+            icon="lucide:triangle-alert"
+            className="size-4"
+          />
+        ),
+        error: (
+          <Icon
+            icon="lucide:octagon-x"
+            className="size-4"
+          />
+        ),
+        loading: (
+          <Icon
+            icon="lucide:loader-circle"
+            className="size-4 animate-spin"
+          />
+        )
       }}
       style={
         {

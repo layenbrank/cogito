@@ -64,11 +64,7 @@ describe('buildChangeNodes', function () {
   })
 
   it('目录交错时不出重复表头，同目录的文件挨在一起', function () {
-    const nodes = buildChangeNodes([
-      { path: 'a/x.ts' },
-      { path: 'b/y.ts' },
-      { path: 'a/z.ts' }
-    ])
+    const nodes = buildChangeNodes([{ path: 'a/x.ts' }, { path: 'b/y.ts' }, { path: 'a/z.ts' }])
     expect(nodes.map((node) => node.name)).toEqual(['a', 'x.ts', 'z.ts', 'b', 'y.ts'])
     // 官方示例的 buildFileTree 在这里会把 z.ts 落到 b 的块里
     expect(nodes.filter((node) => node.kind === 'folder')).toHaveLength(2)

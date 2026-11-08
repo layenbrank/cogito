@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { findBoundaryAllowed, matchToken } from './composer-trigger'
 import type { ComposerTrigger, ComposerTriggerApi, ComposerTriggerItem } from './composer-trigger'
 
-function buildTrigger(id: string, token: string, extra?: Partial<ComposerTrigger>): ComposerTrigger {
+function buildTrigger(
+  id: string,
+  token: string,
+  extra?: Partial<ComposerTrigger>
+): ComposerTrigger {
   return {
     id,
     token,

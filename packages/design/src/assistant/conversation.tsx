@@ -120,11 +120,16 @@ function defaultFormatMessage(message: ConversationExportMessage): string {
 
 function messagesToMarkdown(
   messages: ConversationExportMessage[],
-  formatMessage: (message: ConversationExportMessage, index: number) => string = defaultFormatMessage
+  formatMessage: (
+    message: ConversationExportMessage,
+    index: number
+  ) => string = defaultFormatMessage
 ): string {
-  return messages.map(function (msg, i) {
-    return formatMessage(msg, i)
-  }).join('\n\n')
+  return messages
+    .map(function (msg, i) {
+      return formatMessage(msg, i)
+    })
+    .join('\n\n')
 }
 
 function ConversationDownload({
@@ -181,7 +186,4 @@ export {
   ConversationScrollButton,
   messagesToMarkdown
 }
-export type {
-  ConversationExportMessage,
-  ConversationProps
-}
+export type { ConversationExportMessage, ConversationProps }

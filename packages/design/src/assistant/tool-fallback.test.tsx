@@ -48,7 +48,13 @@ describe('ToolFallback 文案', function () {
     const cancelled = renderToStaticMarkup(
       <AssistantLabelsProvider labels={{ toolCancelledReason: '取消原因：' }}>
         <ToolFallbackError
-          status={{ type: 'incomplete', reason: 'cancelled', error: '用户取消' } as ToolCallMessagePartStatus}
+          status={
+            {
+              type: 'incomplete',
+              reason: 'cancelled',
+              error: '用户取消'
+            } as ToolCallMessagePartStatus
+          }
         />
       </AssistantLabelsProvider>
     )

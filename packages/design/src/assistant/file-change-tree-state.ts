@@ -57,7 +57,10 @@ function splitDir(path: string): { dir: string; name: string } {
  * - 空路径直接丢掉（没有名字就没法显示，也当不了 key）
  */
 function buildChangeNodes(files: readonly ChangedFile[]): FileChangeNode[] {
-  const buckets = new Map<string, Map<string, { name: string; additions: number; deletions: number }>>()
+  const buckets = new Map<
+    string,
+    Map<string, { name: string; additions: number; deletions: number }>
+  >()
   const order: string[] = []
 
   for (const file of files) {
@@ -136,5 +139,11 @@ function formatChangedFilesLabel(fileCount: number, labels: FileChangeTreeLabels
   return labels.filesChanged(fileCount)
 }
 
-export { buildChangeNodes, formatChangedFilesLabel, normalizePath, resolveVisibleRows, summarizeChangeNodes }
+export {
+  buildChangeNodes,
+  formatChangedFilesLabel,
+  normalizePath,
+  resolveVisibleRows,
+  summarizeChangeNodes
+}
 export type { ChangedFile, FileChangeNode, FileChangeTreeLabels }

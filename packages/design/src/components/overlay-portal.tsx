@@ -20,9 +20,7 @@ function OverlayPortalProvider(props: {
   )
 
   return (
-    <OverlayPortalContext.Provider value={value}>
-      {props.children}
-    </OverlayPortalContext.Provider>
+    <OverlayPortalContext.Provider value={value}>{props.children}</OverlayPortalContext.Provider>
   )
 }
 

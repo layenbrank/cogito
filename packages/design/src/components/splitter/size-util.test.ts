@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  autoPtgSizes,
-  fitPtgSizes,
-  limitPtgSizes,
-  ptgToLayoutPct,
-  sizeToPtg
-} from './size-util'
+import { autoPtgSizes, fitPtgSizes, limitPtgSizes, ptgToLayoutPct, sizeToPtg } from './size-util'
 
 describe('sizeToPtg', function () {
   it('parses percent strings', function () {
@@ -44,9 +38,11 @@ describe('autoPtgSizes', function () {
 
   it('scales all-defined sizes that do not sum to 1', function () {
     const next = autoPtgSizes([0.2, 0.2, 0.2], [0, 0, 0], [1, 1, 1])
-    expect(next.reduce(function (a, b) {
-      return a + b
-    }, 0)).toBeCloseTo(1)
+    expect(
+      next.reduce(function (a, b) {
+        return a + b
+      }, 0)
+    ).toBeCloseTo(1)
   })
 })
 
@@ -60,8 +56,10 @@ describe('fitPtgSizes', function () {
 describe('ptgToLayoutPct', function () {
   it('emits 0..100 and absorbs float dust into the last pane', function () {
     const pct = ptgToLayoutPct([1 / 3, 1 / 3, 1 / 3])
-    expect(pct.reduce(function (a, b) {
-      return a + b
-    }, 0)).toBeCloseTo(100)
+    expect(
+      pct.reduce(function (a, b) {
+        return a + b
+      }, 0)
+    ).toBeCloseTo(100)
   })
 })

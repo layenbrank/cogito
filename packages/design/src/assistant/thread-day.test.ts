@@ -10,9 +10,7 @@ describe('startsNewDay', function () {
   })
 
   it('keeps one divider for messages of the same local day', function () {
-    expect(
-      startsNewDay(new Date(2026, 9, 31, 23, 59), new Date(2026, 9, 31, 0, 1))
-    ).toBe(false)
+    expect(startsNewDay(new Date(2026, 9, 31, 23, 59), new Date(2026, 9, 31, 0, 1))).toBe(false)
   })
 
   it('splits right after midnight', function () {

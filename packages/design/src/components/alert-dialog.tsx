@@ -26,10 +26,7 @@ function AlertDialogTrigger({ ...props }: AlertDialogPrimitive.Trigger.Props) {
   )
 }
 
-function AlertDialogPortal({
-  container,
-  ...props
-}: AlertDialogPrimitive.Portal.Props) {
+function AlertDialogPortal({ container, ...props }: AlertDialogPrimitive.Portal.Props) {
   const shellContainer = useOverlayPortalContainer()
   return (
     <AlertDialogPrimitive.Portal

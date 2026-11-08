@@ -99,8 +99,7 @@ function ChartTooltip(props: ChartTooltipState) {
 function ChartTooltipLayer(props: { tooltip: ChartTooltipState | null; dataKey: string }) {
   // 浮层属于某一份数据：数据/尺寸变了旧坐标就失效，直接不渲染。
   // 在渲染期判断而不是在 effect 里 setState(null)——后者会触发级联渲染（react-hooks/set-state-in-effect）。
-  const tooltip =
-    props.tooltip && props.tooltip.dataKey === props.dataKey ? props.tooltip : null
+  const tooltip = props.tooltip && props.tooltip.dataKey === props.dataKey ? props.tooltip : null
   return (
     <AnimatePresence>
       {tooltip ? (
@@ -209,9 +208,7 @@ function LineChart(props: LineChartProps) {
         .attr('width', '100%')
         .attr('height', height)
 
-      const g = root
-        .append('g')
-        .attr('transform', `translate(${MARGIN.left},${MARGIN.top})`)
+      const g = root.append('g').attr('transform', `translate(${MARGIN.left},${MARGIN.top})`)
 
       const x = scaleBand()
         .domain(
@@ -426,7 +423,10 @@ function LineChart(props: LineChartProps) {
         role="img"
         aria-label="折线图"
       />
-      <ChartTooltipLayer tooltip={tooltip} dataKey={dataKey} />
+      <ChartTooltipLayer
+        tooltip={tooltip}
+        dataKey={dataKey}
+      />
     </div>
   )
 }
@@ -574,7 +574,10 @@ function BarChart(props: BarChartProps) {
         role="img"
         aria-label="柱状图"
       />
-      <ChartTooltipLayer tooltip={tooltip} dataKey={dataKey} />
+      <ChartTooltipLayer
+        tooltip={tooltip}
+        dataKey={dataKey}
+      />
     </div>
   )
 }
@@ -629,9 +632,7 @@ function PieChart(props: PieChartProps) {
         return item.value
       })
 
-      const g = root
-        .append('g')
-        .attr('transform', `translate(${width / 2},${chartH / 2})`)
+      const g = root.append('g').attr('transform', `translate(${width / 2},${chartH / 2})`)
 
       const slices = g
         .selectAll('path.slice')
@@ -691,9 +692,7 @@ function PieChart(props: PieChartProps) {
           updateTooltip(null)
         })
 
-      const legend = root
-        .append('g')
-        .attr('transform', `translate(${width / 2},${chartH + 8})`)
+      const legend = root.append('g').attr('transform', `translate(${width / 2},${chartH + 8})`)
 
       const itemWidth = Math.min(88, width / Math.max(props.items.length, 1))
       const legendItems = legend
@@ -750,7 +749,10 @@ function PieChart(props: PieChartProps) {
         role="img"
         aria-label="饼图"
       />
-      <ChartTooltipLayer tooltip={tooltip} dataKey={dataKey} />
+      <ChartTooltipLayer
+        tooltip={tooltip}
+        dataKey={dataKey}
+      />
     </div>
   )
 }

@@ -100,4 +100,10 @@ function findComposerPlaceholder(
 
 const ComposerQueuedStrip = ComposerQueueList
 
-export { ComposerQueueList, ComposerQueuedStrip, ComposerSendButton, findComposerPlaceholder, sendFromComposer }
+export {
+  ComposerQueueList,
+  ComposerQueuedStrip,
+  ComposerSendButton,
+  findComposerPlaceholder,
+  sendFromComposer
+}

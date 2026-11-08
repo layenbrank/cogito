@@ -7,10 +7,7 @@ type ToolbarProps = ComponentProps<typeof NodeToolbar>
 function Toolbar({ className, ...props }: ToolbarProps) {
   return (
     <NodeToolbar
-      className={cn(
-        'bg-background flex items-center gap-1 rounded-sm border p-1.5',
-        className
-      )}
+      className={cn('bg-background flex items-center gap-1 rounded-sm border p-1.5', className)}
       data-slot="canvas-toolbar"
       position={Position.Bottom}
       {...props}

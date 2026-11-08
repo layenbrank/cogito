@@ -103,7 +103,11 @@ function TimelineLabel(props: {
         ref={activeRef}
         aria-hidden={!props.streaming}
         className={cn(labelClass, props.streaming ? shownClass : hiddenClass)}>
-        <span className={cn('relative inline-block leading-none', props.streaming && 'shimmer motion-reduce:animate-none')}>
+        <span
+          className={cn(
+            'relative inline-block leading-none',
+            props.streaming && 'shimmer motion-reduce:animate-none'
+          )}>
           {props.activeLabel}
         </span>
       </span>

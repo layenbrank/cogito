@@ -49,8 +49,7 @@ const MONO = 'font-mono text-xs tracking-tight'
 /** 块头右侧那颗胶囊：两种决定、两种底色 */
 const PILL = 'h-6 rounded-full px-2 text-xs font-medium'
 const KEPT_PILL = 'bg-success/12 text-success hover:bg-success/20'
-const DISCARDED_PILL =
-  'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground/90'
+const DISCARDED_PILL = 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground/90'
 
 function countDecisions(hunks: readonly DiffHunk[]) {
   let kept = 0
@@ -136,16 +135,7 @@ function HunkDecisionBadge(props: {
 }
 
 function ReviewableDiff(props: ReviewableDiffProps) {
-  const {
-    filename,
-    hunks,
-    onKeep,
-    onDiscard,
-    onUndo,
-    onApply,
-    className,
-    ...rest
-  } = props
+  const { filename, hunks, onKeep, onDiscard, onUndo, onApply, className, ...rest } = props
   const labels = useAssistantLabels()
   const { kept, pending } = countDecisions(hunks)
 

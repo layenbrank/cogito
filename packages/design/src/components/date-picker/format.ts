@@ -48,7 +48,11 @@ function startOfPicker(value: Dayjs, picker: PickerKind) {
   return value.startOf('day')
 }
 
-function isSamePicker(left: Dayjs | null | undefined, right: Dayjs | null | undefined, picker: PickerKind) {
+function isSamePicker(
+  left: Dayjs | null | undefined,
+  right: Dayjs | null | undefined,
+  picker: PickerKind
+) {
   if (!left || !right || !left.isValid() || !right.isValid()) return false
   if (picker === 'year') return left.isSame(right, 'year')
   if (picker === 'month') return left.isSame(right, 'month')

@@ -96,13 +96,5 @@ function NodeFooter({ className, ...props }: NodeFooterProps) {
   )
 }
 
-export {
-  Node,
-  NodeAction,
-  NodeContent,
-  NodeDescription,
-  NodeFooter,
-  NodeHeader,
-  NodeTitle
-}
+export { Node, NodeAction, NodeContent, NodeDescription, NodeFooter, NodeHeader, NodeTitle }
 export type { NodeProps }

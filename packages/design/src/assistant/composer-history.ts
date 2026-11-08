@@ -93,9 +93,4 @@ function createComposerHistory(options?: ComposerHistoryOptions): ComposerHistor
 }
 
 export { DEFAULT_LIMIT, DEFAULT_MERGE_MS, createComposerHistory }
-export type {
-  ComposerHistory,
-  ComposerHistoryEntry,
-  ComposerHistoryKind,
-  ComposerHistoryOptions
-}
+export type { ComposerHistory, ComposerHistoryEntry, ComposerHistoryKind, ComposerHistoryOptions }

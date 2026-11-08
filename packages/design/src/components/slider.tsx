@@ -56,9 +56,7 @@ function SliderTip(props: { children: React.ReactNode; isVisible: boolean }) {
         'pointer-events-none absolute bottom-[calc(100%+0.625rem)] left-1/2 z-10 -translate-x-1/2',
         'min-w-8 rounded-md bg-foreground px-2.5 py-1.5 text-sm leading-none font-medium text-background tabular-nums',
         'transition-[opacity,transform] duration-150',
-        props.isVisible
-          ? 'translate-y-0 opacity-100'
-          : 'translate-y-1 opacity-0',
+        props.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0',
         'motion-reduce:transition-none'
       )}>
       {props.children}
@@ -171,8 +169,7 @@ function Slider({
           const isThisTipVisible =
             tipContent !== null &&
             canShowTip &&
-            (tipForced === true ||
-              (isTipActive && (thumbCount === 1 || hoverIndex === index)))
+            (tipForced === true || (isTipActive && (thumbCount === 1 || hoverIndex === index)))
 
           return (
             <SliderPrimitive.Thumb

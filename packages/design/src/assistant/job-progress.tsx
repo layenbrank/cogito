@@ -70,7 +70,7 @@ function JobProgress({
     ) : progress.settled ? (
       tone.word
     ) : (
-      (eta || tone.word)
+      eta || tone.word
     )
 
   const current = progress.current
@@ -83,7 +83,9 @@ function JobProgress({
         'bg-background border-border/60 dark:bg-popover flex w-full max-w-sm flex-col gap-3 rounded-2xl border p-4',
         className
       )}>
-      <div data-slot="job-progress-header" className="flex items-center gap-2.5">
+      <div
+        data-slot="job-progress-header"
+        className="flex items-center gap-2.5">
         <Icon
           icon={tone.icon}
           aria-hidden
@@ -98,7 +100,11 @@ function JobProgress({
             title={labels.jobCancel}
             onClick={onCancel}
             className={cn(ghostButton, 'size-6 shrink-0')}>
-            <Icon icon="lucide:x" aria-hidden className="size-3.5" />
+            <Icon
+              icon="lucide:x"
+              aria-hidden
+              className="size-3.5"
+            />
           </button>
         )}
       </div>
@@ -124,11 +130,17 @@ function JobProgress({
         />
       </span>
 
-      <div data-slot="job-progress-stages" className="flex flex-col gap-0.5">
+      <div
+        data-slot="job-progress-stages"
+        className="flex flex-col gap-0.5">
         <div className="flex flex-wrap gap-x-3 gap-y-1">
           {progress.stages.map(function (stage) {
             return (
-              <span key={stage.id} data-slot="job-progress-stage" data-status={stage.status} className={mono}>
+              <span
+                key={stage.id}
+                data-slot="job-progress-stage"
+                data-status={stage.status}
+                className={mono}>
                 {stage.name}
               </span>
             )
@@ -150,7 +162,9 @@ function JobProgress({
       ) : null}
 
       {/* 读屏：运行中播报当前阶段，收据态播报最终结论 */}
-      <span role="status" className="sr-only">
+      <span
+        role="status"
+        className="sr-only">
         {progress.settled
           ? labels.jobOutcomeAnnounce(tone.word)
           : labels.jobStageAnnounce(current?.name ?? title)}

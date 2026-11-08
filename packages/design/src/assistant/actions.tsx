@@ -1,10 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useMemo,
-  type FC,
-  type PropsWithChildren
-} from 'react'
+import { createContext, useContext, useMemo, type FC, type PropsWithChildren } from 'react'
 
 /**
  * 消息操作条的宿主能力（复制到剪贴板 / 导出 Markdown）。
@@ -48,21 +42,20 @@ const ASSISTANT_ACTIONS_BROWSER: AssistantActions = {
 
 const AssistantActionsContext = createContext<AssistantActions>(ASSISTANT_ACTIONS_BROWSER)
 
-const AssistantActionsProvider: FC<
-  PropsWithChildren<{ actions?: AssistantActionsOverride }>
-> = function AssistantActionsProvider({ actions, children }) {
-  const merged = useMemo(
-    function () {
-      if (!actions) return ASSISTANT_ACTIONS_BROWSER
-      return { ...ASSISTANT_ACTIONS_BROWSER, ...actions }
-    },
-    [actions]
-  )
+const AssistantActionsProvider: FC<PropsWithChildren<{ actions?: AssistantActionsOverride }>> =
+  function AssistantActionsProvider({ actions, children }) {
+    const merged = useMemo(
+      function () {
+        if (!actions) return ASSISTANT_ACTIONS_BROWSER
+        return { ...ASSISTANT_ACTIONS_BROWSER, ...actions }
+      },
+      [actions]
+    )
 
-  return (
-    <AssistantActionsContext.Provider value={merged}>{children}</AssistantActionsContext.Provider>
-  )
-}
+    return (
+      <AssistantActionsContext.Provider value={merged}>{children}</AssistantActionsContext.Provider>
+    )
+  }
 
 function useAssistantActions(): AssistantActions {
   return useContext(AssistantActionsContext)

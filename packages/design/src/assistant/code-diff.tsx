@@ -83,7 +83,10 @@ function CodeDiff({
       {...props}>
       <div
         data-slot="code-diff-header"
-        className={cn('border-border/50 flex items-center gap-2 border-b px-3', TOOL_ROW_HEIGHT_CLASS)}>
+        className={cn(
+          'border-border/50 flex items-center gap-2 border-b px-3',
+          TOOL_ROW_HEIGHT_CLASS
+        )}>
         {isCollapsible ? (
           <Button
             type="button"

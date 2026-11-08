@@ -8,11 +8,7 @@ type SizeUnit = number | undefined
  * 将显式尺寸夹到 min（已折叠的 0 与 undefined 不动）。
  * max 侧不强制，避免冲掉折叠恢复缓存。
  */
-function limitPtgSizes(
-  sizes: number[],
-  minSizes: SizeUnit[],
-  collapsedFlags: boolean[]
-): number[] {
+function limitPtgSizes(sizes: number[], minSizes: SizeUnit[], collapsedFlags: boolean[]): number[] {
   return sizes.map(function (size, index) {
     if (collapsedFlags[index]) return size
     const min = minSizes[index] ?? 0
@@ -171,10 +167,7 @@ function parsePct(value: string): number {
  * 把 size 配置转成 0..1 比例；数字按像素 / container 换算。
  * container 为 0 时返回 undefined（跳过）。
  */
-function sizeToPtg(
-  value: number | string | undefined,
-  containerPx: number
-): number | undefined {
+function sizeToPtg(value: number | string | undefined, containerPx: number): number | undefined {
   if (value === undefined || value === '') return undefined
   if (containerPx <= 0) return undefined
   if (typeof value === 'string') {

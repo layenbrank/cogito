@@ -18,11 +18,7 @@ import { isValidElement, useCallback, useEffect, useRef, useState } from 'react'
 
 import { Badge } from '../components/badge'
 import { Button } from '../components/button'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger
-} from '../components/collapsible'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../components/collapsible'
 import { CodeBlock } from './code-block'
 import type { ToolCallState } from './tool-call-state'
 
@@ -63,19 +59,54 @@ const STATUS_LABELS: Record<ToolCallState, string> = {
 function statusIcon(state: ToolCallState): ReactNode {
   switch (state) {
     case 'approval-requested':
-      return <Icon icon="lucide:clock" className="text-warning size-3.5" />
+      return (
+        <Icon
+          icon="lucide:clock"
+          className="text-warning size-3.5"
+        />
+      )
     case 'approval-responded':
-      return <Icon icon="lucide:circle-check" className="text-primary size-3.5" />
+      return (
+        <Icon
+          icon="lucide:circle-check"
+          className="text-primary size-3.5"
+        />
+      )
     case 'input-available':
-      return <Icon icon="lucide:loader-circle" className="text-primary size-3.5 animate-spin" />
+      return (
+        <Icon
+          icon="lucide:loader-circle"
+          className="text-primary size-3.5 animate-spin"
+        />
+      )
     case 'input-streaming':
-      return <Icon icon="lucide:circle" className="text-muted-foreground size-3.5" />
+      return (
+        <Icon
+          icon="lucide:circle"
+          className="text-muted-foreground size-3.5"
+        />
+      )
     case 'output-available':
-      return <Icon icon="lucide:circle-check" className="text-success size-3.5" />
+      return (
+        <Icon
+          icon="lucide:circle-check"
+          className="text-success size-3.5"
+        />
+      )
     case 'output-denied':
-      return <Icon icon="lucide:circle-x" className="text-warning size-3.5" />
+      return (
+        <Icon
+          icon="lucide:circle-x"
+          className="text-warning size-3.5"
+        />
+      )
     case 'output-error':
-      return <Icon icon="lucide:circle-x" className="text-destructive size-3.5" />
+      return (
+        <Icon
+          icon="lucide:circle-x"
+          className="text-destructive size-3.5"
+        />
+      )
   }
 }
 
@@ -114,14 +145,7 @@ function ToolElapsed() {
   )
 }
 
-function ToolHeader({
-  className,
-  title,
-  state,
-  toolName,
-  annotation,
-  ...props
-}: ToolHeaderProps) {
+function ToolHeader({ className, title, state, toolName, annotation, ...props }: ToolHeaderProps) {
   const derivedName = toolName ?? title ?? 'tool'
 
   return (
@@ -209,30 +233,30 @@ function ToolOutputErrorCopy(props: { text: string }) {
   const [isCopied, setIsCopied] = useState(false)
   const timeoutRef = useRef(0)
 
-  const copyToClipboard = useCallback(async function () {
-    if (typeof window === 'undefined' || !navigator?.clipboard?.writeText) {
-      console.error('ToolOutput: clipboard API unavailable')
-      return
-    }
-    try {
-      await navigator.clipboard.writeText(props.text)
-      setIsCopied(true)
-      timeoutRef.current = window.setTimeout(function () {
-        setIsCopied(false)
-      }, 2000)
-    } catch (error) {
-      console.error('ToolOutput: copy failed', error)
-    }
-  }, [props.text])
-
-  useEffect(
-    function clearCopyTimeout() {
-      return function () {
-        window.clearTimeout(timeoutRef.current)
+  const copyToClipboard = useCallback(
+    async function () {
+      if (typeof window === 'undefined' || !navigator?.clipboard?.writeText) {
+        console.error('ToolOutput: clipboard API unavailable')
+        return
+      }
+      try {
+        await navigator.clipboard.writeText(props.text)
+        setIsCopied(true)
+        timeoutRef.current = window.setTimeout(function () {
+          setIsCopied(false)
+        }, 2000)
+      } catch (error) {
+        console.error('ToolOutput: copy failed', error)
       }
     },
-    []
+    [props.text]
   )
+
+  useEffect(function clearCopyTimeout() {
+    return function () {
+      window.clearTimeout(timeoutRef.current)
+    }
+  }, [])
 
   return (
     <Button
@@ -295,9 +319,7 @@ function buildToolOutputBody(output: unknown): ReactNode {
   }
   if (isValidElement(output)) {
     return (
-      <div className="max-h-[min(40vh,22rem)] overflow-auto overscroll-y-contain p-2">
-        {output}
-      </div>
+      <div className="max-h-[min(40vh,22rem)] overflow-auto overscroll-y-contain p-2">{output}</div>
     )
   }
 

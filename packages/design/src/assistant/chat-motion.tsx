@@ -47,11 +47,4 @@ function ChatEnter(props: ChatEnterProps) {
   )
 }
 
-export {
-  CHAT_DURATION_MS,
-  CHAT_EASE,
-  CHAT_EASE_CLASS,
-  CHAT_ENTER,
-  CHAT_FADE,
-  ChatEnter
-}
+export { CHAT_DURATION_MS, CHAT_EASE, CHAT_EASE_CLASS, CHAT_ENTER, CHAT_FADE, ChatEnter }

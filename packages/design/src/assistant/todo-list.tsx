@@ -59,9 +59,7 @@ function TodoList(props: { items: readonly TodoItem[]; className?: string }) {
             <span
               className={cn(
                 'min-w-0 flex-1 break-words',
-                status === 'completed'
-                  ? 'text-muted-foreground line-through'
-                  : 'text-foreground',
+                status === 'completed' ? 'text-muted-foreground line-through' : 'text-foreground',
                 !isExpanded && 'line-clamp-2'
               )}>
               {item.content}

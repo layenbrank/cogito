@@ -32,10 +32,7 @@ function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
   )
 }
 
-function DialogPortal({
-  container,
-  ...props
-}: DialogPrimitive.Portal.Props) {
+function DialogPortal({ container, ...props }: DialogPrimitive.Portal.Props) {
   const shellContainer = useOverlayPortalContainer()
   return (
     <DialogPrimitive.Portal

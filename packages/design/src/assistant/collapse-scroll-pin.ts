@@ -35,8 +35,7 @@ function findCollapsePanel(root: HTMLElement): HTMLElement | null {
 function measurePanelHeight(panel: HTMLElement): number {
   const rect = panel.getBoundingClientRect()
   const style = getComputedStyle(panel)
-  const margin =
-    Number.parseFloat(style.marginTop) + Number.parseFloat(style.marginBottom)
+  const margin = Number.parseFloat(style.marginTop) + Number.parseFloat(style.marginBottom)
   return Math.max(0, Math.round(rect.height + margin))
 }
 

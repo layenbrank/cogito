@@ -47,7 +47,10 @@ function resolveComposerChipLabel(type: string, id: string): string | undefined 
   return labelResolver?.(type, id)
 }
 
-function resolveLabelOf(atom: Extract<ComposerAtom, { kind: 'chip' }>, override?: ChipLabelResolver) {
+function resolveLabelOf(
+  atom: Extract<ComposerAtom, { kind: 'chip' }>,
+  override?: ChipLabelResolver
+) {
   const resolved = override ? override(atom.type, atom.id) : undefined
   if (resolved !== undefined && resolved.length > 0) return resolved
   const fromRegistry = resolveComposerChipLabel(atom.type, atom.id)

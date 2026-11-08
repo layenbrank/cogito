@@ -2,15 +2,7 @@ import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import Ansi from 'ansi-to-react'
 import type { ComponentProps, ComponentType, HTMLAttributes, ReactNode } from 'react'
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button } from '../components/button'
 
@@ -172,9 +164,7 @@ function paintSizeMarks(line: string): ReactNode {
     last = match.index + match[0].length
   }
   if (last < line.length) {
-    parts.push(
-      <span key={`t-${partKey}`}>{paintStatusWords(line.slice(last), 'sz-tail')}</span>
-    )
+    parts.push(<span key={`t-${partKey}`}>{paintStatusWords(line.slice(last), 'sz-tail')}</span>)
   }
   return <span className="text-terminal-foreground">{parts}</span>
 }
@@ -219,7 +209,9 @@ function decoratePlainLine(line: string, cwd: string | null | undefined): ReactN
     return (
       <span className="flex min-w-0 items-baseline justify-between gap-4">
         <span className="min-w-0 flex-1">{paintSizeMarks(head)}</span>
-        <span className="text-terminal-muted/80 shrink-0 tabular-nums tracking-tight">{duration}</span>
+        <span className="text-terminal-muted/80 shrink-0 tabular-nums tracking-tight">
+          {duration}
+        </span>
       </span>
     )
   }
@@ -391,14 +383,11 @@ export function TerminalCopyButton({
     [payload, onCopy, onError, timeout]
   )
 
-  useEffect(
-    function () {
-      return function () {
-        window.clearTimeout(timeoutRef.current)
-      }
-    },
-    []
-  )
+  useEffect(function () {
+    return function () {
+      window.clearTimeout(timeoutRef.current)
+    }
+  }, [])
 
   return (
     <Button
@@ -422,11 +411,7 @@ export function TerminalCopyButton({
 
 export type TerminalClearButtonProps = ComponentProps<typeof Button>
 
-export function TerminalClearButton({
-  children,
-  className,
-  ...props
-}: TerminalClearButtonProps) {
+export function TerminalClearButton({ children, className, ...props }: TerminalClearButtonProps) {
   const { onClear } = useContext(TerminalContext)
   if (!onClear) return null
   return (
