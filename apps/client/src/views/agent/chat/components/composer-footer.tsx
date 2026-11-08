@@ -16,6 +16,7 @@ import {
 } from '@cogito/design/components/dropdown-menu'
 import {
   Context,
+  ContextBreakdownBar,
   ContextContent,
   ContextContentBody,
   ContextContentHeader,
@@ -27,7 +28,7 @@ import {
   ContextTrigger
 } from '@cogito/design/assistant/context'
 import { cn } from 'cn'
-import { useMemo, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
 import {
   findGooseUsage,
@@ -36,21 +37,26 @@ import {
   subscribeGooseUsage,
   type GooseUsage
 } from '@/features/agent/acp/goose-usage'
-import { estimateContextBreakdown } from '@/features/agent/context-estimate'
+import {
+  contextLevelOf,
+  rankContextSegments,
+  splitContextSegments
+} from '@/features/agent/context-breakdown'
+import {
+  estimateContextBreakdown,
+  rankMessagesByTokens
+} from '@/features/agent/context-estimate'
 import { findSystemPrompt } from '@/features/agent/model/prompts'
 import { buildPromptContext } from '@/features/agent/model/prompt-context'
 import { findActiveScenario } from '@/features/agent/model/active-scenario'
-import {
-  appendModeGuidance,
-  readAgentMode,
-  subscribeAgentMode
-} from '@/features/agent/mode'
+import { appendModeGuidance, readAgentMode, subscribeAgentMode } from '@/features/agent/mode'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 import { checkoutNow, useWorkspaceGitSnapshot } from '@/features/agent/workspace/git.ts'
 import { useGoalRecord } from '@/features/agent/plan-store'
 import { useAgentStore } from '@/stores/agent.ts'
 import { BranchSwitcherView } from '@/views/code/workspace/scm/branch-switcher-view.tsx'
 import { findBaseName } from '@/views/agent/chat/components/workspace-relative-path.ts'
+import { useStructuralThreadMessages } from '@/views/agent/chat/components/use-structural-messages.ts'
 import {
   buildContinuePrompt,
   GOAL_BUDGET_OPTIONS,
@@ -65,33 +71,57 @@ import {
 
 const FALLBACK_MAX_TOKENS = 128_000
 
+/**
+ * 200ms 节流：流式时结构快照也可能几十毫秒变一次（工具结果连续追加），
+ * 而上下文估算要遍历所有 part —— 合并到 5 次/秒，footer 不再跟着 token 抖。
+ */
+function useThrottledValue<T>(value: T, ms = 200): T {
+  const [throttled, setThrottled] = useState(value)
+  const lastRun = useRef(0)
+  useEffect(
+    function () {
+      if (Object.is(throttled, value)) return
+      const elapsed = Date.now() - lastRun.current
+      if (elapsed >= ms) {
+        lastRun.current = Date.now()
+        setThrottled(value)
+        return
+      }
+      const timer = setTimeout(function () {
+        lastRun.current = Date.now()
+        setThrottled(value)
+      }, ms - elapsed)
+      return function () {
+        clearTimeout(timer)
+      }
+    },
+    [ms, throttled, value]
+  )
+  return throttled
+}
+
 function useContextUsage(): GooseUsage | null {
   const activeThreadID = useAuiState(function (state) {
     return state.threads.mainThreadId
   })
-  return useSyncExternalStore(
-    subscribeGooseUsage,
-    function () {
-      return findGooseUsage(activeThreadID)
-    }
-  )
+  return useSyncExternalStore(subscribeGooseUsage, function () {
+    return findGooseUsage(activeThreadID)
+  })
 }
 
 /** footer 右侧用量：无 ACP 数据时仍显示入口；展开含来源分段 + I/O */
 function UsageDisplay() {
   const usage = useContextUsage()
-  const messages = useAuiState(function (state) {
-    return state.thread.messages
-  })
+  // 估算不看正文：按结构订阅，流式时 composer 不再逐 token 重渲染（见 use-structural-messages）
+  // 再加一层 200ms 节流：工具结果连续追加时，估算不必每帧重跑。
+  const messages = useThrottledValue(useStructuralThreadMessages(), 200)
 
   const breakdown = useMemo(
     function () {
       const scenario = findActiveScenario()
       const promptScenario =
         readAgentMode() === 'plan' && scenario === 'plan' ? 'general' : scenario
-      const systemText = appendModeGuidance(
-        findSystemPrompt(promptScenario, buildPromptContext())
-      )
+      const systemText = appendModeGuidance(findSystemPrompt(promptScenario, buildPromptContext()))
       return estimateContextBreakdown({ systemText, messages })
     },
     [messages]
@@ -103,7 +133,39 @@ function UsageDisplay() {
     usage && usage.size > 0
       ? formatGooseUsage(usage)
       : `${formatTokenCount(used)} / ${formatTokenCount(max)}`
-  const nearFull = max > 0 && used / max >= 0.85
+  // 分段与档位：阈值判定只认 `contextLevelOf`（单一来源，和单测口径一致）
+  const segments = useMemo(
+    function () {
+      return splitContextSegments(breakdown)
+    },
+    [breakdown]
+  )
+  const ranked = useMemo(
+    function () {
+      return rankContextSegments(segments)
+    },
+    [segments]
+  )
+  const level = contextLevelOf(used, max)
+  // 「最占上下文 Top 5」：点一条滚到那条消息。按属性值匹配而不是拼选择器，
+  // 免得 message id 里出现引号把 querySelector 弄成语法错误。
+  const drilldown = useMemo(
+    function () {
+      return rankMessagesByTokens(messages, 5)
+    },
+    [messages]
+  )
+  const jumpToMessage = useCallback(function (id: string) {
+    const nodes = document.querySelectorAll<HTMLElement>('[data-message-id], [data-user-message-id]')
+    const target = Array.from(nodes).find(function (node) {
+      return (node.dataset.messageId ?? node.dataset.userMessageId) === id
+    })
+    if (!target) {
+      toast.info('这条消息不在当前视图里')
+      return
+    }
+    target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [])
 
   return (
     <Context
@@ -120,9 +182,9 @@ function UsageDisplay() {
           size="sm"
           className={cn(
             'h-7 shrink-0 gap-1 rounded-md px-2.5 text-xs',
-            nearFull
-              ? 'text-destructive hover:text-destructive'
-              : 'text-muted-foreground hover:text-foreground'
+            level === 'danger' && 'text-destructive hover:text-destructive',
+            level === 'warn' && 'text-amber-600 hover:text-amber-600 dark:text-amber-400',
+            level === 'ok' && 'text-muted-foreground hover:text-foreground'
           )}
           title={
             usage && usage.size > 0
@@ -144,6 +206,14 @@ function UsageDisplay() {
         sideOffset={8}>
         <ContextContentHeader />
         <ContextContentBody className="space-y-2">
+          {/* 四段色条 + 图标 + 阈值档位 + 「最占」：一眼看出窗口被什么吃了 */}
+          <ContextBreakdownBar
+            segments={segments}
+            ranked={ranked}
+            level={level}
+            drilldown={drilldown}
+            onJumpToMessage={jumpToMessage}
+          />
           <p className="text-muted-foreground text-[11px]">来源（估算）</p>
           <ContextSourceUsage />
           <p className="text-muted-foreground pt-1 text-[11px]">用量</p>
@@ -162,8 +232,7 @@ function WorkspaceMenu() {
   const workspaces = useAgentStore(function (state) {
     return state.workspaces
   })
-  const currentFolderName =
-    rootPath && folders.length > 1 ? findBaseName(rootPath) : null
+  const currentFolderName = rootPath && folders.length > 1 ? findBaseName(rootPath) : null
 
   return (
     <DropdownMenu>
@@ -175,7 +244,7 @@ function WorkspaceMenu() {
             size="sm"
             aria-label="切换工作区或文件夹"
             title={rootPath ?? '还没有选择工作区'}
-            className="text-muted-foreground hover:text-foreground h-7 max-w-50 min-w-0 gap-1.5 rounded-md px-2.5 text-xs"
+            className="text-muted-foreground hover:text-foreground h-7 max-w-36 min-w-0 gap-1.5 rounded-md px-2.5 text-xs @min-[30rem]:max-w-50"
           />
         }>
         <Icon
@@ -461,7 +530,7 @@ function ComposerFooter() {
   const showGit = snapshot.isRepo && Boolean(snapshot.branch)
 
   return (
-    <div className="text-muted-foreground flex min-h-7 w-full items-center gap-2 px-1 text-xs">
+    <div className="@container text-muted-foreground flex min-h-7 w-full items-center gap-2 px-1 text-xs">
       {/*
        * 左：工作区 / 文件夹 + 目标推进轮次（仅目标模式，是「这次发送」的输入）。
        * 左栏 `flex-1 min-w-0` 先让位给右侧；右侧不再设 `max-w-[62%]`：
@@ -486,7 +555,7 @@ function ComposerFooter() {
             size="sm"
             tone="header"
             menuAlign="end"
-            className="max-w-32"
+            className="max-w-20 @min-[34rem]:max-w-32"
             onCheckout={function (name, fromRemote) {
               void checkoutNow(rootPath, name, fromRemote)
             }}

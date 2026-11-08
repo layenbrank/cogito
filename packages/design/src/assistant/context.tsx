@@ -2,6 +2,7 @@
  * Model context window usage (AI Elements `Context`).
  * Token cost rows are optional — no `tokenlens` / `@ai-sdk/*` dependency.
  */
+import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 import type { ComponentProps, ReactElement, ReactNode } from 'react'
 import { createContext, useContext, useMemo } from 'react'
@@ -339,8 +340,172 @@ function ContextSourceUsage({ className, children, ...props }: ContextSourceUsag
   )
 }
 
+type ContextBreakdownLevel = 'ok' | 'warn' | 'danger'
+
+/** 「最占上下文」里的一条消息（id 供业务侧做滚动定位） */
+interface ContextBreakdownItem {
+  id: string
+  label: string
+  tokens: number
+}
+
+interface ContextBreakdownSegment {
+  key: string
+  label: string
+  /** lucide 图标名 */
+  icon: string
+  /** 分段色条用的 Tailwind 背景类 */
+  tone: string
+  tokens: number
+  /** 占合计的比例 0..1 */
+  ratio: number
+}
+
+type ContextBreakdownBarProps = ComponentProps<'div'> & {
+  segments: readonly ContextBreakdownSegment[]
+  /** 占用率档位：ok / warn(≥70%) / danger(≥90%)，阈值判定在业务侧（单一来源） */
+  level?: ContextBreakdownLevel
+  /** 「谁最占」的排序结果；不给就按 segments 原顺序 */
+  ranked?: readonly ContextBreakdownSegment[]
+  /** 「最占上下文 Top N」消息；给了才渲染展开区 */
+  drilldown?: readonly ContextBreakdownItem[]
+  /** 点击某条消息（定位由业务侧负责） */
+  onJumpToMessage?: (id: string) => void
+}
+
+const LEVEL_RING: Record<ContextBreakdownLevel, string> = {
+  ok: 'ring-transparent',
+  warn: 'ring-amber-500/40',
+  danger: 'ring-destructive/50'
+}
+
+const LEVEL_TEXT: Record<ContextBreakdownLevel, string> = {
+  ok: 'text-muted-foreground',
+  warn: 'text-amber-600 dark:text-amber-400',
+  danger: 'text-destructive'
+}
+
+function formatSegmentTokens(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`
+  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}k`
+  return String(tokens)
+}
+
+/**
+ * 上下文分段色条。
+ *
+ * 一行色条回答「窗口被什么占了」，图例回答「各占多少」，`title` 给精确 token。
+ * `level` 只改描边与文案颜色，不动分段颜色 —— 否则用户分不清「哪一段大」和「整体危险」。
+ */
+function ContextBreakdownBar({
+  segments,
+  level = 'ok',
+  ranked,
+  drilldown = [],
+  onJumpToMessage,
+  className,
+  ...props
+}: ContextBreakdownBarProps) {
+  const heaviest = (ranked ?? segments)[0]
+  return (
+    <div
+      data-slot="model-context-breakdown"
+      data-level={level}
+      className={cn('space-y-1.5', className)}
+      {...props}>
+      <div
+        className={cn(
+          'bg-muted flex h-2 w-full overflow-hidden rounded-full ring-1 ring-inset',
+          LEVEL_RING[level]
+        )}>
+        {segments.map(function (segment) {
+          if (segment.tokens <= 0) return null
+          return (
+            <div
+              key={segment.key}
+              data-segment={segment.key}
+              className={cn('h-full transition-[width] duration-300', segment.tone)}
+              // 极小的段也留 2% 宽度：不然「有但看不到」比没有更让人困惑
+              style={{ width: `${Math.max(2, segment.ratio * 100)}%` }}
+              title={`${segment.label} ${formatSegmentTokens(segment.tokens)} · ${Math.round(
+                segment.ratio * 100
+              )}%`}
+            />
+          )
+        })}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {segments.map(function (segment) {
+          return (
+            <span
+              key={segment.key}
+              data-slot="model-context-legend"
+              className="text-muted-foreground inline-flex items-center gap-1 text-[11px]">
+              <Icon
+                icon={segment.icon}
+                className="size-3 shrink-0"
+                aria-hidden
+              />
+              <span>{segment.label}</span>
+              <span className="font-mono tabular-nums">
+                {Math.round(segment.ratio * 100)}%
+              </span>
+            </span>
+          )
+        })}
+        {heaviest ? (
+          <span className={cn('ms-auto inline-flex items-center gap-1 text-[11px]', LEVEL_TEXT[level])}>
+            <Icon
+              icon={level === 'ok' ? 'lucide:pie-chart' : 'lucide:triangle-alert'}
+              className="size-3 shrink-0"
+              aria-hidden
+            />
+            最占：{heaviest.label} {Math.round(heaviest.ratio * 100)}%
+          </span>
+        ) : null}
+      </div>
+      {/* 最占上下文 Top N：点一条跳到那条消息（定位由业务侧做，design 只发事件） */}
+      {drilldown.length > 0 ? (
+        <details
+          data-slot="model-context-drilldown"
+          className="group mt-1">
+          <summary className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer list-none items-center gap-1 text-[11px] select-none">
+            <Icon
+              icon="lucide:chevron-right"
+              className="size-3 shrink-0 transition-transform group-open:rotate-90"
+              aria-hidden
+            />
+            最占上下文 Top {drilldown.length}
+          </summary>
+          <ul className="mt-1 space-y-0.5">
+            {drilldown.map(function (item) {
+              return (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    data-slot="model-context-drilldown-item"
+                    onClick={function () {
+                      onJumpToMessage?.(item.id)
+                    }}
+                    className="text-muted-foreground hover:bg-muted hover:text-foreground flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-[11px]">
+                    <span className="truncate">{item.label}</span>
+                    <span className="ms-auto shrink-0 font-mono tabular-nums">
+                      {formatSegmentTokens(item.tokens)}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </details>
+      ) : null}
+    </div>
+  )
+}
+
 export {
   Context,
+  ContextBreakdownBar,
   ContextCacheUsage,
   ContextContent,
   ContextContentBody,
@@ -352,4 +517,11 @@ export {
   ContextSourceUsage,
   ContextTrigger
 }
-export type { ContextProps, ModelUsageBreakdown }
+export type {
+  ContextBreakdownBarProps,
+  ContextBreakdownItem,
+  ContextBreakdownLevel,
+  ContextBreakdownSegment,
+  ContextProps,
+  ModelUsageBreakdown
+}
