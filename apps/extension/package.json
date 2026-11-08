@@ -16,7 +16,7 @@
     "lint:eslint": "eslint . --fix --cache",
     "lint": "run-s lint:*",
     "format": "prettier --write src/",
-    "unit": "vitest",
+    "unit": "vitest run",
     "e2e": "playwright test",
     "coverage": "vitest --coverage"
   },

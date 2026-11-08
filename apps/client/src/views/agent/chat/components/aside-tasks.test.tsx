@@ -22,6 +22,7 @@ const mock = vi.hoisted(function () {
       cloudError: null as string | null,
       isLoading: false,
       running: {},
+      phases: {},
       runs: [] as unknown[],
       allRuns: [] as unknown[],
       refresh: vi.fn(async function () {}),
@@ -43,8 +44,34 @@ const mock = vi.hoisted(function () {
     base: {
       bases: [] as unknown[],
       refresh: vi.fn(async function () {})
+    },
+    provider: {
+      providers: [] as unknown[],
+      toReadProviders: vi.fn(async function () {
+        return []
+      })
     }
   }
+})
+
+vi.mock('@assistant-ui/react', function () {
+  return {
+    useAui: function () {
+      return {
+        threads: {
+          reload: vi.fn(async function () {}),
+          switchToThread: vi.fn()
+        }
+      }
+    }
+  }
+})
+
+vi.mock('@/stores/provider', function () {
+  const useProviderStore = function (selector: (state: typeof mock.provider) => unknown) {
+    return selector(mock.provider)
+  }
+  return { useProviderStore }
 })
 
 vi.mock('@/stores/automation', function () {
@@ -137,6 +164,12 @@ function makeTask(partial: Partial<Automation>): Automation {
     knowledgeBaseId: null,
     workspaceId: null,
     approval: 'readonly',
+    providerId: null,
+    modelId: null,
+    mode: 'agent',
+    goalBudget: 6,
+    planThenGoal: false,
+    planFilePath: null,
     schedule: '0 9 * * *',
     timezone: 'Asia/Shanghai',
     enabled: true,
@@ -162,11 +195,13 @@ beforeEach(function () {
   mock.automation.cloudError = null
   mock.automation.isLoading = false
   mock.automation.running = {}
+  mock.automation.phases = {}
   mock.automation.runs = []
   mock.automation.allRuns = []
   mock.automation.refresh.mockClear()
   mock.automation.toggle.mockClear()
   mock.automation.remove.mockClear()
+  mock.provider.toReadProviders.mockClear()
   mock.automation.runNow.mockClear()
   mock.automation.openRuns.mockClear()
   mock.automation.openAllRuns.mockClear()

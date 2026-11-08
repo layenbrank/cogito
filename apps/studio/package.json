@@ -34,7 +34,8 @@
     "test:coverage": "vitest --coverage",
     "test:db": "node scripts/run-db-tests.mjs",
     "test:e2e": "playwright test",
-    "test:unit": "vitest"
+    "test:unit": "vitest",
+    "unit": "vitest run"
   },
   "dependencies": {
     "@ant-design/colors": "catalog:",

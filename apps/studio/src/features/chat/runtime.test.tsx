@@ -160,6 +160,7 @@ const { Thread } = await import('@cogito/design/assistant/thread.aui')
 const { AssistantLabelsProvider } = await import('@cogito/design/assistant/labels')
 const { ASSISTANT_LABELS_ZH } = await import('./labels.ts')
 const { AgentProcessFold } = await import('@/views/agent/chat/components/process-group.tsx')
+const { AgentToolGroup } = await import('@/views/agent/chat/components/tool-group.tsx')
 
 /** 一条可被 `LOCAL_CODEC` 解出来的历史行（格式名与实现里的常量一致） */
 function toStoredRow(threadID: string, id: string, text: string) {
@@ -416,7 +417,7 @@ describe('对话排版（过程折叠）', function () {
       <ChatRuntimeProvider>
         <AssistantLabelsProvider labels={ASSISTANT_LABELS_ZH}>
           <ThreadProbe />
-          <Thread components={{ ProcessGroup: AgentProcessFold }} />
+          <Thread components={{ ToolGroup: AgentToolGroup, ProcessGroup: AgentProcessFold }} />
         </AssistantLabelsProvider>
       </ChatRuntimeProvider>
     )
@@ -427,6 +428,8 @@ describe('对话排版（过程折叠）', function () {
       { kind: 'text', blockID: 't1', text: '我先读一下入口文件。' },
       { kind: 'tool-call', toolCallId: 'call-1', toolName: 'fs_read', input: { path: 'a.ts' } },
       { kind: 'tool-result', toolCallId: 'call-1', toolName: 'fs_read', output: 'ok' },
+      { kind: 'tool-call', toolCallId: 'call-2', toolName: 'fs_read', input: { path: 'b.ts' } },
+      { kind: 'tool-result', toolCallId: 'call-2', toolName: 'fs_read', output: 'ok' },
       { kind: 'text', blockID: 't2', text: '结论：入口在 main.ts。' },
       { kind: 'finish', finishReason: 'stop', usage: { totalTokens: 3 } }
     ]
@@ -509,7 +512,7 @@ describe('对话排版（过程折叠）', function () {
     // 工具那段仍是一条折叠条（段内聚合没丢），条本身在过程区里
     const toolBar = fold.querySelector('[data-slot="tool-group-root"]')
     expect(toolBar).toBeTruthy()
-    expect(toolBar!.textContent).toContain('1')
+    expect(toolBar!.textContent).toContain('2')
     // 中间解说 + 工具段按原时序排在折叠区里，结论不在
     expect(fold.textContent).not.toContain('结论：入口在 main.ts。')
     const narration = screen.getByText('我先读一下入口文件。')

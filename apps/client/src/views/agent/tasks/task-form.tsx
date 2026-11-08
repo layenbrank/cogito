@@ -27,15 +27,26 @@ import {
 import { Switch } from '@cogito/design/components/switch'
 import { Textarea } from '@cogito/design/components/textarea'
 import { clsx } from 'clsx'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
+import { GOAL_BUDGET_OPTIONS } from '@/features/agent/goal-run'
+import { parseModels } from '@/features/agent/model/providers'
+import { listPlanFiles, type PlanFileEntry } from '@/features/agent/plan-file'
 import { DICT_TYPE } from '@/shared/ipc/specs/dict'
 import { useAgentStore } from '@/stores/agent.ts'
 import { useAutomationStore } from '@/stores/automation'
 import { useDictStore } from '@/stores/dict'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
-import { OWNER, findDraftProblem, findOwnerHint, toSaveInput, type TaskDraft } from './model'
+import { useProviderStore } from '@/stores/provider'
+import {
+  MODE_OPTIONS,
+  OWNER,
+  findDraftProblem,
+  findOwnerHint,
+  toSaveInput,
+  type TaskDraft
+} from './model'
 import { ScheduleField } from './schedule-field'
 import styles from './tasks.module.scss'
 
@@ -69,6 +80,8 @@ function TaskForm(props: TaskFormProps) {
   const [isSaving, updateSaving] = useState(false)
   /** 校验提示等用户动过一版再出现：空白表单上手就甩一行红字太凶，按钮置灰已经说明问题 */
   const [isDirty, updateDirty] = useState(false)
+  const [planFiles, updatePlanFiles] = useState<PlanFileEntry[]>([])
+  const [isListingPlans, updateListingPlans] = useState(false)
 
   const workspaces = useAgentStore(function (state) {
     return state.workspaces
@@ -85,13 +98,79 @@ function TaskForm(props: TaskFormProps) {
   const findLabel = useDictStore(function (state) {
     return state.findLabel
   })
+  const providers = useProviderStore(function (state) {
+    return state.providers
+  })
 
   const isCloud = draft.owner === OWNER.CLOUD
   /** goose 任务由 goose 自己跑：工作目录与授权在 goose 侧，客户端配了也不会生效（原先是静默失效） */
   const isGoose = draft.owner === OWNER.GOOSE
   /** 这两档的执行配置都不归客户端管：锁住 + 说清由谁决定 */
   const isExecConfigLocked = isCloud || isGoose
+  const isClient = draft.owner === OWNER.CLIENT
+  const hasBoundPlan = Boolean(draft.planFilePath?.trim())
   const problem = findDraftProblem(draft)
+  // 轮次只在 goal / 计划后执行时用；绑定计划 + 执行模式不显示
+  const showBudget = draft.planThenGoal || draft.mode === 'goal'
+  const modeOptions = hasBoundPlan
+    ? MODE_OPTIONS.filter(function (option) {
+        return option.value !== 'plan'
+      })
+    : MODE_OPTIONS
+
+  function findWorkspacePath(workspaceID: string): string {
+    const owned = folders.filter(function (item) {
+      return item.workspaceID === workspaceID
+    })
+    return owned[0]?.path ?? ''
+  }
+
+  useEffect(
+    function () {
+      if (!isClient || !draft.workspaceId) {
+        updatePlanFiles([])
+        return
+      }
+      const rootPath = findWorkspacePath(draft.workspaceId)
+      if (!rootPath) {
+        updatePlanFiles([])
+        return
+      }
+      let cancelled = false
+      updateListingPlans(true)
+      void listPlanFiles(rootPath)
+        .then(function (entries) {
+          if (!cancelled) updatePlanFiles(entries)
+        })
+        .catch(function (error: unknown) {
+          console.warn('[agent/tasks] 列出计划文件失败:', error)
+          if (!cancelled) updatePlanFiles([])
+        })
+        .finally(function () {
+          if (!cancelled) updateListingPlans(false)
+        })
+      return function () {
+        cancelled = true
+      }
+    },
+    // findWorkspacePath 依赖 folders；workspace 切换时重拉
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isClient, draft.workspaceId, folders]
+  )
+
+  const modelItems = [
+    { value: 'follow', label: '跟随当前激活模型' },
+    ...providers.flatMap(function (provider) {
+      return parseModels(provider.models).map(function (model) {
+        return {
+          value: `${provider.id}::${model}`,
+          label: `${provider.name || provider.kind} · ${model}`
+        }
+      })
+    })
+  ]
+  const modelValue =
+    draft.providerId && draft.modelId ? `${draft.providerId}::${draft.modelId}` : 'follow'
 
   /**
    * 下拉的显示文案必须走 `items`：Base UI 的 `Select.Value` 默认渲染裸 value，
@@ -148,11 +227,19 @@ function TaskForm(props: TaskFormProps) {
     })
   }
 
-  function findWorkspacePath(workspaceID: string): string {
-    const owned = folders.filter(function (item) {
-      return item.workspaceID === workspaceID
+  const planItems = [
+    { value: 'none', label: isListingPlans ? '读取计划中…' : '不绑定（用指令现场跑）' },
+    ...planFiles.map(function (entry) {
+      return { value: entry.relative, label: entry.name }
     })
-    return owned[0]?.path ?? ''
+  ]
+  if (
+    draft.planFilePath &&
+    !planFiles.some(function (entry) {
+      return entry.relative === draft.planFilePath
+    })
+  ) {
+    planItems.push({ value: draft.planFilePath, label: `${draft.planFilePath}（文件可能已删除）` })
   }
 
   async function handleSave() {
@@ -202,7 +289,11 @@ function TaskForm(props: TaskFormProps) {
             <span className={styles.fieldLabel}>指令</span>
             <Textarea
               value={draft.prompt}
-              placeholder="到期时交给智能体的一句话，例如：把当前目录的文件数写进 report.txt"
+              placeholder={
+                hasBoundPlan
+                  ? '可选：附加说明（执行依据是已绑定的计划正文）'
+                  : '到期时交给智能体的一句话，例如：把当前目录的文件数写进 report.txt'
+              }
               className="min-h-20 text-[13px]"
               onChange={function (event) {
                 patch({ prompt: event.target.value })
@@ -264,9 +355,19 @@ function TaskForm(props: TaskFormProps) {
               disabled={Boolean(draft.id) && isCloud}
               onValueChange={function (value) {
                 if (typeof value !== 'string') return
-                // 换成 goose / 云端：这两项执行配置不归客户端管，留着只会让列表显示错误语义
+                // 换成 goose / 云端：执行配置不归客户端管，留着只会让列表显示错误语义
                 if (value !== OWNER.CLIENT) {
-                  patch({ owner: value, workspaceId: null, approval: 'readonly' })
+                  patch({
+                    owner: value,
+                    workspaceId: null,
+                    approval: 'readonly',
+                    providerId: null,
+                    modelId: null,
+                    mode: 'agent',
+                    planThenGoal: false,
+                    planFilePath: null,
+                    goalBudget: 6
+                  })
                   return
                 }
                 patch({ owner: value })
@@ -296,7 +397,11 @@ function TaskForm(props: TaskFormProps) {
               disabled={isExecConfigLocked}
               onValueChange={function (value) {
                 if (typeof value !== 'string') return
-                patch({ workspaceId: value === 'none' ? null : value })
+                // 换工作目录：已绑的计划可能不属于新目录，清掉避免跑错文件
+                patch({
+                  workspaceId: value === 'none' ? null : value,
+                  planFilePath: null
+                })
               }}>
               <SelectTrigger>
                 <SelectValue placeholder="家目录" />
@@ -319,6 +424,49 @@ function TaskForm(props: TaskFormProps) {
                 : '任务的读写与命令都落在这个目录里。'}
             </p>
           </div>
+
+          {isClient ? (
+            <div className={styles.fieldGroup}>
+              <span className={styles.fieldLabel}>绑定计划</span>
+              <Select
+                items={planItems}
+                value={draft.planFilePath ?? 'none'}
+                disabled={!draft.workspaceId}
+                onValueChange={function (value) {
+                  if (typeof value !== 'string') return
+                  if (value === 'none') {
+                    patch({ planFilePath: null })
+                    return
+                  }
+                  // 绑定现成计划：关掉流水线；若还停在「计划」模式则改成目标
+                  patch({
+                    planFilePath: value,
+                    planThenGoal: false,
+                    mode: draft.mode === 'plan' ? 'goal' : draft.mode
+                  })
+                }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="不绑定" />
+                </SelectTrigger>
+                <SelectContent>
+                  {planItems.map(function (item) {
+                    return (
+                      <SelectItem
+                        key={item.value}
+                        value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+              <p className={styles.fieldHint}>
+                {!draft.workspaceId
+                  ? '先指定工作目录，才能选择 .cogito/plans 里已保存的计划'
+                  : '提前在会话里用计划模式保存；到期时按该计划执行，不必再现场生成'}
+              </p>
+            </div>
+          ) : null}
 
           <div className={styles.fieldGroup}>
             <span className={styles.fieldLabel}>执行授权</span>
@@ -356,6 +504,122 @@ function TaskForm(props: TaskFormProps) {
                     : '只允许检索与阅读，写操作会被拒绝并计入记录'}
             </p>
           </div>
+
+          {isClient ? (
+            <>
+              <div className={styles.fieldGroup}>
+                <span className={styles.fieldLabel}>模型</span>
+                <Select
+                  items={modelItems}
+                  value={modelValue}
+                  onValueChange={function (value) {
+                    if (typeof value !== 'string') return
+                    if (value === 'follow') {
+                      patch({ providerId: null, modelId: null })
+                      return
+                    }
+                    const sep = value.indexOf('::')
+                    if (sep < 0) return
+                    patch({
+                      providerId: value.slice(0, sep),
+                      modelId: value.slice(sep + 2)
+                    })
+                  }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="跟随当前" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {modelItems.map(function (item) {
+                      return (
+                        <SelectItem
+                          key={item.value}
+                          value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
+                <p className={styles.fieldHint}>空 = 用设置里当前激活的供应商与模型</p>
+              </div>
+
+              <div className={styles.fieldGroup}>
+                <span className={styles.fieldLabel}>模式</span>
+                <div
+                  className={styles.segmented}
+                  role="group"
+                  aria-label="执行模式">
+                  {modeOptions.map(function (option) {
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        aria-pressed={!draft.planThenGoal && draft.mode === option.value}
+                        className={styles.segment}
+                        disabled={draft.planThenGoal}
+                        onClick={function () {
+                          patch({ mode: option.value })
+                        }}>
+                        {option.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className={styles.fieldHint}>
+                  {hasBoundPlan
+                    ? '已绑定计划：按目标或执行模式落地计划正文'
+                    : draft.planThenGoal
+                      ? '已开启「计划后执行」：将先计划再按目标轮次推进'
+                      : draft.mode === 'plan'
+                        ? '只产出可审阅计划，不自动改代码'
+                        : draft.mode === 'goal'
+                          ? '按目标自动续跑，直到达成或轮次用尽'
+                          : '单轮执行：直接改代码 / 跑命令'}
+                </p>
+              </div>
+
+              {!hasBoundPlan ? (
+                <div className={styles.fieldGroup}>
+                  <span className={styles.fieldLabel}>计划后执行</span>
+                  <div className="flex h-9 items-center gap-2">
+                    <Switch
+                      checked={draft.planThenGoal}
+                      aria-label="计划后执行"
+                      onCheckedChange={function (checked) {
+                        patch({ planThenGoal: checked })
+                      }}
+                    />
+                    <span className={styles.fieldHint}>先用计划模式出方案，再以目标模式按轮次执行</span>
+                  </div>
+                </div>
+              ) : null}
+
+              {showBudget ? (
+                <div className={styles.fieldGroup}>
+                  <span className={styles.fieldLabel}>目标轮次</span>
+                  <div
+                    className={styles.segmented}
+                    role="group"
+                    aria-label="目标轮次">
+                    {GOAL_BUDGET_OPTIONS.map(function (budget) {
+                      return (
+                        <button
+                          key={budget}
+                          type="button"
+                          aria-pressed={draft.goalBudget === budget}
+                          className={styles.segment}
+                          onClick={function () {
+                            patch({ goalBudget: budget })
+                          }}>
+                          {budget} 轮
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          ) : null}
 
           <div className={styles.fieldGroup}>
             <span className={styles.fieldLabel}>关联知识库</span>

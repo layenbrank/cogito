@@ -44,14 +44,10 @@ impl Bootstrap {
                     migration::run(&connection).await?;
 
                     let storage = Storage::new(connection);
-                    // 知识库：正文是 `<app_local_data_dir>/knowledge/<slug>/` 下的文件，
-                    // 启动时确保默认库存在（工具面缺省 baseId 要用它兜底）。
-                    cogito_core::knowledge::Service::toEnsureDefaultBase(
-                        storage.connection(),
-                        &app_dir.join("knowledge"),
-                    )
-                    .await
-                    .map_err(|error| anyhow::anyhow!("初始化知识库失败: {error}"))?;
+                    // 知识库根：`<app_local_data_dir>/knowledge/<slug>/`；不自动建「默认库」，
+                    // 由用户选场景模板新建或导入示例库。
+                    std::fs::create_dir_all(app_dir.join("knowledge"))
+                        .map_err(|error| anyhow::anyhow!("创建知识库根目录失败: {error}"))?;
                     // 本地工具桥：`cogito-mcp` 只经它读写，app 始终是唯一写者。
                     // 传 AppHandle 是因为 `app_browser_*` 要访问宿主 webview。
                     let bridge = crate::bridge::start(storage.clone(), handle_for_db.clone()).await?;

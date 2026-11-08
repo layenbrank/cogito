@@ -40,6 +40,15 @@ const CLAIM_LIMIT: u64 = 1;
 pub const APPROVAL_READONLY: &str = "readonly";
 pub const APPROVAL_AUTO: &str = "auto";
 
+/// 单模式：agent / plan / goal（与客户端 `AgentMode` 对齐；任务里没有 ask）
+pub const MODE_AGENT: &str = "agent";
+pub const MODE_PLAN: &str = "plan";
+pub const MODE_GOAL: &str = "goal";
+
+/// 目标轮次允许档（与客户端 `GOAL_BUDGET_OPTIONS` 对齐）
+const GOAL_BUDGET_OPTIONS: [i32; 3] = [3, 6, 12];
+const DEFAULT_GOAL_BUDGET: i32 = 6;
+
 /// 回写输出/错误的截断长度
 const OUTPUT_LIMIT: usize = 4_000;
 const ERROR_LIMIT: usize = 1_000;
@@ -58,6 +67,18 @@ pub struct AutomationInput {
     pub workspaceId: Option<String>,
     /// 执行授权档：readonly | auto；缺省 readonly（无人值守没有 ask）
     pub approval: Option<String>,
+    /// 固定供应商；空 = 跟随当前激活
+    pub providerId: Option<String>,
+    /// 固定模型；空 = 跟随当前激活
+    pub modelId: Option<String>,
+    /// agent | plan | goal；缺省 agent
+    pub mode: Option<String>,
+    /// 目标轮次；缺省 6
+    pub goalBudget: Option<i32>,
+    /// 先 plan 再 goal；缺省 false
+    pub planThenGoal: Option<bool>,
+    /// 绑定的工作区计划文件（相对路径）；空 = 不绑定
+    pub planFilePath: Option<String>,
     /// 5 段 crontab（分 时 日 月 周）；带秒的 6–7 段也接受
     pub schedule: String,
     pub timezone: Option<String>,
@@ -77,6 +98,15 @@ pub struct FinishInput {
     pub runId: String,
     pub output: Option<String>,
     pub error: Option<String>,
+}
+
+/// 执行过程中补写会话回链与阶段（前端开会话 / 切流水线阶段时调用）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PatchRunInput {
+    pub runId: String,
+    pub sessionId: Option<String>,
+    pub phase: Option<String>,
 }
 
 /// 到期/手动触发后交回调用方的东西：任务定义 + 本次执行记录
@@ -123,8 +153,13 @@ impl Service {
         if name.is_empty() {
             return Err(Exception::Validation("任务名称不能为空".to_string()));
         }
+        let plan_file_path = input
+            .planFilePath
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
         let prompt = input.prompt.trim().to_string();
-        if prompt.is_empty() {
+        // 绑定了计划文件时，执行依据是计划正文，附加说明可空
+        if prompt.is_empty() && plan_file_path.is_none() {
             return Err(Exception::Validation("任务内容不能为空".to_string()));
         }
         let schedule = input.schedule.trim().to_string();
@@ -162,6 +197,51 @@ impl Service {
         if !matches!(run_as_kind.as_str(), automation_run_as::USER | automation_run_as::TENANT) {
             return Err(Exception::Validation(format!("不支持的执行身份：{run_as_kind}")));
         }
+        let mode = input
+            .mode
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| MODE_AGENT.to_string());
+        if !matches!(mode.as_str(), MODE_AGENT | MODE_PLAN | MODE_GOAL) {
+            return Err(Exception::Validation(format!(
+                "不支持的执行模式：{mode}（只有执行 / 计划 / 目标）"
+            )));
+        }
+        let goal_budget = input.goalBudget.unwrap_or(DEFAULT_GOAL_BUDGET);
+        if !GOAL_BUDGET_OPTIONS.contains(&goal_budget) {
+            return Err(Exception::Validation(format!(
+                "不支持的目标轮次：{goal_budget}（只有 3 / 6 / 12）"
+            )));
+        }
+        let mut plan_then_goal = input.planThenGoal.unwrap_or(false);
+        let provider_id = input
+            .providerId
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        let model_id = input
+            .modelId
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        // 固定模型必须成对：只写一边会让执行侧猜另一半，不如保存时就拦住
+        if provider_id.is_some() != model_id.is_some() {
+            return Err(Exception::Validation(
+                "固定模型需要同时指定供应商与模型，或都留空跟随当前".to_string(),
+            ));
+        }
+        if plan_file_path.is_some() {
+            if workspace_id.is_none() {
+                return Err(Exception::Validation(
+                    "绑定计划文件必须先指定工作目录".to_string(),
+                ));
+            }
+            if mode == MODE_PLAN {
+                return Err(Exception::Validation(
+                    "已绑定计划时不能再选「计划」模式（请用执行或目标去落地）".to_string(),
+                ));
+            }
+            // 绑定计划与「计划后执行」互斥：执行依据已是现成计划
+            plan_then_goal = false;
+        }
 
         let now = Utc::now().timestamp_millis();
         // 只有本机 worker 需要 nextRunAt；其它 owner 由远端排期，这里留空
@@ -182,6 +262,12 @@ impl Service {
             active.knowledgeBaseId = Set(input.knowledgeBaseId);
             active.workspaceId = Set(workspace_id);
             active.approval = Set(approval);
+            active.providerId = Set(provider_id);
+            active.modelId = Set(model_id);
+            active.mode = Set(mode);
+            active.goalBudget = Set(goal_budget);
+            active.planThenGoal = Set(plan_then_goal);
+            active.planFilePath = Set(plan_file_path);
             active.schedule = Set(schedule);
             active.timezone = Set(timezone);
             active.enabled = Set(enabled);
@@ -201,6 +287,12 @@ impl Service {
             knowledgeBaseId: input.knowledgeBaseId,
             workspaceId: workspace_id,
             approval,
+            providerId: provider_id,
+            modelId: model_id,
+            mode,
+            goalBudget: goal_budget,
+            planThenGoal: plan_then_goal,
+            planFilePath: plan_file_path,
             schedule,
             timezone,
             enabled,
@@ -430,6 +522,41 @@ impl Service {
         Ok(active.update(db).await?)
     }
 
+    /// 补写会话回链 / 阶段：开会话后写 `sessionId`，流水线切阶段写 `phase`。
+    ///
+    /// 已结束的记录仍允许补 `sessionId`（finish 与开会话可能并发），但 `phase` 只在仍 running 时改。
+    pub async fn toPatchRun<C: ConnectionTrait + TransactionTrait>(
+        db: &C,
+        input: PatchRunInput,
+    ) -> Result<run_schema::Model, Exception> {
+        let existing = run_schema::Entity::find_by_id(input.runId.clone())
+            .one(db)
+            .await?
+            .ok_or_else(|| Exception::NotFound(format!("执行记录不存在：{}", input.runId)))?;
+        let mut active: run_schema::ActiveModel = existing.clone().into();
+        if let Some(session_id) = input.sessionId {
+            let trimmed = session_id.trim().to_string();
+            if !trimmed.is_empty() {
+                active.sessionId = Set(Some(trimmed));
+            }
+        }
+        if let Some(phase) = input.phase {
+            let trimmed = phase.trim().to_string();
+            if !matches!(trimmed.as_str(), MODE_AGENT | MODE_PLAN | MODE_GOAL) {
+                return Err(Exception::Validation(format!(
+                    "不支持的执行阶段：{trimmed}"
+                )));
+            }
+            if existing.status != automation_run_status::RUNNING {
+                return Err(Exception::Validation(
+                    "这条执行记录已经结束，不能再改阶段".to_string(),
+                ));
+            }
+            active.phase = Set(Some(trimmed));
+        }
+        Ok(active.update(db).await?)
+    }
+
     /// 收尸：running 记录超过阈值还没回写就标失败。两条分支缺一不可：
     ///
     /// 1. `startedAt < 截止点` —— 开跑了但没回写（会话中断、应用被杀）；
@@ -531,6 +658,13 @@ impl Service {
             startedAt: None,
             finishedAt: None,
             status: automation_run_status::RUNNING.to_string(),
+            sessionId: None,
+            // 流水线 / 单模式的首阶段由前端开会话后写；这里先按任务定义给个起点
+            phase: Some(if automation.planThenGoal {
+                MODE_PLAN.to_string()
+            } else {
+                automation.mode.clone()
+            }),
             output: None,
             error: None,
             createdAt: now_ms,
@@ -719,6 +853,12 @@ mod tests {
             knowledgeBaseId: None,
             workspaceId: None,
             approval: None,
+            providerId: None,
+            modelId: None,
+            mode: None,
+            goalBudget: None,
+            planThenGoal: None,
+            planFilePath: None,
             schedule: schedule.to_string(),
             timezone: Some("Asia/Shanghai".to_string()),
             enabled: Some(true),

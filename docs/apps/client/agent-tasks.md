@@ -1,13 +1,14 @@
 # 任务（自动化任务域）：定义 / 触发 / 记录
 
-> 2026-11 落地。**结论先行**：任务不是会话。任务 = 一条可重复触发的自动化定义
-> （指令 + 计划 + 执行方 + 工作目录 + 执行授权），每次触发产生一条执行记录；
-> 会话 = 一次人机对话。两者共用「起一个 thread 跑一轮 prompt」的底座，但**任务执行不进会话列表**。
+> 2026-11 落地，后续补齐「状态可见 + 会话入栏 + 模式流水线」。
+> **结论先行**：任务不是普通聊天会话。任务 = 一条可重复触发的自动化定义
+> （指令 + 排期 + 执行方 + 工作目录 + 执行授权 + 模型/模式/轮次），每次触发产生一条执行记录，
+> 并落库一条可回看的会话 `automation-<runId>`，出现在侧栏独立的「自动化」分组（不进工作区树）。
 
 入口：**右栏「任务」页签**（`views/agent/chat/components/aside-tasks.tsx`）—— 卡片列表 / 详情 / 全部记录 / 新建表单共用一块面板，
 不跳页面、不再有 `/agent/tasks` 页面（老深链重定向到 `/agent/chat`）。纯逻辑与表单仍在 `views/agent/tasks/`
 （`model.ts` / `task-form.tsx` / `task-runs.tsx` / `schedule-field.tsx`），面板只做组合与呈现。
-后端用的是仓库里早已完整、但入口被删掉的 automation 域（`automation` / `automation_run`）。
+后端用的是 automation 域（`automation` / `automation_run`）。
 
 面板内四个视图（状态在 `PanelView` 里，返回不离开当前会话）：
 
@@ -28,13 +29,14 @@
 
 ## 任务 vs 会话
 
-| 维度 | 任务（右栏「任务」面板） | 会话（`/agent` 聊天） |
-| --- | --- | --- |
-| 存在形式 | 表里的一行（定义），关窗后仍在 | 会话档案 + 消息流 |
-| 触发 | cron 排期 / 立即执行 | 用户发消息 |
-| 上下文 | 每次一个隔离 thread `automation-<runId>`，跑完即弃 | 长期累积，进会话列表 |
-| 产出 | `automation_run`（状态 / 输出 / 错误 / 耗时） | 消息流 |
-| 审批 | `readonly` / `auto`（无人值守，**没有 `ask`**） | `ask` / `auto` / `readonly` 三档 |
+| 维度 | 任务（右栏「任务」面板） | 普通会话（工作区树） | 自动化会话（侧栏「自动化」） |
+| --- | --- | --- | --- |
+| 存在形式 | 表里的一行（定义），关窗后仍在 | 会话档案 + 消息流 | 每次执行落库 `agent_session`，跑完保留 |
+| 触发 | cron 排期 / 立即执行 | 用户发消息 | 由任务触发 |
+| 上下文 | 定义可复用 | 长期累积 | id = `automation-<runId>`，与 run 回链 |
+| 产出 | `automation_run`（状态 / phase / 输出 / 错误） | 消息流 | 同左 + 可在主区回看流式过程 |
+| 审批 | `readonly` / `auto`（无人值守，**没有 `ask`**） | `ask` / `auto` / `readonly` | 跟随任务授权；计划阶段强制只读 |
+| 模式 | 单模式 agent/plan/goal，或「计划后执行」流水线 | composer 切换 | 按任务配置跑 |
 
 `mod+n` / 侧栏「新建会话」/ 标题栏按钮都属于**会话**，命令 id 沿用历史名 `AGENT_NEW_TASK`
 （`keyboard/definitions/ids.ts` 的注释写清了这一点），避免键位与测试断链。
@@ -60,30 +62,54 @@
 
 ```
 worker tick(12s) → Service::toClaimDue（一次只认领 1 条，前端本来就是串行队列）
-  → emit `automation:due`（DuePayload）
+  → emit `automation:due`（DuePayload：含 mode / goalBudget / planThenGoal / planFilePath / 模型）
   → features/automation/runner.ts::runDue
       → requireWorkspace          // fail-closed：目录解析不到就判失败，绝不退回家目录
-      → touchAutomationRun        // startedAt 补成真正开跑的时间（排队不算耗时）
-      → writeApprovalModeFor(threadID, approval)   // 按会话写档，ensureThreadSession 推给 goose
-      → runThreadPrompt(threadID, { workspaceID, systemText, ... })
-      → approval==='auto' ? respondToApproval(approved:true) : approved:false（并计数）
+      → touchAutomationRun        // startedAt 补成真正开跑的时间（排队不算耗时）；长跑有心跳
+      → ensureAutomationSession   // 落库 agent_session(id=automation-<runId>)，通知侧栏 reload
+      → patchAutomationRun(sessionId, phase)
+      → 有 planFilePath：readPlanFile + buildPlanExecutePrompt（与右栏「按计划执行」同源），跳过 planThenGoal
+      → 否则：单模式 / 流水线（plan → goal）：写 mode + approval，消息落 history，goal 复用 goal-run
+      → ensureBackgroundTurn + follow（与普通聊天同源）：goose provider 用 `kind`（会话归属仍存本地 id）
+      → 发 `stream` → UI `threads.reload` + switch，history.resume 接流式；目标多轮每轮都发
       → finishAutomationRun({ runId, output })      // 失败写 error
-      → notifyAutomationRun(name, ok, error)        // 成功与失败都报，定时任务没有人围观
-      → finally: clearApprovalModeFor + closeThreadSession
+      → notifyAutomationRun(name, ok, error)        // 成功与失败都报
+      → finally: clearApprovalModeFor + 释放 ACP 租约（会话与消息保留）
 ```
 
-- **工作目录 fail-closed**：`ensureThreadSession → findWorkspaceCwd` 解析不到会静默 `return homeDir()`，
-  于是「配了目录」变成「在家目录里跑」。runner 开跑前自己校验一次（现读 `toReadWorkspaceFolders()`），
-  工作区被删 / 换绑 / store 还没加载都判失败并把原因写进记录 —— `auto` 档尤其不能落到家目录。
-- **30 分钟没有回写** → `Service::toReapStale` 标失败（进程被杀也不会永远「执行中」）。
-  回收只看仍处于 `running` 的记录；`Service::toFinish` 对已终结的记录是**幂等 no-op**，
-  成功与失败不会互相覆盖。排队等待不算运行：`touchAutomationRun` 在真正开跑时补写 `startedAt`。
-- **启动首个 tick 延迟 5 秒**（`STARTUP_DELAY_SECS`）：前端要等 React 挂载才 `listen('automation:due')`，
-  启动即 claim 的记录没人执行，只能等 30 分钟被回收。
+- **会话可见**：侧栏「自动化」分组（执行中置顶）；工作区树剔除 `automation-*`。任务记录可「打开会话」。
+- **实时状态**：runner 生命周期事件 → `stores/automation.running/phases`；有任务在跑时 2.5s 轻量轮询列表与记录。
+- **工作目录 fail-closed**：runner 开跑前校验 `toReadWorkspaceFolders()`；`auto` 档尤其不能落到家目录。
+- **30 分钟没有回写** → `Service::toReapStale` 标失败；长跑每 5 分钟 heartbeat touch，降低误收尸。
+- **启动首个 tick 延迟 5 秒**（`STARTUP_DELAY_SECS`）：前端要等 React 挂载才 `listen('automation:due')`。
 - 同一次排期只跑一次：`(automationId, scheduledFor)` 唯一；错过的整点只补最后一次。
-- 立即执行走**同一条** `runDue`，只是 `triggerKind=manual` 且 `scheduledFor=now`；
-  前端 `runNow` 是非阻塞的（`void runDue(...)` + `running[id]` + 记录里的 `running` 状态），
-  不再卡住界面等人跑完。`runNow` 之后只刷本机列表（`refreshLocal`），不再多打一次服务端 HTTP。
+- 立即执行走**同一条** `runDue`，`triggerKind=manual`；非阻塞 + running 徽标 + phase 文案。
+
+## 模型 / 模式 / 流水线（仅 owner=client）
+
+| 字段 | 含义 | 默认 |
+| --- | --- | --- |
+| `providerId` + `modelId` | 固定供应商与模型；都空 = 跟随当前激活 | null |
+| `mode` | 单模式：`agent` / `plan` / `goal` | `agent` |
+| `goalBudget` | 目标轮次（3 / 6 / 12） | 6 |
+| `planThenGoal` | 先 plan 出计划，再自动切 goal 按轮次执行（忽略单模式的执行语义） | false |
+| `planFilePath` | 绑定工作区已有计划（相对路径，如 `.cogito/plans/foo.md`）；触发时按该文件执行 | null |
+
+### 绑定计划（提前做计划 → 配置时选 → 到期执行）
+
+1. 会话里用计划模式产出，保存到工作区 `.cogito/plans`（右栏「保存」不变）；
+2. 本机任务表单在指定工作目录后，用 `listPlanFiles` 列出可选计划并绑定；
+3. 到期 / 立即执行：`readPlanFile` → `buildBoundPlanPrompt`（内部 `buildPlanExecutePrompt`）→ 按 `mode` 跑 agent 或 goal。
+
+规则（前后端一致：`Service::toSave` / `findDraftProblem` / Zod）：
+
+- 有 `planFilePath` 时**必须**有 `workspaceId`；
+- 有绑定时强制 `planThenGoal = false`（与现场「计划后执行」互斥），UI 隐藏该开关；
+- 有绑定时禁止 `mode=plan`（目的是落地，不是再规划）；可选执行 / 目标；
+- `prompt`：有绑定时可为空（执行依据是计划正文）；非空则前置为「附加说明」；
+- 计划文件读失败（删了 / 路径错）→ run finish 失败，不静默跳过。
+
+计划阶段强制只读审批；目标 / 执行阶段沿用任务的 `approval`。
 
 ## 时间定义：可视化排期，不让人手写 crontab
 
@@ -160,11 +186,19 @@ Base UI 的 `Select.Value` 默认渲染裸 `value`；`value` 是 id / 枚举键�
 -- migrations/automation_schema.rs::column_patches()，由 migration::ensure_automation() 按 pragma_table_info 判缺后执行
 ALTER TABLE automation ADD COLUMN "workspaceId" TEXT NULL;
 ALTER TABLE automation ADD COLUMN approval TEXT NOT NULL DEFAULT 'readonly';
+ALTER TABLE automation ADD COLUMN "providerId" TEXT NULL;
+ALTER TABLE automation ADD COLUMN "modelId" TEXT NULL;
+ALTER TABLE automation ADD COLUMN mode TEXT NOT NULL DEFAULT 'agent';
+ALTER TABLE automation ADD COLUMN "goalBudget" INTEGER NOT NULL DEFAULT 6;
+ALTER TABLE automation ADD COLUMN "planThenGoal" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE automation ADD COLUMN "planFilePath" TEXT NULL;
+ALTER TABLE automation_run ADD COLUMN "sessionId" TEXT NULL;
+ALTER TABLE automation_run ADD COLUMN phase TEXT NULL;
 ```
 
 `approval` 的默认值必须是 `readonly`：升级前的老任务就是「无人值守 + 只读」，
 补列不能顺手放开写权限（`automation_schema.rs` 的单测盯着这一条）。
-回归路径：`automation_columns_are_patched_on_old_db`（DROP 两列 → `ensure_automation` → 断言补回且幂等）。
+回归路径：`automation_columns_are_patched_on_old_db`（DROP 列 → `ensure_automation` → 断言补回且幂等）。
 
 ## 执行记录
 

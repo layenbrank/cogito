@@ -32,6 +32,9 @@ import { Switch } from '@cogito/design/components/switch'
 import { clsx } from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 
+import { useAui } from '@assistant-ui/react'
+import { toast } from 'sonner'
+
 import { describeSchedule } from '@/features/automation/describe-schedule'
 import type { Automation } from '@/shared/ipc/specs/automation'
 import { DICT_TYPE } from '@/shared/ipc/specs/dict'
@@ -39,6 +42,8 @@ import { useAgentStore } from '@/stores/agent.ts'
 import { useAutomationStore } from '@/stores/automation'
 import { useDictStore } from '@/stores/dict'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
+import { useProviderStore } from '@/stores/provider'
+import { subscribeAsideTasks } from '@/views/agent/chat/components/open-aside-tasks'
 import { formatTime } from '@/views/knowledge/lib/format.ts'
 import {
   OWNER,
@@ -46,7 +51,10 @@ import {
   canRunNow,
   createDraft,
   findOwnerHint,
+  findPhaseLabel,
   findTaskBadge,
+  findTaskModeLabel,
+  findTaskModeTag,
   toDraft,
   type TaskBadgeTone,
   type TaskDraft
@@ -98,6 +106,13 @@ function AsideTasks() {
   })
   const running = useAutomationStore(function (state) {
     return state.running
+  })
+  const phases = useAutomationStore(function (state) {
+    return state.phases
+  })
+  const aui = useAui()
+  const toReadProviders = useProviderStore(function (state) {
+    return state.toReadProviders
   })
   const runs = useAutomationStore(function (state) {
     return state.runs
@@ -161,6 +176,7 @@ function AsideTasks() {
       void useAgentStore.getState().toReadWorkspaces()
       void useAgentStore.getState().toReadWorkspaceFolders()
       void useKnowledgeBaseStore.getState().refresh()
+      void toReadProviders()
       // 卡片上的执行方 / 状态 / 触发方式都是字典 value，先把三类拉进缓存
       void useDictStore.getState().bootstrap([
         DICT_TYPE.AUTOMATION_OWNER,
@@ -168,8 +184,33 @@ function AsideTasks() {
         DICT_TYPE.AUTOMATION_TRIGGER_KIND
       ])
     },
-    [refresh]
+    [refresh, toReadProviders]
   )
+
+  useEffect(
+    function () {
+      return subscribeAsideTasks(function (detail) {
+        if (!detail.taskId) return
+        updateView({ kind: 'detail', id: detail.taskId })
+        void openRuns(detail.taskId)
+      })
+    },
+    [openRuns]
+  )
+
+  async function openSession(sessionId: string | null | undefined) {
+    if (!sessionId) {
+      toast.info('这次执行还没有关联会话')
+      return
+    }
+    try {
+      await aui.threads.reload()
+      aui.threads.switchToThread(sessionId)
+    } catch (error) {
+      console.error('[agent/tasks] 打开任务会话失败:', sessionId, error)
+      toast.error(error instanceof Error ? error.message : '打开会话失败')
+    }
+  }
 
   function findWorkspaceLabel(workspaceID: string | null | undefined): string {
     if (!workspaceID) return '家目录'
@@ -226,11 +267,13 @@ function AsideTasks() {
   function renderCard(item: Automation) {
     const isRunning = Boolean(running[item.id])
     const badge = findTaskBadge(item, isRunning)
+    const phaseLabel = isRunning ? findPhaseLabel(phases[item.id]) : null
     const isActive = view.kind === 'detail' && view.id === item.id
+    const modeTag = findTaskModeTag(item)
     return (
       <div
         key={item.id}
-        className={clsx(styles.card, isActive && styles.cardActive)}>
+        className={clsx(styles.card, isActive && styles.cardActive, isRunning && styles.cardRunning)}>
         <button
           type="button"
           className={styles.cardMain}
@@ -240,12 +283,15 @@ function AsideTasks() {
           }}>
           <span className={styles.cardTitleRow}>
             <span className={styles.cardTitle}>{item.name}</span>
-            <span className={clsx(styles.badge, BADGE_CLASS[badge.tone])}>{badge.label}</span>
+            <span className={clsx(styles.badge, BADGE_CLASS[badge.tone])}>
+              {phaseLabel ?? badge.label}
+            </span>
           </span>
           <span className={styles.cardMeta}>
             {describeSchedule(item.schedule)}
             {/* 停用的任务徽标已经写了「已停用」，元信息不用再说一遍 */}
             {item.enabled ? ` · ${findNextLabel(item)}` : ''}
+            {modeTag ? ` · ${modeTag}` : ''}
           </span>
           {item.lastError ? (
             <span className={styles.cardError}>{item.lastError}</span>
@@ -264,7 +310,8 @@ function AsideTasks() {
           <Button
             type="button"
             variant="ghost"
-            size="icon-xs"
+            size="icon-sm"
+            className="size-8"
             aria-label="立即执行"
             disabled={isRunning || !canRunNow(item)}
             title={
@@ -277,7 +324,7 @@ function AsideTasks() {
             }}>
             <Icon
               icon="lucide:play"
-              className="size-3.5"
+              className="size-4"
             />
           </Button>
           <DropdownMenu>
@@ -286,13 +333,14 @@ function AsideTasks() {
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-xs"
+                  size="icon-sm"
+                  className="size-8"
                   aria-label="更多操作"
                 />
               }>
               <Icon
                 icon="lucide:ellipsis"
-                className="size-3.5"
+                className="size-4"
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -436,6 +484,10 @@ function AsideTasks() {
     const isCloud = task.owner === OWNER.CLOUD
     const isRunning = Boolean(running[task.id])
     const badge = findTaskBadge(task, isRunning)
+    const phaseLabel = isRunning ? findPhaseLabel(phases[task.id]) : null
+    const latestSession = runs.find(function (run) {
+      return Boolean(run.sessionId)
+    })?.sessionId
     return (
       <div className={styles.detail}>
         <div className={styles.detailHead}>
@@ -455,7 +507,7 @@ function AsideTasks() {
             <p className={styles.detailSub}>
               {findLabel(DICT_TYPE.AUTOMATION_OWNER, task.owner)}
               <span className={clsx(styles.badge, BADGE_CLASS[badge.tone], 'ms-1.5')}>
-                {badge.label}
+                {phaseLabel ?? badge.label}
               </span>
             </p>
           </div>
@@ -581,10 +633,36 @@ function AsideTasks() {
                 <span className={styles.metaValue}>{findWorkspaceLabel(task.workspaceId)}</span>
               </div>
               <div className={styles.metaRow}>
+                <span className={styles.metaLabel}>模式</span>
+                <span className={styles.metaValue}>{findTaskModeLabel(task)}</span>
+              </div>
+              {task.planFilePath ? (
+                <div className={styles.metaRow}>
+                  <span className={styles.metaLabel}>计划文件</span>
+                  <span className={styles.metaValue}>{task.planFilePath}</span>
+                </div>
+              ) : null}
+              <div className={styles.metaRow}>
                 <span className={styles.metaLabel}>关联知识库</span>
                 <span className={styles.metaValue}>{findBaseLabel(task.knowledgeBaseId)}</span>
               </div>
             </div>
+            {latestSession ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2 h-8 w-full text-[12px]"
+                onClick={function () {
+                  void openSession(latestSession)
+                }}>
+                <Icon
+                  icon="lucide:messages-square"
+                  className="size-3.5"
+                />
+                打开最近会话
+              </Button>
+            ) : null}
           </section>
 
           {canRunNow(task) ? (
@@ -611,6 +689,9 @@ function AsideTasks() {
                 running={running}
                 onRerun={function (id) {
                   void runNow(id)
+                }}
+                onOpenSession={function (sessionId) {
+                  void openSession(sessionId)
                 }}
               />
             </section>
@@ -664,6 +745,9 @@ function AsideTasks() {
             running={running}
             onRerun={function (id) {
               void runNow(id)
+            }}
+            onOpenSession={function (sessionId) {
+              void openSession(sessionId)
             }}
           />
         </div>

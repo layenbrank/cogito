@@ -32,6 +32,12 @@ function toCloudAutomation(job: CloudJob): Automation {
     // 服务端任务的执行授权在服务端：客户端只镜像，界面按只读展示（不能本地改）
     workspaceId: null,
     approval: 'readonly',
+    providerId: null,
+    modelId: null,
+    mode: 'agent',
+    goalBudget: 6,
+    planThenGoal: false,
+    planFilePath: null,
     schedule: job.cron,
     timezone: job.timezone,
     enabled: job.enabled,

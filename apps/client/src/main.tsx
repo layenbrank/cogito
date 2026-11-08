@@ -20,6 +20,9 @@ import { installBrowserChipLabels } from '@/features/browser/chip-labels'
 import { reportPendingCrashes } from '@/lib/diagnostics/crash-report.ts'
 import { useDictStore } from '@/stores/dict'
 import { installExceptionReporting, reportUnknown } from '@/utils/exception-report.ts'
+import { analyzeWithAcp } from '@/views/knowledge/lib/ingest-acp-analyzer.ts'
+import { registerIngestAnalyzer } from '@/views/knowledge/lib/ingest-analyze.ts'
+import { bootstrapIngestEnqueueBridge } from '@/views/knowledge/lib/ingest-enqueue-bridge.ts'
 import '@/styles/tailwind.css'
 import '@/styles/index.scss'
 
@@ -75,6 +78,9 @@ async function bootstrap() {
     void bootstrapTerminalSessions()
     // 租户身份：登录 / 切账号后重新解析，好让请求带上 `X-Tenant-ID`（网关按它算配额归属）
     watchActiveTenant()
+    // 知识库：全局注册 ACP ingest 分析器 + agent 入队桥（不依赖知识库页是否打开）
+    registerIngestAnalyzer(analyzeWithAcp)
+    void bootstrapIngestEnqueueBridge()
     // 状态字典：本地 seed 冷启动；有登录态再主动拉远端（无设置页，用户不可见/不可配）
     const dict = useDictStore.getState()
     void dict.bootstrap().then(function () {

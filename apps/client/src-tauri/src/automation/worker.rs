@@ -33,6 +33,12 @@ struct DuePayload {
     workspaceId: Option<String>,
     /// 执行授权：readonly（默认）/ auto
     approval: String,
+    providerId: Option<String>,
+    modelId: Option<String>,
+    mode: String,
+    goalBudget: i32,
+    planThenGoal: bool,
+    planFilePath: Option<String>,
     triggerKind: String,
 }
 
@@ -46,6 +52,12 @@ impl DuePayload {
             knowledgeBaseId: due.automation.knowledgeBaseId.clone(),
             workspaceId: due.automation.workspaceId.clone(),
             approval: due.automation.approval.clone(),
+            providerId: due.automation.providerId.clone(),
+            modelId: due.automation.modelId.clone(),
+            mode: due.automation.mode.clone(),
+            goalBudget: due.automation.goalBudget,
+            planThenGoal: due.automation.planThenGoal,
+            planFilePath: due.automation.planFilePath.clone(),
             triggerKind: due.run.triggerKind.clone(),
         }
     }

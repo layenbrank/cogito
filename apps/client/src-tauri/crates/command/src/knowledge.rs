@@ -2,7 +2,7 @@
 //!
 //! 语义都在 `cogito_core::knowledge::Service`；这里只做参数整形与错误透传。
 #![allow(non_snake_case)]
-use cogito_core::CommandResult;
+use cogito_core::{CommandResult, Exception};
 use cogito_core::knowledge::{
     CloudDoc, CloudPatch, CloudState, DocRef, DocSummary, Hit, PublishMode, Service, StagedDoc,
     StagedFile, WriteDocOutcome,
@@ -10,7 +10,7 @@ use cogito_core::knowledge::{
 use cogito_database::Storage;
 use cogito_database::entity::knowledge_base::Model as BaseModel;
 use cogito_database::entity::knowledge_doc::Model as DocModel;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 #[tauri::command(rename = "knowledge:listBases")]
 pub async fn knowledge_list_bases(state: State<'_, Storage>) -> CommandResult<Vec<BaseModel>> {
@@ -19,10 +19,15 @@ pub async fn knowledge_list_bases(state: State<'_, Storage>) -> CommandResult<Ve
 
 #[tauri::command(rename = "knowledge:createBase")]
 pub async fn knowledge_create_base(
+    app: AppHandle,
     state: State<'_, Storage>,
     name: String,
 ) -> CommandResult<BaseModel> {
-    let root = Service::toResolveRoot(state.connection()).await?;
+    let app_dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|error| Exception::Validation(format!("获取应用数据目录失败: {error}")))?;
+    let root = Service::toResolveRoot(&app_dir.join("knowledge"))?;
     Service::toCreateBase(state.connection(), &name, &root).await
 }
 

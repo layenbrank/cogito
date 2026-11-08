@@ -13,7 +13,8 @@ import {
   type Automation,
   type AutomationRun,
   type AutomationSave,
-  type FinishRun
+  type FinishRun,
+  type PatchRun
 } from '@/shared/ipc/specs/automation'
 
 function asError(error: unknown, label: string): Error {
@@ -83,6 +84,15 @@ async function finishAutomationRun(input: FinishRun): Promise<AutomationRun> {
   }
 }
 
+/** 补写会话回链 / 阶段（开会话后与流水线切阶段时调用） */
+async function patchAutomationRun(input: PatchRun): Promise<AutomationRun> {
+  try {
+    return AutomationRunSchema.parse(await invoke(CHANNELS.AUTOMATION.PATCH_RUN, { input }))
+  } catch (error) {
+    throw asError(error, '更新执行记录失败')
+  }
+}
+
 /**
  * 执行记录。`automationId` 传 `null` = 跨任务取最近 N 条（任务页的「全部记录」）。
  */
@@ -103,10 +113,11 @@ export {
   finishAutomationRun,
   listAutomationRuns,
   listAutomations,
+  patchAutomationRun,
   removeAutomation,
   runAutomationNow,
   saveAutomation,
   touchAutomationRun,
   writeAutomationEnabled
 }
-export type { Automation, AutomationRun, AutomationSave, FinishRun }
+export type { Automation, AutomationRun, AutomationSave, FinishRun, PatchRun }

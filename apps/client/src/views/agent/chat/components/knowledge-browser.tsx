@@ -1,12 +1,11 @@
 /**
- * 知识库浏览：composer 的「知识库」按钮与右栏「知识库」页签共用同一份实现。
+ * 知识库浏览：右栏「知识库」页签使用。
  *
  * 一条文档就是磁盘上的一个 Markdown 文件（`<库根>/<relPath>`）。列表解决「找得到」：
  * 库切换、全文检索、新建 / 重扫 / 删除；点开一篇进入 {@link KnowledgeDocPane} 解决
  * 「看得见、改得动」：预览、编辑正文、再挂成引用交给 agent。
  *
- * 引用仍走与文件树、`@`、`+` 面板同一条通道（`attachWorkspaceFile`），不另造上下文注入：
- * 知识库文档本来就能被 agent 读，这里只负责把**引用路径**挂上去。
+ * 引用走 `attachWorkspaceFile`，与文件树、`@` 同一通道，不另造上下文注入。
  */
 import { Icon } from '@iconify/react/offline'
 import type { useAui } from '@assistant-ui/react'
@@ -19,6 +18,13 @@ import {
   DropdownMenuTrigger
 } from '@cogito/design/components/dropdown-menu'
 import { Input } from '@cogito/design/components/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@cogito/design/components/select'
 import { exists, mkdir } from '@tauri-apps/plugin-fs'
 import { clsx } from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
@@ -29,7 +35,6 @@ import { attachWorkspaceFile } from '@/features/agent/attachment.ts'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 import { joinWorkspacePath, toAgentPath } from '@/features/agent/workspace/paths.ts'
 import {
-  insertBase,
   listBases,
   listDocs,
   rescanBase,
@@ -39,6 +44,7 @@ import {
   type KnowledgeDocSummary,
   type KnowledgeHit
 } from '@/lib/knowledge-ipc.ts'
+import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import {
   buildNewDocContent,
@@ -46,6 +52,10 @@ import {
 } from '@/views/agent/chat/components/knowledge-doc.ts'
 import { KnowledgeDocPane } from '@/views/agent/chat/components/knowledge-doc-pane.tsx'
 import { findParentDir, joinPath } from '@/views/knowledge/lib/path.ts'
+import {
+  WIKI_TEMPLATE_GENERAL,
+  WIKI_TEMPLATES
+} from '@/views/knowledge/lib/wiki-templates.ts'
 
 type ComposerAui = ReturnType<typeof useAui>
 
@@ -89,6 +99,19 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
   const [open, updateOpen] = useState<OpenDoc | null>(null)
   const [createMode, updateCreateMode] = useState<CreateMode>(null)
   const [createName, updateCreateName] = useState('')
+  const [templateId, updateTemplateId] = useState(WIKI_TEMPLATE_GENERAL)
+  const insertKnowledgeBase = useKnowledgeBaseStore(function (state) {
+    return state.insert
+  })
+  const importExample = useKnowledgeBaseStore(function (state) {
+    return state.importExample
+  })
+
+  function syncBasesFromStore() {
+    const state = useKnowledgeBaseStore.getState()
+    updateBases(state.bases)
+    updateBaseID(state.activeBaseID)
+  }
   const [isCreating, updateCreating] = useState(false)
 
   // 库列表：面板第一次打开时读一次（切会话 / 重挂载都会重新走这里）
@@ -314,19 +337,23 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
     }
   }
 
-  /** 新建知识库：后端自己定库根，建完立刻切过去 */
-  async function createBase() {
+  /** 新建知识库：走 store.insert（场景模板 + 脚手架单一路径） */
+  async function insertBaseFromUi() {
     const name = createName.trim()
     if (!name) return
     updateCreating(true)
     try {
-      const base = await insertBase(name)
+      const ok = await insertKnowledgeBase(name, templateId)
+      if (!ok) {
+        toast.error('新建知识库失败')
+        return
+      }
       closeCreate()
-      updateBases(function (current) {
-        return current.some((row) => row.id === base.id) ? current : [...current, base]
+      syncBasesFromStore()
+      const active = useKnowledgeBaseStore.getState().bases.find(function (base) {
+        return base.id === useKnowledgeBaseStore.getState().activeBaseID
       })
-      updateBaseID(base.id)
-      toast.success(`已新建知识库「${base.name}」`)
+      toast.success(`已新建知识库「${active?.name ?? name}」`)
     } catch (cause) {
       console.warn('[knowledge-browser] 新建知识库失败', cause)
       toast.error(cause instanceof Error ? cause.message : '新建知识库失败')
@@ -356,7 +383,7 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
       return
     }
     if (createMode === 'base') {
-      void createBase()
+      void insertBaseFromUi()
     }
   }
 
@@ -487,12 +514,26 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
               onClick={function () {
                 updateCreateMode('base')
                 updateCreateName('')
+                updateTemplateId(WIKI_TEMPLATE_GENERAL)
               }}>
               <Icon
                 icon="lucide:library-big"
                 className="size-3.5"
               />
               新建知识库
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={function () {
+                void importExample().then(function (ok) {
+                  if (!ok) return
+                  syncBasesFromStore()
+                })
+              }}>
+              <Icon
+                icon="lucide:package-open"
+                className="size-3.5"
+              />
+              导入示例库
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -520,46 +561,106 @@ const KnowledgeBrowser = function KnowledgeBrowser(props: KnowledgeBrowserProps)
       </div>
 
       {createMode ? (
-        <div className="border-border/60 flex shrink-0 items-center gap-1 border-b p-1.5">
-          <Input
-            autoFocus
-            value={createName}
-            aria-label={createMode === 'doc' ? '新文档标题' : '新知识库名称'}
-            placeholder={createMode === 'doc' ? '新文档标题，回车创建' : '新知识库名称，回车创建'}
-            className="h-7 flex-1 text-xs"
-            onChange={function (event) {
-              updateCreateName(event.target.value)
-            }}
-            onKeyDown={function (event) {
-              if (event.key === 'Escape') {
-                closeCreate()
-                return
-              }
-              if (event.key !== 'Enter') return
-              submitCreate()
-            }}
-          />
-          <Button
-            type="button"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            disabled={!createName.trim() || isCreating}
-            onClick={submitCreate}>
-            {isCreating ? '创建中…' : '创建'}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="取消"
-            title="取消"
-            className="size-7"
-            onClick={closeCreate}>
-            <Icon
-              icon="lucide:x"
-              className="size-3.5"
+        <div className="border-border/60 flex shrink-0 flex-col gap-1 border-b p-1.5">
+          <div className="flex items-center gap-1">
+            <Input
+              autoFocus
+              value={createName}
+              aria-label={createMode === 'doc' ? '新文档标题' : '新知识库名称'}
+              placeholder={createMode === 'doc' ? '新文档标题，回车创建' : '新知识库名称，回车创建'}
+              className="h-7 flex-1 text-xs"
+              onChange={function (event) {
+                updateCreateName(event.target.value)
+              }}
+              onKeyDown={function (event) {
+                if (event.key === 'Escape') {
+                  closeCreate()
+                  return
+                }
+                if (event.key !== 'Enter') return
+                submitCreate()
+              }}
             />
-          </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              disabled={!createName.trim() || isCreating}
+              onClick={submitCreate}>
+              {isCreating ? '创建中…' : '创建'}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="取消"
+              title="取消"
+              className="size-7"
+              onClick={closeCreate}>
+              <Icon
+                icon="lucide:x"
+                className="size-3.5"
+              />
+            </Button>
+          </div>
+          {createMode === 'base' ? (
+            <Select
+              value={templateId}
+              items={WIKI_TEMPLATES.map(function (template) {
+                return { value: template.id, label: template.name }
+              })}
+              onValueChange={function (value) {
+                if (typeof value === 'string') updateTemplateId(value)
+              }}>
+              <SelectTrigger className="h-7 text-xs">
+                <SelectValue placeholder="场景模板" />
+              </SelectTrigger>
+              <SelectContent>
+                {WIKI_TEMPLATES.map(function (template) {
+                  return (
+                    <SelectItem
+                      key={template.id}
+                      value={template.id}
+                      className="text-xs">
+                      {template.name}
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          ) : null}
+        </div>
+      ) : null}
+
+      {bases.length === 0 && !createMode && !isLoading ? (
+        <div className="border-border/60 flex shrink-0 flex-col gap-1.5 border-b px-2 py-2 text-[11px] text-muted-foreground">
+          <p>还没有知识库。选场景模板新建，或导入示例库。</p>
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              size="sm"
+              className="h-6 text-[11px]"
+              onClick={function () {
+                updateCreateMode('base')
+                updateCreateName('')
+                updateTemplateId(WIKI_TEMPLATE_GENERAL)
+              }}>
+              新建
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-6 text-[11px]"
+              onClick={function () {
+                void importExample().then(function (ok) {
+                  if (!ok) return
+                  syncBasesFromStore()
+                })
+              }}>
+              导入示例
+            </Button>
+          </div>
         </div>
       ) : null}
 

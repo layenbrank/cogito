@@ -1,9 +1,8 @@
 /**
- * 任务域状态（列表 / 触发 / 记录）：UI 是右栏「任务」面板（`views/agent/chat/components/aside-tasks.tsx`），不再占独立页面。
+ * 任务域状态（列表 / 触发 / 记录）：UI 是右栏「任务」面板（`views/agent/chat/components/aside-tasks.tsx`）。
  *
- * 不做「按 tick 轮询」：到期由 Rust worker claim 后推送 `automation:due`，
- * 执行与回写都在 `features/automation/runner.ts` 里完成；这里只管用户操作
- * （加载三源列表、启停、立即执行、拉记录），口径说明见 `docs/apps/client/agent-tasks.md`。
+ * 到期由 Rust worker claim 后推送 `automation:due`；执行与回写在 `features/automation/runner.ts`。
+ * 这里管用户操作 + 把 runner 生命周期 / DB lastStatus 合成「执行中」可见态。
  */
 import { toast } from 'sonner'
 import { create } from 'zustand'
@@ -21,6 +20,7 @@ import {
 } from '@/lib/automation-ipc'
 import { reportCaught } from '@/utils/exception-report'
 import { runDue } from '@/features/automation/runner'
+import { subscribeAutomationLife } from '@/features/automation/events'
 import { DELETE_JOB, GET_JOBS, PATCH_JOB, SAVE_JOB } from '@/apis/schedule'
 import { toCloudAutomation, toCloudInput } from '@/features/automation/cloud'
 import { syncActiveTenant } from '@/features/quota/tenant'
@@ -33,6 +33,11 @@ const OWNER = {
   GOOSE: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_GOOSE],
   CLOUD: DICT_VALUE_BY_KEY[DICT_KEY.OWNER_CLOUD]
 }
+
+const RUN_RUNNING = DICT_VALUE_BY_KEY[DICT_KEY.RUN_RUNNING]
+
+/** 有任务在跑时轻量轮询，弥补面板不订阅 ACP 流 */
+const POLL_MS = 2500
 
 interface AutomationState {
   items: Automation[]
@@ -51,6 +56,10 @@ interface AutomationState {
   isLoading: boolean
   /** 正在执行的任务 id 集合：按钮据此显示「执行中」 */
   running: Record<string, boolean>
+  /** 进行中 run 的阶段（automationId → phase 文案键） */
+  phases: Record<string, string>
+  /** 自动化会话 → 任务定义：侧栏「查看任务」回链用 */
+  sessionTasks: Record<string, string>
   refresh: () => Promise<void>
   /** 只刷本机 / goose 任务：执行一次不会改变服务端列表，没必要再发一次 HTTP */
   refreshLocal: () => Promise<void>
@@ -62,7 +71,11 @@ interface AutomationState {
   runNow: (id: string) => Promise<void>
   openRuns: (id: string) => Promise<void>
   openAllRuns: () => Promise<void>
+  /** 只回填会话→任务映射，不打开「全部记录」视图 */
+  hydrateSessionTasks: () => Promise<void>
   closeRuns: () => void
+  /** 是否有本机任务处于执行中（内存 ∪ DB lastStatus） */
+  hasRunning: () => boolean
 }
 
 function messageOf(error: unknown): string {
@@ -78,8 +91,88 @@ function isSameID(id: string) {
 
 /** 记录请求序号：快速切任务时只认最后一次响应，避免迟到的结果覆盖当前列表 */
 let runsSeq = 0
+let pollTimer: ReturnType<typeof setInterval> | null = null
+let lifeBound = false
+
+function findHasRunning(state: Pick<AutomationState, 'items' | 'running'>): boolean {
+  if (Object.keys(state.running).length > 0) return true
+  return state.items.some(function (item) {
+    return item.lastStatus === RUN_RUNNING
+  })
+}
+
+function ensurePoll(get: () => AutomationState) {
+  if (pollTimer) return
+  if (!findHasRunning(get())) return
+  pollTimer = setInterval(function () {
+    const state = get()
+    if (!findHasRunning(state)) {
+      if (pollTimer) {
+        clearInterval(pollTimer)
+        pollTimer = null
+      }
+      return
+    }
+    void state.refreshLocal()
+    if (state.isAllRunsOpen) void state.openAllRuns()
+    else if (state.activeId) void state.openRuns(state.activeId)
+  }, POLL_MS)
+}
+
+function stopPollIfIdle(get: () => AutomationState) {
+  if (findHasRunning(get())) return
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+/** 从执行记录回填会话→任务映射（刷新后仍能从侧栏回链） */
+function mergeSessionTasks(
+  current: Record<string, string>,
+  runs: AutomationRun[]
+): Record<string, string> {
+  const next = { ...current }
+  for (const run of runs) {
+    if (run.sessionId) next[run.sessionId] = run.automationId
+  }
+  return next
+}
 
 const useAutomationStore = create<AutomationState>(function (set, get) {
+  if (!lifeBound && typeof window !== 'undefined') {
+    lifeBound = true
+    subscribeAutomationLife(function (event) {
+      if (event.kind === 'start' || event.kind === 'phase' || event.kind === 'stream') {
+        set({
+          running: { ...get().running, [event.automationId]: true },
+          phases: { ...get().phases, [event.automationId]: event.phase },
+          sessionTasks: { ...get().sessionTasks, [event.sessionId]: event.automationId }
+        })
+        ensurePoll(get)
+        return
+      }
+      if (event.kind === 'finish') {
+        const running = { ...get().running }
+        delete running[event.automationId]
+        const phases = { ...get().phases }
+        delete phases[event.automationId]
+        set({
+          running,
+          phases,
+          sessionTasks: { ...get().sessionTasks, [event.sessionId]: event.automationId }
+        })
+        void get().refreshLocal()
+        if (get().isAllRunsOpen) void get().openAllRuns()
+        else if (get().activeId === event.automationId) void get().openRuns(event.automationId)
+        stopPollIfIdle(get)
+        if (!event.ok && event.error) {
+          toast.error(event.error)
+        }
+      }
+    })
+  }
+
   return {
     items: [],
     cloudItems: [],
@@ -91,11 +184,37 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
     isAllRunsOpen: false,
     isLoading: false,
     running: {},
+    phases: {},
+    sessionTasks: {},
+
+    hasRunning() {
+      return findHasRunning(get())
+    },
 
     async refreshLocal() {
       set({ isLoading: true })
       try {
-        set({ items: await listAutomations() })
+        const items = await listAutomations()
+        const memory = { ...get().running }
+        const phases = get().phases
+        // 内存 running 只由 runNow / 生命周期事件写入。
+        // 禁止用 DB lastStatus=RUNNING 回填：跑挂 / 未 finish 时库里会长期停在 RUNNING，
+        // 一刷新就把按钮永久锁死。库状态只用来驱动轮询（findHasRunning）。
+        for (const id of Object.keys(memory)) {
+          const item = items.find(function (row) {
+            return row.id === id
+          })
+          if (!item) {
+            delete memory[id]
+            continue
+          }
+          if (item.lastStatus && item.lastStatus !== RUN_RUNNING && !phases[id]) {
+            delete memory[id]
+          }
+        }
+        set({ items, running: memory })
+        ensurePoll(get)
+        stopPollIfIdle(get)
       } catch (error) {
         reportCaught('automation.refresh', error)
         toast.error(messageOf(error))
@@ -114,7 +233,6 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
         set({ cloudItems: [], cloudStatus: 'off', cloudError: null })
         return
       }
-      // 租户可能还没解析过（首次打开任务页）：先解析再说；解析不出来就当不可用，不猜租户
       const tenant = findActiveTenantID() ?? (await syncActiveTenant())
       if (!tenant) {
         set({ cloudItems: [], cloudStatus: 'off', cloudError: null })
@@ -128,14 +246,12 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
           cloudError: null
         })
       } catch (error) {
-        // 断网/无权限都不该让本机任务列表崩掉：只把原因记在卡片里
         reportCaught('automation.refreshCloud', error, 'warning')
         set({ cloudStatus: 'error', cloudError: messageOf(error) })
       }
     },
 
     async save(input) {
-      // 服务端任务走 HTTP：本地不落行，排期与执行都在服务端
       if (input.owner === OWNER.CLOUD) {
         try {
           await SAVE_JOB(toCloudInput(input))
@@ -153,7 +269,6 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
         toast.success(input.id ? '任务已更新' : '任务已创建')
         return true
       } catch (error) {
-        // cron / 时区写错在保存时就报，直接给用户看原文
         toast.error(messageOf(error))
         return false
       }
@@ -213,21 +328,22 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
       }
       if (get().running[id]) return
       set({ running: { ...get().running, [id]: true } })
+      ensurePoll(get)
       function clearRunning() {
         const next = { ...get().running }
         delete next[id]
-        set({ running: next })
+        const phases = { ...get().phases }
+        delete phases[id]
+        set({ running: next, phases })
+        stopPollIfIdle(get)
       }
       try {
         const due = await runAutomationNow(id)
         if (!due) {
-          // owner=goose：执行在 goose 侧，本地没有执行记录
           toast.success('已交给 goose 执行，记录请看 goose 会话')
           clearRunning()
           return
         }
-        // 手动执行与定时执行走同一条执行路径（runner 回写结果）。
-        // **不等它跑完**：模型一轮可能几分钟，界面靠 running[id] 与记录里的 running 状态显示进度。
         void runDue({
           runId: due.run.id,
           automationId: due.automation.id,
@@ -236,14 +352,21 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
           knowledgeBaseId: due.automation.knowledgeBaseId ?? null,
           workspaceId: due.automation.workspaceId ?? null,
           approval: due.automation.approval,
+          providerId: due.automation.providerId ?? null,
+          modelId: due.automation.modelId ?? null,
+          mode: due.automation.mode ?? 'agent',
+          goalBudget: due.automation.goalBudget ?? 6,
+          planThenGoal: due.automation.planThenGoal === true,
+          planFilePath: due.automation.planFilePath ?? null,
           triggerKind: due.run.triggerKind
         }).finally(function () {
+          // runner 收尾必清内存锁；finish 事件也会清。不再等 DB lastStatus，
+          // 避免 finish 写库失败 / 陈旧 RUNNING 把「立即执行」永久禁用。
           clearRunning()
           void get().refreshLocal()
           if (get().isAllRunsOpen) void get().openAllRuns()
           else if (get().activeId === id) void get().openRuns(id)
         })
-        // 记录已经落库（running），先把列表刷出「执行中」再放手
         await get().refreshLocal()
         if (get().isAllRunsOpen) await get().openAllRuns()
         else if (get().activeId === id) await get().openRuns(id)
@@ -258,9 +381,13 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
       const seq = ++runsSeq
       try {
         const runs = await listAutomationRuns(id, 20)
-        // A→B 快速切换时，A 的迟到响应不许覆盖 B
         if (seq !== runsSeq) return
-        set({ activeId: id, isAllRunsOpen: false, runs })
+        set({
+          activeId: id,
+          isAllRunsOpen: false,
+          runs,
+          sessionTasks: mergeSessionTasks(get().sessionTasks, runs)
+        })
       } catch (error) {
         reportCaught('automation.runs', error)
         toast.error(messageOf(error))
@@ -268,20 +395,31 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
     },
 
     async openAllRuns() {
-      // 跨任务：一次 IPC 拿最近 50 条，页面里再按状态筛（不做 N 次查询）
       const seq = ++runsSeq
       try {
         const allRuns = await listAutomationRuns(null, 50)
         if (seq !== runsSeq) return
-        set({ isAllRunsOpen: true, allRuns })
+        set({
+          isAllRunsOpen: true,
+          allRuns,
+          sessionTasks: mergeSessionTasks(get().sessionTasks, allRuns)
+        })
       } catch (error) {
         reportCaught('automation.allRuns', error)
         toast.error(messageOf(error))
       }
     },
 
+    async hydrateSessionTasks() {
+      try {
+        const runs = await listAutomationRuns(null, 50)
+        set({ sessionTasks: mergeSessionTasks(get().sessionTasks, runs) })
+      } catch (error) {
+        reportCaught('automation.sessionTasks', error, 'warning')
+      }
+    },
+
     closeRuns() {
-      // 让还在路上的记录请求失效，别在关掉面板后又把结果写回来
       runsSeq += 1
       set({ activeId: null, runs: [], isAllRunsOpen: false })
     }

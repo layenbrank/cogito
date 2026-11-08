@@ -1,46 +1,75 @@
 /**
- * 定时任务的执行侧（前端）：收到 `automation:due` 就起一次性会话跑 prompt，跑完回写结果。
+ * 定时任务的执行侧（前端）：收到 `automation:due` 就起正式会话跑 prompt，跑完回写结果。
  *
  * 为什么执行在前端：会话挂在 WebView 侧的 goose ACP 连接上，Rust 侧拿不到模型通道。
  * 因此 `owner=client` 的语义是「应用开着才执行」，worker 只负责 claim + 通知。
  *
- * 三个执行配置决定这一轮怎么跑（都存在 `automation` 表里）：
- * - `workspaceId`：会话 cwd 跟着它走（`ensureThreadSession → findWorkspaceCwd`）；
- *   配了目录却解析不到时**直接判失败**（fail-closed），绝不退回家目录 —— 否则 `auto`
- *   档会静默在家目录里自动写文件，绕过「必须圈定目录」这条底线；
- * - `approval`：`readonly` 沿用旧语义，一律拒绝审批；`auto` 直接批准（计数），
- *   前提是任务必须有工作目录，`Service::toSave` 已经卡住；
- * - 跑完发系统通知：定时任务没有人在看，静默结束等于什么都没发生。
+ * 会话会落库（`agent_session` id = `automation-<runId>`），进侧栏「自动化」分组，
+ * 跑完保留，可回看；不再「跑完即弃」。
  */
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { LOCAL_FORMAT } from '@cogito/chat/adapters/thread-history'
+import { v4 as UUIDV4 } from 'uuid'
 
+import {
+  ensureBackgroundTurn,
+  followBackgroundTurn
+} from '@/features/agent/acp/background-turn'
 import {
   closeThreadSession,
   respondToApproval,
   respondToElicitation,
   runThreadPrompt
 } from '@/features/agent/acp/session'
+import { markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
 import { parseAcpStreamEvent } from '@/features/agent/acp/stream'
 import { prepareTarget } from '@/features/agent/acp/target-guard'
 import { clearApprovalModeFor, writeApprovalModeFor } from '@/features/agent/approval'
+import {
+  advanceGoal,
+  beginGoalTurn,
+  findGoalSignal,
+  startGoalRun
+} from '@/features/agent/goal-run'
+import { writeAgentModeFor } from '@/features/agent/mode'
 import { notifyAutomationRun } from '@/features/agent/notify'
+import { readPlanFile } from '@/features/agent/plan-file'
+import { historyPort } from '@/features/agent/port/instance'
 import { buildModelPort } from '@/features/agent/port/model'
+import { buildBoundPlanPrompt, findBoundPlanTarget } from '@/features/automation/bound-plan'
+import {
+  THREAD_PREFIX,
+  notifyAutomationSession,
+  publishAutomationLife
+} from '@/features/automation/events'
 import {
   findAutomationSystemPrompt,
+  findInitialPhase,
   parseAutomationApproval,
+  PLAN_THEN_GOAL_BRIDGE,
   shouldApprove,
+  shouldContinueToGoal,
   summarizeRunOutput,
   type AutomationApproval,
   type RunCounters
 } from '@/features/automation/run-plan'
-import { finishAutomationRun, touchAutomationRun } from '@/lib/automation-ipc'
+import {
+  finishAutomationRun,
+  patchAutomationRun,
+  touchAutomationRun
+} from '@/lib/automation-ipc'
 import { EVENTS } from '@/shared/ipc/channels'
-import { AutomationDueSchema, type AutomationDue } from '@/shared/ipc/specs/automation'
+import {
+  AutomationDueSchema,
+  type AutomationDue,
+  type AutomationMode
+} from '@/shared/ipc/specs/automation'
 import { useAgentStore } from '@/stores/agent.ts'
+import { useProviderStore } from '@/stores/provider'
 import { reportCaught } from '@/utils/exception-report'
 
-/** 定时任务会话的 thread 前缀：这些 id 不进会话列表，只用来区分日志与隔离上下文 */
-const THREAD_PREFIX = 'automation-'
+/** 长跑心跳：防止排队/挂死后 30 分钟收尸误伤仍在推进的任务 */
+const HEARTBEAT_MS = 5 * 60 * 1000
 
 function makeBlockID(): (messageId: string | null | undefined, kind: string) => string {
   return function (messageId, kind) {
@@ -48,103 +77,506 @@ function makeBlockID(): (messageId: string | null | undefined, kind: string) => 
   }
 }
 
+function findThreadID(runId: string): string {
+  return `${THREAD_PREFIX}${runId}`
+}
+
+/** 任务工作目录绝对路径；找不到则 null */
+async function findWorkspacePath(workspaceId: string | null): Promise<string | null> {
+  if (!workspaceId) return null
+  const folders = await useAgentStore.getState().toReadWorkspaceFolders()
+  const found = folders.find(function (item) {
+    return item.workspaceID === workspaceId && item.path
+  })
+  return found?.path ?? null
+}
+
 /**
- * 确认这次执行的工作目录真的存在（fail-closed）。
- *
- * `ensureThreadSession → findWorkspaceCwd` 解析不到会静默 `return homeDir()`，
- * 于是「任务里配了目录」和「实际在家目录里写文件」两件事悄悄错位。这里先自己校验一遍：
- * 工作区被删、换绑、或 `workspaceFolders` 还没加载（应用停在别的页面时很常见）都判失败，
- * 让记录写下真实原因，而不是跑到家目录里乱动。
+ * 确认工作目录可用（fail-closed）；返回绝对路径，无目录时 null。
  */
-async function requireWorkspace(workspaceId: string | null, approval: AutomationApproval): Promise<void> {
+async function requireWorkspace(
+  workspaceId: string | null,
+  approval: AutomationApproval
+): Promise<string | null> {
   if (!workspaceId) {
-    // 没有目录只允许只读：`auto` 后端已拦，这里兜住被外部改过的数据
     if (shouldApprove(approval)) {
       throw new Error('任务没有指定工作目录，不能自动批准执行')
     }
-    return
+    return null
   }
-  // 现读一次：定时触发时页面未必停在任务页，store 里可能是空数组
-  const folders = await useAgentStore.getState().toReadWorkspaceFolders()
-  const found = folders.find(function (item) {
-    return item.workspaceID === workspaceId && Boolean(item.path)
+  const path = await findWorkspacePath(workspaceId)
+  if (!path) {
+    throw new Error(
+      `任务的工作目录已不可用（工作区可能已被删除或未加载，id=${workspaceId}），请到任务表单重新指定`
+    )
+  }
+  return path
+}
+
+/**
+ * 读绑定计划并拼执行提示词；文件缺失/路径错直接抛错，让 run finish 失败。
+ */
+async function fetchBoundPlanPrompt(
+  due: AutomationDue,
+  budget: number,
+  root: string,
+  mode: AutomationMode
+): Promise<string> {
+  const relative = due.planFilePath?.trim()
+  if (!relative) throw new Error('任务未绑定计划文件')
+  let plan
+  try {
+    plan = await readPlanFile(root, relative)
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    throw new Error(`读取绑定计划失败（${relative}）：${detail}`)
+  }
+  return buildBoundPlanPrompt({
+    body: plan.body,
+    overview: plan.overview,
+    filePath: plan.filePath,
+    note: due.prompt,
+    mode,
+    budget
   })
-  if (!found) {
-    throw new Error(`任务的工作目录已不可用（工作区可能已被删除或未加载，id=${workspaceId}），请到任务表单重新指定`)
+}
+
+/** 落库正式会话；已存在则复用（同 runId 重入不应再建） */
+async function ensureAutomationSession(
+  runId: string,
+  name: string,
+  workspaceId: string | null,
+  providerId: string | null
+): Promise<string> {
+  const threadID = findThreadID(runId)
+  await useAgentStore.getState().toReadSessions()
+  const existing = useAgentStore.getState().sessions.find(function (item) {
+    return item.id === threadID
+  })
+  if (existing) {
+    notifyAutomationSession(threadID)
+    return threadID
+  }
+  const now = Date.now()
+  await useAgentStore.getState().toWriteSession([
+    {
+      id: threadID,
+      title: name,
+      pinned: false,
+      providerID: providerId,
+      workspaceID: workspaceId,
+      createdAt: now,
+      updatedAt: now
+    }
+  ])
+  notifyAutomationSession(threadID)
+  return threadID
+}
+
+async function appendChatMessage(
+  threadID: string,
+  role: 'user' | 'assistant',
+  text: string
+): Promise<void> {
+  try {
+    const rows = await historyPort.findMessages({ threadID })
+    const parentID = rows.length > 0 ? rows[rows.length - 1].id : null
+    await historyPort.appendMessage({
+      threadID,
+      id: UUIDV4(),
+      parentID,
+      format: LOCAL_FORMAT,
+      content: JSON.stringify({
+        role,
+        content: [{ type: 'text', text }],
+        createdAt: new Date().toISOString()
+      })
+    })
+  } catch (error) {
+    reportCaught('agent.automation.appendMessage', error, role === 'user' ? 'error' : 'warning')
+    // 用户消息落库失败必须 fail-closed：否则会话里看不见指令，却以为「没发给 agent」
+    if (role === 'user') {
+      throw error instanceof Error ? error : new Error(String(error))
+    }
   }
 }
 
-async function execute(due: AutomationDue): Promise<void> {
-  const threadID = `${THREAD_PREFIX}${due.runId}`
-  const blockID = makeBlockID()
-  const approval = parseAutomationApproval(due.approval)
-  const approvalShouldPass = shouldApprove(approval)
-  const counters: RunCounters = { denied: 0, granted: 0 }
-  let content = ''
+/**
+ * 本地 provider 行 id → goose 认的 providerId（`kind`）。
+ * 与 `port/model.ts` 同口径：会话归属存 id，发起运行再换成 kind。
+ */
+function findGooseProviderID(localProviderID: string): string {
+  const provider = useProviderStore.getState().providers.find(function (item) {
+    return item.id === localProviderID
+  })
+  if (!provider) {
+    throw new Error('选中的模型供应商已不存在，请到设置里重新选择')
+  }
+  return provider.kind
+}
 
+/**
+ * 助手正文落库：若 UI resume 已写过末条 assistant，跳过，避免双写。
+ */
+async function appendAssistantUnlessPresent(threadID: string, text: string): Promise<void> {
+  if (!text.trim()) return
   try {
-    // 目录先解析：解析不到就判失败，绝不悄悄退回家目录
-    await requireWorkspace(due.workspaceId ?? null, approval)
-    // 真正开跑才补写 startedAt：排队的时间既不该算进耗时，也不该让排队的记录被判「陈旧」
-    await touchAutomationRun(due.runId)
-
-    const target = await buildModelPort().findTarget()
-    if (!target) throw new Error('还没有可用的模型，请先到设置里选择供应商与模型')
-    await prepareTarget(target.providerID, target.model, 'agent.automation')
-
-    // 先把档位写到这个会话上：`ensureThreadSession` 开会话时据此把 mode 推给 goose
-    writeApprovalModeFor(threadID, approval)
-
-    for await (const item of runThreadPrompt(threadID, {
-      text: due.prompt,
-      systemText: findAutomationSystemPrompt(approval),
-      // cwd 跟着任务的工作目录走；没配才是家目录（配了但解析不到已被 requireWorkspace 拦下）
-      workspaceID: due.workspaceId ?? null,
-      providerID: target.providerID,
-      modelID: target.model
-    })) {
-      if (item.kind === 'update') {
-        const event = parseAcpStreamEvent(item.update, { blockID })
-        if (event?.kind === 'text') content += event.text
-        continue
-      }
-      if (item.kind === 'approval') {
-        if (item.event.kind === 'tool-approval-request') {
-          if (approvalShouldPass) counters.granted += 1
-          else counters.denied += 1
-          respondToApproval({ toolCallId: item.event.toolCallId, approved: approvalShouldPass })
-        }
-        continue
-      }
-      if (item.kind === 'elicitation') {
-        if (item.event.kind === 'elicitation-request') {
-          // 追问没有人回答：一律取消，不让这一轮挂在票据超时上
-          respondToElicitation({ elicitationId: item.event.elicitationId, action: 'cancel' })
-        }
-        continue
+    const rows = await historyPort.findMessages({ threadID })
+    const last = rows[rows.length - 1]
+    if (last?.format === LOCAL_FORMAT) {
+      try {
+        const payload = JSON.parse(last.content) as { role?: string }
+        if (payload.role === 'assistant') return
+      } catch (error) {
+        console.warn('[agent.automation] 解码末条历史失败:', error)
       }
     }
+  } catch (error) {
+    reportCaught('agent.automation.findMessages', error, 'warning')
+  }
+  await appendChatMessage(threadID, 'assistant', text)
+}
 
-    await finishAutomationRun({
-      runId: due.runId,
-      output: summarizeRunOutput(content, counters, approval)
+interface PromptTarget {
+  providerID: string
+  model: string
+}
+
+interface RunPromptInput {
+  threadID: string
+  text: string
+  systemText: string
+  workspaceID: string | null
+  target: PromptTarget
+  approval: AutomationApproval
+  counters: RunCounters
+}
+
+interface PromptStreamHost {
+  automationId: string
+  runId: string
+  phase: AutomationMode
+}
+
+/**
+ * 跑一轮 ACP prompt，攒正文；审批按档位自动应答。
+ *
+ * 走后台回合泵（与普通聊天同源）：`ensureBackgroundTurn` 后 UI 才能
+ * `hasRunningBackgroundTurn` → resume 流式。直接 `runThreadPrompt` 只会在
+ * 跑完落库，打开会话只能看到用户消息。
+ */
+async function runOnePrompt(
+  input: RunPromptInput,
+  streamHost: PromptStreamHost | null
+): Promise<string> {
+  const blockID = makeBlockID()
+  const approvalShouldPass = shouldApprove(input.approval)
+  let content = ''
+
+  async function* start(cancelSignal: AbortSignal) {
+    // goose setConfigOption 认 kind；prepareTarget / agent_session 仍用本地行 id
+    const gooseProviderID = findGooseProviderID(input.target.providerID)
+    try {
+      for await (const item of runThreadPrompt(input.threadID, {
+        text: input.text,
+        systemText: input.systemText,
+        workspaceID: input.workspaceID,
+        providerID: gooseProviderID,
+        modelID: input.target.model,
+        signal: cancelSignal
+      })) {
+        if (item.kind === 'update') {
+          const parsed = parseAcpStreamEvent(item.update, { blockID })
+          if (parsed) yield parsed
+          continue
+        }
+        if (item.kind === 'approval') {
+          if (item.event.kind === 'tool-approval-request') {
+            if (approvalShouldPass) input.counters.granted += 1
+            else input.counters.denied += 1
+            respondToApproval({
+              toolCallId: item.event.toolCallId,
+              approved: approvalShouldPass
+            })
+          }
+          continue
+        }
+        if (item.kind === 'elicitation') {
+          if (item.event.kind === 'elicitation-request') {
+            respondToElicitation({
+              elicitationId: item.event.elicitationId,
+              action: 'cancel'
+            })
+          }
+          continue
+        }
+        if (item.kind === 'stop') {
+          yield item.stopReason === 'cancelled'
+            ? { kind: 'aborted' as const, usage: {} }
+            : { kind: 'finish' as const, finishReason: item.stopReason, usage: {} }
+          return
+        }
+      }
+    } catch (error) {
+      reportCaught('agent.automation.prompt', error)
+      yield {
+        kind: 'error' as const,
+        message: error instanceof Error ? error.message : String(error),
+        usage: {}
+      }
+    }
+  }
+
+  await ensureBackgroundTurn(input.threadID, start)
+  if (streamHost) {
+    publishAutomationLife({
+      kind: 'stream',
+      automationId: streamHost.automationId,
+      runId: streamHost.runId,
+      sessionId: input.threadID,
+      phase: streamHost.phase
     })
+  }
+
+  for await (const event of followBackgroundTurn(input.threadID, undefined)) {
+    if (event.kind === 'text') content += event.text
+    if (event.kind === 'error') throw new Error(event.message)
+  }
+  return content
+}
+
+async function runAgentOrPlanPhase(input: {
+  threadID: string
+  prompt: string
+  phase: 'agent' | 'plan'
+  approval: AutomationApproval
+  workspaceId: string | null
+  target: PromptTarget
+  counters: RunCounters
+  streamHost: PromptStreamHost
+}): Promise<string> {
+  // 计划阶段强制只读：流水线第一段不该动手改文件
+  const effectiveApproval: AutomationApproval = input.phase === 'plan' ? 'readonly' : input.approval
+  writeApprovalModeFor(input.threadID, effectiveApproval)
+  await writeAgentModeFor(input.threadID, input.phase)
+  await appendChatMessage(input.threadID, 'user', input.prompt)
+  const content = await runOnePrompt(
+    {
+      threadID: input.threadID,
+      text: input.prompt,
+      systemText: findAutomationSystemPrompt(effectiveApproval, input.phase),
+      workspaceID: input.workspaceId,
+      target: input.target,
+      approval: effectiveApproval,
+      counters: input.counters
+    },
+    { ...input.streamHost, phase: input.phase }
+  )
+  await appendAssistantUnlessPresent(input.threadID, content)
+  return content
+}
+
+async function runGoalPhase(input: {
+  threadID: string
+  prompt: string
+  budget: number
+  approval: AutomationApproval
+  workspaceId: string | null
+  target: PromptTarget
+  counters: RunCounters
+  streamHost: PromptStreamHost
+}): Promise<string> {
+  writeApprovalModeFor(input.threadID, input.approval)
+  await writeAgentModeFor(input.threadID, 'goal')
+  const summary = input.prompt.slice(0, 120)
+  startGoalRun(input.threadID, { summary, detail: input.prompt }, input.budget, input.prompt)
+  await appendChatMessage(input.threadID, 'user', input.prompt)
+
+  let nextPrompt = input.prompt
+  let lastContent = ''
+  let turns = 0
+  while (turns < input.budget + 1) {
+    turns += 1
+    beginGoalTurn(input.threadID)
+    lastContent = await runOnePrompt(
+      {
+        threadID: input.threadID,
+        text: nextPrompt,
+        systemText: findAutomationSystemPrompt(input.approval, 'goal'),
+        workspaceID: input.workspaceId,
+        target: input.target,
+        approval: input.approval,
+        counters: input.counters
+      },
+      // 每轮都发 stream：新泵起来后 UI 要 reload/resume，不能只首轮切一次
+      { ...input.streamHost, phase: 'goal' }
+    )
+    await appendAssistantUnlessPresent(input.threadID, lastContent)
+
+    // 无人值守：没有收尾标记就继续推，直到 GOAL_DONE 或预算耗尽
+    const signal = findGoalSignal(lastContent)
+    const reason = signal === 'done' ? 'done' : 'continue'
+    const outcome = advanceGoal(input.threadID, reason)
+    if (outcome.kind !== 'dispatch') break
+    nextPrompt = outcome.prompt
+    await appendChatMessage(input.threadID, 'user', nextPrompt)
+  }
+  return lastContent
+}
+
+async function resolveTarget(due: AutomationDue): Promise<PromptTarget> {
+  if (due.providerId && due.modelId) {
+    return { providerID: due.providerId, model: due.modelId }
+  }
+  const target = await buildModelPort().findTarget()
+  if (!target) throw new Error('还没有可用的模型，请先到设置里选择供应商与模型')
+  return { providerID: target.providerID, model: target.model }
+}
+
+async function execute(due: AutomationDue): Promise<void> {
+  const threadID = findThreadID(due.runId)
+  const approval = parseAutomationApproval(due.approval)
+  const counters: RunCounters = { denied: 0, granted: 0 }
+  const hasBoundPlan = Boolean(due.planFilePath?.trim())
+  // 绑定计划与现场「计划后执行」互斥：有绑定时一律跳过流水线
+  const planThenGoal = hasBoundPlan ? false : Boolean(due.planThenGoal)
+  const configured = due.mode ?? 'agent'
+  const mode: AutomationMode = hasBoundPlan ? findBoundPlanTarget(configured) : configured
+  const budget = due.goalBudget === 3 || due.goalBudget === 12 ? due.goalBudget : 6
+  let phase = findInitialPhase(planThenGoal, mode)
+  let heartbeat: ReturnType<typeof setInterval> | null = null
+  const chunks: string[] = []
+
+  publishAutomationLife({
+    kind: 'start',
+    automationId: due.automationId,
+    runId: due.runId,
+    sessionId: threadID,
+    phase
+  })
+  markRunStarted(threadID)
+
+  try {
+    const workspacePath = await requireWorkspace(due.workspaceId ?? null, approval)
+    await touchAutomationRun(due.runId)
+    heartbeat = setInterval(function () {
+      void touchAutomationRun(due.runId).catch(function (error) {
+        reportCaught('agent.automation.heartbeat', error, 'warning')
+      })
+    }, HEARTBEAT_MS)
+
+    const target = await resolveTarget(due)
+    await prepareTarget(target.providerID, target.model, 'agent.automation')
+
+    await ensureAutomationSession(
+      due.runId,
+      due.name,
+      due.workspaceId ?? null,
+      target.providerID
+    )
+    await patchAutomationRun({ runId: due.runId, sessionId: threadID, phase })
+
+    async function runPhase(current: AutomationMode, prompt: string): Promise<string> {
+      phase = current
+      await patchAutomationRun({ runId: due.runId, phase: current })
+      publishAutomationLife({
+        kind: 'phase',
+        automationId: due.automationId,
+        runId: due.runId,
+        sessionId: threadID,
+        phase: current
+      })
+      const streamHost: PromptStreamHost = {
+        automationId: due.automationId,
+        runId: due.runId,
+        phase: current
+      }
+      if (current === 'goal') {
+        return runGoalPhase({
+          threadID,
+          prompt,
+          budget,
+          approval,
+          workspaceId: due.workspaceId ?? null,
+          target,
+          counters,
+          streamHost
+        })
+      }
+      return runAgentOrPlanPhase({
+        threadID,
+        prompt,
+        phase: current === 'plan' ? 'plan' : 'agent',
+        approval,
+        workspaceId: due.workspaceId ?? null,
+        target,
+        counters,
+        streamHost
+      })
+    }
+
+    let promptText = due.prompt
+    if (hasBoundPlan) {
+      if (!workspacePath) {
+        throw new Error('绑定计划需要有效工作目录，请到任务表单重新指定')
+      }
+      promptText = await fetchBoundPlanPrompt(due, budget, workspacePath, mode)
+    }
+    const first = await runPhase(phase, promptText)
+    chunks.push(first)
+
+    if (shouldContinueToGoal(planThenGoal, phase)) {
+      const bridge = [
+        PLAN_THEN_GOAL_BRIDGE,
+        '',
+        '## 计划',
+        first.trim() || '（计划阶段没有产出正文，请根据原始指令推进）',
+        '',
+        '## 原始指令',
+        due.prompt
+      ].join('\n')
+      const second = await runPhase('goal', bridge)
+      chunks.push(second)
+    }
+
+    const output = summarizeRunOutput(chunks.filter(Boolean).join('\n\n---\n\n'), counters, approval)
+    await finishAutomationRun({ runId: due.runId, output })
     await notifyAutomationRun(due.name, true, null)
+    publishAutomationLife({
+      kind: 'finish',
+      automationId: due.automationId,
+      runId: due.runId,
+      sessionId: threadID,
+      ok: true
+    })
   } catch (error) {
     reportCaught('agent.automation.run', error)
     const message = error instanceof Error ? error.message : String(error)
     try {
       await finishAutomationRun({ runId: due.runId, error: message })
     } catch (inner) {
-      // 回写都失败说明数据库/桥有问题；记录后交给 worker 的陈旧回收兜底
       reportCaught('agent.automation.finish', inner)
     }
-    // 失败一定要报：定时任务没人看着，静默失败等于没跑
     await notifyAutomationRun(due.name, false, message)
+    publishAutomationLife({
+      kind: 'finish',
+      automationId: due.automationId,
+      runId: due.runId,
+      sessionId: threadID,
+      ok: false,
+      error: message
+    })
   } finally {
-    // 一次性会话的审批档只存在内存里（approval.ts 的 transientApproval），跑完就丢
+    if (heartbeat) clearInterval(heartbeat)
     clearApprovalModeFor(threadID)
-    closeThreadSession(threadID)
+    markRunFinished(threadID)
+    // 保留 agent_session + 消息；只释放 ACP 租约。
+    // closeThreadSession 内部若仍有 run 会自行跳过；这里不再抢关后台泵未收尾的会话。
+    try {
+      closeThreadSession(threadID)
+    } catch (error) {
+      reportCaught('agent.automation.closeSession', error, 'warning')
+    }
   }
 }
 
@@ -182,4 +614,4 @@ async function installAutomationRunner(): Promise<UnlistenFn> {
   })
 }
 
-export { installAutomationRunner, runDue }
+export { findThreadID, installAutomationRunner, runDue }

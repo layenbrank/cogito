@@ -9,6 +9,7 @@ import {
   type ThreadItemSnapshot
 } from './thread-items.ts'
 import { useRunningThreads } from '@/features/agent/acp/run-state'
+import { THREAD_PREFIX as AUTOMATION_PREFIX } from '@/features/automation/events'
 import { UNGROUPED_WORKSPACE } from '@/features/agent/model/workspace'
 import { useAgentStore, type Session } from '@/stores/agent.ts'
 
@@ -94,6 +95,10 @@ function useSidebarBranches() {
     return new Set(expandedKeys)
   }, [expandedKeys])
 
+  function isAutomationThread(id: string, remoteId?: string | null): boolean {
+    return id.startsWith(AUTOMATION_PREFIX) || Boolean(remoteId?.startsWith(AUTOMATION_PREFIX))
+  }
+
   const sessions: SidebarSession[] = useMemo(
     function () {
       const storedByID = new Map<string, Session>()
@@ -125,6 +130,43 @@ function useSidebarBranches() {
     [threadIds, threadItems, storedSessions, runningThreadIDs]
   )
 
+  /**
+   * 自动化会话：不进工作区树。
+   * 以落库行为准（runner 直写 `agent_session`），再与 aui 列表对齐 id/running。
+   */
+  const automationSessions: SidebarSession[] = useMemo(
+    function () {
+      const fromAui = new Map<string, SidebarSession>()
+      for (const session of sessions) {
+        if (!isAutomationThread(session.id)) continue
+        fromAui.set(session.id, session)
+      }
+      const merged: SidebarSession[] = []
+      for (const stored of storedSessions) {
+        if (!stored.id.startsWith(AUTOMATION_PREFIX)) continue
+        const live = fromAui.get(stored.id)
+        merged.push({
+          id: stored.id,
+          title: live?.title || stored.title || '自动化执行',
+          pinned: live?.pinned ?? stored.pinned,
+          draft: false,
+          workspaceID: stored.workspaceID,
+          updatedAt: latestTime(live?.updatedAt ?? 0, stored.updatedAt),
+          order: live?.order ?? 0,
+          isRunning: live?.isRunning || runningThreadIDs.has(stored.id)
+        })
+        fromAui.delete(stored.id)
+      }
+      // aui 里有、库里还没水合到的也收进来
+      for (const leftover of fromAui.values()) merged.push(leftover)
+      return merged.toSorted(function (left, right) {
+        if (left.isRunning !== right.isRunning) return left.isRunning ? -1 : 1
+        return right.updatedAt - left.updatedAt
+      })
+    },
+    [sessions, storedSessions, runningThreadIDs]
+  )
+
   const branches: WorkspaceBranch[] = useMemo(
     function () {
       const sortedWorkspaces = workspaces.toSorted(compareByPinnedRecency)
@@ -146,6 +188,8 @@ function useSidebarBranches() {
       const sessionsByWorkspace = new Map<string, SidebarSession[]>()
       const ungrouped: SidebarSession[] = []
       for (const session of sessions) {
+        // 自动化会话单独成组，不进工作区树
+        if (isAutomationThread(session.id)) continue
         if (!session.workspaceID) {
           ungrouped.push(session)
           continue
@@ -226,6 +270,7 @@ function useSidebarBranches() {
 
   return {
     branches,
+    automationSessions,
     expandedKeys,
     expandedKeySet,
     updateExpandedKeys

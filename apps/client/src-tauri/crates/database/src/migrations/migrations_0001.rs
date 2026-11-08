@@ -1249,6 +1249,12 @@ impl MigrationTrait for Migration {
                  \"knowledgeBaseId\" TEXT NULL, \
                  \"workspaceId\" TEXT NULL, \
                  approval TEXT NOT NULL DEFAULT 'readonly', \
+                 \"providerId\" TEXT NULL, \
+                 \"modelId\" TEXT NULL, \
+                 mode TEXT NOT NULL DEFAULT 'agent', \
+                 \"goalBudget\" INTEGER NOT NULL DEFAULT 6, \
+                 \"planThenGoal\" INTEGER NOT NULL DEFAULT 0, \
+                 \"planFilePath\" TEXT NULL, \
                  schedule TEXT NOT NULL, \
                  timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai', \
                  enabled INTEGER NOT NULL DEFAULT 1, \
@@ -1276,6 +1282,8 @@ impl MigrationTrait for Migration {
                  \"startedAt\" INTEGER NULL, \
                  \"finishedAt\" INTEGER NULL, \
                  status TEXT NOT NULL DEFAULT '014', \
+                 \"sessionId\" TEXT NULL, \
+                 phase TEXT NULL, \
                  output TEXT NULL, \
                  error TEXT NULL, \
                  \"createdAt\" INTEGER NOT NULL, \

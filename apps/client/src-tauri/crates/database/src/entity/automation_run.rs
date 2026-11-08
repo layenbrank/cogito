@@ -30,6 +30,11 @@ pub struct Model {
     pub finishedAt: Option<i64>,
     /// 字典 automation_run_status：001 等待 … 004 失败
     pub status: String,
+    /// 对应落库会话 id（`automation-<runId>`）；空 = 尚未建会话
+    #[sea_orm(column_name = "sessionId")]
+    pub sessionId: Option<String>,
+    /// 当前阶段：agent | plan | goal（流水线进度）
+    pub phase: Option<String>,
     /// 智能体最后一段输出（截断后存）
     pub output: Option<String>,
     pub error: Option<String>,

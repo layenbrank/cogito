@@ -38,19 +38,14 @@ const STAGING_DIR: &str = ".staging";
 /// 认作文档的扩展名。
 const DOC_EXTENSIONS: [&str; 2] = ["md", "markdown"];
 
-/// 确保 LLM Wiki 三层目录与种子文件（幂等；已有文件不覆盖）。
+/// 确保 LLM Wiki 三层目录与聚合页种子（幂等；已有文件不覆盖）。
+/// `purpose.md` / `schema.md` 由前端场景模板写入，这里不落空白占位。
 fn ensure_wiki_layout(root: &Path) -> Result<(), Exception> {
     // 分段 join：避免 Windows 上 `"raw/sources"` 整段带斜杠进 `\\?\` 路径
     fs::create_dir_all(root.join("raw").join("sources"))?;
+    fs::create_dir_all(root.join("raw").join("parsed"))?;
     fs::create_dir_all(root.join("wiki").join("media"))?;
-    write_seed_if_missing(
-        &root.join("schema.md"),
-        "# Schema\n\n约定 Wiki 结构、frontmatter 与 ingest 规则。由人类与助手共同演进。\n",
-    )?;
-    write_seed_if_missing(
-        &root.join("purpose.md"),
-        "# Purpose\n\n这个知识库为什么存在？关键问题与研究范围写在这里。\n",
-    )?;
+    fs::create_dir_all(root.join(".agent"))?;
     write_seed_if_missing(
         &root.join("wiki").join("index.md"),
         "---\ntitle: Index\ntype: index\n---\n\n# Index\n\n内容目录。ingest 后由助手维护。\n",
@@ -816,16 +811,10 @@ impl Service {
         }
     }
 
-    /// 知识库总目录（默认库目录的父目录）；新建 base 时用。
-    pub async fn toResolveRoot(db: &DatabaseConnection) -> Result<PathBuf, Exception> {
-        let bases = Self::toListBases(db).await?;
-        if let Some(base) = bases.iter().find(|base| base.slug == DEFAULT_SLUG) {
-            return Self::knowledge_root(base);
-        }
-        match bases.first() {
-            Some(base) => Self::knowledge_root(base),
-            None => Err(Exception::NotFound("还没有知识库".to_string())),
-        }
+    /// 知识库总目录（各 base 的父目录）。固定为传入的 `knowledge_root`，不依赖 default 行。
+    pub fn toResolveRoot(knowledge_root: &Path) -> Result<PathBuf, Exception> {
+        fs::create_dir_all(knowledge_root)?;
+        Ok(fs::canonicalize(knowledge_root)?)
     }
 
     /// 列出 staging 里的草稿（agent 生成、等用户确认发布）。

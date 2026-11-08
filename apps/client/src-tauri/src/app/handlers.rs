@@ -231,6 +231,7 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         crate::automation::command::automation_run_now,
         crate::automation::command::automation_touch_run,
         crate::automation::command::automation_finish_run,
+        crate::automation::command::automation_patch_run,
         crate::automation::command::automation_runs,
         cogito_command::agent_workspace::agentWorkspaceToRead,
         cogito_command::agent_workspace::agentWorkspaceToWrite,

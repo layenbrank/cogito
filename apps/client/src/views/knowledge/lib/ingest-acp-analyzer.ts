@@ -2,27 +2,14 @@
  * ACP 两阶段 Ingest Analyzer：分析 → 生成 FILE 块。
  * 经 runInlinePrompt；失败由调用方回退确定性分析。
  */
-import { exists, readTextFile } from '@tauri-apps/plugin-fs'
-
 import { runInlinePrompt } from '@/features/agent/inline-prompt'
 import { buildModelPort } from '@/features/agent/port/model'
 import type { IngestAnalysis, IngestAnalyzer } from '@/views/knowledge/lib/ingest-analyze.ts'
 import { parseFileBlocks } from '@/views/knowledge/lib/ingest-file-blocks.ts'
-import { joinPath } from '@/views/knowledge/lib/path.ts'
+import { fetchWikiProjectContext } from '@/views/knowledge/lib/wiki-context.ts'
 
 const INGEST_THREAD_HINT = 'knowledge-ingest'
 const SOURCE_BUDGET = 24_000
-
-async function readProjectDoc(rootPath: string, relative: string): Promise<string> {
-  const absolute = joinPath(rootPath, relative)
-  try {
-    if (!(await exists(absolute))) return ''
-    return (await readTextFile(absolute)).slice(0, 6_000)
-  } catch (error) {
-    console.warn('[ingest-acp] read project doc failed', relative, error)
-    return ''
-  }
-}
 
 function parseTitleFromBody(body: string, fallback: string): string {
   const fm = body.match(/^---\s*\n([\s\S]*?)\n---/)
@@ -42,6 +29,7 @@ function buildAnalysisPrompt(input: {
   language: string
   schema: string
   purpose: string
+  overview: string
 }): string {
   return [
     `你是知识库 ingest 分析器。输出语言：${input.language}。`,
@@ -54,6 +42,9 @@ function buildAnalysisPrompt(input: {
     '## schema.md',
     input.schema || '(空)',
     '',
+    '## wiki/overview.md',
+    input.overview || '(空)',
+    '',
     `## 来源 ${input.relative}`,
     input.markdown.slice(0, SOURCE_BUDGET)
   ].join('\n')
@@ -65,6 +56,7 @@ function buildGenerationPrompt(input: {
   language: string
   schema: string
   purpose: string
+  overview: string
   analysis: string
 }): string {
   const slugHint = input.relative
@@ -100,6 +92,9 @@ function buildGenerationPrompt(input: {
     '## schema.md',
     input.schema || '(空)',
     '',
+    '## wiki/overview.md',
+    input.overview || '(空)',
+    '',
     '## 分析结果',
     input.analysis,
     '',
@@ -113,24 +108,22 @@ async function isAcpIngestReady(): Promise<boolean> {
     const target = await buildModelPort().findTarget()
     return Boolean(target)
   } catch (error) {
-    console.warn('[ingest-acp] readiness check failed', error)
+    console.warn('[ingest-acp] readiness check failed:', error)
     return false
   }
 }
 
 const analyzeWithAcp: IngestAnalyzer = async function (input) {
-  const [schema, purpose] = await Promise.all([
-    readProjectDoc(input.rootPath, 'schema.md'),
-    readProjectDoc(input.rootPath, 'purpose.md')
-  ])
+  const project = await fetchWikiProjectContext(input.rootPath)
 
   const analysisText = await runInlinePrompt({
     text: buildAnalysisPrompt({
       relative: input.relative,
       markdown: input.markdown,
       language: input.language,
-      schema,
-      purpose
+      schema: project.schema,
+      purpose: project.purpose,
+      overview: project.overview
     }),
     systemText: `你是 ${INGEST_THREAD_HINT} 分析阶段。只输出标题与摘要，不要工具调用。`
   })
@@ -140,8 +133,9 @@ const analyzeWithAcp: IngestAnalyzer = async function (input) {
       relative: input.relative,
       markdown: input.markdown,
       language: input.language,
-      schema,
-      purpose,
+      schema: project.schema,
+      purpose: project.purpose,
+      overview: project.overview,
       analysis: analysisText
     }),
     systemText: `你是 ${INGEST_THREAD_HINT} 生成阶段。只输出 ---FILE:--- 块，不要工具调用。`

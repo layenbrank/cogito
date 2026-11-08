@@ -15,7 +15,14 @@ import type { Automation, AutomationRun } from '@/shared/ipc/specs/automation'
 import { DICT_TYPE } from '@/shared/ipc/specs/dict'
 import { useDictStore } from '@/stores/dict'
 import { formatTime } from '@/views/knowledge/lib/format.ts'
-import { RUN_STATUS, filterRuns, findRunDuration, formatDuration, type RunFilter } from './model'
+import {
+  RUN_STATUS,
+  filterRuns,
+  findPhaseLabel,
+  findRunDuration,
+  formatDuration,
+  type RunFilter
+} from './model'
 import styles from './tasks.module.scss'
 
 interface TaskRunsProps {
@@ -24,6 +31,8 @@ interface TaskRunsProps {
   tasks?: Automation[]
   /** 不传 = 不能重跑（例如 goose 任务在本地没有执行入口） */
   onRerun?: (automationId: string) => void
+  /** 打开对应落库会话（侧栏「自动化」分组同源） */
+  onOpenSession?: (sessionId: string) => void
   /** 正在跑的任务 id 集合：按钮显示「执行中」 */
   running?: Record<string, boolean>
 }
@@ -123,7 +132,9 @@ function TaskRuns(props: TaskRunsProps) {
             <div className={styles.runHead}>
               <span className={styles.runTime}>{formatTime(run.startedAt ?? run.createdAt)}</span>
               <span className={clsx(styles.badge, statusTone(run.status))}>
-                {findLabel(DICT_TYPE.AUTOMATION_RUN_STATUS, run.status)}
+                {findPhaseLabel(run.phase) && run.status === RUN_STATUS.RUNNING
+                  ? findPhaseLabel(run.phase)
+                  : findLabel(DICT_TYPE.AUTOMATION_RUN_STATUS, run.status)}
               </span>
               <span className={styles.runMeta}>
                 {taskName ? `${taskName} · ` : ''}
@@ -137,7 +148,7 @@ function TaskRuns(props: TaskRunsProps) {
               <p className={clsx(styles.runOutput, !isOpen && 'line-clamp-3')}>{run.output}</p>
             ) : null}
 
-            {run.output || props.onRerun ? (
+            {run.output || props.onRerun || run.sessionId ? (
               <div className={styles.runActions}>
                 {run.output ? (
                   <button
@@ -149,6 +160,20 @@ function TaskRuns(props: TaskRunsProps) {
                       })
                     }}>
                     {isOpen ? '收起输出' : '展开输出'}
+                  </button>
+                ) : null}
+                {run.sessionId && props.onOpenSession ? (
+                  <button
+                    type="button"
+                    className={styles.runAction}
+                    onClick={function () {
+                      props.onOpenSession?.(run.sessionId!)
+                    }}>
+                    <Icon
+                      icon="lucide:messages-square"
+                      className="me-0.5 inline size-3 align-[-2px]"
+                    />
+                    打开会话
                   </button>
                 ) : null}
                 {props.onRerun ? (

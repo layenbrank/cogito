@@ -15,10 +15,11 @@ use axum::{
 use cogito_database::Storage;
 use serde::Deserialize;
 use serde_json::{Value, json};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use tokio::net::TcpListener;
 
 use super::app_tools;
+use cogito_core::tools::knowledge as knowledge_tools;
 
 /// 侧车带过来的凭据头（与 `crates/mcp` 的 `BRIDGE_TOKEN_HEADER` 对齐）。
 pub const TOKEN_HEADER: &str = "x-bridge-token";
@@ -152,7 +153,19 @@ async fn call_tool(
     }
     // 工具级失败走 200 + `ok:false`：让模型看到原因，而不是协议错误。
     match cogito_core::tools::call(state.storage.connection(), &body.name, &body.arguments).await {
-        Ok(value) => Json(json!({ "ok": true, "value": value })).into_response(),
+        Ok(value) => {
+            // ingest 只校验入队；真正 ACP 两阶段由前端队列执行
+            if body.name == knowledge_tools::INGEST
+                && value.get("queued").and_then(Value::as_bool) == Some(true)
+            {
+                if let Some(app) = &state.app {
+                    if let Err(error) = app.emit("knowledge://enqueue-ingest", &value) {
+                        tracing::warn!("emit knowledge://enqueue-ingest failed: {error}");
+                    }
+                }
+            }
+            Json(json!({ "ok": true, "value": value })).into_response()
+        }
         Err(error) => Json(json!({ "ok": false, "error": error })).into_response(),
     }
 }

@@ -7,7 +7,7 @@
 //! 失败原因写进 `lastError`。
 
 use cogito_core::CommandResult;
-use cogito_core::automation::service::{AutomationInput, DueRun, FinishInput, Service};
+use cogito_core::automation::service::{AutomationInput, DueRun, FinishInput, PatchRunInput, Service};
 use cogito_database::Storage;
 use cogito_database::entity::automation::Model;
 use cogito_database::entity::automation_run::Model as RunModel;
@@ -112,6 +112,14 @@ pub async fn automation_finish_run(
     input: FinishInput,
 ) -> CommandResult<RunModel> {
     Service::toFinish(state.connection(), input).await
+}
+
+#[tauri::command(rename = "automation:patchRun")]
+pub async fn automation_patch_run(
+    state: State<'_, Storage>,
+    input: PatchRunInput,
+) -> CommandResult<RunModel> {
+    Service::toPatchRun(state.connection(), input).await
 }
 
 #[tauri::command(rename = "automation:runs")]

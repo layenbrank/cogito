@@ -22,9 +22,10 @@ import { installCitationExtractor } from '@cogito/design/assistant/message-citat
 import { installUserMessageBadgeResolver } from '@cogito/design/assistant/user-message-badge'
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 
+import { useRunningThreads } from '@/features/agent/acp/run-state'
+import { subscribeAutomationLife } from '@/features/automation/events'
 import { takeNextThreadWorkspace } from '@/features/agent/port/draft-workspace'
 import { findAgentMode, readModeSnapshot, setAgentModeThread } from '@/features/agent/mode'
-import { useRunningThreads } from '@/features/agent/acp/run-state'
 import { chatModelPort, findHostOptions, historyPort } from '@/features/agent/port/instance'
 import { hydrate } from '@/features/agent/plan-store'
 import { buildThreadHistoryAdapter } from '@/features/agent/port/thread-history'
@@ -269,6 +270,32 @@ function RestoreRunningThread() {
 }
 
 /**
+ * 自动化开泵后切到对应会话：先 `threads.reload` 再 switch，
+ * 让 history.load 看到 `hasRunningBackgroundTurn` → `unstable_resume` 接上流式。
+ * 已在该会话（目标多轮）时同样 reload，否则新泵开了 UI 不会自动再 resume。
+ */
+function FocusAutomationSession() {
+  const aui = useAui()
+  useEffect(
+    function () {
+      return subscribeAutomationLife(function (event) {
+        if (event.kind !== 'stream') return
+        void aui.threads
+          .reload()
+          .then(function () {
+            aui.threads.switchToThread(event.sessionId)
+          })
+          .catch(function (error: unknown) {
+            console.warn('[agent/runtime] 切到自动化会话失败:', error)
+          })
+      })
+    },
+    [aui]
+  )
+  return null
+}
+
+/**
  * 模式是**会话级**的：把当前 `mainThreadId` 同步给 `mode.ts`，
  * 让 composer、详情页与系统提示读到的都是本会话的模式（新会话回落全局默认）。
  */
@@ -325,6 +352,7 @@ function AgentRuntimeProvider(props: { children: ReactNode }) {
       <AgentPlanDataUI />
       <AgentElicitationDataUI />
       <RestoreRunningThread />
+      <FocusAutomationSession />
       <AgentModeThreadSync />
       <PlanStoreSync />
       {props.children}

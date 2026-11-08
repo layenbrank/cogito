@@ -5,7 +5,14 @@
  * 「谁先谁后」「什么时候算停用」这类口径写在这里一处，列表与详情共用。
  */
 import { isValidSchedule } from '@/features/automation/describe-schedule'
-import type { Automation, AutomationRun, AutomationSave } from '@/shared/ipc/specs/automation'
+import { GOAL_BUDGET_OPTIONS } from '@/features/agent/goal-run'
+import type {
+  Automation,
+  AutomationMode,
+  AutomationRun,
+  AutomationSave,
+  GoalBudget
+} from '@/shared/ipc/specs/automation'
 import { DICT_KEY, DICT_VALUE_BY_KEY } from '@/shared/ipc/specs/dict'
 
 const OWNER = {
@@ -54,8 +61,31 @@ interface TaskDraft {
   owner: string
   workspaceId: string | null
   approval: 'readonly' | 'auto'
+  providerId: string | null
+  modelId: string | null
+  mode: AutomationMode
+  goalBudget: GoalBudget
+  planThenGoal: boolean
+  /** 工作区相对路径；空 = 不绑定已有计划 */
+  planFilePath: string | null
   knowledgeBaseId: string | null
   enabled: boolean
+}
+
+const MODE_OPTIONS: ReadonlyArray<{ value: AutomationMode; label: string }> = [
+  { value: 'agent', label: '执行' },
+  { value: 'plan', label: '计划' },
+  { value: 'goal', label: '目标' }
+]
+
+function parseMode(value: string | null | undefined): AutomationMode {
+  if (value === 'plan' || value === 'goal' || value === 'agent') return value
+  return 'agent'
+}
+
+function parseGoalBudget(value: number | null | undefined): GoalBudget {
+  if (value === 3 || value === 6 || value === 12) return value
+  return 6
 }
 
 const DEFAULT_TIMEZONE = 'Asia/Shanghai'
@@ -187,6 +217,12 @@ function toDraft(item: Automation): TaskDraft {
     owner: item.owner,
     workspaceId: item.workspaceId ?? null,
     approval: item.approval === 'auto' ? 'auto' : 'readonly',
+    providerId: item.providerId ?? null,
+    modelId: item.modelId ?? null,
+    mode: parseMode(item.mode),
+    goalBudget: parseGoalBudget(item.goalBudget),
+    planThenGoal: Boolean(item.planThenGoal) && !item.planFilePath,
+    planFilePath: item.planFilePath ?? null,
     knowledgeBaseId: item.knowledgeBaseId ?? null,
     enabled: item.enabled
   }
@@ -202,6 +238,12 @@ function createDraft(owner: string): TaskDraft {
     owner,
     workspaceId: null,
     approval: 'readonly',
+    providerId: null,
+    modelId: null,
+    mode: 'agent',
+    goalBudget: 6,
+    planThenGoal: false,
+    planFilePath: null,
     knowledgeBaseId: null,
     enabled: true
   }
@@ -213,13 +255,31 @@ function createDraft(owner: string): TaskDraft {
  */
 function findDraftProblem(draft: TaskDraft): string | null {
   if (!draft.name.trim()) return '任务名称不能为空'
-  if (!draft.prompt.trim()) return '任务内容不能为空'
+  const hasPlan = Boolean(draft.planFilePath?.trim())
+  if (!hasPlan && !draft.prompt.trim()) return '任务内容不能为空'
   if (!draft.schedule.trim()) return '定时表达式不能为空'
   if (!isValidSchedule(draft.schedule)) {
     return '时间表达式不合法：用上面的可视化选项重新选一次即可'
   }
   if (draft.approval === 'auto' && !draft.workspaceId) {
     return '自动批准必须先指定工作目录（把写入范围限制在目录内）'
+  }
+  if (hasPlan && !draft.workspaceId) {
+    return '绑定计划文件必须先指定工作目录'
+  }
+  if (hasPlan && draft.mode === 'plan') {
+    return '已绑定计划时不能再选「计划」模式（请用执行或目标去落地）'
+  }
+  if (hasPlan && draft.planThenGoal) {
+    return '绑定计划与「计划后执行」不能同时开启'
+  }
+  const hasProvider = Boolean(draft.providerId)
+  const hasModel = Boolean(draft.modelId)
+  if (hasProvider !== hasModel) {
+    return '固定模型需要同时指定供应商与模型，或都留空跟随当前'
+  }
+  if (!GOAL_BUDGET_OPTIONS.includes(draft.goalBudget)) {
+    return '目标轮次只能是 3 / 6 / 12'
   }
   return null
 }
@@ -244,13 +304,51 @@ function toSaveInput(draft: TaskDraft): AutomationSave {
     owner: toOwner(draft.owner),
     workspaceId: draft.workspaceId,
     approval: draft.approval,
+    providerId: draft.providerId,
+    modelId: draft.modelId,
+    mode: draft.mode,
+    goalBudget: draft.goalBudget,
+    planThenGoal: draft.planFilePath ? false : draft.planThenGoal,
+    planFilePath: draft.planFilePath,
     knowledgeBaseId: draft.knowledgeBaseId,
     enabled: draft.enabled
   }
 }
 
+/** 记录上的阶段文案（任务面板徽标 / 记录列表） */
+function findPhaseLabel(phase: string | null | undefined): string | null {
+  if (phase === 'plan') return '计划中'
+  if (phase === 'goal') return '目标推进'
+  if (phase === 'agent') return '执行中'
+  return null
+}
+
+type TaskModeFields = Pick<Automation, 'mode' | 'goalBudget' | 'planThenGoal' | 'planFilePath'>
+
+/** 详情 meta：模式一行（含绑定计划 / 流水线） */
+function findTaskModeLabel(item: TaskModeFields): string {
+  const budget = item.goalBudget ?? 6
+  if (item.planFilePath) {
+    return item.mode === 'agent' ? '绑定计划 · 执行' : `绑定计划 · 目标 · ${budget} 轮`
+  }
+  if (item.planThenGoal) return `计划→目标 · ${budget} 轮`
+  if (item.mode === 'plan') return '计划'
+  if (item.mode === 'goal') return `目标 · ${budget} 轮`
+  return '执行'
+}
+
+/** 列表行后缀：空字符串 = 默认执行、不额外标 */
+function findTaskModeTag(item: TaskModeFields): string {
+  if (item.planFilePath) return '绑定计划'
+  if (item.planThenGoal) return '计划→目标'
+  if (item.mode === 'plan') return '计划'
+  if (item.mode === 'goal') return '目标'
+  return ''
+}
+
 export {
   DEFAULT_TIMEZONE,
+  MODE_OPTIONS,
   OWNER,
   OWNER_HINT,
   OWNER_ORDER,
@@ -262,10 +360,15 @@ export {
   filterRuns,
   findDraftProblem,
   findOwnerHint,
+  findPhaseLabel,
+  findTaskModeLabel,
+  findTaskModeTag,
   findRunDuration,
   findTaskBadge,
   formatDuration,
   isCloudTask,
+  parseGoalBudget,
+  parseMode,
   summarizeRuns,
   toDraft,
   toSaveInput

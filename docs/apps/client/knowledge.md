@@ -17,7 +17,7 @@
 | `schema.md` / `purpose.md` | 结构规则 / 存在意图（注入 ACP ingest prompt） |
 | SQLite FTS | 标题与正文本地检索（文件仍是真相） |
 
-脚手架：`wiki-scaffold.ts` + Rust `ensure_wiki_layout`。
+脚手架：`wiki-templates.ts`（五套场景）+ `wiki-scaffold.ts` + Rust `ensure_wiki_layout`（只保证目录与 index/log/overview；purpose/schema 由前端模板写入）。无启动默认库；可导入 `demo-wiki` 示例树。
 
 ## 界面（对齐 llm_wiki 布局）
 
@@ -118,8 +118,9 @@ Deep Research provider：`tavily` · `serpapi` · `searxng` · `brave` · `firec
 | --- | --- | --- |
 | 右栏 | 仅 Deep Research | 同一 Splitter 列：大纲 \| AI \| 深度研究（tabs；研究可与工具主区并存） |
 | 编辑器 | Milkdown 等 | TipTap |
-| Chat runtime | 内嵌 Rust agent | ACP / goose + `app_knowledge_*` |
-| LLM Ingest | 直连 HTTP `streamChat` | **ACP `runInlinePrompt`** |
+| Chat runtime | 内嵌 Rust agent | ACP / goose + `app_knowledge_*`（注入 purpose/schema/overview；检索模式 standard/smart/faithful） |
+| LLM Ingest | 直连 HTTP `streamChat` | **ACP `runInlinePrompt`**；`app_knowledge_ingest` 入队同一管线 |
+| 建库 | 场景模板覆盖 purpose/schema | 同左（五套模板 + 示例库导入） |
 | 项目 | 单项目路径 | 多 `knowledge_base` |
 | 向量存储 | LanceDB | **LanceDB**（可 JSON 回退） |
 | Clip / API 端口 | 常 19827 API + clip pending | **同端口 19828**（/clip + /api/v1）；可 LAN |

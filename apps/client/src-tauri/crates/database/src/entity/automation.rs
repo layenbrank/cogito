@@ -1,9 +1,9 @@
 #![allow(non_snake_case)]
 
 //! 定时任务的定义。**执行**由 `crates/core/src/automation` 与客户端 worker 负责，
-//! 本表只存「什么时候跑、跑什么、以谁的身份跑、在哪个目录跑、能不能不问就动手」。
+//! 本表存「什么时候跑、跑什么、以谁的身份跑、在哪个目录跑、授权、模型与模式」。
 //!
-//! `owner` 为字典 automation_owner（001 本机 / 002 goose / 003 云端）。
+//! `owner` 为字典 automation_owner（021 本机 / 022 goose / 023 云端）。
 //! 一个任务只有一个 owner，避免两处同时触发。
 use sea_orm::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -25,6 +25,23 @@ pub struct Model {
     pub workspaceId: Option<String>,
     /// 执行授权档：readonly | auto（无人值守，不出现 ask）
     pub approval: String,
+    /// 固定供应商（本地 provider 行 id）；空 = 跟随当前激活
+    #[sea_orm(column_name = "providerId")]
+    pub providerId: Option<String>,
+    /// 固定模型 id；空 = 跟随当前激活
+    #[sea_orm(column_name = "modelId")]
+    pub modelId: Option<String>,
+    /// 单模式：agent | plan | goal；`planThenGoal` 开启时执行侧走流水线
+    pub mode: String,
+    /// 目标模式 / 流水线第二段的最大轮次（含首轮）
+    #[sea_orm(column_name = "goalBudget")]
+    pub goalBudget: i32,
+    /// 1 = 先 plan 再 goal；0 = 按 `mode` 单模式跑
+    #[sea_orm(column_name = "planThenGoal")]
+    pub planThenGoal: bool,
+    /// 绑定的工作区计划文件（相对路径，如 `.cogito/plans/foo.md`）；空 = 不绑定
+    #[sea_orm(column_name = "planFilePath")]
+    pub planFilePath: Option<String>,
     /// cron 表达式（`0 9 * * *`），按 `timezone` 解释
     pub schedule: String,
     pub timezone: String,

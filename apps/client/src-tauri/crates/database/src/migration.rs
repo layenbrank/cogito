@@ -87,12 +87,12 @@ async fn ensure_agent_plan(db: &Connection) -> Result<(), DbErr> {
 /// —— SQLite 的 `ADD COLUMN` 不幂等，每次启动都会重复执行。
 async fn ensure_automation(db: &Connection) -> Result<(), DbErr> {
     let patches = crate::migrations::automation_schema::column_patches();
-    for (column, alter) in patches {
+    for (table, column, alter) in patches {
         let found = db
             .query_one(Statement::from_string(
                 DatabaseBackend::Sqlite,
                 format!(
-                    "SELECT count(*) AS v FROM pragma_table_info('automation') WHERE name = '{column}'"
+                    "SELECT count(*) AS v FROM pragma_table_info('{table}') WHERE name = '{column}'"
                 ),
             ))
             .await?;
@@ -485,12 +485,20 @@ mod tests {
             // 执行配置：在哪个目录跑、能不能不问就动手（老库靠 ensure_automation 补）
             ("automation", "workspaceId"),
             ("automation", "approval"),
+            ("automation", "providerId"),
+            ("automation", "modelId"),
+            ("automation", "mode"),
+            ("automation", "goalBudget"),
+            ("automation", "planThenGoal"),
+            ("automation", "planFilePath"),
             ("automation", "remoteId"),
             ("automation", "lastStatus"),
             ("automation", "lastError"),
             ("automation_run", "triggerKind"),
             ("automation_run", "runAsKind"),
             ("automation_run", "runAsUserId"),
+            ("automation_run", "sessionId"),
+            ("automation_run", "phase"),
         ] {
             let found = scalar_i64(
                 &db,

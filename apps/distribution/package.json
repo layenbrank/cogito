@@ -15,6 +15,7 @@
     "lint:eslint": "eslint . --fix",
     "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
     "test:unit": "vitest",
+    "unit": "vitest run",
     "upload": "node scripts/upload-via-worker.ts",
     "upload:rclone": "node scripts/upload-via-rclone.ts",
     "publish:client": "node scripts/publish-client.ts"

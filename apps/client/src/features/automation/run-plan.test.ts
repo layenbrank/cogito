@@ -5,8 +5,10 @@ import {
   AUTO_PROMPT,
   READONLY_PROMPT,
   findAutomationSystemPrompt,
+  findInitialPhase,
   parseAutomationApproval,
   shouldApprove,
+  shouldContinueToGoal,
   summarizeRunOutput
 } from '@/features/automation/run-plan'
 
@@ -25,6 +27,16 @@ describe('shouldApprove', function () {
   it('只有自动批准档才放行审批请求', function () {
     expect(shouldApprove(AUTOMATION_APPROVAL.auto)).toBe(true)
     expect(shouldApprove(AUTOMATION_APPROVAL.readonly)).toBe(false)
+  })
+})
+
+describe('findInitialPhase / shouldContinueToGoal', function () {
+  it('流水线开则先 plan，再衔接到 goal', function () {
+    expect(findInitialPhase(true, 'agent')).toBe('plan')
+    expect(findInitialPhase(false, 'goal')).toBe('goal')
+    expect(shouldContinueToGoal(true, 'plan')).toBe(true)
+    expect(shouldContinueToGoal(true, 'goal')).toBe(false)
+    expect(shouldContinueToGoal(false, 'plan')).toBe(false)
   })
 })
 

@@ -87,7 +87,7 @@ const ASIDE_TABS: ReadonlyArray<{
 }> = [
   { id: 'home', icon: 'lucide:layout-dashboard', label: '详情', hint: '会话与工作区概览' },
   { id: 'plan', icon: 'lucide:list-checks', label: '计划', hint: '本轮完整计划与确认执行' },
-  { id: 'tasks', icon: 'lucide:calendar-clock', label: '任务', hint: '定时自动化任务：卡片管理、创建与执行记录' },
+  { id: 'tasks', icon: 'lucide:calendar-clock', label: '任务', hint: '任务定义：创建、启停、立即执行与记录；执行会话在侧栏「自动化」' },
   { id: 'files', icon: 'lucide:folder-tree', label: '文件', hint: '浏览工作区文件树并预览' },
   { id: 'knowledge', icon: 'lucide:library', label: '知识库', hint: '浏览知识库文档并引用到对话' },
   { id: 'skills', icon: 'lucide:wrench', label: '技能', hint: '按工作区所有文件夹识别的技能' },

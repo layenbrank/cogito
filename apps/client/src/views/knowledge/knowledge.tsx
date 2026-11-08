@@ -14,8 +14,6 @@ import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { KnowledgeCaptionBegin } from '@/views/knowledge/caption/begin.tsx'
 import { KnowledgeCaptionFinal } from '@/views/knowledge/caption/final.tsx'
-import { analyzeWithAcp } from '@/views/knowledge/lib/ingest-acp-analyzer.ts'
-import { registerIngestAnalyzer } from '@/views/knowledge/lib/ingest-analyze.ts'
 import { useIngestQueueStore } from '@/views/knowledge/lib/ingest-queue.ts'
 import { bootstrapScheduledImport } from '@/views/knowledge/lib/scheduled-import.ts'
 import { bootstrapKnowledgeSession } from '@/views/knowledge/lib/session.ts'
@@ -90,7 +88,6 @@ export default function Knowledge() {
 
   useEffect(
     function () {
-      registerIngestAnalyzer(analyzeWithAcp)
       void bootstrapKnowledgeSession(location.search)
       void bootstrapClipInbox()
       useIngestQueueStore.getState().bootstrap()
@@ -102,9 +99,6 @@ export default function Knowledge() {
         })
         return base?.rootPath ?? null
       })
-      return function () {
-        registerIngestAnalyzer(null)
-      }
     },
     [location.search]
   )

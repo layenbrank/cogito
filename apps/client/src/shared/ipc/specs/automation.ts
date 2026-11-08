@@ -20,6 +20,8 @@ const RUN_AS = {
 
 const AutomationOwnerSchema = z.enum([OWNER.CLIENT, OWNER.GOOSE, OWNER.CLOUD])
 const AutomationRunAsSchema = z.enum([RUN_AS.USER, RUN_AS.TENANT])
+const AutomationModeSchema = z.enum(['agent', 'plan', 'goal'])
+const GoalBudgetSchema = z.union([z.literal(3), z.literal(6), z.literal(12)])
 
 const AutomationSchema = z.object({
   id: z.string(),
@@ -30,6 +32,18 @@ const AutomationSchema = z.object({
   workspaceId: z.string().nullish(),
   /** 执行授权：readonly（默认）/ auto；任务里没有 ask（无人值守） */
   approval: z.string(),
+  /** 固定供应商；空 = 跟随当前激活 */
+  providerId: z.string().nullish(),
+  /** 固定模型；空 = 跟随当前激活 */
+  modelId: z.string().nullish(),
+  /** 单模式：agent / plan / goal */
+  mode: AutomationModeSchema.default('agent'),
+  /** 目标模式 / 流水线第二段轮次 */
+  goalBudget: GoalBudgetSchema.default(6),
+  /** 先 plan 再 goal */
+  planThenGoal: z.boolean().default(false),
+  /** 绑定的工作区计划文件（相对路径）；空 = 不绑定 */
+  planFilePath: z.string().nullish(),
   /** 5 段 crontab（分 时 日 月 周） */
   schedule: z.string(),
   timezone: z.string(),
@@ -58,26 +72,72 @@ const AutomationRunSchema = z.object({
   finishedAt: z.number().nullish(),
   /** automation_run_status value */
   status: z.string(),
+  /** 落库会话 id（`automation-<runId>`） */
+  sessionId: z.string().nullish(),
+  /** 当前阶段：agent / plan / goal */
+  phase: AutomationModeSchema.nullish(),
   output: z.string().nullish(),
   error: z.string().nullish(),
   createdAt: z.number()
 })
 
-const AutomationSaveSchema = z.object({
-  id: z.string().optional(),
-  name: z.string().min(1),
-  prompt: z.string().min(1),
-  knowledgeBaseId: z.string().nullish(),
-  workspaceId: z.string().nullish(),
-  approval: z.string().optional(),
-  schedule: z.string().min(1),
-  timezone: z.string().optional(),
-  enabled: z.boolean().optional(),
-  owner: AutomationOwnerSchema.optional(),
-  runAsKind: AutomationRunAsSchema.optional(),
-  runAsUserId: z.string().nullish(),
-  tenantId: z.string().nullish()
-})
+const AutomationSaveSchema = z
+  .object({
+    id: z.string().optional(),
+    name: z.string().min(1),
+    /** 绑定计划时可空；执行依据是计划正文 */
+    prompt: z.string(),
+    knowledgeBaseId: z.string().nullish(),
+    workspaceId: z.string().nullish(),
+    approval: z.string().optional(),
+    providerId: z.string().nullish(),
+    modelId: z.string().nullish(),
+    mode: AutomationModeSchema.optional(),
+    goalBudget: GoalBudgetSchema.optional(),
+    planThenGoal: z.boolean().optional(),
+    planFilePath: z.string().nullish(),
+    schedule: z.string().min(1),
+    timezone: z.string().optional(),
+    enabled: z.boolean().optional(),
+    owner: AutomationOwnerSchema.optional(),
+    runAsKind: AutomationRunAsSchema.optional(),
+    runAsUserId: z.string().nullish(),
+    tenantId: z.string().nullish()
+  })
+  .superRefine(function (value, context) {
+    const planPath = value.planFilePath?.trim()
+    const hasPlan = Boolean(planPath)
+    if (!hasPlan && !value.prompt.trim()) {
+      context.addIssue({
+        code: 'custom',
+        path: ['prompt'],
+        message: '任务内容不能为空'
+      })
+    }
+    // 与 Rust Service::toSave / findDraftProblem 同一组绑定计划规则
+    if (!hasPlan) return
+    if (!value.workspaceId?.trim()) {
+      context.addIssue({
+        code: 'custom',
+        path: ['workspaceId'],
+        message: '绑定计划文件必须先指定工作目录'
+      })
+    }
+    if (value.mode === 'plan') {
+      context.addIssue({
+        code: 'custom',
+        path: ['mode'],
+        message: '已绑定计划时不能再选「计划」模式（请用执行或目标去落地）'
+      })
+    }
+    if (value.planThenGoal) {
+      context.addIssue({
+        code: 'custom',
+        path: ['planThenGoal'],
+        message: '绑定计划与「计划后执行」不能同时开启'
+      })
+    }
+  })
 
 const DueRunSchema = z.object({
   automation: AutomationSchema,
@@ -92,6 +152,12 @@ const AutomationDueSchema = z.object({
   knowledgeBaseId: z.string().nullish(),
   workspaceId: z.string().nullish(),
   approval: z.string(),
+  providerId: z.string().nullish(),
+  modelId: z.string().nullish(),
+  mode: AutomationModeSchema.default('agent'),
+  goalBudget: GoalBudgetSchema.default(6),
+  planThenGoal: z.boolean().default(false),
+  planFilePath: z.string().nullish(),
   triggerKind: z.string()
 })
 
@@ -101,20 +167,41 @@ const FinishRunSchema = z.object({
   error: z.string().nullish()
 })
 
+const PatchRunSchema = z.object({
+  runId: z.string().min(1),
+  sessionId: z.string().nullish(),
+  phase: AutomationModeSchema.nullish()
+})
+
 type Automation = z.infer<typeof AutomationSchema>
 type AutomationRun = z.infer<typeof AutomationRunSchema>
 type AutomationSave = z.infer<typeof AutomationSaveSchema>
 type AutomationDue = z.infer<typeof AutomationDueSchema>
 type FinishRun = z.infer<typeof FinishRunSchema>
+type PatchRun = z.infer<typeof PatchRunSchema>
+type AutomationMode = z.infer<typeof AutomationModeSchema>
+type GoalBudget = z.infer<typeof GoalBudgetSchema>
 
 export {
   AutomationDueSchema,
+  AutomationModeSchema,
   AutomationOwnerSchema,
   AutomationRunAsSchema,
   AutomationRunSchema,
   AutomationSaveSchema,
   AutomationSchema,
   DueRunSchema,
-  FinishRunSchema
+  FinishRunSchema,
+  GoalBudgetSchema,
+  PatchRunSchema
 }
-export type { Automation, AutomationDue, AutomationRun, AutomationSave, FinishRun }
+export type {
+  Automation,
+  AutomationDue,
+  AutomationMode,
+  AutomationRun,
+  AutomationSave,
+  FinishRun,
+  GoalBudget,
+  PatchRun
+}

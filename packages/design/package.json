@@ -12,6 +12,7 @@
     "format": "prettier --write src/",
     "registry:add": "shadcn add",
     "test:unit": "vitest",
+    "unit": "vitest run",
     "test:coverage": "vitest --coverage"
   },
   "dependencies": {

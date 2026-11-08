@@ -21,7 +21,8 @@
     "lint:eslint": "eslint . --fix",
     "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
     "format": "prettier --write src/",
-    "test:unit": "vitest"
+    "test:unit": "vitest",
+    "unit": "vitest run"
   },
   "dependencies": {},
   "devDependencies": {}

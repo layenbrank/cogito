@@ -1,7 +1,7 @@
 /**
  * 知识库文档面板：预览 / 编辑（Markdown 源文）/ 引用 / 重新载入 / 删除。
  *
- * 与列表（`knowledge-browser`）同处右栏与 composer popover，所以宽度通常在 350–450px：
+ * 与列表（`knowledge-browser`）同处右栏，宽度通常在 350–450px：
  * 预览用只读 Markdown，编辑用源文 textarea —— 不引 tiptap（那是知识库整窗编辑器的
  * 体量），也不给窄栏套 Monaco（散文换行需求比代码补全重要）。
  *

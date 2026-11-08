@@ -93,6 +93,8 @@ mod tests {
         assert!(names.contains(&knowledge::LINT));
         assert!(names.contains(&knowledge::INGEST));
         assert!(names.contains(&knowledge::WRITE_DOC));
+        assert!(names.contains(&knowledge::GRAPH_SEARCH));
+        assert!(names.contains(&knowledge::WORKSPACE_WRITE));
         assert!(names.contains(&browser::OPEN));
         assert!(names.contains(&browser::READ));
         assert!(names.contains(&browser::ACT));
@@ -105,6 +107,7 @@ mod tests {
         let write_tools = [
             knowledge::WRITE_DOC,
             knowledge::INGEST,
+            knowledge::WORKSPACE_WRITE,
             browser::ACT,
             browser::INTERCEPT,
             browser::DEVICE,

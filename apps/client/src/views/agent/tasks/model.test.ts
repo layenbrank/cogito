@@ -12,6 +12,8 @@ import {
   findOwnerHint,
   findRunDuration,
   findTaskBadge,
+  findTaskModeLabel,
+  findTaskModeTag,
   formatDuration,
   summarizeRuns,
   toDraft,
@@ -26,6 +28,12 @@ function task(patch: Partial<Automation>): Automation {
     knowledgeBaseId: null,
     workspaceId: null,
     approval: 'readonly',
+    providerId: null,
+    modelId: null,
+    mode: 'agent',
+    goalBudget: 6,
+    planThenGoal: false,
+    planFilePath: null,
     schedule: '0 9 * * *',
     timezone: 'Asia/Shanghai',
     enabled: true,
@@ -55,6 +63,8 @@ function run(patch: Partial<AutomationRun>): AutomationRun {
     startedAt: 1_000,
     finishedAt: 2_500,
     status: RUN_STATUS.SUCCEEDED,
+    sessionId: null,
+    phase: null,
     output: null,
     error: null,
     createdAt: 1_000,
@@ -209,5 +219,59 @@ describe('草稿与保存入参', function () {
     const input = toSaveInput({ ...createDraft(OWNER.CLIENT), owner: 'zzz' })
     expect(input.owner).toBe(OWNER.CLIENT)
     expect(toSaveInput(createDraft(OWNER.CLOUD)).owner).toBe(OWNER.CLOUD)
+  })
+
+  it('绑定计划时 prompt 可空，但必须有工作目录', function () {
+    const draft = {
+      ...createDraft(OWNER.CLIENT),
+      name: '落地计划',
+      prompt: '',
+      planFilePath: '.cogito/plans/foo.md',
+      mode: 'goal' as const,
+      workspaceId: null as string | null
+    }
+    expect(findDraftProblem(draft)).toContain('工作目录')
+    expect(findDraftProblem({ ...draft, workspaceId: 'ws-1' })).toBeNull()
+  })
+
+  it('绑定计划与计划模式 / 计划后执行互斥', function () {
+    const base = {
+      ...createDraft(OWNER.CLIENT),
+      name: '落地计划',
+      prompt: '',
+      workspaceId: 'ws-1',
+      planFilePath: '.cogito/plans/foo.md',
+      mode: 'goal' as const
+    }
+    expect(findDraftProblem({ ...base, mode: 'plan' })).toContain('不能再选「计划」')
+    expect(findDraftProblem({ ...base, planThenGoal: true })).toContain('不能同时开启')
+  })
+
+  it('保存时有绑定则强制关掉 planThenGoal', function () {
+    const input = toSaveInput({
+      ...createDraft(OWNER.CLIENT),
+      name: '落地',
+      prompt: '',
+      workspaceId: 'ws-1',
+      planFilePath: '.cogito/plans/foo.md',
+      mode: 'goal',
+      planThenGoal: true
+    })
+    expect(input.planThenGoal).toBe(false)
+    expect(input.planFilePath).toBe('.cogito/plans/foo.md')
+  })
+})
+
+describe('findTaskModeLabel / findTaskModeTag', function () {
+  it('绑定计划与流水线优先于单模式', function () {
+    expect(
+      findTaskModeLabel(task({ planFilePath: '.cogito/plans/a.md', mode: 'goal', goalBudget: 3 }))
+    ).toBe('绑定计划 · 目标 · 3 轮')
+    expect(findTaskModeLabel(task({ planFilePath: '.cogito/plans/a.md', mode: 'agent' }))).toBe(
+      '绑定计划 · 执行'
+    )
+    expect(findTaskModeLabel(task({ planThenGoal: true, goalBudget: 12 }))).toBe('计划→目标 · 12 轮')
+    expect(findTaskModeTag(task({ planFilePath: '.cogito/plans/a.md' }))).toBe('绑定计划')
+    expect(findTaskModeTag(task({ mode: 'agent' }))).toBe('')
   })
 })

@@ -4,12 +4,25 @@
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@cogito/design/components/select'
 import { clsx } from 'clsx'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { AgentDock, useDockStore } from '@/features/agent/dock'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { t } from '@/views/knowledge/locale.ts'
+import {
+  RETRIEVAL_MODE_OPTIONS,
+  readRetrievalMode,
+  writeRetrievalMode,
+  type RetrievalMode
+} from '@/views/knowledge/lib/retrieval-mode.ts'
 import { ResearchPanel } from '@/views/knowledge/surface/research.tsx'
 import { useSurfaceStore, type AsideTab } from '@/views/knowledge/surface/store.ts'
 import { jumpEditorPos } from '@/views/knowledge/workspace/editor-context.ts'
@@ -50,6 +63,9 @@ function KnowledgeAside() {
   })
   const isDockOpen = useDockStore(function (state) {
     return state.isOpen
+  })
+  const [retrievalMode, setRetrievalMode] = useState<RetrievalMode>(function () {
+    return readRetrievalMode()
   })
 
   const rootRef = useRef<HTMLElement | null>(null)
@@ -190,6 +206,36 @@ function KnowledgeAside() {
           )}
           aria-hidden={asideTab !== 'assistant'}
           inert={asideTab !== 'assistant' ? true : undefined}>
+          <div className="border-border/60 flex shrink-0 items-center gap-2 border-b px-2 py-1.5">
+            <span className="text-muted-foreground shrink-0 text-[11px]">检索</span>
+            <Select
+              value={retrievalMode}
+              items={RETRIEVAL_MODE_OPTIONS.map(function (option) {
+                return { value: option.id, label: option.label }
+              })}
+              onValueChange={function (value) {
+                if (typeof value !== 'string') return
+                if (value !== 'standard' && value !== 'smart' && value !== 'faithful') return
+                setRetrievalMode(value)
+                writeRetrievalMode(value)
+              }}>
+              <SelectTrigger className="h-7 flex-1 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RETRIEVAL_MODE_OPTIONS.map(function (option) {
+                  return (
+                    <SelectItem
+                      key={option.id}
+                      value={option.id}
+                      className="text-xs">
+                      {option.label}
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          </div>
           <AgentDock
             embedded
             className="w-full border-l-0"

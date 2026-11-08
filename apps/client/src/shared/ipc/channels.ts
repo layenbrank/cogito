@@ -75,6 +75,7 @@ export const CHANNELS = {
     RUN_NOW: 'automation:runNow',
     FINISH_RUN: 'automation:finishRun',
     TOUCH_RUN: 'automation:touchRun',
+    PATCH_RUN: 'automation:patchRun',
     RUNS: 'automation:runs'
   },
   AUTOSTART: {

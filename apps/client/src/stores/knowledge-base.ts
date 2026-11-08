@@ -30,7 +30,9 @@ import { reportCaught } from '@/utils/exception-report'
 import { searchKnowledge } from '@/views/knowledge/lib/doc-search.ts'
 import { exportDocHtml } from '@/views/knowledge/lib/export.ts'
 import { findFileName, isSamePath } from '@/views/knowledge/lib/path.ts'
-import { ensureWikiScaffold } from '@/views/knowledge/lib/wiki-scaffold.ts'
+import { DEMO_WIKI_NAME, writeDemoWikiTree } from '@/views/knowledge/lib/demo-wiki.ts'
+import { ensureWikiScaffold, writeWikiTemplate } from '@/views/knowledge/lib/wiki-scaffold.ts'
+import { WIKI_TEMPLATE_GENERAL } from '@/views/knowledge/lib/wiki-templates.ts'
 
 interface KnowledgeBaseState {
   bases: KnowledgeBase[]
@@ -47,7 +49,9 @@ interface KnowledgeBaseState {
   writeQuery: (query: string) => void
   runSearch: () => Promise<void>
   clearSearch: () => void
-  insert: (name: string) => Promise<boolean>
+  insert: (name: string, templateId?: string) => Promise<boolean>
+  /** 导入内置示例库（含 purpose/schema 与示例页） */
+  importExample: () => Promise<boolean>
   /** 改当前库的选项（自动更新 / 自动导出 / 生成带引用） */
   updateBase: (patch: BasePatch) => Promise<boolean>
   rescan: () => Promise<void>
@@ -156,7 +160,7 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
         })
         if (active?.rootPath) {
           try {
-            await ensureWikiScaffold(active.rootPath)
+            await ensureWikiScaffold(active.rootPath, WIKI_TEMPLATE_GENERAL)
           } catch (error) {
             reportCaught('knowledgeBase.wikiScaffold', error, 'warning')
           }
@@ -207,20 +211,44 @@ const useKnowledgeBaseStore = create<KnowledgeBaseState>()(function (setter, get
       setter({ query: '', hits: [] })
     },
 
-    async insert(name) {
+    async insert(name, templateId = WIKI_TEMPLATE_GENERAL) {
       try {
         const base = await insertBase(name)
-        try {
-          await ensureWikiScaffold(base.rootPath)
-        } catch (error) {
-          reportCaught('knowledgeBase.wikiScaffold', error, 'warning')
-        }
+        await writeWikiTemplate(base.rootPath, templateId)
         setter({ bases: [...getter().bases, base], error: null })
         await getter().selectBase(base.id)
         return true
       } catch (error) {
         reportCaught('knowledgeBase.insert', error, 'warning')
         setter({ error: toMessage(error) })
+        return false
+      }
+    },
+
+    async importExample() {
+      try {
+        const base = await insertBase(DEMO_WIKI_NAME)
+        await writeDemoWikiTree(base.rootPath)
+        // 补齐 .agent / raw/parsed 等目录；已有 purpose/schema 不覆盖
+        await ensureWikiScaffold(base.rootPath, WIKI_TEMPLATE_GENERAL)
+        setter({ bases: [...getter().bases, base], error: null })
+        await getter().selectBase(base.id)
+        await rescanBase(base.id)
+        const settled = await Promise.allSettled([
+          fetchDocs(base.id),
+          fetchStaging(base.id)
+        ])
+        for (const result of settled) {
+          if (result.status === 'rejected') {
+            reportCaught('knowledgeBase.importExample.refresh', result.reason, 'warning')
+          }
+        }
+        toast.success(`已导入「${base.name}」`)
+        return true
+      } catch (error) {
+        reportCaught('knowledgeBase.importExample', error, 'warning')
+        setter({ error: toMessage(error) })
+        toast.error(toMessage(error))
         return false
       }
     },

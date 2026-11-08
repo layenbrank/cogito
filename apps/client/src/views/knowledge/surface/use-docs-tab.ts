@@ -4,6 +4,7 @@ import { useDockStore } from '@/features/agent/dock'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useKnowledgeStore } from '@/stores/knowledge'
 import { isPathInsideRoot, isSamePath, joinPath } from '@/views/knowledge/lib/path.ts'
+import { WIKI_TEMPLATE_GENERAL } from '@/views/knowledge/lib/wiki-templates.ts'
 import { openEditorPath } from '@/views/knowledge/workspace/editor-context.ts'
 
 function useDocsTab() {
@@ -43,6 +44,9 @@ function useDocsTab() {
   const insert = useKnowledgeBaseStore(function (state) {
     return state.insert
   })
+  const importExample = useKnowledgeBaseStore(function (state) {
+    return state.importExample
+  })
   const rescan = useKnowledgeBaseStore(function (state) {
     return state.rescan
   })
@@ -51,7 +55,12 @@ function useDocsTab() {
   })
 
   const [newName, setNewName] = useState('')
+  const [templateId, setTemplateId] = useState(WIKI_TEMPLATE_GENERAL)
   const [isCreating, toSetCreating] = useState(false)
+
+  async function insertWithTemplate(name: string): Promise<boolean> {
+    return insert(name, templateId)
+  }
 
   const activeBase = bases.find(function (base) {
     return base.id === activeBaseID
@@ -86,11 +95,14 @@ function useDocsTab() {
     writeQuery,
     runSearch,
     clearSearch,
-    insert,
+    insert: insertWithTemplate,
+    importExample,
     rescan,
     exportBundle,
     newName,
     setNewName,
+    templateId,
+    setTemplateId,
     isCreating,
     toSetCreating,
     activeBase,

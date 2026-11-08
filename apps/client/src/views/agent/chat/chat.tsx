@@ -289,8 +289,8 @@ function AgentChatLayout() {
     },
     {
       id: COMMAND.AGENT_OPEN_TASKS,
-      title: 'Agent：打开任务面板',
-      keywords: 'tasks automation schedule cron 任务 定时 自动化',
+      title: 'Agent：打开任务',
+      keywords: 'tasks schedule cron 任务 定时 排期',
       group: 'Agent',
       run() {
         openAsideTasks()

@@ -12,7 +12,8 @@
     "lint": "run-s lint:*",
     "lint:eslint": "eslint . --fix",
     "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
-    "test:unit": "vitest"
+    "test:unit": "vitest",
+    "unit": "vitest run"
   },
   "dependencies": {},
   "devDependencies": {}

@@ -10,7 +10,7 @@
     "lint": "eslint . --cache",
     "preview": "vite preview",
     "type-check": "tsc --build",
-    "unit": "vitest run",
+    "unit": "vitest run --passWithNoTests",
     "test:unit": "vitest"
   },
   "dependencies": {
