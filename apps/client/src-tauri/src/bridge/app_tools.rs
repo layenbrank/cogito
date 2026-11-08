@@ -12,7 +12,7 @@ use tauri::{AppHandle, Manager};
 
 use crate::browser::state::BrowserState;
 use crate::browser::{agent, emulate, intercept, lifecycle, network};
-use crate::utils::terminal::{TerminalHub, resolve_agent_session};
+use crate::utils::terminal::{TerminalHub, resolve_agent_session_scoped};
 use cogito_core::tools::browser as browser_catalog;
 use cogito_core::tools::terminal as terminal_catalog;
 
@@ -189,6 +189,9 @@ async fn terminal_run(app: &AppHandle, arguments: &Value) -> Result<Value, Strin
     let cwd = text_arg(arguments, "cwd").map(str::to_string);
     let quiet_ms = arguments.get("quietMs").and_then(Value::as_u64);
     let timeout_ms = arguments.get("timeoutMs").and_then(Value::as_u64);
+    // 作用域（线程 id）：给了就落到 `agent:<cwd>#<scope>`，两个线程在同目录跑命令
+    // 时不再共用同一个 PTY；不给退化为旧的 `agent:<cwd>`（兼容旧调用方）。
+    let scope = text_arg(arguments, "scope").map(str::to_string);
 
     let state = app.state::<TerminalHub>();
     let run = crate::utils::terminal::terminal_run(
@@ -197,6 +200,7 @@ async fn terminal_run(app: &AppHandle, arguments: &Value) -> Result<Value, Strin
         command,
         cwd,
         None,
+        scope,
         quiet_ms,
         timeout_ms,
     )
@@ -209,7 +213,7 @@ fn terminal_read(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
         Some(id) => id.to_string(),
         None => {
             let cwd = text_arg(arguments, "cwd").ok_or_else(|| "缺少 id 或 cwd".to_string())?;
-            resolve_agent_session(cwd)?
+            resolve_agent_session_scoped(cwd, text_arg(arguments, "scope"))?
         }
     };
     let max_chars = arguments
@@ -232,7 +236,7 @@ fn terminal_write(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
         Some(id) => id.to_string(),
         None => {
             let cwd = text_arg(arguments, "cwd").ok_or_else(|| "缺少 id 或 cwd".to_string())?;
-            resolve_agent_session(cwd)?
+            resolve_agent_session_scoped(cwd, text_arg(arguments, "scope"))?
         }
     };
     let state = app.state::<TerminalHub>();

@@ -16,6 +16,12 @@ use std::time::{Duration, Instant};
 
 use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 use serde::Serialize;
+
+mod write;
+mod guard;
+
+/// 命令下发统一走 `write::submit_command`（就绪哨兵 + 单次写入 + 整条重发）。
+use write::submit_command as write_command;
 use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
@@ -63,6 +69,38 @@ mod input_tests {
     }
 }
 
+#[cfg(test)]
+mod idle_tests {
+    use super::guard::IDLE_TTL;
+    use super::{should_reap, IDLE_CLOSED_TEXT};
+    use std::time::Duration;
+
+    /// 四种组合各钉一条：到期空闲才回收，别的都不许动。
+    #[test]
+    fn reaps_only_idle_agent_sessions() {
+        let ttl = IDLE_TTL;
+        assert!(should_reap("agent:D:\\w", ttl, false, ttl), "到期且空闲 → 回收");
+        assert!(
+            !should_reap("agent:D:\\w", ttl - Duration::from_secs(1), false, ttl),
+            "没到期 → 不动"
+        );
+        assert!(
+            !should_reap("agent:D:\\w", ttl * 2, true, ttl),
+            "有 run 在跑 → 不能被误杀"
+        );
+        assert!(
+            !should_reap("3f9a6ef6-531a", ttl * 2, false, ttl),
+            "用户手开的 tab → 永远不回收"
+        );
+    }
+
+    /// 前端按这段文案写系统行 / 移除 tab，改文案必须同步改前端。
+    #[test]
+    fn idle_notice_text_is_stable() {
+        assert_eq!(IDLE_CLOSED_TEXT, "会话已结束（闲置）");
+    }
+}
+
 /// 单次读缓冲：终端输出按块推流，8 KiB 在交互吞吐与 IPC 次数间平衡。
 const READ_BUF_SIZE: usize = 8192;
 /// 回滚缓冲上限：够 agent 读完一次命令的输出，同时不让长跑会话吃满内存。
@@ -82,28 +120,22 @@ const READY_TIMEOUT_MS: u64 = 3_000;
 const READY_IDLE_MS: u64 = 120;
 /// 就绪轮询间隔
 const READY_POLL_MS: u64 = 20;
-/// 牺牲字符：ConPTY 偶尔会吞掉一次 burst 的开头几个字节，让这段替命令挨刀
-/// （空格在 pwsh / bash 的行首都是 no-op，也不会写进历史）。
-const INPUT_GUARD: &[u8] = b" ";
-/// 牺牲字符与命令正文之间的间隔
-const INPUT_GUARD_GAP_MS: u64 = 30;
-/// 写完命令到核对回显的等待：给 shell 留出渲染这一行的时间。
-const ECHO_SETTLE_MS: u64 = 90;
 /// 回显核对失败时的最多尝试次数（含首次）。
 const ECHO_ATTEMPTS: usize = 3;
-/// 回车后的观察窗：这么久还没有任何新输出，就认为 `\r` 本身被吞了，补发一次。
-const ENTER_SETTLE_MS: u64 = 150;
-/// 逐字符写入的间隔：既压住 ConPTY 的 burst 吞字节，又不至于把长命令拖太慢。
-const TYPE_GAP_MS: u64 = 2;
 /// Ctrl+C 之后等 shell 把当前行丢弃的时间。
 const CANCEL_SETTLE_MS: u64 = 150;
-/// 回显轮询间隔
-const ECHO_POLL_MS: u64 = 30;
-/// 回显「安静」阈值：这么久没有新输出，才判定这次写入被吞了。
-const ECHO_QUIET_MS: u64 = 250;
 /// 等回显的上限：shell 正忙时输入会被缓冲，给足时间再判死。
 const ECHO_MAX_MS: u64 = 3_000;
 /// agent 跑命令时广播给前端的事件：让右栏把 tab 打开 / 切过去
+/// agent 会话 id 的固定前缀（`agent:<cwd>` 或 `agent:<cwd>#<scope>`）。
+const AGENT_ID_PREFIX: &str = "agent:";
+
+/// 闲置会话被关闭时广播的事件：前端据此写系统行并移除 tab。
+const IDLE_CLOSED_EVENT: &str = "terminal://idle-closed";
+
+/// 闲置回收扫描间隔。
+const REAPER_TICK: Duration = Duration::from_secs(60);
+
 const AGENT_RUN_EVENT: &str = "terminal://agent-run";
 
 /// 会话共享区：回滚缓冲 + 订阅者（可能一个视图都没有）。
@@ -258,20 +290,63 @@ fn validate_cwd(cwd: &str) -> Result<PathBuf, String> {
 
 /// agent 会话 id 按 cwd 派生：同一目录反复跑命令复用同一个 tab，用户切过去就能接管。
 fn agent_session_id(cwd: &str) -> String {
-    format!("agent:{cwd}")
+    format!("{AGENT_ID_PREFIX}{cwd}")
+}
+
+/// 作用域分隔符：`agent:<cwd>#<scope>`。`#` 不参与路径解析，只做拼接分隔。
+const SCOPE_SEP: char = '#';
+
+/// 作用域版会话 id：同一 cwd 下的不同 agent 线程各自一个 PTY。
+///
+/// `scope` 为空（老前端 / 用户手开的 tab）时退化成 `agent:<cwd>`，
+/// 保证升级后旧会话仍能被 attach 上（计划「风险与待确认」的兼容项）。
+fn agent_session_id_scoped(cwd: &str, scope: Option<&str>) -> String {
+    match scope.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(scope) => format!("{AGENT_ID_PREFIX}{cwd}{SCOPE_SEP}{scope}"),
+        None => agent_session_id(cwd),
+    }
+}
+
+#[cfg(test)]
+mod session_tests {
+    use super::*;
+
+    #[test]
+    fn terminal_run_isolated_across_threads() {
+        let cwd = "D:\\work\\app";
+        let a = agent_session_id_scoped(cwd, Some("thread-a"));
+        let b = agent_session_id_scoped(cwd, Some("thread-b"));
+        assert_ne!(a, b, "同 cwd 不同线程必须落到不同会话");
+        assert_eq!(a, format!("agent:{cwd}#thread-a"));
+        // 没有 scope 时退化回旧格式，保证升级后旧 tab 仍可 attach
+        assert_eq!(agent_session_id_scoped(cwd, None), format!("agent:{cwd}"));
+        assert_eq!(
+            agent_session_id_scoped(cwd, Some("   ")),
+            format!("agent:{cwd}")
+        );
+    }
 }
 
 /// 由 cwd 解析出 agent 会话 id（`app_terminal_read` 省略 id 时用）。
 /// 先 canonicalize 再派生，保证与 `terminal:run` 建的会话是同一个键。
 pub fn resolve_agent_session(cwd: &str) -> Result<String, String> {
+    resolve_agent_session_scoped(cwd, None)
+}
+
+/// 作用域版：`scope` = 线程 id。`terminal:run` 与 `app_terminal_read` 必须同口径，
+/// 否则 agent 读到的会是另一个线程的会话。
+pub fn resolve_agent_session_scoped(cwd: &str, scope: Option<&str>) -> Result<String, String> {
     let path = validate_cwd(cwd)?;
-    Ok(agent_session_id(&path.display().to_string()))
+    Ok(agent_session_id_scoped(&path.display().to_string(), scope))
 }
 
 /// 前端跳转用：把任意 workdir 规范成与 Hub 一致的 `agent:<canonical>` id。
 #[tauri::command(rename = "terminal:resolve_agent_id")]
-pub fn terminal_resolve_agent_id(cwd: String) -> Result<String, String> {
-    resolve_agent_session(&cwd)
+pub fn terminal_resolve_agent_id(
+    cwd: String,
+    scope: Option<String>,
+) -> Result<String, String> {
+    resolve_agent_session_scoped(&cwd, scope.as_deref())
 }
 
 /// 默认 shell 由 Rust 侧决定，不接收前端传入的 shell 路径（杜绝命令注入）。
@@ -516,97 +591,14 @@ async fn wait_until_ready(hub: &TerminalHub, id: &str) -> Result<(), String> {
     }
 }
 
-/// 把一条命令送进 shell：等它就绪 → 写正文 → 核对回显 → 单独回车。
-///
-/// 直接 `write_all("{command}\r")` 会踩到 ConPTY 的输入时序：shell 还没画出提示符、
-/// 或提示符正在重绘时写进去，一次 burst 的开头几个字符会被吃掉（现象：
-/// `Remove-Item` 变成 `emove-Item`、`node` 变成 `ode`）。整条链路四层兜底：
-/// 先等 shell 就绪 → 用一个牺牲空格替命令挨刀 → 逐字符敲进去 → 回显核对
-/// （对不上就 Ctrl+C 丢掉整行重打）→ 回车单独发并确认真的落地了。
-async fn write_command(hub: &TerminalHub, id: &str, command: &str) -> Result<(), String> {
-    // 超长命令的头部会被回滚窗口截掉，核对不了就直写，免得误判后反复重打
-    if command.chars().count() > 2_000 {
-        write_raw(hub, id, command.as_bytes())?;
-        return submit_enter(hub, id).await;
-    }
-
-    for attempt in 1..=ECHO_ATTEMPTS {
-        if attempt > 1 {
-            // 上一轮没核对上：用 Ctrl+C 丢弃整行（半行、还没被读取的缓冲输入都清得掉）
-            write_raw(hub, id, b"\x03")?;
-            tokio::time::sleep(Duration::from_millis(CANCEL_SETTLE_MS)).await;
-        }
-        let (cursor, _) = progress(hub, id)?;
-        type_command(hub, id, command).await?;
-        if await_echo(hub, id, cursor, command).await? {
-            return submit_enter(hub, id).await;
-        }
-    }
-
-    // 始终核对不过：仍然回车，把真实回显暴露出来，而不是静默丢命令
-    submit_enter(hub, id).await
-}
-
-/// 逐字符敲进去：ConPTY 对「一次性大 burst」的开头容易吞字节，拉开间隔最稳；
-/// 开头先送一个空格替命令挨刀。
-async fn type_command(hub: &TerminalHub, id: &str, command: &str) -> Result<(), String> {
-    write_raw(hub, id, INPUT_GUARD)?;
-    tokio::time::sleep(Duration::from_millis(INPUT_GUARD_GAP_MS)).await;
-    let mut buf = [0u8; 4];
-    for ch in command.chars() {
-        write_raw(hub, id, ch.encode_utf8(&mut buf).as_bytes())?;
-        tokio::time::sleep(Duration::from_millis(TYPE_GAP_MS)).await;
-    }
-    Ok(())
-}
-
-/// 等回显落定：shell 忙着跑上一条命令时，敲进去的字符会被缓冲、回显得很晚，
-/// 所以「有回显立刻返回，没回显也别急着判死」—— 只要它还在持续输出就继续等。
-async fn await_echo(
-    hub: &TerminalHub,
-    id: &str,
-    cursor: u64,
-    command: &str,
-) -> Result<bool, String> {
-    let started = Instant::now();
-    let mut last_cursor = cursor;
-    let mut last_change = Instant::now();
-    loop {
-        let echo = read_since(hub, id, cursor)?;
-        if echo_confirmed(&echo, command) {
-            return Ok(true);
-        }
-        let (now_cursor, _) = progress(hub, id)?;
-        if now_cursor != last_cursor {
-            last_cursor = now_cursor;
-            last_change = Instant::now();
-        }
-        let quiet = last_change.elapsed() >= Duration::from_millis(ECHO_QUIET_MS);
-        let settled = started.elapsed() >= Duration::from_millis(ECHO_SETTLE_MS);
-        if started.elapsed() >= Duration::from_millis(ECHO_MAX_MS) || (quiet && settled) {
-            return Ok(false);
-        }
-        tokio::time::sleep(Duration::from_millis(ECHO_POLL_MS)).await;
-    }
-}
-
-/// 回车也要确认落地：丢字节是概率性的，单字节的 `\r` 一旦被吞，整行就悬在输入区，
-/// 后面写入的命令会拼到这句残行上（现场：`& $env:C test ...` 粘在下一条命令前面）。
-async fn submit_enter(hub: &TerminalHub, id: &str) -> Result<(), String> {
-    let (before, _) = progress(hub, id)?;
-    write_raw(hub, id, b"\r")?;
-    tokio::time::sleep(Duration::from_millis(ENTER_SETTLE_MS)).await;
-    let (after, _) = progress(hub, id)?;
-    if after > before {
-        return Ok(());
-    }
-    write_raw(hub, id, b"\r")
-}
-
 /// 终止并移除一个会话（幂等）。
 fn kill_session(hub: &TerminalHub, id: &str) {
-    let removed = hub
-        .sessions
+    kill_session_in(&hub.sessions, id);
+}
+
+/// 与 `kill_session` 同一套动作，但只依赖会话表 —— 闲置回收线程拿不到 `State`。
+fn kill_session_in(sessions: &Arc<Mutex<HashMap<String, TerminalSession>>>, id: &str) {
+    let removed = sessions
         .lock()
         .ok()
         .and_then(|mut sessions| sessions.remove(id));
@@ -620,6 +612,8 @@ fn kill_session(hub: &TerminalHub, id: &str) {
     let _ = session.child.kill();
     // 会话结束即清掉这次会话的缓存目录；进程刚被杀删不掉的，留给启动时的 prune
     let _ = crate::utils::agent_cache::clear_session(id);
+    // 会话没了，闸门与忙碌计数也没有意义（长跑应用里不攒空锁）
+    guard::forget_session(id);
 }
 
 #[tauri::command(rename = "terminal:create")]
@@ -660,6 +654,9 @@ pub fn terminal_attach(
     id: String,
     channel: Channel<InvokeResponseBody>,
 ) -> Result<TerminalCreated, String> {
+    // 面板刚挂上来：顺手喊一次缓存的节流清理（30 秒窗口，实际清理在后台线程）。
+    // 应用常驻不重启，光靠启动那一轮清不干净；用户也未必会打开设置 → 诊断。
+    crate::utils::agent_cache::prune_in_background(false);
     let (pid, replay) = attach_channel(state.inner(), &id, channel)?;
     Ok(TerminalCreated { id, pid, replay })
 }
@@ -779,6 +776,7 @@ pub async fn terminal_run(
     command: String,
     cwd: Option<String>,
     id: Option<String>,
+    scope: Option<String>,
     quiet_ms: Option<u64>,
     timeout_ms: Option<u64>,
 ) -> Result<TerminalRun, String> {
@@ -806,15 +804,22 @@ pub async fn terminal_run(
             (None, Some(cwd)) => {
                 let path = validate_cwd(&cwd)?;
                 let text = path.display().to_string();
-                (agent_session_id(&text), text)
+                (agent_session_id_scoped(&text, scope.as_deref()), text)
             }
             (None, None) => return Err("缺少 cwd（或传 id 指向一个已有终端会话）".into()),
         }
     };
 
+    // 同一会话的 `terminal:run` 串行：并发写入会让两条命令行交叉，
+    // `read_since(start_cursor)` 也会把别人的输出算进本次结果
+    // （计划「终端会话隔离」的 B 方案）。交互式 `terminal:write` 不排队。
+    let gate = guard::session_gate(&session_id);
+    let _run_gate = gate.lock().await;
+    // 从落定会话到本轮结束都算忙：闲置回收据此跳过，不会杀掉正在跑的命令
+    let _busy = guard::BusyMark::enter(&session_id);
     ensure_session(state.inner(), &app, &session_id, Path::new(&cwd_text))?;
     // 等 shell 就绪（第一帧提示符 / 上一条命令安静下来），否则命令头几个字符会被吞
-    wait_until_ready(state.inner(), &session_id).await?;
+    write::probe_ready(state.inner(), &session_id).await?;
     // 先让前端把 tab 打开/切过去：用户看得到 agent 正在跑什么
     let _ = app.emit(
         AGENT_RUN_EVENT,
@@ -955,6 +960,74 @@ fn terminate_process_tree(root_pid: u32) {
             }
         }
     }
+}
+
+/// 闲置关闭时推给前端的载荷（前端据此写系统行 + 移除 tab）。
+#[derive(Clone, Serialize)]
+struct TerminalIdleEvent {
+    id: String,
+    cwd: String,
+    text: String,
+}
+
+/// 系统行文案（与前端写入 xterm 的内容保持一致）。
+pub const IDLE_CLOSED_TEXT: &str = "会话已结束（闲置）";
+
+/// 闲置回收的唯一判据：只碰 agent 会话（用户手开的 tab 不替他关）、没有 run 在跑、
+/// 且静默超过 TTL。抽成纯函数是为了能单测 —— 回收器跑在裸线程里，没法断言。
+fn should_reap(id: &str, idle: Duration, busy: bool, ttl: Duration) -> bool {
+    id.starts_with(AGENT_ID_PREFIX) && !busy && idle >= ttl
+}
+
+/// 起一个只回收 agent 会话的线程：`IDLE_TTL` 内无输出且没有在跑的 run 就 kill。
+///
+/// - 用户手开的 tab（uuid id）不受影响 —— 那是他自己开的，不该替他关；
+/// - 有 run 在跑（`guard::is_busy`）的跳过，长命令不会被误杀；
+/// - `COGITO_TERMINAL_IDLE_CLOSE=0` 可整体停用（排查用）。
+pub fn start_idle_reaper(app: AppHandle) {
+    let sessions = {
+        let hub = app.state::<TerminalHub>();
+        Arc::clone(&hub.sessions)
+    };
+    std::thread::spawn(move || loop {
+        std::thread::sleep(REAPER_TICK);
+        if std::env::var("COGITO_TERMINAL_IDLE_CLOSE").as_deref() == Ok("0") {
+            continue;
+        }
+        let mut victims: Vec<(String, String, Arc<Mutex<Scrollback>>)> = Vec::new();
+        if let Ok(sessions) = sessions.lock() {
+            for (id, session) in sessions.iter() {
+                if !id.starts_with(AGENT_ID_PREFIX) {
+                    continue;
+                }
+                let busy = guard::is_busy(id);
+                let idle = session
+                    .shared
+                    .lock()
+                    .map(|shared| shared.last_output.elapsed())
+                    .unwrap_or_default();
+                if should_reap(id, idle, busy, guard::IDLE_TTL) {
+                    victims.push((id.clone(), session.cwd.clone(), Arc::clone(&session.shared)));
+                }
+            }
+        }
+        for (id, cwd, shared) in victims {
+            // 先往 scrollback 写一行系统提示：仍 attached 的 xterm 会实时收到，
+            // 用户看到的是「会话已结束（闲置）」而不是终端凭空消失。
+            let notice = format!("\r\n\x1b[33m{IDLE_CLOSED_TEXT}\x1b[0m\r\n");
+            push_output(&shared, notice.as_bytes());
+            let _ = app.emit(
+                IDLE_CLOSED_EVENT,
+                TerminalIdleEvent {
+                    id: id.clone(),
+                    cwd,
+                    text: IDLE_CLOSED_TEXT.to_string(),
+                },
+            );
+            kill_session_in(&sessions, &id);
+            tracing::info!(target: "terminal", "闲置回收：{id}");
+        }
+    });
 }
 
 #[tauri::command(rename = "terminal:kill")]

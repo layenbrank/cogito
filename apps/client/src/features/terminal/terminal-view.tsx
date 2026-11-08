@@ -29,8 +29,10 @@ import {
   resolveTerminalTypeface,
   type TerminalTypeface
 } from './terminal-font'
+import { canTakeFocus } from './terminal-focus'
 import { scheduleTerminalLayout, syncTerminalLayout } from './terminal-layout'
 import { resolveTerminalTheme } from './terminal-theme'
+import { createWriteQueue } from './terminal-write-queue'
 
 const textEncoder = new TextEncoder()
 
@@ -115,6 +117,9 @@ function TerminalView(props: TerminalViewProps) {
    */
   const restoredRef = useRef(props.restored === true)
   restoredRef.current = restoredRef.current || props.restored === true
+  /** 同上：`active` 也不进主 effect 依赖，否则切 tab 会重挂整个 xterm */
+  const activeRef = useRef(props.active)
+  activeRef.current = props.active
 
   useEffect(
     function () {
@@ -175,6 +180,23 @@ function TerminalView(props: TerminalViewProps) {
       })
       terminalRef.current = terminal
       fitRef.current = fit
+      /*
+       * 所有写入（回放 / 实时字节 / 系统行）都走同一条有序队列：
+       * 按帧合并 → 串行 `write(bytes, cb)` → 回放与实时不再交错。
+       */
+      const outputQueue = createWriteQueue(terminal)
+
+      /**
+       * 唯一的程序化聚焦入口。
+       *
+       * 只有「本 tab 可见 + 窗口在前台 + 用户没在别处打字」才真正 focus()：
+       * agent 后台跑命令会把 tab 变 active，这里若无条件聚焦就等于替用户抢光标。
+       */
+      function focusIfAllowed() {
+        if (disposed || !activeRef.current) return
+        if (!canTakeFocus(container)) return
+        terminalRef.current?.focus()
+      }
 
       /** 原地升级字型：options 变了不用重建实例，重新量宽 + 重绘即可 */
       function applyTypeface(typeface: TerminalTypeface) {
@@ -209,7 +231,7 @@ function TerminalView(props: TerminalViewProps) {
           if (event.payload.id !== props.id || disposed) return
           exitedRef.current = true
           useTerminalStore.getState().markExited(props.id, event.payload.exitCode)
-          terminal.write('\r\n\x1b[90m[进程已退出]\x1b[0m\r\n')
+          outputQueue.pushText('\r\n\x1b[90m[进程已退出]\x1b[0m\r\n')
         }).then(function (unlisten) {
           if (disposed) {
             unlisten()
@@ -220,7 +242,8 @@ function TerminalView(props: TerminalViewProps) {
 
         const onOutput = function (data: Uint8Array) {
           if (disposed) return
-          terminal.write(data)
+          // 字节直写：不转字符串，xterm 的有状态 UTF-8 解码器负责跨 chunk 边界
+          outputQueue.push(data)
         }
         // agent 会话与「刷新后灌回」的会话都已经存在：先 attach，别重建
         const preferAttach = props.origin === 'agent' || restoredRef.current
@@ -265,9 +288,13 @@ function TerminalView(props: TerminalViewProps) {
           if (created.pid !== null && created.pid !== undefined) {
             useTerminalStore.getState().markPid(props.id, created.pid)
           }
-          // 回放写完后滚到底，避免只看见顶部空白区的光标
+          // 回放已经排在队列最前面（早到的实时块跟在它后面）：先把它写出去再滚到底，
+          // 否则滚动发生在回放之前，视口会停在顶部空白区
           if (created.replay && created.replay.length > 0) {
-            terminal.scrollToBottom()
+            outputQueue.flushNow()
+            requestAnimationFrame(function () {
+              if (!disposed) terminal.scrollToBottom()
+            })
           }
           terminal.onData(function (data) {
             if (exitedRef.current) return
@@ -281,14 +308,15 @@ function TerminalView(props: TerminalViewProps) {
               console.warn('[terminal] resize 失败:', props.id, error)
             })
           })
-          // 始终抢焦点：active tab 才挂载，容器 tabIndex 曾抢走按键导致「有光标不能打字」
-          scheduleTerminalLayout(terminal, fit, container, true, function () {
+          // 先排版；聚焦交给 focusIfAllowed —— 用户在 composer 打字时不许抢
+          scheduleTerminalLayout(terminal, fit, container, false, function () {
             return disposed
           })
+          focusIfAllowed()
         } catch (error) {
           reportCaught(isOwner ? 'terminal.create' : 'terminal.attach', error)
           const reason = error instanceof Error ? error.message : String(error)
-          terminal.write(
+          outputQueue.pushText(
             `\r\n\x1b[91m[/${
               isOwner
                 ? preferAttach
@@ -313,12 +341,11 @@ function TerminalView(props: TerminalViewProps) {
             return entry.isIntersecting && entry.intersectionRatio > 0
           })
           if (!visible) return
-          const shouldFocus = useTerminalStore.getState().activeId === props.id
           scheduleTerminalLayout(
             terminalRef.current,
             fitRef.current,
             container,
-            shouldFocus,
+            false,
             function () {
               return disposed
             }
@@ -327,6 +354,8 @@ function TerminalView(props: TerminalViewProps) {
         { threshold: [0, 0.01] }
       )
       visibility.observe(container)
+      // 可见性恢复后补一次门槛聚焦（用户正打字时会被挡掉）
+      focusIfAllowed()
 
       return function () {
         disposed = true
@@ -337,6 +366,8 @@ function TerminalView(props: TerminalViewProps) {
         const terminalInstance = terminalRef.current
         terminalRef.current = null
         fitRef.current = null
+        // 先停队列：紧接着 dispose 实例，排队中的字节没人消费了
+        outputQueue.dispose()
 
         const remaining = releaseView(props.id)
         // owner 卸载就让出槽位，避免僵尸 owner 占坑导致其它视图永远只 attach
@@ -355,12 +386,13 @@ function TerminalView(props: TerminalViewProps) {
     function () {
       if (!props.active) return
       let cancelled = false
-      // 双 rAF + 重试：等 CSS 从 invisible / 父级 hidden 恢复后再量尺寸并抢焦点
+      // 双 rAF + 重试：等 CSS 从 invisible / 父级 hidden 恢复后再量尺寸；
+      // 聚焦走 canTakeFocus 门槛（agent 掀面板不能把 composer 的光标抢走）
       scheduleTerminalLayout(
         terminalRef.current,
         fitRef.current,
         containerRef.current,
-        true,
+        false,
         function () {
           return cancelled
         }

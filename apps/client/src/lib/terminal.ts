@@ -48,9 +48,47 @@ function parseTerminalBytes(data: unknown): Uint8Array {
   return new Uint8Array()
 }
 
-function writeReplay(replay: number[] | undefined, onmessage: (data: Uint8Array) => void) {
-  if (!replay || replay.length === 0) return
-  onmessage(Uint8Array.from(replay))
+/**
+ * 把「实时块」与「replay」排成一条有序流：**replay 先，早到的实时块随后**。
+ *
+ * Channel 在构造时就绑定了，Rust 侧读线程可能先于 `invoke` 返回把输出推送过来；
+ * 而 replay 是 `invoke` 的返回值，必然晚于这些实时块。按到达顺序直接写，
+ * 同一段内容会在 xterm 里出现两遍（先实时、后回放）。所以先把早到的块压住，
+ * 等 replay 落定后再按到达顺序补上。
+ */
+function createOrderedSink(onmessage: (data: Uint8Array) => void) {
+  let settled = false
+  let pending: Uint8Array[] = []
+
+  function drain() {
+    const chunks = pending
+    pending = []
+    for (const chunk of chunks) onmessage(chunk)
+  }
+
+  return {
+    /** Channel 推来的实时块 */
+    live: function (data: Uint8Array) {
+      if (settled) {
+        onmessage(data)
+        return
+      }
+      pending.push(data)
+    },
+    /** invoke 返回：回放先写，再补上压住的实时块 */
+    replay: function (replay: number[] | undefined) {
+      if (settled) return
+      settled = true
+      if (replay && replay.length > 0) onmessage(Uint8Array.from(replay))
+      drain()
+    },
+    /** invoke 失败：没有 replay 可等，压住的块直接放行（错误提示由调用方写） */
+    release: function () {
+      if (settled) return
+      settled = true
+      drain()
+    }
+  }
 }
 
 /** 创建 PTY 会话；`id` 由前端生成，Rust 以其作为会话键。
@@ -64,11 +102,18 @@ async function create(
   id: string,
   onmessage: (data: Uint8Array) => void
 ): Promise<TerminalCreatedWithChannel> {
+  const sink = createOrderedSink(onmessage)
   const channel = new Channel<ArrayBuffer>(function (data) {
-    onmessage(parseTerminalBytes(data))
+    sink.live(parseTerminalBytes(data))
   })
-  const created = await invoke<TerminalCreated>(CHANNELS.TERMINAL.CREATE, { cwd, id, channel })
-  writeReplay(created.replay, onmessage)
+  let created: TerminalCreated
+  try {
+    created = await invoke<TerminalCreated>(CHANNELS.TERMINAL.CREATE, { cwd, id, channel })
+  } catch (error) {
+    sink.release()
+    throw error
+  }
+  sink.replay(created.replay)
   return { id: created.id, pid: created.pid, replay: created.replay, channel }
 }
 
@@ -81,11 +126,18 @@ async function attach(
   id: string,
   onmessage: (data: Uint8Array) => void
 ): Promise<TerminalCreatedWithChannel> {
+  const sink = createOrderedSink(onmessage)
   const channel = new Channel<ArrayBuffer>(function (data) {
-    onmessage(parseTerminalBytes(data))
+    sink.live(parseTerminalBytes(data))
   })
-  const attached = await invoke<TerminalCreated>(CHANNELS.TERMINAL.ATTACH, { id, channel })
-  writeReplay(attached.replay, onmessage)
+  let attached: TerminalCreated
+  try {
+    attached = await invoke<TerminalCreated>(CHANNELS.TERMINAL.ATTACH, { id, channel })
+  } catch (error) {
+    sink.release()
+    throw error
+  }
+  sink.replay(attached.replay)
   return { id: attached.id, pid: attached.pid, replay: attached.replay, channel }
 }
 
@@ -121,9 +173,14 @@ function list(): Promise<TerminalInfo[]> {
   return invoke<TerminalInfo[]>(CHANNELS.TERMINAL.LIST)
 }
 
-/** 把 cwd 规范成与 Hub 一致的 `agent:<canonical>`（跳转 / 匹配用）。 */
-function resolveAgentId(cwd: string): Promise<string> {
-  return invoke<string>(CHANNELS.TERMINAL.RESOLVE_AGENT_ID, { cwd })
+/**
+ * 把 cwd 规范成与 Hub 一致的会话 id（跳转 / 匹配用）。
+ *
+ * 传 `scope`（线程 id）时得到 `agent:<cwd>#<scope>` —— 与 `terminal:run` 传同一个
+ * scope 才能落到同一个 PTY；不传退化为旧的 `agent:<cwd>`。
+ */
+function resolveAgentId(cwd: string, scope?: string): Promise<string> {
+  return invoke<string>(CHANNELS.TERMINAL.RESOLVE_AGENT_ID, { cwd, scope })
 }
 
 /** 读取系统默认终端字体（Windows Terminal 默认 profile / conhost 注册表）。 */

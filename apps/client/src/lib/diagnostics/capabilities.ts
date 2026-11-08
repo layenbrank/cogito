@@ -90,13 +90,21 @@ async function openDiagnosticDir(kind: DiagnosticDirKind): Promise<string | null
 
 /** Agent 缓存概况（`agent_cache_info`）：终端里那些临时脚本 / 日志的落点 */
 interface AgentCacheStats {
-  /** 缓存根：`%LOCALAPPDATA%\\cogito\\agent-cache` */
+  /** 缓存根：`%LOCALAPPDATA%\\Temp\\cogito\\agent-cache`（Temp 是系统清理域；旧目录只做只读提示） */
   path: string
   bytes: number
   /** 会话子目录个数 */
   sessions: number
   /** 旧目录（`~/.cogito/agent-cache`）仍存在时给出，提示可手动删 */
   legacyPath?: string | null
+  /** 旧目录占用字节数（「可释放 N MB」提示用） */
+  legacyBytes?: number
+  /** 自动淘汰上限（字节） */
+  maxBytes?: number
+  /** 最近一次自动清理的时刻（epoch 毫秒），没清理过为 null */
+  lastPrunedAt?: number | null
+  /** 最近一次自动清理释放的字节数 */
+  lastPrunedBytes?: number
 }
 
 async function readAgentCache(): Promise<AgentCacheStats | null> {

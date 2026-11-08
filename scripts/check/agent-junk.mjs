@@ -9,7 +9,7 @@
  *
  * 只查**顶层**：子目录里的产物归各包的 `.gitignore` 与构建配置管，这里只管「根目录被当草稿纸」。
  * 顶层出现 `tmp/` `.tmp/` `temp/` `scratch` 前缀的目录这类草稿区，或 `*.log` `*.bat` `*.ps1`
- * `*.raw` `scratch-*` 这类临时文件，就非零退出并逐个点名。
+ * `*.raw` `*.out` `scratch-*` 这类临时文件，就非零退出并逐个点名。
  *
  * 用法：`node scripts/check/agent-junk.mjs [root]`（root 省略时用仓库根，便于测试）
  */
@@ -30,6 +30,7 @@ const JUNK_FILES = [
   /\.cmd$/i,
   /\.ps1$/i,
   /\.raw$/i,
+  /\.out$/i,
   /\.tmp$/i,
   /^scratch[-_.]/i,
   /^tmp[-_.]/i,

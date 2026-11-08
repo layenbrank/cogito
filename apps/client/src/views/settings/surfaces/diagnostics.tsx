@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ensurePersist, findPref, patchPref } from '@/features/persist'
+import { cachePruneText, cacheSizeText } from '@/lib/diagnostics/cache-text'
 import {
   clearAgentCache,
   formatBytes,
@@ -41,13 +42,6 @@ function toolStatus(capability: ToolCapability): { text: string; tone: 'success'
   // 精简版缺「只有完整版才有」的件是设计如此，不该标红
   if (capability.fullOnly) return { text: '需完整版', tone: 'secondary' }
   return { text: '缺失', tone: 'destructive' }
-}
-
-/** 缓存大小文案：0 字节要显示「0 B」而不是 `formatBytes` 的「—」（清空后要能看出确实空了） */
-function cacheSizeText(bytes: number | undefined): string {
-  if (bytes === undefined) return '—'
-  if (bytes <= 0) return '0 B'
-  return formatBytes(bytes)
 }
 
 /** 链接时间文案：本地时区的 `YYYY-MM-DD HH:mm:ss`，便于和构建日志对时间 */
@@ -289,6 +283,14 @@ function DiagnosticSurface() {
               {isClearingCache ? '清理中…' : '清空'}
             </Button>
           </div>
+        </SettingsRow>
+
+        <SettingsRow
+          label="自动清理"
+          hint={`${cachePruneText(cache)} · 环境变量 COGITO_AGENT_CACHE_RETENTION_DAYS / COGITO_AGENT_CACHE_MAX_BYTES 可覆盖`}>
+          <Badge variant="secondary">
+            {cache && cache.maxBytes ? `上限 ${cacheSizeText(cache.maxBytes)}` : '默认 512 MB'}
+          </Badge>
         </SettingsRow>
       </SettingsSection>
 

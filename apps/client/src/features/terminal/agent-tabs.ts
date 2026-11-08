@@ -46,6 +46,35 @@ function watchAgentTerminal(): void {
   })
 }
 
+interface IdleClosedEvent {
+  /** 被回收的会话 id（`agent:<cwd>` 或 `agent:<cwd>#<scope>`） */
+  id: string
+  cwd: string
+  /** 系统行文案，Rust 已先写进 scrollback，这里只作日志 */
+  text: string
+}
+
+/**
+ * 闲置回收：Rust 把闲置的 agent 会话关掉后广播 `terminal://idle-closed`。
+ *
+ * 前端只把 tab 标成「已退出」——会话已经没了，再 kill 是幂等空转；
+ * 「会话已结束（闲置）」那行由 Rust 先写进 scrollback，还挂着的 xterm 实时收到。
+ */
+function watchIdleClosed(): void {
+  void listen<IdleClosedEvent>(EVENTS.TERMINAL_IDLE_CLOSED, function (event) {
+    const store = useTerminalStore.getState()
+    const exists = store.tabs.some(function (tab) {
+      return tab.id === event.payload.id
+    })
+    if (!exists || store.tabs.some(function (tab) { return tab.id === event.payload.id && tab.exited })) {
+      return
+    }
+    store.markExited(event.payload.id, null)
+  }).catch(function (error) {
+    reportCaught('terminal.idleClosed.watch', error, 'warning')
+  })
+}
+
 /** 冷启动时 Rust 侧车可能还没注册好命令：重试 4 次，仍失败返回 null */
 async function listTerminalSessions(): Promise<TerminalInfo[] | null> {
   let attempt = 0
@@ -167,5 +196,5 @@ async function ensureTerminalTab(cwd: string | null): Promise<void> {
   after.newTab(cwd)
 }
 
-export { bootstrapTerminalSessions, ensureTerminalTab, watchAgentTerminal }
+export { bootstrapTerminalSessions, ensureTerminalTab, watchAgentTerminal, watchIdleClosed }
 export type { AgentRunEvent, BootstrapOptions, BootstrapResult }

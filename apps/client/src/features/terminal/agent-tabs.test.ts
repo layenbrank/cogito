@@ -54,6 +54,7 @@ interface FakeStore {
   newTab: Mock<(cwd: string) => void>
   revealAgentTab: Mock<(input: AgentTabInput) => void>
   removeTab: Mock<(id: string) => void>
+  markExited: Mock<(id: string, exitCode: number | null) => void>
   hydrateSession: Mock<(input: HydrateInput) => void>
   restoreAgentPanel: Mock<(options?: RestoreOptions) => void>
 }
@@ -79,6 +80,14 @@ const { fakeStore, listMock, listenMock, reportCaughtMock } = vi.hoisted(functio
     newTab: vi.fn(),
 
     revealAgentTab: vi.fn(),
+
+    // 与真实 store 一致：只翻 exited，不 kill、不改 active
+    markExited: vi.fn(function (id: string) {
+      const target = state.tabs.find(function (item) {
+        return item.id === id
+      })
+      if (target) target.exited = true
+    }),
 
     removeTab: vi.fn(function (id: string) {
       const index = state.tabs.findIndex(function (item) {
@@ -215,6 +224,7 @@ beforeEach(function () {
   fakeStore.revealAgentTab.mockClear()
   fakeStore.removeTab.mockClear()
   fakeStore.hydrateSession.mockClear()
+  fakeStore.markExited.mockClear()
   fakeStore.restoreAgentPanel.mockClear()
 })
 
@@ -469,6 +479,55 @@ describe('watchAgentTerminal', function () {
     })
   })
 
+  // 计划「验证 8」的前端一半：会话 id 带线程作用域后，同 cwd 的两个线程
+  // 必须落到两个 tab（不共用同一个 PTY，输出才不会串）
+  it('同一 cwd 不同线程（带 #scope）不复用同一个 tab', async function () {
+    const captured: { handler: AgentRunHandler | null } = { handler: null }
+    listenMock.mockImplementation(function (_event: string, handler: AgentRunHandler) {
+      captured.handler = handler
+      return Promise.resolve(function () {})
+    })
+    const { watchAgentTerminal } = await load()
+
+    watchAgentTerminal()
+    await vi.waitFor(function () {
+      expect(captured.handler).not.toBeNull()
+    })
+
+    captured.handler?.({ payload: { id: 'agent:C:/w#t1', cwd: 'C:/w', command: 'a' } })
+    captured.handler?.({ payload: { id: 'agent:C:/w#t2', cwd: 'C:/w', command: 'b' } })
+
+    const ids = fakeStore.revealAgentTab.mock.calls.map(function (call) {
+      return call[0].id
+    })
+    expect(ids).toEqual(['agent:C:/w#t1', 'agent:C:/w#t2'])
+    expect(new Set(ids).size).toBe(2)
+  })
+
+  // 计划「验证 10」的前端一半：reveal（掀面板 + 高亮 tab）不能顺手抢焦点
+  it('agent-run 事件不改变 document.activeElement（用户正在 composer 里打字）', async function () {
+    const composer = document.createElement('textarea')
+    document.body.append(composer)
+    composer.focus()
+    const captured: { handler: AgentRunHandler | null } = { handler: null }
+    listenMock.mockImplementation(function (_event: string, handler: AgentRunHandler) {
+      captured.handler = handler
+      return Promise.resolve(function () {})
+    })
+    const { watchAgentTerminal } = await load()
+
+    watchAgentTerminal()
+    await vi.waitFor(function () {
+      expect(captured.handler).not.toBeNull()
+    })
+
+    captured.handler?.({ payload: { id: 'agent:C:/w#t9', cwd: 'C:/w', command: 'pnpm test' } })
+
+    expect(document.activeElement).toBe(composer)
+    expect(fakeStore.revealAgentTab).toHaveBeenCalledTimes(1)
+    composer.remove()
+  })
+
   it('监听注册失败只降级上报，不抛出', async function () {
     listenMock.mockImplementation(function () {
       return Promise.reject(new Error('no event bridge'))
@@ -483,5 +542,54 @@ describe('watchAgentTerminal', function () {
         'warning'
       )
     })
+  })
+})
+
+type IdlePayload = { id: string; cwd: string; text: string }
+
+describe('watchIdleClosed：闲置回收', function () {
+  it('收到 terminal://idle-closed 时把该 tab 标成已退出', async function () {
+    fakeStore.tabs.push(tab('agent:C:/w#t1', 'agent'))
+    const captured: { handler: ((event: { payload: IdlePayload }) => void) | null } = {
+      handler: null
+    }
+    listenMock.mockImplementation(function (_event: string, handler: unknown) {
+      captured.handler = handler as (event: { payload: IdlePayload }) => void
+      return Promise.resolve(function () {})
+    })
+    const { watchIdleClosed } = await load()
+
+    watchIdleClosed()
+    await vi.waitFor(function () {
+      expect(captured.handler).not.toBeNull()
+    })
+    expect(listenMock).toHaveBeenCalledWith(
+      expect.stringContaining('idle-closed'),
+      expect.any(Function)
+    )
+
+    captured.handler?.({ payload: { id: 'agent:C:/w#t1', cwd: 'C:/w', text: '会话已结束（闲置）' } })
+
+    expect(fakeStore.markExited).toHaveBeenCalledWith('agent:C:/w#t1', null)
+    expect(fakeStore.tabs[0].exited).toBe(true)
+  })
+
+  it('会话已不在 tabs 里（或已退出）时不重复标记', async function () {
+    const captured: { handler: ((event: { payload: IdlePayload }) => void) | null } = {
+      handler: null
+    }
+    listenMock.mockImplementation(function (_event: string, handler: unknown) {
+      captured.handler = handler as (event: { payload: IdlePayload }) => void
+      return Promise.resolve(function () {})
+    })
+    const { watchIdleClosed } = await load()
+
+    watchIdleClosed()
+    await vi.waitFor(function () {
+      expect(captured.handler).not.toBeNull()
+    })
+
+    captured.handler?.({ payload: { id: 'agent:gone', cwd: 'C:/w', text: '会话已结束（闲置）' } })
+    expect(fakeStore.markExited).not.toHaveBeenCalled()
   })
 })

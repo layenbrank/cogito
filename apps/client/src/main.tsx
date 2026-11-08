@@ -9,7 +9,8 @@ import { ensurePersist, ensureSecrets, findPref } from '@/features/persist'
 import { watchActiveTenant } from '@/features/quota/tenant.ts'
 import {
   bootstrapTerminalSessions,
-  watchAgentTerminal
+  watchAgentTerminal,
+  watchIdleClosed
 } from '@/features/terminal/agent-tabs.ts'
 import { adoptAppearance, watchAppearance } from '@/features/window/appearance'
 import { adoptShellMode } from '@/features/window/shell-mode'
@@ -68,6 +69,8 @@ async function bootstrap() {
     watchAppearance()
     // agent 在右栏终端跑命令时，把 tab 和面板打开（用户总能看到它在做什么）
     watchAgentTerminal()
+    // 闲置回收：会话被 Rust 关掉后把 tab 标成已退出（不再显示「运行中」）
+    watchIdleClosed()
     // WebView 刷新后 tabs 空：从 Rust list 灌回存活会话
     void bootstrapTerminalSessions()
     // 租户身份：登录 / 切账号后重新解析，好让请求带上 `X-Tenant-ID`（网关按它算配额归属）

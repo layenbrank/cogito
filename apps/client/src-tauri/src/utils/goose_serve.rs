@@ -1,4 +1,9 @@
 //! goose serve sidecar：TLS ACP 后端生命周期与连接信息。
+//!
+//! 为什么这里**不做**「闲置自动退出」：它是单例后端（一个进程服务所有会话），
+//! 进程数不随使用时间增长；而 ACP 是长连接，按闲置杀掉会在切线程 / 重连的瞬间
+//! 打断正在进行的回合。宿主退出时由 `child_job` 的 Job Object 连带收掉，不留孤儿。
+//! 与终端 PTY 不同 —— 那边每个 cwd 一个 shell，才需要 `start_idle_reaper`。
 
 use std::net::TcpListener;
 use std::sync::Mutex;

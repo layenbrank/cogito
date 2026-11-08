@@ -65,6 +65,8 @@ impl Bootstrap {
                 app.manage(GooseServeState::new());
                 app.manage(GooseAcpHub::new());
                 app.manage(TerminalHub::new());
+                // 闲置回收：agent 会话 30 分钟无输出且没有在跑的 run 就关掉
+                crate::utils::terminal::start_idle_reaper(app.handle().clone());
                 app.manage(BrowserState::default());
                 goose_tls::install_crypto_provider();
                 app.manage(ThroughState::new("overlay"));
@@ -133,7 +135,7 @@ impl Bootstrap {
                 );
                 log_retention::prune_stale_logs(app.handle());
                 // Agent 缓存：清掉超过保留期的会话子目录（目录契约见 utils::agent_cache）
-                agent_cache::prune_stale_caches(agent_cache::AGENT_CACHE_RETENTION_DAYS);
+                agent_cache::prune_stale_caches(agent_cache::retention_days());
                 // 会话标记 + 上次异常退出：崩溃/被杀的现场要能被下次启动认出来
                 // `begin_session()` 内部保证「先读旧标记再写 running」的顺序。
                 let previous_session = crate::utils::diagnostics::begin_session();
