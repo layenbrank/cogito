@@ -115,6 +115,9 @@ function ToolPermissionsSection() {
               ) : null}
             </div>
             <Select
+              items={PERMISSION_OPTIONS.map(function (option) {
+                return { value: option.value, label: option.label }
+              })}
               value={tool.permission ?? 'ask_before'}
               onValueChange={function (value) {
                 void changePermission(tool.name, value as ToolPermissionLevel)

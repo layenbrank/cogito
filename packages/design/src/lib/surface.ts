@@ -35,4 +35,29 @@ const OVERLAY_SHELL = cn(
   'data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2'
 )
 
-export { FIELD_SHELL, OVERLAY_ELEVATION, OVERLAY_SHELL }
+/**
+ * 贴合式触发器（SelectTrigger / ComboboxTrigger / ComboboxInput）。
+ *
+ * 展开后触发器与列表面板拼成**一张卡**，两边必须是同一套视觉语言：
+ * - **同一块面**：展开时底色切到 `popover`（面板色）。深色主题下 `bg-background`
+ *   叠 `bg-input/30` 的合成色比面板暗一档，接缝处会出现色阶断层；浅色主题两者
+ *   都是白，切过去无副作用。
+ * - **同一条轮廓**：贴合的面板补 1px `input` 描边（见各自 Content 的 `ATTACHED` 注释），
+ *   触发器接缝侧的 1px 由面板重叠的 `-1px` 吃掉，于是上下两半共用一条线。
+ * - **悬停/聚焦只属于「未展开」的控件**：展开态若仍保留 `hover:border-ring` /
+ *   `focus-visible:border-ring`，触发器描边会在接缝处变成 ring 色，和面板的 input
+ *   色拼成深浅两段 —— 那正是「上下风格不统一」的来源。
+ * - 接缝侧去圆角，`!` 盖过 size 变体里的 `rounded-*`。
+ */
+const ATTACHED_TRIGGER = cn(
+  'data-popup-open:ring-0 data-popup-open:shadow-none',
+  'data-popup-open:bg-popover dark:data-popup-open:bg-popover',
+  // dark 的 hover 底色与展开态同层级，叠一层「展开 + hover」才不会悬停时闪回
+  'dark:data-popup-open:hover:bg-popover',
+  'data-popup-open:hover:border-input data-popup-open:focus-visible:border-input',
+  'data-popup-open:data-[popup-side=bottom]:rounded-b-none!',
+  'data-popup-open:data-[popup-side=top]:rounded-t-none!',
+  'transition-[color,background-color,border-color,border-radius,box-shadow] duration-150 ease-[ease]'
+)
+
+export { ATTACHED_TRIGGER, FIELD_SHELL, OVERLAY_ELEVATION, OVERLAY_SHELL }

@@ -69,6 +69,9 @@ function PlatformModelsSection(props: {
             </div>
             <div className={styles.rowActions}>
               <Select
+                items={models.map(function (model) {
+                  return { value: model, label: findModelLabel(model) }
+                })}
                 value={props.provider.model ?? models[0] ?? null}
                 onValueChange={function (model) {
                   if (model === null) return

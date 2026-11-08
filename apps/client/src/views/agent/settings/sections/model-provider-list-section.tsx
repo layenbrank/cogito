@@ -163,6 +163,9 @@ function ProviderListSection(props: {
                   ) : null}
                   {models.length > 0 ? (
                     <Select
+                      items={models.map(function (model) {
+                        return { value: model, label: findModelLabel(model) }
+                      })}
                       value={activeModel}
                       onValueChange={function (model) {
                         if (model === null) return

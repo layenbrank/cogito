@@ -95,6 +95,7 @@ function TimeColumn(props: TimeColumnProps) {
   const listRef = React.useRef<HTMLDivElement>(null)
   const selectedRef = React.useRef<HTMLButtonElement>(null)
   const scrollRafRef = React.useRef(0)
+  const snapTimerRef = React.useRef(0)
   const [canScrollUp, updateCanScrollUp] = React.useState(false)
   const [canScrollDown, updateCanScrollDown] = React.useState(false)
 
@@ -106,15 +107,67 @@ function TimeColumn(props: TimeColumnProps) {
     updateCanScrollDown(scrollTop + clientHeight < scrollHeight - 1)
   }
 
+  /** 滚动停下后把最近的一行吸到中线：滚轮、点箭头松手都不会停在半行上 */
+  function scheduleSnap() {
+    window.clearTimeout(snapTimerRef.current)
+    // 箭头长按期间一直在滚，等松手（stopArrowScroll）再吸
+    if (scrollRafRef.current) return
+    snapTimerRef.current = window.setTimeout(snapToNearest, 140)
+  }
+
+  function snapToNearest() {
+    const node = listRef.current
+    if (!node) return
+    // 顶/底两端保持贴合：别为了「让最接近的一行居中」把首行推开半截
+    if (node.scrollTop <= 1) return
+    if (node.scrollTop >= node.scrollHeight - node.clientHeight - 1) return
+    const center = node.clientHeight / 2
+    let best = node.scrollTop
+    let smallest = Number.POSITIVE_INFINITY
+    node.querySelectorAll<HTMLElement>('[role="option"]').forEach(function (option) {
+      const desired = option.offsetTop + option.offsetHeight / 2 - center
+      const delta = Math.abs(desired - node.scrollTop)
+      if (delta < smallest) {
+        smallest = delta
+        best = desired
+      }
+    })
+    if (Math.abs(best - node.scrollTop) < 0.5) return
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    node.scrollTo({ top: best, behavior: reduceMotion ? 'auto' : 'smooth' })
+  }
+
+  function handleScroll() {
+    syncScrollEdges()
+    scheduleSnap()
+  }
+
   function stopArrowScroll() {
     if (scrollRafRef.current) {
       cancelAnimationFrame(scrollRafRef.current)
       scrollRafRef.current = 0
+      scheduleSnap()
     }
+  }
+
+  /** 键盘：↑↓/Home/End 直接改选中项（列自己收焦点，见 listbox 的 tabIndex） */
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const current = props.values.indexOf(props.selected)
+    const from = current < 0 ? 0 : current
+    let next = -1
+    if (event.key === 'ArrowDown') next = Math.min(props.values.length - 1, from + 1)
+    else if (event.key === 'ArrowUp') next = Math.max(0, from - 1)
+    else if (event.key === 'Home') next = 0
+    else if (event.key === 'End') next = props.values.length - 1
+    if (next < 0) return
+    event.preventDefault()
+    props.onSelect(props.values[next])
   }
 
   function startArrowScroll(direction: 1 | -1) {
     stopArrowScroll()
+    // 刚起了连续滚动：把 stop 时排上的吸附取消，别等 140ms 后回来跟长按抢滚动
+    window.clearTimeout(snapTimerRef.current)
     function tick() {
       const node = listRef.current
       if (!node) return
@@ -136,7 +189,13 @@ function TimeColumn(props: TimeColumnProps) {
   React.useEffect(
     function () {
       if (!props.isActive) return
-      selectedRef.current?.scrollIntoView({ block: 'center', inline: 'nearest' })
+      // behavior: 'instant' —— 打开浮层时直接落到选中项，不要跟着 scroll-smooth 慢慢滑过去，
+      // 也不要让两列的平滑滚动互相取消（时列会停在 0）
+      selectedRef.current?.scrollIntoView({
+        block: 'center',
+        inline: 'nearest',
+        behavior: 'instant'
+      })
       requestAnimationFrame(syncScrollEdges)
     },
     [props.isActive, props.selected]
@@ -150,26 +209,25 @@ function TimeColumn(props: TimeColumnProps) {
     observer.observe(node)
     return function () {
       observer.disconnect()
-      stopArrowScroll()
+      window.clearTimeout(snapTimerRef.current)
     }
   }, [])
 
   return (
-    <div className="flex min-h-0 min-w-13 flex-1 flex-col gap-1.5 overflow-hidden">
-      <div className="shrink-0 px-1 text-center text-xs font-medium tracking-wide text-muted-foreground">
-        {props.label}
-      </div>
+    <div className="relative isolate flex min-h-0 min-w-12 flex-1 flex-col overflow-hidden">
       {/*
         列表区必须有确定高度才能 overflow 滚动；用 flex-1 + min-h-0 + 绝对铺满，
         避免内容高度回传把外层（含 DatePicker）撑爆。
+        列本身不画边框/底色：两列合在一张浮层面上，只留中间一条短线分栏，
+        表头文字由 aria-label 承担，视觉上不占一行。
       */}
-      <div className="relative isolate min-h-0 flex-1 overflow-hidden rounded-md border border-border/70 bg-muted/35">
+      <div className="relative isolate min-h-0 flex-1 overflow-hidden">
         {canScrollUp ? (
           <button
             type="button"
             tabIndex={-1}
             aria-label={`向上滚动${props.label}`}
-            className="absolute inset-x-0 top-0 z-10 flex h-6 items-center justify-center bg-muted/95 text-muted-foreground transition-colors hover:text-foreground"
+            className="absolute inset-x-0 top-0 z-10 flex h-7 items-start justify-center bg-linear-to-b from-popover from-75% to-transparent pt-1 text-muted-foreground/60 transition-colors hover:text-foreground"
             onPointerEnter={function () {
               startArrowScroll(-1)
             }}
@@ -178,17 +236,23 @@ function TimeColumn(props: TimeColumnProps) {
             onClick={function () {
               listRef.current?.scrollBy({ top: -ITEM_HEIGHT, behavior: 'smooth' })
             }}>
-            <TimeChevron className="rotate-180" />
+            <TimeChevron className="size-3.5 rotate-180" />
           </button>
         ) : null}
         <div
           ref={listRef}
           role="listbox"
           aria-label={props.label}
-          onScroll={syncScrollEdges}
+          tabIndex={0}
+          onKeyDown={handleKeyDown}
+          onScroll={handleScroll}
           className={cn(
-            'absolute inset-0 overflow-x-hidden overflow-y-auto scroll-smooth p-1',
-            'scroll-py-6 scrollbar-none [&::-webkit-scrollbar]:hidden'
+            'group/col absolute inset-0 overflow-x-hidden overflow-y-auto scroll-smooth p-1 motion-reduce:scroll-auto',
+            'scroll-py-7 scrollbar-none [&::-webkit-scrollbar]:hidden',
+            // 列自己收焦点（选项 tabIndex=-1）：浮层打开时不会去聚焦首个选项、把整列滚回顶部。
+            // 焦点指示不给整列描边（上下边被渐隐箭头层遮住，只剩两条竖线像渲染出错），
+            // 改成「列有键盘焦点时选中项描一圈」，见选项上的 group-focus-visible/col
+            'rounded-md outline-none'
           )}>
           {props.values.map(function (value) {
             const isSelected = value === props.selected
@@ -199,15 +263,18 @@ function TimeColumn(props: TimeColumnProps) {
                 type="button"
                 role="option"
                 aria-selected={isSelected}
+                tabIndex={-1}
                 className={cn(
                   'flex h-8 w-full shrink-0 items-center justify-center rounded-md text-sm tabular-nums transition-[background-color,color,box-shadow] duration-150',
-                  // 对齐 Select：悬停 accent；选中实心主色（原先 hover:bg-background/80 在 muted 底上几乎看不见）
+                  // 选中沿用 Select 选中项的语言：浅主色 + 中粗；列底不再有 muted 底，浅主色足够看清
                   isSelected
-                    ? 'bg-primary font-medium text-primary-foreground shadow-sm hover:bg-primary/90'
+                    ? 'bg-primary/10 dark:bg-primary/20 font-semibold text-foreground group-focus-visible/col:ring-1 group-focus-visible/col:ring-ring/40 group-focus-visible/col:ring-inset'
                     : 'text-foreground hover:bg-accent hover:text-accent-foreground'
                 )}
                 onClick={function () {
                   props.onSelect(value)
+                  // 鼠标点完把焦点还给列：否则焦点留在 tabIndex=-1 的选项上，↑↓ 就断了
+                  listRef.current?.focus({ preventScroll: true })
                 }}>
                 {pad2(value)}
               </button>
@@ -219,7 +286,7 @@ function TimeColumn(props: TimeColumnProps) {
             type="button"
             tabIndex={-1}
             aria-label={`向下滚动${props.label}`}
-            className="absolute inset-x-0 bottom-0 z-10 flex h-6 items-center justify-center bg-muted/95 text-muted-foreground transition-colors hover:text-foreground"
+            className="absolute inset-x-0 bottom-0 z-10 flex h-7 items-end justify-center bg-linear-to-t from-popover from-75% to-transparent pb-1 text-muted-foreground/60 transition-colors hover:text-foreground"
             onPointerEnter={function () {
               startArrowScroll(1)
             }}
@@ -228,7 +295,7 @@ function TimeColumn(props: TimeColumnProps) {
             onClick={function () {
               listRef.current?.scrollBy({ top: ITEM_HEIGHT, behavior: 'smooth' })
             }}>
-            <TimeChevron />
+            <TimeChevron className="size-3.5" />
           </button>
         ) : null}
       </div>
@@ -259,14 +326,12 @@ function TimeSurface(props: TimeSurfaceProps) {
       return minute === props.minute
     }) ??
     minutes.reduce(function (closest, minute) {
-      return Math.abs(minute - props.minute) < Math.abs(closest - props.minute)
-        ? minute
-        : closest
+      return Math.abs(minute - props.minute) < Math.abs(closest - props.minute) ? minute : closest
     }, minutes[0] ?? 0)
   const isActive = props.isActive !== false
 
   return (
-    <div className={cn('flex h-full min-h-0 min-w-0 gap-2 overflow-hidden', props.className)}>
+    <div className={cn('flex h-full min-h-0 min-w-0 gap-1 overflow-hidden', props.className)}>
       <TimeColumn
         label="时"
         values={HOURS}
@@ -278,7 +343,7 @@ function TimeSurface(props: TimeSurfaceProps) {
       />
       <div
         aria-hidden
-        className="w-px shrink-0 self-stretch bg-border"
+        className="my-2 w-px shrink-0 self-stretch bg-border"
       />
       <TimeColumn
         label="分"
@@ -395,7 +460,8 @@ function TimePicker({
       <PopoverContent
         align="start"
         sideOffset={6}
-        className="flex h-60 w-auto min-w-52 flex-col gap-0 overflow-hidden p-2.5">
+        aria-label="选择时间"
+        className="flex h-60 w-48 flex-col gap-0 overflow-hidden p-2">
         <TimeSurface
           hour={parsed.hour}
           minute={parsed.minute}

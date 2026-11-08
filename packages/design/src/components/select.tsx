@@ -1,15 +1,9 @@
-import {
-  createContext,
-  useContext,
-  useLayoutEffect,
-  useState,
-  type ComponentProps
-} from 'react'
+import { createContext, useContext, useLayoutEffect, useState, type ComponentProps } from 'react'
 
 import { Select as SelectPrimitive } from '@base-ui/react/select'
 import { cn } from 'cn'
 
-import { FIELD_SHELL, OVERLAY_ELEVATION } from '../lib/surface'
+import { ATTACHED_TRIGGER, FIELD_SHELL, OVERLAY_ELEVATION } from '../lib/surface'
 import { webviewCoverProps } from '../lib/webview-cover'
 
 type SelectSize = 'sm' | 'default'
@@ -120,15 +114,11 @@ function SelectTrigger({
         FIELD_SHELL,
         // 默认 w-full：表单行/侧栏 flex 里与锚点同宽；需要收缩时调用方传 w-fit / w-auto
         'group/select-trigger flex w-full min-w-0 cursor-pointer items-center justify-between gap-1.5 py-1.5 pr-2.5 whitespace-nowrap select-none',
-        // 悬停稍加重边框；展开时不做「整卡描边」——面板靠阴影抬升，避免 border 质感
+        // 悬停稍加重边框（只在未展开时生效；展开态的轮廓由 ATTACHED_TRIGGER 接管）
         'hover:border-ring disabled:cursor-not-allowed disabled:opacity-50',
-        // 贴合展开：接缝侧去圆角；关 ring/阴影以免和面板叠成双框。
-        // 方向叠在 popup-open 上：base-ui 关闭后仍保留 data-popup-side。
-        'data-popup-open:ring-0 data-popup-open:shadow-none',
-        'data-popup-open:data-[popup-side=bottom]:rounded-b-none!',
-        'data-popup-open:data-[popup-side=top]:rounded-t-none!',
+        // 贴合展开：底色、描边、圆角与面板统一，上下两半拼成一张卡
+        ATTACHED_TRIGGER,
         'data-placeholder:text-muted-foreground',
-        'transition-[color,background-color,border-color,border-radius,box-shadow] duration-150 ease-[ease]',
         'data-[size=default]:h-9 data-[size=default]:pl-3 data-[size=default]:text-sm',
         // sm：text-xs；pl-2.5 与 Content size=sm 的 p-1 + item px-1.5 左缘对齐
         'data-[size=sm]:h-8 data-[size=sm]:rounded-[min(var(--radius-md),10px)] data-[size=sm]:pl-2.5 data-[size=sm]:text-xs',
@@ -202,12 +192,16 @@ function SelectContent({
             data-slot="select-content"
             data-size={size}
             className={cn(
-              // 一律无描边：靠 OVERLAY_ELEVATION；贴合时只去接缝圆角并吃掉触发器底边 1px。
+              // 分离态（sideOffset>0）：与其他浮层一致，只靠 OVERLAY_ELEVATION 抬升。
               'relative isolate w-full overflow-hidden p-1',
               'rounded-md bg-popover text-popover-foreground outline-hidden',
               OVERLAY_ELEVATION,
               sideOffset === 0 &&
                 cn(
+                  // 贴合态：补齐 1px 描边，与触发器共用同一条轮廓（同色同宽）；
+                  // 接缝侧留空，交给重叠的 -1px 吃掉触发器那条边，避免叠成两道线。
+                  'border border-input',
+                  'group-data-[side=bottom]/popup:border-t-0 group-data-[side=top]/popup:border-b-0',
                   'group-data-[side=bottom]/popup:rounded-t-none',
                   'group-data-[side=top]/popup:rounded-b-none',
                   'group-data-[side=bottom]/popup:-mt-px group-data-[side=top]/popup:-mb-px'
@@ -249,7 +243,7 @@ function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Prop
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        // default：px-2 + 面板 p-1 = 触发器 pl-3；sm：px-1.5 + p-1 = 触发器 pl-2.5
+        // default：px-2 + 面板 p-1（+1px 描边）= 触发器 pl-3；sm：px-1.5 + p-1 = 触发器 pl-2.5
         'relative flex w-full cursor-pointer items-center gap-2 rounded-md outline-hidden select-none',
         'min-h-8 px-2 py-1.5 text-sm',
         'group-data-[size=sm]/popup:min-h-7 group-data-[size=sm]/popup:px-1.5 group-data-[size=sm]/popup:py-1 group-data-[size=sm]/popup:text-xs',

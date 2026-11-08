@@ -208,10 +208,10 @@ function DatePicker(props: DatePickerProps) {
           {withTime ? (
             <>
               <div
-                className="w-36 shrink-0"
+                className="w-40 shrink-0"
                 aria-hidden
               />
-              <div className="absolute inset-y-0 right-0 flex w-36 flex-col border-l border-border/70 p-2.5">
+              <div className="absolute inset-y-0 right-0 flex w-40 flex-col border-l border-border/70 p-2.5">
                 <TimeSurface
                   hour={draftTime.hour}
                   minute={draftTime.minute}

@@ -83,6 +83,9 @@ function ExtensionForm(props: ExtensionFormProps) {
       <label className={styles.field}>
         <span className={styles.fieldLabel}>传输形态</span>
         <Select
+          items={TRANSPORTS.map(function (transport) {
+            return { value: transport.value, label: transport.label }
+          })}
           value={draft.kind}
           onValueChange={function (value) {
             patch({ kind: value as ExtensionServer['type'] })

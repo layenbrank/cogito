@@ -48,6 +48,9 @@ function ProviderCard(props: ProviderCardProps) {
           <label className={styles.field}>
             <span className={styles.fieldLabel}>默认模型</span>
             <Select
+              items={models.map(function (model) {
+                return { value: model, label: findModelLabel(model) }
+              })}
               value={storeRow?.model ?? models[0] ?? null}
               onValueChange={function (model) {
                 if (model === null) return

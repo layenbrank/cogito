@@ -61,6 +61,12 @@ function ModelEditorDialog(props: {
             <label className={styles.field}>
               <span className={styles.fieldLabel}>服务商</span>
               <Select
+                items={props.addable.map(function (entry) {
+                  return {
+                    value: entry.providerId,
+                    label: findProviderLabel(entry.providerId, entry.providerName)
+                  }
+                })}
                 value={props.pickedAddId}
                 onValueChange={function (id) {
                   if (!id) return

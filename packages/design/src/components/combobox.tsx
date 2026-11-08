@@ -3,7 +3,7 @@ import { Combobox as ComboboxPrimitive } from '@base-ui/react/combobox'
 import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
 
-import { FIELD_SHELL, OVERLAY_ELEVATION } from '../lib/surface'
+import { ATTACHED_TRIGGER, FIELD_SHELL, OVERLAY_ELEVATION } from '../lib/surface'
 import { webviewCoverProps } from '../lib/webview-cover'
 
 const Combobox = ComboboxPrimitive.Root
@@ -26,17 +26,6 @@ function ComboboxChevron({ className }: { className?: string }) {
     </svg>
   )
 }
-
-/**
- * 展开时触发器与面板贴合：接缝侧去圆角，关 ring/阴影；不做整卡描边。
- * 方向叠在 popup-open 上：base-ui 关闭后仍保留 data-popup-side。
- */
-const JOIN_TRIGGER = cn(
-  'data-popup-open:ring-0 data-popup-open:shadow-none',
-  'data-popup-open:data-[popup-side=bottom]:rounded-b-none!',
-  'data-popup-open:data-[popup-side=top]:rounded-t-none!',
-  'transition-[color,background-color,border-color,border-radius,box-shadow] duration-150 ease-[ease]'
-)
 
 function ComboboxValue({ ...props }: ComboboxPrimitive.Value.Props) {
   return (
@@ -65,7 +54,7 @@ function ComboboxTrigger({
       data-size={size}
       className={cn(
         FIELD_SHELL,
-        JOIN_TRIGGER,
+        ATTACHED_TRIGGER,
         'group/combobox-trigger flex w-fit cursor-pointer items-center justify-between gap-1.5 py-1.5 pr-2.5 pl-3 text-sm whitespace-nowrap select-none',
         'hover:border-ring disabled:cursor-not-allowed disabled:opacity-50',
         'data-placeholder:text-muted-foreground',
@@ -127,7 +116,7 @@ function ComboboxInput({
       data-size={size}
       className={cn(
         FIELD_SHELL,
-        JOIN_TRIGGER,
+        ATTACHED_TRIGGER,
         'group/combobox-input relative flex w-full min-w-0 items-center',
         isSm ? 'h-8 rounded-[min(var(--radius-md),10px)]' : 'h-9',
         'has-disabled:pointer-events-none has-disabled:opacity-50',
@@ -143,9 +132,7 @@ function ComboboxInput({
           'disabled:cursor-not-allowed',
           // sm：px-2 与 Content size=sm 的 list p-1 + item px-1 左缘对齐
           // default：px-3 与 list p-1 + item px-2 对齐（同 Select）
-          isSm
-            ? 'px-2 py-1 text-xs font-medium'
-            : 'px-3 py-1 text-base md:text-sm',
+          isSm ? 'px-2 py-1 text-xs font-medium' : 'px-3 py-1 text-base md:text-sm',
           className
         )}
         {...props}
@@ -226,6 +213,10 @@ function ComboboxContent({
               OVERLAY_ELEVATION,
               sideOffset === 0 &&
                 cn(
+                  // 贴合态：补齐 1px 描边，与触发器共用同一条轮廓（同色同宽）；
+                  // 接缝侧留空，交给重叠的 -1px 吃掉触发器那条边，避免叠成两道线。
+                  'border border-input',
+                  'group-data-[side=bottom]/combobox-content:border-t-0 group-data-[side=top]/combobox-content:border-b-0',
                   'group-data-[side=bottom]/combobox-content:rounded-t-none',
                   'group-data-[side=top]/combobox-content:rounded-b-none',
                   'group-data-[side=bottom]/combobox-content:-mt-px group-data-[side=top]/combobox-content:-mb-px'
@@ -243,10 +234,7 @@ function ComboboxContent({
 }
 
 /** 放进 Content 顶部的搜索框：可搜索 Select 模式用 */
-function ComboboxContentInput({
-  className,
-  ...props
-}: ComboboxPrimitive.Input.Props) {
+function ComboboxContentInput({ className, ...props }: ComboboxPrimitive.Input.Props) {
   return (
     <div
       data-slot="combobox-content-input"
@@ -283,11 +271,7 @@ function ComboboxList({ className, ...props }: ComboboxPrimitive.List.Props) {
   )
 }
 
-function ComboboxItem({
-  className,
-  children,
-  ...props
-}: ComboboxPrimitive.Item.Props) {
+function ComboboxItem({ className, children, ...props }: ComboboxPrimitive.Item.Props) {
   return (
     <ComboboxPrimitive.Item
       data-slot="combobox-item"
@@ -318,10 +302,7 @@ function ComboboxGroup({ className, ...props }: ComboboxPrimitive.Group.Props) {
   )
 }
 
-function ComboboxLabel({
-  className,
-  ...props
-}: ComboboxPrimitive.GroupLabel.Props) {
+function ComboboxLabel({ className, ...props }: ComboboxPrimitive.GroupLabel.Props) {
   return (
     <ComboboxPrimitive.GroupLabel
       data-slot="combobox-label"
@@ -355,10 +336,7 @@ function ComboboxEmpty({ className, ...props }: ComboboxPrimitive.Empty.Props) {
   )
 }
 
-function ComboboxSeparator({
-  className,
-  ...props
-}: ComboboxPrimitive.Separator.Props) {
+function ComboboxSeparator({ className, ...props }: ComboboxPrimitive.Separator.Props) {
   return (
     <ComboboxPrimitive.Separator
       data-slot="combobox-separator"
@@ -377,7 +355,7 @@ function ComboboxChips({
       data-slot="combobox-chips"
       className={cn(
         FIELD_SHELL,
-        JOIN_TRIGGER,
+        ATTACHED_TRIGGER,
         'flex min-h-9 w-full flex-wrap items-center gap-1 bg-clip-padding px-2.5 py-1 text-sm',
         'focus-within:border-ring focus-within:ring-0',
         'has-data-[slot=combobox-chip]:px-1.5',
@@ -422,10 +400,7 @@ function ComboboxChip({
   )
 }
 
-function ComboboxChipsInput({
-  className,
-  ...props
-}: ComboboxPrimitive.Input.Props) {
+function ComboboxChipsInput({ className, ...props }: ComboboxPrimitive.Input.Props) {
   return (
     <ComboboxPrimitive.Input
       data-slot="combobox-chip-input"

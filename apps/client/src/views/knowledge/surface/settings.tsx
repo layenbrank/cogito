@@ -100,6 +100,39 @@ import {
 } from '@/views/knowledge/lib/wiki-output-config.ts'
 import { openEditorPath } from '@/views/knowledge/workspace/editor-context.ts'
 
+/**
+ * 设置页下拉的选项：Base UI 的 `Select.Value` 默认渲染裸 value，只有给 Root 传 `items`
+ * 触发器才显示 label（否则会露出 `lancedb` / `zh-CN` 这类内部值）。
+ * items 与 SelectItem 共用同一份数组，避免文案漂移。
+ */
+const EMBEDDING_STORE_OPTIONS = [
+  { value: 'lancedb', label: 'LanceDB' },
+  { value: 'json', label: 'JSON 回退' }
+] as const
+
+const WEB_SEARCH_PROVIDER_OPTIONS = [
+  { value: 'none', label: '关闭' },
+  { value: 'tavily', label: 'Tavily' },
+  { value: 'serpapi', label: 'SerpApi' },
+  { value: 'searxng', label: 'SearXNG' },
+  { value: 'brave', label: 'Brave' },
+  { value: 'firecrawl', label: 'Firecrawl' },
+  { value: 'bocha', label: 'Bocha' }
+] as const
+
+const PDF_BACKEND_OPTIONS = [
+  { value: 'sidecar-md', label: '旁路 .md' },
+  { value: 'pdfium', label: 'pdfium' },
+  { value: 'mineru', label: 'MinerU' }
+] as const
+
+const OUTPUT_LANGUAGE_OPTIONS = [
+  { value: 'zh-CN', label: '中文' },
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: '日本語' },
+  { value: 'ko', label: '한국어' }
+] as const
+
 type SettingsSectionId =
   | 'llm'
   | 'embedding'
@@ -499,6 +532,7 @@ function SettingsTab() {
                 label="持久层"
                 hint="LanceDB 落在库目录 .cogito/lancedb">
                 <Select
+                  items={EMBEDDING_STORE_OPTIONS}
                   value={embedding.store}
                   onValueChange={function (value) {
                     if (value !== 'lancedb' && value !== 'json') return
@@ -511,8 +545,15 @@ function SettingsTab() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="lancedb">LanceDB</SelectItem>
-                    <SelectItem value="json">JSON 回退</SelectItem>
+                    {EMBEDDING_STORE_OPTIONS.map(function (option) {
+                      return (
+                        <SelectItem
+                          key={option.value}
+                          value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
               </Row>
@@ -684,6 +725,7 @@ function SettingsTab() {
               />
               <Row label="Provider">
                 <Select
+                  items={WEB_SEARCH_PROVIDER_OPTIONS}
                   value={searchConfig.provider}
                   onValueChange={function (value) {
                     if (typeof value !== 'string') return
@@ -699,13 +741,15 @@ function SettingsTab() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">关闭</SelectItem>
-                    <SelectItem value="tavily">Tavily</SelectItem>
-                    <SelectItem value="serpapi">SerpApi</SelectItem>
-                    <SelectItem value="searxng">SearXNG</SelectItem>
-                    <SelectItem value="brave">Brave</SelectItem>
-                    <SelectItem value="firecrawl">Firecrawl</SelectItem>
-                    <SelectItem value="bocha">Bocha</SelectItem>
+                    {WEB_SEARCH_PROVIDER_OPTIONS.map(function (option) {
+                      return (
+                        <SelectItem
+                          key={option.value}
+                          value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
               </Row>
@@ -1191,6 +1235,7 @@ function SettingsTab() {
               />
               <Row label="后端">
                 <Select
+                  items={PDF_BACKEND_OPTIONS}
                   value={pdfConfig.backend}
                   onValueChange={function (value) {
                     if (typeof value !== 'string') return
@@ -1206,9 +1251,15 @@ function SettingsTab() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="sidecar-md">旁路 .md</SelectItem>
-                    <SelectItem value="pdfium">pdfium</SelectItem>
-                    <SelectItem value="mineru">MinerU</SelectItem>
+                    {PDF_BACKEND_OPTIONS.map(function (option) {
+                      return (
+                        <SelectItem
+                          key={option.value}
+                          value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
               </Row>
@@ -1371,6 +1422,7 @@ function SettingsTab() {
               />
               <Row label="AI 输出语言">
                 <Select
+                  items={OUTPUT_LANGUAGE_OPTIONS}
                   value={outputConfig.language}
                   onValueChange={function (value) {
                     if (typeof value !== 'string') return
@@ -1386,10 +1438,15 @@ function SettingsTab() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="zh-CN">中文</SelectItem>
-                    <SelectItem value="en">English</SelectItem>
-                    <SelectItem value="ja">日本語</SelectItem>
-                    <SelectItem value="ko">한국어</SelectItem>
+                    {OUTPUT_LANGUAGE_OPTIONS.map(function (option) {
+                      return (
+                        <SelectItem
+                          key={option.value}
+                          value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
               </Row>
