@@ -5,6 +5,9 @@
  * - **偏好宽度**（preferred）：拖拽记住的展开比例，折叠栏保持上次非 0，永不被 0 覆盖
  * - **应用布局**（applied = resolveSplitterLayout(open, preferred)）：真正 setLayout 的值
  *
+ * 首屏默认值按**像素**给（260 / 520 / 340），再由 `findDefaultLayout(容器宽)` 换算成百分比：
+ * 直接写死百分比会让两侧栏跟着窗口变宽，窄窗时又顶破 min 总和、把右侧栏裁掉一截。
+ *
  * 最小化/恢复必须回放 applied，不能回放「偏好里的展开比例」再 collapse —— 否则先展开再收起。
  *
  * `LAYOUT_WIDTH_GUARD`：客户区假窄时冻结拖拽。
@@ -66,6 +69,9 @@ const FALLBACK_LAYOUT: SplitterLayout = {
 /** 栏宽低于此 % 视为已折叠（库浮点误差） */
 const COLLAPSED_PCT = 0.5
 
+/** 两条 1px 分隔条：百分比按整个容器算，扣掉它们各栏才正好铺满一屏 */
+const HANDLE_TOTAL_PX = 2
+
 function isSameSplitterLayout(left: SplitterLayout, right: SplitterLayout): boolean {
   for (const id of PANE_IDS) {
     const a = left[id]
@@ -76,22 +82,21 @@ function isSameSplitterLayout(left: SplitterLayout, right: SplitterLayout): bool
   return true
 }
 
-function findPanePreferred(
-  raw: number | undefined,
-  fallback: number
-): number {
+function findPanePreferred(raw: number | undefined, fallback: number): number {
   return typeof raw === 'number' && raw > COLLAPSED_PCT ? raw : fallback
 }
 
 /**
  * 从存档得到「偏好宽度」：各栏都是展开时应用的比例，0 / 脏值用 FALLBACK 补。
  */
-function findPreferredLayout(stored?: SplitterLayout): SplitterLayout {
-  const base = stored ?? FALLBACK_LAYOUT
+function findPreferredLayout(
+  stored?: SplitterLayout,
+  fallback: SplitterLayout = FALLBACK_LAYOUT
+): SplitterLayout {
   return {
-    [SESSION_ID]: findPanePreferred(base[SESSION_ID], FALLBACK_LAYOUT[SESSION_ID] ?? 0),
-    [MAIN_ID]: findPanePreferred(base[MAIN_ID], FALLBACK_LAYOUT[MAIN_ID] ?? 0),
-    [PLAN_ID]: findPanePreferred(base[PLAN_ID], FALLBACK_LAYOUT[PLAN_ID] ?? 0)
+    [SESSION_ID]: findPanePreferred(stored?.[SESSION_ID], fallback[SESSION_ID] ?? 0),
+    [MAIN_ID]: findPanePreferred(stored?.[MAIN_ID], fallback[MAIN_ID] ?? 0),
+    [PLAN_ID]: findPanePreferred(stored?.[PLAN_ID], fallback[PLAN_ID] ?? 0)
   }
 }
 
@@ -106,7 +111,10 @@ function mergePreferredLayout(
   if (open.isAsideMaximized) return preferred
 
   const session = open.isSidebarOpen
-    ? findPanePreferred(dragged[SESSION_ID], preferred[SESSION_ID] ?? FALLBACK_LAYOUT[SESSION_ID] ?? 0)
+    ? findPanePreferred(
+        dragged[SESSION_ID],
+        preferred[SESSION_ID] ?? FALLBACK_LAYOUT[SESSION_ID] ?? 0
+      )
     : findPanePreferred(preferred[SESSION_ID], FALLBACK_LAYOUT[SESSION_ID] ?? 0)
   const plan = open.isAsideOpen
     ? findPanePreferred(dragged[PLAN_ID], preferred[PLAN_ID] ?? FALLBACK_LAYOUT[PLAN_ID] ?? 0)
@@ -120,14 +128,53 @@ function mergePreferredLayout(
   }
 }
 
+function clampSize(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max)
+}
+
+/**
+ * 无存档时的首屏布局：把像素默认值换算成当前容器宽度下的百分比。
+ *
+ * 不能直接写死百分比 —— 260 / 520 / 340 只在 1120 宽时成立：
+ * 窗口变宽两侧栏会跟着长（左栏甚至越过 SESSION_MAX，中栏拿不到多出来的宽度）；
+ * 压到 minWidth=900 时三栏 min 加起来又超过一屏，右侧栏被裁掉一截。
+ */
+function findDefaultLayout(containerPx: number): SplitterLayout {
+  const usable = containerPx - HANDLE_TOTAL_PX
+  if (!(usable > 0)) return FALLBACK_LAYOUT
+
+  let session = clampSize(SESSION_SIZE, SESSION_MIN, SESSION_MAX)
+  let plan = clampSize(PLAN_SIZE, PLAN_MIN, PLAN_MAX)
+  let main = usable - session - plan
+
+  // 装不下：中栏先保 WORKBENCH_MIN，两侧按比例退让（各自不低于 min）
+  if (main < WORKBENCH_MIN) {
+    const sides = session + plan
+    const budget = Math.max(SESSION_MIN + PLAN_MIN, usable - WORKBENCH_MIN)
+    if (sides > budget && sides > 0) {
+      const scale = budget / sides
+      session = Math.max(SESSION_MIN, session * scale)
+      plan = Math.max(PLAN_MIN, plan * scale)
+      main = usable - session - plan
+    }
+  }
+
+  const mainSize = Math.max(0, main)
+  const total = session + mainSize + plan
+  if (!(total > 0)) return FALLBACK_LAYOUT
+
+  return {
+    [SESSION_ID]: (session / total) * 100,
+    [MAIN_ID]: (mainSize / total) * 100,
+    [PLAN_ID]: (plan / total) * 100
+  }
+}
+
 /**
  * 把存档比例与开合偏好合成首屏 layout。
  * 避免「先按三栏全开画一帧，再用 expand/collapse 过渡」的闪烁。
  */
-function resolveSplitterLayout(
-  open: SplitterOpen,
-  stored?: SplitterLayout
-): SplitterLayout {
+function resolveSplitterLayout(open: SplitterOpen, stored?: SplitterLayout): SplitterLayout {
   if (open.isAsideMaximized) {
     return {
       [SESSION_ID]: 0,
@@ -242,6 +289,7 @@ function writeSplitterOpen(open: SplitterOpen): void {
 export {
   COLLAPSED_PCT,
   FALLBACK_LAYOUT,
+  findDefaultLayout,
   findPreferredLayout,
   findSplitterLayout,
   findSplitterOpen,

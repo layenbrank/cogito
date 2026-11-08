@@ -2,13 +2,20 @@ import { describe, expect, it } from 'vitest'
 
 import {
   FALLBACK_LAYOUT,
+  findDefaultLayout,
   findPreferredLayout,
   MAIN_ID,
   mergePreferredLayout,
   parseSplitterLayout,
   PLAN_ID,
+  PLAN_MIN,
+  PLAN_SIZE,
   resolveSplitterLayout,
-  SESSION_ID
+  SESSION_ID,
+  SESSION_MAX,
+  SESSION_MIN,
+  SESSION_SIZE,
+  WORKBENCH_SIZE
 } from './splitter-sizes'
 
 describe('resolveSplitterLayout', function () {
@@ -77,8 +84,7 @@ describe('parseSplitterLayout', function () {
       [PLAN_ID]: 340
     })
     expect(parsed).toBeDefined()
-    const total =
-      (parsed?.[SESSION_ID] ?? 0) + (parsed?.[MAIN_ID] ?? 0) + (parsed?.[PLAN_ID] ?? 0)
+    const total = (parsed?.[SESSION_ID] ?? 0) + (parsed?.[MAIN_ID] ?? 0) + (parsed?.[PLAN_ID] ?? 0)
     expect(total).toBeCloseTo(100)
     expect(parsed?.[SESSION_ID]).toBeLessThanOrEqual(100)
   })
@@ -130,5 +136,45 @@ describe('preferred vs applied', function () {
     )
     expect(merged[SESSION_ID]).toBe(20)
     expect(merged[PLAN_ID]).toBe(30)
+  })
+})
+describe('findDefaultLayout', function () {
+  function toPixels(width: number) {
+    const layout = findDefaultLayout(width)
+    return {
+      session: ((layout[SESSION_ID] ?? 0) / 100) * width,
+      main: ((layout[MAIN_ID] ?? 0) / 100) * width,
+      plan: ((layout[PLAN_ID] ?? 0) / 100) * width
+    }
+  }
+
+  it('keeps the side panes at their pixel defaults on a wide window', function () {
+    const px = toPixels(1440)
+    expect(px.session).toBeCloseTo(SESSION_SIZE, 0)
+    expect(px.plan).toBeCloseTo(PLAN_SIZE, 0)
+    expect(px.main).toBeGreaterThan(WORKBENCH_SIZE)
+  })
+
+  it('gives extra width to the middle pane instead of stretching the sides', function () {
+    const px = toPixels(1600)
+    expect(px.session).toBeCloseTo(SESSION_SIZE, 0)
+    expect(px.plan).toBeCloseTo(PLAN_SIZE, 0)
+  })
+
+  it('never lets the sidebar exceed its hard max', function () {
+    expect(toPixels(1920).session).toBeLessThanOrEqual(SESSION_MAX + 0.5)
+  })
+
+  it('fits the min window width without overflowing the row', function () {
+    const layout = findDefaultLayout(900)
+    const total = (layout[SESSION_ID] ?? 0) + (layout[MAIN_ID] ?? 0) + (layout[PLAN_ID] ?? 0)
+    expect(total).toBeCloseTo(100, 5)
+    const px = toPixels(900)
+    expect(px.session).toBeGreaterThanOrEqual(SESSION_MIN - 0.5)
+    expect(px.plan).toBeGreaterThanOrEqual(PLAN_MIN - 0.5)
+  })
+
+  it('falls back when the container is not measurable', function () {
+    expect(findDefaultLayout(0)).toEqual(FALLBACK_LAYOUT)
   })
 })

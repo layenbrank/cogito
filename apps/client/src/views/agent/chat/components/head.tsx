@@ -88,7 +88,7 @@ function AgentHead() {
     [hasUserMessage, title]
   )
 
-  const displayTitle = title || '新任务'
+  const displayTitle = title || '新会话'
 
   return (
     <header

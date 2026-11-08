@@ -22,6 +22,7 @@
 | --- | --- | --- | --- |
 | 详情 | `aside-busy.tsx` / `aside-empty.tsx` | 会话状态 | — |
 | 计划 | `aside-plan.tsx` | `features/agent/plan-*` | 确认执行 |
+| **任务** | `aside-tasks.tsx`（复用 `views/agent/tasks/{model,task-form,task-runs,schedule-field}`） | `useAutomationStore`（本机 / goose / 云端三源） | 卡片管理、新建、看执行记录 |
 | 文件 | `aside-files.tsx` | `workspaceFiles:*` + `useActiveWorkspace` | 预览 / 引用 / 审阅 |
 | **知识库** | `aside-knowledge.tsx` → `knowledge-browser.tsx` | `knowledge:listBases` / `knowledge:listDocs` | 引用文档 |
 | **技能** | `aside-skills.tsx` | `workspaceSkills:list` | 引用 `SKILL.md` |
@@ -31,7 +32,10 @@
 | **扩展** | `aside-extensions.tsx` → `extensions-pane.tsx` | `config/extensions` + `session/extensions` | 就近开关 MCP / 内置扩展 |
 | 终端 | `features/terminal` | PTY | 常驻 shell |
 
-加粗的三行是这轮新增的。前两行共用 `knowledge-browser.tsx`：
+加粗的行是两轮新增的：知识库 / 技能 / 扩展（2026-11-06）与任务（2026-11-08）。
+「任务」不再占独立页面（原 `/agent/tasks` 只留重定向到 `/agent/chat`），卡片列表 / 详情 / 执行记录 / 新建表单
+全在这块面板里切；打开入口统一走 `agent:open-aside-tasks` 事件（命令面板 `AGENT_OPEN_TASKS`、左栏「任务」按钮同一条）。
+`tasks` 与 `browser` / `terminal` 一样在 `EMBEDDED_HIDDEN_TABS` 里，嵌套壳不显示。
 输入区的 popover 与右栏页签是**同一份实现**，只是宿主不同（`active` 控制何时去读 IPC）。
 
 ## 口径：技能按「工作区多文件夹」识别
@@ -68,3 +72,13 @@ await attachWorkspaceFile(aui, reference)   // 与文件树、@ 的同一条引�
 
 「插队 / 上下调序」失效的根因与修法（`steer` / `queue` 两条 lane + 扁平 `composer.queue`）见
 [assistant-ui-elements.md](./assistant-ui-elements.md) 的「『插队 / 调整顺序』为什么曾经完全失效」。
+
+## 右栏·知识库面板：预览 / 编辑也在这里（2026-11-07）
+
+列表只解决「找得到」；点开一篇进入 `knowledge-doc-pane.tsx`：
+
+- **预览**：`MarkdownContent` 渲染正文；front matter 不显示；相对图片按文档目录换成 asset 协议（`rewriteMarkdownAssetSrc`，代码块里的示例不误改）。
+- **编辑**：窄栏里用 Markdown 源文 textarea（不引 tiptap / Monaco —— 整窗编辑器与散文换行各有取舍），Ctrl/Cmd+S 或保存按钮 → `knowledge:writeDoc`，服务端写盘 + 落库。
+- **冲突**：打开时 `knowledge:resolveDoc` 取 hash，保存带回；库内期间被改过（`conflict=true`）先问「保留我的（force 覆盖）/ 重新载入」，不静默覆盖。
+- **新建 / 删除 / 重扫**：`writeDoc(force)` / `removeDoc` / `rescanBase`。新建落 `wiki/<slug>.md`，同名顺延 `-2`、`-3`；删除会连磁盘文件一起删（有确认框）。
+- **离开**：返回时脏内容先问「保存 / 丢弃 / 取消」；popover 被外部收起这类**非主动离开**才提示「未保存的修改已丢弃」。

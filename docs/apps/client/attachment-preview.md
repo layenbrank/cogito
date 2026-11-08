@@ -2,7 +2,8 @@
 
 composer 与用户消息里的图片附件缩略图，走
 `packages/design/src/assistant/attachment.aui.tsx` 的 `AttachmentThumb`。
-它看起来只是个 56×56 的小方块，但流式输出时曾长期「一直在闪」。两个原因，各修一处。
+缩略图高度固定（composer 56px、消息里 96px），宽度跟图片天然比例走；
+但流式输出时它曾长期「一直在闪」。两个原因，各修一处。
 
 ## 一、`src` 不能有一帧是空的
 
@@ -42,3 +43,20 @@ fingerprint 复用，那里是「一次预览一张图」，不需要容量上�
 流式输出时每个 token 都会重渲染。以前 `<Thread components={...}>` 是内联元素，
 于是整条消息列表 + composer 跟着每 token 重画一遍；现在元素本身 `useMemo` 住
 （依赖只有触发器快照和粘贴回调），重渲染止步在布局这一层。
+
+## 四、比例与缩放：跟图库同一套口径
+
+以前缩略图是 `size-14` + `object-cover` 的正方形，宽截图被裁、竖图被裁，
+「预览比例」跟图库预览对不上。现在：
+
+- **外框跟图走**：`attachment-layout.ts` 的 `findAttachmentTileSize` 固定高度、按
+  `naturalWidth / naturalHeight` 算宽度，钳在 `[高, maxWidth]`（composer 168px、
+  消息 288px）；越界时改用 `object-contain` 留白，**不裁切**。图片解码出尺寸前先给正方形占位，
+  读到的 `{ src, size }` 记在 state 里按 `src` 比对，换图自动失效（不在 effect 里 setState）。
+- **灯箱可缩放**：`attachment-lightbox.tsx` 的舞台量自己的尺寸，100% = 图片 contain 后的尺寸，
+  滚轮以指针为锚缩放（`VIEWPORT_WHEEL_FACTOR`）、放大后拖动平移、双击复位，
+  右下角还有 `− / 倍率 / +` 三件套（点倍率即复位）。上限 8 倍、下限 100%，
+  与图库 `MediaImageStage`（Konva + `lib/canvas`）一致。
+- 为什么不在设计系统里直接复用 `apps/client/src/lib/canvas`：`packages/design` 是上游，
+  不能反向依赖 app；所以把那套 `fitViewport / clampPan / zoomAtPointer` 的纯数学抽成
+  `packages/design/src/assistant/attachment-layout.ts`，单测见同名 `.test.ts`。

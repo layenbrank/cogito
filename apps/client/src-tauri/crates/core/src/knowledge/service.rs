@@ -1483,24 +1483,36 @@ mod tests {
         let base = Service::toEnsureDefaultBase(db, &root)
             .await
             .expect("默认库");
+        // ensure_wiki_layout 会落种子文档，先把它们入库存成基线
+        Service::toRescanBase(db, &base.id).await.expect("种子回灌");
+        let seeded = Service::toListDocs(db, Some(&base.id))
+            .await
+            .expect("种子列表")
+            .len();
+        assert!(seeded >= 5, "默认库应带种子文档");
 
         let file = Path::new(&base.rootPath).join("外部写入.md");
         fs::write(&file, "# 外部写入\n\n由编辑器直接落盘。").expect("写文件");
         let handled = Service::toRescanBase(db, &base.id).await.expect("回灌");
-        assert_eq!(handled, 1);
+        assert_eq!(handled, seeded + 1);
         let docs = Service::toListDocs(db, Some(&base.id))
             .await
             .expect("列文档");
-        assert_eq!(docs.len(), 1);
-        assert_eq!(docs[0].title, "外部写入");
-        assert_eq!(docs[0].source, knowledge_doc_source::IMPORT);
+        assert_eq!(docs.len(), seeded + 1);
+        let hit = docs
+            .iter()
+            .find(|doc| doc.relPath == "外部写入.md")
+            .expect("新文件应入库");
+        assert_eq!(hit.title, "外部写入");
+        assert_eq!(hit.source, knowledge_doc_source::IMPORT);
 
         fs::remove_file(&file).expect("删文件");
         Service::toRescanBase(db, &base.id).await.expect("再回灌");
         let docs = Service::toListDocs(db, Some(&base.id))
             .await
             .expect("列文档");
-        assert!(docs.is_empty(), "文件消失后行应被清掉");
+        assert_eq!(docs.len(), seeded, "文件消失后行应被清掉");
+        assert!(!docs.iter().any(|doc| doc.relPath == "外部写入.md"));
     }
 
     #[tokio::test]
@@ -1519,8 +1531,11 @@ mod tests {
         let docs = Service::toListDocs(db, Some(&base.id))
             .await
             .expect("列文档");
-        assert_eq!(docs.len(), 1);
-        assert_eq!(docs[0].revision, 1, "内容没变不该制造新版本");
+        let doc = docs
+            .iter()
+            .find(|doc| doc.relPath == "稳定.md")
+            .expect("稳定.md 应入库");
+        assert_eq!(doc.revision, 1, "内容没变不该制造新版本");
 
         fs::write(&file, "# 稳定\n\n内容变了。").expect("改写文件");
         Service::toRescanBase(db, &base.id)
@@ -1529,7 +1544,11 @@ mod tests {
         let docs = Service::toListDocs(db, Some(&base.id))
             .await
             .expect("列文档");
-        assert_eq!(docs[0].revision, 2);
+        let doc = docs
+            .iter()
+            .find(|doc| doc.relPath == "稳定.md")
+            .expect("稳定.md 应还在");
+        assert_eq!(doc.revision, 2);
     }
 
     #[tokio::test]
@@ -1600,13 +1619,16 @@ mod tests {
         let summaries = Service::toListDocSummaries(db, Some(&base.id))
             .await
             .expect("摘要");
-        assert_eq!(summaries.len(), 1);
-        assert_eq!(summaries[0].title, "摘要标题");
-        assert_eq!(summaries[0].rel_path, "摘要.md");
-        assert_eq!(summaries[0].status, knowledge_doc_status::PUBLISHED);
-        assert!(summaries[0].word_count > 0);
+        let summary = summaries
+            .iter()
+            .find(|item| item.rel_path == "摘要.md")
+            .expect("新文件应有摘要");
+        assert_eq!(summary.title, "摘要标题");
+        assert_eq!(summary.rel_path, "摘要.md");
+        assert_eq!(summary.status, knowledge_doc_status::PUBLISHED);
+        assert!(summary.word_count > 0);
         // 摘要结构里根本没有正文字段：编不出来也就传不出去
-        let json = serde_json::to_value(&summaries[0]).expect("序列化");
+        let json = serde_json::to_value(summary).expect("序列化");
         assert!(json.get("content").is_none());
     }
 

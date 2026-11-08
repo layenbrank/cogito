@@ -15,9 +15,9 @@
 | composer-context | `composer-trigger.tsx` | ✅ | `composer-knowledge.tsx`（知识库引用）/ `extensions-pane.tsx`（右栏「扩展」页签）/ `workspace-file-picker.tsx`（@ 引用、工作区文件）。输入区 `+` 面板 2026-11-06 已拆除，见 [agent-composer-aside.md](./agent-composer-aside.md) |
 | terminal-block | `terminal.tsx` | ✅ | `tool-card-terminal-body.tsx` + `features/terminal`（右栏常驻终端） |
 | job-progress | `job-progress.tsx`、`job-progress-state.ts` | ✅ | client 对话区：命令类工具卡在「后台命令 / 前台已跑 ≥ 20s」时换成这张卡（`tool-card-job.tsx`）。见下节 |
-| tool-timeline | `tool-timeline.tsx`、`tool-timeline-state.ts`、`tool-group.aui.tsx`、`trace-waterfall.aui.tsx` | ✅ | 动词 + 芯片 + 文件统计的紧凑流水（按元素页自写，步骤由宿主映射）。client 对话流仍走整轮活动流水，见下节 |
+| tool-timeline | `tool-timeline.tsx`、`tool-timeline-state.ts`、`tool-group.aui.tsx` | ✅ | 动词 + 芯片 + 文件统计的紧凑流水（按元素页自写，步骤由宿主映射）。client 对话流按块渲染（思考一段一条、工具一件一行），不挂这条紧凑清单，见下节「过程区」 |
 | file-tree | `file-change-tree.tsx`、`file-change-tree-state.ts`（交互目录树另有 `file-tree.tsx`） | ✅ | client 对话区：回合结束后在**回答下面**挂一张「4 files changed + 目录缩进 + 每文件 `+N −M`」的小结（`ThreadComponents.RunSummary`）。见下节 |
-| run-activity | `run-activity.tsx`、`run-activity-state.ts` | ✅ | client 对话区：一轮一条「已工作 4.8s」折叠条 + 时间线（解说 / 思考 / 工具按原时序摊平），最终回答留在折叠区外面。见下节 |
+| ~~run-activity~~ | 已下线（总折叠改走 `ProcessGroup` 外壳；纯函数层改名为 `process-state.ts`） | — | 旧实现把过程摊成一条时间线，内层块没法各自折叠。现在两层：外层「过程 · N 步」+ 内层逐块折叠，见下节「过程区」 |
 | reviewable-diff | `reviewable-diff.tsx` | ✅ | 写文件工具卡的「审阅」入口：把这次写入的 diff 切块，逐块保留 / 丢弃后真的写回文件。见下节 |
 | loading-state | `shimmer.tsx` | ✅ | `agent-loading.tsx`（面板级 Shimmer，首处用于审阅面板）+ 思考态走 `ReasoningTrigger` 的 `active` 文案 |
 | message-queue | `composer-queue.aui.tsx`、`queue.tsx` | ✅ | 见下节「消息队列」 |
@@ -261,8 +261,8 @@ client `tool-card-terminal-body.test.tsx`），不是某个 class 的散落副�
 | 文件统计 | 整排只在 `stats` 非空时出现；某条缺 `added` / `removed` 就少写那一半，不补 0 |
 | 相同芯片 | 两条芯片一样也是两行（按 `id` 区分，不合并） |
 
-**和 run-activity 的分工**：Run activity 是超集（解说 + 工具交替、持久化时长、结果留在折叠区外），
-本仓对话流用它；tool-timeline 是「只描述做了什么」的紧凑清单。两者不要挂在同一条消息的同一位置，
+**和过程区的分工**：run-activity 已下线（整轮时间线改成「总折叠 + 子折叠」，见「过程区」），
+对话流里不再有整轮时间线；tool-timeline 是「只描述做了什么」的紧凑清单，与过程区的逐块折叠不叠同一位。
 否则一轮会出现两条折叠条。当前 client 只在适配层准备好了数据映射（`AgentToolTimeline`），
 **没有挂进消息流**——要挂的话先决定用哪条路径。
 
@@ -301,9 +301,9 @@ before/after 现算增删（只认整文件写入，片段级不给假数），`
 | 环节 | 位置 | 行为 |
 | --- | --- | --- |
 | 时机 | `thread.aui.tsx::AssistantMessage` | 只在回合**结束**时渲染：`running` 与 `requires-action` 都不算结束 —— 流式中途挂上去会跟着每次写入闪变（文件先出现、数字再跳），等审批时也不是「这一轮干了什么」的结论 |
-| 位置 | 同上 | 排在**最终回答之后**（两条渲染路径都覆盖：走 Run activity 时它在折叠区外，走分段渲染时它在 `finalAnswer` 后），带 `mt-3` 与正文拉开；在 `MessageError` / 回合尾注之前 |
+| 位置 | 同上 | 排在**最终回答之后**，带 `mt-3` 与正文拉开；在过程区尾注 / `MessageError` / 回合尾注之前 |
 | 内容 | `views/agent/chat/components/file-change-tree.tsx` | 宿主自己算：没有写文件就返回 `null`，那一轮不留空壳；库只传 `parts` 与结束状态，不猜工具语义 |
-| 不冲突 | — | `AgentRunActivity` 折的是**过程**（解说 / 思考 / 工具），这张卡摊的是**结果**（一共改了哪些文件），不进折叠区、也不会多出第二条折叠条 |
+| 不冲突 | — | 过程是一块一块各自折叠的（思考一段一条、工具一件一行），这张卡摊的是**结果**（一共改了哪些文件），不进任何折叠 |
 
 纯函数单测 12 例（`file-change-tree-state.test.ts`），静态渲染 7 例（`file-change-tree.test.tsx`）。
 `labels.filesChanged` 与 tool-timeline 折叠条共用一条文案（原来叫 `timelineFilesChanged`，本轮改名 —— 它不再只属于时间线）。
@@ -350,53 +350,61 @@ ACP 三态 → `activeIndex` 的换算两处共用 `components/plan-steps.ts`，
 静态渲染 11 例（`agent-plan.test.tsx`，含 3 例折叠壳：未超阈值不出现开关 / 超阈值只留 active 行 /
 `defaultOpen` 直接展开；折叠态全完成时只剩表头）。
 
-## run-activity（整轮活动流水）
+## 过程区（总折叠 + 子折叠）
 
-元素本体收费，官网只给示例块与渲染出的 DOM，结构 / 状态 / 行为按 DOM 自写：
-`packages/design/src/assistant/run-activity.tsx`（外壳）+ `run-activity-state.ts`（纯函数）+ 
-`thread.aui.tsx` 的 `ThreadComponents.RunActivity` 槽；app 侧适配器 
-`views/agent/chat/components/run-activity.tsx` 只补耗时统计与轨迹面板（`MessageTimingStats` / `MessageTrace`）。
+**两级折叠，缺一不可。** 过程 = 最终回答之前的一切，它在消息里是「外层总折叠 → 内层每块自己折叠」：
 
-口径（对齐 elements/run-activity）：
-
-| 部位 | 行为 |
+| 层 | 行为 |
 | --- | --- |
-| 折叠条 | `status` 决定前缀：running「工作中」（此时换成**最近一条活动**的标签，如「调用 read_file」）、requires-action「等待确认」、complete「已工作 4.8s」（没有时长退回「已完成」）、cancelled「已停止」、error「运行失败」、其它 incomplete「未完成」 |
-| 时间线 | 解说 / 思考合并相邻段，工具一件一条（`toolCallId` 就是边界），未知 part（plan / file / image / data UI）也各自一条；按原时序摊平而不是按类型分组 |
-| 折不了的三处 | `attention`（等审批 / 失败的工具、无法归类的 part）常驻在折叠区外面；`children` 是最终回答，同样常驻；条目为空时不出折叠按钮，只留一行状态 |
-| 时长 | 用 `message.metadata.timing.totalStreamTime`（已结算的），running 时不传 —— 每帧跳秒会把整条消息拉进重绘 |
-| 滚动 | 开合前先 `useScrollLock`（展开锁 scrollTop，收起钉折叠条），不做 scrollIntoView / focus |
-| 省内存 | 首次展开后才挂载时间线 DOM（长回合几十步收起时不留整棵树） |
-| 活着 | running 时折叠条前挂一个 6px 心跳点（`animate-pulse`）并给文字加 shimmer：这一行常常是屏幕上**唯一在动的东西**，不动的短标签会被读成「卡住了」 |
+| 总折叠 | `ThreadComponents.ProcessGroup`（默认 `DefaultProcessGroup`）：一轮一条「过程 · 6 步 · 5 秒」（`labels.process(steps, seconds)`）。**外壳自己管开合**（`userOpen` 三态：`null` 跟着这一轮走 / `true` / `false`）：跑的时候展开、结算后收起，用户点过就以用户为准、不再被自动逻辑改回来。收起它 = 整轮过程收成「一行构成 + 逐步明细」，**最终回答始终在外壳外面** |
+| 子折叠 · 思考 | 相邻 reasoning 合成一段一条：默认收起成「思考中… / 已思考 · 最新一句」，点开才挂正文（`ReasoningRoot` + `ReasoningTrigger`）；`streaming` 只负责「展开后跟随最新 token」 |
+| 子折叠 · 工具 | 一件一行，卡片自己就是折叠行（`ToolFallback.Root`：工具名 + 参数摘要 + 状态 + 耗时），展开是参数 / 输出 / diff / 终端。**默认不按「N 次工具调用」再分组** —— 那会把这一轮的手脚又收成一条；宿主显式传 `ThreadComponents.ToolGroup` 才会分组 |
+| 子折叠 · 解说 | 中间说明文字直接摊开（不折）；最终回答同样常驻可见 |
+| 不折叠 · 其它 | plan / file / image / data UI 在原位；待审批与出错的工具卡各自强制展开（按钮与失败原因不能藏在折叠里） |
 
-**开合时机按人的习惯走。** 这条折叠条是整轮流水**唯一的开关**，所以它得「该开就开、该收就收」：
+**外壳不是每轮都套。** 过程只有一行（一次「思考 → 答」）时直接渲染那一块 —— 外面再写一行「过程 · 1 步」是噪音；那块自己就是一条折叠行。
+判定按**行**算（`toProcessRows(processRuns) > 1`）：工具一件一行、思考一段一行、解说一行。
+按块算会把「连续 5 次工具调用」写成「1 步」，与展开后看到的五行对不上；`labels.process(steps)` 里的 `steps` 就是行数。
 
-- **运行中默认展开**：跑的时候要能看见它在干什么；结算后自动收成一条，结论（最终回答）本来就留在外面；
-- **点过就以用户为准**（`userOpen` 三态：`null` 跟状态走 / `true` / `false`）：用户手动展开回看时，
-  回合结束不会把它偷偷收回去；
-- **折叠条是 28px 的整行可点区**（`TOOL_ROW_HEIGHT_CLASS`）+ hover 底色。原来是 `py-1` 的纯文字行
-  （≈24px），鼠标得瞄着那行小字才点得中；
-- **展开态底部有「收起」**（`labels.runCollapse`）：几十步的时间线想收起来，不用滚回顶部再点那行字；
-- **时间线不自带内层滚动**（去掉了 `max-h` + `overflow-y-auto`）：消息区里套一层滚动条，
-  滚轮打到底后不跟手，交给外层会话滚动更符合预期；
-- **结算收起先钉滚动、晚一帧再塌**：自动收起走的是 `autoOpen` 这个延迟一帧的状态 ——
-  同一 commit 里收起来时面板高度已归零，`useCollapseScrollPin` 量不到东西，贴底读回答的人
-  会看到正文被顶上跳一截。layout effect 里「先钉住、再塌」才等价于手动点收起。
+**收起态仍然要说得出「刚才走了哪几步」。** 只有「过程 · 6 步 · 5 秒」等于逼用户展开才知道干了什么，而展开一轮几十步又回不到结论。所以外壳收起时：
 
-**文案不许「只剩一个名词」。** 「最近一条活动」的标签在 running 时会直接变成折叠条的正文，所以
-标签必须自带时态：思考段还在跑给「思考中…」（`labels.working`，由 `buildRunActivity` 按该段
-`status` 现算），跑完才是「已思考」（`labels.reasoning()`，英文 `Thought`）。历史上的写法是两边
-共用一个「思考」，于是模型想完、还没吐第一个字的空档里整轮只剩**「思考」两个字**，用户以为会话
-已经终止。同理，`showIndicator`（末尾的 sparkles + 「思考中…」）只跳过「正在跑的正文」——
-一段**已跑完**的 reasoning 之后也要补上，那个空档正是最容易被误判成卡住的时刻。
+- 下面列**逐步明细**（`ProcessOutline`，`data-slot="aui_assistant-process-outline"`，点一下展开）：工具一件一条（`labels.timelineVerb` + 参数摘要）、思考一段一条（`已思考 · 最新一句`）、解说一块一条（首行）；
+- 明细最多 5 条（`PROCESS_SUMMARY_LINES`）：结算后从第一步往后列，跑的时候列**最近** 5 条（收起态多半想看「现在走到哪」），超出折成「还有 N 步」（`labels.processMore`）；
+- **同一件事只说一遍**：清单列得全（≤5 条）时折叠行不再报步数、也不给构成行；只有清单被截断时才在行尾补构成行（`labels.processDetail`：`4 次工具 · 1 段思考 · 2 段说明`）—— 工具 + 思考 + 说明正好是步数，两个数字并排写等于说两遍。跑的时候折叠行那一格是**当前那一步**（`思考中… · 最新一句` —— 思考块进行中不许用「已思考」），且这时候收起行不再复述清单最后一行；
+- **展开后明细整块消失** —— 同一信息由各块自己的折叠条承担，不摆两遍。
+
+明细由 `toProcessDigest(parts, runs)` 现算：工具参数只认 `path / file_path / command / pattern / query / url` 这类字段，取第一个命中的字符串（`toToolArgDetail`，压成一行、截 48 字）；思考取最后一行；解说取首行；
+file / image / 自定义 data UI 这种没有一行可写的块不列（展开后原位就在），工具缺名字时只计数、不列条目。
+外壳 props 相对上一版多了一个可选 `summary`：宿主自己实现 `ProcessGroup` 时拿到同一份 `{ detail, lines, hidden }`，不用再扫一遍 parts；不传就退回只有一行文案。
+`detail` 不是总有：清单列得全时为空（避免重复报数），跑着时是「当前这一步」，清单被截断时才是构成行。
 
 边界是**算出来的**：`findResponseStart` 从末尾倒找最后一段非空正文，之前的都算过程。
-只有「动过手」（过程区含 tool-call）的回合才收成一条 —— 一次「思考 → 答」用里层那条思考条就够，
-否则会出现两条折叠条。没传 `RunActivity` 槽的宿主（studio）继续按分段渲染（`ProcessGroup` + `ToolGroup`）。
+外壳标签上的秒数取 `message.metadata.timing.totalStreamTime`，只在结算后写（跑的时候每帧都在跳，标签会像秒表一样闪），最少 1 秒。
 
-纯函数（`formatRunDuration` / `toActivityLabel` / `toActivitySegments` / `partNeedsAttention` /
-`toRunActivityStatus` / `findRunStatusLabel`）都在 `run-activity-state.ts`，单测见
-`run-activity-state.test.ts`（27 例）。
+**自动收起晚一帧，且先钉滚动。** 结算时先钉一个等高 spacer（`useCollapseScrollPin`），再由下一帧（`useLayoutEffect`）塌陷收高：同一 commit 里收起来，面板高度已经归零、量不到东西，贴底读回答的人会看到正文被顶上跳一截。判定「还在跑」只看 `message.status.type === 'running'`；等审批（`requires-action`）不算在跑（不转圈、不写秒数），但外壳**保持展开**（`attention`）：
+允许 / 拒绝按钮是必须点到的，自动收起等于把它藏进折叠里；用户手动收过仍以用户为准。
+
+宿主指标（首字 / 速度 / token）走 `ThreadComponents.ProcessFooter`，client 挂 `MessageTimingStats`；
+它排在过程区**最末**：套外壳时在外壳内容里、跟着一起收起；过程只有一块时直接跟在那一块后面（没外壳也照样给指标）；过程为空（直接一段回答）时不出，那些数字只会变成回答头顶多出来的一行。
+
+**为什么要外层。** 一轮几十步时，只留子折叠仍会把「这一轮一共做了什么」摊满一屏；收成一条「过程 · 6 步」才是回看时的入口。
+**为什么要内层。** 只留外层能读的只有「构成 + 几条灰字明细」：工具卡点不开、输出 / diff / 终端都拿不到，要看细节还得在一整条时间线里重新找。
+两层各管一段：外层管「要不要看」，内层管「看哪一步」。
+
+`packages/design/src/assistant/run-activity.tsx`（一轮一条、把过程摊成时间线的旧实现）与它的单测已删除；纯函数层改名为 `process-state.ts`：
+切块（`findResponseStart` / `toProcessRuns` / `toRunStatus` / `toRunCounts`）+ 文案（`formatRunDuration` / `toThinkingHint` / `toRunActivityStatus`），
+单测 `process-state.test.ts`（35 例：结论边界、相邻思考合并、工具各自成段、时长与思考摘要，以及行数口径 `toProcessRows`、参数摘要 `toToolArgDetail`、收起明细 `toProcessDigest`）；外壳那层另有 `thread-process.test.tsx`（9 例：两级挂点都在、跑时展开、结算收起、秒数只写在行尾，以及收起有明细 / 展开让位 / 超限尾巴 / 不传 `summary` 的退回 / 等审批不收起）。
+
+**折叠行必须说得出「具体在干什么」。** 只有状态词（「思考中…」）等于没说 —— 收起状态用户只看得到这一行。
+思考块的 `detail` 由 `toThinkingHint(text)` 现算：取**最后**一行（思考是往后长的，最后一句才是「现在在琢磨什么」），
+抹掉 Markdown 记号裁到 40 字；工具卡那一行本来就有参数摘要（`toolCallSummary`）。
+`detail` 单独占一格（`min-w-0 truncate`），状态词不被挤掉，整行仍是常数高度。
+
+**文案不许「只剩一个名词」。** 思考段还在跑给「思考中…」（`labels.working`），跑完才是「已思考」（`labels.reasoning()`，
+英文 `Thought`）。历史上两边共用一个「思考」，于是模型想完、还没吐第一个字的空档里只剩**「思考」两个字**，
+用户以为会话终止；`showIndicator`（末尾 sparkles + 「思考中…」）也只跳过「正在跑的正文」。
+
+**轨迹瀑布图仍不在。** 它把「消息 / 思考 / 工具」画成两层时间轴，信息与过程块重复，还占掉首屏。
 
 ## reviewable-diff（按块审阅写文件）
 
@@ -431,6 +439,14 @@ ACP 三态 → `activeIndex` 的换算两处共用 `components/plan-steps.ts`，
 2. **mcp-server-panel**：扩展页已有扩展清单，补「连接状态 + 工具开关」即可复用 `panel.tsx`。
 3. **checkpoint-history**：需要先把每轮的 `bumpWorkspaceRevision` + 文件快照落盘，属独立特性。
 4. **logos**：低优先，随模型选择器一起补。
+
+## 用户气泡：封顶与框内滚动
+
+长用户消息在 `thread.aui.tsx` 的 `UserMessageBody` 里**一律封顶 264px**（`USER_BUBBLE_MAX_HEIGHT_PX`）、超出的部分在框里滚动，**不做展开 / 收起**：高度既然已经限死，那颗开关只会添乱 —— 挂框下沿就得跟着框长高往下跳几百像素（「跳跳来跳去」的根源），挂上沿又反直觉。滚轮 / 触摸在气泡里滑到底就能读完，底部渐隐提示「下面还有」。
+
+- **量法**：直接跟封顶高度比（`max-height` 是常量，`scrollHeight` 就是全文高度）；别比 `clientHeight` —— 没封顶时两者相等，永远量不出溢出。正文长度进依赖，改过的消息重量一次。
+- **渐隐只盖气泡**：`aui_user-message-fade` 放在只包住气泡的那层 `relative` 里；滚到底（`scrollTop + clientHeight >= scrollHeight - 1`）就撤掉，否则最后一行永远被那 40px 盖着。
+- **会话胶囊的外壳必须常驻**（`thread-user-sticky.aui.tsx`）：贴不贴住是运行时滚出来的状态，靠 `shellRef` 反查 Viewport 才绑得上滚动监听；如果按「已经贴住的那条」提前 `return null`，ref 永远拿不到 → 监听绑不上 → 胶囊再也不会出现。可见性只交给 `isPinned` 的透明度动画。
 
 ## 约定
 

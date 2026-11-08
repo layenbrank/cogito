@@ -1,8 +1,11 @@
 /**
  * Agent 聊天子页：标题栏 + 三栏（工作区 | 主对话 | 右栏骨架）。
  *
- * 主对话走 assistant-ui `Thread`；右栏空/忙两种骨架（Qoder）；
- * Head 双侧 panel 图标控制开合并持久化。
+ * 主对话走 assistant-ui `Thread`；右栏空/忙两种骨架（Qoder）。
+ *
+ * 分隔条是**可见的**（细线 + 中间抓手，悬停 / 拖拽变亮），但**不带折叠钮**：开合与专注
+ * 只由标题栏 `TitlebarActions` 的按钮（及其快捷键）改 open 状态，布局统一在 open effect 里
+ * 提交；拖拽只调宽，松手后把比例写回偏好并落盘。
  */
 import { useAui, useAuiState } from '@assistant-ui/react'
 import { AssistantActionsProvider } from '@cogito/design/assistant/actions'
@@ -12,11 +15,18 @@ import {
   Splitter,
   SplitterHandle,
   SplitterPane,
-  useGroupRef,
-  usePaneRef
+  useGroupRef
 } from '@cogito/design/components/splitter'
 import { clsx } from 'clsx'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore
+} from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -39,6 +49,7 @@ import { AgentHead } from '@/views/agent/chat/components/head'
 import { AgentSidebar } from '@/views/agent/chat/components/sidebar'
 import { useWindowMinimized } from '@/features/window/use-window-minimized'
 import {
+  findDefaultLayout,
   findPreferredLayout,
   findSplitterLayout,
   findSplitterOpen,
@@ -70,11 +81,12 @@ import { PlanFileSync } from '@/views/agent/chat/components/plan-file-sync'
 import { PlanScheduleCard } from '@/views/agent/chat/components/plan-schedule-card'
 import { AgentToolCard } from '@/views/agent/chat/components/tool-card'
 import { AgentFileChangeTree } from '@/views/agent/chat/components/file-change-tree'
-import { AgentRunActivity } from '@/views/agent/chat/components/run-activity'
+import { MessageTimingStats } from '@/views/agent/chat/components/message-timing'
 import { ThreadWelcome } from '@/views/agent/chat/components/thread-welcome'
 import { ASSISTANT_LABELS_ZH } from '@/views/agent/chat/labels'
 import { findAssistantActions } from '@/views/agent/chat/message-actions'
 import { subscribeAsideBrowser } from '@/views/agent/chat/components/open-aside-browser'
+import { openAsideTasks, subscribeAsideTasks } from '@/views/agent/chat/components/open-aside-tasks'
 import { subscribeAsideReview } from '@/views/agent/chat/components/open-aside-review'
 import { AgentRuntimeProvider } from '@/views/agent/chat/runtime'
 import { AgentBrandBegin } from '@/views/agent/components/brand-begin'
@@ -153,9 +165,11 @@ function AgentChatLayout() {
   const navigate = useNavigate()
   const [layoutSeed] = useState(function () {
     const open = findSplitterOpen()
-    const preferred = findPreferredLayout(findSplitterLayout())
+    const stored = findSplitterLayout()
+    const preferred = findPreferredLayout(stored)
     return {
       open,
+      stored,
       preferred,
       applied: resolveSplitterLayout(open, preferred)
     }
@@ -173,22 +187,34 @@ function AgentChatLayout() {
   const isWindowMinimized = useWindowMinimized()
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const groupRef = useGroupRef()
-  const sidebarRef = usePaneRef()
-  const mainRef = usePaneRef()
-  const asideRef = usePaneRef()
   const openRef = useRef<SplitterOpen>({
     isSidebarOpen,
     isAsideOpen,
     isAsideMaximized
   })
-  /** 拖拽记住的展开比例；折叠不改它 */
+  /** 「展开比例」：开合时用来还原宽度；折叠不改它（0 不落盘） */
   const preferredLayoutRef = useRef<SplitterLayout>(layoutSeed.preferred)
   /** 当前应呈现的 applied 布局 = resolve(open, preferred) */
   const appliedLayoutRef = useRef<SplitterLayout>(layoutSeed.applied)
   const defaultLayout = layoutSeed.applied
+  /** 无存档时按容器实际宽度给首屏比例：两侧栏保像素宽，多出来的宽度交给中栏 */
+  const defaultLayoutByWidth = useCallback(
+    function (containerPx: number) {
+      if (layoutSeed.open.isAsideMaximized) {
+        return { [SESSION_ID]: 0, [MAIN_ID]: 0, [PLAN_ID]: 100 }
+      }
+      const layout = findDefaultLayout(containerPx)
+      if (!layoutSeed.open.isSidebarOpen) layout[SESSION_ID] = 0
+      if (!layoutSeed.open.isAsideOpen) layout[PLAN_ID] = 0
+      return layout
+    },
+    [layoutSeed]
+  )
   const isLayoutFrozenRef = useRef(true)
   const hasSeenHealthyWidthRef = useRef(false)
   const isBootstrappedRef = useRef(false)
+  /** 容器尺寸变化后延到下一帧再读实际比例（此时库已重算完 ptg） */
+  const resizeSyncFrameRef = useRef(0)
 
   const showSidebar = isSidebarOpen && !isAsideMaximized
   const showAside = isAsideMaximized || isAsideOpen
@@ -233,7 +259,7 @@ function AgentChatLayout() {
             Welcome: ThreadWelcome,
             ToolFallback: AgentToolCard,
             ReasoningGroup: AgentProcessGroup,
-            RunActivity: AgentRunActivity,
+            ProcessFooter: MessageTimingStats,
             RunSummary: AgentFileChangeTree,
             ComposerStart: ComposerActions,
             ComposerAttach: null,
@@ -254,11 +280,20 @@ function AgentChatLayout() {
   useCommands([
     {
       id: COMMAND.AGENT_NEW_TASK,
-      title: 'Agent：新建任务',
+      title: 'Agent：新建会话',
       keywords: 'new task thread',
       group: 'Agent',
       run() {
         aui.threads.switchToNewThread()
+      }
+    },
+    {
+      id: COMMAND.AGENT_OPEN_TASKS,
+      title: 'Agent：打开任务面板',
+      keywords: 'tasks automation schedule cron 任务 定时 自动化',
+      group: 'Agent',
+      run() {
+        openAsideTasks()
       }
     },
     {
@@ -317,30 +352,50 @@ function AgentChatLayout() {
    * 客户区宽度：必须先见过一次健康宽度，才认假窄。
    * 否则首屏 flex 未撑开时的短暂窄宽会被当成最小化，触发回放/展开乱闪。
    */
-  useEffect(function () {
-    const node = bodyRef.current
-    if (!node || typeof ResizeObserver === 'undefined') return
+  useEffect(
+    function () {
+      const node = bodyRef.current
+      if (!node || typeof ResizeObserver === 'undefined') return
 
-    function syncWidth() {
-      const el = bodyRef.current
-      if (!el) return
-      const width = el.getBoundingClientRect().width
-      if (width >= LAYOUT_WIDTH_GUARD) {
-        hasSeenHealthyWidthRef.current = true
-        updateShellNarrow(false)
-        return
+      function syncWidth() {
+        const el = bodyRef.current
+        if (!el) return
+        const width = el.getBoundingClientRect().width
+        // 窗口变宽/变窄：库按 preservePixel 保住两侧栏像素宽、中栏吃掉差额，
+        // 这里把「实际比例」回写到偏好，免得下次开合又按旧比例跳一下。
+        if (resizeSyncFrameRef.current !== 0)
+          window.cancelAnimationFrame(resizeSyncFrameRef.current)
+        resizeSyncFrameRef.current = window.requestAnimationFrame(function () {
+          resizeSyncFrameRef.current = 0
+          if (!isBootstrappedRef.current || isLayoutFrozenRef.current) return
+          const live = groupRef.current?.findLayout()
+          if (!live) return
+          preferredLayoutRef.current = mergePreferredLayout(
+            preferredLayoutRef.current,
+            live,
+            openRef.current
+          )
+        })
+        if (width >= LAYOUT_WIDTH_GUARD) {
+          hasSeenHealthyWidthRef.current = true
+          updateShellNarrow(false)
+          return
+        }
+        if (!hasSeenHealthyWidthRef.current) return
+        if (width > 0) updateShellNarrow(true)
       }
-      if (!hasSeenHealthyWidthRef.current) return
-      if (width > 0) updateShellNarrow(true)
-    }
 
-    syncWidth()
-    const observer = new ResizeObserver(syncWidth)
-    observer.observe(node)
-    return function () {
-      observer.disconnect()
-    }
-  }, [])
+      syncWidth()
+      const observer = new ResizeObserver(syncWidth)
+      observer.observe(node)
+      return function () {
+        if (resizeSyncFrameRef.current !== 0)
+          window.cancelAnimationFrame(resizeSyncFrameRef.current)
+        observer.disconnect()
+      }
+    },
+    [groupRef]
+  )
 
   useEffect(function () {
     return watchActiveScenario(updateScenario)
@@ -386,6 +441,15 @@ function AgentChatLayout() {
     [openAside]
   )
 
+  useEffect(
+    function () {
+      return subscribeAsideTasks(function () {
+        openAside()
+      })
+    },
+    [openAside]
+  )
+
   useEffect(function () {
     void useAgentStore.getState().toReadWorkspaces()
     void useAgentStore.getState().toReadWorkspaceFolders()
@@ -407,10 +471,18 @@ function AgentChatLayout() {
       if (isBootstrappedRef.current) return
       if (!groupRef.current) return
       isBootstrappedRef.current = true
+      // 无存档时首屏比例已由 `defaultLayoutByWidth` 按容器宽算好；这里再对齐偏好/应用两份 ref。
+      // 折叠栏的「偏好宽度」也用当前宽度下的像素默认换算，重开时不会跳回写死的 23% / 30%。
+      const width = bodyRef.current?.getBoundingClientRect().width ?? 0
+      if (width > 0) {
+        const preferred = findPreferredLayout(layoutSeed.stored, findDefaultLayout(width))
+        preferredLayoutRef.current = preferred
+        appliedLayoutRef.current = resolveSplitterLayout(openRef.current, preferred)
+      }
       commitAppliedLayout(openRef.current)
       updateBootstrapping(false)
     },
-    [groupRef, commitAppliedLayout]
+    [groupRef, commitAppliedLayout, layoutSeed.stored]
   )
 
   /**
@@ -442,8 +514,16 @@ function AgentChatLayout() {
     [isWindowMinimized, isShellNarrow, groupRef, commitAppliedLayout]
   )
 
+  /**
+   * 布局变化有两个来源，处理方式不同：
+   *
+   * - **冻结期**（首屏 / 最小化 / 假窄）库自己重算的比例不算数，钉回 applied；
+   * - **用户拖拽**：只有松手那一帧带 `isUserInteraction`（跟手帧不落盘），
+   *   这时把实际比例并入偏好并写回存档，下次开合还按这个宽度还原。
+   *
+   * 分隔条只负责拖拽调宽；折叠 / 展开只认标题栏按钮。
+   */
   function handleLayoutChanged(layout: SplitterLayout, meta?: { isUserInteraction?: boolean }) {
-    // 假窄 / 首屏冻结：钉回 applied，绝不写入偏好
     if (isLayoutFrozenRef.current) {
       if (!isSameSplitterLayout(layout, appliedLayoutRef.current)) {
         queueMicrotask(function () {
@@ -454,7 +534,6 @@ function AgentChatLayout() {
       return
     }
 
-    // 只在用户拖拽时更新偏好并持久化；折叠不落盘 0
     if (!meta?.isUserInteraction) return
     const preferred = mergePreferredLayout(preferredLayoutRef.current, layout, openRef.current)
     preferredLayoutRef.current = preferred
@@ -462,29 +541,7 @@ function AgentChatLayout() {
     writeSplitterLayout(preferred)
   }
 
-  /** 把手折叠钮 → 与标题栏/快捷键同一套开合状态（layout 由上面的 open effect 提交） */
-  function handleCollapse(collapsedById: Record<string, boolean>) {
-    if (isLayoutFrozenRef.current) return
-    if (openRef.current.isAsideMaximized) return
-
-    const nextSidebar = !(collapsedById[SESSION_ID] ?? false)
-    const nextAside = !(collapsedById[PLAN_ID] ?? false)
-    if (
-      nextSidebar === openRef.current.isSidebarOpen &&
-      nextAside === openRef.current.isAsideOpen
-    ) {
-      return
-    }
-    updateSidebarOpen(nextSidebar)
-    updateAsideOpen(nextAside)
-    persistOpen({
-      isSidebarOpen: nextSidebar,
-      isAsideOpen: nextAside,
-      isAsideMaximized: false
-    })
-  }
-
-  /** 左侧栏开合只走按钮 / 快捷键；折叠后禁用拖拽把手，避免拖开。 */
+  /** 左侧栏开合只走标题栏按钮 / 快捷键；拖拽只调宽，不改开合。 */
   function toggleSidebar() {
     if (openRef.current.isAsideMaximized) return
     const next = !openRef.current.isSidebarOpen
@@ -567,18 +624,19 @@ function AgentChatLayout() {
           groupRef={groupRef}
           orientation="horizontal"
           className={styles.splitter}
-          defaultLayout={defaultLayout}
-          disabled={isLayoutFrozen}
+          defaultLayout={layoutSeed.stored ? defaultLayout : undefined}
+          defaultLayoutByWidth={defaultLayoutByWidth}
           freezeTransition={isLayoutFrozen}
-          onLayoutChanged={handleLayoutChanged}
-          onCollapse={handleCollapse}>
+          disabled={isLayoutFrozen}
+          onLayoutChanged={handleLayoutChanged}>
           <SplitterPane
             id={SESSION_ID}
-            paneRef={sidebarRef}
             defaultSize={SESSION_SIZE}
             min={SESSION_MIN}
             max={SESSION_MAX}
-            collapsible={{ end: true }}
+            preservePixel
+            // 收起的栏不给拖：0 宽的分隔条被拖开只会露出一条缝，开合归标题栏管
+            resizable={showSidebar}
             collapsedSize={0}>
             <AgentSidebar
               className={styles.sidebar}
@@ -586,21 +644,23 @@ function AgentChatLayout() {
               isSearchOpen={isSearchOpen}
               onScenarioChange={onScenarioChange}
               onSearchOpenChange={updateSearchOpen}
+              onOpenTasks={openAsideTasks}
               onOpenSettings={openSettings}
             />
           </SplitterPane>
 
+          {/* 可见分隔条 + 抓手；折叠 / 展开只走标题栏按钮 */}
           <SplitterHandle
             withHandle
             disableDoubleClick
-            disabled={isLayoutFrozen}
           />
 
           <SplitterPane
             id={MAIN_ID}
-            paneRef={mainRef}
             defaultSize={WORKBENCH_SIZE}
             min={WORKBENCH_MIN}
+            // 专注态（右栏独占）时中栏是 0 宽，同样不参与拖拽
+            resizable={!isAsideMaximized}
             collapsedSize={0}>
             <div className={clsx(styles.workbench, styles.thread)}>
               <AgentHead />
@@ -609,7 +669,7 @@ function AgentChatLayout() {
                 <GoalAutoAdvance />
                 <PlanRunFinish />
                 <PlanRecorder />
-        <PlanFileSync />
+                <PlanFileSync />
                 <PlanScheduleCard />
                 <PlanAutoOpen
                   isAsideOpen={isAsideOpen}
@@ -622,16 +682,15 @@ function AgentChatLayout() {
           <SplitterHandle
             withHandle
             disableDoubleClick
-            disabled={isAsideMaximized || isLayoutFrozen}
           />
 
           <SplitterPane
             id={PLAN_ID}
-            paneRef={asideRef}
             defaultSize={PLAN_SIZE}
             min={PLAN_MIN}
             max={PLAN_MAX}
-            collapsible={{ start: true }}
+            preservePixel
+            resizable={showAside}
             collapsedSize={0}>
             <AgentAside className={styles.planPane} />
           </SplitterPane>
