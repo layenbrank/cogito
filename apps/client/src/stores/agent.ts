@@ -82,6 +82,8 @@ interface SessionSlice {
   toUpdateSession: (values: Partial<Session>[]) => Promise<void>
   toRemoveSession: (keys: string[]) => Promise<void>
   toUpdateSessions: (sessions: Session[]) => void
+  /** 仅本地：把「最近活动」推到内存里那一行上（落库的 updatedAt 由 Rust 写，不重复 IPC） */
+  toTouchSession: (key: string, at?: number) => void
 }
 
 interface MessageSlice {
@@ -357,6 +359,34 @@ const sessionSlice: SliceCreator<SessionSlice> = function (setters, getters) {
         type: 'SESSION:SYNCED',
         payload: sessions,
         timestamp: Date.now()
+      })
+    },
+
+    /**
+     * 消息落库时 Rust 会把 `agent_session.updatedAt` 推到 now（`touch_session`），但前端没有订阅
+     * 那侧的事件。这里只改内存里那一行，让左栏排序与搜索结果立刻跟着上浮；不写库：
+     * 为一次时间戳多打一轮 IPC 不划算，也免得两边的时间戳互相打架。
+     */
+    toTouchSession(key, at) {
+      const updatedAt = at ?? Date.now()
+      let touched = false
+      setters(
+        function (state) {
+          const session = state.sessions.find(function (item) {
+            return item.id === key
+          })
+          if (!session || session.updatedAt >= updatedAt) return
+          session.updatedAt = updatedAt
+          touched = true
+        },
+        false,
+        'toTouchSession'
+      )
+      if (!touched) return
+      event$.next({
+        type: 'SESSION:UPDATED',
+        payload: [{ id: key, updatedAt }],
+        timestamp: updatedAt
       })
     }
   }

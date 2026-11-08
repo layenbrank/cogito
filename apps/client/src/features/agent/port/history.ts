@@ -89,6 +89,8 @@ function buildHistoryPort(): ChatHistoryPort {
     },
 
     async updateThread(id, patch) {
+      // 元数据编辑也要推 `updatedAt`：Rust `update_one` 是无条件刷 now 的，
+      // 客户端不跟着推，乐观态会停在原位、下一次 reload 又突然弹到最前（两套真相）。
       await useAgentStore.getState().toUpdateSession([
         {
           id,
@@ -130,6 +132,9 @@ function buildHistoryPort(): ChatHistoryPort {
         updatedAt: now
       }
       await useAgentStore.getState().toWriteMessage([message])
+      // 有新消息就是「最近活动」：Rust 写消息时同样会 touch `agent_session.updatedAt`，
+      // 这里把同一个事实同步到内存，左栏不必等下一次 reload 才把会话浮上来
+      useAgentStore.getState().toTouchSession(input.threadID, now)
     },
 
     async updateMessage(input) {

@@ -1,52 +1,74 @@
 import { useAuiState } from '@assistant-ui/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { compareByPinnedRecency, latestTime, orderSessions } from './session-order.ts'
 import type { WorkspaceBranch } from './sidebar-workspace-tree.tsx'
+import {
+  buildThreadItemIndex,
+  findIndexedThreadItem,
+  type ThreadItemSnapshot
+} from './thread-items.ts'
 import { useRunningThreads } from '@/features/agent/acp/run-state'
 import { UNGROUPED_WORKSPACE } from '@/features/agent/model/workspace'
-import { useAgentStore } from '@/stores/agent.ts'
+import { useAgentStore, type Session } from '@/stores/agent.ts'
 
 /**
- * 侧栏会话条目：数据来自 assistant-ui 的线程列表（`threadIds` + `threadItems`）。
+ * 侧栏会话条目：标识 / 草稿 / 归属来自 assistant-ui 的线程列表（`threadIds` + `threadItems`），
+ * 「最近活动」则**以库里的行（`stores/agent.ts` 的 `sessions`）为准**。
+ *
+ * 为什么不能只用列表项的 `lastMessageAt`：它来自 `list()` 返回的元数据，只在启动或
+ * `threads.reload()` 时刷新，发消息不会动它。于是新建会话的第一条消息落库后（列表项
+ * 已从草稿变成正式会话，但 `lastMessageAt` 还是空的）会直接沉到工作区最底；老会话收了
+ * 新消息也不会浮上来。库里那一行的 `updatedAt` 由消息写入时 touch（Rust
+ * `agent_message::Service::write_one` + 客户端 `toTouchSession`），两个来源取较新者才跟得上。
  *
  * 自动展开只在「出现新工作区 id」时写一次 state；依赖稳定的 id 串，
  * 避免流式时 `threadItems` 每帧换引用 → effect 与 Collapsible `onOpenChange` 互殴
  * （Maximum update depth / 页面崩溃、会话流被中断）。
+ *
+ * 排序规则本身在 `session-order.ts`：草稿 → 置顶 → 最近活动 → id。
  */
 interface SidebarSession {
   id: string
   title: string
   pinned: boolean
+  /** 还没落库的新会话（排最前，见 `session-order.ts`） */
+  draft: boolean
   workspaceID: string | null
+  /** 最近活动（epoch ms），0 = 从没有过活动；两个来源都已归一，NaN 进不了比较 */
   updatedAt: number
+  /** 列表插入顺序（只有草稿的排序用得上，越小越靠前） */
+  order: number
   /** 这一轮仍在生成（切走的会话也会继续跑，左栏要能看出来） */
   isRunning: boolean
 }
 
-function sortSessions(a: SidebarSession, b: SidebarSession) {
-  if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
-  return b.updatedAt - a.updatedAt
+/** assistant-ui 给「还没落库的新会话」的列表项 id 前缀（`initialize()` 之后才有 remoteId） */
+const DRAFT_THREAD_PREFIX = '__LOCALID_'
+
+/**
+ * 是不是草稿（未落库）。
+ *
+ * 列表项缺失时只认 id 前缀：快照还没水合就把整张列表判成草稿，只会让它们按 id 乱序挤在最上面。
+ */
+function isDraftThread(id: string, item: ThreadItemSnapshot | null): boolean {
+  if (!item) return id.startsWith(DRAFT_THREAD_PREFIX)
+  // 落库前没有 remoteId；`status === 'new'` 是同一件事的显式说法
+  return item.status === 'new' || !item.remoteId
 }
 
-interface ThreadItemSnapshot {
-  id?: string
-  title?: string
-  lastMessageAt?: Date
-  custom?: { pinned?: unknown; workspaceID?: unknown }
-  remoteId?: string
-}
-
-function findThreadItem(threadItems: unknown, id: string): ThreadItemSnapshot | null {
-  if (!threadItems || typeof threadItems !== 'object') return null
-  if (Array.isArray(threadItems)) {
-    return (
-      (threadItems as ThreadItemSnapshot[]).find(function (item) {
-        return item?.id === id || item?.remoteId === id
-      }) ?? null
-    )
-  }
-  const record = threadItems as Record<string, ThreadItemSnapshot>
-  return record[id] ?? null
+/**
+ * 归属取列表项的 `custom.workspaceID`（`updateCustom` 会同步它），
+ * 列表项缺失时回退到库里那一行 —— 刚启动、快照还没水合时也不会掉进「未分组」。
+ */
+function toWorkspaceID(
+  custom: ThreadItemSnapshot['custom'],
+  stored: Session | undefined
+): string | null {
+  const value = custom?.workspaceID
+  if (typeof value === 'string') return value
+  if (value === null) return null
+  return stored?.workspaceID ?? null
 }
 
 function useSidebarBranches() {
@@ -55,6 +77,9 @@ function useSidebarBranches() {
   })
   const workspaceFolders = useAgentStore(function (state) {
     return state.workspaceFolders
+  })
+  const storedSessions = useAgentStore(function (state) {
+    return state.sessions
   })
   const threadIds = useAuiState(function (state) {
     return state.threads.threadIds
@@ -71,39 +96,43 @@ function useSidebarBranches() {
 
   const sessions: SidebarSession[] = useMemo(
     function () {
-      return threadIds.map(function (id) {
-        const item = findThreadItem(threadItems, id)
+      const storedByID = new Map<string, Session>()
+      for (const stored of storedSessions) storedByID.set(stored.id, stored)
+      // 一次建索引：数组形态下逐个 `.find()` 是 O(会话数²)
+      const itemIndex = buildThreadItemIndex(threadItems)
+
+      return threadIds.map(function (id, index) {
+        const item = findIndexedThreadItem(itemIndex, id)
+        const stored = storedByID.get(item?.remoteId ?? id)
         const custom = item?.custom
         return {
           id,
           title: item?.title ?? '新对话',
           pinned: custom?.pinned === true,
-          workspaceID: typeof custom?.workspaceID === 'string' ? custom.workspaceID : null,
-          updatedAt: item?.lastMessageAt ? item.lastMessageAt.getTime() : 0,
+          draft: isDraftThread(id, item),
+          workspaceID: toWorkspaceID(custom, stored),
+          // 列表项的时间可能停在启动那一刻；库里那一行才是活的，取较新者
+          updatedAt: latestTime(
+            item?.lastMessageAt ? item.lastMessageAt.getTime() : 0,
+            stored?.updatedAt
+          ),
+          // 草稿之间按列表顺序（最新插入的在前），不拿随机 UUID 兜底
+          order: index,
           isRunning: runningThreadIDs.has(id) || runningThreadIDs.has(item?.remoteId ?? id)
         }
       })
     },
-    [threadIds, threadItems, runningThreadIDs]
+    [threadIds, threadItems, storedSessions, runningThreadIDs]
   )
 
   const branches: WorkspaceBranch[] = useMemo(
     function () {
-      const sortedWorkspaces = workspaces.toSorted(function (a, b) {
-        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
-        return b.updatedAt - a.updatedAt
-      })
+      const sortedWorkspaces = workspaces.toSorted(compareByPinnedRecency)
 
-      const result: WorkspaceBranch[] = []
-
-      for (const workspace of sortedWorkspaces) {
-        const matched = sessions.filter(function (session) {
-          return session.workspaceID === workspace.id
-        })
-
-        const paths = workspaceFolders
+      function findWorkspacePaths(workspaceID: string): string[] {
+        return workspaceFolders
           .filter(function (folder) {
-            return folder.workspaceID === workspace.id
+            return folder.workspaceID === workspaceID
           })
           .toSorted(function (a, b) {
             return a.sort - b.sort
@@ -111,21 +140,33 @@ function useSidebarBranches() {
           .map(function (folder) {
             return folder.path
           })
+      }
 
-        result.push({
+      // 一次归拢：原先每个工作区都过滤一遍全量会话，工作区 × 会话是平方级
+      const sessionsByWorkspace = new Map<string, SidebarSession[]>()
+      const ungrouped: SidebarSession[] = []
+      for (const session of sessions) {
+        if (!session.workspaceID) {
+          ungrouped.push(session)
+          continue
+        }
+        const bucket = sessionsByWorkspace.get(session.workspaceID)
+        if (bucket) bucket.push(session)
+        else sessionsByWorkspace.set(session.workspaceID, [session])
+      }
+
+      const result: WorkspaceBranch[] = sortedWorkspaces.map(function (workspace) {
+        return {
           id: workspace.id,
           title: workspace.title,
           icon: workspace.icon,
           color: workspace.color,
           pinned: workspace.pinned,
-          paths,
-          sessions: matched.toSorted(sortSessions)
-        })
-      }
-
-      const ungrouped = sessions.filter(function (session) {
-        return !session.workspaceID
+          paths: findWorkspacePaths(workspace.id),
+          sessions: orderSessions(sessionsByWorkspace.get(workspace.id) ?? [])
+        }
       })
+
       if (ungrouped.length > 0) {
         result.push({
           id: UNGROUPED_WORKSPACE,
@@ -134,7 +175,7 @@ function useSidebarBranches() {
           color: '',
           pinned: false,
           paths: [],
-          sessions: ungrouped.toSorted(sortSessions)
+          sessions: orderSessions(ungrouped)
         })
       }
 

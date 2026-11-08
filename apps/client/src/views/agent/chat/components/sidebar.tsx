@@ -1,5 +1,5 @@
 /**
- * Qoder 式左侧栏：工作模式 + 新任务/搜索 + 工作区会话树 + 底栏头像/设置
+ * Qoder 式左侧栏：工作模式 + 新建会话/搜索/任务面板 + 工作区会话树 + 底栏头像/设置
  *
  * 会话列表的数据与动作都走 assistant-ui 的线程运行时（`aui.threads`）——
  * 工作区仍是本地域（`stores/agent.ts`），会话的归属读线程 `custom.workspaceID`。
@@ -35,6 +35,8 @@ interface SidebarProps {
   searchFocusToken?: number
   onScenarioChange: (scenario: ScenarioKey) => void
   onSearchOpenChange?: (open: boolean) => void
+  /** 打开右栏任务面板（任务不占独立页面） */
+  onOpenTasks: () => void
   onOpenSettings: (section?: string) => void
 }
 
@@ -93,7 +95,7 @@ function AgentSidebar(props: SidebarProps) {
   }
 
   function handleInsertSession(workspaceID?: string | null) {
-    // 「新的任务」跟随当前激活工作区；工作区节点上的「+」显式带归属。
+    // 「新建会话」跟随当前激活工作区；工作区节点上的「+」显式带归属。
     // 一个工作区都没有时不再拦人去新建：会话落在「未分组」。
     const targetID =
       workspaceID === undefined ? (activeWorkspaceID ?? workspaces[0]?.id ?? null) : workspaceID
@@ -179,7 +181,7 @@ function AgentSidebar(props: SidebarProps) {
             width={15}
             height={15}
           />
-          新的任务
+          新建会话
         </Button>
         <Button
           type="button"
@@ -192,6 +194,18 @@ function AgentSidebar(props: SidebarProps) {
             height={15}
           />
           搜索
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className={styles.quickAction}
+          onClick={props.onOpenTasks}>
+          <Icon
+            icon="lucide:calendar-clock"
+            width={15}
+            height={15}
+          />
+          任务
         </Button>
       </div>
 

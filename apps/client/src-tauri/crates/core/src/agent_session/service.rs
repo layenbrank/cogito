@@ -45,7 +45,9 @@ impl Service {
             schema::ReadP::One(p) => {
                 let rows = schema::Entity::find()
                     .filter(Self::build_read_filter(&p))
+                    .order_by_desc(schema::Column::Pinned)
                     .order_by_desc(schema::Column::UpdatedAt)
+                    .order_by_asc(schema::Column::Id)
                     .all(db)
                     .await?;
                 Ok(rows)
@@ -59,7 +61,9 @@ impl Service {
                 });
                 let rows = schema::Entity::find()
                     .filter(combined)
+                    .order_by_desc(schema::Column::Pinned)
                     .order_by_desc(schema::Column::UpdatedAt)
+                    .order_by_asc(schema::Column::Id)
                     .all(db)
                     .await?;
                 Ok(rows)

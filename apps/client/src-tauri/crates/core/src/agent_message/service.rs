@@ -1,10 +1,10 @@
 #![allow(non_snake_case)]
 
 use chrono::Utc;
-use cogito_database::entity::agent_message as schema;
+use cogito_database::entity::{agent_message as schema, agent_session};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
-    QueryFilter, QueryOrder, TransactionTrait,
+    sea_query::Expr, ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait,
+    EntityTrait, QueryFilter, QueryOrder, TransactionTrait,
 };
 use uuid::Uuid;
 
@@ -139,17 +139,35 @@ impl Service {
         let id = p.id.unwrap_or_else(|| Uuid::new_v4().to_string());
         let created_at = p.createdAt.unwrap_or(now);
         let updated_at = p.updatedAt.unwrap_or(now);
+        let session_id = p.sessionID;
         let model = schema::ActiveModel {
             id: Set(id.clone()),
             content: Set(p.content),
             parentID: Set(p.parentID),
             format: Set(p.format.unwrap_or_else(|| LOCAL_FORMAT.to_owned())),
-            sessionID: Set(p.sessionID),
+            sessionID: Set(session_id.clone()),
             createdAt: Set(created_at),
             updatedAt: Set(updated_at),
         };
         schema::Entity::insert(model).exec(db).await?;
+        Self::touch_session(db, &session_id, updated_at).await?;
         Ok(id)
+    }
+
+    /// 把「最近活动」记到会话上：左栏按 `agent_session.updatedAt` 排序，而消息写入原先只写消息表，
+    /// 于是聊完的会话永远停在原地、只有改名/置顶才会动 —— 排序里那个时间其实是「最后编辑时间」。
+    /// 只改一列（消息写入是热路径，不读回整行）。
+    async fn touch_session<C: ConnectionTrait>(
+        db: &C,
+        session_id: &str,
+        at: i64,
+    ) -> Result<(), Exception> {
+        agent_session::Entity::update_many()
+            .col_expr(agent_session::Column::UpdatedAt, Expr::value(at))
+            .filter(agent_session::Column::Id.eq(session_id))
+            .exec(db)
+            .await?;
+        Ok(())
     }
 
     async fn update_one<C: ConnectionTrait>(

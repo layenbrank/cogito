@@ -27,6 +27,7 @@ import {
 } from '@/views/agent/chat/components/aside-review-list'
 import { AsideReviewStatusBar } from '@/views/agent/chat/components/aside-review-status-bar'
 import { useAsideReviewRows } from '@/views/agent/chat/components/aside-review-rows'
+import { useStructuralThreadMessages } from '@/views/agent/chat/components/use-structural-messages.ts'
 import {
   DiscardDialog,
   toDiscardTarget,
@@ -42,9 +43,8 @@ interface AsideReviewProps {
 function AsideReview(props: AsideReviewProps) {
   const { rootPath } = useActiveWorkspace()
   const snapshot = useWorkspaceGitSnapshot(rootPath)
-  const messages = useAuiState(function (state) {
-    return state.thread.messages
-  })
+  // 审阅行只由工具调用决定（不看正文）：按结构订阅，流式时不重算 O(消息数) 的投影
+  const messages = useStructuralThreadMessages()
   const isRunning = useAuiState(function (state) {
     return state.thread.isRunning
   })

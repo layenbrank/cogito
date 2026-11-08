@@ -44,6 +44,7 @@ import { useTerminalStore } from '@/stores/terminal'
 import { CHANNELS } from '@/shared/ipc/channels'
 import { useProviderStore } from '@/stores/provider'
 import { findStatusBadge, groupEntries } from '@/views/code/lib/git-status.ts'
+import { useStructuralThreadMessages } from '@/views/agent/chat/components/use-structural-messages.ts'
 
 interface AsideOutputRow {
   path: string
@@ -270,7 +271,7 @@ function SessionSection(props: {
     <Section
       icon="lucide:message-square"
       iconClass="text-primary"
-      title="本轮任务"
+      title="本轮概要"
       meta={`${props.messageCount} 条消息`}
       action={
         props.usageLabel ? (
@@ -930,9 +931,11 @@ function AsideBusy(props: AsideBusyProps) {
       ? `第 ${Math.min(goalRun.used + 1, goalRun.budget)}/${goalRun.budget} 轮`
       : null
 
-  const messages = useAuiState(function (state) {
-    return state.thread.messages
-  })
+  /**
+   * 详情面板按**结构**订阅 messages：正文逐 token 增长，不影响工具路径 / 计划条目 / 来源，
+   * 没必要把这块上千行的面板拖进每一帧。计划草稿要看正文，交给 `PlanSection` 自己订阅。
+   */
+  const messages = useStructuralThreadMessages()
   const composerAttachments = useAuiState(function (state) {
     return state.composer.attachments
   })
@@ -1058,30 +1061,7 @@ function AsideBusy(props: AsideBusyProps) {
     [messages, rootPath, badgeByPath]
   )
 
-  const plan = useMemo(
-    function () {
-      return findLatestPlan(messages)
-    },
-    [messages]
-  )
-
-  /** 档案优先：计划不会因为后续问答消失；没有档案才退回「从正文抽草稿」 */
-  const storedPlan = usePlanRecord(mainThreadID)
-  const planDraft = useMemo(
-    function () {
-      if (plan && plan.entries.length > 0) return null
-      if (storedPlan) {
-        return {
-          title: storedPlan.title,
-          overview: storedPlan.overview,
-          steps: storedPlan.steps,
-          body: storedPlan.body
-        }
-      }
-      return findPlanDraft(messages)
-    },
-    [messages, plan, storedPlan]
-  )
+  const extraFolders = folders.slice(1)
 
   useEffect(
     function () {
@@ -1100,40 +1080,6 @@ function AsideBusy(props: AsideBusyProps) {
     },
     [rootPath]
   )
-
-  const extraFolders = folders.slice(1)
-
-  /** 两份来源归一：保存与展示用同一串步骤 */
-  const planSteps = useMemo(
-    function () {
-      if (plan && plan.entries.length > 0) {
-        return plan.entries.map(function (entry) {
-          return entry.content
-        })
-      }
-      return planDraft?.steps ?? []
-    },
-    [plan, planDraft]
-  )
-
-  async function handleSavePlan() {
-    if (!rootPath) {
-      toast.error('先在左栏添加一个工作区')
-      return
-    }
-    try {
-      const relative = await savePlanToWorkspace(rootPath, {
-        title: planDraft?.title || workspace?.title || '计划',
-        overview: planDraft?.overview ?? '',
-        steps: planSteps,
-        body: planDraft?.body ?? ''
-      })
-      toast.success(`计划已保存到 ${relative}`)
-    } catch (error) {
-      console.warn('[agent/aside] 保存计划失败:', error)
-      toast.error(error instanceof Error ? error.message : '保存计划失败')
-    }
-  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -1187,57 +1133,14 @@ function AsideBusy(props: AsideBusyProps) {
           }}
         />
 
-        <Section
-          icon="lucide:list-todo"
-          iconClass="text-violet-500"
-          title={plan && plan.total > 0 ? '计划' : planDraft ? '计划草稿' : '计划'}
-          meta={
-            plan && plan.total > 0
-              ? `${plan.done}/${plan.total}`
-              : planDraft
-                ? `${planDraft.steps.length} 步`
-                : undefined
-          }
-          action={
-            planSteps.length > 0 ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="保存计划到工作区"
-                title="保存到 .cogito/plans"
-                className="text-muted-foreground hover:text-foreground size-6"
-                onClick={function () {
-                  void handleSavePlan()
-                }}>
-                <Icon
-                  icon="lucide:save"
-                  className="size-3.5"
-                />
-              </Button>
-            ) : undefined
-          }>
-          {plan && plan.entries.length > 0 ? (
-            <PlanEntryList entries={plan.entries} />
-          ) : planDraft ? (
-            <PlanDraftBlock
-              draft={planDraft}
-              onOpenPlan={props.onOpenPlan}
-            />
-          ) : (
-            <p className="text-muted-foreground text-xs leading-relaxed">
-              {props.isPlanMode
-                ? isRunning
-                  ? '等待模型按骨架产出 Markdown 计划…'
-                  : messages.some(function (message) {
-                        return message.role === 'user'
-                      })
-                    ? '本轮未按计划骨架输出（需含概述 / 实施步骤等章节）'
-                    : '发出需求后，模型产出的计划会显示在这里'
-                : '暂无计划'}
-            </p>
-          )}
-        </Section>
+        <PlanSection
+          threadID={mainThreadID}
+          rootPath={rootPath}
+          workspaceTitle={workspace?.title ?? ''}
+          isRunning={isRunning}
+          isPlanMode={props.isPlanMode}
+          onOpenPlan={props.onOpenPlan}
+        />
 
         <OutputSection
           rows={outputs}
@@ -1260,6 +1163,133 @@ function AsideBusy(props: AsideBusyProps) {
         />
       </div>
     </div>
+  )
+}
+
+/**
+ * 计划卡：详情面板里**唯一**需要正文的区块。
+ *
+ * 草稿是从回答正文里抽出来的，所以这一块自己订阅 `thread.messages`（逐 token 才有意义）；
+ * 面板其余分区按结构订阅，流式时不再整体重渲染。
+ */
+function PlanSection(props: {
+  threadID: string | null
+  rootPath: string | null
+  workspaceTitle: string
+  isRunning: boolean
+  isPlanMode: boolean
+  onOpenPlan?: () => void
+}) {
+  const messages = useAuiState(function (state) {
+    return state.thread.messages
+  })
+  const plan = useMemo(
+    function () {
+      return findLatestPlan(messages)
+    },
+    [messages]
+  )
+  /** 档案优先：计划不会因为后续问答消失；没有档案才退回「从正文抽草稿」 */
+  const storedPlan = usePlanRecord(props.threadID)
+  const planDraft = useMemo(
+    function () {
+      if (plan && plan.entries.length > 0) return null
+      if (storedPlan) {
+        return {
+          title: storedPlan.title,
+          overview: storedPlan.overview,
+          steps: storedPlan.steps,
+          body: storedPlan.body
+        }
+      }
+      return findPlanDraft(messages)
+    },
+    [messages, plan, storedPlan]
+  )
+  /** 两份来源归一：保存与展示用同一串步骤 */
+  const planSteps = useMemo(
+    function () {
+      if (plan && plan.entries.length > 0) {
+        return plan.entries.map(function (entry) {
+          return entry.content
+        })
+      }
+      return planDraft?.steps ?? []
+    },
+    [plan, planDraft]
+  )
+
+  async function handleSavePlan() {
+    if (!props.rootPath) {
+      toast.error('先在左栏添加一个工作区')
+      return
+    }
+    try {
+      const relative = await savePlanToWorkspace(props.rootPath, {
+        title: planDraft?.title || props.workspaceTitle || '计划',
+        overview: planDraft?.overview ?? '',
+        steps: planSteps,
+        body: planDraft?.body ?? ''
+      })
+      toast.success(`计划已保存到 ${relative}`)
+    } catch (error) {
+      console.warn('[agent/aside] 保存计划失败:', error)
+      toast.error(error instanceof Error ? error.message : '保存计划失败')
+    }
+  }
+
+  return (
+    <Section
+      icon="lucide:list-todo"
+      iconClass="text-violet-500"
+      title={plan && plan.total > 0 ? '计划' : planDraft ? '计划草稿' : '计划'}
+      meta={
+        plan && plan.total > 0
+          ? `${plan.done}/${plan.total}`
+          : planDraft
+            ? `${planDraft.steps.length} 步`
+            : undefined
+      }
+      action={
+        planSteps.length > 0 ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="保存计划到工作区"
+            title="保存到 .cogito/plans"
+            className="text-muted-foreground hover:text-foreground size-6"
+            onClick={function () {
+              void handleSavePlan()
+            }}>
+            <Icon
+              icon="lucide:save"
+              className="size-3.5"
+            />
+          </Button>
+        ) : undefined
+      }>
+      {plan && plan.entries.length > 0 ? (
+        <PlanEntryList entries={plan.entries} />
+      ) : planDraft ? (
+        <PlanDraftBlock
+          draft={planDraft}
+          onOpenPlan={props.onOpenPlan}
+        />
+      ) : (
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          {props.isPlanMode
+            ? props.isRunning
+              ? '等待模型按骨架产出 Markdown 计划…'
+              : messages.some(function (message) {
+                    return message.role === 'user'
+                  })
+                ? '本轮未按计划骨架输出（需含概述 / 实施步骤等章节）'
+                : '发出需求后，模型产出的计划会显示在这里'
+            : '暂无计划'}
+        </p>
+      )}
+    </Section>
   )
 }
 

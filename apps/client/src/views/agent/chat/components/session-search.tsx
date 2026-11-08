@@ -15,6 +15,7 @@ import dayjs from 'dayjs'
 import { throttle } from 'lodash-es'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { compareSessions } from './session-order.ts'
 import styles from './session-search.module.scss'
 import { useAgentStore, type Session, type Workspace } from '@/stores/agent.ts'
 
@@ -103,10 +104,8 @@ function SessionSearchSurface(props: Pick<SessionSearchProps, 'onClose' | 'onSel
           if (!lower) return true
           return session.title.toLowerCase().includes(lower)
         })
-        .toSorted(function (a, b) {
-          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
-          return b.updatedAt - a.updatedAt
-        })
+        // 「工作区树」与「搜索」共用一把尺子：草稿 → 置顶 → 最近活动 → id
+        .toSorted(compareSessions)
 
       return filtered.map(function (session) {
         const workspace = session.workspaceID ? workspaceByID.get(session.workspaceID) : undefined
@@ -205,8 +204,8 @@ function SessionSearchSurface(props: Pick<SessionSearchProps, 'onClose' | 'onSel
     <DialogContent
       showCloseButton={false}
       className={styles.modal}>
-        <DialogTitle className="sr-only">搜索任务</DialogTitle>
-        <DialogDescription className="sr-only">按任务标题搜索本地任务并打开</DialogDescription>
+        <DialogTitle className="sr-only">搜索会话</DialogTitle>
+        <DialogDescription className="sr-only">按会话标题搜索本地会话并打开</DialogDescription>
 
         <div className={styles.inputRow}>
           <div className={styles.inputWrap}>
@@ -217,7 +216,7 @@ function SessionSearchSurface(props: Pick<SessionSearchProps, 'onClose' | 'onSel
             <Input
               ref={inputRef}
               value={keyword}
-              placeholder="搜索任务标题或任务内容..."
+              placeholder="搜索会话标题或会话内容..."
               className={styles.input}
               onChange={function (event) {
                 updateKeyword(event.target.value)
@@ -230,7 +229,7 @@ function SessionSearchSurface(props: Pick<SessionSearchProps, 'onClose' | 'onSel
         </div>
 
         <div className={`${styles.metaRow} flex items-center justify-between`}>
-          <span className={`${styles.metaLabel} text-muted-foreground`}>所有任务</span>
+          <span className={`${styles.metaLabel} text-muted-foreground`}>所有会话</span>
           <div className={`${styles.hints} text-muted-foreground flex items-center gap-2`}>
             <div className="flex items-center gap-1">
               <kbd className={styles.kbd}>↑</kbd>
@@ -247,7 +246,7 @@ function SessionSearchSurface(props: Pick<SessionSearchProps, 'onClose' | 'onSel
 
         <div className={styles.list}>
           {hits.length === 0 ? (
-            <p className={styles.empty}>{keyword.trim() ? '无匹配任务' : '暂无任务'}</p>
+            <p className={styles.empty}>{keyword.trim() ? '无匹配会话' : '暂无会话'}</p>
           ) : (
             hits.map(function (hit, index) {
               const active = index === navigation
