@@ -1,6 +1,10 @@
 import { useReducedMotion } from 'motion/react'
 import { CursorRipples, FilmGrain, Shader, Swirl, isWebGPUSupported } from 'shaders/react'
 
+interface BrandShaderProps {
+  onUnavailable?: () => void
+}
+
 const BRAND_STOPS = [
   { color: '#0b1220', position: 0 },
   { color: '#134e5e', position: 0.28 },
@@ -9,12 +13,10 @@ const BRAND_STOPS = [
   { color: '#0b1220', position: 1 }
 ] as const
 
-function BrandShader() {
+function BrandShader(props: BrandShaderProps) {
   const isReducedMotion = useReducedMotion()
 
-  if (!isWebGPUSupported()) {
-    return <div className="absolute inset-0 bg-[oklch(0.18_0.008_264)]" />
-  }
+  if (!isWebGPUSupported()) return null
 
   const band = (
     <Swirl
@@ -40,7 +42,9 @@ function BrandShader() {
   )
 
   return (
-    <Shader className="absolute inset-0 h-full w-full">
+    <Shader
+      className="absolute inset-0 h-full w-full"
+      onUnavailable={props.onUnavailable}>
       <FilmGrain
         strength={isReducedMotion ? 0.12 : 0.18}
         bias={2}
@@ -52,3 +56,4 @@ function BrandShader() {
 }
 
 export { BrandShader }
+export type { BrandShaderProps }

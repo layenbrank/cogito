@@ -5,6 +5,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cogito/design/components/dialog'
+import { Spinner } from '@cogito/design/components/spinner'
 import GoCaptcha from 'go-captcha-react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -114,7 +115,10 @@ function SlideDialog(props: SlideDialogProps) {
               }}
             />
           ) : (
-            <p className="text-sm text-muted-foreground">正在加载验证码…</p>
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner className="size-4" />
+              正在加载验证码…
+            </p>
           )}
         </div>
       </DialogContent>
