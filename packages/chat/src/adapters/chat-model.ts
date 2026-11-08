@@ -104,11 +104,14 @@ function toRunMessages(messages: readonly ThreadMessage[]): ChatRunMessage[] {
     const images = collectImages(message)
     if (!content && attachments.length === 0 && images.length === 0) continue
 
+    const custom = message.metadata?.custom
     runs.push({
       role: message.role,
       content,
       ...(attachments.length > 0 ? { attachments } : {}),
-      ...(images.length > 0 ? { images } : {})
+      ...(images.length > 0 ? { images } : {}),
+      // 消息自定义元数据原样带给端口（app 用它取模式快照）
+      ...(custom && Object.keys(custom).length > 0 ? { metadata: custom } : {})
     })
   }
   return runs

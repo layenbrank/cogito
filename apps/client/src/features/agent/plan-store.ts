@@ -24,7 +24,9 @@ import { reportCaught } from '@/utils/exception-report'
 
 export type PlanStatus = 'draft' | 'running' | 'done' | 'interrupted' | 'superseded'
 export type PlanSource = 'thread' | 'file'
-export type GoalStatus = 'running' | 'paused' | 'done' | 'exhausted'
+// `interrupted` = 上一进程崩了 / 被杀：`running` 但没有活租约。启动自愈会把它归一到这一档，
+// 与用户主动暂停（`paused`）分开 —— 两者的续跑语义不同。
+export type GoalStatus = 'running' | 'paused' | 'done' | 'exhausted' | 'interrupted'
 
 export interface PlanRecord {
   id: string
@@ -68,6 +70,12 @@ export interface GoalRecord {
   approvalBefore: string | null
   /** 最近一轮自动续跑的 user prompt；刷新后仍可判插话 */
   expectedPrompt: string | null
+  /** 回合租约：这一轮归谁跑（单飞的唯一凭据） */
+  leaseRunID: string | null
+  /** 租约到期时间（毫秒）；过期即视为崩溃残留 */
+  leaseUntil: number | null
+  /** 启动目标前用户所处的模式，收尾 / 崩溃自愈时还原 */
+  modeBefore: string | null
   createdAt: number
   updatedAt: number
 }
@@ -108,6 +116,9 @@ interface GoalRow {
   status: string
   approvalBefore: string | null
   expectedPrompt: string | null
+  leaseRunID: string | null
+  leaseUntil: number | null
+  modeBefore: string | null
   createdAt: number
   updatedAt: number
 }
@@ -121,6 +132,20 @@ const persistedGoals = new Map<string, GoalRecord>()
 const pendingPlans = new Map<string, 'write' | 'remove'>()
 const pendingGoals = new Map<string, 'write' | 'remove'>()
 let flushTimer: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * 启动自愈的注入点。
+ *
+ * `hydrate()` 要把「`running` 但没有活租约」的行归一到 `interrupted` 并还原审批 / 模式，
+ * 而那段逻辑住在 `goal-run`（它依赖本模块）—— 直接 import 会成环，所以由它注册进来。
+ */
+let goalRecovery: ((records: readonly GoalRecord[], now: number) => void) | null = null
+
+function bindGoalRecovery(
+  fn: ((records: readonly GoalRecord[], now: number) => void) | null
+): void {
+  goalRecovery = fn
+}
 
 const listeners = new Set<() => void>()
 
@@ -177,6 +202,7 @@ function toGoalStatus(value: string): GoalStatus {
     case 'paused':
     case 'done':
     case 'exhausted':
+    case 'interrupted':
       return value
     default:
       return 'running'
@@ -219,6 +245,9 @@ function toGoalRecord(row: GoalRow): GoalRecord {
     status: toGoalStatus(row.status),
     approvalBefore: row.approvalBefore,
     expectedPrompt: row.expectedPrompt ?? null,
+    leaseRunID: row.leaseRunID ?? null,
+    leaseUntil: row.leaseUntil ?? null,
+    modeBefore: row.modeBefore ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   }
@@ -348,6 +377,9 @@ async function hydrate(threadIDs?: readonly string[]): Promise<void> {
       goals.set(record.sessionID, record)
       persistedGoals.set(record.sessionID, record)
     }
+    // 启动自愈：`running` 却没有活租约 = 上一进程崩了（或被强杀）。归一到 `interrupted`
+    // 并把审批档 / 模式还原 —— 否则界面一直显示「推进中」，审批档也停在 auto。
+    goalRecovery?.(goalRows.map(toGoalRecord), Date.now())
     notify()
   } catch (error) {
     reportCaught('agent-plan-store.hydrate', error)
@@ -518,6 +550,9 @@ interface SaveGoalInput {
   status?: GoalStatus
   approvalBefore?: string | null
   expectedPrompt?: string | null
+  leaseRunID?: string | null
+  leaseUntil?: number | null
+  modeBefore?: string | null
 }
 
 function saveGoal(input: SaveGoalInput): GoalRecord {
@@ -543,6 +578,11 @@ function saveGoal(input: SaveGoalInput): GoalRecord {
       input.expectedPrompt === undefined
         ? (previous?.expectedPrompt ?? null)
         : input.expectedPrompt,
+    leaseRunID:
+      input.leaseRunID === undefined ? (previous?.leaseRunID ?? null) : input.leaseRunID,
+    leaseUntil:
+      input.leaseUntil === undefined ? (previous?.leaseUntil ?? null) : input.leaseUntil,
+    modeBefore: input.modeBefore === undefined ? (previous?.modeBefore ?? null) : input.modeBefore,
     createdAt: previous?.createdAt ?? now,
     updatedAt: now
   }
@@ -610,6 +650,7 @@ function resetPlanStore(): void {
 }
 
 export {
+  bindGoalRecovery,
   bumpRevision,
   digestPlan,
   flush,

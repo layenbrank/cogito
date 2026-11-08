@@ -202,6 +202,30 @@ function readAgentModeFor(threadID: string): AgentMode {
   return pref.modeByThread[id] ?? pref.agentMode
 }
 
+/**
+ * 按会话写模式（目标收尾 / 崩溃自愈要还原「启动前那一档」，不能改别的会话）。
+ *
+ * 与 `writeAgentMode` 的区别只在定位方式：那个写**当前活跃会话**，这个按 id 写。
+ */
+async function writeAgentModeFor(threadID: string, mode: AgentMode): Promise<void> {
+  const pref = findPref('agent')
+  const id = threadID.trim()
+  if (!id) {
+    await patchPref('agent', { agentMode: mode })
+    notifyScope()
+    return
+  }
+  await patchPref('agent', { modeByThread: { ...pref.modeByThread, [id]: mode } })
+  notifyScope()
+  void import('@/features/agent/acp/sync-thread-approval')
+    .then(function (mod) {
+      return mod.syncApprovalForThread(id)
+    })
+    .catch(function (error: unknown) {
+      console.warn('[agent/mode] 同步有效审批档到 goose 失败:', error)
+    })
+}
+
 /** 当前 UI 主线程；目标后台续跑据此判断「这一轮归 UI 还是归后台」 */
 function readAgentModeThread(): string | null {
   return readScopeThread()
@@ -230,21 +254,122 @@ async function writeAgentMode(mode: AgentMode): Promise<void> {
     })
 }
 
-/** 把当前模式约束拼到系统提示末尾；执行模式原样返回 */
-function appendModeGuidance(prompt: string): string {
-  const guidance = findAgentMode(readAgentMode()).guidance
+/** 消息上的模式快照键（落 `metadata.custom`，随消息 JSON 一起进 `agent_message.content`） */
+const MODE_SNAPSHOT_KEY = 'modeSnapshot'
+
+/**
+ * 一条用户消息「发送那一刻」的模式快照。
+ *
+ * 为什么要按消息存：模式本来是**会话级偏好**，`appendModeGuidance` 读的是「现在」
+ * 的模式。用户在目标轮次被意外停止后切回执行、再点重新生成，发出去的提示就变成
+ * 执行模式 —— 现象就是「重新生成后模式自己变了」。快照跟着消息走，重新生成自然
+ * 复现当初那一次。
+ *
+ * `approval` / `goalBudget` 是**保留位**：链路已经能带（一列兼容四种快照），等审批档
+ * 与预算各自有稳定读取口径时再填，不在这一轮跨模块拿状态。
+ */
+// 用 type 而非 interface：快照要能原样塞进 assistant-ui 的 `metadata.custom`
+// （`ReadonlyJSONObject` 只对 type alias 提供隐式索引签名，interface 会被判成不可赋值）
+type ModeSnapshot = {
+  mode: AgentMode
+  approval?: string
+  goalBudget?: number
+  /** 落盘时间，排查「这条消息是什么时候发的」 */
+  at?: number
+}
+
+function isModeSnapshot(value: unknown): value is ModeSnapshot {
+  if (!value || typeof value !== 'object') return false
+  const mode = (value as { mode?: unknown }).mode
+  return typeof mode === 'string' && isAgentMode(mode)
+}
+
+/** 从消息元数据里取快照；形状不对 / 老数据 → null */
+function readModeSnapshot(
+  metadata: Readonly<Record<string, unknown>> | undefined
+): ModeSnapshot | null {
+  const raw = metadata?.[MODE_SNAPSHOT_KEY]
+  return isModeSnapshot(raw) ? raw : null
+}
+
+/** 当前模式 → 快照（发送时写进用户消息） */
+function buildModeSnapshot(): ModeSnapshot {
+  return { mode: readAgentMode(), at: Date.now() }
+}
+
+/** 这条消息该用哪个模式：**快照优先**，老数据（无快照）回落会话偏好 */
+function resolveModeFor(metadata: Readonly<Record<string, unknown>> | undefined): AgentMode {
+  return readModeSnapshot(metadata)?.mode ?? readAgentMode()
+}
+
+/**
+ * 一轮消息里「最后一条带快照的用户消息」的快照。
+ *
+ * 重新生成用的是同一份历史，所以拿到的是那条消息当初的模式，而不是现在的模式。
+ */
+function findModeSnapshot(
+  messages: readonly { role: string; metadata?: Readonly<Record<string, unknown>> }[]
+): ModeSnapshot | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.role !== 'user') continue
+    const snapshot = readModeSnapshot(message.metadata)
+    if (snapshot) return snapshot
+  }
+  return null
+}
+
+/**
+ * 给消息的 `metadata.custom` 打上**当前**模式快照（保留其它扩展位：用量、后台回合来源）。
+ *
+ * 已有快照就原样返回 —— 历史重放、重新生成都不该改写「当初那一次」。
+ */
+function stampModeSnapshot(
+  custom: Readonly<Record<string, unknown>> | undefined
+): Record<string, unknown> {
+  if (readModeSnapshot(custom)) return { ...(custom ?? {}) }
+  return { ...(custom ?? {}), [MODE_SNAPSHOT_KEY]: buildModeSnapshot() }
+}
+
+/**
+ * 本轮该用哪个模式：**消息快照优先**，取不到才回落当前会话偏好。
+ *
+ * 发送与重新生成都走这里；差别只在消息里有没有快照 —— 老数据没有，仍然按会话偏好跑。
+ */
+function resolveRunMode(
+  messages: readonly { role: string; metadata?: Readonly<Record<string, unknown>> }[]
+): AgentMode {
+  return findModeSnapshot(messages)?.mode ?? readAgentMode()
+}
+
+/**
+ * 把模式约束拼到系统提示末尾；执行模式原样返回。
+ *
+ * `mode` 显式传入时以它为准（发送 / 重新生成都从消息快照算出来再传进来），
+ * 不传才读当前会话偏好 —— 这条默认值是给「没有历史消息」的场景用的。
+ */
+function appendModeGuidance(prompt: string, mode: AgentMode = readAgentMode()): string {
+  const guidance = findAgentMode(mode).guidance
   return guidance ? `${prompt}\n\n${guidance}` : prompt
 }
 
 export {
   AGENT_MODES,
+  MODE_SNAPSHOT_KEY,
   appendModeGuidance,
+  buildModeSnapshot,
   findAgentMode,
+  findModeSnapshot,
   readAgentMode,
   readAgentModeFor,
   readAgentModeThread,
+  readModeSnapshot,
+  resolveModeFor,
+  resolveRunMode,
   setAgentModeThread,
+  stampModeSnapshot,
   subscribeAgentMode,
-  writeAgentMode
+  writeAgentMode,
+  writeAgentModeFor
 }
-export type { AgentModeMeta }
+export type { AgentModeMeta, ModeSnapshot }

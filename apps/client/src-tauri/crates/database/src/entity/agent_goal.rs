@@ -42,6 +42,15 @@ pub struct Model {
     /// 最近一轮自动续跑发出的 user prompt（刷新后仍可判插话 / Resume）
     #[sea_orm(column_name = "expectedPrompt")]
     pub expectedPrompt: Option<String>,
+    /// 回合租约：这一轮归谁跑（单飞凭据）；为空 = 没有正在跑的回合
+    #[sea_orm(column_name = "leaseRunID")]
+    pub leaseRunID: Option<String>,
+    /// 租约到期时间（毫秒）；过期即视为崩溃残留
+    #[sea_orm(column_name = "leaseUntil")]
+    pub leaseUntil: Option<i64>,
+    /// 启动目标前用户所处的模式，收尾 / 崩溃自愈时还原
+    #[sea_orm(column_name = "modeBefore")]
+    pub modeBefore: Option<String>,
     #[sea_orm(column_name = "createdAt")]
     pub createdAt: i64,
     #[sea_orm(column_name = "updatedAt")]
@@ -91,6 +100,12 @@ pub struct Write {
     pub approvalBefore: Option<String>,
     #[serde(default)]
     pub expectedPrompt: Option<String>,
+    #[serde(default)]
+    pub leaseRunID: Option<String>,
+    #[serde(default)]
+    pub leaseUntil: Option<i64>,
+    #[serde(default)]
+    pub modeBefore: Option<String>,
     pub createdAt: Option<i64>,
     pub updatedAt: Option<i64>,
 }
@@ -114,6 +129,9 @@ pub struct Change {
     pub status: Option<String>,
     pub approvalBefore: Option<Option<String>>,
     pub expectedPrompt: Option<Option<String>>,
+    pub leaseRunID: Option<Option<String>>,
+    pub leaseUntil: Option<Option<i64>>,
+    pub modeBefore: Option<Option<String>>,
     pub updatedAt: Option<i64>,
 }
 

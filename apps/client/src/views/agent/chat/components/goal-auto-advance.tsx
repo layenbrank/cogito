@@ -14,21 +14,16 @@ import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 
 import {
-  advanceGoalRun,
-  buildContinuePrompt,
+  advanceGoal,
   findGoalSignal,
   findLastAssistant,
   findLastUserText,
-  finishGoalRun,
   isAbortedRun,
   isUserInterjection,
   parseGoalProgress,
   readAssistantText,
   readGoalPrompt,
-  readGoalRun,
-  rememberGoalPrompt,
   setGoalProgress,
-  stopGoalRun,
   useGoalRun
 } from '@/features/agent/goal-run'
 import { isPlanStale, readPlan } from '@/features/agent/plan-store'
@@ -74,7 +69,7 @@ function GoalAutoAdvance() {
 
       if (isAbortedRun(last)) {
         // 用户「停止」/ 出错：这一轮不是模型自己跑完的，不能当成「未达成」继续
-        stopGoalRun(threadID)
+        advanceGoal(threadID, 'aborted')
         return
       }
 
@@ -85,13 +80,12 @@ function GoalAutoAdvance() {
 
       const signal = findGoalSignal(text)
       if (signal === 'done') {
-        toast.success('目标已完成')
-        finishGoalRun(threadID, 'done')
+        if (advanceGoal(threadID, 'done').kind === 'done') toast.success('目标已完成')
         return
       }
       if (!signal && goal.used > 0) {
         toast.info('目标推进已停：本轮未输出 GOAL_CONTINUE / GOAL_DONE')
-        stopGoalRun(threadID)
+        advanceGoal(threadID, 'no-signal')
         return
       }
 
@@ -103,18 +97,18 @@ function GoalAutoAdvance() {
       const lastUser = normalizePrompt(findLastUserText(messages))
       if (goal.used > 0 && expected && lastUser !== expected) {
         toast.info('检测到你插话了，目标推进已暂停')
-        stopGoalRun(threadID)
+        advanceGoal(threadID, 'interjection')
         return
       }
       if (isUserInterjection(messages)) {
         toast.info('检测到你发了新消息，目标推进已暂停')
-        stopGoalRun(threadID)
+        advanceGoal(threadID, 'interjection')
         return
       }
 
       if (aui.composer.getState().text.trim()) {
         toast.info('检测到你在输入，已暂停目标自动推进')
-        stopGoalRun(threadID)
+        advanceGoal(threadID, 'typing')
         return
       }
 
@@ -126,23 +120,21 @@ function GoalAutoAdvance() {
         toast.info(
           '计划已更新，目标推进已暂停：确认后请按新计划重新开始（不会拿旧版继续跑）'
         )
-        stopGoalRun(threadID)
+        advanceGoal(threadID, 'plan-stale')
         return
       }
 
-      if (!advanceGoalRun(threadID)) {
+      // 唯一入口：拿到活租约才真的推进；重复 / 迟到的结束回调一律 ignored（单飞）
+      const outcome = advanceGoal(threadID, 'continue')
+      if (outcome.kind === 'exhausted') {
         toast.warning(
           `已达目标推进上限（${goal.budget} 轮），请检查结果；需要继续可再次点「继续推进」`
         )
-        // advance 已写 exhausted，禁止再 stopGoalRun 抹成 paused
         return
       }
-      const next = readGoalRun(threadID)
-      if (!next) return
-      const prompt = buildContinuePrompt(next)
-      // 记下这一轮发的是哪条 prompt：下一轮用它判断「这一轮还是不是目标轮」
-      rememberGoalPrompt(threadID, prompt)
-      aui.composer.setText(prompt)
+      if (outcome.kind !== 'dispatch') return
+      // 续跑 prompt 已由 advanceGoal 记进档案（下一轮据此判断「还是不是目标轮」）
+      aui.composer.setText(outcome.prompt)
       void aui.composer.send()
     },
     [aui, goal, threadID, tailDigest]

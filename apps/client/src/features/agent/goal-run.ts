@@ -17,14 +17,16 @@ import type { ThreadMessage } from '@assistant-ui/react'
 import { useCallback, useSyncExternalStore } from 'react'
 
 import { readApprovalModeFor, writeApprovalModeFor } from '@/features/agent/approval'
+import { readAgentMode, readAgentModeFor, writeAgentModeFor } from '@/features/agent/mode'
 import type { GoalRecord, GoalStatus } from '@/features/agent/plan-store'
 import {
+  bindGoalRecovery,
   listGoals,
   readGoal,
   saveGoal,
   subscribePlanStore
 } from '@/features/agent/plan-store'
-import type { ApprovalMode } from '@/features/persist'
+import type { AgentMode, ApprovalMode } from '@/features/persist'
 
 /** 最大轮数（含首轮）：够长任务收敛，又不至于无限烧 token */
 const DEFAULT_BUDGET = 6
@@ -142,7 +144,11 @@ function toGoalRun(threadID: string): GoalRun | null {
 function readGoalRun(threadID: string): GoalRun | null {
   const run = toGoalRun(threadID.trim())
   if (!run) return null
-  return run.status === 'paused' || run.status === 'done' ? null : run
+  // `interrupted` 与 `paused` 一样是「没有在进行中的目标」：崩溃自愈把它写下来，
+  // 拉起的只是历史记录，不能再驱动自动续跑。
+  return run.status === 'paused' || run.status === 'done' || run.status === 'interrupted'
+    ? null
+    : run
 }
 
 function useGoalRun(threadID: string | null): GoalRun | null {
@@ -154,6 +160,143 @@ function useGoalRun(threadID: string | null): GoalRun | null {
   )
   return useSyncExternalStore(subscribeGoalRun, read, read)
 }
+
+/**
+ * 回合租约：一轮推进期间只有持租约的人能「收尾并决定下一步」。
+ *
+ * 为什么需要：composer 侧（`goal-auto-advance`）与后台侧（`goal-continue`）都挂在
+ * 「一轮结束」上，互斥靠「查对方在不在跑」—— 查询不是锁：切线程瞬间两边都可能收到结束
+ * 回调，同一轮会被推进两次（预算跳号、重复发送、重复写 goal 行）。租约把它变成一次 CAS：
+ * 先进来的消费掉租约，后进来的看到「没有活租约」就放弃。
+ *
+ * 过期时间同时承担崩溃判定：`running` 却没有活租约 = 上一进程已经死了（启动自愈据此归一）。
+ */
+const TURN_LEASE_MS = 10 * 60 * 1000
+
+function newRunID(): string {
+  try {
+    return crypto.randomUUID()
+  } catch (error) {
+    console.warn('[agent/goal] 生成 runID 失败，退化为时间戳:', error)
+    return `run-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  }
+}
+
+function isTurnLeaseLive(record: GoalRecord | null, now = Date.now()): boolean {
+  if (!record) return false
+  if (!record.leaseRunID || record.leaseUntil === null) return false
+  return record.leaseUntil > now
+}
+
+/** 起一轮（首轮 / 续跑轮）：写租约并返回 runID */
+function beginGoalTurn(threadID: string, ttl = TURN_LEASE_MS): string | null {
+  const id = threadID.trim()
+  if (!readGoal(id)) return null
+  const runID = newRunID()
+  saveGoal({ sessionID: id, leaseRunID: runID, leaseUntil: Date.now() + ttl })
+  return runID
+}
+
+/** 续租：只有持租约的 runID 能续（CAS，别人的租约不动） */
+function renewGoalTurn(threadID: string, runID: string, ttl = TURN_LEASE_MS): boolean {
+  const id = threadID.trim()
+  const record = readGoal(id)
+  if (!record || record.leaseRunID !== runID) return false
+  saveGoal({ sessionID: id, leaseUntil: Date.now() + ttl })
+  return true
+}
+
+/** 每线程的推进代数：回调带着它进来，过期回调（切线程 / 重复结束）直接丢弃 */
+const advanceGenerations = new Map<string, number>()
+
+function readGoalGeneration(threadID: string): number {
+  return advanceGenerations.get(threadID.trim()) ?? 0
+}
+
+/** 推进原因：只有 `continue` 会开下一轮，其余一律收敛到终态 */
+type GoalAdvanceReason =
+  | 'continue'
+  | 'done'
+  | 'aborted'
+  | 'no-signal'
+  | 'interjection'
+  | 'typing'
+  | 'plan-stale'
+  | 'context-missing'
+
+type GoalAdvanceOutcome =
+  | { kind: 'dispatch'; prompt: string; run: GoalRun }
+  | { kind: 'done' }
+  | { kind: 'paused' }
+  | { kind: 'exhausted' }
+  | { kind: 'ignored' }
+
+/**
+ * **唯一**的推进入口：一轮结束时由 composer 侧或后台侧调进来。
+ *
+ * 幂等 / 单飞靠租约：拿到活租约的调用方才有权推进，并顺手把租约清掉；
+ * 第二次调用（同一轮的另一条结束回调、切线程后的迟到回调、崩溃重启后的旧回调）
+ * 看到的是「没有活租约」，直接返回 `ignored`，不会重复扣预算。
+ */
+function advanceGoal(
+  threadID: string,
+  reason: GoalAdvanceReason,
+  generation = readGoalGeneration(threadID)
+): GoalAdvanceOutcome {
+  const id = threadID.trim()
+  if (!id) return { kind: 'ignored' }
+  const record = readGoal(id)
+  if (!record || record.status !== 'running') return { kind: 'ignored' }
+  if (generation !== readGoalGeneration(id)) return { kind: 'ignored' }
+  if (!isTurnLeaseLive(record)) return { kind: 'ignored' }
+
+  advanceGenerations.set(id, generation + 1)
+  saveGoal({ sessionID: id, leaseRunID: null, leaseUntil: null })
+
+  if (reason === 'done') {
+    finishGoalRun(id, 'done')
+    return { kind: 'done' }
+  }
+  if (reason !== 'continue') {
+    finishGoalRun(id, 'paused')
+    return { kind: 'paused' }
+  }
+  if (!advanceGoalRun(id)) return { kind: 'exhausted' }
+  const next = readGoalRun(id)
+  if (!next) return { kind: 'ignored' }
+  const prompt = buildContinuePrompt(next)
+  rememberGoalPrompt(id, prompt)
+  // 新一轮的租约**由真正开跑的一方**建（`port/model` 与 `goal-continue.startGoalTurn`），
+  // 不在这里建：这里建等于「刚消费完就立刻续上」，同一轮的第二个结束回调又会被当成合法推进。
+  return { kind: 'dispatch', prompt, run: next }
+}
+
+/**
+ * 启动自愈：`running` 却没有活租约的行 → `interrupted`，并还原审批档与模式。
+ *
+ * 幂等：已经归一过的行不再动。由 `plan-store` 的 `hydrate()` 通过注入点调用
+ * （本模块依赖 plan-store，反过来 import 会成环）。
+ */
+function recoverInterruptedGoals(records: readonly GoalRecord[], now = Date.now()): number {
+  let fixed = 0
+  for (const record of records) {
+    if (record.status !== 'running') continue
+    if (isTurnLeaseLive(record, now)) continue
+    saveGoal({
+      sessionID: record.sessionID,
+      status: 'interrupted',
+      leaseRunID: null,
+      leaseUntil: null
+    })
+    restoreGoalApproval(record.sessionID, record.approvalBefore)
+    restoreGoalMode(record.sessionID, record.modeBefore)
+    forgetGoalPrompt(record.sessionID)
+    fixed += 1
+  }
+  return fixed
+}
+
+bindGoalRecovery(recoverInterruptedGoals)
 
 /**
  * 本轮归属 prompt：热路径用内存，同时落库到 `expectedPrompt`，刷新后仍可判插话 / Resume。
@@ -223,6 +366,15 @@ function restoreGoalApproval(threadID: string, before: string | null): void {
   pushThreadApproval(threadID, before as ApprovalMode)
 }
 
+/** 模式同理：只在还停在目标模式时还原，用户已经切走就不覆盖他的选择 */
+function restoreGoalMode(threadID: string, before: string | null): void {
+  if (!before || before === 'goal') return
+  if (readAgentModeFor(threadID) !== 'goal') return
+  void writeAgentModeFor(threadID, before as AgentMode).catch(function (error: unknown) {
+    console.warn('[agent/goal] 还原会话模式失败:', error)
+  })
+}
+
 function normalizeObjective(objective: string | GoalObjective): GoalObjective {
   if (typeof objective === 'string') {
     const text = objective.trim()
@@ -242,6 +394,8 @@ function startGoalRun(
 ): boolean {
   const id = threadID.trim()
   const before = ensureGoalApproval(id)
+  // 启动前用户所处的模式：收尾 / 崩溃自愈时据此还原（`approvalBefore` 的姊妹字段）
+  const modeBefore = readAgentMode()
   const normalized = normalizeObjective(objective)
   saveGoal({
     sessionID: id,
@@ -253,6 +407,10 @@ function startGoalRun(
     progressTotal: null,
     status: 'running',
     approvalBefore: before,
+    modeBefore,
+    // 首轮也要拿租约：一轮结束时才有人能「收尾并决定下一步」
+    leaseRunID: newRunID(),
+    leaseUntil: Date.now() + TURN_LEASE_MS,
     expectedPrompt: prompt?.trim() || null
   })
   if (prompt) {
@@ -278,6 +436,9 @@ function resumeGoalRun(threadID: string): GoalRun | null {
     used: 0,
     status: 'running',
     approvalBefore: before ?? record.approvalBefore,
+    modeBefore: record.modeBefore ?? readAgentMode(),
+    leaseRunID: newRunID(),
+    leaseUntil: Date.now() + TURN_LEASE_MS,
     progressDone: null,
     progressTotal: null
   })
@@ -305,8 +466,9 @@ function finishGoalRun(threadID: string, status: GoalFinishStatus): void {
     forgetGoalPrompt(id)
     return
   }
-  saveGoal({ sessionID: id, status })
+  saveGoal({ sessionID: id, status, leaseRunID: null, leaseUntil: null })
   restoreGoalApproval(id, record.approvalBefore)
+  restoreGoalMode(id, record.modeBefore)
   forgetGoalPrompt(id)
 }
 
@@ -355,8 +517,13 @@ function advanceGoalRun(threadID: string): boolean {
 }
 
 /** 模型收尾标记：全部达成 / 仍需继续 */
-const GOAL_DONE = /(^|\n)[ \t]*(?:#{1,6}[ \t]*|[-*+][ \t]*)?_*GOAL_DONE_*\b/
-const GOAL_CONTINUE = /(^|\n)[ \t]*(?:#{1,6}[ \t]*|[-*+][ \t]*)?_*GOAL_CONTINUE_*\b/
+// 段落级严格匹配：标记必须**独占一行**（允许行首标题 / 列表符号与行尾句号）。
+// 旧写法只要求行首，于是正文里引一句「请输出 GOAL_CONTINUE 或 GOAL_DONE」就会误触发，
+// 把还在推进的目标直接判成收尾。
+const GOAL_DONE =
+  /(^|\n)[ \t]*(?:#{1,6}[ \t]*|[-*+][ \t]*)?_*GOAL_DONE_*[ \t]*[。.!！]?[ \t]*(?=\n|$)/
+const GOAL_CONTINUE =
+  /(^|\n)[ \t]*(?:#{1,6}[ \t]*|[-*+][ \t]*)?_*GOAL_CONTINUE_*[ \t]*[。.!！]?[ \t]*(?=\n|$)/
 
 /**
  * 「达成 n/m」：只认带「达成/完成」前缀或「n/m 项」后缀的写法，
@@ -398,8 +565,35 @@ function setGoalProgress(threadID: string, progress: GoalProgress | null): void 
  * 归一化后再匹配：模型常把收尾标记写成 `**GOAL_DONE**`、`` `GOAL_DONE` ``、
  * 「GOAL_DONE。」或小写 —— 旧实现只认行首裸写，会把「已完成」误报成「已停」。
  */
+/**
+ * 摘掉 ``` / ~~~ 围栏块。
+ *
+ * 围栏里独占一行的 `GOAL_DONE` 多半是**在引用收尾约定**（把规则抄一遍），而归一化
+ * 又会把反引号削掉 —— 不先摘掉围栏，它和正文结论看起来一模一样。
+ * 围栏数量为奇数（模型少写一个 ```）时不动原文：宁可维持旧行为，也不能因为围栏
+ * 没闭合就把真正的收尾标记一起吞掉。
+ */
+function stripFencedBlocks(text: string): string {
+  const lines = text.split('\n')
+  const fences = lines.filter(function (line) {
+    return /^\s*(?:```|~~~)/.test(line)
+  }).length
+  if (fences % 2 !== 0) return text
+  const kept: string[] = []
+  let fenced = false
+  for (const line of lines) {
+    if (/^\s*(?:```|~~~)/.test(line)) {
+      fenced = !fenced
+      continue
+    }
+    if (!fenced) kept.push(line)
+  }
+  return kept.join('\n')
+}
+
 function findGoalSignal(text: string): 'done' | 'continue' | null {
-  const normalized = text.replace(/[`*~"']/g, '').toUpperCase()
+  // 顺序要紧：先摘围栏，再归一化（归一化会削掉反引号，之后就分不出围栏了）。
+  const normalized = stripFencedBlocks(text).replace(/[`*~"']/g, '').toUpperCase()
   if (GOAL_DONE.test(normalized)) return 'done'
   if (GOAL_CONTINUE.test(normalized)) return 'continue'
   return null
@@ -461,7 +655,9 @@ function buildContinuePrompt(run: GoalRun): string {
 }
 
 export {
+  advanceGoal,
   advanceGoalRun,
+  beginGoalTurn,
   buildContinuePrompt,
   DEFAULT_BUDGET,
   findGoalSignal,
@@ -474,8 +670,11 @@ export {
   isUserInterjection,
   parseGoalProgress,
   readAssistantText,
+  readGoalGeneration,
   readGoalPrompt,
   readGoalRun,
+  recoverInterruptedGoals,
+  renewGoalTurn,
   readNextGoalBudget,
   rememberGoalPrompt,
   subscribeGoalBudget,
@@ -487,4 +686,11 @@ export {
   subscribeGoalRun,
   useGoalRun
 }
-export type { GoalFinishStatus, GoalObjective, GoalProgress, GoalRun }
+export type {
+  GoalAdvanceOutcome,
+  GoalAdvanceReason,
+  GoalFinishStatus,
+  GoalObjective,
+  GoalProgress,
+  GoalRun
+}

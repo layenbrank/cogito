@@ -78,6 +78,13 @@ interface ChatRunMessage {
   attachments?: readonly string[]
   /** 只有用户消息会带。模型看不看得见由 app 在发送前决定 */
   images?: readonly ChatImage[]
+  /**
+   * 消息自定义元数据（`ThreadMessage.metadata.custom` 原样透传）。
+   *
+   * 共享层**不解释**里面的键，怎么用由 app 决定 —— 目前 app 用它带「这条消息
+   * 是用哪个模式发的」快照，重新生成时据此复现原模式而不是当前模式。
+   */
+  metadata?: Readonly<Record<string, unknown>>
 }
 
 interface ChatRunInput {

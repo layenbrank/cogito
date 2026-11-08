@@ -40,6 +40,7 @@ import {
 import { markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
 import { resumeThreadRun } from '@/features/agent/acp/session'
 import { bindGoalHistoryPort } from '@/features/agent/goal-continue'
+import { readModeSnapshot, stampModeSnapshot } from '@/features/agent/mode'
 import { notifyTurnDone } from '@/features/agent/notify'
 import { CHANNELS } from '@/shared/ipc/channels'
 import { reportCaught } from '@/utils/exception-report'
@@ -205,6 +206,35 @@ async function persistOrphanTurn(port: ChatHistoryPort, turn: BackgroundTurn): P
   }
 }
 
+/**
+ * 用户消息落库前打上「发送那一刻的模式」快照。
+ *
+ * 模式是会话级偏好，运行读的是**现在**的模式：目标轮次被意外停止、用户切回执行、
+ * 再点重新生成，发出去的提示就变成了执行模式。快照跟着消息走就没有这个问题 ——
+ * 重新生成用的是同一条消息，取到的还是当初那一次。
+ *
+ * 已有快照的消息原样返回（历史重放不重打）。内存里的那条也补写一份，徽标不必等重新加载；
+ * 对象若被冻结则只影响即时显示，落库的那份仍然是对的。
+ */
+function stampUserModeSnapshot<Item extends { parentId: string | null; message: ThreadMessage }>(
+  item: Item
+): Item {
+  if (item.message.role !== 'user') return item
+  const existing = item.message.metadata?.custom
+  if (readModeSnapshot(existing)) return item
+  const custom = stampModeSnapshot(existing)
+  try {
+    Object.assign(item.message, { metadata: { ...item.message.metadata, custom } })
+  } catch (error) {
+    console.warn('[agent/thread-history] 内存消息未能补模式快照（只影响徽标即时显示）', error)
+  }
+  const message = {
+    ...item.message,
+    metadata: { ...item.message.metadata, custom }
+  } as unknown as ThreadMessage
+  return { ...item, message }
+}
+
 function buildThreadHistoryAdapter(
   port: ChatHistoryPort,
   identity: ThreadIdentity
@@ -297,7 +327,7 @@ function buildThreadHistoryAdapter(
     },
 
     append(item) {
-      return base.append(item)
+      return base.append(stampUserModeSnapshot(item))
     },
 
     async update(item) {

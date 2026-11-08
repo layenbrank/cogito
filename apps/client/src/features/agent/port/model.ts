@@ -27,7 +27,8 @@ import { findActiveScenario } from '@/features/agent/model/active-scenario'
 import type { ScenarioKey } from '@/features/agent/model/scenarios'
 import { buildPromptContext } from '@/features/agent/model/prompt-context'
 import { findSystemPrompt } from '@/features/agent/model/prompts'
-import { appendModeGuidance, readAgentMode } from '@/features/agent/mode'
+import { beginGoalTurn } from '@/features/agent/goal-run'
+import { appendModeGuidance, resolveRunMode } from '@/features/agent/mode'
 import { rememberGoalTurnContext } from '@/features/agent/goal-continue'
 import { readGoalRun, readNextGoalBudget, startGoalRun } from '@/features/agent/goal-run'
 import { notifyApproval } from '@/features/agent/notify'
@@ -243,13 +244,16 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
       // Agent「计划」模式与 Scenario「日程 plan」互斥：前者要 Markdown 方案，后者要日历 JSON ——
       // 同时叠加会导致右栏计划常空，故计划模式下把日历场景降级为 general 基座。
       const activeScenario = findActiveScenario()
+      // 本轮的模式**认消息快照**：重新生成复现「当初那一次」的选择，而不是现在选中的那个；
+      // 老数据（没有快照）才回落会话偏好 —— 顺序由 `resolveRunMode` 固定。
+      const runMode = resolveRunMode(input.messages)
       const promptScenario: ScenarioKey =
-        readAgentMode() === 'plan' && activeScenario === 'plan' ? 'general' : activeScenario
+        runMode === 'plan' && activeScenario === 'plan' ? 'general' : activeScenario
       const baseSystemText =
         overrides.findSystemText?.(input) ??
         (parsed.systemText?.trim() || findSystemPrompt(promptScenario, buildPromptContext()))
       // 会话模式（执行/计划/问答/目标）只追加提示约束，不改审批档
-      const systemText = appendModeGuidance(baseSystemText)
+      const systemText = appendModeGuidance(baseSystemText, runMode)
 
       // 平台网关发送前查一次配额（BYOK 直接放行）；拦到就当成一次「失败」发给 UI，
       // 用户点下发送就能看到原因，不用等半截运行失败。判定失败一律放行 —— 守门的是服务端。
@@ -288,7 +292,7 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
       // Agent 计划模式跳过 Scenario plan 的日历 JSON 收尾
       const scenario: ScenarioKey | null = overrides.onFinish
         ? null
-        : readAgentMode() === 'plan' && activeScenario === 'plan'
+        : runMode === 'plan' && activeScenario === 'plan'
           ? null
           : activeScenario
       // 目标推进要在后台起后续轮次：把本轮用的 provider / 模型 / 工作区 / 场景记下来。
@@ -300,9 +304,9 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
         scenario: activeScenario
       })
       let capturedText = ''
-      const isPlanModeRun = readAgentMode() === 'plan'
+      const isPlanModeRun = runMode === 'plan'
       // 目标模式发送即建 GoalRun（侧栏「目标推进」可带自定义 budget 覆盖）
-      if (readAgentMode() === 'goal' && !readGoalRun(host.threadID)) {
+      if (runMode === 'goal' && !readGoalRun(host.threadID)) {
         // 轮次是**每次发送**的输入项：取 composer 里当前选的那一档（默认 6）
         // objective 拆 summary（≤120 字，横幅）+ detail（原 prompt，续跑用），不再截断
         startGoalRun(
@@ -311,6 +315,10 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
           readNextGoalBudget(),
           text
         )
+      }
+      // 每轮都拿一次租约：它是「这一轮归谁推进」的唯一凭据（收尾单飞 + 崩溃自愈都据它判断）
+      if (runMode === 'goal' && readGoalRun(host.threadID)) {
+        beginGoalTurn(host.threadID)
       }
 
       try {

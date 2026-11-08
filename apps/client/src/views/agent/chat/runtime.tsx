@@ -19,10 +19,11 @@ import { createChatModelAdapter } from '@cogito/chat/adapters/chat-model'
 import type { ThreadIdentity } from '@cogito/chat/adapters/thread-history'
 import { createThreadListAdapter } from '@cogito/chat/adapters/thread-list'
 import { installCitationExtractor } from '@cogito/design/assistant/message-citations'
+import { installUserMessageBadgeResolver } from '@cogito/design/assistant/user-message-badge'
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 
 import { takeNextThreadWorkspace } from '@/features/agent/port/draft-workspace'
-import { setAgentModeThread } from '@/features/agent/mode'
+import { findAgentMode, readModeSnapshot, setAgentModeThread } from '@/features/agent/mode'
 import { useRunningThreads } from '@/features/agent/acp/run-state'
 import { chatModelPort, findHostOptions, historyPort } from '@/features/agent/port/instance'
 import { hydrate } from '@/features/agent/plan-store'
@@ -59,6 +60,22 @@ installCitationExtractor(function (parts) {
     }
   }
   return sources
+})
+
+/**
+ * 用户消息上的模式徽标：只认消息里的快照（没有快照的老消息不显示）。
+ * 模式语义留在 app 侧，design 只提供插槽与样式。
+ */
+installUserMessageBadgeResolver(function (message) {
+  const snapshot = readModeSnapshot(message.metadata)
+  if (!snapshot) return null
+  const meta = findAgentMode(snapshot.mode)
+  return {
+    icon: meta.icon,
+    label: meta.label,
+    hint: `本条消息以「${meta.label}」模式发送`,
+    accent: snapshot.mode !== 'agent'
+  }
 })
 
 /**

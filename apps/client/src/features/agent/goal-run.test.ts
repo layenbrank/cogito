@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { readApprovalModeFor, writeApprovalModeFor } from '@/features/agent/approval'
 import {
+  advanceGoal,
   advanceGoalRun,
   buildContinuePrompt,
   findGoalSignal,
@@ -9,12 +10,13 @@ import {
   parseGoalProgress,
   readGoalPrompt,
   readGoalRun,
+  recoverInterruptedGoals,
   rememberGoalPrompt,
   resumeGoalRun,
   startGoalRun,
   stopGoalRun
 } from '@/features/agent/goal-run'
-import { readGoal, resetPlanStore } from '@/features/agent/plan-store'
+import { readGoal, resetPlanStore, saveGoal } from '@/features/agent/plan-store'
 describe('目标推进', function () {
   beforeEach(function () {
     resetPlanStore()
@@ -90,6 +92,54 @@ describe('目标推进', function () {
     expect(findGoalSignal('goal_done')).toBe('done')
     // done 优先于 continue（两者都出现在行首时）
     expect(findGoalSignal('GOAL_CONTINUE\nGOAL_DONE')).toBe('done')
+  })
+
+  it('代码围栏里的标记不算收尾（那是在引用规则，不是本轮结论）', function () {
+    expect(findGoalSignal(['本轮按约定：', '```', 'GOAL_DONE', '```'].join('\n'))).toBeNull()
+    expect(
+      findGoalSignal(['跑完了：', '```', 'npm test', '```', 'GOAL_CONTINUE'].join('\n'))
+    ).toBe('continue')
+  })
+
+  it('围栏没闭合时按原文匹配：不能因为少一个 ``` 就漏判收尾', function () {
+    expect(findGoalSignal(['说明…', '```', 'GOAL_DONE'].join('\n'))).toBe('done')
+  })
+
+  it('段落级严格匹配：正文里引用标记不算收尾', function () {
+    // 模型经常在说明里写「请输出 GOAL_CONTINUE 或 GOAL_DONE」，旧写法会误判成收尾
+    expect(findGoalSignal('请输出 GOAL_CONTINUE 或 GOAL_DONE')).toBeNull()
+    expect(findGoalSignal('本轮未输出 GOAL_CONTINUE / GOAL_DONE')).toBeNull()
+    // 独占一行（允许句号）仍然认
+    expect(findGoalSignal('总结…\nGOAL_DONE。')).toBe('done')
+  })
+
+  it('单飞：同一轮的两个结束回调只推进一次', function () {
+    startGoalRun('t1', 'x', 4)
+    const first = advanceGoal('t1', 'continue')
+    const second = advanceGoal('t1', 'continue')
+    expect(first.kind).toBe('dispatch')
+    // 租约已被消费：迟到的第二个回调看到「没有活租约」，不动预算
+    expect(second.kind).toBe('ignored')
+    expect(readGoal('t1')?.used).toBe(1)
+  })
+
+  it('崩溃自愈：running 但没有活租约 → interrupted，并还原审批档', function () {
+    writeApprovalModeFor('t10', 'ask')
+    startGoalRun('t10', 'x', 2)
+    // 模拟「进程被杀」：库里只剩 running，租约没留下来
+    saveGoal({ sessionID: 't10', status: 'running', leaseRunID: null, leaseUntil: null })
+    const fixed = recoverInterruptedGoals([readGoal('t10')!])
+    expect(fixed).toBe(1)
+    expect(readGoal('t10')?.status).toBe('interrupted')
+    expect(readApprovalModeFor('t10')).toBe('ask')
+    // 幂等：再跑一次不动
+    expect(recoverInterruptedGoals([readGoal('t10')!])).toBe(0)
+  })
+
+  it('有活租约的行不算崩溃（不误伤正在跑的会话）', function () {
+    startGoalRun('t11', 'x', 2)
+    expect(recoverInterruptedGoals([readGoal('t11')!])).toBe(0)
+    expect(readGoal('t11')?.status).toBe('running')
   })
 
   it('续跑指令带轮次与目标，避免长上下文里漂移', function () {

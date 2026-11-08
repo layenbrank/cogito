@@ -136,6 +136,9 @@ impl Service {
             status: Set(p.status),
             approvalBefore: Set(p.approvalBefore),
             expectedPrompt: Set(p.expectedPrompt),
+            leaseRunID: Set(p.leaseRunID),
+            leaseUntil: Set(p.leaseUntil),
+            modeBefore: Set(p.modeBefore),
             createdAt: Set(p.createdAt.unwrap_or(now)),
             updatedAt: Set(p.updatedAt.unwrap_or(now)),
         };
@@ -150,6 +153,9 @@ impl Service {
                 schema::Column::Status,
                 schema::Column::ApprovalBefore,
                 schema::Column::ExpectedPrompt,
+                schema::Column::LeaseRunId,
+                schema::Column::LeaseUntil,
+                schema::Column::ModeBefore,
                 schema::Column::UpdatedAt,
             ])
             .to_owned();
@@ -208,6 +214,15 @@ impl Service {
         if let Some(v) = change.expectedPrompt {
             active.expectedPrompt = Set(v);
         }
+        if let Some(v) = change.leaseRunID {
+            active.leaseRunID = Set(v);
+        }
+        if let Some(v) = change.leaseUntil {
+            active.leaseUntil = Set(v);
+        }
+        if let Some(v) = change.modeBefore {
+            active.modeBefore = Set(v);
+        }
         active.updatedAt = Set(change.updatedAt.unwrap_or_else(|| Utc::now().timestamp_millis()));
         let updated = active.update(db).await?;
         Ok(updated.id)
@@ -258,6 +273,10 @@ mod tests {
             status: status.to_string(),
             approvalBefore: Some("ask".to_string()),
             expectedPrompt: None,
+            // 回合租约与启动前模式：默认空（这一轮还没开跑 / 不是从目标模式启的）
+            leaseRunID: None,
+            leaseUntil: None,
+            modeBefore: None,
             createdAt: None,
             updatedAt: None,
         }
@@ -300,6 +319,9 @@ mod tests {
                     status: Some("paused".to_string()),
                     approvalBefore: None,
                     expectedPrompt: None,
+                    leaseRunID: None,
+                    leaseUntil: None,
+                    modeBefore: None,
                     updatedAt: None,
                 },
             }),

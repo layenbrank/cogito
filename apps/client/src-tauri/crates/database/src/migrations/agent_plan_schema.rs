@@ -43,6 +43,9 @@ pub fn statements() -> Vec<&'static str> {
              status TEXT NOT NULL DEFAULT 'running',
              "approvalBefore" TEXT NULL,
              "expectedPrompt" TEXT NULL,
+             "leaseRunID" TEXT NULL,
+             "leaseUntil" INTEGER NULL,
+             "modeBefore" TEXT NULL,
              "createdAt" INTEGER NOT NULL,
              "updatedAt" INTEGER NOT NULL)"#,
         r#"CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_goal_sessionID ON agent_goal (sessionID)"#,
@@ -53,10 +56,26 @@ pub fn statements() -> Vec<&'static str> {
 /// 老库表已存在时补列（`CREATE IF NOT EXISTS` 不会改既有表结构）。
 /// 调用方需先按 pragma 判断缺列再执行，避免重复 ADD 报错。
 pub fn goal_column_patches() -> Vec<(&'static str, &'static str)> {
-    vec![(
-        "expectedPrompt",
-        r#"ALTER TABLE agent_goal ADD COLUMN "expectedPrompt" TEXT NULL"#,
-    )]
+    vec![
+        (
+            "expectedPrompt",
+            r#"ALTER TABLE agent_goal ADD COLUMN "expectedPrompt" TEXT NULL"#,
+        ),
+        // 回合租约（单飞凭据）与「启动前的模式」：目标推进收敛到唯一入口之后才需要。
+        // 三列都可空，老库 ALTER 不会失败，也不会给已有行编造状态。
+        (
+            "leaseRunID",
+            r#"ALTER TABLE agent_goal ADD COLUMN "leaseRunID" TEXT NULL"#,
+        ),
+        (
+            "leaseUntil",
+            r#"ALTER TABLE agent_goal ADD COLUMN "leaseUntil" INTEGER NULL"#,
+        ),
+        (
+            "modeBefore",
+            r#"ALTER TABLE agent_goal ADD COLUMN "modeBefore" TEXT NULL"#,
+        ),
+    ]
 }
 
 /// `agent_plan` 老库补列：计划版本化（`executedRevision` / `supersededBy`）是 0001 基线
