@@ -1,8 +1,9 @@
 /**
- * 定时任务域状态：列表 / 显式执行 / 执行记录。
+ * 任务域状态（列表 / 触发 / 记录）：UI 是右栏「任务」面板（`views/agent/chat/components/aside-tasks.tsx`），不再占独立页面。
  *
  * 不做「按 tick 轮询」：到期由 Rust worker claim 后推送 `automation:due`，
- * 执行与回写都在 `features/automation/runner.ts` 里完成；这里只管用户操作。
+ * 执行与回写都在 `features/automation/runner.ts` 里完成；这里只管用户操作
+ * （加载三源列表、启停、立即执行、拉记录），口径说明见 `docs/apps/client/agent-tasks.md`。
  */
 import { toast } from 'sonner'
 import { create } from 'zustand'
@@ -43,10 +44,16 @@ interface AutomationState {
   /** 当前展开执行记录的任务 id */
   activeId: string | null
   runs: AutomationRun[]
+  /** 页面级「全部记录」：跨任务聚合（不指定任务 id 的查询） */
+  allRuns: AutomationRun[]
+  /** 当前看的是不是「全部记录」（任务详情的记录面板为 false） */
+  isAllRunsOpen: boolean
   isLoading: boolean
   /** 正在执行的任务 id 集合：按钮据此显示「执行中」 */
   running: Record<string, boolean>
   refresh: () => Promise<void>
+  /** 只刷本机 / goose 任务：执行一次不会改变服务端列表，没必要再发一次 HTTP */
+  refreshLocal: () => Promise<void>
   /** 单独拉服务端任务（登录/切租户后调用） */
   refreshCloud: () => Promise<void>
   save: (input: AutomationSave) => Promise<boolean>
@@ -54,6 +61,7 @@ interface AutomationState {
   remove: (id: string) => Promise<void>
   runNow: (id: string) => Promise<void>
   openRuns: (id: string) => Promise<void>
+  openAllRuns: () => Promise<void>
   closeRuns: () => void
 }
 
@@ -68,6 +76,9 @@ function isSameID(id: string) {
   }
 }
 
+/** 记录请求序号：快速切任务时只认最后一次响应，避免迟到的结果覆盖当前列表 */
+let runsSeq = 0
+
 const useAutomationStore = create<AutomationState>(function (set, get) {
   return {
     items: [],
@@ -76,10 +87,12 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
     cloudError: null,
     activeId: null,
     runs: [],
+    allRuns: [],
+    isAllRunsOpen: false,
     isLoading: false,
     running: {},
 
-    async refresh() {
+    async refreshLocal() {
       set({ isLoading: true })
       try {
         set({ items: await listAutomations() })
@@ -89,6 +102,10 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
       } finally {
         set({ isLoading: false })
       }
+    },
+
+    async refresh() {
+      await get().refreshLocal()
       await get().refreshCloud()
     },
 
@@ -132,7 +149,7 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
       }
       try {
         await saveAutomation(input)
-        await get().refresh()
+        await get().refreshLocal()
         toast.success(input.id ? '任务已更新' : '任务已创建')
         return true
       } catch (error) {
@@ -191,51 +208,82 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
 
     async runNow(id) {
       if (get().cloudItems.some(isSameID(id))) {
-        toast.info('服务端任务按排期执行，不能手动触发')
+        toast.info('服务端任务按排期执行，暂不支持手动触发（接口还没上）')
         return
       }
       if (get().running[id]) return
       set({ running: { ...get().running, [id]: true } })
+      function clearRunning() {
+        const next = { ...get().running }
+        delete next[id]
+        set({ running: next })
+      }
       try {
         const due = await runAutomationNow(id)
         if (!due) {
           // owner=goose：执行在 goose 侧，本地没有执行记录
           toast.success('已交给 goose 执行，记录请看 goose 会话')
+          clearRunning()
           return
         }
-        // 手动执行与定时执行走同一条执行路径：跑完由 runner 回写结果
-        await runDue({
+        // 手动执行与定时执行走同一条执行路径（runner 回写结果）。
+        // **不等它跑完**：模型一轮可能几分钟，界面靠 running[id] 与记录里的 running 状态显示进度。
+        void runDue({
           runId: due.run.id,
           automationId: due.automation.id,
           name: due.automation.name,
           prompt: due.automation.prompt,
           knowledgeBaseId: due.automation.knowledgeBaseId ?? null,
+          workspaceId: due.automation.workspaceId ?? null,
+          approval: due.automation.approval,
           triggerKind: due.run.triggerKind
+        }).finally(function () {
+          clearRunning()
+          void get().refreshLocal()
+          if (get().isAllRunsOpen) void get().openAllRuns()
+          else if (get().activeId === id) void get().openRuns(id)
         })
-        toast.success('执行已结束，结果见下方记录')
+        // 记录已经落库（running），先把列表刷出「执行中」再放手
+        await get().refreshLocal()
+        if (get().isAllRunsOpen) await get().openAllRuns()
+        else if (get().activeId === id) await get().openRuns(id)
       } catch (error) {
         reportCaught('automation.runNow', error)
         toast.error(messageOf(error))
-      } finally {
-        const next = { ...get().running }
-        delete next[id]
-        set({ running: next })
-        await get().refresh()
-        if (get().activeId === id) await get().openRuns(id)
+        clearRunning()
       }
     },
 
     async openRuns(id) {
+      const seq = ++runsSeq
       try {
-        set({ activeId: id, runs: await listAutomationRuns(id, 10) })
+        const runs = await listAutomationRuns(id, 20)
+        // A→B 快速切换时，A 的迟到响应不许覆盖 B
+        if (seq !== runsSeq) return
+        set({ activeId: id, isAllRunsOpen: false, runs })
       } catch (error) {
         reportCaught('automation.runs', error)
         toast.error(messageOf(error))
       }
     },
 
+    async openAllRuns() {
+      // 跨任务：一次 IPC 拿最近 50 条，页面里再按状态筛（不做 N 次查询）
+      const seq = ++runsSeq
+      try {
+        const allRuns = await listAutomationRuns(null, 50)
+        if (seq !== runsSeq) return
+        set({ isAllRunsOpen: true, allRuns })
+      } catch (error) {
+        reportCaught('automation.allRuns', error)
+        toast.error(messageOf(error))
+      }
+    },
+
     closeRuns() {
-      set({ activeId: null, runs: [] })
+      // 让还在路上的记录请求失效，别在关掉面板后又把结果写回来
+      runsSeq += 1
+      set({ activeId: null, runs: [], isAllRunsOpen: false })
     }
   }
 })

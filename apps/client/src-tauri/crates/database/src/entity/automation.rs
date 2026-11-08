@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 
 //! 定时任务的定义。**执行**由 `crates/core/src/automation` 与客户端 worker 负责，
-//! 本表只存「什么时候跑、跑什么、以谁的身份跑」。
+//! 本表只存「什么时候跑、跑什么、以谁的身份跑、在哪个目录跑、能不能不问就动手」。
 //!
 //! `owner` 为字典 automation_owner（001 本机 / 002 goose / 003 云端）。
 //! 一个任务只有一个 owner，避免两处同时触发。
@@ -20,6 +20,11 @@ pub struct Model {
     /// 关联知识库；为空表示与具体库无关
     #[sea_orm(column_name = "knowledgeBaseId")]
     pub knowledgeBaseId: Option<String>,
+    /// 执行时的工作目录（`agent_workspace` 的 id）；为空 = 家目录
+    #[sea_orm(column_name = "workspaceId")]
+    pub workspaceId: Option<String>,
+    /// 执行授权档：readonly | auto（无人值守，不出现 ask）
+    pub approval: String,
     /// cron 表达式（`0 9 * * *`），按 `timezone` 解释
     pub schedule: String,
     pub timezone: String,

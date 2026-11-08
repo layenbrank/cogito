@@ -13,6 +13,10 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 const POLL_INTERVAL_SECS: u64 = 12;
 
+/// 首次 tick 前先等一会儿：前端要等 React 挂载才 `listen('automation:due')`，
+/// 启动即 claim 出来的记录没人执行，只能等 30 分钟被回收成失败（这一轮排期白丢）。
+const STARTUP_DELAY_SECS: u64 = 5;
+
 /// 超过这么久还没回写结果，就当那次执行丢了（应用退出/会话中断），标失败免得永远「执行中」
 const STALE_RUN_MS: i64 = 30 * 60 * 1000;
 
@@ -25,6 +29,10 @@ struct DuePayload {
     name: String,
     prompt: String,
     knowledgeBaseId: Option<String>,
+    /// 执行目录（`agent_workspace` id）；为空 = 家目录
+    workspaceId: Option<String>,
+    /// 执行授权：readonly（默认）/ auto
+    approval: String,
     triggerKind: String,
 }
 
@@ -36,6 +44,8 @@ impl DuePayload {
             name: due.automation.name.clone(),
             prompt: due.automation.prompt.clone(),
             knowledgeBaseId: due.automation.knowledgeBaseId.clone(),
+            workspaceId: due.automation.workspaceId.clone(),
+            approval: due.automation.approval.clone(),
             triggerKind: due.run.triggerKind.clone(),
         }
     }
@@ -44,7 +54,8 @@ impl DuePayload {
 /// 启动轮询。setup 里调用一次即可。
 pub fn spawn_worker<R: Runtime>(app: AppHandle<R>) {
     tauri::async_runtime::spawn(async move {
-        // 启动先跑一轮：应用关机期间错过的任务在这里按「只补一次」补上
+        // 等前端把监听挂上再认领：关机期间错过的任务照样在这次 tick 里按「只补一次」补上
+        tokio::time::sleep(Duration::from_secs(STARTUP_DELAY_SECS)).await;
         tick_once(&app).await;
         loop {
             tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;

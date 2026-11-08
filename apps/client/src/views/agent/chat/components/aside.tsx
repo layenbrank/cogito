@@ -19,6 +19,7 @@ import {
 import { toast } from 'sonner'
 
 import { subscribeAsideBrowser } from '@/views/agent/chat/components/open-aside-browser'
+import { subscribeAsideTasks } from '@/views/agent/chat/components/open-aside-tasks'
 import { subscribeAsideReview } from '@/views/agent/chat/components/open-aside-review'
 import { useBrowserStore } from '@/features/browser/store'
 import { normalizeToolPath } from '@/features/agent/tool-paths'
@@ -35,6 +36,7 @@ import { AsideFiles } from './aside-files'
 import { AsideHistory } from './aside-history'
 import { AsidePlan } from './aside-plan'
 import { AsideReview } from './aside-review'
+import { AsideTasks } from './aside-tasks'
 import { AsideSkills } from './aside-skills'
 import { AsideKnowledge } from './aside-knowledge'
 import { AsideExtensions } from './aside-extensions'
@@ -56,6 +58,7 @@ import { useTerminalStore, type TerminalTab } from '@/stores/terminal'
 type AsideMode =
   | 'home'
   | 'plan'
+  | 'tasks'
   | 'files'
   | 'knowledge'
   | 'skills'
@@ -70,7 +73,7 @@ interface AsideProps {
 }
 
 /** 嵌套壳里没有 IPC：藏掉依赖桌面能力的页签，避免递归开 browser */
-const EMBEDDED_HIDDEN_TABS: ReadonlySet<AsideMode> = new Set(['browser', 'terminal'])
+const EMBEDDED_HIDDEN_TABS: ReadonlySet<AsideMode> = new Set(['browser', 'terminal', 'tasks'])
 
 /**
  * 页签定义即入口清单：图标 + 文案一起给出来，
@@ -82,8 +85,9 @@ const ASIDE_TABS: ReadonlyArray<{
   label: string
   hint: string
 }> = [
-  { id: 'home', icon: 'lucide:layout-dashboard', label: '详情', hint: '会话、工作区与任务清单' },
+  { id: 'home', icon: 'lucide:layout-dashboard', label: '详情', hint: '会话与工作区概览' },
   { id: 'plan', icon: 'lucide:list-checks', label: '计划', hint: '本轮完整计划与确认执行' },
+  { id: 'tasks', icon: 'lucide:calendar-clock', label: '任务', hint: '定时自动化任务：卡片管理、创建与执行记录' },
   { id: 'files', icon: 'lucide:folder-tree', label: '文件', hint: '浏览工作区文件树并预览' },
   { id: 'knowledge', icon: 'lucide:library', label: '知识库', hint: '浏览知识库文档并引用到对话' },
   { id: 'skills', icon: 'lucide:wrench', label: '技能', hint: '按工作区所有文件夹识别的技能' },
@@ -387,6 +391,15 @@ function AgentAside(props: AsideProps) {
 
   useEffect(
     function () {
+      return subscribeAsideTasks(function () {
+        updateMode('tasks')
+      })
+    },
+    []
+  )
+
+  useEffect(
+    function () {
       return subscribeAsideBrowser(function (detail) {
         const label = detail.label?.trim()
         if (label) {
@@ -497,6 +510,8 @@ function AgentAside(props: AsideProps) {
         {mode === 'extensions' ? <AsideExtensions /> : null}
 
         {mode === 'browser' ? <AsideBrowser /> : null}
+
+        {mode === 'tasks' ? <AsideTasks /> : null}
 
         {mode === 'plan' ? (
           <AsidePlan

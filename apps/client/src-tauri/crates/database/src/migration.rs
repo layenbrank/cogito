@@ -34,6 +34,9 @@ pub async fn run(db: &Connection) -> Result<(), DbErr> {
     // composer 队列同样是 0001 之后追加的独立新表（零 ALTER、不改在用表）：
     // 老库已打过 0001 标记，不加这层兜底就会 `no such table: agent_composer_queue`。
     ensure_composer_queue(db).await?;
+    // `automation` 是 0001 基线里的老表：`CREATE TABLE IF NOT EXISTS` 不改既有库结构，
+    // 执行配置（工作目录 / 审批档）这两列只能靠启动时 ALTER 补齐。
+    ensure_automation(db).await?;
     Ok(())
 }
 
@@ -73,6 +76,32 @@ async fn ensure_agent_plan(db: &Connection) -> Result<(), DbErr> {
                 db.execute(Statement::from_string(DatabaseBackend::Sqlite, alter.to_string()))
                     .await?;
             }
+        }
+    }
+    Ok(())
+}
+
+/// 给老库的 `automation` 补执行配置列（`workspaceId` / `approval`）。
+///
+/// 判定方式与 `ensure_agent_plan()` 一致：先 `pragma_table_info` 查列，缺了才 `ALTER`
+/// —— SQLite 的 `ADD COLUMN` 不幂等，每次启动都会重复执行。
+async fn ensure_automation(db: &Connection) -> Result<(), DbErr> {
+    let patches = crate::migrations::automation_schema::column_patches();
+    for (column, alter) in patches {
+        let found = db
+            .query_one(Statement::from_string(
+                DatabaseBackend::Sqlite,
+                format!(
+                    "SELECT count(*) AS v FROM pragma_table_info('automation') WHERE name = '{column}'"
+                ),
+            ))
+            .await?;
+        let count = found
+            .and_then(|row| row.try_get::<i64>("", "v").ok())
+            .unwrap_or(0);
+        if count == 0 {
+            db.execute(Statement::from_string(DatabaseBackend::Sqlite, alter.to_string()))
+                .await?;
         }
     }
     Ok(())
@@ -453,6 +482,9 @@ mod tests {
             ("automation", "runAsKind"),
             ("automation", "runAsUserId"),
             ("automation", "tenantId"),
+            // 执行配置：在哪个目录跑、能不能不问就动手（老库靠 ensure_automation 补）
+            ("automation", "workspaceId"),
+            ("automation", "approval"),
             ("automation", "remoteId"),
             ("automation", "lastStatus"),
             ("automation", "lastError"),
@@ -501,6 +533,59 @@ mod tests {
         )
         .await;
         assert_eq!(after, 0);
+    }
+
+    /// 老库补列：`CREATE TABLE IF NOT EXISTS` 不改既有表结构，只能走 pragma + ALTER。
+    #[tokio::test]
+    async fn automation_columns_are_patched_on_old_db() {
+        let db = fresh().await;
+        // 模拟「0001 基线之后新增两列之前」的老库：把列删掉再让启动兜底补回来
+        for statement in [
+            "ALTER TABLE automation DROP COLUMN \"workspaceId\"",
+            "ALTER TABLE automation DROP COLUMN approval",
+        ] {
+            db.execute(Statement::from_string(
+                DatabaseBackend::Sqlite,
+                statement.to_string(),
+            ))
+            .await
+            .expect("drop column should succeed");
+        }
+        for column in ["workspaceId", "approval"] {
+            let found = scalar_i64(
+                &db,
+                &format!(
+                    "SELECT count(*) AS v FROM pragma_table_info('automation') WHERE name = '{column}'"
+                ),
+            )
+            .await;
+            assert_eq!(found, 0, "先确认列真的被删掉了：{column}");
+        }
+
+        ensure_automation(&db).await.expect("补列应成功");
+
+        for column in ["workspaceId", "approval"] {
+            let found = scalar_i64(
+                &db,
+                &format!(
+                    "SELECT count(*) AS v FROM pragma_table_info('automation') WHERE name = '{column}'"
+                ),
+            )
+            .await;
+            assert_eq!(found, 1, "ensure_automation 应补回 {column}");
+        }
+        // 幂等：每次启动都会跑，重复执行不能报错
+        ensure_automation(&db).await.expect("重复执行应幂等");
+        // 老任务升级后默认只读：不能因为补列把写权限放开
+        let default = scalar_string(
+            &db,
+            "SELECT dflt_value AS v FROM pragma_table_info('automation') WHERE name = 'approval'",
+        )
+        .await;
+        assert!(
+            default.contains("readonly"),
+            "approval 的默认值必须是 readonly，实际是 {default}"
+        );
     }
 
     /// DDL 里某张表的列名（`pragma_table_info`，按定义顺序）。

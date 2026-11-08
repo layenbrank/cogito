@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest'
 
 import {
   classifyToolEffect,
+  clearApprovalModeFor,
   findGooseMode,
   findToolPermissionLevel,
   isOpaqueShellTool,
-  isWriteTool
+  isWriteTool,
+  readApprovalModeFor,
+  writeApprovalModeFor
 } from '@/features/agent/approval'
+import { findPref } from '@/features/persist'
 
 describe('工具效果分类', function () {
   it('读工具不触发审批', function () {
@@ -75,5 +79,30 @@ describe('审批策略 → goose 权限档', function () {
     expect(findToolPermissionLevel('readonly', 'bash')).toBe('never_allow')
     expect(findToolPermissionLevel('auto', 'app_terminal_run')).toBe('always_allow')
     expect(findToolPermissionLevel('ask', 'app_terminal_run')).toBe('ask_before')
+  })
+})
+
+describe('一次性任务会话的审批档', function () {
+  it('automation- 会话的档只走内存，不写 agent.json', function () {
+    const threadID = 'automation-run-memory'
+    writeApprovalModeFor(threadID, 'auto')
+    expect(readApprovalModeFor(threadID)).toBe('auto')
+    // 每分钟任务会「开跑写一次 + 跑完清一次」，两次落盘没有意义
+    expect(findPref('agent').approvalByThread[threadID]).toBeUndefined()
+
+    clearApprovalModeFor(threadID)
+    expect(readApprovalModeFor(threadID)).not.toBe('auto')
+  })
+
+  it('并发的一次性会话互不影响：清掉 A 不影响 B', function () {
+    writeApprovalModeFor('automation-run-a', 'auto')
+    writeApprovalModeFor('automation-run-b', 'readonly')
+    expect(readApprovalModeFor('automation-run-a')).toBe('auto')
+    expect(readApprovalModeFor('automation-run-b')).toBe('readonly')
+
+    clearApprovalModeFor('automation-run-a')
+    expect(readApprovalModeFor('automation-run-a')).not.toBe('auto')
+    expect(readApprovalModeFor('automation-run-b')).toBe('readonly')
+    clearApprovalModeFor('automation-run-b')
   })
 })

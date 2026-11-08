@@ -26,6 +26,10 @@ const AutomationSchema = z.object({
   name: z.string(),
   prompt: z.string(),
   knowledgeBaseId: z.string().nullish(),
+  /** 执行目录：`agent_workspace` 的 id；空 = 家目录 */
+  workspaceId: z.string().nullish(),
+  /** 执行授权：readonly（默认）/ auto；任务里没有 ask（无人值守） */
+  approval: z.string(),
   /** 5 段 crontab（分 时 日 月 周） */
   schedule: z.string(),
   timezone: z.string(),
@@ -64,6 +68,8 @@ const AutomationSaveSchema = z.object({
   name: z.string().min(1),
   prompt: z.string().min(1),
   knowledgeBaseId: z.string().nullish(),
+  workspaceId: z.string().nullish(),
+  approval: z.string().optional(),
   schedule: z.string().min(1),
   timezone: z.string().optional(),
   enabled: z.boolean().optional(),
@@ -84,6 +90,8 @@ const AutomationDueSchema = z.object({
   name: z.string(),
   prompt: z.string(),
   knowledgeBaseId: z.string().nullish(),
+  workspaceId: z.string().nullish(),
+  approval: z.string(),
   triggerKind: z.string()
 })
 

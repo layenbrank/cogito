@@ -69,18 +69,51 @@ function readApprovalMode(): ApprovalMode {
   return pref.approvalMode
 }
 
+/**
+ * 一次性任务会话（`automation-<runId>`）的审批档只放内存。
+ *
+ * 这些会话没人会在 UI 上切档，却会「开跑写一次 + 跑完清一次」两次落 agent.json
+ * （每分钟任务 = 每分钟两次写盘 + 两轮 `notifyScope` 重渲染）。放内存里等价且零成本。
+ */
+const transientApproval = new Map<string, ApprovalMode>()
+
+function isTransientThread(threadID: string): boolean {
+  return threadID.startsWith('automation-')
+}
+
 /** 按指定会话读（目标推进的后台续跑不在当前 UI 线程上下文里） */
 function readApprovalModeFor(threadID: string): ApprovalMode {
+  const transient = transientApproval.get(threadID)
+  if (transient) return transient
   const pref = findPref('agent')
   return pref.approvalByThread[threadID] ?? pref.approvalMode
 }
 
 /** 按指定会话写：多会话并发推进时不能互相污染 */
 function writeApprovalModeFor(threadID: string, mode: ApprovalMode) {
+  // 一次性任务会话：档位只放内存，别为它写盘
+  if (isTransientThread(threadID)) {
+    transientApproval.set(threadID, mode)
+    return
+  }
   const pref = findPref('agent')
   void patchPref('agent', {
     approvalByThread: { ...pref.approvalByThread, [threadID]: mode }
   })
+  notifyScope()
+}
+
+/** 一次性任务会话的临时审批档：跑完就从内存里删掉（从来不落盘） */
+function clearApprovalModeFor(threadID: string) {
+  if (isTransientThread(threadID)) {
+    transientApproval.delete(threadID)
+    return
+  }
+  const pref = findPref('agent')
+  if (!(threadID in pref.approvalByThread)) return
+  const next = { ...pref.approvalByThread }
+  delete next[threadID]
+  void patchPref('agent', { approvalByThread: next })
   notifyScope()
 }
 
@@ -243,6 +276,7 @@ export {
   READ_TOOL_PATTERNS,
   WRITE_TOOL_PATTERNS,
   classifyToolEffect,
+  clearApprovalModeFor,
   findApprovalPolicy,
   findGooseMode,
   findToolPermissionLevel,

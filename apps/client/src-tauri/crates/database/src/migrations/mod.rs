@@ -1,5 +1,6 @@
 //! 数据库迁移：仅 `0001` 基线（开发期合并，改完需 `migrate:fresh`）。
 pub mod agent_plan_schema;
+pub mod automation_schema;
 pub mod composer_queue_schema;
 pub mod builtin_seed;
 pub mod dict_seed;

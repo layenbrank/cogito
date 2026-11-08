@@ -62,8 +62,11 @@ export const COMMAND = {
   AGENT_DOCK_TOGGLE: 'agent.dockToggle',
   /** Agent 聊：打开会话搜索（SessionSearch） */
   AGENT_FIND: 'agent.find',
-  /** Agent 聊：新建任务 / 会话 */
+  /** Agent 聊：新建会话（命令 id 沿用历史名，键位与测试不断链） */
+  /** 「任务」另有其物：右栏「任务」面板里的自动化定义（定义 / 触发 / 执行记录） */
   AGENT_NEW_TASK: 'agent.newTask',
+  /** Agent 聊：打开右栏「任务」面板（自动化任务域） */
+  AGENT_OPEN_TASKS: 'agent.openTasks',
   /** Agent 聊：折叠 / 展开左侧栏 */
   AGENT_TOGGLE_SIDEBAR: 'agent.toggleSidebar',
   /** Agent 聊：折叠 / 展开右侧栏 */

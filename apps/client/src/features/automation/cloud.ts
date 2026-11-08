@@ -29,6 +29,9 @@ function toCloudAutomation(job: CloudJob): Automation {
     name: job.name,
     prompt: job.prompt,
     knowledgeBaseId: null,
+    // 服务端任务的执行授权在服务端：客户端只镜像，界面按只读展示（不能本地改）
+    workspaceId: null,
+    approval: 'readonly',
     schedule: job.cron,
     timezone: job.timezone,
     enabled: job.enabled,

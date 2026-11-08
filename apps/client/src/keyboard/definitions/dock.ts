@@ -1,10 +1,10 @@
 /**
  * Agent 相关键位：
  * - `mod+j`：对话坞（各磁贴共用，由 `use-agent-dock-command` 挂动作）
- * - `mod+n`：新建任务（仅 chat 挂载时注册）
+ * - `mod+n`：新建会话（仅 chat 挂载时注册；命令 id 仍是历史名 `agent.newTask`）
  * - `mod+f`：Agent 聊页会话搜索（仅 chat 挂载时 `useCommands` 注册）
  * - `mod+b`：Agent 聊页折叠 / 展开左侧栏（与 code 窗的侧栏键同键，但两者不同时在场）
- * - `mod+alt+b`：折叠 / 展开右侧栏
+ * - `mod+shift+b`：折叠 / 展开右侧栏
  * - `mod+alt+shift+b`：专注工作区 / 退出专注
  */
 import { viewShortcut } from '@/keyboard/definitions/factory'
@@ -17,7 +17,7 @@ export const AGENT_SHORTCUTS: readonly LocalShortcutDefinition[] = [
     allowInEditable: true,
     allowInFormTags: true
   }),
-  viewShortcut(COMMAND.AGENT_NEW_TASK, '新建任务', 'mod+n', {
+  viewShortcut(COMMAND.AGENT_NEW_TASK, '新建会话', 'mod+n', {
     allowInEditable: true,
     allowInFormTags: true
   }),
@@ -30,7 +30,7 @@ export const AGENT_SHORTCUTS: readonly LocalShortcutDefinition[] = [
     allowInEditable: true,
     allowInFormTags: true
   }),
-  viewShortcut(COMMAND.AGENT_TOGGLE_ASIDE, '显示或隐藏工作区', 'mod+alt+b', {
+  viewShortcut(COMMAND.AGENT_TOGGLE_ASIDE, '显示或隐藏工作区', 'mod+shift+b', {
     allowInEditable: true,
     allowInFormTags: true
   }),

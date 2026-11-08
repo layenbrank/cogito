@@ -74,6 +74,7 @@ export const CHANNELS = {
     REMOVE: 'automation:remove',
     RUN_NOW: 'automation:runNow',
     FINISH_RUN: 'automation:finishRun',
+    TOUCH_RUN: 'automation:touchRun',
     RUNS: 'automation:runs'
   },
   AUTOSTART: {
@@ -315,7 +316,14 @@ export const CHANNELS = {
     FETCH: 'workspaceGit:fetch',
     PULL: 'workspaceGit:pull',
     UPSTREAM: 'workspaceGit:upstream',
-    PUSH: 'workspaceGit:push'
+    PUSH: 'workspaceGit:push',
+    STATE: 'workspaceGit:state',
+    STASH_PUSH: 'workspaceGit:stashPush',
+    STASH_APPLY: 'workspaceGit:stashApply',
+    STASH_DROP: 'workspaceGit:stashDrop',
+    REBASE: 'workspaceGit:rebase',
+    REBASE_CONTINUE: 'workspaceGit:rebaseContinue',
+    REBASE_ABORT: 'workspaceGit:rebaseAbort'
   },
   WORKSPACE_FILES: {
     LIST_DIR: 'workspaceFiles:listDir',
@@ -372,7 +380,9 @@ export const EVENTS = {
   OVERLAY_REVEAL: 'overlay://reveal',
   TERMINAL_EXIT: 'terminal://exit',
   /** agent 在嵌入式终端里开始跑一条命令：前端据此开/选 tab 让用户看得见 */
-  TERMINAL_AGENT_RUN: 'terminal://agent-run'
+  TERMINAL_AGENT_RUN: 'terminal://agent-run',
+  /** agent 会话闲置过久被 Rust 回收：前端把 tab 标成已退出 */
+  TERMINAL_IDLE_CLOSED: 'terminal://idle-closed'
 } as const
 
 /** corex-daemon 经 ipc:invoke 的模块名 */

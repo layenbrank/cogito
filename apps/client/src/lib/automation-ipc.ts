@@ -66,6 +66,15 @@ async function runAutomationNow(id: string): Promise<{ automation: Automation; r
   }
 }
 
+/** 真正开跑时补写 startedAt：排队时间不算耗时，也不会在排队时被判「陈旧」 */
+async function touchAutomationRun(runId: string): Promise<AutomationRun> {
+  try {
+    return AutomationRunSchema.parse(await invoke(CHANNELS.AUTOMATION.TOUCH_RUN, { runId }))
+  } catch (error) {
+    throw asError(error, '标记执行开始失败')
+  }
+}
+
 async function finishAutomationRun(input: FinishRun): Promise<AutomationRun> {
   try {
     return AutomationRunSchema.parse(await invoke(CHANNELS.AUTOMATION.FINISH_RUN, { input }))
@@ -74,10 +83,16 @@ async function finishAutomationRun(input: FinishRun): Promise<AutomationRun> {
   }
 }
 
-async function listAutomationRuns(automationId: string, limit?: number): Promise<AutomationRun[]> {
+/**
+ * 执行记录。`automationId` 传 `null` = 跨任务取最近 N 条（任务页的「全部记录」）。
+ */
+async function listAutomationRuns(
+  automationId?: string | null,
+  limit?: number
+): Promise<AutomationRun[]> {
   try {
     return AutomationRunSchema.array().parse(
-      (await invoke(CHANNELS.AUTOMATION.RUNS, { automationId, limit })) ?? []
+      (await invoke(CHANNELS.AUTOMATION.RUNS, { automationId: automationId ?? null, limit })) ?? []
     )
   } catch (error) {
     throw asError(error, '读取执行记录失败')
@@ -91,6 +106,7 @@ export {
   removeAutomation,
   runAutomationNow,
   saveAutomation,
+  touchAutomationRun,
   writeAutomationEnabled
 }
 export type { Automation, AutomationRun, AutomationSave, FinishRun }

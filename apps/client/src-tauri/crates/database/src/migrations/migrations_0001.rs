@@ -1247,6 +1247,8 @@ impl MigrationTrait for Migration {
                  name TEXT NOT NULL, \
                  prompt TEXT NOT NULL, \
                  \"knowledgeBaseId\" TEXT NULL, \
+                 \"workspaceId\" TEXT NULL, \
+                 approval TEXT NOT NULL DEFAULT 'readonly', \
                  schedule TEXT NOT NULL, \
                  timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai', \
                  enabled INTEGER NOT NULL DEFAULT 1, \

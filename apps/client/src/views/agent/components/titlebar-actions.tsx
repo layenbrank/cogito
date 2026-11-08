@@ -117,7 +117,7 @@ function TitlebarActions(props: TitlebarActionsProps) {
       className="flex shrink-0 items-center gap-0.5"
       style={{ height: SHELL_CONTROL }}>
       <TitlebarIconButton
-        label="新建任务"
+        label="新建会话"
         commandId={COMMAND.AGENT_NEW_TASK}
         icon="lucide:plus"
         onClick={function () {

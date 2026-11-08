@@ -6,7 +6,7 @@ import { OverlayGuard } from '@/views/overlay/overlay-guard'
 import { RouteTransition } from '@/routers/transition.tsx'
 import { RouteErrorElement } from '@/routers/error-element.tsx'
 
-/** agent 窗口的布局路由（出口）；聊天与设置是它的两个子页，互斥渲染 */
+/** agent 窗口的布局路由（出口）；聊天 / 设置是它的子页，互斥渲染（任务在右栏面板里） */
 const Agent = lazy(function () {
   return import('@/views/agent/agent.tsx')
 })
@@ -157,7 +157,9 @@ const routes: RouteObject[] = [
                 children: [
                   { index: true, element: <AgentIndex /> },
                   { path: 'chat', element: <AgentChat /> },
-                  { path: 'settings', element: <AgentSettings /> }
+                  { path: 'settings', element: <AgentSettings /> },
+                  // 任务已并入右栏面板（aside-tasks.tsx）：旧深链重定向到聊天，避免书签 / 磁贴 404
+                  { path: 'tasks', element: <Navigate replace to="/agent/chat" /> }
                 ]
               },
               { path: '/bookmark', element: <Bookmark /> },

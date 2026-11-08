@@ -585,3 +585,326 @@ pub async fn workspaceGitPush(params: PushP) -> CommandResult<ActionR> {
         },
     })
 }
+
+// ─── 变基 / 储藏（工作区状态 + 写路径） ───
+
+/// 一条储藏记录；`index` 是 `stash@{n}` 里的 n（0 = 最新）
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StashR {
+    pub index: u32,
+    pub selector: String,
+    /// 去掉 git 自动加的前缀后的人类可读说明（`On main: 修 x` → `修 x`）
+    pub message: String,
+    pub committed_at: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StateR {
+    /// 进行中的多步操作：rebase / merge / cherry-pick / revert / am；空闲为 null
+    pub operation: Option<String>,
+    pub stashes: Vec<StashR>,
+    /// 冲突未解的文件（`--diff-filter=U`）
+    pub conflicted: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StashPushP {
+    pub path: String,
+    pub message: Option<String>,
+    /// 未跟踪文件也一起收进储藏（`-u`）
+    pub is_include_untracked: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StashRefP {
+    pub path: String,
+    pub index: u32,
+    /// true = `stash pop`（应用后丢弃），false = `stash apply`（保留）
+    pub is_pop: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RebaseP {
+    pub path: String,
+    /// 变基目标；缺省 = 当前分支的上游（`git rebase` 无参数语义）
+    pub upstream: Option<String>,
+    /// 自动把未提交改动 stash 起来、变基完成后还原（`--autostash`）
+    pub is_autostash: Option<bool>,
+}
+
+/// `stash list --format` 用单元分隔符隔开，避免说明里的冒号被误切
+const STASH_FIELD_SEP: char = '\u{1f}';
+
+async fn find_git_dir(cwd: &std::path::Path) -> Option<std::path::PathBuf> {
+    let (ok, out, _) = run_git(cwd, &["rev-parse", "--absolute-git-dir"]).await.ok()?;
+    if !ok {
+        return None;
+    }
+    let dir = std::path::PathBuf::from(out.trim());
+    if dir.is_dir() {
+        Some(dir)
+    } else {
+        None
+    }
+}
+
+/// 多步操作靠 git dir 里的标记文件判定：有标记就说明工作区处在中间态
+fn detect_operation(git_dir: &std::path::Path) -> Option<String> {
+    if git_dir.join("rebase-merge").is_dir() {
+        return Some("rebase".into());
+    }
+    if git_dir.join("rebase-apply").is_dir() {
+        // `git am` 也落在 rebase-apply，`applying` 文件是它独有的标记
+        return Some(if git_dir.join("rebase-apply/applying").exists() {
+            "am".into()
+        } else {
+            "rebase".into()
+        });
+    }
+    if git_dir.join("MERGE_HEAD").exists() {
+        return Some("merge".into());
+    }
+    if git_dir.join("CHERRY_PICK_HEAD").exists() {
+        return Some("cherry-pick".into());
+    }
+    if git_dir.join("REVERT_HEAD").exists() {
+        return Some("revert".into());
+    }
+    None
+}
+
+/// 储藏说明去掉 git 自己加的前缀：`On main: msg` / `WIP on main: 1a2b3c msg`
+fn clean_stash_subject(subject: &str) -> String {
+    let body = match subject.split_once(": ") {
+        Some((_, rest)) => rest,
+        None => subject,
+    };
+    let trimmed = body.trim();
+    // WIP 形式带 7 位短 hash 前缀
+    if trimmed.len() > 8 {
+        let (head, rest) = trimmed.split_at(7);
+        if head.bytes().all(|byte| byte.is_ascii_hexdigit()) && rest.starts_with(' ') {
+            return rest.trim().to_string();
+        }
+    }
+    trimmed.to_string()
+}
+
+async fn read_stashes(cwd: &std::path::Path) -> CommandResult<Vec<StashR>> {
+    let format = format!("--format=%gd{STASH_FIELD_SEP}%gs{STASH_FIELD_SEP}%ct");
+    let (ok, out, err) = run_git(cwd, &["stash", "list", &format]).await?;
+    if !ok {
+        // 还没有任何储藏时 git 也可能因为仓库状态报错；列表读失败不该挡住面板
+        eprintln!("[git] 读取储藏列表失败：{err}");
+        return Ok(Vec::new());
+    }
+    let mut stashes = Vec::new();
+    for line in out.lines() {
+        let mut parts = line.split(STASH_FIELD_SEP);
+        let selector = parts.next().unwrap_or("").trim().to_string();
+        let subject = parts.next().unwrap_or("").to_string();
+        let committed_at = parts
+            .next()
+            .unwrap_or("")
+            .trim()
+            .parse::<i64>()
+            .unwrap_or(0);
+        if selector.is_empty() {
+            continue;
+        }
+        let index = selector
+            .rsplit_once('{')
+            .and_then(|(_, rest)| rest.trim_end_matches('}').parse::<u32>().ok())
+            .unwrap_or(0);
+        stashes.push(StashR {
+            index,
+            selector,
+            message: clean_stash_subject(&subject),
+            committed_at,
+        });
+    }
+    Ok(stashes)
+}
+
+async fn read_conflicted(cwd: &std::path::Path) -> Vec<String> {
+    match run_git(cwd, &["diff", "--name-only", "--diff-filter=U", "-z"]).await {
+        Ok((true, out, _)) => out
+            .split('\0')
+            .map(|item| item.trim().to_string())
+            .filter(|item| !item.is_empty())
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// 面板只要「有没有中间态、有几条储藏、哪些文件冲突」，一次读完
+#[tauri::command(rename = "workspaceGit:state")]
+pub async fn workspaceGitState(params: PathP) -> CommandResult<StateR> {
+    let cwd = validate_path(&params.path)?;
+    let stashes = read_stashes(&cwd).await?;
+    let git_dir = find_git_dir(&cwd).await;
+    let operation = git_dir.as_deref().and_then(detect_operation);
+    let conflicted = read_conflicted(&cwd).await;
+    Ok(StateR {
+        operation,
+        stashes,
+        conflicted,
+    })
+}
+
+#[tauri::command(rename = "workspaceGit:stashPush")]
+pub async fn workspaceGitStashPush(params: StashPushP) -> CommandResult<ActionR> {
+    let cwd = validate_path(&params.path)?;
+    let message = params.message.unwrap_or_default().trim().to_string();
+    let mut args: Vec<String> = vec!["stash".into(), "push".into()];
+    if params.is_include_untracked.unwrap_or(false) {
+        args.push("-u".into());
+    }
+    if !message.is_empty() {
+        if message.starts_with('-') {
+            return Err(Exception::Validation("储藏说明不能以 - 开头".into()));
+        }
+        args.push("-m".into());
+        args.push(message);
+    }
+    let (ok, stdout, err) = git::run_git_args(&cwd, &args).await?;
+    if !ok {
+        return Err(Exception::Internal(if err.is_empty() {
+            "储藏失败".into()
+        } else {
+            err
+        }));
+    }
+    bump_status(&cwd);
+    Ok(ActionR {
+        summary: if stdout.is_empty() {
+            "已储藏当前改动".into()
+        } else {
+            stdout
+        },
+    })
+}
+
+#[tauri::command(rename = "workspaceGit:stashApply")]
+pub async fn workspaceGitStashApply(params: StashRefP) -> CommandResult<ActionR> {
+    let cwd = validate_path(&params.path)?;
+    let selector = format!("stash@{{{}}}", params.index);
+    let is_pop = params.is_pop.unwrap_or(true);
+    let verb = if is_pop { "pop" } else { "apply" };
+    let (ok, stdout, err) = run_git(&cwd, &["stash", verb, &selector]).await?;
+    if !ok {
+        let detail = if err.is_empty() { stdout } else { err };
+        return Err(Exception::Internal(if detail.is_empty() {
+            format!("{verb} {selector} 失败")
+        } else {
+            detail
+        }));
+    }
+    bump_status(&cwd);
+    Ok(ActionR {
+        summary: if is_pop {
+            format!("已弹出 {selector}")
+        } else {
+            format!("已应用 {selector}")
+        },
+    })
+}
+
+#[tauri::command(rename = "workspaceGit:stashDrop")]
+pub async fn workspaceGitStashDrop(params: StashRefP) -> CommandResult<ActionR> {
+    let cwd = validate_path(&params.path)?;
+    let selector = format!("stash@{{{}}}", params.index);
+    let (ok, stdout, err) = run_git(&cwd, &["stash", "drop", &selector]).await?;
+    if !ok {
+        let detail = if err.is_empty() { stdout } else { err };
+        return Err(Exception::Internal(if detail.is_empty() {
+            format!("删除 {selector} 失败")
+        } else {
+            detail
+        }));
+    }
+    bump_status(&cwd);
+    Ok(ActionR {
+        summary: format!("已删除 {selector}"),
+    })
+}
+
+#[tauri::command(rename = "workspaceGit:rebase")]
+pub async fn workspaceGitRebase(params: RebaseP) -> CommandResult<ActionR> {
+    let cwd = validate_path(&params.path)?;
+    let upstream = match params.upstream.as_deref() {
+        Some(raw) if !raw.trim().is_empty() => Some(validate_branch(raw)?.to_string()),
+        _ => None,
+    };
+    let mut args: Vec<String> = vec!["rebase".into()];
+    if params.is_autostash.unwrap_or(true) {
+        args.push("--autostash".into());
+    }
+    if let Some(target) = upstream {
+        args.push(target);
+    }
+    let (ok, stdout, err) = git::run_git_args(&cwd, &args).await?;
+    if !ok {
+        let detail = if err.is_empty() { stdout } else { err };
+        // 冲突时 git 已经把「怎么继续」写在 stderr，原样透出比改写更准确
+        return Err(Exception::Internal(if detail.is_empty() {
+            "变基失败".into()
+        } else {
+            detail
+        }));
+    }
+    bump_status(&cwd);
+    Ok(ActionR {
+        summary: if stdout.is_empty() {
+            "变基完成".into()
+        } else {
+            stdout
+        },
+    })
+}
+
+/// `git rebase --continue`：有冲突时由用户解开后手动触发。
+/// `-c core.editor=true` 挡掉 git 打开编辑器的情形（否则进程会挂住）。
+#[tauri::command(rename = "workspaceGit:rebaseContinue")]
+pub async fn workspaceGitRebaseContinue(params: PathP) -> CommandResult<ActionR> {
+    let cwd = validate_path(&params.path)?;
+    let (ok, stdout, err) = run_git(&cwd, &["-c", "core.editor=true", "rebase", "--continue"]).await?;
+    if !ok {
+        let detail = if err.is_empty() { stdout } else { err };
+        return Err(Exception::Internal(if detail.is_empty() {
+            "继续变基失败".into()
+        } else {
+            detail
+        }));
+    }
+    bump_status(&cwd);
+    Ok(ActionR {
+        summary: if stdout.is_empty() {
+            "变基已继续".into()
+        } else {
+            stdout
+        },
+    })
+}
+
+#[tauri::command(rename = "workspaceGit:rebaseAbort")]
+pub async fn workspaceGitRebaseAbort(params: PathP) -> CommandResult<ActionR> {
+    let cwd = validate_path(&params.path)?;
+    let (ok, _, err) = run_git(&cwd, &["rebase", "--abort"]).await?;
+    if !ok {
+        return Err(Exception::Internal(if err.is_empty() {
+            "中止变基失败".into()
+        } else {
+            err
+        }));
+    }
+    bump_status(&cwd);
+    Ok(ActionR {
+        summary: "已中止变基，回到变基前".into(),
+    })
+}

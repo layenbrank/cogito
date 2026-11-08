@@ -68,9 +68,7 @@ pub async fn automation_remove(
     id: String,
 ) -> CommandResult<u64> {
     // 先删远端再删本地：删本地后就没法知道它是不是 goose 管的了
-    if let Ok(Some(model)) = Service::toList(state.connection())
-        .await
-        .map(|items| items.into_iter().find(|item| item.id == id))
+    if let Ok(Some(model)) = Service::toGet(state.connection(), id.clone()).await
         && model.owner == "goose"
     {
         if let Err(error) = GooseSchedule::remove(&app, &model.id).await {
@@ -87,10 +85,8 @@ pub async fn automation_run_now(
     state: State<'_, Storage>,
     id: String,
 ) -> CommandResult<Option<DueRun>> {
-    let items = Service::toList(state.connection()).await?;
-    let model = items
-        .into_iter()
-        .find(|item| item.id == id)
+    let model = Service::toGet(state.connection(), id.clone())
+        .await?
         .ok_or_else(|| cogito_core::Exception::NotFound(format!("任务不存在：{id}")))?;
 
     if model.owner == "goose" {
@@ -100,6 +96,14 @@ pub async fn automation_run_now(
         return Ok(None);
     }
     Service::toRunNow(state.connection(), id).await.map(Some)
+}
+
+#[tauri::command(rename = "automation:touchRun")]
+pub async fn automation_touch_run(
+    state: State<'_, Storage>,
+    runId: String,
+) -> CommandResult<RunModel> {
+    Service::toTouchRun(state.connection(), runId).await
 }
 
 #[tauri::command(rename = "automation:finishRun")]
@@ -113,7 +117,8 @@ pub async fn automation_finish_run(
 #[tauri::command(rename = "automation:runs")]
 pub async fn automation_runs(
     state: State<'_, Storage>,
-    automationId: String,
+    // 省略 = 跨任务取最近 N 条（任务页的「全部记录」）
+    automationId: Option<String>,
     limit: Option<u64>,
 ) -> CommandResult<Vec<RunModel>> {
     Service::toListRuns(state.connection(), automationId, limit).await
@@ -131,6 +136,13 @@ fn remote_id_of(model: &Model) -> Option<String> {
 /// 把任务同步到 goose：启用的建/刷，停用的删；非 goose 任务什么都不做
 async fn sync(app: &AppHandle, state: &State<'_, Storage>, model: &Model) -> Result<(), String> {
     if model.owner != "goose" {
+        // 从 goose 改成别的执行方：goose 侧那条排期得删掉，否则两边都跑（双发通知、双写副作用）
+        if model.remoteId.is_some() {
+            if let Err(error) = GooseSchedule::remove(app, &model.id).await {
+                tracing::warn!("automation: 清理 goose 残留排期失败: {error}");
+            }
+            let _ = Service::toSetRemote(state.connection(), model.id.clone(), None, None).await;
+        }
         return Ok(());
     }
     let result = if model.enabled {
