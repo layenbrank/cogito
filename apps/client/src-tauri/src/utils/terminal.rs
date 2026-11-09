@@ -20,7 +20,10 @@ use serde::Serialize;
 mod write;
 mod guard;
 
-/// 命令下发统一走 `write::submit_command`（就绪哨兵 + 单次写入 + 整条重发）。
+/// 命令下发统一走 `write::submit_command`（就绪等待 + 单次写入 + 整条重发）。
+///
+/// 不再有 `echo <nonce>` 就绪哨兵，也**不许**在正文前垫控制字节（0x15 会被 pwsh
+/// 当成命令名的一部分，整条命令变成「not recognized」）；细节见 `write.rs` 头注释。
 use write::submit_command as write_command;
 use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::{AppHandle, Emitter, Manager, State};

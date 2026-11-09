@@ -50,10 +50,26 @@
 
 工具的 MCP 描述里写死了「串行调用」：同一目录的 agent 会话只有一个 shell，并发跑会互相干扰。
 
+### 写入载荷：前导一个空格，绝不用 Ctrl-U 清行
+
+2026-11-09 的一个 P0：agent 下发的每条命令在 PowerShell 里都报
+`The term 'echo' is not recognized as a name of a cmdlet…`，连 `$env:PATH`、
+`C:\Windows\System32\cmd.exe` 这种写法也不认 —— 终端看着像彻底坏了。
+
+- 根因：`compose_submit` 在正文前垫了 `0x15`（Ctrl-U）。Windows 版 pwsh 的 PSReadLine 在
+  默认编辑模式（`EditMode=Windows`）下**没有**绑 Ctrl-U（`Get-PSReadLineKeyHandler -Bound`
+  可当场验证），这个字节被原样插进输入行、回显成 `^U`，并粘在第一个 token 前面：`echo hi`
+  变成 `\x15echo hi`，命令名整体不可识别。
+- 同期的 `echo <nonce>` 就绪哨兵又叠了一层伤害：它依赖 `echo` 这个别名，别名/模块没起来时
+  探针自己就报 not recognized，把终端刷满红字。
+- 现在：`probe_ready` 只等提示符 / 安静期，**不写任何东西**；`compose_submit` 只垫**一个空格**
+  （接住 ConPTY 偶尔吞掉的首字节；`squeeze` 抹掉空白，不干扰回显核对）。
+- 回归守卫：`write::tests::never_prefixes_ctrl_u` —— 载荷里不许出现 `0x15`，正文不许夹控制字符。
+
 ## 长命令与后台任务：别在 agent 会话里跑前台构建
 
-`write_command`（`utils/terminal.rs:526`）在下发新命令前，会先往 PTY 写一个 `\x03`（Ctrl+C），
-用来清掉「上一条命令没被 shell 吃掉的半行输入」。代价是：**同一会话里上一条还在跑的前台命令会被打断**。
+`write_command`（`utils/terminal/write.rs` 的 `submit_command`）正常路径只写一次「前导空格 + 正文 + `\r`」，**不发** Ctrl+C；
+只有回显核对连续对不上、要整条重发时，才先写 `\x03`（Ctrl+C）丢掉悬着的半行（`ECHO_ATTEMPTS` 最多 3 轮）—— 一旦触发重发，代价是：**同一会话里上一条还在跑的前台命令会被打断**。
 2026-11-06 实测的两个后果：
 
 | 现象 | 原因 |

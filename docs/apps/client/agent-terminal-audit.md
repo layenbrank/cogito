@@ -8,7 +8,8 @@
 七类现象的共同根因是**状态归属层级错位**（mode 是线程偏好却按消息级语义用、终端会话按
 cwd 派生导致跨 agent 共享、缓存清理依赖「系统会清」这个不成立的前提），以及**症状级补丁
 掩盖时序根因**（首字母截断靠回显兜底 + 垫空格、渲染错乱靠 LRU 保活硬撑）。修复方向都是
-把状态放回它真正的归属层，并把时序问题交给「就绪哨兵 + 单次写 + 整条重发」这类机制。
+把状态放回它真正的归属层，并把时序问题交给「就绪等待 + 单次写 + 整条重发」这类机制。
+（`echo <nonce>` 哨兵与 Ctrl-U 清行后来被证伪，见 `agent-terminal.md` 的「写入载荷」一节。）
 
 ## 改动清单
 
@@ -19,7 +20,7 @@ cwd 派生导致跨 agent 共享、缓存清理依赖「系统会清」这个不
 | src/utils/agent_cache.rs | 落点改 %LOCALAPPDATA%\Temp\cogito\agent-cache（Temp 是系统清理域）；旧目录只做一次性迁移；陈旧判定改「目录内最新文件 mtime」；新增容量上限 + LRU 淘汰（prune_by_size）；30 秒节流的 prune_all；AgentCacheStats 增 lastPrunedAt / lastPrunedBytes / maxBytes / legacyBytes；环境变量 COGITO_AGENT_CACHE_RETENTION_DAYS / COGITO_AGENT_CACHE_MAX_BYTES 覆盖（0 对保留期 = 全部超期，对上限视为误配回落默认）；prune_in_background 供高频入口异步清理 |
 | src/app/bootstrap.rs | 启动按 retention_days()（环境变量优先）强制清一次 |
 | src/utils/terminal.rs | 删掉 103 行死代码（legacy_write_command / type_command / await_echo / submit_enter 与 7 个常量）——「加空格」补丁随之消失；命令下发统一走 write::submit_command；新增闲置回收 start_idle_reaper（60s tick，只回收 agent 会话、有 run 在跑不回收、COGITO_TERMINAL_IDLE_CLOSE=0 可停，收尾写系统行「会话已结束（闲置）」并发 terminal://idle-closed）；判据抽成纯函数 should_reap；terminal_attach 顺手触发一次缓存节流清理 |
-| src/utils/terminal/write.rs | 就绪哨兵（echo nonce 等回显）+ Ctrl-U 清行 + 正文与回车**单次 write** + 回显不符整条重发 |
+| src/utils/terminal/write.rs | 就绪等待（提示符/安静期，**不发哨兵**）+ 一个前导空格的**单次 write**（正文与回车同批，**不塞 Ctrl-U**）+ 回显不符先 Ctrl+C 丢行再整条重发 |
 | src/utils/goose_serve.rs | 仅注释：说明它**刻意不做**闲置退出（单例后端 + ACP 长连接 + Job Object 收养） |
 | crates/core/src/automation/service.rs | 「认领 ≠ 开跑」：insert_run 的 startedAt 写 NULL，真正开跑由前端 touchAutomationRun 补写；toReapStale 两条分支（startedAt < cutoff 或 startedAt IS NULL AND scheduledFor < cutoff），文案区分「任务没有被执行」与「执行没有回写结果」——修掉 automation:due 丢事件导致的静默失败 |
 | crates/core/src/agent_goal/ | agent_goal 增 leaseRunID / leaseUntil / modeBefore 三列，供回合租约与启动前模式还原 |
