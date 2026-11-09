@@ -38,6 +38,7 @@
     "dev": "turbo run dev --filter=!@cogito/client --filter=!@cogito/service --filter=!@cogito/mobile",
     "dev:backend": "turbo run dev --filter=@cogito/backend",
     "dev:client": "pnpm check:cargo && turbo run dev --filter=@cogito/client",
+    "dev:client:isolated": "pnpm check:cargo && pnpm --filter @cogito/client dev:isolated",
     "dev:studio": "turbo run dev --filter=@cogito/studio",
     "dev:devtools": "turbo run dev --filter=@cogito/devtools",
     "dev:extension": "turbo run dev --filter=@cogito/extension",

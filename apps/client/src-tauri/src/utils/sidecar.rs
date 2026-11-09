@@ -133,7 +133,7 @@ fn spawn(app: &AppHandle) -> Result<(), String> {
         .shell()
         .sidecar("corex-daemon")
         .map_err(|e| format!("创建 corex-daemon sidecar 失败: {e}"))?
-        .args(["--pipe", ipc::PIPE_NAME])
+        .args(["--pipe", ipc::pipe_name()])
         .env(COREX_DATA_DIR_ENV, data_dir_str);
 
     let (mut rx, child) = sidecar

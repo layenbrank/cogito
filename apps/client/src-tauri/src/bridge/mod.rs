@@ -13,6 +13,6 @@ pub mod app_tools;
 pub mod command;
 
 pub use clip::{
-    ClipPayload, CLIP_PORT, is_running as clip_is_running, start as start_clip_server,
+    ClipPayload, clip_port, is_running as clip_is_running, start as start_clip_server,
 };
 pub use http::{BridgeInfo, BridgeState, start};

@@ -11,8 +11,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter};
 
-/// 默认 Named Pipe 名称（与 corex-daemon 一致）
-pub const PIPE_NAME: &str = r"\\.\pipe\corex";
+/// corex-daemon 的 Named Pipe 名称（与 daemon 的 `--pipe` 参数同值）。
+///
+/// 正式包 `\\.\pipe\corex`；隔离 dev 实例带 `-dev` 后缀，避免与同时运行的正式包
+/// 共用一个管道（共用会把 dev 的调用打进正式包的 daemon）。
+pub fn pipe_name() -> &'static str {
+    crate::utils::instance::corex_pipe_name()
+}
 
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -289,7 +294,7 @@ pub fn is_ready() -> bool {
         if guard.is_some() {
             return true;
         }
-        match open_pipe(PIPE_NAME) {
+        match open_pipe(pipe_name()) {
             Ok(file) => {
                 *guard = Some(file);
                 true
@@ -306,7 +311,7 @@ pub fn is_ready() -> bool {
 pub fn is_listening() -> bool {
     #[cfg(windows)]
     {
-        open_pipe(PIPE_NAME).is_ok()
+        open_pipe(pipe_name()).is_ok()
     }
     #[cfg(not(windows))]
     {
@@ -334,7 +339,7 @@ pub fn shutdown() -> Result<(), String> {
         let file = match guard.as_mut() {
             Some(file) => file,
             None => {
-                let file = open_pipe(PIPE_NAME)?;
+                let file = open_pipe(pipe_name())?;
                 *guard = Some(file);
                 guard.as_mut().expect("刚写入会话")
             }
@@ -427,7 +432,7 @@ fn exchange_fresh<F>(
 where
     F: FnMut(Value),
 {
-    let mut file = open_pipe(PIPE_NAME)?;
+    let mut file = open_pipe(pipe_name())?;
     file.write_all(request_json.as_bytes())
         .map_err(|e| e.to_string())?;
     file.write_all(b"\n").map_err(|e| e.to_string())?;
@@ -513,7 +518,7 @@ fn parse_daemon_response(raw: &str, request_id: u64) -> Result<IpcResponse, Stri
 fn exchange_once(request_id: u64, request_json: &str) -> Result<IpcResponse, String> {
     let mut guard = SESSION.lock().map_err(|e| format!("IPC 锁失败: {e}"))?;
     if guard.is_none() {
-        *guard = Some(open_pipe(PIPE_NAME)?);
+        *guard = Some(open_pipe(pipe_name())?);
     }
     let file = guard.as_mut().ok_or_else(|| "IPC 会话丢失".to_string())?;
 

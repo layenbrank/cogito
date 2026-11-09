@@ -30,6 +30,15 @@ impl Bootstrap {
 
         builder
             .setup(move |app| {
+                // 双实例：隔离 dev 实例（identifier `com.cogito.client.dev`）与已安装的
+                // 正式包并存，管道 / 端口 / 窗口标题都要跟着换（见 `utils::instance`）。
+                use crate::utils::instance;
+                instance::init(app.config().identifier.as_str());
+                if instance::isolated()
+                    && let Some(window) = app.get_webview_window("main")
+                {
+                    let _ = window.set_title(&instance::label("cogito"));
+                }
                 let handle_for_db = app.handle().clone();
                 let (db_state, bridge_state) = tauri::async_runtime::block_on(async move {
                     let app_dir = handle_for_db
@@ -122,6 +131,7 @@ impl Bootstrap {
                 // 是不是旧二进制造成的（链接时间早于最近一次构建 = 该重启了）。
                 let build = crate::utils::build_info::build_info();
                 tracing::info!(
+                    identifier = %app.config().identifier,
                     version = %build.version,
                     profile = %build.profile,
                     exe = %build.exe,
@@ -151,7 +161,7 @@ impl Bootstrap {
                 #[cfg(desktop)]
                 {
                     // 不阻塞 setup：后台等待就绪，仅在真正失败时发 corex://not-ready / goose://not-ready
-                    // 演练/隔离运行：COGITO_DEV_NO_SIDECAR=1 时不拉起 sidecar（仅 debug 构建有这个开关），
+                    // 演练：COGITO_DEV_NO_SIDECAR=1 时不拉起 sidecar（仅 debug 构建有这个开关），
                     // 避免与正在运行的正式实例抢端口。
                     let skip_sidecar = cfg!(debug_assertions)
                         && std::env::var_os("COGITO_DEV_NO_SIDECAR").is_some();

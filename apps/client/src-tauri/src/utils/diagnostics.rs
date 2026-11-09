@@ -3,7 +3,8 @@
 //! 目标：即使 release 是 `windows_subsystem = "windows"`、日志插件没起来、
 //! 甚至进程被 abort / 强杀，也要在磁盘上留下可读现场，供下次启动补报。
 //!
-//! 目录布局（`<appLocalData>/` = `%LOCALAPPDATA%\com.cogito.client`）：
+//! 目录布局（`<appLocalData>/` = `%LOCALAPPDATA%\<identifier>`；正式包是
+//! `com.cogito.client`，隔离 dev 实例是 `com.cogito.client.dev`）：
 //!
 //! ```text
 //! diagnostics/session.json       running → clean（区分正常退出 / 异常退出）
@@ -12,7 +13,7 @@
 //! ```
 //!
 //! 这里刻意**不依赖** `AppHandle`：panic hook 要在 Tauri 起来之前安装，
-//! 所以路径按 `identifier` 自行推导（与 `main.rs` 的 `APP_IDENTIFIER` 同值）。
+//! 所以路径按 `identifier` 自行推导（见 [`crate::utils::instance`]）。
 
 use std::fs::{self, OpenOptions};
 use std::io::Write;
@@ -23,7 +24,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 /// 与 `tauri.conf.json` 的 `identifier` 一致。
-pub const APP_IDENTIFIER: &str = "com.cogito.client";
+pub const BASE_IDENTIFIER: &str = crate::utils::instance::BASE_IDENTIFIER;
 
 const DIAG_DIR: &str = "diagnostics";
 const CRASH_DIR: &str = "crash";
@@ -85,7 +86,9 @@ pub struct SessionRecord {
 /// `AppHandle::path().app_local_data_dir()` 同源；Linux 是 `$XDG_DATA_HOME`，
 /// macOS 是 `~/Library/Application Support`（Tauri 亦如此）。
 pub fn app_data_dir() -> Option<PathBuf> {
-    dirs::data_local_dir().map(|base| base.join(APP_IDENTIFIER))
+    // 按当前实例的 identifier 推导：隔离 dev 实例（`com.cogito.client.dev`）必须落到
+    // 自己的目录，否则 dev 的 panic 现场 / 会话标记会写进正式包的数据目录。
+    crate::utils::instance::app_local_data_dir()
 }
 
 /// `<appLocalData>/diagnostics`

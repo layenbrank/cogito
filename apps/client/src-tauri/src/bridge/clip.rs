@@ -1,4 +1,4 @@
-//! 本机 Wiki HTTP：默认 `127.0.0.1:19828`；`allowLanAccess` 时绑 `0.0.0.0:19828`
+//! 本机 Wiki HTTP：默认 `127.0.0.1:19828`（隔离 dev 实例 19829，见 `utils::instance`）；`allowLanAccess` 时绑 `0.0.0.0:<port>`
 //! - `POST /clip` — MV3 剪藏
 //! - `GET /health` — Clip 守护状态
 //! - `GET|POST /api/v1/*` — 内置 Wiki API（health / bases / search）
@@ -27,7 +27,7 @@ use tauri::{AppHandle, Emitter};
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 
-pub const CLIP_PORT: u16 = 19828;
+pub use crate::utils::instance::clip_port;
 
 #[derive(Debug, Clone, Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -90,10 +90,11 @@ fn bind_host() -> Ipv4Addr {
 
 async fn bind_and_serve(app: AppHandle, storage: Storage) {
     let host = bind_host();
-    let listener = match TcpListener::bind((host, CLIP_PORT)).await {
+    let port = clip_port();
+    let listener = match TcpListener::bind((host, port)).await {
         Ok(listener) => listener,
         Err(error) => {
-            log::warn!("知识剪藏/API 端口 {CLIP_PORT} 绑定 {host} 失败: {error}");
+            log::warn!("知识剪藏/API 端口 {port} 绑定 {host} 失败: {error}");
             SERVER_RUNNING.store(false, Ordering::Relaxed);
             return;
         }
@@ -126,7 +127,7 @@ async fn bind_and_serve(app: AppHandle, storage: Storage) {
     }
 
     SERVER_RUNNING.store(true, Ordering::Relaxed);
-    log::info!("知识剪藏/API 监听 {}:{}", host, CLIP_PORT);
+    log::info!("知识剪藏/API 监听 {}:{}", host, port);
     if let Err(error) = axum::serve(listener, router)
         .with_graceful_shutdown(async {
             let _ = rx.await;
@@ -201,7 +202,7 @@ async fn clip_health(State(state): State<WikiHttpState>) -> Response {
         Json(json!({
             "ok": true,
             "service": "cogito-clip",
-            "port": CLIP_PORT,
+            "port": clip_port(),
             "running": true,
             "clipCount": state.clip_count.load(Ordering::Relaxed),
             "lastClipAt": state.last_clip_at.load(Ordering::Relaxed),
@@ -303,7 +304,7 @@ async fn api_health(State(state): State<WikiHttpState>, headers: HeaderMap) -> R
             } else {
                 "127.0.0.1"
             },
-            "port": CLIP_PORT,
+            "port": clip_port(),
             "clip": {
                 "running": is_running(),
                 "path": "/clip",
@@ -413,7 +414,7 @@ pub fn wiki_http_status() -> serde_json::Value {
     let allow_lan = handles.allow_lan_access.load(Ordering::Relaxed);
     json!({
         "running": is_running(),
-        "port": CLIP_PORT,
+        "port": clip_port(),
         "enabled": handles.api_enabled.load(Ordering::Relaxed),
         "allowUnauthenticated": handles.allow_unauthenticated.load(Ordering::Relaxed),
         "allowLanAccess": allow_lan,
@@ -424,8 +425,8 @@ pub fn wiki_http_status() -> serde_json::Value {
             .lock()
             .map(|guard| !guard.trim().is_empty())
             .unwrap_or(false),
-        "clipHealth": format!("http://127.0.0.1:{CLIP_PORT}/health"),
-        "apiHealth": format!("http://127.0.0.1:{CLIP_PORT}/api/v1/health"),
+        "clipHealth": format!("http://127.0.0.1:{}/health", clip_port()),
+        "apiHealth": format!("http://127.0.0.1:{}/api/v1/health", clip_port()),
     })
 }
 

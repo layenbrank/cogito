@@ -193,7 +193,7 @@ pub fn diagnostics_open_dir(kind: String) -> Result<String, String> {
 pub fn diagnostics_capabilities() -> DiagnosticsCapabilities {
     DiagnosticsCapabilities {
         app_version: env!("CARGO_PKG_VERSION").to_string(),
-        identifier: diagnostics::APP_IDENTIFIER.to_string(),
+        identifier: crate::utils::instance::identifier().to_string(),
         variant: sidecar_variant(),
         platform: std::env::consts::OS.to_string(),
         arch: std::env::consts::ARCH.to_string(),

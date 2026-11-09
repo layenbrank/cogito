@@ -91,7 +91,7 @@ pub fn setup(app: &mut tauri::App) -> tauri::Result<()> {
 
     TrayIconBuilder::with_id("main-tray")
         .icon(icon)
-        .tooltip("cogito")
+        .tooltip(crate::utils::instance::label("cogito"))
         .menu(&menu)
         // 左键由 on_tray_icon_event 处理，不直接弹出菜单
         .show_menu_on_left_click(false)

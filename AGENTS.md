@@ -22,3 +22,16 @@
   「Agent 缓存 · N MB / 清空」，只清缓存根，不动 `.cogito/plans` 与日志
 - 仓库根不许出现草稿：`pnpm check:agent-junk` 拦 `tmp/`、`scratch-*`、`*.log`、`*.bat`、`*.ps1`
 - 需要按任务区分时在会话目录下再建子目录；用完即删，该目录不受版本管理
+
+## 本地调试：正式包与 dev 同时跑
+
+装了打包版之后，裸 `pnpm dev` 会被单实例锁踢掉或和正式包抢同一份数据目录（SQLite /
+WebView2 / corex 管道）。两个一起跑用：
+
+```powershell
+pnpm dev:client:isolated
+```
+
+dev 侧 identifier 变成 `com.cogito.client.dev`：数据目录、goose、WebView2 profile、
+corex 管道（`\\.\pipe\corex-dev`）、剪藏端口（`19829`）全部分开，窗口标题带 `(dev)`。
+实现与排查见 [docs/apps/client/dev-two-instances.md](./docs/apps/client/dev-two-instances.md)。

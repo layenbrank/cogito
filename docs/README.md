@@ -61,6 +61,7 @@
 | [assistant-ui-elements.md](./apps/client/assistant-ui-elements.md)            | assistant-ui 元素接入对照                               |
 
 | [agent-terminal-audit.md](./apps/client/agent-terminal-audit.md) | Agent / 终端 / 自动化链路审计与修复：改动清单 + 验收清单 |
+| [dev-two-instances.md](./apps/client/dev-two-instances.md) | 正式包 + dev 实例同时跑：identifier / 管道 / 端口隔离 |
 
 ### Extension（浏览器扩展）
 

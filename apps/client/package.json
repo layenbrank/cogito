@@ -12,6 +12,7 @@
     "coverage": "vitest run --coverage",
     "dev": "tauri dev",
     "dev:core": "vite",
+    "dev:isolated": "node scripts/dev-isolated.mjs",
     "dev:tauri": "tauri dev",
     "lint": "eslint . --cache",
     "migrate": "node scripts/migrate.ts",

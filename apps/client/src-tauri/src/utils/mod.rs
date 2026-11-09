@@ -12,6 +12,7 @@ pub mod diagnostics;
 pub mod goose_acp;
 pub mod goose_serve;
 pub mod goose_tls;
+pub mod instance;
 pub mod ipc;
 pub mod log_retention;
 pub mod secret;
