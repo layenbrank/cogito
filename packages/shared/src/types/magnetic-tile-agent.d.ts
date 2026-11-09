@@ -8,6 +8,8 @@ declare namespace MagneticTile {
       workspaceID: string | null
       createdAt: number
       updatedAt: number
+      /** 有未读回复（跑完一轮但用户还没打开过）；对应列 agent_session.unread */
+      unread: boolean
     }
 
     interface Workspace {
