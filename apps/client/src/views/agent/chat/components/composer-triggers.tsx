@@ -20,6 +20,7 @@
 import {
   useComposerTrigger,
   type ComposerTrigger,
+  type ComposerTriggerApi,
   type ComposerTriggerItem,
   type ComposerTriggerListProps
 } from '@cogito/design/assistant/composer-trigger'
@@ -44,6 +45,7 @@ import { findBrowserHost, formatTabTitle } from '@/features/browser/address'
 import { useBrowserStore } from '@/features/browser/store'
 import {
   buildFolderLabels,
+  completePathSegment,
   findFolderLabel
 } from '@/views/agent/chat/components/workspace-relative-path.ts'
 import { WorkspaceFiles } from '@/lib/workspace-files.ts'
@@ -79,6 +81,10 @@ type MentionData =
       readonly isDirectory: boolean
       /** 插入输入框的引用路径：主文件夹内相对，其他文件夹绝对 */
       readonly mentionPath: string
+      /** 面板里显示的短路径（多根时带文件夹名），也是 chip 的展示文案 */
+      readonly displayPath: string
+      /** Tab 补全用的可输入路径：与搜索口径一致，永远是相对路径 */
+      readonly completePath: string
     }
 
 /**
@@ -124,7 +130,9 @@ function findMentionData(item: ComposerTriggerItem): MentionData | null {
       kind: 'file',
       label: candidate.label,
       isDirectory: candidate.isDirectory === true,
-      mentionPath: candidate.mentionPath
+      mentionPath: candidate.mentionPath,
+      displayPath: candidate.displayPath || candidate.mentionPath,
+      completePath: candidate.completePath || ''
     }
   }
   return null
@@ -150,6 +158,11 @@ function disambiguateTitles(titles: readonly string[]): string[] {
     seen.set(title, index)
     return index === 1 ? title : `${title} (${index})`
   })
+}
+
+/** 文件 / 文件夹 chip：显示短路径，引用路径（线格式）用 `mentionPath` */
+function insertFileChip(data: Extract<MentionData, { kind: 'file' }>, api: ComposerTriggerApi) {
+  api.insertChip({ type: 'file', label: data.displayPath, id: data.mentionPath })
 }
 
 /**
@@ -188,18 +201,23 @@ function useComposerTriggers(): readonly ComposerTrigger[] {
         absolute: string
         isDirectory: boolean
       }): ComposerTriggerItem {
-        const description = isMultiRoot
-          ? `${findFolderLabel(folderLabels, input.root)}/${input.relative}`
+        const folderName = findFolderLabel(folderLabels, input.root)
+        const displayPath = isMultiRoot ? `${folderName}/${input.relative}` : input.relative
+        // 补全走「文件夹名/相对路径」：与搜索口径一致，绝对路径打进去搜不到
+        const completePath = isMultiRoot
+          ? `${toBaseName(input.root)}/${input.relative}`
           : input.relative
         return {
           id: `${input.isDirectory ? 'folder' : 'file'}:${input.absolute}`,
           label: input.name,
-          description,
+          description: displayPath,
           data: {
             kind: 'file',
             label: input.name,
             isDirectory: input.isDirectory,
-            mentionPath: toAgentPath(input.absolute, primaryRootPath)
+            mentionPath: toAgentPath(input.absolute, primaryRootPath),
+            displayPath,
+            completePath
           } satisfies MentionData
         }
       }
@@ -216,7 +234,9 @@ function useComposerTriggers(): readonly ComposerTrigger[] {
             kind: 'file',
             label: name,
             isDirectory: true,
-            mentionPath: toAgentPath(root, primaryRootPath)
+            mentionPath: toAgentPath(root, primaryRootPath),
+            displayPath: name,
+            completePath: name
           } satisfies MentionData
         }
       }
@@ -348,12 +368,35 @@ function useComposerTriggers(): readonly ComposerTrigger[] {
             })
             return
           }
-          // chip 的显示由 splitChipLabel 拆成「目录段 + 末段」，label 直接给引用路径
-          api.insertChip({
-            type: 'file',
-            label: mentionData.mentionPath,
-            id: mentionData.mentionPath
-          })
+          // chip 显示短路径（多根时带文件夹名），引用路径仍走 id；悬停 title 给完整路径
+          insertFileChip(mentionData, api)
+        },
+        /**
+         * Tab：补全路径而不是直接确认 —— 补完面板不关，可以接着往里打；
+         * 已经是完整路径时再按一次 Tab 才落 chip（与 Enter 语义一致）。
+         */
+        onComplete: function (item, api) {
+          const mentionData = findMentionData(item)
+          if (mentionData === null) return
+          if (mentionData.kind === 'browser') {
+            // 标签页没有路径层级，Tab 直接确认
+            api.insertChip({
+              type: 'browser',
+              label: mentionData.title,
+              id: mentionData.label
+            })
+            return
+          }
+          const next = completePathSegment(
+            mentionData.completePath,
+            api.query,
+            mentionData.isDirectory
+          )
+          if (next === null) {
+            insertFileChip(mentionData, api)
+            return
+          }
+          api.complete(`@${next}`)
         }
       }
 
@@ -519,6 +562,11 @@ function ComposerTriggerList(props: ComposerTriggerListProps) {
             })}
           </div>
         </TooltipProvider>
+      ) : null}
+      {!isLoading && items.length > 0 && isMention ? (
+        <p className="text-muted-foreground border-border/60 border-t px-3 py-1.5 text-[11px]">
+          Tab 补全路径 · Enter 选为引用 · ↑↓ 切换
+        </p>
       ) : null}
     </div>
   )

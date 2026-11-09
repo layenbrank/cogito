@@ -119,9 +119,11 @@ function deriveChipLabel(type: string, id: string): string {
 function splitChipLabel(type: string, label: string, id: string): { dir: string; base: string } {
   if (type === 'skill') return { dir: '', base: label }
   if (type === 'browser') return { dir: '', base: label }
-  const slash = id.lastIndexOf('/')
-  if (slash <= 0 || slash === id.length - 1) return { dir: '', base: label }
-  return { dir: id.slice(0, slash + 1), base: id.slice(slash + 1) }
+  // 显示文案优先用 label：工作区里的引用可能只给「文件夹/末段名」，完整路径留在 id 里
+  const source = label.trim().length > 0 ? label : id
+  const slash = source.lastIndexOf('/')
+  if (slash <= 0 || slash === source.length - 1) return { dir: '', base: source }
+  return { dir: source.slice(0, slash + 1), base: source.slice(slash + 1) }
 }
 
 function atomLength(atom: ComposerAtom) {
@@ -268,6 +270,26 @@ function serializeDocument(atoms: readonly ComposerAtom[]): string {
     if (atom.kind === 'text') text += atom.text
     else if (atom.kind === 'break') text += LINE_BREAK
     else text += atom.serialized
+  }
+  return text
+}
+
+/**
+ * 交给触发器的文本：chip 的 `@id` 换成**等长**占位符。
+ *
+ * 线格式里 chip 就是 `@path`。如果直接拿 `serializeDocument` 去匹配，光标贴在 chip 后面
+ * 再输入任何字符，`@path` + 新字符就成了「正在输入的 @ 查询」，面板会在选中之后
+ * 自己弹回来（就是「回车确认后继续打字又出现路径列表」）。
+ * 占位符与原串等长，所以逻辑 offset 仍然可以直接互转。
+ */
+const TRIGGER_MASK_CHAR = '\uFFFC'
+
+function serializeTriggerText(atoms: readonly ComposerAtom[]): string {
+  let text = ''
+  for (const atom of atoms) {
+    if (atom.kind === 'text') text += atom.text
+    else if (atom.kind === 'break') text += LINE_BREAK
+    else text += TRIGGER_MASK_CHAR.repeat(atom.serialized.length)
   }
   return text
 }
@@ -455,6 +477,7 @@ export {
   readDom,
   replaceRange,
   serializeDocument,
+  serializeTriggerText,
   sliceAtoms,
   splitChipLabel,
   splitText as parseInlineText,

@@ -47,6 +47,7 @@ import {
   readDom,
   replaceRange,
   serializeDocument,
+  serializeTriggerText,
   sliceAtoms,
   splitChipLabel,
   toChipType,
@@ -499,7 +500,12 @@ function ComposerInput(props: ComposerInputProps) {
     [aui, rememberHistory]
   )
 
-  /** 触发器选中后回写文本。 */
+  /**
+   * 触发器回写文本。
+   *
+   * `complete`（Tab 补全）**不关面板**：补完立刻用新文本再 sync 一次，让候选按补全后的
+   * query 继续过滤，用户接着敲字或再按 Tab / Enter 落 chip。
+   */
   const applyEdit = useCallback(
     function (edit: ComposerEditRequest) {
       const atoms = atomsRef.current
@@ -512,15 +518,19 @@ function ComposerInput(props: ComposerInputProps) {
         return
       }
       if (edit.kind === 'text') {
-        commit(
-          replaceRange(atoms, edit.start, edit.end, parseInlineText(edit.text)),
-          edit.start + edit.text.length
-        )
+        const next = replaceRange(atoms, edit.start, edit.end, parseInlineText(edit.text))
+        const cursor = edit.start + edit.text.length
+        commit(next, cursor)
+        if (edit.complete === true) {
+          const root = editorRef.current
+          const matched = trigger?.sync(serializeTriggerText(next), cursor) ?? null
+          if (root) paintTriggerHighlight(root, next, matched)
+        }
         return
       }
       commit(replaceRange(atoms, edit.start, edit.end, []), edit.start)
     },
-    [commit]
+    [commit, trigger]
   )
 
   useEffect(
@@ -587,7 +597,7 @@ function ComposerInput(props: ComposerInputProps) {
         const atoms = atomsRef.current
         const cursor = readSelectionOffset(root, atoms)
         if (cursor === null) return
-        const matched = trigger?.sync(serializeDocument(atoms), cursor) ?? null
+        const matched = trigger?.sync(serializeTriggerText(atoms), cursor) ?? null
         paintTriggerHighlight(root, atoms, matched)
       }
       document.addEventListener('selectionchange', handleSelectionChange)
@@ -632,7 +642,7 @@ function ComposerInput(props: ComposerInputProps) {
       const cursor = readSelectionOffset(root, atoms)
       if (cursor === null) return
       // sync 同步返回命中，立刻上色，不等 React 状态回写
-      const matched = trigger.sync(next, cursor)
+      const matched = trigger.sync(serializeTriggerText(atoms), cursor)
       paintTriggerHighlight(root, atoms, matched)
     },
     [aui, rememberHistory, trigger]
@@ -682,9 +692,15 @@ function ComposerInput(props: ComposerInputProps) {
           trigger?.move(-1)
           return
         }
-        if (event.key === 'Enter' || event.key === 'Tab') {
+        if (event.key === 'Enter') {
           event.preventDefault()
           trigger?.pick()
+          return
+        }
+        // Tab 只补全，不确认：补完继续打字能缩小范围，Enter 才落成 chip
+        if (event.key === 'Tab') {
+          event.preventDefault()
+          trigger?.complete()
           return
         }
         if (event.key === 'Escape') {
@@ -789,7 +805,7 @@ function ComposerInput(props: ComposerInputProps) {
       const atoms = atomsRef.current
       const cursor = readSelectionOffset(root, atoms)
       if (cursor === null) return
-      const matched = trigger.sync(serializeDocument(atoms), cursor)
+      const matched = trigger.sync(serializeTriggerText(atoms), cursor)
       paintTriggerHighlight(root, atoms, matched)
     },
     [trigger]
@@ -814,7 +830,7 @@ function ComposerInput(props: ComposerInputProps) {
       if (!root || !trigger) return
       const atoms = atomsRef.current
       const cursor = readSelectionOffset(root, atoms) ?? documentLength(atoms)
-      const matched = trigger.sync(serializeDocument(atoms), cursor)
+      const matched = trigger.sync(serializeTriggerText(atoms), cursor)
       paintTriggerHighlight(root, atoms, matched)
     },
     [trigger]

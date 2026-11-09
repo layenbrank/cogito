@@ -1,8 +1,10 @@
 /**
- * 右栏文件打开：完整读盘（对齐 Code 的 readCodeFile 限额），不再截断预览。
+ * 右栏文件打开：文本走 Monaco 的完整读盘（对齐 Code 的 readCodeFile 限额），
+ * 图片 / 音视频 / 二进制不读文本 —— 类型分流见 `aside-files-preview-kind.ts`。
  */
 import { useEffect, useState } from 'react'
 
+import { findAsidePreviewKind, isMediaKind } from '@/views/agent/chat/components/aside-files-preview-kind.ts'
 import { readCodeFile } from '@/views/code/lib/fs.ts'
 import { isLargeDocument } from '@/views/code/lib/file-limits.ts'
 import { joinPath } from '@/views/code/lib/path.ts'
@@ -19,6 +21,7 @@ function useAsideFilesPreview(
   const [isReadonly, updateReadonly] = useState(false)
   const [absolutePath, updateAbsolutePath] = useState<string | null>(null)
 
+  const kind = findAsidePreviewKind(previewRelative)
   const content = previewRelative && rootPath ? contentState : null
   const error = previewRelative && rootPath ? errorState : null
 
@@ -35,9 +38,18 @@ function useAsideFilesPreview(
       let cancelled = false
       const absolute = joinPath(rootPath, previewRelative)
 
-      updatePending(true)
       updateError(null)
       updateAbsolutePath(absolute)
+
+      // 媒体与二进制没有「文本内容」可读：读盘只会换来一句「无法在编辑器中打开」
+      if (kind !== 'text') {
+        updateContent(null)
+        updateReadonly(false)
+        updatePending(false)
+        return
+      }
+
+      updatePending(true)
 
       readCodeFile(absolute)
         .then(function (text) {
@@ -70,10 +82,10 @@ function useAsideFilesPreview(
         cancelled = true
       }
     },
-    [previewRelative, rootPath, revision]
+    [previewRelative, rootPath, revision, kind]
   )
 
-  return { content, error, isPending, isReadonly, absolutePath }
+  return { content, error, isPending, isReadonly, absolutePath, kind, isMedia: isMediaKind(kind) }
 }
 
 export { useAsideFilesPreview }

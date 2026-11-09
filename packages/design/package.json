@@ -83,6 +83,7 @@
     "./assistant/agent-plan-state": "./src/assistant/agent-plan-state.ts",
     "./assistant/job-progress-state": "./src/assistant/job-progress-state.ts",
     "./assistant/tool-row": "./src/assistant/tool-row.ts",
+    "./assistant/composer-document": "./src/assistant/composer-document.ts",
     "./hooks/*": "./src/hooks/*.ts",
     "./lib/*": "./src/lib/*.ts"
   }

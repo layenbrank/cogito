@@ -96,7 +96,7 @@ describe('matchToken', function () {
 })
 
 describe('ComposerTriggerApi 形状', function () {
-  it('onSelect 能拿到四个动作', async function () {
+  it('onSelect 能拿到完整的动作面', async function () {
     const captured: ComposerTriggerApi[] = []
     const trigger: ComposerTrigger = {
       id: 'probe',
@@ -114,6 +114,8 @@ describe('ComposerTriggerApi 形状', function () {
       insertChip: vi.fn(),
       insertText: vi.fn(),
       removeToken: vi.fn(),
+      complete: vi.fn(),
+      query: '',
       close: vi.fn()
     }
     matched?.trigger.onSelect({ id: 'a', label: 'A' }, api)

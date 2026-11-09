@@ -4,6 +4,9 @@
  *
  * 根目录用的是**全局「当前文件夹」**（`useActiveWorkspace`）：这里再存一份
  * `selectedRoot` 会让文件树和审阅 / 历史 / composer 各看一个目录。
+ *
+ * 列表本身是**可展开的文件树**（`AsideFilesTree`，复用代码窗资源管理器那套行），
+ * 搜索框常驻在树顶部 —— 输入即切到封顶的扁平命中列表，清空回到树。
  */
 import type { useAui } from '@assistant-ui/react'
 import { useCallback, useState } from 'react'
@@ -16,6 +19,7 @@ import { toAgentReference } from '@/features/agent/workspace/paths.ts'
 import { useWorkspaceRevision } from '@/features/agent/workspace/revision.ts'
 import { AsideFilesPreview } from '@/views/agent/chat/components/aside-files-preview'
 import { AsideFilesRoots } from '@/views/agent/chat/components/aside-files-roots'
+import { AsideFilesTree } from '@/views/agent/chat/components/aside-files-tree'
 import {
   ASIDE_PATH_TRIGGER,
   buildAsidePathMenuItems,
@@ -23,8 +27,6 @@ import {
   toastAttached
 } from '@/views/agent/chat/components/aside-path-menu'
 import { useAsideFilesPreview } from '@/views/agent/chat/components/use-aside-files-preview'
-import { WorkspaceFilePicker } from '@/views/agent/chat/components/workspace-file-picker'
-import { findParentRelative } from '@/views/agent/chat/components/workspace-relative-path.ts'
 import { CODE_MENU_CLASS_NAMES } from '@/views/code/lib/context-menu.ts'
 
 type ComposerAui = ReturnType<typeof useAui>
@@ -38,7 +40,6 @@ interface AsideFilesProps {
 function AsideFiles(props: AsideFilesProps) {
   const { rootPath: activeRoot, folders, selectRoot, primaryRootPath } = useActiveWorkspace()
   const revision = useWorkspaceRevision()
-  const [directory, updateDirectory] = useState('')
   const [previewRelative, updatePreviewRelative] = useState<string | null>(
     props.initialRelative ?? null
   )
@@ -55,16 +56,10 @@ function AsideFiles(props: AsideFilesProps) {
     const next = props.initialRelative ?? null
     updateSeenInitial(next)
     updatePreviewRelative(next)
-    if (next) updateDirectory(findParentRelative(next))
   }
 
-  function handlePick(pick: { relative: string }) {
-    updateDirectory(findParentRelative(pick.relative))
-    updatePreviewRelative(pick.relative)
-  }
-
-  function handleDirectoryChange(next: string) {
-    updateDirectory(next)
+  function handlePick(relative: string) {
+    updatePreviewRelative(relative)
   }
 
   function handleAttach() {
@@ -129,6 +124,7 @@ function AsideFiles(props: AsideFilesProps) {
           rootPath={activeRoot}
           previewRelative={previewRelative}
           absolutePath={preview.absolutePath}
+          kind={preview.kind}
           isPending={preview.isPending}
           error={preview.error}
           content={preview.content}
@@ -157,14 +153,10 @@ function AsideFiles(props: AsideFilesProps) {
               findItems={findPathMenuItems}>
               {/* ContextMenu 只把 onContextMenu/ref 烙到直接子节点；函数组件接不住，必须包一层 DOM */}
               <div className="flex min-h-0 flex-1 flex-col">
-                <WorkspaceFilePicker
-                  active
-                  root={activeRoot}
+                <AsideFilesTree
+                  rootPath={activeRoot}
                   revision={revision}
-                  directory={directory}
-                  onDirectoryChange={handleDirectoryChange}
-                  className="flex min-h-0 flex-1 flex-col"
-                  listClassName="min-h-0"
+                  activeRelative={previewRelative}
                   onPick={handlePick}
                 />
               </div>

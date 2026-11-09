@@ -14,7 +14,9 @@ import {
   parseDocument,
   readDom,
   replaceRange,
-  serializeDocument
+  serializeDocument,
+  serializeTriggerText,
+  splitChipLabel
 } from './composer-document'
 
 /** 浏览器标签页 id：真正的 UUID 形态，`browser-2` 这种短 id 不再识别 */
@@ -294,5 +296,44 @@ describe('readDom', () => {
 
   it('文本节点里的换行也折成 break', function () {
     expect(serializeDocument(readDom(mount('a\nb')))).toBe('a\nb')
+  })
+})
+
+describe('serializeTriggerText', function () {
+  it('把 chip 遮成等长占位符：确认之后紧接着打字不会再被当成 @ 查询', function () {
+    const atoms = parseDocument('@apps/client/src/a.ts')
+    const wire = serializeDocument(atoms)
+    const triggerText = serializeTriggerText(atoms)
+    expect(triggerText).toHaveLength(wire.length)
+    expect(triggerText).not.toContain('@')
+    expect(triggerText).toBe('\uFFFC'.repeat(wire.length))
+  })
+
+  it('普通文本与换行原样保留，长度仍与文档一致', function () {
+    const atoms = parseDocument('看下@apps/a.ts\n然后')
+    const mask = '\uFFFC'.repeat('@apps/a.ts'.length)
+    expect(serializeTriggerText(atoms)).toBe(`看下${mask}\n然后`)
+    expect(serializeTriggerText(atoms)).toHaveLength(documentLength(atoms))
+  })
+})
+
+describe('splitChipLabel', function () {
+  it('label 是短路径时按 label 拆两段，完整路径留在 id', function () {
+    const chip = buildChip('file', 'client/src/a.ts', 'C:/work/client/src/a.ts')
+    expect(splitChipLabel(chip.type, chip.label, chip.id)).toEqual({
+      dir: 'client/src/',
+      base: 'a.ts'
+    })
+  })
+
+  it('没有 label 时退回 id', function () {
+    expect(splitChipLabel('file', '', 'apps/a.ts')).toEqual({ dir: 'apps/', base: 'a.ts' })
+  })
+
+  it('skill 不拆目录段', function () {
+    expect(splitChipLabel('skill', 'dingtalk-aitable', 'skill:dingtalk-aitable')).toEqual({
+      dir: '',
+      base: 'dingtalk-aitable'
+    })
   })
 })

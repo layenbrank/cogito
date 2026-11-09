@@ -5,6 +5,7 @@ import type * as Monaco from 'monaco-editor/editor/editor.api'
 import { useEffect, useRef, useState } from 'react'
 
 import { importMonaco } from '@/lib/monaco-loader.ts'
+import { setAsideFindEditor } from '@/views/agent/chat/components/aside-editor-find.ts'
 import { CODE_THEME, syncCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
 import '@/lib/monaco-environment.ts'
 import { useCodeStore, type CodeEditorPrefs } from '@/stores/code'
@@ -199,6 +200,8 @@ function useAsideFilesEditor(options: {
         // 字体由下方 editorPrefs effect 写入，避免 mount 闭包依赖
         editor = monaco.editor.create(host, EDITOR_OPTIONS)
         editorRef.current = editor
+        // 右栏的 Ctrl/Cmd+F 由 aside.tsx 收下后再转交给它（见 aside-editor-find）
+        setAsideFindEditor(editor)
         disposables.push(
           editor.addAction({
             id: 'aside-files-save',
@@ -238,6 +241,7 @@ function useAsideFilesEditor(options: {
         editor?.setModel(null)
         editor?.dispose()
         editorRef.current = null
+        setAsideFindEditor(null)
         monacoRef.current = null
         if (pathRef.current) {
           releaseAsideModel(pathRef.current)

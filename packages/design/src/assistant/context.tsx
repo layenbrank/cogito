@@ -342,13 +342,6 @@ function ContextSourceUsage({ className, children, ...props }: ContextSourceUsag
 
 type ContextBreakdownLevel = 'ok' | 'warn' | 'danger'
 
-/** 「最占上下文」里的一条消息（id 供业务侧做滚动定位） */
-interface ContextBreakdownItem {
-  id: string
-  label: string
-  tokens: number
-}
-
 interface ContextBreakdownSegment {
   key: string
   label: string
@@ -365,12 +358,8 @@ type ContextBreakdownBarProps = ComponentProps<'div'> & {
   segments: readonly ContextBreakdownSegment[]
   /** 占用率档位：ok / warn(≥70%) / danger(≥90%)，阈值判定在业务侧（单一来源） */
   level?: ContextBreakdownLevel
-  /** 「谁最占」的排序结果；不给就按 segments 原顺序 */
-  ranked?: readonly ContextBreakdownSegment[]
-  /** 「最占上下文 Top N」消息；给了才渲染展开区 */
-  drilldown?: readonly ContextBreakdownItem[]
-  /** 点击某条消息（定位由业务侧负责） */
-  onJumpToMessage?: (id: string) => void
+  /** 「查看详情」入口：明细（Top N、提示词原文）放右栏面板，气泡里只留概览 */
+  onOpenDetails?: () => void
 }
 
 const LEVEL_RING: Record<ContextBreakdownLevel, string> = {
@@ -385,6 +374,13 @@ const LEVEL_TEXT: Record<ContextBreakdownLevel, string> = {
   danger: 'text-destructive'
 }
 
+/** 档位提示：只在真的越线时占一行，平时留空（气泡不做说明书） */
+const LEVEL_HINT: Record<ContextBreakdownLevel, string> = {
+  ok: '',
+  warn: '占用超过 70%',
+  danger: '接近上限，建议新建会话'
+}
+
 function formatSegmentTokens(tokens: number): string {
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`
   if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}k`
@@ -392,30 +388,27 @@ function formatSegmentTokens(tokens: number): string {
 }
 
 /**
- * 上下文分段色条。
+ * 上下文概览：一条色条 + 四行来源。
  *
- * 一行色条回答「窗口被什么占了」，图例回答「各占多少」，`title` 给精确 token。
- * `level` 只改描边与文案颜色，不动分段颜色 —— 否则用户分不清「哪一段大」和「整体危险」。
+ * 气泡只回答「大概被什么占了」；逐条消息、提示词原文这类明细在右栏「上下文」面板，
+ * 点「查看详情」过去 —— 气泡里铺开 Top N 会盖住半个对话。
  */
 function ContextBreakdownBar({
   segments,
   level = 'ok',
-  ranked,
-  drilldown = [],
-  onJumpToMessage,
+  onOpenDetails,
   className,
   ...props
 }: ContextBreakdownBarProps) {
-  const heaviest = (ranked ?? segments)[0]
   return (
     <div
       data-slot="model-context-breakdown"
       data-level={level}
-      className={cn('space-y-1.5', className)}
+      className={cn('space-y-2', className)}
       {...props}>
       <div
         className={cn(
-          'bg-muted flex h-2 w-full overflow-hidden rounded-full ring-1 ring-inset',
+          'bg-muted flex h-1.5 w-full overflow-hidden rounded-full ring-1 ring-inset',
           LEVEL_RING[level]
         )}>
         {segments.map(function (segment) {
@@ -434,71 +427,57 @@ function ContextBreakdownBar({
           )
         })}
       </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <ul className="space-y-1">
         {segments.map(function (segment) {
           return (
-            <span
+            <li
               key={segment.key}
               data-slot="model-context-legend"
-              className="text-muted-foreground inline-flex items-center gap-1 text-[11px]">
-              <Icon
-                icon={segment.icon}
-                className="size-3 shrink-0"
+              className="flex items-center gap-2 text-xs">
+              <span
                 aria-hidden
+                className={cn('size-2 shrink-0 rounded-full', segment.tone)}
               />
-              <span>{segment.label}</span>
-              <span className="font-mono tabular-nums">
+              <span className="text-muted-foreground min-w-0 flex-1 truncate">
+                {segment.label}
+              </span>
+              <span className="text-foreground/90 shrink-0 font-mono text-xs tabular-nums">
+                {formatSegmentTokens(segment.tokens)}
+              </span>
+              <span className="text-muted-foreground w-9 shrink-0 text-right font-mono text-xs tabular-nums">
                 {Math.round(segment.ratio * 100)}%
               </span>
-            </span>
+            </li>
           )
         })}
-        {heaviest ? (
-          <span className={cn('ms-auto inline-flex items-center gap-1 text-[11px]', LEVEL_TEXT[level])}>
+      </ul>
+      <div className="flex items-center gap-2">
+        <span
+          className={cn('inline-flex min-w-0 items-center gap-1 text-xs', LEVEL_TEXT[level])}>
+          {level === 'ok' ? null : (
             <Icon
-              icon={level === 'ok' ? 'lucide:pie-chart' : 'lucide:triangle-alert'}
+              icon="lucide:triangle-alert"
               className="size-3 shrink-0"
               aria-hidden
             />
-            最占：{heaviest.label} {Math.round(heaviest.ratio * 100)}%
-          </span>
+          )}
+          <span className="truncate">{LEVEL_HINT[level]}</span>
+        </span>
+        {onOpenDetails ? (
+          <Button
+            type="button"
+            variant="link"
+            size="xs"
+            className="ms-auto h-5 shrink-0 gap-1 px-0 text-xs"
+            onClick={onOpenDetails}>
+            查看详情
+            <Icon
+              icon="lucide:arrow-right"
+              className="size-3 shrink-0"
+            />
+          </Button>
         ) : null}
       </div>
-      {/* 最占上下文 Top N：点一条跳到那条消息（定位由业务侧做，design 只发事件） */}
-      {drilldown.length > 0 ? (
-        <details
-          data-slot="model-context-drilldown"
-          className="group mt-1">
-          <summary className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer list-none items-center gap-1 text-[11px] select-none">
-            <Icon
-              icon="lucide:chevron-right"
-              className="size-3 shrink-0 transition-transform group-open:rotate-90"
-              aria-hidden
-            />
-            最占上下文 Top {drilldown.length}
-          </summary>
-          <ul className="mt-1 space-y-0.5">
-            {drilldown.map(function (item) {
-              return (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    data-slot="model-context-drilldown-item"
-                    onClick={function () {
-                      onJumpToMessage?.(item.id)
-                    }}
-                    className="text-muted-foreground hover:bg-muted hover:text-foreground flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-[11px]">
-                    <span className="truncate">{item.label}</span>
-                    <span className="ms-auto shrink-0 font-mono tabular-nums">
-                      {formatSegmentTokens(item.tokens)}
-                    </span>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        </details>
-      ) : null}
     </div>
   )
 }
@@ -519,7 +498,6 @@ export {
 }
 export type {
   ContextBreakdownBarProps,
-  ContextBreakdownItem,
   ContextBreakdownLevel,
   ContextBreakdownSegment,
   ContextProps,

@@ -47,6 +47,7 @@ import {
 import { DelegateSurface } from '@/views/agent/chat/components/delegate-surface'
 import { AgentHead } from '@/views/agent/chat/components/head'
 import { AgentSidebar } from '@/views/agent/chat/components/sidebar'
+import { AutomationSessionPicker } from '@/views/agent/chat/components/automation-session-picker'
 import { useWindowMinimized } from '@/features/window/use-window-minimized'
 import {
   findDefaultLayout,
@@ -88,6 +89,7 @@ import { findAssistantActions } from '@/views/agent/chat/message-actions'
 import { subscribeAsideBrowser } from '@/views/agent/chat/components/open-aside-browser'
 import { openAsideTasks, subscribeAsideTasks } from '@/views/agent/chat/components/open-aside-tasks'
 import { subscribeAsideReview } from '@/views/agent/chat/components/open-aside-review'
+import { subscribeAsideContext } from '@/views/agent/chat/components/open-aside-context'
 import { AgentRuntimeProvider } from '@/views/agent/chat/runtime'
 import { AgentBrandBegin } from '@/views/agent/components/brand-begin'
 import { TitlebarActions } from '@/views/agent/components/titlebar-actions'
@@ -465,6 +467,15 @@ function AgentChatLayout() {
       })
   }, [])
 
+  useEffect(
+    function () {
+      return subscribeAsideContext(function () {
+        openAside()
+      })
+    },
+    [openAside]
+  )
+
   /** 首屏：把 applied 钉进 Splitter 后松 freeze（defaultLayout 已是 applied） */
   useLayoutEffect(
     function () {
@@ -644,7 +655,6 @@ function AgentChatLayout() {
               isSearchOpen={isSearchOpen}
               onScenarioChange={onScenarioChange}
               onSearchOpenChange={updateSearchOpen}
-              onOpenTasks={openAsideTasks}
               onOpenSettings={openSettings}
             />
           </SplitterPane>
@@ -667,6 +677,7 @@ function AgentChatLayout() {
               <main className={styles.threadMain}>
                 {threadElement}
                 <GoalAutoAdvance />
+                <AutomationSessionPicker />
                 <PlanRunFinish />
                 <PlanRecorder />
                 <PlanFileSync />

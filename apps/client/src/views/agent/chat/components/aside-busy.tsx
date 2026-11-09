@@ -11,12 +11,19 @@
  */
 import { Icon } from '@iconify/react/offline'
 import { useAui, useAuiState } from '@assistant-ui/react'
-import { Source, Sources, SourcesContent, SourcesTrigger } from '@cogito/design/assistant/sources'
+import { formatTabTitle } from '@/features/browser/address'
+import { useBrowserStore } from '@/features/browser/store'
+import { collectSources, findSourceIcon, groupSources } from '@/features/agent/sources'
+import type { AgentSource } from '@/features/agent/sources'
 import { formatToolElapsed } from '@cogito/design/assistant/tool'
 import { TodoList } from '@cogito/design/assistant/todo-list'
 import { Button } from '@cogito/design/components/button'
 import { invoke } from '@tauri-apps/api/core'
 import { clsx } from 'clsx'
+
+import { AsideSection } from './aside-section'
+import { AsideContextSection } from './aside-context'
+import { openAsideBrowser } from './open-aside-browser'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
@@ -82,40 +89,6 @@ function findBaseName(relative: string) {
   return slash < 0 ? relative : relative.slice(slash + 1)
 }
 
-/** 卡片：标题 14px / 正文 13px，圆角 12，细描边；右侧可挂一个动作 */
-function Section(props: {
-  icon: string
-  /** 图标点缀色；缺省跟随 muted */
-  iconClass?: string
-  title: string
-  meta?: ReactNode
-  action?: ReactNode
-  children: ReactNode
-  className?: string
-}) {
-  return (
-    <section
-      className={clsx(
-        'border-border/60 bg-card flex flex-col gap-2.5 rounded-xl border p-3 shadow-xs',
-        props.className
-      )}>
-      <div className="flex items-center gap-2">
-        <Icon
-          icon={props.icon}
-          className={clsx('size-4 shrink-0', props.iconClass ?? 'text-muted-foreground')}
-        />
-        <span className="text-foreground min-w-0 truncate text-sm font-semibold">
-          {props.title}
-        </span>
-        {props.meta ? (
-          <span className="text-muted-foreground shrink-0 text-xs tabular-nums">{props.meta}</span>
-        ) : null}
-        <span className="ms-auto flex shrink-0 items-center gap-1">{props.action}</span>
-      </div>
-      {props.children}
-    </section>
-  )
-}
 
 /** 计划条目：状态图标 + 完成态删除线（与 goose 的 plan 事件同形） */
 function PlanEntryList(props: {
@@ -242,7 +215,7 @@ function StatusHero(props: {
             icon="lucide:terminal"
             className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"
           />
-          <span className="text-foreground min-w-0 flex-1 truncate font-mono text-[13px]">
+          <span className="text-foreground min-w-0 flex-1 truncate font-mono text-[13px] leading-snug">
             {command.command}
           </span>
           <span className="text-muted-foreground shrink-0 text-xs">看终端</span>
@@ -268,7 +241,7 @@ function SessionSection(props: {
   usageLabel: string | null
 }) {
   return (
-    <Section
+    <AsideSection
       icon="lucide:message-square"
       iconClass="text-primary"
       title="本轮概要"
@@ -289,7 +262,7 @@ function SessionSection(props: {
           <Chip icon="lucide:wrench">{props.toolCount} 次工具</Chip>
         ) : null}
       </div>
-    </Section>
+    </AsideSection>
   )
 }
 
@@ -303,7 +276,7 @@ function WorkspaceSection(props: {
 }) {
   const branch = props.probe?.isRepo ? props.probe.branch : null
   return (
-    <Section
+    <AsideSection
       icon="lucide:folder"
       iconClass="text-amber-500"
       title="工作区"
@@ -355,7 +328,7 @@ function WorkspaceSection(props: {
           })}
         </ul>
       ) : null}
-    </Section>
+    </AsideSection>
   )
 }
 
@@ -366,7 +339,7 @@ function OutputSection(props: {
   onOpenReview: () => void
 }) {
   return (
-    <Section
+    <AsideSection
       icon="lucide:package"
       iconClass="text-emerald-500"
       title="产出"
@@ -421,21 +394,47 @@ function OutputSection(props: {
           代理改写文件后会显示在这里，点一行打开对比
         </p>
       )}
-    </Section>
+    </AsideSection>
   )
 }
 
-/** 来源分区：Elements Sources + 文件树入口 */
+/**
+ * 来源分区：这一轮回答建立在哪些材料上。
+ *
+ * 数据来自 `collectSources` —— 用户 `@` 引用的文件与浏览器标签页、粘贴的附件、
+ * agent 真正读过的文件。此前只读 composer 附件行，而附件行只放 Ctrl+V 粘贴的内容，
+ * `@` 引用走的是文本里的 chip，所以这一格长期是空的。
+ */
 function SourcesSection(props: {
-  names: readonly string[]
+  sources: readonly AgentSource[]
   onBrowse: () => void
   onOpenFile: (name: string) => void
 }) {
+  const tabs = useBrowserStore(function (state) {
+    return state.tabs
+  })
+  /** 线格式里的标签页只有 `browser-<uuid>`，展示名要回查当前打开的标签页 */
+  const tabTitles = useMemo(
+    function () {
+      const map = new Map<string, string>()
+      for (const tab of tabs) map.set(tab.label, formatTabTitle(tab.url, tab.title))
+      return map
+    },
+    [tabs]
+  )
+  const groups = useMemo(
+    function () {
+      return groupSources(props.sources)
+    },
+    [props.sources]
+  )
+
   return (
-    <Section
+    <AsideSection
       icon="lucide:paperclip"
       iconClass="text-sky-500"
       title="来源"
+      meta={props.sources.length > 0 ? `${props.sources.length} 个` : undefined}
       action={
         <Button
           type="button"
@@ -451,48 +450,74 @@ function SourcesSection(props: {
           />
         </Button>
       }>
-      {props.names.length > 0 ? (
-        <Sources
-          defaultOpen
-          className="text-foreground mb-0">
-          <SourcesTrigger
-            count={props.names.length}
-            className="text-muted-foreground hover:text-foreground text-xs">
-            <p className="font-medium">{`已引用 ${props.names.length} 个来源`}</p>
-            <Icon
-              icon="lucide:chevron-down"
-              className="size-3.5"
-            />
-          </SourcesTrigger>
-          <SourcesContent className="mt-2 w-full">
-            {props.names.map(function (name) {
-              return (
-                <Source
-                  key={name}
-                  href={`#${encodeURIComponent(name)}`}
-                  title={name}
-                  className="text-foreground hover:bg-muted/60 flex w-full items-center justify-start gap-2 rounded-md px-1.5 py-1.5 text-[13px] leading-snug no-underline"
-                  onClick={function (event) {
-                    event.preventDefault()
-                    props.onOpenFile(name)
-                  }}>
-                  <Icon
-                    icon="lucide:file"
-                    className="text-muted-foreground size-3.5 shrink-0"
-                  />
-                  <span className="min-w-0 flex-1 truncate text-start">{name}</span>
-                </Source>
-              )
-            })}
-          </SourcesContent>
-        </Sources>
+      {groups.length === 0 ? (
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          用 @ 引用工作区文件、粘贴附件，或让 agent 读文件后，这一轮的来源会列在这里
+        </p>
       ) : (
-        <p className="text-muted-foreground text-xs">暂无来源；用输入框的 + 引用工作区文件</p>
+        <div className="overscroll-y-contain -mx-1 flex max-h-64 flex-col gap-2 overflow-x-hidden overflow-y-auto px-1">
+          {groups.map(function (group) {
+            return (
+              <div
+                key={group.usage}
+                className="flex flex-col gap-0.5">
+                <p className="text-muted-foreground/80 px-1.5 text-xs">
+                  {group.label} · {group.sources.length}
+                </p>
+                <ul className="flex flex-col gap-0.5">
+                  {group.sources.map(function (source) {
+                    const label =
+                      source.kind === 'browser'
+                        ? (tabTitles.get(source.id) ?? source.label)
+                        : source.label
+                    const clickable = source.kind !== 'skill'
+                    return (
+                      <li key={source.id}>
+                        <button
+                          type="button"
+                          disabled={!clickable}
+                          title={source.detail}
+                          onClick={function () {
+                            if (source.kind === 'browser') {
+                              openAsideBrowser(source.id)
+                              return
+                            }
+                            if (source.relative) {
+                              props.onOpenFile(source.relative)
+                              return
+                            }
+                            props.onOpenFile(source.label)
+                          }}
+                          className={clsx(
+                            'flex w-full min-w-0 items-center gap-2 rounded-lg px-1.5 py-1.5 text-start transition-colors',
+                            clickable ? 'hover:bg-muted/60' : 'cursor-default'
+                          )}>
+                          <Icon
+                            icon={findSourceIcon(source)}
+                            className="text-muted-foreground size-3.5 shrink-0"
+                          />
+                          <span className="text-foreground min-w-0 flex-1 truncate text-[13px] leading-snug">
+                            {label}
+                          </span>
+                          {clickable ? (
+                            <Icon
+                              icon="lucide:chevron-right"
+                              className="text-muted-foreground/60 size-3.5 shrink-0"
+                            />
+                          ) : null}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )
+          })}
+        </div>
       )}
-    </Section>
+    </AsideSection>
   )
 }
-
 /**
  * 计划草稿：标题 + 概述 + 前 3 步做速览，完整正文与「开始执行」都在「计划」页签。
  * 不再整段铺清单 —— 清单只是正文的摘要，铺开会把右栏撑满又说不清细节。
@@ -504,7 +529,7 @@ function PlanDraftBlock(props: { draft: PlanDraft; onOpenPlan?: () => void }) {
   return (
     <div className="flex flex-col gap-1.5">
       {props.draft.title ? (
-        <p className="text-foreground truncate text-[13px] font-medium">{props.draft.title}</p>
+        <p className="text-foreground truncate text-[13px] leading-snug font-medium">{props.draft.title}</p>
       ) : null}
       {props.draft.overview ? (
         <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">
@@ -623,7 +648,7 @@ function CommandRow(props: {
             )}>
             {status.label}
           </span>
-          <span className="text-foreground min-w-0 flex-1 truncate font-mono text-[13px]">
+          <span className="text-foreground min-w-0 flex-1 truncate font-mono text-[13px] leading-snug">
             {props.command.command}
           </span>
           <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
@@ -694,7 +719,7 @@ function CommandsSection(props: {
   )
 
   return (
-    <Section
+    <AsideSection
       icon="lucide:square-terminal"
       iconClass="text-terminal-accent"
       title="命令"
@@ -768,7 +793,7 @@ function CommandsSection(props: {
           ) : null}
         </div>
       )}
-    </Section>
+    </AsideSection>
   )
 }
 
@@ -803,7 +828,7 @@ function TerminalsSection(props: { onOpenTerminal: () => void }) {
   }
 
   return (
-    <Section
+    <AsideSection
       icon="lucide:terminal"
       iconClass="text-terminal-accent"
       title="终端会话"
@@ -900,7 +925,7 @@ function TerminalsSection(props: { onOpenTerminal: () => void }) {
           )
         })}
       </ul>
-    </Section>
+    </AsideSection>
   )
 }
 
@@ -973,26 +998,24 @@ function AsideBusy(props: AsideBusyProps) {
     [messages]
   )
 
-  const sourceNames = useMemo(
+  const attachmentNames = useMemo(
     function () {
       const names: string[] = []
       for (const attachment of composerAttachments) {
         if (attachment.name) names.push(attachment.name)
       }
-      for (const message of messages) {
-        if (message.role !== 'user') continue
-        for (const part of message.content) {
-          if (part.type === 'file' && part.filename) names.push(part.filename)
-          if (part.type === 'image' && 'filename' in part && part.filename) {
-            names.push(String(part.filename))
-          }
-        }
-      }
-      return [...new Set(names)].slice(0, 12)
+      return names
     },
-    [composerAttachments, messages]
+    [composerAttachments]
   )
 
+  /** 来源 = 用户引用 + 附件 + 本轮读过的文件；取数与去重逻辑见 features/agent/sources.ts */
+  const sources = useMemo(
+    function () {
+      return collectSources({ messages, attachmentNames, rootPath })
+    },
+    [messages, attachmentNames, rootPath]
+  )
   const isRunning = useAuiState(function (state) {
     return state.thread.isRunning
   })
@@ -1112,6 +1135,8 @@ function AsideBusy(props: AsideBusyProps) {
           usageLabel={usage && usage.size > 0 ? formatGooseUsage(usage) : null}
         />
 
+        <AsideContextSection />
+
         <CommandsSection
           commands={sessionCommands}
           onOpenTerminal={props.onOpenTerminal}
@@ -1153,7 +1178,7 @@ function AsideBusy(props: AsideBusyProps) {
         />
 
         <SourcesSection
-          names={sourceNames}
+          sources={sources}
           onBrowse={function () {
             props.onOpenFiles()
           }}
@@ -1239,7 +1264,7 @@ function PlanSection(props: {
   }
 
   return (
-    <Section
+    <AsideSection
       icon="lucide:list-todo"
       iconClass="text-violet-500"
       title={plan && plan.total > 0 ? '计划' : planDraft ? '计划草稿' : '计划'}
@@ -1289,7 +1314,7 @@ function PlanSection(props: {
             : '暂无计划'}
         </p>
       )}
-    </Section>
+    </AsideSection>
   )
 }
 

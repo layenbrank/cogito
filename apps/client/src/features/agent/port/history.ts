@@ -82,6 +82,7 @@ function buildHistoryPort(): ChatHistoryPort {
         providerID: input?.providerID ?? null,
         workspaceID,
         createdAt: now,
+        unread: false,
         updatedAt: now
       }
       await useAgentStore.getState().toWriteSession([session])
@@ -89,7 +90,8 @@ function buildHistoryPort(): ChatHistoryPort {
     },
 
     async updateThread(id, patch) {
-      // 元数据编辑也要推 `updatedAt`：Rust `update_one` 是无条件刷 now 的，
+      // 元数据编辑也要推 `updatedAt`：Rust `update_one` 对内容字段一律刷 now（只有
+      // 已读 / 未读不刷），
       // 客户端不跟着推，乐观态会停在原位、下一次 reload 又突然弹到最前（两套真相）。
       await useAgentStore.getState().toUpdateSession([
         {

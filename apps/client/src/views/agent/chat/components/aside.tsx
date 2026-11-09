@@ -23,6 +23,8 @@ import { subscribeAsideTasks } from '@/views/agent/chat/components/open-aside-ta
 import { subscribeAsideReview } from '@/views/agent/chat/components/open-aside-review'
 import { useBrowserStore } from '@/features/browser/store'
 import { normalizeToolPath } from '@/features/agent/tool-paths'
+import { COMMAND } from '@/keyboard/definitions/ids'
+import { useShortcut } from '@/keyboard/react'
 import {
   findOwningRoot,
   findWorkspaceRelative,
@@ -30,6 +32,9 @@ import {
 } from '@/features/agent/workspace/paths'
 
 import { AsideBusy } from './aside-busy'
+import { findAsideFocusRoot, focusAsideFind, isAsideEditorFocus } from './aside-find'
+import { openAsideEditorFind } from './aside-editor-find'
+import { subscribeAsideContext } from './open-aside-context'
 import { AsideBrowser } from './aside-browser'
 import { AsideEmpty } from './aside-empty'
 import { AsideFiles } from './aside-files'
@@ -87,7 +92,7 @@ const ASIDE_TABS: ReadonlyArray<{
 }> = [
   { id: 'home', icon: 'lucide:layout-dashboard', label: '详情', hint: '会话与工作区概览' },
   { id: 'plan', icon: 'lucide:list-checks', label: '计划', hint: '本轮完整计划与确认执行' },
-  { id: 'tasks', icon: 'lucide:calendar-clock', label: '任务', hint: '任务定义：创建、启停、立即执行与记录；执行会话在侧栏「自动化」' },
+  { id: 'tasks', icon: 'lucide:calendar-clock', label: '任务', hint: '任务定义：创建、启停、立即执行与记录；执行会话按工作区落在侧栏' },
   { id: 'files', icon: 'lucide:folder-tree', label: '文件', hint: '浏览工作区文件树并预览' },
   { id: 'knowledge', icon: 'lucide:library', label: '知识库', hint: '浏览知识库文档并引用到对话' },
   { id: 'skills', icon: 'lucide:wrench', label: '技能', hint: '按工作区所有文件夹识别的技能' },
@@ -100,6 +105,25 @@ const ASIDE_TABS: ReadonlyArray<{
 
 function AgentAside(props: AsideProps) {
   const aui = useAui()
+
+  /**
+   * Ctrl/Cmd+F：焦点在右栏里时，这一键属于右栏自己的搜索框（文件树搜索），
+   * 不能冒到 chat 那边去开「搜索整个会话」—— 那是另一个心智模型。
+   *
+   * 用 `useShortcut` 在处理器链前接管（优先级高于命令自身的 `run`）：
+   * 焦点不在右栏时返回 `false`，会话搜索照旧；在右栏就收下 —— 先给搜索框，再给编辑器自带的查找框，
+   * 两者都没有的页签（审阅 / 历史 / 计划…）只是吞掉这一键，宁可按了没反应也不跳去搜整个会话。
+   */
+  useShortcut(COMMAND.AGENT_FIND, function () {
+    const scope = findAsideFocusRoot()
+    if (!scope) return false
+    // 文件树在（搜索框可见）：这一键给它
+    if (focusAsideFind(scope)) return true
+    // 打开预览时文件树是 hidden 的：这一键属于编辑器自己的查找框
+    if (isAsideEditorFocus(scope) && openAsideEditorFind()) return true
+    return true
+  })
+
   /** 布尔标量：避免整份 messages 引用变化拖着重渲染 */
   const hasUserMessage = useAuiState(function (state) {
     return state.thread.messages.some(function (message) {
@@ -416,6 +440,15 @@ function AgentAside(props: AsideProps) {
     []
   )
 
+  useEffect(
+    function () {
+      return subscribeAsideContext(function () {
+        updateMode('home')
+      })
+    },
+    []
+  )
+
   // 切会话时清掉上一个会话的定向焦点，避免新会话直接落到别人的文件
   useEffect(
     function () {
@@ -435,7 +468,9 @@ function AgentAside(props: AsideProps) {
   )
 
   return (
-    <div className={clsx('bg-background flex h-full min-h-0', props.className)}>
+    <div
+      data-agent-aside=""
+      className={clsx('bg-background flex h-full min-h-0', props.className)}>
       {/*
        * 纵向导航：固定 48px 图标列。右栏默认才 400px，图标+文字要 96px，
        * 内容会被挤掉四分之一 —— 所以只留图标，完整说明放 `title`。

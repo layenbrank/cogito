@@ -193,6 +193,13 @@ function SidebarWorkspaceTree(props: SidebarWorkspaceTreeProps) {
                     className="size-3.5 shrink-0"
                   />
                   <span className={styles.sessionTitle}>{session.title}</span>
+                  {session.unread && !active ? (
+                    <span
+                      className="bg-primary size-1.5 shrink-0 rounded-full"
+                      title="有未读回复"
+                      aria-label="有未读回复"
+                    />
+                  ) : null}
                   {session.isRunning ? (
                     <Icon
                       icon="lucide:loader-2"

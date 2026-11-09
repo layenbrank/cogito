@@ -247,6 +247,7 @@ mod tests {
             pinned: Set(false),
             providerID: Set(None),
             workspaceID: Set(None),
+            unread: Set(false),
             createdAt: Set(1),
             updatedAt: Set(1),
         })

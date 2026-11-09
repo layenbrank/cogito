@@ -48,6 +48,10 @@ interface ComposerTriggerApi {
   insertText(text: string): void
   /** 只删掉 token 与 query，不插任何东西。 */
   removeToken(): void
+  /** Tab 补全：把 token 段换成一段文本并保持面板打开（下一步按新 query 继续过滤）。 */
+  complete(text: string): void
+  /** 当前 token 之后的查询串（Tab 补全据此算下一层路径）。 */
+  readonly query: string
   /** 关闭面板。 */
   close(): void
 }
@@ -59,6 +63,11 @@ interface ComposerTrigger {
   readonly boundary?: ((previous: string | undefined) => boolean) | undefined
   readonly resolve: (query: ComposerTriggerQuery) => Promise<readonly ComposerTriggerItem[]>
   readonly onSelect: (item: ComposerTriggerItem, api: ComposerTriggerApi) => void
+  /**
+   * Tab 的行为：不确认，只把路径补全成一段可继续输入/筛选的文本。
+   * 没提供时 Tab 退回 `onSelect`（老触发器的行为保持不变）。
+   */
+  readonly onComplete?: ((item: ComposerTriggerItem, api: ComposerTriggerApi) => void) | undefined
 }
 
 interface ComposerTriggerMatch {
@@ -71,7 +80,13 @@ interface ComposerTriggerMatch {
 }
 
 type ComposerEditRequest =
-  | { readonly kind: 'text'; readonly start: number; readonly end: number; readonly text: string }
+  | {
+      readonly kind: 'text'
+      readonly start: number
+      readonly end: number
+      readonly text: string
+      readonly complete?: boolean
+    }
   | {
       readonly kind: 'chip'
       readonly start: number
@@ -96,6 +111,8 @@ interface ComposerTriggerHandle extends ComposerTriggerState {
   sync: (text: string, cursor: number) => ComposerTriggerMatch | null
   move: (delta: number) => void
   pick: (index?: number) => void
+  /** Tab 补全：优先 `onComplete`，没提供时退回 `pick`。 */
+  complete: (index?: number) => void
   hover: (index: number) => void
   close: () => void
   /** 输入组件注册「执行编辑」的函数；返回注销函数。 */
@@ -162,6 +179,10 @@ function buildApi(
     removeToken: function () {
       apply({ kind: 'remove', ...range })
     },
+    complete: function (text) {
+      apply({ kind: 'text', ...range, text, complete: true })
+    },
+    query: match.query,
     close
   }
 }
@@ -305,11 +326,32 @@ function ComposerTriggerProvider(props: ComposerTriggerProviderProps) {
     [close]
   )
 
+  /** Tab 补全：不关闭面板，只把 token 换成可继续筛选的文本。 */
+  const complete = useCallback(
+    function (index?: number) {
+      const current = matchRef.current
+      if (current === null) return
+      const item = itemsRef.current[index ?? activeIndexRef.current]
+      if (!item) return
+      const apply = applyRef.current
+      if (!apply) return
+      const handler = current.trigger.onComplete
+      if (handler === undefined) {
+        // 没声明 onComplete 的触发器，Tab 沿用确认语义
+        setState(IDLE_STATE)
+        current.trigger.onSelect(item, buildApi(current, apply, close))
+        return
+      }
+      handler(item, buildApi(current, apply, close))
+    },
+    [close]
+  )
+
   const handle = useMemo<ComposerTriggerHandle>(
     function () {
-      return { ...state, sync, move, pick, hover, close, attachApply }
+      return { ...state, sync, move, pick, complete, hover, close, attachApply }
     },
-    [state, sync, move, pick, hover, close, attachApply]
+    [state, sync, move, pick, complete, hover, close, attachApply]
   )
 
   return (

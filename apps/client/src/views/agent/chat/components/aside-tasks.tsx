@@ -2,9 +2,15 @@
  * 右栏「任务」面板：卡片式管理 + 创建，不再跳独立页面。
  *
  * 三视图共用一块面板（列表 / 详情 / 表单），返回不离开当前会话：
- * - 列表：按执行方分组的卡片（名称 / 状态 / 计划 / 下次触发），卡上有启停、立即执行、更多；
- * - 详情：点卡片进入，展示定义与执行记录（`TaskRuns`），可编辑 / 删除；
+ * - 列表：按执行方分组的**网格卡片**（名称 / 状态 / 排期 / 下次触发 / 上次执行），
+ *   卡底一行是启停 + 立即执行 + 更多；窄栏一列、右栏拉宽自动 2–4 列；
+ * - 详情：点卡片进入，定义卡片 + 执行记录（`TaskRuns`），可编辑 / 删除；
  * - 表单：新建与编辑（`TaskForm`，单列窄栏布局）。
+ *
+ * 版式跟「详情」页签（`aside-busy` + `aside-section`）共用同一套语言：
+ * 抬头 14px、正文 13px、元信息 12px，卡片 `rounded-xl border border-border/60 bg-card`，
+ * 分区用 `AsideSection`（图标 + 标题 + 右侧动作）。此前这里是 11px 一套自写 scss，
+ * 切页签像换了个人做的。
  *
  * 数据仍走 `stores/automation`（本机 / goose / 服务端三源），纯逻辑在
  * `views/agent/tasks/model.ts`；这里只做组合与呈现。
@@ -20,6 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@cogito/design/components/alert-dialog'
+import { Badge } from '@cogito/design/components/badge'
 import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
@@ -30,7 +37,7 @@ import {
 } from '@cogito/design/components/dropdown-menu'
 import { Switch } from '@cogito/design/components/switch'
 import { clsx } from 'clsx'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import { useAui } from '@assistant-ui/react'
 import { toast } from 'sonner'
@@ -43,6 +50,7 @@ import { useAutomationStore } from '@/stores/automation'
 import { useDictStore } from '@/stores/dict'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import { useProviderStore } from '@/stores/provider'
+import { AsideSection } from '@/views/agent/chat/components/aside-section'
 import { subscribeAsideTasks } from '@/views/agent/chat/components/open-aside-tasks'
 import { formatTime } from '@/views/knowledge/lib/format.ts'
 import {
@@ -52,16 +60,16 @@ import {
   createDraft,
   findOwnerHint,
   findPhaseLabel,
+  findSessionModeLabel,
   findTaskBadge,
   findTaskModeLabel,
   findTaskModeTag,
   toDraft,
-  type TaskBadgeTone,
   type TaskDraft
 } from '@/views/agent/tasks/model'
 import { TaskForm } from '@/views/agent/tasks/task-form'
 import { TaskRuns } from '@/views/agent/tasks/task-runs'
-import styles from '@/views/agent/tasks/tasks.module.scss'
+import { TaskStatusPill } from '@/views/agent/tasks/task-status-pill'
 
 type PanelView =
   | { kind: 'list' }
@@ -69,12 +77,15 @@ type PanelView =
   | { kind: 'all-runs' }
   | { kind: 'form'; draft: TaskDraft }
 
-const BADGE_CLASS: Record<TaskBadgeTone, string> = {
-  running: styles.badgeRunning,
-  ok: styles.badgeOk,
-  fail: styles.badgeFail,
-  off: styles.badgeOff,
-  idle: styles.badgeIdle
+/** 执行方的图标与点缀色：与详情页签里「命令 / 工作区」的图标色同一档饱和度 */
+const OWNER_ICON: Record<string, { icon: string; tone: string }> = {
+  [OWNER.CLIENT]: { icon: 'lucide:monitor', tone: 'text-muted-foreground' },
+  [OWNER.GOOSE]: { icon: 'lucide:bot', tone: 'text-primary' },
+  [OWNER.CLOUD]: { icon: 'lucide:cloud', tone: 'text-sky-500' }
+}
+
+function findOwnerIcon(owner: string): { icon: string; tone: string } {
+  return OWNER_ICON[owner] ?? { icon: 'lucide:circle-dot', tone: 'text-muted-foreground' }
 }
 
 /** 下次触发：没有 nextRunAt 时按 owner 说明「谁在排期」，不编一个假时间 */
@@ -86,6 +97,41 @@ function findNextLabel(item: Automation): string {
     return '未排期'
   }
   return `下次 ${formatTime(item.nextRunAt)}`
+}
+
+/**
+ * 定义区的一行：左标签 12px、右值 13px。
+ *
+ * 292px 宽下八条字段竖排会吃掉一整屏，所以不用「每条一段 label+value」，
+ * 而是一行一格（跟详情页签里的 Chip 行同一密度）。
+ */
+function MetaRow(props: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-baseline gap-3">
+      <span className="text-muted-foreground w-[4.25rem] shrink-0 text-xs">{props.label}</span>
+      {/* 值可能是「人话 + 表达式」两段：用 flex 拉开间距，别让它们粘成一句 */}
+      <span className="text-foreground flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 text-[13px] leading-relaxed break-words">
+        {props.children}
+      </span>
+    </div>
+  )
+}
+
+/** 面板抬头：标题 / 计数 / 右侧动作，与「计划」页签的抬头同高同边距 */
+function PanelHead(props: { title: string; count?: number; children?: ReactNode }) {
+  return (
+    <div className="border-border/60 flex shrink-0 items-center gap-2 border-b px-3 py-2.5">
+      <h2 className="text-foreground min-w-0 truncate text-sm font-semibold">{props.title}</h2>
+      {props.count ? (
+        <Badge
+          variant="secondary"
+          className="h-[18px] shrink-0 px-1.5 text-[11px] tabular-nums">
+          {props.count}
+        </Badge>
+      ) : null}
+      <span className="ms-auto flex shrink-0 items-center gap-1">{props.children}</span>
+    </div>
+  )
 }
 
 function AsideTasks() {
@@ -168,7 +214,7 @@ function AsideTasks() {
     [items, cloudItems]
   )
   const total = all.length
-  const picked = view.kind === 'detail' ? all.find(task => task.id === view.id) : undefined
+  const picked = view.kind === 'detail' ? all.find((task) => task.id === view.id) : undefined
 
   useEffect(
     function () {
@@ -178,11 +224,13 @@ function AsideTasks() {
       void useKnowledgeBaseStore.getState().refresh()
       void toReadProviders()
       // 卡片上的执行方 / 状态 / 触发方式都是字典 value，先把三类拉进缓存
-      void useDictStore.getState().bootstrap([
-        DICT_TYPE.AUTOMATION_OWNER,
-        DICT_TYPE.AUTOMATION_RUN_STATUS,
-        DICT_TYPE.AUTOMATION_TRIGGER_KIND
-      ])
+      void useDictStore
+        .getState()
+        .bootstrap([
+          DICT_TYPE.AUTOMATION_OWNER,
+          DICT_TYPE.AUTOMATION_RUN_STATUS,
+          DICT_TYPE.AUTOMATION_TRIGGER_KIND
+        ])
     },
     [refresh, toReadProviders]
   )
@@ -212,14 +260,20 @@ function AsideTasks() {
     }
   }
 
-  function findWorkspaceLabel(workspaceID: string | null | undefined): string {
+  function findWorkspaceLabel(
+    workspaceID: string | null | undefined,
+    workspacePath?: string | null
+  ): string {
     if (!workspaceID) return '家目录'
     const workspace = workspaces.find(function (item) {
       return item.id === workspaceID
     })
-    const path = folders.find(function (item) {
-      return item.workspaceID === workspaceID
-    })?.path
+    // 任务可以只绑工作区（跟随默认目录），也可以指定工作区下某个具体目录
+    const path =
+      workspacePath?.trim() ||
+      folders.find(function (item) {
+        return item.workspaceID === workspaceID
+      })?.path
     return `${workspace?.title ?? workspaceID}${path ? ` · ${path}` : ''}`
   }
 
@@ -270,35 +324,94 @@ function AsideTasks() {
     const phaseLabel = isRunning ? findPhaseLabel(phases[item.id]) : null
     const isActive = view.kind === 'detail' && view.id === item.id
     const modeTag = findTaskModeTag(item)
+    const runLabel = isRunning ? (phaseLabel ?? '执行中') : '立即执行'
+    const nextLabel = item.enabled ? findNextLabel(item) : '启用后恢复排期'
+    const lastLabel = item.lastRunAt ? `上次 ${formatTime(item.lastRunAt)}` : '还没有执行过'
     return (
-      <div
+      <article
         key={item.id}
-        className={clsx(styles.card, isActive && styles.cardActive, isRunning && styles.cardRunning)}>
+        className={clsx(
+          'border-border/60 bg-card flex min-w-0 flex-col rounded-xl border transition-colors',
+          isActive ? 'border-primary/40 bg-primary/5' : 'hover:border-primary/25 hover:bg-muted/30',
+          isRunning && 'border-primary/40'
+        )}>
+        {/* 卡面主体：整块可点进详情（名称 / 状态 / 排期 / 下次 / 上次），动作条另起一行 */}
         <button
           type="button"
-          className={styles.cardMain}
+          className="focus-visible:ring-ring/40 flex min-w-0 flex-1 flex-col gap-1.5 rounded-t-xl px-2.5 pt-2 pb-1.5 text-start outline-none focus-visible:ring-2"
           aria-current={isActive ? 'true' : undefined}
           onClick={function () {
             openTask(item.id)
           }}>
-          <span className={styles.cardTitleRow}>
-            <span className={styles.cardTitle}>{item.name}</span>
-            <span className={clsx(styles.badge, BADGE_CLASS[badge.tone])}>
-              {phaseLabel ?? badge.label}
+          <span className="flex min-w-0 items-start gap-1.5">
+            <span className="text-foreground line-clamp-2 min-w-0 flex-1 text-sm leading-snug font-medium">
+              {item.name}
+            </span>
+            <TaskStatusPill
+              tone={badge.tone}
+              label={phaseLabel ?? badge.label}
+              className="mt-0.5"
+            />
+          </span>
+
+          <span className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
+            <Icon
+              icon="lucide:calendar-clock"
+              className="size-3 shrink-0"
+            />
+            {/* 截断时靠 title 兜底：卡片窄下来也不至于把排期读成半句 */}
+            <span
+              className="truncate"
+              title={describeSchedule(item.schedule)}>
+              {describeSchedule(item.schedule)}
+            </span>
+            {modeTag ? (
+              <span className="border-border/70 shrink-0 rounded-full border px-1 py-px text-[10px] leading-none">
+                {modeTag}
+              </span>
+            ) : null}
+          </span>
+
+          <span className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs tabular-nums">
+            <Icon
+              icon="lucide:timer"
+              className="size-3 shrink-0"
+            />
+            {/* 停用态徽标已经写了「已停用」，这里说清恢复后会怎样 */}
+            <span
+              className="truncate"
+              title={nextLabel}>
+              {nextLabel}
             </span>
           </span>
-          <span className={styles.cardMeta}>
-            {describeSchedule(item.schedule)}
-            {/* 停用的任务徽标已经写了「已停用」，元信息不用再说一遍 */}
-            {item.enabled ? ` · ${findNextLabel(item)}` : ''}
-            {modeTag ? ` · ${modeTag}` : ''}
+
+          <span className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs tabular-nums">
+            <Icon
+              icon="lucide:history"
+              className="size-3 shrink-0"
+            />
+            <span
+              className="truncate"
+              title={lastLabel}>
+              {lastLabel}
+            </span>
           </span>
+
           {item.lastError ? (
-            <span className={styles.cardError}>{item.lastError}</span>
+            <span
+              className="text-destructive flex min-w-0 items-center gap-1 text-xs leading-snug"
+              title={item.lastError}>
+              <Icon
+                icon="lucide:circle-alert"
+                className="size-3 shrink-0"
+              />
+              {/* 只占一行：错误长短不一致会把整行卡片撑高（详情里有完整信息） */}
+              <span className="truncate">{item.lastError}</span>
+            </span>
           ) : null}
         </button>
 
-        <div className={styles.cardActions}>
+        <div className="border-border/50 mt-auto flex items-center gap-1 border-t px-1.5 py-1">
           <Switch
             checked={item.enabled}
             size="sm"
@@ -310,9 +423,12 @@ function AsideTasks() {
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
-            className="size-8"
-            aria-label="立即执行"
+            size="sm"
+            className={clsx(
+              'h-7 min-w-0 gap-1 px-1.5 text-xs',
+              isRunning ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+            )}
+            aria-label={runLabel}
             disabled={isRunning || !canRunNow(item)}
             title={
               canRunNow(item)
@@ -323,9 +439,10 @@ function AsideTasks() {
               void runNow(item.id)
             }}>
             <Icon
-              icon="lucide:play"
-              className="size-4"
+              icon={isRunning ? 'lucide:loader-circle' : 'lucide:play'}
+              className={clsx('size-3.5 shrink-0', isRunning && 'animate-spin')}
             />
+            <span className="truncate">{runLabel}</span>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -334,13 +451,13 @@ function AsideTasks() {
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="size-8"
+                  className="text-muted-foreground hover:text-foreground ms-auto size-6"
                   aria-label="更多操作"
                 />
               }>
               <Icon
                 icon="lucide:ellipsis"
-                className="size-4"
+                className="size-3.5"
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -367,22 +484,23 @@ function AsideTasks() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </div>
+      </article>
     )
   }
 
   function renderList() {
     return (
-      <div className={styles.panel}>
-        <div className={styles.panelHead}>
-          <p className={styles.panelTitle}>任务</p>
-          {total > 0 ? <span className={styles.panelCount}>{total}</span> : null}
-          <span className="flex-1" />
+      <div className="flex min-h-0 flex-1 flex-col">
+        <PanelHead
+          title="任务"
+          count={total || undefined}>
           <Button
             type="button"
             variant="ghost"
-            size="icon-xs"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-foreground size-6"
             aria-label="刷新任务列表"
+            title="重新读取本机 / goose / 服务端三份任务"
             onClick={function () {
               void refresh()
             }}>
@@ -397,7 +515,8 @@ function AsideTasks() {
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-xs"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-foreground size-6"
                   aria-label="更多任务操作"
                 />
               }>
@@ -419,7 +538,7 @@ function AsideTasks() {
           <Button
             type="button"
             size="sm"
-            className="h-7 gap-1 px-2 text-[11px]"
+            className="h-7 gap-1 px-2 text-xs"
             onClick={openCreate}>
             <Icon
               icon="lucide:plus"
@@ -427,20 +546,26 @@ function AsideTasks() {
             />
             新建
           </Button>
-        </div>
+        </PanelHead>
 
-        <div className={styles.panelBody}>
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-y-contain p-3">
           {total === 0 ? (
-            <div className={styles.panelEmpty}>
-              <p className={styles.panelEmptyTitle}>还没有任务</p>
-              <p className={styles.panelEmptyHint}>
+            <div className="flex flex-col items-center gap-2 px-2 py-10 text-center">
+              <span className="bg-muted text-muted-foreground flex size-9 items-center justify-center rounded-xl">
+                <Icon
+                  icon="lucide:calendar-clock"
+                  className="size-4.5"
+                />
+              </span>
+              <p className="text-foreground text-sm font-medium">还没有任务</p>
+              <p className="text-muted-foreground max-w-[24em] text-xs leading-relaxed">
                 任务是可重复触发的自动化工作，与「会话」不是一回事：到点按计划跑一轮指令，
                 结果记在执行记录里。
               </p>
               <Button
                 type="button"
                 size="sm"
-                className="mt-1 gap-1"
+                className="mt-1 gap-1 text-xs"
                 onClick={openCreate}>
                 <Icon
                   icon="lucide:plus"
@@ -451,29 +576,48 @@ function AsideTasks() {
             </div>
           ) : null}
 
-          {isLoading && total === 0 ? <p className={styles.panelHint}>加载中…</p> : null}
+          {isLoading && total === 0 ? (
+            <p className="text-muted-foreground px-1 text-xs">加载中…</p>
+          ) : null}
 
           {groups.map(function (group) {
             return (
-              <div
+              <section
                 key={group.owner}
-                className={styles.group}>
-                <p className={styles.groupLabel}>
-                  {findLabel(DICT_TYPE.AUTOMATION_OWNER, group.owner)}
-                  <span className={styles.groupHint}>{findOwnerHint(group.owner)}</span>
-                </p>
-                <div className={styles.cards}>{group.items.map(renderCard)}</div>
-              </div>
+                className="flex flex-col gap-1.5">
+                <div className="flex min-w-0 items-center gap-1.5 px-1">
+                  <Icon
+                    icon={findOwnerIcon(group.owner).icon}
+                    className={clsx('size-3.5 shrink-0', findOwnerIcon(group.owner).tone)}
+                  />
+                  <span className="text-muted-foreground shrink-0 text-xs font-medium">
+                    {findLabel(DICT_TYPE.AUTOMATION_OWNER, group.owner)}
+                  </span>
+                  <span className="text-muted-foreground/50 shrink-0 text-[11px] tabular-nums">
+                    {group.items.length}
+                  </span>
+                  <span className="text-muted-foreground/70 truncate text-[11px]">
+                    {findOwnerHint(group.owner)}
+                  </span>
+                </div>
+                {/* 网格：窄栏 1 列、拉宽后 2–3 列（auto-fill）；12rem 是实测能把「每周一 10:00
+                    + 目标·6 轮」放进一行、又不至于宽到把 4 列挤成豆腐块的宽度 */}
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-2">
+                  {group.items.map(renderCard)}
+                </div>
+              </section>
             )
           })}
 
           {cloudStatus === 'error' ? (
-            <p className={clsx(styles.panelHint, styles.rowError)}>
+            <p className="text-destructive px-1 text-xs leading-relaxed">
               服务端任务读取失败：{cloudError}
             </p>
           ) : null}
           {cloudStatus === 'off' ? (
-            <p className={styles.panelHint}>未登录：只显示本机与 goose 任务</p>
+            <p className="text-muted-foreground px-1 text-xs leading-relaxed">
+              未登录：只显示本机与 goose 任务
+            </p>
           ) : null}
         </div>
       </div>
@@ -488,13 +632,16 @@ function AsideTasks() {
     const latestSession = runs.find(function (run) {
       return Boolean(run.sessionId)
     })?.sessionId
+    const modeTag = findTaskModeTag(task)
     return (
-      <div className={styles.detail}>
-        <div className={styles.detailHead}>
+      <div className="flex min-h-0 flex-1 flex-col">
+        {/* 抬头：返回 / 名称 + 状态 / 启停与执行（与列表卡片的操作位置一致，肌肉记忆不换） */}
+        <div className="border-border/60 flex shrink-0 items-start gap-1.5 border-b py-2 pe-2 ps-1.5">
           <Button
             type="button"
             variant="ghost"
-            size="icon-xs"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-foreground mt-0.5 size-6 shrink-0"
             aria-label="返回任务列表"
             onClick={backToList}>
             <Icon
@@ -502,20 +649,29 @@ function AsideTasks() {
               className="size-4"
             />
           </Button>
-          <div className="min-w-0 flex-1">
-            <h2 className={styles.detailTitle}>{task.name}</h2>
-            <p className={styles.detailSub}>
-              {findLabel(DICT_TYPE.AUTOMATION_OWNER, task.owner)}
-              <span className={clsx(styles.badge, BADGE_CLASS[badge.tone], 'ms-1.5')}>
-                {phaseLabel ?? badge.label}
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <h2 className="text-foreground min-w-0 truncate text-sm font-semibold">{task.name}</h2>
+            <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+              <TaskStatusPill
+                tone={badge.tone}
+                label={phaseLabel ?? badge.label}
+              />
+              <span className="min-w-0 truncate">
+                {[
+                  findLabel(DICT_TYPE.AUTOMATION_OWNER, task.owner),
+                  describeSchedule(task.schedule),
+                  modeTag
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </span>
             </p>
           </div>
-          <div className={styles.detailActions}>
+          <div className="flex shrink-0 items-center gap-0.5">
             <Switch
               checked={task.enabled}
               size="sm"
-              aria-label="启用任务"
+              aria-label={`${task.enabled ? '停用' : '启用'}任务`}
               onCheckedChange={function (checked) {
                 void toggle(task.id, checked)
               }}
@@ -523,7 +679,8 @@ function AsideTasks() {
             <Button
               type="button"
               variant="ghost"
-              size="icon-xs"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-foreground size-6"
               aria-label="立即执行"
               disabled={isRunning || !canRunNow(task)}
               title={
@@ -545,7 +702,8 @@ function AsideTasks() {
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon-xs"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:text-foreground size-6"
                     aria-label="更多操作"
                   />
                 }>
@@ -574,85 +732,84 @@ function AsideTasks() {
           </div>
         </div>
 
-        <div className={styles.detailBody}>
-          <p className={styles.prompt}>{task.prompt}</p>
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain p-3">
+          {/* 指令：这块是「跑什么」，放在最前，读数优先 */}
+          <AsideSection
+            icon="lucide:sparkles"
+            iconClass="text-primary"
+            title="指令"
+            meta={findTaskModeLabel(task)}>
+            {task.prompt.trim() ? (
+              <p className="text-foreground/90 text-[13px] leading-relaxed whitespace-pre-wrap break-words">
+                {task.prompt}
+              </p>
+            ) : (
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                {task.planFilePath
+                  ? `按计划文件执行：${task.planFilePath}`
+                  : '这条任务没有指令正文'}
+              </p>
+            )}
+          </AsideSection>
 
-          <section>
-            <div className={styles.sectionHead}>
-              <p className={styles.sectionTitle}>排期</p>
-              <span className={styles.sectionMeta}>{task.timezone}</span>
-            </div>
-            <div className={styles.meta}>
-              <div className={styles.metaRow}>
-                <span className={styles.metaLabel}>计划</span>
-                <span className={styles.metaValue}>
-                  {describeSchedule(task.schedule)}
-                  <span className={styles.scheduleCode}>{task.schedule}</span>
+          <AsideSection
+            icon="lucide:calendar-clock"
+            iconClass="text-amber-500"
+            title="排期"
+            meta={task.timezone}>
+            <div className="flex flex-col gap-1.5">
+              <MetaRow label="计划">
+                <span>{describeSchedule(task.schedule)}</span>
+                <span className="text-muted-foreground/80 font-mono text-[11px]">
+                  {task.schedule}
                 </span>
-              </div>
-              <div className={styles.metaRow}>
-                <span className={styles.metaLabel}>下次触发</span>
-                <span className={styles.metaValue}>{findNextLabel(task)}</span>
-              </div>
-              <div className={styles.metaRow}>
-                <span className={styles.metaLabel}>上次执行</span>
-                <span className={styles.metaValue}>
-                  {formatTime(task.lastRunAt)}
-                  {task.lastStatus
-                    ? ` · ${findLabel(DICT_TYPE.AUTOMATION_RUN_STATUS, task.lastStatus)}`
-                    : ''}
-                </span>
-              </div>
+              </MetaRow>
+              <MetaRow label="下次触发">{findNextLabel(task)}</MetaRow>
+              <MetaRow label="上次执行">
+                {formatTime(task.lastRunAt)}
+                {task.lastStatus
+                  ? ` · ${findLabel(DICT_TYPE.AUTOMATION_RUN_STATUS, task.lastStatus)}`
+                  : ''}
+              </MetaRow>
             </div>
-          </section>
+          </AsideSection>
 
-          <section>
-            <div className={styles.sectionHead}>
-              <p className={styles.sectionTitle}>执行</p>
-              <span className={styles.sectionMeta}>{findOwnerHint(task.owner)}</span>
-            </div>
-            <div className={styles.meta}>
-              <div className={styles.metaRow}>
-                <span className={styles.metaLabel}>执行方</span>
-                <span className={styles.metaValue}>
-                  {findLabel(DICT_TYPE.AUTOMATION_OWNER, task.owner)}
-                </span>
-              </div>
-              <div className={styles.metaRow}>
-                <span className={styles.metaLabel}>执行授权</span>
-                <span className={styles.metaValue}>
-                  {isCloud
-                    ? '由服务端控制'
-                    : task.approval === 'auto'
-                      ? '自动批准（不再询问）'
-                      : '只读'}
-                </span>
-              </div>
-              <div className={styles.metaRow}>
-                <span className={styles.metaLabel}>工作目录</span>
-                <span className={styles.metaValue}>{findWorkspaceLabel(task.workspaceId)}</span>
-              </div>
-              <div className={styles.metaRow}>
-                <span className={styles.metaLabel}>模式</span>
-                <span className={styles.metaValue}>{findTaskModeLabel(task)}</span>
-              </div>
-              {task.planFilePath ? (
-                <div className={styles.metaRow}>
-                  <span className={styles.metaLabel}>计划文件</span>
-                  <span className={styles.metaValue}>{task.planFilePath}</span>
-                </div>
+          <AsideSection
+            icon="lucide:cpu"
+            title="执行"
+            meta={findOwnerHint(task.owner)}>
+            <div className="flex flex-col gap-1.5">
+              <MetaRow label="执行方">{findLabel(DICT_TYPE.AUTOMATION_OWNER, task.owner)}</MetaRow>
+              <MetaRow label="执行授权">
+                {isCloud
+                  ? '由服务端控制'
+                  : task.approval === 'auto'
+                    ? '自动批准（不再询问）'
+                    : '只读'}
+              </MetaRow>
+              <MetaRow label="工作目录">
+                {findWorkspaceLabel(task.workspaceId, task.workspacePath)}
+              </MetaRow>
+              <MetaRow label="模式">{findTaskModeLabel(task)}</MetaRow>
+              {findSessionModeLabel(task) ? (
+                <MetaRow label="会话">
+                  {findSessionModeLabel(task)}
+                  {task.sessionMode === 'fixed' ? ' · 写进已选对话' : ''}
+                </MetaRow>
               ) : null}
-              <div className={styles.metaRow}>
-                <span className={styles.metaLabel}>关联知识库</span>
-                <span className={styles.metaValue}>{findBaseLabel(task.knowledgeBaseId)}</span>
-              </div>
+              {task.planFilePath ? (
+                <MetaRow label="计划文件">
+                  <span className="font-mono text-[11px]">{task.planFilePath}</span>
+                </MetaRow>
+              ) : null}
+              <MetaRow label="知识库">{findBaseLabel(task.knowledgeBaseId)}</MetaRow>
             </div>
             {latestSession ? (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="mt-2 h-8 w-full text-[12px]"
+                className="mt-1 w-full gap-1.5 text-xs"
                 onClick={function () {
                   void openSession(latestSession)
                 }}>
@@ -663,27 +820,30 @@ function AsideTasks() {
                 打开最近会话
               </Button>
             ) : null}
-          </section>
+          </AsideSection>
 
           {canRunNow(task) ? (
-            <section>
-              <div className={styles.sectionHead}>
-                <p className={styles.sectionTitle}>执行记录</p>
+            <AsideSection
+              icon="lucide:history"
+              title="执行记录"
+              meta={`${runs.length} 条`}
+              action={
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
-                  className="h-6 px-1.5 text-[11px]"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-foreground size-6"
+                  aria-label="刷新执行记录"
+                  title="刷新执行记录"
                   onClick={function () {
                     void openRuns(task.id)
                   }}>
                   <Icon
                     icon="lucide:refresh-cw"
-                    className="size-3"
+                    className="size-3.5"
                   />
-                  刷新
                 </Button>
-              </div>
+              }>
               <TaskRuns
                 runs={runs}
                 running={running}
@@ -694,11 +854,17 @@ function AsideTasks() {
                   void openSession(sessionId)
                 }}
               />
-            </section>
+            </AsideSection>
           ) : (
-            <p className={styles.emptyHint}>
-              服务端任务的执行与记录都在服务端；这里只能启停、删除，不能手动触发。
-            </p>
+            <AsideSection
+              icon="lucide:cloud"
+              iconClass="text-sky-500"
+              title="执行记录"
+              meta="在服务端">
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                服务端任务的执行与记录都在服务端；这里只能启停、删除，不能手动触发。
+              </p>
+            </AsideSection>
           )}
         </div>
       </div>
@@ -707,12 +873,13 @@ function AsideTasks() {
 
   function renderAllRuns() {
     return (
-      <div className={styles.detail}>
-        <div className={styles.detailHead}>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="border-border/60 flex shrink-0 items-start gap-1.5 border-b py-2 pe-2 ps-1.5">
           <Button
             type="button"
             variant="ghost"
-            size="icon-xs"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-foreground mt-0.5 size-6 shrink-0"
             aria-label="返回任务列表"
             onClick={backToList}>
             <Icon
@@ -720,15 +887,19 @@ function AsideTasks() {
               className="size-4"
             />
           </Button>
-          <div className="min-w-0 flex-1">
-            <h2 className={styles.detailTitle}>全部执行记录</h2>
-            <p className={styles.detailSub}>跨任务的最近 50 条；服务端任务的记录在服务端</p>
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <h2 className="text-foreground min-w-0 truncate text-sm font-semibold">全部执行记录</h2>
+            <p className="text-muted-foreground truncate text-xs">
+              跨任务的最近 50 条；服务端任务的记录在服务端
+            </p>
           </div>
           <Button
             type="button"
             variant="ghost"
-            size="icon-xs"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-foreground size-6"
             aria-label="刷新执行记录"
+            title="刷新执行记录"
             onClick={function () {
               void openAllRuns()
             }}>
@@ -738,7 +909,7 @@ function AsideTasks() {
             />
           </Button>
         </div>
-        <div className={styles.detailBody}>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3">
           <TaskRuns
             runs={allRuns}
             tasks={all}
@@ -774,7 +945,9 @@ function AsideTasks() {
     view.kind === 'all-runs'
       ? renderAllRuns()
       : // 详情里的任务在刷新后消失（被删 / 换租户）：直接回列表，不停在空详情
-        (picked ? renderDetail(picked) : renderList())
+        picked
+        ? renderDetail(picked)
+        : renderList()
 
   return (
     <>

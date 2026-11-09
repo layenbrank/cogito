@@ -50,4 +50,43 @@ function findFolderLabel(labels: Map<string, string>, path: string) {
   return labels.get(path) ?? findBaseName(path)
 }
 
-export { buildFolderLabels, findBaseName, findFolderLabel, findParentRelative, normalizeSeparators }
+/**
+ * `@` 面板里按 Tab 时的补全路径：推进到**下一层目录**。
+ *
+ * - `apps/cli` + `apps/client/src/a.ts` → `apps/client/`（能接着往里打）
+ * - 搜索命中中间片段时（`butt` → `apps/client/src/button.tsx`）补到那一层的末尾
+ * - 已经是完整路径时返回 `null`，调用方改为把候选落成 chip
+ *
+ * 入参是**面板里显示的相对路径**（多根时带文件夹名），不是引用路径 ——
+ * 绝对路径打进 `@` 搜索里是搜不出来的。
+ */
+function completePathSegment(
+  displayPath: string,
+  query: string,
+  isDirectory: boolean
+): string | null {
+  const target = normalizeSeparators(displayPath)
+  let typed = normalizeSeparators(query.trim())
+  while (typed.startsWith('./')) typed = typed.slice(2)
+  typed = typed.replace(/^\/+/, '')
+  const lowerTarget = target.toLowerCase()
+  const lowerTyped = typed.toLowerCase()
+  if (typed.length === 0) return isDirectory ? `${target}/` : target
+  if (lowerTarget === lowerTyped) return null
+  if (isDirectory && `${lowerTarget}/` === lowerTyped) return null
+  const hit = lowerTarget.indexOf(lowerTyped)
+  const from = hit >= 0 ? hit + typed.length : 0
+  const slash = target.indexOf('/', from)
+  if (slash < 0) return isDirectory ? `${target}/` : target
+  const next = target.slice(0, slash + 1)
+  return next.toLowerCase() === lowerTyped ? null : next
+}
+
+export {
+  buildFolderLabels,
+  completePathSegment,
+  findBaseName,
+  findFolderLabel,
+  findParentRelative,
+  normalizeSeparators
+}

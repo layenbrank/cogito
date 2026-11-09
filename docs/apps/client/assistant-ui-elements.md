@@ -10,7 +10,7 @@
 | 元素 | 设计包实现 | 接入情况 | 说明 / 下一步 |
 | --- | --- | --- | --- |
 | agent-plan | `agent-plan.tsx`、`agent-plan-state.ts`（另有可折叠外壳 `plan.tsx`、三态清单 `task.tsx` / `todo-list.tsx`） | ✅ | client 对话区：ACP `plan` 事件画成「标题 + `2 / 5` + 3px 进度条 + 每步状态图标」的速览卡（`plan-data-ui.tsx`）；右栏全量计划仍是 `aside-plan.tsx`。见下节 |
-| background-inbox | `background-inbox.aui.tsx` | ✅ | `use-background-runs.ts` + `aside-busy.tsx`：后台会话/后台任务的收件箱 |
+| ~~background-inbox~~ | 已删除（`background-inbox.aui.tsx` 一并下线） | 未接 | 左栏顶部那条「后台运行」：跑完的会话不会自己消失（只有点开才从收件箱移除），长期占着侧栏顶部。2026-11-09 整块移除；「哪些会话在跑」仍由工作区树里的转圈图标（`use-sidebar-branches`）表达 |
 | schedule-card | `schedule-card.aui.tsx` | ✅ | `plan-schedule-card.tsx`（计划里「定时执行」的那张卡） |
 | composer-context | `composer-trigger.tsx` | ✅ | `composer-knowledge.tsx`（知识库引用）/ `extensions-pane.tsx`（右栏「扩展」页签）/ `workspace-file-picker.tsx`（@ 引用、工作区文件）。输入区 `+` 面板 2026-11-06 已拆除，见 [agent-composer-aside.md](./agent-composer-aside.md) |
 | terminal-block | `terminal.tsx` | ✅ | `tool-card-terminal-body.tsx` + `features/terminal`（右栏常驻终端） |

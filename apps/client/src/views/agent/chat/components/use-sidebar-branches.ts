@@ -9,8 +9,8 @@ import {
   type ThreadItemSnapshot
 } from './thread-items.ts'
 import { useRunningThreads } from '@/features/agent/acp/run-state'
-import { THREAD_PREFIX as AUTOMATION_PREFIX } from '@/features/automation/events'
 import { UNGROUPED_WORKSPACE } from '@/features/agent/model/workspace'
+import { markSessionUnread } from '@/features/agent/session-unread'
 import { useAgentStore, type Session } from '@/stores/agent.ts'
 
 /**
@@ -28,6 +28,9 @@ import { useAgentStore, type Session } from '@/stores/agent.ts'
  * （Maximum update depth / 页面崩溃、会话流被中断）。
  *
  * 排序规则本身在 `session-order.ts`：草稿 → 置顶 → 最近活动 → id。
+ *
+ * 定时任务跑出来的会话不再单列一组：带工作区的进对应工作区，没绑工作区的落「未分组」。
+ * 它们与普通会话唯一差别是 id 前缀 `automation-`（记录会话，绑定时不会被误选）。
  */
 interface SidebarSession {
   id: string
@@ -42,6 +45,8 @@ interface SidebarSession {
   order: number
   /** 这一轮仍在生成（切走的会话也会继续跑，左栏要能看出来） */
   isRunning: boolean
+  /** 有未读回复（列 `agent_session.unread`）：跑完一轮但用户还没打开过 */
+  unread: boolean
 }
 
 /** assistant-ui 给「还没落库的新会话」的列表项 id 前缀（`initialize()` 之后才有 remoteId） */
@@ -89,15 +94,17 @@ function useSidebarBranches() {
     return state.threads.threadItems
   })
   const runningThreadIDs = useRunningThreads()
+  const mainThreadId = useAuiState(function (state) {
+    return state.threads.mainThreadId
+  })
 
   const [expandedKeys, updateExpandedKeys] = useState<string[]>([])
-  const expandedKeySet = useMemo(function () {
-    return new Set(expandedKeys)
-  }, [expandedKeys])
-
-  function isAutomationThread(id: string, remoteId?: string | null): boolean {
-    return id.startsWith(AUTOMATION_PREFIX) || Boolean(remoteId?.startsWith(AUTOMATION_PREFIX))
-  }
+  const expandedKeySet = useMemo(
+    function () {
+      return new Set(expandedKeys)
+    },
+    [expandedKeys]
+  )
 
   const sessions: SidebarSession[] = useMemo(
     function () {
@@ -123,7 +130,8 @@ function useSidebarBranches() {
           ),
           // 草稿之间按列表顺序（最新插入的在前），不拿随机 UUID 兜底
           order: index,
-          isRunning: runningThreadIDs.has(id) || runningThreadIDs.has(item?.remoteId ?? id)
+          isRunning: runningThreadIDs.has(id) || runningThreadIDs.has(item?.remoteId ?? id),
+          unread: stored?.unread === true
         }
       })
     },
@@ -131,40 +139,56 @@ function useSidebarBranches() {
   )
 
   /**
-   * 自动化会话：不进工作区树。
-   * 以落库行为准（runner 直写 `agent_session`），再与 aui 列表对齐 id/running。
+   * 当前**正在看**的会话（落库 id）。
+   *
+   * `mainThreadId` 可能是列表项 id（草稿形如 `__LOCALID_…`），库里那一行才是 `remoteId`；
+   * 未读要跟库对齐，所以统一折成 remoteId 再比。
    */
-  const automationSessions: SidebarSession[] = useMemo(
+  const activeSessionID = useMemo(
     function () {
-      const fromAui = new Map<string, SidebarSession>()
-      for (const session of sessions) {
-        if (!isAutomationThread(session.id)) continue
-        fromAui.set(session.id, session)
-      }
-      const merged: SidebarSession[] = []
-      for (const stored of storedSessions) {
-        if (!stored.id.startsWith(AUTOMATION_PREFIX)) continue
-        const live = fromAui.get(stored.id)
-        merged.push({
-          id: stored.id,
-          title: live?.title || stored.title || '自动化执行',
-          pinned: live?.pinned ?? stored.pinned,
-          draft: false,
-          workspaceID: stored.workspaceID,
-          updatedAt: latestTime(live?.updatedAt ?? 0, stored.updatedAt),
-          order: live?.order ?? 0,
-          isRunning: live?.isRunning || runningThreadIDs.has(stored.id)
-        })
-        fromAui.delete(stored.id)
-      }
-      // aui 里有、库里还没水合到的也收进来
-      for (const leftover of fromAui.values()) merged.push(leftover)
-      return merged.toSorted(function (left, right) {
-        if (left.isRunning !== right.isRunning) return left.isRunning ? -1 : 1
-        return right.updatedAt - left.updatedAt
-      })
+      if (!mainThreadId) return null
+      const item = findIndexedThreadItem(buildThreadItemIndex(threadItems), mainThreadId)
+      return item?.remoteId ?? mainThreadId
     },
-    [sessions, storedSessions, runningThreadIDs]
+    [mainThreadId, threadItems]
+  )
+
+  /** 看着的会话一律算已读：切过去、被自动切过去、会话就在眼前跑完，都走这一条 */
+  useEffect(
+    function () {
+      if (!activeSessionID) return
+      const stored = storedSessions.find(function (item) {
+        return item.id === activeSessionID
+      })
+      if (stored?.unread) markSessionUnread(activeSessionID, false)
+    },
+    [activeSessionID, storedSessions]
+  )
+
+  /**
+   * 「刚跑完、而且用户没看着」→ 记未读。
+   *
+   * 判定用「running 集合上一帧 vs 这一帧」的差分，而不是读 run-state 的 finished 集合：
+   * 后者只增不减，分不清「刚刚跑完」和「早就跑完、用户看过又标成已读」，
+   * 会把已读反复写回未读。首帧（上一帧为空）跳过 —— 那是启动时从 localStorage 水合
+   * 出来的在跑标记，不是刚刚跑完。
+   */
+  const previousRunningRef = useRef<ReadonlySet<string>>(new Set())
+  useEffect(
+    function () {
+      const previous = previousRunningRef.current
+      previousRunningRef.current = runningThreadIDs
+      if (previous.size === 0) return
+      for (const id of previous) {
+        if (runningThreadIDs.has(id) || id === activeSessionID) continue
+        const stored = storedSessions.find(function (item) {
+          return item.id === id
+        })
+        if (!stored || stored.unread) continue
+        markSessionUnread(id, true)
+      }
+    },
+    [runningThreadIDs, activeSessionID, storedSessions]
   )
 
   const branches: WorkspaceBranch[] = useMemo(
@@ -188,8 +212,7 @@ function useSidebarBranches() {
       const sessionsByWorkspace = new Map<string, SidebarSession[]>()
       const ungrouped: SidebarSession[] = []
       for (const session of sessions) {
-        // 自动化会话单独成组，不进工作区树
-        if (isAutomationThread(session.id)) continue
+        // 自动化会话不再单列：有工作区就跟工作区走，没有就落「未分组」
         if (!session.workspaceID) {
           ungrouped.push(session)
           continue
@@ -270,7 +293,6 @@ function useSidebarBranches() {
 
   return {
     branches,
-    automationSessions,
     expandedKeys,
     expandedKeySet,
     updateExpandedKeys

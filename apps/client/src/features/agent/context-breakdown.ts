@@ -1,7 +1,7 @@
 /**
  * 上下文分段的可视化口径（纯函数，单独放一处便于单测）。
  *
- * 分段数据来自 `context-estimate`（系统 / 历史 / 工具 / 附件）；这里只回答三件事：
+ * 分段数据来自 `context-estimate`（系统提示词 / 对话消息 / 工具 / 附件）；这里只回答三件事：
  * ① 每段占多少（色条宽度）；② 什么时候该报警（占用率阈值）；③ 谁最占（排序）。
  *
  * 阈值按**占用率**而不是绝对 token：同一个 70% 在 32k 和 200k 窗口下含义一样，
@@ -31,8 +31,8 @@ const CONTEXT_DANGER_RATIO = 0.9
 
 /** 分段定义（顺序即色条从左到右的顺序，也是图例顺序） */
 const CONTEXT_SEGMENT_META: readonly Omit<ContextSegment, 'tokens' | 'ratio'>[] = [
-  { key: 'system', label: '系统', icon: 'lucide:settings-2', tone: 'bg-sky-500/80' },
-  { key: 'history', label: '历史', icon: 'lucide:messages-square', tone: 'bg-violet-500/80' },
+  { key: 'system', label: '系统提示词', icon: 'lucide:settings-2', tone: 'bg-sky-500/80' },
+  { key: 'history', label: '对话消息', icon: 'lucide:messages-square', tone: 'bg-violet-500/80' },
   { key: 'tool', label: '工具', icon: 'lucide:wrench', tone: 'bg-amber-500/80' },
   { key: 'attachment', label: '附件', icon: 'lucide:paperclip', tone: 'bg-emerald-500/80' }
 ]
