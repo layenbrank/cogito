@@ -17,6 +17,7 @@ interface SessionChange {
   pinned?: boolean
   providerID?: string | null
   workspaceID?: string | null
+  unread?: boolean
 }
 
 interface MessageChange {
@@ -148,7 +149,8 @@ function toSessionWrite(value: Session) {
     providerID: value.providerID,
     workspaceID: value.workspaceID,
     createdAt: value.createdAt,
-    updatedAt: value.updatedAt
+    updatedAt: value.updatedAt,
+    unread: value.unread
   }
 }
 

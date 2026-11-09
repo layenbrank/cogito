@@ -1248,6 +1248,9 @@ impl MigrationTrait for Migration {
                  prompt TEXT NOT NULL, \
                  \"knowledgeBaseId\" TEXT NULL, \
                  \"workspaceId\" TEXT NULL, \
+                 \"workspacePath\" TEXT NULL, \
+                 \"sessionMode\" TEXT NOT NULL DEFAULT 'new', \
+                 \"sessionId\" TEXT NULL, \
                  approval TEXT NOT NULL DEFAULT 'readonly', \
                  \"providerId\" TEXT NULL, \
                  \"modelId\" TEXT NULL, \

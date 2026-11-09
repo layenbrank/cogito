@@ -19,6 +19,12 @@ pub struct Model {
     pub createdAt: i64,
     #[sea_orm(column_name = "updatedAt")]
     pub updatedAt: i64,
+    /// 有未读回复：`false` = 已读（默认），`true` = 这一轮跑完但用户还没打开过。
+    ///
+    /// 放列里而不是前端内存：切会话、重启之后未读也不该丢 —— 这正是它跟
+    /// `run-state.ts` 那个「跑完待领取」集合的区别（后者只是本次进程内的运行态）。
+    #[sea_orm(column_name = "unread")]
+    pub unread: bool,
 }
 
 impl ActiveModelBehavior for ActiveModel {}
@@ -51,6 +57,9 @@ pub struct Write {
     pub workspaceID: Option<String>,
     pub createdAt: Option<i64>,
     pub updatedAt: Option<i64>,
+    /// 新会话默认已读（`#[serde(default)]`）：用户点开它才会有第一条消息。
+    #[serde(default)]
+    pub unread: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,6 +76,8 @@ pub struct Change {
     pub pinned: Option<bool>,
     pub providerID: Option<Option<String>>,
     pub workspaceID: Option<Option<String>>,
+    /// 已读 / 未读（唯一一个**不**推进 `updatedAt` 的可改字段，见 `update_one`）
+    pub unread: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

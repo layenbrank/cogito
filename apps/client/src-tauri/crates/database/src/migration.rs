@@ -37,6 +37,9 @@ pub async fn run(db: &Connection) -> Result<(), DbErr> {
     // `automation` 是 0001 基线里的老表：`CREATE TABLE IF NOT EXISTS` 不改既有库结构，
     // 执行配置（工作目录 / 审批档）这两列只能靠启动时 ALTER 补齐。
     ensure_automation(db).await?;
+    // `agent_session` 是老表：`unread`（已读 / 未读）是 0001 之后加的列，老库只能靠
+    // 启动时 ALTER 补齐 —— 不动 0001 基线，也不新增迁移版本。
+    ensure_agent_session(db).await?;
     Ok(())
 }
 
@@ -87,6 +90,32 @@ async fn ensure_agent_plan(db: &Connection) -> Result<(), DbErr> {
 /// —— SQLite 的 `ADD COLUMN` 不幂等，每次启动都会重复执行。
 async fn ensure_automation(db: &Connection) -> Result<(), DbErr> {
     let patches = crate::migrations::automation_schema::column_patches();
+    for (table, column, alter) in patches {
+        let found = db
+            .query_one(Statement::from_string(
+                DatabaseBackend::Sqlite,
+                format!(
+                    "SELECT count(*) AS v FROM pragma_table_info('{table}') WHERE name = '{column}'"
+                ),
+            ))
+            .await?;
+        let count = found
+            .and_then(|row| row.try_get::<i64>("", "v").ok())
+            .unwrap_or(0);
+        if count == 0 {
+            db.execute(Statement::from_string(DatabaseBackend::Sqlite, alter.to_string()))
+                .await?;
+        }
+    }
+    Ok(())
+}
+
+/// 给老库的 `agent_session` 补「已读 / 未读」列。
+///
+/// 判定方式与 `ensure_automation()` 一致：先 `pragma_table_info` 查列，缺了才 `ALTER`
+/// —— SQLite 的 `ADD COLUMN` 不幂等，每次启动都会重复执行。
+async fn ensure_agent_session(db: &Connection) -> Result<(), DbErr> {
+    let patches = crate::migrations::agent_session_schema::column_patches();
     for (table, column, alter) in patches {
         let found = db
             .query_one(Statement::from_string(
@@ -594,6 +623,43 @@ mod tests {
             default.contains("readonly"),
             "approval 的默认值必须是 readonly，实际是 {default}"
         );
+    }
+
+    /// 老库补列：`agent_session.unread`（已读 / 未读）同样的处境 —— 0001 基线不重跑，
+    /// 只能在启动兜底里按 pragma 判缺再 ALTER；既有会话一律回填成已读。
+    #[tokio::test]
+    async fn agent_session_unread_is_patched_on_old_db() {
+        let db = fresh().await;
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE agent_session DROP COLUMN unread".to_string(),
+        ))
+        .await
+        .expect("drop column should succeed");
+        let found = scalar_i64(
+            &db,
+            "SELECT count(*) AS v FROM pragma_table_info('agent_session') WHERE name = 'unread'",
+        )
+        .await;
+        assert_eq!(found, 0, "先确认列真的被删掉了");
+
+        ensure_agent_session(&db).await.expect("补列应成功");
+
+        let found = scalar_i64(
+            &db,
+            "SELECT count(*) AS v FROM pragma_table_info('agent_session') WHERE name = 'unread'",
+        )
+        .await;
+        assert_eq!(found, 1, "ensure_agent_session 应补回 unread");
+        // 幂等：每次启动都会跑，重复执行不能报错
+        ensure_agent_session(&db).await.expect("重复执行应幂等");
+        // 老会话升级后必须落在「已读」：默认值只能是 0
+        let default = scalar_string(
+            &db,
+            "SELECT dflt_value AS v FROM pragma_table_info('agent_session') WHERE name = 'unread'",
+        )
+        .await;
+        assert_eq!(default, "0", "unread 的默认值必须是 0（已读）");
     }
 
     /// DDL 里某张表的列名（`pragma_table_info`，按定义顺序）。

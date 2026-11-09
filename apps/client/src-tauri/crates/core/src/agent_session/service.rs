@@ -142,6 +142,7 @@ impl Service {
             workspaceID: Set(p.workspaceID),
             createdAt: Set(created_at),
             updatedAt: Set(updated_at),
+            unread: Set(p.unread),
         };
         schema::Entity::insert(model).exec(db).await?;
         Ok(id)
@@ -159,6 +160,12 @@ impl Service {
             })?;
 
         let mut active: schema::ActiveModel = model.into();
+        // 「已读 / 未读」是阅读状态，不是会话内容变更：它不该把这一行顶到左栏最前面
+        // （否则每点开一次会话，树就重排一次）。所以只有其余字段真的变了才推进 updatedAt。
+        let touches_content = payload.change.title.is_some()
+            || payload.change.pinned.is_some()
+            || payload.change.providerID.is_some()
+            || payload.change.workspaceID.is_some();
         let now = Utc::now().timestamp_millis();
         if let Some(v) = payload.change.title {
             active.title = Set(v);
@@ -172,7 +179,12 @@ impl Service {
         if let Some(v) = payload.change.workspaceID {
             active.workspaceID = Set(v);
         }
-        active.updatedAt = Set(now);
+        if let Some(v) = payload.change.unread {
+            active.unread = Set(v);
+        }
+        if touches_content {
+            active.updatedAt = Set(now);
+        }
         let updated = active.update(db).await?;
         Ok(updated.id)
     }
@@ -186,5 +198,99 @@ impl Service {
             cond = cond.add(schema::Column::WorkspaceId.eq(workspace_id.clone()));
         }
         cond
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cogito_database::migration;
+    use sea_orm::Database;
+
+    async fn db() -> std::sync::Arc<sea_orm::DatabaseConnection> {
+        let connection = std::sync::Arc::new(
+            Database::connect("sqlite::memory:")
+                .await
+                .expect("connect in-memory sqlite"),
+        );
+        migration::run(&connection)
+            .await
+            .expect("migration should succeed");
+        connection
+    }
+
+    fn write(id: &str) -> schema::Write {
+        schema::Write {
+            id: Some(id.to_string()),
+            title: "t".to_string(),
+            pinned: false,
+            providerID: None,
+            workspaceID: None,
+            createdAt: Some(1_000),
+            updatedAt: Some(1_000),
+            unread: false,
+        }
+    }
+
+    fn update(key: &str, unread: Option<bool>, title: Option<&str>) -> schema::Update {
+        schema::Update {
+            key: key.to_string(),
+            change: schema::Change {
+                title: title.map(|value| value.to_string()),
+                pinned: None,
+                providerID: None,
+                workspaceID: None,
+                unread,
+            },
+        }
+    }
+
+    async fn read_one(db: &std::sync::Arc<sea_orm::DatabaseConnection>) -> schema::Model {
+        schema::Entity::find_by_id("s1")
+            .one(db.as_ref())
+            .await
+            .expect("read session")
+            .expect("session should exist")
+    }
+
+    /// 「已读 / 未读」是阅读状态：写它不该把会话顶到左栏最前面（否则每点开一次就重排）。
+    #[tokio::test]
+    async fn unread_update_keeps_updated_at() {
+        let db = db().await;
+        Service::toWrite(db.as_ref(), schema::WriteP::One(write("s1")))
+            .await
+            .expect("write session");
+
+        let unread = schema::UpdateP::One(update("s1", Some(true), None));
+        Service::toUpdate(db.as_ref(), unread)
+            .await
+            .expect("mark unread");
+
+        let row = read_one(&db).await;
+        assert!(row.unread, "未读标记应该落库");
+        assert_eq!(
+            row.updatedAt, 1_000,
+            "未读不推进 updatedAt：它只是阅读状态，不是内容变更"
+        );
+
+        // 内容字段照旧推进：`updateThread` 的元数据编辑依赖这一点
+        let rename = schema::UpdateP::One(update("s1", None, Some("改名")));
+        Service::toUpdate(db.as_ref(), rename)
+            .await
+            .expect("rename session");
+
+        let row = read_one(&db).await;
+        assert_eq!(row.title, "改名");
+        assert!(row.updatedAt > 1_000, "改标题仍要推进 updatedAt");
+        assert!(row.unread, "改标题不该顺手把未读清掉");
+    }
+
+    /// 老前端（请求体里没有 `unread`）写的会话必须默认已读，不能因为缺字段反序列化失败。
+    #[test]
+    fn write_payload_without_unread_deserializes_as_read() {
+        let payload: schema::Write = serde_json::from_str(
+            r#"{"title":"t","pinned":false,"providerID":null,"workspaceID":null}"#,
+        )
+        .expect("反序列化应成功");
+        assert!(!payload.unread, "缺字段时默认已读");
     }
 }
