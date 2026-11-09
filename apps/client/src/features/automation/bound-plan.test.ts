@@ -3,9 +3,15 @@ import { describe, expect, it } from 'vitest'
 import { BODY_START } from '@/features/agent/plan-execute'
 import { buildBoundPlanPrompt, findBoundPlanTarget } from '@/features/automation/bound-plan'
 
-const BODY = ['# 审阅升级', '', '## 实施步骤', '1. 改后端', '', '## 验证', '| cargo test | 通过 |'].join(
-  '\n'
-)
+const BODY = [
+  '# 审阅升级',
+  '',
+  '## 实施步骤',
+  '1. 改后端',
+  '',
+  '## 验证',
+  '| cargo test | 通过 |'
+].join('\n')
 
 describe('findBoundPlanTarget', function () {
   it('agent 走执行，其余（含 plan）一律按目标推进', function () {

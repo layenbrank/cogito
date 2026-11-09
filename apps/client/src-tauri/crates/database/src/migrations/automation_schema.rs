@@ -20,6 +20,21 @@ pub fn column_patches() -> Vec<(&'static str, &'static str, &'static str)> {
         ),
         (
             "automation",
+            "workspacePath",
+            r#"ALTER TABLE automation ADD COLUMN "workspacePath" TEXT NULL"#,
+        ),
+        (
+            "automation",
+            "sessionMode",
+            r#"ALTER TABLE automation ADD COLUMN "sessionMode" TEXT NOT NULL DEFAULT 'new'"#,
+        ),
+        (
+            "automation",
+            "sessionId",
+            r#"ALTER TABLE automation ADD COLUMN "sessionId" TEXT NULL"#,
+        ),
+        (
+            "automation",
             "approval",
             r#"ALTER TABLE automation ADD COLUMN approval TEXT NOT NULL DEFAULT 'readonly'"#,
         ),

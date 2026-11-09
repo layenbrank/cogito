@@ -11,9 +11,9 @@ import {
 describe('buildSchedule', function () {
   it('把可视化选择拼成 5 段 crontab', function () {
     expect(buildSchedule({ kind: 'daily', hour: 9, minute: 0 })).toBe('0 9 * * *')
-    expect(
-      buildSchedule({ kind: 'weekly', hour: 18, minute: 30, weekdays: [1, 3, 5] })
-    ).toBe('30 18 * * 1,3,5')
+    expect(buildSchedule({ kind: 'weekly', hour: 18, minute: 30, weekdays: [1, 3, 5] })).toBe(
+      '30 18 * * 1,3,5'
+    )
     expect(buildSchedule({ kind: 'monthly', hour: 7, minute: 15, day: 1 })).toBe('15 7 1 * *')
     // 最后一天不是某个数字：交给 cron 的 `L`
     expect(buildSchedule({ kind: 'monthly', hour: 9, minute: 0, day: 'last' })).toBe('0 9 L * *')
@@ -30,9 +30,9 @@ describe('buildSchedule', function () {
   })
 
   it('「工作日 / 周末」压成短表达式', function () {
-    expect(
-      buildSchedule({ kind: 'weekly', hour: 9, minute: 0, weekdays: [1, 2, 3, 4, 5] })
-    ).toBe('0 9 * * 1-5')
+    expect(buildSchedule({ kind: 'weekly', hour: 9, minute: 0, weekdays: [1, 2, 3, 4, 5] })).toBe(
+      '0 9 * * 1-5'
+    )
     expect(buildSchedule({ kind: 'weekly', hour: 9, minute: 0, weekdays: [6, 0] })).toBe(
       '0 9 * * 6,0'
     )

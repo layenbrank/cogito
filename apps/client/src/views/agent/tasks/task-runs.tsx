@@ -4,8 +4,9 @@
  * 记录来自 `automation_run`（本机 / goose 手动触发没有本地记录时会直接提示）。
  * 状态筛选在纯函数里做（`model.filterRuns`），这里只管展开与「再跑一次」。
  *
- * 布局：292px 宽下，行内按钮和元信息抢同一行会把「耗时」挤成省略号，
- * 所以动作统一收进底部一行（展开输出 / 再跑一次），元信息独占一行。
+ * 版式与右栏其它页签一致：筛选是浅底分段控件（12px），行是 `rounded-lg` 的
+ * 描边卡，时间 12px 等宽数字、状态胶囊、元信息 12px；动作用次级文字按钮，
+ * 收在行底 —— 292px 宽下和元信息抢同一行会把「耗时」挤没。
  */
 import { Icon } from '@iconify/react/offline'
 import { clsx } from 'clsx'
@@ -23,7 +24,7 @@ import {
   formatDuration,
   type RunFilter
 } from './model'
-import styles from './tasks.module.scss'
+import { TaskStatusPill } from './task-status-pill'
 
 interface TaskRunsProps {
   runs: AutomationRun[]
@@ -44,12 +45,16 @@ const FILTERS: readonly { key: RunFilter; label: string }[] = [
   { key: 'running', label: '执行中' }
 ]
 
-function statusTone(status: string): string {
-  if (status === RUN_STATUS.SUCCEEDED) return styles.badgeOk
-  if (status === RUN_STATUS.FAILED) return styles.badgeFail
-  if (status === RUN_STATUS.RUNNING) return styles.badgeRunning
-  return styles.badgeIdle
+function findStatusTone(status: string): 'ok' | 'fail' | 'running' | 'idle' {
+  if (status === RUN_STATUS.SUCCEEDED) return 'ok'
+  if (status === RUN_STATUS.FAILED) return 'fail'
+  if (status === RUN_STATUS.RUNNING) return 'running'
+  return 'idle'
 }
+
+/** 行内文字按钮：统一一档字号与色阶（hover 才提亮） */
+const LINK_BUTTON =
+  'text-muted-foreground hover:text-foreground inline-flex shrink-0 items-center gap-1 text-xs whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50'
 
 function TaskRuns(props: TaskRunsProps) {
   const [filter, updateFilter] = useState<RunFilter>('all')
@@ -95,108 +100,148 @@ function TaskRuns(props: TaskRunsProps) {
   )
 
   return (
-    <div className={styles.runs}>
-      <div className={styles.runFilters}>
+    <div className="flex flex-col gap-2.5">
+      {/* 分段筛选：浅底槽 + 选中块抬起成白底，与表单里的分段控件同一形态。
+          窄栏（232px）下四格会挤，槽本身可横向滚动，标签不缩成「全…」。 */}
+      <div className="bg-muted/50 flex items-center gap-0.5 overflow-x-auto rounded-lg p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {FILTERS.map(function (item) {
           const count = counts[item.key]
+          const active = filter === item.key
           return (
             <button
               key={item.key}
               type="button"
-              className={clsx(styles.filterBtn, filter === item.key && styles.filterActive)}
+              aria-pressed={active}
+              className={clsx(
+                'flex h-6 min-w-fit flex-1 items-center justify-center gap-1 rounded-md px-2 text-xs whitespace-nowrap transition-colors',
+                active
+                  ? 'bg-background text-foreground shadow-xs font-medium'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
               onClick={function () {
                 updateFilter(item.key)
               }}>
               {item.label}
-              <span className={styles.filterCount}>{count}</span>
+              <span
+                className={clsx(
+                  'text-[11px] tabular-nums',
+                  active ? 'text-muted-foreground' : 'opacity-70'
+                )}>
+                {count}
+              </span>
             </button>
           )
         })}
       </div>
 
       {visible.length === 0 ? (
-        <p className={styles.runsEmpty}>
+        <p className="text-muted-foreground px-0.5 text-xs leading-relaxed">
           {props.runs.length === 0 ? '还没有执行记录。' : '没有符合筛选条件的记录。'}
         </p>
       ) : null}
 
-      {visible.map(function (run) {
-        const isOpen = Boolean(expanded[run.id])
-        const duration = formatDuration(findRunDuration(run))
-        const taskName = nameByID[run.automationId]
-        const canRerun = Boolean(props.onRerun) && !props.running?.[run.automationId]
-        return (
-          <div
-            key={run.id}
-            className={styles.runRow}>
-            <div className={styles.runHead}>
-              <span className={styles.runTime}>{formatTime(run.startedAt ?? run.createdAt)}</span>
-              <span className={clsx(styles.badge, statusTone(run.status))}>
-                {findPhaseLabel(run.phase) && run.status === RUN_STATUS.RUNNING
-                  ? findPhaseLabel(run.phase)
-                  : findLabel(DICT_TYPE.AUTOMATION_RUN_STATUS, run.status)}
-              </span>
-              <span className={styles.runMeta}>
-                {taskName ? `${taskName} · ` : ''}
-                {findLabel(DICT_TYPE.AUTOMATION_TRIGGER_KIND, run.triggerKind)} · 耗时 {duration}
-              </span>
-            </div>
+      {visible.length > 0 ? (
+        <div className="flex flex-col gap-1.5">
+          {visible.map(function (run) {
+            const isOpen = Boolean(expanded[run.id])
+            const duration = formatDuration(findRunDuration(run))
+            const taskName = nameByID[run.automationId]
+            const canRerun = Boolean(props.onRerun) && !props.running?.[run.automationId]
+            const phase = findPhaseLabel(run.phase)
+            return (
+              <div
+                key={run.id}
+                className="border-border/60 bg-background/60 flex flex-col gap-1.5 rounded-lg border px-2.5 py-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="text-foreground shrink-0 text-xs tabular-nums">
+                    {formatTime(run.startedAt ?? run.createdAt)}
+                  </span>
+                  <TaskStatusPill
+                    tone={findStatusTone(run.status)}
+                    label={
+                      phase && run.status === RUN_STATUS.RUNNING
+                        ? phase
+                        : findLabel(DICT_TYPE.AUTOMATION_RUN_STATUS, run.status)
+                    }
+                  />
+                  <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
+                    {taskName ? `${taskName} · ` : ''}
+                    {findLabel(DICT_TYPE.AUTOMATION_TRIGGER_KIND, run.triggerKind)} · 耗时{' '}
+                    {duration}
+                  </span>
+                </div>
 
-            {run.error ? <p className={styles.runError}>{run.error}</p> : null}
+                {run.error ? (
+                  <p className="text-destructive text-xs leading-relaxed break-words">
+                    {run.error}
+                  </p>
+                ) : null}
 
-            {run.output ? (
-              <p className={clsx(styles.runOutput, !isOpen && 'line-clamp-3')}>{run.output}</p>
-            ) : null}
-
-            {run.output || props.onRerun || run.sessionId ? (
-              <div className={styles.runActions}>
                 {run.output ? (
-                  <button
-                    type="button"
-                    className={styles.runAction}
-                    onClick={function () {
-                      updateExpanded(function (prev) {
-                        return { ...prev, [run.id]: !isOpen }
-                      })
-                    }}>
-                    {isOpen ? '收起输出' : '展开输出'}
-                  </button>
+                  <p
+                    className={clsx(
+                      'text-muted-foreground text-xs leading-relaxed whitespace-pre-wrap break-words',
+                      !isOpen && 'line-clamp-3'
+                    )}>
+                    {run.output}
+                  </p>
                 ) : null}
-                {run.sessionId && props.onOpenSession ? (
-                  <button
-                    type="button"
-                    className={styles.runAction}
-                    onClick={function () {
-                      props.onOpenSession?.(run.sessionId!)
-                    }}>
-                    <Icon
-                      icon="lucide:messages-square"
-                      className="me-0.5 inline size-3 align-[-2px]"
-                    />
-                    打开会话
-                  </button>
-                ) : null}
-                {props.onRerun ? (
-                  <button
-                    type="button"
-                    className={styles.runAction}
-                    disabled={!canRerun}
-                    title={canRerun ? '用这个任务的定义再跑一次' : '这个任务正在执行'}
-                    onClick={function () {
-                      props.onRerun?.(run.automationId)
-                    }}>
-                    <Icon
-                      icon="lucide:rotate-cw"
-                      className="me-0.5 inline size-3 align-[-2px]"
-                    />
-                    {canRerun ? '再跑一次' : '执行中'}
-                  </button>
+
+                {run.output || props.onRerun || run.sessionId ? (
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5">
+                    {run.output ? (
+                      <button
+                        type="button"
+                        className={LINK_BUTTON}
+                        onClick={function () {
+                          updateExpanded(function (prev) {
+                            return { ...prev, [run.id]: !isOpen }
+                          })
+                        }}>
+                        <Icon
+                          icon={isOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'}
+                          className="size-3"
+                        />
+                        {isOpen ? '收起输出' : '展开输出'}
+                      </button>
+                    ) : null}
+                    {run.sessionId && props.onOpenSession ? (
+                      <button
+                        type="button"
+                        className={LINK_BUTTON}
+                        onClick={function () {
+                          props.onOpenSession?.(run.sessionId!)
+                        }}>
+                        <Icon
+                          icon="lucide:messages-square"
+                          className="size-3"
+                        />
+                        打开会话
+                      </button>
+                    ) : null}
+                    {props.onRerun ? (
+                      <button
+                        type="button"
+                        className={LINK_BUTTON}
+                        disabled={!canRerun}
+                        title={canRerun ? '用这个任务的定义再跑一次' : '这个任务正在执行'}
+                        onClick={function () {
+                          props.onRerun?.(run.automationId)
+                        }}>
+                        <Icon
+                          icon="lucide:rotate-cw"
+                          className="size-3"
+                        />
+                        {canRerun ? '再跑一次' : '执行中'}
+                      </button>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
-            ) : null}
-          </div>
-        )
-      })}
+            )
+          })}
+        </div>
+      ) : null}
     </div>
   )
 }

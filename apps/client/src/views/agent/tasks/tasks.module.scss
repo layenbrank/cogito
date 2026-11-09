@@ -1,4 +1,8 @@
-/* 任务面板（右栏）：卡片列表 / 详情 / 表单，与右栏其它页签共用同一套底色。
+/* 任务面板（右栏）**表单**：新建 / 编辑任务，与可视化排期控件。
+ *
+ * 列表与详情已经统一到 `aside-section` 那套 Tailwind 卡片（14px 标题 / 13px 正文 /
+ * 12px 元信息），这里只剩表单还走模块样式 —— 表单控件要按 `@container` 判宽，
+ * 写成 scss 比一长串 width- 前缀更清楚。
  *
  * 尺寸前提：右栏默认 340px，减去 48px 纵向导航，内容区只有约 292px（最窄 232px）。
  * 所以这里没有两列以上的网格，也没有超过 13px 的正文；层次靠**间距 + 字号 + 底色**，
@@ -6,398 +10,9 @@
  *
  * 组件尺度的三段：
  * - 表单控件：走设计系统默认（h-9 / 14px），与仓库里其它表单一致；
- * - 轻量选择（频率 / 星期 / 间隔）：26–28px 的分段控件，是「普通用户认得的」那种；
- * - 元信息：11px，只做标注，不参与点击。
+ * - 轻量选择（频率 / 星期 / 间隔）：28px 的分段控件，是「普通用户认得的」那种；
+ * - 元信息：11–12px，只做标注，不参与点击。
  */
-
-/* —— 面板外壳 —— */
-
-.panel {
-  display: flex;
-  height: 100%;
-  min-height: 0;
-  flex-direction: column;
-}
-
-.panelHead {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px 6px 12px;
-  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-}
-
-.panelTitle {
-  margin: 0;
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--foreground);
-}
-
-.panelCount {
-  display: inline-flex;
-  align-items: center;
-  height: 17px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--muted) 85%, transparent);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted-foreground);
-}
-
-.panelBody {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  flex-direction: column;
-  gap: 14px;
-  overflow-y: auto;
-  padding: 10px 10px 16px;
-}
-
-.panelHint {
-  margin: 0;
-  padding: 0 4px;
-  font-size: 11px;
-  line-height: 1.55;
-  color: var(--muted-foreground);
-}
-
-.panelEmpty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 34px 14px;
-  text-align: center;
-}
-
-.panelEmptyTitle {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.panelEmptyHint {
-  margin: 0;
-  max-width: 26em;
-  font-size: 11.5px;
-  line-height: 1.7;
-  color: var(--muted-foreground);
-}
-
-/* —— 分组与卡片 —— */
-
-.group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.groupLabel {
-  display: flex;
-  min-width: 0;
-  align-items: baseline;
-  gap: 6px;
-  margin: 0;
-  padding: 0 4px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--muted-foreground);
-}
-
-.groupHint {
-  overflow: hidden;
-  font-size: 10px;
-  font-weight: 400;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
-}
-
-.cards {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* 卡片是「一块能点的面」：底色比面板略亮一档，靠 1px 描边和悬停阴影分层；不用左侧色条 */
-.card {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 52px;
-  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-  border-radius: 10px;
-  background: color-mix(in oklab, var(--background) 92%, var(--foreground) 2%);
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    background-color 0.15s ease;
-
-  &:hover {
-    border-color: color-mix(in oklab, var(--primary) 28%, var(--border));
-    box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 6%, transparent);
-  }
-
-  &:focus-within {
-    border-color: color-mix(in oklab, var(--ring) 45%, transparent);
-  }
-}
-
-.cardActive {
-  border-color: color-mix(in oklab, var(--primary) 45%, transparent);
-  background: color-mix(in oklab, var(--primary) 5%, var(--background));
-}
-
-.cardRunning {
-  border-color: color-mix(in oklab, var(--primary) 35%, var(--border));
-  background: color-mix(in oklab, var(--primary) 6%, var(--background));
-}
-
-.cardMain {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 4px 10px 12px;
-  background: transparent;
-  text-align: start;
-  outline: none;
-}
-
-.cardTitleRow {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-}
-
-.cardTitle {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--foreground);
-}
-
-.cardMeta {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  font-size: 11.5px;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted-foreground);
-}
-
-.cardError {
-  overflow: hidden;
-  font-size: 11.5px;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--destructive);
-}
-
-.cardActions {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 4px;
-  padding-inline-end: 8px;
-}
-
-.rowError {
-  color: var(--destructive);
-}
-
-.badge {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  height: 18px;
-  padding: 0 7px;
-  border-radius: 999px;
-  font-size: 10.5px;
-  font-weight: 500;
-  line-height: 1;
-  white-space: nowrap;
-  background: color-mix(in oklab, var(--muted) 85%, transparent);
-  color: var(--muted-foreground);
-}
-
-.badgeOk {
-  background: color-mix(in srgb, var(--success) 14%, transparent);
-  color: var(--success);
-}
-
-.badgeFail {
-  background: color-mix(in srgb, var(--destructive) 12%, transparent);
-  color: var(--destructive);
-}
-
-.badgeRunning {
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
-  color: var(--primary);
-}
-
-.badgeOff,
-.badgeIdle {
-  background: color-mix(in oklab, var(--muted) 85%, transparent);
-  color: var(--muted-foreground);
-}
-
-/* —— 详情（同一块面板里钻进任务） —— */
-
-.detail {
-  display: flex;
-  height: 100%;
-  min-height: 0;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.detailHead {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 8px 6px 4px;
-  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-}
-
-.detailTitle {
-  margin: 0;
-  overflow: hidden;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.detailSub {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 2px 0 0;
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--muted-foreground);
-}
-
-.detailActions {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 2px;
-}
-
-.detailBody {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  flex-direction: column;
-  gap: 14px;
-  overflow-y: auto;
-  padding: 10px 12px 18px;
-}
-
-.prompt {
-  margin: 0;
-  padding: 9px 10px;
-  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-  border-radius: 8px;
-  background: color-mix(in oklab, var(--muted) 30%, transparent);
-  font-size: 11.5px;
-  line-height: 1.65;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--foreground);
-}
-
-/*
- * 定义区用「左标签 / 右值」的对齐行，而不是每条字段一段 label+value：
- * 292px 宽下八条字段竖排能吃掉一整屏，翻记录还得先滚过定义。
- */
-.meta {
-  display: flex;
-  flex-direction: column;
-  border-top: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
-}
-
-.metaRow {
-  display: grid;
-  grid-template-columns: 4.6em minmax(0, 1fr);
-  align-items: baseline;
-  gap: 8px;
-  padding: 6px 0;
-  border-bottom: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
-}
-
-.metaLabel {
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--muted-foreground);
-}
-
-.metaValue {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
-  font-size: 11.5px;
-  line-height: 1.55;
-  word-break: break-word;
-  color: var(--foreground);
-}
-
-.metaValueMuted {
-  color: var(--muted-foreground);
-}
-
-.sectionHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-}
-
-.sectionTitle {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--foreground);
-}
-
-.sectionMeta {
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted-foreground);
-}
-
-.emptyHint {
-  margin: 0;
-  max-width: 32em;
-  font-size: 11.5px;
-  line-height: 1.65;
-  color: var(--muted-foreground);
-}
 
 /* —— 新建 / 编辑表单（面板内单列） —— */
 
@@ -423,7 +38,7 @@
 
 .formTitle {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -438,7 +53,7 @@
 }
 
 /* 表单分三段：任务是什么 / 什么时候跑 / 怎么执行。
- * 段标题是一行 11px 的说明 + 一条细线，和详情页的分节同一套语言。 */
+ * 段标题是一行 12px 的说明 + 一条细线，和详情页的卡片标题同一档字号。 */
 .formSection {
   display: flex;
   flex-direction: column;
@@ -455,7 +70,7 @@
 
 .formSectionTitle {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--muted-foreground);
@@ -463,16 +78,10 @@
 
 .formSectionHint {
   overflow: hidden;
-  font-size: 10.5px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
-}
-
-.formRow {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
 
 .fieldGroup {
@@ -483,16 +92,18 @@
 }
 
 .fieldLabel {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--muted-foreground);
 }
 
 .fieldHint {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.55;
   color: var(--muted-foreground);
+  /* 提示里会出现完整目录（Windows 路径没有空格），不折断就会把窄栏撑出横向滚动 */
+  overflow-wrap: anywhere;
 }
 
 .fieldWarn {
@@ -501,7 +112,7 @@
 
 /* —— 轻量选择控件：分段控件（频率 / 授权 / 间隔） ——
  * 这是普通用户最认得的形态：一条浅底槽 + 选中的那块抬起成白底。
- * 交互面 26px（够点），字 11px（窄栏里不挤）。 */
+ * 交互面 28px（够点），字 12px（窄栏里不挤）。 */
 
 .segmented {
   display: grid;
@@ -518,13 +129,13 @@
 .segment {
   display: inline-flex;
   min-width: 0;
-  height: 26px;
+  height: 28px;
   align-items: center;
   justify-content: center;
   padding: 0 2px;
   border-radius: 6px;
   background: transparent;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 400;
   line-height: 1;
   white-space: nowrap;
@@ -552,7 +163,6 @@
 }
 
 /* 选中态：白底 + 一点投影，跟设计系统里浮起的段一致 */
-.segmentActive,
 .segment[aria-selected='true'],
 .segment[aria-pressed='true'] {
   background: var(--background);
@@ -563,10 +173,6 @@
     0 0 0 0.5px color-mix(in oklab, var(--border) 70%, transparent);
 }
 
-.segmentAccent[aria-pressed='true'] {
-  color: var(--primary);
-}
-
 /* —— 时间定义（可视化排期） —— */
 
 .schedule {
@@ -575,7 +181,7 @@
   gap: 10px;
   padding: 10px;
   border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-  border-radius: 10px;
+  border-radius: 12px;
   background: color-mix(in oklab, var(--muted) 26%, transparent);
 }
 
@@ -606,7 +212,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  font-size: 10.5px;
+  font-size: 11px;
   line-height: 1.4;
   color: var(--muted-foreground);
   text-decoration: underline;
@@ -639,7 +245,7 @@
   border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
   border-radius: 7px;
   background: var(--background);
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--muted-foreground);
   transition:
@@ -679,7 +285,7 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -696,7 +302,7 @@
   max-width: 45%;
   overflow: hidden;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 10px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
@@ -704,12 +310,12 @@
 
 .scheduleCustom {
   flex-shrink: 0;
-  height: 22px;
+  height: 24px;
   padding: 0 8px;
   border: 1px solid color-mix(in oklab, var(--border) 75%, transparent);
   border-radius: 6px;
   background: var(--background);
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--muted-foreground);
 
   &:hover {
@@ -743,159 +349,9 @@
 
 .formError {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.45;
   color: var(--destructive);
-}
-
-/* —— 执行记录 —— */
-
-.runs {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.runFilters {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 8px;
-  background: color-mix(in oklab, var(--muted) 55%, transparent);
-}
-
-.filterBtn {
-  display: inline-flex;
-  min-width: 0;
-  flex: 1;
-  height: 24px;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  border-radius: 6px;
-  background: transparent;
-  font-size: 11px;
-  font-weight: 400;
-  white-space: nowrap;
-  color: var(--muted-foreground);
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease,
-    box-shadow 0.15s ease;
-
-  &:hover:not(.filterActive) {
-    color: var(--foreground);
-  }
-}
-
-.filterActive {
-  background: var(--background);
-  font-weight: 500;
-  color: var(--foreground);
-  box-shadow:
-    0 1px 2px color-mix(in oklab, var(--foreground) 10%, transparent),
-    0 0 0 0.5px color-mix(in oklab, var(--border) 70%, transparent);
-}
-
-.filterCount {
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-  color: color-mix(in oklab, var(--muted-foreground) 80%, transparent);
-}
-
-.filterActive .filterCount {
-  color: var(--muted-foreground);
-}
-
-.runRow {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
-  border: 1px solid color-mix(in oklab, var(--border) 65%, transparent);
-  border-radius: 8px;
-  background: color-mix(in oklab, var(--background) 92%, var(--foreground) 2%);
-}
-
-.runHead {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.runTime {
-  flex-shrink: 0;
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
-  color: var(--foreground);
-}
-
-.runMeta {
-  overflow: hidden;
-  flex: 1;
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--muted-foreground);
-}
-
-.runOutput {
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--muted-foreground);
-}
-
-.runError {
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.6;
-  word-break: break-word;
-  color: var(--destructive);
-}
-
-/* 行内动作收在底栏：跟元信息抢同一行时（292px 宽）会把「耗时」挤没 */
-.runActions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 1px;
-}
-
-.runAction {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--muted-foreground);
-
-  &:hover {
-    color: var(--foreground);
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-  }
-
-  &:focus-visible {
-    border-radius: 2px;
-    outline: 2px solid color-mix(in oklab, var(--ring) 45%, transparent);
-    outline-offset: 1px;
-  }
-}
-
-.runsEmpty {
-  margin: 0;
-  padding: 8px 2px;
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--muted-foreground);
 }
 
 /* —— 最窄态（右栏拉到底，内容区约 232px） ——
@@ -913,7 +369,7 @@
 
   .segment {
     padding: 0;
-    font-size: 10px;
+    font-size: 11px;
     letter-spacing: -0.01em;
   }
 

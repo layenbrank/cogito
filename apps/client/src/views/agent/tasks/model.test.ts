@@ -11,10 +11,12 @@ import {
   findDraftProblem,
   findOwnerHint,
   findRunDuration,
+  findSessionModeLabel,
   findTaskBadge,
   findTaskModeLabel,
   findTaskModeTag,
   formatDuration,
+  parseSessionMode,
   summarizeRuns,
   toDraft,
   toSaveInput
@@ -270,8 +272,47 @@ describe('findTaskModeLabel / findTaskModeTag', function () {
     expect(findTaskModeLabel(task({ planFilePath: '.cogito/plans/a.md', mode: 'agent' }))).toBe(
       '绑定计划 · 执行'
     )
-    expect(findTaskModeLabel(task({ planThenGoal: true, goalBudget: 12 }))).toBe('计划→目标 · 12 轮')
+    expect(findTaskModeLabel(task({ planThenGoal: true, goalBudget: 12 }))).toBe(
+      '计划→目标 · 12 轮'
+    )
     expect(findTaskModeTag(task({ planFilePath: '.cogito/plans/a.md' }))).toBe('绑定计划')
     expect(findTaskModeTag(task({ mode: 'agent' }))).toBe('')
+  })
+})
+
+describe('会话绑定', function () {
+  it('固定对话必须先选会话', function () {
+    const base = { ...createDraft(OWNER.CLIENT), name: '日报', prompt: '写日报' }
+    expect(findDraftProblem({ ...base, sessionMode: 'fixed' as const })).toContain('选择一个会话')
+    expect(
+      findDraftProblem({ ...base, sessionMode: 'fixed' as const, sessionId: 'sess-1' })
+    ).toBeNull()
+  })
+
+  it('只有本机执行能绑定会话', function () {
+    const base = { ...createDraft(OWNER.GOOSE), name: '日报', prompt: '写日报' }
+    expect(findDraftProblem({ ...base, sessionMode: 'ask' as const })).toContain('只有本机执行')
+    expect(findDraftProblem({ ...base, sessionMode: 'new' as const })).toBeNull()
+  })
+
+  it('保存只在 fixed 时带 sessionId', function () {
+    const base = {
+      ...createDraft(OWNER.CLIENT),
+      name: '日报',
+      prompt: '写日报',
+      sessionId: 'sess-1'
+    }
+    expect(toSaveInput({ ...base, sessionMode: 'fixed' as const }).sessionId).toBe('sess-1')
+    expect(toSaveInput({ ...base, sessionMode: 'new' as const }).sessionId).toBeNull()
+    expect(toSaveInput({ ...base, sessionMode: 'ask' as const }).sessionId).toBeNull()
+  })
+
+  it('老任务没有 sessionMode 时按每次新建；详情只在绑定时出文案', function () {
+    expect(parseSessionMode(undefined)).toBe('new')
+    expect(findSessionModeLabel(task({}))).toBe('')
+    expect(findSessionModeLabel(task({ sessionMode: 'ask' }))).toBe('执行前选择对话')
+    expect(findSessionModeLabel(task({ sessionMode: 'fixed', sessionId: 'sess-1' }))).toBe(
+      '固定对话'
+    )
   })
 })

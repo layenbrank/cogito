@@ -11,6 +11,7 @@ import type {
   AutomationMode,
   AutomationRun,
   AutomationSave,
+  AutomationSessionMode,
   GoalBudget
 } from '@/shared/ipc/specs/automation'
 import { DICT_KEY, DICT_VALUE_BY_KEY } from '@/shared/ipc/specs/dict'
@@ -60,6 +61,12 @@ interface TaskDraft {
   timezone: string
   owner: string
   workspaceId: string | null
+  /** 工作区下具体目录（文件夹绝对路径）；null = 跟随工作区默认目录 */
+  workspacePath: string | null
+  /** 会话绑定：new 每次新建 / fixed 固定对话 / ask 执行前选择 */
+  sessionMode: AutomationSessionMode
+  /** fixed 时绑定到的会话 id */
+  sessionId: string | null
   approval: 'readonly' | 'auto'
   providerId: string | null
   modelId: string | null
@@ -89,6 +96,17 @@ function parseGoalBudget(value: number | null | undefined): GoalBudget {
 }
 
 const DEFAULT_TIMEZONE = 'Asia/Shanghai'
+
+const SESSION_MODE_OPTIONS: ReadonlyArray<{ value: AutomationSessionMode; label: string }> = [
+  { value: 'new', label: '每次新建对话' },
+  { value: 'fixed', label: '固定对话' },
+  { value: 'ask', label: '执行前选择' }
+]
+
+function parseSessionMode(value: string | null | undefined): AutomationSessionMode {
+  if (value === 'fixed' || value === 'ask' || value === 'new') return value
+  return 'new'
+}
 
 function findOwnerHint(owner: string): string {
   return OWNER_HINT[owner] ?? ''
@@ -216,6 +234,9 @@ function toDraft(item: Automation): TaskDraft {
     timezone: item.timezone,
     owner: item.owner,
     workspaceId: item.workspaceId ?? null,
+    workspacePath: item.workspacePath ?? null,
+    sessionMode: parseSessionMode(item.sessionMode),
+    sessionId: item.sessionId ?? null,
     approval: item.approval === 'auto' ? 'auto' : 'readonly',
     providerId: item.providerId ?? null,
     modelId: item.modelId ?? null,
@@ -237,6 +258,9 @@ function createDraft(owner: string): TaskDraft {
     timezone: DEFAULT_TIMEZONE,
     owner,
     workspaceId: null,
+    workspacePath: null,
+    sessionMode: 'new',
+    sessionId: null,
     approval: 'readonly',
     providerId: null,
     modelId: null,
@@ -263,6 +287,15 @@ function findDraftProblem(draft: TaskDraft): string | null {
   }
   if (draft.approval === 'auto' && !draft.workspaceId) {
     return '自动批准必须先指定工作目录（把写入范围限制在目录内）'
+  }
+  if (draft.workspacePath && !draft.workspaceId) {
+    return '指定目录时必须先选工作区'
+  }
+  if (draft.sessionMode === 'fixed' && !draft.sessionId?.trim()) {
+    return '绑定固定对话时必须选择一个会话'
+  }
+  if (draft.sessionMode !== 'new' && draft.owner !== OWNER.CLIENT) {
+    return '只有本机执行的任务可以绑定会话'
   }
   if (hasPlan && !draft.workspaceId) {
     return '绑定计划文件必须先指定工作目录'
@@ -303,6 +336,10 @@ function toSaveInput(draft: TaskDraft): AutomationSave {
     timezone: draft.timezone.trim() || DEFAULT_TIMEZONE,
     owner: toOwner(draft.owner),
     workspaceId: draft.workspaceId,
+    workspacePath: draft.workspacePath,
+    sessionMode: draft.sessionMode,
+    // 只有 fixed 带 id：切回「每次新建」后旧 id 不该继续传下去
+    sessionId: draft.sessionMode === 'fixed' ? draft.sessionId : null,
     approval: draft.approval,
     providerId: draft.providerId,
     modelId: draft.modelId,
@@ -337,6 +374,14 @@ function findTaskModeLabel(item: TaskModeFields): string {
   return '执行'
 }
 
+/** 详情 / 卡片上的会话绑定文案（未绑定时返回空串，不占位） */
+function findSessionModeLabel(item: Pick<Automation, 'sessionMode' | 'sessionId'>): string {
+  const mode = parseSessionMode(item.sessionMode)
+  if (mode === 'fixed') return '固定对话'
+  if (mode === 'ask') return '执行前选择对话'
+  return ''
+}
+
 /** 列表行后缀：空字符串 = 默认执行、不额外标 */
 function findTaskModeTag(item: TaskModeFields): string {
   if (item.planFilePath) return '绑定计划'
@@ -353,6 +398,7 @@ export {
   OWNER_HINT,
   OWNER_ORDER,
   RUN_STATUS,
+  SESSION_MODE_OPTIONS,
   buildTaskGroups,
   canRunNow,
   compareTasks,
@@ -364,11 +410,13 @@ export {
   findTaskModeLabel,
   findTaskModeTag,
   findRunDuration,
+  findSessionModeLabel,
   findTaskBadge,
   formatDuration,
   isCloudTask,
   parseGoalBudget,
   parseMode,
+  parseSessionMode,
   summarizeRuns,
   toDraft,
   toSaveInput

@@ -354,11 +354,7 @@ function ScheduleField(props: ScheduleFieldProps) {
         {renderCustom()}
 
         <div className={styles.scheduleSummary}>
-          <span
-            className={clsx(
-              styles.scheduleHuman,
-              !isValid && styles.scheduleHumanInvalid
-            )}>
+          <span className={clsx(styles.scheduleHuman, !isValid && styles.scheduleHumanInvalid)}>
             {isValid ? preview : '表达式不合法'}
           </span>
           {isValid && kind !== 'custom' && expression && preview !== expression ? (

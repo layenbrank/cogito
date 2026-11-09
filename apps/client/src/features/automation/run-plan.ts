@@ -18,7 +18,9 @@ const AUTOMATION_APPROVAL: Record<AutomationApproval, AutomationApproval> = {
 
 /** 缺省与未知值一律按只读处理（失败关闭：新枚举值不该悄悄放开写权限） */
 function parseAutomationApproval(value: string | null | undefined): AutomationApproval {
-  return value === AUTOMATION_APPROVAL.auto ? AUTOMATION_APPROVAL.auto : AUTOMATION_APPROVAL.readonly
+  return value === AUTOMATION_APPROVAL.auto
+    ? AUTOMATION_APPROVAL.auto
+    : AUTOMATION_APPROVAL.readonly
 }
 
 const READONLY_PROMPT = `你是被定时任务唤起的执行者，没有人正在看屏幕。

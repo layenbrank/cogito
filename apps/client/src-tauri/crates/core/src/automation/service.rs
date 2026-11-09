@@ -40,6 +40,11 @@ const CLAIM_LIMIT: u64 = 1;
 pub const APPROVAL_READONLY: &str = "readonly";
 pub const APPROVAL_AUTO: &str = "auto";
 
+/// 会话绑定档：每次新建 / 固定写进某个对话 / 执行前由用户挑
+pub const SESSION_NEW: &str = "new";
+pub const SESSION_FIXED: &str = "fixed";
+pub const SESSION_ASK: &str = "ask";
+
 /// 单模式：agent / plan / goal（与客户端 `AgentMode` 对齐；任务里没有 ask）
 pub const MODE_AGENT: &str = "agent";
 pub const MODE_PLAN: &str = "plan";
@@ -65,6 +70,12 @@ pub struct AutomationInput {
     pub knowledgeBaseId: Option<String>,
     /// 执行时的工作目录（`agent_workspace` 的 id）；为空 = 家目录
     pub workspaceId: Option<String>,
+    /// 工作区下**具体哪个目录**（文件夹绝对路径）；为空 = 跟随工作区默认（第一个可用目录）
+    pub workspacePath: Option<String>,
+    /// 会话绑定：new（每次新建，缺省）| fixed（固定对话）| ask（执行前选择）
+    pub sessionMode: Option<String>,
+    /// 绑定到的会话 id（`agent_session.id`）；fixed 时必填
+    pub sessionId: Option<String>,
     /// 执行授权档：readonly | auto；缺省 readonly（无人值守没有 ask）
     pub approval: Option<String>,
     /// 固定供应商；空 = 跟随当前激活
@@ -173,6 +184,42 @@ impl Service {
             .workspaceId
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
+        let workspace_path = input
+            .workspacePath
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        // 目录必须挂在某个工作区下：只写路径会让执行侧不知道该信哪个
+        if workspace_path.is_some() && workspace_id.is_none() {
+            return Err(Exception::Validation("指定目录时必须先选工作区".to_string()));
+        }
+        let session_mode = input
+            .sessionMode
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| SESSION_NEW.to_string());
+        if !matches!(
+            session_mode.as_str(),
+            SESSION_NEW | SESSION_FIXED | SESSION_ASK
+        ) {
+            return Err(Exception::Validation(format!(
+                "不支持的会话绑定：{session_mode}（只有每次新建 / 固定对话 / 执行前选择）"
+            )));
+        }
+        let bound_session = input
+            .sessionId
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        if session_mode == SESSION_FIXED && bound_session.is_none() {
+            return Err(Exception::Validation(
+                "绑定固定对话时必须选择一个会话".to_string(),
+            ));
+        }
+        // 只有 fixed 存会话 id：切回「每次新建」后旧 id 留着，下次改了 owner 还会被误用
+        let session_id = if session_mode == SESSION_FIXED {
+            bound_session
+        } else {
+            None
+        };
         let approval = input
             .approval
             .map(|value| value.trim().to_string())
@@ -192,6 +239,14 @@ impl Service {
         let owner = input.owner.unwrap_or_else(|| automation_owner::CLIENT.to_string());
         if !matches!(owner.as_str(), automation_owner::CLIENT | automation_owner::GOOSE | automation_owner::CLOUD) {
             return Err(Exception::Validation(format!("不支持的执行方：{owner}")));
+        }
+        // 会话绑定只对「本机执行」有意义：goose / 云端跑在客户端之外，选的会话传不过去
+        if owner != automation_owner::CLIENT
+            && matches!(session_mode.as_str(), SESSION_FIXED | SESSION_ASK)
+        {
+            return Err(Exception::Validation(
+                "只有本机执行的任务可以绑定会话".to_string(),
+            ));
         }
         let run_as_kind = input.runAsKind.unwrap_or_else(|| automation_run_as::USER.to_string());
         if !matches!(run_as_kind.as_str(), automation_run_as::USER | automation_run_as::TENANT) {
@@ -261,6 +316,9 @@ impl Service {
             active.prompt = Set(prompt);
             active.knowledgeBaseId = Set(input.knowledgeBaseId);
             active.workspaceId = Set(workspace_id);
+            active.workspacePath = Set(workspace_path);
+            active.sessionMode = Set(session_mode);
+            active.sessionId = Set(session_id);
             active.approval = Set(approval);
             active.providerId = Set(provider_id);
             active.modelId = Set(model_id);
@@ -286,6 +344,9 @@ impl Service {
             prompt,
             knowledgeBaseId: input.knowledgeBaseId,
             workspaceId: workspace_id,
+            workspacePath: workspace_path,
+            sessionMode: session_mode,
+            sessionId: session_id,
             approval,
             providerId: provider_id,
             modelId: model_id,
@@ -852,6 +913,9 @@ mod tests {
             prompt: "整理昨天的知识库变更".to_string(),
             knowledgeBaseId: None,
             workspaceId: None,
+            workspacePath: None,
+            sessionMode: None,
+            sessionId: None,
             approval: None,
             providerId: None,
             modelId: None,

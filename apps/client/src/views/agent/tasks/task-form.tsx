@@ -1,7 +1,7 @@
 /**
  * 新建 / 编辑任务表单。
  *
- * 执行配置都在这里落：工作目录（cwd）、执行授权（能否不问就动手）。授权只有两档 ——
+ * 执行配置都在这里落：工作区 + 工作区下的目录、执行授权（能否不问就动手）。授权只有两档 ——
  * 「询问审批」不会出现在任务里，因为没人能应答。
  *
  * 时间定义走可视化面板（`schedule-field.tsx`）：普通用户按「每天 / 每周 / 每月 / 每小时 / 按分钟」
@@ -31,6 +31,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { GOAL_BUDGET_OPTIONS } from '@/features/agent/goal-run'
+import { listPickableSessions, type PickableSession } from '@/features/automation/session-picker'
 import { parseModels } from '@/features/agent/model/providers'
 import { listPlanFiles, type PlanFileEntry } from '@/features/agent/plan-file'
 import { DICT_TYPE } from '@/shared/ipc/specs/dict'
@@ -42,8 +43,10 @@ import { useProviderStore } from '@/stores/provider'
 import {
   MODE_OPTIONS,
   OWNER,
+  SESSION_MODE_OPTIONS,
   findDraftProblem,
   findOwnerHint,
+  parseSessionMode,
   toSaveInput,
   type TaskDraft
 } from './model'
@@ -82,6 +85,8 @@ function TaskForm(props: TaskFormProps) {
   const [isDirty, updateDirty] = useState(false)
   const [planFiles, updatePlanFiles] = useState<PlanFileEntry[]>([])
   const [isListingPlans, updateListingPlans] = useState(false)
+  /** 「固定对话」的可选会话；本机任务才有意义 */
+  const [sessions, updateSessions] = useState<PickableSession[]>([])
 
   const workspaces = useAgentStore(function (state) {
     return state.workspaces
@@ -118,6 +123,16 @@ function TaskForm(props: TaskFormProps) {
       })
     : MODE_OPTIONS
 
+  function findWorkspaceFolders(workspaceID: string) {
+    return folders
+      .filter(function (item) {
+        return item.workspaceID === workspaceID
+      })
+      .sort(function (left, right) {
+        return left.sort - right.sort
+      })
+  }
+
   function findWorkspacePath(workspaceID: string): string {
     const owned = folders.filter(function (item) {
       return item.workspaceID === workspaceID
@@ -125,13 +140,35 @@ function TaskForm(props: TaskFormProps) {
     return owned[0]?.path ?? ''
   }
 
+  // 候选对话每次打开表单现读一次：会话可能刚被删，拿旧列表会绑到空气上
+  useEffect(
+    function () {
+      if (isExecConfigLocked) {
+        updateSessions([])
+        return
+      }
+      let cancelled = false
+      void listPickableSessions()
+        .then(function (rows) {
+          if (!cancelled) updateSessions(rows)
+        })
+        .catch(function (error) {
+          console.warn('[tasks/form] 读取会话列表失败:', error)
+        })
+      return function () {
+        cancelled = true
+      }
+    },
+    [isExecConfigLocked]
+  )
+
   useEffect(
     function () {
       if (!isClient || !draft.workspaceId) {
         updatePlanFiles([])
         return
       }
-      const rootPath = findWorkspacePath(draft.workspaceId)
+      const rootPath = draft.workspacePath?.trim() || findWorkspacePath(draft.workspaceId)
       if (!rootPath) {
         updatePlanFiles([])
         return
@@ -155,7 +192,7 @@ function TaskForm(props: TaskFormProps) {
     },
     // findWorkspacePath 依赖 folders；workspace 切换时重拉
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isClient, draft.workspaceId, folders]
+    [isClient, draft.workspaceId, draft.workspacePath, folders]
   )
 
   const modelItems = [
@@ -188,13 +225,44 @@ function TaskForm(props: TaskFormProps) {
   const workspaceItems = [
     { value: 'none', label: '不指定（家目录）' },
     ...workspaces.map(function (workspace) {
-      const path = findWorkspacePath(workspace.id)
+      const count = findWorkspaceFolders(workspace.id).length
       return {
         value: workspace.id,
-        label: path ? `${workspace.title} · ${path}` : workspace.title
+        label: count > 1 ? `${workspace.title} · ${count} 个目录` : workspace.title
       }
     })
   ]
+  const directoryItems = [
+    { value: 'auto', label: '跟随工作区默认目录' },
+    ...(draft.workspaceId
+      ? findWorkspaceFolders(draft.workspaceId).map(function (folder) {
+          return { value: folder.path, label: folder.path }
+        })
+      : [])
+  ]
+  const sessionModeItems = SESSION_MODE_OPTIONS.map(function (option) {
+    return { value: option.value, label: option.label }
+  })
+  const sessionItems = [
+    { value: 'none', label: '选择一个对话…' },
+    ...sessions.map(function (session) {
+      return {
+        value: session.id,
+        label: session.workspaceTitle
+          ? `${session.title} · ${session.workspaceTitle}`
+          : session.title
+      }
+    })
+  ]
+  // 绑定的对话被删了：补一条失效项，别让触发器露出裸 UUID
+  if (
+    draft.sessionId &&
+    !sessions.some(function (item) {
+      return item.id === draft.sessionId
+    })
+  ) {
+    sessionItems.push({ value: draft.sessionId, label: '原对话已不存在' })
+  }
   const knowledgeItems = [
     { value: 'none', label: '不关联知识库' },
     ...bases.map(function (base) {
@@ -360,6 +428,9 @@ function TaskForm(props: TaskFormProps) {
                   patch({
                     owner: value,
                     workspaceId: null,
+                    workspacePath: null,
+                    sessionMode: 'new',
+                    sessionId: null,
                     approval: 'readonly',
                     providerId: null,
                     modelId: null,
@@ -390,16 +461,17 @@ function TaskForm(props: TaskFormProps) {
           </div>
 
           <div className={styles.fieldGroup}>
-            <span className={styles.fieldLabel}>工作目录</span>
+            <span className={styles.fieldLabel}>工作区</span>
             <Select
               items={workspaceItems}
               value={draft.workspaceId ?? 'none'}
               disabled={isExecConfigLocked}
               onValueChange={function (value) {
                 if (typeof value !== 'string') return
-                // 换工作目录：已绑的计划可能不属于新目录，清掉避免跑错文件
+                // 换工作区：目录与已绑计划都跟着作废，避免旧路径挂到新工作区下
                 patch({
                   workspaceId: value === 'none' ? null : value,
+                  workspacePath: null,
                   planFilePath: null
                 })
               }}>
@@ -421,9 +493,121 @@ function TaskForm(props: TaskFormProps) {
             <p className={styles.fieldHint}>
               {isGoose
                 ? '由 goose 决定：客户端配的目录不会传过去。'
-                : '任务的读写与命令都落在这个目录里。'}
+                : '任务的读写与命令都落在这个工作区里。'}
             </p>
           </div>
+
+          {/* 目录：工作区下具体哪个文件夹。一个工作区可以有多个目录，不选就跟随默认 */}
+          <div className={styles.fieldGroup}>
+            <span className={styles.fieldLabel}>目录</span>
+            <Select
+              items={directoryItems}
+              value={draft.workspacePath ?? 'auto'}
+              disabled={isExecConfigLocked || !draft.workspaceId}
+              onValueChange={function (value) {
+                if (typeof value !== 'string') return
+                patch({
+                  workspacePath: value === 'auto' ? null : value,
+                  planFilePath: null
+                })
+              }}>
+              <SelectTrigger>
+                <SelectValue placeholder="跟随工作区默认目录" />
+              </SelectTrigger>
+              <SelectContent>
+                {directoryItems.map(function (item) {
+                  return (
+                    <SelectItem
+                      key={item.value}
+                      value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+            {/* 下拉里的绝对路径会被 truncate，这里把选中的完整路径摊开（可换行） */}
+            <p className={styles.fieldHint}>
+              {!draft.workspaceId
+                ? '先选工作区，才能指定工作区下的目录'
+                : draft.workspacePath
+                  ? `执行目录：${draft.workspacePath}`
+                  : '不选则用工作区里第一个可用目录'}
+            </p>
+          </div>
+
+          {/* 会话绑定：跑出来的内容写进哪个对话。只对本机执行有效（goose / 云端在客户端外跑） */}
+          <div className={styles.fieldGroup}>
+            <span className={styles.fieldLabel}>会话</span>
+            <Select
+              items={sessionModeItems}
+              value={draft.sessionMode}
+              disabled={isExecConfigLocked}
+              onValueChange={function (value) {
+                if (typeof value !== 'string') return
+                const next = parseSessionMode(value)
+                patch({
+                  sessionMode: next,
+                  // 只有「固定对话」保留具体会话；其它档位清掉，避免切回来还挂着旧 id
+                  sessionId: next === 'fixed' ? draft.sessionId : null
+                })
+              }}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {sessionModeItems.map(function (item) {
+                  return (
+                    <SelectItem
+                      key={item.value}
+                      value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+            <p className={styles.fieldHint}>
+              {isExecConfigLocked
+                ? '由执行端决定：客户端选的会话不会传过去。'
+                : draft.sessionMode === 'fixed'
+                  ? '执行内容写进你选的对话，上下文连续。'
+                  : draft.sessionMode === 'ask'
+                    ? '到点先弹窗让你选对话；没人应答或关掉弹窗都按新建处理。'
+                    : '每次执行新建一场会话，跑完留在侧栏对应工作区分组里。'}
+            </p>
+          </div>
+
+          {isClient && draft.sessionMode === 'fixed' ? (
+            <div className={styles.fieldGroup}>
+              <span className={styles.fieldLabel}>对话</span>
+              <Select
+                items={sessionItems}
+                value={draft.sessionId ?? 'none'}
+                onValueChange={function (value) {
+                  if (typeof value !== 'string') return
+                  patch({ sessionId: value === 'none' ? null : value })
+                }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="选择一个对话…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sessionItems.map(function (item) {
+                    return (
+                      <SelectItem
+                        key={item.value}
+                        value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+              <p className={styles.fieldHint}>
+                工作目录以这个对话自己的工作区为准；上面的「工作区 / 目录」只对新建会话生效。
+              </p>
+            </div>
+          ) : null}
 
           {isClient ? (
             <div className={styles.fieldGroup}>
@@ -589,7 +773,9 @@ function TaskForm(props: TaskFormProps) {
                         patch({ planThenGoal: checked })
                       }}
                     />
-                    <span className={styles.fieldHint}>先用计划模式出方案，再以目标模式按轮次执行</span>
+                    <span className={styles.fieldHint}>
+                      先用计划模式出方案，再以目标模式按轮次执行
+                    </span>
                   </div>
                 </div>
               ) : null}

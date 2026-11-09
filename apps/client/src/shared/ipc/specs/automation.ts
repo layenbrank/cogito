@@ -21,6 +21,8 @@ const RUN_AS = {
 const AutomationOwnerSchema = z.enum([OWNER.CLIENT, OWNER.GOOSE, OWNER.CLOUD])
 const AutomationRunAsSchema = z.enum([RUN_AS.USER, RUN_AS.TENANT])
 const AutomationModeSchema = z.enum(['agent', 'plan', 'goal'])
+/** 会话绑定：每次新建 / 固定写进某个对话 / 执行前由用户挑 */
+const AutomationSessionModeSchema = z.enum(['new', 'fixed', 'ask'])
 const GoalBudgetSchema = z.union([z.literal(3), z.literal(6), z.literal(12)])
 
 const AutomationSchema = z.object({
@@ -30,6 +32,12 @@ const AutomationSchema = z.object({
   knowledgeBaseId: z.string().nullish(),
   /** 执行目录：`agent_workspace` 的 id；空 = 家目录 */
   workspaceId: z.string().nullish(),
+  /** 目录：工作区下的具体文件夹（绝对路径）；空 = 跟随工作区默认目录 */
+  workspacePath: z.string().nullish(),
+  /** 会话绑定：new 每次新建（缺省）/ fixed 固定对话 / ask 执行前选择 */
+  sessionMode: AutomationSessionModeSchema.nullish(),
+  /** 绑定的会话 id（`agent_session.id`）；sessionMode = fixed 时有值 */
+  sessionId: z.string().nullish(),
   /** 执行授权：readonly（默认）/ auto；任务里没有 ask（无人值守） */
   approval: z.string(),
   /** 固定供应商；空 = 跟随当前激活 */
@@ -89,6 +97,12 @@ const AutomationSaveSchema = z
     prompt: z.string(),
     knowledgeBaseId: z.string().nullish(),
     workspaceId: z.string().nullish(),
+    /** 目录：工作区下的具体文件夹（绝对路径）；空 = 跟随工作区默认目录 */
+    workspacePath: z.string().nullish(),
+    /** 会话绑定：new | fixed | ask */
+    sessionMode: AutomationSessionModeSchema.optional(),
+    /** fixed 时必填 */
+    sessionId: z.string().nullish(),
     approval: z.string().optional(),
     providerId: z.string().nullish(),
     modelId: z.string().nullish(),
@@ -112,6 +126,26 @@ const AutomationSaveSchema = z
         code: 'custom',
         path: ['prompt'],
         message: '任务内容不能为空'
+      })
+    }
+    // 会话绑定：固定对话必须有 id；只有本机执行能绑（goose / 云端在客户端之外跑）
+    if (value.sessionMode === 'fixed' && !value.sessionId?.trim()) {
+      context.addIssue({
+        code: 'custom',
+        path: ['sessionId'],
+        message: '绑定固定对话时必须选择一个会话'
+      })
+    }
+    if (
+      value.owner &&
+      value.owner !== OWNER.CLIENT &&
+      value.sessionMode &&
+      value.sessionMode !== 'new'
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['sessionMode'],
+        message: '只有本机执行的任务可以绑定会话'
       })
     }
     // 与 Rust Service::toSave / findDraftProblem 同一组绑定计划规则
@@ -151,6 +185,12 @@ const AutomationDueSchema = z.object({
   prompt: z.string(),
   knowledgeBaseId: z.string().nullish(),
   workspaceId: z.string().nullish(),
+  /** 目录：工作区下的具体文件夹（绝对路径）；空 = 跟随工作区默认目录 */
+  workspacePath: z.string().nullish(),
+  /** 会话绑定：new | fixed | ask；空 = 每次新建 */
+  sessionMode: AutomationSessionModeSchema.nullish(),
+  /** 绑定的会话 id；fixed 时有值 */
+  sessionId: z.string().nullish(),
   approval: z.string(),
   providerId: z.string().nullish(),
   modelId: z.string().nullish(),
@@ -180,11 +220,13 @@ type AutomationDue = z.infer<typeof AutomationDueSchema>
 type FinishRun = z.infer<typeof FinishRunSchema>
 type PatchRun = z.infer<typeof PatchRunSchema>
 type AutomationMode = z.infer<typeof AutomationModeSchema>
+type AutomationSessionMode = z.infer<typeof AutomationSessionModeSchema>
 type GoalBudget = z.infer<typeof GoalBudgetSchema>
 
 export {
   AutomationDueSchema,
   AutomationModeSchema,
+  AutomationSessionModeSchema,
   AutomationOwnerSchema,
   AutomationRunAsSchema,
   AutomationRunSchema,
@@ -201,6 +243,7 @@ export type {
   AutomationMode,
   AutomationRun,
   AutomationSave,
+  AutomationSessionMode,
   FinishRun,
   GoalBudget,
   PatchRun

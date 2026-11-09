@@ -77,3 +77,48 @@ ACP SDK 的 `ActiveSession.prompt()` 在请求被拒时会把**排队中的 `nex
   **原始错误留在 `cause`**，异常上报照样拿得到根因。
 
 判据都是纯函数，单测在 `apps/client/src/features/agent/acp/run-error.test.ts`。
+
+## 会话的「已读 / 未读」
+
+左栏每个会话行有两种状态：**已读**（什么都不显示）与**未读**（标题前一个 `bg-primary` 小圆点）。
+判据只有一条：**这一轮跑完了，而用户当时没在看这个会话**。
+
+### 落库而不是放内存
+
+`agent_session` 加了 `unread INTEGER NOT NULL DEFAULT 0`（`0` = 已读，`1` = 未读）。
+放内存（像 `run-state.ts` 那样）一重启就没了，而「昨天有个会话跑完我还没看」正是要跨重启
+保留的信息。历史会话补列时一律回填 `0`，升级完不会满屏未读点。
+
+### 什么时候点亮、什么时候熄灭
+
+唯一写入口是 `features/agent/session-unread.ts` 的 `markSessionUnread(id, unread)`，
+它先比对内存里的值，没变就不打 IPC。两条规则都在 `use-sidebar-branches.ts`：
+
+| 时机                                | 动作     | 为什么这么判                                                                        |
+| ----------------------------------- | -------- | ----------------------------------------------------------------------------------- |
+| 某会话从「在跑」变成「没在跑」      | 记为未读 | 用 running 集合**上一帧 vs 这一帧的差分**，且跳过「当前正在看的那个」与首帧水合      |
+| 当前会话（`mainThreadId` → remoteId） | 记为已读 | 切过去、被自动化自动切过去、会话就在眼前跑完，都覆盖                                |
+
+**为什么不用 `run-state` 的 `finished` 集合**：它只增不减，分不清「刚刚跑完」和「早就跑完、
+用户看过又标成已读」，会把已读反复写回未读（左栏圆点擦不掉）。
+
+**为什么首帧要跳过**：启动时 `hydrateRunningFromPersistence()` 会把 localStorage 里的在跑标记
+灌回内存，那不是「刚刚跑完」，不该点未读。
+
+### 未读不推进 `updatedAt`
+
+`agent_session::Service::update_one` 里只有内容字段（title / pinned / providerID / workspaceID）
+才刷 `updatedAt`；`unread` 只是阅读状态，刷了就会「每点开一次会话，左栏树重排一次」。
+
+### 不新增迁移版本
+
+按仓库既有约定（`automation_schema.rs` / `agent_plan_schema.rs` 同一路数）：
+`migrations_0001.rs` 一个字不动，新列的定义放在 `migrations/agent_session_schema.rs`，
+由 `migration.rs::ensure_agent_session()` 在每次启动时按 `pragma_table_info` 判缺列再
+`ALTER TABLE ... ADD COLUMN`。老库保留全部数据，新库走同一条兜底（先建表再补列）。
+
+手工等价物：`src-tauri/crates/database/sql/2026-11-09-agent-session-unread.sql`
+（体检 → 加列 → 验证，可对任意备份库直接执行）。两边都跑也不会坏，只是后者会报
+`duplicate column name`。守卫在 `migration.rs` 的两条测试：
+`agent_session_unread_is_patched_on_old_db`（删列后能补回、幂等、默认值是 `0`）与
+`entity_columns_match_ddl`（entity 与 DDL 双向对齐）。

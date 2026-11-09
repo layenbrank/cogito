@@ -29,8 +29,14 @@ struct DuePayload {
     name: String,
     prompt: String,
     knowledgeBaseId: Option<String>,
-    /// 执行目录（`agent_workspace` id）；为空 = 家目录
+    /// 执行工作区（`agent_workspace` id）；为空 = 家目录
     workspaceId: Option<String>,
+    /// 工作区下具体目录（绝对路径）；为空 = 跟随工作区默认目录
+    workspacePath: Option<String>,
+    /// 会话绑定：new | fixed | ask
+    sessionMode: String,
+    /// 绑定到的会话 id（fixed 时有值）
+    sessionId: Option<String>,
     /// 执行授权：readonly（默认）/ auto
     approval: String,
     providerId: Option<String>,
@@ -51,6 +57,9 @@ impl DuePayload {
             prompt: due.automation.prompt.clone(),
             knowledgeBaseId: due.automation.knowledgeBaseId.clone(),
             workspaceId: due.automation.workspaceId.clone(),
+            workspacePath: due.automation.workspacePath.clone(),
+            sessionMode: due.automation.sessionMode.clone(),
+            sessionId: due.automation.sessionId.clone(),
             approval: due.automation.approval.clone(),
             providerId: due.automation.providerId.clone(),
             modelId: due.automation.modelId.clone(),

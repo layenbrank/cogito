@@ -20,9 +20,21 @@ pub struct Model {
     /// 关联知识库；为空表示与具体库无关
     #[sea_orm(column_name = "knowledgeBaseId")]
     pub knowledgeBaseId: Option<String>,
-    /// 执行时的工作目录（`agent_workspace` 的 id）；为空 = 家目录
+    /// 执行时的工作区（`agent_workspace` 的 id）；为空 = 家目录
     #[sea_orm(column_name = "workspaceId")]
     pub workspaceId: Option<String>,
+    /// 工作区下**具体哪个目录**（文件夹绝对路径）；为空 = 跟随工作区默认（第一个可用目录）
+    #[sea_orm(column_name = "workspacePath")]
+    pub workspacePath: Option<String>,
+    /// 会话绑定：new（每次新建）/ fixed（固定写进 sessionId）/ ask（执行前选）
+    ///
+    /// 「新建会话」是缺省：任务本来自带一次性的执行记录；绑定会话是为了让结果落进
+    /// 用户自己那场对话里（回看上下文、继续追问）。
+    #[sea_orm(column_name = "sessionMode")]
+    pub sessionMode: String,
+    /// 绑定到的会话 id（`agent_session.id`）；`sessionMode = fixed` 时必填
+    #[sea_orm(column_name = "sessionId")]
+    pub sessionId: Option<String>,
     /// 执行授权档：readonly | auto（无人值守，不出现 ask）
     pub approval: String,
     /// 固定供应商（本地 provider 行 id）；空 = 跟随当前激活

@@ -11,10 +11,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { LOCAL_FORMAT } from '@cogito/chat/adapters/thread-history'
 import { v4 as UUIDV4 } from 'uuid'
 
-import {
-  ensureBackgroundTurn,
-  followBackgroundTurn
-} from '@/features/agent/acp/background-turn'
+import { ensureBackgroundTurn, followBackgroundTurn } from '@/features/agent/acp/background-turn'
 import {
   closeThreadSession,
   respondToApproval,
@@ -25,18 +22,17 @@ import { markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
 import { parseAcpStreamEvent } from '@/features/agent/acp/stream'
 import { prepareTarget } from '@/features/agent/acp/target-guard'
 import { clearApprovalModeFor, writeApprovalModeFor } from '@/features/agent/approval'
-import {
-  advanceGoal,
-  beginGoalTurn,
-  findGoalSignal,
-  startGoalRun
-} from '@/features/agent/goal-run'
+import { advanceGoal, beginGoalTurn, findGoalSignal, startGoalRun } from '@/features/agent/goal-run'
 import { writeAgentModeFor } from '@/features/agent/mode'
 import { notifyAutomationRun } from '@/features/agent/notify'
 import { readPlanFile } from '@/features/agent/plan-file'
 import { historyPort } from '@/features/agent/port/instance'
 import { buildModelPort } from '@/features/agent/port/model'
 import { buildBoundPlanPrompt, findBoundPlanTarget } from '@/features/automation/bound-plan'
+import {
+  listPickableSessions,
+  useAutomationSessionPicker
+} from '@/features/automation/session-picker'
 import {
   THREAD_PREFIX,
   notifyAutomationSession,
@@ -53,11 +49,7 @@ import {
   type AutomationApproval,
   type RunCounters
 } from '@/features/automation/run-plan'
-import {
-  finishAutomationRun,
-  patchAutomationRun,
-  touchAutomationRun
-} from '@/lib/automation-ipc'
+import { finishAutomationRun, patchAutomationRun, touchAutomationRun } from '@/lib/automation-ipc'
 import { EVENTS } from '@/shared/ipc/channels'
 import {
   AutomationDueSchema,
@@ -81,8 +73,14 @@ function findThreadID(runId: string): string {
   return `${THREAD_PREFIX}${runId}`
 }
 
-/** 任务工作目录绝对路径；找不到则 null */
-async function findWorkspacePath(workspaceId: string | null): Promise<string | null> {
+/** 任务工作目录绝对路径：显式目录优先，其次工作区里第一个可用目录；都没有则 null */
+async function findWorkspacePath(
+  workspaceId: string | null,
+  workspacePath: string | null
+): Promise<string | null> {
+  // 一个工作区可以挂多个目录：任务里选了哪个就用哪个，不要退回「第一个可用目录」
+  const explicit = workspacePath?.trim()
+  if (explicit) return explicit
   if (!workspaceId) return null
   const folders = await useAgentStore.getState().toReadWorkspaceFolders()
   const found = folders.find(function (item) {
@@ -93,24 +91,79 @@ async function findWorkspacePath(workspaceId: string | null): Promise<string | n
 
 /**
  * 确认工作目录可用（fail-closed）；返回绝对路径，无目录时 null。
+ *
+ * 返回值同时要传给 `runThreadPrompt` 作为会话 cwd：只拿它读计划文件、执行仍按
+ * 「工作区第一个目录」起会话的话，用户在表单里选的目录就白选了。
  */
 async function requireWorkspace(
   workspaceId: string | null,
+  workspacePath: string | null,
   approval: AutomationApproval
 ): Promise<string | null> {
-  if (!workspaceId) {
+  if (!workspaceId && !workspacePath?.trim()) {
     if (shouldApprove(approval)) {
       throw new Error('任务没有指定工作目录，不能自动批准执行')
     }
     return null
   }
-  const path = await findWorkspacePath(workspaceId)
+  const path = await findWorkspacePath(workspaceId, workspacePath)
   if (!path) {
     throw new Error(
       `任务的工作目录已不可用（工作区可能已被删除或未加载，id=${workspaceId}），请到任务表单重新指定`
     )
   }
   return path
+}
+
+/** 一次执行落在哪个会话上 */
+interface SessionTarget {
+  threadID: string
+  /** 会话归属工作区（决定 cwd 与侧栏分组） */
+  workspaceID: string | null
+  /** true = 复用已有对话：不建记录会话、不覆盖会话自己的 cwd */
+  bound: boolean
+}
+
+/** 读库里那条会话；不存在就报可操作错误（绑定关系已经失效） */
+async function findBoundSession(sessionId: string | null): Promise<SessionTarget> {
+  const id = sessionId?.trim()
+  if (!id) throw new Error('任务绑定了固定对话但没有记录会话 id，请到任务表单重新选择')
+  try {
+    await useAgentStore.getState().toReadSessions()
+  } catch (error) {
+    console.warn('[agent.automation] 读取会话列表失败，按当前快照处理:', error)
+  }
+  const session = useAgentStore.getState().sessions.find(function (item) {
+    return item.id === id
+  })
+  if (!session) {
+    throw new Error(`任务绑定的对话已不存在（id=${id}），请到任务表单重新选择`)
+  }
+  return { threadID: session.id, workspaceID: session.workspaceID ?? null, bound: true }
+}
+
+/**
+ * 决定这次执行写进哪个会话。
+ *
+ * - `new`（缺省）：`automation-<runId>`，跑完留在侧栏对应工作区分组里
+ * - `fixed`：直接写进绑定的对话（上下文、标题都保持原样）
+ * - `ask`：到点先问一句；没人答就按新建，别把这一轮排期卡死
+ */
+async function resolveSessionTarget(due: AutomationDue): Promise<SessionTarget> {
+  const mode = due.sessionMode ?? 'new'
+  if (mode === 'fixed') return findBoundSession(due.sessionId ?? null)
+  if (mode === 'ask') {
+    const choice = await useAutomationSessionPicker.getState().ask({
+      taskName: due.name,
+      sessions: await listPickableSessions()
+    })
+    if (choice) return findBoundSession(choice)
+  }
+  return {
+    threadID: findThreadID(due.runId),
+    workspaceID: due.workspaceId ?? null,
+    bound: false
+  }
 }
 
 /**
@@ -166,7 +219,9 @@ async function ensureAutomationSession(
       providerID: providerId,
       workspaceID: workspaceId,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      // 自动跑出来的会话也先进「已读」：未读由「跑完时用户没看着」补上
+      unread: false
     }
   ])
   notifyAutomationSession(threadID)
@@ -247,6 +302,8 @@ interface RunPromptInput {
   text: string
   systemText: string
   workspaceID: string | null
+  /** 本次运行的 cwd（任务里选的目录）；null = 按工作区默认目录 */
+  cwd: string | null
   target: PromptTarget
   approval: AutomationApproval
   counters: RunCounters
@@ -281,6 +338,7 @@ async function runOnePrompt(
         text: input.text,
         systemText: input.systemText,
         workspaceID: input.workspaceID,
+        cwd: input.cwd,
         providerID: gooseProviderID,
         modelID: input.target.model,
         signal: cancelSignal
@@ -351,6 +409,8 @@ async function runAgentOrPlanPhase(input: {
   phase: 'agent' | 'plan'
   approval: AutomationApproval
   workspaceId: string | null
+  /** 显式目录（任务里选的）；null = 按工作区默认目录 */
+  cwd: string | null
   target: PromptTarget
   counters: RunCounters
   streamHost: PromptStreamHost
@@ -366,6 +426,7 @@ async function runAgentOrPlanPhase(input: {
       text: input.prompt,
       systemText: findAutomationSystemPrompt(effectiveApproval, input.phase),
       workspaceID: input.workspaceId,
+      cwd: input.cwd,
       target: input.target,
       approval: effectiveApproval,
       counters: input.counters
@@ -382,6 +443,8 @@ async function runGoalPhase(input: {
   budget: number
   approval: AutomationApproval
   workspaceId: string | null
+  /** 显式目录（任务里选的）；null = 按工作区默认目录 */
+  cwd: string | null
   target: PromptTarget
   counters: RunCounters
   streamHost: PromptStreamHost
@@ -404,6 +467,7 @@ async function runGoalPhase(input: {
         text: nextPrompt,
         systemText: findAutomationSystemPrompt(input.approval, 'goal'),
         workspaceID: input.workspaceId,
+        cwd: input.cwd,
         target: input.target,
         approval: input.approval,
         counters: input.counters
@@ -434,7 +498,8 @@ async function resolveTarget(due: AutomationDue): Promise<PromptTarget> {
 }
 
 async function execute(due: AutomationDue): Promise<void> {
-  const threadID = findThreadID(due.runId)
+  // 绑定会话时 threadID 由任务决定（「执行前选择」还要先问人），先留兜底值给报错路径
+  let threadID = findThreadID(due.runId)
   const approval = parseAutomationApproval(due.approval)
   const counters: RunCounters = { denied: 0, granted: 0 }
   const hasBoundPlan = Boolean(due.planFilePath?.trim())
@@ -447,17 +512,23 @@ async function execute(due: AutomationDue): Promise<void> {
   let heartbeat: ReturnType<typeof setInterval> | null = null
   const chunks: string[] = []
 
-  publishAutomationLife({
-    kind: 'start',
-    automationId: due.automationId,
-    runId: due.runId,
-    sessionId: threadID,
-    phase
-  })
-  markRunStarted(threadID)
-
   try {
-    const workspacePath = await requireWorkspace(due.workspaceId ?? null, approval)
+    // 1) 先定会话：固定对话直接用；「执行前选择」在这里问一次（超时 / 关掉都按新建）
+    const session = await resolveSessionTarget(due)
+    threadID = session.threadID
+    publishAutomationLife({
+      kind: 'start',
+      automationId: due.automationId,
+      runId: due.runId,
+      sessionId: threadID,
+      phase
+    })
+    markRunStarted(threadID)
+
+    // 2) 只有新建会话才按任务的工作区 / 目录起 cwd；绑定的对话沿用会话自己的目录
+    const cwd = session.bound
+      ? null
+      : await requireWorkspace(due.workspaceId ?? null, due.workspacePath ?? null, approval)
     await touchAutomationRun(due.runId)
     heartbeat = setInterval(function () {
       void touchAutomationRun(due.runId).catch(function (error) {
@@ -468,12 +539,10 @@ async function execute(due: AutomationDue): Promise<void> {
     const target = await resolveTarget(due)
     await prepareTarget(target.providerID, target.model, 'agent.automation')
 
-    await ensureAutomationSession(
-      due.runId,
-      due.name,
-      due.workspaceId ?? null,
-      target.providerID
-    )
+    // 绑定已有对话时不建记录会话：那条会话本来就在侧栏里，标题也不该被任务改名
+    if (!session.bound) {
+      await ensureAutomationSession(due.runId, due.name, session.workspaceID, target.providerID)
+    }
     await patchAutomationRun({ runId: due.runId, sessionId: threadID, phase })
 
     async function runPhase(current: AutomationMode, prompt: string): Promise<string> {
@@ -497,7 +566,8 @@ async function execute(due: AutomationDue): Promise<void> {
           prompt,
           budget,
           approval,
-          workspaceId: due.workspaceId ?? null,
+          workspaceId: session.workspaceID,
+          cwd,
           target,
           counters,
           streamHost
@@ -508,7 +578,8 @@ async function execute(due: AutomationDue): Promise<void> {
         prompt,
         phase: current === 'plan' ? 'plan' : 'agent',
         approval,
-        workspaceId: due.workspaceId ?? null,
+        workspaceId: session.workspaceID,
+        cwd,
         target,
         counters,
         streamHost
@@ -517,10 +588,10 @@ async function execute(due: AutomationDue): Promise<void> {
 
     let promptText = due.prompt
     if (hasBoundPlan) {
-      if (!workspacePath) {
+      if (!cwd) {
         throw new Error('绑定计划需要有效工作目录，请到任务表单重新指定')
       }
-      promptText = await fetchBoundPlanPrompt(due, budget, workspacePath, mode)
+      promptText = await fetchBoundPlanPrompt(due, budget, cwd, mode)
     }
     const first = await runPhase(phase, promptText)
     chunks.push(first)
@@ -539,7 +610,11 @@ async function execute(due: AutomationDue): Promise<void> {
       chunks.push(second)
     }
 
-    const output = summarizeRunOutput(chunks.filter(Boolean).join('\n\n---\n\n'), counters, approval)
+    const output = summarizeRunOutput(
+      chunks.filter(Boolean).join('\n\n---\n\n'),
+      counters,
+      approval
+    )
     await finishAutomationRun({ runId: due.runId, output })
     await notifyAutomationRun(due.name, true, null)
     publishAutomationLife({

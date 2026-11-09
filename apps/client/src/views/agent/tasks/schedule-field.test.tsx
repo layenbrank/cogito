@@ -14,7 +14,7 @@ describe('ScheduleField · 每月', function () {
   it('把 L 还原成「最后一天」，并说清它是按日历落的', function () {
     render(
       <ScheduleField
-        value='0 9 L * *'
+        value="0 9 L * *"
         onChange={function () {}}
       />
     )
@@ -28,7 +28,7 @@ describe('ScheduleField · 每月', function () {
   it('选了 29–31 号才提示小月会跳过', function () {
     render(
       <ScheduleField
-        value='0 9 31 * *'
+        value="0 9 31 * *"
         onChange={function () {}}
       />
     )
@@ -42,7 +42,7 @@ describe('ScheduleField · 每周', function () {
     const onChange = vi.fn()
     render(
       <ScheduleField
-        value='0 9 * * 1'
+        value="0 9 * * 1"
         onChange={onChange}
       />
     )
@@ -55,14 +55,11 @@ describe('ScheduleField · 每周', function () {
   it('已经是 1-5 时「工作日」显示为选中', function () {
     render(
       <ScheduleField
-        value='0 9 * * 1-5'
+        value="0 9 * * 1-5"
         onChange={function () {}}
       />
     )
-    expect(screen.getByRole('button', { name: '工作日' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    expect(screen.getByRole('button', { name: '工作日' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: '周末' })).toHaveAttribute('aria-pressed', 'false')
   })
 })

@@ -3,7 +3,8 @@
 > 2026-11 落地，后续补齐「状态可见 + 会话入栏 + 模式流水线」。
 > **结论先行**：任务不是普通聊天会话。任务 = 一条可重复触发的自动化定义
 > （指令 + 排期 + 执行方 + 工作目录 + 执行授权 + 模型/模式/轮次），每次触发产生一条执行记录，
-> 并落库一条可回看的会话 `automation-<runId>`，出现在侧栏独立的「自动化」分组（不进工作区树）。
+> 并落库一条可回看的会话 `automation-<runId>`：有工作区的进对应工作区分组，没绑工作区的落「未分组」
+> （侧栏不再单列「自动化」分组）。也可以把执行内容直接绑到一场已有对话（见「会话绑定」一节）。
 
 入口：**右栏「任务」页签**（`views/agent/chat/components/aside-tasks.tsx`）—— 卡片列表 / 详情 / 全部记录 / 新建表单共用一块面板，
 不跳页面、不再有 `/agent/tasks` 页面（老深链重定向到 `/agent/chat`）。纯逻辑与表单仍在 `views/agent/tasks/`
@@ -29,11 +30,11 @@
 
 ## 任务 vs 会话
 
-| 维度 | 任务（右栏「任务」面板） | 普通会话（工作区树） | 自动化会话（侧栏「自动化」） |
+| 维度 | 任务（右栏「任务」面板） | 普通会话（工作区树） | 自动化会话（按工作区入树 / 未分组） |
 | --- | --- | --- | --- |
 | 存在形式 | 表里的一行（定义），关窗后仍在 | 会话档案 + 消息流 | 每次执行落库 `agent_session`，跑完保留 |
 | 触发 | cron 排期 / 立即执行 | 用户发消息 | 由任务触发 |
-| 上下文 | 定义可复用 | 长期累积 | id = `automation-<runId>`，与 run 回链 |
+| 上下文 | 定义可复用 | 长期累积 | 默认 id = `automation-<runId>` 与 run 回链；绑定「固定对话」时写进那场对话 |
 | 产出 | `automation_run`（状态 / phase / 输出 / 错误） | 消息流 | 同左 + 可在主区回看流式过程 |
 | 审批 | `readonly` / `auto`（无人值守，**没有 `ask`**） | `ask` / `auto` / `readonly` | 跟随任务授权；计划阶段强制只读 |
 | 模式 | 单模式 agent/plan/goal，或「计划后执行」流水线 | composer 切换 | 按任务配置跑 |
@@ -41,8 +42,9 @@
 `mod+n` / 侧栏「新建会话」/ 标题栏按钮都属于**会话**，命令 id 沿用历史名 `AGENT_NEW_TASK`
 （`keyboard/definitions/ids.ts` 的注释写清了这一点），避免键位与测试断链。
 任务面板的快捷键是另一条：`COMMAND.AGENT_OPEN_TASKS`（命令面板里搜「任务」「定时」「cron」都能命中），
-左栏快捷入口「任务」按钮走同一条事件通道（`open-aside-tasks.ts`：`agent:open-aside-tasks` CustomEvent →
-`chat.tsx` 展开右栏、`aside.tsx` 切到 tasks 页签）。
+同样走事件通道（`open-aside-tasks.ts`：`agent:open-aside-tasks` CustomEvent → `chat.tsx` 展开右栏、
+`aside.tsx` 切到 tasks 页签）。**左栏不再有「任务」快捷入口**：侧栏只放会话，任务定义在右栏页签里配；
+任务跑出来的会话按工作区落进树，不再单列一组。
 
 ## 三源同列：行为差异必须写在界面上
 
@@ -62,11 +64,13 @@
 
 ```
 worker tick(12s) → Service::toClaimDue（一次只认领 1 条，前端本来就是串行队列）
-  → emit `automation:due`（DuePayload：含 mode / goalBudget / planThenGoal / planFilePath / 模型）
+  → emit `automation:due`（DuePayload：含 mode / goalBudget / planThenGoal / planFilePath / 模型 /
+                              sessionMode / sessionId）
   → features/automation/runner.ts::runDue
-      → requireWorkspace          // fail-closed：目录解析不到就判失败，绝不退回家目录
+      → resolveSessionTarget      // 每次新建 / 固定对话 / 执行前选择（超时按新建）
+      → requireWorkspace          // fail-closed：目录解析不到就判失败，绝不退回家目录（仅新建会话）
       → touchAutomationRun        // startedAt 补成真正开跑的时间（排队不算耗时）；长跑有心跳
-      → ensureAutomationSession   // 落库 agent_session(id=automation-<runId>)，通知侧栏 reload
+      → ensureAutomationSession   // 仅新建会话：落库 agent_session(id=automation-<runId>)，通知侧栏 reload
       → patchAutomationRun(sessionId, phase)
       → 有 planFilePath：readPlanFile + buildPlanExecutePrompt（与右栏「按计划执行」同源），跳过 planThenGoal
       → 否则：单模式 / 流水线（plan → goal）：写 mode + approval，消息落 history，goal 复用 goal-run
@@ -77,7 +81,8 @@ worker tick(12s) → Service::toClaimDue（一次只认领 1 条，前端本来�
       → finally: clearApprovalModeFor + 释放 ACP 租约（会话与消息保留）
 ```
 
-- **会话可见**：侧栏「自动化」分组（执行中置顶）；工作区树剔除 `automation-*`。任务记录可「打开会话」。
+- **会话可见**：自动化会话按 `agent_session.workspaceID` 进工作区树（执行中置顶），没绑工作区的落「未分组」；
+  绑定「固定对话」时不再新建会话，内容直接写进那场对话。任务记录可「打开会话」。
 - **实时状态**：runner 生命周期事件 → `stores/automation.running/phases`；有任务在跑时 2.5s 轻量轮询列表与记录。
 - **工作目录 fail-closed**：runner 开跑前校验 `toReadWorkspaceFolders()`；`auto` 档尤其不能落到家目录。
 - **30 分钟没有回写** → `Service::toReapStale` 标失败；长跑每 5 分钟 heartbeat touch，降低误收尸。
@@ -110,6 +115,26 @@ worker tick(12s) → Service::toClaimDue（一次只认领 1 条，前端本来�
 - 计划文件读失败（删了 / 路径错）→ run finish 失败，不静默跳过。
 
 计划阶段强制只读审批；目标 / 执行阶段沿用任务的 `approval`。
+
+## 会话绑定：每次新建 / 固定对话 / 执行前选择（2026-11-09）
+
+| 列 | 语义 | 取值 |
+| --- | --- | --- |
+| `sessionMode` | 跑出来的内容写进哪个会话 | `new`（默认）/ `fixed` / `ask` |
+| `sessionId` | `fixed` 时绑定到的 `agent_session.id` | 字符串 / NULL |
+
+- `new`：每次执行落一条 `automation-<runId>` 会话，按任务的 `workspaceId` 进对应工作区分组；
+  没绑工作区的落「未分组」。标题就是任务名，执行中置顶。
+- `fixed`：复用选中的对话 —— 不建记录会话、不改标题，内容接着那场对话的上下文写。
+  工作目录以**这个对话自己的工作区**为准，任务的「工作区 / 目录」只对新建会话生效（表单里写着）。
+  绑定对话被删 → 本次执行失败并提示「任务绑定的对话已不存在，请到任务表单重新选择」，不静默改新建。
+- `ask`：到点先弹「把这次执行写进哪个对话？」（`features/automation/session-picker.ts` 存状态，
+  `views/agent/chat/components/automation-session-picker.tsx` 渲染；候选最多 30 条、按最近活动倒序、
+  排除 `automation-*`）。关掉弹窗或 120s 无人应答都按**新建对话**处理 —— 定时任务不该因为没人点就
+  一直悬着，也不能默认往用户正在聊的对话里塞内容。
+- 只有 `owner=client` 能绑定会话：goose / 云端在客户端之外执行，客户端选的会话传不过去。表单对这两类
+  锁住该字段并提示，`Service::toSave` / `findDraftProblem` / Zod 三处同样拒绝。
+- 保存时只有 `fixed` 才存 `sessionId`：切回「每次新建」后旧 id 立刻清掉，避免下次改 owner 被误用。
 
 ## 时间定义：可视化排期，不让人手写 crontab
 
@@ -164,7 +189,8 @@ Base UI 的 `Select.Value` 默认渲染裸 `value`；`value` 是 id / 枚举键�
 
 | 列 | 语义 | 取值 |
 | --- | --- | --- |
-| `workspaceId` | 在哪个目录跑（`agent_workspace.id`）；空 = 家目录 | 字符串 / NULL |
+| `workspaceId` | 在哪个工作区跑（`agent_workspace.id`）；空 = 家目录 | 字符串 / NULL |
+| `workspacePath` | 工作区下**具体哪个目录**（文件夹绝对路径）；空 = 跟随工作区默认目录 | 字符串 / NULL |
 | `approval` | 无人值守时的授权档 | `readonly`（默认）/ `auto` |
 
 规则（前后端两处同一条，`Service::toSave` 与 `tasks/model.ts::findDraftProblem`）：
@@ -185,6 +211,9 @@ Base UI 的 `Select.Value` 默认渲染裸 `value`；`value` 是 id / 枚举键�
 ```sql
 -- migrations/automation_schema.rs::column_patches()，由 migration::ensure_automation() 按 pragma_table_info 判缺后执行
 ALTER TABLE automation ADD COLUMN "workspaceId" TEXT NULL;
+ALTER TABLE automation ADD COLUMN "workspacePath" TEXT NULL;
+ALTER TABLE automation ADD COLUMN "sessionMode" TEXT NOT NULL DEFAULT 'new';
+ALTER TABLE automation ADD COLUMN "sessionId" TEXT NULL;
 ALTER TABLE automation ADD COLUMN approval TEXT NOT NULL DEFAULT 'readonly';
 ALTER TABLE automation ADD COLUMN "providerId" TEXT NULL;
 ALTER TABLE automation ADD COLUMN "modelId" TEXT NULL;
