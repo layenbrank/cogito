@@ -22,6 +22,7 @@ import type {
 import { methods } from '@agentclientprotocol/sdk'
 import { invoke } from '@tauri-apps/api/core'
 import { homeDir } from '@tauri-apps/api/path'
+import { exists } from '@tauri-apps/plugin-fs'
 import { v4 as UUIDV4 } from 'uuid'
 
 import type {
@@ -40,6 +41,7 @@ import {
 import { mountCloudMcp } from '@/features/agent/acp/cloud-mcp'
 import { readWikiApiConfig } from '@/views/knowledge/lib/wiki-api-config.ts'
 import { humanizeRunError, isRunCancelled } from '@/features/agent/acp/run-error'
+import { pickWorkspaceCwd } from '@/features/agent/acp/workspace-cwd'
 import {
   abortAllBackgroundTurns,
   clearPersistedRunning,
@@ -325,16 +327,41 @@ async function findCogitoMcpServers(sessionID: string): Promise<AcpMcpServer[]> 
  * 指针已经变成了 B 的工作区 —— 拿它算 A 的 cwd 会得到不一致的值，`ensureThreadSession`
  * 就会把 A 的 ACP session 重建（上下文清零），这就是「多会话不能同时干活」的根因。
  */
-async function findWorkspaceCwd(workspaceID: string | null): Promise<string> {
-  if (workspaceID) {
-    const state = useAgentStore.getState()
-    const owned = state.workspaceFolders.filter(function (item) {
-      return item.workspaceID === workspaceID
-    })
-    const first = owned[0]
-    if (first?.path) return first.path
+async function findWorkspaceCwd(
+  workspaceID: string | null,
+  workspacePath?: string | null
+): Promise<string> {
+  // 显式目录（任务里选的）优先：一个工作区可以挂多个目录，只按 id 取第一个会把会话
+  // 锁死在「默认目录」上 —— 表单里选的目录必须真的成为 cwd。
+  const explicit = workspacePath?.trim()
+  if (explicit) {
+    if ((await probeWorkspacePath(explicit)) === false) {
+      throw new Error(`任务指定的目录已不存在：${explicit}。请到任务表单重新选择目录`)
+    }
+    return explicit
   }
-  return homeDir()
+  const state = useAgentStore.getState()
+  const owned = workspaceID
+    ? state.workspaceFolders.filter(function (item) {
+        return item.workspaceID === workspaceID
+      })
+    : []
+  return pickWorkspaceCwd(owned, probeWorkspacePath, homeDir)
+}
+
+/**
+ * 目录是否真的在磁盘上。
+ *
+ * 返回 null 表示判断不了（非 Tauri 环境、权限不足、网络盘超时）
+ * 这种情况不能拦人发消息：让 goose 自己去报错，也比因为一次探测失败把对话卡死强。
+ */
+async function probeWorkspacePath(path: string): Promise<boolean | null> {
+  try {
+    return await exists(path)
+  } catch (error) {
+    console.warn('[acp/session] 探测工作区目录失败，按「无法判断」处理:', path, error)
+    return null
+  }
 }
 
 function flattenSelectOptions(options: SessionConfigSelectOptions): SessionConfigSelectOption[] {
@@ -736,6 +763,59 @@ bindSessionUpdateRoute(function (notification) {
   if (feed) feed.push(notification.update)
 })
 
+/**
+ * `session/new` 失败时的翻译层。
+ *
+ * goose 对坏的 cwd / 未就绪的 provider 都只回一句 JSON-RPC `-32602 Invalid params`，
+ * 原文到了界面上等于什么都没说。这里补回三样东西：**用的哪个目录**、原始 code/data、
+ * 以及下一步该检查什么 —— 用户看得到 cwd，就能立刻发现是工作区路径失效。
+ */
+function wrapSessionOpenError(error: unknown, cwd: string): Error {
+  const message = error instanceof Error ? error.message : String(error)
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? (error as { code?: unknown }).code
+      : undefined
+  const data = error && typeof error === 'object' ? (error as { data?: unknown }).data : undefined
+  const parts = [typeof code === 'number' ? `[code ${code}] ${message}` : message]
+  if (data !== undefined && data !== null) {
+    if (typeof data === 'string') parts.push(data)
+    else {
+      try {
+        parts.push(JSON.stringify(data))
+      } catch (serializeError) {
+        console.debug('[acp/session] 会话错误 data 无法序列化', serializeError)
+      }
+    }
+  }
+  const detail = parts.join(' ')
+  const hint = /invalid\s*params/i.test(message)
+    ? 'goose 拒绝了会话参数，最常见的原因是 cwd 目录不存在或不可访问，其次是 provider/model 没有在 goose 侧配置好'
+    : '请到「设置 → 诊断」查看侧车日志'
+  return new Error(`创建 goose 会话失败（cwd=${cwd}）：${detail}。${hint}。`, {
+    cause: error instanceof Error ? error : undefined
+  })
+}
+
+async function openAcpSession(
+  connection: ClientConnection,
+  cwd: string,
+  mcpServers: AcpMcpServer[],
+  threadID: string
+): Promise<ActiveSession> {
+  try {
+    return await connection.agent
+      .buildSession({
+        cwd,
+        mcpServers,
+        _meta: { client: 'cogito', threadID }
+      })
+      .start()
+  } catch (error) {
+    throw wrapSessionOpenError(error, cwd)
+  }
+}
+
 async function openThreadSession(
   threadID: string,
   cwd: string,
@@ -751,13 +831,8 @@ async function openThreadSession(
     ...(await findCorexMcpServers(threadID)),
     ...(await findCogitoMcpServers(threadID))
   ]
-  const session = await handle.connection.agent
-    .buildSession({
-      cwd,
-      mcpServers,
-      _meta: { client: 'cogito', threadID }
-    })
-    .start()
+  // session/new 失败时 goose 只回一句 Invalid params：这里补上 cwd，把它变成能照做的提示
+  const session = await openAcpSession(handle.connection, cwd, mcpServers, threadID)
 
   const initialOptions = session.newSessionResponse.configOptions ?? null
   const applied = await syncProviderModel(
@@ -822,10 +897,14 @@ async function ensureThreadSession(
   threadID: string,
   workspaceID: string | null,
   providerID: string,
-  modelID: string | undefined
+  modelID: string | undefined,
+  workspacePath?: string | null
 ): Promise<ThreadSession> {
   await waitGooseReady()
-  const [handle, cwd] = await Promise.all([findAcpHandle(), findWorkspaceCwd(workspaceID)])
+  const [handle, cwd] = await Promise.all([
+    findAcpHandle(),
+    findWorkspaceCwd(workspaceID, workspacePath)
+  ])
   const cached = sessionByThread.get(threadID)
 
   if (cached && cached.cwd === cwd && cached.connection === handle.connection) {
@@ -902,6 +981,8 @@ async function* runThreadPrompt(
     systemText?: string
     /** 本会话所属工作区：cwd 跟着**会话**走，不跟全局指针走 */
     workspaceID?: string | null
+    /** 显式目录（任务里选的），优先于工作区默认目录 */
+    cwd?: string | null
     providerID: string
     modelID?: string
     signal?: AbortSignal
@@ -917,7 +998,8 @@ async function* runThreadPrompt(
     threadID,
     input.workspaceID ?? null,
     input.providerID,
-    input.modelID
+    input.modelID,
+    input.cwd ?? null
   )
   if (thread.run) {
     // 编辑重发 / 目标续跑 / 抢占：上一轮的 **UI 订阅**已经 abort，但 ACP 侧收尾是异步的
@@ -940,7 +1022,8 @@ async function* runThreadPrompt(
         threadID,
         input.workspaceID ?? null,
         input.providerID,
-        input.modelID
+        input.modelID,
+        input.cwd ?? null
       )
     }
   }
@@ -1198,9 +1281,7 @@ async function requestThreadPermission(
 
   // 计划模式硬只读：写工具直接拒绝（不改用户审批偏好，对齐「模式 = 能力面」）。
   const toolName =
-    params.toolCall.name?.trim() ||
-    params.toolCall.title?.trim() ||
-    params.toolCall.toolCallId
+    params.toolCall.name?.trim() || params.toolCall.title?.trim() || params.toolCall.toolCallId
   if (readAgentModeFor(thread.threadID) === 'plan' && isWriteTool(toolName)) {
     console.info('[acp/session] 计划模式拒绝写工具:', toolName)
     return { outcome: { outcome: 'cancelled' } }
@@ -1425,11 +1506,7 @@ function makeResumeQueue() {
 
   return {
     push(item: SessionUpdate | null) {
-      if (
-        isReplaying &&
-        item !== null &&
-        item.sessionUpdate === 'user_message_chunk'
-      ) {
+      if (isReplaying && item !== null && item.sessionUpdate === 'user_message_chunk') {
         // 历史用户消息本身不进 resume 流；只作截尾锚点
         items.length = 0
         return
