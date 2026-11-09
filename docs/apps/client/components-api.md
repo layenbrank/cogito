@@ -513,7 +513,7 @@ order: 1
 ## 何时使用 {#when-to-use}
 
 - 主窗由 `WorkspaceShell` 挂 `ShellFrame`（勿在页内再包一层壳）
-- 应用页：`useShellSurface({ begin, final, section, summary, scrollable })`
+- 应用页：`useShellSurface({ begin, center, final, section, summary, scrollable })`
 - Overview：操作栏由壳按路由模式组合（`center` Omnibar + trailing）；页不写 slots
 - Dialog / Sheet / AlertDialog 默认 Portal 进 `ShellOverlayHost`，**遮罩不得盖住操作栏与窗控**
 - 命名禁用 `chrome`（与浏览器 Chrome 歧义）
@@ -543,7 +543,8 @@ export default function Bookmark() {
 | 属性      | 说明                                                           | 类型                                                                                | 默认值 |
 | --------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------ |
 | begin     | 顶栏左侧主区域                                                 | `ReactNode`                                                                         | —      |
-| center    | 中间列（Overview Omnibar）；有值时用三列 grid，不插会话条      | `ReactNode`                                                                         | —      |
+| center    | 中间列（Overview Omnibar / 应用窗居中搜索）；有值时用三列 grid | `ReactNode` | — |
+| centerLayout | 中列几何：`omnibar` 上限 36rem；`thirds` 三等分，中列中心恒为窗口中心 | `'omnibar' \| 'thirds'` | `omnibar` |
 | final     | 顶栏右侧扩展区域（渲染在窗口键左侧）                           | `ReactNode`                                                                         | —      |
 | controls  | 窗口键开关；`true` 默认键全开；对象可关单项或开可选键（`pin`） | `boolean \| Partial<Record<'minimize' \| 'maximize' \| 'close' \| 'pin', boolean>>` | `true` |
 
@@ -551,7 +552,7 @@ export default function Bookmark() {
 
 | 字段 | 说明 |
 | ---- | ---- |
-| begin / final / section | 操作栏与底栏槽 |
+| begin / center / final / section | 操作栏与底栏槽 |
 | summary | 无 begin 时的纯文本标题（有会话条时抑制） |
 | scrollable | 内容区是否由壳滚动；复杂页 `false` |
 | controls / className | 窗控与内容列 class |

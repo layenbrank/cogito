@@ -4,7 +4,12 @@ import { cn } from 'cn'
 
 import { useCodeGitStore } from '@/stores/code-git'
 import { useCodeStore } from '@/stores/code'
-import { findFileName, findPathSegments, findRelativePath, isPathInsideRoot } from '@/views/code/lib/path.ts'
+import {
+  findFileName,
+  findPathSegments,
+  findRelativePath,
+  isPathInsideRoot
+} from '@/views/code/lib/path.ts'
 
 function Breadcrumbs() {
   const tabs = useCodeStore(function (state) {
@@ -28,6 +33,22 @@ function Breadcrumbs() {
   })
 
   if (!activeTab) return null
+
+  if (activeTab.kind === 'settings') {
+    return (
+      <nav
+        aria-label="面包屑"
+        className={cn(
+          'flex h-5.5 shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border/50 bg-background/80 px-3 text-xs text-muted-foreground backdrop-blur-sm'
+        )}>
+        <Icon
+          icon="lucide:settings-2"
+          className="size-3 shrink-0"
+        />
+        <span className="text-foreground/90 truncate">编辑器设置</span>
+      </nav>
+    )
+  }
 
   if (activeTab.kind === 'commits') {
     const rootName = workspaceRoot ? findFileName(workspaceRoot) : '仓库'
@@ -72,9 +93,7 @@ function Breadcrumbs() {
     return isPathInsideRoot(root, activeTab.path)
   })
   const focusedRoot = focusedRootIndex >= 0 ? roots[focusedRootIndex] : workspaceRoot
-  const relative = focusedRoot
-    ? findRelativePath(focusedRoot, activeTab.path)
-    : activeTab.title
+  const relative = focusedRoot ? findRelativePath(focusedRoot, activeTab.path) : activeTab.title
   const segments = findPathSegments(relative)
 
   if (segments.length === 0) return null

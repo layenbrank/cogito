@@ -255,9 +255,17 @@ const CODE_COMMANDS: Command[] = [
     run: function () {
       useCodeStore.getState().toOpenCommitsTab()
     }
+  },
+  {
+    id: SHORTCUT_COMMAND.CODE_OPEN_SETTINGS,
+    title: '查看: 编辑器设置',
+    keywords: 'settings preferences appearance 设置 偏好 字号 换行 缩进',
+    group: '查看',
+    run: function () {
+      useCodeStore.getState().toOpenSettingsTab()
+    }
   }
 ]
-
 export {
   CODE_COMMANDS,
   saveActiveTab,

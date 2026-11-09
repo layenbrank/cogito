@@ -1,8 +1,4 @@
-import {
-  Splitter,
-  SplitterHandle,
-  SplitterPane
-} from '@cogito/design/components/splitter'
+import { Splitter, SplitterHandle, SplitterPane } from '@cogito/design/components/splitter'
 import { clsx } from 'clsx'
 import { useState } from 'react'
 
@@ -19,6 +15,7 @@ import { DiffHost } from '@/views/code/workspace/diff-host.tsx'
 import { EditorTabs } from '@/views/code/workspace/editor-tabs.tsx'
 import { GitSearch } from '@/views/code/workspace/git-search.tsx'
 import { MonacoHost } from '@/views/code/workspace/monaco-host.tsx'
+import { SettingsSurface } from '@/views/code/workspace/settings-surface.tsx'
 import { BottomSurface } from '@/views/code/workspace/surface.tsx'
 import { Sidebar } from '@/views/code/workspace/sidebar.tsx'
 import { useCodeWorkspaceEffects } from '@/views/code/workspace/use-code-workspace-effects.ts'
@@ -52,7 +49,8 @@ export default function Code() {
   })
   const isDiffOpen = activeTab?.kind === 'diff'
   const isCommitsOpen = activeTab?.kind === 'commits'
-  const isEditorHidden = isDiffOpen || isCommitsOpen
+  const isSettingsOpen = activeTab?.kind === 'settings'
+  const isEditorHidden = isDiffOpen || isCommitsOpen || isSettingsOpen
   const [isDiffHostReady, setDiffHostReady] = useState(false)
   if (isDiffOpen && !isDiffHostReady) {
     setDiffHostReady(true)
@@ -129,8 +127,11 @@ export default function Code() {
                       className={isEditorHidden ? 'hidden' : undefined}
                       isActive={!isEditorHidden}
                     />
-                    {isDiffHostReady ? (
-                      <DiffHost isOpen={isDiffOpen && !isCommitsOpen} />
+                    {isDiffHostReady ? <DiffHost isOpen={isDiffOpen && !isCommitsOpen} /> : null}
+                    {isSettingsOpen ? (
+                      <div className="absolute inset-0 z-10 bg-background">
+                        <SettingsSurface />
+                      </div>
                     ) : null}
                     {isCommitsOpen ? (
                       <div className="absolute inset-0 z-10 bg-background">

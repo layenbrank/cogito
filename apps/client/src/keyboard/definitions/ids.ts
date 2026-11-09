@@ -31,6 +31,7 @@ export const COMMAND = {
   CODE_TERMINAL: 'view.terminal',
   CODE_PROBLEMS: 'view.problems',
   CODE_GIT_SEARCH: 'view.gitSearch',
+  CODE_OPEN_SETTINGS: 'view.openSettings',
 
   // markdown（笔记）窗
   KNOWLEDGE_SAVE: 'knowledge.save',

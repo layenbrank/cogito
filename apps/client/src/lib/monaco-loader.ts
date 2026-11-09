@@ -2,9 +2,12 @@
  * monaco-editor 懒加载：同一应用内缓存单例，避免 agent diff 等路由 eager 拉整包。
  *
  * 入口从 `monaco-editor`（= `editor.main`，注册全部语言与贡献）换成
- * `esm/vs/editor/editor.api`（只有编辑器内核 API）。随之必须显式带上
- * **语言服务**贡献：`monaco.typescript` / `monaco.json` 的命名空间不是编辑器内核，
- * 而是由 `esm/vs/language` 下的 `monaco.contribution` 注入的（注释里别写星号斜杠）
+ * `esm/vs/editor/editor.api`（只有编辑器内核 API）。随之必须显式带上内核之外的贡献：
+ * 查找框 / 格式化 / TS·JSON 语言服务的副作用注册都在 `lib/monaco-contribs.ts`，
+ * 和内核**分开记账** —— `adoptMonaco()` 拿到的只是内核（代码窗已经静态 import 了
+ * editor.api），不能因此就认为「贡献也到齐了」，否则静态引入过内核的入口会让
+ * 查找框（Ctrl+F）与语言服务永远不加载。
+ *
  * 语法高亮（basic-languages）在 `lib/monaco-language.ts` 里按扩展名惰性加载。
  */
 import type * as Monaco from 'monaco-editor'
@@ -13,7 +16,8 @@ import type * as MonacoApi from 'monaco-editor/editor/editor.api'
 type MonacoModule = typeof MonacoApi
 
 let cached: MonacoModule | null = null
-let loadTask: Promise<MonacoModule> | null = null
+let apiTask: Promise<MonacoModule> | null = null
+let contribsTask: Promise<void> | null = null
 
 function findMonaco(): MonacoModule {
   if (!cached) {
@@ -22,35 +26,33 @@ function findMonaco(): MonacoModule {
   return cached
 }
 
-function importMonaco(): Promise<MonacoModule> {
-  if (cached) return Promise.resolve(cached)
-  if (!loadTask) {
-    loadTask = (async function () {
-      // typescript / json 是「诊断与校验」所必需，跟核心一起到位；
-      // css / html 服务与各语言的语法高亮在 monaco-language.ts 里按需加载
-      // 查找框（`actions.find`）与格式化动作都由 contrib 提供，`editor.api` 里没有 ——
-      // 右栏的 Ctrl/Cmd+F、预览顶栏的「格式化」都建立在这两个包里。
-      const [api] = await Promise.all([
-        import('monaco-editor/editor/editor.api'),
-        import('monaco-editor/editor/contrib/find/browser/findController'),
-        import('monaco-editor/editor/contrib/format/browser/formatActions'),
-        import('monaco-editor/language/typescript/monaco.contribution'),
-        import('monaco-editor/language/json/monaco.contribution')
-      ])
-      cached = api
-      return api
-    })()
+/** 内核之外的贡献（查找框、格式化、TS/JSON 语言服务），只注册一次 */
+function loadMonacoContribs(): Promise<void> {
+  if (!contribsTask) {
+    contribsTask = import('@/lib/monaco-contribs.ts').then(function () {
+      return undefined
+    })
   }
-  return loadTask
+  return contribsTask
 }
 
-/** 静态入口已拉包时写入缓存，供 document-options / markers 等同步 API 使用 */
+function importMonaco(): Promise<MonacoModule> {
+  if (!apiTask) apiTask = import('monaco-editor/editor/editor.api')
+  return Promise.all([apiTask, loadMonacoContribs()]).then(function ([api]) {
+    cached = api
+    return api
+  })
+}
+
+/**
+ * 静态入口已拉包时写入缓存，供 document-options / markers 等同步 API 使用。
+ *
+ * 只登记内核，**不**标记贡献已加载：`importMonaco()` 照样会去补 `monaco-contribs`。
+ */
 function adoptMonaco(module: MonacoModule): void {
   cached = module
-  if (!loadTask) {
-    loadTask = Promise.resolve(module)
-  }
+  if (!apiTask) apiTask = Promise.resolve(module)
 }
 
 export type { Monaco, MonacoModule }
-export { adoptMonaco, findMonaco, importMonaco }
+export { adoptMonaco, findMonaco, importMonaco, loadMonacoContribs }

@@ -139,16 +139,12 @@ function findSystemPrompt(scenario: ScenarioKey, context?: PromptContext) {
   if (BROWSER_SCENARIOS.has(scenario)) {
     prompt += `\n\n${BROWSER_PLAYBOOK}`
     prompt += `\n\n${TERMINAL_PLAYBOOK}`
-    if (context?.browserSummary) {
-      prompt += `\n${context.browserSummary}`
-    }
-    if (context?.terminalSummary) {
-      prompt += `\n${context.terminalSummary}`
-    }
+    if (context?.browserSummary) prompt += `\n${context.browserSummary}`
+
+    if (context?.terminalSummary) prompt += `\n${context.terminalSummary}`
   }
-  if (scenario === 'plan') {
-    prompt += buildPlanContext(context)
-  }
+  if (scenario === 'plan') prompt += buildPlanContext(context)
+
   return prompt
 }
 
@@ -162,4 +158,3 @@ export {
   TOOLS_HINT
 }
 export type { PromptContext }
-

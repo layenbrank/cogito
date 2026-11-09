@@ -1,5 +1,6 @@
 /**
  * 标题栏搜索胶囊：与主页 Omnibar 同构（h-8 / 全圆角 / popover 底 / 左侧图标 / 快捷键徽标）。
+ * 挂 Caption 中列（shell center），宽度吃满中列上限，位置恒在窗口中线。
  * 只做入口，不另造输入态 —— 输入统一在 Ctrl+P 面板里，避免两套 query 源漂移。
  */
 import { Icon } from '@iconify/react/offline'
@@ -32,7 +33,7 @@ function SearchPill() {
       title={`${label}（${findBindingText('CODE_PALETTE_FILES')}）`}
       className={cn(
         'border-border bg-popover/95 text-muted-foreground shadow-sm backdrop-blur-md',
-        'hover:border-border hover:text-foreground focus-visible:ring-ring/50 mx-auto flex h-8 w-full max-w-sm min-w-0 items-center gap-2 rounded-full border px-2.5',
+        'hover:border-border hover:text-foreground focus-visible:ring-ring/50 flex h-8 w-full max-w-sm min-w-0 items-center gap-2 rounded-full border px-2.5',
         'focus-visible:ring-3 focus-visible:outline-none'
       )}
       onClick={function () {

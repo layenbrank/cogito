@@ -4,11 +4,13 @@
 import type * as Monaco from 'monaco-editor/editor/editor.api'
 import { useEffect, useRef, useState } from 'react'
 
+import { ensureMonacoLanguage } from '@/lib/monaco-language.ts'
 import { importMonaco } from '@/lib/monaco-loader.ts'
 import { setAsideFindEditor } from '@/views/agent/chat/components/aside-editor-find.ts'
 import { CODE_THEME, syncCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
 import '@/lib/monaco-environment.ts'
 import { useCodeStore, type CodeEditorPrefs } from '@/stores/code'
+import { findLanguageId } from '@/views/code/lib/language.ts'
 import { findModel, findOrCreateModel, disposeModel } from '@/views/code/lib/monaco-models.ts'
 import { syncWorkspaceTypescriptLibs } from '@/views/code/lib/monaco-types.ts'
 import { isSamePath } from '@/views/code/lib/path.ts'
@@ -282,9 +284,19 @@ function useAsideFilesEditor(options: {
       editor.setModel(model)
       // 模型挂上之后再灌类型：工程里没有 TS/JS 模型时同步会直接跳过（见 monaco-types）
       if (options.rootPath) {
-        void syncWorkspaceTypescriptLibs([options.rootPath]).catch(function (error: unknown) {
-          console.error('[agent/aside-files] 同步 TS libs 失败', error)
-        })
+        const rootPath = options.rootPath
+        const absolutePath = options.absolutePath
+        /*
+         * 语言贡献没就绪时模型先是 plaintext，`hasTypescriptConsumer` 会判定「用不上」而跳过灌库；
+         * 所以等语言切回来（与 findOrCreateModel 复用同一个 Promise）再同步。
+         */
+        void ensureMonacoLanguage(findLanguageId(absolutePath))
+          .then(function () {
+            return syncWorkspaceTypescriptLibs([rootPath])
+          })
+          .catch(function (error: unknown) {
+            console.error('[agent/aside-files] 同步 TS libs 失败', error)
+          })
       }
       editor.updateOptions(
         options.isReadonly ? LARGE_DOCUMENT_OPTIONS : INTERACTIVE_DOCUMENT_OPTIONS

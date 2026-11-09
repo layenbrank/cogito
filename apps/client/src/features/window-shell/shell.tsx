@@ -63,6 +63,8 @@ function ShellCaption(props: { overviewCaption?: OverviewCaptionSlots }) {
       {showsAppBar ? (
         <Caption
           begin={findSummaryBegin(slots.begin, slots.summary, showsSession)}
+          center={slots.center}
+          centerLayout="thirds"
           final={slots.final}
           controls={slots.controls}
         />

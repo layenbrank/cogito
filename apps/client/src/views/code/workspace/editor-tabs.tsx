@@ -54,6 +54,8 @@ function EditorTabs() {
       })
       const tab = tabs[index]
       if (!tab) return []
+      // 虚拟标签（提交搜索 / 编辑器设置）没有真实文件路径，路径类菜单项一律禁用
+      const isVirtual = tab.kind === 'commits' || tab.kind === 'settings'
       return [
         {
           key: 'close',
@@ -105,7 +107,7 @@ function EditorTabs() {
         {
           key: 'copy-path',
           label: '复制路径',
-          disabled: tab.kind === 'commits',
+          disabled: isVirtual,
           onSelect() {
             void navigator.clipboard.writeText(tab.path).then(function () {
               toast.success('已复制路径')
@@ -115,8 +117,7 @@ function EditorTabs() {
         {
           key: 'reveal',
           label: '在文件资源管理器中显示',
-          disabled:
-            tab.kind === 'commits' || !tab.path || !useCodeStore.getState().workspaceRoot,
+          disabled: isVirtual || !tab.path || !useCodeStore.getState().workspaceRoot,
           onSelect() {
             revealInExplorer(tab.path)
           }
@@ -185,6 +186,12 @@ function EditorTabs() {
                   className="size-2.5 shrink-0 text-primary"
                   aria-label="提交"
                 />
+              ) : tab.kind === 'settings' ? (
+                <Icon
+                  icon="lucide:settings-2"
+                  className="size-2.5 shrink-0 text-muted-foreground"
+                  aria-label="设置"
+                />
               ) : isActive && isLargeFile ? (
                 <Icon
                   icon="lucide:lock"
@@ -212,7 +219,9 @@ function EditorTabs() {
                       : `${tab.path} · HEAD ↔ 工作区`
                     : tab.kind === 'commits'
                       ? '搜索提交历史'
-                      : tab.path
+                      : tab.kind === 'settings'
+                        ? '编辑器设置'
+                        : tab.path
                 }>
                 {tab.title}
               </span>

@@ -1,4 +1,3 @@
-import { Button } from '@cogito/design/components/button'
 import {
   Dialog,
   DialogContent,
@@ -7,27 +6,67 @@ import {
   DialogTitle
 } from '@cogito/design/components/dialog'
 import { Input } from '@cogito/design/components/input'
+import { Kbd } from '@cogito/design/components/kbd'
+import { Icon } from '@iconify/react/offline'
 import { cn } from 'cn'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 
+import { bindingLabels, parseBinding } from '@/keyboard/binding'
 import { findCommands, runCommand } from '@/keyboard/commands'
+import { findShortcut, resolveBinding } from '@/keyboard/definitions'
 import type { Command } from '@/keyboard/types'
 import { WorkspaceFiles } from '@/lib/workspace-files'
 import { useCodeStore } from '@/stores/code'
-import { findFileName, findRelativePath, isPathInsideRoot, isSamePath } from '@/views/code/lib/path.ts'
+import {
+  findFileName,
+  findRelativePath,
+  isPathInsideRoot,
+  isSamePath
+} from '@/views/code/lib/path.ts'
 import { openAbsolutePath } from '@/views/code/lib/open-file.ts'
-import { mergeFileHits, type FileHit } from '@/views/code/workspace/file-hits.ts'
+import { mergeFileHits, hitKey, type FileHit } from '@/views/code/workspace/file-hits.ts'
 
 type PaletteItem =
   | { kind: 'file'; hit: FileHit }
   | { kind: 'line'; line: number }
   | { kind: 'command'; command: Command }
 
+/**
+ * 行样式对齐代码窗右键菜单（`.code-ctx-menu`）：34px 行高、7px 圆角、
+ * 命中态用「品牌色 9% + muted」的弱底，而不是整行实色。
+ */
+const ROW_BASE =
+  'flex min-h-[34px] w-full cursor-default items-center gap-2.5 rounded-[7px] px-2.5 text-left text-[13px] select-none'
+const ROW_ACTIVE = 'bg-[color-mix(in_oklab,var(--primary)_9%,var(--muted))]'
+const ROW_IDLE = 'hover:bg-[color-mix(in_oklab,var(--primary)_6%,var(--muted))]'
+
 function includesQuery(hit: FileHit, query: string): boolean {
   if (!query) return true
   const needle = query.toLowerCase()
+  return hit.name.toLowerCase().includes(needle) || hit.relative.toLowerCase().includes(needle)
+}
+
+/** 命令的键位只存在键位表里（命令元数据只有 id）；没有绑定就不占位 */
+function shortcutLabels(commandId: string): string[] | null {
+  if (!findShortcut(commandId)) return null
+  const binding = parseBinding(resolveBinding(commandId))
+  if (!binding) return null
+  return bindingLabels(binding)
+}
+
+function ShortcutKeys(props: { labels: string[] }) {
   return (
-    hit.name.toLowerCase().includes(needle) || hit.relative.toLowerCase().includes(needle)
+    <span className="flex shrink-0 items-center gap-1">
+      {props.labels.map(function (label) {
+        return (
+          <Kbd
+            key={label}
+            className="h-4 min-w-4 px-1 text-[10px] font-normal">
+            {label}
+          </Kbd>
+        )
+      })}
+    </span>
   )
 }
 
@@ -51,6 +90,7 @@ function CommandPalette() {
   const [activeIndex, setActiveIndex] = useState(0)
   const [searchHits, setSearchHits] = useState<FileHit[]>([])
   const searchGeneration = useRef(0)
+  const activeRow = useRef<HTMLLIElement | null>(null)
 
   const isOpen = paletteMode !== null
   const isFileMode = paletteMode === 'file'
@@ -158,6 +198,22 @@ function CommandPalette() {
   const itemCount = items.length
   const rootsKey = roots.join('|')
 
+  const recentKeys = useMemo(
+    function () {
+      const keys = new Set<string>()
+      for (const hit of recentHits) keys.add(hitKey(hit.absolute))
+      return keys
+    },
+    [recentHits]
+  )
+
+  useEffect(
+    function () {
+      activeRow.current?.scrollIntoView({ block: 'nearest' })
+    },
+    [activeIndex, items]
+  )
+
   useEffect(
     function () {
       if (!isOpen || !isFileMode) return
@@ -173,15 +229,13 @@ function CommandPalette() {
       const timer = window.setTimeout(function () {
         void (async function () {
           try {
-            const hits = (await WorkspaceFiles.search(roots, trimmed, 50)).hits.map(
-              function (hit) {
-                return {
-                  absolute: hit.path,
-                  name: hit.name,
-                  relative: hit.relative
-                }
+            const hits = (await WorkspaceFiles.search(roots, trimmed, 50)).hits.map(function (hit) {
+              return {
+                absolute: hit.path,
+                name: hit.name,
+                relative: hit.relative
               }
-            )
+            })
             if (generation !== searchGeneration.current) return
             setSearchHits(hits)
             setActiveIndex(0)
@@ -244,6 +298,21 @@ function CommandPalette() {
     await openAbsolutePath(hit.absolute)
   }
 
+  /** 结果分组标题：命令按 `group`，文件按「已打开 / 最近 / 其他」 */
+  function sectionOf(item: PaletteItem): string {
+    if (item.kind === 'command') return item.command.group ?? '命令'
+    if (item.kind === 'line') return '跳转'
+    if (item.hit.isOpen) return '已打开'
+    if (recentKeys.has(hitKey(item.hit.absolute))) return '最近'
+    return '其他文件'
+  }
+
+  function keyOf(item: PaletteItem): string {
+    if (item.kind === 'command') return item.command.id
+    if (item.kind === 'line') return 'line'
+    return item.hit.absolute
+  }
+
   const placeholder = isFileMode
     ? isLinePrefix
       ? '输入行号后回车跳转…'
@@ -256,26 +325,50 @@ function CommandPalette() {
             : '搜索文件…'
     : '输入命令…'
 
+  const isCommandMode = !isFileMode || isCommandPrefix
+  const modeLabel = isLinePrefix ? '行号' : isCommandMode ? '命令' : '文件'
+  const modeIcon = isLinePrefix
+    ? 'lucide:corner-down-right'
+    : isCommandMode
+      ? 'lucide:terminal'
+      : 'lucide:search'
+  const hintText = isLinePrefix
+    ? '行号跳转'
+    : isCommandMode
+      ? '执行命令'
+      : '输入 > 切换命令、: 跳转行号'
+
   return (
     <Dialog
       open={isOpen}
       onOpenChange={function (open) {
         if (!open) reset()
       }}>
-      <DialogContent className="top-[20%] max-w-xl translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-xl">
+      <DialogContent
+        showCloseButton={false}
+        className={cn(
+          'top-[18%] w-full max-w-[38rem] translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-[38rem]',
+          // Dialog 内容区自带 padding 与 16px 间距，这里清零，让三节各自贴边
+          '[&>[data-slot=dialog-body]]:gap-0 [&>[data-slot=dialog-body]]:px-0 [&>[data-slot=dialog-body]]:pb-0'
+        )}>
         <DialogHeader className="sr-only">
           <DialogTitle>{isFileMode ? '转到文件' : '命令面板'}</DialogTitle>
           <DialogDescription>
             {isFileMode ? '已打开 / 最近 / 跨工作区搜索' : '搜索并执行命令'}
           </DialogDescription>
         </DialogHeader>
-        <div className="border-border border-b p-2">
+        <div className="border-border/60 flex items-center gap-2.5 border-b px-3.5">
+          <Icon
+            icon={modeIcon}
+            className="text-muted-foreground/70 size-4 shrink-0"
+          />
           <Input
             autoFocus
             value={query}
             placeholder={placeholder}
             aria-label={isFileMode ? '搜索文件' : '搜索命令'}
-            className="h-9 border-0 shadow-none focus-visible:ring-0"
+            aria-activedescendant={itemCount > 0 ? `palette-item-${activeIndex}` : undefined}
+            className="h-11 flex-1 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
             onChange={function (event) {
               setQuery(event.target.value)
               setActiveIndex(0)
@@ -297,104 +390,112 @@ function CommandPalette() {
               }
             }}
           />
-          {isFileMode ? (
-            <p className="text-muted-foreground px-1 pt-1.5 text-[10px]">
-              {isCommandPrefix
-                ? '命令模式'
-                : isLinePrefix
-                  ? '行号跳转'
-                  : '空查询显示「已打开」「最近」；输入 > 切命令、: 跳行'}
-            </p>
-          ) : null}
+          <span className="bg-muted text-muted-foreground shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] leading-none">
+            {modeLabel}
+          </span>
         </div>
         <ul
           role="listbox"
-          className="max-h-72 overflow-y-auto p-1">
+          aria-label={isFileMode ? '文件结果' : '命令结果'}
+          className="max-h-[min(24rem,58vh)] overflow-y-auto overscroll-contain p-1.5">
           {items.map(function (item, index) {
-            if (item.kind === 'line') {
-              return (
-                <li key="line">
-                  <Button
-                    variant="ghost"
-                    type="button"
-                    role="option"
-                    aria-selected={index === activeIndex}
-                    className={cn(
-                      'h-auto w-full justify-start rounded-md px-2 py-1.5 text-left text-sm',
-                      index === activeIndex ? 'bg-muted' : 'hover:bg-muted/60'
-                    )}
-                    onClick={function () {
-                      void activateItem(index)
-                    }}>
-                    跳转到第 {item.line} 行
-                  </Button>
-                </li>
-              )
-            }
-            if (item.kind === 'command') {
-              return (
-                <li key={item.command.id}>
-                  <Button
-                    variant="ghost"
-                    type="button"
-                    role="option"
-                    aria-selected={index === activeIndex}
-                    className={cn(
-                      'h-auto w-full justify-start rounded-md px-2 py-1.5 text-left text-sm',
-                      index === activeIndex ? 'bg-muted' : 'hover:bg-muted/60'
-                    )}
-                    onMouseEnter={function () {
-                      setActiveIndex(index)
-                    }}
-                    onClick={function () {
-                      void activateItem(index)
-                    }}>
-                    {item.command.title}
-                  </Button>
-                </li>
-              )
-            }
-            const hit = item.hit
+            const isActive = index === activeIndex
+            const section = sectionOf(item)
+            const previous = index > 0 ? sectionOf(items[index - 1]) : null
+            const shortcuts = item.kind === 'command' ? shortcutLabels(item.command.id) : null
             return (
-              <li key={hit.absolute}>
-                <Button
-                  variant="ghost"
-                  type="button"
+              <Fragment key={keyOf(item)}>
+                {section !== previous ? (
+                  <li
+                    role="presentation"
+                    className={cn(
+                      'text-muted-foreground/70 px-2.5 pb-1 text-[11px] font-medium tracking-wide',
+                      index === 0 ? 'pt-1' : 'pt-2.5'
+                    )}>
+                    {section}
+                  </li>
+                ) : null}
+                <li
+                  ref={isActive ? activeRow : undefined}
+                  id={`palette-item-${index}`}
                   role="option"
-                  aria-selected={index === activeIndex}
-                  className={cn(
-                    'flex h-auto w-full flex-col items-start justify-start rounded-md px-2 py-1.5 text-left text-sm',
-                    index === activeIndex ? 'bg-muted' : 'hover:bg-muted/60'
-                  )}
+                  aria-selected={isActive}
+                  className={cn(ROW_BASE, isActive ? ROW_ACTIVE : ROW_IDLE)}
                   onMouseEnter={function () {
                     setActiveIndex(index)
                   }}
                   onClick={function () {
                     void activateItem(index)
                   }}>
-                  <span className="text-foreground flex w-full items-center gap-1.5 truncate">
-                    <span className="truncate">{hit.name}</span>
-                    {hit.isOpen ? (
-                      <span className="text-primary shrink-0 text-[10px]">已打开</span>
-                    ) : null}
-                    {hit.isDirty ? (
-                      <span className="shrink-0 text-[10px] text-amber-600 dark:text-amber-400">
-                        未保存
+                  {item.kind === 'line' ? (
+                    <Fragment>
+                      <Icon
+                        icon="lucide:corner-down-right"
+                        className="text-muted-foreground/70 size-3.5 shrink-0"
+                      />
+                      <span className="min-w-0 flex-1 truncate">跳转到第 {item.line} 行</span>
+                    </Fragment>
+                  ) : null}
+                  {item.kind === 'command' ? (
+                    <Fragment>
+                      <span className="min-w-0 flex-1 truncate">{item.command.title}</span>
+                      {shortcuts ? <ShortcutKeys labels={shortcuts} /> : null}
+                    </Fragment>
+                  ) : null}
+                  {item.kind === 'file' ? (
+                    <Fragment>
+                      <Icon
+                        icon="lucide:file"
+                        className="text-muted-foreground/70 size-3.5 shrink-0"
+                      />
+                      <span className="min-w-0 flex-1 truncate">{item.hit.name}</span>
+                      {item.hit.isDirty ? (
+                        <span className="shrink-0 rounded-sm bg-amber-500/10 px-1 text-[10px] leading-4 text-amber-600 dark:text-amber-400">
+                          未保存
+                        </span>
+                      ) : item.hit.isOpen ? (
+                        <span className="bg-primary/10 text-primary shrink-0 rounded-sm px-1 text-[10px] leading-4">
+                          已打开
+                        </span>
+                      ) : null}
+                      <span className="text-muted-foreground/70 max-w-[45%] shrink-0 truncate text-[11px]">
+                        {item.hit.rootName ? `${item.hit.rootName} / ` : ''}
+                        {item.hit.relative}
                       </span>
-                    ) : null}
-                  </span>
-                  <span className="text-muted-foreground w-full truncate text-xs">
-                    {hit.rootName ? `${hit.rootName} / ` : ''}
-                    {hit.relative}
-                  </span>
-                </Button>
-              </li>
+                    </Fragment>
+                  ) : null}
+                </li>
+              </Fragment>
             )
           })}
           {itemCount === 0 ? (
-            <li className="text-muted-foreground px-2 py-6 text-center text-sm">无匹配项</li>
+            <li
+              role="presentation"
+              className="flex flex-col items-center gap-2 px-2 py-10">
+              <Icon
+                icon="lucide:search-x"
+                className="text-muted-foreground/40 size-5"
+              />
+              <span className="text-muted-foreground text-[13px]">没有匹配项</span>
+            </li>
           ) : null}
         </ul>
+        <div className="border-border/60 text-muted-foreground flex items-center gap-3 border-t px-3.5 py-2 text-[11px]">
+          <span className="min-w-0 flex-1 truncate">{hintText}</span>
+          <span className="flex shrink-0 items-center gap-1">
+            <Kbd className="h-4 min-w-4 px-1 text-[10px] font-normal">↑</Kbd>
+            <Kbd className="h-4 min-w-4 px-1 text-[10px] font-normal">↓</Kbd>
+            <span className="ml-0.5">选择</span>
+          </span>
+          <span className="flex shrink-0 items-center gap-1">
+            <Kbd className="h-4 min-w-4 px-1 text-[10px] font-normal">↵</Kbd>
+            <span>打开</span>
+          </span>
+          <span className="flex shrink-0 items-center gap-1">
+            <Kbd className="h-4 min-w-4 px-1 text-[10px] font-normal">Esc</Kbd>
+            <span>关闭</span>
+          </span>
+        </div>
       </DialogContent>
     </Dialog>
   )

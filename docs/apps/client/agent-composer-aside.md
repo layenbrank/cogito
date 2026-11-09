@@ -133,8 +133,9 @@ await attachWorkspaceFile(aui, reference)   // 与文件树、@ 的同一条引�
   `editor/contrib/find/browser/findController` 与 `editor/contrib/format/browser/formatActions`
   （预览顶栏的「格式化」/ `Shift+Alt+F` 同样依赖后者），没换成 `editor.main` —— 那个会顺带拉全部语言
   注册与 lsp client。
-- 同类隐患（本次没动）：`suggest` / `hover` / `folding` / `contextmenu` / `bracketMatching` 也都是
-  contrib，`EDITOR_OPTIONS` 里相应的开关目前是空转；要用就按上面的方式逐个补。
+- 2026-11-09 起这些 contrib 已按「基础编辑 / 智能特性 / 语言服务」三层收敛到
+  `lib/monaco-contribs.ts`（静态引入、早于 `editor.create`）：suggest / hover / folding / contextmenu /
+  bracketMatching 等不再空转，浮层样式统一在 `views/code/styles/monaco-widgets.css` 对齐 design token。
 
 ## 右栏·任务面板：列表与详情统一到「详情」页签的语言（2026-11-09）
 

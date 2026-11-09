@@ -3,6 +3,7 @@
  */
 import * as monaco from 'monaco-editor/editor/editor.api'
 
+import { createLanguageModel } from '@/lib/monaco-language.ts'
 import { findLanguageId } from '@/views/code/lib/language.ts'
 
 const modelsByPath = new Map<string, monaco.editor.ITextModel>()
@@ -40,7 +41,8 @@ function findOrCreateModel(
     return prior
   }
 
-  const model = monaco.editor.createModel(value, language, uri)
+  // 语言贡献没就绪时先按 plaintext 建、注册完再切回（见 createLanguageModel）
+  const model = createLanguageModel(monaco, value, language, uri)
   modelsByPath.set(path, model)
   pathByModel.set(model, path)
   return model

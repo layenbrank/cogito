@@ -154,10 +154,10 @@ function buildColors(palette: CodePalette): Record<string, string> {
   return {
     'editor.background': background,
     'editor.foreground': foreground,
-    'foreground': foreground,
-    'descriptionForeground': muted,
-    'errorForeground': palette.destructive,
-    'focusBorder': withAlpha(primary, 0.6),
+    foreground: foreground,
+    descriptionForeground: muted,
+    errorForeground: palette.destructive,
+    focusBorder: withAlpha(primary, 0.6),
     'textLink.foreground': primary,
     'textSeparator.foreground': withAlpha(foreground, 0.2),
     'badge.background': primary,
@@ -220,19 +220,54 @@ function buildColors(palette: CodePalette): Record<string, string> {
     'editorSuggestWidget.border': border,
     'editorSuggestWidget.foreground': foreground,
     'editorSuggestWidget.selectedBackground': withAlpha(primary, 0.2),
+    'editorSuggestWidget.selectedForeground': foreground,
+    'editorSuggestWidget.selectedIconForeground': foreground,
     'editorSuggestWidget.highlightForeground': primary,
+    'editorSuggestWidget.focusHighlightForeground': primary,
+    'editorSuggestWidgetStatus.foreground': muted,
     'editorHoverWidget.background': surface,
     'editorHoverWidget.border': border,
     'editorHoverWidget.foreground': foreground,
+    'editorHoverWidget.highlightForeground': primary,
     'editorHoverWidget.statusBarBackground': mixColor(surface, foreground, 0.06),
+
+    // 灯泡 / 内联提示 / 幽灵文本：让「有修复可用」「参数名」这类弱信息也有层级
+    'editorLightBulb.foreground': palette.warning,
+    'editorLightBulbAutoFix.foreground': palette.success,
+    'editorInlayHint.foreground': muted,
+    'editorInlayHint.background': mixColor(background, foreground, palette.isDark ? 0.1 : 0.05),
+    'editorInlayHint.typeForeground': muted,
+    'editorInlayHint.typeBackground': mixColor(background, foreground, palette.isDark ? 0.1 : 0.05),
+    'editorInlayHint.parameterForeground': muted,
+    'editorInlayHint.parameterBackground': mixColor(
+      background,
+      foreground,
+      palette.isDark ? 0.1 : 0.05
+    ),
+
+    // 查看定义 / 引用（peek view）：标题栏、结果列表与编辑器区分层
+    'peekView.border': withAlpha(primary, 0.5),
+    'peekViewEditor.background': mixColor(background, foreground, palette.isDark ? 0.03 : 0.015),
+    'peekViewEditor.matchHighlightBackground': withAlpha(palette.warning, 0.35),
+    'peekViewEditor.matchHighlightBorder': withAlpha(palette.warning, 0.6),
+    'peekViewResult.background': surface,
+    'peekViewResult.lineForeground': foreground,
+    'peekViewResult.selectionBackground': withAlpha(primary, 0.2),
+    'peekViewResult.selectionForeground': foreground,
+    'peekViewResult.matchHighlightBackground': withAlpha(palette.warning, 0.35),
+    'peekViewTitle.background': mixColor(background, foreground, palette.isDark ? 0.06 : 0.03),
+    'peekViewTitleLabel.foreground': foreground,
+    'peekViewTitleDescription.foreground': muted,
 
     'input.background': palette.input,
     'input.foreground': foreground,
     'input.border': border,
     'input.placeholderForeground': withAlpha(foreground, 0.45),
-    'inputOption.activeBackground': withAlpha(primary, 0.25),
-    'inputOption.activeBorder': primary,
-    'inputOption.activeForeground': foreground,
+    // 查找框里的 Aa / ab / .* 开关：checked 态颜色是 monaco 内联写上去的，
+    // 只有主题键能改到（CSS 需要 !important 才能盖，见 monaco-widgets.css）
+    'inputOption.activeBackground': withAlpha(primary, palette.isDark ? 0.22 : 0.14),
+    'inputOption.activeBorder': withAlpha(primary, 0.4),
+    'inputOption.activeForeground': primary,
     'inputValidation.errorBackground': withAlpha(palette.destructive, 0.15),
     'inputValidation.errorBorder': palette.destructive,
 
@@ -243,6 +278,14 @@ function buildColors(palette: CodePalette): Record<string, string> {
     'list.highlightForeground': primary,
     'list.focusOutline': withAlpha(primary, 0.4),
 
+    // 快速输入（F1 / 右键菜单里的 Command Palette）：命中高亮与分组标题跟随设计语言。
+    // 选中行底色交给 monaco-widgets.css 用 token 混色，不吃 list.activeSelection*。
+    'quickInputList.focusHighlightForeground': primary,
+    'pickerGroup.foreground': muted,
+    'pickerGroup.border': border,
+
+    // 查找框这类「编辑器内浮层」的描边（--vscode-widget-border 默认未定义）
+    'widget.border': border,
     'widget.shadow': withAlpha('#000000', palette.isDark ? 0.45 : 0.12),
     'scrollbar.shadow': withAlpha('#000000', palette.isDark ? 0.3 : 0.1),
     'scrollbarSlider.background': withAlpha(foreground, 0.16),
@@ -257,8 +300,8 @@ function buildColors(palette: CodePalette): Record<string, string> {
     'menu.background': surface,
     'menu.foreground': foreground,
     'menu.border': border,
-    'menu.selectionBackground': primary,
-    'menu.selectionForeground': palette.primaryForeground,
+    'menu.selectionBackground': withAlpha(primary, 0.1),
+    'menu.selectionForeground': foreground,
     'menu.separatorBackground': softBorder,
 
     // Monaco 会给每个 line-insert / line-delete 画 1px 边框。

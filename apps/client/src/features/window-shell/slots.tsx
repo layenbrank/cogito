@@ -12,6 +12,8 @@ import type { CaptionProps } from '@/features/window-shell/caption'
 
 interface ShellSlots {
   begin?: ReactNode
+  /** 中列（应用窗居中搜索等）；有值时 Caption 走三列 grid */
+  center?: ReactNode
   final?: ReactNode
   section?: ReactNode
   sectionClassName?: string
@@ -58,6 +60,7 @@ function buildShellSlotsStore(): ShellSlotsStore {
         // 同引用字段则跳过通知，避免页重渲带动 Caption 订阅抖动
         if (
           prev.begin === next.begin &&
+          prev.center === next.center &&
           prev.final === next.final &&
           prev.section === next.section &&
           prev.summary === next.summary &&
@@ -103,12 +106,14 @@ function useShellSlotsStore(): ShellSlotsStore {
 function useShellSlots(): ShellSlots {
   const store = useContext(ShellSlotsStoreContext)
   return useSyncExternalStore(
-    store?.subscribe ?? function () {
-      return function () {}
-    },
-    store?.findSlots ?? function () {
-      return EMPTY_SLOTS
-    },
+    store?.subscribe ??
+      function () {
+        return function () {}
+      },
+    store?.findSlots ??
+      function () {
+        return EMPTY_SLOTS
+      },
     function () {
       return EMPTY_SLOTS
     }

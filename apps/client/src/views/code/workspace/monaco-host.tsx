@@ -27,6 +27,12 @@ import {
   restoreViewState,
   saveViewState
 } from '@/views/code/lib/monaco-view-state.ts'
+/*
+ * 查找框 / 格式化 / TS·JSON 语言服务这些「内核外贡献」必须静态引入：
+ * 它们只在 `editor.create` 与「首次遇见某语言」那一刻生效，晚到就再也不生效。
+ * 详见 lib/monaco-contribs.ts 文件头。
+ */
+import '@/lib/monaco-contribs.ts'
 // worker 装配只有一份，见 lib/monaco-environment.ts
 import '@/lib/monaco-environment.ts'
 
@@ -171,7 +177,10 @@ function toFontOptions(prefs: CodeEditorPrefs): monaco.editor.IEditorOptions {
 }
 
 /** 把待定位请求落到当前 model 上；路径不匹配则留待下一次切模型 */
-function syncPendingReveal(editor: monaco.editor.IStandaloneCodeEditor, model: monaco.editor.ITextModel): void {
+function syncPendingReveal(
+  editor: monaco.editor.IStandaloneCodeEditor,
+  model: monaco.editor.ITextModel
+): void {
   const request = useCodeStore.getState().pendingReveal
   if (!request) return
   const path = findPathForModel(model)
@@ -398,6 +407,13 @@ function MonacoHost(props: MonacoHostProps) {
       let subModelOptions: monaco.IDisposable | null = null
 
       void (async function () {
+        /*
+         * 语言贡献必须在建 model 之前注册：monaco 对每个语言的「首次遇见」（语言服务、
+         * 括号配置、tokenizer 工厂）只处理一次，model 先带着 languageId 出现就再也不会补。
+         */
+        await ensureMonacoLanguage(activeTab.language)
+        if (cancelled) return
+
         let model = findModel(activeTab.path)
         if (!model) {
           try {
@@ -432,15 +448,16 @@ function MonacoHost(props: MonacoHostProps) {
          * 直接返回，所以进代码页（默认停在提交历史）不会再提前搬那 2.5MB ——
          * 之前那份活排在空闲回调里，落地时刻正好是用户点侧栏的那一下。
          */
-        void syncWorkspaceTypescriptLibs(useCodeStore.getState().roots, { mode: useCodeStore.getState().tsTypesMode })
+        void syncWorkspaceTypescriptLibs(useCodeStore.getState().roots, {
+          mode: useCodeStore.getState().tsTypesMode
+        })
           .then(reportTypescriptApplied)
           .catch(function (error) {
             console.error('[monaco-types] 同步失败', error)
           })
 
         const store = useCodeStore.getState()
-        // 语法高亮按语言惰性加载（editor.api 入口不再自带全部 basic-languages）
-        void ensureMonacoLanguage(activeTab.language)
+        // 语法高亮 / 语言服务已在建 model 之前 await 注册（见上方 ensureMonacoLanguage）
         store.toSetLanguageId(activeTab.language)
         store.toSetIndentation(readIndentation(model))
         store.toSetEol(readEol(model))

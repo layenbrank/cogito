@@ -30,11 +30,17 @@ type Eol = 'LF' | 'CRLF'
 /** TS 类型注入档位：full = 总是注入；lean = 只有真的用到 node: 才注入；off = 不注入 */
 type CodeTypesMode = 'full' | 'lean' | 'off'
 
-/** file：普通编辑；diff：工作区或提交间对比；commits：提交搜索（GitLens 式独立页） */
-type CodeTabKind = 'file' | 'diff' | 'commits'
+/**
+ * file：普通编辑；diff：工作区或提交间对比；commits：提交搜索（GitLens 式独立页）；
+ * settings：编辑器设置独立页（标题栏的齿轮只负责打开这个标签）
+ */
+type CodeTabKind = 'file' | 'diff' | 'commits' | 'settings'
 
 /** 提交搜索虚拟标签的固定 path，全局单例 */
 const COMMITS_TAB_PATH = 'cogito://git/commits'
+
+/** 编辑器设置虚拟标签的固定 path，全局单例 */
+const SETTINGS_TAB_PATH = 'cogito://code/settings'
 
 interface CodeTab {
   id: string
@@ -160,6 +166,8 @@ interface CodeState {
   }): void
   /** 打开/激活提交搜索标签（GitLens Commits 式独立页，全局单例） */
   toOpenCommitsTab: () => void
+  /** 打开/激活编辑器设置标签（独立页，全局单例；标题栏齿轮入口） */
+  toOpenSettingsTab: () => void
   toActivateTab: (id: string) => void
   toCloseTab: (id: string) => void
   /** 关闭 path 本身或位于该目录下的所有 tab，返回被关 tab 的 path */
@@ -443,9 +451,7 @@ const useCodeStore = create<CodeState>()(
                 const id = crypto.randomUUID()
                 const name = findFileName(params.path)
                 const isRev = typeof headOid === 'string' && headOid.length > 0
-                const hint =
-                  params.titleHint ??
-                  (isRev ? headOid.slice(0, 7) : '工作区')
+                const hint = params.titleHint ?? (isRev ? headOid.slice(0, 7) : '工作区')
                 state.tabs.push({
                   id,
                   path: params.path,
@@ -474,9 +480,7 @@ const useCodeStore = create<CodeState>()(
                   state.activeTabId = existing.id
                   return
                 }
-                const rootName = state.workspaceRoot
-                  ? findFileName(state.workspaceRoot)
-                  : '仓库'
+                const rootName = state.workspaceRoot ? findFileName(state.workspaceRoot) : '仓库'
                 const id = crypto.randomUUID()
                 state.tabs.push({
                   id,
@@ -490,6 +494,34 @@ const useCodeStore = create<CodeState>()(
               },
               false,
               'toOpenCommitsTab'
+            )
+          },
+
+          toOpenSettingsTab() {
+            set(
+              function (state) {
+                const existing = state.tabs.find(function (tab) {
+                  return tab.kind === 'settings'
+                })
+                if (existing) {
+                  state.activeTabId = existing.id
+                  state.languageId = 'plaintext'
+                  return
+                }
+                const id = crypto.randomUUID()
+                state.tabs.push({
+                  id,
+                  path: SETTINGS_TAB_PATH,
+                  title: '设置',
+                  language: 'plaintext',
+                  isDirty: false,
+                  kind: 'settings'
+                })
+                state.activeTabId = id
+                state.languageId = 'plaintext'
+              },
+              false,
+              'toOpenSettingsTab'
             )
           },
 
@@ -528,7 +560,6 @@ const useCodeStore = create<CodeState>()(
               'toRegisterTab'
             )
           },
-
 
           toCloseTab(id) {
             set(
@@ -1010,7 +1041,7 @@ useCodeStore.subscribe(function (state, previous) {
   writeCodePrefs(state)
 })
 
-export { useCodeStore, COMMITS_TAB_PATH, normalizeRoots }
+export { COMMITS_TAB_PATH, SETTINGS_TAB_PATH, useCodeStore, normalizeRoots }
 export type {
   CodeTab,
   CodeTabKind,

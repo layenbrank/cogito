@@ -1,18 +1,56 @@
 /**
- * Monaco 自带浮层（右键菜单 / 查找替换）的设计语言对齐。
+ * Monaco 自带浮层（补全 / 悬停 / 参数提示 / 查找替换 / 右键菜单 / 快速输入）的设计语言对齐。
+ *
+ * 原则与 `@cogito/design` 一致：
+ * - 面：`--popover` + `--popover-foreground`，1px `--border`（编辑器浮层叠在代码上，
+ *   保留一条极细描边；纯弹层用 OVERLAY_ELEVATION 的软阴影拉开层级）
+ * - 形：圆角走 `--radius` 派生（大浮层 = xl），行高 1.45~1.55，字号 12.5~13.5
+ * - 阴影：与 design `OVERLAY_ELEVATION` 同一组数值（浅色偏冷、深色更沉）
  *
  * 只用 class 选择器、不依赖 DOM 层级；`monaco-editor` 升级（当前 ^0.57）可能波及，
  * 所以集中在这一个文件，回归时只看这里。
+ *
+ * 加载时机：由 `lib/monaco-contribs.ts` 在贡献之后 import，保证同权重时「后写」生效。
  */
 
-/* ── 编辑器右键菜单 ─────────────────────────────────────── */
-.context-view.monaco-menu {
-  min-width: 268px;
+/* ── 形状 / 阴影变量桥接 ──────────────────────────────────────────────────
+ * monaco 0.57 的浮层 CSS 写的是 `var(--vscode-cornerRadius-large)` /
+ * `var(--vscode-shadow-lg)` —— 这两个在 VS Code workbench 里由主题提供，
+ * standalone 下**没有定义**，所以 border-radius / box-shadow 整条声明会失效。
+ * 这里把它们桥到设计 token 上，suggest / hover / menu / quick input 一并受益。
+ */
+:root {
+  --vscode-cornerRadius-small: calc(var(--radius) - 4px);
+  --vscode-cornerRadius-medium: calc(var(--radius) - 2px);
+  --vscode-cornerRadius-large: calc(var(--radius) + 4px);
+  --vscode-cornerRadius-xLarge: calc(var(--radius) * 1.8);
+  --vscode-cornerRadius-circle: 9999px;
+  --vscode-shadow-xl: 0 4px 12px -2px rgb(15 23 42 / 0.12), 0 18px 48px -12px rgb(15 23 42 / 0.18);
+
+  --vscode-shadow-md: 0 1px 2px -1px rgb(15 23 42 / 0.08), 0 4px 12px -4px rgb(15 23 42 / 0.1);
+  --vscode-shadow-lg: 0 2px 8px -2px rgb(15 23 42 / 0.1), 0 12px 32px -8px rgb(15 23 42 / 0.14);
+}
+
+.dark {
+  --vscode-shadow-md: 0 1px 2px -1px rgb(0 0 0 / 0.4), 0 4px 12px -4px rgb(0 0 0 / 0.45);
+  --vscode-shadow-lg: 0 4px 12px -2px rgb(0 0 0 / 0.4), 0 16px 40px -10px rgb(0 0 0 / 0.55);
+  --vscode-shadow-xl: 0 6px 16px -2px rgb(0 0 0 / 0.45), 0 24px 56px -12px rgb(0 0 0 / 0.6);
+}
+
+/* ── 编辑器右键菜单 / 子菜单 ─────────────────────────────────────────────
+ * monaco 0.57 的菜单 DOM 是 `.context-view.monaco-menu-container > .monaco-scrollable-element > .monaco-menu`：
+ * - 外层容器才承载「面」的圆角 / 阴影；`.monaco-menu` 只是内层列表
+ * - 菜单样式表在首次打开时才注入 <head>（晚于本文件），且条目选中会写内联
+ *   `background-color` / `color` —— 形状与底色要 `!important` 才压得住
+ * 视觉基准 = 业务 ContextMenu（views/code/styles/context-menu.css）。
+ */
+.context-view.monaco-menu-container {
+  min-width: 268px !important;
   max-width: min(420px, calc(100vw - 16px));
-  padding: 6px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--popover);
+  padding: 6px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: var(--popover) !important;
   color: var(--popover-foreground);
   font-size: 13.5px;
   line-height: 1.45;
@@ -21,152 +59,616 @@
     0 12px 32px -8px rgb(15 23 42 / 0.14);
 }
 
-.dark .context-view.monaco-menu {
+.dark .context-view.monaco-menu-container {
   box-shadow:
     0 4px 12px -2px rgb(0 0 0 / 0.4),
     0 16px 40px -10px rgb(0 0 0 / 0.55);
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item {
-  border-radius: 7px;
+/* 内层列表：monaco 自带 border / 圆角 / min-width，统一交给外壳 */
+.context-view.monaco-menu-container .monaco-menu {
+  min-width: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: inherit;
+  font-size: 13.5px;
+  line-height: 1.45;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item .action-menu-item {
+/* monaco 把 menu.background / 圆角以内联样式写到滚动容器上：
+   `Menu.styleScrollElement()` 会写 `border-radius: var(--vscode-cornerRadius-large)`（14px）
+   加 `overflow: hidden`，于是首行与末行的高亮（7px 圆角）被这条更大的弧切掉一角。
+   内联样式只能靠 !important 盖；外圈裁切交给上面 10px 的外壳。 */
+.context-view.monaco-menu-container .monaco-scrollable-element {
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+
+.context-view.monaco-menu-container .monaco-action-bar.vertical {
+  padding: 0 !important;
+}
+
+.context-view.monaco-menu-container .monaco-action-bar.vertical .action-item {
+  padding: 0 !important;
+  background: transparent;
+}
+
+.context-view.monaco-menu-container .monaco-action-bar.vertical .action-menu-item {
+  height: auto !important;
   min-height: 34px;
-  padding: 7px 12px;
+  margin: 0 !important;
+  padding: 7px 12px !important;
   gap: 10px;
-  border-radius: 7px;
+  border-radius: 7px !important;
   color: var(--popover-foreground);
   font-size: 13.5px;
+  line-height: 1.45;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item .action-menu-item:hover,
-.monaco-menu .monaco-action-bar.vertical .action-item .action-menu-item.focused {
-  background: color-mix(in oklab, var(--primary) 9%, var(--muted));
-  color: var(--popover-foreground);
+/* 选中 / 悬停：theme 里已改成弱底（monaco-theme.ts），这里兜住内联样式 */
+.context-view.monaco-menu-container
+  .monaco-action-bar.vertical
+  .action-item.focused
+  > .action-menu-item,
+.context-view.monaco-menu-container
+  .monaco-action-bar.vertical
+  .action-item
+  > .action-menu-item:hover {
+  background: color-mix(in oklab, var(--primary) 9%, var(--muted)) !important;
+  color: var(--popover-foreground) !important;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item.disabled .action-menu-item {
+.context-view.monaco-menu-container
+  .monaco-action-bar.vertical
+  .action-item.disabled
+  > .action-menu-item {
   opacity: 0.45;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item .action-label {
+.context-view.monaco-menu-container .monaco-action-bar.vertical .action-item .action-label {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 20px;
-  padding: 0;
+  padding: 0 !important;
   background: none;
+  font-size: 13.5px;
 }
 
 /* 图标列固定 18px，和业务 ContextMenu 对齐 */
-.monaco-menu .monaco-action-bar.vertical .action-item .codicon {
+.context-view.monaco-menu-container .monaco-action-bar.vertical .action-item .codicon {
   width: 18px;
   height: 18px;
   font-size: 16px;
   line-height: 18px;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item .keybinding {
+.context-view.monaco-menu-container .monaco-action-bar.vertical .keybinding {
   margin-inline-start: 28px;
+  padding: 0 !important;
   font-size: 12px;
   letter-spacing: 0.01em;
   color: var(--muted-foreground);
+  opacity: 1;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item .menu-arrow {
+.context-view.monaco-menu-container .monaco-action-bar.vertical .submenu-indicator {
+  margin-inline-start: 16px;
+  padding: 0 6px 0 0 !important;
+  font-size: 16px;
   color: var(--muted-foreground);
 }
 
-.monaco-menu .monaco-action-bar.vertical .submenu-item {
-  min-height: 34px;
-  border-radius: 7px;
+.context-view.monaco-menu-container .monaco-action-bar.vertical .menu-item-check {
+  width: 18px !important;
+  font-size: 16px;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item.separator {
-  margin: 6px 10px;
-  height: 1px;
-  background: var(--border);
+/* 分隔线：monaco 用 `.action-label.separator`（且自带 !important 的 margin/padding） */
+.context-view.monaco-menu-container .monaco-action-bar.vertical .action-label.separator {
+  margin: 6px 0 !important;
+  padding: 0 !important;
+  height: 0 !important;
+  border-bottom: 1px solid var(--border) !important;
+  opacity: 1;
 }
 
-/* ── 查找 / 替换浮框 ───────────────────────────────────── */
-.monaco-editor .find-widget {
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--popover);
+/* 子菜单容器与主菜单同一套面（子菜单的 .monaco-menu 自带 border/圆角） */
+.context-view.monaco-menu-container .monaco-submenu > .monaco-menu {
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* ── 补全建议（suggest） ──────────────────────────────────────────────── */
+.monaco-editor .suggest-widget,
+.monaco-editor .suggest-details {
+  border-color: var(--border);
+  background-color: var(--popover);
   color: var(--popover-foreground);
-  padding: 4px;
-  box-shadow:
-    0 2px 8px -2px rgb(15 23 42 / 0.12),
-    0 12px 32px -8px rgb(15 23 42 / 0.16);
+  box-shadow: var(--vscode-shadow-lg);
 }
 
-.dark .monaco-editor .find-widget {
-  box-shadow:
-    0 4px 12px -2px rgb(0 0 0 / 0.4),
-    0 16px 40px -10px rgb(0 0 0 / 0.55);
+.monaco-editor .suggest-widget {
+  overflow: hidden;
 }
 
-.monaco-editor .find-widget .monaco-inputbox {
-  border-radius: 8px;
-  border: 1px solid var(--input);
-  background: var(--input-background, var(--background));
+/* 行是绝对定位、彼此贴合的，圆角只在高亮位于首/末行时露出来，形状更软 */
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row {
+  border-radius: 6px;
 }
 
-.monaco-editor .find-widget .monaco-inputbox.synthetic-focus {
-  border-color: var(--ring);
-  outline: 2px solid color-mix(in oklab, var(--ring) 35%, transparent);
-  outline-offset: -1px;
+/* 选中行的图标跟随前景色，避免彩色 codicon 在浅色高亮底上发灰 */
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .codicon {
+  color: inherit;
 }
 
-.monaco-editor .find-widget .monaco-inputbox > .ibwrapper > .input {
-  font-size: 12.5px;
-  color: var(--foreground);
-}
-
-.monaco-editor .find-widget .monaco-inputbox > .ibwrapper > .mirror {
-  font-size: 12.5px;
-}
-
-.monaco-editor .find-widget .matchesCount {
+.monaco-editor .suggest-widget .suggest-status-bar {
+  padding: 3px 10px;
+  border-top: 1px solid var(--border);
   color: var(--muted-foreground);
   font-size: 11px;
-  line-height: 22px;
 }
 
-.monaco-editor .find-widget .monaco-custom-toggle,
-.monaco-editor .find-widget .button {
-  border-radius: 6px;
+/* 右侧详情面板用 UI 字体（继承编辑器等宽字体会让说明文字显得笨重） */
+.monaco-editor .suggest-details {
+  font-family: var(--font-sans, 'Segoe UI', system-ui, sans-serif);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.monaco-editor .suggest-details > .monaco-scrollable-element > .body > .header > .type {
   color: var(--muted-foreground);
 }
 
-.monaco-editor .find-widget .monaco-custom-toggle:hover,
-.monaco-editor .find-widget .button:hover {
-  background: color-mix(in oklab, var(--primary) 9%, var(--muted));
-  color: var(--foreground);
+/* ── 悬停提示（hover） ────────────────────────────────────────────────── */
+.monaco-editor .monaco-hover {
+  border-color: var(--border);
+  background-color: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: var(--vscode-shadow-lg);
+  font-family: var(--font-sans, 'Segoe UI', system-ui, sans-serif);
+  font-size: 13px;
+  line-height: 1.55;
 }
 
-.monaco-editor .find-widget .monaco-custom-toggle.checked,
-.monaco-editor .find-widget .button[aria-pressed='true'] {
-  background: color-mix(in oklab, var(--primary) 16%, transparent);
+.monaco-editor .monaco-resizable-hover {
+  border-color: var(--border);
+  background-color: var(--popover);
+  box-shadow: var(--vscode-shadow-lg);
+}
+
+.monaco-editor .monaco-hover .hover-contents:not(.html-hover-contents) {
+  padding: 6px 10px;
+}
+
+.monaco-editor .monaco-hover .hover-row.status-bar {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+.monaco-editor .monaco-hover a,
+.monaco-editor .monaco-hover .hover-contents a.code-link > span {
   color: var(--primary);
 }
 
-.monaco-editor .find-widget .replace-part {
-  border-top: 1px solid var(--border);
-  margin-top: 4px;
-  padding-top: 4px;
+.monaco-editor .monaco-hover a:hover,
+.monaco-editor .monaco-hover .hover-contents a.code-link > span:hover {
+  color: var(--primary);
+  text-decoration: underline;
 }
 
-.monaco-editor .find-widget .close-find-widget {
+/* 悬停 / 补全详情里的行内代码：design 的「弱底 + 小圆角」 */
+.monaco-editor .monaco-hover code,
+.monaco-editor .suggest-details code {
+  border-radius: 5px;
+  padding: 1px 5px;
+  background: color-mix(in oklab, var(--muted) 72%, transparent);
+  font-size: 0.92em;
+}
+
+/* ── 参数提示（signature help） ──────────────────────────────────────── */
+.monaco-editor .parameter-hints-widget {
+  overflow: hidden;
+  border-color: var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  background-color: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: var(--vscode-shadow-lg);
+  font-family: var(--font-sans, 'Segoe UI', system-ui, sans-serif);
+  font-size: 12.5px;
+}
+
+.monaco-editor .parameter-hints-widget .docs {
+  color: var(--muted-foreground);
+}
+
+.monaco-editor .parameter-hints-widget .monaco-scrollable-element > .scrollbar > .slider {
+  border-radius: 9999px;
+}
+
+/* ── 查找 / 替换浮框（Ctrl+F / Ctrl+H） ────────────────────────────────────
+ * 高度是 monaco 算的（34px：3 + 输入框 25 + 上下各 2~4），纵向 padding / margin 一律别动，
+ * 否则 25px 输入框会被裁掉；能调的只有横向留白、圆角、底色与交互态。
+ *
+ * 选择器为什么写成 `.find-widget.find-widget`：findWidget.css 跟着 find 贡献所在的分块
+ * 注入 <head>，比本文件晚，同权重时后写者胜 —— 之前 `.monaco-editor .find-widget` 就是
+ * 这样被原生的 `padding: 0 4px 0 9px` / `editorWidget.background` / 14px 圆角整条盖掉的。
+ * 双类把权重抬一档即可；monaco 写在元素上的内联样式（输入框底色描边、开关 checked 态、
+ * hover 底色）仍然只有 !important 能压。
+ */
+.monaco-editor .find-widget.find-widget {
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 2px);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: var(--vscode-shadow-lg);
+  font-size: 12.5px;
+}
+
+/* 展开 / 收起替换行的箭头：原生是 18px 宽、贴在最左边、满高的条带（唯一一个
+   position: absolute 的按钮，会被大圆角切掉一角）—— 收成留 3px 边的 6px 圆角幽灵按钮，
+   顺带清掉 `.button.left` 给它的 5px/4px margin（绝对定位下 margin 还会叠加偏移） */
+.monaco-editor .find-widget.find-widget .button.toggle {
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 25px;
+  margin: 0;
   border-radius: 6px;
 }
 
-.monaco-editor .find-widget .close-find-widget:hover {
-  background: color-mix(in oklab, var(--destructive) 12%, transparent);
+/* 输入件：底色 / 描边 / 文字色是 `InputBox.applyStyles()` 拼的内联样式（主题键 input.*
+   是全局的，不能为这一处单独改），只有 !important 能覆盖。
+   常态 = `--muted` 实心浅底 + 无描边；聚焦 = 1px `--ring` 描边（对齐 design 的
+   `focus-visible:border-ring`，不再画 3px 外环 —— 33px 高的浮层里外环会糊到边缘） */
+.monaco-editor .find-widget.find-widget .monaco-inputbox {
+  border-color: transparent !important;
+  background-color: var(--muted) !important;
+  border-radius: 8px;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.monaco-editor .find-widget.find-widget .monaco-inputbox > .ibwrapper > .input,
+.monaco-editor .find-widget.find-widget .monaco-inputbox > .ibwrapper > .mirror {
+  background-color: transparent !important;
+  color: var(--foreground) !important;
+  font-size: 12.5px;
+}
+
+.monaco-editor .find-widget.find-widget .monaco-inputbox > .ibwrapper > .input::placeholder {
+  color: var(--muted-foreground);
+}
+
+.monaco-editor .find-widget.find-widget .monaco-inputbox.synthetic-focus {
+  outline: none !important;
+  border-color: color-mix(in oklab, var(--ring) 60%, transparent) !important;
+}
+
+.monaco-editor .find-widget.find-widget .matchesCount {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.monaco-editor .find-widget.find-widget.no-results .matchesCount {
   color: var(--destructive);
 }
 
-.monaco-editor .find-widget .find-actions .button {
+/* 图标按钮与搜索选项开关：统一 6px 圆角 + 弱品牌悬停。
+   开关（Aa / ab / .*）的颜色是 `Toggle.applyStyles()` 写的内联样式，得 !important */
+.monaco-editor .find-widget.find-widget .button,
+.monaco-editor .find-widget.find-widget .codicon-find-selection {
   border-radius: 6px;
+  color: var(--muted-foreground);
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.monaco-editor .find-widget.find-widget .monaco-custom-toggle {
+  border-radius: 6px;
+  color: var(--muted-foreground) !important;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+/* disabledForeground 在 standalone 下没定义，原生那行等于没写，这里显式做「不可用」 */
+.monaco-editor .find-widget.find-widget .button.disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* 左侧拖拽调宽的 sash（monaco 默认画一条 20% 灰的竖条）：常态隐形，悬停才显形 */
+.monaco-editor .find-widget.find-widget .monaco-sash {
+  background-color: transparent;
+}
+
+.monaco-editor .find-widget.find-widget .monaco-sash:hover {
+  background-color: color-mix(in oklab, var(--ring) 45%, transparent);
+}
+
+/* 键盘聚焦：浏览器给这些 role=button 的 div 画的是 `rgb(0,144,241) solid 1px` 的 UA 外框，
+   贴边时会被浮层圆角裁成残缺的一段 —— 换成内缩的 design 1px ring */
+.monaco-editor .find-widget.find-widget .button:focus,
+.monaco-editor .find-widget.find-widget .codicon-find-selection:focus,
+.monaco-editor .find-widget.find-widget .monaco-custom-toggle:focus {
+  outline: none;
+}
+
+.monaco-editor .find-widget.find-widget .button:focus-visible,
+.monaco-editor .find-widget.find-widget .codicon-find-selection:focus-visible,
+.monaco-editor .find-widget.find-widget .monaco-custom-toggle:focus-visible {
+  outline: 1px solid color-mix(in oklab, var(--ring) 70%, transparent);
+  outline-offset: -2px;
+}
+
+/* monaco 自己用 !important 写死了 hover 底色（toolbar.hoverBackground），这里必须同样加 */
+.monaco-editor .find-widget.find-widget .button:not(.disabled):hover,
+.monaco-editor .find-widget.find-widget .codicon-find-selection:hover,
+.monaco-editor .find-widget.find-widget .monaco-custom-toggle:not(.disabled):hover {
+  background-color: color-mix(in oklab, var(--primary) 9%, var(--muted)) !important;
+  color: var(--foreground) !important;
+}
+
+/* 选中的搜索选项（Aa / ab / .*）：checked 态底色与文字色是内联写的，只能 !important 盖。
+   带上 :hover 变体 —— 否则光标停在已选中的开关上时，hover 的弱底会把它盖回「未选中」，
+   看起来像自己取消了 */
+.monaco-editor .find-widget.find-widget .monaco-custom-toggle.checked,
+.monaco-editor .find-widget.find-widget .monaco-custom-toggle.checked:hover {
+  background-color: color-mix(in oklab, var(--primary) 16%, transparent) !important;
+  border-color: color-mix(in oklab, var(--primary) 30%, transparent) !important;
+  color: var(--primary) !important;
+}
+
+.monaco-editor .find-widget.find-widget > .button.codicon-widget-close:hover {
+  background-color: color-mix(in oklab, var(--destructive) 12%, transparent) !important;
+  color: var(--destructive) !important;
+}
+
+/* 查找框上方的选项小浮层（正则 / 大小写 / 全词）：同样是晚注入的样式表，双类抬权重 */
+.monaco-editor .findOptionsWidget.findOptionsWidget {
+  padding: 3px 5px;
+  border: 0;
+  border-radius: calc(var(--radius) + 2px);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: var(--vscode-shadow-md);
+}
+
+/* ── 快速输入（F1 命令面板 / Ctrl+G 跳行 / Ctrl+Shift+O 转符号） ───────────
+ * 右键菜单里的「Command Palette」走的就是 monaco 自己的 quick input
+ * （editor.action.quickCommand），和 F1 同一个面板，DOM 是 `.quick-input-widget`。
+ *
+ * 形状与 design overlay 一致：无描边、圆角走 --radius + 4（14px）、xl 阴影、popover 底。
+ * 行高不能动：行高是 JS 算出来的（`getHeight()` 返回 22 / 带详情 44），
+ * 改了会让滚动偏移与命中区错位；能改的是内边距、行圆角与交互态。
+ * 选中态与右键菜单、命令面板同一套：弱品牌底 + 正文色，不加轮廓。
+ *
+ * 选择器写成 `.quick-input-widget.quick-input-widget`：monaco 的 quick input 样式表是
+ * 首次打开时才注入 <head> 的，比本文件晚，同权重时后写者胜 —— 两个类名把权重抬一档就能压住；
+ * 唯一压不住的是 monaco 拼在元素上的内联 style（底色 / 文字色 / 描边），那几项必须 !important。 */
+.quick-input-widget.quick-input-widget {
+  overflow: hidden;
+  /* 底色 / 文字色 / 描边是 monaco 写在元素上的内联 style（quickInput.js 里拼的），
+     普通声明压不住，必须 !important；圆角与阴影走本文件的值即可 */
+  border: 0 !important;
+  background: var(--popover) !important;
+  color: var(--popover-foreground) !important;
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: var(--vscode-shadow-xl);
+  font-family: var(--font-sans, 'Segoe UI', system-ui, sans-serif);
+  font-size: 13px;
+}
+
+/* 搜索行：无框输入，用一条发丝线把它和列表分开 */
+.quick-input-widget.quick-input-widget .quick-input-header {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* 输入框的底色 / 描边 / 文字色是 `InputBox.applyStyles()` 写的内联样式，
+ * 只有 !important 能压（主题键 input.* 是全局的，不能为这一处单独改） */
+.quick-input-widget.quick-input-widget .quick-input-filter .monaco-inputbox,
+.quick-input-widget.quick-input-widget .quick-input-filter .monaco-inputbox > .ibwrapper > .input,
+.quick-input-widget.quick-input-widget .quick-input-filter .monaco-inputbox > .ibwrapper > .mirror {
+  border-color: transparent !important;
+  background-color: transparent !important;
+  color: var(--popover-foreground);
+}
+
+/* 聚焦时 monaco 用 outline 画一圈 focusBorder（输入框本身没有框），这里一并去掉 */
+.quick-input-widget.quick-input-widget .quick-input-filter .monaco-inputbox,
+.quick-input-widget.quick-input-widget .quick-input-filter .monaco-inputbox.synthetic-focus {
+  outline: none !important;
+}
+
+.quick-input-widget.quick-input-widget .quick-input-filter .monaco-inputbox {
+  border-radius: 7px;
+}
+
+.quick-input-widget.quick-input-widget .quick-input-filter .monaco-inputbox > .ibwrapper > .input {
+  /* 浏览器给聚焦中的 input 画 1px 蓝色焦点环，不是 monaco 的样式 */
+  outline: none !important;
+  font-size: 13px;
+}
+
+/* 头部右侧的匹配数量：跟 design 的 badge 一样是弱底小胶囊 */
+.quick-input-widget.quick-input-widget .quick-input-count .monaco-count-badge {
+  border-radius: 5px;
+  background-color: var(--muted) !important;
+  color: var(--muted-foreground) !important;
+}
+
+/* 列表：外壳已经给了圆角与留白，行只负责自己的 7px 圆角 */
+.quick-input-widget.quick-input-widget .quick-input-list .monaco-scrollable-element {
+  /* 首行不要贴着搜索行下面的发丝线；行高（22px）是 JS 算的，只能给容器留白 */
+  padding: 3px 6px 0;
+}
+
+.quick-input-widget.quick-input-widget .quick-input-list .monaco-list {
+  padding-bottom: 6px;
+}
+
+.quick-input-widget.quick-input-widget .quick-input-list .quick-input-list-entry {
+  padding: 0 8px;
+  border-top-color: var(--border);
+}
+
+.quick-input-widget.quick-input-widget .quick-input-list .monaco-list-row {
+  border-radius: 7px;
+}
+
+/* 选中行：monaco 会给焦点行加 1px 描边（list.focusOutline），去掉；
+ * 底色改成跟右键菜单 / 命令面板一样的「primary 9% + muted」 */
+.quick-input-widget.quick-input-widget
+  .quick-input-list
+  > .monaco-list:focus
+  .monaco-list-row.focused {
+  outline: none !important;
+}
+
+.quick-input-widget.quick-input-widget .quick-input-list .monaco-list-row.focused {
+  background-color: color-mix(in oklab, var(--primary) 9%, var(--muted)) !important;
+  color: var(--popover-foreground) !important;
+}
+
+.quick-input-widget.quick-input-widget .quick-input-list .monaco-list-row:hover:not(.focused) {
+  background-color: color-mix(in oklab, var(--primary) 5%, var(--muted)) !important;
+}
+
+/* 快捷键胶囊：monaco 默认是「灰底 + 双侧描边 + 内阴影」，换成 design Kbd 那种平面小胶囊。
+ * 底色用半透明前景色混：无论落在 popover 还是选中行的弱底上都看得见 */
+.quick-input-widget.quick-input-widget .quick-input-list .monaco-list-row .monaco-keybinding-key {
+  min-width: 0;
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 4px;
+  background-color: color-mix(in oklab, var(--muted-foreground) 14%, transparent);
+  box-shadow: none;
+  color: var(--muted-foreground);
+  font-family: var(--font-sans, 'Segoe UI', system-ui, sans-serif);
+  font-size: 11px;
+  line-height: 15px;
+}
+
+/* 副标题（来源文件 / 命令分组）用弱色，选中时不再反白 */
+.quick-input-widget.quick-input-widget .quick-input-list .quick-input-list-label-meta {
+  color: var(--muted-foreground);
+  opacity: 1;
+}
+
+.quick-input-widget.quick-input-widget
+  .quick-input-list
+  .quick-input-list-entry
+  .quick-input-list-separator {
+  color: var(--muted-foreground);
+}
+
+/* 分组标题行（命令面板按分组分段时） */
+.quick-input-widget.quick-input-widget .quick-input-list .quick-input-list-separator-as-item {
+  padding: 6px 8px 2px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+/* 无结果 / 说明文字 */
+.quick-input-widget.quick-input-widget .quick-input-message {
+  padding: 4px 8px 8px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+/* ── 重命名输入框（F2） ──────────────────────────────────────────────── */
+.monaco-editor .rename-box {
+  padding: 4px;
+  border-radius: 10px;
+  border-color: var(--border);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: var(--vscode-shadow-md);
+}
+
+.monaco-editor .rename-box .rename-input {
+  border-radius: 6px;
+  border-color: var(--input);
+}
+
+.monaco-editor .rename-box .rename-input:focus {
+  border-color: var(--ring);
+  outline: 2px solid color-mix(in oklab, var(--ring) 30%, transparent);
+  outline-offset: -1px;
+}
+
+/* ── 代码操作 / 快速修复列表（Ctrl+.） ───────────────────────────────── */
+.action-widget {
+  padding: 6px;
+  border-radius: calc(var(--radius) + 4px);
+  border: 0 !important;
+  background-color: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: var(--vscode-shadow-lg);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+.action-widget .monaco-list-row {
+  border-radius: 7px;
+  min-height: 34px;
+}
+
+.action-widget .monaco-list-row.focused {
+  background: color-mix(in oklab, var(--primary) 9%, var(--muted));
+  color: var(--popover-foreground);
+}
+
+/* ── 查看定义 / 引用（peek view） ────────────────────────────────────── */
+.monaco-editor .peekview-widget {
+  overflow: hidden;
+  border-color: var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: var(--vscode-shadow-lg);
+}
+
+.monaco-editor .peekview-widget .head {
+  border-bottom: 1px solid var(--border);
+}
+
+.monaco-editor .peekview-widget .head .peekview-title .filename {
+  font-weight: 600;
+}
+
+.monaco-editor .peekview-widget .head .peekview-title .dirname,
+.monaco-editor .peekview-widget .head .peekview-title .meta {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.monaco-editor .peekview-widget .head .peekview-actions .codicon {
+  color: var(--muted-foreground);
+}
+
+/* ── 代码镜头 / 粘性滚动 / 幽灵文本 ──────────────────────────────────── */
+.monaco-editor .codelens-decoration {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.monaco-editor .codelens-decoration > a {
+  color: var(--muted-foreground);
+}
+
+.monaco-editor .codelens-decoration > a:hover {
+  color: var(--primary);
+}
+
+.monaco-editor .sticky-widget {
+  border-bottom: 1px solid var(--border);
+}
+
+.monaco-editor .ghost-text-decoration,
+.monaco-editor .suggest-preview-text .ghost-text {
+  font-style: italic;
 }

@@ -5,6 +5,7 @@
 import type * as Monaco from 'monaco-editor/editor/editor.api'
 import { useEffect, useRef, useState } from 'react'
 
+import { createLanguageModel } from '@/lib/monaco-language.ts'
 import { importMonaco } from '@/lib/monaco-loader.ts'
 import { CODE_THEME, syncCodeTheme, watchCodeTheme } from '@/lib/monaco-theme.ts'
 import type { DiffResult } from '@/lib/workspace-git'
@@ -110,12 +111,13 @@ function useAsideDiffEditor(relative: string, side: DiffResult | null) {
       if (side.isBinary || side.isIdentical || side.mode !== 'sideBySide') return
 
       const language = findLanguageId(relative)
-      const original = monaco.editor.createModel(
+      const original = createLanguageModel(
+        monaco,
         side.original,
         language,
         findOriginalUri(relative, monaco)
       )
-      const modified = monaco.editor.createModel(side.modified, language)
+      const modified = createLanguageModel(monaco, side.modified, language)
       modelsRef.current = [original, modified]
       editor.updateOptions({
         diffAlgorithm: 'advanced',

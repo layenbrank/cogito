@@ -18,15 +18,28 @@ import { TileSessionBar } from '@/features/magnetic-tile/session-bar'
  * 通用操作栏（窗口装饰）。
  *
  * - 无 `center`：左侧 `begin`（可含会话条）+ 右侧 `final` + 窗控
- * - 有 `center`：三列 grid（Overview Omnibar 几何），不插会话条
+ * - 有 `center`：三列 grid，中列居中；`centerLayout` 决定中列几何
+ *   - `omnibar`（默认）：中列上限 36rem（Overview Omnibar）
+ *   - `thirds`：三等分，左右列恒等宽 → 中列中心恒等于窗口中心（应用窗搜索）
  */
+
+/** 中列几何：`omnibar` 沿用 Overview 宽度；`thirds` 让中列中心落在窗口中线 */
+const CENTER_COLUMNS = {
+  omnibar: 'grid-cols-[minmax(0,1fr)_minmax(0,36rem)_minmax(0,1fr)]',
+  thirds: 'grid-cols-3'
+} as const
 
 interface CaptionProps {
   className?: string
   /** 左侧主区域：标题、筛选、视图切换等 */
   begin?: ReactNode
-  /** 中间区域（Overview Omnibar）；有值时改用三列布局 */
+  /** 中间区域（Overview Omnibar / 应用窗搜索）；有值时改用三列布局 */
   center?: ReactNode
+  /**
+   * 中列几何：`omnibar` 沿用 Overview 的 36rem 上限；`thirds` 三等分，
+   * 左右两列恒等宽，中列真正落在窗口中线（不受两侧控件宽度影响）。
+   */
+  centerLayout?: keyof typeof CENTER_COLUMNS
   /** 右侧扩展区域，渲染在窗口控制键左侧 */
   final?: ReactNode
   /**
@@ -60,7 +73,7 @@ function Caption(props: CaptionProps) {
   const hasCenter = Boolean(props.center)
   const showsSessions =
     props.showsSessions ??
-    (!hasCenter && isMainWindow() && findAppComponent(location.pathname) !== null)
+    (isMainWindow() && findAppComponent(location.pathname) !== null)
 
   function onCaptionDoubleClick(event: MouseEvent<HTMLDivElement>) {
     runCaptionDoubleClick(event, state, canUseWindowApi, refresh)
@@ -75,12 +88,14 @@ function Caption(props: CaptionProps) {
         data-fullscreen={state.isFullscreen ? 'true' : 'false'}
         onDoubleClick={onCaptionDoubleClick}
         className={cn(
-          'z-20 grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,36rem)_minmax(0,1fr)] items-center border-b border-border bg-background select-none',
+          'z-20 grid shrink-0 items-center border-b border-border bg-background select-none',
+          CENTER_COLUMNS[props.centerLayout ?? 'omnibar'],
           !state.isFocused && 'opacity-80',
           props.className
         )}
         style={{ height: SHELL_BAR, minHeight: SHELL_BAR }}>
         <div className="flex h-full min-w-0 items-center justify-start gap-1 pl-1.5">
+          {showsSessions ? <TileSessionBar /> : null}
           {props.begin}
         </div>
         <div

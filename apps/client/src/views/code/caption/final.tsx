@@ -4,16 +4,12 @@
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger
-} from '@cogito/design/components/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
 import { cn } from 'cn'
 
 import { useCodeStore } from '@/stores/code'
 import { findBindingText } from '@/views/code/lib/bindings.ts'
-import { EditorAppearance } from '@/views/code/caption/editor-appearance.tsx'
+import { SettingsButton } from '@/views/code/caption/settings-button.tsx'
 
 interface LayoutButtonProps {
   label: string
@@ -53,9 +49,7 @@ function LayoutButton(props: LayoutButtonProps) {
       </TooltipTrigger>
       <TooltipContent side="bottom">
         <span>{props.label}</span>
-        {props.shortcut ? (
-          <span className="text-background/70 ml-2">{props.shortcut}</span>
-        ) : null}
+        {props.shortcut ? <span className="text-background/70 ml-2">{props.shortcut}</span> : null}
       </TooltipContent>
     </Tooltip>
   )
@@ -114,7 +108,7 @@ function CodeCaptionFinal() {
         className="bg-border mx-0.5 h-4 w-px shrink-0"
       />
 
-      <EditorAppearance />
+      <SettingsButton />
     </div>
   )
 }

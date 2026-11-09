@@ -32,6 +32,16 @@ describe('findOrphanTabIDs', function () {
   })
 })
 
+describe('findOrphanTabIDs（虚拟标签）', function () {
+  it('编辑器设置标签跨工作区保留，不随切根关闭', function () {
+    const tabs = [
+      makeTab('a', 'C:/other/a.ts', 'file'),
+      makeTab('s', 'cogito://code/settings', 'settings')
+    ]
+    expect(findOrphanTabIDs(tabs, ['C:/work'])).toEqual(['a'])
+  })
+})
+
 describe('switchWorkspace', function () {
   beforeEach(function () {
     useCodeStore.setState({
