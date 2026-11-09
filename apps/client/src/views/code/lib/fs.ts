@@ -12,6 +12,7 @@ import {
 } from '@tauri-apps/plugin-fs'
 
 import { MAX_OPEN_BYTES, hasBinaryExtension, looksBinary } from '@/views/code/lib/file-limits.ts'
+import { EXPLORER_PAGE_SIZE, paginateEntries, type PageSlice } from '@/views/code/lib/paging.ts'
 import {
   findFileName,
   findParentDir,
@@ -77,11 +78,22 @@ interface TreeEntry {
   isDirectory: boolean
 }
 
+/** 一页目录条目：`nextOffset` 是「已取条数」，下一次分页从它继续 */
+type TreeEntryPage = PageSlice<TreeEntry>
+
+interface ListEntriesOptions {
+  isHiddenVisible?: boolean
+  /** 从第几条开始取（默认 0） */
+  offset?: number
+  /** 本次最多取多少条（默认 EXPLORER_PAGE_SIZE） */
+  limit?: number
+}
+
 async function listWorkspaceEntries(
   root: string,
   relative: string,
-  options: { isHiddenVisible?: boolean } = {}
-): Promise<TreeEntry[]> {
+  options: ListEntriesOptions = {}
+): Promise<TreeEntryPage> {
   const absolute = relative ? joinPath(root, relative) : root
   if (!isPathInsideRoot(root, absolute)) {
     throw new Error('Path escapes workspace root')
@@ -96,11 +108,12 @@ async function listWorkspaceEntries(
       isDirectory: Boolean(entry.isDirectory)
     })
   }
+  // 先排序再切片：同一目录的多次分页结果稳定，不会重复也不会漏
   mapped.sort(function (a, b) {
     if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
     return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
   })
-  return mapped
+  return paginateEntries(mapped, options.offset ?? 0, options.limit ?? EXPLORER_PAGE_SIZE)
 }
 
 interface SearchHit {
@@ -127,9 +140,12 @@ async function searchWorkspaceFiles(params: {
     if (hits.length >= limit || depth > maxDepth) return
     let entries: TreeEntry[]
     try {
-      entries = await listWorkspaceEntries(params.root, relative, {
-        isHiddenVisible: params.isHiddenVisible
+      // 搜索要看到整层，不能沿用首屏分页上限
+      const page = await listWorkspaceEntries(params.root, relative, {
+        isHiddenVisible: params.isHiddenVisible,
+        limit: Number.MAX_SAFE_INTEGER
       })
+      entries = page.entries
     } catch (error) {
       console.debug('[code] skip unreadable dir', relative, error)
       return
@@ -225,4 +241,4 @@ export {
   isPathInsideRoot,
   isSamePath
 }
-export type { TreeEntry, SearchHit }
+export type { TreeEntry, TreeEntryPage, ListEntriesOptions, SearchHit }

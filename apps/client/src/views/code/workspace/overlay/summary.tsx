@@ -4,9 +4,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@cogito/design/componen
 import { cn } from 'cn'
 import { toast } from 'sonner'
 
-import { useCodeStore, type CodeIndentation, type Eol } from '@/stores/code'
+import { useCodeStore, type CodeIndentation, type CodeTypesMode, type Eol } from '@/stores/code'
 import { readEol, updateEol, updateIndentation } from '@/views/code/lib/document-options.ts'
 import { findModel } from '@/views/code/lib/monaco-models.ts'
+import { syncWorkspaceTypescriptLibs } from '@/views/code/lib/monaco-types.ts'
 
 const INDENT_PRESETS: { label: string; value: CodeIndentation }[] = [
   { label: '空格: 2', value: { tabSize: 2, insertSpaces: true } },
@@ -18,6 +19,19 @@ const EOL_PRESETS: { label: string; value: Eol }[] = [
   { label: 'LF', value: 'LF' },
   { label: 'CRLF', value: 'CRLF' }
 ]
+
+/** `@types` 注入档位：状态栏与资源管理器头部共用同一份 store 值 */
+const TYPES_MODE_ITEMS: { label: string; value: CodeTypesMode }[] = [
+  { label: '按需（精简）', value: 'lean' },
+  { label: '总是注入', value: 'full' },
+  { label: '关闭', value: 'off' }
+]
+
+const TYPES_MODE_LABELS: Record<CodeTypesMode, string> = {
+  lean: 'TS 类型：精简',
+  full: 'TS 类型：已注入',
+  off: 'TS 类型：关闭'
+}
 
 /** 状态栏的单选项按钮 */
 function StatusItem(props: {
@@ -127,6 +141,9 @@ function Summary() {
   const isLargeFile = useCodeStore(function (state) {
     return state.isLargeFile
   })
+  const tsTypesMode = useCodeStore(function (state) {
+    return state.tsTypesMode
+  })
 
   const activeTab = tabs.find(function (tab) {
     return tab.id === activeTabId
@@ -161,6 +178,19 @@ function Summary() {
     if (!model) return
     updateEol(model, next.value)
     useCodeStore.getState().toSetEol(readEol(model))
+  }
+
+  /** 切档位立刻生效：`isForced` 绕过指纹，off 会当场清掉已注入的 extraLibs */
+  function onSelectTypesMode(value: string) {
+    const next = TYPES_MODE_ITEMS.find(function (item) {
+      return item.value === value
+    })
+    if (!next) return
+    useCodeStore.getState().toSetTsTypesMode(next.value)
+    void syncWorkspaceTypescriptLibs(useCodeStore.getState().roots, {
+      mode: next.value,
+      isForced: true
+    })
   }
 
   const indentLabel = indentation.insertSpaces
@@ -252,6 +282,15 @@ function Summary() {
           selected={eol}
           onSelect={onSelectEol}
         />
+        <StatusPicker
+          label={TYPES_MODE_LABELS[tsTypesMode]}
+          isDisabled={roots.length === 0}
+          items={TYPES_MODE_ITEMS.map(function (item) {
+            return { label: item.label, value: item.value }
+          })}
+          selected={tsTypesMode}
+          onSelect={onSelectTypesMode}
+        />
         <StatusItem
           label={languageId}
           className="capitalize"
@@ -262,4 +301,3 @@ function Summary() {
 }
 
 export default Summary
-

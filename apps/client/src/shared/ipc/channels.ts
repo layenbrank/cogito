@@ -332,7 +332,10 @@ export const CHANNELS = {
     CONTENT: 'workspaceFiles:content',
     REPLACE: 'workspaceFiles:replace',
     READ_FILE: 'workspaceFiles:readFile',
-    PACK_TYPES: 'workspaceFiles:packTypes'
+    PACK_TYPES: 'workspaceFiles:packTypes',
+    WATCH: 'workspaceFiles:watch',
+    UNWATCH: 'workspaceFiles:unwatch',
+    CHANGED: 'workspaceFiles:changed'
   },
   SEARCH: {
     SUGGEST: 'search:suggest'

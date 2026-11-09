@@ -68,7 +68,8 @@ const PERSIST_DEFAULTS: PersistShape = {
       isEditorSemanticHighlightingEnabled: true,
       editorTabSize: 2,
       isEditorInsertSpaces: true,
-      isHiddenVisible: false
+      isHiddenVisible: false,
+      tsTypesMode: 'lean'
     },
     signboard: {
       activeBoardID: null,

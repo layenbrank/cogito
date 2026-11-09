@@ -73,6 +73,7 @@ interface CodeShell {
   isEditorInsertSpaces: boolean
   /** 资源管理器是否显示 `.` 开头的隐藏条目 */
   isHiddenVisible: boolean
+  tsTypesMode: 'full' | 'lean' | 'off'
 }
 
 interface SignboardShell {

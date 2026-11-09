@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { toast } from 'sonner'
 
 import { subscribeWorkspaceRevision } from '@/features/agent/workspace/revision.ts'
+import { WorkspaceFiles, type WatchDir } from '@/lib/workspace-files.ts'
 import { useCodeGitStore } from '@/stores/code-git'
 import { useCodeStore } from '@/stores/code'
 import { bootstrapTerminalSessions } from '@/features/terminal/agent-tabs'
@@ -17,12 +18,12 @@ import {
   reloadFromDisk
 } from '@/views/code/lib/open-file.ts'
 import { findRelativePath, isPathInsideRoot, isSamePath } from '@/views/code/lib/path.ts'
-
-/** 依赖安装 / git 操作会制造海量事件，递归 watch 必须先过滤掉这些目录 */
-const IGNORED_WATCH_SEGMENT = /[\\/](node_modules|\.git|dist|build|\.turbo)[\\/]/
+import { makeTreeKey } from '@/views/code/workspace/overlay/explorer-tree-lib.ts'
 
 /** 文件树刷新节流：树只做轻量重建，250ms 足够 */
 const TREE_BUMP_DELAY_MS = 250
+/** 一批 watch 事件里最多点名几个目录（Rust 侧已封顶 8，这里再兜一层） */
+const MAX_DIRTY_DIRS = 8
 /** git status 是子进程 + 全仓扫描，比树贵一个量级，单独一条更慢的链 */
 const GIT_REFRESH_DELAY_MS = 1200
 
@@ -171,10 +172,14 @@ function useCodeWorkspaceEffects(input: {
   )
 
   /**
-   * 多根递归 watch。
+   * 目录监听（Rust 侧）。
    *
-   * 树刷新与 git 刷新是**两条独立节流链**：一次保存只重建一次文件树（250ms），
-   * 而 `git status` 是子进程 + 全仓扫描，慢一档（1200ms）且窗口不可见时只置脏标记，
+   * 递归 watch 放在 Rust：`node_modules` / `.git` / `dist` 这些噪音在**事件产生地**
+   * 就被丢弃，不再过 IPC；合批后只回「受影响的相对目录」。前端把这几个目录标脏，
+   * 树刷新就只重读它们 —— 一次保存的代价从「24 个目录串行重读」降到「1 个目录」。
+   *
+   * 树刷新与 git 刷新仍是两条独立节流链：一次保存只重建一次文件树（250ms），
+   * `git status` 是子进程 + 全仓扫描，慢一档（1200ms）且窗口不可见时只置脏标记，
    * 回前台补一次 —— 否则「保存一次 → 两枪全量工作」会把主线程钉住。
    */
   useEffect(
@@ -186,7 +191,9 @@ function useCodeWorkspaceEffects(input: {
       let isTreePending = false
       let isGitPending = false
       let isGitDirty = false
-      const unwatchers: (() => void)[] = []
+      let unsubscribe: (() => void) | undefined
+      /** 攒着的脏目录（tree key 由 `rootIndex + relative` 现算） */
+      let pendingDirs: WatchDir[] = []
 
       function flushGit() {
         gitTimer = 0
@@ -201,37 +208,29 @@ function useCodeWorkspaceEffects(input: {
         void useCodeGitStore.getState().toInvalidateAndRefresh()
       }
 
+      /** 把攒下的脏目录写进 store；真正重读发生在 ExplorerTree 的刷新 effect 里 */
+      function flushDirtyDirs() {
+        treeTimer = 0
+        isTreePending = false
+        if (disposed || pendingDirs.length === 0) return
+        const keys = pendingDirs.map(function (dir) {
+          return makeTreeKey(dir.rootIndex, dir.relative)
+        })
+        pendingDirs = []
+        useCodeStore.getState().toDirtyTreeKeys(keys)
+      }
+
       /** 树 bump 幂等合流：窗口期内的后续事件不再排队，只等这一次落地 */
-      function scheduleTreeBump() {
+      function scheduleTreeRefresh() {
         if (isTreePending) return
         isTreePending = true
-        treeTimer = window.setTimeout(function () {
-          treeTimer = 0
-          isTreePending = false
-          if (disposed) return
-          toBumpTree()
-        }, TREE_BUMP_DELAY_MS)
+        treeTimer = window.setTimeout(flushDirtyDirs, TREE_BUMP_DELAY_MS)
       }
 
       function scheduleGitRefresh() {
         if (isGitPending) return
         isGitPending = true
         gitTimer = window.setTimeout(flushGit, GIT_REFRESH_DELAY_MS)
-      }
-
-      function onFsEvent(event: { paths?: string[] }) {
-        if (disposed) return
-        const paths = event.paths ?? []
-        if (
-          paths.length > 0 &&
-          paths.every(function (path) {
-            return IGNORED_WATCH_SEGMENT.test(path)
-          })
-        ) {
-          return
-        }
-        scheduleTreeBump()
-        scheduleGitRefresh()
       }
 
       function onVisibilityChange() {
@@ -242,26 +241,43 @@ function useCodeWorkspaceEffects(input: {
 
       document.addEventListener('visibilitychange', onVisibilityChange)
 
-      for (const root of roots) {
-        void watch(root, onFsEvent, { recursive: true, delayMs: 500 })
-          .then(function (fn) {
-            if (disposed) {
-              fn()
-              return
-            }
-            unwatchers.push(fn)
-          })
-          .catch(function () {
-            /* Command watch not found — 当前壳未启用 fs watch */
-          })
-      }
+      void WorkspaceFiles.watch(roots).catch(function () {
+        /* 旧壳没有这个命令：退回「用户操作才刷新」，不打扰 */
+      })
+      void WorkspaceFiles.listenChanged(function (event) {
+        if (disposed) return
+        if (event.isCoarse) {
+          // 变化太多 / 定位不到具体目录：退回整树刷新
+          pendingDirs = []
+          toBumpTree()
+          scheduleGitRefresh()
+          return
+        }
+        if (event.dirs.length === 0) return
+        for (const dir of event.dirs.slice(0, MAX_DIRTY_DIRS)) pendingDirs.push(dir)
+        scheduleTreeRefresh()
+        scheduleGitRefresh()
+      })
+        .then(function (fn) {
+          if (disposed) {
+            fn()
+            return
+          }
+          unsubscribe = fn
+        })
+        .catch(function () {
+          /* 事件通道不可用：同上，退回用户操作驱动 */
+        })
 
       return function () {
         disposed = true
         window.clearTimeout(treeTimer)
         window.clearTimeout(gitTimer)
         document.removeEventListener('visibilitychange', onVisibilityChange)
-        for (const unwatch of unwatchers) unwatch()
+        unsubscribe?.()
+        void WorkspaceFiles.unwatch().catch(function () {
+          /* 已经停了 */
+        })
       }
     },
     // rootsKey 做稳定依赖；roots 一并列出，避免闭包读到旧的根集合

@@ -55,6 +55,16 @@ function Sidebar() {
   const isHiddenVisible = useCodeStore(function (state) {
     return state.isHiddenVisible
   })
+  const tsTypesMode = useCodeStore(function (state) {
+    return state.tsTypesMode
+  })
+
+  const typesModeLabel =
+    tsTypesMode === 'full'
+      ? 'TS 类型：总是注入'
+      : tsTypesMode === 'off'
+        ? 'TS 类型：关闭'
+        : 'TS 类型：按需'
 
   if (!isSidebarOpen) return null
 
@@ -101,6 +111,15 @@ function Sidebar() {
               isActive={isHiddenVisible}
               onClick={function () {
                 useCodeStore.getState().toToggleHiddenVisible()
+              }}
+            />
+            <HeaderAction
+              icon="lucide:braces"
+              label={typesModeLabel}
+              isActive={tsTypesMode !== 'lean'}
+              onClick={function () {
+                const next = tsTypesMode === 'lean' ? 'full' : tsTypesMode === 'full' ? 'off' : 'lean'
+                useCodeStore.getState().toSetTsTypesMode(next)
               }}
             />
           </>

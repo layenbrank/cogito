@@ -309,6 +309,8 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         cogito_command::workspaceFiles::workspaceFilesPackTypes,
         cogito_command::workspaceFiles::workspaceFilesContent,
         cogito_command::workspaceFiles::workspaceFilesReplace,
+        cogito_command::workspaceFiles::workspaceFilesWatch,
+        cogito_command::workspaceFiles::workspaceFilesUnwatch,
         cogito_command::workspaceSkills::workspaceSkillsList,
         search::command::search_suggest,
         site::command::site_fetch_favicon,

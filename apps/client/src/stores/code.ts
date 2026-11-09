@@ -27,6 +27,8 @@ type SurfaceTab = 'terminal' | 'problems'
 type PaletteMode = 'command' | 'file' | null
 /** 换行符：Monaco 只认这两种 */
 type Eol = 'LF' | 'CRLF'
+/** TS 类型注入档位：full = 总是注入；lean = 只有真的用到 node: 才注入；off = 不注入 */
+type CodeTypesMode = 'full' | 'lean' | 'off'
 
 /** file：普通编辑；diff：工作区或提交间对比；commits：提交搜索（GitLens 式独立页） */
 type CodeTabKind = 'file' | 'diff' | 'commits'
@@ -124,6 +126,8 @@ interface CodeState {
   problemCounts: ProblemCounts
   /** 资源管理器已展开的目录（相对路径，根目录用 `ROOT`） */
   expandedKeys: string[]
+  /** watch 推来的脏目录（tree key）：树刷新只重读这些层，读完即清 */
+  dirtyTreeKeys: string[]
   pendingReveal: RevealRequest | null
   /** 等待用户确认关闭的标签（有未保存更改） */
   pendingCloseIds: string[]
@@ -131,6 +135,7 @@ interface CodeState {
   indentation: CodeIndentation
   eol: Eol
   isHiddenVisible: boolean
+  tsTypesMode: CodeTypesMode
   /** 当前文档超过只读阈值（大文件保护） */
   isLargeFile: boolean
   /** 正在从 store 恢复，跳过写回 */
@@ -174,7 +179,12 @@ interface CodeState {
   toSetPaletteMode: (mode: PaletteMode) => void
   toSetWorkspaceSwitcherOpen: (isOpen: boolean) => void
   toBumpTree: () => void
+  /** 标记需要重读的目录（watch 事件  只刷这几层） */
+  toDirtyTreeKeys: (keys: readonly string[]) => void
+  toClearDirtyTreeKeys: () => void
   toToggleExpanded: (key: string, isOpen: boolean) => void
+  /** 整批改写展开集合（折叠某目录时连带丢弃其子孙的展开态） */
+  toDropExpandedKeys: (keys: readonly string[]) => void
   /** 展开侧栏文件树中指定目录及其祖先（面包屑定位用） */
   toRevealPath: (relativeDir: string, rootIndex?: number) => void
   toCollapseAll: () => void
@@ -185,6 +195,7 @@ interface CodeState {
   toSetIndentation: (indentation: CodeIndentation) => void
   toSetEol: (eol: Eol) => void
   toToggleHiddenVisible: () => void
+  toSetTsTypesMode: (mode: CodeTypesMode) => void
   toSetLargeFile: (isLarge: boolean) => void
   /** 从 tiles.json 恢复 shell 偏好（不含打开文件内容） */
   hydrateFromStore: () => Promise<CodePreferences>
@@ -256,7 +267,8 @@ function writeCodePrefs(state: CodeState): void {
     isEditorSemanticHighlightingEnabled: state.editorPrefs.isSemanticHighlightingEnabled,
     editorTabSize: state.editorPrefs.tabSize,
     isEditorInsertSpaces: state.editorPrefs.insertSpaces,
-    isHiddenVisible: state.isHiddenVisible
+    isHiddenVisible: state.isHiddenVisible,
+    tsTypesMode: state.tsTypesMode
   })
 }
 
@@ -284,6 +296,7 @@ const useCodeStore = create<CodeState>()(
           treeRevision: 0,
           problemCounts: { errors: 0, warnings: 0 },
           expandedKeys: [],
+          dirtyTreeKeys: [],
           pendingReveal: null,
           pendingCloseIds: [],
           editorPrefs: {
@@ -304,6 +317,7 @@ const useCodeStore = create<CodeState>()(
           indentation: { tabSize: 2, insertSpaces: true },
           eol: 'LF',
           isHiddenVisible: CODE_DEFAULTS.isHiddenVisible,
+          tsTypesMode: CODE_DEFAULTS.tsTypesMode,
           isLargeFile: false,
           isHydrating: false,
 
@@ -749,6 +763,28 @@ const useCodeStore = create<CodeState>()(
             )
           },
 
+          toDirtyTreeKeys(keys) {
+            set(
+              function (state) {
+                const merged = new Set(state.dirtyTreeKeys)
+                for (const key of keys) merged.add(key)
+                state.dirtyTreeKeys = Array.from(merged)
+                state.treeRevision += 1
+              },
+              false,
+              'toDirtyTreeKeys'
+            )
+          },
+
+          toClearDirtyTreeKeys() {
+            set(
+              function (state) {
+                state.dirtyTreeKeys = []
+              },
+              false,
+              'toClearDirtyTreeKeys'
+            )
+          },
           toToggleExpanded(key, isOpen) {
             set(
               function (state) {
@@ -758,6 +794,19 @@ const useCodeStore = create<CodeState>()(
               },
               false,
               'toToggleExpanded'
+            )
+          },
+
+          toDropExpandedKeys(keys) {
+            set(
+              function (state) {
+                const allowed = new Set(keys)
+                state.expandedKeys = state.expandedKeys.filter(function (key) {
+                  return allowed.has(key)
+                })
+              },
+              false,
+              'toDropExpandedKeys'
             )
           },
 
@@ -857,6 +906,15 @@ const useCodeStore = create<CodeState>()(
             )
           },
 
+          toSetTsTypesMode(mode) {
+            set(
+              function (state) {
+                state.tsTypesMode = mode
+              },
+              false,
+              'toSetTsTypesMode'
+            )
+          },
           toToggleHiddenVisible() {
             set(
               function (state) {
@@ -908,6 +966,7 @@ const useCodeStore = create<CodeState>()(
                   insertSpaces: prefs.isEditorInsertSpaces
                 }
                 state.isHiddenVisible = prefs.isHiddenVisible
+                state.tsTypesMode = prefs.tsTypesMode
                 if (prefs.workspaceRoot) state.treeRevision += 1
               },
               false,
@@ -963,6 +1022,7 @@ export type {
   CodeEditorPrefs,
   PendingRootsChange,
   CodeIndentation,
+  CodeTypesMode,
   ProblemCounts,
   RevealRequest
 }

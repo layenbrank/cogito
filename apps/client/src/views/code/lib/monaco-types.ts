@@ -30,7 +30,7 @@ import type * as Monaco from 'monaco-editor'
 
 import { runWhenIdle } from '@/lib/perf/idle.ts'
 import { findMonaco, importMonaco } from '@/lib/monaco-loader.ts'
-import { WorkspaceFiles } from '@/lib/workspace-files'
+import { WorkspaceFiles, type PackTypesFile } from '@/lib/workspace-files'
 import { normalizeSeparators } from '@/views/code/lib/path.ts'
 import { readTsconfigChain, toCompilerOptions } from '@/views/code/lib/tsconfig.ts'
 
@@ -51,7 +51,19 @@ interface SyncOutcome {
 interface SyncOptions {
   /** 强制重来：绕过指纹（用户手动「重载」/ 确认 @types 变了） */
   isForced?: boolean
+  /** 注入档位（资源管理器头部的开关）：full 总是注入，lean 只在用得上时注入，off 不注入 */
+  mode?: TypesMode
 }
+
+/** 
+ * TS 类型注入档位。
+ *
+ * - `full`：总是注入 `@types/node`（最省心，代价是每次首次打开都要读几 MB）
+ * - `lean`（默认）：只有 tsconfig 的 `types` 含 node，或某个 TS/JS 模型里出现
+ *   `node:` import 时才注入 —— 没用 Node API 的前端项目完全不用付这份钱
+ * - `off`：不注入（`node:` 会按预期报错，属于可接受的取舍）
+ */
+type TypesMode = 'full' | 'lean' | 'off'
 
 /** 一个虚拟 `.d.ts` 的注入台账：内容 hash + TS / JS 两套 defaults 的 handle */
 interface LibEntry {
@@ -217,39 +229,110 @@ function diffExtraLibs(nextLibs: Map<string, string>): { added: number; removed:
   return { added, removed }
 }
 
+/** 只用到「有哪些 model」这一小块能力，避免把 Monaco 全量类型拖进来做断言 */
+interface TsModel {
+  getLanguageId(): string
+  getValue?(): string
+}
+
 /**
- * 工作区里是否有「真正用得上类型库」的模型（TS / JS 文件）。
+ * 读出当前的 TS / JS 模型；拿不到（单测 / 非编辑器环境）返回 null。
  *
- * 守门的意义：进入代码页默认停在提交历史 / 差异层，一个 TS 模型都没有，
- * 这时把 2.5MB 的 `@types/node` 塞进 worker 纯粹是浪费 —— 而且它排在空闲回调里，
- * 落地时机正好撞上用户点侧栏那一下。等真有 TS/JS 文件被打开再同步。
- *
- * 拿不到 `editor.getModels` 时（单测 / 非编辑器环境）一律按「有消费者」处理，
- * 保持「同步一次就该同步成功」的语义。
+ * 拿不到时调用方一律按「有消费者」处理，保持「同步一次就该成功」的语义。
  */
-function hasTypescriptConsumer(): boolean {
+function readTypescriptModels(): TsModel[] | null {
   let monaco: MonacoModelHost
   try {
     monaco = findMonaco()
   } catch (error) {
-    // 还没装 Monaco（单测 / 极早期调用）时按「有消费者」处理：宁可多同步一次，也不要漏
+    // 还没装 Monaco（单测 / 极早期调用）
     console.debug('[monaco-types] 读取 Monaco 失败，跳过消费方探测', error)
-    return true
+    return null
   }
   const getModels = monaco.editor?.getModels
-  if (typeof getModels !== 'function') return true
-  let models: { getLanguageId(): string }[]
+  if (typeof getModels !== 'function') return null
+  let models: TsModel[]
   try {
     models = getModels.call(monaco.editor)
   } catch (error) {
-    // 拿不到模型列表时同样按「有消费者」处理，保持「同步一次就该成功」的语义
     console.debug('[monaco-types] 读取模型列表失败，跳过消费方探测', error)
-    return true
+    return null
   }
-  return models.some(function (model) {
+  return models.filter(function (model) {
     const language = model.getLanguageId()
     return language === 'typescript' || language === 'javascript'
   })
+}
+
+/**
+ * 工作区里是否有「真正用得上类型库」的模型（TS / JS 文件）。
+ *
+ * 守门的意义：进入代码页默认停在提交历史 / 差异层，一个 TS 模型都没有，
+ * 这时把 `@types/node` 塞进 worker 纯粹是浪费 —— 而且它排在空闲回调里，
+ * 落地时机正好撞上用户点侧栏那一下。等真有 TS/JS 文件被打开再同步。
+ */
+function hasTypescriptConsumer(): boolean {
+  const models = readTypescriptModels()
+  if (!models) return true
+  return models.length > 0
+}
+
+/** 模型里出现过 `node:` 前缀 import 才值得灌 @types/node */
+const NODE_PROTOCOL_TOKEN = 'node:'
+/** 超过这个长度的模型不做文本扫描（大文件扫一遍不值当，按「可能用到」处理） */
+const NODE_PROTOCOL_SCAN_LIMIT = 512 * 1024
+
+function usesNodeProtocol(): boolean {
+  const models = readTypescriptModels()
+  if (!models) return true
+  return models.some(function (model) {
+    if (typeof model.getValue !== 'function') return true
+    const text = model.getValue()
+    if (text.length > NODE_PROTOCOL_SCAN_LIMIT) return true
+    return text.includes(NODE_PROTOCOL_TOKEN)
+  })
+}
+
+/** tsconfig 里显式写了 `types: [... 'node']` 也算需要 */
+function declaresNodeTypes(chain: unknown): boolean {
+  const options = (chain as { compilerOptions?: { types?: unknown } } | null | undefined)
+    ?.compilerOptions
+  const types = options?.types
+  if (!Array.isArray(types)) return false
+  return types.some(function (item) {
+    return typeof item === 'string' && item === 'node'
+  })
+}
+
+/** 每块取多少个 `.d.ts`：一条 IPC 一次 JSON.parse，64 个大约几百 KB */
+const PACK_TYPES_CHUNK = 64
+/** 块数上限：防止后端异常时死循环（64 × 8 = 512，覆盖 PACK_TYPES_MAX_FILES） */
+const PACK_TYPES_MAX_CHUNKS = 8
+
+/**
+ * 分块取 `@types/node`：块与块之间 `runWhenIdle` 让出主线程。
+ *
+ * 之前是一次 `packTypes` 拿回 8MB，IPC 反序列化 + `JSON.parse` 全压在同一帧里，
+ * 表现就是「打开 .ts 文件的瞬间卡一下」。
+ */
+async function packTypesInChunks(root: string): Promise<{
+  files: PackTypesFile[]
+  isTruncated: boolean
+}> {
+  const files: PackTypesFile[] = []
+  let offset = 0
+  let isTruncated = false
+  for (let index = 0; index < PACK_TYPES_MAX_CHUNKS; index += 1) {
+    const chunk = await runWhenIdle(function () {
+      return WorkspaceFiles.packTypes(root, offset, PACK_TYPES_CHUNK)
+    })
+    console.debug('[monaco-types] packTypes 块', index + 1, chunk.files.length, '个文件', 'offset', offset)
+    files.push(...chunk.files)
+    offset = chunk.nextOffset
+    isTruncated = chunk.isTruncated
+    if (!chunk.isTruncated || chunk.files.length === 0) break
+  }
+  return { files, isTruncated }
 }
 
 function findNormalizedRoots(workspaceRoots: string[]): string[] {
@@ -310,11 +393,32 @@ async function runSync(roots: string[], options: SyncOptions): Promise<SyncOutco
   }
   if (token !== syncToken) return outcome
 
-  const nextConfigFingerprint = `${roots.join('|')}::${hashContent(JSON.stringify(chain ?? null))}`
+  // 档位也算配置的一部分：切「总是注入 / 按需 / 关闭」必须让指纹失效，
+  // 否则切换后被 early-return 吃掉，off 也清不掉已注入的库。
+  const mode = options.mode ?? 'lean'
+  const nextConfigFingerprint = `${roots.join('|')}::${mode}::${hashContent(JSON.stringify(chain ?? null))}`
   if (options.isForced !== true && nextConfigFingerprint === configFingerprint) {
     // 树刷新（保存 / checkout / 外部改动）走到这里就是零成本返回
     return outcome
   }
+
+  if (mode === 'off') {
+    // 关闭注入：把已注入的清掉（编译选项保留），之后不再读盘
+    const isCleared = libHandles.size > 0
+    if (isCleared) {
+      await runWhenIdle(function () {
+        diffExtraLibs(new Map())
+      })
+    }
+    configFingerprint = nextConfigFingerprint
+    syncedFingerprint = null
+    outcome.isApplied = isCleared
+    console.info('[monaco-types] 注入已关闭（资源管理器头部可切回）')
+    return outcome
+  }
+
+  // lean：只有 tsconfig 声明了 node 类型，或真的有 `node:` import 才值得读这几 MB
+  const needsNodeTypes = mode === 'full' || declaresNodeTypes(chain) || usesNodeProtocol()
 
   const fromTsconfig = toCompilerOptions(chain ?? null, {
     rootPath: roots[0],
@@ -327,17 +431,20 @@ async function runSync(roots: string[], options: SyncOptions): Promise<SyncOutco
     }
   })
 
-  // packTypes 是几 MB 的 IPC，排到空闲；期间的过期结果用 token 丢弃
-  let packed
-  try {
-    packed = await runWhenIdle(function () {
-      return WorkspaceFiles.packTypes(roots[0])
-    })
-  } catch (error) {
-    console.error('[monaco-types] packTypes 失败', error)
-    return outcome
+  // packTypes 分块取（每块 64 个文件），块之间让出主线程；期间的过期结果用 token 丢弃
+  let packed: { files: PackTypesFile[]; isTruncated: boolean } = {
+    files: [],
+    isTruncated: false
   }
-  if (token !== syncToken) return outcome
+  if (needsNodeTypes) {
+    try {
+      packed = await packTypesInChunks(roots[0])
+    } catch (error) {
+      console.error('[monaco-types] packTypes 失败', error)
+      return outcome
+    }
+    if (token !== syncToken) return outcome
+  }
 
   const typeRoots = findAtTypesRoots(
     packed.files.map(function (file) {
@@ -379,10 +486,12 @@ async function runSync(roots: string[], options: SyncOptions): Promise<SyncOutco
   outcome.target = typeof rawTarget === 'string' ? rawTarget : null
 
   if (nextLibs.size === 0) {
-    console.warn(
-      '[monaco-types] 未注入 @types/node。请确认工作区或其上级存在 node_modules/@types/node',
-      roots[0]
-    )
+    if (needsNodeTypes) {
+      console.warn(
+        '[monaco-types] 未注入 @types/node。请确认工作区或其上级存在 node_modules/@types/node',
+        roots[0]
+      )
+    }
   } else {
     console.info(
       '[monaco-types] 已注入 @types/node',

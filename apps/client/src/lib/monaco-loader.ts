@@ -28,8 +28,12 @@ function importMonaco(): Promise<MonacoModule> {
     loadTask = (async function () {
       // typescript / json 是「诊断与校验」所必需，跟核心一起到位；
       // css / html 服务与各语言的语法高亮在 monaco-language.ts 里按需加载
+      // 查找框（`actions.find`）与格式化动作都由 contrib 提供，`editor.api` 里没有 ——
+      // 右栏的 Ctrl/Cmd+F、预览顶栏的「格式化」都建立在这两个包里。
       const [api] = await Promise.all([
         import('monaco-editor/editor/editor.api'),
+        import('monaco-editor/editor/contrib/find/browser/findController'),
+        import('monaco-editor/editor/contrib/format/browser/formatActions'),
         import('monaco-editor/language/typescript/monaco.contribution'),
         import('monaco-editor/language/json/monaco.contribution')
       ])

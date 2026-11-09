@@ -23,6 +23,8 @@ interface FileTreeDirectoryItemProps {
   activeKey?: string | null
   expandedKeys?: Set<string>
   emptyHint?: string
+  /** 给目录行挂 `data-aside-path` / `data-aside-kind`（右栏文件树的右键菜单用） */
+  emitAsidePath?: boolean
   onFetch: (node: FileTreeNode, options?: { force?: boolean; append?: boolean }) => Promise<void>
   onSelect: (node: FileTreeNode) => void
   onExpandChange?: (key: string, open: boolean) => void
@@ -57,6 +59,8 @@ function FileTreeDirectoryItem(props: FileTreeDirectoryItemProps) {
         <CollapsibleTrigger
           data-tree-key={props.node.key}
           data-tree-kind="directory"
+          data-aside-path={props.emitAsidePath ? props.node.key : undefined}
+          data-aside-kind={props.emitAsidePath ? 'dir' : undefined}
           className={cn(
             'flex w-full items-center gap-1 py-0.75 pr-2 text-left text-sm transition-colors hover:bg-muted/60',
             props.isActive && 'bg-primary/10 font-medium text-foreground'
@@ -108,7 +112,7 @@ function FileTreeDirectoryItem(props: FileTreeDirectoryItemProps) {
           </ul>
         ) : null}
         {props.isOpen && hasChildren ? (
-          <CollapsibleContent>
+          <CollapsibleContent disableAnimation>
             <ul className="list-none">
               {props.node.children!.map(function (child) {
                 return (
@@ -119,6 +123,7 @@ function FileTreeDirectoryItem(props: FileTreeDirectoryItemProps) {
                     activeKey={props.activeKey}
                     expandedKeys={props.expandedKeys}
                     emptyHint={props.emptyHint}
+                    emitAsidePath={props.emitAsidePath}
                     onFetch={props.onFetch}
                     onSelect={props.onSelect}
                     onExpandChange={props.onExpandChange}

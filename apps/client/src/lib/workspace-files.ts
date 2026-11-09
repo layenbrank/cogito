@@ -1,7 +1,9 @@
 /**
  * 工作区文件 IPC：按层列举 + 封顶搜索 + 内容检索 / 替换 + 受 roots 约束的读文件
+ * + 目录监听（Rust 侧递归 + 过滤，只回受影响的相对目录）
  */
 import { invoke } from '@tauri-apps/api/core'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
 import { CHANNELS } from '@/shared/ipc/channels'
 
@@ -39,6 +41,10 @@ interface PackTypesFile {
 interface PackTypesResult {
   files: PackTypesFile[]
   isTruncated: boolean
+  /** 候选文件总数（`@types` 目录里的 .d.ts 数量） */
+  total: number
+  /** 下一块的 offset；等于 total 表示取完了 */
+  nextOffset: number
 }
 
 interface ContentHit {
@@ -100,6 +106,18 @@ interface ReplaceResult {
   failed: ReplaceFailed[]
 }
 
+/** 监听事件里的「受影响的目录」：`rootIndex` 对应 roots 下标，`relative` 是相对目录（根层为空串） */
+interface WatchDir {
+  rootIndex: number
+  relative: string
+}
+
+interface WorkspaceFilesChangedEvent {
+  dirs: WatchDir[]
+  /** 目录点名被截断 / 变化无法定位：前端可回退整树刷新 */
+  isCoarse: boolean
+}
+
 async function listDir(root: string, relative = '') {
   return invoke<DirEntry[]>(CHANNELS.WORKSPACE_FILES.LIST_DIR, {
     params: { root, relative: relative || null }
@@ -118,9 +136,31 @@ async function readFile(roots: string[], path: string) {
   })
 }
 
-async function packTypes(root: string) {
+async function packTypes(root: string, offset = 0, limit?: number) {
   return invoke<PackTypesResult>(CHANNELS.WORKSPACE_FILES.PACK_TYPES, {
-    params: { root }
+    params: { root, offset, limit: limit ?? null }
+  })
+}
+
+/**
+ * 开始（或换一组根）监听：Rust 侧递归监听 + 就地丢弃 node_modules/.git/dist 等噪音，
+ * 合批后通过 `workspaceFiles:changed` 推送受影响的相对目录。
+ */
+async function watch(roots: string[], delayMs?: number) {
+  return invoke<void>(CHANNELS.WORKSPACE_FILES.WATCH, {
+    params: { roots, delayMs: delayMs ?? null }
+  })
+}
+
+async function unwatch() {
+  return invoke<void>(CHANNELS.WORKSPACE_FILES.UNWATCH)
+}
+
+async function listenChanged(
+  handler: (event: WorkspaceFilesChangedEvent) => void
+): Promise<UnlistenFn> {
+  return listen<WorkspaceFilesChangedEvent>(CHANNELS.WORKSPACE_FILES.CHANGED, function (event) {
+    handler(event.payload)
   })
 }
 
@@ -160,7 +200,10 @@ const WorkspaceFiles = {
   content,
   replace,
   readFile,
-  packTypes
+  packTypes,
+  watch,
+  unwatch,
+  listenChanged
 }
 
 export { WorkspaceFiles }
@@ -177,5 +220,7 @@ export type {
   ReplaceQuery,
   ReplaceChanged,
   ReplaceFailed,
-  ReplaceResult
+  ReplaceResult,
+  WatchDir,
+  WorkspaceFilesChangedEvent
 }

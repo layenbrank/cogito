@@ -7,9 +7,6 @@
 import { joinPath, type TreeEntry } from '@/views/code/lib/fs.ts'
 import type { FileTreeNode } from '@/views/workspace/overlay/file-tree-item.tsx'
 
-/** 主根（索引 0）的 key；保留给旧调用点 */
-export const EXPLORER_ROOT_KEY = '0::'
-
 export type ExplorerCreateKind = 'file' | 'folder'
 
 export interface ExplorerNewTarget {
@@ -77,20 +74,29 @@ function countDepth(key: string): number {
   return relativePath.split('/').filter(Boolean).length + 1
 }
 
-/** 丢弃未展开目录的子节点缓存，下次展开时按需重读 */
-function pruneCollapsedNodes(
-  nodes: FileTreeNode[],
-  expandedKeys: Set<string>
-): FileTreeNode[] {
-  return nodes.map(function (node) {
-    if (!node.children) return node
-    const isExpanded = expandedKeys.has(node.key)
-    return {
-      ...node,
-      children: isExpanded ? pruneCollapsedNodes(node.children, expandedKeys) : undefined,
-      isLoaded: isExpanded ? node.isLoaded : false
-    }
+/**
+ * `candidate` 是否是 `parent` 的后代（不含自身）。
+ *
+ * 根 key 形如 `0::`，后代是 `0::src`（前缀即整段）；普通目录 `0::src` 的后代
+ * 是 `0::src/xxx`，必须以 `/` 分隔，避免 `src2` 被误判成 `src` 的后代。
+ */
+function isDescendantTreeKey(parent: string, candidate: string): boolean {
+  if (candidate === parent) return false
+  if (parent.endsWith('::')) return candidate.startsWith(parent)
+  return candidate.startsWith(`${parent}/`)
+}
+
+/**
+ * 折叠子树时同步丢掉展开态：`parent` 及其全部后代。
+ *
+ * 不同步丢的话会留下「已展开但没有子节点」的脏 key —— 收起再展开时那几层
+ * 既不会被 onOpenChange 触发重读，也匹配不到任何已加载数据，表现为「空目录」。
+ */
+function dropExpandedSubtree(keys: readonly string[], parent: string): string[] {
+  const next = keys.filter(function (key) {
+    return key !== parent && !isDescendantTreeKey(parent, key)
   })
+  return next.length === keys.length ? keys.slice() : next
 }
 
 export {
@@ -100,5 +106,6 @@ export {
   findAbsoluteFromKey,
   toTreeNode,
   countDepth,
-  pruneCollapsedNodes
+  isDescendantTreeKey,
+  dropExpandedSubtree
 }

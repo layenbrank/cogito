@@ -14,7 +14,7 @@ function LoadMoreRow(props: { title: string; depth: number; onSelect: () => void
         type="button"
         onClick={props.onSelect}
         style={{ paddingLeft: rowPadLeft(props.depth) }}
-        className="text-muted-foreground hover:bg-muted/60 h-auto w-full justify-start truncate py-0.75 pr-2 text-left text-sm">
+        className="text-muted-foreground hover:bg-muted/60 flex h-7 w-full justify-start truncate py-0 pr-2 text-left text-sm">
         {props.title}
       </Button>
     </li>
@@ -27,6 +27,11 @@ function FileRow(props: {
   isActive: boolean
   treeKey: string
   onSelect: () => void
+  /**
+   * 额外挂 `data-aside-path` / `data-aside-kind`：右栏文件树用它接自己的右键菜单
+   * （添加到对话 / 复制路径）。代码窗资源管理器用不到，默认关闭。
+   */
+  emitAsidePath?: boolean
 }) {
   const isActive = props.isActive
   const icon = findFileIcon(props.title)
@@ -50,11 +55,13 @@ function FileRow(props: {
         type="button"
         data-tree-key={props.treeKey}
         data-tree-kind="file"
+        data-aside-path={props.emitAsidePath ? props.treeKey : undefined}
+        data-aside-kind={props.emitAsidePath ? 'file' : undefined}
         aria-current={isActive ? 'page' : undefined}
         onClick={props.onSelect}
         style={{ paddingLeft: rowPadLeft(props.depth) }}
         className={cn(
-          'flex h-auto w-full items-center justify-start gap-1.5 truncate py-0.75 pr-2 text-left text-sm transition-colors hover:bg-muted/60',
+          'flex h-7 w-full items-center justify-start gap-1.5 truncate py-0 pr-2 text-left text-sm transition-colors hover:bg-muted/60',
           isActive && 'bg-primary/15 font-medium text-foreground'
         )}>
         <Icon

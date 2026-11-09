@@ -56,6 +56,10 @@ pub struct ReadFileP {
 #[serde(rename_all = "camelCase")]
 pub struct PackTypesP {
     pub root: String,
+    /// 从第几个文件开始（分块注入用）
+    pub offset: Option<usize>,
+    /// 本块最多回几个文件
+    pub limit: Option<usize>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -70,6 +74,10 @@ pub struct PackTypesFileR {
 pub struct PackTypesR {
     pub files: Vec<PackTypesFileR>,
     pub is_truncated: bool,
+    /// 候选文件总数（前端据此判断还有没有下一块）
+    pub total: usize,
+    /// 下一块的 offset
+    pub next_offset: usize,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -610,8 +618,10 @@ pub async fn workspaceFilesReadFile(params: ReadFileP) -> CommandResult<ReadFile
 /* ─── Monaco @types 打包 ─── */
 
 const PACK_TYPES_MAX_FILES: usize = 500;
-const PACK_TYPES_MAX_FILE_BYTES: u64 = 512 * 1024;
-const PACK_TYPES_MAX_TOTAL_BYTES: u64 = 8 * 1024 * 1024;
+const PACK_TYPES_MAX_FILE_BYTES: u64 = 256 * 1024;
+const PACK_TYPES_MAX_TOTAL_BYTES: u64 = 2 * 1024 * 1024;
+/// 单次 IPC 最多回多少个文件：前端按 64 文件/块取，块之间让出主线程
+const PACK_TYPES_MAX_CHUNK: usize = 128;
 const PACK_TYPES_WALK_UP: usize = 6;
 
 fn find_at_types_dirs(workspace_root: &Path) -> Vec<PathBuf> {
@@ -724,6 +734,8 @@ pub async fn workspaceFilesPackTypes(params: PackTypesP) -> CommandResult<PackTy
             return Ok(PackTypesR {
                 files: Vec::new(),
                 is_truncated: false,
+                total: 0,
+                next_offset: 0,
             });
         }
 
@@ -740,10 +752,17 @@ pub async fn workspaceFilesPackTypes(params: PackTypesP) -> CommandResult<PackTy
             }
         }
 
+        let total = paths.len();
+        let offset = params.offset.unwrap_or(0).min(total);
+        let limit = params
+            .limit
+            .unwrap_or(PACK_TYPES_MAX_CHUNK)
+            .clamp(1, PACK_TYPES_MAX_CHUNK);
+        let end = (offset + limit).min(total);
         let mut total_bytes = 0u64;
-        let mut files = Vec::with_capacity(paths.len());
-        for path in paths {
-            match read_pack_types_file(&path, &mut total_bytes) {
+        let mut files = Vec::with_capacity(end.saturating_sub(offset));
+        for path in &paths[offset..end] {
+            match read_pack_types_file(path, &mut total_bytes) {
                 Some(file) => files.push(file),
                 None => {
                     if total_bytes >= PACK_TYPES_MAX_TOTAL_BYTES {
@@ -753,10 +772,14 @@ pub async fn workspaceFilesPackTypes(params: PackTypesP) -> CommandResult<PackTy
                 }
             }
         }
+        // 还有下一块：前端据此继续要（分块注入，块间让出主线程）
+        is_truncated |= end < total;
 
         Ok(PackTypesR {
             files,
             is_truncated,
+            total,
+            next_offset: end,
         })
     })
     .await
@@ -1710,5 +1733,279 @@ mod content_glob_tests {
         let ww = LineMatcher::build("foo", false, true, true).unwrap();
         assert_eq!(ww.find_in_line("foobar"), None);
         assert!(ww.find_in_line("a foo b").is_some());
+    }
+}
+
+/* ───────────────────────── Explorer 目录监听 ─────────────────────────
+ * 为什么要挪到 Rust 侧：
+ * - 前端 `plugin-fs` 的递归 watch 在 Windows 上是整棵树的 `ReadDirectoryChangesW`，
+ *   `node_modules` / `.git` / `dist` 全都在监听范围里；dev server、turbo 一直在写，
+ *   事件流会把「树刷新」这条链路反复点亮。
+ * - 过滤发生在前端时，事件已经过了一次 IPC + JSON 解析；放在这里可以就地丢弃。
+ * 这里只回「受影响的相对目录」，前端据此只重读那几层。
+ */
+
+/// 一批事件里最多点名几个目录，超出的置 `is_coarse`（前端回退整树刷新）
+const WATCH_MAX_DIRS: usize = 8;
+/// 合批窗口缺省值：一次保存往往连发 create/write/move 三条
+const WATCH_DELAY_MS: u64 = 300;
+/// `SKIP_DIRS` 之外、只对监听有意义的噪音目录
+const WATCH_EXTRA_SKIP: &[&str] = &[".pnpm", ".vite", ".idea", ".vs", "out", ".nyc_output"];
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchP {
+    pub roots: Vec<String>,
+    pub delay_ms: Option<u64>,
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchDirR {
+    /// 归属的根索引（多根工作区）
+    pub root_index: usize,
+    /// 相对目录，根层为空串
+    pub relative: String,
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchEventR {
+    pub dirs: Vec<WatchDirR>,
+    /// 目录点名被截断 / 变化无法定位，前端可回退整树刷新
+    pub is_coarse: bool,
+}
+
+struct WatchSession {
+    stop: Arc<AtomicBool>,
+}
+
+static WATCH_SESSION: LazyLock<Mutex<Option<WatchSession>>> = LazyLock::new(|| Mutex::new(None));
+
+fn is_ignored_watch_name(name: &str) -> bool {
+    should_skip_dir(name) || WATCH_EXTRA_SKIP.iter().any(|item| *item == name)
+}
+
+/// 路径任一层命中噪音目录就整条丢弃（`node_modules/x/y.ts` 连父目录一起不要）
+fn is_ignored_watch_path(path: &Path) -> bool {
+    path.components().any(|component| match component {
+        Component::Normal(name) => name.to_str().map(is_ignored_watch_name).unwrap_or(false),
+        _ => false,
+    })
+}
+
+/// `strip_prefix` 区分大小写，Windows 上盘符/目录大小写经常和用户输入不一致，再兜一层
+fn to_relative_ci(root: &Path, absolute: &Path) -> Option<String> {
+    if let Ok(rest) = absolute.strip_prefix(root) {
+        return Some(rest.to_string_lossy().replace('\\', "/"));
+    }
+    let root_lowered = root.to_string_lossy().replace('\\', "/").to_lowercase();
+    let absolute_str = absolute.to_string_lossy().replace('\\', "/");
+    let absolute_lowered = absolute_str.to_lowercase();
+    if absolute_lowered == root_lowered {
+        return Some(String::new());
+    }
+    let prefix = format!("{root_lowered}/");
+    if absolute_lowered.starts_with(&prefix) {
+        return Some(absolute_str[prefix.len()..].to_string());
+    }
+    None
+}
+
+/// 把一批绝对路径折算成「需要重读的相对目录」；全是噪音时返回 None
+fn build_watch_event(roots: &[PathBuf], paths: &[PathBuf]) -> Option<WatchEventR> {
+    let mut dirs: Vec<WatchDirR> = Vec::new();
+    let mut seen: HashSet<(usize, String)> = HashSet::new();
+    for path in paths {
+        if is_ignored_watch_path(path) {
+            continue;
+        }
+        let parent = path.parent().unwrap_or(path);
+        let mut matched = false;
+        for (root_index, root) in roots.iter().enumerate() {
+            let Some(relative) = to_relative_ci(root, parent) else {
+                continue;
+            };
+            matched = true;
+            if seen.insert((root_index, relative.clone())) {
+                dirs.push(WatchDirR { root_index, relative });
+            }
+            break;
+        }
+        if matched {
+            continue;
+        }
+    }
+    if dirs.is_empty() {
+        return None;
+    }
+    // 浅的先刷：根层变化会让深层目录的 key 整体挪位，先出根
+    dirs.sort_by(|a, b| {
+        let depth = |item: &WatchDirR| item.relative.split('/').filter(|s| !s.is_empty()).count();
+        depth(a).cmp(&depth(b)).then_with(|| a.relative.cmp(&b.relative))
+    });
+    let is_coarse = dirs.len() > WATCH_MAX_DIRS;
+    dirs.truncate(WATCH_MAX_DIRS);
+    Some(WatchEventR { dirs, is_coarse })
+}
+
+fn push_event_paths(result: notify::Result<notify::Event>, batch: &mut Vec<PathBuf>) {
+    if let Ok(event) = result {
+        batch.extend(event.paths);
+    }
+}
+
+fn stop_watch_session() {
+    if let Some(session) = WATCH_SESSION.lock().take() {
+        session.stop.store(true, Ordering::SeqCst);
+    }
+}
+
+fn run_watch_loop(app: tauri::AppHandle, roots: Vec<PathBuf>, delay: Duration, stop: Arc<AtomicBool>) {
+    use tauri::Emitter;
+    use notify::Watcher;
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    let Ok(mut watcher) = notify::recommended_watcher(move |result: notify::Result<notify::Event>| {
+        let _ = tx.send(result);
+    }) else {
+        return;
+    };
+    for root in &roots {
+        let _ = watcher.watch(root, notify::RecursiveMode::Recursive);
+    }
+
+    while !stop.load(Ordering::SeqCst) {
+        let Ok(first) = rx.recv_timeout(Duration::from_millis(400)) else {
+            continue;
+        };
+        let mut batch: Vec<PathBuf> = Vec::new();
+        push_event_paths(first, &mut batch);
+        let deadline = Instant::now() + delay;
+        while let Some(remaining) = deadline.checked_duration_since(Instant::now()) {
+            match rx.recv_timeout(remaining) {
+                Ok(result) => push_event_paths(result, &mut batch),
+                Err(_) => break,
+            }
+        }
+        if stop.load(Ordering::SeqCst) {
+            break;
+        }
+        if let Some(event) = build_watch_event(&roots, &batch) {
+            let _ = app.emit("workspaceFiles:changed", event);
+        }
+    }
+    // 线程退出即停掉后端监听：前端切工作区时不必再记一份 unwatch
+    drop(watcher);
+}
+
+/// 启动（或替换）目录监听。重复调用 = 换一组根。
+#[tauri::command(rename = "workspaceFiles:watch")]
+pub async fn workspaceFilesWatch(app: tauri::AppHandle, params: WatchP) -> CommandResult<()> {
+    let mut roots: Vec<PathBuf> = Vec::new();
+    for root in &params.roots {
+        roots.push(validate_root(root)?);
+    }
+    if roots.is_empty() {
+        return Err(Exception::Validation("roots 不能为空".into()));
+    }
+    stop_watch_session();
+    let delay = Duration::from_millis(params.delay_ms.unwrap_or(WATCH_DELAY_MS).clamp(50, 5_000));
+    let stop = Arc::new(AtomicBool::new(false));
+    let thread_stop = stop.clone();
+    WATCH_SESSION.lock().replace(WatchSession { stop });
+    std::thread::spawn(move || run_watch_loop(app, roots, delay, thread_stop));
+    Ok(())
+}
+
+/// 主动停掉监听（关窗 / 切到不需要文件树的视图时）
+#[tauri::command(rename = "workspaceFiles:unwatch")]
+pub async fn workspaceFilesUnwatch() -> CommandResult<()> {
+    stop_watch_session();
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn watch_ignores_node_modules_and_git() {
+        assert!(is_ignored_watch_path(Path::new("/ws/node_modules/x/y.ts")));
+        assert!(is_ignored_watch_path(Path::new("/ws/.git/index")));
+        assert!(is_ignored_watch_path(Path::new("/ws/packages/a/.pnpm/x.js")));
+        assert!(is_ignored_watch_path(Path::new("/ws/dist/bundle.js")));
+        assert!(!is_ignored_watch_path(Path::new("/ws/src/a.ts")));
+        assert!(!is_ignored_watch_path(Path::new("/ws/node_modules.ts")));
+    }
+
+    #[test]
+    fn watch_maps_file_change_to_its_parent_dir() {
+        let roots = vec![PathBuf::from("/ws")];
+        let event = build_watch_event(&roots, &[PathBuf::from("/ws/src/a.ts")]).unwrap();
+        assert_eq!(
+            event.dirs,
+            vec![WatchDirR {
+                root_index: 0,
+                relative: "src".into()
+            }]
+        );
+        assert!(!event.is_coarse);
+    }
+
+    #[test]
+    fn watch_maps_root_level_change_to_empty_relative() {
+        let roots = vec![PathBuf::from("/ws")];
+        let event = build_watch_event(&roots, &[PathBuf::from("/ws/package.json")]).unwrap();
+        assert_eq!(event.dirs.len(), 1);
+        assert_eq!(event.dirs[0].relative, "");
+        assert_eq!(event.dirs[0].root_index, 0);
+    }
+
+    #[test]
+    fn watch_drops_noisy_batches_entirely() {
+        let roots = vec![PathBuf::from("/ws")];
+        let paths = vec![
+            PathBuf::from("/ws/node_modules/react/index.js"),
+            PathBuf::from("/ws/node_modules/.vite/deps/a.js"),
+        ];
+        assert!(build_watch_event(&roots, &paths).is_none());
+    }
+
+    #[test]
+    fn watch_dedupes_dirs_and_caps_the_batch() {
+        let roots = vec![PathBuf::from("/ws")];
+        let mut paths: Vec<PathBuf> = vec![
+            PathBuf::from("/ws/src/a.ts"),
+            PathBuf::from("/ws/src/b.ts"),
+        ];
+        for index in 0..12 {
+            paths.push(PathBuf::from(format!("/ws/dir{index}/a.ts")));
+        }
+        let event = build_watch_event(&roots, &paths).unwrap();
+        assert_eq!(event.dirs.len(), WATCH_MAX_DIRS);
+        assert!(event.is_coarse);
+        assert_eq!(event.dirs[0].relative, "dir0");
+        assert!(!event.dirs.iter().any(|dir| dir.relative == "src"));
+    }
+
+    #[test]
+    fn watch_locates_change_under_multi_root() {
+        let roots = vec![PathBuf::from("/ws-a"), PathBuf::from("/ws-b")];
+        let event = build_watch_event(&roots, &[PathBuf::from("/ws-b/lib/x.ts")]).unwrap();
+        assert_eq!(
+            event.dirs,
+            vec![WatchDirR {
+                root_index: 1,
+                relative: "lib".into()
+            }]
+        );
+    }
+
+    #[test]
+    fn watch_matches_case_insensitively() {
+        let roots = vec![PathBuf::from("C:/Work/App")];
+        let event = build_watch_event(&roots, &[PathBuf::from("C:/work/app/src/a.ts")]).unwrap();
+        assert_eq!(event.dirs[0].relative, "src");
     }
 }

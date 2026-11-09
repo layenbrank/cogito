@@ -13,6 +13,8 @@ interface FileTreeItemProps {
   activeKey?: string | null
   expandedKeys?: Set<string>
   emptyHint?: string
+  /** 行上挂 `data-aside-path` / `data-aside-kind`（右栏文件树接右键菜单用） */
+  emitAsidePath?: boolean
   onFetch: (node: FileTreeNode, options?: { force?: boolean; append?: boolean }) => Promise<void>
   onSelect: (node: FileTreeNode) => void
   onExpandChange?: (key: string, open: boolean) => void
@@ -46,6 +48,7 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
         depth={depth}
         isActive={isActive}
         treeKey={node.key}
+        emitAsidePath={props.emitAsidePath}
         onSelect={function () {
           props.onSelect(node)
         }}
@@ -64,6 +67,7 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
       activeKey={props.activeKey}
       expandedKeys={props.expandedKeys}
       emptyHint={props.emptyHint}
+      emitAsidePath={props.emitAsidePath}
       onFetch={props.onFetch}
       onSelect={props.onSelect}
       onExpandChange={props.onExpandChange}
@@ -74,8 +78,17 @@ function FileTreeItemComponent(props: FileTreeItemProps) {
 function isFileTreeItemEqual(prev: FileTreeItemProps, next: FileTreeItemProps): boolean {
   if (prev.node !== next.node) return false
   if (prev.depth !== next.depth) return false
-  if (prev.expandedKeys !== next.expandedKeys) return false
+  /*
+   * 只比「这一行自己的展开态」，不比 Set 引用。
+   *
+   * `expandedKeys` 每次 toggle 都是新 Set，按引用比会让「展开一个目录」把全部
+   * 已挂载行重渲一遍（展开 `node_modules` 后就是上千行一起重渲）。
+   */
+  const wasExpanded = prev.expandedKeys ? prev.expandedKeys.has(prev.node.key) : undefined
+  const willExpanded = next.expandedKeys ? next.expandedKeys.has(next.node.key) : undefined
+  if (wasExpanded !== willExpanded) return false
   if (prev.emptyHint !== next.emptyHint) return false
+  if (prev.emitAsidePath !== next.emitAsidePath) return false
   if (prev.onFetch !== next.onFetch) return false
   if (prev.onSelect !== next.onSelect) return false
   if (prev.onExpandChange !== next.onExpandChange) return false

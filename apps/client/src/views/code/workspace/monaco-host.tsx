@@ -249,7 +249,7 @@ function MonacoHost(props: MonacoHostProps) {
       if (previousRootsKey !== null && previousRootsKey !== rootsKey) {
         clearViewStates()
       }
-      void syncWorkspaceTypescriptLibs(nextRoots)
+      void syncWorkspaceTypescriptLibs(nextRoots, { mode: useCodeStore.getState().tsTypesMode })
         .then(reportTypescriptApplied)
         .catch(function (error) {
           console.error('[monaco-types] 同步失败', error)
@@ -273,7 +273,7 @@ function MonacoHost(props: MonacoHostProps) {
       syncedTreeRevisionRef.current = treeRevision
       const nextRoots = useCodeStore.getState().roots
       if (nextRoots.length === 0) return
-      void syncWorkspaceTypescriptLibs(nextRoots)
+      void syncWorkspaceTypescriptLibs(nextRoots, { mode: useCodeStore.getState().tsTypesMode })
         .then(reportTypescriptApplied)
         .catch(function (error) {
           console.error('[monaco-types] 同步失败', error)
@@ -432,7 +432,7 @@ function MonacoHost(props: MonacoHostProps) {
          * 直接返回，所以进代码页（默认停在提交历史）不会再提前搬那 2.5MB ——
          * 之前那份活排在空闲回调里，落地时刻正好是用户点侧栏的那一下。
          */
-        void syncWorkspaceTypescriptLibs(useCodeStore.getState().roots)
+        void syncWorkspaceTypescriptLibs(useCodeStore.getState().roots, { mode: useCodeStore.getState().tsTypesMode })
           .then(reportTypescriptApplied)
           .catch(function (error) {
             console.error('[monaco-types] 同步失败', error)

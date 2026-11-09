@@ -1402,6 +1402,7 @@ dependencies = [
  "gix",
  "ignore",
  "memchr",
+ "notify",
  "parking_lot",
  "rayon",
  "regex",
