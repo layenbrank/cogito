@@ -15,6 +15,10 @@ function escapeIdent(value: string): string {
   })
 }
 
-if (typeof globalThis.CSS === 'undefined') {
-  ;(globalThis as { CSS?: unknown }).CSS = { escape: escapeIdent }
+type CssGlobal = { CSS?: { escape?: (value: string) => string } }
+
+const cssGlobal = globalThis as CssGlobal
+
+if (!cssGlobal.CSS?.escape) {
+  cssGlobal.CSS = { escape: escapeIdent }
 }
