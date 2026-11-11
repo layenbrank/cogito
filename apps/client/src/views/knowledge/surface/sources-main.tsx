@@ -11,7 +11,7 @@ import {
   DialogTitle
 } from '@cogito/design/components/dialog'
 import { Textarea } from '@cogito/design/components/textarea'
-import { open } from '@tauri-apps/plugin-dialog'
+import { open } from '@/shared/ipc/dialog'
 import { copyFile, exists, mkdir } from '@tauri-apps/plugin-fs'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'

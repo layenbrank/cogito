@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
-import { save as dialogSave } from '@tauri-apps/plugin-dialog'
+import { save as dialogSave } from '@/shared/ipc/dialog'
 import { useEffect, useMemo } from 'react'
 
 import { toggleOffset } from '@/features/magnetic-tiles/morph/page-ranges'

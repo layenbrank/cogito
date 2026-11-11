@@ -3,7 +3,7 @@ import { Button } from '@cogito/design/components/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@cogito/design/components/popover'
 import { Separator } from '@cogito/design/components/separator'
 import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
-import { save } from '@tauri-apps/plugin-dialog'
+import { save } from '@/shared/ipc/dialog'
 import { clsx } from 'clsx'
 import { useState } from 'react'
 

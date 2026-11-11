@@ -1,4 +1,4 @@
-import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
+import { open as dialogOpen } from '@/shared/ipc/dialog'
 import { toast } from 'sonner'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'

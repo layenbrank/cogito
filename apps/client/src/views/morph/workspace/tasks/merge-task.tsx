@@ -1,5 +1,5 @@
 import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
-import { open as dialogOpen, save as dialogSave } from '@tauri-apps/plugin-dialog'
+import { open as dialogOpen, save as dialogSave } from '@/shared/ipc/dialog'
 import { useEffect, useState } from 'react'
 
 import {

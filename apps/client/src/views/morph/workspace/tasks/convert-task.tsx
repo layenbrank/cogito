@@ -1,4 +1,4 @@
-import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
+import { open as dialogOpen } from '@/shared/ipc/dialog'
 import { useEffect, useState } from 'react'
 
 import {

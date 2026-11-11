@@ -1,7 +1,7 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { ToggleGroup, ToggleGroupItem } from '@cogito/design/components/toggle-group'
-import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
+import { open as dialogOpen } from '@/shared/ipc/dialog'
 import { useMemo } from 'react'
 
 import {

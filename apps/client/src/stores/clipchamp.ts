@@ -1,5 +1,5 @@
 import { convertFileSrc } from '@tauri-apps/api/core'
-import { open as dialogOpen, save as dialogSave } from '@tauri-apps/plugin-dialog'
+import { open as dialogOpen, save as dialogSave } from '@/shared/ipc/dialog'
 import { toast } from 'sonner'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
