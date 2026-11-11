@@ -326,8 +326,7 @@ fn persist_record_to(dir: &Path, record: &CrashRecord) -> std::io::Result<PathBu
 }
 
 fn persist_record(record: &CrashRecord) -> std::io::Result<PathBuf> {
-    let dir = crash_dir()
-        .ok_or_else(|| std::io::Error::other("无法解析应用数据目录"))?;
+    let dir = crash_dir().ok_or_else(|| std::io::Error::other("无法解析应用数据目录"))?;
     let written = persist_record_to(&dir, record)?;
     prune_crash_dir(&dir, MAX_CRASH_FILES);
     Ok(written)
@@ -644,7 +643,10 @@ mod tests {
             std::process::id(),
             "本次 running 必须覆盖旧标记"
         );
-        assert!(!previous_session_crashed(Some(&current)), "自己的 pid 不算崩溃");
+        assert!(
+            !previous_session_crashed(Some(&current)),
+            "自己的 pid 不算崩溃"
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 

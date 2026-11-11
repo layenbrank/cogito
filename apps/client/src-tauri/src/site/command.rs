@@ -8,8 +8,7 @@ use url::Url;
 
 const TIMEOUT: Duration = Duration::from_secs(8);
 const BODY_LIMIT: usize = 256 * 1024;
-const USER_AGENT: &str =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 static LINK_ICON_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
@@ -99,12 +98,7 @@ fn find_icons_in_html(html: &str, base: &Url) -> Vec<(i32, String)> {
 }
 
 async fn probe_url(client: &reqwest::Client, candidate: &str) -> bool {
-    match client
-        .get(candidate)
-        .timeout(TIMEOUT)
-        .send()
-        .await
-    {
+    match client.get(candidate).timeout(TIMEOUT).send().await {
         Ok(response) => {
             let status = response.status();
             if !status.is_success() {
@@ -177,18 +171,14 @@ pub async fn site_fetch_favicon(body: FetchFaviconBody) -> Result<FetchFaviconRe
 
     for (_score, candidate) in find_icons_in_html(&html, &page) {
         if probe_url(&client, &candidate).await {
-            return Ok(FetchFaviconResult {
-                favicon: candidate,
-            });
+            return Ok(FetchFaviconResult { favicon: candidate });
         }
     }
 
     if let Ok(favicon_ico) = page.join("/favicon.ico") {
         let candidate = favicon_ico.to_string();
         if probe_url(&client, &candidate).await {
-            return Ok(FetchFaviconResult {
-                favicon: candidate,
-            });
+            return Ok(FetchFaviconResult { favicon: candidate });
         }
     }
 

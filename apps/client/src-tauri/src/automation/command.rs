@@ -7,7 +7,9 @@
 //! 失败原因写进 `lastError`。
 
 use cogito_core::CommandResult;
-use cogito_core::automation::service::{AutomationInput, DueRun, FinishInput, PatchRunInput, Service};
+use cogito_core::automation::service::{
+    AutomationInput, DueRun, FinishInput, PatchRunInput, Service,
+};
 use cogito_database::Storage;
 use cogito_database::entity::automation::Model;
 use cogito_database::entity::automation_run::Model as RunModel;
@@ -160,8 +162,13 @@ async fn sync(app: &AppHandle, state: &State<'_, Storage>, model: &Model) -> Res
     };
     // 成功就把上一次的失败原因清掉
     if result.is_ok() {
-        let _ = Service::toSetRemote(state.connection(), model.id.clone(), remote_id_of(model), None)
-            .await;
+        let _ = Service::toSetRemote(
+            state.connection(),
+            model.id.clone(),
+            remote_id_of(model),
+            None,
+        )
+        .await;
     }
     result
 }

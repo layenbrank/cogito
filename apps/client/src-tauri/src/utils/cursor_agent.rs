@@ -177,11 +177,7 @@ fn find_in_dir(dir: &Path, executable: &str) -> Option<PathBuf> {
 }
 
 fn path_sep() -> &'static str {
-    if cfg!(windows) {
-        ";"
-    } else {
-        ":"
-    }
+    if cfg!(windows) { ";" } else { ":" }
 }
 
 /// 把常见 Cursor CLI 安装目录插到 PATH 前面，便于 goose sidecar 找到 `agent`。

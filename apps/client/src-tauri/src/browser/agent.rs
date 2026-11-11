@@ -130,7 +130,9 @@ async fn dispatch_click(
         match touch {
             Ok(()) => return Ok("touch"),
             Err(error) => {
-                log::warn!("browser: 模拟态 touch 派发失败（{label}），改走「关合成 + 鼠标」: {error}");
+                log::warn!(
+                    "browser: 模拟态 touch 派发失败（{label}），改走「关合成 + 鼠标」: {error}"
+                );
                 failures.push(format!("touch: {error}"));
             }
         }
@@ -256,7 +258,13 @@ fn parse_key_combo(raw: &str) -> KeyCombo {
                 } else {
                     ch.to_ascii_lowercase().to_string()
                 };
-                key_combo(key.clone(), format!("Key{upper}"), upper as u32, modifiers, key)
+                key_combo(
+                    key.clone(),
+                    format!("Key{upper}"),
+                    upper as u32,
+                    modifiers,
+                    key,
+                )
             } else if ch.is_ascii_digit() {
                 key_combo(
                     ch.to_string(),
@@ -631,8 +639,7 @@ pub async fn act(
                 .await;
                 match hover {
                     Ok(_) => {
-                        tokio::time::sleep(std::time::Duration::from_millis(CLICK_SETTLE_MS))
-                            .await;
+                        tokio::time::sleep(std::time::Duration::from_millis(CLICK_SETTLE_MS)).await;
                         return page_after(app, label, "pointer").await;
                     }
                     Err(error) => log::warn!(
@@ -642,8 +649,7 @@ pub async fn act(
             } else {
                 match dispatch_click(app, label, x, y, mobile).await {
                     Ok(mode) => {
-                        tokio::time::sleep(std::time::Duration::from_millis(CLICK_SETTLE_MS))
-                            .await;
+                        tokio::time::sleep(std::time::Duration::from_millis(CLICK_SETTLE_MS)).await;
                         return page_after(app, label, mode).await;
                     }
                     Err(error) => log::warn!(
@@ -654,7 +660,6 @@ pub async fn act(
             }
         }
     }
-
 
     // 按键走 CDP 的**真实键盘事件**：页面内合成的 KeyboardEvent 不会触发浏览器默认行为，
     // 于是「Enter 提交表单 / Escape 关弹层 / Tab 换焦点 / 方向键走 combobox」全都点不动。
@@ -694,26 +699,21 @@ pub async fn act(
             "nativeVirtualKeyCode": combo.vk,
             "modifiers": combo.modifiers
         });
-        let delivered = match cdp::call_with_timeout(
-            app,
-            label,
-            "Input.dispatchKeyEvent",
-            down,
-            INPUT_TIMEOUT,
-        )
-        .await
-        {
-            Ok(_) => cdp::call_with_timeout(
-                app,
-                label,
-                "Input.dispatchKeyEvent",
-                key_up,
-                INPUT_TIMEOUT,
-            )
-            .await
-            .map(|_| ()),
-            Err(error) => Err(error),
-        };
+        let delivered =
+            match cdp::call_with_timeout(app, label, "Input.dispatchKeyEvent", down, INPUT_TIMEOUT)
+                .await
+            {
+                Ok(_) => cdp::call_with_timeout(
+                    app,
+                    label,
+                    "Input.dispatchKeyEvent",
+                    key_up,
+                    INPUT_TIMEOUT,
+                )
+                .await
+                .map(|_| ()),
+                Err(error) => Err(error),
+            };
         if let Err(error) = delivered {
             // 键盘派发失败（模拟态偶发）不再直接抛错：落到页面内合成 KeyboardEvent，
             // 至少能触发 React onKeyDown 这类监听（浏览器默认行为拿不到，日志里能看出来）。
@@ -1120,8 +1120,8 @@ async fn os_capture(app: &AppHandle, label: &str, format: &str) -> Result<Value,
         return Err("面板还没布局，无法确定裁切区域".to_string());
     }
     // 主窗口 label 来自 tauri.conf.json（子 webview 的客户区坐标相对它）
-    let window = tauri::Manager::get_webview_window(app, "main")
-        .ok_or_else(|| "没有主窗口".to_string())?;
+    let window =
+        tauri::Manager::get_webview_window(app, "main").ok_or_else(|| "没有主窗口".to_string())?;
     let origin = window
         .inner_position()
         .map_err(|error| format!("读窗口位置失败：{error}"))?;
@@ -1159,11 +1159,14 @@ async fn os_capture(app: &AppHandle, label: &str, format: &str) -> Result<Value,
     );
     log::info!(
         "browser: CDP 截图失败，退到 OS 客户区兜底（{label}，{:.0}x{:.0} @ {:.0},{:.0}）",
-        width, height, left, top
+        width,
+        height,
+        left,
+        top
     );
     let want_jpeg = format == "jpeg";
-    let (bytes, mime_type) = tauri::async_runtime::spawn_blocking(
-        move || -> Result<(Vec<u8>, &'static str), String> {
+    let (bytes, mime_type) =
+        tauri::async_runtime::spawn_blocking(move || -> Result<(Vec<u8>, &'static str), String> {
             let decoded = image::ImageReader::open(&path)
                 .map_err(|error| format!("打开整屏截图失败：{error}"))?
                 .decode()
@@ -1191,10 +1194,9 @@ async fn os_capture(app: &AppHandle, label: &str, format: &str) -> Result<Value,
                 .write_to(&mut buffer, image_format)
                 .map_err(|error| format!("编码裁切结果失败：{error}"))?;
             Ok((buffer.into_inner(), mime))
-        },
-    )
-    .await
-    .map_err(|error| format!("裁切线程异常：{error}"))??;
+        })
+        .await
+        .map_err(|error| format!("裁切线程异常：{error}"))??;
 
     Ok(json!({
         "mimeType": mime_type,

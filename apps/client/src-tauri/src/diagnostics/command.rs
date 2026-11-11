@@ -178,8 +178,7 @@ fn dir_for_kind(kind: &str) -> Result<Option<PathBuf>, String> {
 /// 否则用户点「打开目录」只会看到资源管理器的报错弹窗。
 #[tauri::command(rename = "diagnostics:open-dir")]
 pub fn diagnostics_open_dir(kind: String) -> Result<String, String> {
-    let target = dir_for_kind(&kind)?
-        .ok_or_else(|| "取不到应用数据目录".to_string())?;
+    let target = dir_for_kind(&kind)?.ok_or_else(|| "取不到应用数据目录".to_string())?;
     fs::create_dir_all(&target).map_err(|error| format!("创建目录失败：{error}"))?;
     let path = target.display().to_string();
     tauri_plugin_opener::open_path(path.clone(), None::<String>)

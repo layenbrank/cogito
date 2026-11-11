@@ -17,17 +17,17 @@ use std::time::{Duration, Instant};
 use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 use serde::Serialize;
 
-mod write;
 mod guard;
+mod write;
 
+use tauri::ipc::{Channel, InvokeResponseBody};
+use tauri::{AppHandle, Emitter, Manager, State};
+use uuid::Uuid;
 /// 命令下发统一走 `write::submit_command`（就绪等待 + 单次写入 + 整条重发）。
 ///
 /// 不再有 `echo <nonce>` 就绪哨兵，也**不许**在正文前垫控制字节（0x15 会被 pwsh
 /// 当成命令名的一部分，整条命令变成「not recognized」）；细节见 `write.rs` 头注释。
 use write::submit_command as write_command;
-use tauri::ipc::{Channel, InvokeResponseBody};
-use tauri::{AppHandle, Emitter, Manager, State};
-use uuid::Uuid;
 
 use cogito_command::terminalText::{strip_ansi, tail_chars};
 
@@ -75,14 +75,17 @@ mod input_tests {
 #[cfg(test)]
 mod idle_tests {
     use super::guard::IDLE_TTL;
-    use super::{should_reap, IDLE_CLOSED_TEXT};
+    use super::{IDLE_CLOSED_TEXT, should_reap};
     use std::time::Duration;
 
     /// 四种组合各钉一条：到期空闲才回收，别的都不许动。
     #[test]
     fn reaps_only_idle_agent_sessions() {
         let ttl = IDLE_TTL;
-        assert!(should_reap("agent:D:\\w", ttl, false, ttl), "到期且空闲 → 回收");
+        assert!(
+            should_reap("agent:D:\\w", ttl, false, ttl),
+            "到期且空闲 → 回收"
+        );
         assert!(
             !should_reap("agent:D:\\w", ttl - Duration::from_secs(1), false, ttl),
             "没到期 → 不动"
@@ -345,10 +348,7 @@ pub fn resolve_agent_session_scoped(cwd: &str, scope: Option<&str>) -> Result<St
 
 /// 前端跳转用：把任意 workdir 规范成与 Hub 一致的 `agent:<canonical>` id。
 #[tauri::command(rename = "terminal:resolve_agent_id")]
-pub fn terminal_resolve_agent_id(
-    cwd: String,
-    scope: Option<String>,
-) -> Result<String, String> {
+pub fn terminal_resolve_agent_id(cwd: String, scope: Option<String>) -> Result<String, String> {
     resolve_agent_session_scoped(&cwd, scope.as_deref())
 }
 
@@ -457,7 +457,13 @@ fn ensure_session(
     sessions.insert(id.to_string(), session);
     drop(sessions);
 
-    spawn_reader(hub.sessions.clone(), app.clone(), id.to_string(), shared, reader);
+    spawn_reader(
+        hub.sessions.clone(),
+        app.clone(),
+        id.to_string(),
+        shared,
+        reader,
+    );
     Ok(pid)
 }
 
@@ -838,7 +844,8 @@ pub async fn terminal_run(
     write_command(state.inner(), &session_id, &trimmed).await?;
 
     let quiet = Duration::from_millis(quiet_ms.unwrap_or(DEFAULT_QUIET_MS).clamp(50, 10_000));
-    let timeout = Duration::from_millis(timeout_ms.unwrap_or(DEFAULT_TIMEOUT_MS).clamp(500, 600_000));
+    let timeout =
+        Duration::from_millis(timeout_ms.unwrap_or(DEFAULT_TIMEOUT_MS).clamp(500, 600_000));
     let mut is_running = true;
     loop {
         tokio::time::sleep(Duration::from_millis(POLL_INTERVAL_MS)).await;
@@ -873,7 +880,9 @@ pub fn terminal_read(
     id: String,
     max_chars: Option<usize>,
 ) -> Result<TerminalRead, String> {
-    let limit = max_chars.unwrap_or(RUN_OUTPUT_MAX_CHARS).clamp(200, SCROLLBACK_MAX_BYTES);
+    let limit = max_chars
+        .unwrap_or(RUN_OUTPUT_MAX_CHARS)
+        .clamp(200, SCROLLBACK_MAX_BYTES);
     let shared = find_shared(state.inner(), &id)?;
     let guard = shared
         .lock()
@@ -992,43 +1001,49 @@ pub fn start_idle_reaper(app: AppHandle) {
         let hub = app.state::<TerminalHub>();
         Arc::clone(&hub.sessions)
     };
-    std::thread::spawn(move || loop {
-        std::thread::sleep(REAPER_TICK);
-        if std::env::var("COGITO_TERMINAL_IDLE_CLOSE").as_deref() == Ok("0") {
-            continue;
-        }
-        let mut victims: Vec<(String, String, Arc<Mutex<Scrollback>>)> = Vec::new();
-        if let Ok(sessions) = sessions.lock() {
-            for (id, session) in sessions.iter() {
-                if !id.starts_with(AGENT_ID_PREFIX) {
-                    continue;
-                }
-                let busy = guard::is_busy(id);
-                let idle = session
-                    .shared
-                    .lock()
-                    .map(|shared| shared.last_output.elapsed())
-                    .unwrap_or_default();
-                if should_reap(id, idle, busy, guard::IDLE_TTL) {
-                    victims.push((id.clone(), session.cwd.clone(), Arc::clone(&session.shared)));
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(REAPER_TICK);
+            if std::env::var("COGITO_TERMINAL_IDLE_CLOSE").as_deref() == Ok("0") {
+                continue;
+            }
+            let mut victims: Vec<(String, String, Arc<Mutex<Scrollback>>)> = Vec::new();
+            if let Ok(sessions) = sessions.lock() {
+                for (id, session) in sessions.iter() {
+                    if !id.starts_with(AGENT_ID_PREFIX) {
+                        continue;
+                    }
+                    let busy = guard::is_busy(id);
+                    let idle = session
+                        .shared
+                        .lock()
+                        .map(|shared| shared.last_output.elapsed())
+                        .unwrap_or_default();
+                    if should_reap(id, idle, busy, guard::IDLE_TTL) {
+                        victims.push((
+                            id.clone(),
+                            session.cwd.clone(),
+                            Arc::clone(&session.shared),
+                        ));
+                    }
                 }
             }
-        }
-        for (id, cwd, shared) in victims {
-            // 先往 scrollback 写一行系统提示：仍 attached 的 xterm 会实时收到，
-            // 用户看到的是「会话已结束（闲置）」而不是终端凭空消失。
-            let notice = format!("\r\n\x1b[33m{IDLE_CLOSED_TEXT}\x1b[0m\r\n");
-            push_output(&shared, notice.as_bytes());
-            let _ = app.emit(
-                IDLE_CLOSED_EVENT,
-                TerminalIdleEvent {
-                    id: id.clone(),
-                    cwd,
-                    text: IDLE_CLOSED_TEXT.to_string(),
-                },
-            );
-            kill_session_in(&sessions, &id);
-            tracing::info!(target: "terminal", "闲置回收：{id}");
+            for (id, cwd, shared) in victims {
+                // 先往 scrollback 写一行系统提示：仍 attached 的 xterm 会实时收到，
+                // 用户看到的是「会话已结束（闲置）」而不是终端凭空消失。
+                let notice = format!("\r\n\x1b[33m{IDLE_CLOSED_TEXT}\x1b[0m\r\n");
+                push_output(&shared, notice.as_bytes());
+                let _ = app.emit(
+                    IDLE_CLOSED_EVENT,
+                    TerminalIdleEvent {
+                        id: id.clone(),
+                        cwd,
+                        text: IDLE_CLOSED_TEXT.to_string(),
+                    },
+                );
+                kill_session_in(&sessions, &id);
+                tracing::info!(target: "terminal", "闲置回收：{id}");
+            }
         }
     });
 }

@@ -763,14 +763,8 @@ pub async fn probe(app: &AppHandle, label: &str) -> Value {
     let capability = capability_of(can_emulate, scale_accepted, zoom_ok);
     set_channel(capability.channel);
 
-    let metrics_ok = metrics
-        .get("ok")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    let readback = metrics
-        .get("readback")
-        .cloned()
-        .unwrap_or(Value::Null);
+    let metrics_ok = metrics.get("ok").and_then(Value::as_bool).unwrap_or(false);
+    let readback = metrics.get("readback").cloned().unwrap_or(Value::Null);
 
     report.insert("ok".into(), json!(metrics_ok));
     report.insert("canEmulate".into(), json!(capability.can_emulate));
@@ -812,7 +806,9 @@ async fn run_zoom_roundtrip(
     let scaled = eval_number(app, label, "window.innerWidth").await?;
     let expected = reset / PROBE_ZOOM;
     if (scaled - expected).abs() > ZOOM_TOLERANCE {
-        return Err(format!("缩放没有生效：期望 {expected:.0}，实际 {scaled:.0}"));
+        return Err(format!(
+            "缩放没有生效：期望 {expected:.0}，实际 {scaled:.0}"
+        ));
     }
     Ok(ZoomTest {
         baseline: reset,
@@ -839,13 +835,8 @@ async fn probe_metrics(app: &AppHandle, label: &str) -> Value {
             object.remove("scale");
         }
         scale_accepted = false;
-        if let Err(error) = cdp::call(
-            app,
-            label,
-            "Emulation.setDeviceMetricsOverride",
-            params,
-        )
-        .await
+        if let Err(error) =
+            cdp::call(app, label, "Emulation.setDeviceMetricsOverride", params).await
         {
             return json!({ "ok": false, "error": error, "scaleAccepted": false });
         }
@@ -853,7 +844,10 @@ async fn probe_metrics(app: &AppHandle, label: &str) -> Value {
 
     match readback(app, label).await {
         Ok(value) => {
-            let width = value.get("innerWidth").and_then(Value::as_f64).unwrap_or(0.0);
+            let width = value
+                .get("innerWidth")
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0);
             let dpr = value.get("dpr").and_then(Value::as_f64).unwrap_or(0.0);
             let coarse = value
                 .get("pointerCoarse")
@@ -937,8 +931,14 @@ mod tests {
         let mobile = media_features(&phone());
         let list = mobile.as_array().expect("features 必须是数组");
         assert_eq!(list.len(), 4);
-        assert!(list.iter().any(|item| item["name"] == "pointer" && item["value"] == "coarse"));
-        assert!(list.iter().any(|item| item["name"] == "hover" && item["value"] == "none"));
+        assert!(
+            list.iter()
+                .any(|item| item["name"] == "pointer" && item["value"] == "coarse")
+        );
+        assert!(
+            list.iter()
+                .any(|item| item["name"] == "hover" && item["value"] == "none")
+        );
 
         // 桌面端传空数组 = 清掉上一轮的覆盖
         assert_eq!(media_features(&desktop()), json!([]));
@@ -1059,10 +1059,16 @@ mod tests {
         assert_eq!(channel(), ScaleChannel::Cdp);
         assert_eq!(capability_of(true, true, true).channel, ScaleChannel::Cdp);
         assert_eq!(capability_of(true, false, true).channel, ScaleChannel::Zoom);
-        assert_eq!(capability_of(true, false, false).channel, ScaleChannel::None);
+        assert_eq!(
+            capability_of(true, false, false).channel,
+            ScaleChannel::None
+        );
         // 连 Emulation 域都没有：什么都不覆盖，UI 只能提示
         assert_eq!(capability_of(false, true, true).channel, ScaleChannel::None);
-        assert_eq!(capability_of(false, false, false).channel, ScaleChannel::None);
+        assert_eq!(
+            capability_of(false, false, false).channel,
+            ScaleChannel::None
+        );
 
         let capability = capability_of(true, true, true);
         assert!(capability.can_emulate);

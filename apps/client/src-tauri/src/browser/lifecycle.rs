@@ -6,8 +6,8 @@
 
 use std::collections::HashMap;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::webview::WebviewBuilder;
 use tauri::{
@@ -202,10 +202,12 @@ pub fn open(
 
 fn same_host_port(left: &str, right: &str) -> bool {
     let parse = |value: &str| {
-        value
-            .parse::<tauri::Url>()
-            .ok()
-            .map(|parsed| (parsed.host_str().unwrap_or("").to_string(), parsed.port_or_known_default()))
+        value.parse::<tauri::Url>().ok().map(|parsed| {
+            (
+                parsed.host_str().unwrap_or("").to_string(),
+                parsed.port_or_known_default(),
+            )
+        })
     };
     match (parse(left), parse(right)) {
         (Some(a), Some(b)) => a == b,
@@ -479,10 +481,7 @@ fn spawn_navigation_watchdog(app: &AppHandle, label: &str, generation: u64, targ
         let Some(webview) = handle.get_webview(&label) else {
             return;
         };
-        let current = webview
-            .url()
-            .map(|url| url.to_string())
-            .unwrap_or_default();
+        let current = webview.url().map(|url| url.to_string()).unwrap_or_default();
         if same_page(&current, &target) {
             return;
         }

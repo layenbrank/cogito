@@ -23,9 +23,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
-use arrow_array::{
-    Array, ArrayRef, FixedSizeListArray, Float32Array, RecordBatch, StringArray,
-};
+use arrow_array::{Array, ArrayRef, FixedSizeListArray, Float32Array, RecordBatch, StringArray};
 use arrow_schema::{DataType, Field, Schema};
 use futures::FutureExt;
 use futures_util::TryStreamExt;
@@ -198,7 +196,9 @@ where
                 target: "vectorstore",
                 "{label} 内部 panic 已隔离 {elapsed_ms}ms: {message}"
             );
-            Err(format!("向量库内部 panic（已隔离，应用继续运行）：{message}"))
+            Err(format!(
+                "向量库内部 panic（已隔离，应用继续运行）：{message}"
+            ))
         }
     }
 }
@@ -215,7 +215,11 @@ pub async fn vector_upsert(
     .await
 }
 
-async fn upsert_inner(project_path: String, page_id: String, embedding: Vec<f32>) -> Result<(), String> {
+async fn upsert_inner(
+    project_path: String,
+    page_id: String,
+    embedding: Vec<f32>,
+) -> Result<(), String> {
     validate_page_id(&page_id)?;
     if embedding.is_empty() {
         return Err("empty embedding".to_string());
@@ -245,20 +249,17 @@ async fn upsert_inner(project_path: String, page_id: String, embedding: Vec<f32>
             None => {
                 return Err(
                     "向量表结构异常：vector 列不是 FixedSizeList，请「清空索引」后重建".to_string(),
-                )
+                );
             }
         };
         ensure_dim(dim as usize, embedding.len())?;
 
         let batch = make_batch(make_schema(dim), &page_id, embedding, dim)?;
         // 先删后插（同一 page_id 只留一行）；两步都在写锁内
-        tokio::time::timeout(
-            OP_TIMEOUT,
-            table.delete(&format!("page_id = '{page_id}'")),
-        )
-        .await
-        .map_err(|_| "删除旧向量超时".to_string())?
-        .map_err(|e| format!("Delete error: {e}"))?;
+        tokio::time::timeout(OP_TIMEOUT, table.delete(&format!("page_id = '{page_id}'")))
+            .await
+            .map_err(|_| "删除旧向量超时".to_string())?
+            .map_err(|e| format!("Delete error: {e}"))?;
 
         tokio::time::timeout(OP_TIMEOUT, table.add(vec![batch]).execute())
             .await
@@ -393,13 +394,10 @@ pub async fn vector_delete(project_path: String, page_id: String) -> Result<(), 
             .await
             .map_err(|_| "打开向量表超时".to_string())?
             .map_err(|e| format!("Open table error: {e}"))?;
-        tokio::time::timeout(
-            OP_TIMEOUT,
-            table.delete(&format!("page_id = '{page_id}'")),
-        )
-        .await
-        .map_err(|_| "删除向量超时".to_string())?
-        .map_err(|e| format!("Delete error: {e}"))?;
+        tokio::time::timeout(OP_TIMEOUT, table.delete(&format!("page_id = '{page_id}'")))
+            .await
+            .map_err(|_| "删除向量超时".to_string())?
+            .map_err(|e| format!("Delete error: {e}"))?;
         Ok(())
     })
     .await
@@ -515,10 +513,13 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .expect("系统时间不应早于 1970")
             .as_nanos();
-        let root = std::env::temp_dir().join(format!(
-            "cogito-vectorstore-{}-{stamp}",
-            std::process::id()
-        ));
+        // 不用 `std::env::temp_dir()`：本仓的 `$TMP` 指向 agent 缓存目录，而那是
+        // 应用自己会清理的目录 —— lance 落盘到一半目录被端掉就是 `os error 3`。
+        // 放到 crate 的 `target/test-tmp`（gitignore 内，应用不会清）。
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("test-tmp")
+            .join(format!("vectorstore-{}-{stamp}", std::process::id()));
         let project_path = root.display().to_string();
 
         // lance 不会替我们建父目录（Windows 上缺目录会报 os error 123）
@@ -544,9 +545,13 @@ mod tests {
         );
 
         // 2) 同一 page_id 覆盖写不应该变成两行
-        vector_upsert(project_path.clone(), "page-0.md".to_string(), vec![0.2_f32; 4])
-            .await
-            .expect("覆盖写应该成功");
+        vector_upsert(
+            project_path.clone(),
+            "page-0.md".to_string(),
+            vec![0.2_f32; 4],
+        )
+        .await
+        .expect("覆盖写应该成功");
         assert_eq!(
             count_inner(project_path.clone()).await.expect("统计行数"),
             8,
@@ -557,7 +562,10 @@ mod tests {
         let mismatch = vector_upsert(project_path.clone(), "bad.md".to_string(), vec![0.1_f32; 3])
             .await
             .expect_err("3 维写入必须被拒绝");
-        assert!(mismatch.contains("维度不匹配"), "错误文案要可读: {mismatch}");
+        assert!(
+            mismatch.contains("维度不匹配"),
+            "错误文案要可读: {mismatch}"
+        );
 
         // 4) 检索侧同样先校验维度（不让 arrow panic）
         assert!(

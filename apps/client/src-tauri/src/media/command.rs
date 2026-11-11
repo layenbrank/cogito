@@ -128,7 +128,9 @@ pub fn spawn_dev_tool_probe(app: AppHandle) {
         std::thread::sleep(Duration::from_millis(1_200));
         for tool in ["ffmpeg", "ffprobe", "pandoc"] {
             match find_tool_path(&app, tool) {
-                Ok(path) => tracing::info!(target: "media", "演练：{tool} 可用 → {}", path.display()),
+                Ok(path) => {
+                    tracing::info!(target: "media", "演练：{tool} 可用 → {}", path.display())
+                }
                 Err(error) => {
                     tracing::warn!(target: "media", "演练：{tool} 缺失，用户可见提示 = {error}")
                 }
@@ -232,6 +234,13 @@ pub async fn media_probe(app: AppHandle, path: String) -> Result<ProbeResult, St
 
 #[tauri::command(rename = "media:export")]
 pub async fn media_export(app: AppHandle, args: ExportArgs) -> Result<String, String> {
+    // 写盘目标必须落在授权集（静态根 / 工作区根）内：
+    // 否则 fs:scope 收得再紧，output 仍是前端随便给的一条任意路径写盘后门。
+    let output = crate::security::grants::assert_writable(&app, &args.output).await?;
+    let args = ExportArgs {
+        output: output.to_string_lossy().into_owned(),
+        ..args
+    };
     let ffmpeg = find_tool_path(&app, "ffmpeg")?;
     let app_handle = app.clone();
 

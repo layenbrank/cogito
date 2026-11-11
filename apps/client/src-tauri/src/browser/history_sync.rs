@@ -47,7 +47,8 @@ fn remember_main_frame(label: &str, frame_id: &str) {
         return;
     }
     with_hub(|hub| {
-        hub.main_frames.insert(label.to_string(), frame_id.to_string());
+        hub.main_frames
+            .insert(label.to_string(), frame_id.to_string());
     });
 }
 
@@ -209,7 +210,10 @@ fn parse_main_frame_id(payload: &str) -> Option<String> {
     if frame.get("parentId").and_then(Value::as_str).is_some() {
         return None;
     }
-    frame.get("id").and_then(Value::as_str).map(|id| id.to_string())
+    frame
+        .get("id")
+        .and_then(Value::as_str)
+        .map(|id| id.to_string())
 }
 
 fn parse_frame_tree_main_id(tree: &Value) -> Option<String> {
@@ -262,6 +266,9 @@ mod tests {
                 "childFrames": []
             }
         });
-        assert_eq!(parse_frame_tree_main_id(&tree).as_deref(), Some("root-frame"));
+        assert_eq!(
+            parse_frame_tree_main_id(&tree).as_deref(),
+            Some("root-frame")
+        );
     }
 }

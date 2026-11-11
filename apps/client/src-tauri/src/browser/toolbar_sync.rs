@@ -127,11 +127,7 @@ fn parse_navigation_entries(value: &Value) -> Vec<NavigationEntry> {
             .trim()
             .to_string();
         out.push(NavigationEntry {
-            title: if title.is_empty() {
-                url.clone()
-            } else {
-                title
-            },
+            title: if title.is_empty() { url.clone() } else { title },
             url,
         });
         if out.len() >= 20 {
@@ -231,7 +227,8 @@ fn read_history_state(platform: &tauri::webview::PlatformWebview) -> Result<Hist
     use windows::core::BOOL;
 
     let controller = platform.controller();
-    let core = unsafe { controller.CoreWebView2() }.map_err(|error| format!("读不到 CoreWebView2：{error}"))?;
+    let core = unsafe { controller.CoreWebView2() }
+        .map_err(|error| format!("读不到 CoreWebView2：{error}"))?;
     let mut can_back = BOOL(0);
     let mut can_forward = BOOL(0);
     unsafe { core.CanGoBack(&mut can_back) }.map_err(|error| format!("CanGoBack 失败：{error}"))?;
@@ -253,8 +250,8 @@ fn install_windows(
     use windows::core::{BOOL, PWSTR};
 
     let controller = platform.controller();
-    let core =
-        unsafe { controller.CoreWebView2() }.map_err(|error| format!("读不到 CoreWebView2：{error}"))?;
+    let core = unsafe { controller.CoreWebView2() }
+        .map_err(|error| format!("读不到 CoreWebView2：{error}"))?;
 
     let history_app = app.clone();
     let history_label = label.to_string();

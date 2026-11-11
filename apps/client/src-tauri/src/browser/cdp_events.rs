@@ -27,12 +27,7 @@ const INSTALL_TIMEOUT: Duration = Duration::from_secs(5);
 ///
 /// 前置条件：`Network.*` 要先 `Network.enable`，`Fetch.*` 要先 `Fetch.enable` ——
 /// 但这只决定事件会不会产生，不影响订阅本身的安全性。
-pub fn subscribe(
-    app: &AppHandle,
-    label: &str,
-    event: &str,
-    sink: EventSink,
-) -> Result<(), String> {
+pub fn subscribe(app: &AppHandle, label: &str, event: &str, sink: EventSink) -> Result<(), String> {
     let webview = app
         .get_webview(label)
         .ok_or_else(|| format!("没有这个 tab：{label}"))?;
@@ -84,8 +79,7 @@ fn install(
     };
 
     let handler = DevToolsProtocolEventReceivedEventHandler::create(Box::new(
-        move |_sender,
-              args: Option<ICoreWebView2DevToolsProtocolEventReceivedEventArgs>| {
+        move |_sender, args: Option<ICoreWebView2DevToolsProtocolEventReceivedEventArgs>| {
             let Some(args) = args else {
                 return Ok(());
             };
@@ -104,7 +98,8 @@ fn install(
     ));
 
     let mut token = Default::default();
-    if let Err(error) = unsafe { receiver.add_DevToolsProtocolEventReceived(&handler, &mut token) } {
+    if let Err(error) = unsafe { receiver.add_DevToolsProtocolEventReceived(&handler, &mut token) }
+    {
         return Err(format!("订阅 {event} 失败（{owner}）: {error}"));
     }
     log::info!("browser: 已订阅 {event}（{owner}）");

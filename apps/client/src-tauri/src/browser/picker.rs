@@ -269,10 +269,7 @@ async fn extract_and_emit(
         TEXT_CAP,
     );
     let outer_html = truncate_utf8(
-        data
-            .get("outerHtml")
-            .and_then(Value::as_str)
-            .unwrap_or(""),
+        data.get("outerHtml").and_then(Value::as_str).unwrap_or(""),
         OUTER_HTML_CAP,
     );
     let url = data
@@ -313,11 +310,7 @@ async fn extract_and_emit(
     Ok(())
 }
 
-async fn capture_clip(
-    app: &AppHandle,
-    label: &str,
-    rect: &PickedRect,
-) -> Option<PickedShot> {
+async fn capture_clip(app: &AppHandle, label: &str, rect: &PickedRect) -> Option<PickedShot> {
     if rect.width < 1.0 || rect.height < 1.0 {
         return None;
     }
@@ -394,7 +387,11 @@ pub async fn start(app: &AppHandle, label: &str) -> Result<(), String> {
 
 /// 结束拾取并清高亮
 pub async fn stop(app: &AppHandle, label: &str) -> Result<(), String> {
-    let was_active = with_book(|book| book.active.insert(label.to_string(), false).unwrap_or(false));
+    let was_active = with_book(|book| {
+        book.active
+            .insert(label.to_string(), false)
+            .unwrap_or(false)
+    });
     with_book(|book| {
         book.busy.insert(label.to_string(), false);
     });

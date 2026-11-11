@@ -68,9 +68,9 @@ pub(crate) fn escape_should_bind(mode: OverlayMode) -> bool {
 
 fn bind_escape(app: &AppHandle) {
     let handle = app.clone();
-    let result = app.global_shortcut().on_shortcut(
-        ESC_SHORTCUT,
-        move |_app, _shortcut, _event| {
+    let result = app
+        .global_shortcut()
+        .on_shortcut(ESC_SHORTCUT, move |_app, _shortcut, _event| {
             tracing::info!("overlay: 全局 Esc 触发，收起浮层");
             let handle = handle.clone();
             tauri::async_runtime::spawn(async move {
@@ -78,8 +78,7 @@ fn bind_escape(app: &AppHandle) {
                     tracing::warn!("overlay: 全局 Esc 收起失败: {error}");
                 }
             });
-        },
-    );
+        });
     if let Err(error) = result {
         tracing::warn!("overlay: 注册全局 Esc 失败（{error}）");
     }

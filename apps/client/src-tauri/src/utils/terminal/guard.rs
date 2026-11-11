@@ -62,9 +62,7 @@ impl BusyMark {
         let mut guard = busy_map();
         let map = guard.get_or_insert_with(HashMap::new);
         *map.entry(id.to_string()).or_insert(0) += 1;
-        Self {
-            id: id.to_string(),
-        }
+        Self { id: id.to_string() }
     }
 }
 

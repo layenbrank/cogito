@@ -98,8 +98,7 @@ pub struct Rule {
 
 impl Rule {
     fn is_valid(&self) -> bool {
-        !self.pattern.trim().is_empty()
-            && matches!(self.action.as_str(), "block" | "mock" | "edit")
+        !self.pattern.trim().is_empty() && matches!(self.action.as_str(), "block" | "mock" | "edit")
     }
 }
 
@@ -267,10 +266,7 @@ fn handle_paused(app: &AppHandle, label: &str, payload: &str) {
                     params.insert("headers".into(), json!(headers));
                 }
                 if let Some(body) = rule.post_data {
-                    params.insert(
-                        "postData".into(),
-                        json!(base64_encode(body.as_bytes())),
-                    );
+                    params.insert("postData".into(), json!(base64_encode(body.as_bytes())));
                 }
                 ("Fetch.continueRequest", Value::Object(params))
             }
@@ -288,10 +284,7 @@ fn handle_paused(app: &AppHandle, label: &str, payload: &str) {
                     }),
                 )
             }
-            None => (
-                "Fetch.continueRequest",
-                json!({ "requestId": request_id }),
-            ),
+            None => ("Fetch.continueRequest", json!({ "requestId": request_id })),
         };
 
         if let Err(error) = cdp::call(&handle, &owner, method, params).await {

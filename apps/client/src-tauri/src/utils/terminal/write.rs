@@ -21,8 +21,8 @@
 use std::time::{Duration, Instant};
 
 use super::{
-    echo_confirmed, progress, read_since, wait_until_ready, write_raw, TerminalHub, CANCEL_SETTLE_MS,
-    ECHO_ATTEMPTS, ECHO_MAX_MS, READY_POLL_MS,
+    CANCEL_SETTLE_MS, ECHO_ATTEMPTS, ECHO_MAX_MS, READY_POLL_MS, TerminalHub, echo_confirmed,
+    progress, read_since, wait_until_ready, write_raw,
 };
 
 /// 超过这个长度的命令不做回显核对：回滚窗口会截掉头部，核不准就会白重发一遍。
@@ -120,7 +120,12 @@ mod tests {
     /// 回归守卫：0x15 会让 pwsh 把命令当成未知命令（`\x15echo hi` → not recognized）。
     #[test]
     fn never_prefixes_ctrl_u() {
-        for command in ["echo hi", "$env:PATH", "Test-Path C:\\x", "git status --porcelain=v1"] {
+        for command in [
+            "echo hi",
+            "$env:PATH",
+            "Test-Path C:\\x",
+            "git status --porcelain=v1",
+        ] {
             let payload = compose_submit(command);
             assert!(
                 !payload.contains(&0x15),

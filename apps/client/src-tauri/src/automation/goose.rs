@@ -27,11 +27,8 @@ impl GooseSchedule {
     pub async fn upsert(app: &AppHandle, task: &schema::Model) -> Result<(), String> {
         let recipe = Self::write_recipe(app, task)?;
         // 已存在时 add 会失败，所以先无条件删一次；删不到不算错
-        let _ = goose_serve::run_goose(
-            app,
-            &["schedule", "remove", "--schedule-id", &task.id],
-        )
-        .await;
+        let _ =
+            goose_serve::run_goose(app, &["schedule", "remove", "--schedule-id", &task.id]).await;
         let recipe_text = recipe.to_string_lossy().into_owned();
         goose_serve::run_goose(
             app,

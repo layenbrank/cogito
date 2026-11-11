@@ -245,7 +245,11 @@ mod tests {
         let tab = "unit-test-merge";
         forget(tab);
 
-        record(tab, "Network.requestWillBeSent", &request("r1", "https://a.test/x", 10.0));
+        record(
+            tab,
+            "Network.requestWillBeSent",
+            &request("r1", "https://a.test/x", 10.0),
+        );
         record(
             tab,
             "Network.responseReceived",
@@ -276,8 +280,16 @@ mod tests {
         let tab = "unit-test-order";
         forget(tab);
 
-        record(tab, "Network.requestWillBeSent", &request("a", "https://a.test/one", 1.0));
-        record(tab, "Network.requestWillBeSent", &request("b", "https://b.test/two", 2.0));
+        record(
+            tab,
+            "Network.requestWillBeSent",
+            &request("a", "https://a.test/one", 1.0),
+        );
+        record(
+            tab,
+            "Network.requestWillBeSent",
+            &request("b", "https://b.test/two", 2.0),
+        );
 
         let all = list(tab, None, 10);
         assert_eq!(all.len(), 2);
