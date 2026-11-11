@@ -351,8 +351,15 @@ function dualWriteEvent(turn: BackgroundTurn, event: ChatStreamEvent) {
   })
 }
 
-/**
- * 中止某 thread 正在跑的后台泵，并等到 `status === 'done'`（含 drain）。
+function pushTurnEvent(threadID: string, event: ChatStreamEvent): boolean {
+  const turn = turns.get(threadID.trim())
+  if (!turn || turn.status !== 'running') return false
+  dualWriteEvent(turn, event)
+  notifyTurn(turn, event)
+  return true
+}
+
+/** 中止某 thread 正在跑的后台泵，并等到 `status === 'done'`（含 drain）。
  * 无 running 回合时立即返回。编辑 / 重发 / steer / 目标续跑开新轮前调用。
  */
 async function abortBackgroundTurn(threadID: string): Promise<void> {
@@ -679,6 +686,7 @@ export {
   isTerminalEvent,
   isUserStopAbort,
   onBackgroundTurnFinished,
+  pushTurnEvent,
   readRunningTurns,
   syncRunningTurnsFromRust
 }

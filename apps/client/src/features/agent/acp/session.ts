@@ -46,7 +46,8 @@ import { pickWorkspaceCwd } from '@/features/agent/acp/workspace-cwd'
 import {
   abortAllBackgroundTurns,
   clearPersistedRunning,
-  hasPersistedRunningTurn
+  hasPersistedRunningTurn,
+  pushTurnEvent
 } from '@/features/agent/acp/background-turn'
 import { clearGooseUsage, writeGooseUsage } from '@/features/agent/acp/goose-usage'
 import {
@@ -380,7 +381,7 @@ async function findCorexMcpServers(sessionID: string): Promise<AcpMcpServer[]> {
 /**
  * 本地工具面 `cogito-mcp`：由 goose 按 env 拉起，所有调用再代理回 app 内的 loopback 桥。
  *
- * 桥信息（url/tokenFile/sessionHeader）只在内存里传递：`bridge:info` 每次都取当前进程的值，
+ * 桥信息（url/tokenFile）只在内存里传递：`bridge:info` 每次都取当前进程的值，
  * 令牌本身不经过渲染进程（Rust 写到 `<appLocalData>/bridge/token`，MCP 自己读）。
  * 缺 `mcpPath` 时不注入（未 stage / 平台不支持），而不是注入一个必然失败的命令。
  */
@@ -407,8 +408,7 @@ async function findCogitoMcpServers(sessionID: string): Promise<AcpMcpServer[]> 
         env: [
           { name: 'COGITO_BRIDGE_URL', value: info.url },
           { name: 'COGITO_BRIDGE_TOKEN_FILE', value: info.tokenFile },
-          { name: 'COGITO_SESSION_ID', value: `goose-acp:${sessionID}` },
-          { name: 'COGITO_SESSION_HEADER', value: info.sessionHeader }
+          { name: 'COGITO_SESSION_ID', value: `goose-acp:${sessionID}` }
         ]
       }
     ]
@@ -1400,6 +1400,14 @@ async function requestThreadElicitation(
     return { action: 'cancel' }
   }
 
+  // 目标推进无人值守：追问在这里必须**立刻**取消。
+  // 否则票据会挂到 `TICKET_TIMEOUT_MS`（5 分钟）才超时，而后台目标轮根本没人能
+  // 看到表单 —— 用户看到的就是「目标推进停住了」，实际上在等一个永远不会来的回答。
+  if (readGoalRun(thread.threadID)) {
+    console.warn('[acp/session] 目标模式自动取消追问:', params.mode)
+    return { action: 'cancel' }
+  }
+
   const parsed = parseAcpElicitationRequest(params)
   if (!parsed) {
     // url 模式另有交互（浏览器里填，靠 elicitation/complete 通知收尾），这里不该被问到
@@ -1441,6 +1449,38 @@ function respondToApproval(approval: ChatToolApproval): boolean {
   return false
 }
 
+/**
+ * 已受理的审批回执（`toolCallId → 是否允许`）。
+ *
+ * 事件要经过「泵 → 缓冲 → 适配器」才落到 part 上，中间有几帧；卡片靠这份缓存
+ * 立刻离开待审批态，不会先闪回一下再变。同时它也是「历史旧卡」的判据：
+ * 既没有票据也没有回执 = 那次审批早就结束了，不该再可点。
+ */
+const settledApprovals = new Map<string, boolean>()
+const SETTLED_APPROVALS_CAP = 256
+
+function rememberSettledApproval(toolCallId: string, approved: boolean): void {
+  settledApprovals.set(toolCallId, approved)
+  if (settledApprovals.size <= SETTLED_APPROVALS_CAP) return
+  const oldest = settledApprovals.keys().next().value
+  if (oldest !== undefined) settledApprovals.delete(oldest)
+}
+
+/**
+ * 审批卡要的实时状态：
+ * - `'pending'`：票据还在等待（可以点）；
+ * - `boolean`：已拍板（事件可能还没到，UI 直接按它渲染）；
+ * - `null`：既没票据也没回执 —— 历史重建出来的旧卡，已失效。
+ */
+function findApprovalState(toolCallId: string): 'pending' | boolean | null {
+  const settled = settledApprovals.get(toolCallId)
+  if (settled !== undefined) return settled
+  for (const thread of sessionByThread.values()) {
+    if (thread.run?.approvals.has(toolCallId)) return 'pending'
+  }
+  return null
+}
+
 /** 按线程收敛一次审批（内部）：票据在手上就销号并回执 */
 function settleApproval(threadID: string, approval: ChatToolApproval): boolean {
   const run = sessionByThread.get(threadID)?.run
@@ -1448,6 +1488,15 @@ function settleApproval(threadID: string, approval: ChatToolApproval): boolean {
   if (!run || !ticket) return false
   run.approvals.delete(approval.toolCallId)
   ticket.settle({ outcome: parseAcpPermissionOutcome(approval, ticket.options) })
+  // 先记回执再推事件：UI 下一次渲染就能拿到结论，不必等事件穿过泵
+  rememberSettledApproval(approval.toolCallId, approval.approved)
+  // 立刻把「已拍板」推回事件流：否则消息要一直等到 `tool-result` 才离开
+  // `requires-action`，而工具可能跑几分钟 —— 用户看到的就是「点了审批没反应」。
+  pushTurnEvent(threadID, {
+    kind: 'tool-approval-settled',
+    toolCallId: approval.toolCallId,
+    approved: approval.approved
+  })
   return true
 }
 
@@ -1781,6 +1830,7 @@ export {
   closeThreadSession,
   compactThreadSession,
   ensureThreadSession,
+  findApprovalState,
   findThreadAcpSessionID,
   hasThreadSession,
   humanizeRunError,

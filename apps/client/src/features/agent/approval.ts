@@ -62,74 +62,91 @@ function findApprovalPolicy(value: string) {
 }
 
 function readApprovalMode(): ApprovalMode {
-  const pref = findPref('agent')
   const threadID = readScopeThread()
   // 会话级：有记录用记录；**新会话没有记录就回落到默认值** —— 不沿用上一个会话的选择
-  if (threadID) return pref.approvalByThread[threadID] ?? pref.approvalMode
-  return pref.approvalMode
+  if (!threadID) return pendingDefaultApproval ?? findPref('agent').approvalMode
+  return readApprovalModeFor(threadID)
 }
 
 /**
- * 一次性任务会话（`automation-<runId>`）的审批档只放内存。
+ * 还没有会话时改的「下一个新会话的默认值」。
  *
- * 这些会话没人会在 UI 上切档，却会「开跑写一次 + 跑完清一次」两次落 agent.json
- * （每分钟任务 = 每分钟两次写盘 + 两轮 `notifyScope` 重渲染）。放内存里等价且零成本。
+ * 与下面的 `pendingApproval` 同理：先写内存（UI 立即正确），落盘完成后清掉。
  */
-const transientApproval = new Map<string, ApprovalMode>()
+let pendingDefaultApproval: ApprovalMode | null = null
 
+/**
+ * 最近一次写入的档位：内存里先落地，**UI 与后台续跑都要立刻看到**。
+ *
+ * `patchPref` 第一个 `await` 把 cache 更新推到微任务，而 `notifyScope()` 是同步的
+ * —— 直接 `void patchPref(...)` 再 `notifyScope()` 只会让订阅者读到上一次的值，
+ * 界面就停在旧档（第一次点「自动审批」，开关还显示「询问审批」）。
+ * 所以先写这里、同步通知，落盘异步进行。
+ *
+ * `null` = 明确清除（回落到全局默认），与「没有记录」区分开。
+ * 落盘完成后条目会被删掉（那时 `agent.json` 的 cache 已经一致）。
+ */
+const pendingApproval = new Map<string, ApprovalMode | null>()
+
+/** 一次性任务会话（`automation-<runId>`）的审批档只放内存，不落 `agent.json` */
 function isTransientThread(threadID: string): boolean {
   return threadID.startsWith('automation-')
 }
 
 /** 按指定会话读（目标推进的后台续跑不在当前 UI 线程上下文里） */
 function readApprovalModeFor(threadID: string): ApprovalMode {
-  const transient = transientApproval.get(threadID)
-  if (transient) return transient
+  const pending = pendingApproval.get(threadID)
   const pref = findPref('agent')
+  if (pending !== undefined) return pending ?? pref.approvalMode
   return pref.approvalByThread[threadID] ?? pref.approvalMode
 }
 
 /** 按指定会话写：多会话并发推进时不能互相污染 */
 function writeApprovalModeFor(threadID: string, mode: ApprovalMode) {
+  if (pendingApproval.get(threadID) === mode) return
+  pendingApproval.set(threadID, mode)
+  notifyScope()
   // 一次性任务会话：档位只放内存，别为它写盘
-  if (isTransientThread(threadID)) {
-    transientApproval.set(threadID, mode)
-    return
-  }
+  if (isTransientThread(threadID)) return
   const pref = findPref('agent')
   void patchPref('agent', {
     approvalByThread: { ...pref.approvalByThread, [threadID]: mode }
+  }).then(function () {
+    // 期间又被改成别的档就留着，别把更新的值清掉
+    if (pendingApproval.get(threadID) === mode) pendingApproval.delete(threadID)
   })
-  notifyScope()
 }
 
-/** 一次性任务会话的临时审批档：跑完就从内存里删掉（从来不落盘） */
+/** 清除会话偏好（回落全局默认）；一次性任务会话从来没落过盘 */
 function clearApprovalModeFor(threadID: string) {
-  if (isTransientThread(threadID)) {
-    transientApproval.delete(threadID)
+  if (pendingApproval.get(threadID) === null) return
+  pendingApproval.set(threadID, null)
+  notifyScope()
+  if (isTransientThread(threadID)) return
+  const pref = findPref('agent')
+  if (!(threadID in pref.approvalByThread)) {
+    pendingApproval.delete(threadID)
     return
   }
-  const pref = findPref('agent')
-  if (!(threadID in pref.approvalByThread)) return
   const next = { ...pref.approvalByThread }
   delete next[threadID]
-  void patchPref('agent', { approvalByThread: next })
-  notifyScope()
+  void patchPref('agent', { approvalByThread: next }).then(function () {
+    if (pendingApproval.get(threadID) === null) pendingApproval.delete(threadID)
+  })
 }
 
 function writeApprovalMode(mode: ApprovalMode) {
-  const pref = findPref('agent')
   const threadID = readScopeThread()
   if (!threadID) {
     // 还没有会话（首条消息发出前）：只改「下一个新会话」的默认值
-    void patchPref('agent', { approvalMode: mode })
+    pendingDefaultApproval = mode
+    void patchPref('agent', { approvalMode: mode }).then(function () {
+      if (pendingDefaultApproval === mode) pendingDefaultApproval = null
+    })
     notifyScope()
     return
   }
-  void patchPref('agent', {
-    approvalByThread: { ...pref.approvalByThread, [threadID]: mode }
-  })
-  notifyScope()
+  writeApprovalModeFor(threadID, mode)
 }
 
 /** 供 `useSyncExternalStore` 订阅：切会话 / 改审批档都会触发 */

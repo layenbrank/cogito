@@ -63,7 +63,7 @@ function writeNextGoalBudget(budget: number): void {
   } catch (error) {
     console.warn('[agent/goal] 写轮次预算失败:', error)
   }
-  for (const listener of [...budgetListeners]) listener()
+  for (const listener of Array.from(budgetListeners)) listener()
 }
 
 function subscribeGoalBudget(listener: () => void): () => void {
@@ -394,8 +394,9 @@ function startGoalRun(
 ): boolean {
   const id = threadID.trim()
   const before = ensureGoalApproval(id)
-  // 启动前用户所处的模式：收尾 / 崩溃自愈时据此还原（`approvalBefore` 的姊妹字段）
-  const modeBefore = readAgentMode()
+  // 启动前用户所处的模式：收尾 / 崩溃自愈时据此还原
+  // （还原那边比的是 `readAgentModeFor(threadID)`，这里不能用全局默认值，否则跨线程会还原错）
+  const modeBefore = readAgentModeFor(id)
   const normalized = normalizeObjective(objective)
   saveGoal({
     sessionID: id,
@@ -650,6 +651,9 @@ function buildContinuePrompt(run: GoalRun): string {
     `继续推进目标（第 ${run.used + 1}/${run.budget} 轮）。`,
     `目标：${run.objective}`,
     '先对照验收标准自评当前状态，然后直接补齐未达成项 —— 不要询问用户，能自己决定的就自己定并记账。',
+    // 目标模式无人值守，而 `.env` / 密钥类文件的二次确认必须由人给：
+    // 写不进去时反复重试只会烧预算，所以明确要求「跳过并记账」。
+    '受保护文件（.env / 密钥 / 证书）写不进去时不要反复重试：跳过这一步，在汇报里写明「需要用户确认」并继续其余工作。',
     '本轮结束按约定汇报（本轮做了什么 + 达成 n/m），并单独输出 GOAL_DONE 或 GOAL_CONTINUE。'
   ].join('\n')
 }

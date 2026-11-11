@@ -128,3 +128,21 @@ describe('一次性任务会话的审批档', function () {
     clearApprovalModeFor('automation-run-b')
   })
 })
+
+describe('审批档写入立即生效', function () {
+  it('落盘还在路上，UI 读到的已是新档（不能停在上一档）', function () {
+    const threadID = 'thread-instant'
+    writeApprovalModeFor(threadID, 'auto')
+    expect(readApprovalModeFor(threadID)).toBe('auto')
+    writeApprovalModeFor(threadID, 'readonly')
+    expect(readApprovalModeFor(threadID)).toBe('readonly')
+  })
+
+  it('清除后立即回落到全局默认', function () {
+    const threadID = 'thread-instant-clear'
+    writeApprovalModeFor(threadID, 'auto')
+    expect(readApprovalModeFor(threadID)).toBe('auto')
+    clearApprovalModeFor(threadID)
+    expect(readApprovalModeFor(threadID)).not.toBe('auto')
+  })
+})

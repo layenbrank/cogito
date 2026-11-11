@@ -29,6 +29,7 @@ import {
   runThreadPrompt
 } from '@/features/agent/acp/session'
 import { parseAcpStreamEvent, type AcpStreamContext } from '@/features/agent/acp/stream'
+import { readGoalRun } from '@/features/agent/goal-run'
 import { buildPromptContext } from '@/features/agent/model/prompt-context'
 import { buildSystemPrompt } from '@/features/agent/model/prompt-project'
 import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
@@ -135,6 +136,9 @@ async function runSubagentTurn(input: {
   const workspaceID = parent?.workspaceID ?? store.activeWorkspaceID
   const cwd = job.cwd ?? null
   const providerID = resolveProviderKind(parent?.providerID ?? null)
+  // 父会话在目标模式（无人值守）时，子任务的审批跟着自动放行：
+  // 子任务本来就是父目标的一部分，一律拒绝等于让长任务在子任务里必然缺一块。
+  const isUnattended = job.parentSession ? readGoalRun(job.parentSession) !== null : false
   const systemText = await buildSystemPrompt('general', buildPromptContext(), { cwd })
   const streamContext: AcpStreamContext = {
     blockID: function (messageId, kind) {
@@ -156,10 +160,14 @@ async function runSubagentTurn(input: {
         if (event) yield event
         continue
       }
-      // 子任务没人盯着：审批一律拒绝，追问一律取消 —— 这就是「不提权」的落点
+      // 子任务没人盯着：默认审批一律拒绝、追问一律取消 —— 这就是「不提权」的落点；
+      // 父会话处于目标推进时例外（上面 `isUnattended`）：那时无人值守是用户自己选的前提。
       if (item.kind === 'approval') {
         if (item.event.kind === 'tool-approval-request') {
-          respondToApproval({ toolCallId: item.event.toolCallId, approved: false })
+          respondToApproval({
+            toolCallId: item.event.toolCallId,
+            approved: isUnattended
+          })
         }
         continue
       }

@@ -205,6 +205,18 @@ type ChatStreamEvent =
       /** 给用户看的一句话（回执为什么不算数） */
       message: string
     }
+  | {
+      /**
+       * 用户刚刚拍板了这次审批（宿主在回执被受理后立刻推送）。
+       *
+       * 为什么单开一条事件：`tool-result` 要等工具真正跑完才来，而审批卡在
+       * 「已允许 · 执行中」这段时间里必须离开 `requires-action` —— 否则消息状态仍算
+       * 「等用户」：卡片停在待审批、后续流式内容也不进同一条消息。
+       */
+      kind: 'tool-approval-settled'
+      toolCallId: string
+      approved: boolean
+    }
   | { kind: 'finish'; finishReason: string; usage: ChatUsage }
   /**
    * 取消 / 被新一轮取代。
@@ -235,6 +247,12 @@ interface ChatModelPort {
    * （运行结束 / 工具已跑完），调用方据此如实提示用户，而不是假报成功。
    */
   respondToApproval?(input: ChatToolApproval): boolean
+  /**
+   * 审批卡的实时状态：`'pending'` 等人答复、`boolean` 已拍板、`null` 既无票据也无回执。
+   *
+   * 宿主不提供时，UI 退回「只按消息快照渲染」—— 历史重建出来的旧卡仍会显示成待审批。
+   */
+  findApprovalState?(toolCallId: string): 'pending' | boolean | null
   /**
    * 回答一次结构化追问（事件流里出现过 `elicitation-request`）。
    * 与审批同理：返回 `false` 表示这次追问已经不在等待中，调用方据此如实提示用户。

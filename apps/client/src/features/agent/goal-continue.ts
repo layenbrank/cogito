@@ -21,15 +21,20 @@ import {
   type BackgroundTurn
 } from '@/features/agent/acp/background-turn'
 import { runThreadPrompt } from '@/features/agent/acp/session'
+import {
+  respondToApproval,
+  respondToElicitation
+} from '@/features/agent/acp/session'
 import { parseAcpStreamEvent, type AcpStreamContext } from '@/features/agent/acp/stream'
 import { buildPromptContext } from '@/features/agent/model/prompt-context'
-import { findSystemPrompt } from '@/features/agent/model/prompts'
+import { buildSystemPrompt, findAgentCwd } from '@/features/agent/model/prompt-project'
 import { findAgentMode, readAgentModeThread } from '@/features/agent/mode'
 import type { ScenarioKey } from '@/features/agent/model/scenarios'
 import { notifyTurnDone } from '@/features/agent/notify'
 import {
   advanceGoal,
   beginGoalTurn,
+  finishGoalRun,
   findGoalSignal,
   parseGoalProgress,
   readGoalRun,
@@ -136,7 +141,9 @@ function startGoalTurn(threadID: string, prompt: string, context: GoalTurnContex
       // 后台线程可能不在前台，读到的是别的模式 —— 续跑必须固定用目标模式的约束。
       // 场景同理：用登记下来的那个，不读全局。
       const systemText = [
-        findSystemPrompt(context.scenario, buildPromptContext()),
+        await buildSystemPrompt(context.scenario, buildPromptContext(), {
+          cwd: findAgentCwd(context.workspaceID ?? null)
+        }),
         findAgentMode('goal').guidance
       ]
         .filter(function (part) {
@@ -168,7 +175,28 @@ function startGoalTurn(threadID: string, prompt: string, context: GoalTurnContex
               : { kind: 'finish', finishReason: item.stopReason, usage: {} }
             return
           }
-          // approval / elicitation：后台没人应答，交给票据超时兜底（启动目标推进时已提示审批档）
+          // 后台没人盯：审批主动应答、追问主动取消。
+          // 不答而「交给票据超时」等于每一处都停 5 分钟（`TICKET_TIMEOUT_MS`）——
+          // 用户看到的就是「目标推进莫名卡住」。目标仍是 running 才自动放行，
+          // 已被暂停/中止的目标不再替用户做决定。
+          if (item.kind === 'approval') {
+            if (item.event.kind === 'tool-approval-request') {
+              respondToApproval({
+                toolCallId: item.event.toolCallId,
+                approved: readGoalRun(threadID) !== null
+              })
+            }
+            continue
+          }
+          if (item.kind === 'elicitation') {
+            if (item.event.kind === 'elicitation-request') {
+              respondToElicitation({
+                elicitationId: item.event.elicitationId,
+                action: 'cancel'
+              })
+            }
+            continue
+          }
         }
       } catch (error) {
         console.warn('[agent/goal-continue] 后台轮次异常:', threadID, error)
@@ -180,7 +208,10 @@ function startGoalTurn(threadID: string, prompt: string, context: GoalTurnContex
       }
     })
   })().catch(function (error) {
-    console.warn('[agent/goal-continue] 启动后台轮次失败:', threadID, error)
+    // 开跑失败必须把目标收成 paused：记录停在 running 又没有活租约时，前台不会再有
+    // 回合结束事件可推进，只能等下次启动的崩溃自愈 —— 用户看到的是「推进中」但永远不动。
+    console.warn('[agent/goal-continue] 启动后台轮次失败，目标转为暂停:', threadID, error)
+    finishGoalRun(threadID, 'paused')
   })
 }
 

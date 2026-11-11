@@ -38,7 +38,8 @@ function ApprovalSwitch() {
 
     const acpSessionID = activeSessionID ? findThreadAcpSessionID(activeSessionID) : null
     if (!acpSessionID) {
-      toast.success(`已设为「${findApprovalPolicy(next)?.label ?? next}」（打开会话后生效）`)
+      // 还没有 ACP 会话：档位已生效（界面立刻是对的），推给 goose 要等这轮会话建起来
+      toast.success(`已设为「${findApprovalPolicy(next)?.label ?? next}」（发送消息后生效）`)
       return
     }
 

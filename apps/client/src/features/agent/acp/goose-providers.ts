@@ -18,6 +18,7 @@ const GOOSE_TOOLS_PERMISSIONS_SET = '_goose/unstable/tools/permissions/set'
 
 const CONFIG_AUTO_COMPACT_THRESHOLD = 'GOOSE_AUTO_COMPACT_THRESHOLD'
 const AUTO_COMPACT_THRESHOLD = 0.8
+const CONFIG_TEMPERATURE = 'GOOSE_TEMPERATURE'
 
 const INVENTORY_POLL_MS = 100
 const INVENTORY_TIMEOUT_MS = 30_000
@@ -26,7 +27,8 @@ interface GooseConfigKey {
   name: string
   required: boolean
   secret: boolean
-  default?: string | null
+  /** 预填默认值；没有就是 null（解析后一定存在，省掉调用点的 `?.` 分支） */
+  default: string | null
 }
 
 interface GooseConfigField {
@@ -54,102 +56,105 @@ interface GooseDefaults {
   modelId: string | null
 }
 
-interface RawConfigKey {
-  name?: string
-  required?: boolean
-  secret?: boolean
-  default?: string | null
+/** 线缆值：goose 的响应一律当不可信输入（字段可能缺失、为 null 或给出别的类型） */
+type Wire = Record<string, unknown>
+
+function asWire(value: unknown): Wire {
+  return typeof value === 'object' && value !== null ? (value as Wire) : {}
 }
 
-interface RawModel {
-  id?: string
-  name?: string
+function asText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
 }
 
-interface RawInventoryEntry {
-  providerId?: string
-  providerName?: string
-  description?: string
-  configured?: boolean
-  available?: boolean
-  visibleInSetup?: boolean
-  acp?: boolean
-  refreshing?: boolean
-  defaultModel?: string | null
-  configKeys?: RawConfigKey[]
-  models?: RawModel[]
-  setupSteps?: string[]
+/** 字符串数组：丢掉非字符串与空值 */
+function asTexts(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.map(asText).filter(Boolean)
 }
 
-interface ProviderListResponse {
-  entries?: RawInventoryEntry[]
+function asNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
-interface ConfigReadResponse {
-  fields?: GooseConfigField[]
+function isPresent<T>(value: T | null): value is T {
+  return value !== null
 }
 
-interface ConfigSaveResponse {
-  refresh?: {
-    started?: string[]
-    skipped?: Array<{ providerId?: string; reason?: string }>
+function parseConfigKey(value: unknown): GooseConfigKey | null {
+  const row = asWire(value)
+  const name = asText(row.name)
+  if (!name) return null
+  return {
+    name,
+    required: row.required === true,
+    secret: row.secret === true,
+    default: asText(row.default) || null
   }
 }
 
-interface ReadinessResponse {
-  ready?: boolean
-  error?: string | null
+function parseConfigKeys(value: unknown): GooseConfigKey[] {
+  if (!Array.isArray(value)) return []
+  return value.map(parseConfigKey).filter(isPresent)
 }
 
-interface DefaultsResponse {
-  providerId?: string | null
-  modelId?: string | null
+/** `providers/config/read` 的一行（secret 原样保留，不做 trim） */
+function parseConfigField(value: unknown): GooseConfigField | null {
+  const row = asWire(value)
+  const key = asText(row.key)
+  if (!key) return null
+  return { key, value: typeof row.value === 'string' ? row.value : '' }
 }
 
-interface ConfigValueResponse {
-  value?: unknown
+function parseReadFields(value: unknown): GooseConfigField[] {
+  if (!Array.isArray(value)) return []
+  return value.map(parseConfigField).filter(isPresent)
 }
 
-function parseConfigKeys(raw: RawConfigKey[] | undefined): GooseConfigKey[] {
-  return (raw ?? [])
-    .map(function (item) {
-      const name = item.name?.trim()
-      if (!name) return null
-      return {
-        name,
-        required: item.required === true,
-        secret: item.secret === true,
-        default: item.default ?? null
-      }
-    })
-    .filter(Boolean) as GooseConfigKey[]
+function parseModelID(value: unknown): string {
+  const row = asWire(value)
+  return asText(row.id) || asText(row.name)
 }
 
-function parseModels(raw: RawModel[] | undefined): string[] {
-  return (raw ?? [])
-    .map(function (model) {
-      return model.id || model.name || ''
-    })
-    .filter(Boolean)
+function parseModels(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.map(parseModelID).filter(Boolean)
 }
 
-function parseProviderEntry(raw: RawInventoryEntry): GooseProviderEntry | null {
-  const providerId = raw.providerId?.trim()
+function parseProviderEntry(value: unknown): GooseProviderEntry | null {
+  const row = asWire(value)
+  const providerId = asText(row.providerId)
   if (!providerId) return null
   return {
     providerId,
-    providerName: raw.providerName?.trim() || providerId,
-    description: raw.description?.trim() || '',
-    configured: raw.configured === true,
-    available: raw.available !== false,
-    visibleInSetup: raw.visibleInSetup === true,
-    isAcp: raw.acp === true,
-    isRefreshing: raw.refreshing === true,
-    defaultModel: raw.defaultModel ?? null,
-    configKeys: parseConfigKeys(raw.configKeys),
-    models: parseModels(raw.models),
-    setupSteps: Array.isArray(raw.setupSteps) ? raw.setupSteps.filter(Boolean) : []
+    providerName: asText(row.providerName) || providerId,
+    description: asText(row.description),
+    configured: row.configured === true,
+    available: row.available !== false,
+    visibleInSetup: row.visibleInSetup === true,
+    isAcp: row.acp === true,
+    isRefreshing: row.refreshing === true,
+    defaultModel: asText(row.defaultModel) || null,
+    configKeys: parseConfigKeys(row.configKeys),
+    models: parseModels(row.models),
+    setupSteps: asTexts(row.setupSteps)
   }
+}
+
+function parseEntries(value: unknown): GooseProviderEntry[] {
+  if (!Array.isArray(value)) return []
+  return value.map(parseProviderEntry).filter(isPresent)
+}
+
+/** save 之后这个供应商是否正在（或已在）刷新 inventory：决定要不要轮询等待 */
+function isRefreshPending(value: unknown, providerId: string): boolean {
+  const row = asWire(value)
+  if (asTexts(row.started).includes(providerId)) return true
+  if (!Array.isArray(row.skipped)) return false
+  return row.skipped.some(function (item) {
+    const entry = asWire(item)
+    return asText(entry.providerId) === providerId && asText(entry.reason) === 'already_refreshing'
+  })
 }
 
 /** 按 inventory configKeys 从表单值生成 save fields（跳过空值） */
@@ -190,10 +195,8 @@ async function fetchGooseProviders(
   providerIds?: string[]
 ): Promise<GooseProviderEntry[]> {
   const params = providerIds?.length ? { providerIds } : {}
-  const response = await connection.agent.request<ProviderListResponse>(GOOSE_PROVIDERS_LIST, params)
-  return (response.entries ?? [])
-    .map(parseProviderEntry)
-    .filter(Boolean) as GooseProviderEntry[]
+  const response = asWire(await connection.agent.request<unknown>(GOOSE_PROVIDERS_LIST, params))
+  return parseEntries(response.entries)
 }
 
 async function fetchProviderEntry(
@@ -220,22 +223,20 @@ async function fetchProviderConfig(
   connection: ClientConnection,
   providerId: string
 ): Promise<GooseConfigField[]> {
-  const response = await connection.agent.request<ConfigReadResponse>(GOOSE_PROVIDERS_CONFIG_READ, {
-    providerId
-  })
-  return response.fields ?? []
+  const response = asWire(
+    await connection.agent.request<unknown>(GOOSE_PROVIDERS_CONFIG_READ, { providerId })
+  )
+  return parseReadFields(response.fields)
 }
 
 async function waitInventoryIdle(
   connection: ClientConnection,
   providerId: string,
-  refresh: ConfigSaveResponse['refresh'] | undefined
+  refresh: unknown
 ): Promise<GooseProviderEntry> {
-  const started = refresh?.started?.includes(providerId) === true
-  const alreadyRefreshing = refresh?.skipped?.some(function (item) {
-    return item.providerId === providerId && item.reason === 'already_refreshing'
-  })
-  const attempts = started || alreadyRefreshing ? INVENTORY_TIMEOUT_MS / INVENTORY_POLL_MS : 1
+  const attempts = isRefreshPending(refresh, providerId)
+    ? INVENTORY_TIMEOUT_MS / INVENTORY_POLL_MS
+    : 1
 
   let entry: GooseProviderEntry | null = null
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -268,10 +269,9 @@ async function saveProviderConfig(
   providerId: string,
   fields: GooseConfigField[]
 ): Promise<GooseProviderEntry> {
-  const response = await connection.agent.request<ConfigSaveResponse>(GOOSE_PROVIDERS_CONFIG_SAVE, {
-    providerId,
-    fields
-  })
+  const response = asWire(
+    await connection.agent.request<unknown>(GOOSE_PROVIDERS_CONFIG_SAVE, { providerId, fields })
+  )
   return waitInventoryIdle(connection, providerId, response.refresh)
 }
 
@@ -287,21 +287,20 @@ async function checkAcpReadiness(
   connection: ClientConnection,
   providerId: string
 ): Promise<{ ready: boolean; error: string | null }> {
-  const response = await connection.agent.request<ReadinessResponse>(
-    GOOSE_PROVIDERS_READINESS_CHECK,
-    { providerId }
+  const response = asWire(
+    await connection.agent.request<unknown>(GOOSE_PROVIDERS_READINESS_CHECK, { providerId })
   )
   return {
     ready: response.ready === true,
-    error: response.error ?? null
+    error: asText(response.error) || null
   }
 }
 
 async function fetchDefaults(connection: ClientConnection): Promise<GooseDefaults> {
-  const response = await connection.agent.request<DefaultsResponse>(GOOSE_DEFAULTS_READ, {})
+  const response = asWire(await connection.agent.request<unknown>(GOOSE_DEFAULTS_READ, {}))
   return {
-    providerId: response.providerId ?? null,
-    modelId: response.modelId ?? null
+    providerId: asText(response.providerId) || null,
+    modelId: asText(response.modelId) || null
   }
 }
 
@@ -316,15 +315,14 @@ async function saveDefaults(
   })
 }
 
-async function fetchAutoCompactThreshold(
-  connection: ClientConnection
-): Promise<number | null> {
-  const response = await connection.agent.request<ConfigValueResponse>(GOOSE_CONFIG_READ, {
-    key: CONFIG_AUTO_COMPACT_THRESHOLD,
-    isSecret: false
-  })
-  const value = response.value
-  return typeof value === 'number' && Number.isFinite(value) ? value : null
+async function fetchAutoCompactThreshold(connection: ClientConnection): Promise<number | null> {
+  const response = asWire(
+    await connection.agent.request<unknown>(GOOSE_CONFIG_READ, {
+      key: CONFIG_AUTO_COMPACT_THRESHOLD,
+      isSecret: false
+    })
+  )
+  return asNumber(response.value)
 }
 
 async function saveAutoCompactThreshold(
@@ -350,6 +348,26 @@ async function ensureAutoCompactThreshold(connection: ClientConnection): Promise
   } catch (error) {
     console.warn('[goose-providers] 写入 auto-compact 阈值跳过:', error)
   }
+}
+
+/** 读已配置的生成温度（未配置返回 null，表示走模型默认） */
+async function fetchTemperature(connection: ClientConnection): Promise<number | null> {
+  const response = asWire(
+    await connection.agent.request<unknown>(GOOSE_CONFIG_READ, {
+      key: CONFIG_TEMPERATURE,
+      isSecret: false
+    })
+  )
+  return asNumber(response.value)
+}
+
+/** 写生成温度（goose 全局配置，对新会话生效；调用方负责钳到 0–1） */
+async function saveTemperature(connection: ClientConnection, temperature: number): Promise<void> {
+  await connection.agent.request(GOOSE_CONFIG_UPSERT, {
+    key: CONFIG_TEMPERATURE,
+    value: temperature,
+    isSecret: false
+  })
 }
 
 /** 工具权限档：goose `ToolPermissionLevel`（snake_case wire 值） */
@@ -388,18 +406,11 @@ async function writeToolPermissions(
   await connection.agent.request(GOOSE_TOOLS_PERMISSIONS_SET, { toolPermissions })
 }
 
-export type {
-  GooseConfigField,
-  GooseConfigKey,
-  GooseDefaults,
-  GooseProviderEntry,
-  SessionTool,
-  ToolPermissionLevel
-}
 export {
   AUTO_COMPACT_THRESHOLD,
-  CONFIG_AUTO_COMPACT_THRESHOLD,
   checkAcpReadiness,
+  CONFIG_AUTO_COMPACT_THRESHOLD,
+  CONFIG_TEMPERATURE,
   enableAcpProvider,
   ensureAutoCompactThreshold,
   fetchAutoCompactThreshold,
@@ -408,14 +419,24 @@ export {
   fetchProviderConfig,
   fetchProviderEntry,
   fetchProviderModels,
+  fetchSessionTools,
+  fetchTemperature,
   findConfiguredProviders,
   findSettingsProviders,
   findSetupProviders,
   parseConfigFields,
-  fetchSessionTools,
   refreshProviderInventory,
   saveAutoCompactThreshold,
   saveDefaults,
   saveProviderConfig,
+  saveTemperature,
   writeToolPermissions
+}
+export type {
+  GooseConfigField,
+  GooseConfigKey,
+  GooseDefaults,
+  GooseProviderEntry,
+  SessionTool,
+  ToolPermissionLevel
 }

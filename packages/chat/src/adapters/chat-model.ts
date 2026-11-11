@@ -501,6 +501,20 @@ async function* mapChatStreamToRunResults(
         yield { content: content.parts() }
         break
       }
+      case 'tool-approval-settled': {
+        const soft = flushSoftIfNeeded()
+        if (soft) yield soft
+        content.updateTool(event.toolCallId, function (previous) {
+          if (!previous?.approval) return previous ?? null
+          return {
+            ...previous,
+            // 只改「已拍板」这个事实；结果仍然等 tool-result 回来才落
+            approval: { ...previous.approval, approved: event.approved }
+          }
+        })
+        yield { content: content.parts() }
+        break
+      }
       case 'tool-approval-failed': {
         const soft = flushSoftIfNeeded()
         if (soft) yield soft
@@ -511,7 +525,11 @@ async function* mapChatStreamToRunResults(
             result: event.message,
             isError: true,
             completedAt: Date.now(),
-            approval: undefined
+            // 保留审批信息并标成「未通过」：直接 `undefined` 会让卡片退化成普通工具卡，
+            // 用户翻历史时看不出这里曾经在等他点
+            approval: previous.approval
+              ? { ...previous.approval, approved: false }
+              : undefined
           }
         })
         yield { content: content.parts() }

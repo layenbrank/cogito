@@ -24,7 +24,7 @@ import { reportCaught } from '@/utils/exception-report'
 
 interface GooseServeConnection {
   url: string
-  token: string
+  // 令牌不出进程（S2）：连接信息里只有带 token 的 url，不再单列一份明文
   port: number
   certFingerprint: string
 }

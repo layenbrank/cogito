@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invoke = vi.hoisted(() => vi.fn())
 
@@ -43,17 +43,25 @@ describe('分层路由（S11）', function () {
     expect(isRouteTier(undefined)).toBe(false)
   })
 
-  it('本地档位优先本地 provider，云档位认当前选中', function () {
-    const local = pickProvider({ providers, activeProviderID: 'p-cloud', tier: 'local' })
+  it('显式选中的接入优先，档位不参与', function () {
+    // 选云端就发云端：本机装着 Ollama 也不能把 DeepSeek 换掉
+    const cloudPicked = pickProvider({ providers, activeProviderID: 'p-cloud', tier: 'local' })
+    expect(cloudPicked?.id).toBe('p-cloud')
+    const localPicked = pickProvider({ providers, activeProviderID: 'p-local', tier: 'cloud' })
+    expect(localPicked?.id).toBe('p-local')
+  })
+
+  it('没选过时才按档位挑：本地优先，云档位取第一条启用的', function () {
+    const local = pickProvider({ providers, activeProviderID: null, tier: 'local' })
     expect(local?.id).toBe('p-local')
-    const cloud = pickProvider({ providers, activeProviderID: 'p-cloud', tier: 'cloud' })
+    const cloud = pickProvider({ providers, activeProviderID: null, tier: 'cloud' })
     expect(cloud?.id).toBe('p-cloud')
   })
 
-  it('没有本地 provider 时本地档位回落当前选中；停用的不参与', function () {
+  it('没有本地 provider / 选中项已停用时回落档位默认值', function () {
     const onlyCloud = pickProvider({
       providers: [{ id: 'p-cloud', kind: 'openai', enabled: true }],
-      activeProviderID: 'p-cloud',
+      activeProviderID: null,
       tier: 'local'
     })
     expect(onlyCloud?.id).toBe('p-cloud')

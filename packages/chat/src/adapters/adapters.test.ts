@@ -650,6 +650,35 @@ describe('createChatModelAdapter', function () {
     expect(settled.approval?.options).toHaveLength(2)
   })
 
+  it('审批拍板后立刻离开待审批态，不等工具结果', async function () {
+    const adapter = createChatModelAdapter(
+      buildModelPort([
+        { kind: 'tool-call', toolCallId: 'c1', toolName: 'memory_write', input: { key: 'a' } },
+        {
+          kind: 'tool-approval-request',
+          toolCallId: 'c1',
+          toolName: 'memory_write',
+          input: { key: 'a' },
+          options: [{ id: 'o1', kind: 'allow-once' }]
+        },
+        { kind: 'tool-approval-settled', toolCallId: 'c1', approved: true },
+        { kind: 'finish', finishReason: 'stop' }
+      ])
+    )
+
+    const snapshots = await collectSnapshots(adapter)
+
+    expect((snapshots[1][0] as { status?: unknown }).status).toEqual({
+      type: 'requires-action',
+      reason: 'tool-calls'
+    })
+    // 关键：没有 tool-result 也已经离开 requires-action —— 否则工具跑几分钟，
+    // 卡片一直停在「待审批」，用户看到的就是「点了审批没反应」。
+    const settled = snapshots[2][0] as { status?: unknown; approval?: { approved?: boolean } }
+    expect(settled.status).toEqual({ type: 'running' })
+    expect(settled.approval?.approved).toBe(true)
+  })
+
   it('error 事件抛出可展示错误，aborted 交出终态快照', async function () {
     const failing = createChatModelAdapter(
       buildModelPort([{ kind: 'error', message: '连接被拒绝' }])

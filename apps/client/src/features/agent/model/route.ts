@@ -132,10 +132,9 @@ async function planRoute(tier: RouteTier, model: string | null): Promise<RoutePl
  */
 async function degradeRoute(from: RouteTier, message: string): Promise<RouteTier | null> {
   try {
-    const raw = await invoke<{ next?: unknown; failure?: unknown }>(
-      CHANNELS.AGENT_ROUTE.DEGRADE,
-      { params: { from, message } }
-    )
+    const raw = await invoke<{ next?: unknown; failure?: unknown }>(CHANNELS.AGENT_ROUTE.DEGRADE, {
+      params: { from, message }
+    })
     return isRouteTier(raw?.next) ? raw.next : null
   } catch (error) {
     console.warn('[agent/route] 降级判定失败（按不降级处理）:', error)
@@ -143,7 +142,14 @@ async function degradeRoute(from: RouteTier, message: string): Promise<RouteTier
   }
 }
 
-/** 挑出本轮该用的 provider（纯函数，测试友好） */
+/**
+ * 挑出本轮该用的 provider（纯函数，测试友好）。
+ *
+ * 顺序只有两条，且**显式选择永远第一**：
+ * ① `activeProviderID` 指向一条启用的行时直接用它，档位不参与 —— 否则就会出现
+ *    「选了 DeepSeek、却因为本机装着 Ollama 而被换走」这种静默事故；
+ * ② 没选中时才按档位挑：云 → 第一条启用的；本地 → 第一条本地，没有本地再退回第一条。
+ */
 function pickProvider(input: {
   providers: readonly RouteProvider[]
   activeProviderID: string | null
@@ -155,15 +161,14 @@ function pickProvider(input: {
   const active =
     enabled.find(function (provider) {
       return provider.id === input.activeProviderID
-    }) ??
-    enabled[0] ??
-    null
-  if (input.tier === 'cloud') return active
+    }) ?? null
+  if (active) return active
+  if (input.tier === 'cloud') return enabled[0] ?? null
   return (
     enabled.find(function (provider) {
       return isLocalKind(provider.kind)
     }) ??
-    active ??
+    enabled[0] ??
     null
   )
 }

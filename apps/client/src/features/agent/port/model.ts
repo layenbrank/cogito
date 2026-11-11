@@ -15,26 +15,29 @@ import type {
   ChatToolApproval,
   ChatUsage
 } from '@cogito/chat/ports'
+import { toast } from 'sonner'
 
 import { consumeBackgroundTurn } from '@/features/agent/acp/background-turn'
+import { ensureCogitoProvider, isCogitoSoftFailure } from '@/features/agent/acp/cogito-provider'
 import {
-  ensureCogitoProvider,
-  isCogitoSoftFailure
-} from '@/features/agent/acp/cogito-provider'
-import { runThreadPrompt, respondToApproval, respondToElicitation } from '@/features/agent/acp/session'
+  findApprovalState as findSessionApprovalState,
+  respondToApproval,
+  respondToElicitation,
+  runThreadPrompt
+} from '@/features/agent/acp/session'
 import { parseAcpStreamEvent, type AcpStreamContext } from '@/features/agent/acp/stream'
+import { captureDirectiveDraft } from '@/features/agent/directive-draft'
+import { rememberGoalTurnContext } from '@/features/agent/goal-continue'
+import {
+  beginGoalTurn,
+  readGoalRun,
+  readNextGoalBudget,
+  startGoalRun
+} from '@/features/agent/goal-run'
+import { appendModeGuidance, resolveRunMode } from '@/features/agent/mode'
 import { findActiveScenario } from '@/features/agent/model/active-scenario'
-import type { ScenarioKey } from '@/features/agent/model/scenarios'
 import { buildPromptContext } from '@/features/agent/model/prompt-context'
 import { buildSystemPrompt } from '@/features/agent/model/prompt-project'
-import { beginGoalTurn } from '@/features/agent/goal-run'
-import { appendModeGuidance, resolveRunMode } from '@/features/agent/mode'
-import { rememberGoalTurnContext } from '@/features/agent/goal-continue'
-import { readGoalRun, readNextGoalBudget, startGoalRun } from '@/features/agent/goal-run'
-import { notifyApproval } from '@/features/agent/notify'
-import { captureDirectiveDraft } from '@/features/agent/directive-draft'
-import { parseSchedulePlan } from '@/features/agent/schedule-plan'
-import { useScheduleDraftStore } from '@/stores/schedule-draft'
 import { parseModels } from '@/features/agent/model/providers'
 import {
   isLocalKind,
@@ -43,8 +46,13 @@ import {
   planRoute,
   readRouteTier
 } from '@/features/agent/model/route'
+import type { ScenarioKey } from '@/features/agent/model/scenarios'
+import { notifyApproval } from '@/features/agent/notify'
+import { parseSchedulePlan } from '@/features/agent/schedule-plan'
+import { findProviderSecret } from '@/features/persist'
 import { findSendBlocker, isGatewayTarget } from '@/features/quota/gate'
 import { useProviderStore, type AgentProvider } from '@/stores/provider'
+import { useScheduleDraftStore } from '@/stores/schedule-draft'
 import { reportCaught } from '@/utils/exception-report'
 
 /** 宿主扩展：本轮运行要用哪个会话（thread = 本地会话行） */
@@ -108,13 +116,43 @@ function findActiveModel(provider: AgentProvider): string | null {
 }
 
 /**
- * 分层路由（S11）：按档位挑 provider —— 本地优先，本地确实不可用才退云。
+ * 云兜底候选：启用的、非本地 kind、且真的配了模型 —— 换过去没模型等于白跑一趟。
  *
- * 三处刻意的克制：
- * ① 探测/判定不可用（IPC 挂了、超时）**不降级**：探不出来不等于本地坏了，
- *    悄悄换云等于把这次对话送出本机。
- * ② 降级只在本轮**挑中的是本地 provider**时发生；云 provider 失败没有下一层。
- * ③ 拉不到云 provider 就原地用本地：宁可让用户看到本地报错，也不要静默什么都不发。
+ * 排序只认「真的能用」：先组织模型（登录即用），再存过密钥的接入，最后才按表的顺序取第一个。
+ * 不这么做的话，兜底会掳到一个用户从没配过的 CLI 接入上，报错更加看不懂。
+ */
+async function findCloudFallback(
+  providers: readonly AgentProvider[],
+  excludeID: string
+): Promise<AgentProvider | null> {
+  const candidates = providers.filter(function (provider) {
+    return (
+      provider.enabled &&
+      provider.id !== excludeID &&
+      !isLocalKind(provider.kind) &&
+      Boolean(findActiveModel(provider))
+    )
+  })
+  if (candidates.length === 0) return null
+  const gateway = candidates.find(function (provider) {
+    return isGatewayTarget(provider.kind)
+  })
+  if (gateway) return gateway
+  for (const candidate of candidates) {
+    if (await findProviderSecret(candidate.id)) return candidate
+  }
+  return candidates[0]
+}
+
+/**
+ * 分层路由（S11）：**用户选中的接入优先**，只有「本轮是系统自动挑的本地 provider」才探测兜底。
+ *
+ * 四处刻意的克制：
+ * ① 显式选择**不探测、不替换**：用户点名 DeepSeek，就不能因为本机装了 Ollama 被换走；
+ * ② 探测/判定不可用（IPC 挂了、超时）**不降级**：探不出来不等于本地坏了，
+ *    悄悄换云等于把这次对话送出本机；
+ * ③ 兜底只挑「有模型」的非本地接入（空壳行挑不出模型，选中它连发送都会被挡）；
+ * ④ 拉不到云接入就原地用本地：宁可让用户看到本地报错，也不要静默什么都不发。
  */
 async function findRoutedProvider(): Promise<AgentProvider | null> {
   const state = useProviderStore.getState()
@@ -129,33 +167,28 @@ async function findRoutedProvider(): Promise<AgentProvider | null> {
     state.providers.find(function (item) {
       return item.id === picked.id
     }) ?? null
-  if (!provider || tier !== 'local' || !isLocalKind(provider.kind)) return provider
+  if (!provider) return null
+  // 用户自己点过（持久化的选择）就照办；只有系统给的默认值时，才允许按档位探测、兜底
+  const isAutomatic = !state.activeProviderPicked
+  if (!isAutomatic || tier !== 'local' || !isLocalKind(provider.kind)) return provider
   const reply = await planRoute(tier, findActiveModel(provider))
   if (!reply?.plan.degraded) return provider
-  const fallback = pickProvider({
-    providers: state.providers,
-    activeProviderID: state.activeProviderID,
-    tier: 'cloud'
-  })
-  const cloud =
-    state.providers.find(function (item) {
-      return item.id === fallback?.id && item.id !== provider.id
-    }) ?? null
+  const cloud = await findCloudFallback(state.providers, provider.id)
   if (!cloud) {
     console.warn('[agent/route] 本地不可用且没有可用的云 provider：', reply.plan.reason)
     return provider
   }
+  // 自动换路必须说出来：界面上还选着本地模型，实际却发给了云端，静默切换等于骗用户
   console.info('[agent/route] 本地不可用，本轮走云兜底：', reply.plan.reason)
+  toast.info(`本机模型不可用（${reply.plan.reason || '连接失败'}），本轮改用 ${cloud.name}`)
   return cloud
 }
 
 function findProviderByID(providerID: string): AgentProvider | null {
   return (
-    useProviderStore
-      .getState()
-      .providers.find(function (provider) {
-        return provider.id === providerID
-      }) ?? null
+    useProviderStore.getState().providers.find(function (provider) {
+      return provider.id === providerID
+    }) ?? null
   )
 }
 
@@ -277,16 +310,15 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
       const host = findHost(input)
       const provider = findProviderByID(input.providerID)
       if (!provider) throw new Error('[agent/port] 选中的 provider 已不存在，请在设置里重新选择')
-      if (!provider.enabled) throw new Error('[agent/port] 选中的 provider 已被停用，请在设置里启用')
+      if (!provider.enabled)
+        throw new Error('[agent/port] 选中的 provider 已被停用，请在设置里启用')
 
       const parsed = parseRunMessages(input.messages)
       const visibleText = appendImages(
         appendAttachments(parsed.text, parsed.attachments),
         input.messages.at(-1)?.images
       )
-      const text = overrides.findUserText
-        ? overrides.findUserText(input, visibleText)
-        : visibleText
+      const text = overrides.findUserText ? overrides.findUserText(input, visibleText) : visibleText
       if (!text.trim()) {
         yield { kind: 'finish', finishReason: 'end_turn', usage: RUN_USAGE }
         return
@@ -466,6 +498,14 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
      */
     respondToApproval(input: ChatToolApproval): boolean {
       return respondToApproval(input)
+    },
+
+    /**
+     * 审批卡的实时状态：`'pending'` 等答复、`boolean` 已拍板、`null` 历史旧卡（已失效）。
+     * 卡片靠它决定「还能不能点」，不依赖消息快照里那个可能过期的 `approved`。
+     */
+    findApprovalState(toolCallId: string): 'pending' | boolean | null {
+      return findSessionApprovalState(toolCallId)
     },
 
     respondToElicitation(input: ChatElicitationResponse): boolean {

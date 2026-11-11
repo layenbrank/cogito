@@ -18,6 +18,7 @@ import {
   findGoalSignal,
   findLastAssistant,
   findLastUserText,
+  finishGoalRun,
   isAbortedRun,
   isUserInterjection,
   parseGoalProgress,
@@ -84,9 +85,10 @@ function GoalAutoAdvance() {
         return
       }
       if (!signal && goal.used > 0) {
-        toast.info('目标推进已停：本轮未输出 GOAL_CONTINUE / GOAL_DONE')
-        advanceGoal(threadID, 'no-signal')
-        return
+        // 模型漏写收尾标记是常态（被 markdown 包住、被截断、只写一段总结）。
+        // 直接判停等于让长任务随机夭折，所以按「还需要继续」再跑一轮，由预算兜底：
+        // 预算用尽会走下面的 exhausted 分支并提示用户。
+        toast.info('本轮未输出 GOAL_CONTINUE / GOAL_DONE，按「继续」再跑一轮')
       }
 
       /**
@@ -135,7 +137,13 @@ function GoalAutoAdvance() {
       if (outcome.kind !== 'dispatch') return
       // 续跑 prompt 已由 advanceGoal 记进档案（下一轮据此判断「还是不是目标轮」）
       aui.composer.setText(outcome.prompt)
-      void aui.composer.send()
+      // 发送失败不能只写日志：租约已经消费掉了，记录却停在 running —— 目标会看起来
+      // 「还在推进」但再也没有下一轮。收成 paused，让用户看到真实状态并能手动续跑。
+      void Promise.resolve(aui.composer.send()).catch(function (error: unknown) {
+        console.warn('[agent/goal] 续跑发送失败，目标转为暂停:', error)
+        finishGoalRun(threadID, 'paused')
+        toast.error('目标推进发送失败，已暂停；可点「继续推进」重试')
+      })
     },
     [aui, goal, threadID, tailDigest]
   )
