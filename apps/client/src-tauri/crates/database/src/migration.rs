@@ -1,7 +1,7 @@
 use crate::migrations::{dict_seed, migrations_0001};
 use crate::storage::Connection;
-use sea_orm::{ConnectionTrait, DatabaseBackend, DbErr, Statement};
 use sea_orm::sea_query::IntoIden;
+use sea_orm::{ConnectionTrait, DatabaseBackend, DbErr, Statement};
 use sea_orm_migration::MigratorTrait;
 use tracing::{error, info};
 
@@ -34,6 +34,10 @@ pub async fn run(db: &Connection) -> Result<(), DbErr> {
     // composer 队列同样是 0001 之后追加的独立新表（零 ALTER、不改在用表）：
     // 老库已打过 0001 标记，不加这层兜底就会 `no such table: agent_composer_queue`。
     ensure_composer_queue(db).await?;
+    // 工具审计表（S6）：Agent 每次调本地工具都落一行，老库靠这里补建
+    ensure_tool_audit(db).await?;
+    // 成本账本（S8）：与 `agent_usage` 同一写入路径落账，老库同样靠这里补建
+    ensure_run_cost(db).await?;
     // `automation` 是 0001 基线里的老表：`CREATE TABLE IF NOT EXISTS` 不改既有库结构，
     // 执行配置（工作目录 / 审批档）这两列只能靠启动时 ALTER 补齐。
     ensure_automation(db).await?;
@@ -42,7 +46,6 @@ pub async fn run(db: &Connection) -> Result<(), DbErr> {
     ensure_agent_session(db).await?;
     Ok(())
 }
-
 
 /// 补建计划 / 目标档案表（已存在则跳过；语句全部幂等），并补齐老库缺列。
 async fn ensure_agent_plan(db: &Connection) -> Result<(), DbErr> {
@@ -76,8 +79,11 @@ async fn ensure_agent_plan(db: &Connection) -> Result<(), DbErr> {
                 .and_then(|row| row.try_get::<i64>("", "v").ok())
                 .unwrap_or(0);
             if count == 0 {
-                db.execute(Statement::from_string(DatabaseBackend::Sqlite, alter.to_string()))
-                    .await?;
+                db.execute(Statement::from_string(
+                    DatabaseBackend::Sqlite,
+                    alter.to_string(),
+                ))
+                .await?;
             }
         }
     }
@@ -103,8 +109,11 @@ async fn ensure_automation(db: &Connection) -> Result<(), DbErr> {
             .and_then(|row| row.try_get::<i64>("", "v").ok())
             .unwrap_or(0);
         if count == 0 {
-            db.execute(Statement::from_string(DatabaseBackend::Sqlite, alter.to_string()))
-                .await?;
+            db.execute(Statement::from_string(
+                DatabaseBackend::Sqlite,
+                alter.to_string(),
+            ))
+            .await?;
         }
     }
     Ok(())
@@ -129,8 +138,11 @@ async fn ensure_agent_session(db: &Connection) -> Result<(), DbErr> {
             .and_then(|row| row.try_get::<i64>("", "v").ok())
             .unwrap_or(0);
         if count == 0 {
-            db.execute(Statement::from_string(DatabaseBackend::Sqlite, alter.to_string()))
-                .await?;
+            db.execute(Statement::from_string(
+                DatabaseBackend::Sqlite,
+                alter.to_string(),
+            ))
+            .await?;
         }
     }
     Ok(())
@@ -139,6 +151,24 @@ async fn ensure_agent_session(db: &Connection) -> Result<(), DbErr> {
 /// 补建 composer 队列表（已存在则跳过；语句全部幂等）。
 async fn ensure_composer_queue(db: &Connection) -> Result<(), DbErr> {
     for statement in crate::migrations::composer_queue_schema::statements() {
+        db.execute(Statement::from_string(DatabaseBackend::Sqlite, statement))
+            .await?;
+    }
+    Ok(())
+}
+
+/// 工具审计表（S6）：同样是「0001 之后追加的独立新表」，老库只能靠启动兜底建。
+async fn ensure_tool_audit(db: &Connection) -> Result<(), DbErr> {
+    for statement in crate::migrations::tool_audit_schema::statements() {
+        db.execute(Statement::from_string(DatabaseBackend::Sqlite, statement))
+            .await?;
+    }
+    Ok(())
+}
+
+/// 成本账本表（S8）：0001 之后追加的独立新表；老库已打过 0001 标记，只能靠启动兜底建。
+async fn ensure_run_cost(db: &Connection) -> Result<(), DbErr> {
+    for statement in crate::migrations::run_cost_schema::statements() {
         db.execute(Statement::from_string(DatabaseBackend::Sqlite, statement))
             .await?;
     }
@@ -168,18 +198,15 @@ pub async fn check(db: &Connection) -> Result<(), DbErr> {
 mod tests {
     use super::*;
     use crate::entity::{
-        AgentComposerQueueEntity, AgentMessageEntity, AgentProviderEntity,
-        AgentSessionEntity, AgentUsageEntity,
-        AgentGoalEntity, AgentPlanEntity,
-        AgentWorkspaceEntity, AgentWorkspaceFolderEntity, AlbumEntity, AssetEntity, AutomationEntity,
-        AutomationRunEntity, BookmarkEntity,
-        CalendarEntity, CountdownEntity, DictItemEntity, DictTenantItemEntity, DictTypeEntity,
-        DictTypeItemEntity, DirectiveDraftEntity,
+        AgentComposerQueueEntity, AgentGoalEntity, AgentMessageEntity, AgentPlanEntity,
+        AgentProviderEntity, AgentSessionEntity, AgentUsageEntity, AgentWorkspaceEntity,
+        AgentWorkspaceFolderEntity, AlbumEntity, AssetEntity, AutomationEntity,
+        AutomationRunEntity, BookmarkEntity, CalendarEntity, CountdownEntity, DictItemEntity,
+        DictTenantItemEntity, DictTypeEntity, DictTypeItemEntity, DirectiveDraftEntity,
         KnowledgeBaseEntity, KnowledgeDocEntity, KnowledgeIndexStateEntity, MagneticTileEntity,
-        MirrorEntity,
-        OverlayEntity, ReminderEntity, SignboardAutomationEntity, SignboardCheckEntity,
-        SignboardColumnEntity, SignboardEntity, SignboardEntryAssetEntity, SignboardEntryEntity,
-        SignboardTagEntity, SignboardTaggedEntity,
+        MirrorEntity, OverlayEntity, ReminderEntity, SignboardAutomationEntity,
+        SignboardCheckEntity, SignboardColumnEntity, SignboardEntity, SignboardEntryAssetEntity,
+        SignboardEntryEntity, SignboardTagEntity, SignboardTaggedEntity,
     };
     use sea_orm::{
         ConnectionTrait, Database, DatabaseBackend, EntityTrait, IdenStatic, Iterable, Statement,
@@ -225,18 +252,15 @@ mod tests {
             .expect("migration status should be readable");
     }
 
-        /// 仍是单基线：新增表追加进 0001，并由 `ensure_agent_plan()` 给老库兜底。
-#[tokio::test]
+    /// 仍是单基线：新增表追加进 0001，并由 `ensure_agent_plan()` 给老库兜底。
+    #[tokio::test]
     async fn migrations_include_only_0001() {
         assert_eq!(AppMigrator::migrations().len(), 1);
-        assert_eq!(
-            AppMigrator::migrations()[0].name(),
-            "0001"
-        );
+        assert_eq!(AppMigrator::migrations()[0].name(), "0001");
     }
 
-        /// 计划 / 目标档案表：新库由基线建，老库由 `ensure_agent_plan()` 兜底。
-#[tokio::test]
+    /// 计划 / 目标档案表：新库由基线建，老库由 `ensure_agent_plan()` 兜底。
+    #[tokio::test]
     async fn agent_plan_and_goal_tables_exist() {
         let db = fresh().await;
         for table in ["agent_plan", "agent_goal"] {
@@ -255,6 +279,52 @@ mod tests {
         )
         .await;
         assert_eq!(unique, 2, "一个会话只允许一份计划 / 一个目标");
+    }
+
+    /// 工具审计表（S6）：新库由基线建，老库由 `ensure_tool_audit()` 兜底
+    #[tokio::test]
+    async fn agent_tool_audit_table_exists() {
+        let db = fresh().await;
+        for (kind, name) in [
+            ("table", "agent_tool_audit"),
+            ("index", "idx_agent_tool_audit_createdAt"),
+        ] {
+            let count = scalar_i64(
+                &db,
+                &format!(
+                    "SELECT count(*) AS v FROM sqlite_master WHERE type='{kind}' AND name='{name}'"
+                ),
+            )
+            .await;
+            assert_eq!(count, 1, "{name} 应该存在");
+        }
+    }
+
+    /// 成本账本表（S8）：新库由基线建，老库由 `ensure_run_cost()` 兜底
+    #[tokio::test]
+    async fn agent_run_cost_table_exists() {
+        let db = fresh().await;
+        for (kind, name) in [
+            ("table", "agent_run_cost"),
+            ("index", "idx_agent_run_cost_createdAt"),
+            ("index", "idx_agent_run_cost_dayKey"),
+        ] {
+            let count = scalar_i64(
+                &db,
+                &format!(
+                    "SELECT count(*) AS v FROM sqlite_master WHERE type='{kind}' AND name='{name}'"
+                ),
+            )
+            .await;
+            assert_eq!(count, 1, "{name} 应该存在");
+        }
+        // 未知模型要能落 NULL：priceMicros / currency 不许 NOT NULL
+        let not_null = scalar_i64(
+            &db,
+            "SELECT count(*) AS v FROM pragma_table_info('agent_run_cost') WHERE name IN ('priceMicros','currency') AND \"notnull\" = 1",
+        )
+        .await;
+        assert_eq!(not_null, 0, "priceMicros / currency 必须可空（未计价）");
     }
 
     /// composer 队列：独立新表（零 ALTER），新库由基线建，老库由 `ensure_composer_queue()` 兜底。
@@ -376,10 +446,7 @@ mod tests {
             "SELECT mark AS v FROM magneticTile WHERE id = '24c0121d-bd8a-487c-89c5-361a9b09bf00'",
         )
         .await;
-        assert_eq!(
-            zhihu_mark,
-            "https://cdn.simpleicons.org/zhihu/ffffff"
-        );
+        assert_eq!(zhihu_mark, "https://cdn.simpleicons.org/zhihu/ffffff");
 
         // 淘宝：品牌橙底 + 白矢量标
         let taobao_bg = scalar_string(
@@ -393,10 +460,7 @@ mod tests {
             "SELECT mark AS v FROM magneticTile WHERE id = '17431d5f-1c90-45e5-bf5e-e9ffa4adea1d'",
         )
         .await;
-        assert_eq!(
-            taobao_mark,
-            "https://cdn.simpleicons.org/taobao/ffffff"
-        );
+        assert_eq!(taobao_mark, "https://cdn.simpleicons.org/taobao/ffffff");
 
         // 天猫：白底 + Google s2（Clearbit 已下线），归入购物集合
         let tmall_bg = scalar_string(

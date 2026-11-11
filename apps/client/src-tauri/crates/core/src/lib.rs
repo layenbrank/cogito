@@ -1,8 +1,10 @@
+pub mod agent_route;
 pub mod album;
 pub mod asset;
 pub mod automation;
 pub mod bookmark;
 pub mod calendar;
+pub mod cost;
 pub mod countdown;
 pub mod dict;
 pub mod directive_draft;
@@ -53,7 +55,7 @@ pub mod agent_workspace_folder {
 #[allow(non_snake_case)]
 pub mod agent_session {
     mod service;
-    pub use service::Service;
+    pub use service::{BindP, Binding, BoundSession, DEFAULT_ROUTE_TIER, ReadBindingP, Service};
 }
 
 #[allow(non_snake_case)]
