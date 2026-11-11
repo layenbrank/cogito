@@ -8,10 +8,11 @@ use cogito_core::{CommandResult, Exception};
 use serde::{Deserialize, Serialize};
 
 use crate::git::{
-    self, bump_status, invalidate_status, list_branches, mark_unchanged, open_repo, plan_diff,
-    plan_diff_hunks, probe_repo, read_status, read_upstream, run_git, search_commits, show_commit, status_backend,
-    status_cached, store_status, validate_branch, validate_path, validate_relative_paths,
-    DiffHunksR, DiffMetaR, DiffMode, DiffRevs, DiffScope, SearchField, SearchR, ShowR, StatusLookup, StatusR, UpstreamR,
+    self, DiffHunksR, DiffMetaR, DiffMode, DiffRevs, DiffScope, SearchField, SearchR, ShowR,
+    StatusLookup, StatusR, UpstreamR, bump_status, invalidate_status, list_branches,
+    mark_unchanged, open_repo, plan_diff, plan_diff_hunks, probe_repo, read_status, read_upstream,
+    run_git, search_commits, show_commit, status_backend, status_cached, store_status,
+    validate_branch, validate_path, validate_relative_paths,
 };
 
 // ─── 请求 / 响应（对前端稳定） ───
@@ -169,14 +170,13 @@ pub struct ActionR {
     pub summary: String,
 }
 
-/// 兼容旧前端：并排时带正文；hunks 模式正文为空，走 diffHunks。
+/// 差异结果：并排对比带两侧正文，hunks 模式正文为空、走 diffHunks。
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiffR {
     pub mode: DiffMode,
     pub original: String,
     pub modified: String,
-    pub patch: String,
     pub is_binary: bool,
     pub is_large: bool,
     pub is_identical: bool,
@@ -281,7 +281,6 @@ pub async fn workspaceGitDiff(params: DiffP) -> CommandResult<DiffR> {
         mode: plan.meta.mode,
         original: plan.original,
         modified: plan.modified,
-        patch: String::new(),
         is_binary: plan.meta.is_binary,
         is_large: plan.meta.is_large,
         is_identical: plan.meta.is_identical,
@@ -323,14 +322,7 @@ pub async fn workspaceGitSearch(params: SearchP) -> CommandResult<SearchR> {
     let field = params.field.unwrap_or(SearchField::All);
     let limit = params.limit.unwrap_or(50);
     let cursor = params.cursor.filter(|item| !item.trim().is_empty());
-    search_commits(
-        &cwd,
-        &query,
-        field,
-        limit,
-        cursor.as_deref(),
-    )
-    .await
+    search_commits(&cwd, &query, field, limit, cursor.as_deref()).await
 }
 
 #[tauri::command(rename = "workspaceGit:show")]
@@ -388,7 +380,11 @@ pub async fn workspaceGitCheckout(params: CheckoutP) -> CommandResult<CheckoutR>
         let (tracked_ok, _, tracked_err) =
             run_git(&cwd, &["checkout", "-b", &branch, "--track", &remote_ref]).await?;
         if !tracked_ok {
-            let detail = if tracked_err.is_empty() { err } else { tracked_err };
+            let detail = if tracked_err.is_empty() {
+                err
+            } else {
+                tracked_err
+            };
             return Err(Exception::Internal(if detail.is_empty() {
                 format!("切换到分支 {branch} 失败")
             } else {
@@ -641,16 +637,14 @@ pub struct RebaseP {
 const STASH_FIELD_SEP: char = '\u{1f}';
 
 async fn find_git_dir(cwd: &std::path::Path) -> Option<std::path::PathBuf> {
-    let (ok, out, _) = run_git(cwd, &["rev-parse", "--absolute-git-dir"]).await.ok()?;
+    let (ok, out, _) = run_git(cwd, &["rev-parse", "--absolute-git-dir"])
+        .await
+        .ok()?;
     if !ok {
         return None;
     }
     let dir = std::path::PathBuf::from(out.trim());
-    if dir.is_dir() {
-        Some(dir)
-    } else {
-        None
-    }
+    if dir.is_dir() { Some(dir) } else { None }
 }
 
 /// 多步操作靠 git dir 里的标记文件判定：有标记就说明工作区处在中间态
@@ -873,7 +867,8 @@ pub async fn workspaceGitRebase(params: RebaseP) -> CommandResult<ActionR> {
 #[tauri::command(rename = "workspaceGit:rebaseContinue")]
 pub async fn workspaceGitRebaseContinue(params: PathP) -> CommandResult<ActionR> {
     let cwd = validate_path(&params.path)?;
-    let (ok, stdout, err) = run_git(&cwd, &["-c", "core.editor=true", "rebase", "--continue"]).await?;
+    let (ok, stdout, err) =
+        run_git(&cwd, &["-c", "core.editor=true", "rebase", "--continue"]).await?;
     if !ok {
         let detail = if err.is_empty() { stdout } else { err };
         return Err(Exception::Internal(if detail.is_empty() {

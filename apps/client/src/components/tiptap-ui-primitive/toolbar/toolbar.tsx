@@ -142,7 +142,7 @@ export const ToolbarSeparator = forwardRef<HTMLDivElement, BaseProps>(
       <Separator
         ref={ref}
         orientation="vertical"
-        decorative
+        aria-hidden="true"
         {...props}
       />
     )

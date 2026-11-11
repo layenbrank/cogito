@@ -77,8 +77,6 @@ interface DiffResult {
   mode: DiffMode
   original: string
   modified: string
-  /** @deprecated 整包 unified 已收掉；保留空串兼容旧调用方 */
-  patch: string
   isBinary: boolean
   isLarge: boolean
   isIdentical: boolean

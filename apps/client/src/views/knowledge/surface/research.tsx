@@ -319,7 +319,4 @@ ${hitsBlock}
   )
 }
 
-/** @deprecated 用 ResearchPanel；保留别名避免旧 import 断裂 */
-const ResearchTab = ResearchPanel
-
-export { ResearchPanel, ResearchTab, enqueueResearchTopic }
+export { ResearchPanel, enqueueResearchTopic }

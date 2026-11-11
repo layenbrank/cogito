@@ -1,31 +1,31 @@
 import {
+  BROWSER_VISIT_CAP,
+  CODE_RECENT_PATH_CAP,
+  CODE_ROOT_CAP,
   CODE_TAB_CAP,
   PERSIST_DEFAULTS,
   RECENT_HIT_CAP,
-  BROWSER_VISIT_CAP,
   SESSION_CAP,
-  TIPTAP_COLOR_CAP,
-  CODE_ROOT_CAP,
-  CODE_RECENT_PATH_CAP
+  TIPTAP_COLOR_CAP
 } from '@/features/persist/defaults'
 import type { PersistNamespace } from '@/features/persist/files'
 import type {
   AgentMode,
   AgentPref,
   ApprovalMode,
+  BrowserVisit,
   ClipchampPref,
+  DiagnosticsPref,
   GalleryPref,
+  ModelPref,
   PersistShape,
   PersistValue,
   SettingsPref,
+  SignboardViewMode,
+  TileSessionPref,
   TilesPref,
   VaultPref,
-  DiagnosticsPref,
-  BrowserVisit,
-  WindowPref,
-  TileSessionPref,
-  SignboardViewMode,
-  ModelPref
+  WindowPref
 } from '@/features/persist/types'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -89,9 +89,7 @@ const SIGNBOARD_VIEWS: SignboardViewMode[] = [
 
 function parseSignboardViewMode(raw: unknown): SignboardViewMode | null {
   if (typeof raw !== 'string') return null
-  return SIGNBOARD_VIEWS.includes(raw as SignboardViewMode)
-    ? (raw as SignboardViewMode)
-    : null
+  return SIGNBOARD_VIEWS.includes(raw as SignboardViewMode) ? (raw as SignboardViewMode) : null
 }
 
 function parseTiles(raw: unknown): TilesPref {
@@ -114,9 +112,7 @@ function parseTiles(raw: unknown): TilesPref {
     code.sidebarView === 'search' || code.sidebarView === 'scm' || code.sidebarView === 'explorer'
       ? code.sidebarView
       : base.code.sidebarView
-  // 兼容旧键 panelTab / isPanelOpen（tiles.json 历史字段）；写出时不再保留旧键
-  const legacyPanelTab = code.panelTab
-  const legacyIsPanelOpen = code.isPanelOpen
+  // 落盘只写 surfaceTab / isSurfaceOpen：旧键 panelTab / isPanelOpen 读到时直接丢弃
   const {
     panelTab: _legacyPanelTab,
     isPanelOpen: _legacyIsPanelOpen,
@@ -125,20 +121,18 @@ function parseTiles(raw: unknown): TilesPref {
     panelTab?: unknown
     isPanelOpen?: unknown
   }
-  const rawSurfaceTab = code.surfaceTab ?? legacyPanelTab
+  const rawSurfaceTab = code.surfaceTab
   // 旧版 gitSearch 已迁到编辑器独立标签，落盘底栏只保留 terminal / problems
   const surfaceTab =
     rawSurfaceTab === 'problems' || rawSurfaceTab === 'terminal'
       ? rawSurfaceTab
       : base.code.surfaceTab
   const isSurfaceOpen =
-    typeof code.isSurfaceOpen === 'boolean'
-      ? code.isSurfaceOpen
-      : typeof legacyIsPanelOpen === 'boolean'
-        ? legacyIsPanelOpen
-        : base.code.isSurfaceOpen
+    typeof code.isSurfaceOpen === 'boolean' ? code.isSurfaceOpen : base.code.isSurfaceOpen
   const mdView =
-    knowledge.viewMode === 'source' || knowledge.viewMode === 'split' || knowledge.viewMode === 'live'
+    knowledge.viewMode === 'source' ||
+    knowledge.viewMode === 'split' ||
+    knowledge.viewMode === 'live'
       ? knowledge.viewMode
       : base.knowledge.viewMode
   const bookmarkView =
@@ -169,9 +163,11 @@ function parseTiles(raw: unknown): TilesPref {
       ...knowledge,
       viewMode: mdView,
       recentPaths: Array.isArray(knowledge.recentPaths)
-        ? knowledge.recentPaths.filter(function (item) {
-            return typeof item === 'string'
-          }).slice(0, 20)
+        ? knowledge.recentPaths
+            .filter(function (item) {
+              return typeof item === 'string'
+            })
+            .slice(0, 20)
         : [],
       workspaceRoot:
         typeof knowledge.workspaceRoot === 'string' && knowledge.workspaceRoot.trim()
@@ -244,10 +240,7 @@ function parseTiles(raw: unknown): TilesPref {
         base.code.isEditorSemanticHighlightingEnabled
       ),
       editorTabSize: parseNumber(code.editorTabSize, base.code.editorTabSize, 2, 8),
-      isEditorInsertSpaces: parseBoolean(
-        code.isEditorInsertSpaces,
-        base.code.isEditorInsertSpaces
-      ),
+      isEditorInsertSpaces: parseBoolean(code.isEditorInsertSpaces, base.code.isEditorInsertSpaces),
       isHiddenVisible: parseBoolean(code.isHiddenVisible, base.code.isHiddenVisible)
     },
     signboard: {
@@ -331,7 +324,9 @@ function parseAgent(raw: unknown): AgentPref {
     splitterLayout: layout,
     splitterOpen: {
       isSidebarOpen:
-        typeof open.isSidebarOpen === 'boolean' ? open.isSidebarOpen : base.splitterOpen.isSidebarOpen,
+        typeof open.isSidebarOpen === 'boolean'
+          ? open.isSidebarOpen
+          : base.splitterOpen.isSidebarOpen,
       isAsideOpen:
         typeof open.isAsideOpen === 'boolean' ? open.isAsideOpen : base.splitterOpen.isAsideOpen,
       isAsideMaximized:
@@ -353,8 +348,18 @@ function parseAgent(raw: unknown): AgentPref {
     modeByThread: parseModeByThread(raw.modeByThread),
     approvalByThread: parseApprovalByThread(raw.approvalByThread),
     modelPrefs: parseModelPrefs(raw.modelPrefs),
+    activeProviderID:
+      typeof raw.activeProviderID === 'string' && raw.activeProviderID.trim()
+        ? raw.activeProviderID.trim()
+        : null,
     activeRootByWorkspace: parseActiveRootByWorkspace(raw.activeRootByWorkspace),
-    corexMcpTools: raw.corexMcpTools === '0' || raw.corexMcpTools === '1' ? raw.corexMcpTools : '1'
+    corexMcpTools: raw.corexMcpTools === '0' || raw.corexMcpTools === '1' ? raw.corexMcpTools : '1',
+    temperature:
+      typeof raw.temperature === 'number' && Number.isFinite(raw.temperature)
+        ? raw.temperature
+        : base.temperature,
+    extraSystemPrompt:
+      typeof raw.extraSystemPrompt === 'string' ? raw.extraSystemPrompt : base.extraSystemPrompt
   }
 }
 
@@ -426,8 +431,7 @@ function parseWindow(raw: unknown): WindowPref {
           })
           .slice(0, TIPTAP_COLOR_CAP)
       : [],
-    rememberedUsername:
-      typeof raw.rememberedUsername === 'string' ? raw.rememberedUsername : null
+    rememberedUsername: typeof raw.rememberedUsername === 'string' ? raw.rememberedUsername : null
   }
 }
 
@@ -468,7 +472,8 @@ function parseSettings(raw: unknown): SettingsPref {
   }
   return {
     general: {
-      autostart: typeof general.autostart === 'boolean' ? general.autostart : base.general.autostart,
+      autostart:
+        typeof general.autostart === 'boolean' ? general.autostart : base.general.autostart,
       language: typeof general.language === 'string' ? general.language : base.general.language
     },
     capture: {
@@ -482,18 +487,28 @@ function parseSettings(raw: unknown): SettingsPref {
           : base.capture.isRetentionEnabled,
       retention: {
         screenshot: {
-          days: typeof screenshot.days === 'number' ? screenshot.days : base.capture.retention.screenshot.days,
+          days:
+            typeof screenshot.days === 'number'
+              ? screenshot.days
+              : base.capture.retention.screenshot.days,
           count:
-            typeof screenshot.count === 'number' ? screenshot.count : base.capture.retention.screenshot.count,
+            typeof screenshot.count === 'number'
+              ? screenshot.count
+              : base.capture.retention.screenshot.count,
           maxBytes:
             typeof screenshot.maxBytes === 'number'
               ? screenshot.maxBytes
               : base.capture.retention.screenshot.maxBytes
         },
         recording: {
-          days: typeof recording.days === 'number' ? recording.days : base.capture.retention.recording.days,
+          days:
+            typeof recording.days === 'number'
+              ? recording.days
+              : base.capture.retention.recording.days,
           count:
-            typeof recording.count === 'number' ? recording.count : base.capture.retention.recording.count,
+            typeof recording.count === 'number'
+              ? recording.count
+              : base.capture.retention.recording.count,
           maxBytes:
             typeof recording.maxBytes === 'number'
               ? recording.maxBytes
@@ -555,4 +570,4 @@ function cloneDefaults(): PersistShape {
   return structuredClone(PERSIST_DEFAULTS)
 }
 
-export { PARSE, parseNamespace, cloneDefaults, parseSignboardViewMode }
+export { cloneDefaults, PARSE, parseNamespace, parseSignboardViewMode }

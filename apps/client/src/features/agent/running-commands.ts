@@ -42,10 +42,6 @@ interface SessionCommandState extends SessionCommand {
   elapsedMs: number
 }
 
-/** @deprecated 用 SessionCommandState；保留别名避免旧引用断裂 */
-type RunningCommand = SessionCommand
-type RunningCommandState = SessionCommandState
-
 /**
  * 会话消息里没有 `status`（那是渲染器 props 才有的字段），只能从结果推断：
  * 还没结果、或者结果只是流式中间态，就是「正在跑」。等审批 / 等人工回答不算执行中。
@@ -192,26 +188,11 @@ function useSessionCommands(): SessionCommandState[] {
   })
 }
 
-/** @deprecated 请用 useSessionCommands；仍返回仅 running 子集 */
-function useRunningCommands(): SessionCommandState[] {
-  return useSessionCommands().filter(function (command) {
-    return command.status === 'running'
-  })
-}
-
 export {
   findCommandSource,
   findRunningCommands,
   findSessionCommands,
   isRunningToolPart,
-  useRunningCommands,
   useSessionCommands
 }
-export type {
-  CommandSource,
-  CommandStatus,
-  RunningCommand,
-  RunningCommandState,
-  SessionCommand,
-  SessionCommandState
-}
+export type { CommandSource, CommandStatus, SessionCommand, SessionCommandState }

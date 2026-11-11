@@ -147,8 +147,6 @@ interface CodeState {
   /** 正在从 store 恢复，跳过写回 */
   isHydrating: boolean
 
-  /** @deprecated 请走 `@/views/code/lib/workspace-switch.ts` 的 switchWorkspace（会清理越界标签）；这里只保留单根写法兼容旧调用 */
-  toSetWorkspaceRoot: (root: string) => void
   toSetWorkspaceRoots: (roots: string[], workspaceID?: string | null) => void
   toSetPendingRootsChange: (change: PendingRootsChange | null) => void
   toPushRecentRoot: (root: string) => void
@@ -328,23 +326,6 @@ const useCodeStore = create<CodeState>()(
           tsTypesMode: CODE_DEFAULTS.tsTypesMode,
           isLargeFile: false,
           isHydrating: false,
-
-          toSetWorkspaceRoot(root) {
-            set(
-              function (state) {
-                state.workspaceRoot = root
-                state.roots = [root]
-                const commitsTab = state.tabs.find(function (tab) {
-                  return tab.kind === 'commits'
-                })
-                if (commitsTab) {
-                  commitsTab.title = `提交: ${findFileName(root)}`
-                }
-              },
-              false,
-              'toSetWorkspaceRoot'
-            )
-          },
 
           toSetWorkspaceRoots(roots, workspaceID = null) {
             set(
