@@ -20,6 +20,8 @@ import { cn } from 'cn'
 interface EffortLevel {
   key: string
   label: string
+  /** 一句话说清这一档的取舍，给标题下方那行小字（可选） */
+  hint?: string
   /** 该档的 token 预算；没有精确预算时给个相对量级即可 */
   budget: number
 }
@@ -60,7 +62,12 @@ function ReasoningEffort(props: ReasoningEffortProps) {
       className={cn('flex w-full flex-col gap-2', className)}
       {...rest}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-sm font-medium">{label}</span>
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-sm font-medium">{label}</span>
+          {selected?.hint ? (
+            <span className="text-muted-foreground text-xs leading-snug">{selected.hint}</span>
+          ) : null}
+        </span>
         <span className="text-muted-foreground font-mono text-xs tabular-nums">
           {formatCount(spent)} / {formatCount(budget)}
         </span>
@@ -80,6 +87,7 @@ function ReasoningEffort(props: ReasoningEffortProps) {
               <span
                 key={level.key}
                 aria-current={active ? 'true' : undefined}
+                title={level.hint}
                 className={pill}>
                 {level.label}
               </span>
@@ -90,6 +98,7 @@ function ReasoningEffort(props: ReasoningEffortProps) {
               key={level.key}
               type="button"
               aria-pressed={active}
+              title={level.hint}
               onClick={function () {
                 onSelect(level.key)
               }}

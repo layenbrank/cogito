@@ -5,12 +5,16 @@
 import { findPref, patchPref } from '@/features/persist'
 import type { ModelPref, ThinkingLevel } from '@/features/persist'
 
-const THINKING_OPTIONS: { value: ThinkingLevel; label: string }[] = [
-  { value: 'off', label: '关闭思考' },
-  { value: 'low', label: '低' },
-  { value: 'medium', label: '中' },
-  { value: 'high', label: '高' },
-  { value: 'max', label: '极高' }
+/**
+ * 档位文案的唯一来源：`label` 给胶囊（两个字塞得进五等分），`hint` 给下面那行小字，
+ * 说清「多花这点思考换到什么」。选择器 / 右栏仪表 / 设置里的下拉都读这一份。
+ */
+const THINKING_OPTIONS: { value: ThinkingLevel; label: string; hint: string }[] = [
+  { value: 'off', label: '关闭', hint: '直接回答，不额外思考' },
+  { value: 'low', label: '快速', hint: '短思考，优先出结果' },
+  { value: 'medium', label: '标准', hint: '日常默认，速度与质量兼顾' },
+  { value: 'high', label: '深入', hint: '多步推演，难题更稳' },
+  { value: 'max', label: '极致', hint: '尽量想透，最慢也最费 token' }
 ]
 
 /** 滑块等距刻度（视觉均分，非按 token 线性） */
@@ -39,6 +43,16 @@ function readModelPrefs(): Record<string, ModelPref> {
 
 function writeModelPrefs(prefs: Record<string, ModelPref>) {
   void patchPref('agent', { modelPrefs: prefs })
+}
+
+/**
+ * 改单个模型的思考档位并落盘（整表写回，其他模型的项原样带回去）。
+ * 模型选择器与右栏仪表共用这一处，避免两边各写一遍「展开-改-合并」。
+ */
+function writeModelThinking(providerID: string, model: string, thinking: ThinkingLevel) {
+  const prefs = readModelPrefs()
+  const key = findModelKey(providerID, model)
+  writeModelPrefs({ ...prefs, [key]: { ...(prefs[key] ?? { ...MODEL_PREF }), thinking } })
 }
 
 function findModelPref(providerID: string, model: string, prefs?: Record<string, ModelPref>) {
@@ -116,6 +130,7 @@ export {
   MODEL_PREF,
   readModelPrefs,
   THINKING_OPTIONS,
-  writeModelPrefs
+  writeModelPrefs,
+  writeModelThinking
 }
 export type { ModelPref, ThinkingLevel }

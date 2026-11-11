@@ -119,6 +119,23 @@ function previewOf(message: CostMessage): string {
  * 与 `estimateContextBreakdown` 同一套口径（4 字符 ≈ 1 token），所以 Top N 的合计
  * 不会超过分段色条里 history + tool + attachment 的总量。
  */
+/**
+ * 当前线程里「思考」占了多少估算 token。
+ *
+ * 仪表（`thinking-effort`）需要的是**思考本身**的量，不是上下文总量：
+ * 所以只数 reasoning part，并且和 `estimateContextBreakdown` 用同一套字符启发式
+ * （4 字符 ≈ 1 token），两个数字不会互相打脸。
+ */
+function countReasoningTokens(messages: readonly CostMessage[]): number {
+  let chars = 0
+  for (const message of messages) {
+    for (const part of message.content) {
+      if (part.type === 'reasoning') chars += textLength(part.text)
+    }
+  }
+  return Math.ceil(chars / 4)
+}
+
 function rankMessagesByTokens(
   messages: readonly CostMessage[],
   limit = 5
@@ -144,5 +161,5 @@ function rankMessagesByTokens(
   return costs.slice(0, Math.max(0, limit))
 }
 
-export { estimateContextBreakdown, estimateTokens, rankMessagesByTokens }
+export { countReasoningTokens, estimateContextBreakdown, estimateTokens, rankMessagesByTokens }
 export type { ContextMessageCost }

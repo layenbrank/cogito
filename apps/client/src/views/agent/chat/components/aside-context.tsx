@@ -20,6 +20,7 @@ import {
 } from '@/features/agent/context-breakdown'
 
 import { AsideSection } from './aside-section'
+import { ThinkingEffort } from './thinking-effort'
 import { subscribeAsideContext } from './open-aside-context'
 import { useContextUsageSnapshot } from './use-context-usage.ts'
 
@@ -116,6 +117,9 @@ function AsideContextSection() {
             </span>
           )}
         </div>
+
+        {/* 思考强度：档位直接写回 modelPrefs，仪表读本轮 reasoning part 的估算量 */}
+        <ThinkingEffort />
 
         {isOpen ? (
           used > 0 ? (

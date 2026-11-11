@@ -1,7 +1,11 @@
 import type { ThreadMessage } from '@assistant-ui/react'
 import { describe, expect, it } from 'vitest'
 
-import { estimateContextBreakdown, rankMessagesByTokens } from './context-estimate'
+import {
+  countReasoningTokens,
+  estimateContextBreakdown,
+  rankMessagesByTokens
+} from './context-estimate'
 
 const textPart = function (text: string) {
   return { type: 'text' as const, text }
@@ -107,5 +111,29 @@ describe('rankMessagesByTokens', function () {
     const labels = new Map(ranked.map((item) => [item.id, item.label]))
     expect(labels.get('u')).toBe('今天天气 怎么样')
     expect(labels.get('t')).toBe('read_file')
+  })
+})
+
+describe('countReasoningTokens', function () {
+  it('只数 reasoning part：正文与工具结果不算思考', function () {
+    const messages = [
+      message([
+        { type: 'reasoning', text: 'x'.repeat(400) },
+        textPart('x'.repeat(4_000)),
+        toolPart({ calls: 0 })
+      ])
+    ]
+    // 400 / 4 = 100，正文与工具那一大坨不计入
+    expect(countReasoningTokens(messages)).toBe(100)
+  })
+
+  it('跨消息累加，不足一个 token 也向上取整', function () {
+    const messages = [message([{ type: 'reasoning', text: 'abc' }]), message([{ type: 'reasoning', text: 'abc' }])]
+    expect(countReasoningTokens(messages)).toBe(2)
+  })
+
+  it('没有思考时是 0', function () {
+    expect(countReasoningTokens([])).toBe(0)
+    expect(countReasoningTokens([message([textPart('hi')])])).toBe(0)
   })
 })
