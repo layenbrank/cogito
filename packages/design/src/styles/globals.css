@@ -300,6 +300,16 @@
   }
 
   /*
+   * WebView2 / Edge 给 <input type="password"> 自带一个「显示密码」按钮。
+   * 业务侧都有自绘的 eye 开关（`features/signin/field.tsx`），不关掉这个原生按钮
+   * 就会出现双图标，且它只在悬停 / 聚焦时出现，看着像「有概率重复」。
+   */
+  input[type='password']::-ms-reveal,
+  input[type='password']::-ms-clear {
+    display: none;
+  }
+
+  /*
    * 可点击控件统一手型光标（企业级默认）。
    * 禁用态由各组件 `disabled:` / `data-disabled:` 覆盖为 not-allowed 或 pointer-events-none。
    */

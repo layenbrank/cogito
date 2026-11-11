@@ -15,6 +15,8 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "noEmit": true,
+    // tsc --build 即使 noEmit 也会落一份 .tsbuildinfo：放进 node_modules，别让它出现在包根目录
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.tsbuildinfo",
 
     "noUnusedLocals": false,
     "noUnusedParameters": false,

@@ -1,10 +1,8 @@
 import { useAuiState } from '@assistant-ui/react'
-import { cn } from 'cn'
 import { useReducedMotion } from 'motion/react'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FC } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FC } from 'react'
 
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/tooltip'
-import { OVERLAY_ELEVATION } from '../lib/surface'
+import { ConversationMap, type ConversationMapTurn } from './conversation-map'
 import { findScrollableAncestor } from './collapse-scroll-pin'
 import { useAssistantLabels } from './labels'
 import {
@@ -14,11 +12,15 @@ import {
 } from './thread-user-ruler-marks'
 
 const VIEWPORT_ANCHOR_RATIO = 0.22
-const GUTTER_WIDTH_PX = 32
-/** 刻度间距：紧凑簇，勿按会话全高均分铺开 */
-const MARK_GAP_PX = 10
 const VIEWPORT_SHELL_SLOT = '[data-slot="aui_thread-viewport-shell"]'
 const VIEWPORT_SLOT = '[data-slot="aui_thread-viewport"]'
+
+interface RulerProbe {
+  /** 正在读的那一根的下标（没算出来就一直是 0） */
+  index: number
+  /** 落在视口里的那些 id（顺序即消息顺序） */
+  visible: string[]
+}
 
 function isNewChatView(s: {
   thread: { messages: readonly unknown[]; isLoading: boolean }
@@ -39,25 +41,31 @@ function isHistoryLoadingView(s: {
   )
 }
 
-function findActiveMarkIndex(viewport: HTMLElement, markIds: readonly string[]): number {
-  if (markIds.length === 0) return -1
+function findMarkElement(viewport: HTMLElement, id: string) {
+  return viewport.querySelector<HTMLElement>(`[data-user-message-id="${CSS.escape(id)}"]`)
+}
 
+/**
+ * 一次扫描同时算两件事：
+ * - `visible`：整条消息落在这个视口里的那些（元素把它们画深一档）；
+ * - `index`：离「阅读锚」（视口顶下 22%）最近的那一根 —— 都没有在视口里时，
+ *   退化成「最后一根已经滚过锚点之上的」，再退化成第一条。
+ */
+function scanMarks(viewport: HTMLElement, markIds: readonly string[]): RulerProbe {
   const viewportRect = viewport.getBoundingClientRect()
   const anchorY = viewportRect.top + viewportRect.height * VIEWPORT_ANCHOR_RATIO
-
+  const visible: string[] = []
   let activeIndex = -1
   let bestDistance = Infinity
 
   for (let index = 0; index < markIds.length; index += 1) {
     const id = markIds[index]
-    const element = viewport.querySelector<HTMLElement>(
-      `[data-user-message-id="${CSS.escape(id)}"]`
-    )
+    const element = findMarkElement(viewport, id)
     if (!element) continue
 
     const rect = element.getBoundingClientRect()
-    const inView = rect.bottom > viewportRect.top && rect.top < viewportRect.bottom
-    if (!inView) continue
+    if (rect.bottom <= viewportRect.top || rect.top >= viewportRect.bottom) continue
+    visible.push(id)
 
     const centerY = rect.top + rect.height / 2
     const distance = Math.abs(centerY - anchorY)
@@ -67,28 +75,40 @@ function findActiveMarkIndex(viewport: HTMLElement, markIds: readonly string[]):
     }
   }
 
-  if (activeIndex >= 0) return activeIndex
+  if (activeIndex >= 0) return { index: activeIndex, visible }
 
   for (let index = markIds.length - 1; index >= 0; index -= 1) {
-    const id = markIds[index]
-    const element = viewport.querySelector<HTMLElement>(
-      `[data-user-message-id="${CSS.escape(id)}"]`
-    )
+    const element = findMarkElement(viewport, markIds[index])
     if (!element) continue
-    if (element.getBoundingClientRect().top <= anchorY) return index
+    if (element.getBoundingClientRect().top <= anchorY) return { index, visible }
   }
 
-  return 0
+  return { index: 0, visible }
 }
 
+function isSameProbe(a: RulerProbe, b: RulerProbe) {
+  if (a.index !== b.index) return false
+  if (a.visible.length !== b.visible.length) return false
+  for (let index = 0; index < a.visible.length; index += 1) {
+    if (a.visible[index] !== b.visible[index]) return false
+  }
+  return true
+}
+
+/**
+ * 会话左侧的回合刻度尺（assistant-ui `elements/conversation-map`）。
+ *
+ * 这个文件只管「算」：哪些刻度在视口里、正在读哪一根、点了跳哪儿；
+ * 长什么样全部交给 `conversation-map` 元素，样式与状态口径都写在那儿。
+ */
 const ThreadUserMessageRuler: FC = () => {
   const labels = useAssistantLabels()
   const prefersReducedMotion = useReducedMotion()
-  const trackRef = useRef<HTMLDivElement>(null)
+  const hostRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLElement | null>(null)
   const markIdsRef = useRef<readonly string[]>([])
   const rafRef = useRef(0)
-  const [activeIndex, setActiveIndex] = useState(0)
+  const [probe, setProbe] = useState<RulerProbe>({ index: 0, visible: [] })
 
   const visible = useAuiState(function (state) {
     if (isNewChatView(state)) return false
@@ -127,28 +147,27 @@ const ThreadUserMessageRuler: FC = () => {
 
   markIdsRef.current = markIds
 
-  function syncActiveMark() {
+  const syncProbe = useCallback(function () {
     const viewport = viewportRef.current
     const ids = markIdsRef.current
     if (!viewport || ids.length === 0) return
 
-    const next = findActiveMarkIndex(viewport, ids)
-    if (next < 0) return
-    setActiveIndex(function (prev) {
-      return prev === next ? prev : next
+    const next = scanMarks(viewport, ids)
+    setProbe(function (prev) {
+      return isSameProbe(prev, next) ? prev : next
     })
-  }
+  }, [])
 
-  const syncActiveMarkRef = useRef(syncActiveMark)
-  syncActiveMarkRef.current = syncActiveMark
+  const syncProbeRef = useRef(syncProbe)
+  syncProbeRef.current = syncProbe
 
   useLayoutEffect(
     function bindViewport() {
-      const track = trackRef.current
-      if (!track) return
-      const shell = track.closest<HTMLElement>(VIEWPORT_SHELL_SLOT)
+      const host = hostRef.current
+      if (!host) return
+      const shell = host.closest<HTMLElement>(VIEWPORT_SHELL_SLOT)
       const fromShell = shell?.querySelector<HTMLElement>(VIEWPORT_SLOT)
-      viewportRef.current = fromShell ?? findScrollableAncestor(track)
+      viewportRef.current = fromShell ?? findScrollableAncestor(host)
     },
     [visible, markIdsKey]
   )
@@ -162,7 +181,7 @@ const ThreadUserMessageRuler: FC = () => {
       function onScrollOrResize() {
         cancelAnimationFrame(rafRef.current)
         rafRef.current = requestAnimationFrame(function () {
-          syncActiveMarkRef.current()
+          syncProbeRef.current()
         })
       }
 
@@ -181,12 +200,12 @@ const ThreadUserMessageRuler: FC = () => {
   )
 
   useEffect(
-    function syncActiveAfterMessagesPaint() {
+    function syncAfterMessagesPaint() {
       if (!visible) return
       let innerFrame = 0
       const outerFrame = requestAnimationFrame(function () {
         innerFrame = requestAnimationFrame(function () {
-          syncActiveMarkRef.current()
+          syncProbeRef.current()
         })
       })
       return function () {
@@ -200,103 +219,35 @@ const ThreadUserMessageRuler: FC = () => {
   if (!visible || marks.length === 0) return null
 
   const total = marks.length
-  // 消息条数变少时旧下标会越界：比较处收敛即可，不必用 effect 再 setState 追一遍
-  const activeMarkIndex = Math.min(activeIndex, total - 1)
+  // 消息变少时旧下标会越界：比较处收敛即可，不必用 effect 再追一遍
+  const activeIndex = Math.min(probe.index, total - 1)
+  const turns: ConversationMapTurn[] = marks.map(function (mark) {
+    return {
+      id: mark.id,
+      label: labels.userMessageLocatorItem(mark.ordinal, total),
+      preview: mark.preview
+    }
+  })
 
-  function onMarkClick(messageId: string) {
+  function onSelect(messageId: string) {
     const viewport = viewportRef.current
     if (!viewport) return
     scrollToUserMessage(viewport, messageId, prefersReducedMotion)
   }
 
   return (
-    <TooltipProvider delay={200}>
-      <nav
-        ref={trackRef}
-        data-slot="aui_thread-user-ruler"
-        aria-label={labels.userMessageLocator}
-        style={{ width: GUTTER_WIDTH_PX }}
-        className="pointer-events-none absolute inset-y-0 start-0 z-30 flex items-center justify-center overflow-visible">
-        {/* 刻度簇垂直居中、固定间距，避免按全高均分显得过散；过多时簇内滚动 */}
-        <div
-          className="relative flex max-h-[min(70vh,22rem)] w-full flex-col items-stretch overflow-y-auto overscroll-y-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          style={{ gap: MARK_GAP_PX }}>
-          <div
-            aria-hidden
-            className="bg-border/50 absolute inset-y-1 start-[11px] w-px"
-          />
-          {marks.map(function (mark, index) {
-            const isActive = index === activeMarkIndex
-
-            return (
-              <Tooltip key={mark.id}>
-                <TooltipTrigger
-                  render={
-                    <button
-                      type="button"
-                      data-slot="aui_thread-user-ruler-mark"
-                      data-active={isActive || undefined}
-                      aria-current={isActive ? 'true' : undefined}
-                      aria-label={labels.userMessageLocatorItem(mark.ordinal, total)}
-                      className={cn(
-                        'group pointer-events-auto relative flex h-3.5 w-full shrink-0 items-center justify-start',
-                        'rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
-                      )}
-                      onClick={function () {
-                        onMarkClick(mark.id)
-                      }}>
-                      <span
-                        aria-hidden
-                        className="relative flex h-full w-full items-center">
-                        <span
-                          className={cn(
-                            'absolute start-[9px] size-[5px] rotate-45 rounded-[1px]',
-                            'transition-[background-color,box-shadow,transform] duration-150 ease-out',
-                            'motion-reduce:transition-none',
-                            isActive
-                              ? 'bg-foreground/75 scale-100'
-                              : 'bg-foreground/25 scale-[0.85] group-hover:bg-foreground/45 group-hover:scale-100'
-                          )}
-                        />
-                        <span
-                          className={cn(
-                            'absolute start-[15px] h-px rounded-full',
-                            'transition-[width,opacity,background-color] duration-150 ease-out',
-                            'motion-reduce:transition-none',
-                            isActive
-                              ? 'bg-foreground/55 w-3 opacity-100'
-                              : 'bg-foreground/30 w-2 opacity-0 group-hover:opacity-70'
-                          )}
-                        />
-                      </span>
-                    </button>
-                  }
-                />
-                <TooltipContent
-                  side="right"
-                  align="center"
-                  sideOffset={8}
-                  showArrow={false}
-                  className={cn(
-                    // 短预览时 rounded-2xl 会显胶囊；用中等圆角 + 最小宽度更利落
-                    'bg-popover text-popover-foreground',
-                    'flex min-w-[11rem] max-w-[16rem] flex-col items-start gap-1 rounded-md px-3 py-2',
-                    'text-left',
-                    OVERLAY_ELEVATION
-                  )}>
-                  <span className="text-muted-foreground text-xs leading-none font-medium tracking-wide tabular-nums">
-                    {labels.userMessageLocatorItem(mark.ordinal, total)}
-                  </span>
-                  <span className="text-foreground/90 line-clamp-3 text-xs leading-snug tracking-tight">
-                    {mark.preview}
-                  </span>
-                </TooltipContent>
-              </Tooltip>
-            )
-          })}
-        </div>
-      </nav>
-    </TooltipProvider>
+    <div
+      ref={hostRef}
+      data-slot="aui_thread-user-ruler"
+      // 尺子只占左侧那条窄沟：不参与布局、不挡正文点击（刻度自己是 pointer-events-auto）
+      className="pointer-events-none absolute inset-y-0 start-0 z-30 flex items-center max-sm:hidden">
+      <ConversationMap
+        turns={turns}
+        activeId={marks[activeIndex]?.id ?? null}
+        visibleIds={probe.visible}
+        onSelect={onSelect}
+      />
+    </div>
   )
 }
 

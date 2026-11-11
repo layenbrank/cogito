@@ -223,9 +223,13 @@ describe('AsideTasks', function () {
     mock.automation.items = [makeTask({})]
     render(<AsideTasks />)
 
-    const card = screen.getByRole('button', { name: /每日整理/ })
-    expect(card).toHaveTextContent('每天 09:00')
-    expect(card).toHaveTextContent('未排期')
+    const card = screen.getByRole('button', { name: /打开任务 每日整理/ })
+    // 卡面是 schedule-card 元素：点击层垫在它下面，开关在卡面右上
+    const surface = card.parentElement as HTMLElement
+    expect(surface).toHaveTextContent('每天 09:00')
+    expect(surface).toHaveTextContent('未排期')
+    expect(surface.querySelector('[data-slot="schedule-card"]')).not.toBeNull()
+    expect(screen.getByRole('switch', { name: /每日整理/ })).toHaveAttribute('aria-checked', 'true')
 
     fireEvent.click(card)
     // 进详情顺带拉这条任务的执行记录

@@ -14,16 +14,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@cogito/design/components/dropdown-menu'
-import {
-  Context,
-  ContextBreakdownBar,
-  ContextContent,
-  ContextContentBody,
-  ContextContentHeader,
-  ContextTrigger
-} from '@cogito/design/assistant/context'
+import { ComposerContext } from '@cogito/design/assistant/composer-context'
 import { cn } from 'cn'
-import { useState, useSyncExternalStore } from 'react'
+import { useSyncExternalStore } from 'react'
 
 import { readAgentMode, subscribeAgentMode } from '@/features/agent/mode'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
@@ -36,7 +29,6 @@ import {
   findBaseName,
   findFolderLabel
 } from '@/views/agent/chat/components/workspace-relative-path.ts'
-import { openAsideContext } from '@/views/agent/chat/components/open-aside-context'
 import { useContextUsageSnapshot } from '@/views/agent/chat/components/use-context-usage.ts'
 import {
   buildContinuePrompt,
@@ -51,69 +43,35 @@ import {
 } from '@/features/agent/goal-run'
 
 /**
- * footer 右侧用量：无 ACP 数据时仍显示入口（以下为估算）。
+ * footer 右侧用量：一个环。
  *
- * 气泡只给概览（总量 + 四行来源 + 查看详情），明细在右栏「上下文」面板 ——
- * 以前把 Top N、输入/输出/推理/缓存全铺进气泡，一展开就盖住半个对话。
+ * 环是元素本体（`assistant/composer-context`）：外圈轨道 + 前景弧，弧长是
+ * `(system + tools + messages) / total`；悬停或键盘聚焦时上方弹出三段明细，过 85% 转红。
+ * 更细的分段与「最占上下文」仍在右栏「详情 → 上下文」里 —— 以前气泡自己铺一张面板，
+ * 一展开就盖住半个对话，环只回答「还剩多少」。
+ *
+ * 数字按千传（元素口径）：`system: 12` 是 12k，不是 12 个 token。
+ * 系统 / 工具是请求前估算，`messages` 取 `used - system - tools`，
+ * 这样三段之和正好等于会话统计给出的真实占用，环上的比例不会和环里的数字打架。
  */
 function UsageDisplay() {
-  const { usage, used, max, label, breakdown, segments, level } = useContextUsageSnapshot()
-  const [isOpen, updateOpen] = useState(false)
+  const { used, max, breakdown } = useContextUsageSnapshot()
+  const system = breakdown.systemTokens ?? 0
+  const tools = breakdown.toolTokens ?? 0
+  const estimatedMessages = (breakdown.historyTokens ?? 0) + (breakdown.attachmentTokens ?? 0)
+  const messages = used > 0 ? Math.max(0, used - system - tools) : estimatedMessages
 
   return (
-    <Context
-      usedTokens={used}
-      maxTokens={max}
-      open={isOpen}
-      onOpenChange={updateOpen}
+    <ComposerContext
+      // footer 里其余控件都是 h-7：环收一档，整条栏不因它长高 4px
+      className="[&>button]:size-7"
       usage={{
-        ...breakdown,
-        inputTokens: used > 0 ? used : undefined
-      }}>
-      <ContextTrigger>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={cn(
-            'h-7 shrink-0 gap-1 rounded-md px-2.5 text-xs',
-            level === 'danger' && 'text-destructive hover:text-destructive',
-            level === 'warn' && 'text-amber-600 hover:text-amber-600 dark:text-amber-400',
-            level === 'ok' && 'text-muted-foreground hover:text-foreground'
-          )}
-          title={
-            usage && usage.size > 0
-              ? `上下文窗口 ${label}`
-              : '上下文用量（尚未收到会话统计，以下为估算）'
-          }>
-          <Icon
-            icon="lucide:database"
-            className="size-3 shrink-0"
-          />
-          {/* 显式写出「上下文」：只放一个数据库图标 + 数字，用户认不出这是什么 */}
-          <span className="whitespace-nowrap">上下文</span>
-          <span className="font-mono tabular-nums">{label || '—'}</span>
-        </Button>
-      </ContextTrigger>
-      <ContextContent
-        align="end"
-        side="top"
-        sideOffset={8}
-        className="w-64">
-        <ContextContentHeader />
-        <ContextContentBody className="space-y-2">
-          <ContextBreakdownBar
-            segments={segments}
-            level={level}
-            onOpenDetails={function () {
-              // 先收气泡再开右栏：否则面板弹出来时气泡还浮在上面
-              updateOpen(false)
-              openAsideContext()
-            }}
-          />
-        </ContextContentBody>
-      </ContextContent>
-    </Context>
+        system: system / 1000,
+        tools: tools / 1000,
+        messages: messages / 1000,
+        total: max / 1000
+      }}
+    />
   )
 }
 

@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cogito/design/components/dialog'
-import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
+import { open as dialogOpen } from '@/shared/ipc/dialog'
 import { useEffect, useMemo, useState } from 'react'
 import { v4 as UUIDV4 } from 'uuid'
 

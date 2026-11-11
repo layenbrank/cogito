@@ -19,6 +19,7 @@ import {
 import { toast } from 'sonner'
 
 import { subscribeAsideBrowser } from '@/views/agent/chat/components/open-aside-browser'
+import { subscribeAsideTerminal } from '@/views/agent/chat/components/open-aside-terminal'
 import { subscribeAsideTasks } from '@/views/agent/chat/components/open-aside-tasks'
 import { subscribeAsideReview } from '@/views/agent/chat/components/open-aside-review'
 import { useBrowserStore } from '@/features/browser/store'
@@ -437,6 +438,19 @@ function AgentAside(props: AsideProps) {
         updateMode('browser')
       })
     },
+    []
+  )
+
+  useEffect(
+    function () {
+      // 对话流里的命令卡：跳过来看**同一条命令**的输出（能命中就切到那个 agent 会话）
+      return subscribeAsideTerminal(function (detail) {
+        void openTerminal(detail.command ?? '', detail.workdir ?? null)
+      })
+    },
+    // `openTerminal` 每次渲染都是新函数，按命令/目录订阅会反复解绑；它内部只读 store，
+    // 用首次引用即可（与 `subscribeAsideBrowser` 同一处理）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   )
 

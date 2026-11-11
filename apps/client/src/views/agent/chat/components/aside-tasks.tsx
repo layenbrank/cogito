@@ -2,13 +2,13 @@
  * 右栏「任务」面板：卡片式管理 + 创建，不再跳独立页面。
  *
  * 三视图共用一块面板（列表 / 详情 / 表单），返回不离开当前会话：
- * - 列表：按执行方分组的**网格卡片**（名称 / 状态 / 排期 / 下次触发 / 上次执行），
- *   卡底一行是启停 + 立即执行 + 更多；窄栏一列、右栏拉宽自动 2–4 列；
+ * - 列表：按执行方分组的**网格卡片**（`schedule-card` 元素：名称 / 周期 / 启停 / 下次触发 / 最近执行），
+ *   卡底一行是立即执行 + 更多；窄栏一列、右栏拉宽自动 2–4 列；
  * - 详情：点卡片进入，定义卡片 + 执行记录（`TaskRuns`），可编辑 / 删除；
  * - 表单：新建与编辑（`TaskForm`，单列窄栏布局）。
  *
  * 版式跟「详情」页签（`aside-busy` + `aside-section`）共用同一套语言：
- * 抬头 14px、正文 13px、元信息 12px，卡片 `rounded-xl border border-border/60 bg-card`，
+ * 抬头 14px、正文 13px、元信息 12px，卡片用 `schedule-card` 元素的纸面，
  * 分区用 `AsideSection`（图标 + 标题 + 右侧动作）。此前这里是 11px 一套自写 scss，
  * 切页签像换了个人做的。
  *
@@ -16,6 +16,7 @@
  * `views/agent/tasks/model.ts`；这里只做组合与呈现。
  */
 import { Icon } from '@iconify/react/offline'
+import { ScheduleCard } from '@cogito/design/assistant/schedule-card'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,6 +61,7 @@ import {
   createDraft,
   findOwnerHint,
   findPhaseLabel,
+  findRecentRuns,
   findSessionModeLabel,
   findTaskBadge,
   findTaskModeLabel,
@@ -88,14 +90,20 @@ function findOwnerIcon(owner: string): { icon: string; tone: string } {
   return OWNER_ICON[owner] ?? { icon: 'lucide:circle-dot', tone: 'text-muted-foreground' }
 }
 
-/** 下次触发：没有 nextRunAt 时按 owner 说明「谁在排期」，不编一个假时间 */
-function findNextLabel(item: Automation): string {
-  if (!item.enabled) return '已停用'
+/** 下次触发那一格的值：只说时间（`next` 的标签卡上已经有了） */
+function findNextRunValue(item: Automation): string {
   if (!item.nextRunAt) {
     if (item.owner === OWNER.CLOUD) return '排期在服务端'
     if (item.owner === OWNER.GOOSE) return '排期在 goose'
     return '未排期'
   }
+  return formatTime(item.nextRunAt)
+}
+
+/** 详情里的「下次触发」：停用态不编假时间，直接说「已停用」 */
+function findNextLabel(item: Automation): string {
+  if (!item.enabled) return '已停用'
+  if (!item.nextRunAt) return findNextRunValue(item)
   return `下次 ${formatTime(item.nextRunAt)}`
 }
 
@@ -325,101 +333,60 @@ function AsideTasks() {
     const isActive = view.kind === 'detail' && view.id === item.id
     const modeTag = findTaskModeTag(item)
     const runLabel = isRunning ? (phaseLabel ?? '执行中') : '立即执行'
-    const nextLabel = item.enabled ? findNextLabel(item) : '启用后恢复排期'
-    const lastLabel = item.lastRunAt ? `上次 ${formatTime(item.lastRunAt)}` : '还没有执行过'
+    // 最近执行：列表没有跨任务的记录缓存时退回「上一次执行」，不为三行字再发一轮请求
+    const history = findRecentRuns(item, allRuns.length > 0 ? allRuns : runs).map(function (run) {
+      return { id: run.id, at: formatTime(run.atMs), ok: run.ok }
+    })
     return (
       <article
         key={item.id}
-        className={clsx(
-          'border-border/60 bg-card flex min-w-0 flex-col rounded-xl border transition-colors',
-          isActive ? 'border-primary/40 bg-primary/5' : 'hover:border-primary/25 hover:bg-muted/30',
-          isRunning && 'border-primary/40'
-        )}>
-        {/* 卡面主体：整块可点进详情（名称 / 状态 / 排期 / 下次 / 上次），动作条另起一行 */}
+        className="group relative flex min-w-0 flex-col">
+        {/* 整张卡可点：撑满的透明按钮垫在下面，开关单独抬起来（卡面本身不接指针） */}
         <button
           type="button"
-          className="focus-visible:ring-ring/40 flex min-w-0 flex-1 flex-col gap-1.5 rounded-t-xl px-2.5 pt-2 pb-1.5 text-start outline-none focus-visible:ring-2"
+          aria-label={`打开任务 ${item.name}`}
           aria-current={isActive ? 'true' : undefined}
+          className="focus-visible:ring-ring/40 absolute inset-0 z-0 rounded-2xl outline-none focus-visible:ring-2"
           onClick={function () {
             openTask(item.id)
-          }}>
-          <span className="flex min-w-0 items-start gap-1.5">
-            <span className="text-foreground line-clamp-2 min-w-0 flex-1 text-sm leading-snug font-medium">
-              {item.name}
-            </span>
-            <TaskStatusPill
-              tone={badge.tone}
-              label={phaseLabel ?? badge.label}
-              className="mt-0.5"
-            />
-          </span>
-
-          <span className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
+          }}
+        />
+        <ScheduleCard
+          className={clsx(
+            'pointer-events-none relative z-10 transition-colors group-hover:border-primary/25 [&_[data-slot=schedule-card-switch]]:pointer-events-auto',
+            isActive && 'border-primary/40'
+          )}
+          name={item.name}
+          cadence={describeSchedule(item.schedule)}
+          nextRun={findNextRunValue(item)}
+          enabled={item.enabled}
+          history={history}
+          onToggle={function () {
+            void toggle(item.id, !item.enabled)
+          }}
+        />
+        {item.lastError ? (
+          <span
+            className="text-destructive relative z-10 mt-1 flex min-w-0 items-center gap-1 text-xs leading-snug"
+            title={item.lastError}>
             <Icon
-              icon="lucide:calendar-clock"
+              icon="lucide:circle-alert"
               className="size-3 shrink-0"
             />
-            {/* 截断时靠 title 兜底：卡片窄下来也不至于把排期读成半句 */}
-            <span
-              className="truncate"
-              title={describeSchedule(item.schedule)}>
-              {describeSchedule(item.schedule)}
-            </span>
-            {modeTag ? (
-              <span className="border-border/70 shrink-0 rounded-full border px-1 py-px text-[10px] leading-none">
-                {modeTag}
-              </span>
-            ) : null}
+            {/* 只占一行：错误长短不一致会把整行卡片撑高（详情里有完整信息） */}
+            <span className="truncate">{item.lastError}</span>
           </span>
-
-          <span className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs tabular-nums">
-            <Icon
-              icon="lucide:timer"
-              className="size-3 shrink-0"
-            />
-            {/* 停用态徽标已经写了「已停用」，这里说清恢复后会怎样 */}
-            <span
-              className="truncate"
-              title={nextLabel}>
-              {nextLabel}
-            </span>
-          </span>
-
-          <span className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs tabular-nums">
-            <Icon
-              icon="lucide:history"
-              className="size-3 shrink-0"
-            />
-            <span
-              className="truncate"
-              title={lastLabel}>
-              {lastLabel}
-            </span>
-          </span>
-
-          {item.lastError ? (
-            <span
-              className="text-destructive flex min-w-0 items-center gap-1 text-xs leading-snug"
-              title={item.lastError}>
-              <Icon
-                icon="lucide:circle-alert"
-                className="size-3 shrink-0"
-              />
-              {/* 只占一行：错误长短不一致会把整行卡片撑高（详情里有完整信息） */}
-              <span className="truncate">{item.lastError}</span>
+        ) : null}
+        <div className="relative z-10 mt-1 flex items-center gap-1 px-0.5">
+          <TaskStatusPill
+            tone={badge.tone}
+            label={phaseLabel ?? badge.label}
+          />
+          {modeTag ? (
+            <span className="border-border/70 text-muted-foreground shrink-0 rounded-full border px-1 py-px text-[10px] leading-none">
+              {modeTag}
             </span>
           ) : null}
-        </button>
-
-        <div className="border-border/50 mt-auto flex items-center gap-1 border-t px-1.5 py-1">
-          <Switch
-            checked={item.enabled}
-            size="sm"
-            aria-label={`${item.enabled ? '停用' : '启用'}任务 ${item.name}`}
-            onCheckedChange={function (checked) {
-              void toggle(item.id, checked)
-            }}
-          />
           <Button
             type="button"
             variant="ghost"
