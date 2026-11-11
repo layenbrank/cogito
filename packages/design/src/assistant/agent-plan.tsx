@@ -34,7 +34,7 @@ import { ghostButton, mono } from './elements/surfaces'
 import { useAssistantLabels } from './labels'
 
 interface AgentPlanProps {
-  /** 卡片标题；同时用作进度条的无障碍名称（不给就退回「计划进度」） */
+  /** 卡片标题；同时用作进度条的无障碍名称（不给就用 `labels.planTitle`，与元素页的默认 `Plan` 一致） */
   title?: string
   /** 步骤：字符串只带标签，对象可带 `id`（稳定 key）与 `description`（只在进行中那步显示） */
   steps: readonly (string | AgentPlanStep)[]
@@ -110,6 +110,9 @@ function AgentPlan({
     active: labels.planStepActive,
     ahead: labels.planStepAhead
   }
+  // 表头永远有两段：宿主不给标题就用「计划」（元素页的默认标题也是 `Plan`）
+  const heading = title ?? labels.planTitle
+  const foldLabel = expanded ? labels.planCollapse : labels.planExpand(items.length)
 
   const rows = items.map(function (step, index) {
     return { step, index, status: findStepStatus(index, progress) }
@@ -130,46 +133,55 @@ function AgentPlan({
       <div
         data-slot="agent-plan-header"
         className="flex items-center justify-between gap-3">
-        {title ? <span className="text-sm font-medium">{title}</span> : null}
         <span
-          data-slot="agent-plan-count"
-          className={cn(mono, 'tabular-nums', !title && 'ms-auto')}>
-          {formatPlanCount(progress, labels)}
+          data-slot="agent-plan-title"
+          title={heading}
+          className="min-w-0 truncate text-sm font-medium">
+          {heading}
         </span>
-        {foldable ? (
-          <button
-            type="button"
-            aria-expanded={expanded}
-            aria-controls={listId}
-            aria-label={expanded ? labels.planCollapse : labels.planExpand(items.length)}
-            onClick={function () {
-              setExpanded(function (open) {
-                return !open
-              })
-            }}
-            className={cn(ghostButton, 'size-6 shrink-0')}>
-            <Icon
-              icon={expanded ? 'lucide:chevron-up' : 'lucide:chevron-down'}
-              aria-hidden
-              className="size-3.5"
-            />
-          </button>
-        ) : null}
+        {/* 计数与折叠开关收成右端一组：标题独占左侧，不再三段均分把标题挤掉 */}
+        <span className="flex shrink-0 items-center gap-1">
+          <span
+            data-slot="agent-plan-count"
+            className={cn(mono, 'tabular-nums')}>
+            {formatPlanCount(progress, labels)}
+          </span>
+          {foldable ? (
+            <button
+              type="button"
+              aria-expanded={expanded}
+              aria-controls={listId}
+              aria-label={foldLabel}
+              title={foldLabel}
+              onClick={function () {
+                setExpanded(function (open) {
+                  return !open
+                })
+              }}
+              className={cn(ghostButton, 'size-6 shrink-0')}>
+              <Icon
+                icon={expanded ? 'lucide:chevron-up' : 'lucide:chevron-down'}
+                aria-hidden
+                className="size-3.5"
+              />
+            </button>
+          ) : null}
+        </span>
       </div>
 
       <div
         data-slot="agent-plan-progress"
         role="progressbar"
-        aria-label={labels.planProgress(title)}
+        aria-label={labels.planProgress(heading)}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={progress.percent}
         aria-valuetext={labels.planProgressValue(progress.completed, progress.total)}
-        className="bg-foreground/[0.06] inset-ring-border inset-ring h-[3px] w-full overflow-hidden rounded-full">
+        className="bg-foreground/[0.06] inset-ring-border inset-ring forced-colors:outline h-[3px] w-full overflow-hidden rounded-full">
         <span
           aria-hidden
           className={cn(
-            'bg-foreground/80 block h-full rounded-full',
+            'bg-foreground/80 block h-full rounded-full forced-color-adjust-none',
             // 进度条 500ms 是元素口径：比聊天里其它动效（220ms）慢，宽度变化才不显得抖
             'transition-[width] motion-reduce:transition-none',
             instant ? 'duration-0' : 'duration-500'

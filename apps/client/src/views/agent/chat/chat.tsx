@@ -87,6 +87,7 @@ import { ThreadWelcome } from '@/views/agent/chat/components/thread-welcome'
 import { ASSISTANT_LABELS_ZH } from '@/views/agent/chat/labels'
 import { findAssistantActions } from '@/views/agent/chat/message-actions'
 import { subscribeAsideBrowser } from '@/views/agent/chat/components/open-aside-browser'
+import { subscribeAsideTerminal } from '@/views/agent/chat/components/open-aside-terminal'
 import { openAsideTasks, subscribeAsideTasks } from '@/views/agent/chat/components/open-aside-tasks'
 import { subscribeAsideReview } from '@/views/agent/chat/components/open-aside-review'
 import { subscribeAsideContext } from '@/views/agent/chat/components/open-aside-context'
@@ -437,6 +438,15 @@ function AgentChatLayout() {
   useEffect(
     function () {
       return subscribeAsideBrowser(function () {
+        openAside()
+      })
+    },
+    [openAside]
+  )
+
+  useEffect(
+    function () {
+      return subscribeAsideTerminal(function () {
         openAside()
       })
     },

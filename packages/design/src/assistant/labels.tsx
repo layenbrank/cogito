@@ -26,8 +26,8 @@ type AssistantLabels = {
   welcome: string
   loadingConversation: string
   scrollToBottom: string
-  /** 左侧用户消息标尺（Cursor 式刻度导航） */
-  userMessageLocator: string
+  /** 会话左侧的回合刻度尺（assistant-ui conversation-map；同时是它的无障碍名） */
+  conversationMap: string
   userMessageLocatorItem: (ordinal: number, total: number) => string
   /** 用户句滚出视口后的浓缩 sticky 条（点击回到该句） */
   userMessageSticky: string
@@ -158,6 +158,12 @@ type AssistantLabels = {
   // 工具卡（tool-fallback）
   /** 普通工具行前缀：`Used tool: <name>` */
   toolUsed: string
+  /** 工具行「跑着」的说法：元素页是 `Searching the docs`，中文拼成「正在读取文件」；落地后用工具名本身 */
+  toolCallActive: (label: string) => string
+  /** 折叠行展开后第一块的标题：原始请求 */
+  toolCallRequest: string
+  /** 第二块的标题：结果 */
+  toolCallResult: string
   /** 被中断/取消的工具行前缀 */
   toolCancelled: string
   /** 展开后结果块的表头 */
@@ -204,6 +210,12 @@ type AssistantLabels = {
   planStepDone: string
   planStepActive: string
   planStepAhead: string
+  /** 表头标题的缺省值（宿主不给 `title` 时用，元素页默认 `Plan`） */
+  planTitle: string
+  /** 会话里这张卡的标题（`执行计划`）：标题由宿主给，但文案不该写死在组件里 */
+  planCardTitle: string
+  /** 这张卡已被更新的一版取代：`已被 r3 取代` */
+  planSuperseded: (revision: number) => string
   /** 折叠态展开按钮的无障碍名称：`Show all 8 steps` */
   planExpand: (total: number) => string
   /** 展开态收起按钮的无障碍名称 */
@@ -232,6 +244,124 @@ type AssistantLabels = {
   jobStageCommand: string
   /** 命令类任务卡下方那条「输出」折叠条 */
   jobCommandOutput: string
+  // 联网搜索卡（web-search）：过程本身的一句话 —— 查了什么、读了几条
+  /** 检索进行中的状态行 */
+  webSearchSearching: string
+  /** 跑完的收据：读了 N 条来源 */
+  webSearchCount: (count: number) => string
+  /** 一条来源都没有 */
+  webSearchEmpty: string
+  // 检索块（retrieval-chunks）：检索命中了哪几段、每段多相关
+  /** 检索进行中的状态行 */
+  retrievalRetrieving: string
+  /** 跑完的收据：N 段命中 */
+  retrievalMatches: (count: number) => string
+  /** 一段都没命中 */
+  retrievalEmpty: string
+  /** 模糊匹配回退的弱标记（没有可信分数） */
+  retrievalFuzzy: string
+  /** 上面那个标记的 tooltip */
+  retrievalFuzzyHint: string
+  /** 分数条的无障碍名称 */
+  retrievalMeter: (source: string) => string
+  // 时间轴卡（timeline）：日历这类「时刻 + 事件」的竖轴
+  /** 全天事件在左列写的字（没有具体时刻） */
+  timelineAllDay: string
+  /** 事件没有标题时的兜底 */
+  timelineUntitled: string
+  /** 「结束时刻」那段说明的前缀：`至 10:30` */
+  timelineUntil: (clock: string) => string
+  /** 结果还没到时的状态行 */
+  timelineReading: string
+  /** 一段时间里一条安排都没有 */
+  timelineEmpty: string
+  // 审批卡（approval-card）：等人答复 / 执行中 / 完成 / 拒绝
+  /** 标题缺省值（宿主没给 `title` 时用） */
+  approvalDefaultTitle: string
+  /** 副标题缺省值：没有 prompt 时的那句说明 */
+  approvalDefaultSubtitle: string
+  /** 主按钮：这一次允许 */
+  approvalAllowOnce: string
+  /** 次级按钮：以后都允许 */
+  approvalAlwaysAllow: string
+  /** 拒绝 */
+  approvalDeny: string
+  /** 收据：正在执行 */
+  approvalRunning: string
+  /** 收据：做完了（元素页默认 `Finished`） */
+  approvalDone: string
+  /** 收据：被拒绝 */
+  approvalDenied: string
+  /** 提交时审批已失效的提示（宿主据此让用户重发） */
+  approvalStale: string
+  /** 排期卡：`next` 那一格的标签 */
+  scheduleNext: string
+  /** 排期卡：最近执行一组的标题 */
+  scheduleRecentRuns: string
+  /** 排期卡：停用时代替下次触发的说法（元素页是字面量 `paused`） */
+  schedulePaused: string
+  /** 排期卡：一次成功 */
+  scheduleRunOk: string
+  /** 排期卡：一次失败 */
+  scheduleRunFailed: string
+  /** 排期卡：开关的无障碍名（开着 = 点了会暂停） */
+  schedulePause: (name: string) => string
+  /** 排期卡：开关的无障碍名（关着 = 点了会恢复） */
+  scheduleResume: (name: string) => string
+  /** 上下文：面板标题与明细卡标题 */
+  contextTitle: string
+  /** 环按钮的无障碍名 / tooltip */
+  contextUsage: string
+  /** 分段 meter 的无障碍名：`<段名> context usage` */
+  contextMeterLabel: (label: string) => string
+  /** 分段 meter 的数值文案：`1,800 of 128,000` */
+  contextMeterValue: (used: string, limit: string) => string
+  /** composer 面板的合计行 */
+  contextTotal: string
+  /** composer 面板三段固定名 */
+  contextSystem: string
+  contextTools: string
+  contextMessages: string
+  /** 明细卡里的剩余行（算出来的，不由宿主传） */
+  contextHeadroom: string
+
+  /** 明细卡的附件段 */
+  contextAttachments: string
+
+  /** 设置卡：模型那一段的小标题 */
+  settingsModel: string
+  /** 设置卡：提示词那一段的小标题（同时是文本域的无障碍名） */
+  settingsSystemPrompt: string
+  /** 设置卡：温度那一段的小标题（同时是滑杆的无障碍名） */
+  /** MCP 服务器面板的标题（清单上方那行） */
+  mcpServersTitle: string
+  /** 面板表头计数：`2 of 3 connected`（只数连上的） */
+  mcpConnectedCount: (connected: number, total: number) => string
+  /** 行上的工具数：`3 tools` / `1 tool` */
+  mcpToolCount: (count: number) => string
+  /** 四档连接状态：圆点的读屏文案，也用于配置卡上的徽标 */
+  mcpStatusConnected: string
+  mcpStatusConnecting: string
+  mcpStatusNeedsAuth: string
+  mcpStatusFailed: string
+  /** 待授权行里的授权动作 */
+  mcpAuthorize: string
+  /** 配置弹窗：标题与一句说明 */
+  mcpConfigTitle: string
+  mcpConfigDescription: string
+  /** 应用预置的连接器那一段 */
+  mcpConnectors: string
+  /** 连接器空态 */
+  mcpNoConnectors: string
+  /** 用户自己加的服务器那一段 */
+  mcpCustomServers: string
+  /** 打开添加表单的按钮 */
+  mcpAddServer: string
+  /** 卡片动作 */
+  mcpConnect: string
+  mcpDisconnect: string
+  mcpRemove: string
+  settingsTemperature: string
   attachmentType: (type: string) => string
   attachmentLabel: (type: string, state: 'idle' | 'uploading' | 'error') => string
   attachmentPreview: string
@@ -317,7 +447,7 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   welcome: 'How can I help you today?',
   loadingConversation: 'Loading conversation',
   scrollToBottom: 'Scroll to bottom',
-  userMessageLocator: 'Jump to your messages',
+  conversationMap: 'Conversation map',
   userMessageLocatorItem: (ordinal, total) => `Your message ${ordinal} / ${total}`,
   userMessageSticky: 'Jump to your message',
   dayLabel: (date) => findDayLabel(date, DAY_WORDS_EN),
@@ -404,6 +534,9 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   filesChanged: (count) => `${count} file${count === 1 ? '' : 's'} changed`,
   timelineVerb: findTimelineVerb,
   toolUsed: 'Used tool',
+  toolCallActive: (label) => 'Running ' + label,
+  toolCallRequest: 'Request',
+  toolCallResult: 'Result',
   toolCancelled: 'Cancelled tool',
   toolResult: 'Result:',
   toolError: 'Error:',
@@ -430,6 +563,9 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   planStepAhead: 'not started',
   planExpand: (total) => `Show all ${total} step${total === 1 ? '' : 's'}`,
   planCollapse: 'Collapse',
+  planTitle: 'Plan',
+  planCardTitle: 'Execution plan',
+  planSuperseded: (revision) => `Superseded by r${revision}`,
   jobProgress: (title) => `${title} progress`,
   jobRunning: 'running',
   jobDone: 'done',
@@ -441,6 +577,69 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
   jobOutcomeAnnounce: (word) => `Job ${word}`,
   jobStageCommand: 'command',
   jobCommandOutput: 'Output',
+  webSearchSearching: 'Searching the web',
+  webSearchCount: (count) => (count === 1 ? 'Read 1 source' : 'Read ' + count + ' sources'),
+  webSearchEmpty: 'No sources found',
+  retrievalRetrieving: 'Retrieving',
+  retrievalMatches: (count) =>
+    count === 1 ? '1 passage above threshold' : count + ' passages above threshold',
+  retrievalEmpty: 'No passage above threshold',
+  retrievalFuzzy: 'fuzzy',
+  retrievalFuzzyHint: 'Short query matched by substring, so there is no relevance score',
+  retrievalMeter: (source) => source + ' relevance score',
+  timelineAllDay: 'All day',
+  timelineUntitled: 'Untitled event',
+  timelineUntil: (clock) => 'until ' + clock,
+  timelineReading: 'Reading the calendar',
+  timelineEmpty: 'Nothing scheduled',
+  approvalDefaultTitle: 'Approval needed',
+  approvalDefaultSubtitle: 'The agent is waiting for your decision',
+  approvalAllowOnce: 'Allow once',
+  approvalAlwaysAllow: 'Always allow',
+  approvalDeny: 'Deny',
+  approvalRunning: 'Running…',
+  approvalDone: 'Finished',
+  approvalDenied: 'Denied',
+  approvalStale: 'This approval has expired — send the request again',
+  scheduleNext: 'Next',
+  scheduleRecentRuns: 'Recent runs',
+  schedulePaused: 'Paused',
+  scheduleRunOk: 'ok',
+  scheduleRunFailed: 'failed',
+  schedulePause: (name) => 'Pause ' + name,
+  scheduleResume: (name) => 'Resume ' + name,
+  contextTitle: 'Context',
+  contextUsage: 'Context usage',
+  contextMeterLabel: (label) => label + ' context usage',
+  contextMeterValue: (used, limit) => used + ' of ' + limit,
+  contextTotal: 'Total',
+  contextSystem: 'System',
+  contextTools: 'Tools',
+  contextMessages: 'Messages',
+  contextHeadroom: 'Headroom',
+  contextAttachments: 'Attached files',
+
+  settingsModel: 'model',
+  settingsSystemPrompt: 'system prompt',
+  settingsTemperature: 'temperature',
+
+  mcpServersTitle: 'Servers',
+  mcpConnectedCount: (connected, total) => `${connected} of ${total} connected`,
+  mcpToolCount: (count) => (count === 1 ? '1 tool' : `${count} tools`),
+  mcpStatusConnected: 'connected',
+  mcpStatusConnecting: 'connecting',
+  mcpStatusNeedsAuth: 'needs auth',
+  mcpStatusFailed: 'failed',
+  mcpAuthorize: 'Authorize',
+  mcpConfigTitle: 'MCP servers',
+  mcpConfigDescription: 'Connect servers to expose their tools to this assistant.',
+  mcpConnectors: 'Connectors',
+  mcpNoConnectors: 'No connectors configured',
+  mcpCustomServers: 'Custom servers',
+  mcpAddServer: 'Add server',
+  mcpConnect: 'Connect',
+  mcpDisconnect: 'Disconnect',
+  mcpRemove: 'Remove',
   attachmentType: (type) => {
     switch (type) {
       case 'image':

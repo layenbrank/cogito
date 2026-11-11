@@ -2,7 +2,7 @@
  * Agent 消息操作条：主窗走 Tauri 插件；嵌套 / 无 Tauri 降级到 Web API，
  * 避免右栏自载时 invoke 报错把预览打断。
  */
-import { save } from '@tauri-apps/plugin-dialog'
+import { save } from '@/shared/ipc/dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import type { AssistantActions } from '@cogito/design/assistant/actions'

@@ -94,6 +94,28 @@ describe('formatTerminalText', function () {
       'D:\\Documents\\workspace\\front'
     )
   })
+
+  it('嵌入式终端载荷只取 output，不复述 command', function () {
+    // `app terminal run` 的形状：command 是这次跑的命令，正文只有 output
+    expect(formatTerminalText({ command: 'pnpm test', output: 'Tests 3 passed' })).toBe(
+      'Tests 3 passed'
+    )
+    // 空输出也要认：不能把整棵 JSON（里面又有一份 command）当输出摆出来
+    expect(formatTerminalText({ command: 'dir /b', output: '' })).toBe('')
+    expect(formatTerminalText({ id: 'agent:C:/app', output: '' })).toBe('')
+  })
+
+  it('ACP 内容块里的编码 JSON 会再解一层', function () {
+    // 不在这一层拆开，终端正文就会摆出整段 `{"command":…,"output":…}`
+    expect(
+      formatTerminalText([
+        {
+          type: 'content',
+          content: { text: JSON.stringify({ command: 'dir /b', output: 'a\nb' }) }
+        }
+      ])
+    ).toBe('a\nb')
+  })
 })
 
 describe('normalizeToolOutput', function () {

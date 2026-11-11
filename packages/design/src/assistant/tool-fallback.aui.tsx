@@ -1,4 +1,3 @@
-import { Icon } from '@iconify/react/offline'
 import {
   toolApprovalAcceptsText,
   useScrollLock,
@@ -15,8 +14,10 @@ import { Button } from '../components/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../components/collapsible'
 import { Textarea } from '../components/textarea'
 import { useCollapseScrollPin } from './collapse-scroll-pin'
-import { CHAT_DURATION_MS, CHAT_EASE_CLASS } from './chat-motion'
+import { CHAT_DURATION_MS } from './chat-motion'
+import { field, mono } from './elements/surfaces'
 import { useAssistantLabels, type AssistantLabels } from './labels'
+import { ToolCallRow } from './tool-call'
 import { TOOL_ROW_HEIGHT_CLASS } from './tool-row'
 
 const ANIMATION_DURATION = CHAT_DURATION_MS
@@ -76,32 +77,6 @@ function ToolFallbackRoot({
   )
 }
 
-type ToolStatus = ToolCallMessagePartStatus['type']
-
-const statusIconMap: Record<ToolStatus, string> = {
-  running: 'lucide:loader',
-  complete: 'lucide:check',
-  incomplete: 'lucide:circle-x',
-  'requires-action': 'lucide:circle-alert'
-}
-
-/**
- * 状态色块：单个 16px 图标在成排的灰字里太轻，套一层 18px 的状态色淡染小方块后，
- * 每次工具调用都有一个「带色的锚点」—— 这是折叠行最要紧的那一个视觉信号。
- *
- * 只取 token，不写死色阶（`success` / `warning` / `destructive` / `primary`），
- * 深浅两套主题各自成立；淡染压到 10–20%，扫读时像标记，不像徽章。
- */
-const STATUS_CHIP_CLASS: Record<ToolStatus, string> = {
-  running: 'border-primary/25 bg-primary/10 text-primary',
-  complete: 'border-success/25 bg-success/10 text-success',
-  incomplete: 'border-destructive/25 bg-destructive/10 text-destructive',
-  'requires-action': 'border-warning/30 bg-warning/15 text-warning'
-}
-
-/** 用户主动取消不是失败：不给错误红，退回中性灰 */
-const CANCELLED_CHIP_CLASS = 'border-border/70 bg-background/60 text-muted-foreground'
-
 const formatToolDuration = (ms: number) => {
   if (ms < 1000) return '<1s'
   const seconds = ms / 1000
@@ -137,19 +112,15 @@ function ToolFallbackDuration({ className, ...props }: React.ComponentProps<'spa
 const TOOL_TRIGGER_ROW_CLASS = TOOL_ROW_HEIGHT_CLASS
 
 /**
- * 折叠行要「一眼是工具调用」，但边界必须安静。
+ * 折叠行对齐 assistant-ui `elements/tool-call`：**不再是带框的小卡片**。
+ * 一行就是「箭头 + 说法 + 参数芯片 + 右端状态」，静止时和正文同一层级、只在 hover 时提亮 ——
+ * 元素页把边界交给排版（等宽芯片、状态图标），不靠底色和描边：
+ * 一次回合几十行时，几十个描边盒子读起来像表格，反而更吵。
  *
- * 以前这一行是纯文字（muted 色、无底色、无边框），跟正文同一个视觉层级，
- * 一次回合几十条时会被当正文读过去 —— 用户的原话是「很容易就忽略」。
- * 现在给它一层极淡的底 + 一圈细边：静止时是「一条有边界的行」，扫读能分块，
- * 深读不抢正文；hover / 展开时才把底色提到 70–80%，让「可点」这件事显形。
- *
- * 底色的取法有讲究：浅色主题的 `--muted` 是 oklch(0.963)，压在纯白底上再打
- * 三折等于看不见，所以静止态给到 50%（约 0.981）——「比正文区亮一点点」就够，
- * 真正的边界感由边框和状态色块提供，不靠加重底色（几十张深灰块就是噪音）。
+ * 行高仍然是常数（`TOOL_TRIGGER_ROW_CLASS` = 28px），与命令卡 / diff 抬头对齐。
  */
 const TOOL_TRIGGER_BASE_CLASS =
-  'aui-tool-fallback-trigger group/trigger text-muted-foreground hover:text-foreground active:text-foreground data-open:text-foreground flex w-fit max-w-full origin-left items-center gap-2 rounded-md border border-border/70 bg-muted/50 px-1.5 text-sm transition-colors hover:border-border hover:bg-muted/80 aria-expanded:border-border aria-expanded:bg-muted/70 data-open:border-border data-open:bg-muted/70'
+  'aui-tool-fallback-trigger group/trigger text-muted-foreground hover:text-foreground/90 data-open:text-foreground flex w-full items-center gap-2 rounded-md text-sm transition-colors outline-hidden'
 
 /**
  * Trigger 的 `className` 还允许是 base-ui 的「按状态取类名」函数形式，
@@ -183,63 +154,31 @@ function ToolFallbackTrigger({
   ...props
 }: React.ComponentProps<typeof CollapsibleTrigger> & {
   toolName: string
-  /** 一行摘要（路径 / 命令 / 查询词）：光有工具名，十几次 `read` 长得一模一样 */
+  /** 主要参数（路径 / 命令 / 查询词）：行里的等宽芯片，没有就不出现 */
   detail?: string
   status?: ToolCallMessagePartStatus
 }) {
   const statusType = status?.type ?? 'complete'
   const isRunning = statusType === 'running'
   const isCancelled = status?.type === 'incomplete' && status.reason === 'cancelled'
-
+  // 只有「跑砸了」才换叉：取消是用户自己的决定，长度截断也不是失败
+  const isFailed = statusType === 'incomplete' && !isCancelled
   const labels = useAssistantLabels()
-  const statusIcon = statusIconMap[statusType]
-  const label = isCancelled ? labels.toolCancelled : labels.toolUsed
 
   return (
     <CollapsibleTrigger
       data-slot="tool-fallback-trigger"
       className={toolTriggerClassName(className)}
       {...props}>
-      <span
-        data-slot="tool-fallback-trigger-icon"
-        className={cn(
-          'aui-tool-fallback-trigger-icon grid size-[18px] shrink-0 place-items-center rounded-[5px] border',
-          isCancelled ? CANCELLED_CHIP_CLASS : STATUS_CHIP_CLASS[statusType]
-        )}>
-        <Icon
-          icon={statusIcon}
-          aria-hidden
-          className={cn('size-3', isRunning && 'animate-spin [animation-duration:0.6s]')}
-        />
-      </span>
-      <span
-        data-slot="tool-fallback-trigger-label"
-        className={cn(
-          'aui-tool-fallback-trigger-label-wrapper inline-block shrink-0 text-start leading-none whitespace-nowrap',
-          isCancelled && 'text-muted-foreground line-through',
-          isRunning && 'shimmer motion-reduce:animate-none'
-        )}>
-        {label}:{' '}
-        <b className="aui-tool-fallback-trigger-name text-foreground font-medium">{toolName}</b>
-      </span>
-      {detail ? (
-        <span
-          data-slot="tool-fallback-trigger-detail"
-          className="aui-tool-fallback-trigger-detail text-muted-foreground min-w-0 truncate text-xs">
-          {detail}
-        </span>
-      ) : null}
-      <ToolFallbackDuration />
-      <Icon
-        icon="lucide:chevron-down"
-        data-slot="tool-fallback-trigger-chevron"
-        className={cn(
-          'aui-tool-fallback-trigger-chevron text-muted-foreground/70 size-4 shrink-0',
-          `transition-transform duration-(--animation-duration) ${CHAT_EASE_CLASS} motion-reduce:transition-none`,
-          '-rotate-90',
-          'group-data-open/trigger:rotate-0',
-          'group-data-panel-open/trigger:rotate-0'
-        )}
+      <ToolCallRow
+        label={toolName}
+        activeLabel={labels.toolCallActive(toolName)}
+        query={detail}
+        running={isRunning}
+        failed={isFailed}
+        waiting={statusType === 'requires-action'}
+        cancelled={isCancelled}
+        trailing={<ToolFallbackDuration />}
       />
     </CollapsibleTrigger>
   )
@@ -259,12 +198,21 @@ function ToolFallbackContent({
         className
       )}
       {...props}>
-      {/* 缩进对齐折叠行的文字起点（边框 1 + px-1.5 6 + 色块 18 + gap 8 ≈ 33px），明细不另起一套边距 */}
-      <div className="flex flex-col gap-2 ps-8 pt-1 pb-2">{children}</div>
+      {/* 块自带内边距（见 `auiBlockClass`）：这里只管间距，不再缩进到行的文字起点 */}
+      <div className="flex flex-col gap-2 pt-1 pb-2">{children}</div>
     </CollapsibleContent>
   )
 }
 
+/** 展开区里每一块的表面：与 `elements/tool-call` 的面板块同源（`field` + 12px 圆角 + 内边距） */
+const auiBlockClass = cn(field, 'rounded-2xl px-3.5 pt-2.5 pb-2')
+
+/**
+ * 展开后的第一块：原始请求（参数文本）。
+ *
+ * 版式对齐 `elements/tool-call` 的面板块：`field` 表面 + 等宽小标题 + 等宽正文。
+ * 以前是一整块 `bg-muted/50` 的 pre、没有标题 —— 读者分不清这团 JSON 是请求还是结果。
+ */
 function ToolFallbackArgs({
   argsText,
   className,
@@ -272,14 +220,20 @@ function ToolFallbackArgs({
 }: React.ComponentProps<'div'> & {
   argsText?: string
 }) {
+  const labels = useAssistantLabels()
   if (!argsText) return null
 
   return (
     <div
       data-slot="tool-fallback-args"
-      className={cn('aui-tool-fallback-args', className)}
+      className={cn(auiBlockClass, 'aui-tool-fallback-args', className)}
       {...props}>
-      <pre className="aui-tool-fallback-args-value bg-muted/50 text-foreground/90 rounded-md p-2.5 text-xs whitespace-pre-wrap">
+      <p
+        data-slot="tool-fallback-args-header"
+        className={cn(mono, 'mb-1')}>
+        {labels.toolCallRequest}
+      </p>
+      <pre className="aui-tool-fallback-args-value text-muted-foreground font-mono text-xs whitespace-pre-wrap break-words">
         {argsText}
       </pre>
     </div>
@@ -303,6 +257,7 @@ const formatUnknownValue = (value: unknown, space?: number): string => {
   }
 }
 
+/** 展开后的第二块：结果。版式与请求块同源（小标题 + 正文），只有正文的字色深一档 */
 function ToolFallbackResult({
   result,
   className,
@@ -316,12 +271,14 @@ function ToolFallbackResult({
   return (
     <div
       data-slot="tool-fallback-result"
-      className={cn('aui-tool-fallback-result', className)}
+      className={cn(auiBlockClass, 'aui-tool-fallback-result', className)}
       {...props}>
-      <p className="aui-tool-fallback-result-header text-muted-foreground text-xs font-medium">
-        {labels.toolResult}
+      <p
+        data-slot="tool-fallback-result-header"
+        className={cn(mono, 'mb-1')}>
+        {labels.toolCallResult}
       </p>
-      <pre className="aui-tool-fallback-result-content bg-muted/50 text-foreground/90 mt-1 rounded-md p-2.5 text-xs whitespace-pre-wrap">
+      <pre className="aui-tool-fallback-result-content text-foreground/90 text-xs leading-relaxed whitespace-pre-wrap break-words">
         {formatUnknownValue(result, 2)}
       </pre>
     </div>

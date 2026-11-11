@@ -48,6 +48,8 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   app_knowledge_write_doc: '写入知识草稿',
   app_knowledge_graph_search: '图谱邻居检索',
   app_knowledge_workspace_write: '写入 .agent 产物',
+  app_workspace_write: '写入工作区文件',
+  app_workspace_patch: '定点修改工作区文件',
   app_terminal_run: '终端执行',
   app_terminal_read: '读取终端输出',
   app_terminal_write: '写入终端',
@@ -109,6 +111,17 @@ function isShellTool(name: string): boolean {
   )
 }
 
+/**
+ * 是否跑在**右栏嵌入式终端**里的工具（`app terminal run/read/write/list`）。
+ *
+ * 这类工具的正文输出本来就落在用户能看见的那个终端里：对话流再摆一份完整终端，
+ * 就是同一段输出两个终端。卡片只做「收据 + 跳过去看」。
+ */
+function isEmbeddedTerminalTool(name: string): boolean {
+  const lower = name.toLowerCase()
+  return lower.includes('app terminal ') || lower.includes('app_terminal_')
+}
+
 function isCodeTool(name: string): boolean {
   const lower = name.toLowerCase()
   return lower === 'execute' || lower.includes('execute') || lower.includes('code_mode')
@@ -119,7 +132,17 @@ function isCodeTool(name: string): boolean {
  * commit / test / stack / package / env / schema / snippet 七种「从输出文本猜出来」的
  * 专项卡已下线（`parse-tool-result.ts` 头注），不再作为可渲染形态存在。
  */
-type ToolCardVariant = 'command' | 'code' | 'read' | 'write' | 'search' | 'generic' | 'tree'
+type ToolCardVariant =
+  | 'command'
+  | 'code'
+  | 'read'
+  | 'write'
+  | 'search'
+  | 'web'
+  | 'retrieval'
+  | 'timeline'
+  | 'generic'
+  | 'tree'
 
 function isReadTool(name: string): boolean {
   if (isBrowserTool(name)) return false
@@ -156,9 +179,42 @@ function isSearchTool(name: string): boolean {
   )
 }
 
+/**
+ * 库内检索：`app_knowledge_search` / `cogito_knowledge_search`（带 server 前缀也命中）。
+ *
+ * 它返回的是**命中段落**（标题 / 路径 / 片段 / 分数），所以走
+ * `elements/retrieval-chunks` 那张卡；不要当普通 search 流到通用行里摆 JSON。
+ */
+function isRetrievalTool(name: string): boolean {
+  const lower = name.toLowerCase()
+  return lower.includes('knowledge_search') || lower.includes('search_knowledge')
+}
+
+/**
+ * 日历类工具：`app_calendar_read`（MCP 名可能带 server 前缀）。
+ *
+ * 它的结果是一**组带时刻的事件**，交给 `elements/timeline` 那张竖轴卡；
+ * 注意它名字里带 `read`，判定必须排在 `isReadTool` 前面，否则会被当成「读文件」。
+ */
+function isCalendarTool(name: string): boolean {
+  return name.toLowerCase().includes('calendar')
+}
+
+/**
+ * 联网类工具：`web_search` / `web_fetch`（goose 名常带 server 前缀，靠 includes 命中）。
+ *
+ * 这类工具的结果是一**组**来源，不是一段正文 —— 交给 `elements/web-search` 那张卡
+ * （查询药丸 + 读了 N 条 + 逐条域名行），而不是通用卡里一整块 JSON 文本。
+ */
 function isWebTool(name: string): boolean {
   const lower = name.toLowerCase()
-  return lower.includes('web_search') || lower.includes('webfetch') || lower.includes('web_fetch')
+  return (
+    lower.includes('web_search') ||
+    lower.includes('websearch') ||
+    lower.includes('search_web') ||
+    lower.includes('webfetch') ||
+    lower.includes('web_fetch')
+  )
 }
 
 function isGitTool(name: string): boolean {
@@ -169,9 +225,12 @@ function isGitTool(name: string): boolean {
 export {
   findBrowserToolLabel,
   isBrowserTool,
+  isCalendarTool,
   isCodeTool,
+  isEmbeddedTerminalTool,
   isGitTool,
   isReadTool,
+  isRetrievalTool,
   isSearchTool,
   isShellTool,
   isWebTool,

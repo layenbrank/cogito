@@ -11,14 +11,17 @@ import { OVERLAY_ELEVATION } from '../lib/surface'
  *
  * 纯展示：数据与写入逻辑在 app 侧（`plan-schedule-card.tsx` + `schedule-plan` / 日历 store），
  * 这里只负责卡片骨架与行编辑控件；冲突提醒、写事务、撤销由 app 用 props 接。
+ *
+ * 与 assistant-ui 的 `schedule-card` 元素（`schedule-card.tsx`，任务自动化的周期卡）不是一回事，
+ * 所以文件名、`data-slot`、导出名都带 `plan-` 前缀，两者不会在同一棵树上撞车。
  */
 
-type ScheduleCardProps = ComponentProps<'div'>
+type PlanScheduleCardProps = ComponentProps<'div'>
 
-function ScheduleCard({ className, ...props }: ScheduleCardProps) {
+function PlanScheduleCard({ className, ...props }: PlanScheduleCardProps) {
   return (
     <div
-      data-slot="schedule-card"
+      data-slot="plan-schedule-card"
       className={cn(
         'pointer-events-auto mx-4 mb-3 max-h-[45vh] overflow-y-auto rounded-xl bg-background/95 p-3',
         OVERLAY_ELEVATION,
@@ -29,12 +32,12 @@ function ScheduleCard({ className, ...props }: ScheduleCardProps) {
   )
 }
 
-type ScheduleCardHeaderProps = ComponentProps<'div'> & { count: number }
+type PlanScheduleCardHeaderProps = ComponentProps<'div'> & { count: number }
 
-function ScheduleCardHeader({ count, className, ...props }: ScheduleCardHeaderProps) {
+function PlanScheduleCardHeader({ count, className, ...props }: PlanScheduleCardHeaderProps) {
   return (
     <div
-      data-slot="schedule-card-header"
+      data-slot="plan-schedule-card-header"
       className={cn('mb-2 flex items-center gap-2 text-sm font-medium', className)}
       {...props}>
       <Icon
@@ -47,7 +50,7 @@ function ScheduleCardHeader({ count, className, ...props }: ScheduleCardHeaderPr
   )
 }
 
-type ScheduleCardRowProps = {
+type PlanScheduleCardRowProps = {
   title: string
   startAt: string
   endAt: string
@@ -57,10 +60,10 @@ type ScheduleCardRowProps = {
   onRemove: () => void
 }
 
-function ScheduleCardRow(props: ScheduleCardRowProps) {
+function PlanScheduleCardRow(props: PlanScheduleCardRowProps) {
   return (
     <li
-      data-slot="schedule-card-row"
+      data-slot="plan-schedule-card-row"
       className="flex flex-wrap items-center gap-1.5">
       <Input
         value={props.title}
@@ -99,16 +102,16 @@ function ScheduleCardRow(props: ScheduleCardRowProps) {
   )
 }
 
-type ScheduleCardActionsProps = {
+type PlanScheduleCardActionsProps = {
   onCancel: () => void
   onWrite: () => void
   isWriting: boolean
 }
 
-function ScheduleCardActions(props: ScheduleCardActionsProps) {
+function PlanScheduleCardActions(props: PlanScheduleCardActionsProps) {
   return (
     <div
-      data-slot="schedule-card-actions"
+      data-slot="plan-schedule-card-actions"
       className="mt-2 flex items-center justify-end gap-2">
       <Button
         size="sm"
@@ -126,17 +129,17 @@ function ScheduleCardActions(props: ScheduleCardActionsProps) {
   )
 }
 
-type ScheduleCardWrittenProps = {
+type PlanScheduleCardWrittenProps = {
   count: number
   onUndo: () => void
   onDismiss: () => void
 }
 
 /** 已写入的收尾条：保留一批 id 支持一次性撤销 */
-function ScheduleCardWritten(props: ScheduleCardWrittenProps) {
+function PlanScheduleCardWritten(props: PlanScheduleCardWrittenProps) {
   return (
     <div
-      data-slot="schedule-card-written"
+      data-slot="plan-schedule-card-written"
       className={cn(
         'pointer-events-auto mx-4 mb-3 flex items-center justify-between gap-3 rounded-xl bg-background/95 px-3 py-2 text-sm',
         OVERLAY_ELEVATION
@@ -161,16 +164,16 @@ function ScheduleCardWritten(props: ScheduleCardWrittenProps) {
 }
 
 export {
-  ScheduleCard,
-  ScheduleCardActions,
-  ScheduleCardHeader,
-  ScheduleCardRow,
-  ScheduleCardWritten
+  PlanScheduleCard,
+  PlanScheduleCardActions,
+  PlanScheduleCardHeader,
+  PlanScheduleCardRow,
+  PlanScheduleCardWritten
 }
 export type {
-  ScheduleCardActionsProps,
-  ScheduleCardHeaderProps,
-  ScheduleCardProps,
-  ScheduleCardRowProps,
-  ScheduleCardWrittenProps
+  PlanScheduleCardActionsProps,
+  PlanScheduleCardHeaderProps,
+  PlanScheduleCardProps,
+  PlanScheduleCardRowProps,
+  PlanScheduleCardWrittenProps
 }

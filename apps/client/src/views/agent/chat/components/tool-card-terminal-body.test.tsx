@@ -53,6 +53,20 @@ describe('命令类工具卡', function () {
     expect(screen.getByText(/Tests 12 passed/)).toBeInTheDocument()
   })
 
+  it('展开后命令只出现一次：抬头写过，正文不再复述', function () {
+    const { container } = render(
+      <ToolCardTerminalBody
+        {...makeProps({ status: { type: 'complete' }, outputText: 'Tests 12 passed' })}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /npm test/ }))
+    const terminal = container.querySelector('[data-slot="terminal"]')
+    expect(terminal).not.toBeNull()
+    // 旧做法：抬头一行 `$ npm test`，正文第一行又一遍 `$ npm test`
+    expect(terminal?.textContent).not.toContain('npm test')
+    expect(container.textContent?.match(/npm test/g)).toHaveLength(1)
+  })
+
   it('折叠行高度与 ToolFallback / CodeDiff 同一口径（28px 常数）', function () {
     const { container } = render(<ToolCardTerminalBody {...makeProps()} />)
     const trigger = container.querySelector('[data-slot="tool-card-command-trigger"]')
@@ -63,6 +77,25 @@ describe('命令类工具卡', function () {
     // 曾用 h-6（24px）凑，和通用行差 4px
     expect(trigger?.className).not.toMatch(/\bh-6\b/)
     expect(trigger?.className).not.toMatch(/\bpy-\d/)
+  })
+
+  it('右栏终端的命令不再摆第二份：只给跳转', function () {
+    const { container } = render(
+      <ToolCardTerminalBody
+        {...makeProps({
+          toolName: 'cogito: app terminal run · dir /b',
+          args: { command: 'dir /b', cwd: 'C:/app' },
+          status: { type: 'complete' },
+          outputText: ''
+        })}
+      />
+    )
+    expect(screen.getByLabelText('在终端中查看')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /dir \/b/ }))
+    // 输出在右栏终端里：对话流不再挂一个终端正文
+    expect(container.querySelector('[data-slot="terminal"]')).toBeNull()
+    expect(container.querySelector('[data-slot="tool-card-terminal-hint"]')).not.toBeNull()
+    expect(screen.getByText(/右栏终端/)).toBeInTheDocument()
   })
 
   it('没有命令参数时不渲染（交给其他卡片形态）', function () {

@@ -51,11 +51,9 @@ function AgentToolCardInner(props: ToolCallMessagePartProps) {
         {...props}
         parsed={parsed}
       />
-      <SourcesBlock sources={sources} />
-      <ApprovalBar
-        approval={props.approval}
-        toolCallId={props.toolCallId}
-      />
+      {/* 联网检索的来源已经在 web-search 卡里逐条列出，不再挂一份折叠收据 */}
+      {parsed.variant === 'web' ? null : <SourcesBlock sources={sources} />}
+      <ApprovalBar {...props} />
     </div>
   )
 }

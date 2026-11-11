@@ -19,17 +19,17 @@ import {
 describe('ToolFallback 文案', function () {
   it('结果表头默认英文', function () {
     const html = renderToStaticMarkup(<ToolFallbackResult result="ok" />)
-    expect(html).toContain('Result:')
+    expect(html).toContain('>Result</p>')
   })
 
   it('宿主可以把结果表头换成中文', function () {
     const html = renderToStaticMarkup(
-      <AssistantLabelsProvider labels={{ toolResult: '结果：' }}>
+      <AssistantLabelsProvider labels={{ toolCallResult: '结果' }}>
         <ToolFallbackResult result="ok" />
       </AssistantLabelsProvider>
     )
-    expect(html).toContain('结果：')
-    expect(html).not.toContain('Result:')
+    expect(html).toContain('>结果</p>')
+    expect(html).not.toContain('>Result</p>')
   })
 
   it('没有结果时不渲染空壳', function () {

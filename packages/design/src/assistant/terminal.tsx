@@ -42,13 +42,22 @@ interface TerminalContextType {
   isStreaming: boolean
   autoScroll: boolean
   cwd?: string | null
+  /**
+   * 正文是否自带 `$ 命令` 提示行。
+   *
+   * 元素页的 `terminal-block` 把命令放在**抬头**（`cwd $ command`），正文只有输出行。
+   * 宿主上面的折叠行已经写过命令时置 `false` —— 否则同一条命令会出现两次
+   * （折叠行一行 + 正文第一行），看起来就是「同一段输出两个终端」。
+   */
+  showPrompt: boolean
   onClear?: () => void
 }
 
 const TerminalContext = createContext<TerminalContextType>({
   autoScroll: true,
   isStreaming: false,
-  output: ''
+  output: '',
+  showPrompt: true
 })
 
 function shortenCwd(cwd: string): string {
@@ -233,6 +242,8 @@ function TerminalOutputBody(props: {
   output: string
   isStreaming: boolean
   cwd: string | null | undefined
+  /** 抬头已有命令时关掉：正文只排输出行，不再复述一遍 `$ 命令` */
+  showPrompt: boolean
 }) {
   const hasAnsi = ANSI_ESCAPE.test(props.output)
   const lines = useMemo(
@@ -254,12 +265,16 @@ function TerminalOutputBody(props: {
   return (
     <pre className="m-0 whitespace-pre-wrap break-words">
       {lines.map(function (line, index) {
-        const isPrompt = index === 0 && line.startsWith('$ ')
+        const isPrompt = props.showPrompt && index === 0 && line.startsWith('$ ')
         return (
           <div
             key={index}
             className={cn(isPrompt && 'mb-0.5')}>
-            {line.length === 0 ? '\u00a0' : decoratePlainLine(line, isPrompt ? props.cwd : null)}
+            {line.length === 0
+              ? '\u00a0'
+              : props.showPrompt
+                ? decoratePlainLine(line, isPrompt ? props.cwd : null)
+                : decoratePlainLine(line, null)}
           </div>
         )
       })}
@@ -437,7 +452,7 @@ export function TerminalClearButton({ children, className, ...props }: TerminalC
 export type TerminalContentProps = HTMLAttributes<HTMLDivElement>
 
 export function TerminalContent({ className, children, ...props }: TerminalContentProps) {
-  const { output, isStreaming, autoScroll, cwd } = useContext(TerminalContext)
+  const { output, isStreaming, autoScroll, cwd, showPrompt } = useContext(TerminalContext)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(
@@ -464,6 +479,7 @@ export function TerminalContent({ className, children, ...props }: TerminalConte
           output={output || ''}
           isStreaming={isStreaming}
           cwd={cwd}
+          showPrompt={showPrompt}
         />
       )}
     </div>
@@ -476,6 +492,11 @@ export type TerminalProps = HTMLAttributes<HTMLDivElement> & {
   autoScroll?: boolean
   /** 提示符旁可选 cwd 后缀（短路径），不重复塞进标题 */
   cwd?: string | null
+  /**
+   * 正文要不要自带 `$ 命令` 提示行，默认要。
+   * 抬头（折叠行 / 卡片标题）已经写过命令时传 `false`，避免同一条命令排两遍。
+   */
+  showPrompt?: boolean
   onClear?: () => void
   /** 外层已自带标题条（如折叠摘要行）时关掉内置 header，避免两行标题 */
   showHeader?: boolean
@@ -486,6 +507,7 @@ export function Terminal({
   isStreaming = false,
   autoScroll = true,
   cwd,
+  showPrompt = true,
   onClear,
   showHeader = true,
   className,
@@ -494,15 +516,17 @@ export function Terminal({
 }: TerminalProps) {
   const contextValue = useMemo(
     function () {
-      return { autoScroll, cwd, isStreaming, onClear, output }
+      return { autoScroll, cwd, isStreaming, onClear, output, showPrompt }
     },
-    [autoScroll, cwd, isStreaming, onClear, output]
+    [autoScroll, cwd, isStreaming, onClear, output, showPrompt]
   )
 
   return (
     <TerminalContext.Provider value={contextValue}>
       <div
         data-slot="terminal"
+        // 与元素页 `terminal-block` 同口径：running / done（失败由宿主另标 isError）
+        data-state={isStreaming ? 'running' : 'done'}
         data-streaming={isStreaming || undefined}
         className={cn(
           'bg-terminal text-terminal-foreground border-terminal-border/70 flex flex-col overflow-hidden rounded-md border',

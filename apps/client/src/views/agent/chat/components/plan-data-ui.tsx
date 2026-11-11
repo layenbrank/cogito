@@ -5,6 +5,8 @@
  * ACP 给的是**每步三态**，换算成元素要的单个 `activeIndex` 走 `plan-steps.ts`
  * （右栏计划页签共用同一份换算）。
  *
+ * 标题与「已被 rN 取代」都走 labels（`planCardTitle` / `planSuperseded`），组件里不写死中文。
+ *
  * 版本角标：这张卡的步骤和当前档案（`agent_plan`）对不上时，说明它已经被更新的
  * revision 取代 —— 不标出来，用户会以为对话里最后一张卡就是「最新计划」，照着旧版
  * 再点一次执行（这正是计划重复执行的来源之一）。
@@ -14,6 +16,7 @@ import { makeAssistantDataUI, useAuiState, type DataMessagePartProps } from '@as
 import { PLAN_PART_NAME } from '@cogito/chat/adapters/chat-model'
 import type { ChatPlanEntry } from '@cogito/chat/ports'
 import { AgentPlan } from '@cogito/design/assistant/agent-plan'
+import { useAssistantLabels } from '@cogito/design/assistant/labels'
 
 import { usePlanRecord } from '@/features/agent/plan-store'
 
@@ -25,6 +28,7 @@ interface ChatPlanPartData {
 
 function PlanPartRender(props: DataMessagePartProps<ChatPlanPartData>) {
   // assistant-ui 的 DataMessagePartProps<T> 与 MessagePartState 交叉后 data 退化为 any，这里收回类型
+  const labels = useAssistantLabels()
   const entries = (props.data as ChatPlanPartData).entries ?? []
   const threadID = useAuiState(function (state) {
     return state.threads.mainThreadId
@@ -53,11 +57,11 @@ function PlanPartRender(props: DataMessagePartProps<ChatPlanPartData>) {
             icon="lucide:archive"
             className="size-3 shrink-0"
           />
-          <span>{`已被 r${supersededBy} 取代`}</span>
+          <span>{labels.planSuperseded(supersededBy)}</span>
         </div>
       ) : null}
       <AgentPlan
-        title="执行计划"
+        title={labels.planCardTitle}
         steps={toPlanSteps(entries)}
         activeIndex={toActiveIndex(entries)}
         // 计划一长，对话里这张卡只负责「一眼看到进度」；全量清单在右栏计划页签

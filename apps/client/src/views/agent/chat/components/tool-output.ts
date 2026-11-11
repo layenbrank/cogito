@@ -161,8 +161,13 @@ function formatTerminalText(value: unknown, depth = 0): string {
       .filter(function (item): item is string {
         return Boolean(item && item.length > 0)
       })
+      /*
+       * 每个块**再走一遍**：ACP 的 content 块里常常塞的是**编码过的 JSON**
+       * （`{"command":…,"output":…}`、`{"bytes":…,"content":…}`）。只做转义还原
+       * 会把整棵 JSON 摆进终端正文 —— 命令/字段名重复不说，真正要看的输出反而被埋了。
+       */
       .map(function (chunk) {
-        return unescapeLiteralEscapes(chunk.replace(/\r\n/g, '\n'))
+        return formatTerminalText(chunk, depth + 1)
       })
     if (chunks.length > 0) {
       return chunks.join('\n')
@@ -181,6 +186,21 @@ function formatTerminalText(value: unknown, depth = 0): string {
           return unescapeLiteralEscapes(part.replace(/\r\n/g, '\n'))
         })
       return parts.join('\n')
+    }
+
+    /*
+     * 嵌入式终端（`app terminal run` / `read`）的载荷：
+     * `{ command, cwd, output, elapsedMs, id, isRunning }`。
+     *
+     * `command` 是**这次要跑的命令**，不是输出的一部分 —— 卡片抬头已经写过一遍，
+     * 正文再整棵摊开就是「同一条命令两个终端」。这类载荷的正文只有 `output`，
+     * 空输出也要认（否则会掉到下面 `toFlatText` 把 JSON 原样摆出来）。
+     */
+    if (
+      typeof record.output === 'string' &&
+      (typeof record.command === 'string' || typeof record.id === 'string')
+    ) {
+      return formatTerminalText(record.output, depth + 1)
     }
 
     const picked = firstString(record, OUTPUT_KEYS)

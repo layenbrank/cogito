@@ -4,12 +4,12 @@
  * 写入是**一次事务**（后端 WriteP::Many）；成功后保留一批 id 支持一次性撤销。
  */
 import {
-  ScheduleCard,
-  ScheduleCardActions,
-  ScheduleCardHeader,
-  ScheduleCardRow,
-  ScheduleCardWritten
-} from '@cogito/design/assistant/schedule-card.aui'
+  PlanScheduleCard as PlanScheduleCardSurface,
+  PlanScheduleCardActions,
+  PlanScheduleCardHeader,
+  PlanScheduleCardRow,
+  PlanScheduleCardWritten
+} from '@cogito/design/assistant/plan-schedule-card.aui'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -115,7 +115,7 @@ function PlanScheduleCard() {
 
   if (rows.length === 0) {
     return (
-      <ScheduleCardWritten
+      <PlanScheduleCardWritten
         count={lastBatchIDs.length}
         onUndo={function () {
           void toRemoveEvents(lastBatchIDs)
@@ -132,8 +132,8 @@ function PlanScheduleCard() {
   }
 
   return (
-    <ScheduleCard>
-      <ScheduleCardHeader count={rows.length} />
+    <PlanScheduleCardSurface>
+      <PlanScheduleCardHeader count={rows.length} />
 
       {conflicts.length > 0 ? (
         <p className="mb-2 rounded-md bg-amber-500/10 px-2 py-1 text-xs text-amber-700 dark:text-amber-400">
@@ -145,7 +145,7 @@ function PlanScheduleCard() {
       <ul className="flex flex-col gap-1.5">
         {rows.map(function (row) {
           return (
-            <ScheduleCardRow
+            <PlanScheduleCardRow
               key={row.key}
               title={row.title}
               startAt={toLocalInput(row.startAt)}
@@ -172,14 +172,14 @@ function PlanScheduleCard() {
         })}
       </ul>
 
-      <ScheduleCardActions
+      <PlanScheduleCardActions
         onCancel={clear}
         onWrite={function () {
           void handleWrite()
         }}
         isWriting={isWriting}
       />
-    </ScheduleCard>
+    </PlanScheduleCardSurface>
   )
 }
 

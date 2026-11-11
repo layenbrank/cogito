@@ -43,6 +43,8 @@ type ToolCardJobProps = ToolCallMessagePartProps & {
   elapsedMs?: number
   /** 已解析好的命令（分发器那边算过一次，不重复解析） */
   shell: CommandShell
+  /** 命令跑在右栏嵌入式终端里（输出以那边为准） */
+  embedded?: boolean
 }
 
 function ToolCardJob(props: ToolCardJobProps) {
@@ -117,10 +119,15 @@ function ToolCardJob(props: ToolCardJobProps) {
         </div>
 
         <CollapsibleContent>
+          {/*
+           * 抬头（JobProgress 标题 + 这条「输出」行）已经写过命令：
+           * 正文用 `showPrompt={false}`，只排输出 —— 否则同一条命令在同一张卡里出现两次。
+           */}
           <Terminal
-            output={terminalBody}
+            output={props.outputText || (isRunning ? '执行中…' : '无输出')}
             isStreaming={isRunning}
             cwd={props.shell.workdir}
+            showPrompt={false}
             showHeader={false}
             className="border-terminal-border/70 rounded-none border-x-0 border-b-0">
             <TerminalContent />

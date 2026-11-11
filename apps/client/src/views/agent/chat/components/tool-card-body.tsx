@@ -35,7 +35,10 @@ import { mapToolCallState } from '@/views/agent/chat/components/parse-tool-resul
 import { openAsideBrowser } from '@/views/agent/chat/components/open-aside-browser'
 import type { ParsedFileTreeNode, ParsedToolCard } from '@/views/agent/chat/components/parse-tool-result'
 import { WriteToolCard } from '@/views/agent/chat/components/tool-card-read-write'
+import { ToolCardRetrieval } from '@/views/agent/chat/components/tool-card-retrieval'
+import { ToolCardTimeline } from '@/views/agent/chat/components/tool-card-timeline'
 import { ToolCardTerminalBody } from '@/views/agent/chat/components/tool-card-terminal-body'
+import { ToolCardWebSearch } from '@/views/agent/chat/components/tool-card-web-search'
 import { toShellCommand } from '@/views/agent/chat/components/tool-output'
 
 /** 目录列举的文件树：只在明细里出现，不再是一张独立卡片 */
@@ -156,6 +159,34 @@ function ToolCardShellBody(props: ToolCallMessagePartProps & { parsed: ParsedToo
   if (variant === 'command' && toShellCommand(props.args)) {
     return (
       <ToolCardTerminalBody
+        {...props}
+        outputText={props.parsed.text}
+      />
+    )
+  }
+  // 联网检索：结果是一组来源而不是一段正文，交给 web-search 那张列表卡。
+  // 失败 / 取消不套列表（要读的是错误原文），继续往通用行走。
+  if (variant === 'web' && !props.isError) {
+    return (
+      <ToolCardWebSearch
+        {...props}
+        outputText={props.parsed.text}
+      />
+    )
+  }
+  // 库内检索：命中是一组段落，交给 retrieval-chunks 那张卡
+  if (variant === 'retrieval' && !props.isError) {
+    return (
+      <ToolCardRetrieval
+        {...props}
+        outputText={props.parsed.text}
+      />
+    )
+  }
+  // 日历：结果是一组带时刻的事件，交给 timeline 那张竖轴卡
+  if (variant === 'timeline' && !props.isError) {
+    return (
+      <ToolCardTimeline
         {...props}
         outputText={props.parsed.text}
       />

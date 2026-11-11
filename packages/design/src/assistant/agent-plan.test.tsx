@@ -68,10 +68,17 @@ describe('AgentPlan', function () {
     expect(count(html, 'data-status="done"')).toBe(3)
   })
 
-  it('没有标题时退回通用无障碍名称，计数靠右', function () {
+  it('没有标题时表头写默认的 Plan，无障碍名称跟着它', function () {
     const html = markup({ title: undefined })
+    expect(html).toContain('data-slot="agent-plan-title"')
+    expect(html).toContain('>Plan</span>')
     expect(html).toContain('aria-label="Plan progress"')
-    expect(html).toContain('ms-auto')
+  })
+
+  it('计数与折叠开关收在右端一组，开关带同名 title', function () {
+    const html = markup({ collapseAfter: 2 })
+    expect(html.indexOf('agent-plan-count')).toBeLessThan(html.indexOf('aria-expanded'))
+    expect(html).toContain('title="Show all 3 steps"')
   })
 
   it('空列表：0 of 0、0%、一步都不渲染', function () {

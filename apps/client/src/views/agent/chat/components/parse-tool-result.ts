@@ -13,13 +13,18 @@
  * 写工具行级 diff：同步 `buildLineDiff` 留给测试 / 首屏；Tauri 下 UI 走
  * `fetchWriteCodeDiff` → `agentTool:lineDiff`。
  */
+import { toTimelineWhen } from '@cogito/design/assistant/timeline-state'
+import type { TimelineEvent } from '@cogito/design/assistant/timeline-state'
 import type { ToolCallState } from '@cogito/design/assistant/tool-call-state'
+import { toDomain } from '@cogito/design/assistant/web-search-state'
 import type { ToolCallMessagePartProps } from '@assistant-ui/react'
 import { invoke } from '@tauri-apps/api/core'
 
 import {
+  isCalendarTool,
   isCodeTool,
   isReadTool,
+  isRetrievalTool,
   isSearchTool,
   isShellTool,
   isWebTool,
@@ -52,6 +57,8 @@ type ParsedToolSpecial = { kind: 'tree'; data: readonly ParsedFileTreeNode[] }
 interface WebSource {
   title: string
   href: string
+  /** 展示用域名（元素行右侧的等宽标签） */
+  domain: string
 }
 
 interface SpecialParseContext {
@@ -169,6 +176,10 @@ function findToolFamily(toolName: string): ToolFamily {
 function findBaseVariant(toolName: string): ToolCardVariant {
   if (isShellTool(toolName)) return 'command'
   if (isCodeTool(toolName)) return 'code'
+  if (isWebTool(toolName)) return 'web'
+  if (isRetrievalTool(toolName)) return 'retrieval'
+  // 日历要排在读写之前：`app_calendar_read` 名字里带 `read`
+  if (isCalendarTool(toolName)) return 'timeline'
   if (isWriteTool(toolName)) return 'write'
   if (isSearchTool(toolName)) return 'search'
   if (isReadTool(toolName)) return 'read'
@@ -487,6 +498,99 @@ function findBaseName(path: string): string {
   return slash < 0 ? path : path.slice(slash + 1)
 }
 
+/** 查询词字段：不同 provider 的叫法不一样，按常见顺序取第一个非空 */
+const WEB_QUERY_KEYS = [
+  'query',
+  'q',
+  'search',
+  'searchQuery',
+  'search_query',
+  'keyword',
+  'keywords'
+] as const
+
+/** 结构化来源里认的字段：链接与标题各一组 */
+const WEB_HREF_KEYS = ['url', 'href', 'link', 'uri', 'source_url'] as const
+const WEB_TITLE_KEYS = ['title', 'name', 'heading', 'label', 'page_title'] as const
+
+/** 结果常挂在某一层数组下：这些键继续往下钻（`{results: []}` / `{data: {sources: []}}`） */
+const WEB_SOURCE_KEYS = [
+  'results',
+  'sources',
+  'items',
+  'links',
+  'pages',
+  'entries',
+  'references',
+  'data'
+] as const
+
+/** markdown 链接：标题比 URL 好读，能拆就拆 */
+const MARKDOWN_LINK = /\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g
+
+/** 查询词（`args.query` 一类的字段）：联网检索与库内检索共用同一套键名 */
+function extractQuery(args: unknown): string | null {
+  const record = toRecord(args)
+  if (!record) return null
+  return firstString(record, [...WEB_QUERY_KEYS])
+}
+
+/** 联网检索的查询词（历史名字，与 `extractQuery` 同一实现） */
+const extractWebQuery = extractQuery
+
+function isHttpUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value)
+}
+
+function toWebSource(href: string, title?: string | null): WebSource {
+  const url = href.trim()
+  return { title: (title ?? '').trim() || url, href: url, domain: toDomain(url) }
+}
+
+/**
+ * 结构化结果 → 来源行：数组逐条取，对象往下钻一层。
+ *
+ * 联网检索的返回形状各家不同（`{results: [{title, url}]}` / `{data: {sources: [...]}}` /
+ * 直接一个数组），所以按「认字段 + 钻一层」处理，不给 provider 写分支。
+ */
+function collectWebSources(value: unknown, out: WebSource[], depth: number): void {
+  if (depth > 3 || value === null || value === undefined) return
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i += 1) collectWebSources(value[i], out, depth + 1)
+    return
+  }
+  const record = toRecord(value)
+  if (!record) return
+  const href = firstString(record, [...WEB_HREF_KEYS])
+  if (href && isHttpUrl(href)) {
+    out.push(toWebSource(href, firstString(record, [...WEB_TITLE_KEYS])))
+  }
+  for (let i = 0; i < WEB_SOURCE_KEYS.length; i += 1) {
+    const nested = record[WEB_SOURCE_KEYS[i]]
+    if (nested && typeof nested === 'object') collectWebSources(nested, out, depth + 1)
+  }
+}
+
+/** 结果是「被序列化过的 JSON 字符串」时先解一层（ACP 的 content 块常这样） */
+function parseEmbeddedJson(text: string): unknown {
+  const trimmed = text.trim()
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null
+  try {
+    return JSON.parse(trimmed)
+    // eslint-disable-next-line ith/catch-must-report -- 解析失败只说明「不是编码过的 JSON」，属预期分支，逐条上报会刷屏
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 联网检索的来源清单：结构化优先，文本兜底。
+ *
+ * 结构化（`result` 或结果里编码的 JSON）能拿到**标题** —— 这是 `web-search` 元素
+ * 每行最要紧的那半截；只有文本时才退回「markdown 链接 → 裸 URL」，那时标题只能退化成
+ * URL 本身。参数里的 `url`（`web_fetch` 这类单页抓取）排最前：它就是这次读的
+ * 那一个来源。
+ */
 function parseWebSources(
   toolName: string,
   args: unknown,
@@ -494,26 +598,260 @@ function parseWebSources(
   outputText?: string
 ): readonly WebSource[] {
   if (!isWebTool(toolName)) return []
-  const sources: WebSource[] = []
-  const record = toRecord(args)
-  const url = record && firstString(record, ['url', 'href', 'uri'])
-  const query = record && firstString(record, ['query', 'q', 'search'])
-  if (url) sources.push({ title: query ?? url, href: url })
 
-  const text = outputText ?? parseToolOutputText(result)
-  const urlMatches = text.match(HTTP_URL)
-  if (!urlMatches) return sources
-
-  const seen = new Set(sources.map(function (item) {
-    return item.href
-  }))
-  for (let i = 0; i < urlMatches.length; i += 1) {
-    const href = urlMatches[i]
-    if (seen.has(href)) continue
-    seen.add(href)
-    sources.push({ title: href, href })
+  const found: WebSource[] = []
+  const record = toRecord(result)
+  if (record) collectWebSources(record, found, 0)
+  if (typeof result === 'string') {
+    const embedded = parseEmbeddedJson(result)
+    if (embedded) collectWebSources(embedded, found, 0)
   }
-  return sources
+
+  const argRecord = toRecord(args)
+  const argUrl = argRecord && firstString(argRecord, ['url', 'href', 'uri'])
+  if (argUrl && isHttpUrl(argUrl)) found.unshift(toWebSource(argUrl, extractWebQuery(args)))
+
+  if (found.length === 0) {
+    const text = outputText ?? parseToolOutputText(result)
+    MARKDOWN_LINK.lastIndex = 0
+    let match = MARKDOWN_LINK.exec(text)
+    while (match !== null) {
+      found.push(toWebSource(match[2], match[1]))
+      match = MARKDOWN_LINK.exec(text)
+    }
+    const urls = text.match(HTTP_URL) ?? []
+    for (let i = 0; i < urls.length; i += 1) found.push(toWebSource(urls[i]))
+  }
+
+  const rows: WebSource[] = []
+  const seen = new Set<string>()
+  for (let i = 0; i < found.length; i += 1) {
+    const source = found[i]
+    if (seen.has(source.href)) continue
+    seen.add(source.href)
+    rows.push(source)
+  }
+  return rows
+}
+
+/** 日历工具返回的日程列表键名（`app_calendar_read` 可能直接给数组，也可能包一层） */
+const CALENDAR_LIST_KEYS = ['events', 'items', 'schedules', 'calendar', 'data', 'results'] as const
+
+interface CalendarEvent {
+  id: string
+  title: string
+  startAt: number
+  endAt: number
+  entireDay: boolean
+  notes: string
+}
+
+function firstNumber(record: Record<string, unknown>, keys: readonly string[]): number | null {
+  for (const key of keys) {
+    const value = record[key]
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) {
+      return Number(value)
+    }
+  }
+  return null
+}
+
+/** 列表可能直接挂在外层，也可能包一层（`{data: {items: [...]}}`）：往里钻一层 */
+function findCalendarList(record: Record<string, unknown>): readonly unknown[] | null {
+  for (const key of CALENDAR_LIST_KEYS) {
+    const value = record[key]
+    if (Array.isArray(value)) return value
+    const nested = toRecord(value)
+    if (!nested) continue
+    for (const inner of CALENDAR_LIST_KEYS) {
+      const innerValue = nested[inner]
+      if (Array.isArray(innerValue)) return innerValue
+    }
+  }
+  return null
+}
+/**
+ * 日历工具结果 → 日程列表：认 `{events: [...]}` / 直接数组 / 编码过的 JSON 字符串。
+ * 没有开始时刻的行整条丢掉（时间轴上没处放）；结束时刻缺省 = 开始时刻（一个瞬时点）。
+ */
+function parseCalendarEvents(result: unknown): readonly CalendarEvent[] {
+  const direct = Array.isArray(result) ? result : null
+  const record = direct
+    ? null
+    : (toRecord(result) ??
+      (typeof result === 'string' ? toRecord(parseEmbeddedJson(result)) : null))
+  const list = direct ?? (record ? findCalendarList(record) : null)
+  if (!Array.isArray(list) || list.length === 0) return []
+
+  const events: CalendarEvent[] = []
+  for (let i = 0; i < list.length; i += 1) {
+    const row = toRecord(list[i])
+    if (!row) continue
+    const startAt = firstNumber(row, [
+      'startAt',
+      'start_at',
+      'start',
+      'from',
+      'beginAt',
+      'begin_at'
+    ])
+    if (startAt === null) continue
+    events.push({
+      id: firstString(row, ['id', 'key', 'uid']) ?? 'calendar-' + String(i),
+      title: firstString(row, ['title', 'summary', 'name', 'subject']) ?? '',
+      startAt,
+      endAt: firstNumber(row, ['endAt', 'end_at', 'end', 'to', 'finishAt']) ?? startAt,
+      entireDay: row.entireDay === true || row.entire_day === true || row.allDay === true,
+      notes: firstString(row, ['notes', 'note', 'description', 'location', 'place']) ?? ''
+    })
+  }
+  return events
+}
+
+/** 本地时钟 `09:02`：不用 `toLocaleTimeString`（格式化随环境变，截图和单测都对不上） */
+function toClockLabel(value: number): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = function (part: number): string {
+    return part < 10 ? '0' + part : String(part)
+  }
+  return pad(date.getHours()) + ':' + pad(date.getMinutes())
+}
+
+interface TimelineLabels {
+  timelineAllDay: string
+  timelineUntitled: string
+  timelineUntil: (clock: string) => string
+}
+
+/**
+ * 日程 → 时间轴事件：左列开始时刻，说明里写「至 10:30」与备注，
+ * `when` 由当前时刻判定 —— 正在进行的那场安排是唯一加粗的一条。
+ */
+function toTimelineEvents(
+  events: readonly CalendarEvent[],
+  now: number,
+  labels: TimelineLabels
+): readonly TimelineEvent[] {
+  return events.map(function (event, index) {
+    const start = toClockLabel(event.startAt)
+    const end = event.entireDay ? '' : toClockLabel(event.endAt)
+    const parts: string[] = []
+    if (end && end !== start) parts.push(labels.timelineUntil(end))
+    if (event.notes) parts.push(event.notes)
+    return {
+      id: event.id || 'calendar-' + String(index),
+      when: toTimelineWhen(event.startAt, event.endAt, now),
+      time: event.entireDay ? labels.timelineAllDay : start,
+      title: event.title || labels.timelineUntitled,
+      detail: parts.join(' · ')
+    }
+  })
+}
+/** 库内检索的命中列表键名（`{mode, channels, hits: [...]}`） */
+const RETRIEVAL_HITS_KEYS = ['hits', 'results', 'chunks', 'passages'] as const
+
+interface RetrievalHit {
+  id: string
+  source: string
+  locator: string
+  text: string
+  score: number
+  fuzzy: boolean
+}
+
+/**
+ * 原始分数 → 0..1 相对相关度：最相关的那条记 1.00，其余按分数差线性压到 0.50–1.00。
+ *
+ * 为什么不直接报原始分：bm25 的绝对值跨查询不可比（负值域、受语料量影响），
+ * 直接当百分比用会让人以为它跨次可比。所以只报「本次检索内的相对位置」。
+ */
+function toRelativeScores(scores: readonly number[]): number[] {
+  if (scores.length === 0) return []
+  const finite = scores.filter(function (score) {
+    return Number.isFinite(score)
+  })
+  if (finite.length === 0) {
+    return scores.map(function () {
+      return 0
+    })
+  }
+  // bm25：越小越相关
+  const best = Math.min.apply(null, finite)
+  const worst = Math.max.apply(null, finite)
+  const spread = worst - best
+  return scores.map(function (score) {
+    if (!Number.isFinite(score)) return 0
+    if (spread <= 0) return 1
+    return 1 - ((score - best) / spread) * 0.5
+  })
+}
+
+/**
+ * 知识库检索结果 → 检索块要的命中行：标题 / 定位 / 片段 / 相对分数。
+ *
+ * 覆盖两种形状：工具直接返回的对象，和被序列化过的 JSON 字符串。
+ * `mode === 'like'`（短词子串回退）时没有可信分数 → `fuzzy: true`，元素不画分数条。
+ */
+function parseRetrievalHits(result: unknown): readonly RetrievalHit[] {
+  const record =
+    toRecord(result) ?? (typeof result === 'string' ? toRecord(parseEmbeddedJson(result)) : null)
+  if (!record) return []
+  const list = RETRIEVAL_HITS_KEYS.map(function (key) {
+    return record[key]
+  }).find(function (value) {
+    return Array.isArray(value)
+  })
+  if (!Array.isArray(list) || list.length === 0) return []
+
+  const rawRows: Array<{
+    id: string
+    source: string
+    locator: string
+    text: string
+    raw: number
+    mode: string
+  }> = []
+  for (let i = 0; i < list.length; i += 1) {
+    const row = toRecord(list[i])
+    if (!row) continue
+    const locator = firstString(row, ['relPath', 'rel_path', 'path', 'locator', 'section']) ?? ''
+    const source =
+      firstString(row, ['title', 'name', 'source', 'docTitle']) ??
+      (locator ? findBaseName(locator) : null) ??
+      '未命名文档'
+    const text = firstString(row, ['snippet', 'text', 'content', 'excerpt']) ?? ''
+    const id = firstString(row, ['docId', 'doc_id', 'id', 'chunkId']) ?? locator + '#' + String(i)
+    const raw = typeof row.score === 'number' ? row.score : Number.NaN
+    const mode = (firstString(row, ['mode']) ?? '').toLowerCase()
+    rawRows.push({ id, source, locator, text, raw, mode })
+  }
+  if (rawRows.length === 0) return []
+
+  const allLike = rawRows.every(function (row) {
+    return row.mode === 'like'
+  })
+  const noScores = rawRows.every(function (row) {
+    return !Number.isFinite(row.raw)
+  })
+  const fuzzy = allLike || noScores
+  const relative = toRelativeScores(
+    rawRows.map(function (row) {
+      return row.raw
+    })
+  )
+
+  return rawRows.map(function (row, index) {
+    return {
+      id: row.id,
+      source: row.source,
+      locator: row.locator,
+      text: row.text,
+      score: fuzzy ? 0 : relative[index],
+      fuzzy
+    }
+  })
 }
 
 function mapToolCallState(props: ToolCallMessagePartProps): ToolCallState {
@@ -541,11 +879,16 @@ function mapToolCallState(props: ToolCallMessagePartProps): ToolCallState {
 
 export {
   buildLineDiff,
+  extractQuery,
+  extractWebQuery,
   fetchWriteCodeDiff,
   findBaseName,
   findCodeLanguage,
   findWritePath,
   mapToolCallState,
+  parseCalendarEvents,
+  parseRetrievalHits,
+  toTimelineEvents,
   parseToolCard,
   parseToolCardAsync,
   parseToolOutputText,
@@ -555,7 +898,9 @@ export {
   parseWriteTexts
 }
 export type {
+  CalendarEvent,
   CodeHighlightLanguage,
+  RetrievalHit,
   ParsedFileTreeNode,
   ParsedToolCard,
   ParsedToolSpecial,

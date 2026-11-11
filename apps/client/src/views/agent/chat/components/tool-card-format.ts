@@ -1,5 +1,3 @@
-import type { ToolApprovalOption } from '@assistant-ui/react'
-
 const SUMMARY_KEYS = [
   'filePath',
   'path',
@@ -32,13 +30,4 @@ function formatDetail(value: unknown): string {
   }
 }
 
-function isKnownKind(kind: ToolApprovalOption['kind']): boolean {
-  return (
-    kind === 'allow-once' ||
-    kind === 'allow-always' ||
-    kind === 'reject-once' ||
-    kind === 'reject-always'
-  )
-}
-
-export { summarize, formatDetail, isKnownKind }
+export { summarize, formatDetail }
