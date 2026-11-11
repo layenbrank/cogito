@@ -50,10 +50,36 @@ function PlanScheduleCardHeader({ count, className, ...props }: PlanScheduleCard
   )
 }
 
+type PlanScheduleCardDayProps = {
+  /** 日期分组标题：`7月24日 · 周五` */
+  label: string
+  /** 当天几条，0 或不传就不显示 */
+  count?: number
+}
+
+function PlanScheduleCardDay({ label, count, className, ...props }: PlanScheduleCardDayProps & ComponentProps<'div'>) {
+  return (
+    <div
+      data-slot="plan-schedule-card-day"
+      className={cn(
+        'text-muted-foreground mt-2 mb-1 flex items-center gap-1.5 text-xs font-medium first:mt-0',
+        className
+      )}
+      {...props}>
+      <span>{label}</span>
+      {count ? <span className="tabular-nums">{count} 条</span> : null}
+    </div>
+  )
+}
+
 type PlanScheduleCardRowProps = {
   title: string
   startAt: string
   endAt: string
+  /** 人可读的时间段（`09:00 – 09:30` / `全天`）：行内输入是机器格式，扫一眼读不出来 */
+  timeLabel?: string
+  /** 备注 / 地点：有就摆在时间后面，和元素页一致 */
+  notes?: string
   onTitleChange: (next: string) => void
   onStartChange: (next: string) => void
   onEndChange: (next: string) => void
@@ -64,40 +90,59 @@ function PlanScheduleCardRow(props: PlanScheduleCardRowProps) {
   return (
     <li
       data-slot="plan-schedule-card-row"
-      className="flex flex-wrap items-center gap-1.5">
-      <Input
-        value={props.title}
-        className="h-8 min-w-40 flex-1"
-        onChange={function (event) {
-          props.onTitleChange(event.target.value)
-        }}
-      />
-      <Input
-        type="datetime-local"
-        value={props.startAt}
-        className="h-8 w-44"
-        onChange={function (event) {
-          props.onStartChange(event.target.value)
-        }}
-      />
-      <Input
-        type="datetime-local"
-        value={props.endAt}
-        className="h-8 w-44"
-        onChange={function (event) {
-          props.onEndChange(event.target.value)
-        }}
-      />
-      <Button
-        size="icon-sm"
-        variant="ghost"
-        aria-label="移除这一行"
-        onClick={props.onRemove}>
-        <Icon
-          icon="lucide:x"
-          className="size-4"
+      className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Input
+          value={props.title}
+          className="h-8 min-w-40 flex-1"
+          onChange={function (event) {
+            props.onTitleChange(event.target.value)
+          }}
         />
-      </Button>
+        <Input
+          type="datetime-local"
+          value={props.startAt}
+          className="h-8 w-44"
+          onChange={function (event) {
+            props.onStartChange(event.target.value)
+          }}
+        />
+        <Input
+          type="datetime-local"
+          value={props.endAt}
+          className="h-8 w-44"
+          onChange={function (event) {
+            props.onEndChange(event.target.value)
+          }}
+        />
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label="移除这一行"
+          onClick={props.onRemove}>
+          <Icon
+            icon="lucide:x"
+            className="size-4"
+          />
+        </Button>
+      </div>
+      {props.timeLabel || props.notes ? (
+        <p
+          data-slot="plan-schedule-card-row-meta"
+          className="text-muted-foreground flex items-center gap-1 text-xs">
+          {props.timeLabel ? <span className="tabular-nums">{props.timeLabel}</span> : null}
+          {props.timeLabel && props.notes ? <span aria-hidden="true">·</span> : null}
+          {props.notes ? (
+            <span className="inline-flex min-w-0 items-center gap-0.5">
+              <Icon
+                icon="lucide:map-pin"
+                className="size-3 shrink-0"
+              />
+              <span className="truncate">{props.notes}</span>
+            </span>
+          ) : null}
+        </p>
+      ) : null}
     </li>
   )
 }
@@ -133,6 +178,8 @@ type PlanScheduleCardWrittenProps = {
   count: number
   onUndo: () => void
   onDismiss: () => void
+  /** 写完给个出口：直接跳到日历磁贴看结果 */
+  onOpenCalendar?: () => void
 }
 
 /** 已写入的收尾条：保留一批 id 支持一次性撤销 */
@@ -146,6 +193,14 @@ function PlanScheduleCardWritten(props: PlanScheduleCardWrittenProps) {
       )}>
       <span className="text-muted-foreground">已写入 {props.count} 条日程</span>
       <div className="flex items-center gap-1">
+        {props.onOpenCalendar ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={props.onOpenCalendar}>
+            打开日历
+          </Button>
+        ) : null}
         <Button
           size="sm"
           variant="outline"
@@ -166,12 +221,14 @@ function PlanScheduleCardWritten(props: PlanScheduleCardWrittenProps) {
 export {
   PlanScheduleCard,
   PlanScheduleCardActions,
+  PlanScheduleCardDay,
   PlanScheduleCardHeader,
   PlanScheduleCardRow,
   PlanScheduleCardWritten
 }
 export type {
   PlanScheduleCardActionsProps,
+  PlanScheduleCardDayProps,
   PlanScheduleCardHeaderProps,
   PlanScheduleCardProps,
   PlanScheduleCardRowProps,

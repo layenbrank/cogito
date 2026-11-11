@@ -6,14 +6,16 @@
 import {
   PlanScheduleCard as PlanScheduleCardSurface,
   PlanScheduleCardActions,
+  PlanScheduleCardDay,
   PlanScheduleCardHeader,
   PlanScheduleCardRow,
   PlanScheduleCardWritten
 } from '@cogito/design/assistant/plan-schedule-card.aui'
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
-import { findOverlaps, toWrites } from '@/features/agent/schedule-plan'
+import { findOverlaps, toWrites, type ScheduleRow } from '@/features/agent/schedule-plan'
 import { useCalendarStore } from '@/stores/calendar'
 import { useScheduleDraftStore } from '@/stores/schedule-draft'
 import { reportCaught } from '@/utils/exception-report'
@@ -31,6 +33,57 @@ function toLocalInput(ms: number): string {
 function fromLocalInput(value: string): number | null {
   const ms = Date.parse(value)
   return Number.isFinite(ms) ? ms : null
+}
+
+const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+/** 日期分组键：同一天的日程并到一组（跨天也不拆） */
+function dayKey(ms: number): string {
+  const date = new Date(ms)
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
+}
+
+/** `7月24日 · 周五`：与 elements/generative-view-event 的日期小标一致 */
+function toDayLabel(ms: number): string {
+  const date = new Date(ms)
+  return `${date.getMonth() + 1}月${date.getDate()}日 · ${WEEKDAYS[date.getDay()]}`
+}
+
+function pad2(value: number): string {
+  return String(value).padStart(2, '0')
+}
+
+/** `09:00 – 09:30` / `全天`：输入框里是 datetime-local，扫一眼读不出时间 */
+function toRowTimeLabel(row: ScheduleRow): string {
+  if (row.entireDay) return '全天'
+  const start = new Date(row.startAt)
+  const end = new Date(row.endAt)
+  return `${pad2(start.getHours())}:${pad2(start.getMinutes())} – ${pad2(end.getHours())}:${pad2(
+    end.getMinutes()
+  )}`
+}
+
+interface DayGroup {
+  key: string
+  label: string
+  rows: ScheduleRow[]
+}
+
+/** 按天分组，保持原有先后顺序（模型给的计划通常已是时间升序） */
+function groupByDay(rows: readonly ScheduleRow[]): DayGroup[] {
+  const groups: DayGroup[] = []
+  const index = new Map<string, DayGroup>()
+  for (const row of rows) {
+    const key = dayKey(row.startAt)
+    let group = index.get(key)
+    if (!group) {
+      group = { key, label: toDayLabel(row.startAt), rows: [] }
+      index.set(key, group)
+      groups.push(group)
+    }
+    group.rows.push(row)
+  }
+  return groups
 }
 
 function PlanScheduleCard() {
@@ -68,6 +121,7 @@ function PlanScheduleCard() {
     return state.toReadEvents
   })
   const [isWriting, setWriting] = useState(false)
+  const navigate = useNavigate()
 
   useEffect(
     function () {
@@ -80,6 +134,7 @@ function PlanScheduleCard() {
   if (rows.length === 0 && lastBatchIDs.length === 0) return null
 
   const conflicts = findOverlaps(rows, events)
+  const groups = groupByDay(rows)
 
   async function handleWrite() {
     if (rows.length === 0) return
@@ -117,6 +172,9 @@ function PlanScheduleCard() {
     return (
       <PlanScheduleCardWritten
         count={lastBatchIDs.length}
+        onOpenCalendar={function () {
+          void navigate('/calendar')
+        }}
         onUndo={function () {
           void toRemoveEvents(lastBatchIDs)
             .then(function () {
@@ -142,35 +200,49 @@ function PlanScheduleCard() {
         </p>
       ) : null}
 
-      <ul className="flex flex-col gap-1.5">
-        {rows.map(function (row) {
+      <div className="flex flex-col gap-1.5">
+        {groups.map(function (group) {
           return (
-            <PlanScheduleCardRow
-              key={row.key}
-              title={row.title}
-              startAt={toLocalInput(row.startAt)}
-              endAt={toLocalInput(row.endAt)}
-              onTitleChange={function (next) {
-                updateRow(row.key, { title: next })
-              }}
-              onStartChange={function (next) {
-                const ms = fromLocalInput(next)
-                if (ms === null) return
-                const span = Math.max(row.endAt - row.startAt, 60_000)
-                updateRow(row.key, { startAt: ms, endAt: ms + span })
-              }}
-              onEndChange={function (next) {
-                const ms = fromLocalInput(next)
-                if (ms === null || ms <= row.startAt) return
-                updateRow(row.key, { endAt: ms })
-              }}
-              onRemove={function () {
-                removeRow(row.key)
-              }}
-            />
+            <div key={group.key}>
+              <PlanScheduleCardDay
+                label={group.label}
+                count={groups.length > 1 ? group.rows.length : undefined}
+              />
+              <ul className="flex flex-col gap-1.5">
+                {group.rows.map(function (row) {
+                  return (
+                    <PlanScheduleCardRow
+                      key={row.key}
+                      title={row.title}
+                      startAt={toLocalInput(row.startAt)}
+                      endAt={toLocalInput(row.endAt)}
+                      timeLabel={toRowTimeLabel(row)}
+                      notes={row.notes}
+                      onTitleChange={function (next) {
+                        updateRow(row.key, { title: next })
+                      }}
+                      onStartChange={function (next) {
+                        const ms = fromLocalInput(next)
+                        if (ms === null) return
+                        const span = Math.max(row.endAt - row.startAt, 60_000)
+                        updateRow(row.key, { startAt: ms, endAt: ms + span })
+                      }}
+                      onEndChange={function (next) {
+                        const ms = fromLocalInput(next)
+                        if (ms === null || ms <= row.startAt) return
+                        updateRow(row.key, { endAt: ms })
+                      }}
+                      onRemove={function () {
+                        removeRow(row.key)
+                      }}
+                    />
+                  )
+                })}
+              </ul>
+            </div>
           )
         })}
-      </ul>
+      </div>
 
       <PlanScheduleCardActions
         onCancel={clear}

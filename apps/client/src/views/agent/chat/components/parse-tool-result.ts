@@ -888,6 +888,7 @@ export {
   mapToolCallState,
   parseCalendarEvents,
   parseRetrievalHits,
+  toClockLabel,
   toTimelineEvents,
   parseToolCard,
   parseToolCardAsync,

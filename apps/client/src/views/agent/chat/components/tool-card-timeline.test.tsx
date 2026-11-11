@@ -92,6 +92,23 @@ describe('时间轴卡', function () {
     expect(container.querySelector('[data-slot="timeline"]')).toBeNull()
   })
 
+  it('只有一条安排时用详情卡：日期 + 标题 + 时段 · 地点', function () {
+    const start = new Date(2026, 6, 24, 9, 0).getTime()
+    const end = new Date(2026, 6, 24, 9, 30).getTime()
+    const { container } = renderCard(
+      makeProps({
+        result: {
+          events: [{ id: 'c1', title: '设计评审', startAt: start, endAt: end, notes: '会议室 B' }]
+        }
+      })
+    )
+    expect(container.querySelector('[data-slot="event-card"]')).not.toBeNull()
+    expect(container.querySelector('[data-slot="timeline"]')).toBeNull()
+    expect(screen.getByText('7月24日 · 周五')).toBeInTheDocument()
+    expect(screen.getByText('设计评审')).toBeInTheDocument()
+    expect(screen.getByText('09:00 – 09:30 · 会议室 B')).toBeInTheDocument()
+  })
+
   it('原始结果默认折叠，点开才出现', function () {
     const raw = JSON.stringify(EVENTS)
     const { container } = renderCard(makeProps({ result: EVENTS, outputText: raw }))
