@@ -1222,7 +1222,7 @@ const AssistantMessage: FC = () => {
                 icon="lucide:sparkles"
                 className="size-3.5 shrink-0 opacity-70"
               />
-              <span className="shimmer motion-reduce:animate-none leading-none">
+              <span className="shimmer shimmer-contrast motion-reduce:animate-none leading-none">
                 {labels.working}
               </span>
             </div>

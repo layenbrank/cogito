@@ -106,7 +106,7 @@ function TimelineLabel(props: {
         <span
           className={cn(
             'relative inline-block leading-none',
-            props.streaming && 'shimmer motion-reduce:animate-none'
+            props.streaming && 'shimmer shimmer-contrast motion-reduce:animate-none'
           )}>
           {props.activeLabel}
         </span>
@@ -204,7 +204,7 @@ function ToolTimeline({
                   <span
                     className={cn(
                       'relative inline-block shrink-0 leading-none',
-                      isActive && 'shimmer motion-reduce:animate-none'
+                      isActive && 'shimmer shimmer-contrast motion-reduce:animate-none'
                     )}>
                     {step.verb}
                   </span>

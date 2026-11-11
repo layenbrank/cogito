@@ -113,7 +113,7 @@ function ToolCallRow(props: ToolCallRowProps) {
           className={cn(
             base,
             running ? shown : hidden,
-            running && 'shimmer motion-reduce:animate-none'
+            running && 'shimmer shimmer-contrast motion-reduce:animate-none'
           )}>
           {props.activeLabel}
         </span>

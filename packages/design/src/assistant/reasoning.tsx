@@ -214,7 +214,7 @@ function ReasoningTrigger({
         data-slot="reasoning-trigger-label"
         className={cn(
           'aui-reasoning-trigger-label-wrapper inline-block shrink-0 leading-none tabular-nums',
-          active && 'shimmer motion-reduce:animate-none'
+          active && 'shimmer shimmer-contrast motion-reduce:animate-none'
         )}>
         {label ?? labels.reasoning(duration)}
       </span>

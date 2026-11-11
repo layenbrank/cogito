@@ -117,7 +117,7 @@ function WebSearch({
       <div
         data-slot="web-search-status"
         className="text-muted-foreground text-xs">
-        <span className={cn(searching && 'shimmer motion-reduce:animate-none')}>{status}</span>
+        <span className={cn(searching && 'shimmer shimmer-contrast motion-reduce:animate-none')}>{status}</span>
       </div>
 
       <div

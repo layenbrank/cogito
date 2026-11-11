@@ -272,7 +272,7 @@ function ApprovalCard({
               state === 'running' && 'animate-spin motion-reduce:animate-none'
             )}
           />
-          <span className={cn(state === 'running' && 'shimmer motion-reduce:animate-none')}>
+          <span className={cn(state === 'running' && 'shimmer shimmer-contrast motion-reduce:animate-none')}>
             {receipt}
           </span>
         </div>

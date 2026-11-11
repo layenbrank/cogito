@@ -772,3 +772,22 @@
 [data-slot='sheet-overlay'][data-starting-style] {
   transition: none !important;
 }
+
+/*
+ * 小字号状态文案的流光带（tw-shimmer 的 `shimmer` 工具类）
+ *
+ * tw-shimmer 的带色默认是白色：它按「暗底 + 浅色字」设计，扫过时把字提亮。
+ * 我们这边状态文案是 `text-muted-foreground` 的灰字摆在亮色底上，白带扫过时
+ * 灰字被洗成近白 → 12px 中文看着像掉字/发虚（reasoning 的「正在处理」那类）。
+ *
+ * 这里只改带色方向，不动蒙版机制：亮主题加深、暗主题提亮，扫过时只会更清楚。
+ * 用法：`className="shimmer shimmer-contrast"`。
+ */
+.shimmer-contrast {
+  --shimmer-color: oklch(0 0 0 / 0.55);
+}
+
+.dark .shimmer-contrast {
+  --shimmer-color: oklch(1 0 0 / 0.85);
+}
+
