@@ -1,7 +1,4 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
-import { join } from '@tauri-apps/api/path'
-import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
-import { readDir, stat } from '@tauri-apps/plugin-fs'
 
 import { CHANNELS } from '@/shared/ipc/channels'
 import {
@@ -15,30 +12,20 @@ import {
 } from '@/views/gallery/model/media'
 import { probeCapturedAt } from '@/views/gallery/model/probe-date'
 
-const MEDIA_FILTER = [
-  {
-    name: '媒体',
-    extensions: [...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS]
-  }
-]
-
-const MEDIA_EXT = new Set<string>([...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS])
+/**
+ * 图库导入：选目录 / 递归收集 / stat 全部由 Rust 执行
+ * （`media:pick` / `media:scanDir` / `media:stat`）。
+ *
+ * 渲染进程不再持有任意路径读盘能力 —— 收 `fs:scope` 之后它会被拦，而放行整盘等于没收。
+ * 这里只负责：拿路径 → 探测（mime / 拍摄时间 / 时长）→ `asset:insert` 入库。
+ */
+const MEDIA_EXTENSIONS = [...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS]
 const MAX_FOLDER_DEPTH = 4
 const MAX_FOLDER_FILES = 400
 
 function findFileName(path: string): string {
   const normalized = path.replace(/\\/g, '/')
   return normalized.split('/').pop() || path
-}
-
-function findExt(name: string): string {
-  const parts = name.split('.')
-  if (parts.length < 2) return ''
-  return parts[parts.length - 1].toLowerCase()
-}
-
-function isMediaFile(name: string): boolean {
-  return MEDIA_EXT.has(findExt(name))
 }
 
 function probeVideoDurationMs(src: string): Promise<number | undefined> {
@@ -73,7 +60,7 @@ async function insertMediaPath(path: string): Promise<string | undefined> {
   const probed = await probeCapturedAt(path, kind)
   let size: number | null = null
   try {
-    const info = await stat(path)
+    const info = await invoke<{ size: number | null }>(CHANNELS.MEDIA.STAT, { path })
     size = typeof info.size === 'number' ? info.size : null
   } catch (error) {
     console.warn('[gallery] stat size failed', path, error)
@@ -110,24 +97,13 @@ async function insertMediaPath(path: string): Promise<string | undefined> {
   return rows[0]?.id
 }
 
-async function collectMediaInFolder(
-  dir: string,
-  depth: number,
-  out: string[]
-): Promise<void> {
-  if (depth > MAX_FOLDER_DEPTH || out.length >= MAX_FOLDER_FILES) return
-  const entries = await readDir(dir)
-  for (const entry of entries) {
-    if (out.length >= MAX_FOLDER_FILES) return
-    const child = await join(dir, entry.name)
-    if (entry.isDirectory) {
-      await collectMediaInFolder(child, depth + 1, out)
-      continue
-    }
-    if (entry.isFile && isMediaFile(entry.name)) {
-      out.push(child)
-    }
-  }
+async function scanFolder(dir: string): Promise<string[]> {
+  return invoke<string[]>(CHANNELS.MEDIA.SCAN_DIR, {
+    dir,
+    extensions: MEDIA_EXTENSIONS,
+    maxDepth: MAX_FOLDER_DEPTH,
+    maxFiles: MAX_FOLDER_FILES
+  })
 }
 
 async function importPaths(paths: string[]): Promise<string[]> {
@@ -139,32 +115,20 @@ async function importPaths(paths: string[]): Promise<string[]> {
 }
 
 async function pickAndImportFiles(): Promise<string[]> {
-  const picked = await dialogOpen({
-    multiple: true,
-    filters: MEDIA_FILTER
+  const paths = await invoke<string[]>(CHANNELS.MEDIA.PICK, {
+    mode: 'files',
+    extensions: MEDIA_EXTENSIONS
   })
-  const paths = Array.isArray(picked) ? picked : picked ? [picked] : []
   if (paths.length === 0) return []
   return importPaths(paths)
 }
 
 async function pickAndImportFolders(): Promise<string[]> {
-  const picked = await dialogOpen({
-    directory: true,
-    multiple: true
-  })
-  const dirs = Array.isArray(picked) ? picked : picked ? [picked] : []
+  const dirs = await invoke<string[]>(CHANNELS.MEDIA.PICK, { mode: 'folders' })
   if (dirs.length === 0) return []
 
-  // collectMediaInFolder 往传入的数组里写：每个目录一个桶，并行收集后再按序拼起来
-  const buckets: string[][] = dirs.map(function () {
-    return []
-  })
-  await Promise.all(
-    dirs.map(function (dir, index) {
-      return collectMediaInFolder(dir, 0, buckets[index])
-    })
-  )
+  // 每个目录一次 Rust 扫描：深度/数量上限在 Rust 侧执行，前端不再递归读盘
+  const buckets = await Promise.all(dirs.map(scanFolder))
   const files = buckets.flat()
   if (files.length === 0) return []
   return importPaths(files)

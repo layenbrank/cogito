@@ -5,7 +5,7 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 import { writeImage, writeText } from '@tauri-apps/plugin-clipboard-manager'
-import { save as dialogSave } from '@tauri-apps/plugin-dialog'
+import { save as dialogSave } from '@/shared/ipc/dialog'
 import { readFile } from '@tauri-apps/plugin-fs'
 import { toast } from 'sonner'
 

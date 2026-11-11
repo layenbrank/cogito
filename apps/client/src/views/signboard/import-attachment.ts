@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { appLocalDataDir, join } from '@tauri-apps/api/path'
-import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
+import { open as dialogOpen } from '@/shared/ipc/dialog'
 import { BaseDirectory, exists, mkdir, writeFile, stat } from '@tauri-apps/plugin-fs'
 
 import { CHANNELS } from '@/shared/ipc/channels'

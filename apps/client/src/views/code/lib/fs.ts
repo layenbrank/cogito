@@ -1,4 +1,4 @@
-import { open } from '@tauri-apps/plugin-dialog'
+import { open } from '@/shared/ipc/dialog'
 import {
   exists,
   mkdir,

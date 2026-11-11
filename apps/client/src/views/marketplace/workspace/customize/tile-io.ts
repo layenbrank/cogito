@@ -1,4 +1,4 @@
-import { save } from '@tauri-apps/plugin-dialog'
+import { save } from '@/shared/ipc/dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 
 import { timeSphere } from '@cogito/utils'

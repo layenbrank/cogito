@@ -1,5 +1,5 @@
 import { documentDir, dirname } from '@tauri-apps/api/path'
-import { open, save } from '@tauri-apps/plugin-dialog'
+import { open, save } from '@/shared/ipc/dialog'
 import {
   exists,
   mkdir,

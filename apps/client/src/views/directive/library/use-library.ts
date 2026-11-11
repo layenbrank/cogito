@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
+import { open as dialogOpen } from '@/shared/ipc/dialog'
 
 import type { ImportResult } from '@/shared/ipc/specs/sidecar'
 

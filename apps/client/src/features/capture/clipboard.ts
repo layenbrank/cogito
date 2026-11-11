@@ -1,8 +1,5 @@
 import { writeImage, writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { invoke } from '@tauri-apps/api/core'
-import { appLocalDataDir, join } from '@tauri-apps/api/path'
-import { BaseDirectory, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs'
-import { save as dialogSave } from '@tauri-apps/plugin-dialog'
 import { CHANNELS } from '@/shared/ipc/channels'
 
 /** 将文本写入系统剪贴板 */
@@ -20,6 +17,9 @@ export async function copyImage(dataUrl: string): Promise<void> {
  * 把截图保存为 textures 目录下的 PNG 并注册到 asset 表，
  * 返回 { filePath, w, h } 供磁贴消费。
  * w/h 使用逻辑像素（natural / dpr），与屏幕 1:1，避免强行压到 480 后再放大发糊。
+ *
+ * 落盘改由 Rust（`capture:pinTexture`）执行：收 `fs:scope` 之后渲染进程不该再有
+ * 任意路径写盘能力，AppLocalData/textures 也不例外。
  */
 export async function pinTexture(
   dataUrl: string
@@ -38,18 +38,13 @@ export async function pinTexture(
   const w = Math.max(48, Math.round(naturalSize.w / dpr))
   const h = Math.max(48, Math.round(naturalSize.h / dpr))
 
-  const id = `texture-${Date.now()}`
-  if (!(await exists('textures', { baseDir: BaseDirectory.AppLocalData }))) {
-    await mkdir('textures', { baseDir: BaseDirectory.AppLocalData, recursive: true })
-  }
-  const dir = await appLocalDataDir()
-  const filePath = await join(dir, 'textures', `${id}.png`)
-  await writeFile(filePath, dataUrlToBytes(dataUrl))
+  const filePath = await invoke<string>(CHANNELS.CAPTURE.PIN_TEXTURE, { dataUrl })
+  const fileName = filePath.replace(/\\/g, '/').split('/').pop() || filePath
 
   await invoke(CHANNELS.ASSET.INSERT, {
     params: {
       filePath,
-      fileName: `${id}.png`,
+      fileName,
       mime: 'image/png',
       kind: 'image',
       hash: null,
@@ -70,18 +65,12 @@ export async function pinTexture(
 
 /* ─── internal helpers ─── */
 
-const PNG_FILTER = [{ name: 'PNG 图片', extensions: ['png'] }]
-
-/** 弹出系统保存对话框，将裁剪+标注后的 PNG 写入用户选择的路径 */
+/** 弹出系统保存对话框，将裁剪+标注后的 PNG 写入用户选择的路径（Rust 侧落盘） */
 export async function saveToUserPath(dataUrl: string): Promise<string | null> {
-  const defaultName = `screenshot-${formatTimestamp(new Date())}.png`
-  const dest = await dialogSave({
-    defaultPath: defaultName,
-    filters: PNG_FILTER
+  return invoke<string | null>(CHANNELS.CAPTURE.SAVE_PNG, {
+    dataUrl,
+    defaultName: `screenshot-${formatTimestamp(new Date())}.png`
   })
-  if (!dest) return null
-  await writeFile(dest, dataUrlToBytes(dataUrl))
-  return dest
 }
 
 function dataUrlToBytes(dataUrl: string): Uint8Array {

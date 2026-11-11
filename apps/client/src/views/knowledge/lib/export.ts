@@ -1,5 +1,5 @@
 import { join } from '@tauri-apps/api/path'
-import { save } from '@tauri-apps/plugin-dialog'
+import { save } from '@/shared/ipc/dialog'
 import { mkdir, writeTextFile } from '@tauri-apps/plugin-fs'
 import { toast } from 'sonner'
 

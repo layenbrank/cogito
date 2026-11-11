@@ -1,4 +1,4 @@
-import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
+import { open as dialogOpen } from '@/shared/ipc/dialog'
 import { readTextFile } from '@tauri-apps/plugin-fs'
 
 import { discoverChromeProfiles } from '@/views/bookmark/import/chrome-profile'

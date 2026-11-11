@@ -1,5 +1,5 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
-import { open as dialogOpen } from '@tauri-apps/plugin-dialog'
+import { open as dialogOpen } from '@/shared/ipc/dialog'
 import { stat } from '@tauri-apps/plugin-fs'
 
 import { CHANNELS } from '@/shared/ipc/channels'
