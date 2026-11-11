@@ -47,7 +47,8 @@ type SigninFormProps = {
 
 interface SigninSession {
   token: string
-  isRemembered: boolean
+  /** 记不记得账号（只影响用户名预填）；令牌一律持久化，见 `writeAuthToken` */
+  rememberAccount: boolean
 }
 
 const SIGNIN: Record<
@@ -62,21 +63,21 @@ const SIGNIN: Record<
       password: values.password ?? '',
       ...proof
     })
-    return { token: session.token, isRemembered: values.remember !== false }
+    return { token: session.token, rememberAccount: values.remember !== false }
   },
   async phone(values) {
     const session = await POST_SIGNIN_PHONE({
       phone: values.phone ?? '',
       code: values.captcha ?? ''
     })
-    return { token: session.token, isRemembered: true }
+    return { token: session.token, rememberAccount: true }
   },
   async email(values) {
     const session = await POST_SIGNIN_EMAIL({
       email: values.email ?? '',
       code: values.captcha ?? ''
     })
-    return { token: session.token, isRemembered: true }
+    return { token: session.token, rememberAccount: true }
   }
 }
 
@@ -123,9 +124,9 @@ function SigninForm(props: SigninFormProps) {
     try {
       const session = await SIGNIN[signinMode](values, askSlide)
       if (!session) return
-      writeAuthToken(session.token, session.isRemembered)
+      writeAuthToken(session.token)
       if (signinMode === MODE.USERNAME) {
-        writeRememberedUsername(session.isRemembered ? (values.username ?? null) : null)
+        writeRememberedUsername(session.rememberAccount ? (values.username ?? null) : null)
       }
       toast.success('登录成功')
       onSuccess()
@@ -266,7 +267,7 @@ function SigninForm(props: SigninFormProps) {
                           }}
                         />
                       </FormControl>
-                      <FormLabel className="font-normal">记住我</FormLabel>
+                      <FormLabel className="font-normal">记住账号</FormLabel>
                     </FormItem>
                   )
                 }}

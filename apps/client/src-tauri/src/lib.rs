@@ -1,9 +1,9 @@
 pub mod app;
-pub mod autostart;
 pub mod automation;
-pub mod diagnostics;
+pub mod autostart;
 pub mod bridge;
 pub mod browser;
+pub mod diagnostics;
 pub mod knowledge;
 pub mod reminder;
 pub mod search;
@@ -29,6 +29,7 @@ pub mod overlay {
 
 pub mod capture {
     pub mod command;
+    pub mod fs;
     pub mod hotkey;
     /// 候选窗口可见性判定（覆盖网格，纯函数，便于单测）
     pub mod occlusion;
@@ -42,6 +43,8 @@ pub mod capture {
 }
 
 pub mod media;
+
+pub mod security;
 
 pub mod ui {
     pub mod contextmenu;

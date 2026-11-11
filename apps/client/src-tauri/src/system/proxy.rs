@@ -10,8 +10,10 @@ use std::{
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Runtime};
 
+/// 默认直连网段。`0.0.0.0` 是通配地址：放到代理里会被转成「代理自己的地址」并回 502，
+/// 所以它和 `::` 必须一起进白名单（否则本地模型配成 0.0.0.0 时，报错永远看不懂）。
 const DEFAULT_BYPASS_LIST: &str =
-    "localhost,127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,*.local";
+    "localhost,127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1,0.0.0.0,::,*.local";
 static ACCEPT_INVALID_CERTS: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

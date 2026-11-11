@@ -5,7 +5,7 @@ use tauri::{Manager, RunEvent, generate_context};
 
 use crate::{
     app::{handlers, plugins},
-    autostart, automation,
+    automation, autostart,
     browser::state::BrowserState,
     capture::{CaptureHandshake, CapturePending},
     overlay::{OverlayHealth, OverlayPending},
@@ -13,9 +13,10 @@ use crate::{
     through::{self, ThroughState},
     ui::tray,
     utils::{
+        agent_cache,
         goose_acp::GooseAcpHub,
         goose_serve::{self, GooseServeState},
-        agent_cache, goose_tls, log_retention,
+        goose_tls, log_retention,
         sidecar::{self, SidecarState},
         terminal::TerminalHub,
     },
@@ -59,12 +60,28 @@ impl Bootstrap {
                         .map_err(|error| anyhow::anyhow!("创建知识库根目录失败: {error}"))?;
                     // 本地工具桥：`cogito-mcp` 只经它读写，app 始终是唯一写者。
                     // 传 AppHandle 是因为 `app_browser_*` 要访问宿主 webview。
-                    let bridge = crate::bridge::start(storage.clone(), handle_for_db.clone()).await?;
+                    let bridge =
+                        crate::bridge::start(storage.clone(), handle_for_db.clone()).await?;
                     crate::bridge::start_clip_server(handle_for_db.clone(), storage.clone()).await;
                     Ok::<_, anyhow::Error>((storage, bridge))
                 })
                 .expect("failed to initialize database");
                 app.manage(db_state);
+                // 工具审计（S6）：启动时裁掉 7 天前的行。审计是旁路，失败只 warn，
+                // 绝不阻塞启动 —— 表被写坏也不该让人打不开 app。
+                {
+                    let audit_handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        use tauri::Manager;
+                        let storage = audit_handle.state::<Storage>().inner().clone();
+                        let now = cogito_core::tools::audit::now_ms();
+                        match cogito_core::tools::audit::prune(storage.connection(), now).await {
+                            Ok(0) => {}
+                            Ok(dropped) => tracing::info!(dropped, "工具审计：清理过期记录"),
+                            Err(error) => tracing::warn!("工具审计：清理过期记录失败：{error}"),
+                        }
+                    });
+                }
                 app.manage(bridge_state);
                 app.manage(SidecarState::new());
                 app.manage(GooseServeState::new());
@@ -73,6 +90,19 @@ impl Bootstrap {
                 // 闲置回收：agent 会话 30 分钟无输出且没有在跑的 run 就关掉
                 crate::utils::terminal::start_idle_reaper(app.handle().clone());
                 app.manage(BrowserState::default());
+                // 授权集（S1/1A）：capabilities 的静态 scope 只是下限，运行期真正放行哪些目录/文件由它决定。
+                // 失败不阻塞启动：只影响图库/工作区的越界读取，各自有可读错误。
+                // `--safe-mode` / `COGITO_SAFE_MODE=1` 是逃生门：收口把用户收挂时退回整盘放行。
+                if crate::security::grants::safe_mode_enabled() {
+                    crate::security::grants::apply_safe_mode(&app.handle());
+                } else {
+                    let handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(error) = crate::security::grants::rebuild(&handle).await {
+                            tracing::warn!("授权集重建失败：{error}");
+                        }
+                    });
+                }
                 goose_tls::install_crypto_provider();
                 app.manage(ThroughState::new("overlay"));
                 app.manage(OverlayPending::default());
@@ -146,7 +176,9 @@ impl Bootstrap {
                 // `begin_session()` 内部保证「先读旧标记再写 running」的顺序。
                 let previous_session = crate::utils::diagnostics::begin_session();
                 match previous_session {
-                    Some(session) if crate::utils::diagnostics::previous_session_crashed(Some(&session)) => {
+                    Some(session)
+                        if crate::utils::diagnostics::previous_session_crashed(Some(&session)) =>
+                    {
                         tracing::warn!(
                             "上次会话未正常退出（pid={}, startedAt={}），待上报崩溃现场 {} 份",
                             session.pid,

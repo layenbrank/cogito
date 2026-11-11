@@ -119,10 +119,16 @@ interface AgentPref {
   /** 会话级审批档（threadID → 审批）；缺省回落新会话默认值 */
   approvalByThread: Record<string, ApprovalMode>
   modelPrefs: Record<string, ModelPref>
+  /** 上次在模型选择器里选中的接入行 id（`provider` 表 id）；null = 没选过 */
+  activeProviderID: string | null
   /** 当前文件夹（workspaceID → 文件夹路径）；审阅 / 文件 / 提交历史共用 */
   activeRootByWorkspace: Record<string, string>
   /** `1` 开 / `0` 关；与历史 localStorage 语义对齐 */
   corexMcpTools: '0' | '1'
+  /** 生成温度（0–2；交给 goose 时钳到 0–1） */
+  temperature: number
+  /** 用户补充系统提示：追加在场景提示词之后，空串表示不加 */
+  extraSystemPrompt: string
 }
 
 interface WindowAppearance {

@@ -68,7 +68,7 @@ const PERSIST_DEFAULTS: PersistShape = {
       isEditorSemanticHighlightingEnabled: true,
       editorTabSize: 2,
       isEditorInsertSpaces: true,
-      isHiddenVisible: false,
+      isHiddenVisible: false,
       tsTypesMode: 'lean'
     },
     signboard: {
@@ -88,8 +88,11 @@ const PERSIST_DEFAULTS: PersistShape = {
     modeByThread: {},
     approvalByThread: {},
     modelPrefs: {},
+    activeProviderID: null,
     activeRootByWorkspace: {},
-    corexMcpTools: '1'
+    corexMcpTools: '1',
+    temperature: 0.7,
+    extraSystemPrompt: ''
   },
   window: {
     appearance: {
@@ -113,12 +116,12 @@ const PERSIST_DEFAULTS: PersistShape = {
 }
 
 export {
-  PERSIST_DEFAULTS,
-  SESSION_CAP,
-  CODE_TAB_CAP,
-  RECENT_HIT_CAP,
   BROWSER_VISIT_CAP,
-  TIPTAP_COLOR_CAP,
+  CODE_RECENT_PATH_CAP,
   CODE_ROOT_CAP,
-  CODE_RECENT_PATH_CAP
+  CODE_TAB_CAP,
+  PERSIST_DEFAULTS,
+  RECENT_HIT_CAP,
+  SESSION_CAP,
+  TIPTAP_COLOR_CAP
 }

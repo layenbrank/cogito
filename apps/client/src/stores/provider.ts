@@ -1,9 +1,11 @@
+import { parseModels } from '@/features/agent/model/providers'
+import { ensurePersist, findPref, patchPref } from '@/features/persist'
+import { CHANNELS } from '@/shared/ipc/channels'
+import { reportCaught } from '@/utils/exception-report'
 import { invoke } from '@tauri-apps/api/core'
 import { create, type StateCreator } from 'zustand'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
-import { CHANNELS } from '@/shared/ipc/channels'
-import { reportCaught } from '@/utils/exception-report'
 
 /** goose inventory providerId（历史伪 kind「goose」已过滤） */
 type ProviderKind = string
@@ -41,6 +43,8 @@ interface ProviderSlice {
   providers: AgentProvider[]
   providersLoaded: boolean
   activeProviderID: string | null
+  /** `activeProviderID` 是用户亲手选的（true）还是系统给的默认值（false） */
+  activeProviderPicked: boolean
 
   toReadProviders: () => Promise<AgentProvider[]>
   toWriteProvider: (values: AgentProvider[]) => Promise<void>
@@ -70,26 +74,54 @@ function toProviderWrite(value: AgentProvider) {
   }
 }
 
+/** 上次在模型选择器里点过的接入（持久化值）—— 仍存在且启用才算数 */
+function findPickedProviderID(providers: readonly AgentProvider[]): string | null {
+  const saved = findPref('agent').activeProviderID?.trim()
+  if (!saved) return null
+  const found = providers.find(function (provider) {
+    return provider.id === saved && provider.enabled
+  })
+  return found?.id ?? null
+}
+
+/**
+ * 没选过时的默认值：取**配了模型**的第一条。
+ *
+ * 不能直接 `providers[0]`：表是按 `updatedAt DESC` 读的，而 bootstrap 会把每条已配置
+ * 接入都刷一遍时间戳，于是「最近刷新的那个空壳行」会莫名成为当前模型（连发送都会被挡）。
+ */
+function findDefaultProviderID(providers: readonly AgentProvider[]): string | null {
+  const usable = providers.find(function (provider) {
+    return provider.enabled && parseModels(provider.models).length > 0
+  })
+  return usable?.id ?? providers[0]?.id ?? null
+}
+
 const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
   return {
     providers: [],
     providersLoaded: false,
     activeProviderID: null,
+    activeProviderPicked: false,
 
     async toReadProviders() {
+      // 上次选中的接入存在持久层：没 hydrate 完就开读会拿到默认值（null），选择等于丢了
+      await ensurePersist()
       try {
-        const providers = (await invoke<AgentProvider[]>(CHANNELS.AGENT_PROVIDER.TO_READ, { params: {} })).filter(
-          function (provider) {
-            return provider.kind !== 'goose'
-          }
-        )
+        const providers = (
+          await invoke<AgentProvider[]>(CHANNELS.AGENT_PROVIDER.TO_READ, { params: {} })
+        ).filter(function (provider) {
+          return provider.kind !== 'goose'
+        })
         setters(
           function (state) {
             state.providers = providers
             state.providersLoaded = true
-            if (!state.activeProviderID && providers[0]) {
-              state.activeProviderID = providers[0].id
-            }
+            if (state.activeProviderID) return
+            // 先认上次亲手选的那条，再退到「有模型的默认值」；前者才算显式选择
+            const picked = findPickedProviderID(providers)
+            state.activeProviderID = picked ?? findDefaultProviderID(providers)
+            state.activeProviderPicked = picked !== null
           },
           false,
           'toReadProviders'
@@ -115,6 +147,7 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
           state.providers.push(...values)
           if (!state.activeProviderID && values[0]) {
             state.activeProviderID = values[0].id
+            state.activeProviderPicked = false
           }
         },
         false,
@@ -178,6 +211,7 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
             })
             if (state.activeProviderID && keySet.has(state.activeProviderID)) {
               state.activeProviderID = state.providers[0]?.id ?? null
+              state.activeProviderPicked = false
             }
           },
           false,
@@ -194,10 +228,15 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
       setters(
         function (state) {
           state.activeProviderID = key
+          state.activeProviderPicked = key !== null
         },
         false,
         'toSetActiveProvider'
       )
+      // 选择要跨重启：不落盘的话，下次启动又回到「最近更新的那一行」
+      void patchPref('agent', { activeProviderID: key }).catch(function (error: unknown) {
+        console.warn('[provider-store] 保存当前模型失败（不影响本轮）:', error)
+      })
     }
   }
 }

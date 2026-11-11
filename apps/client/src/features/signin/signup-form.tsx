@@ -44,7 +44,7 @@ function SignupForm(props: SignupFormProps) {
         password: values.password,
         ...proof
       })
-      writeAuthToken(session.token, true)
+      writeAuthToken(session.token)
       toast.success('注册成功')
       form.reset()
       onSuccess()

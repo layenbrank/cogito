@@ -35,7 +35,12 @@ fn is_allowed_jwt_path(path: &Path) -> bool {
     if path.file_name().and_then(|name| name.to_str()) != Some("jwt") {
         return false;
     }
-    if path.parent().and_then(Path::file_name).and_then(|name| name.to_str()) != Some("cogito") {
+    if path
+        .parent()
+        .and_then(Path::file_name)
+        .and_then(|name| name.to_str())
+        != Some("cogito")
+    {
         return false;
     }
     let Some(identifier_dir) = path.parent().and_then(Path::parent) else {

@@ -357,7 +357,7 @@ fn build_goose_command(
                     .args(args.iter().copied())
                     .env("GOOSE_SERVER__SECRET_KEY", token)
                     .env("GOOSE_PATH_ROOT", &path_root);
-                return Ok(with_cursor_cli_envs(command));
+                return Ok(with_cli_envs(command));
             }
         }
     }
@@ -369,17 +369,70 @@ fn build_goose_command(
         .args(args.iter().copied())
         .env("GOOSE_SERVER__SECRET_KEY", token)
         .env("GOOSE_PATH_ROOT", &path_root);
-    Ok(with_cursor_cli_envs(command))
+    Ok(with_cli_envs(command))
 }
 
-/// 注入 Cursor CLI 所需 PATH / CURSOR_API_KEY，使 goose 的 cursor-agent 供应商能找到本机登录态。
-fn with_cursor_cli_envs(
+/// 注入侧车要继承的环境变量：Cursor CLI 的 PATH / CURSOR_API_KEY，
+/// 以及**归一后的** `OLLAMA_HOST`（见 `normalize_ollama_host`）。
+fn with_cli_envs(
     mut command: tauri_plugin_shell::process::Command,
 ) -> tauri_plugin_shell::process::Command {
     for (key, value) in crate::utils::cursor_agent::goose_cli_envs() {
         command = command.env(key, value);
     }
+    if let Ok(raw) = std::env::var("OLLAMA_HOST") {
+        if let Some(normalized) = normalize_ollama_host(&raw) {
+            info!("OLLAMA_HOST 归一：{} → {}", raw.trim(), normalized);
+            command = command.env("OLLAMA_HOST", normalized);
+        }
+    }
     command
+}
+
+/// 把 Ollama 的监听地址改成**能拨号**的地址。
+///
+/// 用户常把 `OLLAMA_HOST` 设成 `0.0.0.0`（那是服务端监听写法），而 goose 的 ollama
+/// provider 拿它当**请求地址**，拼出 `http://0.0.0.0/v1/chat/completions`（无端口 = 80）
+/// —— 本机一定连不上，还会被代理吞成 502。
+///
+/// 只改写两种情况：通配地址（`0.0.0.0` / `::` / `*`）和缺端口；其余原样透传（`None`）。
+fn normalize_ollama_host(raw: &str) -> Option<String> {
+    let text = raw.trim();
+    if text.is_empty() {
+        return None;
+    }
+    let (scheme, rest) = match text.split_once("://") {
+        Some((scheme, rest)) => (Some(scheme), rest),
+        None => (None, text),
+    };
+    let (host, port) = split_host_port(rest);
+    let is_wildcard = matches!(host, "0.0.0.0" | "::" | "*");
+    if !is_wildcard {
+        // 能拨号（带端口）的行不动；IPv6 无端口不猜，免得拼出非法地址
+        if port.is_some() || host.contains(':') {
+            return None;
+        }
+    }
+    let target_host = if is_wildcard { "127.0.0.1" } else { host };
+    let target_port = port.unwrap_or("11434");
+    Some(match scheme {
+        Some(scheme) => format!("{scheme}://{target_host}:{target_port}"),
+        None => format!("{target_host}:{target_port}"),
+    })
+}
+
+/// `host:port` / `[::]:11434` / `[::]` / `host` 四种形态拆开；无端口时返回 `(host, None)`。
+fn split_host_port(value: &str) -> (&str, Option<&str>) {
+    if let Some(inner) = value.strip_prefix('[') {
+        return match inner.split_once("]:") {
+            Some((host, port)) => (host, Some(port)),
+            None => (inner.strip_suffix(']').unwrap_or(inner), None),
+        };
+    }
+    match value.rsplit_once(':') {
+        Some((host, port)) if !host.contains(':') => (host, Some(port)),
+        _ => (value, None),
+    }
 }
 
 /// 跑一次 goose 子命令并收集输出（`schedule` 这类一次性命令用）。
@@ -680,5 +733,40 @@ mod tests {
     #[test]
     fn fingerprint_is_normalized_to_lowercase_hex() {
         assert_eq!(normalize_fingerprint("AB:cd:EF 12"), "abcdef12");
+    }
+
+    /// 通配地址是「监听」写法，当请求地址用时必须换成回环
+    #[test]
+    fn ollama_host_wildcard_becomes_loopback() {
+        assert_eq!(
+            normalize_ollama_host("0.0.0.0").as_deref(),
+            Some("127.0.0.1:11434")
+        );
+        assert_eq!(
+            normalize_ollama_host("0.0.0.0:11500").as_deref(),
+            Some("127.0.0.1:11500")
+        );
+        assert_eq!(
+            normalize_ollama_host("http://0.0.0.0:11434").as_deref(),
+            Some("http://127.0.0.1:11434")
+        );
+        assert_eq!(
+            normalize_ollama_host("[::]").as_deref(),
+            Some("127.0.0.1:11434")
+        );
+    }
+
+    /// 本来就能拨号的地址一律不改
+    #[test]
+    fn ollama_host_keeps_usable_values() {
+        assert_eq!(normalize_ollama_host("127.0.0.1:11434"), None);
+        assert_eq!(normalize_ollama_host("http://192.168.1.9:11434"), None);
+        assert_eq!(normalize_ollama_host("[::1]:11434"), None);
+        assert_eq!(normalize_ollama_host("  "), None);
+        // 只有主机名时补默认端口（goose 不接受无端口的 host）
+        assert_eq!(
+            normalize_ollama_host("myhost").as_deref(),
+            Some("myhost:11434")
+        );
     }
 }

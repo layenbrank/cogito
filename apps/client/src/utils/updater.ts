@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { ask } from '@tauri-apps/plugin-dialog'
+import { ask } from '@/shared/ipc/dialog'
 import { check } from '@tauri-apps/plugin-updater'
 import { toast } from 'sonner'
 import { CHANNELS } from '@/shared/ipc/channels'

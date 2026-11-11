@@ -196,7 +196,8 @@ pub async fn cogito_provider_set_tenant(
 
 /// 探测本机 Cursor Agent CLI（`agent status`）：安装路径、是否已登录、是否有 CURSOR_API_KEY。
 #[tauri::command(rename = "cursor-agent:status")]
-pub async fn cursor_agent_status() -> Result<crate::utils::cursor_agent::CursorAgentStatus, String> {
+pub async fn cursor_agent_status() -> Result<crate::utils::cursor_agent::CursorAgentStatus, String>
+{
     tokio::task::spawn_blocking(crate::utils::cursor_agent::find_status)
         .await
         .map_err(|error| format!("cursor-agent status 线程异常: {error}"))

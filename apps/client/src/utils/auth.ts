@@ -35,7 +35,8 @@ type AuthTokenListener = () => void
 const authTokenListeners = new Set<AuthTokenListener>()
 
 function notifyAuthToken(): void {
-  for (const listener of [...authTokenListeners]) listener()
+  // 快照一份再通知：监听器里可能又增删订阅，边遍历边改会让通知漏人
+  for (const listener of Array.from(authTokenListeners)) listener()
 }
 
 let stopCrossWindow: (() => void) | null = null
@@ -58,7 +59,7 @@ function findAuthToken(): string | null {
   if (!token) return null
   // 过期令牌不是登录态：留着它只会让每个接口回一句「登录已过期」
   if (isAuthTokenExpired(token)) {
-    void writeJwtSecret(null, false).then(function () {
+    void writeJwtSecret(null).then(function () {
       notifyAuthToken()
     })
     return null
@@ -119,9 +120,9 @@ function isAdmin(): boolean {
   return findAuthRole() === ADMIN_ROLE
 }
 
-/** 记住我进 Keyring，否则只留内存到本次会话；侧车桥接由 secrets 统一处理 */
-function writeAuthToken(token: string, isRemembered: boolean): void {
-  void writeJwtSecret(token, isRemembered).then(function () {
+/** 登录成功：令牌一律落 Keyring（跨刷新、跨重启保持到服务端 JWT 过期） */
+function writeAuthToken(token: string): void {
+  void writeJwtSecret(token).then(function () {
     notifyAuthToken()
   })
   // 同步通知：jwtCache 已在 writeJwtSecret 开头写入
@@ -147,7 +148,7 @@ function writeRememberedUsername(username: string | null): void {
 
 /** 退出登录、或令牌被判失效时用：清 Keyring + 内存 + 侧车桥接。不碰「记住的用户名」。 */
 function clearAuthToken(): void {
-  void writeJwtSecret(null, false).then(function () {
+  void writeJwtSecret(null).then(function () {
     notifyAuthToken()
   })
   notifyAuthToken()
@@ -192,6 +193,21 @@ function subscribeAuthToken(listener: AuthTokenListener): () => void {
   }
 }
 
+/**
+ * 启动时把 Keyring 里的令牌唤回内存，并通知订阅者。
+ *
+ * 必须显式做一次：`jwtCache` 是异步读出来的，而 `stores/session` / 租户解析这类
+ * 「有令牌就干活」的模块在**模块加载**时就已经跑完了初始化（那时 cache 还是空的），
+ * 于是刷新 / 重启后会表现成「Keyring 里明明有令牌，界面却是未登录」。
+ *
+ * 返回是否恢复出了可用令牌（不阻塞首屏：校验交给 session store 的 profile 请求）。
+ */
+async function hydrateAuthToken(): Promise<boolean> {
+  await ensureSecrets()
+  notifyAuthToken()
+  return Boolean(findAuthToken())
+}
+
 export {
   ADMIN_ROLE,
   clearAuthToken,
@@ -199,6 +215,7 @@ export {
   findAuthRole,
   findAuthToken,
   findRememberedUsername,
+  hydrateAuthToken,
   isAdmin,
   isAuthenticated,
   isAuthTokenExpired,

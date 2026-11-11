@@ -204,7 +204,9 @@ fn reset_size_cache() {
 /// mtime，长跑会话会被误判成「7 天没动过」而被删掉。
 #[must_use]
 pub fn latest_touch(path: &Path) -> Option<SystemTime> {
-    let mut latest = fs::metadata(path).ok().and_then(|meta| meta.modified().ok());
+    let mut latest = fs::metadata(path)
+        .ok()
+        .and_then(|meta| meta.modified().ok());
     let Ok(entries) = fs::read_dir(path) else {
         return latest;
     };
@@ -296,9 +298,7 @@ pub fn stats_in(root: &Path) -> AgentCacheStats {
 pub fn stats() -> AgentCacheStats {
     let mut stats = stats_in(&agent_cache_root());
     let legacy = legacy_roots();
-    stats.legacy_path = legacy
-        .first()
-        .map(|path| path.display().to_string());
+    stats.legacy_path = legacy.first().map(|path| path.display().to_string());
     stats.legacy_bytes = legacy.iter().map(|path| dir_size(path)).sum();
     let state = prune_state_snapshot();
     stats.last_pruned_at = (state.at_ms > 0).then_some(state.at_ms);
@@ -556,12 +556,20 @@ fn max_bytes_from(raw: Option<&str>) -> u64 {
 /// 当前生效的保留期（环境变量优先）。
 #[must_use]
 pub fn retention_days() -> u64 {
-    retention_days_from(std::env::var("COGITO_AGENT_CACHE_RETENTION_DAYS").ok().as_deref())
+    retention_days_from(
+        std::env::var("COGITO_AGENT_CACHE_RETENTION_DAYS")
+            .ok()
+            .as_deref(),
+    )
 }
 
 /// 当前生效的容量上限（环境变量优先）。
 fn max_bytes_limit() -> u64 {
-    max_bytes_from(std::env::var("COGITO_AGENT_CACHE_MAX_BYTES").ok().as_deref())
+    max_bytes_from(
+        std::env::var("COGITO_AGENT_CACHE_MAX_BYTES")
+            .ok()
+            .as_deref(),
+    )
 }
 
 /// 完整清理：旧目录迁移 + 保留期 + 容量上限。带 30 秒节流（`force` 可绕过）。
@@ -661,7 +669,10 @@ mod tests {
 
     #[test]
     fn sanitize_replaces_path_hostile_chars() {
-        assert_eq!(sanitize_id("D:\\Documents\\workspace-cogito"), "D--Documents-workspace-cogito");
+        assert_eq!(
+            sanitize_id("D:\\Documents\\workspace-cogito"),
+            "D--Documents-workspace-cogito"
+        );
         assert_eq!(sanitize_id("com:cogito/client"), "com-cogito-client");
         assert_eq!(sanitize_id("缓存 目录"), "session");
         assert_eq!(sanitize_id(""), "session");
@@ -688,7 +699,9 @@ mod tests {
         let root = root_from(None, Some(Path::new("C:\\Users\\me")));
         assert_eq!(
             root,
-            Path::new("C:\\Users\\me").join(".cogito").join("agent-cache")
+            Path::new("C:\\Users\\me")
+                .join(".cogito")
+                .join("agent-cache")
         );
     }
 
@@ -817,7 +830,11 @@ mod tests {
 
     #[test]
     fn retention_days_env_override() {
-        assert_eq!(retention_days_from(Some("0")), 0, "0 = 下次清理清空所有会话");
+        assert_eq!(
+            retention_days_from(Some("0")),
+            0,
+            "0 = 下次清理清空所有会话"
+        );
         assert_eq!(retention_days_from(Some("30")), 30);
         assert_eq!(retention_days_from(None), AGENT_CACHE_RETENTION_DAYS);
         assert_eq!(

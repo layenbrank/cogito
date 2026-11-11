@@ -17,6 +17,7 @@ import {
   subscribeAuthToken
 } from '@/utils/auth.ts'
 import { reportCaught } from '@/utils/exception-report'
+import { HttpError } from '@/utils/http/errors.ts'
 import { findCogitoMediaUrl } from '@/utils/http/media.ts'
 
 type SessionUser = {
@@ -80,8 +81,18 @@ async function hydrateSessionUser(
       setters({ user: null, isLoading: false }, false, 'hydrate/invalid')
       return
     }
-    // 网络不通：保留令牌，界面先按未拿到资料处理
     reportCaught('session.hydrate', error, 'warning')
+    // 企业策略：**接口服务不可达就不再保留登录态**（离线 / 超时 / 5xx）。
+    // 判据用 HTTP 状态而不是业务码：300006 这类权限码是「接口通了但拒绝」，
+    // 拿它登出等于把用户无故踢下线（与 `isSessionInvalid` 的注释同一条底线）。
+    const status = HttpError(error).status
+    if (!status || status >= 500) {
+      const cleared = clearAuthTokenIfCurrent(token)
+      setters({ user: null, isLoading: false }, false, 'hydrate/unreachable')
+      if (cleared) toast.error('无法连接接口服务，已自动退出登录')
+      return
+    }
+    // 其余业务错误：令牌保留，界面先按「资料没拉到」处理
     setters({ isLoading: false }, false, 'hydrate/unavailable')
   } finally {
     isHydrating = false

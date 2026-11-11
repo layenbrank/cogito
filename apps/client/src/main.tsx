@@ -6,6 +6,7 @@ import App from '@/App.tsx'
 import { BootstrapFailure } from '@/components/fallback/bootstrap-failure.tsx'
 import { ErrorBoundary } from '@/components/fallback/ErrorBoundary.tsx'
 import { ensurePersist, ensureSecrets, findPref } from '@/features/persist'
+import { hydrateAuthToken } from '@/utils/auth.ts'
 import { watchActiveTenant } from '@/features/quota/tenant.ts'
 import {
   bootstrapTerminalSessions,
@@ -70,6 +71,10 @@ async function bootstrap() {
   try {
     await ensurePersist()
     await ensureSecrets()
+    // 刷新 / 重启后把 Keyring 里的令牌唤回内存并通知订阅者。
+    // 不做这一步的话：令牌还在，但 session store / 租户解析在模块加载时已经按
+    // 「无令牌」跑完了初始化 —— 界面上就是「登录态丢了」。
+    await hydrateAuthToken()
     adoptAppearance(findPref('window').appearance)
     watchAppearance()
     // agent 在右栏终端跑命令时，把 tab 和面板打开（用户总能看到它在做什么）

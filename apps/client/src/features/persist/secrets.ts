@@ -44,39 +44,46 @@ function findJwtCache(): string | null {
   return jwtCache
 }
 
-async function writeJwtSecret(token: string | null, isRemembered: boolean): Promise<void> {
+/**
+ * 写入 / 清空 JWT。
+ *
+ * **一律持久化**：服务端签发的 JWT 本身就是 24h 有效期，客户端把「要不要记住」
+ * 变成一次性会话只会让用户一刷新就掉线。所以令牌始终落 OS Keyring，
+ * 登录页的勾选项只管「记不记得用户名」。
+ * 传 `null` 表示登出 / 令牌失效，Keyring 里那份必须一起删掉。
+ */
+async function writeJwtSecret(token: string | null): Promise<void> {
   jwtCache = token
-  if (isTauriRuntime()) {
-    try {
-      if (token && isRemembered) {
-        await invoke(CHANNELS.SECRET.SET, {
-          service: SECRET_SERVICE,
-          account: 'jwt',
-          secret: token
-        })
-      } else {
-        // 未「记住我」或清空：不落 Keyring
-        await invoke(CHANNELS.SECRET.DELETE, {
-          service: SECRET_SERVICE,
-          account: 'jwt'
-        })
-      }
-    } catch (error) {
-      console.warn('[secrets] write jwt failed', error)
+  if (!isTauriRuntime()) return
+  try {
+    if (token) {
+      await invoke(CHANNELS.SECRET.SET, {
+        service: SECRET_SERVICE,
+        account: 'jwt',
+        secret: token
+      })
+    } else {
+      await invoke(CHANNELS.SECRET.DELETE, {
+        service: SECRET_SERVICE,
+        account: 'jwt'
+      })
     }
-    // 侧车桥接：会话期内写 goose 可读文件（Rust 内部）
-    try {
-      if (token) {
-        await invoke(CHANNELS.COGITO.TOKEN_WRITE, { token })
-      } else {
-        await invoke(CHANNELS.COGITO.TOKEN_CLEAR)
-      }
-    } catch (error) {
-      console.warn('[secrets] cogito jwt bridge failed', error)
-    }
-    // 跨窗：带上 token 以便 session-only 也能同步内存（不落盘）
-    void emit(AUTH_CHANGED, { token })
+  } catch (error) {
+    // 写失败不拦登录：本次会话仍可用，下次启动再重试
+    console.warn('[secrets] persist jwt failed', error)
   }
+  // 侧车桥接：会话期内写 goose 可读的 jwt 文件（Rust 内部）
+  try {
+    if (token) {
+      await invoke(CHANNELS.COGITO.TOKEN_WRITE, { token })
+    } else {
+      await invoke(CHANNELS.COGITO.TOKEN_CLEAR)
+    }
+  } catch (error) {
+    console.warn('[secrets] cogito jwt bridge failed', error)
+  }
+  // 跨窗：同一枚令牌要在每个窗口的内存里都生效
+  void emit(AUTH_CHANGED, { token })
 }
 
 async function findProviderSecret(providerID: string): Promise<string | null> {
