@@ -53,9 +53,9 @@ impl Service {
                 if ps.is_empty() {
                     return Ok(vec![]);
                 }
-                let combined = ps
-                    .iter()
-                    .fold(Condition::any(), |any, p| any.add(Self::build_read_filter(p)));
+                let combined = ps.iter().fold(Condition::any(), |any, p| {
+                    any.add(Self::build_read_filter(p))
+                });
                 let rows = schema::Entity::find()
                     .filter(combined)
                     .order_by_desc(schema::Column::UpdatedAt)
@@ -118,10 +118,7 @@ impl Service {
         Ok(ids)
     }
 
-    async fn write_one<C: ConnectionTrait>(
-        db: &C,
-        p: schema::Write,
-    ) -> Result<String, Exception> {
+    async fn write_one<C: ConnectionTrait>(db: &C, p: schema::Write) -> Result<String, Exception> {
         let now = Utc::now().timestamp_millis();
         let id = p.id.unwrap_or_else(|| Uuid::new_v4().to_string());
         let model = schema::ActiveModel {
@@ -223,7 +220,9 @@ impl Service {
         if let Some(v) = change.modeBefore {
             active.modeBefore = Set(v);
         }
-        active.updatedAt = Set(change.updatedAt.unwrap_or_else(|| Utc::now().timestamp_millis()));
+        active.updatedAt = Set(change
+            .updatedAt
+            .unwrap_or_else(|| Utc::now().timestamp_millis()));
         let updated = active.update(db).await?;
         Ok(updated.id)
     }

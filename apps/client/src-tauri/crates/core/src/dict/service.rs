@@ -2,8 +2,8 @@
 
 use chrono::Utc;
 use cogito_database::entity::{
-    dict_item as pool_schema, dict_tenant_item as tenant_schema,
-    dict_type as type_schema, dict_type_item as claim_schema,
+    dict_item as pool_schema, dict_tenant_item as tenant_schema, dict_type as type_schema,
+    dict_type_item as claim_schema,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, JoinType, QueryFilter, QueryOrder,
@@ -98,10 +98,7 @@ impl Service {
         tenant_id: Option<&str>,
     ) -> Result<Vec<DictItemView>, Exception> {
         let rows = fetch_claim_rows(db, type_code, tenant_id).await?;
-        Ok(rows
-            .into_iter()
-            .filter(|view| view.enabled)
-            .collect())
+        Ok(rows.into_iter().filter(|view| view.enabled).collect())
     }
 
     pub async fn findItemsMany<C: ConnectionTrait + TransactionTrait>(
@@ -178,10 +175,7 @@ impl Service {
     ) -> Result<Option<String>, Exception> {
         let row = claim_schema::Entity::find()
             .filter(claim_schema::Column::TypeCode.eq(type_code))
-            .join(
-                JoinType::InnerJoin,
-                claim_schema::Relation::PoolItem.def(),
-            )
+            .join(JoinType::InnerJoin, claim_schema::Relation::PoolItem.def())
             .filter(pool_schema::Column::Key.eq(key))
             .one(db)
             .await?;
@@ -267,9 +261,7 @@ impl Service {
                     .await?
                     .ok_or_else(|| Exception::NotFound("认领项不存在".into()));
             }
-            return Err(Exception::Validation(
-                "缺少 typeCode，无法返回视图".into(),
-            ));
+            return Err(Exception::Validation("缺少 typeCode，无法返回视图".into()));
         }
         Self::findByKey(db, &type_code, &updated.key, None)
             .await?
@@ -322,12 +314,10 @@ impl Service {
         }
 
         for claim in catalog.claims {
-            let existing = claim_schema::Entity::find_by_id((
-                claim.type_code.clone(),
-                claim.value.clone(),
-            ))
-            .one(&txn)
-            .await?;
+            let existing =
+                claim_schema::Entity::find_by_id((claim.type_code.clone(), claim.value.clone()))
+                    .one(&txn)
+                    .await?;
             if let Some(row) = existing {
                 let mut active: claim_schema::ActiveModel = row.into();
                 active.label = Set(claim.label);
@@ -388,13 +378,15 @@ async fn fetch_claim_rows<C: ConnectionTrait>(
         };
 
         let tenant = match tenant_id {
-            Some(id) => tenant_schema::Entity::find_by_id((
-                id.to_string(),
-                type_code.to_string(),
-                claim.value.clone(),
-            ))
-            .one(db)
-            .await?,
+            Some(id) => {
+                tenant_schema::Entity::find_by_id((
+                    id.to_string(),
+                    type_code.to_string(),
+                    claim.value.clone(),
+                ))
+                .one(db)
+                .await?
+            }
             None => None,
         };
 

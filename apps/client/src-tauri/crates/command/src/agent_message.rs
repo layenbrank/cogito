@@ -116,7 +116,10 @@ fn decode_row(row: &Model) -> Option<ThreadHistoryItem> {
     let mut payload: Value = match serde_json::from_str(&row.content) {
         Ok(value) => value,
         Err(error) => {
-            tracing::warn!("agentMessage:loadThread 跳过无法解码的行 {}: {error}", row.id);
+            tracing::warn!(
+                "agentMessage:loadThread 跳过无法解码的行 {}: {error}",
+                row.id
+            );
             return None;
         }
     };

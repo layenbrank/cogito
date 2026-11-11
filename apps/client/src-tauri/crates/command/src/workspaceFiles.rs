@@ -227,31 +227,12 @@ fn to_relative(root: &Path, absolute: &Path) -> String {
         .unwrap_or_default()
 }
 
-fn path_for_safe_directory(path: &Path) -> String {
-    let raw = path.to_string_lossy().replace('\\', "/");
-    if let Some(rest) = raw.strip_prefix("//?/UNC/") {
-        format!("//{rest}")
-    } else if let Some(rest) = raw.strip_prefix("//?/") {
-        rest.to_string()
-    } else {
-        raw
-    }
-}
-
+/// 系统 git 的唯一 spawn 点已经搬到 `crate::git::cli::command`（S5 加固：
+/// `core.fsmonitor=false` / 空 `core.hooksPath` / `GIT_ALLOW_PROTOCOL` 白名单 /
+/// diff 类子命令 `--no-ext-diff --no-textconv`）。这里只保留一个薄壳，
+/// 免得两处各写一份 env、慢慢漂开。
 fn git_command(cwd: &Path, args: &[&str]) -> Command {
-    let safe = path_for_safe_directory(cwd);
-    let mut command = Command::new("git");
-    command
-        .arg("-c")
-        .arg(format!("safe.directory={safe}"))
-        .args(args)
-        .current_dir(cwd);
-    #[cfg(windows)]
-    {
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
-    command
+    crate::git::git_safe_command(cwd, args)
 }
 
 async fn is_git_repo(cwd: &Path) -> bool {
@@ -324,7 +305,11 @@ fn walk_files(root: &Path, max_visited: usize) -> (Vec<String>, bool) {
         let Ok(entry) = result else {
             continue;
         };
-        if !entry.file_type().map(|kind| kind.is_file()).unwrap_or(false) {
+        if !entry
+            .file_type()
+            .map(|kind| kind.is_file())
+            .unwrap_or(false)
+        {
             continue;
         }
         let relative = to_relative(root, entry.path());
@@ -825,11 +810,7 @@ struct ListedFiles {
 /// 列出工作区文件；短 TTL + git index mtime 命中则免 fork / 免 walk。
 async fn list_workspace_files(root: &Path) -> ListedFiles {
     let via_git = is_git_repo(root).await;
-    let index_mtime = if via_git {
-        git_index_mtime(root)
-    } else {
-        None
-    };
+    let index_mtime = if via_git { git_index_mtime(root) } else { None };
 
     {
         let cache = FILE_LIST_CACHE.lock();
@@ -999,7 +980,6 @@ impl LineMatcher {
             }
         }
     }
-
 }
 
 #[derive(Debug, Deserialize)]
@@ -1217,7 +1197,9 @@ fn build_preview(line: &str, match_start: usize, match_end: usize) -> PreviewSli
     let trimmed = line.trim();
     let trim_offset = line.len() - line.trim_start().len();
     let start = match_start.saturating_sub(trim_offset).min(trimmed.len());
-    let end = match_end.saturating_sub(trim_offset).clamp(start, trimmed.len());
+    let end = match_end
+        .saturating_sub(trim_offset)
+        .clamp(start, trimmed.len());
     // 先算标量长度；短行无需收集整行 Vec<char>
     let char_len = trimmed.chars().count();
     let match_start_char = trimmed[..start].chars().count().min(char_len);
@@ -1341,7 +1323,10 @@ pub async fn workspaceFilesContent(params: ContentP) -> CommandResult<ContentR> 
     )?;
     let includes = compile_globs(params.includes.as_deref())?;
     let excludes = compile_globs(params.excludes.as_deref())?;
-    let limit = params.limit.unwrap_or(CONTENT_LIMIT).clamp(1, CONTENT_LIMIT);
+    let limit = params
+        .limit
+        .unwrap_or(CONTENT_LIMIT)
+        .clamp(1, CONTENT_LIMIT);
     let listed = list_workspace_files(&root).await;
     let relatives = listed.files;
     let list_truncated = listed.is_truncated;
@@ -1828,7 +1813,10 @@ fn build_watch_event(roots: &[PathBuf], paths: &[PathBuf]) -> Option<WatchEventR
             };
             matched = true;
             if seen.insert((root_index, relative.clone())) {
-                dirs.push(WatchDirR { root_index, relative });
+                dirs.push(WatchDirR {
+                    root_index,
+                    relative,
+                });
             }
             break;
         }
@@ -1842,7 +1830,9 @@ fn build_watch_event(roots: &[PathBuf], paths: &[PathBuf]) -> Option<WatchEventR
     // 浅的先刷：根层变化会让深层目录的 key 整体挪位，先出根
     dirs.sort_by(|a, b| {
         let depth = |item: &WatchDirR| item.relative.split('/').filter(|s| !s.is_empty()).count();
-        depth(a).cmp(&depth(b)).then_with(|| a.relative.cmp(&b.relative))
+        depth(a)
+            .cmp(&depth(b))
+            .then_with(|| a.relative.cmp(&b.relative))
     });
     let is_coarse = dirs.len() > WATCH_MAX_DIRS;
     dirs.truncate(WATCH_MAX_DIRS);
@@ -1861,14 +1851,21 @@ fn stop_watch_session() {
     }
 }
 
-fn run_watch_loop(app: tauri::AppHandle, roots: Vec<PathBuf>, delay: Duration, stop: Arc<AtomicBool>) {
-    use tauri::Emitter;
+fn run_watch_loop(
+    app: tauri::AppHandle,
+    roots: Vec<PathBuf>,
+    delay: Duration,
+    stop: Arc<AtomicBool>,
+) {
     use notify::Watcher;
+    use tauri::Emitter;
 
     let (tx, rx) = std::sync::mpsc::channel();
-    let Ok(mut watcher) = notify::recommended_watcher(move |result: notify::Result<notify::Event>| {
-        let _ = tx.send(result);
-    }) else {
+    let Ok(mut watcher) =
+        notify::recommended_watcher(move |result: notify::Result<notify::Event>| {
+            let _ = tx.send(result);
+        })
+    else {
         return;
     };
     for root in &roots {
@@ -1933,7 +1930,9 @@ mod tests {
     fn watch_ignores_node_modules_and_git() {
         assert!(is_ignored_watch_path(Path::new("/ws/node_modules/x/y.ts")));
         assert!(is_ignored_watch_path(Path::new("/ws/.git/index")));
-        assert!(is_ignored_watch_path(Path::new("/ws/packages/a/.pnpm/x.js")));
+        assert!(is_ignored_watch_path(Path::new(
+            "/ws/packages/a/.pnpm/x.js"
+        )));
         assert!(is_ignored_watch_path(Path::new("/ws/dist/bundle.js")));
         assert!(!is_ignored_watch_path(Path::new("/ws/src/a.ts")));
         assert!(!is_ignored_watch_path(Path::new("/ws/node_modules.ts")));
@@ -1975,10 +1974,8 @@ mod tests {
     #[test]
     fn watch_dedupes_dirs_and_caps_the_batch() {
         let roots = vec![PathBuf::from("/ws")];
-        let mut paths: Vec<PathBuf> = vec![
-            PathBuf::from("/ws/src/a.ts"),
-            PathBuf::from("/ws/src/b.ts"),
-        ];
+        let mut paths: Vec<PathBuf> =
+            vec![PathBuf::from("/ws/src/a.ts"), PathBuf::from("/ws/src/b.ts")];
         for index in 0..12 {
             paths.push(PathBuf::from(format!("/ws/dir{index}/a.ts")));
         }

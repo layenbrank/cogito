@@ -1318,6 +1318,15 @@ impl MigrationTrait for Migration {
             db.execute_unprepared(statement).await?;
         }
 
+        // 工具审计（S6）：与 `ensure_tool_audit()` 同一份 DDL —— 新库走基线，老库走启动兜底
+        for statement in super::tool_audit_schema::statements() {
+            db.execute_unprepared(statement).await?;
+        }
+        // 成本账本（S8）：与 `ensure_run_cost()` 同一份 DDL，理由同上
+        for statement in super::run_cost_schema::statements() {
+            db.execute_unprepared(statement).await?;
+        }
+
         for statement in super::dict_seed::statements() {
             db.execute_unprepared(&statement).await?;
         }
@@ -1332,6 +1341,8 @@ impl MigrationTrait for Migration {
             "knowledge_doc_fts",
             "agent_goal",
             "agent_plan",
+            "agent_tool_audit",
+            "agent_run_cost",
             "directive_draft",
             "automation_run",
             "automation",

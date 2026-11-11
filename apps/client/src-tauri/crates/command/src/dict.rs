@@ -2,9 +2,7 @@
 #![allow(non_snake_case)]
 
 use cogito_core::CommandResult;
-use cogito_core::dict::{
-    DictItemView, DictTypeView, RemoteCatalog, Service, UpdateItemInput,
-};
+use cogito_core::dict::{DictItemView, DictTypeView, RemoteCatalog, Service, UpdateItemInput};
 use cogito_database::Storage;
 use tauri::State;
 
@@ -14,12 +12,7 @@ pub async fn dict_list(
     typeCode: String,
     tenantId: Option<String>,
 ) -> CommandResult<Vec<DictItemView>> {
-    Service::findItems(
-        state.connection(),
-        &typeCode,
-        tenantId.as_deref(),
-    )
-    .await
+    Service::findItems(state.connection(), &typeCode, tenantId.as_deref()).await
 }
 
 #[tauri::command(rename = "dict:listByTypes")]
@@ -28,12 +21,7 @@ pub async fn dict_list_by_types(
     typeCodes: Vec<String>,
     tenantId: Option<String>,
 ) -> CommandResult<Vec<DictTypeView>> {
-    Service::findItemsMany(
-        state.connection(),
-        &typeCodes,
-        tenantId.as_deref(),
-    )
-    .await
+    Service::findItemsMany(state.connection(), &typeCodes, tenantId.as_deref()).await
 }
 
 #[tauri::command(rename = "dict:updateItem")]

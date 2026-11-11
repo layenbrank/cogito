@@ -46,8 +46,7 @@ pub fn statements() -> Vec<String> {
             .to_string(),
         "CREATE INDEX IF NOT EXISTS idx_dict_type_item_type ON dict_type_item (\"typeCode\", sort)"
             .to_string(),
-        "CREATE INDEX IF NOT EXISTS idx_dict_item_key ON dict_item (key)"
-            .to_string(),
+        "CREATE INDEX IF NOT EXISTS idx_dict_item_key ON dict_item (key)".to_string(),
     ];
 
     for (code, name, description) in TYPES {
@@ -90,15 +89,47 @@ pub fn statements() -> Vec<String> {
 }
 
 const TYPES: &[(&str, &str, Option<&str>)] = &[
-    ("knowledge_doc_status", "文档状态", Some("知识库文档发布状态")),
-    ("knowledge_doc_source", "文档来源", Some("知识库文档写入来源")),
-    ("knowledge_cloud_status", "云端索引状态", Some("本地云端索引同步状态")),
+    (
+        "knowledge_doc_status",
+        "文档状态",
+        Some("知识库文档发布状态"),
+    ),
+    (
+        "knowledge_doc_source",
+        "文档来源",
+        Some("知识库文档写入来源"),
+    ),
+    (
+        "knowledge_cloud_status",
+        "云端索引状态",
+        Some("本地云端索引同步状态"),
+    ),
     ("knowledge_base_scope", "知识库范围", Some("个人或租户共享")),
-    ("automation_run_status", "自动化运行状态", Some("定时任务单次运行状态")),
-    ("automation_trigger_kind", "自动化触发方式", Some("准点 / 手动 / 补跑")),
-    ("automation_owner", "自动化执行方", Some("本机 / goose / 云端")),
-    ("automation_run_as", "自动化运行身份", Some("用户或租户身份")),
-    ("directive_draft_status", "指令草稿状态", Some("待确认 / 已保存 / 已丢弃")),
+    (
+        "automation_run_status",
+        "自动化运行状态",
+        Some("定时任务单次运行状态"),
+    ),
+    (
+        "automation_trigger_kind",
+        "自动化触发方式",
+        Some("准点 / 手动 / 补跑"),
+    ),
+    (
+        "automation_owner",
+        "自动化执行方",
+        Some("本机 / goose / 云端"),
+    ),
+    (
+        "automation_run_as",
+        "自动化运行身份",
+        Some("用户或租户身份"),
+    ),
+    (
+        "directive_draft_status",
+        "指令草稿状态",
+        Some("待确认 / 已保存 / 已丢弃"),
+    ),
     ("asset_status", "资源状态", Some("本地资源状态")),
     ("album_status", "相簿状态", Some("捕获库相簿状态")),
 ];
@@ -153,7 +184,14 @@ const POOL: &[(&str, &str, &str, &str, i32, Option<&str>)] = &[
     ("dict-pool-025", "025", "RUN_AS_TENANT", "租户", 20, None),
     ("dict-pool-026", "026", "DRAFT_PENDING", "待确认", 10, None),
     ("dict-pool-027", "027", "DRAFT_SAVED", "已保存", 20, None),
-    ("dict-pool-028", "028", "DRAFT_DISCARDED", "已丢弃", 30, None),
+    (
+        "dict-pool-028",
+        "028",
+        "DRAFT_DISCARDED",
+        "已丢弃",
+        30,
+        None,
+    ),
     ("dict-pool-029", "029", "ACTIVE", "正常", 10, None),
     ("dict-pool-030", "030", "ARCHIVED", "已归档", 90, None),
 ];

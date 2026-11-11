@@ -88,7 +88,10 @@ mod tests {
     #[test]
     fn patches_are_alter_on_automation_tables() {
         let patches = column_patches();
-        assert!(patches.len() >= 7, "至少覆盖执行配置 + 模式/模型 + run 回链");
+        assert!(
+            patches.len() >= 7,
+            "至少覆盖执行配置 + 模式/模型 + run 回链"
+        );
         for (table, column, statement) in &patches {
             assert!(
                 statement.starts_with(&format!("ALTER TABLE {table} ADD COLUMN")),
@@ -100,13 +103,14 @@ mod tests {
             );
         }
         // 老任务升级后默认只读：不允许出现「默认放开写权限」的补列
-        assert!(patches
-            .iter()
-            .any(|(_, column, statement)| *column == "approval"
-                && statement.contains("DEFAULT 'readonly'")));
-        assert!(patches
-            .iter()
-            .any(|(_, column, statement)| *column == "mode"
-                && statement.contains("DEFAULT 'agent'")));
+        assert!(
+            patches
+                .iter()
+                .any(|(_, column, statement)| *column == "approval"
+                    && statement.contains("DEFAULT 'readonly'"))
+        );
+        assert!(patches.iter().any(
+            |(_, column, statement)| *column == "mode" && statement.contains("DEFAULT 'agent'")
+        ));
     }
 }

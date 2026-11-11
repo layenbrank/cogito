@@ -128,6 +128,18 @@ impl Service {
     async fn write_one<C: ConnectionTrait>(db: &C, p: schema::Write) -> Result<String, Exception> {
         let now = Utc::now().timestamp_millis();
         let id = p.id.unwrap_or_else(|| Uuid::new_v4().to_string());
+        let created_at = p.createdAt.unwrap_or(now);
+        // 成本账本（S8）：用量与账本走同一条路径，所以不会「有用量没账」。
+        // 草稿在这里先克隆好 —— 下面 `p` 的字段要 move 进 ActiveModel。
+        let cost_draft = crate::cost::Draft {
+            usage_id: id.clone(),
+            run_id: Some(p.runID.clone()),
+            session_id: p.sessionID.clone(),
+            model: p.model.clone(),
+            input_tokens: p.inputTokens,
+            output_tokens: p.outputTokens,
+            created_at,
+        };
         let model = schema::ActiveModel {
             id: Set(id.clone()),
             runID: Set(p.runID),
@@ -137,9 +149,13 @@ impl Service {
             inputTokens: Set(p.inputTokens),
             outputTokens: Set(p.outputTokens),
             totalTokens: Set(p.totalTokens),
-            createdAt: Set(p.createdAt.unwrap_or(now)),
+            createdAt: Set(created_at),
         };
         schema::Entity::insert(model).exec(db).await?;
+        // 旁路不是闸门：账本写失败只记日志，绝不让一次正常的用量写入失败
+        if let Err(error) = crate::cost::ledger::record(db, cost_draft).await {
+            tracing::warn!("成本账本写入失败（忽略）：{error}");
+        }
         Ok(id)
     }
 

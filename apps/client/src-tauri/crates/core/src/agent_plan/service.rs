@@ -4,8 +4,8 @@ use chrono::Utc;
 use cogito_database::entity::agent_plan as schema;
 use sea_orm::sea_query::{Expr, OnConflict};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, TransactionTrait,
 };
 use uuid::Uuid;
 
@@ -150,10 +150,7 @@ impl Service {
             .await?)
     }
 
-    async fn write_one<C: ConnectionTrait>(
-        db: &C,
-        p: schema::Write,
-    ) -> Result<String, Exception> {
+    async fn write_one<C: ConnectionTrait>(db: &C, p: schema::Write) -> Result<String, Exception> {
         let now = Utc::now().timestamp_millis();
         let id = p.id.unwrap_or_else(|| Uuid::new_v4().to_string());
         let steps = if p.steps.trim().is_empty() {
@@ -263,7 +260,9 @@ impl Service {
             active.supersededBy = Set(v);
         }
 
-        active.updatedAt = Set(change.updatedAt.unwrap_or_else(|| Utc::now().timestamp_millis()));
+        active.updatedAt = Set(change
+            .updatedAt
+            .unwrap_or_else(|| Utc::now().timestamp_millis()));
         let updated = active.update(db).await?;
         Ok(updated.id)
     }
@@ -400,9 +399,12 @@ mod tests {
     #[tokio::test]
     async fn list_read_does_not_carry_body() {
         let db = db().await;
-        Service::toWrite(&*db, schema::WriteP::One(write("s1", "x".repeat(4096).as_str())))
-            .await
-            .expect("write");
+        Service::toWrite(
+            &*db,
+            schema::WriteP::One(write("s1", "x".repeat(4096).as_str())),
+        )
+        .await
+        .expect("write");
         let rows = Service::toRead(
             &*db,
             schema::ReadP::One(schema::Read {

@@ -2,11 +2,11 @@
 //!
 //! 语义都在 `cogito_core::knowledge::Service`；这里只做参数整形与错误透传。
 #![allow(non_snake_case)]
-use cogito_core::{CommandResult, Exception};
 use cogito_core::knowledge::{
     CloudDoc, CloudPatch, CloudState, DocRef, DocSummary, Hit, PublishMode, Service, StagedDoc,
     StagedFile, WriteDocOutcome,
 };
+use cogito_core::{CommandResult, Exception};
 use cogito_database::Storage;
 use cogito_database::entity::knowledge_base::Model as BaseModel;
 use cogito_database::entity::knowledge_doc::Model as DocModel;

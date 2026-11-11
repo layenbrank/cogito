@@ -190,7 +190,9 @@ impl Service {
             .filter(|value| !value.is_empty());
         // 目录必须挂在某个工作区下：只写路径会让执行侧不知道该信哪个
         if workspace_path.is_some() && workspace_id.is_none() {
-            return Err(Exception::Validation("指定目录时必须先选工作区".to_string()));
+            return Err(Exception::Validation(
+                "指定目录时必须先选工作区".to_string(),
+            ));
         }
         let session_mode = input
             .sessionMode
@@ -236,8 +238,13 @@ impl Service {
                 "自动批准必须先指定工作目录（把写入范围限制在这个目录内）".to_string(),
             ));
         }
-        let owner = input.owner.unwrap_or_else(|| automation_owner::CLIENT.to_string());
-        if !matches!(owner.as_str(), automation_owner::CLIENT | automation_owner::GOOSE | automation_owner::CLOUD) {
+        let owner = input
+            .owner
+            .unwrap_or_else(|| automation_owner::CLIENT.to_string());
+        if !matches!(
+            owner.as_str(),
+            automation_owner::CLIENT | automation_owner::GOOSE | automation_owner::CLOUD
+        ) {
             return Err(Exception::Validation(format!("不支持的执行方：{owner}")));
         }
         // 会话绑定只对「本机执行」有意义：goose / 云端跑在客户端之外，选的会话传不过去
@@ -248,9 +255,16 @@ impl Service {
                 "只有本机执行的任务可以绑定会话".to_string(),
             ));
         }
-        let run_as_kind = input.runAsKind.unwrap_or_else(|| automation_run_as::USER.to_string());
-        if !matches!(run_as_kind.as_str(), automation_run_as::USER | automation_run_as::TENANT) {
-            return Err(Exception::Validation(format!("不支持的执行身份：{run_as_kind}")));
+        let run_as_kind = input
+            .runAsKind
+            .unwrap_or_else(|| automation_run_as::USER.to_string());
+        if !matches!(
+            run_as_kind.as_str(),
+            automation_run_as::USER | automation_run_as::TENANT
+        ) {
+            return Err(Exception::Validation(format!(
+                "不支持的执行身份：{run_as_kind}"
+            )));
         }
         let mode = input
             .mode
@@ -439,7 +453,11 @@ impl Service {
             .one(db)
             .await?
             .ok_or_else(|| Exception::NotFound(format!("任务不存在：{id}")))?;
-        let status = if last_error.is_some() { automation_run_status::FAILED } else { "" };
+        let status = if last_error.is_some() {
+            automation_run_status::FAILED
+        } else {
+            ""
+        };
         let mut active: schema::ActiveModel = existing.into();
         active.remoteId = Set(remote_id);
         active.lastError = Set(last_error);
@@ -516,7 +534,9 @@ impl Service {
         let now = Utc::now().timestamp_millis();
         let run = Self::insert_run(db, &automation, now, automation_trigger_kind::MANUAL, now)
             .await?
-            .ok_or_else(|| Exception::Validation("这一毫秒已经触发过一次，请稍后重试".to_string()))?;
+            .ok_or_else(|| {
+                Exception::Validation("这一毫秒已经触发过一次，请稍后重试".to_string())
+            })?;
         Ok(DueRun { automation, run })
     }
 
@@ -539,7 +559,11 @@ impl Service {
             .as_deref()
             .map(|value| !value.trim().is_empty())
             .unwrap_or(false);
-        let status = if failed { automation_run_status::FAILED } else { automation_run_status::SUCCEEDED };
+        let status = if failed {
+            automation_run_status::FAILED
+        } else {
+            automation_run_status::SUCCEEDED
+        };
         let now = Utc::now().timestamp_millis();
 
         let mut active: run_schema::ActiveModel = existing.clone().into();
@@ -576,7 +600,9 @@ impl Service {
             .await?
             .ok_or_else(|| Exception::NotFound(format!("执行记录不存在：{run_id}")))?;
         if existing.status != automation_run_status::RUNNING {
-            return Err(Exception::Validation("这条执行记录已经结束，不能再开跑".to_string()));
+            return Err(Exception::Validation(
+                "这条执行记录已经结束，不能再开跑".to_string(),
+            ));
         }
         let mut active: run_schema::ActiveModel = existing.into();
         active.startedAt = Set(Some(Utc::now().timestamp_millis()));
@@ -661,8 +687,7 @@ impl Service {
             {
                 let mut active: schema::ActiveModel = automation.into();
                 active.lastStatus = Set(Some(automation_run_status::FAILED.to_string()));
-                active.lastError =
-                    Set(Some("执行没有回写结果（应用退出或会话中断）".to_string()));
+                active.lastError = Set(Some("执行没有回写结果（应用退出或会话中断）".to_string()));
                 active.updatedAt = Set(now_ms);
                 active.update(db).await?;
             }
@@ -1056,10 +1081,16 @@ mod tests {
             .await
             .expect("claim 成功");
         assert_eq!(claimed.len(), 1);
-        assert_eq!(claimed[0].run.triggerKind, automation_trigger_kind::SCHEDULE);
+        assert_eq!(
+            claimed[0].run.triggerKind,
+            automation_trigger_kind::SCHEDULE
+        );
         assert_eq!(claimed[0].run.status, automation_run_status::RUNNING);
         assert_eq!(claimed[0].run.scheduledFor, due_at);
-        assert!(claimed[0].automation.nextRunAt.unwrap() > due_at, "排期要往前推");
+        assert!(
+            claimed[0].automation.nextRunAt.unwrap() > due_at,
+            "排期要往前推"
+        );
 
         // 同一时刻再 tick：不得重复
         assert!(
@@ -1112,7 +1143,10 @@ mod tests {
         assert!(done.finishedAt.is_some());
 
         let list = Service::toList(db.as_ref()).await.expect("列出任务");
-        assert_eq!(list[0].lastStatus.as_deref(), Some(automation_run_status::SUCCEEDED));
+        assert_eq!(
+            list[0].lastStatus.as_deref(),
+            Some(automation_run_status::SUCCEEDED)
+        );
     }
 
     #[tokio::test]
@@ -1263,8 +1297,7 @@ mod tests {
     #[test]
     fn cron_year_field_still_parses() {
         let after = at(2026, 10, 27, 0, 0);
-        let next = Service::toNext("0 0 9 1 1 * 2027", "Asia/Shanghai", after)
-            .expect("7 段应接受");
+        let next = Service::toNext("0 0 9 1 1 * 2027", "Asia/Shanghai", after).expect("7 段应接受");
         let local = Utc.timestamp_millis_opt(next).single().expect("合法时间");
         assert_eq!((local.year(), local.month(), local.day()), (2027, 1, 1));
     }
@@ -1285,8 +1318,8 @@ mod tests {
             run.scheduledFor + 31 * 60 * 1000,
             30 * 60 * 1000,
         )
-            .await
-            .expect("收尸成功");
+        .await
+        .expect("收尸成功");
 
         // 回收之后前端才回写成功：不许把失败记录改成成功（两种来源互相覆盖就都不可信了）
         let done = Service::toFinish(
@@ -1317,7 +1350,10 @@ mod tests {
         let touched = Service::toTouchRun(db.as_ref(), run.id.clone())
             .await
             .expect("排队结束、真正开跑");
-        assert!(run.startedAt.is_none(), "认领不等于开跑：认领时没有开跑时间");
+        assert!(
+            run.startedAt.is_none(),
+            "认领不等于开跑：认领时没有开跑时间"
+        );
         assert!(touched.startedAt.is_some(), "补写后才有开跑时间");
 
         Service::toFinish(
@@ -1346,10 +1382,12 @@ mod tests {
             .await
             .expect("查询成功");
         assert_eq!(found.map(|item| item.id), Some(saved.id));
-        assert!(Service::toGet(db.as_ref(), "nope".to_string())
-            .await
-            .expect("查询成功")
-            .is_none());
+        assert!(
+            Service::toGet(db.as_ref(), "nope".to_string())
+                .await
+                .expect("查询成功")
+                .is_none()
+        );
     }
 
     /// 认领了却从来没开跑（事件丢了 / 页面正在重载）：不能永远停在「执行中」。
@@ -1385,9 +1423,12 @@ mod tests {
         assert_eq!(runs[0].status, automation_run_status::FAILED);
         assert!(runs[0].startedAt.is_none(), "没开跑就不该被补上开跑时间");
         assert!(
-            runs[0].error.as_deref().unwrap_or_default().contains("没有被执行"),
+            runs[0]
+                .error
+                .as_deref()
+                .unwrap_or_default()
+                .contains("没有被执行"),
             "文案要说清是「没被执行」，而不是「跑完没回写」"
         );
     }
 }
-

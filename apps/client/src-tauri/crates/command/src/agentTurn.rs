@@ -164,7 +164,11 @@ fn approx_value_bytes(value: &Value) -> usize {
         Value::Bool(_) => 4,
         Value::Number(n) => n.to_string().len(),
         Value::String(s) => s.len(),
-        Value::Array(items) => items.iter().map(approx_value_bytes).sum::<usize>().saturating_add(2),
+        Value::Array(items) => items
+            .iter()
+            .map(approx_value_bytes)
+            .sum::<usize>()
+            .saturating_add(2),
         Value::Object(map) => map
             .iter()
             .map(|(key, item)| key.len().saturating_add(approx_value_bytes(item)))
@@ -243,7 +247,10 @@ pub fn agentTurnEnsure(threadId: String) -> CommandResult<FollowR> {
     }
     with_hub(|hub| {
         hub.prune_expired();
-        let turn = hub.turns.entry(id.clone()).or_insert_with(TurnBuffer::fresh);
+        let turn = hub
+            .turns
+            .entry(id.clone())
+            .or_insert_with(TurnBuffer::fresh);
         if turn.status == TurnStatus::Done {
             *turn = TurnBuffer::fresh();
         } else {
@@ -270,7 +277,10 @@ pub fn agentTurnAppend(params: AppendP) -> CommandResult<u64> {
     }
     with_hub(|hub| {
         hub.prune_expired();
-        let turn = hub.turns.entry(id.clone()).or_insert_with(TurnBuffer::fresh);
+        let turn = hub
+            .turns
+            .entry(id.clone())
+            .or_insert_with(TurnBuffer::fresh);
         if turn.status == TurnStatus::Done {
             // 已结束的回合不再写；调用方应先 ensure
             return Ok(turn.next_cursor);

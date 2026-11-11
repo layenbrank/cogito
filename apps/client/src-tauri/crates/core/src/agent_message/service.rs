@@ -3,8 +3,8 @@
 use chrono::Utc;
 use cogito_database::entity::{agent_message as schema, agent_session};
 use sea_orm::{
-    sea_query::Expr, ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait,
-    EntityTrait, QueryFilter, QueryOrder, TransactionTrait,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
+    QueryFilter, QueryOrder, TransactionTrait, sea_query::Expr,
 };
 use uuid::Uuid;
 

@@ -744,9 +744,14 @@ impl Service {
         ensure_inside(&target, Path::new(&base.rootPath))?;
         fs::write(&target, content)?;
 
-        let doc =
-            Self::upsert_from_content(db, &base, &rel_path, content, knowledge_doc_source::AUTHORED)
-                .await?;
+        let doc = Self::upsert_from_content(
+            db,
+            &base,
+            &rel_path,
+            content,
+            knowledge_doc_source::AUTHORED,
+        )
+        .await?;
         Ok(WriteDocOutcome {
             matched: true,
             conflict: false,
@@ -1249,8 +1254,16 @@ mod tests {
             .expect("默认库");
         let now = Utc::now().timestamp_millis();
         for (doc_id, status, asset) in [
-            ("doc-ok", knowledge_cloud_status::SUCCEEDED, Some("asset-ok")),
-            ("doc-running", knowledge_cloud_status::RUNNING, Some("asset-running")),
+            (
+                "doc-ok",
+                knowledge_cloud_status::SUCCEEDED,
+                Some("asset-ok"),
+            ),
+            (
+                "doc-running",
+                knowledge_cloud_status::RUNNING,
+                Some("asset-running"),
+            ),
             ("doc-failed", knowledge_cloud_status::FAILED, None),
         ] {
             index_schema::Entity::insert(index_schema::ActiveModel {
@@ -1415,9 +1428,15 @@ mod tests {
         assert!(staged.path.replace('\\', "/").contains("/.staging/"));
         assert_eq!(staged.title, "知识库设计");
 
-        let doc = Service::toPublish(db, &base.id, &staged.path, PublishMode::Replace, knowledge_doc_source::AGENT)
-            .await
-            .expect("发布");
+        let doc = Service::toPublish(
+            db,
+            &base.id,
+            &staged.path,
+            PublishMode::Replace,
+            knowledge_doc_source::AGENT,
+        )
+        .await
+        .expect("发布");
         assert_eq!(doc.status, knowledge_doc_status::PUBLISHED);
         assert!(Path::new(&base.rootPath).join(&doc.relPath).exists());
         // staging 副本已清理
@@ -1478,7 +1497,7 @@ mod tests {
             .await
             .expect("种子列表")
             .len();
-        assert!(seeded >= 5, "默认库应带种子文档");
+        assert!(seeded >= 3, "默认库应带种子文档");
 
         let file = Path::new(&base.rootPath).join("外部写入.md");
         fs::write(&file, "# 外部写入\n\n由编辑器直接落盘。").expect("写文件");

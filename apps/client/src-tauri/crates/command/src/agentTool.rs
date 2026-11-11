@@ -221,8 +221,9 @@ fn unwrap_encoded_blob(text: &str) -> Option<Value> {
 }
 
 fn unescape_literal_escapes(text: &str) -> String {
-    let has_escaped_breaks = (text.contains("\\n") || text.contains("\\r\\n") || text.contains("\\t"))
-        && !text.contains('\n');
+    let has_escaped_breaks =
+        (text.contains("\\n") || text.contains("\\r\\n") || text.contains("\\t"))
+            && !text.contains('\n');
     if !has_escaped_breaks {
         return text.replace("\r\n", "\n");
     }
@@ -291,6 +292,16 @@ fn flatten_text(value: &Value, depth: usize) -> String {
                 }
                 return parts.join("\n");
             }
+            // 嵌入式终端（`app terminal run` / `read`）的载荷：
+            // `command` 是这次要跑的命令本身，卡片抬头已经写过一遍，正文再整棵摊开
+            // 就是「同一条命令两个终端」。这类载荷的正文只有 `output`；
+            // 空输出也要认，否则会掉到下面的 `value.to_string()` 把 JSON 原样摆出来。
+            if map.get("output").is_some_and(Value::is_string)
+                && (map.contains_key("command") || map.contains_key("id"))
+            {
+                let output = map.get("output").cloned().unwrap_or(Value::Null);
+                return flatten_text(&output, depth + 1);
+            }
             for key in [
                 "stdout", "stderr", "output", "result", "text", "content", "message", "data",
             ] {
@@ -335,20 +346,45 @@ mod tests {
         let diff = build_line_diff("a\nb\n", "a\nc\n");
         assert_eq!(diff.additions, 1);
         assert_eq!(diff.deletions, 1);
-        assert!(diff.lines.iter().any(|line| line.kind == DiffLineKind::Removed));
-        assert!(diff.lines.iter().any(|line| line.kind == DiffLineKind::Added));
+        assert!(
+            diff.lines
+                .iter()
+                .any(|line| line.kind == DiffLineKind::Removed)
+        );
+        assert!(
+            diff.lines
+                .iter()
+                .any(|line| line.kind == DiffLineKind::Added)
+        );
     }
 
     #[test]
     fn normalize_params_tolerate_missing_value() {
         // 前端在「结果还没到」时会把 value 这个键整个丢掉（JSON 里 undefined 不可序列化），
         // 缺省必须能反序列化成 null，否则每次渲染都会报 `missing field value`。
-        let params: NormalizeOutputP = serde_json::from_str("{}").expect("missing value 应可反序列化");
+        let params: NormalizeOutputP =
+            serde_json::from_str("{}").expect("missing value 应可反序列化");
         assert_eq!(normalize_output(&params.value, params.max_chars), "");
 
         let params: NormalizeOutputP =
             serde_json::from_str("{\"value\":\"x\"}").expect("显式 value 仍可反序列化");
         assert_eq!(normalize_output(&params.value, params.max_chars), "x");
+    }
+
+    #[test]
+    fn normalize_reads_embedded_terminal_payload() {
+        // `app terminal run` 的载荷：命令 + 输出。正文只取输出，命令不重复摆
+        let payload = json!({
+            "command": "pnpm vitest run",
+            "cwd": "~/app",
+            "elapsedMs": 812,
+            "output": "Tests 3 passed"
+        });
+        assert_eq!(normalize_output(&payload, None), "Tests 3 passed");
+
+        // 空输出也要认：不能把整棵 JSON（里面又有一份 command）当成输出
+        let empty = json!({ "command": "dir /b", "output": "" });
+        assert_eq!(normalize_output(&empty, None), "");
     }
 
     #[test]
