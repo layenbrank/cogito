@@ -28,6 +28,7 @@ use tokio::net::TcpListener;
 
 use super::app_tools;
 use cogito_core::tools::knowledge as knowledge_tools;
+use cogito_core::tools::workspace::UNATTENDED_KEY;
 
 /// 侧车带过来的凭据头（与 `crates/mcp` 的 `BRIDGE_TOKEN_HEADER` 对齐）。
 pub const TOKEN_HEADER: &str = "x-bridge-token";
@@ -277,12 +278,41 @@ struct CallBody {
     arguments: Value,
 }
 
+/// 桥的会话头（`x-cogito-session`）：缺失 / 空串都视为「没有会话」
+fn find_session(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get(SESSION_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+/// 这个会话是否在目标推进（无人值守）：`agent_goal` 里那一行还是 `running`。
+///
+/// 用库而不是内存标志：目标状态本来就落库（刷新 / 重启后都要能续跑），
+/// 桥里再维护一份就是第二个真相源。读不到按「需要确认」处理 —— 宁可多问一次。
+async fn is_goal_running(state: &AppState, session_id: &str) -> bool {
+    use cogito_database::entity::agent_goal as goal;
+    let params = goal::ReadP::One(goal::Read {
+        id: None,
+        sessionID: Some(session_id.to_string()),
+        status: Some("running".to_string()),
+    });
+    match cogito_core::agent_goal::Service::toRead(state.storage.connection(), params).await {
+        Ok(rows) => !rows.is_empty(),
+        Err(error) => {
+            log::warn!("读 agent_goal 失败，按需要确认处理: {error}");
+            false
+        }
+    }
+}
+
 async fn call_tool(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(body): Json<CallBody>,
-) -> Response {
-    if let Err(reason) = authorize(&state, &headers) {
+) -> Response {    if let Err(reason) = authorize(&state, &headers) {
         audit_reject(&state, &body.name, reason, &body.arguments).await;
         return reject(reason);
     }
@@ -302,12 +332,7 @@ async fn call_tool(
             return Json(json!({ "ok": false, "error": "浏览器工具需要宿主窗口" })).into_response();
         };
         // 这条分支绕过 `tools::call`（工具实现在 app 侧），审计得在这里补一次
-        let session = headers
-            .get(SESSION_HEADER)
-            .and_then(|value| value.to_str().ok())
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(str::to_string);
+        let session = find_session(&headers);
         let started = std::time::Instant::now();
         let outcome = app_tools::call(app, &body.name, &body.arguments, session.as_deref()).await;
         let duration_ms = i64::try_from(started.elapsed().as_millis()).unwrap_or(i64::MAX);
@@ -344,7 +369,19 @@ async fn call_tool(
         };
     }
     // 工具级失败走 200 + `ok:false`：让模型看到原因，而不是协议错误。
-    match cogito_core::tools::call(state.storage.connection(), &body.name, &body.arguments).await {
+    //
+    // 目标推进（无人值守）是**桥侧事实**：`agent_goal.status = running` 时注入
+    // 「受保护文件可写」标记，模型传的同名参数一律被覆盖（伪造无效）。
+    // 审计仍用模型原始参数（`body.arguments`），不把注入项当成模型输入。
+    let mut arguments = body.arguments.clone();
+    if let Some(session) = find_session(&headers) {
+        if is_goal_running(&state, &session).await {
+            if let Value::Object(map) = &mut arguments {
+                map.insert(UNATTENDED_KEY.to_string(), Value::Bool(true));
+            }
+        }
+    }
+    match cogito_core::tools::call(state.storage.connection(), &body.name, &arguments).await {
         Ok(value) => {
             // ingest 只校验入队；真正 ACP 两阶段由前端队列执行
             if body.name == knowledge_tools::INGEST

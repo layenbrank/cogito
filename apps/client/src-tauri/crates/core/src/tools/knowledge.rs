@@ -765,11 +765,7 @@ fn parse_wikilinks(content: &str) -> Vec<String> {
                 break;
             }
             let inner = &content[start..i];
-            let title = inner
-                .split(['|', '#'])
-                .next()
-                .unwrap_or("")
-                .trim();
+            let title = inner.split(['|', '#']).next().unwrap_or("").trim();
             if !title.is_empty() {
                 out.push(title.to_string());
             }

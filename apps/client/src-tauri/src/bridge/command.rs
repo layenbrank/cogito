@@ -5,7 +5,7 @@
 use serde::Serialize;
 use tauri::State;
 
-use super::{BridgeState, http::SESSION_HEADER};
+use super::BridgeState;
 use crate::system::sidecar_command::find_cogito_mcp_path;
 
 #[derive(Debug, Serialize)]
@@ -14,8 +14,6 @@ pub struct BridgeInfoView {
     pub url: String,
     /// `<appLocalData>/bridge/token`：注入成 `COGITO_BRIDGE_TOKEN_FILE`
     pub token_file: String,
-    /// 会话头名（`x-cogito-session`）：注入成 `COGITO_SESSION_HEADER`，避免两边各写一遍
-    pub session_header: String,
     /// 空串 = 没找到侧车（未 stage 或平台不支持），前端据此跳过注入
     pub mcp_path: String,
 }
@@ -30,7 +28,6 @@ pub fn bridge_info(state: State<'_, BridgeState>, session_id: Option<String>) ->
     BridgeInfoView {
         url: info.url.clone(),
         token_file: info.token_file.clone(),
-        session_header: SESSION_HEADER.to_string(),
         mcp_path: find_cogito_mcp_path()
             .map(|path| path.to_string_lossy().into_owned())
             .unwrap_or_default(),

@@ -19,8 +19,8 @@
 
 ```
 Rust: uuid v4 → 原子写 <appLocalData>/bridge/token（仅当前用户可读）
-      ↓ bridge:info 只回 { url, tokenFile, sessionHeader, mcpPath }
-前端: 把 COGITO_BRIDGE_TOKEN_FILE / COGITO_SESSION_ID / COGITO_SESSION_HEADER 注入 MCP env
+      ↓ bridge:info 只回 { url, tokenFile, mcpPath }
+前端: 把 COGITO_BRIDGE_TOKEN_FILE / COGITO_SESSION_ID 注入 MCP env
       ↓
 cogito-mcp: 每个请求前读文件取 token（文件消失/为空则报可读错误）
       ↓ x-bridge-token + x-cogito-session
@@ -51,15 +51,14 @@ icacls $token
 
 - `bridge:info` 调用时带 `sessionID`（前端传 `goose-acp:<thread>`），桥把它记进
   `SessionRegistry`（最多 64 个，超出挤掉最早的）。
-- `cogito-mcp` 每个请求带 `x-cogito-session`（头名可由 `COGITO_SESSION_HEADER` 覆盖）。
+- `cogito-mcp` 每个请求带 `x-cogito-session`（头名固定，与桥侧常量对齐）。
 - `authorize()`：缺会话头 → 401「缺少会话标识」；登记集合非空但会话不在其中 → 401「会话未登记」。
 - 目的不是身份认证（令牌仍是唯一凭据），而是**范围收窄**：令牌若从日志/环境泄漏，
   攻击者还需要一个正在运行的会话标识才能调用工具。
 
-## 兼容与回退
+## 失败与回退
 
-- `COGITO_BRIDGE_TOKEN`（明文 env）仍被 `cogito-mcp` 支持，用于旧版 app / 手写配置；
-  新链路优先 `COGITO_BRIDGE_TOKEN_FILE`。
+- 令牌只走 `COGITO_BRIDGE_TOKEN_FILE`，没有明文 env 备选。
 - 令牌文件读不到时，MCP 不退出：退化成只提供 `app_ping`，并在 MCP instructions 里写明
   「本地工具面未连接（缺少 …）」，用户能在工具面板直接看到原因。
 - 排查顺序：① 看文件是否存在；② 看 app 日志有没有「桥令牌落盘失败」；③ 看 MCP 的
@@ -73,5 +72,5 @@ icacls $token
 - **渲染进程仍能读令牌文件**：`plugin-fs` 引用面还有 45 个文件、`fs:scope` 含 `$APPLOCALDATA/**`，
   拿到渲染进程的代码理论上能读到 `bridge/token`。这是「1A 收口」要继续清的账（门禁只许缩小基线）；
   在那之前，令牌的收益是「不主动流经前端、不进 MCP env 日志」，而不是「前端绝对拿不到」。
-- 门禁第 6 组断言只保证 `apps/client/src` 里**不出现** `COGITO_BRIDGE_TOKEN`（防止有人手滑写回去），
-  它不证明令牌链路安全。
+- 令牌只有一处来源（文件）与一处消费点（`cogito-mcp`），不存在第二条兼容链路；
+  这条链路的安全性证据仍是上面的权限检查与「令牌不主动流经前端」，不是 MCP 的读取行为。

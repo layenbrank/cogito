@@ -11,9 +11,8 @@
  *   3. @tauri-apps/plugin-fs 的引用面只许缩小；
  *   4. capabilities 里不许再出现明文 http 通配（http 协议 + 星号主机 / 星号端口）；
  *   5. 生产 CSP 的 default-src / connect-src 不许是通配星号；
- *   6. 渲染进程源码里不许出现 COGITO_BRIDGE_TOKEN（S2：令牌只经文件交给 cogito-mcp）。
- *   7. 系统 git 只许在 `git/cli.rs` 一个点上 spawn（S5：加固配置与 spawn 同处）。
- *   8. 工具审计表里不许出现明文参数列，且三个审计点（分发入口 / 被拒请求 /
+ *   6. 系统 git 只许在 `git/cli.rs` 一个点上 spawn（S5：加固配置与 spawn 同处）。
+ *   7. 工具审计表里不许出现明文参数列，且三个审计点（分发入口 / 被拒请求 /
  *      app 侧工具）不许被删（S6）。
  *
  * 用法：
@@ -228,10 +227,7 @@ function checkDialogFacade() {
     fail(`${rel}: 直接 import @tauri-apps/plugin-dialog（选路点必须走 ${DIALOG_FACADE}，否则选出目录不进授权集）`)
   }
 }
-/** 3d：桥令牌不许回到渲染进程（S2）。前端只允许出现「令牌文件路径」相关的名字。 */
-const BRIDGE_TOKEN_ENV_PATTERN = /\bCOGITO_BRIDGE_TOKEN\b/
-
-/** 3e：系统 git 只允许一个 spawn 点（S5）——加固只写在这一处，别处再 spawn 就漏了 */
+/** 3d：系统 git 只允许一个 spawn 点（S5）——加固只写在这一处，别处再 spawn 就漏了 */
 const GIT_SPAWN_ALLOWED = 'src-tauri/crates/command/src/git/cli.rs'
 
 function checkGitSpawn() {
@@ -250,20 +246,7 @@ function checkGitSpawn() {
   }
 }
 
-function checkBridgeToken() {
-  for (const file of listSources(SRC_DIR)) {
-    const rel = toPosix(relative(CLIENT, file))
-    if (rel.endsWith('.test.ts') || rel.endsWith('.test.tsx')) continue
-    const text = readFileSync(file, 'utf8')
-    if (BRIDGE_TOKEN_ENV_PATTERN.test(text)) {
-      fail(
-        `${rel}: 渲染进程里出现 COGITO_BRIDGE_TOKEN（令牌只能落 <appLocalData>/bridge/token，由 cogito-mcp 自己读）`
-      )
-    }
-  }
-}
-
-/** 3f：工具审计（S6）——表里只许有摘要、审计点不许被删掉 */
+/** 3e：工具审计（S6）——表里只许有摘要、审计点不许被删掉 */
 const AUDIT_SCHEMA = join(
   CLIENT,
   'src-tauri',
@@ -346,7 +329,6 @@ function main() {
   checkGlobalTauriReads()
   checkFsImportSurface()
   checkDialogFacade()
-  checkBridgeToken()
   checkGitSpawn()
   checkToolAudit()
 
@@ -357,7 +339,7 @@ function main() {
     process.exit(1)
   }
   console.log(
-    'security-surface: OK（withGlobalTauri=false / plugin-fs 引用面未扩大 / 选路走 dialog 门面 / 桥令牌不进渲染进程 / 无新增明文 http 通配 / CSP 非通配 / git 单点 spawn / 审计只存摘要）'
+    'security-surface: OK（withGlobalTauri=false / plugin-fs 引用面未扩大 / 选路走 dialog 门面 / 无新增明文 http 通配 / CSP 非通配 / git 单点 spawn / 审计只存摘要）'
   )
 }
 

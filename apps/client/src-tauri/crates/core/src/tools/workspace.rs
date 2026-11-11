@@ -49,6 +49,9 @@ const LOCKED_SEGMENTS: &[&str] = &[".git"];
 const CONFIRM_PREFIXES: &[&str] = &[".env", "id_rsa", "id_ed25519", "id_ecdsa"];
 /// 需要逐次确认的扩展名。
 const CONFIRM_EXTENSIONS: &[&str] = &["pem", "key", "p12", "pfx"];
+/// 桥注入的「无人值守」标记（目标模式）。键名固定，**模型无法伪造**：
+/// 桥在调工具前会按 `agent_goal.status` 覆写这个字段。
+pub const UNATTENDED_KEY: &str = "__unattended";
 
 /// 写路径守卫结论。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -247,7 +250,9 @@ async fn write(db: &DatabaseConnection, arguments: &Value) -> Result<Value, Stri
         arg_bool(arguments, "createParents"),
     )
     .await?;
-    check_guard(&target, arg_bool(arguments, "confirm"))?;
+    let guard = guard_for(&target);
+    let unattended = arg_bool(arguments, UNATTENDED_KEY);
+    check_guard(&target, arg_bool(arguments, "confirm"), unattended)?;
 
     let previous_bytes = fs::read(&target).ok();
     let created = previous_bytes.is_none();
@@ -257,6 +262,7 @@ async fn write(db: &DatabaseConnection, arguments: &Value) -> Result<Value, Stri
 
     Ok(json!({
         "path": target.to_string_lossy(),
+        "guard": guard_label(guard, unattended),
         "created": created,
         "bytes": content.len(),
         "previous": previous_bytes.as_deref().map(preview),
@@ -287,7 +293,9 @@ async fn patch(db: &DatabaseConnection, arguments: &Value) -> Result<Value, Stri
         false,
     )
     .await?;
-    check_guard(&target, arg_bool(arguments, "confirm"))?;
+    let guard = guard_for(&target);
+    let unattended = arg_bool(arguments, UNATTENDED_KEY);
+    check_guard(&target, arg_bool(arguments, "confirm"), unattended)?;
 
     let previous_bytes =
         fs::read(&target).map_err(|error| format!("读取 {} 失败：{error}", target.display()))?;
@@ -307,6 +315,7 @@ async fn patch(db: &DatabaseConnection, arguments: &Value) -> Result<Value, Stri
 
     Ok(json!({
         "path": target.to_string_lossy(),
+        "guard": guard_label(guard, unattended),
         "applied": applied,
         "edits": edits.len(),
         "bytes": next.len(),
@@ -388,18 +397,30 @@ pub fn guard_for(path: &Path) -> WriteGuard {
     WriteGuard::Allow
 }
 
-fn check_guard(target: &Path, confirm: bool) -> Result<(), String> {
+fn check_guard(target: &Path, confirm: bool, unattended: bool) -> Result<(), String> {
     match guard_for(target) {
         WriteGuard::Allow => Ok(()),
         WriteGuard::Locked => Err(format!(
             "{} 位于版本库元数据目录（.git）内：Agent 永久不可写。要改 git 行为请让用户在终端里操作",
             target.display()
         )),
-        WriteGuard::Confirm if confirm => Ok(()),
+        // `unattended` = 目标推进（无人值守）由桥注入的事实：受保护文件自动放行，
+        // `.git` 不在这条豁免里。实际放行会写回执（`guard` 字段）并进审计行。
+        WriteGuard::Confirm if confirm || unattended => Ok(()),
         WriteGuard::Confirm => Err(format!(
             "{} 是受保护文件（.env / 密钥类）。请先向用户说明将要改动哪些键，得到同意后带 confirm=true 重试",
             target.display()
         )),
+    }
+}
+
+/// 回执里的守卫标记：让「为什么这次能写」有据可查（目标模式的放行不能是隐形的）
+fn guard_label(guard: WriteGuard, unattended: bool) -> &'static str {
+    match guard {
+        WriteGuard::Allow => "open",
+        WriteGuard::Locked => "locked",
+        WriteGuard::Confirm if unattended => "unattended",
+        WriteGuard::Confirm => "confirmed",
     }
 }
 
@@ -915,5 +936,46 @@ mod tests {
             ]
         );
         fs::remove_dir_all(&base).ok();
+    }
+
+    /// 目标模式（无人值守）：受保护文件放行，且回执里写明这次是豁免
+    #[tokio::test]
+    async fn unattended_may_write_protected_file_and_reports_guard() {
+        let fixture = fixture().await;
+        let target = fixture.root.join(".env");
+        let value = write(
+            &fixture.db,
+            &json!({
+                "path": target.to_string_lossy(),
+                "content": "SECRET=1",
+                "__unattended": true
+            }),
+        )
+        .await
+        .expect("无人值守应放行受保护文件");
+        assert_eq!(value["guard"], json!("unattended"));
+        assert_eq!(fs::read_to_string(&target).unwrap(), "SECRET=1");
+
+        fs::remove_dir_all(&fixture.base).ok();
+    }
+
+    /// `.git` 不享受无人值守豁免：永久拒绝
+    #[tokio::test]
+    async fn unattended_does_not_unlock_git_metadata() {
+        let fixture = fixture().await;
+        fs::create_dir_all(fixture.root.join(".git/hooks")).expect("git dir");
+        let error = write(
+            &fixture.db,
+            &json!({
+                "path": fixture.root.join(".git/hooks/pre-commit").to_string_lossy(),
+                "content": "x",
+                "__unattended": true
+            }),
+        )
+        .await
+        .expect_err(".git 必须永远拒绝");
+        assert!(error.contains(".git"), "{error}");
+
+        fs::remove_dir_all(&fixture.base).ok();
     }
 }

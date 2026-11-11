@@ -36,7 +36,7 @@ S3 已把这条写路径收回工具层（见边界三），`agent-tools.lock.js
 
 bridge token 曾经经 `bridge:info` 进渲染进程再注入 MCP env，**其权限大于 serve token**（能执行任意命令）；S2 已改为「令牌不出进程」。
 token 由 Rust 写成 `<appLocalData>/bridge/token`（Windows DACL 仅当前用户 / Unix 0600，临时文件 + 原子 rename），
-`BridgeInfo` 只回 `{url, tokenFile, sessionHeader, mcpPath}`，`cogito-mcp` 经 `COGITO_BRIDGE_TOKEN_FILE` 自读；每个请求带 `x-cogito-session`，桥侧只认已登记会话（`bridge:info` 时登记）。
+`BridgeInfo` 只回 `{url, tokenFile, mcpPath}`，`cogito-mcp` 经 `COGITO_BRIDGE_TOKEN_FILE` 自读；每个请求带 `x-cogito-session`，桥侧只认已登记会话（`bridge:info` 时登记）。
 
 ### 边界三：Agent → 文件/命令（工具层 + 审批）
 
@@ -80,7 +80,7 @@ token 由 Rust 写成 `<appLocalData>/bridge/token`（Windows DACL 仅当前用�
   `grants::assert_writable`（只允许静态根 / 工作区根 / 用户选过的目录），
   被拒时给可行动提示而不是干巴巴的「拒绝」。
 
-- **S2 已落地**：桥令牌只落盘（`<appLocalData>/bridge/token`），`bridge:info` 不再回明文；`goose:connection` 也去掉了单独的 `token` 字段（serve 令牌仍只在带 token 的 wss url 里，彻底移出渲染进程需要 S9-B 的 Rust 侧 ACP 客户端）。门禁新增第 6 组断言：`apps/client/src` 里出现 `COGITO_BRIDGE_TOKEN` 即失败。
+- **S2 已落地**：桥令牌只落盘（`<appLocalData>/bridge/token`），`bridge:info` 不再回明文；`goose:connection` 也去掉了单独的 `token` 字段（serve 令牌仍只在带 token 的 wss url 里，彻底移出渲染进程需要 S9-B 的 Rust 侧 ACP 客户端）。令牌来源只有文件一处，明文 env 兼容路径已删。
 - **S3 已落地**：真机冒烟（`.r3-devtest.conf.json` + `COGITO_DEV_ISOLATED=1`，identifier `com.cogito.client.dev`）验证了四件事：
   ① 启动日志 `授权集重建完成 static_roots=5 workspace_roots=9 asset_files=4 errors=0`；
   ② `bridge/token` 的 `icacls` 只有一条当前用户 ACE（36 字节 uuid）；

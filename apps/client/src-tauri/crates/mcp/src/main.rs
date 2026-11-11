@@ -5,12 +5,14 @@
 //! 保持「app 是数据库唯一写者」。
 //!
 //! 环境变量（由 ACP 注入）：
-//! - `COGITO_BRIDGE_URL` / `COGITO_BRIDGE_TOKEN`：桥地址与本次启动的令牌
-//! - `COGITO_SESSION_ID` / `COGITO_WORKSPACE_ID`：会话上下文（当前仅留痕，不参与鉴权）
+//! - `COGITO_BRIDGE_URL`：桥地址
+//! - `COGITO_BRIDGE_TOKEN_FILE`：令牌文件路径（`<appLocalData>/bridge/token`，仅当前用户可读）。
+//!   令牌只走文件：不进渲染进程，也不走环境变量明文。
+//! - `COGITO_SESSION_ID`：本会话标识，随每个请求放进 `x-cogito-session`，桥侧据此做会话绑定
 //!
-//! 缺 URL 或 token 时退化为只提供 `app_ping`，并把原因写进 instructions —— 让模型/用户
+//! 缺 URL 或令牌时退化为只提供 `app_ping`，并把原因写进 instructions —— 让模型/用户
 //! 看到「工具面未连接」，而不是静默地一无所获。
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use rmcp::{
     ErrorData as McpError, ServerHandler, ServiceExt,
@@ -26,8 +28,11 @@ use serde_json::{Value, json};
 
 /// 与 `bridge::http::TOKEN_HEADER` 对齐。
 const TOKEN_HEADER: &str = "x-bridge-token";
+/// 与 `bridge::http::SESSION_HEADER` 对齐。
+const SESSION_HEADER: &str = "x-cogito-session";
 const BRIDGE_URL_ENV: &str = "COGITO_BRIDGE_URL";
-const BRIDGE_TOKEN_ENV: &str = "COGITO_BRIDGE_TOKEN";
+const BRIDGE_TOKEN_FILE_ENV: &str = "COGITO_BRIDGE_TOKEN_FILE";
+const SESSION_ENV: &str = "COGITO_SESSION_ID";
 
 /// 返回图片的工具：它的结果必须作为 image content 交给模型
 const SCREENSHOT_TOOL: &str = "app_browser_screenshot";
@@ -36,22 +41,66 @@ const SCREENSHOT_TOOL: &str = "app_browser_screenshot";
 #[derive(Clone)]
 struct Bridge {
     url: String,
-    token: String,
+    /// 每次都重新读：app 重启后令牌会轮换，长期不退出的 MCP 进程要跟上。
+    token_file: PathBuf,
+    session: String,
     client: reqwest::Client,
 }
 
 impl Bridge {
     fn from_env() -> Option<Self> {
         let url = std::env::var(BRIDGE_URL_ENV).ok()?.trim().to_string();
-        let token = std::env::var(BRIDGE_TOKEN_ENV).ok()?.trim().to_string();
-        if url.is_empty() || token.is_empty() {
+        if url.is_empty() {
             return None;
         }
+        let token_file = std::env::var(BRIDGE_TOKEN_FILE_ENV)
+            .ok()
+            .map(|path| path.trim().to_string())
+            .filter(|path| !path.is_empty())
+            .map(PathBuf::from)?;
+        let session = std::env::var(SESSION_ENV)
+            .unwrap_or_default()
+            .trim()
+            .to_string();
         Some(Self {
             url,
-            token,
+            token_file,
+            session,
             client: reqwest::Client::new(),
         })
+    }
+
+    /// 极少数情况下 app 刚 rename、文件短暂不可读：读一次，失败隔一下再试一次。
+    fn token(&self) -> Result<String, String> {
+        for attempt in 0..2 {
+            match std::fs::read_to_string(&self.token_file) {
+                Ok(raw) => {
+                    let token = raw.trim().to_string();
+                    if token.is_empty() {
+                        return Err(format!("令牌文件为空：{}", self.token_file.display()));
+                    }
+                    return Ok(token);
+                }
+                Err(_) if attempt == 0 => std::thread::sleep(std::time::Duration::from_millis(20)),
+                Err(error) => {
+                    return Err(format!(
+                        "读取令牌文件失败（{}）：{error}",
+                        self.token_file.display()
+                    ));
+                }
+            }
+        }
+        Err(format!("读取令牌文件失败：{}", self.token_file.display()))
+    }
+
+    /// 带上令牌与会话头的请求构造；令牌读失败直接作为工具错误返回。
+    fn request(&self, builder: reqwest::RequestBuilder) -> Result<reqwest::RequestBuilder, String> {
+        let builder = builder.header(TOKEN_HEADER, self.token()?);
+        if self.session.is_empty() {
+            Ok(builder)
+        } else {
+            Ok(builder.header(SESSION_HEADER, self.session.as_str()))
+        }
     }
 
     async fn list_tools(&self) -> Result<Vec<Tool>, String> {
@@ -83,10 +132,8 @@ impl Bridge {
     }
 
     async fn get(&self, path: &str) -> Result<Value, String> {
-        let response = self
-            .client
-            .get(format!("{}{path}", self.url))
-            .header(TOKEN_HEADER, &self.token)
+        let request = self.request(self.client.get(format!("{}{path}", self.url)))?;
+        let response = request
             .send()
             .await
             .map_err(|error| format!("桥不可达：{error}"))?;
@@ -94,10 +141,8 @@ impl Bridge {
     }
 
     async fn post(&self, path: &str, payload: Value) -> Result<Value, String> {
-        let response = self
-            .client
-            .post(format!("{}{path}", self.url))
-            .header(TOKEN_HEADER, &self.token)
+        let request = self.request(self.client.post(format!("{}{path}", self.url)))?;
+        let response = request
             .json(&payload)
             .send()
             .await
@@ -156,9 +201,7 @@ fn image_blocks(name: &str, payload: &str) -> Option<Vec<ContentBlock>> {
     // base64 长度约是原字节数的 4/3，给模型一个体量参考
     let approx_bytes = base64.len() * 3 / 4;
     Some(vec![
-        ContentBlock::text(format!(
-            "已截取当前页面（{mime}，约 {approx_bytes} 字节）"
-        )),
+        ContentBlock::text(format!("已截取当前页面（{mime}，约 {approx_bytes} 字节）")),
         ContentBlock::image(base64, mime),
     ])
 }
@@ -173,7 +216,7 @@ impl ServerHandler for App {
         let instructions = if self.bridge.is_some() {
             "cogito 本地工具面：经 app 内桥读写本机数据。要执行命令请优先用 app_terminal_run —— 它跑在用户右栏看得见的终端里，用户可以围观并随时接管；长跑命令返回 isRunning=true 后用 app_terminal_read 续读。"
         } else {
-            "cogito 本地工具面未连接（缺少 COGITO_BRIDGE_URL / COGITO_BRIDGE_TOKEN），仅 app_ping 可用"
+            "cogito 本地工具面未连接（缺少 COGITO_BRIDGE_URL / COGITO_BRIDGE_TOKEN_FILE），仅 app_ping 可用"
         };
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("cogito-mcp", env!("CARGO_PKG_VERSION")))
@@ -210,7 +253,7 @@ impl ServerHandler for App {
 
         let Some(bridge) = &self.bridge else {
             return Ok(CallToolResult::error(vec![ContentBlock::text(
-                "本地工具面未连接：COGITO_BRIDGE_URL / COGITO_BRIDGE_TOKEN 缺失",
+                "本地工具面未连接：COGITO_BRIDGE_URL / COGITO_BRIDGE_TOKEN_FILE 缺失",
             )])
             .into());
         };
