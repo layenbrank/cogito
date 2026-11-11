@@ -138,6 +138,9 @@ mod tests {
     #[test]
     #[cfg(windows)]
     fn job_is_created_on_windows() {
-        assert!(is_available(), "Windows 上应能创建 KILL_ON_JOB_CLOSE 的 Job");
+        assert!(
+            is_available(),
+            "Windows 上应能创建 KILL_ON_JOB_CLOSE 的 Job"
+        );
     }
 }

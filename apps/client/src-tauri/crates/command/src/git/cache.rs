@@ -27,15 +27,11 @@ fn status_payload_eq(left: &StatusR, right: &StatusR) -> bool {
         && left.ahead == right.ahead
         && left.behind == right.behind
         && left.entries.len() == right.entries.len()
-        && left
-            .entries
-            .iter()
-            .zip(right.entries.iter())
-            .all(|(a, b)| {
-                a.path == b.path
-                    && a.index_status == b.index_status
-                    && a.worktree_status == b.worktree_status
-            })
+        && left.entries.iter().zip(right.entries.iter()).all(|(a, b)| {
+            a.path == b.path
+                && a.index_status == b.index_status
+                && a.worktree_status == b.worktree_status
+        })
 }
 
 /// HEAD oid + index mtime/size；工作区改动靠 watch → invalidate，不靠此指纹。
@@ -129,9 +125,5 @@ pub fn clear_all() {
 
 #[allow(dead_code)]
 pub fn cached_root_hint() -> Option<PathBuf> {
-    STATUS_CACHE
-        .lock()
-        .keys()
-        .next()
-        .map(PathBuf::from)
+    STATUS_CACHE.lock().keys().next().map(PathBuf::from)
 }

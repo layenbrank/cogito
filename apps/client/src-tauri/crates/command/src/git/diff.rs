@@ -6,8 +6,7 @@ use similar::{Algorithm, ChangeTag, TextDiff};
 
 use super::blob::{
     looks_binary, prepare_side, read_head_bytes, read_index_bytes, read_tree_bytes,
-    read_worktree_bytes,
-    worktree_fingerprint,
+    read_worktree_bytes, worktree_fingerprint,
 };
 use super::cli::run_git_args;
 use super::session::open_repo;
@@ -52,7 +51,6 @@ impl DiffRevs {
         !self.has_revs() && self.scope == DiffScope::Unstaged
     }
 }
-
 
 /// 两侧合计超过此字节数 → hunks，避免 Monaco LCS。
 pub const LARGE_DIFF_BYTES: usize = 80_000;

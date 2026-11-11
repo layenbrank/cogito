@@ -22,12 +22,78 @@ const READY_TIMEOUT: Duration = Duration::from_secs(30);
 const FINGERPRINT_TIMEOUT: Duration = Duration::from_secs(5);
 const STATUS_INTERVAL: Duration = Duration::from_millis(150);
 const EXIT_WAIT: Duration = Duration::from_secs(5);
+const STATUS_EVENT: &str = "goose://status";
+
+/// 就绪状态事件（S4）：`goose://status` 的载荷，也是前端 `waitGooseReady` 的唯一信号源。
+///
+/// `goose:ready` 命令保留成**兜底**（事件可能早于订阅发出、监听也可能注册失败），
+/// 但状态机的真值只在这里产生一次；前端用 `shared/ipc/specs/gooseStatus.ts` 解析同一份结构，
+/// 两边字段漂移会被单测抓住。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GooseStatus {
+    /// `starting` / `ready` / `failed`
+    pub state: &'static str,
+    /// spawn → 就绪的毫秒数（`ready` 时才有）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ready_ms: Option<u64>,
+    /// 宿主进程 RSS（S10 并行会话的容量基线）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rss_bytes: Option<u64>,
+    /// goose serve 子进程 RSS
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub goose_rss_bytes: Option<u64>,
+    /// 失败原因（`failed` 时才有）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+fn emit_status(app: &AppHandle, status: GooseStatus) {
+    if let Err(error) = app.emit(STATUS_EVENT, &status) {
+        warn!("发送 goose 状态事件失败: {error}");
+    }
+}
+
+/// 宿主 / 子进程的常驻内存（`pid=None` 表示当前进程）。
+#[cfg(windows)]
+fn rss_bytes_of(pid: Option<u32>) -> Option<u64> {
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
+    use windows::Win32::System::Threading::{
+        GetCurrentProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+
+    let mut counters = PROCESS_MEMORY_COUNTERS::default();
+    let opened = match pid {
+        Some(pid) => {
+            Some(unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }.ok()?)
+        }
+        None => None,
+    };
+    let handle = opened.unwrap_or_else(|| unsafe { GetCurrentProcess() });
+    let ok = unsafe {
+        GetProcessMemoryInfo(
+            handle,
+            &mut counters,
+            std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
+        )
+    };
+    if let Some(handle) = opened {
+        let _ = unsafe { CloseHandle(handle) };
+    }
+    ok.is_ok().then_some(counters.WorkingSetSize as u64)
+}
+
+#[cfg(not(windows))]
+fn rss_bytes_of(_pid: Option<u32>) -> Option<u64> {
+    None
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GooseConnection {
     pub url: String,
-    pub token: String,
+    // 令牌不出进程（S2）：连接信息里只有带 token 的 url，不再单列一份明文
     pub port: u16,
     pub cert_fingerprint: String,
 }
@@ -102,12 +168,32 @@ impl GooseServeState {
 pub fn spawn_and_watch(app: &AppHandle, _timeout: Duration) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
+        emit_status(
+            &app,
+            GooseStatus {
+                state: "starting",
+                ready_ms: None,
+                rss_bytes: None,
+                goose_rss_bytes: None,
+                reason: None,
+            },
+        );
         if let Err(error) = spawn_inner(&app).await {
             tracing::error!("goose serve 启动失败: {error}");
             if let Some(state) = app.try_state::<GooseServeState>() {
                 state.fail();
             }
             let _ = app.emit("goose://not-ready", ());
+            emit_status(
+                &app,
+                GooseStatus {
+                    state: "failed",
+                    ready_ms: None,
+                    rss_bytes: rss_bytes_of(None),
+                    goose_rss_bytes: None,
+                    reason: Some(error.clone()),
+                },
+            );
         } else {
             info!("goose serve 已就绪");
         }
@@ -130,13 +216,15 @@ async fn spawn_inner(app: &AppHandle) -> Result<(), String> {
         port_text.as_str(),
     ];
 
+    let started = Instant::now();
     let command = build_goose_command(app, &args, &token)?;
     let (mut rx, child) = command
         .spawn()
         .map_err(|e| format!("启动 goose serve 失败: {e}"))?;
 
     // 同上：宿主被强杀时 goose 也不能留成孤儿
-    crate::utils::child_job::adopt(child.pid(), "goose serve");
+    let child_pid = child.pid();
+    crate::utils::child_job::adopt(child_pid, "goose serve");
 
     {
         let state = app.state::<GooseServeState>();
@@ -195,11 +283,26 @@ async fn spawn_inner(app: &AppHandle) -> Result<(), String> {
                         Ok(()) => {
                             let connection = GooseConnection {
                                 url: build_acp_url(port, &token),
-                                token: token.clone(),
+                                // 令牌不出进程：只保留带 token 的 url
                                 port,
                                 cert_fingerprint: fp.clone(),
                             };
                             app.state::<GooseServeState>().mark_ready(connection);
+                            let ready_ms = started.elapsed().as_millis() as u64;
+                            let status = GooseStatus {
+                                state: "ready",
+                                ready_ms: Some(ready_ms),
+                                rss_bytes: rss_bytes_of(None),
+                                goose_rss_bytes: rss_bytes_of(Some(child_pid)),
+                                reason: None,
+                            };
+                            info!(
+                                ready_ms,
+                                rss_mb = status.rss_bytes.map(|b| b / 1024 / 1024),
+                                goose_rss_mb = status.goose_rss_bytes.map(|b| b / 1024 / 1024),
+                                "goose 就绪基线"
+                            );
+                            emit_status(app, status);
                             watch_process(app.clone(), rx);
                             return Ok(());
                         }
@@ -350,6 +453,19 @@ fn watch_process(app: AppHandle, mut rx: tauri::async_runtime::Receiver<CommandE
                     }
                 }
                 let _ = app.emit("goose://not-ready", ());
+                emit_status(
+                    &app,
+                    GooseStatus {
+                        state: "failed",
+                        ready_ms: None,
+                        rss_bytes: rss_bytes_of(None),
+                        goose_rss_bytes: None,
+                        reason: Some(format!(
+                            "goose serve 已退出 (code={:?}, signal={:?})",
+                            payload.code, payload.signal
+                        )),
+                    },
+                );
                 break;
             }
         }
@@ -497,4 +613,72 @@ pub fn normalize_fingerprint(raw: &str) -> String {
 
 async fn probe_status(port: u16, fingerprint: &str) -> Result<(), String> {
     crate::utils::goose_tls::https_status_ok(port, fingerprint).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 前端按这个 JSON 解析（`shared/ipc/specs/gooseStatus.ts` 的 zod），
+    /// 字段名漂移会在这里先炸，而不是在真机上表现成「一直转圈」。
+    #[test]
+    fn ready_status_is_camel_case_and_carries_baseline() {
+        let value = serde_json::to_value(GooseStatus {
+            state: "ready",
+            ready_ms: Some(1234),
+            rss_bytes: Some(1024),
+            goose_rss_bytes: Some(2048),
+            reason: None,
+        })
+        .expect("json");
+
+        assert_eq!(value["state"], serde_json::json!("ready"));
+        assert_eq!(value["readyMs"], serde_json::json!(1234));
+        assert_eq!(value["rssBytes"], serde_json::json!(1024));
+        assert_eq!(value["gooseRssBytes"], serde_json::json!(2048));
+        assert!(value.get("reason").is_none(), "{value}");
+    }
+
+    #[test]
+    fn starting_status_omits_optional_fields() {
+        let value = serde_json::to_value(GooseStatus {
+            state: "starting",
+            ready_ms: None,
+            rss_bytes: None,
+            goose_rss_bytes: None,
+            reason: None,
+        })
+        .expect("json");
+        assert_eq!(value.as_object().expect("obj").len(), 1, "{value}");
+    }
+
+    /// 状态机三态（启动中 / 就绪 / 失败）与重启复位
+    #[test]
+    fn serve_state_machine_settles_and_resets() {
+        let state = GooseServeState::new();
+        assert!(state.status().is_none());
+        assert!(!state.is_ready());
+
+        state.mark_ready(GooseConnection {
+            url: "wss://127.0.0.1:1/acp?token=t".to_string(),
+            port: 1,
+            cert_fingerprint: "ff".to_string(),
+        });
+        assert!(state.is_ready());
+        assert_eq!(state.status(), Some(true));
+        assert!(state.connection().is_some());
+
+        state.fail();
+        assert_eq!(state.status(), Some(false));
+        assert!(!state.is_ready());
+        assert!(state.connection().is_none());
+
+        state.reset_for_restart();
+        assert!(state.status().is_none());
+    }
+
+    #[test]
+    fn fingerprint_is_normalized_to_lowercase_hex() {
+        assert_eq!(normalize_fingerprint("AB:cd:EF 12"), "abcdef12");
+    }
 }

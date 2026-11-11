@@ -12,7 +12,7 @@ use cogito_core::CommandResult;
 use serde::Serialize;
 
 use super::cli::{run_git, run_git_args};
-use super::history::{parse_name_status_z, ShowFile};
+use super::history::{ShowFile, parse_name_status_z};
 
 /// 单侧文件清单上限：远端分叉很大时不要把整仓塞进一次 IPC。
 const FILE_CAP: usize = 200;
@@ -57,8 +57,14 @@ fn empty(head_oid: Option<String>) -> UpstreamR {
 /// 左列是上游独有（behind），右列是本地独有（ahead）。
 fn parse_rev_list_count(raw: &str) -> (u32, u32) {
     let mut parts = raw.split_whitespace();
-    let behind = parts.next().and_then(|value| value.parse().ok()).unwrap_or(0);
-    let ahead = parts.next().and_then(|value| value.parse().ok()).unwrap_or(0);
+    let behind = parts
+        .next()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(0);
+    let ahead = parts
+        .next()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(0);
     (behind, ahead)
 }
 
@@ -66,7 +72,11 @@ async fn read_head_oid(cwd: &Path) -> Option<String> {
     match run_git(cwd, &["rev-parse", "HEAD"]).await {
         Ok((true, out, _)) => {
             let trimmed = out.trim().to_string();
-            if trimmed.is_empty() { None } else { Some(trimmed) }
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
         }
         _ => None,
     }
@@ -76,7 +86,11 @@ async fn read_oid(cwd: &Path, spec: &str) -> Option<String> {
     match run_git(cwd, &["rev-parse", spec]).await {
         Ok((true, out, _)) => {
             let trimmed = out.trim().to_string();
-            if trimmed.is_empty() { None } else { Some(trimmed) }
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
         }
         _ => None,
     }
@@ -128,15 +142,11 @@ pub async fn read_upstream(cwd: &Path) -> CommandResult<UpstreamR> {
 
     let upstream_oid = read_oid(cwd, "@{u}").await;
 
-    let (behind, ahead) = match run_git(
-        cwd,
-        &["rev-list", "--left-right", "--count", "@{u}...HEAD"],
-    )
-    .await?
-    {
-        (true, out, _) => parse_rev_list_count(&out),
-        (false, _, _) => (0, 0),
-    };
+    let (behind, ahead) =
+        match run_git(cwd, &["rev-list", "--left-right", "--count", "@{u}...HEAD"]).await? {
+            (true, out, _) => parse_rev_list_count(&out),
+            (false, _, _) => (0, 0),
+        };
 
     let (behind_files, behind_truncated) = read_files(cwd, "HEAD", "@{u}").await?;
     let (ahead_files, ahead_truncated) = read_files(cwd, "@{u}", "HEAD").await?;

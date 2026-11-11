@@ -3,9 +3,9 @@ use std::path::Path;
 use cogito_core::{CommandResult, Exception};
 use serde::Serialize;
 
+use super::StatusBackend;
 use super::cli::run_git_bytes;
 use super::session::open_repo;
-use super::StatusBackend;
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]

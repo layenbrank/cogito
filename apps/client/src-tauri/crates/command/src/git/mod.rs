@@ -19,18 +19,19 @@ pub use blob::{
     prepare_side, read_head_bytes, read_index_bytes, read_tree_bytes, read_worktree_bytes,
 };
 pub use cache::{
-    bump_status, invalidate_status, mark_unchanged, status_cached, store_status, StatusLookup,
+    StatusLookup, bump_status, invalidate_status, mark_unchanged, status_cached, store_status,
 };
+pub(crate) use cli::command as git_safe_command;
 pub use cli::{run_git, run_git_args, run_git_bytes};
 pub use diff::{
-    plan_diff, plan_diff_hunks, DiffHunk, DiffHunksR, DiffMetaR, DiffMode, DiffPlan, DiffRevs,
-    DiffScope, LARGE_CHANGE_LINES, LARGE_DIFF_BYTES,
+    DiffHunk, DiffHunksR, DiffMetaR, DiffMode, DiffPlan, DiffRevs, DiffScope, LARGE_CHANGE_LINES,
+    LARGE_DIFF_BYTES, plan_diff, plan_diff_hunks,
 };
-pub use history::{search_commits, show_commit, CommitHit, SearchField, SearchR, ShowFile, ShowR};
+pub use history::{CommitHit, SearchField, SearchR, ShowFile, ShowR, search_commits, show_commit};
 pub use path::{has_git_marker, validate_branch, validate_path, validate_relative_paths};
-pub use session::{open_repo, probe_repo, ProbeInfo};
-pub use status::{list_branches, read_status, BranchList, StatusEntryR, StatusR};
-pub use upstream::{read_upstream, UpstreamR};
+pub use session::{ProbeInfo, open_repo, probe_repo};
+pub use status::{BranchList, StatusEntryR, StatusR, list_branches, read_status};
+pub use upstream::{UpstreamR, read_upstream};
 
 /// 环境变量：`cli`（强制）| `gix`（默认标记，当前仍走 porcelain CLI 以对齐金样）。
 ///

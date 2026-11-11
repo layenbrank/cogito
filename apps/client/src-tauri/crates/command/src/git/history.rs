@@ -127,7 +127,11 @@ pub async fn search_commits(
     limit: u32,
     cursor: Option<&str>,
 ) -> CommandResult<SearchR> {
-    let limit = if limit == 0 { DEFAULT_LIMIT } else { limit.min(200) };
+    let limit = if limit == 0 {
+        DEFAULT_LIMIT
+    } else {
+        limit.min(200)
+    };
     let mut args = vec![
         "-c".into(),
         "log.showSignature=false".into(),
@@ -173,7 +177,10 @@ pub async fn search_commits(
     }
 
     let head_oid = resolve_head_oid(cwd).await.unwrap_or_default();
-    let cursor_oid = cursor.map(str::trim).filter(|item| !item.is_empty()).unwrap_or("");
+    let cursor_oid = cursor
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .unwrap_or("");
     let mut past_cursor = cursor_oid.is_empty();
 
     let mut commits = Vec::new();
@@ -233,8 +240,7 @@ pub async fn show_commit(cwd: &Path, oid: &str) -> CommandResult<ShowR> {
     }
 
     let parent_oid = {
-        let (ok, out, _) =
-            run_git_args(cwd, &["rev-parse".into(), format!("{oid}^")]).await?;
+        let (ok, out, _) = run_git_args(cwd, &["rev-parse".into(), format!("{oid}^")]).await?;
         if ok {
             let parent = out.trim().to_string();
             if parent.is_empty() {
@@ -326,11 +332,7 @@ pub(crate) fn parse_name_status_z(raw: &str) -> Vec<ShowFile> {
                 });
             }
         } else {
-            let path = parts
-                .get(index)
-                .copied()
-                .unwrap_or("")
-                .replace('\\', "/");
+            let path = parts.get(index).copied().unwrap_or("").replace('\\', "/");
             index += 1;
             if !path.is_empty() {
                 files.push(ShowFile {
@@ -414,10 +416,7 @@ mod tests {
     fn workspace_root() -> Option<PathBuf> {
         let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         // command → crates → src-tauri → client → apps → workspace-cogito
-        let root = manifest
-            .join("../../../../../")
-            .canonicalize()
-            .ok()?;
+        let root = manifest.join("../../../../../").canonicalize().ok()?;
         if root.join(".git").exists() || root.join(".git").is_file() {
             Some(root)
         } else {
@@ -445,10 +444,9 @@ mod tests {
         );
 
         if !head.author_name.is_empty() {
-            let by_author =
-                search_commits(&root, &head.author_name, SearchField::Author, 5, None)
-                    .await
-                    .expect("search author");
+            let by_author = search_commits(&root, &head.author_name, SearchField::Author, 5, None)
+                .await
+                .expect("search author");
             assert!(
                 !by_author.commits.is_empty(),
                 "author search should return hits"
