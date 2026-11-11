@@ -9,12 +9,10 @@ import { memo, useEffect, useState } from 'react'
 import {
   parseToolCard,
   parseToolCardAsync,
-  parseWebSources,
   type ParsedToolCard
 } from '@/views/agent/chat/components/parse-tool-result'
 import { ApprovalBar } from '@/views/agent/chat/components/tool-card-approval-bar'
 import { ToolCardShellBody } from '@/views/agent/chat/components/tool-card-body'
-import { SourcesBlock } from '@/views/agent/chat/components/tool-card-sources-block'
 
 function AgentToolCardInner(props: ToolCallMessagePartProps) {
   const [parsed, updateParsed] = useState<ParsedToolCard>(function () {
@@ -40,8 +38,6 @@ function AgentToolCardInner(props: ToolCallMessagePartProps) {
     [props.toolName, props.args, props.result]
   )
 
-  const sources = parseWebSources(props.toolName, props.args, props.result, parsed.text)
-
   return (
     <div
       data-slot="agent-tool-card"
@@ -51,8 +47,8 @@ function AgentToolCardInner(props: ToolCallMessagePartProps) {
         {...props}
         parsed={parsed}
       />
-      {/* 联网检索的来源已经在 web-search 卡里逐条列出，不再挂一份折叠收据 */}
-      {parsed.variant === 'web' ? null : <SourcesBlock sources={sources} />}
+      {/* 来源芯片在消息级（`thread.aui.tsx` 的 MessageSources）统一渲染：
+          一条回答可能调了多次检索，按工具卡重复列一遍只会把同一条链接摆三回 */}
       <ApprovalBar {...props} />
     </div>
   )

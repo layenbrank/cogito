@@ -138,5 +138,23 @@ const CitedMarkdownText: FC<Partial<TextMessagePartProps>> = (props) => {
   )
 }
 
-export { CitedMarkdownText, installCitationExtractor }
+/**
+ * 本条消息的来源清单：和正文 `[1]` 角标同一份数据（业务侧注册的 extractor）。
+ *
+ * 正文角标是「点进去看」的入口，这里是「这条回答参考了哪些东西」的清单 ——
+ * assistant-ui 的 `elements/sources` 就是挂在消息流末尾的那行芯片。
+ */
+function useMessageSources(): readonly CitationSource[] {
+  const parts = useAuiState(function (state) {
+    return state.message.parts
+  })
+  return useMemo(
+    function () {
+      return extractor ? extractor(parts) : []
+    },
+    [parts]
+  )
+}
+
+export { CitedMarkdownText, installCitationExtractor, useMessageSources }
 export type { CitationSource, CitationExtractor }

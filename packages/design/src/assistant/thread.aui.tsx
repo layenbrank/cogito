@@ -58,7 +58,8 @@ import {
 } from './process-state'
 import { findMessageMarkdown } from './message-markdown'
 import { findMessageMoment, formatMessageTime, toDateTimeAttr } from './message-time'
-import { CitedMarkdownText } from './message-citations'
+import { CitedMarkdownText, useMessageSources } from './message-citations'
+import { SourceChips } from './sources'
 import {
   Reasoning,
   ReasoningContent,
@@ -947,6 +948,28 @@ const AssistantRunStatus: FC = () => {
  * 叶子 part 统一走 `MessagePrimitive.PartByIndex`：注册过的工具 / data UI 由库优先接管
  * （`MessagePartComponent` 内部查 `toolUIs` / `dataRenderers`），这里只提供兜底组件。
  */
+/**
+ * 消息级来源芯片行（assistant-ui `elements/sources`）。
+ *
+ * 位置很关键：它属于**消息**，不属于某一张工具卡 —— 一条回答里可能调了三次联网检索，
+ * 用户要看的是「这条回答参考了哪些东西」，而不是「第三个工具调用的返回里有什么」。
+ * 数据走 `useMessageSources`：与正文 `[1]` 角标同一份 aggregator，已按出现顺序去重。
+ */
+const MessageSources: FC = () => {
+  const sources = useMessageSources()
+  if (sources.length === 0) return null
+  return (
+    <div
+      data-slot="aui_assistant-message-sources"
+      className="-mx-1 mt-2">
+      <SourceChips
+        sources={sources}
+        variant="muted"
+      />
+    </div>
+  )
+}
+
 const AssistantMessage: FC = () => {
   const {
     ToolFallback: ToolFallbackComponent = ToolFallback,
@@ -1164,6 +1187,12 @@ const AssistantMessage: FC = () => {
           )}
 
           {finalAnswer}
+
+          {/*
+           * 来源芯片行：跟在最终回答后面，属于这条消息（不是某张工具卡）。
+           * 没有来源时组件自己返回 null，这里不留空壳。
+           */}
+          <MessageSources />
 
           {/*
            * 回合小结：排在最终回答之后，**只在回合结束时**挂 —— 流式中途挂上去会跟着
