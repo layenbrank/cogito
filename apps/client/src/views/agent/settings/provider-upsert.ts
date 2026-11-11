@@ -10,9 +10,20 @@ function findHostValue(values: Record<string, string>): string | null {
   return null
 }
 
+interface UpsertOptions {
+  /**
+   * 用户主动保存：置为启用。
+   *
+   * bootstrap（设置页每次打开）的刷新**不能**替用户做这个决定 —— 否则一个手动停用的
+   * 接入会被刷回来，模型选择器与路由都被这条幽灵行影响。
+   */
+  enable?: boolean
+}
+
 async function upsertStoreProvider(
   entry: GooseProviderEntry,
-  values: Record<string, string>
+  values: Record<string, string>,
+  options: UpsertOptions = {}
 ): Promise<void> {
   const store = useProviderStore.getState()
   const existing = store.providers.find(function (provider) {
@@ -39,7 +50,7 @@ async function upsertStoreProvider(
         baseUrl,
         models: stringifyModels(models),
         model: keepModel,
-        enabled: true,
+        enabled: options.enable ?? existing.enabled,
         updatedAt: now
       }
     ])
@@ -50,6 +61,9 @@ async function upsertStoreProvider(
     return provider.id === entry.providerId
   })
   if (stillThere) {
+    const kept = store.providers.find(function (provider) {
+      return provider.id === entry.providerId
+    })
     await store.toUpdateProvider([
       {
         id: entry.providerId,
@@ -58,7 +72,7 @@ async function upsertStoreProvider(
         baseUrl,
         models: stringifyModels(models),
         model: keepModel,
-        enabled: true,
+        enabled: options.enable ?? kept?.enabled ?? entry.configured,
         updatedAt: now
       }
     ])
@@ -72,7 +86,7 @@ async function upsertStoreProvider(
     baseUrl,
     models: stringifyModels(models),
     model: keepModel,
-    enabled: entry.configured,
+    enabled: options.enable ?? entry.configured,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now
   }

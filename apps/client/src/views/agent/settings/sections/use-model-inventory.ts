@@ -19,12 +19,35 @@ import {
 } from '@/features/agent/acp/goose-providers'
 import { waitGooseReady } from '@/features/agent/acp/session'
 import { findProviderLabel } from '@/features/agent/model/display'
+import {
+  findModelKey,
+  findModelPref,
+  MODEL_PREF,
+  readModelPrefs,
+  writeModelPrefs,
+  type ThinkingLevel
+} from '@/features/agent/model/model-prefs'
 import { writeProviderSecret } from '@/features/persist'
 import { useProviderStore } from '@/stores/provider'
 import { reportCaught } from '@/utils/exception-report'
 import type { ProbeStatus } from '../provider-card-header'
 import { upsertStoreProvider } from '../provider-upsert'
 import type { EditorMode } from './model-editor-dialog'
+
+/**
+ * 弹窗里这个接入将要用的模型：配置字段里带了模型名就认它，否则用本地行的默认模型。
+ *
+ * 思考强度是「每个模型一份」的偏好，所以保存时必须知道是哪个模型。
+ */
+function findEntryModel(entry: GooseProviderEntry, formValues: Record<string, string>): string {
+  for (const [key, value] of Object.entries(formValues)) {
+    if (/MODEL/i.test(key) && value.trim()) return value.trim()
+  }
+  const row = useProviderStore.getState().providers.find(function (provider) {
+    return provider.id === entry.providerId || provider.kind === entry.providerId
+  })
+  return row?.model?.trim() || entry.defaultModel || entry.models[0] || ''
+}
 
 function useModelInventory() {
   const [loading, updateLoading] = useState(false)
@@ -35,6 +58,8 @@ function useModelInventory() {
   const [saving, updateSaving] = useState(false)
   const [probeStatus, updateProbeStatus] = useState<Record<string, ProbeStatus>>({})
   const [pickedAddId, updatePickedAddId] = useState<string | null>(null)
+  /** 弹窗里的思考强度草稿（保存时写进该模型的偏好） */
+  const [editorThinking, updateEditorThinking] = useState<ThinkingLevel>(MODEL_PREF.thinking)
 
   const storeProviders = useProviderStore(function (state) {
     return state.providers
@@ -133,6 +158,8 @@ function useModelInventory() {
     }
 
     updateFormValues(initial)
+    const model = findEntryModel(entry, initial)
+    updateEditorThinking(model ? findModelPref(entry.providerId, model).thinking : MODEL_PREF.thinking)
   }
 
   function patchField(name: string, value: string) {
@@ -177,7 +204,17 @@ function useModelInventory() {
       } else {
         patchProbe(active.providerId, 'ok')
       }
-      await upsertStoreProvider(active, formValues)
+      await upsertStoreProvider(active, formValues, { enable: true })
+      // 思考强度按模型存：弹窗里选的那一档写进该接入当前模型的偏好
+      const model = findEntryModel(active, formValues)
+      if (model) {
+        const key = findModelKey(active.providerId, model)
+        const prefs = readModelPrefs()
+        writeModelPrefs({
+          ...prefs,
+          [key]: { ...(prefs[key] ?? MODEL_PREF), thinking: editorThinking }
+        })
+      }
       toast.success(
         editorMode === 'add'
           ? `${findProviderLabel(active.providerId, active.providerName)} 已添加`
@@ -247,12 +284,14 @@ function useModelInventory() {
     formValues,
     saving,
     pickedAddId,
+    editorThinking,
     isDialogOpen: editorMode !== null,
     handleModelChange,
     handleOpenAdd,
     handleOpenUpdate,
     closeEditor,
     patchField,
+    patchThinking: updateEditorThinking,
     handleSave,
     handlePickedAddId
   }

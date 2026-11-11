@@ -18,6 +18,7 @@ import { Spinner } from '@cogito/design/components/spinner'
 
 import type { GooseProviderEntry } from '@/features/agent/acp/goose-providers'
 import { findProviderLabel } from '@/features/agent/model/display'
+import { THINKING_OPTIONS, type ThinkingLevel } from '@/features/agent/model/model-prefs'
 import styles from '@/views/agent/settings/settings.module.scss'
 import { ProviderCardForm } from '../provider-card-form'
 
@@ -31,6 +32,9 @@ function ModelEditorDialog(props: {
   pickedAddId: string | null
   formValues: Record<string, string>
   saving: boolean
+  /** 思考强度：按该接入的当前模型存一份（新接入也能在保存时定下来） */
+  thinking: ThinkingLevel
+  onThinkingChange: (level: ThinkingLevel) => void
   onClose: () => void
   onPickedAddId: (id: string) => void
   onFieldChange: (name: string, value: string) => void
@@ -99,6 +103,35 @@ function ModelEditorDialog(props: {
               onFieldChange={props.onFieldChange}
               onSave={props.onSave}
             />
+          ) : null}
+
+          {props.active ? (
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>思考强度</span>
+              <Select
+                items={THINKING_OPTIONS}
+                value={props.thinking}
+                onValueChange={function (value) {
+                  if (value === null) return
+                  props.onThinkingChange(value)
+                }}>
+                <SelectTrigger aria-label="思考强度">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent side="bottom">
+                  {THINKING_OPTIONS.map(function (option) {
+                    return (
+                      <SelectItem
+                        key={option.value}
+                        value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+              <span className={styles.fieldHint}>按模型保存，之后可在「模型设置」里逐个调</span>
+            </label>
           ) : null}
         </div>
 

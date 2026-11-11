@@ -4,6 +4,7 @@
 import { CursorCliStatusSection } from '@/views/agent/settings/sections/cursor-cli-status'
 import { ModelEditorDialog } from '@/views/agent/settings/sections/model-editor-dialog'
 import { ModelHeader } from '@/views/agent/settings/sections/model-header'
+import { ModelTuningSection } from '@/views/agent/settings/sections/model-tuning-section'
 import { PlatformModelsSection } from '@/views/agent/settings/sections/model-platform-section'
 import { ProviderListSection } from '@/views/agent/settings/sections/model-provider-list-section'
 import { useModelInventory } from '@/views/agent/settings/sections/use-model-inventory'
@@ -14,6 +15,8 @@ function ModelSection() {
   return (
     <div className="flex flex-col gap-5">
       <ModelHeader onAdd={inventory.handleOpenAdd} />
+
+      <ModelTuningSection onModelChange={inventory.handleModelChange} />
 
       <PlatformModelsSection
         loading={inventory.loading}
@@ -40,6 +43,8 @@ function ModelSection() {
         pickedAddId={inventory.pickedAddId}
         formValues={inventory.formValues}
         saving={inventory.saving}
+        thinking={inventory.editorThinking}
+        onThinkingChange={inventory.patchThinking}
         onClose={inventory.closeEditor}
         onPickedAddId={inventory.handlePickedAddId}
         onFieldChange={inventory.patchField}

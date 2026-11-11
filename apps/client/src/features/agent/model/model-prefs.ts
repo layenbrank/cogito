@@ -46,17 +46,38 @@ function findModelPref(providerID: string, model: string, prefs?: Record<string,
   return map[findModelKey(providerID, model)] ?? { ...MODEL_PREF }
 }
 
+/**
+ * 是否给这个模型显示思考强度入口。
+ *
+ * 名字判断本身不可靠（新模型层出不穷），所以表里只列**已知的推理家族**：
+ * 命中就给入口（Qoder 式的「可配」语义）；没命中的（如组织网关的 Auto）
+ * 保持「不支持」，不凭空给一个调了也不生效的按钮。
+ */
+const THINKING_HINTS = [
+  'o1',
+  'o3',
+  'o4',
+  'r1',
+  'qwq',
+  'thinking',
+  'reason',
+  'deepseek',
+  'qwen3',
+  'glm',
+  'claude',
+  'sonnet',
+  'opus',
+  'gemini',
+  'gpt-5',
+  'grok',
+  'kimi'
+]
+
 function canThink(model: string) {
   const name = model.toLowerCase()
-  return (
-    name.includes('o1') ||
-    name.includes('o3') ||
-    name.includes('o4') ||
-    name.includes('r1') ||
-    name.includes('thinking') ||
-    name.includes('reason') ||
-    name.includes('qwq')
-  )
+  return THINKING_HINTS.some(function (hint) {
+    return name.includes(hint)
+  })
 }
 
 function findNearestContext(value: number) {

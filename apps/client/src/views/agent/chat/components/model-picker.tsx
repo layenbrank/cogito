@@ -327,11 +327,8 @@ function AgentModelPicker(props: ModelPickerProps) {
               variant="ghost"
               className={`${styles.settingsBtn} w-full`}
               onClick={function () {
+                // 就地弹「模型设置」：跳设置页会把用户丢出对话，回来还得重选会话
                 updateOpen(false)
-                if (props.onOpenSettings) {
-                  props.onOpenSettings()
-                  return
-                }
                 updateSettingsOpen(true)
               }}>
               <Icon
