@@ -33,6 +33,7 @@
     "@cogito/chat": "workspace:*",
     "@cogito/design": "workspace:*",
     "@cogito/dict": "workspace:*",
+    "@cogito/shared": "workspace:*",
     "@cogito/types": "workspace:*",
     "@cogito/utils": "workspace:*",
     "@cogito/wasm": "workspace:*",
@@ -53,8 +54,5 @@
     "swiper": "catalog:",
     "turndown": "^7.2.4",
     "zod": "catalog:"
-  },
-  "devDependencies": {
-    "@cogito/shared": "workspace:*"
   }
 }

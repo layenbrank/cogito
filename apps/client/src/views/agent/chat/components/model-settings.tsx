@@ -1,8 +1,8 @@
 /**
  * Qoder 风格模型设置：思考强度 / 显示状态 / 上下文窗口
  */
-import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
+import { ProviderLogo } from '@cogito/design/assistant/provider-logo'
 import {
   Dialog,
   DialogContent,
@@ -232,7 +232,8 @@ function AgentModelSettings(props: ModelSettingsProps) {
             key: findModelKey(provider.id, model),
             providerID: provider.id,
             providerName: provider.name,
-            providerKind: provider.name || provider.kind,
+            // 品牌图标认的是 kind（goose 的 providerId），名称只是兜底显示
+            providerKind: provider.kind || provider.id,
             model,
             supportsThinking: canThink(model)
           })
@@ -344,10 +345,9 @@ function AgentModelSettings(props: ModelSettingsProps) {
                     <td>
                       <div className={styles.modelCell}>
                         <span className={styles.modelBadge}>
-                          <Icon
-                            icon="lucide:box"
-                            width={18}
-                            height={18}
+                          <ProviderLogo
+                            kind={row.providerKind}
+                            size={18}
                           />
                         </span>
                         <div className="flex min-w-0 flex-col">

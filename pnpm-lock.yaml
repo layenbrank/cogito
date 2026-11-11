@@ -1122,6 +1122,9 @@ importers:
       '@cogito/dict':
         specifier: workspace:*
         version: link:../../packages/dict
+      '@cogito/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@cogito/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1182,10 +1185,8 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.6.4
-    devDependencies:
-      '@cogito/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
+
+  apps/clipper: {}
 
   apps/devtools:
     dependencies:

@@ -29,6 +29,7 @@ import { bootstrapIngestEnqueueBridge } from '@/views/knowledge/lib/ingest-enque
 import '@/styles/tailwind.css'
 import '@/styles/index.scss'
 
+import ProviderLogos from '@cogito/shared/provider-logos.json'
 import AntIconify from '@iconify/json/json/ant-design.json'
 import LucideIconify from '@iconify/json/json/lucide.json'
 import MDIconify from '@iconify/json/json/mdi.json'
@@ -39,6 +40,8 @@ const IDENTIFIER_PREFIX = 'cogito'
 addCollection(MDIconify)
 addCollection(AntIconify)
 addCollection(LucideIconify)
+// 模型接入的品牌图标（simple-icons 子集，见 shared 的 assets/icons/provider-logos.json）
+addCollection(ProviderLogos)
 
 // 顺序要紧：先把 console/onerror 送进 Rust 日志，再装异常上报 ——
 // 这样上报自身打的 warn 也会落在 logs/cogito.log 里

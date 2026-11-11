@@ -3,6 +3,7 @@
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
+import { ProviderLogo } from '@cogito/design/assistant/provider-logo'
 import { Popover, PopoverContent, PopoverTrigger } from '@cogito/design/components/popover'
 import { Tabs, TabsList, TabsTrigger } from '@cogito/design/components/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@cogito/design/components/tooltip'
@@ -36,24 +37,6 @@ interface VisibleModelRow {
   model: string
 }
 
-/** 常见接入 → lucide 图标（无品牌包时的可读占位） */
-function findProviderIcon(kind: string) {
-  const key = kind.trim().toLowerCase().replace(/_/g, '-')
-  if (key.includes('deepseek')) return 'lucide:sparkles'
-  if (key.includes('openai') || key.includes('azure')) return 'lucide:hexagon'
-  if (key.includes('anthropic') || key.includes('claude')) return 'lucide:bot'
-  if (key.includes('google') || key.includes('gemini')) return 'lucide:gem'
-  if (key.includes('ollama') || key.includes('atomic')) return 'lucide:cpu'
-  if (key.includes('moonshot') || key.includes('kimi')) return 'lucide:moon'
-  if (key.includes('alibaba') || key.includes('dashscope') || key.includes('qwen')) {
-    return 'lucide:cloud'
-  }
-  if (key.includes('zhipu') || key.includes('glm')) return 'lucide:brain'
-  if (key.includes('openrouter')) return 'lucide:route'
-  if (key.includes('cursor')) return 'lucide:terminal'
-  if (key.includes('cogito') || key.includes('gateway')) return 'lucide:building-2'
-  return 'lucide:box'
-}
 
 /** 右侧短标签：有计费/运行方式数据时展示 */
 function findBillingBadge(billing: string) {
@@ -234,10 +217,10 @@ function AgentModelPicker(props: ModelPickerProps) {
                   />
                 }>
                 <span className={styles.modelBadge}>
-                  <Icon
-                    icon={findProviderIcon(kind)}
-                    width={15}
-                    height={15}
+                  {/* 品牌 logo，认不出的接回落 lucide 占位（见 design 的 provider-logo） */}
+                  <ProviderLogo
+                    kind={kind}
+                    size={15}
                   />
                   {isActive ? (
                     <span className={styles.checkMark}>

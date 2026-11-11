@@ -1,5 +1,6 @@
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
+import { findProviderLogoIcon, ProviderLogo } from '@cogito/design/assistant/provider-logo'
 import { clsx } from 'clsx'
 
 import type { GooseProviderEntry } from '@/features/agent/acp/goose-providers'
@@ -28,16 +29,25 @@ function ProviderCardHeader(props: ProviderCardHeaderProps) {
   const billing = findProviderBilling(entry.providerId, entry.providerName)
   const action =
     props.actionLabel ?? (isOpen ? '收起' : entry.configured ? '更新密钥' : '配置')
+  // 认得品牌的接入给真 logo；其余保留原来的「终端 / 插头」形状（CLI 与密钥配置的语义不同）
+  const hasBrandLogo = findProviderLogoIcon(entry.providerId).startsWith('simple-icons:')
 
   return (
     <div className={`${styles.cardHeader} flex items-center justify-between gap-3`}>
       <div className={`${styles.cardIdentity} flex min-w-0 items-center gap-2.5`}>
         <span className={styles.cardBadge}>
-          <Icon
-            icon={entry.isAcp ? 'lucide:terminal' : 'lucide:plug'}
-            width={18}
-            height={18}
-          />
+          {hasBrandLogo ? (
+            <ProviderLogo
+              kind={entry.providerId}
+              size={18}
+            />
+          ) : (
+            <Icon
+              icon={entry.isAcp ? 'lucide:terminal' : 'lucide:plug'}
+              width={18}
+              height={18}
+            />
+          )}
         </span>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span

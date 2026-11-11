@@ -4,8 +4,8 @@
  * 两者是两个入口，和 VS Code Copilot 一致：模型管「用谁」，思考强度管「想多久」。
  * 常驻在这里而不是折进模型浮层，切档位不用先打开模型列表。
  */
-import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
+import { ProviderLogo } from '@cogito/design/assistant/provider-logo'
 import { useNavigate } from 'react-router-dom'
 
 import { AgentModelPicker } from './model-picker'
@@ -43,11 +43,10 @@ function ComposerEnd() {
           size="sm"
           title={label}
           className="text-muted-foreground h-7 max-w-[7.5rem] min-w-0 gap-1.5 px-2 @min-[32rem]:max-w-[10rem] @min-[42rem]:max-w-[14rem]">
-          <Icon
-            icon="lucide:box"
-            width={14}
-            height={14}
-            className="size-3.5 shrink-0"
+          <ProviderLogo
+            kind={activeProvider?.kind || activeProvider?.id || ''}
+            size={14}
+            className="shrink-0"
           />
           <span className="min-w-0 truncate">{label}</span>
         </Button>

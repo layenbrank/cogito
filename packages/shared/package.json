@@ -10,6 +10,9 @@
     "./iconify.json": {
       "default": "./src/assets/icons/custom.json"
     },
+    "./provider-logos.json": {
+      "default": "./src/assets/icons/provider-logos.json"
+    },
     "./custom.json": {
       "default": "./src/assets/icons/custom.json"
     },
