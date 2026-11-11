@@ -20,21 +20,25 @@ pub mod signboard_tag;
 pub mod signboard_tagged;
 
 #[allow(non_snake_case)]
-pub mod agentTurn;
-#[allow(non_snake_case)]
 pub mod agentTool;
 #[allow(non_snake_case)]
-pub mod agent_plan;
-#[allow(non_snake_case)]
-pub mod agent_goal;
+pub mod agentTurn;
 #[allow(non_snake_case)]
 pub mod agent_composer_queue;
 #[allow(non_snake_case)]
+pub mod agent_goal;
+#[allow(non_snake_case)]
 pub mod agent_message;
+#[allow(non_snake_case)]
+pub mod agent_plan;
 #[allow(non_snake_case)]
 pub mod agent_provider;
 #[allow(non_snake_case)]
+pub mod agent_route;
+#[allow(non_snake_case)]
 pub mod agent_session;
+#[allow(non_snake_case)]
+pub mod agent_session_acp;
 #[allow(non_snake_case)]
 pub mod agent_usage;
 #[allow(non_snake_case)]

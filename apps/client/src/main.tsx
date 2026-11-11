@@ -21,6 +21,8 @@ import { reportPendingCrashes } from '@/lib/diagnostics/crash-report.ts'
 import { useDictStore } from '@/stores/dict'
 import { installExceptionReporting, reportUnknown } from '@/utils/exception-report.ts'
 import { analyzeWithAcp } from '@/views/knowledge/lib/ingest-acp-analyzer.ts'
+import { preloadBindings } from '@/features/agent/acp/session-binding'
+import { installSubagentRunner } from '@/features/agent/acp/subagent'
 import { registerIngestAnalyzer } from '@/views/knowledge/lib/ingest-analyze.ts'
 import { bootstrapIngestEnqueueBridge } from '@/views/knowledge/lib/ingest-enqueue-bridge.ts'
 import '@/styles/tailwind.css'
@@ -76,6 +78,16 @@ async function bootstrap() {
     watchIdleClosed()
     // WebView 刷新后 tabs 空：从 Rust list 灌回存活会话
     void bootstrapTerminalSessions()
+    // 会话 ↔ ACP 绑定（S9）：一次性把库里的绑定灌进内存缓存。恢复进行中回合时
+    // 走的是同步 `recallBinding`，所以这步必须赶在用户点进会话之前完成；失败只
+    // 会让「刷新后恢复」失效，不影响启动。
+    void preloadBindings().then(function (count) {
+      if (count > 0) console.info('[bootstrap] ACP 绑定预载', count)
+    })
+    // 子任务（S10）：Rust 任务板派下来的活在这里跑（子会话、审批一律拒绝）
+    void installSubagentRunner().catch(function (error: unknown) {
+      console.warn('[bootstrap] 子任务监听安装失败', error)
+    })
     // 租户身份：登录 / 切账号后重新解析，好让请求带上 `X-Tenant-ID`（网关按它算配额归属）
     watchActiveTenant()
     // 知识库：全局注册 ACP ingest 分析器 + agent 入队桥（不依赖知识库页是否打开）

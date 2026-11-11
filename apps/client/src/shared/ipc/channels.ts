@@ -96,7 +96,26 @@ export const CHANNELS = {
     OCR: 'capture:ocr',
     PRUNE: 'capture:prune',
     HOTKEY: 'capture:hotkey',
-    CURSOR: 'capture:cursor'
+    CURSOR: 'capture:cursor',
+    SAVE_PNG: 'capture:savePng',
+    PIN_TEXTURE: 'capture:pinTexture'
+  },
+  MEDIA: {
+    STAT: 'media:stat',
+    SCAN_DIR: 'media:scanDir',
+    PICK: 'media:pick'
+  },
+  /**
+   * 授权集（S1/1A）。capabilities 的静态 scope 只是下限，运行期真正能碰的目录
+   * 由这里在用户选完路径后追加；落盘后下次启动由 rebuild 重新放行。
+   */
+  SECURITY: {
+    GRANT_PATHS: 'security_grant_paths',
+    REBUILD: 'security_grants_rebuild',
+    /** 工具审计导出（S6）：最近 N 条 → JSON，诊断页用 */
+    AUDIT_EXPORT: 'security_audit_export',
+    /** 成本账本导出（S8）：最近 N 条 + 汇总 → JSON，诊断页用 */
+    COST_EXPORT: 'agent_cost_export'
   },
   OVERLAY: {
     ENSURE: 'overlay:ensure',
@@ -217,7 +236,22 @@ export const CHANNELS = {
     TO_READ: 'agentSession:toRead',
     TO_WRITE: 'agentSession:toWrite',
     TO_UPDATE: 'agentSession:toUpdate',
-    TO_REMOVE: 'agentSession:toRemove'
+    TO_REMOVE: 'agentSession:toRemove',
+    /** 会话 ↔ ACP 绑定（S9）：连上 goose 时绑，刷新后靠它恢复 */
+    BIND_ACP: 'agentSession:bindAcp',
+    READ_ACP_BINDING: 'agentSession:readAcpBinding',
+    LIST_ACP_BINDINGS: 'agentSession:listAcpBindings',
+    UNBIND_ACP: 'agentSession:unbindAcp'
+  },
+  /** 子 agent（S10）：渲染进程跑完一轮后把结果交回 Rust 的任务板 */
+  AGENT_SUBAGENT: {
+    RESULT: 'agent:subagentResult'
+  },
+  /** 分层路由（S11）：本地优先 → 云兜底的判定与档位落库 */
+  AGENT_ROUTE: {
+    PLAN: 'agentRoute:plan',
+    DEGRADE: 'agentRoute:degrade',
+    SET_TIER: 'agentRoute:setTier'
   },
   /** 会话级计划档案（一行一个会话，`sessionID` 唯一） */
   AGENT_PLAN: {
@@ -372,6 +406,8 @@ export const EVENTS = {
   /** corex run / invoke 流式步骤帧（带 runId） */
   SIDECAR_PROGRESS: 'sidecar:progress',
   GOOSE_NOT_READY: 'goose://not-ready',
+  /** goose serve 就绪状态机（S4）：`starting` / `ready` / `failed` 三个相位 */
+  GOOSE_STATUS: 'goose://status',
   GOOSE_ACP_MESSAGE: 'goose://acp-message',
   GOOSE_ACP_CLOSE: 'goose://acp-close',
   GOOSE_ACP_ERROR: 'goose://acp-error',
@@ -386,7 +422,9 @@ export const EVENTS = {
   /** agent 在嵌入式终端里开始跑一条命令：前端据此开/选 tab 让用户看得见 */
   TERMINAL_AGENT_RUN: 'terminal://agent-run',
   /** agent 会话闲置过久被 Rust 回收：前端把 tab 标成已退出 */
-  TERMINAL_IDLE_CLOSED: 'terminal://idle-closed'
+  TERMINAL_IDLE_CLOSED: 'terminal://idle-closed',
+  /** 子任务派发（S10）：Rust 任务板已登记，渲染进程接到事件才真的开跑 */
+  AGENT_SUBAGENT_SPAWN: 'agent://subagent-spawn'
 } as const
 
 /** corex-daemon 经 ipc:invoke 的模块名 */

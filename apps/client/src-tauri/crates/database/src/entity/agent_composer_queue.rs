@@ -160,8 +160,7 @@ mod tests {
     /// 前端只传 sessionID：其余字段必须能缺省（缺 serde(default) 会报 missing field）
     #[test]
     fn read_params_only_need_session_id() {
-        let parsed: ReadP =
-            serde_json::from_str(r#"{"sessionID":"s1"}"#).expect("read params");
+        let parsed: ReadP = serde_json::from_str(r#"{"sessionID":"s1"}"#).expect("read params");
         match parsed {
             ReadP::One(one) => {
                 assert_eq!(one.sessionID.as_deref(), Some("s1"));

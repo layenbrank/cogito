@@ -45,11 +45,16 @@ mod tests {
                 "DDL 必须幂等（老库启动兜底会重复执行）：{statement}"
             );
         }
-        assert!(statements
-            .iter()
-            .any(|s| s.contains("CREATE TABLE IF NOT EXISTS agent_composer_queue")));
-        assert!(statements.iter().any(|s| s
-            .contains("CREATE INDEX IF NOT EXISTS idx_agent_composer_queue_sessionID")));
+        assert!(
+            statements
+                .iter()
+                .any(|s| s.contains("CREATE TABLE IF NOT EXISTS agent_composer_queue"))
+        );
+        assert!(
+            statements.iter().any(
+                |s| s.contains("CREATE INDEX IF NOT EXISTS idx_agent_composer_queue_sessionID")
+            )
+        );
     }
 
     #[test]

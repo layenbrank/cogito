@@ -25,6 +25,21 @@ pub struct Model {
     /// `run-state.ts` 那个「跑完待领取」集合的区别（后者只是本次进程内的运行态）。
     #[sea_orm(column_name = "unread")]
     pub unread: bool,
+    /// 这一会话绑定的 goose ACP session id（S9）。
+    ///
+    /// 以前只活在渲染进程的 localStorage 里：换机器、清缓存、重装就丢，
+    /// 「刷新后恢复进行中回合」也就跟着失效。落库之后 Rust 侧是唯一源。
+    #[sea_orm(column_name = "acpSessionID")]
+    pub acpSessionID: Option<String>,
+    /// 绑定时用的工作目录（恢复时要原样回传给 goose，不能拿 UI 当前目录顶替）。
+    #[sea_orm(column_name = "acpCwd")]
+    pub acpCwd: Option<String>,
+    /// 已消费到的事件序号（S9）：断线重连时告诉 goose 从哪续；0 = 从未连过。
+    #[sea_orm(column_name = "lastSeq")]
+    pub lastSeq: i64,
+    /// 路由档位（S11 起用）：`local`（默认）/ `cloud`。
+    #[sea_orm(column_name = "routeTier")]
+    pub routeTier: String,
 }
 
 impl ActiveModelBehavior for ActiveModel {}
@@ -60,6 +75,16 @@ pub struct Write {
     /// 新会话默认已读（`#[serde(default)]`）：用户点开它才会有第一条消息。
     #[serde(default)]
     pub unread: bool,
+    /// ACP 绑定（S9）：新建会话时通常为空，第一次连上 goose 后由 `agentSession:bindAcp` 写。
+    #[serde(default)]
+    pub acpSessionID: Option<String>,
+    #[serde(default)]
+    pub acpCwd: Option<String>,
+    #[serde(default)]
+    pub lastSeq: i64,
+    /// 不传就用 `local`（见 `write_one`），老前端不传也安全。
+    #[serde(default)]
+    pub routeTier: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,6 +103,16 @@ pub struct Change {
     pub workspaceID: Option<Option<String>>,
     /// 已读 / 未读（唯一一个**不**推进 `updatedAt` 的可改字段，见 `update_one`）
     pub unread: Option<bool>,
+    /// ACP 绑定（S9）：`Some(None)` = 显式解绑；缺省 = 不动。
+    /// 这四个字段同样**不**推进 `updatedAt`（它们是运行态元数据，不是会话内容）。
+    #[serde(default)]
+    pub acpSessionID: Option<Option<String>>,
+    #[serde(default)]
+    pub acpCwd: Option<Option<String>>,
+    #[serde(default)]
+    pub lastSeq: Option<i64>,
+    #[serde(default)]
+    pub routeTier: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

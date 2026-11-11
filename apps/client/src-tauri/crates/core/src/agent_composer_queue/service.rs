@@ -45,8 +45,9 @@ impl Service {
                 if ps.is_empty() {
                     return Ok(vec![]);
                 }
-                ps.iter()
-                    .fold(Condition::any(), |any, p| any.add(Self::build_read_filter(p)))
+                ps.iter().fold(Condition::any(), |any, p| {
+                    any.add(Self::build_read_filter(p))
+                })
             }
         };
         let rows = schema::Entity::find()
@@ -248,6 +249,10 @@ mod tests {
             providerID: Set(None),
             workspaceID: Set(None),
             unread: Set(false),
+            acpSessionID: Set(None),
+            acpCwd: Set(None),
+            lastSeq: Set(0),
+            routeTier: Set(crate::agent_session::DEFAULT_ROUTE_TIER.to_string()),
             createdAt: Set(1),
             updatedAt: Set(1),
         })
@@ -290,14 +295,20 @@ mod tests {
         let db = db().await;
         seed_session(&db, "s1").await;
 
-        Service::toReplace(&*db, replace(vec![item(Some(99), "第一条"), item(None, "第二条")]))
-            .await
-            .expect("first replace");
+        Service::toReplace(
+            &*db,
+            replace(vec![item(Some(99), "第一条"), item(None, "第二条")]),
+        )
+        .await
+        .expect("first replace");
 
         let rows = Service::toRead(&*db, read_s1()).await.expect("read");
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].text, "第一条");
-        assert_eq!(rows[0].sort, 0, "sort 必须按入参下标重排，不能沿用调用方的值");
+        assert_eq!(
+            rows[0].sort, 0,
+            "sort 必须按入参下标重排，不能沿用调用方的值"
+        );
         assert_eq!(rows[1].text, "第二条");
         assert_eq!(rows[1].sort, 1);
 

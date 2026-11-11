@@ -13,11 +13,38 @@
 
 /// (表名, 列名, ALTER 语句)。表名 + 列名用于 `pragma_table_info` 判定是否已存在。
 pub fn column_patches() -> Vec<(&'static str, &'static str, &'static str)> {
-    vec![(
-        "agent_session",
-        "unread",
-        r#"ALTER TABLE agent_session ADD COLUMN unread INTEGER NOT NULL DEFAULT 0"#,
-    )]
+    vec![
+        (
+            "agent_session",
+            "unread",
+            r#"ALTER TABLE agent_session ADD COLUMN unread INTEGER NOT NULL DEFAULT 0"#,
+        ),
+        // ── S9：会话 ↔ ACP 绑定从渲染进程（localStorage）搬进库 ──
+        // 以前「刷新后恢复进行中回合」靠 localStorage 里的一张 map，换机器 / 清缓存就没了，
+        // 也不受 `agent_tool_audit` 那条「谁调了什么」的追溯约束。现在四列一起落库：
+        (
+            "agent_session",
+            "acpSessionID",
+            r#"ALTER TABLE agent_session ADD COLUMN "acpSessionID" TEXT"#,
+        ),
+        (
+            "agent_session",
+            "acpCwd",
+            r#"ALTER TABLE agent_session ADD COLUMN "acpCwd" TEXT"#,
+        ),
+        // 已消费到的事件序号：断线重连时告诉 goose 从哪续（可空 = 从未连过）
+        (
+            "agent_session",
+            "lastSeq",
+            r#"ALTER TABLE agent_session ADD COLUMN "lastSeq" INTEGER NOT NULL DEFAULT 0"#,
+        ),
+        // 路由档位（S11 用）：老行一律回填 `local`，即「默认本地优先」
+        (
+            "agent_session",
+            "routeTier",
+            r#"ALTER TABLE agent_session ADD COLUMN "routeTier" TEXT NOT NULL DEFAULT 'local'"#,
+        ),
+    ]
 }
 
 #[cfg(test)]
@@ -27,22 +54,35 @@ mod tests {
     #[test]
     fn patches_are_additive_and_defaulted() {
         let patches = column_patches();
-        assert_eq!(patches.len(), 1, "目前只有「已读 / 未读」一列");
-        let (table, column, alter) = patches[0];
-        assert_eq!(table, "agent_session");
-        assert_eq!(column, "unread");
-        assert!(
-            alter.contains("ALTER TABLE agent_session ADD COLUMN unread"),
-            "补列语句必须追在表尾：{alter}"
-        );
-        assert!(
-            alter.contains("NOT NULL DEFAULT 0"),
-            "既有的历史会话必须回填成「已读」，否则一升级满屏未读点：{alter}"
-        );
-        for (_, _, sql) in patches {
+        assert_eq!(patches.len(), 5, "已读状态 1 列 + ACP 绑定 4 列（S9）");
+        for (table, _, _) in &patches {
+            assert_eq!(*table, "agent_session", "补列都落在 agent_session 上");
+        }
+        let columns: Vec<&str> = patches.iter().map(|(_, column, _)| *column).collect();
+        for expected in ["unread", "acpSessionID", "acpCwd", "lastSeq", "routeTier"] {
+            assert!(columns.contains(&expected), "缺 {expected} 这一列");
+        }
+        for (_, column, sql) in &patches {
+            assert!(
+                sql.contains("ADD COLUMN"),
+                "补列语句必须是 ADD COLUMN：{sql}"
+            );
+            assert!(
+                sql.contains(column),
+                "补列语句里的列名要和登记的名字一致：{sql}"
+            );
             let upper = sql.to_uppercase();
             assert!(!upper.contains("DROP"), "补列不允许删东西：{sql}");
             assert!(!upper.contains("RENAME"), "补列不允许重建表：{sql}");
+        }
+        // 两列有值语义（已读 / 序号 / 档位）的一律带默认值：老行不能留空
+        for (_, column, sql) in &patches {
+            if ["unread", "lastSeq", "routeTier"].contains(column) {
+                assert!(
+                    sql.contains("NOT NULL DEFAULT"),
+                    "{column} 必须给老行回填默认值：{sql}"
+                );
+            }
         }
     }
 }

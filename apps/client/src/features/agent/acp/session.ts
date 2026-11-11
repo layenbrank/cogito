@@ -21,6 +21,7 @@ import type {
 } from '@agentclientprotocol/sdk'
 import { methods } from '@agentclientprotocol/sdk'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { homeDir } from '@tauri-apps/api/path'
 import { exists } from '@tauri-apps/plugin-fs'
 import { v4 as UUIDV4 } from 'uuid'
@@ -48,8 +49,17 @@ import {
   hasPersistedRunningTurn
 } from '@/features/agent/acp/background-turn'
 import { clearGooseUsage, writeGooseUsage } from '@/features/agent/acp/goose-usage'
-import { fetchSessionTools, saveDefaults } from '@/features/agent/acp/goose-providers'
+import {
+  fetchSessionTools,
+  saveDefaults,
+  saveTemperature
+} from '@/features/agent/acp/goose-providers'
 import { syncSessionApprovalMode } from '@/features/agent/acp/sync-approval-mode'
+import {
+  bindSession,
+  readBinding,
+  unbindSession
+} from '@/features/agent/acp/session-binding'
 import { isWriteTool } from '@/features/agent/approval'
 import { findEffectiveApprovalMode } from '@/features/agent/effective-approval'
 import { clearRunState, markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
@@ -68,7 +78,13 @@ import {
   type AcpStreamContext
 } from '@/features/agent/acp/stream'
 import { parseModels, stringifyModels } from '@/features/agent/model/providers'
-import { CHANNELS } from '@/shared/ipc/channels'
+import { toGooseTemperature } from '@/features/agent/model/tuning'
+import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
+import {
+  GOOSE_STATUS_EVENT,
+  GooseStatusSchema
+} from '@/shared/ipc/specs/gooseStatus'
+import type { GooseStatus } from '@/shared/ipc/specs/gooseStatus'
 import { BridgeInfoSchema } from '@/shared/ipc/specs/bridge'
 import { StatusSchema } from '@/shared/ipc/specs/sidecar'
 import { useAgentStore } from '@/stores/agent'
@@ -101,8 +117,12 @@ interface Ticket<T> {
   settle(value: T): void
 }
 
-const READY_POLL_MS = 500
 const READY_TIMEOUT_MS = 30_000
+/**
+ * 兜底自查间隔（S4）：主路径是 `goose://status` 事件，这个只在
+ * 「事件早于订阅」或「监听注册失败」时起作用，所以可以放大到 2 s。
+ */
+const READY_FALLBACK_POLL_MS = 2_000
 const GOOSE_SERVE_NOT_READY = 'goose serve 未就绪'
 const GOOSE_SYSTEM_PROMPT_SET = '_goose/unstable/session/system-prompt/set'
 
@@ -222,24 +242,99 @@ function makeTicket<T>(timeoutValue: T): Ticket<T> {
   }
 }
 
-function sleep(ms: number): Promise<void> {
+/**
+ * 就绪状态机（S4）：`goose://status` 事件是主路径，`goose:ready` 命令只作兜底。
+ *
+ * 之前是每 500 ms `invoke('goose:ready')` 轮询：冷启动时一个页面能打几十次 IPC，
+ * 而且「就绪」这件事只有 Rust 知道，前端只能猜。现在 Rust 侧 emit 一次、这里 parse 一次
+ * （契约在 `shared/ipc/specs/gooseStatus.ts`），事件到了立刻醒；命令只用来兜住
+ * 「事件早于订阅」这种时序缝隙。
+ */
+type GoosePhase = 'ready' | 'failed'
+
+let goosePhase: GoosePhase | null = null
+let gooseStatus: GooseStatus | null = null
+let gooseStatusSubscribed = false
+const goosePhaseWaiters = new Set<() => void>()
+
+function notifyGoosePhase() {
+  const waiters = [...goosePhaseWaiters]
+  goosePhaseWaiters.clear()
+  for (const waiter of waiters) waiter()
+}
+
+/** 订阅只做一次；失败时解除标记，让下次调用重试（并发调用会重复 listen，无害） */
+async function subscribeGooseStatus(): Promise<void> {
+  if (gooseStatusSubscribed) return
+  gooseStatusSubscribed = true
+  try {
+    await listen(GOOSE_STATUS_EVENT, function (event) {
+      const parsed = GooseStatusSchema.safeParse(event.payload)
+      // 契约不符就当没收到：继续走兜底命令，不要因为一条脏事件把等待卡死
+      if (!parsed.success) return
+      gooseStatus = parsed.data
+      if (parsed.data.state === 'starting') {
+        goosePhase = null
+        notifyGoosePhase()
+        return
+      }
+      goosePhase = parsed.data.state === 'ready' ? 'ready' : 'failed'
+      notifyGoosePhase()
+    })
+    await listen(EVENTS.GOOSE_NOT_READY, function () {
+      goosePhase = 'failed'
+      notifyGoosePhase()
+    })
+  } catch (error) {
+    gooseStatusSubscribed = false
+    console.warn('[acp/session] 订阅 goose 就绪事件失败，退回命令轮询:', error)
+  }
+}
+
+/** 等到「相位变化」或超时，谁先到算谁 */
+function waitForPhaseChange(ms: number): Promise<void> {
   return new Promise(function (resolve) {
-    setTimeout(resolve, ms)
+    let settled = false
+    const done = function () {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      goosePhaseWaiters.delete(done)
+      resolve()
+    }
+    const timer = setTimeout(done, ms)
+    goosePhaseWaiters.add(done)
   })
 }
 
 async function waitGooseReady(): Promise<void> {
+  await subscribeGooseStatus()
   const deadline = Date.now() + READY_TIMEOUT_MS
-  while (Date.now() < deadline) {
-    const status = await invoke<boolean | null>(CHANNELS.GOOSE.READY)
-    if (status === true) {
+  for (;;) {
+    if (goosePhase === 'ready') {
       await findAcpHandle()
       return
     }
-    if (status === false) throw new Error(GOOSE_SERVE_NOT_READY)
-    await sleep(READY_POLL_MS)
+    if (goosePhase === 'failed') throw new Error(GOOSE_SERVE_NOT_READY)
+    // 兜底：事件可能在我们订阅之前就发出去了（或监听注册失败）
+    const status = await invoke<boolean | null>(CHANNELS.GOOSE.READY)
+    if (status === true) {
+      goosePhase = 'ready'
+      await findAcpHandle()
+      return
+    }
+    if (status === false) {
+      goosePhase = 'failed'
+      throw new Error(GOOSE_SERVE_NOT_READY)
+    }
+    if (Date.now() >= deadline) throw new Error(GOOSE_SERVE_NOT_READY)
+    await waitForPhaseChange(READY_FALLBACK_POLL_MS)
   }
-  throw new Error(GOOSE_SERVE_NOT_READY)
+}
+
+/** 最近一次就绪状态（诊断页展示 readyMs / RSS 基线；没收到过就是 null） */
+function readGooseStatus(): GooseStatus | null {
+  return gooseStatus
 }
 
 /** 开关：默认开；`VITE_COREX_MCP=0` 或 agent.json `corexMcpTools=0` 关闭 */
@@ -285,7 +380,8 @@ async function findCorexMcpServers(sessionID: string): Promise<AcpMcpServer[]> {
 /**
  * 本地工具面 `cogito-mcp`：由 goose 按 env 拉起，所有调用再代理回 app 内的 loopback 桥。
  *
- * 桥信息（url/token）只在内存里传递：`bridge:info` 每次都取当前进程的值，token 随进程轮换。
+ * 桥信息（url/tokenFile/sessionHeader）只在内存里传递：`bridge:info` 每次都取当前进程的值，
+ * 令牌本身不经过渲染进程（Rust 写到 `<appLocalData>/bridge/token`，MCP 自己读）。
  * 缺 `mcpPath` 时不注入（未 stage / 平台不支持），而不是注入一个必然失败的命令。
  */
 async function findCogitoMcpServers(sessionID: string): Promise<AcpMcpServer[]> {
@@ -294,9 +390,12 @@ async function findCogitoMcpServers(sessionID: string): Promise<AcpMcpServer[]> 
       console.info('[acp/session] 未注入 cogito-mcp：设置中已关闭 MCP 侧车')
       return []
     }
-    const info = BridgeInfoSchema.parse(await invoke(CHANNELS.BRIDGE.INFO))
+    // 会话登记：桥侧据此校验 `x-cogito-session`，令牌单独泄漏也调不动工具
+    const info = BridgeInfoSchema.parse(
+      await invoke(CHANNELS.BRIDGE.INFO, { sessionID: `goose-acp:${sessionID}` })
+    )
     const command = info.mcpPath.trim()
-    if (!command || !info.url.trim() || !info.token.trim()) {
+    if (!command || !info.url.trim() || !info.tokenFile.trim()) {
       console.info('[acp/session] 未注入 cogito-mcp：缺少 mcpPath 或桥信息')
       return []
     }
@@ -307,8 +406,9 @@ async function findCogitoMcpServers(sessionID: string): Promise<AcpMcpServer[]> 
         args: [],
         env: [
           { name: 'COGITO_BRIDGE_URL', value: info.url },
-          { name: 'COGITO_BRIDGE_TOKEN', value: info.token },
-          { name: 'COGITO_SESSION_ID', value: `goose-acp:${sessionID}` }
+          { name: 'COGITO_BRIDGE_TOKEN_FILE', value: info.tokenFile },
+          { name: 'COGITO_SESSION_ID', value: `goose-acp:${sessionID}` },
+          { name: 'COGITO_SESSION_HEADER', value: info.sessionHeader }
         ]
       }
     ]
@@ -619,6 +719,9 @@ function clearThreadSessions() {
     if (thread.run) thread.run.reset = true
     disposeThreadSession(thread)
     usageBaseline.delete(thread.acpSessionID)
+    // goose 已经退出：这些 ACP session 在它那边也没了，绑定必须一起清，
+    // 否则刷新后 `resumeThreadRun` 会拿死 sessionID 去 `session/load`
+    forgetSessionMapping(thread.threadID)
   }
   sessionByThread.clear()
   sessionByAcpID.clear()
@@ -699,55 +802,23 @@ bindAcpRequestRouter({
   requestElicitation: requestThreadElicitation
 })
 
-/** 刷新后恢复进行中回合：thread → ACP session 映射落在 localStorage，比内存活得久 */
-const THREAD_SESSION_MAP_KEY = 'cogito:agent:thread-session'
-
-function readSessionMap(): Record<string, string> {
-  try {
-    const raw = window.localStorage.getItem(THREAD_SESSION_MAP_KEY)
-    return raw ? (JSON.parse(raw) as Record<string, string>) : {}
-  } catch (error) {
-    console.warn('[acp/session] 读 thread→session 映射失败，按无映射处理:', error)
-    return {}
-  }
-}
-
-function writeSessionMap(map: Record<string, string>): void {
-  try {
-    window.localStorage.setItem(THREAD_SESSION_MAP_KEY, JSON.stringify(map))
-  } catch (error) {
-    // 写不进去不影响主流程：刷新后顶多恢复不了进行中回合
-    console.warn('[acp/session] 写 thread→session 映射失败:', error)
-  }
-}
-
-interface RememberedSession {
-  sessionID: string
-  cwd: string
-}
-
-function recallSessionMapping(threadID: string): RememberedSession | null {
-  const raw = readSessionMap()[threadID]
-  if (!raw) return null
-  try {
-    return JSON.parse(raw) as RememberedSession
-  } catch (error) {
-    console.warn('[acp/session] 解析 thread→session 映射失败，按无映射处理:', error)
-    return null
-  }
-}
-
+/**
+ * 刷新后恢复进行中回合：thread → ACP session 绑定现在落在 SQLite（S9）。
+ *
+ * 为什么从 localStorage 搬走：换机器 / 清缓存 / 重装都会丢，而「接上后台还在跑的
+ * 那一轮」恰恰是重装后最需要的能力；更糟的是 `cwd` 一旦写错，恢复出来的回合会在
+ * 错误的目录里读写文件。绑定写库（`agent_session.acpSessionID / acpCwd / lastSeq`），
+ * 内存里留一份缓存做同步查询，启动时由 `main.tsx` 调 `preloadBindings()` 灌满。
+ *
+ * 两个函数都是「尽力而为」：绑定是运行态元数据，写失败顶多让刷新后恢复不了，
+ * 绝不能把这一轮对话卡住，所以都不返回错误、也不 await 到阻塞发消息的路径上。
+ */
 function rememberSessionMapping(threadID: string, sessionID: string, cwd: string): void {
-  const map = readSessionMap()
-  map[threadID] = JSON.stringify({ sessionID, cwd })
-  writeSessionMap(map)
+  void bindSession(threadID, { acpSessionId: sessionID, cwd })
 }
 
 function forgetSessionMapping(threadID: string): void {
-  const map = readSessionMap()
-  if (!(threadID in map)) return
-  delete map[threadID]
-  writeSessionMap(map)
+  void unbindSession(threadID)
 }
 
 /** 刷新后恢复订阅：sessionID → 队列；全局 session/update 通知按 sessionId 喂进来 */
@@ -1481,6 +1552,21 @@ async function switchGooseProviderModel(
   }
 }
 
+/**
+ * 温度写进 goose 全局配置（`GOOSE_TEMPERATURE`，对新会话生效）。
+ * 界面滑杆是 0–2，goose 只收 0–1 —— 钳制在 `toGooseTemperature` 里做。
+ * 写失败只提醒，不打断界面：温度是软参数，不该挡发送。
+ */
+async function applyGooseTemperature(temperature: number): Promise<void> {
+  try {
+    await waitGooseReady()
+    const handle = await findAcpHandle()
+    await saveTemperature(handle.connection, toGooseTemperature(temperature))
+  } catch (error) {
+    console.warn('[acp/session] 温度同步跳过:', error)
+  }
+}
+
 /** 会话是否已经建过（UI 用它决定「压缩」是否可用，避免无 session 时白跑一趟） */
 function hasThreadSession(threadID: string): boolean {
   return sessionByThread.has(threadID)
@@ -1551,8 +1637,8 @@ async function* resumeThreadRun(
   threadID: string,
   signal: AbortSignal | undefined
 ): AsyncGenerator<ChatStreamEvent, void, unknown> {
-  const remembered = recallSessionMapping(threadID)
-  if (!remembered) {
+  const remembered = await readBinding(threadID)
+  if (!remembered || !remembered.cwd) {
     // 空流会落到适配器「流异常」；明确 aborted，让 UI 标「已停止」而非假错误
     yield { kind: 'aborted', usage: {} }
     return
@@ -1574,7 +1660,7 @@ async function* resumeThreadRun(
       queue.push(null)
     }
   }
-  resumeFeeds.set(remembered.sessionID, feed)
+  resumeFeeds.set(remembered.acpSessionId, feed)
 
   let finished = false
   let closeReason: 'idle' | 'abort' | 'closed' = 'idle'
@@ -1645,7 +1731,7 @@ async function* resumeThreadRun(
 
     try {
       await handle.connection.agent.request(methods.agent.session.load, {
-        sessionId: remembered.sessionID,
+        sessionId: remembered.acpSessionId,
         cwd: remembered.cwd,
         // load 是「接上」不是重建：空名单沿用会话已有扩展，不新增 MCP
         mcpServers: []
@@ -1679,7 +1765,7 @@ async function* resumeThreadRun(
     if (idleTimer) clearTimeout(idleTimer)
     // orphan resume 结束：无论 finish / aborted，清掉粘住的 running 标记
     clearPersistedRunning(threadID)
-    resumeFeeds.delete(remembered.sessionID)
+    resumeFeeds.delete(remembered.acpSessionId)
     if (signal && onAbort) signal.removeEventListener('abort', onAbort)
   }
 }
@@ -1690,6 +1776,7 @@ function findThreadAcpSessionID(threadID: string): string | null {
 }
 
 export {
+  applyGooseTemperature,
   clearThreadSessions,
   closeThreadSession,
   compactThreadSession,
@@ -1697,6 +1784,7 @@ export {
   findThreadAcpSessionID,
   hasThreadSession,
   humanizeRunError,
+  readGooseStatus,
   requestThreadElicitation,
   requestThreadPermission,
   respondToApproval,
