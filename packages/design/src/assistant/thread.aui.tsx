@@ -590,7 +590,7 @@ const ComposerAction: FC = () => {
         ) : null}
         <div className="flex shrink-0 items-center gap-1.5">
           <AuiIf condition={(s) => s.thread.capabilities.dictation}>
-            <AuiIf condition={(s) => s.composer.dictation == null}>
+            <AuiIf condition={(s) => !s.composer.dictation}>
               <ComposerPrimitive.Dictate asChild>
                 <TooltipIconButton
                   tooltip={labels.startDictation}
@@ -607,7 +607,7 @@ const ComposerAction: FC = () => {
                 </TooltipIconButton>
               </ComposerPrimitive.Dictate>
             </AuiIf>
-            <AuiIf condition={(s) => s.composer.dictation != null}>
+            <AuiIf condition={(s) => Boolean(s.composer.dictation)}>
               <ComposerPrimitive.StopDictation asChild>
                 <TooltipIconButton
                   tooltip={labels.stopDictation}
