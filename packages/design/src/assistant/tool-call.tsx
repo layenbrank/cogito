@@ -197,7 +197,7 @@ function ToolCall({
       data-slot="tool-call"
       data-open={open ? '' : undefined}
       data-state={cancelled ? 'cancelled' : failed ? 'failed' : running ? 'running' : 'settled'}
-      className={cn('w-full max-w-sm', className)}>
+      className={cn('w-full', className)}>
       <button
         type="button"
         aria-expanded={open}

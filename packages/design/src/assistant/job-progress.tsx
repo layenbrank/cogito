@@ -80,7 +80,7 @@ function JobProgress({
       data-slot="job-progress"
       data-state={progress.state}
       className={cn(
-        'bg-background border-border/60 dark:bg-popover flex w-full max-w-sm flex-col gap-3 rounded-2xl border p-4',
+        'bg-background border-border/60 dark:bg-popover flex w-full flex-col gap-3 rounded-2xl border p-4',
         className
       )}>
       <div

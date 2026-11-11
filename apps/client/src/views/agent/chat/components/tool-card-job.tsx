@@ -71,7 +71,7 @@ function ToolCardJob(props: ToolCardJobProps) {
   return (
     <div
       data-slot="tool-card-job"
-      className="my-1 flex w-full max-w-sm flex-col gap-1.5">
+      className="my-1 flex w-full flex-col gap-1.5">
       <JobProgress
         title={props.shell.command}
         stages={stages}

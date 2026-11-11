@@ -40,7 +40,7 @@ function Timeline(props: TimelineProps) {
       data-slot="timeline"
       data-count={visible.length}
       role="list"
-      className={cn(paper, 'flex w-full max-w-sm flex-col rounded-2xl p-4', className)}
+      className={cn(paper, 'flex w-full flex-col rounded-2xl p-4', className)}
       {...rest}>
       {visible.map(function (event, index) {
         const isLast = index === visible.length - 1

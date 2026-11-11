@@ -82,7 +82,7 @@ function McpServerPanel({
   return (
     <div
       data-slot="mcp-server-panel"
-      className={cn(paper, 'flex w-full max-w-sm flex-col gap-1 rounded-2xl p-3', className)}
+      className={cn(paper, 'flex w-full flex-col gap-1 rounded-2xl p-3', className)}
       {...props}>
       <div
         data-slot="mcp-server-panel-header"

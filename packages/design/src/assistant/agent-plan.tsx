@@ -129,7 +129,7 @@ function AgentPlan({
       data-slot="agent-plan"
       data-status={idle ? 'idle' : progress.allDone ? 'complete' : 'running'}
       data-folded={folded ? '' : undefined}
-      className={cn('flex w-full max-w-sm flex-col gap-3', className)}>
+      className={cn('flex w-full flex-col gap-3', className)}>
       <div
         data-slot="agent-plan-header"
         className="flex items-center justify-between gap-3">

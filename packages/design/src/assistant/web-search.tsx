@@ -98,7 +98,7 @@ function WebSearch({
     <div
       data-slot="web-search"
       data-state={searching ? 'searching' : 'done'}
-      className={cn('flex w-full max-w-sm flex-col gap-2.5', className)}
+      className={cn('flex w-full flex-col gap-2.5', className)}
       {...props}>
       <span
         data-slot="web-search-query"

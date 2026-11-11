@@ -135,7 +135,7 @@ function RetrievalChunks({
     <div
       data-slot="retrieval-chunks"
       data-state={searching ? 'searching' : 'done'}
-      className={cn('flex w-full max-w-sm flex-col gap-2.5', className)}
+      className={cn('flex w-full flex-col gap-2.5', className)}
       {...props}>
       <span
         data-slot="retrieval-chunks-query"

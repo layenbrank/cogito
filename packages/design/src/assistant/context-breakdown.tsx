@@ -56,7 +56,7 @@ function ContextBreakdown({ segments, limit, className, ...props }: ContextBreak
   return (
     <div
       data-slot="context-breakdown"
-      className={cn(paper, 'flex w-full max-w-sm flex-col gap-3 rounded-2xl p-4', className)}
+      className={cn(paper, 'flex w-full flex-col gap-3 rounded-2xl p-4', className)}
       {...props}>
       <div
         data-slot="context-breakdown-header"

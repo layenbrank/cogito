@@ -61,7 +61,7 @@ function ScheduleCard({
     <div
       data-slot="schedule-card"
       data-enabled={enabled ? '' : undefined}
-      className={cn(paper, 'flex w-full max-w-sm flex-col gap-3 rounded-2xl p-4', className)}
+      className={cn(paper, 'flex w-full flex-col gap-3 rounded-2xl p-4', className)}
       {...props}>
       <div className="flex items-center gap-2.5">
         <span
@@ -76,7 +76,7 @@ function ScheduleCard({
           <span
             data-slot="schedule-card-name"
             title={name}
-            className="truncate text-[13.5px] font-medium">
+            className="truncate text-sm font-medium">
             {name}
           </span>
           <span
@@ -116,7 +116,7 @@ function ScheduleCard({
           !enabled && 'opacity-60'
         )}>
         <span className={mono}>{labels.scheduleNext}</span>
-        <span className="text-foreground/80 min-w-0 text-[13px] break-words">
+        <span className="text-foreground/80 min-w-0 text-sm break-words">
           {enabled ? nextRun : labels.schedulePaused}
         </span>
       </div>

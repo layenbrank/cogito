@@ -135,7 +135,7 @@ function ApprovalCard({
       role="group"
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
-      className={cn(paper, 'flex w-full max-w-sm flex-col gap-3.5 rounded-[20px] p-4', className)}
+      className={cn(paper, 'flex w-full flex-col gap-3.5 rounded-[20px] p-4', className)}
       {...props}>
       <div
         data-slot="approval-card-header"
