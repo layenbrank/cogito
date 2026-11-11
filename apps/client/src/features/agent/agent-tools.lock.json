@@ -13,6 +13,8 @@
     "app_calendar_read",
     "app_workspace_list",
     "app_workspace_read",
+    "app_workspace_write",
+    "app_workspace_patch",
     "app_knowledge_list_bases",
     "app_knowledge_list_docs",
     "app_knowledge_read_doc",
@@ -34,6 +36,14 @@
     "app_terminal_run",
     "app_terminal_read",
     "app_terminal_write",
-    "app_terminal_list"
+    "app_terminal_list",
+    "app_agent_spawn",
+    "app_agent_wait",
+    "app_agent_result",
+    "app_code_symbols",
+    "app_code_outline",
+    "app_code_refs",
+    "app_code_impact",
+    "app_code_search"
   ]
 }

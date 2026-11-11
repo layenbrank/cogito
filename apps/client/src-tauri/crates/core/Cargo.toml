@@ -5,6 +5,8 @@ edition = "2024"
 
 [dependencies]
 cogito-database = { workspace = true }
+# 代码索引（S12）：符号 / 边只读派生数据
+cogito-codeindex = { workspace = true }
 sea-orm           = { workspace = true }
 chrono            = { workspace = true }
 chrono-tz         = { workspace = true }
@@ -15,6 +17,8 @@ serde             = { workspace = true }
 serde_json        = { workspace = true }
 anyhow            = { workspace = true }
 thiserror         = { workspace = true }
+# 审计写入失败只记日志、不影响工具调用（S6：审计是旁路不是闸门）
+tracing           = { workspace = true }
 
 [dev-dependencies]
 # 工具面单测需要 async runtime

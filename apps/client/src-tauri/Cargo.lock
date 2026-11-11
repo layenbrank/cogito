@@ -1340,6 +1340,7 @@ dependencies = [
  "arrow-array",
  "arrow-schema",
  "axum",
+ "base64 0.22.1",
  "chrono",
  "cogito-command",
  "cogito-core",
@@ -1359,6 +1360,7 @@ dependencies = [
  "reqwest 0.12.28",
  "rustls",
  "rustls-pki-types",
+ "sea-orm",
  "serde",
  "serde_json",
  "sha2",
@@ -1393,6 +1395,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cogito-codeindex"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "tree-sitter",
+ "tree-sitter-rust",
+ "tree-sitter-typescript",
+]
+
+[[package]]
 name = "cogito-command"
 version = "0.1.0"
 dependencies = [
@@ -1406,6 +1418,7 @@ dependencies = [
  "parking_lot",
  "rayon",
  "regex",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
  "similar",
@@ -1421,6 +1434,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "chrono-tz",
+ "cogito-codeindex",
  "cogito-database",
  "cron",
  "sea-orm",
@@ -1428,6 +1442,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "tracing",
  "uuid",
  "zip 2.4.2",
 ]
@@ -9272,6 +9287,7 @@ version = "1.0.150"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8014e44b4736ed0538adeecded0fce2a272f22dc9578a7eb6b2d9993c74cfb9"
 dependencies = [
+ "indexmap 2.13.0",
  "itoa",
  "memchr",
  "serde",
@@ -9950,6 +9966,12 @@ name = "stfu8"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e51f1e89f093f99e7432c491c382b88a6860a5adbe6bf02574bf0a08efff1978"
+
+[[package]]
+name = "streaming-iterator"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b2231b7c3057d5e4ad0156fb3dc807d900806020c5ffa3ee6ff2c8c76fb8520"
 
 [[package]]
 name = "string_cache"
@@ -11462,6 +11484,46 @@ dependencies = [
  "serde",
  "thiserror 2.0.18",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "tree-sitter"
+version = "0.25.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78f873475d258561b06f1c595d93308a7ed124d9977cb26b148c2084a4a3cc87"
+dependencies = [
+ "cc",
+ "regex",
+ "regex-syntax",
+ "serde_json",
+ "streaming-iterator",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-language"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0af592be68c579aa78a16846bd19422978c3c52e438523d45ff5d1bff1f9d4a"
+
+[[package]]
+name = "tree-sitter-rust"
+version = "0.24.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "439e577dbe07423ec2582ac62c7531120dbfccfa6e5f92406f93dd271a120e45"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-typescript"
+version = "0.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c5f76ed8d947a75cc446d5fccd8b602ebf0cde64ccf2ffa434d873d7a575eff"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
 ]
 
 [[package]]

@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/database", "crates/core", "crates/command", "crates/mcp"]
+members = [".", "crates/database", "crates/core", "crates/command", "crates/mcp", "crates/codeindex"]
 resolver = "2"
 
 [workspace.dependencies]
@@ -36,6 +36,7 @@ tauri = { version = "2.12.4", features = [
 ] }
 cogito-database = { path = "crates/database" }
 cogito-core = { path = "crates/core" }
+cogito-codeindex = { path = "crates/codeindex" }
 cogito-command = { path = "crates/command" }
 
 [package]
@@ -84,6 +85,8 @@ tauri-build = { version = "2.7.3", features = [
 
 [dependencies]
 cogito-database = { workspace = true }
+base64 = "0.22" # 贴图/另存为：data URL 解码
+sea-orm = { workspace = true } # security/grants.rs 直接用 Statement 读 scope 授权所需的两张表
 cogito-core = { workspace = true }
 cogito-command = { workspace = true }
 
@@ -177,11 +180,13 @@ windows = { version = "0.62", features = [
   "Win32_Graphics_Gdi",
   "Win32_Storage_FileSystem",
   "Win32_Security",
+  "Win32_Security_Authorization",
   "Win32_System_Com",
   "Win32_System_Pipes",
   "Win32_System_JobObjects",
   "Win32_System_Threading",
   "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_ProcessStatus",
   "Win32_System_Registry",
 ] } # 与 tauri 2.12 的 windows 0.62 对齐，避免 HWND 跨 crate 分裂
 # WebView2：关掉 AreBrowserAcceleratorKeysEnabled（原生 Ctrl+F find bar）
