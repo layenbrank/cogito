@@ -26,7 +26,7 @@ import { parseAcpStreamEvent, type AcpStreamContext } from '@/features/agent/acp
 import { findActiveScenario } from '@/features/agent/model/active-scenario'
 import type { ScenarioKey } from '@/features/agent/model/scenarios'
 import { buildPromptContext } from '@/features/agent/model/prompt-context'
-import { findSystemPrompt } from '@/features/agent/model/prompts'
+import { buildSystemPrompt } from '@/features/agent/model/prompt-project'
 import { beginGoalTurn } from '@/features/agent/goal-run'
 import { appendModeGuidance, resolveRunMode } from '@/features/agent/mode'
 import { rememberGoalTurnContext } from '@/features/agent/goal-continue'
@@ -36,6 +36,13 @@ import { captureDirectiveDraft } from '@/features/agent/directive-draft'
 import { parseSchedulePlan } from '@/features/agent/schedule-plan'
 import { useScheduleDraftStore } from '@/stores/schedule-draft'
 import { parseModels } from '@/features/agent/model/providers'
+import {
+  isLocalKind,
+  noteRunFailure,
+  pickProvider,
+  planRoute,
+  readRouteTier
+} from '@/features/agent/model/route'
 import { findSendBlocker, isGatewayTarget } from '@/features/quota/gate'
 import { useProviderStore, type AgentProvider } from '@/stores/provider'
 import { reportCaught } from '@/utils/exception-report'
@@ -98,6 +105,48 @@ function findActiveModel(provider: AgentProvider): string | null {
   const picked = provider.model?.trim()
   if (picked) return picked
   return parseModels(provider.models)[0] ?? null
+}
+
+/**
+ * 分层路由（S11）：按档位挑 provider —— 本地优先，本地确实不可用才退云。
+ *
+ * 三处刻意的克制：
+ * ① 探测/判定不可用（IPC 挂了、超时）**不降级**：探不出来不等于本地坏了，
+ *    悄悄换云等于把这次对话送出本机。
+ * ② 降级只在本轮**挑中的是本地 provider**时发生；云 provider 失败没有下一层。
+ * ③ 拉不到云 provider 就原地用本地：宁可让用户看到本地报错，也不要静默什么都不发。
+ */
+async function findRoutedProvider(): Promise<AgentProvider | null> {
+  const state = useProviderStore.getState()
+  const tier = readRouteTier()
+  const picked = pickProvider({
+    providers: state.providers,
+    activeProviderID: state.activeProviderID,
+    tier
+  })
+  if (!picked) return findActiveProvider()
+  const provider =
+    state.providers.find(function (item) {
+      return item.id === picked.id
+    }) ?? null
+  if (!provider || tier !== 'local' || !isLocalKind(provider.kind)) return provider
+  const reply = await planRoute(tier, findActiveModel(provider))
+  if (!reply?.plan.degraded) return provider
+  const fallback = pickProvider({
+    providers: state.providers,
+    activeProviderID: state.activeProviderID,
+    tier: 'cloud'
+  })
+  const cloud =
+    state.providers.find(function (item) {
+      return item.id === fallback?.id && item.id !== provider.id
+    }) ?? null
+  if (!cloud) {
+    console.warn('[agent/route] 本地不可用且没有可用的云 provider：', reply.plan.reason)
+    return provider
+  }
+  console.info('[agent/route] 本地不可用，本轮走云兜底：', reply.plan.reason)
+  return cloud
 }
 
 function findProviderByID(providerID: string): AgentProvider | null {
@@ -210,12 +259,15 @@ function assertNeverRunItem(item: never): never {
 
 function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
   return {
-    /** 端口契约是 Promise，但解析本身是同步的（provider/model 都在本地 store 里） */
-    findTarget(): Promise<ChatTarget | null> {
-      const provider = findActiveProvider()
-      if (!provider) return Promise.resolve(null)
+    /**
+     * 端口契约是 Promise，解析本身是同步的（provider/model 都在本地 store 里）；
+     * 唯一的异步点是分层路由的本地探测（S11），本地不可用时这里就换成云 provider。
+     */
+    async findTarget(): Promise<ChatTarget | null> {
+      const provider = await findRoutedProvider()
+      if (!provider) return null
       const model = findActiveModel(provider)
-      if (!model) return Promise.resolve(null)
+      if (!model) return null
       // providerID 用**本地行 id**：`agent_session.providerID` 存的就是它（会话归属要能在
       // 本地库里对上），goose 的 providerId（`kind`）在发起运行时再换算
       return Promise.resolve({ providerID: provider.id, model })
@@ -251,7 +303,8 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
         runMode === 'plan' && activeScenario === 'plan' ? 'general' : activeScenario
       const baseSystemText =
         overrides.findSystemText?.(input) ??
-        (parsed.systemText?.trim() || findSystemPrompt(promptScenario, buildPromptContext()))
+        (parsed.systemText?.trim() ||
+          (await buildSystemPrompt(promptScenario, buildPromptContext())))
       // 会话模式（执行/计划/问答/目标）只追加提示约束，不改审批档
       const systemText = appendModeGuidance(baseSystemText, runMode)
 
@@ -381,20 +434,29 @@ function buildModelPort(overrides: ModelPortOverrides = {}): ChatModelPort {
             // 异常也要走事件流（适配器要先交一份快照再抛，否则界面只剩 status 变了）；
             // 事件流之外再留一条带堆栈的控制台记录 —— 界面只拿得到一句话，排查得靠它
             reportCaught('agent.port.run', error)
-            yield {
-              kind: 'error',
-              message: error instanceof Error ? error.message : String(error),
-              usage: RUN_USAGE
+            const message = error instanceof Error ? error.message : String(error)
+            // 分层路由（S11）：只有本地 provider 的**可判定失败**才降级，且不阻塞收尾
+            if (isLocalKind(provider.kind)) {
+              void noteRunFailure({
+                from: readRouteTier(),
+                message,
+                sessionID: host.threadID
+              })
             }
+            yield { kind: 'error', message, usage: RUN_USAGE }
           }
         })
       } catch (error) {
         reportCaught('agent.port.run.background', error)
-        yield {
-          kind: 'error',
-          message: error instanceof Error ? error.message : String(error),
-          usage: RUN_USAGE
+        const message = error instanceof Error ? error.message : String(error)
+        if (isLocalKind(provider.kind)) {
+          void noteRunFailure({
+            from: readRouteTier(),
+            message,
+            sessionID: host.threadID
+          })
         }
+        yield { kind: 'error', message, usage: RUN_USAGE }
       }
     },
 

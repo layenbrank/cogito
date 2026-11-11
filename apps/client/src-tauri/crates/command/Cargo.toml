@@ -17,6 +17,10 @@ gix               = "0.70"
 similar           = "2"
 parking_lot       = "0.12"
 notify            = "8"
+# 本地可用性探测（S11：Ollama /api/tags）
+reqwest           = { version = "0.12", default-features = false, features = [
+  "rustls-tls",
+] }
 rayon             = "1.10"
 ignore            = "0.4"
 memchr            = "2"
