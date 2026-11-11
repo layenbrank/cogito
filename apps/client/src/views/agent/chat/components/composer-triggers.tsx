@@ -1,8 +1,8 @@
 /**
- * composer 的 `@` / `/` 触发器配置 + 候选列表。
+ * composer 的 `@` / `/` / `::` 触发器配置 + 候选列表。
  *
  * 触发器能力全部由 `@cogito/design` 的 `ComposerTrigger` 定义，这里只做三件事：
- * 1. `resolve`：把「浏览器标签页 + 工作区文件」「工作区技能」翻译成候选项；
+ * 1. `resolve`：把「浏览器标签页 + 工作区文件」「工作区技能」「提示词库」翻译成候选项；
  * 2. `onSelect`：选中后插 chip / 挂附件 / 删 token —— 行为完全自定义；
  * 3. `ComposerTriggerList`：候选项的视觉。
  *
@@ -24,6 +24,7 @@ import {
   type ComposerTriggerItem,
   type ComposerTriggerListProps
 } from '@cogito/design/assistant/composer-trigger'
+import { PromptLibrary, type PromptLibraryItem } from '@cogito/design/assistant/prompt-library'
 import {
   Tooltip,
   TooltipContent,
@@ -35,6 +36,7 @@ import { Icon } from '@iconify/react/offline'
 import { useEffect, useMemo, useRef } from 'react'
 
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
+import { openPromptManager, usePrompts } from '@/features/prompts'
 import {
   findOwningRoot,
   splitFolderScope,
@@ -138,11 +140,30 @@ function findMentionData(item: ComposerTriggerItem): MentionData | null {
   return null
 }
 
+interface PromptData {
+  readonly kind: 'prompt'
+  /** 模板正文；选中后整段文本插进输入框 */
+  readonly body: string
+}
+
 function findSkillData(item: ComposerTriggerItem): SkillData | null {
   const data = item.data
   if (typeof data !== 'object' || data === null) return null
   const candidate = data as SkillData
   return typeof candidate.relative === 'string' ? candidate : null
+}
+
+/** 候选项右端的一句话摘要：取正文首行，太长就截断 */
+function promptSummary(body: string): string {
+  const line = body.split(/\r?\n/, 1)[0]?.trim() ?? ''
+  return line.length > 60 ? line.slice(0, 60) + '…' : line
+}
+
+function findPromptData(item: ComposerTriggerItem): PromptData | null {
+  const data = item.data
+  if (typeof data !== 'object' || data === null) return null
+  const candidate = data as PromptData
+  return candidate.kind === 'prompt' && typeof candidate.body === 'string' ? candidate : null
 }
 
 /** 同名标题消歧：`标题` / `标题 (2)` */
@@ -168,11 +189,13 @@ function insertFileChip(data: Extract<MentionData, { kind: 'file' }>, api: Compo
 /**
  * 触发器配置。
  *
- * 两个触发器的选中动作都只改文本（插 chip），不碰附件行 —— 附件行只放
+ * 三个触发器的选中动作都只改文本（插 chip / 插模板），不碰附件行 —— 附件行只放
  * `Ctrl+V` 粘贴的文件和图片。
  */
 function useComposerTriggers(): readonly ComposerTrigger[] {
   const { rootPath, primaryRootPath, folderPaths } = useActiveWorkspace()
+  // 库里增删一条要立刻反映到 `::` 的候选里，所以直接作为 useMemo 依赖
+  const prompts = usePrompts()
 
   return useMemo(
     function () {
@@ -441,9 +464,46 @@ function useComposerTriggers(): readonly ComposerTrigger[] {
         }
       }
 
-      return [mention, skill]
+      /**
+       * 提示词库：`::`（避开 `@` 文件与 `/` 技能）。
+       *
+       * 过滤看标题 + 正文；选中后把整段模板以纯文本插入，`{name}` 保持原样 ——
+       * 变量芯片只是给人看的，插进输入框后它就是一个待填的占位文本。
+       */
+      const prompt: ComposerTrigger = {
+        id: 'prompt',
+        token: '::',
+        resolve: function ({ query, signal }) {
+          if (signal.aborted) return Promise.resolve([])
+          const needle = query.trim().toLowerCase()
+          const matches: ComposerTriggerItem[] = []
+          for (const item of prompts) {
+            if (
+              needle.length > 0 &&
+              !item.title.toLowerCase().includes(needle) &&
+              !item.body.toLowerCase().includes(needle)
+            ) {
+              continue
+            }
+            matches.push({
+              id: item.id,
+              label: item.title,
+              description: promptSummary(item.body),
+              data: { kind: 'prompt', body: item.body } satisfies PromptData
+            })
+          }
+          return Promise.resolve(matches)
+        },
+        onSelect: function (item, api) {
+          const promptData = findPromptData(item)
+          if (promptData === null) return
+          api.insertText(promptData.body)
+        }
+      }
+
+      return [mention, skill, prompt]
     },
-    [rootPath, primaryRootPath, folderPaths]
+    [rootPath, primaryRootPath, folderPaths, prompts]
   )
 }
 
@@ -466,7 +526,78 @@ function ComposerTriggerList(props: ComposerTriggerListProps) {
 
   const { items, isLoading } = trigger
   const isMention = match.trigger.id === 'mention'
-  const emptyText = isMention ? '没有匹配的文件、文件夹或标签页' : '当前工作区暂无技能'
+  const isPrompt = match.trigger.id === 'prompt'
+  const emptyText = isPrompt
+    ? '没有匹配的提示词'
+    : isMention
+      ? '没有匹配的文件、文件夹或标签页'
+      : '当前工作区暂无技能'
+
+  // 提示词库走元素页那张「搜索 + 列表 + 预览」面板：标签 + 变量数 + 正文预览都在
+  // `PromptLibrary` 里，这里只把触发器的 hover / pick 接过去。
+  if (isPrompt) {
+    return (
+      <div
+        data-trigger="prompt"
+        data-webview="false"
+        className={cn(
+          styles.surface,
+          'bg-popover absolute inset-x-0 bottom-full z-20 mb-2 overflow-hidden rounded-lg',
+          OVERLAY_ELEVATION,
+          props.className
+        )}
+        onMouseDown={function (event) {
+          event.preventDefault()
+        }}>
+        {isLoading ? (
+          <p className="text-muted-foreground flex items-center gap-1.5 px-3 py-2.5 text-xs">
+            <Icon
+              icon="lucide:loader-circle"
+              className="size-3.5 animate-spin"
+            />
+            读取中…
+          </p>
+        ) : (
+          <div className="p-2">
+            <PromptLibrary
+              items={items.map(function (item): PromptLibraryItem {
+                return { id: item.id, title: item.label, body: findPromptData(item)?.body ?? '' }
+              })}
+              activeID={items[activeIndex]?.id ?? null}
+              onHover={function (id) {
+                const index = items.findIndex(function (item) {
+                  return item.id === id
+                })
+                if (index >= 0) trigger.hover(index)
+              }}
+              onPick={function (id) {
+                const index = items.findIndex(function (item) {
+                  return item.id === id
+                })
+                if (index >= 0) trigger.pick(index)
+              }}
+              emptyText={emptyText}
+              className="border-0 bg-transparent p-0 shadow-none dark:bg-transparent"
+              footer={
+                <div className="flex items-center justify-between gap-2">
+                  <span>Enter 插入 · 变量保持 {'{name}'} 形态</span>
+                  <button
+                    type="button"
+                    className="text-foreground/70 hover:text-foreground rounded px-1 py-0.5 font-medium transition-colors"
+                    onMouseDown={function (event) {
+                      event.preventDefault()
+                    }}
+                    onClick={openPromptManager}>
+                    管理提示词
+                  </button>
+                </div>
+              }
+            />
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div

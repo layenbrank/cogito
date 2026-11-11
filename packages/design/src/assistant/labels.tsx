@@ -66,6 +66,14 @@ type AssistantLabels = {
   composerPlaceholderRunning: string
   /** 输入框禁用时（线程运行中不允许队列 / 只读）的 title 说明 */
   composerDisabledHint: string
+  /** 提示词库：搜索框（占位 + 无障碍名） */
+  promptLibrarySearch: string
+  /** 提示词库：列表的无障碍名 */
+  promptLibraryList: string
+  /** 提示词库：一条都没有时 */
+  promptLibraryEmpty: string
+  /** 提示词库：列表右端的变量数（`2 vars` / `2 个变量`） */
+  promptLibraryVariables: (count: number) => string
   messageInput: string
   /** 待发送队列标题 */
   queueHeading: string
@@ -477,6 +485,10 @@ const ASSISTANT_LABELS_EN: AssistantLabels = {
 
   composerPlaceholderRunning: 'Queue with Enter · Ctrl+Enter to steer now',
   composerDisabledHint: 'Input is disabled while this run is in progress',
+  promptLibrarySearch: 'Search prompts',
+  promptLibraryList: 'Saved prompts',
+  promptLibraryEmpty: 'No saved prompts yet',
+  promptLibraryVariables: (count) => (count === 1 ? '1 var' : count + ' vars'),
   queueHeading: 'Queued',
   queueRemove: 'Remove from queue',
   queueRemoveItem: (text) => `Remove "${text}" from the queue`,

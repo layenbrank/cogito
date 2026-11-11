@@ -76,6 +76,7 @@
     "./components/*": "./src/components/*.tsx",
     "./assistant/*": "./src/assistant/*.tsx",
     "./assistant/web-search-state": "./src/assistant/web-search-state.ts",
+    "./assistant/prompt-vars": "./src/assistant/prompt-vars.ts",
     "./assistant/tool-call-state": "./src/assistant/tool-call-state.ts",
     "./assistant/thread-day": "./src/assistant/thread-day.ts",
     "./assistant/message-time": "./src/assistant/message-time.ts",

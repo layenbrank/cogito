@@ -80,6 +80,7 @@ import { PlanRunFinish } from '@/views/agent/chat/components/plan-run-finish'
 import { PlanRecorder } from '@/views/agent/chat/components/plan-recorder'
 import { PlanFileSync } from '@/views/agent/chat/components/plan-file-sync'
 import { PlanScheduleCard } from '@/views/agent/chat/components/plan-schedule-card'
+import { PromptLibraryManager } from '@/views/agent/chat/components/prompt-library-manager'
 import { AgentToolCard } from '@/views/agent/chat/components/tool-card'
 import { AgentFileChangeTree } from '@/views/agent/chat/components/file-change-tree'
 import { MessageTimingStats } from '@/views/agent/chat/components/message-timing'
@@ -692,6 +693,7 @@ function AgentChatLayout() {
                 <PlanRecorder />
                 <PlanFileSync />
                 <PlanScheduleCard />
+                <PromptLibraryManager />
                 <PlanAutoOpen
                   isAsideOpen={isAsideOpen}
                   openAside={openAside}
