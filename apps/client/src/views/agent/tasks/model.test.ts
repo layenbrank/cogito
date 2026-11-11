@@ -10,6 +10,7 @@ import {
   filterRuns,
   findDraftProblem,
   findOwnerHint,
+  findRecentRuns,
   findRunDuration,
   findSessionModeLabel,
   findTaskBadge,
@@ -314,5 +315,52 @@ describe('会话绑定', function () {
     expect(findSessionModeLabel(task({ sessionMode: 'fixed', sessionId: 'sess-1' }))).toBe(
       '固定对话'
     )
+  })
+})
+
+describe('findRecentRuns', function () {
+  it('只取这条任务的记录，按开始时间倒序，最多三条', function () {
+    const recent = findRecentRuns(task({ id: 'task-1' }), [
+      run({ id: 'a', startedAt: 1_000 }),
+      run({ id: 'b', startedAt: 3_000 }),
+      run({ id: 'c', startedAt: 2_000 }),
+      run({ id: 'd', startedAt: 4_000 }),
+      run({ id: 'other', automationId: 'task-2', startedAt: 9_000 })
+    ])
+    expect(
+      recent.map(function (item) {
+        return item.id
+      })
+    ).toEqual(['d', 'b', 'c'])
+    expect(recent[0].atMs).toBe(4_000)
+    expect(recent[0].ok).toBe(true)
+  })
+
+  it('执行中的那条不进历史（它还没有结果），失败按叉算', function () {
+    const recent = findRecentRuns(task({ id: 'task-1' }), [
+      run({ id: 'running', status: RUN_STATUS.RUNNING, startedAt: 5_000 }),
+      run({ id: 'bad', status: RUN_STATUS.FAILED, startedAt: 2_000 })
+    ])
+    expect(
+      recent.map(function (item) {
+        return item.id
+      })
+    ).toEqual(['bad'])
+    expect(recent[0].ok).toBe(false)
+  })
+
+  it('一条记录都没有时退回任务上的上一次执行', function () {
+    const recent = findRecentRuns(
+      task({ id: 'task-1', lastRunAt: 7_000, lastStatus: RUN_STATUS.FAILED }),
+      []
+    )
+    expect(recent).toEqual([{ id: 'task-1-last', atMs: 7_000, ok: false }])
+  })
+
+  it('从没跑过、或上次还停在执行中：历史留空', function () {
+    expect(findRecentRuns(task({ id: 'task-1' }), [])).toEqual([])
+    expect(
+      findRecentRuns(task({ id: 'task-1', lastRunAt: 7_000, lastStatus: RUN_STATUS.RUNNING }), [])
+    ).toEqual([])
   })
 })

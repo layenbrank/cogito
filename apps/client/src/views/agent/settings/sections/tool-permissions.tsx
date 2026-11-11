@@ -5,6 +5,7 @@
  * 而权限本身是全局的（`tools/permissions/set` 落 permission.yaml）——所以这里用「当前活跃
  * 会话」的 ACP session 来枚举工具；没有活跃会话时提示先打开一个会话。
  */
+import { Badge } from '@cogito/design/components/badge'
 import {
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ import {
   type ToolPermissionLevel
 } from '@/features/agent/acp/goose-providers'
 import { findThreadAcpSessionID, waitGooseReady } from '@/features/agent/acp/session'
+import { findToolRisk, RISK_META } from '@/features/agent/tool-risk'
 import { useAgentStore } from '@/stores/agent'
 
 const PERMISSION_OPTIONS: Array<{ value: ToolPermissionLevel; label: string }> = [
@@ -102,12 +104,20 @@ function ToolPermissionsSection() {
   return (
     <ul className="flex flex-col">
       {tools.map(function (tool) {
+        const meta = RISK_META[findToolRisk(tool.name)]
         return (
           <li
             key={tool.name}
             className="flex items-center justify-between gap-4 border-b border-border/60 py-3 last:border-b-0">
             <div className="min-w-0">
-              <div className="truncate text-sm font-medium">{tool.name}</div>
+              <div className="flex items-center gap-2">
+                <span className="truncate text-sm font-medium">{tool.name}</span>
+                <Badge
+                  variant={meta.variant}
+                  title={meta.hint}>
+                  {meta.label}
+                </Badge>
+              </div>
               {tool.description ? (
                 <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
                   {tool.description}

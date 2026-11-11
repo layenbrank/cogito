@@ -1,13 +1,14 @@
 /**
  * 设置页：对齐 Qoder CN — Caption 只负责拖拽/窗口键；
- * 「返回应用」+ 搜索落在左栏顶；右主区白卡片内容。
+ * 返回 / 主页统一由窗口操作栏（`TileSessionBar`）提供，页面内不再重复一个返回键；
+ * 搜索落在左栏顶；右主区白卡片内容。
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { Input } from '@cogito/design/components/input'
 import { clsx } from 'clsx'
 import { useMemo, useState, type ComponentType } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 
 import { useShellSurface } from '@/features/window-shell/slots'
 import { AgentBrandBegin } from '@/views/agent/components/brand-begin'
@@ -65,7 +66,6 @@ const GROUPS: SettingsGroup[] = [
 ]
 
 function AgentSettings() {
-  const navigate = useNavigate()
   const [searchParams, updateSearchParams] = useSearchParams()
   const [query, updateQuery] = useState('')
   const [pickedID, updatePickedID] = useState<string | null>(null)
@@ -120,21 +120,6 @@ function AgentSettings() {
       <div className={styles.shell}>
         <nav className={styles.nav}>
           <div className={styles.navTop}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className={styles.backBtn}
-              data-region="false"
-              onClick={function () {
-                void navigate('/agent/chat')
-              }}>
-              <Icon
-                icon="lucide:chevron-left"
-                className="size-3.5"
-              />
-              返回应用
-            </Button>
             <div className={styles.searchWrap}>
               <Icon
                 icon="lucide:search"

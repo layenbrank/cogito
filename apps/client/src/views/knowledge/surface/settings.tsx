@@ -23,7 +23,6 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import styles from '@/views/knowledge/surface/settings.module.scss'
 
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
-import { useSettingsStore } from '@/stores/setting'
 import {
   embeddingProbeFailurePatch,
   embeddingProbeSuccessPatch,
@@ -139,7 +138,6 @@ type SettingsSectionId =
   | 'multimodal'
   | 'web-search'
   | 'anytxt'
-  | 'network'
   | 'source-watch'
   | 'scheduled-import'
   | 'mineru'
@@ -164,7 +162,6 @@ const SECTION_GROUPS: readonly {
     items: [
       { id: 'web-search', label: '网页搜索', icon: 'lucide:globe' },
       { id: 'anytxt', label: 'AnyTXT', icon: 'lucide:file-search' },
-      { id: 'network', label: '网络', icon: 'lucide:cable' },
       { id: 'api-server', label: 'API / Clip', icon: 'lucide:server' }
     ]
   },
@@ -394,13 +391,6 @@ function SettingsTab() {
 
   const activeBase = bases.find(function (base) {
     return base.id === activeBaseID
-  })
-
-  const proxy = useSettingsStore(function (state) {
-    return state.settings.proxy
-  })
-  const toUpdateSettings = useSettingsStore(function (state) {
-    return state.toUpdate
   })
 
   const ingestItems = useIngestQueueStore(function (state) {
@@ -845,52 +835,6 @@ function SettingsTab() {
                     setAnytxtConfig(
                       patchAnyTxtConfig({ limit: Number(event.target.value) || 20 })
                     )
-                  }}
-                />
-              </Row>
-            </SettingsPanel>
-          ) : null}
-
-          {section === 'network' ? (
-            <SettingsPanel>
-              <SectionTitle
-                title="网络"
-                description="出站代理写入 HTTP_PROXY / HTTPS_PROXY（与全局设置同步，热切换）。"
-              />
-              <Row label="启用代理">
-                <Switch
-                  checked={proxy.enabled}
-                  onCheckedChange={function (checked) {
-                    void toUpdateSettings('proxy', { enabled: checked })
-                  }}
-                />
-              </Row>
-              <Row label="代理 URL">
-                <Input
-                  value={proxy.url}
-                  disabled={!proxy.enabled}
-                  className="h-8 w-56 text-xs"
-                  placeholder="http://127.0.0.1:7890"
-                  onChange={function (event) {
-                    void toUpdateSettings('proxy', { url: event.target.value })
-                  }}
-                />
-              </Row>
-              <Row label="绕过局域网">
-                <Switch
-                  checked={proxy.bypassLocal}
-                  disabled={!proxy.enabled}
-                  onCheckedChange={function (checked) {
-                    void toUpdateSettings('proxy', { bypassLocal: checked })
-                  }}
-                />
-              </Row>
-              <Row label="接受无效证书">
-                <Switch
-                  checked={proxy.acceptInvalidCerts}
-                  disabled={!proxy.enabled}
-                  onCheckedChange={function (checked) {
-                    void toUpdateSettings('proxy', { acceptInvalidCerts: checked })
                   }}
                 />
               </Row>

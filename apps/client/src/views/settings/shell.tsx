@@ -1,13 +1,10 @@
 import { Icon } from '@iconify/react/offline'
-import { Button } from '@cogito/design/components/button'
 import clsx from 'clsx'
 import { AnimatePresence, useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
 import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 
-import { useShowsTileSession } from '@/features/magnetic-tile/session-bar'
-import { findWindowLabel } from '@/features/window/kind'
 import {
   MOTION,
   NAVS,
@@ -21,7 +18,6 @@ import CaptureSurface from '@/views/settings/surfaces/capture.tsx'
 import DiagnosticSurface from '@/views/settings/surfaces/diagnostics.tsx'
 import GeneralSurface from '@/views/settings/surfaces/general.tsx'
 import ShortcutsSurface from '@/views/settings/surfaces/shortcuts.tsx'
-import { findShowsShellBack } from '@/views/settings/shell-back.ts'
 import styles from '@/views/settings/shell.module.scss'
 
 function findInitialSection(searchParams: URLSearchParams): SectionKey {
@@ -29,14 +25,11 @@ function findInitialSection(searchParams: URLSearchParams): SectionKey {
 }
 
 function Shell() {
-  const navigate = useNavigate()
   const isReducedMotion = useReducedMotion()
   const [searchParams, updateSearchParams] = useSearchParams()
   const [section, onSectionChange] = useState<SectionKey>(function () {
     return findInitialSection(searchParams)
   })
-  const showsSession = useShowsTileSession()
-  const showsBack = findShowsShellBack(showsSession, findWindowLabel())
   // 查询串里的 section 变了就跟随：渲染期按变化调整，不用 effect
   const querySection = searchParams.get('section') ?? ''
   const [seenQuerySection, updateSeenQuerySection] = useState(querySection)
@@ -67,25 +60,6 @@ function Shell() {
             </div>
             <h2 className={styles.asideTitleText}>设置</h2>
           </div>
-          {showsBack ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              data-region="false"
-              aria-label="返回"
-              className="shrink-0 gap-1 px-2"
-              onClick={function () {
-                void navigate(-1)
-              }}>
-              <Icon
-                icon="lucide:chevron-left"
-                className="size-3.5"
-                aria-hidden
-              />
-              返回
-            </Button>
-          ) : null}
         </div>
 
         <nav

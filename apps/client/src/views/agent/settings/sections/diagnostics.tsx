@@ -7,7 +7,7 @@
 import { Button } from '@cogito/design/components/button'
 import { Spinner } from '@cogito/design/components/spinner'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
-import { save } from '@tauri-apps/plugin-dialog'
+import { save } from '@/shared/ipc/dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -19,13 +19,21 @@ import {
   type DiagnosticsReport,
   type DiagnosticsTextFile
 } from '@/features/agent/acp/goose-diagnostics'
-import { findThreadAcpSessionID, waitGooseReady } from '@/features/agent/acp/session'
+import { findThreadAcpSessionID, readGooseStatus, waitGooseReady } from '@/features/agent/acp/session'
+import { describeAudit, exportAgentAudit } from '@/shared/ipc/audit'
+import { describeCost, exportRunCost } from '@/shared/ipc/cost'
 import { useAgentStore } from '@/stores/agent'
 
 const LEVELS: Array<{ value: DiagnosticsLevel; label: string; hint: string }> = [
   { value: 'summary', label: '生成摘要', hint: '系统信息 + 扩展清单' },
   { value: 'full', label: '生成完整报告', hint: '另含配置正文、日志与提示词' }
 ]
+
+/** RSS 只用于基线展示，不参与判定，取整到 MB 就够 */
+function formatRss(bytes: number | undefined): string {
+  if (typeof bytes !== 'number') return '未知'
+  return `${Math.round(bytes / 1024 / 1024)} MB`
+}
 
 function findFileLabel(file: DiagnosticsTextFile): string {
   const size = `${file.content.length} 字符`
@@ -63,6 +71,56 @@ function FullReportDetails(props: { report: DiagnosticsReport }) {
   )
 }
 
+/**
+ * 工具审计导出条（S6）。放在诊断 section 顶部：审计与 goose 会话无关，
+ * 没有活跃会话时也要能导出（那种时候恰恰最需要看「它刚才都干了什么」）。
+ */
+function AuditExportBar(props: { busy: boolean; onExport: () => Promise<void> }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 px-4 py-3">
+      <span className="text-muted-foreground text-xs">
+        Agent 的本地工具调用（含被拒请求）每条都落一行审计，保留 7 天；参数只存摘要，不存原文
+      </span>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={props.busy}
+        title="导出最近 2000 条工具审计（JSON）"
+        onClick={function () {
+          void props.onExport()
+        }}>
+        {props.busy ? <Spinner /> : null}
+        导出工具审计
+      </Button>
+    </div>
+  )
+}
+
+/**
+ * 成本账本导出条（S8）。同样与活跃会话无关 —— 昨天跑了多少 token、花了多少钱，
+ * 恰恰是「现在没开会话」的时候最想看。未知模型记「未计价」，不显示成 0。
+ */
+function CostExportBar(props: { busy: boolean; onExport: () => Promise<void> }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 px-4 py-3">
+      <span className="text-muted-foreground text-xs">
+        每轮用量按内置价目表折成金额落账（保留 400 天）；账本只存 token 数与模型名，不存对话正文
+      </span>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={props.busy}
+        title="导出最近 5000 条成本账（JSON）"
+        onClick={function () {
+          void props.onExport()
+        }}>
+        {props.busy ? <Spinner /> : null}
+        导出成本账
+      </Button>
+    </div>
+  )
+}
+
 function DiagnosticsSection() {
   const activeSessionID = useAgentStore(function (state) {
     return state.activeSessionID
@@ -71,6 +129,10 @@ function DiagnosticsSection() {
 
   const [report, updateReport] = useState<DiagnosticsReport | null>(null)
   const [busyLevel, updateBusyLevel] = useState<DiagnosticsLevel | null>(null)
+  const [auditBusy, updateAuditBusy] = useState(false)
+  const [costBusy, updateCostBusy] = useState(false)
+  // 就绪基线（S4）：模块级缓存，不参与渲染状态；切回本页时读到的就是最近一次
+  const gooseStatus = readGooseStatus()
 
   async function generate(level: DiagnosticsLevel) {
     if (!acpSessionID) return
@@ -116,10 +178,55 @@ function DiagnosticsSection() {
     }
   }
 
-  if (!acpSessionID) {
-    return <p className="py-2 text-sm text-muted-foreground">打开一个会话后才能生成诊断报告。</p>
+  /** 工具审计（S6）：只导出、不查询 —— 落盘一份 JSON 交给用户自己保管 */
+  async function exportAudit() {
+    updateAuditBusy(true)
+    try {
+      const result = await exportAgentAudit()
+      const target = await save({
+        defaultPath: `cogito-tool-audit-${Date.now()}.json`,
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      })
+      if (!target) return
+      await writeTextFile(target, JSON.stringify(result, null, 2))
+      toast.success(`已导出工具审计：${describeAudit(result)}`)
+    } catch (error) {
+      console.warn('[settings/diagnostics] 导出工具审计失败:', error)
+      toast.error(error instanceof Error ? error.message : '导出工具审计失败')
+    } finally {
+      updateAuditBusy(false)
+    }
   }
 
+  /** 成本账本（S8）：同样只导出、不查询 */
+  async function exportCost() {
+    updateCostBusy(true)
+    try {
+      const result = await exportRunCost()
+      const target = await save({
+        defaultPath: `cogito-run-cost-${Date.now()}.json`,
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      })
+      if (!target) return
+      await writeTextFile(target, JSON.stringify(result, null, 2))
+      toast.success(`已导出成本账：${describeCost(result)}`)
+    } catch (error) {
+      console.warn('[settings/diagnostics] 导出成本账失败:', error)
+      toast.error(error instanceof Error ? error.message : '导出成本账失败')
+    } finally {
+      updateCostBusy(false)
+    }
+  }
+
+  if (!acpSessionID) {
+    return (
+      <div className="flex flex-col gap-4">
+        <AuditExportBar busy={auditBusy} onExport={exportAudit} />
+        <CostExportBar busy={costBusy} onExport={exportCost} />
+        <p className="py-2 text-sm text-muted-foreground">打开一个会话后才能生成诊断报告。</p>
+      </div>
+    )
+  }
   const systemRows = report
     ? [
         { label: 'goose', value: report.system.app_version },
@@ -175,6 +282,21 @@ function DiagnosticsSection() {
           </>
         ) : null}
       </div>
+
+      {gooseStatus ? (
+        <p className="text-xs text-muted-foreground">
+          goose 就绪基线：
+          {gooseStatus.state === 'ready'
+            ? `${gooseStatus.readyMs ?? '?'} ms · 宿主 ${formatRss(gooseStatus.rssBytes)} · goose ${formatRss(gooseStatus.gooseRssBytes)}`
+            : gooseStatus.state === 'failed'
+              ? `启动失败：${gooseStatus.reason ?? '未知原因'}`
+              : '启动中'}
+        </p>
+      ) : null}
+
+      <AuditExportBar busy={auditBusy} onExport={exportAudit} />
+
+      <CostExportBar busy={costBusy} onExport={exportCost} />
 
       {!report ? (
         <p

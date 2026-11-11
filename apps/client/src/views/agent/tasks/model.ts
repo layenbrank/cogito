@@ -192,6 +192,50 @@ function filterRuns(runs: AutomationRun[], filter: RunFilter): AutomationRun[] {
   })
 }
 
+/** 排期卡上的一条「最近执行」：只留渲染需要的三样（格式由界面决定） */
+interface RecentRun {
+  id: string
+  atMs: number
+  ok: boolean
+}
+
+/**
+ * 卡片上「最近执行」用的几条记录：优先真实记录（按开始时间倒序），
+ * 一条都没有时退回任务上的上一次执行 —— 列表不为三行字再拉 N 次接口。
+ * 执行中的那条不进历史：它还没结果，卡底的「执行中」已经表达了。
+ */
+function findRecentRuns(
+  item: Pick<Automation, 'id' | 'lastRunAt' | 'lastStatus'>,
+  runs: readonly AutomationRun[],
+  limit = 3
+): RecentRun[] {
+  const mine = runs
+    .filter(function (run) {
+      return run.automationId === item.id && run.status !== RUN_STATUS.RUNNING
+    })
+    .sort(function (left, right) {
+      return (right.startedAt ?? right.createdAt) - (left.startedAt ?? left.createdAt)
+    })
+  if (mine.length > 0) {
+    return mine.slice(0, limit).map(function (run) {
+      return {
+        id: run.id,
+        atMs: run.startedAt ?? run.createdAt,
+        ok: run.status === RUN_STATUS.SUCCEEDED
+      }
+    })
+  }
+  // 上次执行还在跑：历史留空，免得把「正在跑」画成叉
+  if (!item.lastRunAt || item.lastStatus === RUN_STATUS.RUNNING) return []
+  return [
+    {
+      id: item.id + '-last',
+      atMs: item.lastRunAt,
+      ok: item.lastStatus === RUN_STATUS.SUCCEEDED
+    }
+  ]
+}
+
 /** 耗时（毫秒）：没跑完（没有 finishedAt）就没有耗时 */
 function findRunDuration(run: Pick<AutomationRun, 'startedAt' | 'finishedAt'>): number | null {
   if (!run.startedAt || !run.finishedAt) return null
@@ -407,6 +451,7 @@ export {
   findDraftProblem,
   findOwnerHint,
   findPhaseLabel,
+  findRecentRuns,
   findTaskModeLabel,
   findTaskModeTag,
   findRunDuration,
@@ -421,4 +466,4 @@ export {
   toDraft,
   toSaveInput
 }
-export type { RunFilter, TaskBadge, TaskBadgeTone, TaskDraft, TaskGroup }
+export type { RecentRun, RunFilter, TaskBadge, TaskBadgeTone, TaskDraft, TaskGroup }
