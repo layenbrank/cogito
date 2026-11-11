@@ -21,7 +21,9 @@ pub const NETWORK: &str = "app_browser_network";
 pub const INTERCEPT: &str = "app_browser_intercept";
 pub const DEVICE: &str = "app_browser_device";
 
-const NAMES: [&str; 8] = [OPEN, READ, ACT, WAIT, SCREENSHOT, NETWORK, INTERCEPT, DEVICE];
+const NAMES: [&str; 8] = [
+    OPEN, READ, ACT, WAIT, SCREENSHOT, NETWORK, INTERCEPT, DEVICE,
+];
 
 /// `tab` 的公共属性：省略即当前活动标签页
 fn tab_property() -> Value {
@@ -32,12 +34,9 @@ fn tab_property() -> Value {
 }
 
 fn spec(name: &str, description: &str, effect: Effect, input_schema: Value) -> ToolSpec {
-    ToolSpec {
-        name: name.to_string(),
-        description: description.to_string(),
-        input_schema,
-        effect,
-    }
+    // 风险等级由 effect 推导：浏览器工具的副作用只落在用户正在看的那个标签页上，
+    // 不需要 Guarded 那层「按参数再判一次」。
+    super::describe(name, description, effect, input_schema)
 }
 
 #[must_use]

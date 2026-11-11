@@ -12,6 +12,8 @@
 2. Agent 的工具面**完全不走 capabilities** —— 它走 `cogito-mcp`（stdio）→ loopback 桥（`bridge/http.rs`，`x-bridge-token`）→ `app_tools.rs`，
    再加上 goose 自带工具（`text_editor` / `shell` …，由审批档控制）；
 3. `.gooseignore` 不是沙箱：它是喂给模型的**提示文件**，模型不遵守也不会被拦。
+   **本项目不实现 `.gooseignore`**：拦不住的东西不该让它看起来像隔离；真正的隔离在边界三的执行层
+   （审批层硬禁 goose 内置写工具 + `app_workspace_write/patch` 是唯一写路径）。
 
 所以「把 capabilities 收窄就安全了」是错的；反过来「只加黑名单」也不够 —— 因为 **Agent 写文件用的是 goose 内置 `text_editor`**，
 压根不经过 `app_workspace_*`（`agent-tools.lock.json` 的 local 面当时只有读）。
@@ -50,8 +52,11 @@ token 由 Rust 写成 `<appLocalData>/bridge/token`（Windows DACL 仅当前用�
   单次写入上限 2 MB。
 - 写前快照：覆盖已有文件时先把旧内容落 `<temp>/cogito-agent-snapshots/<stem>.<ms>.bak`，
   响应里带 `previous`（前 20000 字符预览）与 `snapshotPath`，回滚与 diff 卡都有数据。
-- 路径解析：`resolve_write_target` 先 canonicalize 父目录、再 canonicalize 已存在的文件，
-  结果必须 `starts_with` 授权集里的某个根——工作区里的符号链接不能把写入重定向到外面。
+- 路径解析：`resolve_write_target` 分三步，**顺序不能换**——
+  ① 相对路径先锂到工作区根（多根且没给 `workspaceID` 直接报错，不猜 —— 按进程 cwd 解析会写进另一个仓库）；
+  ② 从最深的**已存在**祖先开始 canonicalize 并校验 `starts_with` 某个授权根，
+     通过之后才允许 `createParents` 建目录（先建后校验会在工作区外留下目录：写入被拒、副作用已发生）；
+  ③ 目标已存在时再 canonicalize 一次复核 —— 工作区里的符号链接不能把写入重定向到外面。
 - deny 只作用于 **agent 入口**；`workspaceFiles.rs`（编辑器保存 / 查找替换）原样不动，
   用户在 UI 里改 `.env` 不算越权。
 
@@ -157,7 +162,8 @@ token 由 Rust 写成 `<appLocalData>/bridge/token`（Windows DACL 仅当前用�
     绑定灌进内存 `Map`；缓存未命中才 `await readBinding()` 读库。恢复路径先取缓存再发
     `session/load`，解绑时**先删缓存**，免得拿死 sessionID 去 load。
   - 还欠的账：serve 令牌仍在 `wss://…?token=` 里（要 S9-B 的 Rust 侧 ACP 客户端才能
-    彻底移出渲染进程）；`agent_tool_audit` 还没有 `sessionID` 列，审计行暂时串不到会话。
+    彻底移出渲染进程）；`agent_tool_audit` 还没有 `sessionID` 列 —— **有意延后**：
+    三个审计点里有两处拿不到可信的会话归属，硬塞只能写空值，等审计链路统一再补。
 - **S10 已落地**：子 agent / 并行会话的工具面 `app_agent_spawn` / `app_agent_wait` /
   `app_agent_result`（目录在 `crates/core/src/tools/agents.rs`，执行在 `bridge/app_tools.rs`）。
   - **Rust 只做调度，不跑模型**：任务板管并发（同时 2 个）、深度（≤ 2）、摘要（≤ 2KB 且按

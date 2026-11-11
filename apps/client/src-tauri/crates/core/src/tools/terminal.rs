@@ -19,12 +19,9 @@ pub const LIST: &str = "app_terminal_list";
 const NAMES: [&str; 4] = [RUN, READ, WRITE, LIST];
 
 fn spec(name: &str, description: &str, effect: Effect, input_schema: Value) -> ToolSpec {
-    ToolSpec {
-        name: name.to_string(),
-        description: description.to_string(),
-        input_schema,
-        effect,
-    }
+    // 风险等级由 effect 推导：终端工具的副作用由审批层的 never_allow/ask_before 兜底，
+    // 不涉及受保护路径的二次判定。
+    super::describe(name, description, effect, input_schema)
 }
 
 #[must_use]
