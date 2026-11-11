@@ -8,13 +8,18 @@
 //! 那个 tab —— agent 和用户看到、能接管的是同一份东西。
 
 use serde_json::{Value, json};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::browser::state::BrowserState;
 use crate::browser::{agent, emulate, intercept, lifecycle, network};
 use crate::utils::terminal::{TerminalHub, resolve_agent_session_scoped};
+use cogito_core::tools::agents as agents_catalog;
 use cogito_core::tools::browser as browser_catalog;
 use cogito_core::tools::terminal as terminal_catalog;
+
+/// 子任务派发事件（渲染进程接活）：与 `shared/ipc/channels.ts` 的
+/// `EVENTS.AGENT_SUBAGENT_SPAWN` 同名字符串。
+const SUBAGENT_EVENT: &str = "agent://subagent-spawn";
 
 /// 读页面默认返回多少项
 const DEFAULT_LIMIT: u64 = 60;
@@ -32,11 +37,19 @@ const DEFAULT_SCROLL_PX: &str = "600";
 
 /// 名字是否归这里管（桥靠它决定「先试 app 工具，再落到数据库工具」）
 pub fn owns(name: &str) -> bool {
-    browser_catalog::owns(name) || terminal_catalog::owns(name)
+    browser_catalog::owns(name) || terminal_catalog::owns(name) || agents_catalog::owns(name)
 }
 
-/// 执行；`None` 表示不认识这个名字
-pub async fn call(app: &AppHandle, name: &str, arguments: &Value) -> Option<Result<Value, String>> {
+/// 执行；`None` 表示不认识这个名字。
+///
+/// `session` 是发起方会话 id（桥从 `x-cogito-session` 解出来的）：子 agent 的深度
+/// 只能由它推，模型在参数里写什么 `depth` 都不作数。
+pub async fn call(
+    app: &AppHandle,
+    name: &str,
+    arguments: &Value,
+    session: Option<&str>,
+) -> Option<Result<Value, String>> {
     let outcome = match name {
         browser_catalog::OPEN => open(app, arguments).await,
         browser_catalog::READ => read(app, arguments).await,
@@ -50,6 +63,9 @@ pub async fn call(app: &AppHandle, name: &str, arguments: &Value) -> Option<Resu
         terminal_catalog::READ => terminal_read(app, arguments),
         terminal_catalog::WRITE => terminal_write(app, arguments),
         terminal_catalog::LIST => terminal_list(app),
+        agents_catalog::SPAWN => agent_spawn(app, arguments, session).await,
+        agents_catalog::WAIT => agent_wait(arguments).await,
+        agents_catalog::RESULT => agent_result(arguments),
         _ => return None,
     };
     Some(outcome)
@@ -158,7 +174,9 @@ async fn act(app: &AppHandle, arguments: &Value) -> Result<Value, String> {
 
     // scroll 与 reload 不看选择器：它们作用于整页
     if action != "scroll" && action != "reload" && selector.is_empty() {
-        return Err(format!("{action} 需要 selector（先 app_browser_read 拿一份）"));
+        return Err(format!(
+            "{action} 需要 selector（先 app_browser_read 拿一份）"
+        ));
     }
     agent::act(app, &label, action, selector, value).await
 }
@@ -365,5 +383,101 @@ async fn intercept_rules(app: &AppHandle, arguments: &Value) -> Result<Value, St
         "count": status.rules,
         "paused": status.paused,
         "matched": status.matched
+    }))
+}
+
+/// 子任务（S10）：登记 + 派给渲染进程，立刻返回 jobID。
+///
+/// 派不出去（没有窗口 / emit 失败）就把任务标成失败并直接报错 —— 让模型马上知道
+/// 「这条路上没人接活」，而不是等一个永远不动的 `queued`。
+async fn agent_spawn(
+    app: &AppHandle,
+    arguments: &Value,
+    session: Option<&str>,
+) -> Result<Value, String> {
+    let request = agents_catalog::spawn_request(arguments, session)?;
+    let job = agents_catalog::shared().spawn(request)?;
+    let payload = json!({
+        "jobID": job.id,
+        "depth": job.depth,
+        "title": job.title,
+        "prompt": arguments.get("prompt").and_then(Value::as_str).unwrap_or_default(),
+        "cwd": job.cwd,
+        // 渲染进程按它解析父会话的 provider / model / workspace —— 子任务不提权
+        "parentSession": job.parent_session
+    });
+    if let Err(error) = app.emit(SUBAGENT_EVENT, &payload) {
+        let _ = agents_catalog::shared().settle(agents_catalog::Report {
+            job_id: job.id.clone(),
+            ok: false,
+            summary: None,
+            error: Some(format!("子任务派发失败：{error}")),
+            session_id: None,
+            cancelled: false,
+        });
+        return Err(format!("子任务派发失败：{error}"));
+    }
+    Ok(json!({
+        "jobID": job.id,
+        "status": job.status,
+        "depth": job.depth,
+        "title": job.title,
+        "hint": "用 app_agent_wait 等它收尾；wait 超时只是「还没完」，不是失败"
+    }))
+}
+
+/// 等子任务收尾。轮询足够：状态机在 core 里是同步的，这里只负责「等」与超时。
+async fn agent_wait(arguments: &Value) -> Result<Value, String> {
+    let job_id = text_arg(arguments, "jobID")
+        .ok_or_else(|| "wait: 缺少 jobID".to_string())?
+        .to_string();
+    let timeout = agents_catalog::clamp_wait_ms(arguments.get("timeoutMs").and_then(Value::as_u64));
+    let board = agents_catalog::shared();
+    let started = std::time::Instant::now();
+    let deadline = started + std::time::Duration::from_millis(timeout);
+    loop {
+        let job = board.view(&job_id)?;
+        let active = matches!(
+            job.status,
+            agents_catalog::Status::Queued | agents_catalog::Status::Running
+        );
+        if !active {
+            return Ok(json!({
+                "jobID": job.id,
+                "status": job.status,
+                "depth": job.depth,
+                "waitedMs": started.elapsed().as_millis() as u64,
+                "sessionID": job.session_id,
+                "summary": job.summary,
+                "error": job.error
+            }));
+        }
+        if std::time::Instant::now() >= deadline {
+            return Ok(json!({
+                "jobID": job.id,
+                "status": job.status,
+                "timedOut": true,
+                "waitedMs": started.elapsed().as_millis() as u64,
+                "hint": "还没收尾：再 wait 一次，或先做别的"
+            }));
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    }
+}
+
+/// 取结果（不阻塞）：没收尾就返回当前状态。
+fn agent_result(arguments: &Value) -> Result<Value, String> {
+    let job_id = text_arg(arguments, "jobID")
+        .ok_or_else(|| "result: 缺少 jobID".to_string())?
+        .to_string();
+    let job = agents_catalog::shared().view(&job_id)?;
+    Ok(json!({
+        "jobID": job.id,
+        "status": job.status,
+        "depth": job.depth,
+        "title": job.title,
+        "sessionID": job.session_id,
+        "summary": job.summary,
+        "error": job.error
     }))
 }
