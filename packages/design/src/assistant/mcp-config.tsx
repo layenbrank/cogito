@@ -211,7 +211,8 @@ function McpServerCard({
   )
 }
 
-interface McpConfigBodyProps extends Omit<ComponentProps<'div'>, 'children'> {
+// `title` / `description` 在这里换成标题节点：DOM 的 title 是 string，接不了 base-ui 的 Title
+interface McpConfigBodyProps extends Omit<ComponentProps<'div'>, 'children' | 'title'> {
   /** 应用预置的连接器（不能移除，只能连接 / 断开） */
   connectors: readonly McpServerView[]
   /** 用户自己加的服务器 */
