@@ -6,8 +6,8 @@
 use std::{
     net::Ipv4Addr,
     sync::{
-        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Mutex, OnceLock,
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -394,7 +394,13 @@ async fn run_search(
         );
     }
     let limit = top_k.unwrap_or(20).clamp(1, 100) as usize;
-    match Service::toSearch(state.storage.connection(), &query, base_id.as_deref(), limit).await
+    match Service::toSearch(
+        state.storage.connection(),
+        &query,
+        base_id.as_deref(),
+        limit,
+    )
+    .await
     {
         Ok(hits) => with_cors(Json(json!({ "hits": hits })).into_response()),
         Err(error) => with_cors(

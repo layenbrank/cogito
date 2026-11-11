@@ -64,7 +64,15 @@
     "fs:default",
     {
       "identifier": "fs:scope",
-      "allow": ["**", "/**", "**/*"]
+      "allow": [
+        "$APPLOCALDATA/**",
+        "$APPDATA/**",
+        "$APPCACHE/**",
+        "$APPCONFIG/**",
+        "$APPLOG/**",
+        "$RESOURCE/**",
+        "$TEMP/**"
+      ]
     },
     "core:webview:allow-clear-all-browsing-data",
     "core:webview:allow-webview-size",
@@ -152,17 +160,6 @@
     {
       "allow": [
         {
-          "args": [],
-          "cmd": "",
-          "name": ""
-        }
-      ],
-      "identifier": "shell:allow-open"
-    },
-    "shell:allow-execute",
-    {
-      "allow": [
-        {
           "args": ["--pipe", "\\\\.\\pipe\\corex"],
           "name": "binaries/corex-daemon",
           "sidecar": true
@@ -188,7 +185,6 @@
       "identifier": "shell:allow-spawn"
     },
     "shell:allow-stdin-write",
-    "shell:allow-open",
     "store:allow-clear",
     "store:allow-delete",
     "store:allow-get",
@@ -316,13 +312,19 @@
     {
       "allow": [
         {
-          "url": "http://**"
+          "url": "http://127.0.0.1:3000/**"
+        },
+        {
+          "url": "http://localhost:3000/**"
+        },
+        {
+          "url": "http://127.0.0.1:11434/**"
+        },
+        {
+          "url": "http://localhost:11434/**"
         },
         {
           "url": "https://**"
-        },
-        {
-          "url": "http://*:*"
         },
         {
           "url": "https://*:*"
@@ -333,13 +335,19 @@
     {
       "allow": [
         {
-          "url": "http://**"
+          "url": "http://127.0.0.1:3000/**"
+        },
+        {
+          "url": "http://localhost:3000/**"
+        },
+        {
+          "url": "http://127.0.0.1:11434/**"
+        },
+        {
+          "url": "http://localhost:11434/**"
         },
         {
           "url": "https://**"
-        },
-        {
-          "url": "http://*:*"
         },
         {
           "url": "https://*:*"
@@ -350,13 +358,19 @@
     {
       "allow": [
         {
-          "url": "http://**"
+          "url": "http://127.0.0.1:3000/**"
+        },
+        {
+          "url": "http://localhost:3000/**"
+        },
+        {
+          "url": "http://127.0.0.1:11434/**"
+        },
+        {
+          "url": "http://localhost:11434/**"
         },
         {
           "url": "https://**"
-        },
-        {
-          "url": "http://*:*"
         },
         {
           "url": "https://*:*"
@@ -367,42 +381,25 @@
     {
       "allow": [
         {
-          "url": "http://**"
+          "url": "http://127.0.0.1:3000/**"
+        },
+        {
+          "url": "http://localhost:3000/**"
+        },
+        {
+          "url": "http://127.0.0.1:11434/**"
+        },
+        {
+          "url": "http://localhost:11434/**"
         },
         {
           "url": "https://**"
-        },
-        {
-          "url": "http://*:*"
         },
         {
           "url": "https://*:*"
         }
       ],
       "identifier": "http:allow-fetch"
-    },
-    {
-      "allow": [
-        {
-          "url": "https://*.tauri.app"
-        },
-        {
-          "url": "https://private.tauri.app"
-        },
-        {
-          "url": "http://**"
-        },
-        {
-          "url": "https://**"
-        },
-        {
-          "url": "http://*:*"
-        },
-        {
-          "url": "https://*:*"
-        }
-      ],
-      "identifier": "http:default"
     },
     "updater:default"
   ],

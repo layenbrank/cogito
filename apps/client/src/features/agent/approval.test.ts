@@ -5,6 +5,7 @@ import {
   clearApprovalModeFor,
   findGooseMode,
   findToolPermissionLevel,
+  isLegacyFileWriter,
   isOpaqueShellTool,
   isWriteTool,
   readApprovalModeFor,
@@ -81,6 +82,25 @@ describe('审批策略 → goose 权限档', function () {
     expect(findToolPermissionLevel('readonly', 'bash')).toBe('never_allow')
     expect(findToolPermissionLevel('auto', 'app_terminal_run')).toBe('always_allow')
     expect(findToolPermissionLevel('ask', 'app_terminal_run')).toBe('ask_before')
+  })
+
+  it('goose 内置文件写工具在任意策略下均为 never_allow（写文件只能经 app_workspace_*）', function () {
+    expect(isLegacyFileWriter('text_editor')).toBe(true)
+    expect(isLegacyFileWriter('developer__text_editor')).toBe(true)
+    expect(isLegacyFileWriter('str_replace')).toBe(true)
+    expect(isLegacyFileWriter('developer__apply_patch')).toBe(true)
+    expect(isLegacyFileWriter('apply_diff')).toBe(true)
+    // 本地写入口自身已有 guard，不受这条限制
+    expect(isLegacyFileWriter('app_workspace_write')).toBe(false)
+    expect(isLegacyFileWriter('app_workspace_patch')).toBe(false)
+    expect(isLegacyFileWriter('app_knowledge_write_doc')).toBe(false)
+
+    expect(findToolPermissionLevel('auto', 'developer__text_editor')).toBe('never_allow')
+    expect(findToolPermissionLevel('ask', 'str_replace')).toBe('never_allow')
+    expect(findToolPermissionLevel('readonly', 'developer__apply_patch')).toBe('never_allow')
+    // auto 档下写入口仍然放行（guard 在执行层，不在审批层）
+    expect(findToolPermissionLevel('auto', 'app_workspace_write')).toBe('always_allow')
+    expect(findToolPermissionLevel('ask', 'app_workspace_patch')).toBe('ask_before')
   })
 })
 

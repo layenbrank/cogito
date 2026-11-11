@@ -261,9 +261,30 @@ function isOpaqueShellTool(toolName: string): boolean {
   )
 }
 
-/** 按 composer 审批策略映射 goose 工具权限档 */
+/**
+ * goose 内置文件写工具（S3「沙箱统一」）：任何审批档都是 `never_allow`。
+ *
+ * why：Agent 的文件写只能走 `app_workspace_write` / `app_workspace_patch`——
+ * 那条路有 `.git` 永久拒绝、`.env` / `*.pem` 二次确认、写前快照，以及
+ * 「先 canonicalize 再判授权集」的符号链接防御。goose 自带的 `text_editor` /
+ * `str_replace` / `apply_patch` 直接落盘，把这些闸门全部绕过；而且 `auto` 档
+ * 会无条件放行，靠「询问」也拦不住。所以只能在审批层硬禁用。
+ *
+ * 本地 `app_*` 工具是唯一允许的写入口，自身已有 guard，不受这条限制。
+ */
+const LEGACY_FILE_WRITE_PATTERNS = ['text_editor', 'str_replace', 'apply_patch', 'apply_diff']
+
+function isLegacyFileWriter(toolName: string): boolean {
+  const lower = toolName.toLowerCase()
+  if (lower.includes('app_')) return false
+  return LEGACY_FILE_WRITE_PATTERNS.some(function (needle) {
+    return lower.includes(needle)
+  })
+}
+
 function findToolPermissionLevel(mode: ApprovalMode, toolName: string): ToolPermissionLevel {
   // 无论 ask/auto/readonly：黑盒 shell 一律禁用，强制走 app_terminal_*
+  if (isLegacyFileWriter(toolName)) return 'never_allow'
   if (isOpaqueShellTool(toolName)) return 'never_allow'
   if (mode === 'auto') return 'always_allow'
   if (mode === 'ask') return isWriteTool(toolName) ? 'ask_before' : 'always_allow'
@@ -280,6 +301,7 @@ export {
   findApprovalPolicy,
   findGooseMode,
   findToolPermissionLevel,
+  isLegacyFileWriter,
   isOpaqueShellTool,
   isWriteTool,
   readApprovalMode,

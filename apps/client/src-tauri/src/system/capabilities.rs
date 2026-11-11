@@ -103,9 +103,7 @@ fn variant() -> String {
 fn missing_hint(label: &str, key: &str, full_only: bool, variant: &str) -> String {
     if full_only && variant != "full" {
         // 体积数字按实际打包量级给，不要编精确值
-        format!(
-            "精简版未内置{label}（约 40–90 MB），需要时请安装完整版：设置 → 诊断 → 完整版能力"
-        )
+        format!("精简版未内置{label}（约 40–90 MB），需要时请安装完整版：设置 → 诊断 → 完整版能力")
     } else {
         format!("未找到{label}；请重新安装，或在 设置 → 诊断 里检查安装目录（{key}）")
     }
@@ -228,7 +226,10 @@ mod tests {
         fs::create_dir_all(dir.join("binaries")).expect("建 binaries");
         let target = dir.join("binaries").join("ffmpeg.exe");
         fs::write(&target, b"stub").expect("写桩");
-        let found = find_in_dirs(&[dir.join("nothing"), dir.clone()], &["ffmpeg.exe", "binaries/ffmpeg.exe"]);
+        let found = find_in_dirs(
+            &[dir.join("nothing"), dir.clone()],
+            &["ffmpeg.exe", "binaries/ffmpeg.exe"],
+        );
         assert_eq!(found.as_deref(), Some(target.as_path()));
         let _ = fs::remove_dir_all(&dir);
     }
