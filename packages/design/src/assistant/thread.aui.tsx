@@ -1383,6 +1383,19 @@ const UserTextPart: TextMessagePartComponent = function UserTextPart() {
 const USER_BUBBLE_MAX_HEIGHT_PX = 264
 
 /**
+ * 用户消息正文的 part 渲染表（模块级常量，别写进 JSX）。
+ *
+ * 这是当 props 传下去的：每次渲染新建一个对象，assistant-ui 会认为子组件的
+ * 类型变了，把整批 part 重挂 —— 一条多段正文 + 多图的用户消息在每次父级渲染
+ * 时都会重新解析 Markdown、重新解码图片。切会话时尤其明显：所有用户消息同时重来一遍。
+ */
+const USER_MESSAGE_PART_COMPONENTS = {
+  Text: UserTextPart,
+  File: UserFilePart,
+  Image: UserImagePart
+}
+
+/**
  * 用户气泡正文：长消息**一律封顶 264px 并在框里滚动**，不做展开 / 收起。
  *
  * 高度既然已经限死，多一颗开关只会添乱 —— 它得挂在框的下沿才顺手，而框一长高就把它
@@ -1435,9 +1448,7 @@ const UserMessageBody: FC = () => {
             const node = event.currentTarget
             setAtBottom(node.scrollTop + node.clientHeight >= node.scrollHeight - 1)
           }}>
-          <MessagePrimitive.Parts
-            components={{ Text: UserTextPart, File: UserFilePart, Image: UserImagePart }}
-          />
+          <MessagePrimitive.Parts components={USER_MESSAGE_PART_COMPONENTS} />
         </div>
         {/* 下面还有内容时压一层渐隐，滚到底自动消失 */}
         {overflowing && !atBottom ? (
