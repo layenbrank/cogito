@@ -344,8 +344,9 @@ fn apply_edits(mut text: String, edits: &[Edit]) -> Result<(String, usize), Stri
         let occurrences = text.matches(edit.old_text.as_str()).count();
         if occurrences == 0 {
             return Err(format!(
-                "第 {} 处替换没找到 oldText（文件可能已被改动，请重新读取后再试）",
-                index + 1
+                "第 {} 处替换没找到 oldText。{}",
+                index + 1,
+                describe_miss(&text, &edit.old_text)
             ));
         }
         if occurrences > 1 && !edit.replace_all {
@@ -362,6 +363,48 @@ fn apply_edits(mut text: String, edits: &[Edit]) -> Result<(String, usize), Stri
         applied += 1;
     }
     Ok((text, applied))
+}
+
+/// oldText 没命中时给一条**能照着改**的说明。
+///
+/// 只回「没找到」是最没用的反馈：模型会原样重试十几次，用户看到的就是「工具调用频繁失败」。
+/// 这里区分三种真实原因（换行符不一致 / 空白不一致 / 内容真的变了），并把文件里
+/// 实际的那几行原样带回去 —— 有了它，下一次调用能直接改对。
+fn describe_miss(text: &str, old_text: &str) -> String {
+    let lf_text = text.replace("\r\n", "\n");
+    let lf_old = old_text.replace("\r\n", "\n");
+
+    // 1. 只差换行符：Windows 仓库里文件是 CRLF，而模型给的字符串是 LF
+    if (lf_text != text || lf_old != old_text) && lf_text.contains(&lf_old) {
+        return "原因：只差换行符（文件是 CRLF，oldText 是 LF）。把 oldText 里的换行改成 \\r\\n，或改用不含换行的唯一锚点后重试。".to_string();
+    }
+
+    // 2. 只差空白：缩进 / 行尾空格 / 换行位置不同，压成空白分隔再比一次
+    let squash = |value: &str| value.split_whitespace().collect::<Vec<_>>().join(" ");
+    if squash(&lf_text).contains(&squash(&lf_old)) {
+        return "原因：只差空白（缩进 / 空格 / 换行位置）。改用相邻的唯一单行锚点，或把 oldText 收成不跨行的片段后重试。".to_string();
+    }
+
+    // 3. 内容真的变了：用首行定位，把文件里那一段原文带回去
+    if let Some(anchor) = lf_old
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .map(|line| line.trim().to_string())
+    {
+        if let Some(position) = lf_text.lines().position(|line| line.trim() == anchor) {
+            let snippet: Vec<&str> = lf_text.lines().skip(position).take(3).collect();
+            return format!(
+                "原因：这一处的首行在第 {} 行还在，但上下文已经和 oldText 不一样（文件被改过）。文件里现在是：{}。请按这段原文重写 oldText。",
+                position + 1,
+                snippet.join(" ⏎ ")
+            );
+        }
+        return format!(
+            "原因：连首行「{anchor}」都不在文件里。可能是路径指错了，或文件已被改动，请重新读取后再试。"
+        );
+    }
+
+    "oldText 里没有可定位的内容（全是空白）。".to_string()
 }
 
 /// 写路径守卫：`.git` 永久拒；受保护文件要 `confirm`。
@@ -858,6 +901,26 @@ mod tests {
             guard_for(Path::new("C:/repo/.github/workflow.yml")),
             WriteGuard::Allow
         );
+    }
+
+    /// 没命中时要说清「差在哪」：换行符 / 空白 / 内容被改过
+    #[test]
+    fn edit_miss_explains_the_reason() {
+        let edit = |old: &str| Edit {
+            old_text: old.to_string(),
+            new_text: "x".to_string(),
+            replace_all: false,
+        };
+        let crlf = "第一行\r\n第二行\r\n".to_string();
+
+        let error = apply_edits(crlf.clone(), &[edit("第一行\n第二行")]).unwrap_err();
+        assert!(error.contains("换行符"), "{error}");
+
+        let error = apply_edits(crlf.clone(), &[edit("第一行    第二行")]).unwrap_err();
+        assert!(error.contains("空白"), "{error}");
+
+        let error = apply_edits(crlf, &[edit("第一行\n第三行")]).unwrap_err();
+        assert!(error.contains("第 1 行"), "{error}");
     }
 
     /// 越界写入**不得**先建目录：目录是副作用，写失败也得当没发生
