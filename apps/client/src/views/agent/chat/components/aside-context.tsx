@@ -10,9 +10,13 @@ import { Button } from '@cogito/design/components/button'
 import { Progress } from '@cogito/design/components/progress'
 import { ContextBreakdown } from '@cogito/design/assistant/context-breakdown'
 import { useAssistantLabels } from '@cogito/design/assistant/labels'
+import { useAuiState } from '@assistant-ui/react'
 import { clsx } from 'clsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
+import { AUTO_COMPACT_THRESHOLD } from '@/features/agent/acp/goose-providers'
+import { compactThreadSession, hasThreadSession } from '@/features/agent/acp/session'
 import {
   CONTEXT_SEGMENT_META,
   type ContextLevel,
@@ -23,6 +27,7 @@ import { AsideSection } from './aside-section'
 import { ThinkingEffort } from './thinking-effort'
 import { subscribeAsideContext } from './open-aside-context'
 import { useContextUsageSnapshot } from './use-context-usage.ts'
+import { useSessionThreadID } from './use-session-thread-id'
 
 function formatTokens(tokens: number): string {
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`
@@ -45,9 +50,17 @@ function findTone(key: ContextSegmentKey): string {
 }
 
 function AsideContextSection() {
-  const { used, max, breakdown, level, drilldown, jumpToMessage } = useContextUsageSnapshot()
+  const { used, max, breakdown, level, drilldown, jumpToMessage, windowSource } =
+    useContextUsageSnapshot()
   const labels = useAssistantLabels()
   const [isOpen, updateOpen] = useState(false)
+  const [isCompacting, updateCompacting] = useState(false)
+  // 库内会话 id：ACP session 按它登记；`mainThreadId` 在落库前是草稿 id，
+  // 拿错的后果是压缩按钮永远灰着、点了说「还没有会话」
+  const threadID = useSessionThreadID()
+  const isRunning = useAuiState(function (state) {
+    return state.thread.isRunning
+  })
   const sectionRef = useRef<HTMLDivElement | null>(null)
 
   const ratio = max > 0 ? Math.min(1, used / max) : 0
@@ -170,9 +183,62 @@ function AsideContextSection() {
           </div>
         ) : null}
 
+        {/*
+         * 压缩入口：goose 自己会在阈值处自动压缩，但用户想立刻腾空间时
+         * 没有手动入口 —— `compactThreadSession` 一直存在却没接到 UI 上。
+         *
+         * 「有没有会话」故意不写进 disabled：那是内存里的一次性读，读偏了
+         * 按钮就永远灰着，用户只会当成功能没做（id 用错时的真实表现）。
+         * 真没会话时点一下会把原因说出来。
+         */}
+        <div className="border-border/60 flex items-center justify-between gap-2 border-t pt-2.5">
+          <p className="text-muted-foreground min-w-0 text-[11px] leading-snug">
+            占用达到阈值（cogito 默认写 {Math.round(AUTO_COMPACT_THRESHOLD * 100)}%）时 goose
+            自动压缩；想立刻腾空间就手动压一次。
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            className="h-6 shrink-0 px-2 text-xs"
+            disabled={!threadID || isRunning || isCompacting}
+            title={
+              !threadID
+                ? '当前没有打开的会话'
+                : isRunning
+                  ? '这一轮还在进行中，等它结束再压缩'
+                  : hasThreadSession(threadID)
+                    ? '把已有上下文压成摘要，释放窗口'
+                    : '先发一条消息建立会话，再压缩上下文'
+            }
+            onClick={function () {
+              if (!threadID) return
+              if (!hasThreadSession(threadID)) {
+                toast.info('先发一条消息建立会话，再压缩上下文')
+                return
+              }
+              updateCompacting(true)
+              void compactThreadSession(threadID)
+                .then(function () {
+                  toast.success('上下文已压缩')
+                })
+                .catch(function (error: unknown) {
+                  toast.error(error instanceof Error ? error.message : '压缩失败')
+                })
+                .finally(function () {
+                  updateCompacting(false)
+                })
+            }}>
+            {isCompacting ? '压缩中…' : '压缩上下文'}
+          </Button>
+        </div>
+
         {isOpen ? (
           <p className="text-muted-foreground/80 text-[11px] leading-relaxed">
             窗口占用来自会话统计；分段与「最占」为请求前估算（约 4 字符 ≈ 1 token）。
+            {windowSource === 'preference'
+              ? ' 分母取模型偏好里手动设的窗口（已覆盖 goose 目录值）。'
+              : ''}
           </p>
         ) : null}
       </AsideSection>

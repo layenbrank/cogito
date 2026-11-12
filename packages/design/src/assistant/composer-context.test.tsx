@@ -78,6 +78,44 @@ describe('ComposerContext', function () {
     expect(html).toContain('id="ctx"')
   })
 
+  it('悬停通道不断：面板外层的 pb-2 属于面板，鼠标穿过空隙不会缩回去', function () {
+    const html = markup()
+    // 空隙由外层 padding 撑着，而不是面板自己的 margin
+    expect(html).toContain('pb-2')
+    expect(html).not.toContain('mb-2')
+    // 关着时不吃指针事件，打开时整块（含空隙）都吃 —— 这两条一起才叫「能悬浮」
+    expect(html).toContain('pointer-events-none absolute end-0 bottom-full')
+    expect(html).toContain('group-hover/ctx:pointer-events-auto')
+  })
+
+  it('档位透了色：warn 走琥珀、danger 走红，ok 保持 muted', function () {
+    // 用没到 85% 的用量：元素红线优先，过线就一定是 danger
+    const calm = { system: 10, tools: 4, messages: 30, total: 200 }
+    const warn = markup({ usage: calm, level: 'warn' })
+    expect(warn).toContain('data-level="warn"')
+    expect(warn).toContain('data-state="warn"')
+    expect(warn).toContain('text-amber-600')
+
+    const danger = markup({ usage: calm, level: 'danger' })
+    expect(danger).toContain('data-level="danger"')
+    expect(danger).toContain('text-red-500')
+
+    const ok = markup({ usage: calm, level: 'ok' })
+    expect(ok).toContain('data-level="ok"')
+    expect(ok).not.toContain('text-amber-600')
+  })
+
+  it('段色可换：传 tones 后气泡和右栏那套分段色一致', function () {
+    const html = markup({
+      usage: { system: 10, tools: 4, messages: 30, total: 200 },
+      tones: { system: 'bg-sky-500/80', tools: 'bg-amber-500/80', messages: 'bg-violet-500/80' }
+    })
+    expect(html).toContain('bg-sky-500/80')
+    expect(html).toContain('bg-amber-500/80')
+    expect(html).toContain('bg-violet-500/80')
+    expect(html).not.toContain('bg-foreground/25')
+  })
+
   it('文案走 labels：注入中文后英文不再出现', function () {
     const html = renderToStaticMarkup(
       <AssistantLabelsProvider

@@ -5,7 +5,6 @@
  * 估算挂在常驻组件上，所以先按结构订阅、再 200ms 节流（见 `use-structural-messages`）。
  */
 import type { ModelUsageBreakdown } from '@cogito/design/assistant/context'
-import { useAuiState } from '@assistant-ui/react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 
@@ -27,22 +26,26 @@ import {
   rankMessagesByTokens,
   type ContextMessageCost
 } from '@/features/agent/context-estimate'
+import { FALLBACK_MAX_TOKENS, pickContextWindow } from '@/features/agent/context-window'
+import type { ContextWindowSource } from '@/features/agent/context-window'
+import { findModelPref } from '@/features/agent/model/model-prefs'
 import { appendModeGuidance, readAgentMode, subscribeAgentMode } from '@/features/agent/mode'
 import { findActiveScenario } from '@/features/agent/model/active-scenario'
 import { buildPromptContext } from '@/features/agent/model/prompt-context'
 import { findSystemPrompt } from '@/features/agent/model/prompts'
+import { useProviderStore } from '@/stores/provider'
 
+import { useSessionThreadID } from './use-session-thread-id'
 import { useStructuralThreadMessages } from './use-structural-messages.ts'
-
-/** 还没拿到会话统计时的兜底窗口（与之前 footer 的默认一致） */
-const FALLBACK_MAX_TOKENS = 128_000
 
 interface ContextUsageSnapshot {
   usage: GooseUsage | null
   /** 已用（优先会话统计，没有就是 0） */
   used: number
-  /** 窗口上限（没有会话统计时按 128k 展示） */
+  /** 窗口上限（会话统计为准；模型偏好里调高时以偏好为准） */
   max: number
+  /** 这个分母是哪来的：goose 统计 / 模型偏好 / 兜底 */
+  windowSource: ContextWindowSource
   /** 「12k / 128k」 */
   label: string
   breakdown: ModelUsageBreakdown
@@ -83,9 +86,8 @@ function useThrottledValue<T>(value: T, ms = 200): T {
 }
 
 function useContextUsageSnapshot(): ContextUsageSnapshot {
-  const threadID = useAuiState(function (state) {
-    return state.threads.mainThreadId
-  })
+  // 用量写的是库内会话 id（runThreadPrompt 那条链路），这里必须同样折算
+  const threadID = useSessionThreadID()
   const usage = useSyncExternalStore(subscribeGooseUsage, function () {
     return findGooseUsage(threadID)
   })
@@ -125,10 +127,22 @@ function useContextUsageSnapshot(): ContextUsageSnapshot {
     [messages]
   )
 
+  const provider = useProviderStore(function (state) {
+    return state.providers.find(function (row) {
+      return row.id === state.activeProviderID
+    })
+  })
+  const providerID = provider?.id ?? ''
+  const model = provider?.model?.trim() ?? ''
+  /** 模型偏好里手动设的窗口：goose 静态目录给小了的时候靠它纠正（见 context-window.ts） */
+  const prefWindow = providerID && model ? findModelPref(providerID, model).contextWindow : 0
+  const window = pickContextWindow(usage?.size ?? 0, prefWindow)
+
   const used = usage?.used ?? 0
-  const max = usage && usage.size > 0 ? usage.size : FALLBACK_MAX_TOKENS
+  const max = window.tokens
+  // 分母被偏好覆盖时不能用 goose 的 label：否则气泡写「12k / 128k」、环画的是 1M
   const label =
-    usage && usage.size > 0
+    window.source === 'stats' && usage && usage.size > 0
       ? (formatGooseUsage(usage) ?? '—')
       : `${formatTokenCount(used)} / ${formatTokenCount(max)}`
   const level = contextLevelOf(used, max)
@@ -152,6 +166,7 @@ function useContextUsageSnapshot(): ContextUsageSnapshot {
     usage,
     used,
     max,
+    windowSource: window.source,
     label,
     breakdown,
     segments,

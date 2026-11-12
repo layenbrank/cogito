@@ -18,6 +18,7 @@ import { ComposerContext } from '@cogito/design/assistant/composer-context'
 import { cn } from 'cn'
 import { useSyncExternalStore } from 'react'
 
+import { CONTEXT_SEGMENT_META } from '@/features/agent/context-breakdown'
 import { readAgentMode, subscribeAgentMode } from '@/features/agent/mode'
 import { useActiveWorkspace } from '@/features/agent/workspace/active.ts'
 import { checkoutNow, useWorkspaceGitSnapshot } from '@/features/agent/workspace/git.ts'
@@ -54,17 +55,31 @@ import {
  * 系统 / 工具是请求前估算，`messages` 取 `used - system - tools`，
  * 这样三段之和正好等于会话统计给出的真实占用，环上的比例不会和环里的数字打架。
  */
+function findSegmentTone(key: string): string | undefined {
+  return CONTEXT_SEGMENT_META.find(function (meta) {
+    return meta.key === key
+  })?.tone
+}
+
 function UsageDisplay() {
-  const { used, max, breakdown } = useContextUsageSnapshot()
+  const { used, max, breakdown, level } = useContextUsageSnapshot()
   const system = breakdown.systemTokens ?? 0
   const tools = breakdown.toolTokens ?? 0
   const estimatedMessages = (breakdown.historyTokens ?? 0) + (breakdown.attachmentTokens ?? 0)
   const messages = used > 0 ? Math.max(0, used - system - tools) : estimatedMessages
+  /** 三段色调跟右栏「上下文」卡同一份：气泡与详情不能各说一套颜色 */
+  const tones = {
+    system: findSegmentTone('system'),
+    tools: findSegmentTone('tool'),
+    messages: findSegmentTone('history')
+  }
 
   return (
     <ComposerContext
       // footer 里其余控件都是 h-7：环收一档，整条栏不因它长高 4px
       className="[&>button]:size-7"
+      level={level}
+      tones={tones}
       usage={{
         system: system / 1000,
         tools: tools / 1000,
