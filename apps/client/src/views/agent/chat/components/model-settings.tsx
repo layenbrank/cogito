@@ -291,7 +291,7 @@ function AgentModelSettings(props: ModelSettingsProps) {
   function handleSave() {
     updateSaving(true)
     try {
-      writeModelPrefs(draft)
+      void writeModelPrefs(draft)
       toast.success('已保存模型设置')
       props.onClose()
     } finally {
@@ -308,7 +308,9 @@ function AgentModelSettings(props: ModelSettingsProps) {
       <DialogContent className={styles.modal}>
         <DialogHeader>
           <DialogTitle className={styles.title}>模型设置</DialogTitle>
-          <DialogDescription className={styles.desc}>对所有任务生效；运行中的回复保持当前设置。</DialogDescription>
+          <DialogDescription className={styles.desc}>
+            对所有任务生效；运行中的回复保持当前设置。
+          </DialogDescription>
         </DialogHeader>
 
         {rows.length === 0 ? (

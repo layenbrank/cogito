@@ -2,10 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { findAcpHandle } from '@/features/agent/acp/connection'
-import {
-  COGITO_PROVIDER_ID,
-  syncCogitoGatewayCatalog
-} from '@/features/agent/acp/cogito-provider'
+import { COGITO_PROVIDER_ID, syncCogitoGatewayCatalog } from '@/features/agent/acp/cogito-provider'
 import {
   checkAcpReadiness,
   enableAcpProvider,
@@ -159,7 +156,9 @@ function useModelInventory() {
 
     updateFormValues(initial)
     const model = findEntryModel(entry, initial)
-    updateEditorThinking(model ? findModelPref(entry.providerId, model).thinking : MODEL_PREF.thinking)
+    updateEditorThinking(
+      model ? findModelPref(entry.providerId, model).thinking : MODEL_PREF.thinking
+    )
   }
 
   function patchField(name: string, value: string) {
@@ -210,7 +209,7 @@ function useModelInventory() {
       if (model) {
         const key = findModelKey(active.providerId, model)
         const prefs = readModelPrefs()
-        writeModelPrefs({
+        void writeModelPrefs({
           ...prefs,
           [key]: { ...(prefs[key] ?? MODEL_PREF), thinking: editorThinking }
         })

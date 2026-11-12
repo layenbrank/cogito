@@ -53,16 +53,19 @@ import { clearGooseUsage, writeGooseUsage } from '@/features/agent/acp/goose-usa
 import {
   fetchSessionTools,
   saveDefaults,
-  saveTemperature
+  saveTemperature,
+  saveThinkingEffort
 } from '@/features/agent/acp/goose-providers'
 import { syncSessionApprovalMode } from '@/features/agent/acp/sync-approval-mode'
-import {
-  bindSession,
-  readBinding,
-  unbindSession
-} from '@/features/agent/acp/session-binding'
+import { bindSession, readBinding, unbindSession } from '@/features/agent/acp/session-binding'
 import { isWriteTool } from '@/features/agent/approval'
 import { findEffectiveApprovalMode } from '@/features/agent/effective-approval'
+import {
+  recordThinkingApplied,
+  recordThinkingCapability
+} from '@/features/agent/model/thinking-capability'
+import { resolveThinkingValue } from '@/features/agent/model/thinking-effort-map'
+import { findModelKey, findModelPref } from '@/features/agent/model/model-prefs'
 import { clearRunState, markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
 import { verifyAgentTools } from '@/features/agent/agent-tools'
 import type { AgentToolServer } from '@/features/agent/agent-tools'
@@ -70,6 +73,8 @@ import { notifyTurnDone } from '@/features/agent/notify'
 import { readGoalRun } from '@/features/agent/goal-run'
 import { readAgentModeFor } from '@/features/agent/mode'
 import { findPref } from '@/features/persist'
+import type { ThinkingLevel } from '@/features/persist'
+import { readThinkingLevelFor } from '@/features/agent/thinking-level'
 import {
   parseAcpApprovalRequest,
   parseAcpElicitationRequest,
@@ -81,10 +86,7 @@ import {
 import { parseModels, stringifyModels } from '@/features/agent/model/providers'
 import { toGooseTemperature } from '@/features/agent/model/tuning'
 import { CHANNELS, EVENTS } from '@/shared/ipc/channels'
-import {
-  GOOSE_STATUS_EVENT,
-  GooseStatusSchema
-} from '@/shared/ipc/specs/gooseStatus'
+import { GOOSE_STATUS_EVENT, GooseStatusSchema } from '@/shared/ipc/specs/gooseStatus'
 import type { GooseStatus } from '@/shared/ipc/specs/gooseStatus'
 import { BridgeInfoSchema } from '@/shared/ipc/specs/bridge'
 import { StatusSchema } from '@/shared/ipc/specs/sidecar'
@@ -1004,6 +1006,8 @@ async function ensureThreadSession(
     } catch (error) {
       console.warn('[acp/session] 重同步审批 mode 失败:', error)
     }
+    // 每轮都对齐一次思考档：用户可能刚在右栏 / composer 改了档，或换了模型
+    await applyGooseThinking(threadID, cached.providerID, cached.modelID)
     return cached
   }
 
@@ -1014,9 +1018,13 @@ async function ensureThreadSession(
     forgetThreadSession(cached)
   }
 
+  // 任务钉了思考强度时，全局键要在建会话**之前**落下：会话不会回溯已建好的默认值
+  const override = readThinkingLevelFor(threadID)
+  if (override) await preloadThinkingEffort(handle.connection, override)
   const opened = await openThreadSession(threadID, cwd, providerID, modelID)
   sessionByThread.set(threadID, opened)
   void verifyToolSurface(opened)
+  await applyGooseThinking(threadID, opened.providerID, opened.modelID)
   return opened
 }
 
@@ -1616,6 +1624,149 @@ async function applyGooseTemperature(temperature: number): Promise<void> {
   }
 }
 
+/**
+ * 会话里跟「思考」有关的那个选择项。
+ *
+ * goose 的 ACP session 会把可选项铺在 `configOptions` 里；不同版本/供应商的 id
+ * 可能是 `thinking_effort`、`reasoning_effort` 或挂在 category 上 —— 只认语义，
+ * 不按死 id 匹配，否则换一个 provider 就整块失效。
+ */
+function findThinkingOption(
+  configOptions: SessionConfigOption[] | null
+): (SessionConfigOption & { type: 'select' }) | null {
+  if (!configOptions?.length) return null
+  for (const option of configOptions) {
+    if (option.type !== 'select') continue
+    const label = `${option.id} ${option.category ?? ''}`.toLowerCase()
+    if (label.includes('thinking') || label.includes('reasoning')) return option
+  }
+  return null
+}
+
+/** 上一次写进 goose 全局键的值：没变就不重复 upsert（每轮都会走这里） */
+let lastThinkingEffort: string | null = null
+
+/**
+ * 在**建会话之前**把思考强度写进 goose 全局键。
+ *
+ * 全局键只对新会话生效，而 `applyGooseThinking` 是在会话建好之后才跑的：
+ * 模型没有暴露 thinking 选择项时（DeepSeek 这类），光靠它就永远差一步。
+ * 定时任务每轮都是新会话，必须在 `openThreadSession` 之前先落下这一档。
+ */
+async function preloadThinkingEffort(
+  connection: ClientConnection,
+  level: ThinkingLevel
+): Promise<void> {
+  if (lastThinkingEffort === level) return
+  try {
+    await saveThinkingEffort(connection, level)
+    lastThinkingEffort = level
+  } catch (error) {
+    // 与 applyGooseThinking 同策略：软参数不挡执行
+    console.warn('[acp/session] 预置思考强度失败（本轮继续）:', error)
+  }
+}
+
+/**
+ * 把当前模型的思考档位真正落到 goose。
+ *
+ * 以前只写 `agent.json`：界面显示「关闭」，模型其实一直按供应商默认（DeepSeek 是 high）
+ * 在思考。两处都要写，缺一处就会「界面变了、模型没变」：
+ * - 全局键 `GOOSE_THINKING_EFFORT`（对**新**会话生效）；
+ * - 已开会话 `configOptions` 里的 thinking 选择项（**本轮**就生效），并把会话给出的
+ *   可选值记进 `thinking-capability` —— 那是「这个模型能调到哪几档」唯一的真凭据。
+ *
+ * 与温度同策略：软参数不挡发送，失败只 warn 并返回 null。
+ */
+async function applyGooseThinking(
+  threadID: string,
+  providerID: string,
+  modelID?: string | null,
+  override?: ThinkingLevel | null
+): Promise<string | null> {
+  const model = modelID?.trim() ?? ''
+  const key = findModelKey(providerID, model)
+  try {
+    // 任务（定时执行）可以在这一轮钉死档位：显式 override → thread 覆盖 → 用户对该模型的偏好。
+    // 前两者都不回写 `agent.json`，后台任务不该改掉前台的模型手感。
+    const level =
+      override ?? readThinkingLevelFor(threadID) ?? findModelPref(providerID, model).thinking
+    await waitGooseReady()
+    const handle = await findAcpHandle()
+    const thread = sessionByThread.get(threadID.trim())
+    const option = findThinkingOption(thread?.configOptions ?? null)
+    const available = option
+      ? flattenSelectOptions(option.options).map(function (item) {
+          return item.value
+        })
+      : null
+    if (available?.length) recordThinkingCapability(key, available)
+
+    const dispatch = resolveThinkingValue(level, available)
+    // 全局键只写 cogito 的五档：`GOOSE_THINKING_EFFORT` 的枚举就是这五个，
+    // 供应商侧的别名（`none` / `xhigh`）只用于会话内的选择项。
+    if (lastThinkingEffort !== level) {
+      await saveThinkingEffort(handle.connection, level)
+      lastThinkingEffort = level
+    }
+
+    // 只在真的命中会话给出的可选值时下 set：goose 对不认识的 effort 会直接拒绝，
+    // 硬塞会连累后面的回执（而且用户要的档位并没有被满足）。
+    const canSetOption = Boolean(option) && dispatch.matched
+    if (thread && option && canSetOption && option.currentValue !== dispatch.value) {
+      const response = await handle.connection.agent.request(
+        methods.agent.session.setConfigOption,
+        {
+          sessionId: thread.acpSessionID,
+          configId: option.id,
+          value: dispatch.value
+        }
+      )
+      thread.configOptions = response.configOptions ?? thread.configOptions
+    }
+
+    // 有会话选项时以它为准（那才是模型真的收到的值），否则只能算「写进了全局键」
+    const viaSession = canSetOption
+    const applied = viaSession ? dispatch.value : level
+    recordThinkingApplied(key, applied, viaSession ? 'session' : 'global')
+    return applied
+  } catch (error) {
+    console.warn('[acp/session] 思考强度同步跳过:', error)
+    return null
+  }
+}
+
+/**
+ * 把某个模型的思考档位立刻推给它**所有已经开着的会话**。
+ *
+ * composer 那一层刻意不挂 AUI 上下文（要能在单测 / 别的壳里独立渲染），拿不到
+ * threadID；但档位是按模型存的，凡是正在用这个模型的会话都该立刻对齐 ——
+ * 让用户以为「改完要等下一轮」本身就是个缺陷。
+ *
+ * 一个会话都没开也要走一趟：至少把全局键写掉，新会话才带得上。
+ */
+async function applyThinkingToOpenSessions(
+  providerID: string,
+  modelID?: string | null
+): Promise<void> {
+  const model = modelID?.trim() ?? ''
+  const targets: string[] = []
+  sessionByThread.forEach(function (thread, threadID) {
+    if (thread.providerID !== providerID) return
+    if (model && thread.modelID !== model) return
+    targets.push(threadID)
+  })
+  if (targets.length === 0) {
+    await applyGooseThinking('', providerID, model)
+    return
+  }
+  await Promise.all(
+    targets.map(function (threadID) {
+      return applyGooseThinking(threadID, providerID, model)
+    })
+  )
+}
+
 /** 会话是否已经建过（UI 用它决定「压缩」是否可用，避免无 session 时白跑一趟） */
 function hasThreadSession(threadID: string): boolean {
   return sessionByThread.has(threadID)
@@ -1825,7 +1976,9 @@ function findThreadAcpSessionID(threadID: string): string | null {
 }
 
 export {
+  applyGooseThinking,
   applyGooseTemperature,
+  applyThinkingToOpenSessions,
   clearThreadSessions,
   closeThreadSession,
   compactThreadSession,

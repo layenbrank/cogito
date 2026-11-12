@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   countReasoningTokens,
+  countTurnReasoningTokens,
   estimateContextBreakdown,
   rankMessagesByTokens
 } from './context-estimate'
@@ -74,7 +75,11 @@ describe('estimateContextBreakdown', function () {
 })
 
 describe('rankMessagesByTokens', function () {
-  function cost(id: string, role: 'user' | 'assistant', content: readonly unknown[]): ThreadMessage {
+  function cost(
+    id: string,
+    role: 'user' | 'assistant',
+    content: readonly unknown[]
+  ): ThreadMessage {
     return {
       id,
       role,
@@ -128,12 +133,56 @@ describe('countReasoningTokens', function () {
   })
 
   it('跨消息累加，不足一个 token 也向上取整', function () {
-    const messages = [message([{ type: 'reasoning', text: 'abc' }]), message([{ type: 'reasoning', text: 'abc' }])]
+    const messages = [
+      message([{ type: 'reasoning', text: 'abc' }]),
+      message([{ type: 'reasoning', text: 'abc' }])
+    ]
     expect(countReasoningTokens(messages)).toBe(2)
   })
 
   it('没有思考时是 0', function () {
     expect(countReasoningTokens([])).toBe(0)
     expect(countReasoningTokens([message([textPart('hi')])])).toBe(0)
+  })
+})
+
+describe('countTurnReasoningTokens', function () {
+  function turn(
+    id: string,
+    role: 'user' | 'assistant',
+    content: readonly unknown[]
+  ): ThreadMessage {
+    return {
+      id,
+      role,
+      content,
+      createdAt: new Date(0),
+      status: { type: 'complete', reason: 'unknown' }
+    } as unknown as ThreadMessage
+  }
+
+  it('只数最后一条用户消息之后的思考：历史轮次不再重复计入', function () {
+    const messages = [
+      turn('u1', 'user', [textPart('第一轮')]),
+      turn('a1', 'assistant', [{ type: 'reasoning', text: 'x'.repeat(4_000) }]),
+      turn('u2', 'user', [textPart('第二轮')]),
+      turn('a2', 'assistant', [{ type: 'reasoning', text: 'x'.repeat(400) }])
+    ]
+    // 只有第二轮那 400 字符计进来；第一轮的 4000 字符不能把仪表顶死在 100%
+    expect(countTurnReasoningTokens(messages)).toBe(100)
+  })
+
+  it('一次 run 多条 assistant（工具往返）算同一轮', function () {
+    const messages = [
+      turn('u1', 'user', [textPart('hi')]),
+      turn('a1', 'assistant', [{ type: 'reasoning', text: 'x'.repeat(400) }]),
+      turn('a2', 'assistant', [{ type: 'reasoning', text: 'x'.repeat(400) }])
+    ]
+    expect(countTurnReasoningTokens(messages)).toBe(200)
+  })
+
+  it('没有思考 / 空线程时是 0', function () {
+    expect(countTurnReasoningTokens([])).toBe(0)
+    expect(countTurnReasoningTokens([turn('a1', 'assistant', [textPart('hi')])])).toBe(0)
   })
 })

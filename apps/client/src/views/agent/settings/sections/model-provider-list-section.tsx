@@ -43,19 +43,17 @@ function ProviderListSection(props: {
   onOpenUpdate: (entry: GooseProviderEntry) => void
 }) {
   /** 思考强度草稿：写入 agent.json 的同时保留即时反馈（pref 本身不可订阅） */
-  const [thinkingDraft, updateThinkingDraft] = useState<Record<string, ThinkingLevel>>(
-    function () {
-      const prefs = readModelPrefs()
-      const next: Record<string, ThinkingLevel> = {}
-      for (const key of Object.keys(prefs)) next[key] = prefs[key].thinking
-      return next
-    }
-  )
+  const [thinkingDraft, updateThinkingDraft] = useState<Record<string, ThinkingLevel>>(function () {
+    const prefs = readModelPrefs()
+    const next: Record<string, ThinkingLevel> = {}
+    for (const key of Object.keys(prefs)) next[key] = prefs[key].thinking
+    return next
+  })
 
   function writeThinking(providerID: string, model: string, level: ThinkingLevel) {
     const key = findModelKey(providerID, model)
     const prefs = readModelPrefs()
-    writeModelPrefs({ ...prefs, [key]: { ...(prefs[key] ?? MODEL_PREF), thinking: level } })
+    void writeModelPrefs({ ...prefs, [key]: { ...(prefs[key] ?? MODEL_PREF), thinking: level } })
     updateThinkingDraft(function (prev) {
       return { ...prev, [key]: level }
     })
@@ -96,12 +94,12 @@ function ProviderListSection(props: {
                 : null
             const status = props.probeStatus[entry.providerId]
             const activeModel = storeRow?.model ?? entry.defaultModel ?? models[0] ?? null
-            const thinkingKey = activeModel
-              ? findModelKey(entry.providerId, activeModel)
-              : ''
+            const thinkingKey = activeModel ? findModelKey(entry.providerId, activeModel) : ''
             const thinking =
               thinkingDraft[thinkingKey] ??
-              (activeModel ? findModelPref(entry.providerId, activeModel).thinking : MODEL_PREF.thinking)
+              (activeModel
+                ? findModelPref(entry.providerId, activeModel).thinking
+                : MODEL_PREF.thinking)
 
             return (
               <div
@@ -205,9 +203,7 @@ function ProviderListSection(props: {
                       }
                       className="size-3.5"
                     />
-                    {isCursorAgentProviderId(entry.providerId)
-                      ? 'CLI 说明'
-                      : '更新 API Key'}
+                    {isCursorAgentProviderId(entry.providerId) ? 'CLI 说明' : '更新 API Key'}
                   </Button>
                 </div>
               </div>

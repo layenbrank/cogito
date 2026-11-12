@@ -47,7 +47,11 @@ function measurePart(part: ThreadMessage['content'][number]): PartCost {
         : typeof part.result === 'string'
           ? part.result
           : JSON.stringify(part.result)
-    cost = { history: 0, tool: part.toolName.length + 1 + args.length + 1 + result.length, attachment: 0 }
+    cost = {
+      history: 0,
+      tool: part.toolName.length + 1 + args.length + 1 + result.length,
+      attachment: 0
+    }
   } else if (part.type === 'image' || part.type === 'file' || part.type === 'audio') {
     const name = 'filename' in part && typeof part.filename === 'string' ? part.filename : part.type
     cost = { history: 0, tool: 0, attachment: name.length }
@@ -120,7 +124,7 @@ function previewOf(message: CostMessage): string {
  * 不会超过分段色条里 history + tool + attachment 的总量。
  */
 /**
- * 当前线程里「思考」占了多少估算 token。
+ * 整条线程里「思考」占了多少估算 token（累计口径）。
  *
  * 仪表（`thinking-effort`）需要的是**思考本身**的量，不是上下文总量：
  * 所以只数 reasoning part，并且和 `estimateContextBreakdown` 用同一套字符启发式
@@ -136,10 +140,28 @@ function countReasoningTokens(messages: readonly CostMessage[]): number {
   return Math.ceil(chars / 4)
 }
 
-function rankMessagesByTokens(
-  messages: readonly CostMessage[],
-  limit = 5
-): ContextMessageCost[] {
+/**
+ * 本轮（最后一条用户消息之后）的思考 token。
+ *
+ * 仪表要的是「这一轮花了多少」，不是「这个会话一共花了多少」：档位预算是**单轮**
+ * 量级（4k / 8k / 16k / 32k），拿全线程累计去比，第二轮就必然把进度条顶满，
+ * 条子从此一直停在 100% —— 那就不是仪表了。
+ *
+ * 一次 run 可能产出多条 assistant 消息（工具往返），所以口径是「最后一条 user 之后的
+ * 全部 reasoning」，不是「最后一条 message」。
+ */
+function countTurnReasoningTokens(messages: readonly CostMessage[]): number {
+  let chars = 0
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.role === 'user') break
+    for (const part of message.content) {
+      if (part.type === 'reasoning') chars += textLength(part.text)
+    }
+  }
+  return Math.ceil(chars / 4)
+}
+function rankMessagesByTokens(messages: readonly CostMessage[], limit = 5): ContextMessageCost[] {
   const costs: ContextMessageCost[] = []
   for (const message of messages) {
     let chars = 0
@@ -161,5 +183,11 @@ function rankMessagesByTokens(
   return costs.slice(0, Math.max(0, limit))
 }
 
-export { countReasoningTokens, estimateContextBreakdown, estimateTokens, rankMessagesByTokens }
+export {
+  countReasoningTokens,
+  countTurnReasoningTokens,
+  estimateContextBreakdown,
+  estimateTokens,
+  rankMessagesByTokens
+}
 export type { ContextMessageCost }

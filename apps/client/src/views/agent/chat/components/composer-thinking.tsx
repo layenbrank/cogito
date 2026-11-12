@@ -7,29 +7,49 @@
  *
  * 模型不支持思考（`canThink` 为假）时整块不渲染：宁可不出现，
  * 也不摆一个点了没反应的禁用项 —— 会让人以为是自己没配对。
+ *
+ * 浮层外观与「执行模式」弹框同一套（`approval-switch.module.scss`：无边框 + 软阴影壳 +
+ * 图标/标题/说明/勾选四件套）：选中态靠行尾的勾，**不用 radio 圈** ——
+ * 圆圈在菜单里既是单选记号又像未完成的空状态，和旁边真正的开关读起来像两种控件。
  */
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuTrigger
 } from '@cogito/design/components/dropdown-menu'
 import { cn } from 'cn'
 import { useState } from 'react'
 
+import { applyThinkingToOpenSessions } from '@/features/agent/acp/session'
 import {
   canThink,
   findModelKey,
-  findModelPref,
   THINKING_OPTIONS,
+  useModelThinking,
   writeModelThinking
 } from '@/features/agent/model/model-prefs'
+import { useThinkingCapability } from '@/features/agent/model/thinking-capability'
+import { resolveThinkingValue } from '@/features/agent/model/thinking-effort-map'
 import type { ThinkingLevel } from '@/features/persist'
 import { useProviderStore } from '@/stores/provider'
+
+// 与执行模式 / 审批选择器共用同一个浮层壳（无边框 + 软阴影）
+import styles from './approval-switch.module.scss'
+
+/**
+ * 档位 → 行首图标：和执行模式弹框一样，每行一个语义图标。
+ * 「关」用断电、「极致」用火苗，档位高低一眼能排出来，不需要再画刻度。
+ */
+const LEVEL_ICONS: Record<ThinkingLevel, string> = {
+  off: 'lucide:power-off',
+  low: 'lucide:feather',
+  medium: 'lucide:brain',
+  high: 'lucide:zap',
+  max: 'lucide:flame'
+}
 
 function ComposerThinking() {
   const activeProvider = useProviderStore(function (state) {
@@ -37,42 +57,48 @@ function ComposerThinking() {
       return provider.id === state.activeProviderID && provider.enabled
     })
   })
-  /** 刚点过、还没被别处读到的档位；菜单重开时清空，重新以 agent.json 为准 */
-  const [draft, updateDraft] = useState<Record<string, ThinkingLevel>>({})
   const [open, updateOpen] = useState(false)
 
   const providerID = activeProvider?.id ?? ''
   const model = activeProvider?.model?.trim() ?? ''
-  // 没有模型、或模型名字看不出推理家族时，这个入口没有意义
-  const supported = Boolean(providerID && model) && canThink(model)
-
   const key = findModelKey(providerID, model)
-  const selected = draft[key] ?? findModelPref(providerID, model).thinking
+  // 会话真给过 thinking 选项就以它为准；还没建过会话时才退回名字启发式
+  const capability = useThinkingCapability(key)
+  const supported = Boolean(providerID && model) && (capability ? true : canThink(model))
+
+  /**
+   * 订阅偏好本身，而不是自己存一份 draft：右栏仪表改的是同一档，
+   * 以前这里不重渲染、按钮上还写着旧档位；现在两边同源，改一处两处一起变。
+   */
+  const selected = useModelThinking(providerID, model)
   const option =
     THINKING_OPTIONS.find(function (item) {
       return item.value === selected
     }) ?? THINKING_OPTIONS[0]
+  /** 这一档到模型那儿会变成什么：菜单里如实写出来，避免「点了没差别」 */
+  const dispatch = resolveThinkingValue(selected, capability?.values ?? null)
 
   if (!supported) return null
 
-  function openMenu(next: boolean) {
-    // 打开时清掉草稿：设置弹窗里可能刚改过同一份偏好，别让旧值盖住磁盘
-    if (next) updateDraft({})
-    updateOpen(next)
-  }
-
   function select(next: ThinkingLevel) {
     if (!providerID || !model) return
-    writeModelThinking(providerID, model, next)
-    updateDraft(function (previous) {
-      return { ...previous, [key]: next }
+    // 与右栏仪表同一份偏好：写完之后广播，两边同时变。
+    // 下发也一起做 —— 这一层刻意不挂 AUI 上下文（要能在单测 / 别的壳里渲染），
+    // 拿不到 threadID，所以按模型推给它所有开着的会话。
+    // 先等写完再下发：applyGooseThinking 读的就是这份偏好，差一个 tick 就会推上一档出去。
+    void Promise.resolve(writeModelThinking(providerID, model, next)).then(function () {
+      return applyThinkingToOpenSessions(providerID, model)
     })
   }
+
+  const dispatchNote = capability
+    ? `实际下发：${dispatch.value}${dispatch.degraded ? '（本模型没有这一档，落到了相邻档）' : ''}`
+    : '发过一条消息后，这里会显示该模型实际接受哪些档位。'
 
   return (
     <DropdownMenu
       open={open}
-      onOpenChange={openMenu}>
+      onOpenChange={updateOpen}>
       <DropdownMenuTrigger
         render={
           <Button
@@ -103,40 +129,46 @@ function ComposerThinking() {
         align="end"
         side="top"
         sideOffset={8}
-        className="w-64">
-        {/* Label 是 base-ui GroupLabel：脱离 Group 会抛 MenuGroupContext is missing */}
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>思考强度</DropdownMenuLabel>
-          <p className="text-muted-foreground px-2 pb-1 text-[11px] leading-snug">
+        className={styles.surface}>
+        {THINKING_OPTIONS.map(function (item) {
+          const active = item.value === selected
+          return (
+            <DropdownMenuItem
+              key={item.value}
+              className={styles.row}
+              onClick={function () {
+                select(item.value)
+              }}>
+              <Icon
+                icon={LEVEL_ICONS[item.value]}
+                className={styles.icon}
+              />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className={styles.label}>{item.label}</span>
+                <span className={styles.hint}>{item.hint}</span>
+              </span>
+              {active ? (
+                <Icon
+                  icon="lucide:check"
+                  className={styles.check}
+                />
+              ) : (
+                <span className={styles.checkSlot} />
+              )}
+            </DropdownMenuItem>
+          )
+        })}
+
+        {/* 与执行模式弹框的脚注同一位置同一字号：这里解释的是「你选的这档实际变成了什么」 */}
+        <div className="border-border/70 mt-1 flex flex-col gap-1 border-t px-2 pt-2 pb-1">
+          <p className="text-muted-foreground/80 text-[11px] leading-snug">{dispatchNote}</p>
+          <p className="text-muted-foreground/80 text-[11px] leading-snug">
             档位越高，回答前推演越多、也越慢；按模型保存，换模型互不影响。
           </p>
-          {THINKING_OPTIONS.map(function (item) {
-            const active = item.value === selected
-            return (
-              <DropdownMenuItem
-                key={item.value}
-                className="gap-2"
-                onClick={function () {
-                  select(item.value)
-                }}>
-                <Icon
-                  icon={active ? 'lucide:check' : 'lucide:circle'}
-                  className={cn(
-                    'size-3.5 shrink-0',
-                    active ? 'text-primary' : 'text-muted-foreground/40'
-                  )}
-                />
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="text-[13px]">{item.label}</span>
-                  <span className="text-muted-foreground text-[11px]">{item.hint}</span>
-                </span>
-              </DropdownMenuItem>
-            )
-          })}
-        </DropdownMenuGroup>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   )
 }
 
-export { ComposerThinking }
+export { ComposerThinking, LEVEL_ICONS }

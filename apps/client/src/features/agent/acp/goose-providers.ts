@@ -19,6 +19,9 @@ const GOOSE_TOOLS_PERMISSIONS_SET = '_goose/unstable/tools/permissions/set'
 const CONFIG_AUTO_COMPACT_THRESHOLD = 'GOOSE_AUTO_COMPACT_THRESHOLD'
 const AUTO_COMPACT_THRESHOLD = 0.8
 const CONFIG_TEMPERATURE = 'GOOSE_TEMPERATURE'
+/** 思考强度：goose 全局键，枚举 off/low/medium/high/max（与 cogito 五档同名） */
+const CONFIG_THINKING_EFFORT = 'GOOSE_THINKING_EFFORT'
+const THINKING_EFFORTS = ['off', 'low', 'medium', 'high', 'max'] as const
 
 const INVENTORY_POLL_MS = 100
 const INVENTORY_TIMEOUT_MS = 30_000
@@ -370,6 +373,32 @@ async function saveTemperature(connection: ClientConnection, temperature: number
   })
 }
 
+/** 读已配置的思考强度（未配置返回 null，表示走模型默认） */
+async function fetchThinkingEffort(connection: ClientConnection): Promise<string | null> {
+  const response = asWire(
+    await connection.agent.request<unknown>(GOOSE_CONFIG_READ, {
+      key: CONFIG_THINKING_EFFORT,
+      isSecret: false
+    })
+  )
+  const value = response.value
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+/** 写思考强度（goose 全局配置，对新会话生效）；取值不在五档内直接拒绝，不写脏数据 */
+async function saveThinkingEffort(connection: ClientConnection, effort: string): Promise<void> {
+  const value = effort.trim().toLowerCase()
+  const allowed = THINKING_EFFORTS.some(function (item) {
+    return item === value
+  })
+  if (!allowed) throw new Error(`GOOSE_THINKING_EFFORT 只接受 ${THINKING_EFFORTS.join('/')}`)
+  await connection.agent.request(GOOSE_CONFIG_UPSERT, {
+    key: CONFIG_THINKING_EFFORT,
+    value,
+    isSecret: false
+  })
+}
+
 /** 工具权限档：goose `ToolPermissionLevel`（snake_case wire 值） */
 type ToolPermissionLevel = 'always_allow' | 'ask_before' | 'never_allow'
 
@@ -411,6 +440,7 @@ export {
   checkAcpReadiness,
   CONFIG_AUTO_COMPACT_THRESHOLD,
   CONFIG_TEMPERATURE,
+  CONFIG_THINKING_EFFORT,
   enableAcpProvider,
   ensureAutoCompactThreshold,
   fetchAutoCompactThreshold,
@@ -421,6 +451,7 @@ export {
   fetchProviderModels,
   fetchSessionTools,
   fetchTemperature,
+  fetchThinkingEffort,
   findConfiguredProviders,
   findSettingsProviders,
   findSetupProviders,
@@ -430,6 +461,7 @@ export {
   saveDefaults,
   saveProviderConfig,
   saveTemperature,
+  saveThinkingEffort,
   writeToolPermissions
 }
 export type {

@@ -2,6 +2,8 @@
  * 模型偏好：思考强度 / 显示 / 上下文窗口（agent.json）
  */
 
+import { useSyncExternalStore } from 'react'
+
 import { findPref, patchPref } from '@/features/persist'
 import type { ModelPref, ThinkingLevel } from '@/features/persist'
 
@@ -41,23 +43,73 @@ function readModelPrefs(): Record<string, ModelPref> {
   return findPref('agent').modelPrefs
 }
 
-function writeModelPrefs(prefs: Record<string, ModelPref>) {
-  void patchPref('agent', { modelPrefs: prefs })
+function writeModelPrefs(prefs: Record<string, ModelPref>): Promise<void> {
+  return patchPref('agent', { modelPrefs: prefs }).then(function () {
+    // 落盘之后广播：读偏好的那几处（composer / 右栏 / 设置）一起重渲染
+    emitModelPrefs()
+  })
 }
 
 /**
  * 改单个模型的思考档位并落盘（整表写回，其他模型的项原样带回去）。
- * 模型选择器与右栏仪表共用这一处，避免两边各写一遍「展开-改-合并」。
+ *
+ * 三个入口共用这一处：模型选择器、右栏仪表、composer 浮层。
+ * 返回 Promise 不只为「写完了」—— `applyGooseThinking` 读的是内存里的偏好，
+ * 调用方必须等这次写入进了 cache 再下发，否则推给 goose 的还是**上一档**：
+ * 界面写着「深入」、模型收到的却是「标准」，这种错位最难查。
  */
-function writeModelThinking(providerID: string, model: string, thinking: ThinkingLevel) {
+function writeModelThinking(
+  providerID: string,
+  model: string,
+  thinking: ThinkingLevel
+): Promise<void> {
   const prefs = readModelPrefs()
   const key = findModelKey(providerID, model)
-  writeModelPrefs({ ...prefs, [key]: { ...(prefs[key] ?? { ...MODEL_PREF }), thinking } })
+  return writeModelPrefs({ ...prefs, [key]: { ...(prefs[key] ?? { ...MODEL_PREF }), thinking } })
 }
 
 function findModelPref(providerID: string, model: string, prefs?: Record<string, ModelPref>) {
   const map = prefs ?? readModelPrefs()
   return map[findModelKey(providerID, model)] ?? { ...MODEL_PREF }
+}
+
+/**
+ * 思考档位是**跨组件共享**的状态：composer 浮层、右栏仪表、设置弹窗改的都是同一份。
+ *
+ * 但 `findPref` 只是内存 cache 的普通读函数，没有订阅 —— 一处写完，另一处不会重渲染，
+ * 于是「composer 里选了深入，右栏还写着标准」。这里补一个极小的广播：写偏好时 emit，
+ * 读偏好的组件用 `useModelThinking` 订阅，两边永远同一份值。
+ */
+const listeners = new Set<() => void>()
+
+function subscribeModelPrefs(listener: () => void): () => void {
+  listeners.add(listener)
+  return function () {
+    listeners.delete(listener)
+  }
+}
+
+function emitModelPrefs(): void {
+  listeners.forEach(function (listener) {
+    try {
+      listener()
+    } catch (error) {
+      console.warn('[model-prefs] 订阅回调抛错:', error)
+    }
+  })
+}
+
+/**
+ * 订阅某个模型的思考档位。
+ *
+ * `getSnapshot` 返回字符串（primitive），`useSyncExternalStore` 按值比较即可，
+ * 不会因为 `findPref` 每次 `structuredClone` 出新对象而无限重渲染。
+ */
+function useModelThinking(providerID: string, model: string): ThinkingLevel {
+  function snapshot() {
+    return findModelPref(providerID, model).thinking
+  }
+  return useSyncExternalStore(subscribeModelPrefs, snapshot, snapshot)
 }
 
 /**
@@ -129,7 +181,9 @@ export {
   findNearestContext,
   MODEL_PREF,
   readModelPrefs,
+  subscribeModelPrefs,
   THINKING_OPTIONS,
+  useModelThinking,
   writeModelPrefs,
   writeModelThinking
 }
