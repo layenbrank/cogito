@@ -30,16 +30,17 @@ import '@/styles/tailwind.css'
 import '@/styles/index.scss'
 
 import ProviderLogos from '@cogito/shared/provider-logos.json'
-import AntIconify from '@iconify/json/json/ant-design.json'
-import LucideIconify from '@iconify/json/json/lucide.json'
-import MDIconify from '@iconify/json/json/mdi.json'
+// 图标子集：只含仓库真正引用的那几个图标（`pnpm icons` 生成，139 KB 左右）。
+// 这里曾经整包 addCollection 三套官方全集（mdi + ant-design + lucide ≈ 4.5 MB JSON），
+// 全部落在启动路径上：首帧要等几千个用不到的图标下载、解析。
+import IconSubset from '@/assets/iconify-subset.json'
 
 /** React 生成 DOM id 的前缀，避免与页面既有 id 冲突 */
 const IDENTIFIER_PREFIX = 'cogito'
 
-addCollection(MDIconify)
-addCollection(AntIconify)
-addCollection(LucideIconify)
+for (const collection of IconSubset) {
+  addCollection(collection as unknown as Parameters<typeof addCollection>[0])
+}
 // 模型接入的品牌图标（simple-icons 子集，见 shared 的 assets/icons/provider-logos.json）
 addCollection(ProviderLogos)
 
