@@ -7,6 +7,7 @@ import {
   parseToolCard,
   parseToolOutputText,
   parseWebSources,
+  parseWriteChurn,
   parseWriteCodeDiff,
   parseWriteDiffStat
 } from './parse-tool-result'
@@ -133,6 +134,67 @@ describe('parseWriteCodeDiff', function () {
     ])
     expect(diff?.additions).toBe(1)
     expect(diff?.deletions).toBe(1)
+  })
+})
+
+describe('本地 MCP 写工具（app_workspace_*）', function () {
+  // 回归：isWriteTool 只认 `write_file` / `edit` 的那段时间，
+  // `app_workspace_write` / `app_workspace_patch` 被判成 generic，
+  // 写卡不渲染，CodeDiff 与回合小结一起从对话里消失
+  it('app_workspace_patch 走 write 卡', function () {
+    const parsed = parseToolCard(
+      'cogito__app_workspace_patch',
+      { path: 'apps/client/src/a.ts', edits: [{ oldText: 'a', newText: 'b' }] },
+      { applied: 1 }
+    )
+    expect(parsed.variant).toBe('write')
+  })
+
+  it('app_workspace_write 走 write 卡，整段写入按新增算', function () {
+    const parsed = parseToolCard(
+      'cogito__app_workspace_write',
+      { path: 'notes.md', content: 'one\ntwo' },
+      { bytes: 7 }
+    )
+    expect(parsed.variant).toBe('write')
+    expect(parseWriteCodeDiff({ path: 'notes.md', content: 'one\ntwo' })).toEqual({
+      filename: 'notes.md',
+      additions: 2,
+      deletions: 0,
+      lines: [
+        { kind: 'added', text: 'one' },
+        { kind: 'added', text: 'two' }
+      ]
+    })
+  })
+
+  it('edits[] 多段按段合计，段间垫一行空上下文', function () {
+    const diff = parseWriteCodeDiff({
+      path: 'a.ts',
+      edits: [
+        { oldText: 'old1', newText: 'new1' },
+        { oldText: 'old2', newText: 'new2' }
+      ]
+    })
+    expect(diff?.additions).toBe(2)
+    expect(diff?.deletions).toBe(2)
+    const separators = (diff?.lines ?? []).filter(function (line) {
+      return line.kind === 'context'
+    })
+    expect(separators).toHaveLength(1)
+  })
+
+  it('parseWriteChurn 给回合小结的净增删', function () {
+    expect(
+      parseWriteChurn({ path: 'a.ts', edits: [{ oldText: 'old', newText: 'new' }] })
+    ).toEqual({ path: 'a.ts', additions: 1, deletions: 1 })
+    expect(parseWriteChurn({ path: 'a.ts' })).toBeNull()
+  })
+
+  it('终端写工具不是文件写卡', function () {
+    expect(parseToolCard('cogito__app_terminal_write', { data: 'y' }, 'ok').variant).toBe(
+      'command'
+    )
   })
 })
 

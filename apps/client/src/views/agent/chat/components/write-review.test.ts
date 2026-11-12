@@ -6,7 +6,13 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { isSameText, parseWriteReview, rebuildReviewedText } from './write-review'
+import {
+  isSameText,
+  parsePatchReview,
+  parseWriteReview,
+  rebuildPatchText,
+  rebuildReviewedText
+} from './write-review'
 
 function numberLines(count: number) {
   const lines: string[] = []
@@ -122,6 +128,49 @@ describe('rebuildReviewedText', function () {
     const text = rebuildReviewedText(review, {})
     expect(text).toBe(after)
     expect(text.includes('\n\n')).toBe(false)
+  })
+})
+
+describe('定点替换（app_workspace_patch）的逐段审阅', function () {
+  const ARGS = {
+    path: 'src/a.ts',
+    edits: [
+      { oldText: 'alpha', newText: 'alpha-2' },
+      { oldText: 'beta', newText: 'beta-2' }
+    ]
+  }
+
+  it('一段改动就是一块，没有整文件 before 也能审阅', function () {
+    const review = parsePatchReview(ARGS)
+    expect(review?.fileName).toBe('a.ts')
+    expect(review?.hunks.map(function (hunk) {
+      return hunk.id
+    })).toEqual(['edit-0', 'edit-1'])
+  })
+
+  it('不是 edits[] 形态就不走这条（交给整文件审阅）', function () {
+    expect(parsePatchReview({ path: 'a.ts', before: 'a', after: 'b' })).toBeNull()
+    expect(parsePatchReview({ path: 'a.ts', content: 'one' })).toBeNull()
+  })
+
+  it('丢弃的段反向还原，保留的段留在文件里', function () {
+    const review = parsePatchReview(ARGS)
+    if (!review) throw new Error('review should exist')
+    const written = 'head\nalpha-2\nmid\nbeta-2\ntail'
+    const text = rebuildPatchText(written, review, {
+      'edit-1': 'discarded'
+    })
+    expect(text.reverted).toBe(1)
+    expect(text.missing).toEqual([])
+    expect(text.text).toBe('head\nalpha-2\nmid\nbeta\ntail')
+  })
+
+  it('文件之后又被改过：丢弃段找不到 after 就如实回报', function () {
+    const review = parsePatchReview(ARGS)
+    if (!review) throw new Error('review should exist')
+    const text = rebuildPatchText('nothing here', review, { 'edit-0': 'discarded' })
+    expect(text.reverted).toBe(0)
+    expect(text.missing).toEqual(['edit-0'])
   })
 })
 

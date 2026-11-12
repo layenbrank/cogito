@@ -14,6 +14,7 @@ import {
   findBaseName,
   findWritePath,
   parseWriteTexts,
+  readWritePairs,
   type WriteDiffKind
 } from '@/views/agent/chat/components/parse-tool-result'
 
@@ -145,6 +146,84 @@ function parseWriteReview(args: unknown): WriteReview | null {
   }
 }
 
+/** 定点替换的一块：一段 oldText → newText；丢弃时把这半截反向替换回磁盘现状 */
+interface PatchReviewHunk {
+  id: string
+  range: string
+  lines: readonly WriteReviewLine[]
+  /** 丢弃这块时写回文件用的原文（after → before） */
+  before: string
+  after: string
+}
+
+interface PatchReview {
+  fileName: string
+  hunks: readonly PatchReviewHunk[]
+}
+
+/** 参数里是不是 `edits: [{ oldText, newText }]`（定点替换） */
+function hasEditList(args: unknown): boolean {
+  if (!args || typeof args !== 'object') return false
+  const list = (args as Record<string, unknown>).edits
+  return Array.isArray(list) && list.length > 0
+}
+
+/**
+ * 定点替换 → 逐段审阅清单（一段改动 = 一块）。
+ *
+ * 与 `parseWriteReview` 的分工：那条要求「整文件 before / after」，落盘是按 before 侧重建全文；
+ * 这里没有旧全文，落盘走 `rebuildPatchText`——把丢弃的那几段反向替换回磁盘现状。
+ * 纯删除段（没有 after）没法反向定位，整份不开放审阅。
+ */
+function parsePatchReview(args: unknown): PatchReview | null {
+  if (!hasEditList(args)) return null
+  const pairs = readWritePairs(args)
+  if (pairs.length === 0) return null
+  if (
+    pairs.some(function (pair) {
+      return !pair.after
+    })
+  ) {
+    return null
+  }
+  const path = findWritePath(args)
+  const hunks: PatchReviewHunk[] = pairs.map(function (pair, index) {
+    const diff = buildLineDiff(pair.before, pair.after)
+    return {
+      id: 'edit-' + String(index),
+      range: '第 ' + String(index + 1) + ' 处',
+      lines: diff.lines,
+      before: pair.before,
+      after: pair.after
+    }
+  })
+  return { fileName: path ? findBaseName(path) : 'file', hunks }
+}
+
+/**
+ * 把「丢弃」的段反向替换回去；保留 / 待定的段保持写完之后的样子。
+ * 找不到 after 说明文件之后又被改过 —— 交给调用方按失败处理，这里只如实回报。
+ */
+function rebuildPatchText(
+  current: string,
+  review: PatchReview,
+  decisions: Readonly<Record<string, 'pending' | 'kept' | 'discarded'>>
+): { text: string; reverted: number; missing: string[] } {
+  let text = current
+  let reverted = 0
+  const missing: string[] = []
+  for (const hunk of review.hunks) {
+    if ((decisions[hunk.id] ?? 'pending') !== 'discarded') continue
+    if (!text.includes(hunk.after)) {
+      missing.push(hunk.id)
+      continue
+    }
+    text = text.replace(hunk.after, hunk.before)
+    reverted += 1
+  }
+  return { text, reverted, missing }
+}
+
 /**
  * 按决定合成正文：保留的块按 after 侧、丢弃的块退回 before 侧，块外的上下文原样留着。
  * 待决定的块按「保留」处理 —— 调用方本来就不该在有待决定时落盘。
@@ -169,5 +248,13 @@ function rebuildReviewedText(
   return review.hasTrailingNewline ? text + review.eol : text
 }
 
-export { HUNK_CONTEXT, isSameText, normalizeEol, parseWriteReview, rebuildReviewedText }
-export type { WriteReview, WriteReviewHunk, WriteReviewLine }
+export {
+  HUNK_CONTEXT,
+  isSameText,
+  normalizeEol,
+  parsePatchReview,
+  parseWriteReview,
+  rebuildPatchText,
+  rebuildReviewedText
+}
+export type { PatchReview, PatchReviewHunk, WriteReview, WriteReviewHunk, WriteReviewLine }

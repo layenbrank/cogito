@@ -158,10 +158,15 @@ function isReadTool(name: string): boolean {
 function isWriteTool(name: string): boolean {
   if (isBrowserTool(name)) return false
   const lower = name.toLowerCase()
+  // 右栏终端有自己的卡：`app_terminal_write` 名字里带 write，但它不动文件
+  if (lower.includes('terminal')) return false
   return (
-    lower === 'write' ||
-    lower.includes('write_file') ||
-    lower.includes('write_doc') ||
+    // 只看 `write_file` / `edit` 会漏掉本地 MCP 的全部写工具：
+    // `app_workspace_write` / `app_workspace_patch` / `app_knowledge_workspace_write`
+    // 名字里既没有 `write_file` 也没有 `edit`，于是被判成 generic ——
+    // 写卡不出现，CodeDiff 与回合小结就这样一起消失（见 `readWritePairs`）
+    lower.includes('write') ||
+    lower.includes('patch') ||
     lower.includes('edit') ||
     lower.includes('str_replace') ||
     lower.includes('text_editor')

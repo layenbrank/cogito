@@ -37,8 +37,11 @@ import {
 import {
   isSameText,
   normalizeEol,
+  parsePatchReview,
   parseWriteReview,
+  rebuildPatchText,
   rebuildReviewedText,
+  type PatchReview,
   type WriteReview
 } from '@/views/agent/chat/components/write-review'
 import { joinPath, readCodeFile, writeCodeFile } from '@/views/code/lib/fs'
@@ -107,6 +110,19 @@ function WriteToolCard(props: ToolCallMessagePartProps & { outputText: string })
     [toolArgs]
   )
   const [reviewing, updateReviewing] = useState<WriteReview | null>(null)
+  /**
+   * 定点替换（`edits[]`）的逐段审阅。
+   *
+   * 本地 MCP 的写工具给的是「一处一段」的 oldText / newText，没有整文件 before ——
+   * 整文件审阅那条路（按 before 侧重建全文）走不通，于是这里换成「丢弃的段反向还原」。
+   */
+  const patchReview = useMemo(
+    function () {
+      return parsePatchReview(toolArgs)
+    },
+    [toolArgs]
+  )
+  const [patchReviewing, updatePatchReviewing] = useState<PatchReview | null>(null)
   // 改动正文默认折叠：只留一行「文件名 + +N −M + 动作」，大 diff 不进布局；要看再手动展开
   const [isDiffOpen, setDiffOpen] = useState(false)
   const [decisions, updateDecisions] = useState<Record<string, HunkDecision>>({})
@@ -123,27 +139,42 @@ function WriteToolCard(props: ToolCallMessagePartProps & { outputText: string })
     [rootPath, relativePath]
   )
   const canReview = Boolean(
-    review &&
     absolutePath &&
     appliedCount === 0 &&
     !props.isError &&
-    props.status?.type === 'complete'
+    props.status?.type === 'complete' &&
+    // 两条审阅路径：整文件 before/after 按块重建；定点替换逐段反向还原
+    (review !== null || patchReview !== null)
   )
 
   async function openReview() {
-    if (!review || !absolutePath) return
+    if (!absolutePath) return
+    let current: string
     try {
-      const current = await readCodeFile(absolutePath)
-      if (!isSameText(current, review.after)) {
-        toast.error(
-          normalizeEol(current).includes(normalizeEol(review.after))
-            ? '这是片段级改动，没法逐块保留'
-            : '这次写入之后文件又变了，无法按块保留'
-        )
-        return
-      }
+      current = await readCodeFile(absolutePath)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '读不到这个文件')
+      return
+    }
+    if (patchReview) {
+      const stale = patchReview.hunks.filter(function (hunk) {
+        return !normalizeEol(current).includes(normalizeEol(hunk.after))
+      })
+      if (stale.length > 0) {
+        toast.error('这次写入之后文件又变了，无法按块保留')
+        return
+      }
+      updateDecisions({})
+      updatePatchReviewing(patchReview)
+      return
+    }
+    if (!review) return
+    if (!isSameText(current, review.after)) {
+      toast.error(
+        normalizeEol(current).includes(normalizeEol(review.after))
+          ? '这是片段级改动，没法逐块保留'
+          : '这次写入之后文件又变了，无法按块保留'
+      )
       return
     }
     updateDecisions({})
@@ -181,6 +212,95 @@ function WriteToolCard(props: ToolCallMessagePartProps & { outputText: string })
       applyingRef.current = false
       updateApplying(false)
     }
+  }
+
+  async function applyPatchReview() {
+    if (!patchReviewing || !absolutePath || applyingRef.current) return
+    applyingRef.current = true
+    updateApplying(true)
+    try {
+      const current = await readCodeFile(absolutePath)
+      const result = rebuildPatchText(current, patchReviewing, decisions)
+      if (result.missing.length > 0) {
+        toast.error('审阅期间文件被改过了，请重新打开审阅')
+        updatePatchReviewing(null)
+        return
+      }
+      if (isSameText(result.text, current)) {
+        toast.message('没有丢弃任何改动，文件保持原样')
+        updatePatchReviewing(null)
+        return
+      }
+      await writeCodeFile(absolutePath, result.text)
+      bumpWorkspaceRevision()
+      toast.success(`已还原 ${result.reverted} 处改动，其余保留`)
+      updateAppliedCount(result.reverted)
+      updatePatchReviewing(null)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '写入失败')
+    } finally {
+      applyingRef.current = false
+      updateApplying(false)
+    }
+  }
+
+  if (patchReviewing) {
+    const hunks = patchReviewing.hunks.map(function (hunk) {
+      return {
+        id: hunk.id,
+        range: hunk.range,
+        lines: hunk.lines,
+        decision: decisions[hunk.id] ?? 'pending'
+      }
+    })
+    return (
+      <div
+        data-slot="agent-write-review"
+        className="my-1 flex flex-col gap-1.5">
+        <ReviewableDiff
+          filename={patchReviewing.fileName}
+          hunks={hunks}
+          onKeep={function (id) {
+            updateDecisions(function (prev) {
+              return { ...prev, [id]: 'kept' }
+            })
+          }}
+          onDiscard={function (id) {
+            updateDecisions(function (prev) {
+              return { ...prev, [id]: 'discarded' }
+            })
+          }}
+          onUndo={function (id) {
+            updateDecisions(function (prev) {
+              return { ...prev, [id]: 'pending' }
+            })
+          }}
+          onApply={function () {
+            void applyPatchReview()
+          }}
+        />
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground text-xs">
+            保留的段留在文件里，丢弃的段反向还原
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            className="text-muted-foreground hover:text-foreground h-6 gap-1 px-1.5 font-normal"
+            disabled={isApplying}
+            onClick={function () {
+              updatePatchReviewing(null)
+            }}>
+            <Icon
+              icon="lucide:arrow-left"
+              className="size-3"
+            />
+            返回对比
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   if (reviewing) {

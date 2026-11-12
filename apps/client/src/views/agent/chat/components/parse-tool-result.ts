@@ -294,15 +294,6 @@ function splitDiffLines(text: string): string[] {
   return text.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n')
 }
 
-function findWriteTextPair(args: unknown): { oldText: string | null; newText: string | null } {
-  const record = toRecord(args)
-  if (!record) return { oldText: null, newText: null }
-  return {
-    oldText: firstString(record, [...WRITE_OLD_KEYS]),
-    newText: firstString(record, [...WRITE_NEW_KEYS])
-  }
-}
-
 /**
  * 未 trim 的 before / after 原文（审阅按块保留用）。
  *
@@ -316,6 +307,52 @@ function parseWriteTexts(args: unknown): { before: string | null; after: string 
     before: firstRawString(record, [...WRITE_OLD_KEYS]),
     after: firstRawString(record, [...WRITE_NEW_KEYS])
   }
+}
+
+/** 定点替换的批改数组（`app_workspace_patch` 的 `edits: [{ oldText, newText }]`） */
+const WRITE_EDITS_KEYS = ['edits', 'replacements', 'changes'] as const
+
+/** 一段改动的原文：before 为空 = 新建 / 整段写入，after 为空 = 只删不改 */
+interface WriteTextPair {
+  before: string
+  after: string
+}
+
+/** `edits[]` 里逐段的 before / after 原文；不是批改形态就给空数组 */
+function readEditPairs(args: unknown): readonly WriteTextPair[] {
+  const record = toRecord(args)
+  if (!record) return []
+  for (const key of WRITE_EDITS_KEYS) {
+    const list = record[key]
+    if (!Array.isArray(list)) continue
+    const pairs: WriteTextPair[] = []
+    for (const item of list) {
+      const row = toRecord(item)
+      if (!row) continue
+      const before = firstRawString(row, [...WRITE_OLD_KEYS])
+      const after = firstRawString(row, [...WRITE_NEW_KEYS])
+      if (before === null && after === null) continue
+      pairs.push({ before: before ?? '', after: after ?? '' })
+    }
+    if (pairs.length > 0) return pairs
+  }
+  return []
+}
+
+/**
+ * 写工具的「原文对」清单：一段 = 一处改动。
+ *
+ * 三种真实形态都要认，漏一种那张写卡就会静默退回通用行（CodeDiff / 回合小结一起消失）：
+ * - `app_workspace_write`：`{ path, content }` —— 只有写完之后的样子（before 未知）；
+ * - `app_workspace_patch`：`{ path, edits: [{ oldText, newText }] }` —— 一次调用改好几处；
+ * - goose `edit`：`{ old_string, new_string }`；带 before + after 的工具按整文件处理。
+ */
+function readWritePairs(args: unknown): readonly WriteTextPair[] {
+  const edits = readEditPairs(args)
+  if (edits.length > 0) return edits
+  const { before, after } = parseWriteTexts(args)
+  if (before === null && after === null) return []
+  return [{ before: before ?? '', after: after ?? '' }]
 }
 
 /**
@@ -416,44 +453,63 @@ function buildLineDiff(
   return { lines: reversed, additions, deletions }
 }
 
-/** 写工具 → CodeDiff 数据；缺 before/after 时返回 null（同步，测试 / 首屏用） */
+/** 写工具 → CodeDiff 数据；一处改动都没有时返回 null（同步，测试 / 首屏用） */
 function parseWriteCodeDiff(args: unknown): WriteCodeDiff | null {
-  const path = findWritePath(args)
-  const { oldText, newText } = findWriteTextPair(args)
-  if (!newText && !oldText) return null
+  const pairs = readWritePairs(args)
+  if (pairs.length === 0) return null
 
+  const path = findWritePath(args)
   const filename = path ? findBaseName(path) : 'file'
-  if (oldText && newText) {
-    const diff = buildLineDiff(oldText, newText)
-    return { filename, ...diff }
-  }
-  if (newText) {
-    const lines = splitDiffLines(newText).map(function (text) {
-      return { kind: 'added' as const, text }
+
+  if (pairs.length === 1) {
+    const pair = pairs[0]
+    if (pair.before && pair.after) {
+      return { filename, ...buildLineDiff(pair.before, pair.after) }
+    }
+    // 整段写入：没有 before 可比，写进去的内容就是全部新增（这正是「新增了一个文件」的样子）
+    if (pair.after) {
+      const lines = splitDiffLines(pair.after).map(function (text) {
+        return { kind: 'added' as const, text }
+      })
+      return { filename, additions: lines.length, deletions: 0, lines }
+    }
+    const lines = splitDiffLines(pair.before).map(function (text) {
+      return { kind: 'removed' as const, text }
     })
-    return { filename, additions: lines.length, deletions: 0, lines }
+    return { filename, additions: 0, deletions: lines.length, lines }
   }
-  const lines = splitDiffLines(oldText!).map(function (text) {
-    return { kind: 'removed' as const, text }
-  })
-  return { filename, additions: 0, deletions: lines.length, lines }
+
+  // 多段定点替换：逐段 diff 拼成一条，段间垫一行空上下文 ——
+  // 读起来还是「一处一段」，又不用给 CodeDiff 加多段外壳
+  const lines: WriteDiffLine[] = []
+  let additions = 0
+  let deletions = 0
+  for (let index = 0; index < pairs.length; index += 1) {
+    const diff = buildLineDiff(pairs[index].before, pairs[index].after)
+    if (index > 0) lines.push({ kind: 'context', text: '' })
+    for (const line of diff.lines) lines.push(line)
+    additions += diff.additions
+    deletions += diff.deletions
+  }
+  return { filename, additions, deletions, lines }
 }
 
-/** Tauri 下把行级 diff 卸到 Rust；失败回退同步 LCS */
+/** Tauri 下把行级 diff 卸到 Rust；多段 / 缺 before 时直接用本地结果 */
 async function fetchWriteCodeDiff(args: unknown): Promise<WriteCodeDiff | null> {
-  const path = findWritePath(args)
-  const { oldText, newText } = findWriteTextPair(args)
-  if (!newText && !oldText) return null
+  const pairs = readWritePairs(args)
+  if (pairs.length === 0) return null
 
+  const path = findWritePath(args)
   const filename = path ? findBaseName(path) : 'file'
-  if (oldText && newText && isTauriRuntime()) {
+  const first = pairs[0]
+  if (pairs.length === 1 && first.before && first.after && isTauriRuntime()) {
     try {
       const diff = await invoke<{
         lines: WriteDiffLine[]
         additions: number
         deletions: number
       }>(CHANNELS.AGENT_TOOL.LINE_DIFF, {
-        params: { oldText, newText }
+        params: { oldText: first.before, newText: first.after }
       })
       return { filename, ...diff }
     } catch (error) {
@@ -461,6 +517,23 @@ async function fetchWriteCodeDiff(args: unknown): Promise<WriteCodeDiff | null> 
     }
   }
   return parseWriteCodeDiff(args)
+}
+
+/**
+ * 一次写工具的净增删（多段合计）：回合小结与工具时间轴共用。
+ *
+ * 只认「参数里说得清改了什么」的调用；没有路径或没有改动时返回 null。
+ * 整段写入（`content`）按新增行计 —— 那时 before 已经不在参数里了。
+ */
+function parseWriteChurn(
+  args: unknown
+): { path: string; additions: number; deletions: number } | null {
+  const path = findWritePath(args)
+  if (!path) return null
+  const diff = parseWriteCodeDiff(args)
+  if (!diff) return null
+  if (diff.additions === 0 && diff.deletions === 0) return null
+  return { path, additions: diff.additions, deletions: diff.deletions }
 }
 
 /** 异步版 parseToolCard：正文优先 Rust normalize */
@@ -894,9 +967,11 @@ export {
   parseToolCardAsync,
   parseToolOutputText,
   parseWebSources,
+  parseWriteChurn,
   parseWriteCodeDiff,
   parseWriteDiffStat,
-  parseWriteTexts
+  parseWriteTexts,
+  readWritePairs
 }
 export type {
   CalendarEvent,
@@ -909,5 +984,6 @@ export type {
   WriteCodeDiff,
   WriteDiffKind,
   WriteDiffLine,
-  WriteDiffStat
+  WriteDiffStat,
+  WriteTextPair
 }
