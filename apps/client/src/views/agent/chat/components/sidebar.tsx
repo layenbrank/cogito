@@ -8,7 +8,7 @@ import { useAui, useAuiState } from '@assistant-ui/react'
 import { Icon } from '@iconify/react/offline'
 import { Button } from '@cogito/design/components/button'
 import { clsx } from 'clsx'
-import { useEffect, useState } from 'react'
+import { startTransition, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { SessionSearch } from './session-search'
@@ -81,7 +81,11 @@ function AgentSidebar(props: SidebarProps) {
       useAgentStore.getState().toActivateWorkspace(session.workspaceID)
     }
     try {
-      aui.threads.switchToThread(session.id)
+      // 切会话是一次大渲染：整条历史 + 代码高亮 + 图片解码。放进 transition 之后，
+      // 侧栏高亮和输入框先响应，重的提交让 React 自己排到后面去。
+      startTransition(function () {
+        aui.threads.switchToThread(session.id)
+      })
     } catch (error) {
       console.error('[agent/sidebar] 切换会话失败:', session.id, error)
       toast.error(error instanceof Error ? error.message : '切换会话失败')
