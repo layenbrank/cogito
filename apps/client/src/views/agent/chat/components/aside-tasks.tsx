@@ -66,6 +66,7 @@ import {
   findTaskBadge,
   findTaskModeLabel,
   findTaskModeTag,
+  findThinkingLabel,
   toDraft,
   type TaskDraft
 } from '@/views/agent/tasks/model'
@@ -756,8 +757,14 @@ function AsideTasks() {
               </MetaRow>
               <MetaRow label="工作目录">
                 {findWorkspaceLabel(task.workspaceId, task.workspacePath)}
+                {/* 绑定对话时实际执行目录跟着对话走：写清楚，别让人以为用的是上面这条 */}
+                {task.sessionMode === 'fixed' ? ' · 以绑定对话的工作目录为准' : ''}
               </MetaRow>
               <MetaRow label="模式">{findTaskModeLabel(task)}</MetaRow>
+              {/* 只有本机任务由客户端下思考强度；goose / 云端由执行端决定 */}
+              {task.owner === OWNER.CLIENT ? (
+                <MetaRow label="思考强度">{findThinkingLabel(task.thinking)}</MetaRow>
+              ) : null}
               {findSessionModeLabel(task) ? (
                 <MetaRow label="会话">
                   {findSessionModeLabel(task)}

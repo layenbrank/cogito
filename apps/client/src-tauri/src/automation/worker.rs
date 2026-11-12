@@ -45,6 +45,8 @@ struct DuePayload {
     goalBudget: i32,
     planThenGoal: bool,
     planFilePath: Option<String>,
+    /// 执行时的思考强度（off / low / medium / high / max）：任务级配置，执行侧按它下发
+    thinking: String,
     triggerKind: String,
 }
 
@@ -67,6 +69,7 @@ impl DuePayload {
             goalBudget: due.automation.goalBudget,
             planThenGoal: due.automation.planThenGoal,
             planFilePath: due.automation.planFilePath.clone(),
+            thinking: due.automation.thinking.clone(),
             triggerKind: due.run.triggerKind.clone(),
         }
     }

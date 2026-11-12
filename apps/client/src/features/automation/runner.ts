@@ -22,6 +22,7 @@ import { markRunFinished, markRunStarted } from '@/features/agent/acp/run-state'
 import { parseAcpStreamEvent } from '@/features/agent/acp/stream'
 import { prepareTarget } from '@/features/agent/acp/target-guard'
 import { clearApprovalModeFor, writeApprovalModeFor } from '@/features/agent/approval'
+import { clearThinkingLevelFor, writeThinkingLevelFor } from '@/features/agent/thinking-level'
 import { advanceGoal, beginGoalTurn, findGoalSignal, startGoalRun } from '@/features/agent/goal-run'
 import { writeAgentModeFor } from '@/features/agent/mode'
 import { notifyAutomationRun } from '@/features/agent/notify'
@@ -42,6 +43,7 @@ import {
   findAutomationSystemPrompt,
   findInitialPhase,
   parseAutomationApproval,
+  parseAutomationThinking,
   PLAN_THEN_GOAL_BRIDGE,
   shouldApprove,
   shouldContinueToGoal,
@@ -56,8 +58,10 @@ import {
   type AutomationDue,
   type AutomationMode
 } from '@/shared/ipc/specs/automation'
+import { findOutsidePaths } from '@/features/automation/workspace-guard'
 import { useAgentStore } from '@/stores/agent.ts'
 import { useProviderStore } from '@/stores/provider'
+import type { ThinkingLevel } from '@/features/persist'
 import { reportCaught } from '@/utils/exception-report'
 
 /** 长跑心跳：防止排队/挂死后 30 分钟收尸误伤仍在推进的任务 */
@@ -125,7 +129,10 @@ interface SessionTarget {
 }
 
 /** 读库里那条会话；不存在就报可操作错误（绑定关系已经失效） */
-async function findBoundSession(sessionId: string | null): Promise<SessionTarget> {
+async function findBoundSession(
+  sessionId: string | null,
+  workspaceId: string | null
+): Promise<SessionTarget> {
   const id = sessionId?.trim()
   if (!id) throw new Error('任务绑定了固定对话但没有记录会话 id，请到任务表单重新选择')
   try {
@@ -139,6 +146,15 @@ async function findBoundSession(sessionId: string | null): Promise<SessionTarget
   if (!session) {
     throw new Error(`任务绑定的对话已不存在（id=${id}），请到任务表单重新选择`)
   }
+  // 跨工作区绑定的对话会按**它自己的**目录跑（cwd 跟着会话走）：用户以为选了项目 A，
+  // 实际写进了项目 B。这里 fail-closed，宁可让这次任务报错并指出怎么改：
+  // 静默跑错目录比跑失败更难发现。
+  if (workspaceId && session.workspaceID !== workspaceId) {
+    throw new Error(
+      `任务绑定的对话属于另一个工作区（任务=${workspaceId}，对话=${session.workspaceID ?? '未分组'}），` +
+        '继续执行会在别的目录里读写。请到任务表单重新选择同一工作区的对话，或改成「每次新建对话」'
+    )
+  }
   return { threadID: session.id, workspaceID: session.workspaceID ?? null, bound: true }
 }
 
@@ -151,13 +167,14 @@ async function findBoundSession(sessionId: string | null): Promise<SessionTarget
  */
 async function resolveSessionTarget(due: AutomationDue): Promise<SessionTarget> {
   const mode = due.sessionMode ?? 'new'
-  if (mode === 'fixed') return findBoundSession(due.sessionId ?? null)
+  if (mode === 'fixed') return findBoundSession(due.sessionId ?? null, due.workspaceId ?? null)
   if (mode === 'ask') {
     const choice = await useAutomationSessionPicker.getState().ask({
       taskName: due.name,
-      sessions: await listPickableSessions()
+      // 只列任务工作区里的对话：跨工作区选择会被 findBoundSession 直接判失效
+      sessions: await listPickableSessions(due.workspaceId ?? null)
     })
-    if (choice) return findBoundSession(choice)
+    if (choice) return findBoundSession(choice, due.workspaceId ?? null)
   }
   return {
     threadID: findThreadID(due.runId),
@@ -295,6 +312,14 @@ async function appendAssistantUnlessPresent(threadID: string, text: string): Pro
 interface PromptTarget {
   providerID: string
   model: string
+  /**
+   * 这一轮按哪个思考强度跑。
+   *
+   * 跟 provider / model 放一起，是因为三者都是「本轮跑在哪」的任务级配置：
+   * 任务在表单里钉了强度（默认「标准」），执行侧就照它下发，**不读也不改**用户
+   * 自己在 composer / 右栏给这个模型选的档位。
+   */
+  thinking: ThinkingLevel
 }
 
 interface RunPromptInput {
@@ -304,6 +329,11 @@ interface RunPromptInput {
   workspaceID: string | null
   /** 本次运行的 cwd（任务里选的目录）；null = 按工作区默认目录 */
   cwd: string | null
+  /**
+   * 目录边界：本轮允许读写的根。自动批准档下，落到它外面（或说不清在哪）的工具调用会被
+   * 直接拒绝 —— 不给模型「先改完再解释」的机会。null = 没有可用目录，不拦。
+   */
+  workdir: string | null
   target: PromptTarget
   approval: AutomationApproval
   counters: RunCounters
@@ -350,12 +380,33 @@ async function runOnePrompt(
         }
         if (item.kind === 'approval') {
           if (item.event.kind === 'tool-approval-request') {
-            if (approvalShouldPass) input.counters.granted += 1
-            else input.counters.denied += 1
-            respondToApproval({
-              toolCallId: item.event.toolCallId,
-              approved: approvalShouldPass
-            })
+            // 自动批准不等于「爱改哪儿改哪儿」：落在任务目录外的调用一律打回给模型，
+            // 既不执行也不继续往下试（否则它会在别的项目里翻一轮，白烧 token）。
+            const outside = approvalShouldPass
+              ? findOutsidePaths(input.workdir, item.event.input, item.params.toolCall.locations)
+              : []
+            if (approvalShouldPass && outside.length === 0) {
+              input.counters.granted += 1
+              respondToApproval({
+                toolCallId: item.event.toolCallId,
+                approved: true
+              })
+            } else {
+              if (approvalShouldPass) {
+                input.counters.blocked += 1
+                console.warn(
+                  '[agent.automation] 工具调用越出任务目录，已拒绝:',
+                  item.event.toolName,
+                  outside
+                )
+              } else {
+                input.counters.denied += 1
+              }
+              respondToApproval({
+                toolCallId: item.event.toolCallId,
+                approved: false
+              })
+            }
           }
           continue
         }
@@ -413,6 +464,8 @@ async function runAgentOrPlanPhase(input: {
   cwd: string | null
   target: PromptTarget
   counters: RunCounters
+  /** 目录边界（= 本轮工作目录）；null = 不拦 */
+  workdir: string | null
   streamHost: PromptStreamHost
 }): Promise<string> {
   // 计划阶段强制只读：流水线第一段不该动手改文件
@@ -424,9 +477,10 @@ async function runAgentOrPlanPhase(input: {
     {
       threadID: input.threadID,
       text: input.prompt,
-      systemText: findAutomationSystemPrompt(effectiveApproval, input.phase),
+      systemText: findAutomationSystemPrompt(effectiveApproval, input.phase, input.workdir),
       workspaceID: input.workspaceId,
       cwd: input.cwd,
+      workdir: input.workdir,
       target: input.target,
       approval: effectiveApproval,
       counters: input.counters
@@ -447,6 +501,8 @@ async function runGoalPhase(input: {
   cwd: string | null
   target: PromptTarget
   counters: RunCounters
+  /** 目录边界（= 本轮工作目录）；null = 不拦 */
+  workdir: string | null
   streamHost: PromptStreamHost
 }): Promise<string> {
   writeApprovalModeFor(input.threadID, input.approval)
@@ -465,9 +521,10 @@ async function runGoalPhase(input: {
       {
         threadID: input.threadID,
         text: nextPrompt,
-        systemText: findAutomationSystemPrompt(input.approval, 'goal'),
+        systemText: findAutomationSystemPrompt(input.approval, 'goal', input.workdir),
         workspaceID: input.workspaceId,
         cwd: input.cwd,
+        workdir: input.workdir,
         target: input.target,
         approval: input.approval,
         counters: input.counters
@@ -489,19 +546,24 @@ async function runGoalPhase(input: {
 }
 
 async function resolveTarget(due: AutomationDue): Promise<PromptTarget> {
+  // 定时执行没有「先打开聊天页 / 任务面板」这一步：provider 快照只由 UI 挂载时 hydrate，
+  // 应用刚启动就补跑到期任务会读到空列表，把「供应商已不存在」当失败写进记录（手动执行
+  // 因为面板已 hydrate 才没事）。查 provider 之前先自己把快照补上。
+  await useProviderStore.getState().toEnsureProviders()
+  const thinking = parseAutomationThinking(due.thinking)
   if (due.providerId && due.modelId) {
-    return { providerID: due.providerId, model: due.modelId }
+    return { providerID: due.providerId, model: due.modelId, thinking }
   }
   const target = await buildModelPort().findTarget()
   if (!target) throw new Error('还没有可用的模型，请先到设置里选择供应商与模型')
-  return { providerID: target.providerID, model: target.model }
+  return { providerID: target.providerID, model: target.model, thinking }
 }
 
 async function execute(due: AutomationDue): Promise<void> {
   // 绑定会话时 threadID 由任务决定（「执行前选择」还要先问人），先留兜底值给报错路径
   let threadID = findThreadID(due.runId)
   const approval = parseAutomationApproval(due.approval)
-  const counters: RunCounters = { denied: 0, granted: 0 }
+  const counters: RunCounters = { denied: 0, granted: 0, blocked: 0 }
   const hasBoundPlan = Boolean(due.planFilePath?.trim())
   // 绑定计划与现场「计划后执行」互斥：有绑定时一律跳过流水线
   const planThenGoal = hasBoundPlan ? false : Boolean(due.planThenGoal)
@@ -529,6 +591,11 @@ async function execute(due: AutomationDue): Promise<void> {
     const cwd = session.bound
       ? null
       : await requireWorkspace(due.workspaceId ?? null, due.workspacePath ?? null, approval)
+    // 目录边界：新建会话就是任务选的目录；绑定对话时用会话所属工作区的默认目录
+    const scopeRoot = cwd ?? (await findWorkspacePath(session.workspaceID, null))
+    if (!scopeRoot) {
+      console.warn('[agent.automation] 没有可用工作目录，本轮不做目录边界拦截:', due.automationId)
+    }
     await touchAutomationRun(due.runId)
     heartbeat = setInterval(function () {
       void touchAutomationRun(due.runId).catch(function (error) {
@@ -538,6 +605,8 @@ async function execute(due: AutomationDue): Promise<void> {
 
     const target = await resolveTarget(due)
     await prepareTarget(target.providerID, target.model, 'agent.automation')
+    // 任务钉的思考强度：写成 thread 覆盖，开会话时按它下发（不动用户对该模型的偏好）
+    writeThinkingLevelFor(threadID, target.thinking)
 
     // 绑定已有对话时不建记录会话：那条会话本来就在侧栏里，标题也不该被任务改名
     if (!session.bound) {
@@ -568,6 +637,7 @@ async function execute(due: AutomationDue): Promise<void> {
           approval,
           workspaceId: session.workspaceID,
           cwd,
+          workdir: scopeRoot,
           target,
           counters,
           streamHost
@@ -580,6 +650,7 @@ async function execute(due: AutomationDue): Promise<void> {
         approval,
         workspaceId: session.workspaceID,
         cwd,
+        workdir: scopeRoot,
         target,
         counters,
         streamHost
@@ -644,6 +715,7 @@ async function execute(due: AutomationDue): Promise<void> {
   } finally {
     if (heartbeat) clearInterval(heartbeat)
     clearApprovalModeFor(threadID)
+    clearThinkingLevelFor(threadID)
     markRunFinished(threadID)
     // 保留 agent_session + 消息；只释放 ACP 租约。
     // closeThreadSession 内部若仍有 run 会自行跳过；这里不再抢关后台泵未收尾的会话。

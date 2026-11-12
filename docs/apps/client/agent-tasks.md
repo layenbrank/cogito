@@ -13,12 +13,12 @@
 
 面板内四个视图（状态在 `PanelView` 里，返回不离开当前会话）：
 
-| 视图 | 怎么进来 | 有什么 |
-| --- | --- | --- |
-| 列表 | 点右栏「任务」/ 从详情返回 | 按执行方分组的卡片：名称、状态徽标、人话排期、下次触发；卡上启停 / 立即执行 / 更多（编辑、查看记录、删除，删除走确认框） |
-| 详情 | 点卡片 | 指令、计划（人话 + 原始 cron）、时区、下次 / 上次执行、执行授权、工作目录、关联知识库、执行方，下面接该任务的执行记录 |
-| 全部记录 | 面板「更多」→ 全部执行记录 | 跨任务最近 50 条（`automation:runs` 不带 id，一趟 IPC） |
-| 表单 | 「新建」/「编辑」 | 复用 `TaskForm`，窄栏单列；保存或取消回到列表（编辑时回到该任务详情） |
+| 视图     | 怎么进来                   | 有什么                                                                                                                   |
+| -------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 列表     | 点右栏「任务」/ 从详情返回 | 按执行方分组的卡片：名称、状态徽标、人话排期、下次触发；卡上启停 / 立即执行 / 更多（编辑、查看记录、删除，删除走确认框） |
+| 详情     | 点卡片                     | 指令、计划（人话 + 原始 cron）、时区、下次 / 上次执行、执行授权、工作目录、关联知识库、执行方，下面接该任务的执行记录    |
+| 全部记录 | 面板「更多」→ 全部执行记录 | 跨任务最近 50 条（`automation:runs` 不带 id，一趟 IPC）                                                                  |
+| 表单     | 「新建」/「编辑」          | 复用 `TaskForm`，窄栏单列；保存或取消回到列表（编辑时回到该任务详情）                                                    |
 
 > 窄栏排版（内容区约 292px，最窄 232px）：卡片两行（名称 + 状态徽标 / 计划 + 下次触发）；
 > 详情用「左标签 / 右值」的对齐行（`.meta`），八条字段竖排会吃掉一整屏、看记录还要先滚过去；
@@ -30,14 +30,14 @@
 
 ## 任务 vs 会话
 
-| 维度 | 任务（右栏「任务」面板） | 普通会话（工作区树） | 自动化会话（按工作区入树 / 未分组） |
-| --- | --- | --- | --- |
-| 存在形式 | 表里的一行（定义），关窗后仍在 | 会话档案 + 消息流 | 每次执行落库 `agent_session`，跑完保留 |
-| 触发 | cron 排期 / 立即执行 | 用户发消息 | 由任务触发 |
-| 上下文 | 定义可复用 | 长期累积 | 默认 id = `automation-<runId>` 与 run 回链；绑定「固定对话」时写进那场对话 |
-| 产出 | `automation_run`（状态 / phase / 输出 / 错误） | 消息流 | 同左 + 可在主区回看流式过程 |
-| 审批 | `readonly` / `auto`（无人值守，**没有 `ask`**） | `ask` / `auto` / `readonly` | 跟随任务授权；计划阶段强制只读 |
-| 模式 | 单模式 agent/plan/goal，或「计划后执行」流水线 | composer 切换 | 按任务配置跑 |
+| 维度     | 任务（右栏「任务」面板）                        | 普通会话（工作区树）        | 自动化会话（按工作区入树 / 未分组）                                        |
+| -------- | ----------------------------------------------- | --------------------------- | -------------------------------------------------------------------------- |
+| 存在形式 | 表里的一行（定义），关窗后仍在                  | 会话档案 + 消息流           | 每次执行落库 `agent_session`，跑完保留                                     |
+| 触发     | cron 排期 / 立即执行                            | 用户发消息                  | 由任务触发                                                                 |
+| 上下文   | 定义可复用                                      | 长期累积                    | 默认 id = `automation-<runId>` 与 run 回链；绑定「固定对话」时写进那场对话 |
+| 产出     | `automation_run`（状态 / phase / 输出 / 错误）  | 消息流                      | 同左 + 可在主区回看流式过程                                                |
+| 审批     | `readonly` / `auto`（无人值守，**没有 `ask`**） | `ask` / `auto` / `readonly` | 跟随任务授权；计划阶段强制只读                                             |
+| 模式     | 单模式 agent/plan/goal，或「计划后执行」流水线  | composer 切换               | 按任务配置跑                                                               |
 
 `mod+n` / 侧栏「新建会话」/ 标题栏按钮都属于**会话**，命令 id 沿用历史名 `AGENT_NEW_TASK`
 （`keyboard/definitions/ids.ts` 的注释写清了这一点），避免键位与测试断链。
@@ -51,11 +51,11 @@
 `automation.owner` 是字典 value（`DICT_KEY.AUTOMATION_OWNER`），三个来源共用一套列表，
 但执行语义完全不同 —— 列表里每个分组都带一句 hint（`tasks/model.ts` 的 `OWNER_HINT`）。
 
-| owner | 值 | 谁执行 | 客户端能做什么 |
-| --- | --- | --- | --- |
-| 本机 | `021` | `src-tauri/src/automation/worker.rs` 的 ticker（12s 一轮）→ 前端 runner | 全量：建/改/启停/立即执行/看记录 |
-| goose | `022` | goose 侧排期（`automation/goose.rs` 镜像） | 建/改/启停；**没有本地记录**，立即执行只给一句 toast |
-| 服务端 | `023` | 服务端 `JobR`（`apis/schedule.ts` + `features/automation/cloud.ts`） | 启停/删除；**不能手动触发**（服务端没有 run-now 路由），执行授权也在服务端 |
+| owner  | 值    | 谁执行                                                                  | 客户端能做什么                                                             |
+| ------ | ----- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| 本机   | `021` | `src-tauri/src/automation/worker.rs` 的 ticker（12s 一轮）→ 前端 runner | 全量：建/改/启停/立即执行/看记录                                           |
+| goose  | `022` | goose 侧排期（`automation/goose.rs` 镜像）                              | 建/改/启停；**没有本地记录**，立即执行只给一句 toast                       |
+| 服务端 | `023` | 服务端 `JobR`（`apis/schedule.ts` + `features/automation/cloud.ts`）    | 启停/删除；**不能手动触发**（服务端没有 run-now 路由），执行授权也在服务端 |
 
 未登录或断网时：本机列表照常，服务端区域给「未登录」或错误原文（`stores/automation.ts` 的
 `cloudStatus = 'off' | 'error'`），不白屏、不阻塞本机列表。
@@ -92,13 +92,14 @@ worker tick(12s) → Service::toClaimDue（一次只认领 1 条，前端本来�
 
 ## 模型 / 模式 / 流水线（仅 owner=client）
 
-| 字段 | 含义 | 默认 |
-| --- | --- | --- |
-| `providerId` + `modelId` | 固定供应商与模型；都空 = 跟随当前激活 | null |
-| `mode` | 单模式：`agent` / `plan` / `goal` | `agent` |
-| `goalBudget` | 目标轮次（3 / 6 / 12） | 6 |
-| `planThenGoal` | 先 plan 出计划，再自动切 goal 按轮次执行（忽略单模式的执行语义） | false |
-| `planFilePath` | 绑定工作区已有计划（相对路径，如 `.cogito/plans/foo.md`）；触发时按该文件执行 | null |
+| 字段                     | 含义                                                                                                                              | 默认             |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `providerId` + `modelId` | 固定供应商与模型；都空 = 跟随当前激活                                                                                             | null             |
+| `mode`                   | 单模式：`agent` / `plan` / `goal`                                                                                                 | `agent`          |
+| `goalBudget`             | 目标轮次（3 / 6 / 12）                                                                                                            | 6                |
+| `planThenGoal`           | 先 plan 出计划，再自动切 goal 按轮次执行（忽略单模式的执行语义）                                                                  | false            |
+| `planFilePath`           | 绑定工作区已有计划（相对路径，如 `.cogito/plans/foo.md`）；触发时按该文件执行                                                     | null             |
+| `thinking`               | 执行时的思考强度（`off` / `low` / `medium` / `high` / `max`）：写成线程级覆盖，只作用于本任务起的会话，不动用户对该模型的默认偏好 | `medium`（标准） |
 
 ### 绑定计划（提前做计划 → 配置时选 → 到期执行）
 
@@ -118,16 +119,20 @@ worker tick(12s) → Service::toClaimDue（一次只认领 1 条，前端本来�
 
 ## 会话绑定：每次新建 / 固定对话 / 执行前选择（2026-11-09）
 
-| 列 | 语义 | 取值 |
-| --- | --- | --- |
-| `sessionMode` | 跑出来的内容写进哪个会话 | `new`（默认）/ `fixed` / `ask` |
-| `sessionId` | `fixed` 时绑定到的 `agent_session.id` | 字符串 / NULL |
+| 列            | 语义                                  | 取值                           |
+| ------------- | ------------------------------------- | ------------------------------ |
+| `sessionMode` | 跑出来的内容写进哪个会话              | `new`（默认）/ `fixed` / `ask` |
+| `sessionId`   | `fixed` 时绑定到的 `agent_session.id` | 字符串 / NULL                  |
 
 - `new`：每次执行落一条 `automation-<runId>` 会话，按任务的 `workspaceId` 进对应工作区分组；
   没绑工作区的落「未分组」。标题就是任务名，执行中置顶。
 - `fixed`：复用选中的对话 —— 不建记录会话、不改标题，内容接着那场对话的上下文写。
-  工作目录以**这个对话自己的工作区**为准，任务的「工作区 / 目录」只对新建会话生效（表单里写着）。
+  工作目录以**这个对话自己的工作区**为准，任务的「工作区 / 目录」只对新建会话生效（表单与详情都写着）。
   绑定对话被删 → 本次执行失败并提示「任务绑定的对话已不存在，请到任务表单重新选择」，不静默改新建。
+- **对话按任务的工作区过滤**（2026-11-12）：表单的「对话」下拉与到点弹窗的候选都只列同一工作区的会话
+  （`listPickableSessions(workspaceID)`，没选工作区的任务保持全量）。跨工作区绑定会让执行按**那条对话自己的目录**跑，
+  用户以为选了项目 A、实际动的是项目 B —— 所以 `findBoundSession` 直接 fail-closed：
+  「任务绑定的对话属于另一个工作区……请重新选择，或改成每次新建对话」。表单换工作区时也会清掉已绑的 `sessionId`。
 - `ask`：到点先弹「把这次执行写进哪个对话？」（`features/automation/session-picker.ts` 存状态，
   `views/agent/chat/components/automation-session-picker.tsx` 渲染；候选最多 30 条、按最近活动倒序、
   排除 `automation-*`）。关掉弹窗或 120s 无人应答都按**新建对话**处理 —— 定时任务不该因为没人点就
@@ -141,14 +146,14 @@ worker tick(12s) → Service::toClaimDue（一次只认领 1 条，前端本来�
 任务表单的时间定义是可操作的面板（`views/agent/tasks/schedule-field.tsx`），纯逻辑在
 `features/automation/schedule-config.ts`：
 
-| 面板 | 生成 | 说明 |
-| --- | --- | --- |
-| 每天 | `分 时 * * *` | 时/分双列选择器 |
-| 每周 | `分 时 * * 1,3` / `分 时 * * 1-5` | 周一…周日多选，至少一天；「工作日 / 周末」一点即得，五天压成 `1-5`；cron 里 0 = 周日 |
-| 每月 | `分 时 D * *` / `分 时 L * *` | 1–31，或「最后一天」（`L`）：1 月 31、2 月 28/29、4 月 30……天数由日历决定；选 29–31 号时提示小月会跳过 |
-| 每小时 | `分 * * * *` | 只选「第几分」 |
-| 按分钟 | `*/N * * * *` | 常用档 1/5/10/15/20/30 |
-| 自定义 | 原样 | 给高级用户留的口子，5–7 段 |
+| 面板   | 生成                              | 说明                                                                                                   |
+| ------ | --------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 每天   | `分 时 * * *`                     | 时/分双列选择器                                                                                        |
+| 每周   | `分 时 * * 1,3` / `分 时 * * 1-5` | 周一…周日多选，至少一天；「工作日 / 周末」一点即得，五天压成 `1-5`；cron 里 0 = 周日                   |
+| 每月   | `分 时 D * *` / `分 时 L * *`     | 1–31，或「最后一天」（`L`）：1 月 31、2 月 28/29、4 月 30……天数由日历决定；选 29–31 号时提示小月会跳过 |
+| 每小时 | `分 * * * *`                      | 只选「第几分」                                                                                         |
+| 按分钟 | `*/N * * * *`                     | 常用档 1/5/10/15/20/30                                                                                 |
+| 自定义 | 原样                              | 给高级用户留的口子，5–7 段                                                                             |
 
 - 打开已有任务时反向解析：认得的形状还原成面板（含 `1-5` 这种区间写法的周字段、`L` 这种最后一天），
   认不出来的（如 `0 9 * * MON`、`0 9 L 3 *`、带秒表达式）落到「自定义」原样显示，**不擅自改写**用户的老任务；
@@ -187,11 +192,11 @@ Base UI 的 `Select.Value` 默认渲染裸 `value`；`value` 是 id / 枚举键�
 
 两列直接落在 `automation` 表（`crates/database/src/entity/automation.rs`）：
 
-| 列 | 语义 | 取值 |
-| --- | --- | --- |
-| `workspaceId` | 在哪个工作区跑（`agent_workspace.id`）；空 = 家目录 | 字符串 / NULL |
-| `workspacePath` | 工作区下**具体哪个目录**（文件夹绝对路径）；空 = 跟随工作区默认目录 | 字符串 / NULL |
-| `approval` | 无人值守时的授权档 | `readonly`（默认）/ `auto` |
+| 列              | 语义                                                                | 取值                       |
+| --------------- | ------------------------------------------------------------------- | -------------------------- |
+| `workspaceId`   | 在哪个工作区跑（`agent_workspace.id`）；空 = 家目录                 | 字符串 / NULL              |
+| `workspacePath` | 工作区下**具体哪个目录**（文件夹绝对路径）；空 = 跟随工作区默认目录 | 字符串 / NULL              |
+| `approval`      | 无人值守时的授权档                                                  | `readonly`（默认）/ `auto` |
 
 规则（前后端两处同一条，`Service::toSave` 与 `tasks/model.ts::findDraftProblem`）：
 
@@ -199,6 +204,22 @@ Base UI 的 `Select.Value` 默认渲染裸 `value`；`value` 是 id / 枚举键�
 2. `auto` **必须**带 `workspaceId` —— 自动批准等于无人值守的写权限，必须先圈定目录；
 3. 只读档下需要审批的工具调用一律拒绝，输出尾巴写明「本轮有 N 次工具调用因无人审批被拒绝」；
    自动档同样计数「本轮自动批准了 N 次」，便于事后核对模型改了什么。
+
+### 目录边界：自动批准 ≠ 爱改哪儿改哪儿（2026-11-12）
+
+会话 cwd 只决定**相对路径**从哪儿展开，goose 的文件工具仍然接受绝对路径：模型顺手读写 `~` 或同一工作区的
+另一个项目，界面上完全看不出来 —— 用户看到的只是「任务跑完了，但把我的别的目录改了」，还白烧一轮 token。
+两层兜住：
+
+1. **System Prompt 摊开绝对目录**：`findAutomationSystemPrompt(approval, mode, workdir)` 把「本次执行的工作目录是
+   `<abs>`，不要访问这个目录之外的任何文件（同一工作区的其它项目也算外面）」写进去，减少它先猜再乱翻；
+2. **审批时拦**：`features/automation/workspace-guard.ts::findOutsidePaths` 从工具入参（`path` / `file` / `dir` /
+   `cwd` 等键，以及 ACP 的 `locations`）里取出路径，落到工作目录外（含 `../x`、`~/x` 这类说不清在哪的）就**拒绝**
+   这次调用，计入 `blocked`，输出尾巴写「本轮有 N 次工具调用越出任务目录被拒绝」。
+
+边界根取「本轮真正的工作目录」：新建会话 = 任务的 `workspacePath`（没选则工作区默认目录）；绑定对话 = 会话所属
+工作区的默认目录（cwd 跟着会话走，不重建会话以免丢上下文）。**不解析 shell 命令串**：重定向、脚本变量无法可靠
+静态判断，宁可少拦一次也不拦错正常命令 —— 这条限制写在 `workspace-guard.ts` 的注释里。
 
 这两列**只对 `owner=client`（本机）生效**：goose 任务的排期与执行在 goose 侧（`automation/goose.rs` 只写
 `title/description/instructions`），服务端任务在服务端 `JobR`。表单对这两种来源把工作目录与执行授权
@@ -221,6 +242,7 @@ ALTER TABLE automation ADD COLUMN mode TEXT NOT NULL DEFAULT 'agent';
 ALTER TABLE automation ADD COLUMN "goalBudget" INTEGER NOT NULL DEFAULT 6;
 ALTER TABLE automation ADD COLUMN "planThenGoal" INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE automation ADD COLUMN "planFilePath" TEXT NULL;
+ALTER TABLE automation ADD COLUMN thinking TEXT NOT NULL DEFAULT 'medium';
 ALTER TABLE automation_run ADD COLUMN "sessionId" TEXT NULL;
 ALTER TABLE automation_run ADD COLUMN phase TEXT NULL;
 ```
@@ -242,11 +264,11 @@ ALTER TABLE automation_run ADD COLUMN phase TEXT NULL;
 
 ## 与另外两套「长任务」的边界
 
-| 名字 | 位置 | 是什么 | 为什么不并入 |
-| --- | --- | --- | --- |
-| 任务（右栏面板） | `views/agent/chat/components/aside-tasks.tsx` | 定时/手动触发的自动化定义 | — |
-| Goal 推进 | `features/agent/goal-run.ts` | **会话内**按目标自动续跑，直到 `GOAL_DONE` | 依附某个会话的上下文，产物是消息流 |
-| 服务端委派 | `apis/agent-task.ts` + `delegate-surface.tsx` | 把一次长任务交给服务端跑并渲染进度 | 是「这一轮怎么跑完」的执行策略，不是可复用定义 |
+| 名字             | 位置                                          | 是什么                                     | 为什么不并入                                   |
+| ---------------- | --------------------------------------------- | ------------------------------------------ | ---------------------------------------------- |
+| 任务（右栏面板） | `views/agent/chat/components/aside-tasks.tsx` | 定时/手动触发的自动化定义                  | —                                              |
+| Goal 推进        | `features/agent/goal-run.ts`                  | **会话内**按目标自动续跑，直到 `GOAL_DONE` | 依附某个会话的上下文，产物是消息流             |
+| 服务端委派       | `apis/agent-task.ts` + `delegate-surface.tsx` | 把一次长任务交给服务端跑并渲染进度         | 是「这一轮怎么跑完」的执行策略，不是可复用定义 |
 
 一句话：**任务**关心「什么时候跑、跑什么、跑成什么样」，Goal / 委派关心「这一次怎么跑完」。
 
@@ -254,7 +276,7 @@ ALTER TABLE automation_run ADD COLUMN phase TEXT NULL;
 
 - `pnpm --filter @cogito/client type-check`
 - `pnpm --filter @cogito/client lint`
-- `pnpm --filter @cogito/client exec vitest run src/views/agent/tasks/model.test.ts src/views/agent/tasks/schedule-field.test.tsx src/views/agent/chat/components/aside-tasks.test.tsx src/features/automation/run-plan.test.ts src/features/automation/describe-schedule.test.ts src/features/automation/schedule-config.test.ts`
+- `pnpm --filter @cogito/client exec vitest run src/views/agent/tasks/model.test.ts src/views/agent/tasks/schedule-field.test.tsx src/views/agent/chat/components/aside-tasks.test.tsx src/features/automation/run-plan.test.ts src/features/automation/workspace-guard.test.ts src/features/automation/session-picker.test.ts src/features/automation/describe-schedule.test.ts src/features/automation/schedule-config.test.ts`
 - 排期语义回归：`cargo test -p cogito-core automation`（含 `last_day_of_month_follows_the_calendar` 与
   `last_day_rejects_shapes_it_cannot_honour`）
 - `cd apps/client/src-tauri && cargo test -p cogito-database -p cogito-core`

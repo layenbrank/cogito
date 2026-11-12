@@ -34,6 +34,8 @@ function toCloudAutomation(job: CloudJob): Automation {
     approval: 'readonly',
     providerId: null,
     modelId: null,
+    // 服务端任务的思考强度在服务端配：本地只镜像，界面按「标准」展示
+    thinking: 'medium',
     mode: 'agent',
     goalBudget: 6,
     planThenGoal: false,

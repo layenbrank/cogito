@@ -69,6 +69,11 @@ pub fn column_patches() -> Vec<(&'static str, &'static str, &'static str)> {
             r#"ALTER TABLE automation ADD COLUMN "planFilePath" TEXT NULL"#,
         ),
         (
+            "automation",
+            "thinking",
+            r#"ALTER TABLE automation ADD COLUMN thinking TEXT NOT NULL DEFAULT 'medium'"#,
+        ),
+        (
             "automation_run",
             "sessionId",
             r#"ALTER TABLE automation_run ADD COLUMN "sessionId" TEXT NULL"#,

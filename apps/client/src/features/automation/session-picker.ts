@@ -28,8 +28,12 @@ const ANSWER_TIMEOUT_MS = 120_000
  *
  * 排除 `automation-` 前缀：那些是每次执行生成的记录会话，绑过去只会让下一次执行
  * 再生成一个同前缀会话，越绑越乱。等宽读库再取快照，冷启动时列表才不是空的。
+ *
+ * `workspaceID` 给了就只列这个工作区里的对话：任务的执行目录属于一个工作区，
+ * 绑上别的工作区的对话，跑起来会按那条对话自己的目录读写 —— 用户以为自己选了项目 A，
+ * 实际动的是项目 B。默认（不传）保持全量，给「没有工作区」的任务用。
  */
-async function listPickableSessions(): Promise<PickableSession[]> {
+async function listPickableSessions(workspaceID?: string | null): Promise<PickableSession[]> {
   const store = useAgentStore.getState()
   try {
     await store.toReadSessions()
@@ -39,9 +43,13 @@ async function listPickableSessions(): Promise<PickableSession[]> {
   const state = useAgentStore.getState()
   const workspaceTitles = new Map<string, string>()
   for (const workspace of state.workspaces) workspaceTitles.set(workspace.id, workspace.title)
+  const scope = workspaceID?.trim() ?? ''
   return state.sessions
     .filter(function (item) {
       return !item.id.startsWith(THREAD_PREFIX)
+    })
+    .filter(function (item) {
+      return scope ? item.workspaceID === scope : true
     })
     .toSorted(function (left, right) {
       return right.updatedAt - left.updatedAt

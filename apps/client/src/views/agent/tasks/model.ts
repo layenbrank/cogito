@@ -5,6 +5,9 @@
  * 「谁先谁后」「什么时候算停用」这类口径写在这里一处，列表与详情共用。
  */
 import { isValidSchedule } from '@/features/automation/describe-schedule'
+import { parseAutomationThinking } from '@/features/automation/run-plan'
+import { THINKING_OPTIONS } from '@/features/agent/model/model-prefs'
+import type { ThinkingLevel } from '@/features/persist'
 import { GOAL_BUDGET_OPTIONS } from '@/features/agent/goal-run'
 import type {
   Automation,
@@ -76,6 +79,8 @@ interface TaskDraft {
   /** 工作区相对路径；空 = 不绑定已有计划 */
   planFilePath: string | null
   knowledgeBaseId: string | null
+  /** 执行时的思考强度（默认「标准」）：只作用于本任务起的会话，不动用户自己的模型偏好 */
+  thinking: ThinkingLevel
   enabled: boolean
 }
 
@@ -289,6 +294,7 @@ function toDraft(item: Automation): TaskDraft {
     planThenGoal: Boolean(item.planThenGoal) && !item.planFilePath,
     planFilePath: item.planFilePath ?? null,
     knowledgeBaseId: item.knowledgeBaseId ?? null,
+    thinking: parseAutomationThinking(item.thinking),
     enabled: item.enabled
   }
 }
@@ -313,6 +319,7 @@ function createDraft(owner: string): TaskDraft {
     planThenGoal: false,
     planFilePath: null,
     knowledgeBaseId: null,
+    thinking: 'medium',
     enabled: true
   }
 }
@@ -392,6 +399,7 @@ function toSaveInput(draft: TaskDraft): AutomationSave {
     planThenGoal: draft.planFilePath ? false : draft.planThenGoal,
     planFilePath: draft.planFilePath,
     knowledgeBaseId: draft.knowledgeBaseId,
+    thinking: draft.thinking,
     enabled: draft.enabled
   }
 }
@@ -426,6 +434,15 @@ function findSessionModeLabel(item: Pick<Automation, 'sessionMode' | 'sessionId'
   return ''
 }
 
+/** 思考强度文案：与 composer / 右栏同一份取的 `THINKING_OPTIONS`，认不出按「标准」 */
+function findThinkingLabel(value: string | null | undefined): string {
+  const level = parseAutomationThinking(value)
+  const found = THINKING_OPTIONS.find(function (option) {
+    return option.value === level
+  })
+  return found?.label ?? '标准'
+}
+
 /** 列表行后缀：空字符串 = 默认执行、不额外标 */
 function findTaskModeTag(item: TaskModeFields): string {
   if (item.planFilePath) return '绑定计划'
@@ -457,6 +474,7 @@ export {
   findRunDuration,
   findSessionModeLabel,
   findTaskBadge,
+  findThinkingLabel,
   formatDuration,
   isCloudTask,
   parseGoalBudget,

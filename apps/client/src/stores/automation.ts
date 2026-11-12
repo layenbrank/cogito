@@ -361,6 +361,8 @@ const useAutomationStore = create<AutomationState>(function (set, get) {
           goalBudget: due.automation.goalBudget ?? 6,
           planThenGoal: due.automation.planThenGoal === true,
           planFilePath: due.automation.planFilePath ?? null,
+          // 与定时触发同一条口径：思考强度取自任务行，缺省「标准」
+          thinking: due.automation.thinking ?? 'medium',
           triggerKind: due.run.triggerKind
         }).finally(function () {
           // runner 收尾必清内存锁；finish 事件也会清。不再等 DB lastStatus，

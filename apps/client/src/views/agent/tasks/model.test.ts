@@ -16,6 +16,7 @@ import {
   findTaskBadge,
   findTaskModeLabel,
   findTaskModeTag,
+  findThinkingLabel,
   formatDuration,
   parseSessionMode,
   summarizeRuns,
@@ -37,6 +38,7 @@ function task(patch: Partial<Automation>): Automation {
     goalBudget: 6,
     planThenGoal: false,
     planFilePath: null,
+    thinking: 'medium',
     schedule: '0 9 * * *',
     timezone: 'Asia/Shanghai',
     enabled: true,
@@ -362,5 +364,22 @@ describe('findRecentRuns', function () {
     expect(
       findRecentRuns(task({ id: 'task-1', lastRunAt: 7_000, lastStatus: RUN_STATUS.RUNNING }), [])
     ).toEqual([])
+  })
+})
+
+describe('思考强度', function () {
+  it('认不出的档位按「标准」，不悄悄升到最高一档', function () {
+    expect(findThinkingLabel(undefined)).toBe('标准')
+    expect(findThinkingLabel('')).toBe('标准')
+    expect(findThinkingLabel('hyper')).toBe('标准')
+    expect(findThinkingLabel('high')).toBe('深入')
+  })
+
+  it('草稿默认标准；读到什么写回什么', function () {
+    expect(createDraft(OWNER.CLIENT).thinking).toBe('medium')
+    expect(toDraft(task({ thinking: 'max' })).thinking).toBe('max')
+    expect(
+      toSaveInput({ ...createDraft(OWNER.CLIENT), name: '日报', prompt: '写日报' }).thinking
+    ).toBe('medium')
   })
 })

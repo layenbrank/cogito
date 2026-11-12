@@ -47,6 +47,8 @@ interface ProviderSlice {
   activeProviderPicked: boolean
 
   toReadProviders: () => Promise<AgentProvider[]>
+  /** 确保快照可用后再返回（无界面的执行侧入口，见实现里的注释） */
+  toEnsureProviders: () => Promise<AgentProvider[]>
   toWriteProvider: (values: AgentProvider[]) => Promise<void>
   toUpdateProvider: (values: Partial<AgentProvider>[]) => Promise<void>
   toRemoveProvider: (keys: string[]) => Promise<void>
@@ -138,6 +140,22 @@ const providerSlice: SliceCreator<ProviderSlice> = function (setters, getters) {
         )
         return []
       }
+    },
+
+    /**
+     * 确保 provider 快照就绪。
+     *
+     * 快照目前只由「打开聊天页 / 任务面板 / 模型设置」时 hydrate，可定时任务是在后台
+     * 被唤起的：应用刚启动就补跑到期任务时（catchup），列表还是空的，空列表会被
+     * `prepareTarget` / `findGooseProviderID` 读成「选中的模型供应商已不存在」，
+     * 于是每次到点执行都失败、手动执行却没事。执行侧先走这里，别再指望有人先开页面。
+     *
+     * 已加载但列表为空时也重读一次：上一次读失败同样会把 `providersLoaded` 置真。
+     */
+    async toEnsureProviders() {
+      const state = getters()
+      if (state.providersLoaded && state.providers.length > 0) return state.providers
+      return getters().toReadProviders()
     },
 
     async toWriteProvider(values: AgentProvider[]) {

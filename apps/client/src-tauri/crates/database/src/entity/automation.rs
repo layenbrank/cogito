@@ -54,6 +54,11 @@ pub struct Model {
     /// 绑定的工作区计划文件（相对路径，如 `.cogito/plans/foo.md`）；空 = 不绑定
     #[sea_orm(column_name = "planFilePath")]
     pub planFilePath: Option<String>,
+    /// 执行时的思考强度：off | low | medium（缺省「标准」）| high | max
+    ///
+    /// 与 goose 全局键 `GOOSE_THINKING_EFFORT` 同枚举；只作用于本任务起的会话，
+    /// 不改用户在 composer / 右栏里给同一模型选的档位。
+    pub thinking: String,
     /// cron 表达式（`0 9 * * *`），按 `timezone` 解释
     pub schedule: String,
     pub timezone: String,

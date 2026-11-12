@@ -50,6 +50,12 @@ pub const MODE_AGENT: &str = "agent";
 pub const MODE_PLAN: &str = "plan";
 pub const MODE_GOAL: &str = "goal";
 
+/// 思考强度五档：与 goose 全局键 `GOOSE_THINKING_EFFORT` 的枚举逐字对齐。
+///
+/// 缺省 `medium`（界面上的「标准」）：老任务补列后行为不变，且不默认烧到最高档。
+pub const THINKING_LEVELS: [&str; 5] = ["off", "low", "medium", "high", "max"];
+pub const THINKING_DEFAULT: &str = "medium";
+
 /// 目标轮次允许档（与客户端 `GOAL_BUDGET_OPTIONS` 对齐）
 const GOAL_BUDGET_OPTIONS: [i32; 3] = [3, 6, 12];
 const DEFAULT_GOAL_BUDGET: i32 = 6;
@@ -90,6 +96,8 @@ pub struct AutomationInput {
     pub planThenGoal: Option<bool>,
     /// 绑定的工作区计划文件（相对路径）；空 = 不绑定
     pub planFilePath: Option<String>,
+    /// 执行时的思考强度：off | low | medium（缺省）| high | max
+    pub thinking: Option<String>,
     /// 5 段 crontab（分 时 日 月 周）；带秒的 6–7 段也接受
     pub schedule: String,
     pub timezone: Option<String>,
@@ -276,6 +284,16 @@ impl Service {
                 "不支持的执行模式：{mode}（只有执行 / 计划 / 目标）"
             )));
         }
+        let thinking = input
+            .thinking
+            .map(|value| value.trim().to_lowercase())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| THINKING_DEFAULT.to_string());
+        if !THINKING_LEVELS.contains(&thinking.as_str()) {
+            return Err(Exception::Validation(format!(
+                "不支持的思考强度：{thinking}（只有 off / low / medium / high / max）"
+            )));
+        }
         let goal_budget = input.goalBudget.unwrap_or(DEFAULT_GOAL_BUDGET);
         if !GOAL_BUDGET_OPTIONS.contains(&goal_budget) {
             return Err(Exception::Validation(format!(
@@ -340,6 +358,7 @@ impl Service {
             active.goalBudget = Set(goal_budget);
             active.planThenGoal = Set(plan_then_goal);
             active.planFilePath = Set(plan_file_path);
+            active.thinking = Set(thinking);
             active.schedule = Set(schedule);
             active.timezone = Set(timezone);
             active.enabled = Set(enabled);
@@ -368,6 +387,7 @@ impl Service {
             goalBudget: goal_budget,
             planThenGoal: plan_then_goal,
             planFilePath: plan_file_path,
+            thinking,
             schedule,
             timezone,
             enabled,
@@ -948,6 +968,7 @@ mod tests {
             goalBudget: None,
             planThenGoal: None,
             planFilePath: None,
+            thinking: None,
             schedule: schedule.to_string(),
             timezone: Some("Asia/Shanghai".to_string()),
             enabled: Some(true),
@@ -1430,5 +1451,36 @@ mod tests {
                 .contains("没有被执行"),
             "文案要说清是「没被执行」，而不是「跑完没回写」"
         );
+    }
+
+    #[tokio::test]
+    async fn thinking_defaults_to_medium_and_rejects_unknown_levels() {
+        let db = fresh_db().await;
+        let saved = Service::toSave(db.as_ref(), input("0 9 * * *"))
+            .await
+            .expect("保存成功");
+        assert_eq!(saved.thinking, THINKING_DEFAULT, "没配思考强度时按「标准」");
+
+        // 大小写 / 空白由服务端抹平：契约里只有小写五档
+        let mut loud = input("0 9 * * *");
+        loud.name = "大写档位".to_string();
+        loud.thinking = Some(" High ".to_string());
+        let saved = Service::toSave(db.as_ref(), loud).await.expect("保存成功");
+        assert_eq!(saved.thinking, "high");
+
+        // 认不出的档位直接报错，不静默回落到某一档
+        let mut unknown = input("0 9 * * *");
+        unknown.name = "非法档位".to_string();
+        unknown.thinking = Some("hyper".to_string());
+        match Service::toSave(db.as_ref(), unknown).await {
+            Err(Exception::Validation(message)) => {
+                assert!(
+                    message.contains("思考强度"),
+                    "报错要点名是哪一项：{message}"
+                )
+            }
+            Err(other) => panic!("应是校验错误，实际：{other:?}"),
+            Ok(_) => panic!("非法思考强度不该保存成功"),
+        }
     }
 }

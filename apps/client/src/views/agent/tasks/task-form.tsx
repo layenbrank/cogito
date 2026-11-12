@@ -31,6 +31,8 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { GOAL_BUDGET_OPTIONS } from '@/features/agent/goal-run'
+import { THINKING_OPTIONS } from '@/features/agent/model/model-prefs'
+import type { ThinkingLevel } from '@/features/persist'
 import { listPickableSessions, type PickableSession } from '@/features/automation/session-picker'
 import { parseModels } from '@/features/agent/model/providers'
 import { listPlanFiles, type PlanFileEntry } from '@/features/agent/plan-file'
@@ -77,6 +79,14 @@ const APPROVAL_OPTIONS = [
   { value: 'readonly', label: '只读' },
   { value: 'auto', label: '自动批准' }
 ] as const
+
+/** 档位说明与选择器同一份文案（`THINKING_OPTIONS`），避免两处各写一遍 */
+function findThinkingHint(level: ThinkingLevel): string {
+  const found = THINKING_OPTIONS.find(function (option) {
+    return option.value === level
+  })
+  return found?.hint ?? '日常默认，速度与质量兼顾'
+}
 
 function TaskForm(props: TaskFormProps) {
   const [draft, updateDraft] = useState<TaskDraft>(props.draft)
@@ -140,7 +150,9 @@ function TaskForm(props: TaskFormProps) {
     return owned[0]?.path ?? ''
   }
 
-  // 候选对话每次打开表单现读一次：会话可能刚被删，拿旧列表会绑到空气上
+  // 候选对话每次打开表单 / 换工作区时现读一次：会话可能刚被删，拿旧列表会绑到空气上。
+  // 列表按**任务的工作区**过滤：绑上别的工作区的对话，执行时会按那条对话自己的目录跑，
+  // 用户以为自己选了项目 A、实际动的是项目 B。
   useEffect(
     function () {
       if (isExecConfigLocked) {
@@ -148,7 +160,7 @@ function TaskForm(props: TaskFormProps) {
         return
       }
       let cancelled = false
-      void listPickableSessions()
+      void listPickableSessions(draft.workspaceId)
         .then(function (rows) {
           if (!cancelled) updateSessions(rows)
         })
@@ -159,7 +171,7 @@ function TaskForm(props: TaskFormProps) {
         cancelled = true
       }
     },
-    [isExecConfigLocked]
+    [isExecConfigLocked, draft.workspaceId]
   )
 
   useEffect(
@@ -261,7 +273,10 @@ function TaskForm(props: TaskFormProps) {
       return item.id === draft.sessionId
     })
   ) {
-    sessionItems.push({ value: draft.sessionId, label: '原对话已不存在' })
+    sessionItems.push({
+      value: draft.sessionId,
+      label: draft.workspaceId ? '原对话不在当前工作区' : '原对话已不存在'
+    })
   }
   const knowledgeItems = [
     { value: 'none', label: '不关联知识库' },
@@ -468,11 +483,12 @@ function TaskForm(props: TaskFormProps) {
               disabled={isExecConfigLocked}
               onValueChange={function (value) {
                 if (typeof value !== 'string') return
-                // 换工作区：目录与已绑计划都跟着作废，避免旧路径挂到新工作区下
+                // 换工作区：目录、已绑计划、已绑对话都跟着作废 —— 它们都属于旧工作区
                 patch({
                   workspaceId: value === 'none' ? null : value,
                   workspacePath: null,
-                  planFilePath: null
+                  planFilePath: null,
+                  sessionId: null
                 })
               }}>
               <SelectTrigger>
@@ -584,6 +600,8 @@ function TaskForm(props: TaskFormProps) {
               <Select
                 items={sessionItems}
                 value={draft.sessionId ?? 'none'}
+                // 对话按工作区过滤：没选工作区就先别让人绑，避免绑到别的项目里
+                disabled={!draft.workspaceId}
                 onValueChange={function (value) {
                   if (typeof value !== 'string') return
                   patch({ sessionId: value === 'none' ? null : value })
@@ -604,7 +622,11 @@ function TaskForm(props: TaskFormProps) {
                 </SelectContent>
               </Select>
               <p className={styles.fieldHint}>
-                工作目录以这个对话自己的工作区为准；上面的「工作区 / 目录」只对新建会话生效。
+                {!draft.workspaceId
+                  ? '先选工作区，才能绑定对话（列表按工作区过滤）'
+                  : draft.sessionId
+                    ? '这个对话与任务在同一工作区；执行按它自己的工作目录读写。'
+                    : '只列当前工作区里的对话；跨工作区的对话会按它自己的目录执行，已不允许。'}
               </p>
             </div>
           ) : null}
@@ -804,6 +826,33 @@ function TaskForm(props: TaskFormProps) {
                   </div>
                 </div>
               ) : null}
+
+              {/* 思考强度：只作用于本任务起的会话；不动用户对该模型的日常偏好 */}
+              <div className={styles.fieldGroup}>
+                <span className={styles.fieldLabel}>思考强度</span>
+                <div
+                  className={styles.segmented}
+                  role="group"
+                  aria-label="思考强度">
+                  {THINKING_OPTIONS.map(function (option) {
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        aria-pressed={draft.thinking === option.value}
+                        className={styles.segment}
+                        onClick={function () {
+                          patch({ thinking: option.value })
+                        }}>
+                        {option.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className={styles.fieldHint}>
+                  {findThinkingHint(draft.thinking)}；只影响这次执行，不改变你对该模型的默认设置
+                </p>
+              </div>
             </>
           ) : null}
 

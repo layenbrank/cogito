@@ -1258,6 +1258,7 @@ impl MigrationTrait for Migration {
                  \"goalBudget\" INTEGER NOT NULL DEFAULT 6, \
                  \"planThenGoal\" INTEGER NOT NULL DEFAULT 0, \
                  \"planFilePath\" TEXT NULL, \
+                 thinking TEXT NOT NULL DEFAULT 'medium', \
                  schedule TEXT NOT NULL, \
                  timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai', \
                  enabled INTEGER NOT NULL DEFAULT 1, \

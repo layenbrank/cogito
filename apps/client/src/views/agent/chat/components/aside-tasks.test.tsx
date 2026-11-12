@@ -170,6 +170,7 @@ function makeTask(partial: Partial<Automation>): Automation {
     goalBudget: 6,
     planThenGoal: false,
     planFilePath: null,
+    thinking: 'medium',
     schedule: '0 9 * * *',
     timezone: 'Asia/Shanghai',
     enabled: true,

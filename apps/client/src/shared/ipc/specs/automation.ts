@@ -24,6 +24,11 @@ const AutomationModeSchema = z.enum(['agent', 'plan', 'goal'])
 /** 会话绑定：每次新建 / 固定写进某个对话 / 执行前由用户挑 */
 const AutomationSessionModeSchema = z.enum(['new', 'fixed', 'ask'])
 const GoalBudgetSchema = z.union([z.literal(3), z.literal(6), z.literal(12)])
+/**
+ * 思考强度：与 `ThinkingLevel`（`features/persist/types.ts`）同一套五档，
+ * 与 goose 全局键 `GOOSE_THINKING_EFFORT` 的枚举逐字对齐（`off/low/medium/high/max`）。
+ */
+const AutomationThinkingSchema = z.enum(['off', 'low', 'medium', 'high', 'max'])
 
 const AutomationSchema = z.object({
   id: z.string(),
@@ -52,6 +57,8 @@ const AutomationSchema = z.object({
   planThenGoal: z.boolean().default(false),
   /** 绑定的工作区计划文件（相对路径）；空 = 不绑定 */
   planFilePath: z.string().nullish(),
+  /** 执行时的思考强度：off / low / medium（默认「标准」）/ high / max */
+  thinking: AutomationThinkingSchema.default('medium'),
   /** 5 段 crontab（分 时 日 月 周） */
   schedule: z.string(),
   timezone: z.string(),
@@ -108,6 +115,8 @@ const AutomationSaveSchema = z
     modelId: z.string().nullish(),
     mode: AutomationModeSchema.optional(),
     goalBudget: GoalBudgetSchema.optional(),
+    /** 执行时的思考强度；缺省「标准」 */
+    thinking: AutomationThinkingSchema.optional(),
     planThenGoal: z.boolean().optional(),
     planFilePath: z.string().nullish(),
     schedule: z.string().min(1),
@@ -189,6 +198,8 @@ const AutomationDueSchema = z.object({
   workspacePath: z.string().nullish(),
   /** 会话绑定：new | fixed | ask；空 = 每次新建 */
   sessionMode: AutomationSessionModeSchema.nullish(),
+  /** 执行时的思考强度；空 = 按「标准」跑 */
+  thinking: AutomationThinkingSchema.nullish(),
   /** 绑定的会话 id；fixed 时有值 */
   sessionId: z.string().nullish(),
   approval: z.string(),
@@ -222,12 +233,14 @@ type PatchRun = z.infer<typeof PatchRunSchema>
 type AutomationMode = z.infer<typeof AutomationModeSchema>
 type AutomationSessionMode = z.infer<typeof AutomationSessionModeSchema>
 type GoalBudget = z.infer<typeof GoalBudgetSchema>
+type AutomationThinking = z.infer<typeof AutomationThinkingSchema>
 
 export {
   AutomationDueSchema,
   AutomationModeSchema,
   AutomationSessionModeSchema,
   AutomationOwnerSchema,
+  AutomationThinkingSchema,
   AutomationRunAsSchema,
   AutomationRunSchema,
   AutomationSaveSchema,
@@ -244,6 +257,7 @@ export type {
   AutomationRun,
   AutomationSave,
   AutomationSessionMode,
+  AutomationThinking,
   FinishRun,
   GoalBudget,
   PatchRun
